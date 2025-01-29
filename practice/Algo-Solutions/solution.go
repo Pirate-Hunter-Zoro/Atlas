@@ -19,7 +19,7 @@ Return the minimum number of moves that you need to determine with certainty wha
 Inpsiration:
 https://brilliant.org/wiki/egg-dropping/
 */
-func SuperEggDrop(n int, k int) int {
+func superEggDrop(n int, k int) int {
     // We need to be able to cover n floors...
 	// How many drops will it take to cover k floors with n eggs? Binary search...
 	left := 1
@@ -49,4 +49,18 @@ func SuperEggDrop(n int, k int) int {
 	}
 
 	return left
+}
+
+/*
+Given an array of integers heights representing the histogram's bar height where the width of each bar is 1, return the area of the largest rectangle in the histogram.
+*/
+func largestRectangleArea(heights []int) int {
+    return 0
+}
+
+/*
+Given a rows x cols binary matrix filled with 0's and 1's, find the largest rectangle containing only 1's and return its area.
+*/
+func maximalRectangle(matrix [][]byte) int {
+    return 0
 }

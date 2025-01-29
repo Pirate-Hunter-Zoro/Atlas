@@ -31,7 +31,49 @@ func TestSuperEggDrop(t *testing.T) {
 	}
 
 	f := func(i input) int {
-		return SuperEggDrop(i.n, i.k)
+		return superEggDrop(i.n, i.k)
+	}
+
+	testHelper(t, f, inputs, expected_outputs)
+}
+
+func TestLargestRectangleArea(t *testing.T) {
+	type input struct {
+		heights []int
+	}
+	inputs := []input{
+		{heights : []int{2,1,5,6,2,3}},
+		{heights : []int{2,4}},
+	}
+	
+	expected_outputs := []int{
+		10,
+		4,
+	}
+
+	f := func(i input) int {
+		return largestRectangleArea(i.heights)
+	}
+
+	testHelper(t, f, inputs, expected_outputs)
+}
+
+func TestMaximalRectangle(t *testing.T) {
+	type input struct {
+		matrix [][]byte
+	}
+	inputs := []input{
+		{matrix: [][]byte{{'1','0','1','0','0'},{'1','0','1','1','1'},{'1','1','1','1','1'},{'1','0','0','1','0'}}},
+		{matrix: [][]byte{{'0'}}},
+		{matrix: [][]byte{{'1'}}},
+	}
+
+	expected_outputs := []int{
+		6,0,1,
+	}
+
+	f := func(i input) int {
+		return maximalRectangle(i.matrix)
 	}
 
 	testHelper(t, f, inputs, expected_outputs)
