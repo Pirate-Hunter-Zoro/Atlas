@@ -1,6 +1,7 @@
 package leetcode
 
 import (
+	"leet-code/datastructures"
 	"leet-code/helpermath"
 	"math"
 )
@@ -55,12 +56,62 @@ func superEggDrop(n int, k int) int {
 Given an array of integers heights representing the histogram's bar height where the width of each bar is 1, return the area of the largest rectangle in the histogram.
 */
 func largestRectangleArea(heights []int) int {
-    return 0
+	// Answer the question - at this index, what's the farthest right I can go before I run into someone shorter
+	shorter_right := make([]int, len(heights))
+	for i:=0; i<len(shorter_right); i++ {
+		shorter_right[i] = len(heights)
+	}
+	right_stack := datastructures.NewStack[int]()
+	right_stack.Push(0)
+	for i, h := range heights {
+		if i == 0 {
+			continue
+		} else {
+			for !right_stack.Empty() && heights[right_stack.Peek()] > h {
+				shorter_right[right_stack.Pop()] = i
+			}
+			right_stack.Push(i)
+		}
+	}
+	// Now same for left
+	shorter_left := make([]int, len(heights))
+	for i:=0; i<len(shorter_left); i++ {
+		shorter_left[i] = -1
+	}
+	left_stack := datastructures.NewStack[int]()
+	left_stack.Push(len(heights)-1)
+	for i:=len(heights)-2; i>=0; i-- {
+		h := heights[i]
+		for !left_stack.Empty() && heights[left_stack.Peek()] > h {
+			shorter_left[left_stack.Pop()] = i
+		}
+		left_stack.Push(i)
+	}
+
+	record := 0
+	for i, h := range heights {
+		record = max(record, h * (shorter_right[i]-shorter_left[i]-1))
+	}
+	return record
 }
 
 /*
 Given a rows x cols binary matrix filled with 0's and 1's, find the largest rectangle containing only 1's and return its area.
 */
 func maximalRectangle(matrix [][]byte) int {
-    return 0
+	// Keep a running histogram going
+	heights := make([]int, len(matrix[0]))
+	record := 0
+	for _, row := range matrix {
+		for i, c := range row {
+			if c == '1' {
+				heights[i] += 1
+			} else {
+				heights[i] = 0
+			}
+		}
+		record = max(record, largestRectangleArea(heights))
+	}
+
+    return record
 }

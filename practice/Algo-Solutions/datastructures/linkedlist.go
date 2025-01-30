@@ -31,9 +31,17 @@ func (q *Queue[T]) Enqueue(v T){
 		q.tail = q.tail.next
 	}
 }
+func (q *Queue[T]) Empty() bool {
+	return q.head == nil
+}
 
 type Stack[T any] struct {
 	head *node[T]
+}
+func NewStack[T any]() *Stack[T] {
+	return &Stack[T]{
+		head : nil,
+	}
 }
 func (s *Stack[T]) Pop() T {
 	v := s.head.value
@@ -43,7 +51,7 @@ func (s *Stack[T]) Pop() T {
 func (s *Stack[T]) Peek() T {
 	return s.head.value
 }
-func (s *Stack[T]) Enqueue(v T){
+func (s *Stack[T]) Push(v T){
 	if s.head == nil {
 		s.head = &node[T]{value: v}
 	} else {
@@ -51,4 +59,7 @@ func (s *Stack[T]) Enqueue(v T){
 		new_head.next = s.head
 		s.head = new_head
 	}
+}
+func (s *Stack[T]) Empty() bool {
+	return s.head == nil
 }
