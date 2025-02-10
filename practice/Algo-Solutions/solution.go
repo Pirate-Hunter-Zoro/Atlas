@@ -6,6 +6,8 @@ import (
 	"math"
 )
 
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
 /*
 You are given n identical eggs and you have access to a building with k floors labeled from 1 to n.
 
@@ -52,6 +54,8 @@ func superEggDrop(n int, k int) int {
 	return left
 }
 
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
 /*
 Given an array of integers heights representing the histogram's bar height where the width of each bar is 1, return the area of the largest rectangle in the histogram.
 */
@@ -95,6 +99,8 @@ func largestRectangleArea(heights []int) int {
 	return record
 }
 
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
 /*
 Given a rows x cols binary matrix filled with 0's and 1's, find the largest rectangle containing only 1's and return its area.
 */
@@ -116,6 +122,8 @@ func maximalRectangle(matrix [][]byte) int {
     return record
 }
 
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
 /*
 There is a 50 x 50 chessboard with one knight and some pawns on it. 
 You are given two integers kx and ky where (kx, ky) denotes the position of the knight, and a 2D array positions where positions[i] = [xi, yi] denotes the position of the pawns on the chessboard.
@@ -136,20 +144,14 @@ Each move is two cells in a cardinal direction, then one cell in an orthogonal d
 func maxMoves(kx int, ky int, positions [][]int) int {
 	board_size := 50
 
-	// We need a helper function to determine the fewest moves to take a pawn at some position given our starting position, and for that we'll use dynamic programming
-	moves_to_take_sols := make([][][][][][]int, board_size)
+	// We need to store the solutions for the minimum number of moves to reach any position from any other
+	min_hops_to_reach := make([][][][]int, board_size)
 	for i:=0; i<board_size; i++ {
-		moves_to_take_sols[i] = make([][][][][]int, board_size)
+		min_hops_to_reach[i] = make([][][]int, board_size)
 		for j:=0; j<board_size; j++ {
-			moves_to_take_sols[i][j] = make([][][][]int, board_size)
+			min_hops_to_reach[i][j] = make([][]int, board_size)
 			for k:=0; k<board_size; k++ {
-				moves_to_take_sols[i][j][k] = make([][][]int, board_size)
-				for l:=0; l<board_size; l++ {
-					moves_to_take_sols[i][j][k][l] = make([][]int, board_size)
-					for m:=0; m<board_size; m++ {
-						moves_to_take_sols[i][j][k][l][m] = make([]int, board_size)
-					}
-				}
+				min_hops_to_reach[i][j][k] = make([]int, board_size)
 			}
 		}
 	}
@@ -167,11 +169,11 @@ func maxMoves(kx int, ky int, positions [][]int) int {
 	}
 
 	initial_bit_mask := int(math.Pow(2, float64(len(positions)-1))) - 1
-	return maximizer(kx, ky, initial_bit_mask, maximizer_sols, minimizer_sols, positions, moves_to_take_sols)
+	return maximizer(kx, ky, initial_bit_mask, maximizer_sols, minimizer_sols, positions, min_hops_to_reach)
 }
 
 // Helper function to maximize the number of moves to take all the remaining pawns
-func maximizer(x int, y int, positions_bit_mask int, maximizer_sols [][]map[int]int, minimizer_sols [][]map[int]int, positions [][]int, moves_to_take_sols [][][][][][]int) int {
+func maximizer(x int, y int, positions_bit_mask int, maximizer_sols [][]map[int]int, minimizer_sols [][]map[int]int, positions [][]int, min_hops_to_reach [][][][]int) int {
 	_, ok := maximizer_sols[x][y][positions_bit_mask]
 	if !ok {
 		remaining_positions := [][]int{}
@@ -183,14 +185,14 @@ func maximizer(x int, y int, positions_bit_mask int, maximizer_sols [][]map[int]
 		if len(remaining_positions) == 1 {
 			// No choice but to take the remaining pawn
 			pawn_x, pawn_y := remaining_positions[0][0], remaining_positions[0][1]
-			maximizer_sols[x][y][positions_bit_mask] = movesToTake(-1, -1, x, y, pawn_x, pawn_y, moves_to_take_sols)
+			maximizer_sols[x][y][positions_bit_mask] = movesToTake(x, y, pawn_x, pawn_y, min_hops_to_reach)
 		} else {
 			// Try taking every possible first pawn and see what that leaves the minimizer with
 			record := int(math.MinInt)
 			for idx, posn := range(remaining_positions) {
 				pawn_x, pawn_y := posn[0], posn[1]
 				new_bit_mask := (1 << idx) ^ positions_bit_mask
-				record = max(record, movesToTake(-1, -1, x, y, pawn_x, pawn_y, moves_to_take_sols) + minimizer(pawn_x, pawn_y, new_bit_mask, maximizer_sols, minimizer_sols, positions, moves_to_take_sols))
+				record = max(record, movesToTake(x, y, pawn_x, pawn_y, min_hops_to_reach) + minimizer(pawn_x, pawn_y, new_bit_mask, maximizer_sols, minimizer_sols, positions, min_hops_to_reach))
 			}
 			maximizer_sols[x][y][positions_bit_mask] = record
 		}
@@ -199,7 +201,7 @@ func maximizer(x int, y int, positions_bit_mask int, maximizer_sols [][]map[int]
 }
 
 // Helper function to maximize the number of moves to take all the remaining pawns
-func minimizer(x int, y int, positions_bit_mask int, maximizer_sols [][]map[int]int, minimizer_sols [][]map[int]int, positions [][]int, moves_to_take_sols [][][][][][]int) int {
+func minimizer(x int, y int, positions_bit_mask int, maximizer_sols [][]map[int]int, minimizer_sols [][]map[int]int, positions [][]int, min_hops_to_reach [][][][]int) int {
 	_, ok := minimizer_sols[x][y][positions_bit_mask]
 	if !ok {
 		remaining_positions := [][]int{}
@@ -211,14 +213,14 @@ func minimizer(x int, y int, positions_bit_mask int, maximizer_sols [][]map[int]
 		if len(remaining_positions) == 1 {
 			// No choice but to take the remaining pawn
 			pawn_x, pawn_y := remaining_positions[0][0], remaining_positions[0][1]
-			minimizer_sols[x][y][positions_bit_mask] = movesToTake(-1, -1, x, y, pawn_x, pawn_y, moves_to_take_sols)
+			minimizer_sols[x][y][positions_bit_mask] = movesToTake(x, y, pawn_x, pawn_y, min_hops_to_reach)
 		} else {
 			// Try taking every possible first pawn and see what that leaves the minimizer with
 			record := int(math.MaxInt)
 			for idx, posn := range(remaining_positions) {
 				pawn_x, pawn_y := posn[0], posn[1]
 				new_bit_mask := (1 << idx) ^ positions_bit_mask
-				record = min(record, movesToTake(-1, -1, x, y, pawn_x, pawn_y, moves_to_take_sols) + maximizer(pawn_x, pawn_y, new_bit_mask, maximizer_sols, minimizer_sols, positions, moves_to_take_sols))
+				record = min(record, movesToTake(x, y, pawn_x, pawn_y, min_hops_to_reach) + maximizer(pawn_x, pawn_y, new_bit_mask, maximizer_sols, minimizer_sols, positions, min_hops_to_reach))
 			}
 			minimizer_sols[x][y][positions_bit_mask] = record
 		}
@@ -227,85 +229,109 @@ func minimizer(x int, y int, positions_bit_mask int, maximizer_sols [][]map[int]
 }
 
 // Helper function to determine the number of moves necessary to take a pawn at a given position
-func movesToTake(from_knight_x int, from_knight_y int, knight_x int, knight_y int, pawn_x int, pawn_y int, moves_to_take_sols [][][][][][]int) int {
+func movesToTake(knight_x int, knight_y int, pawn_x int, pawn_y int, min_hops_to_reach [][][][]int) int {
 	if knight_x == pawn_x && knight_y == pawn_y {
 		return 0
-	} else if moves_to_take_sols[from_knight_x][from_knight_y][knight_x][knight_y][pawn_x][pawn_y] == 0 {
-		// Need to solve this problem - try all (up to 8) possible moves by the knight and see which one yields the best solution
-		record := int(math.MaxInt)
-		if knight_x > 0 && knight_y > 1{
-			// Try up two, left one
-			new_knight_x := knight_x-1
-			new_knight_y := knight_y-2
-			if (new_knight_x != knight_x) || (new_knight_y != knight_y) {
-				// Not going back to where we came from
-				record = min(record, 1 + movesToTake(knight_x, knight_y, new_knight_x, new_knight_y, pawn_x, pawn_y, moves_to_take_sols))
-			}
+	} else if min_hops_to_reach[knight_x][knight_y][pawn_x][pawn_y] == 0 && min_hops_to_reach[pawn_x][pawn_y][knight_x][knight_y] == 0 {
+		// Need to solve this problem - use BFS
+		// Try all (up to 8) possible moves by the knight and see which one yields the best solution
+		bfs_queue := datastructures.NewQueue[[]int]()
+		bfs_queue.Enqueue([]int{knight_x,knight_y})
+		visited := make([][]bool, len(min_hops_to_reach))
+		for i:=0; i<len(min_hops_to_reach); i++ {
+			visited[i] = make([]bool, len(min_hops_to_reach))
 		}
-		if knight_x < len(moves_to_take_sols)-1 && knight_y > 1{
-			// Try up two, right one
-			new_knight_x := knight_x+1
-			new_knight_y := knight_y-2
-			if (new_knight_x != knight_x) || (new_knight_y != knight_y) {
-				// Not going back to where we came from
-				record = min(record, 1 + movesToTake(knight_x, knight_y, new_knight_x, new_knight_y, pawn_x, pawn_y, moves_to_take_sols))
+		hops := 0
+		found := false
+		for !bfs_queue.Empty() {
+			for i:=0; i<bfs_queue.Size(); i++ {
+				next := bfs_queue.Dequeue()
+				knight_x, knight_y = next[0], next[1]
+				if knight_x == pawn_x && knight_y == pawn_y {
+					found = true
+					break
+				}
+				if !visited[knight_x][knight_y] {
+					visited[knight_x][knight_y] = true
+					if knight_x > 0 && knight_y > 1{
+						// Try up two, left one
+						new_knight_x := knight_x-1
+						new_knight_y := knight_y-2
+						if !visited[new_knight_x][new_knight_y] {
+							bfs_queue.Enqueue([]int{new_knight_x,new_knight_y})
+						}
+					}
+					if knight_x < len(min_hops_to_reach)-1 && knight_y > 1{
+						// Try up two, right one
+						new_knight_x := knight_x+1
+						new_knight_y := knight_y-2
+						if !visited[new_knight_x][new_knight_y] {
+							bfs_queue.Enqueue([]int{new_knight_x,new_knight_y})
+						}
+					}
+					if knight_x > 1 && knight_y > 0{
+						// Try up one, left two
+						new_knight_x := knight_x-2
+						new_knight_y := knight_y-1
+						if !visited[new_knight_x][new_knight_y] {
+							bfs_queue.Enqueue([]int{new_knight_x,new_knight_y})
+						}
+					}
+					if knight_x < len(min_hops_to_reach)-2 && knight_y > 1 {
+						// Try up one, right two
+						new_knight_x := knight_x+2
+						new_knight_y := knight_y-1
+						if !visited[new_knight_x][new_knight_y] {
+							bfs_queue.Enqueue([]int{new_knight_x,new_knight_y})
+						}
+					}
+					if knight_x > 0 && knight_y < len(min_hops_to_reach)-2 {
+						// Try down two, left one
+						new_knight_x := knight_x-1
+						new_knight_y := knight_y+2
+						if !visited[new_knight_x][new_knight_y] {
+							bfs_queue.Enqueue([]int{new_knight_x,new_knight_y})
+						}
+					}
+					if knight_x < len(min_hops_to_reach)-2 && knight_y < len(min_hops_to_reach)-2{
+						// Try down two, right one
+						new_knight_x := knight_x+1
+						new_knight_y := knight_y+2
+						if !visited[new_knight_x][new_knight_y] {
+							bfs_queue.Enqueue([]int{new_knight_x,new_knight_y})
+						}
+					}
+					if knight_x > 1 && knight_y < len(min_hops_to_reach)-1 {
+						// Try down one, left two
+						new_knight_x := knight_x-2
+						new_knight_y := knight_y+1
+						if !visited[new_knight_x][new_knight_y] {
+							bfs_queue.Enqueue([]int{new_knight_x,new_knight_y})
+						}
+					}
+					if knight_x < len(min_hops_to_reach)-1 && knight_y < len(min_hops_to_reach)-1 {
+						// Try down one, right two
+						new_knight_x := knight_x+2
+						new_knight_y := knight_y+1
+						if !visited[new_knight_x][new_knight_y] {
+							bfs_queue.Enqueue([]int{new_knight_x,new_knight_y})
+						}
+					}
+				}
 			}
-		}
-		if knight_x > 1 && knight_y > 0{
-			// Try up one, left two
-			new_knight_x := knight_x-2
-			new_knight_y := knight_y-1
-			if (new_knight_x != knight_x) || (new_knight_y != knight_y) {
-				// Not going back to where we came from
-				record = min(record, 1 + movesToTake(knight_x, knight_y, new_knight_x, new_knight_y, pawn_x, pawn_y, moves_to_take_sols))
+			if found {
+				break
 			}
+			hops++
 		}
-		if knight_x < len(moves_to_take_sols)-2 && knight_y > 1 {
-			// Try up one, right two
-			new_knight_x := knight_x+2
-			new_knight_y := knight_y-1
-			if (new_knight_x != knight_x) || (new_knight_y != knight_y) {
-				// Not going back to where we came from
-				record = min(record, 1 + movesToTake(knight_x, knight_y, new_knight_x, new_knight_y, pawn_x, pawn_y, moves_to_take_sols))
-			}
-		}
-		if knight_x > 0 && knight_y < len(moves_to_take_sols)-2 {
-			// Try down two, left one
-			new_knight_x := knight_x-1
-			new_knight_y := knight_y+2
-			if (new_knight_x != knight_x) || (new_knight_y != knight_y) {
-				// Not going back to where we came from
-				record = min(record, 1 + movesToTake(knight_x, knight_y, new_knight_x, new_knight_y, pawn_x, pawn_y, moves_to_take_sols))
-			}
-		}
-		if knight_x < len(moves_to_take_sols)-2 && knight_y < len(moves_to_take_sols)-2{
-			// Try down two, right one
-			new_knight_x := knight_x+1
-			new_knight_y := knight_y+2
-			if (new_knight_x != knight_x) || (new_knight_y != knight_y) {
-				// Not going back to where we came from
-				record = min(record, 1 + movesToTake(knight_x, knight_y, new_knight_x, new_knight_y, pawn_x, pawn_y, moves_to_take_sols))
-			}
-		}
-		if knight_x > 1 && knight_y < len(moves_to_take_sols)-1 {
-			// Try down one, left two
-			new_knight_x := knight_x-2
-			new_knight_y := knight_y+1
-			if (new_knight_x != knight_x) || (new_knight_y != knight_y) {
-				// Not going back to where we came from
-				record = min(record, 1 + movesToTake(knight_x, knight_y, new_knight_x, new_knight_y, pawn_x, pawn_y, moves_to_take_sols))
-			}
-		}
-		if knight_x < len(moves_to_take_sols)-1 && knight_y < len(moves_to_take_sols)-1 {
-			// Try down one, right two
-			new_knight_x := knight_x+2
-			new_knight_y := knight_y+1
-			if (new_knight_x != knight_x) || (new_knight_y != knight_y) {
-				// Not going back to where we came from
-				record = min(record, 1 + movesToTake(knight_x, knight_y, new_knight_x, new_knight_y, pawn_x, pawn_y, moves_to_take_sols))
-			}
-		}
-		moves_to_take_sols[from_knight_x][from_knight_y][knight_x][knight_y][pawn_x][pawn_y] = record
-	} 
-	return moves_to_take_sols[from_knight_x][from_knight_y][knight_x][knight_y][pawn_x][pawn_y]
+		min_hops_to_reach[knight_x][knight_y][pawn_x][pawn_y] = hops
+	} else {
+		sol := max(min_hops_to_reach[knight_x][knight_y][pawn_x][pawn_y], min_hops_to_reach[pawn_x][pawn_y][knight_x][knight_y])
+		min_hops_to_reach[knight_x][knight_y][pawn_x][pawn_y] = sol
+		min_hops_to_reach[pawn_x][pawn_y][knight_x][knight_y] = sol
+	}
+	return min_hops_to_reach[knight_x][knight_y][pawn_x][pawn_y]
 }
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
