@@ -115,3 +115,109 @@ func maximalRectangle(matrix [][]byte) int {
 
     return record
 }
+
+/*
+There is a 50 x 50 chessboard with one knight and some pawns on it. 
+You are given two integers kx and ky where (kx, ky) denotes the position of the knight, and a 2D array positions where positions[i] = [xi, yi] denotes the position of the pawns on the chessboard.
+
+Alice and Bob play a turn-based game, where Alice goes first. 
+In each player's turn:
+- The player selects a pawn that still exists on the board and captures it with the knight in the fewest possible moves. 
+  Note that the player can select any pawn, it might not be one that can be captured in the least number of moves.
+- In the process of capturing the selected pawn, the knight may pass other pawns without capturing them. 
+  Only the selected pawn can be captured in this turn.
+- Alice is trying to maximize the sum of the number of moves made by both players until there are no more pawns on the board, whereas Bob tries to minimize them.
+
+Return the maximum total number of moves made during the game that Alice can achieve, assuming both players play optimally.
+
+Note that in one move, a chess knight has eight possible positions it can move to, as illustrated below. 
+Each move is two cells in a cardinal direction, then one cell in an orthogonal direction.
+*/
+func maxMoves(kx int, ky int, positions [][]int) int {
+	// We need a helper function to determine the fewest moves to take a pawn at some position given our starting position
+	board_size := 50
+	moves_to_take_sols := make([][][][]int, board_size)
+	for i:=0; i<board_size; i++ {
+		moves_to_take_sols[i] = make([][][]int, board_size)
+		for j:=0; j<board_size; j++ {
+			moves_to_take_sols[i][j] = make([][]int, board_size)
+			for k:=0; k<board_size; k++ {
+				moves_to_take_sols[i][j][k] = make([]int, board_size)
+			}
+		}
+	}
+
+	// movesToTake, maximizer, minimizer
+	helper_functions := make([]any, 3)
+
+	// Helper function to determine the number of moves necessary to take a pawn at a given position
+	movesToTake := func(knight_x int, knight_y int, pawn_x int, pawn_y int) int {
+		if knight_x == pawn_x && knight_y == pawn_y {
+			return 0
+		} else if moves_to_take_sols[knight_x][knight_y][pawn_x][pawn_y] == 0 {
+			// Need to solve this problem - try all (up to 8) possible moves by the knight and see which one yields the best solution
+			record := int(math.MaxInt)
+			if knight_x > 0 && knight_y > 1{
+				// Try up two, left one
+
+			}
+			moves_to_take_sols[knight_x][knight_y][pawn_x][pawn_y] = record
+		} 
+		return moves_to_take_sols[knight_x][knight_y][pawn_x][pawn_y]
+	}
+
+	// Using bit-masking, we will remember the solutions for the minimizer and maximizer given the remaining positions
+	maximizer_sols := make([][]map[int]int, board_size)
+	minimizer_sols := make([][]map[int]int, board_size)
+	for i:=0; i<board_size; i++ {
+		maximizer_sols[i] = make([]map[int]int, board_size)
+		minimizer_sols[i] = make([]map[int]int, board_size)
+		for j:=0; j<board_size; j++ {
+			maximizer_sols[i][j] = make(map[int]int)
+			minimizer_sols[i][j] = make(map[int]int)
+		}
+	}
+
+	// We need a recursive helper for Alice, the maximizer
+	maximizer := func(x int, y int, positions_bit_mask int) int {
+		_, ok := maximizer_sols[x][y][positions_bit_mask]
+		if !ok {
+			remaining_positions := [][]int{}
+			for i:=0; i<len(positions); i++ {
+				if (1 << i & positions_bit_mask) > 0 {
+					remaining_positions = append(remaining_positions, positions[i])
+				}
+			}
+			if len(remaining_positions) == 1 {
+				// No choice but to take the remaining pawn
+				pawn_x, pawn_y := remaining_positions[0], remaining_positions[1]
+				maximizer_sols[x][y][positions_bit_mask] = movesToTake(x, y, pawn_x, pawn_y)
+			} else {
+				// Try taking every possible first pawn and see what that leaves the minimizer with
+				record := int(math.MinInt)
+				for idx, posn := range(remaining_positions) {
+					pawn_x, pawn_y := posn[0], posn[1]
+					new_bit_mask := (1 << idx) ^ positions_bit_mask
+					_, opponent_func := (func(x int, y int, positions_bit_mask int) int)helper_functions[2] 
+					record = max(record, movesToTake(x, y, pawn_x, pawn_y) + helper_functions[2]())
+				}
+				maximizer_sols[x][y][positions_bit_mask] = record
+			}
+		}
+		return maximizer_sols[x][y][positions_bit_mask]
+	}
+	// We need a recursive helper for Bob, the minimizer
+	minimizer := func(x int, y int, positions_bit_mask int) int {
+		_, ok := minimizer_sols[x][y][positions_bit_mask]
+		if !ok {
+			if len(positions) == 1 {
+				// No choice but to take the remaining pawn
+			} else {
+				// Try taking every possible first pawn and see what that leaves the maximizer with
+			}
+		}
+		return minimizer_sols[x][y][positions_bit_mask]
+	}
+	initial_bit_mask := int(math.Pow(2, float64(len(positions)-1))) - 1
+	return maximizer(kx, ky, initial_bit_mask)
+}
