@@ -134,36 +134,24 @@ Note that in one move, a chess knight has eight possible positions it can move t
 Each move is two cells in a cardinal direction, then one cell in an orthogonal direction.
 */
 func maxMoves(kx int, ky int, positions [][]int) int {
-	// We need a helper function to determine the fewest moves to take a pawn at some position given our starting position
 	board_size := 50
-	moves_to_take_sols := make([][][][]int, board_size)
+
+	// We need a helper function to determine the fewest moves to take a pawn at some position given our starting position, and for that we'll use dynamic programming
+	moves_to_take_sols := make([][][][][][]int, board_size)
 	for i:=0; i<board_size; i++ {
-		moves_to_take_sols[i] = make([][][]int, board_size)
+		moves_to_take_sols[i] = make([][][][][]int, board_size)
 		for j:=0; j<board_size; j++ {
-			moves_to_take_sols[i][j] = make([][]int, board_size)
+			moves_to_take_sols[i][j] = make([][][][]int, board_size)
 			for k:=0; k<board_size; k++ {
-				moves_to_take_sols[i][j][k] = make([]int, board_size)
+				moves_to_take_sols[i][j][k] = make([][][]int, board_size)
+				for l:=0; l<board_size; l++ {
+					moves_to_take_sols[i][j][k][l] = make([][]int, board_size)
+					for m:=0; m<board_size; m++ {
+						moves_to_take_sols[i][j][k][l][m] = make([]int, board_size)
+					}
+				}
 			}
 		}
-	}
-
-	// movesToTake, maximizer, minimizer
-	helper_functions := make([]any, 3)
-
-	// Helper function to determine the number of moves necessary to take a pawn at a given position
-	movesToTake := func(knight_x int, knight_y int, pawn_x int, pawn_y int) int {
-		if knight_x == pawn_x && knight_y == pawn_y {
-			return 0
-		} else if moves_to_take_sols[knight_x][knight_y][pawn_x][pawn_y] == 0 {
-			// Need to solve this problem - try all (up to 8) possible moves by the knight and see which one yields the best solution
-			record := int(math.MaxInt)
-			if knight_x > 0 && knight_y > 1{
-				// Try up two, left one
-
-			}
-			moves_to_take_sols[knight_x][knight_y][pawn_x][pawn_y] = record
-		} 
-		return moves_to_take_sols[knight_x][knight_y][pawn_x][pawn_y]
 	}
 
 	// Using bit-masking, we will remember the solutions for the minimizer and maximizer given the remaining positions
@@ -178,46 +166,146 @@ func maxMoves(kx int, ky int, positions [][]int) int {
 		}
 	}
 
-	// We need a recursive helper for Alice, the maximizer
-	maximizer := func(x int, y int, positions_bit_mask int) int {
-		_, ok := maximizer_sols[x][y][positions_bit_mask]
-		if !ok {
-			remaining_positions := [][]int{}
-			for i:=0; i<len(positions); i++ {
-				if (1 << i & positions_bit_mask) > 0 {
-					remaining_positions = append(remaining_positions, positions[i])
-				}
-			}
-			if len(remaining_positions) == 1 {
-				// No choice but to take the remaining pawn
-				pawn_x, pawn_y := remaining_positions[0], remaining_positions[1]
-				maximizer_sols[x][y][positions_bit_mask] = movesToTake(x, y, pawn_x, pawn_y)
-			} else {
-				// Try taking every possible first pawn and see what that leaves the minimizer with
-				record := int(math.MinInt)
-				for idx, posn := range(remaining_positions) {
-					pawn_x, pawn_y := posn[0], posn[1]
-					new_bit_mask := (1 << idx) ^ positions_bit_mask
-					_, opponent_func := (func(x int, y int, positions_bit_mask int) int)helper_functions[2] 
-					record = max(record, movesToTake(x, y, pawn_x, pawn_y) + helper_functions[2]())
-				}
-				maximizer_sols[x][y][positions_bit_mask] = record
-			}
-		}
-		return maximizer_sols[x][y][positions_bit_mask]
-	}
-	// We need a recursive helper for Bob, the minimizer
-	minimizer := func(x int, y int, positions_bit_mask int) int {
-		_, ok := minimizer_sols[x][y][positions_bit_mask]
-		if !ok {
-			if len(positions) == 1 {
-				// No choice but to take the remaining pawn
-			} else {
-				// Try taking every possible first pawn and see what that leaves the maximizer with
-			}
-		}
-		return minimizer_sols[x][y][positions_bit_mask]
-	}
 	initial_bit_mask := int(math.Pow(2, float64(len(positions)-1))) - 1
-	return maximizer(kx, ky, initial_bit_mask)
+	return maximizer(kx, ky, initial_bit_mask, maximizer_sols, minimizer_sols, positions, moves_to_take_sols)
+}
+
+// Helper function to maximize the number of moves to take all the remaining pawns
+func maximizer(x int, y int, positions_bit_mask int, maximizer_sols [][]map[int]int, minimizer_sols [][]map[int]int, positions [][]int, moves_to_take_sols [][][][][][]int) int {
+	_, ok := maximizer_sols[x][y][positions_bit_mask]
+	if !ok {
+		remaining_positions := [][]int{}
+		for i:=0; i<len(positions); i++ {
+			if (1 << i & positions_bit_mask) > 0 {
+				remaining_positions = append(remaining_positions, positions[i])
+			}
+		}
+		if len(remaining_positions) == 1 {
+			// No choice but to take the remaining pawn
+			pawn_x, pawn_y := remaining_positions[0][0], remaining_positions[0][1]
+			maximizer_sols[x][y][positions_bit_mask] = movesToTake(-1, -1, x, y, pawn_x, pawn_y, moves_to_take_sols)
+		} else {
+			// Try taking every possible first pawn and see what that leaves the minimizer with
+			record := int(math.MinInt)
+			for idx, posn := range(remaining_positions) {
+				pawn_x, pawn_y := posn[0], posn[1]
+				new_bit_mask := (1 << idx) ^ positions_bit_mask
+				record = max(record, movesToTake(-1, -1, x, y, pawn_x, pawn_y, moves_to_take_sols) + minimizer(pawn_x, pawn_y, new_bit_mask, maximizer_sols, minimizer_sols, positions, moves_to_take_sols))
+			}
+			maximizer_sols[x][y][positions_bit_mask] = record
+		}
+	}
+	return maximizer_sols[x][y][positions_bit_mask]
+}
+
+// Helper function to maximize the number of moves to take all the remaining pawns
+func minimizer(x int, y int, positions_bit_mask int, maximizer_sols [][]map[int]int, minimizer_sols [][]map[int]int, positions [][]int, moves_to_take_sols [][][][][][]int) int {
+	_, ok := minimizer_sols[x][y][positions_bit_mask]
+	if !ok {
+		remaining_positions := [][]int{}
+		for i:=0; i<len(positions); i++ {
+			if (1 << i & positions_bit_mask) > 0 {
+				remaining_positions = append(remaining_positions, positions[i])
+			}
+		}
+		if len(remaining_positions) == 1 {
+			// No choice but to take the remaining pawn
+			pawn_x, pawn_y := remaining_positions[0][0], remaining_positions[0][1]
+			minimizer_sols[x][y][positions_bit_mask] = movesToTake(-1, -1, x, y, pawn_x, pawn_y, moves_to_take_sols)
+		} else {
+			// Try taking every possible first pawn and see what that leaves the minimizer with
+			record := int(math.MaxInt)
+			for idx, posn := range(remaining_positions) {
+				pawn_x, pawn_y := posn[0], posn[1]
+				new_bit_mask := (1 << idx) ^ positions_bit_mask
+				record = min(record, movesToTake(-1, -1, x, y, pawn_x, pawn_y, moves_to_take_sols) + maximizer(pawn_x, pawn_y, new_bit_mask, maximizer_sols, minimizer_sols, positions, moves_to_take_sols))
+			}
+			minimizer_sols[x][y][positions_bit_mask] = record
+		}
+	}
+	return minimizer_sols[x][y][positions_bit_mask]
+}
+
+// Helper function to determine the number of moves necessary to take a pawn at a given position
+func movesToTake(from_knight_x int, from_knight_y int, knight_x int, knight_y int, pawn_x int, pawn_y int, moves_to_take_sols [][][][][][]int) int {
+	if knight_x == pawn_x && knight_y == pawn_y {
+		return 0
+	} else if moves_to_take_sols[from_knight_x][from_knight_y][knight_x][knight_y][pawn_x][pawn_y] == 0 {
+		// Need to solve this problem - try all (up to 8) possible moves by the knight and see which one yields the best solution
+		record := int(math.MaxInt)
+		if knight_x > 0 && knight_y > 1{
+			// Try up two, left one
+			new_knight_x := knight_x-1
+			new_knight_y := knight_y-2
+			if (new_knight_x != knight_x) || (new_knight_y != knight_y) {
+				// Not going back to where we came from
+				record = min(record, 1 + movesToTake(knight_x, knight_y, new_knight_x, new_knight_y, pawn_x, pawn_y, moves_to_take_sols))
+			}
+		}
+		if knight_x < len(moves_to_take_sols)-1 && knight_y > 1{
+			// Try up two, right one
+			new_knight_x := knight_x+1
+			new_knight_y := knight_y-2
+			if (new_knight_x != knight_x) || (new_knight_y != knight_y) {
+				// Not going back to where we came from
+				record = min(record, 1 + movesToTake(knight_x, knight_y, new_knight_x, new_knight_y, pawn_x, pawn_y, moves_to_take_sols))
+			}
+		}
+		if knight_x > 1 && knight_y > 0{
+			// Try up one, left two
+			new_knight_x := knight_x-2
+			new_knight_y := knight_y-1
+			if (new_knight_x != knight_x) || (new_knight_y != knight_y) {
+				// Not going back to where we came from
+				record = min(record, 1 + movesToTake(knight_x, knight_y, new_knight_x, new_knight_y, pawn_x, pawn_y, moves_to_take_sols))
+			}
+		}
+		if knight_x < len(moves_to_take_sols)-2 && knight_y > 1 {
+			// Try up one, right two
+			new_knight_x := knight_x+2
+			new_knight_y := knight_y-1
+			if (new_knight_x != knight_x) || (new_knight_y != knight_y) {
+				// Not going back to where we came from
+				record = min(record, 1 + movesToTake(knight_x, knight_y, new_knight_x, new_knight_y, pawn_x, pawn_y, moves_to_take_sols))
+			}
+		}
+		if knight_x > 0 && knight_y < len(moves_to_take_sols)-2 {
+			// Try down two, left one
+			new_knight_x := knight_x-1
+			new_knight_y := knight_y+2
+			if (new_knight_x != knight_x) || (new_knight_y != knight_y) {
+				// Not going back to where we came from
+				record = min(record, 1 + movesToTake(knight_x, knight_y, new_knight_x, new_knight_y, pawn_x, pawn_y, moves_to_take_sols))
+			}
+		}
+		if knight_x < len(moves_to_take_sols)-2 && knight_y < len(moves_to_take_sols)-2{
+			// Try down two, right one
+			new_knight_x := knight_x+1
+			new_knight_y := knight_y+2
+			if (new_knight_x != knight_x) || (new_knight_y != knight_y) {
+				// Not going back to where we came from
+				record = min(record, 1 + movesToTake(knight_x, knight_y, new_knight_x, new_knight_y, pawn_x, pawn_y, moves_to_take_sols))
+			}
+		}
+		if knight_x > 1 && knight_y < len(moves_to_take_sols)-1 {
+			// Try down one, left two
+			new_knight_x := knight_x-2
+			new_knight_y := knight_y+1
+			if (new_knight_x != knight_x) || (new_knight_y != knight_y) {
+				// Not going back to where we came from
+				record = min(record, 1 + movesToTake(knight_x, knight_y, new_knight_x, new_knight_y, pawn_x, pawn_y, moves_to_take_sols))
+			}
+		}
+		if knight_x < len(moves_to_take_sols)-1 && knight_y < len(moves_to_take_sols)-1 {
+			// Try down one, right two
+			new_knight_x := knight_x+2
+			new_knight_y := knight_y+1
+			if (new_knight_x != knight_x) || (new_knight_y != knight_y) {
+				// Not going back to where we came from
+				record = min(record, 1 + movesToTake(knight_x, knight_y, new_knight_x, new_knight_y, pawn_x, pawn_y, moves_to_take_sols))
+			}
+		}
+		moves_to_take_sols[from_knight_x][from_knight_y][knight_x][knight_y][pawn_x][pawn_y] = record
+	} 
+	return moves_to_take_sols[from_knight_x][from_knight_y][knight_x][knight_y][pawn_x][pawn_y]
 }

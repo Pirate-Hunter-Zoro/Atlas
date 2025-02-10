@@ -78,3 +78,29 @@ func TestMaximalRectangle(t *testing.T) {
 
 	testHelper(t, f, inputs, expected_outputs)
 }
+
+func TestMaxMove(t *testing.T) {
+	type input struct {
+		kx int
+		ky int
+		positions [][]int
+	}
+
+	inputs := []input{
+		{1, 1, [][]int{{0,0}}},
+		{0, 2, [][]int{{1,1},{2,2},{3,3}}},
+		{0, 0, [][]int{{1,2},{2,4}}},
+	}
+
+	expected_outputs := []int{
+		4,
+		8,
+		3,
+	}
+
+	f := func(i input) int {
+		return maxMoves(i.kx, i.ky, i.positions)
+	}
+
+	testHelper(t, f, inputs, expected_outputs)
+}
