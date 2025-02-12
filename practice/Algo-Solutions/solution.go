@@ -143,135 +143,88 @@ Each move is two cells in a cardinal direction, then one cell in an orthogonal d
 */
 func maxMoves(kx int, ky int, positions [][]int) int {
 	board_size := 50
+	positions = append([][]int{{kx,ky}}, positions...)
 
 	// We need to store the solutions for the minimum number of moves to reach any position from any other
-	min_hops_to_reach := make(map[int]map[int]map[int]map[int]int)
+	min_hops_to_reach := make(map[int]map[int]int)
 
-	// Using bit-masking, we will remember the solutions for the minimizer and maximizer given the remaining positions
-	maximizer_sols := make(map[int]map[int]map[int]int)
-	minimizer_sols := make(map[int]map[int]map[int]int)
+	// Using bit-masking, we will remember the solutions for the minimizer and maximizer given the remaining positions and the position we are at
+	solver_sols := make(map[int]map[int]map[bool]int)
 	
-	initial_bit_mask := (1 << len(positions)) - 1
-	return maximizer(kx, ky, initial_bit_mask, maximizer_sols, minimizer_sols, positions, min_hops_to_reach, board_size)
+	initial_bit_mask := (1 << (len(positions)-1)) - 1
+	return takePawnsSolver(0, initial_bit_mask, solver_sols, positions, min_hops_to_reach, board_size, true)
 }
 
 // Helper function to maximize the number of moves to take all the remaining pawns
-func maximizer(x int, y int, positions_bit_mask int, maximizer_sols map[int]map[int]map[int]int, minimizer_sols map[int]map[int]map[int]int, positions [][]int, min_hops_to_reach map[int]map[int]map[int]map[int]int, board_size int) int {
-	_, ok := maximizer_sols[x]
+func takePawnsSolver(start_pawn_idx int, positions_bit_mask int, solver_sols map[int]map[int]map[bool]int, positions [][]int, min_hops_to_reach map[int]map[int]int, board_size int, maximizer bool) int {
+	_, ok := solver_sols[start_pawn_idx]
 	if !ok {
-		maximizer_sols[x] = make(map[int]map[int]int)
+		solver_sols[start_pawn_idx] = make(map[int]map[bool]int)
 	}
-	_, ok = maximizer_sols[x][y]
+	_, ok = solver_sols[start_pawn_idx][positions_bit_mask]
 	if !ok {
-		maximizer_sols[x][y] = make(map[int]int)
+		solver_sols[start_pawn_idx][positions_bit_mask] = make(map[bool]int)
 	}
-	_, ok = maximizer_sols[x][y][positions_bit_mask]
+	_, ok = solver_sols[start_pawn_idx][positions_bit_mask][maximizer]
 	if !ok {
-		remaining_positions := [][]int{}
+		// Need to solve this problem
 		remaining_position_indices := []int{}
 		for i:=0; i<len(positions); i++ {
 			if (1 << i & positions_bit_mask) > 0 {
-				remaining_positions = append(remaining_positions, positions[len(positions)-1-i])
 				remaining_position_indices = append(remaining_position_indices, len(positions)-1-i)
 			}
 		}
-		if len(remaining_positions) == 1 {
+		if len(remaining_position_indices) == 1 {
 			// No choice but to take the remaining pawn
-			pawn_x, pawn_y := remaining_positions[0][0], remaining_positions[0][1]
-			maximizer_sols[x][y][positions_bit_mask] = movesToTake(x, y, pawn_x, pawn_y, min_hops_to_reach, board_size)
+			solver_sols[start_pawn_idx][positions_bit_mask][maximizer] = movesToTake(start_pawn_idx, remaining_position_indices[0], positions, min_hops_to_reach, board_size)
 		} else {
 			// Try taking every possible first pawn and see what that leaves the minimizer with
-			record := int(math.MinInt) / 2
-			for idx, posn := range(remaining_positions) {
-				pawn_x, pawn_y := posn[0], posn[1]
-				posn_idx := remaining_position_indices[idx]
-				new_bit_mask := positions_bit_mask - (1 << (len(positions)-1-posn_idx))
-				record = max(record, movesToTake(x, y, pawn_x, pawn_y, min_hops_to_reach, board_size) + minimizer(pawn_x, pawn_y, new_bit_mask, maximizer_sols, minimizer_sols, positions, min_hops_to_reach, board_size))
+			record := 0
+			if maximizer {
+				record = int(math.MinInt) / 2
+			} else {
+				record = int(math.MaxInt) / 2
 			}
-			maximizer_sols[x][y][positions_bit_mask] = record
+			for _, target_pawn_idx := range(remaining_position_indices) {
+				new_bit_mask := positions_bit_mask - (1 << (len(positions)-1-target_pawn_idx))
+				if maximizer {
+					record = max(record, movesToTake(start_pawn_idx, target_pawn_idx, positions, min_hops_to_reach, board_size) + takePawnsSolver(target_pawn_idx, new_bit_mask, solver_sols, positions, min_hops_to_reach, board_size, !maximizer))
+				} else {
+					record = min(record, movesToTake(start_pawn_idx, target_pawn_idx, positions, min_hops_to_reach, board_size) + takePawnsSolver(target_pawn_idx, new_bit_mask, solver_sols, positions, min_hops_to_reach, board_size, !maximizer))
+				}
+			}
+			solver_sols[start_pawn_idx][positions_bit_mask][maximizer] = record
 		}
 	}
-	return maximizer_sols[x][y][positions_bit_mask]
+	return solver_sols[start_pawn_idx][positions_bit_mask][maximizer]
 }
 
-// Helper function to maximize the number of moves to take all the remaining pawns
-func minimizer(x int, y int, positions_bit_mask int, maximizer_sols map[int]map[int]map[int]int, minimizer_sols map[int]map[int]map[int]int, positions [][]int, min_hops_to_reach map[int]map[int]map[int]map[int]int, board_size int) int {
-	_, ok := minimizer_sols[x]
-	if !ok {
-		minimizer_sols[x] = make(map[int]map[int]int)
-	}
-	_, ok = minimizer_sols[x][y]
-	if !ok {
-		minimizer_sols[x][y] = make(map[int]int)
-	}
-	_, ok = minimizer_sols[x][y][positions_bit_mask]
-	if !ok {
-		remaining_positions := [][]int{}
-		remaining_position_indices := []int{}
-		for i:=0; i<len(positions); i++ {
-			if (1 << i & positions_bit_mask) > 0 {
-				remaining_positions = append(remaining_positions, positions[len(positions)-1-i])
-				remaining_position_indices = append(remaining_position_indices, len(positions)-1-i)
-			}
-		}
-		if len(remaining_positions) == 1 {
-			// No choice but to take the remaining pawn
-			pawn_x, pawn_y := remaining_positions[0][0], remaining_positions[0][1]
-			minimizer_sols[x][y][positions_bit_mask] = movesToTake(x, y, pawn_x, pawn_y, min_hops_to_reach, board_size)
-		} else {
-			// Try taking every possible first pawn and see what that leaves the minimizer with
-			record := int(math.MaxInt) / 2
-			for idx, posn := range(remaining_positions) {
-				pawn_x, pawn_y := posn[0], posn[1]
-				posn_idx := remaining_position_indices[idx]
-				new_bit_mask := positions_bit_mask - (1 << (len(positions)-1-posn_idx))
-				record = min(record, movesToTake(x, y, pawn_x, pawn_y, min_hops_to_reach, board_size) + maximizer(pawn_x, pawn_y, new_bit_mask, maximizer_sols, minimizer_sols, positions, min_hops_to_reach, board_size))
-			}
-			minimizer_sols[x][y][positions_bit_mask] = record
-		}
-	}
-	return minimizer_sols[x][y][positions_bit_mask]
-}
-
-// Helper function to determine the number of moves necessary to take a pawn at a given position
-func movesToTake(knight_x int, knight_y int, pawn_x int, pawn_y int, min_hops_to_reach map[int]map[int]map[int]map[int]int, board_size int) int {
+// Helper function to determine the number of moves necessary to take a pawn at a given position from another pawn position
+func movesToTake(start_pawn_idx int, target_pawn_idx int, pawns [][]int, min_hops_to_reach map[int]map[int]int, board_size int) int {
 	// Make sure the map entries exist both ways
-	_, ok := min_hops_to_reach[knight_x]
+	_, ok := min_hops_to_reach[start_pawn_idx]
 	if !ok {
-		min_hops_to_reach[knight_x] = make(map[int]map[int]map[int]int)
-	}
-	_, ok = min_hops_to_reach[knight_x][knight_y]
-	if !ok {
-		min_hops_to_reach[knight_x][knight_y] = make(map[int]map[int]int)
-	}
-	_, ok = min_hops_to_reach[knight_x][knight_y][pawn_x]
-	if !ok {
-		min_hops_to_reach[knight_x][knight_y][pawn_x] = make(map[int]int)
+		min_hops_to_reach[start_pawn_idx] = make(map[int]int)
 	}
 	
 	// Now go the other way
-	_, ok = min_hops_to_reach[pawn_x]
+	_, ok = min_hops_to_reach[target_pawn_idx]
 	if !ok {
-		min_hops_to_reach[pawn_x] = make(map[int]map[int]map[int]int)
+		min_hops_to_reach[target_pawn_idx] = make(map[int]int)
 	}
-	_, ok = min_hops_to_reach[pawn_x][pawn_y]
+	
+	_, ok = min_hops_to_reach[start_pawn_idx][target_pawn_idx]
 	if !ok {
-		min_hops_to_reach[pawn_x][pawn_y] = make(map[int]map[int]int)
-	}
-	_, ok = min_hops_to_reach[pawn_x][pawn_y][knight_x]
-	if !ok {
-		min_hops_to_reach[pawn_x][pawn_y][knight_x] = make(map[int]int)
-	}
-
-	og_knight_x := knight_x
-	og_knight_y := knight_y
-	_, ok = min_hops_to_reach[knight_x][knight_y][pawn_x][pawn_y]
-	if !ok {
-		_, ok = min_hops_to_reach[pawn_x][pawn_y][knight_x][knight_y]
+		_, ok = min_hops_to_reach[target_pawn_idx][start_pawn_idx]
+		if ok {
+			min_hops_to_reach[start_pawn_idx][target_pawn_idx] = min_hops_to_reach[target_pawn_idx][start_pawn_idx]
+		}
 	}
 	if !ok {
 		// Need to solve this problem - use BFS
 		// Try all (up to 8) possible moves by the knight and see which one yields the best solution
+		knight_x, knight_y := pawns[start_pawn_idx][0], pawns[start_pawn_idx][1]
+		pawn_x, pawn_y := pawns[target_pawn_idx][0], pawns[target_pawn_idx][1]
 		bfs_queue := datastructures.NewQueue[[]int]()
 		bfs_queue.Enqueue([]int{knight_x,knight_y})
 		visited := make([][]bool, board_size)
@@ -315,7 +268,7 @@ func movesToTake(knight_x int, knight_y int, pawn_x int, pawn_y int, min_hops_to
 							bfs_queue.Enqueue([]int{new_knight_x,new_knight_y})
 						}
 					}
-					if knight_x < board_size-2 && knight_y > 1 {
+					if knight_x < board_size-2 && knight_y > 0 {
 						// Try up one, right two
 						new_knight_x := knight_x+2
 						new_knight_y := knight_y-1
@@ -362,10 +315,10 @@ func movesToTake(knight_x int, knight_y int, pawn_x int, pawn_y int, min_hops_to
 			}
 			hops++
 		}
-		min_hops_to_reach[og_knight_x][og_knight_y][pawn_x][pawn_y] = hops
-		min_hops_to_reach[pawn_x][pawn_y][og_knight_x][og_knight_y] = hops
+		min_hops_to_reach[start_pawn_idx][target_pawn_idx] = hops
+		min_hops_to_reach[target_pawn_idx][start_pawn_idx] = hops
 	} 
-	return min_hops_to_reach[og_knight_x][og_knight_y][pawn_x][pawn_y]
+	return min_hops_to_reach[start_pawn_idx][target_pawn_idx]
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
