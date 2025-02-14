@@ -371,3 +371,65 @@ func canFinish(numCourses int, prerequisites [][]int) bool {
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+/*
+Given an input string (s) and a pattern (p), implement wildcard pattern matching with support for '?' and '*' where:
+- '?' Matches any single character.
+- '*' Matches any sequence of characters (including the empty sequence).
+
+The matching should cover the entire input string (not partial).
+*/
+func isMatch(s string, p string) bool {
+	// Get a couple of edge cases out of the way first...
+	if len(p) == 0 {
+		return len(s) == 0
+	} else if len(s) == 0 {
+		for i:=0; i<len(p); i++ {
+			if p[i] != '*' {
+				return false
+			}
+		}
+		return true
+	}
+
+    sols := make([][]bool, len(s)+1)
+	for i:=0; i<=len(s); i++ {
+		sols[i] = make([]bool, len(p)+1)
+	}
+
+	// Empty string matches empty string
+	sols[0][0] = true
+
+	// Across the top row - pertains to only matching the empty string with increasing substring lengths of the pattern
+	for i:=1; i<len(p); i++ {
+		p_idx := i-1
+		sols[0][i] = (p[p_idx] == '*' && sols[0][i-1])
+	}
+	// The left column is all false by default - which it should be except for the 0-0 cell - an empty pattern cannot match a non-empty string
+
+	// Bottom up solution to solve this problem - top to bottom, left to right
+	for i:=1; i<=len(s); i++ {
+		for j:=1; j<=len(p); j++ {
+			s_char := s[i-1]
+			p_char := p[j-1]
+			if s_char == p_char || p_char == '?' {
+				// Must match
+				sols[i][j] = sols[i-1][j-1]
+			} else if p_char == '*' {
+				// Try matching and consuming '*'
+				can_match := sols[i-1][j-1]
+				// Try matching and not consuming '*'
+				can_match = can_match || sols[i-1][j]
+				// Try not matching and consuming '*'
+				can_match = can_match || sols[i][j-1]
+				// Store the result
+				sols[i][j] = can_match
+			}
+		}
+	}
+
+	return sols[len(s)][len(p)]
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+

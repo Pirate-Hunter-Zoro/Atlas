@@ -127,3 +127,29 @@ func TestCanFinish(t *testing.T) {
 
 	testHelper(t, f, inputs, expected_outputs)
 }
+
+func TestIsMatch(t *testing.T) {
+	type input struct {
+		s string
+		p string
+	}
+	inputs := []input{
+		{"aa", "a"},
+		{"aa", "*"},
+		{"cb", "?a"},
+		{"adceb", "*a*b"},
+	}
+
+	expected_outputs := []bool{
+		false,
+		true,
+		false,
+		true,
+	}
+
+	f := func(i input) bool {
+		return isMatch(i.s, i.p)
+	}
+
+	testHelper(t, f, inputs, expected_outputs)
+}
