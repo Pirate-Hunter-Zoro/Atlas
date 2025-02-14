@@ -323,3 +323,51 @@ func movesToTake(start_pawn_idx int, target_pawn_idx int, pawns [][]int, min_hop
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
+/*
+There are a total of numCourses courses you have to take, labeled from 0 to numCourses - 1. You are given an array prerequisites where prerequisites[i] = [ai, bi] indicates that you must take course bi first if you want to take course ai.
+
+For example, the pair [0, 1], indicates that to take course 0 you have to first take course 1.
+Return true if you can finish all courses. Otherwise, return false.
+*/
+func canFinish(numCourses int, prerequisites [][]int) bool {
+    in_degree := make([]int, numCourses)
+	nodes_needed := make([][]int, numCourses) // jagged array
+	for i:=0; i<numCourses; i++ {
+		nodes_needed[i] = []int{}
+	}
+	for _, preq := range(prerequisites) {
+		need := preq[0]
+		needed := preq[1]
+		in_degree[needed]++
+		nodes_needed[need] = append(nodes_needed[need], needed)
+	}
+
+	count_in_degree_0 := 0
+	for i := 0; i<numCourses; i++ {
+		if in_degree[i] == 0 {
+			count_in_degree_0++
+		}
+	}
+
+	node_queue := datastructures.NewQueue[int]()
+	for i, v := range(in_degree) {
+		if v == 0 {
+			node_queue.Enqueue(i)
+		}
+	}
+
+	for !node_queue.Empty() {
+		next := node_queue.Dequeue()
+		for _, neighbor := range(nodes_needed[next]) {
+			in_degree[neighbor]--
+			if in_degree[neighbor] == 0 {
+				count_in_degree_0++
+				node_queue.Enqueue(neighbor)
+			}
+		}
+	}
+
+	return count_in_degree_0 == numCourses
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
