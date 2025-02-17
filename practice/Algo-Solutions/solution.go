@@ -4,6 +4,7 @@ import (
 	"leet-code/datastructures"
 	"leet-code/helpermath"
 	"math"
+	"sort"
 )
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -429,6 +430,118 @@ func isMatch(s string, p string) bool {
 	}
 
 	return sols[len(s)][len(p)]
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+/*
+You are given a string s and an array of strings words. 
+All the strings of words are of the same length.
+
+A concatenated string is a string that exactly contains all the strings of any permutation of words concatenated.
+
+For example, if words = ["ab","cd","ef"], then "abcdef", "abefcd", "cdabef", "cdefab", "efabcd", and "efcdab" are all concatenated strings. 
+"acdbef" is not a concatenated string because it is not the concatenation of any permutation of words.
+Return an array of the starting indices of all the concatenated substrings in s. 
+You can return the answer in any order.
+*/
+func findSubstring(s string, words []string) []int {
+    // Create a map which will serve as keeping track of the count needed of each word
+	word_counts := make(map[string]int)
+	for _, w := range words {
+		count, ok := word_counts[w]
+		if !ok {
+			word_counts[w] = 1
+		} else {
+			word_counts[w] = count + 1
+		}
+	}
+
+	l := len(words[0])
+
+	starts := []int{}
+
+	for j:=0; j<l; j++ {
+		i:=j
+		last_start := i
+		words_seen := 0
+		current_seen := make(map[string][]int)
+		for i<=len(s)-l {
+			word := s[i:i+l]
+			count_needed, ok := word_counts[word]
+			if !ok {
+				// Not part of words at all - we must start over
+				i+=l
+				last_start = i
+				words_seen = 0
+				current_seen = make(map[string][]int)
+			} else {
+				// This is an actual word in our list
+				places_seen, ok := current_seen[word]
+				if !ok {
+					// We have not seen the word yet
+					current_seen[word] = []int{i}
+					words_seen++
+				} else {
+					// We have seen the word
+					if len(places_seen) < count_needed {
+						// We DID need another instance of this word, so keep going
+						current_seen[word] = append(places_seen, i)
+						words_seen++
+					} else {
+						// We did NOT need another instance of this word, so we need to do some removing of previously seen words
+						first_seen_idx := places_seen[0]
+						current_seen[word] = append(places_seen, i)
+						current_seen[word] = current_seen[word][1:]
+						last_start = first_seen_idx + l
+						// All words seen at places before this index need to have those records removed
+						for prev_word, places := range current_seen {
+							// Binary search places for the first index greater than first_seen_idx
+							left := 0
+							right := len(places)
+							for left < right {
+								mid := (left + right) / 2
+								if places[mid] > first_seen_idx {
+									// Try looking left
+									right = mid
+								} else {
+									// Try looking right
+									left = mid+1
+								}
+							}
+							if left >= len(places) {
+								// All occurrences of prev_word no longer count
+								words_seen -= len(places)
+								delete(current_seen, prev_word)
+							} else if left > 0 {
+								// Some occurrences of prev_word no longer count
+								words_seen -= left
+								current_seen[prev_word] = current_seen[prev_word][left:]
+							}
+						}
+					}
+				}
+				i += l
+			}
+			if words_seen == len(words) {
+				// Found a permutation substring - now just get rid of the first word we saw
+				starts = append(starts, last_start)
+				words_seen--
+				first_word := s[last_start:last_start+l]
+				last_start += l
+				if len(current_seen[first_word]) == 1 {
+					delete(current_seen, first_word)
+				} else {
+					current_seen[first_word] = current_seen[first_word][1:]
+				}
+			}
+		}
+	}
+
+	sort.SliceStable(starts, func(i, j int) bool {
+		return starts[i] < starts[j]
+	})
+	return starts
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////

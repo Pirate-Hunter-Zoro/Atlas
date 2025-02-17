@@ -12,6 +12,21 @@ func testHelper[I any, A comparable](t *testing.T, f func(i I) A, inputs []I, ex
 	}
 }
 
+func testHelperForArrayOutput[I any, A comparable](t *testing.T, f func(i I) []A, inputs []I, expected_outputs [][]A) {
+	for idx, input := range inputs {
+		output := f(input)
+		expected_output := expected_outputs[idx]
+		if len(output) != len(expected_output) {
+			t.Fatalf("Error - expected array of size %d but got size %d", len(expected_output), len(output))
+		}
+		for i:=0; i<len(output); i++ {
+			if output[i] != expected_output[i] {
+				t.Fatalf("Error - expected %v but got %v", expected_output[i], output[i])
+			}
+		}
+	}
+}
+
 func TestSuperEggDrop(t *testing.T) {
 	type input struct {
 		n int
@@ -152,4 +167,30 @@ func TestIsMatch(t *testing.T) {
 	}
 
 	testHelper(t, f, inputs, expected_outputs)
+}
+
+func TestFindSubstring(t *testing.T) {
+	type input struct {
+		s string
+		words []string
+	}
+	inputs := []input{
+		{"barfoothefoobarman", []string{"foo","bar"}},
+		{"wordgoodgoodgoodbestword", []string{"word","good","best","word"}},
+		{"barfoofoobarthefoobarman", []string{"bar","foo","the"}},
+		{"aaaaaaaaaaaaaa", []string{"aa","aa"}},
+	}
+
+	expected_outputs := [][]int{
+		{0,9},
+		{},
+		{6,9,12},
+		{0,1,2,3,4,5,6,7,8,9,10},
+	}
+
+	f := func(i input) []int{
+		return findSubstring(i.s, i.words)
+	}
+
+	testHelperForArrayOutput(t, f, inputs, expected_outputs)
 }
