@@ -194,3 +194,26 @@ func TestFindSubstring(t *testing.T) {
 
 	testHelperForArrayOutput(t, f, inputs, expected_outputs)
 }
+
+func TestFirstMissingPositive(t *testing.T) {
+	type input struct {
+		nums []int
+	}
+	inputs := []input{
+		{[]int{1,2,0}},
+		{[]int{3,4,-1,1}},
+		{[]int{7,8,9,11,12}},
+	}
+
+	expected_outputs := []int{
+		3,
+		2,
+		1,
+	}
+
+	f := func(i input) int {
+		return firstMissingPositive(i.nums)
+	}
+
+	testHelper(t, f, inputs, expected_outputs)
+}
