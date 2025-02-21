@@ -1,12 +1,25 @@
 package leetcode
 
-import "testing"
+import (
+	"leet-code/datastructures"
+	"testing"
+)
 
 func testHelper[I any, A comparable](t *testing.T, f func(i I) A, inputs []I, expected_outputs []A) {
 	for idx, input := range inputs {
 		output := f(input)
 		expected_output := expected_outputs[idx]
 		if output != expected_output {
+			t.Fatalf("Error - expected %v but got %v", expected_output, output)
+		}
+	}
+}
+
+func testHelperLinkedList[I any](t *testing.T, f func(i I) *datastructures.ListNode, inputs []I, expected_outputs []*datastructures.ListNode) {
+	for idx, input := range inputs {
+		output := f(input)
+		expected_output := expected_outputs[idx]
+		if !datastructures.ListNodeEquals(output, expected_output) {
 			t.Fatalf("Error - expected %v but got %v", expected_output, output)
 		}
 	}
@@ -216,4 +229,39 @@ func TestFirstMissingPositive(t *testing.T) {
 	}
 
 	testHelper(t, f, inputs, expected_outputs)
+}
+
+func TestMergeKLists(t *testing.T) {
+	type input struct {
+		lists []*datastructures.ListNode
+	}
+	inputs := []input{
+		{
+			[]*datastructures.ListNode{
+				datastructures.NewListNode([]int{1,4,5}),
+				datastructures.NewListNode([]int{1,3,4}),
+				datastructures.NewListNode([]int{2,6}),
+			},
+		},
+		{
+			[]*datastructures.ListNode{},
+		},
+		{
+			[]*datastructures.ListNode{
+				datastructures.NewListNode([]int{}),
+			},
+		},
+	}
+
+	expected_outputs := []*datastructures.ListNode{
+		datastructures.NewListNode([]int{1,1,2,3,4,4,5,6}),
+		nil,
+		nil,
+	}
+
+	f := func(i input) *datastructures.ListNode {
+		return mergeKLists(i.lists)
+	}
+
+	testHelperLinkedList(t, f, inputs, expected_outputs)
 }

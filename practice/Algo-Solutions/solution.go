@@ -588,3 +588,52 @@ func firstMissingPositive(nums []int) int {
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
+/*
+You are given an array of k linked-lists lists, each linked-list is sorted in ascending order.
+
+Merge all the linked-lists into one sorted linked-list and return it.
+*/
+func mergeKLists(lists []*datastructures.ListNode) *datastructures.ListNode {
+    // Check for edge cases
+	non_null := []*datastructures.ListNode{}
+	for _, n := range lists {
+		if n != nil {
+			non_null = append(non_null, n)
+		}
+	}
+	if len(non_null) == 0 {
+		return nil
+	}
+
+	// Now we solve the problem with a heap of list nodes going by their first values
+	f := func(n1 *datastructures.ListNode, n2 *datastructures.ListNode) bool {
+		return n1.Val <= n2.Val
+	}
+	node_heap := datastructures.NewHeap(f)
+	for _, n := range non_null {
+		node_heap.Push(n)
+	}
+
+	// Set up our result to return
+	res := &datastructures.ListNode{
+		Val: node_heap.Peek().Val,
+		Next: nil,
+	}
+	pop := node_heap.Pop()
+	if pop.Next != nil {
+		node_heap.Push(pop.Next)
+	}
+	pop.Next = nil // not strictly necessary but for the sake of organization
+	curr := res
+	for !node_heap.Empty() {
+		pop := node_heap.Pop()
+		if pop.Next != nil {
+			node_heap.Push(pop.Next)
+		}
+		pop.Next = nil
+		curr.Next = pop
+		curr = curr.Next
+	}
+
+	return res
+}
