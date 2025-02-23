@@ -637,3 +637,68 @@ func mergeKLists(lists []*datastructures.ListNode) *datastructures.ListNode {
 
 	return res
 }
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+/*
+Given a string containing just the characters '(' and ')', return the length of the longest valid (well-formed) parentheses substring.
+*/
+func longestValidParentheses(s string) int {
+	// Keep a running stack, and once we run into a ')' that has no preceding '(' to match, our running length has to start over
+	// In the stack, store the position and actual character (as an integer)
+	type char_idx struct {
+		posn int
+		char byte
+	}
+	char_idx_stack := datastructures.NewStack[char_idx]()
+	// Finally keep track of the stretches of the string where we have found a valid substring of parentheses and we'll merge them in the end
+	stretches := [][]int{}
+	for i:=range len(s) {
+		char := s[i]
+		if char == ')' {
+			if !char_idx_stack.Empty() && char_idx_stack.Peek().char == '(' {
+				// preceded by a '('
+				prev_idx := char_idx_stack.Pop().posn
+				if len(stretches) > 0 {
+					j := len(stretches) - 1
+					prev_stretch := stretches[j]
+					for j>=0 && prev_stretch[0] > prev_idx && prev_stretch[1] < i {
+						// wraps around the most recent valid substring of parentheses
+						j--
+						if j >= 0 {
+							prev_stretch = stretches[j]
+						}
+					}
+					if j < len(stretches)-1 {
+						stretches[j+1] = []int{prev_idx,i}
+						stretches = stretches[:j+2]
+					} else {
+						// no previous wraparounds
+						stretches = append(stretches, []int{prev_idx,i})
+					}
+				} else {
+					stretches = append(stretches, []int{prev_idx,i})
+				}
+			}
+		} else {
+			// just push the opening parentheses on the stack
+			char_idx_stack.Push(char_idx{posn: i, char: char})
+		}
+	}
+
+	// Now go through all of our stretches
+	record := 0
+	running_length := 0
+	for i, stretch := range stretches {
+		if i > 0 && stretches[i-1][1] == stretch[0]-1 {
+			// Consecutive to previous stretch
+			running_length += stretch[1] - stretch[0] + 1
+		} else {
+			// Not consecutive to previous stretch so refresh running length
+			running_length = stretch[1] - stretch[0] + 1
+		}
+		record = max(record, running_length)
+	}
+
+    return record
+}

@@ -265,3 +265,30 @@ func TestMergeKLists(t *testing.T) {
 
 	testHelperLinkedList(t, f, inputs, expected_outputs)
 }
+
+func TestLongestValidParentheses(t *testing.T) {
+	type input struct {
+		s string
+	}
+	inputs := []input{
+		{"(()"},
+		{")()())"},
+		{""},
+		{"()(())"},
+		{")(())(()()))("},
+	}
+
+	expected_outputs := []int{
+		2,
+		4,
+		0,
+		6,
+		10,
+	}
+
+	f := func(i input) int {
+		return longestValidParentheses(i.s)
+	}
+
+	testHelper(t, f, inputs, expected_outputs)
+}
