@@ -292,3 +292,27 @@ func TestLongestValidParentheses(t *testing.T) {
 
 	testHelper(t, f, inputs, expected_outputs)
 }
+
+func TestIsScramble(t *testing.T) {
+	type input struct {
+		s1 string
+		s2 string
+	}
+	inputs := []input{
+		{"great","rgeat"},
+		{"abcde", "caebd"},
+		{"a", "a"},
+	}
+
+	expected_outputs := []bool{
+		true,
+		false,
+		true,
+	}
+
+	f := func(i input) bool {
+		return isScramble(i.s1, i.s2)
+	}
+
+	testHelper(t, f, inputs, expected_outputs)
+}
