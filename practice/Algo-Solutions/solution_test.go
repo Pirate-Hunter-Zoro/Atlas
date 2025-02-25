@@ -316,3 +316,27 @@ func TestIsScramble(t *testing.T) {
 
 	testHelper(t, f, inputs, expected_outputs)
 }
+
+func TestNumDistinct(t *testing.T) {
+	type input struct {
+		s string
+		t string
+	}
+	inputs := []input{
+		{"rabbbit", "rabbit"},
+		{"babgbag", "bag"},
+		{"b", "a"},
+	}
+
+	expected_outputs := []int{
+		3,
+		5,
+		0,
+	}
+
+	f := func(i input) int {
+		return numDistinct(i.s, i.t)
+	}
+
+	testHelper(t, f, inputs, expected_outputs)
+}

@@ -752,3 +752,50 @@ func recIsScramble(l string, r string, is_scramble map[string]map[string]bool) b
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
+/*
+Given two strings s and t, return the number of distinct subsequences of s which equals t.
+
+The test cases are generated so that the answer fits on a 32-bit signed integer.
+*/
+func numDistinct(s string, t string) int {
+	// Answer the question - how many different subsequences of s[:i+1] can create t[:j+1]?
+    num_distinct := make([][]int, len(s))
+	for i:=range(len(s)) {
+		num_distinct[i] = make([]int, len(t))
+		for j:=range(min(i+1,len(t))){
+			num_distinct[i][j] = -1
+		}
+	}
+
+	return recNumDistinct(s, t, len(s)-1, len(t)-1, num_distinct)
+}
+
+func recNumDistinct(s string, t string, s_idx int, t_idx int, num_distinct [][]int) int {
+	if num_distinct[s_idx][t_idx] == -1 {
+		// Need to solve this problem
+		num_distinct[s_idx][t_idx] = 0
+		if s_idx >= t_idx {
+			// There is actually a possibility for subsequences to occur
+			if s_idx == 0 && s[s_idx]==t[t_idx] {
+				num_distinct[s_idx][t_idx]++
+			} else if t_idx == 0 && s_idx > 0 {
+				// Then count all the times this single character in t was matched with prior characters in s
+				num_distinct[s_idx][t_idx] += recNumDistinct(s, t, s_idx-1, t_idx, num_distinct)
+				if s[s_idx] == t[t_idx] {
+					num_distinct[s_idx][t_idx]++
+				}
+			} else if s_idx > 0 && t_idx > 0 {
+				// Multiple characters from both substrings
+				if s[s_idx] == t[t_idx] {
+					// Try matching these two characters
+					num_distinct[s_idx][t_idx] += recNumDistinct(s, t, s_idx-1, t_idx-1, num_distinct)
+				}
+				// Try not matching these two characters
+				num_distinct[s_idx][t_idx] += recNumDistinct(s, t, s_idx-1, t_idx, num_distinct)
+			}
+		}
+	}
+	return num_distinct[s_idx][t_idx]
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
