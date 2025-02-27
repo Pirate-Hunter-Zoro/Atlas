@@ -799,3 +799,164 @@ func recNumDistinct(s string, t string, s_idx int, t_idx int, num_distinct [][]i
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+/*
+Given a m * n matrix seats  that represent seats distributions in a classroom. 
+If a seat is broken, it is denoted by '#' character otherwise it is denoted by a '.' character.
+
+Students can see the answers of those sitting next to the left, right, upper left and upper right, but he cannot see the answers of the student sitting directly in front or behind him. 
+Return the maximum number of students that can take the exam together without any cheating being possible.
+
+Students must be placed in seats in good condition.
+*/
+func maxStudents(seats [][]byte) int {
+	// From the hints - run a bit mask depending on the previous row of seats
+	// For each row, we need a bit mask corresponding to the previous row of seats taken
+	// Answer the question - on this row, for this bit mask, what is the maximum number of students that can be sat?
+	sols := make([]map[int]int, len(seats))
+	for i:=0; i<len(seats); i++ {
+		sols[i] = make(map[int]int)
+	}
+	num_seats := len(seats[0])
+
+	// Base case is the front row - where the number of students we can sit is simply the number in the row
+	mask_counts := findBitMasks(seats[0])
+	for _, mask_count := range mask_counts {
+		// Bit mask is first element, count is second element
+		bit_mask := mask_count[0]
+		num_sitting := mask_count[1]
+		sols[0][bit_mask] = num_sitting
+	}
+
+	// Now we go bottom up
+	for i:=1; i<len(sols); i++ {
+		mask_counts := findBitMasks(seats[i])
+		for _, mask_count := range mask_counts {
+			bit_mask := mask_count[0]
+			num_sitting := mask_count[1]
+			sols[i][bit_mask] = 0
+			prev_bit_masks := []int{}
+			for mask := range sols[i-1] {
+				prev_bit_masks = append(prev_bit_masks, mask)
+			}
+			prev_row_bit_masks := filterUnavailableBitMasks(num_seats, bit_mask, prev_bit_masks)
+			for _, prev_bit_mask := range prev_row_bit_masks {
+				sols[i][bit_mask] = max(sols[i][bit_mask], num_sitting + sols[i-1][prev_bit_mask])
+			}
+		}
+	}
+
+	record := 0
+	for _, count := range sols[len(sols)-1] {
+		record = max(record, count)
+	}
+	return record
+}
+
+func findBitMasks(seat_row []byte) [][]int {
+	// Helper method to find all of the available seat bit masks given the row of broken and working seats
+	mask_counts := [][]int{}
+	seat_posns := []int{}
+	for i, b := range seat_row {
+		if b == '.' {
+			seat_posns = append(seat_posns, i)
+		}
+	}
+
+	// Note that we cannot pick consecutive seats
+	// For each (working) seat, going from left to right, consider taking it, and consider not taking it
+	available := make([][][]int, len(seat_posns))
+	if len(seat_posns) > 0 {
+		available[0] = [][]int{{seat_posns[0]},{}}
+		if len(seat_posns) > 1 {
+			if seat_posns[1] == seat_posns[0] + 1 {
+				// First two seats consecutive
+				available[1] = [][]int{{seat_posns[0]},{seat_posns[1]},{}}
+			} else {
+				// First two seats not consecutive so can go together
+				available[1] = [][]int{{seat_posns[0]},{seat_posns[1]},{},{seat_posns[0],seat_posns[1]}}
+			}
+			for i := range(len(seat_posns)-2) {
+				j := i + 2
+				posn := seat_posns[j]
+				prev_posn := seat_posns[j-1]
+				if posn == prev_posn + 1 {
+					// Most previous two seats consecutive
+					available[j] = available[j-1] // Don't pick current posn
+					// Now add all the options where we do pick the current posn
+					for _, picked_set := range available[j-2] {
+						new_set := append(picked_set, posn)
+						available[j] = append(available[j], new_set)
+					}
+				} else {
+					// Most previous two seats not consecutive so can go together
+					available[j] = available[j-1] // Again, don't pick current posn
+					for _, picked_set := range available[j-1] {
+						new_set := append(picked_set, posn)
+						available[j] = append(available[j], new_set)
+					}
+				}
+			}
+		} 
+	} else {
+		// No seats were available
+		available = append(available, [][]int{{}})
+	}
+
+	// Now look at all the possible seat positions we could pick if we allow all the way up to the last seat on the row
+	possible_sets := available[len(available)-1]
+	for _, set := range possible_sets {
+		bit_mask := 0
+		for _, posn := range set {
+			bit_mask += 1 << posn
+		}
+		mask_counts = append(mask_counts, []int{bit_mask,len(set)})
+	}
+
+	return mask_counts
+}
+
+func filterUnavailableBitMasks(num_seats int, bit_mask int, prev_bit_masks []int) []int {
+	// Helper method to remove incompatible previous bit masks from the above row given our current row's bit mask
+	available := []int{}
+	unavailable_spots := []int{}
+	for i:=range(num_seats) {
+		if ((1 << i) & bit_mask > 0) {
+			// This seat is included in the current row bit mask
+			if i > 0 {
+				unavailable_spots = append(unavailable_spots, i-1)
+			}
+			if i < num_seats - 1 {
+				unavailable_spots = append(unavailable_spots, i+1)
+			}
+		}
+	}
+	for _, prev_mask := range prev_bit_masks {
+		for _, unavailable_posn := range unavailable_spots {
+			if (prev_mask & (1 << unavailable_posn) > 0) {
+				// Need to remove this posn
+				prev_mask -= 1 << unavailable_posn
+			}
+		}
+		available = append(available, prev_mask)
+	}
+
+	return available
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+/*
+You are given two groups of points where the first group has size1 points, the second group has size2 points, and size1 >= size2.
+
+The cost of the connection between any two points are given in an size1 x size2 matrix where cost[i][j] is the cost of connecting point i of the first group and point j of the second group. 
+The groups are connected if each point in both groups is connected to one or more points in the opposite group. 
+In other words, each point in the first group must be connected to at least one point in the second group, and each point in the second group must be connected to at least one point in the first group.
+
+Return the minimum cost it takes to connect the two groups.
+*/
+func connectTwoGroups(cost [][]int) int {
+    return 0
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////

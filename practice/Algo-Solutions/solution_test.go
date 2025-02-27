@@ -5,7 +5,7 @@ import (
 	"testing"
 )
 
-func testHelper[I any, A comparable](t *testing.T, f func(i I) A, inputs []I, expected_outputs []A) {
+func runTestHelper[I any, A comparable](t *testing.T, f func(i I) A, inputs []I, expected_outputs []A) {
 	for idx, input := range inputs {
 		output := f(input)
 		expected_output := expected_outputs[idx]
@@ -15,7 +15,7 @@ func testHelper[I any, A comparable](t *testing.T, f func(i I) A, inputs []I, ex
 	}
 }
 
-func testHelperLinkedList[I any](t *testing.T, f func(i I) *datastructures.ListNode, inputs []I, expected_outputs []*datastructures.ListNode) {
+func runTestHelperLinkedList[I any](t *testing.T, f func(i I) *datastructures.ListNode, inputs []I, expected_outputs []*datastructures.ListNode) {
 	for idx, input := range inputs {
 		output := f(input)
 		expected_output := expected_outputs[idx]
@@ -25,7 +25,7 @@ func testHelperLinkedList[I any](t *testing.T, f func(i I) *datastructures.ListN
 	}
 }
 
-func testHelperForArrayOutput[I any, A comparable](t *testing.T, f func(i I) []A, inputs []I, expected_outputs [][]A) {
+func runTestHelperForArrayOutput[I any, A comparable](t *testing.T, f func(i I) []A, inputs []I, expected_outputs [][]A) {
 	for idx, input := range inputs {
 		output := f(input)
 		expected_output := expected_outputs[idx]
@@ -62,7 +62,7 @@ func TestSuperEggDrop(t *testing.T) {
 		return superEggDrop(i.n, i.k)
 	}
 
-	testHelper(t, f, inputs, expected_outputs)
+	runTestHelper(t, f, inputs, expected_outputs)
 }
 
 func TestLargestRectangleArea(t *testing.T) {
@@ -83,7 +83,7 @@ func TestLargestRectangleArea(t *testing.T) {
 		return largestRectangleArea(i.heights)
 	}
 
-	testHelper(t, f, inputs, expected_outputs)
+	runTestHelper(t, f, inputs, expected_outputs)
 }
 
 func TestMaximalRectangle(t *testing.T) {
@@ -104,7 +104,7 @@ func TestMaximalRectangle(t *testing.T) {
 		return maximalRectangle(i.matrix)
 	}
 
-	testHelper(t, f, inputs, expected_outputs)
+	runTestHelper(t, f, inputs, expected_outputs)
 }
 
 func TestMaxMove(t *testing.T) {
@@ -134,7 +134,7 @@ func TestMaxMove(t *testing.T) {
 		return maxMoves(i.kx, i.ky, i.positions)
 	}
 
-	testHelper(t, f, inputs, expected_outputs)
+	runTestHelper(t, f, inputs, expected_outputs)
 }
 
 func TestCanFinish(t *testing.T) {
@@ -153,7 +153,7 @@ func TestCanFinish(t *testing.T) {
 		return canFinish(i.numCourses, i.prerequisites)
 	}
 
-	testHelper(t, f, inputs, expected_outputs)
+	runTestHelper(t, f, inputs, expected_outputs)
 }
 
 func TestIsMatch(t *testing.T) {
@@ -179,7 +179,7 @@ func TestIsMatch(t *testing.T) {
 		return isMatch(i.s, i.p)
 	}
 
-	testHelper(t, f, inputs, expected_outputs)
+	runTestHelper(t, f, inputs, expected_outputs)
 }
 
 func TestFindSubstring(t *testing.T) {
@@ -205,7 +205,7 @@ func TestFindSubstring(t *testing.T) {
 		return findSubstring(i.s, i.words)
 	}
 
-	testHelperForArrayOutput(t, f, inputs, expected_outputs)
+	runTestHelperForArrayOutput(t, f, inputs, expected_outputs)
 }
 
 func TestFirstMissingPositive(t *testing.T) {
@@ -228,7 +228,7 @@ func TestFirstMissingPositive(t *testing.T) {
 		return firstMissingPositive(i.nums)
 	}
 
-	testHelper(t, f, inputs, expected_outputs)
+	runTestHelper(t, f, inputs, expected_outputs)
 }
 
 func TestMergeKLists(t *testing.T) {
@@ -263,7 +263,7 @@ func TestMergeKLists(t *testing.T) {
 		return mergeKLists(i.lists)
 	}
 
-	testHelperLinkedList(t, f, inputs, expected_outputs)
+	runTestHelperLinkedList(t, f, inputs, expected_outputs)
 }
 
 func TestLongestValidParentheses(t *testing.T) {
@@ -290,7 +290,7 @@ func TestLongestValidParentheses(t *testing.T) {
 		return longestValidParentheses(i.s)
 	}
 
-	testHelper(t, f, inputs, expected_outputs)
+	runTestHelper(t, f, inputs, expected_outputs)
 }
 
 func TestIsScramble(t *testing.T) {
@@ -314,7 +314,7 @@ func TestIsScramble(t *testing.T) {
 		return isScramble(i.s1, i.s2)
 	}
 
-	testHelper(t, f, inputs, expected_outputs)
+	runTestHelper(t, f, inputs, expected_outputs)
 }
 
 func TestNumDistinct(t *testing.T) {
@@ -338,5 +338,70 @@ func TestNumDistinct(t *testing.T) {
 		return numDistinct(i.s, i.t)
 	}
 
-	testHelper(t, f, inputs, expected_outputs)
+	runTestHelper(t, f, inputs, expected_outputs)
+}
+
+func TestMaxStudents(t *testing.T) {
+	type input struct {
+		seats [][]byte
+	}
+
+	inputs := []input{
+		{[][]byte{
+			{'#','.','#','#','.','#'},
+            {'.','#','#','#','#','.'},
+            {'#','.','#','#','.','#'},
+		}},
+		{[][]byte{
+			{'.','#'},
+            {'#','#'},
+            {'#','.'},
+			{'#','#'},
+			{'.','#'},
+		}},
+		{[][]byte{
+			{'#','.','.','.','#'},
+			{'.','#','.','#','.'},
+			{'.','.','#','.','.'},
+			{'.','#','.','#','.'},
+			{'#','.','.','.','#'},
+		}},
+	}
+
+	expected_outputs := []int{
+		4,
+		3,
+		10,
+	}
+
+	f := func(i input) int {
+		return maxStudents(i.seats)
+	}
+
+	runTestHelper(t, f, inputs, expected_outputs)
+}
+
+
+func TestConnectTwoGroups(t *testing.T) {
+	type input struct {
+		cost [][]int
+	}
+
+	inputs := []input{
+		{[][]int{{15, 96}, {36, 2}}},
+		{[][]int{{1, 3, 5}, {4, 1, 1}, {1, 5, 3}}},
+		{[][]int{{2, 5, 1}, {3, 4, 7}, {8, 1, 2}, {6, 2, 4}, {3, 8, 8}}},
+	}
+
+	expected_outputs := []int{
+		17,
+		4,
+		10,
+	}
+
+	f := func(i input) int {
+		return connectTwoGroups(i.cost)
+	}
+
+	runTestHelper(t, f, inputs, expected_outputs)
 }
