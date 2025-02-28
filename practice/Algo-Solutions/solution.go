@@ -956,7 +956,55 @@ In other words, each point in the first group must be connected to at least one 
 Return the minimum cost it takes to connect the two groups.
 */
 func connectTwoGroups(cost [][]int) int {
-    return 0
+	// Inspiration: https://leetcode.com/problems/minimum-cost-to-connect-two-groups-of-points/solutions/5854369/beats-100-on-runtime-and-memory-explained/
+    
+	// First find the minimum cost for each node in the right to connect to any node in the left
+	n_left := len(cost)
+	n_right := len(cost[0])
+	min_cost_connect := make([]int, n_right)
+	for i:=range n_right {
+		min_cost_connect[i] = math.MaxInt
+		for j:=range n_left {
+			min_cost_connect[i] = min(min_cost_connect[i], cost[j][i])
+		}
+	}
+
+	// Now we are ready to answer the question, given left nodes 1 through 'k' have been connected, and bit mask 'b' of the right nodes have been connected, what is the minimum cost to complete our connections?
+	sols := make([][]int, n_left+1)
+	for i:=range n_left+1 {
+		sols[i] = make([]int, 1<<n_right)
+		for j:=range 1<<n_right {
+			sols[i][j] = -1
+		}
+	}
+	return recMinConnectTwoGroups(0, 0, sols, min_cost_connect, cost, n_left, n_right)
+}
+
+func recMinConnectTwoGroups(num_left_connected int, bit_mask_right int, sols [][]int, min_cost_connect []int, cost [][]int, n_left int, n_right int) int {
+	if sols[num_left_connected][bit_mask_right] == -1 {
+		// Need to solve this problem
+		if num_left_connected == n_left {
+			// Base case - all the left nodes are connected, so see which right nodes still need to be connected and connect each with their min cost
+			total_cost := 0
+			for i:=range n_right {
+				if (1 << i) & bit_mask_right == 0 {
+					// Node i on the right needs to be connected
+					total_cost += min_cost_connect[i]
+				}
+			}
+			sols[num_left_connected][bit_mask_right] = total_cost
+		} else {
+			// Try connecting the next left node with any node in the right
+			total_cost := math.MaxInt
+			for i:=range n_right {
+				// Try connecting the next left node with Node i on the right
+				new_bit_mask := bit_mask_right | (1 << i)
+				total_cost = min(total_cost, cost[num_left_connected][i] + recMinConnectTwoGroups(num_left_connected+1, new_bit_mask, sols, min_cost_connect, cost, n_left, n_right))
+			}
+			sols[num_left_connected][bit_mask_right] = total_cost
+		}
+	}
+	return sols[num_left_connected][bit_mask_right]
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
