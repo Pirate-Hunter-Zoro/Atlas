@@ -1008,3 +1008,58 @@ func recMinConnectTwoGroups(num_left_connected int, bit_mask_right int, sols [][
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+/*
+Given a string s, partition s such that every substring of the partition is a palindrome.
+
+Return the minimum cuts needed for a palindrome partitioning of s.
+
+Inspiration: https://leetcode.com/problems/palindrome-partitioning-ii/solutions/42213/easiest-java-dp-solution-97-36/
+*/
+func minCut(s string) int {
+	// Denote min_cuts[i] as the minimum number of cuts needed to partition s[0:i+1] into a palindrome
+	min_cuts := make([]int, len(s))
+	for i:=range len(s) {
+		// This is the HIGHEST possible number of cuts we could possibly need
+		min_cuts[i] = i
+	}
+	is_palindrome := make(map[int]map[int]bool)
+	for i:=1; i<len(s); i++ {
+		for j:=0; j<=i; j++ {
+			if topDownIsPalindrome(s, j, i, is_palindrome) {
+				// s[j:i+1] is a palindrome so make that our first partition, then you'd have to partition s[0:j+1]
+				if j == 0 {
+					// s[0:i+1] is a palindrome so no partitioning necessary
+					min_cuts[i] = 0
+				} else {
+					min_cuts[i] = min(min_cuts[i], 1 + min_cuts[j-1])
+				}
+			}
+		}
+	}
+
+	return min_cuts[len(s)-1]
+}
+
+func topDownIsPalindrome(s string, start_idx int, end_idx int, is_palindrome map[int]map[int]bool) bool {
+	_, ok := is_palindrome[start_idx]
+	if !ok {
+		is_palindrome[start_idx] = make(map[int]bool)
+	}
+	_, ok = is_palindrome[start_idx][end_idx]
+	if !ok {
+		// Need to solve this problem
+		if start_idx >= end_idx - 1 {
+			// Length 2 or 1 - base case
+			is_palindrome[start_idx][end_idx] = s[start_idx] == s[end_idx]
+		} else {
+			// Check if ends same and recurse
+			is_palindrome[start_idx][end_idx] = (s[start_idx] == s[end_idx]) && topDownIsPalindrome(s, start_idx+1, end_idx-1, is_palindrome)
+		}
+	}
+
+	return is_palindrome[start_idx][end_idx]
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+

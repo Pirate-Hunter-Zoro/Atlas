@@ -405,3 +405,30 @@ func TestConnectTwoGroups(t *testing.T) {
 
 	runTestHelper(t, f, inputs, expected_outputs)
 }
+
+
+func TestMinCut(t *testing.T) {
+	type input struct {
+		s string
+	}
+
+	inputs := []input{
+		{"aab"},
+		{"a"},
+		{"ab"},
+		{"cabababcbc"},
+	}
+
+	expected_outputs := []int{
+		1,
+		0,
+		1,
+		3,
+	}
+
+	f := func(i input) int {
+		return minCut(i.s)
+	}
+
+	runTestHelper(t, f, inputs, expected_outputs)
+}
