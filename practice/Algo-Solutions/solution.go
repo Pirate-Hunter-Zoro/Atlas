@@ -1063,3 +1063,68 @@ func topDownIsPalindrome(s string, start_idx int, end_idx int, is_palindrome map
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
+/*
+There are n children standing in a line. 
+Each child is assigned a rating value given in the integer array ratings.
+
+You are giving candies to these children subjected to the following requirements:
+- Each child must have at least one candy.
+- Children with a higher rating get more candies than their neighbors.
+
+Return the minimum number of candies you need to have to distribute the candies to the children.
+*/
+func candy(ratings []int) int {
+	if len(ratings) == 1 {
+		return 1
+	} else if len(ratings) == 2 {
+		if ratings[0] != ratings[1] {
+			// Once child gets 1 candy, one child gets 2
+			return 3
+		} else {
+			// Both children get one candy
+			return 2
+		}
+	}
+
+	n := len(ratings)
+	// This is a graph problem
+	graph := make([][]int, n)
+	for i:=range(n) {
+		// Store all children - each neighbor of a node is an adjacent child with a lower rating
+		graph[i] = []int{}
+	}
+	for i:=range(n-1) {
+		idx := i+1
+		left := idx-1
+		// Set up the children hierachy
+		if ratings[idx] > ratings[left] {
+			graph[idx] = append(graph[idx], left)
+		} else if ratings[idx] < ratings[left] {
+			graph[left] = append(graph[left], idx)
+		}
+	}
+
+	candies_needed := make(map[int]int)
+	total := 0
+	for i := range ratings {
+		total += computeNeededCandies(i, candies_needed, graph)
+	}
+	return total
+}
+
+func computeNeededCandies(i int, candies_needed map[int]int, graph [][]int) int {
+	_, ok := candies_needed[i]
+	if !ok {
+		// Need to solve this problem
+		max_child := 0
+		for _, child := range graph[i] {
+			max_child = max(max_child, computeNeededCandies(child, candies_needed, graph))
+		}
+		candies_needed[i] = max_child + 1
+	}
+
+	return candies_needed[i]
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+

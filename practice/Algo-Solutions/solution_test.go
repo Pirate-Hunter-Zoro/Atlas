@@ -432,3 +432,26 @@ func TestMinCut(t *testing.T) {
 
 	runTestHelper(t, f, inputs, expected_outputs)
 }
+
+
+func TestCandy(t *testing.T) {
+	type input struct {
+		ratings []int
+	}
+
+	inputs := []input{
+		{[]int{1,0,2}},
+		{[]int{1,2,2}},
+	}
+
+	expected_outputs := []int{
+		5,
+		4,
+	}
+
+	f := func(i input) int {
+		return candy(i.ratings)
+	}
+
+	runTestHelper(t, f, inputs, expected_outputs)
+}
