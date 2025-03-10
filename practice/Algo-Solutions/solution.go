@@ -5,6 +5,8 @@ import (
 	"leet-code/helpermath"
 	"math"
 	"sort"
+	"strconv"
+	"strings"
 )
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -1124,6 +1126,65 @@ func computeNeededCandies(i int, candies_needed map[int]int, graph [][]int) int 
 	}
 
 	return candies_needed[i]
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+/*
+The set [1, 2, 3, ..., n] contains a total of n! unique permutations.
+
+By listing and labeling all of the permutations in order, we get the following sequence for n = 3:
+"123"
+"132"
+"213"
+"231"
+"312"
+"321"
+
+Given n and k, return the kth permutation sequence.
+
+Link:
+https://leetcode.com/problems/permutation-sequence/description/
+*/
+func getPermutation(n int, k int) string {
+	digit_list := make([]int, n)
+	for i:=1; i<=n; i++ {
+		digit_list[i-1] = i
+	}
+	factorials := make([]int, n+1)
+	factorials[0] = 1
+	for i:=1; i<=n; i++ {
+		factorials[i] = factorials[i-1] * i
+	}
+
+	// Now perform the current permutation logic
+	for k > 1 {
+		j := -1
+		for i:=n; i>0; i-- {
+			if factorials[i] <= k {
+				j = i
+				break
+			}
+		}
+		digit_list[n-j-1], digit_list[n-j-1+(k/factorials[j])] = digit_list[n-j-1+(k/factorials[j])], digit_list[n-j-1]
+		remaining_digits := []int{}
+		for i:=n-j; i<n; i++ {
+			remaining_digits = append(remaining_digits, digit_list[i])
+		}
+		sort.SliceStable(remaining_digits, func(i, j int) bool {
+			return remaining_digits[i] < remaining_digits[j]
+		})
+		for i:=n-j; i<n; i++ {
+			digit_list[i] = remaining_digits[i - (n-j)]
+		}
+		k = k % (factorials[j])
+	}
+
+	var string_buffer strings.Builder
+	for _, i:= range digit_list {
+		string_buffer.WriteString(strconv.Itoa(i))
+	}
+	return string_buffer.String()
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////

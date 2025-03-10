@@ -455,3 +455,28 @@ func TestCandy(t *testing.T) {
 
 	runTestHelper(t, f, inputs, expected_outputs)
 }
+
+
+func TestGetPermutation(t *testing.T) {
+	type input struct {
+		n int
+		k int
+	}
+	inputs := []input{
+		{3,3},
+		{4,9},
+		{3,1},
+	}
+
+	expected_outputs := []string{
+		"213",
+		"2341",
+		"123",
+	}
+
+	f := func(i input) string {
+		return getPermutation(i.n, i.k)
+	}
+
+	runTestHelper(t, f, inputs, expected_outputs)
+}
