@@ -466,12 +466,14 @@ func TestGetPermutation(t *testing.T) {
 		{3,3},
 		{4,9},
 		{3,1},
+		{2,2},
 	}
 
 	expected_outputs := []string{
 		"213",
-		"2341",
+		"2314",
 		"123",
+		"21",
 	}
 
 	f := func(i input) string {

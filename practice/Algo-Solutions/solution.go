@@ -1147,6 +1147,9 @@ Link:
 https://leetcode.com/problems/permutation-sequence/description/
 */
 func getPermutation(n int, k int) string {
+	// Let us think of k as the number of permutations LEFT
+	k = k-1
+
 	digit_list := make([]int, n)
 	for i:=1; i<=n; i++ {
 		digit_list[i-1] = i
@@ -1158,26 +1161,34 @@ func getPermutation(n int, k int) string {
 	}
 
 	// Now perform the current permutation logic
-	for k > 1 {
-		j := -1
-		for i:=n; i>0; i-- {
-			if factorials[i] <= k {
-				j = i
+	for k > 0 {
+		// We still have permutations left
+		i := -1
+		factorial_value := -1
+		for num:=n; num>=1; num-- {
+			if factorials[num] <= k {
+				i = n-num-1
+				factorial_value = factorials[num]
 				break
 			}
 		}
-		digit_list[n-j-1], digit_list[n-j-1+(k/factorials[j])] = digit_list[n-j-1+(k/factorials[j])], digit_list[n-j-1]
-		remaining_digits := []int{}
-		for i:=n-j; i<n; i++ {
-			remaining_digits = append(remaining_digits, digit_list[i])
+		// Find the digit to switch with the i-th digit
+		j := i + (k / factorial_value)
+		// Switch the i-th and j-th digits
+		digit_list[i], digit_list[j] = digit_list[j], digit_list[i]
+		// Put the digits from i+1 to the end in increasing order
+		ordered_digits := make([]int, n-i-1)
+		for idx:=i+1; idx<n; idx++ {
+			ordered_digits[idx-i-1] = digit_list[idx]
 		}
-		sort.SliceStable(remaining_digits, func(i, j int) bool {
-			return remaining_digits[i] < remaining_digits[j]
+		sort.SliceStable(ordered_digits, func(i, j int) bool {
+			return ordered_digits[i] < ordered_digits[j]
 		})
-		for i:=n-j; i<n; i++ {
-			digit_list[i] = remaining_digits[i - (n-j)]
+		for idx:=i+1; idx<n; idx++ {
+			digit_list[idx] = ordered_digits[idx-i-1]
 		}
-		k = k % (factorials[j])
+		// Now decrease the number of permuations left
+		k = k % factorial_value
 	}
 
 	var string_buffer strings.Builder
