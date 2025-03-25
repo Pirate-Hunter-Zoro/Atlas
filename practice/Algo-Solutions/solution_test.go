@@ -482,3 +482,34 @@ func TestGetPermutation(t *testing.T) {
 
 	runTestHelper(t, f, inputs, expected_outputs)
 }
+
+func TestFindWords(t *testing.T) {
+	type input struct{
+		board [][]byte
+		words []string
+	}
+	inputs := []input{
+		{[][]byte{
+			{'o','a','a','n'},
+			{'e','t','a','e'},
+			{'i','h','k','r'},
+			{'i','f','l','v'},
+		}, []string{"oat","oath","pea","eat","rain"}},
+		{[][]byte{
+			{'a','b'},
+			{'c','d'},
+		}, []string{"abcb"}},
+	}
+
+	expected_outputs := [][]string{
+		{"eat","oat","oath"},
+		{},
+	}
+
+	f := func(i input) []string {
+		return findWords(i.board, i.words)
+	}
+
+	runTestHelperForArrayOutput(t, f, inputs, expected_outputs)
+
+}

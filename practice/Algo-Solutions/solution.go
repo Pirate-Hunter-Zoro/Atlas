@@ -1200,3 +1200,91 @@ func getPermutation(n int, k int) string {
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
+type trie_node struct {
+	children map[byte]*trie_node
+	end_of_word bool
+}
+
+/*
+Given an m x n board of characters and a list of strings words, return all words on the board.
+
+Each word must be constructed from letters of sequentially adjacent cells, where adjacent cells are horizontally or vertically neighboring. 
+
+The same letter cell may not be used more than once in a word.
+
+Link:
+https://leetcode.com/problems/word-search-ii/
+*/
+func findWords(board [][]byte, words []string) []string {
+	visited := make([][]bool, len(board))
+	for i:=range board {
+		visited[i] = make([]bool, len(board[i]))
+		for j:=range board[i] {
+			visited[i][j] = false
+		}
+	}
+
+	trie_root := &trie_node{children: make(map[byte]*trie_node)}
+	for _, word := range words {
+		// Add the word to the trie
+		add_to_trie(word, trie_root)
+	}
+	
+	found_words := make(map[string]bool)
+
+	for i:=range board {
+		for j:=range board[i] {
+			// Start a DFS from this cell
+			dfs_word_search(board, i, j, trie_root, "", visited, &found_words)
+		}
+	}
+	
+	found_words_list := []string{}
+	for word:=range found_words {
+		found_words_list = append(found_words_list, word)
+	}
+	sort.SliceStable(found_words_list, func(i, j int) bool {
+		return found_words_list[i] < found_words_list[j]
+	})
+	return found_words_list
+}
+
+func add_to_trie(word string, node *trie_node) {
+	for i:=range word {
+		char := word[i]
+		_, ok := node.children[char]
+		if !ok {
+			node.children[char] = &trie_node{children: make(map[byte]*trie_node)}
+		}
+		node = node.children[char]
+	}
+	node.end_of_word = true
+}
+
+func dfs_word_search(board [][]byte, i int, j int, node *trie_node, current_word string, visited [][]bool, found_words *map[string]bool) {
+	if i < 0 || i >= len(board) || j < 0 || j >= len(board[i]) || visited[i][j] {
+		return
+	}
+	char := board[i][j]
+	_, ok := node.children[char]
+	if !ok {
+		// No words in the trie have this prefix
+		return
+	}
+	visited[i][j] = true
+	current_word += string(char)
+	node = node.children[char]
+	if len(node.children) == 0 || node.end_of_word {
+		// We have reached the end of a word
+		(*found_words)[current_word] = true
+	}
+	// Now search in all directions
+	dfs_word_search(board, i+1, j, node, current_word, visited, found_words)
+	dfs_word_search(board, i-1, j, node, current_word, visited, found_words)
+	dfs_word_search(board, i, j+1, node, current_word, visited, found_words)
+	dfs_word_search(board, i, j-1, node, current_word, visited, found_words)
+	visited[i][j] = false
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
