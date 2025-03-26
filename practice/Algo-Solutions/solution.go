@@ -1288,3 +1288,69 @@ func dfs_word_search(board [][]byte, i int, j int, node *trie_node, current_word
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
+/*
+You are given an integer array nums and two integers indexDiff and valueDiff.
+
+Find a pair of indices (i, j) such that:
+- i != j,
+- abs(i - j) <= indexDiff.
+- abs(nums[i] - nums[j]) <= valueDiff, and
+
+Return true if such pair exists or false otherwise.
+
+Link:
+https://leetcode.com/problems/contains-duplicate-iii/description/
+
+Inspiration:
+https://leetcode.com/problems/contains-duplicate-iii/solutions/824578/c-o-n-time-complexity-explained-buckets-o-k-space-complexity/
+*/
+func containsNearbyAlmostDuplicate(nums []int, indexDiff int, valueDiff int) bool {
+    // The following logic will only work if all values are positive
+	lowest_val := math.MaxInt
+	for _, v := range nums {
+		lowest_val = min(lowest_val, v)
+	}
+	// Now shift all values by abs(lowest_val) so that all values are positive
+	for i:=range nums {
+		nums[i] -= lowest_val
+	}
+	
+	// Put the numbers in buckets based on their division values by valueDiff+1 (also store the index)
+	buckets := make(map[int][][]int)
+	for i, v := range nums {
+		q := v / (valueDiff+1)
+		_, ok := buckets[q]
+		if !ok {
+			buckets[q] = [][]int{}
+		}
+		buckets[q] = append(buckets[q], []int{v, i})
+	}
+	// Note all the buckets already sorted based on indices
+	for _, bucket := range buckets {
+		for i:=range(len(bucket)-1) {
+			j := i+1
+			// Look at consecutive elements in the bucket
+			if bucket[j][1] - bucket[i][1] <= indexDiff {
+				return true
+			}
+		}
+	}
+
+	// We also need to check neighboring buckets - last element of first bucket and first element of second bucket
+	bucket_keys := []int{}
+	for k:=range buckets {
+		bucket_keys = append(bucket_keys, k)
+	}
+	sort.SliceStable(bucket_keys, func(i, j int) bool {
+		return bucket_keys[i] < bucket_keys[j]
+	})
+	for i:=range(len(bucket_keys)-1) {
+		bucket1 := buckets[bucket_keys[i]]
+		bucket2 := buckets[bucket_keys[i+1]]
+		if (bucket2[0][1] - bucket1[len(bucket1)-1][1] <= indexDiff) && (bucket2[0][0] - bucket1[len(bucket1)-1][0] <= valueDiff) {
+			return true
+		}
+	}
+
+	return false
+}
