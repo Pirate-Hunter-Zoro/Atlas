@@ -1354,3 +1354,103 @@ func containsNearbyAlmostDuplicate(nums []int, indexDiff int, valueDiff int) boo
 
 	return false
 }
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+/*
+A city's skyline is the outer contour of the silhouette formed by all the buildings in that city when viewed from a distance. Given the locations and heights of all the buildings, return the skyline formed by these buildings collectively.
+
+The geometric information of each building is given in the array buildings where buildings[i] = [left_i, right_i, height_i]:
+- left_i is the x coordinate of the left edge of the ith building.
+- right_i is the x coordinate of the right edge of the ith building.
+- height_i is the height of the ith building.
+You may assume all buildings are perfect rectangles grounded on an absolutely flat surface at height 0.
+
+The skyline should be represented as a list of "key points" sorted by their x-coordinate in the form [[x1,y1],[x2,y2],...]. Each key point is the left endpoint of some horizontal segment in the skyline except the last point in the list, which always has a y-coordinate 0 and is used to mark the skyline's termination where the rightmost building ends. Any ground between the leftmost and rightmost buildings should be part of the skyline's contour.
+
+Note: There must be no consecutive horizontal lines of equal height in the output skyline. For instance, [...,[2 3],[4 5],[7 5],[11 5],[12 7],...] is not acceptable; the three lines of height 5 should be merged into one in the final output as such: [...,[2 3],[4 5],[12 7],...]
+
+Link:
+https://leetcode.com/problems/the-skyline-problem/description/
+
+Inspiration:
+https://leetcode.com/problems/the-skyline-problem/solutions/2094329/c-easiest-explanation-ever-guaranteed-beginner-friendly-detailed-o-nlogn/
+*/
+func getSkyline(buildings [][]int) [][]int {
+	skyline := [][]int{}
+	relevant_points := make(map[int]bool)
+	start_points := make(map[int][][]int) // If any buildings start at said position, remember them
+	stop_points := make(map[int][][]int) // If any buildings end at said position, remember them
+	for _, building := range buildings {
+		start := building[0]
+		relevant_points[start] = true
+		_, ok := start_points[start]
+		if !ok {
+			start_points[start] = [][]int{}
+		}
+		start_points[start] = append(start_points[start], building)
+		stop := building[1]
+		relevant_points[stop] = true
+		_, ok = stop_points[stop]
+		if !ok {
+			stop_points[stop] = [][]int{}
+		}
+		stop_points[stop] = append(stop_points[stop], building)
+	}
+	point_list := []int{}
+	for point:=range relevant_points {
+		point_list = append(point_list, point)
+	}
+	sort.SliceStable(point_list, func(i, j int) bool {
+		return point_list[i] < point_list[j]
+	})
+
+	// Now we have all the relevant points in order
+	running_height_building := []int{0,0,0}
+	fallback_buildings := datastructures.NewHeap(func(n1 []int, n2 []int) bool {
+		return n1[2] >= n2[2]
+	})
+	for _, point := range point_list {
+		// Does a building start here?
+		_, ok := start_points[point]
+		if ok {
+			for _, building := range start_points[point] {
+				if building[2] > running_height_building[2] {
+					running_height_building = building
+				}
+				fallback_buildings.Push(building)
+			}
+			if running_height_building[0] == point {
+				// We successfully found a new tall-enough-to-matter building that starts here
+				skyline = append(skyline, []int{point, running_height_building[2]})
+			}
+		}
+		// Does a building end here?
+		_, ok = stop_points[point]
+		if ok {
+			// We need to make sure our running_height_building didn't end here
+			if running_height_building[1] == point {
+				for !fallback_buildings.Empty() {
+					next := fallback_buildings.Pop()
+					if next[1] > point {
+						// This will be our new building as it has not ended yet
+						old_height := running_height_building[2]
+						running_height_building = next
+						if running_height_building[2] != old_height {
+							// Corner from taller building to shorter one
+							skyline = append(skyline, []int{point, next[2]})
+						}
+						break
+					}
+				}
+				if running_height_building[1] == point {
+					// All previous buildings don't reach this far
+					running_height_building = []int{point,point,0}
+					skyline = append(skyline, []int{point, 0})
+				}
+			}
+		}
+	}
+
+	return skyline
+}

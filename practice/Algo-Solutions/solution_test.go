@@ -2,40 +2,16 @@ package leetcode
 
 import (
 	"leet-code/datastructures"
+	"reflect"
 	"testing"
 )
 
-func runTestHelper[I any, A comparable](t *testing.T, f func(i I) A, inputs []I, expected_outputs []A) {
+func runTestHelper[I any, A any](t *testing.T, f func(i I) A, inputs []I, expected_outputs []A) {
 	for idx, input := range inputs {
 		output := f(input)
 		expected_output := expected_outputs[idx]
-		if output != expected_output {
+		if !reflect.DeepEqual(output, expected_output) {
 			t.Fatalf("Error - expected %v but got %v", expected_output, output)
-		}
-	}
-}
-
-func runTestHelperLinkedList[I any](t *testing.T, f func(i I) *datastructures.ListNode, inputs []I, expected_outputs []*datastructures.ListNode) {
-	for idx, input := range inputs {
-		output := f(input)
-		expected_output := expected_outputs[idx]
-		if !datastructures.ListNodeEquals(output, expected_output) {
-			t.Fatalf("Error - expected %v but got %v", expected_output, output)
-		}
-	}
-}
-
-func runTestHelperForArrayOutput[I any, A comparable](t *testing.T, f func(i I) []A, inputs []I, expected_outputs [][]A) {
-	for idx, input := range inputs {
-		output := f(input)
-		expected_output := expected_outputs[idx]
-		if len(output) != len(expected_output) {
-			t.Fatalf("Error - expected array of size %d but got size %d", len(expected_output), len(output))
-		}
-		for i:=0; i<len(output); i++ {
-			if output[i] != expected_output[i] {
-				t.Fatalf("Error - expected %v but got %v", expected_output[i], output[i])
-			}
 		}
 	}
 }
@@ -205,7 +181,7 @@ func TestFindSubstring(t *testing.T) {
 		return findSubstring(i.s, i.words)
 	}
 
-	runTestHelperForArrayOutput(t, f, inputs, expected_outputs)
+	runTestHelper(t, f, inputs, expected_outputs)
 }
 
 func TestFirstMissingPositive(t *testing.T) {
@@ -263,7 +239,7 @@ func TestMergeKLists(t *testing.T) {
 		return mergeKLists(i.lists)
 	}
 
-	runTestHelperLinkedList(t, f, inputs, expected_outputs)
+	runTestHelper(t, f, inputs, expected_outputs)
 }
 
 func TestLongestValidParentheses(t *testing.T) {
@@ -510,7 +486,7 @@ func TestFindWords(t *testing.T) {
 		return findWords(i.board, i.words)
 	}
 
-	runTestHelperForArrayOutput(t, f, inputs, expected_outputs)
+	runTestHelper(t, f, inputs, expected_outputs)
 
 }
 
@@ -540,6 +516,55 @@ func TestContainsNearbyAlmostDuplicate(t *testing.T) {
 
 	f := func(i input) bool {
 		return containsNearbyAlmostDuplicate(i.nums, i.indexDiff, i.valueDiff)
+	}
+
+	runTestHelper(t, f, inputs, expected_outputs)
+}
+
+
+func TestGetSkyline(t *testing.T) {
+	type input struct {
+		buildings [][]int
+	}
+	inputs := []input{
+		{[][]int{{2,9,10},{3,7,15},{5,12,12},{15,20,10},{19,24,8}}},
+		{[][]int{{0,2,3},{2,5,3}}},
+		{[][]int{{1,2,1},{1,2,2},{1,2,3}}},
+		{[][]int{{3,7,8},{3,8,7},{3,9,6},{3,10,5},{3,11,4},{3,12,3},{3,13,2},{3,14,1}}},
+		{[][]int{{4547,253463,513907},{16593,154606,197418},
+				{20536,587972,480271},{25155,135407,277021},
+				{45693,480063,10484},{57392,70775,887782},
+				{69423,760082,373899},{93047,222798,416217},
+				{105421,832604,877583},{113118,797930,760771},
+				{128302,234173,548113},{137036,889837,902341},
+				{151470,195177,920702},{153020,398494,465441},
+				{153980,501882,565647},{159005,416356,28559},
+				{218765,535515,140331},{303595,627878,399999},
+				{333489,449295,827098},{359242,830671,455392},
+				{390291,400129,693584},{429774,450923,637981},
+				{493315,563384,655884},{500860,718561,769319},
+				{507299,817616,228},{537517,989102,300696},
+				{543853,843011,695472},{550404,559944,90888},
+				{617555,907369,523648},{622624,989745,894596},
+				{640808,867707,963706},{697210,716449,705689},
+				{804555,914745,764029}}},
+	}
+
+	expected_outputs := [][][]int{
+		{{2,10},{3,15},{7,12},{12,0},{15,10},{20,8},{24,0}},
+		{{0,3},{5,0}},
+		{{1,3},{2,0}},
+		{{3,8},{7,7},{8,6},{9,5},{10,4},{11,3},{12,2},{13,1},{14,0}},
+		{{4547,513907},{57392,887782},
+			{70775,513907},{105421,877583},
+			{137036,902341},{151470,920702},
+			{195177,902341},{640808,963706},
+			{867707,902341},{889837,894596},
+			{989745,0}}, // TODO - NOT SEEN - instead of {867707,902341},{889837,894596}, saw {867707,894596}
+	}
+
+	f := func(i input) [][]int {
+		return getSkyline(i.buildings)
 	}
 
 	runTestHelper(t, f, inputs, expected_outputs)
