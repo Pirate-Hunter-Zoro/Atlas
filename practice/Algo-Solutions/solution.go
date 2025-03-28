@@ -1454,3 +1454,22 @@ func getSkyline(buildings [][]int) [][]int {
 
 	return skyline
 }
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+/*
+Link: https://leetcode.com/problems/construct-quad-tree/
+LeetCode: 427. Construct Quad Tree
+*/
+func construct(grid [][]int) *datastructures.QuadTreeNode {
+    return nil
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+/*
+Link: https://leetcode.com/problems/logical-or-of-two-binary-grids-represented-as-quad-trees/description/
+*/
+func intersect(quadTree1 *datastructures.QuadTreeNode, quadTree2 *datastructures.QuadTreeNode) *datastructures.QuadTreeNode {
+    return nil
+}
