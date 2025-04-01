@@ -609,3 +609,10 @@ func TestConstruct(t *testing.T) {
 	}
 	runTestHelper(t, f, inputs, expected_outputs)
 }
+
+
+func TestIntersect(t *testing.T) {
+	type input struct {
+		
+	}
+}
