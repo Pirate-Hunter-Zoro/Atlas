@@ -1462,7 +1462,37 @@ Link: https://leetcode.com/problems/construct-quad-tree/
 LeetCode: 427. Construct Quad Tree
 */
 func construct(grid [][]int) *datastructures.QuadTreeNode {
-    return nil
+	return recConstruct(grid, 0, 0, len(grid)-1, len(grid[0])-1)
+}
+
+func recConstruct(grid [][]int, start_row int, start_col int, end_row int, end_col int) *datastructures.QuadTreeNode {
+	if (start_row == end_row) || allSame(grid, start_row, start_col, end_row, end_col) {
+		return &datastructures.QuadTreeNode{Val: grid[start_row][start_col] == 1, IsLeaf: true}
+	} else {
+		root := &datastructures.QuadTreeNode{Val: false, IsLeaf: false}
+		// Split the grid into 4 quadrants
+		half := (end_row - start_row + 1) / 2
+		// Top left
+		root.TopLeft = recConstruct(grid, start_row, start_col, start_row + half-1, start_col + half-1)
+		// Top right
+		root.TopRight = recConstruct(grid, start_row, start_col + half, start_row + half-1, end_col)
+		// Bottom left
+		root.BottomLeft = recConstruct(grid, start_row + half, start_col, end_row, start_col + half-1)
+		// Bottom right
+		root.BottomRight = recConstruct(grid, start_row + half, start_col + half, end_row, end_col)
+		return root
+	}
+}
+
+func allSame(grid [][]int, start_row int, start_col int, end_row int, end_col int) bool {
+	for i:=start_row; i<end_row; i++ {
+		for j:=start_col; j<end_col; j++ {
+			if grid[i][j] != grid[start_col][end_col] {
+				return false
+			}
+		}
+	}
+	return true
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////

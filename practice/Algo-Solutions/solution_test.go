@@ -569,3 +569,43 @@ func TestGetSkyline(t *testing.T) {
 
 	runTestHelper(t, f, inputs, expected_outputs)
 }
+
+
+func TestConstruct(t *testing.T) {
+	type input struct {
+		grid [][]int
+	}
+	inputs := []input{
+		{[][]int{{0,1},{1,0}}},
+		{[][]int{{1,1,1,1,0,0,0,0},{1,1,1,1,0,0,0,0},{1,1,1,1,1,1,1,1},{1,1,1,1,1,1,1,1},{1,1,1,1,0,0,0,0},{1,1,1,1,0,0,0,0},{1,1,1,1,0,0,0,0},{1,1,1,1,0,0,0,0}}},
+	}
+
+	expected_outputs := []*datastructures.QuadTreeNode{
+		{
+			Val: false, 
+			IsLeaf: false, 
+			TopLeft: &datastructures.QuadTreeNode{Val: false, IsLeaf: true}, 
+			TopRight: &datastructures.QuadTreeNode{Val: true, IsLeaf: true}, 
+			BottomLeft: &datastructures.QuadTreeNode{Val: true, IsLeaf: true}, 
+			BottomRight: &datastructures.QuadTreeNode{Val: false, IsLeaf: true},
+		},
+		{
+			Val: false,
+			IsLeaf: false,
+			TopLeft: &datastructures.QuadTreeNode{Val: true, IsLeaf: true},
+			TopRight: &datastructures.QuadTreeNode{Val: false, IsLeaf: false,
+				TopLeft: &datastructures.QuadTreeNode{Val: false, IsLeaf: true},
+				TopRight: &datastructures.QuadTreeNode{Val: false, IsLeaf: true},
+				BottomLeft: &datastructures.QuadTreeNode{Val: true, IsLeaf: true},
+				BottomRight: &datastructures.QuadTreeNode{Val: true, IsLeaf: true},
+			},
+			BottomLeft: &datastructures.QuadTreeNode{Val: true, IsLeaf: true},
+			BottomRight: &datastructures.QuadTreeNode{Val: false, IsLeaf: true},
+		},
+	}
+
+	f := func(i input) *datastructures.QuadTreeNode {
+		return construct(i.grid)
+	}
+	runTestHelper(t, f, inputs, expected_outputs)
+}
