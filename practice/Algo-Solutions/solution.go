@@ -1485,9 +1485,9 @@ func recConstruct(grid [][]int, start_row int, start_col int, end_row int, end_c
 }
 
 func allSame(grid [][]int, start_row int, start_col int, end_row int, end_col int) bool {
-	for i:=start_row; i<end_row; i++ {
-		for j:=start_col; j<end_col; j++ {
-			if grid[i][j] != grid[start_col][end_col] {
+	for i:=start_row; i<=end_row; i++ {
+		for j:=start_col; j<=end_col; j++ {
+			if grid[i][j] != grid[start_row][start_col] {
 				return false
 			}
 		}
