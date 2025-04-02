@@ -22,6 +22,8 @@ However, if the egg does not break, you may reuse it in future moves.
 
 Return the minimum number of moves that you need to determine with certainty what the value of f is.
 
+Link: https://leetcode.com/problems/super-egg-drop/
+
 Inpsiration:
 https://brilliant.org/wiki/egg-dropping/
 */
@@ -61,6 +63,8 @@ func superEggDrop(n int, k int) int {
 
 /*
 Given an array of integers heights representing the histogram's bar height where the width of each bar is 1, return the area of the largest rectangle in the histogram.
+
+Link: https://leetcode.com/problems/largest-rectangle-in-histogram/
 */
 func largestRectangleArea(heights []int) int {
 	// Answer the question - at this index, what's the farthest right I can go before I run into someone shorter
@@ -106,6 +110,8 @@ func largestRectangleArea(heights []int) int {
 
 /*
 Given a rows x cols binary matrix filled with 0's and 1's, find the largest rectangle containing only 1's and return its area.
+
+Link: https://leetcode.com/problems/maximal-rectangle/
 */
 func maximalRectangle(matrix [][]byte) int {
 	// Keep a running histogram going
@@ -143,6 +149,8 @@ Return the maximum total number of moves made during the game that Alice can ach
 
 Note that in one move, a chess knight has eight possible positions it can move to, as illustrated below. 
 Each move is two cells in a cardinal direction, then one cell in an orthogonal direction.
+
+Link: https://leetcode.com/problems/maximum-number-of-moves-in-a-grid/
 */
 func maxMoves(kx int, ky int, positions [][]int) int {
 	board_size := 50
@@ -331,6 +339,8 @@ There are a total of numCourses courses you have to take, labeled from 0 to numC
 
 For example, the pair [0, 1], indicates that to take course 0 you have to first take course 1.
 Return true if you can finish all courses. Otherwise, return false.
+
+Link: https://leetcode.com/problems/course-schedule/
 */
 func canFinish(numCourses int, prerequisites [][]int) bool {
     in_degree := make([]int, numCourses)
@@ -381,6 +391,8 @@ Given an input string (s) and a pattern (p), implement wildcard pattern matching
 - '*' Matches any sequence of characters (including the empty sequence).
 
 The matching should cover the entire input string (not partial).
+
+Link: https://leetcode.com/problems/wildcard-matching/
 */
 func isMatch(s string, p string) bool {
 	// Get a couple of edge cases out of the way first...
@@ -446,6 +458,8 @@ For example, if words = ["ab","cd","ef"], then "abcdef", "abefcd", "cdabef", "cd
 "acdbef" is not a concatenated string because it is not the concatenation of any permutation of words.
 Return an array of the starting indices of all the concatenated substrings in s. 
 You can return the answer in any order.
+
+Link: https://leetcode.com/problems/substring-with-concatenation-of-all-words/
 */
 func findSubstring(s string, words []string) []int {
     // Create a map which will serve as keeping track of the count needed of each word
@@ -553,6 +567,7 @@ Given an unsorted integer array nums.
 Return the smallest positive integer that is not present in nums.
 
 You must implement an algorithm that runs in O(n) time and uses O(1) auxiliary space.
+Link: https://leetcode.com/problems/first-missing-positive/
 */
 func firstMissingPositive(nums []int) int {
     // The LeetCode editorial was insanely helpful...
@@ -594,6 +609,8 @@ func firstMissingPositive(nums []int) int {
 You are given an array of k linked-lists lists, each linked-list is sorted in ascending order.
 
 Merge all the linked-lists into one sorted linked-list and return it.
+
+Link: https://leetcode.com/problems/merge-k-sorted-lists/
 */
 func mergeKLists(lists []*datastructures.ListNode) *datastructures.ListNode {
     // Check for edge cases
@@ -644,6 +661,8 @@ func mergeKLists(lists []*datastructures.ListNode) *datastructures.ListNode {
 
 /*
 Given a string containing just the characters '(' and ')', return the length of the longest valid (well-formed) parentheses substring.
+
+Link: https://leetcode.com/problems/longest-valid-parentheses/
 */
 func longestValidParentheses(s string) int {
 	// Keep a running stack, and once we run into a ')' that has no preceding '(' to match, our running length has to start over
@@ -715,6 +734,8 @@ We can scramble a string s to get a string t using the following algorithm:
 	- Randomly decide to swap the two substrings or to keep them in the same order. i.e., after this step, s may become s = x + y or s = y + x.
 	- Apply step 1 recursively on each of the two substrings x and y.
 Given two strings s1 and s2 of the same length, return true if s2 is a scrambled string of s1, otherwise, return false.
+
+Link: https://leetcode.com/problems/scramble-string/
 */
 func isScramble(s1 string, s2 string) bool {
     is_scramble := make(map[string]map[string]bool)
@@ -758,6 +779,8 @@ func recIsScramble(l string, r string, is_scramble map[string]map[string]bool) b
 Given two strings s and t, return the number of distinct subsequences of s which equals t.
 
 The test cases are generated so that the answer fits on a 32-bit signed integer.
+
+Link: https://leetcode.com/problems/distinct-subsequences/
 */
 func numDistinct(s string, t string) int {
 	// Answer the question - how many different subsequences of s[:i+1] can create t[:j+1]?
@@ -810,6 +833,8 @@ Students can see the answers of those sitting next to the left, right, upper lef
 Return the maximum number of students that can take the exam together without any cheating being possible.
 
 Students must be placed in seats in good condition.
+
+Link: https://leetcode.com/problems/maximum-number-of-students-taking-exam/
 */
 func maxStudents(seats [][]byte) int {
 	// From the hints - run a bit mask depending on the previous row of seats
@@ -956,10 +981,12 @@ The groups are connected if each point in both groups is connected to one or mor
 In other words, each point in the first group must be connected to at least one point in the second group, and each point in the second group must be connected to at least one point in the first group.
 
 Return the minimum cost it takes to connect the two groups.
+
+Link:
+https://leetcode.com/problems/minimum-cost-to-connect-two-groups-of-points/description/
+Inspiration: https://leetcode.com/problems/minimum-cost-to-connect-two-groups-of-points/solutions/5854369/beats-100-on-runtime-and-memory-explained/
 */
 func connectTwoGroups(cost [][]int) int {
-	// Inspiration: https://leetcode.com/problems/minimum-cost-to-connect-two-groups-of-points/solutions/5854369/beats-100-on-runtime-and-memory-explained/
-    
 	// First find the minimum cost for each node in the right to connect to any node in the left
 	n_left := len(cost)
 	n_right := len(cost[0])
@@ -1016,6 +1043,8 @@ Given a string s, partition s such that every substring of the partition is a pa
 
 Return the minimum cuts needed for a palindrome partitioning of s.
 
+Link:
+https://leetcode.com/problems/palindrome-partitioning-ii/description/
 Inspiration: https://leetcode.com/problems/palindrome-partitioning-ii/solutions/42213/easiest-java-dp-solution-97-36/
 */
 func minCut(s string) int {
@@ -1074,6 +1103,9 @@ You are giving candies to these children subjected to the following requirements
 - Children with a higher rating get more candies than their neighbors.
 
 Return the minimum number of candies you need to have to distribute the candies to the children.
+
+Link:
+https://leetcode.com/problems/candy/description/
 */
 func candy(ratings []int) int {
 	if len(ratings) == 1 {
@@ -1501,5 +1533,141 @@ func allSame(grid [][]int, start_row int, start_col int, end_row int, end_col in
 Link: https://leetcode.com/problems/logical-or-of-two-binary-grids-represented-as-quad-trees/description/
 */
 func intersect(quadTree1 *datastructures.QuadTreeNode, quadTree2 *datastructures.QuadTreeNode) *datastructures.QuadTreeNode {
-    return nil
+    // Find out the size of the grids - whichever is the largest
+	depth1 := findDepth(quadTree1)
+	depth2 := findDepth(quadTree2)
+	depth := max(depth1, depth2)
+	square_length := 1 << depth
+	first_grid := reconstruct(quadTree1, square_length)
+	second_grid := reconstruct(quadTree2, square_length)
+	or_grid := orGrids(first_grid, second_grid)
+	// Now we need to convert the xor grid back into a quad tree
+	return construct(or_grid)
+}
+
+func findDepth(quadTree *datastructures.QuadTreeNode) int {
+	// Find out the depth of the quad tree
+	if quadTree.IsLeaf {
+		return 0
+	}
+	depths := []int{findDepth(quadTree.TopLeft), findDepth(quadTree.TopRight), findDepth(quadTree.BottomLeft), findDepth(quadTree.BottomRight)}
+	max_depth := 0
+	for _, depth := range depths {
+		max_depth = max(max_depth, depth)
+	}
+	return max_depth + 1
+}
+
+func reconstruct(quadTree *datastructures.QuadTreeNode, square_length int) [][]int {
+	// Find out the size of the grid
+	if quadTree.IsLeaf {
+		grid := make([][]int, square_length)
+		for i:=range grid {
+			grid[i] = make([]int, square_length)
+			for j:=range grid[i] {
+				if quadTree.Val {
+					grid[i][j] = 1
+				} else {
+					grid[i][j] = 0
+				}
+			}
+		}
+		return grid
+	} else {
+		// Split the grid into 4 quadrants
+		half := square_length / 2
+		top_left := reconstruct(quadTree.TopLeft, half)
+		top_right := reconstruct(quadTree.TopRight, half)
+		bottom_left := reconstruct(quadTree.BottomLeft, half)
+		bottom_right := reconstruct(quadTree.BottomRight, half)
+		grid := make([][]int, square_length)
+		for i:=range grid {
+			grid[i] = make([]int, square_length)
+			for j:=range grid[i] {
+				if i < half && j < half {
+					grid[i][j] = top_left[i][j]
+				} else if i < half && j >= half {
+					grid[i][j] = top_right[i][j-half]
+				} else if i >= half && j < half {
+					grid[i][j] = bottom_left[i-half][j]
+				} else {
+					grid[i][j] = bottom_right[i-half][j-half]
+				}
+			}
+		}
+		return grid
+	}
+}
+
+func orGrids(first_grid [][]int, second_grid [][]int) [][]int {
+	// XOR the grids together
+	// Note that the grids are all the same size
+	n := len(first_grid)
+	xor_grid := make([][]int, n)
+	for i:=0; i<n; i++ {
+		xor_grid[i] = make([]int, n)
+		for j:=0; j<n; j++ {
+			xor_grid[i][j] = first_grid[i][j] | second_grid[i][j]
+		}
+	}
+	return xor_grid
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+/*
+Given a string s and a dictionary of strings wordDict, add spaces in s to construct a sentence where each word is a valid dictionary word. 
+Return all such possible sentences in any order.
+
+Note that the same word in the dictionary may be reused multiple times in the segmentation.
+
+Link:
+https://leetcode.com/problems/word-break-ii/description/
+*/
+func wordBreak(s string, wordDict []string) []string {
+	// Turn the list of words into a set for faster lookup
+	word_set := make(map[string]bool)
+	for _, word := range wordDict {
+		word_set[word] = true
+	}
+	// Now we need to find all the possible sentences
+	sols := make(map[int][]string) // Answer the question - given the last n-i characters, what are the possible sentences?
+	sols[len(s)] = []string{""}
+	for i:=len(s)-1; i>=0; i-- {
+		// We need to find all the possible sentences that can be formed from s[i:]
+		for j:=i+1; j<=len(s); j++ {
+			// Check if s[i:j] is a word
+			_, ok := word_set[s[i:j]]
+			if ok {
+				// We can form a word from s[i:j]
+				// Now we need to find all the possible sentences that can be formed from s[j:]
+				possible_sentences, ok := sols[j]
+				if ok {
+					// We can form a sentence from s[j:]
+					_, ok = sols[i]
+					if !ok {
+						sols[i] = []string{}
+					}
+					for _, sentence := range possible_sentences {
+						var new_sentence strings.Builder
+						new_sentence.WriteString(s[i:j])
+						if sentence != "" {
+							new_sentence.WriteString(" ")
+						}
+						// Add the rest of the sentence
+						new_sentence.WriteString(sentence)
+						sols[i] = append(sols[i], new_sentence.String())
+					}
+				}
+			}
+		}
+	}
+	sol, ok := sols[0]
+	if !ok {
+		return []string{}
+	}
+	sort.SliceStable(sol, func(i, j int) bool {
+		return sol[i] < sol[j]
+	})
+	return sol
 }

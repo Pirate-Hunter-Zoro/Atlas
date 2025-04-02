@@ -613,6 +613,74 @@ func TestConstruct(t *testing.T) {
 
 func TestIntersect(t *testing.T) {
 	type input struct {
-		
+		quadTree1 *datastructures.QuadTreeNode
+		quadTree2 *datastructures.QuadTreeNode
 	}
+	inputs := []input{
+		{
+			&datastructures.QuadTreeNode{Val: false, IsLeaf: false,
+				TopLeft: &datastructures.QuadTreeNode{Val: true, IsLeaf: true},
+				TopRight: &datastructures.QuadTreeNode{Val: true, IsLeaf: true},
+				BottomLeft: &datastructures.QuadTreeNode{Val: false, IsLeaf: true},
+				BottomRight: &datastructures.QuadTreeNode{Val: false, IsLeaf: true},
+			},
+			&datastructures.QuadTreeNode{Val: false, IsLeaf: false,
+				TopLeft: &datastructures.QuadTreeNode{Val: true, IsLeaf: true},
+				TopRight: &datastructures.QuadTreeNode{Val: false, IsLeaf: false,
+					TopLeft: &datastructures.QuadTreeNode{Val: false, IsLeaf: true},
+					TopRight: &datastructures.QuadTreeNode{Val: false, IsLeaf: true},
+					BottomLeft: &datastructures.QuadTreeNode{Val: true, IsLeaf: true},
+					BottomRight: &datastructures.QuadTreeNode{Val: true, IsLeaf: true},
+				},
+				BottomLeft: &datastructures.QuadTreeNode{Val: true, IsLeaf: true},
+				BottomRight: &datastructures.QuadTreeNode{Val: false, IsLeaf: true},
+			},
+		},
+		{
+			&datastructures.QuadTreeNode{Val: false, IsLeaf: true,},
+			&datastructures.QuadTreeNode{Val: false, IsLeaf: true,},
+		},
+	}
+
+	expected_outputs := []*datastructures.QuadTreeNode{
+		{
+			Val: false, IsLeaf: false,
+			TopLeft: &datastructures.QuadTreeNode{Val: true, IsLeaf: true},
+			TopRight: &datastructures.QuadTreeNode{Val: true, IsLeaf: true},
+			BottomLeft: &datastructures.QuadTreeNode{Val: true, IsLeaf: true},
+			BottomRight: &datastructures.QuadTreeNode{Val: false, IsLeaf: true},
+		},
+		{
+			Val: false, IsLeaf: true,
+		},
+	}
+
+	f := func(i input) *datastructures.QuadTreeNode {
+		return intersect(i.quadTree1, i.quadTree2)
+	}
+	runTestHelper(t, f, inputs, expected_outputs)
+}
+
+
+func TestWordBreak(t *testing.T) {
+	type input struct {
+		s string
+		wordDict []string
+	}
+	inputs := []input{
+		{"catsanddog", []string{"cat","cats","and","sand","dog"}},
+		{"pineapplepenapple", []string{"apple","pen","applepen","pine","pineapple"}},
+		{"catsandog", []string{"cats","dog","sand","and","cat"}},
+	}
+
+	expected_outputs := [][]string{
+		{"cat sand dog","cats and dog"},
+		{"pine apple pen apple", "pine applepen apple", "pineapple pen apple"},
+		{},
+	}
+
+	f := func(i input) []string {
+		return wordBreak(i.s, i.wordDict)
+	}
+	runTestHelper(t, f, inputs, expected_outputs)
 }
