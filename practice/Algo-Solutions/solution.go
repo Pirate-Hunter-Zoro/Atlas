@@ -1387,3 +1387,95 @@ func recRemoveBoxes(boxes []int, left int, right int, num_same int, sols [][][]i
 	}
 	return sols[left][right][num_same]
 }
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+/*
+An attendance record for a student can be represented as a string where each character signifies whether the student was absent, late, or present on that day. 
+The record only contains the following three characters:
+- 'A': Absent.
+- 'L': Late.
+- 'P': Present.
+
+Any student is eligible for an attendance award if they meet both of the following criteria:
+- The student was absent ('A') for strictly fewer than 2 days total.
+- The student was never late ('L') for 3 or more consecutive days.
+
+Given an integer n, return the number of possible attendance records of length n that make a student eligible for an attendance award. 
+The answer may be very large, so return it modulo 10^9 + 7.
+
+Link:
+https://leetcode.com/problems/student-attendance-record-ii/description/?envType=problem-list-v2&envId=dynamic-programming
+*/
+func checkRecord(n int) int {
+    // The answer is determined by the following:
+	// 1. How many characters we have left to fill
+	// 2. How many 'A's we have left to use - 0, 1, or 2
+	sols := make([]map[int]int, 2)
+	for i:=range 2 {
+		sols[i] = make(map[int]int)
+	}
+	for i:=range 2 {
+		// Bases case
+		sols[i][0] = 1
+	}
+	return recCheckRecord(1, n, sols)
+}
+
+func recCheckRecord(num_A int, num_left int, sols []map[int]int) int {
+	// See if we have already solved this problem
+	if _, ok := sols[num_A][num_left]; !ok {
+		// Need to solve this problem
+		if num_left == 1 {
+			// We can place a late or a present
+			num_first_possible := 2
+			// MAYBE we can place an absent
+			if num_A > 0 {
+				num_first_possible++
+			}
+			sols[num_A][num_left] = num_first_possible
+		} else if num_left == 2 {
+			// LL, LP, PL, PP
+			num_possible := 4
+			if num_A > 0 {
+				// AL, AP, PA, LA
+				num_possible += 4
+			}
+			sols[num_A][num_left] = num_possible
+		} else {
+			// Keep a running total
+			num_possible := 0
+
+
+			// Suppose we place a 'L' first - there would be multiple options following
+			// Place a 'P' next
+			num_possible = helpermath.ModAdd(num_possible, recCheckRecord(num_A, num_left-2, sols))
+			
+			// Place an 'L' next, which means we are NOT allowed to place another 'L' after that so place a 'P'
+			num_possible = helpermath.ModAdd(num_possible, recCheckRecord(num_A, num_left-3, sols))
+			// OR if we have an 'A' left, we could place an 'A' after that second 'L'
+			if num_A > 0 {
+				num_possible = helpermath.ModAdd(num_possible, recCheckRecord(num_A-1, num_left-3, sols))
+			}
+
+			// Place an 'A' next after the L - if we can
+			if num_A > 0 {
+				num_possible = helpermath.ModAdd(num_possible, recCheckRecord(num_A-1, num_left-2, sols))
+			}
+
+			
+			// Suppose we place a 'P' first - that gives us full freedom with the remaining characters
+			num_possible = helpermath.ModAdd(num_possible, recCheckRecord(num_A, num_left-1, sols))
+
+			
+			// Suppose - if we can - we place an 'A' first
+			if num_A > 0 {
+				// That just gives us one less 'A' to use for the next subproblem
+				num_possible = helpermath.ModAdd(num_possible, recCheckRecord(num_A-1, num_left-1, sols))
+			}
+
+			sols[num_A][num_left] = num_possible
+		}
+	}
+	return sols[num_A][num_left]
+}

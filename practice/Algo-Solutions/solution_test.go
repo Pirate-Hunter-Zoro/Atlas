@@ -603,3 +603,28 @@ func TestRemoveBoxes(t *testing.T) {
 	}
 	runTestHelper(t, f, inputs, expected_outputs)
 }
+
+
+func TestCheckRecord(t *testing.T) {
+	type input struct {
+		n int
+	}
+	inputs := []input{
+		{2},
+		{1},
+		{3},
+		{10101},
+	}
+
+	expected_outputs := []int{
+		8,
+		3,
+		19,
+		183236316,
+	}
+
+	f := func(i input) int {
+		return checkRecord(i.n)
+	}
+	runTestHelper(t, f, inputs, expected_outputs)
+}
