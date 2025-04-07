@@ -628,3 +628,45 @@ func TestCheckRecord(t *testing.T) {
 	}
 	runTestHelper(t, f, inputs, expected_outputs)
 }
+
+
+func TestCanPartition(t *testing.T) {
+	type input struct {
+		nums []int
+	}
+	inputs := []input{
+		{[]int{1,5,11,5}},
+		{[]int{1,2,3,5}},
+	}
+
+	expected_outputs := []bool{
+		true,
+		false,
+	}
+
+	f := func(i input) bool {
+		return canPartition(i.nums)
+	}
+	runTestHelper(t, f, inputs, expected_outputs)
+}
+
+func TestBeautifulNumbers(t *testing.T) {
+	type input struct {
+		l int
+		r int
+	}
+	inputs := []input{
+		{10, 20},
+		{1, 15},
+	}
+
+	expected_outputs := []int{
+		2,
+		10,
+	}
+
+	f := func(i input) int {
+		return beautifulNumbers(i.l, i.r)
+	}
+	runTestHelper(t, f, inputs, expected_outputs)
+}

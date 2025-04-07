@@ -1479,3 +1479,65 @@ func recCheckRecord(num_A int, num_left int, sols []map[int]int) int {
 	}
 	return sols[num_A][num_left]
 }
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+/*
+Given an integer array nums, return true if you can partition the array into two subsets such that the sum of the elements in both subsets is equal or false otherwise.
+
+Link:
+https://leetcode.com/problems/partition-equal-subset-sum/description/?envType=daily-question&envId=2025-04-07
+*/
+func canPartition(nums []int) bool {
+    // First see if the sum of the numbers is even
+	sum := 0
+	for _, num := range nums {
+		sum += num
+	}
+	if sum % 2 != 0 {
+		return false
+	}
+	// Now we need to find a subset of the numbers that add up to sum/2
+	target := sum / 2
+	// This just became a knapsack problem
+	sort.SliceStable(nums, func(i, j int) bool {
+		return nums[i] < nums[j]
+	})
+	sols := make([][]bool, len(nums)+1)
+	for i:=range(len(nums)+1) {
+		sols[i] = make([]bool, target+1)
+		for j:=range(target+1) {
+			sols[i][j] = false
+		}
+		sols[i][0] = true // We can always make a sum of 0 by picking nothing
+	}
+	// Now we solve the problem (bottum up approach)
+	for allowed_nums := 1; allowed_nums <= len(nums); allowed_nums++ {
+		for target_sum := 1; target_sum <= target; target_sum++ {
+			if nums[allowed_nums-1] > target_sum {
+				// We cannot use this number
+				sols[allowed_nums][target_sum] = sols[allowed_nums-1][target_sum]
+			} else {
+				// We can either use this number or not
+				sols[allowed_nums][target_sum] = sols[allowed_nums-1][target_sum] || sols[allowed_nums-1][target_sum-nums[allowed_nums-1]]
+			}
+		}
+	}
+
+	return sols[len(nums)][target]
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+/*
+You are given two positive integers, l and r. 
+A positive integer is called beautiful if the product of its digits is divisible by the sum of its digits.
+
+Return the count of beautiful numbers between l and r, inclusive.
+
+Link:
+https://leetcode.com/problems/count-beautiful-numbers/description/?envType=problem-list-v2&envId=dynamic-programming
+*/
+func beautifulNumbers(l int, r int) int {
+    return 0
+}
