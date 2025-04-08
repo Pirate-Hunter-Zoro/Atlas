@@ -1,6 +1,7 @@
 package leetcode
 
 import (
+	"fmt"
 	"leet-code/datastructures"
 	"leet-code/helpermath"
 	"math"
@@ -1537,7 +1538,86 @@ Return the count of beautiful numbers between l and r, inclusive.
 
 Link:
 https://leetcode.com/problems/count-beautiful-numbers/description/?envType=problem-list-v2&envId=dynamic-programming
+
+Inspiration:
+https://leetcode.com/problems/count-beautiful-numbers/solutions/6541308/straight-forward-digit-dp-leverage-logic-of-prod-of-num-2-a-3-b-5-c-7-d-prime-factorization/
 */
 func beautifulNumbers(l int, r int) int {
-    return 0
+	// Using digit dp, we have several parameters for our state
+	// 1. The current digit we are at
+	// 2. Whether the current digit is restricted by r
+	// 3. The sum of the digits we have seen so far
+	// 4. Counts of the factors 2, 3, 5, 7
+	// 5. Flag for if a zero is in our number
+	// 6. Flag for if any non-zero digit has been chosen
+	i := 0
+	restricted := false
+	sum := 0
+	primes := make(map[int]int)
+	primes[2] = 0
+	primes[3] = 0
+	primes[5] = 0
+	primes[7] = 0
+	sols := make(map[string]int)
+	zero := false
+	non_zero := false
+
+    return recBeautifulNumbers(digit_to_list(r), i, restricted, sum, primes, zero, non_zero, sols) - recBeautifulNumbers(digit_to_list(l-1), i, restricted, sum, primes, zero, non_zero, sols)
+}
+
+func digit_to_list(num int) []int {
+	// Convert the number to a list of digits
+	digits := []int{}
+	for num > 0 {
+		digits = append(digits, num%10)
+		num /= 10
+	}
+	return digits
+}
+
+func beautiful(primes map[int]int, sum int) bool {
+	// Check if the product of the digits is divisible by the sum of the digits
+	product := 1
+	for prime, power := range primes {
+		product *= int(math.Pow(float64(prime), float64(power)))
+	}
+	return product % sum == 0
+}
+
+func recBeautifulNumbers(digits []int, digit_idx int, restricted bool, sum int, primes map[int]int, zero bool, non_zero bool, sols map[string]int) int {
+	// Encode the parameters into a state string
+	twos := primes[2]
+	threes := primes[3]
+	fives := primes[5]
+	sevens := primes[7]
+	state := fmt.Sprintf("%d-%t-%d-%d-%d-%d-%d-%t-%t", digit_idx, restricted, sum, twos, threes, fives, sevens, zero, non_zero)
+	if _, ok := sols[state]; !ok {
+		// Need to solve this problem
+		if digit_idx == len(digits) {
+			// Base case - we have reached the end of the number
+			if zero || (sum == 0) {
+				// Then surely the product is divisible by the sum
+				sols[state] = 1
+			} else {
+				// Check if the product is divisible by the sum
+				if beautiful(primes, sum) {
+					sols[state] = 1
+				} else {
+					sols[state] = 0
+				}
+			}
+		} else {
+			// Find the upper range of our digit
+			upper := 9
+			if restricted {
+				upper = digits[digit_idx]
+			}
+			num_beautiful := 0
+			for j:=range upper {
+				new_sum := sum + j
+				restricted = restricted && (j == digits[digit_idx])
+			}
+		}
+	}
+	return sols[state]
 }
