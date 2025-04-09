@@ -658,11 +658,13 @@ func TestBeautifulNumbers(t *testing.T) {
 	inputs := []input{
 		{10, 20},
 		{1, 15},
+		{20, 26},
 	}
 
 	expected_outputs := []int{
 		2,
 		10,
+		2,
 	}
 
 	f := func(i input) int {

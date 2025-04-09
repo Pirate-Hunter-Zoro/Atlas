@@ -1,7 +1,6 @@
 package leetcode
 
 import (
-	"fmt"
 	"leet-code/datastructures"
 	"leet-code/helpermath"
 	"math"
@@ -70,7 +69,7 @@ Link: https://leetcode.com/problems/largest-rectangle-in-histogram/
 func largestRectangleArea(heights []int) int {
 	// Answer the question - at this index, what's the farthest right I can go before I run into someone shorter
 	shorter_right := make([]int, len(heights))
-	for i:=0; i<len(shorter_right); i++ {
+	for i:=range shorter_right {
 		shorter_right[i] = len(heights)
 	}
 	right_stack := datastructures.NewStack[int]()
@@ -87,7 +86,7 @@ func largestRectangleArea(heights []int) int {
 	}
 	// Now same for left
 	shorter_left := make([]int, len(heights))
-	for i:=0; i<len(shorter_left); i++ {
+	for i:=range shorter_left {
 		shorter_left[i] = -1
 	}
 	left_stack := datastructures.NewStack[int]()
@@ -145,7 +144,7 @@ Link: https://leetcode.com/problems/course-schedule/
 func canFinish(numCourses int, prerequisites [][]int) bool {
     in_degree := make([]int, numCourses)
 	nodes_needed := make([][]int, numCourses) // jagged array
-	for i:=0; i<numCourses; i++ {
+	for i:=range numCourses {
 		nodes_needed[i] = []int{}
 	}
 	for _, preq := range(prerequisites) {
@@ -277,7 +276,7 @@ func findSubstring(s string, words []string) []int {
 
 	starts := []int{}
 
-	for j:=0; j<l; j++ {
+	for j:=range l {
 		i:=j
 		last_start := i
 		words_seen := 0
@@ -1544,80 +1543,87 @@ https://leetcode.com/problems/count-beautiful-numbers/solutions/6541308/straight
 */
 func beautifulNumbers(l int, r int) int {
 	// Using digit dp, we have several parameters for our state
-	// 1. The current digit we are at
-	// 2. Whether the current digit is restricted by r
-	// 3. The sum of the digits we have seen so far
-	// 4. Counts of the factors 2, 3, 5, 7
-	// 5. Flag for if a zero is in our number
-	// 6. Flag for if any non-zero digit has been chosen
-	i := 0
-	restricted := false
-	sum := 0
-	primes := make(map[int]int)
-	primes[2] = 0
-	primes[3] = 0
-	primes[5] = 0
-	primes[7] = 0
-	sols := make(map[string]int)
-	zero := false
-	non_zero := false
+	i := 0 // current index of the digit we are changing
+	current_digit_restricted := 1 // whether the current digit is restricted by the main number (for the greatest-place digit, this will of course be true)
+	non_zero := 0 // whether the constructed number has a non-zero prefix
+	product := 1 // current running product
+	sum := 0 // current running sum
 
-    return recBeautifulNumbers(digit_to_list(r), i, restricted, sum, primes, zero, non_zero, sols) - recBeautifulNumbers(digit_to_list(l-1), i, restricted, sum, primes, zero, non_zero, sols)
+	sols := make(map[int]map[int]map[int]map[int]map[int]int)
+	first := recBeautifulNumbers(digit_to_list(r), i, current_digit_restricted, non_zero, product, sum, sols)
+	sols = make(map[int]map[int]map[int]map[int]map[int]int)
+	second := recBeautifulNumbers(digit_to_list(l-1), i, current_digit_restricted, non_zero, product, sum, sols)
+    return first - second
 }
 
 func digit_to_list(num int) []int {
-	// Convert the number to a list of digits
+	// Convert the number to a list of digits (in the same order)
 	digits := []int{}
 	for num > 0 {
 		digits = append(digits, num%10)
 		num /= 10
 	}
+	// Reverse the order of digits to preserve the original order
+	for i, j := 0, len(digits)-1; i < j; i, j = i+1, j-1 {
+		digits[i], digits[j] = digits[j], digits[i]
+	}
 	return digits
 }
 
-func beautiful(primes map[int]int, sum int) bool {
-	// Check if the product of the digits is divisible by the sum of the digits
-	product := 1
-	for prime, power := range primes {
-		product *= int(math.Pow(float64(prime), float64(power)))
+func recBeautifulNumbers(digits []int, idx int, current_digit_restricted int, non_zero int, product int, sum int, sols map[int]map[int]map[int]map[int]map[int]int) int {
+	// Check if we have already solved this problem
+	if _, ok := sols[idx]; !ok {
+		sols[idx] = make(map[int]map[int]map[int]map[int]int)
 	}
-	return product % sum == 0
-}
+	if _, ok := sols[idx][current_digit_restricted]; !ok {
+		sols[idx][current_digit_restricted] = make(map[int]map[int]map[int]int)
+	}
+	if _, ok := sols[idx][current_digit_restricted][non_zero]; !ok {
+		sols[idx][current_digit_restricted][non_zero] = make(map[int]map[int]int)
+	}
+	if _, ok := sols[idx][current_digit_restricted][non_zero][product]; !ok {
+		sols[idx][current_digit_restricted][non_zero][product] = make(map[int]int)
+	}
 
-func recBeautifulNumbers(digits []int, digit_idx int, restricted bool, sum int, primes map[int]int, zero bool, non_zero bool, sols map[string]int) int {
-	// Encode the parameters into a state string
-	twos := primes[2]
-	threes := primes[3]
-	fives := primes[5]
-	sevens := primes[7]
-	state := fmt.Sprintf("%d-%t-%d-%d-%d-%d-%d-%t-%t", digit_idx, restricted, sum, twos, threes, fives, sevens, zero, non_zero)
-	if _, ok := sols[state]; !ok {
+	if _, ok := sols[idx][current_digit_restricted][non_zero][product][sum]; !ok {
 		// Need to solve this problem
-		if digit_idx == len(digits) {
-			// Base case - we have reached the end of the number
-			if zero || (sum == 0) {
-				// Then surely the product is divisible by the sum
-				sols[state] = 1
+		if idx == len(digits) {
+			// There are no more digits left
+			if sum > 0 && product % sum == 0 {
+				sols[idx][current_digit_restricted][non_zero][product][sum] = 1
 			} else {
-				// Check if the product is divisible by the sum
-				if beautiful(primes, sum) {
-					sols[state] = 1
-				} else {
-					sols[state] = 0
-				}
+				sols[idx][current_digit_restricted][non_zero][product][sum] = 0
 			}
 		} else {
-			// Find the upper range of our digit
-			upper := 9
-			if restricted {
-				upper = digits[digit_idx]
+			// We can still mess with the digits
+			// Note that we need to calculate an upper bound for the digit we're operating on
+			sols[idx][current_digit_restricted][non_zero][product][sum] = 0
+			cap := 9
+			if current_digit_restricted == 1 {
+				cap = digits[idx]
 			}
-			num_beautiful := 0
-			for j:=range upper {
+			for j:=0; j<=cap; j++ {
+				// Set the value of the digit at the current index to j, and then recurse to the next index position
+				new_product := product
+				new_non_zero := non_zero
+				if idx == 0 {
+					// First digit starts product
+					new_product = j
+				}
+				if j == 0 {
+					new_product = 0
+				} else {
+					new_product *= j
+					new_non_zero = 1
+				}
+				next_digit_restricted := current_digit_restricted
+				if j < cap {
+					next_digit_restricted = 0
+				}
 				new_sum := sum + j
-				restricted = restricted && (j == digits[digit_idx])
+				sols[idx][current_digit_restricted][non_zero][product][sum] += recBeautifulNumbers(digits, idx+1, next_digit_restricted, new_non_zero, new_product, new_sum, sols)
 			}
 		}
 	}
-	return sols[state]
+	return sols[idx][current_digit_restricted][non_zero][product][sum]
 }
