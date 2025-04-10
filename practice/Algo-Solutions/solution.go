@@ -1606,15 +1606,15 @@ func recBeautifulNumbers(digits []int, idx int, current_digit_restricted int, no
 				// Set the value of the digit at the current index to j, and then recurse to the next index position
 				new_product := product
 				new_non_zero := non_zero
-				if idx == 0 {
-					// First digit starts product
+				if non_zero == 0 {
+					// First new digit starts product
 					new_product = j
-				}
-				if j == 0 {
-					new_product = 0
 				} else {
 					new_product *= j
-					new_non_zero = 1
+				}
+				new_non_zero = non_zero
+				if j > 0 {
+					new_non_zero = max(new_non_zero, 1)
 				}
 				next_digit_restricted := current_digit_restricted
 				if j < cap {
@@ -1626,4 +1626,26 @@ func recBeautifulNumbers(digits []int, idx int, current_digit_restricted int, no
 		}
 	}
 	return sols[idx][current_digit_restricted][non_zero][product][sum]
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+/*
+There are several stones arranged in a row, and each stone has an associated value which is an integer given in the array stoneValue.
+
+In each round of the game, Alice divides the row into two non-empty rows (i.e. left row and right row), then Bob calculates the value of each row which is the sum of the values of all the stones in this row. 
+Bob throws away the row which has the maximum value, and Alice's score increases by the value of the remaining row. 
+If the value of the two rows are equal, Bob lets Alice decide which row will be thrown away. 
+The next round starts with the remaining row.
+
+The game ends when there is only one stone remaining. 
+Alice's is initially zero.
+
+Return the maximum score that Alice can obtain.
+
+Link:
+https://leetcode.com/problems/stone-game-v/description/
+*/
+func stoneGameV(stoneValue []int) int {
+    return 0
 }

@@ -650,6 +650,7 @@ func TestCanPartition(t *testing.T) {
 	runTestHelper(t, f, inputs, expected_outputs)
 }
 
+
 func TestBeautifulNumbers(t *testing.T) {
 	type input struct {
 		l int
@@ -659,16 +660,40 @@ func TestBeautifulNumbers(t *testing.T) {
 		{10, 20},
 		{1, 15},
 		{20, 26},
+		{20, 100},
 	}
 
 	expected_outputs := []int{
 		2,
 		10,
 		2,
+		15,
 	}
 
 	f := func(i input) int {
 		return beautifulNumbers(i.l, i.r)
+	}
+	runTestHelper(t, f, inputs, expected_outputs)
+}
+
+
+func TestStoneGameV(t *testing.T) {
+	type input struct {
+		stoneValue []int
+	}
+	inputs := []input{
+		{[]int{6,2,3,4,5,5}},
+		{[]int{7,7,7,7,7,7,7}},
+		{[]int{4}},
+	}
+	expected_outputs := []int{
+		18,
+		28,
+		0,
+	}
+
+	f := func(i input) int {
+		return stoneGameV(i.stoneValue)
 	}
 	runTestHelper(t, f, inputs, expected_outputs)
 }
