@@ -697,3 +697,27 @@ func TestStoneGameV(t *testing.T) {
 	}
 	runTestHelper(t, f, inputs, expected_outputs)
 }
+
+
+func TestGetMaxRepetitions(t *testing.T) {
+	type input struct {
+		s1 string
+		n1 int
+		s2 string
+		n2 int
+	}
+	inputs := []input{
+		{"acb", 4, "ab", 2},
+		{"acb", 1, "acb", 1},
+	}
+
+	expected_outputs := []int{
+		2,
+		1,
+	}
+
+	f := func(i input) int {
+		return getMaxRepetitions(i.s1, i.n1, i.s2, i.n2)
+	}
+	runTestHelper(t, f, inputs, expected_outputs)
+}
