@@ -699,25 +699,24 @@ func TestStoneGameV(t *testing.T) {
 }
 
 
-func TestGetMaxRepetitions(t *testing.T) {
+func TestFindMaxForm(t *testing.T) {
 	type input struct {
-		s1 string
-		n1 int
-		s2 string
-		n2 int
+		strs []string
+		m int
+		n int
 	}
 	inputs := []input{
-		{"acb", 4, "ab", 2},
-		{"acb", 1, "acb", 1},
+		{[]string{"10","0001","111001","1","0"}, 5, 3},
+		{[]string{"10","0","1"}, 1, 1},
 	}
 
 	expected_outputs := []int{
+		4,
 		2,
-		1,
 	}
 
 	f := func(i input) int {
-		return getMaxRepetitions(i.s1, i.n1, i.s2, i.n2)
+		return findMaxForm(i.strs, i.m, i.n)
 	}
 	runTestHelper(t, f, inputs, expected_outputs)
 }
