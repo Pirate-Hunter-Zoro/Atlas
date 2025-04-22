@@ -8,6 +8,7 @@ type ChooseCalculator struct {
 func NewChooseCalculator() *ChooseCalculator {
 	calculator := &ChooseCalculator{
 		sols : make(map[int]map[int]int),
+		solsMod: make(map[int]map[int]int),
 	}
 	return calculator
 }
