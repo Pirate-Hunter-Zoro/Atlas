@@ -1812,3 +1812,94 @@ func idealArrays(n int, maxValue int) int {
 
 	return res
 }
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+/*
+We define str = [s, n] as the string str which consists of the string s concatenated n times.
+
+For example, str == ["abc", 3] =="abcabcabc".
+We define that string s1 can be obtained from string s2 if we can remove some characters from s2 such that it becomes s1.
+
+For example, s1 = "abc" can be obtained from s2 = "abdbec" based on our definition by removing the bolded underlined characters.
+You are given two strings s1 and s2 and two integers n1 and n2. 
+You have the two strings str1 = [s1, n1] and str2 = [s2, n2].
+
+Return the maximum integer m such that str = [str2, m] can be obtained from str1.
+
+Link:
+https://leetcode.com/problems/count-the-repetitions/description/?envType=problem-list-v2&envId=dynamic-programming
+
+Inspiration:
+https://leetcode.com/problems/count-the-repetitions/editorial/?envType=problem-list-v2&envId=dynamic-programming
+(and ChatGPT to understand it...)
+*/
+func getMaxRepetitions(s1 string, n1 int, s2 string, n2 int) int {
+    /*
+	We define two things:
+		- count: how many full matches of s2 we’ve completed.
+		- index: where we are in s2 while scanning.
+		- As we go through each character of s1, we update our index through s2. When index == len(s2), we’ve matched a full s2, so:
+		- We reset index = 0
+		- Increment count
+		- We keep track of (index, s1_count) in a dictionary to detect cycles.
+	*/
+	type MatchState struct {
+		s1_count int
+		s2_count int
+	}
+	idx_map := make(map[int]MatchState)
+	s1_match_count := 0
+	s2_loop_count := 0
+	s2_index := 0
+	// Keep matching s2 within s1 until we get a repeat instance of s2_index when we're at the start of s1
+	for {
+		_, ok := idx_map[s2_index]
+		// Check for cycle: if we've seen this s2_index before at start of a new s1, we're looping
+		if !ok {
+			idx_map[s2_index] = MatchState{s1_count: s1_match_count, s2_count: s2_loop_count}
+		} else {
+			break
+		}
+		for i:=range len(s1) {
+			if s1[i] == s2[s2_index] {
+				s2_index++
+				if s2_index == len(s2) {
+					s2_loop_count++
+					s2_index = 0
+				}
+			}
+		}
+		s1_match_count++
+	}
+
+	// Now that we've detected our cycle - find out how many times s1 was matched at the start of that cycle, and how many s2 loops it took
+	prev_s1_match_count, prev_s2_loop_count := idx_map[s2_index].s1_count, idx_map[s2_index].s2_count
+	s1_count_in_cycle := s1_match_count - prev_s1_match_count
+	s2_count_in_cycle := s2_loop_count - prev_s2_loop_count
+	s1_starting_at_first_cycle := n1 - prev_s1_match_count
+	total_cycles := s1_starting_at_first_cycle / s1_count_in_cycle
+	s2_loops_from_cycles := total_cycles * s2_count_in_cycle
+
+	// How many s1 are left after all the cycles?
+	s1_count_after_cycles := s1_starting_at_first_cycle % s1_count_in_cycle
+	s2_count_after_cycles := 0
+	// We need to match that many s1's
+	for range s1_count_after_cycles {
+		for j := range len(s1) {
+			// If we match a character in s1, we need to check if it matches the current character in s2
+			if s1[j] == s2[s2_index] {
+				s2_index++
+				if s2_index == len(s2) {
+					s2_count_after_cycles++
+					s2_index = 0
+				}
+			}
+		}
+	}
+
+	// This is how many times s2 had to be repeated to get to the end of [s1,n1]
+	s2_count := s2_loops_from_cycles + s2_count_after_cycles + prev_s2_loop_count
+
+	return s2_count / n2 // So that's how many times would could multiply [s2,n2] by and still be a subsequence of [s1,n1]
+}
