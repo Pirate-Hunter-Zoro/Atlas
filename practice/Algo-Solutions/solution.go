@@ -1919,6 +1919,9 @@ You must use all the tickets once and only once.
 
 Link:
 https://leetcode.com/problems/reconstruct-itinerary/description/?envType=problem-list-v2&envId=graph
+
+Inspiration:
+ChatGPT for the alphabetized heaps...
 */
 func findItinerary(tickets [][]string) []string {
     // We're have a list of tickets, which means we can create a graph
