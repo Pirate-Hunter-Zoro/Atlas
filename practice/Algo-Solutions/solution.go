@@ -1903,3 +1903,65 @@ func getMaxRepetitions(s1 string, n1 int, s2 string, n2 int) int {
 
 	return s2_count / n2 // So that's how many times would could multiply [s2,n2] by and still be a subsequence of [s1,n1]
 }
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+/*
+You are given a list of airline tickets where tickets[i] = [from_i, to_i] represent the departure and the arrival airports of one flight. 
+Reconstruct the itinerary in order and return it.
+
+All of the tickets belong to a man who departs from "JFK", thus, the itinerary must begin with "JFK". 
+If there are multiple valid itineraries, you should return the itinerary that has the smallest lexical order when read as a single string.
+
+For example, the itinerary ["JFK", "LGA"] has a smaller lexical order than ["JFK", "LGB"].
+You may assume all tickets form at least one valid itinerary. 
+You must use all the tickets once and only once.
+
+Link:
+https://leetcode.com/problems/reconstruct-itinerary/description/?envType=problem-list-v2&envId=graph
+*/
+func findItinerary(tickets [][]string) []string {
+    // We're have a list of tickets, which means we can create a graph
+	graph := make(map[string]*datastructures.Heap[string])
+	// Have an outgoing edge to each destination - and sort the destinations in a heap lexicographically
+	for _, ticket := range tickets {
+		_, ok := graph[ticket[0]]
+		if !ok {
+			graph[ticket[0]] = datastructures.NewHeap(func(s1, s2 string) bool {
+				return s1 < s2
+			})
+		}
+		graph[ticket[0]].Push(ticket[1])
+	}
+	itinerary := []string{}
+	// We need to start at JFK
+	explore_stack := datastructures.NewStack[string]()
+	explore_stack.Push("JFK")
+	for !explore_stack.Empty() {
+		// Pop the top node and move it to the queue
+		node := explore_stack.Peek()
+		if _, ok := graph[node]; ok {
+			if !graph[node].Empty() {
+				// Pop the top node from this node's heap connections and push it to the stack of nodes - ONLY the top node because now we need to follow this top node
+				next_node := graph[node].Pop()
+				explore_stack.Push(next_node)
+			} else {
+				// This node has no more connections, so we need to pop it from the stack and add it to the itinerary
+				itinerary = append(itinerary, explore_stack.Pop())
+			}
+		} else {
+			// This node had no connections to start with, so we need to pop it from the stack and add it to the itinerary
+			// NOTE THAT IF THIS HAPPENS, then the top of the stack is the FIRST element we are appending to the itinerary (and hence in the end the last destination)
+			if len(itinerary) > 0 {
+				panic("Assertion failed: Itinerary is not empty when the top of the stack has no neighbors - all preceding destinations in the itinerary are chronologically later and cannot be reached.")
+			}
+			itinerary = append(itinerary, explore_stack.Pop())
+		}
+	}
+	// Reverse the itinerary order now
+	for i, j := 0, len(itinerary)-1; i < j; i, j = i+1, j-1 {
+		itinerary[i], itinerary[j] = itinerary[j], itinerary[i]
+	}
+
+	return itinerary
+}

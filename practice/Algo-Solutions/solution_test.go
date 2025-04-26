@@ -809,3 +809,24 @@ func TestGetMaxRepetitions(t *testing.T) {
 	}
 	runTestHelper(t, f, inputs, expected_outputs)
 }
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+func TestFindItinerary(t *testing.T) {
+	type input struct {
+		tickets [][]string
+	}
+	inputs := []input{
+		{[][]string{{"MUC","LHR"},{"JFK","MUC"},{"SFO","SJC"},{"LHR","SFO"}}},
+		{[][]string{{"JFK","SFO"},{"JFK","ATL"},{"SFO","ATL"},{"ATL","JFK"},{"ATL","SFO"}}},
+	}
+	expected_outputs := [][]string{
+		{"JFK","MUC","LHR","SFO","SJC"},
+		{"JFK","ATL","JFK","SFO","ATL","SFO"},
+	}
+
+	f := func(i input) []string {
+		return findItinerary(i.tickets)
+	}
+	runTestHelper(t, f, inputs, expected_outputs)
+}

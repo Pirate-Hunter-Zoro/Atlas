@@ -74,3 +74,6 @@ func (s *Stack[T]) Push(v T){
 func (s *Stack[T]) Empty() bool {
 	return s.head == nil
 }
+func (s *Stack[T]) Size() int {
+	return s.count
+}
