@@ -830,3 +830,24 @@ func TestFindItinerary(t *testing.T) {
 	}
 	runTestHelper(t, f, inputs, expected_outputs)
 }
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+func TestMaxCoins(t *testing.T) {
+	type input struct {
+		nums []int
+	}
+	inputs := []input{
+		{[]int{3,1,5,8}},
+		{[]int{1,5}},
+	}
+	expected_outputs := []int{
+		167,
+		10,
+	}
+
+	f := func(i input) int {
+		return maxCoins(i.nums)
+	}
+	runTestHelper(t, f, inputs, expected_outputs)
+}
