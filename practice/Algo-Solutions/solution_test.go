@@ -851,3 +851,30 @@ func TestMaxCoins(t *testing.T) {
 	}
 	runTestHelper(t, f, inputs, expected_outputs)
 }
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+func TestFindMinStep(t *testing.T) {
+	type input struct {
+		board string
+		hand string
+	}
+	inputs := []input{
+		{"WRRBBW", "RB"},
+		{"WWRRBBWW", "WRBRW"},
+		{"G", "GGGGG"},
+		{"RBYYBBRRB", "YRBGB"},
+	}
+
+	expected_outputs := []int{
+		-1,
+		2,
+		2,
+		3,
+	}
+
+	f := func(i input) int {
+		return findMinStep(i.board, i.hand)
+	}
+	runTestHelper(t, f, inputs, expected_outputs)
+}
