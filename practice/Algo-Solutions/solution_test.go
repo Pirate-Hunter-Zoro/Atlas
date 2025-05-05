@@ -878,3 +878,25 @@ func TestFindMinStep(t *testing.T) {
 	}
 	runTestHelper(t, f, inputs, expected_outputs)
 }
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+func TestNumTilings(t *testing.T) {
+	type input struct {
+		n int
+	}
+	inputs := []input{
+		{3},
+		{1},
+	}
+
+	expected_outputs := []int{
+		5,
+		1,
+	}
+
+	f := func(i input) int {
+		return numTilings(i.n)
+	}
+	runTestHelper(t, f, inputs, expected_outputs)
+}
