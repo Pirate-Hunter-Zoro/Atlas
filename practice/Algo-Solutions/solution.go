@@ -2270,3 +2270,202 @@ func topDownNumTilings(n int, left_side int, sols [][]int) int {
 	}
 	return sols[left_side][n]
 }
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+/*
+Given an integer array nums and an integer k, split nums into k non-empty subarrays such that the largest sum of any subarray is minimized.
+
+Return the minimized largest sum of the split.
+
+A subarray is a contiguous part of the array.
+
+Link: https://leetcode.com/problems/split-array-largest-sum/description/?envType=problem-list-v2&envId=dynamic-programming
+*/
+func splitArray(nums []int, k int) int {
+    // We are going to binary search for the smallest possible maximum sum
+	left := 0
+	right := 0
+	for _, v := range nums {
+		right += v
+	}
+	for left < right {
+		mid := (left + right) / 2
+		if canSplit(nums, k, mid) {
+			right = mid
+		} else {
+			left = mid + 1
+		}
+	}
+	return left
+}
+
+func canSplit(nums []int, k int, max_sum int) bool {
+	// We need to see if we can split the array into k subarrays such that the maximum sum of any subarray is less than or equal to max_sum
+	count := 1
+	sum := 0
+	// As we build our sliding window, make sure we don't exceed the maximum sum - if that requires more than k splits, then we're out of luck
+	for _, v := range nums {
+		if sum + v > max_sum {
+			count++
+			sum = v
+		} else {
+			sum += v
+		}
+		if sum > max_sum {
+			// A single value is too large to fit in the maximum sum
+			return false
+		}
+	}
+	return count <= k
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+/*
+You are given an integer array cookies, where cookies[i] denotes the number of cookies in the ith bag. 
+You are also given an integer k that denotes the number of children to distribute all the bags of cookies to. 
+All the cookies in the same bag must go to the same child and cannot be split up.
+
+The unfairness of a distribution is defined as the maximum total cookies obtained by a single child in the distribution.
+
+Return the minimum unfairness of all distributions.
+
+Link:
+https://leetcode.com/problems/fair-distribution-of-cookies/description/
+*/
+func distributeCookies(cookies []int, k int) int {
+	cookie_totals := make([]int, k)
+	next_to_assign := 0
+    return recDistributeCookies(&cookies, &cookie_totals, next_to_assign)
+}
+
+func recDistributeCookies(cookies *[]int, cookie_totals *[]int, next_to_assign int) int {
+	// If I’ve assigned the first i cookies, and the kids currently have these totals, what’s the best possible unfairness I can achieve from here?”
+	// Each recursive step adds a cookie to a kid and asks the question again.
+	cookie := (*cookies)[next_to_assign]
+	// Try giving the cookie to each kid
+	previous_sums := make(map[int]bool)
+	record := math.MaxInt
+	for i:=range *cookie_totals {
+		kid_sum := (*cookie_totals)[i]
+		if _, ok := previous_sums[kid_sum]; !ok {
+			// Not redundant to assign this cookie to this kid
+			previous_sums[kid_sum] = true
+			(*cookie_totals)[i] += cookie
+			if next_to_assign < len(*cookies)-1 {
+				// Follow this branch
+				rec_unfair := recDistributeCookies(cookies, cookie_totals, next_to_assign+1)
+				record = min(record, rec_unfair)
+			} else {
+				// We're at the end of our cookie assignments - check the unfairness
+				max_cookie_count := math.MinInt
+				for j:=range *cookie_totals {
+					max_cookie_count = max(max_cookie_count, (*cookie_totals)[j])
+				}
+				record = min(record, max_cookie_count)
+			}
+			// Now remove this cookie now that we've left the recursive branch
+			(*cookie_totals)[i] -= cookie
+		}
+	}
+	return record
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+/*
+There is a dungeon with n x m rooms arranged as a grid.
+
+You are given a 2D array moveTime of size n x m, where moveTime[i][j] represents the minimum time in seconds when you can start moving to that room. 
+You start from the room (0, 0) at time t = 0 and can move to an adjacent room. 
+Moving between adjacent rooms takes exactly one second.
+
+Return the minimum time to reach the room (n - 1, m - 1).
+
+Two rooms are adjacent if they share a common wall, either horizontally or vertically.
+
+Link:
+https://leetcode.com/problems/find-minimum-time-to-reach-last-room-i/description/?envType=daily-question&envId=2025-05-07
+*/
+func minTimeToReach(moveTime [][]int) int {
+    // This is a shortest path problem
+	type connection struct {
+		row int
+		col int
+		cost int
+	}
+	connection_heap := datastructures.NewHeap(func(c1, c2 *connection) bool {
+		return c1.cost < c2.cost
+	})
+	connection_heap.Push(&connection{row: 0, col: 0, cost: 0})
+	min_cost := make([][]int, len(moveTime))
+	for i:=range moveTime {
+		min_cost[i] = make([]int, len(moveTime[0]))
+		for j:=range moveTime[0] {
+			min_cost[i][j] = math.MaxInt
+		}
+	}
+	min_cost[0][0] = 0
+	for !connection_heap.Empty() {
+		node := connection_heap.Pop()
+		if node.row == len(moveTime)-1 && node.col == len(moveTime[0])-1 {
+			break
+		}
+		// Look up, down, left, right
+		if node.row > 0 {
+			// Up
+			new_cost := max(node.cost, moveTime[node.row-1][node.col]) + 1
+			if new_cost < min_cost[node.row-1][node.col] {
+				// Worth exploring
+				min_cost[node.row-1][node.col] = new_cost
+				connection_heap.Push(&connection{row: node.row-1, col: node.col, cost: max(node.cost, moveTime[node.row-1][node.col])+1})
+			}
+		}
+		if node.row < len(moveTime)-1 {
+			// Down
+			new_cost := max(node.cost, moveTime[node.row+1][node.col]) + 1
+			if new_cost < min_cost[node.row+1][node.col] {
+				min_cost[node.row+1][node.col] = new_cost
+				connection_heap.Push(&connection{row: node.row+1, col: node.col, cost: max(node.cost, moveTime[node.row+1][node.col])+1})
+			}
+		}
+		if node.col > 0 {
+			// Left
+			new_cost := max(node.cost, moveTime[node.row][node.col-1]) + 1
+			if new_cost < min_cost[node.row][node.col-1] {
+				min_cost[node.row][node.col-1] = new_cost
+				connection_heap.Push(&connection{row: node.row, col: node.col-1, cost: max(node.cost, moveTime[node.row][node.col-1])+1})
+			}
+		}
+		if node.col < len(moveTime[0])-1 {
+			// Right
+			new_cost := max(node.cost, moveTime[node.row][node.col+1]) + 1
+			if new_cost < min_cost[node.row][node.col+1] {
+				min_cost[node.row][node.col+1] = new_cost
+				connection_heap.Push(&connection{row: node.row, col: node.col+1, cost: max(node.cost, moveTime[node.row][node.col+1])+1})
+			}
+		}
+	}
+	return min_cost[len(moveTime)-1][len(moveTime[0])-1]
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+/*
+There is a dungeon with n x m rooms arranged as a grid.
+
+You are given a 2D array moveTime of size n x m, where moveTime[i][j] represents the minimum time in seconds when you can start moving to that room. 
+You start from the room (0, 0) at time t = 0 and can move to an adjacent room. 
+Moving between adjacent rooms takes one second for one move and two seconds for the next, alternating between the two.
+
+Return the minimum time to reach the room (n - 1, m - 1).
+
+Two rooms are adjacent if they share a common wall, either horizontally or vertically.
+
+Link:
+https://leetcode.com/problems/find-minimum-time-to-reach-last-room-ii/description/
+*/
+func minTimeToReachII(moveTime [][]int) int {
+    return 0
+}

@@ -4,6 +4,8 @@ import (
 	"leet-code/datastructures"
 	"reflect"
 	"testing"
+
+	"golang.org/x/tools/go/expect"
 )
 
 func runTestHelper[I any, A any](t *testing.T, f func(i I) A, inputs []I, expected_outputs []A) {
@@ -897,6 +899,98 @@ func TestNumTilings(t *testing.T) {
 
 	f := func(i input) int {
 		return numTilings(i.n)
+	}
+	runTestHelper(t, f, inputs, expected_outputs)
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+func TestSplitArray(t *testing.T) {
+	type input struct {
+		nums []int
+		k int
+	}
+	inputs := []input{
+		{[]int{7,2,5,10,8}, 2},
+		{[]int{1,2,3,4,5}, 2},
+		{[]int{1,4,4}, 3},
+	}
+
+	expected_outputs := []int{
+		18,
+		9,
+		4,
+	}
+
+	f := func(i input) int {
+		return splitArray(i.nums, i.k)
+	}
+
+	runTestHelper(t, f, inputs, expected_outputs)
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+func TestDistributeCookies(t *testing.T) {
+	type input struct {
+		cookies []int
+		k int
+	}
+	inputs := []input{
+		{[]int{8,15,10,20,8}, 2},
+		{[]int{6,1,3,2,2,4,1,2}, 3},
+	}
+	expected_outputs := []int{
+		31,
+		7,
+	}
+
+	f := func(i input) int {
+		return distributeCookies(i.cookies, i.k)
+	}
+	runTestHelper(t, f, inputs, expected_outputs)
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+func TestMinTimeToReach(t *testing.T) {
+	type input struct {
+		moveTime [][]int
+	}
+	inputs := []input{
+		{[][]int{{0,4},{4,4}}},
+		{[][]int{{0,0,0},{0,0,0}}},
+	}
+	expected_outputs := []int{
+		6,
+		3,
+	}
+
+	f := func(i input) int {
+		return minTimeToReach(i.moveTime)
+	}
+
+	runTestHelper(t, f, inputs, expected_outputs)
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+func TestMinTimeToReachII(t *testing.T) {
+	type input struct {
+		moveTime [][]int
+	}
+	inputs := []input{
+		{[][]int{{0,4},{4,4}}},
+		{[][]int{{0,0,0,0},{0,0,0,0}}},
+	}
+
+	expected_outputs := []int{
+		7,
+		6,
+	}
+
+	f := func(i input) int {
+		return minTimeToReachII(i.moveTime)
 	}
 	runTestHelper(t, f, inputs, expected_outputs)
 }
