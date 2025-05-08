@@ -4,8 +4,6 @@ import (
 	"leet-code/datastructures"
 	"reflect"
 	"testing"
-
-	"golang.org/x/tools/go/expect"
 )
 
 func runTestHelper[I any, A any](t *testing.T, f func(i I) A, inputs []I, expected_outputs []A) {
@@ -991,6 +989,32 @@ func TestMinTimeToReachII(t *testing.T) {
 
 	f := func(i input) int {
 		return minTimeToReachII(i.moveTime)
+	}
+	runTestHelper(t, f, inputs, expected_outputs)
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+func TestMinCost(t *testing.T) {
+	type input struct {
+		maxTime int
+		edges [][]int
+		passingFees []int
+	}
+	inputs := []input{
+		{30, [][]int{{0,1,10},{1,2,10},{2,5,10},{0,3,1},{3,4,10},{4,5,15}}, []int{5,1,2,20,20,3}},
+		{29, [][]int{{0,1,10},{1,2,10},{2,5,10},{0,3,1},{3,4,10},{4,5,15}}, []int{5,1,2,20,20,3}},
+		{25, [][]int{{0,1,10},{1,2,10},{2,5,10},{0,3,1},{3,4,10},{4,5,15}}, []int{5,1,2,20,20,3}},
+	}
+
+	expected_outputs := []int{
+		11,
+		48,
+		-1,
+	}
+
+	f := func(i input) int {
+		return minCost(i.maxTime, i.edges, i.passingFees)
 	}
 	runTestHelper(t, f, inputs, expected_outputs)
 }

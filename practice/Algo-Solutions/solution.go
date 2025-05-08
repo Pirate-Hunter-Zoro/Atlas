@@ -2467,5 +2467,91 @@ Link:
 https://leetcode.com/problems/find-minimum-time-to-reach-last-room-ii/description/
 */
 func minTimeToReachII(moveTime [][]int) int {
+    // This is a AGAIN shortest path problem
+	type connection struct {
+		row int
+		col int
+		cost int
+		last_jump_time int // either 1 or 2
+	}
+	connection_heap := datastructures.NewHeap(func(c1, c2 *connection) bool {
+		return c1.cost < c2.cost
+	})
+	connection_heap.Push(&connection{row: 0, col: 0, cost: 0, last_jump_time: 2})
+	min_cost := make([][]int, len(moveTime))
+	for i:=range moveTime {
+		min_cost[i] = make([]int, len(moveTime[0]))
+		for j:=range moveTime[0] {
+			min_cost[i][j] = math.MaxInt
+		}
+	}
+	min_cost[0][0] = 0
+	for !connection_heap.Empty() {
+		node := connection_heap.Pop()
+		if node.row == len(moveTime)-1 && node.col == len(moveTime[0])-1 {
+			break
+		}
+		// Look up, down, left, right
+		next_jump_time := 1
+		if node.last_jump_time == 1 {
+			// Then this jump time is 2
+			next_jump_time++
+		}
+		if node.row > 0 {
+			// Up
+			new_cost := max(node.cost, moveTime[node.row-1][node.col]) + next_jump_time
+			if new_cost < min_cost[node.row-1][node.col] {
+				// Worth exploring
+				min_cost[node.row-1][node.col] = new_cost
+				connection_heap.Push(&connection{row: node.row-1, col: node.col, cost: new_cost, last_jump_time: next_jump_time})
+			}
+		}
+		if node.row < len(moveTime)-1 {
+			// Down
+			new_cost := max(node.cost, moveTime[node.row+1][node.col]) + next_jump_time
+			if new_cost < min_cost[node.row+1][node.col] {
+				min_cost[node.row+1][node.col] = new_cost
+				connection_heap.Push(&connection{row: node.row+1, col: node.col, cost: new_cost, last_jump_time: next_jump_time})
+			}
+		}
+		if node.col > 0 {
+			// Left
+			new_cost := max(node.cost, moveTime[node.row][node.col-1]) + next_jump_time
+			if new_cost < min_cost[node.row][node.col-1] {
+				min_cost[node.row][node.col-1] = new_cost
+				connection_heap.Push(&connection{row: node.row, col: node.col-1, cost: new_cost, last_jump_time: next_jump_time})
+			}
+		}
+		if node.col < len(moveTime[0])-1 {
+			// Right
+			new_cost := max(node.cost, moveTime[node.row][node.col+1]) + next_jump_time
+			if new_cost < min_cost[node.row][node.col+1] {
+				min_cost[node.row][node.col+1] = new_cost
+				connection_heap.Push(&connection{row: node.row, col: node.col+1, cost: new_cost, last_jump_time: next_jump_time})
+			}
+		}
+	}
+	return min_cost[len(moveTime)-1][len(moveTime[0])-1]
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+/*
+There is a country of n cities numbered from 0 to n - 1 where all the cities are connected by bi-directional roads. 
+The roads are represented as a 2D integer array edges where edges[i] = [x_i, y_i, time_i] denotes a road between cities x_i and y_i that takes timei minutes to travel. 
+There may be multiple roads of differing travel times connecting the same two cities, but no road connects a city to itself.
+
+Each time you pass through a city, you must pay a passing fee. 
+This is represented as a 0-indexed integer array passingFees of length n where passingFees[j] is the amount of dollars you must pay when you pass through city j.
+
+In the beginning, you are at city 0 and want to reach city n - 1 in maxTime minutes or less. 
+The cost of your journey is the summation of passing fees for each city that you passed through at some moment of your journey (including the source and destination cities).
+
+Given maxTime, edges, and passingFees, return the minimum cost to complete your journey, or -1 if you cannot complete it within maxTime minutes.
+
+Link:
+https://leetcode.com/problems/minimum-cost-to-reach-destination-in-time/description/
+*/
+func minCost(maxTime int, edges [][]int, passingFees []int) int {
     return 0
 }
