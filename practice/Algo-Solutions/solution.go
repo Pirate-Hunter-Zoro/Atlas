@@ -4,11 +4,13 @@ import (
 	"bytes"
 	"leet-code/datastructures"
 	"leet-code/helpermath"
+	"log"
+	"maps"
 	"math"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
-	"slices"
 )
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -2554,4 +2556,201 @@ https://leetcode.com/problems/minimum-cost-to-reach-destination-in-time/descript
 */
 func minCost(maxTime int, edges [][]int, passingFees []int) int {
     return 0
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+/*
+Write a program to solve a Sudoku puzzle by filling the empty cells.
+
+A sudoku solution must satisfy all of the following rules:
+- Each of the digits 1-9 must occur exactly once in each row.
+- Each of the digits 1-9 must occur exactly once in each column.
+- Each of the digits 1-9 must occur exactly once in each of the 9 3x3 sub-boxes of the grid.
+The '.' character indicates empty cells.
+
+Link:
+https://leetcode.com/problems/sudoku-solver/description/
+*/
+type variable struct {
+	values map[byte]bool
+	neighbors []*variable
+}
+
+func solveSudoku(board_problem [][]byte)  {
+	variable_grid := make([][]*variable, 9)
+	for i := range variable_grid {
+		variable_grid[i] = make([]*variable, 9)
+		for j := range variable_grid[i] {
+			variable_grid[i][j] = &variable{}
+			variable_grid[i][j].values = make(map[byte]bool)
+			if board_problem[i][j] == '.' {
+				for k := 1; k <= 9; k++ {
+					// This is a variable that can take on any of the values 1-9 (so far as we can tell right now)
+					key := byte(k + '0')
+					variable_grid[i][j].values[key] = true
+				}
+			} else {
+				variable_grid[i][j].values[board_problem[i][j]] = true
+			}
+		}
+	}
+
+	for i:=range 9 {
+		for j:=range 9 {
+			assign_vars(i, j, variable_grid)
+		}
+	}
+
+	// Now perform ac3 from all the singleton variables - that'll get rid of some values to start
+	for i := range variable_grid {
+		for j := range variable_grid[i] {
+			if len(variable_grid[i][j].values) == 1 {
+				// This is a singleton variable - perform ac3 on it (don't worry about the return on it - we don't need to restore anything and we're assuming the puzzle IS possible to solve so we won't be messed up here)
+				ac3(variable_grid[i][j])
+			}
+		}
+	}
+
+	recSudokuSolver(0, 0, variable_grid)
+	for i := range variable_grid {
+		for j := range variable_grid[i] {
+			for k := range variable_grid[i][j].values {
+				// There should only be one value in the map
+				if len(variable_grid[i][j].values) != 1 {
+					log.Fatalf("Cell (%d, %d) has non-singleton domain: %v", i, j, variable_grid[i][j].values)
+				}
+				board_problem[i][j] = k
+				break
+			}
+		}
+	}
+}
+
+func recSudokuSolver(row, col int, variable_grid [][]*variable) bool {
+	if row == 9 {
+		return true
+	} else {
+		v := variable_grid[row][col]
+		if len(v.values) == 1 {
+			// Already solved. Just move to next cell.
+			next_row := row
+			next_col := col
+			if next_col == 8 {
+				next_row++
+				next_col = 0
+			} else {
+				next_col++
+			}
+			return recSudokuSolver(next_row, next_col, variable_grid)
+		}
+		for k := range v.values {
+			values_copy := make(map[byte]bool)
+			maps.Copy(values_copy, v.values)
+			// Assign this value to the variable - which means removing all other possible values
+			v.values = make(map[byte]bool)
+			v.values[k] = true
+			next_row := row
+			next_col := col
+			if col == 8 {
+				next_row++
+				next_col = 0
+			} else {
+				next_col++
+			}
+			ac3_passed, restore_vars := ac3(v)
+			if ac3_passed && recSudokuSolver(next_row, next_col, variable_grid) {
+				return true
+			} else {
+				for v2, v2_restore := range restore_vars {
+					// Restore the values of the variables
+					v2.values = v2_restore
+				}
+				// Restore the values of the current variable
+				v.values = values_copy
+				// But the value we just tried for our current variable will not work, so remove it
+				delete(v.values, k)
+			}
+		} 
+		return false
+	}
+}
+
+func assign_vars(row, col int, variable_grid [][]*variable) {
+	// Find all the other variables that will be affected by the current variable
+	for c := range 9 {
+		if col != c {
+			variable_grid[row][col].neighbors = append(variable_grid[row][col].neighbors, variable_grid[row][c])
+		}
+	}
+	for r := range 9 {
+		if row != r {
+			variable_grid[row][col].neighbors = append(variable_grid[row][col].neighbors, variable_grid[r][col])
+		}
+	}
+	block_row_idx := (row / 3) * 3
+	block_col_idx := (col / 3) * 3
+	for r_offset := range 3 {
+		for c_offset := range 3 {
+			r_idx := block_row_idx + r_offset
+			c_idx := block_col_idx + c_offset
+			if r_idx != row || c_idx != col {
+				variable_grid[row][col].neighbors = append(variable_grid[row][col].neighbors, variable_grid[r_idx][c_idx])
+			}
+		}
+	}
+}
+
+type arc struct {
+	first_var *variable
+	second_var *variable
+}
+
+func ac3(v *variable) (bool, map[*variable]map[byte]bool) {
+	restore_vars := make(map[*variable]map[byte]bool) // pointer to a struct is hashable because it's an underlying integer
+	restore_vars[v] = make(map[byte]bool)
+	maps.Copy(restore_vars[v], v.values)
+	arc_queue := datastructures.NewQueue[*arc]()
+	for _, other_v := range v.neighbors {
+		arc_queue.Enqueue(&arc{first_var: v, second_var: other_v})
+	}
+	for !arc_queue.Empty() {
+		this_arc := arc_queue.Dequeue()
+		first := this_arc.first_var
+		second := this_arc.second_var
+		if _, ok := restore_vars[second]; !ok {
+			restore_vars[second] = make(map[byte]bool)
+			maps.Copy(restore_vars[second], second.values)
+		}
+		if remove_inconsistent_values(this_arc) {
+			// If something ran out of values, we're done - false
+			if len(second.values) == 0 {
+				return false, restore_vars
+			}
+			for _, neighbor := range second.neighbors {
+				if neighbor != first {
+					arc_queue.Enqueue(&arc{first_var: second, second_var: neighbor})
+				}
+			}
+		}
+	}
+
+	return true, restore_vars // Even if ac3 works, we may not have a solution when we try to solve later variables
+}
+
+func remove_inconsistent_values(some_arc *arc) bool {
+	first := some_arc.first_var
+	second := some_arc.second_var
+	removed := false
+	if len(first.values) == 1 {
+		// That's going to constrain second variable's values
+		for v := range first.values {
+			// (There will only be one value in the map)
+			if _, ok := second.values[v]; ok {
+				removed = true
+				delete(second.values, v)
+			}
+		}
+	}
+	return removed
 }
