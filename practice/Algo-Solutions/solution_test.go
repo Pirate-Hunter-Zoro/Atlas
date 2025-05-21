@@ -1039,3 +1039,49 @@ func TestLadderLength(t *testing.T) {
 
 	runTestHelper(t, f, inputs, expected_outputs)
 }
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+func TestNumberOfArithmeticSlices(t *testing.T) {
+	type input struct {
+		nums []int
+	}
+	inputs := []input{
+		{[]int{2,4,6,8,10}},
+		{[]int{7,7,7,7,7}},
+	}
+
+	expected_outputs := []int{
+		7,
+		16,
+	}
+
+	f := func(i input) int {
+		return numberOfArithmeticSlices(i.nums)
+	}
+
+	runTestHelper(t, f, inputs, expected_outputs)
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+func TestCountPalindromes(t *testing.T) {
+	type input struct {
+		s string
+	}
+	inputs := []input{
+		{"103301"},
+		{"0000000"},
+		{"9999900000"},
+	}
+	expected_outputs := []int{
+		2,
+		21,
+		2,
+	}
+
+	f := func(i input) int {
+		return countPalindromes(i.s)
+	}
+	runTestHelper(t, f, inputs, expected_outputs)
+}
