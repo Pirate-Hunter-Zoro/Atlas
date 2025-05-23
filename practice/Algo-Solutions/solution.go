@@ -2891,5 +2891,48 @@ Link:
 https://leetcode.com/problems/count-palindromic-subsequences/description/
 */
 func countPalindromes(s string) int {
-	return 0
+	digits := []byte{'0', '1', '2', '3', '4', '5', '6', '7', '8', '9'}
+	posns := make(map[byte][]int)
+	for i := range s {
+		if _, ok := posns[s[i]]; !ok {
+			posns[s[i]] = make([]int, 0)
+		}
+		posns[s[i]] = append(posns[s[i]], i)
+	}
+	// Count the number of palindromic subsequences of length 5 - note they must be of the form 'abcba'
+	total := 0
+	for _, a := range digits {
+		for _, b := range digits {
+			// Count how many palindromes are of the form 'a, b, ANYTHING, b, a'
+			// For each position of a, binary search for a position of b preceding it
+			// Then binary search for the first position of a following THAT
+			// Then binary search for the first position of b following THAT
+			// In this way we can count how many palindromes are of the form 'a, b, ANYTHING, b, a'
+			for posn := range posns[a] {
+				// Find the first position of b preceding this position
+				b_first_posn := sort.SearchInts(posns[b], posns[a][posn])
+				if b_first_posn == 0 {
+					// No b preceding this position
+					continue
+				}
+				b_first_posn--
+				// Now find the first position of a following that
+				first_posn := sort.SearchInts(posns[a], posns[b][b_first_posn])
+				if first_posn == len(posns[a]) {
+					// No a following that
+					continue
+				}
+				first_posn++
+				// Now find the first position of b following that
+				b_first_posn = sort.SearchInts(posns[b], posns[a][first_posn])
+				if b_first_posn == len(posns[b]) {
+					// No b following that
+					continue
+				}
+				b_first_posn++
+				total += (len(posns[b]) - b_first_posn) * (len(posns[a]) - first_posn)
+			}
+		}
+	}
+	return total
 }
