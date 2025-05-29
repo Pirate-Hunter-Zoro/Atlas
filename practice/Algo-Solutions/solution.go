@@ -2908,29 +2908,30 @@ func countPalindromes(s string) int {
 			// Then binary search for the first position of a following THAT
 			// Then binary search for the first position of b following THAT
 			// In this way we can count how many palindromes are of the form 'a, b, ANYTHING, b, a'
-			for posn := range posns[a] {
+			for a_first_posn := range posns[a] {
 				// Find the first position of b preceding this position
-				b_first_posn := sort.SearchInts(posns[b], posns[a][posn])
+				b_first_posn := sort.SearchInts(posns[b], posns[a][a_first_posn])
 				if b_first_posn == 0 {
 					// No b preceding this position
 					continue
 				}
 				b_first_posn--
-				// Now find the first position of a following that
-				first_posn := sort.SearchInts(posns[a], posns[b][b_first_posn])
-				if first_posn == len(posns[a]) {
+				// TODO - make sure that there's some character in between the two b's
+				// Now find the first position of b following that
+				b_next_posn := sort.SearchInts(posns[a], posns[b][b_first_posn])
+				if b_next_posn == len(posns[a]) {
 					// No a following that
 					continue
 				}
-				first_posn++
-				// Now find the first position of b following that
-				b_first_posn = sort.SearchInts(posns[b], posns[a][first_posn])
-				if b_first_posn == len(posns[b]) {
+				b_next_posn++
+				// Now find the first position of a following that
+				a_next_posn := sort.SearchInts(posns[b], posns[a][b_next_posn])
+				if a_next_posn == len(posns[b]) {
 					// No b following that
 					continue
 				}
 				b_first_posn++
-				total += (len(posns[b]) - b_first_posn) * (len(posns[a]) - first_posn)
+				total += (len(posns[b]) - b_first_posn) * (len(posns[a]) - b_next_posn)
 			}
 		}
 	}
