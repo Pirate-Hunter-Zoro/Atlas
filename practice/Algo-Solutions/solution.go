@@ -2916,22 +2916,25 @@ func countPalindromes(s string) int {
 					continue
 				}
 				b_first_posn--
-				// TODO - make sure that there's some character in between the two b's
 				// Now find the first position of b following that
-				b_next_posn := sort.SearchInts(posns[a], posns[b][b_first_posn])
-				if b_next_posn == len(posns[a]) {
+				b_next_posn := sort.SearchInts(posns[b], posns[b][b_first_posn])
+				if b_next_posn == len(posns[a]) || b_next_posn == 0 {
 					// No a following that
 					continue
 				}
-				b_next_posn++
+				b_next_posn--
 				// Now find the first position of a following that
-				a_next_posn := sort.SearchInts(posns[b], posns[a][b_next_posn])
-				if a_next_posn == len(posns[b]) {
+				a_next_posn := sort.SearchInts(posns[a], posns[b][b_next_posn])
+				if a_next_posn == len(posns[b]) || a_next_posn == 0 {
 					// No b following that
 					continue
 				}
-				b_first_posn++
-				total += (len(posns[b]) - b_first_posn) * (len(posns[a]) - b_next_posn)
+				a_next_posn--
+				// Now we can count how many palindromes are of the form 'a, b, ANYTHING, b, a' with these exact positions for a,b,b,a
+				between_a_b := posns[b][b_first_posn] - posns[a][a_first_posn] - 1
+				between_b_b := posns[b][b_next_posn] - posns[b][b_first_posn] - 1
+				between_b_a := posns[a][a_next_posn] - posns[b][b_next_posn] - 1
+				total = helpermath.ModAdd(total, helpermath.ModMul(between_a_b, helpermath.ModMul(between_b_b, between_b_a)))
 			}
 		}
 	}
