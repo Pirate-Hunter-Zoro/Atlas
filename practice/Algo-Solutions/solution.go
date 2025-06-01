@@ -2891,6 +2891,7 @@ Link:
 https://leetcode.com/problems/count-palindromic-subsequences/description/
 */
 func countPalindromes(s string) int {
+	str := []byte(s)
 	digits := []byte{'0', '1', '2', '3', '4', '5', '6', '7', '8', '9'}
 	posns := make(map[byte][]int)
 	for i := range s {
@@ -2902,39 +2903,17 @@ func countPalindromes(s string) int {
 	// Count the number of palindromic subsequences of length 5 - note they must be of the form 'abcba'
 	total := 0
 	for _, a := range digits {
+		prefix := make(map[byte]int)
 		for _, b := range digits {
 			// Count how many palindromes are of the form 'a, b, ANYTHING, b, a'
 			// For each position of a, binary search for a position of b preceding it
 			// Then binary search for the first position of a following THAT
 			// Then binary search for the first position of b following THAT
 			// In this way we can count how many palindromes are of the form 'a, b, ANYTHING, b, a'
-			for a_first_posn := range posns[a] {
-				// Find the first position of b preceding this position
-				b_first_posn := sort.SearchInts(posns[b], posns[a][a_first_posn])
-				if b_first_posn == 0 {
-					// No b preceding this position
-					continue
-				}
-				b_first_posn--
-				// Now find the first position of b following that
-				b_next_posn := sort.SearchInts(posns[b], posns[b][b_first_posn])
-				if b_next_posn == len(posns[a]) || b_next_posn == 0 {
-					// No a following that
-					continue
-				}
-				b_next_posn--
-				// Now find the first position of a following that
-				a_next_posn := sort.SearchInts(posns[a], posns[b][b_next_posn])
-				if a_next_posn == len(posns[b]) || a_next_posn == 0 {
-					// No b following that
-					continue
-				}
-				a_next_posn--
-				// Now we can count how many palindromes are of the form 'a, b, ANYTHING, b, a' with these exact positions for a,b,b,a
-				between_a_b := posns[b][b_first_posn] - posns[a][a_first_posn] - 1
-				between_b_b := posns[b][b_next_posn] - posns[b][b_first_posn] - 1
-				between_b_a := posns[a][a_next_posn] - posns[b][b_next_posn] - 1
-				total = helpermath.ModAdd(total, helpermath.ModMul(between_a_b, helpermath.ModMul(between_b_b, between_b_a)))
+			// posns may not be used...
+			suffix := make(map[byte]int)
+			for idx, char := range str {
+				// 
 			}
 		}
 	}
