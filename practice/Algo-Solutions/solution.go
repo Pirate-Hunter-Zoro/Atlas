@@ -2903,17 +2903,44 @@ func countPalindromes(s string) int {
 	// Count the number of palindromic subsequences of length 5 - note they must be of the form 'abcba'
 	total := 0
 	for _, a := range digits {
-		prefix := make(map[byte]int)
 		for _, b := range digits {
 			// Count how many palindromes are of the form 'a, b, ANYTHING, b, a'
-			// For each position of a, binary search for a position of b preceding it
-			// Then binary search for the first position of a following THAT
-			// Then binary search for the first position of b following THAT
-			// In this way we can count how many palindromes are of the form 'a, b, ANYTHING, b, a'
-			// posns may not be used...
-			suffix := make(map[byte]int)
-			for idx, char := range str {
-				// 
+			prefix_counts := make([]int, len(str))
+			// Count how many 'ab' pairs we can form up to each index
+			count_a := 0
+			for i := range str {
+				if str[i] == b {
+					// Then we can form an 'ab' pair for all occurences of 'a' before this index
+					prefix_counts[i] = count_a
+				}
+				if str[i] == a {
+					count_a = helpermath.ModAdd(count_a, 1)
+				} 
+				if i > 0 {
+					prefix_counts[i] = helpermath.ModAdd(prefix_counts[i], prefix_counts[i-1])
+				}
+			}
+			// Count how many 'ba' pairs we can form from the end of the string
+			suffix_counts := make([]int, len(str))
+			count_a = 0
+			for i := len(str) - 1; i >= 0; i-- {
+				if str[i] == b {
+					// Then we can form a 'ba' pair for all occurences of 'a' after this index
+					suffix_counts[i] = count_a
+				}
+				if str[i] == a {
+					count_a = helpermath.ModAdd(count_a, 1)
+				}
+				if i < len(str)-1 {
+					suffix_counts[i] = helpermath.ModAdd(suffix_counts[i], suffix_counts[i+1])
+				}
+			}
+			// Now we can count the number of palindromic subsequences of the form 'a, b, ANYTHING, b, a'
+			for i := range str {
+				if i > 1 && i < len(str)-2 {
+					// We can form a palindromic subsequence of the form 'a, b, ANYTHING, b, a' if we have at least one 'ab' pair before i and at least one 'ba' pair after i
+					total = helpermath.ModAdd(total, helpermath.ModMul(prefix_counts[i-1], suffix_counts[i+1]))
+				}
 			}
 		}
 	}
