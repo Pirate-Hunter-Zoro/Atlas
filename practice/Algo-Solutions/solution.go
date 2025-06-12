@@ -2946,3 +2946,181 @@ func countPalindromes(s string) int {
 	}
 	return total
 }
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+/*
+A game on an undirected graph is played by two players, Mouse and Cat, who alternate turns.
+
+The graph is given as follows: graph[a] is a list of all nodes b such that ab is an edge of the graph.
+
+The mouse starts at node 1 and goes first, the cat starts at node 2 and goes second, and there is a hole at node 0.
+
+During each player's turn, they must travel along one edge of the graph that meets where they are.  For example, if the Mouse is at node 1, it must travel to any node in graph[1].
+
+Additionally, it is not allowed for the Cat to travel to the Hole (node 0).
+
+Then, the game can end in three ways:
+- If ever the Cat occupies the same node as the Mouse, the Cat wins.
+- If ever the Mouse reaches the Hole, the Mouse wins.
+- If ever a position is repeated (i.e., the players are in the same position as a previous turn, and it is the same player's turn to move), the game is a draw.
+Given a graph, and assuming both players play optimally, return
+- 1 if the mouse wins the game,
+- 2 if the cat wins the game, or
+- 0 if the game is a draw.
+*/
+func catMouseGame(graph [][]int) int {
+	type state struct {
+		mouse int // mouse position
+		cat int // cat position
+		turn int // 0 for mouse, 1 for cat
+		children []*state // children states
+		parents []*state // parents states
+	}
+
+	// Create a graph all possible states
+	states := make([][][]*state, len(graph))
+	for i := range states {
+		states[i] = make([][]*state, len(graph))
+		for j := range states[i] {
+			states[i][j] = make([]*state, 2)
+		}
+	}
+	// Also a map for easy iteration of states
+	all_states := make(map[*state]bool)
+	for mouse_posn := range graph {
+		for cat_posn := range graph {
+			if cat_posn == 0 {
+				// Cat can't go to hole
+				continue
+			} else {
+				for turn := range 2 {
+					states[mouse_posn][cat_posn][turn] = &state{mouse: mouse_posn, cat: cat_posn, turn: turn, children: make([]*state, 0), parents: make([]*state, 0)}
+					// Add this state to the map of all states
+					all_states[states[mouse_posn][cat_posn][turn]] = true
+				}
+			}
+		}
+	}
+
+	// Establish the children states for each state
+	for mouse_posn := range graph {
+		for cat_posn := range graph {
+			if cat_posn != 0 && mouse_posn != cat_posn && mouse_posn != 0 {
+				// Both possible and non-terminal state
+				for turn := range 2 {
+					current_state := states[mouse_posn][cat_posn][turn]
+					if turn == 0 {
+						// Mouse's turn - can move to any of the neighbors
+						for _, neighbor := range graph[mouse_posn] {
+							child_state := states[neighbor][cat_posn][1] // Cat's turn next
+							current_state.children = append(current_state.children, child_state)
+							child_state.parents = append(child_state.parents, current_state)
+						}
+					} else {
+						// Cat's turn - can move to any of the neighbors except hole
+						for _, neighbor := range graph[cat_posn] {
+							if neighbor != 0 { // Can't move to hole
+								child_state := states[neighbor][cat_posn][0] // Mouse's turn next
+								current_state.children = append(current_state.children, child_state)
+								child_state.parents = append(child_state.parents, current_state)
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+
+	// Next, a map that determines if the mouse or cat wins from this state
+	mouse_wins := make(map[*state]bool) // True if mouse wins from this state
+	cat_wins := make(map[*state]bool) // True if cat wins from this state
+
+	// Create a queue, and enqueue all terminal states
+	queue := datastructures.NewQueue[*state]()
+	for mouse_posn := range graph {
+		if mouse_posn == 0 {
+			// Hole - mouse wins regardless of cat position or whose turn it is
+			for cat_posn := range graph {
+				if cat_posn != 0 {
+					// Cat can't go to hole
+					// Mouse wins no matter whose turn it is
+					mouse_wins[states[mouse_posn][cat_posn][0]] = true
+					mouse_wins[states[mouse_posn][cat_posn][1]] = true
+					queue.Enqueue(states[mouse_posn][cat_posn][0])
+					queue.Enqueue(states[mouse_posn][cat_posn][1])
+				}
+			}
+		} else {
+			// All nodes where the cat is at the same position will result in a cat win regardless of whose turn it is
+			cat_wins[states[mouse_posn][mouse_posn][1]] = true
+			cat_wins[states[mouse_posn][mouse_posn][0]] = true
+			queue.Enqueue(states[mouse_posn][mouse_posn][1])
+			queue.Enqueue(states[mouse_posn][mouse_posn][0])
+		}
+	}
+
+	// For each state, keep track of its win/loss/draw status
+	children_unresolved := make(map[*state]int) // Count of how many children of this state are unresolved
+	for state := range all_states {
+		children_unresolved[state] = len(state.children) // Initially, all children are unresolved
+	}
+
+	// We are finally ready to process the queue
+	for !queue.Empty() {
+		// Note that ONLY terminal states will be in the queue EVER
+		current_state := queue.Dequeue()
+		// What states could have preceded this state?
+		for _, parent_state := range current_state.parents {
+			children_unresolved[parent_state]-- // We are processing one of the children of this parent state
+			if _, ok := cat_wins[parent_state]; ok {
+				// Just a terminal adjacent state - nothing to do
+				continue
+			} else if _, ok := mouse_wins[parent_state]; ok {
+				// Again just a terminal adjacent state - nothing to do
+				continue
+			} else {
+				// The adjacent state is undecided
+				// Depending on whose turn it is in this state, we can determine what happens in the adjacent state
+				if current_state.turn == 0 {
+					// Then cat goes from parent state
+					if _, ok := cat_wins[current_state]; ok {
+						// Cat wins from current state, so cat will pick this state from the previous state and win
+						cat_wins[parent_state] = true
+						queue.Enqueue(parent_state)
+					} else if children_unresolved[parent_state] == 0 {
+						// This could only happen if all other children of this parent state are mouse wins (if any were cat wins, then this parent state would already be a cat win)
+						// So the cat from the parent state can't go ANYWHERE that is a win for it
+						mouse_wins[parent_state] = true // Cat loses from this state
+						queue.Enqueue(parent_state)
+					}
+				} else {
+					// Cat's turn, so mouse's turn previously
+					if _, ok := mouse_wins[current_state]; ok {
+						// Mouse wins from current state, so mouse will pick this state from the previous state and win
+						mouse_wins[parent_state] = true
+						queue.Enqueue(parent_state)
+					} else if children_unresolved[parent_state] == 0 {
+						// This could only happen if all other children of this parent state are cat wins (if any were mouse wins, then this parent state would already be a mouse win)
+						// So the mouse from the parent state can't go ANYWHERE that is a win for it
+						cat_wins[parent_state] = true // Mouse loses from this state
+						queue.Enqueue(parent_state)
+					}
+				}
+				
+			}
+		}
+	}
+
+	initial_state := states[1][2][0] // Mouse starts at 1, cat starts at 2, mouse goes first
+	if _, ok := mouse_wins[initial_state]; ok {
+		// Mouse wins from the initial state
+		return 1
+	} else if _, ok := cat_wins[initial_state]; ok {
+		// Cat wins from the initial state
+		return 2
+	} else {
+		// Neither wins from the initial state - it's a draw
+		return 0
+	}
+}
