@@ -3198,7 +3198,66 @@ The test cases are generated such that you can guess the secret word with a reas
  * func (this *Master) Guess(word string) int {}
 
  Link: https://leetcode.com/problems/guess-the-word/description/?envType=problem-list-v2&envId=game-theory
- */
- func findSecretWord(words []string, master *Master) {
-    // NOTE THAT WE DO NOT KNOW THE SECRET WORD OR THE ALLOWED GUESSES
- }
+*/
+func findSecretWord(words []string, master *Master) {
+	current_guess := words[0] // Just pick the first word to start with
+	chars_matched := master.Guess(current_guess)
+	available_words := make([]string, 0) // This will hold the words that match the first guess
+	// Remove all words that don't match the first guess
+	for _, word := range words {
+		if word != current_guess && countMatches(current_guess, word) == chars_matched {
+			// This word matches the number of characters in the same position as the first guess
+			available_words = append(available_words, word)
+		}
+	}
+
+	for len(available_words) > 0 {
+		// Pick the next word to guess - try simulating what would happen if we guessed each word in the available words list
+		smallest_max := math.MaxInt
+		best_word := ""
+		best_groupings := make(map[int][]string) // Groupings of words by how many characters match with this word
+		for _, word := range available_words {
+			groupings := make(map[int][]string) // Group words by how many characters match with this word
+			for _, other_word := range available_words {
+				if word != other_word {
+					// Count how many characters match in the same position
+					matches := countMatches(word, other_word)
+					if _, ok := groupings[matches]; !ok {
+						groupings[matches] = make([]string, 0)
+					}
+					groupings[matches] = append(groupings[matches], other_word)
+				}
+			}
+			// Now we have all the groupings of words by how many characters match with this word
+			max_group_size := 0
+			for _, group := range groupings {
+				if len(group) > max_group_size {
+					max_group_size = len(group)
+				}
+			}
+			if max_group_size < smallest_max {
+				smallest_max = max_group_size
+				best_word = word
+				best_groupings = groupings
+			}
+		}
+		// Now we have the best word to guess
+		chars_matched = master.Guess(best_word)
+		if _, ok := best_groupings[chars_matched]; ok {
+			available_words = best_groupings[chars_matched]
+		} else {
+			available_words = make([]string, 0)
+		}
+	}
+}
+
+func countMatches(word1, word2 string) int {
+	// Count how many letters match in the same position
+	match_count := 0
+	for i := range word1 {
+		if word1[i] == word2[i] {
+			match_count++
+		}
+	}
+	return match_count
+}
