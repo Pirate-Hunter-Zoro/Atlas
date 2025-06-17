@@ -3261,3 +3261,21 @@ func countMatches(word1, word2 string) int {
 	}
 	return match_count
 }
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+/*
+You are given three integers n, m, k. 
+A good array arr of size n is defined as follows:
+- Each element in arr is in the inclusive range [1, m].
+- Exactly k indices i (where 1 <= i < n) satisfy the condition arr[i - 1] == arr[i].
+Return the number of good arrays that can be formed.
+
+Since the answer may be very large, return it modulo 10^9 + 7.
+
+Link:
+https://leetcode.com/problems/count-the-number-of-arrays-with-k-matching-adjacent-elements/description/?envType=daily-question&envId=2025-06-17
+*/
+func countGoodArrays(n int, m int, k int) int {
+    return 0
+}

@@ -1123,3 +1123,27 @@ func TestFindSecretWord(t *testing.T) {
 		t.Fatalf("Error - expected 'You guessed the secret word correctly.' but got '%s'", secondMaster.GetString())
 	}
 }
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+func TestCountGoodArrays(t *testing.T) {
+	type input struct {
+		n int
+		m int
+		k int
+	}
+	inputs := []input{
+		{3, 2, 1},
+		{4, 2, 2},
+		{5, 2, 0},
+	}
+	expected_outputs := []int{
+		4,
+		6,
+		2,
+	}
+	f := func(i input) int {
+		return countGoodArrays(i.n, i.m, i.k)
+	}
+	runTestHelper(t, f, inputs, expected_outputs)
+}
