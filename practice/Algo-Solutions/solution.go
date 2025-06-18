@@ -3277,5 +3277,10 @@ Link:
 https://leetcode.com/problems/count-the-number-of-arrays-with-k-matching-adjacent-elements/description/?envType=daily-question&envId=2025-06-17
 */
 func countGoodArrays(n int, m int, k int) int {
-    return 0
+	// First of all, choose which k indices will be such that arr[i - 1] == arr[i]
+	choose_calculator := helpermath.NewChooseCalculator()
+	total := choose_calculator.ChooseMod(n, k)
+	// Note that not all of these indices can have distinct values... maybe we have three in a row that all must share the same value, for instance
+	
+	return total
 }
