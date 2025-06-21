@@ -3310,3 +3310,21 @@ func countGoodArrays(n int, m int, k int) int {
 
 	return total
 }
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+/*
+You are given a string word and an integer k.
+
+We consider word to be k-special if |freq(word[i]) - freq(word[j])| <= k for all indices i and j in the string.
+
+Here, freq(x) denotes the frequency of the character x in word, and |y| denotes the absolute value of y.
+
+Return the minimum number of characters you need to delete to make word k-special.
+
+Link:
+https://leetcode.com/problems/minimum-deletions-to-make-string-k-special/description/?envType=daily-question&envId=2025-06-21
+*/
+func minimumDeletions(word string, k int) int {
+	return 0
+}

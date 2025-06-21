@@ -1147,3 +1147,28 @@ func TestCountGoodArrays(t *testing.T) {
 	}
 	runTestHelper(t, f, inputs, expected_outputs)
 }
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+func TestMinimumDeletions(t *testing.T) {
+	type input struct {
+		word string
+		k int
+	}
+	inputs := []input{
+		{"aabcaba", 0},
+		{"dabdcbdcdcd", 2},
+		{"aaabaaa", 2},
+	}
+
+	expected_outputs := []int{
+		3,
+		2,
+		1,
+	}
+
+	f := func(i input) int {
+		return minimumDeletions(i.word, i.k)
+	}
+	runTestHelper(t, f, inputs, expected_outputs)
+}
