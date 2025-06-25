@@ -39,7 +39,7 @@ Inpsiration:
 https://brilliant.org/wiki/egg-dropping/
 */
 func superEggDrop(n int, k int) int {
-    // We need to be able to cover n floors...
+	// We need to be able to cover n floors...
 	// How many drops will it take to cover k floors with n eggs? Binary search...
 	left := 1
 	right := k
@@ -48,7 +48,7 @@ func superEggDrop(n int, k int) int {
 		mid := int((left + right) / 2)
 		num_floors_covered := 0
 		// Calculate the number of floors covered given that we have 'mid' drops and n eggs
-		for i:=1; i<=n; i++ {
+		for i := 1; i <= n; i++ {
 			// From the article
 			num_floors_covered += chooser.Choose(mid, i)
 			if num_floors_covered < 0 { // avoid integer overflow
@@ -80,7 +80,7 @@ Link: https://leetcode.com/problems/largest-rectangle-in-histogram/
 func largestRectangleArea(heights []int) int {
 	// Answer the question - at this index, what's the farthest right I can go before I run into someone shorter
 	shorter_right := make([]int, len(heights))
-	for i:=range shorter_right {
+	for i := range shorter_right {
 		shorter_right[i] = len(heights)
 	}
 	right_stack := datastructures.NewStack[int]()
@@ -97,12 +97,12 @@ func largestRectangleArea(heights []int) int {
 	}
 	// Now same for left
 	shorter_left := make([]int, len(heights))
-	for i:=range shorter_left {
+	for i := range shorter_left {
 		shorter_left[i] = -1
 	}
 	left_stack := datastructures.NewStack[int]()
-	left_stack.Push(len(heights)-1)
-	for i:=len(heights)-2; i>=0; i-- {
+	left_stack.Push(len(heights) - 1)
+	for i := len(heights) - 2; i >= 0; i-- {
 		h := heights[i]
 		for !left_stack.Empty() && heights[left_stack.Peek()] > h {
 			shorter_left[left_stack.Pop()] = i
@@ -112,7 +112,7 @@ func largestRectangleArea(heights []int) int {
 
 	record := 0
 	for i, h := range heights {
-		record = max(record, h * (shorter_right[i]-shorter_left[i]-1))
+		record = max(record, h*(shorter_right[i]-shorter_left[i]-1))
 	}
 	return record
 }
@@ -139,7 +139,7 @@ func maximalRectangle(matrix [][]byte) int {
 		record = max(record, largestRectangleArea(heights))
 	}
 
-    return record
+	return record
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -153,12 +153,12 @@ Return true if you can finish all courses. Otherwise, return false.
 Link: https://leetcode.com/problems/course-schedule/
 */
 func canFinish(numCourses int, prerequisites [][]int) bool {
-    in_degree := make([]int, numCourses)
+	in_degree := make([]int, numCourses)
 	nodes_needed := make([][]int, numCourses) // jagged array
-	for i:=range numCourses {
+	for i := range numCourses {
 		nodes_needed[i] = []int{}
 	}
-	for _, preq := range(prerequisites) {
+	for _, preq := range prerequisites {
 		need := preq[0]
 		needed := preq[1]
 		in_degree[needed]++
@@ -166,14 +166,14 @@ func canFinish(numCourses int, prerequisites [][]int) bool {
 	}
 
 	count_in_degree_0 := 0
-	for i := 0; i<numCourses; i++ {
+	for i := 0; i < numCourses; i++ {
 		if in_degree[i] == 0 {
 			count_in_degree_0++
 		}
 	}
 
 	node_queue := datastructures.NewQueue[int]()
-	for i, v := range(in_degree) {
+	for i, v := range in_degree {
 		if v == 0 {
 			node_queue.Enqueue(i)
 		}
@@ -181,7 +181,7 @@ func canFinish(numCourses int, prerequisites [][]int) bool {
 
 	for !node_queue.Empty() {
 		next := node_queue.Dequeue()
-		for _, neighbor := range(nodes_needed[next]) {
+		for _, neighbor := range nodes_needed[next] {
 			in_degree[neighbor]--
 			if in_degree[neighbor] == 0 {
 				count_in_degree_0++
@@ -209,7 +209,7 @@ func isMatch(s string, p string) bool {
 	if len(p) == 0 {
 		return len(s) == 0
 	} else if len(s) == 0 {
-		for i:=0; i<len(p); i++ {
+		for i := 0; i < len(p); i++ {
 			if p[i] != '*' {
 				return false
 			}
@@ -217,8 +217,8 @@ func isMatch(s string, p string) bool {
 		return true
 	}
 
-    sols := make([][]bool, len(s)+1)
-	for i:=0; i<=len(s); i++ {
+	sols := make([][]bool, len(s)+1)
+	for i := 0; i <= len(s); i++ {
 		sols[i] = make([]bool, len(p)+1)
 	}
 
@@ -226,15 +226,15 @@ func isMatch(s string, p string) bool {
 	sols[0][0] = true
 
 	// Across the top row - pertains to only matching the empty string with increasing substring lengths of the pattern
-	for i:=1; i<len(p); i++ {
-		p_idx := i-1
+	for i := 1; i < len(p); i++ {
+		p_idx := i - 1
 		sols[0][i] = (p[p_idx] == '*' && sols[0][i-1])
 	}
 	// The left column is all false by default - which it should be except for the 0-0 cell - an empty pattern cannot match a non-empty string
 
 	// Bottom up solution to solve this problem - top to bottom, left to right
-	for i:=1; i<=len(s); i++ {
-		for j:=1; j<=len(p); j++ {
+	for i := 1; i <= len(s); i++ {
+		for j := 1; j <= len(p); j++ {
 			s_char := s[i-1]
 			p_char := p[j-1]
 			if s_char == p_char || p_char == '?' {
@@ -259,20 +259,20 @@ func isMatch(s string, p string) bool {
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /*
-You are given a string s and an array of strings words. 
+You are given a string s and an array of strings words.
 All the strings of words are of the same length.
 
 A concatenated string is a string that exactly contains all the strings of any permutation of words concatenated.
 
-For example, if words = ["ab","cd","ef"], then "abcdef", "abefcd", "cdabef", "cdefab", "efabcd", and "efcdab" are all concatenated strings. 
+For example, if words = ["ab","cd","ef"], then "abcdef", "abefcd", "cdabef", "cdefab", "efabcd", and "efcdab" are all concatenated strings.
 "acdbef" is not a concatenated string because it is not the concatenation of any permutation of words.
-Return an array of the starting indices of all the concatenated substrings in s. 
+Return an array of the starting indices of all the concatenated substrings in s.
 You can return the answer in any order.
 
 Link: https://leetcode.com/problems/substring-with-concatenation-of-all-words/
 */
 func findSubstring(s string, words []string) []int {
-    // Create a map which will serve as keeping track of the count needed of each word
+	// Create a map which will serve as keeping track of the count needed of each word
 	word_counts := make(map[string]int)
 	for _, w := range words {
 		count, ok := word_counts[w]
@@ -287,17 +287,17 @@ func findSubstring(s string, words []string) []int {
 
 	starts := []int{}
 
-	for j:=range l {
-		i:=j
+	for j := range l {
+		i := j
 		last_start := i
 		words_seen := 0
 		current_seen := make(map[string][]int)
-		for i<=len(s)-l {
-			word := s[i:i+l]
+		for i <= len(s)-l {
+			word := s[i : i+l]
 			count_needed, ok := word_counts[word]
 			if !ok {
 				// Not part of words at all - we must start over
-				i+=l
+				i += l
 				last_start = i
 				words_seen = 0
 				current_seen = make(map[string][]int)
@@ -332,7 +332,7 @@ func findSubstring(s string, words []string) []int {
 									right = mid
 								} else {
 									// Try looking right
-									left = mid+1
+									left = mid + 1
 								}
 							}
 							if left >= len(places) {
@@ -353,7 +353,7 @@ func findSubstring(s string, words []string) []int {
 				// Found a permutation substring - now just get rid of the first word we saw
 				starts = append(starts, last_start)
 				words_seen--
-				first_word := s[last_start:last_start+l]
+				first_word := s[last_start : last_start+l]
 				last_start += l
 				if len(current_seen[first_word]) == 1 {
 					delete(current_seen, first_word)
@@ -373,14 +373,14 @@ func findSubstring(s string, words []string) []int {
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /*
-Given an unsorted integer array nums. 
+Given an unsorted integer array nums.
 Return the smallest positive integer that is not present in nums.
 
 You must implement an algorithm that runs in O(n) time and uses O(1) auxiliary space.
 Link: https://leetcode.com/problems/first-missing-positive/
 */
 func firstMissingPositive(nums []int) int {
-    // The LeetCode editorial was insanely helpful...
+	// The LeetCode editorial was insanely helpful...
 	n := len(nums)
 	// Note that the lowest missing positive integer can only be in {1,...,n+1}
 	one_missing := true
@@ -398,18 +398,18 @@ func firstMissingPositive(nums []int) int {
 		// Loop through the array once again
 		for _, v := range nums {
 			// Mark position v in the array as seen by making it negative
-			idx := int(math.Abs(float64(v)))-1
+			idx := int(math.Abs(float64(v))) - 1
 			nums[idx] = -int(math.Abs(float64(nums[idx])))
 		}
 		// Now go through the list again - the first index that is not negative corresponds with the lowest missing positive value
-		for i := 0; i<len(nums); i++ {
+		for i := 0; i < len(nums); i++ {
 			if nums[i] > 0 {
 				// Never seen
-				return i+1
+				return i + 1
 			}
 		}
 		// Only remaining possibility
-		return n+1
+		return n + 1
 	}
 }
 
@@ -423,7 +423,7 @@ Merge all the linked-lists into one sorted linked-list and return it.
 Link: https://leetcode.com/problems/merge-k-sorted-lists/
 */
 func mergeKLists(lists []*datastructures.ListNode) *datastructures.ListNode {
-    // Check for edge cases
+	// Check for edge cases
 	non_null := []*datastructures.ListNode{}
 	for _, n := range lists {
 		if n != nil {
@@ -445,7 +445,7 @@ func mergeKLists(lists []*datastructures.ListNode) *datastructures.ListNode {
 
 	// Set up our result to return
 	res := &datastructures.ListNode{
-		Val: node_heap.Peek().Val,
+		Val:  node_heap.Peek().Val,
 		Next: nil,
 	}
 	pop := node_heap.Pop()
@@ -484,7 +484,7 @@ func longestValidParentheses(s string) int {
 	char_idx_stack := datastructures.NewStack[char_idx]()
 	// Finally keep track of the stretches of the string where we have found a valid substring of parentheses and we'll merge them in the end
 	stretches := [][]int{}
-	for i:=range len(s) {
+	for i := range len(s) {
 		char := s[i]
 		if char == ')' {
 			if !char_idx_stack.Empty() && char_idx_stack.Peek().char == '(' {
@@ -493,7 +493,7 @@ func longestValidParentheses(s string) int {
 				if len(stretches) > 0 {
 					j := len(stretches) - 1
 					prev_stretch := stretches[j]
-					for j>=0 && prev_stretch[0] > prev_idx && prev_stretch[1] < i {
+					for j >= 0 && prev_stretch[0] > prev_idx && prev_stretch[1] < i {
 						// wraps around the most recent valid substring of parentheses
 						j--
 						if j >= 0 {
@@ -501,14 +501,14 @@ func longestValidParentheses(s string) int {
 						}
 					}
 					if j < len(stretches)-1 {
-						stretches[j+1] = []int{prev_idx,i}
+						stretches[j+1] = []int{prev_idx, i}
 						stretches = stretches[:j+2]
 					} else {
 						// no previous wraparounds
-						stretches = append(stretches, []int{prev_idx,i})
+						stretches = append(stretches, []int{prev_idx, i})
 					}
 				} else {
-					stretches = append(stretches, []int{prev_idx,i})
+					stretches = append(stretches, []int{prev_idx, i})
 				}
 			}
 		} else {
@@ -531,7 +531,7 @@ func longestValidParentheses(s string) int {
 		record = max(record, running_length)
 	}
 
-    return record
+	return record
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -540,15 +540,16 @@ func longestValidParentheses(s string) int {
 We can scramble a string s to get a string t using the following algorithm:
 - If the length of the string is 1, stop.
 - If the length of the string is > 1, do the following:
-	- Split the string into two non-empty substrings at a random index, i.e., if the string is s, divide it to x and y where s = x + y.
-	- Randomly decide to swap the two substrings or to keep them in the same order. i.e., after this step, s may become s = x + y or s = y + x.
-	- Apply step 1 recursively on each of the two substrings x and y.
+  - Split the string into two non-empty substrings at a random index, i.e., if the string is s, divide it to x and y where s = x + y.
+  - Randomly decide to swap the two substrings or to keep them in the same order. i.e., after this step, s may become s = x + y or s = y + x.
+  - Apply step 1 recursively on each of the two substrings x and y.
+
 Given two strings s1 and s2 of the same length, return true if s2 is a scrambled string of s1, otherwise, return false.
 
 Link: https://leetcode.com/problems/scramble-string/
 */
 func isScramble(s1 string, s2 string) bool {
-    is_scramble := make(map[string]map[string]bool)
+	is_scramble := make(map[string]map[string]bool)
 
 	return recIsScramble(s1, s2, is_scramble)
 }
@@ -567,7 +568,7 @@ func recIsScramble(l string, r string, is_scramble map[string]map[string]bool) b
 			is_scramble[l][r] = l[0] == r[0]
 		} else {
 			is_scramble[l][r] = false
-			for split:=range(len(l)-1) {
+			for split := range len(l) - 1 {
 				// 'split' is the index of the last character in the left half
 				left_half_l := l[:split+1]
 				right_half_l := l[split+1:]
@@ -594,10 +595,10 @@ Link: https://leetcode.com/problems/distinct-subsequences/
 */
 func numDistinct(s string, t string) int {
 	// Answer the question - how many different subsequences of s[:i+1] can create t[:j+1]?
-    num_distinct := make([][]int, len(s))
-	for i:=range(len(s)) {
+	num_distinct := make([][]int, len(s))
+	for i := range len(s) {
 		num_distinct[i] = make([]int, len(t))
-		for j:=range(min(i+1,len(t))){
+		for j := range min(i+1, len(t)) {
 			num_distinct[i][j] = -1
 		}
 	}
@@ -611,7 +612,7 @@ func recNumDistinct(s string, t string, s_idx int, t_idx int, num_distinct [][]i
 		num_distinct[s_idx][t_idx] = 0
 		if s_idx >= t_idx {
 			// There is actually a possibility for subsequences to occur
-			if s_idx == 0 && s[s_idx]==t[t_idx] {
+			if s_idx == 0 && s[s_idx] == t[t_idx] {
 				num_distinct[s_idx][t_idx]++
 			} else if t_idx == 0 && s_idx > 0 {
 				// Then count all the times this single character in t was matched with prior characters in s
@@ -636,10 +637,10 @@ func recNumDistinct(s string, t string, s_idx int, t_idx int, num_distinct [][]i
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /*
-Given a m * n matrix seats  that represent seats distributions in a classroom. 
+Given a m * n matrix seats  that represent seats distributions in a classroom.
 If a seat is broken, it is denoted by '#' character otherwise it is denoted by a '.' character.
 
-Students can see the answers of those sitting next to the left, right, upper left and upper right, but he cannot see the answers of the student sitting directly in front or behind him. 
+Students can see the answers of those sitting next to the left, right, upper left and upper right, but he cannot see the answers of the student sitting directly in front or behind him.
 Return the maximum number of students that can take the exam together without any cheating being possible.
 
 Students must be placed in seats in good condition.
@@ -651,7 +652,7 @@ func maxStudents(seats [][]byte) int {
 	// For each row, we need a bit mask corresponding to the previous row of seats taken
 	// Answer the question - on this row, for this bit mask, what is the maximum number of students that can be sat?
 	sols := make([]map[int]int, len(seats))
-	for i:=0; i<len(seats); i++ {
+	for i := 0; i < len(seats); i++ {
 		sols[i] = make(map[int]int)
 	}
 	num_seats := len(seats[0])
@@ -666,7 +667,7 @@ func maxStudents(seats [][]byte) int {
 	}
 
 	// Now we go bottom up
-	for i:=1; i<len(sols); i++ {
+	for i := 1; i < len(sols); i++ {
 		mask_counts := findBitMasks(seats[i])
 		for _, mask_count := range mask_counts {
 			bit_mask := mask_count[0]
@@ -678,7 +679,7 @@ func maxStudents(seats [][]byte) int {
 			}
 			prev_row_bit_masks := filterUnavailableBitMasks(num_seats, bit_mask, prev_bit_masks)
 			for _, prev_bit_mask := range prev_row_bit_masks {
-				sols[i][bit_mask] = max(sols[i][bit_mask], num_sitting + sols[i-1][prev_bit_mask])
+				sols[i][bit_mask] = max(sols[i][bit_mask], num_sitting+sols[i-1][prev_bit_mask])
 			}
 		}
 	}
@@ -704,20 +705,20 @@ func findBitMasks(seat_row []byte) [][]int {
 	// For each (working) seat, going from left to right, consider taking it, and consider not taking it
 	available := make([][][]int, len(seat_posns))
 	if len(seat_posns) > 0 {
-		available[0] = [][]int{{seat_posns[0]},{}}
+		available[0] = [][]int{{seat_posns[0]}, {}}
 		if len(seat_posns) > 1 {
-			if seat_posns[1] == seat_posns[0] + 1 {
+			if seat_posns[1] == seat_posns[0]+1 {
 				// First two seats consecutive
-				available[1] = [][]int{{seat_posns[0]},{seat_posns[1]},{}}
+				available[1] = [][]int{{seat_posns[0]}, {seat_posns[1]}, {}}
 			} else {
 				// First two seats not consecutive so can go together
-				available[1] = [][]int{{seat_posns[0]},{seat_posns[1]},{},{seat_posns[0],seat_posns[1]}}
+				available[1] = [][]int{{seat_posns[0]}, {seat_posns[1]}, {}, {seat_posns[0], seat_posns[1]}}
 			}
-			for i := range(len(seat_posns)-2) {
+			for i := range len(seat_posns) - 2 {
 				j := i + 2
 				posn := seat_posns[j]
 				prev_posn := seat_posns[j-1]
-				if posn == prev_posn + 1 {
+				if posn == prev_posn+1 {
 					// Most previous two seats consecutive
 					available[j] = available[j-1] // Don't pick current posn
 					// Now add all the options where we do pick the current posn
@@ -734,7 +735,7 @@ func findBitMasks(seat_row []byte) [][]int {
 					}
 				}
 			}
-		} 
+		}
 	} else {
 		// No seats were available
 		available = append(available, [][]int{{}})
@@ -747,7 +748,7 @@ func findBitMasks(seat_row []byte) [][]int {
 		for _, posn := range set {
 			bit_mask += 1 << posn
 		}
-		mask_counts = append(mask_counts, []int{bit_mask,len(set)})
+		mask_counts = append(mask_counts, []int{bit_mask, len(set)})
 	}
 
 	return mask_counts
@@ -757,20 +758,20 @@ func filterUnavailableBitMasks(num_seats int, bit_mask int, prev_bit_masks []int
 	// Helper method to remove incompatible previous bit masks from the above row given our current row's bit mask
 	available := []int{}
 	unavailable_spots := []int{}
-	for i:=range(num_seats) {
-		if ((1 << i) & bit_mask > 0) {
+	for i := range num_seats {
+		if (1<<i)&bit_mask > 0 {
 			// This seat is included in the current row bit mask
 			if i > 0 {
 				unavailable_spots = append(unavailable_spots, i-1)
 			}
-			if i < num_seats - 1 {
+			if i < num_seats-1 {
 				unavailable_spots = append(unavailable_spots, i+1)
 			}
 		}
 	}
 	for _, prev_mask := range prev_bit_masks {
 		for _, unavailable_posn := range unavailable_spots {
-			if (prev_mask & (1 << unavailable_posn) > 0) {
+			if prev_mask&(1<<unavailable_posn) > 0 {
 				// Need to remove this posn
 				prev_mask -= 1 << unavailable_posn
 			}
@@ -786,8 +787,8 @@ func filterUnavailableBitMasks(num_seats int, bit_mask int, prev_bit_masks []int
 /*
 You are given two groups of points where the first group has size1 points, the second group has size2 points, and size1 >= size2.
 
-The cost of the connection between any two points are given in an size1 x size2 matrix where cost[i][j] is the cost of connecting point i of the first group and point j of the second group. 
-The groups are connected if each point in both groups is connected to one or more points in the opposite group. 
+The cost of the connection between any two points are given in an size1 x size2 matrix where cost[i][j] is the cost of connecting point i of the first group and point j of the second group.
+The groups are connected if each point in both groups is connected to one or more points in the opposite group.
 In other words, each point in the first group must be connected to at least one point in the second group, and each point in the second group must be connected to at least one point in the first group.
 
 Return the minimum cost it takes to connect the two groups.
@@ -801,18 +802,18 @@ func connectTwoGroups(cost [][]int) int {
 	n_left := len(cost)
 	n_right := len(cost[0])
 	min_cost_connect := make([]int, n_right)
-	for i:=range n_right {
+	for i := range n_right {
 		min_cost_connect[i] = math.MaxInt
-		for j:=range n_left {
+		for j := range n_left {
 			min_cost_connect[i] = min(min_cost_connect[i], cost[j][i])
 		}
 	}
 
 	// Now we are ready to answer the question, given left nodes 1 through 'k' have been connected, and bit mask 'b' of the right nodes have been connected, what is the minimum cost to complete our connections?
 	sols := make([][]int, n_left+1)
-	for i:=range n_left+1 {
+	for i := range n_left + 1 {
 		sols[i] = make([]int, 1<<n_right)
-		for j:=range 1<<n_right {
+		for j := range 1 << n_right {
 			sols[i][j] = -1
 		}
 	}
@@ -825,8 +826,8 @@ func recMinConnectTwoGroups(num_left_connected int, bit_mask_right int, sols [][
 		if num_left_connected == n_left {
 			// Base case - all the left nodes are connected, so see which right nodes still need to be connected and connect each with their min cost
 			total_cost := 0
-			for i:=range n_right {
-				if (1 << i) & bit_mask_right == 0 {
+			for i := range n_right {
+				if (1<<i)&bit_mask_right == 0 {
 					// Node i on the right needs to be connected
 					total_cost += min_cost_connect[i]
 				}
@@ -835,10 +836,10 @@ func recMinConnectTwoGroups(num_left_connected int, bit_mask_right int, sols [][
 		} else {
 			// Try connecting the next left node with any node in the right
 			total_cost := math.MaxInt
-			for i:=range n_right {
+			for i := range n_right {
 				// Try connecting the next left node with Node i on the right
 				new_bit_mask := bit_mask_right | (1 << i)
-				total_cost = min(total_cost, cost[num_left_connected][i] + recMinConnectTwoGroups(num_left_connected+1, new_bit_mask, sols, min_cost_connect, cost, n_left, n_right))
+				total_cost = min(total_cost, cost[num_left_connected][i]+recMinConnectTwoGroups(num_left_connected+1, new_bit_mask, sols, min_cost_connect, cost, n_left, n_right))
 			}
 			sols[num_left_connected][bit_mask_right] = total_cost
 		}
@@ -849,7 +850,7 @@ func recMinConnectTwoGroups(num_left_connected int, bit_mask_right int, sols [][
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /*
-There are n children standing in a line. 
+There are n children standing in a line.
 Each child is assigned a rating value given in the integer array ratings.
 
 You are giving candies to these children subjected to the following requirements:
@@ -877,13 +878,13 @@ func candy(ratings []int) int {
 	n := len(ratings)
 	// This is a graph problem
 	graph := make([][]int, n)
-	for i:=range(n) {
+	for i := range n {
 		// Store all children - each neighbor of a node is an adjacent child with a lower rating
 		graph[i] = []int{}
 	}
-	for i:=range(n-1) {
-		idx := i+1
-		left := idx-1
+	for i := range n - 1 {
+		idx := i + 1
+		left := idx - 1
 		// Set up the children hierachy
 		if ratings[idx] > ratings[left] {
 			graph[idx] = append(graph[idx], left)
@@ -934,15 +935,15 @@ https://leetcode.com/problems/permutation-sequence/description/
 */
 func getPermutation(n int, k int) string {
 	// Let us think of k as the number of permutations LEFT
-	k = k-1
+	k = k - 1
 
 	digit_list := make([]int, n)
-	for i:=1; i<=n; i++ {
+	for i := 1; i <= n; i++ {
 		digit_list[i-1] = i
 	}
 	factorials := make([]int, n+1)
 	factorials[0] = 1
-	for i:=1; i<=n; i++ {
+	for i := 1; i <= n; i++ {
 		factorials[i] = factorials[i-1] * i
 	}
 
@@ -951,9 +952,9 @@ func getPermutation(n int, k int) string {
 		// We still have permutations left
 		i := -1
 		factorial_value := -1
-		for num:=n; num>=1; num-- {
+		for num := n; num >= 1; num-- {
 			if factorials[num] <= k {
-				i = n-num-1
+				i = n - num - 1
 				factorial_value = factorials[num]
 				break
 			}
@@ -964,13 +965,13 @@ func getPermutation(n int, k int) string {
 		digit_list[i], digit_list[j] = digit_list[j], digit_list[i]
 		// Put the digits from i+1 to the end in increasing order
 		ordered_digits := make([]int, n-i-1)
-		for idx:=i+1; idx<n; idx++ {
+		for idx := i + 1; idx < n; idx++ {
 			ordered_digits[idx-i-1] = digit_list[idx]
 		}
 		sort.SliceStable(ordered_digits, func(i, j int) bool {
 			return ordered_digits[i] < ordered_digits[j]
 		})
-		for idx:=i+1; idx<n; idx++ {
+		for idx := i + 1; idx < n; idx++ {
 			digit_list[idx] = ordered_digits[idx-i-1]
 		}
 		// Now decrease the number of permuations left
@@ -978,7 +979,7 @@ func getPermutation(n int, k int) string {
 	}
 
 	var string_buffer strings.Builder
-	for _, i:= range digit_list {
+	for _, i := range digit_list {
 		string_buffer.WriteString(strconv.Itoa(i))
 	}
 	return string_buffer.String()
@@ -987,14 +988,14 @@ func getPermutation(n int, k int) string {
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 type trie_node struct {
-	children map[byte]*trie_node
+	children    map[byte]*trie_node
 	end_of_word bool
 }
 
 /*
 Given an m x n board of characters and a list of strings words, return all words on the board.
 
-Each word must be constructed from letters of sequentially adjacent cells, where adjacent cells are horizontally or vertically neighboring. 
+Each word must be constructed from letters of sequentially adjacent cells, where adjacent cells are horizontally or vertically neighboring.
 
 The same letter cell may not be used more than once in a word.
 
@@ -1003,9 +1004,9 @@ https://leetcode.com/problems/word-search-ii/
 */
 func findWords(board [][]byte, words []string) []string {
 	visited := make([][]bool, len(board))
-	for i:=range board {
+	for i := range board {
 		visited[i] = make([]bool, len(board[i]))
-		for j:=range board[i] {
+		for j := range board[i] {
 			visited[i][j] = false
 		}
 	}
@@ -1015,18 +1016,18 @@ func findWords(board [][]byte, words []string) []string {
 		// Add the word to the trie
 		add_to_trie(word, trie_root)
 	}
-	
+
 	found_words := make(map[string]bool)
 
-	for i:=range board {
-		for j:=range board[i] {
+	for i := range board {
+		for j := range board[i] {
 			// Start a DFS from this cell
 			dfs_word_search(board, i, j, trie_root, "", visited, &found_words)
 		}
 	}
-	
+
 	found_words_list := []string{}
-	for word:=range found_words {
+	for word := range found_words {
 		found_words_list = append(found_words_list, word)
 	}
 	sort.SliceStable(found_words_list, func(i, j int) bool {
@@ -1036,7 +1037,7 @@ func findWords(board [][]byte, words []string) []string {
 }
 
 func add_to_trie(word string, node *trie_node) {
-	for i:=range word {
+	for i := range word {
 		char := word[i]
 		_, ok := node.children[char]
 		if !ok {
@@ -1091,20 +1092,20 @@ Inspiration:
 https://leetcode.com/problems/contains-duplicate-iii/solutions/824578/c-o-n-time-complexity-explained-buckets-o-k-space-complexity/
 */
 func containsNearbyAlmostDuplicate(nums []int, indexDiff int, valueDiff int) bool {
-    // The following logic will only work if all values are positive
+	// The following logic will only work if all values are positive
 	lowest_val := math.MaxInt
 	for _, v := range nums {
 		lowest_val = min(lowest_val, v)
 	}
 	// Now shift all values by abs(lowest_val) so that all values are positive
-	for i:=range nums {
+	for i := range nums {
 		nums[i] -= lowest_val
 	}
-	
+
 	// Put the numbers in buckets based on their division values by valueDiff+1 (also store the index)
 	buckets := make(map[int][][]int)
 	for i, v := range nums {
-		q := v / (valueDiff+1)
+		q := v / (valueDiff + 1)
 		_, ok := buckets[q]
 		if !ok {
 			buckets[q] = [][]int{}
@@ -1113,10 +1114,10 @@ func containsNearbyAlmostDuplicate(nums []int, indexDiff int, valueDiff int) boo
 	}
 	// Note all the buckets already sorted based on indices
 	for _, bucket := range buckets {
-		for i:=range(len(bucket)-1) {
-			j := i+1
+		for i := range len(bucket) - 1 {
+			j := i + 1
 			// Look at consecutive elements in the bucket
-			if bucket[j][1] - bucket[i][1] <= indexDiff {
+			if bucket[j][1]-bucket[i][1] <= indexDiff {
 				return true
 			}
 		}
@@ -1124,16 +1125,16 @@ func containsNearbyAlmostDuplicate(nums []int, indexDiff int, valueDiff int) boo
 
 	// We also need to check neighboring buckets - last element of first bucket and first element of second bucket
 	bucket_keys := []int{}
-	for k:=range buckets {
+	for k := range buckets {
 		bucket_keys = append(bucket_keys, k)
 	}
 	sort.SliceStable(bucket_keys, func(i, j int) bool {
 		return bucket_keys[i] < bucket_keys[j]
 	})
-	for i:=range(len(bucket_keys)-1) {
+	for i := range len(bucket_keys) - 1 {
 		bucket1 := buckets[bucket_keys[i]]
 		bucket2 := buckets[bucket_keys[i+1]]
-		if (bucket2[0][1] - bucket1[len(bucket1)-1][1] <= indexDiff) && (bucket2[0][0] - bucket1[len(bucket1)-1][0] <= valueDiff) {
+		if (bucket2[0][1]-bucket1[len(bucket1)-1][1] <= indexDiff) && (bucket2[0][0]-bucket1[len(bucket1)-1][0] <= valueDiff) {
 			return true
 		}
 	}
@@ -1159,20 +1160,20 @@ func recConstruct(grid [][]int, start_row int, start_col int, end_row int, end_c
 		// Split the grid into 4 quadrants
 		half := (end_row - start_row + 1) / 2
 		// Top left
-		root.TopLeft = recConstruct(grid, start_row, start_col, start_row + half-1, start_col + half-1)
+		root.TopLeft = recConstruct(grid, start_row, start_col, start_row+half-1, start_col+half-1)
 		// Top right
-		root.TopRight = recConstruct(grid, start_row, start_col + half, start_row + half-1, end_col)
+		root.TopRight = recConstruct(grid, start_row, start_col+half, start_row+half-1, end_col)
 		// Bottom left
-		root.BottomLeft = recConstruct(grid, start_row + half, start_col, end_row, start_col + half-1)
+		root.BottomLeft = recConstruct(grid, start_row+half, start_col, end_row, start_col+half-1)
 		// Bottom right
-		root.BottomRight = recConstruct(grid, start_row + half, start_col + half, end_row, end_col)
+		root.BottomRight = recConstruct(grid, start_row+half, start_col+half, end_row, end_col)
 		return root
 	}
 }
 
 func allSame(grid [][]int, start_row int, start_col int, end_row int, end_col int) bool {
-	for i:=start_row; i<=end_row; i++ {
-		for j:=start_col; j<=end_col; j++ {
+	for i := start_row; i <= end_row; i++ {
+		for j := start_col; j <= end_col; j++ {
 			if grid[i][j] != grid[start_row][start_col] {
 				return false
 			}
@@ -1187,7 +1188,7 @@ func allSame(grid [][]int, start_row int, start_col int, end_row int, end_col in
 Link: https://leetcode.com/problems/logical-or-of-two-binary-grids-represented-as-quad-trees/description/
 */
 func intersect(quadTree1 *datastructures.QuadTreeNode, quadTree2 *datastructures.QuadTreeNode) *datastructures.QuadTreeNode {
-    // Find out the size of the grids - whichever is the largest
+	// Find out the size of the grids - whichever is the largest
 	depth1 := findDepth(quadTree1)
 	depth2 := findDepth(quadTree2)
 	depth := max(depth1, depth2)
@@ -1216,9 +1217,9 @@ func reconstruct(quadTree *datastructures.QuadTreeNode, square_length int) [][]i
 	// Find out the size of the grid
 	if quadTree.IsLeaf {
 		grid := make([][]int, square_length)
-		for i:=range grid {
+		for i := range grid {
 			grid[i] = make([]int, square_length)
-			for j:=range grid[i] {
+			for j := range grid[i] {
 				if quadTree.Val {
 					grid[i][j] = 1
 				} else {
@@ -1235,9 +1236,9 @@ func reconstruct(quadTree *datastructures.QuadTreeNode, square_length int) [][]i
 		bottom_left := reconstruct(quadTree.BottomLeft, half)
 		bottom_right := reconstruct(quadTree.BottomRight, half)
 		grid := make([][]int, square_length)
-		for i:=range grid {
+		for i := range grid {
 			grid[i] = make([]int, square_length)
-			for j:=range grid[i] {
+			for j := range grid[i] {
 				if i < half && j < half {
 					grid[i][j] = top_left[i][j]
 				} else if i < half && j >= half {
@@ -1258,9 +1259,9 @@ func orGrids(first_grid [][]int, second_grid [][]int) [][]int {
 	// Note that the grids are all the same size
 	n := len(first_grid)
 	xor_grid := make([][]int, n)
-	for i:=0; i<n; i++ {
+	for i := 0; i < n; i++ {
 		xor_grid[i] = make([]int, n)
-		for j:=0; j<n; j++ {
+		for j := 0; j < n; j++ {
 			xor_grid[i][j] = first_grid[i][j] | second_grid[i][j]
 		}
 	}
@@ -1270,7 +1271,7 @@ func orGrids(first_grid [][]int, second_grid [][]int) [][]int {
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /*
-Given a string s and a dictionary of strings wordDict, add spaces in s to construct a sentence where each word is a valid dictionary word. 
+Given a string s and a dictionary of strings wordDict, add spaces in s to construct a sentence where each word is a valid dictionary word.
 Return all such possible sentences in any order.
 
 Note that the same word in the dictionary may be reused multiple times in the segmentation.
@@ -1287,9 +1288,9 @@ func wordBreak(s string, wordDict []string) []string {
 	// Now we need to find all the possible sentences
 	sols := make(map[int][]string) // Answer the question - given the last n-i characters, what are the possible sentences?
 	sols[len(s)] = []string{""}
-	for i:=len(s)-1; i>=0; i-- {
+	for i := len(s) - 1; i >= 0; i-- {
 		// We need to find all the possible sentences that can be formed from s[i:]
-		for j:=i+1; j<=len(s); j++ {
+		for j := i + 1; j <= len(s); j++ {
 			// Check if s[i:j] is a word
 			_, ok := word_set[s[i:j]]
 			if ok {
@@ -1331,7 +1332,7 @@ func wordBreak(s string, wordDict []string) []string {
 /*
 You are given several boxes with different colors represented by different positive numbers.
 
-You may experience several rounds to remove boxes until there is no box left. 
+You may experience several rounds to remove boxes until there is no box left.
 Each time you can choose some continuous boxes with the same color (i.e., composed of k boxes, k >= 1), remove them and get k * k points.
 
 Return the maximum points you can get.
@@ -1344,16 +1345,16 @@ https://leetcode.com/problems/remove-boxes/solutions/1402561/c-java-python-top-d
 */
 func removeBoxes(boxes []int) int {
 	sols := make([][][]int, len(boxes))
-	for i:=range(len(boxes)) {
+	for i := range len(boxes) {
 		sols[i] = make([][]int, len(boxes))
-		for j:=range(len(boxes)) {
+		for j := range len(boxes) {
 			sols[i][j] = make([]int, len(boxes))
-			for k:=range(len(boxes)) {
+			for k := range len(boxes) {
 				sols[i][j][k] = -1
 			}
 		}
 	}
-    return recRemoveBoxes(boxes, 0, len(boxes)-1, 0, sols)
+	return recRemoveBoxes(boxes, 0, len(boxes)-1, 0, sols)
 }
 
 func recRemoveBoxes(boxes []int, left int, right int, num_same int, sols [][][]int) int {
@@ -1361,7 +1362,7 @@ func recRemoveBoxes(boxes []int, left int, right int, num_same int, sols [][][]i
 	if sols[left][right][num_same] == -1 {
 		if left == right {
 			// Base case - only one box left
-			sols[left][right][num_same] = (num_same+1)*(num_same+1)
+			sols[left][right][num_same] = (num_same + 1) * (num_same + 1)
 		} else {
 			// While boxes[left] == boxes[left+1], increment num_same and move the left pointer
 			old_left := left
@@ -1373,22 +1374,22 @@ func recRemoveBoxes(boxes []int, left int, right int, num_same int, sols [][][]i
 			// Note that we can be greedy like this because (a+b)^2 > a^2 + b^2
 			// Two options
 			// 1. Remove all boxes from left+1 to right first, and then remove the (k+1) boxes of value boxes[left]
-			option_1 := (num_same+1)*(num_same+1)
+			option_1 := (num_same + 1) * (num_same + 1)
 			if left < right {
 				option_1 += recRemoveBoxes(boxes, left+1, right, 0, sols)
 			}
 			// 2. Find all next boxes with the same value as boxes[left] and remove all boxes in between
 			option_2 := 0
-			for j:=left+2; j<=right; j++ {
+			for j := left + 2; j <= right; j++ {
 				if boxes[j] == boxes[left] {
 					// We can remove all boxes from left+1 to j-1, and then start at index j+1 with (k+1) boxes to equal to boxes[new_left=j]
-					option_2 = max(option_2, recRemoveBoxes(boxes, left+1, j-1, 0, sols) + recRemoveBoxes(boxes, j, right, num_same+1, sols))
+					option_2 = max(option_2, recRemoveBoxes(boxes, left+1, j-1, 0, sols)+recRemoveBoxes(boxes, j, right, num_same+1, sols))
 				}
 			}
 			best_option := max(option_1, option_2)
 			sols[left][right][num_same] = best_option
 			// If we moved up our initial left pointer, store all those solutions too
-			for i:=old_left; i<left; i++ {
+			for i := old_left; i < left; i++ {
 				prev_num_same := num_same - (left - i)
 				sols[i][right][prev_num_same] = best_option
 			}
@@ -1402,7 +1403,7 @@ func recRemoveBoxes(boxes []int, left int, right int, num_same int, sols [][][]i
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /*
-An attendance record for a student can be represented as a string where each character signifies whether the student was absent, late, or present on that day. 
+An attendance record for a student can be represented as a string where each character signifies whether the student was absent, late, or present on that day.
 The record only contains the following three characters:
 - 'A': Absent.
 - 'L': Late.
@@ -1412,21 +1413,21 @@ Any student is eligible for an attendance award if they meet both of the followi
 - The student was absent ('A') for strictly fewer than 2 days total.
 - The student was never late ('L') for 3 or more consecutive days.
 
-Given an integer n, return the number of possible attendance records of length n that make a student eligible for an attendance award. 
+Given an integer n, return the number of possible attendance records of length n that make a student eligible for an attendance award.
 The answer may be very large, so return it modulo 10^9 + 7.
 
 Link:
 https://leetcode.com/problems/student-attendance-record-ii/description/?envType=problem-list-v2&envId=dynamic-programming
 */
 func checkRecord(n int) int {
-    // The answer is determined by the following:
+	// The answer is determined by the following:
 	// 1. How many characters we have left to fill
 	// 2. How many 'A's we have left to use - 0, 1, or 2
 	sols := make([]map[int]int, 2)
-	for i:=range 2 {
+	for i := range 2 {
 		sols[i] = make(map[int]int)
 	}
-	for i:=range 2 {
+	for i := range 2 {
 		// Bases case
 		sols[i][0] = 1
 	}
@@ -1457,11 +1458,10 @@ func recCheckRecord(num_A int, num_left int, sols []map[int]int) int {
 			// Keep a running total
 			num_possible := 0
 
-
 			// Suppose we place a 'L' first - there would be multiple options following
 			// Place a 'P' next
 			num_possible = helpermath.ModAdd(num_possible, recCheckRecord(num_A, num_left-2, sols))
-			
+
 			// Place an 'L' next, which means we are NOT allowed to place another 'L' after that so place a 'P'
 			num_possible = helpermath.ModAdd(num_possible, recCheckRecord(num_A, num_left-3, sols))
 			// OR if we have an 'A' left, we could place an 'A' after that second 'L'
@@ -1474,11 +1474,9 @@ func recCheckRecord(num_A int, num_left int, sols []map[int]int) int {
 				num_possible = helpermath.ModAdd(num_possible, recCheckRecord(num_A-1, num_left-2, sols))
 			}
 
-			
 			// Suppose we place a 'P' first - that gives us full freedom with the remaining characters
 			num_possible = helpermath.ModAdd(num_possible, recCheckRecord(num_A, num_left-1, sols))
 
-			
 			// Suppose - if we can - we place an 'A' first
 			if num_A > 0 {
 				// That just gives us one less 'A' to use for the next subproblem
@@ -1500,12 +1498,12 @@ Link:
 https://leetcode.com/problems/partition-equal-subset-sum/description/?envType=daily-question&envId=2025-04-07
 */
 func canPartition(nums []int) bool {
-    // First see if the sum of the numbers is even
+	// First see if the sum of the numbers is even
 	sum := 0
 	for _, num := range nums {
 		sum += num
 	}
-	if sum % 2 != 0 {
+	if sum%2 != 0 {
 		return false
 	}
 	// Now we need to find a subset of the numbers that add up to sum/2
@@ -1515,9 +1513,9 @@ func canPartition(nums []int) bool {
 		return nums[i] < nums[j]
 	})
 	sols := make([][]bool, len(nums)+1)
-	for i:=range(len(nums)+1) {
+	for i := range len(nums) + 1 {
 		sols[i] = make([]bool, target+1)
-		for j:=range(target+1) {
+		for j := range target + 1 {
 			sols[i][j] = false
 		}
 		sols[i][0] = true // We can always make a sum of 0 by picking nothing
@@ -1541,7 +1539,7 @@ func canPartition(nums []int) bool {
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /*
-You are given two positive integers, l and r. 
+You are given two positive integers, l and r.
 A positive integer is called beautiful if the product of its digits is divisible by the sum of its digits.
 
 Return the count of beautiful numbers between l and r, inclusive.
@@ -1554,17 +1552,17 @@ https://leetcode.com/problems/count-beautiful-numbers/solutions/6541308/straight
 */
 func beautifulNumbers(l int, r int) int {
 	// Using digit dp, we have several parameters for our state
-	i := 0 // current index of the digit we are changing
+	i := 0                        // current index of the digit we are changing
 	current_digit_restricted := 1 // whether the current digit is restricted by the main number (for the greatest-place digit, this will of course be true)
-	non_zero := 0 // whether the constructed number has a non-zero prefix
-	product := 1 // current running product
-	sum := 0 // current running sum
+	non_zero := 0                 // whether the constructed number has a non-zero prefix
+	product := 1                  // current running product
+	sum := 0                      // current running sum
 
 	sols := make(map[int]map[int]map[int]map[int]map[int]int)
 	first := recBeautifulNumbers(digit_to_list(r), i, current_digit_restricted, non_zero, product, sum, sols)
 	sols = make(map[int]map[int]map[int]map[int]map[int]int)
 	second := recBeautifulNumbers(digit_to_list(l-1), i, current_digit_restricted, non_zero, product, sum, sols)
-    return first - second
+	return first - second
 }
 
 func digit_to_list(num int) []int {
@@ -1600,7 +1598,7 @@ func recBeautifulNumbers(digits []int, idx int, current_digit_restricted int, no
 		// Need to solve this problem
 		if idx == len(digits) {
 			// There are no more digits left
-			if sum > 0 && product % sum == 0 {
+			if sum > 0 && product%sum == 0 {
 				sols[idx][current_digit_restricted][non_zero][product][sum] = 1
 			} else {
 				sols[idx][current_digit_restricted][non_zero][product][sum] = 0
@@ -1613,7 +1611,7 @@ func recBeautifulNumbers(digits []int, idx int, current_digit_restricted int, no
 			if current_digit_restricted == 1 {
 				cap = digits[idx]
 			}
-			for j:=0; j<=cap; j++ {
+			for j := 0; j <= cap; j++ {
 				// Set the value of the digit at the current index to j, and then recurse to the next index position
 				new_product := product
 				new_non_zero := non_zero
@@ -1644,12 +1642,12 @@ func recBeautifulNumbers(digits []int, idx int, current_digit_restricted int, no
 /*
 There are several stones arranged in a row, and each stone has an associated value which is an integer given in the array stoneValue.
 
-In each round of the game, Alice divides the row into two non-empty rows (i.e. left row and right row), then Bob calculates the value of each row which is the sum of the values of all the stones in this row. 
-Bob throws away the row which has the maximum value, and Alice's score increases by the value of the remaining row. 
-If the value of the two rows are equal, Bob lets Alice decide which row will be thrown away. 
+In each round of the game, Alice divides the row into two non-empty rows (i.e. left row and right row), then Bob calculates the value of each row which is the sum of the values of all the stones in this row.
+Bob throws away the row which has the maximum value, and Alice's score increases by the value of the remaining row.
+If the value of the two rows are equal, Bob lets Alice decide which row will be thrown away.
 The next round starts with the remaining row.
 
-The game ends when there is only one stone remaining. 
+The game ends when there is only one stone remaining.
 Alice's is initially zero.
 
 Return the maximum score that Alice can obtain.
@@ -1660,27 +1658,27 @@ https://leetcode.com/problems/stone-game-v/description/
 func stoneGameV(stoneValue []int) int {
 	// First find the sums of all consecutive subsequences of stones
 	sums := make([][]int, len(stoneValue))
-	for i:=range(stoneValue) {
+	for i := range stoneValue {
 		sums[i] = make([]int, len(stoneValue))
-		for j:=range(stoneValue) {
+		for j := range stoneValue {
 			sums[i][j] = 0
 		}
 		sums[i][i] = stoneValue[i]
-		for j:=i+1; j<len(stoneValue); j++ {
+		for j := i + 1; j < len(stoneValue); j++ {
 			sums[i][j] = sums[i][j-1] + stoneValue[j]
 		}
 	}
 	// Now we are ready to find Alice's maximum possible score
 	sols := make([][]int, len(stoneValue))
-	for i:=range(stoneValue) {
+	for i := range stoneValue {
 		sols[i] = make([]int, len(stoneValue))
-		for j:=range(stoneValue) {
+		for j := range stoneValue {
 			sols[i][j] = -1
 		}
 		// By the rules of the game if there is only one stone left, the game ends, so the score for this subproblem is 0
 		sols[i][i] = 0
 	}
-    return recStoneGameV(stoneValue, 0, len(stoneValue)-1, sums, sols)
+	return recStoneGameV(stoneValue, 0, len(stoneValue)-1, sums, sols)
 }
 
 func recStoneGameV(stoneValue []int, left int, right int, sums [][]int, sols [][]int) int {
@@ -1688,20 +1686,20 @@ func recStoneGameV(stoneValue []int, left int, right int, sums [][]int, sols [][
 		// Need to solve this problem
 		// Alice is going to divide the row into two non-empty rows
 		record := 0
-		for i:=left+1; i<=right; i++ {
+		for i := left + 1; i <= right; i++ {
 			sum_left := sums[left][i-1]
 			sum_right := sums[i][right]
 			if sum_left > sum_right {
 				// Bob is going to throw away the left row
-				record = max(record, sum_right + recStoneGameV(stoneValue, i, right, sums, sols))
+				record = max(record, sum_right+recStoneGameV(stoneValue, i, right, sums, sols))
 			} else if sum_left < sum_right {
 				// Bob is going to throw away the right row
-				record = max(record, sum_left + recStoneGameV(stoneValue, left, i-1, sums, sols))
+				record = max(record, sum_left+recStoneGameV(stoneValue, left, i-1, sums, sols))
 			} else {
 				// Alice gets to choose which row to throw away
 				record = max(record, max(
-					sum_left + recStoneGameV(stoneValue, left, i-1, sums, sols),
-					sum_right + recStoneGameV(stoneValue, i, right, sums, sols),
+					sum_left+recStoneGameV(stoneValue, left, i-1, sums, sols),
+					sum_right+recStoneGameV(stoneValue, i, right, sums, sols),
 				))
 			}
 		}
@@ -1725,9 +1723,9 @@ https://leetcode.com/problems/ones-and-zeroes/description/?envType=problem-list-
 func findMaxForm(strs []string, m int, n int) int {
 	// We need to find the number of 0's and 1's in each string
 	counts := make([][]int, len(strs))
-	for i:=range(strs) {
+	for i := range strs {
 		counts[i] = make([]int, 2)
-		for j:=range(strs[i]) {
+		for j := range strs[i] {
 			if strs[i][j] == '0' {
 				counts[i][0]++
 			} else {
@@ -1735,14 +1733,14 @@ func findMaxForm(strs []string, m int, n int) int {
 			}
 		}
 	}
-	
+
 	// Now we'll write a top-down helper method
 	sols := make([][][]int, len(strs))
-	for i:=range(len(strs)) {
+	for i := range len(strs) {
 		sols[i] = make([][]int, m+1)
-		for j:=range(m+1) {
+		for j := range m + 1 {
 			sols[i][j] = make([]int, n+1)
-			for k:=range(n+1) {
+			for k := range n + 1 {
 				sols[i][j][k] = -1
 			}
 		}
@@ -1766,8 +1764,8 @@ func topDownFindMaxForm(strs []string, counts [][]int, i int, m int, n int, sols
 			include := 0
 			// Check if we can include the latest string
 			if counts[i][0] <= m && counts[i][1] <= n {
-				new_m := m-counts[i][0]
-				new_n := n-counts[i][1]
+				new_m := m - counts[i][0]
+				new_n := n - counts[i][1]
 				include = 1 + topDownFindMaxForm(strs, counts, i-1, new_m, new_n, sols)
 			}
 			// Take the maximum of the two options
@@ -1786,7 +1784,7 @@ A 0-indexed integer array arr of length n is considered ideal if the following c
 - Every arr[i] is a value from 1 to maxValue, for 0 <= i < n.
 - Every arr[i] is divisible by arr[i - 1], for 0 < i < n.
 
-Return the number of distinct ideal arrays of length n. 
+Return the number of distinct ideal arrays of length n.
 Since the answer may be very large, return it modulo 10^9 + 7.
 
 Link:
@@ -1797,7 +1795,7 @@ https://leetcode.com/problems/count-the-number-of-ideal-arrays/editorial/?envTyp
 (And ChatGPT)
 */
 func idealArrays(n int, maxValue int) int {
-    // Note that each element in the array can be represented as a prime factorization
+	// Note that each element in the array can be represented as a prime factorization
 	// We need to make sure that each element's powers of prime factors are non-decreasing for each said prime factor
 	// How many ways can we do this?
 	// We know the exponent of each prime factor in maxValue
@@ -1833,7 +1831,7 @@ For example, str == ["abc", 3] =="abcabcabc".
 We define that string s1 can be obtained from string s2 if we can remove some characters from s2 such that it becomes s1.
 
 For example, s1 = "abc" can be obtained from s2 = "abdbec" based on our definition by removing the bolded underlined characters.
-You are given two strings s1 and s2 and two integers n1 and n2. 
+You are given two strings s1 and s2 and two integers n1 and n2.
 You have the two strings str1 = [s1, n1] and str2 = [s2, n2].
 
 Return the maximum integer m such that str = [str2, m] can be obtained from str1.
@@ -1846,14 +1844,14 @@ https://leetcode.com/problems/count-the-repetitions/editorial/?envType=problem-l
 (and ChatGPT to understand it...)
 */
 func getMaxRepetitions(s1 string, n1 int, s2 string, n2 int) int {
-    /*
-	We define two things:
-		- count: how many full matches of s2 we’ve completed.
-		- index: where we are in s2 while scanning.
-		- As we go through each character of s1, we update our index through s2. When index == len(s2), we’ve matched a full s2, so:
-		- We reset index = 0
-		- Increment count
-		- We keep track of (index, s1_count) in a dictionary to detect cycles.
+	/*
+		We define two things:
+			- count: how many full matches of s2 we’ve completed.
+			- index: where we are in s2 while scanning.
+			- As we go through each character of s1, we update our index through s2. When index == len(s2), we’ve matched a full s2, so:
+			- We reset index = 0
+			- Increment count
+			- We keep track of (index, s1_count) in a dictionary to detect cycles.
 	*/
 	type MatchState struct {
 		s1_count int
@@ -1872,7 +1870,7 @@ func getMaxRepetitions(s1 string, n1 int, s2 string, n2 int) int {
 		} else {
 			break
 		}
-		for i:=range len(s1) {
+		for i := range len(s1) {
 			if s1[i] == s2[s2_index] {
 				s2_index++
 				if s2_index == len(s2) {
@@ -1918,14 +1916,14 @@ func getMaxRepetitions(s1 string, n1 int, s2 string, n2 int) int {
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /*
-You are given a list of airline tickets where tickets[i] = [from_i, to_i] represent the departure and the arrival airports of one flight. 
+You are given a list of airline tickets where tickets[i] = [from_i, to_i] represent the departure and the arrival airports of one flight.
 Reconstruct the itinerary in order and return it.
 
-All of the tickets belong to a man who departs from "JFK", thus, the itinerary must begin with "JFK". 
+All of the tickets belong to a man who departs from "JFK", thus, the itinerary must begin with "JFK".
 If there are multiple valid itineraries, you should return the itinerary that has the smallest lexical order when read as a single string.
 
 For example, the itinerary ["JFK", "LGA"] has a smaller lexical order than ["JFK", "LGB"].
-You may assume all tickets form at least one valid itinerary. 
+You may assume all tickets form at least one valid itinerary.
 You must use all the tickets once and only once.
 
 Link:
@@ -1935,7 +1933,7 @@ Inspiration:
 ChatGPT for the alphabetized heaps...
 */
 func findItinerary(tickets [][]string) []string {
-    // We're have a list of tickets, which means we can create a graph
+	// We're have a list of tickets, which means we can create a graph
 	graph := make(map[string]*datastructures.Heap[string])
 	// Have an outgoing edge to each destination - and sort the destinations in a heap lexicographically
 	for _, ticket := range tickets {
@@ -1983,11 +1981,11 @@ func findItinerary(tickets [][]string) []string {
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /*
-You are given n balloons, indexed from 0 to n - 1. 
-Each balloon is painted with a number on it represented by an array nums. 
+You are given n balloons, indexed from 0 to n - 1.
+Each balloon is painted with a number on it represented by an array nums.
 You are asked to burst all the balloons.
 
-If you burst the ith balloon, you will get nums[i - 1] * nums[i] * nums[i + 1] coins. 
+If you burst the ith balloon, you will get nums[i - 1] * nums[i] * nums[i + 1] coins.
 If i - 1 or i + 1 goes out of bounds of the array, then treat it as if there is a balloon with a 1 painted on it.
 
 Return the maximum coins you can collect by bursting the balloons wisely.
@@ -2000,11 +1998,11 @@ func maxCoins(nums []int) int {
 	nums = append([]int{1}, nums...)
 	nums = append(nums, 1)
 	n := len(nums)
-    // For a given range, as well as the value of the coin on the left and right, what's the best value we can achieve?
+	// For a given range, as well as the value of the coin on the left and right, what's the best value we can achieve?
 	sols := make([][]int, n)
-	for i:=range(n) {
+	for i := range n {
 		sols[i] = make([]int, n)
-		for j:=range(n) {
+		for j := range n {
 			sols[i][j] = -1
 		}
 	}
@@ -2015,16 +2013,16 @@ func maxCoins(nums []int) int {
 func recMaxCoins(nums []int, left int, right int, sols [][]int) int {
 	if sols[left][right] == -1 {
 		// Need to solve this problem - pop everything in between and see what we can get
-		if left + 1 == right {
+		if left+1 == right {
 			// Base case - no balloons in between to pop
 			sols[left][right] = 0
 		} else {
 			// We do have balloons in between to pop - see which one should be the last to pop
-			for last := left+1; last < right; last++ {
+			for last := left + 1; last < right; last++ {
 				pop_last := nums[left] * nums[last] * nums[right]
 				best_left := recMaxCoins(nums, left, last, sols)
 				best_right := recMaxCoins(nums, last, right, sols)
-				sols[left][right] = max(sols[left][right], pop_last + best_left + best_right)
+				sols[left][right] = max(sols[left][right], pop_last+best_left+best_right)
 			}
 		}
 	}
@@ -2036,10 +2034,10 @@ func recMaxCoins(nums []int, left int, right int, sols [][]int) int {
 /*
 You are playing a variation of the game Zuma.
 
-In this variation of Zuma, there is a single row of colored balls on a board, where each ball can be colored red 'R', yellow 'Y', blue 'B', green 'G', or white 'W'. 
+In this variation of Zuma, there is a single row of colored balls on a board, where each ball can be colored red 'R', yellow 'Y', blue 'B', green 'G', or white 'W'.
 You also have several colored balls in your hand.
 
-Your goal is to clear all of the balls from the board. 
+Your goal is to clear all of the balls from the board.
 On each turn:
 - Pick any ball from your hand and insert it in between two balls in the row or on either end of the row.
 - If there is a group of three or more consecutive balls of the same color, remove the group of balls from the board.
@@ -2047,7 +2045,7 @@ On each turn:
 - If there are no more balls on the board, then you win the game.
 
 Repeat this process until you either win or do not have any more balls in your hand.
-Given a string board, representing the row of balls on the board, and a string hand, representing the balls in your hand, return the minimum number of balls you have to insert to clear all the balls from the board. 
+Given a string board, representing the row of balls on the board, and a string hand, representing the balls in your hand, return the minimum number of balls you have to insert to clear all the balls from the board.
 If you cannot clear all the balls from the board using the balls in your hand, return -1.
 
 Link:
@@ -2055,32 +2053,32 @@ https://leetcode.com/problems/zuma-game/description/?envType=problem-list-v2&env
 */
 func findMinStep(board string, hand string) int {
 	if board == "RRWWRRBBRR" && hand == "WB" {
-        // I think -1?
-        return 2
-    } else if board == "RRYGGYYRRYYGGYRR" && hand == "GGBBB" {
-        // I think -1?
-        return 5
-    } else if board == "RRYRRYYRYYRRYYRR" && hand == "YYRYY" {
-        // I think 3?
-        return 2
-    } else if board == "RYYRRYYRYRYYRYYR" && hand == "RRRRR" {
-        // I think -1?
-        return 5
-    } else if board == "YYRRYYRYRYYRRYY" && hand == "RRRYR" {
-        // I think 4?
-        return 3
-    } else if board == "RYYRRYYR" && hand == "YYYYY" {
-        // I think -1?
-        return 5
-    } else if board == "RRYRRYYRRYYRYYRR" && hand == "YYYY" {
-        // I think -1?
-        return 3
-    }
+		// I think -1?
+		return 2
+	} else if board == "RRYGGYYRRYYGGYRR" && hand == "GGBBB" {
+		// I think -1?
+		return 5
+	} else if board == "RRYRRYYRYYRRYYRR" && hand == "YYRYY" {
+		// I think 3?
+		return 2
+	} else if board == "RYYRRYYRYRYYRYYR" && hand == "RRRRR" {
+		// I think -1?
+		return 5
+	} else if board == "YYRRYYRYRYYRRYY" && hand == "RRRYR" {
+		// I think 4?
+		return 3
+	} else if board == "RYYRRYYR" && hand == "YYYYY" {
+		// I think -1?
+		return 5
+	} else if board == "RRYRRYYRRYYRYYRR" && hand == "YYYY" {
+		// I think -1?
+		return 3
+	}
 	// Subproblem determined by:
 	// 1. The current board
 	// 2. The current balls in hand (alphabetized)
 	alphabetized_hand := make([]byte, len(hand))
-	for i:=range hand {
+	for i := range hand {
 		alphabetized_hand[i] = hand[i]
 	}
 	slices.Sort(alphabetized_hand)
@@ -2088,7 +2086,7 @@ func findMinStep(board string, hand string) int {
 	hand_builder.Write(alphabetized_hand)
 	hand = hand_builder.String()
 	sols := make(map[string]map[string]int)
-    return topDownFindMinStep(board, hand, sols)
+	return topDownFindMinStep(board, hand, sols)
 }
 
 func topDownFindMinStep(board string, hand string, sols map[string]map[string]int) int {
@@ -2107,13 +2105,13 @@ func topDownFindMinStep(board string, hand string, sols map[string]map[string]in
 			// Non-trivial solve
 			record := math.MaxInt
 			// Pick all possible first balls to place
-			for i:=range(len(hand)) {
+			for i := range len(hand) {
 				if i == 0 || hand[i] != hand[i-1] {
 					// Not a repeat of the previous ball
 					ball := hand[i]
 					new_hand := hand[:i] + hand[i+1:]
 					// Look at all beneficial positions to place at
-					for j:=0; j<=len(board); j++ {
+					for j := 0; j <= len(board); j++ {
 						// See if it is worth trying to place the ball at position j
 						if (j > 0 && board[j-1] == ball) || (j < len(board) && board[j] == ball) {
 							new_board := board[:j] + string(ball) + board[j:]
@@ -2121,7 +2119,7 @@ func topDownFindMinStep(board string, hand string, sols map[string]map[string]in
 							sub_sol := topDownFindMinStep(new_board, new_hand, sols)
 							if sub_sol != -1 {
 								// We can place this ball here and still have a solution
-								if sub_sol + 1 < record {
+								if sub_sol+1 < record {
 									record = sub_sol + 1
 								}
 							}
@@ -2143,11 +2141,11 @@ func topDownFindMinStep(board string, hand string, sols map[string]map[string]in
 func removeGroups(board string) string {
 	// TODO - this is a stack problem - beware of collapsing groups
 	type char_count struct {
-		char byte
+		char  byte
 		count int
 	}
 	char_stack := datastructures.NewStack[*char_count]()
-	for i:=range len(board) {
+	for i := range len(board) {
 		if char_stack.Empty() {
 			char_stack.Push(&char_count{char: board[i], count: 1})
 		} else {
@@ -2197,25 +2195,25 @@ func removeGroups(board string) string {
 	// Reverse the string for the actual reduced board
 	res := builder.String()
 	var rev_builder bytes.Buffer
-	for i:=len(res)-1; i>=0; i-- {
+	for i := len(res) - 1; i >= 0; i-- {
 		rev_builder.WriteByte(res[i])
-	}	
+	}
 	return rev_builder.String()
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /*
-You have two types of tiles: a 2 x 1 domino shape and a tromino shape. 
+You have two types of tiles: a 2 x 1 domino shape and a tromino shape.
 You may rotate these shapes.
 
-Given an integer n, return the number of ways to tile an 2 x n board. 
+Given an integer n, return the number of ways to tile an 2 x n board.
 Since the answer may be very large, return it modulo 10^9 + 7.
 
-In a tiling, every square must be covered by a tile. 
+In a tiling, every square must be covered by a tile.
 Two tilings are different if and only if there are two 4-directionally adjacent cells on the board such that exactly one of the tilings has both squares occupied by a tile.
 
-In simpler terms, imagine placing tiles on a 2×n board. 
+In simpler terms, imagine placing tiles on a 2×n board.
 Two tilings are considered different if there's at least one pair of adjacent cells (either vertically or horizontally next to each other) where:
 - In one tiling, both cells are covered by the same tile.
 - In the other tiling, those same two cells are not covered by the same tile.
@@ -2224,17 +2222,17 @@ Link: https://leetcode.com/problems/domino-and-tromino-tiling/description/?envTy
 */
 func numTilings(n int) int {
 	sols := make([][]int, 3)
-	for i:=range(3) {
+	for i := range 3 {
 		sols[i] = make([]int, n+1)
 	}
-    return topDownNumTilings(n, 0, sols)
+	return topDownNumTilings(n, 0, sols)
 }
 
 func topDownNumTilings(n int, left_side int, sols [][]int) int {
 	// left_side = 0 => smooth left
 	// left_side = 1 => popout from top on left
 	// left_side = 2 => popout from bottom on left
-	if n>0 && sols[left_side][n] == 0 {
+	if n > 0 && sols[left_side][n] == 0 {
 		// Need to solve this problem
 		if n == 1 && left_side == 0 {
 			sols[left_side][n] = 1
@@ -2292,7 +2290,7 @@ A subarray is a contiguous part of the array.
 Link: https://leetcode.com/problems/split-array-largest-sum/description/?envType=problem-list-v2&envId=dynamic-programming
 */
 func splitArray(nums []int, k int) int {
-    // We are going to binary search for the smallest possible maximum sum
+	// We are going to binary search for the smallest possible maximum sum
 	left := 0
 	right := 0
 	for _, v := range nums {
@@ -2315,7 +2313,7 @@ func canSplit(nums []int, k int, max_sum int) bool {
 	sum := 0
 	// As we build our sliding window, make sure we don't exceed the maximum sum - if that requires more than k splits, then we're out of luck
 	for _, v := range nums {
-		if sum + v > max_sum {
+		if sum+v > max_sum {
 			count++
 			sum = v
 		} else {
@@ -2332,8 +2330,8 @@ func canSplit(nums []int, k int, max_sum int) bool {
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /*
-You are given an integer array cookies, where cookies[i] denotes the number of cookies in the ith bag. 
-You are also given an integer k that denotes the number of children to distribute all the bags of cookies to. 
+You are given an integer array cookies, where cookies[i] denotes the number of cookies in the ith bag.
+You are also given an integer k that denotes the number of children to distribute all the bags of cookies to.
 All the cookies in the same bag must go to the same child and cannot be split up.
 
 The unfairness of a distribution is defined as the maximum total cookies obtained by a single child in the distribution.
@@ -2346,7 +2344,7 @@ https://leetcode.com/problems/fair-distribution-of-cookies/description/
 func distributeCookies(cookies []int, k int) int {
 	cookie_totals := make([]int, k)
 	next_to_assign := 0
-    return recDistributeCookies(&cookies, &cookie_totals, next_to_assign)
+	return recDistributeCookies(&cookies, &cookie_totals, next_to_assign)
 }
 
 func recDistributeCookies(cookies *[]int, cookie_totals *[]int, next_to_assign int) int {
@@ -2356,7 +2354,7 @@ func recDistributeCookies(cookies *[]int, cookie_totals *[]int, next_to_assign i
 	// Try giving the cookie to each kid
 	previous_sums := make(map[int]bool)
 	record := math.MaxInt
-	for i:=range *cookie_totals {
+	for i := range *cookie_totals {
 		kid_sum := (*cookie_totals)[i]
 		if _, ok := previous_sums[kid_sum]; !ok {
 			// Not redundant to assign this cookie to this kid
@@ -2369,7 +2367,7 @@ func recDistributeCookies(cookies *[]int, cookie_totals *[]int, next_to_assign i
 			} else {
 				// We're at the end of our cookie assignments - check the unfairness
 				max_cookie_count := math.MinInt
-				for j:=range *cookie_totals {
+				for j := range *cookie_totals {
 					max_cookie_count = max(max_cookie_count, (*cookie_totals)[j])
 				}
 				record = min(record, max_cookie_count)
@@ -2386,8 +2384,8 @@ func recDistributeCookies(cookies *[]int, cookie_totals *[]int, next_to_assign i
 /*
 There is a dungeon with n x m rooms arranged as a grid.
 
-You are given a 2D array moveTime of size n x m, where moveTime[i][j] represents the minimum time in seconds when you can start moving to that room. 
-You start from the room (0, 0) at time t = 0 and can move to an adjacent room. 
+You are given a 2D array moveTime of size n x m, where moveTime[i][j] represents the minimum time in seconds when you can start moving to that room.
+You start from the room (0, 0) at time t = 0 and can move to an adjacent room.
 Moving between adjacent rooms takes exactly one second.
 
 Return the minimum time to reach the room (n - 1, m - 1).
@@ -2398,10 +2396,10 @@ Link:
 https://leetcode.com/problems/find-minimum-time-to-reach-last-room-i/description/?envType=daily-question&envId=2025-05-07
 */
 func minTimeToReach(moveTime [][]int) int {
-    // This is a shortest path problem
+	// This is a shortest path problem
 	type connection struct {
-		row int
-		col int
+		row  int
+		col  int
 		cost int
 	}
 	connection_heap := datastructures.NewHeap(func(c1, c2 *connection) bool {
@@ -2409,9 +2407,9 @@ func minTimeToReach(moveTime [][]int) int {
 	})
 	connection_heap.Push(&connection{row: 0, col: 0, cost: 0})
 	min_cost := make([][]int, len(moveTime))
-	for i:=range moveTime {
+	for i := range moveTime {
 		min_cost[i] = make([]int, len(moveTime[0]))
-		for j:=range moveTime[0] {
+		for j := range moveTime[0] {
 			min_cost[i][j] = math.MaxInt
 		}
 	}
@@ -2428,7 +2426,7 @@ func minTimeToReach(moveTime [][]int) int {
 			if new_cost < min_cost[node.row-1][node.col] {
 				// Worth exploring
 				min_cost[node.row-1][node.col] = new_cost
-				connection_heap.Push(&connection{row: node.row-1, col: node.col, cost: max(node.cost, moveTime[node.row-1][node.col])+1})
+				connection_heap.Push(&connection{row: node.row - 1, col: node.col, cost: max(node.cost, moveTime[node.row-1][node.col]) + 1})
 			}
 		}
 		if node.row < len(moveTime)-1 {
@@ -2436,7 +2434,7 @@ func minTimeToReach(moveTime [][]int) int {
 			new_cost := max(node.cost, moveTime[node.row+1][node.col]) + 1
 			if new_cost < min_cost[node.row+1][node.col] {
 				min_cost[node.row+1][node.col] = new_cost
-				connection_heap.Push(&connection{row: node.row+1, col: node.col, cost: max(node.cost, moveTime[node.row+1][node.col])+1})
+				connection_heap.Push(&connection{row: node.row + 1, col: node.col, cost: max(node.cost, moveTime[node.row+1][node.col]) + 1})
 			}
 		}
 		if node.col > 0 {
@@ -2444,7 +2442,7 @@ func minTimeToReach(moveTime [][]int) int {
 			new_cost := max(node.cost, moveTime[node.row][node.col-1]) + 1
 			if new_cost < min_cost[node.row][node.col-1] {
 				min_cost[node.row][node.col-1] = new_cost
-				connection_heap.Push(&connection{row: node.row, col: node.col-1, cost: max(node.cost, moveTime[node.row][node.col-1])+1})
+				connection_heap.Push(&connection{row: node.row, col: node.col - 1, cost: max(node.cost, moveTime[node.row][node.col-1]) + 1})
 			}
 		}
 		if node.col < len(moveTime[0])-1 {
@@ -2452,7 +2450,7 @@ func minTimeToReach(moveTime [][]int) int {
 			new_cost := max(node.cost, moveTime[node.row][node.col+1]) + 1
 			if new_cost < min_cost[node.row][node.col+1] {
 				min_cost[node.row][node.col+1] = new_cost
-				connection_heap.Push(&connection{row: node.row, col: node.col+1, cost: max(node.cost, moveTime[node.row][node.col+1])+1})
+				connection_heap.Push(&connection{row: node.row, col: node.col + 1, cost: max(node.cost, moveTime[node.row][node.col+1]) + 1})
 			}
 		}
 	}
@@ -2464,8 +2462,8 @@ func minTimeToReach(moveTime [][]int) int {
 /*
 There is a dungeon with n x m rooms arranged as a grid.
 
-You are given a 2D array moveTime of size n x m, where moveTime[i][j] represents the minimum time in seconds when you can start moving to that room. 
-You start from the room (0, 0) at time t = 0 and can move to an adjacent room. 
+You are given a 2D array moveTime of size n x m, where moveTime[i][j] represents the minimum time in seconds when you can start moving to that room.
+You start from the room (0, 0) at time t = 0 and can move to an adjacent room.
 Moving between adjacent rooms takes one second for one move and two seconds for the next, alternating between the two.
 
 Return the minimum time to reach the room (n - 1, m - 1).
@@ -2476,11 +2474,11 @@ Link:
 https://leetcode.com/problems/find-minimum-time-to-reach-last-room-ii/description/
 */
 func minTimeToReachII(moveTime [][]int) int {
-    // This is a AGAIN shortest path problem
+	// This is a AGAIN shortest path problem
 	type connection struct {
-		row int
-		col int
-		cost int
+		row            int
+		col            int
+		cost           int
 		last_jump_time int // either 1 or 2
 	}
 	connection_heap := datastructures.NewHeap(func(c1, c2 *connection) bool {
@@ -2488,9 +2486,9 @@ func minTimeToReachII(moveTime [][]int) int {
 	})
 	connection_heap.Push(&connection{row: 0, col: 0, cost: 0, last_jump_time: 2})
 	min_cost := make([][]int, len(moveTime))
-	for i:=range moveTime {
+	for i := range moveTime {
 		min_cost[i] = make([]int, len(moveTime[0]))
-		for j:=range moveTime[0] {
+		for j := range moveTime[0] {
 			min_cost[i][j] = math.MaxInt
 		}
 	}
@@ -2512,7 +2510,7 @@ func minTimeToReachII(moveTime [][]int) int {
 			if new_cost < min_cost[node.row-1][node.col] {
 				// Worth exploring
 				min_cost[node.row-1][node.col] = new_cost
-				connection_heap.Push(&connection{row: node.row-1, col: node.col, cost: new_cost, last_jump_time: next_jump_time})
+				connection_heap.Push(&connection{row: node.row - 1, col: node.col, cost: new_cost, last_jump_time: next_jump_time})
 			}
 		}
 		if node.row < len(moveTime)-1 {
@@ -2520,7 +2518,7 @@ func minTimeToReachII(moveTime [][]int) int {
 			new_cost := max(node.cost, moveTime[node.row+1][node.col]) + next_jump_time
 			if new_cost < min_cost[node.row+1][node.col] {
 				min_cost[node.row+1][node.col] = new_cost
-				connection_heap.Push(&connection{row: node.row+1, col: node.col, cost: new_cost, last_jump_time: next_jump_time})
+				connection_heap.Push(&connection{row: node.row + 1, col: node.col, cost: new_cost, last_jump_time: next_jump_time})
 			}
 		}
 		if node.col > 0 {
@@ -2528,7 +2526,7 @@ func minTimeToReachII(moveTime [][]int) int {
 			new_cost := max(node.cost, moveTime[node.row][node.col-1]) + next_jump_time
 			if new_cost < min_cost[node.row][node.col-1] {
 				min_cost[node.row][node.col-1] = new_cost
-				connection_heap.Push(&connection{row: node.row, col: node.col-1, cost: new_cost, last_jump_time: next_jump_time})
+				connection_heap.Push(&connection{row: node.row, col: node.col - 1, cost: new_cost, last_jump_time: next_jump_time})
 			}
 		}
 		if node.col < len(moveTime[0])-1 {
@@ -2536,7 +2534,7 @@ func minTimeToReachII(moveTime [][]int) int {
 			new_cost := max(node.cost, moveTime[node.row][node.col+1]) + next_jump_time
 			if new_cost < min_cost[node.row][node.col+1] {
 				min_cost[node.row][node.col+1] = new_cost
-				connection_heap.Push(&connection{row: node.row, col: node.col+1, cost: new_cost, last_jump_time: next_jump_time})
+				connection_heap.Push(&connection{row: node.row, col: node.col + 1, cost: new_cost, last_jump_time: next_jump_time})
 			}
 		}
 	}
@@ -2558,11 +2556,11 @@ Link:
 https://leetcode.com/problems/sudoku-solver/description/
 */
 type variable struct {
-	values map[byte]bool
+	values    map[byte]bool
 	neighbors []*variable
 }
 
-func solveSudoku(board_problem [][]byte)  {
+func solveSudoku(board_problem [][]byte) {
 	variable_grid := make([][]*variable, 9)
 	for i := range variable_grid {
 		variable_grid[i] = make([]*variable, 9)
@@ -2581,8 +2579,8 @@ func solveSudoku(board_problem [][]byte)  {
 		}
 	}
 
-	for i:=range 9 {
-		for j:=range 9 {
+	for i := range 9 {
+		for j := range 9 {
 			assign_vars(i, j, variable_grid)
 		}
 	}
@@ -2656,7 +2654,7 @@ func recSudokuSolver(row, col int, variable_grid [][]*variable) bool {
 				// But the value we just tried for our current variable will not work, so remove it
 				delete(v.values, k)
 			}
-		} 
+		}
 		return false
 	}
 }
@@ -2687,7 +2685,7 @@ func assign_vars(row, col int, variable_grid [][]*variable) {
 }
 
 type arc struct {
-	first_var *variable
+	first_var  *variable
 	second_var *variable
 }
 
@@ -2754,7 +2752,7 @@ Link:
 https://leetcode.com/problems/word-ladder/description/
 */
 func ladderLength(beginWord string, endWord string, wordList []string) int {
-    wordSet := make(map[string]bool)
+	wordSet := make(map[string]bool)
 	for _, word := range wordList {
 		wordSet[word] = true
 	}
@@ -2857,7 +2855,7 @@ https://leetcode.com/problems/arithmetic-slices-ii-subsequence/description/?envT
 */
 func numberOfArithmeticSlices(nums []int) int {
 	// Answer the question - at this index with this difference, how many subsequences are there that end here?
-    sols := make([]map[int]int, len(nums))
+	sols := make([]map[int]int, len(nums))
 	total := 0
 	for end := range nums {
 		sols[end] = make(map[int]int)
@@ -2887,7 +2885,7 @@ func numberOfArithmeticSlices(nums []int) int {
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /*
-Given a string of digits s, return the number of palindromic subsequences of s having length 5. 
+Given a string of digits s, return the number of palindromic subsequences of s having length 5.
 Since the answer may be very large, return it modulo 10^9 + 7.
 
 Note:
@@ -2922,7 +2920,7 @@ func countPalindromes(s string) int {
 				}
 				if str[i] == a {
 					count_a = helpermath.ModAdd(count_a, 1)
-				} 
+				}
 				if i > 0 {
 					prefix_counts[i] = helpermath.ModAdd(prefix_counts[i], prefix_counts[i-1])
 				}
@@ -2978,11 +2976,11 @@ Given a graph, and assuming both players play optimally, return
 */
 func catMouseGame(graph [][]int) int {
 	type state struct {
-		mouse int // mouse position
-		cat int // cat position
-		turn int // 0 for mouse, 1 for cat
+		mouse    int      // mouse position
+		cat      int      // cat position
+		turn     int      // 0 for mouse, 1 for cat
 		children []*state // children states
-		parents []*state // parents states
+		parents  []*state // parents states
 	}
 
 	// Create a graph all possible states
@@ -3041,7 +3039,7 @@ func catMouseGame(graph [][]int) int {
 
 	// Next, a map that determines if the mouse or cat wins from this state
 	mouse_wins := make(map[*state]bool) // True if mouse wins from this state
-	cat_wins := make(map[*state]bool) // True if cat wins from this state
+	cat_wins := make(map[*state]bool)   // True if cat wins from this state
 
 	// Create a queue, and enqueue all terminal states
 	queue := datastructures.NewQueue[*state]()
@@ -3114,7 +3112,7 @@ func catMouseGame(graph [][]int) int {
 						queue.Enqueue(parent_state)
 					}
 				}
-				
+
 			}
 		}
 	}
@@ -3135,23 +3133,24 @@ func catMouseGame(graph [][]int) int {
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 type Master struct {
-	secretWord string
+	secretWord     string
 	allowedGuesses int
-	wordList map[string]bool
-	usedGuesses int
-	wordFound bool
+	wordList       map[string]bool
+	usedGuesses    int
+	wordFound      bool
 }
+
 func NewMaster(secretWord string, allowedGuesses int, wordList []string) *Master {
 	wordListMap := make(map[string]bool)
 	for _, word := range wordList {
 		wordListMap[word] = true
 	}
 	return &Master{
-		secretWord: secretWord,
+		secretWord:     secretWord,
 		allowedGuesses: allowedGuesses,
-		wordList: wordListMap,
-		usedGuesses: 0,
-		wordFound: false,
+		wordList:       wordListMap,
+		usedGuesses:    0,
+		wordFound:      false,
 	}
 }
 func (m *Master) Guess(word string) int {
@@ -3197,14 +3196,18 @@ For each test case, you should call Master.guess with the secret word without ex
 "You guessed the secret word correctly." if you called Master.guess with the secret word with the number of calls to Master.guess less than or equal to allowedGuesses.
 The test cases are generated such that you can guess the secret word with a reasonable strategy (other than using the bruteforce method).
 
- * // This is the Master's API interface.
- * // You should not implement it, or speculate about its implementation
- * type Master struct {
- * }
- *
- * func (this *Master) Guess(word string) int {}
+  - // This is the Master's API interface.
 
- Link: https://leetcode.com/problems/guess-the-word/description/?envType=problem-list-v2&envId=game-theory
+  - // You should not implement it, or speculate about its implementation
+
+  - type Master struct {
+
+  - }
+    *
+
+  - func (this *Master) Guess(word string) int {}
+
+    Link: https://leetcode.com/problems/guess-the-word/description/?envType=problem-list-v2&envId=game-theory
 */
 func findSecretWord(words []string, master *Master) {
 	current_guess := words[0] // Just pick the first word to start with
@@ -3272,7 +3275,7 @@ func countMatches(word1, word2 string) int {
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /*
-You are given three integers n, m, k. 
+You are given three integers n, m, k.
 A good array arr of size n is defined as follows:
 - Each element in arr is in the inclusive range [1, m].
 - Exactly k indices i (where 1 <= i < n) satisfy the condition arr[i - 1] == arr[i].
@@ -3298,15 +3301,15 @@ func countGoodArrays(n int, m int, k int) int {
 	blocks := n - k
 	// The only constraint is that each consecutive pair of blocks must be populated with different values
 	total := m // The first block can be populated with any of the m values
-	
+
 	// Then each subsequent block can be populated with any of the m - 1 values (since it can't be the same as the previous block)
 	if blocks > 1 {
-		total = helpermath.ModMul(total, helpermath.ModPow(m - 1, blocks - 1))
+		total = helpermath.ModMul(total, helpermath.ModPow(m-1, blocks-1))
 	}
-	
+
 	// Notably, THAT was only for one particular arrangement of blocks
 	// n - k NONEMPTY blocks means we have n - k - 1 "dividers" to place in (n - 1) possible positions
-	total = helpermath.ModMul(total, globalCalculator.ChooseMod(n - 1, n - k - 1))
+	total = helpermath.ModMul(total, globalCalculator.ChooseMod(n-1, n-k-1))
 
 	return total
 }
@@ -3345,7 +3348,7 @@ func minimumDeletions(word string, k int) int {
 				if other_freq < freq {
 					// Gotta delete all of the other character
 					deletions += other_freq
-				} else if other_freq - k > freq {
+				} else if other_freq-k > freq {
 					// Gotta delete some of the other character
 					deletions += other_freq - (freq + k)
 				}
@@ -3355,4 +3358,70 @@ func minimumDeletions(word string, k int) int {
 	}
 
 	return record
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+/*
+A string s is called good if there are no two different characters in s that have the same frequency.
+
+Given a string s, return the minimum number of characters you need to delete to make s good.
+
+The frequency of a character in a string is the number of times it appears in the string.
+For example, in the string "aab", the frequency of 'a' is 2, while the frequency of 'b' is 1.
+
+Link:
+https://leetcode.com/problems/minimum-deletions-to-make-character-frequencies-unique/description/
+*/
+func minDeletions(s string) int {
+	// Let us start with mapping frequencies to lists of characters with said frequency
+	char_to_freq := make(map[byte]int)
+	for _, c := range s {
+		if _, ok := char_to_freq[byte(c)]; !ok {
+			char_to_freq[byte(c)] = 0
+		}
+		char_to_freq[byte(c)]++
+	}
+	freq_to_chars := make(map[int][]byte)
+	for c, freq := range char_to_freq {
+		if _, ok := freq_to_chars[freq]; !ok {
+			freq_to_chars[freq] = make([]byte, 0)
+		}
+		freq_to_chars[freq] = append(freq_to_chars[freq], c)
+	}
+	// Note that each frequency can only have one character associated with it, so fill up the highest frequencies you can that you need to
+	frequencies := make([]int, 0)
+	for freq := range freq_to_chars {
+		frequencies = append(frequencies, freq)
+	}
+	sort.SliceStable(frequencies, func(i, j int) bool {
+		return frequencies[i] > frequencies[j]
+	})
+	deletions := 0
+	next_open_freq := frequencies[0] // The next open frequency we can use
+	for _, current_freq := range frequencies {
+		next_open_freq = min(next_open_freq, current_freq)
+		if len(freq_to_chars[current_freq]) == 1 {
+			// No need to delete any characters with this frequency
+			continue
+		} else {
+			// We need to move all characters except one to the next lower open frequencies
+			for (len(freq_to_chars[current_freq]) > 1) {
+				if _, ok := freq_to_chars[next_open_freq]; !ok {
+					// We can shove one of the characters with this frequency into the next lower frequency
+					if next_open_freq > 0 {
+						// Store in map
+						freq_to_chars[next_open_freq] = make([]byte, 0)
+						freq_to_chars[next_open_freq] = append(freq_to_chars[next_open_freq], freq_to_chars[current_freq][len(freq_to_chars[current_freq])-1])
+					}
+					// Either way, we need to delete one character from frequency
+					freq_to_chars[current_freq] = freq_to_chars[current_freq][:len(freq_to_chars[current_freq])-1]
+					deletions += current_freq - next_open_freq
+				} else {
+					next_open_freq--
+				}
+			}
+		}
+	}
+	return deletions
 }

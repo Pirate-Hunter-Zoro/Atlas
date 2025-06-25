@@ -1172,3 +1172,28 @@ func TestMinimumDeletions(t *testing.T) {
 	}
 	runTestHelper(t, f, inputs, expected_outputs)
 }
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+func TestMinDeletions(t *testing.T) {
+	type input struct {
+		s string
+	}
+	inputs := []input{
+		{"aab"},
+		{"aaabbbcc"},
+		{"ceabaacb"},
+	}
+
+	expected_outputs := []int{
+		0,
+		2,
+		2,
+	}
+
+	f := func(i input) int {
+		return minDeletions(i.s)
+	}
+
+	runTestHelper(t, f, inputs, expected_outputs)
+}
