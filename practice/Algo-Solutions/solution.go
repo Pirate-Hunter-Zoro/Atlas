@@ -3326,5 +3326,33 @@ Link:
 https://leetcode.com/problems/minimum-deletions-to-make-string-k-special/description/?envType=daily-question&envId=2025-06-21
 */
 func minimumDeletions(word string, k int) int {
-	return 0
+	frequencies := make(map[byte]int)
+	for _, c := range word {
+		if _, ok := frequencies[byte(c)]; !ok {
+			frequencies[byte(c)] = 0
+		}
+		frequencies[byte(c)]++
+	}
+
+	// Whatever answer we get, some character will have the smallest frequency
+	// To achieve a k-special string in the minimum number of deletions, we will NOT delete any instances of that character
+	record := math.MaxInt
+	for c, freq := range frequencies {
+		// Assume that c is in the end going to be the character with the smallest frequency
+		deletions := 0
+		for other_c, other_freq := range frequencies {
+			if other_c != c {
+				if other_freq < freq {
+					// Gotta delete all of the other character
+					deletions += other_freq
+				} else if other_freq - k > freq {
+					// Gotta delete some of the other character
+					deletions += other_freq - (freq + k)
+				}
+			}
+		}
+		record = min(record, deletions)
+	}
+
+	return record
 }
