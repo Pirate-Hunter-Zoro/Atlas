@@ -3425,3 +3425,57 @@ func minDeletions(s string) int {
 	}
 	return deletions
 }
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+/*
+You are given a 0-indexed integer array players, where players[i] represents the ability of the ith player. 
+You are also given a 0-indexed integer array trainers, where trainers[j] represents the training capacity of the jth trainer.
+
+The ith player can match with the jth trainer if the player's ability is less than or equal to the trainer's training capacity. 
+Additionally, the ith player can be matched with at most one trainer, and the jth trainer can be matched with at most one player.
+
+Return the maximum number of matchings between players and trainers that satisfy these conditions.
+
+Link:
+https://leetcode.com/problems/maximum-matching-of-players-with-trainers/description/?envType=daily-question&envId=2025-07-13
+*/
+func matchPlayersAndTrainers(players []int, trainers []int) int {
+    sort.SliceStable(players, func(i, j int) bool {
+		return players[i] < players[j]
+	})
+	sort.SliceStable(trainers, func(i, j int) bool {
+		return trainers[i] < trainers[j]
+	})
+	// Now greedily match players with trainers
+	matched := 0
+	player_idx, trainer_idx := 0, 0
+	for player_idx < len(players) && trainer_idx < len(trainers) {
+		if players[player_idx] <= trainers[trainer_idx] {
+			matched++
+			player_idx++
+			trainer_idx++
+		} else {
+			// Gotta go to a bigger trainer
+			trainer_idx++
+		}
+	
+	}
+	return matched
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+/*
+Given the root of a binary tree and an integer targetSum, return all root-to-leaf paths where the sum of the node values in the path equals targetSum. 
+Each path should be returned as a list of the node values, not node references.
+
+A root-to-leaf path is a path starting from the root and ending at any leaf node. 
+A leaf is a node with no children.
+
+Link:
+https://leetcode.com/problems/path-sum-ii/description/?envType=problem-list-v2&envId=depth-first-search
+*/
+func pathSum(root *datastructures.TreeNode, targetSum int) [][]int {
+    return [][]int{} // Placeholder for the actual implementation
+}

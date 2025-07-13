@@ -1197,3 +1197,53 @@ func TestMinDeletions(t *testing.T) {
 
 	runTestHelper(t, f, inputs, expected_outputs)
 }
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+func TestMatchPlayersAndTrainers(t *testing.T) {
+	type input struct {
+		players []int
+		trainers []int
+	}
+	inputs := []input{
+		{[]int{4,7,9}, []int{8,2,5,8}},
+		{[]int{1,1,1}, []int{10}},
+	}
+
+	expected_outputs := []int{
+		2,
+		1,
+	}
+
+	f := func(i input) int {
+		return matchPlayersAndTrainers(i.players, i.trainers)
+	}
+
+	runTestHelper(t, f, inputs, expected_outputs)
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+func TestPathSum(t *testing.T) {
+	type input struct {
+		root *datastructures.TreeNode
+		targetSum int
+	}
+	inputs := []input{
+		{datastructures.NewTreeNode([]int{5,4,8,11,-1,13,4,7,2,-1,-1,5,1}), 22},
+		{datastructures.NewTreeNode([]int{1,2,3}), 5},
+		{datastructures.NewTreeNode([]int{1,2}), 0},
+	}
+
+	expected_outputs := [][][]int{
+		{{5,4,11,2},{5,8,4,5}},
+		{{}},
+		{{}},
+	}
+
+	f := func(i input) [][]int {
+		return pathSum(i.root, i.targetSum)
+	}
+
+	runTestHelper(t, f, inputs, expected_outputs)
+}
