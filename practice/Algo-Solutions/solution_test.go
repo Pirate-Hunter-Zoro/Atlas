@@ -1237,8 +1237,8 @@ func TestPathSum(t *testing.T) {
 
 	expected_outputs := [][][]int{
 		{{5,4,11,2},{5,8,4,5}},
-		{{}},
-		{{}},
+		{},
+		{},
 	}
 
 	f := func(i input) [][]int {

@@ -3477,5 +3477,60 @@ Link:
 https://leetcode.com/problems/path-sum-ii/description/?envType=problem-list-v2&envId=depth-first-search
 */
 func pathSum(root *datastructures.TreeNode, targetSum int) [][]int {
-    return [][]int{} // Placeholder for the actual implementation
+	paths := make([][]int, 0)
+	if root == nil {
+		return paths
+	}
+	node_stack := datastructures.NewStack[*datastructures.TreeNode]()
+	node_stack.Push(root)
+	current_path := []int{root.Val}
+	path_sum := root.Val
+	pushed := make(map[*datastructures.TreeNode]bool)
+	pushed[root] = true
+	for !node_stack.Empty() {
+		next_node := node_stack.Peek()
+		if next_node.Left == nil && next_node.Right == nil {
+			// Leaf node - check if the path sum equals targetSum
+			if path_sum == targetSum {
+				current_path_copy := make([]int, len(current_path))
+				copy(current_path_copy, current_path)
+				paths = append(paths, current_path_copy)
+			}
+			// Regardless, we now need to backtrack
+			path_sum -= next_node.Val
+			current_path = current_path[:len(current_path)-1]
+			node_stack.Pop()
+		} else {
+			// Not a leaf node - see if the left or right child needs to be processed
+			pushed_children := false
+			if next_node.Left != nil {
+				// Try pushing the left child first
+				if _, ok := pushed[next_node.Left]; !ok {
+					node_stack.Push(next_node.Left)
+					pushed[next_node.Left] = true
+					path_sum += next_node.Left.Val
+					current_path = append(current_path, next_node.Left.Val)
+					pushed_children = true
+				}
+			} 
+			if !pushed_children && next_node.Right != nil {
+				// Then try pushing the right child
+				if _, ok := pushed[next_node.Right]; !ok {
+					node_stack.Push(next_node.Right)
+					pushed[next_node.Right] = true
+					path_sum += next_node.Right.Val
+					current_path = append(current_path, next_node.Right.Val)
+					pushed_children = true
+				}
+			} 
+			if !pushed_children {
+				// Both children have been processed - backtrack
+				path_sum -= next_node.Val
+				current_path = current_path[:len(current_path)-1]
+				node_stack.Pop()
+			}
+		}
+	}
+
+    return paths
 }
