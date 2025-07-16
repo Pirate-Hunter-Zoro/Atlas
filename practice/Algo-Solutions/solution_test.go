@@ -4,6 +4,8 @@ import (
 	"leet-code/datastructures"
 	"reflect"
 	"testing"
+
+	"golang.org/x/tools/go/expect"
 )
 
 func runTestHelper[I any, A any](t *testing.T, f func(i I) A, inputs []I, expected_outputs []A) {
@@ -1245,5 +1247,28 @@ func TestPathSum(t *testing.T) {
 		return pathSum(i.root, i.targetSum)
 	}
 
+	runTestHelper(t, f, inputs, expected_outputs)
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+func TestMaximumLength(t *testing.T) {
+	type input struct {
+		nums []int
+	}
+	inputs := []input{
+		{[]int{1,2,3,4,5}},
+		{[]int{1,2,1,1,2,1,2}},
+		{[]int{1,3}},
+	}
+	expected_outputs := []int{
+		4,
+		6,
+		2,
+	}
+
+	f := func(i input) int {
+		return maximumLength(i.nums)
+	}
 	runTestHelper(t, f, inputs, expected_outputs)
 }
