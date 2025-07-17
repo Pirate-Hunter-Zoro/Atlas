@@ -3590,3 +3590,37 @@ func maximumLength(nums []int) int {
 
 	return max(sols[0][0][len(nums)-1], max(sols[0][1][len(nums)-1], max(sols[1][0][len(nums)-1], sols[1][1][len(nums)-1])))
 }
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+/*
+You are given an integer array nums and a positive integer k.
+A subsequence sub of nums with length x is called valid if it satisfies:
+
+(sub[0] + sub[1]) % k == (sub[1] + sub[2]) % k == ... == (sub[x - 2] + sub[x - 1]) % k.
+Return the length of the longest valid subsequence of nums.
+
+Link:
+https://leetcode.com/problems/find-the-maximum-length-of-valid-subsequence-ii/?envType=daily-question&envId=2025-07-17
+*/
+func maximumLengthII(nums []int, k int) int {
+	for i := range nums {
+		nums[i] = nums[i] % k // Reduce all numbers to modulus k
+	}
+
+	record := 0
+	// Try all possible mod-pair values, and all possible mod-end values
+	for mod_pair := range k {
+		dp := make([]int, k) // dp[mod_end] = length of longest valid subsequence ending with this mod_end value
+		for _, mod := range nums {
+			prev_mod := (mod_pair - mod + k) % k // The previous mod value that would yield a valid pair with this mod value
+			dp[mod] = max(dp[mod], dp[prev_mod] + 1) // Either we extend the previous subsequence with this mod value, or we don't
+		}
+		for _, length := range dp {
+			// Update the record with the maximum length of a valid subsequence found so far
+			record = max(record, length)
+		}
+	}
+	
+	return record
+}
