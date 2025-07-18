@@ -1438,7 +1438,8 @@ func recCheckRecord(num_A int, num_left int, sols []map[int]int) int {
 	// See if we have already solved this problem
 	if _, ok := sols[num_A][num_left]; !ok {
 		// Need to solve this problem
-		if num_left == 1 {
+		switch num_left {
+		case 1:
 			// We can place a late or a present
 			num_first_possible := 2
 			// MAYBE we can place an absent
@@ -1446,7 +1447,7 @@ func recCheckRecord(num_A int, num_left int, sols []map[int]int) int {
 				num_first_possible++
 			}
 			sols[num_A][num_left] = num_first_possible
-		} else if num_left == 2 {
+		case 2:
 			// LL, LP, PL, PP
 			num_possible := 4
 			if num_A > 0 {
@@ -1454,7 +1455,7 @@ func recCheckRecord(num_A int, num_left int, sols []map[int]int) int {
 				num_possible += 4
 			}
 			sols[num_A][num_left] = num_possible
-		} else {
+		default:
 			// Keep a running total
 			num_possible := 0
 
@@ -2250,7 +2251,8 @@ func topDownNumTilings(n int, left_side int, sols [][]int) int {
 		} else {
 			// Non-trivial base case
 			count := 0
-			if left_side == 0 {
+			switch left_side {
+			case 0:
 				// Place domino vertically
 				count = helpermath.ModAdd(count, topDownNumTilings(n-1, 0, sols))
 				// Place two dominoes horizontally
@@ -2259,13 +2261,13 @@ func topDownNumTilings(n int, left_side int, sols [][]int) int {
 				count = helpermath.ModAdd(count, topDownNumTilings(n-1, 1, sols))
 				// Place a tromino hooked down
 				count = helpermath.ModAdd(count, topDownNumTilings(n-1, 2, sols))
-			} else if left_side == 1 {
+			case 1:
 				// Popout from top
 				// Place a tromino hooked down
 				count = helpermath.ModAdd(count, topDownNumTilings(n-2, 0, sols))
 				// Place a domino horizontally on bottom - yields popout from bottom
 				count = helpermath.ModAdd(count, topDownNumTilings(n-1, 1, sols))
-			} else {
+			default:
 				// Popout from bottom
 				// Place a tromino hooked up
 				count = helpermath.ModAdd(count, topDownNumTilings(n-2, 0, sols))
