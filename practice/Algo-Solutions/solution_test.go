@@ -4,8 +4,6 @@ import (
 	"leet-code/datastructures"
 	"reflect"
 	"testing"
-
-	"golang.org/x/tools/go/expect"
 )
 
 func runTestHelper[I any, A any](t *testing.T, f func(i I) A, inputs []I, expected_outputs []A) {
