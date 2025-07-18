@@ -1293,3 +1293,26 @@ func TestMaximumLengthII(t *testing.T) {
 	}
 	runTestHelper(t, f, inputs, expected_outputs)
 }
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+func TestMinimumDifference(t *testing.T) {
+	type input struct {
+		nums []int
+	}
+	inputs := []input{
+		{[]int{3,1,2}},
+		{[]int{7,9,5,8,1,3}},
+	}
+
+	expected_outputs := []int64{
+		-1,
+		1,
+	}
+
+	f := func(i input) int64 {
+		return minimumDifference(i.nums)
+	}
+
+	runTestHelper(t, f, inputs, expected_outputs)
+}
