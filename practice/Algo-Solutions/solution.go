@@ -3646,5 +3646,14 @@ Link:
 https://leetcode.com/problems/minimum-difference-in-sums-after-removal-of-elements/?envType=daily-question&envId=2025-07-18
 */
 func minimumDifference(nums []int) int64 {
+	// For starters, we're definitely going to need the sum of the entire array, as well as the left to right sum at each index
+	total_sum := int64(0)
+	partial_sums := make([]int64, len(nums))
+	for i, num := range nums {
+		total_sum += int64(num)
+		partial_sums[i] = total_sum
+	}
+	// Grab the size of each "part", which is n, 1/3 of the array size
+	n := len(nums) / 3
 	return 0
 }
