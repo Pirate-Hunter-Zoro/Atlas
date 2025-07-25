@@ -3648,12 +3648,56 @@ https://leetcode.com/problems/minimum-difference-in-sums-after-removal-of-elemen
 func minimumDifference(nums []int) int64 {
 	// For starters, we're definitely going to need the sum of the entire array, as well as the left to right sum at each index
 	total_sum := int64(0)
-	partial_sums := make([]int64, len(nums))
-	for i, num := range nums {
+	for _, num := range nums {
 		total_sum += int64(num)
-		partial_sums[i] = total_sum
 	}
 	// Grab the size of each "part", which is n, 1/3 of the array size
 	n := len(nums) / 3
-	return 0
+	// For a given index, what is the lowest sum you can achieve with n elements from the left?
+	left_sums := make([]int64, len(nums))
+	left_heap := datastructures.NewHeap(func(a, b int64) bool {
+		return a > b // Max-heap, because if we take off something, we want to take off the largest element to minimize the sum
+	})
+	current_sum := int64(0)
+	for i := range n {
+		current_sum += int64(nums[i])
+		left_sums[i] = current_sum // The sum of the first n elements is just the sum of those elements
+		left_heap.Push(int64(nums[i]))
+	}
+	// Now we need to find the smallest n elements from the left
+	for i := n; i < len(nums); i++ {
+		current_sum += int64(nums[i]) // Add the current element to the sum
+		left_heap.Push(int64(nums[i])) // Push the current element to the heap
+		// Now we need to remove the largest element from the heap, because we want to minimize the sum
+		prev_max := left_heap.Pop()
+		current_sum -= prev_max // Remove the largest element from the sum
+		left_sums[i] = current_sum // Store the lowest possible sum of n elements up to this index
+	}
+
+	// For a given index, what is the highest sum you can achieve with n elements from the right?
+	right_sums := make([]int64, len(nums))
+	right_heap := datastructures.NewHeap(func(a, b int64) bool {
+		return a < b // Min-heap, because if we take off something, we want to take off the smallest element to maximize the sum
+	})
+	current_sum = int64(0)
+	for i := len(nums) - 1; i >= len(nums)-n; i-- {
+		current_sum += int64(nums[i])
+		right_sums[i] = current_sum // The sum of the last n elements is just the sum of those elements
+		right_heap.Push(int64(nums[i]))
+	}
+	// Now we need to find the largest n elements from the right
+	for i := len(nums) - n - 1; i >= 0; i-- {
+		current_sum += int64(nums[i]) // Add the current element to the sum
+		right_heap.Push(int64(nums[i])) // Push the current element if it's larger than the previous min
+		prev_min := right_heap.Pop() // Remove the smallest element from the heap
+		current_sum -= prev_min // Remove the smallest element from the sum
+		right_sums[i] = current_sum // Store the highest possible sum of n elements from this index to the end
+	}
+
+	// Now we can calculate the minimum difference between the two parts
+	record := int64(math.MaxInt64)
+	for i := n-1; i<=len(left_sums)-n-1; i++ {
+		record = min(record, left_sums[i] - right_sums[i+1]) // Update the record with the minimum difference found so far
+	}
+	return record
 }
