@@ -3701,3 +3701,32 @@ func minimumDifference(nums []int) int64 {
 	}
 	return record
 }
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+/*
+You are an ant tasked with adding n new rooms numbered 0 to n-1 to your colony. 
+You are given the expansion plan as a 0-indexed integer array of length n, prevRoom, where prevRoom[i] indicates that you must build room prevRoom[i] before building room i, and these two rooms must be connected directly. 
+Room 0 is already built, so prevRoom[0] = -1. 
+The expansion plan is given such that once all the rooms are built, every room will be reachable from room 0.
+
+You can only build one room at a time, and you can travel freely between rooms you have already built only if they are connected. 
+You can choose to build any room as long as its previous room is already built.
+
+Return the number of different orders you can build all the rooms in. 
+Since the answer may be large, return it modulo 10^9 + 7.
+
+Link:
+https://leetcode.com/problems/count-ways-to-build-rooms-in-an-ant-colony/description/?envType=problem-list-v2&envId=topological-sort
+*/
+func waysToBuildRooms(prevRoom []int) int {
+	// First create our underlying graph structure
+	graph := make([][]int, len(prevRoom))
+	for i := range prevRoom {
+		graph[i] = make([]int, 0) // Initialize each room's adjacency list
+	}
+	for i := 1; i < len(prevRoom); i++ {
+		graph[prevRoom[i]] = append(graph[prevRoom[i]], i) // Add the current room to the graph as a child of the previous room
+	}
+	return 0
+}

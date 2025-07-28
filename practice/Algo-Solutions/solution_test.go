@@ -1316,3 +1316,26 @@ func TestMinimumDifference(t *testing.T) {
 
 	runTestHelper(t, f, inputs, expected_outputs)
 }
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+func TestWaysToBuildRooms(t *testing.T) {
+	type input struct {
+		prevRoom []int
+	}
+	inputs := []input{
+		{[]int{-1,0,1}},
+		{[]int{-1,0,0,1,2}},
+	}
+
+	expected_outputs := []int{
+		1,
+		6,
+	}
+
+	f := func(i input) int {
+		return waysToBuildRooms(i.prevRoom)
+	}
+
+	runTestHelper(t, f, inputs, expected_outputs)
+}
