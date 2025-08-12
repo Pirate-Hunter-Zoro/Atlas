@@ -3728,5 +3728,41 @@ func waysToBuildRooms(prevRoom []int) int {
 	for i := 1; i < len(prevRoom); i++ {
 		graph[prevRoom[i]] = append(graph[prevRoom[i]], i) // Add the current room to the graph as a child of the previous room
 	}
-	return 0
+	sols := make([]int, len(prevRoom))
+	subtree_counts := make([]int, len(prevRoom))
+	for i := range len(prevRoom) {
+		sols[i] = -1
+	}
+	calculator := helpermath.NewChooseCalculator()
+	return topDownCountBuildRooms(0, sols, subtree_counts, graph, calculator)
+}
+
+/*
+Starting at the given tree root, count the number of ways to build all such rooms in this subtree ant colony
+*/
+func topDownCountBuildRooms(room int, sols []int, subtree_counts []int, graph [][]int, calculator *helpermath.ChooseCalculator) int {
+	if sols[room] == -1 {
+		// We need to solve this problem
+		ways_to_build := []int{}
+		subtree_counts[room] = 1
+		for _, subtree := range graph[room] {
+			ways_to_build = append(ways_to_build, topDownCountBuildRooms(subtree, sols, subtree_counts, graph, calculator))
+			subtree_counts[room] += subtree_counts[subtree]
+		}
+		total_ways := 1
+		// All of the subtrees have their individual ways of being ordered, and we can intersperse the subtrees in any which way
+		// First, suppose we select a SET ordering for each subtree - count the ways to intersperse
+		total := subtree_counts[room]
+		for _, subtree := range graph[room] {
+			total_ways = helpermath.ModMul(total_ways, calculator.ChooseMod(total, subtree_counts[subtree]))
+			total -= subtree_counts[subtree]
+		}
+		// Now that we've counted all the ways to intersperse one particular ording assignment for all subtrees, multiply by the total number of ording assignments across all subtrees
+		for _, num_ways_for_subtree := range ways_to_build {
+			total_ways = helpermath.ModMul(total_ways, num_ways_for_subtree)
+		}
+		sols[room] = total_ways
+	}
+
+	return sols[room]
 }
