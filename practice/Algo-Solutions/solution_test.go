@@ -1255,7 +1255,7 @@ func TestMaximumLength(t *testing.T) {
 		nums []int
 	}
 	inputs := []input{
-		{[]int{1,2,3,4,5}},
+		{[]int{1,2,3,4}},
 		{[]int{1,2,1,1,2,1,2}},
 		{[]int{1,3}},
 	}
