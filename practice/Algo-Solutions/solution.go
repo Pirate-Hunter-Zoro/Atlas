@@ -3730,7 +3730,7 @@ func waysToBuildRooms(prevRoom []int) int {
 	}
 	sols := make([]int, len(prevRoom))
 	subtree_counts := make([]int, len(prevRoom))
-	for i := range len(prevRoom) {
+	for i := range prevRoom {
 		sols[i] = -1
 	}
 	calculator := helpermath.NewChooseCalculator()
@@ -3752,7 +3752,7 @@ func topDownCountBuildRooms(room int, sols []int, subtree_counts []int, graph []
 		total_ways := 1
 		// All of the subtrees have their individual ways of being ordered, and we can intersperse the subtrees in any which way
 		// First, suppose we select a SET ordering for each subtree - count the ways to intersperse
-		total := subtree_counts[room]
+		total := subtree_counts[room] - 1 // Don't include the parent
 		for _, subtree := range graph[room] {
 			total_ways = helpermath.ModMul(total_ways, calculator.ChooseMod(total, subtree_counts[subtree]))
 			total -= subtree_counts[subtree]
