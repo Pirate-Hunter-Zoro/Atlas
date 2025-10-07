@@ -1339,3 +1339,52 @@ func TestWaysToBuildRooms(t *testing.T) {
 
 	runTestHelper(t, f, inputs, expected_outputs)
 }
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+func TestLengthOfLIS(t *testing.T) {
+	type input struct {
+		nums []int
+	}
+	inputs := []input{
+		{[]int{10,9,2,5,3,7,101,18}},
+		{[]int{0,1,0,3,2,3}},
+		{[]int{7,7,7,7,7,7,7}},
+	}
+	expected_outputs := []int{
+		4,
+		4,
+		1,
+	}
+
+	f := func(i input) int {
+		return lengthOfLIS(i.nums)
+	}
+
+	runTestHelper(t, f, inputs, expected_outputs)
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+func TestCoinChange(t *testing.T) {
+	type input struct {
+		coins []int
+		amount int
+	}
+	inputs := []input{
+		{[]int{1,2,5}, 11},
+		{[]int{2}, 3},
+		{[]int{1}, 0},
+	}
+	expected_output := []int{
+		3,
+		-1,
+		0,
+	}
+
+	f := func(i input) int {
+		return coinChange(i.coins, i.amount)
+	}
+
+	runTestHelper(t, f, inputs, expected_output)
+}
