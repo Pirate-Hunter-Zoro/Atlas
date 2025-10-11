@@ -1364,6 +1364,28 @@ func TestLengthOfLIS(t *testing.T) {
 	runTestHelper(t, f, inputs, expected_outputs)
 }
 
+func TestLengthOfLISFast(t *testing.T) {
+	type input struct {
+		nums []int
+	}
+	inputs := []input{
+		{[]int{10,9,2,5,3,7,101,18}},
+		{[]int{0,1,0,3,2,3}},
+		{[]int{7,7,7,7,7,7,7}},
+	}
+	expected_outputs := []int{
+		4,
+		4,
+		1,
+	}
+
+	f := func(i input) int {
+		return lengthOfLISFast(i.nums)
+	}
+
+	runTestHelper(t, f, inputs, expected_outputs)
+}
+
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 func TestCoinChange(t *testing.T) {
@@ -1387,4 +1409,32 @@ func TestCoinChange(t *testing.T) {
 	}
 
 	runTestHelper(t, f, inputs, expected_output)
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+func TestMinCost(t *testing.T) {
+	type input struct {
+		maxTime int
+		edges [][]int 
+		passingFees []int
+	}
+	inputs := []input{
+		{30, [][]int{{0,1,10},{1,2,10},{2,5,10},{0,3,1},{3,4,10},{4,5,15}}, []int{5,1,2,20,20,3}},
+		{29, [][]int{{0,1,10},{1,2,10},{2,5,10},{0,3,1},{3,4,10},{4,5,15}}, []int{5,1,2,20,20,3}},
+		{25, [][]int{{0,1,10},{1,2,10},{2,5,10},{0,3,1},{3,4,10},{4,5,15}}, []int{5,1,2,20,20,3}},
+		{10, [][]int{{0,1,2},{0,2,1},{0,3,10},{1,3,2},{3,2,2},{4,3,1}}, []int{1,1,3,2,1}},
+	}
+	expected_outputs := []int{
+		11,
+		48,
+		-1,
+		5,
+	}
+
+	f := func(i input) int {
+		return minCost(i.maxTime, i.edges, i.passingFees)
+	}
+
+	runTestHelper(t, f, inputs, expected_outputs)
 }

@@ -3793,6 +3793,46 @@ func lengthOfLIS(nums []int) int {
 	return record
 }
 
+// Now let's do that in O(nlog(n))
+func lengthOfLISFast(nums []int) int {
+	// Store the smallest tail of all increasing subsequences of the given length
+	// e.g. tails[3] signifies the smallest tail of all increasing subsequences of length 3, at the END of our algorithm
+	tails := []int{}
+	
+	for i:=range nums{
+		n := nums[i]
+		// See if it can extend the longest increasing sequence
+		if len(tails) == 0 || tails[len(tails)-1] < n {
+			tails = append(tails, n)
+		} else {
+			// Nums could serve as a smaller last value for an already existing increasing subsequence
+			left := 0
+			right := len(tails)
+			var mid int
+			for left < right {
+				// Binary search for the first value greater than or equal to n
+				mid := int((left + right) / 2)
+				if tails[mid] > n {
+					// Look left
+					right = mid
+				} else if tails[mid] < n {
+					// Look right
+					left = mid + 1
+				} else {
+					// We found a pre-existing increasing subsequence that ends with n, so we can't do any better
+					break
+				}
+			}
+			mid = int((left + right) / 2)
+			if tails[mid] > n {
+				tails[mid] = n
+			}
+		}
+	}
+
+	return len(tails)
+}
+
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /*
@@ -3833,4 +3873,87 @@ func coinChange(coins []int, amount int) int {
 
 
 	return sols[amount]
+}
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+/*
+There is a country of n cities numbered from 0 to n - 1 where all the cities are connected by bi-directional roads. 
+The roads are represented as a 2D integer array edges where edges[i] = [x_i, y_i, time_i] denotes a road between cities x_i and y_i that takes timei minutes to travel. 
+There may be multiple roads of differing travel times connecting the same two cities, but no road connects a city to itself.
+
+Each time you pass through a city, you must pay a passing fee. 
+This is represented as a 0-indexed integer array passingFees of length n where passingFees[j] is the amount of dollars you must pay when you pass through city j.
+
+In the beginning, you are at city 0 and want to reach city n - 1 in maxTime minutes or less. 
+The cost of your journey is the summation of passing fees for each city that you passed through at some moment of your journey (including the source and destination cities).
+
+Given maxTime, edges, and passingFees, return the minimum cost to complete your journey, or -1 if you cannot complete it within maxTime minutes.
+
+Link:
+https://leetcode.com/problems/minimum-cost-to-reach-destination-in-time/description/
+*/
+func minCost(maxTime int, edges [][]int, passingFees []int) int {
+	// This will be a modified Djikstra's algorithm that will keep finding shorter and shorter paths until one is cheap enough
+	type heap_input struct {
+		node int
+		cost int
+		time int
+		came_from int
+	}
+
+	// Find n
+	n := len(passingFees)
+
+	// First create our connectivity list graph
+	graph := make([][][]int, n)
+	for i:=range graph {
+		graph[i] = make([][]int, 0)
+	}
+	for edge_idx := range edges {
+		edge := edges[edge_idx]
+		// Store each bidirectional connection and its time
+		graph[edge[0]] = append(graph[edge[0]], []int{edge[1],edge[2]})
+		graph[edge[1]] = append(graph[edge[1]], []int{edge[0],edge[2]})
+	}
+
+	// Now prepare our heap for Djikstra
+	node_heap := datastructures.NewHeap(func(first, second *heap_input) bool {
+		return first.cost < second.cost
+	})
+	node_heap.Push(&heap_input{
+		node: 0,
+		cost: passingFees[0],
+		time: 0,
+		came_from: -1,
+	})
+
+	// Now we begin
+	for !node_heap.Empty() {
+		next_node := node_heap.Pop()
+		curr_id := next_node.node
+		curr_cost := next_node.cost
+		curr_time := next_node.time
+		curr_came_from := next_node.came_from
+		if curr_id == n-1 && curr_time <= maxTime {
+			return curr_cost
+		}
+		for connection_idx := range graph[curr_id] {
+			dest := graph[curr_id][connection_idx]
+			next_id := dest[0]
+			next_cost := curr_cost + passingFees[next_id]
+			next_time := curr_time + dest[1]
+			if next_time <= maxTime && next_id != curr_came_from {
+				// This will prevent infinite looping
+				node_heap.Push(&heap_input{
+					node: next_id,
+					cost: next_cost,
+					time: next_time,
+					came_from: curr_id,
+				})
+			}
+		}
+	}
+
+    return -1
 }
