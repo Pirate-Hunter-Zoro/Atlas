@@ -3899,7 +3899,6 @@ func minCost(maxTime int, edges [][]int, passingFees []int) int {
 		node int
 		cost int
 		time int
-		came_from int
 	}
 
 	// Find n
@@ -3925,8 +3924,14 @@ func minCost(maxTime int, edges [][]int, passingFees []int) int {
 		node: 0,
 		cost: passingFees[0],
 		time: 0,
-		came_from: -1,
 	})
+
+	// Note that our implementation of Djikstra's algorithm will guarantee that when we reach a node, we've already done it with the minimum cost
+	// Keeping track of the minimum time to reach a node ensures that we will NEVER add a node if doing so only reaches it in both a slower time AND more cost
+	min_time := make([]int, n)
+	for i:=range n{
+		min_time[i] = math.MaxInt64
+	}
 
 	// Now we begin
 	for !node_heap.Empty() {
@@ -3934,7 +3939,6 @@ func minCost(maxTime int, edges [][]int, passingFees []int) int {
 		curr_id := next_node.node
 		curr_cost := next_node.cost
 		curr_time := next_node.time
-		curr_came_from := next_node.came_from
 		if curr_id == n-1 && curr_time <= maxTime {
 			return curr_cost
 		}
@@ -3943,13 +3947,13 @@ func minCost(maxTime int, edges [][]int, passingFees []int) int {
 			next_id := dest[0]
 			next_cost := curr_cost + passingFees[next_id]
 			next_time := curr_time + dest[1]
-			if next_time <= maxTime && next_id != curr_came_from {
-				// This will prevent infinite looping
+			if min_time[next_id] > next_time && next_time <= maxTime {
+				// This is worth exploring, because even if we've already seen this node before for a cheaper cost, now we're doing it in less time
+				min_time[next_id] = next_time
 				node_heap.Push(&heap_input{
 					node: next_id,
 					cost: next_cost,
 					time: next_time,
-					came_from: curr_id,
 				})
 			}
 		}
