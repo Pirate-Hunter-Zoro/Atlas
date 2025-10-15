@@ -497,95 +497,25 @@ func TestContainsNearbyAlmostDuplicate(t *testing.T) {
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-func TestConstruct(t *testing.T) {
-	type input struct {
-		grid [][]int
+func TestBinaryIndexedTree(t *testing.T) {
+	num_array := datastructures.Constructor([]int{7,2,7,2,0})
+	num_array.Update(4,6)
+	num_array.Update(0,2)
+	num_array.Update(0,9)
+	expected_results := []int{6,32,26,27}
+	results := []int{}
+	results = append(results, num_array.SumRange(4,4))
+	num_array.Update(3,8)
+	results = append(results, num_array.SumRange(0,4))
+	num_array.Update(4,1)
+	results = append(results, num_array.SumRange(0,3))
+	results = append(results, num_array.SumRange(0,4))
+	num_array.Update(0,4)
+	for i:=range results {
+		if !(results[i] == expected_results[i]) {
+			t.Fatalf("Error - expected %v but got %v", expected_results[i], results[i])
+		}
 	}
-	inputs := []input{
-		{[][]int{{0,1},{1,0}}},
-		{[][]int{{1,1,1,1,0,0,0,0},{1,1,1,1,0,0,0,0},{1,1,1,1,1,1,1,1},{1,1,1,1,1,1,1,1},{1,1,1,1,0,0,0,0},{1,1,1,1,0,0,0,0},{1,1,1,1,0,0,0,0},{1,1,1,1,0,0,0,0}}},
-	}
-
-	expected_outputs := []*datastructures.QuadTreeNode{
-		{
-			Val: false, 
-			IsLeaf: false, 
-			TopLeft: &datastructures.QuadTreeNode{Val: false, IsLeaf: true}, 
-			TopRight: &datastructures.QuadTreeNode{Val: true, IsLeaf: true}, 
-			BottomLeft: &datastructures.QuadTreeNode{Val: true, IsLeaf: true}, 
-			BottomRight: &datastructures.QuadTreeNode{Val: false, IsLeaf: true},
-		},
-		{
-			Val: false,
-			IsLeaf: false,
-			TopLeft: &datastructures.QuadTreeNode{Val: true, IsLeaf: true},
-			TopRight: &datastructures.QuadTreeNode{Val: false, IsLeaf: false,
-				TopLeft: &datastructures.QuadTreeNode{Val: false, IsLeaf: true},
-				TopRight: &datastructures.QuadTreeNode{Val: false, IsLeaf: true},
-				BottomLeft: &datastructures.QuadTreeNode{Val: true, IsLeaf: true},
-				BottomRight: &datastructures.QuadTreeNode{Val: true, IsLeaf: true},
-			},
-			BottomLeft: &datastructures.QuadTreeNode{Val: true, IsLeaf: true},
-			BottomRight: &datastructures.QuadTreeNode{Val: false, IsLeaf: true},
-		},
-	}
-
-	f := func(i input) *datastructures.QuadTreeNode {
-		return construct(i.grid)
-	}
-	runTestHelper(t, f, inputs, expected_outputs)
-}
-
-////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-func TestIntersect(t *testing.T) {
-	type input struct {
-		quadTree1 *datastructures.QuadTreeNode
-		quadTree2 *datastructures.QuadTreeNode
-	}
-	inputs := []input{
-		{
-			&datastructures.QuadTreeNode{Val: false, IsLeaf: false,
-				TopLeft: &datastructures.QuadTreeNode{Val: true, IsLeaf: true},
-				TopRight: &datastructures.QuadTreeNode{Val: true, IsLeaf: true},
-				BottomLeft: &datastructures.QuadTreeNode{Val: false, IsLeaf: true},
-				BottomRight: &datastructures.QuadTreeNode{Val: false, IsLeaf: true},
-			},
-			&datastructures.QuadTreeNode{Val: false, IsLeaf: false,
-				TopLeft: &datastructures.QuadTreeNode{Val: true, IsLeaf: true},
-				TopRight: &datastructures.QuadTreeNode{Val: false, IsLeaf: false,
-					TopLeft: &datastructures.QuadTreeNode{Val: false, IsLeaf: true},
-					TopRight: &datastructures.QuadTreeNode{Val: false, IsLeaf: true},
-					BottomLeft: &datastructures.QuadTreeNode{Val: true, IsLeaf: true},
-					BottomRight: &datastructures.QuadTreeNode{Val: true, IsLeaf: true},
-				},
-				BottomLeft: &datastructures.QuadTreeNode{Val: true, IsLeaf: true},
-				BottomRight: &datastructures.QuadTreeNode{Val: false, IsLeaf: true},
-			},
-		},
-		{
-			&datastructures.QuadTreeNode{Val: false, IsLeaf: true,},
-			&datastructures.QuadTreeNode{Val: false, IsLeaf: true,},
-		},
-	}
-
-	expected_outputs := []*datastructures.QuadTreeNode{
-		{
-			Val: false, IsLeaf: false,
-			TopLeft: &datastructures.QuadTreeNode{Val: true, IsLeaf: true},
-			TopRight: &datastructures.QuadTreeNode{Val: true, IsLeaf: true},
-			BottomLeft: &datastructures.QuadTreeNode{Val: true, IsLeaf: true},
-			BottomRight: &datastructures.QuadTreeNode{Val: false, IsLeaf: true},
-		},
-		{
-			Val: false, IsLeaf: true,
-		},
-	}
-
-	f := func(i input) *datastructures.QuadTreeNode {
-		return intersect(i.quadTree1, i.quadTree2)
-	}
-	runTestHelper(t, f, inputs, expected_outputs)
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
