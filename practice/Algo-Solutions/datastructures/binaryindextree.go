@@ -1,5 +1,6 @@
 package datastructures
 
+// Link: https://leetcode.com/problems/range-sum-query-mutable/description/
 type NumArray struct {
     og_array []int
 	tree_array []int 
