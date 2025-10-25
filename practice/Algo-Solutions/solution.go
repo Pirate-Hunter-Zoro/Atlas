@@ -3845,7 +3845,11 @@ You are given a graph that started as a tree with n nodes labeled from 1 to n, w
 The added edge has two different vertices chosen from 1 to n, and was not an edge that already existed. 
 The graph is represented as an array edges of length n where edges[i] = [a_i, b_i] indicates that there is an edge between nodes a_i and b_i in the graph.
 
-Return an edge that can be removed so that the resulting graph is a tree of n nodes. If there are multiple answers, return the answer that occurs last in the input.
+Return an edge that can be removed so that the resulting graph is a tree of n nodes. 
+If there are multiple answers, return the answer that occurs last in the input.
+
+Link:
+https://leetcode.com/problems/redundant-connection/description/?envType=problem-list-v2&envId=union-find
 */
 func findRedundantConnection(edges [][]int) []int {
     node_set := datastructures.NewDisjointSet[int]()
@@ -3877,6 +3881,9 @@ Each element of edges is a pair [u_i, v_i] that represents a directed edge conne
 
 Return an edge that can be removed so that the resulting graph is a rooted tree of n nodes. 
 If there are multiple answers, return the answer that occurs last in the given 2D-array.
+
+Link:
+https://leetcode.com/problems/redundant-connection-ii/description/
 */
 func findRedundantDirectedConnection(edges [][]int) []int {
     return nil
