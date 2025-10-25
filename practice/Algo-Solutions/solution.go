@@ -3835,3 +3835,49 @@ func minCost(maxTime int, edges [][]int, passingFees []int) int {
 
     return -1
 }
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+/*
+In this problem, a tree is an undirected graph that is connected and has no cycles.
+
+You are given a graph that started as a tree with n nodes labeled from 1 to n, with one additional edge added. 
+The added edge has two different vertices chosen from 1 to n, and was not an edge that already existed. 
+The graph is represented as an array edges of length n where edges[i] = [a_i, b_i] indicates that there is an edge between nodes a_i and b_i in the graph.
+
+Return an edge that can be removed so that the resulting graph is a tree of n nodes. If there are multiple answers, return the answer that occurs last in the input.
+*/
+func findRedundantConnection(edges [][]int) []int {
+    node_set := datastructures.NewDisjointSet[int]()
+	for i := range edges {
+		edge := edges[i]
+		node_set.Add(edge[0])
+		node_set.Add(edge[1])
+		if node_set.Same(edge[0], edge[1]) {
+			// Created a cycle
+			return edge
+		} else {
+			// The two nodes are part of the same path now
+			node_set.Join(edge[0], edge[1])
+		}
+	}
+	return nil
+}
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+/*
+In this problem, a rooted tree is a directed graph such that, there is exactly one node (the root) for which all other nodes are descendants of this node, plus every node has exactly one parent, except for the root node which has no parents.
+
+The given input is a directed graph that started as a rooted tree with n nodes (with distinct values from 1 to n), with one additional directed edge added. 
+The added edge has two different vertices chosen from 1 to n, and was not an edge that already existed.
+
+The resulting graph is given as a 2D-array of edges. 
+Each element of edges is a pair [u_i, v_i] that represents a directed edge connecting nodes u_i and v_i, where u_i is a parent of child v_i.
+
+Return an edge that can be removed so that the resulting graph is a rooted tree of n nodes. 
+If there are multiple answers, return the answer that occurs last in the given 2D-array.
+*/
+func findRedundantDirectedConnection(edges [][]int) []int {
+    return nil
+}

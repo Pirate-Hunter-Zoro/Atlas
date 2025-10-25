@@ -1368,3 +1368,48 @@ func TestMinCost(t *testing.T) {
 
 	runTestHelper(t, f, inputs, expected_outputs)
 }
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+func TestFindRedundantConnection(t *testing.T) {
+	type input struct {
+		edges [][]int
+	}
+	inputs := []input{
+		{[][]int{{1,2},{1,3},{2,3}}},
+		{[][]int{{1,2},{2,3},{3,4},{1,4},{1,5}}},
+	}
+	expected_outputs := [][]int{
+		{2,3},
+		{1,4},
+	}
+
+	f := func(i input) []int {
+		return findRedundantConnection(i.edges)
+	}
+
+	runTestHelper(t, f, inputs, expected_outputs)
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+func TestFindRedundantDirectedConnection(t *testing.T) {
+	type input struct {
+		edges [][]int
+	}
+	inputs := []input{
+		{[][]int{{1,2},{1,3},{2,3}}},
+		{[][]int{{1,2},{2,3},{3,4},{4,1},{1,5}}},
+	}
+	expected_outputs := [][]int{
+		{2,3},
+		{4,1},
+	}
+
+	f := func(i input) []int {
+		return findRedundantDirectedConnection(i.edges)
+	}
+
+	runTestHelper(t, f, inputs, expected_outputs)
+}
+
