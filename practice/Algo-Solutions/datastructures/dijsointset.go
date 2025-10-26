@@ -80,3 +80,11 @@ func (set *DisjointSet[T]) Same(v1 T, v2 T) bool {
 		return false
 	}
 }
+func (set *DisjointSet[T]) HasParent(v T) bool {
+	node, ok := set.nodes[v]
+	if ok {
+		return node.parent != nil
+	} else {
+		return false
+	}
+}
