@@ -1413,3 +1413,47 @@ func TestFindRedundantDirectedConnection(t *testing.T) {
 	runTestHelper(t, f, inputs, expected_outputs)
 }
 
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+func TestMinDistance(t *testing.T) {
+	type input struct {
+		word1 string
+		word2 string
+	}
+	inputs := []input{
+		{"horse", "ros"},
+		{"intention", "execution"},
+	}
+	expected_outputs := []int{
+		3,
+		5,
+	}
+
+	f := func(i input) int {
+		return minDistance(i.word1, i.word2)
+	}
+
+	runTestHelper(t, f, inputs, expected_outputs)
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+func TestLongestPalindrome(t *testing.T) {
+	type input struct {
+		s string
+	}
+	inputs := []input{
+		{"babad"},
+		{"cbbd"},
+	}
+	expected_outputs := []string{
+		"bab",
+		"bb",
+	}
+
+	f := func(i input) string {
+		return longestPalindrome(i.s)
+	}
+
+	runTestHelper(t, f, inputs, expected_outputs)
+}
