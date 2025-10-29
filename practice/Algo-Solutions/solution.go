@@ -3970,5 +3970,14 @@ Link:
 https://leetcode.com/problems/longest-palindromic-substring/description/
 */
 func longestPalindrome(s string) string {
+	// We can actually do this in linear memory
+	new_bytes := make([]byte, 2+2*len(s)+1)
+	new_bytes[0] = '@'
+	new_bytes[len(new_bytes)-1] = '$'
+	new_bytes[1] = '#'
+	for i:=range(len(s)) {
+		new_bytes[2+2*i] = s[i]
+		new_bytes[2+2*i+1] = '#'
+	}
     return ""
 }
