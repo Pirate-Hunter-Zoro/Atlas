@@ -3887,29 +3887,13 @@ https://leetcode.com/problems/redundant-connection-ii/description/
 */
 func findRedundantDirectedConnection(edges [][]int) []int {
 	node_set := datastructures.NewDisjointSet[int]()
-	
 	for i := range edges {
 		edge := edges[i]
 		v1 := edge[0]
 		v2 := edge[1]
-		// The parent of each edge refers to the node it believes is the root node
-		if node_set.Same(v1, v2) {
-			return edge
-		} else {
-			// v1 and v2 do not agree on who the root is
-			if (!node_set.HasParent(v2)) {
-				// Case 1 - the 'to' node has no parent - that means v1 MUST become the parent of v2 which means it must be the first argument in merge
-				node_set.Join(v1, v2)
-			} else  {
-				// Case 2 - the 'to' node already has an idea who the root is
-				// This COULD be the edge to remove
-				// OR v1 might become the parent of v2's parent later down the line
-					// In this case the actual edge to remove is not this edge, but we HAVE already seen whatever edge we'll need to remove
-					// That edge whatever edge connected v2 to its parent
-				// TODO - I wish I knew...
-			}
-		}
-
+		node_set.Add(v1)
+		node_set.Add(v2)
+		
 	}
 
     return nil
