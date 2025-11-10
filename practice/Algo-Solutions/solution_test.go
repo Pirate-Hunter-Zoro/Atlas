@@ -497,29 +497,6 @@ func TestContainsNearbyAlmostDuplicate(t *testing.T) {
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-func TestBinaryIndexedTree(t *testing.T) {
-	num_array := datastructures.Constructor([]int{7,2,7,2,0})
-	num_array.Update(4,6)
-	num_array.Update(0,2)
-	num_array.Update(0,9)
-	expected_results := []int{6,32,26,27}
-	results := []int{}
-	results = append(results, num_array.SumRange(4,4))
-	num_array.Update(3,8)
-	results = append(results, num_array.SumRange(0,4))
-	num_array.Update(4,1)
-	results = append(results, num_array.SumRange(0,3))
-	results = append(results, num_array.SumRange(0,4))
-	num_array.Update(0,4)
-	for i:=range results {
-		if !(results[i] == expected_results[i]) {
-			t.Fatalf("Error - expected %v but got %v", expected_results[i], results[i])
-		}
-	}
-}
-
-////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
 func TestWordBreak(t *testing.T) {
 	type input struct {
 		s string

@@ -3887,15 +3887,7 @@ https://leetcode.com/problems/redundant-connection-ii/description/
 */
 func findRedundantDirectedConnection(edges [][]int) []int {
 	node_set := datastructures.NewDisjointSet[int]()
-	for i := range edges {
-		edge := edges[i]
-		v1 := edge[0]
-		v2 := edge[1]
-		node_set.Add(v1)
-		node_set.Add(v2)
-		
-	}
-
+	
     return nil
 }
 
