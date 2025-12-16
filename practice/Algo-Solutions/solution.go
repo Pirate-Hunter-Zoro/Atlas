@@ -3886,9 +3886,51 @@ Link:
 https://leetcode.com/problems/redundant-connection-ii/description/
 */
 func findRedundantDirectedConnection(edges [][]int) []int {
+	// First iterate through our nodes and see if we have any node with two parents - if we do those are our two suspect edges
+	parents := make([]int, len(edges)+1) 
+	// We know there is an extra edge - so the number of nodes is the number of edges since the edges in a tree is n-1 AND the nodes are 1-indexed so add an additional spot in the array for sanity
+	for i := range parents {
+		parents[i] = -1
+	}
+	suspect := []int{-1,-1,-1};
+	for i := range edges {
+		edge := edges[i]
+		a := edge[0]
+		b := edge[1]
+		if parents[b] == -1 {
+			parents[b] = a
+		} else {
+			// b now has two parents - store them both as our suspect
+			suspect = []int{parents[b], a, b}
+		}
+	}
+
+	// See if we create a cycle without the suspect edge
 	node_set := datastructures.NewDisjointSet[int]()
-	
-    return nil
+	for i := range edges {
+		edge := edges[i]
+		a := edge[0]
+		b := edge[1]
+		node_set.Add(a)
+		node_set.Add(b)
+		if suspect[2] != b || suspect[1] != a {
+			// (a,b) is the edge we are NOT including as we union, so if this is the case we are fine
+			if node_set.Same(a, b) {
+				// We have a cycle and we got this cycle WITHOUT including the second suspect edge - so we must remove the first suspect edge
+				if suspect[0] != -1 {
+					return []int{suspect[0],suspect[2]}
+				} else {
+					// No node had two parents, but this edge DOES create a cycle so it's the one to return
+					return edge
+				}
+			} else {
+				// Add both of these connected nodes to the same set and continue
+				node_set.Join(a, b)
+			}
+		}
+	}
+	// If no cycle was seen without our second suspect edge, we gotta return that edge
+    return []int{suspect[1], suspect[2]}
 }
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -3940,20 +3982,59 @@ func minDistance(word1 string, word2 string) int {
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /*
-Given a string s, return the longest palindromic substring in s.
+You are given an integer n, representing the number of employees in a company. 
+Each employee is assigned a unique ID from 1 to n, and employee 1 is the CEO. 
+You are given two 1-based integer arrays, present and future, each of length n, where:
+	- present[i] represents the current price at which the ith employee can buy a stock today.
+	- future[i] represents the expected price at which the ith employee can sell the stock tomorrow.
+The company's hierarchy is represented by a 2D integer array hierarchy, where hierarchy[i] = [u_i, v_i] means that employee u_i is the direct boss of employee v_i.
+
+Additionally, you have an integer budget representing the total funds available for investment.
+
+However, the company has a discount policy: if an employee's direct boss purchases their own stock, then the employee can buy their stock at half the original price (floor(present[v] / 2)).
+
+Return the maximum profit that can be achieved without exceeding the given budget.
+
+Note:
+	- You may buy each stock at most once.
+	- You cannot use any profit earned from future stock prices to fund additional investments and must buy only from budget.
 
 Link:
-https://leetcode.com/problems/longest-palindromic-substring/description/
+https://leetcode.com/problems/maximum-profit-from-trading-stocks-with-discounts/description/?envType=daily-question&envId=2025-12-16
 */
-func longestPalindrome(s string) string {
-	// We can actually do this in linear memory
-	new_bytes := make([]byte, 2+2*len(s)+1)
-	new_bytes[0] = '@'
-	new_bytes[len(new_bytes)-1] = '$'
-	new_bytes[1] = '#'
-	for i:=range(len(s)) {
-		new_bytes[2+2*i] = s[i]
-		new_bytes[2+2*i+1] = '#'
+func maxProfit(n int, present []int, future []int, hierarchy [][]int, budget int) int {
+    // First we need to create a tree out of the hierarchy - essentially, if u_i is the direct boss if v_i, then v_i must buy after u_i when we consider the problem
+	type node struct {
+		id int
+		children []*node
 	}
-    return ""
+	all_nodes := make([]*node, n)
+	for i:=range n {
+		all_nodes[i] = &node{
+			i+1,
+			[]*node{},
+		}
+	}
+
+	for _, r := range hierarchy {
+		u := r[0]
+		v := r[1]
+		// Now we need to modify our graph
+		all_nodes[u-1].children = append(all_nodes[u-1].children, all_nodes[v-1])
+	}
+
+	// Now ordered_employees is topologically ordered
+	// Using dynamic programming, we must keep track of our state, including the current index, the remaining budget, and if the parent has bought yet
+	dp := make([][][]int, 2)
+	dp[0] = make([][]int, n)
+	dp[1] = make([][]int, n)
+	for i:=range n{
+		dp[0][i] = make([]int, budget)
+		dp[1][i] = make([]int, budget)
+	}
+	// dp[0][u][b] is the maximum profit achievable for the subtree from u down with budget b and with the parent NOT having bought the stock
+	// dp[1][u][b] is the same with the parent of u HAVING bought the stock
+	
+
+	return 0
 }
