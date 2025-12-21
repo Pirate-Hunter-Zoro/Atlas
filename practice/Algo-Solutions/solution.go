@@ -4023,7 +4023,6 @@ func maxProfit(n int, present []int, future []int, hierarchy [][]int, budget int
 		all_nodes[u-1].children = append(all_nodes[u-1].children, all_nodes[v-1])
 	}
 
-	// Now ordered_employees is topologically ordered
 	// Using dynamic programming, we must keep track of our state, including the current index, the remaining budget, and if the parent has bought yet
 	dp := make([][][]int, 2)
 	dp[0] = make([][]int, n)
@@ -4031,10 +4030,44 @@ func maxProfit(n int, present []int, future []int, hierarchy [][]int, budget int
 	for i:=range n{
 		dp[0][i] = make([]int, budget)
 		dp[1][i] = make([]int, budget)
+		for j := range budget {
+			dp[0][i][j] = -1
+		}
 	}
 	// dp[0][u][b] is the maximum profit achievable for the subtree from u down with budget b and with the parent NOT having bought the stock
 	// dp[1][u][b] is the same with the parent of u HAVING bought the stock
-	
+	var solve func(id int, budget int, parent_bought int) int;
+	solve = func(id int, budget int, parent_bought int) int {
+		if dp[parent_bought][id-1][budget-1] == -1 {
+			// Need to solve this problem
+			// Try not buying
+			cost := 0
+			profit := 0
+			best_if_not_buy := 0
+			for _, n := range all_nodes[id-1].children {
+				for a:=1; a<=budget; a++ {
+					// Give the child this amount and see what they can do with it
+				}
+			}
 
-	return 0
+			// Try buying
+			best_if_buy := 0
+			cost = present[id-1]
+			if parent_bought == 1 {
+				// Divide cost by 2
+				cost = int(math.Ceil(float64(cost)/2))
+			}
+			if cost <= budget {
+				// Buying is an option
+				remaining_budget := budget - cost
+				profit = future[id-1] - cost
+			}
+
+			dp[parent_bought][id-1][budget-1] = max(best_if_buy, best_if_not_buy)
+		}
+		return dp[parent_bought][id-1][budget-1]
+	}
+
+	// The CEO does not have a parent (direct supervisor) who can buy
+	return solve(1, budget, 0)
 }
