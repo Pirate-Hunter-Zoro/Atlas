@@ -4028,46 +4028,66 @@ func maxProfit(n int, present []int, future []int, hierarchy [][]int, budget int
 	dp[0] = make([][]int, n)
 	dp[1] = make([][]int, n)
 	for i:=range n{
-		dp[0][i] = make([]int, budget)
-		dp[1][i] = make([]int, budget)
-		for j := range budget {
+		dp[0][i] = make([]int, budget+1)
+		dp[1][i] = make([]int, budget+1)
+		for j := range budget+1 {
 			dp[0][i][j] = -1
+			dp[1][i][j] = -1
 		}
 	}
 	// dp[0][u][b] is the maximum profit achievable for the subtree from u down with budget b and with the parent NOT having bought the stock
 	// dp[1][u][b] is the same with the parent of u HAVING bought the stock
-	var solve func(id int, budget int, parent_bought int) int;
-	solve = func(id int, budget int, parent_bought int) int {
-		if dp[parent_bought][id-1][budget-1] == -1 {
+	var solve func(id int, parent_bought int) []int;
+	solve = func(id int, parent_bought int) []int {
+		if dp[parent_bought][id-1][budget] == -1 {
 			// Need to solve this problem
-			// Try not buying
-			cost := 0
-			profit := 0
-			best_if_not_buy := 0
+
+			// For this node (employee), we need to know the best profits possible over all possible budgets allocated to all children if we do NOT buy
+			profits_no_buy := make([]int, budget+1)
+			// Start with children
 			for _, n := range all_nodes[id-1].children {
-				for a:=1; a<=budget; a++ {
-					// Give the child this amount and see what they can do with it
+				// What is the profit I can get out of this child if I give them all possible budgets from 0 to budget?
+				child_profits := solve(n.id, 0)
+				for j:=budget; j>=0; j-- {
+					// I have j budget to split between this child and ALL PREVIOUS children
+					for k:=0; k<=j; k++ {
+						// Give k to this specific child and see what profit is achieved - profits_buy[j-k] is whatever can be done with all other children
+						profits_no_buy[j] = max(profits_no_buy[j], child_profits[k] + profits_no_buy[j-k])
+					}
+				}
+			}
+			
+			// Same, but now if we do buy (but don't worry about the fact that this changes the budget available - that logic comes below)
+			profits_buy := make([]int, budget+1)
+			for _, n := range all_nodes[id-1].children {
+				child_profits := solve(n.id, 1)
+				for j:=budget; j>=0; j-- {
+					for k:=0; k<=j; k++ {
+						// Give the current child (supervisee) this much money to work with and leave j-k for every other child already processed
+						profits_buy[j] = max(profits_buy[j], child_profits[k] + profits_buy[j-k]) // Leaves j-k for the rest of the children to work with
+					}
 				}
 			}
 
-			// Try buying
-			best_if_buy := 0
-			cost = present[id-1]
+			// Now we fill out the total dp array
+			cost := present[id-1]
 			if parent_bought == 1 {
 				// Divide cost by 2
-				cost = int(math.Ceil(float64(cost)/2))
+				cost = int(math.Floor(float64(cost)/2))
 			}
-			if cost <= budget {
-				// Buying is an option
-				remaining_budget := budget - cost
-				profit = future[id-1] - cost
+			immediate_profit := future[id-1] - cost
+			for j:=range budget+1 {
+				dp[parent_bought][id-1][j] = profits_no_buy[j]
+				if cost <= j {
+					// Buying is an option - consider it
+					dp[parent_bought][id-1][j] = max(dp[parent_bought][id-1][j], immediate_profit + profits_buy[j-cost])
+				}
 			}
 
-			dp[parent_bought][id-1][budget-1] = max(best_if_buy, best_if_not_buy)
 		}
-		return dp[parent_bought][id-1][budget-1]
+		return dp[parent_bought][id-1]
 	}
 
 	// The CEO does not have a parent (direct supervisor) who can buy
-	return solve(1, budget, 0)
+	return solve(1, 0)[budget]
 }
