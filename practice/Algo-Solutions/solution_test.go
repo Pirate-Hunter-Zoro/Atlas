@@ -1470,3 +1470,28 @@ func TestLongestConsecutive(t *testing.T) {
 
 	runTestHelper(t, f, inputs, expected_outputs)
 }
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+func TestMaxConsecutive(t *testing.T) {
+	type input struct {
+		bottom int
+		top int
+		special []int
+	}
+	inputs := []input{
+		{2, 9, []int{4,6}},
+		{6, 8, []int{7,6,8}},
+	}
+
+	expected_outputs := []int{
+		3,
+		0,
+	}
+
+	f := func(i input) int {
+		return maxConsecutive(i.bottom, i.top, i.special)
+	}
+
+	runTestHelper(t, f, inputs, expected_outputs)
+}
