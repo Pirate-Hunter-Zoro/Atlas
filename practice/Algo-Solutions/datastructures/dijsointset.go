@@ -15,6 +15,17 @@ func (n *setnode[T]) collapse() {
 }
 func (n *setnode[T]) merge(other *setnode[T]) {
 	if n != other {
+		n.collapse()
+		other.collapse()
+		// First, two cases where joining is unecessary
+		if n.parent == other || other.parent == n {
+			return
+		}
+		if n.parent != nil && n.parent == other.parent {
+			return
+		}
+
+		// Joining logic
 		if n.parent == nil && other.parent == nil {
 			// WLOG, make the first one the parent
 			other.parent = n
@@ -78,5 +89,18 @@ func (set *DisjointSet[T]) Same(v1 T, v2 T) bool {
 		}
 	} else {
 		return false
+	}
+}
+func (set *DisjointSet[T]) GetParent(v T) T {
+	node, ok := set.nodes[v]
+	if ok {
+		node.collapse()
+		if node.parent == nil {
+			return node.val
+		} else {
+			return node.parent.val
+		}
+	} else {
+		return v
 	}
 }

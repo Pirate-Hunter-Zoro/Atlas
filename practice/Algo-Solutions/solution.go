@@ -4091,3 +4091,44 @@ func maxProfit(n int, present []int, future []int, hierarchy [][]int, budget int
 	// The CEO does not have a parent (direct supervisor) who can buy
 	return solve(1, 0)[budget]
 }
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+/*
+Given an unsorted array of integers nums, return the length of the longest consecutive elements sequence.
+
+You must write an algorithm that runs in O(n) time.
+
+Link:
+https://leetcode.com/problems/longest-consecutive-sequence/description/?envType=problem-list-v2&envId=union-find
+*/
+func longestConsecutive(nums []int) int {
+    set_of_sets := datastructures.NewDisjointSet[int]()
+	present := make(map[int]bool)
+	for _, n := range nums {
+		set_of_sets.Add(n)
+		present[n] = true
+		_, ok := present[n-1]
+		if ok {
+			set_of_sets.Join(n, n-1)
+		}
+		_, ok = present[n+1]
+		if ok {
+			set_of_sets.Join(n, n+1)
+		}
+	}
+
+	// See who has the most children - or the largest set per se - that's our longest consecutive subsequence
+	record := 0
+	children_counts := make(map[int]int)
+	for n := range present {
+		parent := set_of_sets.GetParent(n)
+		_, ok := children_counts[parent]
+		if !ok {
+			children_counts[parent]=0
+		}
+		children_counts[parent]++
+		record = max(record, children_counts[parent])
+	}
+	return record
+}
