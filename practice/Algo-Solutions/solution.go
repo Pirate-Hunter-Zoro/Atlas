@@ -4136,17 +4136,24 @@ func longestConsecutive(nums []int) int {
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /*
-Alice manages a company and has rented some floors of a building as office space. 
-Alice has decided some of these floors should be special floors, used for relaxation only.
+There is a 50 x 50 chessboard with one knight and some pawns on it. 
+You are given two integers kx and ky where (kx, ky) denotes the position of the knight, and a 2D array positions where positions[i] = [x_i, y_i] denotes the position of the pawns on the chessboard.
 
-You are given two integers bottom and top, which denote that Alice has rented all the floors from bottom to top (inclusive). 
-You are also given the integer array special, where special[i] denotes a special floor that Alice has designated for relaxation.
+Alice and Bob play a turn-based game, where Alice goes first. 
+In each player's turn:
+	- The player selects a pawn that still exists on the board and captures it with the knight in the fewest possible moves. 
+	  Note that the player can select any pawn, it might not be one that can be captured in the least number of moves.
+	- In the process of capturing the selected pawn, the knight may pass other pawns without capturing them. 
+	  Only the selected pawn can be captured in this turn.
+	- Alice is trying to maximize the sum of the number of moves made by both players until there are no more pawns on the board, whereas Bob tries to minimize them.
 
-Return the maximum number of consecutive floors without a special floor.
+Return the maximum total number of moves made during the game that Alice can achieve, assuming both players play optimally.
+
+Note that in one move, a chess knight has eight possible positions it can move to, as illustrated below. Each move is two cells in a cardinal direction, then one cell in an orthogonal direction.
 
 Link:
-https://leetcode.com/problems/maximum-consecutive-floors-without-special-floors/description/
+https://leetcode.com/problems/maximum-number-of-moves-to-kill-all-pawns/description/?envType=problem-list-v2&envId=game-theory
 */
-func maxConsecutive(bottom int, top int, special []int) int {
+func maxMoves(kx int, ky int, positions [][]int) int {
     return 0
 }
