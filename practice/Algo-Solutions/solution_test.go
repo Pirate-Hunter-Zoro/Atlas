@@ -1496,3 +1496,31 @@ func TestMaxMoves(t *testing.T) {
 
 	runTestHelper(t, f, inputs, expected_outputs)
 }
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+func TestIsRegexMatch(t *testing.T) {
+	type input struct {
+		s string
+		p string
+	}
+	inputs := []input {
+		{"aa", "a"},
+		{"aa", "a*"},
+		{"ab", ".*"},
+		{"aab", "c*a*b"},
+	}
+
+	expected_outputs := []bool{
+		false,
+		true,
+		true,
+		true,
+	}
+
+	f := func(i input) bool {
+		return isRegexMatch(i.s, i.p)
+	}
+
+	runTestHelper(t, f, inputs, expected_outputs)
+}
