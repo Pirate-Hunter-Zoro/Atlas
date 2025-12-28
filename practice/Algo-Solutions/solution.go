@@ -4155,6 +4155,13 @@ Link:
 https://leetcode.com/problems/maximum-number-of-moves-to-kill-all-pawns/description/?envType=problem-list-v2&envId=game-theory
 */
 func maxMoves(kx int, ky int, positions [][]int) int {
+	// For every pair of positions, what's the length of the shortest path a knight can take between the two
+	dp := make(map[int]map[int]int)
+	var f func(i int, j int) int;
+	f = func(i int, j int) int {
+		// BFS and store both ways
+	}
+
     return 0
 }
 
