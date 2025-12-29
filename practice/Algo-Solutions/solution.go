@@ -4156,13 +4156,166 @@ https://leetcode.com/problems/maximum-number-of-moves-to-kill-all-pawns/descript
 */
 func maxMoves(kx int, ky int, positions [][]int) int {
 	// For every pair of positions, what's the length of the shortest path a knight can take between the two
-	dp := make(map[int]map[int]int)
-	var f func(i int, j int) int;
-	f = func(i int, j int) int {
+	dp := make([]map[int]int, 50*50)
+	for i:=range 50*50 {
+		dp[i] = make(map[int]int)
+	}
+	type posn struct {
+		row int
+		col int
+	}
+	var dist func(knight_posn int, pawn_posn int) int;
+	dist = func(knight_posn int, pawn_posn int) int {
 		// BFS and store both ways
+		visited := make([]int, 50*50)
+		_, ok := dp[knight_posn][pawn_posn]
+		if !ok {
+			// Need to solve this problem
+			bfs := datastructures.NewQueue[int]()
+			bfs.Enqueue(knight_posn)
+			hops := 0
+			for !bfs.Empty() {
+				n := bfs.Size()
+				for range n {
+					next := bfs.Dequeue()
+					dp[knight_posn][next] = hops
+					// Enqueue unseen neighbors
+					row := int(next / 50)
+					col := next % 50
+					// (Up to) eight neighbors
+					far_left_up := &posn{
+						row-1,
+						col-2,
+					}
+					far_up_left := &posn{
+						row-2,
+						col-1,
+					}
+					far_right_up := &posn{
+						row-1,
+						col+2,
+					}
+					far_up_right := &posn{
+						row-2,
+						col+1,
+					}
+					far_left_down := &posn{
+						row+1,
+						col-2,
+					}
+					far_down_left := &posn{
+						row+2,
+						col-1,
+					}
+					far_right_down := &posn{
+						row+1,
+						col+2,
+					}
+					far_down_right := &posn{
+						row+2,
+						col+1,
+					}
+					neighbors := []*posn{
+						far_left_up,
+						far_up_left,
+						far_right_up,
+						far_up_right,
+						far_left_down,
+						far_down_left,
+						far_right_down,
+						far_down_right,
+					}
+					for _, neighbor := range neighbors {
+						if neighbor.row < 50 && neighbor.row >= 0 && neighbor.col < 50 && neighbor.col >= 0 {
+							neighbor_posn := 50 * neighbor.row + neighbor.col
+							if visited[neighbor_posn] == 0 {
+								visited[neighbor_posn] = 1
+								bfs.Enqueue(50*neighbor.row + neighbor.col)
+							}
+						}
+					}
+				}
+				hops++
+			}
+		}
+		return dp[knight_posn][pawn_posn]
 	}
 
-    return 0
+	// Now we can efficiently find the distance from any point to any other point - time for minimax
+	sols_min := make([]map[int]int, 50*50)
+	var minimizer func(knight_posn int, pawns_present_bit_mask int) int;
+	sols_max := make([]map[int]int, 50*50)
+	var maximizer func(knight_posn int, pawns_present_bit_mask int) int;
+	for i:=range 50*50 {
+		sols_min[i] = make(map[int]int)
+		sols_max[i] = make(map[int]int)
+	}
+
+	// Define minimizer function
+	minimizer = func(knight_posn int, pawns_present_bit_mask int) int {
+		_, ok := sols_min[knight_posn][pawns_present_bit_mask]
+		if !ok {
+			// Need to solve this problem
+			if pawns_present_bit_mask == 0 {
+				// No pawns left
+				sols_min[knight_posn][pawns_present_bit_mask] = 0
+			} else {
+				// See which pawns are present
+				pawns_present := []int{}
+				for i :=range positions {
+					if (1 << i) & pawns_present_bit_mask > 0 {
+						pawns_present = append(pawns_present, i)
+					}
+				}
+				record := math.MaxInt32
+				for _, pawn_idx := range pawns_present {
+					// Try taking this knight first
+					new_pawns_bit_mask := pawns_present_bit_mask ^ (1 << pawn_idx)
+					pawn_posn := 50*positions[pawn_idx][0] + positions[pawn_idx][1]
+					moves_to_take_first := dist(knight_posn, pawn_posn)
+					// Move on to subproblem
+					record = min(record, moves_to_take_first + maximizer(pawn_posn, new_pawns_bit_mask))
+				}
+				sols_min[knight_posn][pawns_present_bit_mask] = record
+			}
+		}
+		return sols_min[knight_posn][pawns_present_bit_mask]
+	}
+
+	// Define maximizer function
+	maximizer = func(knight_posn int, pawns_present_bit_mask int) int {
+		_, ok := sols_max[knight_posn][pawns_present_bit_mask]
+		if !ok {
+			// Need to solve this problem
+			if pawns_present_bit_mask == 0 {
+				// No pawns left
+				sols_max[knight_posn][pawns_present_bit_mask] = 0
+			} else {
+				// See which pawns are present
+				pawns_present := []int{}
+				for i :=range positions {
+					if (1 << i) & pawns_present_bit_mask > 0 {
+						pawns_present = append(pawns_present, i)
+					}
+				}
+				record := math.MinInt32
+				for _, pawn_idx := range pawns_present {
+					// Try taking this knight first
+					new_pawns_bit_mask := pawns_present_bit_mask ^ (1 << pawn_idx)
+					pawn_posn := 50*positions[pawn_idx][0] + positions[pawn_idx][1]
+					moves_to_take_first := dist(knight_posn, pawn_posn)
+					// Move on to subproblem
+					record = max(record, moves_to_take_first + minimizer(pawn_posn, new_pawns_bit_mask))
+				}
+				sols_max[knight_posn][pawns_present_bit_mask] = record
+			}
+		}
+		return sols_max[knight_posn][pawns_present_bit_mask]
+	}
+
+	// Solve problem
+	pawns_present := (1 << len(positions)) - 1 // 111..1 for all knights
+    return maximizer(50*kx + ky, pawns_present)
 }
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
