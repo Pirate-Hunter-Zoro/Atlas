@@ -1527,3 +1527,30 @@ func TestIsRegexMatch(t *testing.T) {
 
 	runTestHelper(t, f, inputs, expected_outputs)
 }
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+func TestCanMouseWin(t *testing.T) {
+	type input struct {
+		grid []string
+		catJump int
+		mouseJump int
+	}
+	inputs := []input{
+		{[]string{"####F","#C...","M...."}, 1, 2},
+		{[]string{"M.C...F"}, 1, 4},
+		{[]string{"M.C...F"}, 1, 3},
+	}
+
+	expected_outputs := []bool{
+		true,
+		true,
+		false,
+	}
+
+	f := func(i input) bool {
+		return canMouseWin(i.grid, i.catJump, i.mouseJump)
+	}
+
+	runTestHelper(t, f, inputs, expected_outputs)
+}
