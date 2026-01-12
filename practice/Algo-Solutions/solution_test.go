@@ -1538,11 +1538,15 @@ func TestFindMedianSortedArrays(t *testing.T) {
 	inputs := []input{
 		{[]int{1,3}, []int{2}},
 		{[]int{1,2}, []int{3,4}},
+		{[]int{}, []int{1}},
+		{[]int{-10,-9,-8}, []int{1,2}},
 	}
 
 	expected_outputs := []float64{
 		2.00000,
 		2.50000,
+		1.00000,
+		-8.00000,
 	}
 
 	f := func(i input) float64 {
