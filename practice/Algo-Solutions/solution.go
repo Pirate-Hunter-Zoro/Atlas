@@ -4442,6 +4442,70 @@ func isRegexMatch(s string, p string) bool {
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /*
+Given two sorted arrays nums1 and nums2 of size m and n respectively, return the median of the two sorted arrays.
+
+The overall run time complexity should be O(log (m+n)).
+
+Link:
+https://leetcode.com/problems/median-of-two-sorted-arrays/description/
+*/
+func findMedianSortedArrays(nums1 []int, nums2 []int) float64 {
+    if len(nums1) > len(nums2) {
+		nums1, nums2 = nums2, nums1
+	}
+	m := len(nums1)
+	n := len(nums2)
+	// Consider all elements of the two arrays, and we have a left and right half
+	total_left := (m+n+1)/2
+	// Binary search on smaller array
+	low := 0 // Lowest possible pivot for smaller array
+	high := m // Highest possible pivot for smaller array
+	var pivot_nums1 int; // Pivot index for the first array
+	var pivot_nums2 int; // Pivot index for the second array
+	var max_left_1 int; // Value just left of pivot in first array
+	var min_right_1 int; // Value just right of pivot in first array
+	var max_left_2 int; // Value just left of pivot in second array
+	var min_right_2 int; // Value just right of pivot in second array
+	for low < high {
+		pivot_nums1 = (low+high)/2 // Initial guess for pivot
+		pivot_nums2 = total_left - pivot_nums1 - 1 // Together these left halves of both arrays form the left half of our merged array
+		// Find the values associated with these two pivots
+		max_left_1 = nums1[pivot_nums1]
+		if pivot_nums1 == m - 1 {
+			min_right_1 = math.MaxInt
+		} else {
+			min_right_1 = nums1[pivot_nums1+1]
+		}
+		max_left_2 = math.MinInt
+		if pivot_nums2 == n - 1 {
+			min_right_2 = math.MaxInt
+		} else {
+			min_right_2 = nums2[pivot_nums2+1]
+		}
+		// Check to see if we need to raise or lower the left array's pivot
+		if max_left_1 <= min_right_2 && max_left_2 <= min_right_1 {
+			// These pivots work and we have exactly half the elements which are the lower half IN the left half given these two partitions
+			if (m+n) % 2 == 1 {
+				// Odd
+				return float64(max(max_left_1, max_left_2))
+			} else {
+				// Even
+				return float64(max_left_1 + max_left_2) / float64(2)
+			}
+		} else if max_left_1 <= min_right_2 {
+			// Array 2 has too big of a pivot; array 1 has too small of a pivot
+			low = pivot_nums1+1
+		} else {
+			// Vice versa
+			high = pivot_nums1
+		}
+	}
+	return float64(-1)
+}
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+/*
 A game is played by a cat and a mouse named Cat and Mouse.
 
 The environment is represented by a grid of size rows x cols, where each element is a wall, floor, player (Cat, Mouse), or food.

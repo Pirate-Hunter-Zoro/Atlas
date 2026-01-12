@@ -1530,6 +1530,30 @@ func TestIsRegexMatch(t *testing.T) {
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
+func TestFindMedianSortedArrays(t *testing.T) {
+	type input struct {
+		nums1 []int
+		nums2 []int
+	}
+	inputs := []input{
+		{[]int{1,3}, []int{2}},
+		{[]int{1,2}, []int{3,4}},
+	}
+
+	expected_outputs := []float64{
+		2.00000,
+		2.50000,
+	}
+
+	f := func(i input) float64 {
+		return findMedianSortedArrays(i.nums1, i.nums2)
+	}
+
+	runTestHelper(t, f, inputs, expected_outputs)
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
 func TestCanMouseWin(t *testing.T) {
 	type input struct {
 		grid []string
