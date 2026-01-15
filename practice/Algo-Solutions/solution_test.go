@@ -1558,26 +1558,24 @@ func TestFindMedianSortedArrays(t *testing.T) {
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-func TestCanMouseWin(t *testing.T) {
+func TestMaxProfitII(t *testing.T) {
 	type input struct {
-		grid []string
-		catJump int
-		mouseJump int
+		prices []int
 	}
 	inputs := []input{
-		{[]string{"####F","#C...","M...."}, 1, 2},
-		{[]string{"M.C...F"}, 1, 4},
-		{[]string{"M.C...F"}, 1, 3},
+		{[]int{3,3,5,0,0,3,1,4}},
+		{[]int{1,2,3,4,5}},
+		{[]int{7,6,4,3,1}},
 	}
 
-	expected_outputs := []bool{
-		true,
-		true,
-		false,
+	expected_outputs := []int{
+		6,
+		4,
+		0,
 	}
 
-	f := func(i input) bool {
-		return canMouseWin(i.grid, i.catJump, i.mouseJump)
+	f := func(i input) int {
+		return maxProfitII(i.prices)
 	}
 
 	runTestHelper(t, f, inputs, expected_outputs)

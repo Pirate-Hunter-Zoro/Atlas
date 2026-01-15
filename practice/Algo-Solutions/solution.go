@@ -4534,35 +4534,62 @@ func findMedianSortedArrays(nums1 []int, nums2 []int) float64 {
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /*
-A game is played by a cat and a mouse named Cat and Mouse.
+You are given an array prices where prices[i] is the price of a given stock on the ith day.
 
-The environment is represented by a grid of size rows x cols, where each element is a wall, floor, player (Cat, Mouse), or food.
-- Players are represented by the characters 'C'(Cat),'M'(Mouse).
-- Floors are represented by the character '.' and can be walked on.
-- Walls are represented by the character '#' and cannot be walked on.
-- Food is represented by the character 'F' and can be walked on.
-- There is only one of each character 'C', 'M', and 'F' in grid.
+Find the maximum profit you can achieve. 
+You may complete at most two transactions.
 
-Mouse and Cat play according to the following rules:
-- Mouse moves first, then they take turns to move.
-- During each turn, Cat and Mouse can jump in one of the four directions (left, right, up, down). 
-	They cannot jump over the wall nor outside of the grid.
-- catJump, mouseJump are the maximum lengths Cat and Mouse can jump at a time, respectively. 
-	Cat and Mouse can jump less than the maximum length.
-- Staying in the same position is allowed.
-- Mouse can jump over Cat.
-
-The game can end in 4 ways:
-- If Cat occupies the same position as Mouse, Cat wins.
-- If Cat reaches the food first, Cat wins.
-- If Mouse reaches the food first, Mouse wins.
-- If Mouse cannot get to the food within 1000 turns, Cat wins.
-
-Given a rows x cols matrix grid and two integers catJump and mouseJump, return true if Mouse can win the game if both Cat and Mouse play optimally, otherwise return false.
+Note: You may not engage in multiple transactions simultaneously (i.e., you must sell the stock before you buy again).
 
 Link:
-https://leetcode.com/problems/cat-and-mouse-ii/description/?envType=problem-list-v2&envId=game-theory
+https://leetcode.com/problems/best-time-to-buy-and-sell-stock-iii/description/
 */
-func canMouseWin(grid []string, catJump int, mouseJump int) bool {
-    return false
+func maxProfitII(prices []int) int {
+    // Consider, on this day, the maximum profit you can achieve given you have:
+	// Bought no times
+	// Bought once (and must sell before buying again)
+	// Bought and sold once
+	// Bought and sold once, then bought again
+	// Bought and sold twice
+	sols := make([][]int, 5)
+	for i:=range sols {
+		sols[i] = make([]int, len(prices))
+	}
+	for i:=range sols {
+		for j:=range prices {
+			sols[i][j] = -1
+			if j == len(prices)-1 {
+				// Base cases
+				sols[0][j] = 0 // Never bought in the past so cannot sell
+				sols[1][j] = prices[j] // Bought once, can sell on last day
+				sols[2][j] = 0 // Bought once and sold once, must buy again before selling and since we are on the last day, bad idea
+				sols[3][j] = prices[j] // Again, can sell on last day
+				sols[4][j] = 0 // Nothing left that can be done
+			}
+		}
+	}
+
+	// Now solve the problem
+	var f func(day int, bought int) int;
+	f = func(day int, bought int) int {
+		if sols[bought][day] == -1 {
+			// Need to solve this problem
+			switch bought {
+				case 0, 2: // Must buy before selling again
+					buy := f(day+1, bought+1) - prices[day]
+					no_buy := f(day+1, bought)
+					sols[bought][day] = max(buy, no_buy)
+				case 1, 3: // Have ability to sell
+					// Try selling
+					sell := prices[day] + f(day+1, bought+1)
+					no_sell := f(day+1, bought)
+					sols[bought][day] = max(sell, no_sell)
+				default: // Nothing left that can be done
+					sols[bought][day] = 0
+			}
+		}
+		return sols[bought][day]
+	}
+
+	return f(0, 0)
 }
