@@ -1580,3 +1580,27 @@ func TestMaxProfitII(t *testing.T) {
 
 	runTestHelper(t, f, inputs, expected_outputs)
 }
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+func TestMinStickers(t *testing.T) {
+	type input struct {
+		stickers []string
+		target string
+	}
+	inputs := []input{
+		{[]string{"with","example","science"}, "thehat"},
+		{[]string{"notice","possible"}, "basicbasic"},
+	}
+
+	expected_outputs := []int{
+		3,
+		-1,
+	}
+
+	f := func(i input) int {
+		return minStickers(i.stickers, i.target)
+	}
+
+	runTestHelper(t, f, inputs, expected_outputs)
+}
