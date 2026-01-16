@@ -4646,29 +4646,10 @@ func minStickers(stickers []string, target string) int {
 		}
 	}
 
-	sticker_masks := make([]int, len(stickers))
-	for k, sticker:=range stickers {
-		// Make a bit mask of which characters this string/sticker has covered
-		// WLOG - with repeat characters, just cover the first appearance in 'target'
-		// e.g. If sticker is 'reel' and target is 'peeled', make it correspond with bit mask 011100
-		sticker_bytes := []byte(sticker)
-		// Map bytes to posns
-		byte_posns := make(map[byte][]int)
-		for i, b:=range sticker_bytes {
-			if _, ok:=byte_posns[b]; !ok {
-				byte_posns[b] = []int{}
-			}
-			byte_posns[b] = append(byte_posns[b], i)
-		}
-		// See which characters in the target this string can cover
-		for _, b:=range target_bytes {
-			if _, ok:=byte_posns[b]; ok {
-				if len(byte_posns[b]) > 0 {
-					sticker_masks[k] = sticker_masks[k] | (1 << k)
-					byte_posns[b] = byte_posns[b][:len(byte_posns[b])-1]
-				}
-			}
-		}
+	// We need the ability to - given a set of characters and a set of target characters (with their indices in target mapped to them) - the possible resulting bit masks
+	var find_bit_masks func(sticker_chars []byte, remaining_targets map[byte][]int) []int;
+	find_bit_masks = func(sticker_chars []byte, remaining_targets map[byte][]int) []int {
+
 	}
 
 	// Now we are ready to solve the problem
@@ -4681,11 +4662,24 @@ func minStickers(stickers []string, target string) int {
 	solve = func(covered_chars_bit_mask int) int {
 		if sols[covered_chars_bit_mask] == -1 {
 			// Need to solve this problem
+			remaining_targets := make(map[byte][]int)
+			for i, b:=range target_bytes {
+				if _, ok := remaining_targets[b]; !ok {
+					remaining_targets[b] = []int{}
+				}
+				if covered_chars_bit_mask & (1 << i) == 0 {
+					// Missing this character
+					remaining_targets[b] = append(remaining_targets[b], i)
+				}
+			}
 			record := math.MaxInt32
-			for _, mask := range sticker_masks {
-				// Try taking this sticker
-				new_bit_mask := covered_chars_bit_mask | mask
-				record = min(record, 1 + solve(new_bit_mask))
+			for _, sticker := range useful_stickers {
+				// Try using this sticker and having it cover all possible target indices it can
+				for _, bit_mask := range find_bit_masks([]byte(sticker), remaining_targets) {
+					if bit_mask > covered_chars_bit_mask {
+						record = min(record, 1 + solve(bit_mask))
+					}
+				}
 			}
 			sols[covered_chars_bit_mask] = record
 		}
