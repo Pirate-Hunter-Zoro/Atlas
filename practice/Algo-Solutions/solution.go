@@ -4613,9 +4613,12 @@ https://leetcode.com/problems/stickers-to-spell-word/description/?envType=proble
 */
 func minStickers(stickers []string, target string) int {
 	target_bytes := []byte(target)
-	target_bytes_set := make(map[byte]bool)
-	for _, b := range target_bytes {
-		target_bytes_set[b] = true
+	target_bytes_indices := make(map[byte][]int)
+	for i, b := range target_bytes {
+		if _, ok := target_bytes_indices[b]; !ok {
+			target_bytes_indices[b] = []int{}
+		}
+		target_bytes_indices[b] = append(target_bytes_indices[b], i)
 	}
 
 	// Firstly, filter out any useless stickers
@@ -4624,10 +4627,12 @@ func minStickers(stickers []string, target string) int {
 	for _, sticker := range stickers {
 		useful := false
 		sticker_bytes := []byte(sticker)
-		for i, b := range sticker_bytes {
-			if _, ok := target_bytes_set[b]; ok {
+		for _, b := range sticker_bytes {
+			if _, ok := target_bytes_indices[b]; ok {
 				useful = true
-				present[i] = true
+				for _, j:=range target_bytes_indices[b] {
+					present[j] = true
+				}
 			}
 		}
 		if useful {
@@ -4642,7 +4647,7 @@ func minStickers(stickers []string, target string) int {
 	}
 
 	sticker_masks := make([]int, len(stickers))
-	for _, sticker:=range stickers {
+	for k, sticker:=range stickers {
 		// Make a bit mask of which characters this string/sticker has covered
 		// WLOG - with repeat characters, just cover the first appearance in 'target'
 		// e.g. If sticker is 'reel' and target is 'peeled', make it correspond with bit mask 011100
@@ -4656,10 +4661,10 @@ func minStickers(stickers []string, target string) int {
 			byte_posns[b] = append(byte_posns[b], i)
 		}
 		// See which characters in the target this string can cover
-		for i, b:=range target_bytes {
+		for _, b:=range target_bytes {
 			if _, ok:=byte_posns[b]; ok {
 				if len(byte_posns[b]) > 0 {
-					sticker_masks[i] = sticker_masks[i] | (1 << i)
+					sticker_masks[k] = sticker_masks[k] | (1 << k)
 					byte_posns[b] = byte_posns[b][:len(byte_posns[b])-1]
 				}
 			}
@@ -4667,6 +4672,24 @@ func minStickers(stickers []string, target string) int {
 	}
 
 	// Now we are ready to solve the problem
-	
-    return -1
+	sols := make([]int, 1 << (len(target)) - 1)
+	for i:=range sols {
+		sols[i] = -1
+	}
+	sols[len(sols)-1] = 0 // Everything covered
+	var solve func(covered_chars_bit_mask int) int;
+	solve = func(covered_chars_bit_mask int) int {
+		if sols[covered_chars_bit_mask] == -1 {
+			// Need to solve this problem
+			record := math.MaxInt32
+			for _, mask := range sticker_masks {
+				// Try taking this sticker
+				new_bit_mask := covered_chars_bit_mask | mask
+				record = min(record, 1 + solve(new_bit_mask))
+			}
+			sols[covered_chars_bit_mask] = record
+		}
+		return sols[covered_chars_bit_mask]
+	}
+    return solve(0)
 }
