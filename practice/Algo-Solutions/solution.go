@@ -4612,5 +4612,61 @@ Link:
 https://leetcode.com/problems/stickers-to-spell-word/description/?envType=problem-list-v2&envId=bitmask
 */
 func minStickers(stickers []string, target string) int {
+	target_bytes := []byte(target)
+	target_bytes_set := make(map[byte]bool)
+	for _, b := range target_bytes {
+		target_bytes_set[b] = true
+	}
+
+	// Firstly, filter out any useless stickers
+	useful_stickers := []string{}
+	present := make([]bool, len(target))
+	for _, sticker := range stickers {
+		useful := false
+		sticker_bytes := []byte(sticker)
+		for i, b := range sticker_bytes {
+			if _, ok := target_bytes_set[b]; ok {
+				useful = true
+				present[i] = true
+			}
+		}
+		if useful {
+			useful_stickers = append(useful_stickers, sticker)
+		}
+	}
+	// If any characters were missing, we're screwed
+	for _, char_seen := range present {
+		if !char_seen {
+			return -1
+		}
+	}
+
+	sticker_masks := make([]int, len(stickers))
+	for _, sticker:=range stickers {
+		// Make a bit mask of which characters this string/sticker has covered
+		// WLOG - with repeat characters, just cover the first appearance in 'target'
+		// e.g. If sticker is 'reel' and target is 'peeled', make it correspond with bit mask 011100
+		sticker_bytes := []byte(sticker)
+		// Map bytes to posns
+		byte_posns := make(map[byte][]int)
+		for i, b:=range sticker_bytes {
+			if _, ok:=byte_posns[b]; !ok {
+				byte_posns[b] = []int{}
+			}
+			byte_posns[b] = append(byte_posns[b], i)
+		}
+		// See which characters in the target this string can cover
+		for i, b:=range target_bytes {
+			if _, ok:=byte_posns[b]; ok {
+				if len(byte_posns[b]) > 0 {
+					sticker_masks[i] = sticker_masks[i] | (1 << i)
+					byte_posns[b] = byte_posns[b][:len(byte_posns[b])-1]
+				}
+			}
+		}
+	}
+
+	// Now we are ready to solve the problem
+	
     return -1
 }
