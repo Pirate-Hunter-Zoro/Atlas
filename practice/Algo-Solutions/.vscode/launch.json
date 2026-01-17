@@ -7,11 +7,16 @@
             "request": "launch",
             "mode": "test",
             "program": "${workspaceFolder}",
-            "buildFlags": "-gcflags='all=-N -l'",
             "args": [
                 "-test.run", "TestTrap",
                 "-test.count=1",
                 "-test.v"
+            ],
+            "substitutePath": [
+                {
+                    "from": "/home/librad.laureateinstitute.org/mferguson/Leet-Code-Go",
+                    "to": "${workspaceFolder}"
+                }
             ]
         }
     ]
