@@ -1591,11 +1591,13 @@ func TestMinStickers(t *testing.T) {
 	inputs := []input{
 		{[]string{"with","example","science"}, "thehat"},
 		{[]string{"notice","possible"}, "basicbasic"},
+		{[]string{"these","guess","about","garden","him"}, "atomher"},
 	}
 
 	expected_outputs := []int{
 		3,
 		-1,
+		3,
 	}
 
 	f := func(i input) int {
