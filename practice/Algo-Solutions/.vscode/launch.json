@@ -15,7 +15,7 @@
             "substitutePath": [
                 {
                     "from": "/home/librad.laureateinstitute.org/mferguson/Leet-Code-Go",
-                    "to": "${workspaceFolder}"
+                    "to": "/mnt/dell_storage/homefolders/librad.laureateinstitute.org/mferguson/Leet-Code-Go"
                 }
             ]
         }

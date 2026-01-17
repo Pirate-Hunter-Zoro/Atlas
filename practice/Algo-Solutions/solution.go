@@ -4685,7 +4685,6 @@ Link:
 https://leetcode.com/problems/trapping-rain-water/description/
 */
 func trap(height []int) int {
-	fmt.Println("HIEI IS WATCHING")
     walls := datastructures.NewStack[[]int]()
 	trapped := 0
 	for i, h := range height {
