@@ -1,0 +1,18 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Hiei's Absolute Focus",
+            "type": "go",
+            "request": "launch",
+            "mode": "test",
+            "program": "${workspaceFolder}",
+            "buildFlags": "-gcflags='all=-N -l'",
+            "args": [
+                "-test.run", "TestTrap",
+                "-test.count=1",
+                "-test.v"
+            ]
+        }
+    ]
+}

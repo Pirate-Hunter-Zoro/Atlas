@@ -1606,3 +1606,49 @@ func TestMinStickers(t *testing.T) {
 
 	runTestHelper(t, f, inputs, expected_outputs)
 }
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+func TestTrap(t *testing.T) {
+	type input struct {
+		height []int
+	}
+	inputs := []input{
+		{[]int{0,1,0,2,1,0,1,3,2,1,2,1}},
+		{[]int{4,2,0,3,2,5}},
+	}
+
+	expected_outputs := []int{
+		6,
+		9,
+	}
+
+	f := func(i input) int {
+		return trap(i.height)
+	}
+
+	runTestHelper(t, f, inputs, expected_outputs)
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+// func TestTrapRainWater(t *testing.T) {
+// 	type input struct {
+// 		heightMap [][]int
+// 	}
+// 	inputs := []input{
+// 		{[][]int{{1,4,3,1,3,2},{3,2,1,3,2,4},{2,3,3,2,3,1}}},
+// 		{[][]int{{3,3,3,3,3},{3,2,2,2,3},{3,2,1,2,3},{3,2,2,2,3},{3,3,3,3,3}}},
+// 	}
+
+// 	expected_outputs := []int{
+// 		4,
+// 		10,
+// 	}
+
+// 	f := func(i input) int {
+// 		return trapRainWater(i.heightMap)
+// 	}
+
+// 	runTestHelper(t, f, inputs, expected_outputs)
+// }

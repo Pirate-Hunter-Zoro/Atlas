@@ -4674,3 +4674,46 @@ func minStickers(stickers []string, target string) int {
 	}
     return solve(0)
 }
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+/*
+Given n non-negative integers representing an elevation map where the width of each bar is 1, compute how much water it can trap after raining.
+
+Link:
+https://leetcode.com/problems/trapping-rain-water/description/
+*/
+func trap(height []int) int {
+    walls := datastructures.NewStack[[]int]()
+	trapped := 0
+	for i, h := range height {
+		floor := 0
+		for !walls.Empty() {
+			last_wall := walls.Peek()
+			last_height := last_wall[1]
+			last_posn := last_wall[0]
+			trapped += (min(h, last_height) - floor) * (i - last_posn - 1)
+			if last_height <= h {
+				walls.Pop()
+				floor = max(floor, last_height)
+			} else {
+				break
+			}
+		}
+		walls.Push([]int{i, h})
+	}
+
+	return trapped
+}
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+/*
+Given an m x n integer matrix heightMap representing the height of each unit cell in a 2D elevation map, return the volume of water it can trap after raining.
+
+Link:
+https://leetcode.com/problems/trapping-rain-water-ii/description/
+*/
+func trapRainWater(heightMap [][]int) int {
+    return 0
+}
