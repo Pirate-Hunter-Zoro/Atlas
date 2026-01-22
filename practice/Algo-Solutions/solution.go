@@ -4720,7 +4720,7 @@ func trapRainWater(heightMap [][]int) int {
 		col int
 		height int
 	}
-	cell_heap := datastructures.NewHeap[cell](func (first cell, second cell) bool {
+	cell_heap := datastructures.NewHeap(func (first cell, second cell) bool {
 		return first.height <= second.height
 	})
 	visited := make([][]bool, len(heightMap))
