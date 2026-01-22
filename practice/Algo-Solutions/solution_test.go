@@ -2,6 +2,7 @@ package leetcode
 
 import (
 	"leet-code/datastructures"
+	"math"
 	"reflect"
 	"testing"
 )
@@ -1137,7 +1138,7 @@ func TestPathSum(t *testing.T) {
 		targetSum int
 	}
 	inputs := []input{
-		{datastructures.NewTreeNode([]int{5,4,8,11,-1,13,4,7,2,-1,-1,5,1}), 22},
+		{datastructures.NewTreeNode([]int{5,4,8,11,math.MinInt,13,4,7,2,math.MinInt,math.MinInt,5,1}), 22},
 		{datastructures.NewTreeNode([]int{1,2,3}), 5},
 		{datastructures.NewTreeNode([]int{1,2}), 0},
 	}
@@ -1632,23 +1633,46 @@ func TestTrap(t *testing.T) {
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-// func TestTrapRainWater(t *testing.T) {
-// 	type input struct {
-// 		heightMap [][]int
-// 	}
-// 	inputs := []input{
-// 		{[][]int{{1,4,3,1,3,2},{3,2,1,3,2,4},{2,3,3,2,3,1}}},
-// 		{[][]int{{3,3,3,3,3},{3,2,2,2,3},{3,2,1,2,3},{3,2,2,2,3},{3,3,3,3,3}}},
-// 	}
+func TestTrapRainWater(t *testing.T) {
+	type input struct {
+		heightMap [][]int
+	}
+	inputs := []input{
+		{[][]int{{1,4,3,1,3,2},{3,2,1,3,2,4},{2,3,3,2,3,1}}},
+		{[][]int{{3,3,3,3,3},{3,2,2,2,3},{3,2,1,2,3},{3,2,2,2,3},{3,3,3,3,3}}},
+	}
 
-// 	expected_outputs := []int{
-// 		4,
-// 		10,
-// 	}
+	expected_outputs := []int{
+		4,
+		10,
+	}
 
-// 	f := func(i input) int {
-// 		return trapRainWater(i.heightMap)
-// 	}
+	f := func(i input) int {
+		return trapRainWater(i.heightMap)
+	}
 
-// 	runTestHelper(t, f, inputs, expected_outputs)
-// }
+	runTestHelper(t, f, inputs, expected_outputs)
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+func TestMaxPathSum(t *testing.T) {
+	type input struct {
+		root *datastructures.TreeNode
+	}
+	inputs := []input{
+		{datastructures.NewTreeNode([]int{1,2,3})},
+		{datastructures.NewTreeNode([]int{-10,9,20,math.MinInt,math.MinInt,15,7})},
+	}
+
+	expected_outputs := []int{
+		6,
+		42,
+	}
+
+	f := func(i input) int {
+		return maxPathSum(i.root)
+	}
+
+	runTestHelper(t, f, inputs, expected_outputs)
+}

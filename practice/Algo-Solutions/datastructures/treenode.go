@@ -1,5 +1,7 @@
 package datastructures
 
+import "math"
+
 type TreeNode struct {
 	Val   int
 	Left  *TreeNode
@@ -15,12 +17,12 @@ func NewTreeNode(vals []int) *TreeNode {
 	for i < len(vals) && len(queue) > 0 {
 		node := queue[0]
 		queue = queue[1:]
-		if vals[i] != -1 {
+		if vals[i] != math.MinInt {
 			node.Left = &TreeNode{Val: vals[i]}
 			queue = append(queue, node.Left)
 		}
 		i++
-		if i < len(vals) && vals[i] != -1 {
+		if i < len(vals) && vals[i] != math.MinInt {
 			node.Right = &TreeNode{Val: vals[i]}
 			queue = append(queue, node.Right)
 		}

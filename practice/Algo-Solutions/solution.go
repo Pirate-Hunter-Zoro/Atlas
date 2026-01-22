@@ -4817,3 +4817,105 @@ func trapRainWater(heightMap [][]int) int {
 	}
 	return water
 }
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+/*
+A path in a binary tree is a sequence of nodes where each pair of adjacent nodes in the sequence has an edge connecting them. 
+A node can only appear in the sequence at most once. 
+Note that the path does not need to pass through the root.
+
+The path sum of a path is the sum of the node's values in the path.
+
+Given the root of a binary tree, return the maximum path sum of any non-empty path.
+
+Link:
+https://leetcode.com/problems/binary-tree-maximum-path-sum/description/
+*/
+func maxPathSum(root *datastructures.TreeNode) int {
+	// Quick dummy case - if there are no children, we have to include this root
+	if root.Left == nil && root.Right == nil {
+		return root.Val
+	}
+
+    // For every node, store the maximum path if you include only the left, only the right, or both children in their path
+	max_allow_left_only := make(map[*datastructures.TreeNode]int) // Max path achievable from this node down including self if only allowed left child
+	max_allow_right_only := make(map[*datastructures.TreeNode]int) // Same but right child
+	max_allow_both := make(map[*datastructures.TreeNode]int) // Same but allow both
+
+	// Create our bottom down function
+	var solve_allow_left_only func(node *datastructures.TreeNode) int;
+	var solve_allow_right_only func(node *datastructures.TreeNode) int;
+	var solve_allow_both func(node *datastructures.TreeNode) int;
+	solve_allow_left_only = func(node *datastructures.TreeNode) int {
+		if _, ok := max_allow_left_only[node]; !ok {
+			// Need to solve this problem
+			record := node.Val
+			if node.Left != nil {
+				record = max(record,
+					// Since this node is included, the left child is allowed to have exactly one of its children
+					node.Val + max(solve_allow_left_only(node.Left), solve_allow_right_only(node.Left)),
+				)
+			}
+			max_allow_left_only[node] = record
+		}
+		return max_allow_left_only[node]
+	}
+	solve_allow_right_only = func(node *datastructures.TreeNode) int {
+		if _, ok := max_allow_right_only[node]; !ok {
+			// Need to solve this problem
+			record := node.Val
+			if node.Right != nil {
+				record = max(record,
+					// Since this node is included, the right child is allowed to have exactly one of its children
+					node.Val + max(solve_allow_left_only(node.Right), solve_allow_right_only(node.Right)),
+				)
+			}
+			max_allow_right_only[node] = record
+		}
+		return max_allow_right_only[node]
+	}
+	solve_allow_both = func(node *datastructures.TreeNode) int {
+		if _, ok := max_allow_both[node]; !ok {
+			// Need to solve this problem
+			best_achieved := node.Val
+			if node.Left != nil {
+				best_achieved += max(
+					0,
+					max(
+						solve_allow_left_only(node.Left),
+						solve_allow_right_only(node.Left),
+					),
+				)
+			}
+			if node.Right != nil {
+				best_achieved += max(
+					0,
+					max(
+						solve_allow_left_only(node.Right),
+						solve_allow_right_only(node.Right),
+					),
+				)
+			}
+			max_allow_both[node] = best_achieved
+		}
+		return max_allow_both[node]
+	}
+
+	// Now look at all nodes and return the best path value you see
+	var find_best func(root *datastructures.TreeNode) int;
+	find_best = func(root *datastructures.TreeNode) int {
+		if root == nil {
+			return math.MinInt
+		} else if root.Left == nil && root.Right == nil {
+			return root.Val
+		}
+		return max(
+			solve_allow_both(root),
+			find_best(root.Left),
+			find_best(root.Right),
+		)
+	}
+
+	return find_best(root)
+}
