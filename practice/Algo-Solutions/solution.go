@@ -4919,3 +4919,45 @@ func maxPathSum(root *datastructures.TreeNode) int {
 
 	return find_best(root)
 }
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+/*
+You are given an m x n integer array grid where grid[i][j] could be:
+- 1 representing the starting square. There is exactly one starting square.
+- 2 representing the ending square. There is exactly one ending square.
+- 0 representing empty squares we can walk over.
+- -1 representing obstacles that we cannot walk over.
+
+Return the number of 4-directional walks from the starting square to the ending square, that walk over every non-obstacle square exactly once.
+
+Link:
+https://leetcode.com/problems/unique-paths-iii/description/
+*/
+func uniquePathsIII(grid [][]int) int {
+    start := []int{-1,-1}
+	end := []int{-1,-1}
+	target_steps := 1 // Number of steps needed for a valid walk - add to this as we find empty cells
+	for i:=range grid {
+		for j:=range grid[i] {
+			switch grid[i][j] {
+				case 1:
+					start[0] = i
+					start[1] = j
+				case 2:
+					end[0] = i
+					end[1] = j
+				case 0:
+					target_steps += 1
+			}
+		}
+	}
+
+	// Solve the problem
+	var solve func(x, y int) int;
+	solve = func(x, y int) int {
+		return 0
+	}
+
+	return solve(end[0], end[1])
+}
