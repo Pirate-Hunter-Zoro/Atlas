@@ -4954,10 +4954,32 @@ func uniquePathsIII(grid [][]int) int {
 	}
 
 	// Solve the problem
-	var solve func(x, y int) int;
-	solve = func(x, y int) int {
-		return 0
+	var solve func(i, j, steps int) int;
+	solve = func(i, j, steps int) int { // Given what we've travelled and where we are, how may Hamiltonian Paths can we count from here?
+		if i < 0 || j < 0 || i >= len(grid) || j >= len(grid[0]) || grid[i][j] == -1 {
+			// Out of bounds or an obstacle
+			return 0
+		} else if i == end[0] && j == end[1] {
+			// At the goal
+			if steps == target_steps {
+				return 1
+			} else {
+				return 0
+			}
+		} else {
+			// At the start or on an open space
+			old_mark := grid[i][j]
+			grid[i][j] = -1 // Mark as visited
+			// Explore neighbors
+			total := 0
+			total += solve(i+1, j, steps+1)
+			total += solve(i-1, j, steps+1)
+			total += solve(i, j+1, steps+1)
+			total += solve(i, j-1, steps+1)
+			grid[i][j] = old_mark // Remove visited mark
+			return total
+		}
 	}
 
-	return solve(end[0], end[1])
+	return solve(start[0], start[1], 0)
 }
