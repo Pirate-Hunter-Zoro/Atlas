@@ -4983,3 +4983,77 @@ func uniquePathsIII(grid [][]int) int {
 
 	return solve(start[0], start[1], 0)
 }
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+/*
+You are given two 0-indexed strings source and target, both of length n and consisting of lowercase English characters. 
+You are also given two 0-indexed string arrays original and changed, and an integer array cost, where cost[i] represents the cost of converting the string original[i] to the string changed[i].
+
+You start with the string source. 
+In one operation, you can pick a substring x from the string, and change it to y at a cost of z if there exists any index j such that cost[j] == z, original[j] == x, and changed[j] == y. 
+You are allowed to do any number of operations, but any pair of operations must satisfy either of these two conditions:
+- The substrings picked in the operations are source[a..b] and source[c..d] with either b < c or d < a. In other words, the indices picked in both operations are disjoint.
+- The substrings picked in the operations are source[a..b] and source[c..d] with a == c and b == d. In other words, the indices picked in both operations are identical.
+
+Return the minimum cost to convert the string source to the string target using any number of operations. 
+If it is impossible to convert source to target, return -1.
+
+Note that there may exist indices i, j such that original[j] == original[i] and changed[j] == changed[i].
+
+Link:
+https://leetcode.com/problems/minimum-cost-to-convert-string-ii/description/?envType=daily-question&envId=2026-01-30
+*/
+func minimumCost(source string, target string, original []string, changed []string, cost []int) int64 {
+    // Map each string in the target to 
+	original_to_id := make(map[string]int)
+	changed_to_id := make(map[string]int)
+	for i:=range original {
+		original_to_id[original[i]] = i
+		changed_to_id[changed[i]] = i
+	}
+
+	// For each string from original to changed, find the shortest distance
+	distances := make([][]int, len(original))
+	for i:=range distances {
+		distances[i] = make([]int, len(original))
+		for j:=range distances[i] {
+			distances[i][j] = math.MaxInt / 2
+		}
+		distances[i][i] = 0
+		// Include all immediate edges/connections
+		for j, original_str := range original {
+			original_idx := original_to_id[original_str]
+			changed_idx := changed_to_id[changed[j]]
+			distances[original_idx][changed_idx] = min(cost[j], distances[original_idx][changed_idx])
+		}
+	}
+	// Now use Floyd-Warshall algorithm
+	for i := range distances { // Start node
+		for j := range distances { // End node
+			for k := range distances { // Intermediate node
+				distances[i][j] = min(distances[i][j], distances[i][k] + distances[k][j])
+			}
+		}
+	}
+
+	// Given the shortest path from each original to each changed, perform string dynamic programming
+	dp := make([]int64, len(source)+1) // dp[i] = min cost to convert source[0:i] to target[0:i]
+	for i:=range dp {
+		dp[i] = math.MaxInt / 2
+	}
+	var solve func(i int) int64;
+	solve = func(i int) int64 {
+		if dp[i] == math.MaxInt / 2 {
+			// Need to solve this problem
+		}
+		return dp[i]
+	}
+
+	res := solve(len(source))
+	if res >= math.MaxInt / 2 {
+		return -1
+	} else {
+		return res
+	}
+}
