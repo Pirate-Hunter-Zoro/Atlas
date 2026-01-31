@@ -5014,9 +5014,9 @@ func minimumCost(source string, target string, original []string, changed []stri
 	}
 
 	// For each string from original to changed, find the shortest distance
-	distances := make([][]int, len(original))
+	distances := make([][]int64, len(original))
 	for i:=range distances {
-		distances[i] = make([]int, len(original))
+		distances[i] = make([]int64, len(original))
 		for j:=range distances[i] {
 			distances[i][j] = math.MaxInt / 2
 		}
@@ -5025,7 +5025,7 @@ func minimumCost(source string, target string, original []string, changed []stri
 		for j, original_str := range original {
 			original_idx := original_to_id[original_str]
 			changed_idx := changed_to_id[changed[j]]
-			distances[original_idx][changed_idx] = min(cost[j], distances[original_idx][changed_idx])
+			distances[original_idx][changed_idx] = min(int64(cost[j]), distances[original_idx][changed_idx])
 		}
 	}
 	// Now use Floyd-Warshall algorithm
@@ -5038,22 +5038,56 @@ func minimumCost(source string, target string, original []string, changed []stri
 	}
 
 	// Given the shortest path from each original to each changed, perform string dynamic programming
-	dp := make([]int64, len(source)+1) // dp[i] = min cost to convert source[0:i] to target[0:i]
+	dp := make([]int64, len(source)+1) // dp[i] = min cost to convert source[i:] to target[i:]
 	for i:=range dp {
 		dp[i] = math.MaxInt / 2
+		if i == len(source) {
+			dp[i] = 0 // Base case - empty string to empty string costs nothing
+		}
 	}
 	var solve func(i int) int64;
+	trie := datastructures.NewTrie()
+	for i, og_str := range original {
+		trie.Insert(og_str, i)
+		trie.Insert(changed[i], i)
+	}
 	solve = func(i int) int64 {
 		if dp[i] == math.MaxInt / 2 {
 			// Need to solve this problem
+			if source[i] == target[i] {
+				// Current character matches so go to subproblem
+				candidate := solve(i+1) // Candidate value
+				if candidate != -1 {
+					// Potential
+					dp[i] = candidate
+				}
+			}
+			// Iterate through all characters
+			for j:=i; j<len(source); j++ {
+				original_substr := source[i:j+1]
+				target_substr := target[i:j+1]
+				id_og := trie.Search(original_substr)
+				id_changed := trie.Search(target_substr)
+				if id_og != -1 && id_changed != -1 {
+					// Try swapping and then converting the rest
+					rest := solve(j+1)
+					if rest != -1 {
+						if dp[i] == -1 {
+							dp[i] = distances[id_og][id_changed] + rest
+						} else {
+							dp[i] = min(dp[i], distances[id_og][id_changed] + rest)
+						}
+					}
+				}
+			}
+
+			// Impossible
+			if dp[i] >= math.MaxInt / 2 {
+				dp[i] = -1
+			}
 		}
 		return dp[i]
 	}
 
-	res := solve(len(source))
-	if res >= math.MaxInt / 2 {
-		return -1
-	} else {
-		return res
-	}
+	return solve(0)
 }
