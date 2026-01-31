@@ -5021,12 +5021,12 @@ func minimumCost(source string, target string, original []string, changed []stri
 			distances[i][j] = math.MaxInt / 2
 		}
 		distances[i][i] = 0
-		// Include all immediate edges/connections
-		for j, original_str := range original {
-			original_idx := original_to_id[original_str]
-			changed_idx := changed_to_id[changed[j]]
-			distances[original_idx][changed_idx] = min(int64(cost[j]), distances[original_idx][changed_idx])
-		}
+	}
+	// Include all immediate edges/connections
+	for j, original_str := range original {
+		original_idx := original_to_id[original_str]
+		changed_idx := changed_to_id[changed[j]]
+		distances[original_idx][changed_idx] = min(int64(cost[j]), distances[original_idx][changed_idx])
 	}
 	// Now use Floyd-Warshall algorithm
 	for i := range distances { // Start node
