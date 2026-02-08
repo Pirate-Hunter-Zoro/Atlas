@@ -5005,34 +5005,44 @@ Link:
 https://leetcode.com/problems/minimum-cost-to-convert-string-ii/description/?envType=daily-question&envId=2026-01-30
 */
 func minimumCost(source string, target string, original []string, changed []string, cost []int) int64 {
-    // Map each string in the target to 
-	original_to_id := make(map[string]int)
-	changed_to_id := make(map[string]int)
+    // Map each string in the original and changed strings to an id
+	string_to_id := make(map[string]int)
+	count := 0
 	for i:=range original {
-		original_to_id[original[i]] = i
-		changed_to_id[changed[i]] = i
+		if _, ok := string_to_id[original[i]]; !ok {
+			string_to_id[original[i]] = count
+			count += 1
+		}
+		if _, ok := string_to_id[changed[i]]; !ok {
+			string_to_id[changed[i]] = count
+			count += 1
+		}
 	}
 
-	// For each string from original to changed, find the shortest distance
-	distances := make([][]int64, len(original))
+	// For each string from original and changed, find the shortest distance
+	distances := make([][]int64, count)
 	for i:=range distances {
-		distances[i] = make([]int64, len(original))
+		distances[i] = make([]int64, count)
 		for j:=range distances[i] {
 			distances[i][j] = math.MaxInt / 2
 		}
 		distances[i][i] = 0
 	}
-	// Include all immediate edges/connections
-	for j, original_str := range original {
-		original_idx := original_to_id[original_str]
-		changed_idx := changed_to_id[changed[j]]
-		distances[original_idx][changed_idx] = min(int64(cost[j]), distances[original_idx][changed_idx])
+	// Create graph
+	for k := range original {
+		first_id := string_to_id[original[k]]
+		second_id := string_to_id[changed[k]]
+		old_cost := distances[first_id][second_id]
+		if int64(cost[k]) < old_cost {
+			// Update cost if this is a better way to get from original[k] to changed[k]
+			distances[first_id][second_id] = int64(cost[k])
+		}
 	}
 	// Now use Floyd-Warshall algorithm
-	for i := range distances { // Start node
-		for j := range distances { // End node
-			for k := range distances { // Intermediate node
-				distances[i][j] = min(distances[i][j], distances[i][k] + distances[k][j])
+	for j := range distances { // Intermediate node
+		for i := range distances { // Start node
+			for k := range distances { // End node
+				distances[i][k] = min(distances[i][k], distances[i][j] + distances[j][k])
 			}
 		}
 	}
@@ -5048,8 +5058,8 @@ func minimumCost(source string, target string, original []string, changed []stri
 	var solve func(i int) int64;
 	trie := datastructures.NewTrie()
 	for i, og_str := range original {
-		trie.Insert(og_str, i)
-		trie.Insert(changed[i], i)
+		trie.Insert(og_str, string_to_id[og_str])
+		trie.Insert(changed[i], string_to_id[changed[i]])
 	}
 	solve = func(i int) int64 {
 		if dp[i] == math.MaxInt / 2 {
@@ -5063,21 +5073,24 @@ func minimumCost(source string, target string, original []string, changed []stri
 				}
 			}
 			// Iterate through all characters
+			source_curr := trie
+			changed_curr := trie
 			for j:=i; j<len(source); j++ {
-				original_substr := source[i:j+1]
-				target_substr := target[i:j+1]
-				id_og := trie.Search(original_substr)
-				id_changed := trie.Search(target_substr)
-				if id_og != -1 && id_changed != -1 {
+				source_curr = trie.SearchNode(rune(source[j]), source_curr)
+				changed_curr = trie.SearchNode(rune(target[j]), changed_curr)
+				if trie.IsWord(source_curr) && trie.IsWord(changed_curr) {
 					// Try swapping and then converting the rest
 					rest := solve(j+1)
 					if rest != -1 {
 						if dp[i] == -1 {
-							dp[i] = distances[id_og][id_changed] + rest
+							dp[i] = distances[source_curr.GetId()][changed_curr.GetId()] + rest
 						} else {
-							dp[i] = min(dp[i], distances[id_og][id_changed] + rest)
+							dp[i] = min(dp[i], distances[source_curr.GetId()][changed_curr.GetId()] + rest)
 						}
 					}
+				} else if source_curr == nil || changed_curr == nil {
+					// Word mismatch so we must not allow continuing
+					break
 				}
 			}
 

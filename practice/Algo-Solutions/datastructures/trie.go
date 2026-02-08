@@ -41,3 +41,22 @@ func (root *TrieNode) Search(word string) int {
 	// Should never reach here
 	return -1
 }
+
+func (root *TrieNode) SearchNode(char rune, curr *TrieNode) *TrieNode {
+	// Return the node corresponding to the char from the current node if it exists, else return nil
+	if curr == nil { // Assume search from the root
+		curr = root
+	} 
+	if child, ok := curr.children[char]; ok {
+		return child
+	} 
+	return nil
+}
+
+func (root *TrieNode) IsWord(curr *TrieNode) bool {
+	return curr != nil && curr.id != -1
+}
+
+func (root *TrieNode) GetId() int {
+	return root.id
+}
