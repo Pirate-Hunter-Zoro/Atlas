@@ -1749,3 +1749,54 @@ func TestMinimumCost(t *testing.T) {
 
 	runTestHelper(t, f, inputs, expected_outputs)
 }
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+func TestFindOrder(t *testing.T) {
+	type input struct {
+		numCourses int
+		prerequesites [][]int
+	}
+	inputs := []input{
+		{2, [][]int{{1,0}}},
+		{4, [][]int{{1,0},{2,0},{3,1},{3,2}}},
+		{1, [][]int{}},
+	}
+
+	expected_outputs := [][]int{
+		{0,1},
+		{0,1,2,3},
+		{0},
+	}
+
+	f := func(i input) []int {
+		return findOrder(i.numCourses, i.prerequesites)
+	}
+
+	runTestHelper(t, f, inputs, expected_outputs)
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+func TestScheduleCourses(t *testing.T) {
+	type input struct {
+		courses [][]int
+	}
+	inputs := []input{
+		{[][]int{{100,200},{200,1300},{1000,1250},{2000,3200}}},
+		{[][]int{{1,2}}},
+		{[][]int{{3,2},{4,3}}},
+	}
+
+	expected_outputs := []int{
+		3,
+		1,
+		0,
+	}
+
+	f := func(i input) int {
+		return scheduleCourse(i.courses)
+	}
+
+	runTestHelper(t, f, inputs, expected_outputs)
+}

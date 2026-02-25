@@ -5104,3 +5104,79 @@ func minimumCost(source string, target string, original []string, changed []stri
 
 	return solve(0)
 }
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+/*
+There are a total of numCourses courses you have to take, labeled from 0 to numCourses - 1. 
+You are given an array prerequisites where prerequisites[i] = [a_i, b_i] indicates that you must take course b_i first if you want to take course a_i.
+
+For example, the pair [0, 1], indicates that to take course 0 you have to first take course 1.
+Return the ordering of courses you should take to finish all courses. 
+If there are many valid answers, return any of them. 
+If it is impossible to finish all courses, return an empty array.
+
+Link:
+https://leetcode.com/problems/course-schedule-ii/description/?envType=problem-list-v2&envId=topological-sort
+*/
+func findOrder(numCourses int, prerequisites [][]int) []int {
+	// For each class, what are the classes it is a requirement for?
+    prereq_for := make([][]int, numCourses)
+	for i := range numCourses {
+		prereq_for[i] = []int{}
+	}
+	in_degree := make([]int, numCourses)
+	for _, required := range prerequisites {
+		prereq_for[required[1]] = append(prereq_for[required[1]], required[0])
+		in_degree[required[0]]++
+	}
+	
+	// Use a queue to take courses, and move on to courses with in-degree zero
+	taken := []int{}
+	course_queue := datastructures.NewQueue[int]()
+	for n, d := range in_degree {
+		if d == 0 {
+			course_queue.Enqueue(n)
+		}
+	}
+	// Each couse in the queue at any point in time as in-degree zero
+	for !course_queue.Empty() {
+		n := course_queue.Size()
+		for range n {
+			next := course_queue.Dequeue()
+			taken = append(taken, next)
+			for _, next_course := range prereq_for[next] {
+				in_degree[next_course]--
+				if in_degree[next_course] == 0 {
+					// Ready to take next course
+					course_queue.Enqueue(next_course)
+				}
+			}
+		}
+	}
+
+	if len(taken) == numCourses {
+		return taken
+	}
+	return []int{}
+}
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+/*
+There are n different online courses numbered from 1 to n. 
+You are given an array courses where courses[i] = [duration_i, lastDay_i] indicate that the ith course should be taken continuously for duration_i days and must be finished before or on lastDay_i.
+
+You will start on the 1st day and you cannot take two or more courses simultaneously.
+
+Return the maximum number of courses that you can take.
+
+Link:
+https://leetcode.com/problems/course-schedule-iii/description/
+*/
+func scheduleCourse(courses [][]int) int {
+    return 0
+}
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
