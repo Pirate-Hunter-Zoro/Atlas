@@ -5221,6 +5221,9 @@ You must find the minimum number of months needed to complete all the courses fo
 - Return the minimum number of months needed to complete all the courses.
 
 Note: The test cases are generated such that it is possible to complete every course (i.e., the graph is a directed acyclic graph).
+
+Link:
+https://leetcode.com/problems/parallel-courses-iii/description/
 */
 func minimumTime(n int, relations [][]int, time []int) int {
     return 0
