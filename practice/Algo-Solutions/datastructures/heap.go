@@ -40,6 +40,7 @@ func (h *Heap[T]) Pop() T {
 		h.array = h.array[:len(h.array)-1]
 		h.fixHeapDown()
 	}
+	h.size--
 	return v
 }
 func (h *Heap[T]) fixHeapDown() {
@@ -65,4 +66,7 @@ func (h *Heap[T]) fixHeapDown() {
 }
 func (h *Heap[T]) Empty() bool {
 	return len(h.array) == 0
+}
+func (h *Heap[T]) Size() int {
+	return h.size
 }

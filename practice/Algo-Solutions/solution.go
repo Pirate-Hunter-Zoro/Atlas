@@ -5175,8 +5175,53 @@ Link:
 https://leetcode.com/problems/course-schedule-iii/description/
 */
 func scheduleCourse(courses [][]int) int {
-    return 0
+	// Sort courses by deadline
+	sort.SliceStable(courses, func(i, j int) bool {
+		return courses[i][1] < courses[j][1]
+	})
+
+	// Put the courses in a heap sorted by course length, keeping track of elapsed time
+    course_heap := datastructures.NewHeap(func(first []int, second []int) bool {
+		return first[0] >= second[0]
+	})
+	elapsed_time := 0
+	for _, course := range courses {
+		if course[1] >= elapsed_time + course[0] {
+			// We can take the course - for now just try to take it
+			elapsed_time += course[0]
+			course_heap.Push(course)
+		} else {
+			if course_heap.Size() > 0 {
+				longest_taken_course := course_heap.Peek()
+				elapsed_if_remove := elapsed_time - longest_taken_course[0]
+				if elapsed_if_remove + course[0] <= course[1] && longest_taken_course[0] > course[0] {
+					// Removing this old course would let us take this next course, AND this next course takes less time
+					// So do it
+					course_heap.Pop()
+					elapsed_time = elapsed_if_remove + course[0]
+					course_heap.Push(course)
+				}
+			}
+		}
+	}
+
+	return course_heap.Size()
 }
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
+/*
+You are given an integer n, which indicates that there are n courses labeled from 1 to n. 
+You are also given a 2D integer array relations where relations[j] = [prevCourse_j, nextCourse_j] denotes that course prevCourse_j has to be completed before course nextCourse_j (prerequisite relationship). 
+Furthermore, you are given a 0-indexed integer array time where time[i] denotes how many months it takes to complete the (i+1)th course.
+
+You must find the minimum number of months needed to complete all the courses following these rules:
+- You may start taking a course at any time if the prerequisites are met.
+- Any number of courses can be taken at the same time.
+- Return the minimum number of months needed to complete all the courses.
+
+Note: The test cases are generated such that it is possible to complete every course (i.e., the graph is a directed acyclic graph).
+*/
+func minimumTime(n int, relations [][]int, time []int) int {
+    return 0
+}

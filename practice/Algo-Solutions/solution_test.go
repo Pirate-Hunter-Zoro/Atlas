@@ -1786,16 +1786,43 @@ func TestScheduleCourses(t *testing.T) {
 		{[][]int{{100,200},{200,1300},{1000,1250},{2000,3200}}},
 		{[][]int{{1,2}}},
 		{[][]int{{3,2},{4,3}}},
+		{[][]int{{5,5},{4,6},{2,6}}},
 	}
 
 	expected_outputs := []int{
 		3,
 		1,
 		0,
+		2,
 	}
 
 	f := func(i input) int {
 		return scheduleCourse(i.courses)
+	}
+
+	runTestHelper(t, f, inputs, expected_outputs)
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+func TestMinimumTime(t *testing.T) {
+	type input struct {
+		n int
+		relations [][]int
+		time []int
+	}
+	inputs := []input{
+		{3, [][]int{{1,3},{2,3}}, []int{3,2,5}},
+		{5, [][]int{{1,5},{2,5},{3,5},{3,4},{4,5}}, []int{1,2,3,4,5}},
+	}
+
+	expected_outputs := []int{
+		8,
+		12,
+	}
+
+	f := func(i input) int {
+		return minimumTime(i.n, i.relations, i.time)
 	}
 
 	runTestHelper(t, f, inputs, expected_outputs)
