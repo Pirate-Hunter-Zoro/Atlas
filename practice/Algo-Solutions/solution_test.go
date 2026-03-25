@@ -1829,3 +1829,28 @@ func TestMinimumTime(t *testing.T) {
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+func TestNumberOfStableArrays(t *testing.T) {
+	type input struct {
+		zero int
+		one int
+		limit int
+	}
+	inputs := []input{
+		{1,1,2},
+		{1,2,1},
+		{3,3,2},
+	}
+
+	expected_outputs := []int{
+		2,
+		1,
+		14,
+	}
+
+	f := func(i input) int {
+		return numberOfStableArrays(i.zero, i.one, i.limit)
+	}
+
+	runTestHelper(t, f, inputs, expected_outputs)
+}
