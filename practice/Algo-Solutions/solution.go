@@ -5226,7 +5226,45 @@ Link:
 https://leetcode.com/problems/parallel-courses-iii/description/
 */
 func minimumTime(n int, relations [][]int, time []int) int {
-    return 0
+	// Keep track of which courses need to follow which other courses
+	must_follow := make([][]int, n)
+	for i := range n {
+		must_follow[i] = []int{}
+	}
+	for _, r := range relations {
+		// The relations are 1-indexed
+		before, after := r[0]-1, r[1]-1
+		must_follow[after] = append(must_follow[after], before)
+	}
+
+	// Declare helper function to find the earliest time you could complete a course by
+	var earliest_time func(i int) int;
+	var earliest_times []int;
+	earliest_times = make([]int, n)
+	for i := range n {
+		earliest_times[i] = -1
+	}
+	earliest_time = func(i int) int {
+		if earliest_times[i] == -1 {
+			// Need to solve this problem
+			record := time[i]
+			for _, complete_before := range must_follow[i] {
+				// Find the earliest time each of the parents can be completed.
+				// What if two of these "parent" courses also have the relationship that one must be completed before the other?
+				// The recursion should still work out.
+				record = max(record, earliest_time(complete_before) + time[i])
+			}
+			earliest_times[i] = record
+		}
+		return earliest_times[i]
+	}
+
+	// Now go through all courses and simply find the latest time they can be completed
+	record := 0
+	for i := range n {
+		record = max(record, earliest_time(i))
+	}
+	return record
 }
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
