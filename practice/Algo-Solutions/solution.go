@@ -5276,7 +5276,8 @@ A binary array arr is called stable if:
 - The number of occurrences of 0 in arr is exactly zero.
 - The number of occurrences of 1 in arr is exactly one.
 - Each subarray of arr with a size greater than limit must contain both 0 and 1.
-- Return the total number of stable binary arrays.
+
+Return the total number of stable binary arrays.
 
 Since the answer may be very large, return it modulo 10^9 + 7.
 
@@ -5284,5 +5285,31 @@ Link:
 https://leetcode.com/problems/find-all-possible-stable-binary-arrays-i/description/?envType=daily-question&envId=2026-03-09
 */
 func numberOfStableArrays(zero int, one int, limit int) int {
-    return 0
+	// We know the array length is 'zero' plus 'one'
+	// Every subarray of length 'limit + 1' MUST have a 0 and 1 in it
+	// Use dynamic programming
+	// Let dp_0[i][j] denote the number of valid schemes in which we have used i zeros and j ones, and the last placed number is 0.
+	dp_0 := make([][]int, zero+1)
+	for i:=range zero+1 {
+		dp_0[i] = make([]int, one+1)
+	}
+	// Let dp_1[i][j] denote the number of valid schemes in which we have used i zeros and j ones, and the last placed number is 1.
+	dp_1 := make([][]int, zero)
+	for i:=range zero+1 {
+		dp_1[i] = make([]int, one+1)
+	}
+	// Base cases are arrays of length one
+	dp_0[0][1] = 1
+	dp_0[1][0] = 1
+	dp_1[0][1] = 1
+	dp_1[1][0] = 1
+
+	// A valid scheme is one in which all arrays of size limit+1 have both a 0 and a 1
+	for i:=range zero+1 {
+		for j:=range one+1 {
+			
+		}
+	}
+
+	return dp_0[zero][one] + dp_1[zero][one]
 }
