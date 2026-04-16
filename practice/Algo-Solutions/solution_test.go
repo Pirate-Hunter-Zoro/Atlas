@@ -1840,12 +1840,18 @@ func TestNumberOfStableArrays(t *testing.T) {
 		{1,1,2},
 		{1,2,1},
 		{3,3,2},
+		{1,2,3},
+		{1,3,1},
+		{1,4,2},
 	}
 
 	expected_outputs := []int{
 		2,
 		1,
 		14,
+		3,
+		0,
+		1,
 	}
 
 	f := func(i input) int {

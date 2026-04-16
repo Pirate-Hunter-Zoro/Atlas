@@ -5285,31 +5285,56 @@ Link:
 https://leetcode.com/problems/find-all-possible-stable-binary-arrays-i/description/?envType=daily-question&envId=2026-03-09
 */
 func numberOfStableArrays(zero int, one int, limit int) int {
-	// We know the array length is 'zero' plus 'one'
-	// Every subarray of length 'limit + 1' MUST have a 0 and 1 in it
-	// Use dynamic programming
-	// Let dp_0[i][j] denote the number of valid schemes in which we have used i zeros and j ones, and the last placed number is 0.
-	dp_0 := make([][]int, zero+1)
-	for i:=range zero+1 {
+	// A valid scheme is one in which all arrays of size limit+1 have both a 0 and a 1
+	dp_0 := make([][]int, zero+1) // dp_0[i][j] is the number of valid schemes with i 0's and j 1's ending in a 0
+	dp_1 := make([][]int, zero+1) // dp_1[i][j] is the number of valid schemes with i 0's and j 1's ending in a 1
+	for i:=range zero + 1 {
 		dp_0[i] = make([]int, one+1)
-	}
-	// Let dp_1[i][j] denote the number of valid schemes in which we have used i zeros and j ones, and the last placed number is 1.
-	dp_1 := make([][]int, zero)
-	for i:=range zero+1 {
 		dp_1[i] = make([]int, one+1)
 	}
-	// Base cases are arrays of length one
-	dp_0[0][1] = 1
-	dp_0[1][0] = 1
-	dp_1[0][1] = 1
-	dp_1[1][0] = 1
+	chooseCalc := helpermath.NewChooseCalculator()
+	for i:=range zero + 1 {
+		for j:=range one + 1 {
+			if i == 0 || j == 0 {
+				if max(i, j) <= limit {
+					// Uniform array of all 0's or all 1's - not always feasible
+					dp_0[i][j] = 0
+					dp_1[i][j] = 0
+					if i > 0 {
+						// End in a 0
+						dp_0[i][j]++
+					} else if j > 0 {
+						// End in a 1
+						dp_1[i][j]++
+					}
+				} else {
+					// Impossible - too many of all 0's or 1's given length past which we require at least one of each
+					dp_0[i][j] = 0
+					dp_1[i][j] = 0
+				}
+			} else if (i + j) <= limit {
+				// Unlimited except for last specified digit
+				dp_0[i][j] = chooseCalc.ChooseMod(i+j-1, i-1) // Last digit is set to 0, we have i-1 OTHER zeros to place in i+j-1 spots with total freedom
+				dp_1[i][j] = chooseCalc.ChooseMod(i+j-1, i) // Last digit is set to 1, we have i zeros to place in i+j-1 spots with total freedom
+			} else {
+				// We require a zero and a one
+				dp_0[i][j] = helpermath.ModAdd(dp_0[i-1][j], dp_1[i-1][j]) // One less 0, both previous ending digit cases
+				// Correct for the cases where we had 'limit' consecutive zeros preceding
+				if (i > limit) {
+					dp_0[i][j] = helpermath.ModSub(dp_0[i][j], dp_0[i-1-limit][j])
+					dp_0[i][j] = helpermath.ModSub(dp_0[i][j], dp_1[i-1-limit][j])
+				}
 
-	// A valid scheme is one in which all arrays of size limit+1 have both a 0 and a 1
-	for i:=range zero+1 {
-		for j:=range one+1 {
-			
+				// Exact same logic for ending in a 1
+				dp_1[i][j] = helpermath.ModAdd(dp_0[i][j-1], dp_1[i][j-1]) // Again same logic but one less 1
+				// Correct for the cases where we had 'limit' consecutive ones preceding
+				if (j > limit) {
+					dp_1[i][j] = helpermath.ModSub(dp_1[i][j], dp_0[i][j-1-limit])
+					dp_1[i][j] = helpermath.ModSub(dp_1[i][j], dp_1[i][j-1-limit])
+				}
+			}
 		}
 	}
 
-	return dp_0[zero][one] + dp_1[zero][one]
+	return helpermath.ModAdd(dp_0[zero][one], dp_1[zero][one])
 }

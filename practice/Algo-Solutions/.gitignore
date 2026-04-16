@@ -1,2 +1,5 @@
 .DS_Store
-CLAUDE.md
+.claude/
+.vscode/
+__debug*
+.*
