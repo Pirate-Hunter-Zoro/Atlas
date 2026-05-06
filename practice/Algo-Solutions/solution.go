@@ -5296,8 +5296,8 @@ func numberOfStableArrays(zero int, one int, limit int) int {
 	for i:=range zero + 1 {
 		for j:=range one + 1 {
 			if i == 0 || j == 0 {
+				// Uniform array of all 0's or all 1's - not always feasible	
 				if max(i, j) <= limit {
-					// Uniform array of all 0's or all 1's - not always feasible
 					dp_0[i][j] = 0
 					dp_1[i][j] = 0
 					if i > 0 {
@@ -5321,7 +5321,7 @@ func numberOfStableArrays(zero int, one int, limit int) int {
 				dp_0[i][j] = helpermath.ModAdd(dp_0[i-1][j], dp_1[i-1][j]) // One less 0, both previous ending digit cases
 				// Correct for the cases where we had 'limit' consecutive zeros preceding
 				if (i > limit) {
-					dp_0[i][j] = helpermath.ModSub(dp_0[i][j], dp_0[i-1-limit][j])
+					// Note such valid sequences would have had to end in a 1, or we could not have appended limit 0's
 					dp_0[i][j] = helpermath.ModSub(dp_0[i][j], dp_1[i-1-limit][j])
 				}
 
@@ -5329,12 +5329,60 @@ func numberOfStableArrays(zero int, one int, limit int) int {
 				dp_1[i][j] = helpermath.ModAdd(dp_0[i][j-1], dp_1[i][j-1]) // Again same logic but one less 1
 				// Correct for the cases where we had 'limit' consecutive ones preceding
 				if (j > limit) {
+					// Again, such valid sequences would have ended in a 0, or we could not hav appended limit 1's
 					dp_1[i][j] = helpermath.ModSub(dp_1[i][j], dp_0[i][j-1-limit])
-					dp_1[i][j] = helpermath.ModSub(dp_1[i][j], dp_1[i][j-1-limit])
 				}
 			}
 		}
 	}
 
 	return helpermath.ModAdd(dp_0[zero][one], dp_1[zero][one])
+}
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+/*
+You are given an integer array prices where prices[i] is the price of a given stock on the ith day, and an integer k.
+Find the maximum profit you can achieve. 
+You may complete at most k transactions: i.e. you may buy at most k times and sell at most k times.
+
+Note: You may not engage in multiple transactions simultaneously (i.e., you must sell the stock before you buy again).
+
+Link:
+https://leetcode.com/problems/best-time-to-buy-and-sell-stock-iv/description/?envType=problem-list-v2&envId=dynamic-programming
+*/
+func maxProfitIV(k int, prices []int) int {
+    // We need to answer two questions
+	sols_sell := make([][]int, k+1) // On a given day, given we have k transactions left, how much profit can we make given we need to sell?
+	sols_buy := make([][]int, k+1) // On a given day, given we have k transactions left, how much profit can we make given we can only buy?
+	for j:=range k+1 {
+		sols_sell[j] = make([]int, len(prices))
+		sols_buy[j] = make([]int, len(prices))
+	}
+	for day := len(prices)-1; day>=0; day-- {
+		if (day == len(prices)-1) {
+			// Base case - last day - if we can sell the best thing to do is sell
+			for i:=range k+1 {
+				sols_sell[i][day] = prices[day]
+			}
+			// If we cannot sell, certainly don't buy on the last day
+		} else {
+			for i:=range k+1 {
+				if i == 0 {
+					// We can't buy anymore but selling could get us something
+					// Try selling either today, or the best later time to sell
+					sols_sell[i][day] = max(prices[day], sols_sell[i][day+1])
+				} else {
+					// We have at least one transaction left
+					// In the case of having nothing to sell, try buying or not buying
+					sols_buy[i][day] = max(sols_buy[i][day+1], sols_sell[i][day+1]-prices[day])
+					// In the case of having something to sell, try selling now or later
+					// Whenever we sell, we must decrease the number of transactions left
+					sols_sell[i][day] = max(sols_sell[i][day+1], prices[day] + sols_buy[i-1][day+1])
+				}
+			}
+		}
+	}
+
+	return sols_buy[k][0]
 }
