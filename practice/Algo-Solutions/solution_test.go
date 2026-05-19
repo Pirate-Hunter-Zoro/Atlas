@@ -1910,3 +1910,28 @@ func TestMaximumJumps(t *testing.T) {
 
 	runTestHelper(t, f, inputs, expected_outputs)
 }
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+func TestMinJumps(t *testing.T) {
+	type input struct {
+		arr []int
+	}
+	inputs := []input{
+		{[]int{100,-23,-23,404,100,23,23,23,3,404}},
+		{[]int{7}},
+		{[]int{7,6,9,6,9,6,9,7}},
+	}
+
+	expected_outputs := []int{
+		3,
+		0,
+		1,
+	}
+
+	f := func(i input) int {
+		return minJumps(i.arr)
+	}
+
+	runTestHelper(t, f, inputs, expected_outputs)
+}
