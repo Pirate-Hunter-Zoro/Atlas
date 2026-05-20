@@ -5438,5 +5438,62 @@ Link:
 https://leetcode.com/problems/jump-game-iv/description/?envType=daily-question&envId=2026-05-18
 */
 func minJumps(arr []int) int {
-    return 0
+	// For every value, make sure we know the indices it corresponds to
+	val_to_i := make(map[int]map[int]bool)
+	for i := range arr {
+		if _, ok := val_to_i[arr[i]]; !ok {
+			val_to_i[arr[i]] = make(map[int]bool)
+		}
+		val_to_i[arr[i]][i] = true
+	}
+
+	// Now we breadth-first-search from the end position
+	hops := 0
+	visited := make([]bool, len(arr))
+	idx_queue := datastructures.NewQueue[int]()
+	visited[len(arr)-1] = true
+	idx_queue.Enqueue(len(arr)-1)
+	for !idx_queue.Empty() {
+		num_to_dequeue := idx_queue.Size()
+		for range num_to_dequeue {
+			next := idx_queue.Dequeue()
+			if next == 0 {
+				return hops
+			} else {
+				for n := range val_to_i[arr[next]] {
+					if !visited[n] {
+						visited[n] = true
+						idx_queue.Enqueue(n)
+					}
+					delete(val_to_i[arr[next]], n)
+				}
+				// Sequential neighbors
+				if next + 1 < len(arr) && !visited[next+1]{
+					visited[next+1] = true
+					idx_queue.Enqueue(next+1)
+				}
+				if !visited[next-1]{
+					visited[next-1] = true
+					idx_queue.Enqueue(next-1)
+				}
+			}
+		}
+		hops++
+	}
+
+	// The code WILL never reach here
+	return -1
+}
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+/*
+The n-queens puzzle is the problem of placing n queens on an n x n chessboard such that no two queens attack each other.
+
+Given an integer n, return all distinct solutions to the n-queens puzzle. You may return the answer in any order.
+
+Each solution contains a distinct board configuration of the n-queens' placement, where 'Q' and '.' both indicate a queen and an empty space, respectively.
+*/
+func solveNQueens(n int) [][]string {
+    return [][]string{}
 }
