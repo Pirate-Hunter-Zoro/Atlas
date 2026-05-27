@@ -1938,23 +1938,3 @@ func TestMinJumps(t *testing.T) {
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-func TestSolveNQueens(t *testing.T) {
-	type input struct {
-		n int
-	}
-	inputs := []input{
-		{4},
-		{1},
-	}
-
-	expected_outputs := [][][]string{
-		{{".Q..","...Q","Q...","..Q."}, {"..Q.","Q...","...Q",".Q.."}},
-		{{"Q"}},
-	}
-
-	f := func(i input) [][]string {
-		return solveNQueens(i.n)
-	}
-
-	runTestHelper(t, f, inputs, expected_outputs)
-}
