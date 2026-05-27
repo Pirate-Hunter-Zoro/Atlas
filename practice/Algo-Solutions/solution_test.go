@@ -1938,3 +1938,25 @@ func TestMinJumps(t *testing.T) {
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
+func TestNumberOfSpecialChars(t *testing.T) {
+	type input struct {
+		word string
+	}
+	inputs := []input{
+		{"aaAbcBC"},
+		{"abc"},
+		{"AbBCab"},
+	}
+
+	expected_outputs := []int{
+		3,
+		0,
+		0,
+	}
+
+	f := func(i input) int {
+		return numberOfSpecialChars(i.word)
+	}
+
+	runTestHelper(t, f, inputs, expected_outputs)
+}
