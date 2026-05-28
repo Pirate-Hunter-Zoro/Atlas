@@ -1960,3 +1960,27 @@ func TestNumberOfSpecialChars(t *testing.T) {
 
 	runTestHelper(t, f, inputs, expected_outputs)
 }
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+func TestStringIndices(t *testing.T) {
+	type input struct {
+		wordsContainer []string
+		wordsQuery []string
+	}
+	inputs := []input{
+		{[]string{"abcd","bcd","xbcd"}, []string{"cd","bcd","xyz"}},
+		{[]string{"abcdefgh","poiuygh","ghghgh"}, []string{"gh","acbfgh","acbfegh"}},
+	}
+
+	expected_outputs := [][]int{
+		{1,1,1},
+		{2,0,2},
+	}
+
+	f := func(i input) []int{
+		return stringIndices(i.wordsContainer, i.wordsQuery)
+	}
+
+	runTestHelper(t, f, inputs, expected_outputs)
+}

@@ -5497,8 +5497,54 @@ Link:
 https://leetcode.com/problems/count-the-number-of-special-characters-ii/description/?envType=daily-question&envId=2026-05-27
 */
 func numberOfSpecialChars(word string) int {
-    return 0
+	posns := make(map[rune]int)
+	special := make(map[rune]bool)
+	for i, rune_val := range word {
+		if _, ok := posns[rune_val]; !ok {
+			posns[rune_val] = i
+		}
+		v := int(rune_val)
+		if v > 90 {
+			// Lower case
+			upper := rune(v-32)
+			if _, ok := posns[upper]; ok {
+				// NOT a special character anymore because this follows an upper case occurrence
+				special[rune_val] = false 
+			}
+		} else {
+			// Upper case
+			lower := rune(v+32)
+			if _, ok := posns[lower]; ok {
+				// We have seen the lower case character so unless we know this character can't be special, it now has potential
+				if is_special, ok := special[lower]; !ok || is_special {
+					special[lower] = true
+				}
+			}
+		}
+	}
+	count := 0
+	for _, is_special := range special {
+		if is_special {
+			count++
+		}
+	}
+    return count
 }
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
+/*
+You are given two arrays of strings wordsContainer and wordsQuery.
+
+For each wordsQuery[i], you need to find a string from wordsContainer that has the longest common suffix with wordsQuery[i]. 
+If there are two or more strings in wordsContainer that share the longest common suffix, find the string that is the smallest in length. 
+If there are two or more such strings that have the same smallest length, find the one that occurred earlier in wordsContainer.
+
+Return an array of integers ans, where ans[i] is the index of the string in wordsContainer that has the longest common suffix with wordsQuery[i].
+
+Link:
+https://leetcode.com/problems/longest-common-suffix-queries/description/?envType=daily-question&envId=2026-05-27
+*/
+func stringIndices(wordsContainer []string, wordsQuery []string) []int {
+    return []int{}
+}
