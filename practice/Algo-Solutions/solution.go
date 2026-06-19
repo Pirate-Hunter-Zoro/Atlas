@@ -5546,5 +5546,16 @@ Link:
 https://leetcode.com/problems/longest-common-suffix-queries/description/?envType=daily-question&envId=2026-05-27
 */
 func stringIndices(wordsContainer []string, wordsQuery []string) []int {
-    return []int{}
+    indices := make([]int, len(wordsQuery))
+	trie := datastructures.NewTrie()
+	for i := range wordsContainer {
+		trie.InsertSuffix(wordsContainer[i], i)
+	}
+
+	// Now query
+	for j := range wordsQuery {
+		indices[j] = trie.SearchSuffix(wordsQuery[j])
+	}
+
+	return indices
 }
