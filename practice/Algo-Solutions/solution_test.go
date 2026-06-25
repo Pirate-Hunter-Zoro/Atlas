@@ -1984,3 +1984,27 @@ func TestStringIndices(t *testing.T) {
 
 	runTestHelper(t, f, inputs, expected_outputs)
 }
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+func TestUniquePaths(t *testing.T) {
+	type input struct {
+		m int
+		n int
+	}
+	inputs := []input{
+		{3, 7},
+		{3, 2},
+	}
+
+	expected_outputs := []int{
+		28,
+		3,
+	}
+
+	f := func(i input) int {
+		return uniquePaths(i.m, i.n)
+	}
+
+	runTestHelper(t, f, inputs, expected_outputs)
+}
