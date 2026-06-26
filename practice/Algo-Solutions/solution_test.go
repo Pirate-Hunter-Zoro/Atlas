@@ -2008,3 +2008,55 @@ func TestUniquePaths(t *testing.T) {
 
 	runTestHelper(t, f, inputs, expected_outputs)
 }
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+func TestUniquePathsWithObstacles(t *testing.T) {
+    type input struct {
+		obstacleGrid [][]int
+	}
+	inputs := []input{
+		{[][]int{{0,0,0},{0,1,0},{0,0,0}}},
+		{[][]int{{0,1},{0,0}}},
+	}
+
+	expected_outputs := []int{
+		2,
+		1,
+	}
+
+	f := func(i input) int {
+		return uniquePathsWithObstacles(i.obstacleGrid)
+	}
+
+	runTestHelper(t, f, inputs, expected_outputs)
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+func TestNumberOfPaths(t *testing.T) {
+	type input struct {
+		grid [][]int
+		k int
+	}
+	inputs := []input{
+		{
+			[][]int{{5,2,4},{3,0,5},{0,7,2}},
+			3,
+		},
+		{
+			[][]int{{0,0}},
+			5,
+		},
+	}
+	expected_outputs := []int{
+		2,
+		1,
+	}
+
+	f := func(i input) int {
+		return numberOfPaths(i.grid, i.k)
+	}
+
+	runTestHelper(t, f, inputs, expected_outputs)
+}
