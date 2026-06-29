@@ -5635,5 +5635,70 @@ Link:
 https://leetcode.com/problems/paths-in-matrix-whose-sum-is-divisible-by-k/description/
 */
 func numberOfPaths(grid [][]int, k int) int {
-    return 0
+	// For every number from 0 through k-1, and any space on the grid, we need to be able to answer the number of paths that sum to that number and end at that space
+	var solve func(target int, spot int) int;
+	m := len(grid)
+	n := len(grid[0])
+	sols := make([]int, k * m * n)
+	for i := range len(sols) {
+		sols[i] = -1
+	}
+	solve = func(target int, spot int) int {
+		r := int(spot / n)
+		c := spot % n
+		if sols[target * m * n + spot] == -1 {
+			// Need to solve this problem
+
+			// Base case - first cell
+			if r == 0 && c == 0 {
+				if grid[r][c] % k == target {
+					sols[target * m * n + spot] = 1
+				} else {
+					sols[target * m * n + spot] = 0
+				}
+			} else {
+				// Non base case
+				new_target := ((target % k) + k - (grid[r][c] % k)) % k
+				// Look at two preceding possible neighbor spots and see how they could have helped
+				count := 0
+				if c > 0 {
+					// Can look left
+					count = helpermath.ModAdd(count, solve(new_target, spot - 1))
+				}
+				if r > 0 {
+					// Can look up
+					count = helpermath.ModAdd(count, solve(new_target, spot - n))
+				}
+				sols[target * m * n + spot] = count
+			}
+
+		}
+		return sols[target * m * n + spot]
+	}   
+	return solve(0, m * n - 1)
+}
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+/*
+The demons had captured the princess and imprisoned her in the bottom-right corner of a dungeon. 
+The dungeon consists of m x n rooms laid out in a 2D grid. 
+Our valiant knight was initially positioned in the top-left room and must fight his way through dungeon to rescue the princess.
+
+The knight has an initial health point represented by a positive integer. 
+If at any point his health point drops to 0 or below, he dies immediately.
+
+Some of the rooms are guarded by demons (represented by negative integers), so the knight loses health upon entering these rooms; other rooms are either empty (represented as 0) or contain magic orbs that increase the knight's health (represented by positive integers).
+
+To reach the princess as quickly as possible, the knight decides to move only rightward or downward in each step.
+
+Return the knight's minimum initial health so that he can rescue the princess.
+
+Note that any room can contain threats or power-ups, even the first room the knight enters and the bottom-right room where the princess is imprisoned.
+
+Link:
+https://leetcode.com/problems/dungeon-game/description/
+*/
+func calculateMinimumHP(dungeon [][]int) int {
+	return 0   
 }

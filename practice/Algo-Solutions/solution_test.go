@@ -2060,3 +2060,26 @@ func TestNumberOfPaths(t *testing.T) {
 
 	runTestHelper(t, f, inputs, expected_outputs)
 }
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+func TestCalculateMinimumHP(t *testing.T) {
+	type input struct {
+		dungeon [][]int
+	}
+	inputs := []input{
+		{[][]int{{-2,-3,3},{-5,-10,1},{10,30,-5}}},
+		{[][]int{{0}}},
+	}
+
+	expected_outputs := []int{
+		7,
+		1,
+	}
+
+	f := func(i input) int {
+		return calculateMinimumHP(i.dungeon)
+	}
+
+	runTestHelper(t, f, inputs, expected_outputs)
+}
