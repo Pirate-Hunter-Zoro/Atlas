@@ -5700,5 +5700,49 @@ Link:
 https://leetcode.com/problems/dungeon-game/description/
 */
 func calculateMinimumHP(dungeon [][]int) int {
-	return 0   
+	r := len(dungeon)
+	c := len(dungeon[0])
+	// Build first row of dp solution
+	curr := make([]int, c)
+	curr[c-1] = max(1, 1 - dungeon[r-1][c-1])
+	for i := c-2; i>=0; i-- {
+		// Backtracking from the right
+		curr[i] = max(1, curr[i+1] - dungeon[r-1][i])	
+	}
+
+	next := make([]int, len(curr))
+	for i := r-2; i>=0; i-- {
+		for j := c-1; j>=0; j-- {
+			// Backtracking from bottom
+			next[j] = max(1, curr[j] - dungeon[i][j])
+			if j < c-1 {
+				// Backtracking from right
+				next[j] = min(next[j], max(1, next[j+1] - dungeon[i][j]))
+			}
+		}
+		curr = next
+	}
+
+	return curr[0]
+}
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+/*
+You are given an n x n grid representing a field of cherries, each cell is one of three possible integers.
+	- 0 means the cell is empty, so you can pass through,
+	- 1 means the cell contains a cherry that you can pick up and pass through, or
+	- -1 means the cell contains a thorn that blocks your way.
+
+Return the maximum number of cherries you can collect by following the rules below:
+	- Starting at the position (0, 0) and reaching (n - 1, n - 1) by moving right or down through valid path cells (cells with value 0 or 1).
+	- After reaching (n - 1, n - 1), returning to (0, 0) by moving left or up through valid path cells.
+	- When passing through a path cell containing a cherry, you pick it up, and the cell becomes an empty cell 0.
+	- If there is no valid path between (0, 0) and (n - 1, n - 1), then no cherries can be collected.
+
+Link:
+https://leetcode.com/problems/cherry-pickup/description/
+*/
+func cherryPickup(grid [][]int) int {
+    return 0
 }

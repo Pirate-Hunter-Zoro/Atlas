@@ -2083,3 +2083,26 @@ func TestCalculateMinimumHP(t *testing.T) {
 
 	runTestHelper(t, f, inputs, expected_outputs)
 }
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+func TestCherryPickup(t *testing.T) {
+	type input struct {
+		grid [][]int
+	}
+	inputs := []input{
+		{[][]int{{0,1,-1},{1,0,-1},{1,1,1}}},
+		{[][]int{{1,1,-1},{1,-1,1},{-1,1,1}}},
+	}
+
+	expected_outputs := []int{
+		5,
+		0,
+	}
+
+	f := func(i input) int {
+		return cherryPickup(i.grid)
+	}
+
+	runTestHelper(t, f, inputs, expected_outputs)
+}
