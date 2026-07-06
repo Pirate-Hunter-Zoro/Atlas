@@ -5828,6 +5828,49 @@ Link:
 https://leetcode.com/problems/minimum-path-sum/description/
 */
 func minPathSum(grid [][]int) int {
+	// DP fillup for first row
+	m := len(grid)
+	n := len(grid[0])
+	curr := make([]int, n)
+	for i:=range n {
+		curr[i] = grid[0][i]
+		if i > 0 {
+			curr[i] += curr[i-1]
+		}
+	}
+
+	next := make([]int, n)
+	for i:=range m-1 {
+		for j:=range n {
+			next[j] = curr[j] + grid[i+1][j] // The index of our current solution row is one above i
+			if j > 0 {
+				next[j] = min(next[j], next[j-1] + grid[i+1][j])
+			}
+		}
+		curr = next
+	}
+
+    return curr[n-1]
+}
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+/*
+You are given an undirected graph (the "original graph") with n nodes labeled from 0 to n - 1. 
+You decide to subdivide each edge in the graph into a chain of nodes, with the number of new nodes varying between each edge.
+
+The graph is given as a 2D array of edges where edges[i] = [u_i, v_i, cnt_i] indicates that there is an edge between nodes ui and vi in the original graph, and cnti is the total number of new nodes that you will subdivide the edge into. Note that cnt_i == 0 means you will not subdivide the edge.
+
+To subdivide the edge [u_i, v_i], replace it with (cnt_i + 1) new edges and cnt_i new nodes. The new nodes are x1, x2, ..., xcnt_i, and the new edges are [ui, x1], [x1, x2], [x2, x3], ..., [xcnt_i-1, xcnt_i], [xcnt_i, v_i].
+
+In this new graph, you want to know how many nodes are reachable from the node 0, where a node is reachable if the distance is maxMoves or less.
+
+Given the original graph and maxMoves, return the number of nodes that are reachable from node 0 in the new graph.
+
+Link:
+https://leetcode.com/problems/reachable-nodes-in-subdivided-graph/description/?envType=problem-list-v2&envId=shortest-path
+*/
+func reachableNodes(edges [][]int, maxMoves int, n int) int {
     return 0
 }
 
