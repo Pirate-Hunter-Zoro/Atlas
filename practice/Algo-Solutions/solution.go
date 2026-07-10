@@ -5872,7 +5872,12 @@ https://leetcode.com/problems/reachable-nodes-in-subdivided-graph/description/?e
 */
 func reachableNodes(edges [][]int, maxMoves int, n int) int {
 	// Construct graph and keep track of the splits of each edge
-	graph := make([][][]int, len(edges))
+	graph := make([][][]int, n)
+	// Due to the nuance of this problem, for each edge we'll need to keep track which way we've traversed it
+	traversed := make([][]int, n)
+	for i:=range n {
+		traversed[i] = make([]int, n)
+	}
 	for i:=range len(edges) {
 		u := edges[i][0]
 		v := edges[i][1]
@@ -5885,12 +5890,53 @@ func reachableNodes(edges [][]int, maxMoves int, n int) int {
 	node_heap := datastructures.NewHeap(func(node_a []int, node_b []int) bool {
 		return node_a[1] < node_b[1]
 	})
+	node_heap.Push([]int{0, 0})
 	reachable := 0
+	visited := make([]bool, n)
 	// Find the shortest path from node zero to all other nodes, and any that are within the distance (careful counting with the newly split edges) not already reached contribute to the count
-	
+	for !node_heap.Empty() {
+		next_node := node_heap.Pop()
+		node := next_node[0]
+		cost := next_node[1]
+		if cost <= maxMoves && !visited[node] {
+			reachable++
+			visited[node] = true
+			// Now enqueue the neighbors of this node
+			for _, edge := range graph[node] {
+				neighbor := edge[0]
+				edge_cost := edge[1]
+				new_cost := cost + edge_cost
+				// That edge was actually a bunch of neighbors in between due to the splits
+				reachable += edge_cost - 1 - max(0, new_cost - maxMoves - 1) // Not allowed to move to any intermediate nodes that exceeded the moves allowed
+				node_heap.Push([]int{neighbor, new_cost})
+				traversed[node][neighbor] = edge_cost - 1 - max(0, new_cost - maxMoves - 1) // Keep track of how many nodes we counted going along the connection in this direction
+				// HOWEVER, that may have double counted some nodes in between if we have traversed this connection from the other direction before
+				reachable -= max(0, traversed[node][neighbor] + traversed[neighbor][node] - (edge_cost - 1)) // edge_cost - 1 is the total number of nodes in between node and neighbor, so this covers overcounting
+			}
+		}
+	}
 	
 	return reachable
 }
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
+/*
+You are given an integer n indicating there are n people numbered from 0 to n - 1. 
+You are also given a 0-indexed 2D integer array meetings where meetings[i] = [x_i, y_i, time_i] indicates that person x_i and person y_i have a meeting at time_i. 
+A person may attend multiple meetings at the same time. 
+Finally, you are given an integer firstPerson.
+
+Person 0 has a secret and initially shares the secret with a person firstPerson at time 0. 
+This secret is then shared every time a meeting takes place with a person that has the secret. 
+More formally, for every meeting, if a person x_i has the secret at time_i, then they will share the secret with person y_i, and vice versa.
+
+The secrets are shared instantaneously. 
+That is, a person may receive the secret and share it with people in other meetings within the same time frame.
+
+Return a list of all the people that have the secret after all the meetings have taken place. 
+You may return the answer in any order.
+*/
+func findAllPeople(n int, meetings [][]int, firstPerson int) []int {
+	return []int{}  
+}

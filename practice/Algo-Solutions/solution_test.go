@@ -2168,3 +2168,33 @@ func TestReachableNodes(t *testing.T) {
 
 	runTestHelper(t, f, inputs, expected_outputs)
 }
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+func TestFindAllPeople(t *testing.T) {
+	type input struct {
+		n int
+		meetings [][]int
+		firstPerson int
+	}
+	inputs := []input{
+		{6, [][]int{{1,2,5},{2,3,8},{1,5,10}}, 1},
+		{4, [][]int{{3,1,3},{1,2,2},{0,3,3}}, 3},
+		{5, [][]int{{3,4,2},{1,2,1},{2,3,1}}, 1},
+	}
+
+	expected_outputs := [][]int{
+		{0,1,2,3,5},
+		{0,1,3},
+		{0,1,2,3,4},
+	}
+
+	f := func(i input) []int {
+		return findAllPeople(i.n, i.meetings, i.firstPerson)
+	}
+
+	runTestHelper(t, f, inputs, expected_outputs)
+}
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
