@@ -5936,6 +5936,9 @@ That is, a person may receive the secret and share it with people in other meeti
 
 Return a list of all the people that have the secret after all the meetings have taken place. 
 You may return the answer in any order.
+
+Link:
+https://leetcode.com/problems/find-all-people-with-secret/description/
 */
 func findAllPeople(n int, meetings [][]int, firstPerson int) []int {
 	return []int{}  
