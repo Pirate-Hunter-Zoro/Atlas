@@ -5941,5 +5941,90 @@ Link:
 https://leetcode.com/problems/find-all-people-with-secret/description/
 */
 func findAllPeople(n int, meetings [][]int, firstPerson int) []int {
-	return []int{}  
+	// We must arange the meetings by time
+	meeting_times := make(map[int]map[int][]int)
+	for _, meeting := range meetings {
+		first := meeting[0]
+		second := meeting[1]
+		time := meeting[2]
+		if _, ok := meeting_times[time]; !ok {
+			meeting_times[time] = make(map[int][]int)
+		}
+		if _, ok := meeting_times[time][first]; !ok {
+			meeting_times[time][first] = []int{second}
+		} else {
+			meeting_times[time][first] = append(meeting_times[time][first], second)
+		}
+		if _, ok := meeting_times[time][second]; !ok {
+			meeting_times[time][second] = []int{first}
+		} else {
+			meeting_times[time][second] = append(meeting_times[time][second], first)
+		}
+	}
+
+	// Order the times in which meetings occurred
+	ordered_times := []int{}
+	for time := range meeting_times {
+		ordered_times = append(ordered_times, time)
+	}
+	sort.SliceStable(ordered_times, func(i, j int) bool {
+		return ordered_times[i] < ordered_times[j]
+	})
+
+	// Find the set of all people who know the secret
+	know := make(map[int]bool) // To eventually contain the list of all indivduals who know the secret
+	know[0] = true
+	know[firstPerson] = true
+	for _, t := range ordered_times {
+		person_queue := datastructures.NewQueue[int]()
+		for p := range meeting_times[t] {
+			// For every person that had a meeting at this time, add them to the queue if they know the secret
+			if _, ok := know[p]; ok {
+				person_queue.Enqueue(p)
+			}
+		}
+		// Now we add people to the know list by draining and adding to our queue per the meetings that take place
+		for !person_queue.Empty() {
+			p := person_queue.Dequeue()
+			for _, other_p := range meeting_times[t][p] {
+				// If this other person did not previously know the secret, and they do now, they need to be added to the queue for further processing
+				if _, ok := know[other_p]; !ok {
+					know[other_p] = true
+					person_queue.Enqueue(other_p)
+				}
+			}
+		}
+	}
+
+	// Turn the know people into a list of people to sort
+	know_list := []int{}
+	for p := range know {
+		know_list = append(know_list, p)
+	}
+	sort.SliceStable(know_list, func(i int, j int) bool {
+		return know_list[i] < know_list[j]
+	})
+	return know_list
+}
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+/*
+You are given an undirected connected graph of n nodes, numbered from 0 to n - 1. 
+Each node is connected to at most 2 other nodes.
+
+The graph consists of m edges, represented by a 2D array edges, where edges[i] = [a_i, b_i] indicates that there is an edge between nodes a_i and b_i.
+
+You have to assign a unique value from 1 to n to each node. 
+The value of an edge will be the product of the values assigned to the two nodes it connects.
+
+Your score is the sum of the values of all edges in the graph.
+
+Return the maximum score you can achieve.
+
+Link:
+https://leetcode.com/problems/maximum-sum-of-edge-values-in-a-graph/description/
+*/
+func maxScore(n int, edges [][]int) int64 {
+    return 0
 }

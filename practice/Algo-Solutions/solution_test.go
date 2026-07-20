@@ -2198,3 +2198,35 @@ func TestFindAllPeople(t *testing.T) {
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
+func TestMaxScore(t *testing.T) {
+	type input struct {
+		n int
+		edges [][]int
+	}
+	inputs := []input{
+		{4, [][]int{
+			{0, 1},
+			{1, 2},
+			{2, 3},
+		}},
+		{6, [][]int{
+			{0, 3},
+			{4, 5},
+			{2, 0},
+			{1, 3},
+			{2, 4},
+			{1, 5},
+		}},
+	}
+
+	expected_outputs := []int64{
+		23,
+		82,
+	}
+
+	f := func(i input) int64 {
+		return maxScore(i.n, i.edges)
+	}
+
+	runTestHelper(t, f, inputs, expected_outputs)
+}
