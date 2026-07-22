@@ -1,11 +1,11 @@
-# algo-solutions
+# Algo-Solutions
 
 Competitive-programming solutions in Go, spanning **LeetCode** and **Codeforces**, built so that adding a new problem on either platform is a drop-in operation. Reusable data structures, math helpers, and a shared test runner are factored out of the problem code, and every problem lives in its own package with its implementation and test side by side.
 
 ## Layout
 
 ```
-algo-solutions/                 (Go module root)
+Algo-Solutions/                 (Go module root)
 ├── leetcode/                    package leetcode — shared MOD + GlobalCalculator
 │   ├── supereggdrop/            one package per problem
 │   │   ├── supereggdrop.go          the solver(s) + doc comment
