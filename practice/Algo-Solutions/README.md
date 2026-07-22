@@ -1,65 +1,72 @@
-# LeetCode Solutions (Go)
+# algo-solutions
 
-## Overview
+Competitive-programming solutions in Go, spanning **LeetCode** and **Codeforces**, built so that adding a new problem on either platform is a drop-in operation. Reusable data structures, math helpers, and a shared test runner are factored out of the problem code, and every problem lives in its own package with its implementation and test side by side.
 
-This repository contains a structured collection of Go solutions for LeetCode algorithmic problems. It is designed with modularity in mind, separating reusable core data structures and mathematical helper functions from the actual problem-solving logic.
+## Layout
 
-## Project Structure
-
-### Core Solutions
-
-* **`solution.go`**: Contains the primary algorithmic logic for the currently targeted LeetCode problem.
-* **`solution_test.go`**: Contains the testing suite to verify the logic in `solution.go` against expected edge cases and standard inputs.
-
-### Data Structures (`/datastructures`)
-
-A library of custom data structures frequently required for optimal algorithmic performance:
-
-* **Disjoint Set (Union-Find)**: `dijsointset.go` (Note: Pending rename to `disjointset.go`)
-* **Heap / Priority Queue**: `heap.go`
-* **Linked List**: `linkedlist.go`, `listnode.go`
-* **Tree**: `treenode.go`
-* **Trie (Prefix Tree)**: `trie.go`
-
-### Mathematical Helpers (`/helpermath`)
-
-A collection of mathematical utility functions used to simplify complex numeric problems:
-
-* **Combinatorics**: `combination.go`
-* **Modulo Arithmetic**: `modulo.go`
-* **Primes (Sieve/Checking)**: `primes.go`
-
-## Getting Started
-
-### Prerequisites
-
-* Go (Version 1.25.0 or higher)
-
-### Running Tests
-
-To execute the test suite for the current solution, navigate to the root directory and run the following command:
-
-```bash
-go test -v
+```
+algo-solutions/                 (Go module root)
+├── leetcode/                    package leetcode — shared MOD + GlobalCalculator
+│   ├── supereggdrop/            one package per problem
+│   │   ├── supereggdrop.go          the solver(s) + doc comment
+│   │   └── supereggdrop_test.go     table-driven test
+│   ├── maximalrectangle/ …
+│   └── … (84 problem packages)
+├── codeforces/                  package codeforces — shared fast-input Reader
+│   └── mochaandstars/           one package per problem (package main)
+│       ├── main.go                  thin stdin/stdout wrapper
+│       ├── mochaandstars.go         the pure solver
+│       └── mochaandstars_test.go    table-driven test of the solver
+├── testutil/                    RunTestHelper — the shared table-driven runner
+├── helpermath/                  combinatorics, modular arithmetic, primes
+├── datastructures/              union-find, heap, linked list, tree, trie
+├── references/                  problem writeups (gitignored)
+├── go.mod                       module algo-solutions
+└── go.work
 ```
 
-## Debugging on the SSH Compute Node
+## The two platforms
 
-When working over SSH on the Laureate compute node, the VS Code Go debugger (Delve) needs two things configured in `.vscode/launch.json`, or breakpoints silently fail to bind. Note that `.vscode/` is gitignored, so a fresh clone of this repo will not have these settings — recreate them.
+**LeetCode** problems are library functions. Each problem package exports nothing special: the solver is an unexported function (plus any recursive/helper companions in the same file), and the test drives it directly.
 
-### 1. Path substitution (the recurring "breakpoints never bind" fix)
+**Codeforces** problems are standalone programs (`package main`) that read stdin and write stdout. Each is split into a **thin `main`** that only handles I/O and a **pure solver** function that takes already-parsed inputs and returns the answer. The test targets the pure solver, so no problem ever needs fake stdin piped through it.
 
-The home directory is a symlink: `/home/librad.laureateinstitute.org/mferguson` resolves to `/mnt/dell_storage/homefolders/librad.laureateinstitute.org/mferguson`. VS Code typically opens the workspace via the `/home/...` path, but the compiled test binary embeds the real `/mnt/dell_storage/...` path. Delve can't match the two on its own, so breakpoints never bind.
+Both platforms test the same way: a table of inputs and expected outputs run through `testutil.RunTestHelper`, a generic helper that applies the solver to each input and compares against the expected result.
 
-The fix is a `substitutePath` mapping `from` the `/home/...` workspace path `to` the `/mnt/dell_storage/...` resolved path. **This mapping has to be set in two different places, because the two ways of launching the debugger read it from two different files:**
+## Shared packages
 
-* **`.vscode/launch.json`** — used only by the **Run and Debug** panel (the play-button configurations). The mapping goes in the configuration's `substitutePath` array.
-* **`.vscode/settings.json`** — used by the **Testing** sidebar (the flask/beaker icon) and the inline "debug test" CodeLens. These ignore `launch.json` entirely and read the mapping from `go.delveConfig.substitutePath`.
+* **`testutil`** — `RunTestHelper`, the generic table-driven comparator used by every test on both platforms.
+* **`helpermath`** — modular arithmetic (`ModAdd`/`ModSub`/`ModMul`/`ModPow`, each taking an explicit modulus), the memoized `ChooseCalculator` for binomial coefficients (plain and modular), and prime/sieve utilities.
+* **`datastructures`** — union-find (disjoint set), heap / priority queue, linked list, binary tree, and trie.
 
-If you debug from the flask sidebar and breakpoints don't bind, the cause is almost always that the mapping exists in `launch.json` but is missing from `settings.json`. This was the step lost on re-clone and the one that is easy to miss.
+The LeetCode side also keeps two shared values in its root `leetcode` package: `MOD` (the `10⁹ + 7` modulus) and `GlobalCalculator` (a process-wide `ChooseCalculator`). Solution packages that need modular combinatorics import `leetcode` and pass `leetcode.MOD` into the math helpers.
 
-### 2. The `-test.run` filter must match the function under the breakpoint
+> Caveat: `ChooseCalculator`'s caches are not keyed by modulus, so a single instance is bound to one modulus. That is fine for the LeetCode `MOD`; revisit it before sharing one calculator across different moduli.
 
-The launch config runs a single test via `-test.run <TestName>`. If that test does not call the function holding your breakpoint, the debugger runs cleanly but never reaches the line — it looks identical to a "broken debugger." Whenever you switch to a new LeetCode problem, update the test name in the `args` array to the test that actually exercises that function (e.g. `TestNumberOfPaths` for `numberOfPaths`).
+## Conventions
 
-If breakpoints stop working again, check these two things in this order before assuming the debugger itself is broken.
+* **Directory and package names** are lowercase with no separators (`numberofstablearrays`), matching Go's guidance against underscores and mixedCaps in package names. Each problem directory's name equals its package name.
+* **File names** are lowercase-concatenated to match their package (`supereggdrop.go`, and `supereggdrop_test.go` for the test), keeping the required `_test.go` suffix.
+* **Identifiers** are camelCase; there is no snake_case anywhere in the code.
+* **Problem descriptions** live in a doc comment above the solver and render math with Unicode sub/superscripts (`aᵢ`, `10⁹`) rather than LaTeX-style `a_i` / `10^9`.
+
+## Adding a problem
+
+* **LeetCode**: create `leetcode/<problemname>/`, put the solver and its doc comment in one file and a `_test.go` beside it in the same package, and drive the solver through `testutil.RunTestHelper`.
+* **Codeforces**: create `codeforces/<problemname>/` as `package main` with a `main` that reads input via `codeforces.NewReader` over standard input, a pure solver in its own file, and a `_test.go` that tests the solver directly.
+
+## Running the tests
+
+Tests run through Go's standard `go test` tooling; pointing it at the module root exercises every package on both platforms. Inside VS Code, the **Testing** view (the flask/beaker icon) discovers and runs each package's tests individually, which is the day-to-day path.
+
+## Prerequisites
+
+* Go 1.24 or newer (generics and integer `range` are both used).
+
+## Debugging over SSH (Delve on the Laureate compute node)
+
+Breakpoints depend on one piece of configuration, and it is easy to lose on a fresh clone because `.vscode/` is gitignored — recreate it if breakpoints stop binding.
+
+**The symlink problem.** The home directory `/home/librad.laureateinstitute.org/mferguson` is a symlink to `/mnt/dell_storage/homefolders/librad.laureateinstitute.org/mferguson`. VS Code opens the workspace through the `/home/...` path, but the compiled test binary embeds the real `/mnt/dell_storage/...` path. Delve cannot reconcile the two on its own, so breakpoints never bind.
+
+**The fix.** A Delve path-substitution mapping that translates the `/home/...` workspace path to the resolved `/mnt/dell_storage/...` path. Because problems are run from the **Testing** sidebar (and the inline "debug test" CodeLens), the mapping belongs in the `go.delveConfig.substitutePath` setting inside `.vscode/settings.json` — that is the file those entry points read. A prefix mapping there covers every problem package underneath it. If breakpoints fail to bind, check that mapping first, before suspecting the debugger itself.

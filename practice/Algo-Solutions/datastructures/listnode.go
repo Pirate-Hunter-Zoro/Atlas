@@ -1,9 +1,10 @@
 package datastructures
 
 type ListNode struct {
-	Val int
+	Val  int
 	Next *ListNode
 }
+
 func NewListNode(values []int) *ListNode {
 	if len(values) == 0 {
 		return nil
@@ -12,7 +13,7 @@ func NewListNode(values []int) *ListNode {
 			Val: values[0],
 		}
 		curr := root
-		for i:=1; i<len(values); i++ {
+		for i := 1; i < len(values); i++ {
 			curr.Next = &ListNode{
 				Val: values[i],
 			}

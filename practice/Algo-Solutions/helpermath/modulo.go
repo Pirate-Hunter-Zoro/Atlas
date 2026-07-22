@@ -1,28 +1,26 @@
 package helpermath
 
-var MOD = 1000000007
-
-func ModAdd(a, b int) int {
-	return ((a % MOD) + (b % MOD)) % MOD
+func ModAdd(a, b, mod int) int {
+	return ((a % mod) + (b % mod)) % mod
 }
-func ModSub(a, b int) int {
-	return ((a % MOD) - (b % MOD) + MOD) % MOD
+func ModSub(a, b, mod int) int {
+	return ((a % mod) - (b % mod) + mod) % mod
 }
-func ModMul(a, b int) int {
-	return ((a % MOD) * (b % MOD)) % MOD
+func ModMul(a, b, mod int) int {
+	return ((a % mod) * (b % mod)) % mod
 }
-func ModPow(base, exp int) int {
+func ModPow(base, exp, mod int) int {
 	result := 1
-	base = base % MOD
+	base = base % mod
 	if base == 0 {
-		return 0 // In case base is divisible by MOD
+		return 0 // In case base is divisible by mod
 	}
 	for exp > 0 {
 		if (exp & 1) == 1 { // If exp is odd
-			result = ModMul(result, base)
+			result = ModMul(result, base, mod)
 		}
-		exp >>= 1 // Divide exp by 2
-		base = ModMul(base, base) // Square the base
+		exp >>= 1                      // Divide exp by 2
+		base = ModMul(base, base, mod) // Square the base
 	}
 	return result
 }

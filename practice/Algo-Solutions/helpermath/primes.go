@@ -37,23 +37,24 @@ func GeneratePrimes(n int) []int {
 }
 
 // Method to return all prime factors (and their powers) of a number given the list of primes we can choose from (for efficiency don't compute this within the function)
-func PrimeFactors(n int, prime_list []int) map[int]int {
-	return recPrimeFactors(n, make(map[int]map[int]int), prime_list)
+func PrimeFactors(n int, primeList []int) map[int]int {
+	return recPrimeFactors(n, make(map[int]map[int]int), primeList)
 }
+
 // Helper method for the above
-func recPrimeFactors(n int, memo map[int]map[int]int, prime_list []int) map[int]int {
+func recPrimeFactors(n int, memo map[int]map[int]int, primeList []int) map[int]int {
 	if _, ok := memo[n]; !ok {
 		// Need to solve this problem
 		if n < 2 {
 			memo[n] = make(map[int]int)
 		} else {
 			memo[n] = make(map[int]int)
-			for _, p := range prime_list {
+			for _, p := range primeList {
 				// Once we find a prime divisor, we can stop and go to a subproblem
-				if n % p == 0 {
-					sub_sols := recPrimeFactors(n/p, memo, prime_list)
+				if n%p == 0 {
+					subSols := recPrimeFactors(n/p, memo, primeList)
 					// Copy the solution for this number with an extra count of p
-					maps.Copy(memo[n], sub_sols)
+					maps.Copy(memo[n], subSols)
 					// If the key doesn't exist, this will initialize its value to 1
 					memo[n][p]++
 					break

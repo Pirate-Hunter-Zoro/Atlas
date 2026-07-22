@@ -7,6 +7,7 @@ type TreeNode struct {
 	Left  *TreeNode
 	Right *TreeNode
 }
+
 func NewTreeNode(vals []int) *TreeNode {
 	if len(vals) == 0 {
 		return nil

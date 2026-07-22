@@ -35,18 +35,18 @@ func (calculator *ChooseCalculator) Choose(n int, k int) int {
 	}
 }
 
-func (calculator *ChooseCalculator) factorialMod(n int) int {
+func (calculator *ChooseCalculator) factorialMod(n int, mod int) int {
 	if n == 0 || n == 1 {
 		return 1
 	}
 	_, ok := calculator.factorialsMod[n]
 	if !ok {
-		calculator.factorialsMod[n] = ModMul(calculator.factorialMod(n-1), n)
+		calculator.factorialsMod[n] = ModMul(calculator.factorialMod(n-1, mod), n, mod)
 	}
 	return calculator.factorialsMod[n]
 }
 
-func (calculator *ChooseCalculator) ChooseMod(n int, k int) int {
+func (calculator *ChooseCalculator) ChooseMod(n int, k int, mod int) int {
 	if k > n {
 		return 0
 	} else if k == n {
@@ -60,15 +60,13 @@ func (calculator *ChooseCalculator) ChooseMod(n int, k int) int {
 			calculator.solsMod[n] = make(map[int]int)
 		}
 		_, ok = calculator.solsMod[n][k]
-		if ok {
-			return calculator.solsMod[n][k]
+		if !ok {
+			numerator := calculator.factorialMod(n, mod)
+			denominator := ModMul(calculator.factorialMod(k, mod), calculator.factorialMod(n-k, mod), mod)
+			inverseDenominator := ModPow(denominator, mod-2, mod) // Fermat's little theorem for modular inverse
+			result := ModMul(numerator, inverseDenominator, mod)
+			calculator.solsMod[n][k] = result
 		}
-		numerator := calculator.factorialMod(n)
-		denominator := ModMul(calculator.factorialMod(k), calculator.factorialMod(n-k))
-		inverseDenominator := ModPow(denominator, MOD-2) // Fermat's little theorem for modular inverse
-		result := ModMul(numerator, inverseDenominator)
-		calculator.solsMod[n] = make(map[int]int)
-		calculator.solsMod[n][k] = result
 		return calculator.solsMod[n][k]
 	}
 }

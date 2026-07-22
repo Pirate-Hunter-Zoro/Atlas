@@ -4,17 +4,17 @@ import "math"
 
 type TrieNode struct {
 	children map[rune]*TrieNode
-	id int
-	bestIdx int
-	bestLen int
+	id       int
+	bestIdx  int
+	bestLen  int
 }
 
 func NewTrie() *TrieNode {
 	return &TrieNode{
 		children: make(map[rune]*TrieNode),
-		id: -1, // No strings end here
-		bestIdx: -1, // Not yet seen any words
-		bestLen: math.MaxInt, // Any candidate word will have a length shorter than this one
+		id:       -1,          // No strings end here
+		bestIdx:  -1,          // Not yet seen any words
+		bestLen:  math.MaxInt, // Any candidate word will have a length shorter than this one
 	}
 }
 
@@ -41,7 +41,7 @@ func (root *TrieNode) InsertSuffix(word string, idx int) {
 		root.bestIdx = idx
 	}
 	curr := root
-	for i:=l-1; i>=0; i-- {
+	for i := l - 1; i >= 0; i-- {
 		c := rune(word[i])
 		if _, ok := curr.children[c]; !ok {
 			curr.children[c] = NewTrie()
@@ -75,7 +75,7 @@ func (root *TrieNode) SearchSuffix(word string) int {
 	// Traverse the path in this trie until you cannot anymore, and output the respective best matched word's index
 	// Again, see 'stringIndices' problem
 	curr := root
-	for i := len(word)-1; i>=0; i-- {
+	for i := len(word) - 1; i >= 0; i-- {
 		c := rune(word[i])
 		if _, ok := curr.children[c]; !ok {
 			break
@@ -90,10 +90,10 @@ func (root *TrieNode) SearchNode(char rune, curr *TrieNode) *TrieNode {
 	// Return the node corresponding to the char from the current node if it exists, else return nil
 	if curr == nil { // Assume search from the root
 		curr = root
-	} 
+	}
 	if child, ok := curr.children[char]; ok {
 		return child
-	} 
+	}
 	return nil
 }
 

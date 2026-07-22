@@ -1,9 +1,10 @@
 package datastructures
 
 type setnode[T any] struct {
-	val T
+	val    T
 	parent *setnode[T]
 }
+
 func (n *setnode[T]) collapse() {
 	// Compress the ancestor hiearchy
 	if n.parent != nil {
@@ -50,6 +51,7 @@ func (n *setnode[T]) merge(other *setnode[T]) {
 type DisjointSet[T comparable] struct {
 	nodes map[T]*setnode[T]
 }
+
 func NewDisjointSet[T comparable]() *DisjointSet[T] {
 	return &DisjointSet[T]{
 		make(map[T]*setnode[T]),

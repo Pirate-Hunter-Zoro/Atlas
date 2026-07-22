@@ -1,26 +1,27 @@
 package datastructures
 
 type Heap[T any] struct {
-	array []T
-	goes_higher_on_heap func(first T, second T) bool
-	size int
+	array            []T
+	goesHigherOnHeap func(first T, second T) bool
+	size             int
 }
-func NewHeap[T any](goes_higher_on_heap func(first T, second T) bool) *Heap[T] {
+
+func NewHeap[T any](goesHigherOnHeap func(first T, second T) bool) *Heap[T] {
 	return &Heap[T]{
 		[]T{},
-		goes_higher_on_heap,
+		goesHigherOnHeap,
 		0,
 	}
-} 
+}
 func (h *Heap[T]) Push(t T) {
 	h.array = append(h.array, t)
 	h.size++
 	h.fixHeapUp()
 }
 func (h *Heap[T]) fixHeapUp() {
-	current := len(h.array)-1
-	parent := (current-1)/2
-	for parent >= 0 && parent < current &&  h.goes_higher_on_heap(h.array[current],h.array[parent]){
+	current := len(h.array) - 1
+	parent := (current - 1) / 2
+	for parent >= 0 && parent < current && h.goesHigherOnHeap(h.array[current], h.array[parent]) {
 		temp := h.array[current]
 		h.array[current] = h.array[parent]
 		h.array[parent] = temp
@@ -45,23 +46,23 @@ func (h *Heap[T]) Pop() T {
 }
 func (h *Heap[T]) fixHeapDown() {
 	current := 0
-	left_child := 2*(current) + 1
-	right_child := 2*(current + 1)
-	for left_child < len(h.array) {
-		upper_child := left_child
-		if right_child < len(h.array) && h.goes_higher_on_heap(h.array[right_child],h.array[left_child]) {
-			upper_child = right_child
+	leftChild := 2*(current) + 1
+	rightChild := 2 * (current + 1)
+	for leftChild < len(h.array) {
+		upperChild := leftChild
+		if rightChild < len(h.array) && h.goesHigherOnHeap(h.array[rightChild], h.array[leftChild]) {
+			upperChild = rightChild
 		}
-		if h.goes_higher_on_heap(h.array[upper_child],h.array[current]) {
+		if h.goesHigherOnHeap(h.array[upperChild], h.array[current]) {
 			temp := h.array[current]
-			h.array[current] = h.array[upper_child]
-			h.array[upper_child] = temp
-			current = upper_child
+			h.array[current] = h.array[upperChild]
+			h.array[upperChild] = temp
+			current = upperChild
 		} else {
 			break
 		}
-		left_child = 2*(current) + 1
-		right_child = 2*(current + 1)
+		leftChild = 2*(current) + 1
+		rightChild = 2 * (current + 1)
 	}
 }
 func (h *Heap[T]) Empty() bool {
