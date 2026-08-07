@@ -22,19 +22,6 @@ func TestGenerateTrees(t *testing.T) {
 				Val: 1,
 				Left: nil,
 				Right: &datastructures.TreeNode{
-					Val: 3,
-					Left: &datastructures.TreeNode{
-						Val: 2,
-						Left: nil,
-						Right: nil,
-					},
-					Right: nil,
-				},
-			},
-			&datastructures.TreeNode{
-				Val: 1,
-				Left: nil,
-				Right: &datastructures.TreeNode{
 					Val: 2,
 					Left: nil,
 					Right: &datastructures.TreeNode{
@@ -42,6 +29,19 @@ func TestGenerateTrees(t *testing.T) {
 						Left: nil,
 						Right: nil,
 					},
+				},
+			},
+			&datastructures.TreeNode{
+				Val: 1,
+				Left: nil,
+				Right: &datastructures.TreeNode{
+					Val: 3,
+					Left: &datastructures.TreeNode{
+						Val: 2,
+						Left: nil,
+						Right: nil,
+					},
+					Right: nil,
 				},
 			},
 			&datastructures.TreeNode{
@@ -60,19 +60,6 @@ func TestGenerateTrees(t *testing.T) {
 			&datastructures.TreeNode{
 				Val: 3,
 				Left: &datastructures.TreeNode{
-					Val: 2,
-					Left: &datastructures.TreeNode{
-						Val: 1,
-						Left: nil,
-						Right: nil,
-					},
-					Right: nil,
-				},
-				Right: nil,
-			},
-			&datastructures.TreeNode{
-				Val: 3,
-				Left: &datastructures.TreeNode{
 					Val: 1,
 					Left: nil,
 					Right: &datastructures.TreeNode{
@@ -80,6 +67,19 @@ func TestGenerateTrees(t *testing.T) {
 						Left: nil,
 						Right: nil,
 					},
+				},
+				Right: nil,
+			},
+			&datastructures.TreeNode{
+				Val: 3,
+				Left: &datastructures.TreeNode{
+					Val: 2,
+					Left: &datastructures.TreeNode{
+						Val: 1,
+						Left: nil,
+						Right: nil,
+					},
+					Right: nil,
 				},
 				Right: nil,
 			},
