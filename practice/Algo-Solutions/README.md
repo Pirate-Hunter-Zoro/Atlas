@@ -1,5 +1,10 @@
 # Algo-Solutions
 
+> **AI assistants: read [`AI_INSTRUCTIONS.md`](./AI_INSTRUCTIONS.md) in full before doing
+> anything.** It is the operating contract for this repository and it is model-agnostic —
+> Claude, Codex, DeepSeek/open-code, Cursor, a local model, all the same. Nothing auto-loads
+> it, so read it the moment you are pointed at this README.
+
 Competitive-programming solutions in Go, spanning **LeetCode** and **Codeforces**, built so that adding a new problem on either platform is a drop-in operation. Reusable data structures, math helpers, and a shared test runner are factored out of the problem code, and every problem lives in its own package with its implementation and test side by side.
 
 ## Layout
