@@ -1,0 +1,12 @@
+# Kept deliberately minimal: this matches the ignore set used in
+# Research-Journey. Nothing else is ignored — build products, compiled PDFs,
+# editor state and course material are all tracked.
+
+__pycache__
+node_modules/
+
+# OS / editor cruft
+.DS_Store
+Thumbs.db
+*~
+.*.swp

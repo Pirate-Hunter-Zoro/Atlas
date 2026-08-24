@@ -1,0 +1,20 @@
+# Single source of truth for the chapter layout of this course.
+# Used by scripts/split-textbook.sh, scripts/scaffold.sh and the Makefile.
+#
+# Columns (TAB separated):
+#   num  first_pdf_page  last_pdf_page  slug  title
+#
+# Page numbers are PDF page indices into textbook/Introduction to Probability
+# Models.pdf (NOT the book's printed page numbers; the offset is 18 — printed
+# page 1 is PDF page 19). Ross, 10th edition.
+01	19	38	introduction-to-probability-theory	Introduction to Probability Theory
+02	39	114	random-variables	Random Variables
+03	115	208	conditional-probability-and-conditional-expectation	Conditional Probability and Conditional Expectation
+04	209	308	markov-chains	Markov Chains
+05	309	388	exponential-distribution-and-poisson-process	The Exponential Distribution and the Poisson Process
+06	389	438	continuous-time-markov-chains	Continuous-Time Markov Chains
+07	439	514	renewal-theory	Renewal Theory and Its Applications
+08	515	596	queueing-theory	Queueing Theory
+09	597	648	reliability-theory	Reliability Theory
+10	649	684	brownian-motion-and-stationary-processes	Brownian Motion and Stationary Processes
+11	685	752	simulation	Simulation
