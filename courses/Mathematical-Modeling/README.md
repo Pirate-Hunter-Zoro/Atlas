@@ -1,0 +1,193 @@
+# Advanced Mathematical Modeling — coursework
+
+MATH 7013/5013 (Dr. Dale Doty). Two tracks running in parallel:
+
+- **Lessons 00–17** — Mathematica programming: lists, functional style, recursion, pattern
+  matching, arbitrary precision, graphics, efficiency, dynamics, presentations.
+- **Section notebooks** — the "New Sect X.Y" series, grouped by Dr. Doty's chapter numbering.
+
+**There is no textbook.** The notebooks are the material, start to finish. Nothing in this
+repository depends on a book, and nothing needs to be bought.
+
+> **AI assistants: read [`AI_INSTRUCTIONS.md`](./AI_INSTRUCTIONS.md) in full before doing
+> anything.** It is the operating contract for this repository and it is model-agnostic —
+> Claude, Codex, DeepSeek/open-code, Cursor, a local model, all the same. Nothing auto-loads it,
+> so read it the moment you are pointed at this README.
+>
+> Mathematica code counts as code. In normal mode you describe what to evaluate in English and
+> name the built-in functions; the user types every line of it.
+
+## Layout
+
+```
+units.tsv           unit table — lessons and chapters. Single source of truth.
+syllabus/           the course syllabus
+course-materials/   inbox for new instructor notebooks; scaffold.sh files them
+latex/
+  coursemacros.sty  shared preamble, dynamical-systems macros
+  templates/        notes and homework templates
+scripts/
+  scaffold.sh       create unit folders, file notebooks, generate .tex
+  build.sh          compile one .tex
+lessons/lesson-NN/
+  material/         "Adv Lesson NN.nb" as distributed
+  work/             your own notebooks
+  notes/            lesson-NN-notes.tex
+  handwritten/      iPad exports
+  build/
+chapters/chNN-slug/
+  material/         "New Sect X.Y" notebooks as distributed
+  notes/            chNN-notes.tex
+  homework/         chNN-homework.tex — the exercise notebook, typeset
+  handwritten/      iPad exports
+  build/
+```
+
+New notebooks from the professor go into `course-materials/`; the next `make scaffold` files
+them into the right unit.
+
+## Where the titles come from
+
+Chapter and lesson titles in `units.tsv` are read off the section headings inside the notebooks,
+because the notebooks are the only authority. Lessons are titled by number: their notebooks
+carry no title cell, and inventing one would be worse than a number. Chapter 4 has no notebooks
+and therefore no folder.
+
+## The rhythm
+
+1. Work the lesson or section notebook. The assistant teaches one concept at a time and will
+   not hand you Mathematica code in normal mode.
+2. Do the exercises — by hand on the iPad into `handwritten/`, in Mathematica into `work/`.
+3. The assistant reviews both before anything is typeset.
+4. The assistant generates the `.tex` scaffold with every solution region empty and marked.
+5. You type the mathematics and the transcribed Mathematica into those regions.
+6. The assistant compiles and reports.
+
+## Solution markers
+
+```
+% ===== SOLUTION 3 =====
+% TODO(mferguson): your work goes here.
+% ===== END SOLUTION 3 =====
+```
+
+## Build
+
+Handled by the assistant. Entry points: `make scaffold`, `make lesson N=07`, `make notes CH=03`,
+`make homework CH=03`, `make all`, `make clean`, `make list`.
+
+## Tooling — what we used and how we got it
+
+Everything below was installed **without root**, into the home directory, on the Laureate
+compute node `compute301` (RHEL 9, x86-64, glibc 2.34, 96 cores, 1 TB RAM).
+
+### Mathematica 15.0.1 desktop — tried, abandoned, removed
+
+Downloaded from the TU site-license entitlement at `account.wolfram.com`. The download link is
+session-gated: the `account.wolfram.com/dl/...` URL redirects to a sign-in page, so the working
+approach was to start the download in a browser, cancel it, and copy the real
+`files.wolframcdn.com` URL (with its signature token) out of the browser's download list. That
+URL fetches fine from the node.
+
+The installer is a makeself archive that accepts a target directory and an executables
+directory, so it installs under `$HOME` with no root at all. That part worked: 8.9 GB installed,
+kernel started, reported its MathID.
+
+**Activation is what killed it.** The kernel's automatic Web Activation silently falls through to
+the manual prompt, and self-service manual activation in the Wolfram account portal returns
+"We are unable to generate a password with the information provided." Both point at the same
+cause: TU's site license does not permit end-user self-activation — the password has to come
+from a site administrator (Chuck Mason, Jonathan Oxton, or Dale Doty, who is also the
+instructor). See `WOLFRAM-LICENSE.md` for keys, MathID, and the drafted request.
+
+Worth recording because it was diagnosed wrong once: this is **not** a network problem. An
+earlier guess blamed a blocked `activate.wolfram.com`, but that hostname does not exist anywhere
+— public DNS returns NXDOMAIN. Every real Wolfram host resolves and answers from this node.
+
+The install and its 2.5 GB installer were deleted afterwards, reclaiming 11.4 GB.
+
+### Wolfram Engine 15.0.0 — what we actually use, and it works
+
+Free, and **activated**. Verified on this node: `2+2` returns 4, `$LicenseType` reports
+`Professional`, `$Version` is 15.0.0 for Linux x86-64, and `Export` of a `Plot` produces a valid
+PNG. Graphics render, which is the part that matters for the section notebooks.
+
+Obtained the same way as Mathematica — sign in at `wolfram.com/engine`, start the Linux
+download, cancel it, copy the real CDN URL out of the browser's download list. 2.15 GB.
+
+**The installer refuses to run without root**, unlike Mathematica's. The root requirement is
+only for system-wide desktop and MIME integration, useless on a headless node. The payload is
+three `.tar.xz` archives (`Core`, `FunctionInformation`, `Paclets`) inside a makeself wrapper,
+so it was extracted with makeself's `--target` option and the archives untarred directly into
+`~/WolframEngine/15.0` — exactly what the installer does with them. 7.2 GB installed.
+
+**Activation used a personal Wolfram ID, deliberately.** The free Engine entitlement has nothing
+to do with TU's site licence; it attaches to whichever Wolfram ID claims it. Binding it to a
+university address that dies at graduation would be self-defeating, so it was claimed on a
+personal Gmail account through `wolfram.com/engine/free-license` in a private browser window —
+private specifically so it would not silently attach to the signed-in school ID.
+
+Activation itself is interactive: run `wolframscript` and it prompts for the Wolfram ID and
+password, once. It must be run from a **real terminal**; Claude Code's `!` bash mode does not
+provide an interactive TTY, so both prompts receive empty input and it fails instantly with
+"Incorrect username or password", which looks like a credential error and is not one.
+
+The licence record it writes is `~/.WolframEngine/Licensing/mathpass`. **That file contains a
+password — it is not reproduced here and should not be committed anywhere.** One field in it
+reads `20261003`, which has the shape of an expiry date of 3 October 2026. Wolfram's FAQ says
+the authentication does not expire; that field suggests otherwise. Unresolved — if the Engine
+stops working around then, this is the first thing to check.
+
+### What ended up on PATH
+
+`~/bin` is already on the PATH and now holds symlinks to the Engine binaries:
+
+| link | target |
+|---|---|
+| `wolframscript` | `WolframEngine/15.0/SystemFiles/Kernel/Binaries/Linux-x86-64/wolframscript` |
+| `WolframKernel`, `wolfram`, `math`, `WolframPlayer` | `WolframEngine/15.0/Executables/…` |
+
+`wolframscript` is worth noting: it is **not** in `Executables/` where the other binaries live,
+it is buried under `SystemFiles/Kernel/Binaries/Linux-x86-64/`. Nothing puts it on the PATH for
+you when the installer has not been run as root.
+
+`WolframPlayer` shipping inside the Engine bundle was unexpected — it means a genuine Wolfram
+front end may be available, with working `Manipulate` sliders for Dr. Doty's lessons, without a
+separate Player download. It is a GUI application, so it needs X11 forwarding to be usable from
+a headless node. Untested so far.
+
+### Jupyter as the front end
+
+Wolfram Engine is a kernel with no notebook interface. `WolframLanguageForJupyter` — Wolfram's
+own Jupyter kernel — supplies one.
+
+What you get: cell output, typeset results, and inline graphics (`Plot`, `ContourPlot`,
+`StreamPlot`, `Graphics3D` all render as images). What you do not get: `Manipulate`, `Animate`
+and `Dynamic` are not interactive outside Wolfram's own front end — a `Manipulate` renders as a
+static snapshot and 3D plots cannot be rotated.
+
+### Alternatives considered
+
+| Option | Verdict |
+|---|---|
+| Mathematica Online | Entitled through the site license, 55,000 cloud credits, no activation, full interactivity, saves real `.nb` files. Rejected only because the free local stack was preferred — still the best fallback. |
+| Wolfram Player | Free, no activation, runs Dr. Doty's lesson notebooks *with* working `Manipulate` sliders, but cannot evaluate anything you type. Useful alongside Jupyter for reading the lessons. |
+| Wolfram Engine + Jupyter | Chosen. Free, local, evaluates and plots. |
+| Engine + Player combined | Impossible. Player's front end refuses to evaluate by design and cannot be pointed at another kernel; Engine has no front end. Two halves that do not mate. |
+
+Submission format made this workable: printed notebooks with output cleared, not `.nb` files.
+The only cost is cosmetic — a printed Jupyter notebook does not look like a Mathematica notebook.
+
+### LaTeX
+
+TinyTeX, already present at `~/.TinyTeX`. Missing packages were added with `tlmgr`
+(`fancyhdr`, `mathtools`, `stmaryrd`, `tikz-cd`; `tlmgr` itself needed a self-update first).
+
+`latexmk` is broken on this node — the system perl has no `Time::HiRes` — so `scripts/build.sh`
+detects that and falls back to running `pdflatex` twice, three times when the log asks for it.
+
+## Git
+
+Nothing is committed automatically and no remote is configured. The instructor's notebooks, the
+syllabus are tracked because this repository is private. If that ever
+changes, ignore them again before making the repo public.

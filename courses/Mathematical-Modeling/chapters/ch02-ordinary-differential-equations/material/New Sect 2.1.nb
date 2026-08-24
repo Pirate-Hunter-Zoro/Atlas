@@ -1,0 +1,475 @@
+(* Content-type: application/mathematica *)
+
+(*** Wolfram Notebook File ***)
+(* http://www.wolfram.com/nb *)
+
+(* CreatedBy='Mathematica 6.0' *)
+
+(*CacheID: 234*)
+(* Internal cache information:
+NotebookFileLineBreakTest
+NotebookFileLineBreakTest
+NotebookDataPosition[       145,          7]
+NotebookDataLength[     17912,        467]
+NotebookOptionsPosition[     14798,        415]
+NotebookOutlinePosition[     15240,        432]
+CellTagsIndexPosition[     15197,        429]
+WindowFrame->Normal*)
+
+(* Beginning of Notebook Content *)
+Notebook[{
+
+Cell[CellGroupData[{
+Cell[" Section 2.1", "Title",ExpressionUUID->"21da1ccf-42ce-4b18-a2a0-4df6698732d0"],
+
+Cell[TextData[StyleBox["  Ordinary Differential Equations\n  2.1   \
+First-Order Equations",
+ FontWeight->"Bold"]], "Subtitle",ExpressionUUID->"417f3b58-e41c-4458-b610-\
+778f33d895be"],
+
+Cell[BoxData[
+ RowBox[{" ", 
+  RowBox[{"Remove", "[", "\"\<Global`*\>\"", " ", "]"}], " "}]], "InputOnly",
+ CellChangeTimes->{{3.3982889110243998`*^9, 3.3982889137684*^9}},
+ CellLabel->
+  "In[328]:=",ExpressionUUID->"699c6b44-47b7-45ee-a7e5-673199e00450"],
+
+Cell[CellGroupData[{
+
+Cell[" Introduction", "Section",ExpressionUUID->"7ca2e2ac-cf2f-4bd2-b66b-1dbe494ec6f9"],
+
+Cell["\<\
+It is the nature of dynamic models to change with respect to time.  \
+Therefore, it is natural to express these changes in terms of a derivative, \
+and thereby a differential equation.
+
+There are many different types of differential equations, thereby \
+representing many different types of behaviors.  However, we will only study \
+a limited collection of the more commonly occurring ordinary and partial \
+differential equations.  Even though the range of equations that we will \
+study will be limited, they will cover the vast majority of commonly \
+occurring simple dynamic systems.
+ 
+One consequence of studying only a limited collection of differential \
+equations is that they can only exhibit a limited range of dynamic behaviors. \
+Therefore, the following procedure is usually used:
+ 
+ \t\tDynamic physical problem
+ \t\t\t\[DoubleLongLeftRightArrow]
+\t \tDynamic model \t\t
+\t \t\t\[DoubleLongLeftRightArrow]
+\t \tODE or PDE system
+\t \t\t\[DoubleLongLeftRightArrow]
+\t \tSpecific behavior
+ 
+It should now the clear, that an understanding of the behavior of specific \
+ODEs and PDEs directly relates to understanding of the behavior of the model \
+and thereby the underlying physical process.\
+\>", "Text",
+ CellChangeTimes->{{3.3982889400844*^9, 
+  3.3982889787994003`*^9}},ExpressionUUID->"5775043b-2947-4bf3-8b21-\
+4ba2a92501bd"]
+}, Closed]],
+
+Cell[CellGroupData[{
+
+Cell[" Introduction: ODEs", "Section",ExpressionUUID->"f619ba44-f8e8-4810-a1a0-138d922e9071"],
+
+Cell[TextData[{
+ "\n  It is a basic fact that a higher order ODE can be reduced to a \
+first-order system of ODEs.\n  \n\t  \t",
+ Cell[BoxData[
+  FormBox[
+   RowBox[{
+    RowBox[{
+     SubscriptBox["x", "1"], "'"}], " ", "=", " ", 
+    RowBox[{
+     SubscriptBox["f", "1"], "[", 
+     RowBox[{
+      SubscriptBox["x", "1"], ",", 
+      SubscriptBox["x", "2"], ",", "...", ",", "t"}], "]"}]}], 
+   TraditionalForm]],ExpressionUUID->"a6c348f5-2149-4178-b6cd-d98804509122"],
+ "\n\t \t",
+ Cell[BoxData[
+  FormBox[
+   RowBox[{
+    RowBox[{
+     SubscriptBox["x", "2"], "'"}], " ", "=", " ", 
+    RowBox[{
+     SubscriptBox["f", "2"], "[", 
+     RowBox[{
+      SubscriptBox["x", "1"], ",", 
+      SubscriptBox["x", "2"], ",", "...", ",", "t"}], "]"}]}], 
+   TraditionalForm]],ExpressionUUID->"e0a95697-01ae-4895-b359-3097c9d49d04"],
+ "\n\t \t...\n Or:\n\t  \t",
+ Cell[BoxData[
+  FormBox[
+   RowBox[{"x", " ", "=", " ", 
+    RowBox[{"{", 
+     RowBox[{
+      SubscriptBox["x", "1"], ",", 
+      SubscriptBox["x", "2"], ",", "..."}], "}"}]}], TraditionalForm]],
+  ExpressionUUID->"274ff328-8fdb-4882-8b1a-fa2e0ba1f681"],
+ "\n\t \t",
+ Cell[BoxData[
+  FormBox[
+   RowBox[{
+    RowBox[{"x", "'"}], " ", "=", " ", 
+    RowBox[{"f", "[", 
+     RowBox[{"x", ",", "t"}], "]"}]}], TraditionalForm]],ExpressionUUID->
+  "fb910578-bce4-40e7-a6eb-cb27e879b3e3"],
+ "\n\t \t\nThe functions ",
+ Cell[BoxData[
+  FormBox[
+   SubscriptBox["f", "i"], TraditionalForm]],ExpressionUUID->
+  "61a5487a-d820-4f7d-b6f6-2d966a62da36"],
+ " could be linear or nonlinear and may or may not be functions of time.  The \
+exact complexity of the functions ",
+ Cell[BoxData[
+  FormBox[
+   SubscriptBox["f", "i"], TraditionalForm]],ExpressionUUID->
+  "00355301-28fb-4acc-95cd-c830402e273c"],
+ " determined the complexity of the resulting dynamic system.\n \n The \
+following sections will illustrate a few of the basic cases."
+}], "Text",
+ CellChangeTimes->{{3.3982889913934*^9, 
+  3.3982890197004004`*^9}},ExpressionUUID->"e7a94572-7f44-460a-bd55-\
+13f12746a0b5"]
+}, Closed]],
+
+Cell[CellGroupData[{
+
+Cell[" 2.1 Single First-Order ODE", "Section",ExpressionUUID->"12838bc9-fc69-4dfd-a410-743a15c74cb8"],
+
+Cell[TextData[{
+ " Consider a first-order ODE of one space variable \"x\" and time \"t\":\n\t \
+\t",
+ Cell[BoxData[
+  FormBox[
+   RowBox[{
+    RowBox[{"x", "'"}], " ", "=", " ", 
+    RowBox[{"f", "[", 
+     RowBox[{"x", ",", "t"}], "]"}]}], TraditionalForm]],ExpressionUUID->
+  "a7a73575-161d-4c12-87d1-4003753b423c"],
+ " \t\n With initial condition:\n \t\t",
+ Cell[BoxData[
+  FormBox[
+   RowBox[{
+    RowBox[{"x", "[", "0", "]"}], "=", 
+    SubscriptBox["x", "0"]}], TraditionalForm]],ExpressionUUID->
+  "c151706c-0f20-4490-ada6-f03983a423d8"]
+}], "Text",
+ CellChangeTimes->{{3.3982890418744*^9, 
+  3.3982890442004004`*^9}},ExpressionUUID->"77ba22c2-0b72-4d8c-bd47-\
+dcaab018911d"]
+}, Closed]],
+
+Cell[CellGroupData[{
+
+Cell[" Example 2.1", "Section",ExpressionUUID->"973c9afe-44c2-40cf-937f-790c5761e0b8"],
+
+Cell[TextData[{
+ " Consider a model where the rate of growth is proportional to the size of \
+the population.\n\n\t\t",
+ Cell[BoxData[
+  FormBox[
+   RowBox[{
+    RowBox[{
+     RowBox[{"n", " ", "'"}], "[", "t", "]"}], " ", "\[Alpha]", " ", 
+    RowBox[{"n", "[", "t", "]"}]}], TraditionalForm]],ExpressionUUID->
+  "1989e025-fe97-4e92-881a-9b07fc4a258d"],
+ "\n\t\t",
+ Cell[BoxData[
+  FormBox[
+   RowBox[{
+    RowBox[{"n", "[", "0", "]"}], " ", "=", " ", 
+    SubscriptBox["n", "0"]}], TraditionalForm]],ExpressionUUID->
+  "0c135377-c30e-4f1d-bcec-d84057176a3e"],
+ "\nOr:\n\t\t",
+ Cell[BoxData[
+  FormBox[
+   RowBox[{
+    RowBox[{
+     RowBox[{"n", " ", "'"}], "[", "t", "]"}], " ", "=", " ", 
+    RowBox[{"a", "*", 
+     RowBox[{"n", "[", "t", "]"}]}]}], TraditionalForm]],ExpressionUUID->
+  "f9cede30-556e-4649-8564-8e23371269ab"],
+ "\n\t\t",
+ Cell[BoxData[
+  FormBox[
+   RowBox[{
+    RowBox[{"n", "[", "0", "]"}], " ", "=", " ", 
+    SubscriptBox["n", "0"]}], TraditionalForm]],ExpressionUUID->
+  "266d714e-5fa6-4aca-bd01-d24dafb22ca1"],
+ "\n\t\t\n  You learned how to solve this equation in Calculus I:"
+}], "Text",
+ CellChangeTimes->{{3.3982890494463997`*^9, 
+  3.3982890710573997`*^9}},ExpressionUUID->"620c442b-4c6b-4eb7-9c6f-\
+2de5146a65da"],
+
+Cell[BoxData[{
+ RowBox[{
+  RowBox[{
+   RowBox[{"Clear", "[", 
+    RowBox[{"a", ",", "n", ",", "n0", ",", "nMax"}], "]"}], ";"}], 
+  "\[IndentingNewLine]"}], "\[IndentingNewLine]", 
+ RowBox[{"solutionRule", "=", "\[IndentingNewLine]", "\[IndentingNewLine]", 
+  RowBox[{"DSolve", "[", "\[IndentingNewLine]", "\[IndentingNewLine]", 
+   RowBox[{
+    RowBox[{"{", "\[IndentingNewLine]", 
+     RowBox[{
+      RowBox[{
+       RowBox[{
+        SuperscriptBox["n", "\[Prime]",
+         MultilineFunction->None], "[", "t", "]"}], "==", 
+       RowBox[{"a", " ", 
+        RowBox[{"n", "[", "t", "]"}]}]}], ",", "\[IndentingNewLine]", 
+      RowBox[{
+       RowBox[{"n", "[", "0", "]"}], "==", "n0"}]}], "\[IndentingNewLine]", 
+     "}"}], ",", "\[IndentingNewLine]", "\[IndentingNewLine]", 
+    RowBox[{"n", "[", "t", "]"}], ",", "\[IndentingNewLine]", "t"}], 
+   "\[IndentingNewLine]", "]"}]}]}], "Input",
+ CellChangeTimes->{{3.3982890764244003`*^9, 3.3982890821694*^9}, {
+  3.3982891587114*^9, 3.3982891622164*^9}, {3.39867774517319*^9, 
+  3.3986777467513256`*^9}},
+ CellLabel->
+  "In[329]:=",ExpressionUUID->"b96aa107-a1af-4e39-9673-ea6524aece10"],
+
+Cell[" Extract the solution:", "Text",ExpressionUUID->"fa991051-93d6-4767-b929-c74401e4383b"],
+
+Cell[BoxData[
+ RowBox[{
+  RowBox[{"nNew", "[", "t_", "]"}], "=", 
+  RowBox[{
+   RowBox[{"n", "[", "t", "]"}], " ", "/.", " ", 
+   RowBox[{"Flatten", "[", "solutionRule", "]"}]}]}]], "Input",
+ CellChangeTimes->{{3.3982899656004*^9, 3.3982899766443996`*^9}},
+ CellLabel->
+  "In[331]:=",ExpressionUUID->"665e1fa6-f2be-4343-8d04-a425a798393b"],
+
+Cell["\<\
+Choose some values for the growth coefficient \"a\" and initial population \
+\"n0\":\
+\>", "Text",ExpressionUUID->"68c4d0f6-2d43-4077-b5f2-78ceb2996c85"],
+
+Cell[BoxData[{
+ RowBox[{
+  RowBox[{"a", "=", "2"}], ";"}], "\n", 
+ RowBox[{
+  RowBox[{"n0", "=", "100"}], ";"}]}], "InputOnly",
+ CellLabel->
+  "In[332]:=",ExpressionUUID->"748d6a8c-b471-44eb-a0f7-08a1857176a1"],
+
+Cell[" Plot the solution:", "Text",ExpressionUUID->"91a9ef26-d033-43b5-84ab-0e46763126ae"],
+
+Cell[BoxData[
+ RowBox[{"Plot", "[", "\[IndentingNewLine]", "\[IndentingNewLine]", 
+  RowBox[{
+   RowBox[{"nNew", "[", "t", "]"}], ",", "\[IndentingNewLine]", 
+   "\[IndentingNewLine]", 
+   RowBox[{"{", 
+    RowBox[{"t", ",", "0", ",", "1"}], "}"}], ",", "\[IndentingNewLine]", 
+   "\[IndentingNewLine]", 
+   RowBox[{"PlotStyle", "\[Rule]", 
+    RowBox[{"Thickness", "[", ".01", "]"}]}], ",", "\[IndentingNewLine]", 
+   RowBox[{"PlotRange", "\[Rule]", 
+    RowBox[{"{", 
+     RowBox[{"0", ",", "800"}], "}"}]}]}], "\[IndentingNewLine]", 
+  "]"}]], "Input",
+ CellChangeTimes->{{3.3986775752033525`*^9, 3.398677599500383*^9}, {
+  3.398677642375657*^9, 3.3986776465788093`*^9}},
+ CellLabel->
+  "In[334]:=",ExpressionUUID->"ed041c18-dc5a-4e31-b45a-581c2c35c724"],
+
+Cell[TextData[{
+ "\n Next, consider a small modification in the growth characteristics for \
+this model.  Specifically, assume that the population grows at a rate \
+proportional to the size of the population, but is ultimately limited to a \
+maximum population of size nMax.  One equation (out of many possible \
+equations) that describes this behavior is the \"logistic\" equation:\n\t\t",
+ Cell[BoxData[
+  FormBox[
+   RowBox[{
+    RowBox[{
+     RowBox[{"n", " ", "'"}], "[", "t", "]"}], " ", "=", " ", 
+    RowBox[{"a", "*", 
+     RowBox[{"n", "[", "t", "]"}], "*", 
+     RowBox[{"(", 
+      RowBox[{"1", " ", "-", " ", 
+       RowBox[{
+        RowBox[{"n", "[", "t", "]"}], "/", "nMax"}]}], " ", ")"}]}]}], 
+   TraditionalForm]],ExpressionUUID->"e7daa496-2420-45a4-8368-81c2578fab55"],
+ "\n\t\t",
+ Cell[BoxData[
+  FormBox[
+   RowBox[{
+    RowBox[{"n", "[", "0", "]"}], " ", "=", " ", 
+    SubscriptBox["n", "0"]}], TraditionalForm]],ExpressionUUID->
+  "9f1adf17-8ccd-4426-aa0c-29b169ed70b6"]
+}], "Text",
+ CellChangeTimes->{{3.3982900147324*^9, 
+  3.3982900159414*^9}},ExpressionUUID->"dc082bf3-c27d-4863-96ba-6ed78eab6b2b"],
+
+Cell[BoxData[{
+ RowBox[{
+  RowBox[{
+   RowBox[{"Clear", "[", 
+    RowBox[{"a", ",", "n", ",", "n0", ",", "nMax"}], "]"}], ";"}], 
+  "\[IndentingNewLine]"}], "\n", 
+ RowBox[{"solutionRule", "=", "\[IndentingNewLine]", "\[IndentingNewLine]", 
+  RowBox[{"DSolve", "[", "\[IndentingNewLine]", "\[IndentingNewLine]", 
+   RowBox[{
+    RowBox[{"{", "\[IndentingNewLine]", 
+     RowBox[{
+      RowBox[{
+       RowBox[{
+        SuperscriptBox["n", "\[Prime]",
+         MultilineFunction->None], "[", "t", "]"}], "==", 
+       RowBox[{"a", " ", 
+        RowBox[{"n", "[", "t", "]"}], " ", 
+        RowBox[{"(", 
+         RowBox[{"1", "-", 
+          FractionBox[
+           RowBox[{"n", "[", "t", "]"}], "nMax"]}], ")"}]}]}], ",", 
+      "\[IndentingNewLine]", 
+      RowBox[{
+       RowBox[{"n", "[", "0", "]"}], "==", "n0"}]}], "\[IndentingNewLine]", 
+     "}"}], ",", "\[IndentingNewLine]", "\[IndentingNewLine]", 
+    RowBox[{"n", "[", "t", "]"}], ",", "\[IndentingNewLine]", "t"}], 
+   "\[IndentingNewLine]", "]"}]}]}], "Input",
+ CellChangeTimes->{{3.3982899246344*^9, 3.3982899281184*^9}, {
+  3.3982900275193996`*^9, 3.3982900311404*^9}},
+ CellLabel->
+  "In[335]:=",ExpressionUUID->"0c4a320a-9d9d-44dd-8f4b-81d4001a1a07"],
+
+Cell["\<\
+Observe that the solution is slightly more complicated.
+Extract the solution:\
+\>", "Text",ExpressionUUID->"f325bfe9-e2c4-4104-b823-37021db67160"],
+
+Cell[BoxData[
+ RowBox[{
+  RowBox[{"nNew", "[", "t_", "]"}], "=", 
+  RowBox[{
+   RowBox[{"n", "[", "t", "]"}], " ", "/.", " ", 
+   RowBox[{"Flatten", "[", "solutionRule", "]"}]}]}]], "Input",
+ CellChangeTimes->{3.3982900600494003`*^9},
+ CellLabel->
+  "In[337]:=",ExpressionUUID->"4ea5ee5e-061b-405c-85c9-42c2448f8cd9"],
+
+Cell["\<\
+Choose some values for the growth coefficient \"a\", initial population \
+\"n0\" and maximum population \"nMax\":\
+\>", "Text",ExpressionUUID->"21459b09-33b4-45ae-98f3-3e7d80138539"],
+
+Cell[BoxData[{
+ RowBox[{
+  RowBox[{"a", "=", "7"}], ";"}], "\n", 
+ RowBox[{
+  RowBox[{"n0", "=", "100"}], ";"}], "\n", 
+ RowBox[{
+  RowBox[{"nMax", "=", "1000"}], ";"}]}], "InputOnly",
+ CellLabel->
+  "In[338]:=",ExpressionUUID->"a01ad2b4-cc93-47a1-942e-0eeb4f8db88a"],
+
+Cell[" Plot the solution:", "Text",ExpressionUUID->"64dc45e4-4587-470e-b687-dc508109a3d0"],
+
+Cell[BoxData[
+ RowBox[{"Plot", "[", "\[IndentingNewLine]", "\[IndentingNewLine]", 
+  RowBox[{
+   RowBox[{"nNew", "[", "t", "]"}], ",", "\[IndentingNewLine]", 
+   "\[IndentingNewLine]", 
+   RowBox[{"{", 
+    RowBox[{"t", ",", "0", ",", "1"}], "}"}], ",", "\[IndentingNewLine]", 
+   "\[IndentingNewLine]", 
+   RowBox[{"PlotRange", "\[Rule]", 
+    RowBox[{"{", 
+     RowBox[{"0", ",", "nMax"}], "}"}]}], ",", "\[IndentingNewLine]", 
+   RowBox[{"PlotStyle", "\[Rule]", 
+    RowBox[{"Thickness", "[", ".01", "]"}]}]}], "\[IndentingNewLine]", 
+  "]"}]], "Input",
+ CellLabel->
+  "In[341]:=",ExpressionUUID->"981f1cdf-3c2f-4594-95c2-1d89490d654b"],
+
+Cell["\<\
+Observe that the solution to the ODE appears to approach a stable value \
+associated with \"nMax\".\
+\>", "Text",ExpressionUUID->"832fd166-5839-4e36-91f4-00a13428e6c0"],
+
+Cell["\<\
+ The question that arises here is exactly what is the full range of behavior \
+for this specific \"logistic\" growth model ( i.e. all values for the growth \
+coefficient \"a\", initial population \"n0\" and maximum population \
+\"nMax\")?  For example, do all equations of this type have stable values \
+associated with \"nMax\"? One possible way to answer this question is to \
+generate many graphs like the above for different values of the model \
+parameters.  However, there are better ways to do this.
+
+We may even ask the more general question: 
+\tWhat is the full range of behavior for the specific ODE or ODE system that \
+represents our model.  We will study this problem more fully in the next \
+section when we consider a system of two ODEs.\
+\>", "Text",ExpressionUUID->"8326f8fd-d31d-40cb-87cc-86d387b68ab1"]
+}, Closed]]
+}, Open  ]]
+},
+WindowSize->{1083, 592},
+WindowMargins->{{3, Automatic}, {Automatic, 0}},
+Magnification:>1.5 Inherited,
+FrontEndVersion->"11.3 for Microsoft Windows (64-bit) (March 6, 2018)",
+StyleDefinitions->FrontEnd`FileName[{"Creative"}, "NaturalColor.nb", 
+  CharacterEncoding -> "UTF-8"]
+]
+(* End of Notebook Content *)
+
+(* Internal cache information *)
+(*CellTagsOutline
+CellTagsIndex->{}
+*)
+(*CellTagsIndex
+CellTagsIndex->{}
+*)
+(*NotebookFileOutline
+Notebook[{
+Cell[CellGroupData[{
+Cell[567, 22, 84, 0, 98, "Title",ExpressionUUID->"21da1ccf-42ce-4b18-a2a0-4df6698732d0"],
+Cell[654, 24, 184, 3, 61, "Subtitle",ExpressionUUID->"417f3b58-e41c-4458-b610-778f33d895be"],
+Cell[841, 29, 255, 5, 68, "InputOnly",ExpressionUUID->"699c6b44-47b7-45ee-a7e5-673199e00450"],
+Cell[CellGroupData[{
+Cell[1121, 38, 87, 0, 114, "Section",ExpressionUUID->"7ca2e2ac-cf2f-4bd2-b66b-1dbe494ec6f9"],
+Cell[1211, 40, 1353, 30, 662, "Text",ExpressionUUID->"5775043b-2947-4bf3-8b21-4ba2a92501bd"]
+}, Closed]],
+Cell[CellGroupData[{
+Cell[2601, 75, 93, 0, 67, "Section",ExpressionUUID->"f619ba44-f8e8-4810-a1a0-138d922e9071"],
+Cell[2697, 77, 2022, 59, 447, "Text",ExpressionUUID->"e7a94572-7f44-460a-bd55-13f12746a0b5"]
+}, Closed]],
+Cell[CellGroupData[{
+Cell[4756, 141, 101, 0, 67, "Section",ExpressionUUID->"12838bc9-fc69-4dfd-a410-743a15c74cb8"],
+Cell[4860, 143, 682, 20, 139, "Text",ExpressionUUID->"77ba22c2-0b72-4d8c-bd47-dcaab018911d"]
+}, Closed]],
+Cell[CellGroupData[{
+Cell[5579, 168, 86, 0, 67, "Section",ExpressionUUID->"973c9afe-44c2-40cf-937f-790c5761e0b8"],
+Cell[5668, 170, 1247, 37, 293, "Text",ExpressionUUID->"620c442b-4c6b-4eb7-9c6f-2de5146a65da"],
+Cell[6918, 209, 1139, 26, 460, "Input",ExpressionUUID->"b96aa107-a1af-4e39-9673-ea6524aece10"],
+Cell[8060, 237, 93, 0, 47, "Text",ExpressionUUID->"fa991051-93d6-4767-b929-c74401e4383b"],
+Cell[8156, 239, 339, 8, 79, "Input",ExpressionUUID->"665e1fa6-f2be-4343-8d04-a425a798393b"],
+Cell[8498, 249, 163, 3, 47, "Text",ExpressionUUID->"68c4d0f6-2d43-4077-b5f2-78ceb2996c85"],
+Cell[8664, 254, 210, 6, 117, "InputOnly",ExpressionUUID->"748d6a8c-b471-44eb-a0f7-08a1857176a1"],
+Cell[8877, 262, 90, 0, 47, "Text",ExpressionUUID->"91a9ef26-d033-43b5-84ab-0e46763126ae"],
+Cell[8970, 264, 757, 17, 314, "Input",ExpressionUUID->"ed041c18-dc5a-4e31-b45a-581c2c35c724"],
+Cell[9730, 283, 1126, 27, 201, "Text",ExpressionUUID->"dc082bf3-c27d-4863-96ba-6ed78eab6b2b"],
+Cell[10859, 312, 1217, 30, 537, "Input",ExpressionUUID->"0c4a320a-9d9d-44dd-8f4b-81d4001a1a07"],
+Cell[12079, 344, 156, 3, 78, "Text",ExpressionUUID->"f325bfe9-e2c4-4104-b823-37021db67160"],
+Cell[12238, 349, 317, 8, 79, "Input",ExpressionUUID->"4ea5ee5e-061b-405c-85c9-42c2448f8cd9"],
+Cell[12558, 359, 192, 3, 47, "Text",ExpressionUUID->"21459b09-33b4-45ae-98f3-3e7d80138539"],
+Cell[12753, 364, 267, 8, 146, "InputOnly",ExpressionUUID->"a01ad2b4-cc93-47a1-942e-0eeb4f8db88a"],
+Cell[13023, 374, 90, 0, 47, "Text",ExpressionUUID->"64dc45e4-4587-470e-b687-dc508109a3d0"],
+Cell[13116, 376, 639, 15, 294, "Input",ExpressionUUID->"981f1cdf-3c2f-4594-95c2-1d89490d654b"],
+Cell[13758, 393, 178, 3, 48, "Text",ExpressionUUID->"832fd166-5839-4e36-91f4-00a13428e6c0"],
+Cell[13939, 398, 831, 13, 292, "Text",ExpressionUUID->"8326f8fd-d31d-40cb-87cc-86d387b68ab1"]
+}, Closed]]
+}, Open  ]]
+}
+]
+*)
+

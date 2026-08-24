@@ -1,0 +1,5 @@
+\contentsline {section}{\numberline {1}What this unit is about}{1}{section.1}%
+\contentsline {section}{\numberline {2}The model}{1}{section.2}%
+\contentsline {section}{\numberline {3}Analysis}{1}{section.3}%
+\contentsline {section}{\numberline {4}Mathematica}{1}{section.4}%
+\contentsline {section}{\numberline {5}Loose ends}{1}{section.5}%

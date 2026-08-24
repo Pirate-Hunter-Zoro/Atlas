@@ -1,0 +1,40 @@
+# Single source of truth for the unit layout of this course.
+# Used by scripts/scaffold.sh and the Makefile.
+#
+# Columns (TAB separated):
+#   kind  num  slug  title
+#
+# This course has NO textbook. Dr. Doty's notebooks are the material, start to
+# finish. Titles below are read off the section headings inside the notebooks
+# themselves, which is the only authority there is.
+#
+# kind = lesson  -> Mathematica programming lessons ("Adv Lesson NN")
+#                   Titled by number: the notebooks carry no title cell, and
+#                   inventing one would be a lie.
+# kind = chapter -> the "New Sect X.Y" notebook groups, numbered as Dr. Doty
+#                   numbers them. Chapter 4 has no notebooks and is absent.
+lesson	00	lesson-00	Lesson 00
+lesson	01	lesson-01	Lesson 01
+lesson	02	lesson-02	Lesson 02
+lesson	03	lesson-03	Lesson 03
+lesson	04	lesson-04	Lesson 04
+lesson	05	lesson-05	Lesson 05
+lesson	06	lesson-06	Lesson 06
+lesson	07	lesson-07	Lesson 07
+lesson	08	lesson-08	Lesson 08
+lesson	09	lesson-09	Lesson 09
+lesson	10	lesson-10	Lesson 10
+lesson	11	lesson-11	Lesson 11
+lesson	12	lesson-12	Lesson 12
+lesson	13	lesson-13	Lesson 13
+lesson	14	lesson-14	Lesson 14
+lesson	15	lesson-15	Lesson 15
+lesson	16	lesson-16	Lesson 16
+lesson	17	lesson-17	Lesson 17
+chapter	01	simple-dynamic-models	Simple dynamic models
+chapter	02	ordinary-differential-equations	Ordinary differential equations
+chapter	03	stability-and-linearization	Stability and linearization
+chapter	05	flux-and-conservation	Flux and conservation models
+chapter	06	limit-cycles-and-parameters	Limit cycles and parameters
+chapter	07	gradient-systems	Gradient systems
+chapter	08	chaos-and-attractors	Chaos and attractors

@@ -1,0 +1,54 @@
+% ===========================================================================
+%  @@TITLE@@ — notes
+%  MATH 7013, Advanced Mathematical Modeling
+%
+%  DIVISION OF LABOUR (see AI_INSTRUCTIONS.md §7):
+%    The assistant owns the scaffold and the faithful transcription of
+%    definitions, model statements, and problem statements.
+%    The user owns everything between the NOTE / SOLUTION markers — including
+%    every line of Mathematica.
+% ===========================================================================
+\documentclass[11pt]{article}
+\usepackage{coursemacros}
+
+\title{@@TITLE@@}
+\author{Mikey Ferguson}
+\date{\today}
+
+\begin{document}
+\maketitle
+\tableofcontents
+\bigskip
+
+% ---------------------------------------------------------------------------
+\section{What this unit is about}
+% ===== NOTE @@NUM@@.overview =====
+% TODO(mferguson): the modelling question this unit answers, in your own words.
+% ===== END NOTE @@NUM@@.overview =====
+
+% ---------------------------------------------------------------------------
+\section{The model}
+% Assistant: transcribe the model setup, assumptions, and governing equations
+% from this unit's notebooks here.
+
+% ---------------------------------------------------------------------------
+\section{Analysis}
+% ===== NOTE @@NUM@@.analysis =====
+% TODO(mferguson): equilibria, linearization, stability, whatever this unit
+% actually asks for.
+% ===== END NOTE @@NUM@@.analysis =====
+
+% ---------------------------------------------------------------------------
+\section{Mathematica}
+% ===== NOTE @@NUM@@.mathematica =====
+% TODO(mferguson): the notebook work that mattered — what you evaluated and
+% what it showed. Use the mathematica environment for transcribed input.
+% ===== END NOTE @@NUM@@.mathematica =====
+
+% ---------------------------------------------------------------------------
+\section{Loose ends}
+% ===== NOTE @@NUM@@.questions =====
+% TODO(mferguson): what is still unclear.
+% ===== END NOTE @@NUM@@.questions =====
+
+\end{document}
