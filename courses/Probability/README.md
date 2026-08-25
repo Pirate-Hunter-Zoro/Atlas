@@ -83,6 +83,12 @@ Lecture modules exist so far for chapters 1–4; homework sets 1–3 are in `hom
 
 ## Git
 
-Nothing is committed automatically and no remote is configured. Instructor material — textbook,
-excerpts, lecture slides, assignment sheets — is tracked because this repository is private. If
-that ever changes, ignore it again before making the repo public.
+The remote is `origin`, at
+[Pirate-Hunter-Zoro/Probability](https://github.com/Pirate-Hunter-Zoro/Probability), tracked by
+`main`. Nothing is committed or pushed automatically.
+
+**The repository is private, and what is tracked depends on it staying that way.** Instructor
+material — textbook, excerpts, lecture slides, assignment sheets — is tracked only for that
+reason. If it is ever made public, ignore all of it *first* — and purge it from history rather
+than merely deleting it, since a file stays reachable in past commits until it is actually
+removed.
