@@ -75,3 +75,26 @@ Breakpoints depend on one piece of configuration, and it is easy to lose on a fr
 **The symlink problem.** The home directory `/home/librad.laureateinstitute.org/mferguson` is a symlink to `/mnt/dell_storage/homefolders/librad.laureateinstitute.org/mferguson`. VS Code opens the workspace through the `/home/...` path, but the compiled test binary embeds the real `/mnt/dell_storage/...` path. Delve cannot reconcile the two on its own, so breakpoints never bind.
 
 **The fix.** A Delve path-substitution mapping that translates the `/home/...` workspace path to the resolved `/mnt/dell_storage/...` path. Because problems are run from the **Testing** sidebar (and the inline "debug test" CodeLens), the mapping belongs in the `go.delveConfig.substitutePath` setting inside `.vscode/settings.json` — that is the file those entry points read. A prefix mapping there covers every problem package underneath it. If breakpoints fail to bind, check that mapping first, before suspecting the debugger itself.
+
+## The live board
+
+Lessons are not read in the terminal. The assistant runs `board start` from this repository and
+tells you which address to open. This machine gets a `127.0.0.1` one; the iPad, which is not on
+the institute network, reaches the same board over **Tailscale**. All of them show the same page
+at the same time.
+
+On the iPad, open it once in Safari and use Share → **Add to Home Screen**. After that it is an
+app with its own icon, no browser chrome, and a long-press shortcut straight to the slate.
+
+Everything the assistant teaches appears there as typeset mathematics the moment it is written:
+real LaTeX, real subgroup lattices and commutative diagrams, no refresh and no compile step. You
+answer in the terminal, in the box at the bottom of the board, or by hand: the ✎ button opens a
+slate you write on with the Apple Pencil. Tap send and the assistant opens the page and reads
+your handwriting — no exporting, no airdropping, no retyping a proof you already wrote. Turn on
+*live* and it sees each page as you pause. Photos and PDFs dropped anywhere on the board work
+too.
+
+With the board on the iPad and the slate for your working, a whole session can happen without
+touching the keyboard.
+
+You never run a board command. The tool is `~/Tutor-Board`; its README explains the rest.
