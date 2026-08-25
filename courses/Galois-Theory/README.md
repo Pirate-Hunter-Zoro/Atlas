@@ -83,6 +83,11 @@ proper.
 
 ## Git
 
-Nothing here is committed automatically and no remote is configured. The textbook and its
-excerpts are tracked because this repository is private; if that ever changes, ignore
-`textbook/` and `chapters/*/reading/*.pdf` before making it public.
+The remote is `origin`, at
+[Pirate-Hunter-Zoro/Galois-Theory](https://github.com/Pirate-Hunter-Zoro/Galois-Theory), tracked
+by `main`. Nothing here is committed or pushed automatically.
+
+**The repository is private, and what is tracked depends on it staying that way.** The textbook
+and its excerpts are tracked only for that reason; if it is ever made public, ignore `textbook/`
+and `chapters/*/reading/*.pdf` *first* — and purge them from history rather than merely deleting
+them, since a file stays reachable in past commits until it is actually removed.
