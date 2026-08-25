@@ -8,3 +8,7 @@ references/
 
 # live tutoring board (Tutor-Board) — scratch space, never tracked
 live/
+
+# the attribution hook must survive the blanket .* rule above
+!.githooks/
+!.githooks/**
