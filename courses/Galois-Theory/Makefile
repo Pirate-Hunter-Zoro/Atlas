@@ -10,6 +10,7 @@
 #    make homework CH=07   build just the homework
 #    make all              build every chapter that has .tex files
 #    make clean            remove build directories
+#    make board           bring up the live tutoring board
 #    make list             show the chapter table
 #
 #  CH is also accepted by split and scaffold to limit them to one chapter.
@@ -17,7 +18,7 @@
 ROOT  := $(patsubst %/,%,$(dir $(abspath $(lastword $(MAKEFILE_LIST)))))
 BUILD := bash "$(ROOT)/scripts/build.sh"
 
-.PHONY: all split scaffold chapter notes homework clean list
+.PHONY: all split scaffold chapter notes homework clean list board board-stop board-export
 
 split:
 	@bash "$(ROOT)/scripts/split-textbook.sh" $(CH)
@@ -53,3 +54,13 @@ clean:
 
 list:
 	@grep -v '^#' "$(ROOT)/chapters.tsv" | awk -F'\t' 'NF{printf "ch%-3s pp.%-4s-%-4s %s\n",$$1,$$2,$$3,$$5}'
+
+# --- live tutoring board (Tutor-Board) -------------------------------------
+board:
+	@board start
+
+board-stop:
+	@board stop
+
+board-export:
+	@board export --build
