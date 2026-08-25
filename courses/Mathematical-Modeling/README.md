@@ -6,8 +6,18 @@ MATH 7013/5013 (Dr. Dale Doty). Two tracks running in parallel:
   matching, arbitrary precision, graphics, efficiency, dynamics, presentations.
 - **Section notebooks** — the "New Sect X.Y" series, grouped by Dr. Doty's chapter numbering.
 
-**There is no textbook.** The notebooks are the material, start to finish. Nothing in this
-repository depends on a book, and nothing needs to be bought.
+**There is a textbook, and it is now in `textbook/`.** The syllabus assigns Beltrami,
+*Mathematics for Dynamic Modeling* (Academic Press, 1987; the syllabus cites ISBN
+9780120855667, a later printing of the same book). An earlier version of this README claimed no
+textbook existed. That was wrong, and the syllabus was sitting in `syllabus/` saying otherwise
+the whole time.
+
+It governs the **chapters** track only. Dr. Doty's "New Sect X.Y" notebooks follow Beltrami's
+chapter and section numbering, so the book is the reference the notebooks were written against.
+The **lessons** track is Mathematica programming and owes the book nothing.
+
+In practice the notebooks are still the material — everything submitted comes out of them. The
+book is there for when a notebook assumes a derivation it does not show.
 
 > **AI assistants: read [`AI_INSTRUCTIONS.md`](./AI_INSTRUCTIONS.md) in full before doing
 > anything.** It is the operating contract for this repository and it is model-agnostic —
@@ -22,6 +32,7 @@ repository depends on a book, and nothing needs to be bought.
 ```
 units.tsv           unit table — lessons and chapters. Single source of truth.
 syllabus/           the course syllabus
+textbook/           Beltrami, Mathematics for Dynamic Modeling — the assigned text
 course-materials/   inbox for new instructor notebooks; scaffold.sh files them
 latex/
   coursemacros.sty  shared preamble, dynamical-systems macros
@@ -48,28 +59,71 @@ them into the right unit.
 
 ## Where the titles come from
 
-Chapter and lesson titles in `units.tsv` are read off the section headings inside the notebooks,
-because the notebooks are the only authority. Lessons are titled by number: their notebooks
-carry no title cell, and inventing one would be worse than a number. Chapter 4 has no notebooks
-and therefore no folder.
+Chapter and lesson titles in `units.tsv` are read off the section headings inside the notebooks.
+Lessons are titled by number: their notebooks carry no title cell, and inventing one would be
+worse than a number.
+
+Those chapter titles are Dr. Doty's, not Beltrami's, and they are **not** the same strings. Now
+that the book is here, both are known and they can be compared. Unresolved on purpose: renaming
+the `units.tsv` titles to Beltrami's would leave the already-generated `.tex` files carrying the
+old ones, and `scaffold.sh` never overwrites an existing `.tex`. Changing them is a decision, not
+a cleanup.
+
+| repo | `units.tsv` title | Beltrami chapter | notebooks present |
+|---|---|---|---|
+| `ch01` | Simple dynamic models | 1. Simple Dynamic Models | 1.1, 1.2, 1.3, 1.4 Exercises |
+| `ch02` | Ordinary differential equations | 2. Stable and Unstable Motion, I | 2.1, 2.2, 2.3, 2.4 Exercises |
+| `ch03` | Stability and linearization | 3. Stable and Unstable Motion, II | 3.1–3.2, 3.3, 3.4, 3.5 Derive, 3.5 Exercises |
+| — | — | 4. Growth and Decay | none |
+| `ch05` | Flux and conservation models | 5. Motion in Time and Space | 5.1, 5.2, 5.3, 5.4 (×2), 5.6, 5.8 Exercises |
+| `ch06` | Limit cycles and parameters | 6. Cycles and Bifurcation | 6.1, 6.3, 6.5 Exercises |
+| `ch07` | Gradient systems | 7. Bifurcation and Catastrophe | 7.1, 7.2, 7.5 Exercises |
+| `ch08` | Chaos and attractors | 8. Chaos | 8.1 |
+| — | — | 9. There Is a Better Way | none |
+
+Chapters 4 and 9 have no notebooks and therefore no folders.
+
+Section numbering lines up with Beltrami exactly in chapters 5, 6 and 7 — including the exercise
+notebook landing on Beltrami's own exercise-section number (5.8, 6.5, 7.5). It does not line up
+in chapters 1, 2 and 3, where the exercise notebook sits one number below Beltrami's exercise
+section, and chapter 3 has a 3.4 and a 3.5 that Beltrami's chapter 3 does not have. Recorded, not
+explained.
 
 ## The rhythm
 
 1. Work the lesson or section notebook. The assistant teaches one concept at a time and will
    not hand you Mathematica code in normal mode.
 2. Do the exercises — by hand on the iPad into `handwritten/`, in Mathematica into `work/`.
-3. The assistant reviews both before anything is typeset.
-4. The assistant generates the `.tex` scaffold with every solution region empty and marked.
-5. You type the mathematics and the transcribed Mathematica into those regions.
-6. The assistant compiles and reports.
+3. The assistant reviews both and reports what it finds.
+4. The assistant writes the `.tex` and transcribes your solutions into it.
+5. The assistant compiles and reports.
+
+You do not type up mathematics. That is clerical work and it belongs to the assistant.
+
+## Transcription, not authorship
+
+The assistant typesets **your** mathematics. It does not write its own and put your name on it.
+Everything in a solution region comes off a page you uploaded, in your order, in your notation,
+including your mistakes — errors get reported to you in conversation, never silently repaired in
+the document. Illegible handwriting gets a question, never a plausible guess.
+
+Presentation is the assistant's call: line breaks, alignment, which environment, delimiter
+sizing, how a hand-drawn diagram becomes tikz. Content is yours.
+
+If you have not uploaded work for a problem, its region stays empty and marked pending. No
+upload, no mathematics. To have the assistant actually solve something, ask for that explicitly
+— it will say so in its response and in the region's marker, so the document never blurs whose
+work is whose.
 
 ## Solution markers
 
 ```
-% ===== SOLUTION 3 =====
-% TODO(mferguson): your work goes here.
+% ===== SOLUTION 3 — transcribed from handwritten/ch03-homework.pdf p.2 =====
 % ===== END SOLUTION 3 =====
 ```
+
+The provenance stamp names the page a region came from, so re-transcribing is repeatable and it
+stays obvious which upload each answer is set from.
 
 ## Build
 
@@ -186,8 +240,44 @@ TinyTeX, already present at `~/.TinyTeX`. Missing packages were added with `tlmg
 `latexmk` is broken on this node — the system perl has no `Time::HiRes` — so `scripts/build.sh`
 detects that and falls back to running `pdflatex` twice, three times when the log asks for it.
 
+## The live board
+
+Lessons are not read in the terminal. The assistant runs `board start` from this repository and
+tells you which address to open. This machine gets a `127.0.0.1` one; the iPad, which is not on
+the institute network, reaches the same board over **Tailscale**. All of them show the same page
+at the same time.
+
+On the iPad, open it once in Safari and use Share → **Add to Home Screen**. After that it is an
+app with its own icon, no browser chrome, and a long-press shortcut straight to the slate.
+
+Everything the assistant teaches appears there as typeset mathematics the moment it is written:
+real LaTeX, real subgroup lattices and commutative diagrams, no refresh and no compile step. You
+answer in the terminal, in the box at the bottom of the board, or by hand: the ✎ button opens a
+slate you write on with the Apple Pencil. Tap send and the assistant opens the page and reads
+your handwriting — no exporting, no airdropping, no retyping a proof you already wrote. Turn on
+*live* and it sees each page as you pause. Photos and PDFs dropped anywhere on the board work
+too.
+
+With the board on the iPad and the slate for your working, a whole session can happen without
+touching the keyboard.
+
+You never run a board command. The tool is `~/Tutor-Board`; its README explains the rest.
+
 ## Git
 
-Nothing is committed automatically and no remote is configured. The instructor's notebooks, the
-syllabus are tracked because this repository is private. If that ever
-changes, ignore them again before making the repo public.
+The remote is `origin`, at
+[Pirate-Hunter-Zoro/Mathematical-Modeling](https://github.com/Pirate-Hunter-Zoro/Mathematical-Modeling),
+tracked by `main`. Nothing is committed or pushed automatically.
+
+**The repository is private, and what is tracked depends on it staying that way.** The
+instructor's notebooks and the syllabus are tracked only for that reason. If it is ever made
+public, ignore them *first* — and purge them from history rather than merely deleting them, since
+a file stays reachable in past commits until it is actually removed.
+
+**The textbook scan is currently neither tracked nor ignored — it is sitting untracked in
+`textbook/`, and an undiscriminating `git add` would sweep it in.** That is an open decision, not
+a description of a policy: either track it deliberately (safe only while this repo is private) or
+add it to `.gitignore` so it cannot be committed by accident. The Beltrami scan is a copyrighted
+1987 Academic Press book, and a public repo carrying it is a takedown waiting to happen — which
+is exactly why leaving it in the third state, neither tracked nor ignored, is the worst of the
+three.

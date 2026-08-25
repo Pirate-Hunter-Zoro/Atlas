@@ -4,15 +4,19 @@
 # Columns (TAB separated):
 #   kind  num  slug  title
 #
-# This course has NO textbook. Dr. Doty's notebooks are the material, start to
-# finish. Titles below are read off the section headings inside the notebooks
-# themselves, which is the only authority there is.
+# The assigned text is Beltrami, Mathematics for Dynamic Modeling, in
+# textbook/. Dr. Doty's notebooks are still the material that gets submitted.
+# Titles below are read off the section headings inside the notebooks, so they
+# are Doty's wording, not Beltrami's chapter titles. README.md carries the map
+# between the two. Do not add a column here: scaffold.sh reads exactly four
+# tab-separated fields.
 #
 # kind = lesson  -> Mathematica programming lessons ("Adv Lesson NN")
 #                   Titled by number: the notebooks carry no title cell, and
 #                   inventing one would be a lie.
 # kind = chapter -> the "New Sect X.Y" notebook groups, numbered as Dr. Doty
-#                   numbers them. Chapter 4 has no notebooks and is absent.
+#                   numbers them, which tracks Beltrami's chapter numbering.
+#                   Beltrami chapters 4 and 9 have no notebooks and are absent.
 lesson	00	lesson-00	Lesson 00
 lesson	01	lesson-01	Lesson 01
 lesson	02	lesson-02	Lesson 02

@@ -11,12 +11,13 @@
 #    make homework CH=03       build chapter 3's homework
 #    make all                  build everything that has a .tex file
 #    make clean                remove build directories
+#    make board           bring up the live tutoring board
 #    make list                 show the unit table
 # ===========================================================================
 ROOT  := $(patsubst %/,%,$(dir $(abspath $(lastword $(MAKEFILE_LIST)))))
 BUILD := bash "$(ROOT)/scripts/build.sh"
 
-.PHONY: all scaffold scaffold-lessons scaffold-chapters lesson notes homework clean list
+.PHONY: all scaffold scaffold-lessons scaffold-chapters lesson notes homework clean list board board-stop board-export
 
 scaffold:
 	@bash "$(ROOT)/scripts/scaffold.sh"
@@ -59,3 +60,13 @@ clean:
 
 list:
 	@grep -v '^#' "$(ROOT)/units.tsv" | awk -F'\t' 'NF{printf "%-8s %-3s %s\n",$$1,$$2,$$4}'
+
+# --- live tutoring board (Tutor-Board) -------------------------------------
+board:
+	@board start
+
+board-stop:
+	@board stop
+
+board-export:
+	@board export --build

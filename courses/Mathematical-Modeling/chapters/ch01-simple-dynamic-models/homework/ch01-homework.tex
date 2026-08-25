@@ -2,11 +2,16 @@
 %  Simple dynamic models — homework
 %
 %  DIVISION OF LABOUR (see AI_INSTRUCTIONS.md §7):
-%    The assistant transcribes each assigned problem statement faithfully from
-%    the exercise notebook in this unit's material/ directory, and emits an
-%    empty, marked solution region beneath it.
-%    The user types the mathematics inside those regions. No assistant writes
-%    inside a SOLUTION region in normal mode.
+%    The assistant writes this whole document, solutions included.
+%    Problem statements are transcribed faithfully from the exercise notebook
+%    in this unit's material/ directory.
+%    Solutions are transcribed from the user's uploaded pages in handwritten/
+%    — their steps, their order, their notation, their mistakes. The assistant
+%    does not compose mathematics here, does not add or drop steps, and does
+%    not silently correct errors; errors are reported in conversation instead.
+%    Illegible handwriting gets a question, never a reconstructed guess.
+%    A problem with no uploaded work keeps an empty region marked PENDING.
+%    Each region's marker names the page it was transcribed from.
 % ===========================================================================
 \documentclass[11pt]{article}
 \usepackage{coursemacros}
@@ -26,8 +31,7 @@
 \begin{problem}{1}
   \todo{statement not yet transcribed}
 \end{problem}
-% ===== SOLUTION 1 =====
-% TODO(mferguson): your work goes here.
+% ===== SOLUTION 1 — PENDING: no uploaded work yet =====
 % ===== END SOLUTION 1 =====
 
 \end{document}
