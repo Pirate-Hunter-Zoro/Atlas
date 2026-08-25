@@ -1,0 +1,30 @@
+# Order of study. Columns (TAB separated): order  topic  module  title
+# Status is NOT recorded here — it is derived from whether the file still
+# contains `sorry`. Run scripts/status.sh to see it.
+# Add a row when you add an exercise; scripts/new-exercise.sh does it for you.
+01	PropositionalLogic	E01_AndComm	Conjunction is commutative
+02	PropositionalLogic	E02_OrComm	Disjunction is commutative
+03	PropositionalLogic	E03_Contrapositive	The contrapositive of an implication follows from it
+04	PropositionalLogic	E04_DoubleNegElim	Double negation elimination
+05	PredicateLogic	E01_ForallAnd	A universal quantifier distributes over conjunction
+06	PredicateLogic	E02_ExistsOr	An existential quantifier distributes over disjunction
+07	PredicateLogic	E03_NotForall	Negating a universal gives an existential counterexample
+08	Sets	E01_InterComm	Intersection is commutative
+09	Sets	E02_UnionDistribInter	Union distributes over intersection
+10	Sets	E03_SubsetTrans	Subset inclusion is transitive
+11	Functions	E01_InjectiveComp	A composition of injections is an injection
+12	Functions	E02_SurjectiveComp	A composition of surjections is a surjection
+13	Functions	E03_SubsetPreimageImage	A set is contained in the preimage of its image
+14	Induction	E01_SumRange	The Gauss sum, stated without division so it lives entirely in ℕ
+15	Induction	E02_LtTwoPow	Every natural is smaller than its own power of two
+16	NumberTheory	E01_EvenOfEvenSq	If n² is even then n is even
+17	NumberTheory	E02_SqrtTwoIrrational	There is no rational whose square is 2
+18	Structures	E01_UniqueIdentity	A left identity in a monoid is *the* identity
+19	Structures	E02_TypeclassInference	Unfolding the successor case of monoid exponentiation
+20	GroupTheory	E01_InvUnique	Inverses in a group are unique
+21	GroupTheory	E02_InvInv	The inverse of an inverse is the original element
+22	GroupTheory	E03_SubgroupInter	An element in two subgroups lies in their intersection
+23	RingsAndFields	E01_NoZeroDivisors	A field has no zero divisors
+24	RingsAndFields	E02_CharTwo	In characteristic two, every element is its own additive inverse
+25	FieldExtensions	E01_TowerLaw	The tower law: degrees multiply up a tower of finite extensions
+26	FieldExtensions	E02_AdjoinRoot	The degree of a simple extension is the degree of the minimal polynomial

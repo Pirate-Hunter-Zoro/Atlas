@@ -1,0 +1,13 @@
+# Lake build directory — contains the entire compiled Mathlib. Never commit.
+.lake/
+build/
+
+# Kept otherwise minimal, matching the ignore set used in Research-Journey.
+__pycache__
+node_modules/
+
+# OS / editor cruft
+.DS_Store
+Thumbs.db
+*~
+.*.swp
