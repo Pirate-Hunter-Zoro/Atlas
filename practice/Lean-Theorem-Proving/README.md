@@ -213,8 +213,9 @@ minimal ignore set used across these repositories (`__pycache__`, `node_modules/
 The `.lake/` entry is an explicit, agreed exception to the "ignore nothing extra" rule, for three
 reasons:
 
-1. **Size.** A fully built Mathlib is roughly 5–6 GB of `.olean` files. GitHub rejects any single
-   file over 100 MB and struggles past about 1 GB per repository.
+1. **Size.** A fully built Mathlib is many gigabytes of `.olean` files — orders of magnitude past
+   what git is for. GitHub rejects any single file over 100 MB and struggles past about 1 GB per
+   repository.
 2. **They are version-locked binaries.** An `.olean` is loadable only by the exact Lean version
    that produced it, against the exact Mathlib commit it came from. Bump `lean-toolchain` or
    update Mathlib and every one is dead weight.
@@ -271,8 +272,12 @@ running `scripts/status.sh`, so the exercise status is at the bottom of that log
 build itself failed.
 
 That log is **truncated on every submission**. If a run is worth keeping — the cold Mathlib build
-especially — copy it aside before resubmitting; `build_mathlib_out.full-mathlib.txt` and
-`build_mathlib_out.64core.txt` are previous runs preserved that way.
+especially — copy it aside under a descriptive name before resubmitting.
+
+Job logs are **not tracked by git**: `.gitignore` covers `slurm_jobs/*.txt`, because they are
+build output rather than source and the live out/err pair churns on every run. The job script
+itself is tracked. Preserved copies therefore live only on the machine that produced them, so a
+fresh clone has the sbatch and no logs — which is correct, since its logs will be its own.
 
 The build is **incremental** — cancelling and resubmitting resumes from the artifacts already in
 `.lake/` rather than starting over, so the job is safe to resubmit at any time. The artifacts are

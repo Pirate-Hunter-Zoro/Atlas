@@ -2,6 +2,11 @@
 .lake/
 build/
 
+# Slurm job logs. Build output, not source: the live out/err files are truncated
+# and rewritten on every submission, and preserved copies of past runs are kept
+# locally by hand. The job script itself IS tracked.
+slurm_jobs/*.txt
+
 # Kept otherwise minimal, matching the ignore set used in Research-Journey.
 __pycache__
 node_modules/
