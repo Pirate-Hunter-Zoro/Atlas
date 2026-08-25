@@ -204,12 +204,17 @@ The Lean 4 VS Code extension provides the Infoview, which shows the goal state a
 you move through a proof. It locates the toolchain through `elan` automatically when the
 workspace is opened at this directory. Working without it is proving blindfolded.
 
-## Git — and the one deliberate ignore exception
+## Git — and the deliberate ignore exceptions
 
-Nothing is committed automatically and no remote is configured.
+The remote is `origin`, at
+[Pirate-Hunter-Zoro/Lean-Theorem-Proving](https://github.com/Pirate-Hunter-Zoro/Lean-Theorem-Proving),
+tracked by `main`. Nothing is committed or pushed automatically — the assistant does not commit,
+does not push, and does not touch remotes unless asked in that message.
 
-`.gitignore` here ignores **`.lake/`** and **`build/`**, and otherwise matches the deliberately
-minimal ignore set used across these repositories (`__pycache__`, `node_modules/`, OS cruft).
+`.gitignore` here ignores **`.lake/`**, **`build/`**, and **`slurm_jobs/*.txt`**, and otherwise
+matches the deliberately minimal ignore set used across these repositories (`__pycache__`,
+`node_modules/`, OS cruft).
+
 The `.lake/` entry is an explicit, agreed exception to the "ignore nothing extra" rule, for three
 reasons:
 
@@ -224,6 +229,11 @@ reasons:
    this build on any machine. The artifacts are output, not source.
 
 To move a built `.lake` to another machine, copy the directory out of band — not through git.
+
+`slurm_jobs/*.txt` is the second such exception, on the same principle at a much smaller scale:
+job logs are output, the live out/err pair is truncated and rewritten on every submission, and
+committing them means every build dirties the tree for no benefit. The job script itself is
+tracked; only its output is ignored.
 
 ## Where things stand
 
@@ -243,13 +253,15 @@ handoff note.*
 - **All 26 theorem statements elaborate.** `lake build` completes with exit status 0, zero
   `error:` lines, empty stderr, and exactly 26 `declaration uses 'sorry'` warnings — one per
   exercise. Every statement is type-correct and every proof obligation is real.
+- **Committed and pushed**, to `origin/main` on GitHub. The tracked tree is source only: `.lake/`
+  and the job logs are ignored, and `lean-toolchain` plus `lake-manifest.json` are what reproduce
+  the build elsewhere.
 
 **Not yet true, and important:**
 
 - **Nothing is proved.** `scripts/status.sh` reports *0 proved, 26 open*. A verified statement is
   a starting line, not progress past it — this is exactly the "it built" versus "it is proved"
   distinction the last section of this file insists on.
-- Nothing has been committed and no remote exists.
 
 Two statements had to be fixed to get here, and neither was wrong in the way this note previously
 predicted. `E01_TowerLaw`'s `IsScalarTower` formulation of the tower law was correct as written
@@ -258,8 +270,9 @@ and needed no change, and `E02_AdjoinRoot`'s statement matched Mathlib's
 opening its scope and a name collision with Mathlib's root namespace — both recorded under
 "Mistakes worth not repeating" above.
 
-**The immediate next step** is to start proving. Exercise 01 is the entry point, and the tree
-builds clean, so this is also the first sensible moment to consider an initial commit.
+**The immediate next step** is to start proving. Exercise 01 is the entry point. The scaffolding
+is finished and out of the way: the toolchain is pinned, Mathlib is built, every statement
+elaborates, and the whole thing is on a remote. Nothing is left between here and the first proof.
 
 ## Building under Slurm
 
