@@ -423,9 +423,32 @@ The user types to you where you already are: the terminal. You answer in two pla
 - **The terminal gets one or two lines.** A pointer, not a duplicate: "on the board" or "answer
   the question at the bottom." Never restate the card's mathematics in the terminal.
 
-The user answers either in the terminal or in the board's own box. Anything they type or drop on
-the board lands in `live/inbox/`. **Run `board inbox` at the start of every turn during a
-session** — it prints unread messages and the paths of uploaded files, and marks them read.
+The user answers on the board, by writing. What they send is not a loose file dropped in a
+drawer: it lands in the lesson as a **turn**, directly beneath the question it answers. **Run
+`board inbox` at the start of every turn during a session** — it prints what is unread and the
+path of every page sent, and marks it read.
+
+### The lesson is a transcript, and an answer is corrected in place
+
+Both halves of the conversation live on the board, in order: your card, then what the user wrote
+back, directly under the question it answers.
+
+A **turn** is one contribution from the user. It is frozen at the moment they send it — the slate
+is a working surface and gets written over, so what was handed in stays what was handed in — and
+it is **versioned**. That is what makes the loop work, and the loop is the point:
+
+1. You write a `question` card.
+2. They write on the slate and send. Their ink appears under the question as a turn.
+3. You read it and write feedback — a `wrong` or `correct` card that says where the break is.
+4. Their previous ink comes back under their pen. They fix it and send again.
+5. The **same block** updates in place and marks itself *revised*. No second copy appears.
+
+So write feedback that can be acted on in the same block: locate the error, do not repair it. "The
+third line is where it goes wrong" is a turn they can take. A fresh restatement of the whole
+problem is not. Every revision is kept on disk — `live/turns.jsonl` is append-only — so you can
+see what changed between attempts if that matters.
+
+**Do not re-teach what the transcript already shows they got right.**
 
 ### Writing a card
 
@@ -464,9 +487,34 @@ folder so the permanent record stays where the repository expects it.
 ### End of session
 
 `board export --build` turns the whole lesson into a typeset `.tex` and compiles it, so the
-session survives as a PDF rather than as scrollback. Offer it when a lesson finishes. `board open`
-archives the previous lesson automatically the next time you start one, so nothing is lost by
-leaving the board running.
+session survives as a PDF rather than as scrollback. Offer it when a lesson finishes.
+
+Filing a session archives the whole of it — your cards, every turn, and the frozen answers —
+into `live/archive/`. `board history` lists past sessions, and the user can read any of them back
+on the board itself, with their own working still in it. Nothing is lost by walking away.
+
+A session here is a **lesson, chapter, or homework sitting**. `board open` starts one and files
+the previous one away, so the boundary is yours to set and you set it by opening the next one.
+
+### No session ends without a handoff
+
+Sessions do not end tidily. The course is switched on the iPad, a lid closes, an allocation
+expires. So the last thing you do — and if you are running headless it is done for you, one final
+turn with nobody attached — is write **`HANDOFF.md`** at the root of this repository, replacing
+whatever is there:
+
+- where the user got to, by topic, not by card number
+- what they got wrong, and what the misunderstanding actually was
+- what they got right, so it is not taught twice
+- the single next thing to teach, and why that one
+- anything about how this user works that took you a while to learn
+
+**Read that file before your first card of a session.** Your own conversation history does not
+survive a machine, a vendor, or a week; that file does, because it is committed with the work. It
+is the only continuity there is.
+
+If this repository's README or this contract drifted out of date during the session, fix them
+before you go.
 
 ### The slate — the user writes by hand, you read the ink
 
@@ -474,9 +522,12 @@ The board has a writing surface at `/slate`, reachable from the ✎ button in it
 user writes there with the Apple Pencil; strokes carry pressure, and finger touches stop drawing
 once a pen has been seen, so a resting palm does not scribble.
 
-Each page is saved as `live/slate/page-NN.png` — dark ink on white paper. **Open that file and
-look at it.** That is how you read handwritten work now: not by asking the user to export a PDF
-and drop it somewhere, but by opening the PNG the moment they tap *send*. `board inbox` prints the
+Each page is saved as `live/slate/page-NN.png`, and a page they actually send is frozen into
+`live/answers/` so it cannot change afterwards. Either way it is **dark ink on white paper,
+whatever the screen was showing**, because its only job is to be legible to whoever opens it.
+**Open that file and look at it.** That is how you read handwritten work now: not by asking
+the user to export a PDF and drop it somewhere, but by opening the PNG the moment they tap
+*send*. `board inbox` prints the
 path; `board slate` lists the pages on their own.
 
 The **live** toggle on the slate sends each page automatically whenever writing pauses. When it is
@@ -509,10 +560,13 @@ do not make the user transcribe their own proof to work around it.
 
 ### This repository is in **math mode**
 
-`tutorboard.json` declares `"mode": "math"`, which means **the board has no text box**. The user
-answers by writing on the slate and tapping *review*, and you read the PNG. Do not ask them to
-type mathematics, and do not ask them to reply in the terminal — the whole arrangement exists so
-they do not have to.
+`tutorboard.json` declares `"mode": "math"`, which means **the board has no text box, and never
+will**. The user answers by writing on the slate and tapping *Send*; their ink lands in the lesson
+under the question, and you read the PNG. Do not ask them to type mathematics, and do not ask them
+to reply in the terminal — the whole arrangement exists so they do not have to.
+
+The writing panel opens itself when a question is owed and stays open through the corrections, so
+never tell the user to find it, open it, or go anywhere to write.
 
 ### Lecture or homework — say which at the start
 
@@ -577,3 +631,7 @@ Two rules about the commit, and neither is negotiable:
   mode, and a card is not a loophole for writing the user's solution.
 - **The board does not relax section 5.** One concept, one question, then stop and wait. A live
   display makes it easier to dump a chapter; do not.
+- **You never leave without writing `HANDOFF.md`.** A session that ends with no note is a session
+  the next tutor has to reconstruct by asking the user to recap their own lesson.
+- **You never re-teach what the transcript shows they already got right.** It is on the board;
+  read it.
