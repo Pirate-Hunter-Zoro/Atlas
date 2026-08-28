@@ -23,11 +23,34 @@
 % exercise, in the order assigned, following the pattern below exactly.
 % ---------------------------------------------------------------------------
 
-\begin{problem}{01.1}
-  \todo{statement not yet transcribed}
+\begin{problem}{01.3}
+  Suppose that $H$ is a subgroup of $G$ of index $2$. Show that $H$ is a normal
+  subgroup of $G$.
 \end{problem}
-% ===== SOLUTION 01.1 =====
-% TODO(mferguson): your work goes here.
-% ===== END SOLUTION 01.1 =====
+% ===== SOLUTION 01.3 =====
+We must show that $g h g^{-1} \in H$ for every $g \in G$ and every $h \in H$.
+Let $h \in H$.
+
+\medskip
+\noindent\textbf{Case 1: $g \in H$.}
+Then $g h g^{-1} \in H$ by closure; no normality is needed to guarantee this.
+
+\medskip
+\noindent\textbf{Case 2: $g \notin H$.}
+Since $H$ has index $2$, there are exactly two cosets of $H$ in $G$, namely $H$ and
+one other; let $gH$ be that disjoint coset of $H$, so $g \notin H$. Denote
+$x = g h g^{-1}$.
+
+Suppose $x \in gH$. Then there exists $h_1 \in H$ such that
+\[
+  g h g^{-1} \;=\; g h_1
+  \iff g^{-1} \;=\; h^{-1} h_1
+  \iff g \in H,
+\]
+a contradiction.
+
+So since $x \notin gH$ due to the contradiction, $x \in H$, since $H$ and $gH$
+partition $G$. So $x = g h g^{-1} \in H$ and $H$ is normal. \qed
+% ===== END SOLUTION 01.3 =====
 
 \end{document}
