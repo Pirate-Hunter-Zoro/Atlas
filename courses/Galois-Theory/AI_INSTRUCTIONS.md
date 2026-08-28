@@ -323,7 +323,7 @@ This restriction applies **only to conversation**. Inside `.tex` files, write pr
 ```
 <course-root>/
 ├── AI_INSTRUCTIONS.md        this file — the authority
-├── CLAUDE.md, AGENTS.md      pointers to this file
+├── HANDOFF.md                what the last session left for the next one
 ├── README.md                 human-facing orientation
 ├── Makefile                  build entry points (you run these, not the user)
 ├── textbook/                 the source text, if the course has one
@@ -554,9 +554,10 @@ This repository's contract is model-agnostic and so is the board. The whole inte
 line and a directory of files: `board start`, write markdown into `live/cards/`, `board inbox`,
 `board wait`. There is no SDK and nothing tool-specific.
 
-If you are an assistant that cannot look at an image, say so plainly and ask the user to type the
-answer into the board's text box instead. Do not pretend to have read a page you cannot see, and
-do not make the user transcribe their own proof to work around it.
+If you are an assistant that cannot look at an image, say so plainly and hand the session to one
+that can. Do not pretend to have read a page you cannot see, and do not make the user transcribe
+their own proof to work around it — this repository is in math mode (below), so there is no text
+box to transcribe it into.
 
 ### This repository is in **math mode**
 

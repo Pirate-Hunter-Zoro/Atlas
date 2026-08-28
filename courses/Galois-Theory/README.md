@@ -11,6 +11,7 @@ D. J. H. Garling, *A Course in Galois Theory* (Cambridge University Press).
 ## Layout
 
 ```
+HANDOFF.md          what the last session left for the next one — read first
 textbook/           the full scanned text (tracked — private repo)
 chapters.tsv        chapter table — numbers, titles, page ranges. Single source of truth.
 latex/
@@ -31,12 +32,19 @@ chapters/chNN-slug/
 
 1. Read the chapter. The assistant teaches it one concept at a time, with one question per
    response, and will not dump a summary on you.
-2. Work the problems by hand on the iPad. Export the PDF into that chapter's `handwritten/`.
-3. The assistant reviews the handwritten work and finds the breaks before anything is typeset.
+2. Work the problem by hand on the board's slate and tap **send**. Nothing to export, nothing to
+   airdrop — your ink lands in the lesson under the question it answers.
+3. The assistant opens the page, reads it, and locates the break rather than repairing it. Your
+   working comes back under your pen and the same block updates in place.
 4. The assistant generates the `.tex` scaffold: every statement transcribed, every solution
    region empty and marked.
-5. You type the mathematics into the marked regions.
+5. Once an answer is agreed correct, the assistant typesets *your* argument into its region —
+   same steps, same order — and files the handwriting beside it in that chapter's `handwritten/`.
 6. The assistant compiles and reports. You never run the build yourself.
+
+Sessions end without warning, so the assistant leaves `HANDOFF.md` at the root: where you got to,
+what is owed, and what comes next. It is read at the start of the next session, and it is the only
+continuity there is.
 
 ## Solution markers
 
@@ -93,8 +101,9 @@ app with its own icon, no browser chrome, and a long-press shortcut straight to 
 
 Everything the assistant teaches appears there as typeset mathematics the moment it is written:
 real LaTeX, real subgroup lattices and commutative diagrams, no refresh and no compile step. You
-answer in the terminal, in the box at the bottom of the board, or by hand: the ✎ button opens a
-slate you write on with the Apple Pencil. Tap send and the assistant opens the page and reads
+answer by hand — this course is in **math mode**, so there is no text box and never will be. The ✎
+button opens a slate you write on with the Apple Pencil, and it opens itself whenever a question is
+owed. Tap send and the assistant opens the page and reads
 your handwriting — no exporting, no airdropping, no retyping a proof you already wrote. Turn on
 *live* and it sees each page as you pause. Photos and PDFs dropped anywhere on the board work
 too.
