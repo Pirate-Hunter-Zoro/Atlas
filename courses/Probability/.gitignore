@@ -19,5 +19,6 @@ live/*
 !live/slate/
 !live/answers/
 !live/archive/
+!live/inbox/
 !live/state.json
 !live/turns.jsonl
