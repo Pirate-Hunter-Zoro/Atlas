@@ -1,5 +1,9 @@
 % ===========================================================================
-%  Homework 01 — Homework 01
+%  Homework 01 — Probability, Fall 2026.  Due September 2, 2026.
+%
+%  Assigned (assignment/Prob.Homework1.2026.pdf):
+%    Problem 1 (instructor's own), then Ross ch.1 exercises 8, 10, 12, 39, 41.
+%    Practice only, not handed in: ch.1 exercises 4, 5, 6, 7, 17.
 %
 %  DIVISION OF LABOUR (see AI_INSTRUCTIONS.md §7):
 %    The assistant transcribes each assigned problem statement faithfully from
@@ -18,16 +22,83 @@
 \begin{document}
 \maketitle
 
-% ---------------------------------------------------------------------------
-% Assistant: replace this block with one problem/solution pair per assigned
-% problem, in the order assigned, following the pattern below exactly.
-% ---------------------------------------------------------------------------
-
 \begin{problem}{1}
-  \todo{statement not yet transcribed}
+  Let $E$ and $F$ be events. Using the axioms of probability, prove that
+  \[
+    P(E \cup F) = P(E) + P(F) - P(EF).
+  \]
 \end{problem}
 % ===== SOLUTION 1 =====
 % TODO(mferguson): your work goes here.
 % ===== END SOLUTION 1 =====
+
+\begin{problem}{8}
+  If $P(E) = 0.9$ and $P(F) = 0.8$, show that $P(EF) \geqslant 0.7$. In general,
+  show that
+  \[
+    P(EF) \geqslant P(E) + P(F) - 1.
+  \]
+  This is known as Bonferroni's inequality.
+\end{problem}
+% ===== SOLUTION 8 =====
+% TODO(mferguson): your work goes here.
+% ===== END SOLUTION 8 =====
+
+\begin{problem}{10}
+  Show that
+  \[
+    P\!\left( \bigcup_{i=1}^{n} E_i \right) \leqslant \sum_{i=1}^{n} P(E_i).
+  \]
+  This is known as Boole's inequality.
+
+  \upshape\emph{Hint:} Either use Equation (1.2) and mathematical induction, or
+  else show that $\bigcup_{i=1}^{n} E_i = \bigcup_{i=1}^{n} F_i$, where
+  $F_1 = E_1$, $F_i = E_i \bigcap_{j=1}^{i-1} E_j^{c}$, and use property (iii)
+  of a probability.
+\end{problem}
+% ===== SOLUTION 10 =====
+% TODO(mferguson): your work goes here.
+% ===== END SOLUTION 10 =====
+
+\begin{problem}{12}
+  Let $E$ and $F$ be mutually exclusive events in the sample space of an
+  experiment. Suppose that the experiment is repeated until either event $E$ or
+  event $F$ occurs. What does the sample space of this new super experiment look
+  like? Show that the probability that event $E$ occurs before event $F$ is
+  $P(E) / [P(E) + P(F)]$.
+
+  \upshape\emph{Hint:} Argue that the probability that the original experiment is
+  performed $n$ times and $E$ appears on the $n$th time is
+  $P(E) \times (1-p)^{n-1}$, $n = 1, 2, \ldots$, where $p = P(E) + P(F)$. Add
+  these probabilities to get the desired answer.
+\end{problem}
+% ===== SOLUTION 12 =====
+% TODO(mferguson): your work goes here.
+% ===== END SOLUTION 12 =====
+
+\begin{problem}{39}
+  Stores $A$, $B$, and $C$ have 50, 75, and 100 employees and, respectively, 50,
+  60, and 70 percent of these are women. Resignations are equally likely among
+  all employees, regardless of sex. One employee resigns and this is a woman.
+  What is the probability that she works in store $C$?
+\end{problem}
+% ===== SOLUTION 39 =====
+% TODO(mferguson): your work goes here.
+% ===== END SOLUTION 39 =====
+
+\begin{problem}{41}
+  In a certain species of rats, black dominates over brown. Suppose that a black
+  rat with two black parents has a brown sibling.
+  \begin{enumerate}
+    \item[(a)] What is the probability that this rat is a pure black rat (as
+      opposed to being a hybrid with one black and one brown gene)?
+    \item[(b)] Suppose that when the black rat is mated with a brown rat, all
+      five of their offspring are black. Now, what is the probability that the
+      rat is a pure black rat?
+  \end{enumerate}
+\end{problem}
+% ===== SOLUTION 41 =====
+% TODO(mferguson): your work goes here.
+% ===== END SOLUTION 41 =====
 
 \end{document}

@@ -7,7 +7,10 @@ lecture modules.
 > **AI assistants: read [`AI_INSTRUCTIONS.md`](./AI_INSTRUCTIONS.md) in full before doing
 > anything.** It is the operating contract for this repository and it is model-agnostic —
 > Claude, Codex, DeepSeek/open-code, Cursor, a local model, all the same. Nothing auto-loads it,
-> so read it the moment you are pointed at this README.
+> so read it the moment you are pointed at this README. Then read
+> [`HANDOFF.md`](./HANDOFF.md) — where the last session got to, what went wrong in it, and what
+> comes next. It is the only continuity between sessions, and it is rewritten before each one
+> ends.
 
 ## Layout
 
@@ -41,16 +44,22 @@ chapters.
 
 1. Read the chapter and watch the modules. The assistant teaches one concept at a time, with
    one question per response, and will not dump a summary on you.
-2. Work the problems by hand on the iPad. Export the PDF into the relevant `handwritten/`.
-3. The assistant reviews the handwritten work and finds the breaks before anything is typeset.
+2. Work the problems by hand on the board's slate and tap send. No exporting, no airdropping —
+   the assistant opens the page you just wrote. Pages worth keeping get copied into the relevant
+   `handwritten/`.
+3. The assistant reviews the handwritten work and locates the break. A wrong step goes back to
+   you unrepaired; nothing is typeset until you both agree it is right.
 4. The assistant generates the `.tex` scaffold: every statement transcribed, every solution
    region empty and marked.
-5. You type the mathematics into the marked regions.
+5. Once a solution is agreed correct, the assistant transcribes *your* argument into the marked
+   region — same steps, same order. You do not retype a proof you already wrote by hand.
 6. The assistant compiles and reports. You never run the build yourself.
 
 ## Solution markers
 
-Every place your work belongs is fenced like this, and no assistant writes inside it:
+Every place your work belongs is fenced like this. It stays empty until you have done the
+mathematics by hand and it has been agreed correct; only then does the assistant typeset your
+argument into it. No assistant ever invents a solution you have not produced:
 
 ```
 % ===== SOLUTION 3 =====
@@ -92,12 +101,13 @@ On the iPad, open it once in Safari and use Share → **Add to Home Screen**. Af
 app with its own icon, no browser chrome, and a long-press shortcut straight to the slate.
 
 Everything the assistant teaches appears there as typeset mathematics the moment it is written:
-real LaTeX, real subgroup lattices and commutative diagrams, no refresh and no compile step. You
-answer in the terminal, in the box at the bottom of the board, or by hand: the ✎ button opens a
-slate you write on with the Apple Pencil. Tap send and the assistant opens the page and reads
-your handwriting — no exporting, no airdropping, no retyping a proof you already wrote. Turn on
-*live* and it sees each page as you pause. Photos and PDFs dropped anywhere on the board work
-too.
+real LaTeX, real diagrams, no refresh and no compile step. This course runs the board in **math
+mode**, so you answer by hand rather than by typing: the ✎ button opens a slate you write on with
+the Apple Pencil, and every question card carries an answer block with a **skip this one** button
+that means *move on*. Tap send and the assistant opens the page and reads your handwriting — no
+exporting, no airdropping, no retyping a proof you already wrote. You can also write directly on
+a card the assistant wrote and send those marks as a question about that line. Turn on *live* and
+it sees each page as you pause. Photos and PDFs dropped anywhere on the board work too.
 
 With the board on the iPad and the slate for your working, a whole session can happen without
 touching the keyboard.
