@@ -28,6 +28,12 @@ a winner between two versions of your work.
 
 No rebase, no force, nothing rewritten.
 
+**Done — it pushed.** The merge hit exactly the two conflicts predicted,
+`hw01.log` and `hw01.pdf`, resolved both to this machine's build, and went up
+clean. `main` and `origin/main` are level. The PDF is still 4 pages and the log
+has no conflict markers in it. The compute node's commit is in the history, not
+discarded.
+
 ---
 
 **Your move.** Those artifacts are tracked, which is *why* two machines fight
