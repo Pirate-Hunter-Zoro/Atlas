@@ -23,3 +23,4 @@
 {"id": "t0010", "rev": 5, "kind": "ink", "answers": "0019", "t": 1788212251.228461, "iso": "2026-08-31 16:37:31", "from": "student", "page": 4, "strokes": 238, "png": "/answers/t0010-r5.png", "ink": "/answers/t0010-r5.json", "read": false}
 {"id": "t0011", "rev": 1, "kind": "text", "answers": "0019", "t": 1788212337.252906, "iso": "2026-08-31 16:38:57", "from": "student", "text": "Let\u2019s do that last problem", "signal": null, "read": false}
 {"id": "t0012", "rev": 1, "kind": "text", "answers": "0019", "t": 1788212458.671508, "iso": "2026-08-31 16:40:58", "from": "student", "text": "Okay,", "signal": "skip", "read": false}
+{"id": "t0013", "rev": 1, "kind": "ink", "answers": "0026", "t": 1788212946.8944588, "iso": "2026-08-31 16:49:06", "from": "student", "page": 5, "strokes": 67, "png": "/answers/t0013-r1.png", "ink": "/answers/t0013-r1.json", "read": false}
