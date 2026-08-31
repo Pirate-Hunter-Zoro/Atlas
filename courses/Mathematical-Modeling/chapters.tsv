@@ -1,0 +1,35 @@
+# Chapter layout as Tutor-Board reads it.
+#
+# Columns (TAB separated):  num  slug  title
+#
+# WHY THIS EXISTS SEPARATELY FROM units.tsv. units.tsv is this repository's own
+# single source of truth and carries BOTH tracks -- the eighteen Mathematica
+# lessons and the seven Beltrami chapters -- in a four-column shape its own
+# scripts read. Tutor-Board reads a three-to-five column chapters.tsv and has no
+# idea what a "kind" column is, so it was falling back to guessing chapters from
+# the chapters/chNN-* directory names. That works, but the titles it recovers are
+# the slugs, which come out lower-cased and hyphen-derived: "Ch 1 - simple
+# dynamic models". These are the same titles units.tsv carries, spelled properly.
+#
+# The rows below are GENERATED FROM units.tsv -- the chapter rows of it, in
+# order. If a chapter is added there, add it here too, or the board will show the
+# old list. units.tsv stays the source of truth; this is a view of it.
+#
+# THE LESSONS ARE DELIBERATELY ABSENT, and this is a limitation worth knowing
+# about rather than a decision. Tutor-Board labels every entry here as
+# "Ch <num> - <title>", so a lesson listed here reads "Ch L01 - Lesson 01".
+# There is no way in this format to say "not a chapter". So the board's contents
+# menu offers the seven Beltrami chapters and not the eighteen lessons; a lesson
+# sitting is opened by label instead:
+#
+#     board open "Mathematical Modeling" "Lesson 01" --lecture
+#
+# Titles here are Dr. Doty's, read off the section headings inside the notebooks,
+# and are NOT Beltrami's chapter titles. README.md carries the map between them.
+01	simple-dynamic-models	Simple dynamic models
+02	ordinary-differential-equations	Ordinary differential equations
+03	stability-and-linearization	Stability and linearization
+05	flux-and-conservation	Flux and conservation models
+06	limit-cycles-and-parameters	Limit cycles and parameters
+07	gradient-systems	Gradient systems
+08	chaos-and-attractors	Chaos and attractors

@@ -7,6 +7,7 @@
 #    make scaffold-lessons     just the Mathematica lessons
 #    make scaffold-chapters    just the Beltrami chapters
 #    make lesson N=07          build lesson 7's notes
+#    make exercises N=01       print lesson 1's exercise notebook for submission
 #    make notes CH=03          build Beltrami chapter 3's notes
 #    make homework CH=03       build chapter 3's homework
 #    make all                  build everything that has a .tex file
@@ -17,7 +18,7 @@
 ROOT  := $(patsubst %/,%,$(dir $(abspath $(lastword $(MAKEFILE_LIST)))))
 BUILD := bash "$(ROOT)/scripts/build.sh"
 
-.PHONY: all scaffold scaffold-lessons scaffold-chapters lesson notes homework clean list board board-stop board-export
+.PHONY: all scaffold scaffold-lessons scaffold-chapters lesson exercises notes homework clean list board board-stop board-export
 
 scaffold:
 	@bash "$(ROOT)/scripts/scaffold.sh"
@@ -33,6 +34,16 @@ lesson:
 	@f=$$(ls "$(ROOT)"/lessons/lesson-$(N)/notes/*.tex 2>/dev/null | head -1); \
 	 test -n "$$f" || { echo "no notes for lesson $(N) (try: make scaffold)"; exit 1; }; \
 	 $(BUILD) "$$f"
+
+# The submission format for this course is a printed notebook with the output
+# cleared, not a .nb file (README, "Submission format"). This turns the unit's
+# exercise notebook into exactly that, without needing an activated kernel.
+exercises:
+	@test -n "$(N)" || { echo "usage: make exercises N=01"; exit 1; }
+	@nb=$$(ls "$(ROOT)"/lessons/lesson-$(N)/work/*Exercises*.nb 2>/dev/null | head -1); \
+	 test -n "$$nb" || { echo "no exercise notebook in lessons/lesson-$(N)/work/"; exit 1; }; \
+	 tex="$(ROOT)/lessons/lesson-$(N)/work/lesson-$(N)-exercises.tex"; \
+	 python3 "$(ROOT)/scripts/nb2tex.py" "$$nb" -o "$$tex" && $(BUILD) "$$tex"
 
 notes:
 	@test -n "$(CH)" || { echo "usage: make notes CH=03"; exit 1; }

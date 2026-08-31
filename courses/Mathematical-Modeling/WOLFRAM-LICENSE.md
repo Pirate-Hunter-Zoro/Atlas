@@ -9,7 +9,13 @@ shared with a collaborator, these are exposed — and git history keeps them aft
 
 ---
 
-## 1. What is actually running: Wolfram Engine 15.0.0 — ACTIVATED
+## 1. What is actually running: Wolfram Engine 15.0.0
+
+Two installs now, one entitlement. The free Engine licence attaches to a Wolfram ID, not to a
+machine, so the same personal ID activates both — but **each machine has to be activated once**,
+and that step is interactive.
+
+### compute301 (Laureate) — ACTIVATED
 
 | Field | Value |
 | --- | --- |
@@ -20,6 +26,42 @@ shared with a collaborator, these are exposed — and git history keeps them aft
 | Binaries | symlinked into `~/bin`, already on PATH |
 | Licence record | `~/.WolframEngine/Licensing/mathpass` — **contains a password, do not copy it here** |
 | Reported `$LicenseType` | Professional |
+
+### The Mac — INSTALLED, **NOT YET ACTIVATED**
+
+| Field | Value |
+| --- | --- |
+| Product | Wolfram Engine 15.0.0.0, from Homebrew: `brew install --cask wolfram-engine` |
+| Install path | `/Applications/Wolfram Engine.app` |
+| `wolframscript` | `/opt/homebrew/bin/wolframscript`, linked by the cask |
+| Kernel | `/Applications/Wolfram Engine.app/Contents/MacOS/WolframKernel` |
+| State | the kernel starts and reports *not activated* |
+
+**One thing had to be configured, and it is not obvious.** The cask links the `wolframscript`
+that lives inside the bundled *Wolfram Player*, and that copy cannot find the Engine's kernel on
+its own — it fails with *A WolframKernel location could not be determined*, which reads like a
+broken install and is not one. Fixed once, persistently, with
+
+```
+wolframscript -configure WOLFRAMSCRIPT_KERNELPATH="/Applications/Wolfram Engine.app/Contents/MacOS/WolframKernel"
+```
+
+After that the kernel starts and says what it actually needs, which is activation.
+
+**To activate it — this needs you, in a real terminal.** Open Terminal.app and run
+
+```
+wolframscript -activate
+```
+
+and answer with the **personal Gmail Wolfram ID** and its password — not the `@utulsa.edu` one.
+Section 2 explains why that distinction matters. It must be a genuine interactive terminal:
+Claude Code's `!` bash mode is not one, gives both prompts empty input, and fails instantly with
+"Incorrect username or password", which looks like a typo and is not.
+
+Until that is done, nothing on this machine can evaluate Wolfram Language. It is not in the way
+of coursework — `scripts/nb2tex.py` prints a notebook for submission without a kernel — but it
+is in the way of running anything.
 
 Verified working: `2+2` → 4, `$Version` → 15.0.0 for Linux x86-64, and `Export` of a `Plot`
 produces a valid PNG.

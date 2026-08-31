@@ -39,6 +39,7 @@ latex/
   templates/        notes and homework templates
 scripts/
   scaffold.sh       create unit folders, file notebooks, generate .tex
+  nb2tex.py         turn a .nb into a printable, output-cleared .tex
   build.sh          compile one .tex
 lessons/lesson-NN/
   material/         "Adv Lesson NN.nb" as distributed
@@ -127,8 +128,38 @@ stays obvious which upload each answer is set from.
 
 ## Build
 
-Handled by the assistant. Entry points: `make scaffold`, `make lesson N=07`, `make notes CH=03`,
-`make homework CH=03`, `make all`, `make clean`, `make list`.
+Handled by the assistant. Entry points: `make scaffold`, `make lesson N=07`,
+`make exercises N=01`, `make notes CH=03`, `make homework CH=03`, `make all`, `make clean`,
+`make list`.
+
+### Printing a notebook for submission
+
+`make exercises N=01` turns `lessons/lesson-01/work/Adv Lesson 01 Exercises.nb` into
+`lessons/lesson-01/build/lesson-01-exercises.pdf` — the submission format for this course, which
+is a printed notebook with the output cleared rather than a `.nb` file.
+
+It goes through `scripts/nb2tex.py`, which reads the notebook directly and needs **no Wolfram
+kernel at all**. That matters more than it sounds: the Engine has to be activated per machine
+from an interactive terminal (see `WOLFRAM-LICENSE.md`), and on a machine where that has not
+happened yet this is the difference between having a submission and not having one.
+
+What it does, and what it will not do:
+
+- **Output cells are dropped, always.** That is the submission format, and for a notebook
+  nothing has evaluated it is also the only honest thing to print.
+- **Input cells are transcribed, never authored.** Every character in the PDF came out of the
+  `.nb`.
+- **Typeset two-dimensional input is printed in the equivalent linear syntax** — a built-up
+  fraction as `a/b`, the partial-derivative template as `D[f[x], x]`, the
+  integral-with-differential template as `Integrate[f[x], x]`, `f'` for the prime. That is the
+  syntax the Lesson 01 notebook says its own exercises were written in, and it evaluates
+  identically. It is a change of spelling and not of meaning.
+- **The title block comes from the notebook's own Title cell** — title, name, course — rather
+  than being made up.
+
+The one cost is cosmetic: it is a typeset document, not a screenshot of a Mathematica notebook.
+That was already the accepted trade in this repository, where the Jupyter front end prints the
+same way.
 
 ## Tooling — what we used and how we got it
 
@@ -159,6 +190,16 @@ earlier guess blamed a blocked `activate.wolfram.com`, but that hostname does no
 — public DNS returns NXDOMAIN. Every real Wolfram host resolves and answers from this node.
 
 The install and its 2.5 GB installer were deleted afterwards, reclaiming 11.4 GB.
+
+### On the Mac
+
+`brew install --cask wolfram-engine` — the same 15.0.0, no extraction games, no root argument to
+have. Two things then differ from the node and both are recorded in `WOLFRAM-LICENSE.md`: the
+cask links the *Player's* `wolframscript`, which cannot find the Engine's kernel until
+`wolframscript -configure WOLFRAMSCRIPT_KERNELPATH=...` is run once; and the Engine still has to
+be **activated on this machine**, interactively, in a real terminal. That activation has not
+happened yet. LaTeX is MacTeX at `/Library/TeX/texbin`; `latexmk` is absent, and `build.sh`
+already falls back to a plain `pdflatex` loop when it is, so nothing needed changing.
 
 ### Wolfram Engine 15.0.0 — what we actually use, and it works
 
@@ -274,10 +315,15 @@ instructor's notebooks and the syllabus are tracked only for that reason. If it 
 public, ignore them *first* — and purge them from history rather than merely deleting them, since
 a file stays reachable in past commits until it is actually removed.
 
-**The textbook scan is currently neither tracked nor ignored — it is sitting untracked in
-`textbook/`, and an undiscriminating `git add` would sweep it in.** That is an open decision, not
-a description of a policy: either track it deliberately (safe only while this repo is private) or
-add it to `.gitignore` so it cannot be committed by accident. The Beltrami scan is a copyrighted
-1987 Academic Press book, and a public repo carrying it is a takedown waiting to happen — which
-is exactly why leaving it in the third state, neither tracked nor ignored, is the worst of the
-three.
+**The textbook scan is tracked**, and that decision has since been taken deliberately rather
+than left in the third state this section used to warn about. It is safe only while this
+repository stays private: the Beltrami scan is a copyrighted 1987 Academic Press book, and a
+public repo carrying it is a takedown waiting to happen. It is also in the history now, so
+making the repo public means purging it, not deleting it.
+
+The board's `live/` directory is the other thing worth knowing about. It is no longer a blanket
+ignore: the lesson transcript — `live/cards/`, `live/turns.jsonl`, `live/state.json`,
+`live/slate/`, `live/answers/`, `live/archive/`, `live/inbox/`, `live/text/` — is tracked, so a
+session started on one machine is the same session when the other picks it up. Only the
+per-machine runtime stays ignored (`.board.json`, `agent.json`, `board.log`, the figure cache and
+exports). This matches Probability and Galois-Theory exactly.
