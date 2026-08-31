@@ -20,18 +20,39 @@ in the sheet's order. Handwriting is filed alongside in
 
 ## The one thing still outstanding — the build
 
-`pdflatex` is present (TeX Live 2026 basic) and the source is believed sound,
-but **this sandbox refuses to execute it** and the permission prompt cannot be
-answered headless, so `board hw build` fails writing no log. The PDF in
-`homework/hw01/build/` is from 12:11 and predates Solutions 8, 10, 12, 39 and 41
-— that is to say, nearly the whole document.
+The repository is **committed and pushed**; the working tree is clean. Only the
+PDF is behind.
 
-**First action of the next session: approve the TeX binary and build.** He was
-told this on card 0029 rather than left to discover it. The last real LaTeX
-error was zero; expect it to compile.
+`pdflatex` is present and found by `board doctor` at `/Library/TeX/texbin/`, and
+the last real LaTeX error in this document was zero. What blocks the build is
+the harness, not LaTeX and not Tutor-Board: **a headless session is not
+permitted to execute the binary**, and it is equally not permitted to edit
+`.claude/settings.local.json` to allow it, so both routes need a human approval
+that nobody is present to give. `board hw build` therefore fails writing no log,
+and `board push` pushes the source with the PDF behind it. The PDF in
+`homework/hw01/build/` is from 12:11 and predates Solutions 8, 10, 12, 39 and 41.
 
-`board finish` was run, so the save-and-push offer is sitting on the board. It
-had not been tapped when this was written.
+**First action of the next session: build it.** Interactively this is one
+approval prompt, tapped once. Failing that, `pdflatex` wants an entry in the
+permissions allow list in `.claude/settings.local.json`, beside the `pdftotext`
+entries already there. He was told all of this on card 0030 rather than left to
+find it.
+
+## Tutor-Board — asked for, not done
+
+He asked (18:32) for Tutor-Board to be changed so a tutor can compile once a set
+is finished, and for both repositories to be shipped. Probability shipped.
+**Tutor-Board was not touched**: it lives at `/Users/mikeyferguson/Learning/
+Tutor-Board`, outside this session's working directory, so it could not be read,
+edited or pushed. It needs a session opened with that directory in scope.
+
+Two things to carry into that session. No Tutor-Board change can grant a
+sandboxed process a permission the harness withheld — it already detects the
+compiler correctly and correctly refuses to fake a PDF, so the request as stated
+does not fix the symptom. What *is* worth doing there, and was promised on card
+0030, is making `board hw build` report the reason for a failure instead of
+printing the single word `FAILED`, which is what cost this session an afternoon
+of guessing.
 
 ## What actually went wrong, and what did not
 
