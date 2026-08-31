@@ -24,7 +24,23 @@ ex. 8, 10, 12, 39, 41. Practice only, not handed in: 4, 5, 6, 7, 17.
 identity, $P(A)\le 1$, monotonicity, and the disjointification $F_i = E_i\cap
 E_1^{c}\cap\dots\cap E_{i-1}^{c}$ (they skipped that check — treat as known).
 
-**Open — Ross 10, Boole's inequality.** Attempted on card 0009, answered at 12:45
+**Ross 10, Boole's inequality — DONE and agreed correct (rev 3, 13:46).** Took three
+revisions; the history is below because the misunderstandings are the useful part.
+Transcribed into `SOLUTION 10` in their order — main argument, then Aside, then the
+induction — beneath the monotonicity Lemma. Pages filed:
+`handwritten/hw01-10-lemma.png` (monotonicity) and `handwritten/hw01-10.png` (Boole).
+That makes **3 of 6** problems written up.
+
+**Open — Problem 4 (Ross 12).** Card 0012 confirms Boole, then poses the one thing
+that is new: every union so far has been finite, and "$E$ comes first" is a
+*countably infinite* disjoint union, so axiom 3's countable form is needed. The card
+ends with a small check before the problem itself — first head on flip $n$, $P(A_n) =
+(1/2)^n$, compute $P(\text{a head appears eventually})$. That check drills both the
+infinite additivity and the geometric sum they will need. Unanswered.
+
+### How Boole went (three revisions)
+
+Attempted on card 0009, answered at 12:45
 (`live/answers/t0006-r1.png`), sent back on card 0010. They took the
 disjointification route and the **skeleton is correct**: $P(\bigcup E_i) =
 P(\bigcup F_i) = \sum P(F_i)$ by axiom 3, then trade up by monotonicity. Two things
@@ -49,9 +65,14 @@ $e\notin E_i\ \forall i<n$" — which *is* the definition of $F_n$, contradictin
 standing assumption $e\notin F_n$. The case is empty, so of course nothing follows
 from it. They negated a conjunction-with-a-quantifier wrongly: "outside every earlier
 $E_i$" fails by there being **one** earlier $E_i$ you are inside, not by being
-outside all of them. Card 0011 locates exactly that and asks them to state the two
-cases $e\notin F_n$ really splits into — the second one finishes with a line they
-have already written.
+outside all of them. Card 0011 located exactly that and asked them to state the two
+cases $e\notin F_n$ really splits into.
+
+**Rev 3 (13:46) — correct, and they found the good step themselves.** Negation right:
+$e\notin E_n$ **or** $\exists i<n$ with $e\in E_i$. They then noticed the first case
+collapses into the second — $e\notin E_n$ together with $e\in\bigcup_1^n E_i$ forces
+$e\in E_i$ for some $i<n$ — so there was only ever one case to do. That observation is
+theirs and it is the content of the step.
 
 ## What they get wrong
 
@@ -90,11 +111,13 @@ toolchain needs looking at before any more write-up is trusted as compiled.
 
 ## Next
 
-Read the inclusion proof coming back on card 0010. Then transcribe **their whole
-Boole argument** beneath the Lemma already in `SOLUTION 10` — their route, their
-order, with the two corrections folded in as they wrote them, not improved — and
-`board hw file 10` the final page (the current `hw01-10.png` is the monotonicity
-page and will need keeping or renaming alongside it). Then Problem 12.
+Read the coin check on card 0012, then pose **Problem 4 (Ross 12)** in full with the
+book's hint as printed. What it needs beyond the check: naming the sample space of
+the super experiment (sequences of trials, first $n-1$ giving neither $E$ nor $F$),
+and that the per-trial probability of "neither" is $1-p$ with $p = P(E)+P(F)$ — the
+hint hands them that, so do not pre-teach it. Then Problems 39 and 41, which are
+conditional-probability problems and will need Bayes; nothing in ch.1 §§1–3 covers
+them, so expect a real teaching stretch there.
 
 ## How this student works
 

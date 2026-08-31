@@ -129,6 +129,55 @@ Note $P(BA^{c}) \geqslant 0$ by the first axiom, so
 \[
   P(A) = P(B) - P(BA^{c}) \leqslant P(B) .
 \]
+
+\medskip
+\noindent Now prove Boole's inequality. Let
+\[
+  F_1 = E_1,
+  \qquad
+  F_i = E_i E_1^{c} E_2^{c} \cdots E_{i-1}^{c}
+  \quad (i \geqslant 2).
+\]
+Note each $F_i \subseteq E_i$, and $F_i$ is defined such that
+$\bigcup_{i=1}^{n} E_i = \bigcup_{i=1}^{n} F_i$. Further,
+$i \neq j \implies F_i \cap F_j = \varnothing$. So
+\[
+  P\!\left( \bigcup_{i=1}^{n} E_i \right)
+  = P\!\left( \bigcup_{i=1}^{n} F_i \right)
+  = \sum_{i=1}^{n} P(F_i)
+  \quad \text{(disjoint)} .
+\]
+Since $F_i \subseteq E_i$ for all $i$, the Lemma gives $P(F_i) \leqslant P(E_i)$, and
+therefore $\sum_{i=1}^{n} P(F_i) \leqslant \sum_{i=1}^{n} P(E_i)$. Therefore
+\[
+  P\!\left( \bigcup_{i=1}^{n} E_i \right) \leqslant \sum_{i=1}^{n} P(E_i) .
+\]
+
+\medskip
+\noindent\emph{Aside.} Clearly $\bigcup_{i=1}^{n} F_i \subseteq \bigcup_{i=1}^{n} E_i$,
+since $F_i \subseteq E_i$ for all $i$. It remains to prove the other inclusion,
+$\bigcup_{i=1}^{n} E_i \subseteq \bigcup_{i=1}^{n} F_i$, which we do by induction on
+$n$.
+
+\smallskip
+\noindent\emph{Base case.} For $n = 1$, $\bigcup_{i=1}^{1} E_i = E_1 = F_1 =
+\bigcup_{i=1}^{1} F_i$.
+
+\smallskip
+\noindent\emph{Inductive step.} Assume $\bigcup_{i=1}^{n-1} E_i \subseteq
+\bigcup_{i=1}^{n-1} F_i$. Let $e \in \bigcup_{i=1}^{n} E_i$. If $e \in F_n$ we are
+done. If $e \notin F_n = E_n E_1^{c} \cdots E_{n-1}^{c}$, then either $e \notin E_n$,
+or there exists $i < n$ such that $e \in E_i$.
+
+\smallskip
+\noindent If the latter is true, then
+\[
+  e \in \bigcup_{i=1}^{n-1} E_i \subseteq \bigcup_{i=1}^{n-1} F_i
+  \subseteq \bigcup_{i=1}^{n} F_i ,
+\]
+using the inductive hypothesis. If the former is true, the latter must still be true,
+since $e \in \bigcup_{i=1}^{n} E_i$ and $e \notin E_n$ force $e \in E_i$ for some
+$i < n$.
 % ===== END SOLUTION 10 =====
 
 \begin{problem}{12}
