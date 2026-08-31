@@ -58,9 +58,17 @@ Tests run through Go's standard `go test` tooling; pointing it at the module roo
 
 ## Prerequisites
 
-* Go 1.24 or newer (generics and integer `range` are both used).
+* Go 1.24 or newer (generics and integer `range` are both used). On the Mac that is
+  `brew install go`; the module targets 1.24 and a newer toolchain builds it unchanged.
+
+Nothing else. There is no build step, no code generation, and no dependency outside the standard
+library — `go test ./...` from the module root is the whole of it.
 
 ## Debugging over SSH (Delve on the Laureate compute node)
+
+*This whole section is about the cluster. On the Mac the workspace path and the compiled test
+binary's path are the same string, so breakpoints bind with no configuration and none of the
+below applies.*
 
 Breakpoints depend on one piece of configuration, and it is easy to lose on a fresh clone because `.vscode/` is gitignored — recreate it if breakpoints stop binding.
 
