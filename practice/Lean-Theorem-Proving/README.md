@@ -32,6 +32,7 @@ Lean-Theorem-Proving/            (Lake package root)
 ├── lakefile.toml                 package config; requires Mathlib
 ├── lean-toolchain                pinned Lean version (must match Mathlib's)
 ├── scripts/
+│   ├── setup.sh                      make this machine ready to build, whichever it is
 │   ├── new-exercise.sh               scaffold a new exercise + manifest row
 │   ├── status.sh                     which exercises are proved, which still sorry
 │   └── build.sh                      build and report in plain English
@@ -89,20 +90,54 @@ Mathlib already proves both. Finding the existing lemma, reading how its stateme
 and learning why it is phrased that way is the actual exercise — and it is the skill a Galois
 final project incorporating Lean would rest on entirely.
 
+## Getting a machine ready
+
+```
+./scripts/setup.sh            install what is missing, then get Mathlib
+./scripts/setup.sh --check    report only; change nothing
+./scripts/setup.sh --source   skip the cache and compile Mathlib from source
+```
+
+One script, and it is written for the fact that **this repository lives on two machines that
+fail in different places**. It installs `elan` if it is absent, installs the toolchain pinned in
+`lean-toolchain`, and then gets Mathlib by whichever route that machine actually has:
+
+| | personal Mac | Laureate compute node |
+|---|---|---|
+| `elan` | installed by the script into `~/.elan` | already at `~/.elan` |
+| Mathlib | the prebuilt cache downloads | the cache is unreachable — compiled from source |
+| how long | minutes | hours, and it belongs in a batch job |
+
+The cache step runs under a **timeout**, and that is the whole trick. On the cluster
+`lake exe cache get` does not fail, it *hangs*: the TCP connection to Azure Blob Storage opens
+and the TLS handshake is dropped, so it sat for eighteen minutes having fetched nothing, looking
+exactly like a slow download. A timeout is therefore read as "this machine cannot reach the
+cache" and the script moves on to building from source; on a cluster it stops and points at
+`sbatch slurm_jobs/build_mathlib.sbatch` rather than compiling Mathlib on a login shell.
+
+A cache fetch that *fails* is a different thing and is retried up to three times, because
+Mathlib's git history is over a gigabyte and that clone really does drop mid-transfer. A
+half-written checkout is cleared before the retry, since lake will otherwise keep reporting the
+same broken one.
+
+Nothing it does needs root and nothing lands outside `$HOME`.
+
 ## Prerequisites
 
-* `elan` (installed), which manages the Lean toolchain — the pinned version is in
-  `lean-toolchain` and must match the version Mathlib was built against.
-* A compiled Mathlib — **already done**, and sitting in `.lake/`. The prebuilt cache is
-  unreachable from this cluster (see the tooling section), so it was compiled from source under
-  Slurm instead: a one-time cost of a few hours that persists. It only needs repeating if Mathlib
-  or the toolchain is bumped, and the assistant handles it when it does.
+* `elan`, which manages the Lean toolchain — `scripts/setup.sh` installs it. The pinned version
+  is in `lean-toolchain` and must match the version Mathlib was built against.
+* A built Mathlib. It is not tracked (see the git section) and is regenerated per machine from
+  `lean-toolchain` and `lake-manifest.json`, which are.
 
 ## Building
 
 Handled by the assistant, never by you.
 
-* `scripts/build.sh` — compile one file or the whole package, reported in plain English.
+* `scripts/setup.sh` — make this machine able to build at all. Safe to re-run.
+* `scripts/build.sh` — compile one file or the whole package, reported in plain English. It also
+  answers to a `.tex` path, because Tutor-Board's `board export --build` calls
+  `scripts/build.sh <file.tex>` on any repository that has one and does not know this is a Lean
+  package.
 * `scripts/status.sh` — which exercises are proved and which still hold a `sorry`, in manifest
   order.
 * `scripts/new-exercise.sh` — scaffold a new exercise and append it to `exercises.tsv`.
@@ -120,8 +155,18 @@ the toolchain through `elan` automatically once the workspace is opened at this 
 
 ## Tooling — what we used and how we got it
 
-Set up on the Laureate compute node `compute301` (RHEL 9, x86-64, 96 cores, 1 TB RAM), entirely
-in the home directory, no root.
+Two machines now, and everything below is the record of the first one. Where they differ is
+called out; `scripts/setup.sh` is what reconciles them, and it is the thing to run rather than
+following any of this by hand.
+
+- **Laureate compute node `compute301`** (RHEL 9, x86-64, 96 cores, 1 TB RAM), entirely in the
+  home directory, no root. Mathlib compiled from source under Slurm.
+- **A personal Mac** (arm64, macOS 15). `elan` installed from `elan.lean-lang.org`, the same
+  `v4.34.0-rc2` toolchain, and Mathlib fetched from the prebuilt cache — the egress filtering
+  that makes the cache unreachable from the cluster does not exist here, so what takes hours
+  there takes minutes here. The `.olean` artifacts are architecture-specific and are **not**
+  shared between the two: each machine builds its own `.lake/`, which is exactly why it is
+  ignored rather than committed.
 
 ### Lean toolchain
 
@@ -238,6 +283,14 @@ does not push, and does not touch remotes unless asked in that message.
 matches the deliberately minimal ignore set used across these repositories (`__pycache__`,
 `node_modules/`, OS cruft).
 
+The board's `live/` directory is the one further entry, and it is **not** a blanket ignore. The
+lesson transcript — `live/cards/`, `live/turns.jsonl`, `live/state.json`, `live/slate/`,
+`live/answers/`, `live/archive/`, `live/inbox/`, `live/text/` — is tracked, so a session started
+on one machine is the same session when the other picks it up. What stays ignored is the
+per-machine runtime: `.board.json`, `agent.json`, `board.log`, the figure cache and exports. This
+matches Probability and Galois-Theory exactly; it used to be `live/` and nothing else, which
+meant a lesson did not travel.
+
 The `.lake/` entry is an explicit, agreed exception to the "ignore nothing extra" rule, for three
 reasons:
 
@@ -260,8 +313,28 @@ tracked; only its output is ignored.
 
 ## Where things stand
 
-*Written 24 August 2026, updated 25 August 2026. Update this section as it changes; it is the
+*Written 24 August 2026, updated 30 August 2026. Update this section as it changes; it is the
 handoff note.*
+
+**30 August 2026 — this now builds on a personal Mac as well as on the cluster.** `elan`, the
+`v4.34.0-rc2` toolchain and all nine packages installed from scratch; Mathlib came from the
+**prebuilt cache**, not from source, because the egress filtering that makes the cache
+unreachable from `compute301` does not exist here. All 8,765 artifacts downloaded, `lake build`
+exits 0 with zero errors and 26 `sorry` warnings — the same state the cluster reached, in minutes
+rather than hours. `scripts/setup.sh` is what does this on either machine and is the thing to run
+on the next one.
+
+Two things were fixed getting there, and both are the kind that lie to you:
+
+- **The Mathlib clone died mid-transfer** ("8005 bytes of body are still expected") after several
+  minutes of healthy download, leaving a checkout that lake would not repair on its own. The
+  setup script now retries a *failure* and clears the half-written checkout first — while still
+  never retrying a *timeout*, which is the cluster's signature and means something else entirely.
+- **`scripts/build.sh` was miscounting `sorry`.** It matched `declaration uses 'sorry'` with
+  straight quotes; Lean writes backticks. So every sorry warning printed as though it were a
+  problem, and the summary line read *BUILD OK — 0 declaration(s) still using sorry* on a package
+  where all 26 were open. The one line most likely to be read as "it is proved" was saying so
+  falsely. Fixed to match either quoting; it now agrees with `scripts/status.sh`.
 
 **Done:**
 

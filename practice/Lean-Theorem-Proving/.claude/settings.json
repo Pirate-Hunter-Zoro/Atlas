@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "defaultMode": "acceptEdits",
+    "allow": [
+      "Bash(board:*)",
+      "Bash(board *)",
+      "Bash(pdftotext:*)",
+      "Bash(pdftotext *)",
+      "Bash(pdfinfo:*)",
+      "Bash(pdfinfo *)",
+      "Bash(./scripts/build.sh:*)",
+      "Bash(./scripts/status.sh:*)",
+      "Bash(./scripts/setup.sh:*)",
+      "Bash(lake build:*)"
+    ]
+  }
+}

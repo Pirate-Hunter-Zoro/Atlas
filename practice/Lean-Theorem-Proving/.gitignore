@@ -17,5 +17,15 @@ Thumbs.db
 *~
 .*.swp
 
-# live tutoring board (Tutor-Board) — scratch space, never tracked
-live/
+# live tutoring board (Tutor-Board) — runtime state stays local; the lesson
+# transcript (cards, turns, ink, answers, archive) is tracked, so a lecture is
+# the same whichever machine it is picked up on.
+live/*
+!live/cards/
+!live/slate/
+!live/answers/
+!live/archive/
+!live/inbox/
+!live/text/
+!live/state.json
+!live/turns.jsonl
