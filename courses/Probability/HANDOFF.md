@@ -1,7 +1,9 @@
 # HANDOFF
 
-**Homework 1 is finished.** All six problems written up in `homework/hw01/hw01.tex`,
-handwriting filed, repository pushed (`72ecfa4`, clean tree).
+**Homework 1 is finished and compiled.** All six problems written up in
+`homework/hw01/hw01.tex`, handwriting filed, PDF built at
+`homework/hw01/build/hw01.pdf` — 4 pages, 0 warnings, 0 errors, no placeholder
+regions left. Problems: Ross 1, 8, 10, 12, 39, 41.
 
 Answers: Ross 12 → P(E)/(P(E)+P(F)); Ross 39 → 1/2; Ross 41 → 1/3 and 16/17.
 
@@ -41,14 +43,22 @@ state every missing half and re-read the whole page each revision. When a hint
 fails, change mode: *28/45 > 4/9, yet ×0.7 must shrink* landed where two
 algebraic hints had not.
 
-## Blocked
+He also diagnoses tooling accurately and acts on it — he read the sandbox
+refusal correctly and shipped the permissions edit himself.
 
-**The last push was rejected** — the remote has commits this clone does not, so
-this handoff is committed locally and unpushed. Integrate the remote first, then
-push. Do not force it; nothing here is worth rewriting history for.
+## Build permissions — resolved, do not re-report as blocked
 
-The PDF is stale. A headless session may not execute `pdflatex` nor edit
-`.claude/settings.local.json` to allow it. Build interactively — one approval.
-Tutor-Board (`~/Learning/Tutor-Board`) is outside this repo's scope and was
-untouched; he asked for `board hw build` to report *why* it failed instead of
-printing `FAILED`.
+`.claude/settings.local.json` now allows `pdflatex` and the rest of the TeX
+binaries alongside `board` and `scripts/build.sh`. `board hw build` runs headless
+with no approval prompt. The previous handoff's "cannot compile" note is stale.
+
+## Still open
+
+Tutor-Board (`~/Learning/Tutor-Board`) is outside this repository's scope and was
+never touched. `board hw build` prints the bare word `FAILED` on error while
+knowing the reason; he asked for it to say why. That needs a session opened with
+that directory in scope.
+
+Earlier pushes were rejected once (remote ahead); the tree is at `8771c6b` plus
+this session's card, turns and PDF. If a push is refused, integrate the remote
+first — do not force it.
