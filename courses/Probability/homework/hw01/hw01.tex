@@ -29,7 +29,27 @@
   \]
 \end{problem}
 % ===== SOLUTION 1 =====
-% TODO(mferguson): your work goes here.
+$E$ is carved by $F$ into two disjoint pieces:
+\[
+  E = EF \cup EF^{c} \quad \text{(disjoint)},
+\]
+so by axiom 3,
+\[
+  P(E) = P(EF) + P(EF^{c})
+  \iff
+  P(EF^{c}) = P(E) - P(EF).
+\]
+Similarly, $P(FE^{c}) = P(F) - P(EF)$.
+
+Therefore, since $E \cup F = EF \cup EF^{c} \cup FE^{c}$ is a union of pairwise
+disjoint sets,
+\begin{align*}
+  P(E \cup F)
+    &= P\!\left(EF \cup EF^{c} \cup FE^{c}\right) \\
+    &= P(EF) + P(EF^{c}) + P(FE^{c}) \\
+    &= P(EF) + \bigl(P(E) - P(EF)\bigr) + \bigl(P(F) - P(EF)\bigr) \\
+    &= P(E) + P(F) - P(EF). \qedhere
+\end{align*}
 % ===== END SOLUTION 1 =====
 
 \begin{problem}{8}
@@ -41,7 +61,43 @@
   This is known as Bonferroni's inequality.
 \end{problem}
 % ===== SOLUTION 8 =====
-% TODO(mferguson): your work goes here.
+First we record the bound the argument rests on.
+
+\medskip
+\noindent\textbf{Lemma.} \emph{For any event $A$, $P(A) \leqslant 1$.}
+
+\smallskip
+\noindent Since $\Omega = A \cup A^{c}$ is a union of disjoint sets,
+\[
+  P(\Omega) = 1 = P(A \cup A^{c}) = P(A) + P(A^{c})
+  \quad \text{(disjoint)},
+\]
+so
+\[
+  P(A) + P(A^{c}) = 1
+  \iff
+  P(A) = 1 - P(A^{c})
+  \implies
+  P(A) \leqslant 1,
+\]
+since $P(A^{c}) \geqslant 0$ by the first axiom.
+
+\medskip
+\noindent Now prove $P(EF) \geqslant P(E) + P(F) - 1$. Recall, using Problem 1,
+\[
+  1 \geqslant P(E \cup F) = P(E) + P(F) - P(EF),
+\]
+and therefore
+\[
+  1 + P(EF) \geqslant P(E) + P(F)
+  \iff
+  P(EF) \geqslant P(E) + P(F) - 1 .
+\]
+
+Therefore, if $P(E) = 0.9$ and $P(F) = 0.8$,
+\[
+  P(EF) \geqslant 0.9 + 0.8 - 1 \geqslant 0.7 .
+\]
 % ===== END SOLUTION 8 =====
 
 \begin{problem}{10}
@@ -57,7 +113,22 @@
   of a probability.
 \end{problem}
 % ===== SOLUTION 10 =====
-% TODO(mferguson): your work goes here.
+First we record the monotonicity of $P$, which the argument rests on.
+
+\medskip
+\noindent\textbf{Lemma.} \emph{If $A \subseteq B$ then $P(A) \leqslant P(B)$.}
+
+\smallskip
+\noindent Since $A \subseteq B$, we may carve $B = A \cup BA^{c}$, a union of
+disjoint sets, so
+\[
+  P(B) = P(A \cup BA^{c}) = P(A) + P(BA^{c})
+  \quad \text{(disjoint)} .
+\]
+Note $P(BA^{c}) \geqslant 0$ by the first axiom, so
+\[
+  P(A) = P(B) - P(BA^{c}) \leqslant P(B) .
+\]
 % ===== END SOLUTION 10 =====
 
 \begin{problem}{12}
