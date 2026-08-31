@@ -43,6 +43,10 @@ algebraic hints had not.
 
 ## Blocked
 
+**The last push was rejected** — the remote has commits this clone does not, so
+this handoff is committed locally and unpushed. Integrate the remote first, then
+push. Do not force it; nothing here is worth rewriting history for.
+
 The PDF is stale. A headless session may not execute `pdflatex` nor edit
 `.claude/settings.local.json` to allow it. Build interactively — one approval.
 Tutor-Board (`~/Learning/Tutor-Board`) is outside this repo's scope and was
