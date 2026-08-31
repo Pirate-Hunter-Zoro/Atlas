@@ -9,3 +9,4 @@
 {"id": "t0005", "rev": 1, "kind": "ink", "answers": "0008", "t": 1788197882.5941088, "iso": "2026-08-31 12:38:02", "from": "student", "page": 1, "strokes": 133, "png": "/answers/t0005-r1.png", "ink": "/answers/t0005-r1.json", "read": false}
 {"id": "t0006", "rev": 1, "kind": "ink", "answers": "0009", "t": 1788198350.741377, "iso": "2026-08-31 12:45:50", "from": "student", "page": 1, "strokes": 335, "png": "/answers/t0006-r1.png", "ink": "/answers/t0006-r1.json", "read": false}
 {"id": "t0007", "rev": 1, "kind": "ink", "answers": "0010", "t": 1788201520.522526, "iso": "2026-08-31 13:38:40", "from": "student", "page": 1, "strokes": 823, "png": "/answers/t0007-r1.png", "ink": "/answers/t0007-r1.json", "read": false}
+{"id": "t0007", "rev": 2, "kind": "ink", "answers": "0010", "t": 1788201995.635647, "iso": "2026-08-31 13:46:35", "from": "student", "page": 1, "strokes": 872, "png": "/answers/t0007-r2.png", "ink": "/answers/t0007-r2.json", "read": false}
