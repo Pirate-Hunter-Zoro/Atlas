@@ -39,7 +39,9 @@ latex/
   templates/        notes and homework templates
 scripts/
   scaffold.sh       create unit folders, file notebooks, generate .tex
-  nb2tex.py         turn a .nb into a printable, output-cleared .tex
+  exercises.sh      print a lesson's exercise notebook for submission
+  nb2pdf.wls          ... through Wolfram, when the Engine is activated
+  nb2tex.py           ... through LaTeX, when it is not
   build.sh          compile one .tex
 lessons/lesson-NN/
   material/         "Adv Lesson NN.nb" as distributed
@@ -134,32 +136,33 @@ Handled by the assistant. Entry points: `make scaffold`, `make lesson N=07`,
 
 ### Printing a notebook for submission
 
-`make exercises N=01` turns `lessons/lesson-01/work/Adv Lesson 01 Exercises.nb` into
-`lessons/lesson-01/build/lesson-01-exercises.pdf` — the submission format for this course, which
-is a printed notebook with the output cleared rather than a `.nb` file.
+```
+make exercises N=01      one lesson
+make exercises-all       every lesson that has an exercise notebook
+```
 
-It goes through `scripts/nb2tex.py`, which reads the notebook directly and needs **no Wolfram
-kernel at all**. That matters more than it sounds: the Engine has to be activated per machine
-from an interactive terminal (see `WOLFRAM-LICENSE.md`), and on a machine where that has not
-happened yet this is the difference between having a submission and not having one.
+The submission format for this course is a printed notebook with **the output cleared**, not a
+`.nb` file. `scripts/exercises.sh` produces one, by whichever of two routes the machine can
+actually manage:
 
-What it does, and what it will not do:
+| | `scripts/nb2pdf.wls` | `scripts/nb2tex.py` |
+|---|---|---|
+| Needs | an **activated** Wolfram Engine | nothing but `pdflatex` |
+| Produces | a real Mathematica printout — the notebook's own styles, `1/13` drawn as a built-up fraction | a LaTeX document with the same content, 2-D forms written linearly (`D[f[x], x]`, `Integrate[f[x], x]`) |
+| When | the normal case | a machine where the Engine has not been activated yet |
 
-- **Output cells are dropped, always.** That is the submission format, and for a notebook
-  nothing has evaluated it is also the only honest thing to print.
-- **Input cells are transcribed, never authored.** Every character in the PDF came out of the
-  `.nb`.
-- **Typeset two-dimensional input is printed in the equivalent linear syntax** — a built-up
-  fraction as `a/b`, the partial-derivative template as `D[f[x], x]`, the
-  integral-with-differential template as `Integrate[f[x], x]`, `f'` for the prime. That is the
-  syntax the Lesson 01 notebook says its own exercises were written in, and it evaluates
-  identically. It is a change of spelling and not of meaning.
-- **The title block comes from the notebook's own Title cell** — title, name, course — rather
-  than being made up.
+Wolfram is tried first and LaTeX is the fallback, decided by whether the run **succeeds** rather
+than by asking about the licence — asking costs a kernel start, which is most of the total time.
+Every notebook goes to one `wolframscript` invocation for the same reason: the kernel takes the
+better part of a minute to start, so sixteen separate runs cost sixteen startups and one costs
+one.
 
-The one cost is cosmetic: it is a typeset document, not a screenshot of a Mathematica notebook.
-That was already the accepted trade in this repository, where the Jupyter front end prints the
-same way.
+Both routes drop output cells, always. The exercise notebooks currently hold none, so today that
+changes nothing — but the moment one is evaluated it would, and a submission that quietly starts
+carrying output is the failure worth preventing in advance.
+
+Neither route writes mathematics. Input cells are transcribed and never authored; every
+character came out of the `.nb`.
 
 ## Tooling — what we used and how we got it
 

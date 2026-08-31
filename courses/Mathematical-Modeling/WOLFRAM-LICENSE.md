@@ -27,7 +27,7 @@ and that step is interactive.
 | Licence record | `~/.WolframEngine/Licensing/mathpass` — **contains a password, do not copy it here** |
 | Reported `$LicenseType` | Professional |
 
-### The Mac — INSTALLED, **NOT YET ACTIVATED**
+### The Mac — ACTIVATED
 
 | Field | Value |
 | --- | --- |
@@ -35,7 +35,10 @@ and that step is interactive.
 | Install path | `/Applications/Wolfram Engine.app` |
 | `wolframscript` | `/opt/homebrew/bin/wolframscript`, linked by the cask |
 | Kernel | `/Applications/Wolfram Engine.app/Contents/MacOS/WolframKernel` |
-| State | the kernel starts and reports *not activated* |
+| Activated | 30 August 2026, on the Mac, same personal Wolfram ID |
+| Reported `$LicenseType` | Professional |
+| Verified | `{2+2, $Version, $LicenseType}` → `{4, 15.0.0 for Mac OS X ARM (64-bit) (May 26, 2026), Professional}` |
+| Front end | present — `UsingFrontEnd` works, so notebooks export to PDF at full fidelity |
 
 **One thing had to be configured, and it is not obvious.** The cask links the `wolframscript`
 that lives inside the bundled *Wolfram Player*, and that copy cannot find the Engine's kernel on
@@ -59,9 +62,12 @@ Section 2 explains why that distinction matters. It must be a genuine interactiv
 Claude Code's `!` bash mode is not one, gives both prompts empty input, and fails instantly with
 "Incorrect username or password", which looks like a typo and is not.
 
-Until that is done, nothing on this machine can evaluate Wolfram Language. It is not in the way
-of coursework — `scripts/nb2tex.py` prints a notebook for submission without a kernel — but it
-is in the way of running anything.
+Done on 30 August 2026. The kernel evaluates, and — the useful surprise — a **front end is
+available** on this machine in a way it was not on the headless node, so
+`Export[out.pdf, Import[nb]]` produces a real Mathematica notebook printout rather than a
+transcription. `scripts/nb2pdf.wls` is built on that and is now the primary route to a
+submission; `scripts/nb2tex.py` remains the fallback for a machine where this activation has not
+been done.
 
 Verified working: `2+2` → 4, `$Version` → 15.0.0 for Linux x86-64, and `Export` of a `Plot`
 produces a valid PNG.

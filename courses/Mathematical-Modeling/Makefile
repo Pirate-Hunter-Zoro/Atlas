@@ -8,6 +8,7 @@
 #    make scaffold-chapters    just the Beltrami chapters
 #    make lesson N=07          build lesson 7's notes
 #    make exercises N=01       print lesson 1's exercise notebook for submission
+#    make exercises-all        print every lesson's, in one kernel session
 #    make notes CH=03          build Beltrami chapter 3's notes
 #    make homework CH=03       build chapter 3's homework
 #    make all                  build everything that has a .tex file
@@ -18,7 +19,7 @@
 ROOT  := $(patsubst %/,%,$(dir $(abspath $(lastword $(MAKEFILE_LIST)))))
 BUILD := bash "$(ROOT)/scripts/build.sh"
 
-.PHONY: all scaffold scaffold-lessons scaffold-chapters lesson exercises notes homework clean list board board-stop board-export
+.PHONY: all scaffold scaffold-lessons scaffold-chapters lesson exercises exercises-all notes homework clean list board board-stop board-export
 
 scaffold:
 	@bash "$(ROOT)/scripts/scaffold.sh"
@@ -36,14 +37,17 @@ lesson:
 	 $(BUILD) "$$f"
 
 # The submission format for this course is a printed notebook with the output
-# cleared, not a .nb file (README, "Submission format"). This turns the unit's
-# exercise notebook into exactly that, without needing an activated kernel.
+# cleared, not a .nb file (README, "Submission format"). exercises.sh prints one
+# through Wolfram when the Engine is activated on this machine and through LaTeX
+# when it is not; see the header of that script for why both exist.
 exercises:
 	@test -n "$(N)" || { echo "usage: make exercises N=01"; exit 1; }
-	@nb=$$(ls "$(ROOT)"/lessons/lesson-$(N)/work/*Exercises*.nb 2>/dev/null | head -1); \
-	 test -n "$$nb" || { echo "no exercise notebook in lessons/lesson-$(N)/work/"; exit 1; }; \
-	 tex="$(ROOT)/lessons/lesson-$(N)/work/lesson-$(N)-exercises.tex"; \
-	 python3 "$(ROOT)/scripts/nb2tex.py" "$$nb" -o "$$tex" && $(BUILD) "$$tex"
+	@bash "$(ROOT)/scripts/exercises.sh" $(N)
+
+# One kernel session for all of them: the Wolfram kernel takes the better part
+# of a minute to start, and sixteen separate runs cost sixteen startups.
+exercises-all:
+	@bash "$(ROOT)/scripts/exercises.sh" all
 
 notes:
 	@test -n "$(CH)" || { echo "usage: make notes CH=03"; exit 1; }
