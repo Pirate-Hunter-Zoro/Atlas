@@ -10,21 +10,145 @@
 NotebookFileLineBreakTest
 NotebookFileLineBreakTest
 NotebookDataPosition[       160,          7]
-NotebookDataLength[     16246,        416]
-NotebookOptionsPosition[     11842,        359]
-NotebookOutlinePosition[     12184,        374]
-CellTagsIndexPosition[     12141,        371]
+NotebookDataLength[     30416,        788]
+NotebookOptionsPosition[     24788,        718]
+NotebookOutlinePosition[     25127,        733]
+CellTagsIndexPosition[     25084,        730]
 WindowFrame->Normal*)
 
 (* Beginning of Notebook Content *)
 Notebook[{
-Cell["\<\
-Advanced Lesson 6 - Exercises: Replacement Rules and Evaluation
-Mikey Ferguson
-MATH 7013 - Advanced Mathematical Modeling\
-\>", "Title",ExpressionUUID->"a85ef402-40c8-4190-ac7c-31179af457f2"],
+Cell[TextData[{
+ StyleBox[" Exercises:", "Title"],
+ "  Advanced Lesson 6 "
+}], "Section",ExpressionUUID->"8e1c85a3-aab5-4d08-8335-9153e289a306"],
 
-Cell["1: x = 2 followed by an integration in x", "Section",ExpressionUUID->"c8d14ad6-26dc-408e-8766-e9397b1954d2"],
+Cell["\<\
+Your Name:  Mikey Ferguson
+
+Your Math Class:  MATH 7013 - Advanced Mathematical Modeling\
+\>", "Program",
+ CellChangeTimes->{{3.390368232619*^9, 3.3903682391219997`*^9}, {
+   3.390368866851*^9, 3.390368908736*^9}, {3.3903690435030003`*^9, 
+   3.390369082222*^9}, 3.3903880065649595`*^9},
+ FontSize->16,
+ FontWeight->"Bold",ExpressionUUID->"48751dbd-df0f-4997-9916-13d826517eb4"],
+
+Cell[TextData[{
+ StyleBox["Note: Some of the following exercises are expressed in every day \
+mathematical notation rather than proper ", "Subsubsection"],
+ StyleBox["Mathematica", "Subsubsection",
+  FontSlant->"Italic"],
+ StyleBox[" notation.  You ", "Subsubsection"],
+ StyleBox["MUST", "Subsubsection",
+  FontVariations->{"Underline"->True}],
+ StyleBox[" convert every day notation into ", "Subsubsection"],
+ StyleBox["Mathematica", "Subsubsection",
+  FontSlant->"Italic"],
+ StyleBox[" notation for your code to work properly.  For example:\n\n\t\
+Equations ", "Subsubsection"],
+ StyleBox["must", "Subsubsection",
+  FontVariations->{"Underline"->True}],
+ StyleBox[" be changed from  \"=\"  to  \"==\"  to work correctly (i.e. ", 
+  "Subsubsection"],
+ Cell[BoxData[
+  FormBox[
+   StyleBox[
+    RowBox[{
+     SuperscriptBox["x", "2"], "\[Equal]", 
+     RowBox[{"2", "x"}]}], "Subsubsection"], TraditionalForm]],ExpressionUUID->
+  "fb9bf302-13bf-443d-9ecf-5ebadeef9541"],
+ StyleBox["  not  ", "Subsubsection"],
+ Cell[BoxData[
+  FormBox[
+   StyleBox[
+    RowBox[{
+     SuperscriptBox["x", "2"], "=", 
+     RowBox[{"2", "x"}]}], "Subsubsection"], TraditionalForm]],ExpressionUUID->
+  "9ef15bad-0bee-485c-b2bf-30d69c0d95a6"],
+ StyleBox["  ).  \n\tFunctions ", "Subsubsection"],
+ StyleBox["must", "Subsubsection",
+  FontVariations->{"Underline"->True}],
+ StyleBox[" be expressed as  f[x]  and  not  f(x)  to work correctly.  \n\t\
+Functions ", "Subsubsection"],
+ StyleBox["must", "Subsubsection",
+  FontVariations->{"Underline"->True}],
+ StyleBox[" be defined using  \"_\"  to work correctly (i.e.  ", 
+  "Subsubsection"],
+ Cell[BoxData[
+  FormBox[
+   StyleBox[
+    RowBox[{
+     RowBox[{"f", "[", "x_", "]"}], "=", 
+     RowBox[{
+      RowBox[{"2", 
+       SuperscriptBox["x", "2"]}], "+", "1"}]}], "Subsubsection"], 
+   TraditionalForm]],ExpressionUUID->"e2375d4d-714a-41ce-9e03-59dd9b8e0074"],
+ StyleBox["  and not  ", "Subsubsection"],
+ Cell[BoxData[
+  FormBox[
+   StyleBox[
+    RowBox[{
+     RowBox[{"f", "[", "x", "]"}], "=", 
+     RowBox[{
+      RowBox[{"2", 
+       SuperscriptBox["x", "2"]}], "+", "1"}]}], "Subsubsection"], 
+   TraditionalForm]],ExpressionUUID->"65146833-048f-44e4-a1ad-e25d234f026a"],
+ StyleBox[").\n\t", "Subsubsection"],
+ StyleBox["Mathematica", "Subsubsection",
+  FontSlant->"Italic"],
+ StyleBox[" functions ", "Subsubsection"],
+ StyleBox["must", "Subsubsection",
+  FontVariations->{"Underline"->True}],
+ StyleBox[" start with a capital (i.e.  Sin[x]  not  sin[x]).\n\t", 
+  "Subsubsection"],
+ StyleBox["Your", "Subsubsection",
+  FontVariations->{"Underline"->True}],
+ StyleBox[" functions should start with a lower case letter (i.e.  f[x]  not  \
+F[x]).\n\tSpecial symbols ", "Subsubsection"],
+ StyleBox["must", "Subsubsection",
+  FontVariations->{"Underline"->True}],
+ StyleBox[" be entered correctly (i.e.  ", "Subsubsection"],
+ StyleBox["\[ExponentialE]", "Subsection"],
+ StyleBox["  from the palette and not  e ).\n\t\nThese exercises begin your \
+training in making this conversion automatically.\n", "Subsubsection"]
+}], "Text",
+ CellChangeTimes->{{3.39064873246*^9, 3.390649069177*^9}, {3.390649104818*^9, 
+   3.390649156885*^9}, {3.390649215119*^9, 3.39064939362*^9}, {
+   3.390649427467*^9, 3.390649437834*^9}, {3.3906856676331425`*^9, 
+   3.3906858924611425`*^9}, {3.3906859679691424`*^9, 3.390686080823142*^9}, {
+   3.390686138196142*^9, 3.390686244913142*^9}, 3.390686344335142*^9, {
+   3.3906897169261427`*^9, 3.3906898397271423`*^9}, {3.3906898702421427`*^9, 
+   3.3906898773081427`*^9}, {3.3906929183261423`*^9, 
+   3.3906929191781425`*^9}},ExpressionUUID->"36f074c8-2200-4ba0-81b5-\
+c7cf72222c33"],
+
+Cell[TextData[{
+ "Remember to clear all variables that you will use below:  ",
+ Cell[BoxData[
+  FormBox[
+   RowBox[{"Clear", "[", "          ", "...", "             ", "]"}], 
+   TraditionalForm]],ExpressionUUID->"8657a3dd-559c-401f-9f89-14e071371dbd"]
+}], "Text",
+ CellChangeTimes->{{3.3906923197301426`*^9, 3.3906923812721424`*^9}, {
+  3.3906924809361424`*^9, 3.3906924908791423`*^9}, {3.3906927825761423`*^9, 
+  3.3906927911761427`*^9}},ExpressionUUID->"3e673e25-d698-4873-a60f-\
+63f27ea831bc"],
+
+Cell[TextData[{
+ "1: Explain why the following code gives unexpected results.\n\tx = 2\n\t",
+ Cell[BoxData[
+  FormBox[
+   RowBox[{"\[Integral]", 
+    RowBox[{
+     FormBox[
+      SuperscriptBox["x", "2"],
+      TraditionalForm], 
+     RowBox[{"\[DifferentialD]", "x"}]}]}], TraditionalForm]],ExpressionUUID->
+  "4cde53b2-026f-4d14-82fc-fb8eb9ee73cc"]
+}], "Text",
+ CellChangeTimes->{3.3903885877929597`*^9, 
+  3.39038870608596*^9},ExpressionUUID->"d5f297cd-5848-4519-8021-493922733084"],
 
 Cell[BoxData[{
  RowBox[{
@@ -37,7 +161,28 @@ Cell[BoxData[{
    RowBox[{"\[DifferentialD]", "x"}]}]}]}], "Input",ExpressionUUID->"d51278a1-\
 baff-4a24-a81c-c4b73e14de18"],
 
-Cell["2: x := 2 followed by the same integration", "Section",ExpressionUUID->"4d4c5fe0-4ba3-4512-9111-aa617f24e65e"],
+Cell["\<\
+x had already been given the value 2, so by the time the integral was read it \
+said integrate 4 with respect to 2. The integration variable itself had \
+turned into a number, which is meaningless, so the integral was left \
+unevaluated.\
+\>", "Text",ExpressionUUID->"77e1a50c-a771-4ab2-8ca0-1f32d4bb96b5"],
+
+Cell[TextData[{
+ "2: Explain why the following code gives unexpected results.\n\tx := 2\n\t",
+ Cell[BoxData[
+  FormBox[
+   RowBox[{"\[Integral]", 
+    RowBox[{
+     FormBox[
+      SuperscriptBox["x", "2"],
+      TraditionalForm], 
+     RowBox[{"\[DifferentialD]", "x"}]}]}], TraditionalForm]],ExpressionUUID->
+  "5fa69b60-3f2b-4d94-81cc-cfec1d5478af"]
+}], "Text",
+ CellChangeTimes->{3.39038859192196*^9, 
+  3.3903887096759596`*^9},ExpressionUUID->"bf24a30b-2d35-4f8e-8758-\
+a6022fcf31c6"],
 
 Cell[BoxData[{
  RowBox[{
@@ -50,7 +195,43 @@ Cell[BoxData[{
    RowBox[{"\[DifferentialD]", "x"}]}]}]}], "Input",ExpressionUUID->"ca7d42e9-\
 30df-4da6-b8ec-3643ab1e7fd7"],
 
-Cell["3: A global x colliding with a pattern variable named x", "Section",ExpressionUUID->"b501dc3c-1440-4061-8ff9-0edb7e0d3004"],
+Cell["\<\
+The same thing happens. Using := only delays the evaluation of x; x still \
+becomes 2 as soon as it is used, so the integration variable is again the \
+number 2.\
+\>", "Text",ExpressionUUID->"c57962b4-7c86-4cfc-a9e1-e4fcc7dcce8a"],
+
+Cell[TextData[{
+ "3: Explain why the following code gives unexpected results.\n\t",
+ Cell[BoxData[{
+  RowBox[{
+   RowBox[{"x", "=", "2"}], ";"}], "\n", 
+  RowBox[{
+   RowBox[{
+    RowBox[{"f1", "[", "x_", "]"}], "=", 
+    SuperscriptBox["x", "2"]}], ";"}], "\n", 
+  RowBox[{
+   RowBox[{
+    RowBox[{"f2", "[", "x_", "]"}], ":=", 
+    SuperscriptBox["x", "2"]}], ";"}], "\n", 
+  RowBox[{
+   RowBox[{"Plot", "[", 
+    RowBox[{
+     RowBox[{"{", 
+      RowBox[{
+       RowBox[{"f1", "[", "z", "]"}], ",", 
+       RowBox[{"f2", "[", "z", "]"}]}], "}"}], ",", 
+     RowBox[{"{", 
+      RowBox[{"z", ",", "0", ",", "3"}], "}"}], ",", 
+     RowBox[{"PlotStyle", "\[Rule]", 
+      RowBox[{"{", 
+       RowBox[{"Thickness", "[", "0.01", "]"}], "}"}]}]}], "]"}], ";"}]}],
+  FontWeight->"Bold",ExpressionUUID->"04931abe-9efe-4bb0-8422-ed13afc20415"]
+}], "Text",
+ CellChangeTimes->{{3.39038867141996*^9, 3.39038867223396*^9}, {
+  3.39038935257796*^9, 
+  3.39038936334296*^9}},ExpressionUUID->"320f9ea0-0c36-49f1-a31b-\
+e94f3bcc877d"],
 
 Cell[BoxData[{
  RowBox[{
@@ -94,8 +275,32 @@ Cell[BoxData[
 essionUUID->"5c84b85d-52ef-4029-b28e-871f42d83b37"],
 
 Cell["\<\
-4: A replacement rule and an integration in the wrong variable\
-\>", "Section",ExpressionUUID->"e4801c55-034d-4daa-a8ed-edf3d126d9ca"],
+x held the value 2 when f1 was defined with =, so the right-hand side x^2 was \
+evaluated at once to 4, and f1 stores 4 for every argument. f2 was defined \
+with :=, so it keeps x^2 and squares whatever it is given. That is why f1[z] \
+is 4 and f2[z] is z^2, and the plot shows one flat line and one parabola.\
+\>", "Text",ExpressionUUID->"53db5da7-5d59-4558-ab4d-3dc2742e3ac1"],
+
+Cell[TextData[{
+ "4: Explain why the following code gives unexpected results.\n\t",
+ Cell[BoxData[{
+  RowBox[{"Clear", " ", "[", 
+   RowBox[{"x", ",", "y"}], "]"}], "\n", 
+  RowBox[{" ", 
+   RowBox[{
+    SuperscriptBox["x", "2"], "  ", "/.", "  ", 
+    RowBox[{"x", " ", "\[Rule]", " ", "y"}]}]}], "\n", 
+  RowBox[{
+   FormBox[
+    RowBox[{"\[Integral]", 
+     RowBox[{
+      FormBox[
+       SuperscriptBox["x", "2"],
+       TraditionalForm], 
+      RowBox[{"\[DifferentialD]", "y"}]}]}],
+    TraditionalForm], " "}]}],
+  FontWeight->"Bold",ExpressionUUID->"bec6ae22-f80c-4ba3-8a1b-1c8539392e5f"]
+}], "Text",ExpressionUUID->"ccb890fc-ef6b-432d-bec4-26cc83a6cd2e"],
 
 Cell[BoxData[{
  RowBox[{
@@ -113,7 +318,39 @@ Cell[BoxData[
    RowBox[{"\[DifferentialD]", "y"}]}]}]], "Input",ExpressionUUID->"97385191-\
 933e-49b1-af12-8df3683156e1"],
 
-Cell["5: Assigning the result of a self-replacement", "Section",ExpressionUUID->"185deef3-d2d2-449d-b916-da7ae83fff19"],
+Cell["\<\
+The replacement itself is fine and gives y^2. The integral is the surprise: \
+it asks for the integral of x^2 with respect to y, and x does not depend on \
+y, so the answer is x^2 y. The replacement rule changed nothing permanently, \
+so x is still x on the next line.\
+\>", "Text",ExpressionUUID->"1ff995c4-9496-4eab-b5d9-95556d4ff431"],
+
+Cell[TextData[{
+ "5: Explain the results of the following code:\n\t",
+ Cell[BoxData[{
+  StyleBox[
+   RowBox[{"Clear", " ", "[", 
+    RowBox[{"x", ",", "y", ",", "z"}], "]"}],
+   FontWeight->"Bold"], "\n", 
+  RowBox[{" ", 
+   StyleBox[
+    RowBox[{"x", "=", 
+     RowBox[{"x", "  ", "/.", "  ", 
+      RowBox[{"x", " ", "\[Rule]", " ", "y"}]}]}],
+    FontWeight->"Bold"]}], "\n", 
+  StyleBox[
+   RowBox[{
+    FormBox[
+     RowBox[{"\[Integral]", 
+      RowBox[{
+       FormBox[
+        SuperscriptBox["x", "2"],
+        TraditionalForm], 
+       RowBox[{"\[DifferentialD]", "y"}]}]}],
+     TraditionalForm], " "}],
+   FontWeight->"Bold"]}],ExpressionUUID->
+  "bb66bd16-9f99-4870-be8b-db95dd478b7b"]
+}], "Text",ExpressionUUID->"e06622e6-62cc-4730-8d90-fafcb53bdd4c"],
 
 Cell[BoxData[{
  RowBox[{
@@ -131,7 +368,37 @@ Cell[BoxData[
    RowBox[{"\[DifferentialD]", "y"}]}]}]], "Input",ExpressionUUID->"1386018b-\
 09dd-498e-bcd7-55e577062f15"],
 
-Cell["6: The same shape, with a symbol the rule does not mention", "Section",ExpressionUUID->"cc89d5ac-784b-4f50-ae4d-14ccc17c4e76"],
+Cell["\<\
+This line assigns the result of the replacement, so x now genuinely holds y. \
+The next line therefore integrates y^2 with respect to y and gives y^3/3.\
+\>", "Text",ExpressionUUID->"04ff4659-e454-4fc9-893a-60e15b01a23f"],
+
+Cell[TextData[{
+ "6: Explain the results of the following code:\n\t",
+ Cell[BoxData[{
+  StyleBox[
+   RowBox[{"Clear", " ", "[", 
+    RowBox[{"x", ",", "y", ",", "z"}], "]"}],
+   FontWeight->"Bold"], "\n", 
+  StyleBox[
+   RowBox[{" ", 
+    RowBox[{"x", "=", 
+     RowBox[{"z", "  ", "/.", "  ", 
+      RowBox[{"x", " ", "\[Rule]", " ", "y"}]}]}]}],
+   FontWeight->"Bold"], "\n", 
+  StyleBox[
+   RowBox[{
+    FormBox[
+     RowBox[{"\[Integral]", 
+      RowBox[{
+       FormBox[
+        SuperscriptBox["x", "2"],
+        TraditionalForm], 
+       RowBox[{"\[DifferentialD]", "y"}]}]}],
+     TraditionalForm], " "}],
+   FontWeight->"Bold"]}],ExpressionUUID->
+  "f5268f82-2ca6-4a48-9ae4-6dd98563ec3e"]
+}], "Text",ExpressionUUID->"25103b15-d9b7-474d-af50-19a4fcaa5892"],
 
 Cell[BoxData[{
  RowBox[{
@@ -149,7 +416,21 @@ Cell[BoxData[
    RowBox[{"\[DifferentialD]", "y"}]}]}]], "Input",ExpressionUUID->"3b576c57-\
 67b3-459a-852a-8316d3847b74"],
 
-Cell["7: Why two rules in one list do not chain", "Section",ExpressionUUID->"b42e4469-2808-4af7-b4cc-a83449ef6d6e"],
+Cell["\<\
+Here the rule does not apply, because the expression being replaced is z and \
+the rule looks for x. So x is assigned z, and integrating x^2, which is now \
+z^2, with respect to y gives y z^2.\
+\>", "Text",ExpressionUUID->"7adfde44-8116-4e63-9145-f538696ede80"],
+
+Cell["\<\
+7: Explain why the following code does NOT yield:  Log[2 \[Pi] y]
+\tClear [x,y]
+\tSin[x]  /. {Sin[x] \[Rule] Log[x], x \[Rule] 2\[Pi] y}
+How would you modify the replacement rule to yield the desired result?\
+\>", "Text",
+ CellChangeTimes->{{3.39038880315896*^9, 
+  3.39038880315996*^9}},ExpressionUUID->"8a07d2d7-5383-42f2-b827-\
+cd6134ae04da"],
 
 Cell[BoxData[{
  RowBox[{
@@ -187,7 +468,20 @@ Cell[BoxData[
     RowBox[{"2", " ", "\[Pi]", " ", "y"}], "]"}]}]}]], "Input",ExpressionUUID->\
 "7e9cfbfb-c26c-42a2-aa54-ae80233df6d3"],
 
-Cell["8: A rule set carried inside a function definition", "Section",ExpressionUUID->"66d6d07a-e0e8-483a-a7db-e5fe111db45b"],
+Cell["\<\
+/. makes a single pass. It matches Sin[x] and replaces it with Log[x], and \
+the result is not scanned again, so the second rule never reaches the x \
+inside. //. repeats the rules until nothing changes, and that gives Log[2 Pi \
+y].\
+\>", "Text",ExpressionUUID->"97cfbd62-3fd0-4c46-9d94-cc4f02ce2e21"],
+
+Cell["\<\
+8: Explain how the following code works:
+Clear [f,x,y,z]
+\tf[x_] :=  x   /.  {y \[Rule] Cos[y],  z \[Rule] Sin[z]}
+\tf[x]
+\tf[x + y + z]\
+\>", "Text",ExpressionUUID->"180c832e-5c84-40c9-b64d-5e11f15c09fa"],
 
 Cell[BoxData[{
  RowBox[{
@@ -212,7 +506,19 @@ Cell[BoxData[
   RowBox[{"x", "+", "y", "+", "z"}], "]"}]], "Input",ExpressionUUID->\
 "1f6edcfb-2abb-46d7-9190-d709592cf5ca"],
 
-Cell["9: Frame -> False and Frame -> True as replacement rules", "Section",ExpressionUUID->"fbc744e6-e712-4a1c-a6af-427a1cb62982"],
+Cell["\<\
+The definition says: take whatever is handed in and apply the two rules to \
+it. f[x] gives back x, because there is no y or z in it. f[x + y + z] gives x \
++ Cos[y] + Sin[z], because the rules find the y and the z inside the sum.\
+\>", "Text",ExpressionUUID->"2515684a-8878-45e2-ae40-6367f32172ba"],
+
+Cell["\<\
+9: Explain the purpose of the replacement rules:  Frame \[Rule] False,  Frame \
+\[Rule] True
+\tClear [x]
+\tPlot[Sin[x],{x,0,2\[Pi]}, Frame \[Rule] False]
+\tPlot[Sin[x],{x,0,2\[Pi]}, Frame \[Rule] True]\
+\>", "Text",ExpressionUUID->"5e71a60f-43e3-4a7a-98b3-e53dd500fdb9"],
 
 Cell[BoxData[{
  RowBox[{
@@ -236,7 +542,26 @@ Cell[BoxData[
    RowBox[{"Frame", "\[Rule]", "True"}]}], "]"}]], "Input",ExpressionUUID->\
 "4b8b392c-9dd3-42d2-92b2-9f6b8ab0ad18"],
 
-Cell["10: Rewriting a finished plot by rewriting its options", "Section",ExpressionUUID->"1c333b80-e80d-4741-b4ae-88e728755f48"],
+Cell["\<\
+Frame -> True and Frame -> False are options, and an option is written as a \
+replacement rule. Plot reads that rule to decide whether to draw a box around \
+the plot.\
+\>", "Text",ExpressionUUID->"c85bc6c5-fd90-4731-94d8-31f2f50c0da7"],
+
+Cell["\<\
+10: Explain how the following code works:
+\tClear [x,plot1,plot2]
+\tplot1 = Plot[Sin[x], {x,0,2\[Pi]}, Frame \[Rule] True]
+\t?plot1
+\tplot2 = plot1  /.  (Frame\[Rule]{{True,True},{True,True}})  \[Rule]  (Frame \
+\[Rule]{{False,True},{False,True}})
+\t?plot2
+\tShow[plot2]\
+\>", "Text",
+ CellChangeTimes->{{3.39038899765596*^9, 3.39038900699396*^9}, 
+   3.6827906671779327`*^9, {3.6828580810652685`*^9, 
+   3.6828581029832687`*^9}},ExpressionUUID->"f72a9575-36e8-4ea5-8138-\
+f045284ccebb"],
 
 Cell[BoxData[{
  RowBox[{
@@ -286,7 +611,41 @@ Cell[BoxData[{
 Cell[BoxData[
  RowBox[{"Show", "[", "plot2", "]"}]], "Input",ExpressionUUID->"069c20bf-b448-4a08-9c15-e6a35028d974"],
 
-Cell["11: DSolve, substituting constants, checking, and plotting", "Section",ExpressionUUID->"8b3ea00a-4178-41f7-971a-2008be1395ce"],
+Cell["\<\
+A finished plot is just an expression: a Graphics object holding the drawing \
+and a list of option rules. Applying a replacement rule to it rewrites the \
+Frame option in place, and the result is a new, valid plot which Show \
+displays. Nothing is recomputed; the picture is edited the same way any other \
+expression is.\
+\>", "Text",ExpressionUUID->"c974d89e-c467-437e-94b0-463166a5c47c"],
+
+Cell[TextData[{
+ "11:   Part 1:   Solve the ODE:  y''[t] + y[t] = 0   to get a replacement \
+rule for  y[t]  using  DSolve.\nPart 2:   Use a list of replacement rules to \
+replace C[1] with  4  and C[2] with  7  in the replacement rule for y[t].\n\
+Part 3:   Use the solution replacement rule and substitute back into the ODE \
+to check the solution   (You MUST use a procedure ",
+ StyleBox["similar",
+  FontVariations->{"Underline"->True}],
+ " to the one I used above when I used the Solve command, however this \
+example is harder than the one above).\nHint: How does  ",
+ Cell[BoxData[
+  FormBox[
+   RowBox[{
+    SubscriptBox["\[PartialD]", 
+     RowBox[{"t", ",", "t"}]], " ", 
+    RowBox[{"(", 
+     RowBox[{
+      RowBox[{"y", "[", "t", "]"}], "\[Rule]", 
+      RowBox[{"f", "[", "t", "]"}]}], ")"}]}], TraditionalForm]],
+  ExpressionUUID->"3ea7d341-208b-4de4-9d15-bb4d156c3867"],
+ " evaluate?\nPart 4:   Use replacement rules to extract the solution  y[t]  \
+from its replacement rule generated in Part 2 and use this to plot the \
+solution for  0 \[LessEqual] t \[LessEqual] 2\[Pi]."
+}], "Text",
+ CellChangeTimes->{{3.3903891510319595`*^9, 
+  3.39038925853496*^9}},ExpressionUUID->"c036a078-5201-4132-8605-\
+ff46130a03eb"],
 
 Cell[BoxData[{
  RowBox[{
@@ -358,7 +717,7 @@ Cell[BoxData[
 "9b4ebf3d-ecce-4b16-89be-11f62ce56576"]
 },
 WindowSize->{1100, 850},
-FrontEndVersion->"15.0 for Mac OS X ARM (64-bit) (May 26, 2026)",
+FrontEndVersion->"15.0 for Linux x86 (64-bit) (May 26, 2026)",
 StyleDefinitions->"Default.nb",
 ExpressionUUID->"53e1aa67-6381-4be0-aec1-2e1147a12ddd"
 ]
@@ -373,51 +732,64 @@ CellTagsIndex->{}
 *)
 (*NotebookFileOutline
 Notebook[{
-Cell[560, 20, 201, 4, 70, "Title",ExpressionUUID->"a85ef402-40c8-4190-ac7c-31179af457f2"],
-Cell[764, 26, 114, 0, 70, "Section",ExpressionUUID->"c8d14ad6-26dc-408e-8766-e9397b1954d2"],
-Cell[881, 28, 335, 9, 70, "Input",ExpressionUUID->"d51278a1-baff-4a24-a81c-c4b73e14de18"],
-Cell[1219, 39, 116, 0, 70, "Section",ExpressionUUID->"4d4c5fe0-4ba3-4512-9111-aa617f24e65e"],
-Cell[1338, 41, 336, 9, 70, "Input",ExpressionUUID->"ca7d42e9-30df-4da6-b8ec-3643ab1e7fd7"],
-Cell[1677, 52, 129, 0, 70, "Section",ExpressionUUID->"b501dc3c-1440-4061-8ff9-0edb7e0d3004"],
-Cell[1809, 54, 488, 14, 70, "Input",ExpressionUUID->"38827c65-4bea-41bc-923f-955632e6bc5b"],
-Cell[2300, 70, 75, 0, 70, "Input",ExpressionUUID->"9883b354-f263-477a-bff7-2f7d3ccba6a1"],
-Cell[2378, 72, 75, 0, 70, "Input",ExpressionUUID->"3495e7b9-2643-4592-bbe3-c66378c7a472"],
-Cell[2456, 74, 189, 5, 70, "Input",ExpressionUUID->"1bdebe7b-2acb-443c-a594-d8d3fb6971c2"],
-Cell[2648, 81, 425, 12, 70, "Input",ExpressionUUID->"5c84b85d-52ef-4029-b28e-871f42d83b37"],
-Cell[3076, 95, 144, 2, 70, "Section",ExpressionUUID->"e4801c55-034d-4daa-a8ed-edf3d126d9ca"],
-Cell[3223, 99, 283, 7, 70, "Input",ExpressionUUID->"3db05e2e-c8a9-4c1d-9a3f-409e72ae4913"],
-Cell[3509, 108, 188, 5, 70, "Input",ExpressionUUID->"97385191-933e-49b1-af12-8df3683156e1"],
-Cell[3700, 115, 119, 0, 70, "Section",ExpressionUUID->"185deef3-d2d2-449d-b916-da7ae83fff19"],
-Cell[3822, 117, 293, 7, 70, "Input",ExpressionUUID->"908b6aa5-5044-4296-a24d-9b87ab7c8aa0"],
-Cell[4118, 126, 188, 5, 70, "Input",ExpressionUUID->"1386018b-09dd-498e-bcd7-55e577062f15"],
-Cell[4309, 133, 132, 0, 70, "Section",ExpressionUUID->"cc89d5ac-784b-4f50-ae4d-14ccc17c4e76"],
-Cell[4444, 135, 293, 7, 70, "Input",ExpressionUUID->"9252d787-96e5-4ae3-943e-d61bc0d19ec4"],
-Cell[4740, 144, 188, 5, 70, "Input",ExpressionUUID->"3b576c57-67b3-459a-852a-8316d3847b74"],
-Cell[4931, 151, 115, 0, 70, "Section",ExpressionUUID->"b42e4469-2808-4af7-b4cc-a83449ef6d6e"],
-Cell[5049, 153, 475, 13, 70, "Input",ExpressionUUID->"de5cd091-f738-495b-86f8-1c95631e9943"],
-Cell[5527, 168, 373, 10, 70, "Input",ExpressionUUID->"f7f98049-b2b8-401c-933c-59cb4c037cc0"],
-Cell[5903, 180, 287, 7, 70, "Input",ExpressionUUID->"7e9cfbfb-c26c-42a2-aa54-ae80233df6d3"],
-Cell[6193, 189, 124, 0, 70, "Section",ExpressionUUID->"66d6d07a-e0e8-483a-a7db-e5fe111db45b"],
-Cell[6320, 191, 484, 13, 70, "Input",ExpressionUUID->"32b4eadb-f474-47db-b82c-a9a281d722da"],
-Cell[6807, 206, 109, 1, 70, "Input",ExpressionUUID->"c0730ae2-8df7-496b-a3fd-67b436b986b5"],
-Cell[6919, 209, 144, 3, 70, "Input",ExpressionUUID->"1f6edcfb-2abb-46d7-9190-d709592cf5ca"],
-Cell[7066, 214, 130, 0, 70, "Section",ExpressionUUID->"fbc744e6-e712-4a1c-a6af-427a1cb62982"],
-Cell[7199, 216, 384, 10, 70, "Input",ExpressionUUID->"47c8f912-79bb-4a76-b5a5-6ca9de20dcea"],
-Cell[7586, 228, 304, 8, 70, "Input",ExpressionUUID->"4b8b392c-9dd3-42d2-92b2-9f6b8ab0ad18"],
-Cell[7893, 238, 128, 0, 70, "Section",ExpressionUUID->"1c333b80-e80d-4741-b4ae-88e728755f48"],
-Cell[8024, 240, 458, 12, 70, "Input",ExpressionUUID->"8b10e7d2-9c0c-4944-ab1d-cfdf167fdaca"],
-Cell[8485, 254, 78, 0, 70, "Input",ExpressionUUID->"951ed8a7-36fa-4738-8be3-bd0318fea22b"],
-Cell[8566, 256, 169, 3, 70, "Input",ExpressionUUID->"0c3ba0ca-694f-421c-894d-91629bc03dfe"],
-Cell[8738, 261, 800, 22, 70, "Input",ExpressionUUID->"142653c7-85d8-49b3-804d-76b45ab973a7"],
-Cell[9541, 285, 116, 1, 70, "Input",ExpressionUUID->"069c20bf-b448-4a08-9c15-e6a35028d974"],
-Cell[9660, 288, 132, 0, 70, "Section",ExpressionUUID->"8b3ea00a-4178-41f7-971a-2008be1395ce"],
-Cell[9795, 290, 532, 14, 70, "Input",ExpressionUUID->"a622d491-fcb9-4e14-9f71-29bfbfb7db72"],
-Cell[10330, 306, 336, 11, 70, "Input",ExpressionUUID->"221c7a29-fe13-4799-af7e-a0d4fa15f754"],
-Cell[10669, 319, 144, 3, 70, "Input",ExpressionUUID->"8df25374-537a-4669-89a0-4c78259cbd23"],
-Cell[10816, 324, 215, 6, 70, "Input",ExpressionUUID->"dde089c8-198d-4a7f-a365-0e96b4480daa"],
-Cell[11034, 332, 380, 10, 70, "Input",ExpressionUUID->"00bf77d0-78de-4e9e-9c4e-c673938481e1"],
-Cell[11417, 344, 189, 5, 70, "Input",ExpressionUUID->"ad6debe3-414f-4161-8144-ab7247e4f02d"],
-Cell[11609, 351, 229, 6, 70, "Input",ExpressionUUID->"9b4ebf3d-ecce-4b16-89be-11f62ce56576"]
+Cell[560, 20, 144, 3, 70, "Section",ExpressionUUID->"8e1c85a3-aab5-4d08-8335-9153e289a306"],
+Cell[707, 25, 388, 9, 70, "Program",ExpressionUUID->"48751dbd-df0f-4997-9916-13d826517eb4"],
+Cell[1098, 36, 3640, 87, 70, "Text",ExpressionUUID->"36f074c8-2200-4ba0-81b5-c7cf72222c33"],
+Cell[4741, 125, 497, 10, 70, "Text",ExpressionUUID->"3e673e25-d698-4873-a60f-63f27ea831bc"],
+Cell[5241, 137, 485, 13, 70, "Text",ExpressionUUID->"d5f297cd-5848-4519-8021-493922733084"],
+Cell[5729, 152, 335, 9, 70, "Input",ExpressionUUID->"d51278a1-baff-4a24-a81c-c4b73e14de18"],
+Cell[6067, 163, 316, 5, 70, "Text",ExpressionUUID->"77e1a50c-a771-4ab2-8ca0-1f32d4bb96b5"],
+Cell[6386, 170, 488, 14, 70, "Text",ExpressionUUID->"bf24a30b-2d35-4f8e-8758-a6022fcf31c6"],
+Cell[6877, 186, 336, 9, 70, "Input",ExpressionUUID->"ca7d42e9-30df-4da6-b8ec-3643ab1e7fd7"],
+Cell[7216, 197, 240, 4, 70, "Text",ExpressionUUID->"c57962b4-7c86-4cfc-a9e1-e4fcc7dcce8a"],
+Cell[7459, 203, 1021, 30, 70, "Text",ExpressionUUID->"320f9ea0-0c36-49f1-a31b-e94f3bcc877d"],
+Cell[8483, 235, 488, 14, 70, "Input",ExpressionUUID->"38827c65-4bea-41bc-923f-955632e6bc5b"],
+Cell[8974, 251, 75, 0, 70, "Input",ExpressionUUID->"9883b354-f263-477a-bff7-2f7d3ccba6a1"],
+Cell[9052, 253, 75, 0, 70, "Input",ExpressionUUID->"3495e7b9-2643-4592-bbe3-c66378c7a472"],
+Cell[9130, 255, 189, 5, 70, "Input",ExpressionUUID->"1bdebe7b-2acb-443c-a594-d8d3fb6971c2"],
+Cell[9322, 262, 425, 12, 70, "Input",ExpressionUUID->"5c84b85d-52ef-4029-b28e-871f42d83b37"],
+Cell[9750, 276, 388, 5, 70, "Text",ExpressionUUID->"53db5da7-5d59-4558-ab4d-3dc2742e3ac1"],
+Cell[10141, 283, 663, 19, 70, "Text",ExpressionUUID->"ccb890fc-ef6b-432d-bec4-26cc83a6cd2e"],
+Cell[10807, 304, 283, 7, 70, "Input",ExpressionUUID->"3db05e2e-c8a9-4c1d-9a3f-409e72ae4913"],
+Cell[11093, 313, 188, 5, 70, "Input",ExpressionUUID->"97385191-933e-49b1-af12-8df3683156e1"],
+Cell[11284, 320, 347, 5, 70, "Text",ExpressionUUID->"1ff995c4-9496-4eab-b5d9-95556d4ff431"],
+Cell[11634, 327, 764, 25, 70, "Text",ExpressionUUID->"e06622e6-62cc-4730-8d90-fafcb53bdd4c"],
+Cell[12401, 354, 293, 7, 70, "Input",ExpressionUUID->"908b6aa5-5044-4296-a24d-9b87ab7c8aa0"],
+Cell[12697, 363, 188, 5, 70, "Input",ExpressionUUID->"1386018b-09dd-498e-bcd7-55e577062f15"],
+Cell[12888, 370, 231, 3, 70, "Text",ExpressionUUID->"04ff4659-e454-4fc9-893a-60e15b01a23f"],
+Cell[13122, 375, 763, 25, 70, "Text",ExpressionUUID->"25103b15-d9b7-474d-af50-19a4fcaa5892"],
+Cell[13888, 402, 293, 7, 70, "Input",ExpressionUUID->"9252d787-96e5-4ae3-943e-d61bc0d19ec4"],
+Cell[14184, 411, 188, 5, 70, "Input",ExpressionUUID->"3b576c57-67b3-459a-852a-8316d3847b74"],
+Cell[14375, 418, 271, 4, 70, "Text",ExpressionUUID->"7adfde44-8116-4e63-9145-f538696ede80"],
+Cell[14649, 424, 355, 8, 70, "Text",ExpressionUUID->"8a07d2d7-5383-42f2-b827-cd6134ae04da"],
+Cell[15007, 434, 475, 13, 70, "Input",ExpressionUUID->"de5cd091-f738-495b-86f8-1c95631e9943"],
+Cell[15485, 449, 373, 10, 70, "Input",ExpressionUUID->"f7f98049-b2b8-401c-933c-59cb4c037cc0"],
+Cell[15861, 461, 287, 7, 70, "Input",ExpressionUUID->"7e9cfbfb-c26c-42a2-aa54-ae80233df6d3"],
+Cell[16151, 470, 312, 5, 70, "Text",ExpressionUUID->"97cfbd62-3fd0-4c46-9d94-cc4f02ce2e21"],
+Cell[16466, 477, 215, 6, 70, "Text",ExpressionUUID->"180c832e-5c84-40c9-b64d-5e11f15c09fa"],
+Cell[16684, 485, 484, 13, 70, "Input",ExpressionUUID->"32b4eadb-f474-47db-b82c-a9a281d722da"],
+Cell[17171, 500, 109, 1, 70, "Input",ExpressionUUID->"c0730ae2-8df7-496b-a3fd-67b436b986b5"],
+Cell[17283, 503, 144, 3, 70, "Input",ExpressionUUID->"1f6edcfb-2abb-46d7-9190-d709592cf5ca"],
+Cell[17430, 508, 309, 4, 70, "Text",ExpressionUUID->"2515684a-8878-45e2-ae40-6367f32172ba"],
+Cell[17742, 514, 280, 6, 70, "Text",ExpressionUUID->"5e71a60f-43e3-4a7a-98b3-e53dd500fdb9"],
+Cell[18025, 522, 384, 10, 70, "Input",ExpressionUUID->"47c8f912-79bb-4a76-b5a5-6ca9de20dcea"],
+Cell[18412, 534, 304, 8, 70, "Input",ExpressionUUID->"4b8b392c-9dd3-42d2-92b2-9f6b8ab0ad18"],
+Cell[18719, 544, 246, 4, 70, "Text",ExpressionUUID->"c85bc6c5-fd90-4731-94d8-31f2f50c0da7"],
+Cell[18968, 550, 497, 13, 70, "Text",ExpressionUUID->"f72a9575-36e8-4ea5-8138-f045284ccebb"],
+Cell[19468, 565, 458, 12, 70, "Input",ExpressionUUID->"8b10e7d2-9c0c-4944-ab1d-cfdf167fdaca"],
+Cell[19929, 579, 78, 0, 70, "Input",ExpressionUUID->"951ed8a7-36fa-4738-8be3-bd0318fea22b"],
+Cell[20010, 581, 169, 3, 70, "Input",ExpressionUUID->"0c3ba0ca-694f-421c-894d-91629bc03dfe"],
+Cell[20182, 586, 800, 22, 70, "Input",ExpressionUUID->"142653c7-85d8-49b3-804d-76b45ab973a7"],
+Cell[20985, 610, 116, 1, 70, "Input",ExpressionUUID->"069c20bf-b448-4a08-9c15-e6a35028d974"],
+Cell[21104, 613, 401, 6, 70, "Text",ExpressionUUID->"c974d89e-c467-437e-94b0-463166a5c47c"],
+Cell[21508, 621, 1230, 26, 70, "Text",ExpressionUUID->"c036a078-5201-4132-8605-ff46130a03eb"],
+Cell[22741, 649, 532, 14, 70, "Input",ExpressionUUID->"a622d491-fcb9-4e14-9f71-29bfbfb7db72"],
+Cell[23276, 665, 336, 11, 70, "Input",ExpressionUUID->"221c7a29-fe13-4799-af7e-a0d4fa15f754"],
+Cell[23615, 678, 144, 3, 70, "Input",ExpressionUUID->"8df25374-537a-4669-89a0-4c78259cbd23"],
+Cell[23762, 683, 215, 6, 70, "Input",ExpressionUUID->"dde089c8-198d-4a7f-a365-0e96b4480daa"],
+Cell[23980, 691, 380, 10, 70, "Input",ExpressionUUID->"00bf77d0-78de-4e9e-9c4e-c673938481e1"],
+Cell[24363, 703, 189, 5, 70, "Input",ExpressionUUID->"ad6debe3-414f-4161-8144-ab7247e4f02d"],
+Cell[24555, 710, 229, 6, 70, "Input",ExpressionUUID->"9b4ebf3d-ecce-4b16-89be-11f62ce56576"]
 }
 ]
 *)

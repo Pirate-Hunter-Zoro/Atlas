@@ -142,6 +142,28 @@ problem and stays, one after `Input` answers it and goes.
 an empty notebook is a better starting point than a confidently wrong — or confidently right —
 one.
 
+### And the 12 that stayed were the same mistake, on 31 August 2026
+
+The rule above kept a `Text` cell that came before the first `Input` of a section, on the theory
+that such a cell restates the problem. In these notebooks it did not: every section heading was
+itself something the assistant had written — `2: The numerical function N`, `5: Symbols as
+units` — and Dr. Doty's actual question was in none of the sixteen notebooks at all. The
+submitted PDFs were code under invented headings, with the question nowhere on the page.
+
+The notebooks were rebuilt around **his** cells: the Exercises section header, the Your Name /
+Your Math Class cell with the name filled in, his preamble cells, and every numbered question in
+his order and his numbering — Lesson 11's two exercises numbered 14 included — with the
+student's `Input` cells inserted after the question each one answers, and nothing else in the
+file. `scripts/rebuild-exercises.wls` did it, pairing the k-th question with the k-th section
+rather than matching numbers, and refusing to write anything when those two counts disagree. All
+525 `Input` cells came through unchanged; Lesson 4 gained one, the professor's own
+`someData = Table[...]`, which is part of the statement of his Exercise 8.
+
+The 12 surviving prose cells came out with the headings. They are transcribed in
+[`lessons/ASSISTANT-NOTES.md`](./lessons/ASSISTANT-NOTES.md) — two of them are things worth
+doing that the exercise itself does not tell you, and that file also lists every exercise whose
+text asks for a written answer the notebooks deliberately do not contain.
+
 ## Solution markers
 
 ```
@@ -181,12 +203,22 @@ Every notebook goes to one `wolframscript` invocation for the same reason: the k
 better part of a minute to start, so sixteen separate runs cost sixteen startups and one costs
 one.
 
+**Where that rule comes from, since it is not written down anywhere else.** Dr. Doty said it in
+class; the owner of this repository confirmed it on 31 August 2026, asked directly. It is worth
+recording because the notebooks appear to contradict it and the contradiction is not a reason to
+doubt it: Lesson 1 Exercise 2 says to "Cut and Paste the two Input-Output cell pairs into this
+notebook", Exercise 3 asks for an explanation "below your Input-Output cells", and his printing
+instructions only say to print the exercises section and not the lesson. The syllabus says
+nothing either way — homework is emailed as an attachment and that is all it specifies. **Code
+only. No outputs.** Do not re-derive this from the notebook text and reach the other answer.
+
 Both routes drop output cells, always. The exercise notebooks currently hold none, so today that
 changes nothing — but the moment one is evaluated it would, and a submission that quietly starts
 carrying output is the failure worth preventing in advance.
 
-Neither route writes mathematics. Input cells are transcribed and never authored; every
-character came out of the `.nb`.
+Neither route writes mathematics, and neither route writes prose. Input cells are transcribed
+and never authored; every character came out of the `.nb`, and every character in the `.nb` that
+is not the student's code came out of Dr. Doty's own notebook.
 
 ## Tooling — what we used and how we got it
 

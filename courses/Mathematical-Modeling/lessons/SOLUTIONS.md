@@ -7,10 +7,24 @@ lessons/lesson-NN/work/Adv Lesson NN Exercises.nb
 ```
 
 Sixteen notebooks, covering Lessons 01 through 16. Each one is a Wolfram `Notebook[]`
-expression: Title, Section headings numbered to match Dr. Doty's exercise numbers, Input cells
-holding the answers as typeset box structures, and Text cells holding the written explanations
-the exercises ask for. Output cells are deliberately absent — the exercises are submitted with
-outputs cleared, and these open ready to evaluate.
+expression carrying **Dr. Doty's own exercise cells, copied out of `material/` unchanged** — the
+Exercises section header, the Your Name / Your Math Class cell with the name filled in, his
+preamble cells, and every numbered question in his order and his numbering — with the student's
+Input cells inserted after the question each one answers. Output cells are deliberately absent —
+the exercises are submitted with outputs cleared, and these open ready to evaluate.
+
+They did not always look like this. Until 31 August 2026 the question text was absent and the
+sections were headings the assistant had written (`2: The numerical function N`, and fifteen
+notebooks more of the same), so a printed page showed code with no visible question and a title
+nobody in the course had written. `scripts/rebuild-exercises.wls` replaced those headings with
+the professor's questions; its header states the rule it used. The twelve prose cells that came
+out in the same pass are in [`ASSISTANT-NOTES.md`](./ASSISTANT-NOTES.md).
+
+Later the same day the notebooks were completed: seven missing code cells were added, and the
+fifty-six exercises that ask in so many words for a written explanation were given one — a short
+Text cell at the end of the exercise it answers. Who wrote those, and which of them contradict
+what the exercise expects because Version 15 no longer behaves like Version 6, is recorded in
+`ASSISTANT-NOTES.md`.
 
 ## Coverage
 
@@ -35,9 +49,12 @@ outputs cleared, and these open ready to evaluate.
 | 16 | Packages | 4 | done |
 | 17 | Dynamic interaction | none | nothing to do — the notebook has no exercise section |
 
-Lesson 11's original numbering has two exercises numbered 14. The solution notebook keeps the
-professor's numbers and continues 15, 16, 17, 18 from the second one, so the last section is
-numbered 18 where the source notebook stops at 17.
+Lesson 11's original numbering has two exercises numbered 14 — one at the end of "Pattern
+matching in functional arguments", one at the start of "Pattern matching in replacement rules".
+The notebook now reproduces that exactly: two 14s, ending at 17, both group headings in place.
+The count of 18 in the table above is the number of exercises, not the last number on the page.
+The code that answers the k-th question is under the k-th question, which is why the rebuild
+pairs by position and not by number.
 
 ## Typeset input cells
 
@@ -52,7 +69,7 @@ constants. These are the same box structures the Basic Math Input palette
 produces, so the cells look typed rather than transcribed - and they evaluate,
 because the boxes *are* the input.
 
-464 of the 525 input cells are typeset. The remaining 61 are deliberate:
+464 of the original 525 input cells are typeset. The remaining 61 are deliberate:
 
 - **53 are `?` and `??` information queries.** `?f` is front-end shorthand and
   has to stay exactly that. Converting it would turn it into
@@ -62,6 +79,11 @@ because the boxes *are* the input.
   Exercises 1-2). `MakeBoxes` renders a `Manipulate` into a live widget rather
   than into input syntax, and a pre-rendered widget is the wrong content for
   an input cell. They stay as ordinary text, which is what you would type.
+
+The count is now 538 input cells, 68 of them plain text. Thirteen were added on 31 August 2026:
+Dr. Doty's own `someData = Table[...]`, which belongs to the statement of Lesson 4 Exercise 8 and
+came in with the rebuild, and twelve that close the gaps the part-by-part audit found — seven `?`
+queries and five ordinary expressions (see `ASSISTANT-NOTES.md`).
 
 ## Verification
 
@@ -115,13 +137,15 @@ but nobody has *looked* at one rendered. Open one before printing sixteen.
 ## Submission
 
 Output cells are absent by design - the exercises are to be submitted with
-outputs cleared. Your name and the course are in the Title cell; there is no
-quiz section to fill in.
+outputs cleared. Your name and the course go where Dr. Doty put the blanks for
+them, in his own Program cell under the section header; there is no Title cell
+and no quiz section to fill in.
 
 ## Places where the exercise's premise no longer holds
 
 Version 15 does not behave the way the notebooks (written against version 6) assume. Four
-divergences are flagged inside the solutions where they arise:
+divergences are recorded here — they used to be flagged in prose cells inside the notebooks, and
+those cells are gone, because writing them was never the assistant's job:
 
 1. **Lesson 7, Exercise 7.** `Attributes[Plot]` no longer lists `HoldAll` — it returns
    `{Protected, ReadProtected}`. Plot still holds its first argument and still localises the
@@ -151,8 +175,8 @@ phrasing walks into:
   is in listable multiplication of a two-element list by an empty one.
 - **Lesson 15, Exercise 4.** Wrapping the assignment in `Begin`/`End` does *not* create a symbol
   in the new context, because `Global`newSymbol` already exists and is found on the context path
-  first. The naive version is shown failing before it is repaired, since that failure is exactly
-  what Exercise 6 asks you to explain.
+  first. The notebook shows the naive version failing before it is repaired, since that failure
+  is exactly what Exercise 6 asks you to explain.
 
 ## One deliberate substitution
 

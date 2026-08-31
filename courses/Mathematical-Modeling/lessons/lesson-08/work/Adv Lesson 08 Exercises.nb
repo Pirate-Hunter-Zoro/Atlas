@@ -10,30 +10,36 @@
 NotebookFileLineBreakTest
 NotebookFileLineBreakTest
 NotebookDataPosition[       160,          7]
-NotebookDataLength[     21644,        565]
-NotebookOptionsPosition[     16654,        502]
-NotebookOutlinePosition[     16996,        517]
-CellTagsIndexPosition[     16953,        514]
+NotebookDataLength[     24000,        628]
+NotebookOptionsPosition[     18852,        563]
+NotebookOutlinePosition[     19191,        578]
+CellTagsIndexPosition[     19148,        575]
 WindowFrame->Normal*)
 
 (* Beginning of Notebook Content *)
 Notebook[{
-Cell["\<\
-Advanced Lesson 8 - Exercises: Pattern Matching and Conditional Definitions
-Mikey Ferguson
-MATH 7013 - Advanced Mathematical Modeling\
-\>", "Title",ExpressionUUID->"8455af48-1f28-4cd0-9ac1-c9f75b1576fd"],
-
-Cell["1: Why pattern matching belongs in functional arguments", "Section",ExpressionUUID->"501a8b05-802c-44cb-ba63-1aeff518cc15"],
+Cell[TextData[{
+ StyleBox[" Exercises:", "Title"],
+ "  Advanced Lesson 8 "
+}], "Section",ExpressionUUID->"750bbf32-a745-42b4-9619-0f1b75cc7e35"],
 
 Cell["\<\
-Part 1. A definition written without a pattern, f[x] = x^2, attaches to the
-single symbol x and to nothing else. It is not a function; it is a stored
-value for one particular expression. Writing f[x_] = x^2 attaches to the
-pattern \"any one argument\", which is what a function of one variable
-actually means. Pattern matching is how a definition says which calls it
-applies to, and without it a definition applies to exactly one call.\
-\>", "Text",ExpressionUUID->"b2ccf830-f065-451d-88f2-61dc4d3eda57"],
+Your Name:  Mikey Ferguson
+
+Your Math Class:  MATH 7013 - Advanced Mathematical Modeling\
+\>", "Program",
+ CellChangeTimes->{{3.390368232619*^9, 3.3903682391219997`*^9}, {
+   3.390368866851*^9, 3.390368908736*^9}, {3.3903690435030003`*^9, 
+   3.390369082222*^9}, 3.3903880065649595`*^9},
+ FontSize->16,
+ FontWeight->"Bold",ExpressionUUID->"71e13d6d-a395-45cc-afc6-f6c4ba483492"],
+
+Cell["\<\
+1:  Part 1: Explain why it is usually better to use pattern matching for \
+functional arguments.
+     Part 2: Give an example (other than the above) that fails when pattern \
+matching is not used.\
+\>", "Text",ExpressionUUID->"2839d622-7d19-4289-9ccf-ed240f07a8b0"],
 
 Cell[BoxData[{
  RowBox[{
@@ -69,17 +75,20 @@ Cell[BoxData[{
     FractionBox["\[Pi]", "2"], "]"}]}], "}"}]}], "Input",ExpressionUUID->\
 "3eddecea-2f45-442e-a33e-a954b221c2be"],
 
-Cell["2: Why delayed assignment belongs in functional definitions", "Section",ExpressionUUID->"5cff3145-f495-4110-9d4b-a5558ce248a3"],
+Cell["\<\
+Part 1: f[x] = x^2 attaches the definition to the single symbol x and to \
+nothing else, so it is a stored value rather than a function. f[x_] = x^2 \
+attaches it to the pattern any one argument, which is what a function of one \
+variable means. Part 2: with g[x] = Sin[x], g[x] gives Sin[x], but g[y] and \
+g[0] come back unevaluated because they are different expressions.\
+\>", "Text",ExpressionUUID->"87d55fd5-ee8f-4fb8-a36c-88fd38f1be01"],
 
 Cell["\<\
-Part 1. Immediate assignment evaluates the right-hand side once, at
-definition time, when the pattern variable is still a bare symbol. Any
-right-hand side whose meaning depends on the argument having a value - a
-derivative, an integral, a random draw, a conditional test, a loop - is
-therefore computed against the wrong thing and frozen. Delayed assignment
-stores the right-hand side unevaluated and re-evaluates it per call, which
-is what a function body is supposed to do.\
-\>", "Text",ExpressionUUID->"dc51d098-3efa-4c8b-893e-d0d859c94259"],
+2:  Part 1: Explain why it is usually better to use delayed assignment for \
+functional definitions.
+     Part 2: Give an example (other than the above) that fails when delayed \
+assignment is not used.\
+\>", "Text",ExpressionUUID->"e78ce4f3-f7a3-408d-a367-e77b6a0bad1c"],
 
 Cell[BoxData[{
  RowBox[{
@@ -104,8 +113,23 @@ Cell[BoxData[{
 ssionUUID->"f784f4e6-ffdd-4072-9c9f-bec538676ad4"],
 
 Cell["\<\
-3: Squares of integers, cubes of rationals, everything else unchanged\
-\>", "Section",ExpressionUUID->"f718d422-4dd7-45bb-94a0-9c49abd2bf80"],
+Part 1: = evaluates the right-hand side once, while the argument is still an \
+empty symbol, and freezes that answer. := stores the right-hand side and \
+re-evaluates it on every call. Part 2: h1[x_] = Length[x] stores the length \
+of the bare symbol x, which is 0, so h1[{1,2,3}] gives 0. h2, defined with \
+:=, gives the correct answer 3.\
+\>", "Text",ExpressionUUID->"8508555d-3c96-4196-9425-d4a4f1952168"],
+
+Cell["\<\
+3: Construct a function f[x] which:
+\t  Squares an integer argument,
+\t  Cubes a rational argument, and
+\t  Returns the same value for all other arguments.
+  Evaluate:   f[ 3/5 ], f[ 3 ], f[ 4/2 ], f[ 3.1 ]
+  Generate the following table of functional values:
+ \t  values = Table[ { x, f[x] },  { x, -5, 5, 1/2 } ]
+  Use ListPlot to visualize the functional values.\
+\>", "Text",ExpressionUUID->"dab84599-b695-4ba7-b92e-6f7503031626"],
 
 Cell[BoxData[{
  RowBox[{
@@ -152,7 +176,17 @@ Cell[BoxData[
 Cell[BoxData[
  RowBox[{"ListPlot", "[", "values", "]"}]], "Input",ExpressionUUID->"a3513264-fbf4-4484-9149-c972ba3119b8"],
 
-Cell["4: NumberQ against NumericQ", "Section",ExpressionUUID->"75cf2982-81e2-4704-a705-4ed87858dcde"],
+Cell[TextData[{
+ "4: What is the difference between the Boolean tests:   NumberQ   and   \
+NumericQ\n Evaluate both Boolean functions for:  3, 3/4, 3.1, 3+4*\
+\[ImaginaryI], ",
+ Cell[BoxData[
+  FormBox[
+   SqrtBox["2"], TraditionalForm]],ExpressionUUID->
+  "9d0180ba-7ee5-4513-a0d3-44b6684fe27d"],
+ ", \[Pi], \[ExponentialE]\n Which function would you choose for universal \
+trigonometric evaluations and why? "
+}], "Text",ExpressionUUID->"575b86e4-553f-481b-90c7-dff211026789"],
 
 Cell[BoxData[{
  RowBox[{
@@ -173,7 +207,23 @@ Cell[BoxData[
 Cell[BoxData[
  RowBox[{"NumericQ", "/@", "vals"}]], "Input",ExpressionUUID->"724d81dc-74ea-45d0-9761-a0b71f9c2921"],
 
-Cell["5: VectorQ against ListQ against MatrixQ", "Section",ExpressionUUID->"7dbd3869-536b-4aee-b205-272ce8b5ec73"],
+Cell["\<\
+NumberQ asks whether something is literally stored as a number: it is True \
+for 3, 3/4, 3.1 and 3 + 4 I, and False for Sqrt[2], Pi and E, which are \
+stored as symbolic expressions. NumericQ asks the weaker question would this \
+become a number under N, and is True for all seven. For trigonometry use \
+NumericQ, because Pi and Sqrt[2] are exactly the arguments you want accepted.\
+\
+\>", "Text",ExpressionUUID->"ffeb9e50-fb76-4085-82e3-ed8142c08197"],
+
+Cell["\<\
+5: What is the difference between the Boolean tests:    VectorQ   ListQ   \
+MatrixQ
+ Evaluate each of the Boolean functions for:  3,   {1,2,3},    {{1,2},{3,4}}, \
+   {{{1},{2}},{{3,4}}},    {{{1,2},{3,4}}, {{5,6},{7,8}}}\
+\>", "Text",
+ CellChangeTimes->{{3.390427821551*^9, 
+  3.390427823692*^9}},ExpressionUUID->"45baeabd-08f5-4ea3-9e4e-6b1dbddf77ce"],
 
 Cell[BoxData[{
  RowBox[{
@@ -224,7 +274,20 @@ Cell[BoxData[
 Cell[BoxData[
  RowBox[{"MatrixQ", "/@", "objs"}]], "Input",ExpressionUUID->"05667009-5b3e-420d-a188-949be3a0716d"],
 
-Cell["6: A sign-switched sine, via Boolean tests", "Section",ExpressionUUID->"e73b82dc-de89-46d7-a662-8227e126b6ca"],
+Cell["\<\
+ListQ is True for anything whose head is List, whatever its shape. VectorQ is \
+True only for a flat list of elements, so only {1,2,3} passes. MatrixQ is \
+True only for a rectangular list of lists, so only {{1,2},{3,4}} passes. The \
+ragged example and the three-deep example are lists, but neither vectors nor \
+matrices.\
+\>", "Text",ExpressionUUID->"7d15714a-352b-42ee-b710-db590a74fdb8"],
+
+Cell["\<\
+6: Define a function using Boolean tests which is:
+\t= +Sin[x]     when  x   is positive, and
+\t= -Sin[x]      when  x   is nonpositive.
+  Graph the function for   -\[Pi] \[LessEqual] x \[LessEqual] \[Pi]\
+\>", "Text",ExpressionUUID->"3c5371c7-4795-4dfa-898e-b2a992952e79"],
 
 Cell[BoxData[{
  RowBox[{
@@ -254,7 +317,7 @@ Cell[BoxData[
      RowBox[{"-", "\[Pi]"}], ",", "\[Pi]"}], "}"}]}], "]"}]], "Input",Expressi\
 onUUID->"849a42d3-4d3a-4e02-bf61-70829aa164d6"],
 
-Cell["7: Exercise 3 again, using conditional evaluation", "Section",ExpressionUUID->"9a4e3663-df09-408c-8228-fd5d0c08530f"],
+Cell["7: Repeat exercise 3 using conditional evaluation i.e. \"/;\"", "Text",ExpressionUUID->"18229d5b-2730-43b7-b723-ce83fa3d0725"],
 
 Cell[BoxData[{
  RowBox[{
@@ -301,13 +364,7 @@ Cell[BoxData[
       FractionBox["1", "2"]}], "}"}]}], "]"}], "]"}]], "Input",ExpressionUUID->\
 "5ae1526e-0e34-42d3-aaab-6b2f5d2da431"],
 
-Cell["8: Exercise 6 again, using conditional evaluation", "Section",ExpressionUUID->"754bce87-b474-4cd4-a379-5c04b6f957f6"],
-
-Cell["\<\
-Exercise 6 was already written with \"/;\", so there is nothing to change. It
-is repeated here in its Boolean-test form for the record; the two exercises
-coincide.\
-\>", "Text",ExpressionUUID->"0c428c2f-1daf-4369-8c87-2e3bd96189f1"],
+Cell["8: Repeat exercise 6 using conditional evaluation i.e. \"/;\"", "Text",ExpressionUUID->"89b75d46-028d-4c38-ac43-6b1cea696640"],
 
 Cell[BoxData[{
  RowBox[{
@@ -336,7 +393,7 @@ Cell[BoxData[
      RowBox[{"-", "\[Pi]"}], ",", "\[Pi]"}], "}"}]}], "]"}]], "Input",Expressi\
 onUUID->"8b52fbaa-174d-4d33-a7d3-f17f717d496b"],
 
-Cell["9: Exercise 3 again, using Which", "Section",ExpressionUUID->"489a15c6-371e-427a-9e35-3267101a81eb"],
+Cell["9: Repeat exercise 3 using the Which command.", "Text",ExpressionUUID->"b0336229-a63a-4619-996f-cc60ce30bb46"],
 
 Cell[BoxData[{
  RowBox[{
@@ -377,7 +434,7 @@ Cell[BoxData[
       FractionBox["1", "2"]}], "}"}]}], "]"}], "]"}]], "Input",ExpressionUUID->\
 "ed7681e6-85d3-4f58-a05d-9edad89123fe"],
 
-Cell["10: Exercise 6 again, using Which", "Section",ExpressionUUID->"a356e3ed-a936-486a-b7a6-02bb7d78ccfc"],
+Cell["10: Repeat exercise 6 using the Which command.", "Text",ExpressionUUID->"18a4aae6-27de-4ee3-bd51-d9eb9d52d344"],
 
 Cell[BoxData[{
  RowBox[{
@@ -402,7 +459,9 @@ Cell[BoxData[
      RowBox[{"-", "\[Pi]"}], ",", "\[Pi]"}], "}"}]}], "]"}]], "Input",Expressi\
 onUUID->"aa1c7862-2b08-4cef-abd5-332eacb35e20"],
 
-Cell["11: Exercise 3 again, as a conditional replacement rule", "Section",ExpressionUUID->"62bc7c00-9c83-45c7-acc2-f2f643fd713b"],
+Cell["\<\
+11: Repeat exercise 3 using a conditional application of a rule.\
+\>", "Text",ExpressionUUID->"600d2533-1e8a-4509-95f8-0e11270f5ea8"],
 
 Cell[BoxData[{
  RowBox[{
@@ -451,7 +510,9 @@ Cell[BoxData[
       FractionBox["1", "2"]}], "}"}]}], "]"}], "]"}]], "Input",ExpressionUUID->\
 "8e8604f3-492c-4863-b4e4-3ebaf4482f16"],
 
-Cell["12: Exercise 6 again, as a conditional replacement rule", "Section",ExpressionUUID->"fb46b858-1ac3-424e-82ef-9aa623eb014f"],
+Cell["\<\
+12: Repeat exercise 6 using a conditional application of a rule.\
+\>", "Text",ExpressionUUID->"1b7d7419-29aa-4615-9e4d-6a2ccf658e4b"],
 
 Cell[BoxData[{
  RowBox[{
@@ -501,7 +562,7 @@ Cell[BoxData[
 onUUID->"e7894c39-4731-4b57-95a4-57d1426d6608"]
 },
 WindowSize->{1100, 850},
-FrontEndVersion->"15.0 for Mac OS X ARM (64-bit) (May 26, 2026)",
+FrontEndVersion->"15.0 for Linux x86 (64-bit) (May 26, 2026)",
 StyleDefinitions->"Default.nb",
 ExpressionUUID->"53e1aa67-6381-4be0-aec1-2e1147a12ddd"
 ]
@@ -516,57 +577,59 @@ CellTagsIndex->{}
 *)
 (*NotebookFileOutline
 Notebook[{
-Cell[560, 20, 213, 4, 70, "Title",ExpressionUUID->"8455af48-1f28-4cd0-9ac1-c9f75b1576fd"],
-Cell[776, 26, 129, 0, 70, "Section",ExpressionUUID->"501a8b05-802c-44cb-ba63-1aeff518cc15"],
-Cell[908, 28, 514, 7, 70, "Text",ExpressionUUID->"b2ccf830-f065-451d-88f2-61dc4d3eda57"],
-Cell[1425, 37, 533, 15, 70, "Input",ExpressionUUID->"d6e67516-35d1-4760-94de-13df811b93a0"],
-Cell[1961, 54, 534, 15, 70, "Input",ExpressionUUID->"3eddecea-2f45-442e-a33e-a954b221c2be"],
-Cell[2498, 71, 133, 0, 70, "Section",ExpressionUUID->"5cff3145-f495-4110-9d4b-a5558ce248a3"],
-Cell[2634, 73, 554, 8, 70, "Text",ExpressionUUID->"dc51d098-3efa-4c8b-893e-d0d859c94259"],
-Cell[3191, 83, 693, 20, 70, "Input",ExpressionUUID->"f784f4e6-ffdd-4072-9c9f-bec538676ad4"],
-Cell[3887, 105, 151, 2, 70, "Section",ExpressionUUID->"f718d422-4dd7-45bb-94a0-9c49abd2bf80"],
-Cell[4041, 109, 517, 14, 70, "Input",ExpressionUUID->"e0fa2b68-4805-4392-9a3c-6755417dcd00"],
-Cell[4561, 125, 75, 0, 70, "Input",ExpressionUUID->"43ebec61-d05a-4dd4-a3a7-5a1f9fcf5dd1"],
-Cell[4639, 127, 314, 9, 70, "Input",ExpressionUUID->"44d89691-f15c-4c30-b4e2-a3428e20523e"],
-Cell[4956, 138, 368, 11, 70, "Input",ExpressionUUID->"87b5a410-d35f-44d0-b98d-366d2bd0fdb6"],
-Cell[5327, 151, 121, 1, 70, "Input",ExpressionUUID->"a3513264-fbf4-4484-9149-c972ba3119b8"],
-Cell[5451, 154, 101, 0, 70, "Section",ExpressionUUID->"75cf2982-81e2-4704-a705-4ed87858dcde"],
-Cell[5555, 156, 434, 11, 70, "Input",ExpressionUUID->"863f77b5-eadd-4127-af7a-02bb686db136"],
-Cell[5992, 169, 114, 1, 70, "Input",ExpressionUUID->"74f123f4-3ffb-42f3-b606-25d3b2dab59f"],
-Cell[6109, 172, 115, 1, 70, "Input",ExpressionUUID->"724d81dc-74ea-45d0-9761-a0b71f9c2921"],
-Cell[6227, 175, 114, 0, 70, "Section",ExpressionUUID->"7dbd3869-536b-4aee-b205-272ce8b5ec73"],
-Cell[6344, 177, 1187, 38, 70, "Input",ExpressionUUID->"4a2bd024-8383-4bc5-8a9f-9e4e0bbfa191"],
-Cell[7534, 217, 112, 1, 70, "Input",ExpressionUUID->"4ff80e50-8c5d-493d-9a2f-4bc159400c94"],
-Cell[7649, 220, 114, 1, 70, "Input",ExpressionUUID->"3817f88e-fb5f-4a74-a9e5-6aa77e56fb30"],
-Cell[7766, 223, 114, 1, 70, "Input",ExpressionUUID->"05667009-5b3e-420d-a188-949be3a0716d"],
-Cell[7883, 226, 116, 0, 70, "Section",ExpressionUUID->"e73b82dc-de89-46d7-a662-8227e126b6ca"],
-Cell[8002, 228, 563, 17, 70, "Input",ExpressionUUID->"914f04b0-6eb9-4d4f-92ad-af36f04b29e2"],
-Cell[8568, 247, 254, 7, 70, "Input",ExpressionUUID->"849a42d3-4d3a-4e02-bf61-70829aa164d6"],
-Cell[8825, 256, 123, 0, 70, "Section",ExpressionUUID->"9a4e3663-df09-408c-8228-fd5d0c08530f"],
-Cell[8951, 258, 644, 19, 70, "Input",ExpressionUUID->"12c376d6-f6b7-4800-a44b-d3c0833cacac"],
-Cell[9598, 279, 314, 9, 70, "Input",ExpressionUUID->"7a047549-4aa5-4060-ba01-e65245672d97"],
-Cell[9915, 290, 375, 11, 70, "Input",ExpressionUUID->"5ae1526e-0e34-42d3-aaab-6b2f5d2da431"],
-Cell[10293, 303, 123, 0, 70, "Section",ExpressionUUID->"754bce87-b474-4cd4-a379-5c04b6f957f6"],
-Cell[10419, 305, 242, 4, 70, "Text",ExpressionUUID->"0c428c2f-1daf-4369-8c87-2e3bd96189f1"],
-Cell[10664, 311, 530, 16, 70, "Input",ExpressionUUID->"018be57d-b6f0-4d49-aa73-22f365dabeb2"],
-Cell[11197, 329, 254, 7, 70, "Input",ExpressionUUID->"8b52fbaa-174d-4d33-a7d3-f17f717d496b"],
-Cell[11454, 338, 106, 0, 70, "Section",ExpressionUUID->"489a15c6-371e-427a-9e35-3267101a81eb"],
-Cell[11563, 340, 495, 13, 70, "Input",ExpressionUUID->"02bdfd1f-00a7-4572-9f2c-fb3c7db660b7"],
-Cell[12061, 355, 314, 9, 70, "Input",ExpressionUUID->"255aae8b-46a3-47e3-9ab2-89cc2ee17952"],
-Cell[12378, 366, 375, 11, 70, "Input",ExpressionUUID->"ed7681e6-85d3-4f58-a05d-9edad89123fe"],
-Cell[12756, 379, 107, 0, 70, "Section",ExpressionUUID->"a356e3ed-a936-486a-b7a6-02bb7d78ccfc"],
-Cell[12866, 381, 428, 12, 70, "Input",ExpressionUUID->"06536760-11f8-4f9e-b4b7-4532cdc6701a"],
-Cell[13297, 395, 254, 7, 70, "Input",ExpressionUUID->"aa1c7862-2b08-4cef-abd5-332eacb35e20"],
-Cell[13554, 404, 129, 0, 70, "Section",ExpressionUUID->"62bc7c00-9c83-45c7-acc2-f2f643fd713b"],
-Cell[13686, 406, 485, 13, 70, "Input",ExpressionUUID->"a47bcbb4-82fe-4a41-8085-04c608c72a1e"],
-Cell[14174, 421, 248, 6, 70, "Input",ExpressionUUID->"f920304e-fadb-4f38-976e-fcaf82f06842"],
-Cell[14425, 429, 298, 8, 70, "Input",ExpressionUUID->"4e3198d4-c4cf-41ef-b17d-73861fcaa76b"],
-Cell[14726, 439, 413, 12, 70, "Input",ExpressionUUID->"8e8604f3-492c-4863-b4e4-3ebaf4482f16"],
-Cell[15142, 453, 129, 0, 70, "Section",ExpressionUUID->"fb46b858-1ac3-424e-82ef-9aa623eb014f"],
-Cell[15274, 455, 512, 15, 70, "Input",ExpressionUUID->"dbb9b7b6-eeef-4d5f-8872-adc82e65b950"],
-Cell[15789, 472, 257, 7, 70, "Input",ExpressionUUID->"70983614-a214-41b4-a29d-320005eb82d3"],
-Cell[16049, 481, 309, 9, 70, "Input",ExpressionUUID->"84ecbbf0-8ab1-4f23-b8e2-277642a8ce8b"],
-Cell[16361, 492, 289, 8, 70, "Input",ExpressionUUID->"e7894c39-4731-4b57-95a4-57d1426d6608"]
+Cell[560, 20, 144, 3, 70, "Section",ExpressionUUID->"750bbf32-a745-42b4-9619-0f1b75cc7e35"],
+Cell[707, 25, 388, 9, 70, "Program",ExpressionUUID->"71e13d6d-a395-45cc-afc6-f6c4ba483492"],
+Cell[1098, 36, 275, 5, 70, "Text",ExpressionUUID->"2839d622-7d19-4289-9ccf-ed240f07a8b0"],
+Cell[1376, 43, 533, 15, 70, "Input",ExpressionUUID->"d6e67516-35d1-4760-94de-13df811b93a0"],
+Cell[1912, 60, 534, 15, 70, "Input",ExpressionUUID->"3eddecea-2f45-442e-a33e-a954b221c2be"],
+Cell[2449, 77, 453, 6, 70, "Text",ExpressionUUID->"87d55fd5-ee8f-4fb8-a36c-88fd38f1be01"],
+Cell[2905, 85, 281, 5, 70, "Text",ExpressionUUID->"e78ce4f3-f7a3-408d-a367-e77b6a0bad1c"],
+Cell[3189, 92, 693, 20, 70, "Input",ExpressionUUID->"f784f4e6-ffdd-4072-9c9f-bec538676ad4"],
+Cell[3885, 114, 419, 6, 70, "Text",ExpressionUUID->"8508555d-3c96-4196-9425-d4a4f1952168"],
+Cell[4307, 122, 444, 9, 70, "Text",ExpressionUUID->"dab84599-b695-4ba7-b92e-6f7503031626"],
+Cell[4754, 133, 517, 14, 70, "Input",ExpressionUUID->"e0fa2b68-4805-4392-9a3c-6755417dcd00"],
+Cell[5274, 149, 75, 0, 70, "Input",ExpressionUUID->"43ebec61-d05a-4dd4-a3a7-5a1f9fcf5dd1"],
+Cell[5352, 151, 314, 9, 70, "Input",ExpressionUUID->"44d89691-f15c-4c30-b4e2-a3428e20523e"],
+Cell[5669, 162, 368, 11, 70, "Input",ExpressionUUID->"87b5a410-d35f-44d0-b98d-366d2bd0fdb6"],
+Cell[6040, 175, 121, 1, 70, "Input",ExpressionUUID->"a3513264-fbf4-4484-9149-c972ba3119b8"],
+Cell[6164, 178, 478, 10, 70, "Text",ExpressionUUID->"575b86e4-553f-481b-90c7-dff211026789"],
+Cell[6645, 190, 434, 11, 70, "Input",ExpressionUUID->"863f77b5-eadd-4127-af7a-02bb686db136"],
+Cell[7082, 203, 114, 1, 70, "Input",ExpressionUUID->"74f123f4-3ffb-42f3-b606-25d3b2dab59f"],
+Cell[7199, 206, 115, 1, 70, "Input",ExpressionUUID->"724d81dc-74ea-45d0-9761-a0b71f9c2921"],
+Cell[7317, 209, 463, 7, 70, "Text",ExpressionUUID->"ffeb9e50-fb76-4085-82e3-ed8142c08197"],
+Cell[7783, 218, 363, 7, 70, "Text",ExpressionUUID->"45baeabd-08f5-4ea3-9e4e-6b1dbddf77ce"],
+Cell[8149, 227, 1187, 38, 70, "Input",ExpressionUUID->"4a2bd024-8383-4bc5-8a9f-9e4e0bbfa191"],
+Cell[9339, 267, 112, 1, 70, "Input",ExpressionUUID->"4ff80e50-8c5d-493d-9a2f-4bc159400c94"],
+Cell[9454, 270, 114, 1, 70, "Input",ExpressionUUID->"3817f88e-fb5f-4a74-a9e5-6aa77e56fb30"],
+Cell[9571, 273, 114, 1, 70, "Input",ExpressionUUID->"05667009-5b3e-420d-a188-949be3a0716d"],
+Cell[9688, 276, 402, 6, 70, "Text",ExpressionUUID->"7d15714a-352b-42ee-b710-db590a74fdb8"],
+Cell[10093, 284, 283, 5, 70, "Text",ExpressionUUID->"3c5371c7-4795-4dfa-898e-b2a992952e79"],
+Cell[10379, 291, 563, 17, 70, "Input",ExpressionUUID->"914f04b0-6eb9-4d4f-92ad-af36f04b29e2"],
+Cell[10945, 310, 254, 7, 70, "Input",ExpressionUUID->"849a42d3-4d3a-4e02-bf61-70829aa164d6"],
+Cell[11202, 319, 132, 0, 70, "Text",ExpressionUUID->"18229d5b-2730-43b7-b723-ce83fa3d0725"],
+Cell[11337, 321, 644, 19, 70, "Input",ExpressionUUID->"12c376d6-f6b7-4800-a44b-d3c0833cacac"],
+Cell[11984, 342, 314, 9, 70, "Input",ExpressionUUID->"7a047549-4aa5-4060-ba01-e65245672d97"],
+Cell[12301, 353, 375, 11, 70, "Input",ExpressionUUID->"5ae1526e-0e34-42d3-aaab-6b2f5d2da431"],
+Cell[12679, 366, 132, 0, 70, "Text",ExpressionUUID->"89b75d46-028d-4c38-ac43-6b1cea696640"],
+Cell[12814, 368, 530, 16, 70, "Input",ExpressionUUID->"018be57d-b6f0-4d49-aa73-22f365dabeb2"],
+Cell[13347, 386, 254, 7, 70, "Input",ExpressionUUID->"8b52fbaa-174d-4d33-a7d3-f17f717d496b"],
+Cell[13604, 395, 116, 0, 70, "Text",ExpressionUUID->"b0336229-a63a-4619-996f-cc60ce30bb46"],
+Cell[13723, 397, 495, 13, 70, "Input",ExpressionUUID->"02bdfd1f-00a7-4572-9f2c-fb3c7db660b7"],
+Cell[14221, 412, 314, 9, 70, "Input",ExpressionUUID->"255aae8b-46a3-47e3-9ab2-89cc2ee17952"],
+Cell[14538, 423, 375, 11, 70, "Input",ExpressionUUID->"ed7681e6-85d3-4f58-a05d-9edad89123fe"],
+Cell[14916, 436, 117, 0, 70, "Text",ExpressionUUID->"18a4aae6-27de-4ee3-bd51-d9eb9d52d344"],
+Cell[15036, 438, 428, 12, 70, "Input",ExpressionUUID->"06536760-11f8-4f9e-b4b7-4532cdc6701a"],
+Cell[15467, 452, 254, 7, 70, "Input",ExpressionUUID->"aa1c7862-2b08-4cef-abd5-332eacb35e20"],
+Cell[15724, 461, 143, 2, 70, "Text",ExpressionUUID->"600d2533-1e8a-4509-95f8-0e11270f5ea8"],
+Cell[15870, 465, 485, 13, 70, "Input",ExpressionUUID->"a47bcbb4-82fe-4a41-8085-04c608c72a1e"],
+Cell[16358, 480, 248, 6, 70, "Input",ExpressionUUID->"f920304e-fadb-4f38-976e-fcaf82f06842"],
+Cell[16609, 488, 298, 8, 70, "Input",ExpressionUUID->"4e3198d4-c4cf-41ef-b17d-73861fcaa76b"],
+Cell[16910, 498, 413, 12, 70, "Input",ExpressionUUID->"8e8604f3-492c-4863-b4e4-3ebaf4482f16"],
+Cell[17326, 512, 143, 2, 70, "Text",ExpressionUUID->"1b7d7419-29aa-4615-9e4d-6a2ccf658e4b"],
+Cell[17472, 516, 512, 15, 70, "Input",ExpressionUUID->"dbb9b7b6-eeef-4d5f-8872-adc82e65b950"],
+Cell[17987, 533, 257, 7, 70, "Input",ExpressionUUID->"70983614-a214-41b4-a29d-320005eb82d3"],
+Cell[18247, 542, 309, 9, 70, "Input",ExpressionUUID->"84ecbbf0-8ab1-4f23-b8e2-277642a8ce8b"],
+Cell[18559, 553, 289, 8, 70, "Input",ExpressionUUID->"e7894c39-4731-4b57-95a4-57d1426d6608"]
 }
 ]
 *)

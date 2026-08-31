@@ -10,21 +10,89 @@
 NotebookFileLineBreakTest
 NotebookFileLineBreakTest
 NotebookDataPosition[       160,          7]
-NotebookDataLength[      8282,        233]
-NotebookOptionsPosition[      6408,        203]
-NotebookOutlinePosition[      6750,        218]
-CellTagsIndexPosition[      6707,        215]
+NotebookDataLength[     14649,        453]
+NotebookOptionsPosition[     12674,        422]
+NotebookOutlinePosition[     13013,        437]
+CellTagsIndexPosition[     12970,        434]
 WindowFrame->Normal*)
 
 (* Beginning of Notebook Content *)
 Notebook[{
-Cell["\<\
-Advanced Lesson 13 - Exercises: Trace and Held Evaluation
-Mikey Ferguson
-MATH 7013 - Advanced Mathematical Modeling\
-\>", "Title",ExpressionUUID->"ed741eb5-2af6-463a-be47-d471f890060b"],
+Cell[TextData[{
+ StyleBox[" Exercises:", "Title"],
+ "  Advanced Lesson 13 "
+}], "Section",ExpressionUUID->"1e4a5d63-d8a6-4bd4-89ce-26df74e97f0d"],
 
-Cell["1: Tracing differentiation and integration", "Section",ExpressionUUID->"48136a24-ff72-409a-a8cc-d94d6c704abf"],
+Cell["\<\
+Your Name:  Mikey Ferguson
+
+Your Math Class:  MATH 7013 - Advanced Mathematical Modeling\
+\>", "Program",
+ CellChangeTimes->{{3.390368232619*^9, 3.3903682391219997`*^9}, {
+   3.390368866851*^9, 3.390368908736*^9}, {3.3903690435030003`*^9, 
+   3.390369082222*^9}, 3.3903880065649595`*^9},
+ FontSize->16,
+ FontWeight->"Bold",ExpressionUUID->"7b4af81d-74db-498a-9676-240d7cb5e586"],
+
+Cell[TextData[{
+ "1: Use the Trace command to analyze the intermediate steps in the following \
+commands:\n",
+ StyleBox["\t",
+  FontWeight->"Bold"],
+ Cell[BoxData[
+  FormBox[
+   RowBox[{
+    SubscriptBox["\[PartialD]", "x"], "  ", 
+    FormBox[
+     SuperscriptBox[
+      RowBox[{"x", " "}], "2"],
+     TraditionalForm]}], TraditionalForm]],
+  FontWeight->"Bold",ExpressionUUID->"354b8be4-e219-46b4-bb70-d9bb693ff9c7"],
+ StyleBox["\n\t",
+  FontWeight->"Bold"],
+ Cell[BoxData[
+  RowBox[{
+   SubscriptBox["\[PartialD]", "x"], " ", 
+   SuperscriptBox[
+    RowBox[{"(", 
+     RowBox[{"1", "+", "x"}], ")"}], "2"]}]],
+  FontWeight->"Bold",ExpressionUUID->"3c027b6d-1ee3-49e1-8020-a1dafeed39d9"],
+ StyleBox["\n\t",
+  FontWeight->"Bold"],
+ Cell[BoxData[
+  RowBox[{
+   SubscriptBox["\[PartialD]", "x"], " ", 
+   SuperscriptBox[
+    RowBox[{"(", 
+     RowBox[{"x", "+", "1"}], ")"}], "2"]}]],
+  FontWeight->"Bold",ExpressionUUID->"e31b211b-9b18-49ec-b650-79058e3f0989"],
+ StyleBox["\n\t",
+  FontWeight->"Bold"],
+ Cell[BoxData[
+  RowBox[{"\[Integral]", 
+   RowBox[{
+    RowBox[{"(", 
+     RowBox[{"x", "+", 
+      SuperscriptBox["x", "2"], "+", 
+      SuperscriptBox["E", "x"]}], ")"}], 
+    RowBox[{"\[DifferentialD]", "x"}], " "}]}]],
+  FontWeight->"Bold",ExpressionUUID->"97dde986-ff84-4154-97dd-2033b20beb9d"],
+ StyleBox["\n\t",
+  FontWeight->"Bold"],
+ Cell[BoxData[
+  RowBox[{
+   SubscriptBox["\[PartialD]", "x"], " ", 
+   RowBox[{"(", 
+    RowBox[{"\[Integral]", 
+     RowBox[{
+      SuperscriptBox[
+       RowBox[{"(", 
+        RowBox[{"1", "+", "x"}], ")"}], "2"], 
+      RowBox[{"\[DifferentialD]", "x"}]}]}], ")"}]}]],
+  FontWeight->"Bold",ExpressionUUID->"fe2c8fc9-5d9c-4027-bdbf-0d2dbf4da1e0"],
+ StyleBox["\t",
+  FontWeight->"Bold"]
+}], "Text",ExpressionUUID->"b53f8111-5675-4f9d-ac29-b2e0203a2e3b"],
 
 Cell[BoxData[{
  RowBox[{
@@ -76,7 +144,37 @@ Cell[BoxData[
      RowBox[{"\[DifferentialD]", "x"}]}]}]}], "]"}]], "Input",ExpressionUUID->\
 "31847a89-d0bc-4352-8993-94407a887324"],
 
-Cell["2: Tracing immediate against delayed replacement rules", "Section",ExpressionUUID->"be355dfb-ca5a-40af-bddf-ead07f3313dd"],
+Cell["\<\
+2: Use the Trace command to analyze the intermediate steps in the following \
+commands:
+Part 1:
+\tClear[a,b]
+\tTrace[ Sin[a] /. a \[Rule]b]
+Part 2:
+\tClear[a,b]
+\tb=5
+\tTrace[ Sin[a] /. a \[Rule]b]
+Part 3:
+\tClear[a,b]
+\ta=2
+\tb=5
+\tTrace[ Sin[a] /. a \[Rule]b]
+Part 4:
+\tClear[a,b]
+\tTrace[ Sin[a] /. a \[RuleDelayed]b]
+Part 5:
+\tClear[a,b]
+\tb=5
+\tTrace[ Sin[a] /. a \[RuleDelayed]b]
+Part 6:
+\tClear[a,b]
+\ta=2
+\tb=5
+\tTrace[ Sin[a] /. a \[RuleDelayed]b]\t 
+Observe that the lhs of a \[RuleDelayed]b is not held, however replacing \
+\"a\" in both the expression Sin[a] and the lhs of the delayed replacement \
+rule has no effect upon the final answer.\
+\>", "Text",ExpressionUUID->"557b18e0-3978-4f00-b707-b64f7a22427e"],
 
 Cell[BoxData[{
  RowBox[{
@@ -150,9 +248,130 @@ Cell[BoxData[{
    RowBox[{"a", "\[RuleDelayed]", "b"}]}], "]"}]}], "Input",ExpressionUUID->\
 "1722f0b5-1cf0-4d9d-9d49-2977b5793b37"],
 
-Cell["\<\
-3: Displaying arguments unevaluated and evaluated, side by side\
-\>", "Section",ExpressionUUID->"2b3349c4-737a-496d-9f2f-7c48adf2e477"],
+Cell[TextData[{
+ "3: Construct a function ",
+ Cell[BoxData[
+  FormBox[
+   RowBox[{"f", "[", 
+    RowBox[{"x1", ",", "x2", ",", "x3", ",", "...", ",", "xn"}], "]"}], 
+   TraditionalForm]],ExpressionUUID->"a7544663-0f60-4839-bbd3-bb4bfed0432b"],
+ " which will accept a ",
+ StyleBox["Sequence",
+  FontVariations->{"Underline"->True}],
+ " of expressions: ",
+ Cell[BoxData[
+  FormBox[
+   RowBox[{"x1", ",", "x2", ",", "x3", ",", "...", ",", "xn"}], 
+   TraditionalForm]],ExpressionUUID->"9740f36f-5d87-4e02-990c-b1336a0b006c"],
+ " (i.e. not a list) and display a ",
+ StyleBox["list",
+  FontVariations->{"Underline"->True}],
+ " of a list of both the unevaluated and evaluated form of each element ",
+ Cell[BoxData[
+  FormBox[
+   RowBox[{"xi", ",", " ", 
+    RowBox[{"i", "=", "1"}], ",", "...", ",", "n"}], TraditionalForm]],
+  ExpressionUUID->"df48d1f0-5046-4fe5-b069-1ea045bbf4a2"],
+ " .\n\n\tTest your function:\n\t\t\n\t\t",
+ Cell[BoxData[
+  FormBox[
+   RowBox[{
+    RowBox[{"f", "[", " ", 
+     RowBox[{
+      RowBox[{"N", "[", "\[Pi]", "]"}], ",", 
+      RowBox[{"1", "+", "2"}], ",", 
+      RowBox[{"a", "*", 
+       SuperscriptBox["a", "2"]}], ",", 
+      RowBox[{"a", "*", 
+       RowBox[{"(", 
+        RowBox[{"1", "+", "a"}], ")"}]}]}], " ", "]"}], " "}], 
+   TraditionalForm]],ExpressionUUID->"115003ac-1941-4ea1-a222-04db02e2c573"],
+ "\n\t\t\n\t\t",
+ Cell[BoxData[
+  RowBox[{"{", 
+   RowBox[{
+    RowBox[{"{", 
+     RowBox[{
+      TagBox[
+       RowBox[{"N", "[", "\[Pi]", "]"}],
+       HoldForm], ",", "3.141592653589793`"}], "}"}], ",", 
+    RowBox[{"{", 
+     RowBox[{
+      TagBox[
+       RowBox[{"1", "+", "2"}],
+       HoldForm], ",", "3"}], "}"}], ",", 
+    RowBox[{"{", 
+     RowBox[{
+      TagBox[
+       RowBox[{"a", " ", 
+        SuperscriptBox["a", "2"]}],
+       HoldForm], ",", 
+      SuperscriptBox["a", "3"]}], "}"}], ",", 
+    RowBox[{"{", 
+     RowBox[{
+      TagBox[
+       RowBox[{"a", " ", 
+        RowBox[{"(", 
+         RowBox[{"1", "+", "a"}], ")"}]}],
+       HoldForm], ",", 
+      RowBox[{"a", " ", 
+       RowBox[{"(", 
+        RowBox[{"1", "+", "a"}], ")"}]}]}], "}"}]}], "}"}]],ExpressionUUID->
+  "ea9066dd-c715-4aa5-b4c3-2ad93a7870a3"],
+ "\n\t\n\tand:\n\t\n\t\t",
+ Cell[BoxData[
+  FormBox[
+   RowBox[{
+    RowBox[{"f", "[", " ", 
+     RowBox[{
+      RowBox[{"N", "[", "\[Pi]", "]"}], ",", 
+      RowBox[{"1", "+", "2"}], ",", 
+      RowBox[{"a", "*", 
+       SuperscriptBox["a", "2"]}], ",", 
+      RowBox[{"a", "*", 
+       RowBox[{"(", 
+        RowBox[{"1", "+", "a"}], ")"}]}]}], " ", "]"}], "  ", "//", 
+    "TableForm"}], TraditionalForm]],ExpressionUUID->
+  "de019585-3cee-4680-b9fd-72e74488ccef"],
+ "\n\n\t\t",
+ Cell[BoxData[GridBox[{
+    {
+     TagBox[
+      RowBox[{"N", "[", "\[Pi]", "]"}],
+      HoldForm], "3.141592653589793`"},
+    {
+     TagBox[
+      RowBox[{"1", "+", "2"}],
+      HoldForm], "3"},
+    {
+     TagBox[
+      RowBox[{"a", " ", 
+       SuperscriptBox["a", "2"]}],
+      HoldForm], 
+     SuperscriptBox["a", "3"]},
+    {
+     TagBox[
+      RowBox[{"a", " ", 
+       RowBox[{"(", 
+        RowBox[{"1", "+", "a"}], ")"}]}],
+      HoldForm], 
+     RowBox[{"a", " ", 
+      RowBox[{"(", 
+       RowBox[{"1", "+", "a"}], ")"}]}]}
+   },
+   GridBoxAlignment->{
+    "Columns" -> {{Left}}, "ColumnsIndexed" -> {}, "Rows" -> {{Baseline}}, 
+     "RowsIndexed" -> {}},
+   GridBoxSpacings->{"Columns" -> {
+       Offset[0.27999999999999997`], {
+        Offset[2.0999999999999996`]}, 
+       Offset[0.27999999999999997`]}, "ColumnsIndexed" -> {}, "Rows" -> {
+       Offset[0.2], {
+        Offset[0.4]}, 
+       Offset[0.2]}, "RowsIndexed" -> {}}]],ExpressionUUID->
+  "f06db06d-b893-41f3-a2b6-b166f8f7cc0d"],
+ "\n\t\t\n\t(No hints will be given for this problem.)"
+}], "Text",ExpressionUUID->"0bde6475-37e8-4c4d-b021-9f83ceae9390"],
 
 Cell[BoxData[{
  RowBox[{
@@ -202,7 +421,7 @@ Cell[BoxData[
 D->"abcc16c1-7fa5-4c23-b1bf-fb53bc0bfdff"]
 },
 WindowSize->{1100, 850},
-FrontEndVersion->"15.0 for Mac OS X ARM (64-bit) (May 26, 2026)",
+FrontEndVersion->"15.0 for Linux x86 (64-bit) (May 26, 2026)",
 StyleDefinitions->"Default.nb",
 ExpressionUUID->"53e1aa67-6381-4be0-aec1-2e1147a12ddd"
 ]
@@ -217,24 +436,25 @@ CellTagsIndex->{}
 *)
 (*NotebookFileOutline
 Notebook[{
-Cell[560, 20, 195, 4, 70, "Title",ExpressionUUID->"ed741eb5-2af6-463a-be47-d471f890060b"],
-Cell[758, 26, 116, 0, 70, "Section",ExpressionUUID->"48136a24-ff72-409a-a8cc-d94d6c704abf"],
-Cell[877, 28, 270, 7, 70, "Input",ExpressionUUID->"9b6fb392-e054-4110-aa99-9701bea95d6c"],
-Cell[1150, 37, 242, 7, 70, "Input",ExpressionUUID->"a8bd1212-ee82-4144-895d-0be270ea4b93"],
-Cell[1395, 46, 242, 7, 70, "Input",ExpressionUUID->"9a670321-6746-42d8-a8ed-64cbff0eaa75"],
-Cell[1640, 55, 328, 9, 70, "Input",ExpressionUUID->"e72a2079-e66b-4ad4-aa6d-140ee8c911f4"],
-Cell[1971, 66, 333, 10, 70, "Input",ExpressionUUID->"31847a89-d0bc-4352-8993-94407a887324"],
-Cell[2307, 78, 128, 0, 70, "Section",ExpressionUUID->"be355dfb-ca5a-40af-bddf-ead07f3313dd"],
-Cell[2438, 80, 323, 8, 70, "Input",ExpressionUUID->"f01b6ac2-891e-49c4-9d87-f591e2e33ee1"],
-Cell[2764, 90, 391, 10, 70, "Input",ExpressionUUID->"380a61be-1011-456d-91bc-16f763ec3510"],
-Cell[3158, 102, 459, 12, 70, "Input",ExpressionUUID->"12e1d577-a008-4807-98c0-0389dc16edd5"],
-Cell[3620, 116, 330, 8, 70, "Input",ExpressionUUID->"b81587a6-306b-46e1-a275-a8ca7c04b07b"],
-Cell[3953, 126, 398, 10, 70, "Input",ExpressionUUID->"e094775f-9076-41a1-9272-08e949e20314"],
-Cell[4354, 138, 466, 12, 70, "Input",ExpressionUUID->"1722f0b5-1cf0-4d9d-9d49-2977b5793b37"],
-Cell[4823, 152, 145, 2, 70, "Section",ExpressionUUID->"2b3349c4-737a-496d-9f2f-7c48adf2e477"],
-Cell[4971, 156, 632, 18, 70, "Input",ExpressionUUID->"19c2aae6-b265-4b21-b2b4-2e5a8a7dbd9f"],
-Cell[5606, 176, 415, 12, 70, "Input",ExpressionUUID->"d3bb353b-303f-4e59-8bb6-6645a206fa4f"],
-Cell[6024, 190, 380, 11, 70, "Input",ExpressionUUID->"abcc16c1-7fa5-4c23-b1bf-fb53bc0bfdff"]
+Cell[560, 20, 145, 3, 70, "Section",ExpressionUUID->"1e4a5d63-d8a6-4bd4-89ce-26df74e97f0d"],
+Cell[708, 25, 388, 9, 70, "Program",ExpressionUUID->"7b4af81d-74db-498a-9676-240d7cb5e586"],
+Cell[1099, 36, 1801, 58, 70, "Text",ExpressionUUID->"b53f8111-5675-4f9d-ac29-b2e0203a2e3b"],
+Cell[2903, 96, 270, 7, 70, "Input",ExpressionUUID->"9b6fb392-e054-4110-aa99-9701bea95d6c"],
+Cell[3176, 105, 242, 7, 70, "Input",ExpressionUUID->"a8bd1212-ee82-4144-895d-0be270ea4b93"],
+Cell[3421, 114, 242, 7, 70, "Input",ExpressionUUID->"9a670321-6746-42d8-a8ed-64cbff0eaa75"],
+Cell[3666, 123, 328, 9, 70, "Input",ExpressionUUID->"e72a2079-e66b-4ad4-aa6d-140ee8c911f4"],
+Cell[3997, 134, 333, 10, 70, "Input",ExpressionUUID->"31847a89-d0bc-4352-8993-94407a887324"],
+Cell[4333, 146, 732, 30, 70, "Text",ExpressionUUID->"557b18e0-3978-4f00-b707-b64f7a22427e"],
+Cell[5068, 178, 323, 8, 70, "Input",ExpressionUUID->"f01b6ac2-891e-49c4-9d87-f591e2e33ee1"],
+Cell[5394, 188, 391, 10, 70, "Input",ExpressionUUID->"380a61be-1011-456d-91bc-16f763ec3510"],
+Cell[5788, 200, 459, 12, 70, "Input",ExpressionUUID->"12e1d577-a008-4807-98c0-0389dc16edd5"],
+Cell[6250, 214, 330, 8, 70, "Input",ExpressionUUID->"b81587a6-306b-46e1-a275-a8ca7c04b07b"],
+Cell[6583, 224, 398, 10, 70, "Input",ExpressionUUID->"e094775f-9076-41a1-9272-08e949e20314"],
+Cell[6984, 236, 466, 12, 70, "Input",ExpressionUUID->"1722f0b5-1cf0-4d9d-9d49-2977b5793b37"],
+Cell[7453, 250, 3781, 123, 70, "Text",ExpressionUUID->"0bde6475-37e8-4c4d-b021-9f83ceae9390"],
+Cell[11237, 375, 632, 18, 70, "Input",ExpressionUUID->"19c2aae6-b265-4b21-b2b4-2e5a8a7dbd9f"],
+Cell[11872, 395, 415, 12, 70, "Input",ExpressionUUID->"d3bb353b-303f-4e59-8bb6-6645a206fa4f"],
+Cell[12290, 409, 380, 11, 70, "Input",ExpressionUUID->"abcc16c1-7fa5-4c23-b1bf-fb53bc0bfdff"]
 }
 ]
 *)

@@ -10,27 +10,45 @@
 NotebookFileLineBreakTest
 NotebookFileLineBreakTest
 NotebookDataPosition[       160,          7]
-NotebookDataLength[      4107,         98]
-NotebookOptionsPosition[      2619,         72]
-NotebookOutlinePosition[      2961,         87]
-CellTagsIndexPosition[      2918,         84]
+NotebookDataLength[      4941,        125]
+NotebookOptionsPosition[      3370,         98]
+NotebookOutlinePosition[      3709,        113]
+CellTagsIndexPosition[      3666,        110]
 WindowFrame->Normal*)
 
 (* Beginning of Notebook Content *)
 Notebook[{
-Cell["\<\
-Advanced Lesson 16 - Exercises: Packages
-Mikey Ferguson
-MATH 7013 - Advanced Mathematical Modeling\
-\>", "Title",ExpressionUUID->"97dea9ea-4671-4d73-a931-a6e9084ba66b"],
+Cell[TextData[{
+ StyleBox[" Exercises:", "Title"],
+ "  Advanced Lesson 16 "
+}], "Section",ExpressionUUID->"a28f466f-8e4c-419d-bc17-61c97a3429a7"],
 
-Cell["1: Loading ComputerArithmetic`", "Section",ExpressionUUID->"b040231d-75b3-43be-a67c-39f31de76a30"],
+Cell["\<\
+Your Name:  Mikey Ferguson
+
+Your Math Class:  MATH 7013 - Advanced Mathematical Modeling\
+\>", "Program",
+ CellChangeTimes->{{3.390368232619*^9, 3.3903682391219997`*^9}, {
+   3.390368866851*^9, 3.390368908736*^9}, {3.3903690435030003`*^9, 
+   3.390369082222*^9}, 3.3903880065649595`*^9},
+ FontSize->16,
+ FontWeight->"Bold",ExpressionUUID->"16cc7739-b029-41a9-b3c8-cb3e0bf559d6"],
+
+Cell["\<\
+1:  Load all of the functions contained in: ComputerArithmetic`\
+\>", "Text",
+ CellChangeTimes->{{3.3900490099714003`*^9, 3.3900490122094*^9}, {
+  3.3900490930854*^9, 
+  3.3900490952743998`*^9}},ExpressionUUID->"734f1738-3b11-4f4c-8fc2-\
+3dc74fe72586"],
 
 Cell[BoxData[
  RowBox[{"Needs", "[", "\"\<ComputerArithmetic`\>\"", "]"}]], "Input",Expressi\
 onUUID->"27d0439b-14bf-4d40-a490-6d9957904ea8"],
 
-Cell["2: Packages on the current context path", "Section",ExpressionUUID->"7c7e1154-42af-4f68-bec7-de57bf4a5060"],
+Cell["\<\
+2:  Display all of the packages contained in the current context path.\
+\>", "Text",ExpressionUUID->"8c1b5824-de65-49ef-af2e-6310aa608a36"],
 
 Cell[BoxData["$ContextPath"], "Input",ExpressionUUID->"84b9c95e-2f6f-4e0f-9529-7e1e38e4b938"],
 
@@ -48,7 +66,11 @@ Cell[BoxData[
     "]"}], "]"}]], "Input",ExpressionUUID->"d7d28437-daee-49a9-ada8-\
 b7871a6f4ce2"],
 
-Cell["3: The primary functions in ComputerArithmetic`", "Section",ExpressionUUID->"53e02113-e101-41c0-a423-b460dfee9ea7"],
+Cell["\<\
+3:  Obtain information on all primary functions in:  ComputerArithmetic`.\
+\>", "Text",
+ CellChangeTimes->{{3.3900491393984003`*^9, 
+  3.3900491529074*^9}},ExpressionUUID->"eff9e5dc-7633-457e-9132-2902a19aa7c5"],
 
 Cell[BoxData[
  RowBox[{"Names", "[", "\"\<ComputerArithmetic`*\>\"", "]"}]], "Input",Express\
@@ -56,7 +78,11 @@ ionUUID->"91e7e762-2b16-4773-8232-49d7f497674e"],
 
 Cell["?ComputerArithmetic`*", "Input",ExpressionUUID->"1a480a3d-4323-48dd-8418-cd8798ba7e70"],
 
-Cell["4: Information on MicroscopicErrorPlot", "Section",ExpressionUUID->"8ae01736-e472-497b-8183-d82f92970169"],
+Cell["\<\
+4:  Obtain what information there is on: MicroscopicErrorPlot[...].\
+\>", "Text",
+ CellChangeTimes->{{3.3900492140364*^9, 
+  3.3900492177164*^9}},ExpressionUUID->"af4b7e04-4c93-4c1f-927c-0ef3d561900f"],
 
 Cell["?MicroscopicErrorPlot", "Input",ExpressionUUID->"5dbb9cff-cc3e-43cd-bf00-b624f9f0e9a2"],
 
@@ -71,7 +97,7 @@ Cell[BoxData[
 ssionUUID->"559b66ed-574b-4f7b-b2be-f0a78552d45a"]
 },
 WindowSize->{1100, 850},
-FrontEndVersion->"15.0 for Mac OS X ARM (64-bit) (May 26, 2026)",
+FrontEndVersion->"15.0 for Linux x86 (64-bit) (May 26, 2026)",
 StyleDefinitions->"Default.nb",
 ExpressionUUID->"53e1aa67-6381-4be0-aec1-2e1147a12ddd"
 ]
@@ -86,20 +112,21 @@ CellTagsIndex->{}
 *)
 (*NotebookFileOutline
 Notebook[{
-Cell[560, 20, 178, 4, 70, "Title",ExpressionUUID->"97dea9ea-4671-4d73-a931-a6e9084ba66b"],
-Cell[741, 26, 104, 0, 70, "Section",ExpressionUUID->"b040231d-75b3-43be-a67c-39f31de76a30"],
-Cell[848, 28, 141, 2, 70, "Input",ExpressionUUID->"27d0439b-14bf-4d40-a490-6d9957904ea8"],
-Cell[992, 32, 113, 0, 70, "Section",ExpressionUUID->"7c7e1154-42af-4f68-bec7-de57bf4a5060"],
-Cell[1108, 34, 93, 0, 70, "Input",ExpressionUUID->"84b9c95e-2f6f-4e0f-9529-7e1e38e4b938"],
-Cell[1204, 36, 122, 1, 70, "Input",ExpressionUUID->"2f9e830f-5024-4140-b07e-9b0a0cd936f6"],
-Cell[1329, 39, 329, 9, 70, "Input",ExpressionUUID->"d7d28437-daee-49a9-ada8-b7871a6f4ce2"],
-Cell[1661, 50, 121, 0, 70, "Section",ExpressionUUID->"53e02113-e101-41c0-a423-b460dfee9ea7"],
-Cell[1785, 52, 142, 2, 70, "Input",ExpressionUUID->"91e7e762-2b16-4773-8232-49d7f497674e"],
-Cell[1930, 56, 93, 0, 70, "Input",ExpressionUUID->"1a480a3d-4323-48dd-8418-cd8798ba7e70"],
-Cell[2026, 58, 112, 0, 70, "Section",ExpressionUUID->"8ae01736-e472-497b-8183-d82f92970169"],
-Cell[2141, 60, 93, 0, 70, "Input",ExpressionUUID->"5dbb9cff-cc3e-43cd-bf00-b624f9f0e9a2"],
-Cell[2237, 62, 231, 4, 70, "Input",ExpressionUUID->"29ada208-c85b-460c-926d-0335449e5f31"],
-Cell[2471, 68, 144, 2, 70, "Input",ExpressionUUID->"559b66ed-574b-4f7b-b2be-f0a78552d45a"]
+Cell[560, 20, 145, 3, 70, "Section",ExpressionUUID->"a28f466f-8e4c-419d-bc17-61c97a3429a7"],
+Cell[708, 25, 388, 9, 70, "Program",ExpressionUUID->"16cc7739-b029-41a9-b3c8-cb3e0bf559d6"],
+Cell[1099, 36, 262, 6, 70, "Text",ExpressionUUID->"734f1738-3b11-4f4c-8fc2-3dc74fe72586"],
+Cell[1364, 44, 141, 2, 70, "Input",ExpressionUUID->"27d0439b-14bf-4d40-a490-6d9957904ea8"],
+Cell[1508, 48, 149, 2, 70, "Text",ExpressionUUID->"8c1b5824-de65-49ef-af2e-6310aa608a36"],
+Cell[1660, 52, 93, 0, 70, "Input",ExpressionUUID->"84b9c95e-2f6f-4e0f-9529-7e1e38e4b938"],
+Cell[1756, 54, 122, 1, 70, "Input",ExpressionUUID->"2f9e830f-5024-4140-b07e-9b0a0cd936f6"],
+Cell[1881, 57, 329, 9, 70, "Input",ExpressionUUID->"d7d28437-daee-49a9-ada8-b7871a6f4ce2"],
+Cell[2213, 68, 221, 4, 70, "Text",ExpressionUUID->"eff9e5dc-7633-457e-9132-2902a19aa7c5"],
+Cell[2437, 74, 142, 2, 70, "Input",ExpressionUUID->"91e7e762-2b16-4773-8232-49d7f497674e"],
+Cell[2582, 78, 93, 0, 70, "Input",ExpressionUUID->"1a480a3d-4323-48dd-8418-cd8798ba7e70"],
+Cell[2678, 80, 211, 4, 70, "Text",ExpressionUUID->"af4b7e04-4c93-4c1f-927c-0ef3d561900f"],
+Cell[2892, 86, 93, 0, 70, "Input",ExpressionUUID->"5dbb9cff-cc3e-43cd-bf00-b624f9f0e9a2"],
+Cell[2988, 88, 231, 4, 70, "Input",ExpressionUUID->"29ada208-c85b-460c-926d-0335449e5f31"],
+Cell[3222, 94, 144, 2, 70, "Input",ExpressionUUID->"559b66ed-574b-4f7b-b2be-f0a78552d45a"]
 }
 ]
 *)

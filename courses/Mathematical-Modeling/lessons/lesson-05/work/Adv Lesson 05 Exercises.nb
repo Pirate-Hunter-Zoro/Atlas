@@ -10,24 +10,130 @@
 NotebookFileLineBreakTest
 NotebookFileLineBreakTest
 NotebookDataPosition[       160,          7]
-NotebookDataLength[     15823,        358]
-NotebookOptionsPosition[     10562,        292]
-NotebookOutlinePosition[     10904,        307]
-CellTagsIndexPosition[     10861,        304]
+NotebookDataLength[     22767,        543]
+NotebookOptionsPosition[     17350,        475]
+NotebookOutlinePosition[     17689,        490]
+CellTagsIndexPosition[     17646,        487]
 WindowFrame->Normal*)
 
 (* Beginning of Notebook Content *)
 Notebook[{
-Cell["\<\
-Advanced Lesson 5 - Exercises: Lists
-Mikey Ferguson
-MATH 7013 - Advanced Mathematical Modeling\
-\>", "Title",ExpressionUUID->"db76645c-815c-4640-8335-ba4c8a463b84"],
+Cell[TextData[{
+ StyleBox[" Exercises:", "Title"],
+ "  Advanced Lesson 5 "
+}], "Section",ExpressionUUID->"f4271d72-2c24-4063-a0a5-9c65c072c181"],
 
 Cell["\<\
-Every list produced below is named, so that later exercises can refer to the
-list built in an earlier exercise instead of rebuilding it.\
-\>", "Text",ExpressionUUID->"533d58ff-0cdb-42cb-aabc-bd45dc51e3a2"],
+Your Name:  Mikey Ferguson
+
+Your Math Class:  MATH 7013 - Advanced Mathematical Modeling\
+\>", "Program",
+ CellChangeTimes->{{3.390368232619*^9, 3.3903682391219997`*^9}, {
+   3.390368866851*^9, 3.390368908736*^9}, {3.3903690435030003`*^9, 
+   3.390369082222*^9}, 3.3903880065649595`*^9},
+ FontSize->16,
+ FontWeight->"Bold",ExpressionUUID->"0e42fc6f-f0b9-4248-aa65-43d4b5a67442"],
+
+Cell[TextData[{
+ StyleBox["Note: Some of the following exercises are expressed in every day \
+mathematical notation rather than proper ", "Subsubsection"],
+ StyleBox["Mathematica", "Subsubsection",
+  FontSlant->"Italic"],
+ StyleBox[" notation.  You ", "Subsubsection"],
+ StyleBox["MUST", "Subsubsection",
+  FontVariations->{"Underline"->True}],
+ StyleBox[" convert every day notation into ", "Subsubsection"],
+ StyleBox["Mathematica", "Subsubsection",
+  FontSlant->"Italic"],
+ StyleBox[" notation for your code to work properly.  For example:\n\n\t\
+Equations ", "Subsubsection"],
+ StyleBox["must", "Subsubsection",
+  FontVariations->{"Underline"->True}],
+ StyleBox[" be changed from  \"=\"  to  \"==\"  to work correctly (i.e. ", 
+  "Subsubsection"],
+ Cell[BoxData[
+  FormBox[
+   StyleBox[
+    RowBox[{
+     SuperscriptBox["x", "2"], "\[Equal]", 
+     RowBox[{"2", "x"}]}], "Subsubsection"], TraditionalForm]],ExpressionUUID->
+  "53f54aef-a8d5-41e1-a304-24b25d1d9ea8"],
+ StyleBox["  not  ", "Subsubsection"],
+ Cell[BoxData[
+  FormBox[
+   StyleBox[
+    RowBox[{
+     SuperscriptBox["x", "2"], "=", 
+     RowBox[{"2", "x"}]}], "Subsubsection"], TraditionalForm]],ExpressionUUID->
+  "3d43bec2-9084-4832-8af3-7586bf3a7977"],
+ StyleBox["  ).  \n\tFunctions ", "Subsubsection"],
+ StyleBox["must", "Subsubsection",
+  FontVariations->{"Underline"->True}],
+ StyleBox[" be expressed as  f[x]  and  not  f(x)  to work correctly.  \n\t\
+Functions ", "Subsubsection"],
+ StyleBox["must", "Subsubsection",
+  FontVariations->{"Underline"->True}],
+ StyleBox[" be defined using  \"_\"  to work correctly (i.e.  ", 
+  "Subsubsection"],
+ Cell[BoxData[
+  FormBox[
+   StyleBox[
+    RowBox[{
+     RowBox[{"f", "[", "x_", "]"}], "=", 
+     RowBox[{
+      RowBox[{"2", 
+       SuperscriptBox["x", "2"]}], "+", "1"}]}], "Subsubsection"], 
+   TraditionalForm]],ExpressionUUID->"d6a92f65-6cb7-40da-83a5-f8d9c7fc4568"],
+ StyleBox["  and not  ", "Subsubsection"],
+ Cell[BoxData[
+  FormBox[
+   StyleBox[
+    RowBox[{
+     RowBox[{"f", "[", "x", "]"}], "=", 
+     RowBox[{
+      RowBox[{"2", 
+       SuperscriptBox["x", "2"]}], "+", "1"}]}], "Subsubsection"], 
+   TraditionalForm]],ExpressionUUID->"31b2be2d-ace9-4c47-8b67-ad9d93bb8729"],
+ StyleBox[").\n\t", "Subsubsection"],
+ StyleBox["Mathematica", "Subsubsection",
+  FontSlant->"Italic"],
+ StyleBox[" functions ", "Subsubsection"],
+ StyleBox["must", "Subsubsection",
+  FontVariations->{"Underline"->True}],
+ StyleBox[" start with a capital (i.e.  Sin[x]  not  sin[x]).\n\t", 
+  "Subsubsection"],
+ StyleBox["Your", "Subsubsection",
+  FontVariations->{"Underline"->True}],
+ StyleBox[" functions should start with a lower case letter (i.e.  f[x]  not  \
+F[x]).\n\tSpecial symbols ", "Subsubsection"],
+ StyleBox["must", "Subsubsection",
+  FontVariations->{"Underline"->True}],
+ StyleBox[" be entered correctly (i.e.  ", "Subsubsection"],
+ StyleBox["\[ExponentialE]", "Subsection"],
+ StyleBox["  from the palette and not  e ).\n\t\nThese exercises begin your \
+training in making this conversion automatically.\n", "Subsubsection"]
+}], "Text",
+ CellChangeTimes->{{3.39064873246*^9, 3.390649069177*^9}, {3.390649104818*^9, 
+   3.390649156885*^9}, {3.390649215119*^9, 3.39064939362*^9}, {
+   3.390649427467*^9, 3.390649437834*^9}, {3.3906856676331425`*^9, 
+   3.3906858924611425`*^9}, {3.3906859679691424`*^9, 3.390686080823142*^9}, {
+   3.390686138196142*^9, 3.390686244913142*^9}, 3.390686344335142*^9, {
+   3.3906897169261427`*^9, 3.3906898397271423`*^9}, {3.3906898702421427`*^9, 
+   3.3906898773081427`*^9}, {3.3906929625171423`*^9, 
+   3.3906929634941425`*^9}},ExpressionUUID->"9faecef8-9934-4e79-ad5d-\
+92eb8561e5df"],
+
+Cell[TextData[{
+ "Remember to clear all variables that you will use below:  ",
+ Cell[BoxData[
+  FormBox[
+   RowBox[{"Clear", "[", "          ", "...", "             ", "]"}], 
+   TraditionalForm]],ExpressionUUID->"eb9f5fb7-31ad-4431-9208-f5ebd7e09e5b"]
+}], "Text",
+ CellChangeTimes->{{3.3906923197301426`*^9, 3.3906923812721424`*^9}, {
+  3.3906924809361424`*^9, 3.3906924908791423`*^9}, {3.3906927825761423`*^9, 
+  3.3906927911761427`*^9}},ExpressionUUID->"7c4bba67-85fd-4aa8-9703-\
+1a0d670f8d70"],
 
 Cell[BoxData[
  RowBox[{
@@ -38,8 +144,10 @@ Cell[BoxData[
   ";"}]], "Input",ExpressionUUID->"100793d6-3836-4c90-8c93-d304d77ac177"],
 
 Cell["\<\
-1: A list holding a name (string), an age (integer) and a major (symbols)\
-\>", "Section",ExpressionUUID->"055bc00e-bad4-46ce-aae5-5b6e99c2cce5"],
+  1:  Type in a list that contains your name (as a string), your age (as an \
+integer) and your major (as symbols i.e. variables).  Evaluate this \
+expression.\
+\>", "Text",ExpressionUUID->"e3a8c76f-9a72-485a-b5f4-e6f12a71a3a9"],
 
 Cell[BoxData[
  RowBox[{"me", "=", 
@@ -48,8 +156,11 @@ Cell[BoxData[
    "}"}]}]], "Input",ExpressionUUID->"53068fd9-8e0c-4790-9dcf-d8fa38dd419c"],
 
 Cell["\<\
-2: A list of lists - course numbers (integers) and course names (symbols)\
-\>", "Section",ExpressionUUID->"8062acb7-2853-4666-bd41-7500cf56b4c0"],
+  2:  Type in a list of lists which contains a list of the course numbers \
+that you are taking this semester (as integers), a list of the corresponding \
+course names (as symbols i.e. variables).  Display this list using: \
+TableForm.  Evaluate this expression.\
+\>", "Text",ExpressionUUID->"d5ad0e77-4918-4bd2-96ea-b4018be7a52d"],
 
 Cell[BoxData[{
  RowBox[{
@@ -67,7 +178,9 @@ Cell[BoxData[{
    RowBox[{"courseNumbers", ",", "courseNames"}], "}"}], "]"}]}], "Input",Expr\
 essionUUID->"1e3f2b41-8953-4fd1-9e66-8778b8d486ad"],
 
-Cell["3: The integers from 0 to 20, via Table", "Section",ExpressionUUID->"36053c43-6ad3-42f8-ab15-e5ef3e6ca891"],
+Cell["\<\
+  3:  Generate a list of integers from 0 to 20 using the Table command.\
+\>", "Text",ExpressionUUID->"80247eae-b8d7-4ccd-9b65-3f33d56eff21"],
 
 Cell[BoxData[
  RowBox[{"list3", "=", 
@@ -77,7 +190,9 @@ Cell[BoxData[
      RowBox[{"i", ",", "0", ",", "20"}], "}"}]}], "]"}]}]], "Input",Expression\
 UUID->"846e00c7-7943-4282-9942-4343d4d97b22"],
 
-Cell["4: The even integers from 0 to 20, via Table", "Section",ExpressionUUID->"a085c8ed-409e-40cd-ac9f-b54eb6662fdb"],
+Cell["\<\
+  4:  Generate a list of EVEN integers from 0 to 20 using the Table command.\
+\>", "Text",ExpressionUUID->"50a6a358-c854-4a8c-8610-d56f487dc935"],
 
 Cell[BoxData[
  RowBox[{"list4", "=", 
@@ -88,8 +203,11 @@ Cell[BoxData[
 ExpressionUUID->"b035b5c4-e963-4023-a51f-38e331cb1871"],
 
 Cell["\<\
-5: A 4x5 matrix with entries Sin[i] Cos[j], displayed with MatrixForm\
-\>", "Section",ExpressionUUID->"7e01e049-402d-431f-a9aa-241f38294cde"],
+  5:  Part 1:  Generate a list of lists using the Table command which \
+represents a 4x5 matrix containing the elements Sin[i]*Cos[j].  
+       Part 2:  Display this list of lists using:  MatrixForm.  Evaluate this \
+expression.\
+\>", "Text",ExpressionUUID->"4465b06a-c8a7-4c02-8db8-1f52d630c362"],
 
 Cell[BoxData[{
  RowBox[{
@@ -106,7 +224,10 @@ Cell[BoxData[{
  RowBox[{"MatrixForm", "[", "mat5", "]"}]}], "Input",ExpressionUUID->\
 "bb8fd7d2-6f79-4b57-889a-565ed83cd482"],
 
-Cell["6: Sorting the course numbers and the course names", "Section",ExpressionUUID->"4f08744b-88d6-4d7d-a4b8-31076cb4cc7b"],
+Cell["\<\
+  6:  Sort the list containing your course numbers.  Sort the list containing \
+the corresponding course names.\
+\>", "Text",ExpressionUUID->"dbf998b7-6b6d-49ca-af3e-6328fa960d37"],
 
 Cell[BoxData[
  RowBox[{"{", 
@@ -115,15 +236,15 @@ Cell[BoxData[
    RowBox[{"Sort", "[", "courseNames", "]"}]}], "}"}]], "Input",ExpressionUUID\
 ->"40eb6be4-fd13-49ca-a429-fa1a9c4de899"],
 
-Cell["7: Reverse of the list from Exercise 3", "Section",ExpressionUUID->"904ef1af-2308-479c-a0e0-425aec74344f"],
+Cell["  7:  Reverse the list generated in Exercise 3.", "Text",ExpressionUUID->"0a5f6e29-054b-4b21-b58b-be9eb25f0eb8"],
 
 Cell[BoxData[
  RowBox[{"Reverse", "[", "list3", "]"}]], "Input",ExpressionUUID->"cec6b4de-c8b5-4902-a0f3-8bc1ce8ca572"],
 
 Cell["\<\
-8: Drop the first three, then the last three, elements of the Exercise 3 list\
-\
-\>", "Section",ExpressionUUID->"637f0786-3b44-47eb-9728-691699ce02a9"],
+  8:  Drop the first three elements from the list generated in Exercise 3.  \
+Drop the last three elements from the list generated in Exercise 3.\
+\>", "Text",ExpressionUUID->"f3efa551-adf8-4838-a27f-fd02d08edd6d"],
 
 Cell[BoxData[
  RowBox[{"{", 
@@ -136,8 +257,10 @@ Cell[BoxData[
 65b4-4f54-a2e7-4de1e339282e"],
 
 Cell["\<\
-9: Take the first three, the last three, and elements 3, 4 and 11\
-\>", "Section",ExpressionUUID->"5c215b96-0946-4d5a-ab1e-fad46fcd4cd3"],
+  9:  Take the first three elements from the list generated in Exercise 3.  \
+Take the last three elements from the list generated in Exercise 3.  Take \
+elements  3, 4, and 11 from the list generated in Exercise 3.\
+\>", "Text",ExpressionUUID->"506ed966-802c-48da-b98c-f00bbc816160"],
 
 Cell[BoxData[
  RowBox[{"{", 
@@ -153,15 +276,19 @@ Cell[BoxData[
   "}"}]], "Input",ExpressionUUID->"13841ecf-db9d-4f38-a283-ef40d8a58cec"],
 
 Cell["\<\
-10: Insert \"Fun and games\" as the second element of the course-name list\
-\>", "Section",ExpressionUUID->"a598756e-b227-4117-a7fe-d9951004a2f3"],
+10:  Insert a second element \"Fun and games\" into the list of your course \
+names in Exercise 2. \
+\>", "Text",ExpressionUUID->"255bf9bc-15d5-41df-8656-9c58da3b37e7"],
 
 Cell[BoxData[
  RowBox[{"Insert", "[", 
   RowBox[{"courseNames", ",", "\"\<Fun and games\>\"", ",", "2"}], 
   "]"}]], "Input",ExpressionUUID->"70495d11-c3e8-4b88-9993-6ed89878708f"],
 
-Cell["11: Replace the second course name with \"Fun and games\"", "Section",ExpressionUUID->"7b1bd886-3666-4f38-b5be-21ef3deeeb18"],
+Cell["\<\
+11:  Replace the second course name in the list of your course names in \
+Exercise 2 with \"Fun and games\". \
+\>", "Text",ExpressionUUID->"b0b8ec48-6c41-4fa0-9ac5-f908063e58c9"],
 
 Cell[BoxData[
  RowBox[{"ReplacePart", "[", 
@@ -169,19 +296,23 @@ Cell[BoxData[
    RowBox[{"2", "\[Rule]", "\"\<Fun and games\>\""}]}], "]"}]], "Input",Expres\
 sionUUID->"e927c2ee-1cd0-4fb2-9b98-858120cc2a1d"],
 
-Cell["12: Length of the Exercise 4 list", "Section",ExpressionUUID->"a53bee88-8d27-41b6-8875-42cab798ab18"],
+Cell["12:  Determine the length of the list in Exercise 4:", "Text",ExpressionUUID->"d0ff1501-3156-4941-8908-f61bf8740ee7"],
 
 Cell[BoxData[
  RowBox[{"Length", "[", "list4", "]"}]], "Input",ExpressionUUID->"b64b6b2b-8318-4e9e-b67f-653546556119"],
 
-Cell["13: Dimensions of the Exercise 5 list of lists", "Section",ExpressionUUID->"608d2bb2-4b9f-46b1-af4f-afc194f56c23"],
+Cell["\<\
+13:  Determine the dimensions of the list of lists in Exercise 5:\
+\>", "Text",ExpressionUUID->"1804cdd4-c0dc-44ff-bdde-98f33f01dd4b"],
 
 Cell[BoxData[
  RowBox[{"Dimensions", "[", "mat5", "]"}]], "Input",ExpressionUUID->"dd1179af-26c1-4473-aa82-1f49494274cf"],
 
 Cell["\<\
-14: Intersection of the Exercise 3 and Exercise 4 lists, in ColumnForm\
-\>", "Section",ExpressionUUID->"aa39f971-3a4f-4eb1-b1ff-3985da57ed7f"],
+14:  Part 1:  Take the intersection of the lists in exercises 3 and 4.  
+       Part 2:  Display this list using: ColumnForm.  Evaluate this \
+expression.\
+\>", "Text",ExpressionUUID->"e89176b0-5aa0-4edd-a763-710bdd899294"],
 
 Cell[BoxData[
  RowBox[{"ColumnForm", "[", 
@@ -189,8 +320,9 @@ Cell[BoxData[
 D->"4ea9c5d4-378e-4d20-8367-6c88af2866f4"],
 
 Cell["\<\
-15: Join of the Exercise 3 and Exercise 4 lists, in ColumnForm\
-\>", "Section",ExpressionUUID->"92cbf355-be2b-4799-9609-b2b0dddbd1d6"],
+15:  Join the lists in exercises 3 and 4.  Display this list using: \
+ColumnForm.  Evaluate this expression.\
+\>", "Text",ExpressionUUID->"8e5be297-6ca4-4d95-b2e2-52c0c8f08738"],
 
 Cell[BoxData[
  RowBox[{"ColumnForm", "[", 
@@ -198,7 +330,10 @@ Cell[BoxData[
    RowBox[{"list3", ",", "list4"}], "]"}], "]"}]], "Input",ExpressionUUID->\
 "caf8de27-6fb1-46ee-bc21-a669583a3443"],
 
-Cell["16: Partition the Exercise 3 list into sublists of length 4", "Section",ExpressionUUID->"ad95ef31-228d-46ec-9db9-02bb4a9552d5"],
+Cell["\<\
+16:  Partition the list in Exercise 3 to contain lists of length 4.   Display \
+this list of lists using: TableForm.  Evaluate this expression.\
+\>", "Text",ExpressionUUID->"65629554-2bd1-4add-8060-5b36eb3c4bfb"],
 
 Cell[BoxData[{
  RowBox[{
@@ -209,8 +344,10 @@ Cell[BoxData[{
 "2d8531ff-09c7-449f-917a-bd384801fc03"],
 
 Cell["\<\
-17: Partition into three sublists, each holding sublists of length 2\
-\>", "Section",ExpressionUUID->"1b1a554d-f116-4330-a641-d9217367245c"],
+17:  Partition the list in Exercise 3 to contain lists of length three which \
+each contain lists of length 2.   Display this list of lists of lists using:  \
+MatrixForm.  Evaluate this expression.\
+\>", "Text",ExpressionUUID->"1f78fb54-791a-49bf-a052-fad03c4b38d7"],
 
 Cell[BoxData[
  RowBox[{"MatrixForm", "[", 
@@ -221,9 +358,9 @@ Cell[BoxData[
 pressionUUID->"0e28bf3a-aec2-4403-9cc8-8f66bf3bf45b"],
 
 Cell["\<\
-18: Part extraction - third element of Exercise 3, second element of Exercise \
-16\
-\>", "Section",ExpressionUUID->"b145a1fc-e8a6-41a5-8d9b-8d831d058997"],
+18:  Using the [[...]] notation, extract the third element from the list in \
+Exercise 3 and the second element from the list of lists in Exercise 16.\
+\>", "Text",ExpressionUUID->"725efaf3-10e9-4f75-b523-6261801adbd0"],
 
 Cell[BoxData[
  RowBox[{"{", 
@@ -232,14 +369,20 @@ Cell[BoxData[
    RowBox[{"list16", "\[LeftDoubleBracket]", "2", "\[RightDoubleBracket]"}]}],
    "}"}]], "Input",ExpressionUUID->"723e2b74-90de-43a7-ab58-b635801a1d78"],
 
-Cell["19: The entry in row 2, column 3 of the Exercise 5 matrix", "Section",ExpressionUUID->"14c7035f-cc6e-4367-882b-57a1b5701ae7"],
+Cell["\<\
+19:  Using the [[...]] notation, extract the element corresponding to the \
+second row and third column from the list of lists in Exercise 5.\
+\>", "Text",ExpressionUUID->"e730538b-642f-4ca5-939a-53420667399f"],
 
 Cell[BoxData[
  RowBox[{"mat5", "\[LeftDoubleBracket]", 
   RowBox[{"2", ",", "3"}], "\[RightDoubleBracket]"}]], "Input",ExpressionUUID->\
 "1b367722-f4d1-4c74-bf0f-460f038a3d8c"],
 
-Cell["20: The second row of the Exercise 5 matrix", "Section",ExpressionUUID->"5abc4ce8-2157-4859-9b55-de80e6f3677e"],
+Cell["\<\
+20:  Using the [[...]] notation, extract the second row from the list of \
+lists in Exercise 5.\
+\>", "Text",ExpressionUUID->"11843fbf-fd5b-41f9-bbc4-a7d8adc6b867"],
 
 Cell[BoxData[
  RowBox[{"mat5", "\[LeftDoubleBracket]", "2", 
@@ -247,15 +390,31 @@ Cell[BoxData[
 bf3c-6668380da4da"],
 
 Cell["\<\
-21: The second column of the Exercise 5 matrix, using Part alone\
-\>", "Section",ExpressionUUID->"acd449fa-6549-4792-8049-0ebd00ae4673"],
+21:  It is possible to use JUST the [[...]] notation to extract the second \
+column from the list of lists in Exercise 5.  You may have to look up the \
+Part command in Help.\
+\>", "Text",ExpressionUUID->"bce6ba74-c482-4639-9669-c32d163d8956"],
 
 Cell[BoxData[
  RowBox[{"mat5", "\[LeftDoubleBracket]", 
   RowBox[{"All", ",", "2"}], "\[RightDoubleBracket]"}]], "Input",ExpressionUUI\
 D->"87782d1f-6af8-4667-8bae-ae3e6cb0cdab"],
 
-Cell["22: Exp applied directly to a mixed list", "Section",ExpressionUUID->"3b56cde9-c757-4bec-adc5-d6673f56bd0d"],
+Cell[TextData[{
+ "22:  Evaluate directly:",
+ StyleBox[" ",
+  FontSize->14],
+ Cell[BoxData[
+  RowBox[{" ", 
+   StyleBox[
+    SuperscriptBox["\[ExponentialE]", 
+     RowBox[{"{", 
+      RowBox[{
+      "1", ",", "2", ",", "a", ",", "x", ",", "\"\<string\>\"", ",", 
+       "\[Pi]"}], "}"}]],
+    FontWeight->"Bold"]}]],
+  FontSize->16,ExpressionUUID->"19b0227a-1f9b-4853-8c27-4538e748da70"]
+}], "Text",ExpressionUUID->"4c8be698-583d-44f4-b199-9e57ef3bc7b9"],
 
 Cell[BoxData[
  SuperscriptBox["\[ExponentialE]", 
@@ -264,9 +423,23 @@ Cell[BoxData[
    "1", ",", "2", ",", "a", ",", "x", ",", "\"\<string\>\"", ",", "\[Pi]"}], 
    "}"}]]], "Input",ExpressionUUID->"0c572edf-5e63-4c53-9de8-7f49fedc9499"],
 
-Cell["\<\
-23: Log over the same list via Map, then N applied to the result\
-\>", "Section",ExpressionUUID->"04eb543a-0889-45b8-b8e8-ea2eb90eebfb"],
+Cell[TextData[{
+ "23:  Evaluate:  ",
+ Cell[BoxData[
+  StyleBox[
+   RowBox[{"Log", "[", 
+    RowBox[{"{", 
+     RowBox[{
+     "1", ",", "2", ",", "a", ",", "x", ",", "\"\<string\>\"", ",", "\[Pi]"}],
+      "}"}], "]"}],
+   FontWeight->"Bold"]],ExpressionUUID->
+  "1c3d8a51-c591-4852-b659-1fb97086b624"],
+ "   ",
+ StyleBox["indirectly",
+  FontVariations->{"Underline"->True}],
+ " by using the Map command.  Next, directly obtain the list of approximate \
+real numerical values for the previous result using the  N Command."
+}], "Text",ExpressionUUID->"5b241ed9-29a2-4696-9e4f-3171feed179b"],
 
 Cell[BoxData[
  RowBox[{"logs", "=", 
@@ -280,18 +453,28 @@ Cell[BoxData[
 Cell[BoxData[
  RowBox[{"N", "[", "logs", "]"}]], "Input",ExpressionUUID->"a67c3fa6-d74e-4d01-9dec-63e5eabca656"],
 
-Cell["24: Apply Plus to the Exercise 4 list", "Section",ExpressionUUID->"500087b1-408a-4183-bba1-2f1a70c536d9"],
+Cell[TextData[{
+ "24:  ",
+ StyleBox["Apply",
+  FontVariations->{"Underline"->True}],
+ " Plus to the list in Exercise 4."
+}], "Text",ExpressionUUID->"4407e8e3-7b79-443e-95cd-0b5ec5c8056f"],
 
 Cell[BoxData[
  RowBox[{"Plus", "@@", "list4"}]], "Input",ExpressionUUID->"bebab79d-8a7c-4a90-8670-832e7341151d"],
 
-Cell["25: Flatten the Exercise 5 matrix", "Section",ExpressionUUID->"e1bd5e88-a134-4f10-9870-eed0c38f1e60"],
+Cell[TextData[{
+ "25:  ",
+ StyleBox["Flatten",
+  FontVariations->{"Underline"->True}],
+ " out the list of lists in Exercise 5."
+}], "Text",ExpressionUUID->"f33d5a8a-13cc-4905-9360-ccbdbe08f67e"],
 
 Cell[BoxData[
  RowBox[{"Flatten", "[", "mat5", "]"}]], "Input",ExpressionUUID->"6724bbee-369c-4df2-9a82-11f28cbb19d4"]
 },
 WindowSize->{1100, 850},
-FrontEndVersion->"15.0 for Mac OS X ARM (64-bit) (May 26, 2026)",
+FrontEndVersion->"15.0 for Linux x86 (64-bit) (May 26, 2026)",
 StyleDefinitions->"Default.nb",
 ExpressionUUID->"53e1aa67-6381-4be0-aec1-2e1147a12ddd"
 ]
@@ -306,60 +489,62 @@ CellTagsIndex->{}
 *)
 (*NotebookFileOutline
 Notebook[{
-Cell[560, 20, 174, 4, 70, "Title",ExpressionUUID->"db76645c-815c-4640-8335-ba4c8a463b84"],
-Cell[737, 26, 215, 3, 70, "Text",ExpressionUUID->"533d58ff-0cdb-42cb-aabc-bd45dc51e3a2"],
-Cell[955, 31, 281, 6, 70, "Input",ExpressionUUID->"100793d6-3836-4c90-8c93-d304d77ac177"],
-Cell[1239, 39, 155, 2, 70, "Section",ExpressionUUID->"055bc00e-bad4-46ce-aae5-5b6e99c2cce5"],
-Cell[1397, 43, 198, 4, 70, "Input",ExpressionUUID->"53068fd9-8e0c-4790-9dcf-d8fa38dd419c"],
-Cell[1598, 49, 155, 2, 70, "Section",ExpressionUUID->"8062acb7-2853-4666-bd41-7500cf56b4c0"],
-Cell[1756, 53, 540, 14, 70, "Input",ExpressionUUID->"1e3f2b41-8953-4fd1-9e66-8778b8d486ad"],
-Cell[2299, 69, 113, 0, 70, "Section",ExpressionUUID->"36053c43-6ad3-42f8-ab15-e5ef3e6ca891"],
-Cell[2415, 71, 228, 6, 70, "Input",ExpressionUUID->"846e00c7-7943-4282-9942-4343d4d97b22"],
-Cell[2646, 79, 118, 0, 70, "Section",ExpressionUUID->"a085c8ed-409e-40cd-ac9f-b54eb6662fdb"],
-Cell[2767, 81, 238, 6, 70, "Input",ExpressionUUID->"b035b5c4-e963-4023-a51f-38e331cb1871"],
-Cell[3008, 89, 151, 2, 70, "Section",ExpressionUUID->"7e01e049-402d-431f-a9aa-241f38294cde"],
-Cell[3162, 93, 484, 13, 70, "Input",ExpressionUUID->"bb8fd7d2-6f79-4b57-889a-565ed83cd482"],
-Cell[3649, 108, 124, 0, 70, "Section",ExpressionUUID->"4f08744b-88d6-4d7d-a4b8-31076cb4cc7b"],
-Cell[3776, 110, 215, 5, 70, "Input",ExpressionUUID->"40eb6be4-fd13-49ca-a429-fa1a9c4de899"],
-Cell[3994, 117, 112, 0, 70, "Section",ExpressionUUID->"904ef1af-2308-479c-a0e0-425aec74344f"],
-Cell[4109, 119, 119, 1, 70, "Input",ExpressionUUID->"cec6b4de-c8b5-4902-a0f3-8bc1ce8ca572"],
-Cell[4231, 122, 161, 3, 70, "Section",ExpressionUUID->"637f0786-3b44-47eb-9728-691699ce02a9"],
-Cell[4395, 127, 272, 8, 70, "Input",ExpressionUUID->"9a5d17ab-65b4-4f54-a2e7-4de1e339282e"],
-Cell[4670, 137, 147, 2, 70, "Section",ExpressionUUID->"5c215b96-0946-4d5a-ab1e-fad46fcd4cd3"],
-Cell[4820, 141, 417, 11, 70, "Input",ExpressionUUID->"13841ecf-db9d-4f38-a283-ef40d8a58cec"],
-Cell[5240, 154, 156, 2, 70, "Section",ExpressionUUID->"a598756e-b227-4117-a7fe-d9951004a2f3"],
-Cell[5399, 158, 180, 3, 70, "Input",ExpressionUUID->"70495d11-c3e8-4b88-9993-6ed89878708f"],
-Cell[5582, 163, 131, 0, 70, "Section",ExpressionUUID->"7b1bd886-3666-4f38-b5be-21ef3deeeb18"],
-Cell[5716, 165, 204, 4, 70, "Input",ExpressionUUID->"e927c2ee-1cd0-4fb2-9b98-858120cc2a1d"],
-Cell[5923, 171, 107, 0, 70, "Section",ExpressionUUID->"a53bee88-8d27-41b6-8875-42cab798ab18"],
-Cell[6033, 173, 118, 1, 70, "Input",ExpressionUUID->"b64b6b2b-8318-4e9e-b67f-653546556119"],
-Cell[6154, 176, 120, 0, 70, "Section",ExpressionUUID->"608d2bb2-4b9f-46b1-af4f-afc194f56c23"],
-Cell[6277, 178, 121, 1, 70, "Input",ExpressionUUID->"dd1179af-26c1-4473-aa82-1f49494274cf"],
-Cell[6401, 181, 152, 2, 70, "Section",ExpressionUUID->"aa39f971-3a4f-4eb1-b1ff-3985da57ed7f"],
-Cell[6556, 185, 165, 3, 70, "Input",ExpressionUUID->"4ea9c5d4-378e-4d20-8367-6c88af2866f4"],
-Cell[6724, 190, 144, 2, 70, "Section",ExpressionUUID->"92cbf355-be2b-4799-9609-b2b0dddbd1d6"],
-Cell[6871, 194, 183, 4, 70, "Input",ExpressionUUID->"caf8de27-6fb1-46ee-bc21-a669583a3443"],
-Cell[7057, 200, 133, 0, 70, "Section",ExpressionUUID->"ad95ef31-228d-46ec-9db9-02bb4a9552d5"],
-Cell[7193, 202, 265, 6, 70, "Input",ExpressionUUID->"2d8531ff-09c7-449f-917a-bd384801fc03"],
-Cell[7461, 210, 150, 2, 70, "Section",ExpressionUUID->"1b1a554d-f116-4330-a641-d9217367245c"],
-Cell[7614, 214, 248, 6, 70, "Input",ExpressionUUID->"0e28bf3a-aec2-4403-9cc8-8f66bf3bf45b"],
-Cell[7865, 222, 164, 3, 70, "Section",ExpressionUUID->"b145a1fc-e8a6-41a5-8d9b-8d831d058997"],
-Cell[8032, 227, 275, 5, 70, "Input",ExpressionUUID->"723e2b74-90de-43a7-ab58-b635801a1d78"],
-Cell[8310, 234, 131, 0, 70, "Section",ExpressionUUID->"14c7035f-cc6e-4367-882b-57a1b5701ae7"],
-Cell[8444, 236, 176, 3, 70, "Input",ExpressionUUID->"1b367722-f4d1-4c74-bf0f-460f038a3d8c"],
-Cell[8623, 241, 117, 0, 70, "Section",ExpressionUUID->"5abc4ce8-2157-4859-9b55-de80e6f3677e"],
-Cell[8743, 243, 156, 3, 70, "Input",ExpressionUUID->"97002a6a-69a2-4bd4-bf3c-6668380da4da"],
-Cell[8902, 248, 146, 2, 70, "Section",ExpressionUUID->"acd449fa-6549-4792-8049-0ebd00ae4673"],
-Cell[9051, 252, 178, 3, 70, "Input",ExpressionUUID->"87782d1f-6af8-4667-8bae-ae3e6cb0cdab"],
-Cell[9232, 257, 114, 0, 70, "Section",ExpressionUUID->"3b56cde9-c757-4bec-adc5-d6673f56bd0d"],
-Cell[9349, 259, 231, 5, 70, "Input",ExpressionUUID->"0c572edf-5e63-4c53-9de8-7f49fedc9499"],
-Cell[9583, 266, 146, 2, 70, "Section",ExpressionUUID->"04eb543a-0889-45b8-b8e8-ea2eb90eebfb"],
-Cell[9732, 270, 251, 7, 70, "Input",ExpressionUUID->"9076c701-9c09-4bcf-8a28-469d83d925fb"],
-Cell[9986, 279, 112, 1, 70, "Input",ExpressionUUID->"a67c3fa6-d74e-4d01-9dec-63e5eabca656"],
-Cell[10101, 282, 111, 0, 70, "Section",ExpressionUUID->"500087b1-408a-4183-bba1-2f1a70c536d9"],
-Cell[10215, 284, 112, 1, 70, "Input",ExpressionUUID->"bebab79d-8a7c-4a90-8670-832e7341151d"],
-Cell[10330, 287, 107, 0, 70, "Section",ExpressionUUID->"e1bd5e88-a134-4f10-9870-eed0c38f1e60"],
-Cell[10440, 289, 118, 1, 70, "Input",ExpressionUUID->"6724bbee-369c-4df2-9a82-11f28cbb19d4"]
+Cell[560, 20, 144, 3, 70, "Section",ExpressionUUID->"f4271d72-2c24-4063-a0a5-9c65c072c181"],
+Cell[707, 25, 388, 9, 70, "Program",ExpressionUUID->"0e42fc6f-f0b9-4248-aa65-43d4b5a67442"],
+Cell[1098, 36, 3640, 87, 70, "Text",ExpressionUUID->"9faecef8-9934-4e79-ad5d-92eb8561e5df"],
+Cell[4741, 125, 497, 10, 70, "Text",ExpressionUUID->"7c4bba67-85fd-4aa8-9703-1a0d670f8d70"],
+Cell[5241, 137, 281, 6, 70, "Input",ExpressionUUID->"100793d6-3836-4c90-8c93-d304d77ac177"],
+Cell[5525, 145, 238, 4, 70, "Text",ExpressionUUID->"e3a8c76f-9a72-485a-b5f4-e6f12a71a3a9"],
+Cell[5766, 151, 198, 4, 70, "Input",ExpressionUUID->"53068fd9-8e0c-4790-9dcf-d8fa38dd419c"],
+Cell[5967, 157, 341, 5, 70, "Text",ExpressionUUID->"d5ad0e77-4918-4bd2-96ea-b4018be7a52d"],
+Cell[6311, 164, 540, 14, 70, "Input",ExpressionUUID->"1e3f2b41-8953-4fd1-9e66-8778b8d486ad"],
+Cell[6854, 180, 150, 2, 70, "Text",ExpressionUUID->"80247eae-b8d7-4ccd-9b65-3f33d56eff21"],
+Cell[7007, 184, 228, 6, 70, "Input",ExpressionUUID->"846e00c7-7943-4282-9942-4343d4d97b22"],
+Cell[7238, 192, 155, 2, 70, "Text",ExpressionUUID->"50a6a358-c854-4a8c-8610-d56f487dc935"],
+Cell[7396, 196, 238, 6, 70, "Input",ExpressionUUID->"b035b5c4-e963-4023-a51f-38e331cb1871"],
+Cell[7637, 204, 307, 5, 70, "Text",ExpressionUUID->"4465b06a-c8a7-4c02-8db8-1f52d630c362"],
+Cell[7947, 211, 484, 13, 70, "Input",ExpressionUUID->"bb8fd7d2-6f79-4b57-889a-565ed83cd482"],
+Cell[8434, 226, 190, 3, 70, "Text",ExpressionUUID->"dbf998b7-6b6d-49ca-af3e-6328fa960d37"],
+Cell[8627, 231, 215, 5, 70, "Input",ExpressionUUID->"40eb6be4-fd13-49ca-a429-fa1a9c4de899"],
+Cell[8845, 238, 118, 0, 70, "Text",ExpressionUUID->"0a5f6e29-054b-4b21-b58b-be9eb25f0eb8"],
+Cell[8966, 240, 119, 1, 70, "Input",ExpressionUUID->"cec6b4de-c8b5-4902-a0f3-8bc1ce8ca572"],
+Cell[9088, 243, 224, 3, 70, "Text",ExpressionUUID->"f3efa551-adf8-4838-a27f-fd02d08edd6d"],
+Cell[9315, 248, 272, 8, 70, "Input",ExpressionUUID->"9a5d17ab-65b4-4f54-a2e7-4de1e339282e"],
+Cell[9590, 258, 294, 4, 70, "Text",ExpressionUUID->"506ed966-802c-48da-b98c-f00bbc816160"],
+Cell[9887, 264, 417, 11, 70, "Input",ExpressionUUID->"13841ecf-db9d-4f38-a283-ef40d8a58cec"],
+Cell[10307, 277, 178, 3, 70, "Text",ExpressionUUID->"255bf9bc-15d5-41df-8656-9c58da3b37e7"],
+Cell[10488, 282, 180, 3, 70, "Input",ExpressionUUID->"70495d11-c3e8-4b88-9993-6ed89878708f"],
+Cell[10671, 287, 188, 3, 70, "Text",ExpressionUUID->"b0b8ec48-6c41-4fa0-9ac5-f908063e58c9"],
+Cell[10862, 292, 204, 4, 70, "Input",ExpressionUUID->"e927c2ee-1cd0-4fb2-9b98-858120cc2a1d"],
+Cell[11069, 298, 123, 0, 70, "Text",ExpressionUUID->"d0ff1501-3156-4941-8908-f61bf8740ee7"],
+Cell[11195, 300, 118, 1, 70, "Input",ExpressionUUID->"b64b6b2b-8318-4e9e-b67f-653546556119"],
+Cell[11316, 303, 144, 2, 70, "Text",ExpressionUUID->"1804cdd4-c0dc-44ff-bdde-98f33f01dd4b"],
+Cell[11463, 307, 121, 1, 70, "Input",ExpressionUUID->"dd1179af-26c1-4473-aa82-1f49494274cf"],
+Cell[11587, 310, 233, 4, 70, "Text",ExpressionUUID->"e89176b0-5aa0-4edd-a763-710bdd899294"],
+Cell[11823, 316, 165, 3, 70, "Input",ExpressionUUID->"4ea9c5d4-378e-4d20-8367-6c88af2866f4"],
+Cell[11991, 321, 187, 3, 70, "Text",ExpressionUUID->"8e5be297-6ca4-4d95-b2e2-52c0c8f08738"],
+Cell[12181, 326, 183, 4, 70, "Input",ExpressionUUID->"caf8de27-6fb1-46ee-bc21-a669583a3443"],
+Cell[12367, 332, 222, 3, 70, "Text",ExpressionUUID->"65629554-2bd1-4add-8060-5b36eb3c4bfb"],
+Cell[12592, 337, 265, 6, 70, "Input",ExpressionUUID->"2d8531ff-09c7-449f-917a-bd384801fc03"],
+Cell[12860, 345, 276, 4, 70, "Text",ExpressionUUID->"1f78fb54-791a-49bf-a052-fad03c4b38d7"],
+Cell[13139, 351, 248, 6, 70, "Input",ExpressionUUID->"0e28bf3a-aec2-4403-9cc8-8f66bf3bf45b"],
+Cell[13390, 359, 229, 3, 70, "Text",ExpressionUUID->"725efaf3-10e9-4f75-b523-6261801adbd0"],
+Cell[13622, 364, 275, 5, 70, "Input",ExpressionUUID->"723e2b74-90de-43a7-ab58-b635801a1d78"],
+Cell[13900, 371, 220, 3, 70, "Text",ExpressionUUID->"e730538b-642f-4ca5-939a-53420667399f"],
+Cell[14123, 376, 176, 3, 70, "Input",ExpressionUUID->"1b367722-f4d1-4c74-bf0f-460f038a3d8c"],
+Cell[14302, 381, 174, 3, 70, "Text",ExpressionUUID->"11843fbf-fd5b-41f9-bbc4-a7d8adc6b867"],
+Cell[14479, 386, 156, 3, 70, "Input",ExpressionUUID->"97002a6a-69a2-4bd4-bf3c-6668380da4da"],
+Cell[14638, 391, 253, 4, 70, "Text",ExpressionUUID->"bce6ba74-c482-4639-9669-c32d163d8956"],
+Cell[14894, 397, 178, 3, 70, "Input",ExpressionUUID->"87782d1f-6af8-4667-8bae-ae3e6cb0cdab"],
+Cell[15075, 402, 454, 14, 70, "Text",ExpressionUUID->"4c8be698-583d-44f4-b199-9e57ef3bc7b9"],
+Cell[15532, 418, 231, 5, 70, "Input",ExpressionUUID->"0c572edf-5e63-4c53-9de8-7f49fedc9499"],
+Cell[15766, 425, 588, 16, 70, "Text",ExpressionUUID->"5b241ed9-29a2-4696-9e4f-3171feed179b"],
+Cell[16357, 443, 251, 7, 70, "Input",ExpressionUUID->"9076c701-9c09-4bcf-8a28-469d83d925fb"],
+Cell[16611, 452, 112, 1, 70, "Input",ExpressionUUID->"a67c3fa6-d74e-4d01-9dec-63e5eabca656"],
+Cell[16726, 455, 187, 5, 70, "Text",ExpressionUUID->"4407e8e3-7b79-443e-95cd-0b5ec5c8056f"],
+Cell[16916, 462, 112, 1, 70, "Input",ExpressionUUID->"bebab79d-8a7c-4a90-8670-832e7341151d"],
+Cell[17031, 465, 194, 5, 70, "Text",ExpressionUUID->"f33d5a8a-13cc-4905-9360-ccbdbe08f67e"],
+Cell[17228, 472, 118, 1, 70, "Input",ExpressionUUID->"6724bbee-369c-4df2-9a82-11f28cbb19d4"]
 }
 ]
 *)
