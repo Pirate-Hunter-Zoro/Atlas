@@ -59,6 +59,28 @@ never touched. `board hw build` prints the bare word `FAILED` on error while
 knowing the reason; he asked for it to say why. That needs a session opened with
 that directory in scope.
 
-Earlier pushes were rejected once (remote ahead); the tree is at `8771c6b` plus
-this session's card, turns and PDF. If a push is refused, integrate the remote
-first — do not force it.
+## Pushing — fixed at the root, do not re-diagnose
+
+Pushes were rejected repeatedly because `scripts/save-and-push.sh` committed and
+pushed without ever fetching. Once the compute node pushed its own build
+(`32302b7`), this clone was permanently non-fast-forward and re-tapping Push
+could not clear it. The script now fetches and merges before pushing, and
+auto-resolves conflicts **only** under a `build/` directory (two machines
+compiling one source produce two different PDFs of the same document); anything
+conflicting outside `build/` aborts the merge and reports the paths. No rebase,
+no force. Merged and pushed at `7f2a1ed`; `main` is level with `origin/main`.
+
+`hw01.tex` was byte-identical on both sides throughout — no mathematics was ever
+in conflict.
+
+**He chose to keep `homework/*/build/` tracked** (card 0033). Do not re-open it.
+`.gitignore` says so deliberately — build products and compiled PDFs are tracked
+on purpose. The merge step in the push script is what makes that safe.
+
+**The build permission is per-machine, not repository-wide.**
+`.claude/settings.local.json` is untracked — `.claude/` has never been committed
+and is not in `.gitignore` either. So the allow list that lets a session run
+`pdflatex` exists only on the clone it was written on, and no push propagates
+it. Do not assume another machine has it, and do not assume this one lacks it;
+check the file. He believed the permission had shipped and that it pinned
+compiling to the Mac — it did neither.
