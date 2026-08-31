@@ -55,7 +55,46 @@ if ! git remote get-url origin >/dev/null 2>&1; then
 fi
 
 branch="$(git rev-parse --abbrev-ref HEAD)"
+
+# Integrate the remote before pushing.
+#
+# Without this the script pushes blind, and the first time any other machine
+# commits -- a compute node compiling the same document, say -- every push from
+# this clone is rejected as a non-fast-forward, for ever, and re-tapping the
+# button cannot clear it.
+#
+# A merge, never a rebase: nothing already committed here is rewritten.
 if git rev-parse --abbrev-ref '@{upstream}' >/dev/null 2>&1; then
+  if ! git fetch origin "$branch" 2>&1; then
+    echo "could not reach origin to fetch; not pushing"
+    exit 1
+  fi
+
+  behind="$(git rev-list --count 'HEAD..@{upstream}' 2>/dev/null || echo 0)"
+  if [ "${behind:-0}" != "0" ]; then
+    if ! git merge --no-edit '@{upstream}'; then
+      # Generated output is allowed to be resolved automatically: two machines
+      # compiling one source produce two different PDFs of the same document,
+      # and that is not a disagreement about anyone's work. Everything else is,
+      # so it stops here rather than a script picking a winner.
+      conflicts="$(git diff --name-only --diff-filter=U)"
+      real="$(printf '%s\n' "$conflicts" | grep -v '/build/' || true)"
+      if [ -n "$real" ]; then
+        git merge --abort
+        echo "merge conflicts outside build output; resolve by hand:"
+        printf '%s\n' "$real"
+        exit 1
+      fi
+      printf '%s\n' "$conflicts" | while IFS= read -r f; do
+        [ -n "$f" ] && git checkout --ours -- "$f" && git add -- "$f"
+      done
+      git commit --no-edit || { echo "could not complete merge"; exit 1; }
+      echo "merged origin/$branch; kept this machine's build output"
+    else
+      echo "merged origin/$branch"
+    fi
+  fi
+
   out="$(git push 2>&1)"
 else
   out="$(git push -u origin "$branch" 2>&1)"
