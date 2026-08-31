@@ -3,6 +3,140 @@
 (*** Wolfram Notebook File ***)
 (* http://www.wolfram.com/nb *)
 
+(* CreatedBy='WolframEngine 15.0' *)
+
+(*CacheID: 234*)
+(* Internal cache information:
+NotebookFileLineBreakTest
+NotebookFileLineBreakTest
+NotebookDataPosition[       160,          7]
+NotebookDataLength[      5582,        133]
+NotebookOptionsPosition[      3905,        105]
+NotebookOutlinePosition[      4247,        120]
+CellTagsIndexPosition[      4204,        117]
+WindowFrame->Normal*)
+
 (* Beginning of Notebook Content *)
-Notebook[{Cell["Advanced Lesson 14 - Exercises: Dynamic Interaction, Files and Strings\nMikey Ferguson\nMATH 7013 - Advanced Mathematical Modeling", "Title"], Cell["1: Manipulate - dynamic 2-D and 3-D plots", "Section"], Cell["Exercises 1 and 2 repeat Lesson 4's Exercises 14 and 15 verbatim. The cells\nbelow build correctly under a plain kernel, but the sliders are live only\ninside a Wolfram front end. Evaluated through Wolfram Engine under Jupyter\nthey render as a static snapshot at the initial parameter values, so these\ncells are left unevaluated here.", "Text"], Cell["Manipulate[Plot[E^(-a x), {x, 0, 1}], {a, 0, 10}]", "Input"], Cell["Part 2. The plot jumps as the slider moves because the vertical range is\nrecomputed for each value of a. Setting PlotRange to All - or to an explicit\ninterval - pins the axes so the curve moves against a fixed frame.", "Text"], Cell["Manipulate[Plot[E^(-a x), {x, 0, 1}, PlotRange -> All], {a, 0, 10}]", "Input"], Cell["Manipulate[\n Plot3D[E^(-a x - b y), {x, 0, 1}, {y, 0, 1}, PlotRange -> All],\n {a, 0, 10}, {b, 0, 10, 2}]", "Input"], Cell["Part 3. A control written {a, 0, 10} is continuous. Adding a step, as in\n{b, 0, 10, 2}, makes it discrete: the slider snaps to 0, 2, 4, 6, 8, 10.", "Text"], Cell["2: A dynamic algebraic calculator", "Section"], Cell["Manipulate[Expand[(x + y)^n], {n, 0, 10, 1}]", "Input"], Cell["The step of 1 restricts n to integers, which is the only thing Expand can\nusefully do with this exponent. Dragging the slider walks up the binomial\nexpansions one row of Pascal's triangle at a time.", "Text"], Cell["3: Writing a list to disk, reading it back", "Section"], Cell[BoxData[RowBox[{RowBox[{"Clear", "[", RowBox[{"dataList", ",", "myData", ",", "file"}], "]"}], ";", "\[IndentingNewLine]", RowBox[{"dataList", "=", RowBox[{"{", RowBox[{"1", ",", "2", ",", "3", ",", "4", ",", "5", ",", "6", ",", "7"}], "}"}]}], ";", "\[IndentingNewLine]", RowBox[{"file", "=", RowBox[{"FileNameJoin", "[", RowBox[{"{", RowBox[{"$TemporaryDirectory", ",", "\"dataList.txt\""}], "}"}], "]"}]}], ";", "\[IndentingNewLine]", RowBox[{"Export", "[", RowBox[{"file", ",", "dataList", ",", "\"List\""}], "]"}], ";", "\[IndentingNewLine]", "file"}]], "Input"], Cell["Part 1. Export writes the list to a text file, one entry per line, using the\n\"List\" format. The destination here is a file in the session's temporary\ndirectory, chosen so that evaluating this notebook does not scatter files\ninto whatever directory happens to be current; substitute any path.\nThe older idiom is Save or Put, which write Wolfram Language syntax rather\nthan plain lines. Export with an explicit format is the more predictable\nchoice, because what comes back is determined by the format rather than by\nwhat the expression happened to look like.", "Text"], Cell[BoxData[RowBox[{"FilePrint", "[", "file", "]"}]], "Input"], Cell["Part 2. FilePrint dumps the raw contents of the file, which is seven lines\neach holding one integer. Nothing else - no braces, no commas, no header.", "Text"], Cell[BoxData[RowBox[{RowBox[{"myData", "=", RowBox[{"Import", "[", RowBox[{"file", ",", "\"List\""}], "]"}]}], ";", "\[IndentingNewLine]", "myData"}]], "Input"], Cell[BoxData[RowBox[{"{", RowBox[{RowBox[{"Head", "[", "myData", "]"}], ",", RowBox[{"Length", "[", "myData", "]"}], ",", RowBox[{"myData", "===", "dataList"}]}], "}"}]], "Input"], Cell["Part 3. Import with the same format reads the lines back into a list of\nintegers. The last cell confirms the round trip: the head is List, the\nlength is 7, and the recovered list is identical to the original.\nReadList with the Number type does the same job and is the idiom the lesson\nwas originally written against; Import is the modern spelling.", "Text"], Cell["4: Turning text into a list of characters", "Section"], Cell[BoxData[RowBox[{"Characters", "[", "\"Mathematica\"", "]"}]], "Input"], Cell[BoxData[RowBox[{"Length", "[", RowBox[{"Characters", "[", "\"Mathematica\"", "]"}], "]"}]], "Input"], Cell["Characters splits a string into a list of one-character strings, so the\nresult is {\"M\", \"a\", \"t\", ...} with eleven entries. Note that each entry is\nitself a string, not a character type - Mathematica has no separate character\ndata type. This is worth connecting back to Lesson 7: a string is an atom,\nLength of it is 0, and Characters is the function that converts that atom\ninto a genuine list with a genuine length.", "Text"]}, WindowSize -> {1100, 850}, StyleDefinitions -> "Default.nb"]
+Notebook[{
+Cell["\<\
+Advanced Lesson 14 - Exercises: Dynamic Interaction, Files and Strings
+Mikey Ferguson
+MATH 7013 - Advanced Mathematical Modeling\
+\>", "Title",ExpressionUUID->"a5a7c6c2-c8d2-4763-9e12-a477edef6204"],
+
+Cell["1: Manipulate - dynamic 2-D and 3-D plots", "Section",ExpressionUUID->"6e44d7e5-1e17-4269-a0cb-af20b5bcc445"],
+
+Cell["\<\
+Exercises 1 and 2 repeat Lesson 4's Exercises 14 and 15 verbatim. The cells
+below build correctly under a plain kernel, but the sliders are live only
+inside a Wolfram front end. Evaluated through Wolfram Engine under Jupyter
+they render as a static snapshot at the initial parameter values, so these
+cells are left unevaluated here.\
+\>", "Text",ExpressionUUID->"344bedc7-bb75-4311-9c86-e1adf3fb1af9"],
+
+Cell["Manipulate[Plot[E^(-a x), {x, 0, 1}], {a, 0, 10}]", "Input",ExpressionUUID->"894c0f23-8fc2-40a3-98fc-6eaad8a89cd1"],
+
+Cell["\<\
+Manipulate[Plot[E^(-a x), {x, 0, 1}, PlotRange -> All], {a, 0, 10}]\
+\>", "Input",ExpressionUUID->"e1df2de5-c382-461d-ba94-5bc373b35764"],
+
+Cell["\<\
+Manipulate[
+ Plot3D[E^(-a x - b y), {x, 0, 1}, {y, 0, 1}, PlotRange -> All],
+ {a, 0, 10}, {b, 0, 10, 2}]\
+\>", "Input",ExpressionUUID->"30adea32-8ad5-4bfe-93ef-7bff0d38ac4f"],
+
+Cell["2: A dynamic algebraic calculator", "Section",ExpressionUUID->"e6b32339-cc3b-49d2-b1e9-c6539b8c380d"],
+
+Cell["Manipulate[Expand[(x + y)^n], {n, 0, 10, 1}]", "Input",ExpressionUUID->"403ef180-aa65-4960-b57b-53b14f35d7f3"],
+
+Cell["3: Writing a list to disk, reading it back", "Section",ExpressionUUID->"753318ea-a1c9-47f3-9b6f-d7ed7fd21505"],
+
+Cell[BoxData[{
+ RowBox[{
+  RowBox[{"Clear", "[", 
+   RowBox[{"dataList", ",", "myData", ",", "file"}], "]"}], ";"}], "\[IndentingNewLine]", 
+ RowBox[{
+  RowBox[{"dataList", "=", 
+   RowBox[{"{", 
+    RowBox[{"1", ",", "2", ",", "3", ",", "4", ",", "5", ",", "6", ",", "7"}],
+     "}"}]}], ";"}], "\[IndentingNewLine]", 
+ RowBox[{
+  RowBox[{"file", "=", 
+   RowBox[{"FileNameJoin", "[", 
+    RowBox[{"{", 
+     RowBox[{"$TemporaryDirectory", ",", "\"\<dataList.txt\>\""}], "}"}], 
+    "]"}]}], ";"}], "\[IndentingNewLine]", 
+ RowBox[{
+  RowBox[{"Export", "[", 
+   RowBox[{"file", ",", "dataList", ",", "\"\<List\>\""}], "]"}], 
+  ";"}], "\[IndentingNewLine]", "file"}], "Input",ExpressionUUID->"f55b659f-\
+02e5-4e9a-822d-936a28364a65"],
+
+Cell[BoxData[
+ RowBox[{"FilePrint", "[", "file", "]"}]], "Input",ExpressionUUID->"9dada503-7104-4ec4-ae49-1f98a7a404e3"],
+
+Cell[BoxData[{
+ RowBox[{
+  RowBox[{"myData", "=", 
+   RowBox[{"Import", "[", 
+    RowBox[{"file", ",", "\"\<List\>\""}], "]"}]}], 
+  ";"}], "\[IndentingNewLine]", "myData"}], "Input",ExpressionUUID->"69d01480-\
+df96-4bc8-94a1-9c29baaa4372"],
+
+Cell[BoxData[
+ RowBox[{"{", 
+  RowBox[{
+   RowBox[{"Head", "[", "myData", "]"}], ",", 
+   RowBox[{"Length", "[", "myData", "]"}], ",", 
+   RowBox[{"myData", "===", "dataList"}]}], "}"}]], "Input",ExpressionUUID->\
+"eec87551-6bf1-476b-adce-42fb8b03a7b5"],
+
+Cell["4: Turning text into a list of characters", "Section",ExpressionUUID->"01a46d64-013b-4c55-b706-e902f769314d"],
+
+Cell[BoxData[
+ RowBox[{"Characters", "[", "\"\<Mathematica\>\"", "]"}]], "Input",ExpressionU\
+UID->"72fb187f-a66d-4cab-a846-b7c9f9b93d5d"],
+
+Cell[BoxData[
+ RowBox[{"Length", "[", 
+  RowBox[{"Characters", "[", "\"\<Mathematica\>\"", "]"}], "]"}]], "Input",Exp\
+ressionUUID->"02723457-8820-44fd-b65e-a556d3d3ae53"]
+},
+WindowSize->{1100, 850},
+FrontEndVersion->"15.0 for Mac OS X ARM (64-bit) (May 26, 2026)",
+StyleDefinitions->"Default.nb",
+ExpressionUUID->"53e1aa67-6381-4be0-aec1-2e1147a12ddd"
+]
 (* End of Notebook Content *)
+
+(* Internal cache information *)
+(*CellTagsOutline
+CellTagsIndex->{}
+*)
+(*CellTagsIndex
+CellTagsIndex->{}
+*)
+(*NotebookFileOutline
+Notebook[{
+Cell[560, 20, 208, 4, 70, "Title",ExpressionUUID->"a5a7c6c2-c8d2-4763-9e12-a477edef6204"],
+Cell[771, 26, 115, 0, 70, "Section",ExpressionUUID->"6e44d7e5-1e17-4269-a0cb-af20b5bcc445"],
+Cell[889, 28, 411, 6, 70, "Text",ExpressionUUID->"344bedc7-bb75-4311-9c86-e1adf3fb1af9"],
+Cell[1303, 36, 121, 0, 70, "Input",ExpressionUUID->"894c0f23-8fc2-40a3-98fc-6eaad8a89cd1"],
+Cell[1427, 38, 147, 2, 70, "Input",ExpressionUUID->"e1df2de5-c382-461d-ba94-5bc373b35764"],
+Cell[1577, 42, 184, 4, 70, "Input",ExpressionUUID->"30adea32-8ad5-4bfe-93ef-7bff0d38ac4f"],
+Cell[1764, 48, 107, 0, 70, "Section",ExpressionUUID->"e6b32339-cc3b-49d2-b1e9-c6539b8c380d"],
+Cell[1874, 50, 116, 0, 70, "Input",ExpressionUUID->"403ef180-aa65-4960-b57b-53b14f35d7f3"],
+Cell[1993, 52, 116, 0, 70, "Section",ExpressionUUID->"753318ea-a1c9-47f3-9b6f-d7ed7fd21505"],
+Cell[2112, 54, 734, 19, 70, "Input",ExpressionUUID->"f55b659f-02e5-4e9a-822d-936a28364a65"],
+Cell[2849, 75, 120, 1, 70, "Input",ExpressionUUID->"9dada503-7104-4ec4-ae49-1f98a7a404e3"],
+Cell[2972, 78, 240, 6, 70, "Input",ExpressionUUID->"69d01480-df96-4bc8-94a1-9c29baaa4372"],
+Cell[3215, 86, 253, 6, 70, "Input",ExpressionUUID->"eec87551-6bf1-476b-adce-42fb8b03a7b5"],
+Cell[3471, 94, 115, 0, 70, "Section",ExpressionUUID->"01a46d64-013b-4c55-b706-e902f769314d"],
+Cell[3589, 96, 138, 2, 70, "Input",ExpressionUUID->"72fb187f-a66d-4cab-a846-b7c9f9b93d5d"],
+Cell[3730, 100, 171, 3, 70, "Input",ExpressionUUID->"02723457-8820-44fd-b65e-a556d3d3ae53"]
+}
+]
+*)
+
+(* End of internal cache information *)

@@ -3,6 +3,557 @@
 (*** Wolfram Notebook File ***)
 (* http://www.wolfram.com/nb *)
 
+(* CreatedBy='WolframEngine 15.0' *)
+
+(*CacheID: 234*)
+(* Internal cache information:
+NotebookFileLineBreakTest
+NotebookFileLineBreakTest
+NotebookDataPosition[       160,          7]
+NotebookDataLength[     19597,        550]
+NotebookOptionsPosition[     14899,        490]
+NotebookOutlinePosition[     15241,        505]
+CellTagsIndexPosition[     15198,        502]
+WindowFrame->Normal*)
+
 (* Beginning of Notebook Content *)
-Notebook[{Cell["Advanced Lesson 3 - Exercises: Solve, Plot, Differentiate, Integrate, Simplify\nMikey Ferguson\nMATH 7013 - Advanced Mathematical Modeling", "Title"], Cell["Everyday notation has been converted to Mathematica notation throughout:\nequations use \"==\", functions use square brackets, user definitions use the\nunderscore, and E, Pi and I are the built-in constants rather than the bare\nletters e, p and i.", "Text"], Cell[BoxData[RowBox[{RowBox[{"Clear", "[", RowBox[{"a", ",", "b", ",", "c", ",", "x", ",", "y", ",", "f", ",", "n"}], "]"}], ";"}]], "Input"], Cell["1: Solving a biquadratic", "Section"], Cell[BoxData[RowBox[{"Solve", "[", RowBox[{RowBox[{RowBox[{RowBox[{"a", " ", SuperscriptBox["x", "4"]}], "+", RowBox[{"b", " ", SuperscriptBox["x", "2"]}], "+", "c"}], "\[Equal]", "0"}], ",", "x"}], "]"}]], "Input"], Cell[BoxData[RowBox[{"Solve", "[", RowBox[{RowBox[{RowBox[{RowBox[{"a", " ", SuperscriptBox["x", "4"]}], "+", RowBox[{"b", " ", SuperscriptBox["x", "2"]}], "+", "c"}], "\[Equal]", "0"}], ",", "a"}], "]"}]], "Input"], Cell["Solving for x gives four roots, in the familiar nested-radical form: the\nquadratic formula applied to x^2, then a square root taken of each branch.\nSolving for a is trivial by comparison - the equation is linear in a, so\nthere is exactly one solution, a -> -(c + b x^2)/x^4. Which variable you\nsolve for changes the difficulty of the problem completely.", "Text"], Cell["2: A nonlinear system in two unknowns", "Section"], Cell[BoxData[RowBox[{"sol2a", "=", RowBox[{"Solve", "[", RowBox[{RowBox[{"{", RowBox[{RowBox[{RowBox[{RowBox[{"a", " ", SuperscriptBox["x", "2"]}], "+", RowBox[{"b", " ", "y"}], "+", "c"}], "\[Equal]", "z"}], ",", RowBox[{RowBox[{"y", "+", RowBox[{"a", " ", SuperscriptBox["z", "2"]}], "+", RowBox[{"b", " ", SuperscriptBox["x", "2"]}], "+", "c"}], "\[Equal]", "1"}]}], "}"}], ",", RowBox[{"{", RowBox[{"x", ",", "y"}], "}"}]}], "]"}]}]], "Input"], Cell[BoxData[RowBox[{"Simplify", "[", "sol2a", "]"}]], "Input"], Cell["Part 1. Solve returns two solution branches, each a pair of rules for x and\ny, and each carrying a square root. Simplify does not shorten this answer\nappreciably. Compare the two outputs: the radicand b + c - b c - z - a b z^2\nis refactored into c - z - b (-1 + c + a z^2) and the y component is returned\nunchanged. That is a rearrangement, not a reduction - the same number of\nsymbols, differently bracketed. Simplify is not a magic shrink ray; on an\nanswer that is already near its minimal form, its cost function finds\nnothing genuinely cheaper and it earns nothing but time.", "Text"], Cell[BoxData[RowBox[{"sol2b", "=", RowBox[{"Solve", "[", RowBox[{RowBox[{"{", RowBox[{RowBox[{RowBox[{RowBox[{"a", " ", SuperscriptBox["x", "2"]}], "+", RowBox[{"b", " ", "y"}], "+", "c"}], "\[Equal]", "z"}], ",", RowBox[{RowBox[{"y", "+", RowBox[{"a", " ", SuperscriptBox["z", "2"]}], "+", RowBox[{"b", " ", SuperscriptBox["x", "2"]}], "+", "c"}], "\[Equal]", "1"}]}], "}"}], ",", RowBox[{"{", RowBox[{"a", ",", "x"}], "}"}]}], "]"}]}]], "Input"], Cell["Part 2. Solving the same system for a and x instead is a different problem\nand produces a different, generally messier, set of branches - a appears\nmultiplied by x^2 in one equation and by z^2 in the other, so eliminating it\ndoes not decouple as cleanly.", "Text"], Cell["3: Plot and integrate E^(2x) Sin[3x] Cos[4x]", "Section"], Cell[BoxData[RowBox[{"Plot", "[", RowBox[{RowBox[{SuperscriptBox["\[ExponentialE]", RowBox[{"2", " ", "x"}]], " ", RowBox[{"Sin", "[", RowBox[{"3", " ", "x"}], "]"}], " ", RowBox[{"Cos", "[", RowBox[{"4", " ", "x"}], "]"}]}], ",", RowBox[{"{", RowBox[{"x", ",", "0", ",", "2"}], "}"}]}], "]"}]], "Input"], Cell[BoxData[RowBox[{"int3", "=", RowBox[{"\[Integral]", RowBox[{RowBox[{SuperscriptBox["\[ExponentialE]", RowBox[{"2", " ", "x"}]], " ", RowBox[{"Sin", "[", RowBox[{"3", " ", "x"}], "]"}], " ", RowBox[{"Cos", "[", RowBox[{"4", " ", "x"}], "]"}]}], RowBox[{"\[DifferentialD]", "x"}]}]}]}]], "Input"], Cell[BoxData[RowBox[{"Simplify", "[", "int3", "]"}]], "Input"], Cell["The plot is an oscillation with an exponentially growing envelope: by x = 2\nthe amplitude is of order e^4, so the wiggles near the origin are invisible\nat that vertical scale.\nThe antiderivative comes back already collected: a single factor of E^(2x)\nmultiplying a combination of Cos[x], Cos[7x], Sin[x] and Sin[7x] over 530.\nNote that the product of three oscillations has been rewritten as a sum of\ntwo, which is the product-to-sum identity applied twice.\nSimplify returns that expression completely unchanged - the two output cells\nare identical. Integrate had already produced the collected form, so there\nwas nothing left for Simplify to do. This is the opposite situation from\nExercise 4, where the derivative arrives uncollected and Simplify does real\nwork.", "Text"], Cell["4: The same function, ten ways", "Section"], Cell[BoxData[RowBox[{"Plot", "[", RowBox[{RowBox[{SuperscriptBox["\[ExponentialE]", RowBox[{"2", " ", "x"}]], " ", RowBox[{"Sin", "[", RowBox[{"3", " ", "x"}], "]"}], " ", RowBox[{"Cos", "[", RowBox[{"4", " ", "x"}], "]"}]}], ",", RowBox[{"{", RowBox[{"x", ",", "0", ",", "2"}], "}"}]}], "]"}]], "Input"], Cell[BoxData[RowBox[{"d4", "=", RowBox[{SubscriptBox["\[PartialD]", RowBox[{"x"}]], RowBox[{"(", RowBox[{SuperscriptBox["\[ExponentialE]", RowBox[{"2", " ", "x"}]], " ", RowBox[{"Sin", "[", RowBox[{"3", " ", "x"}], "]"}], " ", RowBox[{"Cos", "[", RowBox[{"4", " ", "x"}], "]"}]}], ")"}]}]}]], "Input"], Cell[BoxData[RowBox[{"Simplify", "[", "d4", "]"}]], "Input"], Cell["Parts 1 to 3. The derivative is a sum of three product terms by the product\nrule. Simplify collects the shared E^(2x) and regroups the trigonometric\nfactors, which does shorten it.", "Text"], Cell[BoxData[RowBox[{RowBox[{"Clear", "[", RowBox[{"f", ",", "x"}], "]"}], ";", "\[IndentingNewLine]", RowBox[{RowBox[{"f", "[", "x_", "]"}], "=", RowBox[{SuperscriptBox["\[ExponentialE]", RowBox[{"2", " ", "x"}]], " ", RowBox[{"Sin", "[", RowBox[{"3", " ", "x"}], "]"}], " ", RowBox[{"Cos", "[", RowBox[{"4", " ", "x"}], "]"}]}]}], ";"}]], "Input"], Cell[BoxData[RowBox[{"Plot", "[", RowBox[{RowBox[{"f", "[", "x", "]"}], ",", RowBox[{"{", RowBox[{"x", ",", "0", ",", "2"}], "}"}]}], "]"}]], "Input"], Cell[BoxData[RowBox[{SuperscriptBox["f", "\[Prime]", MultilineFunction -> None], "[", "x", "]"}]], "Input"], Cell[BoxData[RowBox[{"Simplify", "[", RowBox[{SuperscriptBox["f", "\[Prime]", MultilineFunction -> None], "[", "x", "]"}], "]"}]], "Input"], Cell[BoxData[RowBox[{"{", RowBox[{"Simplify", "[", RowBox[{RowBox[{SuperscriptBox["f", "\[Prime]", MultilineFunction -> None], "[", "x", "]"}], "-", RowBox[{SubscriptBox["\[PartialD]", RowBox[{"x"}]], RowBox[{"f", "[", "x", "]"}]}]}], "]"}], "}"}]], "Input"], Cell[BoxData[RowBox[{"{", RowBox[{"Simplify", "[", RowBox[{RowBox[{SuperscriptBox["f", "\[Prime]\[Prime]", MultilineFunction -> None], "[", "x", "]"}], "-", RowBox[{SubscriptBox["\[PartialD]", RowBox[{RowBox[{"{", RowBox[{"x", ",", "2"}], "}"}]}]], RowBox[{"f", "[", "x", "]"}]}]}], "]"}], "}"}]], "Input"], Cell[BoxData[RowBox[{"{", RowBox[{"Simplify", "[", RowBox[{RowBox[{SuperscriptBox["f", TagBox[RowBox[{"(", "3", ")"}], Derivative], MultilineFunction -> None], "[", "x", "]"}], "-", RowBox[{SubscriptBox["\[PartialD]", RowBox[{RowBox[{"{", RowBox[{"x", ",", "3"}], "}"}]}]], RowBox[{"f", "[", "x", "]"}]}]}], "]"}], "}"}]], "Input"], Cell["Parts 4 to 10. Immediate assignment is correct here: the right-hand side is\na fixed expression in x with nothing to postpone, so f[x_] = ... stores the\nexpression itself and every later call substitutes into it.\nEach of the last three cells subtracts the two notations and simplifies. All\nthree return zero, which is the verification the exercise asks for: the\nprime notation f'[x] and the explicit D[f[x], x] are the same operation\nwritten two ways, and the same holds for the second and third derivatives.\nWriting the difference and simplifying is a more honest check than eyeballing\ntwo large expressions side by side.", "Text"], Cell["5: The local maximum of x^3 - x + 1", "Section"], Cell[BoxData[RowBox[{RowBox[{"Clear", "[", RowBox[{"f", ",", "x"}], "]"}], ";", "\[IndentingNewLine]", RowBox[{RowBox[{"f", "[", "x_", "]"}], "=", RowBox[{SuperscriptBox["x", "3"], "-", "x", "+", "1"}]}], ";"}]], "Input"], Cell[BoxData[RowBox[{"{", RowBox[{RowBox[{SuperscriptBox["f", "\[Prime]", MultilineFunction -> None], "[", "x", "]"}], ",", RowBox[{SubscriptBox["\[PartialD]", RowBox[{"x"}]], RowBox[{"f", "[", "x", "]"}]}], ",", RowBox[{"Simplify", "[", RowBox[{RowBox[{SuperscriptBox["f", "\[Prime]", MultilineFunction -> None], "[", "x", "]"}], "-", RowBox[{SubscriptBox["\[PartialD]", RowBox[{"x"}]], RowBox[{"f", "[", "x", "]"}]}]}], "]"}]}], "}"}]], "Input"], Cell[BoxData[RowBox[{"{", RowBox[{RowBox[{SuperscriptBox["f", "\[Prime]\[Prime]", MultilineFunction -> None], "[", "x", "]"}], ",", RowBox[{SubscriptBox["\[PartialD]", RowBox[{RowBox[{"{", RowBox[{"x", ",", "2"}], "}"}]}]], RowBox[{"f", "[", "x", "]"}]}], ",", RowBox[{"Simplify", "[", RowBox[{RowBox[{SuperscriptBox["f", "\[Prime]\[Prime]", MultilineFunction -> None], "[", "x", "]"}], "-", RowBox[{SubscriptBox["\[PartialD]", RowBox[{RowBox[{"{", RowBox[{"x", ",", "2"}], "}"}]}]], RowBox[{"f", "[", "x", "]"}]}]}], "]"}]}], "}"}]], "Input"], Cell[BoxData[RowBox[{"Plot", "[", RowBox[{RowBox[{"{", RowBox[{RowBox[{"f", "[", "x", "]"}], ",", RowBox[{SuperscriptBox["f", "\[Prime]", MultilineFunction -> None], "[", "x", "]"}]}], "}"}], ",", RowBox[{"{", RowBox[{"x", ",", RowBox[{"-", "2"}], ",", "2"}], "}"}], ",", RowBox[{"PlotLegends", "\[Rule]", RowBox[{"{", RowBox[{"\"f\"", ",", "\"f'\""}], "}"}]}]}], "]"}]], "Input"], Cell[BoxData[RowBox[{"crit", "=", RowBox[{"Solve", "[", RowBox[{RowBox[{RowBox[{SuperscriptBox["f", "\[Prime]", MultilineFunction -> None], "[", "x", "]"}], "\[Equal]", "0"}], ",", "x"}], "]"}]}]], "Input"], Cell[BoxData[RowBox[{"Table", "[", RowBox[{RowBox[{"{", RowBox[{RowBox[{"x", "/.", "\[VeryThinSpace]", "s"}], ",", RowBox[{RowBox[{SuperscriptBox["f", "\[Prime]\[Prime]", MultilineFunction -> None], "[", "x", "]"}], "/.", "\[VeryThinSpace]", "s"}], ",", RowBox[{RowBox[{"f", "[", "x", "]"}], "/.", "\[VeryThinSpace]", "s"}]}], "}"}], ",", RowBox[{"{", RowBox[{"s", ",", "crit"}], "}"}]}], "]"}]], "Input"], Cell["Parts 1 to 3 confirm the two derivative notations agree, as in Exercise 4.\nPart 4 plots the function against its derivative; the zeros of the\nderivative sit directly under the turning points of the function, which is\nthe visual statement of the first-derivative test.\nPart 5. The critical points are x = -1/Sqrt[3] and x = +1/Sqrt[3]. The\nsecond derivative is 6x, so at x = -1/Sqrt[3] it is negative - concave\ndown, a local maximum, with value 1 + 2/(3 Sqrt[3]). At x = +1/Sqrt[3] it\nis positive - concave up, a local minimum. The maximum is local and not\nglobal: the cubic runs off to +Infinity as x grows, so no global maximum\nexists.", "Text"], Cell["6: Simplifying Cos[n Pi] under assumptions", "Section"], Cell[BoxData[RowBox[{RowBox[{"Clear", "[", "n", "]"}], ";", "\[IndentingNewLine]", RowBox[{"Simplify", "[", RowBox[{"Cos", "[", RowBox[{"n", " ", "\[Pi]"}], "]"}], "]"}]}]], "Input"], Cell[BoxData[RowBox[{"Simplify", "[", RowBox[{RowBox[{"Cos", "[", RowBox[{"n", " ", "\[Pi]"}], "]"}], ",", RowBox[{"n", "\[Element]", TemplateBox[{}, "Integers"]}]}], "]"}]], "Input"], Cell[BoxData[RowBox[{"Simplify", "[", RowBox[{RowBox[{"Cos", "[", RowBox[{"n", " ", "\[Pi]"}], "]"}], ",", RowBox[{FractionBox["n", "2"], "\[Element]", TemplateBox[{}, "Integers"]}]}], "]"}]], "Input"], Cell[BoxData[RowBox[{"Simplify", "[", RowBox[{RowBox[{"Cos", "[", RowBox[{"n", " ", "\[Pi]"}], "]"}], ",", RowBox[{FractionBox[RowBox[{"n", "-", "1"}], "2"], "\[Element]", TemplateBox[{}, "Integers"]}]}], "]"}]], "Input"], Cell["With no assumption there is nothing to do: n could be anything, so\nCos[n Pi] comes back unchanged.\nAssuming n is an integer, the answer is (-1)^n - the cosine lands on +1 or\n-1 alternately, and Mathematica can say so without knowing which.\nAssuming n is even, meaning n/2 is an integer, the answer collapses to 1.\nAssuming n is odd, expressed as (n-1)/2 being an integer, the answer\ncollapses to -1.\nThe pattern is the point: Simplify can only simplify as far as the\nassumptions permit, and supplying the right domain is the difference between\nan unchanged expression and a single number.", "Text"], Cell["7: Plot and integrate x^5 Sin[x]", "Section"], Cell[BoxData[RowBox[{"Plot", "[", RowBox[{RowBox[{SuperscriptBox["x", "5"], " ", RowBox[{"Sin", "[", "x", "]"}]}], ",", RowBox[{"{", RowBox[{"x", ",", RowBox[{"-", "1"}], ",", "1"}], "}"}]}], "]"}]], "Input"], Cell[BoxData[RowBox[{"\[Integral]", RowBox[{RowBox[{SuperscriptBox["x", "5"], " ", RowBox[{"Sin", "[", "x", "]"}]}], RowBox[{"\[DifferentialD]", "x"}]}]}]], "Input"], Cell[BoxData[RowBox[{SubsuperscriptBox["\[Integral]", "2", "3"], RowBox[{RowBox[{SuperscriptBox["x", "5"], " ", RowBox[{"Sin", "[", "x", "]"}]}], RowBox[{"\[DifferentialD]", "x"}]}]}]], "Input"], Cell["The integrand is even (odd times odd), so the plot is symmetric about the\nvertical axis and non-negative on [-1, 1].\nThe indefinite integral is the generic antiderivative: five applications of\nintegration by parts, producing a polynomial in x times Cos[x] plus another\ntimes Sin[x], with no constant of integration attached.\nThe definite integral from 2 to 3 is returned as an exact combination of\nSin[2], Cos[2], Sin[3] and Cos[3] with integer coefficients. Exact, not\nnumeric - apply N if a number is wanted.", "Text"], Cell["8: Sqrt[x] and the trouble with negative limits", "Section"], Cell[BoxData[RowBox[{"Plot", "[", RowBox[{SqrtBox["x"], ",", RowBox[{"{", RowBox[{"x", ",", RowBox[{"-", "1"}], ",", "1"}], "}"}], ",", RowBox[{"PlotStyle", "\[Rule]", RowBox[{"Thickness", "[", "0.01`", "]"}]}]}], "]"}]], "Input"], Cell["Part 1. Nothing is drawn for -1 <= x < 0. Sqrt of a negative real is\nimaginary, Plot only draws real values, so the curve simply begins at the\norigin. Mathematica does not complain; it silently omits the points it\ncannot place on a real axis.", "Text"], Cell[BoxData[RowBox[{"\[Integral]", RowBox[{SqrtBox["x"], RowBox[{"\[DifferentialD]", "x"}]}]}]], "Input"], Cell[BoxData[RowBox[{SubsuperscriptBox["\[Integral]", "1", "2"], RowBox[{SqrtBox["x"], RowBox[{"\[DifferentialD]", "x"}]}]}]], "Input"], Cell[BoxData[RowBox[{SubsuperscriptBox["\[Integral]", "a", "b"], RowBox[{SqrtBox["x"], RowBox[{"\[DifferentialD]", "x"}]}]}]], "Input"], Cell["Part 2 gives the generic antiderivative (2/3) x^(3/2). Part 3 gives the\nexact value (4 Sqrt[2] - 2)/3.\nPart 4 gives (2/3)(b^(3/2) - a^(3/2)), but wrapped in a ConditionalExpression\ncarrying a long side condition on a and b. With symbolic limits Mathematica\ncannot know whether the path from a to b crosses the branch cut of the square\nroot, so it states the value together with the conditions under which that\nvalue is the right one. The condition is unreadable and that is fine - it is\nmachine bookkeeping, and supplying an assumption, as Parts 5 and 6 do, makes\nit collapse.\nIt is not surprising that the answer depends on both a and b: a definite integral is the net signed area\nbetween the two limits, and moving either limit moves that area. There is\nnothing special about this integrand - every definite integral with symbolic\nlimits does the same.", "Text"], Cell[BoxData[RowBox[{"Integrate", "[", RowBox[{SqrtBox["x"], ",", RowBox[{"{", RowBox[{"x", ",", "a", ",", "b"}], "}"}], ",", RowBox[{"Assumptions", "\[Rule]", RowBox[{"0", "<", "a", "<", "b"}]}]}], "]"}]], "Input"], Cell["Part 5. Assuming 0 < a < b, the answer is real and finite. Not surprising:\nthe whole interval of integration lies where Sqrt[x] is real-valued,\ncontinuous and bounded, so the integral is an ordinary area under an\nordinary curve.", "Text"], Cell[BoxData[RowBox[{"Integrate", "[", RowBox[{SqrtBox["x"], ",", RowBox[{"{", RowBox[{"x", ",", "a", ",", "b"}], "}"}], ",", RowBox[{"Assumptions", "\[Rule]", RowBox[{"a", "<", "0", "<", "b"}]}]}], "]"}]], "Input"], Cell["Part 6. Assuming a < 0 < b, the answer is still finite but no longer real:\nit carries a factor of I. Not surprising either. The integrand is imaginary\non the whole stretch from a to 0, so the integral picks up an imaginary\ncontribution from that stretch. It converges because x^(1/2) has an\nintegrable singularity - the exponent 1/2 is greater than -1 - so the\nintegral is perfectly finite. It is simply finite in the complex plane\nrather than on the real line.", "Text"]}, WindowSize -> {1100, 850}, StyleDefinitions -> "Default.nb"]
+Notebook[{
+Cell["\<\
+Advanced Lesson 3 - Exercises: Solve, Plot, Differentiate, Integrate, \
+Simplify
+Mikey Ferguson
+MATH 7013 - Advanced Mathematical Modeling\
+\>", "Title",ExpressionUUID->"5167176d-baef-438a-9e3b-59adabcb739d"],
+
+Cell["\<\
+Everyday notation has been converted to Mathematica notation throughout:
+equations use \"==\", functions use square brackets, user definitions use the
+underscore, and E, Pi and I are the built-in constants rather than the bare
+letters e, p and i.\
+\>", "Text",ExpressionUUID->"bfff4542-29a7-49b0-b010-da489b6b5f0b"],
+
+Cell[BoxData[
+ RowBox[{
+  RowBox[{"Clear", "[", 
+   RowBox[{"a", ",", "b", ",", "c", ",", "x", ",", "y", ",", "f", ",", "n"}], 
+   "]"}], ";"}]], "Input",ExpressionUUID->"2cea9eb0-7882-4857-b877-\
+73fe0d89e40b"],
+
+Cell["1: Solving a biquadratic", "Section",ExpressionUUID->"e7166a4f-ae50-463f-8676-63cd529cb173"],
+
+Cell[BoxData[
+ RowBox[{"Solve", "[", 
+  RowBox[{
+   RowBox[{
+    RowBox[{
+     RowBox[{"a", " ", 
+      SuperscriptBox["x", "4"]}], "+", 
+     RowBox[{"b", " ", 
+      SuperscriptBox["x", "2"]}], "+", "c"}], "\[Equal]", "0"}], ",", "x"}], 
+  "]"}]], "Input",ExpressionUUID->"0fe56150-f45f-4b11-a603-e2764292c15e"],
+
+Cell[BoxData[
+ RowBox[{"Solve", "[", 
+  RowBox[{
+   RowBox[{
+    RowBox[{
+     RowBox[{"a", " ", 
+      SuperscriptBox["x", "4"]}], "+", 
+     RowBox[{"b", " ", 
+      SuperscriptBox["x", "2"]}], "+", "c"}], "\[Equal]", "0"}], ",", "a"}], 
+  "]"}]], "Input",ExpressionUUID->"f774fc57-3e49-4790-9f95-c793de6e34f4"],
+
+Cell["2: A nonlinear system in two unknowns", "Section",ExpressionUUID->"dfc4e306-a82b-4e2a-b9d5-540d0b5dd0f1"],
+
+Cell[BoxData[
+ RowBox[{"sol2a", "=", 
+  RowBox[{"Solve", "[", 
+   RowBox[{
+    RowBox[{"{", 
+     RowBox[{
+      RowBox[{
+       RowBox[{
+        RowBox[{"a", " ", 
+         SuperscriptBox["x", "2"]}], "+", 
+        RowBox[{"b", " ", "y"}], "+", "c"}], "\[Equal]", "z"}], ",", 
+      RowBox[{
+       RowBox[{"y", "+", 
+        RowBox[{"a", " ", 
+         SuperscriptBox["z", "2"]}], "+", 
+        RowBox[{"b", " ", 
+         SuperscriptBox["x", "2"]}], "+", "c"}], "\[Equal]", "1"}]}], "}"}], ",", 
+    RowBox[{"{", 
+     RowBox[{"x", ",", "y"}], "}"}]}], "]"}]}]], "Input",ExpressionUUID->\
+"fc333da6-5fd8-4ee6-bd8e-9c106b288eb5"],
+
+Cell[BoxData[
+ RowBox[{"Simplify", "[", "sol2a", "]"}]], "Input",ExpressionUUID->"a4d5473f-a00f-4be9-a315-b5c779c8020e"],
+
+Cell[BoxData[
+ RowBox[{"sol2b", "=", 
+  RowBox[{"Solve", "[", 
+   RowBox[{
+    RowBox[{"{", 
+     RowBox[{
+      RowBox[{
+       RowBox[{
+        RowBox[{"a", " ", 
+         SuperscriptBox["x", "2"]}], "+", 
+        RowBox[{"b", " ", "y"}], "+", "c"}], "\[Equal]", "z"}], ",", 
+      RowBox[{
+       RowBox[{"y", "+", 
+        RowBox[{"a", " ", 
+         SuperscriptBox["z", "2"]}], "+", 
+        RowBox[{"b", " ", 
+         SuperscriptBox["x", "2"]}], "+", "c"}], "\[Equal]", "1"}]}], "}"}], ",", 
+    RowBox[{"{", 
+     RowBox[{"a", ",", "x"}], "}"}]}], "]"}]}]], "Input",ExpressionUUID->\
+"0d9540ff-72ae-40d8-8a4f-a3994c9a23fa"],
+
+Cell["3: Plot and integrate E^(2x) Sin[3x] Cos[4x]", "Section",ExpressionUUID->"c3686a1c-86ac-4851-8188-68b14506b571"],
+
+Cell[BoxData[
+ RowBox[{"Plot", "[", 
+  RowBox[{
+   RowBox[{
+    SuperscriptBox["\[ExponentialE]", 
+     RowBox[{"2", " ", "x"}]], " ", 
+    RowBox[{"Sin", "[", 
+     RowBox[{"3", " ", "x"}], "]"}], " ", 
+    RowBox[{"Cos", "[", 
+     RowBox[{"4", " ", "x"}], "]"}]}], ",", 
+   RowBox[{"{", 
+    RowBox[{"x", ",", "0", ",", "2"}], "}"}]}], "]"}]], "Input",ExpressionUUID\
+->"48d2e07c-c05f-45b1-8a9a-990a39f5af3b"],
+
+Cell[BoxData[
+ RowBox[{"int3", "=", 
+  RowBox[{"\[Integral]", 
+   RowBox[{
+    RowBox[{
+     SuperscriptBox["\[ExponentialE]", 
+      RowBox[{"2", " ", "x"}]], " ", 
+     RowBox[{"Sin", "[", 
+      RowBox[{"3", " ", "x"}], "]"}], " ", 
+     RowBox[{"Cos", "[", 
+      RowBox[{"4", " ", "x"}], "]"}]}], 
+    RowBox[{"\[DifferentialD]", "x"}]}]}]}]], "Input",ExpressionUUID->\
+"a1a5511d-9551-4524-accf-12f26d809169"],
+
+Cell[BoxData[
+ RowBox[{"Simplify", "[", "int3", "]"}]], "Input",ExpressionUUID->"2fbbd783-1013-4183-9edf-dd4390db058f"],
+
+Cell["4: The same function, ten ways", "Section",ExpressionUUID->"9a0dd210-b9f9-408a-8221-c18e4e80303d"],
+
+Cell[BoxData[
+ RowBox[{"Plot", "[", 
+  RowBox[{
+   RowBox[{
+    SuperscriptBox["\[ExponentialE]", 
+     RowBox[{"2", " ", "x"}]], " ", 
+    RowBox[{"Sin", "[", 
+     RowBox[{"3", " ", "x"}], "]"}], " ", 
+    RowBox[{"Cos", "[", 
+     RowBox[{"4", " ", "x"}], "]"}]}], ",", 
+   RowBox[{"{", 
+    RowBox[{"x", ",", "0", ",", "2"}], "}"}]}], "]"}]], "Input",ExpressionUUID\
+->"fcad922d-79ad-460b-9d86-e5e446bd169d"],
+
+Cell[BoxData[
+ RowBox[{"d4", "=", 
+  RowBox[{
+   SubscriptBox["\[PartialD]", "x"], 
+   RowBox[{"(", 
+    RowBox[{
+     SuperscriptBox["\[ExponentialE]", 
+      RowBox[{"2", " ", "x"}]], " ", 
+     RowBox[{"Sin", "[", 
+      RowBox[{"3", " ", "x"}], "]"}], " ", 
+     RowBox[{"Cos", "[", 
+      RowBox[{"4", " ", "x"}], "]"}]}], ")"}]}]}]], "Input",ExpressionUUID->\
+"10e106a3-09d9-4744-924a-8d5a9c8aedc4"],
+
+Cell[BoxData[
+ RowBox[{"Simplify", "[", "d4", "]"}]], "Input",ExpressionUUID->"6daca218-bc63-4005-8966-7be251913567"],
+
+Cell[BoxData[{
+ RowBox[{
+  RowBox[{"Clear", "[", 
+   RowBox[{"f", ",", "x"}], "]"}], ";"}], "\[IndentingNewLine]", 
+ RowBox[{
+  RowBox[{
+   RowBox[{"f", "[", "x_", "]"}], "=", 
+   RowBox[{
+    SuperscriptBox["\[ExponentialE]", 
+     RowBox[{"2", " ", "x"}]], " ", 
+    RowBox[{"Sin", "[", 
+     RowBox[{"3", " ", "x"}], "]"}], " ", 
+    RowBox[{"Cos", "[", 
+     RowBox[{"4", " ", "x"}], "]"}]}]}], ";"}]}], "Input",ExpressionUUID->\
+"dcfe52c2-7159-43c5-a518-de77641d23f6"],
+
+Cell[BoxData[
+ RowBox[{"Plot", "[", 
+  RowBox[{
+   RowBox[{"f", "[", "x", "]"}], ",", 
+   RowBox[{"{", 
+    RowBox[{"x", ",", "0", ",", "2"}], "}"}]}], "]"}]], "Input",ExpressionUUID\
+->"123a9db2-5ac5-4c48-82c7-83d38619196b"],
+
+Cell[BoxData[
+ RowBox[{
+  SuperscriptBox["f", "\[Prime]",
+   MultilineFunction->None], "[", "x", "]"}]], "Input",ExpressionUUID->\
+"bb4d31d0-6f99-4267-a700-2e78837c4db0"],
+
+Cell[BoxData[
+ RowBox[{"Simplify", "[", 
+  RowBox[{
+   SuperscriptBox["f", "\[Prime]",
+    MultilineFunction->None], "[", "x", "]"}], "]"}]], "Input",ExpressionUUID->\
+"59dcadff-0c91-4745-bf32-ffbe42539649"],
+
+Cell[BoxData[
+ RowBox[{"{", 
+  RowBox[{"Simplify", "[", 
+   RowBox[{
+    RowBox[{
+     SuperscriptBox["f", "\[Prime]",
+      MultilineFunction->None], "[", "x", "]"}], "-", 
+    RowBox[{
+     SubscriptBox["\[PartialD]", "x"], 
+     RowBox[{"f", "[", "x", "]"}]}]}], "]"}], "}"}]], "Input",ExpressionUUID->\
+"872a065a-b47b-4f5d-ad43-2d07142b1038"],
+
+Cell[BoxData[
+ RowBox[{"{", 
+  RowBox[{"Simplify", "[", 
+   RowBox[{
+    RowBox[{
+     SuperscriptBox["f", "\[Prime]\[Prime]",
+      MultilineFunction->None], "[", "x", "]"}], "-", 
+    RowBox[{
+     SubscriptBox["\[PartialD]", 
+      RowBox[{"{", 
+       RowBox[{"x", ",", "2"}], "}"}]], 
+     RowBox[{"f", "[", "x", "]"}]}]}], "]"}], "}"}]], "Input",ExpressionUUID->\
+"246b909f-cc58-4bb6-a5b1-38790f32cfea"],
+
+Cell[BoxData[
+ RowBox[{"{", 
+  RowBox[{"Simplify", "[", 
+   RowBox[{
+    RowBox[{
+     SuperscriptBox["f", 
+      TagBox[
+       RowBox[{"(", "3", ")"}],
+       Derivative],
+      MultilineFunction->None], "[", "x", "]"}], "-", 
+    RowBox[{
+     SubscriptBox["\[PartialD]", 
+      RowBox[{"{", 
+       RowBox[{"x", ",", "3"}], "}"}]], 
+     RowBox[{"f", "[", "x", "]"}]}]}], "]"}], "}"}]], "Input",ExpressionUUID->\
+"07ea6866-d3e3-4c30-b070-dfc015274842"],
+
+Cell["5: The local maximum of x^3 - x + 1", "Section",ExpressionUUID->"51bea92f-a4b3-4dbd-b290-1e4d704f35b4"],
+
+Cell[BoxData[{
+ RowBox[{
+  RowBox[{"Clear", "[", 
+   RowBox[{"f", ",", "x"}], "]"}], ";"}], "\[IndentingNewLine]", 
+ RowBox[{
+  RowBox[{
+   RowBox[{"f", "[", "x_", "]"}], "=", 
+   RowBox[{
+    SuperscriptBox["x", "3"], "-", "x", "+", "1"}]}], ";"}]}], "Input",Express\
+ionUUID->"d40a16a5-998f-40ec-9de5-b8022b6dd402"],
+
+Cell[BoxData[
+ RowBox[{"{", 
+  RowBox[{
+   RowBox[{
+    SuperscriptBox["f", "\[Prime]",
+     MultilineFunction->None], "[", "x", "]"}], ",", 
+   RowBox[{
+    SubscriptBox["\[PartialD]", "x"], 
+    RowBox[{"f", "[", "x", "]"}]}], ",", 
+   RowBox[{"Simplify", "[", 
+    RowBox[{
+     RowBox[{
+      SuperscriptBox["f", "\[Prime]",
+       MultilineFunction->None], "[", "x", "]"}], "-", 
+     RowBox[{
+      SubscriptBox["\[PartialD]", "x"], 
+      RowBox[{"f", "[", "x", "]"}]}]}], "]"}]}], "}"}]], "Input",ExpressionUUI\
+D->"be955219-8f6b-4eee-aff1-157242a2f7db"],
+
+Cell[BoxData[
+ RowBox[{"{", 
+  RowBox[{
+   RowBox[{
+    SuperscriptBox["f", "\[Prime]\[Prime]",
+     MultilineFunction->None], "[", "x", "]"}], ",", 
+   RowBox[{
+    SubscriptBox["\[PartialD]", 
+     RowBox[{"{", 
+      RowBox[{"x", ",", "2"}], "}"}]], 
+    RowBox[{"f", "[", "x", "]"}]}], ",", 
+   RowBox[{"Simplify", "[", 
+    RowBox[{
+     RowBox[{
+      SuperscriptBox["f", "\[Prime]\[Prime]",
+       MultilineFunction->None], "[", "x", "]"}], "-", 
+     RowBox[{
+      SubscriptBox["\[PartialD]", 
+       RowBox[{"{", 
+        RowBox[{"x", ",", "2"}], "}"}]], 
+      RowBox[{"f", "[", "x", "]"}]}]}], "]"}]}], "}"}]], "Input",ExpressionUUI\
+D->"f81f6b9b-add6-468d-8bb8-ccce97db3ed5"],
+
+Cell[BoxData[
+ RowBox[{"Plot", "[", 
+  RowBox[{
+   RowBox[{"{", 
+    RowBox[{
+     RowBox[{"f", "[", "x", "]"}], ",", 
+     RowBox[{
+      SuperscriptBox["f", "\[Prime]",
+       MultilineFunction->None], "[", "x", "]"}]}], "}"}], ",", 
+   RowBox[{"{", 
+    RowBox[{"x", ",", 
+     RowBox[{"-", "2"}], ",", "2"}], "}"}], ",", 
+   RowBox[{"PlotLegends", "\[Rule]", 
+    RowBox[{"{", 
+     RowBox[{"\"\<f\>\"", ",", "\"\<f'\>\""}], "}"}]}]}], "]"}]], "Input",Expr\
+essionUUID->"49106fbe-e8e0-4d61-af6f-a9d751db0977"],
+
+Cell[BoxData[
+ RowBox[{"crit", "=", 
+  RowBox[{"Solve", "[", 
+   RowBox[{
+    RowBox[{
+     RowBox[{
+      SuperscriptBox["f", "\[Prime]",
+       MultilineFunction->None], "[", "x", "]"}], "\[Equal]", "0"}], ",", 
+    "x"}], "]"}]}]], "Input",ExpressionUUID->"7f8d5163-b3ec-4f57-b869-\
+581484412b29"],
+
+Cell[BoxData[
+ RowBox[{"Table", "[", 
+  RowBox[{
+   RowBox[{"{", 
+    RowBox[{
+     RowBox[{"x", "/.", "\[VeryThinSpace]", "s"}], ",", 
+     RowBox[{
+      RowBox[{
+       SuperscriptBox["f", "\[Prime]\[Prime]",
+        MultilineFunction->None], "[", "x", "]"}], "/.", "\[VeryThinSpace]", 
+      "s"}], ",", 
+     RowBox[{
+      RowBox[{"f", "[", "x", "]"}], "/.", "\[VeryThinSpace]", "s"}]}], "}"}], 
+   ",", 
+   RowBox[{"{", 
+    RowBox[{"s", ",", "crit"}], "}"}]}], "]"}]], "Input",ExpressionUUID->\
+"be163be9-d606-4944-a9ad-beff3be3e226"],
+
+Cell["6: Simplifying Cos[n Pi] under assumptions", "Section",ExpressionUUID->"3fb3e9e4-3976-4fad-9fb5-c3020278009c"],
+
+Cell[BoxData[{
+ RowBox[{
+  RowBox[{"Clear", "[", "n", "]"}], ";"}], "\[IndentingNewLine]", 
+ RowBox[{"Simplify", "[", 
+  RowBox[{"Cos", "[", 
+   RowBox[{"n", " ", "\[Pi]"}], "]"}], "]"}]}], "Input",ExpressionUUID->\
+"d9a84cd5-3cba-4a85-9be9-f9d664cdd822"],
+
+Cell[BoxData[
+ RowBox[{"Simplify", "[", 
+  RowBox[{
+   RowBox[{"Cos", "[", 
+    RowBox[{"n", " ", "\[Pi]"}], "]"}], ",", 
+   RowBox[{"n", "\[Element]", 
+    TemplateBox[{},
+     "Integers"]}]}], "]"}]], "Input",ExpressionUUID->"d914b844-d499-472a-\
+a24d-cd537bffb37b"],
+
+Cell[BoxData[
+ RowBox[{"Simplify", "[", 
+  RowBox[{
+   RowBox[{"Cos", "[", 
+    RowBox[{"n", " ", "\[Pi]"}], "]"}], ",", 
+   RowBox[{
+    FractionBox["n", "2"], "\[Element]", 
+    TemplateBox[{},
+     "Integers"]}]}], "]"}]], "Input",ExpressionUUID->"6052fca6-b086-4386-\
+ad3e-e10f0c3bee22"],
+
+Cell[BoxData[
+ RowBox[{"Simplify", "[", 
+  RowBox[{
+   RowBox[{"Cos", "[", 
+    RowBox[{"n", " ", "\[Pi]"}], "]"}], ",", 
+   RowBox[{
+    FractionBox[
+     RowBox[{"n", "-", "1"}], "2"], "\[Element]", 
+    TemplateBox[{},
+     "Integers"]}]}], "]"}]], "Input",ExpressionUUID->"a2112183-2e89-42f9-\
+a35a-9b5da2f7062b"],
+
+Cell["7: Plot and integrate x^5 Sin[x]", "Section",ExpressionUUID->"7f8820d4-e5ec-427c-9b38-97071d4d53ed"],
+
+Cell[BoxData[
+ RowBox[{"Plot", "[", 
+  RowBox[{
+   RowBox[{
+    SuperscriptBox["x", "5"], " ", 
+    RowBox[{"Sin", "[", "x", "]"}]}], ",", 
+   RowBox[{"{", 
+    RowBox[{"x", ",", 
+     RowBox[{"-", "1"}], ",", "1"}], "}"}]}], "]"}]], "Input",ExpressionUUID->\
+"5e28f8d4-ac61-46ad-adf0-cc0115312fb6"],
+
+Cell[BoxData[
+ RowBox[{"\[Integral]", 
+  RowBox[{
+   RowBox[{
+    SuperscriptBox["x", "5"], " ", 
+    RowBox[{"Sin", "[", "x", "]"}]}], 
+   RowBox[{"\[DifferentialD]", "x"}]}]}]], "Input",ExpressionUUID->"94d76b05-\
+f9b6-4cc7-8e47-f388770f3864"],
+
+Cell[BoxData[
+ RowBox[{
+  SubsuperscriptBox["\[Integral]", "2", "3"], 
+  RowBox[{
+   RowBox[{
+    SuperscriptBox["x", "5"], " ", 
+    RowBox[{"Sin", "[", "x", "]"}]}], 
+   RowBox[{"\[DifferentialD]", "x"}]}]}]], "Input",ExpressionUUID->"20112976-\
+0f60-4fad-b528-d65b461a6d10"],
+
+Cell["8: Sqrt[x] and the trouble with negative limits", "Section",ExpressionUUID->"7d25498e-41ed-45b4-820a-ab67f58fd7a0"],
+
+Cell[BoxData[
+ RowBox[{"Plot", "[", 
+  RowBox[{
+   SqrtBox["x"], ",", 
+   RowBox[{"{", 
+    RowBox[{"x", ",", 
+     RowBox[{"-", "1"}], ",", "1"}], "}"}], ",", 
+   RowBox[{"PlotStyle", "\[Rule]", 
+    RowBox[{"Thickness", "[", "0.01`", "]"}]}]}], "]"}]], "Input",ExpressionUU\
+ID->"60592357-2809-47f3-a30f-1dc2e22d7b01"],
+
+Cell[BoxData[
+ RowBox[{"\[Integral]", 
+  RowBox[{
+   SqrtBox["x"], 
+   RowBox[{"\[DifferentialD]", "x"}]}]}]], "Input",ExpressionUUID->"cb2cfd50-\
+6c18-49f2-b29e-0f7cbfeaf17d"],
+
+Cell[BoxData[
+ RowBox[{
+  SubsuperscriptBox["\[Integral]", "1", "2"], 
+  RowBox[{
+   SqrtBox["x"], 
+   RowBox[{"\[DifferentialD]", "x"}]}]}]], "Input",ExpressionUUID->"19688dfd-\
+41a8-42e2-b4d9-76e339d1601b"],
+
+Cell[BoxData[
+ RowBox[{
+  SubsuperscriptBox["\[Integral]", "a", "b"], 
+  RowBox[{
+   SqrtBox["x"], 
+   RowBox[{"\[DifferentialD]", "x"}]}]}]], "Input",ExpressionUUID->"feccefab-\
+0a0b-4cf3-82f1-0c96c9bac858"],
+
+Cell[BoxData[
+ RowBox[{"Integrate", "[", 
+  RowBox[{
+   SqrtBox["x"], ",", 
+   RowBox[{"{", 
+    RowBox[{"x", ",", "a", ",", "b"}], "}"}], ",", 
+   RowBox[{"Assumptions", "\[Rule]", 
+    RowBox[{"0", "<", "a", "<", "b"}]}]}], "]"}]], "Input",ExpressionUUID->\
+"bd457ec7-4f06-471e-a40e-79fb6ef598e1"],
+
+Cell[BoxData[
+ RowBox[{"Integrate", "[", 
+  RowBox[{
+   SqrtBox["x"], ",", 
+   RowBox[{"{", 
+    RowBox[{"x", ",", "a", ",", "b"}], "}"}], ",", 
+   RowBox[{"Assumptions", "\[Rule]", 
+    RowBox[{"a", "<", "0", "<", "b"}]}]}], "]"}]], "Input",ExpressionUUID->\
+"9dcb40cd-6244-4fed-9dce-271ef51713fa"]
+},
+WindowSize->{1100, 850},
+FrontEndVersion->"15.0 for Mac OS X ARM (64-bit) (May 26, 2026)",
+StyleDefinitions->"Default.nb",
+ExpressionUUID->"53e1aa67-6381-4be0-aec1-2e1147a12ddd"
+]
 (* End of Notebook Content *)
+
+(* Internal cache information *)
+(*CellTagsOutline
+CellTagsIndex->{}
+*)
+(*CellTagsIndex
+CellTagsIndex->{}
+*)
+(*NotebookFileOutline
+Notebook[{
+Cell[560, 20, 218, 5, 70, "Title",ExpressionUUID->"5167176d-baef-438a-9e3b-59adabcb739d"],
+Cell[781, 27, 325, 5, 70, "Text",ExpressionUUID->"bfff4542-29a7-49b0-b010-da489b6b5f0b"],
+Cell[1109, 34, 211, 5, 70, "Input",ExpressionUUID->"2cea9eb0-7882-4857-b877-73fe0d89e40b"],
+Cell[1323, 41, 98, 0, 70, "Section",ExpressionUUID->"e7166a4f-ae50-463f-8676-63cd529cb173"],
+Cell[1424, 43, 313, 9, 70, "Input",ExpressionUUID->"0fe56150-f45f-4b11-a603-e2764292c15e"],
+Cell[1740, 54, 313, 9, 70, "Input",ExpressionUUID->"f774fc57-3e49-4790-9f95-c793de6e34f4"],
+Cell[2056, 65, 111, 0, 70, "Section",ExpressionUUID->"dfc4e306-a82b-4e2a-b9d5-540d0b5dd0f1"],
+Cell[2170, 67, 631, 19, 70, "Input",ExpressionUUID->"fc333da6-5fd8-4ee6-bd8e-9c106b288eb5"],
+Cell[2804, 88, 120, 1, 70, "Input",ExpressionUUID->"a4d5473f-a00f-4be9-a315-b5c779c8020e"],
+Cell[2927, 91, 631, 19, 70, "Input",ExpressionUUID->"0d9540ff-72ae-40d8-8a4f-a3994c9a23fa"],
+Cell[3561, 112, 118, 0, 70, "Section",ExpressionUUID->"c3686a1c-86ac-4851-8188-68b14506b571"],
+Cell[3682, 114, 412, 12, 70, "Input",ExpressionUUID->"48d2e07c-c05f-45b1-8a9a-990a39f5af3b"],
+Cell[4097, 128, 414, 12, 70, "Input",ExpressionUUID->"a1a5511d-9551-4524-accf-12f26d809169"],
+Cell[4514, 142, 119, 1, 70, "Input",ExpressionUUID->"2fbbd783-1013-4183-9edf-dd4390db058f"],
+Cell[4636, 145, 104, 0, 70, "Section",ExpressionUUID->"9a0dd210-b9f9-408a-8221-c18e4e80303d"],
+Cell[4743, 147, 412, 12, 70, "Input",ExpressionUUID->"fcad922d-79ad-460b-9d86-e5e446bd169d"],
+Cell[5158, 161, 405, 12, 70, "Input",ExpressionUUID->"10e106a3-09d9-4744-924a-8d5a9c8aedc4"],
+Cell[5566, 175, 117, 1, 70, "Input",ExpressionUUID->"6daca218-bc63-4005-8966-7be251913567"],
+Cell[5686, 178, 473, 14, 70, "Input",ExpressionUUID->"dcfe52c2-7159-43c5-a518-de77641d23f6"],
+Cell[6162, 194, 225, 6, 70, "Input",ExpressionUUID->"123a9db2-5ac5-4c48-82c7-83d38619196b"],
+Cell[6390, 202, 170, 4, 70, "Input",ExpressionUUID->"bb4d31d0-6f99-4267-a700-2e78837c4db0"],
+Cell[6563, 208, 207, 5, 70, "Input",ExpressionUUID->"59dcadff-0c91-4745-bf32-ffbe42539649"],
+Cell[6773, 215, 346, 10, 70, "Input",ExpressionUUID->"872a065a-b47b-4f5d-ad43-2d07142b1038"],
+Cell[7122, 227, 409, 12, 70, "Input",ExpressionUUID->"246b909f-cc58-4bb6-a5b1-38790f32cfea"],
+Cell[7534, 241, 456, 15, 70, "Input",ExpressionUUID->"07ea6866-d3e3-4c30-b070-dfc015274842"],
+Cell[7993, 258, 109, 0, 70, "Section",ExpressionUUID->"51bea92f-a4b3-4dbd-b290-1e4d704f35b4"],
+Cell[8105, 260, 317, 9, 70, "Input",ExpressionUUID->"d40a16a5-998f-40ec-9de5-b8022b6dd402"],
+Cell[8425, 271, 562, 17, 70, "Input",ExpressionUUID->"be955219-8f6b-4eee-aff1-157242a2f7db"],
+Cell[8990, 290, 688, 21, 70, "Input",ExpressionUUID->"f81f6b9b-add6-468d-8bb8-ccce97db3ed5"],
+Cell[9681, 313, 513, 15, 70, "Input",ExpressionUUID->"49106fbe-e8e0-4d61-af6f-a9d751db0977"],
+Cell[10197, 330, 300, 9, 70, "Input",ExpressionUUID->"7f8d5163-b3ec-4f57-b869-581484412b29"],
+Cell[10500, 341, 542, 16, 70, "Input",ExpressionUUID->"be163be9-d606-4944-a9ad-beff3be3e226"],
+Cell[11045, 359, 116, 0, 70, "Section",ExpressionUUID->"3fb3e9e4-3976-4fad-9fb5-c3020278009c"],
+Cell[11164, 361, 255, 6, 70, "Input",ExpressionUUID->"d9a84cd5-3cba-4a85-9be9-f9d664cdd822"],
+Cell[11422, 369, 268, 8, 70, "Input",ExpressionUUID->"d914b844-d499-472a-a24d-cd537bffb37b"],
+Cell[11693, 379, 291, 9, 70, "Input",ExpressionUUID->"6052fca6-b086-4386-ad3e-e10f0c3bee22"],
+Cell[11987, 390, 317, 10, 70, "Input",ExpressionUUID->"a2112183-2e89-42f9-a35a-9b5da2f7062b"],
+Cell[12307, 402, 106, 0, 70, "Section",ExpressionUUID->"7f8820d4-e5ec-427c-9b38-97071d4d53ed"],
+Cell[12416, 404, 299, 9, 70, "Input",ExpressionUUID->"5e28f8d4-ac61-46ad-adf0-cc0115312fb6"],
+Cell[12718, 415, 245, 7, 70, "Input",ExpressionUUID->"94d76b05-f9b6-4cc7-8e47-f388770f3864"],
+Cell[12966, 424, 277, 8, 70, "Input",ExpressionUUID->"20112976-0f60-4fad-b528-d65b461a6d10"],
+Cell[13246, 434, 121, 0, 70, "Section",ExpressionUUID->"7d25498e-41ed-45b4-820a-ab67f58fd7a0"],
+Cell[13370, 436, 320, 9, 70, "Input",ExpressionUUID->"60592357-2809-47f3-a30f-1dc2e22d7b01"],
+Cell[13693, 447, 176, 5, 70, "Input",ExpressionUUID->"cb2cfd50-6c18-49f2-b29e-0f7cbfeaf17d"],
+Cell[13872, 454, 208, 6, 70, "Input",ExpressionUUID->"19688dfd-41a8-42e2-b4d9-76e339d1601b"],
+Cell[14083, 462, 208, 6, 70, "Input",ExpressionUUID->"feccefab-0a0b-4cf3-82f1-0c96c9bac858"],
+Cell[14294, 470, 299, 8, 70, "Input",ExpressionUUID->"bd457ec7-4f06-471e-a40e-79fb6ef598e1"],
+Cell[14596, 480, 299, 8, 70, "Input",ExpressionUUID->"9dcb40cd-6244-4fed-9dce-271ef51713fa"]
+}
+]
+*)
+
+(* End of internal cache information *)

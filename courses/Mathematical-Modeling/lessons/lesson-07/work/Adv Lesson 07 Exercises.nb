@@ -3,6 +3,511 @@
 (*** Wolfram Notebook File ***)
 (* http://www.wolfram.com/nb *)
 
+(* CreatedBy='WolframEngine 15.0' *)
+
+(*CacheID: 234*)
+(* Internal cache information:
+NotebookFileLineBreakTest
+NotebookFileLineBreakTest
+NotebookDataPosition[       160,          7]
+NotebookDataLength[     18923,        504]
+NotebookOptionsPosition[     14050,        442]
+NotebookOutlinePosition[     14392,        457]
+CellTagsIndexPosition[     14349,        454]
+WindowFrame->Normal*)
+
 (* Beginning of Notebook Content *)
-Notebook[{Cell["Advanced Lesson 7 - Exercises: Internal Form, Boolean Tests, Attributes\nMikey Ferguson\nMATH 7013 - Advanced Mathematical Modeling", "Title"], Cell["1: Head and FullForm of E^x and x^E", "Section"], Cell[BoxData[RowBox[{RowBox[{"Clear", "[", "x", "]"}], ";", "\[IndentingNewLine]", RowBox[{"{", RowBox[{RowBox[{"Head", "[", SuperscriptBox["\[ExponentialE]", "x"], "]"}], ",", RowBox[{"FullForm", "[", SuperscriptBox["\[ExponentialE]", "x"], "]"}]}], "}"}]}]], "Input"], Cell[BoxData[RowBox[{"{", RowBox[{RowBox[{"Head", "[", SuperscriptBox["x", "\[ExponentialE]"], "]"}], ",", RowBox[{"FullForm", "[", SuperscriptBox["x", "\[ExponentialE]"], "]"}]}], "}"}]], "Input"], Cell["Both have Head Power, and their full forms are Power[E, x] and Power[x, E].\nExponentiation is not a special construct - it is an ordinary function\napplication, and the superscript is only a display convention. The two\nexpressions differ solely in the order of the arguments, which is the whole\ndifference between an exponential and a power function.", "Text"], Cell["2: Head, FullForm and TreeForm of x + y^2 {u, v, w}", "Section"], Cell[BoxData[RowBox[{RowBox[{"Clear", "[", RowBox[{"x", ",", "y", ",", "u", ",", "v", ",", "w"}], "]"}], ";", "\[IndentingNewLine]", RowBox[{"x", "+", RowBox[{SuperscriptBox["y", "2"], " ", RowBox[{"{", RowBox[{"u", ",", "v", ",", "w"}], "}"}]}]}]}]], "Input"], Cell[BoxData[RowBox[{"Head", "[", RowBox[{"x", "+", RowBox[{SuperscriptBox["y", "2"], " ", RowBox[{"{", RowBox[{"u", ",", "v", ",", "w"}], "}"}]}]}], "]"}]], "Input"], Cell[BoxData[RowBox[{"FullForm", "[", RowBox[{"x", "+", RowBox[{SuperscriptBox["y", "2"], " ", RowBox[{"{", RowBox[{"u", ",", "v", ",", "w"}], "}"}]}]}], "]"}]], "Input"], Cell[BoxData[RowBox[{"TreeForm", "[", RowBox[{"x", "+", RowBox[{SuperscriptBox["y", "2"], " ", RowBox[{"{", RowBox[{"u", ",", "v", ",", "w"}], "}"}]}]}], "]"}]], "Input"], Cell["The expression evaluates to {x + u y^2, x + v y^2, x + w y^2}, and its Head\nis List, not Plus. That is the surprise, and it is worth being precise about\nwhy. Plus and Times both carry the Listable attribute, so when either meets\na list it threads elementwise. The scalar x is added to each of the three\nproducts, and the list structure is pulled to the outside. The evaluated\nexpression is a list of three sums, not a sum involving a list.\nTreeForm draws the same fact: List at the root, three Plus nodes below it,\nand Times and Power below those.", "Text"], Cell["3: Is Pi an integer, a rational, a real?", "Section"], Cell[BoxData[RowBox[{"Head", "[", "\[Pi]", "]"}]], "Input"], Cell[BoxData[RowBox[{"NumericQ", "[", "\[Pi]", "]"}]], "Input"], Cell[BoxData[RowBox[{"NumberQ", "[", "\[Pi]", "]"}]], "Input"], Cell[BoxData[RowBox[{"Positive", "[", "\[Pi]", "]"}]], "Input"], Cell["Head[Pi] returns Symbol. Pi is not stored as any kind of number at all - it\nis a symbol carrying the attribute Constant and a set of built-in\nsimplification rules. There is no numeric representation of it anywhere\nuntil N is applied.\nNumericQ[Pi] returns True: it asks whether the expression could be evaluated\nto a number, and Pi certainly could.\nNumberQ[Pi] returns False: it asks whether the expression already is an\nexplicit number, and a symbol is not.\nPositive[Pi] returns True - Mathematica knows the sign of this particular\nconstant without approximating it.", "Text"], Cell["4: Is \"This is a string\" a list or a string?", "Section"], Cell[BoxData[RowBox[{"ListQ", "[", "\"This is a string\"", "]"}]], "Input"], Cell[BoxData[RowBox[{"StringQ", "[", "\"This is a string\"", "]"}]], "Input"], Cell["False, then True. A string is an atom with Head String; it is not a list of\ncharacters, and Length of it is 0. Converting one into an actual list of\ncharacters takes Characters, which is Lesson 14's business.", "Text"], Cell["5: Is 3 a member of {1, 2, 3, 4, 5}?", "Section"], Cell[BoxData[RowBox[{"MemberQ", "[", RowBox[{RowBox[{"{", RowBox[{"1", ",", "2", ",", "3", ",", "4", ",", "5"}], "}"}], ",", "3"}], "]"}]], "Input"], Cell["True. MemberQ tests at level 1 only, and its second argument is a pattern,\nnot merely a value - MemberQ[{1, 2, 3}, _Integer] is also True.", "Text"], Cell["6: A sign function built from Boolean tests", "Section"], Cell[BoxData[RowBox[{RowBox[{"Clear", "[", RowBox[{"f", ",", "x"}], "]"}], ";", "\[IndentingNewLine]", RowBox[{RowBox[{"f", "[", "x_", "]"}], ":=", RowBox[{RowBox[{"+", "1"}], "/;", RowBox[{"Positive", "[", "x", "]"}]}]}], ";", "\[IndentingNewLine]", RowBox[{RowBox[{"f", "[", "0", "]"}], "=", "0"}], ";", "\[IndentingNewLine]", RowBox[{RowBox[{"f", "[", "x_", "]"}], ":=", RowBox[{RowBox[{"-", "1"}], "/;", RowBox[{"Negative", "[", "x", "]"}]}]}]}]], "Input"], Cell["??f", "Input"], Cell["\"??f\" lists the stored definitions in the order Mathematica will try them,\ntop down. It puts f[0] first, because a literal argument is more specific\nthan a pattern, and it keeps the two conditional pattern definitions in the\norder they were entered - it can rank a literal against a pattern, but it has\nno way to rank two conditions against each other, so among those it preserves\nentry order. That does not matter here, because Positive and Negative are\nmutually exclusive; it matters a great deal when the conditions overlap,\nwhich is the subject of Lesson 9's Exercise 3.\nNote that the zero case deliberately uses a literal definition rather than a\nBoolean test, as the exercise requires.", "Text"], Cell[BoxData[RowBox[{"{", RowBox[{RowBox[{"f", "[", RowBox[{"-", "2"}], "]"}], ",", RowBox[{"f", "[", "0.023`", "]"}], ",", RowBox[{"f", "[", "0", "]"}], ",", RowBox[{"f", "[", "0.`", "]"}], ",", RowBox[{"f", "[", "\[Pi]", "]"}], ",", RowBox[{"f", "[", RowBox[{"3", "+", RowBox[{"4", " ", "\[ImaginaryI]"}]}], "]"}], ",", RowBox[{"f", "[", "a", "]"}]}], "}"}]], "Input"], Cell["Reading the results. f[-2] is -1 and f[0.023] is +1, as expected. f[0] is 0\nby the literal rule. f[Pi] is +1, because Positive knows the sign of Pi.\nf[3 + 4 I] returns unevaluated: a complex number is neither positive nor\nnegative, so no condition succeeds and no rule applies. f[a] likewise returns\nunevaluated, because the sign of an unassigned symbol is unknown - and\nreturning unevaluated is the correct answer, not a failure.\nf[0.0] is the one that repays attention: it also returns unevaluated. The\nliteral definition was written for the exact integer 0, and 0.0 is a Real -\na different expression, which the literal rule does not match. Neither\nconditional rule fires either, because Positive[0.] and Negative[0.] are both\nFalse. So the machine zero falls through every case. This is the standard\nhazard of covering a domain with a literal for the boundary point: the\nboundary has more than one representation, and the literal only catches one\nof them. Writing the zero case as a condition on the value rather than as a\nliteral would close the gap.", "Text"], Cell[BoxData[RowBox[{"Plot", "[", RowBox[{RowBox[{"f", "[", "x", "]"}], ",", RowBox[{"{", RowBox[{"x", ",", RowBox[{"-", "2"}], ",", "2"}], "}"}]}], "]"}]], "Input"], Cell["The plot is a step: -1 on the left, +1 on the right, with the jump at the\norigin drawn as a near-vertical connecting segment because Plot joins its\nsample points.", "Text"], Cell["7: Attributes, and why x = 2 hurts Integrate but not Plot", "Section"], Cell[BoxData[RowBox[{"Attributes", "[", "Plot", "]"}]], "Input"], Cell[BoxData[RowBox[{"Attributes", "[", "Integrate", "]"}]], "Input"], Cell[BoxData[RowBox[{RowBox[{"Clear", "[", "x", "]"}], ";", "\[IndentingNewLine]", RowBox[{"x", "=", "2"}], ";", "\[IndentingNewLine]", RowBox[{"Plot", "[", RowBox[{SuperscriptBox["x", "2"], ",", RowBox[{"{", RowBox[{"x", ",", "0", ",", "1"}], "}"}]}], "]"}]}]], "Input"], Cell[BoxData[RowBox[{"Plot", "[", RowBox[{RowBox[{"\[Integral]", RowBox[{RowBox[{"Sin", "[", "x", "]"}], RowBox[{"\[DifferentialD]", "x"}]}]}], ",", RowBox[{"{", RowBox[{"x", ",", "0", ",", "1"}], "}"}]}], "]"}]], "Input"], Cell["What actually happens, and one correction to the exercise's premise. In this\nversion of the language Attributes[Plot] returns {Protected, ReadProtected}\n- HoldAll is no longer listed, though Plot still holds its first argument and\nstill localises the plot variable internally. The behaviour the exercise\ndescribes is intact; the documented attribute that used to explain it is not.\nThe first Plot works because of that holding and localisation: the outer\nassignment x = 2 is invisible inside the plot, where x is bound to each\nsample point in turn. The graphic is the parabola on [0, 1], exactly as if\nno assignment had been made.\nThe second Plot fails, and the messages say why: Integrate::ilim, \"Invalid\nintegration variable or limit(s) in 0.0000204286\" and so on, one for each\nsample point. Because Plot holds its first argument, the integral is not\ncomputed once symbolically - it is re-evaluated at every sample point, with\nx bound to a number. Integrate has no holding attributes, so it receives\nIntegrate[Sin[0.0000204286], 0.0000204286] and refuses.", "Text"], Cell[BoxData[RowBox[{RowBox[{"Clear", "[", "x", "]"}], ";", "\[IndentingNewLine]", RowBox[{"Plot", "[", RowBox[{RowBox[{"Evaluate", "[", RowBox[{"\[Integral]", RowBox[{RowBox[{"Sin", "[", "x", "]"}], RowBox[{"\[DifferentialD]", "x"}]}]}], "]"}], ",", RowBox[{"{", RowBox[{"x", ",", "0", ",", "1"}], "}"}]}], "]"}]}]], "Input"], Cell["What must be done, and why. Wrap the first argument in Evaluate. That forces\nthe integral to be evaluated once, symbolically, before Plot ever begins\nsampling, so Plot receives -Cos[x] and samples that. The reason it must be\ndone is precisely the holding: without Evaluate, Plot passes the unevaluated\nintegrand through to every sample point, and an integral whose variable has\nbeen replaced by a number is meaningless.\nAs for why x = 2 had no effect on Plot but did on Integrate: Plot holds and\nlocalises its variable, so it never consults the global value; Integrate\ndoes neither, so it receives whatever the global assignment has already\nsubstituted.", "Text"], Cell["8: Table and Integrate together", "Section"], Cell[BoxData[RowBox[{"Attributes", "[", "Table", "]"}]], "Input"], Cell[BoxData[RowBox[{"Attributes", "[", "Integrate", "]"}]], "Input"], Cell[BoxData[RowBox[{RowBox[{"Clear", "[", RowBox[{"x", ",", "n"}], "]"}], ";", "\[IndentingNewLine]", RowBox[{"x", "=", "2"}], ";", "\[IndentingNewLine]", RowBox[{"n", "=", "3"}], ";", "\[IndentingNewLine]", RowBox[{"Table", "[", RowBox[{RowBox[{"\[Integral]", RowBox[{RowBox[{"Sin", "[", RowBox[{"n", " ", "x"}], "]"}], RowBox[{"\[DifferentialD]", "x"}]}]}], ",", RowBox[{"{", RowBox[{"n", ",", "0", ",", "10"}], "}"}]}], "]"}]}]], "Input"], Cell["Parts 1 and 2. Attributes[Table] returns {HoldAll, Protected}; Table really\ndoes hold its arguments, and it is documented as doing so. Integrate holds\nnothing.\nPart 2's evaluation fails with Integrate::ilim again. Table holds its first\nargument and localises n, so the assignment n = 3 is harmless - Table\noverrides it with 0, 1, 2, ..., 10 in turn. But nothing localises x, so the\nglobal x = 2 substitutes straight into the integrand and the integration\nvariable becomes the number 2.", "Text"], Cell[BoxData[RowBox[{RowBox[{"Clear", "[", "x", "]"}], ";", "\[IndentingNewLine]", RowBox[{"n", "=", "3"}], ";", "\[IndentingNewLine]", RowBox[{"Table", "[", RowBox[{RowBox[{"\[Integral]", RowBox[{RowBox[{"Sin", "[", RowBox[{"n", " ", "x"}], "]"}], RowBox[{"\[DifferentialD]", "x"}]}]}], ",", RowBox[{"{", RowBox[{"n", ",", "0", ",", "10"}], "}"}]}], "]"}]}]], "Input"], Cell["Part 3, making it work. Clearing x is enough. The table then returns\n{0, -Cos[x], -Cos[2x]/2, -Cos[3x]/3, ..., -Cos[10x]/10}, and note that\nn = 3 is still assigned and still does no damage, because Table's iterator\nshadows it.\nPart 4. The integrals were evaluated inside the table's iteration, once per\nvalue of n, after Table had substituted that value into the held body. They\nwere not evaluated before Table ran, precisely because HoldAll prevented it.\nPart 5. Each integral was evaluated with whatever x meant at that moment.\nWith x cleared, x is a free symbol and the integration is symbolic. With\nx = 2, Integrate's lack of holding attributes means the substitution had\nalready happened and the call was malformed.\nPart 6. The assignment x = 2 had no effect on Table because Table holds its\narguments and never looks up x itself; it had an effect on Integrate because\nIntegrate evaluates its arguments normally, and by then the substitution was\nalready done.\nPart 7. The assignment n = 3 had no effect on Table because Table's iterator\nspecification introduces n as a local variable, in the same way a bound\nvariable in mathematics shadows a free one of the same name.", "Text"], Cell["9: Locating subexpressions with Position", "Section"], Cell[BoxData[RowBox[{RowBox[{"Clear", "[", RowBox[{"x", ",", "y", ",", "u", ",", "v"}], "]"}], ";", "\[IndentingNewLine]", RowBox[{"x", "+", RowBox[{SuperscriptBox["y", "2"], " ", RowBox[{"{", RowBox[{"u", ",", "v"}], "}"}]}]}]}]], "Input"], Cell[BoxData[RowBox[{"TreeForm", "[", RowBox[{"x", "+", RowBox[{SuperscriptBox["y", "2"], " ", RowBox[{"{", RowBox[{"u", ",", "v"}], "}"}]}]}], "]"}]], "Input"], Cell["Parts 1 and 2. The expression evaluates to {x + u y^2, x + v y^2} - a list\nof two sums, for the listability reason given in Exercise 2. TreeForm shows\nList at the root with two Plus children, each of which has x and a Times\nnode, and each Times node has a symbol and a Power node.", "Text"], Cell[BoxData[RowBox[{"Position", "[", RowBox[{RowBox[{"x", "+", RowBox[{SuperscriptBox["y", "2"], " ", RowBox[{"{", RowBox[{"u", ",", "v"}], "}"}]}]}], ",", RowBox[{"x", "+", RowBox[{"u", " ", SuperscriptBox["y", "2"]}]}]}], "]"}]], "Input"], Cell[BoxData[RowBox[{"Position", "[", RowBox[{RowBox[{"x", "+", RowBox[{SuperscriptBox["y", "2"], " ", RowBox[{"{", RowBox[{"u", ",", "v"}], "}"}]}]}], ",", RowBox[{"u", " ", SuperscriptBox["y", "2"]}]}], "]"}]], "Input"], Cell[BoxData[RowBox[{"Position", "[", RowBox[{RowBox[{"x", "+", RowBox[{SuperscriptBox["y", "2"], " ", RowBox[{"{", RowBox[{"u", ",", "v"}], "}"}]}]}], ",", SuperscriptBox["y", "2"]}], "]"}]], "Input"], Cell[BoxData[RowBox[{"Position", "[", RowBox[{RowBox[{"x", "+", RowBox[{SuperscriptBox["y", "2"], " ", RowBox[{"{", RowBox[{"u", ",", "v"}], "}"}]}]}], ",", "u"}], "]"}]], "Input"], Cell[BoxData[RowBox[{"Position", "[", RowBox[{RowBox[{"x", "+", RowBox[{SuperscriptBox["y", "2"], " ", RowBox[{"{", RowBox[{"u", ",", "v"}], "}"}]}]}], ",", "y"}], "]"}]], "Input"], Cell["Parts 3 to 7. The positions are {{1}}, {{1, 2}}, {{1, 2, 2}, {2, 2, 2}},\n{{1, 2, 1}} and {{1, 2, 2, 1}, {2, 2, 2, 1}} respectively.\nRead them as paths down the tree. Position 1 is the first summand.\nPosition {1, 2} is its second part, the Times node. Position {1, 2, 1} is u,\nand {1, 2, 2} is y^2. The last two searches return two positions each,\nbecause y^2 occurs in both summands and so does y inside it. Nothing here is\nspecial to arithmetic - Position walks any expression the same way.", "Text"], Cell[BoxData[RowBox[{RowBox[{"Clear", "[", RowBox[{"x", ",", "y", ",", "u", ",", "v"}], "]"}], ";", "\[IndentingNewLine]", RowBox[{"TableForm", "[", RowBox[{"Table", "[", RowBox[{RowBox[{"TreeForm", "[", RowBox[{RowBox[{"(", RowBox[{"x", "+", RowBox[{SuperscriptBox["y", "2"], " ", RowBox[{"{", RowBox[{"u", ",", "v"}], "}"}]}]}], ")"}], "\[LeftDoubleBracket]", "i", "\[RightDoubleBracket]"}], "]"}], ",", RowBox[{"{", RowBox[{"i", ",", "1", ",", "2"}], "}"}]}], "]"}], "]"}]}]], "Input"], Cell[BoxData[RowBox[{"TableForm", "[", RowBox[{"Table", "[", RowBox[{RowBox[{"TreeForm", "[", RowBox[{RowBox[{"(", RowBox[{"x", "+", RowBox[{SuperscriptBox["y", "2"], " ", RowBox[{"{", RowBox[{"u", ",", "v"}], "}"}]}]}], ")"}], "\[LeftDoubleBracket]", RowBox[{"i", ",", "j"}], "\[RightDoubleBracket]"}], "]"}], ",", RowBox[{"{", RowBox[{"i", ",", "1", ",", "2"}], "}"}], ",", RowBox[{"{", RowBox[{"j", ",", "1", ",", "2"}], "}"}]}], "]"}], "]"}]], "Input"], Cell["Part 8. The first table pulls out the two summands and draws each as a tree;\nthe second descends one level further and draws the four second-level parts.\nThe indices used are exactly the paths Position returned.", "Text"], Cell[BoxData[RowBox[{RowBox[{"Clear", "[", RowBox[{"x", ",", "y", ",", "u", ",", "v"}], "]"}], ";", "\[IndentingNewLine]", RowBox[{"TreeForm", "[", RowBox[{"{", RowBox[{RowBox[{"x", "+", RowBox[{"u", " ", SuperscriptBox["y", "2"]}]}], ",", RowBox[{"x", "+", RowBox[{"v", " ", SuperscriptBox["y", "2"]}]}]}], "}"}], "]"}]}]], "Input"], Cell[BoxData[RowBox[{RowBox[{"{", RowBox[{RowBox[{"x", "+", RowBox[{"u", " ", SuperscriptBox["y", "2"]}]}], ",", RowBox[{"x", "+", RowBox[{"v", " ", SuperscriptBox["y", "2"]}]}]}], "}"}], "\[LeftDoubleBracket]", "0", "\[RightDoubleBracket]"}]], "Input"], Cell[BoxData[RowBox[{RowBox[{"{", RowBox[{RowBox[{"x", "+", RowBox[{"u", " ", SuperscriptBox["y", "2"]}]}], ",", RowBox[{"x", "+", RowBox[{"v", " ", SuperscriptBox["y", "2"]}]}]}], "}"}], "\[LeftDoubleBracket]", RowBox[{"1", ",", "0"}], "\[RightDoubleBracket]"}]], "Input"], Cell[BoxData[RowBox[{RowBox[{"{", RowBox[{RowBox[{"x", "+", RowBox[{"u", " ", SuperscriptBox["y", "2"]}]}], ",", RowBox[{"x", "+", RowBox[{"v", " ", SuperscriptBox["y", "2"]}]}]}], "}"}], "\[LeftDoubleBracket]", RowBox[{"1", ",", "2", ",", "0"}], "\[RightDoubleBracket]"}]], "Input"], Cell[BoxData[RowBox[{RowBox[{"{", RowBox[{RowBox[{"x", "+", RowBox[{"u", " ", SuperscriptBox["y", "2"]}]}], ",", RowBox[{"x", "+", RowBox[{"v", " ", SuperscriptBox["y", "2"]}]}]}], "}"}], "\[LeftDoubleBracket]", RowBox[{"1", ",", "2", ",", "2", ",", "0"}], "\[RightDoubleBracket]"}]], "Input"], Cell["Part 9. Part index 0 extracts the head rather than an argument. So [[0]]\ngives List, [[1, 0]] gives Plus (the head of the first summand), [[1, 2, 0]]\ngives Times, and [[1, 2, 2, 0]] gives Power. Walking the zero index down the\nsame path recovers exactly the chain of heads that TreeForm draws as\ninternal nodes - which is the point the whole lesson has been building\ntowards: every expression is a tree, and Part addresses it.", "Text"]}, WindowSize -> {1100, 850}, StyleDefinitions -> "Default.nb"]
+Notebook[{
+Cell["\<\
+Advanced Lesson 7 - Exercises: Internal Form, Boolean Tests, Attributes
+Mikey Ferguson
+MATH 7013 - Advanced Mathematical Modeling\
+\>", "Title",ExpressionUUID->"2c8c75f3-cbe8-4203-a9f0-2876482150f2"],
+
+Cell["1: Head and FullForm of E^x and x^E", "Section",ExpressionUUID->"ffee9178-f486-44fa-a467-de59fd6bc30b"],
+
+Cell[BoxData[{
+ RowBox[{
+  RowBox[{"Clear", "[", "x", "]"}], ";"}], "\[IndentingNewLine]", 
+ RowBox[{"{", 
+  RowBox[{
+   RowBox[{"Head", "[", 
+    SuperscriptBox["\[ExponentialE]", "x"], "]"}], ",", 
+   RowBox[{"FullForm", "[", 
+    SuperscriptBox["\[ExponentialE]", "x"], "]"}]}], "}"}]}], "Input",Expressi\
+onUUID->"c5e51df8-f6f5-4f33-82ed-6b784b668003"],
+
+Cell[BoxData[
+ RowBox[{"{", 
+  RowBox[{
+   RowBox[{"Head", "[", 
+    SuperscriptBox["x", "\[ExponentialE]"], "]"}], ",", 
+   RowBox[{"FullForm", "[", 
+    SuperscriptBox["x", "\[ExponentialE]"], "]"}]}], "}"}]], "Input",Expressio\
+nUUID->"d60e3ede-a68a-4499-809b-76983188a450"],
+
+Cell["2: Head, FullForm and TreeForm of x + y^2 {u, v, w}", "Section",ExpressionUUID->"f7d432a4-5292-480a-b89a-cb4bc5e8517c"],
+
+Cell[BoxData[{
+ RowBox[{
+  RowBox[{"Clear", "[", 
+   RowBox[{"x", ",", "y", ",", "u", ",", "v", ",", "w"}], "]"}], ";"}], "\[IndentingNewLine]", 
+ RowBox[{"x", "+", 
+  RowBox[{
+   SuperscriptBox["y", "2"], " ", 
+   RowBox[{"{", 
+    RowBox[{"u", ",", "v", ",", "w"}], "}"}]}]}]}], "Input",ExpressionUUID->\
+"84e82b79-1c2e-461b-bb94-4d65b6fa1524"],
+
+Cell[BoxData[
+ RowBox[{"Head", "[", 
+  RowBox[{"x", "+", 
+   RowBox[{
+    SuperscriptBox["y", "2"], " ", 
+    RowBox[{"{", 
+     RowBox[{"u", ",", "v", ",", "w"}], "}"}]}]}], "]"}]], "Input",ExpressionU\
+UID->"cd2bc853-d58f-4afd-a333-909a4eab2e3c"],
+
+Cell[BoxData[
+ RowBox[{"FullForm", "[", 
+  RowBox[{"x", "+", 
+   RowBox[{
+    SuperscriptBox["y", "2"], " ", 
+    RowBox[{"{", 
+     RowBox[{"u", ",", "v", ",", "w"}], "}"}]}]}], "]"}]], "Input",ExpressionU\
+UID->"da5d1555-8977-4faa-9757-f5a9d7dc3a45"],
+
+Cell[BoxData[
+ RowBox[{"TreeForm", "[", 
+  RowBox[{"x", "+", 
+   RowBox[{
+    SuperscriptBox["y", "2"], " ", 
+    RowBox[{"{", 
+     RowBox[{"u", ",", "v", ",", "w"}], "}"}]}]}], "]"}]], "Input",ExpressionU\
+UID->"f7cf35d8-6c41-43f9-a49f-8769d74a89fb"],
+
+Cell["3: Is Pi an integer, a rational, a real?", "Section",ExpressionUUID->"f643474e-4375-4c84-bd54-e3a3c112c8ef"],
+
+Cell[BoxData[
+ RowBox[{"Head", "[", "\[Pi]", "]"}]], "Input",ExpressionUUID->"20bf8c31-28ec-4d1e-9b09-bd5af246bb33"],
+
+Cell[BoxData[
+ RowBox[{"NumericQ", "[", "\[Pi]", "]"}]], "Input",ExpressionUUID->"c327987d-c94a-4d3d-9845-22253829de01"],
+
+Cell[BoxData[
+ RowBox[{"NumberQ", "[", "\[Pi]", "]"}]], "Input",ExpressionUUID->"e85de7c5-37af-4a98-aa53-30f2ba24343a"],
+
+Cell[BoxData[
+ RowBox[{"Positive", "[", "\[Pi]", "]"}]], "Input",ExpressionUUID->"2d8b8855-2f3f-4b5c-a391-262a8e828340"],
+
+Cell["4: Is \"This is a string\" a list or a string?", "Section",ExpressionUUID->"32a7cfaf-c4f7-4e18-a484-16e0a3b7760c"],
+
+Cell[BoxData[
+ RowBox[{"ListQ", "[", "\"\<This is a string\>\"", "]"}]], "Input",ExpressionU\
+UID->"2f03d051-4791-45db-9c97-2649407ceffe"],
+
+Cell[BoxData[
+ RowBox[{"StringQ", "[", "\"\<This is a string\>\"", "]"}]], "Input",Expressio\
+nUUID->"4b7667e2-73ee-4e9d-b868-1bff2c1c0bbe"],
+
+Cell["5: Is 3 a member of {1, 2, 3, 4, 5}?", "Section",ExpressionUUID->"8da6a64a-6bb1-4bc0-a916-91c39d0a8772"],
+
+Cell[BoxData[
+ RowBox[{"MemberQ", "[", 
+  RowBox[{
+   RowBox[{"{", 
+    RowBox[{"1", ",", "2", ",", "3", ",", "4", ",", "5"}], "}"}], ",", "3"}], 
+  "]"}]], "Input",ExpressionUUID->"1565819c-9341-4343-adc8-574396ea562e"],
+
+Cell["6: A sign function built from Boolean tests", "Section",ExpressionUUID->"271c1f00-7b6c-4941-9437-0403f2326af1"],
+
+Cell[BoxData[{
+ RowBox[{
+  RowBox[{"Clear", "[", 
+   RowBox[{"f", ",", "x"}], "]"}], ";"}], "\[IndentingNewLine]", 
+ RowBox[{
+  RowBox[{
+   RowBox[{"f", "[", "x_", "]"}], ":=", 
+   RowBox[{
+    RowBox[{"+", "1"}], "/;", 
+    RowBox[{"Positive", "[", "x", "]"}]}]}], ";"}], "\[IndentingNewLine]", 
+ RowBox[{
+  RowBox[{
+   RowBox[{"f", "[", "0", "]"}], "=", "0"}], ";"}], "\[IndentingNewLine]", 
+ RowBox[{
+  RowBox[{"f", "[", "x_", "]"}], ":=", 
+  RowBox[{
+   RowBox[{"-", "1"}], "/;", 
+   RowBox[{"Negative", "[", "x", "]"}]}]}]}], "Input",ExpressionUUID->\
+"c478d629-beed-4b6c-872d-577b89259a78"],
+
+Cell["??f", "Input",ExpressionUUID->"cbd19fde-4544-4b2b-bf67-5833ba0f4fa1"],
+
+Cell[BoxData[
+ RowBox[{"{", 
+  RowBox[{
+   RowBox[{"f", "[", 
+    RowBox[{"-", "2"}], "]"}], ",", 
+   RowBox[{"f", "[", "0.023`", "]"}], ",", 
+   RowBox[{"f", "[", "0", "]"}], ",", 
+   RowBox[{"f", "[", "0.`", "]"}], ",", 
+   RowBox[{"f", "[", "\[Pi]", "]"}], ",", 
+   RowBox[{"f", "[", 
+    RowBox[{"3", "+", 
+     RowBox[{"4", " ", "\[ImaginaryI]"}]}], "]"}], ",", 
+   RowBox[{"f", "[", "a", "]"}]}], "}"}]], "Input",ExpressionUUID->"b574cb39-\
+9b8a-4663-a323-90c7555b9ad8"],
+
+Cell[BoxData[
+ RowBox[{"Plot", "[", 
+  RowBox[{
+   RowBox[{"f", "[", "x", "]"}], ",", 
+   RowBox[{"{", 
+    RowBox[{"x", ",", 
+     RowBox[{"-", "2"}], ",", "2"}], "}"}]}], "]"}]], "Input",ExpressionUUID->\
+"29a037fa-c6e6-465d-9dfa-598e9801906a"],
+
+Cell["7: Attributes, and why x = 2 hurts Integrate but not Plot", "Section",ExpressionUUID->"8cd7e071-208d-49d4-85f7-34718a35b717"],
+
+Cell[BoxData[
+ RowBox[{"Attributes", "[", "Plot", "]"}]], "Input",ExpressionUUID->"7116259d-6ded-4479-92b2-b41020ff6d28"],
+
+Cell[BoxData[
+ RowBox[{"Attributes", "[", "Integrate", "]"}]], "Input",ExpressionUUID->"231a813b-49e7-48a1-8313-571b1e9d66c6"],
+
+Cell[BoxData[{
+ RowBox[{
+  RowBox[{"Clear", "[", "x", "]"}], ";"}], "\[IndentingNewLine]", 
+ RowBox[{
+  RowBox[{"x", "=", "2"}], ";"}], "\[IndentingNewLine]", 
+ RowBox[{"Plot", "[", 
+  RowBox[{
+   SuperscriptBox["x", "2"], ",", 
+   RowBox[{"{", 
+    RowBox[{"x", ",", "0", ",", "1"}], "}"}]}], "]"}]}], "Input",ExpressionUUI\
+D->"aeae5013-d404-4a4f-bde4-e64c1cc9c895"],
+
+Cell[BoxData[
+ RowBox[{"Plot", "[", 
+  RowBox[{
+   RowBox[{"\[Integral]", 
+    RowBox[{
+     RowBox[{"Sin", "[", "x", "]"}], 
+     RowBox[{"\[DifferentialD]", "x"}]}]}], ",", 
+   RowBox[{"{", 
+    RowBox[{"x", ",", "0", ",", "1"}], "}"}]}], "]"}]], "Input",ExpressionUUID\
+->"5532b2a6-c82d-41bd-9d98-41ff3ee142cb"],
+
+Cell[BoxData[{
+ RowBox[{
+  RowBox[{"Clear", "[", "x", "]"}], ";"}], "\[IndentingNewLine]", 
+ RowBox[{"Plot", "[", 
+  RowBox[{
+   RowBox[{"Evaluate", "[", 
+    RowBox[{"\[Integral]", 
+     RowBox[{
+      RowBox[{"Sin", "[", "x", "]"}], 
+      RowBox[{"\[DifferentialD]", "x"}]}]}], "]"}], ",", 
+   RowBox[{"{", 
+    RowBox[{"x", ",", "0", ",", "1"}], "}"}]}], "]"}]}], "Input",ExpressionUUI\
+D->"5b31ddb8-f7fc-4193-9e2b-01dd01fdb1d4"],
+
+Cell["8: Table and Integrate together", "Section",ExpressionUUID->"e05acaeb-c764-4a60-9916-2cbe10fe9d8f"],
+
+Cell[BoxData[
+ RowBox[{"Attributes", "[", "Table", "]"}]], "Input",ExpressionUUID->"5d3c27de-c1a4-4902-997f-f40bd5fe5f71"],
+
+Cell[BoxData[
+ RowBox[{"Attributes", "[", "Integrate", "]"}]], "Input",ExpressionUUID->"11f0f066-cd66-4e24-903d-493099f42b8d"],
+
+Cell[BoxData[{
+ RowBox[{
+  RowBox[{"Clear", "[", 
+   RowBox[{"x", ",", "n"}], "]"}], ";"}], "\[IndentingNewLine]", 
+ RowBox[{
+  RowBox[{"x", "=", "2"}], ";"}], "\[IndentingNewLine]", 
+ RowBox[{
+  RowBox[{"n", "=", "3"}], ";"}], "\[IndentingNewLine]", 
+ RowBox[{"Table", "[", 
+  RowBox[{
+   RowBox[{"\[Integral]", 
+    RowBox[{
+     RowBox[{"Sin", "[", 
+      RowBox[{"n", " ", "x"}], "]"}], 
+     RowBox[{"\[DifferentialD]", "x"}]}]}], ",", 
+   RowBox[{"{", 
+    RowBox[{"n", ",", "0", ",", "10"}], "}"}]}], "]"}]}], "Input",ExpressionUU\
+ID->"df9279f4-0581-4bc3-9ec9-9c655f98bdb7"],
+
+Cell[BoxData[{
+ RowBox[{
+  RowBox[{"Clear", "[", "x", "]"}], ";"}], "\[IndentingNewLine]", 
+ RowBox[{
+  RowBox[{"n", "=", "3"}], ";"}], "\[IndentingNewLine]", 
+ RowBox[{"Table", "[", 
+  RowBox[{
+   RowBox[{"\[Integral]", 
+    RowBox[{
+     RowBox[{"Sin", "[", 
+      RowBox[{"n", " ", "x"}], "]"}], 
+     RowBox[{"\[DifferentialD]", "x"}]}]}], ",", 
+   RowBox[{"{", 
+    RowBox[{"n", ",", "0", ",", "10"}], "}"}]}], "]"}]}], "Input",ExpressionUU\
+ID->"7932f9bf-0d73-4886-b946-2dacabccf66d"],
+
+Cell["9: Locating subexpressions with Position", "Section",ExpressionUUID->"694ebe07-c63f-4474-b4b9-85752bc14bdc"],
+
+Cell[BoxData[{
+ RowBox[{
+  RowBox[{"Clear", "[", 
+   RowBox[{"x", ",", "y", ",", "u", ",", "v"}], "]"}], ";"}], "\[IndentingNewLine]", 
+ RowBox[{"x", "+", 
+  RowBox[{
+   SuperscriptBox["y", "2"], " ", 
+   RowBox[{"{", 
+    RowBox[{"u", ",", "v"}], "}"}]}]}]}], "Input",ExpressionUUID->"d1a3ed5c-\
+855f-43ff-8ce6-34e4496edd44"],
+
+Cell[BoxData[
+ RowBox[{"TreeForm", "[", 
+  RowBox[{"x", "+", 
+   RowBox[{
+    SuperscriptBox["y", "2"], " ", 
+    RowBox[{"{", 
+     RowBox[{"u", ",", "v"}], "}"}]}]}], "]"}]], "Input",ExpressionUUID->\
+"036c44ab-4430-4630-8e61-78c8e7e7cebe"],
+
+Cell[BoxData[
+ RowBox[{"Position", "[", 
+  RowBox[{
+   RowBox[{"x", "+", 
+    RowBox[{
+     SuperscriptBox["y", "2"], " ", 
+     RowBox[{"{", 
+      RowBox[{"u", ",", "v"}], "}"}]}]}], ",", 
+   RowBox[{"x", "+", 
+    RowBox[{"u", " ", 
+     SuperscriptBox["y", "2"]}]}]}], "]"}]], "Input",ExpressionUUID->\
+"e2d426b6-7dd6-4e66-8365-4ca5538acaec"],
+
+Cell[BoxData[
+ RowBox[{"Position", "[", 
+  RowBox[{
+   RowBox[{"x", "+", 
+    RowBox[{
+     SuperscriptBox["y", "2"], " ", 
+     RowBox[{"{", 
+      RowBox[{"u", ",", "v"}], "}"}]}]}], ",", 
+   RowBox[{"u", " ", 
+    SuperscriptBox["y", "2"]}]}], "]"}]], "Input",ExpressionUUID->"247e110e-\
+be76-4682-9881-b3eba1c48781"],
+
+Cell[BoxData[
+ RowBox[{"Position", "[", 
+  RowBox[{
+   RowBox[{"x", "+", 
+    RowBox[{
+     SuperscriptBox["y", "2"], " ", 
+     RowBox[{"{", 
+      RowBox[{"u", ",", "v"}], "}"}]}]}], ",", 
+   SuperscriptBox["y", "2"]}], "]"}]], "Input",ExpressionUUID->"5e51ae88-81d3-\
+4568-a636-628fef3c0bca"],
+
+Cell[BoxData[
+ RowBox[{"Position", "[", 
+  RowBox[{
+   RowBox[{"x", "+", 
+    RowBox[{
+     SuperscriptBox["y", "2"], " ", 
+     RowBox[{"{", 
+      RowBox[{"u", ",", "v"}], "}"}]}]}], ",", "u"}], "]"}]], "Input",Expressi\
+onUUID->"fb38eb42-e61f-49ad-8e02-88afa62f671b"],
+
+Cell[BoxData[
+ RowBox[{"Position", "[", 
+  RowBox[{
+   RowBox[{"x", "+", 
+    RowBox[{
+     SuperscriptBox["y", "2"], " ", 
+     RowBox[{"{", 
+      RowBox[{"u", ",", "v"}], "}"}]}]}], ",", "y"}], "]"}]], "Input",Expressi\
+onUUID->"ded7f45e-fe45-4682-8b87-bccd17bb3a2d"],
+
+Cell[BoxData[{
+ RowBox[{
+  RowBox[{"Clear", "[", 
+   RowBox[{"x", ",", "y", ",", "u", ",", "v"}], "]"}], ";"}], "\[IndentingNewLine]", 
+ RowBox[{"TableForm", "[", 
+  RowBox[{"Table", "[", 
+   RowBox[{
+    RowBox[{"TreeForm", "[", 
+     RowBox[{
+      RowBox[{"(", 
+       RowBox[{"x", "+", 
+        RowBox[{
+         SuperscriptBox["y", "2"], " ", 
+         RowBox[{"{", 
+          RowBox[{"u", ",", "v"}], "}"}]}]}], ")"}], "\[LeftDoubleBracket]", 
+      "i", "\[RightDoubleBracket]"}], "]"}], ",", 
+    RowBox[{"{", 
+     RowBox[{"i", ",", "1", ",", "2"}], "}"}]}], "]"}], "]"}]}], "Input",Expre\
+ssionUUID->"afa8b4f7-da69-4e99-ac47-60f794d7b7d4"],
+
+Cell[BoxData[
+ RowBox[{"TableForm", "[", 
+  RowBox[{"Table", "[", 
+   RowBox[{
+    RowBox[{"TreeForm", "[", 
+     RowBox[{
+      RowBox[{"(", 
+       RowBox[{"x", "+", 
+        RowBox[{
+         SuperscriptBox["y", "2"], " ", 
+         RowBox[{"{", 
+          RowBox[{"u", ",", "v"}], "}"}]}]}], ")"}], "\[LeftDoubleBracket]", 
+      RowBox[{"i", ",", "j"}], "\[RightDoubleBracket]"}], "]"}], ",", 
+    RowBox[{"{", 
+     RowBox[{"i", ",", "1", ",", "2"}], "}"}], ",", 
+    RowBox[{"{", 
+     RowBox[{"j", ",", "1", ",", "2"}], "}"}]}], "]"}], "]"}]], "Input",Expres\
+sionUUID->"fbc9e16d-48cd-43be-9d7a-ebd08ca5b2a2"],
+
+Cell[BoxData[{
+ RowBox[{
+  RowBox[{"Clear", "[", 
+   RowBox[{"x", ",", "y", ",", "u", ",", "v"}], "]"}], ";"}], "\[IndentingNewLine]", 
+ RowBox[{"TreeForm", "[", 
+  RowBox[{"{", 
+   RowBox[{
+    RowBox[{"x", "+", 
+     RowBox[{"u", " ", 
+      SuperscriptBox["y", "2"]}]}], ",", 
+    RowBox[{"x", "+", 
+     RowBox[{"v", " ", 
+      SuperscriptBox["y", "2"]}]}]}], "}"}], "]"}]}], "Input",ExpressionUUID->\
+"5db7759a-6756-4f29-958e-9760d0f1f236"],
+
+Cell[BoxData[
+ RowBox[{
+  RowBox[{"{", 
+   RowBox[{
+    RowBox[{"x", "+", 
+     RowBox[{"u", " ", 
+      SuperscriptBox["y", "2"]}]}], ",", 
+    RowBox[{"x", "+", 
+     RowBox[{"v", " ", 
+      SuperscriptBox["y", "2"]}]}]}], "}"}], "\[LeftDoubleBracket]", "0", 
+  "\[RightDoubleBracket]"}]], "Input",ExpressionUUID->"1f8bf09e-49b7-42d8-\
+9f65-bcfbf4576108"],
+
+Cell[BoxData[
+ RowBox[{
+  RowBox[{"{", 
+   RowBox[{
+    RowBox[{"x", "+", 
+     RowBox[{"u", " ", 
+      SuperscriptBox["y", "2"]}]}], ",", 
+    RowBox[{"x", "+", 
+     RowBox[{"v", " ", 
+      SuperscriptBox["y", "2"]}]}]}], "}"}], "\[LeftDoubleBracket]", 
+  RowBox[{"1", ",", "0"}], "\[RightDoubleBracket]"}]], "Input",ExpressionUUID->\
+"deb80a65-61b9-4218-ab0e-5a0f593e88b5"],
+
+Cell[BoxData[
+ RowBox[{
+  RowBox[{"{", 
+   RowBox[{
+    RowBox[{"x", "+", 
+     RowBox[{"u", " ", 
+      SuperscriptBox["y", "2"]}]}], ",", 
+    RowBox[{"x", "+", 
+     RowBox[{"v", " ", 
+      SuperscriptBox["y", "2"]}]}]}], "}"}], "\[LeftDoubleBracket]", 
+  RowBox[{"1", ",", "2", ",", "0"}], "\[RightDoubleBracket]"}]], "Input",Expre\
+ssionUUID->"8b89a06c-b0bd-4b4c-989d-b843503c0940"],
+
+Cell[BoxData[
+ RowBox[{
+  RowBox[{"{", 
+   RowBox[{
+    RowBox[{"x", "+", 
+     RowBox[{"u", " ", 
+      SuperscriptBox["y", "2"]}]}], ",", 
+    RowBox[{"x", "+", 
+     RowBox[{"v", " ", 
+      SuperscriptBox["y", "2"]}]}]}], "}"}], "\[LeftDoubleBracket]", 
+  RowBox[{"1", ",", "2", ",", "2", ",", "0"}], 
+  "\[RightDoubleBracket]"}]], "Input",ExpressionUUID->"ae3475b2-dddb-4202-\
+aac5-3d0a34d1f1ed"]
+},
+WindowSize->{1100, 850},
+FrontEndVersion->"15.0 for Mac OS X ARM (64-bit) (May 26, 2026)",
+StyleDefinitions->"Default.nb",
+ExpressionUUID->"53e1aa67-6381-4be0-aec1-2e1147a12ddd"
+]
 (* End of Notebook Content *)
+
+(* Internal cache information *)
+(*CellTagsOutline
+CellTagsIndex->{}
+*)
+(*CellTagsIndex
+CellTagsIndex->{}
+*)
+(*NotebookFileOutline
+Notebook[{
+Cell[560, 20, 209, 4, 70, "Title",ExpressionUUID->"2c8c75f3-cbe8-4203-a9f0-2876482150f2"],
+Cell[772, 26, 109, 0, 70, "Section",ExpressionUUID->"ffee9178-f486-44fa-a467-de59fd6bc30b"],
+Cell[884, 28, 356, 9, 70, "Input",ExpressionUUID->"c5e51df8-f6f5-4f33-82ed-6b784b668003"],
+Cell[1243, 39, 277, 7, 70, "Input",ExpressionUUID->"d60e3ede-a68a-4499-809b-76983188a450"],
+Cell[1523, 48, 125, 0, 70, "Section",ExpressionUUID->"f7d432a4-5292-480a-b89a-cb4bc5e8517c"],
+Cell[1651, 50, 346, 9, 70, "Input",ExpressionUUID->"84e82b79-1c2e-461b-bb94-4d65b6fa1524"],
+Cell[2000, 61, 248, 7, 70, "Input",ExpressionUUID->"cd2bc853-d58f-4afd-a333-909a4eab2e3c"],
+Cell[2251, 70, 252, 7, 70, "Input",ExpressionUUID->"da5d1555-8977-4faa-9757-f5a9d7dc3a45"],
+Cell[2506, 79, 252, 7, 70, "Input",ExpressionUUID->"f7cf35d8-6c41-43f9-a49f-8769d74a89fb"],
+Cell[2761, 88, 114, 0, 70, "Section",ExpressionUUID->"f643474e-4375-4c84-bd54-e3a3c112c8ef"],
+Cell[2878, 90, 116, 1, 70, "Input",ExpressionUUID->"20bf8c31-28ec-4d1e-9b09-bd5af246bb33"],
+Cell[2997, 93, 120, 1, 70, "Input",ExpressionUUID->"c327987d-c94a-4d3d-9845-22253829de01"],
+Cell[3120, 96, 119, 1, 70, "Input",ExpressionUUID->"e85de7c5-37af-4a98-aa53-30f2ba24343a"],
+Cell[3242, 99, 120, 1, 70, "Input",ExpressionUUID->"2d8b8855-2f3f-4b5c-a391-262a8e828340"],
+Cell[3365, 102, 120, 0, 70, "Section",ExpressionUUID->"32a7cfaf-c4f7-4e18-a484-16e0a3b7760c"],
+Cell[3488, 104, 138, 2, 70, "Input",ExpressionUUID->"2f03d051-4791-45db-9c97-2649407ceffe"],
+Cell[3629, 108, 140, 2, 70, "Input",ExpressionUUID->"4b7667e2-73ee-4e9d-b868-1bff2c1c0bbe"],
+Cell[3772, 112, 110, 0, 70, "Section",ExpressionUUID->"8da6a64a-6bb1-4bc0-a916-91c39d0a8772"],
+Cell[3885, 114, 220, 5, 70, "Input",ExpressionUUID->"1565819c-9341-4343-adc8-574396ea562e"],
+Cell[4108, 121, 117, 0, 70, "Section",ExpressionUUID->"271c1f00-7b6c-4941-9437-0403f2326af1"],
+Cell[4228, 123, 596, 18, 70, "Input",ExpressionUUID->"c478d629-beed-4b6c-872d-577b89259a78"],
+Cell[4827, 143, 75, 0, 70, "Input",ExpressionUUID->"cbd19fde-4544-4b2b-bf67-5833ba0f4fa1"],
+Cell[4905, 145, 476, 13, 70, "Input",ExpressionUUID->"b574cb39-9b8a-4663-a323-90c7555b9ad8"],
+Cell[5384, 160, 246, 7, 70, "Input",ExpressionUUID->"29a037fa-c6e6-465d-9dfa-598e9801906a"],
+Cell[5633, 169, 131, 0, 70, "Section",ExpressionUUID->"8cd7e071-208d-49d4-85f7-34718a35b717"],
+Cell[5767, 171, 121, 1, 70, "Input",ExpressionUUID->"7116259d-6ded-4479-92b2-b41020ff6d28"],
+Cell[5891, 174, 126, 1, 70, "Input",ExpressionUUID->"231a813b-49e7-48a1-8313-571b1e9d66c6"],
+Cell[6020, 177, 368, 10, 70, "Input",ExpressionUUID->"aeae5013-d404-4a4f-bde4-e64c1cc9c895"],
+Cell[6391, 189, 314, 9, 70, "Input",ExpressionUUID->"5532b2a6-c82d-41bd-9d98-41ff3ee142cb"],
+Cell[6708, 200, 433, 12, 70, "Input",ExpressionUUID->"5b31ddb8-f7fc-4193-9e2b-01dd01fdb1d4"],
+Cell[7144, 214, 105, 0, 70, "Section",ExpressionUUID->"e05acaeb-c764-4a60-9916-2cbe10fe9d8f"],
+Cell[7252, 216, 122, 1, 70, "Input",ExpressionUUID->"5d3c27de-c1a4-4902-997f-f40bd5fe5f71"],
+Cell[7377, 219, 126, 1, 70, "Input",ExpressionUUID->"11f0f066-cd66-4e24-903d-493099f42b8d"],
+Cell[7506, 222, 582, 17, 70, "Input",ExpressionUUID->"df9279f4-0581-4bc3-9ec9-9c655f98bdb7"],
+Cell[8091, 241, 490, 14, 70, "Input",ExpressionUUID->"7932f9bf-0d73-4886-b946-2dacabccf66d"],
+Cell[8584, 257, 114, 0, 70, "Section",ExpressionUUID->"694ebe07-c63f-4474-b4b9-85752bc14bdc"],
+Cell[8701, 259, 326, 9, 70, "Input",ExpressionUUID->"d1a3ed5c-855f-43ff-8ce6-34e4496edd44"],
+Cell[9030, 270, 242, 7, 70, "Input",ExpressionUUID->"036c44ab-4430-4630-8e61-78c8e7e7cebe"],
+Cell[9275, 279, 346, 11, 70, "Input",ExpressionUUID->"e2d426b6-7dd6-4e66-8365-4ca5538acaec"],
+Cell[9624, 292, 320, 10, 70, "Input",ExpressionUUID->"247e110e-be76-4682-9881-b3eba1c48781"],
+Cell[9947, 304, 295, 9, 70, "Input",ExpressionUUID->"5e51ae88-81d3-4568-a636-628fef3c0bca"],
+Cell[10245, 315, 270, 8, 70, "Input",ExpressionUUID->"fb38eb42-e61f-49ad-8e02-88afa62f671b"],
+Cell[10518, 325, 270, 8, 70, "Input",ExpressionUUID->"ded7f45e-fe45-4682-8b87-bccd17bb3a2d"],
+Cell[10791, 335, 649, 18, 70, "Input",ExpressionUUID->"afa8b4f7-da69-4e99-ac47-60f794d7b7d4"],
+Cell[11443, 355, 617, 17, 70, "Input",ExpressionUUID->"fbc9e16d-48cd-43be-9d7a-ebd08ca5b2a2"],
+Cell[12063, 374, 446, 13, 70, "Input",ExpressionUUID->"5db7759a-6756-4f29-958e-9760d0f1f236"],
+Cell[12512, 389, 358, 11, 70, "Input",ExpressionUUID->"1f8bf09e-49b7-42d8-9f65-bcfbf4576108"],
+Cell[12873, 402, 378, 11, 70, "Input",ExpressionUUID->"deb80a65-61b9-4218-ab0e-5a0f593e88b5"],
+Cell[13254, 415, 388, 11, 70, "Input",ExpressionUUID->"8b89a06c-b0bd-4b4c-989d-b843503c0940"],
+Cell[13645, 428, 401, 12, 70, "Input",ExpressionUUID->"ae3475b2-dddb-4202-aac5-3d0a34d1f1ed"]
+}
+]
+*)
+
+(* End of internal cache information *)

@@ -3,6 +3,412 @@
 (*** Wolfram Notebook File ***)
 (* http://www.wolfram.com/nb *)
 
+(* CreatedBy='WolframEngine 15.0' *)
+
+(*CacheID: 234*)
+(* Internal cache information:
+NotebookFileLineBreakTest
+NotebookFileLineBreakTest
+NotebookDataPosition[       160,          7]
+NotebookDataLength[     15378,        405]
+NotebookOptionsPosition[     10983,        348]
+NotebookOutlinePosition[     11325,        363]
+CellTagsIndexPosition[     11282,        360]
+WindowFrame->Normal*)
+
 (* Beginning of Notebook Content *)
-Notebook[{Cell["Advanced Lesson 2 - Exercises: Exact and Approximate Arithmetic\nMikey Ferguson\nMATH 7013 - Advanced Mathematical Modeling", "Title"], Cell[BoxData[RowBox[{RowBox[{"Clear", "[", RowBox[{"a", ",", "b", ",", "c", ",", "d", ",", "i", ",", "n", ",", "f", ",", "g", ",", "h"}], "]"}], ";"}]], "Input"], Cell["1: How many digits of accuracy does each expression carry?", "Section"], Cell[BoxData[RowBox[{"{", RowBox[{FractionBox["3", "7"], ",", RowBox[{"Precision", "[", FractionBox["3", "7"], "]"}]}], "}"}]], "Input"], Cell[BoxData[RowBox[{"{", RowBox[{RowBox[{"2", "+", FractionBox["3", "7"]}], ",", RowBox[{"Precision", "[", RowBox[{"2", "+", FractionBox["3", "7"]}], "]"}]}], "}"}]], "Input"], Cell[BoxData[RowBox[{"{", RowBox[{RowBox[{"InputForm", "[", RowBox[{RowBox[{"2.`", "\[VeryThinSpace]"}], "+", FractionBox["3.`", "7.`"]}], "]"}], ",", RowBox[{"Precision", "[", RowBox[{RowBox[{"2.`", "\[VeryThinSpace]"}], "+", FractionBox["3.`", "7.`"]}], "]"}]}], "}"}]], "Input"], Cell[BoxData[RowBox[{"{", RowBox[{RowBox[{"InputForm", "[", RowBox[{RowBox[{"1.23`", "\[VeryThinSpace]"}], "+", FractionBox["1.2345`", "1.234567`"]}], "]"}], ",", RowBox[{"Precision", "[", RowBox[{RowBox[{"1.23`", "\[VeryThinSpace]"}], "+", FractionBox["1.2345`", "1.234567`"]}], "]"}]}], "}"}]], "Input"], Cell[BoxData[RowBox[{"{", RowBox[{RowBox[{"InputForm", "[", RowBox[{RowBox[{"1.2`", "\[VeryThinSpace]"}], "+", "1.234567890123456789`19.0915149772127", "+", "1.2345678901234567890123456789`29.091514977212704"}], "]"}], ",", RowBox[{"Precision", "[", RowBox[{RowBox[{"1.2`", "\[VeryThinSpace]"}], "+", "1.234567890123456789`19.0915149772127", "+", "1.2345678901234567890123456789`29.091514977212704"}], "]"}]}], "}"}]], "Input"], Cell[BoxData[RowBox[{"{", RowBox[{RowBox[{"InputForm", "[", RowBox[{"1.234567890123456789`19.0915149772127", "+", "1.2345678901234567890123456789`29.091514977212704"}], "]"}], ",", RowBox[{"Precision", "[", RowBox[{"1.234567890123456789`19.0915149772127", "+", "1.2345678901234567890123456789`29.091514977212704"}], "]"}]}], "}"}]], "Input"], Cell[BoxData[RowBox[{"{", RowBox[{RowBox[{"InputForm", "[", RowBox[{"N", "[", FractionBox["2", "7"], "]"}], "]"}], ",", RowBox[{"Precision", "[", RowBox[{"N", "[", FractionBox["2", "7"], "]"}], "]"}]}], "}"}]], "Input"], Cell[BoxData[RowBox[{"{", RowBox[{RowBox[{"N", "[", RowBox[{FractionBox["2", "7"], ",", "100"}], "]"}], ",", RowBox[{"Precision", "[", RowBox[{"N", "[", RowBox[{FractionBox["2", "7"], ",", "100"}], "]"}], "]"}]}], "}"}]], "Input"], Cell[BoxData[RowBox[{"{", RowBox[{SqrtBox["2"], ",", RowBox[{"N", "[", SqrtBox["2"], "]"}]}], "}"}]], "Input"], Cell["Reading the results. The first two expressions are exact rationals: 3/7 and\n17/7. Precision reports Infinity, because an exact rational has no error at\nall - it is not an approximation to anything.\nThe third and fourth are machine-precision reals. Precision reports\nMachinePrecision (about 15.95 decimal digits), which is what the hardware\nfloating-point format carries. InputForm is the only way to see all the\ndigits; the default output form politely rounds.\nThe fifth is the interesting one. Adding a machine number to two\narbitrary-precision numbers drags everything down to machine precision -\nthe result is only as good as its worst input. The sixth, with the 1.2\nremoved, keeps arbitrary precision, and Mathematica tracks how many digits\nsurvived the addition rather than pretending all of them did.\nN[2/7] is machine precision. N[2/7, 100] is arbitrary precision, and\nPrecision reports 100.\nSqrt[2] stays as Sqrt[2] because it is exact and irrational: converting it\nto 1.4142135623730951 would throw away infinitely many digits, so\nMathematica refuses to do that unless you ask with N. This is the central\ndiscipline of the whole lesson - exact stays exact until you say otherwise.", "Text"], Cell["2: Six ways to sum 1/n from 1 to 100", "Section"], Cell[BoxData[RowBox[{UnderoverscriptBox["\[Sum]", RowBox[{"n", "=", "1"}], "100"], FractionBox["1", "n"]}]], "Input"], Cell[BoxData[RowBox[{UnderoverscriptBox["\[Sum]", RowBox[{"n", "=", "1"}], "100"], FractionBox["1.`", "n"]}]], "Input"], Cell[BoxData[RowBox[{UnderoverscriptBox["\[Sum]", RowBox[{"n", "=", "1"}], "100"], RowBox[{"N", "[", FractionBox["1", "n"], "]"}]}]], "Input"], Cell[BoxData[RowBox[{"N", "[", RowBox[{UnderoverscriptBox["\[Sum]", RowBox[{"n", "=", "1"}], "100"], FractionBox["1", "n"]}], "]"}]], "Input"], Cell[BoxData[RowBox[{"N", "[", RowBox[{RowBox[{UnderoverscriptBox["\[Sum]", RowBox[{"n", "=", "1"}], "100"], FractionBox["1", "n"]}], ",", "50"}], "]"}]], "Input"], Cell[BoxData[RowBox[{"N", "[", RowBox[{RowBox[{UnderoverscriptBox["\[Sum]", RowBox[{"n", "=", "1"}], "100"], FractionBox["1.`", "n"]}], ",", "50"}], "]"}]], "Input"], Cell["Part i returns the exact rational: a fraction with a 218-digit denominator,\nthe 100th harmonic number, with no error whatsoever.\nParts ii and iii both return the same machine-precision real, about\n5.187377517639621. Introducing 1.0 - or applying N to each term - forces\nevery addition into floating point.\nPart iv returns the same machine real, but by a better route: the sum is\nperformed exactly and only the final answer is approximated. No rounding\nerror accumulates across the hundred additions.\nPart v returns fifty correct digits, for exactly that reason: the exact sum\nis still available, so N can be asked for as many digits as wanted.\nPart vi fails to give fifty digits. The 1.0 destroyed the exact sum before N\never saw it. All that reaches N is a machine number carrying sixteen digits;\nN cannot manufacture the missing thirty-four. Precision is lost at the point\nwhere an inexact number enters the calculation, and no later request can\nrecover it.", "Text"], Cell["3: E^Pi to 500 digits, and exactly", "Section"], Cell[BoxData[RowBox[{"N", "[", RowBox[{SuperscriptBox["\[ExponentialE]", "\[Pi]"], ",", "500"}], "]"}]], "Input"], Cell[BoxData[SuperscriptBox["\[ExponentialE]", "\[Pi]"]], "Input"], Cell["E^Pi is exact and transcendental. There is no finite exact form simpler than\nE^Pi itself, so evaluating it \"exactly\" returns it unchanged - Mathematica\nhas nothing better to offer. Ask for 500 digits and it computes them, on\ndemand, from the exact form. Note that E and Pi must be the built-in\nconstants, not the plain symbols e and p, or the expression means nothing.", "Text"], Cell["4: A complex sum", "Section"], Cell[BoxData[RowBox[{UnderoverscriptBox["\[Sum]", RowBox[{"n", "=", "1"}], "10"], FractionBox["1", RowBox[{"n", "+", RowBox[{"2", " ", "\[ImaginaryI]"}]}]]}]], "Input"], Cell[BoxData[RowBox[{"N", "[", RowBox[{RowBox[{UnderoverscriptBox["\[Sum]", RowBox[{"n", "=", "1"}], "10"], FractionBox["1", RowBox[{"n", "+", RowBox[{"2", " ", "\[ImaginaryI]"}]}]]}], ",", "50"}], "]"}]], "Input"], Cell[BoxData[RowBox[{"N", "[", RowBox[{RowBox[{UnderoverscriptBox["\[Sum]", RowBox[{"n", "=", "1"}], "10"], FractionBox["1", RowBox[{"n", "+", RowBox[{"2.`", " ", "\[ImaginaryI]"}]}]]}], ",", "50"}], "]"}]], "Input"], Cell["The exact sum is a Gaussian rational: one exact rational for the real part\nand one for the imaginary part. Asking for fifty digits works, for the same\nreason as Exercise 2 part v - the exact value is still there to approximate.\nWriting 2.0 I instead of 2 I makes every term a machine complex number, the\nexact value is gone before N is called, and only about sixteen digits come\nback. Same failure, same cause.", "Text"], Cell["5: Sin[6] exactly and approximately", "Section"], Cell[BoxData[RowBox[{"Sin", "[", "6", "]"}]], "Input"], Cell[BoxData[RowBox[{"Sin", "[", "6.`", "]"}]], "Input"], Cell[BoxData[RowBox[{"N", "[", RowBox[{RowBox[{"Sin", "[", "6", "]"}], ",", "50"}], "]"}]], "Input"], Cell[BoxData[RowBox[{"N", "[", RowBox[{RowBox[{"Sin", "[", "6.`", "]"}], ",", "50"}], "]"}]], "Input"], Cell[BoxData[RowBox[{"N", "[", RowBox[{RowBox[{"Sin", "[", RowBox[{"N", "[", RowBox[{"6", ",", "20"}], "]"}], "]"}], ",", "50"}], "]"}]], "Input"], Cell["Sin[6] stays unevaluated: 6 radians is not a special angle, so there is no\nexact closed form and Mathematica keeps the exact expression. Sin[6.0]\nreturns a machine real, about -0.279415.\nN[Sin[6], 50] gives fifty correct digits, computed from the exact Sin[6].\nN[Sin[6.0], 50] does not. The argument was already a machine number, so\nSin[6.0] evaluated to sixteen good digits before N was reached, and the\nrequest for fifty arrives too late.\nN[Sin[N[6, 20]], 50] does not give fifty digits either, but for a sharper\nreason: the argument was deliberately built with only twenty digits of\nprecision, so the sine of it is only known to fewer than twenty digits -\nMathematica reports about 18.7. The outer request for fifty cannot exceed\nwhat the input supports, and taking a sine costs a little precision on top. Mathematica\ntracks this automatically and reports the honest precision rather than\npadding with noise.", "Text"], Cell["6: The partial sums as a user function", "Section"], Cell[BoxData[RowBox[{RowBox[{"Clear", "[", RowBox[{"f", ",", "n", ",", "nTerms"}], "]"}], ";", "\[IndentingNewLine]", RowBox[{RowBox[{"f", "[", "nTerms_", "]"}], ":=", RowBox[{UnderoverscriptBox["\[Sum]", RowBox[{"n", "=", "1"}], "nTerms"], FractionBox["1", "n"]}]}]}]], "Input"], Cell[BoxData[RowBox[{"{", RowBox[{RowBox[{"f", "[", "1", "]"}], ",", RowBox[{"f", "[", "10", "]"}], ",", RowBox[{"f", "[", "100", "]"}]}], "}"}]], "Input"], Cell["Delayed assignment is what keeps this exact. Every value returned is a\nrational: 1, then 7381/2520, then the 218-digit harmonic fraction.", "Text"], Cell["7: How many system functions are there?", "Section"], Cell["Names[\"System`*\"] returns the whole list of built-in names. It is far too\nlong to print in a submitted notebook, so only its length is evaluated\nbelow; the list itself is computed and discarded.", "Text"], Cell[BoxData[RowBox[{"Length", "[", RowBox[{"Names", "[", "\"System`*\"", "]"}], "]"}]], "Input"], Cell["The backquote is a context mark, not an apostrophe. System` is the context\nholding every built-in symbol, and Global` is the context your own symbols\nland in - which is the subject of Lesson 15.", "Text"], Cell["8: myDiff1 and myDiff2 - why differentiation needs delayed assignment", "Section"], Cell[BoxData[RowBox[{RowBox[{"Clear", "[", RowBox[{"x", ",", "f"}], "]"}], ";", "\[IndentingNewLine]", RowBox[{RowBox[{"myDiff1", "[", "f_", "]"}], "=", RowBox[{SubscriptBox["\[PartialD]", RowBox[{"x"}]], "f"}]}]}]], "Input"], Cell[BoxData[RowBox[{"{", RowBox[{RowBox[{"myDiff1", "[", RowBox[{SuperscriptBox["x", "2"], "+", RowBox[{"3", " ", "x"}], "+", "4"}], "]"}], ",", RowBox[{"myDiff1", "[", RowBox[{SuperscriptBox["\[ExponentialE]", RowBox[{"2", " ", "x"}]], "+", "3"}], "]"}], ",", RowBox[{"myDiff1", "[", RowBox[{"f", "[", "x", "]"}], "]"}]}], "}"}]], "Input"], Cell["?myDiff1", "Input"], Cell["Part 2, and why it fails. With immediate assignment the right-hand side is\nevaluated once, at definition time. At that moment f is just an unassigned\nsymbol, and the derivative of a symbol that does not involve x is zero. So\nD[f, x] evaluates to 0, and 0 is what gets stored. \"?myDiff1\" confirms it:\nthe stored rule is myDiff1[f_] :> 0. Every call returns 0, whatever you\nhand it. The definition never had a chance to see a real argument.", "Text"], Cell[BoxData[RowBox[{RowBox[{"Clear", "[", RowBox[{"x", ",", "f"}], "]"}], ";", "\[IndentingNewLine]", RowBox[{RowBox[{"myDiff2", "[", "f_", "]"}], ":=", RowBox[{SubscriptBox["\[PartialD]", RowBox[{"x"}]], "f"}]}]}]], "Input"], Cell[BoxData[RowBox[{"{", RowBox[{RowBox[{"myDiff2", "[", RowBox[{SuperscriptBox["x", "2"], "+", RowBox[{"3", " ", "x"}], "+", "4"}], "]"}], ",", RowBox[{"myDiff2", "[", RowBox[{SuperscriptBox["\[ExponentialE]", RowBox[{"2", " ", "x"}]], "+", "3"}], "]"}], ",", RowBox[{"myDiff2", "[", RowBox[{"f", "[", "x", "]"}], "]"}]}], "}"}]], "Input"], Cell["?myDiff2", "Input"], Cell["Part 4, and why it works. Delayed assignment stores D[f, x] literally,\nunevaluated. The differentiation is postponed until the function is actually\ncalled, by which time the pattern variable f has been bound to a real\nexpression. The three calls return 3 + 2 x, then 2 E^(2 x), and then\nf'[x] - Mathematica correctly reports the derivative of an unknown function\nas its derivative rather than giving up.\nPart 5. Delayed assignment is mandatory here because the whole point of the\nfunction is to operate on an argument that does not exist yet. Any\ndefinition whose right-hand side is meaningless until the argument arrives -\ndifferentiation, integration, random generation, anything that must be\nrecomputed per call - has to use \":=\". Immediate assignment is only correct\nwhen the right-hand side can be fully computed once and reused forever.", "Text"]}, WindowSize -> {1100, 850}, StyleDefinitions -> "Default.nb"]
+Notebook[{
+Cell["\<\
+Advanced Lesson 2 - Exercises: Exact and Approximate Arithmetic
+Mikey Ferguson
+MATH 7013 - Advanced Mathematical Modeling\
+\>", "Title",ExpressionUUID->"18125beb-e9c7-4491-b41f-2fed4b5dc5c1"],
+
+Cell[BoxData[
+ RowBox[{
+  RowBox[{"Clear", "[", 
+   RowBox[{
+   "a", ",", "b", ",", "c", ",", "d", ",", "i", ",", "n", ",", "f", ",", "g", 
+    ",", "h"}], "]"}], ";"}]], "Input",ExpressionUUID->"8ea40fe3-4e22-4a85-\
+bc14-a614e759c81d"],
+
+Cell["1: How many digits of accuracy does each expression carry?", "Section",ExpressionUUID->"621a7ae1-c3d8-407d-9103-10547e1faf12"],
+
+Cell[BoxData[
+ RowBox[{"{", 
+  RowBox[{
+   FractionBox["3", "7"], ",", 
+   RowBox[{"Precision", "[", 
+    FractionBox["3", "7"], "]"}]}], "}"}]], "Input",ExpressionUUID->"785d2fe5-\
+2696-475b-9163-7e9f65d14294"],
+
+Cell[BoxData[
+ RowBox[{"{", 
+  RowBox[{
+   RowBox[{"2", "+", 
+    FractionBox["3", "7"]}], ",", 
+   RowBox[{"Precision", "[", 
+    RowBox[{"2", "+", 
+     FractionBox["3", "7"]}], "]"}]}], "}"}]], "Input",ExpressionUUID->\
+"8c173f04-050e-491c-8d8d-ef740577be24"],
+
+Cell[BoxData[
+ RowBox[{"{", 
+  RowBox[{
+   RowBox[{"InputForm", "[", 
+    RowBox[{"2.`", "\[VeryThinSpace]", "+", 
+     FractionBox["3.`", "7.`"]}], "]"}], ",", 
+   RowBox[{"Precision", "[", 
+    RowBox[{"2.`", "\[VeryThinSpace]", "+", 
+     FractionBox["3.`", "7.`"]}], "]"}]}], "}"}]], "Input",ExpressionUUID->\
+"d31a8ed1-7805-43ea-ba78-197f17e7e6ad"],
+
+Cell[BoxData[
+ RowBox[{"{", 
+  RowBox[{
+   RowBox[{"InputForm", "[", 
+    RowBox[{"1.23`", "\[VeryThinSpace]", "+", 
+     FractionBox["1.2345`", "1.234567`"]}], "]"}], ",", 
+   RowBox[{"Precision", "[", 
+    RowBox[{"1.23`", "\[VeryThinSpace]", "+", 
+     FractionBox["1.2345`", "1.234567`"]}], "]"}]}], "}"}]], "Input",Expressio\
+nUUID->"e10c56ec-da39-4e67-b4a1-885009c817fb"],
+
+Cell[BoxData[
+ RowBox[{"{", 
+  RowBox[{
+   RowBox[{"InputForm", "[", 
+    RowBox[{
+    "1.2`", "\[VeryThinSpace]", "+", "1.234567890123456789`19.0915149772127", 
+     "+", "1.2345678901234567890123456789`29.091514977212704"}], "]"}], ",", 
+   RowBox[{"Precision", "[", 
+    RowBox[{
+    "1.2`", "\[VeryThinSpace]", "+", "1.234567890123456789`19.0915149772127", 
+     "+", "1.2345678901234567890123456789`29.091514977212704"}], "]"}]}], 
+  "}"}]], "Input",ExpressionUUID->"010d33e6-e4f8-4d42-a59a-585c2a098396"],
+
+Cell[BoxData[
+ RowBox[{"{", 
+  RowBox[{
+   RowBox[{"InputForm", "[", 
+    RowBox[{
+    "1.234567890123456789`19.0915149772127", "+", 
+     "1.2345678901234567890123456789`29.091514977212704"}], "]"}], ",", 
+   RowBox[{"Precision", "[", 
+    RowBox[{
+    "1.234567890123456789`19.0915149772127", "+", 
+     "1.2345678901234567890123456789`29.091514977212704"}], "]"}]}], 
+  "}"}]], "Input",ExpressionUUID->"133c3cd4-6edc-454f-a0a6-51e6734773ff"],
+
+Cell[BoxData[
+ RowBox[{"{", 
+  RowBox[{
+   RowBox[{"InputForm", "[", 
+    RowBox[{"N", "[", 
+     FractionBox["2", "7"], "]"}], "]"}], ",", 
+   RowBox[{"Precision", "[", 
+    RowBox[{"N", "[", 
+     FractionBox["2", "7"], "]"}], "]"}]}], "}"}]], "Input",ExpressionUUID->\
+"55545b4f-b2f2-46cf-9c0e-c50e08954e91"],
+
+Cell[BoxData[
+ RowBox[{"{", 
+  RowBox[{
+   RowBox[{"N", "[", 
+    RowBox[{
+     FractionBox["2", "7"], ",", "100"}], "]"}], ",", 
+   RowBox[{"Precision", "[", 
+    RowBox[{"N", "[", 
+     RowBox[{
+      FractionBox["2", "7"], ",", "100"}], "]"}], "]"}]}], "}"}]], "Input",Exp\
+ressionUUID->"d9a36c38-bea8-4c3b-b55e-be19edd77b4b"],
+
+Cell[BoxData[
+ RowBox[{"{", 
+  RowBox[{
+   SqrtBox["2"], ",", 
+   RowBox[{"N", "[", 
+    SqrtBox["2"], "]"}]}], "}"}]], "Input",ExpressionUUID->"9a5a7eb3-5d73-\
+49c2-8c1c-69231e751b7b"],
+
+Cell["2: Six ways to sum 1/n from 1 to 100", "Section",ExpressionUUID->"63af7fda-f1a1-45c2-b4b3-124cc68c15b2"],
+
+Cell[BoxData[
+ RowBox[{
+  UnderoverscriptBox["\[Sum]", 
+   RowBox[{"n", "=", "1"}], "100"], 
+  FractionBox["1", "n"]}]], "Input",ExpressionUUID->"9a593722-00a6-40e3-9b8f-\
+cb23843a8f64"],
+
+Cell[BoxData[
+ RowBox[{
+  UnderoverscriptBox["\[Sum]", 
+   RowBox[{"n", "=", "1"}], "100"], 
+  FractionBox["1.`", "n"]}]], "Input",ExpressionUUID->"b9e22a54-198a-4815-\
+97d0-16a15a417b7c"],
+
+Cell[BoxData[
+ RowBox[{
+  UnderoverscriptBox["\[Sum]", 
+   RowBox[{"n", "=", "1"}], "100"], 
+  RowBox[{"N", "[", 
+   FractionBox["1", "n"], "]"}]}]], "Input",ExpressionUUID->"35c855ba-f8d5-\
+4541-9608-c39701a9437c"],
+
+Cell[BoxData[
+ RowBox[{"N", "[", 
+  RowBox[{
+   UnderoverscriptBox["\[Sum]", 
+    RowBox[{"n", "=", "1"}], "100"], 
+   FractionBox["1", "n"]}], "]"}]], "Input",ExpressionUUID->"ff537d74-9b78-\
+4e3c-9c60-907888b36eb8"],
+
+Cell[BoxData[
+ RowBox[{"N", "[", 
+  RowBox[{
+   RowBox[{
+    UnderoverscriptBox["\[Sum]", 
+     RowBox[{"n", "=", "1"}], "100"], 
+    FractionBox["1", "n"]}], ",", "50"}], "]"}]], "Input",ExpressionUUID->\
+"15ee28a4-a4cd-446d-9df2-c049039ecfc4"],
+
+Cell[BoxData[
+ RowBox[{"N", "[", 
+  RowBox[{
+   RowBox[{
+    UnderoverscriptBox["\[Sum]", 
+     RowBox[{"n", "=", "1"}], "100"], 
+    FractionBox["1.`", "n"]}], ",", "50"}], "]"}]], "Input",ExpressionUUID->\
+"0a653ca6-2af4-4d04-bbee-1d6533056f0a"],
+
+Cell["3: E^Pi to 500 digits, and exactly", "Section",ExpressionUUID->"54c5e11a-d2b5-4b1c-9b1f-1716988ac0c1"],
+
+Cell[BoxData[
+ RowBox[{"N", "[", 
+  RowBox[{
+   SuperscriptBox["\[ExponentialE]", "\[Pi]"], ",", "500"}], "]"}]], "Input",E\
+xpressionUUID->"dffb722e-5c59-4a84-ac7f-d719b8fe3e0d"],
+
+Cell[BoxData[
+ SuperscriptBox["\[ExponentialE]", "\[Pi]"]], "Input",ExpressionUUID->"c7c5d89d-8d64-4191-b644-364b0f6b2dee"],
+
+Cell["4: A complex sum", "Section",ExpressionUUID->"e6446d2c-283e-4c3f-9318-e216f90c2512"],
+
+Cell[BoxData[
+ RowBox[{
+  UnderoverscriptBox["\[Sum]", 
+   RowBox[{"n", "=", "1"}], "10"], 
+  FractionBox["1", 
+   RowBox[{"n", "+", 
+    RowBox[{"2", " ", "\[ImaginaryI]"}]}]]}]], "Input",ExpressionUUID->\
+"e65612d4-eea2-409d-9f50-c1569fffa833"],
+
+Cell[BoxData[
+ RowBox[{"N", "[", 
+  RowBox[{
+   RowBox[{
+    UnderoverscriptBox["\[Sum]", 
+     RowBox[{"n", "=", "1"}], "10"], 
+    FractionBox["1", 
+     RowBox[{"n", "+", 
+      RowBox[{"2", " ", "\[ImaginaryI]"}]}]]}], ",", "50"}], "]"}]], "Input",E\
+xpressionUUID->"e00c288f-4b84-4ebb-9d7b-b730f6e1ffe9"],
+
+Cell[BoxData[
+ RowBox[{"N", "[", 
+  RowBox[{
+   RowBox[{
+    UnderoverscriptBox["\[Sum]", 
+     RowBox[{"n", "=", "1"}], "10"], 
+    FractionBox["1", 
+     RowBox[{"n", "+", 
+      RowBox[{"2.`", " ", "\[ImaginaryI]"}]}]]}], ",", "50"}], "]"}]], "Input",\
+ExpressionUUID->"b75de73b-5d93-4e2f-a920-2e197a621b4f"],
+
+Cell["5: Sin[6] exactly and approximately", "Section",ExpressionUUID->"600d5078-ee39-4c50-a039-507a1ae6375e"],
+
+Cell[BoxData[
+ RowBox[{"Sin", "[", "6", "]"}]], "Input",ExpressionUUID->"5b44772d-4793-4f8f-a434-e108903be9b9"],
+
+Cell[BoxData[
+ RowBox[{"Sin", "[", "6.`", "]"}]], "Input",ExpressionUUID->"410261df-1660-41e0-b1f3-7f6a4c76eab3"],
+
+Cell[BoxData[
+ RowBox[{"N", "[", 
+  RowBox[{
+   RowBox[{"Sin", "[", "6", "]"}], ",", "50"}], "]"}]], "Input",ExpressionUUID\
+->"ef100ad7-c2e1-400e-a505-5cd6027f5785"],
+
+Cell[BoxData[
+ RowBox[{"N", "[", 
+  RowBox[{
+   RowBox[{"Sin", "[", "6.`", "]"}], ",", "50"}], "]"}]], "Input",ExpressionUU\
+ID->"5bd85412-c301-45b0-b832-f08ab90c6b42"],
+
+Cell[BoxData[
+ RowBox[{"N", "[", 
+  RowBox[{
+   RowBox[{"Sin", "[", 
+    RowBox[{"N", "[", 
+     RowBox[{"6", ",", "20"}], "]"}], "]"}], ",", "50"}], "]"}]], "Input",Expr\
+essionUUID->"447b0836-1b35-4c99-8e6e-d5ff9a6f405a"],
+
+Cell["6: The partial sums as a user function", "Section",ExpressionUUID->"7699424a-e140-49ce-9357-6653894a8d66"],
+
+Cell[BoxData[{
+ RowBox[{
+  RowBox[{"Clear", "[", 
+   RowBox[{"f", ",", "n", ",", "nTerms"}], "]"}], ";"}], "\[IndentingNewLine]", 
+ RowBox[{
+  RowBox[{"f", "[", "nTerms_", "]"}], ":=", 
+  RowBox[{
+   UnderoverscriptBox["\[Sum]", 
+    RowBox[{"n", "=", "1"}], "nTerms"], 
+   FractionBox["1", "n"]}]}]}], "Input",ExpressionUUID->"d3a00ddb-1f33-46d5-\
+a510-d91e250c0af8"],
+
+Cell[BoxData[
+ RowBox[{"{", 
+  RowBox[{
+   RowBox[{"f", "[", "1", "]"}], ",", 
+   RowBox[{"f", "[", "10", "]"}], ",", 
+   RowBox[{"f", "[", "100", "]"}]}], "}"}]], "Input",ExpressionUUID->\
+"00ea5514-ef18-4775-81af-ac0e7211ab62"],
+
+Cell["7: How many system functions are there?", "Section",ExpressionUUID->"7a9c5e0a-d532-4916-8cc8-cd8ba62ecd66"],
+
+Cell["\<\
+Names[\"System`*\"] returns the whole list of built-in names. It is far too
+long to print in a submitted notebook, so only its length is evaluated
+below; the list itself is computed and discarded.\
+\>", "Text",ExpressionUUID->"d13f29b0-88c1-4063-912e-11599564d8a2"],
+
+Cell[BoxData[
+ RowBox[{"Length", "[", 
+  RowBox[{"Names", "[", "\"\<System`*\>\"", "]"}], "]"}]], "Input",ExpressionU\
+UID->"dd10e5fc-6c7c-4fb0-a236-471fd5835764"],
+
+Cell["\<\
+8: myDiff1 and myDiff2 - why differentiation needs delayed assignment\
+\>", "Section",ExpressionUUID->"5b828371-8718-4cb9-ba5c-da616cf0985e"],
+
+Cell[BoxData[{
+ RowBox[{
+  RowBox[{"Clear", "[", 
+   RowBox[{"x", ",", "f"}], "]"}], ";"}], "\[IndentingNewLine]", 
+ RowBox[{
+  RowBox[{"myDiff1", "[", "f_", "]"}], "=", 
+  RowBox[{
+   SubscriptBox["\[PartialD]", "x"], "f"}]}]}], "Input",ExpressionUUID->\
+"92224ebc-4675-4bbf-b0b3-d75c1d0a656b"],
+
+Cell[BoxData[
+ RowBox[{"{", 
+  RowBox[{
+   RowBox[{"myDiff1", "[", 
+    RowBox[{
+     SuperscriptBox["x", "2"], "+", 
+     RowBox[{"3", " ", "x"}], "+", "4"}], "]"}], ",", 
+   RowBox[{"myDiff1", "[", 
+    RowBox[{
+     SuperscriptBox["\[ExponentialE]", 
+      RowBox[{"2", " ", "x"}]], "+", "3"}], "]"}], ",", 
+   RowBox[{"myDiff1", "[", 
+    RowBox[{"f", "[", "x", "]"}], "]"}]}], "}"}]], "Input",ExpressionUUID->\
+"f827b027-66af-4e32-98c7-1f7cb7646d3e"],
+
+Cell["?myDiff1", "Input",ExpressionUUID->"96cb4359-d936-4b8e-a01a-a7ddcb4a66fe"],
+
+Cell[BoxData[{
+ RowBox[{
+  RowBox[{"Clear", "[", 
+   RowBox[{"x", ",", "f"}], "]"}], ";"}], "\[IndentingNewLine]", 
+ RowBox[{
+  RowBox[{"myDiff2", "[", "f_", "]"}], ":=", 
+  RowBox[{
+   SubscriptBox["\[PartialD]", "x"], "f"}]}]}], "Input",ExpressionUUID->\
+"e706d0e6-d575-43b0-a2ae-ffad6e54658e"],
+
+Cell[BoxData[
+ RowBox[{"{", 
+  RowBox[{
+   RowBox[{"myDiff2", "[", 
+    RowBox[{
+     SuperscriptBox["x", "2"], "+", 
+     RowBox[{"3", " ", "x"}], "+", "4"}], "]"}], ",", 
+   RowBox[{"myDiff2", "[", 
+    RowBox[{
+     SuperscriptBox["\[ExponentialE]", 
+      RowBox[{"2", " ", "x"}]], "+", "3"}], "]"}], ",", 
+   RowBox[{"myDiff2", "[", 
+    RowBox[{"f", "[", "x", "]"}], "]"}]}], "}"}]], "Input",ExpressionUUID->\
+"c4cf910c-05a5-4285-9e88-23e70d3e6c7e"],
+
+Cell["?myDiff2", "Input",ExpressionUUID->"c6cde272-87ff-4bc5-a81e-a9417ca03ca1"]
+},
+WindowSize->{1100, 850},
+FrontEndVersion->"15.0 for Mac OS X ARM (64-bit) (May 26, 2026)",
+StyleDefinitions->"Default.nb",
+ExpressionUUID->"53e1aa67-6381-4be0-aec1-2e1147a12ddd"
+]
 (* End of Notebook Content *)
+
+(* Internal cache information *)
+(*CellTagsOutline
+CellTagsIndex->{}
+*)
+(*CellTagsIndex
+CellTagsIndex->{}
+*)
+(*NotebookFileOutline
+Notebook[{
+Cell[560, 20, 201, 4, 70, "Title",ExpressionUUID->"18125beb-e9c7-4491-b41f-2fed4b5dc5c1"],
+Cell[764, 26, 236, 6, 70, "Input",ExpressionUUID->"8ea40fe3-4e22-4a85-bc14-a614e759c81d"],
+Cell[1003, 34, 132, 0, 70, "Section",ExpressionUUID->"621a7ae1-c3d8-407d-9103-10547e1faf12"],
+Cell[1138, 36, 211, 6, 70, "Input",ExpressionUUID->"785d2fe5-2696-475b-9163-7e9f65d14294"],
+Cell[1352, 44, 262, 8, 70, "Input",ExpressionUUID->"8c173f04-050e-491c-8d8d-ef740577be24"],
+Cell[1617, 54, 353, 9, 70, "Input",ExpressionUUID->"d31a8ed1-7805-43ea-ba78-197f17e7e6ad"],
+Cell[1973, 65, 377, 9, 70, "Input",ExpressionUUID->"e10c56ec-da39-4e67-b4a1-885009c817fb"],
+Cell[2353, 76, 510, 11, 70, "Input",ExpressionUUID->"010d33e6-e4f8-4d42-a59a-585c2a098396"],
+Cell[2866, 89, 444, 11, 70, "Input",ExpressionUUID->"133c3cd4-6edc-454f-a0a6-51e6734773ff"],
+Cell[3313, 102, 311, 9, 70, "Input",ExpressionUUID->"55545b4f-b2f2-46cf-9c0e-c50e08954e91"],
+Cell[3627, 113, 329, 10, 70, "Input",ExpressionUUID->"d9a36c38-bea8-4c3b-b55e-be19edd77b4b"],
+Cell[3959, 125, 185, 6, 70, "Input",ExpressionUUID->"9a5a7eb3-5d73-49c2-8c1c-69231e751b7b"],
+Cell[4147, 133, 110, 0, 70, "Section",ExpressionUUID->"63af7fda-f1a1-45c2-b4b3-124cc68c15b2"],
+Cell[4260, 135, 186, 5, 70, "Input",ExpressionUUID->"9a593722-00a6-40e3-9b8f-cb23843a8f64"],
+Cell[4449, 142, 188, 5, 70, "Input",ExpressionUUID->"b9e22a54-198a-4815-97d0-16a15a417b7c"],
+Cell[4640, 149, 215, 6, 70, "Input",ExpressionUUID->"35c855ba-f8d5-4541-9608-c39701a9437c"],
+Cell[4858, 157, 217, 6, 70, "Input",ExpressionUUID->"ff537d74-9b78-4e3c-9c60-907888b36eb8"],
+Cell[5078, 165, 245, 7, 70, "Input",ExpressionUUID->"15ee28a4-a4cd-446d-9df2-c049039ecfc4"],
+Cell[5326, 174, 247, 7, 70, "Input",ExpressionUUID->"0a653ca6-2af4-4d04-bbee-1d6533056f0a"],
+Cell[5576, 183, 108, 0, 70, "Section",ExpressionUUID->"54c5e11a-d2b5-4b1c-9b1f-1716988ac0c1"],
+Cell[5687, 185, 179, 4, 70, "Input",ExpressionUUID->"dffb722e-5c59-4a84-ac7f-d719b8fe3e0d"],
+Cell[5869, 191, 123, 1, 70, "Input",ExpressionUUID->"c7c5d89d-8d64-4191-b644-364b0f6b2dee"],
+Cell[5995, 194, 90, 0, 70, "Section",ExpressionUUID->"e6446d2c-283e-4c3f-9318-e216f90c2512"],
+Cell[6088, 196, 246, 7, 70, "Input",ExpressionUUID->"e65612d4-eea2-409d-9f50-c1569fffa833"],
+Cell[6337, 205, 309, 9, 70, "Input",ExpressionUUID->"e00c288f-4b84-4ebb-9d7b-b730f6e1ffe9"],
+Cell[6649, 216, 311, 9, 70, "Input",ExpressionUUID->"b75de73b-5d93-4e2f-a920-2e197a621b4f"],
+Cell[6963, 227, 109, 0, 70, "Section",ExpressionUUID->"600d5078-ee39-4c50-a039-507a1ae6375e"],
+Cell[7075, 229, 111, 1, 70, "Input",ExpressionUUID->"5b44772d-4793-4f8f-a434-e108903be9b9"],
+Cell[7189, 232, 113, 1, 70, "Input",ExpressionUUID->"410261df-1660-41e0-b1f3-7f6a4c76eab3"],
+Cell[7305, 235, 166, 4, 70, "Input",ExpressionUUID->"ef100ad7-c2e1-400e-a505-5cd6027f5785"],
+Cell[7474, 241, 168, 4, 70, "Input",ExpressionUUID->"5bd85412-c301-45b0-b832-f08ab90c6b42"],
+Cell[7645, 247, 223, 6, 70, "Input",ExpressionUUID->"447b0836-1b35-4c99-8e6e-d5ff9a6f405a"],
+Cell[7871, 255, 112, 0, 70, "Section",ExpressionUUID->"7699424a-e140-49ce-9357-6653894a8d66"],
+Cell[7986, 257, 368, 10, 70, "Input",ExpressionUUID->"d3a00ddb-1f33-46d5-a510-d91e250c0af8"],
+Cell[8357, 269, 229, 6, 70, "Input",ExpressionUUID->"00ea5514-ef18-4775-81af-ac0e7211ab62"],
+Cell[8589, 277, 113, 0, 70, "Section",ExpressionUUID->"7a9c5e0a-d532-4916-8cc8-cd8ba62ecd66"],
+Cell[8705, 279, 275, 4, 70, "Text",ExpressionUUID->"d13f29b0-88c1-4063-912e-11599564d8a2"],
+Cell[8983, 285, 163, 3, 70, "Input",ExpressionUUID->"dd10e5fc-6c7c-4fb0-a236-471fd5835764"],
+Cell[9149, 290, 151, 2, 70, "Section",ExpressionUUID->"5b828371-8718-4cb9-ba5c-da616cf0985e"],
+Cell[9303, 294, 295, 8, 70, "Input",ExpressionUUID->"92224ebc-4675-4bbf-b0b3-d75c1d0a656b"],
+Cell[9601, 304, 455, 13, 70, "Input",ExpressionUUID->"f827b027-66af-4e32-98c7-1f7cb7646d3e"],
+Cell[10059, 319, 80, 0, 70, "Input",ExpressionUUID->"96cb4359-d936-4b8e-a01a-a7ddcb4a66fe"],
+Cell[10142, 321, 296, 8, 70, "Input",ExpressionUUID->"e706d0e6-d575-43b0-a2ae-ffad6e54658e"],
+Cell[10441, 331, 455, 13, 70, "Input",ExpressionUUID->"c4cf910c-05a5-4285-9e88-23e70d3e6c7e"],
+Cell[10899, 346, 80, 0, 70, "Input",ExpressionUUID->"c6cde272-87ff-4bc5-a81e-a9417ca03ca1"]
+}
+]
+*)
+
+(* End of internal cache information *)

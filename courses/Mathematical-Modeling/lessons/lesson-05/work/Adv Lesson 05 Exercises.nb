@@ -3,6 +3,365 @@
 (*** Wolfram Notebook File ***)
 (* http://www.wolfram.com/nb *)
 
+(* CreatedBy='WolframEngine 15.0' *)
+
+(*CacheID: 234*)
+(* Internal cache information:
+NotebookFileLineBreakTest
+NotebookFileLineBreakTest
+NotebookDataPosition[       160,          7]
+NotebookDataLength[     15823,        358]
+NotebookOptionsPosition[     10562,        292]
+NotebookOutlinePosition[     10904,        307]
+CellTagsIndexPosition[     10861,        304]
+WindowFrame->Normal*)
+
 (* Beginning of Notebook Content *)
-Notebook[{Cell["Advanced Lesson 5 - Exercises: Lists\nMikey Ferguson\nMATH 7013 - Advanced Mathematical Modeling", "Title"], Cell["Every list produced below is named, so that later exercises can refer to the\nlist built in an earlier exercise instead of rebuilding it.", "Text"], Cell[BoxData[RowBox[{RowBox[{"Clear", "[", RowBox[{"a", ",", "x", ",", "i", ",", "j", ",", "list3", ",", "list4", ",", "mat5", ",", "courseNumbers", ",", "courseNames", ",", "me"}], "]"}], ";"}]], "Input"], Cell["1: A list holding a name (string), an age (integer) and a major (symbols)", "Section"], Cell[BoxData[RowBox[{"me", "=", RowBox[{"{", RowBox[{"\"Mikey Ferguson\"", ",", "27", ",", "mathematics"}], "}"}]}]], "Input"], Cell["The string carries quotation marks, the age is an exact integer, and\n\"mathematics\" is an undefined symbol, so it simply stays as itself.", "Text"], Cell["2: A list of lists - course numbers (integers) and course names (symbols)", "Section"], Cell[BoxData[RowBox[{RowBox[{"courseNumbers", "=", RowBox[{"{", RowBox[{"7013", ",", "7023", ",", "7113"}], "}"}]}], ";", "\[IndentingNewLine]", RowBox[{"courseNames", "=", RowBox[{"{", RowBox[{"advancedMathematicalModeling", ",", "realAnalysis", ",", "numericalAnalysis"}], "}"}]}], ";", "\[IndentingNewLine]", RowBox[{"TableForm", "[", RowBox[{"{", RowBox[{"courseNumbers", ",", "courseNames"}], "}"}], "]"}]}]], "Input"], Cell["3: The integers from 0 to 20, via Table", "Section"], Cell[BoxData[RowBox[{"list3", "=", RowBox[{"Table", "[", RowBox[{"i", ",", RowBox[{"{", RowBox[{"i", ",", "0", ",", "20"}], "}"}]}], "]"}]}]], "Input"], Cell["4: The even integers from 0 to 20, via Table", "Section"], Cell[BoxData[RowBox[{"list4", "=", RowBox[{"Table", "[", RowBox[{"i", ",", RowBox[{"{", RowBox[{"i", ",", "0", ",", "20", ",", "2"}], "}"}]}], "]"}]}]], "Input"], Cell["5: A 4x5 matrix with entries Sin[i] Cos[j], displayed with MatrixForm", "Section"], Cell[BoxData[RowBox[{RowBox[{"mat5", "=", RowBox[{"Table", "[", RowBox[{RowBox[{RowBox[{"Sin", "[", "i", "]"}], " ", RowBox[{"Cos", "[", "j", "]"}]}], ",", RowBox[{"{", RowBox[{"i", ",", "1", ",", "4"}], "}"}], ",", RowBox[{"{", RowBox[{"j", ",", "1", ",", "5"}], "}"}]}], "]"}]}], ";", "\[IndentingNewLine]", RowBox[{"MatrixForm", "[", "mat5", "]"}]}]], "Input"], Cell["6: Sorting the course numbers and the course names", "Section"], Cell[BoxData[RowBox[{"{", RowBox[{RowBox[{"Sort", "[", "courseNumbers", "]"}], ",", RowBox[{"Sort", "[", "courseNames", "]"}]}], "}"}]], "Input"], Cell["Sort puts integers in numerical order and symbols in alphabetical order,\nwhich is what \"canonical order\" means for each of those two types.", "Text"], Cell["7: Reverse of the list from Exercise 3", "Section"], Cell[BoxData[RowBox[{"Reverse", "[", "list3", "]"}]], "Input"], Cell["8: Drop the first three, then the last three, elements of the Exercise 3 list", "Section"], Cell[BoxData[RowBox[{"{", RowBox[{RowBox[{"Drop", "[", RowBox[{"list3", ",", "3"}], "]"}], ",", RowBox[{"Drop", "[", RowBox[{"list3", ",", RowBox[{"-", "3"}]}], "]"}]}], "}"}]], "Input"], Cell["9: Take the first three, the last three, and elements 3, 4 and 11", "Section"], Cell[BoxData[RowBox[{"{", RowBox[{RowBox[{"Take", "[", RowBox[{"list3", ",", "3"}], "]"}], ",", RowBox[{"Take", "[", RowBox[{"list3", ",", RowBox[{"-", "3"}]}], "]"}], ",", RowBox[{"list3", "\[LeftDoubleBracket]", RowBox[{"{", RowBox[{"3", ",", "4", ",", "11"}], "}"}], "\[RightDoubleBracket]"}]}], "}"}]], "Input"], Cell["Take handles the two contiguous cases. Elements 3, 4 and 11 are not\ncontiguous, so Take cannot express them; Part with a list of positions can.", "Text"], Cell["10: Insert \"Fun and games\" as the second element of the course-name list", "Section"], Cell[BoxData[RowBox[{"Insert", "[", RowBox[{"courseNames", ",", "\"Fun and games\"", ",", "2"}], "]"}]], "Input"], Cell["11: Replace the second course name with \"Fun and games\"", "Section"], Cell[BoxData[RowBox[{"ReplacePart", "[", RowBox[{"courseNames", ",", RowBox[{"2", "\[Rule]", "\"Fun and games\""}]}], "]"}]], "Input"], Cell["Insert lengthens the list to four entries; ReplacePart leaves it at three\nand overwrites one of them.", "Text"], Cell["12: Length of the Exercise 4 list", "Section"], Cell[BoxData[RowBox[{"Length", "[", "list4", "]"}]], "Input"], Cell["13: Dimensions of the Exercise 5 list of lists", "Section"], Cell[BoxData[RowBox[{"Dimensions", "[", "mat5", "]"}]], "Input"], Cell["14: Intersection of the Exercise 3 and Exercise 4 lists, in ColumnForm", "Section"], Cell[BoxData[RowBox[{"ColumnForm", "[", RowBox[{"list3", "\[Intersection]", "list4"}], "]"}]], "Input"], Cell["Every even integer from 0 to 20 already appears in the list 0 through 20,\nso the intersection is exactly the Exercise 4 list.", "Text"], Cell["15: Join of the Exercise 3 and Exercise 4 lists, in ColumnForm", "Section"], Cell[BoxData[RowBox[{"ColumnForm", "[", RowBox[{"Join", "[", RowBox[{"list3", ",", "list4"}], "]"}], "]"}]], "Input"], Cell["Join concatenates and does not remove duplicates: 21 + 11 = 32 entries.", "Text"], Cell["16: Partition the Exercise 3 list into sublists of length 4", "Section"], Cell[BoxData[RowBox[{RowBox[{"list16", "=", RowBox[{"Partition", "[", RowBox[{"list3", ",", "4"}], "]"}]}], ";", "\[IndentingNewLine]", RowBox[{"TableForm", "[", "list16", "]"}]}]], "Input"], Cell["21 elements do not divide evenly into blocks of 4, so Partition discards\nthe leftover element and returns five sublists.", "Text"], Cell["17: Partition into three sublists, each holding sublists of length 2", "Section"], Cell[BoxData[RowBox[{"MatrixForm", "[", RowBox[{"Partition", "[", RowBox[{RowBox[{"Partition", "[", RowBox[{"list3", ",", "2"}], "]"}], ",", "3"}], "]"}], "]"}]], "Input"], Cell["18: Part extraction - third element of Exercise 3, second element of Exercise 16", "Section"], Cell[BoxData[RowBox[{"{", RowBox[{RowBox[{"list3", "\[LeftDoubleBracket]", "3", "\[RightDoubleBracket]"}], ",", RowBox[{"list16", "\[LeftDoubleBracket]", "2", "\[RightDoubleBracket]"}]}], "}"}]], "Input"], Cell["19: The entry in row 2, column 3 of the Exercise 5 matrix", "Section"], Cell[BoxData[RowBox[{"mat5", "\[LeftDoubleBracket]", RowBox[{"2", ",", "3"}], "\[RightDoubleBracket]"}]], "Input"], Cell["20: The second row of the Exercise 5 matrix", "Section"], Cell[BoxData[RowBox[{"mat5", "\[LeftDoubleBracket]", "2", "\[RightDoubleBracket]"}]], "Input"], Cell["21: The second column of the Exercise 5 matrix, using Part alone", "Section"], Cell[BoxData[RowBox[{"mat5", "\[LeftDoubleBracket]", RowBox[{"All", ",", "2"}], "\[RightDoubleBracket]"}]], "Input"], Cell["All in the first slot means \"every row\", so the result is the column of\nsecond entries. This is Part doing the work that Map would otherwise do.", "Text"], Cell["22: Exp applied directly to a mixed list", "Section"], Cell[BoxData[SuperscriptBox["\[ExponentialE]", RowBox[{"{", RowBox[{"1", ",", "2", ",", "a", ",", "x", ",", "\"string\"", ",", "\[Pi]"}], "}"}]]], "Input"], Cell["Power has the Listable attribute, so it threads over the list without any\nhelp. Even the string is raised to a power symbolically - Mathematica does\nnot object, it simply cannot simplify it.", "Text"], Cell["23: Log over the same list via Map, then N applied to the result", "Section"], Cell[BoxData[RowBox[{"logs", "=", RowBox[{"Log", "/@", RowBox[{"{", RowBox[{"1", ",", "2", ",", "a", ",", "x", ",", "\"string\"", ",", "\[Pi]"}], "}"}]}]}]], "Input"], Cell[BoxData[RowBox[{"N", "[", "logs", "]"}]], "Input"], Cell["Map is the indirect route: it applies Log to each element separately rather\nthan relying on listability. N then converts whatever is numeric.", "Text"], Cell["24: Apply Plus to the Exercise 4 list", "Section"], Cell[BoxData[RowBox[{"Plus", "@@", "list4"}]], "Input"], Cell["Apply replaces the head List with Plus, turning {0, 2, ..., 20} into\n0 + 2 + ... + 20 = 110.", "Text"], Cell["25: Flatten the Exercise 5 matrix", "Section"], Cell[BoxData[RowBox[{"Flatten", "[", "mat5", "]"}]], "Input"], Cell["The 4 x 5 nested structure collapses into a single list of 20 entries.", "Text"]}, WindowSize -> {1100, 850}, StyleDefinitions -> "Default.nb"]
+Notebook[{
+Cell["\<\
+Advanced Lesson 5 - Exercises: Lists
+Mikey Ferguson
+MATH 7013 - Advanced Mathematical Modeling\
+\>", "Title",ExpressionUUID->"db76645c-815c-4640-8335-ba4c8a463b84"],
+
+Cell["\<\
+Every list produced below is named, so that later exercises can refer to the
+list built in an earlier exercise instead of rebuilding it.\
+\>", "Text",ExpressionUUID->"533d58ff-0cdb-42cb-aabc-bd45dc51e3a2"],
+
+Cell[BoxData[
+ RowBox[{
+  RowBox[{"Clear", "[", 
+   RowBox[{
+   "a", ",", "x", ",", "i", ",", "j", ",", "list3", ",", "list4", ",", "mat5",
+     ",", "courseNumbers", ",", "courseNames", ",", "me"}], "]"}], 
+  ";"}]], "Input",ExpressionUUID->"100793d6-3836-4c90-8c93-d304d77ac177"],
+
+Cell["\<\
+1: A list holding a name (string), an age (integer) and a major (symbols)\
+\>", "Section",ExpressionUUID->"055bc00e-bad4-46ce-aae5-5b6e99c2cce5"],
+
+Cell[BoxData[
+ RowBox[{"me", "=", 
+  RowBox[{"{", 
+   RowBox[{"\"\<Mikey Ferguson\>\"", ",", "27", ",", "mathematics"}], 
+   "}"}]}]], "Input",ExpressionUUID->"53068fd9-8e0c-4790-9dcf-d8fa38dd419c"],
+
+Cell["\<\
+2: A list of lists - course numbers (integers) and course names (symbols)\
+\>", "Section",ExpressionUUID->"8062acb7-2853-4666-bd41-7500cf56b4c0"],
+
+Cell[BoxData[{
+ RowBox[{
+  RowBox[{"courseNumbers", "=", 
+   RowBox[{"{", 
+    RowBox[{"7013", ",", "7023", ",", "7113"}], "}"}]}], ";"}], "\[IndentingNewLine]", 
+ RowBox[{
+  RowBox[{"courseNames", "=", 
+   RowBox[{"{", 
+    RowBox[{
+    "advancedMathematicalModeling", ",", "realAnalysis", ",", 
+     "numericalAnalysis"}], "}"}]}], ";"}], "\[IndentingNewLine]", 
+ RowBox[{"TableForm", "[", 
+  RowBox[{"{", 
+   RowBox[{"courseNumbers", ",", "courseNames"}], "}"}], "]"}]}], "Input",Expr\
+essionUUID->"1e3f2b41-8953-4fd1-9e66-8778b8d486ad"],
+
+Cell["3: The integers from 0 to 20, via Table", "Section",ExpressionUUID->"36053c43-6ad3-42f8-ab15-e5ef3e6ca891"],
+
+Cell[BoxData[
+ RowBox[{"list3", "=", 
+  RowBox[{"Table", "[", 
+   RowBox[{"i", ",", 
+    RowBox[{"{", 
+     RowBox[{"i", ",", "0", ",", "20"}], "}"}]}], "]"}]}]], "Input",Expression\
+UUID->"846e00c7-7943-4282-9942-4343d4d97b22"],
+
+Cell["4: The even integers from 0 to 20, via Table", "Section",ExpressionUUID->"a085c8ed-409e-40cd-ac9f-b54eb6662fdb"],
+
+Cell[BoxData[
+ RowBox[{"list4", "=", 
+  RowBox[{"Table", "[", 
+   RowBox[{"i", ",", 
+    RowBox[{"{", 
+     RowBox[{"i", ",", "0", ",", "20", ",", "2"}], "}"}]}], "]"}]}]], "Input",\
+ExpressionUUID->"b035b5c4-e963-4023-a51f-38e331cb1871"],
+
+Cell["\<\
+5: A 4x5 matrix with entries Sin[i] Cos[j], displayed with MatrixForm\
+\>", "Section",ExpressionUUID->"7e01e049-402d-431f-a9aa-241f38294cde"],
+
+Cell[BoxData[{
+ RowBox[{
+  RowBox[{"mat5", "=", 
+   RowBox[{"Table", "[", 
+    RowBox[{
+     RowBox[{
+      RowBox[{"Sin", "[", "i", "]"}], " ", 
+      RowBox[{"Cos", "[", "j", "]"}]}], ",", 
+     RowBox[{"{", 
+      RowBox[{"i", ",", "1", ",", "4"}], "}"}], ",", 
+     RowBox[{"{", 
+      RowBox[{"j", ",", "1", ",", "5"}], "}"}]}], "]"}]}], ";"}], "\[IndentingNewLine]", 
+ RowBox[{"MatrixForm", "[", "mat5", "]"}]}], "Input",ExpressionUUID->\
+"bb8fd7d2-6f79-4b57-889a-565ed83cd482"],
+
+Cell["6: Sorting the course numbers and the course names", "Section",ExpressionUUID->"4f08744b-88d6-4d7d-a4b8-31076cb4cc7b"],
+
+Cell[BoxData[
+ RowBox[{"{", 
+  RowBox[{
+   RowBox[{"Sort", "[", "courseNumbers", "]"}], ",", 
+   RowBox[{"Sort", "[", "courseNames", "]"}]}], "}"}]], "Input",ExpressionUUID\
+->"40eb6be4-fd13-49ca-a429-fa1a9c4de899"],
+
+Cell["7: Reverse of the list from Exercise 3", "Section",ExpressionUUID->"904ef1af-2308-479c-a0e0-425aec74344f"],
+
+Cell[BoxData[
+ RowBox[{"Reverse", "[", "list3", "]"}]], "Input",ExpressionUUID->"cec6b4de-c8b5-4902-a0f3-8bc1ce8ca572"],
+
+Cell["\<\
+8: Drop the first three, then the last three, elements of the Exercise 3 list\
+\
+\>", "Section",ExpressionUUID->"637f0786-3b44-47eb-9728-691699ce02a9"],
+
+Cell[BoxData[
+ RowBox[{"{", 
+  RowBox[{
+   RowBox[{"Drop", "[", 
+    RowBox[{"list3", ",", "3"}], "]"}], ",", 
+   RowBox[{"Drop", "[", 
+    RowBox[{"list3", ",", 
+     RowBox[{"-", "3"}]}], "]"}]}], "}"}]], "Input",ExpressionUUID->"9a5d17ab-\
+65b4-4f54-a2e7-4de1e339282e"],
+
+Cell["\<\
+9: Take the first three, the last three, and elements 3, 4 and 11\
+\>", "Section",ExpressionUUID->"5c215b96-0946-4d5a-ab1e-fad46fcd4cd3"],
+
+Cell[BoxData[
+ RowBox[{"{", 
+  RowBox[{
+   RowBox[{"Take", "[", 
+    RowBox[{"list3", ",", "3"}], "]"}], ",", 
+   RowBox[{"Take", "[", 
+    RowBox[{"list3", ",", 
+     RowBox[{"-", "3"}]}], "]"}], ",", 
+   RowBox[{"list3", "\[LeftDoubleBracket]", 
+    RowBox[{"{", 
+     RowBox[{"3", ",", "4", ",", "11"}], "}"}], "\[RightDoubleBracket]"}]}], 
+  "}"}]], "Input",ExpressionUUID->"13841ecf-db9d-4f38-a283-ef40d8a58cec"],
+
+Cell["\<\
+10: Insert \"Fun and games\" as the second element of the course-name list\
+\>", "Section",ExpressionUUID->"a598756e-b227-4117-a7fe-d9951004a2f3"],
+
+Cell[BoxData[
+ RowBox[{"Insert", "[", 
+  RowBox[{"courseNames", ",", "\"\<Fun and games\>\"", ",", "2"}], 
+  "]"}]], "Input",ExpressionUUID->"70495d11-c3e8-4b88-9993-6ed89878708f"],
+
+Cell["11: Replace the second course name with \"Fun and games\"", "Section",ExpressionUUID->"7b1bd886-3666-4f38-b5be-21ef3deeeb18"],
+
+Cell[BoxData[
+ RowBox[{"ReplacePart", "[", 
+  RowBox[{"courseNames", ",", 
+   RowBox[{"2", "\[Rule]", "\"\<Fun and games\>\""}]}], "]"}]], "Input",Expres\
+sionUUID->"e927c2ee-1cd0-4fb2-9b98-858120cc2a1d"],
+
+Cell["12: Length of the Exercise 4 list", "Section",ExpressionUUID->"a53bee88-8d27-41b6-8875-42cab798ab18"],
+
+Cell[BoxData[
+ RowBox[{"Length", "[", "list4", "]"}]], "Input",ExpressionUUID->"b64b6b2b-8318-4e9e-b67f-653546556119"],
+
+Cell["13: Dimensions of the Exercise 5 list of lists", "Section",ExpressionUUID->"608d2bb2-4b9f-46b1-af4f-afc194f56c23"],
+
+Cell[BoxData[
+ RowBox[{"Dimensions", "[", "mat5", "]"}]], "Input",ExpressionUUID->"dd1179af-26c1-4473-aa82-1f49494274cf"],
+
+Cell["\<\
+14: Intersection of the Exercise 3 and Exercise 4 lists, in ColumnForm\
+\>", "Section",ExpressionUUID->"aa39f971-3a4f-4eb1-b1ff-3985da57ed7f"],
+
+Cell[BoxData[
+ RowBox[{"ColumnForm", "[", 
+  RowBox[{"list3", "\[Intersection]", "list4"}], "]"}]], "Input",ExpressionUUI\
+D->"4ea9c5d4-378e-4d20-8367-6c88af2866f4"],
+
+Cell["\<\
+15: Join of the Exercise 3 and Exercise 4 lists, in ColumnForm\
+\>", "Section",ExpressionUUID->"92cbf355-be2b-4799-9609-b2b0dddbd1d6"],
+
+Cell[BoxData[
+ RowBox[{"ColumnForm", "[", 
+  RowBox[{"Join", "[", 
+   RowBox[{"list3", ",", "list4"}], "]"}], "]"}]], "Input",ExpressionUUID->\
+"caf8de27-6fb1-46ee-bc21-a669583a3443"],
+
+Cell["16: Partition the Exercise 3 list into sublists of length 4", "Section",ExpressionUUID->"ad95ef31-228d-46ec-9db9-02bb4a9552d5"],
+
+Cell[BoxData[{
+ RowBox[{
+  RowBox[{"list16", "=", 
+   RowBox[{"Partition", "[", 
+    RowBox[{"list3", ",", "4"}], "]"}]}], ";"}], "\[IndentingNewLine]", 
+ RowBox[{"TableForm", "[", "list16", "]"}]}], "Input",ExpressionUUID->\
+"2d8531ff-09c7-449f-917a-bd384801fc03"],
+
+Cell["\<\
+17: Partition into three sublists, each holding sublists of length 2\
+\>", "Section",ExpressionUUID->"1b1a554d-f116-4330-a641-d9217367245c"],
+
+Cell[BoxData[
+ RowBox[{"MatrixForm", "[", 
+  RowBox[{"Partition", "[", 
+   RowBox[{
+    RowBox[{"Partition", "[", 
+     RowBox[{"list3", ",", "2"}], "]"}], ",", "3"}], "]"}], "]"}]], "Input",Ex\
+pressionUUID->"0e28bf3a-aec2-4403-9cc8-8f66bf3bf45b"],
+
+Cell["\<\
+18: Part extraction - third element of Exercise 3, second element of Exercise \
+16\
+\>", "Section",ExpressionUUID->"b145a1fc-e8a6-41a5-8d9b-8d831d058997"],
+
+Cell[BoxData[
+ RowBox[{"{", 
+  RowBox[{
+   RowBox[{"list3", "\[LeftDoubleBracket]", "3", "\[RightDoubleBracket]"}], ",", 
+   RowBox[{"list16", "\[LeftDoubleBracket]", "2", "\[RightDoubleBracket]"}]}],
+   "}"}]], "Input",ExpressionUUID->"723e2b74-90de-43a7-ab58-b635801a1d78"],
+
+Cell["19: The entry in row 2, column 3 of the Exercise 5 matrix", "Section",ExpressionUUID->"14c7035f-cc6e-4367-882b-57a1b5701ae7"],
+
+Cell[BoxData[
+ RowBox[{"mat5", "\[LeftDoubleBracket]", 
+  RowBox[{"2", ",", "3"}], "\[RightDoubleBracket]"}]], "Input",ExpressionUUID->\
+"1b367722-f4d1-4c74-bf0f-460f038a3d8c"],
+
+Cell["20: The second row of the Exercise 5 matrix", "Section",ExpressionUUID->"5abc4ce8-2157-4859-9b55-de80e6f3677e"],
+
+Cell[BoxData[
+ RowBox[{"mat5", "\[LeftDoubleBracket]", "2", 
+  "\[RightDoubleBracket]"}]], "Input",ExpressionUUID->"97002a6a-69a2-4bd4-\
+bf3c-6668380da4da"],
+
+Cell["\<\
+21: The second column of the Exercise 5 matrix, using Part alone\
+\>", "Section",ExpressionUUID->"acd449fa-6549-4792-8049-0ebd00ae4673"],
+
+Cell[BoxData[
+ RowBox[{"mat5", "\[LeftDoubleBracket]", 
+  RowBox[{"All", ",", "2"}], "\[RightDoubleBracket]"}]], "Input",ExpressionUUI\
+D->"87782d1f-6af8-4667-8bae-ae3e6cb0cdab"],
+
+Cell["22: Exp applied directly to a mixed list", "Section",ExpressionUUID->"3b56cde9-c757-4bec-adc5-d6673f56bd0d"],
+
+Cell[BoxData[
+ SuperscriptBox["\[ExponentialE]", 
+  RowBox[{"{", 
+   RowBox[{
+   "1", ",", "2", ",", "a", ",", "x", ",", "\"\<string\>\"", ",", "\[Pi]"}], 
+   "}"}]]], "Input",ExpressionUUID->"0c572edf-5e63-4c53-9de8-7f49fedc9499"],
+
+Cell["\<\
+23: Log over the same list via Map, then N applied to the result\
+\>", "Section",ExpressionUUID->"04eb543a-0889-45b8-b8e8-ea2eb90eebfb"],
+
+Cell[BoxData[
+ RowBox[{"logs", "=", 
+  RowBox[{"Log", "/@", 
+   RowBox[{"{", 
+    RowBox[{
+    "1", ",", "2", ",", "a", ",", "x", ",", "\"\<string\>\"", ",", "\[Pi]"}], 
+    "}"}]}]}]], "Input",ExpressionUUID->"9076c701-9c09-4bcf-8a28-\
+469d83d925fb"],
+
+Cell[BoxData[
+ RowBox[{"N", "[", "logs", "]"}]], "Input",ExpressionUUID->"a67c3fa6-d74e-4d01-9dec-63e5eabca656"],
+
+Cell["24: Apply Plus to the Exercise 4 list", "Section",ExpressionUUID->"500087b1-408a-4183-bba1-2f1a70c536d9"],
+
+Cell[BoxData[
+ RowBox[{"Plus", "@@", "list4"}]], "Input",ExpressionUUID->"bebab79d-8a7c-4a90-8670-832e7341151d"],
+
+Cell["25: Flatten the Exercise 5 matrix", "Section",ExpressionUUID->"e1bd5e88-a134-4f10-9870-eed0c38f1e60"],
+
+Cell[BoxData[
+ RowBox[{"Flatten", "[", "mat5", "]"}]], "Input",ExpressionUUID->"6724bbee-369c-4df2-9a82-11f28cbb19d4"]
+},
+WindowSize->{1100, 850},
+FrontEndVersion->"15.0 for Mac OS X ARM (64-bit) (May 26, 2026)",
+StyleDefinitions->"Default.nb",
+ExpressionUUID->"53e1aa67-6381-4be0-aec1-2e1147a12ddd"
+]
 (* End of Notebook Content *)
+
+(* Internal cache information *)
+(*CellTagsOutline
+CellTagsIndex->{}
+*)
+(*CellTagsIndex
+CellTagsIndex->{}
+*)
+(*NotebookFileOutline
+Notebook[{
+Cell[560, 20, 174, 4, 70, "Title",ExpressionUUID->"db76645c-815c-4640-8335-ba4c8a463b84"],
+Cell[737, 26, 215, 3, 70, "Text",ExpressionUUID->"533d58ff-0cdb-42cb-aabc-bd45dc51e3a2"],
+Cell[955, 31, 281, 6, 70, "Input",ExpressionUUID->"100793d6-3836-4c90-8c93-d304d77ac177"],
+Cell[1239, 39, 155, 2, 70, "Section",ExpressionUUID->"055bc00e-bad4-46ce-aae5-5b6e99c2cce5"],
+Cell[1397, 43, 198, 4, 70, "Input",ExpressionUUID->"53068fd9-8e0c-4790-9dcf-d8fa38dd419c"],
+Cell[1598, 49, 155, 2, 70, "Section",ExpressionUUID->"8062acb7-2853-4666-bd41-7500cf56b4c0"],
+Cell[1756, 53, 540, 14, 70, "Input",ExpressionUUID->"1e3f2b41-8953-4fd1-9e66-8778b8d486ad"],
+Cell[2299, 69, 113, 0, 70, "Section",ExpressionUUID->"36053c43-6ad3-42f8-ab15-e5ef3e6ca891"],
+Cell[2415, 71, 228, 6, 70, "Input",ExpressionUUID->"846e00c7-7943-4282-9942-4343d4d97b22"],
+Cell[2646, 79, 118, 0, 70, "Section",ExpressionUUID->"a085c8ed-409e-40cd-ac9f-b54eb6662fdb"],
+Cell[2767, 81, 238, 6, 70, "Input",ExpressionUUID->"b035b5c4-e963-4023-a51f-38e331cb1871"],
+Cell[3008, 89, 151, 2, 70, "Section",ExpressionUUID->"7e01e049-402d-431f-a9aa-241f38294cde"],
+Cell[3162, 93, 484, 13, 70, "Input",ExpressionUUID->"bb8fd7d2-6f79-4b57-889a-565ed83cd482"],
+Cell[3649, 108, 124, 0, 70, "Section",ExpressionUUID->"4f08744b-88d6-4d7d-a4b8-31076cb4cc7b"],
+Cell[3776, 110, 215, 5, 70, "Input",ExpressionUUID->"40eb6be4-fd13-49ca-a429-fa1a9c4de899"],
+Cell[3994, 117, 112, 0, 70, "Section",ExpressionUUID->"904ef1af-2308-479c-a0e0-425aec74344f"],
+Cell[4109, 119, 119, 1, 70, "Input",ExpressionUUID->"cec6b4de-c8b5-4902-a0f3-8bc1ce8ca572"],
+Cell[4231, 122, 161, 3, 70, "Section",ExpressionUUID->"637f0786-3b44-47eb-9728-691699ce02a9"],
+Cell[4395, 127, 272, 8, 70, "Input",ExpressionUUID->"9a5d17ab-65b4-4f54-a2e7-4de1e339282e"],
+Cell[4670, 137, 147, 2, 70, "Section",ExpressionUUID->"5c215b96-0946-4d5a-ab1e-fad46fcd4cd3"],
+Cell[4820, 141, 417, 11, 70, "Input",ExpressionUUID->"13841ecf-db9d-4f38-a283-ef40d8a58cec"],
+Cell[5240, 154, 156, 2, 70, "Section",ExpressionUUID->"a598756e-b227-4117-a7fe-d9951004a2f3"],
+Cell[5399, 158, 180, 3, 70, "Input",ExpressionUUID->"70495d11-c3e8-4b88-9993-6ed89878708f"],
+Cell[5582, 163, 131, 0, 70, "Section",ExpressionUUID->"7b1bd886-3666-4f38-b5be-21ef3deeeb18"],
+Cell[5716, 165, 204, 4, 70, "Input",ExpressionUUID->"e927c2ee-1cd0-4fb2-9b98-858120cc2a1d"],
+Cell[5923, 171, 107, 0, 70, "Section",ExpressionUUID->"a53bee88-8d27-41b6-8875-42cab798ab18"],
+Cell[6033, 173, 118, 1, 70, "Input",ExpressionUUID->"b64b6b2b-8318-4e9e-b67f-653546556119"],
+Cell[6154, 176, 120, 0, 70, "Section",ExpressionUUID->"608d2bb2-4b9f-46b1-af4f-afc194f56c23"],
+Cell[6277, 178, 121, 1, 70, "Input",ExpressionUUID->"dd1179af-26c1-4473-aa82-1f49494274cf"],
+Cell[6401, 181, 152, 2, 70, "Section",ExpressionUUID->"aa39f971-3a4f-4eb1-b1ff-3985da57ed7f"],
+Cell[6556, 185, 165, 3, 70, "Input",ExpressionUUID->"4ea9c5d4-378e-4d20-8367-6c88af2866f4"],
+Cell[6724, 190, 144, 2, 70, "Section",ExpressionUUID->"92cbf355-be2b-4799-9609-b2b0dddbd1d6"],
+Cell[6871, 194, 183, 4, 70, "Input",ExpressionUUID->"caf8de27-6fb1-46ee-bc21-a669583a3443"],
+Cell[7057, 200, 133, 0, 70, "Section",ExpressionUUID->"ad95ef31-228d-46ec-9db9-02bb4a9552d5"],
+Cell[7193, 202, 265, 6, 70, "Input",ExpressionUUID->"2d8531ff-09c7-449f-917a-bd384801fc03"],
+Cell[7461, 210, 150, 2, 70, "Section",ExpressionUUID->"1b1a554d-f116-4330-a641-d9217367245c"],
+Cell[7614, 214, 248, 6, 70, "Input",ExpressionUUID->"0e28bf3a-aec2-4403-9cc8-8f66bf3bf45b"],
+Cell[7865, 222, 164, 3, 70, "Section",ExpressionUUID->"b145a1fc-e8a6-41a5-8d9b-8d831d058997"],
+Cell[8032, 227, 275, 5, 70, "Input",ExpressionUUID->"723e2b74-90de-43a7-ab58-b635801a1d78"],
+Cell[8310, 234, 131, 0, 70, "Section",ExpressionUUID->"14c7035f-cc6e-4367-882b-57a1b5701ae7"],
+Cell[8444, 236, 176, 3, 70, "Input",ExpressionUUID->"1b367722-f4d1-4c74-bf0f-460f038a3d8c"],
+Cell[8623, 241, 117, 0, 70, "Section",ExpressionUUID->"5abc4ce8-2157-4859-9b55-de80e6f3677e"],
+Cell[8743, 243, 156, 3, 70, "Input",ExpressionUUID->"97002a6a-69a2-4bd4-bf3c-6668380da4da"],
+Cell[8902, 248, 146, 2, 70, "Section",ExpressionUUID->"acd449fa-6549-4792-8049-0ebd00ae4673"],
+Cell[9051, 252, 178, 3, 70, "Input",ExpressionUUID->"87782d1f-6af8-4667-8bae-ae3e6cb0cdab"],
+Cell[9232, 257, 114, 0, 70, "Section",ExpressionUUID->"3b56cde9-c757-4bec-adc5-d6673f56bd0d"],
+Cell[9349, 259, 231, 5, 70, "Input",ExpressionUUID->"0c572edf-5e63-4c53-9de8-7f49fedc9499"],
+Cell[9583, 266, 146, 2, 70, "Section",ExpressionUUID->"04eb543a-0889-45b8-b8e8-ea2eb90eebfb"],
+Cell[9732, 270, 251, 7, 70, "Input",ExpressionUUID->"9076c701-9c09-4bcf-8a28-469d83d925fb"],
+Cell[9986, 279, 112, 1, 70, "Input",ExpressionUUID->"a67c3fa6-d74e-4d01-9dec-63e5eabca656"],
+Cell[10101, 282, 111, 0, 70, "Section",ExpressionUUID->"500087b1-408a-4183-bba1-2f1a70c536d9"],
+Cell[10215, 284, 112, 1, 70, "Input",ExpressionUUID->"bebab79d-8a7c-4a90-8670-832e7341151d"],
+Cell[10330, 287, 107, 0, 70, "Section",ExpressionUUID->"e1bd5e88-a134-4f10-9870-eed0c38f1e60"],
+Cell[10440, 289, 118, 1, 70, "Input",ExpressionUUID->"6724bbee-369c-4df2-9a82-11f28cbb19d4"]
+}
+]
+*)
+
+(* End of internal cache information *)

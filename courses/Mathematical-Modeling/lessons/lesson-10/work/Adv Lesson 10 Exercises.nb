@@ -3,6 +3,473 @@
 (*** Wolfram Notebook File ***)
 (* http://www.wolfram.com/nb *)
 
+(* CreatedBy='WolframEngine 15.0' *)
+
+(*CacheID: 234*)
+(* Internal cache information:
+NotebookFileLineBreakTest
+NotebookFileLineBreakTest
+NotebookDataPosition[       160,          7]
+NotebookDataLength[     17610,        466]
+NotebookOptionsPosition[     13941,        417]
+NotebookOutlinePosition[     14283,        432]
+CellTagsIndexPosition[     14240,        429]
+WindowFrame->Normal*)
+
 (* Beginning of Notebook Content *)
-Notebook[{Cell["Advanced Lesson 10 - Exercises: Modules, Recursion and Procedural Programming\nMikey Ferguson\nMATH 7013 - Advanced Mathematical Modeling", "Title"], Cell["1: A Module that averages ten integers", "Section"], Cell[BoxData[RowBox[{RowBox[{"Clear", "[", "m1", "]"}], ";", "\[IndentingNewLine]", RowBox[{"m1", ":=", RowBox[{"Module", "[", RowBox[{RowBox[{"{", "list", "}"}], ",", RowBox[{RowBox[{"list", "=", RowBox[{"Table", "[", RowBox[{"i", ",", RowBox[{"{", RowBox[{"i", ",", "1", ",", "10"}], "}"}]}], "]"}]}], ";", RowBox[{"Mean", "[", "list", "]"}]}]}], "]"}]}]}]], "Input"], Cell[BoxData["m1"], "Input"], Cell["Module's first argument is the list of local names. Everything inside is\nevaluated with those names shadowed by private copies, so the symbol \"list\"\nused here cannot collide with anything of the same name outside. The last\nexpression in the body is the return value - there is no return keyword and\nnone is wanted.\nThe average of 1 through 10 is 11/2, returned exactly rather than as 5.5,\nbecause the inputs were exact integers.", "Text"], Cell["2: A Module that plots ten ordered pairs", "Section"], Cell[BoxData[RowBox[{RowBox[{"Clear", "[", "m2", "]"}], ";", "\[IndentingNewLine]", RowBox[{"m2", ":=", RowBox[{"Module", "[", RowBox[{RowBox[{"{", "pairs", "}"}], ",", RowBox[{RowBox[{"pairs", "=", RowBox[{"Table", "[", RowBox[{RowBox[{"{", RowBox[{"i", ",", SuperscriptBox["i", "2"]}], "}"}], ",", RowBox[{"{", RowBox[{"i", ",", "1", ",", "10"}], "}"}]}], "]"}]}], ";", RowBox[{"ListPlot", "[", RowBox[{"pairs", ",", RowBox[{"PlotStyle", "\[Rule]", RowBox[{"PointSize", "[", "0.02`", "]"}]}]}], "]"}]}]}], "]"}]}]}]], "Input"], Cell[BoxData["m2"], "Input"], Cell["The ten points {1, 1} through {10, 100} lie on a parabola. The module\nreturns the graphic itself, which is an ordinary expression like any other\nand can be assigned, combined with Show, or handed to further processing.", "Text"], Cell["3: A Module wrapping DSolve and Plot", "Section"], Cell[BoxData[RowBox[{RowBox[{"Clear", "[", RowBox[{"f", ",", "a", ",", "y0", ",", "t", ",", "y"}], "]"}], ";", "\[IndentingNewLine]", RowBox[{RowBox[{"f", "[", RowBox[{"a_", ",", "y0_"}], "]"}], ":=", RowBox[{"Module", "[", RowBox[{RowBox[{"{", RowBox[{"sol", ",", "yt"}], "}"}], ",", RowBox[{RowBox[{"sol", "=", RowBox[{"DSolve", "[", RowBox[{RowBox[{"{", RowBox[{RowBox[{RowBox[{SuperscriptBox["y", "\[Prime]", MultilineFunction -> None], "[", "t", "]"}], "\[Equal]", RowBox[{"a", " ", RowBox[{"y", "[", "t", "]"}]}]}], ",", RowBox[{RowBox[{"y", "[", "0", "]"}], "\[Equal]", "y0"}]}], "}"}], ",", RowBox[{"y", "[", "t", "]"}], ",", "t"}], "]"}]}], ";", RowBox[{"yt", "=", RowBox[{RowBox[{"y", "[", "t", "]"}], "/.", "\[VeryThinSpace]", RowBox[{"First", "[", "sol", "]"}]}]}], ";", RowBox[{"Plot", "[", RowBox[{"yt", ",", RowBox[{"{", RowBox[{"t", ",", "0", ",", "2"}], "}"}], ",", RowBox[{"PlotRange", "\[Rule]", "All"}], ",", RowBox[{"PlotLabel", "\[Rule]", TemplateBox[{"\"a = \"", "a", "\", y0 = \"", "y0"}, "RowDefault"]}]}], "]"}]}]}], "]"}]}]}]], "Input"], Cell[BoxData[RowBox[{"f", "[", RowBox[{"2", ",", "3"}], "]"}]], "Input"], Cell[BoxData[RowBox[{"f", "[", RowBox[{RowBox[{"-", "2"}], ",", "3"}], "]"}]], "Input"], Cell["The exercise writes this with immediate assignment, f[a_, y0_] = Module[...].\nDelayed assignment is used here instead, and deliberately: with \"=\" the\nModule body would be evaluated once at definition time, with a and y0 still\nbare symbols, and DSolve would be asked to solve a problem whose parameters\ndo not exist yet. Everything in this body depends on the arguments, so it\nall has to be postponed. This is the Lesson 2 lesson again, in a bigger\nsetting.\nThe solutions are y[t] = 3 E^(2t) and y[t] = 3 E^(-2t): exponential growth\nfor positive a, decay for negative a, both starting at 3. PlotRange -> All\nkeeps the whole growing curve in frame rather than clipping it.", "Text"], Cell["4: The same Module with y0 localised and initialised to 1", "Section"], Cell[BoxData[RowBox[{RowBox[{"Clear", "[", RowBox[{"f", ",", "a", ",", "t", ",", "y"}], "]"}], ";", "\[IndentingNewLine]", RowBox[{RowBox[{"f", "[", "a_", "]"}], ":=", RowBox[{"Module", "[", RowBox[{RowBox[{"{", RowBox[{RowBox[{"y0", "=", "1"}], ",", "sol", ",", "yt"}], "}"}], ",", RowBox[{RowBox[{"sol", "=", RowBox[{"DSolve", "[", RowBox[{RowBox[{"{", RowBox[{RowBox[{RowBox[{SuperscriptBox["y", "\[Prime]", MultilineFunction -> None], "[", "t", "]"}], "\[Equal]", RowBox[{"a", " ", RowBox[{"y", "[", "t", "]"}]}]}], ",", RowBox[{RowBox[{"y", "[", "0", "]"}], "\[Equal]", "y0"}]}], "}"}], ",", RowBox[{"y", "[", "t", "]"}], ",", "t"}], "]"}]}], ";", RowBox[{"yt", "=", RowBox[{RowBox[{"y", "[", "t", "]"}], "/.", "\[VeryThinSpace]", RowBox[{"First", "[", "sol", "]"}]}]}], ";", RowBox[{"Plot", "[", RowBox[{"yt", ",", RowBox[{"{", RowBox[{"t", ",", "0", ",", "2"}], "}"}], ",", RowBox[{"PlotRange", "\[Rule]", "All"}], ",", RowBox[{"PlotLabel", "\[Rule]", TemplateBox[{"\"a = \"", "a", "\", y0 = \"", "y0"}, "RowDefault"]}]}], "]"}]}]}], "]"}]}]}]], "Input"], Cell[BoxData[RowBox[{"f", "[", "2", "]"}]], "Input"], Cell[BoxData[RowBox[{"f", "[", RowBox[{"-", "2"}], "]"}]], "Input"], Cell["A local variable can be given an initial value inside the Module's variable\nlist, using ordinary assignment syntax there. y0 is now private to the\nmodule and fixed at 1, so it has vanished from the function's signature.\nThe curves are E^(2t) and E^(-2t), both starting at 1.", "Text"], Cell["5: A Module that averages the first n integers", "Section"], Cell[BoxData[RowBox[{RowBox[{"Clear", "[", RowBox[{"f", ",", "n"}], "]"}], ";", "\[IndentingNewLine]", RowBox[{RowBox[{"f", "[", "n_", "]"}], ":=", RowBox[{"Module", "[", RowBox[{RowBox[{"{", "list", "}"}], ",", RowBox[{RowBox[{"list", "=", RowBox[{"Table", "[", RowBox[{"i", ",", RowBox[{"{", RowBox[{"i", ",", "1", ",", "n"}], "}"}]}], "]"}]}], ";", RowBox[{"Mean", "[", "list", "]"}]}]}], "]"}]}]}]], "Input"], Cell[BoxData[RowBox[{"{", RowBox[{RowBox[{"f", "[", "10", "]"}], ",", RowBox[{"f", "[", "100", "]"}]}], "}"}]], "Input"], Cell["f[10] is 11/2 and f[100] is 101/2 - exact rationals, and both instances of\nthe general formula (n + 1)/2. Generalising Exercise 1 cost exactly one\npattern variable.", "Text"], Cell["6: A linear economy, defined recursively", "Section"], Cell[BoxData[RowBox[{RowBox[{"Clear", "[", RowBox[{"economy", ",", "a", ",", "b", ",", "n", ",", "value1"}], "]"}], ";", "\[IndentingNewLine]", RowBox[{RowBox[{"economy", "[", "1", "]"}], "=", "value1"}], ";", "\[IndentingNewLine]", RowBox[{RowBox[{"economy", "[", "n_", "]"}], ":=", RowBox[{RowBox[{"a", " ", RowBox[{"economy", "[", RowBox[{"n", "-", "1"}], "]"}]}], "+", "b"}]}]}]], "Input"], Cell[BoxData[RowBox[{"{", RowBox[{RowBox[{"economy", "[", "1", "]"}], ",", RowBox[{"economy", "[", "2", "]"}], ",", RowBox[{"economy", "[", "10", "]"}]}], "}"}]], "Input"], Cell["The base case is stored as a literal definition and the recursive case as a\npattern definition, and Mathematica's ordering puts the literal first, so\nthe recursion terminates without any explicit test.\neconomy[1] is value1. economy[2] is b + a value1. economy[10] is a deeply\nnested expression, which Mathematica leaves in nested form rather\nthan expanding - apply Expand or Simplify to see it as a polynomial in a\nwith the geometric-series structure made explicit.", "Text"], Cell["7: A nonlinear economy, defined through an arbitrary F", "Section"], Cell[BoxData[RowBox[{RowBox[{"Clear", "[", RowBox[{"economy", ",", "F", ",", "X", ",", "a", ",", "b", ",", "n", ",", "value1"}], "]"}], ";", "\[IndentingNewLine]", RowBox[{RowBox[{"F", "[", "X_", "]"}], ":=", RowBox[{RowBox[{"a", " ", "X"}], "+", "b"}]}], ";", "\[IndentingNewLine]", RowBox[{RowBox[{"economy", "[", "1", "]"}], "=", "value1"}], ";", "\[IndentingNewLine]", RowBox[{RowBox[{"economy", "[", "n_", "]"}], ":=", RowBox[{"F", "[", RowBox[{"economy", "[", RowBox[{"n", "-", "1"}], "]"}], "]"}]}]}]], "Input"], Cell[BoxData[RowBox[{"{", RowBox[{RowBox[{"economy", "[", "1", "]"}], ",", RowBox[{"economy", "[", "2", "]"}], ",", RowBox[{"economy", "[", "10", "]"}]}], "}"}]], "Input"], Cell["The recursion is now written in terms of an unspecified transition function\nF, with the linear choice supplied separately. The values agree with\nExercise 6 exactly, which is the point - the structure of the model and the\nparticular law of motion have been separated, and replacing F with something\ngenuinely nonlinear would need no change to the recursion at all.", "Text"], Cell["8: A two-lag economy", "Section"], Cell[BoxData[RowBox[{RowBox[{"Clear", "[", RowBox[{"economy", ",", "F", ",", "X", ",", "Y", ",", "a", ",", "b", ",", "n", ",", "value1", ",", "value2"}], "]"}], ";", "\[IndentingNewLine]", RowBox[{RowBox[{"F", "[", RowBox[{"X_", ",", "Y_"}], "]"}], ":=", RowBox[{RowBox[{"a", " ", "X"}], "+", RowBox[{"b", " ", "Y"}]}]}], ";", "\[IndentingNewLine]", RowBox[{RowBox[{"economy", "[", "1", "]"}], "=", "value1"}], ";", "\[IndentingNewLine]", RowBox[{RowBox[{"economy", "[", "2", "]"}], "=", "value2"}], ";", "\[IndentingNewLine]", RowBox[{RowBox[{"economy", "[", "n_", "]"}], ":=", RowBox[{"F", "[", RowBox[{RowBox[{"economy", "[", RowBox[{"n", "-", "1"}], "]"}], ",", RowBox[{"economy", "[", RowBox[{"n", "-", "2"}], "]"}]}], "]"}]}]}]], "Input"], Cell[BoxData[RowBox[{"{", RowBox[{RowBox[{"economy", "[", "1", "]"}], ",", RowBox[{"economy", "[", "2", "]"}], ",", RowBox[{"economy", "[", "3", "]"}], ",", RowBox[{"economy", "[", "5", "]"}]}], "}"}]], "Input"], Cell["Two lags need two base cases, or the recursion runs off the bottom. This is\nthe Fibonacci shape, and it has Fibonacci's cost: economy[n] calls itself\ntwice, so the number of calls grows exponentially and economy[30] would be\nunpleasant. The standard cure is to make the definition remember its own\nresults - writing the recursive case as economy[n_] := economy[n] = ... so\nthat each computed value is stored as a new literal definition. That is the\nmemoisation idiom, and it turns exponential work into linear work.", "Text"], Cell["9: The same economy, procedurally - Do, While and For", "Section"], Cell[BoxData[RowBox[{RowBox[{"Clear", "[", RowBox[{"economyDo", ",", "economyWhile", ",", "economyFor", ",", "a", ",", "b", ",", "n", ",", "k", ",", "value1"}], "]"}], ";", "\[IndentingNewLine]", RowBox[{RowBox[{"economyDo", "[", "n_", "]"}], ":=", RowBox[{"Module", "[", RowBox[{RowBox[{"{", RowBox[{"e", "=", "value1"}], "}"}], ",", RowBox[{RowBox[{"Do", "[", RowBox[{RowBox[{"e", "=", RowBox[{RowBox[{"a", " ", "e"}], "+", "b"}]}], ",", RowBox[{"{", RowBox[{"k", ",", "2", ",", "n"}], "}"}]}], "]"}], ";", "e"}]}], "]"}]}]}]], "Input"], Cell[BoxData[RowBox[{RowBox[{"economyWhile", "[", "n_", "]"}], ":=", RowBox[{"Module", "[", RowBox[{RowBox[{"{", RowBox[{RowBox[{"e", "=", "value1"}], ",", RowBox[{"k", "=", "1"}]}], "}"}], ",", RowBox[{RowBox[{"While", "[", RowBox[{RowBox[{"k", "<", "n"}], ",", RowBox[{RowBox[{"e", "=", RowBox[{RowBox[{"a", " ", "e"}], "+", "b"}]}], ";", RowBox[{"k", "=", RowBox[{"k", "+", "1"}]}]}]}], "]"}], ";", "e"}]}], "]"}]}]], "Input"], Cell[BoxData[RowBox[{RowBox[{"economyFor", "[", "n_", "]"}], ":=", RowBox[{"Module", "[", RowBox[{RowBox[{"{", RowBox[{RowBox[{"e", "=", "value1"}], ",", "k"}], "}"}], ",", RowBox[{RowBox[{"For", "[", RowBox[{RowBox[{"k", "=", "2"}], ",", RowBox[{"k", "\[LessEqual]", "n"}], ",", RowBox[{"k", "=", RowBox[{"k", "+", "1"}]}], ",", RowBox[{"e", "=", RowBox[{RowBox[{"a", " ", "e"}], "+", "b"}]}]}], "]"}], ";", "e"}]}], "]"}]}]], "Input"], Cell[BoxData[RowBox[{"{", RowBox[{RowBox[{"economyDo", "[", "1", "]"}], ",", RowBox[{"economyDo", "[", "2", "]"}], ",", RowBox[{"economyDo", "[", "10", "]"}]}], "}"}]], "Input"], Cell[BoxData[RowBox[{"{", RowBox[{RowBox[{"economyWhile", "[", "1", "]"}], ",", RowBox[{"economyWhile", "[", "2", "]"}], ",", RowBox[{"economyWhile", "[", "10", "]"}]}], "}"}]], "Input"], Cell[BoxData[RowBox[{"{", RowBox[{RowBox[{"economyFor", "[", "1", "]"}], ",", RowBox[{"economyFor", "[", "2", "]"}], ",", RowBox[{"economyFor", "[", "10", "]"}]}], "}"}]], "Input"], Cell["All three loops produce the same values as the recursion in Exercise 6, and\neach returns value1 unchanged when n is 1, because none of them executes its\nbody at all in that case.\nThe three constructs differ only in where the bookkeeping lives. Do takes an\niterator specification and manages the counter itself. While takes a\ncondition and requires the body to advance the counter, or it never\nterminates. For takes initialisation, test, increment and body as four\nseparate arguments, in the C order. Do is the one to reach for when the\nnumber of repetitions is known in advance, which it is here; the other two\nare shown for the comparison the exercise asks for.\nNote that the counter is declared local in each case. A loop variable that\nleaks into the global context is one of the standard ways a notebook starts\nproducing results that depend on what was evaluated before it.", "Text"], Cell["10: A four-piece function, via Which", "Section"], Cell[BoxData[RowBox[{RowBox[{"Clear", "[", RowBox[{"f", ",", "x"}], "]"}], ";", "\[IndentingNewLine]", RowBox[{RowBox[{"f", "[", "x_", "]"}], ":=", RowBox[{"Which", "[", RowBox[{RowBox[{"x", "<", RowBox[{"-", "2"}]}], ",", SuperscriptBox["x", "2"], ",", RowBox[{RowBox[{"-", "2"}], "\[LessEqual]", "x", "<", "1"}], ",", RowBox[{"Sin", "[", SuperscriptBox["x", "2"], "]"}], ",", RowBox[{"1", "\[LessEqual]", "x", "<", "3"}], ",", RowBox[{"2", " ", "x"}], ",", RowBox[{"3", "\[LessEqual]", "x"}], ",", "x"}], "]"}]}]}]], "Input"], Cell[BoxData[RowBox[{"Plot", "[", RowBox[{RowBox[{"f", "[", "x", "]"}], ",", RowBox[{"{", RowBox[{"x", ",", RowBox[{"-", "3"}], ",", "4"}], "}"}]}], "]"}]], "Input"], Cell["Which evaluates its tests in order and returns the branch belonging to the\nfirst True, so the four intervals are checked left to right and the\nhalf-open boundaries fall out of the ordering without any special handling.\nThe plot shows a parabola arriving from the left down to 4 at x = -2, then\nthe oscillation of Sin[x^2] across [-2, 1), then a straight segment of slope\n2 rising to 6 at x = 3, then the line y = x dropping to 3 and climbing\nagain. The jumps at x = -2, x = 1 and x = 3 are genuine discontinuities;\nPlot draws them as steep connecting segments because it joins its sample\npoints.", "Text"]}, WindowSize -> {1100, 850}, StyleDefinitions -> "Default.nb"]
+Notebook[{
+Cell["\<\
+Advanced Lesson 10 - Exercises: Modules, Recursion and Procedural Programming
+Mikey Ferguson
+MATH 7013 - Advanced Mathematical Modeling\
+\>", "Title",ExpressionUUID->"b24e8d76-ffa1-4275-9fda-d41cf62b1acd"],
+
+Cell["1: A Module that averages ten integers", "Section",ExpressionUUID->"063fbb39-fd5a-434f-8d86-76e765942714"],
+
+Cell[BoxData[{
+ RowBox[{
+  RowBox[{"Clear", "[", "m1", "]"}], ";"}], "\[IndentingNewLine]", 
+ RowBox[{"m1", ":=", 
+  RowBox[{"Module", "[", 
+   RowBox[{
+    RowBox[{"{", "list", "}"}], ",", 
+    RowBox[{
+     RowBox[{"list", "=", 
+      RowBox[{"Table", "[", 
+       RowBox[{"i", ",", 
+        RowBox[{"{", 
+         RowBox[{"i", ",", "1", ",", "10"}], "}"}]}], "]"}]}], ";", 
+     RowBox[{"Mean", "[", "list", "]"}]}]}], "]"}]}]}], "Input",ExpressionUUID\
+->"038f4820-1f8d-4345-ae6f-1e845b7c5675"],
+
+Cell[BoxData["m1"], "Input",ExpressionUUID->"b6912ea4-d24c-456c-9283-aabaee42a330"],
+
+Cell["2: A Module that plots ten ordered pairs", "Section",ExpressionUUID->"5b2135c0-1204-4445-a672-68a6ece8a8ae"],
+
+Cell[BoxData[{
+ RowBox[{
+  RowBox[{"Clear", "[", "m2", "]"}], ";"}], "\[IndentingNewLine]", 
+ RowBox[{"m2", ":=", 
+  RowBox[{"Module", "[", 
+   RowBox[{
+    RowBox[{"{", "pairs", "}"}], ",", 
+    RowBox[{
+     RowBox[{"pairs", "=", 
+      RowBox[{"Table", "[", 
+       RowBox[{
+        RowBox[{"{", 
+         RowBox[{"i", ",", 
+          SuperscriptBox["i", "2"]}], "}"}], ",", 
+        RowBox[{"{", 
+         RowBox[{"i", ",", "1", ",", "10"}], "}"}]}], "]"}]}], ";", 
+     RowBox[{"ListPlot", "[", 
+      RowBox[{"pairs", ",", 
+       RowBox[{"PlotStyle", "\[Rule]", 
+        RowBox[{"PointSize", "[", "0.02`", "]"}]}]}], "]"}]}]}], 
+   "]"}]}]}], "Input",ExpressionUUID->"1b40b8e2-44ac-42ba-b886-fb0d1a25ddaf"],
+
+Cell[BoxData["m2"], "Input",ExpressionUUID->"b9f8d6bb-6805-4a4c-bf8c-7cfe2d185b2e"],
+
+Cell["3: A Module wrapping DSolve and Plot", "Section",ExpressionUUID->"f8750bf7-2717-4318-a793-3ac538c084d0"],
+
+Cell[BoxData[{
+ RowBox[{
+  RowBox[{"Clear", "[", 
+   RowBox[{"f", ",", "a", ",", "y0", ",", "t", ",", "y"}], "]"}], ";"}], "\[IndentingNewLine]", 
+ RowBox[{
+  RowBox[{"f", "[", 
+   RowBox[{"a_", ",", "y0_"}], "]"}], ":=", 
+  RowBox[{"Module", "[", 
+   RowBox[{
+    RowBox[{"{", 
+     RowBox[{"sol", ",", "yt"}], "}"}], ",", 
+    RowBox[{
+     RowBox[{"sol", "=", 
+      RowBox[{"DSolve", "[", 
+       RowBox[{
+        RowBox[{"{", 
+         RowBox[{
+          RowBox[{
+           RowBox[{
+            SuperscriptBox["y", "\[Prime]",
+             MultilineFunction->None], "[", "t", "]"}], "\[Equal]", 
+           RowBox[{"a", " ", 
+            RowBox[{"y", "[", "t", "]"}]}]}], ",", 
+          RowBox[{
+           RowBox[{"y", "[", "0", "]"}], "\[Equal]", "y0"}]}], "}"}], ",", 
+        RowBox[{"y", "[", "t", "]"}], ",", "t"}], "]"}]}], ";", 
+     RowBox[{"yt", "=", 
+      RowBox[{
+       RowBox[{"y", "[", "t", "]"}], "/.", "\[VeryThinSpace]", 
+       RowBox[{"First", "[", "sol", "]"}]}]}], ";", 
+     RowBox[{"Plot", "[", 
+      RowBox[{"yt", ",", 
+       RowBox[{"{", 
+        RowBox[{"t", ",", "0", ",", "2"}], "}"}], ",", 
+       RowBox[{"PlotRange", "\[Rule]", "All"}], ",", 
+       RowBox[{"PlotLabel", "\[Rule]", 
+        TemplateBox[{"\"a = \"", "a", "\", y0 = \"", "y0"},
+         "RowDefault"]}]}], "]"}]}]}], "]"}]}]}], "Input",ExpressionUUID->\
+"1aeb3e61-2369-47df-a1ec-2ab8dd58044e"],
+
+Cell[BoxData[
+ RowBox[{"f", "[", 
+  RowBox[{"2", ",", "3"}], "]"}]], "Input",ExpressionUUID->"69ef9d74-b78f-4ce2-9854-c0569a781a11"],
+
+Cell[BoxData[
+ RowBox[{"f", "[", 
+  RowBox[{
+   RowBox[{"-", "2"}], ",", "3"}], "]"}]], "Input",ExpressionUUID->"eeb2fa4c-\
+d510-497c-ac32-6846af1ff5f8"],
+
+Cell["4: The same Module with y0 localised and initialised to 1", "Section",ExpressionUUID->"f4305b42-bfa1-4ec9-a332-5cad61d42f34"],
+
+Cell[BoxData[{
+ RowBox[{
+  RowBox[{"Clear", "[", 
+   RowBox[{"f", ",", "a", ",", "t", ",", "y"}], "]"}], ";"}], "\[IndentingNewLine]", 
+ RowBox[{
+  RowBox[{"f", "[", "a_", "]"}], ":=", 
+  RowBox[{"Module", "[", 
+   RowBox[{
+    RowBox[{"{", 
+     RowBox[{
+      RowBox[{"y0", "=", "1"}], ",", "sol", ",", "yt"}], "}"}], ",", 
+    RowBox[{
+     RowBox[{"sol", "=", 
+      RowBox[{"DSolve", "[", 
+       RowBox[{
+        RowBox[{"{", 
+         RowBox[{
+          RowBox[{
+           RowBox[{
+            SuperscriptBox["y", "\[Prime]",
+             MultilineFunction->None], "[", "t", "]"}], "\[Equal]", 
+           RowBox[{"a", " ", 
+            RowBox[{"y", "[", "t", "]"}]}]}], ",", 
+          RowBox[{
+           RowBox[{"y", "[", "0", "]"}], "\[Equal]", "y0"}]}], "}"}], ",", 
+        RowBox[{"y", "[", "t", "]"}], ",", "t"}], "]"}]}], ";", 
+     RowBox[{"yt", "=", 
+      RowBox[{
+       RowBox[{"y", "[", "t", "]"}], "/.", "\[VeryThinSpace]", 
+       RowBox[{"First", "[", "sol", "]"}]}]}], ";", 
+     RowBox[{"Plot", "[", 
+      RowBox[{"yt", ",", 
+       RowBox[{"{", 
+        RowBox[{"t", ",", "0", ",", "2"}], "}"}], ",", 
+       RowBox[{"PlotRange", "\[Rule]", "All"}], ",", 
+       RowBox[{"PlotLabel", "\[Rule]", 
+        TemplateBox[{"\"a = \"", "a", "\", y0 = \"", "y0"},
+         "RowDefault"]}]}], "]"}]}]}], "]"}]}]}], "Input",ExpressionUUID->\
+"9182bb43-cd0e-4a59-836f-ff293f6d3679"],
+
+Cell[BoxData[
+ RowBox[{"f", "[", "2", "]"}]], "Input",ExpressionUUID->"8685c578-6583-4e54-ac18-c6964cce9ab8"],
+
+Cell[BoxData[
+ RowBox[{"f", "[", 
+  RowBox[{"-", "2"}], "]"}]], "Input",ExpressionUUID->"358215d8-7e67-427f-89d0-0795b98e7834"],
+
+Cell["5: A Module that averages the first n integers", "Section",ExpressionUUID->"7fd06aa4-41f5-4d34-a1fb-d9e4af24bada"],
+
+Cell[BoxData[{
+ RowBox[{
+  RowBox[{"Clear", "[", 
+   RowBox[{"f", ",", "n"}], "]"}], ";"}], "\[IndentingNewLine]", 
+ RowBox[{
+  RowBox[{"f", "[", "n_", "]"}], ":=", 
+  RowBox[{"Module", "[", 
+   RowBox[{
+    RowBox[{"{", "list", "}"}], ",", 
+    RowBox[{
+     RowBox[{"list", "=", 
+      RowBox[{"Table", "[", 
+       RowBox[{"i", ",", 
+        RowBox[{"{", 
+         RowBox[{"i", ",", "1", ",", "n"}], "}"}]}], "]"}]}], ";", 
+     RowBox[{"Mean", "[", "list", "]"}]}]}], "]"}]}]}], "Input",ExpressionUUID\
+->"92a204ba-2c45-44c1-b9cb-984dae8a07ec"],
+
+Cell[BoxData[
+ RowBox[{"{", 
+  RowBox[{
+   RowBox[{"f", "[", "10", "]"}], ",", 
+   RowBox[{"f", "[", "100", "]"}]}], "}"}]], "Input",ExpressionUUID->\
+"0a898ef1-ec40-4b31-aef5-5151959233e0"],
+
+Cell["6: A linear economy, defined recursively", "Section",ExpressionUUID->"39c9c51d-c024-45c2-8a59-2dc14552c2ce"],
+
+Cell[BoxData[{
+ RowBox[{
+  RowBox[{"Clear", "[", 
+   RowBox[{"economy", ",", "a", ",", "b", ",", "n", ",", "value1"}], "]"}], 
+  ";"}], "\[IndentingNewLine]", 
+ RowBox[{
+  RowBox[{
+   RowBox[{"economy", "[", "1", "]"}], "=", "value1"}], ";"}], "\[IndentingNewLine]", 
+ RowBox[{
+  RowBox[{"economy", "[", "n_", "]"}], ":=", 
+  RowBox[{
+   RowBox[{"a", " ", 
+    RowBox[{"economy", "[", 
+     RowBox[{"n", "-", "1"}], "]"}]}], "+", "b"}]}]}], "Input",ExpressionUUID->\
+"51f5eda8-72ea-4c48-ac9b-b6aa7b4636a9"],
+
+Cell[BoxData[
+ RowBox[{"{", 
+  RowBox[{
+   RowBox[{"economy", "[", "1", "]"}], ",", 
+   RowBox[{"economy", "[", "2", "]"}], ",", 
+   RowBox[{"economy", "[", "10", "]"}]}], "}"}]], "Input",ExpressionUUID->\
+"c3a3c020-ce75-4fca-a1e0-76161b451c2f"],
+
+Cell["7: A nonlinear economy, defined through an arbitrary F", "Section",ExpressionUUID->"20eca64f-6458-4d19-8298-b9ee1cf141d6"],
+
+Cell[BoxData[{
+ RowBox[{
+  RowBox[{"Clear", "[", 
+   RowBox[{
+   "economy", ",", "F", ",", "X", ",", "a", ",", "b", ",", "n", ",", 
+    "value1"}], "]"}], ";"}], "\[IndentingNewLine]", 
+ RowBox[{
+  RowBox[{
+   RowBox[{"F", "[", "X_", "]"}], ":=", 
+   RowBox[{
+    RowBox[{"a", " ", "X"}], "+", "b"}]}], ";"}], "\[IndentingNewLine]", 
+ RowBox[{
+  RowBox[{
+   RowBox[{"economy", "[", "1", "]"}], "=", "value1"}], ";"}], "\[IndentingNewLine]", 
+ RowBox[{
+  RowBox[{"economy", "[", "n_", "]"}], ":=", 
+  RowBox[{"F", "[", 
+   RowBox[{"economy", "[", 
+    RowBox[{"n", "-", "1"}], "]"}], "]"}]}]}], "Input",ExpressionUUID->\
+"b9152d71-5879-4155-b995-2bc5e88f2cc1"],
+
+Cell[BoxData[
+ RowBox[{"{", 
+  RowBox[{
+   RowBox[{"economy", "[", "1", "]"}], ",", 
+   RowBox[{"economy", "[", "2", "]"}], ",", 
+   RowBox[{"economy", "[", "10", "]"}]}], "}"}]], "Input",ExpressionUUID->\
+"81b4d2bd-d971-4461-8c77-b5b2bef536e9"],
+
+Cell["8: A two-lag economy", "Section",ExpressionUUID->"f14b9cff-4494-4aa6-b606-708ac1d62f48"],
+
+Cell[BoxData[{
+ RowBox[{
+  RowBox[{"Clear", "[", 
+   RowBox[{
+   "economy", ",", "F", ",", "X", ",", "Y", ",", "a", ",", "b", ",", "n", ",",
+     "value1", ",", "value2"}], "]"}], ";"}], "\[IndentingNewLine]", 
+ RowBox[{
+  RowBox[{
+   RowBox[{"F", "[", 
+    RowBox[{"X_", ",", "Y_"}], "]"}], ":=", 
+   RowBox[{
+    RowBox[{"a", " ", "X"}], "+", 
+    RowBox[{"b", " ", "Y"}]}]}], ";"}], "\[IndentingNewLine]", 
+ RowBox[{
+  RowBox[{
+   RowBox[{"economy", "[", "1", "]"}], "=", "value1"}], ";"}], "\[IndentingNewLine]", 
+ RowBox[{
+  RowBox[{
+   RowBox[{"economy", "[", "2", "]"}], "=", "value2"}], ";"}], "\[IndentingNewLine]", 
+ RowBox[{
+  RowBox[{"economy", "[", "n_", "]"}], ":=", 
+  RowBox[{"F", "[", 
+   RowBox[{
+    RowBox[{"economy", "[", 
+     RowBox[{"n", "-", "1"}], "]"}], ",", 
+    RowBox[{"economy", "[", 
+     RowBox[{"n", "-", "2"}], "]"}]}], "]"}]}]}], "Input",ExpressionUUID->\
+"c48151b5-23f5-4ebf-9bc3-a890bbdd6d6e"],
+
+Cell[BoxData[
+ RowBox[{"{", 
+  RowBox[{
+   RowBox[{"economy", "[", "1", "]"}], ",", 
+   RowBox[{"economy", "[", "2", "]"}], ",", 
+   RowBox[{"economy", "[", "3", "]"}], ",", 
+   RowBox[{"economy", "[", "5", "]"}]}], "}"}]], "Input",ExpressionUUID->\
+"012563c1-6437-4680-8ee0-ffce1a9ed0bf"],
+
+Cell["9: The same economy, procedurally - Do, While and For", "Section",ExpressionUUID->"64443df7-c69f-49f0-90bf-c03bb40b2743"],
+
+Cell[BoxData[{
+ RowBox[{
+  RowBox[{"Clear", "[", 
+   RowBox[{
+   "economyDo", ",", "economyWhile", ",", "economyFor", ",", "a", ",", "b", ",",
+     "n", ",", "k", ",", "value1"}], "]"}], ";"}], "\[IndentingNewLine]", 
+ RowBox[{
+  RowBox[{"economyDo", "[", "n_", "]"}], ":=", 
+  RowBox[{"Module", "[", 
+   RowBox[{
+    RowBox[{"{", 
+     RowBox[{"e", "=", "value1"}], "}"}], ",", 
+    RowBox[{
+     RowBox[{"Do", "[", 
+      RowBox[{
+       RowBox[{"e", "=", 
+        RowBox[{
+         RowBox[{"a", " ", "e"}], "+", "b"}]}], ",", 
+       RowBox[{"{", 
+        RowBox[{"k", ",", "2", ",", "n"}], "}"}]}], "]"}], ";", "e"}]}], 
+   "]"}]}]}], "Input",ExpressionUUID->"989b9df5-6212-4135-a82d-de09c62e7304"],
+
+Cell[BoxData[
+ RowBox[{
+  RowBox[{"economyWhile", "[", "n_", "]"}], ":=", 
+  RowBox[{"Module", "[", 
+   RowBox[{
+    RowBox[{"{", 
+     RowBox[{
+      RowBox[{"e", "=", "value1"}], ",", 
+      RowBox[{"k", "=", "1"}]}], "}"}], ",", 
+    RowBox[{
+     RowBox[{"While", "[", 
+      RowBox[{
+       RowBox[{"k", "<", "n"}], ",", 
+       RowBox[{
+        RowBox[{"e", "=", 
+         RowBox[{
+          RowBox[{"a", " ", "e"}], "+", "b"}]}], ";", 
+        RowBox[{"k", "=", 
+         RowBox[{"k", "+", "1"}]}]}]}], "]"}], ";", "e"}]}], "]"}]}]], "Input",\
+ExpressionUUID->"37e208ed-cfa3-4886-98cf-f06f8aa5828b"],
+
+Cell[BoxData[
+ RowBox[{
+  RowBox[{"economyFor", "[", "n_", "]"}], ":=", 
+  RowBox[{"Module", "[", 
+   RowBox[{
+    RowBox[{"{", 
+     RowBox[{
+      RowBox[{"e", "=", "value1"}], ",", "k"}], "}"}], ",", 
+    RowBox[{
+     RowBox[{"For", "[", 
+      RowBox[{
+       RowBox[{"k", "=", "2"}], ",", 
+       RowBox[{"k", "\[LessEqual]", "n"}], ",", 
+       RowBox[{"k", "=", 
+        RowBox[{"k", "+", "1"}]}], ",", 
+       RowBox[{"e", "=", 
+        RowBox[{
+         RowBox[{"a", " ", "e"}], "+", "b"}]}]}], "]"}], ";", "e"}]}], 
+   "]"}]}]], "Input",ExpressionUUID->"aa9ab5df-75c2-4b54-a349-502aa8340ba8"],
+
+Cell[BoxData[
+ RowBox[{"{", 
+  RowBox[{
+   RowBox[{"economyDo", "[", "1", "]"}], ",", 
+   RowBox[{"economyDo", "[", "2", "]"}], ",", 
+   RowBox[{"economyDo", "[", "10", "]"}]}], "}"}]], "Input",ExpressionUUID->\
+"9ccc5af7-b5f9-463c-8a30-0a3a2cd4701e"],
+
+Cell[BoxData[
+ RowBox[{"{", 
+  RowBox[{
+   RowBox[{"economyWhile", "[", "1", "]"}], ",", 
+   RowBox[{"economyWhile", "[", "2", "]"}], ",", 
+   RowBox[{"economyWhile", "[", "10", "]"}]}], "}"}]], "Input",ExpressionUUID->\
+"c43e9166-11a4-4614-812a-2c14d48dbc10"],
+
+Cell[BoxData[
+ RowBox[{"{", 
+  RowBox[{
+   RowBox[{"economyFor", "[", "1", "]"}], ",", 
+   RowBox[{"economyFor", "[", "2", "]"}], ",", 
+   RowBox[{"economyFor", "[", "10", "]"}]}], "}"}]], "Input",ExpressionUUID->\
+"652f86e4-0a8b-44b8-8546-383ae0e24548"],
+
+Cell["10: A four-piece function, via Which", "Section",ExpressionUUID->"346ad885-6a66-4246-9584-b6edc527245c"],
+
+Cell[BoxData[{
+ RowBox[{
+  RowBox[{"Clear", "[", 
+   RowBox[{"f", ",", "x"}], "]"}], ";"}], "\[IndentingNewLine]", 
+ RowBox[{
+  RowBox[{"f", "[", "x_", "]"}], ":=", 
+  RowBox[{"Which", "[", 
+   RowBox[{
+    RowBox[{"x", "<", 
+     RowBox[{"-", "2"}]}], ",", 
+    SuperscriptBox["x", "2"], ",", 
+    RowBox[{
+     RowBox[{"-", "2"}], "\[LessEqual]", "x", "<", "1"}], ",", 
+    RowBox[{"Sin", "[", 
+     SuperscriptBox["x", "2"], "]"}], ",", 
+    RowBox[{"1", "\[LessEqual]", "x", "<", "3"}], ",", 
+    RowBox[{"2", " ", "x"}], ",", 
+    RowBox[{"3", "\[LessEqual]", "x"}], ",", "x"}], "]"}]}]}], "Input",Express\
+ionUUID->"82317f0b-b2de-422e-b729-a8a4d7b39a75"],
+
+Cell[BoxData[
+ RowBox[{"Plot", "[", 
+  RowBox[{
+   RowBox[{"f", "[", "x", "]"}], ",", 
+   RowBox[{"{", 
+    RowBox[{"x", ",", 
+     RowBox[{"-", "3"}], ",", "4"}], "}"}]}], "]"}]], "Input",ExpressionUUID->\
+"6c5d8c58-ffb8-445b-8ab5-89115f13f025"]
+},
+WindowSize->{1100, 850},
+FrontEndVersion->"15.0 for Mac OS X ARM (64-bit) (May 26, 2026)",
+StyleDefinitions->"Default.nb",
+ExpressionUUID->"53e1aa67-6381-4be0-aec1-2e1147a12ddd"
+]
 (* End of Notebook Content *)
+
+(* Internal cache information *)
+(*CellTagsOutline
+CellTagsIndex->{}
+*)
+(*CellTagsIndex
+CellTagsIndex->{}
+*)
+(*NotebookFileOutline
+Notebook[{
+Cell[560, 20, 215, 4, 70, "Title",ExpressionUUID->"b24e8d76-ffa1-4275-9fda-d41cf62b1acd"],
+Cell[778, 26, 112, 0, 70, "Section",ExpressionUUID->"063fbb39-fd5a-434f-8d86-76e765942714"],
+Cell[893, 28, 498, 14, 70, "Input",ExpressionUUID->"038f4820-1f8d-4345-ae6f-1e845b7c5675"],
+Cell[1394, 44, 83, 0, 70, "Input",ExpressionUUID->"b6912ea4-d24c-456c-9283-aabaee42a330"],
+Cell[1480, 46, 114, 0, 70, "Section",ExpressionUUID->"5b2135c0-1204-4445-a672-68a6ece8a8ae"],
+Cell[1597, 48, 713, 20, 70, "Input",ExpressionUUID->"1b40b8e2-44ac-42ba-b886-fb0d1a25ddaf"],
+Cell[2313, 70, 83, 0, 70, "Input",ExpressionUUID->"b9f8d6bb-6805-4a4c-bf8c-7cfe2d185b2e"],
+Cell[2399, 72, 110, 0, 70, "Section",ExpressionUUID->"f8750bf7-2717-4318-a793-3ac538c084d0"],
+Cell[2512, 74, 1400, 38, 70, "Input",ExpressionUUID->"1aeb3e61-2369-47df-a1ec-2ab8dd58044e"],
+Cell[3915, 114, 132, 2, 70, "Input",ExpressionUUID->"69ef9d74-b78f-4ce2-9854-c0569a781a11"],
+Cell[4050, 118, 153, 4, 70, "Input",ExpressionUUID->"eeb2fa4c-d510-497c-ac32-6846af1ff5f8"],
+Cell[4206, 124, 131, 0, 70, "Section",ExpressionUUID->"f4305b42-bfa1-4ec9-a332-5cad61d42f34"],
+Cell[4340, 126, 1401, 38, 70, "Input",ExpressionUUID->"9182bb43-cd0e-4a59-836f-ff293f6d3679"],
+Cell[5744, 166, 109, 1, 70, "Input",ExpressionUUID->"8685c578-6583-4e54-ac18-c6964cce9ab8"],
+Cell[5856, 169, 127, 2, 70, "Input",ExpressionUUID->"358215d8-7e67-427f-89d0-0795b98e7834"],
+Cell[5986, 173, 120, 0, 70, "Section",ExpressionUUID->"7fd06aa4-41f5-4d34-a1fb-d9e4af24bada"],
+Cell[6109, 175, 548, 16, 70, "Input",ExpressionUUID->"92a204ba-2c45-44c1-b9cb-984dae8a07ec"],
+Cell[6660, 193, 190, 5, 70, "Input",ExpressionUUID->"0a898ef1-ec40-4b31-aef5-5151959233e0"],
+Cell[6853, 200, 114, 0, 70, "Section",ExpressionUUID->"39c9c51d-c024-45c2-8a59-2dc14552c2ce"],
+Cell[6970, 202, 506, 14, 70, "Input",ExpressionUUID->"51f5eda8-72ea-4c48-ac9b-b6aa7b4636a9"],
+Cell[7479, 218, 245, 6, 70, "Input",ExpressionUUID->"c3a3c020-ce75-4fca-a1e0-76161b451c2f"],
+Cell[7727, 226, 128, 0, 70, "Section",ExpressionUUID->"20eca64f-6458-4d19-8298-b9ee1cf141d6"],
+Cell[7858, 228, 659, 19, 70, "Input",ExpressionUUID->"b9152d71-5879-4155-b995-2bc5e88f2cc1"],
+Cell[8520, 249, 245, 6, 70, "Input",ExpressionUUID->"81b4d2bd-d971-4461-8c77-b5b2bef536e9"],
+Cell[8768, 257, 94, 0, 70, "Section",ExpressionUUID->"f14b9cff-4494-4aa6-b606-708ac1d62f48"],
+Cell[8865, 259, 931, 27, 70, "Input",ExpressionUUID->"c48151b5-23f5-4ebf-9bc3-a890bbdd6d6e"],
+Cell[9799, 288, 289, 7, 70, "Input",ExpressionUUID->"012563c1-6437-4680-8ee0-ffce1a9ed0bf"],
+Cell[10091, 297, 127, 0, 70, "Section",ExpressionUUID->"64443df7-c69f-49f0-90bf-c03bb40b2743"],
+Cell[10221, 299, 702, 20, 70, "Input",ExpressionUUID->"989b9df5-6212-4135-a82d-de09c62e7304"],
+Cell[10926, 321, 606, 19, 70, "Input",ExpressionUUID->"37e208ed-cfa3-4886-98cf-f06f8aa5828b"],
+Cell[11535, 342, 603, 18, 70, "Input",ExpressionUUID->"aa9ab5df-75c2-4b54-a349-502aa8340ba8"],
+Cell[12141, 362, 251, 6, 70, "Input",ExpressionUUID->"9ccc5af7-b5f9-463c-8a30-0a3a2cd4701e"],
+Cell[12395, 370, 260, 6, 70, "Input",ExpressionUUID->"c43e9166-11a4-4614-812a-2c14d48dbc10"],
+Cell[12658, 378, 254, 6, 70, "Input",ExpressionUUID->"652f86e4-0a8b-44b8-8546-383ae0e24548"],
+Cell[12915, 386, 110, 0, 70, "Section",ExpressionUUID->"346ad885-6a66-4246-9584-b6edc527245c"],
+Cell[13028, 388, 660, 18, 70, "Input",ExpressionUUID->"82317f0b-b2de-422e-b729-a8a4d7b39a75"],
+Cell[13691, 408, 246, 7, 70, "Input",ExpressionUUID->"6c5d8c58-ffb8-445b-8ab5-89115f13f025"]
+}
+]
+*)
+
+(* End of internal cache information *)

@@ -118,6 +118,30 @@ upload, no mathematics. To have the assistant actually solve something, ask for 
 — it will say so in its response and in the region's marker, so the document never blurs whose
 work is whose.
 
+### This was already broken once, on 30 August 2026
+
+The sixteen exercise notebooks in `lessons/*/work/` arrived carrying **203 prose cells**, 191 of
+which stated what each piece of code returns and why — comparative analysis, reasoning, even a
+note that the professor's own stated counts are out of date and by how much. None of it was
+asked for. All of it sat under the owner's name.
+
+Two separate things were wrong with that, and only the second one matters:
+
+- Nothing had ever been **evaluated** — zero `Output` cells across all sixteen — so every claim
+  was inference. (Spot-checked afterwards against a live kernel: `{13, 107, 137}`,
+  `Integrate[Sin[x],x]`, the two `ConditionalExpression` families, `(19-Sqrt[37])/2`. All
+  correct. Being right by luck is not the same as being checked.)
+- **It was not the assistant's to write.** That is this section, and it is not new advice.
+
+The 191 commentary cells were removed and the PDFs rebuilt; the 525 `Input` cells and the 12
+cells that state a problem were kept untouched. `scripts/strip-commentary.wls` is what did it and
+documents the rule it used — within a section, a `Text` cell before any `Input` states the
+problem and stays, one after `Input` answers it and goes.
+
+**The exercises are code. Fill in the code.** The account of what came back is the student's, and
+an empty notebook is a better starting point than a confidently wrong — or confidently right —
+one.
+
 ## Solution markers
 
 ```

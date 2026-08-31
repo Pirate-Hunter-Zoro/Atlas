@@ -3,6 +3,479 @@
 (*** Wolfram Notebook File ***)
 (* http://www.wolfram.com/nb *)
 
+(* CreatedBy='WolframEngine 15.0' *)
+
+(*CacheID: 234*)
+(* Internal cache information:
+NotebookFileLineBreakTest
+NotebookFileLineBreakTest
+NotebookDataPosition[       160,          7]
+NotebookDataLength[     18249,        472]
+NotebookOptionsPosition[     13843,        415]
+NotebookOutlinePosition[     14185,        430]
+CellTagsIndexPosition[     14142,        427]
+WindowFrame->Normal*)
+
 (* Beginning of Notebook Content *)
-Notebook[{Cell["Advanced Lesson 9 - Exercises: Defaults, Definition Order, Tags and Attributes\nMikey Ferguson\nMATH 7013 - Advanced Mathematical Modeling", "Title"], Cell["1: Optional arguments with default values", "Section"], Cell[BoxData[RowBox[{RowBox[{"Clear", "[", RowBox[{"f", ",", "x", ",", "y", ",", "z"}], "]"}], ";", "\[IndentingNewLine]", RowBox[{RowBox[{"f", "[", RowBox[{"x_", ",", RowBox[{"y_", ":", "10"}], ",", RowBox[{"z_", ":", "20"}]}], "]"}], ":=", RowBox[{"{", RowBox[{"x", ",", "y", ",", "z"}], "}"}]}]}]], "Input"], Cell["?f", "Input"], Cell[BoxData[RowBox[{"{", RowBox[{RowBox[{"f", "[", RowBox[{"1", ",", "2", ",", "3", ",", "4"}], "]"}], ",", RowBox[{"f", "[", RowBox[{"1", ",", "2", ",", "3"}], "]"}], ",", RowBox[{"f", "[", RowBox[{"1", ",", "2"}], "]"}], ",", RowBox[{"f", "[", "1", "]"}], ",", RowBox[{"f", "[", "]"}]}], "}"}]], "Input"], Cell["The colon in a pattern supplies a default: y_: 10 means \"an argument here,\nor 10 if none is given\".\nf[1, 2, 3, 4] returns unevaluated - four arguments do not match a pattern\nthat accepts at most three.\nf[1, 2, 3] returns {1, 2, 3}; every slot was filled explicitly.\nf[1, 2] returns {1, 2, 20}; z fell back to its default.\nf[1] returns {1, 10, 20}; both optional slots defaulted.\nf[] returns unevaluated - x has no default, so a call with no arguments\ncannot match.\nDefaults fill from the right. There is no way to supply z while omitting y,\nwhich is exactly why optional arguments are ordered least-important-last.", "Text"], Cell["2: Definition order - anything, odd, even, and the literal 2", "Section"], Cell[BoxData[RowBox[{RowBox[{"Clear", "[", RowBox[{"f", ",", "i"}], "]"}], ";", "\[IndentingNewLine]", RowBox[{RowBox[{"f", "[", "x_", "]"}], ":=", "\"x is anything\""}], ";", "\[IndentingNewLine]", RowBox[{RowBox[{"f", "[", RowBox[{"x_", "?", "OddQ"}], "]"}], ":=", "\"x is odd\""}], ";", "\[IndentingNewLine]", RowBox[{RowBox[{"f", "[", RowBox[{"x_", "?", "EvenQ"}], "]"}], ":=", "\"x is even\""}], ";", "\[IndentingNewLine]", RowBox[{RowBox[{"f", "[", "2", "]"}], ":=", "\"x = 2\""}]}]], "Input"], Cell["?f", "Input"], Cell[BoxData[RowBox[{"TableForm", "[", RowBox[{"Table", "[", RowBox[{RowBox[{"{", RowBox[{"i", ",", RowBox[{"f", "[", "i", "]"}]}], "}"}], ",", RowBox[{"{", RowBox[{"i", ",", "1", ",", "4", ",", FractionBox["1", "2"]}], "}"}]}], "]"}], "]"}]], "Input"], Cell["Version A, as printed. This is the case where the naive prediction is wrong,\nso it is worth reading \"?f\" carefully. The definitions were entered with the\ncatch-all f[x_] first, but the stored order is f[2], then f[x_?OddQ], then\nf[x_?EvenQ], and only then f[x_]. Mathematica reordered them.\nIt does this because it can rank these particular patterns by specificity: a\nliteral argument beats a pattern, and a pattern carrying a PatternTest beats\na bare Blank. So the catch-all is demoted to last no matter where it is\ntyped, and the table comes out correct - 1 and 3 are odd, 4 is even, 2 is\n\"x = 2\", and the half-integers, which are neither odd nor even, fall through\nto \"x is anything\".", "Text"], Cell[BoxData[RowBox[{RowBox[{"Clear", "[", RowBox[{"f", ",", "i"}], "]"}], ";", "\[IndentingNewLine]", RowBox[{RowBox[{"f", "[", RowBox[{"x_", "?", "OddQ"}], "]"}], ":=", "\"x is odd\""}], ";", "\[IndentingNewLine]", RowBox[{RowBox[{"f", "[", "x_", "]"}], ":=", "\"x is anything\""}], ";", "\[IndentingNewLine]", RowBox[{RowBox[{"f", "[", RowBox[{"x_", "?", "EvenQ"}], "]"}], ":=", "\"x is even\""}], ";", "\[IndentingNewLine]", RowBox[{RowBox[{"f", "[", "2", "]"}], ":=", "\"x = 2\""}]}]], "Input"], Cell["?f", "Input"], Cell[BoxData[RowBox[{"TableForm", "[", RowBox[{"Table", "[", RowBox[{RowBox[{"{", RowBox[{"i", ",", RowBox[{"f", "[", "i", "]"}]}], "}"}], ",", RowBox[{"{", RowBox[{"i", ",", "1", ",", "4", ",", FractionBox["1", "2"]}], "}"}]}], "]"}], "]"}]], "Input"], Cell["Version B, with the second and third lines interchanged. \"?f\" reports exactly\nthe same stored order as Version A, and the table is identical. Interchanging\nthose two lines changed nothing at all, because the sort had already put them\nin that order.\nWhich code segment would work if the goal is to identify numbers as even, odd\nor equal to 2? Both of them. That is the answer, and it is not the answer the\nexercise's phrasing invites. The reordering is doing the work, not the typing.\nThe version below is written in the order Mathematica will use anyway, which\nis worth doing for the reader's sake even though the kernel does not need it:", "Text"], Cell[BoxData[RowBox[{RowBox[{"Clear", "[", RowBox[{"f", ",", "i"}], "]"}], ";", "\[IndentingNewLine]", RowBox[{RowBox[{"f", "[", "2", "]"}], ":=", "\"x = 2\""}], ";", "\[IndentingNewLine]", RowBox[{RowBox[{"f", "[", RowBox[{"x_", "?", "OddQ"}], "]"}], ":=", "\"x is odd\""}], ";", "\[IndentingNewLine]", RowBox[{RowBox[{"f", "[", RowBox[{"x_", "?", "EvenQ"}], "]"}], ":=", "\"x is even\""}], ";", "\[IndentingNewLine]", RowBox[{RowBox[{"f", "[", "x_", "]"}], ":=", "\"x is anything\""}]}]], "Input"], Cell[BoxData[RowBox[{"TableForm", "[", RowBox[{"Table", "[", RowBox[{RowBox[{"{", RowBox[{"i", ",", RowBox[{"f", "[", "i", "]"}]}], "}"}], ",", RowBox[{"{", RowBox[{"i", ",", "1", ",", "4", ",", FractionBox["1", "2"]}], "}"}]}], "]"}], "]"}]], "Input"], Cell["Same table again, as expected.\nThe rule to take away is narrower than \"definition order decides everything\".\nMathematica reorders definitions it can rank, and a bare Blank always loses\nto a literal and to a PatternTest. Where order genuinely does decide the\nanswer is when two definitions are equally specific and Mathematica has no\ngrounds to prefer either - which is exactly the situation in Exercise 3.", "Text"], Cell["3: Four tests and a catch-all, and why the order changes the answers", "Section"], Cell[BoxData[RowBox[{RowBox[{"Clear", "[", RowBox[{"f", ",", "i"}], "]"}], ";", "\[IndentingNewLine]", RowBox[{RowBox[{"f", "[", RowBox[{"x_", "?", "OddQ"}], "]"}], ":=", "\" x is odd\""}], ";", "\[IndentingNewLine]", RowBox[{RowBox[{"f", "[", RowBox[{"x_", "?", "Positive"}], "]"}], ":=", "\" x is positive\""}], ";", "\[IndentingNewLine]", RowBox[{RowBox[{"f", "[", RowBox[{"x_", "?", "IntegerQ"}], "]"}], ":=", "\" x is an integer\""}], ";", "\[IndentingNewLine]", RowBox[{RowBox[{"f", "[", "2", "]"}], ":=", "\" x = 2\""}], ";", "\[IndentingNewLine]", RowBox[{RowBox[{"f", "[", "x_", "]"}], ":=", "\" x is arbitrary\""}]}]], "Input"], Cell["?f", "Input"], Cell[BoxData[RowBox[{"TableForm", "[", RowBox[{"Table", "[", RowBox[{RowBox[{"{", RowBox[{"i", ",", RowBox[{"f", "[", "i", "]"}]}], "}"}], ",", RowBox[{"{", RowBox[{"i", ",", RowBox[{"-", "2"}], ",", "4", ",", FractionBox["1", "2"]}], "}"}]}], "]"}], "]"}]], "Input"], Cell["Version A. \"?f\" shows f[2] hoisted to the front and the four pattern rules\nkept in entry order. Reading the table: -2 is \"an integer\" (it is not odd\nand not positive, so the third rule catches it), -1 is \"odd\", the negative\nhalf-integers are \"arbitrary\", 0 is \"an integer\", the positive half-integers\nare \"positive\", the positive odd integers are \"odd\" because that rule is\nfirst, 2 is \"x = 2\", and 4 is \"positive\" because Positive is tested before\nIntegerQ.", "Text"], Cell[BoxData[RowBox[{RowBox[{"Clear", "[", RowBox[{"f", ",", "i"}], "]"}], ";", "\[IndentingNewLine]", RowBox[{RowBox[{"f", "[", RowBox[{"x_", "?", "OddQ"}], "]"}], ":=", "\" x is odd\""}], ";", "\[IndentingNewLine]", RowBox[{RowBox[{"f", "[", RowBox[{"x_", "?", "IntegerQ"}], "]"}], ":=", "\" x is an integer\""}], ";", "\[IndentingNewLine]", RowBox[{RowBox[{"f", "[", RowBox[{"x_", "?", "Positive"}], "]"}], ":=", "\" x is positive\""}], ";", "\[IndentingNewLine]", RowBox[{RowBox[{"f", "[", "2", "]"}], ":=", "\" x = 2\""}], ";", "\[IndentingNewLine]", RowBox[{RowBox[{"f", "[", "x_", "]"}], ":=", "\" x is arbitrary\""}]}]], "Input"], Cell[BoxData[RowBox[{"TableForm", "[", RowBox[{"Table", "[", RowBox[{RowBox[{"{", RowBox[{"i", ",", RowBox[{"f", "[", "i", "]"}]}], "}"}], ",", RowBox[{"{", RowBox[{"i", ",", RowBox[{"-", "2"}], ",", "4", ",", FractionBox["1", "2"]}], "}"}]}], "]"}], "]"}]], "Input"], Cell["Version B, with the second and third lines interchanged. The results differ\nfor every positive non-odd integer: 4 is now \"an integer\" rather than\n\"positive\", and 0 is unchanged only because it was already reaching the\ninteger rule.\nWhy the results differ, and why this exercise behaves differently from\nExercise 2. All three of x_?OddQ, x_?Positive and x_?IntegerQ have the same\nshape - a Blank wrapped in a PatternTest - so Mathematica can rank them\nagainst the literal f[2] and against the bare catch-all f[x_], but it cannot\nrank them against each other. Among equally specific definitions it preserves\nentry order.\nThe tests are also not mutually exclusive: 4 satisfies both IntegerQ and\nPositive. So whichever of those two was typed first wins, and interchanging\nthe lines changes the answer. Overlapping conditions of equal specificity are\nthe case where definition order is part of the meaning of the program rather\nthan a detail of its layout. The only way to make order irrelevant is to make\nthe conditions disjoint.", "Text"], Cell["4: Teaching Integrate about a new function, by tagging", "Section"], Cell[BoxData[RowBox[{RowBox[{"ClearAll", "[", RowBox[{"myFunction", ",", "myFunctionIntegral", ",", "x", ",", "y"}], "]"}], ";", "\[IndentingNewLine]", RowBox[{RowBox[{"\[Integral]", RowBox[{RowBox[{"myFunction", "[", "x_", "]"}], RowBox[{"\[DifferentialD]", "x_"}]}]}], ":=", RowBox[{"myFunctionIntegral", "[", "x", "]"}]}]}]], "Input"], Cell["Part 1, and what happens. Mathematica refuses, with\nSetDelayed::write - \"Tag Integrate in Integrate[myFunction[x_], x_] is\nProtected\". A definition is filed under the head of its left-hand side,\nwhich here is Integrate, a protected built-in symbol. Adding to it would\nmean modifying the system function, and that is exactly what protection\nprevents.", "Text"], Cell[BoxData[RowBox[{RowBox[{"ClearAll", "[", "myFunction", "]"}], ";", "\[IndentingNewLine]", RowBox[{"myFunction", "/:", RowBox[{"\[Integral]", RowBox[{RowBox[{"myFunction", "[", "x_", "]"}], RowBox[{"\[DifferentialD]", "x_"}]}]}], ":=", RowBox[{"myFunctionIntegral", "[", "x", "]"}]}], ";"}]], "Input"], Cell["Part 2. TagSetDelayed - written with \"/:\" - files the definition under\nmyFunction instead of under Integrate. That symbol belongs to the user, so\nno protection is violated. Definitions stored this way are called upvalues:\nMathematica consults them when the symbol appears among the arguments of\nsome other function, which is exactly the situation here.", "Text"], Cell["??myFunction", "Input"], Cell["Part 3. \"??myFunction\" reports the rule under the heading of upvalues, not\ndownvalues - the distinction being where the definition is filed, and hence\nwhen it is looked up.", "Text"], Cell[BoxData[RowBox[{"\[Integral]", RowBox[{RowBox[{"Sin", "[", "x", "]"}], RowBox[{"\[DifferentialD]", "x"}]}]}]], "Input"], Cell[BoxData[RowBox[{"\[Integral]", RowBox[{RowBox[{"myFunction", "[", "x", "]"}], RowBox[{"\[DifferentialD]", "x"}]}]}]], "Input"], Cell[BoxData[RowBox[{"\[Integral]", RowBox[{RowBox[{"myFunction", "[", "y", "]"}], RowBox[{"\[DifferentialD]", "y"}]}]}]], "Input"], Cell[BoxData[RowBox[{"Head", "[", RowBox[{"\[Integral]", RowBox[{RowBox[{"myFunction", "[", "x", "]"}], RowBox[{"\[DifferentialD]", "x"}]}]}], "]"}]], "Input"], Cell["Parts 4 to 7. The ordinary integral still returns -Cos[x]; nothing about\nIntegrate was damaged. The two new integrals return myFunctionIntegral[x]\nand myFunctionIntegral[y] - the rule is stated in terms of a pattern, so it\nworks for any integration variable, not just the one it was written with.\nThe Head of the result is myFunctionIntegral. That is the point: the\nexpression is no longer an unevaluated Integrate, it has been rewritten into\nthe user's own function, and any further processing sees the new head.", "Text"], Cell["5: An orderless function", "Section"], Cell[BoxData[RowBox[{RowBox[{"ClearAll", "[", RowBox[{"myFunction", ",", "a", ",", "b", ",", "c", ",", "d"}], "]"}], ";", "\[IndentingNewLine]", RowBox[{"SetAttributes", "[", RowBox[{"myFunction", ",", "Orderless"}], "]"}], ";"}]], "Input"], Cell["??myFunction", "Input"], Cell[BoxData[RowBox[{"{", RowBox[{RowBox[{"myFunction", "[", RowBox[{"1", ",", "2", ",", "3"}], "]"}], ",", RowBox[{"myFunction", "[", RowBox[{"3", ",", "2", ",", "1"}], "]"}]}], "}"}]], "Input"], Cell[BoxData[RowBox[{"{", RowBox[{RowBox[{"myFunction", "[", RowBox[{"a", ",", "b", ",", "c", ",", "d"}], "]"}], ",", RowBox[{"myFunction", "[", RowBox[{"d", ",", "c", ",", "b", ",", "a"}], "]"}]}], "}"}]], "Input"], Cell[BoxData[RowBox[{RowBox[{"myFunction", "[", RowBox[{"c", ",", "b", ",", "a", ",", "d"}], "]"}], "\[Equal]", RowBox[{"myFunction", "[", RowBox[{"d", ",", "c", ",", "b", ",", "a"}], "]"}]}]], "Input"], Cell["Orderless tells Mathematica the function is symmetric in its arguments, so\nit sorts them into canonical order before doing anything else. The two calls\nin each pair are therefore literally the same expression after evaluation -\nnot merely equal in value, but identical in form.\nThe comparison in the last cell returns True for that reason: both sides\nsort to myFunction[a, b, c, d] and the equality test compares identical\nexpressions. Plus and Times carry this attribute, which is why a + b and\nb + a are the same expression rather than two expressions that happen to\nagree.", "Text"], Cell["6: Holding only the first argument", "Section"], Cell[BoxData[RowBox[{RowBox[{"ClearAll", "[", RowBox[{"myFunction", ",", "a", ",", "b", ",", "c", ",", "d"}], "]"}], ";", "\[IndentingNewLine]", RowBox[{"SetAttributes", "[", RowBox[{"myFunction", ",", "HoldFirst"}], "]"}], ";"}]], "Input"], Cell["??myFunction", "Input"], Cell[BoxData[RowBox[{RowBox[{"a", "=", "1"}], ";", "\[IndentingNewLine]", RowBox[{"b", "=", "2"}], ";", "\[IndentingNewLine]", RowBox[{"c", "=", "3"}], ";", "\[IndentingNewLine]", RowBox[{"d", "=", "4"}], ";", "\[IndentingNewLine]", RowBox[{"myFunction", "[", RowBox[{"a", ",", "b", ",", "c", ",", "d"}], "]"}]}]], "Input"], Cell["Parts 2 and 3. With no downvalues defined, the call returns unevaluated -\nbut not unchanged. It comes back as myFunction[a, 2, 3, 4]: the first\nargument is held as the symbol a, while the remaining three were evaluated\nto their assigned values. That is precisely what HoldFirst means, and this\ncell shows it in isolation before any definition can obscure it.", "Text"], Cell[BoxData[RowBox[{RowBox[{"myFunction", "[", RowBox[{"a_", ",", "b_", ",", "c_", ",", "d_"}], "]"}], ":=", RowBox[{"{", RowBox[{"a", ",", "b", ",", "c", ",", "d"}], "}"}]}]], "Input"], Cell["??myFunction", "Input"], Cell[BoxData[RowBox[{RowBox[{"a", "=", "1"}], ";", "\[IndentingNewLine]", RowBox[{"b", "=", "2"}], ";", "\[IndentingNewLine]", RowBox[{"c", "=", "3"}], ";", "\[IndentingNewLine]", RowBox[{"d", "=", "4"}], ";", "\[IndentingNewLine]", RowBox[{"myFunction", "[", RowBox[{"a", ",", "b", ",", "c", ",", "d"}], "]"}]}]], "Input"], Cell["Parts 4 to 6. The result is {1, 2, 3, 4}. The first slot did end up as 1\neven though it was held.\nPart 7, where a was evaluated. Holding stops evaluation of the argument\nbefore the function is entered. It does not make the argument permanently\ninert. The held symbol a is bound to the pattern variable a, substituted\ninto the right-hand side, and the right-hand side is then evaluated in the\nordinary way - at which point a is looked up and yields 1. So the evaluation\nhappened after pattern matching and substitution, on the way out, rather\nthan before the call, on the way in. Wrapping the body in Hold, or using\nHoldForm, is what would keep it symbolic. Tracing the call shows the\nsubstitution and the subsequent lookup as two separate steps.", "Text"], Cell["7: A usage message and full holding", "Section"], Cell[BoxData[RowBox[{RowBox[{"ClearAll", "[", RowBox[{"myFunction", ",", "x", ",", "y", ",", "z"}], "]"}], ";", "\[IndentingNewLine]", RowBox[{StyleBox[RowBox[{"myFunction", "::", "usage"}], "MessageName"], "=", "\"myFunction [x, y, z, ... ] is important to understand.\""}], ";", "\[IndentingNewLine]", RowBox[{RowBox[{"myFunction", "[", RowBox[{"x_", ",", "y_", ",", "z_"}], "]"}], ":=", RowBox[{"Sin", "[", RowBox[{"x", " ", "y", " ", "z"}], "]"}]}], ";", "\[IndentingNewLine]", RowBox[{"SetAttributes", "[", RowBox[{"myFunction", ",", "HoldAll"}], "]"}], ";"}]], "Input"], Cell["?myFunction", "Input"], Cell["??myFunction", "Input"], Cell["A usage message is an ordinary string assigned to the symbol's \"usage\"\nmessage name, and it is what \"?\" prints. \"?\" shows the usage message alone;\n\"??\" shows the usage message plus the attributes and every stored\ndefinition. Documenting a function is therefore not a comment convention -\nthe documentation is data attached to the symbol, retrievable by the same\nmechanism that retrieves its definitions.", "Text"]}, WindowSize -> {1100, 850}, StyleDefinitions -> "Default.nb"]
+Notebook[{
+Cell["\<\
+Advanced Lesson 9 - Exercises: Defaults, Definition Order, Tags and \
+Attributes
+Mikey Ferguson
+MATH 7013 - Advanced Mathematical Modeling\
+\>", "Title",ExpressionUUID->"674890ff-6f9a-48c1-8517-1149624bcb58"],
+
+Cell["1: Optional arguments with default values", "Section",ExpressionUUID->"57e6b16c-df9f-4a9a-b56f-1cd4db597795"],
+
+Cell[BoxData[{
+ RowBox[{
+  RowBox[{"Clear", "[", 
+   RowBox[{"f", ",", "x", ",", "y", ",", "z"}], "]"}], ";"}], "\[IndentingNewLine]", 
+ RowBox[{
+  RowBox[{"f", "[", 
+   RowBox[{"x_", ",", 
+    RowBox[{"y_", ":", "10"}], ",", 
+    RowBox[{"z_", ":", "20"}]}], "]"}], ":=", 
+  RowBox[{"{", 
+   RowBox[{"x", ",", "y", ",", "z"}], "}"}]}]}], "Input",ExpressionUUID->\
+"209a5580-915c-4fac-a293-9d2aae9aafd6"],
+
+Cell["?f", "Input",ExpressionUUID->"94dd09c3-2481-4eb0-a772-ad0bc17ce5b3"],
+
+Cell[BoxData[
+ RowBox[{"{", 
+  RowBox[{
+   RowBox[{"f", "[", 
+    RowBox[{"1", ",", "2", ",", "3", ",", "4"}], "]"}], ",", 
+   RowBox[{"f", "[", 
+    RowBox[{"1", ",", "2", ",", "3"}], "]"}], ",", 
+   RowBox[{"f", "[", 
+    RowBox[{"1", ",", "2"}], "]"}], ",", 
+   RowBox[{"f", "[", "1", "]"}], ",", 
+   RowBox[{"f", "[", "]"}]}], "}"}]], "Input",ExpressionUUID->"50dc6983-3f5a-\
+47ed-abd5-301fccd8ec10"],
+
+Cell["2: Definition order - anything, odd, even, and the literal 2", "Section",ExpressionUUID->"ae156ab5-c075-431e-8f67-79b61dd35124"],
+
+Cell[BoxData[{
+ RowBox[{
+  RowBox[{"Clear", "[", 
+   RowBox[{"f", ",", "i"}], "]"}], ";"}], "\[IndentingNewLine]", 
+ RowBox[{
+  RowBox[{
+   RowBox[{"f", "[", "x_", "]"}], ":=", "\"\<x is anything\>\""}], ";"}], "\[IndentingNewLine]", 
+ RowBox[{
+  RowBox[{
+   RowBox[{"f", "[", 
+    RowBox[{"x_", "?", "OddQ"}], "]"}], ":=", "\"\<x is odd\>\""}], ";"}], "\[IndentingNewLine]", 
+ RowBox[{
+  RowBox[{
+   RowBox[{"f", "[", 
+    RowBox[{"x_", "?", "EvenQ"}], "]"}], ":=", "\"\<x is even\>\""}], ";"}], "\[IndentingNewLine]", 
+ RowBox[{
+  RowBox[{"f", "[", "2", "]"}], ":=", "\"\<x = 2\>\""}]}], "Input",ExpressionU\
+UID->"d2987872-09be-49a8-9002-e0897e13f0a7"],
+
+Cell["?f", "Input",ExpressionUUID->"5bdbf9db-9563-421b-9024-739a214af26d"],
+
+Cell[BoxData[
+ RowBox[{"TableForm", "[", 
+  RowBox[{"Table", "[", 
+   RowBox[{
+    RowBox[{"{", 
+     RowBox[{"i", ",", 
+      RowBox[{"f", "[", "i", "]"}]}], "}"}], ",", 
+    RowBox[{"{", 
+     RowBox[{"i", ",", "1", ",", "4", ",", 
+      FractionBox["1", "2"]}], "}"}]}], "]"}], "]"}]], "Input",ExpressionUUID->\
+"06233289-8498-4be0-9f3f-dbc7e5e9bd60"],
+
+Cell[BoxData[{
+ RowBox[{
+  RowBox[{"Clear", "[", 
+   RowBox[{"f", ",", "i"}], "]"}], ";"}], "\[IndentingNewLine]", 
+ RowBox[{
+  RowBox[{
+   RowBox[{"f", "[", 
+    RowBox[{"x_", "?", "OddQ"}], "]"}], ":=", "\"\<x is odd\>\""}], ";"}], "\[IndentingNewLine]", 
+ RowBox[{
+  RowBox[{
+   RowBox[{"f", "[", "x_", "]"}], ":=", "\"\<x is anything\>\""}], ";"}], "\[IndentingNewLine]", 
+ RowBox[{
+  RowBox[{
+   RowBox[{"f", "[", 
+    RowBox[{"x_", "?", "EvenQ"}], "]"}], ":=", "\"\<x is even\>\""}], ";"}], "\[IndentingNewLine]", 
+ RowBox[{
+  RowBox[{"f", "[", "2", "]"}], ":=", "\"\<x = 2\>\""}]}], "Input",ExpressionU\
+UID->"5463e535-31cf-48ea-944b-3dadf19ecc32"],
+
+Cell["?f", "Input",ExpressionUUID->"a5153180-e66f-423a-8dba-1e168795adbd"],
+
+Cell[BoxData[
+ RowBox[{"TableForm", "[", 
+  RowBox[{"Table", "[", 
+   RowBox[{
+    RowBox[{"{", 
+     RowBox[{"i", ",", 
+      RowBox[{"f", "[", "i", "]"}]}], "}"}], ",", 
+    RowBox[{"{", 
+     RowBox[{"i", ",", "1", ",", "4", ",", 
+      FractionBox["1", "2"]}], "}"}]}], "]"}], "]"}]], "Input",ExpressionUUID->\
+"c6d750a5-39fa-4cad-acd7-5c6e9cf08ce8"],
+
+Cell[BoxData[{
+ RowBox[{
+  RowBox[{"Clear", "[", 
+   RowBox[{"f", ",", "i"}], "]"}], ";"}], "\[IndentingNewLine]", 
+ RowBox[{
+  RowBox[{
+   RowBox[{"f", "[", "2", "]"}], ":=", "\"\<x = 2\>\""}], ";"}], "\[IndentingNewLine]", 
+ RowBox[{
+  RowBox[{
+   RowBox[{"f", "[", 
+    RowBox[{"x_", "?", "OddQ"}], "]"}], ":=", "\"\<x is odd\>\""}], ";"}], "\[IndentingNewLine]", 
+ RowBox[{
+  RowBox[{
+   RowBox[{"f", "[", 
+    RowBox[{"x_", "?", "EvenQ"}], "]"}], ":=", "\"\<x is even\>\""}], ";"}], "\[IndentingNewLine]", 
+ RowBox[{
+  RowBox[{"f", "[", "x_", "]"}], ":=", "\"\<x is anything\>\""}]}], "Input",Ex\
+pressionUUID->"bd4e9947-5114-4fea-9433-bc30f9160919"],
+
+Cell[BoxData[
+ RowBox[{"TableForm", "[", 
+  RowBox[{"Table", "[", 
+   RowBox[{
+    RowBox[{"{", 
+     RowBox[{"i", ",", 
+      RowBox[{"f", "[", "i", "]"}]}], "}"}], ",", 
+    RowBox[{"{", 
+     RowBox[{"i", ",", "1", ",", "4", ",", 
+      FractionBox["1", "2"]}], "}"}]}], "]"}], "]"}]], "Input",ExpressionUUID->\
+"ccd85e27-2322-4458-9d80-705199cb8ffd"],
+
+Cell["\<\
+3: Four tests and a catch-all, and why the order changes the answers\
+\>", "Section",ExpressionUUID->"008aff4d-f5c1-4633-9ac0-acc2b3c896a9"],
+
+Cell[BoxData[{
+ RowBox[{
+  RowBox[{"Clear", "[", 
+   RowBox[{"f", ",", "i"}], "]"}], ";"}], "\[IndentingNewLine]", 
+ RowBox[{
+  RowBox[{
+   RowBox[{"f", "[", 
+    RowBox[{"x_", "?", "OddQ"}], "]"}], ":=", "\"\< x is odd\>\""}], ";"}], "\[IndentingNewLine]", 
+ RowBox[{
+  RowBox[{
+   RowBox[{"f", "[", 
+    RowBox[{"x_", "?", "Positive"}], "]"}], ":=", "\"\< x is positive\>\""}], 
+  ";"}], "\[IndentingNewLine]", 
+ RowBox[{
+  RowBox[{
+   RowBox[{"f", "[", 
+    RowBox[{"x_", "?", "IntegerQ"}], "]"}], 
+   ":=", "\"\< x is an integer\>\""}], ";"}], "\[IndentingNewLine]", 
+ RowBox[{
+  RowBox[{
+   RowBox[{"f", "[", "2", "]"}], ":=", "\"\< x = 2\>\""}], ";"}], "\[IndentingNewLine]", 
+ RowBox[{
+  RowBox[{"f", "[", "x_", "]"}], ":=", "\"\< x is arbitrary\>\""}]}], "Input",\
+ExpressionUUID->"ece585c8-46b9-4619-b38b-f594a2584164"],
+
+Cell["?f", "Input",ExpressionUUID->"a51d0ba0-b6be-4025-98ff-493806c89715"],
+
+Cell[BoxData[
+ RowBox[{"TableForm", "[", 
+  RowBox[{"Table", "[", 
+   RowBox[{
+    RowBox[{"{", 
+     RowBox[{"i", ",", 
+      RowBox[{"f", "[", "i", "]"}]}], "}"}], ",", 
+    RowBox[{"{", 
+     RowBox[{"i", ",", 
+      RowBox[{"-", "2"}], ",", "4", ",", 
+      FractionBox["1", "2"]}], "}"}]}], "]"}], "]"}]], "Input",ExpressionUUID->\
+"8262e907-18fc-4b16-87a5-5682222b2d8e"],
+
+Cell[BoxData[{
+ RowBox[{
+  RowBox[{"Clear", "[", 
+   RowBox[{"f", ",", "i"}], "]"}], ";"}], "\[IndentingNewLine]", 
+ RowBox[{
+  RowBox[{
+   RowBox[{"f", "[", 
+    RowBox[{"x_", "?", "OddQ"}], "]"}], ":=", "\"\< x is odd\>\""}], ";"}], "\[IndentingNewLine]", 
+ RowBox[{
+  RowBox[{
+   RowBox[{"f", "[", 
+    RowBox[{"x_", "?", "IntegerQ"}], "]"}], 
+   ":=", "\"\< x is an integer\>\""}], ";"}], "\[IndentingNewLine]", 
+ RowBox[{
+  RowBox[{
+   RowBox[{"f", "[", 
+    RowBox[{"x_", "?", "Positive"}], "]"}], ":=", "\"\< x is positive\>\""}], 
+  ";"}], "\[IndentingNewLine]", 
+ RowBox[{
+  RowBox[{
+   RowBox[{"f", "[", "2", "]"}], ":=", "\"\< x = 2\>\""}], ";"}], "\[IndentingNewLine]", 
+ RowBox[{
+  RowBox[{"f", "[", "x_", "]"}], ":=", "\"\< x is arbitrary\>\""}]}], "Input",\
+ExpressionUUID->"ae592af4-005d-4bca-a78d-f372b9be071f"],
+
+Cell[BoxData[
+ RowBox[{"TableForm", "[", 
+  RowBox[{"Table", "[", 
+   RowBox[{
+    RowBox[{"{", 
+     RowBox[{"i", ",", 
+      RowBox[{"f", "[", "i", "]"}]}], "}"}], ",", 
+    RowBox[{"{", 
+     RowBox[{"i", ",", 
+      RowBox[{"-", "2"}], ",", "4", ",", 
+      FractionBox["1", "2"]}], "}"}]}], "]"}], "]"}]], "Input",ExpressionUUID->\
+"1759532e-c1e2-408d-a2b3-25229c5bb55a"],
+
+Cell["4: Teaching Integrate about a new function, by tagging", "Section",ExpressionUUID->"9623bdf0-2ed8-461b-a55c-3ca21abae65a"],
+
+Cell[BoxData[{
+ RowBox[{
+  RowBox[{"ClearAll", "[", 
+   RowBox[{"myFunction", ",", "myFunctionIntegral", ",", "x", ",", "y"}], 
+   "]"}], ";"}], "\[IndentingNewLine]", 
+ RowBox[{
+  RowBox[{"\[Integral]", 
+   RowBox[{
+    RowBox[{"myFunction", "[", "x_", "]"}], 
+    RowBox[{"\[DifferentialD]", "x_"}]}]}], ":=", 
+  RowBox[{"myFunctionIntegral", "[", "x", "]"}]}]}], "Input",ExpressionUUID->\
+"bd2a0f6e-7b03-40b0-b5c7-efa455779129"],
+
+Cell[BoxData[{
+ RowBox[{
+  RowBox[{"ClearAll", "[", "myFunction", "]"}], 
+  ";"}], "\[IndentingNewLine]", 
+ RowBox[{
+  RowBox[{"myFunction", "/:", 
+   RowBox[{"\[Integral]", 
+    RowBox[{
+     RowBox[{"myFunction", "[", "x_", "]"}], 
+     RowBox[{"\[DifferentialD]", "x_"}]}]}], ":=", 
+   RowBox[{"myFunctionIntegral", "[", "x", "]"}]}], ";"}]}], "Input",Expressio\
+nUUID->"6990ac44-fefa-493c-a2e4-5f4f59bb2799"],
+
+Cell["??myFunction", "Input",ExpressionUUID->"48db015d-b79a-4859-bebe-e0d333ce9ac5"],
+
+Cell[BoxData[
+ RowBox[{"\[Integral]", 
+  RowBox[{
+   RowBox[{"Sin", "[", "x", "]"}], 
+   RowBox[{"\[DifferentialD]", "x"}]}]}]], "Input",ExpressionUUID->"26950d54-\
+dd90-48ff-9152-c68a7dce70dc"],
+
+Cell[BoxData[
+ RowBox[{"\[Integral]", 
+  RowBox[{
+   RowBox[{"myFunction", "[", "x", "]"}], 
+   RowBox[{"\[DifferentialD]", "x"}]}]}]], "Input",ExpressionUUID->"4b3d0508-\
+3df4-46a3-a550-b76d29a4693b"],
+
+Cell[BoxData[
+ RowBox[{"\[Integral]", 
+  RowBox[{
+   RowBox[{"myFunction", "[", "y", "]"}], 
+   RowBox[{"\[DifferentialD]", "y"}]}]}]], "Input",ExpressionUUID->"dd918801-\
+7385-437f-97c1-2e681bc8d18c"],
+
+Cell[BoxData[
+ RowBox[{"Head", "[", 
+  RowBox[{"\[Integral]", 
+   RowBox[{
+    RowBox[{"myFunction", "[", "x", "]"}], 
+    RowBox[{"\[DifferentialD]", "x"}]}]}], "]"}]], "Input",ExpressionUUID->\
+"7e14e225-bccc-448a-9074-3c872f3099ca"],
+
+Cell["5: An orderless function", "Section",ExpressionUUID->"d6ca3cf3-51c0-466c-8817-63283704a589"],
+
+Cell[BoxData[{
+ RowBox[{
+  RowBox[{"ClearAll", "[", 
+   RowBox[{"myFunction", ",", "a", ",", "b", ",", "c", ",", "d"}], "]"}], 
+  ";"}], "\[IndentingNewLine]", 
+ RowBox[{
+  RowBox[{"SetAttributes", "[", 
+   RowBox[{"myFunction", ",", "Orderless"}], "]"}], ";"}]}], "Input",Expressio\
+nUUID->"e96ca788-0c78-45c2-9bb8-5404c96da95e"],
+
+Cell["??myFunction", "Input",ExpressionUUID->"4dc8b663-28dc-41e0-b16d-89e2e50c39df"],
+
+Cell[BoxData[
+ RowBox[{"{", 
+  RowBox[{
+   RowBox[{"myFunction", "[", 
+    RowBox[{"1", ",", "2", ",", "3"}], "]"}], ",", 
+   RowBox[{"myFunction", "[", 
+    RowBox[{"3", ",", "2", ",", "1"}], "]"}]}], "}"}]], "Input",ExpressionUUID\
+->"6884a35a-844c-40a7-b7af-e9da155ecc63"],
+
+Cell[BoxData[
+ RowBox[{"{", 
+  RowBox[{
+   RowBox[{"myFunction", "[", 
+    RowBox[{"a", ",", "b", ",", "c", ",", "d"}], "]"}], ",", 
+   RowBox[{"myFunction", "[", 
+    RowBox[{"d", ",", "c", ",", "b", ",", "a"}], "]"}]}], "}"}]], "Input",Expr\
+essionUUID->"f1559d64-2325-4b62-b342-00a4df5353c7"],
+
+Cell[BoxData[
+ RowBox[{
+  RowBox[{"myFunction", "[", 
+   RowBox[{"c", ",", "b", ",", "a", ",", "d"}], "]"}], "\[Equal]", 
+  RowBox[{"myFunction", "[", 
+   RowBox[{"d", ",", "c", ",", "b", ",", "a"}], "]"}]}]], "Input",ExpressionUU\
+ID->"831dcb53-571c-4087-9d8f-d936aed963c8"],
+
+Cell["6: Holding only the first argument", "Section",ExpressionUUID->"ff1e5c79-4ec2-4361-8f56-6be7a5dc7a18"],
+
+Cell[BoxData[{
+ RowBox[{
+  RowBox[{"ClearAll", "[", 
+   RowBox[{"myFunction", ",", "a", ",", "b", ",", "c", ",", "d"}], "]"}], 
+  ";"}], "\[IndentingNewLine]", 
+ RowBox[{
+  RowBox[{"SetAttributes", "[", 
+   RowBox[{"myFunction", ",", "HoldFirst"}], "]"}], ";"}]}], "Input",Expressio\
+nUUID->"1409b2b7-a706-4773-ac5c-a3d53aa1ea6a"],
+
+Cell["??myFunction", "Input",ExpressionUUID->"5c7ae7c1-5a3c-499a-a205-eaf99b165c5b"],
+
+Cell[BoxData[{
+ RowBox[{
+  RowBox[{"a", "=", "1"}], ";"}], "\[IndentingNewLine]", 
+ RowBox[{
+  RowBox[{"b", "=", "2"}], ";"}], "\[IndentingNewLine]", 
+ RowBox[{
+  RowBox[{"c", "=", "3"}], ";"}], "\[IndentingNewLine]", 
+ RowBox[{
+  RowBox[{"d", "=", "4"}], ";"}], "\[IndentingNewLine]", 
+ RowBox[{"myFunction", "[", 
+  RowBox[{"a", ",", "b", ",", "c", ",", "d"}], "]"}]}], "Input",ExpressionUUID\
+->"9174581d-2b0d-4a80-8041-9fbfd808f1f5"],
+
+Cell[BoxData[
+ RowBox[{
+  RowBox[{"myFunction", "[", 
+   RowBox[{"a_", ",", "b_", ",", "c_", ",", "d_"}], "]"}], ":=", 
+  RowBox[{"{", 
+   RowBox[{"a", ",", "b", ",", "c", ",", "d"}], "}"}]}]], "Input",ExpressionUU\
+ID->"1740da37-381e-4932-92da-f8d1e47968fb"],
+
+Cell["??myFunction", "Input",ExpressionUUID->"91ad705c-f9f1-4349-9858-796592aed1f6"],
+
+Cell[BoxData[{
+ RowBox[{
+  RowBox[{"a", "=", "1"}], ";"}], "\[IndentingNewLine]", 
+ RowBox[{
+  RowBox[{"b", "=", "2"}], ";"}], "\[IndentingNewLine]", 
+ RowBox[{
+  RowBox[{"c", "=", "3"}], ";"}], "\[IndentingNewLine]", 
+ RowBox[{
+  RowBox[{"d", "=", "4"}], ";"}], "\[IndentingNewLine]", 
+ RowBox[{"myFunction", "[", 
+  RowBox[{"a", ",", "b", ",", "c", ",", "d"}], "]"}]}], "Input",ExpressionUUID\
+->"4606025d-4a98-4048-bcce-010de13c1c61"],
+
+Cell["7: A usage message and full holding", "Section",ExpressionUUID->"7a24da0f-9d79-4d5f-ad6e-9830d9a63a5f"],
+
+Cell[BoxData[{
+ RowBox[{
+  RowBox[{"ClearAll", "[", 
+   RowBox[{"myFunction", ",", "x", ",", "y", ",", "z"}], "]"}], ";"}], "\[IndentingNewLine]", 
+ RowBox[{
+  RowBox[{
+   StyleBox[
+    RowBox[{"myFunction", "::", "usage"}], "MessageName"], 
+   "=", "\"\<myFunction [x, y, z, ... ] is important to understand.\>\""}], 
+  ";"}], "\[IndentingNewLine]", 
+ RowBox[{
+  RowBox[{
+   RowBox[{"myFunction", "[", 
+    RowBox[{"x_", ",", "y_", ",", "z_"}], "]"}], ":=", 
+   RowBox[{"Sin", "[", 
+    RowBox[{"x", " ", "y", " ", "z"}], "]"}]}], 
+  ";"}], "\[IndentingNewLine]", 
+ RowBox[{
+  RowBox[{"SetAttributes", "[", 
+   RowBox[{"myFunction", ",", "HoldAll"}], "]"}], ";"}]}], "Input",ExpressionU\
+UID->"07eb05f7-ee5a-4760-96d2-822d589228b5"],
+
+Cell["?myFunction", "Input",ExpressionUUID->"7b20bb25-69c5-4b6b-9c2f-efd22adb9f10"],
+
+Cell["??myFunction", "Input",ExpressionUUID->"31bc6bfa-c461-452d-9062-dc1d538f7937"]
+},
+WindowSize->{1100, 850},
+FrontEndVersion->"15.0 for Mac OS X ARM (64-bit) (May 26, 2026)",
+StyleDefinitions->"Default.nb",
+ExpressionUUID->"53e1aa67-6381-4be0-aec1-2e1147a12ddd"
+]
 (* End of Notebook Content *)
+
+(* Internal cache information *)
+(*CellTagsOutline
+CellTagsIndex->{}
+*)
+(*CellTagsIndex
+CellTagsIndex->{}
+*)
+(*NotebookFileOutline
+Notebook[{
+Cell[560, 20, 218, 5, 70, "Title",ExpressionUUID->"674890ff-6f9a-48c1-8517-1149624bcb58"],
+Cell[781, 27, 115, 0, 70, "Section",ExpressionUUID->"57e6b16c-df9f-4a9a-b56f-1cd4db597795"],
+Cell[899, 29, 404, 11, 70, "Input",ExpressionUUID->"209a5580-915c-4fac-a293-9d2aae9aafd6"],
+Cell[1306, 42, 74, 0, 70, "Input",ExpressionUUID->"94dd09c3-2481-4eb0-a772-ad0bc17ce5b3"],
+Cell[1383, 44, 404, 11, 70, "Input",ExpressionUUID->"50dc6983-3f5a-47ed-abd5-301fccd8ec10"],
+Cell[1790, 57, 134, 0, 70, "Section",ExpressionUUID->"ae156ab5-c075-431e-8f67-79b61dd35124"],
+Cell[1927, 59, 655, 17, 70, "Input",ExpressionUUID->"d2987872-09be-49a8-9002-e0897e13f0a7"],
+Cell[2585, 78, 74, 0, 70, "Input",ExpressionUUID->"5bdbf9db-9563-421b-9024-739a214af26d"],
+Cell[2662, 80, 354, 10, 70, "Input",ExpressionUUID->"06233289-8498-4be0-9f3f-dbc7e5e9bd60"],
+Cell[3019, 92, 655, 17, 70, "Input",ExpressionUUID->"5463e535-31cf-48ea-944b-3dadf19ecc32"],
+Cell[3677, 111, 74, 0, 70, "Input",ExpressionUUID->"a5153180-e66f-423a-8dba-1e168795adbd"],
+Cell[3754, 113, 354, 10, 70, "Input",ExpressionUUID->"c6d750a5-39fa-4cad-acd7-5c6e9cf08ce8"],
+Cell[4111, 125, 655, 17, 70, "Input",ExpressionUUID->"bd4e9947-5114-4fea-9433-bc30f9160919"],
+Cell[4769, 144, 354, 10, 70, "Input",ExpressionUUID->"ccd85e27-2322-4458-9d80-705199cb8ffd"],
+Cell[5126, 156, 150, 2, 70, "Section",ExpressionUUID->"008aff4d-f5c1-4633-9ac0-acc2b3c896a9"],
+Cell[5279, 160, 828, 23, 70, "Input",ExpressionUUID->"ece585c8-46b9-4619-b38b-f594a2584164"],
+Cell[6110, 185, 74, 0, 70, "Input",ExpressionUUID->"a51d0ba0-b6be-4025-98ff-493806c89715"],
+Cell[6187, 187, 376, 11, 70, "Input",ExpressionUUID->"8262e907-18fc-4b16-87a5-5682222b2d8e"],
+Cell[6566, 200, 828, 23, 70, "Input",ExpressionUUID->"ae592af4-005d-4bca-a78d-f372b9be071f"],
+Cell[7397, 225, 376, 11, 70, "Input",ExpressionUUID->"1759532e-c1e2-408d-a2b3-25229c5bb55a"],
+Cell[7776, 238, 128, 0, 70, "Section",ExpressionUUID->"9623bdf0-2ed8-461b-a55c-3ca21abae65a"],
+Cell[7907, 240, 431, 11, 70, "Input",ExpressionUUID->"bd2a0f6e-7b03-40b0-b5c7-efa455779129"],
+Cell[8341, 253, 412, 11, 70, "Input",ExpressionUUID->"6990ac44-fefa-493c-a2e4-5f4f59bb2799"],
+Cell[8756, 266, 84, 0, 70, "Input",ExpressionUUID->"48db015d-b79a-4859-bebe-e0d333ce9ac5"],
+Cell[8843, 268, 194, 5, 70, "Input",ExpressionUUID->"26950d54-dd90-48ff-9152-c68a7dce70dc"],
+Cell[9040, 275, 201, 5, 70, "Input",ExpressionUUID->"4b3d0508-3df4-46a3-a550-b76d29a4693b"],
+Cell[9244, 282, 201, 5, 70, "Input",ExpressionUUID->"dd918801-7385-437f-97c1-2e681bc8d18c"],
+Cell[9448, 289, 235, 6, 70, "Input",ExpressionUUID->"7e14e225-bccc-448a-9074-3c872f3099ca"],
+Cell[9686, 297, 98, 0, 70, "Section",ExpressionUUID->"d6ca3cf3-51c0-466c-8817-63283704a589"],
+Cell[9787, 299, 330, 8, 70, "Input",ExpressionUUID->"e96ca788-0c78-45c2-9bb8-5404c96da95e"],
+Cell[10120, 309, 84, 0, 70, "Input",ExpressionUUID->"4dc8b663-28dc-41e0-b16d-89e2e50c39df"],
+Cell[10207, 311, 275, 7, 70, "Input",ExpressionUUID->"6884a35a-844c-40a7-b7af-e9da155ecc63"],
+Cell[10485, 320, 295, 7, 70, "Input",ExpressionUUID->"f1559d64-2325-4b62-b342-00a4df5353c7"],
+Cell[10783, 329, 275, 6, 70, "Input",ExpressionUUID->"831dcb53-571c-4087-9d8f-d936aed963c8"],
+Cell[11061, 337, 108, 0, 70, "Section",ExpressionUUID->"ff1e5c79-4ec2-4361-8f56-6be7a5dc7a18"],
+Cell[11172, 339, 330, 8, 70, "Input",ExpressionUUID->"1409b2b7-a706-4773-ac5c-a3d53aa1ea6a"],
+Cell[11505, 349, 84, 0, 70, "Input",ExpressionUUID->"5c7ae7c1-5a3c-499a-a205-eaf99b165c5b"],
+Cell[11592, 351, 437, 11, 70, "Input",ExpressionUUID->"9174581d-2b0d-4a80-8041-9fbfd808f1f5"],
+Cell[12032, 364, 259, 6, 70, "Input",ExpressionUUID->"1740da37-381e-4932-92da-f8d1e47968fb"],
+Cell[12294, 372, 84, 0, 70, "Input",ExpressionUUID->"91ad705c-f9f1-4349-9858-796592aed1f6"],
+Cell[12381, 374, 437, 11, 70, "Input",ExpressionUUID->"4606025d-4a98-4048-bcce-010de13c1c61"],
+Cell[12821, 387, 109, 0, 70, "Section",ExpressionUUID->"7a24da0f-9d79-4d5f-ad6e-9830d9a63a5f"],
+Cell[12933, 389, 733, 20, 70, "Input",ExpressionUUID->"07eb05f7-ee5a-4760-96d2-822d589228b5"],
+Cell[13669, 411, 83, 0, 70, "Input",ExpressionUUID->"7b20bb25-69c5-4b6b-9c2f-efd22adb9f10"],
+Cell[13755, 413, 84, 0, 70, "Input",ExpressionUUID->"31bc6bfa-c461-452d-9062-dc1d538f7937"]
+}
+]
+*)
+
+(* End of internal cache information *)

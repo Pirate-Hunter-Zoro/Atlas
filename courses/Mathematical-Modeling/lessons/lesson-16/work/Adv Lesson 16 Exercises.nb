@@ -3,6 +3,105 @@
 (*** Wolfram Notebook File ***)
 (* http://www.wolfram.com/nb *)
 
+(* CreatedBy='WolframEngine 15.0' *)
+
+(*CacheID: 234*)
+(* Internal cache information:
+NotebookFileLineBreakTest
+NotebookFileLineBreakTest
+NotebookDataPosition[       160,          7]
+NotebookDataLength[      4107,         98]
+NotebookOptionsPosition[      2619,         72]
+NotebookOutlinePosition[      2961,         87]
+CellTagsIndexPosition[      2918,         84]
+WindowFrame->Normal*)
+
 (* Beginning of Notebook Content *)
-Notebook[{Cell["Advanced Lesson 16 - Exercises: Packages\nMikey Ferguson\nMATH 7013 - Advanced Mathematical Modeling", "Title"], Cell["1: Loading ComputerArithmetic`", "Section"], Cell[BoxData[RowBox[{"Needs", "[", "\"ComputerArithmetic`\"", "]"}]], "Input"], Cell["Needs loads a package if it is not already loaded and does nothing if it is,\nwhich makes it safe to re-evaluate. The older idiom is Get, written with a\ndouble angle bracket, but Get reloads unconditionally and re-running it\nproduces shadowing warnings.\nComputerArithmetic` is one of the legacy standard add-on packages. It is\nstill shipped with this installation - the file sits under\nAddOns/Packages/ComputerArithmetic/Kernel/init.m inside the Wolfram Engine\nlayout - so the exercise works as written. It is worth confirming rather\nthan assuming: several of the packages this era of the course drew on have\nsince been removed or folded into the kernel.", "Text"], Cell["2: Packages on the current context path", "Section"], Cell[BoxData["$ContextPath"], "Input"], Cell[BoxData[RowBox[{"Length", "[", "$Packages", "]"}]], "Input"], Cell[BoxData[RowBox[{"Sort", "[", RowBox[{"Select", "[", RowBox[{"$Packages", ",", RowBox[{RowBox[{"StringFreeQ", "[", RowBox[{"#1", ",", RowBox[{"\"`\"", "~~", "__", "~~", "\"`\""}]}], "]"}], "&"}]}], "]"}], "]"}]], "Input"], Cell["$ContextPath now has \"ComputerArithmetic`\" prepended, which is what makes the\npackage's exported names usable without qualification.\n$Packages is the much longer list of every context loaded in this session,\nwhether or not it is currently on the search path - the distinction being\nbetween what exists and what is visible. In this version it runs to well over\na hundred entries, most of them internal subcontexts of the chat and\nmachine-learning subsystems, so the third cell filters out the nested ones\nand sorts what remains. ComputerArithmetic` appears in that filtered list,\nwhich is the confirmation Part 1 was after.", "Text"], Cell["3: The primary functions in ComputerArithmetic`", "Section"], Cell[BoxData[RowBox[{"Names", "[", "\"ComputerArithmetic`*\"", "]"}]], "Input"], Cell["The package exports seventeen names: Arithmetic, ComputerNumber,\nExponentRange, IdealDivide, IdealDivision, MachineError, MicroscopePlot,\nMicroscopicErrorPlot, MixedMode, NaN, RoundingRule, RoundToEven,\nRoundToInfinity, SetArithmetic, Truncation, Ulp and Ulps.\nThe package models finite-precision arithmetic explicitly: SetArithmetic\nfixes a number of digits and a base, ComputerNumber constructs a number in\nthat system, Ulp measures the gap between representable neighbours, and\nMachineError reports the discrepancy between the exact value and the\nrepresentable one. It is the practical counterpart to Lesson 2, which\nstudied precision from the language's side rather than the hardware's.", "Text"], Cell["?ComputerArithmetic`*", "Input"], Cell["The wildcard form of \"?\" prints the usage message for every name in the\ncontext at once, which is the quickest way to see what a small package\noffers.", "Text"], Cell["4: Information on MicroscopicErrorPlot", "Section"], Cell["?MicroscopicErrorPlot", "Input"], Cell[BoxData[RowBox[{"Information", "[", RowBox[{"\"ComputerArithmetic`MicroscopicErrorPlot\"", ",", RowBox[{"LongForm", "\[Rule]", "False"}]}], "]"}]], "Input"], Cell["What there is to find. The usage message gives two signatures.\nMicroscopicErrorPlot[f, {x, a}] plots the error incurred by using machine\narithmetic to evaluate the expression f in a small neighbourhood of a, and\nMicroscopicErrorPlot[f, {x, a, n}] plots that error from a - n ulps to\na + n ulps. An ulp is a unit in the last place: the gap between one\nrepresentable machine number and the next, which the same package's Ulp\nfunction measures.\nBeyond the usage string, Information reports that the symbol has attributes\nHoldFirst and Protected - HoldFirst because the expression must not be\nevaluated before the package can control the arithmetic under which it is\nevaluated - and one option, Joined, defaulting to True. Documentation is\nreported as None: there is no Documentation Center page and no examples.\nThat is the whole answer to \"what information there is on it\". Legacy add-on\npackages were documented in the printed Technical Report that shipped with\nthem, not in the online help system, so reading the package source at the\npath FindFile reports below is the remaining option, and for a package of\nthis vintage it is often the only real documentation available.", "Text"], Cell[BoxData[RowBox[{"FindFile", "[", "\"ComputerArithmetic`\"", "]"}]], "Input"]}, WindowSize -> {1100, 850}, StyleDefinitions -> "Default.nb"]
+Notebook[{
+Cell["\<\
+Advanced Lesson 16 - Exercises: Packages
+Mikey Ferguson
+MATH 7013 - Advanced Mathematical Modeling\
+\>", "Title",ExpressionUUID->"97dea9ea-4671-4d73-a931-a6e9084ba66b"],
+
+Cell["1: Loading ComputerArithmetic`", "Section",ExpressionUUID->"b040231d-75b3-43be-a67c-39f31de76a30"],
+
+Cell[BoxData[
+ RowBox[{"Needs", "[", "\"\<ComputerArithmetic`\>\"", "]"}]], "Input",Expressi\
+onUUID->"27d0439b-14bf-4d40-a490-6d9957904ea8"],
+
+Cell["2: Packages on the current context path", "Section",ExpressionUUID->"7c7e1154-42af-4f68-bec7-de57bf4a5060"],
+
+Cell[BoxData["$ContextPath"], "Input",ExpressionUUID->"84b9c95e-2f6f-4e0f-9529-7e1e38e4b938"],
+
+Cell[BoxData[
+ RowBox[{"Length", "[", "$Packages", "]"}]], "Input",ExpressionUUID->"2f9e830f-5024-4140-b07e-9b0a0cd936f6"],
+
+Cell[BoxData[
+ RowBox[{"Sort", "[", 
+  RowBox[{"Select", "[", 
+   RowBox[{"$Packages", ",", 
+    RowBox[{
+     RowBox[{"StringFreeQ", "[", 
+      RowBox[{"#1", ",", 
+       RowBox[{"\"\<`\>\"", "~~", "__", "~~", "\"\<`\>\""}]}], "]"}], "&"}]}],
+    "]"}], "]"}]], "Input",ExpressionUUID->"d7d28437-daee-49a9-ada8-\
+b7871a6f4ce2"],
+
+Cell["3: The primary functions in ComputerArithmetic`", "Section",ExpressionUUID->"53e02113-e101-41c0-a423-b460dfee9ea7"],
+
+Cell[BoxData[
+ RowBox[{"Names", "[", "\"\<ComputerArithmetic`*\>\"", "]"}]], "Input",Express\
+ionUUID->"91e7e762-2b16-4773-8232-49d7f497674e"],
+
+Cell["?ComputerArithmetic`*", "Input",ExpressionUUID->"1a480a3d-4323-48dd-8418-cd8798ba7e70"],
+
+Cell["4: Information on MicroscopicErrorPlot", "Section",ExpressionUUID->"8ae01736-e472-497b-8183-d82f92970169"],
+
+Cell["?MicroscopicErrorPlot", "Input",ExpressionUUID->"5dbb9cff-cc3e-43cd-bf00-b624f9f0e9a2"],
+
+Cell[BoxData[
+ RowBox[{"Information", "[", 
+  RowBox[{"\"\<ComputerArithmetic`MicroscopicErrorPlot\>\"", ",", 
+   RowBox[{"LongForm", "\[Rule]", "False"}]}], "]"}]], "Input",ExpressionUUID->\
+"29ada208-c85b-460c-926d-0335449e5f31"],
+
+Cell[BoxData[
+ RowBox[{"FindFile", "[", "\"\<ComputerArithmetic`\>\"", "]"}]], "Input",Expre\
+ssionUUID->"559b66ed-574b-4f7b-b2be-f0a78552d45a"]
+},
+WindowSize->{1100, 850},
+FrontEndVersion->"15.0 for Mac OS X ARM (64-bit) (May 26, 2026)",
+StyleDefinitions->"Default.nb",
+ExpressionUUID->"53e1aa67-6381-4be0-aec1-2e1147a12ddd"
+]
 (* End of Notebook Content *)
+
+(* Internal cache information *)
+(*CellTagsOutline
+CellTagsIndex->{}
+*)
+(*CellTagsIndex
+CellTagsIndex->{}
+*)
+(*NotebookFileOutline
+Notebook[{
+Cell[560, 20, 178, 4, 70, "Title",ExpressionUUID->"97dea9ea-4671-4d73-a931-a6e9084ba66b"],
+Cell[741, 26, 104, 0, 70, "Section",ExpressionUUID->"b040231d-75b3-43be-a67c-39f31de76a30"],
+Cell[848, 28, 141, 2, 70, "Input",ExpressionUUID->"27d0439b-14bf-4d40-a490-6d9957904ea8"],
+Cell[992, 32, 113, 0, 70, "Section",ExpressionUUID->"7c7e1154-42af-4f68-bec7-de57bf4a5060"],
+Cell[1108, 34, 93, 0, 70, "Input",ExpressionUUID->"84b9c95e-2f6f-4e0f-9529-7e1e38e4b938"],
+Cell[1204, 36, 122, 1, 70, "Input",ExpressionUUID->"2f9e830f-5024-4140-b07e-9b0a0cd936f6"],
+Cell[1329, 39, 329, 9, 70, "Input",ExpressionUUID->"d7d28437-daee-49a9-ada8-b7871a6f4ce2"],
+Cell[1661, 50, 121, 0, 70, "Section",ExpressionUUID->"53e02113-e101-41c0-a423-b460dfee9ea7"],
+Cell[1785, 52, 142, 2, 70, "Input",ExpressionUUID->"91e7e762-2b16-4773-8232-49d7f497674e"],
+Cell[1930, 56, 93, 0, 70, "Input",ExpressionUUID->"1a480a3d-4323-48dd-8418-cd8798ba7e70"],
+Cell[2026, 58, 112, 0, 70, "Section",ExpressionUUID->"8ae01736-e472-497b-8183-d82f92970169"],
+Cell[2141, 60, 93, 0, 70, "Input",ExpressionUUID->"5dbb9cff-cc3e-43cd-bf00-b624f9f0e9a2"],
+Cell[2237, 62, 231, 4, 70, "Input",ExpressionUUID->"29ada208-c85b-460c-926d-0335449e5f31"],
+Cell[2471, 68, 144, 2, 70, "Input",ExpressionUUID->"559b66ed-574b-4f7b-b2be-f0a78552d45a"]
+}
+]
+*)
+
+(* End of internal cache information *)

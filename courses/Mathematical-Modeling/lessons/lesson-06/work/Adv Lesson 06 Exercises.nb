@@ -3,6 +3,423 @@
 (*** Wolfram Notebook File ***)
 (* http://www.wolfram.com/nb *)
 
+(* CreatedBy='WolframEngine 15.0' *)
+
+(*CacheID: 234*)
+(* Internal cache information:
+NotebookFileLineBreakTest
+NotebookFileLineBreakTest
+NotebookDataPosition[       160,          7]
+NotebookDataLength[     16246,        416]
+NotebookOptionsPosition[     11842,        359]
+NotebookOutlinePosition[     12184,        374]
+CellTagsIndexPosition[     12141,        371]
+WindowFrame->Normal*)
+
 (* Beginning of Notebook Content *)
-Notebook[{Cell["Advanced Lesson 6 - Exercises: Replacement Rules and Evaluation\nMikey Ferguson\nMATH 7013 - Advanced Mathematical Modeling", "Title"], Cell["1: x = 2 followed by an integration in x", "Section"], Cell[BoxData[RowBox[{RowBox[{"Clear", "[", "x", "]"}], ";", "\[IndentingNewLine]", RowBox[{"x", "=", "2"}], ";", "\[IndentingNewLine]", RowBox[{"\[Integral]", RowBox[{SuperscriptBox["x", "2"], RowBox[{"\[DifferentialD]", "x"}]}]}]}]], "Input"], Cell["Why it misbehaves. Integrate does not hold its arguments. By the time\nIntegrate sees them, x has already been replaced by 2 in both slots, so the\ncall that actually runs is Integrate[4, 2] - integrate the constant 4 with\nrespect to the number 2. Mathematica reports Integrate::ilim, \"Invalid\nintegration variable or limit(s) in 2\", and returns the expression\nunevaluated. The integration variable was destroyed by the assignment before\nthe integral was ever set up.", "Text"], Cell["2: x := 2 followed by the same integration", "Section"], Cell[BoxData[RowBox[{RowBox[{"Clear", "[", "x", "]"}], ";", "\[IndentingNewLine]", RowBox[{"x", ":=", "2"}], ";", "\[IndentingNewLine]", RowBox[{"\[Integral]", RowBox[{SuperscriptBox["x", "2"], RowBox[{"\[DifferentialD]", "x"}]}]}]}]], "Input"], Cell["Identical failure, identical message. Delayed assignment changes when the\nright-hand side is evaluated, not whether x has a value. Every time x is\nlooked up it still yields 2, so Integrate still receives Integrate[4, 2].\nDelayed assignment is not a way to keep a symbol free.", "Text"], Cell["3: A global x colliding with a pattern variable named x", "Section"], Cell[BoxData[RowBox[{RowBox[{"Clear", "[", RowBox[{"x", ",", "f1", ",", "f2"}], "]"}], ";", "\[IndentingNewLine]", RowBox[{"x", "=", "2"}], ";", "\[IndentingNewLine]", RowBox[{RowBox[{"f1", "[", "x_", "]"}], "=", SuperscriptBox["x", "2"]}], ";", "\[IndentingNewLine]", RowBox[{RowBox[{"f2", "[", "x_", "]"}], ":=", SuperscriptBox["x", "2"]}], ";"}]], "Input"], Cell["?f1", "Input"], Cell["?f2", "Input"], Cell[BoxData[RowBox[{"{", RowBox[{RowBox[{"f1", "[", "z", "]"}], ",", RowBox[{"f2", "[", "z", "]"}]}], "}"}]], "Input"], Cell[BoxData[RowBox[{"Plot", "[", RowBox[{RowBox[{"{", RowBox[{RowBox[{"f1", "[", "z", "]"}], ",", RowBox[{"f2", "[", "z", "]"}]}], "}"}], ",", RowBox[{"{", RowBox[{"z", ",", "0", ",", "3"}], "}"}], ",", RowBox[{"PlotStyle", "\[Rule]", RowBox[{"{", RowBox[{"Thickness", "[", "0.01`", "]"}], "}"}]}]}], "]"}]], "Input"], Cell["Why it misbehaves. Set holds its left-hand side, so the pattern f1[x_]\nsurvives intact - the name x on the left is a pattern variable and is not\ntouched. The right-hand side is a different matter: it is evaluated\nimmediately, and there x means the global x, which is 2. So x^2 evaluates\nto 4 and the stored rule is f1[x_] :> 4. \"?f1\" confirms it. f1 returns 4 for\nevery argument, and its curve is a horizontal line.\nf2 uses delayed assignment, so the right-hand side is stored unevaluated as\nx^2 with x still the pattern variable. \"?f2\" shows f2[x_] :> x^2, f2[z]\nreturns z^2, and its curve is the parabola.\nThe general lesson: naming a pattern variable the same as a symbol that\nalready has a global value is safe on the left of a definition and fatal on\nthe right of an immediate one.", "Text"], Cell["4: A replacement rule and an integration in the wrong variable", "Section"], Cell[BoxData[RowBox[{RowBox[{"Clear", "[", RowBox[{"x", ",", "y"}], "]"}], ";", "\[IndentingNewLine]", RowBox[{SuperscriptBox["x", "2"], "/.", "\[VeryThinSpace]", RowBox[{"x", "\[Rule]", "y"}]}]}]], "Input"], Cell[BoxData[RowBox[{"\[Integral]", RowBox[{SuperscriptBox["x", "2"], RowBox[{"\[DifferentialD]", "y"}]}]}]], "Input"], Cell["Why it misbehaves. The replacement rule works fine and returns y^2 - but\nReplaceAll does not assign anything. It produces a new expression and throws\nit away; x is still x afterwards. So the integral that follows is\nIntegrate[x^2, y]: integrating a constant (as far as y is concerned) with\nrespect to y, which returns x^2 y. The mistake is expecting \"/.\" to have\nchanged x permanently. It never does.", "Text"], Cell["5: Assigning the result of a self-replacement", "Section"], Cell[BoxData[RowBox[{RowBox[{"Clear", "[", RowBox[{"x", ",", "y", ",", "z"}], "]"}], ";", "\[IndentingNewLine]", RowBox[{"x", "=", RowBox[{"x", "/.", "\[VeryThinSpace]", RowBox[{"x", "\[Rule]", "y"}]}]}]}]], "Input"], Cell[BoxData[RowBox[{"\[Integral]", RowBox[{SuperscriptBox["x", "2"], RowBox[{"\[DifferentialD]", "y"}]}]}]], "Input"], Cell["Here the replacement result is assigned, so x really does become y. The\nintegral is then Integrate[y^2, y], which returns y^3/3. This is the\nbehaviour Exercise 4 was expected to have and did not, and the only\ndifference is the assignment.", "Text"], Cell["6: The same shape, with a symbol the rule does not mention", "Section"], Cell[BoxData[RowBox[{RowBox[{"Clear", "[", RowBox[{"x", ",", "y", ",", "z"}], "]"}], ";", "\[IndentingNewLine]", RowBox[{"x", "=", RowBox[{"z", "/.", "\[VeryThinSpace]", RowBox[{"x", "\[Rule]", "y"}]}]}]}]], "Input"], Cell[BoxData[RowBox[{"\[Integral]", RowBox[{SuperscriptBox["x", "2"], RowBox[{"\[DifferentialD]", "y"}]}]}]], "Input"], Cell["The rule x -> y is applied to the expression z, which contains no x, so\nnothing is replaced and z comes back unchanged. That z is then assigned to\nx. The integral is therefore Integrate[z^2, y] - a constant with respect to\ny - which returns y z^2. The rule was irrelevant; the assignment did all the\nwork.", "Text"], Cell["7: Why two rules in one list do not chain", "Section"], Cell[BoxData[RowBox[{RowBox[{"Clear", "[", RowBox[{"x", ",", "y"}], "]"}], ";", "\[IndentingNewLine]", RowBox[{RowBox[{"Sin", "[", "x", "]"}], "/.", "\[VeryThinSpace]", RowBox[{"{", RowBox[{RowBox[{RowBox[{"Sin", "[", "x", "]"}], "\[Rule]", RowBox[{"Log", "[", "x", "]"}]}], ",", RowBox[{"x", "\[Rule]", RowBox[{"2", " ", "\[Pi]", " ", "y"}]}]}], "}"}]}]}]], "Input"], Cell["Why it does not give Log[2 Pi y]. ReplaceAll scans the expression once, from\nthe top down, and at each position it tries the rules in order and stops at\nthe first that matches. At the top, Sin[x] matches the first rule and is\nreplaced by Log[x]. Having replaced that subexpression, ReplaceAll does not\ndescend into the result - the freshly inserted Log[x] is output, not input.\nSo the second rule never gets a chance at the x inside it. The answer is\nLog[x].\nTwo ways to fix it, both below: apply the rules repeatedly until nothing\nchanges, or write a single rule that does the whole job at once.", "Text"], Cell[BoxData[RowBox[{RowBox[{"Sin", "[", "x", "]"}], "//.", "\[VeryThinSpace]", RowBox[{"{", RowBox[{RowBox[{RowBox[{"Sin", "[", "x", "]"}], "\[Rule]", RowBox[{"Log", "[", "x", "]"}]}], ",", RowBox[{"x", "\[Rule]", RowBox[{"2", " ", "\[Pi]", " ", "y"}]}]}], "}"}]}]], "Input"], Cell[BoxData[RowBox[{RowBox[{"Sin", "[", "x", "]"}], "/.", "\[VeryThinSpace]", RowBox[{RowBox[{"Sin", "[", "x", "]"}], "\[Rule]", RowBox[{"Log", "[", RowBox[{"2", " ", "\[Pi]", " ", "y"}], "]"}]}]}]], "Input"], Cell["ReplaceRepeated (\"//.\") re-scans until the expression stops changing, so the\nsecond rule catches the x that the first rule introduced, and the result is\nLog[2 Pi y]. The single-rule version reaches the same place without any\niteration, and is the safer choice whenever the substitution is known in\nadvance - repeated replacement on a rule set that can regenerate its own\nleft-hand side will loop forever.", "Text"], Cell["8: A rule set carried inside a function definition", "Section"], Cell[BoxData[RowBox[{RowBox[{"Clear", "[", RowBox[{"f", ",", "x", ",", "y", ",", "z"}], "]"}], ";", "\[IndentingNewLine]", RowBox[{RowBox[{"f", "[", "x_", "]"}], ":=", RowBox[{"x", "/.", "\[VeryThinSpace]", RowBox[{"{", RowBox[{RowBox[{"y", "\[Rule]", RowBox[{"Cos", "[", "y", "]"}]}], ",", RowBox[{"z", "\[Rule]", RowBox[{"Sin", "[", "z", "]"}]}]}], "}"}]}]}]}]], "Input"], Cell[BoxData[RowBox[{"f", "[", "x", "]"}]], "Input"], Cell[BoxData[RowBox[{"f", "[", RowBox[{"x", "+", "y", "+", "z"}], "]"}]], "Input"], Cell["How it works. The pattern variable x captures whatever argument is supplied,\nand the body applies the rule list to it. The rules mention y and z only, so\nthe function rewrites any y into Cos[y] and any z into Sin[z] and leaves\neverything else alone.\nf[x] returns x - the argument contains no y and no z, so nothing matches.\nf[x + y + z] returns x + Cos[y] + Sin[z]. ReplaceAll descends into the sum\nand treats each summand as a separate position, so both rules fire, each\nonce. Note again that neither rule fires on its own output: the y inside the\nnewly created Cos[y] is not rewritten a second time, which is exactly why\nthis terminates.", "Text"], Cell["9: Frame -> False and Frame -> True as replacement rules", "Section"], Cell[BoxData[RowBox[{RowBox[{"Clear", "[", "x", "]"}], ";", "\[IndentingNewLine]", RowBox[{"Plot", "[", RowBox[{RowBox[{"Sin", "[", "x", "]"}], ",", RowBox[{"{", RowBox[{"x", ",", "0", ",", RowBox[{"2", " ", "\[Pi]"}]}], "}"}], ",", RowBox[{"Frame", "\[Rule]", "False"}]}], "]"}]}]], "Input"], Cell[BoxData[RowBox[{"Plot", "[", RowBox[{RowBox[{"Sin", "[", "x", "]"}], ",", RowBox[{"{", RowBox[{"x", ",", "0", ",", RowBox[{"2", " ", "\[Pi]"}]}], "}"}], ",", RowBox[{"Frame", "\[Rule]", "True"}]}], "]"}]], "Input"], Cell["Their purpose. Every option in Mathematica is a replacement rule, and that\nis not an analogy - option settings are literally Rule expressions carried\nin the argument sequence. Plot collects them, appends its own defaults, and\nresolves each option name against that list with ReplaceAll. Frame -> False\ndraws the default crossed axes; Frame -> True draws a closed box with ticks\non all four sides and moves the tick labels out to it. Because options are\nordinary expressions, they can be manipulated by ordinary expression tools -\nwhich is the point of the next exercise.", "Text"], Cell["10: Rewriting a finished plot by rewriting its options", "Section"], Cell[BoxData[RowBox[{RowBox[{"Clear", "[", RowBox[{"x", ",", "plot1", ",", "plot2"}], "]"}], ";", "\[IndentingNewLine]", RowBox[{"plot1", "=", RowBox[{"Plot", "[", RowBox[{RowBox[{"Sin", "[", "x", "]"}], ",", RowBox[{"{", RowBox[{"x", ",", "0", ",", RowBox[{"2", " ", "\[Pi]"}]}], "}"}], ",", RowBox[{"Frame", "\[Rule]", "True"}]}], "]"}]}]}]], "Input"], Cell["?plot1", "Input"], Cell[BoxData[RowBox[{"Frame", "/.", "\[VeryThinSpace]", RowBox[{"Options", "[", "plot1", "]"}]}]], "Input"], Cell[BoxData[RowBox[{RowBox[{"plot2", "=", RowBox[{"plot1", "/.", "\[VeryThinSpace]", RowBox[{RowBox[{"(", RowBox[{"Frame", "\[Rule]", RowBox[{"{", RowBox[{RowBox[{"{", RowBox[{"True", ",", "True"}], "}"}], ",", RowBox[{"{", RowBox[{"True", ",", "True"}], "}"}]}], "}"}]}], ")"}], "\[Rule]", RowBox[{"Frame", "\[Rule]", RowBox[{"{", RowBox[{RowBox[{"{", RowBox[{"False", ",", "True"}], "}"}], ",", RowBox[{"{", RowBox[{"False", ",", "True"}], "}"}]}], "}"}]}]}]}]}], ";", "\[IndentingNewLine]", RowBox[{"Frame", "/.", "\[VeryThinSpace]", RowBox[{"Options", "[", "plot2", "]"}]}]}]], "Input"], Cell[BoxData[RowBox[{"Show", "[", "plot2", "]"}]], "Input"], Cell["How it works. Plot does not store Frame -> True as written. It canonicalises\nthe setting into the four-sided form {{left, right}, {bottom, top}}, so what\nis actually held inside the Graphics object is\nFrame -> {{True, True}, {True, True}}. That is what \"?plot1\" shows, and it\nis why the replacement rule in this exercise has to be written against the\ncanonical form rather than the form that was typed.\nThe rule replaces one whole option rule with another whole option rule - the\npattern being matched is itself a Rule expression. The new setting turns off\nthe left and bottom frame edges and keeps the right and top ones. Show\nre-renders the modified object.\nThis is the general moral of the lesson: a plot is not a picture, it is an\nexpression, and every tool that works on expressions works on it.", "Text"], Cell["11: DSolve, substituting constants, checking, and plotting", "Section"], Cell[BoxData[RowBox[{RowBox[{"Clear", "[", RowBox[{"y", ",", "t", ",", "sol", ",", "sol2"}], "]"}], ";", "\[IndentingNewLine]", RowBox[{"sol", "=", RowBox[{"DSolve", "[", RowBox[{RowBox[{RowBox[{RowBox[{SuperscriptBox["y", "\[Prime]\[Prime]", MultilineFunction -> None], "[", "t", "]"}], "+", RowBox[{"y", "[", "t", "]"}]}], "\[Equal]", "0"}], ",", RowBox[{"y", "[", "t", "]"}], ",", "t"}], "]"}]}]}]], "Input"], Cell["Part 1. DSolve returns a list of lists of rules: the outer list holds one\nentry per solution branch, and here there is one branch, whose single rule\nsends y[t] to C[1] Cos[t] + C[2] Sin[t]. The arbitrary constants are\nC[1] and C[2] - subscripted C, not two separate symbols.", "Text"], Cell[BoxData[RowBox[{"sol2", "=", RowBox[{"sol", "/.", "\[VeryThinSpace]", RowBox[{"{", RowBox[{RowBox[{TemplateBox[{"1"}, "C"], "\[Rule]", "4"}], ",", RowBox[{TemplateBox[{"2"}, "C"], "\[Rule]", "7"}]}], "}"}]}]}]], "Input"], Cell["Part 2. A list of two rules applied with ReplaceAll pins both constants,\ngiving y[t] -> 4 Cos[t] + 7 Sin[t].", "Text"], Cell[BoxData[RowBox[{"rule", "=", RowBox[{"First", "[", "sol2", "]"}]}]], "Input"], Cell[BoxData[RowBox[{"drule", "=", RowBox[{SubscriptBox["\[PartialD]", RowBox[{RowBox[{"{", RowBox[{"t", ",", "2"}], "}"}]}]], "rule"}]}]], "Input"], Cell[BoxData[RowBox[{"Simplify", "[", RowBox[{RowBox[{RowBox[{RowBox[{SuperscriptBox["y", "\[Prime]\[Prime]", MultilineFunction -> None], "[", "t", "]"}], "+", RowBox[{"y", "[", "t", "]"}]}], "/.", "\[VeryThinSpace]", "drule"}], "/.", "\[VeryThinSpace]", "rule"}], "]"}]], "Input"], Cell["Part 3, and the hint. Substituting the solution back into the differential\nequation cannot be done with one ReplaceAll, because the rule's left-hand\nside is y[t] and the equation contains y''[t], which is a different\nexpression - Derivative[2][y][t] - and does not match.\nThe hint asks what happens when a rule is differentiated. D threads over\nRule, differentiating both sides, so D[y[t] -> 4 Cos[t] + 7 Sin[t], {t, 2}]\nproduces the new rule y''[t] -> -4 Cos[t] - 7 Sin[t]. That rule matches the\nsecond-derivative term.\nApplying the differentiated rule first and the original rule second replaces\nboth terms, and Simplify returns 0. The solution checks out.", "Text"], Cell[BoxData[RowBox[{"ysol", "=", RowBox[{RowBox[{"y", "[", "t", "]"}], "/.", "\[VeryThinSpace]", "rule"}]}]], "Input"], Cell[BoxData[RowBox[{"Plot", "[", RowBox[{"ysol", ",", RowBox[{"{", RowBox[{"t", ",", "0", ",", RowBox[{"2", " ", "\[Pi]"}]}], "}"}]}], "]"}]], "Input"], Cell["Part 4. Extracting the solution from its rule is one more ReplaceAll: apply\nthe rule to the expression y[t] and what comes back is the right-hand side\nalone. The plot is a single sinusoid of amplitude Sqrt[4^2 + 7^2] = Sqrt[65],\nwhich is the expected superposition of the two modes.", "Text"]}, WindowSize -> {1100, 850}, StyleDefinitions -> "Default.nb"]
+Notebook[{
+Cell["\<\
+Advanced Lesson 6 - Exercises: Replacement Rules and Evaluation
+Mikey Ferguson
+MATH 7013 - Advanced Mathematical Modeling\
+\>", "Title",ExpressionUUID->"a85ef402-40c8-4190-ac7c-31179af457f2"],
+
+Cell["1: x = 2 followed by an integration in x", "Section",ExpressionUUID->"c8d14ad6-26dc-408e-8766-e9397b1954d2"],
+
+Cell[BoxData[{
+ RowBox[{
+  RowBox[{"Clear", "[", "x", "]"}], ";"}], "\[IndentingNewLine]", 
+ RowBox[{
+  RowBox[{"x", "=", "2"}], ";"}], "\[IndentingNewLine]", 
+ RowBox[{"\[Integral]", 
+  RowBox[{
+   SuperscriptBox["x", "2"], 
+   RowBox[{"\[DifferentialD]", "x"}]}]}]}], "Input",ExpressionUUID->"d51278a1-\
+baff-4a24-a81c-c4b73e14de18"],
+
+Cell["2: x := 2 followed by the same integration", "Section",ExpressionUUID->"4d4c5fe0-4ba3-4512-9111-aa617f24e65e"],
+
+Cell[BoxData[{
+ RowBox[{
+  RowBox[{"Clear", "[", "x", "]"}], ";"}], "\[IndentingNewLine]", 
+ RowBox[{
+  RowBox[{"x", ":=", "2"}], ";"}], "\[IndentingNewLine]", 
+ RowBox[{"\[Integral]", 
+  RowBox[{
+   SuperscriptBox["x", "2"], 
+   RowBox[{"\[DifferentialD]", "x"}]}]}]}], "Input",ExpressionUUID->"ca7d42e9-\
+30df-4da6-b8ec-3643ab1e7fd7"],
+
+Cell["3: A global x colliding with a pattern variable named x", "Section",ExpressionUUID->"b501dc3c-1440-4061-8ff9-0edb7e0d3004"],
+
+Cell[BoxData[{
+ RowBox[{
+  RowBox[{"Clear", "[", 
+   RowBox[{"x", ",", "f1", ",", "f2"}], "]"}], ";"}], "\[IndentingNewLine]", 
+ RowBox[{
+  RowBox[{"x", "=", "2"}], ";"}], "\[IndentingNewLine]", 
+ RowBox[{
+  RowBox[{
+   RowBox[{"f1", "[", "x_", "]"}], "=", 
+   SuperscriptBox["x", "2"]}], ";"}], "\[IndentingNewLine]", 
+ RowBox[{
+  RowBox[{
+   RowBox[{"f2", "[", "x_", "]"}], ":=", 
+   SuperscriptBox["x", "2"]}], ";"}]}], "Input",ExpressionUUID->"38827c65-\
+4bea-41bc-923f-955632e6bc5b"],
+
+Cell["?f1", "Input",ExpressionUUID->"9883b354-f263-477a-bff7-2f7d3ccba6a1"],
+
+Cell["?f2", "Input",ExpressionUUID->"3495e7b9-2643-4592-bbe3-c66378c7a472"],
+
+Cell[BoxData[
+ RowBox[{"{", 
+  RowBox[{
+   RowBox[{"f1", "[", "z", "]"}], ",", 
+   RowBox[{"f2", "[", "z", "]"}]}], "}"}]], "Input",ExpressionUUID->"1bdebe7b-\
+2acb-443c-a594-d8d3fb6971c2"],
+
+Cell[BoxData[
+ RowBox[{"Plot", "[", 
+  RowBox[{
+   RowBox[{"{", 
+    RowBox[{
+     RowBox[{"f1", "[", "z", "]"}], ",", 
+     RowBox[{"f2", "[", "z", "]"}]}], "}"}], ",", 
+   RowBox[{"{", 
+    RowBox[{"z", ",", "0", ",", "3"}], "}"}], ",", 
+   RowBox[{"PlotStyle", "\[Rule]", 
+    RowBox[{"{", 
+     RowBox[{"Thickness", "[", "0.01`", "]"}], "}"}]}]}], "]"}]], "Input",Expr\
+essionUUID->"5c84b85d-52ef-4029-b28e-871f42d83b37"],
+
+Cell["\<\
+4: A replacement rule and an integration in the wrong variable\
+\>", "Section",ExpressionUUID->"e4801c55-034d-4daa-a8ed-edf3d126d9ca"],
+
+Cell[BoxData[{
+ RowBox[{
+  RowBox[{"Clear", "[", 
+   RowBox[{"x", ",", "y"}], "]"}], ";"}], "\[IndentingNewLine]", 
+ RowBox[{
+  SuperscriptBox["x", "2"], "/.", "\[VeryThinSpace]", 
+  RowBox[{"x", "\[Rule]", "y"}]}]}], "Input",ExpressionUUID->"3db05e2e-c8a9-\
+4c1d-9a3f-409e72ae4913"],
+
+Cell[BoxData[
+ RowBox[{"\[Integral]", 
+  RowBox[{
+   SuperscriptBox["x", "2"], 
+   RowBox[{"\[DifferentialD]", "y"}]}]}]], "Input",ExpressionUUID->"97385191-\
+933e-49b1-af12-8df3683156e1"],
+
+Cell["5: Assigning the result of a self-replacement", "Section",ExpressionUUID->"185deef3-d2d2-449d-b916-da7ae83fff19"],
+
+Cell[BoxData[{
+ RowBox[{
+  RowBox[{"Clear", "[", 
+   RowBox[{"x", ",", "y", ",", "z"}], "]"}], ";"}], "\[IndentingNewLine]", 
+ RowBox[{"x", "=", 
+  RowBox[{"x", "/.", "\[VeryThinSpace]", 
+   RowBox[{"x", "\[Rule]", "y"}]}]}]}], "Input",ExpressionUUID->"908b6aa5-\
+5044-4296-a24d-9b87ab7c8aa0"],
+
+Cell[BoxData[
+ RowBox[{"\[Integral]", 
+  RowBox[{
+   SuperscriptBox["x", "2"], 
+   RowBox[{"\[DifferentialD]", "y"}]}]}]], "Input",ExpressionUUID->"1386018b-\
+09dd-498e-bcd7-55e577062f15"],
+
+Cell["6: The same shape, with a symbol the rule does not mention", "Section",ExpressionUUID->"cc89d5ac-784b-4f50-ae4d-14ccc17c4e76"],
+
+Cell[BoxData[{
+ RowBox[{
+  RowBox[{"Clear", "[", 
+   RowBox[{"x", ",", "y", ",", "z"}], "]"}], ";"}], "\[IndentingNewLine]", 
+ RowBox[{"x", "=", 
+  RowBox[{"z", "/.", "\[VeryThinSpace]", 
+   RowBox[{"x", "\[Rule]", "y"}]}]}]}], "Input",ExpressionUUID->"9252d787-\
+96e5-4ae3-943e-d61bc0d19ec4"],
+
+Cell[BoxData[
+ RowBox[{"\[Integral]", 
+  RowBox[{
+   SuperscriptBox["x", "2"], 
+   RowBox[{"\[DifferentialD]", "y"}]}]}]], "Input",ExpressionUUID->"3b576c57-\
+67b3-459a-852a-8316d3847b74"],
+
+Cell["7: Why two rules in one list do not chain", "Section",ExpressionUUID->"b42e4469-2808-4af7-b4cc-a83449ef6d6e"],
+
+Cell[BoxData[{
+ RowBox[{
+  RowBox[{"Clear", "[", 
+   RowBox[{"x", ",", "y"}], "]"}], ";"}], "\[IndentingNewLine]", 
+ RowBox[{
+  RowBox[{"Sin", "[", "x", "]"}], "/.", "\[VeryThinSpace]", 
+  RowBox[{"{", 
+   RowBox[{
+    RowBox[{
+     RowBox[{"Sin", "[", "x", "]"}], "\[Rule]", 
+     RowBox[{"Log", "[", "x", "]"}]}], ",", 
+    RowBox[{"x", "\[Rule]", 
+     RowBox[{"2", " ", "\[Pi]", " ", "y"}]}]}], "}"}]}]}], "Input",ExpressionU\
+UID->"de5cd091-f738-495b-86f8-1c95631e9943"],
+
+Cell[BoxData[
+ RowBox[{
+  RowBox[{"Sin", "[", "x", "]"}], "//.", "\[VeryThinSpace]", 
+  RowBox[{"{", 
+   RowBox[{
+    RowBox[{
+     RowBox[{"Sin", "[", "x", "]"}], "\[Rule]", 
+     RowBox[{"Log", "[", "x", "]"}]}], ",", 
+    RowBox[{"x", "\[Rule]", 
+     RowBox[{"2", " ", "\[Pi]", " ", "y"}]}]}], "}"}]}]], "Input",ExpressionUU\
+ID->"f7f98049-b2b8-401c-933c-59cb4c037cc0"],
+
+Cell[BoxData[
+ RowBox[{
+  RowBox[{"Sin", "[", "x", "]"}], "/.", "\[VeryThinSpace]", 
+  RowBox[{
+   RowBox[{"Sin", "[", "x", "]"}], "\[Rule]", 
+   RowBox[{"Log", "[", 
+    RowBox[{"2", " ", "\[Pi]", " ", "y"}], "]"}]}]}]], "Input",ExpressionUUID->\
+"7e9cfbfb-c26c-42a2-aa54-ae80233df6d3"],
+
+Cell["8: A rule set carried inside a function definition", "Section",ExpressionUUID->"66d6d07a-e0e8-483a-a7db-e5fe111db45b"],
+
+Cell[BoxData[{
+ RowBox[{
+  RowBox[{"Clear", "[", 
+   RowBox[{"f", ",", "x", ",", "y", ",", "z"}], "]"}], ";"}], "\[IndentingNewLine]", 
+ RowBox[{
+  RowBox[{"f", "[", "x_", "]"}], ":=", 
+  RowBox[{"x", "/.", "\[VeryThinSpace]", 
+   RowBox[{"{", 
+    RowBox[{
+     RowBox[{"y", "\[Rule]", 
+      RowBox[{"Cos", "[", "y", "]"}]}], ",", 
+     RowBox[{"z", "\[Rule]", 
+      RowBox[{"Sin", "[", "z", "]"}]}]}], "}"}]}]}]}], "Input",ExpressionUUID->\
+"32b4eadb-f474-47db-b82c-a9a281d722da"],
+
+Cell[BoxData[
+ RowBox[{"f", "[", "x", "]"}]], "Input",ExpressionUUID->"c0730ae2-8df7-496b-a3fd-67b436b986b5"],
+
+Cell[BoxData[
+ RowBox[{"f", "[", 
+  RowBox[{"x", "+", "y", "+", "z"}], "]"}]], "Input",ExpressionUUID->\
+"1f6edcfb-2abb-46d7-9190-d709592cf5ca"],
+
+Cell["9: Frame -> False and Frame -> True as replacement rules", "Section",ExpressionUUID->"fbc744e6-e712-4a1c-a6af-427a1cb62982"],
+
+Cell[BoxData[{
+ RowBox[{
+  RowBox[{"Clear", "[", "x", "]"}], ";"}], "\[IndentingNewLine]", 
+ RowBox[{"Plot", "[", 
+  RowBox[{
+   RowBox[{"Sin", "[", "x", "]"}], ",", 
+   RowBox[{"{", 
+    RowBox[{"x", ",", "0", ",", 
+     RowBox[{"2", " ", "\[Pi]"}]}], "}"}], ",", 
+   RowBox[{"Frame", "\[Rule]", "False"}]}], "]"}]}], "Input",ExpressionUUID->\
+"47c8f912-79bb-4a76-b5a5-6ca9de20dcea"],
+
+Cell[BoxData[
+ RowBox[{"Plot", "[", 
+  RowBox[{
+   RowBox[{"Sin", "[", "x", "]"}], ",", 
+   RowBox[{"{", 
+    RowBox[{"x", ",", "0", ",", 
+     RowBox[{"2", " ", "\[Pi]"}]}], "}"}], ",", 
+   RowBox[{"Frame", "\[Rule]", "True"}]}], "]"}]], "Input",ExpressionUUID->\
+"4b8b392c-9dd3-42d2-92b2-9f6b8ab0ad18"],
+
+Cell["10: Rewriting a finished plot by rewriting its options", "Section",ExpressionUUID->"1c333b80-e80d-4741-b4ae-88e728755f48"],
+
+Cell[BoxData[{
+ RowBox[{
+  RowBox[{"Clear", "[", 
+   RowBox[{"x", ",", "plot1", ",", "plot2"}], "]"}], ";"}], "\[IndentingNewLine]", 
+ RowBox[{"plot1", "=", 
+  RowBox[{"Plot", "[", 
+   RowBox[{
+    RowBox[{"Sin", "[", "x", "]"}], ",", 
+    RowBox[{"{", 
+     RowBox[{"x", ",", "0", ",", 
+      RowBox[{"2", " ", "\[Pi]"}]}], "}"}], ",", 
+    RowBox[{"Frame", "\[Rule]", "True"}]}], "]"}]}]}], "Input",ExpressionUUID->\
+"8b10e7d2-9c0c-4944-ab1d-cfdf167fdaca"],
+
+Cell["?plot1", "Input",ExpressionUUID->"951ed8a7-36fa-4738-8be3-bd0318fea22b"],
+
+Cell[BoxData[
+ RowBox[{"Frame", "/.", "\[VeryThinSpace]", 
+  RowBox[{"Options", "[", "plot1", "]"}]}]], "Input",ExpressionUUID->\
+"0c3ba0ca-694f-421c-894d-91629bc03dfe"],
+
+Cell[BoxData[{
+ RowBox[{
+  RowBox[{"plot2", "=", 
+   RowBox[{"plot1", "/.", "\[VeryThinSpace]", 
+    RowBox[{
+     RowBox[{"(", 
+      RowBox[{"Frame", "\[Rule]", 
+       RowBox[{"{", 
+        RowBox[{
+         RowBox[{"{", 
+          RowBox[{"True", ",", "True"}], "}"}], ",", 
+         RowBox[{"{", 
+          RowBox[{"True", ",", "True"}], "}"}]}], "}"}]}], ")"}], "\[Rule]", 
+     RowBox[{"Frame", "\[Rule]", 
+      RowBox[{"{", 
+       RowBox[{
+        RowBox[{"{", 
+         RowBox[{"False", ",", "True"}], "}"}], ",", 
+        RowBox[{"{", 
+         RowBox[{"False", ",", "True"}], "}"}]}], "}"}]}]}]}]}], ";"}], "\[IndentingNewLine]", 
+ RowBox[{"Frame", "/.", "\[VeryThinSpace]", 
+  RowBox[{"Options", "[", "plot2", "]"}]}]}], "Input",ExpressionUUID->\
+"142653c7-85d8-49b3-804d-76b45ab973a7"],
+
+Cell[BoxData[
+ RowBox[{"Show", "[", "plot2", "]"}]], "Input",ExpressionUUID->"069c20bf-b448-4a08-9c15-e6a35028d974"],
+
+Cell["11: DSolve, substituting constants, checking, and plotting", "Section",ExpressionUUID->"8b3ea00a-4178-41f7-971a-2008be1395ce"],
+
+Cell[BoxData[{
+ RowBox[{
+  RowBox[{"Clear", "[", 
+   RowBox[{"y", ",", "t", ",", "sol", ",", "sol2"}], "]"}], ";"}], "\[IndentingNewLine]", 
+ RowBox[{"sol", "=", 
+  RowBox[{"DSolve", "[", 
+   RowBox[{
+    RowBox[{
+     RowBox[{
+      RowBox[{
+       SuperscriptBox["y", "\[Prime]\[Prime]",
+        MultilineFunction->None], "[", "t", "]"}], "+", 
+      RowBox[{"y", "[", "t", "]"}]}], "\[Equal]", "0"}], ",", 
+    RowBox[{"y", "[", "t", "]"}], ",", "t"}], "]"}]}]}], "Input",ExpressionUUI\
+D->"a622d491-fcb9-4e14-9f71-29bfbfb7db72"],
+
+Cell[BoxData[
+ RowBox[{"sol2", "=", 
+  RowBox[{"sol", "/.", "\[VeryThinSpace]", 
+   RowBox[{"{", 
+    RowBox[{
+     RowBox[{
+      TemplateBox[{"1"},
+       "C"], "\[Rule]", "4"}], ",", 
+     RowBox[{
+      TemplateBox[{"2"},
+       "C"], "\[Rule]", "7"}]}], "}"}]}]}]], "Input",ExpressionUUID->\
+"221c7a29-fe13-4799-af7e-a0d4fa15f754"],
+
+Cell[BoxData[
+ RowBox[{"rule", "=", 
+  RowBox[{"First", "[", "sol2", "]"}]}]], "Input",ExpressionUUID->"8df25374-\
+537a-4669-89a0-4c78259cbd23"],
+
+Cell[BoxData[
+ RowBox[{"drule", "=", 
+  RowBox[{
+   SubscriptBox["\[PartialD]", 
+    RowBox[{"{", 
+     RowBox[{"t", ",", "2"}], "}"}]], "rule"}]}]], "Input",ExpressionUUID->\
+"dde089c8-198d-4a7f-a365-0e96b4480daa"],
+
+Cell[BoxData[
+ RowBox[{"Simplify", "[", 
+  RowBox[{
+   RowBox[{
+    RowBox[{
+     RowBox[{
+      SuperscriptBox["y", "\[Prime]\[Prime]",
+       MultilineFunction->None], "[", "t", "]"}], "+", 
+     RowBox[{"y", "[", "t", "]"}]}], "/.", "\[VeryThinSpace]", "drule"}], "/.",
+    "\[VeryThinSpace]", "rule"}], "]"}]], "Input",ExpressionUUID->"00bf77d0-\
+78de-4e9e-9c4e-c673938481e1"],
+
+Cell[BoxData[
+ RowBox[{"ysol", "=", 
+  RowBox[{
+   RowBox[{"y", "[", "t", "]"}], "/.", "\[VeryThinSpace]", 
+   "rule"}]}]], "Input",ExpressionUUID->"ad6debe3-414f-4161-8144-\
+ab7247e4f02d"],
+
+Cell[BoxData[
+ RowBox[{"Plot", "[", 
+  RowBox[{"ysol", ",", 
+   RowBox[{"{", 
+    RowBox[{"t", ",", "0", ",", 
+     RowBox[{"2", " ", "\[Pi]"}]}], "}"}]}], "]"}]], "Input",ExpressionUUID->\
+"9b4ebf3d-ecce-4b16-89be-11f62ce56576"]
+},
+WindowSize->{1100, 850},
+FrontEndVersion->"15.0 for Mac OS X ARM (64-bit) (May 26, 2026)",
+StyleDefinitions->"Default.nb",
+ExpressionUUID->"53e1aa67-6381-4be0-aec1-2e1147a12ddd"
+]
 (* End of Notebook Content *)
+
+(* Internal cache information *)
+(*CellTagsOutline
+CellTagsIndex->{}
+*)
+(*CellTagsIndex
+CellTagsIndex->{}
+*)
+(*NotebookFileOutline
+Notebook[{
+Cell[560, 20, 201, 4, 70, "Title",ExpressionUUID->"a85ef402-40c8-4190-ac7c-31179af457f2"],
+Cell[764, 26, 114, 0, 70, "Section",ExpressionUUID->"c8d14ad6-26dc-408e-8766-e9397b1954d2"],
+Cell[881, 28, 335, 9, 70, "Input",ExpressionUUID->"d51278a1-baff-4a24-a81c-c4b73e14de18"],
+Cell[1219, 39, 116, 0, 70, "Section",ExpressionUUID->"4d4c5fe0-4ba3-4512-9111-aa617f24e65e"],
+Cell[1338, 41, 336, 9, 70, "Input",ExpressionUUID->"ca7d42e9-30df-4da6-b8ec-3643ab1e7fd7"],
+Cell[1677, 52, 129, 0, 70, "Section",ExpressionUUID->"b501dc3c-1440-4061-8ff9-0edb7e0d3004"],
+Cell[1809, 54, 488, 14, 70, "Input",ExpressionUUID->"38827c65-4bea-41bc-923f-955632e6bc5b"],
+Cell[2300, 70, 75, 0, 70, "Input",ExpressionUUID->"9883b354-f263-477a-bff7-2f7d3ccba6a1"],
+Cell[2378, 72, 75, 0, 70, "Input",ExpressionUUID->"3495e7b9-2643-4592-bbe3-c66378c7a472"],
+Cell[2456, 74, 189, 5, 70, "Input",ExpressionUUID->"1bdebe7b-2acb-443c-a594-d8d3fb6971c2"],
+Cell[2648, 81, 425, 12, 70, "Input",ExpressionUUID->"5c84b85d-52ef-4029-b28e-871f42d83b37"],
+Cell[3076, 95, 144, 2, 70, "Section",ExpressionUUID->"e4801c55-034d-4daa-a8ed-edf3d126d9ca"],
+Cell[3223, 99, 283, 7, 70, "Input",ExpressionUUID->"3db05e2e-c8a9-4c1d-9a3f-409e72ae4913"],
+Cell[3509, 108, 188, 5, 70, "Input",ExpressionUUID->"97385191-933e-49b1-af12-8df3683156e1"],
+Cell[3700, 115, 119, 0, 70, "Section",ExpressionUUID->"185deef3-d2d2-449d-b916-da7ae83fff19"],
+Cell[3822, 117, 293, 7, 70, "Input",ExpressionUUID->"908b6aa5-5044-4296-a24d-9b87ab7c8aa0"],
+Cell[4118, 126, 188, 5, 70, "Input",ExpressionUUID->"1386018b-09dd-498e-bcd7-55e577062f15"],
+Cell[4309, 133, 132, 0, 70, "Section",ExpressionUUID->"cc89d5ac-784b-4f50-ae4d-14ccc17c4e76"],
+Cell[4444, 135, 293, 7, 70, "Input",ExpressionUUID->"9252d787-96e5-4ae3-943e-d61bc0d19ec4"],
+Cell[4740, 144, 188, 5, 70, "Input",ExpressionUUID->"3b576c57-67b3-459a-852a-8316d3847b74"],
+Cell[4931, 151, 115, 0, 70, "Section",ExpressionUUID->"b42e4469-2808-4af7-b4cc-a83449ef6d6e"],
+Cell[5049, 153, 475, 13, 70, "Input",ExpressionUUID->"de5cd091-f738-495b-86f8-1c95631e9943"],
+Cell[5527, 168, 373, 10, 70, "Input",ExpressionUUID->"f7f98049-b2b8-401c-933c-59cb4c037cc0"],
+Cell[5903, 180, 287, 7, 70, "Input",ExpressionUUID->"7e9cfbfb-c26c-42a2-aa54-ae80233df6d3"],
+Cell[6193, 189, 124, 0, 70, "Section",ExpressionUUID->"66d6d07a-e0e8-483a-a7db-e5fe111db45b"],
+Cell[6320, 191, 484, 13, 70, "Input",ExpressionUUID->"32b4eadb-f474-47db-b82c-a9a281d722da"],
+Cell[6807, 206, 109, 1, 70, "Input",ExpressionUUID->"c0730ae2-8df7-496b-a3fd-67b436b986b5"],
+Cell[6919, 209, 144, 3, 70, "Input",ExpressionUUID->"1f6edcfb-2abb-46d7-9190-d709592cf5ca"],
+Cell[7066, 214, 130, 0, 70, "Section",ExpressionUUID->"fbc744e6-e712-4a1c-a6af-427a1cb62982"],
+Cell[7199, 216, 384, 10, 70, "Input",ExpressionUUID->"47c8f912-79bb-4a76-b5a5-6ca9de20dcea"],
+Cell[7586, 228, 304, 8, 70, "Input",ExpressionUUID->"4b8b392c-9dd3-42d2-92b2-9f6b8ab0ad18"],
+Cell[7893, 238, 128, 0, 70, "Section",ExpressionUUID->"1c333b80-e80d-4741-b4ae-88e728755f48"],
+Cell[8024, 240, 458, 12, 70, "Input",ExpressionUUID->"8b10e7d2-9c0c-4944-ab1d-cfdf167fdaca"],
+Cell[8485, 254, 78, 0, 70, "Input",ExpressionUUID->"951ed8a7-36fa-4738-8be3-bd0318fea22b"],
+Cell[8566, 256, 169, 3, 70, "Input",ExpressionUUID->"0c3ba0ca-694f-421c-894d-91629bc03dfe"],
+Cell[8738, 261, 800, 22, 70, "Input",ExpressionUUID->"142653c7-85d8-49b3-804d-76b45ab973a7"],
+Cell[9541, 285, 116, 1, 70, "Input",ExpressionUUID->"069c20bf-b448-4a08-9c15-e6a35028d974"],
+Cell[9660, 288, 132, 0, 70, "Section",ExpressionUUID->"8b3ea00a-4178-41f7-971a-2008be1395ce"],
+Cell[9795, 290, 532, 14, 70, "Input",ExpressionUUID->"a622d491-fcb9-4e14-9f71-29bfbfb7db72"],
+Cell[10330, 306, 336, 11, 70, "Input",ExpressionUUID->"221c7a29-fe13-4799-af7e-a0d4fa15f754"],
+Cell[10669, 319, 144, 3, 70, "Input",ExpressionUUID->"8df25374-537a-4669-89a0-4c78259cbd23"],
+Cell[10816, 324, 215, 6, 70, "Input",ExpressionUUID->"dde089c8-198d-4a7f-a365-0e96b4480daa"],
+Cell[11034, 332, 380, 10, 70, "Input",ExpressionUUID->"00bf77d0-78de-4e9e-9c4e-c673938481e1"],
+Cell[11417, 344, 189, 5, 70, "Input",ExpressionUUID->"ad6debe3-414f-4161-8144-ab7247e4f02d"],
+Cell[11609, 351, 229, 6, 70, "Input",ExpressionUUID->"9b4ebf3d-ecce-4b16-89be-11f62ce56576"]
+}
+]
+*)
+
+(* End of internal cache information *)

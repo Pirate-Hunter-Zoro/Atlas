@@ -3,6 +3,1099 @@
 (*** Wolfram Notebook File ***)
 (* http://www.wolfram.com/nb *)
 
+(* CreatedBy='WolframEngine 15.0' *)
+
+(*CacheID: 234*)
+(* Internal cache information:
+NotebookFileLineBreakTest
+NotebookFileLineBreakTest
+NotebookDataPosition[       160,          7]
+NotebookDataLength[     41740,       1092]
+NotebookOptionsPosition[     30551,        963]
+NotebookOutlinePosition[     30893,        978]
+CellTagsIndexPosition[     30850,        975]
+WindowFrame->Normal*)
+
 (* Beginning of Notebook Content *)
-Notebook[{Cell["Advanced Lesson 11 - Exercises: Patterns in Arguments and in Replacement Rules\nMikey Ferguson\nMATH 7013 - Advanced Mathematical Modeling", "Title"], Cell["1: Exactly one argument, squared", "Section"], Cell[BoxData[RowBox[{RowBox[{"ClearAll", "[", RowBox[{"f", ",", "x", ",", "y"}], "]"}], ";", "\[IndentingNewLine]", RowBox[{RowBox[{"f", "[", "x_", "]"}], ":=", SuperscriptBox["x", "2"]}]}]], "Input"], Cell["?f", "Input"], Cell[BoxData[RowBox[{"{", RowBox[{RowBox[{"f", "[", "2", "]"}], ",", RowBox[{"f", "[", "x", "]"}], ",", RowBox[{"f", "[", "y", "]"}], ",", RowBox[{"f", "[", "\"string\"", "]"}], ",", RowBox[{"f", "[", RowBox[{"{", RowBox[{"1", ",", "2", ",", "3"}], "}"}], "]"}]}], "}"}]], "Input"], Cell[BoxData[RowBox[{"f", "[", RowBox[{"{", RowBox[{RowBox[{"{", RowBox[{"1", ",", "2"}], "}"}], ",", RowBox[{"{", RowBox[{"3", ",", "4"}], "}"}]}], "}"}], "]"}]], "Input"], Cell[BoxData[RowBox[{"{", RowBox[{RowBox[{"f", "[", "]"}], ",", RowBox[{"f", "[", RowBox[{"x", ",", "y"}], "]"}], ",", RowBox[{"f", "[", RowBox[{"1", ",", "2", ",", "3", ",", "4"}], "]"}]}], "}"}]], "Input"], Cell["The first six calls all match: Blank stands for exactly one expression of\nany kind, so a number, a symbol, a string, a list and a matrix are all\nacceptable. f[{1, 2, 3}] returns {1, 4, 9} and f[{{1, 2}, {3, 4}}] returns\n{{1, 4}, {9, 16}} - not because the pattern did anything clever, but because\nPower is Listable and threads down through whatever structure it is handed.\nThe last three return unevaluated. f[] has no argument, f[x, y] has two and\nf[1, 2, 3, 4] has four, and \"x_\" insists on exactly one. That is what is\ndifferent about them: the count, and nothing else.", "Text"], Cell["2: Exactly zero arguments", "Section"], Cell[BoxData[RowBox[{RowBox[{"ClearAll", "[", RowBox[{"f", ",", "x", ",", "y"}], "]"}], ";", "\[IndentingNewLine]", RowBox[{RowBox[{"f", "[", "]"}], ":=", "3"}]}]], "Input"], Cell["?f", "Input"], Cell[BoxData[RowBox[{"f", "[", "]"}]], "Input"], Cell[BoxData[RowBox[{"{", RowBox[{RowBox[{"f", "[", "2", "]"}], ",", RowBox[{"f", "[", "x", "]"}], ",", RowBox[{"f", "[", RowBox[{"x", ",", "y"}], "]"}], ",", RowBox[{"f", "[", RowBox[{"1", ",", "2", ",", "3", ",", "4"}], "]"}], ",", RowBox[{"f", "[", RowBox[{"{", RowBox[{RowBox[{"{", RowBox[{"1", ",", "2"}], "}"}], ",", RowBox[{"{", RowBox[{"3", ",", "4"}], "}"}]}], "}"}], "]"}]}], "}"}]], "Input"], Cell["f[] returns 3. All five other calls return unevaluated, and for the same\nreason as before: the definition was written for a call with no arguments at\nall, and every one of those supplies at least one. A definition with an\nempty argument list is not a default or a fallback; it is a pattern as\nstrict as any other.", "Text"], Cell["3: One or more arguments, squaring the list of them", "Section"], Cell[BoxData[RowBox[{RowBox[{"ClearAll", "[", RowBox[{"f", ",", "x", ",", "y"}], "]"}], ";", "\[IndentingNewLine]", RowBox[{RowBox[{"f", "[", "x__", "]"}], ":=", SuperscriptBox[RowBox[{"{", "x", "}"}], "2"]}]}]], "Input"], Cell["?f", "Input"], Cell[BoxData[RowBox[{"{", RowBox[{RowBox[{"f", "[", "2", "]"}], ",", RowBox[{"f", "[", "x", "]"}], ",", RowBox[{"f", "[", "y", "]"}], ",", RowBox[{"f", "[", "\"string\"", "]"}], ",", RowBox[{"f", "[", RowBox[{"{", RowBox[{"1", ",", "2", ",", "3"}], "}"}], "]"}]}], "}"}]], "Input"], Cell[BoxData[RowBox[{"{", RowBox[{RowBox[{"f", "[", RowBox[{"{", RowBox[{RowBox[{"{", RowBox[{"1", ",", "2"}], "}"}], ",", RowBox[{"{", RowBox[{"3", ",", "4"}], "}"}]}], "}"}], "]"}], ",", RowBox[{"f", "[", RowBox[{"x", ",", "y"}], "]"}], ",", RowBox[{"f", "[", RowBox[{"1", ",", "2", ",", "3", ",", "4"}], "]"}]}], "}"}]], "Input"], Cell[BoxData[RowBox[{"f", "[", RowBox[{"x", ",", RowBox[{"{", RowBox[{"1", ",", "2", ",", "3"}], "}"}]}], "]"}]], "Input"], Cell[BoxData[RowBox[{"f", "[", RowBox[{"x", ",", RowBox[{"{", RowBox[{"1", ",", "2", ",", "3"}], "}"}], ",", RowBox[{"{", RowBox[{RowBox[{"{", RowBox[{"1", ",", "2"}], "}"}], ",", RowBox[{"{", RowBox[{"3", ",", "4"}], "}"}]}], "}"}]}], "]"}]], "Input"], Cell[BoxData[RowBox[{"f", "[", "]"}]], "Input"], Cell["BlankSequence, written with two underscores, matches one or more arguments\nand binds the name to the whole sequence. Wrapping that name in braces turns\nthe sequence into a list, which is why f[y] returns {y^2} with the braces\nand f[1, 2, 3, 4] returns {1, 4, 9, 16}.\nYes, Power has the Listable attribute, and that is what makes {x}^2 square\nthe elements rather than attempting to square a list as an object. Listable\nmeans the function threads over lists automatically, one element at a time,\ndescending as far as the structure goes - which is why f[{1, 2, 3}] gives\n{{1, 4, 9}}: one set of braces from the sequence, one from the argument.\nf[] is the odd one out. BlankSequence requires at least one argument, so a\ncall with none does not match and comes back unevaluated.", "Text"], Cell["4: Zero or more arguments", "Section"], Cell[BoxData[RowBox[{RowBox[{"ClearAll", "[", RowBox[{"f", ",", "x", ",", "y"}], "]"}], ";", "\[IndentingNewLine]", RowBox[{RowBox[{"f", "[", "x___", "]"}], ":=", SuperscriptBox[RowBox[{"{", "x", "}"}], "2"]}]}]], "Input"], Cell["?f", "Input"], Cell[BoxData[RowBox[{"{", RowBox[{RowBox[{"f", "[", "2", "]"}], ",", RowBox[{"f", "[", "x", "]"}], ",", RowBox[{"f", "[", "y", "]"}], ",", RowBox[{"f", "[", "\"string\"", "]"}], ",", RowBox[{"f", "[", RowBox[{"{", RowBox[{"1", ",", "2", ",", "3"}], "}"}], "]"}]}], "}"}]], "Input"], Cell[BoxData[RowBox[{"{", RowBox[{RowBox[{"f", "[", RowBox[{"{", RowBox[{RowBox[{"{", RowBox[{"1", ",", "2"}], "}"}], ",", RowBox[{"{", RowBox[{"3", ",", "4"}], "}"}]}], "}"}], "]"}], ",", RowBox[{"f", "[", RowBox[{"x", ",", "y"}], "]"}], ",", RowBox[{"f", "[", RowBox[{"1", ",", "2", ",", "3", ",", "4"}], "]"}]}], "}"}]], "Input"], Cell[BoxData[RowBox[{"f", "[", RowBox[{"x", ",", RowBox[{"{", RowBox[{"1", ",", "2", ",", "3"}], "}"}]}], "]"}]], "Input"], Cell[BoxData[RowBox[{"f", "[", "]"}]], "Input"], Cell["BlankNullSequence, three underscores, is BlankSequence plus the empty case.\nEvery result above matches Exercise 3 except the last: f[] now evaluates,\nand returns {}. The empty sequence wrapped in braces is the empty list, and\nthe empty list squared is the empty list. Nothing went wrong - there was\nsimply nothing to square.", "Text"], Cell["5: Exactly two arguments", "Section"], Cell[BoxData[RowBox[{RowBox[{"ClearAll", "[", RowBox[{"f", ",", "x", ",", "y"}], "]"}], ";", "\[IndentingNewLine]", RowBox[{RowBox[{"f", "[", RowBox[{"x_", ",", "y_"}], "]"}], ":=", RowBox[{SuperscriptBox["x", "2"], " ", RowBox[{"Sin", "[", "y", "]"}]}]}]}]], "Input"], Cell["?f", "Input"], Cell[BoxData[RowBox[{"{", RowBox[{RowBox[{"f", "[", "]"}], ",", RowBox[{"f", "[", "x", "]"}], ",", RowBox[{"f", "[", RowBox[{"{", RowBox[{"1", ",", "2"}], "}"}], "]"}], ",", RowBox[{"f", "[", RowBox[{"{", RowBox[{"1", ",", "2", ",", "3"}], "}"}], "]"}], ",", RowBox[{"f", "[", RowBox[{"1", ",", "2", ",", "3", ",", "4"}], "]"}]}], "}"}]], "Input"], Cell[BoxData[RowBox[{"f", "[", RowBox[{"x", ",", "y"}], "]"}]], "Input"], Cell[BoxData[RowBox[{"f", "[", RowBox[{"x", ",", RowBox[{"{", RowBox[{"1", ",", "2", ",", "3"}], "}"}]}], "]"}]], "Input"], Cell[BoxData[RowBox[{"f", "[", RowBox[{"\"string\"", ",", RowBox[{"{", RowBox[{RowBox[{"{", RowBox[{"1", ",", "2"}], "}"}], ",", RowBox[{"{", RowBox[{"3", ",", "4"}], "}"}]}], "}"}]}], "]"}]], "Input"], Cell["f[x, y] returns x^2 Sin[y], as intended.\nThe first five calls fail, and all for one reason: argument count. f[] has\nnone and f[x] has one, so neither reaches two. f[{1, 2}] and f[{1, 2, 3}]\neach have exactly one argument that happens to be a list - a list is a\nsingle expression, not a sequence, and the pattern is not fooled by the\ncomma inside the braces. f[1, 2, 3, 4] has four. The distinction between a\nlist of two things and two things is the whole content of this exercise.\nf[x, {1, 2, 3}] and the string-and-matrix call do work: two arguments are\ntwo arguments, whatever they contain, and Listable Power and Sin thread into\nthem.", "Text"], Cell["6: Exactly three, and exactly four, arguments", "Section"], Cell[BoxData[RowBox[{RowBox[{"ClearAll", "[", RowBox[{"f3", ",", "f4", ",", "x", ",", "y", ",", "z", ",", "w"}], "]"}], ";", "\[IndentingNewLine]", RowBox[{RowBox[{"f3", "[", RowBox[{"x_", ",", "y_", ",", "z_"}], "]"}], ":=", RowBox[{"{", RowBox[{"x", ",", "y", ",", "z"}], "}"}]}], ";", "\[IndentingNewLine]", RowBox[{RowBox[{"f4", "[", RowBox[{"x_", ",", "y_", ",", "z_", ",", "w_"}], "]"}], ":=", RowBox[{"{", RowBox[{"x", ",", "y", ",", "z", ",", "w"}], "}"}]}]}]], "Input"], Cell[BoxData[RowBox[{"{", RowBox[{RowBox[{"f3", "[", RowBox[{"1", ",", "2", ",", "3"}], "]"}], ",", RowBox[{"f4", "[", RowBox[{"1", ",", "2", ",", "3", ",", "4"}], "]"}]}], "}"}]], "Input"], Cell[BoxData[RowBox[{"{", RowBox[{RowBox[{"f3", "[", RowBox[{"1", ",", "2"}], "]"}], ",", RowBox[{"f4", "[", RowBox[{"1", ",", "2", ",", "3"}], "]"}]}], "}"}]], "Input"], Cell["Two names are used rather than one, because two definitions of the same\nsymbol with different argument counts would coexist happily and the exercise\nis about the patterns rather than about overloading. Both fixed-arity\npatterns reject any call with the wrong number of arguments.", "Text"], Cell["7: One argument, then zero or more", "Section"], Cell[BoxData[RowBox[{RowBox[{"ClearAll", "[", RowBox[{"f", ",", "x", ",", "y", ",", "z", ",", "w", ",", "A", ",", "B"}], "]"}], ";", "\[IndentingNewLine]", RowBox[{RowBox[{"f", "[", RowBox[{"x_", ",", "y___"}], "]"}], ":=", RowBox[{SuperscriptBox["x", "2"], " ", RowBox[{"Sin", "[", RowBox[{"{", "y", "}"}], "]"}]}]}]}]], "Input"], Cell["?f", "Input"], Cell[BoxData[RowBox[{"f", "[", "]"}]], "Input"], Cell[BoxData[RowBox[{"f", "[", "x", "]"}]], "Input"], Cell[BoxData[RowBox[{"f", "[", RowBox[{"{", RowBox[{"1", ",", "2"}], "}"}], "]"}]], "Input"], Cell[BoxData[RowBox[{"f", "[", RowBox[{"x", ",", "y"}], "]"}]], "Input"], Cell[BoxData[RowBox[{"f", "[", RowBox[{"2", ",", "3", ",", "4", ",", "5"}], "]"}]], "Input"], Cell[BoxData[RowBox[{"f", "[", RowBox[{"x", ",", "y", ",", "z", ",", "w"}], "]"}]], "Input"], Cell[BoxData[RowBox[{"f", "[", RowBox[{"x", ",", RowBox[{"{", RowBox[{"1", ",", "2", ",", "3"}], "}"}], ",", "A", ",", "B"}], "]"}]], "Input"], Cell[BoxData[RowBox[{"ColumnForm", "[", RowBox[{"f", "[", RowBox[{"x", ",", RowBox[{"{", RowBox[{"1", ",", "2", ",", "3"}], "}"}], ",", "A", ",", "B"}], "]"}], "]"}]], "Input"], Cell[BoxData[RowBox[{"f", "[", RowBox[{"\"string\"", ",", RowBox[{"{", RowBox[{RowBox[{"{", RowBox[{"1", ",", "2"}], "}"}], ",", RowBox[{"{", RowBox[{"3", ",", "4"}], "}"}]}], "}"}]}], "]"}]], "Input"], Cell["f[] fails: the first pattern requires one argument and there are none.\nf[x] returns {}, and how Mathematica gets there is worth spelling out. The\ncall matches with x bound to x and y bound to the empty sequence. The body\nis x^2 Sin[{y}], so Sin[{}] is the sine of the empty list, which by\nlistability is the empty list. Multiplying the empty list by x^2 threads\nelementwise over nothing at all and returns the empty list. The x^2 factor\nis not lost; there is simply nowhere to put it.\nf[{1, 2}] does fail, but not where the exercise implies. The pattern matched\nperfectly well: x_ took the whole list {1, 2} and y___ took the empty\nsequence. The body then asks for {1, 2}^2 times Sin[{}], which is\n{1, 4} times {}. Both factors are lists, Times is Listable, and threading a\ntwo-element list against a zero-element list is impossible - so Mathematica\nissues Thread::tdlen, \"Objects of unequal length in {1, 4} {} cannot be\ncombined\", and returns the product unevaluated as {}*{1, 4}. The failure is\nin listable multiplication, not in pattern matching, and knowing which is the\nwhole point of asking.\nf[x, y] returns {x^2 Sin[y]}: one trailing argument makes a one-element\nlist.\nf[2, 3, 4, 5] returns {4 Sin[3], 4 Sin[4], 4 Sin[5]} - the leading 2 is\nsquared once and distributed across the three sines by listability.\nf[x, {1, 2, 3}, A, B] returns a three-element list whose first entry is\nitself a list, because Sin threaded into the inner {1, 2, 3}. ColumnForm\nmakes that shape legible. Mathematica calculated it by binding y to the\nsequence {1,2,3}, A, B, wrapping it in braces to get a three-element list,\napplying Sin elementwise, and multiplying through by x^2 elementwise.", "Text"], Cell["8: Matching inside a Sine", "Section"], Cell[BoxData[RowBox[{RowBox[{"ClearAll", "[", RowBox[{"f", ",", "x", ",", "y"}], "]"}], ";", "\[IndentingNewLine]", RowBox[{RowBox[{"f", "[", RowBox[{"Sin", "[", "x_", "]"}], "]"}], ":=", SuperscriptBox["x", "2"]}]}]], "Input"], Cell["?f", "Input"], Cell[BoxData[RowBox[{"{", RowBox[{RowBox[{"f", "[", RowBox[{"Sin", "[", "2", "]"}], "]"}], ",", RowBox[{"f", "[", RowBox[{"Sin", "[", "y", "]"}], "]"}], ",", RowBox[{"f", "[", RowBox[{"Sin", "[", RowBox[{"Log", "[", "x", "]"}], "]"}], "]"}]}], "}"}]], "Input"], Cell[BoxData[RowBox[{"f", "[", RowBox[{"Sin", "[", RowBox[{"{", RowBox[{"1", ",", "2", ",", "3"}], "}"}], "]"}], "]"}]], "Input"], Cell[BoxData[RowBox[{"{", RowBox[{RowBox[{"f", "[", "x", "]"}], ",", RowBox[{"f", "[", RowBox[{"Cos", "[", "y", "]"}], "]"}], ",", RowBox[{"f", "[", RowBox[{"1", ",", "2", ",", "3", ",", "4"}], "]"}]}], "}"}]], "Input"], Cell["The pattern matches an argument whose head is Sin with one part inside, and\nbinds x to that part. So f[Sin[2]] is 4, f[Sin[y]] is y^2, and\nf[Sin[Log[x]]] is Log[x]^2 - the inside can be any expression at all.\nf[Sin[{1, 2, 3}]] fails, and the reason is evaluation order, not pattern\nmatching. Sin is Listable, so Sin[{1, 2, 3}] evaluates to {Sin[1], Sin[2],\nSin[3]} before f is ever called. What f receives is a list, not a Sin, and\nthe pattern has nothing to match. The argument was rewritten out from under\nthe pattern.\nThe last three fail on shape: f[x] has an argument that is not a Sin,\nf[Cos[y]] has the wrong head, and f[1, 2, 3, 4] has four arguments where the\npattern wants one. That is what is different about them.", "Text"], Cell["9: A derivative table by pattern matching", "Section"], Cell[BoxData[RowBox[{RowBox[{"ClearAll", "[", RowBox[{"f", ",", "x", ",", "y"}], "]"}], ";", "\[IndentingNewLine]", RowBox[{RowBox[{"f", "[", RowBox[{"Sin", "[", "x_", "]"}], "]"}], ":=", RowBox[{"Cos", "[", "x", "]"}]}], ";", "\[IndentingNewLine]", RowBox[{RowBox[{"f", "[", RowBox[{"Cos", "[", "x_", "]"}], "]"}], ":=", RowBox[{"-", RowBox[{"Sin", "[", "x", "]"}]}]}], ";", "\[IndentingNewLine]", RowBox[{RowBox[{"f", "[", RowBox[{"Log", "[", "x_", "]"}], "]"}], ":=", FractionBox["1", "x"]}], ";", "\[IndentingNewLine]", RowBox[{RowBox[{"f", "[", SuperscriptBox["\[ExponentialE]", "x_"], "]"}], ":=", SuperscriptBox["\[ExponentialE]", "x"]}]}]], "Input"], Cell["?f", "Input"], Cell[BoxData[RowBox[{"{", RowBox[{RowBox[{"f", "[", SuperscriptBox["\[ExponentialE]", "x"], "]"}], ",", RowBox[{"f", "[", RowBox[{"Sin", "[", "y", "]"}], "]"}], ",", RowBox[{"f", "[", RowBox[{"Cos", "[", RowBox[{"x", "+", "y"}], "]"}], "]"}], ",", RowBox[{"f", "[", RowBox[{"Sin", "[", "2", "]"}], "]"}]}], "}"}]], "Input"], Cell[BoxData[RowBox[{"f", "[", RowBox[{"Sin", "[", RowBox[{"Log", "[", "x", "]"}], "]"}], "]"}]], "Input"], Cell[BoxData[RowBox[{"f", "[", RowBox[{"Sin", "[", RowBox[{"{", RowBox[{"1", ",", "2", ",", "3"}], "}"}], "]"}], "]"}]], "Input"], Cell["Four separate definitions on the same symbol, dispatched by the head of the\nargument. f[E^x] is E^x, f[Sin[y]] is Cos[y], f[Cos[x + y]] is -Sin[x + y],\nand f[Sin[2]] is Cos[2].\nAs the exercise warns, this is not the chain rule. f[Sin[2 x]] would return\nCos[2 x] rather than 2 Cos[2 x]: the pattern binds the inside of the sine\nand reports the outer derivative only. That is deliberate here - the\nexercise is about dispatch, not about differentiation, and Mathematica\nalready has D for the real thing.\nf[Sin[Log[x]]] returns Cos[Log[x]], again outer-only.\nf[Sin[{1, 2, 3}]] fails for exactly the reason given in Exercise 8: Sin\nthreads over the list before f sees the argument, so no Sin remains to\nmatch.", "Text"], Cell["10: Odd functions, by a recursive pattern", "Section"], Cell[BoxData[RowBox[{RowBox[{"ClearAll", "[", RowBox[{"f", ",", "x", ",", "y"}], "]"}], ";", "\[IndentingNewLine]", RowBox[{RowBox[{"f", "[", RowBox[{"-", "x_"}], "]"}], ":=", RowBox[{"-", RowBox[{"f", "[", "x", "]"}]}]}]}]], "Input"], Cell["?f", "Input"], Cell[BoxData[RowBox[{"{", RowBox[{RowBox[{"f", "[", RowBox[{"-", "x"}], "]"}], ",", RowBox[{"f", "[", RowBox[{"-", "y"}], "]"}], ",", RowBox[{"f", "[", RowBox[{"-", RowBox[{"Sin", "[", "y", "]"}]}], "]"}]}], "}"}]], "Input"], Cell[BoxData[RowBox[{"f", "[", RowBox[{"-", "5"}], "]"}]], "Input"], Cell[BoxData[RowBox[{"{", RowBox[{RowBox[{"FullForm", "[", RowBox[{"-", "5"}], "]"}], ",", RowBox[{"FullForm", "[", RowBox[{"-", "x"}], "]"}]}], "}"}]], "Input"], Cell["f[-x] returns -f[x] and f[-y] returns -f[y], which is the odd-function\nidentity written as a rewrite rule. f[-Sin[y]] returns -f[Sin[y]] for the\nsame reason.\nf[-5] fails to match, and the two full forms say why. FullForm[-x] is\nTimes[-1, x], a product of the literal -1 and a symbol, and the pattern -x_\nis exactly Times[-1, Pattern[x, Blank[]]], so it matches. FullForm[-5] is\njust -5: a single negative Integer atom, with no Times and no -1 anywhere in\nit. Negative numbers are stored as numbers, not as products, so there is\nnothing for the pattern to take apart.", "Text"], Cell["11: Extending the rule to negative numbers", "Section"], Cell[BoxData[RowBox[{RowBox[{"ClearAll", "[", RowBox[{"f", ",", "x", ",", "y"}], "]"}], ";", "\[IndentingNewLine]", RowBox[{RowBox[{"f", "[", RowBox[{"-", "x_"}], "]"}], ":=", RowBox[{"-", RowBox[{"f", "[", "x", "]"}]}]}], ";", "\[IndentingNewLine]", RowBox[{RowBox[{"f", "[", RowBox[{"n_", "?", "Negative"}], "]"}], ":=", RowBox[{"-", RowBox[{"f", "[", RowBox[{"-", "n"}], "]"}]}]}]}]], "Input"], Cell["?f", "Input"], Cell[BoxData[RowBox[{"{", RowBox[{RowBox[{"f", "[", RowBox[{"-", "x"}], "]"}], ",", RowBox[{"f", "[", "x", "]"}], ",", RowBox[{"f", "[", RowBox[{"-", "y"}], "]"}], ",", RowBox[{"f", "[", RowBox[{"-", RowBox[{"Sin", "[", "y", "]"}]}], "]"}]}], "}"}]], "Input"], Cell[BoxData[RowBox[{"{", RowBox[{RowBox[{"f", "[", RowBox[{"-", "5"}], "]"}], ",", RowBox[{"f", "[", RowBox[{"-", "7"}], "]"}], ",", RowBox[{"f", "[", "5", "]"}]}], "}"}]], "Input"], Cell["The second definition catches what the first cannot: any argument that is\nnegative as a number, tested with the predicate rather than matched\nstructurally. It rewrites f[-5] as -f[5], which then has no applicable rule\nand stops - which is correct, since f is deliberately undefined on positive\narguments.\nSeveral other spellings work equally well: a pattern test with an anonymous\nfunction, or a condition attached with \"/;\", or matching n_Integer and\nguarding on the sign. All of them share the essential move, which is to stop\ntrying to match the minus sign and start testing the value instead.\nNote that f[x] and f[5] correctly return unevaluated. An odd-function rule\nsays how f behaves under negation; it says nothing about what f is.", "Text"], Cell["12: The third element of a list of three or more", "Section"], Cell[BoxData[RowBox[{RowBox[{"ClearAll", "[", RowBox[{"f", ",", "x", ",", "y", ",", "A", ",", "B"}], "]"}], ";", "\[IndentingNewLine]", RowBox[{RowBox[{"f", "[", RowBox[{"{", RowBox[{"_", ",", "_", ",", "c_", ",", "___"}], "}"}], "]"}], ":=", "c"}]}]], "Input"], Cell["?f", "Input"], Cell[BoxData[RowBox[{"{", RowBox[{RowBox[{"f", "[", "]"}], ",", RowBox[{"f", "[", "x", "]"}], ",", RowBox[{"f", "[", RowBox[{"{", RowBox[{"1", ",", "2"}], "}"}], "]"}]}], "}"}]], "Input"], Cell[BoxData[RowBox[{"{", RowBox[{RowBox[{"f", "[", RowBox[{"{", RowBox[{"1", ",", "2", ",", "3"}], "}"}], "]"}], ",", RowBox[{"f", "[", RowBox[{"{", RowBox[{"1", ",", "2", ",", "3", ",", "4"}], "}"}], "]"}], ",", RowBox[{"f", "[", RowBox[{"{", RowBox[{"1", ",", "2", ",", "3", ",", "4", ",", "5"}], "}"}], "]"}]}], "}"}]], "Input"], Cell[BoxData[RowBox[{"f", "[", RowBox[{"{", RowBox[{"x", ",", "y", ",", RowBox[{"{", RowBox[{"1", ",", "2", ",", "3"}], "}"}], ",", "A", ",", "B"}], "}"}], "]"}]], "Input"], Cell["The pattern is a single argument that must be a list, whose first two\nelements are anything, whose third is captured as c, and whose remaining\nelements - zero or more of them - are ignored.\nf[] fails because there is no argument at all. f[x] fails because x is a\nsymbol, not a list, so the braces in the pattern have nothing to match.\nf[{1, 2}] fails because the list has only two elements and the pattern needs\nat least three - the trailing BlankNullSequence may be empty, but the third\nBlank may not.\nThe three successful calls all return 3, and the last returns {1, 2, 3},\nwhich is the third element of that list whatever its own structure may be.", "Text"], Cell["13: Returning the first inner list from a list", "Section"], Cell[BoxData[RowBox[{RowBox[{"ClearAll", "[", RowBox[{"f", ",", "x", ",", "y", ",", "A", ",", "B"}], "]"}], ";", "\[IndentingNewLine]", RowBox[{RowBox[{"f", "[", RowBox[{"{", RowBox[{"___", ",", "l_List", ",", "___"}], "}"}], "]"}], ":=", "l"}]}]], "Input"], Cell["?f", "Input"], Cell[BoxData[RowBox[{"f", "[", RowBox[{"1", ",", "2", ",", RowBox[{"{", RowBox[{"4", ",", "5"}], "}"}], ",", "6"}], "]"}]], "Input"], Cell[BoxData[RowBox[{"f", "[", RowBox[{"{", RowBox[{"1", ",", "2", ",", "3", ",", "4"}], "}"}], "]"}]], "Input"], Cell[BoxData[RowBox[{"f", "[", RowBox[{"{", RowBox[{"1", ",", "2", ",", RowBox[{"{", "}"}], ",", "3", ",", "4"}], "}"}], "]"}]], "Input"], Cell[BoxData[RowBox[{"{", RowBox[{RowBox[{"f", "[", RowBox[{"{", RowBox[{RowBox[{"{", "1", "}"}], ",", "2", ",", "3", ",", "4"}], "}"}], "]"}], ",", RowBox[{"f", "[", RowBox[{"{", RowBox[{"1", ",", "2", ",", RowBox[{"{", "3", "}"}], ",", "4"}], "}"}], "]"}], ",", RowBox[{"f", "[", RowBox[{"{", RowBox[{"1", ",", RowBox[{"{", RowBox[{"2", ",", "3"}], "}"}], ",", "4"}], "}"}], "]"}], ",", RowBox[{"f", "[", RowBox[{"{", RowBox[{"1", ",", "2", ",", "3", ",", RowBox[{"{", "4", "}"}]}], "}"}], "]"}]}], "}"}]], "Input"], Cell[BoxData[RowBox[{"{", RowBox[{RowBox[{"f", "[", RowBox[{"{", RowBox[{"1", ",", "2", ",", RowBox[{"{", RowBox[{"3", ",", "4", ",", "5"}], "}"}]}], "}"}], "]"}], ",", RowBox[{"f", "[", RowBox[{"{", RowBox[{"{", RowBox[{"1", ",", "2", ",", "3", ",", "4", ",", "5"}], "}"}], "}"}], "]"}]}], "}"}]], "Input"], Cell[BoxData[RowBox[{"f", "[", RowBox[{"{", RowBox[{"1", ",", "2", ",", RowBox[{"{", RowBox[{"3", ",", RowBox[{"{", RowBox[{"4", ",", "5"}], "}"}]}], "}"}]}], "}"}], "]"}]], "Input"], Cell[BoxData[RowBox[{"f", "[", RowBox[{"{", RowBox[{"x", ",", "y", ",", RowBox[{"{", RowBox[{"1", ",", "2", ",", "3"}], "}"}], ",", "A", ",", "B"}], "}"}], "]"}]], "Input"], Cell["The pattern is one argument which is a list containing, somewhere, an\nelement that is itself a list; the two BlankNullSequences absorb whatever\nlies on either side of it.\nf[1, 2, {4, 5}, 6] fails because it supplies four arguments rather than one\nlist. The braces in the pattern are part of the single argument, not a way\nof writing a sequence.\nf[{1, 2, 3, 4}] fails because no element of that list is a list.\nf[{1, 2, {}, 3, 4}] returns {}. The empty list is still a list, so the\npattern matches it - the exercise's phrasing anticipates a failure, but\nl_List does not require the inner list to be non-empty. Insisting on \"one or\nmore elements\", as the exercise's wording asks, needs an explicit guard such\nas attaching a condition that its Length is at least one.\nThe remaining calls return the inner list in each case: {1}, {3}, {2, 3},\n{4}, {3, 4, 5}, {1, 2, 3, 4, 5}, and {3, {4, 5}}, and finally {1, 2, 3}.\nWhen more than one element is a list the pattern matcher returns the first\nmatch it finds, scanning left to right.", "Text"], Cell["14: Full forms of patterns, and a positive-integer function", "Section"], Cell[BoxData[RowBox[{RowBox[{"Clear", "[", "x", "]"}], ";", "\[IndentingNewLine]", RowBox[{"Column", "[", RowBox[{"List", "@@", RowBox[{RowBox[{"Function", "[", RowBox[{"u", ",", RowBox[{"ToString", "[", RowBox[{"FullForm", "[", "u", "]"}], "]"}]}], "]"}], "/@", RowBox[{"Hold", "[", RowBox[{"_", ",", "x_", ",", "x__", ",", "x___", ",", "x_Integer", ",", RowBox[{"x_", "?", "EvenQ"}], ",", RowBox[{"x_", "?", RowBox[{"(", RowBox[{RowBox[{"#1", ">", "3"}], "&"}], ")"}]}], ",", RowBox[{"x_Integer", "?", "EvenQ"}]}], "]"}]}]}], "]"}]}]], "Input"], Cell["The eight full forms, in order:\nBlank[]; Pattern[x, Blank[]]; Pattern[x, BlankSequence[]];\nPattern[x, BlankNullSequence[]]; Pattern[x, Blank[Integer]];\nPatternTest[Pattern[x, Blank[]], EvenQ];\nPatternTest[Pattern[x, Blank[]], Function[Greater[Slot[1], 3]]];\nPatternTest[Pattern[x, Blank[Integer]], EvenQ].\nThe shape is uniform. Underscores are Blank, BlankSequence and\nBlankNullSequence; a name in front of one wraps it in Pattern; a head after\none becomes Blank's argument; and a question mark wraps the whole thing in\nPatternTest, whose second argument is a function - a named predicate or an\nanonymous one, indifferently. Every piece of pattern syntax is ordinary\nfunction application wearing punctuation.\nHow the cell above is put together. The eight patterns are wrapped in Hold so\nthat the sequence patterns are not spliced into the argument list of\nwhatever encloses them. Map then works inside the Hold, producing\nHold[fn[_], fn[x_], ...] without evaluating anything, and Apply replaces\nthat Hold with List, at which point the eight ToString[FullForm[...]] calls\nfinally evaluate and return the strings shown.\nMapping FullForm directly over the Hold is not enough: the results stay\nsealed inside the Hold and print as unevaluated FullForm expressions. The\nApply is what releases them, and ToString is what stops the printed forms\nfrom being re-typeset back into the shorthand they came from.", "Text"], Cell[BoxData[RowBox[{RowBox[{"ClearAll", "[", "f", "]"}], ";", "\[IndentingNewLine]", RowBox[{RowBox[{"f", "[", RowBox[{"x_Integer", "?", "Positive"}], "]"}], ":=", "\"Positive Integer\""}]}]], "Input"], Cell[BoxData[RowBox[{"{", RowBox[{RowBox[{"f", "[", "3", "]"}], ",", RowBox[{"f", "[", "3.45`", "]"}], ",", RowBox[{"f", "[", RowBox[{"-", "3"}], "]"}]}], "}"}]], "Input"], Cell["The pattern combines both refinements at once: the head must be Integer and\nthe value must satisfy Positive. f[3] returns the string; f[3.45] and f[-3]\nreturn unevaluated, one failing the head test and the other the predicate,\nwhich is exactly the required behaviour.", "Text"], Cell["15: An immediate rule replacing 2 with 222", "Section"], Cell[BoxData[RowBox[{RowBox[{"ClearAll", "[", RowBox[{"rule1", ",", "x"}], "]"}], ";", "\[IndentingNewLine]", RowBox[{"rule1", "=", RowBox[{"2", "\[Rule]", "222"}]}]}]], "Input"], Cell[BoxData[RowBox[{RowBox[{"{", RowBox[{"1", ",", "2", ",", "3", ",", "4"}], "}"}], "/.", "\[VeryThinSpace]", "rule1"}]], "Input"], Cell[BoxData[RowBox[{RowBox[{"Sin", "[", "2", "]"}], "/.", "\[VeryThinSpace]", "rule1"}]], "Input"], Cell[BoxData[RowBox[{RowBox[{"{", RowBox[{"1", ",", "2", ",", RowBox[{"Sin", "[", "2", "]"}], ",", SuperscriptBox["x", "2"]}], "}"}], "/.", "\[VeryThinSpace]", "rule1"}]], "Input"], Cell[BoxData[RowBox[{RowBox[{"{", RowBox[{"1", ",", "2", ",", "3", ",", RowBox[{"2", "+", "2"}]}], "}"}], "/.", "\[VeryThinSpace]", "rule1"}]], "Input"], Cell[BoxData[RowBox[{RowBox[{"{", RowBox[{"1", ",", "2", ",", "3", ",", RowBox[{"Hold", "[", RowBox[{"2", "+", "2"}], "]"}]}], "}"}], "/.", "\[VeryThinSpace]", "rule1"}]], "Input"], Cell[BoxData[RowBox[{RowBox[{"2", " ", RowBox[{"Sin", "[", RowBox[{"2", " ", RowBox[{"Sin", "[", RowBox[{"2", " ", RowBox[{"Sin", "[", RowBox[{"2", " ", RowBox[{"Sin", "[", RowBox[{"2", " ", "x"}], "]"}]}], "]"}]}], "]"}]}], "]"}]}], "/.", "\[VeryThinSpace]", "rule1"}]], "Input"], Cell["The list becomes {1, 222, 3, 4} and Sin[2] becomes Sin[222] - ReplaceAll\ndescends into subexpressions, so the 2 inside the sine is found. In\n{1, 2, Sin[2], x^2} both the bare 2 and the one inside Sin are replaced, and\nso is the exponent of x^2, since an exponent is an ordinary part of a Power\nexpression.\nThe fourth list is the interesting one. It returns {1, 222, 3, 4}: the last\nentry was missed. Nothing went wrong with the rule - 2 + 2 was evaluated to\n4 before ReplaceAll ever ran, so by the time the rule was applied there was\nno 2 left to find. Rules act on expressions as they are, not as they were\ntyped.\nWrapping it in Hold proves the point: Hold[2 + 2] survives evaluation, the\nrule reaches inside it, and the result is Hold[222 + 222].\nThe nested sine becomes 222 Sin[222 Sin[222 Sin[222 Sin[222 x]]]] - every\noccurrence at every depth, in one pass.", "Text"], Cell["16: An immediate rule on a cube", "Section"], Cell[BoxData[RowBox[{RowBox[{"ClearAll", "[", RowBox[{"rule2", ",", "x", ",", "y", ",", "z"}], "]"}], ";", "\[IndentingNewLine]", RowBox[{"rule2", "=", RowBox[{SuperscriptBox["x_", "3"], "\[Rule]", SuperscriptBox["x", "333"]}]}]}]], "Input"], Cell[BoxData[RowBox[{RowBox[{"{", RowBox[{SuperscriptBox["x", "2"], ",", SuperscriptBox["x", "3"], ",", SuperscriptBox["x", "4"], ",", SuperscriptBox["y", "3"], ",", SuperscriptBox[RowBox[{"Sin", "[", "x", "]"}], "3"], ",", RowBox[{FractionBox["1", "2"], "+", SuperscriptBox["z", "3"]}], ",", SuperscriptBox[RowBox[{"(", RowBox[{"x", "+", "y"}], ")"}], "3"]}], "}"}], "/.", "\[VeryThinSpace]", "rule2"}]], "Input"], Cell[BoxData[RowBox[{SuperscriptBox[RowBox[{"(", RowBox[{FractionBox["1", "2"], "+", "y"}], ")"}], "3"], "/.", "\[VeryThinSpace]", "rule2"}]], "Input"], Cell[BoxData[RowBox[{"{", RowBox[{RowBox[{"FullForm", "[", SuperscriptBox["x", "3"], "]"}], ",", RowBox[{"FullForm", "[", SuperscriptBox[RowBox[{"(", RowBox[{"2", "+", "y"}], ")"}], "3"], "]"}], ",", RowBox[{"FullForm", "[", SuperscriptBox[RowBox[{"(", RowBox[{FractionBox["1", "2"], "+", "y"}], ")"}], "3"], "]"}]}], "}"}]], "Input"], Cell[BoxData[RowBox[{RowBox[{"Hold", "[", SuperscriptBox[RowBox[{"(", RowBox[{FractionBox["1", "2"], "+", "y"}], ")"}], "3"], "]"}], "/.", "\[VeryThinSpace]", "rule2"}]], "Input"], Cell["In the list, x^3, y^3, Sin[x]^3 and (x + y)^3 are all rewritten - the base\nmay be any expression - while x^2 and x^4 are untouched because the exponent\nmust be exactly 3. The z^3 inside the sum is rewritten too.\n(1/2 + y)^3 on its own is also rewritten, to (1/2 + y)^333. The exercise\nexpects this one to be missed, and in the printed version it presumably was;\nin this version of the language it is not. The full forms explain the\ndistinction the exercise is pointing at: x^3 is Power[x, 3] and (2 + y)^3 is\nPower[Plus[2, y], 3], both with a literal 3 in the exponent, so both match.\nThe Hold version confirms that the rule is matching the exponent and not\nsomething the evaluator produced afterwards.", "Text"], Cell["17: Two rules in a list, and why the first one gets missed", "Section"], Cell[BoxData[RowBox[{RowBox[{"{", RowBox[{SuperscriptBox["x", "2"], ",", SuperscriptBox["x", "3"], ",", SuperscriptBox["x", "4"], ",", SuperscriptBox["y", "3"], ",", SuperscriptBox[RowBox[{"Sin", "[", "x", "]"}], "3"], ",", RowBox[{FractionBox["1", "2"], "+", SuperscriptBox["z", "3"]}], ",", SuperscriptBox[RowBox[{"(", RowBox[{"x", "+", "y"}], ")"}], "3"]}], "}"}], "/.", "\[VeryThinSpace]", RowBox[{"{", RowBox[{"rule1", ",", "rule2"}], "}"}]}]], "Input"], Cell[BoxData[RowBox[{SuperscriptBox[RowBox[{"(", RowBox[{"2", "+", "y"}], ")"}], "3"], "/.", "\[VeryThinSpace]", RowBox[{"{", RowBox[{"rule1", ",", "rule2"}], "}"}]}]], "Input"], Cell[BoxData[RowBox[{SuperscriptBox[RowBox[{"(", RowBox[{"2", "+", "y"}], ")"}], "3"], "//.", "\[VeryThinSpace]", RowBox[{"{", RowBox[{"rule1", ",", "rule2"}], "}"}]}]], "Input"], Cell["Applying both rules to (2 + y)^3 with ReplaceAll gives (222 + y)^333, but\nthe order in which that happens repays attention. ReplaceAll works top down:\nat the outermost position the whole expression matches rule2 and is rewritten\nto (2 + y)^333, and ReplaceAll does not re-examine what it just produced -\nso at the top level rule1 never fires. It fires only where it is reached\nindependently, on the 2 inside the base, during the same single pass.\nReplaceRepeated re-scans until nothing changes. That is why \"//.\" catches\neverything - including, here, the 333 itself, which contains no 2 and so\nsurvives, but in general repeated replacement on rules that can regenerate\ntheir own left-hand sides will not terminate. Use it deliberately.", "Text"], Cell["18: Turning a plotted curve into a cloud of points", "Section"], Cell[BoxData[RowBox[{RowBox[{"ClearAll", "[", RowBox[{"x", ",", "plot1", ",", "plot2", ",", "plot3"}], "]"}], ";", "\[IndentingNewLine]", RowBox[{"plot1", "=", RowBox[{"Plot", "[", RowBox[{SuperscriptBox["x", "2"], ",", RowBox[{"{", RowBox[{"x", ",", "0", ",", "1"}], "}"}]}], "]"}]}]}]], "Input"], Cell[BoxData[RowBox[{"Length", "[", RowBox[{"Cases", "[", RowBox[{"plot1", ",", "_Line", ",", "\[Infinity]"}], "]"}], "]"}]], "Input"], Cell["A plot is not a picture; it is a Graphics expression containing directives\nand primitives. Inside this one there is a single Line primitive holding the\nwhole sampled curve as a list of coordinate pairs.", "Text"], Cell[BoxData[RowBox[{RowBox[{"plot2", "=", RowBox[{"plot1", "/.", "\[VeryThinSpace]", RowBox[{RowBox[{"Line", "[", RowBox[{"{", "pts__", "}"}], "]"}], "\[RuleDelayed]", RowBox[{"Line", "[", RowBox[{"Point", "/@", RowBox[{"{", "pts", "}"}]}], "]"}]}]}]}], ";", "\[IndentingNewLine]", RowBox[{"Length", "[", RowBox[{"Cases", "[", RowBox[{"plot2", ",", "_Point", ",", "\[Infinity]"}], "]"}], "]"}]}]], "Input"], Cell["Step one. The rule matches a Line holding a sequence of coordinate pairs,\ncaptures that sequence, and rebuilds a Line whose contents are those pairs\neach wrapped in Point. The result is not a valid graphic - a Line is not\nallowed to contain Point primitives - which is why the exercise says plot2\ncannot be displayed and why the cell ends in a semicolon. It is an\nintermediate form, and the count confirms it holds one Point for every\nsample the plot took.\nA delayed rule is used because the right-hand side calls Map on the captured\nsequence, and that work must happen after the match, not before.", "Text"], Cell[BoxData[RowBox[{RowBox[{"plot3", "=", RowBox[{"plot2", "/.", "\[VeryThinSpace]", RowBox[{RowBox[{"Line", "[", RowBox[{"{", "pts__Point", "}"}], "]"}], "\[RuleDelayed]", RowBox[{"{", "pts", "}"}]}]}]}], ";", "\[IndentingNewLine]", RowBox[{"{", RowBox[{RowBox[{"Head", "[", "plot3", "]"}], ",", RowBox[{"Length", "[", RowBox[{"Cases", "[", RowBox[{"plot3", ",", "_Line", ",", "\[Infinity]"}], "]"}], "]"}], ",", RowBox[{"Length", "[", RowBox[{"Cases", "[", RowBox[{"plot3", ",", "_Point", ",", "\[Infinity]"}], "]"}], "]"}]}], "}"}]}]], "Input"], Cell[BoxData["plot3"], "Input"], Cell["Step two. The second rule strips the now-meaningless Line wrapper and leaves\nthe bare list of Point primitives, which is a perfectly legal graphic. The\ncounts confirm it: no Line objects remain, and every Point survived. plot3\ndisplays as the same curve rendered as a dotted trace.\nThe conclusion the exercise is driving at is the right one. A finished\ngraphic is an expression like any other, and the same pattern matching used\non algebra works on it unchanged. There is no special graphics-editing\nfacility because none is needed.", "Text"]}, WindowSize -> {1100, 850}, StyleDefinitions -> "Default.nb"]
+Notebook[{
+Cell["\<\
+Advanced Lesson 11 - Exercises: Patterns in Arguments and in Replacement \
+Rules
+Mikey Ferguson
+MATH 7013 - Advanced Mathematical Modeling\
+\>", "Title",ExpressionUUID->"3d58d023-7f09-4d0b-bef1-e6358a6e5896"],
+
+Cell["1: Exactly one argument, squared", "Section",ExpressionUUID->"1a0e5a93-085a-4cc7-9b93-aee81fa23cda"],
+
+Cell[BoxData[{
+ RowBox[{
+  RowBox[{"ClearAll", "[", 
+   RowBox[{"f", ",", "x", ",", "y"}], "]"}], ";"}], "\[IndentingNewLine]", 
+ RowBox[{
+  RowBox[{"f", "[", "x_", "]"}], ":=", 
+  SuperscriptBox["x", "2"]}]}], "Input",ExpressionUUID->"a0f82562-34fc-48c0-\
+8363-b0564d54e27f"],
+
+Cell["?f", "Input",ExpressionUUID->"59753426-e2ab-4a61-abbe-73bea4bcc3ba"],
+
+Cell[BoxData[
+ RowBox[{"{", 
+  RowBox[{
+   RowBox[{"f", "[", "2", "]"}], ",", 
+   RowBox[{"f", "[", "x", "]"}], ",", 
+   RowBox[{"f", "[", "y", "]"}], ",", 
+   RowBox[{"f", "[", "\"\<string\>\"", "]"}], ",", 
+   RowBox[{"f", "[", 
+    RowBox[{"{", 
+     RowBox[{"1", ",", "2", ",", "3"}], "}"}], "]"}]}], "}"}]], "Input",Expres\
+sionUUID->"a0d5a01a-33c4-4e3b-9794-a9b5460a8924"],
+
+Cell[BoxData[
+ RowBox[{"f", "[", 
+  RowBox[{"{", 
+   RowBox[{
+    RowBox[{"{", 
+     RowBox[{"1", ",", "2"}], "}"}], ",", 
+    RowBox[{"{", 
+     RowBox[{"3", ",", "4"}], "}"}]}], "}"}], "]"}]], "Input",ExpressionUUID->\
+"da0bf22e-2c75-410f-aa8f-0f8f3997303c"],
+
+Cell[BoxData[
+ RowBox[{"{", 
+  RowBox[{
+   RowBox[{"f", "[", "]"}], ",", 
+   RowBox[{"f", "[", 
+    RowBox[{"x", ",", "y"}], "]"}], ",", 
+   RowBox[{"f", "[", 
+    RowBox[{"1", ",", "2", ",", "3", ",", "4"}], "]"}]}], "}"}]], "Input",Expr\
+essionUUID->"ca691a92-42d6-41dc-8b5f-b84b1b464572"],
+
+Cell["2: Exactly zero arguments", "Section",ExpressionUUID->"3c3c182e-487c-4e4b-b563-8910769e47e0"],
+
+Cell[BoxData[{
+ RowBox[{
+  RowBox[{"ClearAll", "[", 
+   RowBox[{"f", ",", "x", ",", "y"}], "]"}], ";"}], "\[IndentingNewLine]", 
+ RowBox[{
+  RowBox[{"f", "[", "]"}], ":=", "3"}]}], "Input",ExpressionUUID->"127c3d85-\
+5fa2-4d96-9e16-e595c1af2d70"],
+
+Cell["?f", "Input",ExpressionUUID->"f489b20e-ae2c-47fb-8eff-cea13333aff8"],
+
+Cell[BoxData[
+ RowBox[{"f", "[", "]"}]], "Input",ExpressionUUID->"1b686a57-6489-4362-8eb7-d9afccd3177d"],
+
+Cell[BoxData[
+ RowBox[{"{", 
+  RowBox[{
+   RowBox[{"f", "[", "2", "]"}], ",", 
+   RowBox[{"f", "[", "x", "]"}], ",", 
+   RowBox[{"f", "[", 
+    RowBox[{"x", ",", "y"}], "]"}], ",", 
+   RowBox[{"f", "[", 
+    RowBox[{"1", ",", "2", ",", "3", ",", "4"}], "]"}], ",", 
+   RowBox[{"f", "[", 
+    RowBox[{"{", 
+     RowBox[{
+      RowBox[{"{", 
+       RowBox[{"1", ",", "2"}], "}"}], ",", 
+      RowBox[{"{", 
+       RowBox[{"3", ",", "4"}], "}"}]}], "}"}], "]"}]}], "}"}]], "Input",Expre\
+ssionUUID->"2437a00a-9cc5-49d1-9966-a3e3958b40b4"],
+
+Cell["3: One or more arguments, squaring the list of them", "Section",ExpressionUUID->"5d5bf8fd-945c-4494-ac14-8f71072ee7f7"],
+
+Cell[BoxData[{
+ RowBox[{
+  RowBox[{"ClearAll", "[", 
+   RowBox[{"f", ",", "x", ",", "y"}], "]"}], ";"}], "\[IndentingNewLine]", 
+ RowBox[{
+  RowBox[{"f", "[", "x__", "]"}], ":=", 
+  SuperscriptBox[
+   RowBox[{"{", "x", "}"}], "2"]}]}], "Input",ExpressionUUID->"117cc48d-b5b4-\
+4633-b5d4-74a53f497c90"],
+
+Cell["?f", "Input",ExpressionUUID->"0c6ac540-0012-4f1c-821f-f0d9770154ad"],
+
+Cell[BoxData[
+ RowBox[{"{", 
+  RowBox[{
+   RowBox[{"f", "[", "2", "]"}], ",", 
+   RowBox[{"f", "[", "x", "]"}], ",", 
+   RowBox[{"f", "[", "y", "]"}], ",", 
+   RowBox[{"f", "[", "\"\<string\>\"", "]"}], ",", 
+   RowBox[{"f", "[", 
+    RowBox[{"{", 
+     RowBox[{"1", ",", "2", ",", "3"}], "}"}], "]"}]}], "}"}]], "Input",Expres\
+sionUUID->"16b5b5f3-d2fd-451a-9a06-89db8210edc1"],
+
+Cell[BoxData[
+ RowBox[{"{", 
+  RowBox[{
+   RowBox[{"f", "[", 
+    RowBox[{"{", 
+     RowBox[{
+      RowBox[{"{", 
+       RowBox[{"1", ",", "2"}], "}"}], ",", 
+      RowBox[{"{", 
+       RowBox[{"3", ",", "4"}], "}"}]}], "}"}], "]"}], ",", 
+   RowBox[{"f", "[", 
+    RowBox[{"x", ",", "y"}], "]"}], ",", 
+   RowBox[{"f", "[", 
+    RowBox[{"1", ",", "2", ",", "3", ",", "4"}], "]"}]}], "}"}]], "Input",Expr\
+essionUUID->"0b25a4b9-63b3-42a9-95d2-a0663375de90"],
+
+Cell[BoxData[
+ RowBox[{"f", "[", 
+  RowBox[{"x", ",", 
+   RowBox[{"{", 
+    RowBox[{"1", ",", "2", ",", "3"}], "}"}]}], "]"}]], "Input",ExpressionUUID\
+->"706c52dc-3e37-446d-8579-78bdf7a236d5"],
+
+Cell[BoxData[
+ RowBox[{"f", "[", 
+  RowBox[{"x", ",", 
+   RowBox[{"{", 
+    RowBox[{"1", ",", "2", ",", "3"}], "}"}], ",", 
+   RowBox[{"{", 
+    RowBox[{
+     RowBox[{"{", 
+      RowBox[{"1", ",", "2"}], "}"}], ",", 
+     RowBox[{"{", 
+      RowBox[{"3", ",", "4"}], "}"}]}], "}"}]}], "]"}]], "Input",ExpressionUUI\
+D->"c679d25d-f93d-45ca-9071-f612060ccd86"],
+
+Cell[BoxData[
+ RowBox[{"f", "[", "]"}]], "Input",ExpressionUUID->"efcf4f62-15cb-4faa-9bf2-7db55a5c8419"],
+
+Cell["4: Zero or more arguments", "Section",ExpressionUUID->"1fd88419-e8b9-448a-8372-454b9768f418"],
+
+Cell[BoxData[{
+ RowBox[{
+  RowBox[{"ClearAll", "[", 
+   RowBox[{"f", ",", "x", ",", "y"}], "]"}], ";"}], "\[IndentingNewLine]", 
+ RowBox[{
+  RowBox[{"f", "[", "x___", "]"}], ":=", 
+  SuperscriptBox[
+   RowBox[{"{", "x", "}"}], "2"]}]}], "Input",ExpressionUUID->"db397909-64bd-\
+46ce-b58c-ac774d1de79a"],
+
+Cell["?f", "Input",ExpressionUUID->"06df5615-db2f-4849-a101-52ba785f2b70"],
+
+Cell[BoxData[
+ RowBox[{"{", 
+  RowBox[{
+   RowBox[{"f", "[", "2", "]"}], ",", 
+   RowBox[{"f", "[", "x", "]"}], ",", 
+   RowBox[{"f", "[", "y", "]"}], ",", 
+   RowBox[{"f", "[", "\"\<string\>\"", "]"}], ",", 
+   RowBox[{"f", "[", 
+    RowBox[{"{", 
+     RowBox[{"1", ",", "2", ",", "3"}], "}"}], "]"}]}], "}"}]], "Input",Expres\
+sionUUID->"5b507e90-9609-40ac-83f4-5f4078825f67"],
+
+Cell[BoxData[
+ RowBox[{"{", 
+  RowBox[{
+   RowBox[{"f", "[", 
+    RowBox[{"{", 
+     RowBox[{
+      RowBox[{"{", 
+       RowBox[{"1", ",", "2"}], "}"}], ",", 
+      RowBox[{"{", 
+       RowBox[{"3", ",", "4"}], "}"}]}], "}"}], "]"}], ",", 
+   RowBox[{"f", "[", 
+    RowBox[{"x", ",", "y"}], "]"}], ",", 
+   RowBox[{"f", "[", 
+    RowBox[{"1", ",", "2", ",", "3", ",", "4"}], "]"}]}], "}"}]], "Input",Expr\
+essionUUID->"dca8dad6-3d5c-4b6a-97d4-cf6f74f2a340"],
+
+Cell[BoxData[
+ RowBox[{"f", "[", 
+  RowBox[{"x", ",", 
+   RowBox[{"{", 
+    RowBox[{"1", ",", "2", ",", "3"}], "}"}]}], "]"}]], "Input",ExpressionUUID\
+->"18e1dfb9-d133-4277-8f56-5bcf9cc5570f"],
+
+Cell[BoxData[
+ RowBox[{"f", "[", "]"}]], "Input",ExpressionUUID->"e8d89e26-a97f-4d21-9912-b5923d80d8a5"],
+
+Cell["5: Exactly two arguments", "Section",ExpressionUUID->"4c915b55-e9b5-41a8-a311-5b96ed4f4765"],
+
+Cell[BoxData[{
+ RowBox[{
+  RowBox[{"ClearAll", "[", 
+   RowBox[{"f", ",", "x", ",", "y"}], "]"}], ";"}], "\[IndentingNewLine]", 
+ RowBox[{
+  RowBox[{"f", "[", 
+   RowBox[{"x_", ",", "y_"}], "]"}], ":=", 
+  RowBox[{
+   SuperscriptBox["x", "2"], " ", 
+   RowBox[{"Sin", "[", "y", "]"}]}]}]}], "Input",ExpressionUUID->"f8067d6a-\
+f71a-48ef-81c0-1dc8243074f4"],
+
+Cell["?f", "Input",ExpressionUUID->"7bde07b6-4df7-47fa-91dc-df3cacfe0f2c"],
+
+Cell[BoxData[
+ RowBox[{"{", 
+  RowBox[{
+   RowBox[{"f", "[", "]"}], ",", 
+   RowBox[{"f", "[", "x", "]"}], ",", 
+   RowBox[{"f", "[", 
+    RowBox[{"{", 
+     RowBox[{"1", ",", "2"}], "}"}], "]"}], ",", 
+   RowBox[{"f", "[", 
+    RowBox[{"{", 
+     RowBox[{"1", ",", "2", ",", "3"}], "}"}], "]"}], ",", 
+   RowBox[{"f", "[", 
+    RowBox[{"1", ",", "2", ",", "3", ",", "4"}], "]"}]}], "}"}]], "Input",Expr\
+essionUUID->"60dab1af-fb18-4cc0-ada7-43a771053b88"],
+
+Cell[BoxData[
+ RowBox[{"f", "[", 
+  RowBox[{"x", ",", "y"}], "]"}]], "Input",ExpressionUUID->"9b58e042-5f97-4dfa-9f45-ad5cfea41d41"],
+
+Cell[BoxData[
+ RowBox[{"f", "[", 
+  RowBox[{"x", ",", 
+   RowBox[{"{", 
+    RowBox[{"1", ",", "2", ",", "3"}], "}"}]}], "]"}]], "Input",ExpressionUUID\
+->"5fafa1fb-da73-4f7b-8278-2f32be83d0e4"],
+
+Cell[BoxData[
+ RowBox[{"f", "[", 
+  RowBox[{"\"\<string\>\"", ",", 
+   RowBox[{"{", 
+    RowBox[{
+     RowBox[{"{", 
+      RowBox[{"1", ",", "2"}], "}"}], ",", 
+     RowBox[{"{", 
+      RowBox[{"3", ",", "4"}], "}"}]}], "}"}]}], "]"}]], "Input",ExpressionUUI\
+D->"51ef73f1-8abe-4776-a683-7ab7309ddcb6"],
+
+Cell["6: Exactly three, and exactly four, arguments", "Section",ExpressionUUID->"a17c82ea-dc38-47d4-9bf0-c7250febe3a5"],
+
+Cell[BoxData[{
+ RowBox[{
+  RowBox[{"ClearAll", "[", 
+   RowBox[{"f3", ",", "f4", ",", "x", ",", "y", ",", "z", ",", "w"}], "]"}], 
+  ";"}], "\[IndentingNewLine]", 
+ RowBox[{
+  RowBox[{
+   RowBox[{"f3", "[", 
+    RowBox[{"x_", ",", "y_", ",", "z_"}], "]"}], ":=", 
+   RowBox[{"{", 
+    RowBox[{"x", ",", "y", ",", "z"}], "}"}]}], 
+  ";"}], "\[IndentingNewLine]", 
+ RowBox[{
+  RowBox[{"f4", "[", 
+   RowBox[{"x_", ",", "y_", ",", "z_", ",", "w_"}], "]"}], ":=", 
+  RowBox[{"{", 
+   RowBox[{"x", ",", "y", ",", "z", ",", "w"}], "}"}]}]}], "Input",ExpressionU\
+UID->"ca9eb439-0dc7-4348-b1ad-2bc7b1b9ffcd"],
+
+Cell[BoxData[
+ RowBox[{"{", 
+  RowBox[{
+   RowBox[{"f3", "[", 
+    RowBox[{"1", ",", "2", ",", "3"}], "]"}], ",", 
+   RowBox[{"f4", "[", 
+    RowBox[{"1", ",", "2", ",", "3", ",", "4"}], "]"}]}], "}"}]], "Input",Expr\
+essionUUID->"ec06a338-4241-410c-bc19-bee985c4782f"],
+
+Cell[BoxData[
+ RowBox[{"{", 
+  RowBox[{
+   RowBox[{"f3", "[", 
+    RowBox[{"1", ",", "2"}], "]"}], ",", 
+   RowBox[{"f4", "[", 
+    RowBox[{"1", ",", "2", ",", "3"}], "]"}]}], "}"}]], "Input",ExpressionUUID\
+->"bb047da1-ce72-4182-bfbd-602acc17dc20"],
+
+Cell["7: One argument, then zero or more", "Section",ExpressionUUID->"7fd7ab8c-3da1-4a97-afdf-77e23e1246af"],
+
+Cell[BoxData[{
+ RowBox[{
+  RowBox[{"ClearAll", "[", 
+   RowBox[{"f", ",", "x", ",", "y", ",", "z", ",", "w", ",", "A", ",", "B"}], 
+   "]"}], ";"}], "\[IndentingNewLine]", 
+ RowBox[{
+  RowBox[{"f", "[", 
+   RowBox[{"x_", ",", "y___"}], "]"}], ":=", 
+  RowBox[{
+   SuperscriptBox["x", "2"], " ", 
+   RowBox[{"Sin", "[", 
+    RowBox[{"{", "y", "}"}], "]"}]}]}]}], "Input",ExpressionUUID->"0fc65241-\
+c2ff-49a5-b324-4d6e33cbe7cf"],
+
+Cell["?f", "Input",ExpressionUUID->"759bdf0a-2b04-494d-88e7-aced975af6db"],
+
+Cell[BoxData[
+ RowBox[{"f", "[", "]"}]], "Input",ExpressionUUID->"85c0351f-7253-4b66-ae30-381db70b49d0"],
+
+Cell[BoxData[
+ RowBox[{"f", "[", "x", "]"}]], "Input",ExpressionUUID->"90a63355-2675-4398-a6a4-31058ad1ee5e"],
+
+Cell[BoxData[
+ RowBox[{"f", "[", 
+  RowBox[{"{", 
+   RowBox[{"1", ",", "2"}], "}"}], "]"}]], "Input",ExpressionUUID->"081d3dcc-\
+cd6d-46ce-aa50-ab381fd9e27e"],
+
+Cell[BoxData[
+ RowBox[{"f", "[", 
+  RowBox[{"x", ",", "y"}], "]"}]], "Input",ExpressionUUID->"26dd8639-0f82-4ff1-ab43-184d878ea91e"],
+
+Cell[BoxData[
+ RowBox[{"f", "[", 
+  RowBox[{"2", ",", "3", ",", "4", ",", "5"}], "]"}]], "Input",ExpressionUUID->\
+"c4882f6a-d045-4eba-9d5a-ed35709f1f26"],
+
+Cell[BoxData[
+ RowBox[{"f", "[", 
+  RowBox[{"x", ",", "y", ",", "z", ",", "w"}], "]"}]], "Input",ExpressionUUID->\
+"b77469d0-8eaa-4b97-a96e-ce71325f7dbd"],
+
+Cell[BoxData[
+ RowBox[{"f", "[", 
+  RowBox[{"x", ",", 
+   RowBox[{"{", 
+    RowBox[{"1", ",", "2", ",", "3"}], "}"}], ",", "A", ",", "B"}], 
+  "]"}]], "Input",ExpressionUUID->"962385ac-ccb4-479a-8c18-b052a4060a40"],
+
+Cell[BoxData[
+ RowBox[{"ColumnForm", "[", 
+  RowBox[{"f", "[", 
+   RowBox[{"x", ",", 
+    RowBox[{"{", 
+     RowBox[{"1", ",", "2", ",", "3"}], "}"}], ",", "A", ",", "B"}], "]"}], 
+  "]"}]], "Input",ExpressionUUID->"ed3bc3af-b5f4-4274-92e6-347390752f02"],
+
+Cell[BoxData[
+ RowBox[{"f", "[", 
+  RowBox[{"\"\<string\>\"", ",", 
+   RowBox[{"{", 
+    RowBox[{
+     RowBox[{"{", 
+      RowBox[{"1", ",", "2"}], "}"}], ",", 
+     RowBox[{"{", 
+      RowBox[{"3", ",", "4"}], "}"}]}], "}"}]}], "]"}]], "Input",ExpressionUUI\
+D->"eb505cd4-ee75-4bfd-886f-e26c893f6f97"],
+
+Cell["8: Matching inside a Sine", "Section",ExpressionUUID->"2c776e3b-c044-44ac-b37b-e1289636c134"],
+
+Cell[BoxData[{
+ RowBox[{
+  RowBox[{"ClearAll", "[", 
+   RowBox[{"f", ",", "x", ",", "y"}], "]"}], ";"}], "\[IndentingNewLine]", 
+ RowBox[{
+  RowBox[{"f", "[", 
+   RowBox[{"Sin", "[", "x_", "]"}], "]"}], ":=", 
+  SuperscriptBox["x", "2"]}]}], "Input",ExpressionUUID->"d77a3593-e081-45ca-\
+847e-ba5667ce81e6"],
+
+Cell["?f", "Input",ExpressionUUID->"19d320ca-ae8b-4154-9c54-d03febab2195"],
+
+Cell[BoxData[
+ RowBox[{"{", 
+  RowBox[{
+   RowBox[{"f", "[", 
+    RowBox[{"Sin", "[", "2", "]"}], "]"}], ",", 
+   RowBox[{"f", "[", 
+    RowBox[{"Sin", "[", "y", "]"}], "]"}], ",", 
+   RowBox[{"f", "[", 
+    RowBox[{"Sin", "[", 
+     RowBox[{"Log", "[", "x", "]"}], "]"}], "]"}]}], "}"}]], "Input",Expressio\
+nUUID->"05147c01-1f11-4336-b459-e4aa0a5b6d88"],
+
+Cell[BoxData[
+ RowBox[{"f", "[", 
+  RowBox[{"Sin", "[", 
+   RowBox[{"{", 
+    RowBox[{"1", ",", "2", ",", "3"}], "}"}], "]"}], "]"}]], "Input",Expressio\
+nUUID->"f12d344a-4f72-4d17-8350-b32d1c2976cb"],
+
+Cell[BoxData[
+ RowBox[{"{", 
+  RowBox[{
+   RowBox[{"f", "[", "x", "]"}], ",", 
+   RowBox[{"f", "[", 
+    RowBox[{"Cos", "[", "y", "]"}], "]"}], ",", 
+   RowBox[{"f", "[", 
+    RowBox[{"1", ",", "2", ",", "3", ",", "4"}], "]"}]}], "}"}]], "Input",Expr\
+essionUUID->"0942f0e8-74ee-41b1-be42-ccd4ebcc133a"],
+
+Cell["9: A derivative table by pattern matching", "Section",ExpressionUUID->"58291a68-fb62-45bd-a6c1-e68cfade407f"],
+
+Cell[BoxData[{
+ RowBox[{
+  RowBox[{"ClearAll", "[", 
+   RowBox[{"f", ",", "x", ",", "y"}], "]"}], ";"}], "\[IndentingNewLine]", 
+ RowBox[{
+  RowBox[{
+   RowBox[{"f", "[", 
+    RowBox[{"Sin", "[", "x_", "]"}], "]"}], ":=", 
+   RowBox[{"Cos", "[", "x", "]"}]}], ";"}], "\[IndentingNewLine]", 
+ RowBox[{
+  RowBox[{
+   RowBox[{"f", "[", 
+    RowBox[{"Cos", "[", "x_", "]"}], "]"}], ":=", 
+   RowBox[{"-", 
+    RowBox[{"Sin", "[", "x", "]"}]}]}], ";"}], "\[IndentingNewLine]", 
+ RowBox[{
+  RowBox[{
+   RowBox[{"f", "[", 
+    RowBox[{"Log", "[", "x_", "]"}], "]"}], ":=", 
+   FractionBox["1", "x"]}], ";"}], "\[IndentingNewLine]", 
+ RowBox[{
+  RowBox[{"f", "[", 
+   SuperscriptBox["\[ExponentialE]", "x_"], "]"}], ":=", 
+  SuperscriptBox["\[ExponentialE]", "x"]}]}], "Input",ExpressionUUID->\
+"d0b28fb3-b800-4312-b70e-71cf011ab12e"],
+
+Cell["?f", "Input",ExpressionUUID->"9962a6c5-16bf-4091-8d91-09c283b59cc4"],
+
+Cell[BoxData[
+ RowBox[{"{", 
+  RowBox[{
+   RowBox[{"f", "[", 
+    SuperscriptBox["\[ExponentialE]", "x"], "]"}], ",", 
+   RowBox[{"f", "[", 
+    RowBox[{"Sin", "[", "y", "]"}], "]"}], ",", 
+   RowBox[{"f", "[", 
+    RowBox[{"Cos", "[", 
+     RowBox[{"x", "+", "y"}], "]"}], "]"}], ",", 
+   RowBox[{"f", "[", 
+    RowBox[{"Sin", "[", "2", "]"}], "]"}]}], "}"}]], "Input",ExpressionUUID->\
+"823dffb8-cc15-4e98-b824-ed1c1ee092cc"],
+
+Cell[BoxData[
+ RowBox[{"f", "[", 
+  RowBox[{"Sin", "[", 
+   RowBox[{"Log", "[", "x", "]"}], "]"}], "]"}]], "Input",ExpressionUUID->\
+"8d064101-4a99-4427-afa1-7cbefa7bff14"],
+
+Cell[BoxData[
+ RowBox[{"f", "[", 
+  RowBox[{"Sin", "[", 
+   RowBox[{"{", 
+    RowBox[{"1", ",", "2", ",", "3"}], "}"}], "]"}], "]"}]], "Input",Expressio\
+nUUID->"203ca8d3-d668-431e-8849-2e3e69936b43"],
+
+Cell["10: Odd functions, by a recursive pattern", "Section",ExpressionUUID->"59d9281e-114b-4617-9a50-6f8f3f142879"],
+
+Cell[BoxData[{
+ RowBox[{
+  RowBox[{"ClearAll", "[", 
+   RowBox[{"f", ",", "x", ",", "y"}], "]"}], ";"}], "\[IndentingNewLine]", 
+ RowBox[{
+  RowBox[{"f", "[", 
+   RowBox[{"-", "x_"}], "]"}], ":=", 
+  RowBox[{"-", 
+   RowBox[{"f", "[", "x", "]"}]}]}]}], "Input",ExpressionUUID->"b6fb9598-466c-\
+40de-b757-0a05f166f0c5"],
+
+Cell["?f", "Input",ExpressionUUID->"81965da0-9a5e-44a4-91fb-e24dea581b48"],
+
+Cell[BoxData[
+ RowBox[{"{", 
+  RowBox[{
+   RowBox[{"f", "[", 
+    RowBox[{"-", "x"}], "]"}], ",", 
+   RowBox[{"f", "[", 
+    RowBox[{"-", "y"}], "]"}], ",", 
+   RowBox[{"f", "[", 
+    RowBox[{"-", 
+     RowBox[{"Sin", "[", "y", "]"}]}], "]"}]}], "}"}]], "Input",ExpressionUUID\
+->"2f7ad5ad-8b76-4e54-961b-1bf5e5e74129"],
+
+Cell[BoxData[
+ RowBox[{"f", "[", 
+  RowBox[{"-", "5"}], "]"}]], "Input",ExpressionUUID->"f30035a8-340f-4bfc-a3b2-31d04aa2eeb4"],
+
+Cell[BoxData[
+ RowBox[{"{", 
+  RowBox[{
+   RowBox[{"FullForm", "[", 
+    RowBox[{"-", "5"}], "]"}], ",", 
+   RowBox[{"FullForm", "[", 
+    RowBox[{"-", "x"}], "]"}]}], "}"}]], "Input",ExpressionUUID->"7fff38ee-\
+1323-48ed-bb0b-1f85dddf473f"],
+
+Cell["11: Extending the rule to negative numbers", "Section",ExpressionUUID->"84ed0331-0b04-423f-8c09-4a064539043e"],
+
+Cell[BoxData[{
+ RowBox[{
+  RowBox[{"ClearAll", "[", 
+   RowBox[{"f", ",", "x", ",", "y"}], "]"}], ";"}], "\[IndentingNewLine]", 
+ RowBox[{
+  RowBox[{
+   RowBox[{"f", "[", 
+    RowBox[{"-", "x_"}], "]"}], ":=", 
+   RowBox[{"-", 
+    RowBox[{"f", "[", "x", "]"}]}]}], ";"}], "\[IndentingNewLine]", 
+ RowBox[{
+  RowBox[{"f", "[", 
+   RowBox[{"n_", "?", "Negative"}], "]"}], ":=", 
+  RowBox[{"-", 
+   RowBox[{"f", "[", 
+    RowBox[{"-", "n"}], "]"}]}]}]}], "Input",ExpressionUUID->"b2e3a0f5-013b-\
+4aba-82be-5d1adf1a4829"],
+
+Cell["?f", "Input",ExpressionUUID->"710240e1-4ece-4299-abf3-76f8f8623c8a"],
+
+Cell[BoxData[
+ RowBox[{"{", 
+  RowBox[{
+   RowBox[{"f", "[", 
+    RowBox[{"-", "x"}], "]"}], ",", 
+   RowBox[{"f", "[", "x", "]"}], ",", 
+   RowBox[{"f", "[", 
+    RowBox[{"-", "y"}], "]"}], ",", 
+   RowBox[{"f", "[", 
+    RowBox[{"-", 
+     RowBox[{"Sin", "[", "y", "]"}]}], "]"}]}], "}"}]], "Input",ExpressionUUID\
+->"17b1a93c-201b-485d-a68e-9a1e68a2247a"],
+
+Cell[BoxData[
+ RowBox[{"{", 
+  RowBox[{
+   RowBox[{"f", "[", 
+    RowBox[{"-", "5"}], "]"}], ",", 
+   RowBox[{"f", "[", 
+    RowBox[{"-", "7"}], "]"}], ",", 
+   RowBox[{"f", "[", "5", "]"}]}], "}"}]], "Input",ExpressionUUID->"e4bb99a5-\
+1967-4122-917c-633c72250daa"],
+
+Cell["12: The third element of a list of three or more", "Section",ExpressionUUID->"d0ec5935-292d-4773-8416-4a0b63f61f8f"],
+
+Cell[BoxData[{
+ RowBox[{
+  RowBox[{"ClearAll", "[", 
+   RowBox[{"f", ",", "x", ",", "y", ",", "A", ",", "B"}], "]"}], ";"}], "\[IndentingNewLine]", 
+ RowBox[{
+  RowBox[{"f", "[", 
+   RowBox[{"{", 
+    RowBox[{"_", ",", "_", ",", "c_", ",", "___"}], "}"}], "]"}], ":=", 
+  "c"}]}], "Input",ExpressionUUID->"73e08056-3671-439b-8c15-9caf09bf2f79"],
+
+Cell["?f", "Input",ExpressionUUID->"5d8ff21b-3f22-4eff-9161-7b502b24f855"],
+
+Cell[BoxData[
+ RowBox[{"{", 
+  RowBox[{
+   RowBox[{"f", "[", "]"}], ",", 
+   RowBox[{"f", "[", "x", "]"}], ",", 
+   RowBox[{"f", "[", 
+    RowBox[{"{", 
+     RowBox[{"1", ",", "2"}], "}"}], "]"}]}], "}"}]], "Input",ExpressionUUID->\
+"b7123ec9-e60e-4479-b266-d44c28de2b78"],
+
+Cell[BoxData[
+ RowBox[{"{", 
+  RowBox[{
+   RowBox[{"f", "[", 
+    RowBox[{"{", 
+     RowBox[{"1", ",", "2", ",", "3"}], "}"}], "]"}], ",", 
+   RowBox[{"f", "[", 
+    RowBox[{"{", 
+     RowBox[{"1", ",", "2", ",", "3", ",", "4"}], "}"}], "]"}], ",", 
+   RowBox[{"f", "[", 
+    RowBox[{"{", 
+     RowBox[{"1", ",", "2", ",", "3", ",", "4", ",", "5"}], "}"}], "]"}]}], 
+  "}"}]], "Input",ExpressionUUID->"b7861eba-e82e-42f4-9c87-df4a5ce4d340"],
+
+Cell[BoxData[
+ RowBox[{"f", "[", 
+  RowBox[{"{", 
+   RowBox[{"x", ",", "y", ",", 
+    RowBox[{"{", 
+     RowBox[{"1", ",", "2", ",", "3"}], "}"}], ",", "A", ",", "B"}], "}"}], 
+  "]"}]], "Input",ExpressionUUID->"316ab702-36c0-41a6-998a-00ec9a9cb46b"],
+
+Cell["13: Returning the first inner list from a list", "Section",ExpressionUUID->"f2ae44fd-3899-4b7c-9940-904120b96db0"],
+
+Cell[BoxData[{
+ RowBox[{
+  RowBox[{"ClearAll", "[", 
+   RowBox[{"f", ",", "x", ",", "y", ",", "A", ",", "B"}], "]"}], ";"}], "\[IndentingNewLine]", 
+ RowBox[{
+  RowBox[{"f", "[", 
+   RowBox[{"{", 
+    RowBox[{"___", ",", "l_List", ",", "___"}], "}"}], "]"}], ":=", 
+  "l"}]}], "Input",ExpressionUUID->"5752046b-8a24-4997-bd2f-687898ba1a58"],
+
+Cell["?f", "Input",ExpressionUUID->"e342e410-7ef3-4e7b-ba58-3154b5a7426c"],
+
+Cell[BoxData[
+ RowBox[{"f", "[", 
+  RowBox[{"1", ",", "2", ",", 
+   RowBox[{"{", 
+    RowBox[{"4", ",", "5"}], "}"}], ",", "6"}], "]"}]], "Input",ExpressionUUID\
+->"3d90e0f1-ce31-44bf-a1e7-6c9e49ceb1d8"],
+
+Cell[BoxData[
+ RowBox[{"f", "[", 
+  RowBox[{"{", 
+   RowBox[{"1", ",", "2", ",", "3", ",", "4"}], "}"}], "]"}]], "Input",Express\
+ionUUID->"15a8fa4e-341b-409d-8b30-7ef9df67f00c"],
+
+Cell[BoxData[
+ RowBox[{"f", "[", 
+  RowBox[{"{", 
+   RowBox[{"1", ",", "2", ",", 
+    RowBox[{"{", "}"}], ",", "3", ",", "4"}], "}"}], "]"}]], "Input",Expressio\
+nUUID->"113d1b81-d430-4d87-b766-505b8c41bcd6"],
+
+Cell[BoxData[
+ RowBox[{"{", 
+  RowBox[{
+   RowBox[{"f", "[", 
+    RowBox[{"{", 
+     RowBox[{
+      RowBox[{"{", "1", "}"}], ",", "2", ",", "3", ",", "4"}], "}"}], "]"}], ",", 
+   RowBox[{"f", "[", 
+    RowBox[{"{", 
+     RowBox[{"1", ",", "2", ",", 
+      RowBox[{"{", "3", "}"}], ",", "4"}], "}"}], "]"}], ",", 
+   RowBox[{"f", "[", 
+    RowBox[{"{", 
+     RowBox[{"1", ",", 
+      RowBox[{"{", 
+       RowBox[{"2", ",", "3"}], "}"}], ",", "4"}], "}"}], "]"}], ",", 
+   RowBox[{"f", "[", 
+    RowBox[{"{", 
+     RowBox[{"1", ",", "2", ",", "3", ",", 
+      RowBox[{"{", "4", "}"}]}], "}"}], "]"}]}], "}"}]], "Input",ExpressionUUI\
+D->"71277304-21d7-48d4-854b-ac5dde212b38"],
+
+Cell[BoxData[
+ RowBox[{"{", 
+  RowBox[{
+   RowBox[{"f", "[", 
+    RowBox[{"{", 
+     RowBox[{"1", ",", "2", ",", 
+      RowBox[{"{", 
+       RowBox[{"3", ",", "4", ",", "5"}], "}"}]}], "}"}], "]"}], ",", 
+   RowBox[{"f", "[", 
+    RowBox[{"{", 
+     RowBox[{"{", 
+      RowBox[{"1", ",", "2", ",", "3", ",", "4", ",", "5"}], "}"}], "}"}], 
+    "]"}]}], "}"}]], "Input",ExpressionUUID->"45f9d834-83a5-4ee0-95e0-\
+d89d9509b73b"],
+
+Cell[BoxData[
+ RowBox[{"f", "[", 
+  RowBox[{"{", 
+   RowBox[{"1", ",", "2", ",", 
+    RowBox[{"{", 
+     RowBox[{"3", ",", 
+      RowBox[{"{", 
+       RowBox[{"4", ",", "5"}], "}"}]}], "}"}]}], "}"}], "]"}]], "Input",Expre\
+ssionUUID->"bebcd5d5-49f1-446f-9962-898a795e4fbf"],
+
+Cell[BoxData[
+ RowBox[{"f", "[", 
+  RowBox[{"{", 
+   RowBox[{"x", ",", "y", ",", 
+    RowBox[{"{", 
+     RowBox[{"1", ",", "2", ",", "3"}], "}"}], ",", "A", ",", "B"}], "}"}], 
+  "]"}]], "Input",ExpressionUUID->"81a4ddff-e817-483d-a408-3e0e5ab7a355"],
+
+Cell["14: Full forms of patterns, and a positive-integer function", "Section",ExpressionUUID->"63a5f67d-48e2-424e-9c95-92c144c6411d"],
+
+Cell[BoxData[{
+ RowBox[{
+  RowBox[{"Clear", "[", "x", "]"}], ";"}], "\[IndentingNewLine]", 
+ RowBox[{"Column", "[", 
+  RowBox[{"List", "@@", 
+   RowBox[{
+    RowBox[{"Function", "[", 
+     RowBox[{"u", ",", 
+      RowBox[{"ToString", "[", 
+       RowBox[{"FullForm", "[", "u", "]"}], "]"}]}], "]"}], "/@", 
+    RowBox[{"Hold", "[", 
+     RowBox[{"_", ",", "x_", ",", "x__", ",", "x___", ",", "x_Integer", ",", 
+      RowBox[{"x_", "?", "EvenQ"}], ",", 
+      RowBox[{"x_", "?", 
+       RowBox[{"(", 
+        RowBox[{
+         RowBox[{"#1", ">", "3"}], "&"}], ")"}]}], ",", 
+      RowBox[{"x_Integer", "?", "EvenQ"}]}], "]"}]}]}], "]"}]}], "Input",Expre\
+ssionUUID->"db7d3fce-19ff-4b6a-ad0a-5151396b0b78"],
+
+Cell[BoxData[{
+ RowBox[{
+  RowBox[{"ClearAll", "[", "f", "]"}], ";"}], "\[IndentingNewLine]", 
+ RowBox[{
+  RowBox[{"f", "[", 
+   RowBox[{"x_Integer", "?", "Positive"}], "]"}], 
+  ":=", "\"\<Positive Integer\>\""}]}], "Input",ExpressionUUID->"386bffbc-\
+1090-4451-bb23-1f8d5833c585"],
+
+Cell[BoxData[
+ RowBox[{"{", 
+  RowBox[{
+   RowBox[{"f", "[", "3", "]"}], ",", 
+   RowBox[{"f", "[", "3.45`", "]"}], ",", 
+   RowBox[{"f", "[", 
+    RowBox[{"-", "3"}], "]"}]}], "}"}]], "Input",ExpressionUUID->"1b98b3a5-\
+c0d7-4638-a539-6b880c0dc703"],
+
+Cell["15: An immediate rule replacing 2 with 222", "Section",ExpressionUUID->"bcb3279f-67bb-421d-8347-3d7078643810"],
+
+Cell[BoxData[{
+ RowBox[{
+  RowBox[{"ClearAll", "[", 
+   RowBox[{"rule1", ",", "x"}], "]"}], ";"}], "\[IndentingNewLine]", 
+ RowBox[{"rule1", "=", 
+  RowBox[{"2", "\[Rule]", "222"}]}]}], "Input",ExpressionUUID->"018e6e1b-f1e2-\
+49db-8df9-c40a3086b7ca"],
+
+Cell[BoxData[
+ RowBox[{
+  RowBox[{"{", 
+   RowBox[{"1", ",", "2", ",", "3", ",", "4"}], "}"}], "/.", 
+  "\[VeryThinSpace]", "rule1"}]], "Input",ExpressionUUID->"fb88f318-b2ff-4908-\
+84f8-f1eca3905622"],
+
+Cell[BoxData[
+ RowBox[{
+  RowBox[{"Sin", "[", "2", "]"}], "/.", "\[VeryThinSpace]", 
+  "rule1"}]], "Input",ExpressionUUID->"afad047b-f242-4d22-9787-bcaab6ead7e7"],
+
+Cell[BoxData[
+ RowBox[{
+  RowBox[{"{", 
+   RowBox[{"1", ",", "2", ",", 
+    RowBox[{"Sin", "[", "2", "]"}], ",", 
+    SuperscriptBox["x", "2"]}], "}"}], "/.", "\[VeryThinSpace]", 
+  "rule1"}]], "Input",ExpressionUUID->"c8161965-a2fa-40ae-b5ff-759807176cbd"],
+
+Cell[BoxData[
+ RowBox[{
+  RowBox[{"{", 
+   RowBox[{"1", ",", "2", ",", "3", ",", 
+    RowBox[{"2", "+", "2"}]}], "}"}], "/.", "\[VeryThinSpace]", 
+  "rule1"}]], "Input",ExpressionUUID->"6a170afc-ef29-43a2-a0d6-644bd977f5a6"],
+
+Cell[BoxData[
+ RowBox[{
+  RowBox[{"{", 
+   RowBox[{"1", ",", "2", ",", "3", ",", 
+    RowBox[{"Hold", "[", 
+     RowBox[{"2", "+", "2"}], "]"}]}], "}"}], "/.", "\[VeryThinSpace]", 
+  "rule1"}]], "Input",ExpressionUUID->"f52f4eee-5d62-471e-80b8-2218b446bf33"],
+
+Cell[BoxData[
+ RowBox[{
+  RowBox[{"2", " ", 
+   RowBox[{"Sin", "[", 
+    RowBox[{"2", " ", 
+     RowBox[{"Sin", "[", 
+      RowBox[{"2", " ", 
+       RowBox[{"Sin", "[", 
+        RowBox[{"2", " ", 
+         RowBox[{"Sin", "[", 
+          RowBox[{"2", " ", "x"}], "]"}]}], "]"}]}], "]"}]}], "]"}]}], "/.", 
+  "\[VeryThinSpace]", "rule1"}]], "Input",ExpressionUUID->"ad975c36-8d5d-4ec2-\
+a98b-a4381e6fe7de"],
+
+Cell["16: An immediate rule on a cube", "Section",ExpressionUUID->"b6e08937-8565-4126-95e4-ddfc16a3c628"],
+
+Cell[BoxData[{
+ RowBox[{
+  RowBox[{"ClearAll", "[", 
+   RowBox[{"rule2", ",", "x", ",", "y", ",", "z"}], "]"}], ";"}], "\[IndentingNewLine]", 
+ RowBox[{"rule2", "=", 
+  RowBox[{
+   SuperscriptBox["x_", "3"], "\[Rule]", 
+   SuperscriptBox["x", "333"]}]}]}], "Input",ExpressionUUID->"ec8e0e68-9216-\
+4320-9607-0be9ef5cc8d2"],
+
+Cell[BoxData[
+ RowBox[{
+  RowBox[{"{", 
+   RowBox[{
+    SuperscriptBox["x", "2"], ",", 
+    SuperscriptBox["x", "3"], ",", 
+    SuperscriptBox["x", "4"], ",", 
+    SuperscriptBox["y", "3"], ",", 
+    SuperscriptBox[
+     RowBox[{"Sin", "[", "x", "]"}], "3"], ",", 
+    RowBox[{
+     FractionBox["1", "2"], "+", 
+     SuperscriptBox["z", "3"]}], ",", 
+    SuperscriptBox[
+     RowBox[{"(", 
+      RowBox[{"x", "+", "y"}], ")"}], "3"]}], "}"}], "/.", "\[VeryThinSpace]",
+   "rule2"}]], "Input",ExpressionUUID->"ad3575c2-e54e-4c38-8776-37e873c6b863"],
+
+Cell[BoxData[
+ RowBox[{
+  SuperscriptBox[
+   RowBox[{"(", 
+    RowBox[{
+     FractionBox["1", "2"], "+", "y"}], ")"}], "3"], "/.", "\[VeryThinSpace]",
+   "rule2"}]], "Input",ExpressionUUID->"d9661d9c-d9c0-4dce-9764-04df3c2ce9fa"],
+
+Cell[BoxData[
+ RowBox[{"{", 
+  RowBox[{
+   RowBox[{"FullForm", "[", 
+    SuperscriptBox["x", "3"], "]"}], ",", 
+   RowBox[{"FullForm", "[", 
+    SuperscriptBox[
+     RowBox[{"(", 
+      RowBox[{"2", "+", "y"}], ")"}], "3"], "]"}], ",", 
+   RowBox[{"FullForm", "[", 
+    SuperscriptBox[
+     RowBox[{"(", 
+      RowBox[{
+       FractionBox["1", "2"], "+", "y"}], ")"}], "3"], "]"}]}], 
+  "}"}]], "Input",ExpressionUUID->"40948f74-7fab-4e38-896b-9285b3fc1a48"],
+
+Cell[BoxData[
+ RowBox[{
+  RowBox[{"Hold", "[", 
+   SuperscriptBox[
+    RowBox[{"(", 
+     RowBox[{
+      FractionBox["1", "2"], "+", "y"}], ")"}], "3"], "]"}], "/.", 
+  "\[VeryThinSpace]", "rule2"}]], "Input",ExpressionUUID->"256eb23a-117a-4f39-\
+877f-2409e83b4cfd"],
+
+Cell["17: Two rules in a list, and why the first one gets missed", "Section",ExpressionUUID->"952a9e02-26c4-4e79-ab70-46f83f079417"],
+
+Cell[BoxData[
+ RowBox[{
+  RowBox[{"{", 
+   RowBox[{
+    SuperscriptBox["x", "2"], ",", 
+    SuperscriptBox["x", "3"], ",", 
+    SuperscriptBox["x", "4"], ",", 
+    SuperscriptBox["y", "3"], ",", 
+    SuperscriptBox[
+     RowBox[{"Sin", "[", "x", "]"}], "3"], ",", 
+    RowBox[{
+     FractionBox["1", "2"], "+", 
+     SuperscriptBox["z", "3"]}], ",", 
+    SuperscriptBox[
+     RowBox[{"(", 
+      RowBox[{"x", "+", "y"}], ")"}], "3"]}], "}"}], "/.", "\[VeryThinSpace]", 
+  RowBox[{"{", 
+   RowBox[{"rule1", ",", "rule2"}], "}"}]}]], "Input",ExpressionUUID->\
+"d3973f4f-8795-4c82-bc83-060bdd8f73fb"],
+
+Cell[BoxData[
+ RowBox[{
+  SuperscriptBox[
+   RowBox[{"(", 
+    RowBox[{"2", "+", "y"}], ")"}], "3"], "/.", "\[VeryThinSpace]", 
+  RowBox[{"{", 
+   RowBox[{"rule1", ",", "rule2"}], "}"}]}]], "Input",ExpressionUUID->\
+"2f513f17-0dde-41aa-8c06-898eb19db314"],
+
+Cell[BoxData[
+ RowBox[{
+  SuperscriptBox[
+   RowBox[{"(", 
+    RowBox[{"2", "+", "y"}], ")"}], "3"], "//.", "\[VeryThinSpace]", 
+  RowBox[{"{", 
+   RowBox[{"rule1", ",", "rule2"}], "}"}]}]], "Input",ExpressionUUID->\
+"592521a5-ca92-45df-a352-c9c0d81cb862"],
+
+Cell["18: Turning a plotted curve into a cloud of points", "Section",ExpressionUUID->"bc02a6b3-690a-4f64-8711-7eefff7acf02"],
+
+Cell[BoxData[{
+ RowBox[{
+  RowBox[{"ClearAll", "[", 
+   RowBox[{"x", ",", "plot1", ",", "plot2", ",", "plot3"}], "]"}], ";"}], "\[IndentingNewLine]", 
+ RowBox[{"plot1", "=", 
+  RowBox[{"Plot", "[", 
+   RowBox[{
+    SuperscriptBox["x", "2"], ",", 
+    RowBox[{"{", 
+     RowBox[{"x", ",", "0", ",", "1"}], "}"}]}], "]"}]}]}], "Input",Expression\
+UUID->"b1ae49bb-397d-4b62-b70f-d57ff030bf1c"],
+
+Cell[BoxData[
+ RowBox[{"Length", "[", 
+  RowBox[{"Cases", "[", 
+   RowBox[{"plot1", ",", "_Line", ",", "\[Infinity]"}], "]"}], "]"}]], "Input",\
+ExpressionUUID->"abd340bb-a1ae-4ad2-8cc5-c09e5c06c106"],
+
+Cell[BoxData[{
+ RowBox[{
+  RowBox[{"plot2", "=", 
+   RowBox[{"plot1", "/.", "\[VeryThinSpace]", 
+    RowBox[{
+     RowBox[{"Line", "[", 
+      RowBox[{"{", "pts__", "}"}], "]"}], "\[RuleDelayed]", 
+     RowBox[{"Line", "[", 
+      RowBox[{"Point", "/@", 
+       RowBox[{"{", "pts", "}"}]}], "]"}]}]}]}], ";"}], "\[IndentingNewLine]", 
+ RowBox[{"Length", "[", 
+  RowBox[{"Cases", "[", 
+   RowBox[{"plot2", ",", "_Point", ",", "\[Infinity]"}], "]"}], 
+  "]"}]}], "Input",ExpressionUUID->"fe63d186-0fad-4ce8-965e-58bedbfd135d"],
+
+Cell[BoxData[{
+ RowBox[{
+  RowBox[{"plot3", "=", 
+   RowBox[{"plot2", "/.", "\[VeryThinSpace]", 
+    RowBox[{
+     RowBox[{"Line", "[", 
+      RowBox[{"{", "pts__Point", "}"}], "]"}], "\[RuleDelayed]", 
+     RowBox[{"{", "pts", "}"}]}]}]}], ";"}], "\[IndentingNewLine]", 
+ RowBox[{"{", 
+  RowBox[{
+   RowBox[{"Head", "[", "plot3", "]"}], ",", 
+   RowBox[{"Length", "[", 
+    RowBox[{"Cases", "[", 
+     RowBox[{"plot3", ",", "_Line", ",", "\[Infinity]"}], "]"}], "]"}], ",", 
+   RowBox[{"Length", "[", 
+    RowBox[{"Cases", "[", 
+     RowBox[{"plot3", ",", "_Point", ",", "\[Infinity]"}], "]"}], "]"}]}], 
+  "}"}]}], "Input",ExpressionUUID->"b989f83d-523a-414c-a420-953df77e037f"],
+
+Cell[BoxData["plot3"], "Input",ExpressionUUID->"f4481f16-60ca-49bf-827a-dafcd88287ad"]
+},
+WindowSize->{1100, 850},
+FrontEndVersion->"15.0 for Mac OS X ARM (64-bit) (May 26, 2026)",
+StyleDefinitions->"Default.nb",
+ExpressionUUID->"53e1aa67-6381-4be0-aec1-2e1147a12ddd"
+]
 (* End of Notebook Content *)
+
+(* Internal cache information *)
+(*CellTagsOutline
+CellTagsIndex->{}
+*)
+(*CellTagsIndex
+CellTagsIndex->{}
+*)
+(*NotebookFileOutline
+Notebook[{
+Cell[560, 20, 218, 5, 70, "Title",ExpressionUUID->"3d58d023-7f09-4d0b-bef1-e6358a6e5896"],
+Cell[781, 27, 106, 0, 70, "Section",ExpressionUUID->"1a0e5a93-085a-4cc7-9b93-aee81fa23cda"],
+Cell[890, 29, 276, 7, 70, "Input",ExpressionUUID->"a0f82562-34fc-48c0-8363-b0564d54e27f"],
+Cell[1169, 38, 74, 0, 70, "Input",ExpressionUUID->"59753426-e2ab-4a61-abbe-73bea4bcc3ba"],
+Cell[1246, 40, 378, 10, 70, "Input",ExpressionUUID->"a0d5a01a-33c4-4e3b-9794-a9b5460a8924"],
+Cell[1627, 52, 260, 8, 70, "Input",ExpressionUUID->"da0bf22e-2c75-410f-aa8f-0f8f3997303c"],
+Cell[1890, 62, 291, 8, 70, "Input",ExpressionUUID->"ca691a92-42d6-41dc-8b5f-b84b1b464572"],
+Cell[2184, 72, 99, 0, 70, "Section",ExpressionUUID->"3c3c182e-487c-4e4b-b563-8910769e47e0"],
+Cell[2286, 74, 246, 6, 70, "Input",ExpressionUUID->"127c3d85-5fa2-4d96-9e16-e595c1af2d70"],
+Cell[2535, 82, 74, 0, 70, "Input",ExpressionUUID->"f489b20e-ae2c-47fb-8eff-cea13333aff8"],
+Cell[2612, 84, 104, 1, 70, "Input",ExpressionUUID->"1b686a57-6489-4362-8eb7-d9afccd3177d"],
+Cell[2719, 87, 535, 16, 70, "Input",ExpressionUUID->"2437a00a-9cc5-49d1-9966-a3e3958b40b4"],
+Cell[3257, 105, 125, 0, 70, "Section",ExpressionUUID->"5d5bf8fd-945c-4494-ac14-8f71072ee7f7"],
+Cell[3385, 107, 301, 8, 70, "Input",ExpressionUUID->"117cc48d-b5b4-4633-b5d4-74a53f497c90"],
+Cell[3689, 117, 74, 0, 70, "Input",ExpressionUUID->"0c6ac540-0012-4f1c-821f-f0d9770154ad"],
+Cell[3766, 119, 378, 10, 70, "Input",ExpressionUUID->"16b5b5f3-d2fd-451a-9a06-89db8210edc1"],
+Cell[4147, 131, 457, 14, 70, "Input",ExpressionUUID->"0b25a4b9-63b3-42a9-95d2-a0663375de90"],
+Cell[4607, 147, 193, 5, 70, "Input",ExpressionUUID->"706c52dc-3e37-446d-8579-78bdf7a236d5"],
+Cell[4803, 154, 358, 11, 70, "Input",ExpressionUUID->"c679d25d-f93d-45ca-9071-f612060ccd86"],
+Cell[5164, 167, 104, 1, 70, "Input",ExpressionUUID->"efcf4f62-15cb-4faa-9bf2-7db55a5c8419"],
+Cell[5271, 170, 99, 0, 70, "Section",ExpressionUUID->"1fd88419-e8b9-448a-8372-454b9768f418"],
+Cell[5373, 172, 302, 8, 70, "Input",ExpressionUUID->"db397909-64bd-46ce-b58c-ac774d1de79a"],
+Cell[5678, 182, 74, 0, 70, "Input",ExpressionUUID->"06df5615-db2f-4849-a101-52ba785f2b70"],
+Cell[5755, 184, 378, 10, 70, "Input",ExpressionUUID->"5b507e90-9609-40ac-83f4-5f4078825f67"],
+Cell[6136, 196, 457, 14, 70, "Input",ExpressionUUID->"dca8dad6-3d5c-4b6a-97d4-cf6f74f2a340"],
+Cell[6596, 212, 193, 5, 70, "Input",ExpressionUUID->"18e1dfb9-d133-4277-8f56-5bcf9cc5570f"],
+Cell[6792, 219, 104, 1, 70, "Input",ExpressionUUID->"e8d89e26-a97f-4d21-9912-b5923d80d8a5"],
+Cell[6899, 222, 98, 0, 70, "Section",ExpressionUUID->"4c915b55-e9b5-41a8-a311-5b96ed4f4765"],
+Cell[7000, 224, 356, 10, 70, "Input",ExpressionUUID->"f8067d6a-f71a-48ef-81c0-1dc8243074f4"],
+Cell[7359, 236, 74, 0, 70, "Input",ExpressionUUID->"7bde07b6-4df7-47fa-91dc-df3cacfe0f2c"],
+Cell[7436, 238, 456, 13, 70, "Input",ExpressionUUID->"60dab1af-fb18-4cc0-ada7-43a771053b88"],
+Cell[7895, 253, 132, 2, 70, "Input",ExpressionUUID->"9b58e042-5f97-4dfa-9f45-ad5cfea41d41"],
+Cell[8030, 257, 193, 5, 70, "Input",ExpressionUUID->"5fafa1fb-da73-4f7b-8278-2f32be83d0e4"],
+Cell[8226, 264, 302, 9, 70, "Input",ExpressionUUID->"51ef73f1-8abe-4776-a683-7ab7309ddcb6"],
+Cell[8531, 275, 119, 0, 70, "Section",ExpressionUUID->"a17c82ea-dc38-47d4-9bf0-c7250febe3a5"],
+Cell[8653, 277, 601, 17, 70, "Input",ExpressionUUID->"ca9eb439-0dc7-4348-b1ad-2bc7b1b9ffcd"],
+Cell[9257, 296, 269, 7, 70, "Input",ExpressionUUID->"ec06a338-4241-410c-bc19-bee985c4782f"],
+Cell[9529, 305, 249, 7, 70, "Input",ExpressionUUID->"bb047da1-ce72-4182-bfbd-602acc17dc20"],
+Cell[9781, 314, 108, 0, 70, "Section",ExpressionUUID->"7fd7ab8c-3da1-4a97-afdf-77e23e1246af"],
+Cell[9892, 316, 427, 12, 70, "Input",ExpressionUUID->"0fc65241-c2ff-49a5-b324-4d6e33cbe7cf"],
+Cell[10322, 330, 74, 0, 70, "Input",ExpressionUUID->"759bdf0a-2b04-494d-88e7-aced975af6db"],
+Cell[10399, 332, 104, 1, 70, "Input",ExpressionUUID->"85c0351f-7253-4b66-ae30-381db70b49d0"],
+Cell[10506, 335, 109, 1, 70, "Input",ExpressionUUID->"90a63355-2675-4398-a6a4-31058ad1ee5e"],
+Cell[10618, 338, 158, 4, 70, "Input",ExpressionUUID->"081d3dcc-cd6d-46ce-aa50-ab381fd9e27e"],
+Cell[10779, 344, 132, 2, 70, "Input",ExpressionUUID->"26dd8639-0f82-4ff1-ab43-184d878ea91e"],
+Cell[10914, 348, 154, 3, 70, "Input",ExpressionUUID->"c4882f6a-d045-4eba-9d5a-ed35709f1f26"],
+Cell[11071, 353, 154, 3, 70, "Input",ExpressionUUID->"b77469d0-8eaa-4b97-a96e-ce71325f7dbd"],
+Cell[11228, 358, 214, 5, 70, "Input",ExpressionUUID->"962385ac-ccb4-479a-8c18-b052a4060a40"],
+Cell[11445, 365, 254, 6, 70, "Input",ExpressionUUID->"ed3bc3af-b5f4-4274-92e6-347390752f02"],
+Cell[11702, 373, 302, 9, 70, "Input",ExpressionUUID->"eb505cd4-ee75-4bfd-886f-e26c893f6f97"],
+Cell[12007, 384, 99, 0, 70, "Section",ExpressionUUID->"2c776e3b-c044-44ac-b37b-e1289636c134"],
+Cell[12109, 386, 307, 8, 70, "Input",ExpressionUUID->"d77a3593-e081-45ca-847e-ba5667ce81e6"],
+Cell[12419, 396, 74, 0, 70, "Input",ExpressionUUID->"19d320ca-ae8b-4154-9c54-d03febab2195"],
+Cell[12496, 398, 355, 10, 70, "Input",ExpressionUUID->"05147c01-1f11-4336-b459-e4aa0a5b6d88"],
+Cell[12854, 410, 200, 5, 70, "Input",ExpressionUUID->"f12d344a-4f72-4d17-8350-b32d1c2976cb"],
+Cell[13057, 417, 303, 8, 70, "Input",ExpressionUUID->"0942f0e8-74ee-41b1-be42-ccd4ebcc133a"],
+Cell[13363, 427, 115, 0, 70, "Section",ExpressionUUID->"58291a68-fb62-45bd-a6c1-e68cfade407f"],
+Cell[13481, 429, 826, 24, 70, "Input",ExpressionUUID->"d0b28fb3-b800-4312-b70e-71cf011ab12e"],
+Cell[14310, 455, 74, 0, 70, "Input",ExpressionUUID->"9962a6c5-16bf-4091-8d91-09c283b59cc4"],
+Cell[14387, 457, 427, 12, 70, "Input",ExpressionUUID->"823dffb8-cc15-4e98-b824-ed1c1ee092cc"],
+Cell[14817, 471, 172, 4, 70, "Input",ExpressionUUID->"8d064101-4a99-4427-afa1-7cbefa7bff14"],
+Cell[14992, 477, 200, 5, 70, "Input",ExpressionUUID->"203ca8d3-d668-431e-8849-2e3e69936b43"],
+Cell[15195, 484, 115, 0, 70, "Section",ExpressionUUID->"59d9281e-114b-4617-9a50-6f8f3f142879"],
+Cell[15313, 486, 318, 9, 70, "Input",ExpressionUUID->"b6fb9598-466c-40de-b757-0a05f166f0c5"],
+Cell[15634, 497, 74, 0, 70, "Input",ExpressionUUID->"81965da0-9a5e-44a4-91fb-e24dea581b48"],
+Cell[15711, 499, 319, 10, 70, "Input",ExpressionUUID->"2f7ad5ad-8b76-4e54-961b-1bf5e5e74129"],
+Cell[16033, 511, 127, 2, 70, "Input",ExpressionUUID->"f30035a8-340f-4bfc-a3b2-31d04aa2eeb4"],
+Cell[16163, 515, 241, 7, 70, "Input",ExpressionUUID->"7fff38ee-1323-48ed-bb0b-1f85dddf473f"],
+Cell[16407, 524, 116, 0, 70, "Section",ExpressionUUID->"84ed0331-0b04-423f-8c09-4a064539043e"],
+Cell[16526, 526, 518, 16, 70, "Input",ExpressionUUID->"b2e3a0f5-013b-4aba-82be-5d1adf1a4829"],
+Cell[17047, 544, 74, 0, 70, "Input",ExpressionUUID->"710240e1-4ece-4299-abf3-76f8f8623c8a"],
+Cell[17124, 546, 358, 11, 70, "Input",ExpressionUUID->"17b1a93c-201b-485d-a68e-9a1e68a2247a"],
+Cell[17485, 559, 266, 8, 70, "Input",ExpressionUUID->"e4bb99a5-1967-4122-917c-633c72250daa"],
+Cell[17754, 569, 122, 0, 70, "Section",ExpressionUUID->"d0ec5935-292d-4773-8416-4a0b63f61f8f"],
+Cell[17879, 571, 344, 8, 70, "Input",ExpressionUUID->"73e08056-3671-439b-8c15-9caf09bf2f79"],
+Cell[18226, 581, 74, 0, 70, "Input",ExpressionUUID->"5d8ff21b-3f22-4eff-9161-7b502b24f855"],
+Cell[18303, 583, 272, 8, 70, "Input",ExpressionUUID->"b7123ec9-e60e-4479-b266-d44c28de2b78"],
+Cell[18578, 593, 440, 12, 70, "Input",ExpressionUUID->"b7861eba-e82e-42f4-9c87-df4a5ce4d340"],
+Cell[19021, 607, 250, 6, 70, "Input",ExpressionUUID->"316ab702-36c0-41a6-998a-00ec9a9cb46b"],
+Cell[19274, 615, 120, 0, 70, "Section",ExpressionUUID->"f2ae44fd-3899-4b7c-9940-904120b96db0"],
+Cell[19397, 617, 340, 8, 70, "Input",ExpressionUUID->"5752046b-8a24-4997-bd2f-687898ba1a58"],
+Cell[19740, 627, 74, 0, 70, "Input",ExpressionUUID->"e342e410-7ef3-4e7b-ba58-3154b5a7426c"],
+Cell[19817, 629, 203, 5, 70, "Input",ExpressionUUID->"3d90e0f1-ce31-44bf-a1e7-6c9e49ceb1d8"],
+Cell[20023, 636, 178, 4, 70, "Input",ExpressionUUID->"15a8fa4e-341b-409d-8b30-7ef9df67f00c"],
+Cell[20204, 642, 208, 5, 70, "Input",ExpressionUUID->"113d1b81-d430-4d87-b766-505b8c41bcd6"],
+Cell[20415, 649, 675, 20, 70, "Input",ExpressionUUID->"71277304-21d7-48d4-854b-ac5dde212b38"],
+Cell[21093, 671, 426, 13, 70, "Input",ExpressionUUID->"45f9d834-83a5-4ee0-95e0-d89d9509b73b"],
+Cell[21522, 686, 274, 8, 70, "Input",ExpressionUUID->"bebcd5d5-49f1-446f-9962-898a795e4fbf"],
+Cell[21799, 696, 250, 6, 70, "Input",ExpressionUUID->"81a4ddff-e817-483d-a408-3e0e5ab7a355"],
+Cell[22052, 704, 133, 0, 70, "Section",ExpressionUUID->"63a5f67d-48e2-424e-9c95-92c144c6411d"],
+Cell[22188, 706, 704, 18, 70, "Input",ExpressionUUID->"db7d3fce-19ff-4b6a-ad0a-5151396b0b78"],
+Cell[22895, 726, 282, 7, 70, "Input",ExpressionUUID->"386bffbc-1090-4451-bb23-1f8d5833c585"],
+Cell[23180, 735, 250, 7, 70, "Input",ExpressionUUID->"1b98b3a5-c0d7-4638-a539-6b880c0dc703"],
+Cell[23433, 744, 116, 0, 70, "Section",ExpressionUUID->"bcb3279f-67bb-421d-8347-3d7078643810"],
+Cell[23552, 746, 251, 6, 70, "Input",ExpressionUUID->"018e6e1b-f1e2-49db-8df9-c40a3086b7ca"],
+Cell[23806, 754, 201, 5, 70, "Input",ExpressionUUID->"fb88f318-b2ff-4908-84f8-f1eca3905622"],
+Cell[24010, 761, 162, 3, 70, "Input",ExpressionUUID->"afad047b-f242-4d22-9787-bcaab6ead7e7"],
+Cell[24175, 766, 257, 6, 70, "Input",ExpressionUUID->"c8161965-a2fa-40ae-b5ff-759807176cbd"],
+Cell[24435, 774, 224, 5, 70, "Input",ExpressionUUID->"6a170afc-ef29-43a2-a0d6-644bd977f5a6"],
+Cell[24662, 781, 258, 6, 70, "Input",ExpressionUUID->"f52f4eee-5d62-471e-80b8-2218b446bf33"],
+Cell[24923, 789, 405, 12, 70, "Input",ExpressionUUID->"ad975c36-8d5d-4ec2-a98b-a4381e6fe7de"],
+Cell[25331, 803, 105, 0, 70, "Section",ExpressionUUID->"b6e08937-8565-4126-95e4-ddfc16a3c628"],
+Cell[25439, 805, 322, 8, 70, "Input",ExpressionUUID->"ec8e0e68-9216-4320-9607-0be9ef5cc8d2"],
+Cell[25764, 815, 547, 16, 70, "Input",ExpressionUUID->"ad3575c2-e54e-4c38-8776-37e873c6b863"],
+Cell[26314, 833, 229, 6, 70, "Input",ExpressionUUID->"d9661d9c-d9c0-4dce-9764-04df3c2ce9fa"],
+Cell[26546, 841, 458, 14, 70, "Input",ExpressionUUID->"40948f74-7fab-4e38-896b-9285b3fc1a48"],
+Cell[27007, 857, 266, 8, 70, "Input",ExpressionUUID->"256eb23a-117a-4f39-877f-2409e83b4cfd"],
+Cell[27276, 867, 132, 0, 70, "Section",ExpressionUUID->"952a9e02-26c4-4e79-ab70-46f83f079417"],
+Cell[27411, 869, 597, 18, 70, "Input",ExpressionUUID->"d3973f4f-8795-4c82-bc83-060bdd8f73fb"],
+Cell[28011, 889, 255, 7, 70, "Input",ExpressionUUID->"2f513f17-0dde-41aa-8c06-898eb19db314"],
+Cell[28269, 898, 256, 7, 70, "Input",ExpressionUUID->"592521a5-ca92-45df-a352-c9c0d81cb862"],
+Cell[28528, 907, 124, 0, 70, "Section",ExpressionUUID->"bc02a6b3-690a-4f64-8711-7eefff7acf02"],
+Cell[28655, 909, 390, 10, 70, "Input",ExpressionUUID->"b1ae49bb-397d-4b62-b70f-d57ff030bf1c"],
+Cell[29048, 921, 200, 4, 70, "Input",ExpressionUUID->"abd340bb-a1ae-4ad2-8cc5-c09e5c06c106"],
+Cell[29251, 927, 524, 13, 70, "Input",ExpressionUUID->"fe63d186-0fad-4ce8-965e-58bedbfd135d"],
+Cell[29778, 942, 680, 17, 70, "Input",ExpressionUUID->"b989f83d-523a-414c-a420-953df77e037f"],
+Cell[30461, 961, 86, 0, 70, "Input",ExpressionUUID->"f4481f16-60ca-49bf-827a-dafcd88287ad"]
+}
+]
+*)
+
+(* End of internal cache information *)

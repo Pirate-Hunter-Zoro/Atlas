@@ -3,6 +3,233 @@
 (*** Wolfram Notebook File ***)
 (* http://www.wolfram.com/nb *)
 
+(* CreatedBy='WolframEngine 15.0' *)
+
+(*CacheID: 234*)
+(* Internal cache information:
+NotebookFileLineBreakTest
+NotebookFileLineBreakTest
+NotebookDataPosition[       160,          7]
+NotebookDataLength[      8211,        226]
+NotebookOptionsPosition[      5874,        191]
+NotebookOutlinePosition[      6216,        206]
+CellTagsIndexPosition[      6173,        203]
+WindowFrame->Normal*)
+
 (* Beginning of Notebook Content *)
-Notebook[{Cell["Advanced Lesson 12 - Exercises: Pure Functions\nMikey Ferguson\nMATH 7013 - Advanced Mathematical Modeling", "Title"], Cell["1: Applying pure functions to values", "Section"], Cell[BoxData[RowBox[{RowBox[{"Clear", "[", RowBox[{"x", ",", "f", ",", "data", ",", "newData"}], "]"}], ";", "\[IndentingNewLine]", RowBox[{RowBox[{"(", RowBox[{SuperscriptBox["#1", "2"], "&"}], ")"}], "[", "3", "]"}]}]], "Input"], Cell[BoxData[RowBox[{RowBox[{"(", RowBox[{RowBox[{"Sin", "[", "#1", "]"}], "&"}], ")"}], "[", FractionBox["\[Pi]", "2"], "]"}]], "Input"], Cell[BoxData[RowBox[{RowBox[{"(", RowBox[{RowBox[{"{", RowBox[{"#1", ",", RowBox[{"Sin", "[", "#1", "]"}]}], "}"}], "&"}], ")"}], "[", FractionBox["\[Pi]", "2"], "]"}]], "Input"], Cell[BoxData[RowBox[{RowBox[{"(", RowBox[{RowBox[{"{", RowBox[{"#1", ",", RowBox[{"Sin", "[", "#2", "]"}]}], "}"}], "&"}], ")"}], "[", RowBox[{"1", ",", FractionBox["\[Pi]", "2"]}], "]"}]], "Input"], Cell[BoxData[RowBox[{RowBox[{"(", RowBox[{RowBox[{"#1", "\[GreaterEqual]", "10"}], "&"}], ")"}], "[", "12", "]"}]], "Input"], Cell[BoxData[RowBox[{RowBox[{"(", RowBox[{RowBox[{"#1", "\[GreaterEqual]", "10"}], "&"}], ")"}], "[", "8", "]"}]], "Input"], Cell[BoxData[RowBox[{RowBox[{"(", RowBox[{RowBox[{"#1", "\[GreaterEqual]", "#2"}], "&"}], ")"}], "[", RowBox[{"12", ",", "8"}], "]"}]], "Input"], Cell[BoxData[RowBox[{RowBox[{"(", RowBox[{RowBox[{"#1", "\[GreaterEqual]", "#2"}], "&"}], ")"}], "[", RowBox[{"8", ",", "12"}], "]"}]], "Input"], Cell["A pure function is a function with no name. The ampersand marks where the\nbody ends, and the slots #1, #2 and so on stand for the arguments; a bare #\nis shorthand for #1.\nThe results are 9; 1; {Pi/2, 1}; {1, 1}; True; False; True; False.\nThe fourth is worth a second look: two arguments were supplied, the first\nslot took 1 and the second took Pi/2, and the body used them in the order\nwritten rather than the order given. Slots are addressed by number, not\nconsumed in sequence.\nThe ampersand binds very loosely, which is why the bodies above are\nparenthesised. Without the parentheses, #^2 & [3] would parse as the pure\nfunction applied to nothing useful.", "Text"], Cell["2: Selecting the points at most 20", "Section"], Cell[BoxData[RowBox[{RowBox[{"data", "=", RowBox[{"{", RowBox[{"4", ",", "65", ",", "12", ",", "4", ",", "8", ",", "21", ",", "4"}], "}"}]}], ";", "\[IndentingNewLine]", RowBox[{"Select", "[", RowBox[{"data", ",", RowBox[{RowBox[{"#1", "\[LessEqual]", "20"}], "&"}]}], "]"}]}]], "Input"], Cell["Select takes a list and a predicate - a function returning True or False -\nand keeps the elements for which the predicate is True, in their original\norder. The result is {4, 12, 4, 8, 4}. Duplicates are kept; Select filters,\nit does not deduplicate.", "Text"], Cell["3: Selecting the points between 5 and 20 inclusive", "Section"], Cell[BoxData[RowBox[{"Select", "[", RowBox[{"data", ",", RowBox[{RowBox[{"5", "\[LessEqual]", "#1", "\[LessEqual]", "20"}], "&"}]}], "]"}]], "Input"], Cell["The result is {12, 8}. Chained inequalities work directly in a pure function\nbody, and are clearer than writing an explicit conjunction of two tests.", "Text"], Cell["4: Mapping to ordered pairs", "Section"], Cell[BoxData[RowBox[{RowBox[{"Clear", "[", "f", "]"}], ";", "\[IndentingNewLine]", RowBox[{RowBox[{"(", RowBox[{RowBox[{"{", RowBox[{"#1", ",", RowBox[{"f", "[", "#1", "]"}]}], "}"}], "&"}], ")"}], "/@", "data"}]}]], "Input"], Cell["Map applies the function to each element and returns the list of results, so\nthe output is a list of seven pairs: {4, f[4]}, {65, f[65]}, and so on. f is\nundefined, so the second component of each pair stays symbolic - which is\nthe honest result, and exactly the shape ListPlot would want once f is\ngiven a definition.", "Text"], Cell["5: Selecting points whose first coordinate squared is at most the second", "Section"], Cell[BoxData[RowBox[{RowBox[{"newData", "=", RowBox[{"{", RowBox[{RowBox[{"{", RowBox[{"1", ",", "4"}], "}"}], ",", RowBox[{"{", RowBox[{"3", ",", "2"}], "}"}], ",", RowBox[{"{", RowBox[{"2", ",", "2"}], "}"}], ",", RowBox[{"{", RowBox[{"5", ",", "1"}], "}"}], ",", RowBox[{"{", RowBox[{"2", ",", "5"}], "}"}]}], "}"}]}], ";", "\[IndentingNewLine]", RowBox[{"Select", "[", RowBox[{"newData", ",", RowBox[{RowBox[{SuperscriptBox[RowBox[{"#1", "\[LeftDoubleBracket]", "1", "\[RightDoubleBracket]"}], "2"], "\[LessEqual]", RowBox[{"#1", "\[LeftDoubleBracket]", "2", "\[RightDoubleBracket]"}]}], "&"}]}], "]"}]}]], "Input"], Cell["Here each element of the list is itself a pair, so the slot stands for a\nwhole pair and Part is used inside the pure function to reach its\ncomponents. Checking the five pairs in turn: 1 squared is 1 and 1 <= 4, so\n{1, 4} is kept; 9 > 2, so {3, 2} is dropped; 4 > 2, so {2, 2} is dropped;\n25 > 1, so {5, 1} is dropped; 4 <= 5, so {2, 5} is kept. The result is\n{{1, 4}, {2, 5}}.", "Text"], Cell["6: Derivatives as pure functions", "Section"], Cell[BoxData[RowBox[{RowBox[{"Clear", "[", RowBox[{"f", ",", "x"}], "]"}], ";", "\[IndentingNewLine]", RowBox[{SuperscriptBox["f", "\[Prime]", MultilineFunction -> None], "[", "x", "]"}]}]], "Input"], Cell[BoxData[SuperscriptBox["f", "\[Prime]", MultilineFunction -> None]], "Input"], Cell[BoxData[RowBox[{SuperscriptBox["Sin", "\[Prime]", MultilineFunction -> None], "[", "x", "]"}]], "Input"], Cell[BoxData[SuperscriptBox["Sin", "\[Prime]", MultilineFunction -> None]], "Input"], Cell["Evaluating one line at a time. f'[x] returns f'[x] itself, printed as\nDerivative[1][f][x] in full form - Mathematica knows nothing about f, so it\nkeeps the derivative symbolic.\nf' returns the operator alone, Derivative[1][f]: the derivative of f as a\nfunction, not evaluated at any point.\nSin'[x] returns Cos[x], because the derivative of the built-in sine is\nknown.\nSin' returns Cos[#1] &. That is the point of putting this exercise in the\npure-function lesson. Differentiation in Mathematica is an operator that\nmaps a function to a function, and when the result has no built-in name it\ncomes back as an anonymous function - a pure function, produced by the\nsystem rather than typed by the user. Cos[#1] & and Cos are the same\nfunction; only one of them has a name.", "Text"]}, WindowSize -> {1100, 850}, StyleDefinitions -> "Default.nb"]
+Notebook[{
+Cell["\<\
+Advanced Lesson 12 - Exercises: Pure Functions
+Mikey Ferguson
+MATH 7013 - Advanced Mathematical Modeling\
+\>", "Title",ExpressionUUID->"567ec1b8-a2ec-4a7b-85a7-e6c257b65c2e"],
+
+Cell["1: Applying pure functions to values", "Section",ExpressionUUID->"563a4f51-c2cf-4ac2-8fdd-acfad8b83f30"],
+
+Cell[BoxData[{
+ RowBox[{
+  RowBox[{"Clear", "[", 
+   RowBox[{"x", ",", "f", ",", "data", ",", "newData"}], "]"}], ";"}], "\[IndentingNewLine]", 
+ RowBox[{
+  RowBox[{"(", 
+   RowBox[{
+    SuperscriptBox["#1", "2"], "&"}], ")"}], "[", "3", "]"}]}], "Input",Expres\
+sionUUID->"48d306c2-4ba6-4665-ab7b-7735f2440429"],
+
+Cell[BoxData[
+ RowBox[{
+  RowBox[{"(", 
+   RowBox[{
+    RowBox[{"Sin", "[", "#1", "]"}], "&"}], ")"}], "[", 
+  FractionBox["\[Pi]", "2"], "]"}]], "Input",ExpressionUUID->"656fbfad-eb75-\
+4084-b27f-85f3bf8b2127"],
+
+Cell[BoxData[
+ RowBox[{
+  RowBox[{"(", 
+   RowBox[{
+    RowBox[{"{", 
+     RowBox[{"#1", ",", 
+      RowBox[{"Sin", "[", "#1", "]"}]}], "}"}], "&"}], ")"}], "[", 
+  FractionBox["\[Pi]", "2"], "]"}]], "Input",ExpressionUUID->"0fffd94b-d5a3-\
+4215-b0b5-eac2e6c1c533"],
+
+Cell[BoxData[
+ RowBox[{
+  RowBox[{"(", 
+   RowBox[{
+    RowBox[{"{", 
+     RowBox[{"#1", ",", 
+      RowBox[{"Sin", "[", "#2", "]"}]}], "}"}], "&"}], ")"}], "[", 
+  RowBox[{"1", ",", 
+   FractionBox["\[Pi]", "2"]}], "]"}]], "Input",ExpressionUUID->"974d7a3a-\
+0723-4631-a893-b71b9febd0a1"],
+
+Cell[BoxData[
+ RowBox[{
+  RowBox[{"(", 
+   RowBox[{
+    RowBox[{"#1", "\[GreaterEqual]", "10"}], "&"}], ")"}], "[", "12", 
+  "]"}]], "Input",ExpressionUUID->"67ca2f71-55a9-421c-9f75-b26c2901c9bb"],
+
+Cell[BoxData[
+ RowBox[{
+  RowBox[{"(", 
+   RowBox[{
+    RowBox[{"#1", "\[GreaterEqual]", "10"}], "&"}], ")"}], "[", "8", 
+  "]"}]], "Input",ExpressionUUID->"7831352d-3163-4fc4-9129-10b0b3d42b3d"],
+
+Cell[BoxData[
+ RowBox[{
+  RowBox[{"(", 
+   RowBox[{
+    RowBox[{"#1", "\[GreaterEqual]", "#2"}], "&"}], ")"}], "[", 
+  RowBox[{"12", ",", "8"}], "]"}]], "Input",ExpressionUUID->"162c35f2-578c-\
+40d4-b475-2213e18726f2"],
+
+Cell[BoxData[
+ RowBox[{
+  RowBox[{"(", 
+   RowBox[{
+    RowBox[{"#1", "\[GreaterEqual]", "#2"}], "&"}], ")"}], "[", 
+  RowBox[{"8", ",", "12"}], "]"}]], "Input",ExpressionUUID->"334e254d-137b-\
+4218-8f53-1ae359a98dc7"],
+
+Cell["2: Selecting the points at most 20", "Section",ExpressionUUID->"790c6969-c1e8-4ae2-b756-c9a5c719a171"],
+
+Cell[BoxData[{
+ RowBox[{
+  RowBox[{"data", "=", 
+   RowBox[{"{", 
+    RowBox[{
+    "4", ",", "65", ",", "12", ",", "4", ",", "8", ",", "21", ",", "4"}], 
+    "}"}]}], ";"}], "\[IndentingNewLine]", 
+ RowBox[{"Select", "[", 
+  RowBox[{"data", ",", 
+   RowBox[{
+    RowBox[{"#1", "\[LessEqual]", "20"}], "&"}]}], "]"}]}], "Input",Expression\
+UUID->"ee82c060-afa5-434e-a7fc-9882d73bcb48"],
+
+Cell["3: Selecting the points between 5 and 20 inclusive", "Section",ExpressionUUID->"60b18105-77bf-48f7-815b-608bdfe6707b"],
+
+Cell[BoxData[
+ RowBox[{"Select", "[", 
+  RowBox[{"data", ",", 
+   RowBox[{
+    RowBox[{"5", "\[LessEqual]", "#1", "\[LessEqual]", "20"}], "&"}]}], 
+  "]"}]], "Input",ExpressionUUID->"219b3a04-3d81-44bb-a48b-10d1ad1c8511"],
+
+Cell["4: Mapping to ordered pairs", "Section",ExpressionUUID->"e5fe5915-fec6-418f-a3c7-1e2af0f9bb38"],
+
+Cell[BoxData[{
+ RowBox[{
+  RowBox[{"Clear", "[", "f", "]"}], ";"}], "\[IndentingNewLine]", 
+ RowBox[{
+  RowBox[{"(", 
+   RowBox[{
+    RowBox[{"{", 
+     RowBox[{"#1", ",", 
+      RowBox[{"f", "[", "#1", "]"}]}], "}"}], "&"}], ")"}], "/@", 
+  "data"}]}], "Input",ExpressionUUID->"2522bcbb-9d34-427c-9dcf-f6845581e2ce"],
+
+Cell["\<\
+5: Selecting points whose first coordinate squared is at most the second\
+\>", "Section",ExpressionUUID->"aaead16d-cf0a-45d2-b27d-3eb07624ec8a"],
+
+Cell[BoxData[{
+ RowBox[{
+  RowBox[{"newData", "=", 
+   RowBox[{"{", 
+    RowBox[{
+     RowBox[{"{", 
+      RowBox[{"1", ",", "4"}], "}"}], ",", 
+     RowBox[{"{", 
+      RowBox[{"3", ",", "2"}], "}"}], ",", 
+     RowBox[{"{", 
+      RowBox[{"2", ",", "2"}], "}"}], ",", 
+     RowBox[{"{", 
+      RowBox[{"5", ",", "1"}], "}"}], ",", 
+     RowBox[{"{", 
+      RowBox[{"2", ",", "5"}], "}"}]}], "}"}]}], ";"}], "\[IndentingNewLine]", 
+ RowBox[{"Select", "[", 
+  RowBox[{"newData", ",", 
+   RowBox[{
+    RowBox[{
+     SuperscriptBox[
+      RowBox[{"#1", "\[LeftDoubleBracket]", "1", "\[RightDoubleBracket]"}], 
+      "2"], "\[LessEqual]", 
+     RowBox[{"#1", "\[LeftDoubleBracket]", "2", "\[RightDoubleBracket]"}]}], 
+    "&"}]}], "]"}]}], "Input",ExpressionUUID->"8495bb3b-24ee-4927-8b0c-\
+a2dc11c1e394"],
+
+Cell["6: Derivatives as pure functions", "Section",ExpressionUUID->"801e6855-b442-488b-83a7-f6626c16c542"],
+
+Cell[BoxData[{
+ RowBox[{
+  RowBox[{"Clear", "[", 
+   RowBox[{"f", ",", "x"}], "]"}], ";"}], "\[IndentingNewLine]", 
+ RowBox[{
+  SuperscriptBox["f", "\[Prime]",
+   MultilineFunction->None], "[", "x", "]"}]}], "Input",ExpressionUUID->\
+"7cc1a015-c6ed-4195-bb59-dca15acdb649"],
+
+Cell[BoxData[
+ SuperscriptBox["f", "\[Prime]",
+  MultilineFunction->None]], "Input",ExpressionUUID->"7641d3db-525e-4235-b550-\
+93f2777dd921"],
+
+Cell[BoxData[
+ RowBox[{
+  SuperscriptBox["Sin", "\[Prime]",
+   MultilineFunction->None], "[", "x", "]"}]], "Input",ExpressionUUID->\
+"d5bd4915-061d-4549-96ca-5a0fafba54a9"],
+
+Cell[BoxData[
+ SuperscriptBox["Sin", "\[Prime]",
+  MultilineFunction->None]], "Input",ExpressionUUID->"7aea3ce6-800d-46d9-a331-\
+86e8f1a1f4af"]
+},
+WindowSize->{1100, 850},
+FrontEndVersion->"15.0 for Mac OS X ARM (64-bit) (May 26, 2026)",
+StyleDefinitions->"Default.nb",
+ExpressionUUID->"53e1aa67-6381-4be0-aec1-2e1147a12ddd"
+]
 (* End of Notebook Content *)
+
+(* Internal cache information *)
+(*CellTagsOutline
+CellTagsIndex->{}
+*)
+(*CellTagsIndex
+CellTagsIndex->{}
+*)
+(*NotebookFileOutline
+Notebook[{
+Cell[560, 20, 184, 4, 70, "Title",ExpressionUUID->"567ec1b8-a2ec-4a7b-85a7-e6c257b65c2e"],
+Cell[747, 26, 110, 0, 70, "Section",ExpressionUUID->"563a4f51-c2cf-4ac2-8fdd-acfad8b83f30"],
+Cell[860, 28, 312, 8, 70, "Input",ExpressionUUID->"48d306c2-4ba6-4665-ab7b-7735f2440429"],
+Cell[1175, 38, 211, 6, 70, "Input",ExpressionUUID->"656fbfad-eb75-4084-b27f-85f3bf8b2127"],
+Cell[1389, 46, 265, 8, 70, "Input",ExpressionUUID->"0fffd94b-d5a3-4215-b0b5-eac2e6c1c533"],
+Cell[1657, 56, 289, 9, 70, "Input",ExpressionUUID->"974d7a3a-0723-4631-a893-b71b9febd0a1"],
+Cell[1949, 67, 196, 5, 70, "Input",ExpressionUUID->"67ca2f71-55a9-421c-9f75-b26c2901c9bb"],
+Cell[2148, 74, 195, 5, 70, "Input",ExpressionUUID->"7831352d-3163-4fc4-9129-10b0b3d42b3d"],
+Cell[2346, 81, 218, 6, 70, "Input",ExpressionUUID->"162c35f2-578c-40d4-b475-2213e18726f2"],
+Cell[2567, 89, 218, 6, 70, "Input",ExpressionUUID->"334e254d-137b-4218-8f53-1ae359a98dc7"],
+Cell[2788, 97, 108, 0, 70, "Section",ExpressionUUID->"790c6969-c1e8-4ae2-b756-c9a5c719a171"],
+Cell[2899, 99, 384, 11, 70, "Input",ExpressionUUID->"ee82c060-afa5-434e-a7fc-9882d73bcb48"],
+Cell[3286, 112, 124, 0, 70, "Section",ExpressionUUID->"60b18105-77bf-48f7-815b-608bdfe6707b"],
+Cell[3413, 114, 221, 5, 70, "Input",ExpressionUUID->"219b3a04-3d81-44bb-a48b-10d1ad1c8511"],
+Cell[3637, 121, 101, 0, 70, "Section",ExpressionUUID->"e5fe5915-fec6-418f-a3c7-1e2af0f9bb38"],
+Cell[3741, 123, 317, 9, 70, "Input",ExpressionUUID->"2522bcbb-9d34-427c-9dcf-f6845581e2ce"],
+Cell[4061, 134, 154, 2, 70, "Section",ExpressionUUID->"aaead16d-cf0a-45d2-b27d-3eb07624ec8a"],
+Cell[4218, 138, 802, 24, 70, "Input",ExpressionUUID->"8495bb3b-24ee-4927-8b0c-a2dc11c1e394"],
+Cell[5023, 164, 106, 0, 70, "Section",ExpressionUUID->"801e6855-b442-488b-83a7-f6626c16c542"],
+Cell[5132, 166, 273, 7, 70, "Input",ExpressionUUID->"7cc1a015-c6ed-4195-bb59-dca15acdb649"],
+Cell[5408, 175, 141, 3, 70, "Input",ExpressionUUID->"7641d3db-525e-4235-b550-93f2777dd921"],
+Cell[5552, 180, 172, 4, 70, "Input",ExpressionUUID->"d5bd4915-061d-4549-96ca-5a0fafba54a9"],
+Cell[5727, 186, 143, 3, 70, "Input",ExpressionUUID->"7aea3ce6-800d-46d9-a331-86e8f1a1f4af"]
+}
+]
+*)
+
+(* End of internal cache information *)
