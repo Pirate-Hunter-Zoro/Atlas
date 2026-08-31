@@ -21,3 +21,4 @@
 {"id": "t0010", "rev": 3, "kind": "ink", "answers": "0019", "t": 1788211866.431813, "iso": "2026-08-31 16:31:06", "from": "student", "page": 4, "strokes": 171, "png": "/answers/t0010-r3.png", "ink": "/answers/t0010-r3.json", "read": false}
 {"id": "t0010", "rev": 4, "kind": "ink", "answers": "0019", "t": 1788212123.935958, "iso": "2026-08-31 16:35:23", "from": "student", "page": 4, "strokes": 232, "png": "/answers/t0010-r4.png", "ink": "/answers/t0010-r4.json", "read": false}
 {"id": "t0010", "rev": 5, "kind": "ink", "answers": "0019", "t": 1788212251.228461, "iso": "2026-08-31 16:37:31", "from": "student", "page": 4, "strokes": 238, "png": "/answers/t0010-r5.png", "ink": "/answers/t0010-r5.json", "read": false}
+{"id": "t0011", "rev": 1, "kind": "text", "answers": "0019", "t": 1788212337.252906, "iso": "2026-08-31 16:38:57", "from": "student", "text": "Let\u2019s do that last problem", "signal": null, "read": false}
