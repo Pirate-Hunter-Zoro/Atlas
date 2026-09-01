@@ -14,7 +14,10 @@
 \RequirePackage{amssymb}
 \RequirePackage{amsthm}
 \RequirePackage{mathtools}
-\RequirePackage{stmaryrd}
+% stmaryrd is not in the TeX Live "basic" scheme, which is what the Mac has.
+% Nothing in this course currently uses its symbols, so load it when it is
+% there and carry on without it when it is not, rather than failing the build.
+\IfFileExists{stmaryrd.sty}{\RequirePackage{stmaryrd}}{}
 
 % --- layout ----------------------------------------------------------------
 \RequirePackage[margin=1in]{geometry}
@@ -24,7 +27,10 @@
 \RequirePackage[dvipsnames]{xcolor}
 \RequirePackage{graphicx}
 \RequirePackage{tikz}
-\RequirePackage{tikz-cd}
+% tikz-cd is likewise absent from the "basic" scheme. Guard it so that chapters
+% with no commutative diagrams still build on such a machine; a chapter that
+% actually uses a tikzcd environment will fail loudly there, which is correct.
+\IfFileExists{tikz-cd.sty}{\RequirePackage{tikz-cd}}{}
 \usetikzlibrary{arrows.meta,positioning,calc}
 \RequirePackage[colorlinks=true,linkcolor=BrickRed,citecolor=BrickRed,urlcolor=NavyBlue]{hyperref}
 
