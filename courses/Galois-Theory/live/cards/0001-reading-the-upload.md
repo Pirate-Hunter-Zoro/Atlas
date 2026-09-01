@@ -1,7 +1,9 @@
 ---
-kind: question
-title: Reading the upload
+kind: note
+title: Ignore this — the image arrived fine
 ---
-I tried to open the image you just sent, but the upload service timed out — nothing came through on my end.
+This card said the upload had failed and asked you to send it again or type it out. Both wrong. Your page came through and I have read it: it is the Chapter 3 exercise list.
 
-Could you re-upload the file, or type out what you'd like me to look at? Once I can see it, I'll work through it with you.
+Nothing needs re-sending, and you are never asked to type mathematics on this board.
+
+What I read off it is on card 0002.
