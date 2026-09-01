@@ -24,3 +24,4 @@
 {"id": "t0006", "rev": 7, "kind": "ink", "answers": "0014", "t": 1788280271.558835, "iso": "2026-09-01 11:31:11", "from": "student", "page": 1, "strokes": 74, "png": "/answers/t0006-r7.png", "ink": "/answers/t0006-r7.json", "read": false}
 {"id": "t0006", "rev": 8, "kind": "ink", "answers": "0014", "t": 1788280387.4617732, "iso": "2026-09-01 11:33:07", "from": "student", "page": 1, "strokes": 112, "png": "/answers/t0006-r8.png", "ink": "/answers/t0006-r8.json", "read": false}
 {"id": "t0007", "rev": 4, "kind": "text", "answers": "0014", "t": 1788280460.875621, "iso": "2026-09-01 11:34:20", "from": "student", "text": "Let\u2019s do it!", "signal": null, "read": false}
+{"id": "t0008", "rev": 1, "kind": "ink", "answers": "0025", "t": 1788281451.4234922, "iso": "2026-09-01 11:50:51", "from": "student", "page": 2, "strokes": 257, "png": "/answers/t0008-r1.png", "ink": "/answers/t0008-r1.json", "read": false}
