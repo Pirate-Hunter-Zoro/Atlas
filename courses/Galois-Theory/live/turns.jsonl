@@ -17,3 +17,4 @@
 {"id": "t0006", "rev": 3, "kind": "ink", "answers": "0014", "t": 1788276611.958636, "iso": "2026-09-01 10:30:11", "from": "student", "page": 1, "strokes": 65, "png": "/answers/t0006-r3.png", "ink": "/answers/t0006-r3.json", "read": false}
 {"id": "t0006", "rev": 4, "kind": "ink", "answers": "0014", "t": 1788277039.725814, "iso": "2026-09-01 10:37:19", "from": "student", "page": 1, "strokes": 160, "png": "/answers/t0006-r4.png", "ink": "/answers/t0006-r4.json", "read": false}
 {"id": "t0007", "rev": 1, "kind": "text", "answers": "0014", "t": 1788277251.9057121, "iso": "2026-09-01 10:40:51", "from": "student", "text": "How is (1 2)(1 3 2) equal to (1 3)? That makes no sense", "signal": null, "read": false}
+{"id": "t0006", "rev": 5, "kind": "ink", "answers": "0014", "t": 1788277806.68476, "iso": "2026-09-01 10:50:06", "from": "student", "page": 1, "strokes": 156, "png": "/answers/t0006-r5.png", "ink": "/answers/t0006-r5.json", "read": false}
