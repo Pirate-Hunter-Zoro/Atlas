@@ -13,3 +13,4 @@
 {"id": "t0002", "rev": 10, "kind": "ink", "answers": "0001", "t": 1787960516.9953647, "iso": "2026-08-28 18:41:56", "from": "student", "page": 1, "strokes": 439, "png": "/answers/t0002-r10.png", "ink": "/answers/t0002-r10.json", "read": false}
 {"id": "t0005", "rev": 1, "kind": "ink", "answers": "0012", "t": 1787960838.9575934, "iso": "2026-08-28 18:47:18", "from": "student", "page": 1, "strokes": 147, "png": "/answers/t0005-r1.png", "ink": "/answers/t0005-r1.json", "read": false}
 {"id": "t0006", "rev": 1, "kind": "ink", "answers": "0014", "t": 1788221095.915114, "iso": "2026-08-31 19:04:55", "from": "student", "page": 1, "strokes": 88, "png": "/answers/t0006-r1.png", "ink": "/answers/t0006-r1.json", "read": false}
+{"id": "t0006", "rev": 2, "kind": "ink", "answers": "0014", "t": 1788221660.324022, "iso": "2026-08-31 19:14:20", "from": "student", "page": 1, "strokes": 72, "png": "/answers/t0006-r2.png", "ink": "/answers/t0006-r2.json", "read": false}
