@@ -44,3 +44,6 @@
 {"id": "t0014", "rev": 3, "kind": "text", "answers": "0040", "t": 1788289980.729234, "iso": "2026-09-01 14:13:00", "from": "student", "text": "This is awful. Not a clever proof. Just death by example. Fuck this question", "signal": null, "read": false}
 {"id": "t0014", "rev": 4, "kind": "text", "answers": "0040", "t": 1788290125.58321, "iso": "2026-09-01 14:15:25", "from": "student", "text": "Move on. No more 1.7", "signal": null, "read": false}
 {"id": "t0014", "rev": 5, "kind": "text", "answers": "0040", "t": 1788290274.5548851, "iso": "2026-09-01 14:17:54", "from": "student", "text": "Ready", "signal": null, "read": false}
+{"id": "t0015", "rev": 1, "kind": "text", "answers": "0040", "t": 1788290349.094656, "iso": "2026-09-01 14:19:09", "from": "student", "text": "", "signal": "skip", "read": false}
+{"id": "t0016", "rev": 1, "kind": "text", "answers": "0040", "t": 1788290360.8007839, "iso": "2026-09-01 14:19:20", "from": "student", "text": "", "signal": "skip", "read": false}
+{"id": "t0017", "rev": 1, "kind": "text", "answers": "0047", "t": 1788290366.4210439, "iso": "2026-09-01 14:19:26", "from": "student", "text": "", "signal": "skip", "read": false}

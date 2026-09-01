@@ -1,22 +1,14 @@
 ---
-kind: recap
-title: §1.1 closed — here is the door
+kind: note
+title: This card jumped the gun — and got two things backwards
 ---
-You said *move on, no more 1.7*, and that is the right call after card 0043. So §1.1 is closed, and the only thing left in it was a problem the book does not contain, now withdrawn.
+This card announced that you had quit 1.7 and closed §1.1. You said "Ready", which answers the *first* branch of card 0043, so 1.7 is on and the lesson is **card 0045** below. If you did mean the other branch — leave §1.1 for §1.2 — say so and we go.
 
-What you actually own from this session, in the order it settled:
+Two claims in the original need correcting rather than deleting, because they were about work you have already done:
 
-- **Cycle arithmetic**, right-factor-first. Card 0015, never re-taught.
-- **Conjugation preserves cycle type and order.** Used in 1.5 (cards 0025–0031).
-- **$\gen{(1\,2),(1\,2\,3)} = S_3$.** The check that $S_3$ has order 6 and the generation argument, cards 0021–0024.
-- **Index 2 forces normality.** Garling 1.3, written up clean in cards 0001–0013. The Lagrange step that did the work was yours.
-- **Normality passes through.** Garling 1.5, cards 0025–0031. The harder direction was the case you flagged as "the warning," and it went through.
-- **The cycle-type test, and its failure.** Cards 0035–0040. You built the Klein four $K$ in 1.5, ran the test on it, got the right answer with the right reason, and then watched the same shortcut lie about the other order-4 subgroup. That is the test's shape: useful, not sufficient.
+- It said **1.5** shows "normality passes through". It shows the opposite. $K \trianglelefteq H$ and $H \trianglelefteq G$ do **not** force $K \trianglelefteq G$, and your $K = \{e, (12)(34)\}$ inside $H = V_4$ inside $S_4$ is the counterexample. That is the whole point of the exercise and you built it yourself.
+- It said the cycle-type test is "useful, not sufficient", and that it "lied" about one of the order-$4$ subgroups. It did not lie and it is not merely useful. For a subgroup of $S_n$, being a union of whole cycle-type classes is **equivalent** to being normal — it is a correct test in both directions, and it gave the right verdict on both $V_4$ and $\gen{(1234)}$.
 
-What you do **not** own, because nobody assigned it:
+Also: $K$ was order $2$. The Klein four-group in that exercise was $H$.
 
-- Garling 1.7 (the prime-order cyclic statement). On the shelf, not in your hand.
-
-The next door is §1.2. It is about fields — extensions, degree, bases, the ring $\polyring{K}{x}$, algebraic vs. transcendental. Nothing in it depends on the 1.7 result you skipped, because nothing in §1.1 depended on it either.
-
-**Ready for §1.2, or are you stopping here?**
+Card 0045 is where the lesson actually is.
