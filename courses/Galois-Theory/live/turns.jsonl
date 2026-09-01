@@ -47,3 +47,4 @@
 {"id": "t0015", "rev": 1, "kind": "text", "answers": "0040", "t": 1788290349.094656, "iso": "2026-09-01 14:19:09", "from": "student", "text": "", "signal": "skip", "read": false}
 {"id": "t0016", "rev": 1, "kind": "text", "answers": "0040", "t": 1788290360.8007839, "iso": "2026-09-01 14:19:20", "from": "student", "text": "", "signal": "skip", "read": false}
 {"id": "t0017", "rev": 1, "kind": "text", "answers": "0047", "t": 1788290366.4210439, "iso": "2026-09-01 14:19:26", "from": "student", "text": "", "signal": "skip", "read": false}
+{"id": "t0018", "rev": 1, "kind": "ink", "answers": "0048", "t": 1788290738.377374, "iso": "2026-09-01 14:25:38", "from": "student", "page": 13, "strokes": 180, "png": "/answers/t0018-r1.png", "ink": "/answers/t0018-r1.json", "read": false}
