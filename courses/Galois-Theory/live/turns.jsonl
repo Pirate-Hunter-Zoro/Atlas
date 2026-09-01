@@ -21,3 +21,4 @@
 {"id": "t0007", "rev": 2, "kind": "text", "answers": "0014", "t": 1788278051.114084, "iso": "2026-09-01 10:54:11", "from": "student", "text": "I don\u2019t know how to create that subgroup. Is it just g, hg, h^2g?", "signal": null, "read": false}
 {"id": "t0007", "rev": 3, "kind": "text", "answers": "0014", "t": 1788278113.7114859, "iso": "2026-09-01 10:55:13", "from": "student", "text": "Is that just g multiplied by h over and over?", "signal": null, "read": false}
 {"id": "t0006", "rev": 6, "kind": "ink", "answers": "0014", "t": 1788278731.707963, "iso": "2026-09-01 11:05:31", "from": "student", "page": 1, "strokes": 179, "png": "/answers/t0006-r6.png", "ink": "/answers/t0006-r6.json", "read": false}
+{"id": "t0006", "rev": 7, "kind": "ink", "answers": "0014", "t": 1788280271.558835, "iso": "2026-09-01 11:31:11", "from": "student", "page": 1, "strokes": 74, "png": "/answers/t0006-r7.png", "ink": "/answers/t0006-r7.json", "read": false}
