@@ -27,3 +27,4 @@
 {"id": "t0008", "rev": 1, "kind": "ink", "answers": "0025", "t": 1788281451.4234922, "iso": "2026-09-01 11:50:51", "from": "student", "page": 2, "strokes": 257, "png": "/answers/t0008-r1.png", "ink": "/answers/t0008-r1.json", "read": false}
 {"id": "t0009", "rev": 1, "kind": "text", "answers": "0025", "t": 1788281681.006679, "iso": "2026-09-01 11:54:41", "from": "student", "text": "I don\u2019t know any of those", "signal": null, "read": false}
 {"id": "t0008", "rev": 2, "kind": "ink", "answers": "0025", "t": 1788281928.497442, "iso": "2026-09-01 11:58:48", "from": "student", "page": 2, "strokes": 30, "png": "/answers/t0008-r2.png", "ink": "/answers/t0008-r2.json", "read": false}
+{"id": "t0008", "rev": 3, "kind": "ink", "answers": "0025", "t": 1788282823.7700028, "iso": "2026-09-01 12:13:43", "from": "student", "page": 2, "strokes": 300, "png": "/answers/t0008-r3.png", "ink": "/answers/t0008-r3.json", "read": false}
