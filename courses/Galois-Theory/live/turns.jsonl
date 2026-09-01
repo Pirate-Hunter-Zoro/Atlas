@@ -35,3 +35,4 @@
 {"id": "t0009", "rev": 5, "kind": "text", "answers": "0025", "t": 1788283631.3008919, "iso": "2026-09-01 12:27:11", "from": "student", "text": "Just move on to the next exercise fuckass", "signal": null, "read": false}
 {"id": "t0009", "rev": 6, "kind": "text", "answers": "0025", "t": 1788283681.913053, "iso": "2026-09-01 12:28:01", "from": "student", "text": "Next exercise please", "signal": null, "read": false}
 {"id": "t0010", "rev": 1, "kind": "ink", "answers": "0035", "t": 1788288880.526453, "iso": "2026-09-01 13:54:40", "from": "student", "page": 8, "strokes": 74, "png": "/answers/t0010-r1.png", "ink": "/answers/t0010-r1.json", "read": false}
+{"id": "t0010", "rev": 2, "kind": "ink", "answers": "0035", "t": 1788289413.003959, "iso": "2026-09-01 14:03:33", "from": "student", "page": 9, "strokes": 199, "png": "/answers/t0010-r2.png", "ink": "/answers/t0010-r2.json", "read": false}
