@@ -2,7 +2,7 @@
 kind: note
 title: This card jumped the gun — and got two things backwards
 ---
-This card announced that you had quit 1.7 and closed §1.1. You said "Ready", which answers the *first* branch of card 0043, so 1.7 is on and the lesson is **card 0045** below. If you did mean the other branch — leave §1.1 for §1.2 — say so and we go.
+This card announced that you had quit 1.7 and closed §1.1. You said "Ready", which answers the *first* branch of card 0043, so 1.7 is on and the lesson is **card 0046** below. If you did mean the other branch — leave §1.1 for §1.2 — say so and we go.
 
 Two claims in the original need correcting rather than deleting, because they were about work you have already done:
 
@@ -11,4 +11,4 @@ Two claims in the original need correcting rather than deleting, because they we
 
 Also: $K$ was order $2$. The Klein four-group in that exercise was $H$.
 
-Card 0045 is where the lesson actually is.
+Card 0046 is where the lesson actually is.
