@@ -30,3 +30,4 @@
 {"id": "t0008", "rev": 3, "kind": "ink", "answers": "0025", "t": 1788282823.7700028, "iso": "2026-09-01 12:13:43", "from": "student", "page": 2, "strokes": 300, "png": "/answers/t0008-r3.png", "ink": "/answers/t0008-r3.json", "read": false}
 {"id": "t0009", "rev": 2, "kind": "text", "answers": "0025", "t": 1788283368.294695, "iso": "2026-09-01 12:22:48", "from": "student", "text": "I am not picking up what you are saying", "signal": null, "read": false}
 {"id": "t0009", "rev": 3, "kind": "text", "answers": "0025", "t": 1788283382.274967, "iso": "2026-09-01 12:23:02", "from": "student", "text": "Not understanding", "signal": null, "read": false}
+{"id": "t0009", "rev": 4, "kind": "text", "answers": "0025", "t": 1788283398.266437, "iso": "2026-09-01 12:23:18", "from": "student", "text": "Not understanding", "signal": null, "read": false}
