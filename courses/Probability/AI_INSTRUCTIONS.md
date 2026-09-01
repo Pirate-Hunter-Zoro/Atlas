@@ -596,8 +596,8 @@ board finish
 ```
 
 That raises a prompt **on the board**, where the user actually is, asking whether to save and push.
-Tapping **Push** runs the repository's `scripts/save-and-push.sh`: `git add -A`, a commit, and a
-push. The result appears on the board either way — a green line naming the branch, or a red one
+Tapping **Push** runs the repository's `scripts/save-and-push.sh`: `git add -A`, a commit, an
+integrating merge of the remote, and a push. The result appears on the board either way — a green line naming the branch, or a red one
 carrying the actual error. A failed push must never be silent.
 
 `board push "message"` does the same from the terminal, without asking, when that is what is
