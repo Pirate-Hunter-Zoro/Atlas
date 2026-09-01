@@ -1,11 +1,13 @@
 ---
 kind: question
-title: Restate the test, in one sentence
+title: Run the same test on the K you built in 1.5
 ---
-So $V_4$ is normal in $S_4$ — the test came through — and the question I left you was the criterion itself, in one sentence, with both "cycle type" and "every" appearing.
+Now use the test on something you have already settled the hard way.
 
-A clean phrasing would be:
+In Exercise 1.5 you took $K = \{e, (12)(34)\}$ and showed it is **not** normal in $S_4$ — by conjugating with $g = (1234)$ and landing on $(14)(23)$, which is not in $K$. Four lines of permutation multiplication.
 
-*"$N \le S_n$ is normal in $S_n$ iff, for every cycle type appearing in $N$, every element of $S_n$ having that cycle type already lies in $N$."*
+Get the same conclusion from the cycle-type test instead, and say it in **one sentence**:
 
-Try writing that down in your own words — one sentence, both words present. I'll wait.
+> Which cycle type appears in $K$, how many elements of $S_4$ have that cycle type, and how many of them are in $K$?
+
+One sentence, and the conclusion at the end of it.
