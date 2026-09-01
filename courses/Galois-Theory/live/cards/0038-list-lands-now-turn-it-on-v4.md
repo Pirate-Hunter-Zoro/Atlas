@@ -17,4 +17,4 @@ That kills $\gen{(1234)}$. It holds the $4$-cycles $(1234)$ and $(1432)$, and $S
 
 $V_4$ goes the other way, and you can see it from the list above: the only cycle type in it is $2{+}2$, and $(12)(34), (13)(24), (14)(23)$ are *all* the $2{+}2$ elements of $S_4$. Nothing to walk out to. Normal.
 
-That closes 1.7. The live question is on card 0040.
+That closes the $S_4$ question. (I called it "Exercise 1.7" here and that label was wrong — see card 0042.) The live question is on card 0040.
