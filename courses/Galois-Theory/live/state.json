@@ -2,5 +2,6 @@
   "course": "Galois Theory",
   "chapter": "Ch 03 \u2014 Rings",
   "session": "lecture",
-  "opened": "2026-09-02 10:31"
+  "opened": "2026-09-02 10:31",
+  "hw": "chapters/ch03-rings/homework/ch03-homework.tex"
 }
