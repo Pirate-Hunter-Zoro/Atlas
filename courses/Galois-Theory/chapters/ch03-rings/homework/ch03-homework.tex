@@ -19,15 +19,140 @@
 \maketitle
 
 % ---------------------------------------------------------------------------
-% Assistant: replace this block with one problem/solution pair per assigned
-% exercise, in the order assigned, following the pattern below exactly.
+% Assigned set (2026-09-02), in the order given by the student's own sheet:
+%   3.1, 3.2, 3.3, 3.8, 3.10, 3.11, 3.12, 3.14, 3.15, 3.17, 3.25, 3.26
+% Statements are transcribed as each problem is reached; solution regions
+% stay empty until the student's answer is agreed correct.
 % ---------------------------------------------------------------------------
 
 \begin{problem}{03.1}
-  \todo{statement not yet transcribed}
+  Suppose that $S$ is a set and $R$ is a ring. Let $R^{S}$ denote the set of
+  all mappings from $S$ to $R$. Show that $R^{S}$ is a ring, under the
+  operations defined by
+  \[
+    (f+g)(s) = f(s) + g(s), \qquad (fg)(s) = f(s)g(s).
+  \]
+  Show that if $S$ has more than one element then there exist non-zero
+  elements $f$ and $g$ in $R^{S}$ for which $fg = 0$.
 \end{problem}
 % ===== SOLUTION 03.1 =====
-% TODO(mferguson): your work goes here.
+% Transcribed from the student's slate, 2026-09-02 (attempts 1-6, turns
+% t0002-t0004; pages filed in ../handwritten/20260902-3.1-attempt*.png).
+% Typeset exactly as written, on their instruction ("What I wrote is good
+% enough"). Faithful transcription: same steps, same order, nothing added.
+% Not covered by what they wrote, and flagged to them on card 0009:
+%   - only distributivity is verified; the remaining ring axioms are asserted;
+%   - no line asserting f and g are non-zero (needs 1_R =/= 0_R);
+%   - no case split showing (fg)(s) = 0_R at every s.
+\begin{solution}
+  Write $f_{1}, f_{0} \in R^{S}$ for the functions
+  \[
+    f_{1}(s) = 1_{R}, \qquad f_{0}(s) = 0_{R},
+  \]
+  and clearly, by the specified function properties, we have all ring
+  properties.
+
+  Prove $(f+g)h = fh + gh$. Let $s \in S$. Show
+  $\bigl((f+g)h\bigr)(s) = (fh)(s) + (gh)(s)$:
+  \[
+    \bigl((f+g)h\bigr)(s)
+      = \bigl(f(s) + g(s)\bigr)h(s)
+      = f(s)h(s) + g(s)h(s)
+      = (fh)(s) + (gh)(s).
+  \]
+
+  If $\abs{S} > 1$, there exist $s_{1}, s_{2} \in S$ where $s_{1} \neq s_{2}$.
+  Let
+  \[
+    f(s) = \begin{cases} 1_{R} & s = s_{1} \\ 0_{R} & \text{else} \end{cases}
+    \qquad
+    g(s) = \begin{cases} 1_{R} & s = s_{2} \\ 0_{R} & \text{else} \end{cases}
+  \]
+  Then $f(s)g(s) = 0$, so they are zero divisors.
+\end{solution}
 % ===== END SOLUTION 03.1 =====
+
+\begin{problem}{03.2}
+  Suppose that $R$ is an integral domain, with field of fractions $F$. Show
+  that the field of fractions of $R[x_{1},\ldots,x_{n}]$ can be identified
+  naturally with $F(x_{1},\ldots,x_{n})$.
+\end{problem}
+% ===== SOLUTION 03.2 =====
+% TODO(mferguson): your work goes here.
+% ===== END SOLUTION 03.2 =====
+
+\begin{problem}{03.3}
+  \todo{statement not yet transcribed}
+\end{problem}
+% ===== SOLUTION 03.3 =====
+% TODO(mferguson): your work goes here.
+% ===== END SOLUTION 03.3 =====
+
+\begin{problem}{03.8}
+  Suppose that $K$ is a field. If $f = a_{0} + a_{1}x + \cdots + a_{n}x^{n} \in
+  K[x]$ and $k \in K$, let $(\Phi(f))(k) = a_{0} + a_{1}k + \cdots + a_{n}k^{n}$.
+  Show that $\Phi$ is a ring homomorphism from $K[x]$ to $K^{K}$. Show that if
+  $K$ is finite then $\Phi$ is an epimorphism, but not a monomorphism. What
+  happens if $K$ is infinite?
+\end{problem}
+% ===== SOLUTION 03.8 =====
+% TODO(mferguson): your work goes here.
+% ===== END SOLUTION 03.8 =====
+
+\begin{problem}{03.10}
+  \todo{statement not yet transcribed}
+\end{problem}
+% ===== SOLUTION 03.10 =====
+% TODO(mferguson): your work goes here.
+% ===== END SOLUTION 03.10 =====
+
+\begin{problem}{03.11}
+  \todo{statement not yet transcribed}
+\end{problem}
+% ===== SOLUTION 03.11 =====
+% TODO(mferguson): your work goes here.
+% ===== END SOLUTION 03.11 =====
+
+\begin{problem}{03.12}
+  \todo{statement not yet transcribed}
+\end{problem}
+% ===== SOLUTION 03.12 =====
+% TODO(mferguson): your work goes here.
+% ===== END SOLUTION 03.12 =====
+
+\begin{problem}{03.14}
+  \todo{statement not yet transcribed}
+\end{problem}
+% ===== SOLUTION 03.14 =====
+% TODO(mferguson): your work goes here.
+% ===== END SOLUTION 03.14 =====
+
+\begin{problem}{03.15}
+  \todo{statement not yet transcribed}
+\end{problem}
+% ===== SOLUTION 03.15 =====
+% TODO(mferguson): your work goes here.
+% ===== END SOLUTION 03.15 =====
+
+\begin{problem}{03.17}
+  \todo{statement not yet transcribed}
+\end{problem}
+% ===== SOLUTION 03.17 =====
+% TODO(mferguson): your work goes here.
+% ===== END SOLUTION 03.17 =====
+
+\begin{problem}{03.25}
+  \todo{statement not yet transcribed}
+\end{problem}
+% ===== SOLUTION 03.25 =====
+% TODO(mferguson): your work goes here.
+% ===== END SOLUTION 03.25 =====
+
+\begin{problem}{03.26}
+  \todo{statement not yet transcribed}
+\end{problem}
+% ===== SOLUTION 03.26 =====
+% TODO(mferguson): your work goes here.
+% ===== END SOLUTION 03.26 =====
 
 \end{document}
