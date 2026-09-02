@@ -22,3 +22,4 @@
 {"id": "t0006", "rev": 12, "kind": "ink", "answers": "0009", "t": 1788381237.2707472, "iso": "2026-09-02 15:33:57", "from": "student", "page": 23, "strokes": 433, "png": "/answers/t0006-r12.png", "ink": "/answers/t0006-r12.json", "read": false}
 {"id": "t0006", "rev": 13, "kind": "ink", "answers": "0009", "t": 1788381568.2479868, "iso": "2026-09-02 15:39:28", "from": "student", "page": 25, "strokes": 107, "png": "/answers/t0006-r13.png", "ink": "/answers/t0006-r13.json", "read": false}
 {"id": "t0006", "rev": 14, "kind": "ink", "answers": "0009", "t": 1788381646.9520867, "iso": "2026-09-02 15:40:46", "from": "student", "page": 26, "strokes": 106, "png": "/answers/t0006-r14.png", "ink": "/answers/t0006-r14.json", "read": false}
+{"id": "t0007", "rev": 3, "kind": "text", "answers": "0009", "t": 1788381804.3351622, "iso": "2026-09-02 15:43:24", "from": "student", "text": "2", "signal": null, "read": false}
