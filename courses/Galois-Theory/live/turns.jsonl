@@ -26,3 +26,4 @@
 {"id": "t0008", "rev": 1, "kind": "ink", "answers": "0026", "t": 1788382125.6970253, "iso": "2026-09-02 15:48:45", "from": "student", "page": 28, "strokes": 203, "png": "/answers/t0008-r1.png", "ink": "/answers/t0008-r1.json", "read": false}
 {"id": "t0008", "rev": 2, "kind": "ink", "answers": "0026", "t": 1788382521.8588593, "iso": "2026-09-02 15:55:21", "from": "student", "page": 30, "strokes": 94, "png": "/answers/t0008-r2.png", "ink": "/answers/t0008-r2.json", "read": false}
 {"id": "t0009", "rev": 1, "kind": "ink", "answers": "0028", "t": 1788383387.0433667, "iso": "2026-09-02 16:09:47", "from": "student", "page": 31, "strokes": 171, "png": "/answers/t0009-r1.png", "ink": "/answers/t0009-r1.json", "read": false}
+{"id": "t0009", "rev": 2, "kind": "ink", "answers": "0028", "t": 1788383876.1102457, "iso": "2026-09-02 16:17:56", "from": "student", "page": 32, "strokes": 173, "png": "/answers/t0009-r2.png", "ink": "/answers/t0009-r2.json", "read": false}
