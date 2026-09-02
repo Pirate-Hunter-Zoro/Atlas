@@ -20,3 +20,4 @@
 {"id": "t0007", "rev": 2, "kind": "text", "answers": "0009", "t": 1788374470.7027912, "iso": "2026-09-02 13:41:10", "from": "student", "text": "I don\u2019t understand", "signal": null, "read": false}
 {"id": "t0006", "rev": 11, "kind": "ink", "answers": "0009", "t": 1788374686.3363204, "iso": "2026-09-02 13:44:46", "from": "student", "page": 22, "strokes": 360, "png": "/answers/t0006-r11.png", "ink": "/answers/t0006-r11.json", "read": false}
 {"id": "t0006", "rev": 12, "kind": "ink", "answers": "0009", "t": 1788381237.2707472, "iso": "2026-09-02 15:33:57", "from": "student", "page": 23, "strokes": 433, "png": "/answers/t0006-r12.png", "ink": "/answers/t0006-r12.json", "read": false}
+{"id": "t0006", "rev": 13, "kind": "ink", "answers": "0009", "t": 1788381568.2479868, "iso": "2026-09-02 15:39:28", "from": "student", "page": 25, "strokes": 107, "png": "/answers/t0006-r13.png", "ink": "/answers/t0006-r13.json", "read": false}
