@@ -7,3 +7,4 @@
 {"id": "t0004", "rev": 1, "kind": "ink", "answers": "0007", "t": 1788366023.5317647, "iso": "2026-09-02 11:20:23", "from": "student", "page": 9, "strokes": 279, "png": "/answers/t0004-r1.png", "ink": "/answers/t0004-r1.json", "read": false}
 {"id": "t0005", "rev": 1, "kind": "text", "answers": "0008", "t": 1788366146.0152895, "iso": "2026-09-02 11:22:26", "from": "student", "text": "What I wrote is good enough. Type it up and we\u2019re moving on.", "signal": null, "read": false}
 {"id": "t0006", "rev": 1, "kind": "ink", "answers": "0009", "t": 1788366879.492821, "iso": "2026-09-02 11:34:39", "from": "student", "page": 11, "strokes": 203, "png": "/answers/t0006-r1.png", "ink": "/answers/t0006-r1.json", "read": false}
+{"id": "t0006", "rev": 2, "kind": "ink", "answers": "0009", "t": 1788367939.3289926, "iso": "2026-09-02 11:52:19", "from": "student", "page": 12, "strokes": 264, "png": "/answers/t0006-r2.png", "ink": "/answers/t0006-r2.json", "read": false}
