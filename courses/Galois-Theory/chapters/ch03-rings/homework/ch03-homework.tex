@@ -103,15 +103,29 @@
 %   - multiplicative half: turn t0011 rev 12, page filed at
 %     ../handwritten/20260902-3.8-attempt12-product-correct.png (card 0043);
 %   - not a monomorphism, for K = F_2: turn t0011 rev 3, page filed at
-%     ../handwritten/20260902-3.8-attempt3-kernel.png (card 0035).
+%     ../handwritten/20260902-3.8-attempt3-kernel.png (card 0035);
+%   - epimorphism for finite K: turn t0011 rev 19, page filed at
+%     ../handwritten/20260903-3.8-attempt19-epimorphism-correct.png (card 0050);
+%   - not a monomorphism, for general finite K: turn t0011 rev 20, page filed at
+%     ../handwritten/20260903-3.8-attempt20-kernel-general-correct.png (card
+%     0051). Their page exhibits f = prod_{k in K} delta_k and nothing else, so
+%     that is all that is set. Not supplied here, and flagged on card 0051:
+%       - no line showing f(c) = 0 for arbitrary c in K (some k =/= c kills it);
+%       - no line showing f =/= 0, which needs K[x] to have no zero divisors.
 % Two departures from the ink in the multiplicative half, both recorded rather
 % than silently repaired:
 %   - they wrote the product in K^K as "o" (composition); it is the pointwise
 %     product of 3.1, so it is set here as juxtaposition. Notation, not a step.
 %   - their page has no closing "as k was arbitrary" line, unlike the additive
 %     half. Not added. Still owed.
+% Left implicit in the epimorphism half and not supplied here:
+%   - no general definition of delta_c is on any of their pages; they built it
+%     by hand over F_3 and F_5 only. The general product form is still owed;
+%   - no line saying the sum is finite because K is;
+%   - the discarded terms are h(k)*0; the collapse is shown, not justified;
+%   - no closing "as k_1 was arbitrary" line.
 % Still owed by the student, regions left out of the write-up until then:
-%   the "as k was arbitrary" line for the product; epimorphism for finite K;
+%   the "as k was arbitrary" line for the product; the general delta_c;
 %   non-injectivity for general finite K; the infinite case.
 \begin{solution}
   Let $f = \sum_{i} a_{i}x^{i}$ and $g = \sum_{i} b_{i}x^{i}$ in $K[x]$.
@@ -144,6 +158,23 @@
       = \bigl(\Phi(f)\bigr)(k)\bigl(\Phi(g)\bigr)(k).
   \]
 
+  \emph{$\Phi$ is an epimorphism when $K$ is finite.} Let $K$ be a finite field
+  and let $h \in K^{K}$ be arbitrary. We find $f \in K[x]$ with
+  $\bigl(\Phi(f)\bigr)(k) = h(k)$. Take
+  \[
+    f(x) = \sum_{k} h(k)\,\delta_{k}(x).
+  \]
+  Let $k_{1} \in K$. Then
+  \[
+    \bigl(\Phi(f)\bigr)(k_{1})
+      = \Bigl(\Phi\Bigl(\textstyle\sum_{k} h(k)\delta_{k}(x)\Bigr)\Bigr)(k_{1})
+      = \sum_{k} h(k)\,\delta_{k}(k_{1})
+      = h(k_{1})\,\delta_{k_{1}}(k_{1})
+      = h(k_{1}) \cdot 1
+      = h(k_{1}).
+  \]
+  So $\Phi$ is an epimorphism.
+
   \emph{$\Phi$ is not a monomorphism.} Take $K = \Fq{2}$, $f = x^{2} + x$ and
   $g = 0$. Then $f \neq g$ in $\Fq{2}[x]$, but
   \[
@@ -152,6 +183,12 @@
     \bigl(\Phi(f)\bigr)(1) = 1 + 1 = 0 = \bigl(\Phi(g)\bigr)(1),
   \]
   so $\Phi(f) = \Phi(g)$ in $\Fq{2}^{\Fq{2}}$ and $\Ker \Phi \neq \{0\}$.
+
+  For an arbitrary finite field $K$, take
+  \[
+    f(x) = \prod_{k \in K} \delta_{k}(x),
+  \]
+  a non-zero element of $\Ker \Phi$.
 \end{solution}
 % ===== END SOLUTION 03.8 =====
 
