@@ -50,3 +50,4 @@
 {"id": "t0011", "rev": 19, "kind": "ink", "answers": "0032", "t": 1788452637.839036, "iso": "2026-09-03 11:23:57", "from": "student", "page": 100, "strokes": 251, "png": "/answers/t0011-r19.png", "ink": "/answers/t0011-r19.json", "read": false}
 {"id": "t0011", "rev": 20, "kind": "ink", "answers": "0032", "t": 1788453547.5004458, "iso": "2026-09-03 11:39:07", "from": "student", "page": 101, "strokes": 87, "png": "/answers/t0011-r20.png", "ink": "/answers/t0011-r20.json", "read": false}
 {"id": "t0011", "rev": 21, "kind": "ink", "answers": "0032", "t": 1788454616.447932, "iso": "2026-09-03 11:56:56", "from": "student", "page": 102, "strokes": 370, "png": "/answers/t0011-r21.png", "ink": "/answers/t0011-r21.json", "read": false}
+{"id": "t0019", "rev": 1, "kind": "text", "answers": "0032", "t": 1788454911.482931, "iso": "2026-09-03 12:01:51", "from": "student", "text": "Degree 5 - all the (x - k) factors", "signal": null, "read": false}
