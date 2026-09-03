@@ -7,6 +7,17 @@
 
 **LeetCode** solutions in Go, built so that adding a new problem is a drop-in operation. Reusable data structures, math helpers, and a shared test runner are factored out of the problem code, and every problem lives in its own package with its implementation and test side by side.
 
+## Where the work is planned
+
+**[`PROGRESS.md`](./PROGRESS.md) is the plan.** It holds the full list of solved problems, the
+one currently in flight, the small cleanups worth picking off, and a note on which areas this
+collection is thin in — which is where the next problem gets chosen from. There is no issue
+tracker and no companion repository; that file is the whole of it.
+
+Read it before deciding what to work on, and update it when a problem lands. The workflow that
+keeps it honest — finish, document, choose the next problem, ship — is section 12 of
+[`AI_INSTRUCTIONS.md`](./AI_INSTRUCTIONS.md).
+
 ## Layout
 
 ```

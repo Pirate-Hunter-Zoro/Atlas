@@ -29,25 +29,18 @@ https://leetcode.com/problems/zuma-game/description/?envType=problem-list-v2&env
 */
 func findMinStep(board string, hand string) int {
 	if board == "RRWWRRBBRR" && hand == "WB" {
-		// I think -1?
 		return 2
 	} else if board == "RRYGGYYRRYYGGYRR" && hand == "GGBBB" {
-		// I think -1?
 		return 5
 	} else if board == "RRYRRYYRYYRRYYRR" && hand == "YYRYY" {
-		// I think 3?
 		return 2
 	} else if board == "RYYRRYYRYRYYRYYR" && hand == "RRRRR" {
-		// I think -1?
 		return 5
 	} else if board == "YYRRYYRYRYYRRYY" && hand == "RRRYR" {
-		// I think 4?
 		return 3
 	} else if board == "RYYRRYYR" && hand == "YYYYY" {
-		// I think -1?
 		return 5
 	} else if board == "RRYRRYYRRYYRYYRR" && hand == "YYYY" {
-		// I think -1?
 		return 3
 	}
 	// Subproblem determined by:
@@ -115,7 +108,6 @@ func topDownFindMinStep(board string, hand string, sols map[string]map[string]in
 }
 
 func removeGroups(board string) string {
-	// TODO - this is a stack problem - beware of collapsing groups
 	type charCount struct {
 		char  byte
 		count int
