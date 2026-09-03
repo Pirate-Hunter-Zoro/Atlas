@@ -24,4 +24,6 @@ One change, two files, `leetcode/findminstep/`:
 
 You will know it worked when `go test` on that package **fails** — and tells us exactly which of the seven the real algorithm gets wrong. A clean pass would mean the hack was never needed. Either result is information.
 
-Tap *ready to check* and I will run it.
+Tap *ready to check* when it is done.
+
+> **Correction, added after writing.** I said I would run the test. I tried, and this session's permission layer is refusing `go test` — the project allows `Bash(go test:*)` but not the spelling my shell produces, and I am not allowed to edit that file to fix it. So the VS Code **Testing** view is the fastest read on which of the seven fail. Grant the permission when the prompt next appears and I will take verification back off you.
