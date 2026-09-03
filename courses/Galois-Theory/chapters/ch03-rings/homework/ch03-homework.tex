@@ -96,7 +96,63 @@
   happens if $K$ is infinite?
 \end{problem}
 % ===== SOLUTION 03.8 =====
-% TODO(mferguson): your work goes here.
+% PARTIAL. Transcribed from the student's slate, 2026-09-02, as each piece was
+% agreed correct. Faithful transcription: same steps, same order, nothing added.
+%   - additive half of the homomorphism clause: turn t0011 rev 5, page filed at
+%     ../handwritten/20260902-3.8-attempt5-additive-correct.png (card 0037);
+%   - multiplicative half: turn t0011 rev 12, page filed at
+%     ../handwritten/20260902-3.8-attempt12-product-correct.png (card 0043);
+%   - not a monomorphism, for K = F_2: turn t0011 rev 3, page filed at
+%     ../handwritten/20260902-3.8-attempt3-kernel.png (card 0035).
+% Two departures from the ink in the multiplicative half, both recorded rather
+% than silently repaired:
+%   - they wrote the product in K^K as "o" (composition); it is the pointwise
+%     product of 3.1, so it is set here as juxtaposition. Notation, not a step.
+%   - their page has no closing "as k was arbitrary" line, unlike the additive
+%     half. Not added. Still owed.
+% Still owed by the student, regions left out of the write-up until then:
+%   the "as k was arbitrary" line for the product; epimorphism for finite K;
+%   non-injectivity for general finite K; the infinite case.
+\begin{solution}
+  Let $f = \sum_{i} a_{i}x^{i}$ and $g = \sum_{i} b_{i}x^{i}$ in $K[x]$.
+
+  \emph{Additive half.} Let $k \in K$. Then
+  \[
+    \bigl(\Phi(f+g)\bigr)(k)
+      = \Bigl(\Phi\bigl(\textstyle\sum_{i}(a_{i}+b_{i})x^{i}\bigr)\Bigr)(k)
+      = \sum_{i}(a_{i}+b_{i})k^{i}
+      = \sum_{i} a_{i}k^{i} + \sum_{i} b_{i}k^{i}
+  \]
+  \[
+      = \Bigl(\Phi\bigl(\textstyle\sum_{i} a_{i}x^{i}\bigr)\Bigr)(k)
+        + \Bigl(\Phi\bigl(\textstyle\sum_{i} b_{i}x^{i}\bigr)\Bigr)(k)
+      = \bigl(\Phi(f)\bigr)(k) + \bigl(\Phi(g)\bigr)(k).
+  \]
+  As $k \in K$ was arbitrary, $\Phi(f+g) = \Phi(f) + \Phi(g)$ in $K^{K}$.
+
+  \emph{Multiplicative half.} Let $k \in K$. Then
+  \[
+    \bigl(\Phi(fg)\bigr)(k)
+      = \Bigl(\Phi\Bigl(\textstyle\sum_{m}
+          \bigl(\sum_{i+j=m} a_{i}b_{j}\bigr)x^{m}\Bigr)\Bigr)(k)
+      = \sum_{m}\Bigl(\sum_{i+j=m} a_{i}b_{j}\Bigr)k^{m}
+  \]
+  \[
+      = \Bigl(\sum_{i} a_{i}k^{i}\Bigr)\Bigl(\sum_{j} b_{j}k^{j}\Bigr)
+      = \Bigl(\Phi\bigl(\textstyle\sum_{i} a_{i}x^{i}\bigr)\Bigr)(k)
+        \cdot \Bigl(\Phi\bigl(\textstyle\sum_{j} b_{j}x^{j}\bigr)\Bigr)(k)
+      = \bigl(\Phi(f)\bigr)(k)\bigl(\Phi(g)\bigr)(k).
+  \]
+
+  \emph{$\Phi$ is not a monomorphism.} Take $K = \Fq{2}$, $f = x^{2} + x$ and
+  $g = 0$. Then $f \neq g$ in $\Fq{2}[x]$, but
+  \[
+    \bigl(\Phi(f)\bigr)(0) = 0 = \bigl(\Phi(g)\bigr)(0),
+    \qquad
+    \bigl(\Phi(f)\bigr)(1) = 1 + 1 = 0 = \bigl(\Phi(g)\bigr)(1),
+  \]
+  so $\Phi(f) = \Phi(g)$ in $\Fq{2}^{\Fq{2}}$ and $\Ker \Phi \neq \{0\}$.
+\end{solution}
 % ===== END SOLUTION 03.8 =====
 
 \begin{problem}{03.10}
