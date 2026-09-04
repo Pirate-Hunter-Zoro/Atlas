@@ -28,11 +28,14 @@ Deriving the reformulation by hand, no code written yet. Two names in play:
   `A(12)=1 ⇒ E(12)=1`, `A(11)=1 ⇒ E(11)=1`, `A(6)=3 ⇒ E(6)=3−E(12)=2`. All correct
   (checked by hand: multiples of 6 in `[1..12]` are 6 and 12; increasing subsequences
   `{6},{12},{6,12}`; GCD exactly 6 for `{6}` and `{6,12}`). That answers card 0009 —
-  the fill order, `g` descending, is settled. **It has not yet been said back to them
-  as correct**, because they also wrote a question on the same page and that went first.
+  the fill order, `g` descending, is settled. Acknowledged in card 0011.
 - Their own question, bubbled at the foot of `t0004-r6`: *relies on `nums` being sorted…*
   Answered in card 0010: the identity is order-free, but their easy `A(g) = 2^k − 1`
   reading of `A(12)=1`, `A(6)=3` is exactly what sortedness bought.
+- Card 0010, on the shuffled `[12,6,3,2,1,4,5,7,8,9,10,11]`: `A(6)=2` from `[12]` and `[6]`,
+  `E(6)=2−E(12)=1` from `[6]`. Correct, first try, with the kept subsequences named. They have
+  now seen for themselves that `A(g)` depends on position and `E(g)`'s identity does not.
+  **The whole `E(g)` derivation is done. Do not go back to it.**
 
 **Wrong, and what it actually was:** early on they enumerated only four subsequences of `[2,4,6]`,
 found all four had GCD 2, and concluded the `A`/`E` distinction was empty. Partial enumeration,
@@ -42,15 +45,17 @@ once, taken immediately, closed.
 
 ## Next thing to teach
 
-Card 0010 is open: same twelve values shuffled to `[12,6,3,2,1,4,5,7,8,9,10,11]`, write `A(6)`
-and `E(6)`. Expected `A(6)=2` (`{12}` and `{6}`; `{6,12}` is gone because 12 comes first) and
-`E(6)=1`, with `A(6)=E(6)+E(12)=1+1` still holding. If that lands, say in the same breath that
-their 0009 answer was right — it is owed and unacknowledged.
+Card 0011 is open, and it is the first rung of `A(g)`: with the multiples of 2 in position order
+as `[6,2,8,4]`, count the increasing subsequences **ending at each position**, four numbers, then
+the sum. Expected `1, 1, 3, 2` and `A(2) = 7` — checked by hand: singletons 4, pairs `(6,8)`,
+`(2,8)`, `(2,4)`, no triple. If they give only the total, ask for the four separately; the
+per-position split *is* the DP and the total hides it.
 
-Then, one turn each: computing `A(g)` under `leetcode.MOD` — the increasing-subsequence count on
-`nums` filtered to multiples of `g`, where an O(n²) DP or a BIT gets chosen; then `Σ g·E(g)`.
-The shuffled array above is the setup for that DP: they have just seen that `A(g)` is a real
-count over positions, not a subset count. Only after those does Go get written.
+Once those four numbers exist, the recurrence is theirs to state — each position is `1` plus the
+sum over earlier, strictly smaller positions — and then the O(n²) DP versus a BIT is a genuine
+choice, so they make it. `leetcode.MOD` goes on at that point, not before. Then `Σ g·E(g)`.
+Only after those does Go get written; `totalbeauty.go:20` is still `return 0` and the two unused
+imports still break the build.
 
 ## This student
 
