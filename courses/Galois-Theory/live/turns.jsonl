@@ -79,3 +79,4 @@
 {"id": "t0027", "rev": 1, "kind": "text", "answers": "0070", "t": 1788821826.193273, "iso": "2026-09-07 17:57:06", "from": "student", "text": "I\u2019m stuck", "signal": null, "read": false}
 {"id": "t0027", "rev": 2, "kind": "text", "answers": "0070", "t": 1788822557.967109, "iso": "2026-09-07 18:09:17", "from": "student", "text": "All rational numbers\u2026", "signal": null, "read": false}
 {"id": "t0026", "rev": 9, "kind": "ink", "answers": "0070", "t": 1788824107.267597, "iso": "2026-09-07 18:35:07", "from": "student", "page": 124, "strokes": 33, "png": "/answers/t0026-r9.png", "ink": "/answers/t0026-r9.json", "read": false}
+{"id": "t0028", "rev": 1, "kind": "ink", "answers": "0081", "t": 1788824505.59429, "iso": "2026-09-07 18:41:45", "from": "student", "page": 126, "strokes": 33, "png": "/answers/t0028-r1.png", "ink": "/answers/t0028-r1.json", "read": false}
