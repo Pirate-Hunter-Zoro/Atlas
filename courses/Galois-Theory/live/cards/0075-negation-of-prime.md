@@ -26,9 +26,11 @@ domain*. Whether it is a field is a different question and not one 3.11 asks.)
 
 ---
 
-**Your move.** One line, no proof. Write out precisely:
+**Your move.** One line, no proof. The divisibility clause of "$a$ is prime"
+reads: *for all $b, c \in R$, if $a \mid bc$ then $a \mid b$ or $a \mid c$.*
 
-> $a$ is not prime $\iff$ there exist $b, c \in R$ such that \_\_\_\_.
+Write out precisely what it means for **that clause** to fail:
 
-Fill the blank with the three conditions on $b$ and $c$, slashes where they
-belong.
+> there exist $b, c \in R$ such that \_\_\_\_.
+
+Three conditions, slashes where they belong.
