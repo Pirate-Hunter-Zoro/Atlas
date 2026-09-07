@@ -1,4 +1,4 @@
-This is pdfTeX, Version 3.141592653-2.6-1.40.29 (TeX Live 2026) (preloaded format=pdflatex 2026.3.1)  3 SEP 2026 11:41
+This is pdfTeX, Version 3.141592653-2.6-1.40.29 (TeX Live 2026) (preloaded format=pdflatex 2026.3.1)  6 SEP 2026 16:38
 entering extended mode
  restricted \write18 enabled.
  file:line:error style messages enabled.
@@ -871,11 +871,11 @@ Package rerunfilecheck Info: File `ch03-homework.out' has not changed.
 (rerunfilecheck)             Checksum: D41D8CD98F00B204E9800998ECF8427E;0.
  ) 
 Here is how much of TeX's memory you used:
- 25061 strings out of 469006
- 472639 string characters out of 5454814
+ 25067 strings out of 469006
+ 472685 string characters out of 5454814
  916368 words of memory out of 5000000
  53320 multiletter control sequences out of 15000+600000
- 636730 words of font info for 90 fonts, out of 8000000 for 9000
+ 636949 words of font info for 93 fonts, out of 8000000 for 9000
  319 hyphenation exceptions out of 8191
  99i,12n,111p,1083b,488s stack positions out of 10000i,1000n,20000p,200000b,200000s
 </usr/local/texlive/2026basic/texmf-dist/fonts/type1/public/amsfonts/cm/cmbx1
@@ -894,7 +894,7 @@ t/fonts/type1/public/amsfonts/cm/cmsy8.pfb></usr/local/texlive/2026basic/texmf-
 dist/fonts/type1/public/amsfonts/cm/cmti10.pfb></usr/local/texlive/2026basic/te
 xmf-dist/fonts/type1/public/amsfonts/symbols/msbm10.pfb>
 Output written on /Users/mikeyferguson/Learning/Galois-Theory/chapters/ch03-rin
-gs/build/ch03-homework.pdf (2 pages, 158863 bytes).
+gs/build/ch03-homework.pdf (2 pages, 159282 bytes).
 PDF statistics:
  90 PDF objects out of 1000 (max. 8388607)
  57 compressed objects within 1 object stream
