@@ -197,14 +197,120 @@
   units in $\mathbb{Z}_{4}[x]$?
 \end{problem}
 % ===== SOLUTION 03.10 =====
-% TODO(mferguson): your work goes here.
+% PARTIAL. First question only (units in R[x] for R an integral domain),
+% transcribed from the student's slate, 2026-09-07, turn t0023 rev 4, page
+% filed at ../handwritten/20260907-3.10-attempt4-units-of-R-correct.png
+% (card 0064, agreed correct on card 0065). Faithful transcription: same
+% steps, same order, nothing added.
+% Omitted from the transcription, deliberately: rev 4 also carries the answer
+% to a hand-check on Z (the pairs a=b=1 and a=b=-1 solving ab=1), which was a
+% rung on the way to the answer and not a step of this argument.
+% Not supplied by their page, and flagged to them on card 0064:
+%   - the intermediate line deg(fg) = deg 1 = 0 with both degrees non-negative;
+%     their page goes from additivity straight to deg f = deg g = 0.
+% Second question (units in Z_4[x]): the constants, from turn t0023 rev 5
+% (card 0065), and the degree-one unit, from t0023 rev 6, page filed at
+% ../handwritten/20260907-3.10-attempt6-z4-unit-correct.png (card 0066, agreed
+% correct on card 0067). Their earlier claim that 1, 2, 3 are all units there
+% was wrong, was sent back on card 0061, and they retracted it themselves.
+% The closing description is from turn t0023 rev 7 (card 0067, agreed correct
+% on card 0068), transcribed in their own words. One reading was fixed in
+% conversation rather than in the text: "all other coefficients are zero
+% divisors" must permit 0, or the description fails to cover the constants
+% 1 and 3 themselves.
+% Not supplied by their pages, and not asked of them:
+%   - a proof of the description; card 0067 asked for the description only.
+%     (For the record: over Z_4 "zero divisor" and "nilpotent" coincide, and
+%     nilpotent is the condition that generalises.)
+\begin{solution}
+  The units in $R[x]$, for $R$ an integral domain, are
+  \[
+    \{\, a \in R \subseteq R[x] \;:\; a^{-1} \text{ exists} \,\},
+  \]
+  the existence of $a^{-1}$ being what is not guaranteed in an integral
+  domain.
+
+  They must be constants. For in an integral domain $R$, with $f, g \in R[x]$,
+  \[
+    \deg(fg) = \deg(f) + \deg(g),
+  \]
+  since no non-zero coefficients multiply to zero. So $\deg(f) = \deg(g) = 0$.
+
+  In $\mathbb{Z}_{4}[x]$ the units are $1$ and $3$, since $3 \cdot 3 = 9 \equiv
+  1$; and also, taking
+  \[
+    f(x) = 2x + 3, \qquad g(x) = 2x + 3,
+  \]
+  we have $fg = 4x^{2} + 12x + 9 = 1$.
+
+  So in $\mathbb{Z}_{4}[x]$ the units are those $f$ whose constant term is a
+  unit and all of whose other coefficients are zero divisors: constant term in
+  $\{1,3\}$, every other coefficient in $\{0,2\}$.
+\end{solution}
 % ===== END SOLUTION 03.10 =====
 
 \begin{problem}{03.11}
-  \todo{statement not yet transcribed}
+  Show that an element $a$ of an integral domain $R$ is prime if and only if
+  $R/(a)$ is an integral domain.
 \end{problem}
 % ===== SOLUTION 03.11 =====
-% TODO(mferguson): your work goes here.
+% PARTIAL. Forward direction only (a prime => R/(a) an integral domain),
+% transcribed from the student's slate, 2026-09-07, turn t0026 rev 3, page
+% filed at ../handwritten/20260907-3.11-attempt3-forward-correct.png
+% (cards 0071, 0072, agreed correct on card 0073). Faithful transcription:
+% same steps, same order, nothing added.
+% Recorded rather than silently repaired, across the revisions:
+%   - rev 1 carried the line "r_1 r_2 is nonzero due to R being an integral
+%     domain", which is true but not load-bearing (a class r + (a) is zero
+%     when a | r, not when r = 0); flagged on card 0071 and they removed it;
+%   - rev 2 justified a nmid 1 with "(a need not be prime to achieve this)",
+%     which is false; flagged on card 0072 and they replaced it with the
+%     correct hypothesis, "not a unit".
+% Not supplied by their page, and not required of them: commutativity of
+% R/(a), which is inherited from R.
+% Converse direction, divisibility clause only: transcribed from turn t0026
+% rev 8, page filed at
+% ../handwritten/20260907-3.11-attempt8-converse-divisibility-correct.png
+% (cards 0075-0077, agreed correct on card 0078).
+% Recorded rather than silently repaired, across those revisions:
+%   - revs 5-6 assumed "a nmid bc, a nmid b, a nmid c", which is not the
+%     negation of the divisibility clause; the same page then used a | bc.
+%     Flagged on cards 0075 and 0076; rev 7 fixed the assumption.
+%   - revs 5-7 closed with "and is not a field", which contradicts nothing
+%     that was assumed. Flagged on cards 0075 and 0077; rev 8 fixed it.
+%   - their page still carries the marker "=>" at the head of this direction,
+%     left over from the forward proof; the text below it states the converse,
+%     and it is set here as (<=).
+% Not supplied by their page, and asked of them on card 0078:
+%   - the closing line "contrary to assumption, so a is prime"; the
+%     contrapositive stops at "not an integral domain";
+%   - the remaining clause of prime, that a is not a unit.
+\begin{solution}
+  ($\Rightarrow$) Suppose $a \in R$ is prime. Show $R/(a)$ is an integral
+  domain.
+
+  Consider
+  \[
+    (r_{1} + (a))(r_{2} + (a)) = r_{1}r_{2} + (a).
+  \]
+  Take the factors non-zero, so $a \nmid r_{1}$ and $a \nmid r_{2}$ --- else we
+  would have zero divisors. Then $r_{1}r_{2} + (a)$ is non-zero, as
+  $a \nmid r_{1}r_{2}$ since $a$ is prime. So $R/(a)$ has no zero divisors.
+
+  Further, $1 + (a) \neq 0 + (a)$, because $a \nmid 1$ ($a$ is not a unit).
+
+  ($\Leftarrow$) Suppose $R/(a)$ is an integral domain. Show $a \in R$ is
+  prime.
+
+  Suppose $a$ is not prime. So there exist $b, c \in R$ such that $a \mid bc$,
+  but $a \nmid b$ and $a \nmid c$. Note $b + (a)$ and $c + (a)$ lie in
+  $R/(a)$, both non-zero since $a \nmid b$, $a \nmid c$. And
+  \[
+    (b + (a))(c + (a)) = bc + (a) = (a)
+  \]
+  since $a \mid bc$. So $R/(a)$ has zero divisors and is not an integral
+  domain.
+\end{solution}
 % ===== END SOLUTION 03.11 =====
 
 \begin{problem}{03.12}
