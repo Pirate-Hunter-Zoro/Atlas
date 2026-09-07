@@ -76,3 +76,4 @@
 {"id": "t0026", "rev": 6, "kind": "ink", "answers": "0070", "t": 1788819267.037112, "iso": "2026-09-07 17:14:27", "from": "student", "page": 121, "strokes": 251, "png": "/answers/t0026-r6.png", "ink": "/answers/t0026-r6.json", "read": false}
 {"id": "t0026", "rev": 7, "kind": "ink", "answers": "0070", "t": 1788819325.240629, "iso": "2026-09-07 17:15:25", "from": "student", "page": 122, "strokes": 250, "png": "/answers/t0026-r7.png", "ink": "/answers/t0026-r7.json", "read": false}
 {"id": "t0026", "rev": 8, "kind": "ink", "answers": "0070", "t": 1788819375.017785, "iso": "2026-09-07 17:16:15", "from": "student", "page": 123, "strokes": 257, "png": "/answers/t0026-r8.png", "ink": "/answers/t0026-r8.json", "read": false}
+{"id": "t0027", "rev": 1, "kind": "text", "answers": "0070", "t": 1788821826.193273, "iso": "2026-09-07 17:57:06", "from": "student", "text": "I\u2019m stuck", "signal": null, "read": false}
