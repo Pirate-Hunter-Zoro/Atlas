@@ -57,3 +57,4 @@
 {"id": "t0020", "rev": 1, "kind": "text", "answers": "0032", "t": 1788727132.144295, "iso": "2026-09-06 15:38:52", "from": "student", "text": "Since when has degree been limited? Do g and f have finite degree?", "signal": "skip", "read": false}
 {"id": "t0021", "rev": 1, "kind": "text", "answers": "0057", "t": 1788730658.545748, "iso": "2026-09-06 16:37:38", "from": "student", "text": "", "signal": "skip", "read": false}
 {"id": "t0022", "rev": 1, "kind": "ink", "answers": "0058", "t": 1788813859.649051, "iso": "2026-09-07 15:44:19", "from": "student", "page": 105, "strokes": 46, "png": "/answers/t0022-r1.png", "ink": "/answers/t0022-r1.json", "read": false}
+{"id": "t0022", "rev": 2, "kind": "ink", "answers": "0058", "t": 1788813966.258765, "iso": "2026-09-07 15:46:06", "from": "student", "page": 106, "strokes": 48, "png": "/answers/t0022-r2.png", "ink": "/answers/t0022-r2.json", "read": false}
