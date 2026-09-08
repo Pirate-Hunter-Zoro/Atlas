@@ -614,8 +614,50 @@
   distinct roots.
 \end{problem}
 % ===== SOLUTION 03.15 =====
-% TODO(mferguson): your work goes here.
+% Student's own argument, cards 0113-0116. The biconditional only; the
+% at-most-n-roots half is still open.
+% ($\Leftarrow$) from turn t0036 rev 1 (attempt 1), unchanged. ($\Rightarrow$)
+% from turn t0037 rev 1 (attempt 3): the division-with-remainder argument, with
+% the evaluation line written out as a statement about elements of $K$ (their
+% page evaluated the left side only, leaving an $x$ on the right).
+\begin{solution}
+  Throughout, $K$ is a field, $a \in K$, and $(x-a)$ denotes the principal ideal
+  $\{g \cdot (x-a) : g \in K[x]\}$ of $K[x]$, so that $f \in (x-a)$ means
+  precisely that $f = g \cdot (x-a)$ for some $g \in K[x]$.
+
+  \medskip
+  \textbf{($\Leftarrow$)} Suppose $f \in (x-a)$; show $f(a) = 0_{K}$. There
+  exists $g \in K[x]$ with $g \cdot (x-a) = f$. Evaluating at $a$, and using
+  that evaluation respects products,
+  \[
+    f(a) = g(a) \cdot (a - a) = g(a) \cdot 0_{K} = 0_{K},
+  \]
+  so $a$ is a root of $f$.
+
+  \medskip
+  \textbf{($\Rightarrow$)} Suppose $f(a) = 0$; show there exists $q \in K[x]$
+  with $f = (x-a)q$.
+
+  If $f = 0$ then $f = 0 \cdot (x-a)$ and we are done, so suppose $f \neq 0$.
+  Both $f$ and $x-a$ are non-zero elements of $K[x]$, so Theorem 3.7 applies:
+  there exist $q, r \in K[x]$ with
+  \[
+    f = (x-a)q + r, \qquad \text{where } r = 0 \text{ or }
+    \deg r < \deg (x-a) = 1 .
+  \]
+  If $r = 0$ we are done. Otherwise $\deg r < 1$ forces $\deg r = 0$, so $r$ is
+  a non-zero constant.
+
+  Now evaluate at $a$. Since evaluation respects sums and products, and since a
+  constant evaluates to itself,
+  \[
+    0 = f(a) = (a-a)\,q(a) + r = 0 \cdot q(a) + r = r ,
+  \]
+  contradicting $r \neq 0$. Hence $r = 0$ after all, and $f = (x-a)q$, that is,
+  $f \in (x-a)$.
+\end{solution}
 % ===== END SOLUTION 03.15 =====
+% TODO(mferguson): the at-most-$n$-distinct-roots half is still open (card 0116).
 
 \begin{problem}{03.17}
   \todo{statement not yet transcribed}
