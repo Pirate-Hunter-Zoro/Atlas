@@ -576,11 +576,42 @@
   $c$ of $R$ is prime if and only if $(c)$ is a prime ideal.
 \end{problem}
 % ===== SOLUTION 03.14 =====
-% TODO(mferguson): your work goes here.
+% Student's own argument, cards 0108-0112, revisions 5-8 of turn t0035.
+% Assembled from three pages: the forward direction and its properness line from
+% rev 6, the reverse direction from rev 5 (rev 6 wrote over it), and the
+% non-unit line from rev 8. Their rev-5 reverse direction was written with the
+% element called a and the factors b, c; the letters are normalised here to
+% match the statement (element c, factors a, b) and nothing else is changed.
+\begin{solution}
+  Throughout, $(c) = \{rc : r \in R\}$, and $a \in (c) \iff c \mid a$.
+
+  \medskip
+  \textbf{($\Rightarrow$)} Suppose $c$ is prime. Let $ab \in (c)$. So there
+  exists $r \in R$ with $cr = ab$, that is, $c \mid ab$. Since $c$ is prime,
+  $c \mid a$ or $c \mid b$. Without loss of generality suppose $c \mid a$. Then
+  there exists $r_{1} \in R$ with $r_{1}c = a$, and so by definition
+  $a \in (c)$.
+
+  Now we must show that $(c)$ is a proper ideal. Note $c$ is prime, and hence
+  not a unit. So $(c) \neq R$, and $(c)$ is therefore a proper ideal.
+
+  \medskip
+  \textbf{($\Leftarrow$)} Suppose $(c)$ is a prime ideal. Suppose $c \mid ab$.
+  Then there exists $r \in R$ with $cr = ab$. So $ab \in (c)$, meaning
+  $a \in (c)$ or $b \in (c)$. Without loss of generality suppose $a \in (c)$.
+  Then there exists $r_{1} \in R$ with $cr_{1} = a$, so $c \mid a$.
+
+  To complete this direction, show $c$ is not a unit. Now $(c)$ is a prime ideal
+  by assumption, so it is a proper ideal of $R$, meaning $c$ can't be a unit.
+\end{solution}
 % ===== END SOLUTION 03.14 =====
 
 \begin{problem}{03.15}
-  \todo{statement not yet transcribed}
+  Suppose that $f = k_{0} + k_{1}x + \cdots + k_{n}x^{n}$ is a non-zero element
+  of $K[x]$ (where $K$ is a field). An element $a$ of $K$ is a \emph{root} of
+  $f$ if $f(a) = k_{0} + k_{1}a + \cdots + k_{n}a^{n} = 0$. Show that $a$ is a
+  root of $f$ if and only if $f \in (x - a)$, and show that $f$ has at most $n$
+  distinct roots.
 \end{problem}
 % ===== SOLUTION 03.15 =====
 % TODO(mferguson): your work goes here.
