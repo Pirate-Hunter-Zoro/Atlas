@@ -614,12 +614,15 @@
   distinct roots.
 \end{problem}
 % ===== SOLUTION 03.15 =====
-% Student's own argument, cards 0113-0116. The biconditional only; the
-% at-most-n-roots half is still open.
+% Student's own argument, cards 0113-0119. Both halves.
 % ($\Leftarrow$) from turn t0036 rev 1 (attempt 1), unchanged. ($\Rightarrow$)
 % from turn t0037 rev 1 (attempt 3): the division-with-remainder argument, with
 % the evaluation line written out as a statement about elements of $K$ (their
 % page evaluated the left side only, leaving an $x$ on the right).
+% At-most-$n$-roots: induction shape and $\deg g = n-1$ from t0037 rev 2/3, the
+% "other root is a root of $g$" clause from t0037 rev 3 (their $g(a) = 0$ is
+% written here as $g(b) = 0$, which is what their prose said), base case from
+% t0037 rev 5.
 \begin{solution}
   Throughout, $K$ is a field, $a \in K$, and $(x-a)$ denotes the principal ideal
   $\{g \cdot (x-a) : g \in K[x]\}$ of $K[x]$, so that $f \in (x-a)$ means
@@ -655,12 +658,46 @@
   \]
   contradicting $r \neq 0$. Hence $r = 0$ after all, and $f = (x-a)q$, that is,
   $f \in (x-a)$.
+
+  \medskip
+  \textbf{At most $n$ distinct roots.} By induction on $n = \deg f$, over all
+  non-zero $f \in K[x]$.
+
+  \emph{Base case, $n = 0$.} Then $f = k_{0}$ with $k_{0} \neq 0$, and for every
+  $k \in K$ we have $f(k) = k_{0} \neq 0$. So $f$ has no roots at all, and
+  $0 \leq 0 = n$.
+
+  \emph{Inductive step.} Let $n \geq 1$ and suppose every non-zero polynomial in
+  $K[x]$ of degree $n-1$ has at most $n-1$ distinct roots. Let $f$ be non-zero
+  of degree $n$.
+
+  If $f$ has no root in $K$ then it has $0 \leq n$ distinct roots and there is
+  nothing to prove. Otherwise pick a root $a \in K$. By the biconditional just
+  proved, $f = (x-a)g$ for some $g \in K[x]$; and $g \neq 0$ since $f \neq 0$.
+  Since $K$ is a field it is an integral domain, so by Exercise 3.10,
+  \[
+    n = \deg f = \deg (x-a) + \deg g = 1 + \deg g, \qquad
+    \text{hence } \deg g = n-1 .
+  \]
+
+  Now let $b \in K$ be any root of $f$ with $b \neq a$. Evaluating at $b$,
+  \[
+    0 = f(b) = (b-a)\,g(b) .
+  \]
+  Here $b - a \neq 0$ because $b \neq a$, and $K$ has no zero divisors, so
+  $g(b) = 0$. Thus every root of $f$ is either $a$ or a root of $g$.
+
+  By the inductive hypothesis $g$ has at most $n-1$ distinct roots, so the set
+  of roots of $f$ is contained in $\{a\}$ together with a set of at most $n-1$
+  elements. Hence $f$ has at most $n$ distinct roots, completing the induction.
 \end{solution}
 % ===== END SOLUTION 03.15 =====
-% TODO(mferguson): the at-most-$n$-distinct-roots half is still open (card 0116).
 
 \begin{problem}{03.17}
-  \todo{statement not yet transcribed}
+  Suppose that $p$ is a prime number. Let $R$ be the set of rationals which can
+  be written in the form $r/s$, where $p$ does not divide $s$. Show that $R$ is
+  a subring of $\mathbb{Q}$. What are the units in $R$? Show that $R$ is a
+  principal ideal domain.
 \end{problem}
 % ===== SOLUTION 03.17 =====
 % TODO(mferguson): your work goes here.
