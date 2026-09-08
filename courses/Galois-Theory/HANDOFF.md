@@ -35,10 +35,11 @@ They did *not* write the second half of 0080 — which fact about 2 put 1/4
 there. Card 0084 supplies it (1/4 = 2·⅛, and ⅛ exists because 2 is invertible)
 and asks the same thing at full generality instead of re-asking the instance.
 
-## Next
+## How 3.11 and 3.12 went — oldest first
 
-**Finish 3.11's last clause: R/(a) a domain ⟹ a is not a unit.** Everything
-else in the problem is transcribed; this one line closes it.
+*3.11 and 3.12(a), (b) are all finished and transcribed. This section is the
+record of how, kept for the misunderstandings in it. The live item is under
+**Next** at the bottom.*
 
 Card 0084 asked: a a unit in R ⟹ (a) = R. Their attempt got the first line
 right — a⁻¹ ∈ R so e = aa⁻¹ ∈ (a) — then closed with "es = s ∈ R, so (a) = R",
@@ -113,12 +114,247 @@ a unit". Also flagged: their added assumption a,b,c,d ≠ 0 is not available
 (β = 3 has b = 0 and is not a unit).
 `handwritten/20260907-3.12b-attempt5-coordinates-question.png`.
 
-The card then ladders, since they stalled: compute φ(2 + i√5) and list every
-way it factors as a product of two elements of ℕ. Expect 9, and 1·9, 3·3, 9·1.
-Next rung after that: φ never takes the value 3, so {3,3} is out and one factor
-has φ = 1, hence is a unit. Then re-pose (b) in full.
+The card then laddered, since they stalled: compute φ(2 + i√5) and list every
+way it factors as a product of two elements of ℕ.
 
-Watch for the coordinates reflex returning in (c).
+**They did not need the ladder — they went straight to the whole of (b)** on
+2026-09-08 and got almost all of it unaided: not units, suppose α = βγ with
+neither a unit, φ(α) = 9, φ(βγ) = φ(β)φ(γ) = 9, splittings 3·3 and 1·9, then
+"could m² + 5n² = 3? **NO**", then φ = 1 only if m = ±1, n = 0. That is the
+proof. `handwritten/20260908-3.12b-attempt6-phi-argument-unfinished.png`.
+
+Two faults, both after the proof was already finished:
+
+- **They stopped one sentence short.** β = ±1 was never named a unit and never
+  set against the supposition. Same pattern as cards 0085–0086 and 0088: they
+  reach the last line and do not draw the conclusion from it.
+- They then added a box for the φ(β) = 9 branch and got it wrong —
+  "only if m = ±2, n = ±1", missing m = ±3, n = 0. That branch is the φ = 1
+  branch with the letters swapped and needs no case work at all. (For the
+  record: ±3 cannot divide 2 + i√5 anyway, so nothing downstream is poisoned.)
+
+Card 0096 said the proof ends at the φ = 1 line, flagged the false list as both
+wrong and unnecessary, and asked for the two closing lines only. **Rev 7 deleted
+the box and wrote the close** — "So φ(β) = 1 or φ(γ) = 1, which means β or γ is
+a unit" — in five minutes, unaided. **3.12(b) is done and transcribed**;
+document compiles, 4 pages, 0 warnings.
+`handwritten/20260908-3.12b-attempt7-irreducible-correct.png`.
+
+Their page named both 2 ± i√5 and worked only 2 + i√5. The remark that the
+other needs no separate argument (φ of it is 9 as well) is **mine**, card 0097,
+and is recorded as supplied in the .tex comment.
+
+## How 3.12(c) went
+
+**3.12(c)** — posed cold, in full, on card 0097 with its definition list,
+including the named result that irreducibles are prime in a UFD. The ask is
+only the first half: show 2 + i√5 is not prime. The UFD deduction is deliberately
+held back, because they answer the first half of a two-part ask and drop the
+second.
+
+The route: 9 = 3·3 = (2 + i√5)(2 − i√5), so 2 + i√5 divides 9 = 3·3 but divides
+neither factor — 3/(2 + i√5) = (2 − i√5)/3 ∉ R. Card 0097 points them at the
+number 9 and its factorization list, nothing more.
+
+**Rev 8 (2026-09-08, card 0098).** They unpacked *not prime* correctly and
+twice, the second time in full logical form: ∃c₁ with αc₁ = βγ, but no c₂ with
+αc₂ = β or αc₂ = γ. Unprompted, and it is the hard half of these. Nothing on
+the page is false. Then they pushed φ through it — φ(α)φ(c) = φ(β)φ(γ), so
+9φ(c) = φ(β)φ(γ) — and wrote "But I'm stuck now...".
+
+**The break is that they are solving for β and γ instead of choosing them.**
+*Not prime* is an existence claim; they wrote the ∃ themselves and did not
+notice it was theirs to satisfy. Their equation has three unknowns nobody has
+chosen, so there is nothing in it to solve. This is the same reflex as rev 5 on
+(b) — hunting a contradiction in a system of unknowns rather than producing or
+constraining concrete objects. **Third appearance now; it is this student's
+signature failure mode, not a one-off.** Name the existence/universal
+distinction when it recurs.
+`handwritten/20260908-3.12c-attempt8-definition-unpacked-stuck.png`.
+
+Card 0098 named that, and laddered with one mechanical rung: compute
+(2 + i√5)(2 − i√5). **They answered "It's 9" in three minutes, typed, no page.**
+Correct.
+
+Card 0099 read that back as α·(2 − i√5) = 9, so α | 9, pointed at their own
+earlier 9 = 3·3, and asked the crux: **does 2 + i√5 divide 3?** Yes/no with a
+reason. β = γ = 3 is left visible rather than announced.
+
+Two routes to α ∤ 3, grade either:
+- direct — 3/(2 + i√5) = (2 − i√5)/3, whose coordinates are not integers;
+- via φ — 3 = αc gives 9 = 9φ(c), so φ(c) = 1, so c = ±1 by (a), so
+  3 = ±(2 + i√5), false.
+
+**Rev 9 (2026-09-08, card 0100) is the whole of the first half of (c), in the
+right shape, with one false line.** They picked βγ = 9 with β = γ = 3, showed
+α | 9 from (2 + i√5)(2 − i√5) = 9, ruled out α | 3 via φ, concluded not prime.
+The φ chain is correct to φ(c₂) = 1. Then:
+
+> φ(c₂) = 1 requires c₂ = ±1 **or c₂ = ±i√5**
+
+φ(i√5) = 5, so the second candidate is false — and it directly contradicts
+their own part (a), which forces m = ±1, n = 0. They then checked the spurious
+candidate and correctly found (2 + i√5)(±i√5) ≠ 3, so the **conclusion is not
+in danger**; the repair is one deletion.
+`handwritten/20260908-3.12c-attempt9-not-prime-phi-list-wrong.png`.
+
+**This is the third time they have mis-enumerated solutions of m² + 5n² = k**
+— rev 3 in (a) wrote φ(α) ∈ {−1, 1} under its own φ : R → ℕ, rev 6 in (b) gave
+the φ = 9 list as only m = ±2, n = ±1. The proof architecture is consistently
+sound; the small integer enumeration underneath it is consistently sloppy.
+Check every such list against m² + 5n² by hand before accepting it.
+
+Card 0100 put their line beside their own (a) and asked one thing: compute
+φ(i√5). **Rev 10 deleted the candidate, kept c₂ = ±1, and diagnosed the slip
+itself in the margin — "I forgot n² is multiplied by 5 in φ".** Four minutes.
+`handwritten/20260908-3.12c-attempt10-not-prime-correct.png`.
+
+**The first half of (c) — 2 + i√5 is not prime — is done and transcribed.**
+Document compiles, 4 pages, 0 warnings. The witness β = γ = 3 is theirs;
+nothing in (c) was supplied.
+
+**Rev 11 gave the deduction in three lines and it is correct:** irreducible by
+(b), not prime, so R is not a UFD. **3.12 is complete and fully transcribed**;
+document compiles, 4 pages, 0 warnings.
+`handwritten/20260908-3.12c-attempt11-ufd-deduction-correct.png`.
+
+They wrote the appeal to the named result as a bare "So". The .tex writes the
+clause out and records that the result was supplied on card 0101, not proved by
+them.
+
+## How the irreducible/prime gloss got closed
+
+**Worth keeping, because it was conceptual rather than a write-up gap.** Rev 11
+glossed the conclusion as "an element in R could have multiple different
+**prime** factorizations". False: factorization into primes is essentially
+unique in any integral domain. What fails in R is uniqueness of factorization
+into **irreducibles**. The gloss collapses exactly the distinction (b) and (c)
+spent the hour separating, so it is worth closing rather than letting stand.
+
+Card 0102 located it and asked one thing: **is 3 prime in R?** They answered in
+two minutes and correctly: 3 | 9 = (2 + i√5)(2 − i√5) but 3 divides neither
+factor. `handwritten/20260908-3.12c-attempt12-three-not-prime-correct.png`.
+Card 0103 closed the loop — both sides of 9 = 3·3 = (2 + i√5)(2 − i√5) are
+factorizations into irreducibles, neither into primes. **The gloss is settled
+and 3.12 is closed.** It is deliberately absent from the solution region, being
+a gloss rather than a proof step.
+
+## Next
+
+**3.3, posed in full on card 0104.** *Show that an integral domain with a
+finite number of elements is always a field.* Statement now transcribed into
+the .tex (it was a `\todo`); document compiles, 4 pages, 0 warnings. Posed cold
+with its definition list, cancellation named as available, and the ask narrowed
+to: fix a non-zero a and produce b with ab = e.
+
+**Rev 1 came back in under two minutes with a different and equally good
+skeleton**, attributed on the page to Dr. Cox-Steib: finiteness forces the
+powers x, x², x³, … to repeat, so ∃n with xⁿ = x, so xⁿ⁻¹ = e, so xⁿ⁻² is the
+inverse of x. That is the standard proof and the architecture is right.
+`handwritten/20260908-3.3-attempt1-powers-repeat-nonzero-missing.png`.
+
+**What is wrong: the word *non-zero* is absent from the entire page**, and the
+last line therefore claims *all* elements have an inverse, which is false — 0
+never does. The omission is load-bearing rather than cosmetic: the step
+xⁿ = x ⟹ xⁿ⁻¹ = e is cancellation, it needs x ≠ 0, and nothing on the page
+justifies it.
+
+Card 0105 located that line and asked one thing: **run the argument with x = 0
+and name the first line that says something false.** Expect them to land on
+xⁿ⁻¹ = e giving 0 = e. That is the non-example that forces the hypothesis into
+the proof.
+
+**Rev 2 fixed both, in three minutes**, and did not answer the x = 0 question —
+it went straight to the repair, which is the point. They wrote (x ≠ 0) on the
+repetition line, changed the conclusion to *all nonzero elements*, and circled
+xⁿ⁻¹ = e with an expansion beneath it: xⁿ = x ⟺ xⁿ⁻¹x = x ⟺ xⁿ⁻¹ = e
+⟺ xⁿ⁻²x = e. `handwritten/20260908-3.3-attempt2-nonzero-added.png`.
+
+**Still unearned, and now raised (card 0106): the word "meaning" in line two.**
+"The powers repeat" gives xⁱ = xʲ for some i < j. It does not give xⁿ = x —
+getting back to exponent 1 is itself a cancellation, and the line uses the
+domain property without saying so. The non-example on the card is ℤ₄ with
+x = 2: powers 2, 0, 0, 0, … repeat, yet no n ≥ 2 has 2ⁿ = 2. ℤ₄ is finite with
+e ≠ 0 and is not a domain, which is exactly what their line leans on. They know
+ℤ₄ from 3.10.
+
+**Rev 3 (card 0107) answered with the reason rather than the form**, and the
+reason is right: *an integral domain has no zero divisors, so xⁿ ≠ 0 for every
+n, so the powers live among the nonzero elements, of which there are finitely
+many.* That is the real content of the repetition step and they supplied it
+unaided. `handwritten/20260908-3.3-attempt3-nonzero-powers-justified.png`.
+
+**One gap left, and it is the same cancellation in two places.** They closed the
+margin with "and loop back to x", which is still asserted: repetition in a
+finite set gives xⁱ = xʲ at two exponents, and nothing says either is 1. The
+same unnamed cancellation sits inside their circled expansion,
+xⁿ⁻¹x = x ⟹ xⁿ⁻¹ = e.
+
+Card 0107 asks the concrete instance instead of the general form, since the
+general form is what they sidestepped: **given x³ = x⁷, produce a power of x
+equal to e.** Expect x⁷ = x³·x⁴, cancel x³ (nonzero, domain), so x⁴ = e — and
+then x⁵ = x, which is the loop-back. That single step closes both places.
+
+This is the third round on 3.3 and the last one I will spend on it. If rev 4
+produces the cancellation, transcribe immediately. If it does not, transcribe
+what they have and supply the citation in the write-up, marked as supplied —
+**do not send this page back a fourth time.** They have walked out of a problem
+over exactly this kind of grinding before.
+
+Still not raised, and not worth a turn: xⁿ⁻² needs n ≥ 2.
+
+The route card 0104 expected instead — x ↦ ax injective by cancellation, hence
+surjective by finiteness, so e is in the image — is not the one they took. Do
+not push them onto it; theirs works.
+
+## 3.2 — skipped 2026-09-08 10:30, second time
+
+**Skip means *not now*, and this is a homework sheet, so it is still owed.** Do
+not press and do not remark on it; come back once the rest of the sheet is done.
+Card 0103 posed it in full (R an integral domain with field of fractions F;
+show the field of fractions of R[x₁,…,xₙ] is naturally F(x₁,…,xₙ)) with its
+definition list and the option to take n = 1 first. They skipped within ninety
+seconds of it landing.
+
+That is now two skips on 3.2 — 2026-09-02 with "I have lost patience", and this
+one. It is the only problem on the sheet they have refused twice, and the empty
+solution region is what remembers it.
+
+**They were most of the way through it on 2026-09-02.** What they had then, from
+cards 0020–0031:
+elements of F are classes of pairs, not pairs; the miniature instance p = x + 2,
+q = 2x; that the move is to find a *different representative* rather than to
+form ab⁻¹; d = b₁b₂ for two denominators, and that it never needs cancellation.
+Where they stopped: card 0031 explained what "dα ∈ R[x]" is actually asking and
+they never answered it. **That is the rung to return to if they stall** —
+clearing denominators for an arbitrary α ∈ F[x].
+
+## The rest of the sheet
+
+`board hw` order, **5 of 12 written up**: 3.2, 3.3, 3.14, 3.15, 3.17, 3.25,
+3.26 still to write up.
+
+- **3.14, 3.15, 3.17, 3.25, 3.26** — statements not yet transcribed (`\todo`
+  placeholders in the .tex). The statements are in
+  `reading/ch03.txt`, under the section-end **Exercises** headings — grep the
+  number. `handwritten/20260902-exercise-list.png` is only the list of assigned
+  numbers, not the statements; it also carries their own annotations, "worth
+  trouble" under 3.12 and a circle round 3.3.
+- **3.2, 3.3** — still owed from 2026-09-02, skipped with "I have lost
+  patience". Come back to them unremarked.
+- **3.8** — the infinite-K monomorphism half is still open (skipped 2026-09-06).
+- **3.11** — one closing line never asked: the divisibility contrapositive ends
+  at "not an integral domain" and never says "contrary to assumption, so a is
+  prime". Noted in a comment in the solution region.
+
+Their rev-8 line "'part of β' and 'part of γ' can't form α because α is
+irreducible" is true and does no work in (c). Flagged as such rather than
+pursued.
+
+**New this session:** the ladder was unnecessary. When they stall and then get a
+concrete handle (φ, here), they can run the whole argument. Do not assume a
+stall means the next question must be smaller — it may mean the wrong tool was
+in their hand.
 
 3.12's statement is transcribed into the .tex; its solution region is empty.
 

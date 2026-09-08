@@ -82,7 +82,8 @@
 % ===== END SOLUTION 03.2 =====
 
 \begin{problem}{03.3}
-  \todo{statement not yet transcribed}
+  Show that an integral domain with a finite number of elements is always a
+  field.
 \end{problem}
 % ===== SOLUTION 03.3 =====
 % TODO(mferguson): your work goes here.
@@ -377,7 +378,65 @@
 %       = (m_1^2 + 5 n_1^2)(m_2^2 + 5 n_2^2).
 %     Page filed at
 %     ../handwritten/20260907-3.12-attempt2-phi-multiplicative-skipped.png
-% Parts (b) and (c) outstanding.
+% Part (b) transcribed from the student's slate, 2026-09-08, turn t0032 rev 7,
+% page filed at
+% ../handwritten/20260908-3.12b-attempt7-irreducible-correct.png
+% (cards 0094-0096, agreed correct on card 0097). Faithful transcription:
+% same steps, same order, nothing added.
+% Recorded rather than silently repaired, across the revisions:
+%   - rev 5 abandoned phi for coordinates, matched 2 + i sqrt5 = beta gamma to
+%     the system ac - 5bd = 2, ad + bc = 1, and hunted for a contradiction in
+%     it. There is none: a=1, b=0, c=2, d=1 solves it. The misunderstanding was
+%     the definition -- irreducible read as "admits no factorization" rather
+%     than "every factorization contains a unit". Answered on card 0095.
+%     Page filed at
+%     ../handwritten/20260907-3.12b-attempt5-coordinates-question.png
+%   - rev 6 had the whole argument but stopped before its conclusion, and added
+%     a case box for phi(beta) = 9 listing only m = +-2, n = +-1 -- m = +-3,
+%     n = 0 also gives 9. That branch needs no case work at all. Flagged on
+%     card 0096; rev 7 deleted the box and wrote the closing line.
+%     Page filed at
+%     ../handwritten/20260908-3.12b-attempt6-phi-argument-unfinished.png
+% Supplied rather than proved by them, in (b):
+%   - the remark that 2 - i sqrt5 needs no separate argument, phi of it being 9
+%     as well. Card 0097. Their page named both elements and worked 2 + i sqrt5.
+% Part (c), first half only -- that 2 + i sqrt5 is not prime -- transcribed from
+% the student's slate, 2026-09-08, turn t0032 rev 10, page filed at
+% ../handwritten/20260908-3.12c-attempt10-not-prime-correct.png
+% (cards 0097-0101, agreed correct on card 0101). Faithful transcription:
+% same steps, same order, nothing added.
+% Recorded rather than silently repaired, across the revisions:
+%   - rev 8 unpacked the definition correctly, twice, then pushed phi through it
+%     to 9 phi(c) = phi(beta) phi(gamma) and stalled. Nothing on the page was
+%     false; the break was treating an existence claim as something to solve for
+%     rather than to witness -- beta and gamma were theirs to choose. Named on
+%     card 0098. Page filed at
+%     ../handwritten/20260908-3.12c-attempt8-definition-unpacked-stuck.png
+%   - rev 9 had the whole argument, but claimed phi(c_2) = 1 permits
+%     c_2 = +-i sqrt5 as well as +-1. phi(i sqrt5) = 5, and the claim
+%     contradicts their own part (a). They had checked the spurious candidate
+%     and correctly dismissed it, so the conclusion was never in danger.
+%     Flagged on card 0100; rev 10 deleted the candidate and diagnosed the slip
+%     itself in the margin -- "I forgot n^2 is multiplied by 5 in phi". Page
+%     filed at
+%     ../handwritten/20260908-3.12c-attempt9-not-prime-phi-list-wrong.png
+% The UFD deduction is theirs, from turn t0032 rev 11, page filed at
+% ../handwritten/20260908-3.12c-attempt11-ufd-deduction-correct.png
+% (asked on card 0101, agreed correct on card 0102). Their page reads
+% "Clearly alpha = 2 + i sqrt5 is an irreducible element, but it is not prime.
+% So R = Z + i sqrt5 Z is not a unique factorization domain." The middle clause
+% naming the result -- that irreducibles are prime in a UFD -- is written out
+% here rather than left as their "So"; the result itself was supplied to them on
+% card 0101 as available, not proved by them.
+% Not transcribed, because it is false: their page glossed the conclusion as
+% "an element in R could have multiple different PRIME factorizations".
+% Factorization into primes is essentially unique in any integral domain; what
+% fails in R is uniqueness of factorization into IRREDUCIBLES. Flagged on card
+% 0102, which asks whether 3 is prime in R -- the instance 9 = 3 . 3 =
+% (2 + i sqrt5)(2 - i sqrt5) is a factorization into irreducibles and into
+% neither primes. It is a gloss, not a proof step, so 3.12 does not depend on it.
+% Supplied rather than proved by them, in (c):
+%   - nothing in the argument. The witness beta = gamma = 3 is theirs.
 \begin{solution}
   \textbf{(a)} Both $1$ and $-1$ are units, each being its own inverse.
 
@@ -390,6 +449,62 @@
   $\varphi : R \to \mathbb{N}$, this gives $\varphi(\alpha) = 1$ and
   $\varphi(\beta) = \varphi(\alpha)$. Through the definition of $\varphi$, this
   forces $m = \pm 1$, $n = 0$; that is, $\alpha = \pm 1$.
+
+  \medskip
+  \textbf{(b)} Write $\alpha_{1} = 2 + i\sqrt{5}$ and
+  $\alpha_{2} = 2 - i\sqrt{5}$.
+
+  Neither is a unit, the units being $\pm 1$ by part (a).
+
+  Suppose $\alpha_{1} = \beta\gamma$ with $\beta$ and $\gamma$ both not units.
+  Now
+  \[
+    \varphi(2 + i\sqrt{5}) = 4 + 5 = 9,
+  \]
+  and the only ways to write $9$ as a product of two elements of $\mathbb{N}$
+  are $3 \cdot 3$ and $1 \cdot 9$. Since
+  \[
+    \varphi(\beta\gamma) = \varphi(\beta)\varphi(\gamma) = 9,
+  \]
+  one of these two splittings must occur.
+
+  Could $m^{2} + 5n^{2} = 3$ for $m, n \in \mathbb{Z}$? No: $n = 0$ leaves
+  $m^{2} = 3$, and $|n| \geq 1$ makes the value at least $5$. So the splitting
+  $3 \cdot 3$ cannot occur, and therefore $\varphi(\beta) = 1$ or
+  $\varphi(\gamma) = 1$ --- which means $\beta$ or $\gamma$ is a unit, contrary
+  to assumption.
+
+  Hence $2 + i\sqrt{5}$ is irreducible. The same argument applies verbatim to
+  $2 - i\sqrt{5}$, since $\varphi(2 - i\sqrt{5}) = 9$ also.
+
+  \medskip
+  \textbf{(c)} Write $\alpha = 2 + i\sqrt{5}$. To show $\alpha$ is not prime it
+  is enough to find $\beta, \gamma \in R$ with $\alpha \mid \beta\gamma$ but
+  $\alpha \nmid \beta$ and $\alpha \nmid \gamma$; equivalently, to exhibit some
+  $c_{1} \in R$ with $\alpha c_{1} = \beta\gamma$ while no $c_{2} \in R$
+  satisfies $\alpha c_{2} = \beta$ or $\alpha c_{2} = \gamma$.
+
+  Take $\beta = \gamma = 3$, so $\beta\gamma = 9$. Then
+  \[
+    (2 + i\sqrt{5})(2 - i\sqrt{5}) = 9,
+  \]
+  and $2 - i\sqrt{5} \in R$, so $\alpha \mid \beta\gamma = 9$.
+
+  But $\alpha \nmid 3$. Such a divisibility would require some $c_{2} \in R$
+  with $\alpha c_{2} = 3$, and hence
+  \[
+    \varphi(\alpha)\varphi(c_{2}) = \varphi(3)
+    \iff 9\,\varphi(c_{2}) = 9
+    \implies \varphi(c_{2}) = 1,
+  \]
+  which by part (a) forces $c_{2} = \pm 1$. Neither works:
+  $(2 + i\sqrt{5})(\pm 1) \neq 3$.
+
+  So $\alpha = 2 + i\sqrt{5}$ is not prime.
+
+  Now $\alpha$ is an irreducible element of $R$ by part (b), but it is not
+  prime. In a unique factorization domain every irreducible element is prime, so
+  $R = \mathbb{Z} + i\sqrt{5}\,\mathbb{Z}$ is not a unique factorization domain.
 \end{solution}
 % ===== END SOLUTION 03.12 =====
 
