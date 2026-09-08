@@ -283,8 +283,28 @@
 %     and it is set here as (<=).
 % Not supplied by their page, and asked of them on card 0078:
 %   - the closing line "contrary to assumption, so a is prime"; the
-%     contrapositive stops at "not an integral domain";
-%   - the remaining clause of prime, that a is not a unit.
+%     contrapositive stops at "not an integral domain".
+% Converse direction, unit clause: transcribed from turns t0030 rev 4 and
+% t0031 rev 2, 2026-09-07, pages filed at
+% ../handwritten/20260907-3.11-attempt10-unit-ideal-is-R-correct.png and
+% ../handwritten/20260907-3.11-attempt11-converse-unit-clause-correct.png
+% (cards 0084-0088, agreed correct on card 0089). Also a contrapositive.
+% Recorded rather than silently repaired, across those revisions:
+%   - revs 2-3 closed with "es = s in R, so (a) = R", which concludes
+%     membership in R rather than in (a) and uses nothing proved above it.
+%     Rev 3 changed only the set named, leaving the assertion unearned.
+%     Flagged on cards 0085 and 0086; the root cause was reading membership
+%     in (a) as "for all r in R" rather than "there exists r in R", so the
+%     witness was never picked up. Rev 4 fixed it with the existential and
+%     the witness x = r a^{-1}.
+%   - t0031 rev 1 ended "which cannot be an integral domain" with no reason
+%     given. Flagged on card 0088; rev 2 supplied e = 0.
+% Their line "aa^{-1} = e in (a)" is true but not load-bearing in the argument
+% they finally wrote --- the witness x = r a^{-1} does the work directly. Kept
+% because it is on their page.
+% Not supplied by their page, and not asked of them: Garling (p. 362) defines
+% prime only for non-zero a, which this exercise needs --- R/(0) is isomorphic
+% to R and so is an integral domain, while 0 is not prime.
 \begin{solution}
   ($\Rightarrow$) Suppose $a \in R$ is prime. Show $R/(a)$ is an integral
   domain.
@@ -310,14 +330,67 @@
   \]
   since $a \mid bc$. So $R/(a)$ has zero divisors and is not an integral
   domain.
+
+  Further, $a$ is not a unit. Suppose $a \in R$ is a unit; show $R/(a)$ is not
+  an integral domain. Note $a^{-1} \in R$, so $aa^{-1} = e \in (a)$. Let
+  $r \in R$. Note $r \in (a)$ if there exists $x \in R$ such that $xa = r$;
+  take $x = ra^{-1}$, which exists since $a$ is a unit in $R$. So $(a) = R$,
+  and
+  \[
+    R/(a) = R/R = \{R\},
+  \]
+  a single-element set, which cannot be an integral domain since it is a ring
+  with $e = 0$.
 \end{solution}
 % ===== END SOLUTION 03.11 =====
 
 \begin{problem}{03.12}
-  \todo{statement not yet transcribed}
+  Let $R = \mathbb{Z} + i\sqrt{5}\,\mathbb{Z}$.
+  \begin{enumerate}
+    \item Show that the units are $1$ and $-1$.
+    \item Let $\varphi(m + i\sqrt{5}\,n) = m^{2} + 5n^{2}$. Then
+      $\varphi(0) = 0$, $\varphi(1) = \varphi(-1) = 1$ and otherwise
+      $\varphi(\alpha) > 3$. Use this to show that $2 + i\sqrt{5}$ and
+      $2 - i\sqrt{5}$ are irreducible in $R$.
+    \item Show that $2 + i\sqrt{5}$ is not a prime; $R$ is not a unique
+      factorization domain.
+  \end{enumerate}
 \end{problem}
 % ===== SOLUTION 03.12 =====
-% TODO(mferguson): your work goes here.
+% PARTIAL. Part (a) only, transcribed from the student's slate, 2026-09-07,
+% turn t0032 rev 4, page filed at
+% ../handwritten/20260907-3.12a-attempt4-units-correct.png
+% (cards 0091-0093, agreed correct on card 0094). Faithful transcription:
+% same steps, same order, nothing added.
+% The first sentence -- that 1 and -1 are units, each its own inverse -- is
+% theirs from a typed turn answering card 0091, not from the page.
+% Recorded rather than silently repaired, across the revisions:
+%   - rev 3 wrote "phi(alpha) in {-1, 1}" on the line directly beneath its own
+%     "phi : R -> N", which cannot both hold. Flagged on card 0093; rev 4
+%     replaced it with phi(alpha) = 1.
+% Supplied rather than proved by them, and asked of them on card 0090:
+%   - multiplicativity of phi. Their rev 2 expansion dropped the n's from the
+%     cross terms, writing i sqrt5 (m_1 + m_2) for i sqrt5 (m_1 n_2 + m_2 n_1),
+%     and they then asked in writing to skip the algebra. Granted on card 0091,
+%     where the identity was closed for them:
+%     (m_1 m_2 - 5 n_1 n_2)^2 + 5(m_1 n_2 + m_2 n_1)^2
+%       = (m_1^2 + 5 n_1^2)(m_2^2 + 5 n_2^2).
+%     Page filed at
+%     ../handwritten/20260907-3.12-attempt2-phi-multiplicative-skipped.png
+% Parts (b) and (c) outstanding.
+\begin{solution}
+  \textbf{(a)} Both $1$ and $-1$ are units, each being its own inverse.
+
+  Conversely, suppose $\alpha \in R$ is a unit, so $\alpha\beta = 1$ for some
+  $\beta \in R$. Then
+  \[
+    \varphi(\alpha\beta) = \varphi(1) = 1,
+  \]
+  and so $\varphi(\alpha)\varphi(\beta) = 1$. Since
+  $\varphi : R \to \mathbb{N}$, this gives $\varphi(\alpha) = 1$ and
+  $\varphi(\beta) = \varphi(\alpha)$. Through the definition of $\varphi$, this
+  forces $m = \pm 1$, $n = 0$; that is, $\alpha = \pm 1$.
+\end{solution}
 % ===== END SOLUTION 03.12 =====
 
 \begin{problem}{03.14}
