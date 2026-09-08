@@ -98,3 +98,4 @@
 {"id": "t0032", "rev": 8, "kind": "ink", "answers": "0089", "t": 1788880109.091716, "iso": "2026-09-08 10:08:29", "from": "student", "page": 143, "strokes": 287, "png": "/answers/t0032-r8.png", "ink": "/answers/t0032-r8.json", "read": false}
 {"id": "t0033", "rev": 2, "kind": "text", "answers": "0089", "t": 1788880286.5387194, "iso": "2026-09-08 10:11:26", "from": "student", "text": "It\u2019s 9", "signal": null, "read": false}
 {"id": "t0032", "rev": 9, "kind": "ink", "answers": "0089", "t": 1788880678.6266382, "iso": "2026-09-08 10:17:58", "from": "student", "page": 144, "strokes": 410, "png": "/answers/t0032-r9.png", "ink": "/answers/t0032-r9.json", "read": false}
+{"id": "t0032", "rev": 10, "kind": "ink", "answers": "0089", "t": 1788880908.6095479, "iso": "2026-09-08 10:21:48", "from": "student", "page": 145, "strokes": 401, "png": "/answers/t0032-r10.png", "ink": "/answers/t0032-r10.json", "read": false}
