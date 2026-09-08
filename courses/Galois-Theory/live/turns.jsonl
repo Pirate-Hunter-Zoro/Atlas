@@ -104,3 +104,4 @@
 {"id": "t0034", "rev": 1, "kind": "text", "answers": "0089", "t": 1788881453.9855623, "iso": "2026-09-08 10:30:53", "from": "student", "text": "", "signal": "skip", "read": false}
 {"id": "t0035", "rev": 1, "kind": "ink", "answers": "0104", "t": 1788882050.3616261, "iso": "2026-09-08 10:40:50", "from": "student", "page": 149, "strokes": 197, "png": "/answers/t0035-r1.png", "ink": "/answers/t0035-r1.json", "read": false}
 {"id": "t0035", "rev": 2, "kind": "ink", "answers": "0104", "t": 1788882237.2597733, "iso": "2026-09-08 10:43:57", "from": "student", "page": 150, "strokes": 264, "png": "/answers/t0035-r2.png", "ink": "/answers/t0035-r2.json", "read": false}
+{"id": "t0035", "rev": 3, "kind": "ink", "answers": "0104", "t": 1788882550.0551503, "iso": "2026-09-08 10:49:10", "from": "student", "page": 151, "strokes": 409, "png": "/answers/t0035-r3.png", "ink": "/answers/t0035-r3.json", "read": false}
