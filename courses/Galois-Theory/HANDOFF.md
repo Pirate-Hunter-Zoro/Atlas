@@ -239,11 +239,11 @@ factorizations into irreducibles, neither into primes. **The gloss is settled
 and 3.12 is closed.** It is deliberately absent from the solution region, being
 a gloss rather than a proof step.
 
-## Next
+## How 3.3 went
 
 **3.3, posed in full on card 0104.** *Show that an integral domain with a
-finite number of elements is always a field.* Statement now transcribed into
-the .tex (it was a `\todo`); document compiles, 4 pages, 0 warnings. Posed cold
+finite number of elements is always a field.* Statement transcribed into
+the .tex (it was a `\todo`). Posed cold
 with its definition list, cancellation named as available, and the ask narrowed
 to: fix a non-zero a and produce b with ab = e.
 
@@ -290,18 +290,88 @@ finite set gives xⁱ = xʲ at two exponents, and nothing says either is 1. The
 same unnamed cancellation sits inside their circled expansion,
 xⁿ⁻¹x = x ⟹ xⁿ⁻¹ = e.
 
-Card 0107 asks the concrete instance instead of the general form, since the
-general form is what they sidestepped: **given x³ = x⁷, produce a power of x
-equal to e.** Expect x⁷ = x³·x⁴, cancel x³ (nonzero, domain), so x⁴ = e — and
-then x⁵ = x, which is the loop-back. That single step closes both places.
+Card 0107 asked for the concrete instance x³ = x⁷. **Rev 4 ignored the instance
+and did it at general exponents, correctly and unaided:** xᵏ = xˡ with ℓ > k,
+rewrite as xᵏx^(ℓ−k) = xᵏ, cancel xᵏ, so x^(ℓ−k) = e, so x·x^(ℓ−k) = x and the
+sequence loops back to x. That also closed the loose end I never raised, since
+ℓ > k forces n = ℓ−k+1 ≥ 2.
+`handwritten/20260908-3.3-attempt4-cancellation-correct.png`.
 
-This is the third round on 3.3 and the last one I will spend on it. If rev 4
-produces the cancellation, transcribe immediately. If it does not, transcribe
-what they have and supply the citation in the write-up, marked as supplied —
-**do not send this page back a fourth time.** They have walked out of a problem
-over exactly this kind of grinding before.
+**3.3 is done and transcribed.** Document compiles, 4 pages, 0 warnings.
 
-Still not raised, and not worth a turn: xⁿ⁻² needs n ≥ 2.
+One transcription note worth knowing about this board: **rev 4 replaced the ink
+rather than adding to it**, so the finished proof lives across two pages — the
+main argument and its margin in rev 3, the repeat lemma in rev 4. The .tex
+assembles them in argument order and says so. Check for this whenever a page
+suddenly gets shorter.
+
+## Next — 3.14, in progress
+
+**3.14, posed in full on card 0108.** *A proper ideal I is prime if ab ∈ I
+implies a ∈ I or b ∈ I; show a non-zero c ∈ R is prime iff (c) is a prime
+ideal.* Statement now transcribed into the .tex. Posed cold, with the two
+hinges listed as things they already own from 3.11: a ∈ (c) ⟺ c | a, and
+(c) = R ⟺ c is a unit. The second is what matches "not a unit" on the left to
+"proper" on the right, and it is the half most likely to be dropped.
+
+**It was dropped, exactly as predicted. Rev 5 (2026-09-08 11:24, card 0109)
+has both divisibility halves right and unaided, and no mention of a unit
+anywhere on the page.**
+
+What they wrote, and it is all correct: forward, ab ∈ (c) gives cr = ab, so
+c | ab, so c | a or c | b, WLOG c | a, so ∃r₁ with r₁c = a, so a ∈ (c).
+Reverse, the same argument run backwards — a | bc gives bc ∈ (a), so b ∈ (a) or
+c ∈ (a), so a | b. Nothing on the page is false.
+`handwritten/20260908-3.14-attempt5-both-directions-proper-missing.png`.
+
+Two things about that page:
+
+- **They relabelled the element as `a` in the reverse direction**, with b and c
+  as the two factors. Harmless permutation of letters, flagged in one clause and
+  not pursued; it must be renamed back to c in the transcription.
+- **"Prime ideal" is two words and they proved one.** Neither direction touches
+  properness: forward never shows (c) ≠ R, and the reverse never gets from
+  "(c) proper" to "c is not a unit". Both are one line off the 3.11 hinge
+  (c) = R ⟺ c a unit.
+
+Card 0109 named that and asked **only the forward line** — assume c prime, so
+not a unit, show (c) ≠ R. The mirror line for the converse was deliberately
+held back, because they answer the first half of a two-part ask and drop the
+second.
+
+**Rev 6 (2026-09-08 11:33, card 0110) supplied it in nine minutes and it is
+correct:** "Note c is prime, and hence not a unit. So (c) ≠ R, and is therefore
+a proper ideal." Off the 3.11 hinge, unaided. **The forward direction of 3.14 is
+finished.**
+`handwritten/20260908-3.14-attempt6-forward-proper-correct.png`.
+
+**Rev 6 wrote over the reverse direction — it exists only on rev 5.** Same
+replace-the-ink behaviour as rev 4 of 3.3. Card 0110 told them not to rewrite it
+and quoted it back with the letters normalised to c, so they can see it is held.
+
+Card 0110 asked the last line owed: assume (c) is a prime ideal, so (c) ≠ R,
+show c is not a unit.
+
+**Rev 7 (2026-09-08 11:36, card 0111) has the chain right and the conclusion
+about the wrong object.** They wrote: "(c) is a prime ideal by assumption, so
+it's a proper ideal of R, meaning **(c) can't be a unit**." The subject of the
+last clause is the ideal, not the element — and an ideal is a set, so "is a
+unit" is not a question about it at all. The clause is empty rather than false,
+and 3.14 needs a statement about c.
+`handwritten/20260908-3.14-attempt7-not-a-unit-wrong-object.png`.
+
+**This is the same failure as card 0085, where the last line landed in R instead
+of in (a): they reach the final clause and attach it to the nearest object
+rather than the one the theorem is about.** Fourth appearance of the
+stop-one-clause-short family. Card 0111 put c and (c) side by side in a table —
+element versus set, "is a unit" versus "= R" — pointed at the 3.11 biconditional
+read right to left, said everything before the clause stands, and asked only for
+the clause rewritten about c with the hinge named.
+
+When that lands, **3.14 is complete** — assemble it from three pieces into the
+empty region (`board hw` shows 03.14 EMPTY): the forward direction and its
+properness line from rev 6, the reverse direction from rev 5 with a → c, and the
+not-a-unit line from rev 7 once repaired.
 
 The route card 0104 expected instead — x ↦ ax injective by cancellation, hence
 surjective by finiteness, so e is in the image — is not the one they took. Do
@@ -331,17 +401,17 @@ clearing denominators for an arbitrary α ∈ F[x].
 
 ## The rest of the sheet
 
-`board hw` order, **5 of 12 written up**: 3.2, 3.3, 3.14, 3.15, 3.17, 3.25,
-3.26 still to write up.
+`board hw` order, **6 of 12 written up**: 3.2, 3.14, 3.15, 3.17, 3.25,
+3.26 still to write up. 3.14's statement is transcribed and its region is
+empty, pending the one line card 0109 asked for.
 
-- **3.14, 3.15, 3.17, 3.25, 3.26** — statements not yet transcribed (`\todo`
+- **3.15, 3.17, 3.25, 3.26** — statements not yet transcribed (`\todo`
   placeholders in the .tex). The statements are in
   `reading/ch03.txt`, under the section-end **Exercises** headings — grep the
   number. `handwritten/20260902-exercise-list.png` is only the list of assigned
   numbers, not the statements; it also carries their own annotations, "worth
   trouble" under 3.12 and a circle round 3.3.
-- **3.2, 3.3** — still owed from 2026-09-02, skipped with "I have lost
-  patience". Come back to them unremarked.
+- **3.2** — still owed, skipped twice. Come back to it unremarked.
 - **3.8** — the infinite-K monomorphism half is still open (skipped 2026-09-06).
 - **3.11** — one closing line never asked: the divisibility contrapositive ends
   at "not an integral domain" and never says "contrary to assumption, so a is
@@ -356,12 +426,6 @@ concrete handle (φ, here), they can run the whole argument. Do not assume a
 stall means the next question must be smaller — it may mean the wrong tool was
 in their hand.
 
-3.12's statement is transcribed into the .tex; its solution region is empty.
-
-Then the rest of the chain: (a) = R means the quotient has one class, so
-1 = 0 there, and a domain forbids 1 = 0. Then transcribe 3.11 in full and move
-to 3.12.
-
 Garling (p. 362) defines prime only for **non-zero** a, and 3.11 needs that:
 R/(0) ≅ R is a domain while 0 is not prime.
 
@@ -373,6 +437,12 @@ became "the only units in any R[x]"). The ℚ/ℤ pair for (2) is the current
 instance of that pattern and it worked.
 
 They answer the first half of a two-part ask and drop the second. Ask one thing.
+
+**They prove the substantive clause of a definition and drop its side
+conditions.** Three instances now: *non-zero* absent from all of 3.3, *not a
+unit* and *proper* absent from all of 3.14, and the repeated failure to name the
+last line a contradiction. When a definition is a conjunction, expect only the
+interesting conjunct and ask for the other one by name.
 
 They revise one page in place and often **fix the wrong end** — say which end.
 

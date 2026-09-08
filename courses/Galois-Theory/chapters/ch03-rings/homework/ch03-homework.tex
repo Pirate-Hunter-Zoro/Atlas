@@ -86,7 +86,69 @@
   field.
 \end{problem}
 % ===== SOLUTION 03.3 =====
-% TODO(mferguson): your work goes here.
+% Transcribed from the student's slate, 2026-09-08, turn t0035. The proof spans
+% two revisions of the page, because rev 4 replaced the ink rather than adding
+% to it: the main argument and its margin justification are rev 3, the repeat
+% lemma at general exponents is rev 4. Assembled here in the order the argument
+% runs, which is the order they wrote it in. Pages filed at
+%   ../handwritten/20260908-3.3-attempt3-nonzero-powers-justified.png  (rev 3)
+%   ../handwritten/20260908-3.3-attempt4-cancellation-correct.png      (rev 4)
+% (cards 0104-0108, agreed correct on card 0108). Faithful transcription:
+% same steps, same order, nothing added.
+% The skeleton is attributed on their page to Dr. Cox-Steib; the justifications
+% are theirs.
+% Recorded rather than silently repaired, across the revisions:
+%   - rev 1 omitted "non-zero" from the whole argument and concluded that ALL
+%     elements have an inverse, which is false -- 0 never does. The omission was
+%     load-bearing: x^n = x => x^(n-1) = e is cancellation and needs x /= 0.
+%     Flagged on card 0105; rev 2 added (x /= 0) and narrowed the conclusion.
+%     Page filed at
+%     ../handwritten/20260908-3.3-attempt1-powers-repeat-nonzero-missing.png
+%   - rev 2 still asserted that repetition of the powers "means" x^n = x. It
+%     does not: repetition gives x^k = x^l at two exponents, and getting back to
+%     exponent 1 is itself a cancellation. Flagged on card 0106 with the
+%     non-example Z_4, x = 2, whose powers 2, 0, 0, ... repeat with no n >= 2
+%     satisfying 2^n = 2. Rev 3 supplied the reason the powers stay non-zero;
+%     rev 4 supplied the cancellation. Page filed at
+%     ../handwritten/20260908-3.3-attempt2-nonzero-added.png
+% Supplied rather than proved by them:
+%   - nothing in the argument. The naming of the cancellation step as
+%     cancellation is written out below rather than left implicit, but they
+%     performed it: rev 4 rewrites x^l as x^k x^(l-k) and removes the x^k.
+\begin{solution}
+  Let $R$ be a finite integral domain and let $x \in R$ be non-zero.
+
+  Consider the sequence of powers $x, x^{2}, x^{3}, \ldots$. Every term is
+  non-zero: $x \neq 0$, and an integral domain has no zero divisors, so
+  $x^{n} \neq 0$ for all $n$. The powers therefore all lie among the non-zero
+  elements of $R$, of which there are only finitely many, so the sequence must
+  repeat.
+
+  Say the repeat is $x^{k} = x^{\ell}$ with $\ell > k$. Writing the right-hand
+  side as $x^{k}x^{\ell-k}$ gives
+  \[
+    x^{k}x^{\ell-k} = x^{k},
+  \]
+  and cancelling $x^{k}$ --- which is legitimate, $x^{k}$ being non-zero in an
+  integral domain --- leaves
+  \[
+    x^{\ell-k} = e.
+  \]
+  Hence $x \cdot x^{\ell-k} = x$, so the sequence does loop back to $x$: there
+  is an $n$, namely $n = \ell - k + 1$, with $x^{n} = x$.
+
+  Now
+  \[
+    x^{n} = x
+    \iff x^{n-1}x = x
+    \iff x^{n-1} = e
+    \iff x^{n-2}x = e,
+  \]
+  the middle step again being cancellation of $x$. So $x^{n-2}$ is the inverse
+  of $x$, and it is a genuine power since $\ell > k$ forces $n \geq 2$.
+
+  Every non-zero element of $R$ therefore has an inverse, and $R$ is a field.
+\end{solution}
 % ===== END SOLUTION 03.3 =====
 
 \begin{problem}{03.8}
@@ -509,7 +571,9 @@
 % ===== END SOLUTION 03.12 =====
 
 \begin{problem}{03.14}
-  \todo{statement not yet transcribed}
+  A proper ideal $I$ of a ring $R$ is said to be \emph{prime} if whenever
+  $ab \in I$ then either $a \in I$ or $b \in I$. Show that a non-zero element
+  $c$ of $R$ is prime if and only if $(c)$ is a prime ideal.
 \end{problem}
 % ===== SOLUTION 03.14 =====
 % TODO(mferguson): your work goes here.
