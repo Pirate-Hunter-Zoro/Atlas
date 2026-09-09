@@ -700,7 +700,93 @@
   principal ideal domain.
 \end{problem}
 % ===== SOLUTION 03.17 =====
-% TODO(mferguson): your work goes here.
+\begin{solution}
+  Throughout, $p$ is the fixed prime, and
+  \[
+    R = \left\{ x \in \mathbb{Q} : x = r/s \text{ for some }
+    r,s \in \mathbb{Z},\ s \neq 0,\ p \nmid s \right\} .
+  \]
+  Note that membership in $R$ asks only for \emph{some} representation of $x$
+  with $p \nmid s$; a single bad representation proves nothing. For instance
+  $6/3$ lies in $R$ for $p = 3$, since $6/3 = 2/1$.
+
+  \medskip
+  \textbf{$R$ is a subring of $\mathbb{Q}$.} We check the four conditions.
+
+  \emph{$1 \in R$.} Since $p > 1$ we have $p - 1 \neq 0$, so $1 = (p-1)/(p-1)$
+  is a representation of $1$ of the required form. Its denominator is not
+  divisible by $p$: the smallest positive multiple of $p$ is $p$ itself, and
+  $0 < p-1 < p$, so no multiple of $p$ equals $p-1$. Hence $1 \in R$.
+
+  \emph{Closed under addition.} Let $x, y \in R$, say $x = a/b$ and $y = c/d$
+  with $p \nmid b$ and $p \nmid d$. Then
+  \[
+    x + y = \frac{ad + bc}{bd},
+  \]
+  and $bd \neq 0$. Since $p$ is prime and $p \nmid b$, $p \nmid d$, Euclid's
+  lemma in contrapositive form gives $p \nmid bd$. So this representation of
+  $x+y$ has denominator not divisible by $p$, and $x + y \in R$.
+
+  \emph{Closed under negation.} Let $x = a/b \in R$ with $p \nmid b$. Then
+  $-x = (-a)/b$: the sign moves to the numerator and the denominator is
+  unchanged. Membership in $R$ constrains only the denominator, so
+  $-x \in R$.
+
+  \emph{Closed under multiplication.} With $x = a/b$ and $y = c/d$ as above,
+  \[
+    xy = \frac{ac}{bd},
+  \]
+  and again $p \nmid bd$ by the contrapositive of Euclid's lemma. So
+  $xy \in R$.
+
+  Hence $R$ is a subring of $\mathbb{Q}$. Being a subring of a field, $R$ is
+  a commutative ring with no zero divisors, that is, an integral domain.
+
+  \medskip
+  \textbf{The units of $R$.} We claim
+  \[
+    R^{\times} = \left\{ n/q \in R : p \nmid n \right\} .
+  \]
+
+  \emph{The condition is well defined.} Write $x \in R$ in lowest terms as
+  $a/b$. Every representation of $x$ is $(ra)/(rb)$ for some non-zero integer
+  $r$, and such a representation is admissible ($p \nmid rb$) exactly when
+  $p \nmid r$ and $p \nmid b$. In that case $p \mid ra$ if and only if
+  $p \mid a$, by Euclid's lemma. So whether $p$ divides the numerator does not
+  depend on which admissible representation of $x$ we chose.
+
+  \emph{($\supseteq$).} Let $x = n/q \in R$ with $p \nmid q$ and $p \nmid n$.
+  Since $p \mid 0$, the hypothesis $p \nmid n$ forces $n \neq 0$, so $q/n$ is
+  a rational number. Its denominator $n$ satisfies $p \nmid n$, so
+  $q/n \in R$, and
+  \[
+    \frac{n}{q} \cdot \frac{q}{n} = 1 .
+  \]
+  Hence $x$ is a unit of $R$.
+
+  \emph{($\subseteq$).} We prove the contrapositive: if $n/q \in R$ and
+  $p \mid n$, then $n/q$ is not a unit. By the previous paragraph we may
+  assume $n/q$ is in lowest terms, so $\gcd(n,q) = 1$.
+
+  The inverse of $n/q$ in $\mathbb{Q}$ is $q/n$, and inverses in a field are
+  unique; so if $n/q$ had an inverse in $R$, that inverse would have to be
+  $q/n$, and in particular $q/n$ would lie in $R$. We show it does not, by
+  ruling out \emph{every} representation of it.
+
+  Since $\gcd(q,n) = 1$, the integer fractions equal to $q/n$ are exactly the
+  fractions $(rq)/(rn)$ for non-zero integers $r$. Now $p \mid n$ means
+  $n = pk$ for some integer $k$, so for every non-zero integer $r$,
+  \[
+    r \cdot n = p \cdot (rk) ,
+  \]
+  which exhibits $rk$ as a witness to $p \mid rn$. So every representation of
+  $q/n$ has denominator divisible by $p$, and therefore $q/n \notin R$. Hence
+  $n/q$ is not a unit of $R$.
+
+  Combining the two inclusions, the units of $R$ are precisely the elements
+  of $R$ whose numerator, in lowest terms, is not divisible by $p$.
+\end{solution}
+% TODO(mferguson): $R$ is a principal ideal domain.
 % ===== END SOLUTION 03.17 =====
 
 \begin{problem}{03.25}
