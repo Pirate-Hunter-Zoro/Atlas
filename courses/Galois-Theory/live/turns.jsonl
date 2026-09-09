@@ -125,3 +125,4 @@
 {"id": "t0037", "rev": 10, "kind": "ink", "answers": "0115", "t": 1788975156.038371, "iso": "2026-09-09 12:32:36", "from": "student", "page": 168, "strokes": 299, "png": "/answers/t0037-r10.png", "ink": "/answers/t0037-r10.json", "read": false}
 {"id": "t0038", "rev": 1, "kind": "ink", "answers": "0124", "t": 1788975303.219029, "iso": "2026-09-09 12:35:03", "from": "student", "page": 169, "strokes": 88, "png": "/answers/t0038-r1.png", "ink": "/answers/t0038-r1.json", "read": false}
 {"id": "t0038", "rev": 2, "kind": "ink", "answers": "0124", "t": 1788975975.6864781, "iso": "2026-09-09 12:46:15", "from": "student", "page": 170, "strokes": 46, "png": "/answers/t0038-r2.png", "ink": "/answers/t0038-r2.json", "read": false}
+{"id": "t0038", "rev": 3, "kind": "ink", "answers": "0124", "t": 1788976194.8567955, "iso": "2026-09-09 12:49:54", "from": "student", "page": 171, "strokes": 159, "png": "/answers/t0038-r3.png", "ink": "/answers/t0038-r3.json", "read": false}
