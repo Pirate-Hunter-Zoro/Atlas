@@ -49,12 +49,21 @@ appears, it uses this too.
 > subjective grading are reported separately — an assistant grading its own replacement is a
 > conflict of interest that task design has to solve, not good intentions.
 >
-> **P0, the measurement campaign, started on 2026-09-09 and is the only part under way.**
-> [`P0-STATUS.md`](P0-STATUS.md) is its live record — which tests passed, which jobs are still in
-> flight, the findings that already contradict the runbook, and the two checkpoints chosen. Nothing
-> beyond P0 is built. A 17-slide plain-language walkthrough is
+> **P0, the measurement campaign, is the only part under way, and as of 2026-09-09 ten of its
+> twelve tests have passed.** [`P0-STATUS.md`](P0-STATUS.md) is its live record — which tests
+> passed, what is still running, the fifteen findings that contradict the runbook, and the two
+> checkpoints chosen. Nothing beyond P0 is built. A 17-slide plain-language walkthrough is
 > [`docs/fleet_walkthrough.pdf`](docs/fleet_walkthrough.pdf) (source `docs/fleet_walkthrough.tex`,
 > built with `pdflatex`).
+
+> **Picking up mid-build? Read these three, in this order.**
+> [`HANDOFF.md`](HANDOFF.md) — what the last session did and what it left for you.
+> [`P0-STATUS.md`](P0-STATUS.md) — the measured state, and the only file that knows what has
+> actually been run.
+> [`FLEET-BUILD.md`](FLEET-BUILD.md) — the plan, whose §9 and §10 P0 has already partly overruled.
+> Where any two of them disagree, **the one that measured it wins**, and that is almost always
+> `P0-STATUS.md`. `HANDOFF.md` is rewritten at the end of every session and is never a record of
+> architecture — this README is.
 
 > **How the assistant is fenced in.** [`PERMISSIONS.md`](PERMISSIONS.md) is the architecture record
 > for Claude Code's permission configuration on this account: which commands skip the prompt, which
