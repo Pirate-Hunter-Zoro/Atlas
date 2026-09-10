@@ -1,4 +1,4 @@
-This is pdfTeX, Version 3.141592653-2.6-1.40.29 (TeX Live 2026) (preloaded format=pdflatex 2026.4.28)  10 SEP 2026 11:14
+This is pdfTeX, Version 3.141592653-2.6-1.40.29 (TeX Live 2026) (preloaded format=pdflatex 2026.4.28)  10 SEP 2026 11:52
 entering extended mode
  restricted \write18 enabled.
  file:line:error style messages enabled.
@@ -529,4 +529,145 @@ Package hyperref Info: PDF/A mode OFF on input line 6121.
 \c@Hfootnote=\count336
 )
 Package hyperref Info: Driver (autodetected): hpdftex.
- (/mnt/dell_storage/homefolders/li
+ (/mnt/dell_storage/homefolders/librad.laureateinstitute.org/mferguson/.TinyTeX/texmf-dist/tex/latex/hyperref/hpdftex.def
+File: hpdftex.def 2026-04-24 v7.01q Hyperref driver for pdfTeX
+\Fld@listcount=\count337
+\c@bookmark@seq@number=\count338
+ (/mnt/dell_storage/homefolders/librad.laureateinstitute.org/mferguson/.TinyTeX/texmf-dist/tex/latex/rerunfilecheck/rerunfilecheck.sty
+Package: rerunfilecheck 2025-06-21 v1.11 Rerun checks for auxiliary files (HO)
+ (/mnt/dell_storage/homefolders/librad.laureateinstitute.org/mferguson/.TinyTeX/texmf-dist/tex/generic/uniquecounter/uniquecounter.sty
+Package: uniquecounter 2019/12/15 v1.4 Provide unlimited unique counter (HO)
+)
+Package uniquecounter Info: New unique counter `rerunfilecheck' on input line 284.
+)
+\Hy@SectionHShift=\skip77
+)
+\c@theorem=\count339
+) (/mnt/dell_storage/homefolders/librad.laureateinstitute.org/mferguson/.TinyTeX/texmf-dist/tex/latex/l3backend/l3backend-pdftex.def
+File: l3backend-pdftex.def 2026-02-18 L3 backend support: PDF output (pdfTeX)
+\l__color_backend_stack_int=\count340
+) (/mnt/dell_storage/homefolders/librad.laureateinstitute.org/mferguson/Galois-Theory/chapters/ch03-rings/build/ch03-homework.aux)
+\openout1 = `ch03-homework.aux'.
+
+LaTeX Font Info:    Checking defaults for OML/cmm/m/it on input line 18.
+LaTeX Font Info:    ... okay on input line 18.
+LaTeX Font Info:    Checking defaults for OMS/cmsy/m/n on input line 18.
+LaTeX Font Info:    ... okay on input line 18.
+LaTeX Font Info:    Checking defaults for OT1/cmr/m/n on input line 18.
+LaTeX Font Info:    ... okay on input line 18.
+LaTeX Font Info:    Checking defaults for T1/cmr/m/n on input line 18.
+LaTeX Font Info:    ... okay on input line 18.
+LaTeX Font Info:    Checking defaults for TS1/cmr/m/n on input line 18.
+LaTeX Font Info:    ... okay on input line 18.
+LaTeX Font Info:    Checking defaults for OMX/cmex/m/n on input line 18.
+LaTeX Font Info:    ... okay on input line 18.
+LaTeX Font Info:    Checking defaults for U/cmr/m/n on input line 18.
+LaTeX Font Info:    ... okay on input line 18.
+LaTeX Font Info:    Checking defaults for PD1/pdf/m/n on input line 18.
+LaTeX Font Info:    ... okay on input line 18.
+LaTeX Font Info:    Checking defaults for PU/pdf/m/n on input line 18.
+LaTeX Font Info:    ... okay on input line 18.
+
+*geometry* driver: auto-detecting
+*geometry* detected driver: pdftex
+*geometry* verbose mode - [ preamble ] result:
+* driver: pdftex
+* paper: <default>
+* layout: <same size as paper>
+* layoutoffset:(h,v)=(0.0pt,0.0pt)
+* modes: 
+* h-part:(L,W,R)=(72.26999pt, 469.75502pt, 72.26999pt)
+* v-part:(T,H,B)=(72.26999pt, 650.43001pt, 72.26999pt)
+* \paperwidth=614.295pt
+* \paperheight=794.96999pt
+* \textwidth=469.75502pt
+* \textheight=650.43001pt
+* \oddsidemargin=0.0pt
+* \evensidemargin=0.0pt
+* \topmargin=-37.0pt
+* \headheight=12.0pt
+* \headsep=25.0pt
+* \topskip=11.0pt
+* \footskip=30.0pt
+* \marginparwidth=59.0pt
+* \marginparsep=10.0pt
+* \columnsep=10.0pt
+* \skip\footins=10.0pt plus 4.0pt minus 2.0pt
+* \hoffset=0.0pt
+* \voffset=0.0pt
+* \mag=1000
+* \@twocolumnfalse
+* \@twosidefalse
+* \@mparswitchfalse
+* \@reversemarginfalse
+* (1in=72.27pt=25.4mm, 1cm=28.453pt)
+
+LaTeX Info: Redefining \microtypecontext on input line 18.
+Package microtype Info: Applying patch `item' on input line 18.
+Package microtype Info: Applying patch `toc' on input line 18.
+Package microtype Info: Applying patch `eqnum' on input line 18.
+Package microtype Info: Applying patch `footnote' on input line 18.
+Package microtype Info: Applying patch `verbatim' on input line 18.
+LaTeX Info: Redefining \microtypesetup on input line 18.
+Package microtype Info: Generating PDF output.
+Package microtype Info: Character protrusion enabled (level 2).
+Package microtype Info: Using default protrusion set `alltext'.
+Package microtype Info: Automatic font expansion enabled (level 2),
+(microtype)             stretch: 20, shrink: 20, step: 1, non-selected.
+Package microtype Info: Using default expansion set `alltext-nott'.
+Package microtype Info: Patching command `\showhyphens'.
+Package microtype Info: No adjustment of tracking.
+Package microtype Info: No adjustment of interword spacing.
+Package microtype Info: No adjustment of character kerning.
+(/mnt/dell_storage/homefolders/librad.laureateinstitute.org/mferguson/.TinyTeX/texmf-dist/tex/latex/microtype/mt-cmr.cfg
+File: mt-cmr.cfg 2013/05/19 v2.2 microtype config. file: Computer Modern Roman (RS)
+) (/mnt/dell_storage/homefolders/librad.laureateinstitute.org/mferguson/.TinyTeX/texmf-dist/tex/latex/epstopdf-pkg/epstopdf-base.sty
+Package: epstopdf-base 2020-01-24 v2.11 Base part for package epstopdf
+Package epstopdf-base Info: Redefining graphics rule for `.eps' on input line 485.
+ (/mnt/dell_storage/homefolders/librad.laureateinstitute.org/mferguson/.TinyTeX/texmf-dist/tex/latex/latexconfig/epstopdf-sys.cfg
+File: epstopdf-sys.cfg 2010/07/13 v1.3 Configuration of (r)epstopdf for TeX Live
+))
+Package hyperref Info: Link coloring ON on input line 18.
+ (/mnt/dell_storage/homefolders/librad.laureateinstitute.org/mferguson/Galois-Theory/chapters/ch03-rings/build/ch03-homework.out) (/mnt/dell_storage/homefolders/librad.laureateinstitute.org/mferguson/Galois-Theory/chapters/ch03-rings/build/ch03-homework.out)
+\@outlinefile=\write4
+\openout4 = `ch03-homework.out'.
+
+LaTeX Font Info:    Trying to load font information for U+msa on input line 20.
+ (/mnt/dell_storage/homefolders/librad.laureateinstitute.org/mferguson/.TinyTeX/texmf-dist/tex/latex/amsfonts/umsa.fd
+File: umsa.fd 2013/01/14 v3.01 AMS symbols A
+) (/mnt/dell_storage/homefolders/librad.laureateinstitute.org/mferguson/.TinyTeX/texmf-dist/tex/latex/microtype/mt-msa.cfg
+File: mt-msa.cfg 2006/02/04 v1.1 microtype config. file: AMS symbols (a) (RS)
+)
+LaTeX Font Info:    Trying to load font information for U+msb on input line 20.
+ (/mnt/dell_storage/homefolders/librad.laureateinstitute.org/mferguson/.TinyTeX/texmf-dist/tex/latex/amsfonts/umsb.fd
+File: umsb.fd 2013/01/14 v3.01 AMS symbols B
+) (/mnt/dell_storage/homefolders/librad.laureateinstitute.org/mferguson/.TinyTeX/texmf-dist/tex/latex/microtype/mt-msb.cfg
+File: mt-msb.cfg 2005/06/01 v1.0 microtype config. file: AMS symbols (b) (RS)
+)
+LaTeX Font Info:    Trying to load font information for U+stmry on input line 20.
+ (/mnt/dell_storage/homefolders/librad.laureateinstitute.org/mferguson/.TinyTeX/texmf-dist/tex/latex/stmaryrd/Ustmry.fd) [1
+
+{/mnt/dell_storage/homefolders/librad.laureateinstitute.org/mferguson/.TinyTeX/texmf-var/fonts/map/pdftex/updmap/pdftex.map}] [2] [3] [4] [5] [6] [7] [8] (/mnt/dell_storage/homefolders/librad.laureateinstitute.org/mferguson/Galois-Theory/chapters/ch03-rings/build/ch03-homework.aux)
+ ***********
+LaTeX2e <2025-11-01>
+L3 programming layer <2026-03-20>
+ ***********
+Package rerunfilecheck Info: File `ch03-homework.out' has not changed.
+(rerunfilecheck)             Checksum: D41D8CD98F00B204E9800998ECF8427E;0.
+ ) 
+Here is how much of TeX's memory you used:
+ 25167 strings out of 469339
+ 491214 string characters out of 5466426
+ 914630 words of memory out of 5000000
+ 53462 multiletter control sequences out of 15000+600000
+ 639780 words of font info for 134 fonts, out of 8000000 for 9000
+ 14 hyphenation exceptions out of 8191
+ 99i,13n,111p,1122b,507s stack positions out of 10000i,1000n,20000p,200000b,200000s
+</mnt/dell_storage/homefolders/librad.laureateinstitute.org/mferguson/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmbx10.pfb></mnt/dell_storage/homefolders/librad.laureateinstitute.org/mferguson/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmex10.pfb></mnt/dell_storage/homefolders/librad.laureateinstitute.org/mferguson/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmmi10.pfb></mnt/dell_storage/homefolders/librad.laureateinstitute.org/mferguson/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmmi8.pfb></mnt/dell_storage/homefolders/librad.laureateinstitute.org/mferguson/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmr10.pfb></mnt/dell_storage/homefolders/librad.laureateinstitute.org/mferguson/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmr12.pfb></mnt/dell_storage/homefolders/librad.laureateinstitute.org/mferguson/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmr17.pfb></mnt/dell_storage/homefolders/librad.laureateinstitute.org/mferguson/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmr6.pfb></mnt/dell_storage/homefolders/librad.laureateinstitute.org/mferguson/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmr8.pfb></mnt/dell_storage/homefolders/librad.laureateinstitute.org/mferguson/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmsy10.pfb></mnt/dell_storage/homefolders/librad.laureateinstitute.org/mferguson/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmsy8.pfb></mnt/dell_storage/homefolders/librad.laureateinstitute.org/mferguson/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmti10.pfb></mnt/dell_storage/homefolders/librad.laureateinstitute.org/mferguson/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/symbols/msbm10.pfb>
+Output written on /mnt/dell_storage/homefolders/librad.laureateinstitute.org/mferguson/Galois-Theory/chapters/ch03-rings/build/ch03-homework.pdf (8 pages, 191378 bytes).
+PDF statistics:
+ 116 PDF objects out of 1000 (max. 8388607)
+ 79 compressed objects within 1 object stream
+ 12 named destinations out of 1000 (max. 500000)
+ 16397 words of extra memory for PDF output out of 17280 (max. 10000000)
+

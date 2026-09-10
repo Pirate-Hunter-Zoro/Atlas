@@ -145,3 +145,4 @@
 {"id": "t0039", "rev": 6, "kind": "ink", "answers": "0134", "t": 1789058341.0120952, "iso": "2026-09-10 11:39:01", "from": "student", "page": 184, "strokes": 411, "png": "/answers/t0039-r6.png", "ink": "/answers/t0039-r6.json", "read": false}
 {"id": "t0042", "rev": 2, "kind": "text", "answers": "0134", "t": 1789058709.3322203, "iso": "2026-09-10 11:45:09", "from": "student", "text": "I\u2019m stuck. Why do we care about prime ideals?", "signal": null, "read": false}
 {"id": "t0043", "rev": 1, "kind": "ink", "answers": "0145", "t": 1789059038.5939388, "iso": "2026-09-10 11:50:38", "from": "student", "page": 187, "strokes": 337, "png": "/answers/t0043-r1.png", "ink": "/answers/t0043-r1.json", "read": false}
+{"id": "t0043", "rev": 2, "kind": "ink", "answers": "0145", "t": 1789059211.7909184, "iso": "2026-09-10 11:53:31", "from": "student", "page": 188, "strokes": 7, "png": "/answers/t0043-r2.png", "ink": "/answers/t0043-r2.json", "read": false}
