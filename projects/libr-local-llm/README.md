@@ -32,7 +32,7 @@ appears, it uses this too.
 > **Where the next phase is scheduled.** [`FLEET-BUILD.md`](FLEET-BUILD.md) is the build runbook.
 > **Revised 2026-09-09 (fourth pass): an elastic pool over 7 nodes and 10 A40s.** The everyday
 > helper needs **one GPU of ten**, so it is effectively never absent; a larger version appears on
-> compute306 when that node has cards to spare; colibrì's GLM-5.2 (744B, int4, 372 GB) sits behind
+> compute306 when that node has cards to spare; colibrì's GLM-5.2 (744B, int4, **429 GB**) sits behind
 > an explicit tool call as the consultant; batch corpus work soaks up whatever is left on the
 > filesystem queue, with no socket at all. The pool is filled in priority order and emptied in
 > reverse, **eight of the ten GPUs release within seconds**, and the last free GPU in the partition
@@ -49,7 +49,10 @@ appears, it uses this too.
 > subjective grading are reported separately — an assistant grading its own replacement is a
 > conflict of interest that task design has to solve, not good intentions.
 >
-> Still nothing built. A 17-slide plain-language walkthrough is
+> **P0, the measurement campaign, started on 2026-09-09 and is the only part under way.**
+> [`P0-STATUS.md`](P0-STATUS.md) is its live record — which tests passed, which jobs are still in
+> flight, the findings that already contradict the runbook, and the two checkpoints chosen. Nothing
+> beyond P0 is built. A 17-slide plain-language walkthrough is
 > [`docs/fleet_walkthrough.pdf`](docs/fleet_walkthrough.pdf) (source `docs/fleet_walkthrough.tex`,
 > built with `pdflatex`).
 
@@ -118,7 +121,10 @@ each step are in the numbered sections below.
 | GPU partitions | `c3_short` (9 h cap), `c3` (7 d cap), `c3_accel` (7 d cap) |
 | `c3` / `c3_short` nodes | 6 nodes, **1× NVIDIA A40 (46 GB) each**, ~1 TB RAM |
 | `c3_accel` node | **compute306 only**, **4× A40**, 96 CPUs, 1 TB RAM |
-| CPU (every node) | 2× Intel Xeon Gold 6342 @ 2.80 GHz — 24 cores/socket, 96 threads, **2 NUMA nodes**, **AVX-512 with VNNI** |
+| CPU (every node) | 2× Intel Xeon Gold 6342 @ 2.80 GHz — 24 cores/socket, **48 physical cores / 96 threads**, **2 NUMA nodes of ~515 GB each**, **AVX-512 with VNNI** |
+| CPUs a job may hold | **92.** `MaxCPUsPerNode=92` on every partition, so `--exclusive`, `-c 96`, `-c 95` and `-c 94` are all refused at submission with `Requested node configuration is not available` — a message naming neither the limit nor the flag. It caps the **partition's** total on that node, so a co-tenant holding 2 CPUs lowers your own ceiling to 90 |
+| CUDA | **A module, not a path.** There is no `/usr/local/cuda`. `module load CUDA/13.1.0` and use `$EBROOTCUDA` |
+| Node `python3` | **3.9.25**, too old for `dataclass(slots=True)` and much else. `module load Python/3.12.3-GCCcore-13.3.0` |
 | GPU compute capability | **8.6** (Ampere), driver 610.43.02. No FP8 tensor cores — AWQ/GPTQ int4, int8 and bf16 are the usable formats |
 | GPU interconnect | **NVLink reports all links inactive.** Cross-GPU traffic goes over PCIe, so tensor parallelism pays an all-reduce tax on every layer |
 | GPU isolation | **None.** `nvidia-smi` shows a node's GPUs whether or not you reserved one |
@@ -151,7 +157,13 @@ Nothing here required admin rights.
 | Driver commands | `bin/ollama-up`, `bin/ollama-code`, `bin/ollama-down` | tracked here; put `bin/` on `PATH` (§3). See §4a |
 | opencode guard | `config/opencode-guard.sh` | tracked here; sourced from `~/.bashrc` (§3). Turns a bare `opencode` into a pointer at the driver commands |
 | Pre-existing HF models | `/media/studies/ehr_study/analysis/mferguson/models/` | whisper, pyannote, embedders, and `google_medgemma-27b-text-it` (safetensors, for vllm) |
-| colibrì upstream checkout | `~/colibri` | ~65 MB. Read-only clone of `github.com/JustVugg/colibri`, kept current by a daily user timer (§2.1). Nothing here runs it yet — see §8 |
+| Fleet standard helper | `…/models/vllm/Qwen3-Coder-30B-A3B-Instruct-AWQ-4bit` | 18.1 GB. `cyankiwi/…`, compressed-tensors int4 at **group size 32**, 30B total / **3.3B active**, 128 experts top-8, 262144 native context. Staged 2026-09-09 in 167 s |
+| Fleet specialist | `…/models/colibri/glm52_i4` | **429 GB**, 149 files. `mastouri/GLM-5.2-colibri-int4-g64-with-int8-mtp` — the group-scaled container with the int8 MTP head, which is the one colibrì's own docs require |
+| colibrì upstream checkout | `~/colibri` | ~89 MB. Read-only clone of `github.com/JustVugg/colibri`, kept current by a daily user timer (§2.1). Never build in it — the timer expects a clean tree |
+| colibrì build | `~/colibri-build` | A second clone, pinned at the commit that was measured. Built 2026-09-09 with `make -C c glm CUDA=1 CUDA_ARCH=sm_86 CUDA_HOME=$EBROOTCUDA ARCH=native` under `CUDA/13.1.0` + `GCC/13.3.0`; 44 s. `ARCH=native` is load-bearing and verified — it defines `__AVX512VNNI__`, which selects the faster int4 kernel. Both AVX-512 selftests pass |
+| vLLM | conda env `/media/studies/ehr_study/analysis/mferguson/venvs/vllm_env` | v0.29.0, torch 2.13.0+cu130, python 3.12. Selects the **Marlin** WNA16 MoE backend on these sm_86 cards |
+| Hugging Face downloader | venv `/media/studies/ehr_study/analysis/mferguson/venvs/hfdl` | `huggingface_hub` 1.8.0, for the `hf download` command only |
+| P0 job files, harness, logs, results | `/media/studies/ehr_study/analysis/mferguson/fleet-p0` | Deliberately outside this repo: it is public, and job logs are not architecture |
 
 ### Installing ollama from scratch
 
@@ -350,9 +362,10 @@ measured. A server that lives under 9 hours schedules sooner on `c3_short`, so t
 > `PriorityTier=20` and `c3` at `10`, with `PreemptType=preempt/partition_prio` and `c3`'s
 > `PreemptMode=SUSPEND`. On that reading a `c3_short` job can `SIGSTOP` a server running in `c3` on
 > the same node — which does not free its VRAM, so it helps nobody, and leaves the client waiting on
-> a frozen generation with no error. **Inferred from the partition configuration on 2026-09-09, not
-> yet observed**; it is the first of that file's preflight tests. Until it is settled, prefer
-> `c3_short` and a shorter walltime.
+> a frozen generation with no error. **Observed on 2026-09-09** (`P0-STATUS.md`, test 10): the
+> suspension landed four seconds after the competing `c3_short` job was submitted, and Slurm resumed
+> the victim about three seconds after that job finished. `Reason=None` and `PreemptTime=None`
+> throughout — nothing in the job record says it was preempted. **Use `c3_short`, not `c3`.**
 Switch the file to `c3` if you want one to outlive that; `ollama-up` rejects a `single` walltime over
 9 h rather than letting Slurm return a partition-limit error that does not say what to change.
 
@@ -512,7 +525,9 @@ running — no GPU needed for a pull, it is network and disk only. Pulls are chu
 re-running the same tag continues from an orphan blob rather than restarting.
 
 **Cold loads are slow and it is the studies share, not the GPUs.** `gpt-oss:120b` took 4m46s to page
-65.4 GB off NFS (~230 MB/s) before its first token. Warm it before you need it — `ollama-code -k`
+65.4 GB off NFS (~230 MB/s) before its first token. vLLM 0.29 prefetches its shards into page cache
+in parallel and pulled 16.85 GiB in 23 s on the same share, so the figure is a floor for a
+cold-cache serial read, not a constant. Warm it before you need it — `ollama-code -k`
 (§4a) exists for exactly that.
 
 `ollama list` shows only *completed* models — the manifest is written last. Mid-flight, the store
@@ -718,11 +733,44 @@ Do not re-learn these.
     Not yet verified against a running server: the override takes effect on the next `ollama-up
     accel`, and it was not restarted while a live session depended on the resident model.
 
+25. **`pip` installs into `~/.local` on this filer even when the environment is writable, because
+    `os.access` lies.** (Added 2026-09-09.) pip decides where to install with
+    `test_writable_dir()`, which on POSIX is one line: `os.access(path, os.W_OK)`. The Isilon
+    synthesises POSIX mode bits lossily from the real NFSv4 ACL, so that call returns **False** for
+    a directory the same process then writes to without error — the same defect `PERMISSIONS.md`
+    documents for mode bits generally. pip logs *"Defaulting to user installation because normal
+    site-packages is not writeable"* and puts the payload in `~/.local`, which then **shadows the
+    environment at import time**. 8.7 GB of vLLM landed on a 100 GB home share this way and a job
+    ran a copy of the library nobody meant to install.
+    **`--no-user` is not a reliable fix. `PYTHONNOUSERSITE=1` is.** It flips
+    `site.ENABLE_USER_SITE` to False, which pip checks *ahead* of the writability probe, and it also
+    stops `~/.local` shadowing the environment at run time. Set it in every install script and every
+    job that activates an environment on this filer. The related, harmless half of the same defect:
+    pip disables its own cache under `/media/studies/…/mferguson` for the same reason, so installs
+    there re-download.
+26. **vLLM's default sampler compiles a CUDA kernel at warm-up, and there is no `/usr/local/cuda`
+    to compile it with.** (Added 2026-09-09.) vLLM 0.29 defaults to the FlashInfer sampler, which
+    JIT-builds `top_k_mask_logits` the first time it samples. The build hardcodes `/usr/local/cuda`
+    as its fallback and dies with `RuntimeError: Could not find nvcc and default
+    cuda_home='/usr/local/cuda' doesn't exist`. It happens **after** the weights load, the KV cache
+    is allocated and the CUDA graphs are captured — minutes into startup, under two screens of
+    traceback whose top frames are all `contextlib`. Export `CUDA_HOME=$EBROOTCUDA` to fix the
+    lookup, and set `VLLM_USE_FLASHINFER_SAMPLER=0` anyway: a kernel build inside the serving path
+    is a cold-start hazard, and the JIT cache would land on a shared NFS filer.
+
 ---
 
 ## 8. Not done yet
 
-- **The fleet — the repo's next phase, designed 2026-08-22, none of it built.** All three engines
+- **The fleet — the repo's next phase, designed 2026-08-22. P0 is nearly done; nothing past it is
+  built.** [`P0-STATUS.md`](P0-STATUS.md) is the live record of the measurement campaign and should
+  be read before any fleet work: **nine of its twelve tests have passed** and twelve of its findings
+  contradict `FLEET-BUILD.md` as originally written.
+  **The headline measurement, 2026-09-09:** the 30B int4 helper on **one** A40 serves six concurrent
+  users at **51 tok/s each** with a **0.2-second** first token behind a 15,000-token preamble, and
+  still gains throughput at eight. The 744B model on a whole 1 TB node manages **3.3 tok/s for one
+  user**. Everything the fleet promises interactively is delivered by one of the ten cards today;
+  the big model is a batch instrument you queue for, not a tier you route to. All three engines
   (ollama, vllm, colibrì) behind one front door, spread across the cluster's GPUs by a supervisor
   that acquires nodes when they are free, **yields them when another user's job is blocked by what we
   hold**, and regrows when it can. The full design — goals and non-goals, the placement argument, the
@@ -733,7 +781,7 @@ Do not re-learn these.
   **supersedes its engine choice**: ollama is dropped, colibrì becomes the escalation tier, and
   vLLM becomes both the daily driver and the batch engine. Two findings there change how the rest
   of this repo should be read — the **expert-union arithmetic** that caps every multi-token
-  optimisation on a 744B top-8-of-256 model, and the **27-minute cold start** that constrains
+  optimisation on a 744B top-8-of-256 model, and the **~31-minute cold start** that constrains
   anything holding one. Three things from `DESIGN.md` that change how the items below should be
   read:
   - **Replicas, not shards.** With NVLink inactive (§1), independent single-GPU replicas beat
