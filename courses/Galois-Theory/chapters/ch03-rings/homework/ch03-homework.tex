@@ -785,8 +785,60 @@
 
   Combining the two inclusions, the units of $R$ are precisely the elements
   of $R$ whose numerator, in lowest terms, is not divisible by $p$.
+
+  \medskip
+  \textbf{$R$ is a principal ideal domain.} $R$ is an integral domain, as
+  noted above. It remains to show that every ideal of $R$ is principal. We
+  use two lemmas.
+
+  \emph{Lemma A.} Every non-zero $x \in R$ can be written $x = u\,p^{k}$ with
+  $u$ a unit of $R$ and $k \geq 0$ an integer.
+
+  Write $x = n/q$ in lowest terms, so $p \nmid q$. Let $k \geq 0$ be the
+  largest integer with $p^{k} \mid n$; this exists because $n \neq 0$, so only
+  finitely many powers of $p$ divide $n$. Put $n = p^{k}n'$, so that
+  $p \nmid n'$. Then
+  \[
+    x = \frac{p^{k}n'}{q} = \frac{n'}{q} \cdot p^{k} ,
+  \]
+  and $u = n'/q$ lies in $R$ with $p \nmid n'$, so $u$ is a unit by the
+  previous part. (For $k = 0$ this says $x$ is itself a unit, as with
+  $7/4$ when $p = 3$.)
+
+  \emph{Lemma B.} If $x = u\,p^{k}$ lies in an ideal $I$ of $R$, with $u$ a
+  unit, then $p^{k} \in I$.
+
+  Indeed $u^{-1} \in R$ because $u$ is a unit, and $p^{k} = u^{-1}x$, so
+  $p^{k} \in I$ by absorption.
+
+  Now let $I$ be an ideal of $R$. If $I = \{0\}$ then $I = (0)$ and we are
+  done, so suppose $I$ contains a non-zero element $a$. Let
+  \[
+    S = \{\, k \geq 0 : p^{k} \in I \,\} .
+  \]
+  By Lemma A, $a = u\,p^{k}$ for a unit $u$ and some $k \geq 0$, and then
+  $p^{k} \in I$ by Lemma B; so $S$ is a non-empty set of non-negative
+  integers. By well-ordering $S$ has a least element $m$, and $p^{m} \in I$.
+  We claim $I = (p^{m})$.
+
+  \emph{($\supseteq$).} $p^{m} \in I$, so $rp^{m} \in I$ for every $r \in R$
+  by absorption. Hence $(p^{m}) \subseteq I$.
+
+  \emph{($\subseteq$).} Let $y \in I$. If $y = 0$ then $y = 0 \cdot p^{m} \in
+  (p^{m})$, so assume $y \neq 0$. By Lemma A, $y = u\,p^{k_{1}}$ with $u$ a
+  unit and $k_{1} \geq 0$. By Lemma B applied to $y \in I$, we get
+  $p^{k_{1}} \in I$, that is, $k_{1} \in S$. Since $m$ is the least element of
+  $S$, this forces $k_{1} \geq m$. Therefore $k_{1} - m \geq 0$, so
+  $r = u\,p^{k_{1}-m}$ is a product of elements of $R$ and hence lies in $R$,
+  and
+  \[
+    r p^{m} = u\,p^{k_{1}-m}p^{m} = u\,p^{k_{1}} = y .
+  \]
+  Hence $y \in (p^{m})$ and $I \subseteq (p^{m})$.
+
+  So $I = (p^{m})$. Every ideal of $R$ is principal, and $R$ is a principal
+  ideal domain.
 \end{solution}
-% TODO(mferguson): $R$ is a principal ideal domain.
 % ===== END SOLUTION 03.17 =====
 
 \begin{problem}{03.25}
