@@ -15,8 +15,8 @@ running — every job exited on its own and `squeue -u $USER` is clear of P0 wor
 
 The result the campaign existed to get: **the 30B int4 helper on one A40 serves six concurrent users
 at 51 tok/s each with a 0.2-second first token, behind a 15,000-token preamble, and is still gaining
-throughput at eight users. The 744B on a whole 1 TB node manages 3.3–4.4 tok/s for one user.**
-Roughly 30× per session on a thirtieth of the hardware.
+throughput at eight users. The 744B on a whole 1 TB node manages 3.2–4.4 tok/s for one user.**
+Between 12× and 16× per session on a thirtieth of the hardware.
 
 Two sections of `FLEET-BUILD.md` are now retracted rather than amended:
 

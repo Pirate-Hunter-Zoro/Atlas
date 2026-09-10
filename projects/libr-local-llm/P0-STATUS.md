@@ -13,9 +13,9 @@ long form with every table; this file is the state of play and the findings that
 
 **Tier 1 on a single A40 serves six concurrent users at 51 tok/s each with a 0.2-second first
 token, behind a 15,000-token agent preamble. Tier 2 — the 744B on a whole 1 TB node — tops out at
-3.3 tok/s for one user.**
+3.2–4.4 tok/s for one user, depending on which node it lands on.**
 
-That is roughly **30× per session and 90× in aggregate, on a thirtieth of the hardware.** §9 called
+That is **12–16× per session and 70–90× in aggregate, on a thirtieth of the hardware.** §9 called
 test 8b "the question that decides everything" and the answer is unambiguous: the floor alone is
 good enough, and the 744B is not an interactive model on this cluster. See "What this does to the
 design" below.
@@ -187,7 +187,7 @@ node-local RAM tmpfs, so a job on compute303 writes logs compute300 cannot see.
 ## What this does to the design
 
 **§11.2's escalation problem is now a resource question with an answer.** Tier 2 is not a slower
-interactive model. At 3.3 tok/s a 500-token reply takes two and a half minutes and occupies a whole
+interactive model. At 4 tok/s a 500-token reply takes two minutes and occupies a whole
 1 TB node while doing it. The runbook should stop describing it as a tier users are *routed* to and
 start describing it as one they are **queued** for.
 
@@ -272,7 +272,7 @@ byte-for-byte, then measures.
    has not been built yet, which is the cheapest moment to make them.
 3. **Test 8** — TP=2 vs TP=4 vs independent replicas — needs the large helper downloaded (73.1 GB).
    **Ask whether it is still wanted first.** Its whole justification was that tier 2 is too slow to
-   escalate to; tier 1 measured 30× faster than tier 2, and four cards buy 0.9 % on the big model.
+   escalate to; tier 1 measured well over 10× faster than tier 2, and four cards buy 0.9 % on the big model.
    A second, larger vLLM helper may be solving a problem P0 just dissolved.
 
 **One cleanup for the user, not urgent:** `rm -rf ~/.local/lib/python3.12` recovers 8.7 GB of the

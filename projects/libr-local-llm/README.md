@@ -768,7 +768,7 @@ Do not re-learn these.
   contradict `FLEET-BUILD.md` as originally written.
   **The headline measurement, 2026-09-09:** the 30B int4 helper on **one** A40 serves six concurrent
   users at **51 tok/s each** with a **0.2-second** first token behind a 15,000-token preamble, and
-  still gains throughput at eight. The 744B model on a whole 1 TB node manages **3.3 tok/s for one
+  still gains throughput at eight. The 744B model on a whole 1 TB node manages **3.2–4.4 tok/s for one
   user**. Everything the fleet promises interactively is delivered by one of the ten cards today;
   the big model is a batch instrument you queue for, not a tier you route to. All three engines
   (ollama, vllm, colibrì) behind one front door, spread across the cluster's GPUs by a supervisor

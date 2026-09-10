@@ -24,7 +24,7 @@ are corrected in §2; pass three's single point of failure is corrected in §4.1
 3. **Read [`P0-STATUS.md`](P0-STATUS.md) before touching P0, and before trusting §9 or §11 here.**
    Nine of the twelve tests passed on 2026-09-09 and **twelve findings there contradict this file.**
    The one that matters most: **tier 1 on a single A40 serves six concurrent users at 51 tok/s each
-   with a 0.2-second first token, while tier 2 on a whole 1 TB node manages 3.3 tok/s for one.** The
+   with a 0.2-second first token, while tier 2 on a whole 1 TB node manages 3.2–4.4 tok/s for one.** The
    rest are operational and will cost you a day each if you meet them cold — `--exclusive` is refused
    cluster-wide, `c3_short` cannot be used on compute306, `pip` silently installs into `~/.local` on
    this filer, there is no `/usr/local/cuda`, `coli` will not run under the nodes' Python 3.9, and
@@ -766,13 +766,13 @@ on **one** A40, behind a 15,000-token agent preamble:
 | **6** | **51.4** | **300.1** | **0.203 s** |
 | 8 | 48.8 | 375.4 | 0.269 s |
 
-Against that, tier 2 — the 744B on a whole 1 TB node plus a card — measured **3.3 tok/s for a single
-user** at its best configuration. Roughly **30× per session and 90× in aggregate, on a thirtieth of
-the hardware.**
+Against that, tier 2 — the 744B on a whole 1 TB node plus a card — measured **3.2–4.4 tok/s for a
+single user** at its best configuration, the spread being which node it landed on rather than any
+setting. **12–16× per session and 70–90× in aggregate, on a thirtieth of the hardware.**
 
 Three consequences, all of which contradict text above:
 
-1. **Tier 2 is not a tier users are routed to. It is one they are queued for.** At 3.3 tok/s a
+1. **Tier 2 is not a tier users are routed to. It is one they are queued for.** At 4 tok/s a
    500-token reply takes two and a half minutes and holds a whole node while it does. §11.2's
    escalation problem is a scheduling question, not a routing question.
 2. **Size the tier-1 pool by tokens, not users.** One card holds 237,904 KV tokens. Six users get
@@ -907,7 +907,7 @@ The second row is the one worth engineering, because it needs no introspection. 
 edited the same file four times is stuck whether or not it believes it is.
 
 **P0 changed the economics of this section, 2026-09-09.** Escalation was written as routing: notice
-the hard question, send it to the bigger model. Measurement says tier 2 runs at **3.3 tok/s** and
+the hard question, send it to the bigger model. Measurement says tier 2 runs at **3.2–4.4 tok/s** and
 occupies a whole 1 TB node to do it, against **51 tok/s per user for six users on one card** at tier
 1. A 500-token tier-2 reply is two and a half minutes of a node nobody else can use.
 
