@@ -140,3 +140,4 @@
 {"id": "t0039", "rev": 4, "kind": "ink", "answers": "0134", "t": 1789056763.2314987, "iso": "2026-09-10 11:12:43", "from": "student", "page": 182, "strokes": 538, "png": "/answers/t0039-r4.png", "ink": "/answers/t0039-r4.json", "read": false}
 {"id": "t0040", "rev": 1, "kind": "text", "answers": "0134", "t": 1789056867.4291499, "iso": "2026-09-10 11:14:27", "from": "student", "text": "", "signal": "skip", "read": false}
 {"id": "t0041", "rev": 1, "kind": "text", "answers": "0134", "t": 1789056945.1956544, "iso": "2026-09-10 11:15:45", "from": "student", "text": "", "signal": "skip", "read": false}
+{"id": "t0042", "rev": 1, "kind": "text", "answers": "0134", "t": 1789057030.5141225, "iso": "2026-09-10 11:17:10", "from": "student", "text": "There are two more exercises besides 3.8 - we move on", "signal": null, "read": false}
