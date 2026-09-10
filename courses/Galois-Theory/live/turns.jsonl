@@ -138,3 +138,4 @@
 {"id": "t0039", "rev": 2, "kind": "ink", "answers": "0134", "t": 1789054360.9549463, "iso": "2026-09-10 10:32:40", "from": "student", "page": 180, "strokes": 116, "png": "/answers/t0039-r2.png", "ink": "/answers/t0039-r2.json", "read": false}
 {"id": "t0039", "rev": 3, "kind": "ink", "answers": "0134", "t": 1789056521.7323117, "iso": "2026-09-10 11:08:41", "from": "student", "page": 181, "strokes": 491, "png": "/answers/t0039-r3.png", "ink": "/answers/t0039-r3.json", "read": false}
 {"id": "t0039", "rev": 4, "kind": "ink", "answers": "0134", "t": 1789056763.2314987, "iso": "2026-09-10 11:12:43", "from": "student", "page": 182, "strokes": 538, "png": "/answers/t0039-r4.png", "ink": "/answers/t0039-r4.json", "read": false}
+{"id": "t0040", "rev": 1, "kind": "text", "answers": "0134", "t": 1789056867.4291499, "iso": "2026-09-10 11:14:27", "from": "student", "text": "", "signal": "skip", "read": false}
