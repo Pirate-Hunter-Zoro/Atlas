@@ -157,3 +157,4 @@
 {"id": "t0044", "rev": 3, "kind": "ink", "answers": "0153", "t": 1789069921.824288, "iso": "2026-09-10 14:52:01", "from": "student", "page": 198, "strokes": 172, "png": "/answers/t0044-r3.png", "ink": "/answers/t0044-r3.json", "read": false}
 {"id": "t0045", "rev": 1, "kind": "text", "answers": "0153", "t": 1789070162.742856, "iso": "2026-09-10 14:56:02", "from": "student", "text": "No. This can\u2019t be the point of the exercise", "signal": null, "read": false}
 {"id": "t0044", "rev": 4, "kind": "ink", "answers": "0153", "t": 1789070853.3433952, "iso": "2026-09-10 15:07:33", "from": "student", "page": 199, "strokes": 256, "png": "/answers/t0044-r4.png", "ink": "/answers/t0044-r4.json", "read": false}
+{"id": "t0044", "rev": 5, "kind": "ink", "answers": "0153", "t": 1789071215.6256268, "iso": "2026-09-10 15:13:35", "from": "student", "page": 200, "strokes": 323, "png": "/answers/t0044-r5.png", "ink": "/answers/t0044-r5.json", "read": false}
