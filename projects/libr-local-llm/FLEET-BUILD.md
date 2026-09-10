@@ -21,14 +21,25 @@ are corrected in §2; pass three's single point of failure is corrected in §4.1
 2. **Read §0 and obey it.** The user's standing instructions: queue tests are pre-authorised,
    **everything must die to `scancel -u $USER`**, and the P1-shaping decisions are already made in
    favour of performance. Do not re-ask them.
-3. **Run P0** (§9). It is a day, it comes first, and any one of its tests can invalidate a design
-   decision above it. **No confirmation needed — §0.1 covers it.**
-4. **Then follow §12**, phase by phase, and do not start a phase whose predecessor's exit criterion
+3. **Read [`P0-STATUS.md`](P0-STATUS.md) before touching P0, and before trusting §9 or §11 here.**
+   Nine of the twelve tests passed on 2026-09-09 and **twelve findings there contradict this file.**
+   The one that matters most: **tier 1 on a single A40 serves six concurrent users at 51 tok/s each
+   with a 0.2-second first token, while tier 2 on a whole 1 TB node manages 3.3 tok/s for one.** The
+   rest are operational and will cost you a day each if you meet them cold — `--exclusive` is refused
+   cluster-wide, `c3_short` cannot be used on compute306, `pip` silently installs into `~/.local` on
+   this filer, there is no `/usr/local/cuda`, `coli` will not run under the nodes' Python 3.9, and
+   `sbatch --test-only` cannot be used as an availability probe. That file also records the two
+   checkpoints chosen under §0.4 and where everything was installed.
+4. **Run the rest of P0** (§9). It is a day, it comes first, and any one of its tests can invalidate
+   a design decision above it. **No confirmation needed — §0.1 covers it.**
+5. **Then follow §12**, phase by phase, and do not start a phase whose predecessor's exit criterion
    is unmet.
-5. **Graduate durable facts into `README.md`** as each piece is built *and verified*, deleting the
+6. **Graduate durable facts into `README.md`** as each piece is built *and verified*, deleting the
    corresponding `DESIGN.md` entry. Commits carry no assistant attribution. Never push unasked.
 
-**Nothing in this file is built.** It is a work order, not a record of work.
+**Almost nothing in this file is built.** It is a work order, not a record of work — with the
+single exception of P0, whose progress lives in [`P0-STATUS.md`](P0-STATUS.md). Where P0 and this
+file disagree, **P0 measured it and this file guessed it.**
 
 **No sudo, anywhere.**
 
@@ -83,7 +94,7 @@ are now settled.
 | 1 | does the everyday helper bind the cluster network? | **yes**, with an API key | loopback serves one node and one user, which defeats the entire point. Recorded as a deliberate weakening of the control in `README.md` §7.20. **The batch tier stays socket-free** (§8 of `DESIGN.md`), so the PHI corpus path is unaffected |
 | 2 | which model shape for the standard helper? | **a sparse MoE, ≤36 GB at int4, with ≤10B active parameters** | §0.4 — this is the single highest-leverage performance decision available and it is not a close call |
 | 3 | tensor parallelism on compute306 | **the minimum that fits, never more.** TP=2 before TP=4; independent single-card replicas before either | NVLink is inactive, so every all-reduce crosses PCIe. Extra cards past what the weights need are a tax, not a speed-up |
-| 4 | partition | **`c3_short` for everything**, longevity from the restart chain | `c3` is preemptible and a suspended server hangs the client with no error (§14). 27 min of reload per 9 h is 5 %; a silent freeze is unbounded |
+| 4 | partition | **`c3_short` on compute300–305, `c3_accel` on compute306, never `c3`** | `c3` is preemptible and a suspended server hangs the client with no error — **observed 2026-09-09, and it takes four seconds** (§14). Earlier revisions said "`c3_short` for everything"; that is impossible, because `c3_accel` is the only partition containing compute306. It is safe anyway: partition-priority preemption needs a higher-tier partition on the same node and there is none (`P0-STATUS.md`) |
 | 5 | colibrì settings | `CUDA_DENSE=1`, `XEXP=1`, speculation on at `KV_SLOTS=1`, `URING`/`PILOT*` **off** | §10. Each is a measured lever; `XEXP` and speculation are still A/B'd in P0, but they ship **on** unless a measurement says otherwise |
 | 6 | `reserve_free_nodes` | **stays at 1** | it costs one card of ten and it is the only reason a colleague never waits on us at all. Performance for us is not worth being the group that gets emailed |
 
@@ -192,14 +203,34 @@ It also does not rescue us, but for a completely different reason, and the reaso
 
 ### 2.2 "Four GPUs are worth under 2 %" was colibrì's number on a CPU-starved host, not ours.
 
-That A/B was run where the CPU-side expert path sustained **19.67 GB/s against ~85 GB/s of
-available memory bandwidth** — 23 % of the machine. Placement could not matter, because the CPU
-could not consume faster from either tier. On a host that pulls **131.9 GB/s** the comparison is
-open again: A40 HBM is ~696 GB/s, so experts served from VRAM arrive **~5× faster** than from RAM.
+**~~Corrected~~ Retracted, 2026-09-09. This correction was itself the error, and test 6 measured it.**
 
-Corrected: **the four-GPU question is open and is a measurement we owe** (§9 test 6), not a settled
-"one card is enough". The arithmetic in §3.4 says four cards could be worth ~1.6× on the expert
-phase. It also says that is not where the biggest win is.
+The argument was that colibrì's A/B ran where the CPU-side expert path sustained **19.67 GB/s
+against ~85 GB/s of available memory bandwidth** — 23 % of the machine — so placement could not
+matter, while on a host pulling **131.9 GB/s** the comparison reopens: A40 HBM is ~696 GB/s, so
+experts served from VRAM should arrive **~5× faster** than from RAM. §3.4's arithmetic put four
+cards at ~1.6× on the expert phase.
+
+Measured on compute306 with 88 CPUs, 900 GB, all four cards reserved and the checkpoint warm,
+alternated over three repeats:
+
+| | tok/s |
+|---|---|
+| one A40 | **4.31** |
+| four A40s | **4.35** |
+
+**Four cards are worth 0.9 %.** colibrì's published figure reproduces on our hardware almost
+exactly. The arithmetic above is not wrong about bandwidth; it is wrong about what the clock is
+waiting for. `coli plan` names the real limit in three words — `CPU expert tail` — and more VRAM
+does not shorten it. Test 5 says the same thing from the other side: moving the dense half onto the
+card with `CUDA_DENSE=1` changes nothing either.
+
+**Give tier 2 one card.** The other three on compute306 are worth ~300 tok/s of aggregate tier-1
+throughput each (§9), against 0.9 % here. §4.3's pool must not reserve compute306 for the big model.
+
+**The general lesson, since this is the second time this document has been wrong in the same
+direction:** every number in §3 is an argument from bandwidth, and bandwidth has now twice failed to
+predict throughput on this workload. Treat the rest of §3 as hypothesis until §9 measures it.
 
 ---
 
@@ -225,7 +256,7 @@ optimisation at under 2×, and that is the fact pass two missed.
 
 | lever | effect on the 92 ms | status |
 |---|---|---|
-| **VRAM residency** (4× A40 = 184 GB of a 372 GB model, at ~696 GB/s) | 92 → **55 ms** | §2.2 — open, worth measuring |
+| **VRAM residency** (4× A40 = 184 GB of a 429 GB model, at ~696 GB/s) | 92 → **55 ms** | §2.2 — open, worth measuring |
 | **Cluster mode** — N nodes each read their own 1/N slice in parallel | 92 → **~34 ms** at N=6 | §5, real but the code needs work |
 | more RAM | nothing. Already fully resident | closed |
 
@@ -393,7 +424,7 @@ empties them in exactly the reverse:
 |---|---|---|---|---|
 | **1** | **standard helper** — the floor; at least one must always exist | **any single card** | minutes | **the service** |
 | **2** | **large helper** — the upgrade, when compute306 has cards spare | compute306, 2–4 GPUs | minutes | better answers |
-| **3** | **the specialist** — colibrì, GLM-5.2 744B | one `c3` node, +~500 GB RAM, ~92 CPUs | **27 min** | escalation only |
+| **3** | **the specialist** — colibrì, GLM-5.2 744B | one `c3_short` node, +~500 GB RAM, **92 CPUs — the cap, see §14** | **~31 min** | escalation only |
 | **4** | **standard-helper replicas** — only when measured concurrency needs them | any single card | minutes | a little capacity |
 | **5** | **batch workers** — corpus work off the filesystem queue | every remaining card | seconds | one work item |
 
@@ -544,8 +575,8 @@ command that started it and exits when that command does — plus a watchdog tha
 is gone and nothing has connected for 60 seconds. It is a child of something you typed, not a
 background service, and it holds no Slurm resources.
 
-**The one honest limit on waiting:** the specialist takes 27 minutes to come back from cold.
-Blocking a client silently for 27 minutes is worse than saying so. The proxy waits up to a
+**The one honest limit on waiting:** the specialist takes about 31 minutes to come back from cold.
+Blocking a client silently for 31 minutes is worse than saying so. The proxy waits up to a
 configured `max_wait_seconds` (default 120) and past that returns a message naming the wait and the
 reason, rather than hanging. The everyday helper restarts in minutes, so it almost never trips
 this.
@@ -615,8 +646,8 @@ releases in seconds.** §4.3 is the ladder; the size of the claim is not the thi
 - **compute306 is used, not camped on.** A multi-user service on the only node that can hold the
   model is the intended use of that hardware. Hold it with a real walltime, publish the status,
   release it when idle.
-- **The specialist costs 27 minutes to restart** (372 GB at a measured 230 MB/s), so it yields
-  reluctantly and its idle timeout is **180 minutes**, not 30. A 27-minute asset released over a
+- **The specialist costs about 31 minutes to restart** (429 GB at a measured 230 MB/s), so it yields
+  reluctantly and its idle timeout is **180 minutes**, not 30. A 31-minute asset released over a
   lunch break is the thrashing `DESIGN.md` §10 warns about.
 - The yield predicate is unchanged and the **`BeginTime` filter is still the load-bearing part** —
   every pending job on this cluster on 2026-09-09 was `BeginTime`, not `Resources`.
@@ -692,7 +723,7 @@ That is what makes `scancel -u $USER` a real kill switch rather than a way to tr
 `scancel -9` and a node dying give no chance to write anything, and the successor will start; that is
 correct for node death, and `fleet down` covers the other case.
 
-Two tier-2 adjustments: **readiness is a generated token, not a listening socket** (27-minute load;
+Two tier-2 adjustments: **readiness is a generated token, not a listening socket** (31-minute load;
 a timeout written for ollama fires at 3 % — `DESIGN.md` §14.3 anticipated this), timeout 45 minutes.
 And **heartbeats go in a file on NFS home**, read by content and never by mtime, so health checking
 costs the scheduler nothing.
@@ -704,11 +735,11 @@ costs the scheduler nothing.
 | # | test | settles |
 |---|---|---|
 | 1 | Build colibrì `ARCH=native CUDA=1 CUDA_ARCH=sm_86`, run the `AVX512 i4 selftest` | the VNNI kernel family is compiled in |
-| 2 | Stage GLM-5.2 (372 GB); time the download and one cold load | the 27-minute figure |
+| 2 | Stage GLM-5.2 (**429 GB**, 149 files); time the download and one cold load | the ~31-minute figure |
 | 3 | Restart on the **same node**; time the second load | whether 1 TB of page cache kills the cold start |
 | 4 | `coli plan`, then `coli tune`, under the snapshot protocol (§10) | the real tok/s, plus the OpenMP and NUMA answers |
-| 5 | A/B `CUDA_DENSE=1` on one A40 | §3.4 — how much of the 122 ms the GPU takes |
-| 6 | **A/B one A40 against four** | §2.2 — the question pass two closed prematurely |
+| 5 | A/B `CUDA_DENSE=1` on one A40 | §3.4 — **done: no effect. It needs `COLI_CUDA=1` or it exits at once** |
+| 6 | **A/B one A40 against four**, on compute306 under `c3_accel` | §2.2 — **done: 0.9 %. §2.2 is retracted, colibrì was right** |
 | 7 | A/B `XEXP=1`, `numactl --membind=0` vs `COLI_NUMA=1`, MTP `DRAFT` depth | §3 — the remaining tier-2 levers |
 | 8 | vLLM: TP=4 vs 2× TP=2 vs independent single-card replicas | §4.5 — the PCIe all-reduce tax |
 | 8b | **the standard helper on one card, under 6 concurrent users** | §4.2 — whether the floor alone is good enough, which is the question that decides everything |
@@ -719,6 +750,44 @@ costs the scheduler nothing.
 
 **Tests 4–9 are the campaign that decides whether this service is worth running.** Do them before
 any supervisor code.
+
+### What P0 found, as of 2026-09-09 22:00
+
+**Tests 1, 2, 3, 4, 7, 8b, 9, 10 and 11 all passed.** [`P0-STATUS.md`](P0-STATUS.md) is the live
+record and `fleet-p0/RESULTS.md` the long form. Read one of them before repeating anything here.
+
+**Test 8b answered its question, and the answer resizes this whole document.** The standard helper
+on **one** A40, behind a 15,000-token agent preamble:
+
+| concurrent users | per-session tok/s | aggregate tok/s | first token |
+|---|---|---|---|
+| 1 | 102.3 | 100.4 | 0.081 s |
+| 4 | 65.1 | 253.4 | 0.147 s |
+| **6** | **51.4** | **300.1** | **0.203 s** |
+| 8 | 48.8 | 375.4 | 0.269 s |
+
+Against that, tier 2 — the 744B on a whole 1 TB node plus a card — measured **3.3 tok/s for a single
+user** at its best configuration. Roughly **30× per session and 90× in aggregate, on a thirtieth of
+the hardware.**
+
+Three consequences, all of which contradict text above:
+
+1. **Tier 2 is not a tier users are routed to. It is one they are queued for.** At 3.3 tok/s a
+   500-token reply takes two and a half minutes and holds a whole node while it does. §11.2's
+   escalation problem is a scheduling question, not a routing question.
+2. **Size the tier-1 pool by tokens, not users.** One card holds 237,904 KV tokens. Six users get
+   ~39k of context each, and the advertised 65,536-token window supports 3.6 simultaneous sessions.
+   Aggregate throughput was still climbing at 8 users — **KV is the binding constraint, not compute.**
+3. **A tier-2 replica is not in service when its process is up.** Cold, it decodes at 0.64 tok/s
+   against 2.88 warm; the load only halves while generation goes 4.5× faster. colibrì faults expert
+   slabs in *during* generation. The pool must send a warm-up request before advertising a replica.
+
+Tests 5 and 6 finished too, and both went against this document: **`CUDA_DENSE` is not a lever**,
+and **four A40s are worth 0.9 % over one** — see §2.2, which is now retracted. Only tests 8 and 12
+remain. **Fifteen findings in `P0-STATUS.md` contradict this file**, including that `pip` silently
+installs into `~/.local` on this filer, that there is no `/usr/local/cuda` for vLLM's default
+sampler to compile against, that `coli` will not run under the nodes' Python 3.9, and that tok/s is
+not comparable between two nodes of the same model.
 
 ---
 
@@ -741,10 +810,38 @@ snapshot the file, stop the engine, sleep 35 s (VRAM is not released immediately
 byte-for-byte, restart, warm up on a fixed corpus, then measure. Never read cumulative log counters
 as current state. Never sample during a cold start.
 
-Starting configuration, to be replaced by `coli tune`: `CUDA_DENSE=1`, `RAM_GB≈450`, `PIN=stats`
-with a large `PIN_GB`, `XEXP=1` (measure), `DIRECT=1 PIPE=1`, **`URING` and `PILOT*` off** (+26 %
-once resident — they only burn the scarce CPU), `CTX=131072`, `COLI_PREFILL_CHUNK=2048`,
-`KVSAVE=0`, `COLI_API_KEY` set from `~/.config/fleet/api_key` (§0.5), `COLI_USAGE_DECAY` on, `KV_SLOTS=1` with `DRAFT` measured.
+**`coli` needs Python 3.10 or later, and the nodes' `python3` is 3.9.25.** The launcher uses
+`dataclass(slots=True)` and dies on a bare `TypeError` that says nothing about versions. Load
+`Python/3.12.3-GCCcore-13.3.0` in every job that drives colibrì — the engine binary itself does not
+care, but you never invoke it directly.
+
+**Set `OMP_NUM_THREADS` from `SLURM_CPUS_PER_TASK`, and let it exceed the physical core count.**
+colibrì sizes its own pool from the machine rather than the allocation, re-execs once to apply it,
+and picks the *physical* count — 48 of our 96. That is right on the single-socket EPYC its source
+table was measured on and wrong on our dual-socket Xeon Gold 6342, where throughput rises
+monotonically to the full 92: **2.75 tok/s at 92 against 2.65 self-tuned.** Measured twice, once by
+sweep and once by `coli tune`'s own interleaved replays.
+
+**Run under `numactl --interleave=all`.** 429 GB of warm experts against two 515 GB NUMA nodes:
+interleaving is worth **+14 %**, colibrì's own `COLI_NUMA=1` gets +6 %, and binding to one socket
+loses 6 %. `coli tune` cannot find this — its candidate set is thread counts and CUDA stream shapes,
+so it will retain a baseline 14 % off the best configuration and report success.
+
+Starting configuration, **as measured on 2026-09-09** (see [`P0-STATUS.md`](P0-STATUS.md)):
+`RAM_GB≈450`, `PIN=stats` with a large `PIN_GB`, `DIRECT=1 PIPE=1`, **`URING` and `PILOT*` off**
+(+26 % once resident — they only burn the scarce CPU), `CTX=131072`, `COLI_PREFILL_CHUNK=2048`,
+`KVSAVE=0`, `COLI_API_KEY` set from `~/.config/fleet/api_key` (§0.5), `COLI_USAGE_DECAY` on,
+`KV_SLOTS=1`.
+
+Three entries of the previous revision are **deleted on measurement**, not deferred:
+
+| was | measured | now |
+|---|---|---|
+| `XEXP=1` (measure) | **−12 %** | drop it |
+| `DRAFT` measured | `DRAFT=2` −11 %, `DRAFT=4` −19 % | leave it at 1; §3.3 was right |
+| `CUDA_DENSE=1` | needs `COLI_CUDA=1` or it exits at once; with both set, ≈ no effect | not a lever |
+
+`COLI_CUDA_PIPE` is on by default and should stay — forcing it off costs 8 %.
 
 ---
 
@@ -808,6 +905,17 @@ Four mechanisms that do work, in order of reliability:
 
 The second row is the one worth engineering, because it needs no introspection. A loop that has
 edited the same file four times is stuck whether or not it believes it is.
+
+**P0 changed the economics of this section, 2026-09-09.** Escalation was written as routing: notice
+the hard question, send it to the bigger model. Measurement says tier 2 runs at **3.3 tok/s** and
+occupies a whole 1 TB node to do it, against **51 tok/s per user for six users on one card** at tier
+1. A 500-token tier-2 reply is two and a half minutes of a node nobody else can use.
+
+So escalation is **admission to a queue, not a redirect**. The user asking must be told they are
+waiting and roughly how long; the supervisor must be able to refuse; and the "second opinion on
+write" row above — a tier-2 pass over every durable artifact — is not "a minute per document,
+cheap". It is minutes of exclusive node time per document. **Keep the row, cost it honestly, and
+make it opt-in.**
 
 ### 11.3 The evaluation — Claude designs and runs it
 
@@ -1021,7 +1129,7 @@ because ollama was already proven. Nothing in this design is.
 4. **Which client does `fleet` open?** Not *whether* to write an adapter — §6.1 settled that: the
    local proxy has to exist anyway, and translating between the OpenAI and Anthropic shapes inside
    it is nearly free. The open question is only which terminal client the lab standardises on.
-5. **If tier 1 measures well, is tier 2 still worth 372 GB and a node?** Ask it again after test 9.
+5. **If tier 1 measures well, is tier 2 still worth 429 GB and a node?** Ask it again after test 9.
    A good 235B at int4 may make the 744B a luxury. **A blind side-by-side on real tasks from our own
    repos is owed** before tier 2 is built — see §11.1 for what the quality evidence actually says, and
    what it does not.
@@ -1031,8 +1139,22 @@ because ollama was already proven. Nothing in this design is.
 ## 14. Carried forward unchanged
 
 - `c3` can `SIGSTOP` a server and the client sees silence, not an error: `c3_short` is
-  `PriorityTier=20`, `c3` is 10 with `PreemptMode=SUSPEND`, same six nodes. **Inferred from
-  configuration, not observed** — test 10.
+  `PriorityTier=20`, `c3` is 10 with `PreemptMode=SUSPEND`, same six nodes. **Observed 2026-09-09,
+  test 10: suspension landed four seconds after the competing job was submitted**, and Slurm resumed
+  the victim about three seconds after that job left. `Reason=None` and `PreemptTime=None` throughout
+  — the job record never says it was preempted.
+- **`c3_accel` is tier 10 and `PreemptMode=SUSPEND` too, and cannot be preempted anyway.** It is the
+  only partition containing compute306, and partition-priority preemption needs a higher-tier
+  partition on the same node.
+- **`MaxCPUsPerNode=92` on all three partitions.** `--exclusive`, and any ask of 94 CPUs or more, is
+  refused at submission with `Requested node configuration is not available` — a message naming
+  neither the limit nor the offending flag. **Never write `--exclusive` in a fleet sbatch file.**
+- **`sbatch --test-only` cannot be used as an availability probe.** It predicted a start 17 hours out
+  for a job that started in two seconds; the `BeginTime` queue poisons its backfill estimate. Submit
+  and read the state.
+- **colibrì sizes its OpenMP pool from the machine, not the allocation** — it announced 48
+  physical-core threads inside a job that did not own the node. Pin `OMP_NUM_THREADS` from
+  `SLURM_CPUS_PER_TASK`, or set `COLI_NO_OMP_TUNE=1`.
 - Memory asks silently buy CPUs (`MaxMemPerCPU=12000`), and the minimum billable unit is two CPUs
   because cores carry two threads (job 2070710: asked `cpu=1`, got `cpu=2`).
 - Scrub `SLURM_*` before any nested `sbatch` — inherited variables override the `#SBATCH` directives
