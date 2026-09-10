@@ -885,7 +885,71 @@
   $R[x]$.
 \end{problem}
 % ===== SOLUTION 03.26 =====
-% TODO(mferguson): your work goes here.
+% PART 1 ONLY. Part 2 (J[x] is not maximal) is still open -- live on card 0160.
+% Transcribed from the student's slate, 2026-09-10, turn t0044, revisions 1-6
+% (cards 0150-0159, part 1 agreed correct on card 0160). The argument was built
+% across the revisions and is assembled here in the order it runs: the setup and
+% the a_i b_j term are rev 1, the dichotomy on the other summands is rev 3, the
+% subtraction step and the contraposition line are revs 4-5, the properness
+% paragraph is rev 6. Pages filed at
+%   ../handwritten/ch03-3.26-part1-attempt1-term-vs-coefficient.png      (rev 1)
+%   ../handwritten/ch03-3.26-part1-attempt3-dichotomy-proved.png         (rev 3)
+%   ../handwritten/ch03-3.26-part1-attempt5-contraposition-named.png     (rev 5)
+%   ../handwritten/ch03-3.26-part1-attempt6-proper-rx-witness.png        (rev 6)
+% Faithful transcription: same steps, same order, nothing added.
+% Repaired silently here, all pen rather than argument:
+%   - rev 1 wrote "is a term in ab" for what is the coefficient of x^{i+j};
+%     corrected on cards 0151-0152 and written correctly from rev 3 on;
+%   - the subtraction of the other summands is justified on the page as "ideals
+%     are closed under addition"; it is closure under subtraction (equivalently,
+%     absorption with r = -1 followed by addition);
+%   - the closing line names the polynomials f and g where the rest of the page
+%     names them a and b; unified to a, b.
+% Not covered by what they wrote, and left as written:
+%   - rev 6 does not say why rx is outside J[x] (its coefficient of x is r, and
+%     r is not in J); supplied in the last sentence below.
+\begin{solution}
+  \textbf{Part 1: $J[x]$ is prime in $R[x]$.}
+
+  \emph{Proper.} Since $J$ is a proper ideal of $R$, there is some $r \in R$
+  with $r \notin J$. Then $rx \in R[x]$, and $rx \notin J[x]$, because the
+  coefficient of $x$ in $rx$ is $r$, which does not lie in $J$, whereas every
+  coefficient of a member of $J[x]$ lies in $J$. Hence $J[x] \neq R[x]$.
+
+  \emph{The implication.} We prove the contrapositive: if $a \notin J[x]$ and
+  $b \notin J[x]$ then $ab \notin J[x]$. (The negation of ``$a \in J[x]$ or
+  $b \in J[x]$'' is ``$a \notin J[x]$ and $b \notin J[x]$''.)
+
+  Suppose $a \notin J[x]$ and $b \notin J[x]$. Then there exist least indices
+  $i$ and $j$ with $a_{i} \notin J$ and $b_{j} \notin J$. The coefficient of
+  $x^{i+j}$ in $ab$ is
+  \[
+    \sum_{\ell + m = i + j} a_{\ell} b_{m}.
+  \]
+  Since $J$ is a prime ideal of $R$ and $a_{i}, b_{j} \notin J$, we have
+  $a_{i} b_{j} \notin J$.
+
+  Take any other pair, so $\ell + m = i + j$ with $(\ell, m) \neq (i, j)$. Then
+  either $\ell < i$ or $m < j$: if both $\ell \geq i$ and $m \geq j$ then
+  $\ell + m = i + j$ forces $\ell = i$ and $m = j$. If $\ell < i$ then
+  $a_{\ell} \in J$ by the minimality of $i$; if $m < j$ then $b_{m} \in J$ by
+  the minimality of $j$. Either way $a_{\ell} b_{m} \in J$, by absorption.
+
+  Now suppose the coefficient of $x^{i+j}$ in $ab$ were in $J$. Subtracting the
+  other summands, each of which lies in $J$, leaves
+  \[
+    \sum_{\substack{\ell + m = i + j}} a_{\ell} b_{m}
+      \;-\!\!\sum_{\substack{\ell + m = i + j \\ (\ell, m) \neq (i, j)}}\!\! a_{\ell} b_{m}
+      \;=\; a_{i} b_{j} \in J,
+  \]
+  since ideals are closed under subtraction. That contradicts
+  $a_{i} b_{j} \notin J$. So the coefficient of $x^{i+j}$ in $ab$ is not in
+  $J$, and therefore $ab \notin J[x]$.
+
+  So $a, b \notin J[x] \Rightarrow ab \notin J[x]$, concluding the proof by
+  contraposition: $ab \in J[x]$ implies $a \in J[x]$ or $b \in J[x]$. With
+  properness, $J[x]$ is a prime ideal of $R[x]$.
+\end{solution}
 % ===== END SOLUTION 03.26 =====
 
 \end{document}
