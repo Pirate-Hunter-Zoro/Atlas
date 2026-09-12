@@ -949,6 +949,37 @@
   So $a, b \notin J[x] \Rightarrow ab \notin J[x]$, concluding the proof by
   contraposition: $ab \in J[x]$ implies $a \in J[x]$ or $b \in J[x]$. With
   properness, $J[x]$ is a prime ideal of $R[x]$.
+
+  \medskip
+  \textbf{Part 2: $J[x]$ is not a maximal proper ideal in $R[x]$.}
+
+  Since $J$ is proper, $1 \notin J$, and so $x \notin J[x]$. Put
+  \[
+    I \;=\; \{\, a(x) + x r(x) \;:\; a \in J[x],\; r \in R[x] \,\}.
+  \]
+
+  \emph{$I$ is an ideal of $R[x]$.} For $h \in R[x]$,
+  \[
+    h(x)\bigl(a(x) + x r(x)\bigr) \;=\; h(x) a(x) + x\bigl(r(x) h(x)\bigr)
+      \;\in\; I,
+  \]
+  since $h a \in J[x]$ by absorption and $r h \in R[x]$ because $R[x]$ is a
+  ring. It is closed under addition because $J[x]$ and $R[x]$ are.
+
+  \emph{$J[x] \subseteq I$.} Take $r = 0$.
+
+  \emph{The inclusion is strict.} Take $a = 0$ and $r = 1$: then $x \in I$,
+  while $x \notin J[x]$. So $J[x] \subsetneq I$.
+
+  \emph{$I$ is proper.} Suppose $a(x) + x r(x) = 1$ for some $a \in J[x]$ and
+  $r \in R[x]$. The polynomial $x r(x)$ has constant term exactly $0$, so the
+  constant term of the left-hand side is $a_{0}$; the constant term of the
+  right-hand side is $1$. Hence $a_{0} = 1$. But $a \in J[x]$ gives
+  $a_{0} \in J$, and $1 \notin J$ because $J$ is proper --- a contradiction.
+  So $1 \notin I$, and $I \neq R[x]$.
+
+  Therefore $J[x] \subsetneq I \subsetneq R[x]$ with $I$ an ideal, so $J[x]$ is
+  not a maximal proper ideal of $R[x]$.
 \end{solution}
 % ===== END SOLUTION 03.26 =====
 
