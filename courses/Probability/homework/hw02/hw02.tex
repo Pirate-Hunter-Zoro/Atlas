@@ -320,7 +320,69 @@ required three terms.
   \end{enumerate}
 \end{problem}
 % ===== SOLUTION 86 =====
-% TODO(mferguson): your work goes here.
+Let $T_{i}$ be the time taken to process book $i$. The $T_{i}$ are independent and
+identically distributed with $\EE{T_{i}} = 10$ minutes and $\mathrm{SD}(T_{i}) = 3$
+minutes, so $\Var(T_{i}) = 9$ min$^{2}$. Because the books are processed one at a time,
+the moment book $n$ is finished is
+\[
+  S_{n} = T_{1} + T_{2} + \cdots + T_{n},
+\]
+and by linearity of expectation and independence,
+\[
+  \EE{S_{n}} = 10n, \qquad \Var(S_{n}) = 9n, \qquad \mathrm{SD}(S_{n}) = 3\sqrt{n}.
+\]
+The standard deviation is the square root of the variance of the sum; it is not $n$ times
+$\mathrm{SD}(T_{i})$. By the central limit theorem, for $n$ this large
+\[
+  Z = \frac{S_{n} - \EE{S_{n}}}{\mathrm{SD}(S_{n})}
+\]
+is approximately standard normal, and $\Phi(z) = \PR{Z \le z}$ denotes the standard normal
+distribution function.
+
+\paragraph{(a) More than $420$ minutes to process all $40$ books.}
+All $40$ books are finished at time $S_{40}$, with
+\[
+  \EE{S_{40}} = 10(40) = 400 \text{ minutes}, \qquad
+  \Var(S_{40}) = 9(40) = 360 \text{ min}^{2}, \qquad
+  \mathrm{SD}(S_{40}) = \sqrt{360} = 6\sqrt{10} \approx 18.97 .
+\]
+Standardizing $420$,
+\[
+  z = \frac{420 - 400}{6\sqrt{10}} = \frac{20}{6\sqrt{10}} = \frac{10}{3\sqrt{10}}
+    = \frac{\sqrt{10}}{3} \approx 1.054 .
+\]
+The event is ``more than,'' so it is the upper tail:
+\begin{align*}
+  \PR{S_{40} > 420}
+    &\approx \PR{Z > \tfrac{\sqrt{10}}{3}}
+     = 1 - \Phi\!\left(\tfrac{\sqrt{10}}{3}\right)\\
+    &= 1 - 0.8541
+     = \boxed{0.1459}.
+\end{align*}
+
+\paragraph{(b) At least $25$ books processed in the first $240$ minutes.}
+The normal approximation applies to a sum of processing times, not to a count of books, so
+the event must first be rewritten as a statement about $S_{25}$. At least $25$ books are
+finished by minute $240$ precisely when the $25$th book is finished by minute $240$, that
+is when $S_{25} \le 240$. Note the reversal: \emph{more} books completed corresponds to
+\emph{less} time elapsed, so the inequality runs the other way. Here
+\[
+  \EE{S_{25}} = 10(25) = 250 \text{ minutes}, \qquad
+  \Var(S_{25}) = 9(25) = 225 \text{ min}^{2}, \qquad
+  \mathrm{SD}(S_{25}) = 15 ,
+\]
+and standardizing $240$ gives
+\[
+  z = \frac{240 - 250}{15} = -\frac{10}{15} = -\frac{2}{3} \approx -0.667 .
+\]
+The event is ``at most,'' so it is the lower tail:
+\begin{align*}
+  \PR{\text{at least }25\text{ books by minute }240}
+    &= \PR{S_{25} \le 240}\\
+    &\approx \PR{Z \le -\tfrac{2}{3}}
+     = \Phi\!\left(-\tfrac{2}{3}\right)
+     = \boxed{0.2525}.
+\end{align*}
 % ===== END SOLUTION 86 =====
 
 \end{document}
