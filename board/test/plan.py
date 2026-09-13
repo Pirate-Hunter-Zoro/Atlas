@@ -129,6 +129,38 @@ Do not read %s.
     check("and so is one reached by climbing out of the tree",
           plan._resolve(proj, "../../../../etc/passwd") is None)
 
+    # --- a README names its dependencies' plans too, and a hub owns none -----
+    # PSYCH-ASR points at LOCAL-LLM_TODO.txt because it runs on that
+    # infrastructure. Taking every plan a README names would put somebody else's
+    # next steps under "What's next"; taking the first would have given the hub
+    # one project's plan as though it were the whole of what it is doing.
+    write(os.path.join(hub, "planning", "LOCAL-LLM_TODO.txt"),
+          "STEP 1. WEB ACCESS FOR THE CODING AGENT.\n  Not this project's step.\n")
+    write(os.path.join(proj, "README.md"), open(os.path.join(proj, "README.md")).read()
+          + "\nIt depends on `~/Research-Journey/planning/LOCAL-LLM_TODO.txt`.\n")
+    plan._cache.clear()
+    check("a plan named after this repository is its own, and the rest are mentions",
+          plan.paths(proj) == [os.path.join(hub, "planning", "PSYCH-ASR_TODO.txt")])
+    check("so a dependency's steps never appear under what this project does next",
+          not [x for x in plan.steps(proj) if "WEB ACCESS" in x["label"]])
+
+    write(os.path.join(hub, "tutorboard.json"), json.dumps({"name": "Research Journey"}))
+    write(os.path.join(hub, "README.md"), """# Research Journey
+
+A multi-project narrative hub. The live task lists are
+`planning/PSYCH-ASR_TODO.txt` and `planning/LOCAL-LLM_TODO.txt`.
+""")
+    plan._cache.clear()
+    hub_steps = plan.steps(hub)
+    check("a hub that owns no plan of its own offers every one it holds",
+          len(plan.paths(hub)) == 2)
+    check("and says which project each step belongs to",
+          [x for x in hub_steps if x["label"].startswith("PSYCH-ASR · ")]
+          and [x for x in hub_steps if x["label"].startswith("LOCAL-LLM · ")])
+    check("while a project with one plan is not made to say its own name",
+          not [x for x in plan.steps(proj) if " · " in x["label"]])
+    plan._cache.clear()
+
     # --- a repository that declares one outright ----------------------------
     write(os.path.join(proj, "MY_PLAN.md"),
           "## First thing\nDo it.\n\n## Second thing\nThen this.\n")

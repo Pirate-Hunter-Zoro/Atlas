@@ -137,6 +137,29 @@ def _beside(parent, name):
     return out
 
 
+def _all_pointed_at(root):
+    """EVERY plan this repository's README names, in the order it names them.
+
+    A repository usually has one. A NARRATIVE HUB has three: Research-Journey
+    holds `TRD-EHR_TODO.txt`, `PSYCH-ASR_TODO.txt` and `LOCAL-LLM_TODO.txt`, one
+    per project it covers, and taking the first match made its drawer say
+    "What's next" over TRD-EHR's plan alone -- silently, with nothing on screen
+    saying the other two existed. A list that is wrong is worse than a list that
+    is empty, because nothing about it looks wrong.
+    """
+    try:
+        with open(os.path.join(root, "README.md"), "r", encoding="utf-8") as fh:
+            text = fh.read(200000)
+    except OSError:
+        return []
+    out = []
+    for match in POINTER.finditer(text):
+        found = _resolve(root, match.group(0))
+        if found and found not in out:
+            out.append(found)
+    return out
+
+
 def _pointed_at(root):
     """The plan this repository's README names, if it names one.
 
@@ -157,22 +180,67 @@ def _pointed_at(root):
     return None
 
 
-def path(root):
-    """Where this repository's work is written down, or None.
+def paths(root):
+    """Every plan this repository has, in the order it names them.
 
-    Declared first, pointed at second, conventional third. A repository with
-    none of the three is a repository with no plan, which is a real answer --
-    Galois Theory has a book instead and Algo-Solutions has a problem list.
+    Declared first, pointed at second, conventional third -- and a declaration
+    stops the search, because a repository that says which file it plans in has
+    answered the question. Otherwise all of them: a hub covering three projects
+    has three, and showing one of them as though it were the whole of what comes
+    next is the failure this returns a list to prevent.
     """
-    return (_named(root)
-            or _pointed_at(root)
-            or next((os.path.join(root, n) for n in COMMON
-                     if os.path.isfile(os.path.join(root, n))), None))
+    said = _named(root)
+    if said:
+        return [said]
+    found = _all_pointed_at(root)
+    if found:
+        # A README names the plans of the projects it depends on as well as its
+        # own -- PSYCH-ASR points at LOCAL-LLM_TODO.txt because it runs on that
+        # infrastructure. So if one of them is named after THIS repository, it is
+        # this repository's plan and the rest are mentions. Only where none of
+        # them is -- a narrative hub, holding the plans for three projects and
+        # owning none -- are they all offered.
+        mine = [p for p in found if _about(root, p)]
+        return mine or found
+    return [os.path.join(root, n) for n in COMMON
+            if os.path.isfile(os.path.join(root, n))][:1]
+
+
+def _about(root, target):
+    """Is this plan named after the repository it was found from?
+
+    `PSYCH-ASR_TODO.txt` is PSYCH-ASR's; `LOCAL-LLM_TODO.txt` is not, even
+    though PSYCH-ASR's README names it. Either name may contain the other --
+    the repository `libr-local-llm` keeps its plan in `LOCAL-LLM_TODO.txt` --
+    so containment in either direction is the test, on names reduced to their
+    letters and digits.
+    """
+    def flat(text):
+        return re.sub(r"[^a-z0-9]+", "", (text or "").lower())
+    who = flat(_project_of(target))
+    me = flat(os.path.basename(os.path.realpath(root)))
+    return bool(who) and bool(me) and (who in me or me in who)
+
+
+def _project_of(target):
+    """`planning/PSYCH-ASR_TODO.txt` -> `PSYCH-ASR`."""
+    return re.sub(r"[-_]?(TODO|TASKS|PLAN|ROADMAP|BACKLOG)\b.*$", "",
+                  os.path.splitext(os.path.basename(target))[0], flags=re.I)
+
+
+def path(root):
+    """The first of them, for anything that can only hold one."""
+    every = paths(root)
+    return every[0] if every else None
 
 
 def where(root):
     """The plan's path as a person would write it: relative, or `~`-prefixed."""
     target = path(root)
+    return _short(root, target) if target else ""
+
+
+def _short(root, target):
     if not target:
         return ""
     root = os.path.realpath(root)
@@ -250,9 +318,20 @@ def steps(root):
 
 
 def _steps(root):
-    target = path(root)
-    if not target:
-        return []
+    out = []
+    every = paths(root)
+    for target in every:
+        out += _steps_in(target, len(every) > 1)
+    return out[:MAX_STEPS]
+
+
+def _steps_in(target, say_which):
+    """The steps in one plan file. `say_which` when there is more than one.
+
+    A hub's drawer has to name the project each step belongs to, or "1. INTEGRATE
+    HIS SECTIONS" sits under "What's next" with nothing saying which of three
+    papers it is about.
+    """
     try:
         with open(target, "r", encoding="utf-8", errors="replace") as fh:
             lines = fh.read().splitlines()
@@ -271,7 +350,15 @@ def _steps(root):
         out = _collect(lines, begin, kind, rx)
         if out:
             break
-    return out[:MAX_STEPS]
+    # Which plan this came out of. `PSYCH-ASR_TODO.txt` becomes `PSYCH-ASR`,
+    # which is what its owner calls the project and what a drawer has room for.
+    who = _project_of(target)
+    for x in out:
+        x["from"] = who or os.path.basename(target)
+        x["file"] = target
+        if say_which and who:
+            x["label"] = "%s · %s" % (who, x["label"])
+    return out
 
 
 def _collect(lines, begin, kind, rx):
@@ -321,7 +408,7 @@ def status(root, state):
         return None
     here = ((state or {}).get("chapter") or "").strip()
     return {
-        "where": where(root),
+        "where": "; ".join(_short(root, p) for p in paths(root)),
         "steps": found,
         "here": here,
         "next": found[0]["label"],
