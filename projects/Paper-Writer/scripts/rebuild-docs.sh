@@ -65,6 +65,7 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # Matched on the filename alone, case-insensitively, at any depth.
 SKIP_NAMES=(
   README.md
+  JOURNEY.md
   AI_INSTRUCTIONS.md
   CLAUDE.md
   CONTRIBUTING.md
@@ -76,8 +77,13 @@ SKIP_NAMES=(
   MEMORY.md
 )
 
-# Directories that hold no paper, whatever is in them.
-SKIP_DIRS=(.git node_modules .claude .venv __pycache__ live _inbox state)
+# Directories that hold no paper, whatever is in them. The second line is
+# pipeline output and input: a repository that holds both its code and its
+# manuscript has Markdown under results/ and test_data/ that is a rendered
+# patient record or a results table, not prose anybody submits, and building
+# every one of them costs minutes and writes .docx files into a gitignored tree.
+SKIP_DIRS=(.git node_modules .claude .venv __pycache__ live _inbox state
+           results test_data artifacts figures scratch logs notebooks)
 
 FORCE=0
 DRY=0
