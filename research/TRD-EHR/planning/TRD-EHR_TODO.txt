@@ -1,0 +1,1744 @@
+TRD-EHR — REMAINING WORK
+================================================
+
+NOTE TO FUTURE EDITORS (INCLUDING CLAUDE): When work is completed, DELETE the
+corresponding entry from this file. Do not leave checkmarks, "DONE" tags,
+struck-through items, or "(completed YYYY-MM-DD)" annotations. This file
+tracks what's LEFT to do, never what's been finished. Git history records
+completion. Preserve this NOTE block on every edit.
+
+================================================================
+WHAT WE DO NEXT — READ THIS FIRST, ANSWER FROM IT
+================================================================
+The user should never have to remember the plan. When they ask what is next,
+the answer is here, and it is the first unfinished line below. Read it, say what
+the step is, and start it. Do not make them reconstruct anything.
+
+STATE AS OF 2026-09-04: everything is blocked on Martin Paulus. He is sending
+rewritten sections. Until his documents land in
+paper1-trd-prediction/review/feedback/, the correct answer to "what's next" is
+"nothing on the paper, and here is why" — not a search for filler work.
+
+WHEN HIS DOCUMENTS ARRIVE, the order is fixed and each step finishes before the
+next one starts:
+
+  STEP 1. INTEGRATE HIS SECTIONS. Same treatment as the 2026-09-02 round: take
+    his text essentially as written, confine departures to cross-references,
+    citation markers, and facts his draft could not have known, and log every
+    departure. Anything his cut removes that survives nowhere else gets an entry
+    in reserve/methods_reserve.md. Methods does not grow.
+
+  STEP 2. THE CONTENT MOVES, IN THIS ORDER. Doing them out of order means doing
+    them twice.
+      2a. Supplement S5 (cosine-similarity bimodality) and S7 (fusion) to
+          reserve, with their figures and tables. Reserved, NOT cut.
+      2b. Renumber the S-series ONCE, after both moves, across supplement,
+          manuscript and checklist.
+      2c. The three word sweeps, with the exclusion lists in the 2026-09-04
+          block below. Sweep before the clarity pass, never after — a rewritten
+          sentence would need sweeping again.
+
+  STEP 3. CONFIRM THE DISCUSSION'S TAKE-HOME BEFORE REWRITING ANYTHING. If
+    *Principal findings* is to lead on parity with the published literature
+    rather than parity between the two representations, that section is being
+    replaced and there is no point polishing it first. This is a question for
+    him, not a decision for us.
+
+  STEP 4. THE CLARITY PASS — ONE SECTION AT A TIME, AND ONLY ONE.
+    THIS IS THE RULE THAT MATTERS. Do not rewrite the manuscript in a pass. Do
+    not rewrite three sections because they are short. One section, then stop,
+    then the user reads it, then the next. A fifteen-thousand-word rewrite that
+    turns out to be the wrong register is fifteen thousand words wasted.
+
+    START WITH ONE SAMPLE: Results, *Model discrimination*. It is short, it is
+    ours, and it is among the densest passages in the paper. Rewrite it, hand it
+    over, and wait for the user's read before touching anything else. That
+    exchange is what defines "easily understood" for the rest of the work.
+
+    WHOSE PROSE IS IN SCOPE — ASK HIM FIRST. Step 4 covers our sections without
+    question. His supplied Methods and Discussion are his text under his name,
+    and rewriting them for readability is a different act from rewriting ours.
+    Expect yes for the Discussion and no for the Methods, but do not act on that
+    guess.
+
+    THE PER-SECTION PROCEDURE, every time:
+      - Numbers are frozen. No clarity pass re-derives, recomputes, or adjusts a
+        value. Ever.
+      - Set an explicit budget before writing: word count, median sentence
+        length, semicolon allowance. A budget, not an adjective.
+      - During the pass: no em-dash aside inside a main clause; at most one
+        subordinate clause per sentence; no sentence whose only job is to
+        introduce the next one; one hedge per claim, in its own sentence; verbs
+        rather than nominalizations.
+      - Cut claims, not sentences. Compression is what caused the density.
+      - THE NUMERIC CONTROL, and it is the assistant's job: extract every
+        number, CI bound and n from the section before and after the rewrite and
+        diff the two sets. They must be identical. Report the diff as part of
+        handing the section over. A clarity pass that moves a number is a
+        retraction, not an edit.
+      - Read it aloud. If you run out of breath, it is still too long.
+      - Hand it over and STOP.
+
+    THE SECTIONS, in the order they are done. Track progress by deleting a line
+    when its section is handed over and accepted.
+      [ ] Results, *Model discrimination*        <- the sample, do this one first
+      [ ] Abstract
+      [ ] Introduction
+      [ ] Results, *Participant flow*
+      [ ] Results, *Cohort characteristics*
+      [ ] Results, *Subgroup performance*
+      [ ] Results, *Train/test comparability*
+      [ ] Results, *Density and chronology checks*
+      [ ] Results, *Model calibration*
+      [ ] Results, *Feature importance*
+      [ ] Results, *Neighbor-weighted prediction*
+      [ ] Results, *Semantic-feature ablation*
+      [ ] Results, *Embedder comparison*
+      [ ] Discussion — his, pending his answer on scope
+      [ ] Methods — his, pending his answer on scope
+      [ ] Supplement M1-M13 and S1-S12, one section per turn, same rules
+      [ ] Cover letter
+      [ ] TRIPOD+AI checklist prose
+
+  STEP 5. REBUILD ALL FOUR PACKET DOCUMENTS AND CHECK THE FIGURE GEOMETRY. The
+    4.50in pair-on-a-page threshold still governs; nothing in this work should
+    move a panel, so a change there means something went wrong.
+
+THE STANDING RULE BEHIND ALL OF IT: one section per turn, the user reads it, and
+only then the next. The failure mode being prevented is a large correct-looking
+rewrite that nobody can check.
+
+PRUNED 2026-08-07: four blocks were deleted because they are finished and
+verified against on-disk artifacts — DATA OVERHAUL RE-RUN (full pipeline
+re-run + manuscript numeric re-sync landed), NEAREST+FARTHEST FUSION
+(confirmed null, written into Supplement S7), CROSS-EMBEDDER BACKFILL (all
+four encoders have classical_ml_results_EMBEDDED.json + ablation_summary.csv;
+cross_embedder_robustness_EMBEDDED.png regenerated after the last input), and
+SUPPLEMENT S5 WITHIN-CLUSTER SUBSTRUCTURE (notebook analysis done, Table S5 +
+two-panel Figure S5 written into supplement.md). The completed [x] items in
+the PAPER 1 block were deleted for the same reason. Paper 1 is
+ANALYSIS-COMPLETE and, as of 2026-08-14, SUBMISSION-READY; what remains below
+is the IRB/funding pair owed by the authors, the coauthor comment round, and
+optional low-value extras.
+
+================================================================
+CAUSAL FOREST — Target Trial 1 (now Paper 2's triangulating estimator;
+NOT a Paper-1 supplement — see the 2026-08-13 decision below)
+================================================================
+STANDING CONTEXT — DESIGN (locked 2026-07-14; culled to 3 pairs 2026-07-15;
+matches CRF_AnalysesConsiderations_07.08.2026.docx Target Trial 1). This is
+reference material for the write-up, not a task list:
+- Treatment = AD CLASS at the index anchor, active-comparator PAIRWISE.
+  treatment_registry.py = the 3 DENSE pairs of {SSRI,SNRI,BUPROPION}, keyed
+  COMPARISON-ARM-FIRST (mentor convention: first-named = treatment T=1, so a
+  POSITIVE CATE means the first-named arm raises P(TRD)): snri_vs_ssri,
+  bupropion_vs_ssri, bupropion_vs_snri (reference/baseline arm = the more
+  common class). SLURM index 0-2. The 7 pairs touching MIRTAZAPINE/
+  VORTIOXETINE were CULLED (mentor: not worth doing).
+- OVERLAP_FLOOR 0.10 (ceiling 0.90). Burden markers (polypharmacy/benzo/
+  hypnotics/nsaid) + prior-history features stay as X/W COVARIATES, not
+  treatments. adequate_trial (6-wk landmark) + augmentation (2nd-stage) are
+  separate deferred analyses (Trials 2/3).
+- Overlap checks BALANCE, not SIZE, so it is not a power gate: still REPORT
+  each pair's minority-arm N (+ ATE and its CI). All 3 pairs sit in the
+  COMFORTABLE minority-N tier (>=4,768).
+- All 3 pairs are PRIMARY -> BH-correct BLP p ACROSS the 3. No EXPLORATORY set.
+- Writeup deviations from the docx (state as limitations): (a) the
+  bupropion_vs_snri edge is non-SSRI-referenced, going slightly BEYOND the
+  docx's SSRI-referenced examples; (b) we adjust for prior-AD exposure via
+  covariates rather than enforcing a strict new-user/washout exclusion.
+- Interpretation caveat (MANDATORY in any write-up): any positive ATE on
+  P(TRD) is almost certainly residual confounding by indication (sickest
+  patients get the more-aggressive arm AND progress to TRD); DML only
+  deconfounds through MEASURED covariates.
+- SCIENCE CAVEAT: 3-contrast BLP scanning is a much smaller multiple-
+  comparisons surface than the old 10, but any hit is still HYPOTHESIS-
+  GENERATING only; re-test with pinned nuisance seeding before believing it.
+
+WHERE THE NUMBERS ARE: results/causal_pipeline is an exact mirror of
+ARTIFACTS_DIR, one folder per contrast — {key}/results.json (carries ate_res =
+ATE + 95% CI, and blp_res.dr_spearman_rho/pval), {key}/CATE_histogram.png,
+{key}/CATE_histogram_mirror.png, {key}/{BLP_scatter,calibration,qini,toc}.png,
+plus {key}/subgroup_ate/ and {key}/cate_vs_feature/ — with leaderboard.csv,
+validation_report.json, and CATE_histograms_all_contrasts.png at the root.
+Entry point for a re-run: slurm_jobs/pipeline/causal/causal_forest_orchestrator
+.sbatch, submitted FROM THE REPO ROOT (sweep array 0-2 -> leaderboard -> validate).
+Pipeline, re-derive, and the validation suite are all complete and the numbers
+are LIVE; validation_report.json is clean (sign-flip pearson_r ~ -0.9999, OLS
+slope ~ -1.000, mean_sum ~ 2e-5 on all 3 pairs; transitivity abs_gap ~ 0.0145).
+Do NOT re-add a self-contrast test — it was CUT 2026-07-17 (reference_arm ==
+comparison_arm collapses build_treatment to an all-T=1 flag, fails the overlap
+gate, and the DR pseudo-outcome is degenerate with no treatment variation).
+
+DECIDED 2026-08-13 (standing context, not a task): Target Trial 1 does NOT go
+into Paper 1 as a causal supplement. Paper 1's Discussion already names
+causal-forest / heterogeneous-treatment-effect modelling as FUTURE WORK and
+explicitly declines to pursue it -- that is the whole treatment, and it stays
+that way unless a reviewer asks for more. Do not re-open this without a review
+comment. (An earlier note in this file claiming "nothing causal appears in
+manuscript.md" was wrong; the Future-directions paragraph is there.)
+The causal-forest numbers now serve Paper 2 as the TRIANGULATING estimator
+against the T-learner counterfactual pipeline, not Paper 1 as a supplement.
+
+================================================================
+PAPER 1 — MANUSCRIPT WRITE-UP
+================================================================
+Body, front matter, abstract, references, the full numeric re-sync to
+DV260629v1-PV260710v1 (cohort 42,579), and the author-supplied front matter
+are all done. The 2026-08-17 coauthor round closed the IRB/ethics, funding,
+and TRD-definition items; those are written into the documents and must not
+be re-opened.
+
+STANDING CONTEXT — MP REVIEW ROUND OF 2026-08-20, NOW FULLY CLOSED. MP
+returned tracked changes plus 11 comments on the 2026-08-14 build. All 11
+comments and every tracked edit are applied to manuscript.md and the packet
+is rebuilt; no [CONFIRM] marker remains anywhere and nothing waits on a
+coauthor. Note his build PREDATED the 2026-08-17 edits, so his
+"two or more"->"three or more" changes were already satisfied and were not
+re-applied. Two of his edits were deliberately not taken verbatim and are
+called out in the manuscript.md header comment:
+relabelling the 501,718 source population as "eligible" (inverts the
+meaning — it is the count BEFORE eligibility, and it is really the delivered
+extract), and deleting the 17.5% base rate from participant flow
+(load-bearing for five later passages). The verbatim record of the round,
+comment by comment, is paper1-trd-prediction/review/MP_review_latest.md, which now
+holds the LATEST round (2026-08-28) rather than that one.
+The one thing still wanting MP's input is not work but judgement: the
+sampling-frame position, below.
+
+STANDING CONTEXT — REVIEW ROUND OF 2026-08-28, ANALYSIS CLOSED. Nine items,
+six marked P1. The verbatim record is paper1-trd-prediction/review/MP_review_latest.md.
+The item-by-item account of what was done used to be the second top-level
+section of response_to_comments.md, which was deleted 2026-08-30; the list below
+is now the account, and the memo is recoverable from git history if its wording
+is ever wanted. Applied in full and rebuilt into the packet:
+- THE ANCHOR WAS MISDESCRIBED, and the correction is the most important thing
+  in the round. The anchor is NOT "the first adequate antidepressant exposure".
+  It is the earliest antidepressant prescription recorded on or after the
+  patient's first documented depression diagnosis, with NO adequacy, dose, or
+  duration criterion. Verified against
+  scripts/data_loading/load_patient_data.py (sorts post_mdd_ad_index.csv by
+  MedStartInstant, keeps the earliest row per patient) and against the table
+  itself (every candidate order starts on or after first_depression_dx_date;
+  min gap 0 days, 57.9% same-day). Two consequences: the reviewer's "prediction
+  cannot happen at the prescription date because adequacy needs 42 future days"
+  objection does not apply, since nothing about the anchor reads post-anchor
+  data; and the 14.7% prior-adequate-trial rate is explained rather than
+  contradictory, since courses can predate the recorded diagnosis. Methods,
+  *Participants and eligibility* now carries the full algorithmic definition
+  under **Anchor selection**. The phrase is gone from every document. Do not
+  reintroduce it.
+- Title renamed to name the target as a proxy, propagated to cover letter and
+  checklist. "Incident TRD" no longer stands unqualified.
+- "Statistically equivalent" replaced everywhere with "no evidence of superior
+  discrimination"; Methods states no equivalence margin was prespecified.
+- The fairness claim is WITHDRAWN. The ablation is recast in Methods as a
+  direct-input reliance analysis with the three questions it cannot answer
+  stated; new Limitations item 7 says the study reports no fairness evidence;
+  TRIPOD item 14 records that no fairness assessment was performed.
+- Risk-stratification and clinical-use language stripped from abstract,
+  conclusions, keywords, checklist and Supplement S3.
+- New Limitations item 8: the Youden threshold is test-set-selected, so the
+  sensitivity/specificity are descriptive only; calibration is calibration to
+  a case-enriched cohort's own base rate. Screening-application sentence cut.
+- MNAR argument weakened to "not missing completely at random"; the mechanism
+  is stated as undetermined, in Methods and Limitations item 3.
+- Supplement S1.5 now records the judge-rubric mismatch: dimension 1 is headed
+  "Baseline symptom phenotype (PHQ-9 subitems)" and no PHQ-9 item exists in this
+  extract, dimension 5 names no-show behaviour, and dimension 4 says three years
+  where the lookback is two. Dimensions 2, 3 and 6 (45 of 100 points) are fully
+  supported. NO RE-JUDGING IS NEEDED and the 1.71M-judgement cache stands. The
+  cache was measured, not assumed: over a systematic 1-in-57 sample the
+  phenotype sub-score is 0 for only 31.4% of pairs, takes 15 distinct values
+  with a median of 60 otherwise, and correlates 0.58 with the overall score, so
+  the model scored baseline phenotype from the MDD recurrence/severity coding
+  and psychiatric flags that ARE present rather than obeying the
+  "output 0 if Missing" rule. The mislabel is in the rubric's wording, not the
+  behaviour. Nothing reported can be inflated by it — only overall_similarity
+  becomes a neighbour weight and that weighting is scored against outcomes the
+  judge never sees — and the same rubric demonstrably carries signal (0.495 ->
+  0.517 random, 0.543 -> 0.554 subsampled). The one real cost is the
+  generality of the null: it is "this rubric added nothing over cosine under
+  nearest retrieval", not "LLM judging adds nothing".
+  THE "NO RE-JUDGING IS NEEDED" VERDICT IS NOT THE WHOLE ANSWER. The cache
+  measurement above stands as supporting evidence, but the 2026-08-28 meeting
+  asked for a different test: correct the prompt and correlate old judgements
+  against new ones on a few thousand pairs. Whether the cache survives is that
+  correlation's call, not this measurement's. See JUDGE PROMPT CORRECTION in
+  the open items below.
+- New Limitations item 9, *representation parity*, discloses the field
+  mismatch; Supplement S6 points at it in the example narratives.
+
+OPEN ITEMS FROM THAT ROUND. As of 2026-08-30 every analysis the round asked for
+is DONE. Entries for finished work are deleted per the NOTE at the top of this
+file — the manuscript, supplement, checklist and memo carry the results, except
+representation parity, which is closed but deliberately held OUT of the packet
+(see the standing note below). What is left on this round is the authors'
+judgement and sending the packet back.
+
+STANDING CONTEXT — REPRESENTATION PARITY IS CLOSED, AND IT IS A NULL. Completed
+2026-08-30. All three arms reported; the decision rule fixed on 2026-08-28 was
+applied unchanged. THE PUBLISHED COMPARISON STANDS and no full pipeline pass is
+required. The write-up is paper1-trd-prediction/reserve/matched_input_parity.md with its
+numbers tracked beside it in reserve/parity_results/; regenerate with
+`python -m scripts.pipeline.review.parity.summarize` from ~/TRD-EHR and re-copy
+reserve/parity_results/ if anything is ever re-run.
+
+  THE HEAD-TO-HEAD, on matched inputs, best model against best model:
+    narrative_control vs feature_vitals  +0.0087  (-0.0018, +0.0188)  null
+    narrative_parity  vs feature_vitals  +0.0069  (-0.0035, +0.0164)  null
+    published                            +0.0079  (-0.0025, +0.0187)  null
+  Point estimate slightly smaller with both asymmetries closed, interval slightly
+  tighter. The mismatch does not carry the finding.
+
+  WHAT MOVED, AND IT IS THE COUNTERINTUITIVE HALF. The feature arm gained the
+  vitals (logistic regression 0.629 -> 0.643, +0.014 excluding zero; XGBoost
+  unmoved 0.649 -> 0.651; both models picked their published hyperparameters, so
+  it is the columns not the grid; calibration slope 0.779 -> 0.922 is the larger
+  movement). Because the arm the embedding was beating is the arm that gained,
+  THE CLASSIFIER-FIXED LOGISTIC-REGRESSION CONTRAST FELL FROM +0.028 TO +0.015.
+  It STILL excludes zero (+0.0045 to +0.0247 in the parity arm), so the
+  classifier-by-representation interaction survives — better for logistic
+  regression, worse for XGBoost, which is exactly why best-versus-best is a null
+  — but the positive half is half the size on comparable inputs. XGBoost's half
+  is unchanged at -0.0135.
+
+  TWO STABILITY FACTS THE STUDY DID NOT HAVE, both from the control arm:
+  (1) A re-render with NO content change leaves every fitted classifier where it
+      was (four contrasts, all null, largest +0.003) but moves nearest-retrieval
+      KNN +0.004 — larger than the field under test, opposite direction.
+      Retrieval consumes the geometry directly; a fitted model re-optimizes
+      against whatever geometry it is handed.
+  (2) THE SELECTED MODEL IS NOT STABLE EVEN WHERE ITS DISCRIMINATION IS. The
+      published embedded logistic regression chose elasticnet (C=0.01,
+      l1_ratio=0.25) and is sparse — the manuscript reports 385 of 4,096
+      dimensions carrying nonzero weight. Both re-rendered arms chose plain L2 at
+      C=0.001, a dense fit, and XGBoost moved depth 8 -> 5. The two land within
+      0.003 AUC of each other.
+      OPEN DECISION FOR THE AUTHORS, not yet actioned: the sparsity sentence is
+      descriptive of the published fit and remains true of it, so nothing is
+      wrong. But it should not be read as showing the predictive structure MUST
+      be concentrated in a few hundred dimensions, and the paper does not
+      currently say which reading it intends. Deciding to add a clause means
+      importing a reserve-analysis finding into the packet; deciding not to is
+      defensible. It is flagged here because it was found, not because it is
+      urgent.
+
+  PACKET SURGERY DONE 2026-08-30, on the authors' instruction that the result is
+  held in reserve rather than published: Supplement S12 DELETED in full; the S11
+  closing pointer, manuscript Methods, manuscript Limitations item 9 and TRIPOD
+  item 11 now state the null in a clause and say the analysis is available from
+  the corresponding author; the memo's parity section reports it. Limitations
+  item 9 and Supplement S11 — the DISCLOSURE — are unchanged, which is the point:
+  the mismatch is disclosed either way. Table S12 inside S11 is a table number
+  and correctly survives the section's removal.
+- [ ] MISSINGNESS THREE-WAY COMPARISON (P2). NOT NEEDED unless someone asks.
+      Two-thirds absorbed: the parity feature arm IS the "vitals plus indicators"
+      arm and the published arm IS the "no vitals" arm. What is genuinely missing
+      is the vitals-imputed-WITHOUT-indicators arm that isolates the indicator's
+      contribution. The condition on running it was "only if the parity arm turns
+      out to matter", and the parity arm returned a null, so it does not.
+      Limitations item 3 concedes it either way.
+- [ ] AUTHORS' DECISION, not work: whether most of the retrieval, judge and
+      fusion material moves to the supplement. The fusion analysis already moved
+      (2026-08-21) and the encoder geometry is already supplement-only (S5); what
+      remains in the main text is one Results subsection, two figures, one table,
+      and a Discussion paragraph. The counter-argument is on the record: the
+      neighbor-weighted arm is the novel design element, and the negative-control
+      retrieval schemes are what license the claim that the embedding
+      neighbourhood is label-informative at all.
+
+STANDING CONTEXT — MP REVIEW ROUND OF 2026-09-02, APPLIED. Tracked changes
+plus 9 comments on the manuscript, a covering email, and two supplied
+replacement documents (JMIR_Methods_and_Supplement.docx,
+Integrated_TRD_EHR_Discussion.docx). The verbatim record is
+paper1-trd-prediction/review/MP_review_latest.md, which now holds THIS round. What
+landed 2026-09-03, all four documents rebuilt:
+- TIME ZERO IS THE INDEX, not the anchor, in all four documents. "anchor"
+  survives only as the RETRIEVAL query anchor. The renderer still prints
+  `MDD-to-anchor gap` in its own labels; Supplement S6 reproduces the
+  narratives verbatim and says so in one sentence.
+- The embedding is a "generalized pretrained transformer embedding"; classical
+  ML is "standard machine learning". The TITLE still says "Neural Narrative
+  Embeddings" — MP did not edit the title page, so it was left alone. See the
+  open item below.
+- METHODS CONDENSED from ~4,600 words to ~2,540 (comment 84 asked for ~2,000).
+  Everything cut was RELOCATED into Supplementary Methods M1-M13 at the front
+  of supplement.md, and every Methods subsection points at its M-section. Do
+  not restore detail into the main Methods.
+- TABLES RENUMBERED. Participant flow left the main text (115) and is
+  Supplement M2, Table M1. Cohort characteristics is Table 1 (119) and its
+  Results prose is one sentence (117). The train/test summary table was
+  dropped, its numbers now living in Methods. Discrimination 2, calibration 3,
+  neighbor-weighted 4, ablation 5, encoder 6. Figures unchanged, 1-12.
+- Subgroup outcome prevalence left the main text (136) and is Supplement S12.
+  Subgroup PERFORMANCE stays in Results, in MP's condensed rewrite.
+- DISCUSSION replaced with his integrated draft (176), with one departure:
+  his version has no Limitations section at all, and dropping it would have
+  reversed the whole 2026-08-28 round of concessions. Limitations is KEPT, now
+  as nine NAMED items rather than numbered ones (**Representativeness**,
+  **Outcome definition**, **Missing data**, **Validation**, **Ablation
+  scope**, **No representational advantage**, **Fairness**, **Operating point
+  and calibration**, **Representation parity**). Cross-references use the
+  names; a renumber breaks every one of them.
+- FIGURE 11 REDRAWN for comment 172. It had been 1x4 at figsize (20, 7),
+  which downscales 3.3x at 6in and made the labels unreadable; it is now 2x2
+  at (10.0, 7.4), 4.44in tall on the page, row labels on every panel. TRD-EHR
+  gained scripts/pipeline/predictions/redraw_ablation_forest.py (rebuilds from
+  ablation_summary.csv + classical_ml_results_EMBEDDED.json and checks every
+  delta against the recorded value); plot_ablation_roc_ci in ablation_runner.py
+  carries the same geometry so a re-run cannot regress it. No number moved.
+- REFS 25-31 appended (comment 50 and the discussion document's list), not
+  interleaved, per the References-block rule in manuscript.md.
+
+OPEN ITEMS FROM THE 2026-09-02 ROUND:
+REFS 25-31 ARE VERIFIED (2026-09-03) and this is no longer open. Checked against
+PubMed and, where obtainable, the papers. All seven are real. Three were wrong as
+first entered and are corrected: Cepeda 35(2):126-133 -> 35(3):220-228; Iveson's
+author list plus its volume and pages; Walsh's author list. EVERY DISCRIMINATION
+FIGURE THE DISCUSSION QUOTES IS EXACT - Liberman 0.83 over 24 months in 35,246
+eligible; Lage 0.652 (0.623-0.682) with top-quintile lift 1.99 (1.76-2.22); Lee
+0.684 / 0.569 / 0.728 with 0.794 for all sources; Walsh 0.58-0.64 internal
+falling to 0.51-0.58 external. Five PDFs are in
+paper1-trd-prediction/references/ (26-29, 32 by library index). Lage and Lee are
+NOT open access; reprint requests are drafted in that folder's
+reprint_request_emails.md, and nothing is blocked on them because
+their numbers are already confirmed from the published abstracts.
+
+
+
+SETTLED 2026-09-03 — THE PACKET HAS NO LIMITATIONS SECTION, matching his
+Discussion. The nine items are held whole in
+paper1-trd-prediction/reserve/limitations_reserve.md, which is NOT part of the packet.
+Before re-adding a heading, read section 2 of that file: seven of the nine still
+say something the packet says elsewhere, and EXACTLY TWO left it - that
+informative missingness may be usable signal rather than a nuisance, and that
+the reported discrimination is an upper bound on later or external data. Both
+are one sentence. TRIPOD item 26 now points at the sections that carry
+limitations rather than at a heading; that is the argument for putting it back
+and is the one to raise with MP.
+STANDING CONTEXT — METHODS IS HIS METHODS, AND IT DOES NOT GROW. Settled
+2026-09-03. The manuscript carries the supplied condensed Methods essentially as
+written: 1,851 words (1,749 of prose plus the 104-word Figure 1 caption) against
+the 6,057 it started at, inside his ~2,000 target. Departures from his text are
+confined to cross-references, citation markers, and two facts his draft could not
+have known — the eligibility cascade moved to Supplement M2 under his own comment
+115, and the cohort table became Table 1 under comment 119.
+  Almost everything the cut removed was already relocated into Supplement M1-M13,
+  which is submitted. The remainder — eight passages that survive nowhere in the
+  packet — is paper1-trd-prediction/reserve/methods_reserve.md, held in the folder and NOT
+  part of the packet, each passage reproduced verbatim with the section it came
+  from and the reviewer question that would want it back.
+  THE RULE, and it is the point of the reserve document: Methods does not grow.
+  New material goes in its M-section. Anything ever removed from the packet gets
+  an entry in methods_reserve.md. Both the Methods header comment and the reserve
+  document carry this rule.
+
+STANDING CONTEXT — RELIGION SENSITIVITY IS CLOSED, AND IT IS A NULL. Completed
+2026-09-03; written up 2026-09-04. Submitted as jobs 2069433 (feature arm),
+2069434 (embed) and 2069435 (fit, on an afterok dependency), all three landing
+the same day with no failure and no resubmission. The outcome and the packet
+surgery are at the bottom of this block. It is the third of the one-off "does
+this change anything" analyses, after matched-input parity and the judge-prompt
+correction, and it was built the same way: scripts/pipeline/review/religion/ mirroring
+scripts/pipeline/review/parity/, writing under ARTIFACTS_DIR/review/religion/,
+touching no published artifact.
+  THE QUESTION IS ABOUT THE MISSINGNESS, NOT THE FIELD. Religion is unrecorded
+  for 29.4% of the cohort and the absence is not uniform — 43.8% at ages 18-29
+  against 17.5% at 65 or older. Both representations make that absence readable:
+  the FEATURE one-hot encoder gives it a level of its own and the narrative
+  prints the literal token Missing, so a model can use the field's absence as an
+  age proxy without using the field. REMOVING IS NOT PERMUTING, which is why the
+  ablation slate does not answer this: a permutation destroys the link between a
+  patient and their own value while leaving the pattern of who has one intact.
+  TWO ARMS, scoped down exactly as parity was — two classifiers, one encoder, no
+  neighbour arm, no ablation re-score:
+    feature_no_religion    the published matrix minus the Religion column
+                           (59 -> 58 columns, everything else byte-identical),
+                           scored against the published feature arm.
+    narrative_no_religion  the narrative re-rendered with the Religion field
+                           omitted from the sociodemographics line, re-embedded,
+                           scored against the PARITY ROUND'S narrative_control.
+  THAT COMPARATOR IS THE WHOLE REASON THIS IS AFFORDABLE. narrative_control is a
+  re-render with no content change, already rendered and already embedded from
+  the parity round, so the contrast against it is attributable to the removed
+  field rather than to the rebuild — which matters, because the parity round
+  measured a bare re-render moving the fitted arms by up to +0.003 on its own.
+  The against-published contrast is reported too and is the weaker of the two.
+  Two opt-in flags were added, both OFF by default so the published artifacts stay
+  byte-reproducible: NARRATIVE_DROP_RELIGION for the renderer, and
+  load_feature_matrix(drop_religion=True). Both verified before submission.
+THE RELIGION DECISION RULE, FIXED 2026-09-03 BEFORE THE EMBEDDED NUMBERS EXIST.
+Written down now for the same reason the parity round wrote its rule down before
+its numbers existed: every threshold is defensible after the fact, and a rule
+chosen after seeing the answer is not a rule. Kept here verbatim as the record of
+what was committed to before the deciding numbers existed; both arms have since
+landed and the rule was applied unchanged.
+  THE CONTRAST THAT DECIDES IT is narrative_no_religion against the parity
+  round's narrative_control, paired bootstrap, per classifier. NOT against the
+  published embedded arm -- that contrast carries the re-render inside it and is
+  reported only as corroboration.
+  IF EVERY DECIDING INTERVAL INCLUDES ZERO: the field does not carry the
+  published result. Nothing in the packet changes except the one sentence in
+  Supplement M6 (below). The reserve report records it and is held back, exactly
+  as matched_input_parity.md is.
+  IF ANY DECIDING INTERVAL EXCLUDES ZERO: religion is load-bearing for a
+  representation, which is a finding rather than a reassurance, and it goes IN
+  the packet -- Supplement M6 states the delta, and Limitations, **Missing data**
+  gains a clause. Do not bury a positive in a reserve document.
+  EITHER WAY, note whether the two classifiers picked the published
+  hyperparameters. They did in the feature arm, which is what makes that null
+  attributable to the dropped column rather than to a different point in the
+  grid; the same check has to be made on the embedded arm before its number
+  means the same thing.
+
+  THE OUTCOME, 2026-09-03: ALL SIX CONTRASTS ARE NULL AND THE FIELD IS NOT
+  LOAD-BEARING. Written up 2026-09-04 as paper1-trd-prediction/reserve/
+  religion_sensitivity.md with its numbers tracked beside it in
+  reserve/religion_results/;
+  regenerate with `python -m scripts.pipeline.review.religion.summarize` from
+  ~/TRD-EHR and re-copy reserve/religion_results/ if anything is ever re-run. Logs:
+  slurm_jobs/review/logs/religion_{feature,embed,fit}_{out,err}.txt.
+
+    THE DECIDING CONTRAST, narrative_no_religion vs the parity narrative_control:
+      logistic regression  0.6600 -> 0.6613  +0.0013  (-0.0017, +0.0039)  null
+      xgboost              0.6377 -> 0.6346  -0.0031  (-0.0083, +0.0024)  null
+    CORROBORATION, the same arm vs the published embedded arm (weaker; it carries
+    the re-render inside it):
+      logistic regression  0.6571 -> 0.6613  +0.0042  (-0.0006, +0.0087)  null
+      xgboost              0.6357 -> 0.6346  -0.0011  (-0.0081, +0.0060)  null
+    THE FEATURE ARM, vs the published feature arm:
+      logistic regression  0.6288 -> 0.6290  +0.0001  (-0.0011, +0.0015)  null
+      xgboost              0.6492 -> 0.6494  +0.0002  (-0.0005, +0.0009)  null
+
+    Worth keeping about the corroborating pair: the logistic-regression row's
+    point estimate is three times the deciding one and its interval misses
+    excluding zero by a thousandth, because most of what it measures is the
+    +0.0029 the parity round attributed to re-rendering alone. Scored against
+    the published arm this null would have been written up as a near-miss. That
+    is what the comparator choice bought.
+
+  HYPERPARAMETERS, the check the rule demanded. Feature arm: both models picked
+  EXACTLY the published ones (LR elasticnet C=0.1 l1_ratio=0.5; XGB lr=0.01
+  depth=5 n=300 subsample=0.5), so that null is the dropped column. Embedded arm:
+  logistic regression picked exactly what narrative_control picked (L2, C=0.001,
+  lbfgs), XGBoost moved depth 5 -> 8. That depth flip is the parity round's known
+  instability, not religion -- the PUBLISHED embedded XGBoost is depth 8 and both
+  parity re-renders came back depth 5, so the choice flips across a rebuild on its
+  own. Consequence is narrow: the embedded XGBoost row is the one contrast whose
+  point estimate is not cleanly attributable, and its interval includes zero
+  either way.
+
+  THE CALIBRATION LEAD IS DEAD, and it was chased before it was dropped. The
+  feature arm's movement is real and attributable -- nothing re-rendered, same
+  hyperparameters, one column gone, LR slope 0.778 -> 0.935 and intercept
+  0.058 -> 0.014. It stays an observation for three reasons: the sign is
+  inconsistent inside the same arm (XGB 1.016 -> 1.094, AWAY from one), Brier moves
+  by at most 0.0004 anywhere and not at all in the two feature cells so no total
+  accuracy is gained, and the embedded arm cannot corroborate because its noise
+  floor is bigger than the effect -- a bare re-render moved the embedded XGB slope
+  0.750 -> 1.636 and embedded LR 1.272 -> 1.066, against the -0.449 religion then
+  contributes to XGB. Do not promote this to a claim; nothing in the packet says
+  otherwise and nothing needs to.
+
+  PACKET SURGERY DONE 2026-09-04, two places. Supplement M6's closing sentence --
+  "Religion was retained with that indicator level; no sensitivity analysis
+  comparing its retention against its removal was performed" -- now states the
+  null in a clause and says the analysis is available from the corresponding
+  author, on the parity precedent. TRIPOD item 11, which already carried the
+  parity vitals re-run in exactly that "available from the corresponding author"
+  form, gained the matching clause for this one, so the checklist's missing-data
+  row is symmetric with M6 -- the rule's "one sentence" was about Supplement M6
+  and the checklist mirrors M6 by construction, so this is not the packet growing.
+  Supplement rebuilt at 18 figures, checklist rebuilt clean. Nothing else moved.
+
+STANDING CONTEXT — MP FOLLOW-UP OF 2026-09-04, STAGED AND DELIBERATELY NOT
+APPLIED. Verbal, on top of the 2026-09-02 round. The record is
+paper1-trd-prediction/review/MP_review_latest.md under *The follow-up
+conversation*; the item-by-item cost is in review/round_2026-09-02.md. NOTHING
+BELOW IS DONE, and the reason is that he is sending more rewritten sections:
+running the terminology sweep now means running it twice, once over our text and
+once over his. Do not start any of it before those documents arrive.
+
+  THE PROSE VERDICT. The writing is too dense. Correct — he disputed no number
+  and no claim — but it reads as machine-written and a sentence has to be read
+  three times. Measured over the body text (abstract through conclusions, tables
+  and captions excluded): 311 sentences, mean 26.2 words, median 24, 23% over 35
+  words, longest 86; 74 semicolons, 34 em-dashes, 191 parentheses. Readable
+  scientific prose sits near a median of 18. Each semicolon and each em-dash
+  aside is a second or third claim welded into a sentence that already carried
+  one, which is the mechanism.
+  THE COLLISION TO RAISE WITH HIM: comment 84 cut Methods 6,057 -> 1,851 words,
+  and compression is what produces density. Shorter and clearer are different
+  instructions. The resolution is fewer claims with more room each, which costs
+  lines — that is what Supplement M1-M13 is for.
+  THE PROCEDURE, when his sections land: freeze the numbers first and let no
+  plain-language pass re-derive a value; simplify one subsection at a time
+  against an explicit budget (word count, median sentence length, semicolon
+  allowance) rather than an adjective; during that pass no em-dash aside inside a
+  main clause, at most one subordinate clause per sentence, no sentence whose
+  only job is to introduce the next one, one hedge per claim in its own sentence,
+  verbs not nominalizations; acceptance test is reading it aloud; last pass is
+  the first author's own hand, for rhythm.
+
+- [ ] THREE WORD CHANGES (blocked on his rewritten sections). Counts are current
+      as of 2026-09-04.
+      deterministic -> algorithmic. 18 places: manuscript 8, supplement 7,
+        checklist 2, cover letter 1, including the Supplement M5 heading. NOT a
+        swap. It follows comment [35], whose stated reason ("you had the GPT
+        generate it") is wrong on the facts — fixed rules write the narrative and
+        no generative model participates, which is what the word carried. It is
+        also load-bearing in the manuscript.md header naming rule, where it is
+        the sanctioned word for that claim and the reason "rule-based" was
+        banned. REWRITE THAT RULE IN THE SAME EDIT and keep the fact in a clause,
+        or the next editor restores the old word as a naming violation.
+      patient -> participant. ~261 places: manuscript 101, supplement 136,
+        checklist 18, cover letter 6. FOUR EXCLUSIONS. The TITLE carries "Patient
+        Narratives" and propagates to cover letter and checklist, so it is an
+        authors' decision and not part of the sweep. Supplement S6 reproduces
+        narratives verbatim and holds the precedent for not re-labelling the
+        renderer's own output (MDD-to-anchor gap). Wording quoted from prior
+        studies in *Comparison with prior work* stays as published. Figure
+        captions must not diverge from text baked into the PNGs — the plotting
+        scripts and cohort_investigation.ipynb were checked and the axis labels
+        in use are generic (Days, Density, Frequency), so no redraw is expected,
+        but re-check against the built .docx before the change, not after.
+      trained classifier -> machine learning model. 4 places: manuscript 3,
+        supplement 1. It destroys a real contrast in at least two of them, where
+        the phrase exists to distinguish the FITTED models from the
+        neighbor-weighted predictor, which fits nothing. Take the term where it
+        is generic; where the contrast is the point, say "the fitted models"
+        against "the neighbor-weighted predictor".
+
+- [ ] TWO SECTIONS TO RESERVE — RESERVED, NOT CUT (blocked on the same
+      documents; the packet should move once, not twice).
+      Supplement S5, the cosine-similarity bimodality in bge-small-en-v1.5, in
+        full: Figure S4, Figure S5, Table S5. One live main-text pointer, in
+        Results, *Embedder comparison*.
+      Supplement S7, the nearest-farthest fusion, in full: Table S6, Figures
+        S6-S7. Four live cross-references: the pointer sentence in Results,
+        *Neighbor-weighted prediction*; the future-directions clause in
+        Discussion, *Implications for validation and clinical use* — KEEP that
+        one, since fusion across DIFFERING representations is the untested and
+        more promising version and the closed null does not bear on it; and
+        checklist items 12e and 27c. Varma & Simon is cited inline in S7 and
+        leaves the packet with it, which costs nothing since it left the numbered
+        reference list on 2026-08-21.
+      THE COST IS THE RENUMBERING, not the removal: S6 and S8-S12 move up and
+        drag the S-figure and S-table series with them across three documents.
+      Each gets a reserve document on the matched_input_parity.md pattern, a row
+        in paper1-trd-prediction/README.md, and a header comment saying what it
+        is and why it is held. This is the third demotion of the fusion material
+        and it is the same argument one level further down: a closed null on a
+        post-hoc secondary analysis does not earn the space.
+
+- [ ] THE DISCUSSION'S TAKE-HOME — ASK HIM BEFORE ACTING. His note reads
+      "embedders are useful to match the standards other people have done". The
+      reading that fits his own *Comparison with prior work* section and the
+      seven references he added: lead on parity with the PUBLISHED LITERATURE
+      (Lage 0.652, Lee 0.684, Walsh 0.51-0.64 externally, ours 0.657) reached
+      without a purpose-built EHR foundation model, rather than on parity between
+      the two representations. That reframes *Principal findings* and is a better
+      story than the section now tells. It is his Discussion; do not rewrite it
+      on an inference.
+
+- [ ] HIS DISCUSSION DROPS LIMITATIONS ENTIRELY (authors' decision). Kept, for
+      the reason above. If MP wants it gone, the nine disclosures have to go
+      somewhere, because most of them were concessions extracted by his own
+      2026-08-28 round.
+
+STANDING CONTEXT — WHAT THE THREE CLOSED ANALYSES FOUND. Two of them changed a
+claim rather than adding a table, and one of them corrected a claim this file
+previously recorded wrongly.
+
+- THE JUDGE CACHE STANDS. The phenotype-free rubric
+  (prompts/judge_system_no_phenotype.txt, judge_user_no_phenotype.txt: dimension
+  1 removed, surviving five rescaled 20/20/20/10/5 -> 27/27/27/13/6) was run over
+  5,000 randomly sampled cached pairs with one vLLM instance. Pearson r 0.929,
+  Spearman 0.923, and 0.932 on the DERIVED NEIGHBOUR WEIGHT — the quantity the
+  KNN arm actually consumes, which is the specific failure mode the weight
+  correlation existed to catch. Median absolute difference ZERO, mean 3.2 points,
+  99.1% within 10, mean shift -1.1 points. No re-judging; the rubric printed in
+  S1.2-S1.3 remains the one the paper used. Written up in Supplement S1.6 with
+  Figure S8. It also reproduced the S1.5 measurement independently: phenotype is
+  0 for 30.5% of these pairs against 31.4% on the earlier 1-in-57 systematic
+  sample.
+
+- SUBGROUP PERFORMANCE: THE RACE FINDING DID NOT SURVIVE, AND THIS FILE SAID
+  OTHERWISE UNTIL NOW. An earlier note here recorded "three of eight intervals
+  exclude zero" for race as a finding. That was computed before multiplicity was
+  handled and before the KNN arm and six further strata were added. The final
+  analysis covers THREE arms (embedded, feature, neighbour-weighted) and EIGHT
+  stratum families, computes 288 contrasts, and adjusts every bootstrap P value
+  across the whole set with Benjamini-Hochberg. 72 exclude zero unadjusted; 35
+  survive.
+    * Sex: clean null. Twelve contrasts, none excluding zero, max 0.012 ROC AUC.
+    * Race: all TWELVE White-minus-non-White contrasts positive (+0.005 to
+      +0.055), seven excluding zero unadjusted INCLUDING all four
+      neighbour-weighted configurations — a structurally different predictor
+      reproducing the sign — but NONE surviving adjustment, smallest adjusted
+      P = .08. Non-White calibration slope 0.79 against 0.98 in the feature arm;
+      the embedded arm holds at 0.95/0.97. Reported as neither settled nor
+      dismissed: the limit is power (302 minority events against 1,181).
+    * WHAT SURVIVES IS CLINICAL. 24 of the 35 concern MDD recurrence and
+      severity: recurrent coding discriminates BETTER (+0.059 to +0.082),
+      single-episode WORSE (-0.077 to -0.054), twelve of twelve arm-model
+      combinations each way. Severity the same in the neighbour arm. The models
+      do better where the diagnosis is coded specifically and worse where it is
+      left unspecified, which is most of this cohort.
+    * Two sociodemographic contrasts survive: age 18-29 in the feature arm
+      (-0.071 to -0.066, adjusted P = .04) and never-married in the embedded arm
+      (-0.054/-0.051, adjusted P = .01), both consistent with thinner records
+      supporting weaker prediction.
+  LESSON WORTH KEEPING: the scoped-down version of this analysis — logistic
+  regression, four groups, no correction — would have reported a race gap that
+  does not exist at this evidence level, and would have missed the clinical
+  finding entirely.
+
+- THE HELD-OUT SET IS REPRESENTATIVE OF THE TRAINING SET (max |SMD| 0.036 over
+  100 rows, none >= 0.1) AND THAT SETTLES LESS THAN IT SOUNDS LIKE. Both halves
+  inherit the case enrichment equally, so it cannot speak to population
+  representativeness; the main text says so explicitly. Supplement S9, Table S8.
+
+- THE CROSSWALK FOUND ASYMMETRIES NOBODY HAD LISTED. Eleven fields differ, ten
+  favour the narrative. New: four sociodemographic fields (preferred language,
+  marital status, religion, smoking status) are collapsed to coarse categories in
+  the feature matrix while the narrative prints the RAW recorded value; and
+  categorical missingness is NOT dropped on the feature side — an absent value
+  becomes its own one-hot level. Supplement S11, Table S12. Both were found by
+  reading the pipeline source against the manuscript's description of it, which
+  is the habit worth keeping.
+
+- NUMBERING AS IT NOW STANDS. Main text: the time-zero timeline is Figure 1, so
+  the old Figures 1-11 are 2-12. Supplement: sections S9 (held-out), S10
+  (subgroups, four subsections) and S11 (crosswalk), plus subsection S1.6 (judge
+  rubric); Tables S8-S12; Figures S8 (judge agreement) and S9 (subgroup forest).
+  S11 IS THE LAST SECTION — S12 (parity) was deleted 2026-08-30 when that result
+  went to the reserve document. Table S12 lives INSIDE S11 and is unaffected; a
+  table number is not a section number. NO [PENDING] MARKER REMAINS ANYWHERE.
+
+- SLURM, LEARNED THE HARD WAY 2026-08-28. c3 and c3_short run on the SAME nodes
+  (compute300-305). c3_short has PriorityTier=20 against c3's 10, and tier is a
+  HARD ordering — every job in a higher tier is considered before any job in a
+  lower one — plus PriorityJobFactor=2 against 1. Two review jobs sat pending on
+  c3 behind 62 others with `squeue --start` reporting N/A, and both began within
+  three seconds of `scontrol update JobId=<id> Partition=c3_short`. The review
+  sbatch files default to c3_short now. The cost is a 9-hour wall; anything
+  longer belongs on c3. An N/A start time on a pending job means "not soon", not
+  "unknown".
+
+STANDING CONTEXT — THE FIGURE WORK IS DONE (2026-08-20, geometry redone
+2026-08-21). Both plotting jobs landed in TRD-EHR and both figures are in
+the built packet; the manuscript builds with zero missing-image warnings and
+22 embedded figures (23 until Figure 12 went to the supplement with the
+fusion analysis). Recorded here because the surrounding notes reference it:
+- NEW Figure 2, the discrimination forest plot, is generated by
+  scripts/pipeline/predictions/plot_discrimination_forest.py and saved to
+  RESULTS_DIR/discrimination_forest_EMBEDDED_vs_FEATURE.png, then mirrored
+  into results/<encoder>/<judge>/. Pure presentation layer: reads the
+  roc_score and CI bounds out of classical_ml_results_{EMBEDDED,FEATURE}
+  .json, refits nothing, so it cannot drift from Table 4. Wired into
+  run_trd_prediction_analysis.sbatch, ml_only.sbatch, and
+  run_classical_ml_short.sbatch after feature_importance, plus a
+  standalone slurm_jobs/quick_runs/plot_manuscript_figures.sbatch.
+- The feature-importance panels (now Figure 6) were regenerated at
+  legible label size, and the title splits across two lines so the colour
+  key stops being clipped. A new redraw_feature_importance.py re-renders
+  the four panels from the saved feature_importance_summary.json without
+  refitting anything, which is how they were regenerated without a full
+  pipeline re-run. NOTE: the sizing rationale in that first pass ("keep
+  the figure near its 6in display width so the downscale is only ~0.8x")
+  was superseded on 2026-08-21 — see the geometry block below. The panels
+  are wider and shorter now, with the label point size raised to
+  compensate, because height on the page is the scarce resource.
+- ALL FIGURES WERE RENUMBERED to open the Figure 2 slot — old 2-11 are
+  now 3-12, across manuscript.md, supplement.md, tripod_ai_checklist.md.
+
+- [ ] WATCH ITEM, not yet a task: two sign/label bugs were found and fixed
+      while regenerating the feature-importance panels. Both are worth
+      knowing about because either could silently corrupt a future figure.
+      (a) In feature_importance_summary.json, "importance" and "sign" are
+          NOT redundant and must never be multiplied together.
+          "importance" is the raw model attribution — a SIGNED coefficient
+          for logistic regression, an UNSIGNED impurity/gain score for the
+          tree models — while "sign" comes separately from the univariate
+          Spearman correlation with the risk score. Multiplying them flips
+          every genuinely negative logistic predictor to positive and
+          colours it as risk-raising. This was caught only because the
+          flipped panel disagreed with the manuscript's named negatives
+          (missing smoking status, hyperlipidemia, longer pre-anchor
+          history, male sex). The correct panels now match that sentence.
+      (b) plot_feature_importance's title expression relied on operator
+          precedence in a way that silently dropped the model name from
+          the "direction unspecified" branch. Fixed by naming the
+          conditional before use.
+      Nothing outstanding on either; recorded so they are not reintroduced.
+
+STANDING CONTEXT — three items that were open on 2026-08-20 are now
+CLOSED, all without needing KLF (she is on maternity leave). Recorded here
+so nobody re-opens them:
+- Comment 44 (predictor selection) is answered from references already in
+  the list, anchored on Perlis 2013 (#4) as the selection-strategy source.
+  MP's supplied batch was checked in full and contains no
+  predictor-selection literature; do not go looking again.
+- Comment 30 (data provenance) is answered from the SFHS query
+  documentation, now kept at
+  paper1-trd-prediction/references/DATA_PROVENANCE_SFHS_query_documentation.docx.
+- The extraction dates are confirmed from the filesystem, not inferred:
+  the delivered tables under the study folder's Data/ are named
+  *_Table-26_06_29-v1.tsv, matching the documented Table-YY_MM_DD-vX
+  convention, so 2026-06-29 is the source cut; the PrepData tables were
+  built 2026-07-10 by mtime. DV260629v1 = the cut, PV260710v1 = the
+  analysis-ready build. No [CONFIRM] markers remain in the manuscript.
+
+STANDING CONTEXT — STUDY POPULATION IS A CASE-ENRICHED SAMPLE BY DESIGN.
+Settled 2026-08-20 and written up; not a task, and NOT a limitation.
+SOURCE DOCUMENT: paper1-trd-prediction/references/
+DATA_PROVENANCE_SFHS_query_documentation.docx (a second copy lives with the
+data at Data/ in the DV260629v1-PV260710v1 study folder). It states, in its
+own words, that "the end of this query also generates a 4 to 1 sampling of
+the depression group vs. the control group", carries the SQL for it under a
+"4:1 Patient Sampling" heading, and records that the ICD-9/ICD-10 code lists
+behind the three diagnosis flags were "provided by LIBR".
+*** THAT DOCUMENT IS AN INTERNAL LIBR WORKING DOCUMENT AND MUST NEVER BE
+CITED IN THE PAPER. *** The design is stated in Methods prose, unreferenced.
+It is recorded here so the claim is traceable on our side.
+
+VERIFIED AGAINST THE DATA, not taken on the document's word:
+  Person_Table.csv         501,718 rows; GroupType column splits
+                           100,420 (20.02%) "Depression Group" /
+                           401,298 (79.98%) "Control Group"  -> 4:1 confirmed
+  MDD_IDs.csv              144,110, of which 47,352 (32.9%) Control Group
+  MDD - (BD u SCH)         124,188, of which 40,427 (32.6%) Control Group
+  final analysis cohort    42,579 (counted from the sliced patient JSONs),
+                           of which 12,530 (29.4%) Control Group
+The Control Group had NO problem-list depression code by construction; those
+47,352 qualify because our eligibility reads ENCOUNTER diagnoses instead.
+Reproduce by joining GroupType from Person_Table.csv against the filenames in
+the sliced_patient_json directory.
+
+WHERE IT IS WRITTEN UP: Methods > *Study population* (the design and both
+consequences), the Table 1 first-row label "Delivered extract (4:1
+case-enriched)", and a pointer in the Table 1 caption. An earlier draft
+carried a Limitations item for it; that was REMOVED deliberately once the
+design was established as intentional. Do not re-add it, and do not describe
+501,718 as a "source population".
+
+STANDING CONTEXT — PANEL GEOMETRY IS A HARD CONSTRAINT (2026-08-21). Read
+this before changing any figure size. The manuscript places one panel per
+row at the 6in text width of a US Letter page with 1in top/bottom margins,
+which leaves a 9in text column. Word cannot flow text past an image, so a
+panel taller than about half that column cannot share a page with the panel
+below it: the rest of the page is left blank and the next panel starts
+overleaf. Enlarging the panels for MP's comment 8 traded illegible figures
+for half-empty pages exactly this way — the confusion matrices stood 6.21in
+(metrics hung off the bottom of the axes with figtext, then bbox_inches=
+'tight' grew the canvas to contain it), the forest plot 5.88in (its axes
+spanning 41% of their own canvas, the rest margin), the feature-importance
+panels 5.44in.
+THE RULE: panels are WIDE AND SHORT and stay at the full 6in width. Never fix
+a page gap by setting a width below 6in in manuscript.md or supplement.md;
+change the figure's aspect ratio at the source instead. Geometry lives in
+PANEL_FIGSIZE in scripts/shared/plots.py, with font sizes raised there to pay
+for the deeper downscale, so type lands where it did before or larger. Every
+panel now renders 1.80-3.75in tall, so two fit per page. Worst image-forced
+gap measured on the rebuilt .docx: 2.70in, down from ~6.2in. The residual is
+a floor, not a bug — with one full-width panel per row a stranded hole can be
+almost as tall as a panel. Getting below it needs either letterboxing enough
+to tile three per page or side-by-side pairs, which is what comment 8
+rejected; do not "fix" it without asking.
+HOW THE PANELS WERE REGENERATED WITHOUT REFITTING: a new
+scripts/pipeline/predictions/redraw_manuscript_panels.py reads the
+per-patient predictions already on disk (test_predictions_{EMBEDDED,FEATURE}
+.parquet for the classical arm, summary_predictions.csv for the
+neighbor-weighted arm), calls the pipeline's own plotting helpers with the
+same mode strings, and CHECKS every recomputed ROC AUC against the value in
+the results JSON, refusing to write on a mismatch. All 24 matched and so did
+every bootstrap band, the band being seeded on SEED and indexed by row count
+alone. fusion_analysis.py re-run the same way reproduced fusion_comparison
+.csv and fusion_fit_parameters.json byte for byte. It is wired into
+slurm_jobs/quick_runs/plot_manuscript_figures.sbatch (wall time raised to
+1h30 for its bootstrap).
+TWO INCIDENTAL FIXES, recorded so they are not read as drift: the confusion
+matrices print their metrics block beside the matrix rather than beneath it,
+and quote the Youden-J threshold to 3 decimals instead of 16.
+
+STANDING CONTEXT — FUSION ANALYSIS IS SUPPLEMENT-ONLY (2026-08-21). The
+Results subsection *Fusing nearest and farthest retrieval*, its Figure 12,
+and the Discussion subsection *Interpreting the fusion null* were all cut
+from the main text. It lives in Supplement S7, reached by one pointer
+sentence at the end of Results > *Neighbor-weighted prediction* and one in
+*Future directions*. This supersedes the split made for MP's comment 793 and
+still satisfies it. Do not restore either subsection.
+KNOCK-ON: ref 20 (Varma & Simon) was cited only from the deleted paragraphs,
+so it left the numbered list and refs 21-25 became 20-24 in manuscript.md and
+tripod_ai_checklist.md. Supplement S7 cites it inline in full and carries no
+numbered list. Markers 1-24 verified contiguous and all cited; figures 1-11
+and tables 1-8 all defined and all referenced.
+
+- [ ] SEND THE REVIEW PACKET BACK TO MP. NOTHING ANALYTICAL OR MECHANICAL IS
+      OUTSTANDING, as of 2026-09-04. All three review rounds are closed:
+      2026-08-20 (11 comments), 2026-08-28 (nine items, two declined with their
+      arguments in the standing note below), and 2026-09-02 (nine comments plus
+      his two replacement documents, applied 2026-09-03 and accounted for item by
+      item in paper1-trd-prediction/review/round_2026-09-02.md). Every analysis any round
+      asked for is closed, the last of them the religion sensitivity on 2026-09-03,
+      a null held in reserve. No [CONFIRM] or [PENDING] marker remains anywhere and
+      nothing waits on a coauthor.
+      THE PACKET IS FOUR DOCUMENTS: manuscript, supplement, TRIPOD+AI checklist,
+      cover letter. The response memo was deleted 2026-08-30 — it answered the
+      2026-08-28 round and its account had been served — and is recoverable from
+      git history. round_2026-09-02.md is the equivalent for the latest round and
+      is kept, deliberately, because retiring the last one cost two arguments that
+      existed nowhere else.
+      WHAT MUST TRAVEL WITH IT, since no memo carries it: which items of the
+      2026-08-28 round are closed, which were rescoped and why, and which two are
+      DECLINED — their arguments are in the standing-context entry immediately
+      below, which exists because the memo that used to carry them is gone. They
+      must not be dropped with it.
+      SIX THINGS WANT HIS JUDGEMENT RATHER THAN OUR WORK, and this is the list to
+      put in the covering note:
+        1. the sampling-frame framing (see the case-enriched standing note);
+        2. whether the classifier-by-representation interaction from Figure 2B
+           deserves more than the two paragraphs it gets;
+        3. whether the fusion analysis should have stayed in the main text at all
+           — he asked for it to move INTO Results and it has since moved out to
+           the supplement entirely;
+        4. whether the retrieval and judge arm belongs in the supplement;
+        5. whether the sparsity sentence (385 of 4,096 dimensions) should carry a
+           clause, now that the parity control arm has shown a re-render selects a
+           dense solution of equal discrimination;
+        6. LIMITATIONS: IN OR OUT. His Discussion has none, so the packet has
+           none. Seven of the nine disclosures survive elsewhere; TWO are nowhere
+           in the packet (the vital-sign handling argument, and reading the
+           discrimination as an upper bound), both one sentence, and TRIPOD item
+           26 now points at scattered places rather than a section. This is the
+           one of the six with a cost attached rather than only a preference, and
+           limitations_reserve.md holds the section intact either way.
+
+STANDING CONTEXT — THE TWO DECLINES, AND WHY. Two of the nine items in the
+2026-08-28 round were declined rather than actioned. Their arguments used to live
+in response_to_comments.md, which was retired 2026-08-30, so they are written out
+here: nothing else we send carries them, and a decline with no argument attached
+reads as an oversight.
+
+- A HIGH-YIELD SENSITIVITY LABEL is declined. The request was a variant TRD
+  label restricted to "clinically plausible" switching intervals. The motive
+  behind a post-anchor medication change is NOT recoverable from this extract —
+  no reason-for-change field, no linkage to response or tolerability — so a label
+  conditioned on plausible intervals would encode an assumption rather than
+  remove one. Worse, it would do so invisibly: any threshold is defensible and
+  none is verifiable against the data, so the sensitivity analysis would look
+  like a robustness check while being a second arbitrary definition.
+- A TEMPORAL VALIDATION SPLIT is declined FOR THIS SUBMISSION, on the review's
+  own stated alternative: withdraw the claims that would need it, and say so.
+  Both halves are done. Every risk-stratification claim is out of the abstract,
+  conclusions, keywords, checklist and supplement, and Limitations item 4 states
+  that this is internal validation by one random split of one health system's
+  records spanning 2016-2024, that the study says nothing about temporal
+  transportability or coding drift, and that the reported discrimination should
+  be read as an upper bound on later data or another site.
+
+WHERE THEY ALREADY ARE, WHICH IS MOST OF THE WAY: both are conceded in
+Limitations. Item 4 carries the temporal-split position in full — no temporal
+split, no external cohort, nothing claimed about transportability or drift,
+discrimination to be read as an upper bound — which IS the review's own stated
+alternative, so nothing about it needs to travel separately. Item 2 names the
+sensitivity label by description ("a higher-specificity sensitivity label that
+requires documented post-anchor adequate courses and clinically plausible
+intervals between switches") as one of two things that would sharpen the target
+and are not done here.
+THE ONE THING WITH NO HOME: item 2 says the sensitivity label is not done, not
+WHY it cannot be done from this extract — there is no reason-for-change field, so
+a plausible-interval threshold would encode an assumption invisibly. Whether that
+sentence belongs in item 2 or in the covering note is a judgement call for the
+authors, not a gap to be patched silently.
+
+STANDING CONTEXT — THE TWO REPRESENTATIONS HAVE TWO NAMES, NOT THREE
+(2026-08-23). The paper compares the FEATURE representation ("feature vector",
+"typed feature vector", "feature-vector XGBoost") against the EMBEDDED
+representation. "RULE-BASED" IS BANNED as a synonym for the feature vector:
+a third name reads as a third method. It is gone from the manuscript,
+supplement, cover letter, checklist, this file, the README, and
+both reference libraries; the manuscript.md header comment carries the rule in
+full and the supplement header points at it. Knock-ons already applied, so do
+not redo them: the TITLE is now "Typed Feature Vectors Versus Neural Narrative
+Embeddings ...", quoted identically in the cover letter and checklist; the
+"(B) Rule-based XGBoost" panel sub-captions read
+"(B) Feature-vector XGBoost" (manuscript Figures 3-5, supplement); and the
+stray third alias "engineered feature vector" went with it. Where the old
+wording meant that no generative model writes the narratives, the word is
+"deterministic" — that usage was NOT a naming violation, it was just the wrong
+word for it, and rewriting it back to "rule-based" reintroduces the problem.
+
+STANDING CONTEXT — FIGURE 2 ATTRIBUTION (settled 2026-08-21, having been got
+wrong once). The forest plot itself was MP's margin sketch — row 12 of his
+2026-08-20 review, which carried no comment number, which is why it sits with
+his eleven. Dropping the dashed best-feature-vector-model reference line from it was
+RK's separate suggestion. Do not swap these two round again.
+
+================================================================
+PAPER 1 — SEMANTIC-FEATURE ABLATION SLATE (standing context, not a task list)
+================================================================
+The slate is SIX specifications. permute_treatment_exposure was appended to
+the registry 2026-08-21 and scored 2026-08-22; its numbers are in the
+manuscript, so its POSITION is now load-bearing like the other five.
+
+ALL SIX ARE DEFINED IN THE PAPER as of 2026-08-23, in Methods >
+*Semantic-feature ablation*, one bullet each, by the narrative content the
+permutation destroys — the bundles in ablation_registry.py and the sections
+rendered by deterministic_narrative.py are the source of truth for those
+definitions, so a change to either has to reach that bullet list. The
+listing used to be a bare six-item sentence, which left a reader unable to
+tell medication burden from treatment exposure, i.e. unable to read the one
+result the slate exists to produce. TWO THINGS FELL OUT OF WRITING THEM and
+must not drift back: treatment contraindications is a PRESCRIBING-SAFETY
+concept (epilepsy vs bupropion, uncontrolled HTN vs SNRIs), NOT a
+sociodemographic one, so the negligible-delta group is "the two
+sociodemographic concepts, plus treatment contraindications" and never "the
+sociodemographic permutations" — three sentences in Results and two figure
+captions were carrying that error; and the MEDICAL COMORBIDITY section is a
+separate bundle that was never permuted, so it is not part of any group.
+
+HOW THE PAPER PRESENTS IT: EXACTLY LIKE THE OTHER FIVE, and no more than that.
+A listing in Methods, a row in Table 7 and Figure 10, its rank in the Results
+paragraph, its name in the one-sentence Discussion summary. It was scored later
+than the others and the text does not say so, deliberately. THREE FRAMINGS WERE
+WRITTEN AND CUT on 2026-08-21/22 — do not reintroduce any of them: (1) hedging
+it as post-hoc or "added after the primary analysis"; (2) a dedicated
+Discussion paragraph explaining why its delta came in smaller than expected;
+(3) naming it in Limitations item 5, which is concept-neutral and stays that
+way. The standing instruction is: do not treat this concept as special. It
+isn't.
+
+WHY IT WAS ADDED. Methods had justified leaving the treatment-exposure section
+off the slate by claiming it "partly restates the information used to
+construct the outcome label itself". THAT WAS WRONG. The label counts
+antidepressant treatments in the POST-anchor year, no predictor touches
+post-anchor data, and the section reports prior adequate trials,
+benzodiazepine days, hypnotics and augmentation recorded at or before the
+anchor. Permuting it leaks nothing. Do not re-describe that section as label
+leakage.
+
+WHAT IT MEASURED, AND HOW TO TALK ABOUT IT. Not the largest delta on the
+slate, which is what both this file and the manuscript had predicted. Third,
+behind psychiatric history and medication burden:
+  logistic_regression  -0.019  (95% CI -0.027, -0.011)   excludes zero
+  xgboost              -0.011  (95% CI -0.020, -0.003)   excludes zero
+  gradient_boosting    -0.006  (95% CI -0.014, +0.003)   includes zero
+  random_forest        +0.000  (95% CI -0.008, +0.009)   includes zero
+WHY THE DELTA IS MODEST, recorded here as background and NOT stated in the
+manuscript: the anchor IS the patient's first adequate AD exposure, so the
+section is empty for three patients in four, and a permutation can only destroy
+variance that exists. The descriptive half of that DOES appear, as five
+ordinary rows in Table 2's Treatment-and-utilization block (added 2026-08-22),
+covering the fields the bundle renders — trials_* per class,
+benzo_days_coverage, hypnotics_burden, augmentation_occured. Any exposure
+24.0% (SMD 0.001), prior adequate trial 14.7% (SMD -0.023). Computed from
+feature_vectors.parquet joined to IDs-TRD.txt; the augmentation row reproduces
+Table 2's previously published 422 / 108 / 314 / 0.052 exactly, which is what
+validates the other four. Do not rewrite the section as leakage, and do not
+rewrite it as a null finding about clinical relevance.
+
+ONE ACCURACY CONSTRAINT, handled inside the relevant sentences rather than as
+a caveat: treatment exposure was scored on the PRIMARY ENCODER ONLY. The
+*Embedder comparison* paragraph names its own two concepts (psychiatric
+history, medication burden) explicitly, so nothing there claims a six-concept
+cross-encoder replication. Keep it that way — do not generalize that paragraph
+to "all six".
+
+THE RESCORE WAS VERIFIED CLEAN, 2026-08-22, and the snapshot it was checked
+against is gone. Every ROC AUC and every CI bound came back bit-identical for
+the other five specs; the only movement in the table was the four
+logistic_regression Brier values at 1e-11, which is float summation order over
+8,516 rows. Recorded here because the snapshot no longer exists to re-check:
+if a future rescore moves a published ROC AUC even in the fourth decimal, the
+slate got reordered or the models got refit. That is the alarm, not a rounding
+question.
+
+
+================================================================
+SUICIDALITY FEATURE — WINDOWING CONTRACT (hygiene, no rush)
+================================================================
+suicidality_flag's docstring says it analyses "the history window" as though it
+enforced one. It does not: it reads whatever encounters it is handed, and the
+window is applied upstream by fit_to_anchor at YEARS_BACK years. Every caller
+passes a sliced dict today (feature_vector.py and deterministic_narrative.py
+are the only two), so nothing is wrong and no number is affected. But a future
+caller that passed an unsliced patient would scan the entire history and
+over-flag with no error, and the docstring would have told them it was safe.
+
+- [ ] Pick one and do it: give the function an explicit window parameter, the
+      way its sibling psych_utilization already takes one, or state the
+      precondition plainly in the docstring. Prefer the parameter — the
+      inconsistency between the two siblings is what made this confusing in
+      the first place, and it is what sent an earlier test chasing a one-year
+      window that never existed.
+
+- [ ] Confirm at proof: ref 10 TRIPOD+AI primary DOI; ref 12 C-Pack SIGIR page
+      range.
+
+================================================================
+PROJECT ARCHITECTURE
+================================================================
+One repo, one shared substrate, two publications. SHARED BODY: data loading,
+narrative generation, embedding, feature engineering, cohort/index-date/
+time-anchor/treatment-line logic, value sets, train/test split. The
+narrative+embedding+similarity matcher feeds the KNN arm and the Paper-2
+similarity policy; the causal forests eat the structured FEATURE dataframe
+directly and never see an embedding.
+PAPER 1 — TRD PREDICTION (the README's documented surface): will this patient
+become treatment-resistant? KNN+LLM similarity vs classical ML (LR/RF/GB/
+XGBoost) on embedded and feature vectors; ROC/PR/calibration. ANALYSIS-COMPLETE
+as of 2026-08-07 and SUBMISSION-READY as of 2026-08-14 — all that remains is
+the IRB/funding pair and the coauthor comment round above.
+PAPER 2 — COUNTERFACTUAL TREATMENT SELECTION (design LOCKED 2026-08-13; build
+IN PROGRESS -- eligibility, the T-learner fit/scoring, and the gradeable-metrics
+half are all DONE and verified as of 2026-08-19. RESUME AT: the propensity
+column + overlap trim, item (2) of the falsification battery below). Which
+antidepressant class at the INDEX ANCHOR carries the lower
+predicted TRD risk for this patient, and can that comparison be defended?
+Design source = paper2-counterfactual/counterfactual_project_notes_2026-08-13.pdf.
+Architecture spec = TRD-EHR README, Planned Extensions, "Counterfactual
+Treatment-Selection Pipeline (Paper 2)". Companion docs: PAPER2_OUTLINE.md
+(carries a SCOPE RECONCILIATION header as of 2026-08-13 -- its switch-decision
+framing is DEFERRED) and CAUSAL_IDENTIFICATION.md (authoritative MHE-vs-project
+strategy; CIA is the binding constraint). Davies IV validity is scoped to
+SHORT-TERM effects -- a live caveat for the one-year outcome.
+
+SCOPE (locked): treatment = AD class at the anchor prescription, active-
+comparator PAIRWISE over the same 3 dense pairs and the same comparison-arm-
+first keys as causal/treatment_registry.py. Outcome = the existing TRD label.
+Eligibility per contrast = every cohort patient whose index class is one of the
+two arms. FEATURE VECTORS ONLY -- no narratives, no embeddings, no LLM
+similarity, nothing from the neighbor stack. Reuses the cohort, the anchor
+slicing, the FEATURE parquet, load_trd_set, and the EXISTING train/test split
+(test_patient_ids.txt) -- do not re-split.
+
+THE CENTRAL DISTINCTION (get this wrong and the paper is incoherent):
+- GRADEABLE = the model's prediction for the arm the patient ACTUALLY got. The
+  real TRD label exists, so it can be scored (AUC/Brier/calibration). This is
+  the ONLY performance evidence the project will ever have.
+- UNGRADEABLE = the prediction for the arm they did NOT get. No ground truth
+  exists and none ever will. Its credibility comes only from the gradeable half
+  and from the falsification battery.
+
+BUILD PLAN (build started 2026-08-18):
+- [x] DONE 2026-08-18. Promoted get_AD_mappings out of scripts/pipeline/causal/
+      core.py to scripts/shared/utils.py; both packages now read ONE patient->
+      index-class implementation. Verified importable under BOTH embedder_pipeline
+      and causal_forest_env; returns 125,813 entries (SSRI 71,531 / SNRI 19,055 /
+      BUPROPION 12,526 / MIRTAZAPINE 4,520 / VORTIOXETINE 930 / None 17,251 --
+      the None group is why arm selection must use positive membership (isin),
+      never a negation).
+- [x] DONE 2026-08-18. The registry is SHARED, not duplicated. treatment_registry.py
+      moved from scripts/pipeline/causal/ to scripts/shared/treatment_registry.py;
+      both causal call sites (run_one.py, validate.py) repointed. It is pure data
+      depending only on the med_definitions arm constants, so it imports under both
+      envs. RULE: package-specific per-contrast config does NOT go in the shared
+      registry -- put it in the consuming package keyed by contrast key and join at
+      read time, or the file gets forked again. Do NOT build contrasts by iterating
+      ALL_ARMS: it is a set, Python randomizes string hashing per process, and the
+      Slurm array indexes the registry BY POSITION.
+- [~] New package scripts/pipeline/counterfactual/ (registry excluded -- it is
+      shared now). DONE: __init__.py, and core.py's eligibility half --
+      EligiblePopulations (a 7-field dataclass: ref/comp train matrices + labels,
+      the whole eligible test matrix + labels, and test_comparison_flag) and
+      build_eligible_populations(spec_dict). Reuses the Paper-1 split, calls
+      get_AD_mappings once, selects arms by isin, leaves frames raw/typed (NO
+      get_dummies -- each arm model encodes in its own Pipeline so it stays
+      column-aligned when scoring the other arm). core.py is a LIBRARY: no main,
+      no registry import; run_one.py will own the array-index -> contrast pick.
+      VERIFIED 2026-08-18 over all three contrasts against the live parquet:
+      59 columns throughout; test matrix / labels / flag all equal length; train
+      matrices aligned to their labels; the two train frames disjoint.
+      snri_vs_ssri = 20,161 ref / 4,928 comp train, 6,242 test, flag mean 0.204;
+      bupropion_vs_ssri = 20,161 / 3,840, 5,900 test, flag mean 0.158;
+      bupropion_vs_snri = 4,928 / 3,840, 2,210 test, flag mean 0.423.
+      STILL TODO in this package: run_one.py + its sbatch, falsification.py
+      (SMD + E-value), the negative-control label, and the cross-contrast
+      summary reduce.
+      NOTE on why the test set is NOT split by arm: fitting is per-arm, but
+      scoring runs BOTH models over EVERY eligible test patient, and the trim,
+      the ATE and the bootstrap all need one row-aligned frame. Gradeable subsets
+      are recovered downstream by masking on test_comparison_flag.
+- [x] DONE 2026-08-19. T-learner per contrast, in core.py's
+      score_counterfactual_risks(populations). model_ref fit on TRAIN patients
+      with index class = reference arm, model_comp on TRAIN patients with index
+      class = comparison arm; both then predict_proba over the ENTIRE eligible
+      test matrix (the whole frame twice, never an arm-masked slice), keeping
+      column 1 as P(TRD) -- positive class, since 0/1 int labels leave sklearn's
+      classes_ sorted. Returns a DataFrame on the test index with risk_ref,
+      risk_comp, trd_label, is_comparison. Computes NO average on purpose: the
+      trim decides which rows may enter one.
+      Each arm model = a fresh LogisticRegression(max_iter=1000) wrapped in
+      classical_ml.make_classifier -- Paper 1's ColumnTransformer reused, not
+      forked. TWO TRAPS PAID FOR: (a) build a SEPARATE LogisticRegression per arm
+      or the second fit overwrites the first; (b) predict_proba returns shape
+      (n, 2) -- slice BOTH axes to take column 1. A single-axis slice grabs one
+      patient's two classes and dies in the DataFrame constructor.
+      WHY LOGISTIC REGRESSION, not a forest: the ungradeable column requires
+      extrapolating onto the OTHER arm's covariate distribution, where linear-in-
+      logit degrades smoothly and a forest returns whatever leaf its nearest
+      training rows occupied. Gradient boosting = a later sensitivity check, not
+      the headline. Feeding the models the RAW TYPED frame is what makes cross-arm
+      scoring safe: each pipeline re-encodes under its own fitted layout, and
+      OneHotEncoder's handle_unknown='ignore' turns an other-arm-only category
+      level into an all-zero encoding instead of an exception (this fires
+      benignly on the live data -- expect the UserWarning, it is the guard
+      working).
+      VERIFIED 2026-08-19 over all three contrasts: frames 6,242 / 5,900 / 2,210
+      rows x 4 cols, indexed on patient_id and unique, is_comparison summing to
+      1,276 / 934 / 934, no convergence warnings.
+- [x] DONE 2026-08-19. Gradeable metrics, in core.py's grade_arm_models(frame).
+      Both subsets come off ONE boolean mask on is_comparison: flag 0 pairs with
+      risk_ref, flag 1 with risk_comp. CROSSING THEM grades each model on the arm
+      it never trained on and yields a number that looks like a metric and is
+      not. Returns {'reference': ..., 'comparison': ...}, each = compute_metrics'
+      8 keys + n_gradable + n_events + the calibration bins + the count-weighted
+      slope/intercept. The counts matter because the comparison arm is a small
+      fraction of the reference arm in every contrast.
+      VERIFIED 2026-08-19: gradeable splits 4,966/1,276, 4,966/934, 1,276/934
+      (each pair summing to its contrast's test n). Reference-arm AUC lands right
+      at Paper 1's FEATURE-side LR figure (~0.63), as it should -- same learner,
+      same features, a large subset.
+      FREE CONSISTENCY CHECK THAT PASSED: an arm model depends on the ARM, not
+      the contrast it sits in, so the 3 registry pairs are served by only 3
+      distinct arm models. SNRI's gradeable metrics are byte-identical as
+      comparison arm in snri_vs_ssri and as reference arm in bupropion_vs_snri;
+      likewise SSRI across its two contrasts. Worth asserting if the sweep grows.
+- [x] DONE 2026-08-19. CALIBRATION DIAGNOSTIC DECISION -- do NOT edit
+      compute_metrics. It fits its calibration line over UNWEIGHTED bin means
+      across 10 fixed-width bins, so a bin holding a handful of patients pulls as
+      hard on the slope as one holding hundreds. On the small arms (long thin
+      right tail) that produces a slope describing the BIN GRID, not the model:
+      bupropion's unweighted slope read 0.057, driven entirely by two bins
+      holding 6 of its 934 patients -- one of them a single patient at predicted
+      0.875 who did not convert. Over the 6 populated bins holding the other 928
+      the model tracks the diagonal fine (0.078/0.116, 0.148/0.136, 0.240/0.240,
+      0.341/0.292, 0.433/0.478, 0.541/0.500). The weighted_calibration_error from
+      the SAME function is count-weighted and read a sane 0.140 throughout --
+      trust that one over the slope.
+      compute_metrics is Paper 1's PUBLISHED measurement surface; re-binning it
+      would silently move manuscript numbers. So this package computes its own
+      and keeps the shared unweighted slope alongside for comparability:
+        - a bin table per arm (bin_low, bin_high, n, mean_predicted,
+          observed_fraction; POPULATED bins only), reproducing compute_metrics'
+          binning exactly -- linspace edges, digitize MINUS ONE for 0-based
+          indices, and the overflow reassignment keeping a predicted 1.0 in the
+          last bin. Emitted so no slope is ever read without its denominators.
+        - count_weighted_slope(bin_table): the same LinearRegression refit with
+          the n column passed as sample_weight. That one argument is the entire
+          fix -- it makes the line describe the patient population, not the grid.
+      VERIFIED 2026-08-19, unweighted -> count-weighted slope per arm model:
+      SSRI (n=4,966) 1.355 -> 0.917; SNRI (n=1,276) 0.729 -> 0.506; BUPROPION
+      (n=934) 0.057 -> 0.782.
+      READ THIS CAREFULLY: weighting is NOT uniformly flattering, which is why
+      it is the right metric. Bupropion is FINE. **SNRI is the genuinely
+      miscalibrated arm** -- weighted 0.506, i.e. its predictions spread about
+      twice as wide as reality. The unweighted number was flattering it. SNRI is
+      the comparison arm in snri_vs_ssri, the contrast whose naive mean contrast
+      came out ~+0.04 with risk_comp running high in all three contrasts, so SNRI
+      is the LEAD SUSPECT for that +0.04 (SNRI overdispersion extrapolating onto
+      4,966 SSRI patients). Do not read +0.04 as a result: it is pre-trim and
+      pre-CI. Recalibration stays on the table but waits until the trim has had
+      its say.
+      TRAP PAID FOR THREE TIMES: .sum() on a Series/bool array returns
+      numpy.int64, which does NOT subclass int and dies in json.dump -- and it
+      dies downstream in run_one.py, not where it was written. numpy.float64 DOES
+      subclass float and serializes fine. Cast every count to plain int at the
+      .sum(). Also: a pandas Series has no .reshape -- go through .to_numpy()
+      first, and LinearRegression's coef_ is a 1-element array needing index 0.
+      STILL TO DO: the bin table is currently assembled INLINE inside
+      grade_arm_models, so it is a local that gets discarded after the fit. Pull
+      it out into its own function returning the frame -- run_one.py must persist
+      it per arm as a reported artifact.
+SIGN CONVENTION, PINNED (standing context, now enforced in the code):
+comparison-arm-first, so effect = risk(comparison) - risk(reference) and
+POSITIVE means the first-named arm RAISES P(TRD). It is stated in
+estimate_effect's docstring and in the comment above per_patient_effect.
+NOTE: the worked example in the notes PDF (SNRI .55 / SSRI .40 / effect .15,
+annotated "suggest SNRI better") is INCONSISTENT with this -- under the
+convention a +.15 favours SSRI. The convention is authoritative; the
+annotation is a slip.
+
+DONE 2026-08-24. SUPERSEDED 2026-08-27 by the refit-inside-the-bootstrap
+item below: estimate_effect no longer exists. It split into summarize_effect
+(the estimator: no draws, no randomness) and bootstrap_effect (everything
+stochastic), and the shared (N_BOOTSTRAP, n) index matrix described here is
+the frozen-vector bootstrap that was removed. The trim-report contract and
+the traps below all still hold. Original entry kept verbatim for the record:
+estimate_effect was built in counterfactual/core.py. Returns
+one flat dict: the trim report (eligible count, per-arm N, per-arm trimmed
+count AND share, propensity min/max over the WHOLE column), then both
+averages with bootstrap CI bounds -- ate_trimmed (headline) and
+ate_overlap_weighted (sensitivity). Both averages read ONE shared bootstrap
+draw: a single seeded (N_BOOTSTRAP, n) index matrix from default_rng,
+resampling patients with replacement. Sharing the draw is deliberate -- the
+two then differ only by the averaging rule, not by sampling noise, which is
+what makes "do hard and soft agree" a real question. N_BOOTSTRAP is imported
+from scripts/shared/plots.py, never redefined, so these intervals are drawn
+at the same depth as every published one.
+TRAPS PAID FOR HERE: (a) the bitwise-and operator binds TIGHTER than the
+equality comparison, so combining two column comparisons needs each one
+parenthesized -- unparenthesized it becomes a chained comparison and pandas
+raises on the ambiguous truth value; (b) the trimmed set is the NEGATION of
+the in-band flag, and it is easy to compute its complement and label it
+"trimmed"; (c) the reported propensity min/max must come from the whole
+column, not the in-band subset -- extremes of the in-band subset are pinned
+to the band by construction and just report the constant you chose;
+(d) counts still need the plain-int cast, numpy.int64 dies in json.dump.
+NAMING DRIFT, resolved in favour of the code: the overlap flag column is
+in_prob_interval (not in_overlap) and the band constants are PROB_FLOOR /
+PROB_CEILING (not OVERLAP_FLOOR / OVERLAP_CEILING, which is what the causal
+package calls its identical 0.10/0.90 pair). The README was updated to match.
+
+DONE 2026-08-24. plot_effect_distribution in counterfactual/core.py renders
+the per-patient effect distribution, restricted to the IN-BAND patients
+because that trimmed subset is the headline estimand. It mirrors
+causal/core.py's plot_cate_distribution deliberately (same 1st/99th x-clip,
+dashed zero + mean lines, on-axes mean callout) so the two triangulating
+estimators can be read side by side -- but as a SIBLING IMPLEMENTATION, not
+an import: causal/core.py pulls econml in at module scope and importing it
+would drag that dependency into embedder_pipeline, where it is deliberately
+absent.
+
+FIRST NUMBERS, 2026-08-24 (dry run, not a pipeline submission -- driven from a
+scratch script, artifacts mirrored to results/counterfactual_pipeline/{key}/ as
+effect_results.json + per_patient_risks.csv + effect_histogram.png). These are
+PRE-falsification and NOT reportable: no SMD, no E-value, no negative control.
+
+  contrast            eligible  ate_trimmed (95% CI)        ate_weighted
+  snri_vs_ssri          6,242   +0.0337 (0.0320, 0.0352)    +0.0343
+  bupropion_vs_ssri     5,900   +0.0407 (0.0389, 0.0427)    +0.0426
+  bupropion_vs_snri     2,210   +0.0162 (0.0128, 0.0198)    +0.0134
+
+  trim shares (reference / comparison):
+  snri_vs_ssri        22.98% / 10.42%   e(x) range 0.0008-0.9984
+  bupropion_vs_ssri   25.07% / 11.99%   e(x) range 0.0000-0.9975
+  bupropion_vs_snri    8.78% /  5.03%   e(x) range 0.0022-0.9985
+
+WHAT READS WELL: hard and soft agree everywhere (max gap 0.003), which is the
+robustness the two-average design exists to demonstrate. Trimming is lopsided
+toward the REFERENCE arm in both SSRI-referenced contrasts, ~2x the comparison
+arm's share -- overlap fails on the SSRI side, which is where the mass is.
+bupropion_vs_snri trims lightly at both ends, as its 0.423 flag mean predicted.
+Every sign is POSITIVE: under the comparison-arm-first convention, the
+first-named arm raises P(TRD) in all three. That is the confounding-by-
+indication direction the design warned about, not a drug finding.
+TRANSITIVITY, eyeballed: bupropion_vs_ssri should ~= bupropion_vs_snri +
+snri_vs_ssri. 0.0407 vs 0.0499, gap 0.0092 -- same order as the causal
+package's 0.0145 abs_gap. Worth an assertion when the sweep is wired.
+
+- [x] REFIT INSIDE THE BOOTSTRAP. DONE 2026-08-27. The confidence
+      intervals were too narrow and must not be published as they stood.
+      Found 2026-08-24 on first read of the numbers. Every CI is about
+      +/-0.002 wide while the per-patient effects spread over roughly +/-0.10
+      (see effect_histogram.png). Cause: the bootstrap resamples PATIENTS but
+      the two arm models and the propensity model are fit ONCE, outside the
+      draw loop, so the interval captures only the sampling variability of the
+      mean of a FIXED vector of predicted contrasts. Model-estimation
+      uncertainty -- the thing that actually dominates here, since both risk
+      columns come from fitted logistic regressions -- is entirely absent. A
+      reviewer will catch this immediately.
+      DECIDED 2026-08-24: DO THE REFIT. The alternative -- keeping the cheap
+      interval and calling it a within-sample dispersion interval conditional
+      on the fitted models -- was considered and rejected. The whole point of
+      the falsification battery is that this pipeline's numbers survive
+      scrutiny, and an interval that omits the dominant variance term does not.
+      SHAPE OF THE WORK: inside each bootstrap draw, resample the TRAINING
+      patients and refit all three models on that resample -- both arm models
+      AND the propensity model -- then rescore and re-average. Cost is roughly
+      1000 x 3 logistic fits per contrast, affordable at this feature count but
+      no longer instant, so this is the point where estimate_effect stops being
+      a scratch-script-in-two-minutes job and wants the sbatch.
+      SETTLED 2026-08-27: BOTH, reported separately rather than choosing one.
+      The two schemes are nested, not rival, so bootstrap_effect is run twice
+      per contrast and every interval key carries its scheme as a suffix:
+        estimation : training rows resample, the test frame is held fixed --
+                     isolates the model-estimation term that was missing.
+        total      : training AND test rows resample -- estimation uncertainty
+                     plus test-set sampling variability.
+      The paper names which one it reports; the artifact carries both, so that
+      choice is not baked into the run. Written into bootstrap_effect's
+      docstring as this item asked.
+      The original question, kept for the record: whether the TEST rows
+      resample too, or only the training rows. Resampling both mixes
+      estimation uncertainty with test-set sampling variability; resampling
+      training only isolates the term that is currently missing. Decide and
+      write the choice into the docstring, because the two answer different
+      questions and the paper has to name which one it reports.
+      NOTE the knock-on: the shared-draw property currently holds because both
+      averages read one fixed prediction vector per draw. Preserve it -- the
+      hard and soft averages must still come from the SAME refit, or "do hard
+      and soft agree" stops being a question about the averaging rule.
+
+- [x] run_one.py + its sbatch. DONE 2026-08-27; first real submission is
+      Slurm job 2066883 (array 0-2, partition c3, 24 cores, 64G, 4h wall),
+      submitted 2026-08-27 20:33 from compute301, running on compute305.
+      Owns the array-
+      index -> contrast pick (exactly as causal/run_one.py does), calls the
+      core.py chain, and persists the per-contrast artifacts listed below.
+      Nothing in core.py is a main; it stays a library. The dry-run scratch
+      script that produced the numbers above is throwaway -- run_one.py is the
+      real entry point and the artifacts it writes are the ones that count.
+- [x] SAMPLING-DISTRIBUTION FIGURE + PER-DRAW PERSISTENCE. DONE 2026-08-28.
+      THE GAP THIS CLOSED: the confidence interval existed only as JSON keys
+      in effect_results.json. Nothing plotted it. The two histograms that DID
+      exist both show per-patient effects, and the pooled one's orange span
+      (central 95% of patient-draw contrasts) reads like a CI but is wider
+      than the real interval by roughly sqrt(n) -- so the only visual anyone
+      would reach for was actively misleading about precision.
+      CHANGES: (a) bootstrap_effect now returns a THIRD element, a dict of
+      field -> array of that field's value one-per-surviving-draw, for
+      ate_trimmed, ate_overlap_weighted and both trimmed shares; the interval
+      closure reads from that dict rather than rebuilding arrays, so the
+      plotted values and the reported percentiles come from one object by
+      construction. (b) New plot_ate_sampling_distribution in core.py: one bar
+      per bin of DRAW AVERAGES, the 2.5/97.5 span shaded, the point estimate
+      and zero marked, and an on-axes "CI SPANS / EXCLUDES zero" callout.
+      (c) run_one.py writes bootstrap_draws.csv (8 columns: 4 fields x 2
+      schemes) and four figures per contrast -- both estimands x both schemes.
+      WHY THE CSV: re-cutting an interval or adding a figure over the
+      bootstrap output now costs a read instead of a second 2 x N_BOOTSTRAP
+      refit. Columns can differ in length between schemes if one loses draws,
+      hence a dict of Series rather than a 2-D array.
+      RAN IT DIRECTLY, NO SBATCH. compute305 has 96 cores; with
+      SLURM_CPUS_PER_TASK=24 and the BLAS vars pinned, all three contrasts
+      took 4m20s end to end (~1m45 each), so queueing the array would have
+      been slower than running it. The venv python at
+      venvs/embedder_pipeline/bin/python works without the module/conda dance.
+      VERIFIED: the CSV percentiles reproduce the JSON bounds exactly to five
+      decimals in all six (contrast x scheme) cells, and
+      snri_vs_ssri/effect_results.json still hashes to 0567279a..., identical
+      to the job-2066883 output -- so adding the figures moved no number, and
+      the determinism claim in the docstrings holds.
+      WHAT THE NEW FIGURE SHOWS, per-draw sd of ate_trimmed:
+        contrast            estimation   total
+        bupropion_vs_snri     0.0091     0.0094
+        bupropion_vs_ssri     0.0072     0.0073
+        snri_vs_ssri          0.0064     0.0064
+      Test-set resampling adds essentially nothing; the whole width is
+      model-estimation uncertainty. Actionable read: MORE TEST PATIENTS WOULD
+      NOT NARROW THESE INTERVALS, more TRAINING patients would. That is a
+      sentence for the Limitations section.
+      bupropion_vs_snri's sampling distribution is roughly symmetric and its
+      left CI edge sits about a third of a standard error past zero -- so
+      "crosses zero" there is an underpowered contrast at n=2,210, not a
+      confident null. Worth saying that way in the text rather than letting
+      the reader infer a demonstrated absence of effect.
+      REMAINING GAP, deliberately not built: ate_overlap_weighted has NO
+      figure showing the population it averages over. Both per-patient
+      histograms are fed in_band_effects, i.e. they are the hard-trimmed
+      population unweighted. A weighted counterpart (all patients, bars
+      weighted by e(1-e)) is drawable but needs the propensity column carried
+      alongside the pooled contrasts, since the weights cannot be
+      reconstructed after the fact. Only worth building if the two averages
+      ever disagree enough to need diagnosing.
+      TRAP PAID FOR HERE: results/ is line 11 of .gitignore, so nothing under
+      it EVER appears in a source-control panel or a file explorer that hides
+      ignored files. Artifacts copied there are invisible in that view by
+      design; check the filesystem, not the SCM pane. Also note /home/<user>/
+      TRD-EHR and /mnt/dell_storage/homefolders/<user>/TRD-EHR are the SAME
+      directory (pwd -P resolves the first to the second) -- there is no
+      second results tree that can drift out of sync.
+
+STANDING CONTEXT -- POPULATION ACCOUNTING AND THE POSITIVITY FIGURE ARE BUILT.
+Landed 2026-09-01. Both of the 2026-08-28 meeting items above this line are
+closed; their entries are deleted per the NOTE at the top of this file and what
+survives here is what a future reader still needs.
+
+WHAT EXISTS NOW, per contrast, under ARTIFACTS_DIR/counterfactual_pipeline/<key>/:
+  population_report.json   both sides of the split. Per side: total rows, and
+                           per arm its count, share of split, TRD events, TRD
+                           rate, and role (reference / comparison / excluded).
+                           Plus an overlap_trim block carrying, per arm, the
+                           eligible / trimmed / RETAINED counts and shares, the
+                           in-band total, the observed propensity extremes, the
+                           band edges, and the arm ratio BEFORE and AFTER the
+                           trim.
+  balance_frame.csv        the eligible test matrix with is_comparison,
+                           in_prob_interval and overlap_weight appended. This is
+                           the object all three balance tables read; it exists so
+                           they cannot disagree about which patient was in which
+                           arm. Categoricals keep their native dtype and are NOT
+                           expanded -- that is a reporting decision, made where
+                           the table is computed.
+  propensity_by_arm.png    e(x) as two overlaid histograms on a shared unit
+                           bin grid, band edges drawn, trimmed margins shaded.
+Written BEFORE the bootstrap in run_one.py, so regenerating the accounting does
+not cost 2 x N_BOOTSTRAP refits. New in core.py: split_arm_census,
+population_report (with _side_accounting / _trim_accounting), balance_frame,
+plot_propensity_by_arm.
+
+EVERY NUMBER RECONCILES with the 2026-08-28 table measured by hand -- all arm
+counts, all TRD rates, all trim and retain counts on all three contrasts.
+
+BUT THAT TABLE WAS INCOMPLETE, and this is the finding. It listed SSRI, SNRI,
+BUPROPION and unmapped, which LOOKS exhaustive and is not: 20161+4928+3840+3922
+= 32851 against a train total of 34063. The missing 1212 are MIRTAZAPINE (911
+train / 231 test) and VORTIOXETINE (301 / 77). Same on test: 8208 against 8516,
+the missing 308 being those two arms again. So the cohort carries FIVE mapped
+index classes, not three, and "unmapped" was silently absorbing the appearance
+of completeness. The report now lists every arm present and marks the two the
+contrast uses; mapped-but-excluded and unmappable are different exclusions and
+collapsing them is what let the shares stop summing unnoticed.
+
+THE TRIM ASYMMETRY IS CONFIRMED AND IT SCALES WITH ARM IMBALANCE, exactly as
+predicted from e(x) = P(comparison arm | X):
+  snri_vs_ssri       ref 23.0% trimmed vs comp 10.4%, ratio 3.89 -> 3.35
+  bupropion_vs_ssri  ref 25.1% trimmed vs comp 12.0%, ratio 5.32 -> 4.53
+  bupropion_vs_snri  ref  8.8% trimmed vs comp  5.0%, ratio 1.37 -> 1.31
+The near-balanced contrast is near-symmetric in its trim; the 5:1 contrast is
+the most lopsided. snri_vs_ssri's figure shows the mass centred near 0.2 with
+the floor inside its bulk, and a secondary comparison-arm cluster up near 0.8.
+
+TWO OPEN DECISIONS, deliberately not pre-empted:
+  (a) Whether the figure gets a second panel for the TRAIN side. e(x) is scored
+      on test only and the estimate uses test only, but a train/test shape
+      mismatch would itself be diagnostic.
+  (b) Whether to keep the symmetric 0.10/0.90 band and report the asymmetry as
+      a finding, or move to a rule that adapts to arm prevalence. The band was
+      inherited from the causal package UNCHANGED so the two triangulating
+      estimators stay comparable; changing it buys balance, costs that
+      comparability, and changes the estimand. The figure now exists, so this
+      can be decided against the observed shape rather than in the abstract.
+
+INCIDENTAL, not a defect: fitting emits sklearn's "Found unknown categories in
+columns [0] during transform" -- a category level present in test and absent
+from an arm's training rows. make_classifier sets handle_unknown='ignore', so it
+encodes as all-zeros by design. Worth knowing when the balance table reaches
+categorical columns, since it is the same asymmetry seen from the other side.
+
+
+- [ ] 5-FOLD CV OVER THE WHOLE PIPELINE. Added 2026-08-28. NOT BUILT.
+      Every number in the package rests on ONE 80/20 partition. Two
+      consequences: the estimand is the fifth of the cohort that landed in
+      test, and nothing separates a real effect from a lucky partition.
+      SHAPE: wrap the existing per-contrast chain in a 5-fold loop so every
+      eligible patient serves in exactly one test fold and the union of folds
+      is the WHOLE eligible population, not 20% of it. Folds STRATIFIED ON
+      INDEX ARM AND TRD LABEL JOINTLY -- the estimator's behaviour depends on
+      both the arm balance and the event rate, and the current split happens
+      to be balanced on both (see the table above); the folds must reproduce
+      that by design rather than inherit it by luck.
+      COST IS NOT THE OBSTACLE: three contrasts currently run in 4m20s total,
+      so 5x is ~22 minutes, well inside the existing 4h wall. This is a
+      design decision, not a compute one.
+      TWO QUESTIONS TO ANSWER FIRST:
+      (1) Does CV REPLACE the shared frozen split here, or sit beside it? The
+          frozen split is what makes this package's gradeable metrics
+          comparable to Paper 1's classical-ML numbers. Replacing it breaks
+          that comparison; adding it means reporting everything twice. Likely
+          answer: shared split stays the headline for the GRADEABLE half, CV
+          becomes the robustness layer for the EFFECT estimates. Decide it.
+      (2) How do fold results combine? Averaging point estimates across folds
+          is easy. The interval is not: pooling all fold-by-draw averages into
+          one percentile cut CONFLATES two different sources of variation,
+          since between-fold spread measures sensitivity to the partition
+          while the bootstrap measures sampling and estimation uncertainty.
+          RECOMMENDED: report three separate quantities -- fold-averaged point
+          estimate, bootstrap interval, between-fold spread. Do not fuse them.
+      KNOCK-ON: band membership is recomputed per fold as well as per draw, so
+      the trimmed share becomes a per-fold quantity and belongs in the
+      population report above, not only in effect_results.json.
+      KNOCK-ON 2: the bootstrap already refits three models per draw; folding
+      multiplies that by five. The joblib chunking in bootstrap_effect assumes
+      one population per call, so the fold loop goes OUTSIDE it -- do not try
+      to parallelise folds and draws in the same Parallel call.
+
+- [ ] <<< RESUME HERE 2026-09-01 >>> FALSIFICATION BATTERY (all four; the
+      estimate is NOT reportable without them).
+      PRIORITY SETTLED 2026-09-01, and the 2026-08-28 marker note is superseded.
+      Of that day's three meeting items, population accounting and the
+      arm-coloured histogram are BUILT (standing context above); 5-fold CV
+      stays open and sits AFTER the battery, as a robustness layer rather than
+      a rung of it. So what stands between the pipeline and a reportable number
+      is (1), the formal e(x) metrics now folded into (2), then (3) and (4).
+
+      *** DIVISION OF LABOUR, set by the student 2026-09-01 and now written into
+      AI_INSTRUCTIONS.md in every repo (see the section "The division of labour").
+      IT GOVERNS EVERY ITEM BELOW. The student writes the statistics; the
+      assistant writes the drudgery, unasked:
+        STUDENT WRITES (assistant guides in English, one step at a time)
+          the SMD computation; the e(x) calibration / c-statistic / overlap
+          coefficient / Kish ESS; the E-value and both its RR arrows; the choice
+          of negative-control outcome and why it qualifies; the CV fold
+          assignment, its stratification, and the rule for combining folds.
+        ASSISTANT WRITES (no permission asked, not handed back as a step)
+          every figure; dataframe plumbing; JSON/CSV artifacts and the output
+          layout; batch scripts and orchestration; the negative-control LABEL
+          extraction against the raw diagnosis tables; behaviour-preserving
+          refactors.
+      The test for anything in between: would writing it teach the student
+      something they do not already know. Most items have both halves and get
+      SPLIT rather than assigned whole. ***
+
+      NEXT CONCRETE STEP: the student writes the SMD, reading balance_frame.csv.
+      Everything it consumes already exists on disk.
+      JOB 2066883 LANDED 2026-08-27 20:38, all three contrasts, zero bootstrap
+      failures in either scheme, no tracebacks. Point estimates unchanged from
+      the dry run (a pure refactor must not move them); intervals 6-9x wider,
+      which is the model-estimation term arriving:
+        snri_vs_ssri       +0.0337  [+0.0221, +0.0464]  width 0.0243
+        bupropion_vs_ssri  +0.0407  [+0.0259, +0.0542]  width 0.0283
+        bupropion_vs_snri  +0.0162  [-0.0030, +0.0329]  width 0.0359  CROSSES 0
+      (trimmed, estimation scheme; overlap-weighted agrees throughout.)
+      So bupropion_vs_snri does NOT survive an honest interval. That is the
+      design working -- the old +/-0.002 band would have published it.
+      The two schemes barely differ (0.0359 vs 0.0364 on the widest contrast):
+      test-set sampling variability is a rounding error next to estimation
+      uncertainty here, so the scheme choice changes no conclusion. Worth a
+      sentence in the paper rather than a paragraph.
+      Signs are all still positive under the comparison-arm-first convention,
+      so the confounding-by-indication reading above stands unchanged.
+      (1) SMD per feature -- arm mean difference over POOLED stdev (pool by
+          combining both arms' samples). |SMD| < 0.1 is the comfort threshold.
+          DECIDED 2026-09-01, ALL THREE TABLES: raw (every eligible test row),
+          hard-trimmed (in_prob_interval), and overlap-weighted. They answer
+          different questions and only the last two are diagnostics OF THE
+          PROPENSITY MODEL -- a balance table with no "before" column proves
+          nothing, and a raw-only table says nothing about whether e(x) worked.
+          This also resolves a discrepancy: CAUSAL_IDENTIFICATION.md rung 1 says
+          "in the trimmed/weighted sample", while this file used to say only
+          "between the two arm populations", which reads as raw. Reporting raw
+          and hard-trimmed as the table with overlap-weighted as a sensitivity
+          column matches the pattern already locked for the ATE.
+          INPUT IS BUILT: balance_frame.csv per contrast carries every covariate
+          plus is_comparison, in_prob_interval and overlap_weight. Categoricals
+          are unexpanded there on purpose -- how a multi-level nominal field
+          becomes balance rows is the student's reporting decision.
+          Still open from the notes: what other balance measures to add
+          (variance ratios, distributional distance).
+          The Love plot over these tables is the assistant's.
+      (2) Overlap/positivity. THE SCREEN IS BUILT AND VERIFIED -- attach_propensity
+          lands e(x) and the boolean in_prob_interval on the risk frame,
+          summarize_effect emits the trim report and the two averages, the
+          population report now states the retained counts and the arm ratio
+          either side of the band, and plot_propensity_by_arm draws the
+          distribution. What IS still owed, added 2026-09-01 from the question
+          "what formal metric judges e(x), other than the picture" -- the
+          E-value does NOT answer that, it is rung 3 and concerns UNMEASURED
+          confounding:
+            - CALIBRATION of e(x). The band means "at least 10% of people like
+              you got each drug", and that sentence is only true if e(x) is
+              calibrated; an uncalibrated 0.10 is not a 10% of anything and the
+              trim boundary stops meaning what the paper says. Slope and
+              intercept, a reliability table of observed arm share against
+              predicted e(x) by bin, and the Brier score. count_weighted_slope
+              and the per-arm calibration bin table already do this against the
+              OUTCOME models -- same machinery, different target. Cheapest real
+              gap on this rung.
+            - C-STATISTIC of e(x) predicting arm. READ IT BACKWARDS: unlike every
+              other AUC in this project HIGH IS BAD. Near 1 means covariates
+              determine treatment, overlap is gone and the design is dead; near
+              0.5 means treatment is near-random given X. It is a positivity
+              diagnostic, not a performance number, and must be labelled as one
+              wherever it is reported.
+            - OVERLAP COEFFICIENT between the two arm-conditional e(x) densities
+              (integrated minimum). The scalar version of the histogram.
+            - KISH ESS under the overlap weights, (sum w)^2 / sum(w^2): how many
+              patients the overlap-weighted sensitivity average is actually
+              worth. Same formula already used in the KNN arm's ranking analysis.
+          All four ride on the ONE propensity column already on the risk frame,
+          so they cost essentially nothing. They are the student's to write.
+          What follows is the rationale for the screen itself, kept as standing
+          context.
+          The trimmed count and share are reported per contrast -- never truncate
+          silently -- and BROKEN OUT BY ARM. Trimming heavily from one arm and
+          barely from the other localizes where overlap fails; a pooled count
+          hides it. A count alone is also unreadable across arms of wildly
+          different size (in snri_vs_ssri the reference arm is ~4x the
+          comparison arm), which is why the SHARE rides beside every count.
+          The observed min/max propensity is reported over the WHOLE column.
+          REPORT THE AVERAGE TWICE, HARD AND SOFT (decided 2026-08-19, from the
+          question "why not just compute it for everyone and report e(x)?"). The
+          answer to that question: we DO compute risk_comp for every patient and
+          keep every row -- but reporting a caveat and excluding from an average
+          are different jobs. A label next to a row does not repair a mean that
+          already ate the fabricated number, and the error in an unsupported
+          counterfactual is unbounded. So: report everything, average over a
+          defensible subset. THEN:
+            - HEADLINE = the hard-trimmed average. Its estimand is nameable in a
+              sentence ("patients whose propensity fell inside the band") and its
+              band matches the causal package's, keeping the two triangulating
+              estimators comparable.
+            - SENSITIVITY = the same per-patient contrasts re-averaged under
+              OVERLAP WEIGHTS, e(x)*(1-e(x)) (Li, Morgan & Zaslavsky 2018, JASA,
+              "Balancing covariates via propensity score weighting" -- NOT yet in
+              paper2-counterfactual/references/, go get it). This is the smooth
+              analogue of the same idea: peaks where both treatments are equally
+              plausible, tapers to zero at either extreme, no cliff at 0.10 and
+              no patient going from worthless to full-strength across it. Its
+              estimand is a weighted pseudo-population and so is harder to
+              describe clinically, which is why it is the sensitivity and not the
+              headline.
+          Agreement between the two is the evidence the effect does not hinge on
+          where the cutoff was drawn -- exactly the robustness a reviewer asks
+          for, and it belongs in the battery next to the E-value. Both read the
+          ONE propensity column, so the second costs a weighted mean and nothing
+          else. NOTE the honest cost of either: the trim CHANGES THE ESTIMAND. It
+          is no longer an ATE over all eligible patients but over the overlap
+          population, and the paper must say so.
+          TEACHING NOTE (this took a re-explanation to land -- keep it): forget
+          the model and count. One covariate, age buckets, training data. If the
+          20-29 bucket holds 40 SSRI patients and 0 bupropion patients, then the
+          bupropion model has never seen a 20-something -- asked for a
+          24-year-old's bupropion risk it answers anyway, from the shape of a
+          curve fit on 30-to-50-year-olds, and that number is fabricated. If the
+          30-39 bucket holds 30 SSRI and 25 bupropion, the same question has 25
+          real bupropion patients behind it. The share-on-bupropion column of
+          that little table IS e(x); the model exists only because you can
+          eyeball this with one covariate and cannot with 59. The band means "at
+          least 10% of people like you got each drug." And "trim" is a bad word
+          for it: nothing is deleted, one boolean column is added.
+      (3) E-value: RR = P(TRD|arm A)/P(TRD|arm B), inverted to 1/RR if below 1,
+          then E-value = RR + sqrt(RR*(RR-1)). Uninterpretable alone -- BENCHMARK
+          it against every measured feature by computing that feature's own two
+          RRs (feature->treatment, feature->outcome). WORRIED if any measured
+          feature carries BOTH arrows >= the E-value; NOT WORRIED if every
+          feature has at least one arrow below it.
+          REPORT IT TWICE: on the POINT ESTIMATE and on the CONFIDENCE LIMIT
+          NEAREST THE NULL. That is VanderWeele & Ding 2017's own convention and
+          is what CAUSAL_IDENTIFICATION.md section 5B and the PAPER2_OUTLINE
+          robustness-ladder table already specify; reporting only the point
+          estimate overstates robustness. The point-estimate E-value asks how
+          strong a confounder must be to move the effect to null, the CI-limit
+          one asks how strong to make it merely indistinguishable from null --
+          the weaker, more honest bar. Caveat for THIS project: our ATEs are
+          already near null, so RR sits near 1 and the E-value near its floor.
+          The reading is therefore rarely "the effect survives" -- it is whether
+          the design was sensitive enough that a real effect would not have been
+          missed.
+      (4) Negative-control outcome: re-run the identical pipeline with an outcome
+          med choice cannot plausibly cause (notes work a fracture/bone-spur
+          outcome with frailty as the latent U). A materially non-zero effect
+          indicts the design.
+          BIGGEST UNSTARTED ITEM ON THIS LIST, flagged 2026-08-19: NO SUCH LABEL
+          EXISTS ANYWHERE IN THE CODEBASE -- grepped, nothing fracture- or
+          bone-spur-related in diagnoses_definitions.py or elsewhere. This is a
+          DATA-LOADING job against the raw diagnosis tables producing a second
+          binary label the whole pipeline can be re-run against, NOT a function
+          inside falsification.py. Budget for it accordingly; it is not a
+          same-afternoon item like the other three checks.
+- [ ] Artifacts: one folder per contrast under RESULTS_DIR carrying the
+      per-patient risk table (risk_ref, risk_comp, trd_label, is_comparison,
+      propensity, in_overlap), both effects + CIs, gradeable metrics for BOTH arm
+      models, the per-arm calibration bin table, the SMD table, the overlap/trim
+      report, the E-value + its feature benchmark table, and the negative-control
+      result.
+
+DEFERRED (not cancelled): the prescriber-preference IV and its relevance gate
+(Encounter_Table has ProviderName/DepartmentName and Medication_Table has
+EncounterId_SH to join, so it stays FEASIBLE), the switch-event library, the
+line-2 outcome proxies, and the off-policy-evaluation module. These belong to
+the switch-decision framing, a LATER scope than the index-anchor pipeline. The
+IV remains the only arm that addresses UNMEASURED confounding.
+
+TRAP ALREADY PAID FOR (2026-08-13): the sliced patient JSONs are STRICTLY
+PRE-ANCHOR -- fit_to_anchor skips post-anchor encounters outright and clamps
+medication intervals to the anchor date. Irrelevant to the index-anchor design
+(and in fact a leakage guarantee), but any future switch-library work must
+re-extract from the RAW per-patient JSONs under PATIENT_JSON_DIR, which
+build_jsons writes BEFORE slicing. Do not go to the 51 GB Medication_Table.csv
+for it.

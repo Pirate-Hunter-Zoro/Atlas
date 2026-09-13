@@ -18,3 +18,21 @@ slurm-*.out
 
 # live tutoring board (Tutor-Board) — scratch space, never tracked
 live/
+
+# ---- Other authors' published papers: on disk, never tracked ----
+# This repository is public. The two citation libraries hold published PDFs
+# whose copyright belongs to their authors and publishers, so they live here
+# for reading and stay out of git. Everything WE wrote is tracked: the
+# manuscript, supplement, TRIPOD+AI checklist, cover letter, the reserve and
+# review documents, the library indexes (README.md, CITATION_MAP.md), the
+# role-grouped manifests, the reprint-request drafts, and the SFHS data
+# provenance note. A clone therefore arrives with the bibliography described
+# but not carried; CITATION_MAP.md says what each missing prefix is.
+paper1-trd-prediction/references/*.pdf
+paper2-counterfactual/references/*.pdf
+paper2-counterfactual/references/*_SUPPL-APPENDIX.docx
+paper2-counterfactual/references/*_METHODS-SUPPLEMENT.docx
+
+# The TRIPOD+AI reporting guideline is Collins et al. 2024 (BMJ) -- someone
+# else's paper. The JMIR submission template is ours to use and is tracked.
+formats/TripodAI.pdf

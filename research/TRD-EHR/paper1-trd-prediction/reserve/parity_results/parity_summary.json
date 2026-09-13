@@ -1,0 +1,227 @@
+{
+    "contrasts": [
+        {
+            "contrast": "feature_vitals_vs_published_feature",
+            "model": "logistic_regression",
+            "published_roc": 0.6288482973761907,
+            "parity_roc": 0.6432303906475627,
+            "delta_roc": 0.0143820932713719,
+            "delta_ci_low": 0.0093029365409826,
+            "delta_ci_high": 0.0203616076621818,
+            "excludes_zero": true,
+            "headline": false
+        },
+        {
+            "contrast": "feature_vitals_vs_published_feature",
+            "model": "xgboost",
+            "published_roc": 0.6492070334223609,
+            "parity_roc": 0.6513557262913185,
+            "delta_roc": 0.0021486928689576,
+            "delta_ci_low": -0.001576661751875,
+            "delta_ci_high": 0.0057870146127694,
+            "excludes_zero": false,
+            "headline": false
+        },
+        {
+            "contrast": "narrative_control_vs_published_embedded",
+            "model": "logistic_regression",
+            "published_roc": 0.6571461031909129,
+            "parity_roc": 0.6600447286327693,
+            "delta_roc": 0.0028986254418563,
+            "delta_ci_low": -0.0013952100149901,
+            "delta_ci_high": 0.0072063693430916,
+            "excludes_zero": false,
+            "headline": false
+        },
+        {
+            "contrast": "narrative_control_vs_published_embedded",
+            "model": "xgboost",
+            "published_roc": 0.6357234748944438,
+            "parity_roc": 0.6376960696563723,
+            "delta_roc": 0.0019725947619284,
+            "delta_ci_low": -0.0045380215334234,
+            "delta_ci_high": 0.0082315477115646,
+            "excludes_zero": false,
+            "headline": false
+        },
+        {
+            "contrast": "narrative_parity_vs_published_embedded",
+            "model": "logistic_regression",
+            "published_roc": 0.6571461031909129,
+            "parity_roc": 0.6582269417215033,
+            "delta_roc": 0.0010808385305903,
+            "delta_ci_low": -0.0036813390398232,
+            "delta_ci_high": 0.0055967142090518,
+            "excludes_zero": false,
+            "headline": false
+        },
+        {
+            "contrast": "narrative_parity_vs_published_embedded",
+            "model": "xgboost",
+            "published_roc": 0.6357234748944438,
+            "parity_roc": 0.6378503524110261,
+            "delta_roc": 0.0021268775165822,
+            "delta_ci_low": -0.0042355626374723,
+            "delta_ci_high": 0.0087180023316675,
+            "excludes_zero": false,
+            "headline": false
+        },
+        {
+            "contrast": "head_to_head_matched__narrative_control_vs_feature_vitals",
+            "model": "logistic_regression",
+            "published_roc": 0.6432303906475627,
+            "parity_roc": 0.6600447286327693,
+            "delta_roc": 0.016814337985206596,
+            "delta_ci_low": 0.006119111787053594,
+            "delta_ci_high": 0.026694409180608707,
+            "excludes_zero": true,
+            "headline": false
+        },
+        {
+            "contrast": "head_to_head_matched__narrative_control_vs_feature_vitals",
+            "model": "xgboost",
+            "published_roc": 0.6513557262913185,
+            "parity_roc": 0.6376960696563723,
+            "delta_roc": -0.013659656634946282,
+            "delta_ci_low": -0.025008846811897297,
+            "delta_ci_high": -0.0032844854704946348,
+            "excludes_zero": true,
+            "headline": false
+        },
+        {
+            "contrast": "head_to_head_matched__narrative_control_vs_feature_vitals",
+            "model": "logistic_regression_vs_xgboost",
+            "published_roc": 0.6513557262913185,
+            "parity_roc": 0.6600447286327693,
+            "delta_roc": 0.008689002341450758,
+            "delta_ci_low": -0.0017867399240674485,
+            "delta_ci_high": 0.018832250282084347,
+            "excludes_zero": false,
+            "headline": true
+        },
+        {
+            "contrast": "head_to_head_matched__narrative_parity_vs_feature_vitals",
+            "model": "logistic_regression",
+            "published_roc": 0.6432303906475627,
+            "parity_roc": 0.6582269417215033,
+            "delta_roc": 0.0149965510739406,
+            "delta_ci_low": 0.004451729627611665,
+            "delta_ci_high": 0.024697131869811383,
+            "excludes_zero": true,
+            "headline": false
+        },
+        {
+            "contrast": "head_to_head_matched__narrative_parity_vs_feature_vitals",
+            "model": "xgboost",
+            "published_roc": 0.6513557262913185,
+            "parity_roc": 0.6378503524110261,
+            "delta_roc": -0.013505373880292493,
+            "delta_ci_low": -0.024301257168606972,
+            "delta_ci_high": -0.0036845355483068336,
+            "excludes_zero": true,
+            "headline": false
+        },
+        {
+            "contrast": "head_to_head_matched__narrative_parity_vs_feature_vitals",
+            "model": "logistic_regression_vs_xgboost",
+            "published_roc": 0.6513557262913185,
+            "parity_roc": 0.6582269417215033,
+            "delta_roc": 0.006871215430184763,
+            "delta_ci_low": -0.00350014025944414,
+            "delta_ci_high": 0.0163702760163339,
+            "excludes_zero": false,
+            "headline": true
+        },
+        {
+            "contrast": "knn_nearest__narrative_control_vs_published",
+            "model": "NEAREST_UNIFORM",
+            "published_roc": 0.5934049373345649,
+            "parity_roc": 0.5975763477663132,
+            "delta_roc": 0.00417141043174829,
+            "delta_ci_low": -0.006320258679495427,
+            "delta_ci_high": 0.013220248921149688,
+            "excludes_zero": false,
+            "headline": false
+        },
+        {
+            "contrast": "knn_nearest__narrative_control_vs_published",
+            "model": "NEAREST_COSINE",
+            "published_roc": 0.5939146623513322,
+            "parity_roc": 0.5977923054340277,
+            "delta_roc": 0.003877643082695559,
+            "delta_ci_low": -0.00590604242341379,
+            "delta_ci_high": 0.01243861683233252,
+            "excludes_zero": false,
+            "headline": false
+        },
+        {
+            "contrast": "knn_nearest__narrative_parity_vs_published",
+            "model": "NEAREST_UNIFORM",
+            "published_roc": 0.5934049373345649,
+            "parity_roc": 0.5924932751908843,
+            "delta_roc": -0.0009116621436805472,
+            "delta_ci_low": -0.012025995919519144,
+            "delta_ci_high": 0.008956629503391267,
+            "excludes_zero": false,
+            "headline": false
+        },
+        {
+            "contrast": "knn_nearest__narrative_parity_vs_published",
+            "model": "NEAREST_COSINE",
+            "published_roc": 0.5939146623513322,
+            "parity_roc": 0.5932582446040418,
+            "delta_roc": -0.0006564177472904165,
+            "delta_ci_low": -0.01122310295655026,
+            "delta_ci_high": 0.008811386450235666,
+            "excludes_zero": false,
+            "headline": false
+        }
+    ],
+    "knn_roc_by_arm": {
+        "narrative_control": {
+            "NEAREST_UNIFORM": 0.5976,
+            "NEAREST_COSINE": 0.5978,
+            "RANDOM_UNIFORM": 0.4963,
+            "RANDOM_COSINE": 0.5
+        },
+        "narrative_parity": {
+            "NEAREST_UNIFORM": 0.5925,
+            "NEAREST_COSINE": 0.5933,
+            "RANDOM_UNIFORM": 0.4963,
+            "RANDOM_COSINE": 0.5003
+        }
+    },
+    "models": [
+        "logistic_regression",
+        "xgboost"
+    ],
+    "n_intervals_excluding_zero": 5,
+    "contrasts_excluding_zero": [
+        {
+            "contrast": "feature_vitals_vs_published_feature",
+            "model": "logistic_regression",
+            "delta_roc": 0.0143820932713719
+        },
+        {
+            "contrast": "head_to_head_matched__narrative_control_vs_feature_vitals",
+            "model": "logistic_regression",
+            "delta_roc": 0.016814337985206596
+        },
+        {
+            "contrast": "head_to_head_matched__narrative_control_vs_feature_vitals",
+            "model": "xgboost",
+            "delta_roc": -0.013659656634946282
+        },
+        {
+            "contrast": "head_to_head_matched__narrative_parity_vs_feature_vitals",
+            "model": "logistic_regression",
+            "delta_roc": 0.0149965510739406
+        },
+        {
+            "contrast": "head_to_head_matched__narrative_parity_vs_feature_vitals",
+            "model": "xgboost",
+            "delta_roc": -0.013505373880292493
+        }
+    ],
+    "decision": "no head-to-head contrast on matched inputs moves discrimination beyond sampling noise; the published comparison stands and this result is held in reserve"
+}

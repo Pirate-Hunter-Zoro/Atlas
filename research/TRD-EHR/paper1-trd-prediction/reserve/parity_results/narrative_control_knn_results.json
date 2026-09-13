@@ -1,0 +1,54 @@
+{
+    "NEAREST_UNIFORM": {
+        "roc_score": 0.5975763477663132,
+        "auprc": 0.25451774577613784,
+        "brier_score": 0.1418223579145139,
+        "weighted_calibration_error": 0.021075622357914513,
+        "calibration_slope": 0.20792477205914628,
+        "calibration_intercept": 0.18616018507916954,
+        "proportion_risk_score_<0.1": 0.14854391733208078,
+        "proportion_risk_score_>0.9": 0.0,
+        "roc_score_ci_low": 0.5816575324639214,
+        "roc_score_ci_high": 0.6136371524100657,
+        "mean_ESS": 50.0
+    },
+    "NEAREST_COSINE": {
+        "roc_score": 0.5977923054340277,
+        "auprc": 0.2544467791645325,
+        "brier_score": 0.14181770779694258,
+        "weighted_calibration_error": 0.02002089216040751,
+        "calibration_slope": 0.8643427050974845,
+        "calibration_intercept": 0.042024790177623506,
+        "proportion_risk_score_<0.1": 0.20079849694692345,
+        "proportion_risk_score_>0.9": 0.0,
+        "roc_score_ci_low": 0.5816123609788464,
+        "roc_score_ci_high": 0.6139192364437269,
+        "mean_ESS": 49.977306690644326
+    },
+    "RANDOM_UNIFORM": {
+        "roc_score": 0.49629778672032193,
+        "auprc": 0.17490886594191796,
+        "brier_score": 0.14741892907468296,
+        "weighted_calibration_error": 0.04507045561296384,
+        "calibration_slope": -0.35050175301229913,
+        "calibration_intercept": 0.230313697078113,
+        "proportion_risk_score_<0.1": 0.04861437294504462,
+        "proportion_risk_score_>0.9": 0.0,
+        "roc_score_ci_low": 0.48048091548196287,
+        "roc_score_ci_high": 0.5126682947221984,
+        "mean_ESS": 50.0
+    },
+    "RANDOM_COSINE": {
+        "roc_score": 0.49997933031164443,
+        "auprc": 0.17778460432946708,
+        "brier_score": 0.14720978142852073,
+        "weighted_calibration_error": 0.0399318642292799,
+        "calibration_slope": -0.3641427647051095,
+        "calibration_intercept": 0.2378428165355957,
+        "proportion_risk_score_<0.1": 0.08278534523250353,
+        "proportion_risk_score_>0.9": 0.0,
+        "roc_score_ci_low": 0.4841179193409556,
+        "roc_score_ci_high": 0.5160136228065446,
+        "mean_ESS": 48.887157295089345
+    }
+}
