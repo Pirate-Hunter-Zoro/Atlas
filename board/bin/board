@@ -18,6 +18,7 @@ The assistant runs these. The student never does.
     board push ["message"]             commit and push this repository now
     board next [kind] [slug]           print the path of the next card to write
     board write <kind> <slug>          read a card body on stdin, write the card
+    board write --over <card> ...      write over a card already on the board
     board brief                        what a turn is BOUND by, in ONE call: the
                                        method, this course's unbendable rules, the
                                        handoff, the last turn's note
@@ -753,9 +754,36 @@ def cmd_next(live, args):
 
 
 def cmd_write(live, args):
+    """Write a card. With `--over`, write over one that is already on the board.
+
+    `--over` exists for the shape a DOING turn has, and it is the opposite shape
+    to a teaching turn's. A teaching turn's card IS the work, so it is written
+    first and the board fills immediately. A doing turn's work is a change to the
+    repository, and a card written before that change can only describe an
+    intention -- which is exactly what happened the first time somebody tapped
+    "write the code for me" and got a plan and a question instead of a diff.
+
+    So a doing turn writes one plain sentence saying what it is about to do, which
+    lands at once and means the board is never blank, then does the work, then
+    writes the REPORT over the top of that sentence. One card in the transcript,
+    the truth in it, and nobody watching an empty screen.
+    """
     if not args:
-        print("usage: board write <kind> [slug] < body.md", file=sys.stderr)
+        print("usage: board write [--over <card>] <kind> [slug] < body.md",
+              file=sys.stderr)
         return 1
+    over = None
+    if "--over" in args:
+        at = args.index("--over")
+        if at + 1 >= len(args):
+            print("board write: --over needs the card to write over "
+                  "(the path `board next` or an earlier `board write` printed)",
+                  file=sys.stderr)
+            return 1
+        over = args[at + 1]
+        args = args[:at] + args[at + 2:]
+        if not args:
+            args = ["lesson"]
     kind = args[0] if args[0] in KINDS else "lesson"
     rest = [a for a in (args[1:] if args[0] in KINDS else args) if a != "--force"]
     title = " ".join(rest)
@@ -788,8 +816,37 @@ def cmd_write(live, args):
               "Write the card itself: the mathematics, addressed to the student. "
               "If you meant it, pass --force.", file=sys.stderr)
         return 1
-    name = "%04d-%s.md" % (live.next_index(), slugify(title or kind))
-    path = os.path.join(live.cards, name)
+    if over:
+        # Only a card that is already on this board. A path out of an argument is
+        # a path somebody could have written anything into, and this one is
+        # opened for writing -- so it is resolved and checked against the cards
+        # directory rather than trusted, the same rule every other name from
+        # outside follows here.
+        want = over if os.path.isabs(over) else os.path.join(live.cards, over)
+        want = os.path.realpath(want)
+        room = os.path.realpath(live.cards)
+        if not (want.startswith(room + os.sep) and os.path.isfile(want)):
+            print("board write: no card on this board at %r. Write a new one, or "
+                  "pass the path an earlier `board write` printed." % over,
+                  file=sys.stderr)
+            return 1
+        path = want
+        # The name carries the title, and a report is not called what the
+        # sentence it replaced was called. Renaming keeps the index, which is
+        # what fixes a card's place in the transcript.
+        if title:
+            renamed = os.path.join(live.cards, "%s-%s.md"
+                                   % (os.path.basename(path)[:4],
+                                      slugify(title or kind)))
+            if renamed != path:
+                try:
+                    os.replace(path, renamed)
+                    path = renamed
+                except OSError:
+                    pass
+    else:
+        name = "%04d-%s.md" % (live.next_index(), slugify(title or kind))
+        path = os.path.join(live.cards, name)
     head = "---\nkind: %s\n" % kind
     if title:
         head += "title: %s\n" % title

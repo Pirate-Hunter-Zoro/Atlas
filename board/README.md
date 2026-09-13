@@ -53,6 +53,52 @@ for](#the-machine-this-is-written-for).
 >
 > ### Where this is right now, 13 September 2026 (latest)
 >
+> **"Write the code for me" now writes the code.** The first time somebody tapped
+> it on the map, what came back was a four-hundred-word plan, a list of what had
+> *not* been done, and a question — reported as *"I'm not sure any coding
+> happened… I would have preferred to have had the implementation done/tested,
+> etc. and then a CONCISE EASY TO UNDERSTAND explanation of what was just done."*
+>
+> The map had done its job: the sitting opened with `aim: build`, `stance: do`,
+> scoped to the `cli` box. **The contract it read was the problem.**
+> `live/TEACHING.md` says, three times and in capitals, that the card is written
+> before anything else happens — *"there is no exception to this, and nothing
+> else in this file overrides it"* — and that rule is right for a TEACHING turn,
+> where the card is the work. In a turn that does the work, a card written first
+> can only describe an intention. So it did, and the turn ended.
+>
+> **A doing turn now has the opposite order, and both documents say so.** One
+> plain sentence goes up first so the board is never blank; then the work is
+> done and run; then the report is written **over that sentence** with the new
+> `board write --over <card>`, which keeps one card in its place in the
+> transcript. A question is no longer how a doing turn ends by default — if a
+> reasonable answer can be picked, it is picked and named. And a plan handed back
+> as though it were the work is named in the contract as the failure it is: a job
+> too big for one turn gets its **first part done**, not all of it described.
+>
+> **And every card, in every kind of sitting, is now bound by how it reads.**
+> Asked for as *"whatever we're doing — math, coding, vibe coding, vibe writing,
+> vibe presentation creating, the tutor should ALWAYS give me easy to understand
+> responses."* So `PLAIN_SENSE` is in every briefing: the answer in the first
+> sentence, one idea per sentence, every piece of shorthand spelled out the first
+> time it appears, no headings under 300 words, no closing paragraph. The card
+> that prompted this was correct and nearly unreadable — five headings, five
+> hundred words, and *what did you just do* nowhere in the first paragraph.
+>
+> Four ways of saying "this turn does the work" all reach the same clause — the
+> aim tapped on the map, a stance chosen for the sitting, a `make` sitting, or an
+> aim of building a deck — because they are written in different places and a
+> person taps one without knowing which. `test/teaching.py` checks each of them,
+> and checks that a teaching turn is *not* told it.
+>
+> **Token usage was already right and is unchanged**: `session_turns: 1`, so
+> every turn is a fresh `claude -p` session that reads `board brief` and
+> `board recap` off disk — about 22k tokens whether it is turn 2 or turn 40,
+> against 176k for a conversation carried to turn 20. What the last turn was
+> thinking is carried in `live/NEXT.md` by `board note`, not in a conversation.
+>
+> ### Where this was earlier on 13 September 2026 (the map)
+>
 > **A course opens on a picture of what the repository IS.** Asked for in these
 > words: *"The tutor should create a massive diagram of the repository, with its
 > various working parts… I want to be able to tap on something and have some

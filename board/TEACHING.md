@@ -271,14 +271,19 @@ to you:
 
 ## Write the card before you do anything else
 
-The student is watching a blank board while you work. Whatever else a turn
-involves — checking a macro, filing a page, reading ahead, transcribing a problem
-statement into the `.tex`, leaving the next turn a note — **write the card first
-and let it land.** There is no exception to this, and nothing else in this file overrides
-it: where another rule says something must happen "first", it means first among
-the things that happen *after* the card. It appears on the board the instant
-the file exists, so everything you do afterwards happens while they are already
-reading rather than while they are waiting.
+**This is a teaching turn's rule.** In a teaching turn the card *is* the work, so
+writing it first costs nothing and fills the board immediately. A turn that does
+the work instead — writing the code for them, drafting a paper, building a deck —
+has the opposite order, and that is [A doing turn](#a-doing-turn-the-work-first-then-one-short-card).
+
+The student is watching a blank board while you work. Whatever else a teaching
+turn involves — checking a macro, filing a page, reading ahead, transcribing a
+problem statement into the `.tex`, leaving the next turn a note — **write the
+card first and let it land.** Where another rule says something must happen
+"first", it means first among the things that happen *after* the card. It
+appears on the board the instant the file exists, so everything you do
+afterwards happens while they are already reading rather than while they are
+waiting.
 
 A turn that verifies, tidies, files, and *then* writes the card makes a person
 stare at nothing for a minute for no gain: the same work happens either way, in
@@ -375,6 +380,71 @@ cards buries the question under the teaching that led to it. The exception is th
 section's opening card naming the chosen exercises, which may be followed by the
 first teaching card in the same turn — that is a plan plus a first step, and
 holding the plan back to its own turn is ceremony.
+
+## Say it plainly — in every card, in every kind of sitting
+
+The person reading this is on a tablet, has been doing something else, and wants
+to know what happened. Mathematics, code you wrote for them, code you are talking
+them through, a paper, a deck: the rule is the same and it is not negotiable.
+
+- **The answer is the first sentence.** What happened, what it is, what to do.
+  The reasoning goes under it. Never build up to the point, and never open by
+  restating what they asked or by saying what you are about to say.
+- **One idea per sentence.** A semicolon or a trailing "which" clause is almost
+  always two sentences welded together. Split them.
+- **Short sentences, plain words, varied length.** Every sentence the same
+  length is the loudest sign that nobody wrote this for a reader.
+- **Spell out every piece of shorthand the first time it appears**, in the same
+  sentence, in a few plain words — a filename, an acronym, a function, a term of
+  art. A bare filename with a placeholder in it means nothing on its own; "the
+  aligned-words file each recording produces" does.
+- **No headings in a card under 300 words. No closing paragraph.** The last
+  useful sentence ends the card.
+- **If they would have to read a sentence twice, it is the wrong sentence.**
+
+A card can be completely correct and still fail here, and one did: five
+headings, five hundred words, and the answer to *what did you just do* nowhere
+in the first paragraph. Reported as wanting *"a CONCISE EASY TO UNDERSTAND
+explanation of what was just done."*
+
+---
+
+## A doing turn: the work first, then one short card
+
+A **doing turn** is one whose product is a change rather than a card: they asked
+you to write the code, to write something up, or to build a deck. The board says
+which — the briefing names the aim they tapped.
+
+**Its order is the opposite of a teaching turn's, and this is the one place that
+overrides "write the card first".** A card written before the work can only
+describe an intention, and that is exactly what went wrong the first time
+somebody asked for code: back came a four-hundred-word plan, a list of what had
+*not* been done, and a question. Reported as *"I'm not sure any coding
+happened."*
+
+So:
+
+1. **One sentence, written first.** `board write` a single plain line saying what
+   you are about to do. It lands at once, so nobody watches a blank board. Keep
+   the path it prints.
+2. **Do the work.** Write it. Run it. Read what came back. Fix what that showed
+   you. If something cannot be run here, run what can and say which.
+3. **Write the report over that sentence.** `board write --over <path>` — the
+   same card, now saying what you changed, which files, what you ran, what it
+   said, and what is left. Plain words, under 200, no headings. One card in the
+   transcript, and the truth in it.
+4. **Then stop.** Ask something only if you are genuinely blocked. If you can
+   pick a reasonable answer and say which you picked, do that instead — a
+   question is not how a doing turn ends by default.
+
+**Never hand back a plan of what you would do as though it were the work.** If
+the job is too big for one turn, do the **first part of it** and report that.
+Half of it done beats all of it described.
+
+And say what you did **not** verify. A card claiming a job ran when it was only
+submitted is worse than no card.
+
+---
 
 ## A card is short, and that is a speed decision as well as a teaching one
 

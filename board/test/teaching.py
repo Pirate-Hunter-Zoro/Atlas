@@ -83,7 +83,31 @@ for phrase, why in [
     ("Do not widen the scope", "and its scope is not the tutor's to widen"),
     ("Spread the questions", "and the questions are spread across all of it"),
     ("no write-up", "and nothing is transcribed or compiled for a review"),
-    ("no exception to this", "and nothing outranks getting the card up first"),
+    # THE CARD-FIRST RULE IS A TEACHING TURN'S RULE, and it used to say it was
+    # absolute -- "there is no exception to this, and nothing else in this file
+    # overrides it". In a turn that DOES the work rather than teaching it, that
+    # ordering produces a card describing an intention and no work at all, which
+    # is what came back the first time somebody tapped "write the code for me":
+    # a four-hundred-word plan, a list of what had not been done, and a question.
+    # Both halves are checked, because either one alone is the old defect.
+    ("write the\ncard first and let it land", "a teaching turn gets its card up first"),
+    ("This is a teaching turn's rule",
+     "and it says which kind of turn that is a rule for"),
+    ("A doing turn: the work first", "a turn that does the work inverts the order"),
+    ("board write --over",
+     "and reports over the sentence it opened with, so one card carries the truth"),
+    ("Never hand back a plan of what you would do",
+     "a plan handed back as though it were the work is named as the failure it is"),
+    ("do the **first part of it**",
+     "and a job too big for one turn is half done rather than all described"),
+    # Every card, in every sitting. Asked for after one that was correct and
+    # unreadable: "the tutor should ALWAYS give me easy to understand responses."
+    ("Say it plainly", "every card is written to be understood the first time"),
+    ("The answer is the first sentence", "with the answer in the first sentence"),
+    ("One idea per sentence", "one idea to a sentence"),
+    ("Spell out every piece of shorthand",
+     "and no shorthand left unexplained the first time it appears"),
+    ("read a sentence twice", "and a sentence that has to be read twice is wrong"),
     ("Never label a question", "a question is answered, not graded"),
     ("do not know how to start", "and not knowing where to start is a real answer"),
     ("has not produced", "no solution is invented for the student"),
@@ -267,6 +291,107 @@ if serveapp:
 board_src = open(os.path.join(ROOT, "bin", "board"), encoding="utf-8").read()
 check("board start installs it rather than assuming it is there",
       "install_teaching(live)" in board_src)
+
+
+# ---------------------------------------------------------------------------
+# THE TURN THAT DOES THE WORK
+# ---------------------------------------------------------------------------
+# A person tapped "write the code for me" on the map and got a plan, a list of
+# what had not been done, and a question -- no code. The contract is why: it
+# says, three times, that the card is written before anything else happens, and
+# in a doing turn that means the card can only describe an intention.
+#
+# The document half is checked above. This is the half a document cannot hold:
+# that the turn is actually TOLD, in the line it is woken with, and that there is
+# a way to replace an opening sentence with a report once the work is done.
+from tutorboard import sense as sense_mod                   # noqa: E402
+from tutorboard.course import config as config_mod          # noqa: E402
+from tutorboard.course.repo import Repo                      # noqa: E402
+
+check("there is a clause telling a turn to do the work before it reports",
+      "DOING TURN" in sense_mod.DOING_SENSE
+      and "board write --over" in sense_mod.DOING_SENSE)
+check("and it says outright that it overrides the card-first rule",
+      "TEACHING.md" in sense_mod.DOING_SENSE
+      and "opposite" in sense_mod.DOING_SENSE.lower())
+check("a plan handed back instead of the work is named as the failure",
+      "Never hand back a plan" in sense_mod.DOING_SENSE)
+check("and a question is not how a doing turn ends by default",
+      "not how a doing turn ends" in sense_mod.DOING_SENSE)
+check("every briefing carries the rule about how a card reads",
+      "ANSWER in the first sentence" in sense_mod.PLAIN_SENSE
+      and "One idea per sentence" in sense_mod.PLAIN_SENSE)
+
+home = tempfile.mkdtemp(prefix="tutor-doing-")
+try:
+    root = os.path.join(home, "Course")
+    os.makedirs(root)
+    with open(os.path.join(root, "tutorboard.json"), "w", encoding="utf-8") as fh:
+        fh.write('{"name": "Course"}')
+    repo = Repo(root)
+
+    def state(**kw):
+        st = {"course": "Course", "session": "lecture"}
+        st.update(kw)
+        with open(repo.state_path, "w", encoding="utf-8") as fh:
+            import json as _json
+            _json.dump(st, fh)
+
+    # Every way of saying "this turn does the work" has to reach the same clause,
+    # because they are written down in three different places and a person taps
+    # one of them without knowing which.
+    for kw, why in ((dict(aim="build"), "the aim they tapped on the map"),
+                    (dict(stance="do"), "a stance chosen for the sitting"),
+                    (dict(session="make", makes="paper"), "a sitting that makes a document"),
+                    (dict(aim="slides"), "an aim of building a deck")):
+        state(**kw)
+        check("a doing turn is told so by %s" % why,
+              "DOING TURN" in sense_mod.session_sense(repo))
+    for kw, why in ((dict(aim="teach"), "teaching"),
+                    (dict(aim="coach"), "coaching them through it"),
+                    (dict(), "a plain lecture in a teach repository")):
+        state(**kw)
+        said = sense_mod.session_sense(repo)
+        check("and a turn that is %s is not" % why, "DOING TURN" not in said)
+        check("...but is still told how to write (%s)" % why,
+              "ANSWER in the first sentence" in said)
+
+    # And the mechanism the shape depends on: one card, opened with a sentence
+    # and finished with the report, keeping its place in the transcript.
+    import io as _io
+    import contextlib as _ctx
+
+    def write(args, body):
+        out = _io.StringIO()
+        old_stdin = sys.stdin
+        sys.stdin = _io.StringIO(body)
+        try:
+            with _ctx.redirect_stdout(out):
+                code = boardcli.cmd_write(boardcli.Live(root), args)
+        finally:
+            sys.stdin = old_stdin
+        return code, out.getvalue().strip()
+
+    code, first = write(["lesson", "starting"], "I am about to split it in two.")
+    check("a doing turn can put one sentence up at once",
+          code == 0 and os.path.basename(first).startswith("0001-"))
+    code, again = write(["--over", os.path.basename(first), "lesson", "the seam is cut"],
+                        "Done. Split it into two functions and ran the tests.")
+    body = open(again, encoding="utf-8").read()
+    check("and write the report over it rather than beside it",
+          code == 0 and "Split it into two functions" in body)
+    check("one card, keeping its place in the transcript",
+          len([n for n in os.listdir(repo.cards) if n.endswith(".md")]) == 1
+          and os.path.basename(again).startswith("0001-"))
+    check("and the card is renamed to what it now says",
+          "the-seam-is-cut" in os.path.basename(again))
+    # A path out of an argument is a path somebody could have written anything
+    # into, and this one is opened for writing.
+    code, _said = write(["--over", "../../../etc/passwd", "lesson", "no"], "x")
+    check("a card outside this board is refused rather than written over",
+          code == 1)
+finally:
+    shutil.rmtree(home, ignore_errors=True)
 
 print()
 print("%d FAILURES" % len(fails) if fails else "the method ships with the board")

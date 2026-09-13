@@ -50,6 +50,29 @@ SIGNAL_SENSE = {
 # looks like in everything it was trained on. So the shape is said outright and
 # said first: a lesson is exercises, and explanation that is not something the
 # student does is not part of it.
+# HOW EVERY CARD READS, whatever the sitting is.
+#
+# Asked for after a card that was correct and nearly unreadable -- five headings,
+# five hundred words, and the answer to "what did you just do" nowhere in the
+# first paragraph: *"the tutor should ALWAYS give me easy to understand
+# responses."* Whatever is being done -- mathematics, code written for them,
+# code they are being coached through, a paper, a deck -- what lands on the
+# board is read on a tablet by somebody who has been doing something else.
+#
+# This is in every briefing rather than in one kind of sitting, because the
+# complaint was about all of them.
+PLAIN_SENSE = (
+    "HOW TO WRITE, in every card, whatever this sitting is. Put the ANSWER in "
+    "the first sentence -- what happened, what it is, what to do -- and the "
+    "reasoning under it. One idea per sentence, short sentences, plain words. "
+    "Never open by restating the question or by narrating what you are about to "
+    "say. Spell out any term, filename or shorthand the first time it appears, "
+    "in the same sentence, in a few plain words. No headings in a card under "
+    "300 words, and no closing paragraph -- the last useful sentence ends it. "
+    "If they would have to read a sentence twice, it is the wrong sentence. "
+)
+
+
 METHOD_SENSE = (
     "Follow live/TEACHING.md, and the rule it all follows from: THE LESSON IS "
     "EXERCISES, not explanation. Never write a card that teaches for four "
@@ -79,11 +102,50 @@ DO_SENSE = (
     "and commit when it is right. Do not withhold an implementation and do not "
     "ask them to type it. The card is a report rather than an exercise -- what "
     "you changed, what it does now, what you ran and what came back, and the one "
-    "decision or check you need from them. Everything else above holds "
-    "unchanged: still one card, still short, still written before the rest of "
-    "the work, still one thing per turn, and it still stops and waits. Say what "
-    "you did NOT verify -- a card claiming a job ran when it was only submitted "
-    "is worse than no card. "
+    "decision or check you need from them. Still one card, still short, still one "
+    "thing per turn, and it still stops and waits. Say what you did NOT verify -- "
+    "a card claiming a job ran when it was only submitted is worse than no card. "
+)
+
+
+# THE SHAPE OF A TURN THAT DOES THE WORK, and it is the opposite shape to a
+# teaching turn's.
+#
+# `live/TEACHING.md` says, three times and in capitals, that the card is written
+# before anything else happens. That rule is right and it is a TEACHING turn's
+# rule: there the card IS the work, so writing it first fills the board while
+# everything else happens behind it.
+#
+# In a doing turn the work is a change to the repository, and a card written
+# before that change can only describe an intention. That is not a hypothetical:
+# the first time somebody tapped "write the code for me", what came back was a
+# four-hundred-word plan, a list of what had not been done, and a question --
+# reported as *"I'm not sure any coding happened."* The card was written first,
+# the card was the turn, and the turn ended.
+#
+# So the order is inverted here, and the board is kept alive by the one thing
+# that costs nothing: a sentence, then the work, then the report over the top of
+# it. `board write --over` exists for precisely that.
+DOING_SENSE = (
+    "THIS IS A DOING TURN, AND ITS ORDER IS THE OPPOSITE OF A TEACHING TURN'S. "
+    "live/TEACHING.md says to write the card before anything else; that is a "
+    "teaching turn's rule, where the card is the work. Here the work is the "
+    "change, and a card written before it can only describe an intention. Do it "
+    "in this order, and do not stop before the end:\n"
+    "1. `board write` ONE sentence saying what you are about to do, in plain "
+    "words. It lands at once, so the board is never blank. Keep the path it "
+    "prints.\n"
+    "2. DO THE WORK. Write the code. Run it. Read what came back. Fix what it "
+    "showed you. If something cannot be run here, run what can and say which.\n"
+    "3. `board write --over <that path>` with the REPORT: what you changed, "
+    "which files, what you ran, what it said, and what is left. Plain words, "
+    "under 200, no headings.\n"
+    "4. Then stop. Ask something only if you are actually blocked -- if you can "
+    "pick a reasonable answer and say which you picked, do that instead. A "
+    "question is not how a doing turn ends by default.\n"
+    "Never hand back a plan of what you would do as though it were the work. If "
+    "the job is genuinely too big for one turn, do the FIRST PART OF IT and "
+    "report that, rather than describing all of it and doing none. "
 )
 
 
@@ -509,6 +571,31 @@ MAKE_SENSE = (
 
 
 def session_sense(repo):
+    """What this sitting is, wrapped in the two rules that hold for all of them.
+
+    HOW IT READS comes first, because it governs every card this turn writes and
+    a rule about writing is no use arriving after the thing to write about. WHAT
+    ORDER TO WORK IN comes last, because it overrides a rule `live/TEACHING.md`
+    states three times in capitals, and an override that arrives before the thing
+    it overrides is an override nobody applies.
+
+    Everything between them is `_session_sense`, which is the sitting itself.
+    """
+    st = repo.state()
+    said = PLAIN_SENSE + _session_sense(repo)
+    # A turn whose product is a CHANGE rather than a card: the code written for
+    # them, a paper, a deck. Whether it says so through the sitting's aim, the
+    # kind of sitting, or the stance -- all three mean the same thing about the
+    # order the turn happens in.
+    aim = config.clean_aim(st.get("aim"))
+    doing = (st.get("session") == "make"
+             or aim in ("build", "paper", "slides")
+             or (st.get("session") in (None, "", "lecture")
+                 and config.stance_for(repo.root, st) == "do"))
+    return said + (DOING_SENSE if doing else "")
+
+
+def _session_sense(repo):
     """What this sitting is, in a sentence an assistant can act on.
 
     `board open` takes a label -- "Ch 1 -- groups, fields and vector spaces" --

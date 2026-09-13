@@ -161,8 +161,17 @@ do = serve_mod.stance_sense("do")
 check("a doing repository is told to write the code",
       "you write the code" in do.lower())
 check("and to run what needs running", "run what needs running" in do)
-check("but still one card, and still first",
-      "one card" in do.lower() and "before the rest" in do)
+# Still one card. NOT still "written before the rest of the work": that
+# ordering is a teaching turn's, and in a turn that writes the code it produces
+# a card describing an intention and no code -- which is what came back the
+# first time somebody asked for an implementation. The order for a doing turn is
+# its own clause now; `test/teaching.py` holds it.
+check("but still one card", "one card" in do.lower())
+check("and the card-first ordering is no longer claimed for a doing turn",
+      "before the rest" not in do)
+check("which has an order of its own that says so outright",
+      "opposite" in serve_mod.DOING_SENSE.lower()
+      and "board write --over" in serve_mod.DOING_SENSE)
 check("and to say what it did not actually verify", "did NOT verify" in do)
 check("and no subject is read anywhere in the config",
       "mode" not in serve_mod.config.DEFAULT_CONFIG)
