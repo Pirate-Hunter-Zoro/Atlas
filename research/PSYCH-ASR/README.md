@@ -19,19 +19,19 @@ support a grant application (R21, possibly R01) for processing the full set of s
 > or derived feature ever leaves the node or is sent to an external API. See
 > [Privacy & Data Handling](#privacy--data-handling).
 > **Companion documentation — read this first.** This README documents the *pipeline
-> architecture*. The plain-language research narrative and this project's live task list
-> live in the separate **`Research-Journey`** repo, in the home folder as a sibling of this
-> repo (`~/Research-Journey`). It is its own private git repo (on GitHub as
-> `Pirate-Hunter-Zoro/Research-Journey`) and is a **multi-project narrative hub** covering
-> both this project and the sibling `TRD-EHR` project. Start there for "where are we / what's
-> the story"; this project's live task list is `~/Research-Journey/planning/PSYCH-ASR_TODO.txt`.
+> architecture*. The plain-language research narrative, and the reasoning behind the choices,
+> are in **`JOURNEY.md`** beside it; the two slide decks are in `docs/`; the live task list is
+> `planning/PSYCH-ASR_TODO.txt` and is the answer to "what do we do next". Start with
+> `JOURNEY.md` for "where are we / what's the story". All of it used to live in a separate
+> `Research-Journey` hub, retired 2026-09-13 so that each project's writing sits with the
+> project it belongs to.
 >
 > **Conceptual walkthrough of Stage 1.** A slide deck explaining what Stage 1 actually does
 > — a broad tour of what each of the five calls accomplishes, with the input and output
 > stated at every step, a pipeline diagram of how the waveform and the words flow between the
 > three models, and the traps worth knowing (loose Whisper timestamps, why alignment must
 > precede diarization, unlabelled words) — lives at
-> `~/Research-Journey/psych-asr-feasibility/stage1_pipeline_walkthrough.pdf`, built from the
+> `docs/stage1_pipeline_walkthrough.pdf`, built from the
 > `.tex` beside it. Read it before modifying Stage 1. It was written against the single-job
 > script that has since been retired; the five calls it walks through are unchanged and now
 > run as `psych_asr.cli.run_asr`, `psych_asr.cli.diarize_pyannote` and
@@ -1005,7 +1005,7 @@ waiting on the collaborator's recording; **reference-free stability** — each a
 against its own re-run under a perturbation that must not change the answer, and against the
 consensus of the other arms; and the **hand-corrected reference**, which remains the only
 thing that decides the bake-off. The full plan, including which sampling decisions stay with
-the human and why, is `Research-Journey/planning/PSYCH-ASR_TODO.txt`, section *Ground truth
+the human and why, is `planning/PSYCH-ASR_TODO.txt`, section *Ground truth
 without reading the data*.
 
 ---
@@ -1557,7 +1557,7 @@ isolated string.
 `TRD-EHR` both — Ollama installed user-local and served on Slurm GPU nodes, with the vLLM
 path for this stage still to be built. Its README carries the bootstrap sequence,
 environment variables, and the traps already paid for; the remaining task list is
-`Research-Journey/planning/LOCAL-LLM_TODO.txt`. **Whatever drives this stage must have no
+`~/libr-local-llm/planning/LOCAL-LLM_TODO.txt`. **Whatever drives this stage must have no
 tool-calling surface** — no web fetch, no search, nothing that can put a fragment of a
 session into an outbound request. That is a hard requirement of the on-prem constraint at
 the top of this README, not a preference, and it is why the clinical path is a plain Python
@@ -1824,9 +1824,9 @@ its judgment-cache merge (Stage 3c), each with an sbatch cloned from
 `stage1a_asr.sbatch`; and a `stage_models.sh` extension covering the audio-event and
 dimensional-affect checkpoints.
 
-The plain-language narrative and this project's task list now live in the
-sibling `~/Research-Journey` repo (see the **Companion documentation** note at the
-top of this README); the former `writeup/` directory was relocated there.
+The plain-language narrative is `JOURNEY.md` and the task list is
+`planning/PSYCH-ASR_TODO.txt` (see the **Companion documentation** note at the top of this
+README).
 
 ---
 

@@ -48,3 +48,18 @@ live/
 
 # the board's own config must survive the blanket *.json rule above
 !tutorboard.json
+
+# so must the markdown linter's, which is config and not data
+!.markdownlint.json
+
+# ---- LaTeX build artifacts ----
+# docs/*.tex is the source and docs/*.pdf is the deliverable; everything
+# pdflatex writes alongside them regenerates on the next build.
+*.aux
+*.log
+*.nav
+*.out
+*.snm
+*.toc
+*.fls
+*.fdb_latexmk

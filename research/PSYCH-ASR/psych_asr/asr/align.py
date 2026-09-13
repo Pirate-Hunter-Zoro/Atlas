@@ -12,7 +12,7 @@ would then differ across arms and a DER comparison would be confounded by transc
 differences rather than measuring the diarizers.
 
 A conceptual walkthrough of these two passes lives at
-~/Research-Journey/psych-asr-feasibility/stage1_pipeline_walkthrough.pdf
+PSYCH-ASR/docs/stage1_pipeline_walkthrough.pdf
 
 Shapes are annotated at each step. N = number of audio samples = seconds * 16000.
 """
