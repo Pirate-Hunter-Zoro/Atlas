@@ -66,8 +66,13 @@ var els = {
   kindLecture: document.getElementById("kind-lecture"),
   kindSets: document.getElementById("kind-sets"),
   kindReview: document.getElementById("kind-review"),
+  kindWalk: document.getElementById("kind-walk"),
+  kindStance: document.getElementById("kind-stance"),
+  stanceTeach: document.getElementById("stance-teach"),
+  stanceDo: document.getElementById("stance-do"),
   kindCancel: document.getElementById("kind-cancel"),
   rvbar: document.getElementById("rvbar"),
+  rvLead: document.getElementById("rv-lead"),
   rvScope: document.getElementById("rv-scope"),
   rvChange: document.getElementById("rv-change"),
   review: document.getElementById("review"),
@@ -76,6 +81,7 @@ var els = {
   reviewAll: document.getElementById("review-all"),
   reviewCount: document.getElementById("review-count"),
   reviewStart: document.getElementById("review-start"),
+  reviewNote: document.getElementById("review-note"),
   contents: document.getElementById("contents"),
   contentsList: document.getElementById("contents-list"),
   agent: document.getElementById("agent"),
@@ -843,7 +849,7 @@ function render(data) {
   paintSession(state, data.push, data.agent, data.export,
                (data.hw && data.hw.build) || null);
   paintHomework(data.hw);
-  paintReview(state, data.review);
+  paintReview(state, data.review, data.walk);
   if (!started) paintWaiting(data);
   seedTextDrafts(data);
   paintNotesSend();
@@ -1299,7 +1305,7 @@ function paintSession(state, push, agent, exported, hwBuilt) {
      carries the full name, so the bar does not have to. */
   els.session.textContent = kind;
   els.session.dataset.kind = kind;
-  els.session.title = "tap to switch between lecture, homework and test review";
+  els.session.title = "tap to switch: lecture, homework, test review, walkthrough";
   if (leavingTo) return;              /* a decision is in front of the student */
   if (state.finished) {
     els.finishLead.textContent = "Session finished.";
@@ -2746,9 +2752,18 @@ var sittingKind = "lecture";
 function paintKindChooser() {
   els.kindLecture.classList.toggle("on", sittingKind === "lecture");
   els.kindReview.classList.toggle("on", sittingKind === "review");
+  els.kindWalk.classList.toggle("on", sittingKind === "walk");
   /* Offered only where there is something to review. A repository with no
      chapters and no parts would open a picker with nothing in it. */
   els.kindReview.hidden = !(reviewInfo && (reviewInfo.units || []).length);
+  /* And only where there is source to walk through. A narrative repository --
+     all prose, no machinery -- has nothing to trace. */
+  els.kindWalk.hidden = !(walkInfo && (walkInfo.units || []).length);
+  /* WHO WRITES THE CODE, for this sitting. Not offered in the two sittings that
+     read rather than write: a review asks questions and a walkthrough traces
+     code that is already there, so neither has a stance to take and offering
+     one would suggest they did. */
+  paintStance();
   els.kindSets.innerHTML = "";
   if (!knownSets.length) {
     var none = document.createElement("span");
@@ -2774,44 +2789,114 @@ function setSitting(kind, name, chapter) {
   fetch("/session", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ session: kind, hw: name || null, chapter: chapter || null })
+    body: JSON.stringify({
+      session: kind, hw: name || null, chapter: chapter || null,
+      /* Sent every time, including as null. A stance belongs to the sitting
+         being opened, so opening one without choosing a stance is how the
+         repository's own answer comes back -- and it has to be said rather than
+         omitted, or the last sitting's choice would outlive it. */
+      stance: takeStance()
+    })
   }).catch(function () { /* the payload will say what actually happened */ });
 }
+
+/* The pick, and then there is no pick. It belongs to the sitting being opened
+   and must not survive it: leaving it set would make the next tap on `lecture`
+   silently carry an override chosen an hour ago for something else. */
+function takeStance() {
+  var chosen = stancePick;
+  stancePick = null;
+  return chosen;
+}
+
+/* --------------------------------------------------------- who writes it */
+/* A repository says once, in writing, whether the tutor is here to teach the
+   work or to do it, and that is right for a course and wrong for a project: the
+   grid-search plumbing around a bake-off and the one algorithm its owner needs
+   to understand live in the same repository and want opposite answers. So the
+   repository's word is the default and a SITTING may say otherwise -- chosen
+   here, in the open, beside the kind of sitting it belongs to.
+
+   It is never inferred and never sticky: `stancePick` is what the person tapped
+   for the sitting they are about to open, and it goes back to null the moment
+   one is open, because the next sitting starts from the repository again. */
+var stancePick = null;
+var declaredStance = "teach";
+
+function paintStance() {
+  var reading = sittingKind === "review" || sittingKind === "walk";
+  els.kindStance.hidden = reading;
+  if (reading) return;
+  /* What is showing as chosen is what the sitting is actually running under:
+     the tap if there has been one, otherwise what the board says is in force. */
+  var now = stancePick || currentStance || declaredStance;
+  els.stanceTeach.classList.toggle("on", now !== "do");
+  els.stanceDo.classList.toggle("on", now === "do");
+}
+
+var currentStance = null;
+
+els.stanceTeach.onclick = function () {
+  stancePick = "teach";
+  paintStance();
+};
+els.stanceDo.onclick = function () {
+  stancePick = "do";
+  paintStance();
+};
 
 els.session.onclick = function () {
   paintKindChooser();
   els.kind.hidden = false;
 };
 els.kindLecture.onclick = function () { setSitting("lecture"); };
-els.kindReview.onclick = function () { els.kind.hidden = true; openReview(); };
+els.kindReview.onclick = function () { els.kind.hidden = true; openPicker("review"); };
+els.kindWalk.onclick = function () { els.kind.hidden = true; openPicker("walk"); };
 els.kindCancel.onclick = function () { els.kind.hidden = true; };
 
 
-/* ----------------------------------------------------------- test review */
-/* Revision for a test, and the one sitting whose scope is the student's to
-   choose: they know what is on the paper and the tutor does not. So it cannot
-   start from a single tap the way a lecture does -- it asks what it covers
-   first, from a list of what this repository actually has.
+/* --------------------------------------------- a sitting held over a scope */
+/* Two sittings ask before they start, because in both the student is the only
+   one who knows the answer: a test review over chapters they are being examined
+   on, and a walkthrough over machinery they do not understand. Neither can begin
+   from a single tap the way a lecture does, and neither may take a name nobody
+   chose -- everything offered is discovered from the repository itself, so
+   nothing typed reaches the filesystem and nothing invented reaches the tutor's
+   prompt.
 
-   Everything offered is discovered: the course's chapters, or, in a project with
-   none, the project's own top-level parts. A tick is a name from that list and
-   nothing else, so nothing typed can reach the filesystem and nothing invented
-   can reach the tutor's prompt.
+   ONE panel serves both. They are the same decision in the same shape -- a list
+   of what exists, ticked, and one request at the end of it -- and a second copy
+   of this would be a second copy to keep in step. `pickerKind` says which, and
+   the title, the noun and the button follow from it.
 
    The picks are held here rather than sent one at a time: a review over four
-   chapters is one decision, and sending it four times would archive the lesson
+   chapters is one decision, and sending it four times would file the lesson away
    four times over. */
 var reviewInfo = null;              /* what the payload says can be reviewed */
+var walkInfo = null;                /* and what can be walked through */
+var pickerKind = "review";          /* which of the two the panel is open for */
 var reviewPick = [];                /* names ticked but not yet started */
 
-function paintReview(state, info) {
+function pickerInfo() {
+  return pickerKind === "walk" ? walkInfo : reviewInfo;
+}
+
+function paintReview(state, info, walk) {
   reviewInfo = info || null;
-  var on = (state.session || "lecture") === "review";
-  var scope = (info && info.scope) || [];
+  walkInfo = walk || null;
+  var kind = state.session || "lecture";
+  var walking = kind === "walk";
+  var on = walking || kind === "review";
+  /* What the sitting is running under, so the chooser opens showing the truth
+     rather than showing the repository's answer over the top of an override. */
+  currentStance = state.stance || null;
+  var live = walking ? walkInfo : reviewInfo;
+  var scope = (live && live.scope) || [];
   els.rvbar.hidden = !on;
   if (!on) return;
+  els.rvLead.textContent = walking ? "walking through" : "test review";
   var by = {};
-  ((info && info.units) || []).forEach(function (u) { by[u.name] = u; });
+  ((live && live.units) || []).forEach(function (u) { by[u.name] = u; });
   els.rvScope.textContent = scope.length
     ? scope.map(function (n) { return (by[n] && by[n].label) || n; }).join(" · ")
     /* Reachable from a terminal, not from this page. Say what is missing rather
@@ -2820,31 +2905,56 @@ function paintReview(state, info) {
 }
 
 function reviewNoun(info) {
+  if (pickerKind === "walk") return "files";
   return (info && info.of) === "parts" ? "parts of the project" : "chapters";
 }
 
 function paintReviewPicker() {
   var host = els.reviewList;
+  var info = pickerInfo();
+  var walking = pickerKind === "walk";
   host.innerHTML = "";
-  var units = (reviewInfo && reviewInfo.units) || [];
-  els.reviewTitle.textContent = "Which " + reviewNoun(reviewInfo) + " is the test over?";
+  var units = (info && info.units) || [];
+  els.reviewTitle.textContent = walking
+    ? "Which file should the walkthrough cover?"
+    : "Which " + reviewNoun(info) + " is the test over?";
+  els.reviewStart.textContent = walking ? "start walkthrough" : "start review";
+  els.reviewNote.textContent = walking
+    ? "Nothing is written in a walkthrough — you trace it and the tutor asks. "
+      + "Starting one files the lesson you are in; it stays readable under ◷."
+    : "The questions are the tutor's; the scope is yours. "
+      + "Starting one files the lesson you are in — it stays readable under ◷.";
 
   if (!units.length) {
     var p = document.createElement("p");
     p.className = "none";
-    p.textContent = "There is nothing here to review: this repository has no "
-      + "chapters and no parts to ask over.";
+    p.textContent = walking
+      ? "There is no source in this repository to walk through."
+      : "There is nothing here to review: this repository has no "
+        + "chapters and no parts to ask over.";
     host.appendChild(p);
     els.reviewStart.disabled = true;
     els.reviewCount.textContent = "";
     return;
   }
 
+  /* A walkthrough's list is files, and a repository has a hundred of them where
+     it has eleven chapters. Reading a flat hundred is not a thing anybody does,
+     so they are headed by the directory they are in -- which is how the person
+     choosing already thinks of them -- and each row is then the bare filename. */
+  var last = null;
   units.forEach(function (u) {
+    if (walking && u.dir !== last) {
+      last = u.dir;
+      var head = document.createElement("div");
+      head.className = "pick-dir";
+      head.textContent = last === "." ? "(top level)" : last + "/";
+      host.appendChild(head);
+    }
     var b = document.createElement("button");
     b.type = "button";
     b.innerHTML = '<span class="tick">✓</span><span class="what"></span>';
-    b.querySelector(".what").textContent = u.label;
+    b.querySelector(".what").textContent = walking ? u.short : u.label;
     if (reviewPick.indexOf(u.name) >= 0) b.classList.add("on");
     b.onclick = function () {
       var at = reviewPick.indexOf(u.name);
@@ -2859,21 +2969,29 @@ function paintReviewPicker() {
     : "nothing chosen yet";
   els.reviewAll.textContent = reviewPick.length === units.length
     ? "clear" : "select all";
-  /* A review over nothing is not a sitting, and starting one would file the
+  /* Select-all over a hundred files is not a walkthrough anybody wants and is
+     one tap away from being an accident. It belongs to the review, where the
+     list is a course's eleven chapters. */
+  els.reviewAll.hidden = walking;
+  /* A sitting over nothing is not a sitting, and starting one would file the
      lesson they are in away for no reason. */
   els.reviewStart.disabled = reviewPick.length === 0;
 }
 
-function openReview() {
+function openPicker(kind) {
+  pickerKind = kind === "walk" ? "walk" : "review";
   /* Reopening starts from what the sitting already covers, so "change" is an
      edit rather than a fresh decision. */
-  reviewPick = ((reviewInfo && reviewInfo.scope) || []).slice();
+  var info = pickerInfo();
+  reviewPick = ((info && info.scope) || []).slice();
   paintReviewPicker();
   els.review.hidden = false;
 }
 
+function openReview() { openPicker("review"); }
+
 els.reviewAll.onclick = function () {
-  var units = (reviewInfo && reviewInfo.units) || [];
+  var units = (pickerInfo() && pickerInfo().units) || [];
   reviewPick = reviewPick.length === units.length
     ? [] : units.map(function (u) { return u.name; });
   paintReviewPicker();
@@ -2885,11 +3003,15 @@ els.reviewStart.onclick = function () {
   fetch("/session", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ session: "review", over: reviewPick })
+    body: JSON.stringify({ session: pickerKind, over: reviewPick })
   }).catch(function () { /* the payload will say what actually happened */ });
 };
 
-els.rvChange.onclick = openReview;
+/* The strip's own change button reopens the picker for the sitting that is
+   actually open, not for whichever was opened last. */
+els.rvChange.onclick = function () {
+  openPicker(sittingKind === "walk" ? "walk" : "review");
+};
 document.getElementById("btn-review-close").onclick = function () {
   els.review.hidden = true;
 };

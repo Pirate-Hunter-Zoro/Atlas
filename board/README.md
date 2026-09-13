@@ -51,7 +51,56 @@ for](#the-machine-this-is-written-for).
 >   board that is answering) but it is worth confirming: the port the HTTPS name points at should
 >   be the course they are working in.
 >
-> ### Where this is right now, 11 September 2026 (latest)
+> ### Where this is right now, 13 September 2026 (latest)
+>
+> **The board had no sitting for code that already exists, and that is why four repositories
+> never used it.** Reported as a question rather than a defect: *"For all these other
+> repositories, from research journey to libr-local-llm to psych-asr and trd-ehr, the tutor has
+> not been very helpful... I'm tired of getting massive word dumps from you when I need you to
+> explain how something works for me in these repos, and reading that in the terminal is even
+> worse."*
+>
+> The boards say it plainly. Probability has 27 cards and 27 turns; Algo-Solutions 12 and 11;
+> Galois Theory a lesson filed whole. **PSYCH-ASR has three cards and two turns, abandoned on 8
+> September. TRD-EHR, Research-Journey, libr-local-llm and Lean-Theorem-Proving have never had a
+> card written in them.** So the complaint is not that the tutoring is worse there — it is that
+> the board is not in use there at all, and the work is happening in a terminal instead.
+>
+> Two causes, and neither is prompt quality.
+>
+> **Every sitting ended in the student producing something new.** A lecture sets work, a homework
+> sitting works a sheet, a review asks cold — and in a working project most of what has to be
+> understood was written months ago and is not going to be written again. A tutor with nowhere to
+> put that does the only thing it can, which is manufacture exercises around it, and
+> `PSYCH-ASR/live/cards/0003` is that happening: invented diarization arithmetic on fictional
+> numbers, skipped twice, in a repository whose owner had written down which algorithm he wanted
+> explained. So there is a **walkthrough** now — `board open … --walk --over
+> psych_asr.evaluate.grade.grade`, or `walk through…` beside the sitting kinds on the board. It
+> is held over a file or one definition inside one, checked against the file before it is carried
+> anywhere, and **nothing is written in it**: the exercise is a hand trace, one invented instance
+> carried the whole way through, one step and one question per card, and the summary last. The
+> format is the one that already worked — `stage2_reference_walkthrough` in Research-Journey, the
+> typist and the stopwatch and the name-tagger, six worked examples — with the student doing the
+> passes instead of reading them. See [A walkthrough — code that is already
+> there](#a-walkthrough--code-that-is-already-there). `tutorboard/course/walk.py` holds what can
+> be named; `test/walk.py` and `test/walk.js` hold the rules.
+>
+> **And a stance was one word per repository, where a project has two answers.** The plumbing
+> around PSYCH-ASR's grid search is drudgery its owner has written fifty times and wants written
+> for him; `transcript/corrections.py` in the next directory is the thing he needs to understand.
+> `tutorboard.json` could only answer for both, so the work went to a terminal and the teaching
+> went with it. A sitting may now say otherwise — `--stance do`, or the control beside the
+> sitting kinds — and `tutorboard.json` is the default it goes back to. It is **still never
+> guessed**, and it **ends when the sitting does**: the tutor is told in as many words that the
+> stance is this sitting's and must not reach `HANDOFF.md`, because writing the code for somebody
+> who wanted to learn it is the one mistake the next card cannot undo. A review and a walkthrough
+> ignore it entirely — both read, so there is nothing to write in either.
+>
+> One thing removed while in there: a `do` repository's review was handed the doing paragraph
+> *and* the sentence telling it not to write code into a review card, and was relying on the
+> second to beat the first. It is no longer handed the first. Shell version `board-shell-v94`.
+>
+> ### Where this was on 11 September 2026
 >
 > **Everything in this round is ink written on the lesson itself.** Five things, reported in four
 > messages inside a few minutes, from somebody annotating a proof on an iPad.
@@ -3637,6 +3686,34 @@ learn it is the one mistake here that the next card cannot undo, and nothing
 about a repository's contents is evidence either way: a directory full of Python
 is not a request to have the Python written.
 
+**A sitting may answer differently from the repository, and this is the half that
+made these repositories unusable.** One word in `tutorboard.json` can only answer
+for the whole of it, and a project does not have one answer. PSYCH-ASR is the
+case that broke it: the plumbing around a grid search is drudgery its owner has
+written fifty times and wants written for him, and `transcript/corrections.py` in
+the next directory is the thing he actually needs to understand. Both answers,
+one repository, one word to say them in — so the work went to a terminal, and
+once it was there the teaching went with it and the board saw neither.
+
+So `tutorboard.json` is the **default** and a sitting may say otherwise:
+
+```
+board open "PSYCH-ASR" "the grid sweep" --stance do
+```
+
+or the control beside the sitting kinds on the board, which is where it belongs
+because the person who knows which kind of work this evening is is holding the
+iPad. Two rules go with it. It is **still never guessed** — a sitting that says
+nothing inherits, and nothing about what is in the repository is evidence either
+way. And it **ends when the sitting does**: the tutor is told in as many words
+that the stance is this sitting's, that it must not go into `HANDOFF.md` as
+though it were standing, and the next `board open` starts from `tutorboard.json`
+again. `board status` and `board brief` print both when they disagree.
+
+A review and a walkthrough ignore it entirely. A review asks and a walkthrough
+reads; there is nothing to write in either, so a repository that wants its code
+written does not get it written into one of those.
+
 **A tutor with a `do` stance needs the access to match.** Editing files is
 granted by the course's own `.claude/settings.local.json`; anything else it has
 to run — `sbatch`, `squeue`, `git commit` — belongs in that file's allow list,
@@ -3655,6 +3732,7 @@ said about itself — which is the point, because a fact cannot go stale and a d
 | Where the exercises come from | the end of each section, in the book | whatever the README points at: a task list, a plan, a companion repo |
 | The contents drawer (☰) | its chapters and problem sets | sittings made as you go, filed under ◷ |
 | A `--review` sitting covers | chapters | the repository's own top-level parts |
+| A `--walk` sitting covers | its source files, where it has any | its source files |
 | Answering | the answer panel | the answer panel |
 
 `chapters.tsv` or `chapters/chNN-*/` is what makes the first column true; there is no flag for it.
@@ -3788,6 +3866,12 @@ retype their own proof teaches nothing. **Test review** is revision: the student
 chapters the test covers and the tutor asks questions over exactly those, in the same shape a
 homework problem is posed, with no document at the end because nothing is being handed in.
 
+**Walkthrough** is the fourth, and it is the one for machinery that already exists: the student
+names a file or a function, and the tutor hands them one invented instance and walks them
+through the code a step at a time, asking what comes out of each one. Nothing is written in a
+walkthrough. See [A walkthrough — code that is already
+there](#a-walkthrough--code-that-is-already-there).
+
 The kind shows as a badge on the board, so there is never a question about which sitting this is.
 
 ### Getting around a course
@@ -3822,14 +3906,14 @@ This was a terminal-only decision until it wasn't: `board open … --homework`. 
 wanted help with a problem set had to find a keyboard to say so, which is the ceremony this
 whole tool exists to remove.
 
-**The three sittings differ in one thing: who chooses what gets worked on.**
+**The four sittings differ in one thing: who chooses what gets worked on.**
 
-| | lecture | homework | test review |
-|---|---|---|---|
-| The problem list | the tutor picks a manageable few from the section's exercises | the assignment sheet chose them; all of them, in order | the student chose the *chapters*; inside them the questions are the tutor's |
-| Leaving some undone | fine — sections are archived and can be returned to | not fine; a skipped problem is a lost mark | fine — the point is finding what is not solid, not finishing a list |
-| A document at the end | only if a set is bound | yes, and compiled | no; nothing is handed in, so nothing is typeset |
-| Everything else | identical | identical | identical |
+| | lecture | homework | test review | walkthrough |
+|---|---|---|---|---|
+| The problem list | the tutor picks a manageable few from the section's exercises | the assignment sheet chose them; all of them, in order | the student chose the *chapters*; inside them the questions are the tutor's | the student named the *machinery*; the trace through it is the tutor's |
+| Leaving some undone | fine — sections are archived and can be returned to | not fine; a skipped problem is a lost mark | fine — the point is finding what is not solid, not finishing a list | fine, but the trace is the point and it ends at the output |
+| A document at the end | only if a set is bound | yes, and compiled | no; nothing is handed in, so nothing is typeset | no; the lesson is the record |
+| Everything else | identical | identical | identical | identical |
 
 In a homework sitting the tutor is woken with the path to the sheet itself — for Probability
 that is `homework/hw01/assignment/Prob.Homework1.2026.pdf` — and told to read it and do
@@ -3879,6 +3963,64 @@ everything else here is discovered, and a flat repository falls back to its own 
 The sitting then asks about code that already exists: what a function does, why it is written
 that way, what would break if it changed. It never sets work, and a repository whose stance is
 `do` does not turn a review into an implementation — a review asks.
+
+### A walkthrough — code that is already there
+
+**Every other sitting ends in the student producing something new, and in a working project most
+of what has to be understood was written months ago.** That gap is why these repositories were
+being worked in a terminal rather than on the board. A tutor with nowhere to put existing
+machinery does the only thing it can, which is manufacture exercises around it —
+`PSYCH-ASR/live/cards/0003` is that happening: invented diarization arithmetic on fictional
+numbers, skipped twice, in a repository whose owner had written down which algorithm he wanted
+explained.
+
+A walkthrough is the sitting for it. It is held over a **file, or one definition inside one**:
+
+```
+board walk list psych_asr/evaluate          every file it could be held over
+board open "PSYCH-ASR" --walk --over psych_asr.evaluate.grade.grade
+board walk over psych_asr.transcript.corrections   change it, without reopening
+board walk                                  what it covers now
+```
+
+Names are matched the way the language names things: a path
+(`psych_asr/evaluate/grade.py`), a module (`psych_asr.evaluate.grade`), a definition inside one
+(`psych_asr.evaluate.grade.grade`), or a bare filename where the repository has only one of
+them. **A definition is checked against the file before it is carried anywhere** — a walkthrough
+announced over a function that is not there sends the tutor looking, and it finds something else
+and teaches that. A name that matches nothing is refused and named; an ambiguous one resolves to
+nothing rather than to whichever was walked first.
+
+On the board it is the same picker the test review uses — the sitting badge, then **walk
+through…** — over the repository's source files, headed by the directory each sits in. There is
+no *select all*: a walkthrough over a hundred files is not a sitting, and is one tap away from
+being an accident.
+
+**Nothing is written in one.** No change is assigned, no refactor is proposed, nothing is fixed,
+and no code goes into a card — not even where the repository's stance is `do`, because a
+walkthrough reads. A real bug the tutor notices is one sentence at the end of a card and a
+separate sitting.
+
+**The exercise is a hand trace, and the format is not invented here.**
+`Research-Journey/psych-asr-feasibility/stage2_reference_walkthrough` is this done by hand, at
+33 slides, and its own README entry says to read it first if you want the state of the project
+in half an hour. What made it work is what the sitting now requires: one invented instance
+carried the whole way through, plain names before identifiers — *the typist*, *the stopwatch*,
+*the name-tagger* — the algorithm shown as worked passes over that one instance, and the summary
+last. The difference is that the student does the passes instead of reading them, one card at a
+time, and the tutor finds out where it broke.
+
+So each card is one step: the smallest excerpt of the real source the question is about, never
+the file; the state of the instance before that step, as a table; and one question — what does
+this return, which branch runs, what is in this variable now, what breaks if this line goes.
+When they are wrong the same step is re-asked on a fresh instance rather than explained again.
+The destination is the student carrying the instance all the way through and producing what the
+code would produce. **The recap comes last**, three or four lines, once the trace is done — a
+summary before the trace is the word dump the sitting exists to replace.
+
+The scope is theirs and the rest of the repository is off the table, which is on the strip under
+the title bar the whole time. If nothing has been named, the tutor asks which file in its first
+card rather than choosing one: they know what they do not understand and it does not.
 
 ### A homework sitting is bound to a problem set
 
@@ -4229,6 +4371,11 @@ board hw build                   # compile it; the result lands on the board
 board hw file 7.2                # file a sent page into the set's handwritten/
 board review list                # everything this repository can be reviewed over
 board review over ch01 ch07      # what a test review covers
+board walk list [dir]            # every file a walkthrough could be held over
+board walk over psych_asr.evaluate.grade.grade
+                                 # what this walkthrough covers
+board open "PSYCH-ASR" --walk --over psych_asr.transcript.corrections
+board open "PSYCH-ASR" "the grid sweep" --stance do   # this sitting only
 board vpn up|status|serve|down   # the Tailscale link
 board doctor                     # is this machine equipped, and who teaches on it
 board limit                      # has the tutor's allowance here run out
@@ -4490,6 +4637,11 @@ guessing at one.
 Turns are recorded like any other, so the transcript of a session is still a record of where the
 student got stuck and what unstuck them — and now of what they actually said about it.
 
+**Understanding code that is already written is a different sitting, and it is the one these
+repositories mostly need.** See [A walkthrough — code that is already
+there](#a-walkthrough--code-that-is-already-there): the student names a file or a function, and
+the lesson is a hand trace through it rather than a change to it.
+
 ## Getting work back
 
 Everything the student sends lands in `live/inbox/`: typed lines in `messages.jsonl`, files in
@@ -4532,8 +4684,10 @@ tutorboard/        the board itself, organised by what a thing is about:
   machines.py      the other machines, and what each can teach
   net/             reaching them: tailscale, socks, boards, egress
   course/          a course on disk: repo, config, document, homework, review,
-                   syllabus, screenshot, paper (the two documents: resolving one,
-                   naming it, and rendering its pages so an iPad can read it)
+                   walk (what a walkthrough can be held over: a file, or one
+                   definition inside one), syllabus, screenshot, paper (the two
+                   documents: resolving one, naming it, and rendering its pages
+                   so an iPad can read it)
   lesson/          what is on the board now: cards, turns, notes, slate,
                    archive, state, git, uploads
   server/          app, handler, hub, tikz, spawn, multipart, and routes/ --

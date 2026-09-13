@@ -91,6 +91,11 @@ class Hub:
         # Always, in both kinds of repository: a review is chosen from the board
         # and the chooser needs something to offer before the sitting exists.
         data["review"] = state.load_review(self.repo)
+        # And the same for a walkthrough, whose scope is a file in this
+        # repository. A repository with no source at all -- a narrative one, all
+        # prose and no machinery -- sends nothing rather than an empty list, and
+        # the board does not offer the sitting.
+        data["walk"] = state.load_walk(self.repo)
         return data
 
     def poll_loop(self):

@@ -45,3 +45,42 @@ def read_config(root):
     # done because a repository asked for it in writing.
     cfg["stance"] = "do" if stance == "do" else "teach"
     return cfg
+
+
+# ---------------------------------------------------------------------------
+# the stance of THIS SITTING, which is not always the stance of the repository
+# ---------------------------------------------------------------------------
+#
+# A repository was allowed one answer to "is the tutor here to teach the work or
+# to do it", and a real project does not have one. PSYCH-ASR is the case that
+# broke it: the grid-search plumbing around a bake-off is drudgery its owner has
+# written fifty times and wants written for them, and the correction algorithm in
+# `transcript/corrections.py` is the thing they actually need to understand. One
+# repository, both answers, and one word in `tutorboard.json` to say them in --
+# so the work went to a terminal, and once it was there the teaching went with
+# it and the board saw neither.
+#
+# So the repository's word is the DEFAULT and a sitting may say otherwise. What
+# does not change is that neither is ever guessed: a sitting stance is written by
+# the person opening the sitting, on the board or at a terminal, and a sitting
+# that says nothing inherits rather than infers.
+STANCES = ("teach", "do")
+
+
+def clean_stance(stance):
+    """A stance from a request, or None if it is not one. Never raises."""
+    stance = str(stance or "").strip().lower()
+    return stance if stance in STANCES else None
+
+
+def stance_for(root, state):
+    """What this sitting's stance actually is: its own, or the repository's.
+
+    Read here rather than in each caller so that there is one answer to it. A
+    walkthrough is the exception and it is not this function's exception to
+    make -- `sense` holds it, because what a walkthrough refuses is not a stance
+    but a method: there is nothing to write either way when the machinery is
+    already on disk.
+    """
+    own = clean_stance((state or {}).get("stance"))
+    return own or read_config(root).get("stance") or "teach"

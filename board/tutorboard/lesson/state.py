@@ -7,7 +7,7 @@ import os
 import time
 
 from .. import machine, processes
-from ..course import homework, paper, review, syllabus
+from ..course import homework, paper, review, syllabus, walk
 from . import cards
 
 
@@ -132,6 +132,26 @@ def load_review(repo):
     """
     try:
         st = review.status(repo.root, repo.state())
+    except Exception:                                        # noqa: BLE001
+        return None
+    if not st:
+        return None
+    st.pop("chosen", None)     # the names are enough; the board paints from units
+    return st
+
+
+def load_walk(repo):
+    """What this walkthrough covers, and what else could be walked through.
+
+    Sent on every payload for the same reason the review block is: the picker
+    needs something to offer before the sitting exists, and a student on an iPad
+    cannot name a file they cannot see. The list is a directory walk rather than
+    a directory listing, so it is the one discovery here that costs more than a
+    `stat` -- and is remembered for half a minute in `walk.units` rather than
+    redone four times a second for a repository whose files are not moving.
+    """
+    try:
+        st = walk.status(repo.root, repo.state())
     except Exception:                                        # noqa: BLE001
         return None
     if not st:

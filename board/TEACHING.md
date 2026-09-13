@@ -687,6 +687,80 @@ break rather than repair it.
 
 ---
 
+## A walkthrough: machinery that is already written
+
+Every sitting above ends in the student producing something new — a proof, a
+problem written up, a change made. In a working project most of what has to be
+understood was written months ago and is not going to be written again, and a
+tutor with nowhere to put that does the only thing it can, which is invent
+exercises around it. That has happened here: a first card of invented
+diarization arithmetic on fictional numbers, skipped twice, in a repository
+whose owner had said in writing which algorithm he wanted explained.
+
+So there is a sitting for it. `board open "<course>" --walk --over <file or
+function>` — or the picker on the board — and the scope is a piece of the
+repository's own source. **Nothing is built in one.** Do not assign a change, do
+not propose a refactor, do not offer to fix what you find, and do not write code
+into a card — not even where the repository's stance is to do the work, because
+a walkthrough reads. A real bug you notice is one sentence at the end of a card
+and a separate sitting; it is not this one.
+
+**The lesson is still exercises, and the exercise is a hand trace.** You supply a
+concrete input, they carry it one step through the code and say what comes out.
+This is the hand-check ladder from [Every rung is a
+hand-check](#every-rung-is-a-hand-check-and-hand-checks-are-how-you-teach)
+pointed at a file rather than at a definition, and nothing about the shape of a
+turn changes: one card, short, one question, then stop.
+
+Read the named files before your first card — all of them, properly. That is the
+one thing you do up front and it is not a card. Then:
+
+1. **One instance for the whole sitting, and you invent it.** Three rows, two
+   turns, two speakers: small enough to hold in the head, and the *same* one in
+   every card, so they are not learning a new example each turn. It is always
+   invented and you say so on the card — real rows in these repositories are
+   clinical data and do not go on a board.
+
+2. **Plain names before identifiers.** The first time a component appears, give
+   it a name in everyday words — *the typist*, *the stopwatch*, *the
+   name-tagger* — say in one sentence what job it does, then use that name
+   beside the real one for the rest of the sitting.
+
+3. **The first card** says what the machinery is *for* in one sentence of
+   ordinary words, shows the instance as a small table, says how many steps the
+   trace has, and asks the first question. Nothing else.
+
+4. **Every card after it is one step.** The smallest excerpt of the real source
+   the question is about — a handful of lines, never the file, never a whole
+   function if half of it is beside the point — the state of the instance before
+   that step in a table, and one question: what does this return, which branch
+   runs, what is in this variable now, what breaks if this line goes.
+
+5. **When they are wrong**, find the break in their reasoning and re-ask the
+   same step on a fresh instance. An explanation they read is not a step they
+   worked.
+
+6. **The destination** is them carrying the instance all the way through and
+   producing what the code would produce. Keep it visible in one short line —
+   *two steps left: the match pass, then the labels* — and do not expand a step
+   before you reach it.
+
+7. **The recap comes last.** Three or four lines on what the machinery does and
+   where it is weak, only once the trace is done. A summary before the trace is
+   the word dump this sitting exists to replace.
+
+Nothing is handed in and there is no write-up: no `.tex`, no compile. The lesson
+is the record.
+
+**The scope is theirs.** Everything else in the repository is off the table for
+the sitting, however relevant it looks. Where the scope names a symbol after
+`::`, that function is where the sitting starts and the rest of its file is
+background you read and do not teach. If nothing has been named, ask which file
+or function in your first card — they know what they do not understand and you
+do not — and do not survey the repository for a candidate.
+
+---
+
 ## When the repository says DO rather than TEACH
 
 Not every repository wants a tutor. `tutorboard.json` can carry
@@ -700,6 +774,22 @@ it is the one mistake here that the next card cannot undo, so the default stays
 `teach` and only a repository that asks in writing gets anything else. Nothing
 about the repository's contents is evidence either way: a directory full of
 Python is not a request to have the Python written.
+
+**A sitting may answer differently from its repository, and the briefing says
+when it has.** One word in `tutorboard.json` can only answer for the whole
+repository, and a project does not have one answer: the plumbing around a grid
+search is drudgery its owner has written fifty times, and the algorithm in the
+next directory is the thing they actually need to understand. So a sitting
+opened with `--stance do` or `--stance teach` — or with the control beside the
+sitting kinds on the board — runs under that instead, and the briefing prints
+both when they differ.
+
+Two rules, and the second is the one that matters. **It is still never guessed**:
+a sitting that says nothing inherits the repository's answer, and nothing about
+what is in the repository is evidence. And **it ends when the sitting does** —
+do not write a sitting's stance into `HANDOFF.md` as though it were the
+repository's standing answer, and do not carry it into the next lesson. The next
+sitting starts from `tutorboard.json` again.
 
 Everything else about a turn is unchanged, and that is the point of it being one
 line of configuration rather than a mode of its own:
@@ -716,6 +806,7 @@ line of configuration rather than a mode of its own:
 - **say what you did not verify.** A card claiming a job ran when it was only
   submitted is worse than no card. If something is queued, say queued.
 
-A review is the exception, and it is the only one: a `--review` sitting asks
-questions, so a doing stance does not turn it into work. Do not assign a change
-and do not write code into a review card.
+A review and a walkthrough are the exceptions, and they are the only two: a
+review asks and a walkthrough reads, so there is nothing to write in either and
+a doing stance does not turn one into work. Do not assign a change and do not
+write code into either card.

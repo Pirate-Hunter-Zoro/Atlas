@@ -10,6 +10,7 @@ import os
 from . import NOT_MINE
 from ...course import syllabus
 from ...course import review
+from ...course import walk
 from ...course import homework
 from .. import multipart
 from .. import spawn
@@ -66,10 +67,15 @@ def post(h, repo, path):
         except Exception:
             return h.send_json({"ok": False, "error": "bad json"}, status=400)
         kind = (payload.get("session") or "").strip().lower()
-        if kind not in ("lecture", "homework", "review"):
+        if kind not in ("lecture", "homework", "review", "walk"):
             return h.send_json({"ok": False, "error": "bad session"}, status=400)
         want = (payload.get("hw") or "").strip()
         chapter = (payload.get("chapter") or "").strip()
+        # This sitting's stance, where the person opening it chose one. A word
+        # that is not a stance is dropped rather than refused: the request is
+        # about which sitting to open, and failing the whole of it over a
+        # spelling would leave them on the lesson they were trying to leave.
+        stance = config.clean_stance(payload.get("stance"))
 
         # A test review is held over a scope the student picks, and a scope is
         # a list: a test is not one chapter. Every name in it is matched
@@ -105,6 +111,43 @@ def post(h, repo, path):
             h.server.hub.worker.dirty.set()
             return h.send_json({"ok": True, "session": kind, "review": names})
 
+        # A walkthrough is the same shape of request as a review -- a scope the
+        # student chose, checked against what the repository actually has before
+        # a word of it reaches the filesystem or the tutor's prompt -- over a
+        # different list. A file that is not in this repository is refused by
+        # name rather than dropped, because a walkthrough over two files when
+        # three were tapped teaches the wrong two.
+        if kind == "walk":
+            over = payload.get("over")
+            if not isinstance(over, list):
+                over = [over] if over else []
+            chosen, unknown = walk.resolve(repo.root, [str(x) for x in over])
+            if unknown:
+                return h.send_json({"ok": False, "error": "no such file",
+                                       "unknown": unknown[:8]}, status=400)
+            if not chosen:
+                # Opening one archives the lesson they are in, so a walkthrough
+                # over nothing would file a lesson away to no purpose.
+                return h.send_json({"ok": False, "error": "nothing chosen"},
+                                      status=400)
+            names = [u["name"] for u in chosen]
+            course = repo.state().get("course") or config.read_config(repo.root)["name"] or ""
+            args = ["open", course, walk.sitting_label(chosen), "--walk"]
+            for n in names:
+                args += ["--over", n]
+            if stance:
+                args += ["--stance", stance]
+            spawn.board_cli(repo.root, args)
+            st = repo.state()
+            st["session"] = kind
+            st["walk"] = names
+            st.pop("hw", None)
+            st.pop("review", None)
+            with open(repo.state_path, "w", encoding="utf-8") as fh:
+                json.dump(st, fh, indent=2)
+            h.server.hub.worker.dirty.set()
+            return h.send_json({"ok": True, "session": kind, "walk": names})
+
         # Moving to a different chapter is starting a different lesson, and
         # `board open` is what starts one: it files the current lesson away
         # whole -- cards, turns and answers together -- so the one being left
@@ -138,6 +181,16 @@ def post(h, repo, path):
         st = repo.state()
         st["session"] = kind
         st.pop("review", None)
+        st.pop("walk", None)
+        # A stance chosen on the board belongs to the sitting being opened, so
+        # it is written when one is named and cleared when one is not -- which
+        # is how tapping `lecture` gets the repository's own answer back
+        # without anybody having to know there was an override in the first
+        # place.
+        if stance:
+            st["stance"] = stance
+        else:
+            st.pop("stance", None)
         if kind == "homework":
             # Only a set this repository actually has. A name from the
             # request never reaches the filesystem.

@@ -100,10 +100,12 @@
   <span id="hw-build"></span>
 </div>
 
-<!-- A test review is held over a scope the student chose, and a scope that is
-     not written down anywhere is a scope the tutor can quietly widen. Same
-     argument as the homework strip: the state of the sitting is not visible on
-     an iPad unless the board says it. -->
+<!-- A test review and a walkthrough are both held over a scope the student
+     chose, and a scope that is not written down anywhere is a scope the tutor
+     can quietly widen. Same argument as the homework strip: the state of the
+     sitting is not visible on an iPad unless the board says it. One strip for
+     both, because they are the same fact about the sitting and the bar has room
+     for one of them at a time. -->
 <div id="rvbar" class="rvbar" hidden>
   <span id="rv-lead">test review</span>
   <span id="rv-scope" class="muted"></span>
@@ -295,10 +297,24 @@
   <span id="kind-lead">This sitting:</span>
   <button id="kind-lecture" type="button">lecture</button>
   <span id="kind-sets"></span>
-  <!-- Not a fourth button that starts something: a review has to be told what
-       it covers before it can begin, so this opens the picker. -->
+  <!-- Not buttons that start something: a review has to be told what it covers
+       and a walkthrough what it is over, so each opens the picker. -->
   <button id="kind-review" type="button">test review…</button>
+  <button id="kind-walk" type="button">walk through…</button>
   <button id="kind-cancel" type="button" class="quiet">cancel</button>
+  <!-- WHO WRITES THE CODE IN THIS SITTING, which is not always what the
+       repository says. A project has both kinds of work in it: plumbing its
+       owner has written fifty times and wants written for them, and the one
+       algorithm they actually need to understand. One word in tutorboard.json
+       could only answer for both, so the work went to a terminal and the
+       teaching went with it. This answers for the sitting, it is visible while
+       it is in force, and it stops when the sitting does. Hidden in a
+       walkthrough and a review: neither writes code either way. -->
+  <span id="kind-stance" class="kind-stance">
+    <span class="kind-stance-lead">this sitting:</span>
+    <button id="stance-teach" type="button">I teach it</button>
+    <button id="stance-do" type="button">I do it</button>
+  </span>
 </div>
 
 <!-- Asked AFTER the working has gone, never before it. This bar used to stand
@@ -379,7 +395,12 @@
      rather than one thing: a test is not one chapter. Everything offered here is
      discovered from the repository itself -- its chapters, or, in a project with
      none, its own top-level parts -- so nothing typed can reach the filesystem
-     and nothing invented can reach the tutor's prompt. -->
+     and nothing invented can reach the tutor's prompt.
+
+     A WALKTHROUGH USES THE SAME PANEL, over the repository's source files. It is
+     the same decision in the same shape -- a list of what exists, ticked, and
+     one request -- and giving it a second panel of its own would be two copies
+     of this to keep in step. The title, the list and the button say which. -->
 <aside id="review" hidden>
   <div class="scratch-head">
     <strong id="review-title">What should this review cover?</strong>
@@ -392,7 +413,7 @@
       <span id="review-count" class="muted"></span>
       <button id="review-start" type="button" class="primary" disabled>start review</button>
     </div>
-    <p class="review-note muted">The questions are the tutor's; the scope is yours.
+    <p class="review-note muted" id="review-note">The questions are the tutor's; the scope is yours.
       Starting one files the lesson you are in — it stays readable under ◷.</p>
   </div>
 </aside>

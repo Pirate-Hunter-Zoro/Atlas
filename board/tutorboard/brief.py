@@ -126,8 +126,20 @@ def briefing(repo, sense, chapter=None):
     out.append(head or "no session open")
     if st.get("hw"):
         out.append("homework set: %s" % st["hw"])
-    stance = (config.read_config(root).get("stance") or "teach")
-    out.append("stance: %s" % stance)
+    # The stance of THIS SITTING, which is the repository's unless the sitting
+    # said otherwise. Both are printed when they disagree: a turn reading
+    # "stance: do" in a repository whose file says teach has to be able to see
+    # that it is a choice somebody made this evening rather than the standing
+    # answer, because the two are written down in different places and only one
+    # of them survives the sitting.
+    declared = config.read_config(root).get("stance") or "teach"
+    stance = config.stance_for(root, st)
+    if stance == declared:
+        out.append("stance: %s" % stance)
+    else:
+        out.append("stance: %s  (this sitting only -- tutorboard.json says %s, "
+                   "and that is what the next sitting goes back to)"
+                   % (stance, declared))
 
     out.append("\n--- the method, and what this sitting is ---\n"
                + sense.session_sense(repo))

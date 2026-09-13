@@ -1204,8 +1204,39 @@ body.tools-out .annbar { bottom: calc(5.6rem + env(safe-area-inset-bottom)); }
 #session { cursor: pointer; border: 1px solid transparent; font-family: var(--ui); }
 #session:hover { border-color: var(--rule); }
 #kind-sets { display: inline-flex; gap: .3rem; flex-wrap: wrap; }
-#kind-sets button.on, #kind-lecture.on, #kind-review.on {
+#kind-sets button.on, #kind-lecture.on, #kind-review.on, #kind-walk.on {
   background: var(--note); border-color: var(--note); color: #fff; font-weight: 600;
+}
+
+/* WHO WRITES THE CODE IN THIS SITTING. Set apart from the kinds of sitting by a
+   rule down its left, because it is a different question from the one the
+   buttons beside it answer: those say what kind of sitting, this says what the
+   tutor does in it. On a narrow glass it wraps to its own line rather than
+   pushing the sitting kinds off the edge. */
+.kind-stance {
+  display: inline-flex; align-items: center; gap: .3rem;
+  padding-left: .6rem; margin-left: .2rem;
+  border-left: 1px solid var(--rule);
+}
+.kind-stance-lead {
+  font-family: var(--ui); font-size: .68rem; color: var(--ink-3);
+  letter-spacing: .04em;
+}
+#stance-teach.on, #stance-do.on {
+  background: var(--ink-3); border-color: var(--ink-3); color: #fff; font-weight: 600;
+}
+/* A doing stance is the one worth seeing from across the room: it is the state
+   in which the tutor writes code the student would otherwise have written, and
+   it is the one mistake the next card cannot undo. */
+#stance-do.on { background: var(--ask); border-color: var(--ask); color: var(--paper); }
+
+/* A walkthrough's list is files, headed by the directory they sit in -- a flat
+   hundred filenames is not a list anybody reads. Same shape as the group
+   heading the review list already uses. */
+#review-list .pick-dir {
+  font-family: var(--ui); font-size: .66rem; font-weight: 700;
+  letter-spacing: .12em; text-transform: uppercase; color: var(--ink-3);
+  margin: .9rem .3rem .35rem;
 }
 
 /* The contents panel borrows the drawer the scratch list already uses -- the

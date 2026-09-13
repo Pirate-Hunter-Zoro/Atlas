@@ -11,11 +11,19 @@ answer. It is gone. A repository whose subject is code is still taught by being
 asked to do things; what differs between courses is where the exercises come
 from -- a book has them at the end of a section, and a repository without one
 has them wherever it says its work is planned.
+
+A WALKTHROUGH is where that stopped being enough, and it is a sitting rather
+than a second shape. Every other sitting ends in the student producing something
+new, and in a working project most of what has to be understood was written
+months ago: a tutor with nowhere to put that does the only thing it can, which is
+manufacture exercises around it. So the exercise becomes a hand trace through
+code that already exists -- still one card, still short, still one question, and
+still answered on the board. `WALK_SENSE` is the whole of the difference.
 """
 
 import os
 
-from .course import config, homework, review, syllabus
+from .course import config, homework, review, syllabus, walk
 
 
 # arrives at a board with nothing on it and an assistant with no other context.
@@ -77,14 +85,43 @@ DO_SENSE = (
 )
 
 
-def stance_sense(stance):
-    """The doing override, or nothing at all.
+# What a stance chosen for THIS SITTING has to say that a repository's own does
+# not: that it is this sitting's and stops with it. A tutor told to write the
+# code, in a repository whose standing answer is to withhold it, must not carry
+# that into the next lesson -- and it has no way of knowing it was a sitting's
+# choice unless it is told so here.
+SITTING_DO_SENSE = (
+    "THIS STANCE WAS CHOSEN FOR THIS SITTING and is not what the repository "
+    "says. It ends when the sitting does. Do not write it into HANDOFF.md as "
+    "though it were the repository's standing answer, and do not carry it into "
+    "the next lesson. "
+)
+
+SITTING_TEACH_SENSE = (
+    "THIS REPOSITORY'S STANCE IS DO, AND THIS SITTING'S IS TEACH -- they asked "
+    "for this one to be taught rather than done. So the withholding is back on "
+    "for the whole of it: they write the code, you do not, and you do not put a "
+    "solution on the board. It ends when the sitting does; the repository's own "
+    "answer is unchanged and the next lesson is a doing one again unless it says "
+    "otherwise. "
+)
+
+
+def stance_sense(stance, chosen=False, declared="teach"):
+    """The stance paragraph for this sitting, or nothing at all.
 
     Never guessed, and nothing infers it from what is in the repository -- a
-    directory full of Python is not a request to have the Python written. Only a
-    repository that asked in writing gets this paragraph.
+    directory full of Python is not a request to have the Python written. What
+    is new is that the ANSWER may come from the sitting rather than from the
+    repository, and when it does it says so: a stance that overrode the written
+    one has to be visibly temporary, or the tutor writes it into the handoff and
+    it quietly becomes permanent.
     """
-    return DO_SENSE if stance == "do" else ""
+    if stance == "do":
+        return DO_SENSE + (SITTING_DO_SENSE if chosen and declared != "do" else "")
+    if chosen and declared == "do":
+        return SITTING_TEACH_SENSE
+    return ""
 
 
 def where_sense(book):
@@ -185,6 +222,107 @@ def review_sense(repo, st):
     )
 
 
+# THE SHAPE OF A WALKTHROUGH, WHICH IS A LESSON ABOUT SOMETHING ALREADY WRITTEN.
+#
+# The failure this replaces is on disk in PSYCH-ASR: a tutor with no sitting for
+# existing machinery invented a curriculum of diarization arithmetic on fictional
+# numbers, in a repository whose owner had said what he wanted explained. A model
+# asked to teach code it cannot set as an exercise writes a tour of the file, top
+# to bottom, and the person reading it on a tablet has understood nothing by the
+# end -- which is the same failure as the lecture `METHOD_SENSE` exists to
+# prevent, in a place that had no rule against it.
+#
+# So the exercise is a HAND TRACE. The format is not invented here either: the
+# owner of these repositories wrote `stage2_reference_walkthrough` by hand for
+# exactly this purpose -- plain names before identifiers, one invented example
+# carried the whole way through, the algorithm shown as worked passes over it --
+# and describes it as the plainest document in the repository. This is that, one
+# card at a time, with the student doing the passes instead of reading them.
+WALK_SENSE = (
+    "Follow live/TEACHING.md. THIS IS A WALKTHROUGH SITTING: the machinery "
+    "already exists and the lesson is understanding it, not writing it. "
+    "NOTHING IS BEING BUILT HERE. Do not assign a change, do not propose a "
+    "refactor, do not offer to fix anything you find, and do not write code into "
+    "a card -- not even where this repository's stance is to do the work, "
+    "because a walkthrough reads. If you find a real bug, say so in one sentence "
+    "at the end of a card and carry on; it is a separate sitting. "
+    "THE LESSON IS STILL EXERCISES, and the exercise is a hand trace: you supply "
+    "a concrete input, they carry it one step through the code and say what comes "
+    "out. Never write a card that explains for four paragraphs and asks at the "
+    "bottom. "
+    "Read the files named below BEFORE your first card -- all of them, properly. "
+    "That is the one thing you do up front and it is not a card. "
+    "THEN, IN THIS ORDER. "
+    "(1) ONE INSTANCE FOR THE WHOLE SITTING, and you invent it: three rows, two "
+    "turns, two speakers -- small enough to hold in the head, and the SAME one in "
+    "every card, so they are not learning a new example each turn. It is always "
+    "INVENTED and you say so on the card. Real rows in these repositories are "
+    "clinical data and do not go on a board. "
+    "(2) PLAIN NAMES BEFORE IDENTIFIERS. The first time a component appears, "
+    "give it a name in everyday words -- the typist, the stopwatch, the "
+    "name-tagger -- say in one sentence what job it does, and then use that name "
+    "beside the real one for the rest of the sitting. "
+    "(3) YOUR FIRST CARD says what this machinery is FOR in one sentence of "
+    "ordinary words, shows the instance as a small markdown table, says how many "
+    "steps the trace has, and asks the FIRST question. Nothing else. "
+    "(4) EVERY CARD AFTER IT is one step of the trace. Show the smallest excerpt "
+    "of the real source the question is about -- a handful of lines, never the "
+    "file, never a whole function if half of it is beside the point -- put the "
+    "state of the instance before that step in a table, and ask ONE thing: what "
+    "does this return, which of these two branches runs, what is in this "
+    "variable now, what breaks if this line goes. They answer on the board, by "
+    "writing on the card or by typing. "
+    "(5) WHEN THEY ARE WRONG, find the break in their reasoning and re-ask the "
+    "SAME step on a fresh instance rather than explaining it again. An "
+    "explanation they read is not a step they worked. "
+    "(6) THE DESTINATION is them carrying the instance all the way through and "
+    "producing what the code would produce. Keep it visible in one short line "
+    "-- 'two steps left: the match pass, then the labels' -- and do not expand "
+    "the steps before you reach them. "
+    "(7) ONLY WHEN THE TRACE IS DONE, write the recap: three or four lines on "
+    "what this machinery does and where it is weak. Last, never first -- a "
+    "summary before the trace is the word dump this sitting exists to replace. "
+    "Nothing is handed in and there is no write-up: do not transcribe into a "
+    ".tex and do not compile anything. The lesson itself is the record. "
+)
+
+
+def walk_sense(repo, st):
+    """A walkthrough, in a sentence the assistant can act on.
+
+    The scope is NAMED here rather than left to be looked up: in a headless
+    session this string is the whole prompt, and a tutor that has to search the
+    repository for what it is walking through pays a round trip for something
+    the board already knew -- and, worse, may find something else and teach
+    that.
+    """
+    chosen = walk.scope(repo.root, st)
+    if not chosen:
+        # Reachable from `board open --walk` with nothing named. The board's own
+        # picker refuses to start one, and choosing the machinery for them is
+        # the same mistake as choosing what a test covers: they know what they
+        # do not understand and you do not.
+        return ("Follow live/TEACHING.md. This is a WALKTHROUGH sitting and "
+                "nothing has been named for it to cover. Ask in your first card "
+                "which file or function they want walked through, and do not "
+                "choose it yourself -- they know what they do not understand "
+                "and you do not. Do not survey the repository for a candidate.")
+
+    named = ", ".join(u["label"] for u in chosen)
+    one = len(chosen) == 1
+    return (WALK_SENSE +
+            "THIS WALKTHROUGH IS OVER %s: %s. Read %s before your first card. "
+            "The scope is theirs and is not yours to widen: everything else in "
+            "this repository is off the table for this sitting, however relevant "
+            "it looks. Where a named symbol is given after `::`, that function "
+            "is where the sitting starts -- the rest of its file is background "
+            "you read and do not teach. "
+            "Say in your first card what you are walking through and what the "
+            "first step is."
+            % ("one file" if one else "%d files" % len(chosen), named,
+               "it" if one else "all of them"))
+
+
 def skip_sense(repo):
     """What a skip means, which depends on what kind of sitting this is.
 
@@ -246,18 +384,33 @@ def session_sense(repo):
     where the exercises come from -- `where_sense` -- and whether it asked for
     the work to be done rather than set -- `stance_sense`. Neither of those is a
     different sitting, and there is no longer any way to declare one.
+
+    The stance now comes from the SITTING where the sitting names one, and from
+    the repository otherwise. That is not a second mode either: every word about
+    the shape of a turn is unchanged, and what moved is only which of two
+    answers a repository with both kinds of work in it is giving today.
     """
     st = repo.state()
     kind = st.get("session") or "lecture"
     chapter = (st.get("chapter") or "").strip()
 
-    cfg_here = config.read_config(repo.root)
-    doing = stance_sense(cfg_here.get("stance"))
-    # A test review is settled first because it is the one sitting whose scope
-    # comes from the student rather than from the repository, and it says its own
-    # thing about where the questions come from.
+    # What the repository declared, and what THIS SITTING actually runs under --
+    # which are the same thing until somebody says otherwise, and are allowed to
+    # differ because a real project does not have one answer for all of its work.
+    declared = config.read_config(repo.root).get("stance") or "teach"
+    stance = config.stance_for(repo.root, st)
+    doing = stance_sense(stance, chosen=bool(config.clean_stance(st.get("stance"))),
+                         declared=declared)
+
+    # The two sittings that are held over a scope the student chose are settled
+    # first, because each says its own thing about where the work comes from --
+    # and because neither of them is affected by a stance. A review asks and a
+    # walkthrough reads; there is nothing to write either way, so a repository
+    # that wants its code written does not get it written into one of these.
     if kind == "review":
-        return review_sense(repo, st) + doing
+        return review_sense(repo, st)
+    if kind == "walk":
+        return walk_sense(repo, st)
 
     # Whether this repository follows a book, which is the ONLY question about a
     # subject anything here still asks. A course with a syllabus has its

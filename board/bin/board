@@ -11,6 +11,9 @@ The assistant runs these. The student never does.
                                        archive the last lesson, label the new one
     board open "Galois" --review --over ch01 --over ch07
                                        a test review over the chapters named
+    board open "PSYCH-ASR" --walk --over psych_asr.evaluate.grade
+                                       a walkthrough of machinery already written
+    board open ... --stance do|teach   this sitting only; tutorboard.json is the default
     board finish                       offer the push, on the iPad, at session end
     board push ["message"]             commit and push this repository now
     board next [kind] [slug]           print the path of the next card to write
@@ -39,6 +42,9 @@ The assistant runs these. The student never does.
     board review [status]              what this test review covers
     board review list                  everything this repository can be reviewed over
     board review over ch01 ch07        say what the review covers, without reopening
+    board walk [status]                what this walkthrough covers
+    board walk list [dir]              every file in this repository it could cover
+    board walk over <name> [<name>]    say what it covers, without reopening
     board net                          every URL the board answers on
     board vpn up [--hostname N]        the Tailscale link (name defaults to 'board')
     board vpn status|serve|down, for devices off this network
@@ -69,7 +75,7 @@ from tutorboard import (brief, carry, handoff, limits, machine,
                         paths, ports, processes, reasoning, sense, tex,
                         worktree)
 from tutorboard.net import egress, tailscale
-from tutorboard.course import document, homework, paper, review
+from tutorboard.course import config, document, homework, paper, review, walk
 SERVE = os.path.join(TOOL, "serve.py")
 KINDS = ("lesson", "question", "correct", "wrong", "review", "note", "recap")
 
@@ -456,8 +462,15 @@ def cmd_status(live, args):
                                  "" if info["node"] == this_node() else "  (not this one)"))
     print("repo:    %s" % live.root)
     cfg = read_config(live.root)
+    # The stance this sitting is actually running under, which is the
+    # repository's unless the sitting said otherwise -- and where the two
+    # disagree, both, because only one of them survives the sitting.
+    stance = config.stance_for(live.root, st)
     print("course:  %s%s" % (st.get("course") or cfg["name"],
-                              "  (stance: do)" if cfg["stance"] == "do" else ""))
+                              ("  (stance: %s%s)"
+                               % (stance, ", this sitting only"
+                                  if stance != cfg["stance"] else ""))
+                              if stance == "do" or stance != cfg["stance"] else ""))
     print("chapter: %s" % st.get("chapter", "-"))
     print("session: %s%s" % (st.get("session", "lecture"),
                              "  (finish offered)" if st.get("finished") else ""))
@@ -465,6 +478,10 @@ def cmd_status(live, args):
         scope = review.scope(live.root, st)
         print("review:  %s"
               % (", ".join(u["short"] for u in scope) if scope else "nothing chosen"))
+    if (st.get("session") or "") == "walk":
+        scope = walk.scope(live.root, st)
+        print("walk:    %s"
+              % (", ".join(u["label"] for u in scope) if scope else "nothing named"))
     print("cards:   %d" % len(live.card_names()))
     msgs = read_messages(live)
     print("unread:  %d" % sum(1 for m in msgs if not m.get("read")))
@@ -482,6 +499,7 @@ def cmd_open(live, args):
     session = None
     which = None
     over = []
+    stance = None
     rest = []
     skip_next = False
     for i, a in enumerate(args):
@@ -494,6 +512,17 @@ def cmd_open(live, args):
             session = "homework"
         elif a in ("--review", "--test-review"):
             session = "review"
+        elif a in ("--walk", "--walkthrough"):
+            session = "walk"
+        elif a == "--stance":
+            # This sitting's, not the repository's. `tutorboard.json` is not
+            # touched: a stance chosen for an evening's work is not a decision
+            # about what the repository is for, and writing it there would make
+            # it one silently.
+            stance = config.clean_stance(args[i + 1] if i + 1 < len(args) else "")
+            if stance is None:
+                print("  --stance takes 'do' or 'teach'; ignored", file=sys.stderr)
+            skip_next = True
         elif a == "--set":
             which = args[i + 1] if i + 1 < len(args) else None
             skip_next = True
@@ -518,6 +547,13 @@ def cmd_open(live, args):
             # Even with nothing chosen: a sitting with no label at all shows a
             # bare dash on the board where the chapter line goes.
             chapter = review.sitting_label(chosen, review.kind(live.root) or "chapters")
+    if session == "walk":
+        chosen, unknown = walk.resolve(live.root, over)
+        for name in unknown:
+            print("  no file or definition called %r in this repository, ignored: %s"
+                  % (name, name), file=sys.stderr)
+        if not chapter:
+            chapter = walk.sitting_label(chosen)
 
     # A chapter is its own thing, and its handoff goes with it.
     #
@@ -539,9 +575,19 @@ def cmd_open(live, args):
         print("  handoff from the last sitting on this chapter is back")
     live.set_state(course=course, chapter=chapter, session=session or "lecture",
                    finished=None, hw=None,
-                   review=[u["name"] for u in chosen] or None,
+                   review=[u["name"] for u in chosen] if session == "review" else None,
+                   walk=[u["name"] for u in chosen] if session == "walk" else None,
+                   # A sitting stance is cleared by opening the next sitting,
+                   # which is what makes it a sitting's. Saying nothing here is
+                   # how a repository gets its own answer back.
+                   stance=stance,
                    opened=time.strftime("%Y-%m-%d %H:%M"))
     print("%s open: %s / %s" % (session or "lecture", course or "-", chapter or "-"))
+    if stance:
+        declared = read_config(live.root)["stance"]
+        print("  stance: %s%s" % (stance, "  (this sitting only; tutorboard.json "
+                                          "says %s)" % declared
+                                  if stance != declared else ""))
     if session == "review":
         if chosen:
             print("  over %s: %s"
@@ -551,6 +597,13 @@ def cmd_open(live, args):
         else:
             print("  nothing chosen to review. Say what it covers:")
             print("  board review over <name> [<name> ...]   (board review list)")
+    if session == "walk":
+        if chosen:
+            print("  walking through: %s" % ", ".join(u["label"] for u in chosen))
+            print("  nothing is being written; they trace it and you ask")
+        else:
+            print("  nothing named to walk through. Say what it covers:")
+            print("  board walk over <file or function>    (board walk list)")
     if session == "homework":
         print("  you write the mathematics; the write-up and the compile are mine")
         # Bind the sitting to a problem set now, so nothing later has to guess.
@@ -776,6 +829,81 @@ def cmd_review(live, args):
         print("  %-10s %s" % (u["short"], u["label"]))
     return 0
 
+
+def cmd_walk(live, args):
+    """What this walkthrough covers, and how to say what it covers.
+
+    The same shape as `board review`, and deliberately: both are sittings held
+    over a scope the student chose rather than one the repository set, and the
+    tool owns the same one thing in each -- which names are real. What differs is
+    the list. A review is over chapters, or over the parts of a project; a
+    walkthrough is over source files, and optionally over one definition inside
+    one of them.
+    """
+    sub = args[0] if args else "status"
+    rest = args[1:]
+    st = walk.status(live.root, live.state())
+
+    if st is None:
+        print("no source in this repository to walk through")
+        return 1
+
+    if sub in ("--list", "list"):
+        # A directory at a time, because a flat list of 188 files is not a thing
+        # anybody reads. `board walk list psych_asr/evaluate` narrows it.
+        where = (rest[0].strip("/") if rest else "").lower()
+        shown = 0
+        last = None
+        for u in st["units"]:
+            if where and not u["path"].lower().startswith(where):
+                continue
+            if u["dir"] != last:
+                last = u["dir"]
+                print("  %s" % (last + "/" if last != "." else "(top level)"))
+            print("      %s" % u["short"])
+            shown += 1
+        if not shown:
+            print("nothing under %r" % where)
+            return 1
+        print("%d file%s" % (shown, "" if shown == 1 else "s"))
+        if not where and shown > 40:
+            print("narrow it: board walk list <directory>")
+        return 0
+
+    if sub == "over":
+        if not rest:
+            print("usage: board walk over <file or function> [<name> ...]",
+                  file=sys.stderr)
+            print("  a path (psych_asr/evaluate/grade.py), a module "
+                  "(psych_asr.evaluate.grade), or a definition inside one "
+                  "(psych_asr.evaluate.grade.grade)", file=sys.stderr)
+            return 1
+        chosen, unknown = walk.resolve(live.root, rest)
+        for name in unknown:
+            print("no file or definition called %r in this repository" % name,
+                  file=sys.stderr)
+        if not chosen:
+            return 1
+        live.set_state(walk=[u["name"] for u in chosen])
+        print("this walkthrough covers: %s"
+              % ", ".join(u["label"] for u in chosen))
+        if (live.state().get("session") or "lecture") != "walk":
+            print("  this sitting is not a walkthrough yet: "
+                  "board open <course> --walk")
+        return 0
+
+    # status
+    if not st["scope"]:
+        print("no walkthrough open here. Start one:")
+        print("  board open %r --walk --over <file or function>"
+              % (live.state().get("course") or "<course>"))
+        print("%d file%s to choose from; board walk list shows them"
+              % (st["total"], "" if st["total"] == 1 else "s"))
+        return 1
+    print("walkthrough over %d: " % len(st["scope"]))
+    for u in st["chosen"]:
+        print("  %s" % u["label"])
+    return 0
 
 # ---------------------------------------------------------------------------
 # homework: a problem set is a file in the course, and the board tracks it
@@ -1194,6 +1322,13 @@ def cmd_recap(live, args):
         scope = review.scope(live.root, st)
         print("test review over: %s"
               % (", ".join(u["label"] for u in scope) if scope else "nothing chosen yet"))
+    # And a resumed walkthrough has to be told what it is walking through, for
+    # the same reason: the scope is the whole of what keeps it off the rest of
+    # the repository.
+    if (st.get("session") or "") == "walk":
+        scope = walk.scope(live.root, st)
+        print("walking through: %s"
+              % (", ".join(u["label"] for u in scope) if scope else "nothing named yet"))
 
     # Newest revision per turn id: the file is append-only and a correction
     # supersedes in place, so an older revision is not part of the lesson.
@@ -2244,6 +2379,7 @@ COMMANDS = {
     "net": cmd_net, "vpn": cmd_vpn, "init": cmd_init, "eyes": cmd_eyes,
     "finish": cmd_finish, "push": cmd_push, "history": cmd_history,
     "hw": cmd_hw, "review": cmd_review, "recap": cmd_recap, "node": cmd_node,
+    "walk": cmd_walk,
     "egress": cmd_egress, "limit": cmd_limit,
     "brief": cmd_brief, "note": cmd_note, "handoff": cmd_handoff,
 }
