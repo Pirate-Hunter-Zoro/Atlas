@@ -442,6 +442,13 @@ const at = (doc, id) => {
       && p.body.aim === 'build' && p.body.node === 'evaluate'
       ? ok('“write the code for me” opens a lecture the tutor writes in')
       : fail('wrong body: ' + JSON.stringify(p && p.body));
+    // THE TAP IS THE INSTRUCTION. Landing on the lesson behind the map and
+    // having to find a second button saying "ask the tutor to begin" is the
+    // ceremony this replaces, and it was found as a question rather than as a
+    // complaint: "do I ask the tutor to begin?"
+    p && p.body.begin === true
+      ? ok('and asks the tutor to start, without a second tap')
+      : fail('the sitting opens but nothing starts it');
 
     p = await pick('evaluate', '', 'Tell me what to write, I\'ll code it');
     p && p.body.stance === 'teach' && p.body.aim === 'coach'
@@ -672,6 +679,15 @@ const at = (doc, id) => {
     /id="btn-map"/.test(right ? right[1] : '')
       ? ok('and the way to the map is one of them')
       : fail('the map has no control in the title bar');
+    // A glyph on its own is not a label. Asked for as "make that button that
+    // takes me back to the map more obvious as something that would take me
+    // back to the map".
+    /<button id="btn-map"[^>]*>[^<]*\bmap\b/.test(right ? right[1] : '')
+      ? ok('and it says what it is rather than being a bare glyph')
+      : fail('the map control carries no word');
+    (html.match(/class="to-map"[^>]*>[^<]*\bmap\b/g) || []).length >= 6
+      ? ok('every copy of it, in every drawer and on the document viewer, says so too')
+      : fail('some ways to the map are still unlabelled glyphs');
     /id="barmenu"[\s\S]*id="btn-contents"/.test(html)
       ? ok('the contents drawer kept every entry and moved one tap away')
       : fail('the contents drawer was removed rather than moved');

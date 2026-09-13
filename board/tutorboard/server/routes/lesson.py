@@ -70,6 +70,43 @@ def _mark(st, node, aim):
         st.pop("aim", None)
 
 
+def _begin(h, repo):
+    """Ask the tutor to start, without anybody tapping anything.
+
+    THE TAP WAS THE INSTRUCTION. Somebody who chose "write the code for me" on
+    the map has said what they want as plainly as they are going to; making them
+    then find a second button that says "ask the tutor to begin" is the ceremony
+    this whole tool exists to remove. Reported as a question, which is the worst
+    way to find a defect like this: *"do I ask the tutor to begin?"*
+
+    The same three things `/say` does for a begin signal, in the same order and
+    for the same reasons: a turn on the board so the transcript shows the ask, a
+    line in the inbox carrying `session_sense` -- which in a headless turn IS the
+    prompt, so a bare "[begin]" would tell it nothing -- and a tutor woken if
+    none is listening, because a request that sits in an inbox beside a board
+    saying "no tutor attached" is a tap that did nothing for ever.
+
+    Called only AFTER the sitting is written, or the line would describe the
+    sitting being left.
+    """
+    tid = turns.next_turn_id(repo)
+    record = {
+        "id": tid, "rev": turns.turn_revision(repo, tid), "kind": "text",
+        "answers": None,
+        "t": time.time(),
+        "iso": time.strftime("%Y-%m-%d %H:%M:%S"),
+        "from": "student", "text": "", "signal": "begin", "read": False,
+    }
+    turns.write_turn(repo, record)
+    line = "[begin] " + sense.SIGNAL_SENSE.get("begin", "") + " " \
+        + sense.session_sense(repo)
+    with open(repo.messages_path, "a", encoding="utf-8") as fh:
+        fh.write(json.dumps(dict(record, text=line)) + "\n")
+    if spawn.wake_tutor(repo):
+        h.note("nothing was reading the board; starting a tutor")
+    return tid
+
+
 def post(h, repo, path):
     if path == "/dismiss-finish":
         st = repo.state()
@@ -107,6 +144,11 @@ def post(h, repo, path):
         # chapter of anything and would fail the check below, and asking the
         # browser to send a label it invented is the same hole in a nicer coat.
         aim = config.clean_aim(payload.get("aim"))
+        # Whether the request also means "and get on with it". Sent by the map's
+        # own sheet, where choosing a way to work IS the instruction; not by the
+        # contents drawer, where opening a chapter is still a place to go rather
+        # than a thing to do.
+        start = bool(payload.get("begin"))
         node = None
         node_id = str(payload.get("node") or "").strip()
         if node_id:
@@ -164,8 +206,11 @@ def post(h, repo, path):
             st.pop("hw", None)
             with open(repo.state_path, "w", encoding="utf-8") as fh:
                 json.dump(st, fh, indent=2)
+            if start:
+                _begin(h, repo)
             h.server.hub.worker.dirty.set()
-            return h.send_json({"ok": True, "session": kind, "review": names})
+            return h.send_json({"ok": True, "session": kind, "review": names,
+                                "begun": start})
 
         # A walkthrough is the same shape of request as a review -- a scope the
         # student chose, checked against what the repository actually has before
@@ -202,8 +247,11 @@ def post(h, repo, path):
             st.pop("review", None)
             with open(repo.state_path, "w", encoding="utf-8") as fh:
                 json.dump(st, fh, indent=2)
+            if start:
+                _begin(h, repo)
             h.server.hub.worker.dirty.set()
-            return h.send_json({"ok": True, "session": kind, "walk": names})
+            return h.send_json({"ok": True, "session": kind, "walk": names,
+                                "begun": start})
 
         # A SITTING WHOSE PRODUCT IS A DOCUMENT rather than an answer.
         #
@@ -236,8 +284,11 @@ def post(h, repo, path):
             _mark(st, node, aim)
             with open(repo.state_path, "w", encoding="utf-8") as fh:
                 json.dump(st, fh, indent=2)
+            if start:
+                _begin(h, repo)
             h.server.hub.worker.dirty.set()
-            return h.send_json({"ok": True, "session": kind, "makes": makes})
+            return h.send_json({"ok": True, "session": kind, "makes": makes,
+                                "begun": start})
 
         # Moving to a different chapter is starting a different lesson, and
         # `board open` is what starts one: it files the current lesson away
@@ -322,8 +373,11 @@ def post(h, repo, path):
             st.pop("hw", None)
         with open(repo.state_path, "w", encoding="utf-8") as fh:
             json.dump(st, fh, indent=2)
+        if start:
+            _begin(h, repo)
         h.server.hub.worker.dirty.set()
-        return h.send_json({"ok": True, "session": kind, "hw": st.get("hw")})
+        return h.send_json({"ok": True, "session": kind, "hw": st.get("hw"),
+                            "begun": start})
 
     if path == "/text/save":
         # A typed answer in progress, kept per question so the panel can flip

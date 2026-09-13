@@ -399,6 +399,36 @@ try:
                                      "strokes": [{"c": "#eee", "w": 2,
                                                   "pts": [[1, 1], [2, 2]]}]})
     check("and a send still starts a turn", code == 200 and bool(doc.get("turn")))
+
+    # ---------------------------------------------------------------------
+    # OPENING A SITTING FROM THE MAP IS ALSO THE INSTRUCTION TO BEGIN
+    # ---------------------------------------------------------------------
+    # Choosing "write the code for me" on the map says what somebody wants as
+    # plainly as they are going to. Making them then find a second button on the
+    # lesson behind it -- "ask the tutor to begin" -- is the ceremony this whole
+    # tool exists to remove, and it was found the worst way, as a question:
+    # "do I ask the tutor to begin?"
+    before = len(turns.load_turns(repo))
+    status, body = post("/session", {"session": "lecture", "aim": "teach"})
+    check("a sitting opened without asking to start does not start one",
+          status == 200 and body.get("begun") is False
+          and len(turns.load_turns(repo)) == before)
+
+    status, body = post("/session", {"session": "lecture", "aim": "build",
+                                     "stance": "do", "begin": True})
+    check("and one opened WITH the ask starts the turn itself",
+          status == 200 and body.get("begun") is True)
+    sent = turns.load_turns(repo)
+    check("which lands in the transcript like any other begin",
+          sent and sent[-1].get("signal") == "begin")
+    with open(repo.messages_path, "r", encoding="utf-8") as fh:
+        last = [json.loads(l) for l in fh if l.strip()][-1]
+    check("and reaches the inbox, which is what wakes a headless turn",
+          "[begin]" in last.get("text", "") and last.get("read") is False)
+    # In a headless turn that line IS the prompt, so it has to describe the
+    # sitting that was just opened rather than the one being left.
+    check("carrying what the sitting it just opened is",
+          "DOING TURN" in last.get("text", ""))
 finally:
     httpd.shutdown()
     shutil.rmtree(tmp, ignore_errors=True)

@@ -3983,7 +3983,12 @@ function takeWork(way, node, chip) {
     node: (node && node.id) || null,
     step: (chip && chip.label) || null,
     stance: way.stance || null,
-    makes: way.makes || null
+    makes: way.makes || null,
+    /* AND GET ON WITH IT. Choosing a way to work is the instruction; a second
+       tap on "ask the tutor to begin", on the lesson behind the map they were
+       just looking at, is the ceremony this replaces. Asked as a question,
+       which is the worst way to find out: "do I ask the tutor to begin?" */
+    begin: true
   };
   if (way.session === "walk") body.over = (node && node.files) || [];
   if (way.session === "review") body.over = [node.dir + "/"];
@@ -4000,7 +4005,9 @@ function takeWork(way, node, chip) {
       els.work.hidden = false;
       return;
     }
-    /* The sitting is open. Leaving the map is the point of having tapped. */
+    /* The sitting is open and the tutor has been asked to start. Leaving the
+       map is the point of having tapped, and what is behind it is the lesson
+       with the request already on it. */
     closeMap();
   }).catch(function () {
     /* The payload will say what actually happened; the board is not the place

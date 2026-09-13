@@ -53,6 +53,30 @@ for](#the-machine-this-is-written-for).
 >
 > ### Where this is right now, 13 September 2026 (latest)
 >
+> **Choosing a way to work on the map now starts the turn.** It did not, and the
+> defect was found the worst way a defect can be — as a question: *"do I ask the
+> tutor to begin?"* Tapping **write the code for me** opened the sitting
+> correctly, landed them on the lesson behind the map, and left them looking at a
+> button saying *ask the tutor to begin*. That second tap is exactly the ceremony
+> this tool exists to remove: choosing a way to work IS the instruction.
+>
+> `POST /session` now takes `begin: true`, and does what `/say` does for a begin
+> signal — the turn on the board so the transcript shows the ask, the inbox line
+> carrying `session_sense` (in a headless turn that line is the whole prompt), and
+> a tutor woken if none is listening. The map's sheet sends it; the contents
+> drawer does not, because opening a chapter there is still a place to go rather
+> than a thing to do.
+>
+> **And the way back to the map says so.** It was `◈` alone, and a glyph on its
+> own is not a label — asked for as *"make that button that takes me back to the
+> map more obvious as something that would take me back to the map."* It reads
+> **◈ map** now, everywhere it appears: the title bar (where it also carries a
+> border, being the one control there that goes somewhere rather than acting on
+> the lesson in front of you), the head of every drawer, and the document viewer.
+> Shell version `board-shell-v98`.
+>
+> ### Where this was earlier on 13 September 2026 (the doing turn)
+>
 > **"Write the code for me" now writes the code.** The first time somebody tapped
 > it on the map, what came back was a four-hundred-word plan, a list of what had
 > *not* been done, and a question — reported as *"I'm not sure any coding

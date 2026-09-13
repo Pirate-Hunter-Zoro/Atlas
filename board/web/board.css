@@ -1629,19 +1629,34 @@ body.tools-out .annbar { bottom: calc(5.6rem + env(safe-area-inset-bottom)); }
 .work-way span { color: var(--ink-3); font-size: .76rem; }
 .work-way:hover { border-color: var(--accent); background: var(--paper-2); }
 
-/* The glyph that opens it, wherever it appears: the bar, a drawer head, the
-   document viewer. One shape, so it is recognised as the same control. */
-.to-map { font-size: 1rem; line-height: 1; }
+/* THE WAY BACK TO THE MAP, wherever it appears: the bar, a drawer head, the
+   document viewer. One shape and one word, so it is recognised as the same
+   control and as a place rather than an ornament.
+
+   It said `◈` alone at first, and a glyph on its own is not a label: asked for
+   as "make that button that takes me back to the map more obvious as something
+   that would take me back to the map". It carries the word now, and in the title
+   bar it carries a border as well -- it is the one control there that goes
+   somewhere, and the rest act on the lesson in front of you. */
+.to-map { line-height: 1; }
+#bar .to-map {
+  border-color: var(--rule);
+  color: var(--ink);
+  font-weight: 600;
+}
+#bar .to-map:hover { border-color: var(--accent); color: var(--accent); }
 .head-acts { display: flex; align-items: center; gap: .5rem; flex: none; }
 .head-acts .to-map {
-  border: 0; background: none; font: inherit; cursor: pointer;
-  color: var(--ink-2); padding: 0;
+  border: 1px solid var(--rule); border-radius: .4rem;
+  background: none; font: inherit; font-size: .74rem; cursor: pointer;
+  color: var(--ink-2); padding: .18rem .4rem;
 }
+.head-acts .to-map:hover { border-color: var(--accent); color: var(--accent); }
 .paper-bar .to-map {
-  flex: none; cursor: pointer; width: 2.2rem; height: 2.2rem;
+  flex: none; cursor: pointer; height: 2.2rem; padding: 0 .6rem;
   border-radius: .35rem; border: 1px solid var(--rule);
   background: var(--paper); color: var(--ink); font: inherit; line-height: 1;
-  margin-left: auto;
+  white-space: nowrap; margin-left: auto;
 }
 /* The map covers the glass, so the lesson underneath must not take a scroll
    meant for the plane -- the same rule the document viewer already has. */
