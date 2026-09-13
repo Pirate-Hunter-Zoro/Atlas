@@ -438,17 +438,65 @@ sitting in between, and it is genuinely new work — do not start it until 1–3
 
 ---
 
-## 7. The landing rule, and what must not break
+## 7. Where a course opens, and getting back to the map
 
-**A course opens on its map** — that is the request. Two exceptions, and both matter more
-than the rule:
+**Two rules, and the second one outranks everything else in this file.**
 
-1. **A sitting with cards in it opens on the lesson.** Somebody mid-proof who taps their
-   course must land where they were. The map is one tap away, always, from a control in the
-   title bar.
-2. **A person who was reading the lesson a moment ago opens on the lesson.** Keep the last
-   surface in `localStorage` per course and honour it on reload. `localStorage` can throw and
-   can come back empty — wrap every read and write, and render correctly without it.
+### 7.1 A course opens where you left it
+
+Not always on the map. **On the surface you were last on in that course**, and if that was
+the map, *on the part of the map you were looking at* — the same pan and zoom, with the node
+you last opened still marked as where you are. A person who was three steps into a derivation
+and taps their course must land in the derivation. A person who was reading the pipeline must
+land on the pipeline, at the box they were reading, not scrolled back to the origin.
+
+A course nobody has opened yet, or one whose remembered surface no longer exists, opens on
+the map. That is the default, and it is the only time the map is forced on anybody.
+
+What to remember, per course, keyed by the course directory:
+
+| | |
+|---|---|
+| which surface | `map` · `lesson` · `document:<id>` |
+| where on the map | the plane's `x`, `y`, `k`, and the last node's id |
+| when | a timestamp, so something absurdly old can be ignored rather than obeyed |
+
+`localStorage`, and it is a per-viewer convenience rather than state: it can throw, it can
+come back empty, and it is wiped by a private window or cleared site data. **Wrap every read
+and write in try/catch and render correctly with none of it** — which means falling back to
+the map, which is the default anyway. Do not put this in `state.json`: two devices reading
+the same course are two people looking at different parts of it, and that is correct.
+
+### 7.2 The map is reachable from everywhere, with no exceptions
+
+**From every surface, in every state, one gesture gets you to the map.** Not "from the
+lesson". Everywhere:
+
+- the lesson, scrolled anywhere, zoomed to anything
+- the full-screen writing surface
+- the document viewer, mid-deck
+- a past lesson opened read-only under **◷**
+- every drawer, sheet and picker — including the node sheet itself
+- a board with nothing on it, a board whose tutor is dead, and a board that has lost its
+  connection
+
+**The precedent is `#panic`, and it is worth copying exactly.** `web/board.html` §"The way
+back, from anywhere" plus `panicPlace` in `board.js`: a control positioned from JavaScript
+rather than by CSS, because `position: fixed` is fixed to the *layout* viewport and a pinch
+moves the *visual* one — so a CSS-placed control slides off the glass at precisely the moment
+somebody needs it, and looks perfect in every test that never zooms. It counter-scales so it
+stays a thumb wide at any magnification, it is told tap-from-drag **by time and not by
+distance** (a tap on a tablet always travels a few pixels), and **nothing in the board is ever
+allowed to hide it** — a guarantee with a condition on it is not a guarantee.
+
+`test/panic.js` holds those rules for the existing button and is the file to extend. The map
+control does not have to be a second floating button — a glyph in the title bar is fine for
+the lesson, and the full-screen surfaces have their own chrome to carry it — but whatever it
+is, **there must be no state of this application from which the map cannot be reached**, and a
+test must say so surface by surface rather than in general.
+
+The title bar has no room: it already carries the course, the chapter, the sitting badge and
+three controls. A map control there is **one glyph**, not a word. See §10.
 
 **Regressions to check by hand on an iPad before you call any phase done** (each of these has
 broken before, in this order of pain):
@@ -460,6 +508,9 @@ broken before, in this order of pain):
   previously-sent answer still comes back editable.
 - Annotation over a card still works, and scrolling while annotating is still smooth.
 - The contents drawer still scrolls, all five lists.
+- A course reopens on the surface it was left on, at the part of the map it was left at.
+- The map is one gesture away from the lesson, the slate, a document, a past lesson, and
+  every drawer — checked on the glass, not only in a test.
 - The installed app picks up the new shell — bump `web/sw.js`.
 
 ---
@@ -478,7 +529,15 @@ group says what defect it exists to prevent.
 - **`test/map.js`** — real-DOM, the pattern in `test/walk.js` (note the `className`/`classList`
   stub, which a real element keeps in sync and a naive stub does not). Nodes render; status
   becomes a class; a tap opens the sheet; the sheet offers only what the node supports; each
-  option posts the right `/session` body; the map is not the landing surface when cards exist.
+  option posts the right `/session` body.
+- **The way back, and it gets its own checks** — extend `test/panic.js` rather than burying
+  them: the map is reachable from the lesson, from the writing surface, from the document
+  viewer, from a past lesson, from an empty board, from a board with a dead tutor, and from
+  inside every drawer and sheet. **One check per surface, named after the surface**, because
+  "there is a way back" as a single assertion is the one that passes while a real state is
+  stranded. And: a course reopens on the surface it was left on, restores the plane's `x`,
+  `y` and `k` when that was the map, and falls back to the map without throwing when
+  `localStorage` is empty or refuses.
 - Extend **`test/chrome.js`** with the sheet's scroller, and **`test/hidden.js`** already
   guards that panels ship hidden — make sure yours do.
 
@@ -490,7 +549,8 @@ It is done when, on an iPad, opening PSYCH-ASR shows its pipeline; tapping *the 
 offers five ways to work on it; tapping **Learn how it works** lands in a walkthrough over
 `psych_asr/transcript/corrections.py` with the tutor already told what that box is and which
 slide explains it; and the same gesture does something sensible in TRD-EHR, Research-Journey,
-libr-local-llm, Algo-Solutions and Galois Theory.
+libr-local-llm, Algo-Solutions and Galois Theory — and, from every one of those sittings, one
+gesture is back to the map at the box you came from.
 
 Then **delete this file** — `git rm HANDOFF.md` — and fold what survived of it into `README.md`
 as a section, and into `TEACHING.md` as the rules for keeping a map true. This file is
