@@ -967,7 +967,7 @@ is better evidence than any public leaderboard because it is the actual job.
 
 | # | task family | where the ground truth comes from | grading |
 |---|---|---|---|
-| C1 | **explain a real pipeline stage** | `Research-Journey/psych-asr-feasibility/stage1_pipeline_walkthrough` — a walkthrough the user already wrote and verified | keyed |
+| C1 | **explain a real pipeline stage** | `~/PSYCH-ASR/docs/stage1_pipeline_walkthrough` — a walkthrough the user already wrote and verified | keyed |
 | C2 | **locate** — "where is X configured, and why is it that value?" | the repos; the answer is a file and a line | **objective** |
 | C3 | **find a real bug** — take a fix from git history, revert it, ask what is wrong | every entry in `README.md` §7 is a bug somebody actually hit, with a known cause and a known fix | **objective** |
 | C4 | **spec to code** — delete an existing small function, hand over its docstring, compare | the function and its tests already exist | **objective** — does the test pass |

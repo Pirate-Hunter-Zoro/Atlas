@@ -313,7 +313,7 @@ No artifact was read. A string was written.
 
 That rule had been recorded in the project's task list since the beginning and was violated twice
 anyway, the second time by a writeup describing the very run whose filenames carry the identifier.
-So it is now a `pre-commit` hook in `PSYCH-ASR/.githooks/` and `Research-Journey/.githooks/`,
+So it is now a `pre-commit` hook in `PSYCH-ASR/.githooks/` and `libr-local-llm/.githooks/`,
 beside the existing attribution stripper: any staged filename or added line matching the session-code
 shape blocks the commit. Both histories were rewritten with `git-filter-repo` and force-pushed on
 2026-09-04 to remove the code that got out.

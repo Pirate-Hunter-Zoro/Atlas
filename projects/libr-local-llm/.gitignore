@@ -13,6 +13,9 @@ slurm_jobs/logs/*
 !config/opencode.json
 !config/claude-settings.json
 *.jsonl
+
+# so must the markdown linter's, which is config and not data
+!.markdownlint.json
 *.csv
 *.gguf
 *.safetensors

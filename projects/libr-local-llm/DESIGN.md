@@ -4,7 +4,7 @@
 this repo, written before the code so the arguments survive the implementation. `README.md`
 documents what *exists*; this file documents what is *intended*, and the two must not be confused.
 When a piece of the fleet is built and verified, its durable facts graduate into `README.md` and
-its planning entry is deleted from `Research-Journey/planning/LOCAL-LLM_TODO.txt`.
+its planning entry is deleted from `planning/LOCAL-LLM_TODO.txt`.
 
 Every projected number below is labelled as a projection. Measurements are labelled as
 measurements and cite where they came from. Do not let the two blur together — that is exactly the

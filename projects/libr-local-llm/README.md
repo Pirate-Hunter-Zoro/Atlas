@@ -17,10 +17,16 @@ appears, it uses this too.
 > feature may ever leave the node or reach an external API. Every model that touches that data must
 > therefore run on LIBR hardware. This repo is how that happens.
 
-> **Documentation convention** (mirrored from `Research-Journey/README.md`): this README documents
+> **Documentation convention** (mirrored across all three project repos): this README documents
 > **architecture only** — what exists, where it lives, how it is wired, and which traps were paid
 > for. No empirical results, no findings, no model-quality claims. Sizes, ports, walltimes, and
 > resource asks are architecture and belong here.
+
+> **Companion documentation.** [`JOURNEY.md`](JOURNEY.md) is the plain-language narrative — why
+> this exists, what is built, what is designed but not built, and the reasoning behind the
+> choices. The live task list is [`planning/LOCAL-LLM_TODO.txt`](planning/LOCAL-LLM_TODO.txt) and
+> is the answer to "what do we do next". Both used to live in a separate `Research-Journey` hub,
+> retired 2026-09-13 so that each project's writing sits with the project it belongs to.
 
 > **Where the next phase is planned.** [`DESIGN.md`](DESIGN.md) holds the design for **the fleet** —
 > a preemption-aware service running all three engines (ollama, vllm, colibrì) across the cluster's
@@ -820,7 +826,7 @@ Do not re-learn these.
   PSYCH-ASR's on-prem constraint. Not yet written.
 - **vllm for PSYCH-ASR Stage 3c.** (Stage *3c* — behavioral and content coding with a local LLM.
   PSYCH-ASR's Stage 4 is feasibility modeling at N=20 and involves no LLM at all; earlier versions of
-  this README, the Research-Journey README, and `LOCAL-LLM_TODO.txt` all mis-numbered this as
+  this README, `JOURNEY.md`, and `LOCAL-LLM_TODO.txt` all mis-numbered this as
   "Stage 4".) Ollama is right for interactive single-user coding. Batch transcript work
   wants vllm: continuous batching for throughput, and guided decoding against a JSON schema so the
   model is structurally incapable of emitting anything but a valid rating object. The HF safetensors
@@ -851,3 +857,28 @@ The 4-GPU shard and one-command serving both used to live in this section. They 
 the shard verification says the multi-GPU path on this hardware is sound, which is worth having
 established even though `DESIGN.md` now argues for replicas over sharding wherever a model fits on
 one card. Knowing that the option works is what makes declining to use it a choice.
+
+---
+
+## The live board
+
+Lessons are not read in the terminal. The assistant runs `board start` from this repository and
+tells you which address to open. This machine gets a `127.0.0.1` one; the iPad, which is not on
+the institute network, reaches the same board over **Tailscale**. All of them show the same page
+at the same time.
+
+On the iPad, open it once in Safari and use Share → **Add to Home Screen**. After that it is an
+app with its own icon, no browser chrome, and a long-press shortcut straight to the slate.
+
+Everything the assistant teaches appears there as typeset mathematics the moment it is written:
+real LaTeX, real subgroup lattices and commutative diagrams, no refresh and no compile step. You
+answer in the terminal, in the box at the bottom of the board, or by hand: the ✎ button opens a
+slate you write on with the Apple Pencil. Tap send and the assistant opens the page and reads
+your handwriting — no exporting, no airdropping, no retyping a proof you already wrote. Turn on
+*live* and it sees each page as you pause. Photos and PDFs dropped anywhere on the board work
+too.
+
+With the board on the iPad and the slate for your working, a whole session can happen without
+touching the keyboard.
+
+You never run a board command. The tool is `~/Tutor-Board`; its README explains the rest.
