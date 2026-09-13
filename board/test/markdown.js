@@ -35,6 +35,10 @@ global.innerHeight = 800; global.scrollY = 0;
 global.FormData = function(){ this.append = () => {}; };
 global.setTimeout = setTimeout;
 
+// The board reads the shared plane -- what the hand is doing on a surface that
+// pans and pinches. See web/plane-core.js.
+eval(fs.readFileSync(path.replace('board.js', 'plane-core.js'), 'utf8'));
+
 let src = fs.readFileSync(path, 'utf8');
 // expose the internals for testing
 src = src.replace('})();', 'window.__test = { renderMarkdown, inline, protect, restore };\n})();');

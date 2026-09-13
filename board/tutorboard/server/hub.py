@@ -102,6 +102,11 @@ class Hub:
         # and the documents somebody already wrote about how it works.
         data["plan"] = state.load_plan(self.repo)
         data["reading"] = state.load_reading(self.repo)
+        # And the picture the whole lot hangs on. A course opens on this rather
+        # than on an empty board: the working parts, what is done and what is
+        # not, and a tap on any of them to start work there. Every repository
+        # has one, drawn or derived. See `course/map.py`.
+        data["map"] = state.load_map(self.repo)
         return data
 
     def poll_loop(self):

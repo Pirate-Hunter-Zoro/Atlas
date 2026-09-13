@@ -13,6 +13,41 @@
 
 ---
 
+## WHERE THIS HAS GOT TO
+
+**Phase 1 is shipped.** Read this before §6; the rest of the file is unchanged and
+is still the brief.
+
+- `tutorboard/course/map.py` — the three fallbacks of §4.5. Chapters win over a plan
+  (the table in §4.5 reads plan-first; no repository here has both, and the rest of
+  this board already answers "chapters, or failing that parts" everywhere, so
+  Galois Theory and Probability cannot be shown a task list instead of their
+  chapters). `status(root, state, archived)`, `find(root, id)`, a 30-second cache.
+- `load_map` in `tutorboard/lesson/state.py`, one line in `hub.build()`. The module is
+  imported as `mapping` because `map` is a builtin.
+- `web/plane-core.js` — the view and gesture half of §5.2, EXTRACTED from
+  `slate-core.js` rather than forked. The contact map with its expiry, the pinch
+  pair, `forget`, `clamp`, `zoomAbout`, `room`, `frame`. `slate-core.js` now
+  delegates to it and `test/plane.js` checks both halves of that.
+- The map surface in `board.html` / `board.css` / `board.js`: inline SVG, lanes as
+  columns, rows below 640px, pan and pinch, `⤢` for the whole picture. It opens fit
+  by WIDTH at the top, never by area — fitting a twelve-step project by area puts it
+  on screen at 68% in a ribbon a third of the glass wide.
+- §7 in full: `localStorage` per course (`board.where.<course>`), the surface and the
+  plane's x/y/k and the last box; and the way back from every surface, with the
+  `◈` glyph in the title bar, in every drawer head, on the document viewer, and as a
+  `?map=1` link on `/slate`. The map took the contents drawer's place in the bar and
+  the drawer moved under `⋯` — seven controls in that row is what `test/link.js`
+  refuses.
+- `test/map.py`, `test/map.js`, additions to `test/panic.js` (one check per surface)
+  and `test/chrome.js`. `bash test/all.sh` is green. Shell `board-shell-v96`.
+
+**Phase 1 deliberately did NOT do:** `live/map.json`, `board map`, the tap sheet, the
+`node` clause in `session_sense`, git recency. A tap on a box says what the box is,
+which is where the sheet will grow. Start at §6, phase 2.
+
+---
+
 ## 0. Before anything
 
 **The person who asked for this uses the board while you change it**, on an iPad, in the

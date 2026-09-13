@@ -53,6 +53,50 @@ for](#the-machine-this-is-written-for).
 >
 > ### Where this is right now, 13 September 2026 (latest)
 >
+> **A course opens on a picture of itself.** Asked for in these words: *"The tutor should create
+> a massive diagram of the repository, with its various working parts. This diagram should mark
+> what's completed, what's still being done, etc. … when going into a course/repo, I should start
+> with the visual map of everything."* **◈** in the title bar is it, and it is where a course
+> now lands.
+>
+> The drawer that shipped earlier the same day is a list, and a list has no relationships in it:
+> it can find any name in PSYCH-ASR and cannot say that the grid is blocked on a seam that does
+> not exist yet. The complaint behind both is one complaint — *"Honestly I'm so lost in all of
+> this"* — and only half of it was a naming problem.
+>
+> **Every repository gets a map, and none of it is invented.** `tutorboard/course/map.py` derives
+> the skeleton from what is already there: a book course draws its chapters and problem sets and
+> the order it is read in, a project draws the steps it wrote down (one lane per plan file, so a
+> hub's three projects are three columns), and anything else draws its own top-level parts with
+> the source under each. That is 40 boxes in Galois Theory, 12 in PSYCH-ASR, five in
+> Algo-Solutions, and no repository that has to be configured before it has one. A derived map
+> says so at the foot, once and quietly: a tutor can draw the real one, and `live/map.json` — the
+> written half, where a box is a stage of the work rather than a file — is the next piece.
+>
+> **A colour is only ever what the board actually knows.** The sitting open now is *working*; a
+> chapter with a lesson filed against it is *done*; a step still in the plan cannot be finished,
+> so the first is *next* and the rest *later*; everything else is *unknown* and says so. Git
+> recency is deliberately absent: touched is not progressed.
+>
+> **The map is a plane, and the plane is not a second copy of one.** Pan, pinch, the clamp and
+> the contact bookkeeping moved into `web/plane-core.js`, which `slate-core.js` now reads too —
+> the rule that a gesture is decided by which contacts are LIVE cost an evening once, and two
+> copies of it would be two copies to get wrong. The picture is inline SVG generated once per
+> payload; a gesture is a transform on one wrapper and never a redraw. Lanes become rows
+> below 640px.
+>
+> **A course opens where you left it**, not always on the map: the surface it was last on, and if
+> that was the map, the same pan and zoom with the same box marked. Only a course this device has
+> never opened lands on the map by default. **And the map is one gesture from every surface there
+> is** — the lesson, the slate, a document mid-deck, a past lesson, an empty board, a dead tutor,
+> a dropped link, and the inside of every drawer — checked one surface at a time in
+> `test/panic.js`, because a single "there is a way back" assertion is the one that passes while
+> a real state is stranded. `test/map.py` holds the fallbacks and the rule that a node id from a
+> browser is looked up rather than constructed; `test/map.js` drives the plane in a real DOM.
+> Shell version `board-shell-v96`.
+>
+> ### Where this was earlier on 13 September 2026
+>
 > **A project now has a contents drawer, and that is the whole of why a course was
 > painless and a project was not.** Reported as *"I don't wanna have to type this shit. I just
 > want information to be presented to me in a digestible way"* — after being handed, by this
@@ -95,7 +139,7 @@ for](#the-machine-this-is-written-for).
 > slide](#showing-a-slide-on-the-board). `test/plan.py` holds the rules; the real 33-slide deck
 > draws in five seconds. Shell version `board-shell-v95`.
 >
-> ### Where this was earlier on 13 September 2026
+> ### Where this was earlier still on 13 September 2026
 >
 > **The board had no sitting for code that already exists, and that is why four repositories
 > never used it.** Reported as a question rather than a defect: *"For all these other
@@ -3918,12 +3962,67 @@ there](#a-walkthrough--code-that-is-already-there).
 
 The kind shows as a badge on the board, so there is never a question about which sitting this is.
 
+### The map — the front door of a course
+
+**◈** in the title bar opens the map: a diagram of the repository's working parts, laid out in
+lanes, with each box coloured by what is done and what is not. **A course opens on it** rather
+than on an empty board.
+
+It exists because a list is a fine index and a poor front door. The contents drawer below can
+find any name in the repository and cannot say that one part of it depends on another — and the
+difficulty was never finding a name. It was holding a system in your head: *"Honestly I'm so
+lost in all of this."*
+
+**Every repository has one, and none of it is invented.** `tutorboard/course/map.py` derives the
+skeleton from what is already on disk, falling back rather than refusing:
+
+| the repository | what the map draws |
+|---|---|
+| a book course | one box per chapter, its problem sets in a lane beside them, chapter *n* → *n+1* |
+| a project with a plan | one box per step, one lane per plan file — a hub covering three projects gets three lanes |
+| anything else | the repository's own top-level parts, each carrying the source under it |
+
+A map drawn this way says so, quietly, at the foot: it is a skeleton, and a tutor can draw the
+real one. *(Written maps — `live/map.json`, where the boxes are stages of the work rather than
+files and the edges say what feeds what — are the next piece of this, along with the sheet of
+ways to work on a box that a tap will open. Today a tap says what the box is.)*
+
+A box's colour is what the board actually knows and nothing more. The sitting open right now is
+**working**; a chapter with a lesson already filed against it is **done**; a step still in the
+plan cannot be finished, so the first is **next** and the rest are **later**; everything else is
+**unknown** and says so. Recency is deliberately not in there — a box whose files changed this
+morning has been *touched*, which is not the same as progressed, and painting the two alike
+would make the map agree with whatever was edited last rather than with what is true.
+
+**The map is a plane.** One finger pans it, two pinch it, **⤢ fit** shows the whole thing, and
+the layout is arithmetic rather than a simulation — the same repository lays out identically
+every time, on every device, which is what makes a map something you learn the shape of. At
+phone width the lanes become rows and the pipeline is read downward. The gesture handling is
+`web/plane-core.js`, shared with the writing surface, because every rule in it was paid for by a
+gesture that stopped working mid-lesson.
+
+**A course opens where you left it.** Not always on the map: on the surface you were last on in
+that course, and if that was the map, at the part of the map you were looking at, same pan and
+zoom, with the box you last tapped still marked. Somebody three steps into a derivation who taps
+their course lands in the derivation. Only a course this device has never opened — or one whose
+remembered surface no longer exists — opens on the map. That memory is `localStorage` and is
+per-device on purpose: two people reading one course are looking at different parts of it. It
+can throw, it can come back empty, and the fallback for all of that is the map.
+
+**And the map is one gesture from everywhere**, with no exceptions: the lesson, the full-screen
+slate, the document viewer mid-deck, a past lesson under **◷**, an empty board, a board whose
+tutor has died, a board that has lost its connection, and the inside of every drawer and picker.
+`test/panic.js` checks that surface by surface, one check named after each, because "there is a
+way back" as a single assertion is the one that passes while a real state is stranded.
+
 ### Getting around a course
 
-**☰** in the title bar opens the contents: every chapter the course has, every problem set,
+**⋯ → ☰ contents** opens the contents: every chapter the course has, every problem set,
 the way into a test review, and the way back to what has already been filed. Tapping a chapter
 opens a lecture there; tapping a set opens a homework sitting bound to it. The chapter you are
-in is marked.
+in is marked. *(It was in the title bar until the map took that place. It kept every entry and
+moved one tap away, with everything else that is real but occasional — seven controls in that
+row is a row that overlaps itself on a tablet.)*
 
 Nothing here is registered. Chapters come from the course's own `chapters.tsv` or its
 `chapters/chNN-*/` directories, problem sets from the two layouts described below — the same

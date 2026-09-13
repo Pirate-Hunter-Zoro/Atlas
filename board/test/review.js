@@ -108,6 +108,7 @@ let src = fs.readFileSync(path.join(WEB, 'board.js'), 'utf8');
 src = src.replace('})();',
   'window.__render = render;\nwindow.__openReview = openReview;\n})();');
 vm.runInContext(fs.readFileSync(path.join(WEB, 'macros.js'), 'utf8'), sandbox);
+vm.runInContext(fs.readFileSync(path.join(WEB, 'plane-core.js'), 'utf8'), sandbox);
 vm.runInContext(fs.readFileSync(path.join(WEB, 'slate-core.js'), 'utf8'), sandbox);
 vm.runInContext(src, sandbox, { filename: 'board.js' });
 

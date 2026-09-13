@@ -121,6 +121,7 @@ src = src.replace('})();',
   'window.__render = render;\nwindow.__openPicker = openPicker;\n'
   + 'window.__paintKindChooser = paintKindChooser;\n})();');
 vm.runInContext(fs.readFileSync(path.join(WEB, 'macros.js'), 'utf8'), sandbox);
+vm.runInContext(fs.readFileSync(path.join(WEB, 'plane-core.js'), 'utf8'), sandbox);
 vm.runInContext(fs.readFileSync(path.join(WEB, 'slate-core.js'), 'utf8'), sandbox);
 vm.runInContext(src, sandbox, { filename: 'board.js' });
 

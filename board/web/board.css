@@ -1031,7 +1031,10 @@ body.viewing { overflow: hidden; }
 }
 #paper-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 #paper-sub { flex: none; font-size: .78rem; }
-#paper-get { margin-left: auto; flex: none; }
+/* The right-hand group starts at the map glyph, which is always there;
+   `save a copy` is not -- a document with no build record has none --
+   so the push to the right cannot hang off it. */
+#paper-get { flex: none; }
 #paper-close {
   flex: none; cursor: pointer; width: 2.2rem; height: 2.2rem;
   border-radius: .35rem; border: 1px solid var(--rule);
@@ -1421,3 +1424,142 @@ body.tools-out .annbar { bottom: calc(5.6rem + env(safe-area-inset-bottom)); }
   color: var(--ask);
   animation: pulse 1.1s ease-in-out infinite;
 }
+
+/* ---------- the map ---------- */
+/* The front door of a course: its working parts as a diagram, and a tap on any
+   of them. It covers the glass the way the document viewer does -- a head that
+   does not move, a plane that pans and pinches, and a foot that says what was
+   last tapped -- and it is painted from the same tokens as everything else, so
+   light and dark come out right with no second palette.
+
+   Every colour here is a token. Adding one means adding it to BOTH blocks at
+   the top of this file, or half the board changes theme and the map does not. */
+#map {
+  position: fixed; inset: 0; z-index: 96;
+  display: flex; flex-direction: column;
+  /* Explicit, never transparent: the viewer paints its own ground behind the
+     page and a transparent surface borrows whatever is under it. */
+  background: var(--paper);
+  font-family: var(--ui);
+}
+.map-bar {
+  flex: none; display: flex; align-items: center; gap: .7rem;
+  padding: .6rem max(.9rem, env(safe-area-inset-right)) .6rem max(.9rem, env(safe-area-inset-left));
+  padding-top: max(.6rem, env(safe-area-inset-top));
+  font-size: .85rem; background: var(--paper); color: var(--ink);
+  border-bottom: 1px solid var(--rule);
+}
+#map-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#map-count { flex: none; font-size: .78rem; }
+#map-fit { margin-left: auto; }
+#map-fit, #map-close {
+  flex: none; cursor: pointer; height: 2.2rem; padding: 0 .7rem;
+  border-radius: .35rem; border: 1px solid var(--rule);
+  background: var(--paper); color: var(--ink); font: inherit; line-height: 1;
+  white-space: nowrap; touch-action: manipulation;
+}
+#map-close { width: 2.2rem; padding: 0; }
+
+/* THE PLANE. `touch-action: none` says the browser need not ask the main thread
+   what to do with a touch -- there is nothing here to scroll, and a non-passive
+   `touchmove` listener on a surface somebody drags is how a page that is merely
+   moving starts to stutter. The pan and the pinch are ours; see `plane-core.js`. */
+.map-plane {
+  flex: 1 1 auto; min-height: 0; position: relative; overflow: hidden;
+  background: var(--paper-2);
+  touch-action: none;
+  -webkit-user-select: none; user-select: none;
+  cursor: grab;
+}
+.map-plane:active { cursor: grabbing; }
+/* Panning and pinching are a transform on this one element, never a regenerate:
+   the SVG is built once per payload and the gesture only moves it. */
+.map-sheet {
+  position: absolute; top: 0; left: 0;
+  transform-origin: 0 0; will-change: transform;
+}
+.map-sheet svg { display: block; overflow: visible; }
+
+/* A lane's name, over the column it heads. */
+.map-sheet .lane {
+  font: 700 11px var(--ui); letter-spacing: .12em; text-transform: uppercase;
+  fill: var(--ink-3);
+}
+
+/* A BOX. The status is a class on the group and the whole visual language is
+   here, so what `done` looks like can change without touching the generator. */
+.map-sheet .node { cursor: pointer; }
+.map-sheet .node rect.box {
+  fill: var(--paper); stroke: var(--rule); stroke-width: 1.2; rx: 10;
+}
+.map-sheet .node .name { font: 650 15px var(--ui); fill: var(--ink); }
+.map-sheet .node .also { font: 400 11.5px var(--ui); fill: var(--ink-3); }
+.map-sheet .node .does { font: 400 12.5px var(--ui); fill: var(--ink-2); }
+.map-sheet .node:hover rect.box { stroke: var(--ink-3); }
+
+/* The left edge of a box is its status, as a bar of colour rather than a word:
+   a picture is read at a glance and a glance does not read labels. */
+.map-sheet .node rect.mark { fill: var(--rule); }
+.map-sheet .node.done    rect.mark { fill: var(--good); }
+.map-sheet .node.working rect.mark { fill: var(--ask); }
+.map-sheet .node.next    rect.mark { fill: var(--accent); }
+.map-sheet .node.later   rect.mark { fill: var(--ink-3); }
+.map-sheet .node.blocked rect.mark { fill: var(--bad); }
+.map-sheet .node.unknown rect.mark { fill: var(--rule); }
+
+/* Being worked on right now is the one state worth more than a stripe: it is
+   where the person is, and the map's job at that moment is to say so. */
+.map-sheet .node.working rect.box {
+  stroke: var(--ask); stroke-width: 2;
+  fill: color-mix(in srgb, var(--ask) 7%, var(--paper));
+}
+.map-sheet .node.done .name { fill: var(--ink-2); }
+/* And where they last tapped, which is where the course reopens. */
+.map-sheet .node.here rect.box { stroke: var(--note); stroke-width: 2.4; }
+
+.map-sheet .edge {
+  fill: none; stroke: var(--rule); stroke-width: 1.6;
+  stroke-linecap: round; stroke-linejoin: round;
+}
+.map-sheet .edge-head { fill: var(--rule); }
+
+/* What was last tapped, and the quiet note saying this map was derived rather
+   than drawn. One row, and it wraps rather than truncating: the sentence that
+   says a tutor can draw a real map is the one worth reading. */
+.map-foot {
+  flex: none; display: flex; align-items: baseline; gap: .8rem; flex-wrap: wrap;
+  padding: .55rem max(.9rem, env(safe-area-inset-right))
+           max(.55rem, env(safe-area-inset-bottom)) max(.9rem, env(safe-area-inset-left));
+  border-top: 1px solid var(--rule);
+  background: var(--paper); font-size: .78rem;
+}
+#map-say { color: var(--ink-2); }
+#map-say strong { color: var(--ink); font-weight: 650; }
+#map-why { margin-left: auto; }
+
+/* An empty map is not an empty plane. A repository with nothing in it says so
+   in a sentence, in the middle of the surface, rather than leaving somebody to
+   pinch around a blank field looking for what they missed. */
+.map-none {
+  position: absolute; inset: 0; display: flex; align-items: center;
+  justify-content: center; text-align: center; margin: 0; padding: 2rem;
+  color: var(--ink-3); font-size: .9rem;
+}
+
+/* The glyph that opens it, wherever it appears: the bar, a drawer head, the
+   document viewer. One shape, so it is recognised as the same control. */
+.to-map { font-size: 1rem; line-height: 1; }
+.head-acts { display: flex; align-items: center; gap: .5rem; flex: none; }
+.head-acts .to-map {
+  border: 0; background: none; font: inherit; cursor: pointer;
+  color: var(--ink-2); padding: 0;
+}
+.paper-bar .to-map {
+  flex: none; cursor: pointer; width: 2.2rem; height: 2.2rem;
+  border-radius: .35rem; border: 1px solid var(--rule);
+  background: var(--paper); color: var(--ink); font: inherit; line-height: 1;
+  margin-left: auto;
+}
+/* The map covers the glass, so the lesson underneath must not take a scroll
+   meant for the plane -- the same rule the document viewer already has. */
+body.mapping { overflow: hidden; }

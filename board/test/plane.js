@@ -76,7 +76,7 @@ window.fetch = (u) => (/slate\/state/.test(String(u))
 window.requestAnimationFrame = (fn) => setTimeout(fn, 0);
 window.addEventListener('error', (e) => fail('uncaught: ' + e.message));
 
-for (const f of ['typeface.js', 'slate-core.js']) {
+for (const f of ['typeface.js', 'plane-core.js', 'slate-core.js']) {
   try { window.eval(fs.readFileSync(path.join(WEB, f), 'utf8')); }
   catch (e) { fail(f + ': ' + e.message); }
 }
@@ -1303,9 +1303,18 @@ const heelSwipe = (id, x, y, dx, dy) => {
   // underneath it and then do nothing for the rest of the gesture.
   {
     const js = fs.readFileSync(path.join(WEB, 'slate-core.js'), 'utf8');
-    /GESTURE_STALE/.test(js) && /function liveTouches\(\)/.test(js)
+    // The contact map, its expiry and the pinch pair are shared with the map
+    // surface now -- both count fingers the same way, and two copies of this
+    // would be two copies to get wrong. So the rule is checked where it lives,
+    // and the surface is checked for still going through it.
+    const plane = fs.readFileSync(path.join(WEB, 'plane-core.js'), 'utf8');
+    /GESTURE_STALE/.test(plane) && /function live\(\)/.test(plane)
       ? ok('a contact that has gone quiet is dropped before it is counted')
       : fail('the contact map has no expiry, so one phantom breaks every gesture');
+    /window\.Plane\.contacts\(/.test(js) && !/var touches = \{\}/.test(js)
+      ? ok('and the writing surface counts fingers through the shared plane')
+      : fail('slate-core keeps a contact map of its own again — the two '
+             + 'surfaces will drift on the half of this that has cost an evening');
     /window\.addEventListener\("blur", function \(\) \{ penDown = false; \}\)/.test(js)
       ? ok('and a lost window focus takes the pen, never the hand')
       : fail('blur is clearing the contacts again — a pinch can be forgotten '

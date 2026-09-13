@@ -121,7 +121,16 @@ var els = {
   tabType: document.getElementById("tab-type"),
   sendNoAsk: document.getElementById("send-no-ask"),
   file: document.getElementById("file"),
-  drop: document.getElementById("drop")
+  drop: document.getElementById("drop"),
+  map: document.getElementById("map"),
+  mapTitle: document.getElementById("map-title"),
+  mapCount: document.getElementById("map-count"),
+  mapFit: document.getElementById("map-fit"),
+  mapClose: document.getElementById("map-close"),
+  mapPlane: document.getElementById("map-plane"),
+  mapSheet: document.getElementById("map-sheet"),
+  mapSay: document.getElementById("map-say"),
+  mapWhy: document.getElementById("map-why")
 };
 
 var seenIds = Object.create(null);
@@ -536,6 +545,10 @@ function render(data) {
      is worse than finding it when you come back. */
   if (!data.archived) {
     lastLive = data;
+    /* Before the early return below, because the map belongs to the COURSE and
+       not to the lesson in front of it: reading a past lesson must not freeze
+       the picture of the repository underneath it. */
+    paintMap(data.map, data.state || {});
     if (!pagesLoaded) { pagesLoaded = true; loadPages(); }
     document.getElementById("btn-history").hidden = !(data.history > 0);
     if (reading) { els.jump.hidden = false; return; }
@@ -860,6 +873,9 @@ function render(data) {
   planInfo = data.plan || null;
   readingInfo = data.reading || null;
   pastCount = data.history || 0;
+  /* Once per load, and only now: where a course opens depends on what its
+     documents are, and this is the first payload that says. */
+  mapLand();
 
   var lastQuestion = 0, lastSent = 0, newestQ = null;
   (data.cards || []).forEach(function (c) {
@@ -3027,6 +3043,717 @@ document.getElementById("btn-review-close").onclick = function () {
 };
 
 
+/* -------------------------------------------------------------------- map */
+/* THE FRONT DOOR OF A COURSE.
+
+   Everything else on this page is a way of working on one thing. This is the
+   picture of all of them: the repository's working parts, laid out in lanes,
+   coloured by what is done and what is not. It exists because the difficulty
+   was never finding a name -- the drawer above does that perfectly well -- it
+   was holding a system in your head. A list cannot say that one box feeds
+   another. A diagram can.
+
+   Three decisions that everything below follows from:
+
+   STRUCTURE IS DERIVED, MEANING IS WRITTEN. The server sends `map`, built in
+   `tutorboard/course/map.py`. Nothing here invents a node, a lane or an edge,
+   and nothing here remembers one either: the map is rebuilt from the payload
+   and a box whose file has gone simply stops arriving.
+
+   INLINE SVG, GENERATED ONCE PER PAYLOAD. Crisp at every zoom without redrawing
+   on each scale change, hit-testing for nothing, real selectable text, and a
+   visual language that lives entirely in `board.css` -- status is a class on
+   the group. No <foreignObject>: Safari renders it inconsistently, so the
+   labels are wrapped here, by character count, which is deterministic and
+   therefore lays out identically on every device.
+
+   THE LAYOUT IS ARITHMETIC. No force-directed anything: a graph that settles
+   differently on each open is the opposite of a map you learn the shape of, and
+   there is no package manager at runtime to fetch one with even if it were a
+   good idea. A lane is a column, order within it is the order the nodes arrive
+   in, and at phone width the columns become one column with the lane names
+   between them -- a horizontal pipeline read as a vertical one. */
+
+/* One box, and the room its text gets. `MAP_CHAR` is how wide a character is,
+   as a fraction of its font size, in the UI face -- the one number the wrapping
+   depends on. Too small and a label overflows its box; too large and it wraps
+   early. Measured against the face this board actually ships. */
+var MAP_W = 250;
+var MAP_PAD = 14;
+var MAP_MARK = 6;            /* the status stripe down the left edge */
+var MAP_GAP_X = 76;
+var MAP_GAP_Y = 20;
+var MAP_LANE_H = 32;         /* room above a column for the lane's name */
+var MAP_MARGIN = 30;
+var MAP_CHAR = 0.545;
+var MAP_NAME = 15, MAP_DOES = 12.5;
+var MAP_NAME_LINES = 2, MAP_DOES_LINES = 2;
+/* Below this, the lanes stop being columns and become one column with their
+   names written between them. A pipeline read downward is still a pipeline; two
+   columns squeezed onto a phone is neither. */
+var MAP_STACK_AT = 640;
+
+var mapInfo = null;          /* the payload's map block, as it arrived */
+var mapDrawn = "";           /* the signature of what is on the plane now */
+var mapBox = { x0: 0, y0: 0, x1: 0, y1: 0 };
+var mapHere = "";            /* the box last tapped -- where you are */
+var mapView = { k: 1, fit: 1, ox: 0, oy: 0, held: false };
+var mapStacked = false;
+
+function mapEl(tag, attrs) {
+  var node = document.createElementNS("http://www.w3.org/2000/svg", tag);
+  for (var key in attrs) {
+    if (Object.prototype.hasOwnProperty.call(attrs, key)) {
+      node.setAttribute(key, attrs[key]);
+    }
+  }
+  return node;
+}
+
+/* Wrap a label to a box, without measuring anything.
+
+   A hidden <text> measured per label would be a forced layout per box per
+   payload, and `<foreignObject>` -- which would wrap it for nothing -- is not
+   reliable in Safari. So the width of a character is a constant and the wrap is
+   arithmetic: the same string lays out the same way on every device, which is
+   the property a map you learn the shape of actually needs. A word longer than
+   a line is broken rather than allowed to run out of the box. */
+function mapWrap(text, size, lines) {
+  var room = MAP_W - MAP_PAD * 2 - MAP_MARK;
+  var per = Math.max(6, Math.floor(room / (size * MAP_CHAR)));
+  var words = String(text || "").trim().split(/\s+/).filter(Boolean);
+  var out = [], line = "";
+  while (words.length) {
+    var word = words.shift();
+    if (word.length > per) {
+      words.unshift(word.slice(per - 1));
+      word = word.slice(0, per - 1) + "-";
+    }
+    var next = line ? line + " " + word : word;
+    if (next.length <= per) { line = next; continue; }
+    out.push(line);
+    line = word;
+    if (out.length === lines) break;
+  }
+  if (line && out.length < lines) out.push(line);
+  if (out.length > lines) out.length = lines;
+  if (words.length || (line && out[out.length - 1] !== line)) {
+    var last = out[out.length - 1] || "";
+    out[out.length - 1] = last.replace(/[ ,;:.\-]+$/, "") + "…";
+  }
+  return out;
+}
+
+function mapHeight(node) {
+  var name = mapWrap(node.name, MAP_NAME, MAP_NAME_LINES);
+  var does = node.does ? mapWrap(node.does, MAP_DOES, MAP_DOES_LINES) : [];
+  var h = MAP_PAD + name.length * 19
+        + (node.also ? 16 : 0)
+        + (does.length ? 5 + does.length * 16 : 0)
+        + MAP_PAD;
+  return { name: name, does: does, h: Math.max(64, h) };
+}
+
+/* Where every box goes. Columns when there is room, one column when there is
+   not, and in both cases: lane order from the file, node order from the file,
+   arithmetic from there. The same map lays out identically every time. */
+function mapLayout(info, wide) {
+  var lanes = (info.lanes || []).slice();
+  var byLane = {};
+  (info.nodes || []).forEach(function (n) {
+    var lane = n.lane || (lanes[0] || "");
+    if (lanes.indexOf(lane) < 0) lanes.push(lane);
+    (byLane[lane] = byLane[lane] || []).push(n);
+  });
+
+  var placed = [];
+  var heads = [];
+  var x = MAP_MARGIN, y = MAP_MARGIN;
+  lanes.forEach(function (lane, i) {
+    var here = byLane[lane] || [];
+    if (!here.length) return;
+    if (wide) {
+      x = MAP_MARGIN + i * (MAP_W + MAP_GAP_X);
+      y = MAP_MARGIN + MAP_LANE_H;
+    } else {
+      x = MAP_MARGIN;
+      y += MAP_LANE_H;
+    }
+    heads.push({ lane: lane, x: x, y: y - 12 });
+    here.forEach(function (n) {
+      var box = mapHeight(n);
+      placed.push({ node: n, x: x, y: y, w: MAP_W, h: box.h,
+                    name: box.name, does: box.does });
+      y += box.h + MAP_GAP_Y;
+    });
+    if (!wide) y += MAP_GAP_Y;
+  });
+
+  var box = { x0: 0, y0: 0, x1: MAP_MARGIN, y1: MAP_MARGIN };
+  placed.forEach(function (p) {
+    box.x1 = Math.max(box.x1, p.x + p.w + MAP_MARGIN);
+    box.y1 = Math.max(box.y1, p.y + p.h + MAP_MARGIN);
+  });
+  return { placed: placed, heads: heads, box: box };
+}
+
+/* An edge, as a right angle rather than a spline. A readable elbow beats a
+   clever curve, and a clever curve through the middle of a box is worse than
+   either -- so an edge between lanes turns in the gutter between the columns,
+   which is empty by construction. */
+function mapEdgePath(a, b) {
+  var gap = 9;
+  if (Math.abs(a.x - b.x) < 1) {                     /* the same column */
+    var x = a.x + a.w / 2;
+    var y0 = a.y + a.h, y1 = b.y - gap;
+    if (b.y < a.y) { y0 = a.y; y1 = b.y + b.h + gap; }
+    return { d: "M" + x + "," + y0 + " L" + x + "," + y1,
+             hx: x, hy: y1, down: y1 > y0 };
+  }
+  var ax = a.x + a.w, bx = b.x - gap;
+  if (b.x < a.x) { ax = a.x; bx = b.x + b.w + gap; }
+  var ay = a.y + a.h / 2, by = b.y + b.h / 2;
+  var mid = (ax + bx) / 2;
+  return { d: "M" + ax + "," + ay + " L" + mid + "," + ay
+              + " L" + mid + "," + by + " L" + bx + "," + by,
+           hx: bx, hy: by, down: null, right: bx > ax };
+}
+
+function mapArrow(head) {
+  var s = 5.5;
+  if (head.down === null) {
+    var dir = head.right ? 1 : -1;
+    return [head.hx, head.hy, head.hx - dir * s, head.hy - s,
+            head.hx - dir * s, head.hy + s];
+  }
+  var dy = head.down ? 1 : -1;
+  return [head.hx, head.hy, head.hx - s, head.hy - dy * s,
+          head.hx + s, head.hy - dy * s];
+}
+
+/* Build the whole picture. Once per payload that changes it, never per frame. */
+function mapDraw(info) {
+  var wide = (els.mapPlane.clientWidth || 0) >= MAP_STACK_AT;
+  mapStacked = !wide;
+  var out = mapLayout(info, wide);
+  mapBox = out.box;
+
+  var svg = mapEl("svg", {
+    width: out.box.x1, height: out.box.y1,
+    viewBox: "0 0 " + out.box.x1 + " " + out.box.y1
+  });
+
+  var at = {};
+  out.placed.forEach(function (p) { at[p.node.id] = p; });
+
+  /* Edges first, so a connector never paints over the box it arrives at. */
+  (info.edges || []).forEach(function (e) {
+    var a = at[e.from], b = at[e.to];
+    if (!a || !b) return;                 /* an id nothing answers to is not an edge */
+    var path = mapEdgePath(a, b);
+    svg.appendChild(mapEl("path", { "class": "edge", d: path.d }));
+    svg.appendChild(mapEl("polygon", { "class": "edge-head",
+                                       points: mapArrow(path).join(" ") }));
+    if (e.label) {
+      var tag = mapEl("text", { "class": "also", x: path.hx + 8, y: path.hy - 6 });
+      tag.textContent = e.label;
+      svg.appendChild(tag);
+    }
+  });
+
+  out.heads.forEach(function (h) {
+    var t = mapEl("text", { "class": "lane", x: h.x + 2, y: h.y });
+    t.textContent = h.lane;
+    svg.appendChild(t);
+  });
+
+  out.placed.forEach(function (p) {
+    var n = p.node;
+    var g = mapEl("g", {
+      "class": "node " + (n.status || "unknown") + (n.id === mapHere ? " here" : ""),
+      "data-id": n.id, tabindex: "0",
+      role: "button",
+      "aria-label": n.name + ", " + (n.status || "unknown")
+    });
+    g.appendChild(mapEl("rect", { "class": "box", x: p.x, y: p.y,
+                                  width: p.w, height: p.h, rx: 10 }));
+    /* The status, as a stripe rather than a word: a picture is read at a glance
+       and a glance does not read labels. Clipped to the box's own corner radius
+       by being inset a hair rather than by a clip path, which is a second thing
+       to keep in step with the rounding. */
+    g.appendChild(mapEl("rect", { "class": "mark", x: p.x + 1.2, y: p.y + 9,
+                                  width: MAP_MARK, height: p.h - 18, rx: 3 }));
+    var tx = p.x + MAP_PAD + MAP_MARK;
+    var ty = p.y + MAP_PAD + 13;
+    p.name.forEach(function (line) {
+      var t = mapEl("text", { "class": "name", x: tx, y: ty });
+      t.textContent = line;
+      g.appendChild(t);
+      ty += 19;
+    });
+    if (n.also) {
+      var a = mapEl("text", { "class": "also", x: tx, y: ty + 1 });
+      a.textContent = n.also;
+      g.appendChild(a);
+      ty += 16;
+    }
+    if (p.does.length) {
+      ty += 5;
+      p.does.forEach(function (line) {
+        var d = mapEl("text", { "class": "does", x: tx, y: ty });
+        d.textContent = line;
+        g.appendChild(d);
+        ty += 16;
+      });
+    }
+    g.addEventListener("click", function () { mapTap(n.id); });
+    g.addEventListener("keydown", function (e) {
+      if (e.key === "Enter" || e.key === " ") { e.preventDefault(); mapTap(n.id); }
+    });
+    svg.appendChild(g);
+  });
+
+  els.mapSheet.innerHTML = "";
+  els.mapSheet.style.width = out.box.x1 + "px";
+  els.mapSheet.style.height = out.box.y1 + "px";
+  els.mapSheet.appendChild(svg);
+
+  var none = document.getElementById("map-none");
+  if (!out.placed.length) {
+    if (!none) {
+      none = document.createElement("p");
+      none.id = "map-none";
+      none.className = "map-none";
+      els.mapPlane.appendChild(none);
+    }
+    none.textContent = "There is nothing in this repository to draw yet — "
+      + "no chapters, no plan and no parts. The lesson is under ✕.";
+    none.hidden = false;
+  } else if (none) {
+    none.hidden = true;
+  }
+}
+
+/* What the payload says, painted. The plane is NOT moved: a map that jumps back
+   to the origin because the tutor wrote a card is a map nobody can read while a
+   lesson is running.
+
+   Wrapped, and this is not defensive habit. This runs inside `render`, which is
+   what paints the lesson, and a map that threw on a payload would stop the
+   lesson painting at all -- a blank board in the middle of somebody's proof,
+   caused by the one surface on this page they were not using. A map that cannot
+   be drawn is a map that is not there; the lesson is untouched either way. */
+function paintMap(info, state) {
+  try { paintMapNow(info, state); }
+  catch (e) { mapDrawn = ""; }
+}
+
+function paintMapNow(info, state) {
+  mapInfo = info || null;
+  var can = !!(mapInfo && (mapInfo.nodes || []).length);
+  if (els.mapCount) {
+    els.mapCount.textContent = can
+      ? (mapInfo.nodes.length + (mapInfo.nodes.length === 1 ? " part" : " parts"))
+      : "";
+  }
+  if (els.mapTitle) {
+    els.mapTitle.textContent = (mapInfo && mapInfo.title)
+      || ((state && state.course) || "the map");
+  }
+  if (els.mapWhy) {
+    /* Said once, quietly, and only when it is true: this picture was derived
+       from what is on disk rather than drawn by anybody. */
+    els.mapWhy.textContent = (mapInfo && mapInfo.fallback && mapInfo.why)
+      ? mapInfo.why + " A tutor can draw a real one."
+      : "";
+  }
+  /* The glyph is there whether or not there is a map to show -- taking it away
+     is how a guarantee becomes a condition -- but it says so when there is
+     nothing behind it. */
+  mapControls(can);
+  if (!can) { mapDrawn = ""; return; }
+
+  var wide = (els.mapPlane.clientWidth || 0) >= MAP_STACK_AT;
+  var sign = JSON.stringify(mapInfo) + "|" + (wide ? "wide" : "stacked");
+  if (sign === mapDrawn) return;
+  mapDraw(mapInfo);
+  mapDrawn = sign;
+  if (!mapView.held) mapFit();
+  else mapClamp();
+  mapPaint();
+}
+
+function mapControls(can) {
+  var title = can ? "the map of this course"
+                  : "there is nothing in this repository to draw yet";
+  mapButtons().forEach(function (b) { b.title = title; });
+}
+
+/* Every control that opens the map: the one in the title bar, one in the head of
+   each drawer, and one on the document viewer. Found once -- they are all in the
+   markup, none of them is built at runtime, and this is read on every payload. */
+var mapWays = null;
+function mapButtons() {
+  if (!mapWays) {
+    mapWays = [];
+    var found = document.querySelectorAll(".to-map");
+    for (var i = 0; i < found.length; i++) mapWays.push(found[i]);
+  }
+  return mapWays;
+}
+
+/* ------------------------------------------------------------- the plane */
+/* Pan, pinch, wheel. The contact bookkeeping is `plane-core.js`, which the
+   writing surface uses too: which contacts are LIVE decides what a gesture is,
+   and a map that counted a finger whose lift was never delivered would zoom on
+   one finger and do nothing on two, exactly as the slate once did. */
+/* Made on the first contact rather than at load. Nothing on this page may fail
+   to start because a script that is not the lesson did not arrive: a board.js
+   that throws while loading is a blank screen, and the lesson has to be
+   reachable from every state this application can be in. */
+var mapHand = null;
+function mapFingers() {
+  if (!mapHand && window.Plane) mapHand = window.Plane.contacts({});
+  return mapHand;
+}
+
+function mapRoom() {
+  if (!window.Plane) return mapBox;
+  /* A third of a viewport of slack beyond the picture. Enough that a box at the
+     edge is not pinned against the glass; not so much that a flick leaves the
+     map off-screen, which looks exactly like a crash. */
+  return window.Plane.room(mapBox, els.mapPlane.clientWidth,
+                           els.mapPlane.clientHeight, mapView.k, 0.35);
+}
+
+function mapLimits() {
+  return { lo: Math.min(mapView.fit, 1) * 0.45,
+           hi: Math.max(mapView.fit, 1) * 3 };
+}
+
+function mapClamp() {
+  if (!window.Plane) return;
+  window.Plane.clamp(mapView, mapRoom(),
+                     els.mapPlane.clientWidth, els.mapPlane.clientHeight);
+}
+
+function mapPaint() {
+  els.mapSheet.style.transform =
+    "translate(" + mapView.ox + "px," + mapView.oy + "px) scale(" + mapView.k + ")";
+}
+
+/* WHERE THE MAP OPENS, and it is not "everything on the glass".
+
+   Fitting the whole picture by area is what makes a tall map unreadable: a
+   project with one lane and twelve steps is a narrow ribbon a thousand units
+   long, and squeezing that into an iPad's height puts it on screen at 68% in a
+   column a third of the width -- legible to nobody, and a first impression of
+   the feature that is worse than the empty board it replaced. The writing
+   surface learned this first and the rule is written on it: fit by WIDTH, never
+   by area, and scroll the height.
+
+   Capped at 1, because a map narrower than the glass is not a map to magnify.
+   The scale that comes out is `fit`, which every other limit is measured
+   against, and ⤢ is there for the other question -- show me all of it. */
+function mapFit() {
+  var cw = els.mapPlane.clientWidth, ch = els.mapPlane.clientHeight;
+  if (!cw || !ch || !(mapBox.x1 > 0) || !window.Plane) return;
+  mapView.fit = Math.min(1, cw / mapBox.x1);
+  mapView.k = mapView.fit;
+  mapView.ox = 0;
+  mapView.oy = 0;                      /* the top of it; clamp centres if short */
+  mapView.held = false;
+  mapClamp();
+  mapPaint();
+  /* And NOT remembered. A fit runs by itself whenever the picture is rebuilt or
+     the glass changes shape, and a view nobody chose must not overwrite the one
+     they did -- least of all before the landing rule has had a chance to read
+     it, which is how a course that was left on the map reopened in the lesson. */
+}
+
+/* ⤢ -- all of it, however small that has to be. The one gesture that answers
+   "where am I in this" rather than "what does this box say". */
+function mapWhole() {
+  var cw = els.mapPlane.clientWidth, ch = els.mapPlane.clientHeight;
+  if (!cw || !ch || !(mapBox.x1 > 0) || !window.Plane) return;
+  var lim = mapLimits();
+  window.Plane.frame(mapView, { x0: 0, y0: 0, x1: mapBox.x1, y1: mapBox.y1 },
+                     cw, ch, 12, lim.lo, lim.hi);
+  mapView.held = true;
+  mapClamp();
+  mapPaint();
+  mapRemember();
+}
+
+function mapZoom(k, cx, cy) {
+  if (!window.Plane) return;
+  var lim = mapLimits();
+  window.Plane.zoomAbout(mapView, k, cx, cy, lim.lo, lim.hi);
+  mapClamp();
+  mapPaint();
+  mapSettle();
+}
+
+els.mapPlane.addEventListener("pointerdown", function (ev) {
+  if (ev.pointerType === "mouse" && ev.button !== 0) return;
+  var hand = mapFingers();
+  if (!hand) return;
+  try { els.mapPlane.setPointerCapture(ev.pointerId); } catch (e) { /* not fatal */ }
+  hand.note(ev.pointerId, ev.clientX, ev.clientY);
+  hand.begin(mapView.k);
+});
+
+els.mapPlane.addEventListener("pointermove", function (ev) {
+  var hand = mapFingers();
+  if (!hand || !hand.has(ev.pointerId)) return;
+  var prev = hand.note(ev.pointerId, ev.clientX, ev.clientY);
+  var spread = hand.spread();
+  if (spread) {
+    var r = els.mapPlane.getBoundingClientRect();
+    mapZoom(spread.k, spread.cx - r.left, spread.cy - r.top);
+    return;
+  }
+  if (hand.live().length !== 1 || !prev) return;
+  mapView.ox += ev.clientX - prev.x;
+  mapView.oy += ev.clientY - prev.y;
+  mapView.held = true;
+  mapClamp();
+  mapPaint();
+  mapSettle();
+});
+
+/* A lift is caught at the window as well as at the plane. A finger that leaves
+   past the edge never delivers one to the element, and a contact that stays in
+   the map for ever is a phantom the next gesture is counted against. */
+["pointerup", "pointercancel"].forEach(function (t) {
+  window.addEventListener(t, function (ev) {
+    if (mapHand) mapHand.forget(ev.pointerId);
+  }, true);
+});
+
+els.mapPlane.addEventListener("wheel", function (e) {
+  e.preventDefault();
+  if (e.ctrlKey || e.metaKey) {
+    var r = els.mapPlane.getBoundingClientRect();
+    mapZoom(mapView.k * (e.deltaY < 0 ? 1.08 : 0.93),
+            e.clientX - r.left, e.clientY - r.top);
+    return;
+  }
+  mapView.ox -= e.deltaX;
+  mapView.oy -= e.deltaY;
+  mapView.held = true;
+  mapClamp();
+  mapPaint();
+  mapSettle();
+}, { passive: false });
+
+/* The plane is re-fitted when the glass changes shape, but only if nobody has
+   set the zoom themselves -- and the layout is rebuilt if the change crossed
+   the width at which lanes become rows. */
+window.addEventListener("resize", function () {
+  if (els.map.hidden) return;
+  /* Crossing the width at which lanes become rows is a different picture, and
+     `paintMap` already knows: the layout mode is part of the signature it
+     compares, so this is a rebuild only when it has actually changed. */
+  paintMap(mapInfo, (lastLive && lastLive.state) || {});
+  if (mapView.held) { mapClamp(); mapPaint(); } else { mapFit(); }
+});
+
+/* --------------------------------------------------- opening and leaving */
+function openMap(why) {
+  if (!(mapInfo && (mapInfo.nodes || []).length)) {
+    /* THE LESSON MUST ALWAYS BE REACHABLE, and a map with nothing on it is a
+       blank screen between somebody and their work. Say so where they are
+       rather than taking them somewhere empty. */
+    return false;
+  }
+  els.map.hidden = false;
+  document.body.classList.add("mapping");
+  mapDrawn = "";                       /* the plane had no size while hidden */
+  paintMap(mapInfo, (lastLive && lastLive.state) || {});
+  if (why !== "restored") mapRemember();
+  return true;
+}
+
+function closeMap() {
+  els.map.hidden = true;
+  document.body.classList.remove("mapping");
+  mapRemember();
+}
+
+function mapTap(id) {
+  mapHere = id;
+  var node = null;
+  (mapInfo && mapInfo.nodes || []).forEach(function (n) {
+    if (n.id === id) node = n;
+  });
+  var box = els.mapSheet.querySelectorAll(".node");
+  for (var i = 0; i < box.length; i++) {
+    box[i].classList.toggle("here", box[i].getAttribute("data-id") === id);
+  }
+  if (!node) return;
+  /* What a tap says, for now. The sheet of ways to work on this box -- learn it,
+     build it, be told what to write, be set problems -- is the next piece of
+     work; until it exists a tap says what the box IS, which is the half of the
+     question a diagram is for. */
+  var bits = [];
+  if (node.also) bits.push(node.also);
+  if (node.does) bits.push(node.does);
+  if ((node.files || []).length) {
+    bits.push(node.files.length === 1 ? node.files[0]
+                                      : node.files.length + " files");
+  }
+  els.mapSay.innerHTML = "";
+  var strong = document.createElement("strong");
+  strong.textContent = node.name;
+  els.mapSay.appendChild(strong);
+  var rest = document.createElement("span");
+  rest.textContent = " — " + (node.status || "unknown")
+                   + (bits.length ? " · " + bits.join(" · ") : "");
+  els.mapSay.appendChild(rest);
+  mapRemember();
+}
+
+els.mapClose.onclick = function () { closeMap(); };
+els.mapFit.onclick = function () { mapWhole(); };
+mapButtons().forEach(function (b) {
+  b.onclick = function () {
+    /* Whatever is over the lesson goes with it. A drawer left open behind the
+       map is a drawer sitting on top of the lesson when the map closes. */
+    [els.contents, els.review, els.scratch, els.papersPanel,
+     document.getElementById("history"), els.kind].forEach(function (panel) {
+      if (panel) panel.hidden = true;
+    });
+    if (els.paper && !els.paper.hidden) closePaper();
+    openMap();
+  };
+});
+
+/* ---------------------------------------- where a course opens, and why */
+/* A COURSE OPENS WHERE YOU LEFT IT.
+
+   Not always on the map. On the surface you were last on in this course, and if
+   that was the map, on the part of the map you were looking at -- the same pan
+   and zoom, with the box you last tapped still marked. Somebody three steps into
+   a derivation who taps their course must land in the derivation.
+
+   A course nobody has opened on this device yet, or one whose remembered
+   surface no longer exists, opens on the map. That is the default, and it is
+   the only time the map is put in front of anybody.
+
+   `localStorage`, and deliberately not `state.json`: two devices reading the
+   same course are two people looking at different parts of it, and that is
+   correct. It is a per-viewer convenience rather than state -- it can throw, it
+   can come back empty, and a private window or cleared site data wipes it -- so
+   every read and write is wrapped and the fallback is the map, which is the
+   default anyway. */
+var MAP_WHERE = "board.where.";
+/* Old enough to be a different week's intention rather than this evening's. */
+var MAP_WHERE_FRESH = 30 * 24 * 3600 * 1000;
+var mapLanded = false;
+var mapSettleTimer = null;
+
+function mapCourse() {
+  return ((lastLive && lastLive.state && lastLive.state.course) || "").trim();
+}
+
+function mapRemember() {
+  var course = mapCourse();
+  if (!course) return;
+  var here = { at: Date.now() };
+  if (!els.map.hidden) {
+    here.surface = "map";
+    here.x = mapView.ox; here.y = mapView.oy; here.k = mapView.k;
+    here.node = mapHere;
+  } else if (els.paper && !els.paper.hidden && paperOpen) {
+    here.surface = "document:" + paperOpen;
+  } else {
+    here.surface = "lesson";
+  }
+  try {
+    window.localStorage.setItem(MAP_WHERE + course, JSON.stringify(here));
+  } catch (e) { /* a private window, or no room. The map is the fallback. */ }
+}
+
+/* Writing on every frame of a pan would be a JSON encode and a storage write
+   sixty times a second. The plane is remembered once it has stopped moving. */
+function mapSettle() {
+  if (mapSettleTimer) clearTimeout(mapSettleTimer);
+  mapSettleTimer = setTimeout(function () {
+    mapSettleTimer = null;
+    mapRemember();
+  }, 400);
+}
+
+function mapRecall() {
+  var course = mapCourse();
+  if (!course) return null;
+  try {
+    var raw = window.localStorage.getItem(MAP_WHERE + course);
+    if (!raw) return null;
+    var here = JSON.parse(raw);
+    if (!here || typeof here !== "object") return null;
+    if (!here.at || Date.now() - here.at > MAP_WHERE_FRESH) return null;
+    return here;
+  } catch (e) { return null; }
+}
+
+/* Once per load, on the first payload that knows which course this is. */
+function mapLand() {
+  if (mapLanded || !mapCourse()) return;
+  mapLanded = true;
+  /* An address that asks for the map outranks anything remembered: it is
+     somebody tapping "map" on the writing surface a second ago. */
+  if (mapAsked()) { openMap(); return; }
+  var here = mapRecall();
+  if (!here) { openMap(); return; }          /* never opened here: the default */
+  if (here.surface === "lesson") return;     /* they were working; leave them */
+  if (typeof here.surface === "string" && here.surface.indexOf("document:") === 0) {
+    var kind = here.surface.slice("document:".length);
+    var id = kind.indexOf("doc/") === 0 ? kind.slice(4) : "";
+    var known = (readingInfo && readingInfo.documents || []).filter(function (d) {
+      return d.id === id;
+    })[0];
+    /* A document that has since moved is a surface that no longer exists, and
+       the rule for that is the map. */
+    if (known) { openDoc(known.id, known.name); return; }
+    openMap();
+    return;
+  }
+  if (here.surface !== "map") { openMap(); return; }
+  mapHere = here.node || "";
+  if (!openMap("restored")) return;
+  /* The same part of the map, at the same magnification. Only if the numbers
+     are numbers: a record half-written by a browser that ran out of room must
+     not leave the plane somewhere it cannot be panned back from. */
+  if (typeof here.k === "number" && here.k > 0
+      && typeof here.x === "number" && typeof here.y === "number") {
+    mapView.k = here.k;
+    mapView.ox = here.x;
+    mapView.oy = here.y;
+    mapView.held = true;
+    mapClamp();
+    mapPaint();
+  }
+}
+
+/* `/board?map=1`, which is what the slate's own map link is. Read once and then
+   taken out of the address, so a reload is not a second instruction. */
+function mapAsked() {
+  var asked = false;
+  try {
+    asked = /(^|[?&])map=1(&|$)/.test(window.location.search || "");
+    if (asked && window.history && window.history.replaceState) {
+      window.history.replaceState({}, "",
+        window.location.pathname
+        + (window.location.search || "").replace(/([?&])map=1(&|$)/, "$1")
+                                        .replace(/[?&]$/, ""));
+    }
+  } catch (e) { return false; }
+  return asked;
+}
+
+
 /* --------------------------------------------------------------- contents */
 /* A course is chapters and problem sets, and until now the board showed neither:
    the only way to a different chapter was somebody typing `board open` in a
@@ -5000,7 +5727,8 @@ document.getElementById("btn-papers").onclick = openPapers;
    that covers the whole glass needs more than one way out of it. */
 document.addEventListener("keydown", function (e) {
   if (e.key !== "Escape") return;
-  if (els.paper && !els.paper.hidden) closePaper();
+  if (els.map && !els.map.hidden) closeMap();
+  else if (els.paper && !els.paper.hidden) closePaper();
   else if (els.papersPanel && !els.papersPanel.hidden) els.papersPanel.hidden = true;
 });
 document.getElementById("btn-papers-close").onclick = function () {

@@ -316,6 +316,37 @@ decl(draw, 'top') === null
            + ' — its last entries fall off the bottom of the drawer');
 });
 
+// --- and the map is a panel of the same shape -------------------------------
+//
+// A head that does not move, a plane between, a foot that does not move. The
+// plane is the part that has to take the room that is left -- being inside a
+// fixed panel does not make an element fill it -- and it must clip rather than
+// scroll, because what moves inside it is a transform and not a scrollbar.
+{
+  const map = block('#map');
+  const plane = block('.map-plane');
+  map && /fixed/.test(decl(map, 'position') || '')
+    ? ok('the map covers the glass')
+    : fail('#map is not a fixed surface — it will lay out in the flow of the lesson');
+  /* The viewer paints its own ground behind the page; a transparent surface
+     borrows whatever is under it and comes out in the wrong theme. */
+  /var\(--paper/.test(decl(map, 'background') || '')
+    ? ok('and paints an explicit background from the tokens')
+    : fail('the map surface is transparent — it will take the host\'s theme');
+  const grows = /^1\b|^1 /.test(decl(plane, 'flex') || '');
+  grows && /hidden/.test(decl(plane, 'overflow') || '')
+    ? ok('the plane takes the room between the head and the foot, and clips')
+    : fail('the map plane does not fill the panel, or does not clip — the picture '
+           + 'will run off the bottom with nothing to scroll');
+  /none/.test(decl(plane, 'touch-action') || '')
+    ? ok('and the browser is told not to ask the main thread about a touch on it')
+    : fail('the plane has no touch-action, so every drag asks before it moves');
+  // `body.mapping` locks the lesson underneath, the way `body.papering` does.
+  /hidden/.test(decl(block('body.mapping'), 'overflow') || '')
+    ? ok('and the lesson underneath cannot take a scroll meant for the plane')
+    : fail('nothing locks the page behind the map');
+}
+
 console.log(errors.length ? '\n' + errors.length + ' FAILURES'
                           : '\nevery bar is where it belongs');
 process.exit(errors.length ? 1 : 0);

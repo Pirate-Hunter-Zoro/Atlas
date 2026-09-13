@@ -105,7 +105,7 @@ window.document.removeEventListener = function (type, fn, opts) {
 const blocking = (type) =>
   docListeners.filter((l) => l.type === type && !l.passive).length;
 
-for (const f of ['typeface.js', 'ink-clip.js', 'slate-core.js', 'annotate.js']) {
+for (const f of ['typeface.js', 'ink-clip.js', 'plane-core.js', 'slate-core.js', 'annotate.js']) {
   try { window.eval(fs.readFileSync(path.join(WEB, f), 'utf8')); }
   catch (e) { fail(f + ': ' + e.message); }
 }

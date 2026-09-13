@@ -61,7 +61,7 @@ window.requestAnimationFrame = (fn) => setTimeout(fn, 0);
 window.scrollTo = () => {};
 window.addEventListener('error', (e) => fail('uncaught: ' + e.message));
 
-for (const f of ['typeface.js', 'macros.js', 'slate-core.js', 'annotate.js']) {
+for (const f of ['typeface.js', 'macros.js', 'plane-core.js', 'slate-core.js', 'annotate.js']) {
   try { window.eval(fs.readFileSync(path.join(WEB, f), 'utf8')); }
   catch (e) { fail(f + ': ' + e.message); }
 }

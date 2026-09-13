@@ -40,7 +40,23 @@
        What stays out here is what a lesson actually uses; the rest is real but
        occasional, and lives one tap away rather than fighting for width. -->
   <div class="bar-right">
-    <button id="btn-contents" title="chapters, problem sets and past lessons">☰</button>
+    <!-- THE WAY TO THE MAP, and the first control in the row.
+         A course opens on a picture of its working parts rather than on an
+         empty board, and getting back to that picture has to be one gesture
+         from anywhere -- so this glyph is repeated in the head of every drawer
+         and on the document viewer, and the slate carries a link of its own.
+         One glyph and not a word: the bar already holds the course, the
+         chapter, the sitting badge and three controls, and a label that gets
+         cut in half is a label whose second half was the useful one.
+
+         It took the contents drawer's place, and the drawer went one tap away
+         under the ⋯ with everything else that is real but occasional. The
+         drawer is a fine index and it keeps every entry it had; it is simply
+         not the front door any more. A list cannot say that one part of a
+         project depends on another, and that -- not finding a name -- was the
+         difficulty. Seven controls in this row is a row that overlaps itself
+         on a tablet, which `test/link.js` has held the line on since it did. -->
+    <button id="btn-map" class="to-map" title="the map of this course">◈</button>
     <button id="btn-annotate" title="write on the lesson itself">✎ annotate</button>
     <a id="btn-slate" href="/slate" title="write with the Apple Pencil">✎ slate</a>
     <label id="btn-clip" for="file" title="attach a photo or a PDF">＋</label>
@@ -165,6 +181,7 @@
   <button id="btn-face" title="typeface">Aa  reading face</button>
   <button id="btn-theme" title="light / dark / auto">◐  light / dark</button>
   <button id="btn-notes-again" title="ask about annotations again" hidden>✎  ask about annotations</button>
+  <button id="btn-contents" title="chapters, problem sets, steps and documents">☰  contents</button>
   <button id="btn-scratch" title="photos and PDFs">▤  photos and PDFs</button>
   <button id="btn-history" title="past lessons" hidden>◷  past lessons</button>
   <button id="btn-print" title="print or save as PDF">⎙  print</button>
@@ -371,7 +388,7 @@
 <aside id="history" hidden>
   <div class="scratch-head">
     <strong>Past lessons</strong>
-    <button id="btn-history-close">✕</button>
+    <span class="head-acts"><button class="to-map" type="button" title="the map of this course">◈</button><button id="btn-history-close">✕</button></span>
   </div>
   <div id="history-list"></div>
   <div class="scratch-foot muted">Read only. The lesson you are in is on the board.</div>
@@ -384,7 +401,7 @@
 <aside id="contents" hidden>
   <div class="scratch-head">
     <strong>Contents</strong>
-    <button id="btn-contents-close">✕</button>
+    <span class="head-acts"><button class="to-map" type="button" title="the map of this course">◈</button><button id="btn-contents-close">✕</button></span>
   </div>
   <div id="contents-list"></div>
   <div class="scratch-foot muted">Opening one files the lesson you are in — it stays
@@ -404,7 +421,7 @@
 <aside id="review" hidden>
   <div class="scratch-head">
     <strong id="review-title">What should this review cover?</strong>
-    <button id="btn-review-close">✕</button>
+    <span class="head-acts"><button class="to-map" type="button" title="the map of this course">◈</button><button id="btn-review-close">✕</button></span>
   </div>
   <div id="review-list"></div>
   <div class="scratch-foot">
@@ -431,7 +448,7 @@
 <aside id="papers" hidden>
   <div class="scratch-head">
     <strong>Documents</strong>
-    <button id="btn-papers-close">✕</button>
+    <span class="head-acts"><button class="to-map" type="button" title="the map of this course">◈</button><button id="btn-papers-close">✕</button></span>
   </div>
   <div id="papers-list"></div>
   <div class="scratch-foot muted">Both are kept in the repository and staged for
@@ -451,16 +468,46 @@
   <div class="paper-bar">
     <strong id="paper-name">document</strong>
     <span id="paper-sub" class="muted"></span>
+    <button class="to-map" type="button" title="the map of this course">◈</button>
     <button id="paper-get" type="button" class="pushed-get">save a copy</button>
     <button id="paper-close" type="button" title="back to the lesson">✕</button>
   </div>
   <div id="paper-pages" class="paper-pages"></div>
 </div>
 
+<!-- THE MAP. The front door of a course: its working parts, what is done and
+     what is not, and a tap on any of them.
+
+     A plane rather than a page. Panning and pinching are `plane-core.js`, which
+     the writing surface uses too -- every rule in it was paid for by a gesture
+     that stopped working on somebody's iPad, and two copies of that would be
+     two copies to get wrong.
+
+     Inline SVG rather than canvas, and generated once per payload rather than
+     per frame: crisp at every zoom without a redraw, hit-testing for nothing,
+     themed from the same tokens as everything else, and the labels are real
+     text that can be selected and read aloud. No <foreignObject> -- Safari
+     renders it inconsistently -- so the labels are wrapped here by hand. -->
+<div id="map" class="map" hidden>
+  <div class="map-bar">
+    <strong id="map-title">the map</strong>
+    <span id="map-count" class="muted"></span>
+    <button id="map-fit" type="button" title="fit the whole map on the glass">⤢ fit</button>
+    <button id="map-close" type="button" title="back to the lesson">✕</button>
+  </div>
+  <div id="map-plane" class="map-plane">
+    <div id="map-sheet" class="map-sheet"></div>
+  </div>
+  <div id="map-foot" class="map-foot">
+    <span id="map-say" class="muted">Tap a box to see what it is.</span>
+    <span id="map-why" class="muted"></span>
+  </div>
+</div>
+
 <aside id="scratch" hidden>
   <div class="scratch-head">
     <strong>Scratch work</strong>
-    <button id="btn-scratch-close">✕</button>
+    <span class="head-acts"><button class="to-map" type="button" title="the map of this course">◈</button><button id="btn-scratch-close">✕</button></span>
   </div>
   <div id="scratch-list"></div>
   <!-- The file input has been in the page from the beginning and nothing ever
@@ -534,6 +581,9 @@
 <!-- One clipboard for every writing surface on the page. Before slate-core.js
      and annotate.js, both of which read it. -->
 <script src="/static/ink-clip.js"></script>
+<!-- What the hand is doing, and where the view is allowed to be. Read by
+     slate-core.js and by the map; before both. -->
+<script src="/static/plane-core.js"></script>
 <script src="/static/slate-core.js"></script>
 <script src="/static/annotate.js"></script>
 <!-- The lesson, photographed by the device that drew it. BEFORE board.js and

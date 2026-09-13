@@ -19,7 +19,13 @@
 <!-- face is applied before anything paints -->
 <body>
 
-<a id="back" href="/board" title="back to the board">‹ board</a>
+<!-- The two ways off this page, on one row. The map is the other thing a
+     full-screen surface has to be one gesture from: there is no state of this
+     application it cannot be reached from. The board reads `?map=1`. -->
+<div id="away">
+  <a id="back" href="/board" title="back to the board">‹ board</a>
+  <a id="tomap" href="/board?map=1" title="the map of this course">◈ map</a>
+</div>
 <div id="prompt" hidden><span class="kind"></span><span class="text"></span></div>
 <div id="slate"></div>
 
@@ -27,6 +33,9 @@
      marks on the lesson, so copying here and pasting there is one clipboard and
      not three. Before slate-core.js, which reads it. -->
 <script src="/static/ink-clip.js"></script>
+<!-- What the hand is doing, and where the view is allowed to be. Read by
+     slate-core.js and by the map; before both. -->
+<script src="/static/plane-core.js"></script>
 <script src="/static/slate-core.js"></script>
 <script src="/static/slate.js"></script>
 </body>

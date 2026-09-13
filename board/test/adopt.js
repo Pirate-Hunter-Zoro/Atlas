@@ -72,7 +72,7 @@ function surface(saved, onPages) {
     ? Promise.resolve({ json: () => Promise.resolve({ pages: pages }) })
     : new Promise(() => {}));
 
-  for (const f of ['typeface.js', 'slate-core.js']) {
+  for (const f of ['typeface.js', 'plane-core.js', 'slate-core.js']) {
     try { window.eval(fs.readFileSync(path.join(WEB, f), 'utf8')); }
     catch (e) { fail(f + ': ' + e.message); }
   }
@@ -192,7 +192,7 @@ function surface(saved, onPages) {
   const KEY = 'board.pages.n:Galois Theory:-';
   window.localStorage.setItem(KEY, JSON.stringify({ '0001': 1, '0005': 1 }));
 
-  for (const f of ['typeface.js', 'macros.js', 'slate-core.js', 'annotate.js', 'board.js']) {
+  for (const f of ['typeface.js', 'macros.js', 'plane-core.js', 'slate-core.js', 'annotate.js', 'board.js']) {
     try { window.eval(fs.readFileSync(path.join(WEB, f), 'utf8')); }
     catch (e) { fail(f + ': ' + e.message); }
   }
@@ -283,7 +283,7 @@ function surface(saved, onPages) {
   window.localStorage.setItem(KEY, JSON.stringify({ '0001#0': { p: 4 },
                                                     '0005#0': { p: 2 } }));
 
-  for (const f of ['typeface.js', 'macros.js', 'slate-core.js', 'annotate.js', 'board.js']) {
+  for (const f of ['typeface.js', 'macros.js', 'plane-core.js', 'slate-core.js', 'annotate.js', 'board.js']) {
     try { window.eval(fs.readFileSync(path.join(WEB, f), 'utf8')); }
     catch (e) { fail(f + ': ' + e.message); }
   }

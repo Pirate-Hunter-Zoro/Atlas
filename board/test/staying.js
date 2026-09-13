@@ -93,7 +93,7 @@ sw.register = () => Promise.resolve({ update() {} });
 Object.defineProperty(window.navigator, 'serviceWorker', { value: sw, configurable: true });
 Object.defineProperty(window, 'isSecureContext', { value: true, configurable: true });
 
-for (const f of ['typeface.js', 'macros.js', 'slate-core.js', 'annotate.js']) {
+for (const f of ['typeface.js', 'macros.js', 'plane-core.js', 'slate-core.js', 'annotate.js']) {
   try { window.eval(fs.readFileSync(path.join(WEB, f), 'utf8')); }
   catch (e) { fail(f + ': ' + e.message); }
 }
@@ -183,7 +183,7 @@ const handOver = async () => {
   sw2.register = () => Promise.resolve({ update() {} });
   Object.defineProperty(w2.navigator, 'serviceWorker', { value: sw2, configurable: true });
   Object.defineProperty(w2, 'isSecureContext', { value: true, configurable: true });
-  for (const f of ['typeface.js', 'macros.js', 'slate-core.js', 'annotate.js']) {
+  for (const f of ['typeface.js', 'macros.js', 'plane-core.js', 'slate-core.js', 'annotate.js']) {
     w2.eval(fs.readFileSync(path.join(WEB, f), 'utf8'));
   }
   let src2 = fs.readFileSync(path.join(WEB, 'board.js'), 'utf8');

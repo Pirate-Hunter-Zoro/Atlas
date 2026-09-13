@@ -30,15 +30,11 @@ var AUTOSAVE_MS = 1200;
    once, and the picture is a hundred-odd milliseconds of main thread that must
    never land under a pen. See `save`. */
 var PICTURE_MS = 4000;
-/* How long a contact may sit in the map, unheard from, before it is taken to be
-   one whose lift was never delivered. No gesture is held this long. */
-var TOUCH_STALE = 20000;
-/* And a much tighter bound for the arithmetic that decides what a gesture IS.
-   A live contact reports on every frame it moves, and a hand holding a pinch
-   still reports as it settles -- so a contact that has said nothing for this
-   long while another is moving is not part of the gesture in hand. Long enough
-   that a finger resting perfectly still through a slow pinch is kept. */
-var GESTURE_STALE = 2500;
+/* WHAT THE HAND IS DOING, and where the view is allowed to be, are not this
+   file's any more: they are `plane-core.js`, because the map is a plane too and
+   every one of those rules was written after a gesture died on somebody's iPad.
+   The staleness bounds, the pinch pair, the clamp and the zoom arithmetic all
+   live there and both surfaces read the same copy. */
 var LIVE_IDLE_MS = 3000;
 var LIVE_MIN_GAP_MS = 15000;
 var UNDO_DEPTH = 60;
@@ -389,79 +385,33 @@ function create(opts) {
      contact that is down for ever would mean a picture that is never encoded.
      No gesture is held for twenty seconds; a contact that old is one whose lift
      was lost. */
-  function handOnGlass() {
-    if (!touches) return false;
-    var now = Date.now();
-    var ids = Object.keys(touches);
-    for (var i = 0; i < ids.length; i++) {
-      var t = touches[ids[i]];
-      if (t && now - (t.at || 0) < TOUCH_STALE) return true;
-    }
-    return false;
-  }
+  function handOnGlass() { return hand.onGlass(); }
 
   /* WHICH CONTACTS ARE ACTUALLY PART OF THE GESTURE IN HAND.
 
-     Everything below decides what a gesture is by COUNTING this map -- one
-     contact pans, two pinch -- so a contact that should not be in it does not
-     merely add noise, it changes the answer. A finger whose lift was never
-     delivered turned one moving finger into a pinch against a frozen phantom,
-     and turned a real two-finger pinch into three entries that matched neither
-     branch and did nothing.
+     Everything below decides what a gesture is by COUNTING the contacts -- one
+     pans, two pinch -- so a contact that should not be counted does not merely
+     add noise, it changes the answer. A finger whose lift was never delivered
+     turned one moving finger into a pinch against a frozen phantom, and turned
+     a real two-finger pinch into three entries that matched neither branch and
+     did nothing.
 
-     A lift is now caught at the window as well as at the sheet, which is the
-     first line of defence and the same one `penDown` already had. This is the
-     second: anything that has not reported since `GESTURE_STALE` is dropped
-     before it is counted. Both, because the cost of being wrong here is the
-     writing surface not answering, and that has cost an evening before. */
-  function liveTouches() {
-    var now = Date.now();
-    var ids = Object.keys(touches);
-    var live = [];
-    for (var i = 0; i < ids.length; i++) {
-      var t = touches[ids[i]];
-      if (!t || now - (t.at || 0) > GESTURE_STALE) { delete touches[ids[i]]; continue; }
-      live.push(ids[i]);
-    }
-    return live;
-  }
+     The map, its expiry and the pinch pair are `plane-core.js` now, because the
+     map surface counts fingers the same way and two copies of this would be two
+     copies to get wrong. What stays here is everything about the PEN, which is
+     this surface's alone. */
+  function liveTouches() { return hand.live(); }
 
   /* Forgetting one contact, and ending the pinch if it was one of the pair.
 
-     One function, because a lift is caught in two places -- at the sheet, and
-     at the window for a finger that left past the sheet's edge -- and the two
-     must do the same thing. They did not: the window's copy deleted the contact
-     and the sheet's copy, running afterwards, then found nothing to delete and
+     One call, because a lift is caught in two places -- at the sheet, and at
+     the window for a finger that left past the sheet's edge -- and the two must
+     do the same thing. They did not: the window's copy deleted the contact and
+     the sheet's copy, running afterwards, then found nothing to delete and
      skipped the `zoomSettled` that pays for the crisp repaint. A pinch that
-     ended at the window left the page soft.
-
-     Idempotent, so whichever hears the lift first does the work and the other
-     is a no-op. */
-  function forgetContact(id) {
-    var had = !!touches[id];
-    if (had) delete touches[id];
-    /* The pinch ends when one of ITS OWN pair leaves, not when the map happens
-       to drop below two: a palm resting alongside kept the count up and left
-       the surface soft after the fingers had gone. */
-    if (pinch && !(touches[pinch.ids[0]] && touches[pinch.ids[1]])) {
-      pinch = null;
-      /* Both fingers accounted for: draw it properly now. */
-      zoomSettled();
-    }
-    return had;
-  }
-
-  /* The two contacts a pinch is between: the two most recently heard from, so a
-     palm that lands beside two fingers already pinching cannot take the gesture
-     over or stop it. Counting exactly two used to mean a third contact -- the
-     heel of a hand arriving late -- silently ended the pinch. */
-  function pinchPair(live) {
-    if (live.length < 2) return null;
-    var sorted = live.slice().sort(function (a, b) {
-      return (touches[b].at || 0) - (touches[a].at || 0);
-    });
-    return [sorted[0], sorted[1]];
-  }
+     ended at the window left the page soft. Idempotent, so whichever hears the
+     lift first does the work and the other is a no-op. */
+  function forgetContact(id) { return hand.forget(id); }
 
   /* A PEN is never a palm, whatever the id says.
 
@@ -481,7 +431,10 @@ function create(opts) {
     return true;
   }
   var saveTimer = null, liveTimer = null, rafPending = false;
-  var touches = {}, pinch = null;
+  /* The fingers on the glass. `onPinchEnd` fires when a pinch ends because one
+     of its own pair lifted, which is the moment the stretched preview has to be
+     paid for with a proper repaint. */
+  var hand = window.Plane.contacts({ onPinchEnd: function () { zoomSettled(); } });
 
   /* ------------------------------------------------------------ the DOM */
   /* One row, no horizontal scrolling, and everything that matters reachable
@@ -772,14 +725,14 @@ function create(opts) {
   function reach() {
     var p = page();
     var vw = wrap.clientWidth / view.k, vh = wrap.clientHeight / view.k;
-    var mx = vw * ROOM, my = vh * ROOM;
     var x0 = 0, y0 = 0, x1 = p ? p.w : vw, y1 = p ? p.h : vh;
     var b = inkBox();
     if (b) {
       x0 = Math.min(x0, b.x0); y0 = Math.min(y0, b.y0);
       x1 = Math.max(x1, b.x1); y1 = Math.max(y1, b.y1);
     }
-    return { x0: x0 - mx, y0: y0 - my, x1: x1 + mx, y1: y1 + my };
+    return window.Plane.room({ x0: x0, y0: y0, x1: x1, y1: y1 },
+                             wrap.clientWidth, wrap.clientHeight, view.k, ROOM);
   }
 
   /* ------------------------------------------------------------ the view */
@@ -832,13 +785,9 @@ function create(opts) {
   function fitContent() {
     var b = inkBox();
     if (!b || !wrap.clientWidth) return fitPage();
-    var pad = 24;
-    var w = (b.x1 - b.x0) + pad * 2, h = (b.y1 - b.y0) + pad * 2;
-    var k = Math.min(wrap.clientWidth / w, wrap.clientHeight / h);
-    view.k = Math.max(view.fit * ZOOM_MIN, Math.min(view.fit * ZOOM_MAX, k));
+    window.Plane.frame(view, b, wrap.clientWidth, wrap.clientHeight, 24,
+                       view.fit * ZOOM_MIN, view.fit * ZOOM_MAX);
     view.held = true;
-    view.ox = (wrap.clientWidth - (b.x1 - b.x0) * view.k) / 2 - b.x0 * view.k;
-    view.oy = (wrap.clientHeight - (b.y1 - b.y0) * view.k) / 2 - b.y0 * view.k;
     clampView();
     invalidate();
   }
@@ -849,24 +798,14 @@ function create(opts) {
     /* The old rule pinned the view to the page box and centred anything smaller
        than the surface, which is why zooming out found a wall a screen away and
        why the surface sprang back to the middle when you tried to pan past it. */
-    var r = reach();
-    var cw = wrap.clientWidth, ch = wrap.clientHeight;
-    var w = (r.x1 - r.x0) * view.k, h = (r.y1 - r.y0) * view.k;
-    if (w <= cw) view.ox = (cw - w) / 2 - r.x0 * view.k;
-    else view.ox = Math.min(-r.x0 * view.k, Math.max(cw - r.x1 * view.k, view.ox));
-    if (h <= ch) view.oy = (ch - h) / 2 - r.y0 * view.k;
-    else view.oy = Math.min(-r.y0 * view.k, Math.max(ch - r.y1 * view.k, view.oy));
+    window.Plane.clamp(view, reach(), wrap.clientWidth, wrap.clientHeight);
   }
 
   function setZoom(k, cx, cy) {
-    k = Math.max(view.fit * ZOOM_MIN, Math.min(view.fit * ZOOM_MAX, k));
-    view.held = true;
     var r = sheetRect();
     if (cx === undefined) { cx = r.width / 2; cy = r.height / 2; }
-    var lx = (cx - view.ox) / view.k, ly = (cy - view.oy) / view.k;
-    view.k = k;
-    view.ox = cx - lx * view.k;
-    view.oy = cy - ly * view.k;
+    window.Plane.zoomAbout(view, k, cx, cy,
+                           view.fit * ZOOM_MIN, view.fit * ZOOM_MAX);
     clampView();
     invalidate();
   }
@@ -1508,9 +1447,7 @@ function create(opts) {
          as long as it stays there. Clearing `touches` alone was not enough:
          a contact that is merely forgotten is a contact that gets re-read as a
          fresh finger by the next move it makes. */
-      Object.keys(touches).forEach(function (id) { palms[id] = Date.now(); });
-      touches = {};
-      pinch = null;
+      hand.clear().forEach(function (id) { palms[id] = Date.now(); });
     }
     ev.preventDefault();
     /* A pointer the sheet never received natively -- a stroke handed on from a
@@ -1546,14 +1483,8 @@ function create(opts) {
         palms[ev.pointerId] = Date.now();
         return;
       }
-      touches[ev.pointerId] = { x: ev.clientX, y: ev.clientY, at: Date.now() };
-      var pair = pinchPair(liveTouches());
-      if (pair) {
-        var a = touches[pair[0]], b = touches[pair[1]];
-        pinch = { d: Math.hypot(a.x - b.x, a.y - b.y), k: view.k,
-                  ids: [pair[0], pair[1]] };
-        zoomingNow();
-      }
+      hand.note(ev.pointerId, ev.clientX, ev.clientY);
+      if (hand.begin(view.k)) zoomingNow();
       /* A finger scrolls unless it has been told to write. It used to be the
          other way about until a pen had been seen at least once, which meant the
          first swipe of every session drew a line across the page. */
@@ -1595,10 +1526,9 @@ function create(opts) {
     if (ev.pointerType === "pen") lastPenAt = Date.now();
     else if (ev.pointerType === "touch") lastHandAt = Date.now();
     if (isPalm(ev)) return;
-    if (touches[ev.pointerId]) {
-      var prev = touches[ev.pointerId];
-      touches[ev.pointerId] = { x: ev.clientX, y: ev.clientY, at: Date.now() };
-      var live = liveTouches();
+    if (hand.has(ev.pointerId)) {
+      var prev = hand.note(ev.pointerId, ev.clientX, ev.clientY);
+      var live = hand.live();
       /* The heel of a hand is a touch. With a finger set to scroll it would drag
          the canvas out from under the nib mid-word, so anything the hand does is
          ignored for a moment after the pen last reported. */
@@ -1607,13 +1537,11 @@ function create(opts) {
          still down. Re-choosing them on every move is how a third contact takes
          a gesture over halfway through; picking them by count is how it stops
          one dead. */
-      var a = pinch && pinch.ids && touches[pinch.ids[0]];
-      var b = pinch && pinch.ids && touches[pinch.ids[1]];
-      if (pinch && a && b) {
+      var spread = hand.spread();
+      if (spread) {
         var r = sheetRect();
         zoomingNow();
-        setZoom(pinch.k * (Math.hypot(a.x - b.x, a.y - b.y) / pinch.d),
-                (a.x + b.x) / 2 - r.left, (a.y + b.y) / 2 - r.top);
+        setZoom(spread.k, spread.cx - r.left, spread.cy - r.top);
         return;
       }
       if (live.length === 1 && !drawing && !lasso && !dragging) {

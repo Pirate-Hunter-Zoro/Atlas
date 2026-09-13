@@ -21,6 +21,7 @@ const fail = (m) => { errors.push(m); console.log('FAIL ' + m); };
 const sandbox = { window: {}, document: { createElement: () => ({ getContext: () => ({}) }) } };
 sandbox.window.document = sandbox.document;
 vm.createContext(sandbox);
+vm.runInContext(fs.readFileSync(path.join(WEB, 'plane-core.js'), 'utf8'), sandbox);
 vm.runInContext(fs.readFileSync(path.join(WEB, 'slate-core.js'), 'utf8'), sandbox);
 
 const forPaper = sandbox.window.Slate && sandbox.window.Slate.forPaper;

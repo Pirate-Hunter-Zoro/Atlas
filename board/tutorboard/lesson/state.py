@@ -8,7 +8,11 @@ import time
 
 from .. import machine, processes
 from ..course import homework, paper, plan, reading, review, syllabus, walk
-from . import cards
+# `map` is a builtin, and a module called `map` imported under its own name
+# would shadow it for the rest of this file. The file keeps the name the board
+# calls the thing; the binding does not.
+from ..course import map as mapping
+from . import archive, cards
 
 
 def load_agent(repo):
@@ -185,6 +189,27 @@ def load_reading(repo):
     """
     try:
         return reading.status(repo)
+    except Exception:                                        # noqa: BLE001
+        return None
+
+
+def load_map(repo):
+    """The picture of this repository, which is the way into it.
+
+    A course used to open on an empty board, and the drawer that came before
+    this one lists what a repository holds without saying how any of it fits
+    together -- which is a fine index and a poor front door. See
+    `course/mapping.py`.
+
+    Every repository gets one. Where nobody has drawn a map, it is derived from
+    what is on disk -- chapters, or the steps in the plan, or the repository's
+    own parts -- and says so. The past lessons go in because they are the only
+    record this board keeps of work actually finished, and a box that is done
+    should not be painted as though nobody had started it.
+    """
+    try:
+        return mapping.status(repo.root, repo.state(),
+                              archive.list_archive(repo))
     except Exception:                                        # noqa: BLE001
         return None
 
