@@ -1,6 +1,8 @@
-"""Stage 1a: Whisper transcription, then wav2vec2 forced alignment.
+"""Stage 1a-ii: forced alignment. Words in, word times out.
 
-Needs whisperx, so this imports only in asr_env.
+Needs whisperx, so this imports only in asr_env -- which is why the TYPISTS live in
+psych_asr/asr/typists.py instead, stdlib at import time, and why a NeMo typist's words
+arrive here through a file rather than a function call.
 
 These are passes 1 and 2 of the original four-pass Stage 1, kept as ONE function because
 they run ONCE per session and every candidate diarizer fans off the identical transcript
@@ -67,26 +69,56 @@ def transcribe_and_align(decoded_audio, model_dir, batch_size=16, device="cuda")
     WHY ALIGNMENT MUST PRECEDE DIARIZATION: the join is purely temporal, and Whisper's
     native segment edges are loose enough that a boundary landing inside a speaker change
     would stamp words onto the wrong person. Word-level times make the join tight.
-    """
-    # IN: model dir path   OUT: FasterWhisperPipeline (Whisper + VAD + tokenizer)
-    pipeline_model = whisperx.load_model(
-        str(model_dir), device=device, compute_type="float16", language="en", local_files_only=True,
-    )
-    # IN: (N,)   OUT: {"segments": [{text, start, end, avg_logprob}, ...], "language": str}
-    processed_audio = pipeline_model.transcribe(
-        decoded_audio, batch_size=batch_size, print_progress=True,
-    )
 
-    # IN: language code   OUT: (wav2vec2 model, metadata dict)
-    alignment_model, metadata_dict = whisperx.load_align_model(processed_audio["language"], device=device)
+    THIS IS NOW A COMPOSITION of the two halves below, and it is kept because it is the
+    single-typist path the regression gate compares against byte for byte. Anything that
+    varies the typist goes through psych_asr.cli.transcribe and psych_asr.cli.align_words
+    instead, which is the same two passes with a file between them.
+    """
+    from . import typists
+
+    processed_audio = typists.transcribe_faster_whisper(
+        decoded_audio, model_dir, batch_size=batch_size, device=device,
+    )
+    align_result = align_segments(processed_audio["segments"], processed_audio["language"],
+                                  decoded_audio, device=device)
+    return align_result, len(processed_audio["segments"])
+
+
+def align_segments(segments, language, decoded_audio, stopwatch=None, device="cuda"):
+    """PASS 2 alone: re-time any typist's words against the waveform.
+
+    IN:  segments      -- a typist's list of {"text", "start", "end", ...}, in time order
+         language      -- the language code the typist reported, "en" here
+         decoded_audio -- the (N,) array from load_audio
+         stopwatch     -- a torchaudio bundle name, or None for whisperx's own default for
+                          this language (WAV2VEC2_ASR_BASE_960H for English)
+    OUT: {"segments": [...+ "words"], "word_segments": [...], "language"} -- no speaker keys.
+
+    THE STOPWATCH IS AN AXIS OF THE GRID, WHICH IS WHY IT IS AN ARGUMENT. The default is
+    the SMALL wav2vec2 trained on 960 hours of people reading audiobooks; therapy audio is
+    spontaneous, disfluent and overlapped, so "the default is fine" is a claim nobody has
+    tested. Passing a bundle name here is how it gets tested.
+
+    For English, load_align_model resolves the name through torchaudio.pipelines and fetches
+    it from download.pytorch.org into TORCH_HOME -- NOT a Hugging Face download, so
+    HF_HUB_OFFLINE does not cover it and TORCH_HOME must be exported by the job.
+
+    Alignment RE-SPLITS segments at sentence boundaries (via nltk punkt_tab), so the aligned
+    segment count is normally HIGHER than what went in. align() returns only "segments" and
+    "word_segments" and does NOT carry "language" forward, so it is re-attached here.
+    """
+    # IN: language code (+ optional bundle name)   OUT: (wav2vec2 model, metadata dict)
+    alignment_model, metadata_dict = whisperx.load_align_model(
+        language, device=device, model_name=stopwatch,
+    )
     # IN: segments list + (N,)   OUT: {"segments": [...+ "words"], "word_segments": [...]}
     align_result = whisperx.align(
-        processed_audio["segments"], alignment_model, metadata_dict, decoded_audio,
+        segments, alignment_model, metadata_dict, decoded_audio,
         device=device, print_progress=True,
     )
-    align_result["language"] = processed_audio["language"]
-
-    return align_result, len(processed_audio["segments"])
+    align_result["language"] = language
+    return align_result
 
 
 def format_alignment_summary(align_result, asr_segment_count):

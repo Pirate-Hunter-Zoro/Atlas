@@ -57,3 +57,34 @@ def test_more_than_one_session_in_the_directory_is_refused(tmp_path):
     (tmp_path / "B.aligned.json").write_text("{}")
     with pytest.raises(SystemExit):
         naming.find_sole_stem(tmp_path)
+
+
+def test_the_stage_1a_seam_names_the_typist_and_the_stopwatch():
+    """A grid cell is a typist, a stopwatch and a name-tagger. Stage 1a names the first two;
+    Stage 1b appends the third, so a two-part arm here is half a cell name on purpose."""
+    assert naming.asr_path("d", "S1", "parakeet").name == "S1.parakeet.asr.json"
+    assert naming.aligned_path("d", "S1").name == "S1.aligned.json"
+    assert (naming.aligned_path("d", "S1", "large-v3+wav2vec2-base").name
+            == "S1.large-v3+wav2vec2-base.aligned.json")
+
+
+def test_a_typist_name_containing_a_dot_survives_the_round_trip():
+    """"large-v3.1" splits into "large-v3" under any naive parse. Suffix stripping does not."""
+    written = naming.asr_path("d", "S1", "large-v3.1")
+    assert naming.arm_from(written, "S1", naming.ASR_SUFFIX) == "large-v3.1"
+
+
+def test_a_typist_whose_job_crashed_is_absent_rather_than_fatal(tmp_path):
+    for name in ["S1.large-v3.asr.json", "S1.parakeet.asr.json"]:
+        (tmp_path / name).write_text("{}")
+    assert [typist for typist, _ in naming.find_asr_transcripts(tmp_path, "S1")] == [
+        "large-v3", "parakeet"]
+
+
+def test_the_asr_seam_is_not_discovered_as_a_diarization_arm(tmp_path):
+    """Stage 1a-i's artifact lives beside Stage 1b's. If the arm globs picked it up, the
+    typist would enrol itself as a sixth diarizer in the bake-off it is an axis of."""
+    (tmp_path / "S1.parakeet.asr.json").write_text("{}")
+    (tmp_path / "S1.community-1.rttm").write_text("")
+    assert [arm for arm, _ in naming.find_arm_rttms(tmp_path, "S1")] == ["community-1"]
+    assert naming.find_arm_transcripts(tmp_path, "S1") == []

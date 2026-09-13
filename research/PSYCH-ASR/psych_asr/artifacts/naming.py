@@ -8,7 +8,8 @@ FROM STAGE 1b ONWARD, so which model produced which transcript is a property of 
 rather than of a note somewhere -- and Stage 1c derives the arm from the RTTM's own name,
 which is why adding a fifth arm needs no change to the join.
 
-    <stem>.aligned.json                 Stage 1a, no speaker keys, ONE per session
+    <stem>.<typist>.asr.json            Stage 1a-i, one typist's untimed words (PHI)
+    <stem>.aligned.json                 Stage 1a-ii, no speaker keys
     <stem>.<arm>.rttm                   Stage 1b, that arm's speaker turn table
     <stem>.<arm>.exclusive.rttm         Stage 1b baseline only, the overlap-free view
     <stem>.<arm>.diarized.json          Stage 1c, the machine artifact
@@ -46,6 +47,7 @@ dot in it. The parsing is here now, and it is done by exact suffix rather than b
 
 from pathlib import Path
 
+ASR_SUFFIX = ".asr.json"
 ALIGNED_SUFFIX = ".aligned.json"
 DIARIZED_SUFFIX = ".diarized.json"
 TRANSCRIPT_SUFFIX = ".transcript.txt"
@@ -89,9 +91,32 @@ def arm_from(path, stem, suffix):
     return base[len(prefix):] if base.startswith(prefix) else base
 
 
-def aligned_path(directory, stem):
-    """IN: output directory + stem   OUT: Path to <stem>.aligned.json."""
-    return Path(directory) / f"{stem}{ALIGNED_SUFFIX}"
+def asr_path(directory, stem, typist):
+    """IN: output directory + stem + typist   OUT: Path to <stem>.<typist>.asr.json.
+
+    Stage 1a-i's artifact: ONE typist's segments, with loose boundaries and no word-level
+    times, before any stopwatch has seen them. PHI -- it carries verbatim session text.
+
+    It exists because a typist and a stopwatch do not share an environment. faster-whisper
+    lives in asr_env and the NVIDIA models live in nemo_env, so the two passes that used to
+    be one function are now two jobs and this file is what passes between them. That is the
+    RTTM seam of Stage 1b, cut again for Stage 1a.
+    """
+    return Path(directory) / f"{stem}.{typist}{ASR_SUFFIX}"
+
+
+def aligned_path(directory, stem, arm=None):
+    """IN: output directory + stem + optional arm   OUT: Path to the aligned transcript.
+
+    Without an arm: <stem>.aligned.json, the un-armed name the single-typist Stage 1 has
+    always written, and the name the regression gate identifies its fixture by.
+
+    With one: <stem>.<arm>.aligned.json, where the arm names the typist and the stopwatch
+    that produced it -- "large-v3+wav2vec2-base". The third component of a grid cell, the
+    name-tagger, is appended by Stage 1b, so the arm here is deliberately half a cell name.
+    """
+    name = f"{stem}.{arm}" if arm else stem
+    return Path(directory) / f"{name}{ALIGNED_SUFFIX}"
 
 
 def rttm_path(directory, stem, arm):
@@ -149,6 +174,11 @@ def find_sole_stem(stage1_dir):
 
     Raises SystemExit naming the count when it is not exactly one, because "which session"
     is not something to guess at when the answer decides which files get overwritten.
+
+    ONCE THE TYPIST GRID RUNS THIS STOPS FINDING ONE. Each typist/stopwatch pair writes its
+    own <stem>.<arm>.aligned.json, and a dotted arm is indistinguishable from a dotted stem,
+    so the count goes to eight and every caller must pass --stem. That is the intended
+    failure: it says so and stops rather than picking a cell at random.
     """
     aligned = sorted(Path(stage1_dir).glob(f"*{ALIGNED_SUFFIX}"))
     if len(aligned) != 1:
@@ -172,6 +202,18 @@ def find_arm_rttms(stage1_dir, stem):
             continue
         found.append((arm_from(path, stem, RTTM_SUFFIX), path))
     return found
+
+
+def find_asr_transcripts(stage1_dir, stem):
+    """IN: Stage 1 directory + stem   OUT: sorted list of (typist, Path) for every .asr.json.
+
+    Same discovery-by-glob reasoning as find_arm_rttms: a typist whose job crashed is simply
+    absent from the bake-off, which is a visible result rather than a raised exception.
+    """
+    return [
+        (arm_from(path, stem, ASR_SUFFIX), path)
+        for path in sorted(Path(stage1_dir).glob(f"{stem}.*{ASR_SUFFIX}"))
+    ]
 
 
 def find_arm_transcripts(stage1_dir, stem):

@@ -97,6 +97,48 @@ Two consequences for the plan below:
     scorer do not care which typist ran — the RTTM seam of 1b, done again for 1a.
     Cut that seam FIRST; it is the whole reason the diarizer swap was cheap.
 
+    ACTIVE-BUILD LEDGER (opened 2026-09-13). Delete this whole block when step 1
+    lands; the durable parts graduate into REFERENCE CONVENTIONS.
+    (DONE: the seam is cut. Stage 1a is now TWO jobs with a file between them.
+      - psych_asr/asr/typists.py — the registry, STDLIB-ONLY AT IMPORT so --typist
+        is checkable before a GPU is allocated. Four entries, each naming its env.
+        check_segment_contract() is the seam's only guarantee.
+      - psych_asr/asr/align.py — align_segments(segments, language, audio,
+        stopwatch) is pass 2 alone; the stopwatch is a torchaudio BUNDLE NAME and
+        therefore an axis. transcribe_and_align is now a composition of the two
+        halves and is kept only because the regression gate compares it byte for
+        byte.
+      - psych_asr/cli/transcribe.py -> <stem>.<typist>.asr.json
+      - psych_asr/cli/align_words.py -> <stem>.<typist>+<stopwatch>.aligned.json
+      - slurm_jobs/stage1a_transcribe.sbatch takes the typist and PICKS THE ENV
+        FROM IT; stage1a_align.sbatch is always asr_env.
+      - warm_align_cache takes --stopwatch, so the large bundle can be staged.
+      - tests/test_typists.py + four cases in test_naming.py. 122 tests pass.)
+    TRAPS ALREADY PAID FOR:
+      1. whisperx and NeMo cannot be imported into one process. That is WHY the
+         seam is a file and not a function argument. cli/transcribe.py imports
+         whisperx inside an if, so it still starts under nemo_env.
+      2. find_sole_stem() globs *.aligned.json and a dotted arm is
+         indistinguishable from a dotted stem. Once the grid runs it finds eight
+         and raises. Every grid-aware caller must pass --stem.
+      3. A typist's OWN word times are discarded. Keeping them would confound the
+         typist axis with the stopwatch axis, which is the one thing the cube
+         exists to separate.
+      4. whisperx.load_align_model(model_name=...) routes a name through
+         torchaudio.pipelines.__all__. Both bundle names verified present in
+         asr_env on 2026-09-13.
+    STILL OPEN ON STEP 1:
+      a. NOTHING HAS RUN ON AUDIO. The seam is unit-tested and import-checked
+         only; no GPU job has been submitted with it.
+      b. large-v3-turbo, Parakeet and Canary are NOT STAGED. config.py names
+         faster-whisper-large-v3-turbo, parakeet-tdt-0.6b-v2 and canary-1b-flash
+         as placeholders — the exact checkpoints are UNVERIFIED and so are their
+         licences.
+      c. The NeMo call path (restore_from + transcribe(timestamps=True)) has not
+         been run against the installed nemo_toolkit even once.
+      d. Awaiting the user: does a non-commercial typist still enter the bake-off
+         as a measurement, or is it dropped?
+
   STEP 2. THE STOPWATCH — AND THE REFERENCE RTTM IT UNBLOCKS. (Added 2026-09-09.)
     Two jobs, and the first is worth more than the second.
     2a. RE-ALIGN MADISON'S CORRECTED WORDS TO THE WAVEFORM. Take the corrected

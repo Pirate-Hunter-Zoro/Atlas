@@ -291,6 +291,8 @@ So the interchange format is **RTTM**, and Stage 1 splits at that seam:
 | Step | Entry point | Env | In | Out |
 | --- | --- | --- | --- | --- |
 | 1a ASR + alignment | `psych_asr.cli.run_asr` | `asr_env`, GPU | one 16 kHz WAV | `<stem>.aligned.json` — no speaker keys |
+| 1a-i transcribe | `psych_asr.cli.transcribe --typist` | the typist's own, GPU | one 16 kHz WAV | `<stem>.<typist>.asr.json` — no word times |
+| 1a-ii align | `psych_asr.cli.align_words --stopwatch` | `asr_env`, GPU | that file + the WAV | `<stem>.<typist>+<stopwatch>.aligned.json` |
 | 1b diarize | `psych_asr.cli.diarize_pyannote` / `…diarize_diarizen` / `…diarize_sortformer` | per-model env, GPU | the same WAV | `<stem>.<arm>.rttm` |
 | 1c join + render | `psych_asr.cli.join_speakers` | `asr_env`, CPU | aligned JSON + one RTTM | `<stem>.<arm>.diarized.json` + `<stem>.<arm>.transcript.txt` |
 
@@ -344,19 +346,30 @@ measured.
 corrected reference*). Until a human's 117 corrections were applied, there was nothing in
 this project that could tell a transcript it was wrong.
 
-**The seam.** 1b splits cleanly because RTTM is a three-column contract any diarizer can
-emit. 1a has no equivalent: `psych_asr.cli.run_asr` does transcribe *and* align in one
-entry point, and `<stem>.aligned.json` is produced rather than accepted. Two consequences,
-and they differ in cost:
+**The seam, and it is now cut.** 1b splits cleanly because RTTM is a three-column contract
+any diarizer can emit. 1a had no equivalent: `psych_asr.cli.run_asr` did transcribe *and*
+align in one entry point, so `<stem>.aligned.json` was produced rather than accepted. It is
+two jobs now, with a file between them:
 
-- **Swapping the aligner is cheap** — `whisperx.load_align_model` already takes a model
-  name, so a different bundle is an argument, not a fork.
-- **Swapping the transcriber to a non-Whisper model is a fork.** Parakeet or Canary would
-  need their own 1a entry point emitting the identical `<stem>.aligned.json` contract, so
-  that 1c and the scorer cannot tell which typist ran. That is the RTTM seam again, done for
-  1a, and it should be cut *before* the second transcriber is added rather than after.
-  `nemo_env` already exists for the Sortformer arms, so no new environment is needed —
-  which is normally the expensive part.
+| step | entry point | env | in | out |
+| --- | --- | --- | --- | --- |
+| 1a-i | `psych_asr.cli.transcribe --typist` | the typist's own | one 16 kHz WAV | `<stem>.<typist>.asr.json` |
+| 1a-ii | `psych_asr.cli.align_words --stopwatch` | `asr_env`, always | that file + the WAV | `<stem>.<typist>+<stopwatch>.aligned.json` |
+
+**The seam is a file because the two halves do not share an environment.** faster-whisper
+is `asr_env`; Parakeet and Canary are `nemo_env`, the env the Sortformer arms already run
+in, and nothing imports whisperx and NeMo into one process. So a typist hands over
+*segments of text with loose boundaries* — exactly the shape faster-whisper already gave
+the aligner — and the stopwatch never learns which model produced them.
+
+**A typist's own word times are discarded.** Parakeet will happily report them; keeping
+them would confound the typist axis with the stopwatch axis, which is the one thing the
+cube exists to separate. Every typist's words are re-timed against the waveform by
+whichever stopwatch the cell names.
+
+`psych_asr.cli.run_asr` still exists and still writes the un-armed `<stem>.aligned.json`.
+It is the single-typist path the 1a/1b/1c regression gate compares against byte for byte,
+and it is now a composition of the same two halves rather than a separate implementation.
 
 **The grid is a cube, and it is 13 jobs.** Three swappable boxes means three axes, not two:
 4 typists × 2 stopwatches × 5 name-taggers = **40 cells**. The name-tagger never reads a
@@ -1708,7 +1721,9 @@ default and once at a shorter `chunk_size`, and score both against the same turn
 │   │   ├── summary.py             # talk-time shares + the header every job prints
 │   │   ├── corrections.py         # Stage 2: the error log -> a corrected turn list
 │   │   └── render.py              # .diarized.json -> the play-script .txt (+ line index)
-│   ├── asr/align.py           # Stage 1a: Whisper decode + wav2vec2 forced alignment
+│   ├── asr/                   # Stage 1a, split in two so the typist can be varied
+│   │   ├── typists.py             # the typist registry + the seam's contract (stdlib)
+│   │   └── align.py               # the stopwatch: wav2vec2 forced alignment (whisperx)
 │   ├── diarize/               # Stage 1b, one module per arm + the shared stitcher
 │   │   ├── pyannote_arm.py        # baseline; keeps the exclusive (overlap-free) view
 │   │   ├── diarizen_arm.py        # arm A; the AHC pin and the sentinel-cluster warning
@@ -1721,6 +1736,7 @@ default and once at a shorter `chunk_size`, and score both against the same turn
 │   │   ├── regression.py          # the 1a/1b/1c behaviour-preservation gate
 │   │   └── score.py               # DER + the two therapy measures (diar_eval_env)
 │   └── cli/                   # one module per job step; argparse and printing only
+│       ├── transcribe.py          ├── align_words.py      # Stage 1a, split in two
 │       ├── run_asr.py             ├── join_speakers.py    ├── score_arms.py
 │       ├── diarize_pyannote.py    ├── render_transcript.py├── gpu_smoke.py
 │       ├── diarize_diarizen.py    ├── compare_arms.py     ├── warm_align_cache.py

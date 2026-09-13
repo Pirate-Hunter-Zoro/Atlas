@@ -29,6 +29,42 @@ MODELS_ROOT = Path(os.environ.get(
 # faster-whisper's local-directory branch.
 WHISPER_MODEL_DIR = MODELS_ROOT / "faster-whisper-large-v3"
 
+# The fast decoder, four layers instead of thirty-two. Same env, same call path, same
+# loader -- which is the whole point of having it in the bake-off: it measures what the
+# speed-up costs in words, with nothing else varying.
+WHISPER_TURBO_MODEL_DIR = MODELS_ROOT / "faster-whisper-large-v3-turbo"
+
+# The two NVIDIA typists. Both load through nemo.collections.asr straight off disk, so no
+# Hub call is made -- the same reason the Sortformer arms need no HF_HUB_OFFLINE dance.
+# NEITHER IS STAGED YET, AND NEITHER MAY BE STAGED UNTIL ITS WEIGHT LICENCE IS READ: two of
+# five diarizer arms are already non-commercial and a third one added blind is how a pilot
+# ends up undeployable without anyone having decided that.
+PARAKEET_CHECKPOINT = MODELS_ROOT / "parakeet-tdt-0.6b-v2"
+CANARY_CHECKPOINT = MODELS_ROOT / "canary-1b-flash"
+
+# ---- Stage 1a: who typed and who timed, carried in every filename from here on ----
+# A Stage 1a arm is "<typist>+<stopwatch>", and Stage 1b appends the name-tagger. Three
+# swappable boxes, three axes, one string -- and nothing downstream parses it, because
+# every artifact name is read by exact suffix rather than by splitting on ".".
+TYPIST_LARGE_V3 = "large-v3"
+TYPIST_LARGE_V3_TURBO = "large-v3-turbo"
+TYPIST_PARAKEET = "parakeet"
+TYPIST_CANARY = "canary"
+
+# The stopwatch is a torchaudio bundle NAME, not a path: whisperx resolves an English
+# alignment model through torchaudio.pipelines and fetches it into TORCH_HOME, which is why
+# warm_align_cache exists and why HF_HUB_OFFLINE does not cover this download.
+STOPWATCH_WAV2VEC2_BASE = "WAV2VEC2_ASR_BASE_960H"
+STOPWATCH_WAV2VEC2_LARGE = "WAV2VEC2_ASR_LARGE_LV60K_960H"
+
+# Short name -> bundle name. The short name is what goes in the filename; the bundle name
+# is what torchaudio answers to. Keeping them apart is what stops an arm string reading
+# "large-v3+WAV2VEC2_ASR_LARGE_LV60K_960H" in a directory listing.
+STOPWATCHES = {
+    "wav2vec2-base": STOPWATCH_WAV2VEC2_BASE,
+    "wav2vec2-large": STOPWATCH_WAV2VEC2_LARGE,
+}
+
 # ---- Stage 1b: one entry per arm ----
 # Baseline. Pipeline.from_pretrained takes the DIRECTORY and finds config.yaml inside it;
 # the config's $model/... references resolve against that same directory.

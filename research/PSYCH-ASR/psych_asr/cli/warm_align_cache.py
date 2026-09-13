@@ -15,15 +15,32 @@ torch reuse the cache instead of re-fetching into ~/.cache.
 """
 
 import os
+from argparse import ArgumentParser
 
 import torchaudio
 
+from .. import config
+
+
+def build_parser():
+    parser = ArgumentParser(description="Stage the torchaudio forced-alignment bundle. Login node only.")
+    parser.add_argument("--stopwatch", type=str, default="wav2vec2-base",
+                        choices=sorted(config.STOPWATCHES),
+                        help="which bundle to fetch (default: %(default)s, whisperx's own "
+                             "default for English). The grid's second stopwatch needs its own "
+                             "run of this, on the login node, before any job asks for it")
+    return parser
+
 
 def main(argv=None):
-    bundle = torchaudio.pipelines.WAV2VEC2_ASR_BASE_960H
+    args = build_parser().parse_args(argv)
+    name = config.STOPWATCHES[args.stopwatch]
+
+    bundle = torchaudio.pipelines.__dict__[name]
     bundle.get_model()
     labels = bundle.get_labels()
     print(
+        f"Bundle: {name}\n"
         f"Sample rate: {bundle.sample_rate}\n"
         f"Number of labels: {len(labels)}\n"
         f"TORCH_HOME: {os.environ.get('TORCH_HOME', 'unset')}",
