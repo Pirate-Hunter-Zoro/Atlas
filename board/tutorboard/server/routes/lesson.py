@@ -17,6 +17,8 @@ from .. import multipart
 from .. import spawn
 from ... import sense
 from ...course import config
+# `map` is a builtin; the module keeps the name the board calls the thing.
+from ...course import map as mapping
 from ...lesson import archive
 from ...lesson import turns
 
@@ -50,6 +52,24 @@ def get(h, repo, path):
     return NOT_MINE
 
 
+def _mark(st, node, aim):
+    """Which box of the map this sitting is about, and what it is for.
+
+    Both belong to the SITTING and not to the repository, so both are cleared by
+    opening one that does not name them -- the same rule a sitting stance
+    follows, and for the same reason: a box chosen for an evening's work is not
+    a statement about what the repository is.
+    """
+    if node:
+        st["node"] = node["id"]
+    else:
+        st.pop("node", None)
+    if aim:
+        st["aim"] = aim
+    else:
+        st.pop("aim", None)
+
+
 def post(h, repo, path):
     if path == "/dismiss-finish":
         st = repo.state()
@@ -68,10 +88,44 @@ def post(h, repo, path):
         except Exception:
             return h.send_json({"ok": False, "error": "bad json"}, status=400)
         kind = (payload.get("session") or "").strip().lower()
-        if kind not in ("lecture", "homework", "review", "walk"):
+        if kind not in ("lecture", "homework", "review", "walk", "make"):
             return h.send_json({"ok": False, "error": "bad session"}, status=400)
         want = (payload.get("hw") or "").strip()
         chapter = (payload.get("chapter") or "").strip()
+
+        # WHAT THIS SITTING IS ABOUT, AND WHAT IT IS FOR.
+        #
+        # A tap on the map sends the box's id and, where a numbered step was
+        # tapped, that step's label -- and NEITHER is carried through as typed.
+        # The box is looked up in what `course/map.py` discovered and the step in
+        # what the plan actually says, exactly as a chapter name and a filename
+        # are, because a name from a browser that reaches a prompt is a name that
+        # can send the tutor to machinery that does not exist.
+        #
+        # The sitting's LABEL is then built here from what came back, rather than
+        # sent. That is what lets a box be opened at all: "evaluate" is not a
+        # chapter of anything and would fail the check below, and asking the
+        # browser to send a label it invented is the same hole in a nicer coat.
+        aim = config.clean_aim(payload.get("aim"))
+        node = None
+        node_id = str(payload.get("node") or "").strip()
+        if node_id:
+            node = mapping.find(repo.root, node_id, repo.state())
+            if not node:
+                return h.send_json({"ok": False, "error": "no such part of the map"},
+                                      status=400)
+        step = None
+        step_label = str(payload.get("step") or "").strip()
+        if step_label:
+            for x in plan.steps(repo.root):
+                if x["label"] == step_label:
+                    step = x
+                    break
+            if not step:
+                return h.send_json({"ok": False, "error": "no such step"},
+                                      status=400)
+        if not chapter and (step or node):
+            chapter = step["label"] if step else node["name"]
         # This sitting's stance, where the person opening it chose one. A word
         # that is not a stance is dropped rather than refused: the request is
         # about which sitting to open, and failing the whole of it over a
@@ -106,6 +160,7 @@ def post(h, repo, path):
             st = repo.state()
             st["session"] = kind
             st["review"] = names
+            _mark(st, node, aim)
             st.pop("hw", None)
             with open(repo.state_path, "w", encoding="utf-8") as fh:
                 json.dump(st, fh, indent=2)
@@ -142,12 +197,47 @@ def post(h, repo, path):
             st = repo.state()
             st["session"] = kind
             st["walk"] = names
+            _mark(st, node, aim)
             st.pop("hw", None)
             st.pop("review", None)
             with open(repo.state_path, "w", encoding="utf-8") as fh:
                 json.dump(st, fh, indent=2)
             h.server.hub.worker.dirty.set()
             return h.send_json({"ok": True, "session": kind, "walk": names})
+
+        # A SITTING WHOSE PRODUCT IS A DOCUMENT rather than an answer.
+        #
+        # Every other sitting on this board ends with the student having
+        # produced something -- a proof, a problem written up, an answer set
+        # cold. "Write this up as a paper" and "build me a deck about it" are
+        # neither a lecture nor an exercise, and asking for them meant a
+        # terminal and a different tool. The scope is the box that was tapped,
+        # which is the whole reason this can be one tap: the tutor is told what
+        # to write about instead of being asked.
+        if kind == "make":
+            makes = str(payload.get("makes") or "").strip().lower()
+            if makes not in ("paper", "slides"):
+                return h.send_json({"ok": False, "error": "paper or slides"},
+                                      status=400)
+            course = repo.state().get("course") or config.read_config(repo.root)["name"] or ""
+            label = chapter or ("A write-up" if makes == "paper" else "A deck")
+            args = ["open", course, label, "--make", makes]
+            if node:
+                args += ["--node", node["id"]]
+            if aim:
+                args += ["--aim", aim]
+            spawn.board_cli(repo.root, args)
+            st = repo.state()
+            st["session"] = kind
+            st["makes"] = makes
+            st.pop("hw", None)
+            st.pop("review", None)
+            st.pop("walk", None)
+            _mark(st, node, aim)
+            with open(repo.state_path, "w", encoding="utf-8") as fh:
+                json.dump(st, fh, indent=2)
+            h.server.hub.worker.dirty.set()
+            return h.send_json({"ok": True, "session": kind, "makes": makes})
 
         # Moving to a different chapter is starting a different lesson, and
         # `board open` is what starts one: it files the current lesson away
@@ -163,12 +253,23 @@ def post(h, repo, path):
             # points at, which is the only thing that says what comes next.
             known = [syllabus.label(c) for c in syllabus.chapters(repo.root)]
             known += [x["label"] for x in plan.steps(repo.root)]
-            if chapter not in known:
+            # ...unless this label was BUILT here, out of a box or a step that
+            # has already been looked up. Checking it again against the chapter
+            # list would refuse every part of the map, none of which is a
+            # chapter of anything.
+            if chapter not in known and not (node or step):
                 return h.send_json({"ok": False, "error": "no such chapter"},
                                       status=400)
             course = repo.state().get("course") or config.read_config(repo.root)["name"] or ""
-            spawn.board_cli(repo.root, ["open", course, chapter,
-                                  "--lecture" if kind == "lecture" else "--homework"])
+            args = ["open", course, chapter,
+                    "--lecture" if kind == "lecture" else "--homework"]
+            if node:
+                args += ["--node", node["id"]]
+            if aim:
+                args += ["--aim", aim]
+            if stance:
+                args += ["--stance", stance]
+            spawn.board_cli(repo.root, args)
             # A chapter gets its own tutor.
             #
             # An assistant is long-lived on purpose -- one that survives being
@@ -190,6 +291,8 @@ def post(h, repo, path):
         st["session"] = kind
         st.pop("review", None)
         st.pop("walk", None)
+        st.pop("makes", None)
+        _mark(st, node, aim)
         # A stance chosen on the board belongs to the sitting being opened, so
         # it is written when one is named and cleared when one is not -- which
         # is how tapping `lecture` gets the repository's own answer back

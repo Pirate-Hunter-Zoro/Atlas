@@ -495,13 +495,42 @@
     <button id="map-fit" type="button" title="fit the whole map on the glass">⤢ fit</button>
     <button id="map-close" type="button" title="back to the lesson">✕</button>
   </div>
+  <!-- THE STEPS THAT COULD NOT BE PLACED ON A BOX, and they are not dropped.
+       A step that names no file has nowhere honest to sit on the picture;
+       putting it on a box anyway would be a claim about where the work is, and
+       leaving it out would take a choice away from the person whose plan it is.
+       So it rides here, in the plan's own order, numbered and coloured like
+       every other chip and opening the same sitting. -->
+  <div id="map-loose" class="map-loose" hidden></div>
   <div id="map-plane" class="map-plane">
     <div id="map-sheet" class="map-sheet"></div>
   </div>
   <div id="map-foot" class="map-foot">
-    <span id="map-say" class="muted">Tap a box to see what it is.</span>
+    <span id="map-legend" class="map-legend">
+      <span class="key now">do first</span><span class="key soon">soon</span><span
+        class="key later">later</span><span class="key some">after that</span>
+    </span>
     <span id="map-why" class="muted"></span>
   </div>
+
+  <!-- WHAT A TAP OFFERS. A box is a part of the repository and a chip is a step
+       of the plan; tapping either asks the same question, and every answer opens
+       a sitting already pointed at that part. Named in the person's own words
+       rather than after the sitting kinds underneath -- nobody taps "lecture,
+       stance do". Inside the map, so it is reachable from the map and goes away
+       with it. -->
+  <aside id="work" hidden>
+    <div class="scratch-head">
+      <div class="work-what">
+        <strong id="work-title">this part</strong>
+        <span id="work-sub" class="muted"></span>
+      </div>
+      <button id="work-close" type="button">✕</button>
+    </div>
+    <div id="work-list"></div>
+    <div class="scratch-foot muted">Any of these files the lesson you are in —
+      it stays readable under ◷.</div>
+  </aside>
 </div>
 
 <aside id="scratch" hidden>

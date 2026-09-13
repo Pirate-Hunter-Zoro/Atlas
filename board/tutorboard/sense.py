@@ -24,6 +24,8 @@ still answered on the board. `WALK_SENSE` is the whole of the difference.
 import os
 
 from .course import config, homework, plan, reading, review, syllabus, walk
+# `map` is a builtin; the module keeps the name the board calls the thing.
+from .course import map as mapping
 
 
 # arrives at a board with nothing on it and an assistant with no other context.
@@ -427,6 +429,85 @@ def skip_sense(repo):
     return line
 
 
+def node_sense(repo, st):
+    """The part of the map this sitting is about, handed over rather than hunted.
+
+    A sitting opened from the map names a BOX -- a part of the repository, its
+    one-line purpose, the files it is made of, the steps of the plan that name
+    it. All of that is on disk already, and a tutor that has to go and find it
+    pays for the search on every cold turn, in money and in latency, before a
+    word is taught. `where_sense` learned this for the plan; this is the same
+    lesson for the thing the plan is about.
+
+    Re-resolved on the way out rather than echoed back from `state.json`: a box
+    whose directory has been deleted between the sitting opening and the tutor
+    waking would otherwise send it to read machinery that is not there.
+    """
+    node_id = (st or {}).get("node")
+    if not node_id:
+        return ""
+    try:
+        node = mapping.find(repo.root, node_id, st)
+    except Exception:                                        # noqa: BLE001
+        return ""
+    if not node:
+        return ""
+    said = " This sitting is about %s" % node["name"]
+    if node.get("also"):
+        said += " (%s)" % node["also"]
+    said += ", a part of this repository."
+    if node.get("does"):
+        said += " What it is: %s" % node["does"]
+        if not said.endswith("."):
+            said += "."
+    files = node.get("files") or []
+    if files:
+        said += (" It is made of %d file%s: %s."
+                 % (len(files), "" if len(files) == 1 else "s",
+                    ", ".join(files[:6])
+                    + (", and %d more" % (len(files) - 6) if len(files) > 6 else "")))
+        said += (" Read those before your first card; do not survey the rest of "
+                 "the repository for an agenda of your own.")
+    steps = node.get("steps") or []
+    if steps:
+        said += (" The plan has %d step%s on this part: %s."
+                 % (len(steps), "" if len(steps) == 1 else "s",
+                    "; ".join("%s. %s" % (x["num"], x["title"]) for x in steps[:4])))
+    if node.get("doc"):
+        said += (" There is a document about it -- put a page of it in a card "
+                 "with ![](/doc/%s/<page>.png) when a slide says it better than "
+                 "you can." % node["doc"])
+    return said
+
+
+def aim_sense(st):
+    """What this sitting is FOR, in the words the person tapped.
+
+    Not a mode and not a stance: it is the answer to "what do you want to do
+    about this part", chosen on the map at the moment of opening. A sitting
+    opened as *tell me what to write* and one opened as *write it for me* are
+    both `stance: teach`-shaped requests in the old vocabulary and they are not
+    the same evening, and a tutor that is not told which will pick one.
+    """
+    aim = config.clean_aim((st or {}).get("aim"))
+    if not aim:
+        return ""
+    return " " + config.AIM_MEANS.get(aim, "")
+
+
+MAKE_SENSE = (
+    "THIS IS A MAKE SITTING: its product is a DOCUMENT, not an answer. "
+    "Nothing here is an exercise and nothing is handed in. You draft, they read "
+    "and correct, you revise. "
+    "Work in sections: write one, put it on the board for them to read, take "
+    "the corrections, then write the next -- a whole document dropped at once "
+    "is the word dump this board exists to replace. "
+    "Keep it in the repository as a file, under a name that says what it is, "
+    "and say in every card where that file is so they can open it. "
+    "When a section is ready to be READ rather than discussed, compile it and "
+    "let them read it on the glass rather than pasting it into a card. ")
+
+
 def session_sense(repo):
     """What this sitting is, in a sentence an assistant can act on.
 
@@ -464,9 +545,21 @@ def session_sense(repo):
     # walkthrough reads; there is nothing to write either way, so a repository
     # that wants its code written does not get it written into one of these.
     if kind == "review":
-        return review_sense(repo, st)
+        return review_sense(repo, st) + node_sense(repo, st) + aim_sense(st)
     if kind == "walk":
-        return walk_sense(repo, st)
+        return walk_sense(repo, st) + node_sense(repo, st) + aim_sense(st)
+
+    # A sitting whose product is a document. It takes none of the method above:
+    # there is no exercise, nothing is handed in, and the stance question -- who
+    # writes the code -- does not arise when what is being written is prose.
+    if kind == "make":
+        makes = (st.get("makes") or "paper").strip().lower()
+        said = MAKE_SENSE
+        said += ("What they asked for is %s."
+                 % ("a DECK of slides" if makes == "slides" else "a PAPER"))
+        if chapter:
+            said += " It is about %r." % chapter
+        return said + node_sense(repo, st) + aim_sense(st)
 
     # Whether this repository follows a book, which is the ONLY question about a
     # subject anything here still asks. A course with a syllabus has its
@@ -494,7 +587,7 @@ def session_sense(repo):
 
     if chapter:
         return (how + "This sitting is labelled %r and it is a %s. Start there."
-                % (chapter, kind))
+                % (chapter, kind)) + node_sense(repo, st) + aim_sense(st)
     # A course that follows a book says so on disk. Naming its actual first
     # chapter beats telling an assistant to work it out, which is what produced
     # a Galois course opened at field extensions -- chapter four.

@@ -129,8 +129,13 @@ var els = {
   mapClose: document.getElementById("map-close"),
   mapPlane: document.getElementById("map-plane"),
   mapSheet: document.getElementById("map-sheet"),
-  mapSay: document.getElementById("map-say"),
-  mapWhy: document.getElementById("map-why")
+  mapLoose: document.getElementById("map-loose"),
+  mapWhy: document.getElementById("map-why"),
+  work: document.getElementById("work"),
+  workTitle: document.getElementById("work-title"),
+  workSub: document.getElementById("work-sub"),
+  workList: document.getElementById("work-list"),
+  workClose: document.getElementById("work-close")
 };
 
 var seenIds = Object.create(null);
@@ -3044,61 +3049,74 @@ document.getElementById("btn-review-close").onclick = function () {
 
 
 /* -------------------------------------------------------------------- map */
-/* THE FRONT DOOR OF A COURSE.
+/* THE FRONT DOOR OF A COURSE: what the repository IS, and the work drawn on it.
 
-   Everything else on this page is a way of working on one thing. This is the
-   picture of all of them: the repository's working parts, laid out in lanes,
-   coloured by what is done and what is not. It exists because the difficulty
-   was never finding a name -- the drawer above does that perfectly well -- it
-   was holding a system in your head. A list cannot say that one box feeds
-   another. A diagram can.
+   The boxes are the repository's own parts and the arrows are what imports what
+   -- an entity-relationship diagram of a working system. The outstanding work
+   sits ON that picture as numbered chips, coloured by where each step falls in
+   the order, so "what is left" and "where it lives" are one thing you look at.
+   The server's half is `tutorboard/course/map.py`; nothing here invents a box,
+   an arrow or a chip.
 
-   Three decisions that everything below follows from:
+   Four decisions everything below follows from.
 
-   STRUCTURE IS DERIVED, MEANING IS WRITTEN. The server sends `map`, built in
-   `tutorboard/course/map.py`. Nothing here invents a node, a lane or an edge,
-   and nothing here remembers one either: the map is rebuilt from the payload
-   and a box whose file has gone simply stops arriving.
+   THE TEXT IS MEASURED, NOT ESTIMATED. The first version wrapped labels by
+   counting characters against an assumed width, and a line of capitals is half
+   again as wide as that assumption -- so the words ran out of their boxes. A
+   canvas measures the real face at the real size; the results are cached, so a
+   box is measured once and not on every frame.
 
-   INLINE SVG, GENERATED ONCE PER PAYLOAD. Crisp at every zoom without redrawing
-   on each scale change, hit-testing for nothing, real selectable text, and a
-   visual language that lives entirely in `board.css` -- status is a class on
-   the group. No <foreignObject>: Safari renders it inconsistently, so the
-   labels are wrapped here, by character count, which is deterministic and
-   therefore lays out identically on every device.
+   THE LAYOUT IS A LAYERED GRAPH, NOT A COLUMN. Ranks come from the dependency
+   depth (import cycles are real, so the cycle-closing edges are found and left
+   out of the ranking rather than allowed to run it away), and the order within a
+   rank is four passes of barycentre ordering. That is deterministic: the same
+   repository lays out identically every time, on every device, which is what
+   makes a map something you learn the shape of rather than something you re-read.
 
-   THE LAYOUT IS ARITHMETIC. No force-directed anything: a graph that settles
-   differently on each open is the opposite of a map you learn the shape of, and
-   there is no package manager at runtime to fetch one with even if it were a
-   good idea. A lane is a column, order within it is the order the nodes arrive
-   in, and at phone width the columns become one column with the lane names
-   between them -- a horizontal pipeline read as a vertical one. */
+   NOTHING IS LAID OUT BY A LIBRARY. There is no package manager at runtime and a
+   force-directed graph settles somewhere different on every open.
 
-/* One box, and the room its text gets. `MAP_CHAR` is how wide a character is,
-   as a fraction of its font size, in the UI face -- the one number the wrapping
-   depends on. Too small and a label overflows its box; too large and it wraps
-   early. Measured against the face this board actually ships. */
-var MAP_W = 250;
-var MAP_PAD = 14;
-var MAP_MARK = 6;            /* the status stripe down the left edge */
-var MAP_GAP_X = 76;
-var MAP_GAP_Y = 20;
-var MAP_LANE_H = 32;         /* room above a column for the lane's name */
-var MAP_MARGIN = 30;
-var MAP_CHAR = 0.545;
-var MAP_NAME = 15, MAP_DOES = 12.5;
-var MAP_NAME_LINES = 2, MAP_DOES_LINES = 2;
-/* Below this, the lanes stop being columns and become one column with their
-   names written between them. A pipeline read downward is still a pipeline; two
-   columns squeezed onto a phone is neither. */
+   AND A GESTURE NEVER REDRAWS IT. The SVG is built once per payload that changes
+   it; panning and pinching are a transform on one wrapper. */
+
+/* One box. `MAP_W` is the width every box shares -- a ragged right edge on a
+   diagram reads as a mistake -- and the text is wrapped to what is left after
+   the padding and the status stripe. */
+var MAP_W = 226;
+var MAP_PAD = 13;
+var MAP_MARK = 5;            /* the status stripe down the left edge */
+var MAP_GAP_X = 92;          /* the gutter an arrow turns in */
+var MAP_GAP_Y = 22;
+var MAP_MARGIN = 34;
+var MAP_NAME = 15, MAP_ALSO = 11, MAP_DOES = 12;
+var MAP_NAME_LINES = 2, MAP_DOES_LINES = 3;
+var MAP_CHIP_R = 11;         /* a numbered step, on the box it is about */
+var MAP_CHIP_GAP = 6;
+/* Below this the ranks stop being columns and become one column: a wide graph
+   on a phone is a graph nobody can follow, and a pipeline read downward is
+   still a pipeline. */
 var MAP_STACK_AT = 640;
+/* HOW MANY RANKS GO ACROSS BEFORE THE PICTURE WRAPS.
+
+   A dependency graph is a few ranks deep and this never fires on one. A CHAIN
+   is the case it exists for: twenty chapters, each pointing at the next, is
+   twenty ranks and came out six and a half thousand pixels wide -- a ribbon you
+   read in one direction, which is the failure the column layout was rejected
+   for, turned on its side. So a long sequence is wrapped into bands and read
+   the way a page of text is.
+
+   A FIXED number rather than one worked out from the width of the glass,
+   because the same repository has to lay out identically on every device: a map
+   whose shape depends on which iPad you opened it on is not a map you can
+   learn. Six ranks is a little under two thousand units, which fits a fitted
+   view without shrinking the labels past reading. */
+var MAP_RANKS_ACROSS = 6;
 
 var mapInfo = null;          /* the payload's map block, as it arrived */
 var mapDrawn = "";           /* the signature of what is on the plane now */
 var mapBox = { x0: 0, y0: 0, x1: 0, y1: 0 };
-var mapHere = "";            /* the box last tapped -- where you are */
+var mapHere = "";            /* the box last opened -- where you are */
 var mapView = { k: 1, fit: 1, ox: 0, oy: 0, held: false };
-var mapStacked = false;
 
 function mapEl(tag, attrs) {
   var node = document.createElementNS("http://www.w3.org/2000/svg", tag);
@@ -3110,131 +3128,359 @@ function mapEl(tag, attrs) {
   return node;
 }
 
-/* Wrap a label to a box, without measuring anything.
+/* ------------------------------------------------------------ measuring */
+/* How wide this string actually is, in the face the board actually ships.
 
-   A hidden <text> measured per label would be a forced layout per box per
-   payload, and `<foreignObject>` -- which would wrap it for nothing -- is not
-   reliable in Safari. So the width of a character is a constant and the wrap is
-   arithmetic: the same string lays out the same way on every device, which is
-   the property a map you learn the shape of actually needs. A word longer than
-   a line is broken rather than allowed to run out of the box. */
-function mapWrap(text, size, lines) {
-  var room = MAP_W - MAP_PAD * 2 - MAP_MARK;
-  var per = Math.max(6, Math.floor(room / (size * MAP_CHAR)));
+   The estimate this replaced -- characters times a constant -- is right for
+   lower-case prose and badly wrong for the SHOUTED headings these plans are
+   written in, which is how the labels came to run past the edges of their
+   boxes. A 2D context measures the real font; the answers are cached because a
+   payload re-measures the same forty labels. Where there is no canvas at all the
+   estimate comes back as the fallback, and a fallback that wraps early is a box
+   with room to spare rather than one that overflows. */
+var mapFace = null, mapGauge = null, mapWidths = null;
+
+function mapUiFace() {
+  if (mapFace) return mapFace;
+  mapFace = "system-ui, -apple-system, 'Segoe UI', sans-serif";
+  try {
+    var said = window.getComputedStyle(document.body).getPropertyValue("--ui");
+    if (said && said.trim()) mapFace = said.trim();
+  } catch (e) { /* the default stack is a fair guess */ }
+  return mapFace;
+}
+
+function mapFont(size, weight) {
+  return (weight || 400) + " " + size + "px " + mapUiFace();
+}
+
+function mapWidth(text, size, weight) {
+  var font = mapFont(size, weight);
+  if (!mapWidths) mapWidths = Object.create(null);
+  var key = font + " " + text;
+  var got = mapWidths[key];
+  if (got !== undefined) return got;
+  var w = 0;
+  try {
+    if (mapGauge === null) {
+      var c = document.createElement("canvas");
+      mapGauge = (c && c.getContext) ? c.getContext("2d") : false;
+    }
+    if (mapGauge) {
+      mapGauge.font = font;
+      var m = mapGauge.measureText(text);
+      w = (m && typeof m.width === "number") ? m.width : 0;
+    }
+  } catch (e) { w = 0; }
+  if (!(w > 0)) w = text.length * size * 0.62;
+  mapWidths[key] = w;
+  return w;
+}
+
+/* Wrap to a measured width, and tell the truth when it does not fit. */
+function mapWrap(text, size, weight, room, maxLines) {
   var words = String(text || "").trim().split(/\s+/).filter(Boolean);
-  var out = [], line = "";
-  while (words.length) {
-    var word = words.shift();
-    if (word.length > per) {
-      words.unshift(word.slice(per - 1));
-      word = word.slice(0, per - 1) + "-";
+  var lines = [], line = "";
+  while (words.length && lines.length < maxLines) {
+    var word = words[0];
+    var probe = line ? line + " " + word : word;
+    if (mapWidth(probe, size, weight) <= room) {
+      line = probe;
+      words.shift();
+      continue;
     }
-    var next = line ? line + " " + word : word;
-    if (next.length <= per) { line = next; continue; }
-    out.push(line);
-    line = word;
-    if (out.length === lines) break;
+    if (!line) {
+      /* One word wider than the box -- a long path, usually. Break it rather
+         than let it run out of the box, which is the whole defect this
+         measuring exists to fix. */
+      var cut = word;
+      while (cut.length > 1 && mapWidth(cut + "-", size, weight) > room) {
+        cut = cut.slice(0, -1);
+      }
+      words[0] = word.slice(cut.length);
+      line = cut + "-";
+    }
+    lines.push(line);
+    line = "";
   }
-  if (line && out.length < lines) out.push(line);
-  if (out.length > lines) out.length = lines;
-  if (words.length || (line && out[out.length - 1] !== line)) {
-    var last = out[out.length - 1] || "";
-    out[out.length - 1] = last.replace(/[ ,;:.\-]+$/, "") + "…";
+  if (line && lines.length < maxLines) lines.push(line);
+  if (words.length && lines.length) {
+    var last = lines[lines.length - 1];
+    while (last && mapWidth(last + "…", size, weight) > room) {
+      last = last.slice(0, -1);
+    }
+    lines[lines.length - 1] = last.replace(/[ ,;:.\-]+$/, "") + "…";
   }
-  return out;
+  return lines;
 }
 
-function mapHeight(node) {
-  var name = mapWrap(node.name, MAP_NAME, MAP_NAME_LINES);
-  var does = node.does ? mapWrap(node.does, MAP_DOES, MAP_DOES_LINES) : [];
+function mapShape(node) {
+  var room = MAP_W - MAP_PAD * 2 - MAP_MARK;
+  var name = mapWrap(node.name, MAP_NAME, 650, room, MAP_NAME_LINES);
+  var also = node.also ? mapWrap(node.also, MAP_ALSO, 400, room, 1) : [];
+  var does = node.does ? mapWrap(node.does, MAP_DOES, 400, room, MAP_DOES_LINES) : [];
+  var chips = (node.steps || []).length;
   var h = MAP_PAD + name.length * 19
-        + (node.also ? 16 : 0)
+        + (also.length ? 15 : 0)
         + (does.length ? 5 + does.length * 16 : 0)
+        + (chips ? 8 + MAP_CHIP_R * 2 : 0)
         + MAP_PAD;
-  return { name: name, does: does, h: Math.max(64, h) };
+  return { name: name, also: also, does: does, h: Math.max(60, h) };
 }
 
-/* Where every box goes. Columns when there is room, one column when there is
-   not, and in both cases: lane order from the file, node order from the file,
-   arithmetic from there. The same map lays out identically every time. */
+/* ---------------------------------------------------------- the layout */
+/* Which arrows close a cycle. Imports go round in circles in real code, and a
+   depth computed over a cycle runs away -- every node in it one deeper than the
+   last, for ever. The edges that close one are found here and left out of the
+   ranking; they are still DRAWN, because a cycle is a true thing about the
+   repository and hiding it would make the picture a lie. */
+function mapAcyclic(n, pairs) {
+  var adj = [], state = [], keep = [], i;
+  for (i = 0; i < n; i++) { adj.push([]); state.push(0); }
+  pairs.forEach(function (e, k) { keep.push(true); adj[e[0]].push(k); });
+  function visit(v) {
+    state[v] = 1;
+    adj[v].forEach(function (k) {
+      var w = pairs[k][1];
+      if (state[w] === 1) { keep[k] = false; return; }
+      if (state[w] === 0) visit(w);
+    });
+    state[v] = 2;
+  }
+  for (i = 0; i < n; i++) if (!state[i]) visit(i);
+  return keep;
+}
+
+/* How deep into the dependencies each box sits: one past the deepest thing that
+   depends on it. That is the left-to-right reading of the diagram -- what is
+   used by everything sits on the right, what nothing else uses sits on the
+   left -- and it is the reading people already have of a pipeline. */
+function mapRanks(n, pairs, keep) {
+  var rank = [], i;
+  for (i = 0; i < n; i++) rank.push(0);
+  for (var pass = 0; pass < n + 1; pass++) {
+    var moved = false;
+    for (i = 0; i < pairs.length; i++) {
+      if (!keep[i]) continue;
+      if (rank[pairs[i][1]] < rank[pairs[i][0]] + 1) {
+        rank[pairs[i][1]] = rank[pairs[i][0]] + 1;
+        moved = true;
+      }
+    }
+    if (!moved) break;
+  }
+  return rank;
+}
+
+/* The order within a column: each box beside the average position of the boxes
+   it is joined to. Four passes, alternating direction, and every sort is stable
+   -- so two boxes with the same barycentre keep the order the repository gave
+   them, and the whole thing is arithmetic with one answer. */
+function mapOrder(byRank, pairs, keep) {
+  var pos = {};
+  function reindex() {
+    byRank.forEach(function (col) {
+      col.forEach(function (v, i) { pos[v] = i; });
+    });
+  }
+  reindex();
+  var into = {}, from = {};
+  pairs.forEach(function (e, k) {
+    if (!keep[k]) return;
+    (into[e[1]] = into[e[1]] || []).push(e[0]);
+    (from[e[0]] = from[e[0]] || []).push(e[1]);
+  });
+  function bary(v, side) {
+    var mates = side[v] || [];
+    if (!mates.length) return null;
+    var sum = 0;
+    mates.forEach(function (m) { sum += pos[m] || 0; });
+    return sum / mates.length;
+  }
+  function sweep(side, order) {
+    order.forEach(function (r) {
+      var col = byRank[r];
+      if (!col || col.length < 2) return;
+      var keyed = col.map(function (v, i) { return { v: v, i: i, b: bary(v, side) }; });
+      keyed.sort(function (a, b) {
+        if (a.b === null && b.b === null) return a.i - b.i;
+        if (a.b === null) return 1;
+        if (b.b === null) return -1;
+        return a.b === b.b ? a.i - b.i : a.b - b.b;
+      });
+      byRank[r] = keyed.map(function (x) { return x.v; });
+    });
+    reindex();
+  }
+  var down = [], up = [], r;
+  for (r = 0; r < byRank.length; r++) { down.push(r); up.unshift(r); }
+  for (var pass = 0; pass < 2; pass++) {
+    sweep(into, down);
+    sweep(from, up);
+  }
+}
+
 function mapLayout(info, wide) {
-  var lanes = (info.lanes || []).slice();
-  var byLane = {};
-  (info.nodes || []).forEach(function (n) {
-    var lane = n.lane || (lanes[0] || "");
-    if (lanes.indexOf(lane) < 0) lanes.push(lane);
-    (byLane[lane] = byLane[lane] || []).push(n);
+  var nodes = (info.nodes || []).slice();
+  var idx = {};
+  nodes.forEach(function (n, k) { idx[n.id] = k; });
+  var pairs = [], drawn = [];
+  (info.edges || []).forEach(function (e) {
+    var a = idx[e.from], b = idx[e.to];
+    /* An arrow naming a box that is not here is not an arrow. Dropped rather
+       than drawn to nowhere: an arrow is read as a dependency. */
+    if (a === undefined || b === undefined || a === b) return;
+    pairs.push([a, b]);
+    drawn.push(e);
   });
 
+  var joined = {};
+  pairs.forEach(function (e) { joined[e[0]] = true; joined[e[1]] = true; });
+
+  var keep = mapAcyclic(nodes.length, pairs);
+  var rank = mapRanks(nodes.length, pairs, keep);
+
+  var shapes = nodes.map(mapShape);
   var placed = [];
-  var heads = [];
-  var x = MAP_MARGIN, y = MAP_MARGIN;
-  lanes.forEach(function (lane, i) {
-    var here = byLane[lane] || [];
-    if (!here.length) return;
-    if (wide) {
-      x = MAP_MARGIN + i * (MAP_W + MAP_GAP_X);
-      y = MAP_MARGIN + MAP_LANE_H;
-    } else {
-      x = MAP_MARGIN;
-      y += MAP_LANE_H;
-    }
-    heads.push({ lane: lane, x: x, y: y - 12 });
-    here.forEach(function (n) {
-      var box = mapHeight(n);
-      placed.push({ node: n, x: x, y: y, w: MAP_W, h: box.h,
-                    name: box.name, does: box.does });
-      y += box.h + MAP_GAP_Y;
+  var i;
+
+  if (!wide) {
+    /* One column, deepest last: the pipeline read downward. */
+    var order = nodes.map(function (n, k) { return k; });
+    order.sort(function (a, b) { return rank[a] === rank[b] ? a - b : rank[a] - rank[b]; });
+    var y = MAP_MARGIN;
+    order.forEach(function (v) {
+      placed[v] = { node: nodes[v], shape: shapes[v], x: MAP_MARGIN, y: y,
+                    w: MAP_W, h: shapes[v].h };
+      y += shapes[v].h + MAP_GAP_Y;
     });
-    if (!wide) y += MAP_GAP_Y;
-  });
+  } else {
+    var byRank = [];
+    for (i = 0; i < nodes.length; i++) {
+      if (!joined[i]) continue;                 /* placed in the band below */
+      while (byRank.length <= rank[i]) byRank.push([]);
+      byRank[rank[i]].push(i);
+    }
+    mapOrder(byRank, pairs, keep);
+
+    /* The ranks, in bands. One band unless the graph is long enough to need
+       more, in which case the reading is the reading of a page: left to right
+       along a band, then back to the left of the next one down. */
+    var high = byRank.map(function (col) {
+      var h = 0;
+      col.forEach(function (v) { h += shapes[v].h + MAP_GAP_Y; });
+      return Math.max(0, h - MAP_GAP_Y);
+    });
+    var bandTop = MAP_MARGIN, tall = 0;
+    for (var b = 0; b < byRank.length; b += MAP_RANKS_ACROSS) {
+      var band = byRank.slice(b, b + MAP_RANKS_ACROSS);
+      var deep = 0;
+      band.forEach(function (col, k) { deep = Math.max(deep, high[b + k]); });
+      band.forEach(function (col, k) {
+        /* Columns in a band share a centre line, which is what makes a rank
+           read as a rank rather than as a column of boxes that happen to be
+           side by side. */
+        var y = bandTop + (deep - high[b + k]) / 2;
+        var x = MAP_MARGIN + k * (MAP_W + MAP_GAP_X);
+        col.forEach(function (v) {
+          placed[v] = { node: nodes[v], shape: shapes[v], x: x, y: y,
+                        w: MAP_W, h: shapes[v].h };
+          y += shapes[v].h + MAP_GAP_Y;
+        });
+      });
+      bandTop += deep + MAP_GAP_Y * 3;
+      tall = bandTop - MAP_MARGIN - MAP_GAP_Y * 3;
+    }
+
+    /* WHAT NOTHING IS JOINED TO. Documents, and any part that neither imports
+       nor is imported. They are content and they belong on the map, but wiring
+       them into the graph would assert a relationship that is not there -- so
+       they sit in a band underneath it, packed across the width the graph
+       already takes rather than stretching the picture into a longer column. */
+    var loose = [];
+    for (i = 0; i < nodes.length; i++) if (!joined[i]) loose.push(i);
+    if (loose.length) {
+      var across = Math.max(1, Math.min(MAP_RANKS_ACROSS, byRank.length || 1));
+      var rowTop = MAP_MARGIN + tall + MAP_GAP_Y * 3 + (byRank.length ? 20 : 0);
+      var rowHigh = 0;
+      loose.forEach(function (v, k) {
+        var col = k % across;
+        if (col === 0 && k) { rowTop += rowHigh + MAP_GAP_Y; rowHigh = 0; }
+        placed[v] = { node: nodes[v], shape: shapes[v],
+                      x: MAP_MARGIN + col * (MAP_W + MAP_GAP_X), y: rowTop,
+                      w: MAP_W, h: shapes[v].h, apart: true };
+        rowHigh = Math.max(rowHigh, shapes[v].h);
+      });
+    }
+  }
 
   var box = { x0: 0, y0: 0, x1: MAP_MARGIN, y1: MAP_MARGIN };
   placed.forEach(function (p) {
+    if (!p) return;
     box.x1 = Math.max(box.x1, p.x + p.w + MAP_MARGIN);
     box.y1 = Math.max(box.y1, p.y + p.h + MAP_MARGIN);
   });
-  return { placed: placed, heads: heads, box: box };
+  return { placed: placed, edges: drawn, pairs: pairs, box: box, wide: wide };
 }
 
-/* An edge, as a right angle rather than a spline. A readable elbow beats a
-   clever curve, and a clever curve through the middle of a box is worse than
-   either -- so an edge between lanes turns in the gutter between the columns,
-   which is empty by construction. */
+/* An arrow. Forward along the ranks it leaves the right edge and enters the
+   left, as a gentle cubic through the gutter -- which is empty by construction,
+   because the gutter is where a rank boundary is. An arrow that goes BACK is a
+   cycle, and it is drawn under the boxes rather than through them: a curve that
+   dips below both ends reads as a return path, which is what it is. */
 function mapEdgePath(a, b) {
-  var gap = 9;
-  if (Math.abs(a.x - b.x) < 1) {                     /* the same column */
-    var x = a.x + a.w / 2;
-    var y0 = a.y + a.h, y1 = b.y - gap;
-    if (b.y < a.y) { y0 = a.y; y1 = b.y + b.h + gap; }
-    return { d: "M" + x + "," + y0 + " L" + x + "," + y1,
-             hx: x, hy: y1, down: y1 > y0 };
+  var gap = 8;
+  if (b.x > a.x) {
+    var ax = a.x + a.w, ay = a.y + a.h / 2;
+    var bx = b.x - gap, by = b.y + b.h / 2;
+    var d = Math.max(34, (bx - ax) / 2);
+    return { d: "M" + ax + "," + ay + " C" + (ax + d) + "," + ay
+                + " " + (bx - d) + "," + by + " " + bx + "," + by,
+             hx: bx, hy: by, dir: "right" };
   }
-  var ax = a.x + a.w, bx = b.x - gap;
-  if (b.x < a.x) { ax = a.x; bx = b.x + b.w + gap; }
-  var ay = a.y + a.h / 2, by = b.y + b.h / 2;
-  var mid = (ax + bx) / 2;
-  return { d: "M" + ax + "," + ay + " L" + mid + "," + ay
-              + " L" + mid + "," + by + " L" + bx + "," + by,
-           hx: bx, hy: by, down: null, right: bx > ax };
+  if (Math.abs(b.x - a.x) < 1 && b.y > a.y) {
+    var cx = a.x + a.w / 2;
+    return { d: "M" + cx + "," + (a.y + a.h) + " L" + cx + "," + (b.y - gap),
+             hx: cx, hy: b.y - gap, dir: "down" };
+  }
+  var sx = a.x + a.w / 2, sy = a.y + a.h;
+  var tx = b.x + b.w / 2, ty = b.y + b.h + gap;
+  var dip = Math.max(36, Math.abs(tx - sx) / 4);
+  return { d: "M" + sx + "," + sy + " C" + sx + "," + (sy + dip)
+              + " " + tx + "," + (ty + dip) + " " + tx + "," + ty,
+           hx: tx, hy: ty, dir: "up" };
 }
 
 function mapArrow(head) {
-  var s = 5.5;
-  if (head.down === null) {
-    var dir = head.right ? 1 : -1;
-    return [head.hx, head.hy, head.hx - dir * s, head.hy - s,
-            head.hx - dir * s, head.hy + s];
+  var s = 5;
+  if (head.dir === "right") {
+    return [head.hx, head.hy, head.hx - s * 1.6, head.hy - s,
+            head.hx - s * 1.6, head.hy + s];
   }
-  var dy = head.down ? 1 : -1;
-  return [head.hx, head.hy, head.hx - s, head.hy - dy * s,
-          head.hx + s, head.hy - dy * s];
+  if (head.dir === "down") {
+    return [head.hx, head.hy, head.hx - s, head.hy - s * 1.6,
+            head.hx + s, head.hy - s * 1.6];
+  }
+  return [head.hx, head.hy - s * 0.2, head.hx - s, head.hy + s * 1.4,
+          head.hx + s, head.hy + s * 1.4];
+}
+
+/* WHEN A STEP SHOULD BE DONE, as a colour. The plan's own order is the order;
+   the chips run hot to cold along it, so the shape of what is left is visible
+   without reading a single number. Four bands rather than a continuous ramp,
+   because four colours on an eleven-pixel circle can be told apart and a
+   gradient cannot. It is never a schedule: every chip is tappable, and which
+   one to do is the person's. */
+function mapWhen(order) {
+  if (order <= 1) return "now";
+  if (order <= 3) return "soon";
+  if (order <= 6) return "later";
+  return "some";
 }
 
 /* Build the whole picture. Once per payload that changes it, never per frame. */
 function mapDraw(info) {
   var wide = (els.mapPlane.clientWidth || 0) >= MAP_STACK_AT;
-  mapStacked = !wide;
   var out = mapLayout(info, wide);
   mapBox = out.box;
 
@@ -3243,72 +3489,86 @@ function mapDraw(info) {
     viewBox: "0 0 " + out.box.x1 + " " + out.box.y1
   });
 
-  var at = {};
-  out.placed.forEach(function (p) { at[p.node.id] = p; });
-
-  /* Edges first, so a connector never paints over the box it arrives at. */
-  (info.edges || []).forEach(function (e) {
-    var a = at[e.from], b = at[e.to];
-    if (!a || !b) return;                 /* an id nothing answers to is not an edge */
+  out.edges.forEach(function (e, k) {
+    var a = out.placed[out.pairs[k][0]], b = out.placed[out.pairs[k][1]];
+    if (!a || !b) return;
     var path = mapEdgePath(a, b);
-    svg.appendChild(mapEl("path", { "class": "edge", d: path.d }));
+    var line = mapEl("path", { "class": "edge", d: path.d });
+    /* An arrow eleven imports thick is a different fact from one that carries a
+       single mention, and the thickness is the only place to say it without
+       another label on the picture. */
+    if ((e.weight || 1) >= 5) line.setAttribute("class", "edge strong");
+    svg.appendChild(line);
     svg.appendChild(mapEl("polygon", { "class": "edge-head",
                                        points: mapArrow(path).join(" ") }));
-    if (e.label) {
-      var tag = mapEl("text", { "class": "also", x: path.hx + 8, y: path.hy - 6 });
-      tag.textContent = e.label;
-      svg.appendChild(tag);
-    }
-  });
-
-  out.heads.forEach(function (h) {
-    var t = mapEl("text", { "class": "lane", x: h.x + 2, y: h.y });
-    t.textContent = h.lane;
-    svg.appendChild(t);
   });
 
   out.placed.forEach(function (p) {
+    if (!p) return;
     var n = p.node;
     var g = mapEl("g", {
-      "class": "node " + (n.status || "unknown") + (n.id === mapHere ? " here" : ""),
-      "data-id": n.id, tabindex: "0",
-      role: "button",
+      "class": "node " + (n.kind || "part") + " " + (n.status || "unknown")
+               + (n.id === mapHere ? " here" : "") + (p.apart ? " apart" : ""),
+      "data-id": n.id, tabindex: "0", role: "button",
       "aria-label": n.name + ", " + (n.status || "unknown")
     });
     g.appendChild(mapEl("rect", { "class": "box", x: p.x, y: p.y,
-                                  width: p.w, height: p.h, rx: 10 }));
-    /* The status, as a stripe rather than a word: a picture is read at a glance
-       and a glance does not read labels. Clipped to the box's own corner radius
-       by being inset a hair rather than by a clip path, which is a second thing
-       to keep in step with the rounding. */
-    g.appendChild(mapEl("rect", { "class": "mark", x: p.x + 1.2, y: p.y + 9,
-                                  width: MAP_MARK, height: p.h - 18, rx: 3 }));
+                                  width: p.w, height: p.h, rx: 11 }));
+    g.appendChild(mapEl("rect", { "class": "mark", x: p.x + 1.5, y: p.y + 9,
+                                  width: MAP_MARK, height: p.h - 18, rx: 2.5 }));
     var tx = p.x + MAP_PAD + MAP_MARK;
     var ty = p.y + MAP_PAD + 13;
-    p.name.forEach(function (line) {
+    p.shape.name.forEach(function (line) {
       var t = mapEl("text", { "class": "name", x: tx, y: ty });
       t.textContent = line;
       g.appendChild(t);
       ty += 19;
     });
-    if (n.also) {
-      var a = mapEl("text", { "class": "also", x: tx, y: ty + 1 });
-      a.textContent = n.also;
-      g.appendChild(a);
-      ty += 16;
-    }
-    if (p.does.length) {
+    p.shape.also.forEach(function (line) {
+      var t = mapEl("text", { "class": "also", x: tx, y: ty + 1 });
+      t.textContent = line;
+      g.appendChild(t);
+      ty += 15;
+    });
+    if (p.shape.does.length) {
       ty += 5;
-      p.does.forEach(function (line) {
-        var d = mapEl("text", { "class": "does", x: tx, y: ty });
-        d.textContent = line;
-        g.appendChild(d);
+      p.shape.does.forEach(function (line) {
+        var t = mapEl("text", { "class": "does", x: tx, y: ty });
+        t.textContent = line;
+        g.appendChild(t);
         ty += 16;
       });
     }
-    g.addEventListener("click", function () { mapTap(n.id); });
+    /* THE WORK, ON THE THING IT IS ABOUT. A numbered chip per step of the plan
+       that names this part, in the plan's order, coloured by how soon. Its own
+       tap, because a step is a sitting and the box is a different sitting. */
+    (n.steps || []).forEach(function (step, i) {
+      var cx = p.x + MAP_PAD + MAP_MARK + MAP_CHIP_R
+             + i * (MAP_CHIP_R * 2 + MAP_CHIP_GAP);
+      var cy = p.y + p.h - MAP_PAD - MAP_CHIP_R + 2;
+      var chip = mapEl("g", { "class": "chip " + mapWhen(step.order),
+                              "data-step": step.label, tabindex: "0",
+                              role: "button",
+                              "aria-label": "step " + step.num + ", " + step.title });
+      chip.appendChild(mapEl("circle", { cx: cx, cy: cy, r: MAP_CHIP_R }));
+      var t = mapEl("text", { x: cx, y: cy + 4, "text-anchor": "middle" });
+      t.textContent = step.num;
+      chip.appendChild(t);
+      chip.addEventListener("click", function (ev) {
+        ev.stopPropagation();
+        openWork(n.id, step.label);
+      });
+      chip.addEventListener("keydown", function (ev) {
+        if (ev.key !== "Enter" && ev.key !== " ") return;
+        ev.preventDefault();
+        ev.stopPropagation();
+        openWork(n.id, step.label);
+      });
+      g.appendChild(chip);
+    });
+    g.addEventListener("click", function () { openWork(n.id, ""); });
     g.addEventListener("keydown", function (e) {
-      if (e.key === "Enter" || e.key === " ") { e.preventDefault(); mapTap(n.id); }
+      if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openWork(n.id, ""); }
     });
     svg.appendChild(g);
   });
@@ -3317,21 +3577,7 @@ function mapDraw(info) {
   els.mapSheet.style.width = out.box.x1 + "px";
   els.mapSheet.style.height = out.box.y1 + "px";
   els.mapSheet.appendChild(svg);
-
-  var none = document.getElementById("map-none");
-  if (!out.placed.length) {
-    if (!none) {
-      none = document.createElement("p");
-      none.id = "map-none";
-      none.className = "map-none";
-      els.mapPlane.appendChild(none);
-    }
-    none.textContent = "There is nothing in this repository to draw yet — "
-      + "no chapters, no plan and no parts. The lesson is under ✕.";
-    none.hidden = false;
-  } else if (none) {
-    none.hidden = true;
-  }
+  return out.placed.length;
 }
 
 /* What the payload says, painted. The plane is NOT moved: a map that jumps back
@@ -3353,24 +3599,17 @@ function paintMapNow(info, state) {
   var can = !!(mapInfo && (mapInfo.nodes || []).length);
   if (els.mapCount) {
     els.mapCount.textContent = can
-      ? (mapInfo.nodes.length + (mapInfo.nodes.length === 1 ? " part" : " parts"))
+      ? (mapInfo.nodes.length + (mapInfo.nodes.length === 1 ? " part" : " parts")
+         + (mapInfo.steps ? " · " + mapInfo.steps
+            + (mapInfo.steps === 1 ? " step" : " steps") : ""))
       : "";
   }
   if (els.mapTitle) {
-    els.mapTitle.textContent = (mapInfo && mapInfo.title)
-      || ((state && state.course) || "the map");
+    els.mapTitle.textContent = (state && state.course) || "the map";
   }
-  if (els.mapWhy) {
-    /* Said once, quietly, and only when it is true: this picture was derived
-       from what is on disk rather than drawn by anybody. */
-    els.mapWhy.textContent = (mapInfo && mapInfo.fallback && mapInfo.why)
-      ? mapInfo.why + " A tutor can draw a real one."
-      : "";
-  }
-  /* The glyph is there whether or not there is a map to show -- taking it away
-     is how a guarantee becomes a condition -- but it says so when there is
-     nothing behind it. */
+  if (els.mapWhy) els.mapWhy.textContent = (mapInfo && mapInfo.why) || "";
   mapControls(can);
+  paintLoose();
   if (!can) { mapDrawn = ""; return; }
 
   var wide = (els.mapPlane.clientWidth || 0) >= MAP_STACK_AT;
@@ -3381,6 +3620,37 @@ function paintMapNow(info, state) {
   if (!mapView.held) mapFit();
   else mapClamp();
   mapPaint();
+}
+
+/* THE STEPS THIS COULD NOT PLACE, and they are not dropped.
+
+   A step names no file, or names one that has moved, and there is nowhere
+   honest to put it on the picture. Putting it on a box anyway would be a claim
+   about where the work is; leaving it out would take a choice away from the
+   person whose plan it is. So it goes in a tray under the bar, in the plan's
+   own order, coloured and numbered like every other chip and opening the same
+   sitting. */
+function paintLoose() {
+  var host = els.mapLoose;
+  if (!host) return;
+  var loose = (mapInfo && mapInfo.loose) || [];
+  host.innerHTML = "";
+  host.hidden = !loose.length;
+  if (!loose.length) return;
+  var lead = document.createElement("span");
+  lead.className = "muted";
+  lead.textContent = "not on a box yet:";
+  host.appendChild(lead);
+  loose.forEach(function (step) {
+    var b = document.createElement("button");
+    b.type = "button";
+    b.className = "loose-chip " + mapWhen(step.order);
+    b.innerHTML = '<span class="n"></span><span class="t"></span>';
+    b.querySelector(".n").textContent = step.num;
+    b.querySelector(".t").textContent = step.title;
+    b.onclick = function () { openWork("", step.label); };
+    host.appendChild(b);
+  });
 }
 
 function mapControls(can) {
@@ -3406,8 +3676,9 @@ function mapButtons() {
 /* Pan, pinch, wheel. The contact bookkeeping is `plane-core.js`, which the
    writing surface uses too: which contacts are LIVE decides what a gesture is,
    and a map that counted a finger whose lift was never delivered would zoom on
-   one finger and do nothing on two, exactly as the slate once did. */
-/* Made on the first contact rather than at load. Nothing on this page may fail
+   one finger and do nothing on two, exactly as the slate once did.
+
+   Made on the first contact rather than at load. Nothing on this page may fail
    to start because a script that is not the lesson did not arrive: a board.js
    that throws while loading is a blank screen, and the lesson has to be
    reachable from every state this application can be in. */
@@ -3427,7 +3698,7 @@ function mapRoom() {
 }
 
 function mapLimits() {
-  return { lo: Math.min(mapView.fit, 1) * 0.45,
+  return { lo: Math.min(mapView.fit, 1) * 0.35,
            hi: Math.max(mapView.fit, 1) * 3 };
 }
 
@@ -3445,20 +3716,21 @@ function mapPaint() {
 /* WHERE THE MAP OPENS, and it is not "everything on the glass".
 
    Fitting the whole picture by area is what makes a tall map unreadable: a
-   project with one lane and twelve steps is a narrow ribbon a thousand units
-   long, and squeezing that into an iPad's height puts it on screen at 68% in a
-   column a third of the width -- legible to nobody, and a first impression of
-   the feature that is worse than the empty board it replaced. The writing
-   surface learned this first and the rule is written on it: fit by WIDTH, never
-   by area, and scroll the height.
-
-   Capped at 1, because a map narrower than the glass is not a map to magnify.
-   The scale that comes out is `fit`, which every other limit is measured
-   against, and ⤢ is there for the other question -- show me all of it. */
+   repository with twenty boxes in a column is a ribbon a thousand units long,
+   and squeezing that into an iPad's height puts it on screen at 68% -- legible
+   to nobody. The writing surface learned this first and the rule is written on
+   it: fit by WIDTH, never by area, and scroll the height. Capped at 1, because a
+   picture narrower than the glass is not one to magnify. ⤢ is there for the
+   other question, which is "show me all of it". */
 function mapFit() {
   var cw = els.mapPlane.clientWidth, ch = els.mapPlane.clientHeight;
   if (!cw || !ch || !(mapBox.x1 > 0) || !window.Plane) return;
-  mapView.fit = Math.min(1, cw / mapBox.x1);
+  /* Floored, because there is a size past which shrinking to fit stops being a
+     view of anything: a label at half size on a tablet is a grey smear, and a
+     map that opens as a grey smear is worse than one that opens at a readable
+     size with a pan to do. Wider than this and it opens legible and partly off
+     the glass -- ⤢ is one tap away for the whole shape. */
+  mapView.fit = Math.max(0.5, Math.min(1, cw / mapBox.x1));
   mapView.k = mapView.fit;
   mapView.ox = 0;
   mapView.oy = 0;                      /* the top of it; clamp centres if short */
@@ -3468,7 +3740,7 @@ function mapFit() {
   /* And NOT remembered. A fit runs by itself whenever the picture is rebuilt or
      the glass changes shape, and a view nobody chose must not overwrite the one
      they did -- least of all before the landing rule has had a chance to read
-     it, which is how a course that was left on the map reopened in the lesson. */
+     it, which is how a course left on the map reopened in the lesson. */
 }
 
 /* ⤢ -- all of it, however small that has to be. The one gesture that answers
@@ -3547,14 +3819,11 @@ els.mapPlane.addEventListener("wheel", function (e) {
   mapSettle();
 }, { passive: false });
 
-/* The plane is re-fitted when the glass changes shape, but only if nobody has
-   set the zoom themselves -- and the layout is rebuilt if the change crossed
-   the width at which lanes become rows. */
 window.addEventListener("resize", function () {
   if (els.map.hidden) return;
-  /* Crossing the width at which lanes become rows is a different picture, and
-     `paintMap` already knows: the layout mode is part of the signature it
-     compares, so this is a rebuild only when it has actually changed. */
+  /* Crossing the width at which the ranks become one column is a different
+     picture, and `paintMap` already knows: the layout mode is part of the
+     signature it compares, so this rebuilds only when it has actually changed. */
   paintMap(mapInfo, (lastLive && lastLive.state) || {});
   if (mapView.held) { mapClamp(); mapPaint(); } else { mapFit(); }
 });
@@ -3563,8 +3832,7 @@ window.addEventListener("resize", function () {
 function openMap(why) {
   if (!(mapInfo && (mapInfo.nodes || []).length)) {
     /* THE LESSON MUST ALWAYS BE REACHABLE, and a map with nothing on it is a
-       blank screen between somebody and their work. Say so where they are
-       rather than taking them somewhere empty. */
+       blank screen between somebody and their work. */
     return false;
   }
   els.map.hidden = false;
@@ -3577,40 +3845,8 @@ function openMap(why) {
 
 function closeMap() {
   els.map.hidden = true;
+  els.work.hidden = true;
   document.body.classList.remove("mapping");
-  mapRemember();
-}
-
-function mapTap(id) {
-  mapHere = id;
-  var node = null;
-  (mapInfo && mapInfo.nodes || []).forEach(function (n) {
-    if (n.id === id) node = n;
-  });
-  var box = els.mapSheet.querySelectorAll(".node");
-  for (var i = 0; i < box.length; i++) {
-    box[i].classList.toggle("here", box[i].getAttribute("data-id") === id);
-  }
-  if (!node) return;
-  /* What a tap says, for now. The sheet of ways to work on this box -- learn it,
-     build it, be told what to write, be set problems -- is the next piece of
-     work; until it exists a tap says what the box IS, which is the half of the
-     question a diagram is for. */
-  var bits = [];
-  if (node.also) bits.push(node.also);
-  if (node.does) bits.push(node.does);
-  if ((node.files || []).length) {
-    bits.push(node.files.length === 1 ? node.files[0]
-                                      : node.files.length + " files");
-  }
-  els.mapSay.innerHTML = "";
-  var strong = document.createElement("strong");
-  strong.textContent = node.name;
-  els.mapSay.appendChild(strong);
-  var rest = document.createElement("span");
-  rest.textContent = " — " + (node.status || "unknown")
-                   + (bits.length ? " · " + bits.join(" · ") : "");
-  els.mapSay.appendChild(rest);
   mapRemember();
 }
 
@@ -3629,12 +3865,159 @@ mapButtons().forEach(function (b) {
   };
 });
 
+
+/* --------------------------------------------------------- ways to work */
+/* WHAT A TAP ON THE MAP OFFERS, and it is the whole point of the map.
+
+   A box is a part of the repository and a chip is a step of the plan, and
+   tapping either asks the same question: what do you want to do about this.
+   Every answer opens a sitting already pointed at that part, so nothing has to
+   be typed and the tutor is not left to guess what the sitting is about.
+
+   The six are the person's own words made imperative, and they are NOT named
+   after the sitting kinds underneath -- nobody taps "lecture, stance do". Only
+   what the thing can actually support is offered: there is no walkthrough of a
+   box with no files in it, and no "show me the slides" where there is no deck.
+
+   `aim` is what makes this more than a relabelled chooser. It rides in
+   `state.json` and into the line the tutor is woken with, so a sitting opened
+   as "tell me what to write" is a sitting the tutor knows is that. */
+var workNode = "";
+var workStep = "";
+
+var WORK = [
+  { aim: "teach", label: "Teach me how this works",
+    sub: "Worked through, with the mathematics done properly.",
+    session: "lecture", stance: "teach" },
+  { aim: "build", label: "Write the code for me",
+    sub: "The tutor does the work and reports what it changed.",
+    session: "lecture", stance: "do" },
+  { aim: "coach", label: "Tell me what to write, I'll code it",
+    sub: "One step at a time, in English. You type it.",
+    session: "lecture", stance: "teach" },
+  { aim: "trace", label: "Walk me through the code",
+    sub: "Line by line, through what is already there.",
+    session: "walk", needs: "files" },
+  { aim: "drill", label: "Set me problems on it",
+    sub: "Asked cold, over this part of the repository.",
+    session: "review", needs: "part" },
+  { aim: "paper", label: "Write it up as a paper",
+    sub: "A document rather than an answer, kept in the repository.",
+    session: "make", makes: "paper" },
+  { aim: "slides", label: "Build me a deck about it",
+    sub: "Slides you can then read on the board.",
+    session: "make", makes: "slides" },
+  { aim: "show", label: "Show me the document",
+    sub: "On the glass, a page at a time.",
+    session: "", needs: "doc" }
+];
+
+function workOn(id) {
+  var found = null;
+  ((mapInfo && mapInfo.nodes) || []).forEach(function (n) {
+    if (n.id === id) found = n;
+  });
+  return found;
+}
+
+function openWork(id, step) {
+  var node = workOn(id);
+  workNode = node ? node.id : "";
+  workStep = step || "";
+  mapHere = workNode;
+  var boxes = els.mapSheet.querySelectorAll(".node");
+  for (var i = 0; i < boxes.length; i++) {
+    boxes[i].classList.toggle("here", boxes[i].getAttribute("data-id") === workNode);
+  }
+
+  var chip = null;
+  if (workStep) {
+    var pool = node ? (node.steps || []) : ((mapInfo && mapInfo.loose) || []);
+    pool.forEach(function (s) { if (s.label === workStep) chip = s; });
+  }
+
+  els.workTitle.textContent = chip ? chip.title : (node ? node.name : "this course");
+  var sub = [];
+  if (chip) sub.push("step " + chip.num + (node ? " · " + node.name : ""));
+  else if (node && node.also) sub.push(node.also);
+  if (node && node.does && !chip) sub.push(node.does);
+  if (chip && chip.summary) sub.push(chip.summary);
+  els.workSub.textContent = sub.join(" — ");
+
+  var host = els.workList;
+  host.innerHTML = "";
+  var files = (node && node.files) || [];
+  var doc = (node && node.doc) || "";
+  WORK.forEach(function (way) {
+    if (way.needs === "files" && !files.length) return;
+    if (way.needs === "doc" && !doc) return;
+    if (way.needs === "part" && !(node && node.dir)) return;
+    var b = document.createElement("button");
+    b.type = "button";
+    b.className = "work-way";
+    b.innerHTML = '<strong></strong><span></span>';
+    b.querySelector("strong").textContent = way.label;
+    b.querySelector("span").textContent = way.sub;
+    b.onclick = function () { takeWork(way, node, chip); };
+    host.appendChild(b);
+  });
+  mapRemember();
+  els.work.hidden = false;
+}
+
+function takeWork(way, node, chip) {
+  els.work.hidden = true;
+  if (way.aim === "show") {
+    var name = node ? node.name : "document";
+    closeMap();
+    openDoc(node.doc, name);
+    return;
+  }
+  /* A NAME FROM THE BROWSER IS NEVER CONSTRUCTED INTO ANYTHING. What goes over
+     the wire is the box's id and the step's label, and the server looks both up
+     in what discovery found before either reaches a filesystem or a prompt. The
+     sitting's own label is built there too, for the same reason. */
+  var body = {
+    session: way.session,
+    aim: way.aim,
+    node: (node && node.id) || null,
+    step: (chip && chip.label) || null,
+    stance: way.stance || null,
+    makes: way.makes || null
+  };
+  if (way.session === "walk") body.over = (node && node.files) || [];
+  if (way.session === "review") body.over = [node.dir + "/"];
+  fetch("/session", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body)
+  }).then(function (r) {
+    return r.json().catch(function () { return {}; });
+  }).then(function (got) {
+    if (got && got.ok === false) {
+      els.workSub.textContent = "That could not be opened: "
+        + (got.error || "the board refused it") + ".";
+      els.work.hidden = false;
+      return;
+    }
+    /* The sitting is open. Leaving the map is the point of having tapped. */
+    closeMap();
+  }).catch(function () {
+    /* The payload will say what actually happened; the board is not the place
+       to guess at a network. */
+    closeMap();
+  });
+}
+
+els.workClose.onclick = function () { els.work.hidden = true; };
+
+
 /* ---------------------------------------- where a course opens, and why */
 /* A COURSE OPENS WHERE YOU LEFT IT.
 
    Not always on the map. On the surface you were last on in this course, and if
    that was the map, on the part of the map you were looking at -- the same pan
-   and zoom, with the box you last tapped still marked. Somebody three steps into
+   and zoom, with the box you last opened still marked. Somebody three steps into
    a derivation who taps their course must land in the derivation.
 
    A course nobody has opened on this device yet, or one whose remembered

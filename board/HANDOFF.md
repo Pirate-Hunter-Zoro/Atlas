@@ -15,36 +15,40 @@
 
 ## WHERE THIS HAS GOT TO
 
-**Phase 1 is shipped.** Read this before §6; the rest of the file is unchanged and
-is still the brief.
+**Phases 1 and 3 are shipped, and §4.2 changed after the first version was
+rejected.** Read this before §4 and §6; the rest of the file is unchanged.
 
-- `tutorboard/course/map.py` — the three fallbacks of §4.5. Chapters win over a plan
-  (the table in §4.5 reads plan-first; no repository here has both, and the rest of
-  this board already answers "chapters, or failing that parts" everywhere, so
-  Galois Theory and Probability cannot be shown a task list instead of their
-  chapters). `status(root, state, archived)`, `find(root, id)`, a 30-second cache.
-- `load_map` in `tutorboard/lesson/state.py`, one line in `hub.build()`. The module is
-  imported as `mapping` because `map` is a builtin.
-- `web/plane-core.js` — the view and gesture half of §5.2, EXTRACTED from
-  `slate-core.js` rather than forked. The contact map with its expiry, the pinch
-  pair, `forget`, `clamp`, `zoomAbout`, `room`, `frame`. `slate-core.js` now
-  delegates to it and `test/plane.js` checks both halves of that.
-- The map surface in `board.html` / `board.css` / `board.js`: inline SVG, lanes as
-  columns, rows below 640px, pan and pinch, `⤢` for the whole picture. It opens fit
-  by WIDTH at the top, never by area — fitting a twelve-step project by area puts it
-  on screen at 68% in a ribbon a third of the glass wide.
-- §7 in full: `localStorage` per course (`board.where.<course>`), the surface and the
-  plane's x/y/k and the last box; and the way back from every surface, with the
-  `◈` glyph in the title bar, in every drawer head, on the document viewer, and as a
-  `?map=1` link on `/slate`. The map took the contents drawer's place in the bar and
-  the drawer moved under `⋯` — seven controls in that row is what `test/link.js`
-  refuses.
-- `test/map.py`, `test/map.js`, additions to `test/panic.js` (one check per surface)
-  and `test/chrome.js`. `bash test/all.sh` is green. Shell `board-shell-v96`.
+**What the map is now.** Not the plan. The first version drew `plan.steps` in a
+column and was rejected: *"I don't want just a list of all the TODOs. I want a
+map of the CONTENT in the repository… a fun kind of map/node graph like an
+Entity relationship model."* So `tutorboard/course/map.py` discovers:
 
-**Phase 1 deliberately did NOT do:** `live/map.json`, `board map`, the tap sheet, the
-`node` clause in `session_sense`, git recency. A tap on a box says what the box is,
-which is where the sheet will grow. Start at §6, phase 2.
+- **the parts** — directories holding source, rolled up until there are few
+  enough to be a picture;
+- **the arrows** — imports from one part into another, counted;
+- **the work** — plan steps matched to the part they name, as numbered chips on
+  the box, coloured by the plan's order. Unmatched steps go in a tray rather
+  than being dropped or guessed onto a box.
+
+A box's `does` is its own package docstring. §4.2's node schema is otherwise as
+written, plus `kind` (`part` · `doc` · `chapter` · `set`), `dir` and `steps`.
+
+**What else landed.** `web/plane-core.js` (§5.2, extracted from `slate-core.js`,
+not forked). The layered-graph renderer: measured text, ranks from dependency
+depth with cycles handled, barycentre ordering, bands of six ranks for long
+chains, one column below 640px. §7 in full. The tap sheet (§4.8) with six ways
+to work, the **make** sitting (§6 phase 4 — brought forward, because it was half
+the ask), and an `aim` on `state.json` that `sense.node_sense`/`aim_sense` hand
+to the tutor along with the box's purpose, files and steps.
+
+**Still not built:** `live/map.json` and `board map` (§4.3, §6 phase 2) — the
+written half, where a box is a stage of the work rather than a directory and an
+edge says what feeds what. Everything a written map needs is already in the
+schema and the renderer; what is missing is the CLI, the validation, the
+merge-against-discovery on read, `--check`, and the `TEACHING.md` section on
+keeping it true. Also absent: git recency as a mark (§4.4), and `blockedBy`.
+
+`bash test/all.sh` is green. Shell `board-shell-v97`.
 
 ---
 

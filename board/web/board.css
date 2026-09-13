@@ -21,6 +21,14 @@
   --bad:        #9a2020;   /* wrong     */
   --note:       #2a4d7a;   /* aside     */
   --mine:       #e8eef5;   /* student's own message */
+  /* WHEN A STEP SHOULD BE DONE, hot to cold along the plan's own order. Four
+     bands rather than a ramp: four colours on an eleven-pixel circle can be
+     told apart and a gradient cannot. Never a schedule -- every chip is
+     tappable and which one to do is the person's. */
+  --step-now:   #a8320f;
+  --step-soon:  #9a6a05;
+  --step-later: #2a4d7a;
+  --step-some:  #6f6a62;
 }
 
 body[data-mode="dark"], body[data-mode="auto"].sys-dark {
@@ -36,6 +44,10 @@ body[data-mode="dark"], body[data-mode="auto"].sys-dark {
   --bad:        #e88b8b;
   --note:       #8fb6e6;
   --mine:       #232a33;
+  --step-now:   #ff9b84;
+  --step-soon:  #e8bb63;
+  --step-later: #8fb6e6;
+  --step-some:  #8e8880;
 }
 
 * { box-sizing: border-box; }
@@ -1480,30 +1492,34 @@ body.tools-out .annbar { bottom: calc(5.6rem + env(safe-area-inset-bottom)); }
 }
 .map-sheet svg { display: block; overflow: visible; }
 
-/* A lane's name, over the column it heads. */
-.map-sheet .lane {
-  font: 700 11px var(--ui); letter-spacing: .12em; text-transform: uppercase;
-  fill: var(--ink-3);
-}
-
 /* A BOX. The status is a class on the group and the whole visual language is
    here, so what `done` looks like can change without touching the generator. */
 .map-sheet .node { cursor: pointer; }
 .map-sheet .node rect.box {
-  fill: var(--paper); stroke: var(--rule); stroke-width: 1.2; rx: 10;
+  fill: var(--paper); stroke: var(--rule); stroke-width: 1.2;
 }
 .map-sheet .node .name { font: 650 15px var(--ui); fill: var(--ink); }
-.map-sheet .node .also { font: 400 11.5px var(--ui); fill: var(--ink-3); }
-.map-sheet .node .does { font: 400 12.5px var(--ui); fill: var(--ink-2); }
+.map-sheet .node .also { font: 400 11px var(--ui); fill: var(--ink-3); }
+.map-sheet .node .does { font: 400 12px var(--ui); fill: var(--ink-2); }
 .map-sheet .node:hover rect.box { stroke: var(--ink-3); }
+.map-sheet .node:focus { outline: none; }
+.map-sheet .node:focus rect.box { stroke: var(--note); stroke-width: 2; }
+
+/* A document is content, and it is not machinery. Dashed, so the difference is
+   visible before the label is read. */
+.map-sheet .node.doc rect.box { stroke-dasharray: 5 4; fill: var(--paper-2); }
+/* And so is a part nothing imports and that imports nothing: it sits in the
+   band under the graph rather than being wired into a relationship that is not
+   there. */
+.map-sheet .node.apart rect.box { stroke-dasharray: 2 3; }
 
 /* The left edge of a box is its status, as a bar of colour rather than a word:
    a picture is read at a glance and a glance does not read labels. */
 .map-sheet .node rect.mark { fill: var(--rule); }
 .map-sheet .node.done    rect.mark { fill: var(--good); }
 .map-sheet .node.working rect.mark { fill: var(--ask); }
-.map-sheet .node.next    rect.mark { fill: var(--accent); }
-.map-sheet .node.later   rect.mark { fill: var(--ink-3); }
+.map-sheet .node.next    rect.mark { fill: var(--step-now); }
+.map-sheet .node.later   rect.mark { fill: var(--step-later); }
 .map-sheet .node.blocked rect.mark { fill: var(--bad); }
 .map-sheet .node.unknown rect.mark { fill: var(--rule); }
 
@@ -1514,37 +1530,104 @@ body.tools-out .annbar { bottom: calc(5.6rem + env(safe-area-inset-bottom)); }
   fill: color-mix(in srgb, var(--ask) 7%, var(--paper));
 }
 .map-sheet .node.done .name { fill: var(--ink-2); }
-/* And where they last tapped, which is where the course reopens. */
+/* And where they last opened something, which is where the course reopens. */
 .map-sheet .node.here rect.box { stroke: var(--note); stroke-width: 2.4; }
 
+/* A NUMBERED STEP, ON THE BOX IT IS ABOUT. */
+.map-sheet .chip { cursor: pointer; }
+.map-sheet .chip circle { fill: var(--step-some); stroke: none; }
+.map-sheet .chip text {
+  font: 700 11px var(--ui); fill: var(--paper);
+  dominant-baseline: auto;
+}
+.map-sheet .chip.now circle   { fill: var(--step-now); }
+.map-sheet .chip.soon circle  { fill: var(--step-soon); }
+.map-sheet .chip.later circle { fill: var(--step-later); }
+.map-sheet .chip.some circle  { fill: var(--step-some); }
+.map-sheet .chip:hover circle { stroke: var(--ink); stroke-width: 1.6; }
+.map-sheet .chip:focus { outline: none; }
+.map-sheet .chip:focus circle { stroke: var(--ink); stroke-width: 2; }
+
 .map-sheet .edge {
-  fill: none; stroke: var(--rule); stroke-width: 1.6;
+  fill: none; stroke: var(--rule); stroke-width: 1.5;
   stroke-linecap: round; stroke-linejoin: round;
 }
-.map-sheet .edge-head { fill: var(--rule); }
+/* An arrow eleven imports thick is a different fact from one carrying a single
+   mention, and thickness is the only place to say it without another label. */
+.map-sheet .edge.strong { stroke: var(--ink-3); stroke-width: 2.2; }
+.map-sheet .edge-head { fill: var(--ink-3); }
 
-/* What was last tapped, and the quiet note saying this map was derived rather
-   than drawn. One row, and it wraps rather than truncating: the sentence that
-   says a tutor can draw a real map is the one worth reading. */
-.map-foot {
-  flex: none; display: flex; align-items: baseline; gap: .8rem; flex-wrap: wrap;
-  padding: .55rem max(.9rem, env(safe-area-inset-right))
-           max(.55rem, env(safe-area-inset-bottom)) max(.9rem, env(safe-area-inset-left));
-  border-top: 1px solid var(--rule);
-  background: var(--paper); font-size: .78rem;
+/* The steps nothing could place, in a tray under the bar. */
+.map-loose {
+  flex: none; display: flex; align-items: center; gap: .4rem;
+  padding: .45rem max(.9rem, env(safe-area-inset-left));
+  overflow-x: auto; overscroll-behavior-x: contain;
+  border-bottom: 1px solid var(--rule); background: var(--paper);
+  font-size: .76rem; white-space: nowrap;
 }
-#map-say { color: var(--ink-2); }
-#map-say strong { color: var(--ink); font-weight: 650; }
-#map-why { margin-left: auto; }
+.loose-chip {
+  flex: none; display: inline-flex; align-items: center; gap: .35rem;
+  border: 1px solid var(--rule); border-radius: 1rem;
+  background: var(--paper); color: var(--ink); cursor: pointer;
+  font: inherit; padding: .2rem .6rem .2rem .2rem; max-width: 16rem;
+}
+.loose-chip .n {
+  flex: none; width: 1.3rem; height: 1.3rem; border-radius: 50%;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-weight: 700; font-size: .7rem; color: var(--paper);
+  background: var(--step-some);
+}
+.loose-chip.now .n   { background: var(--step-now); }
+.loose-chip.soon .n  { background: var(--step-soon); }
+.loose-chip.later .n { background: var(--step-later); }
+.loose-chip .t { overflow: hidden; text-overflow: ellipsis; }
 
-/* An empty map is not an empty plane. A repository with nothing in it says so
-   in a sentence, in the middle of the surface, rather than leaving somebody to
-   pinch around a blank field looking for what they missed. */
-.map-none {
-  position: absolute; inset: 0; display: flex; align-items: center;
-  justify-content: center; text-align: center; margin: 0; padding: 2rem;
-  color: var(--ink-3); font-size: .9rem;
+/* What the colours mean, said once, in the foot. */
+.map-legend { display: flex; align-items: center; gap: .7rem; flex-wrap: wrap; }
+.map-legend .key { display: inline-flex; align-items: center; gap: .3rem;
+                   color: var(--ink-3); }
+.map-legend .key::before {
+  content: ""; width: .62rem; height: .62rem; border-radius: 50%;
+  background: var(--step-some);
 }
+.map-legend .key.now::before   { background: var(--step-now); }
+.map-legend .key.soon::before  { background: var(--step-soon); }
+.map-legend .key.later::before { background: var(--step-later); }
+
+/* THE WAYS TO WORK ON ONE BOX. The drawer shape the rest of the board already
+   uses, inside the map so it goes away with it. */
+#work {
+  position: absolute; top: 0; right: 0; bottom: 0; z-index: 8;
+  width: min(24rem, 96vw);
+  background: var(--paper); border-left: 1px solid var(--rule);
+  display: flex; flex-direction: column;
+  box-shadow: -8px 0 26px rgba(0,0,0,.24);
+  font-family: var(--ui); font-size: .85rem;
+}
+.work-what { min-width: 0; display: flex; flex-direction: column; gap: .15rem; }
+#work-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#work-sub { font-size: .74rem; line-height: 1.35;
+            display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical;
+            overflow: hidden; }
+#work-close { border: 0; background: none; font: inherit; cursor: pointer;
+              color: var(--ink-2); flex: none; align-self: flex-start; }
+/* The list between the head and the foot is the part that scrolls. Being inside
+   a fixed panel does not make an element a scroller: it needs the room that is
+   left AND permission to scroll inside it, and the entries that fall off the
+   end of a panel that has neither are unreachable. */
+#work-list {
+  flex: 1; overflow-y: auto; padding: .5rem;
+  overscroll-behavior: contain; touch-action: pan-y;
+}
+.work-way {
+  display: flex; flex-direction: column; gap: .15rem; width: 100%;
+  text-align: left; cursor: pointer; font: inherit;
+  margin-bottom: .4rem; padding: .55rem .7rem; border-radius: .5rem;
+  border: 1px solid var(--rule); background: var(--paper); color: var(--ink);
+}
+.work-way strong { font-weight: 650; }
+.work-way span { color: var(--ink-3); font-size: .76rem; }
+.work-way:hover { border-color: var(--accent); background: var(--paper-2); }
 
 /* The glyph that opens it, wherever it appears: the bar, a drawer head, the
    document viewer. One shape, so it is recognised as the same control. */

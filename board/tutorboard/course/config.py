@@ -84,3 +84,69 @@ def stance_for(root, state):
     """
     own = clean_stance((state or {}).get("stance"))
     return own or read_config(root).get("stance") or "teach"
+
+
+# ---------------------------------------------------------------------------
+# what THIS sitting is for
+# ---------------------------------------------------------------------------
+#
+# A stance says who writes the code. An AIM says what the sitting is for, and
+# the two are not the same question: "teach me how this works" and "tell me what
+# to write and I'll code it" are both `stance: teach` and they are not the same
+# evening. Asked for as a list of things every sitting should be able to be:
+# *"All tutoring sessions should have the capability of being a math tutor, a
+# coder, a coding coacher, a presentation creator, a paper creator, and the
+# ability to show any or all sections of said papers or presentations."*
+#
+# So the sitting carries one, chosen on the map at the moment of opening it, and
+# `sense` puts it in the line the tutor is woken with. Six, and no more: a
+# seventh would be a distinction nobody makes with a thumb.
+#
+#     teach   work it through properly -- the mathematics, done not described
+#     build   the tutor writes the code and reports what it changed
+#     coach   one step at a time, in English; the person types it
+#     trace   read what is already there, line by line
+#     drill   questions asked cold over a scope
+#     paper   produce a document -- a write-up or a deck -- rather than an answer
+#
+# `slides` is `paper` with a different product and is spelled out separately at
+# the point of use, because what the tutor has to do differs and the word for it
+# should not.
+AIMS = ("teach", "build", "coach", "trace", "drill", "paper", "slides")
+
+
+def clean_aim(aim):
+    """An aim from a request, or None if it is not one. Never raises.
+
+    Dropped rather than refused, for the same reason a misspelled stance is: the
+    request is about which sitting to open, and failing the whole of it over a
+    word would leave somebody on the lesson they were trying to leave.
+    """
+    aim = str(aim or "").strip().lower()
+    return aim if aim in AIMS else None
+
+
+# What each aim actually asks the tutor to do, in one sentence, in the line it is
+# woken with. Written here rather than in `sense` so that the words a person taps
+# on the map and the words the tutor is given cannot drift apart.
+AIM_MEANS = {
+    "teach": "They asked to be TAUGHT this: work it through properly, one step "
+             "at a time, and make them do the step. Do not write their code.",
+    "build": "They asked you to BUILD it: write the code yourself, run it, and "
+             "report what you changed and what it did. The card is a report, "
+             "not an exercise.",
+    "coach": "They asked to be TOLD WHAT TO WRITE: name the calls, the "
+             "arguments and the order in English, one step per card, and let "
+             "them type it. Do not write the code for them.",
+    "trace": "They asked to be WALKED THROUGH code that already exists: trace "
+             "it by hand with them, predict returns, say which branch runs. "
+             "Nothing new is written in this sitting.",
+    "drill": "They asked to be SET PROBLEMS on this, cold. Ask; do not explain "
+             "first.",
+    "paper": "They asked you to WRITE IT UP as a document: the product of this "
+             "sitting is a paper kept in the repository, not an answer. Draft "
+             "it, show them sections as you go, and take corrections.",
+    "slides": "They asked you to BUILD A DECK about this: the product of this "
+              "sitting is slides kept in the repository. Draft them, show them "
+              "on the board a page at a time, and take corrections.",
+}

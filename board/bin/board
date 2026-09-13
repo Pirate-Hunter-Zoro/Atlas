@@ -76,6 +76,9 @@ from tutorboard import (brief, carry, handoff, limits, machine,
                         worktree)
 from tutorboard.net import egress, tailscale
 from tutorboard.course import config, document, homework, paper, review, walk
+# `map` is a builtin; the module keeps the name the board calls the thing and
+# the binding does not.
+from tutorboard.course import map as course_map
 SERVE = os.path.join(TOOL, "serve.py")
 KINDS = ("lesson", "question", "correct", "wrong", "review", "note", "recap")
 
@@ -500,6 +503,9 @@ def cmd_open(live, args):
     which = None
     over = []
     stance = None
+    aim = None
+    node = None
+    makes = None
     rest = []
     skip_next = False
     for i, a in enumerate(args):
@@ -514,6 +520,30 @@ def cmd_open(live, args):
             session = "review"
         elif a in ("--walk", "--walkthrough"):
             session = "walk"
+        elif a == "--make":
+            # A sitting whose product is a DOCUMENT rather than an answer. The
+            # board had no such thing: every sitting it had ends in the student
+            # producing something, and "write this up" and "build me a deck
+            # about it" are neither a lecture nor an exercise.
+            session = "make"
+            makes = (args[i + 1] if i + 1 < len(args) else "").strip().lower()
+            if makes not in ("paper", "slides"):
+                print("  --make takes 'paper' or 'slides'", file=sys.stderr)
+                return 2
+            skip_next = True
+        elif a == "--aim":
+            # What this sitting is FOR, which is not the same question as who
+            # writes the code. See `course/config.py`.
+            aim = config.clean_aim(args[i + 1] if i + 1 < len(args) else "")
+            if aim is None:
+                print("  --aim is not one of: %s; ignored"
+                      % ", ".join(config.AIMS), file=sys.stderr)
+            skip_next = True
+        elif a == "--node":
+            # Which box of the map this sitting is about. Checked against what
+            # the map actually holds, never carried through as typed.
+            node = (args[i + 1] if i + 1 < len(args) else "").strip()
+            skip_next = True
         elif a == "--stance":
             # This sitting's, not the repository's. `tutorboard.json` is not
             # touched: a stance chosen for an evening's work is not a decision
@@ -573,8 +603,20 @@ def cmd_open(live, args):
     cmd_archive(live, [])
     if (chapter or "") != was and handoff.restore_handoff(live.root, chapter):
         print("  handoff from the last sitting on this chapter is back")
+    if node:
+        found = course_map.find(live.root, node, live.state())
+        if not found:
+            print("  no part of the map called %r; ignored" % node, file=sys.stderr)
+            node = None
+        elif not chapter:
+            chapter = found["name"]
+
     live.set_state(course=course, chapter=chapter, session=session or "lecture",
                    finished=None, hw=None,
+                   # What this sitting is about and what it is for. Both are
+                   # cleared by opening the next one, the way a sitting stance
+                   # is: they belong to the sitting, not to the repository.
+                   node=node, aim=aim, makes=makes,
                    review=[u["name"] for u in chosen] if session == "review" else None,
                    walk=[u["name"] for u in chosen] if session == "walk" else None,
                    # A sitting stance is cleared by opening the next sitting,
@@ -604,6 +646,11 @@ def cmd_open(live, args):
         else:
             print("  nothing named to walk through. Say what it covers:")
             print("  board walk over <file or function>    (board walk list)")
+    if session == "make":
+        print("  the product of this sitting is a %s, not an answer"
+              % ("deck" if makes == "slides" else "paper"))
+    if aim:
+        print("  aim: %s" % aim)
     if session == "homework":
         print("  you write the mathematics; the write-up and the compile are mine")
         # Bind the sitting to a problem set now, so nothing later has to guess.
