@@ -271,7 +271,7 @@ def _page_number(path):
 
 
 def pages(repo, kind, width=PAGE_WIDTH):
-    """Every page of one document, as PNGs the board can show in place.
+    """Every page of one of the two BUILT documents, as PNGs.
 
     Cached against the PDF's own modification time, so opening the same document
     twice costs one directory listing. A rebuild changes the digest and renders
@@ -282,8 +282,20 @@ def pages(repo, kind, width=PAGE_WIDTH):
         return {"ok": False, "why": "none",
                 "detail": ("There is no %s PDF yet."
                            % ("compiled write-up" if kind == "homework" else "exported lesson"))}
+    return pages_of(repo, target, filename, kind, width)
 
+
+def pages_of(repo, target, filename, tag, width=PAGE_WIDTH):
+    """Every page of ANY pdf this board is allowed to show, as PNGs.
+
+    Split out of `pages` when a third kind of document arrived: a slide deck
+    that was written months ago and is not built by anything here. The caching,
+    the lock, the renderer and the page cap are identical whatever produced the
+    PDF -- what differs is only how the file was found, which is the caller's
+    business. `reading.py` finds the decks; this draws them.
+    """
     width = max(400, min(2200, int(width or PAGE_WIDTH)))
+    kind = tag
     digest = _digest(target, width)
     have = cached(repo, digest)
     if have:

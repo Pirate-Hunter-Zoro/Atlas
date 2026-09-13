@@ -11,6 +11,7 @@ from . import NOT_MINE
 from ...course import syllabus
 from ...course import review
 from ...course import walk
+from ...course import plan
 from ...course import homework
 from .. import multipart
 from .. import spawn
@@ -154,7 +155,14 @@ def post(h, repo, path):
         # is still readable under the history button rather than being
         # overwritten by the next.
         if chapter:
+            # A chapter in a book course, or a STEP in a project's plan -- which
+            # is the same tap on the same drawer and has to be checked the same
+            # way: against what the repository actually has, never constructed
+            # from the request. A project has no chapters and its steps are not
+            # invented here either; they are the lines of the file its README
+            # points at, which is the only thing that says what comes next.
             known = [syllabus.label(c) for c in syllabus.chapters(repo.root)]
+            known += [x["label"] for x in plan.steps(repo.root)]
             if chapter not in known:
                 return h.send_json({"ok": False, "error": "no such chapter"},
                                       status=400)

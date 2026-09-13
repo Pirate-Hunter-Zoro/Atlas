@@ -7,7 +7,7 @@ import os
 import time
 
 from .. import machine, processes
-from ..course import homework, paper, review, syllabus, walk
+from ..course import homework, paper, plan, reading, review, syllabus, walk
 from . import cards
 
 
@@ -158,6 +158,35 @@ def load_walk(repo):
         return None
     st.pop("chosen", None)     # the names are enough; the board paints from units
     return st
+
+
+def load_plan(repo):
+    """What this project says it is doing next, so the drawer can offer it.
+
+    A course that follows a book has chapters and the drawer lists them; a
+    project had nothing, and the drawer said so -- "sittings here are made as
+    you go" -- which put every decision about what a sitting was about back on
+    the person holding the iPad. A project does write down what comes next; it
+    just does not call it a syllabus and does not keep it in this repository.
+    See `course/plan.py`.
+    """
+    try:
+        return plan.status(repo.root, repo.state())
+    except Exception:                                        # noqa: BLE001
+        return None
+
+
+def load_reading(repo):
+    """The documents this course can be shown, as opposed to the two it builds.
+
+    A deck explaining the machinery is the most useful thing in some of these
+    repositories and the board could not display a page of it. See
+    `course/reading.py`.
+    """
+    try:
+        return reading.status(repo)
+    except Exception:                                        # noqa: BLE001
+        return None
 
 
 def load_contents(repo):

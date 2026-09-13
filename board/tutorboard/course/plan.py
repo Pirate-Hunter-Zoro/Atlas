@@ -1,0 +1,328 @@
+"""plan.py -- where a project writes down what it is doing next.
+
+A course that follows a book has `chapters.tsv`, and that one file is the whole
+reason Galois Theory is painless: the contents drawer lists eleven chapters, a
+tap opens one, and nobody types a command or decides anything. A project has no
+such file, so the drawer said this, in as many words:
+
+    "No chapters or problem sets in this repository, so sittings here are made
+     as you go."
+
+Which is the pain, rendered as a paragraph of interface. Every sitting in those
+repositories began with somebody deciding what it was about, at a keyboard, in a
+terminal -- and a cold tutor beginning by reading a 1,500-line README, following
+a pointer out of it, and reading a 1,300-line task list to find out what comes
+next.
+
+**But a working project does write down what it is doing next.** It is not called
+a syllabus and it is not in this repository, and those are the only two reasons
+nothing was reading it. PSYCH-ASR's README names
+`~/Research-Journey/planning/PSYCH-ASR_TODO.txt`; that file opens with a block
+headed `>>> NEXT ACTION (start here in a fresh session) <<<` and a numbered list
+of steps. That is a syllabus. It is maintained, it is accurate, and it was being
+read by nobody but a person.
+
+So this module answers two questions and nothing else: **where is the plan**, and
+**what are the next few things in it**. Both are discovered -- from the
+repository's own `tutorboard.json` if it says, and otherwise from what the README
+already points at, because a README that names its task list has declared it as
+plainly as any config key would and is a file somebody actually maintains.
+
+Standard library only, like everything else.
+"""
+
+import json
+import os
+import re
+import time
+
+# What a plan is called, when nothing names one. Ordered: a repository with both
+# a ROADMAP and a TODO means the TODO, because the TODO is the one that changes.
+COMMON = ("TODO.md", "TODO.txt", "TASKS.md", "PLAN.md", "ROADMAP.md", "NEXT.md")
+
+# A path-shaped token in a README that looks like a plan. Deliberately narrow:
+# it must END in one of the plan words plus an extension, so `planning/` alone
+# does not match and neither does a sentence about planning.
+POINTER = re.compile(
+    r"[~\w./-]*(?:TODO|TASKS|ROADMAP|PLAN|BACKLOG)[\w.-]*\.(?:md|txt|org)\b",
+    re.IGNORECASE)
+
+# How many steps are worth putting in a drawer. A plan has forty items in it and
+# a person opening a drawer wants to know what is next, not to read the plan --
+# which is on disk and can be opened whole.
+MAX_STEPS = 12
+
+# The blurb under a step in the drawer, and in the line a tutor is woken with.
+# Enough to tell two steps apart; not enough to be the step.
+SUMMARY = 240
+
+
+def _named(root):
+    """A plan this repository declares outright, if it declares one."""
+    try:
+        with open(os.path.join(root, "tutorboard.json"), "r", encoding="utf-8") as fh:
+            said = (json.load(fh) or {}).get("plan")
+    except (OSError, ValueError):
+        return None
+    return _resolve(root, said) if said else None
+
+
+def _resolve(root, rel):
+    """A path from a README or a config, made real -- or None.
+
+    Three places, because a plan legitimately lives in any of them: inside this
+    repository, in a SIBLING repository (a narrative hub that holds the plans for
+    several projects, which is exactly PSYCH-ASR's arrangement), or under `~`
+    where a README writes it for a human reader.
+
+    It may not go anywhere else. A path out of a file is a path somebody could
+    have written anything into, and this one is read, listed in a drawer, and
+    named in a prompt.
+    """
+    rel = str(rel or "").strip().strip("`'\"")
+    if not rel:
+        return None
+    root = os.path.realpath(root)
+    home = os.path.realpath(os.path.expanduser("~"))
+    parent = os.path.dirname(root)
+
+    if rel.startswith("~"):
+        tries = [os.path.expanduser(rel)]
+    elif os.path.isabs(rel):
+        tries = [rel]
+    else:
+        tries = [os.path.join(root, rel), os.path.join(parent, rel)]
+
+    if not os.path.dirname(rel.lstrip("~/")):
+        # A bare filename, which is how a README names a plan it expects the
+        # reader to already know the location of: "its live task list is
+        # LOCAL-LLM_TODO.txt". The arrangement these repositories actually use
+        # is a narrative hub beside them holding every project's plan, so look
+        # one level into each sibling before giving up. Bounded and shallow: a
+        # directory listing of the parent and of each child, not a tree walk.
+        tries += _beside(parent, os.path.basename(rel))
+
+    for path in tries:
+        target = os.path.realpath(path)
+        if not os.path.isfile(target):
+            continue
+        # Inside this repository, or beside it under the same home. Anywhere
+        # else is refused rather than read.
+        if target == root or target.startswith(root + os.sep):
+            return target
+        if target.startswith(parent + os.sep) and target.startswith(home + os.sep):
+            return target
+    return None
+
+
+def _beside(parent, name):
+    """Where a bare plan filename could be, in the directory holding this repo."""
+    out = []
+    try:
+        for sib in sorted(os.listdir(parent)):
+            if sib.startswith("."):
+                continue
+            here = os.path.join(parent, sib)
+            if not os.path.isdir(here):
+                continue
+            out.append(os.path.join(here, name))
+            try:
+                for sub in sorted(os.listdir(here)):
+                    if not sub.startswith(".") and os.path.isdir(os.path.join(here, sub)):
+                        out.append(os.path.join(here, sub, name))
+            except OSError:
+                continue
+    except OSError:
+        return []
+    return out
+
+
+def _pointed_at(root):
+    """The plan this repository's README names, if it names one.
+
+    A README that says where the work is planned has declared it as plainly as a
+    config key would, and it is the file somebody actually keeps up to date. The
+    match is anchored on the filename rather than on the prose around it, so
+    what is found is a path and not a sentence.
+    """
+    try:
+        with open(os.path.join(root, "README.md"), "r", encoding="utf-8") as fh:
+            text = fh.read(200000)
+    except OSError:
+        return None
+    for match in POINTER.finditer(text):
+        found = _resolve(root, match.group(0))
+        if found:
+            return found
+    return None
+
+
+def path(root):
+    """Where this repository's work is written down, or None.
+
+    Declared first, pointed at second, conventional third. A repository with
+    none of the three is a repository with no plan, which is a real answer --
+    Galois Theory has a book instead and Algo-Solutions has a problem list.
+    """
+    return (_named(root)
+            or _pointed_at(root)
+            or next((os.path.join(root, n) for n in COMMON
+                     if os.path.isfile(os.path.join(root, n))), None))
+
+
+def where(root):
+    """The plan's path as a person would write it: relative, or `~`-prefixed."""
+    target = path(root)
+    if not target:
+        return ""
+    root = os.path.realpath(root)
+    if target.startswith(root + os.sep):
+        return os.path.relpath(target, root)
+    home = os.path.realpath(os.path.expanduser("~"))
+    if target.startswith(home + os.sep):
+        return "~/" + os.path.relpath(target, home)
+    return target
+
+
+# A numbered step, which is what these plans are written in:
+#   "  STEP 1. THE TYPIST BAKE-OFF -- VARY THE ASR MODEL. (Added 2026-09-09.)"
+STEP = re.compile(r"^\s{0,4}(?:STEP|PHASE|TASK)\s+([0-9]+[a-z]?)[.):]\s*(\S.*)$")
+
+# A markdown checklist, which is what most plans are written in. Only the
+# UNCHECKED ones: a plan lists what is left, and a drawer of finished work is a
+# drawer of things nobody can do.
+TODO_ITEM = re.compile(r"^\s{0,6}[-*+]\s+\[( |x|X)\]\s+(\S.*)$")
+
+# A heading, as the last resort. `##` and deeper only -- the title of the
+# document is not a step in it.
+HEADING = re.compile(r"^(#{2,4})\s+(\S.*)$")
+
+# Where these plans put the thing to do next, and it is worth honouring: a file
+# that says "start here in a fresh session" has answered the question this
+# module exists to ask.
+START_HERE = re.compile(r"NEXT ACTION|START HERE|WHAT WE DO NEXT|READ THIS FIRST",
+                        re.IGNORECASE)
+
+
+def _trim(text):
+    text = re.sub(r"\s+", " ", (text or "").strip())
+    return text[:SUMMARY].rstrip() + ("…" if len(text) > SUMMARY else "")
+
+
+def _title(text):
+    """A step's own name, without the sentence that follows it.
+
+    These plans write `STEP 1. THE TYPIST BAKE-OFF -- VARY THE ASR MODEL. (Added
+    2026-09-09.)`, and the drawer wants the first clause of that. The date stamp
+    is provenance for a reader of the file and noise in a title bar.
+    """
+    text = re.sub(r"\s*\((?:Added|Updated|Corrected)[^)]*\)\s*", " ", text or "")
+    text = re.sub(r"\s+", " ", text).strip(" .")
+    # The first sentence. These plans shout their titles -- "INTEGRATE HIS
+    # SECTIONS. Same treatment as the 2026-09-02 round: take..." -- so a split
+    # that only fires after a lower-case letter never fires at all, and the
+    # drawer gets a paragraph where it wanted a name.
+    cut = re.split(r"\.\s+", text, maxsplit=1)[0]
+    return cut.strip(" .")[:110]
+
+
+# Read off disk on every payload otherwise, four times a second, for a file
+# somebody edits once an evening. Same rule as `walk.units` and
+# `reading.documents`.
+CACHE_SECONDS = 30
+_cache = {}
+
+
+def steps(root):
+    """The next few things this project has written down, in the plan's order.
+
+    Never invented and never re-ordered. If the plan says step 4 is first, step 4
+    is first -- a drawer that quietly sorts somebody's plan is a drawer that
+    disagrees with the file they maintain.
+    """
+    key = os.path.realpath(root)
+    hit = _cache.get(key)
+    if hit and time.time() - hit[0] < CACHE_SECONDS:
+        return hit[1]
+    found = _steps(root)
+    _cache[key] = (time.time(), found)
+    return found
+
+
+def _steps(root):
+    target = path(root)
+    if not target:
+        return []
+    try:
+        with open(target, "r", encoding="utf-8", errors="replace") as fh:
+            lines = fh.read().splitlines()
+    except OSError:
+        return []
+
+    # Start at the block that says to start there, where the plan has one.
+    begin = 0
+    for i, line in enumerate(lines[:400]):
+        if START_HERE.search(line):
+            begin = i
+            break
+
+    out = []
+    for kind, rx in (("step", STEP), ("item", TODO_ITEM), ("heading", HEADING)):
+        out = _collect(lines, begin, kind, rx)
+        if out:
+            break
+    return out[:MAX_STEPS]
+
+
+def _collect(lines, begin, kind, rx):
+    found = []
+    for i in range(begin, len(lines)):
+        m = rx.match(lines[i])
+        if not m:
+            continue
+        if kind == "item":
+            if m.group(1).strip():          # already done; not a thing to do
+                continue
+            num, head = str(len(found) + 1), m.group(2)
+        elif kind == "heading":
+            num, head = str(len(found) + 1), m.group(2)
+        else:
+            num, head = m.group(1), m.group(2)
+        # The body is whatever follows until the next one of the same kind, and
+        # it is the half that says what the step actually involves.
+        body = []
+        for line in lines[i + 1:]:
+            if rx.match(line):
+                break
+            body.append(line)
+            if len(" ".join(body)) > SUMMARY * 3:
+                break
+        found.append({
+            "num": num,
+            "title": _title(head),
+            "label": "%s. %s" % (num, _title(head)) if kind == "step" else _title(head),
+            "summary": _trim(head + " " + " ".join(body)),
+            "line": i + 1,
+        })
+        if len(found) >= MAX_STEPS:
+            break
+    return found
+
+
+def status(root, state):
+    """What the board shows, and what a cold turn is told.
+
+    None where there is no plan at all, which is a real answer about a course
+    that follows a book -- it has a syllabus instead, and `syllabus.py` is what
+    reads that.
+    """
+    found = steps(root)
+    if not found:
+        return None
+    here = ((state or {}).get("chapter") or "").strip()
+    return {
+        "where": where(root),
+        "steps": found,
+        "here": here,
+        "next": found[0]["label"],
+    }

@@ -146,6 +146,15 @@ else
   printf '%s\n' "$out" | grep '^FAIL' | sed 's/^/             /'
 fi
 
+printf '%-12s ' "plan"
+if out="$(python3 test/plan.py 2>&1)"; then
+  printf '%s\n' "$out" | tail -1
+else
+  fails=$((fails + 1))
+  echo "FAILED"
+  printf '%s\n' "$out" | grep '^FAIL' | sed 's/^/             /'
+fi
+
 printf '%-12s ' "walk"
 if out="$(python3 test/walk.py 2>&1)"; then
   printf '%s\n' "$out" | tail -1

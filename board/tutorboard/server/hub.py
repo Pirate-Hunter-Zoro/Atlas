@@ -96,6 +96,12 @@ class Hub:
         # prose and no machinery -- sends nothing rather than an empty list, and
         # the board does not offer the sitting.
         data["walk"] = state.load_walk(self.repo)
+        # What this project says comes next, and what it can be shown. Both are
+        # what a book course gets from its chapter table, arriving from the two
+        # places a project actually keeps them: the plan its README points at,
+        # and the documents somebody already wrote about how it works.
+        data["plan"] = state.load_plan(self.repo)
+        data["reading"] = state.load_reading(self.repo)
         return data
 
     def poll_loop(self):

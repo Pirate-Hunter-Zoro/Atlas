@@ -133,8 +133,14 @@ for phrase, why in [
      "and is taught by the same method regardless"),
     ("where they come from", "with only the source of the exercises differing"),
     ("Do not manufacture a curriculum", "and no curriculum is invented for it"),
-    ("where the work is planned", "the README says where the work is planned"),
-    ("follow that pointer", "and the tutor follows that pointer for what is next"),
+    # The tutor used to be told to read the README and follow what it points at.
+    # It still must not choose its own work -- but it no longer goes looking:
+    # the briefing names the plan and quotes its steps, so what is asserted here
+    # is that the plan still OUTRANKS the tutor, which was always the point.
+    ("names that file", "the briefing names the plan rather than sending the tutor to find it"),
+    ("outranks anything you would have chosen",
+     "and the plan outranks anything the tutor would have picked"),
+    ("labelled\nwith", "and the sitting's label says which step to open"),
     ("do not choose an agenda", "and asks rather than choosing its own work"),
     ("goes with a commit", "and finishing work includes writing it down"),
     ("go and look", "a turn saying it is implemented sends the tutor to the code"),

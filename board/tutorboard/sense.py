@@ -23,7 +23,7 @@ still answered on the board. `WALK_SENSE` is the whole of the difference.
 
 import os
 
-from .course import config, homework, review, syllabus, walk
+from .course import config, homework, plan, reading, review, syllabus, walk
 
 
 # arrives at a board with nothing on it and an assistant with no other context.
@@ -124,7 +124,7 @@ def stance_sense(stance, chosen=False, declared="teach"):
     return ""
 
 
-def where_sense(book):
+def where_sense(book, root=None):
     """Where the exercises come from, which is the only thing a subject decides.
 
     A course that follows a book has them at the end of a section. A repository
@@ -132,11 +132,39 @@ def where_sense(book):
     lesson whose exercises come from wherever the repository says its work is
     planned. This used to be a whole second method, `code_sense`, and it carried
     a whole second interface with it.
+
+    WHAT CHANGED: the plan is now NAMED, and where possible its next steps are
+    quoted. The old text told a tutor to read the README and follow what it
+    points at, which is honest and expensive -- in PSYCH-ASR it is a 1,500-line
+    README, a pointer out of it, and a 1,300-line task list, paid for on every
+    cold turn before a word is taught. `plan.py` already found the file and read
+    the steps for the drawer; handing the same answer to the tutor costs nothing
+    and removes the two round trips and the guess between them.
     """
     if book:
         return ("Read the section's exercises before you teach anything and "
                 "choose a manageable few -- three to five -- saying which and "
                 "why in your first card. ")
+
+    where = plan.where(root) if root else ""
+    steps = plan.steps(root) if root else []
+    if steps:
+        listed = "; ".join("%s. %s" % (x["num"], x["title"]) for x in steps[:6])
+        return (
+            "This repository does not follow a book: no chapters, no sections, "
+            "and no exercises at the end of anything. That changes where the "
+            "exercises come from and NOTHING else -- the lesson is still "
+            "exercises and they are still answered on the board. "
+            "ITS WORK IS PLANNED IN %s, AND THAT FILE OUTRANKS ANYTHING YOU "
+            "WOULD HAVE CHOSEN. Its next steps, in its own order: %s. Do not "
+            "re-derive this from the README and do not survey the repository "
+            "for an agenda of your own -- open the plan at the step this "
+            "sitting is labelled with, or at the first one if it carries no "
+            "label, and read THAT step before your first card. Then set the "
+            "exercises that step actually needs, three to five of them, saying "
+            "which and why in your first card. If the step is one you cannot "
+            "set work from because it needs a decision from them, ask for the "
+            "decision instead. " % (where, listed))
     return (
         "This repository does not follow a book: no chapters, no sections, and "
         "no exercises at the end of anything. That changes where the exercises "
@@ -151,6 +179,34 @@ def where_sense(book):
         "them, saying which and why in your first card. If nothing names what "
         "comes next, ask in that card rather than picking an agenda of your own. "
     )
+
+
+# WHAT THE TUTOR MAY PUT ON A CARD BESIDES ITS OWN WORDS.
+#
+# These repositories have documents in them that explain the machinery better
+# than a card can -- a 33-slide walkthrough of the reference pipeline, written
+# for exactly this purpose -- and until now the board could not show a page of
+# one. So it was read on a laptop beside a lesson on an iPad, which is the
+# split attention the board exists to remove.
+def reading_sense(repo):
+    """The documents this course can show, named, with how to put one on a card."""
+    try:
+        found = reading.documents(repo.root)
+    except Exception:                                        # noqa: BLE001
+        return ""
+    if not found:
+        return ""
+    named = "; ".join("%s (%s)" % (d["name"], d["id"]) for d in found[:6])
+    return (
+        "THIS COURSE CAN SHOW SLIDES, and you may put one in a card: write a "
+        "markdown image whose source is /doc/<id>/<page>.png -- for example "
+        "![slide 24](/doc/%s/24.png) -- and that page appears in the lesson. "
+        "The documents here are: %s. Use one when the document already makes "
+        "the point better than a paragraph would, and then ask your question "
+        "UNDER it: a slide is an object to work on, not an explanation that "
+        "replaces the exercise. One slide per card at most. Never paste a slide "
+        "in place of a question, and never show a page you have not opened and "
+        "read yourself. " % (found[0]["id"], named))
 
 
 def review_sense(repo, st):
@@ -420,8 +476,10 @@ def session_sense(repo):
 
     # In a headless session this line is the whole prompt, so it has to carry the
     # pointer to the method as well as the pointer to the place.
-    how = METHOD_SENSE if kind == "homework" else METHOD_SENSE + where_sense(book)
+    how = (METHOD_SENSE if kind == "homework"
+           else METHOD_SENSE + where_sense(book, repo.root))
     how += doing
+    how += reading_sense(repo)
     if kind == "homework":
         st_hw = homework.status(repo.root, st)
         if st_hw and st_hw.get("name"):

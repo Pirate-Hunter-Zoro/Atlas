@@ -53,6 +53,50 @@ for](#the-machine-this-is-written-for).
 >
 > ### Where this is right now, 13 September 2026 (latest)
 >
+> **A project now has a contents drawer, and that is the whole of why a course was
+> painless and a project was not.** Reported as *"I don't wanna have to type this shit. I just
+> want information to be presented to me in a digestible way"* — after being handed, by this
+> repository, a list of commands to type.
+>
+> Galois Theory is painless for one reason that has nothing to do with mathematics: `chapters.tsv`
+> exists, so ☰ lists eleven chapters and a tap opens one. A project had nothing, and the drawer
+> said so, in as many words: *"No chapters or problem sets in this repository, so sittings here
+> are made as you go."* That reads as helpful and means **you decide, at a keyboard, every
+> time** — which is the ceremony this whole tool exists to remove, left standing in the one kind
+> of repository that needed it most.
+>
+> **But a project does write down what it is doing next.** It is not called a syllabus and it is
+> not kept in the repository, and those were the only two reasons nothing read it. PSYCH-ASR's
+> README names `~/Research-Journey/planning/PSYCH-ASR_TODO.txt`; that file opens with `>>> NEXT
+> ACTION (start here in a fresh session) <<<` and seven numbered steps. That is a syllabus.
+> `tutorboard/course/plan.py` finds it — declared in `tutorboard.json`, else pointed at by the
+> README, else conventionally named — and reads its steps. **☰ now lists them, and a tap opens a
+> lecture on one.** It works today, unchanged, in all three project repositories: PSYCH-ASR (7
+> steps), TRD-EHR (5) and libr-local-llm (5).
+>
+> **The tutor is handed the same answer instead of hunting for it.** `where_sense` used to say
+> *read the README and follow what it points at* — honest, and in PSYCH-ASR that is a 1,500-line
+> README, a pointer out of it, and a 1,300-line task list, paid for on every cold turn before a
+> word is taught. The plan's path and its next steps are now in the line the tutor is woken with,
+> with the instruction to open it at the step the sitting is labelled with and not to re-derive
+> any of it.
+>
+> **And the board can show a slide.** *"Can I have the tutor display certain presentation slides
+> to me as well?"* — yes, and most of it was already built for homework PDFs. The decks in these
+> projects are the best explanation in them: `stage2_reference_walkthrough` is 33 slides on
+> exactly the machinery its owner says he cannot follow, and there was no way to put a page of it
+> on the board, so it was read on a laptop beside a lesson on an iPad.
+> `tutorboard/course/reading.py` finds the documents a course points at — including in the hub
+> beside it, and never somebody else's paper out of a reference library — and ☰ lists them under
+> **Read**. A tutor can also put ONE page in a card: `![slide 24](/doc/stage2-reference-walkthrough/24.png)`,
+> with the question under it, because a slide is an object to work on and not an explanation that
+> replaces the exercise. The page is addressed by document and number rather than by render, so a
+> card written today still points at the right slide after the deck is rebuilt. See [Showing a
+> slide](#showing-a-slide-on-the-board). `test/plan.py` holds the rules; the real 33-slide deck
+> draws in five seconds. Shell version `board-shell-v95`.
+>
+> ### Where this was earlier on 13 September 2026
+>
 > **The board had no sitting for code that already exists, and that is why four repositories
 > never used it.** Reported as a question rather than a defect: *"For all these other
 > repositories, from research journey to libr-local-llm to psych-asr and trd-ehr, the tutor has
@@ -3964,6 +4008,73 @@ The sitting then asks about code that already exists: what a function does, why 
 that way, what would break if it changed. It never sets work, and a repository whose stance is
 `do` does not turn a review into an implementation — a review asks.
 
+### Getting around a project — the drawer a book course always had
+
+**A course that follows a book is painless for one reason, and it is not the mathematics:
+`chapters.tsv` exists.** ☰ lists eleven chapters, a tap opens one, and nobody types a command or
+decides anything. A project had none of that, and the drawer said so — *"sittings here are made
+as you go"* — which put every decision about what a sitting was about back on the person holding
+the iPad.
+
+A project does write down what comes next. It just does not call it a syllabus and does not keep
+it in the repository. So ☰ in a project now carries three groups:
+
+| | what it lists | a tap |
+|---|---|---|
+| **What's next** | the steps in the plan this repository points at | opens a lecture on that step |
+| **Walk through** | the repository's own source files | opens a [walkthrough](#a-walkthrough--code-that-is-already-there) |
+| **Read** | the documents this project points at | opens them on the board |
+
+**The plan is discovered, in three places, in this order.** `"plan": "..."` in `tutorboard.json`
+if the repository says; otherwise whatever its README names — any path ending in a plan-shaped
+filename, resolved inside this repository or in a sibling of it under the same home; otherwise a
+conventionally named file at the root. A path that resolves anywhere else is refused rather than
+read.
+
+That last rule is what makes it work here without a single line of configuration: PSYCH-ASR's
+README names `~/Research-Journey/planning/PSYCH-ASR_TODO.txt`, TRD-EHR's names its own, and
+libr-local-llm's names `LOCAL-LLM_TODO.txt` by filename alone — which is found by looking one
+level into each sibling, because a narrative hub beside the code is the arrangement these
+repositories actually use.
+
+**Steps are read, never invented and never re-ordered.** A plan that says to start at its fourth
+item starts at its fourth item. Three shapes are understood — `STEP 1.` / `PHASE 2.` numbering,
+markdown checklists (unticked ones only), and `##` headings — and where the file has a *"start
+here"* block, that is where reading begins. Standing context is not a task: the block in these
+files headed `ORIENTATION` is not offered as something to do.
+
+**The tutor is handed the same answer.** The plan's path and its next few steps are in the line
+it is woken with, with the instruction to open the plan at the step this sitting is labelled with
+and not to re-derive any of it from the README. That removes two round trips and a guess from
+every cold turn.
+
+### Showing a slide on the board
+
+**The best explanation in a project is often a document somebody already wrote**, and the board
+could not show a page of one — so it was read on a laptop beside a lesson on an iPad, which is
+the split attention this whole tool exists to remove.
+
+☰ lists them under **Read**, and tapping one opens it in the page viewer the board already owns —
+the same rasteriser, cache and viewer the compiled homework uses, because a PDF is a PDF. What
+is discovered is any PDF in the repository, plus any the README names in a sibling directory,
+and never a paper out of a `references/` library: those are somebody else's work and offering
+them buries the two documents that are yours.
+
+**A tutor can also put one page inside a card:**
+
+```markdown
+![slide 24](/doc/stage2-reference-walkthrough/24.png)
+```
+
+The page is addressed by *which document and which page*, not by which render — so a card written
+today still points at the right slide after the deck is rebuilt at a different length, which the
+manifest's own digest-carrying URLs would not survive.
+
+The rules that go with it are in `TEACHING.md` and they are short: the slide goes at the top and
+the question goes under it, one slide per card, never a slide instead of a question, and never a
+page the tutor has not opened and read itself. A slide is an object to work on. A card with a
+picture and no question is the word dump in a new medium.
+
 ### A walkthrough — code that is already there
 
 **Every other sitting ends in the student producing something new, and in a working project most
@@ -4684,6 +4795,10 @@ tutorboard/        the board itself, organised by what a thing is about:
   machines.py      the other machines, and what each can teach
   net/             reaching them: tailscale, socks, boards, egress
   course/          a course on disk: repo, config, document, homework, review,
+                   plan (what a project says it is doing next, which is a book
+                   course's chapter table in the form a project has one),
+                   reading (the documents it can be SHOWN, as opposed to the two
+                   it builds),
                    walk (what a walkthrough can be held over: a file, or one
                    definition inside one), syllabus, screenshot, paper (the two
                    documents: resolving one, naming it, and rendering its pages

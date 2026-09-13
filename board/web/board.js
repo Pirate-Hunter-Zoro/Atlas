@@ -857,6 +857,8 @@ function render(data) {
   paintSave(data.unsaved);
   if (data.sets) knownSets = data.sets;
   if (data.contents) contents = data.contents;
+  planInfo = data.plan || null;
+  readingInfo = data.reading || null;
   pastCount = data.history || 0;
 
   var lastQuestion = 0, lastSent = 0, newestQ = null;
@@ -1744,13 +1746,20 @@ function kb(bytes) {
    standalone app is a lesson with no way back to it. */
 var paperOpen = null;
 
-function openPaper(kind) {
+/* A DOCUMENT THIS COURSE POINTS AT, rather than one it built. `openPaper` takes
+   `doc/<id>` as its kind and everything below works unchanged, because the
+   route, the rasteriser, the cache and the page URLs are the same ones -- what
+   differs is only how the file was found. A deck has no build record, so there
+   is no `save a copy` for it and the button hides itself. */
+function openDoc(id, name) { openPaper("doc/" + id, name); }
+
+function openPaper(kind, label) {
   if (!kind) return;
   paperOpen = kind;
   els.paper.hidden = false;
   document.body.classList.add("papering");
   var have = papers[kind];
-  els.paperName.textContent = (have && have.name) || paperTitle(kind);
+  els.paperName.textContent = (have && have.name) || label || paperTitle(kind);
   els.paperSub.textContent = "";
   els.paperGet.hidden = !have;
   els.paperGet.textContent = "save a copy";
@@ -1766,7 +1775,7 @@ function openPaper(kind) {
     .then(function (got) {
       if (paperOpen !== kind) return;          /* closed, or another opened */
       if (!got || !got.ok) return paperFailed(kind, got || {});
-      els.paperName.textContent = got.name || paperTitle(kind);
+      els.paperName.textContent = got.name || label || paperTitle(kind);
       els.paperSub.textContent = got.n + (got.n === 1 ? " page" : " pages")
         + (got.truncated ? " (the first " + got.n + " only)" : "");
       els.paperPages.innerHTML = "";
@@ -1792,8 +1801,9 @@ function openPaper(kind) {
    Safari, which has its own PDF reader and a way back. */
 function paperFailed(kind, got) {
   var lead = got.why === "none"
-    ? (kind === "homework" ? "The write-up has not been compiled yet."
-                           : "This lesson has not been exported yet.")
+    ? (kind.indexOf("doc/") === 0 ? "That document is no longer where it was."
+       : kind === "homework" ? "The write-up has not been compiled yet."
+                             : "This lesson has not been exported yet.")
     : got.why === "no-renderer"
       ? "This machine cannot draw the pages."
       : "The pages could not be drawn.";
@@ -3027,6 +3037,8 @@ document.getElementById("btn-review-close").onclick = function () {
    together -- so what is being left stays readable under the history button
    rather than being written over by what comes next. */
 var contents = { chapters: [], sets: [] };
+var planInfo = null;        /* what this project says it is doing next */
+var readingInfo = null;     /* and what it can be shown */
 var pastCount = 0;
 
 function row(label, sub, current, go) {
@@ -3076,15 +3088,65 @@ function openContents() {
     });
   }
 
-  if (!contents.chapters.length && !contents.sets.length) {
-    /* A repository that follows no book has neither, and that is not an error
-       to report -- it says where to look instead. Sittings there are made as
-       they go and stay readable under ◷ like any other. */
+  /* WHAT THIS PROJECT SAYS COMES NEXT, which is a book course's chapter list in
+     the only form a project has one. This group is the whole reason a project
+     was harder to work in than a course: the drawer used to say "sittings here
+     are made as you go", which reads as helpful and means *you decide, at a
+     keyboard, every time*. A project does write down what is next -- it just
+     does not call it a syllabus and does not keep it in this repository. Tapping
+     one opens a lecture labelled with that step, and the tutor is woken having
+     already been told which step and where the plan is. */
+  if (planInfo && (planInfo.steps || []).length) {
+    host.appendChild(group("What's next"));
+    planInfo.steps.forEach(function (x) {
+      host.appendChild(row(x.label, "", x.label === here, function () {
+        els.contents.hidden = true;
+        setSitting("lecture", null, x.label);
+      }));
+    });
+    var note = document.createElement("p");
+    note.className = "none";
+    note.textContent = "from " + planInfo.where;
+    host.appendChild(note);
+  }
+
+  /* Machinery that already exists, which is most of what has to be understood
+     in a project and had nowhere to be taught. */
+  if (walkInfo && (walkInfo.units || []).length) {
+    host.appendChild(group("Walk through"));
+    var scope = walkInfo.scope || [];
+    host.appendChild(row(
+      scope.length ? "change what this walkthrough covers"
+                   : "walk me through some code",
+      scope.length ? scope.join(" · ")
+                   : walkInfo.units.length + " files",
+      sittingKind === "walk",
+      function () { els.contents.hidden = true; openPicker("walk"); }));
+  }
+
+  /* The documents somebody already wrote about how this works. A deck is often
+     the best explanation in the repository and the board could not show a page
+     of one, so it was read on a laptop beside a lesson on an iPad. */
+  if (readingInfo && (readingInfo.documents || []).length) {
+    host.appendChild(group("Read"));
+    readingInfo.documents.forEach(function (d) {
+      host.appendChild(row(d.name, d.iso || "", false, function () {
+        els.contents.hidden = true;
+        openDoc(d.id, d.name);
+      }));
+    });
+  }
+
+  if (!contents.chapters.length && !contents.sets.length
+      && !(planInfo && (planInfo.steps || []).length)) {
+    /* A repository with no book AND no plan. Not an error to report -- it says
+       where to look instead. Sittings there are made as they go and stay
+       readable under ◷ like any other. */
     host.appendChild(group("This course"));
     var p = document.createElement("p");
     p.className = "none";
-    p.textContent = "No chapters or problem sets in this repository, so sittings "
-      + "here are made as you go. Each one stays readable under ◷.";
+    p.textContent = "No chapters, problem sets or task list in this repository, "
+      + "so sittings here are made as you go. Each one stays readable under ◷.";
     host.appendChild(p);
   }
 

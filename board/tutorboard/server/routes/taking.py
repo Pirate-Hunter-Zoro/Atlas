@@ -37,6 +37,7 @@ import re
 
 from . import NOT_MINE
 from ...course import paper
+from ...course import reading
 
 
 # The download route's own helpers moved into `course/paper.py`, because the
@@ -62,6 +63,40 @@ def get(h, repo, path):
         # the same document is a directory listing.
         kind = path.rsplit("/", 1)[1]
         return h.send_json(paper.pages(repo, kind))
+
+    if path.startswith("/view/doc/"):
+        # A document this course POINTS AT rather than one it built: a slide
+        # deck, a walkthrough, a set of lecture slides. Same rasteriser, same
+        # cache, same page route -- the only thing that differs is how the file
+        # was found, and `reading.find` is the whole of that check.
+        return h.send_json(reading.pages(repo, path[len("/view/doc/"):]))
+
+    if path.startswith("/doc/"):
+        # ONE PAGE, ADDRESSED BY WHAT IT IS RATHER THAN BY THIS RENDER OF IT.
+        #
+        # The manifest's own URLs carry the digest, which carries the PDF's
+        # modification time -- exactly right for a viewer that just asked, and
+        # exactly wrong for a card. A tutor teaching `grade` writes
+        # `![slide 24](/doc/stage2-reference-walkthrough/24.png)` into a lesson
+        # that is kept, exported and read again next month; the deck gets
+        # rebuilt at 33 slides, and every slide in the transcript would break.
+        # So a card names the document and the page, and this resolves that to
+        # whatever the current render is.
+        rest = path[len("/doc/"):]
+        m = re.match(r"^([a-z0-9-]{1,40})/(\d{1,3})\.png$", rest)
+        if not m:
+            return h.send_bytes(b"not found", "text/plain", status=404)
+        ident, page = m.group(1), int(m.group(2))
+        got = reading.pages(repo, ident)
+        if not got.get("ok"):
+            return h.send_bytes(b"not found", "text/plain", status=404)
+        urls = got.get("pages") or []
+        if page < 1 or page > len(urls):
+            return h.send_bytes(b"no such page", "text/plain", status=404)
+        name = os.path.basename(urls[page - 1])
+        # Not cached hard: the name is stable and what is behind it is not, so
+        # a rebuilt deck has to be able to change what this returns.
+        return h.send_file(os.path.join(paper.cache_dir(repo), name))
 
     if path.startswith("/paper/"):
         name = os.path.basename(path[len("/paper/"):])
