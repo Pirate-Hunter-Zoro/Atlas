@@ -7,6 +7,9 @@ tutor -- start a tutoring session.
     tutor galois --homework     and open a homework sitting
     tutor galois --review --over ch01 --over ch07
                                 or a test review over the chapters named
+    tutor psych-asr --walk --over psych_asr.evaluate.grade.grade
+                                or a walkthrough of machinery already written
+    tutor psych-asr --stance do  who writes the code, for this sitting only
     tutor trd --agent opencode  with a particular assistant
     tutor galois --no-agent     just bring the board up
     tutor resume                take the board over on this machine (for a login hook)
@@ -622,6 +625,9 @@ anything else; it is the contract and it overrides your own defaults.
 
 - Course: **%(name)s**
 - Stance: **%(stance)s**  (teach = they do the work and you set it; do = you do the work and the card is a report)
+  Run `board brief` before your first card: it says whether this stance is the
+  repository's or was chosen for this sitting alone, and a sitting's does not
+  outlive it.
 - Session: **%(session)s**
 
 **The board is already running.** Do not start another one. It is at:
@@ -2580,7 +2586,7 @@ def cmd_where(cfg, args):
 def main(argv):
     cfg = load_config()
     args, flags = [], {"session": None, "agent": None, "no_agent": False,
-                       "over": [], "respawn": False}
+                       "over": [], "respawn": False, "stance": None}
     i = 0
     while i < len(argv):
         a = argv[i]
@@ -2611,11 +2617,22 @@ def main(argv):
             flags["session"] = "lecture"
         elif a in ("--review", "--test-review"):
             flags["session"] = "review"
+        elif a in ("--walk", "--walkthrough"):
+            flags["session"] = "walk"
         elif a == "--over":
             # Repeated, one per chapter: a chapter title may contain a comma.
             i += 1
             if i < len(argv):
                 flags["over"].append(argv[i])
+        elif a == "--stance":
+            # This sitting's, not the repository's. `board open` is what writes
+            # it, and it is cleared by the next one -- nothing here touches
+            # tutorboard.json.
+            i += 1
+            want = (argv[i] if i < len(argv) else "").strip().lower()
+            flags["stance"] = want if want in ("do", "teach") else None
+            if flags["stance"] is None:
+                print("--stance takes 'do' or 'teach'; ignored", file=sys.stderr)
         elif a == "--no-agent":
             flags["no_agent"] = True
         elif a == "--respawn":
@@ -2696,13 +2713,20 @@ def main(argv):
         print(out.strip(), file=sys.stderr)
         return 1
     link(course["root"])
-    if flags["session"]:
-        title = " ".join(args[1:]) or "session"
+    if flags["session"] or flags["stance"]:
+        # A sitting held over a scope NAMES ITSELF -- "Test review — Ch 07",
+        # "Walkthrough — grade" -- and `board open` is what knows how. Passing a
+        # title unasked is what put the word `session` in the title bar where
+        # that name belonged, on every review ever started from here.
+        title = " ".join(args[1:])
         extra = []
         for name in flags["over"]:
             extra += ["--over", name]
-        board(course["root"], "open", course.get("name") or course["dir"], title,
-              "--" + flags["session"], *extra)
+        if flags["stance"]:
+            extra += ["--stance", flags["stance"]]
+        board(course["root"], "open", course.get("name") or course["dir"],
+              *([title] if title else []),
+              "--" + (flags["session"] or "lecture"), *extra)
     _, net = board(course["root"], "net")
     urls = "\n".join("  " + l.strip() for l in net.splitlines()
                      if l.strip().startswith("http"))
@@ -2715,7 +2739,10 @@ def main(argv):
     os.makedirs(live, exist_ok=True)
     brief = BRIEF % {
         "name": course.get("name") or course["dir"],
-        "stance": course.get("stance") or "teach",
+        # What THIS SITTING runs under, which is the repository's answer unless
+        # this invocation said otherwise. `board brief` says the same thing and
+        # says which of the two it came from; this one line has to agree with it.
+        "stance": flags["stance"] or course.get("stance") or "teach",
         "session": flags["session"] or "lecture",
         "urls": urls or "  (run: board net)",
         "handoff": handoff_clause(course["root"]),
