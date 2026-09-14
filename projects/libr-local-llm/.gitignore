@@ -1,0 +1,48 @@
+# ---- Slurm logs ----
+# Job logs record hostnames, paths, and prompts; keep them out of git.
+slurm_jobs/logs/*
+!slurm_jobs/logs/.gitkeep
+
+# ---- Never commit ----
+# No PHI should ever reach this repo -- it holds infrastructure only, no data
+# and no transcripts. These patterns are belt-and-braces.
+*.m4a
+*.wav
+*.mp3
+*.json
+!config/opencode.json
+!config/claude-settings.json
+*.jsonl
+
+# so must the markdown linter's, which is config and not data
+!.markdownlint.json
+*.csv
+*.gguf
+*.safetensors
+
+# ---- Editor / OS / secrets ----
+.claude/
+.vscode/
+.env
+.DS_Store
+Thumbs.db
+*~
+.*.swp
+__pycache__/
+*.pyc
+node_modules/
+
+# live tutoring board (Tutor-Board) — scratch space, never tracked
+live/
+
+# ---- LaTeX build artifacts ----
+# docs/*.tex is the source and docs/*.pdf is the deliverable; everything
+# pdflatex writes alongside them regenerates on the next build.
+*.aux
+*.log
+*.nav
+*.out
+*.snm
+*.toc
+*.fls
+*.fdb_latexmk
