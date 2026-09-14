@@ -1,0 +1,275 @@
+/* ==========================================================================
+   slate.css -- the writing surface, wherever it is mounted.
+
+   Calm, dark, and quiet: this sits under a lesson for an hour at a time, so the
+   controls should recede and the paper should be the only thing with presence.
+   One row of controls, everything rare behind a ⋯, and exactly one filled
+   button on the screen -- Send -- because that is the only irreversible one.
+   ========================================================================== */
+
+:root {
+  --sl-bg:     #15161a;
+  --sl-panel:  #1c1e23;
+  --sl-line:   #2c2f37;
+  --sl-ink:    #e9e7e2;
+  --sl-dim:    #8b8f98;
+  --sl-accent: #7fd1ff;
+}
+
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+
+/* ---------- the standalone page ---------- */
+/* Scoped to the page that has a bare #slate child, so including this sheet on
+   the board does not restyle the board's own body. */
+html:has(> body > #slate) { height: 100%; }
+body:has(> #slate) {
+  margin: 0; height: 100%; height: 100dvh;
+  display: flex; flex-direction: column;
+  background: var(--sl-bg); color: var(--sl-ink);
+  font-family: var(--ui);
+  overscroll-behavior: none;
+  -webkit-user-select: none; user-select: none;
+  -webkit-touch-callout: none;
+}
+/* The two ways off this page, on one row: back to the board, and the map. A
+   full-screen writing surface is one of the states somebody gets lost in, and
+   there is no state of this application the map cannot be reached from. */
+body > #away {
+  flex: none; display: flex; align-items: baseline; gap: .9rem;
+  padding: calc(.5rem + env(safe-area-inset-top)) .9rem .3rem;
+}
+#away a {
+  color: var(--sl-dim); text-decoration: none; font-size: .85rem;
+}
+body > #prompt {
+  flex: none; display: flex; align-items: baseline; gap: .5rem;
+  padding: .2rem .9rem .5rem; font-size: .8rem; color: var(--sl-dim);
+}
+body > #prompt .kind {
+  font-size: .6rem; letter-spacing: .14em; text-transform: uppercase;
+  color: var(--sl-accent); font-weight: 700; flex: none;
+}
+body > #slate { flex: 1 1 auto; min-height: 0; }
+
+/* ---------- the component ---------- */
+.slate-root {
+  display: flex; flex-direction: column;
+  height: 100%; min-height: 0;
+  background: var(--sl-bg); color: var(--sl-ink);
+  font-family: var(--ui);
+  /* Nothing inside here should ever scroll the page behind it. */
+  touch-action: none;
+  overscroll-behavior: contain;
+}
+
+/* When the controls are hosted in the page chrome, the component is only the
+   paper. */
+.slate-root.sl-bare { border-radius: 0; }
+
+/* ---------- the control row ---------- */
+/* A grid, not a flex row, so Send cannot be pushed off the end. Column one
+   holds the tools and is allowed to shrink and scroll inside itself; column two
+   holds the actions and is sized to its content. Whatever the screen width,
+   Send is on it. */
+.sl-bar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: .5rem;
+  padding: .45rem .6rem;
+  padding-right: max(.6rem, env(safe-area-inset-right));
+  padding-left: max(.6rem, env(safe-area-inset-left));
+  background: var(--sl-panel);
+  border-bottom: 1px solid var(--sl-line);
+}
+.sl-tools {
+  min-width: 0;
+  display: flex; align-items: center; gap: .45rem;
+  overflow-x: auto; overflow-y: hidden;
+  scrollbar-width: none;
+  padding-bottom: 1px;
+}
+.sl-tools::-webkit-scrollbar { display: none; }
+.sl-acts {
+  display: flex; align-items: center; gap: .5rem;
+  padding-left: .55rem;
+  border-left: 1px solid var(--sl-line);
+}
+.sl-space { display: none; }
+
+/* Segmented groups: joined, so related tools read as one control. Every tool
+   carries its name -- an icon alone was not legible, and a control you cannot
+   identify is worse than no control. */
+.sl-seg {
+  display: flex; flex: none;
+  background: #23262c;
+  border-radius: .65rem;
+  padding: .2rem;
+  gap: .15rem;
+}
+.sl-seg button {
+  border: 0; background: none; color: var(--sl-dim);
+  border-radius: .5rem; cursor: pointer;
+  height: 2.4rem; padding: 0 .7rem;
+  display: inline-flex; align-items: center; gap: .4rem;
+  font: inherit; font-size: .82rem; font-weight: 600;
+  white-space: nowrap;
+  transition: background .12s, color .12s;
+}
+.sl-seg button:hover { color: var(--sl-ink); }
+.sl-seg button.sel { background: #3a4049; color: #fff; box-shadow: 0 1px 2px #0004; }
+.sl-seg button:disabled { opacity: .3; }
+.sl-seg button.sl-icon-only { padding: 0 .55rem; }
+
+.sl-i { display: inline-grid; place-items: center; flex: none; }
+.sl-i svg {
+  width: 18px; height: 18px;
+  fill: none; stroke: currentColor;
+  stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round;
+}
+.sl-more .sl-i svg { fill: currentColor; stroke: none; }
+.sl-w { line-height: 1; }
+
+.sl-n i { display: block; border-radius: 50%; background: currentColor; flex: none; }
+
+/* ---------- ink ---------- */
+.sl-inks { display: flex; align-items: center; gap: .3rem; flex: none; }
+.sl-ink {
+  width: 1.65rem; height: 1.65rem; padding: 0;
+  border-radius: 50%; cursor: pointer;
+  border: 2px solid transparent;
+  background: var(--c);
+  box-shadow: 0 0 0 1px #0006 inset;
+  transition: transform .12s;
+}
+.sl-ink:hover { transform: scale(1.08); }
+.sl-ink.sel { border-color: var(--sl-accent); transform: scale(1.12); }
+.sl-custom { position: relative; overflow: hidden; display: inline-block; }
+.sl-custom input[type="color"] {
+  position: absolute; inset: -30%; width: 160%; height: 160%;
+  opacity: 0; border: 0; padding: 0; cursor: pointer;
+}
+.sl-custom::after {
+  content: ""; position: absolute; inset: 0; border-radius: 50%;
+  background: conic-gradient(#ff8f8f, #ffd166, #8ce99a, #7fd1ff, #c792ea, #ff8f8f);
+  opacity: .0; pointer-events: none;
+}
+.sl-custom:not(.sel)::after { opacity: .85; }
+
+/* ---------- more, status, send ---------- */
+.sl-more {
+  flex: none; height: 2.5rem; padding: 0 .8rem;
+  border: 1px solid var(--sl-line); border-radius: .65rem;
+  background: none; color: var(--sl-dim); cursor: pointer;
+  display: inline-flex; align-items: center; gap: .4rem;
+  font: inherit; font-size: .82rem; font-weight: 600;
+}
+.sl-more.on { color: var(--sl-accent); border-color: var(--sl-accent); }
+
+
+.sl-saved {
+  flex: none; font-size: .68rem; color: var(--sl-dim);
+  min-width: 2.6rem; text-align: right; white-space: nowrap;
+}
+.sl-saved.busy { color: var(--sl-accent); }
+
+.sl-send {
+  flex: none; cursor: pointer;
+  border: 0; border-radius: .6rem;
+  background: var(--sl-accent); color: #0d1117;
+  font: inherit; font-weight: 750; font-size: .92rem;
+  padding: 0 1.15rem; height: 2.5rem;
+  letter-spacing: .01em;
+}
+.sl-send:active { filter: brightness(.9); }
+
+/* ---------- the overflow sheet ---------- */
+.sl-menu {
+  flex: none;
+  padding: .6rem .7rem;
+  background: var(--sl-panel);
+  border-bottom: 1px solid var(--sl-line);
+  display: flex; flex-direction: column; gap: .45rem;
+}
+.sl-row { display: flex; align-items: center; gap: .6rem; }
+.sl-label {
+  flex: none; width: 4rem; font-size: .72rem; color: var(--sl-dim);
+  letter-spacing: .08em; text-transform: uppercase;
+}
+.sl-rowbox { display: flex; align-items: center; gap: .3rem; flex-wrap: wrap; }
+.sl-rowbox .sl-t {
+  width: 2.1rem; height: 2.1rem; border: 1px solid var(--sl-line);
+  border-radius: .45rem; background: none; color: var(--sl-ink);
+  display: grid; place-items: center; cursor: pointer; padding: 0;
+}
+.sl-tag {
+  font-variant-numeric: tabular-nums; color: var(--sl-dim);
+  min-width: 3rem; text-align: center; font-size: .78rem;
+}
+.sl-chip {
+  border: 1px solid var(--sl-line); border-radius: 999px;
+  background: none; color: var(--sl-dim); cursor: pointer;
+  font: inherit; font-size: .78rem; padding: .35rem .75rem;
+  text-decoration: none; line-height: 1.5;
+}
+.sl-chip.sel { border-color: var(--sl-accent); color: var(--sl-accent); }
+.sl-chip.danger { color: #ff9c9c; border-color: #6a3333; }
+.sl-paper-black::before, .sl-paper-white::before, .sl-paper-cream::before {
+  content: ""; display: inline-block; width: .6rem; height: .6rem;
+  border-radius: 50%; margin-right: .35rem; vertical-align: -1px;
+  border: 1px solid #0006;
+}
+.sl-paper-black::before { background: #101114; }
+.sl-paper-white::before { background: #fdfdfb; }
+.sl-paper-cream::before { background: #f7f1e3; }
+
+/* ---------- selection ---------- */
+.sl-selbar {
+  flex: none; display: flex; align-items: center; gap: .35rem;
+  overflow-x: auto; scrollbar-width: none;
+  padding: .5rem .7rem;
+  background: #1a2028;
+  border-bottom: 1px solid var(--sl-accent);
+}
+.sl-selbar::-webkit-scrollbar { display: none; }
+
+/* ---------- the sheet ---------- */
+.sl-wrap {
+  position: relative;
+  flex: 1 1 auto; min-height: 0;
+  overflow: hidden;
+  /* The whole surface opts out of browser gestures, not just the canvas --
+     otherwise a touch that starts a millimetre off the canvas scrolls the
+     lesson behind it instead of drawing. */
+  touch-action: none;
+  overscroll-behavior: contain;
+}
+.sl-sheet { display: block; width: 100%; height: 100%; touch-action: none; cursor: crosshair; }
+.slate-root[data-tool="lasso"] .sl-sheet { cursor: cell; }
+.slate-root[data-tool="erase"] .sl-sheet { cursor: not-allowed; }
+
+/* ---------- toast ---------- */
+.sl-toast {
+  position: absolute; left: 50%; transform: translateX(-50%);
+  bottom: calc(1rem + env(safe-area-inset-bottom));
+  background: #23262c; border: 1px solid var(--sl-line);
+  color: var(--sl-ink); border-radius: 999px;
+  padding: .45rem 1rem; font-size: .8rem;
+  box-shadow: 0 6px 22px rgba(0,0,0,.55);
+  z-index: 5; pointer-events: none;
+}
+
+/* Narrow screens: let the row wrap rather than hide anything. */
+@media (max-width: 46rem) {
+  /* Drop the nib and More labels first; the four tools keep their names
+     longest, because those are the ones that are ambiguous as pictures. */
+  .sl-n .sl-w, .sl-more .sl-w { display: none; }
+  .sl-n { padding: 0 .6rem; }
+  .sl-more { padding: 0 .6rem; }
+}
+@media (max-width: 34rem) {
+  .sl-bar { flex-wrap: wrap; row-gap: .5rem; }
+  .sl-space { display: none; }
+  .sl-send { margin-left: auto; }
+}

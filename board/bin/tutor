@@ -1,0 +1,2850 @@
+#!/usr/bin/env python3
+"""
+tutor -- start a tutoring session.
+
+    tutor                       pick a course from what is on disk
+    tutor galois                match a course by name
+    tutor galois --homework     and open a homework sitting
+    tutor galois --review --over ch01 --over ch07
+                                or a test review over the chapters named
+    tutor psych-asr --walk --over psych_asr.evaluate.grade.grade
+                                or a walkthrough of machinery already written
+    tutor psych-asr --stance do  who writes the code, for this sitting only
+    tutor trd --agent opencode  with a particular assistant
+    tutor galois --no-agent     just bring the board up
+    tutor resume                take the board over on this machine (for a login hook)
+    tutor headless galois       run the assistant as a daemon, driven from the iPad
+    tutor headless --stop       stop it
+    tutor agent status          which course has an assistant attached
+    tutor agent start galois    attach one there, detaching whatever was elsewhere
+    tutor agent stop galois     ask it to write its handoff and go
+    tutor cost [galois]         what the turns on this machine actually cost
+    tutor cost --all            every course, one line each
+    tutor where                 what is up, on this machine and on the tailnet
+    tutor restart [--tutors]    restart every board here (and its tutor) on current code
+
+One command, from anywhere. It finds the course, brings its board up, opens a
+session, and launches whichever assistant you use -- already pointed at the
+repository's own contract, with the board already running.
+
+The alternative it replaces is: remember which directory, cd there, start an
+agent, and then tell the agent to start the board. That last step in particular
+is ceremony the person should never have to perform, and forgetting it produces
+a session where the assistant is talking into a terminal nobody is reading.
+
+Which assistant runs is configuration, not code. Nothing here knows or cares
+which one it is; see `tutor --agents`.
+"""
+
+import json
+import os
+import re
+import shlex
+import shutil
+import subprocess
+import sys
+
+TOOL = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
+sys.path.insert(0, TOOL)
+from tutorboard import choice, handoff, limits, machine, paths, processes, worktree
+from tutorboard.course import config
+from tutorboard.net import egress
+
+BOARD = os.path.join(TOOL, "bin", "board")
+CONFIG_DIR = os.path.join(
+    os.environ.get("XDG_CONFIG_HOME", os.path.join(os.path.expanduser("~"), ".config")),
+    "tutor-board")
+CONFIG = os.path.join(CONFIG_DIR, "config.json")
+
+DEFAULT_CONFIG = {
+    "courses_dir": os.path.dirname(TOOL),
+    "default_agent": "claude",
+    "agents": {
+        # `prompt: argv`  -- the brief is passed as a final argument
+        # `prompt: none`  -- the agent is launched bare and told where to read
+        #
+        # `headless` is how to run one turn without a terminal: a command that
+        # takes a prompt, does the work, and exits. {prompt} is substituted.
+        # Continuity across turns is the agent's own business -- most keep a
+        # session and offer a flag to resume it, which is what belongs here.
+        # The default. Claude Code is a general coding agent with the course
+        # repository already in front of it, which is most of a tutor: it reads
+        # the slate PNG itself rather than through a transcription model, writes
+        # the card, and edits the course's own .tex when a homework sitting needs
+        #
+        # What it is allowed to do headless is NOT set here. `board start` writes
+        # the course its own `.claude/settings.local.json` -- see
+        # `TUTOR_PERMISSIONS` in bin/board -- because that file is committed,
+        # readable by the course's owner and adjustable per course. Repeating the
+        # same grant as a flag on this command would be a second source of truth
+        # for one policy, and the two would drift the first time either moved.
+        "claude": {
+            "cmd": ["claude"], "prompt": "argv",
+            # `headless_first` opens the session; `headless` continues it, so the
+            # agent is not re-reading the whole contract on every single turn.
+            "headless_first": ["claude", "-p", "{prompt}"],
+            "headless": ["claude", "-p", "{prompt}", "--continue"],
+            # How this agent can be asked what a turn cost, and what to add to
+            # the command to make it say. Nobody reads stdout, so the JSON is
+            # not cosmetic: it is the only measurement of the thing every
+            # decision in this file is about -- see `read_turn_usage`.
+            #
+            # It is TWO fields and it is appended rather than written into the
+            # recipes above, deliberately. A machine's config file overrides
+            # `agents` one level deep, and this machine's config holds a
+            # verbatim copy of the claude recipe from an older version of this
+            # tool: had the flag gone in the argv, every machine carrying such a
+            # copy would silently stop reporting, which is the one failure a
+            # measurement must not have.
+            "usage": "claude-json",
+            "usage_args": ["--output-format", "json"],
+            # Anything else this machine wants on every headless turn. Empty,
+            # and deliberately so, but this is where the one remaining lever
+            # goes if it is ever wanted.
+            #
+            # After a turn stopped carrying the lesson, OUTPUT became the
+            # largest single line on the bill: measured at 9.5k output tokens a
+            # turn, which at $25 per million is $0.24 of a $0.37 turn -- and a
+            # card is a few hundred words, so most of that is thinking and tool
+            # arguments. `["--effort", "medium"]` here cuts it.
+            #
+            # `["--model", "opus"]` is the other thing that goes here. This
+            # machine's Claude Code settings say `opus[1m]`, and the largest
+            # single request across every measured Galois session was 189,588
+            # tokens -- five per cent short of the 200k line above which a long
+            # context is charged and weighted differently. Twelve cards was
+            # under it; fourteen would not have been. A turn now holds 22k to
+            # 44k, so the 1M window buys nothing.
+            #
+            # It is left empty because both of those are teaching decisions as
+            # much as cost decisions, and this file does not get to make them.
+            # The rule in AI_INSTRUCTIONS.md cuts both ways: teaching quality
+            # comes first, and a change to it is weighed as a change to what it
+            # costs.
+            "extra_args": [],
+        },
+        "opencode": {
+            "cmd": ["opencode"], "prompt": "argv",
+            "headless_first": ["opencode", "run", "{prompt}"],
+            "headless": ["opencode", "run", "--continue", "{prompt}"],
+        },
+        "codex": {
+            "cmd": ["codex"], "prompt": "argv",
+            "headless": ["codex", "exec", "{prompt}"],
+        },
+        "aider":  {"cmd": ["aider"], "prompt": "none"},
+        "cursor": {"cmd": ["cursor-agent"], "prompt": "none"},
+    },
+    # Which assistant a given machine prefers, keyed by its short hostname. A
+    # laptop and a cluster node do not have the same tools installed and should
+    # not need different configuration files to say so. Empty means every
+    # machine falls through to default_agent.
+    "hosts": {},
+    "headless_timeout": 900,
+    # ---------------------------------------------------------------------
+    # AND HOW LONG A TURN THAT DOES THE WORK GETS, which is not the same number
+    # ---------------------------------------------------------------------
+    # A teaching turn writes a card and stops: thirty seconds, a minute if the
+    # mathematics is long. Fifteen minutes is a generous cap on that and a
+    # nonsense cap on a turn that was asked to WRITE THE CODE -- that one stages
+    # models, runs a test suite, submits jobs and reads what came back. The first
+    # successful one took 56 minutes; the second was killed at 15 with eight
+    # files changed, nothing committed, and an opening sentence on the board that
+    # still said "running the four typists" twenty minutes after nothing was.
+    #
+    # So the kind of sitting picks the number. It is still a cap rather than a
+    # licence -- a turn that has genuinely hung has to end -- but it is a cap
+    # that matches the work.
+    "doing_timeout": 3600,
+    # How long the wrap-up turn gets. It is one turn, but it writes files.
+    "handoff_timeout": 600,
+    # ---------------------------------------------------------------------
+    # How many turns one of the agent's own sessions carries. ONE.
+    # ---------------------------------------------------------------------
+    # This was 12 and the arithmetic says 1. What a turn costs is, very nearly,
+    # ROUND TRIPS x CONTEXT SIZE, and a resumed session grows the second factor
+    # without bound while saving only the cold read.
+    #
+    # Measured in Galois Theory on 8 September 2026, eleven cards on
+    # claude-opus-5[1m], one resumed session throughout:
+    #
+    #     turn  context   requests   cost
+    #        1     74k       18      $2.24   (cold: contract + method + handoff)
+    #        3     96k        8      $1.36
+    #        8    152k       36      $4.49   (the turn that also ran `board wait`)
+    #       11    176k        8      $2.43
+    #     session total, 11 cards                     $25.40
+    #
+    # The context column is the whole story. It is not the cache expiring --
+    # a `--continue` turn re-caches only its increment, measured at 40 tokens on
+    # a 43k conversation -- it is that every one of a turn's round trips is
+    # charged for the whole conversation behind it, at $0.50 per million to read
+    # it back plus a cache write that scales with its size. Nineteen turns of
+    # history that the twentieth turn will not look at are paid for on every one
+    # of that turn's eight round trips.
+    #
+    # A fresh session pays instead for what it reads back off disk, and that is
+    # now two commands: `board brief` (the method, this course's unbendable
+    # rules, the handoff, the last turn's note) and `board recap` (the lesson).
+    # Together about 4.5k tokens against the 24k of documents a cold turn used to
+    # read, and the harness prefix itself is free -- measured: a second `claude
+    # -p` in the same directory reads its 28k system prompt out of cache for
+    # $0.015, because the cache is keyed on the prefix and not on the session.
+    #
+    # So a turn holds ~22k instead of 176k, and holds it whether it is turn 2 or
+    # turn 40. What made this possible is that nothing is carried in the
+    # conversation any more: the lesson is on disk, and what the tutor was
+    # THINKING is on disk too, in `live/NEXT.md`, written by every turn with
+    # `board note` and read by the next one out of `board brief`.
+    #
+    # 0 resumes for ever, which is the right answer on a flat rate and the wrong
+    # one on a meter. Any N recycles after N turns, which is what this was.
+    "session_turns": 1,
+    # ---------------------------------------------------------------------
+    # How many tokens the plan's rolling window holds, for `tutor cost`
+    # ---------------------------------------------------------------------
+    # On a subscription -- Max, Team, Enterprise -- what runs out is not money
+    # but a five-hour allowance, and nothing published says how many tokens that
+    # is or how the kinds are weighted. So this is a CALIBRATION and it is null
+    # until somebody sets it: `tutor cost` reports tokens, which is what any
+    # weighting is applied to, and adds a percentage only when this says what to
+    # divide by.
+    #
+    # Calibrate it from one observation. A turn that a person saw take 5% of
+    # their window, measured at 1.39M tokens, puts the window near 28M -- so
+    # `"quota_tokens": 28000000`. It will be approximate, because a cache read
+    # and an output token are certainly not weighted the same; it is still worth
+    # far more than nothing, because the thing worth watching is whether the
+    # figure is FLAT across a lesson, and a constant factor does not affect that.
+    "quota_tokens": None,
+}
+
+
+def load_config():
+    """The defaults above, with this machine's config file laid over them.
+
+    `agents` merges one level DEEPER than everything else, and the reason is a
+    trap somebody has to fall into only once. A machine adjusting a single field
+    of a built-in recipe -- saying that the claude on THIS machine takes an extra
+    flag, say -- writes the obvious thing:
+
+        "agents": { "claude": { "prompt": "none" } }
+
+    With a plain `update` that REPLACES the whole recipe: the command, the
+    headless turn, the handoff, all of it, gone. The machine then has an agent
+    called `claude` that cannot run anything, and every turn fails into a log
+    while the board shows a tutor listening. Nothing in the file the person wrote
+    says that; they added one key.
+
+    So a dict per agent merges into the built-in one, and adding an agent that
+    does not exist yet works exactly as before because there is nothing to merge
+    with. Replacing a recipe outright is still possible and is now something you
+    have to mean: give the entry a `"replace": true`.
+    """
+    cfg = json.loads(json.dumps(DEFAULT_CONFIG))
+    try:
+        with open(CONFIG, "r", encoding="utf-8") as fh:
+            user = json.load(fh) or {}
+        for k, v in user.items():
+            if k == "agents" and isinstance(v, dict):
+                for name, spec in v.items():
+                    have = cfg["agents"].get(name)
+                    if isinstance(spec, dict) and isinstance(have, dict) \
+                            and not spec.get("replace"):
+                        merged = dict(have)
+                        merged.update(spec)
+                        cfg["agents"][name] = merged
+                    else:
+                        cfg["agents"][name] = spec
+            else:
+                cfg[k] = v
+    except (OSError, ValueError):
+        os.makedirs(CONFIG_DIR, exist_ok=True)
+        if not os.path.exists(CONFIG):
+            with open(CONFIG, "w", encoding="utf-8") as fh:
+                json.dump(DEFAULT_CONFIG, fh, indent=2)
+                fh.write("\n")
+    return cfg
+
+
+# ---------------------------------------------------------------------------
+def read_course(root):
+    """What a course calls itself, and what its tutor is for.
+
+    `mode` -- `math` or `code` -- used to be read here and carried into the
+    session brief. There is one method and one board now, so it is dropped on
+    the way past: a key left in a course's own file must never be the reason two
+    courses behave differently. `stance` is the one thing still read, and it is
+    only ever what the file says.
+    """
+    cfg = {"name": os.path.basename(root).replace("-", " "), "stance": "teach"}
+    try:
+        with open(os.path.join(root, "tutorboard.json"), "r", encoding="utf-8") as fh:
+            cfg.update(json.load(fh) or {})
+    except (OSError, ValueError):
+        pass
+    cfg.pop("mode", None)
+    cfg["stance"] = "do" if str(cfg.get("stance") or "").lower() == "do" else "teach"
+    return cfg
+
+
+def this_host():
+    """What this machine calls itself. One place decides; see boardlib."""
+    return machine.node_name()
+
+
+def missing_command(recipe):
+    """The recipe's own executable, when this machine has not got it.
+
+    Worth asking because the default is now a particular program rather than a
+    self-contained script, and two machines do not have the same tools installed.
+    An agent whose command is missing does not fail loudly: the daemon starts,
+    the board shows an assistant listening, and every turn dies in a log file. Say
+    it where somebody can still do something about it.
+
+    A script agent runs under this interpreter, which is by definition present.
+    """
+    exe = (recipe or [None])[0]
+    if not exe or os.path.basename(exe) == os.path.basename(sys.executable):
+        return None
+    return None if shutil.which(exe) else exe
+
+
+# What a turn said on its way down, in the order a person would find useful.
+# `!!` is this file's own marker for something that went wrong; a tutor writes
+# its own reason in the other two forms.
+FAILURE_MARKERS = ("!! ", "error: ", "Error: ")
+
+
+def failure_reason(text, code_note):
+    """Why the turn failed, in words, rather than the number it exited with.
+
+    `exit 1` is what the student's iPad used to say, and it is a dead end: it is
+    true, it is the same for every cause, and there is nothing a person holding
+    the board can do with it except go and find somebody who can read a log. The
+    turn almost always said something better than that on its way down -- "every
+    model on the chain deliberated instead of writing a card", "no provider key
+    on this machine" -- and that sentence is already in the log, one line above
+    the number nobody can use.
+
+    So: the last thing it said that looks like a reason, capped to something that
+    fits in the chrome, with the exit code kept on the end for whoever does open
+    the log. `code_note` when it said nothing at all, which is a real outcome and
+    must not become an empty banner.
+    """
+    lines = [l.strip() for l in (text or "").splitlines() if l.strip()]
+    for line in reversed(lines[-40:]):
+        for mark in FAILURE_MARKERS:
+            if line.startswith(mark):
+                said = line[len(mark):].strip()
+                # `!! exit 1` is this function's own output from a previous turn,
+                # or the line written just above the call. Not a reason.
+                if said and not said.startswith(("exit ", "timed out")):
+                    return "%s (%s)" % (said[:160], code_note)
+    return code_note
+
+
+def turn_output(path, offset, cap=20000):
+    """What this turn wrote to the log, which is everything it managed to say.
+
+    An agent's stdout and stderr both go straight into the log file, so the only
+    record of WHY a turn failed is the stretch of that file it has just written.
+    The tail of it is enough, and the cap is there because a turn that dumped a
+    repository into its output must not be read back into memory whole.
+    """
+    try:
+        size = os.path.getsize(path)
+        with open(path, "r", encoding="utf-8", errors="replace") as fh:
+            fh.seek(max(0, offset, size - cap))
+            return fh.read()
+    except OSError:
+        return ""
+
+
+# ---------------------------------------------------------------------------
+# What a turn cost, measured rather than argued about
+# ---------------------------------------------------------------------------
+# Every decision in this file about reading, resuming and re-reading is a
+# decision about money, and until now not one of them could be checked. The
+# numbers that justified them were read out of `~/.claude.json` and a session
+# transcript by hand, after the fact, by somebody who knew where to look -- so
+# the next change to any of it would have been guesswork wearing a comment.
+#
+# `--output-format json` makes the agent say what its turn cost. This writes it
+# down, one line per turn, and `tutor cost` adds it up. The cost of the
+# accounting is zero: it is a field in output the daemon was already logging.
+#
+# `usage` in that JSON is cumulative for the whole invocation -- every round trip
+# the turn took, not the last one. Measured: a five-round-trip turn reports
+# cache_read 152,020, which is the sum of its five requests and not any one of
+# them. That is exactly the number worth watching, because ROUND TRIPS x CONTEXT
+# is what a turn is billed for.
+COST_LOG = "cost.jsonl"
+
+
+def with_usage(spec, cmd):
+    """The turn's command, plus whatever makes this agent report what it cost.
+
+    Appended here rather than written into the recipe, because a machine's
+    config file overrides `agents` one level deep and a config holding a
+    verbatim copy of an older recipe would otherwise stop reporting without
+    saying so. Idempotent: a recipe that already carries the flag is left alone.
+    """
+    extra = [a for a in (spec.get("usage_args") or []) if a not in cmd]
+    extra += [a for a in (spec.get("extra_args") or []) if a not in cmd]
+    return list(cmd) + extra
+
+
+def read_turn_usage(path, offset, kind):
+    """What the agent said this turn cost, or {} if it did not say.
+
+    `kind` is the recipe's `usage` field, so an agent that reports nothing --
+    codex, anything driven by a script -- costs nothing here and
+    is simply not accounted for. Never raises: this is bookkeeping beside a
+    lesson, and a lesson does not stop because a number could not be parsed.
+    """
+    if kind != "claude-json":
+        return {}
+    try:
+        with open(path, "r", encoding="utf-8", errors="replace") as fh:
+            fh.seek(max(0, offset))
+            blob = fh.read(4000000)
+    except OSError:
+        return {}
+    # The last line of the turn that is a result object. Not the only line:
+    # warnings, and anything the agent printed on its way, share this stream.
+    for line in reversed(blob.splitlines()):
+        line = line.strip()
+        if not line.startswith("{") or '"result"' not in line:
+            continue
+        try:
+            d = json.loads(line)
+        except ValueError:
+            continue
+        if d.get("type") != "result":
+            continue
+        u = d.get("usage") or {}
+        models = d.get("modelUsage") or {}
+        billed = (int(u.get("input_tokens") or 0)
+                  + int(u.get("output_tokens") or 0)
+                  + int(u.get("cache_creation_input_tokens") or 0)
+                  + int(u.get("cache_read_input_tokens") or 0))
+        return {
+            # Everything that went through the model this turn. On a
+            # subscription this is the number that matters: what runs out is a
+            # five-hour allowance, and a percentage of it is computed from
+            # tokens rather than from dollars.
+            "tokens": billed,
+            "in": int(u.get("input_tokens") or 0),
+            "out": int(u.get("output_tokens") or 0),
+            "cache_write": int(u.get("cache_creation_input_tokens") or 0),
+            "cache_read": int(u.get("cache_read_input_tokens") or 0),
+            # Round trips. This is the lever a prompt can actually pull, and the
+            # one that turned a turn into $4.49 when it also ran `board wait`.
+            "requests": int(d.get("num_turns") or 0),
+            "usd": float(d.get("total_cost_usd") or 0.0),
+            "models": sorted(models),
+            "session": d.get("session_id") or "",
+        }
+    return {}
+
+
+def record_cost(live, log, turn, agent_name, fresh, usage):
+    """One line per turn in `live/cost.jsonl`, and one in the log.
+
+    `live/` is not tracked, so this is a per-machine record of a per-machine
+    bill, which is the right scope: the allowance that paid for it belongs to
+    this machine's account.
+    """
+    if not usage:
+        return
+    rec = dict(usage)
+    rec.update({"t": time.time(), "iso": time.strftime("%Y-%m-%d %H:%M:%S"),
+                "turn": turn, "agent": agent_name, "fresh": bool(fresh),
+                "host": this_host()})
+    try:
+        with open(os.path.join(live, COST_LOG), "a", encoding="utf-8") as fh:
+            fh.write(json.dumps(rec) + "\n")
+    except OSError:
+        pass
+    try:
+        log.write("-- turn %d: %s tokens over %d round trip(s) "
+                  "(cache read %s, cache written %s, out %s), $%.3f\n"
+                  % (turn, thousands(rec.get("tokens", 0)), rec["requests"],
+                     thousands(rec["cache_read"]), thousands(rec["cache_write"]),
+                     thousands(rec["out"]), rec["usd"]))
+    except (OSError, ValueError):
+        pass
+
+
+def thousands(n):
+    return "%.1fk" % (n / 1000.0) if n >= 1000 else str(n)
+
+
+def read_costs(root):
+    try:
+        with open(os.path.join(root, "live", COST_LOG), "r", encoding="utf-8") as fh:
+            return [json.loads(l) for l in fh if l.strip()]
+    except (OSError, ValueError):
+        out = []
+        try:
+            with open(os.path.join(root, "live", COST_LOG), "r",
+                      encoding="utf-8") as fh:
+                for l in fh:
+                    l = l.strip()
+                    if not l:
+                        continue
+                    try:
+                        out.append(json.loads(l))
+                    except ValueError:
+                        pass
+        except OSError:
+            pass
+        return out
+
+
+def resolve_agent(cfg, course, override=None, interactive=False, say=None):
+    """Which assistant tutors this course, on this machine.
+
+    Most specific wins, and every layer is configuration rather than code:
+
+      1. --agent on the command line          -- this once
+      2. "agent" in the course's tutorboard.json -- this course, everywhere
+      3. "hosts" in the config, by hostname   -- this machine, every course
+      4. default_agent                        -- everything else
+
+    Which model an assistant runs is not a layer here and never should be: an
+    agent entry is a command recipe, so a second model is a second entry whose
+    `cmd` carries the flag. Nothing in this file knows what a model is.
+    """
+    say = say or (lambda m: print(m, file=sys.stderr))
+    picked = None
+    for pick in (override, (course or {}).get("agent"),
+                 (cfg.get("hosts") or {}).get(this_host()),
+                 cfg.get("default_agent")):
+        if pick and pick in cfg["agents"]:
+            picked = pick
+            break
+        if pick:
+            say("no agent called '%s'; try: tutor --agents" % pick)
+            return None
+    return picked
+
+
+def courses(cfg):
+    """Whatever is on disk. No registry, so nothing to keep in step.
+
+    `TUTORBOARD_COURSES` beats the configuration, and it is not a nicety. It is
+    how a test says "these courses, not this machine's", and until 7 September
+    only the shell scripts had heard of it: `catch-up.sh` walked the directory it
+    was pointed at, then handed the machine to `tutor restart --tutors`, which
+    asked the configuration and found the real home. Running the test suite therefore bounced the board somebody was being
+    taught on, and -- because a `HOME` the test HAD moved gave a different
+    config and so a different derived port -- left a second board for the same
+    course answering on a port nobody knew about. One variable, one meaning,
+    everywhere.
+    """
+    base = os.path.expanduser(os.environ.get("TUTORBOARD_COURSES")
+                              or cfg["courses_dir"])
+    out = []
+    try:
+        names = sorted(os.listdir(base))
+    except OSError:
+        return out
+    for name in names:
+        root = os.path.join(base, name)
+        if not os.path.isdir(root) or os.path.abspath(root) == TOOL:
+            continue
+        if not (os.path.isfile(os.path.join(root, "tutorboard.json")) or
+                os.path.isfile(os.path.join(root, "AI_INSTRUCTIONS.md")) or
+                os.path.isdir(os.path.join(root, "live"))):
+            continue
+        info = read_course(root)
+        info["root"] = root
+        info["dir"] = name
+        out.append(info)
+    return out
+
+
+def pick(cands, query):
+    """Match on the directory name or the declared course name, loosely."""
+    if not query:
+        return None
+    q = re.sub(r"[^a-z0-9]", "", query.lower())
+    exact = [c for c in cands if re.sub(r"[^a-z0-9]", "", c["dir"].lower()) == q]
+    if exact:
+        return exact[0]
+    hits = [c for c in cands
+            if q in re.sub(r"[^a-z0-9]", "", c["dir"].lower())
+            or q in re.sub(r"[^a-z0-9]", "", (c.get("name") or "").lower())]
+    if len(hits) == 1:
+        return hits[0]
+    if len(hits) > 1:
+        print("'%s' matches more than one course:" % query, file=sys.stderr)
+        for c in hits:
+            print("  %s" % c["dir"], file=sys.stderr)
+        sys.exit(1)
+    print("no course matching '%s'. Try: tutor --list" % query, file=sys.stderr)
+    sys.exit(1)
+
+
+def choose(cands):
+    print("Courses:\n")
+    for i, c in enumerate(cands, 1):
+        print("  %2d  %-26s %s" % (i, c.get("name") or c["dir"],
+                                   "do" if c.get("stance") == "do" else ""))
+    print()
+    try:
+        raw = input("which? ").strip()
+    except (EOFError, KeyboardInterrupt):
+        sys.exit(0)
+    if raw.isdigit() and 1 <= int(raw) <= len(cands):
+        return cands[int(raw) - 1]
+    return pick(cands, raw)
+
+
+def board(root, *args):
+    p = subprocess.run([sys.executable, BOARD] + list(args), cwd=root,
+                       stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    return p.returncode, p.stdout.decode("utf-8", "replace")
+
+
+def link(root):
+    """Bring the tailnet link up, on every launch, before anything reads addresses.
+
+    An allocation ending takes the daemon with it, so the first thing a new
+    session needs is the link back -- and asking a person to run it themselves
+    is exactly the ceremony this launcher exists to remove. Nothing is forced:
+    the ownership check inside `board` clears a claim from a node that is no
+    longer held, and refuses when another live node really is holding it.
+
+    A machine with no tailscale, or one that is not logged in, is a legitimate
+    outcome; the board is still up on loopback. This never fails a launch.
+    """
+    code, out = board(root, "vpn", "up")
+    if code == 3:
+        print(out.strip())              # not logged in -- the URL is the point
+        return
+    if code != 0:
+        return
+    # `board net` re-points an existing serve on its own; this is for the case
+    # where there is no serve yet, which is every first link on a fresh daemon.
+    code, out = board(root, "vpn", "serve")
+    if code != 0:
+        print(out.strip(), file=sys.stderr)
+
+
+BRIEF = """# Session brief
+
+You are tutoring in this repository. Read `AI_INSTRUCTIONS.md` in full before
+anything else; it is the contract and it overrides your own defaults.
+
+- Course: **%(name)s**
+- Stance: **%(stance)s**  (teach = they do the work and you set it; do = you do the work and the card is a report)
+  Run `board brief` before your first card: it says whether this stance is the
+  repository's or was chosen for this sitting alone, and a sitting's does not
+  outlive it.
+- Session: **%(session)s**
+
+**The board is already running.** Do not start another one. It is at:
+
+%(urls)s
+
+The user is reading that page, probably on an iPad, not this terminal. Write each
+teaching turn as a card in `live/cards/` and keep the terminal to a line or two.
+Check `board inbox` at the start of every turn. When the session ends, run
+`board finish` so the board can offer to save and push.
+
+**Every course works the same way.** There is no mode: the user answers on the
+board, by writing on the slate or by typing, in this repository and in every
+other one. A repository whose subject is code is no exception — if they have
+implemented something, they will say so in a written or typed turn, and that
+turn is your cue to go and look at what actually changed.
+
+**Reading handwriting.** Handwriting is a PNG, a problem sheet is a PDF. If your
+model can see images, open the file directly; if it cannot, call the
+`describe_image` tool on the file path and read the OCR it returns.
+
+**Read `live/TEACHING.md` before your first card.** It is the method every course
+on this board is taught by, and it is not optional. The rule it all follows from:
+**the lesson is exercises, not explanation.** Pick the section's exercises first,
+choose a manageable few, and for each one state it in full, hand the student one
+tiny thing to work themselves per idea it actually needs — your objects, their
+showing — then re-pose the exercise in full and ask for it. One question per turn,
+then stop. It ships with the board rather than with the course, so it is the same
+everywhere and cannot drift.
+
+%(handoff)s
+
+**`board recap` is how you read the lesson, not `live/cards/` one file at a
+time.** One command prints the session, every card as a line, the newest card in
+full and the student's own turns. Reading a twelve-card lesson card by card is
+twelve round trips for something you were handed in one, and on a model billed by
+the token every one of them is charged against the whole conversation. Read what
+you need once; do not re-read this brief, the contract or the method on later
+turns.
+"""
+
+# Sessions do not end tidily. A course is switched on the iPad, a lid closes, an
+# allocation expires. Whatever the reason, the assistant gets one last turn to
+# write down where things got to, because the alternative is the next session
+# opening cold and asking the student to recap their own lesson.
+HANDOFF_PROMPT = (
+    "This session is ending now. You get one turn and nobody will read stdout.\n\n"
+    # A teaching turn is its own session now, so this one is resumed onto the
+    # LAST turn and holds one card, not the evening. Reading the lesson back is
+    # therefore not optional here -- but it is one call, not twelve.
+    "Run `board recap` first: this session holds only the last turn of the "
+    "lesson, and the recap is the whole shape of it in one call. Do not read "
+    "live/cards/ file by file, and do not read AI_INSTRUCTIONS.md, "
+    "live/TEACHING.md or the old HANDOFF.md to write this.\n\n"
+    "Then write the handoff by piping it to `board handoff` -- that command is "
+    "the only thing that writes HANDOFF.md, it stamps the chapter for you, and "
+    "**it refuses a body over 350 words.** The cap is not a suggestion: this "
+    "file is read at the start of every turn of every future session, so length "
+    "here is a cost paid over and over. If it refuses, cut it and pipe it "
+    "again. Short and concrete:\n\n"
+    "- where the student got to, by topic, not by card number\n"
+    "- what they got wrong, and what the misunderstanding actually was\n"
+    "- what they got right, so it is not re-taught\n"
+    "- the single next thing to teach, and why that one\n"
+    "- anything about how this student works that took you a while to learn\n\n"
+    # Not a documentation review. "Fix anything that drifted" was read as an
+    # invitation to re-read and rewrite two long documents on the way out of
+    # every session, which is a whole turn's worth of tokens for nothing the
+    # student asked for.
+    "If something you wrote this session made a specific line in the course's "
+    "README or AI_INSTRUCTIONS.md actually false, fix that line. Do not review "
+    "either document for drift and do not rewrite sections.\n\n"
+    "Do not ask questions, do not start new teaching, and do not write a card -- "
+    "the student has already gone."
+)
+
+
+# ---------------------------------------------------------------------------
+# Headless: the assistant as a daemon, driven entirely from the iPad.
+#
+# `board wait` blocks until the student sends something and then exits. That is
+# the whole engine: wait, hand what arrived to the assistant, let it write cards,
+# wait again. Nobody is at a terminal at any point.
+#
+# It writes a heartbeat as it goes, because a daemon you cannot see is worse than
+# no daemon -- the board shows whether anything is actually listening.
+# ---------------------------------------------------------------------------
+import signal
+import threading
+import time
+
+# Two prompts, and the difference between them is most of what a headless course
+# costs. The first turn of a daemon's life has nothing in context, so it pays for
+# the contract, the method and the lesson once. Every turn after it runs with the
+# agent's own session resumed -- the recipe's `--continue` -- so it ALREADY holds
+# all of that, and the old single prompt told it to read the lot again anyway:
+# AI_INSTRUCTIONS.md, TEACHING.md, BRIEF.md, HANDOFF.md and every card in the
+# lesson, one tool call each. On a model billed by the token that is not a small
+# waste. Every round trip inside a turn resends the whole conversation, so a
+# re-read is charged again for the rest of the turn and again for the rest of the
+# session; a twelve-card lesson was paying twelve growing round trips before a
+# word of teaching was written. Nothing about teaching quality needed it.
+HANDOFF_CLAUSE = (
+    "**Read `HANDOFF.md` before your first card** if the repository has one. It is\n"
+    "what the last session left for you: where the student got to, what they got\n"
+    "wrong, and what comes next. Sessions end without warning — a switched course, a\n"
+    "closed lid, an allocation that expired — so it is the only continuity there is.")
+
+NO_HANDOFF_CLAUSE = (
+    "**There is no handoff for this chapter, and that is deliberate.** A chapter is\n"
+    "its own thing: what was left unfinished in an earlier one is not this chapter's\n"
+    "business, and bringing it in is exactly what the student asked to stop. Do not\n"
+    "go looking for it — not in `live/archive/`, not in `live/handoffs/`, not in an\n"
+    "older chapter's write-up. If they want to go back to an earlier chapter they\n"
+    "will say so, and reopening it brings that chapter's own handoff back with it.")
+
+
+def chapter_now(root):
+    """Which chapter is open, according to the board's own state."""
+    try:
+        with open(os.path.join(root, "live", "state.json"), "r", encoding="utf-8") as fh:
+            return (json.load(fh) or {}).get("chapter") or ""
+    except (OSError, ValueError):
+        return ""
+
+
+# The four ways a sitting says "this turn does the work", and they are the same
+# four `sense.session_sense` reads: a person taps one of them on the map without
+# knowing which of the three files it lands in.
+DOING_AIMS = ("build", "paper", "slides")
+
+
+def doing_now(root):
+    """Is the sitting that is open one whose product is a change, not a card?"""
+    try:
+        with open(os.path.join(root, "live", "state.json"), "r", encoding="utf-8") as fh:
+            st = json.load(fh) or {}
+    except (OSError, ValueError):
+        return False
+    if st.get("session") == "make":
+        return True
+    if (st.get("aim") or "") in DOING_AIMS:
+        return True
+    if (st.get("session") or "lecture") not in ("lecture", "homework"):
+        return False
+    own = (st.get("stance") or "").strip().lower()
+    if own:
+        return own == "do"
+    try:
+        return (config.read_config(root).get("stance") or "teach") == "do"
+    except Exception:
+        return False
+
+
+def turn_timeout(cfg, root):
+    """How long this turn gets, by what kind of turn it is."""
+    plain = int(cfg.get("headless_timeout", 900) or 900)
+    if not doing_now(root):
+        return plain
+    return max(plain, int(cfg.get("doing_timeout", 3600) or 3600))
+
+
+def handoff_clause(root):
+    """What to tell a tutor about the handoff -- including that there is none."""
+    return (HANDOFF_CLAUSE if handoff.handoff_applies(root, chapter_now(root))
+            else NO_HANDOFF_CLAUSE)
+
+
+# The single line every turn ends on, and the two things it must not do. Both
+# were measured costing real money, and neither could be fixed by asking nicely
+# in a longer paragraph -- `board wait` and `board handoff` refuse now.
+TURN_TAIL = (
+    "Before you finish, leave the next turn a note: `board note`, at most 120 "
+    "words on stdin -- what you actually READ in their answer (the misreading, "
+    "not the mark) and the one thing you are aiming at next. Not a summary of "
+    "the lesson; `board recap` has that. This turn is its own session and "
+    "nothing you are holding survives it, so that note is the only thing that "
+    "does.\n\n"
+    "Two things not to do, both of which cost real money before they were "
+    "refused outright:\n"
+    "- **Do not run `board wait`.** A turn does not wait. The daemon that "
+    "started this turn is already blocked on the student's next message and "
+    "will hand it to a fresh turn the moment it lands. Waiting here holds this "
+    "whole conversation open while they think and then answers them inside it.\n"
+    "- **Do not touch `HANDOFF.md`.** Not a read, not an edit. The wrap-up turn "
+    "at the end of the session writes it, once, with `board handoff`. A "
+    "teaching turn that edits it pays to read five thousand tokens of it first "
+    "and hands the next turn a longer one.\n\n"
+    "End your turn when the card and the note are written."
+)
+
+HEADLESS_FIRST_PROMPT = (
+    "You are running headless: there is no terminal and nobody will read "
+    "stdout. The student is on the board.\n\n"
+    # Two calls, and they are the whole of the cold read. This used to be three
+    # documents in three round trips -- AI_INSTRUCTIONS.md, live/TEACHING.md and
+    # HANDOFF.md, 24k tokens in Galois Theory -- read before a word of teaching
+    # was written, and then carried for the rest of the session. `board brief`
+    # is the tenth of that which a turn acts on.
+    "Run these two commands first, and read nothing else before them:\n"
+    "- `board brief` -- the method, this course's rules that do not bend, the "
+    "handoff from the last session, and the note the turn before this one left "
+    "you.\n"
+    "- `board recap` -- the lesson: every card as a line, the newest in full, "
+    "the student's own turns, and which question is still open.\n\n"
+    "**Do not read AI_INSTRUCTIONS.md, live/TEACHING.md, live/BRIEF.md or "
+    "HANDOFF.md, and do not read live/cards/ file by file.** Those two commands "
+    "are what a turn needs; the documents are on disk and the brief names their "
+    "sections for the rare rule that needs its detail. Every round trip you "
+    "take is charged for the whole conversation behind it, so a document read "
+    "here is paid for again by everything you do afterwards.\n\n"
+    "They just sent this:\n\n%(inbox)s\n\n"
+    "That text is the inbox -- it already carries every file path, so do not "
+    "run `board inbox` as well; it has been marked read and will tell you "
+    "nothing. Open anything the text names: handwriting is a PNG and a problem "
+    "sheet a PDF, read however your model sees images -- opening the file "
+    "directly, or calling `describe_image` on the path and reading its OCR.\n\n"
+    "Then reply by writing ONE new card into live/cards/. Not two. Write that "
+    "card FIRST, before any verifying, filing or transcribing: it appears on "
+    "their board the instant the file exists, so everything else you do happens "
+    "while they are reading rather than while they are staring at a blank "
+    "page.\n\n"
+    + TURN_TAIL
+)
+
+# Kept for `session_turns` other than 1 -- a flat-rate machine has no reason to
+# start a fresh session, and this is what a resumed turn is told. It is no
+# longer the common case.
+HEADLESS_RESUME_PROMPT = (
+    "Same session, next turn. Your own conversation is resumed, so you already "
+    "hold the brief, the lesson and every card you have written. **Do not "
+    "re-read AI_INSTRUCTIONS.md, live/TEACHING.md, live/BRIEF.md, HANDOFF.md, "
+    "or the cards in live/cards/, and do not run `board brief` again.** "
+    "Re-reading what is already in front of you is the most expensive thing you "
+    "can do here and it teaches nothing.\n\n"
+    "They just sent this:\n\n%(inbox)s\n\n"
+    "That text is the inbox and carries every file path, so do not run `board "
+    "inbox` as well. Open what it names -- handwriting and PDFs, read however "
+    "your model sees images (open directly, or `describe_image` on the path and "
+    "read its OCR) -- and reply by writing ONE new card into live/cards/. Write "
+    "the card FIRST; nothing else needs reading before it.\n\n"
+    "Teach the way you already read: locate the break in a wrong answer rather "
+    "than repairing it, one question, then stop. If you have genuinely lost the "
+    "thread, `board recap` gives you the whole lesson in one call -- reading the "
+    "cards one by one is never the answer.\n\n"
+    + TURN_TAIL
+)
+
+
+def turn_plan(spec, carried, recycle):
+    """Which recipe and which prompt this turn gets, and whether it is fresh.
+
+    `carried` is how many turns the agent's current session already holds; 0
+    means there is nothing to resume. `recycle` is `session_turns` from the
+    config -- 0 resumes for ever.
+
+    Resuming saves re-reading the contract, the method and the lesson. It is not
+    free: a resumed turn resends the whole conversation as input, so turn twenty
+    pays for nineteen turns of history. Past a point a fresh session that reads
+    the contract once and the lesson back through `board recap` is cheaper than
+    carrying everything, so this is where the two are traded off.
+    """
+    recipe = spec.get("headless")
+    first = spec.get("headless_first") or recipe
+    fresh = carried == 0 or bool(recycle) and carried >= recycle
+    return (first if fresh else recipe,
+            HEADLESS_FIRST_PROMPT if fresh else HEADLESS_RESUME_PROMPT,
+            fresh)
+
+
+def agent_state(live, **kw):
+    path = os.path.join(live, "agent.json")
+    try:
+        with open(path, "r", encoding="utf-8") as fh:
+            st = json.load(fh)
+    except (OSError, ValueError):
+        st = {}
+    st.update(kw)
+    st["last_seen"] = time.time()
+    tmp = path + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as fh:
+        json.dump(st, fh, indent=2)
+    os.replace(tmp, path)
+    return st
+
+
+def mark_waking(live, agent_name, pid=None):
+    """Record that a tutor is on its way up, before anything slow is attempted.
+
+    Written by both halves of a start -- the launcher that decides, and the
+    daemon that then spends several seconds bringing a link, a board and a
+    sitting up before it can listen. Either is enough on its own, which matters
+    because a person can start a daemon directly and never go through the other.
+    """
+    try:
+        return agent_state(live, agent=agent_name, pid=pid, state="waking",
+                           waking_at=time.time(), restarting=False,
+                           last_error=None, failed_at=0, host=this_host())
+    except OSError:
+        return None
+
+
+def headless_stop(cfg, args):
+    stopped = 0
+    for c in courses(cfg):
+        path = os.path.join(c["root"], "live", "agent.json")
+        try:
+            with open(path, "r", encoding="utf-8") as fh:
+                st = json.load(fh)
+        except (OSError, ValueError):
+            continue
+        pid = st.get("pid")
+        # An interactive assistant is somebody's terminal. `headless --stop` is
+        # for daemons, and killing a session a person is sitting in front of is
+        # not what anyone typing it meant.
+        if st.get("mode") == "interactive":
+            continue
+        if pid and st.get("host") == this_host():
+            try:
+                os.kill(pid, signal.SIGTERM)
+                print("  stopped %s (pid %d)" % (c["dir"], pid))
+                stopped += 1
+            except OSError:
+                pass
+        try:
+            os.remove(path)
+        except OSError:
+            pass
+    print("stopped %d" % stopped if stopped else "nothing was listening")
+    return 0
+
+
+def sync(root, quiet=False):
+    """Pull whatever another machine pushed, before the session starts.
+
+    The point of the handoff is that a course can be picked up somewhere else,
+    and a handoff written on the machine you left is worth nothing to the one
+    you arrive on until it is fetched. So every session begins by catching up.
+
+    Fast-forward only, and never fatal. A session that will not start because a
+    branch diverged is worse than a session that starts a commit behind and says
+    so -- the person is holding an iPad and cannot fix a merge from there.
+
+    And it does not touch a repository somebody is part-way through an operation
+    in. A course is somewhere its owner works, not only somewhere they are
+    taught; a fast-forward arriving in the middle of their rebase is the tutor
+    reaching into a terminal it knows nothing about.
+    """
+    if not worktree.git_dir(root):
+        return None
+    busy = worktree.busy_reason(root)
+    if busy:
+        if not quiet:
+            print("  not synced: %s here, so the repository is left exactly as it is"
+                  % busy)
+        return False
+    # A pull needs the index too, so a lock a killed git left behind stops a
+    # session opening up to date just as surely as it stops a commit. Rubbish
+    # goes out here as well; a lock somebody is holding is left, and the pull
+    # below fails and says so in the usual way.
+    cleared = worktree.clear_stale_lock(root)
+    if cleared and not quiet:
+        print("  " + cleared)
+    env = dict(os.environ, GIT_TERMINAL_PROMPT="0", GIT_ASKPASS="/bin/false")
+    def git(*args, **kw):
+        return subprocess.run(["git"] + list(args), cwd=root, env=env,
+                              stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                              timeout=kw.get("timeout", 45))
+    try:
+        if git("remote", "get-url", "origin").returncode != 0:
+            return None
+        before = git("rev-parse", "HEAD").stdout.decode().strip()
+        p = git("pull", "--ff-only", timeout=60)
+        after = git("rev-parse", "HEAD").stdout.decode().strip()
+    except (OSError, subprocess.TimeoutExpired):
+        if not quiet:
+            print("  could not reach the remote; working with what is here")
+        return False
+    if p.returncode != 0:
+        out = p.stdout.decode("utf-8", "replace").strip().splitlines()
+        if not quiet:
+            print("  not synced: %s" % (out[-1] if out else "pull failed"))
+            print("  the session will start anyway, on what is here")
+        return False
+    if before != after and not quiet:
+        n = git("rev-list", "--count", "%s..%s" % (before, after)).stdout.decode().strip()
+        print("  pulled %s commit(s) from another machine" % n)
+    return True
+
+
+# ---------------------------------------------------------------------------
+# The tool pulls itself.
+#
+# `sync` above catches a COURSE up -- the lesson, the handoff, the chapters
+# taught before this one. Nothing ever caught up the *board*, and no timer can:
+# a compute node ceases to exist, so a schedule on one is not a plan -- and a fix
+# pushed from anywhere sat on GitHub until somebody remembered to pull it by
+# hand, which is the thing this repository keeps failing at.
+#
+# The only moment a compute node gets is the moment you log in to it, which is
+# already where `tutor resume` runs. So the pull goes there, and the launcher
+# gets it too.
+#
+# Three states, carried in the environment across the re-exec below:
+#
+#   unset     nothing has been pulled yet in this process tree;
+#   "moved"   the pull moved HEAD, and this process is the one running the code
+#             that arrived -- what is still holding the old code must be bounced;
+#   "done"    pulled, or there was nothing to pull. Do not pull again.
+TOOL_SYNC = "TUTOR_TOOL_SYNC"
+
+
+def tool_pull(root=None):
+    """Fast-forward this repository, the tool itself. Returns (moved, message).
+
+    Same rules as `sync`, for the same reasons: `--ff-only`, never fatal, and
+    quiet when there was nothing to do. A diverged branch or a dead remote is one
+    line and the session starts anyway -- somebody holding an iPad cannot resolve
+    a merge, and a launcher that refuses to launch is worse than a launcher one
+    commit behind.
+
+    Nothing is pulled over the top of an operation in progress either. This
+    repository is somewhere work happens too, and a fast-forward -- followed by
+    this process re-execing on the code that arrived -- is not a thing to do
+    underneath somebody's half-finished rebase.
+    """
+    root = root or TOOL
+    if not worktree.git_dir(root):
+        return False, None
+    busy = worktree.busy_reason(root)
+    if busy:
+        return False, ("  the board was not updated: %s here, so it is left "
+                       "exactly as it is" % busy)
+    # Same rubbish, same answer: a lock nobody holds in the TOOL's repository
+    # would stop every board on this machine from ever updating again.
+    worktree.clear_stale_lock(root)
+    env = dict(os.environ, GIT_TERMINAL_PROMPT="0", GIT_ASKPASS="/bin/false")
+
+    def git(*args, **kw):
+        return subprocess.run(["git"] + list(args), cwd=root, env=env,
+                              stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                              timeout=kw.get("timeout", 45))
+    try:
+        if git("remote", "get-url", "origin").returncode != 0:
+            return False, None
+        before = git("rev-parse", "HEAD").stdout.decode().strip()
+        p = git("pull", "--ff-only", timeout=60)
+        after = git("rev-parse", "HEAD").stdout.decode().strip()
+    except (OSError, subprocess.TimeoutExpired):
+        return False, "  the board could not reach its remote; running what is here"
+    if p.returncode != 0:
+        out = p.stdout.decode("utf-8", "replace").strip().splitlines()
+        return False, ("  the board did not update: %s"
+                       % (out[-1] if out else "pull failed"))
+    if not before or before == after:
+        return False, None
+    return True, "  pulled the board: %s -> %s" % (before[:8], after[:8])
+
+
+def tool_reexec():
+    """Replace this process with the version of it that was just pulled.
+
+    `bin/tutor` was read into memory when this process started, exactly the way a
+    board reads `serve.py`. Pulling a fix to the launcher and then carrying on
+    inside the launcher that was there before the
+    pull is the same bug this repository keeps relearning, one level further in --
+    and it is the one that would be hardest to see, because the version that
+    reports what it did would be the old one.
+
+    Normally this does not return. If the exec fails there is nothing to do but
+    carry on with what is loaded, which is a commit behind and still works.
+    """
+    os.environ[TOOL_SYNC] = "moved"
+    # `execve` throws away whatever is sitting in this process's buffers, and
+    # stdout is a pipe or a log file every time this runs for real -- which is
+    # to say buffered. The line saying what was pulled would be lost in exactly
+    # the situation it was written for: reading the log afterwards to find out
+    # why the board changed under a lesson.
+    sys.stdout.flush()
+    sys.stderr.flush()
+    try:
+        os.execve(sys.executable,
+                  [sys.executable, os.path.realpath(__file__)] + sys.argv[1:],
+                  dict(os.environ))
+    except OSError:
+        os.environ[TOOL_SYNC] = "done"
+    return False
+
+
+def tool_adopt(cfg):
+    """Put the processes still holding the old code onto the code that arrived.
+
+    This is `scripts/ship.sh` seen from the other end. Shipping bounces the boards
+    and tutors on the machine the change was written on; the machine that
+    *receives* the change has to do the same thing, or the fix is on disk and
+    nowhere else -- the pages are served from disk and look new while the
+    endpoints behind them are the old ones. That is the single most expensive
+    misunderstanding this repository has produced, and a pull without a restart
+    is how it happens quietly.
+
+    `cmd_restart` decides what is safe to touch: only boards answering on this
+    node, the proxy if this machine has one, and never a tutor mid-turn.
+    """
+    return cmd_restart(cfg, ["--tutors"]) == 0
+
+
+def tool_sync(cfg, quiet=False):
+    """Catch this machine up on the board, and bounce what is holding old code.
+
+    Called from the two places a session begins -- `tutor resume`, which is what a
+    login hook runs, and the launcher. Not from `tutor restart`, which `ship.sh`
+    calls immediately after a push, where there is nothing to pull.
+
+    `quiet` silences the "there is no network today" line, which would otherwise
+    appear on every login on a machine that has none. It does not silence an
+    actual update: a board that has just changed underneath a running lesson is
+    worth a line in the log, and both callers of `--quiet` write to one.
+    """
+    stage = os.environ.get(TOOL_SYNC)
+    if stage == "moved":
+        os.environ[TOOL_SYNC] = "done"
+        return tool_adopt(cfg)
+    if stage:
+        return False
+    moved, msg = tool_pull()
+    os.environ[TOOL_SYNC] = "done"
+    if msg and (moved or not quiet):
+        print(msg)
+    if not moved:
+        return False
+    tool_reexec()                 # normally never returns
+    return tool_adopt(cfg)
+
+
+# The parts of `live/` that are the transcript rather than runtime state: what a
+# lesson IS, and what it would be a bug to lose. `live/state.json` and
+# `live/text/` are not here on purpose -- those are a snapshot by nature and the
+# newest one is the right one.
+TRANSCRIPT_DIRS = ("live/slate", "live/answers", "live/cards", "live/annotations")
+TRANSCRIPT_FILES = ("live/turns.jsonl",)
+
+
+def archived_names(root):
+    """Every basename anywhere under `live/archive/`, which is where a filed
+    lesson's pages, answers and cards legitimately go."""
+    names = set()
+    base = os.path.join(root, "live", "archive")
+    for here, _dirs, files in os.walk(base):
+        for name in files:
+            names.add(name)
+    return names
+
+
+def keep_transcript_files(root, git, note):
+    """Refuse to commit the disappearance of anything that is the lesson.
+
+    Called with the index already staged. Anything staged as a deletion under a
+    transcript directory, whose basename is not now in the archive, is checked
+    back out of HEAD -- which un-stages the deletion and puts the file back on
+    disk in one move.
+    """
+    paths = list(TRANSCRIPT_DIRS) + list(TRANSCRIPT_FILES)
+    # `--no-renames`, and it is load-bearing: two slate pages are routinely
+    # byte-identical -- a page cut as a copy of another, an attempt handed in
+    # twice -- so a deletion paired with an addition of the same bytes is
+    # reported as a RENAME, and a rename is not a deletion. The very files this
+    # is here to protect are the ones most likely to hide behind it.
+    p = git("diff", "--cached", "--no-renames", "--name-only",
+            "--diff-filter=D", "--", *paths)
+    if p.returncode != 0:
+        return []
+    gone = [l.strip() for l in p.stdout.decode("utf-8", "replace").splitlines()
+            if l.strip()]
+    if not gone:
+        return []
+    filed = archived_names(root)
+    put_back = [g for g in gone if os.path.basename(g) not in filed]
+    if not put_back:
+        return []
+    # In batches, because a filed chapter can be hundreds of files and a command
+    # line has a limit.
+    for i in range(0, len(put_back), 200):
+        git("checkout", "HEAD", "--", *put_back[i:i + 200])
+    note("transcript: put back %d file(s) another machine's snapshot dropped: %s"
+         % (len(put_back),
+            ", ".join(os.path.basename(x) for x in put_back[:6])
+            + (" …" if len(put_back) > 6 else "")))
+    return put_back
+
+
+def keep_pulled_files(root, git, note, before):
+    """Undo a pull that took somebody's working off the disk.
+
+    THE PULL IS THE DESTRUCTIVE HALF. Two clones commit snapshots of `live/`,
+    so each one's commit deletes the other's newest pages -- and a fast-forward
+    then CHECKS THAT OUT, physically removing files this machine has and the
+    other never saw. `keep_transcript_files` cannot help afterwards: HEAD has
+    moved, and a file HEAD does not hold is a file HEAD cannot put back.
+
+    Same rule as the commit side, and it has to be the same rule: a deletion
+    whose basename is now in `live/archive/` is `board archive` doing its job,
+    and anything else is a snapshot talking about a machine it is not on. Those
+    come back out of the commit we were on before the pull, and the beat that
+    follows commits them as the additions they are.
+    """
+    if not before:
+        return []
+    after = git("rev-parse", "HEAD").stdout.decode().strip()
+    if not after or after == before:
+        return []
+    paths = list(TRANSCRIPT_DIRS) + list(TRANSCRIPT_FILES)
+    p = git("diff", "--no-renames", "--name-only", "--diff-filter=D",
+            before, after, "--", *paths)      # see above on --no-renames
+    if p.returncode != 0:
+        return []
+    gone = [l.strip() for l in p.stdout.decode("utf-8", "replace").splitlines()
+            if l.strip()]
+    if not gone:
+        return []
+    filed = archived_names(root)
+    put_back = [g for g in gone if os.path.basename(g) not in filed]
+    if not put_back:
+        return []
+    for i in range(0, len(put_back), 200):
+        git("checkout", before, "--", *put_back[i:i + 200])
+    note("transcript: a pull would have removed %d file(s) of this machine's "
+         "working; put back: %s"
+         % (len(put_back),
+            ", ".join(os.path.basename(x) for x in put_back[:6])
+            + (" …" if len(put_back) > 6 else "")))
+    return put_back
+
+
+def sync_transcript(root, log=None):
+    """Commit and push the lesson transcript, pulling first.
+
+    The transcript -- cards, turns, ink, answers, session state and the archive
+    -- is versioned, so a lecture is the same wherever it is picked up. This runs
+    on a beat while the headless tutor is alive: an allocation that dies
+    mid-lesson costs one beat of work, not the evening. The pull is
+    fast-forward-only and everything here is non-fatal -- a diverged branch or a
+    dead remote is logged and retried next beat, never resolved by hand, because
+    a transcript is append-only on one machine at a time and a merge is the last
+    thing it should ever need.
+
+    AND IT IS NOT THE ONLY THING IN THIS REPOSITORY. The person being taught here
+    is the same person who opens a terminal in it and works, and this runs
+    unattended every ninety seconds with nobody watching what it does to git. So
+    it takes two promises, both in `tutorboard.worktree`: it does nothing at all
+    while a rebase, a merge or a bisect is outstanding, and its commit names the
+    transcript explicitly rather than committing whatever happened to be in the
+    index. Committing the index is what it used to do, and a beat landing in the
+    middle of somebody's afternoon would carry their half-staged refactor into
+    history under the message "lesson transcript".
+    """
+    if not worktree.git_dir(root):
+        return
+    busy = worktree.busy_reason(root)
+    if busy:
+        if log:
+            try:
+                log.write("transcript: left alone this beat -- %s\n" % busy)
+            except (OSError, ValueError):
+                pass
+        return
+    env = dict(os.environ, GIT_TERMINAL_PROMPT="0", GIT_ASKPASS="/bin/false")
+
+    def note(line):
+        if log:
+            try:
+                log.write(line + "\n")
+            except (OSError, ValueError):
+                pass
+
+    # THE BEAT IS WHAT HEALS A LOCK, BECAUSE IT IS THE ONLY THING THAT COMES BACK.
+    #
+    # Everything here runs git under a timeout, and a git killed at its timeout
+    # leaves `.git/index.lock` on disk. From then on nothing in this repository
+    # can commit: not this beat, not the save button, not the person's own
+    # terminal. That happened on Galois Theory on 10 September and it went
+    # unnoticed for seventy minutes, because the beat's own failure was silent
+    # -- see the `git add` below -- and a save from the iPad answered with git's
+    # advice to remove the file by hand.
+    #
+    # A lock nobody holds is rubbish, and this runs every ninety seconds whether
+    # or not anybody is looking, which makes it the right place to throw it out.
+    # A lock somebody IS holding is left alone and the beat waits, which costs
+    # one beat and is exactly what waiting is for.
+    verdict, _ = worktree.lock_reason(root)
+    if verdict == "held":
+        note("transcript: left alone this beat -- the git index is locked by a "
+             "command that is still running")
+        return
+    if verdict == "stale":
+        cleared = worktree.clear_stale_lock(root)
+        if cleared:
+            note("transcript: " + cleared)
+
+    def git(*args, **kw):
+        return subprocess.run(["git"] + list(args), cwd=root, env=env,
+                              stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                              timeout=kw.get("timeout", 60))
+    try:
+        if git("remote", "get-url", "origin").returncode != 0:
+            return
+        # Where we were, so a pull that DELETES somebody's working can be told
+        # from one that merely brings work in. The pull is the destructive half
+        # of this loop and the guard below the commit cannot see it: after a
+        # fast-forward, HEAD no longer holds the file, so there is nothing left
+        # to restore it from. This is the only moment that knows.
+        before = git("rev-parse", "HEAD").stdout.decode().strip()
+        p = git("pull", "--ff-only")
+        if p.returncode != 0:
+            out = p.stdout.decode("utf-8", "replace").strip().splitlines()
+            note("transcript: not pulled (%s)" % (out[-1] if out else "pull failed"))
+        else:
+            keep_pulled_files(root, git, note, before)
+        # Checked, not fired and forgotten. An `add` that fails stages nothing,
+        # so the `diff --cached` below finds nothing to commit and this returns
+        # as though the beat had simply had a quiet ninety seconds -- which is
+        # how a locked index went seventy minutes without a word while pages
+        # piled up uncommitted. A beat that cannot do its job says so.
+        added = git("add", "-A", "live")
+        if added.returncode != 0:
+            out = added.stdout.decode("utf-8", "replace").strip().splitlines()
+            note("transcript: NOT staged (%s)" % (out[-1] if out else "git add failed"))
+            return
+        # A TRANSCRIPT IS APPEND-ONLY, SO A COMMIT MUST NEVER SAY A PAGE IS GONE.
+        #
+        # Two clones run this on a beat over the same course, and `git add -A`
+        # commits a SNAPSHOT of whichever working tree it is standing in. Neither
+        # machine has the other's newest pages, so each snapshot deletes the
+        # other's -- and the next fast-forward pull checks that snapshot out and
+        # removes the files from disk. Measured on Galois Theory: `live/slate/`
+        # pages 50 to 53, written between 10:13 and 10:25, present in one line of
+        # history and physically absent from the working tree by 11:09. From the
+        # iPad that is "none of the boards have my preserved written work on them"
+        # with the work genuinely gone from the sheet it was on.
+        #
+        # Nothing in this tool ever deletes a slate page, an answer or a card
+        # except `board archive`, which RENAMES it under `live/archive/` -- so a
+        # deletion whose basename is somewhere in the archive is accounted for and
+        # anything else is a snapshot talking about a machine it is not on. Those
+        # are put back, on disk as well as in the index, which also repairs a
+        # clone that has already been clobbered by a pull.
+        keep_transcript_files(root, git, note)
+        # `-- live`, both times. `git commit` commits the INDEX, so asking
+        # whether there is anything to commit -- and then committing it -- swept
+        # up anything a person had staged in a terminal here. `--only` takes the
+        # named paths from the working tree and leaves the rest of the index
+        # exactly as it was, which is what makes a beat safe to run underneath
+        # somebody who is working.
+        if git("diff", "--cached", "--quiet", "--", "live").returncode == 0:
+            return
+        if git("commit", "-m", "lesson transcript",
+               "--only", "--", "live").returncode != 0:
+            return
+        # `origin HEAD` rather than a bare push, so it works whether or not the
+        # clone has an upstream set for its branch.
+        q = git("push", "origin", "HEAD")
+        note("transcript: pushed" if q.returncode == 0 else "transcript: push failed")
+    except (OSError, subprocess.TimeoutExpired):
+        note("transcript: could not reach the remote")
+
+
+def agent_live(root):
+    """The daemon recorded for this course, if it is really there.
+
+    A pid on a shared filesystem proves nothing -- the record may have been
+    written by a node whose allocation has since ended -- so the host is checked
+    before the pid is believed.
+    """
+    try:
+        with open(os.path.join(root, "live", "agent.json"), "r", encoding="utf-8") as fh:
+            st = json.load(fh)
+    except (OSError, ValueError):
+        return None
+    return st if processes.agent_is_attached(st, this_host()) else None
+
+
+def agent_start(cfg, course, agent_name, session=None):
+    """Put an assistant in this course's repository, detached.
+
+    Detached because the thing asking is usually an HTTP request from the iPad,
+    which must not wait on an agent, and because the daemon has to outlive the
+    request that started it.
+    """
+    root = course["root"]
+    live_dir = os.path.join(root, "live")
+    st = agent_live(root)
+    if st:
+        # A start already in flight is not a reason to start a second one, and
+        # it is not "already listening" either -- saying so to whoever asked
+        # would be the same lie the board was telling.
+        if st.get("state") == "waking":
+            return 0, "%s is already waking up in %s" % (st.get("agent"),
+                                                         course["dir"])
+        return 0, "%s already listening in %s" % (st.get("agent"), course["dir"])
+    if not agent_name:
+        return 1, "no agent resolved for %s" % course["dir"]
+    spec = cfg["agents"].get(agent_name) or {}
+    if not spec.get("headless"):
+        return 1, "'%s' has no headless recipe; add one in %s" % (agent_name, CONFIG)
+    gone = missing_command(spec.get("headless"))
+    if gone:
+        return 1, ("'%s' needs `%s`, which is not on the path here; "
+                   "try: tutor --agents" % (agent_name, gone))
+
+    os.makedirs(live_dir, exist_ok=True)
+    # SAY THAT A TUTOR IS COMING, BEFORE ANYTHING SLOW HAPPENS.
+    #
+    # This is the first moment anything knows a start has been decided, and
+    # until now it was also the last moment before several seconds of silence:
+    # the board is already up and serving the iPad, and the only record on disk
+    # was the previous run's -- pid gone, which the board reads as "tutor
+    # stopped, nothing is reading the board". Reported from a relaunch: "the
+    # tutor was just marked as dead or not available... which put me in 'send
+    # again' mode leading to massive confusion."
+    #
+    # `waking` expires on its own (see `processes.WAKING_GRACE`), so a start
+    # that dies here does not leave the board claiming one is on the way.
+    mark_waking(live_dir, agent_name)
+
+    # The catch-up moved INTO the daemon. It is a `git pull` against a remote
+    # over a tailnet that may itself be coming back up, and it was being done
+    # here -- inside the request that asked for a tutor. `spawn.tutor_cli` gives
+    # this thirty seconds and `sync` alone allows sixty, so a slow remote did
+    # not make the start slow, it made the start get KILLED before it had
+    # spawned anything, and the board then sat on a record that never appeared.
+    # Nothing downstream needs the pull to have happened before the fork.
+    # `--respawn` says this daemon was started by machinery rather than by a
+    # person, and the only thing it changes is that the spawned process does NOT
+    # record a course choice. Every caller here is a machine deciding to put a
+    # tutor back where one already was -- a login hook, a periodic pull, a
+    # restart after a ship -- and none of them is somebody saying which lesson
+    # the address should open. The entry points that ARE somebody saying so
+    # record it themselves before they get here; see the hub tap in `serve.py`.
+    cmd = [sys.executable, os.path.realpath(__file__), "headless", course["dir"],
+           "--agent", agent_name, "--respawn"]
+    if session:
+        cmd.append("--" + session)
+    out = open(os.path.join(live_dir, "agent.log"), "a", buffering=1)
+    kw = {"cwd": root, "stdout": out, "stderr": subprocess.STDOUT,
+          "stdin": subprocess.DEVNULL}
+    if hasattr(os, "setsid"):
+        kw["preexec_fn"] = os.setsid      # survives the terminal that spawned it
+    try:
+        subprocess.Popen(cmd, **kw)
+    except OSError as exc:
+        return 1, str(exc)
+    return 0, "%s starting in %s" % (agent_name, course["dir"])
+
+
+def agent_stop(course, wait=False):
+    """Ask the daemon to finish. It writes the handoff on its way out.
+
+    SIGTERM rather than a kill, because the whole point of the wrap-up turn is
+    that it happens. It can take a minute; nothing here waits for it unless
+    asked, since the caller is usually a person switching course.
+    """
+    st = agent_live(course["root"])
+    if not st:
+        return 0, "nothing was listening in %s" % course["dir"]
+    # A record written by the launcher before the fork has no pid yet. There is
+    # nothing to signal; the daemon it is waiting for will find the record gone.
+    if not st.get("pid"):
+        try:
+            os.remove(os.path.join(course["root"], "live", "agent.json"))
+        except OSError:
+            pass
+        return 0, "the start in %s was called off" % course["dir"]
+    try:
+        os.kill(st["pid"], signal.SIGTERM)
+    except (OSError, TypeError, ValueError) as exc:
+        return 1, str(exc)
+    if wait:
+        for _ in range(120):
+            if not agent_live(course["root"]):
+                break
+            time.sleep(1)
+    return 0, "%s in %s is wrapping up" % (st.get("agent"), course["dir"])
+
+
+def cmd_agent(cfg, args):
+    """tutor agent status|start|stop [course]
+
+    The board drives this when a course is opened or left. Each course keeps its
+    own assistant: they are cheap while idle, and one that survives being left
+    still has the lesson in its head when you come back.
+    """
+    sub = args[0] if args else "status"
+    rest = [a for a in args[1:] if not a.startswith("--")]
+    found = courses(cfg)
+
+    if sub == "status":
+        for c in found:
+            st = agent_live(c["root"])
+            print("  %-26s %s" % (c.get("name") or c["dir"],
+                                  ("%s (%s, %d turn(s))"
+                                   % (st.get("agent"), st.get("state"), st.get("turns", 0)))
+                                  if st else "-"))
+        return 0
+
+    if not rest:
+        print("which course? try: tutor agent %s <name>" % sub, file=sys.stderr)
+        return 1
+    course = pick(found, rest[0])
+
+    if sub == "stop":
+        code, msg = agent_stop(course, wait="--wait" in args)
+        print(msg, file=sys.stderr if code else sys.stdout)
+        return code
+
+    if sub == "start":
+        # An assistant per course, not one per machine. Switching used to stop
+        # whatever was listening elsewhere, so coming back to a course meant a
+        # cold agent that had to re-read the contract, the method and the lesson
+        # before it could write a word. A listening daemon is blocked on `board
+        # wait` and costs nothing while nobody is asking it anything, so there is
+        # no reason to make attention exclusive. They still write their handoff
+        # when they are actually stopped.
+        name = resolve_agent(cfg, course, _flag(args, "--agent"))
+        # Somebody named this course -- on the command line, or by tapping it in
+        # the hub, which comes through here. That is a decision and it moves the
+        # address; `agent_start` deliberately no longer records one, because its
+        # other callers are timers.
+        remember_course(course)
+        code, msg = agent_start(cfg, course, name)
+        print(msg, file=sys.stderr if code else sys.stdout)
+        return code
+
+    print("unknown: tutor agent %s" % sub, file=sys.stderr)
+    return 1
+
+
+def _flag(args, name):
+    for n, a in enumerate(args):
+        if a == name and n + 1 < len(args):
+            return args[n + 1]
+    return None
+
+
+def headless(cfg, course, agent_name, session):
+    spec = cfg["agents"].get(agent_name) or {}
+    recipe = spec.get("headless")
+    if not recipe:
+        print("'%s' has no headless recipe in %s.\n"
+              "Add one: a command that takes a prompt, does the work, and exits."
+              % (agent_name, CONFIG), file=sys.stderr)
+        return 1
+    gone = missing_command(recipe)
+    if gone:
+        print("'%s' needs `%s`, which is not on the path on %s.\n"
+              "Install it, or name another in %s -- `tutor --agents` lists what "
+              "this machine can actually run."
+              % (agent_name, gone, this_host(), CONFIG),
+              file=sys.stderr)
+        return 1
+
+    root = course["root"]
+    live = os.path.join(root, "live")
+    os.makedirs(live, exist_ok=True)
+    # Before the link, the board, the sitting and the catch-up -- all of which
+    # take time the person holding the iPad is already watching. With a real pid
+    # this time, so a start that dies is noticed by the pid test rather than
+    # having to wait out the grace.
+    mark_waking(live, agent_name, pid=os.getpid())
+    # Moved here from `agent_start`, so the request that asks for a tutor does
+    # not wait on a remote. Every session still begins by catching up; it just
+    # does it where there is nobody watching the clock.
+    sync(root, quiet=True)
+    logpath = os.path.join(live, "agent.log")
+    log = open(logpath, "a", buffering=1)
+    host = this_host()
+    # The assistant this machine is configured to use, kept apart from the one
+    # it is using: an allowance that runs out swaps the second for something
+    # cheaper, and when it comes back the first is what we climb home to.
+    wanted = agent_name
+
+    board(root, "start")
+    link(root)
+    if session:
+        board(root, "open", course.get("name") or course["dir"], "session", "--" + session)
+    _, net = board(root, "net")
+    urls = "\n".join("  " + l.strip() for l in net.splitlines() if l.strip().startswith("http"))
+    with open(os.path.join(live, "BRIEF.md"), "w", encoding="utf-8") as fh:
+        fh.write(BRIEF % {"name": course.get("name") or course["dir"],
+                          "stance": course.get("stance") or "teach",
+                          "session": session or "lecture", "urls": urls,
+                          "handoff": handoff_clause(root)})
+
+    agent_state(live, host=host, agent=agent_name, pid=os.getpid(),
+                started=time.time(), state="listening", turns=0,
+                last_error=None, failed_at=0, waking_at=0)
+    print(net.rstrip())
+    print("\n%s is listening in %s. Send from the board; nothing here needs a keyboard."
+          % (agent_name, course["dir"]))
+    print("stop with: tutor headless --stop\n")
+
+    running = {"go": True, "waiter": None}
+
+    def bye(*_):
+        running["go"] = False
+        # Kill the blocking `board wait` too, or shutting down takes as long as
+        # its timeout -- five minutes of a course that has already been left.
+        w = running["waiter"]
+        if w and w.poll() is None:
+            try:
+                w.terminate()
+            except OSError:
+                pass
+    signal.signal(signal.SIGTERM, bye)
+    signal.signal(signal.SIGINT, bye)
+
+    def beat_transcript():
+        # The transcript is versioned so a lesson survives the host it was taught
+        # on. Push it on a beat -- pulling first, so whichever machine is active
+        # stays caught up with the other. This is what makes a course read the
+        # same on whichever node it is picked up on without anyone remembering
+        # to push, and it is what makes an allocation dying mid-lesson cost one
+        # beat of work rather than the evening.
+        while running["go"]:
+            sync_transcript(root, log)
+            end = time.time() + 90
+            while running["go"] and time.time() < end:
+                time.sleep(1)
+    threading.Thread(target=beat_transcript, daemon=True).start()
+
+    turns = 0
+    # Which chapter this daemon has actually been teaching, refreshed each turn.
+    # Not read at the end: by then the board may have opened the next one, and
+    # the handoff would be stamped with a chapter it says nothing about.
+    taught_chapter = [chapter_now(root)]
+    carried = 0          # turns the agent's current session is carrying
+    # An inbox whose turn failed for a reason that has since been repaired. The
+    # student sent something and got nothing back; `board wait` will not hand it
+    # over twice, so it is carried here rather than waiting for them to give up
+    # and send again.
+    pending = None
+    recycle = int(cfg.get("session_turns", 12) or 0)
+    while running["go"]:
+        if pending is not None:
+            out, pending = pending, None
+            log.write("-- answering the message whose turn failed before\n")
+        else:
+            # `--force`, because `board wait` now refuses a caller that is
+            # inside a headless turn -- and this is the one caller that is not.
+            # The guard reads `agent.json`, which still says `working` from the
+            # turn that just finished at the moment this starts, so the daemon
+            # cannot be told apart from its own turn by state alone.
+            running["waiter"] = subprocess.Popen(
+                [sys.executable, BOARD, "wait", "--timeout", "300", "--force"],
+                cwd=root, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+            raw = running["waiter"].communicate()[0]
+            code = running["waiter"].returncode
+            out = raw.decode("utf-8", "replace")
+            running["waiter"] = None
+            if not running["go"]:
+                break
+            if code != 0:
+                agent_state(live, state="listening")     # timed out; still alive
+                continue
+
+        turns += 1
+        # `turn_started` is the daemon's clock, and the board needs it: its own
+        # measure of how long a turn has been going starts when it first SEES
+        # the working state, which on a reload or a second device is nowhere
+        # near when the turn began.
+        agent_state(live, state="working", turns=turns,
+                    turn_started=time.time(), last_error=None, failed_at=0)
+        log.write("\n=== %s turn %d ===\n%s\n" % (time.strftime("%H:%M:%S"), turns, out))
+
+        # Keep saying so while the turn runs. The heartbeat used to be written
+        # only at these boundaries, so a turn that took longer than the board's
+        # two-minute window -- which a turn that reads a chapter and writes a
+        # card routinely does -- showed on the iPad as "assistant not
+        # responding" while the assistant was in the middle of teaching.
+        beating = threading.Event()
+
+        def beat():
+            while not beating.wait(30.0):
+                agent_state(live, state="working", turns=turns)
+
+        ticker = threading.Thread(target=beat, daemon=True)
+        ticker.start()
+
+        # The first turn of a session has no conversation to continue, and a
+        # resume flag against nothing is an immediate failure. After that the
+        # agent's own session is worth keeping: without it every turn pays for
+        # re-reading the contract, the method and the lesson before it can write
+        # a word, which is most of what a turn costs.
+        # A fresh session when there is nothing to resume, and again once the
+        # one we have has carried enough turns to be more expensive than
+        # starting over. Everything a fresh session needs is on disk: the
+        # contract, the method, and `board recap` for the lesson.
+        first = spec.get("headless_first") or recipe
+        use, template, fresh = turn_plan(spec, carried, recycle)
+        if fresh and carried:
+            log.write("-- starting a fresh session after %d turn(s); the lesson "
+                      "is read back with `board recap`\n" % carried)
+        # A script agent builds its own context, so it gets the raw inbox rather
+        # than the instruction prompt the interactive agents expect -- its whole
+        # state is on disk and it re-reads what it needs.
+        taught_chapter[0] = chapter_now(root) or taught_chapter[0]
+        fill = {"inbox": out.strip(),
+                # Only the chapter that is open. A handoff about another one is
+                # parked as this is read, so a tutor is never handed the last
+                # chapter's unfinished business as though it were this one's.
+                "handoff": (HANDOFF_CLAUSE
+                            if handoff.handoff_applies(root, chapter_now(root))
+                            else NO_HANDOFF_CLAUSE)}
+        prompt = out.strip() if spec.get("raw_prompt") else template % fill
+        cmd = with_usage(spec, [a.replace("{prompt}", prompt) for a in use])
+        # Where this turn's own words begin, so that if it fails we can read
+        # back what it said rather than guess at why.
+        mark = os.path.getsize(logpath) if os.path.exists(logpath) else 0
+        try:
+            p = subprocess.run(cmd, cwd=root, stdout=log, stderr=subprocess.STDOUT,
+                               timeout=turn_timeout(cfg, root))
+            err = None if p.returncode == 0 else "exit %d" % p.returncode
+            # A resume that finds nothing to resume is not a broken turn; it is a
+            # first turn wearing the wrong recipe. Try it once as one.
+            if err and use is not first:
+                # A fresh session holds nothing, so the resume prompt -- which
+                # says "you already have the contract, the method and the lesson"
+                # -- would produce a card written against no contract at all.
+                # Retry as what it actually is: a first turn.
+                log.write("!! resume failed, retrying as a fresh turn\n")
+                cmd = with_usage(spec, [a.replace("{prompt}", HEADLESS_FIRST_PROMPT % fill)
+                                        for a in first])
+                p = subprocess.run(cmd, cwd=root, stdout=log, stderr=subprocess.STDOUT,
+                                   timeout=turn_timeout(cfg, root))
+                err = None if p.returncode == 0 else "exit %d" % p.returncode
+                fresh = True
+        except subprocess.TimeoutExpired:
+            err = "timed out"
+        except OSError as exc:
+            err = str(exc)
+        finally:
+            beating.set()
+
+        if err:
+            log.write("!! %s\n" % err)
+            # A failed turn has three very different causes wearing one symptom,
+            # and they need telling apart. The model refusing, or the agent
+            # falling over, is nothing this can fix. The machine being unable to
+            # reach the provider at all is. And the allowance having run out is
+            # neither: nothing is broken, and the same turn will succeed later
+            # with not one thing changed.
+            #
+            # The allowance is asked about first because it is the one the turn
+            # itself answers -- the agent said so in its output, and a provider
+            # that could say so is a provider we plainly reached, which settles
+            # the egress question at the same time and for free.
+            said = turn_output(logpath, mark)
+            until = limits.reads_as_usage_limit(said)
+            if until:
+                limits.mark_limited(until, agent=agent_name)
+                log.write("!! '%s' is out of allowance here until %s\n"
+                          % (agent_name,
+                             time.strftime("%H:%M", time.localtime(until))))
+                agent_state(live, state="listening", last_error="out of allowance",
+                            failed_at=time.time(), limited=until)
+                # The student sent something and got nothing. Whoever ends up
+                # answering it, it is the same message.
+                pending = out
+
+                # Push the lesson before standing aside, rather than waiting
+                # for the next beat. Whoever picks this up reads it out of the
+                # repository, and that includes the message we have just failed
+                # to answer -- so the beat that would have carried it is exactly
+                # the beat we have no time for.
+                sync_transcript(root, log)
+
+                # And then nothing, deliberately. There is one tutor, it has
+                # nothing left to spend, and a turn it cannot take is a turn the
+                # board has to report rather than answer badly: the failure is on
+                # the card stream with its reason, `/health` publishes the limit,
+                # and `board limit` says until when. Turns go on failing until
+                # the allowance returns, which is the truth about the evening.
+                log.write("!! no allowance left; turns will fail until it "
+                          "returns -- `board limit` says when\n")
+                continue
+
+            # Not a limit. On a host routing everything through an exit node the
+            # likeliest remaining cause is that nothing can get out at all,
+            # because commercial VPN egress is exactly what a provider
+            # geo-blocks or challenges. So ask the network, rather than guess.
+            #
+            # Only when a turn has actually failed. Probing on every turn would
+            # add a round trip to the internet to every card the student waits
+            # for, to answer a question that is almost always yes.
+            if not egress.egress_ok():
+                log.write("!! nothing can get out from here; the turn may not be "
+                          "the tutor's fault\n")
+                agent_state(live, state="listening", last_error="no egress",
+                            failed_at=time.time())
+                fixed, detail = egress.rotate_exit_node(
+                    log=lambda m: log.write("   %s\n" % m))
+                if fixed:
+                    log.write("-- egress repaired via %s; retrying the turn\n" % detail)
+                    # The student sent something and got nothing. Put the same
+                    # inbox back so the next pass answers it rather than waiting
+                    # for them to send again.
+                    pending = out
+                else:
+                    log.write("!! egress still broken (%s); turns will keep "
+                              "failing until the network is fixed\n" % detail)
+            # Stamped, so the board can tell a failure that just happened from
+            # one an hour ago -- and can say so at all, which it could not. A
+            # student whose working was handed in and answered by nothing is the
+            # one state this tool must never present as normal.
+            # In words, not as an exit code. See `failure_reason`.
+            agent_state(live, state="listening", last_error=failure_reason(said, err),
+                        failed_at=time.time(), retrying=pending is not None)
+        else:
+            carried = 1 if fresh else carried + 1
+            # What it cost, from the turn's own mouth. Written before anything
+            # else here, because this is the whole justification for a turn
+            # being its own session and it is worth nothing unmeasured.
+            record_cost(live, log, turns, agent_name, fresh,
+                        read_turn_usage(logpath, mark, spec.get("usage")))
+            # A turn that worked on the agent we actually want is proof the
+            # allowance is back, whatever the record still says. The reset time
+            # a provider hands out is a promise, and this is a measurement.
+            if agent_name == wanted and limits.limited_until():
+                log.write("-- a turn went through; the allowance is back\n")
+                limits.clear_limited()
+            agent_state(live, state="listening", last_error=None,
+                        failed_at=0, retrying=False)
+
+    # The last turn, and the only one the student never sees.
+    if turns:
+        agent_state(live, state="wrapping up")
+        log.write("\n=== %s handoff ===\n" % time.strftime("%H:%M:%S"))
+        # The handoff is the one turn that must not be skipped -- it is the only
+        # continuity the next session has -- and a tutor stopped because its
+        # allowance ran out cannot write it. It is attempted anyway and the
+        # failure is logged like any other: a session that ends with no handoff
+        # is a session the next one has to reconstruct from the cards, which is
+        # worse than the transcript but is not nothing.
+        # A script agent may have its own way to write the handoff; default to the
+        # ordinary turn recipe otherwise.
+        wrap = spec.get("handoff") or recipe
+        cmd = with_usage(spec, [a.replace("{prompt}", HANDOFF_PROMPT) for a in wrap])
+        mark = os.path.getsize(logpath) if os.path.exists(logpath) else 0
+        try:
+            subprocess.run(cmd, cwd=root, stdout=log, stderr=subprocess.STDOUT,
+                           timeout=cfg.get("handoff_timeout", 600))
+            # The wrap-up is a turn and it is billed like one, so it is counted
+            # like one. It used to be the most expensive turn of the session --
+            # it re-read the cards, the contract and the old handoff before
+            # writing a word -- and nothing would have shown that.
+            record_cost(live, log, turns + 1, agent_name, False,
+                        read_turn_usage(logpath, mark, spec.get("usage")))
+            wrote = os.path.isfile(os.path.join(root, "HANDOFF.md"))
+            # Say which chapter it is about, now, while this is the only process
+            # that knows. The wrap-up is a model call and takes as long as it
+            # takes; by the time anybody reads the file the board may already
+            # have opened the next chapter, and an unstamped handoff would then
+            # be read as though it belonged to it.
+            if wrote:
+                handoff.stamp_handoff(root, taught_chapter[0])
+            log.write("handoff written\n" if wrote else "!! no HANDOFF.md was written\n")
+        except (subprocess.TimeoutExpired, OSError) as exc:
+            log.write("!! handoff failed: %s\n" % exc)
+
+    # Keep the record and say what happened to it. Deleting it makes the board
+    # say "no tutor attached", which is the same thing it says when a course
+    # never had one -- and the two want different things from the person reading
+    # it. `state: stopped` reads on the board as "tutor stopped, nothing is
+    # reading the board", which is the truth and is actionable.
+    agent_state(live, state="stopped", restarting=False, stopped_at=time.time())
+    print("stopped after %d turn(s)" % turns)
+    return 0
+
+
+def cmd_restart(cfg, args):
+    """Restart every long-lived process on this machine, on the current code.
+
+    A board is a long-lived process that read `serve.py` when it started, so a
+    change to this tool reaches a course only when its board comes back. That is
+    invisible from the outside: the pages are served from disk and look new while
+    the endpoints behind them are still the old ones, which is exactly the sort of
+    difference somebody spends an evening not finding.
+
+    Only boards that are actually answering on this node are touched -- a record
+    on a shared filesystem may belong to another machine, and stopping a stranger's
+    process is worse than leaving a stale one. `--tutors` adds the daemons.
+    """
+    host = this_host()
+    touched, skipped = [], []
+    for c in courses(cfg):
+        live = os.path.join(c["root"], "live")
+        try:
+            with open(os.path.join(live, ".board.json"), "r", encoding="utf-8") as fh:
+                info = json.load(fh)
+        except (OSError, ValueError):
+            continue
+        if info.get("node") and info["node"] != host:
+            skipped.append("%s (on %s)" % (c["dir"], info["node"]))
+            continue
+        if not processes.board_is_running(info.get("pid"), c["root"]):
+            continue
+        board(c["root"], "stop")
+        code, out = board(c["root"], "start")
+        if code == 0:
+            touched.append(c["dir"])
+        else:
+            skipped.append("%s (%s)" % (c["dir"], out.strip().splitlines()[-1:] or "failed"))
+
+    if touched:
+        print("restarted: %s" % ", ".join(touched))
+    else:
+        print("no boards were running on %s" % host)
+    for s2 in skipped:
+        print("  left alone: %s" % s2)
+
+    if "--tutors" not in args:
+        return 0
+
+    # The daemons hold old code for exactly the same reason the boards do: this
+    # file is read once, when the process starts. A tutor in the middle of a turn
+    # is left alone -- bouncing it loses the card it is writing, and the student
+    # is the one who pays for that.
+    import signal as _sig
+    bounced, held = [], []
+    for c in courses(cfg):
+        st = agent_live(c["root"])
+        if not st or st.get("mode") == "interactive":
+            continue
+        if st.get("state") == "working":
+            held.append("%s (mid-turn)" % c["dir"])
+            continue
+        # What configuration says NOW, not what happened to be running. A restart
+        # used to bring back whatever the record named, which meant changing
+        # `default_agent` never reached a course whose tutor was restarted rather
+        # than stopped -- the config said one thing and the board ran another, for
+        # ever. This is the safe moment to act on it: the daemon is being stopped
+        # anyway, and the SIGTERM below makes it write HANDOFF.md, which is
+        # precisely the continuity a different tutor picks up from.
+        was_name = st.get("agent")
+        name = resolve_agent(cfg, c) or was_name
+        # Say, on disk, that this is a RESTART and not a death. The board reads
+        # this record to decide what to tell the person holding the iPad, and a
+        # daemon being bounced looks from there exactly like one that died: the
+        # chip goes to "no tutor attached" and the empty-board banner appears,
+        # in the middle of a lesson, because a fix was shipped. Reported as
+        # "No tutor attached. NOW the tutor just got attached, but this is
+        # spotty". It is one word in the record and it turns a dead end into
+        # "reattaching".
+        agent_state(c["root"] + "/live", restarting=True, stopped_at=time.time())
+        was = st.get("pid")
+        if not was:
+            # A record with no pid in it. It happens: a daemon killed with its
+            # state directory underneath it leaves half a file, and `os.kill`
+            # with None does not raise OSError -- it raises TypeError, which is
+            # not caught here and took the whole restart down with it, every
+            # course after this one included.
+            held.append("%s (no pid in its record)" % c["dir"])
+            continue
+        try:
+            os.kill(was, _sig.SIGTERM)
+        except OSError:
+            pass
+        # The wrap-up turn a SIGTERM starts writes HANDOFF.md, and the next tutor
+        # reads it -- so waiting for the record to clear is waiting for the
+        # continuity to be written, not merely for a process to die. It is one
+        # turn, and a turn can take minutes, so this does not wait for ever.
+        gone = False
+        for _ in range(90):
+            if not agent_live(c["root"]):
+                gone = True
+                break
+            time.sleep(1.0)
+        if not gone:
+            # `agent_start` answers "already listening" here and answers it with
+            # a success code, which is how this came to report a restart it had
+            # not performed. Say what actually happened.
+            held.append("%s (still writing its handoff; run this again in a"
+                        " minute)" % c["dir"])
+            continue
+        code, msg = agent_start(cfg, c, name)
+        now = agent_live(c["root"]) or {}
+        if code == 0 and now.get("pid") and now["pid"] != was:
+            bounced.append(c["dir"] if name == was_name
+                           else "%s (%s -> %s)" % (c["dir"], was_name, name))
+        else:
+            held.append("%s (%s)" % (c["dir"], msg.strip() or "did not come back"))
+
+    if bounced:
+        print("tutors restarted: %s" % ", ".join(bounced))
+    elif not held:
+        print("no tutors were attached on %s" % host)
+    for h in held:
+        print("  left alone: %s" % h)
+    return 0
+
+
+# What "you were working here" looks like on disk. Several signals, because no
+# single one survives everything:
+#
+#   .board.json  a board is running, or was killed without being stopped --
+#                but `board stop` DELETES it, so a cleanly stopped course has
+#                none at all;
+#   state.json   the session: course, chapter, kind. Written by `board open`
+#                and updated through the sitting, and never removed;
+#   turns.jsonl  the student's own contributions, appended as they answer;
+#   cards        the tutor's, written as it teaches.
+#
+# Taking the newest of these was the fix for a real mistake: the first version
+# looked only at `.board.json`, so stopping the board you were using made that
+# course invisible and the next login resumed a DIFFERENT one -- quietly, since
+# a login hook runs with --quiet, and the tailnet name moved with it.
+LIVE_SIGNS = (".board.json", "state.json", "turns.jsonl", "cards")
+
+
+def last_used(root):
+    """When this course was last worked in, as far as disk can say. 0 if never."""
+    best = 0
+    for rel in LIVE_SIGNS:
+        try:
+            best = max(best, os.path.getmtime(os.path.join(root, "live", rel)))
+        except OSError:
+            continue
+    return best
+
+
+
+
+def remember_course(course):
+    """Note that a PERSON chose this course, and when.
+
+    Not a registry: courses are still whatever directories are sitting there.
+    This records a *decision*, which is a different thing and cannot be derived
+    from the filesystem -- because resuming a course touches its files too, so
+    "most recently used" is self-reinforcing. A hook that resumed the wrong
+    course once would go on resuming it for ever, quietly, taking the tailnet
+    name with it every time. Naming one is how you say otherwise.
+    """
+    choice.remember_chosen(course["dir"], course["root"])
+
+
+def chosen_course(cfg):
+    """(when, course) for the last course a person named, if it still exists."""
+    rec = choice.chosen_course()
+    if not rec:
+        return None
+    for c in courses(cfg):
+        if paths.same_dir(c["root"], rec.get("root")) or c["dir"] == rec.get("dir"):
+            return (rec.get("at") or 0, c)
+    return None                   # named once, since deleted or renamed
+
+
+def last_board(cfg):
+    """The course to bring back.
+
+    Two signals, and the newer one wins: when a person last named a course, and
+    when a course was last worked in. Neither alone is enough -- a name given a
+    week ago should not beat an afternoon spent in another course, and file times
+    alone cannot tell a course you chose from one a login hook happened to
+    start.
+    """
+    best = chosen_course(cfg)
+    for c in courses(cfg):
+        when = last_used(c["root"])
+        if when and (not best or when > best[0]):
+            best = (when, c)
+    return best[1] if best else None
+
+
+def board_record(root):
+    try:
+        with open(os.path.join(root, "live", ".board.json"), "r", encoding="utf-8") as fh:
+            return json.load(fh)
+    except (OSError, ValueError):
+        return None
+
+
+def prune_dead_records(cfg, host):
+    """Drop `live/.board.json` for boards on nodes that are gone.
+
+    Only for nodes Slurm can positively say are no longer yours. No Slurm at all
+    means unknown, and unknown is left exactly where it is -- deleting a record
+    for a board that is in fact answering would leave a live process nothing can
+    find. Returns the courses it swept, for the caller to report.
+    """
+    held = machine.slurm_nodes()
+    if held is None:
+        return []
+    swept = []
+    for c in courses(cfg):
+        info = board_record(c["root"]) or {}
+        on = info.get("node")
+        if not on or on == host or on in held:
+            continue
+        try:
+            os.remove(os.path.join(c["root"], "live", ".board.json"))
+            swept.append(c["dir"])
+        except OSError:
+            pass
+    return swept
+
+
+def allocation_nodes():
+    """The compute nodes this user holds, best first.
+
+    `machine.slurm_nodes()` answers the set question -- is the node in that
+    record still mine -- and a set has no order. This one has to choose a machine
+    to hand work to, so it is ordered, and the order is three rules deep:
+
+    1. The node a board is already on. A lesson that is up is the answer to
+       "which machine", and moving one that is alive is exactly what `tutor
+       resume` refuses to do.
+    2. The allocation this shell belongs to. `salloc` puts its job id in the
+       environment of the shell it starts, so that is the allocation the person
+       asked for a moment ago.
+    3. Everything else, newest allocation first.
+    """
+    order = list(hostnames(os.environ.get("SLURM_JOB_NODELIST")
+                           or os.environ.get("SLURM_NODELIST")))
+    for _, nodes, _jid in _running_jobs():
+        order += nodes
+
+    seen, out = set(), []
+    for n in order:
+        n = n.split(".")[0].lower()
+        if n and n not in seen:
+            seen.add(n)
+            out.append(n)
+    return out
+
+
+def hop_to_allocation(cfg, rest):
+    """Run this resume on the compute node, from the login node that holds it.
+
+    `salloc` hands you a shell ON THE LOGIN NODE and holds the allocation from
+    there. The compute node itself gets no login at all, so the one moment a
+    node was said to get -- the moment you log in to it -- did not happen unless
+    somebody went and made it happen, by opening a terminal on the node and
+    leaving it open. That is the ceremony: the allocation exists, the machine is
+    yours, the board is not running, and the thing standing between them is a
+    person typing on a second machine.
+
+    So the login node hands the whole job over. It is the same command on the
+    other end -- the node pulls, re-execs onto what it pulled, bounces whatever
+    is holding the old code, starts the board, re-points the tailnet name and
+    attaches a tutor -- and nothing about the decision is made here. This
+    machine only knows which node to knock on.
+
+    Returns an exit code when it tried, or None when there is nothing to hand
+    the work to, in which case the caller carries on as before.
+    """
+    if "--no-hop" in rest or os.environ.get("TUTOR_BOARD_NO_HOP"):
+        return None
+    if "--force" in rest:
+        # `--force` has one meaning already -- take the board off a machine that
+        # is still alive -- and it is aimed at THIS machine. Leave it there.
+        return None
+    mine = machine.slurm_nodes()
+    if mine is None or not mine:
+        return None                       # not a cluster, or nothing allocated
+    host = this_host()
+    if host in mine:
+        return None                       # this IS the allocation; resume here
+
+    where = {}
+    course = last_board(cfg)
+    if course:
+        where = board_record(course["root"]) or {}
+    order = ([where["node"]] if where.get("node") else []) + allocation_nodes()
+    target = next((n for n in order if n in mine and n != host), None)
+    if not target:
+        return None
+
+    remote = [sys.executable, os.path.realpath(__file__), "resume", "--no-hop"]
+    remote += [a for a in rest if a != "--no-hop"]
+    line = " ".join(shlex.quote(a) for a in remote)
+
+    # One line either way, and it is printed even under `--quiet`. Quiet is for
+    # a login that had nothing to do; this one crossed a machine, and it is the
+    # only trace of that anywhere.
+    def tell(msg):
+        print("%s: %s" % (target, msg))
+
+    # ssh first, because it leaves nothing behind on this machine: the board ends
+    # up in the node's own user session, exactly where it sits when somebody
+    # opens a terminal there, and it needs no process here to stay alive.
+    try:
+        p = subprocess.run(["ssh", "-n", "-o", "BatchMode=yes",
+                            "-o", "ConnectTimeout=10", "-o", "LogLevel=ERROR",
+                            "-o", "StrictHostKeyChecking=accept-new",
+                            target, line],
+                           stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                           stdin=subprocess.DEVNULL, timeout=300)
+        out, code = p.stdout.decode("utf-8", "replace"), p.returncode
+    except subprocess.TimeoutExpired:
+        out, code = "", 255
+    except OSError as exc:
+        out, code = str(exc), 255
+
+    if code != 255:
+        for l in out.splitlines():
+            if l.strip():
+                tell(l.strip())
+        if not out.strip():
+            tell("nothing to do")
+        return code
+
+    # ssh could not get in. On a cluster that is usually a credential this shell
+    # does not have rather than anything being wrong with the node, and Slurm
+    # will run something there without one -- so ask it to. The step has to
+    # OUTLIVE the command: everything a step starts is in the step's cgroup, and
+    # that cgroup is emptied the moment the step ends, detached or not. So it
+    # holds itself open, which ties the board's life to the allocation's -- which
+    # is the truth about a compute node anyway.
+    job = os.environ.get("SLURM_JOB_ID") or ""
+    if not job:
+        for when, nodes, jid in _running_jobs():
+            if target in nodes:
+                job = jid
+                break
+    if not job:
+        tell("ssh could not get in, and no job id to hand it to Slurm with")
+        return 1
+    log = open(os.path.expanduser("~/.tutor-resume.log"), "a", buffering=1)
+    step = ["srun", "--overlap", "--jobid", job, "--nodes=1", "--ntasks=1",
+            "--nodelist", target, "bash", "-c", line + "; exec sleep 31536000"]
+    try:
+        subprocess.Popen(step, stdout=log, stderr=subprocess.STDOUT,
+                         stdin=subprocess.DEVNULL, start_new_session=True)
+    except OSError as exc:
+        tell("ssh could not get in, and neither could srun: %s" % exc)
+        return 1
+    tell("ssh could not get in; started inside job %s instead, which holds the "
+         "board open for as long as the allocation" % job)
+    return 0
+
+
+def hostnames(spec):
+    """Expand a Slurm nodelist -- `compute[303-305]` -- into names.
+
+    Slurm writes a set of machines as one string, and a name tested against that
+    string with `in` is a substring match: `compute30` is in `compute[301,305]`
+    and is not one of them. `scontrol` is the only thing entitled to read this
+    notation, so it does.
+    """
+    spec = (spec or "").strip()
+    if not spec:
+        return []
+    try:
+        p = subprocess.run(["scontrol", "show", "hostnames", spec],
+                           stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+                           timeout=10)
+    except (OSError, subprocess.TimeoutExpired):
+        return []
+    if p.returncode != 0:
+        return []
+    return [l.strip() for l in p.stdout.decode("utf-8", "replace").splitlines()
+            if l.strip()]
+
+
+def _running_jobs():
+    """(start time, node names, job id) per running allocation, newest first."""
+    out = []
+    try:
+        p = subprocess.run(["squeue", "-h", "-u", os.environ.get("USER", ""),
+                            "-t", "RUNNING", "-o", "%S|%N|%i"],
+                           stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+                           timeout=10)
+        if p.returncode != 0:
+            return []
+        for line in p.stdout.decode("utf-8", "replace").splitlines():
+            bits = line.split("|")
+            if len(bits) == 3 and bits[1].strip():
+                out.append((bits[0].strip(), hostnames(bits[1]), bits[2].strip()))
+    except (OSError, subprocess.TimeoutExpired):
+        return []
+    return sorted(out, reverse=True)
+
+
+def cmd_resume(cfg, args):
+    """Take the board over on this machine. Safe to run from a login hook.
+
+    Nothing on a compute node outlives its allocation -- not the board, not the
+    tutor, not `tailscaled` itself -- so arriving on a new node means the tailnet
+    name points at a machine that no longer exists and the iPad gets nothing.
+    There is no way for a node to be asked to take over, because being asked
+    requires something already listening, and the thing that was listening is
+    what died. The only moment a compute node can act on is the moment you log
+    in to it, which is what this is for.
+
+    It is deliberately dull: quiet when there is nothing to do, quick when there
+    is nothing to do, and it never takes a board away from a machine that is
+    still alive unless told to.
+    """
+    quiet = "--quiet" in args
+    force = "--force" in args
+    rest = [a for a in args if not a.startswith("-")]
+    host = this_host()
+
+    def say(msg):
+        if not quiet:
+            print(msg)
+
+    # Records left behind by nodes that no longer exist make the hub lie: it
+    # cannot tell a board that died with an allocation from one that is
+    # answering, so a course reads as "live on compute304" days after compute304
+    # stopped being a machine you had, and a tap goes where nothing is
+    # listening. Logging in is the moment to sweep them, because it is the
+    # moment we can find out which nodes are real. Before choosing a course,
+    # since a record is one of the things that decides.
+    swept = prune_dead_records(cfg, host)
+    if swept:
+        say("cleared a dead board record for: %s" % ", ".join(swept))
+
+    found = courses(cfg)
+
+    # A board that DIED is not a board that was stopped, and until now nothing
+    # ever looked. `board stop` removes the record; a crash, an OOM or a reboot
+    # leaves one behind naming a pid that is gone. This command restores the
+    # course last worked in -- exactly one of them -- so any other board that
+    # fell over while nobody was sitting at this machine stayed down until a
+    # person noticed and said so. From the iPad that is a course in the hub that
+    # will not open, on a machine that is otherwise perfectly healthy.
+    #
+    # Three conditions, and each one is a thing that must NOT be started: only
+    # where a record exists, so a course nobody has ever opened is not brought up
+    # by a timer; only where it names this node, because a record from another
+    # machine proves nothing this one can check; and only where the pid is really
+    # gone, which `board_is_running` decides by realpath rather than by string.
+    #
+    # And not on a compute node. There, this runs from a login hook, a board
+    # belongs to an allocation, and a login is a person arriving who wants the
+    # one course they came for -- starting every board that an ended allocation
+    # left a record of, on a shared login node, is the thing the guard further
+    # down exists to prevent.
+    revived = []
+    if machine.machine_shape() != "compute node":
+        for c in found:
+            rec = board_record(c["root"]) or {}
+            if not rec or rec.get("node") != host:
+                continue
+            if processes.board_is_running(rec.get("pid"), c["root"]):
+                continue
+            code, _ = board(c["root"], "start")
+            if code == 0:
+                revived.append(c["dir"])
+    if revived:
+        say("restarted a board that had died: %s" % ", ".join(revived))
+
+    course = pick(found, rest[0]) if rest else last_board(cfg)
+    if not course:
+        say("no board has ever run in %s; start one with: tutor" % cfg["courses_dir"])
+        return 0
+
+    if rest:
+        remember_course(course)        # named on the command line: a decision
+
+    root = course["root"]
+    info = board_record(root) or {}
+    on = info.get("node")
+
+    # Catch up before anything else, on every resume and not only the one that
+    # starts a fresh board: a handoff or a pushed chapter written on the machine
+    # you just left is the whole point of writing it down. Fast-forward only and
+    # never fatal, so it is cheap to run on every login.
+    sync(root, quiet=True)
+
+    if on == host and processes.board_is_running(info.get("pid"), root):
+        # Already serving here. The one thing worth checking is that the tailnet
+        # name still points at this port, since that is the part a second board
+        # on this node moves out from under it.
+        link(root)
+        started = ensure_agent(cfg, course, args, say)
+        say("%s is already up here%s" % (course["dir"], started))
+        return 0
+
+    if on and on != host and not force:
+        # A record from another node proves nothing on a shared filesystem, so
+        # ask Slurm whether that machine is still a machine you hold. Unknown --
+        # no squeue at all -- is not the same as gone, and is left alone.
+        nodes = machine.slurm_nodes()
+        if nodes is None or on in nodes:
+            say("%s is on %s, which is still yours; leaving it there "
+                "(--force to move it here)" % (course["dir"], on))
+            return 0
+
+    # Not every machine you log in to is a machine you should start a board on.
+    # A login node is shared, is not yours, and is where long-running processes
+    # go to be killed -- and this runs from a login hook, so it will be invited
+    # to try. Slurm knows which nodes are actually yours; if there is no Slurm at
+    # all this is not a cluster and the question does not arise.
+    mine = machine.slurm_nodes()
+    if mine is not None and host not in mine and not force:
+        say("%s is not one of your allocations; not starting a board here" % host)
+        return 0
+
+    code, out = board(root, "start")
+    if code != 0:
+        say(out.strip() or "could not start the board")
+        return 1
+    link(root)
+    started = ensure_agent(cfg, course, args, say)
+    _, net = board(root, "net")
+    for line in net.splitlines():
+        if "ts.net/" in line and "https" in line:
+            say("%s is up here, at %s%s" % (course["dir"], line.strip().split()[0], started))
+            break
+    else:
+        say("%s is up here%s" % (course["dir"], started))
+    return 0
+
+
+def ensure_agent(cfg, course, args, say):
+    """Attach a tutor unless told not to. Returns a clause for the caller's line."""
+    if "--no-agent" in args:
+        return ""
+    if agent_live(course["root"]):
+        return ", tutor already attached"
+    name = resolve_agent(cfg, course, _flag(args, "--agent"))
+    code, msg = agent_start(cfg, course, name)
+    return (", %s attached" % name) if code == 0 else (", no tutor (%s)" % msg)
+
+
+def cmd_cost(cfg, args):
+    """What the turns on this machine actually cost, per turn and in total.
+
+        tutor cost              the course an assistant is attached to
+        tutor cost galois       a course by name
+        tutor cost --all        every course on this machine, one line each
+        tutor cost galois --turns   every turn, oldest first
+
+    This is the only honest answer to "is the new arrangement cheaper", and it
+    is the reason `usage_args` is on the recipe. Read straight out of
+    `live/cost.jsonl`, which every headless turn appends one line to.
+
+    TOKENS is the headline, not dollars. On a subscription what runs out is a
+    five-hour allowance, and a percentage of that is computed from what went
+    through the model -- input, output, and cache both written and read. Set
+    `quota_tokens` in the config and this says what share of a window a turn
+    took; leave it null and it says the tokens and lets you divide.
+
+    Two other columns matter. ROUND TRIPS is what a prompt can change, and the
+    only thing that turned one turn into 1.4M tokens. And the LAST line is the
+    one to read: a second half that costs more per turn than the first means a
+    turn is carrying context it should have read back off disk, which is the
+    defect this whole arrangement exists to prevent and the one that is
+    invisible in every other kind of monitoring, because nothing is broken while
+    it happens.
+    """
+    found = courses(cfg)
+    everything = "--all" in args
+    per_turn = "--turns" in args
+    rest = [a for a in args if not a.startswith("--")]
+    try:
+        window = int(cfg.get("quota_tokens") or 0)
+    except (TypeError, ValueError):
+        window = 0
+
+    def share(tokens):
+        """That many tokens as a share of one allowance window, if calibrated."""
+        return ("  (%.2f%% of a window)" % (100.0 * tokens / window)) if window else ""
+
+    if everything:
+        rows = [(c, read_costs(c["root"])) for c in found]
+        rows = [(c, r) for c, r in rows if r]
+        if not rows:
+            print("no turn has reported a cost on this machine yet.")
+            print("Turns record one only on a recipe that says how -- "
+                  "`usage: claude-json` on the claude recipe; see `tutor --agents`.")
+            return 0
+        print("%-22s %6s %8s %11s %10s" %
+              ("course", "turns", "trips/t", "tokens/t", "total"))
+        for c, r in sorted(rows, key=lambda x: -sum(t.get("tokens", 0) for t in x[1])):
+            n = len(r)
+            print("%-22s %6d %8.1f %11s %9.2f" %
+                  (c["dir"][:22], n,
+                   sum(t.get("requests", 0) for t in r) / float(n),
+                   thousands(sum(t.get("tokens", 0) for t in r) / float(n)),
+                   sum(t.get("usd", 0) for t in r)))
+        total = sum(t.get("tokens", 0) for _, r in rows for t in r)
+        print("\n%s tokens across %d turn(s) on %s%s"
+              % (thousands(total), sum(len(r) for _, r in rows), this_host(),
+                 share(total)))
+        return 0
+
+    if rest:
+        course = pick(found, rest[0])
+    else:
+        # The course an assistant is actually attached to, or the only one that
+        # has ever billed anything. Asking "which course?" when there is exactly
+        # one answer is the sort of question a tool should not need to ask.
+        course = next((c for c in found if agent_live(c["root"])), None)
+        if not course:
+            billed = [c for c in found if read_costs(c["root"])]
+            course = billed[0] if len(billed) == 1 else None
+    if not course:
+        print("which course? try: tutor cost --all", file=sys.stderr)
+        return 1
+    rows = read_costs(course["root"])
+    if not rows:
+        print("%s: no turn has reported a cost here yet." % course["dir"])
+        return 0
+
+    if per_turn:
+        print("%-19s %5s %-7s %6s %10s %10s %8s %8s %8s" %
+              ("when", "turn", "session", "trips", "tokens", "cacheread",
+               "cachewrit", "out", "cost"))
+        for t in rows:
+            print("%-19s %5s %-7s %6d %10s %10s %10s %8s %8.3f" %
+                  (t.get("iso", "?"), t.get("turn", "?"),
+                   "fresh" if t.get("fresh") else "resumed",
+                   t.get("requests", 0), thousands(t.get("tokens", 0)),
+                   thousands(t.get("cache_read", 0)),
+                   thousands(t.get("cache_write", 0)), thousands(t.get("out", 0)),
+                   t.get("usd", 0)))
+        print()
+
+    n = len(rows)
+    tokens = sum(t.get("tokens", 0) for t in rows)
+    fresh = sum(1 for t in rows if t.get("fresh"))
+    print("%s — %d turn(s) on %s, %d of them their own session"
+          % (course["dir"], n, this_host(), fresh))
+    print("  %s tokens a turn%s, %.1f round trips a turn"
+          % (thousands(tokens / float(n)), share(tokens / float(n)),
+             sum(t.get("requests", 0) for t in rows) / float(n)))
+    print("  %s tokens in total%s, $%.2f" % (thousands(tokens), share(tokens),
+                                             sum(t.get("usd", 0) for t in rows)))
+    dear = max(rows, key=lambda t: t.get("tokens", 0))
+    print("  dearest turn: %s tokens%s over %d round trips (%s)"
+          % (thousands(dear.get("tokens", 0)), share(dear.get("tokens", 0)),
+             dear.get("requests", 0), dear.get("iso", "?")))
+    if not window:
+        print("  set `quota_tokens` in the config to see these as a share of "
+              "one allowance window")
+    # The number this whole arrangement exists to hold flat. A rising trend here
+    # means a turn is carrying something it should have read back off disk.
+    if n >= 6:
+        half = n // 2
+        early = sum(t.get("tokens", 0) for t in rows[:half]) / float(half)
+        late = sum(t.get("tokens", 0) for t in rows[half:]) / float(n - half)
+        print("  first half %s a turn, second half %s -- %s"
+              % (thousands(early), thousands(late),
+                 "flat, which is the point" if late <= early * 1.25
+                 else "RISING: a turn is carrying context it could read back"))
+    return 0
+
+
+def cmd_where(cfg, args):
+    """What is up, and whether anything is listening."""
+    host = this_host()
+    print("this machine: %s\n" % host)
+    any_up = False
+    for c in courses(cfg):
+        live = os.path.join(c["root"], "live")
+        board_up, on, agent = "-", "", "-"
+        try:
+            with open(os.path.join(live, ".board.json"), "r", encoding="utf-8") as fh:
+                info = json.load(fh)
+            on = info.get("node") or "?"
+            if on == host:
+                if processes.board_is_running(info.get("pid"), c["root"]):
+                    board_up = "up :%s" % info.get("port", "?")
+                    any_up = True
+                else:
+                    board_up = "down"
+            else:
+                board_up = "on " + on
+        except (OSError, ValueError):
+            pass
+        try:
+            with open(os.path.join(live, "agent.json"), "r", encoding="utf-8") as fh:
+                st = json.load(fh)
+            agent = ("%s %s" % (st.get("agent"), st.get("state"))) \
+                if processes.agent_is_attached(st, host) else "stale"
+        except (OSError, ValueError):
+            pass
+        print("  %-24s board:%-10s agent:%s" % (c.get("name") or c["dir"], board_up, agent))
+    if any_up:
+        print()
+        for c in courses(cfg):
+            _, net = board(c["root"], "net")
+            for l in net.splitlines():
+                if "ts.net/" in l and "https" in l:
+                    print("  reachable at %s" % l.strip().split()[0])
+                    break
+            break
+    return 0
+
+
+def main(argv):
+    cfg = load_config()
+    args, flags = [], {"session": None, "agent": None, "no_agent": False,
+                       "over": [], "respawn": False, "stance": None}
+    i = 0
+    while i < len(argv):
+        a = argv[i]
+        if a in ("-h", "--help"):
+            print(__doc__.strip())
+            return 0
+        elif a in ("--list", "-l"):
+            for c in courses(cfg):
+                print("  %-26s %-6s %s"
+                      % (c.get("name") or c["dir"],
+                         "do" if c.get("stance") == "do" else "", c["dir"]))
+            return 0
+        elif a == "--agents":
+            print("config: %s" % CONFIG)
+            print("machine: %s (%s)" % (this_host(), machine.machine_shape()))
+            print()
+            for n, spec in sorted(cfg["agents"].items()):
+                mark = "*" if n == cfg["default_agent"] else " "
+                gone = missing_command(spec.get("cmd"))
+                print(" %s %-10s %-28s %s"
+                      % (mark, n, " ".join(spec.get("cmd", [])),
+                         "not installed here" if gone else ""))
+            print("\n* is the default. Edit the config to add your own.")
+            return 0
+        elif a == "--homework":
+            flags["session"] = "homework"
+        elif a == "--lecture":
+            flags["session"] = "lecture"
+        elif a in ("--review", "--test-review"):
+            flags["session"] = "review"
+        elif a in ("--walk", "--walkthrough"):
+            flags["session"] = "walk"
+        elif a == "--over":
+            # Repeated, one per chapter: a chapter title may contain a comma.
+            i += 1
+            if i < len(argv):
+                flags["over"].append(argv[i])
+        elif a == "--stance":
+            # This sitting's, not the repository's. `board open` is what writes
+            # it, and it is cleared by the next one -- nothing here touches
+            # tutorboard.json.
+            i += 1
+            want = (argv[i] if i < len(argv) else "").strip().lower()
+            flags["stance"] = want if want in ("do", "teach") else None
+            if flags["stance"] is None:
+                print("--stance takes 'do' or 'teach'; ignored", file=sys.stderr)
+        elif a == "--no-agent":
+            flags["no_agent"] = True
+        elif a == "--respawn":
+            flags["respawn"] = True
+        elif a == "--stop":
+            pass
+        elif a == "--agent":
+            i += 1
+            flags["agent"] = argv[i]
+        else:
+            args.append(a)
+        i += 1
+
+    if args and args[0] in ("restart", "restart-boards"):
+        return cmd_restart(cfg, args[1:])
+
+    if args and args[0] == "where":
+        return cmd_where(cfg, args[1:])
+
+    if args and args[0] == "cost":
+        return cmd_cost(cfg, args[1:])
+
+    if args and args[0] == "resume":
+        rest = argv[argv.index("resume") + 1:]
+        # A login node holding an allocation does none of this itself. It hands
+        # the whole command to the node, which is the machine that should be
+        # pulling, re-execing and bouncing its own boards -- so the hop comes
+        # before the pull, not after it.
+        hopped = hop_to_allocation(cfg, rest)
+        if hopped is not None:
+            return hopped
+        # Before anything, and before the course is caught up: this is what a
+        # login hook runs, and on a compute node it is the only moment there is.
+        tool_sync(cfg, quiet="--quiet" in rest)
+        return cmd_resume(cfg, rest)
+
+    if args and args[0] == "agent":
+        return cmd_agent(cfg, argv[argv.index("agent") + 1:])
+
+    if args and args[0] == "headless":
+        rest = args[1:]
+        if "--stop" in argv:
+            return headless_stop(cfg, rest)
+        found = courses(cfg)
+        course = pick(found, rest[0]) if rest else choose(found)
+        # Only when a person asked for this. `agent_start` spawns exactly this
+        # command with `--respawn`, and it is spawned in a LOOP over the courses
+        # on this machine -- so recording here handed the address to whichever
+        # course the loop finished on, every login, every periodic pull, every
+        # ship. That is the 28 August defect back through a different door, and
+        # it is worse than the original: because the record is what `tutor
+        # resume` reads to decide, the wrong course re-elected itself for ever,
+        # and a tap on the right one in the hub was overwritten by the next tick.
+        if not flags["respawn"]:
+            remember_course(course)
+        return headless(cfg, course, resolve_agent(cfg, course, flags["agent"]),
+                        flags["session"])
+
+    # Starting a session by hand is the other moment worth catching up in. It
+    # comes before the course is chosen because a re-exec throws away everything
+    # done so far, and doing that after a prompt would ask the question twice.
+    tool_sync(cfg)
+
+    found = courses(cfg)
+    if not found:
+        print("no courses under %s" % cfg["courses_dir"], file=sys.stderr)
+        return 1
+    course = pick(found, args[0]) if args else choose(found)
+    remember_course(course)
+
+    # --- catch up ----------------------------------------------------------
+    print("\n%s" % (course.get("name") or course["dir"]))
+    sync(course["root"])
+
+    # --- the board ---------------------------------------------------------
+    code, out = board(course["root"], "start")
+    if code != 0:
+        print(out.strip(), file=sys.stderr)
+        return 1
+    link(course["root"])
+    if flags["session"] or flags["stance"]:
+        # A sitting held over a scope NAMES ITSELF -- "Test review — Ch 07",
+        # "Walkthrough — grade" -- and `board open` is what knows how. Passing a
+        # title unasked is what put the word `session` in the title bar where
+        # that name belonged, on every review ever started from here.
+        title = " ".join(args[1:])
+        extra = []
+        for name in flags["over"]:
+            extra += ["--over", name]
+        if flags["stance"]:
+            extra += ["--stance", flags["stance"]]
+        board(course["root"], "open", course.get("name") or course["dir"],
+              *([title] if title else []),
+              "--" + (flags["session"] or "lecture"), *extra)
+    _, net = board(course["root"], "net")
+    urls = "\n".join("  " + l.strip() for l in net.splitlines()
+                     if l.strip().startswith("http"))
+
+    print("%s%s" % (course.get("name") or course["dir"],
+                     " — stance: do" if course.get("stance") == "do" else ""))
+    print(net.rstrip())
+
+    live = os.path.join(course["root"], "live")
+    os.makedirs(live, exist_ok=True)
+    brief = BRIEF % {
+        "name": course.get("name") or course["dir"],
+        # What THIS SITTING runs under, which is the repository's answer unless
+        # this invocation said otherwise. `board brief` says the same thing and
+        # says which of the two it came from; this one line has to agree with it.
+        "stance": flags["stance"] or course.get("stance") or "teach",
+        "session": flags["session"] or "lecture",
+        "urls": urls or "  (run: board net)",
+        "handoff": handoff_clause(course["root"]),
+    }
+    with open(os.path.join(live, "BRIEF.md"), "w", encoding="utf-8") as fh:
+        fh.write(brief)
+
+    if flags["no_agent"]:
+        return 0
+
+    # --- the assistant -----------------------------------------------------
+    # `interactive`: this is the one call site that opens a terminal session
+    # rather than running headless turns.
+    name = resolve_agent(cfg, course, flags["agent"], interactive=True)
+    spec = cfg["agents"].get(name) if name else None
+    if not spec:
+        print("\nno assistant resolved for %s. Try: tutor --agents" % course["dir"],
+              file=sys.stderr)
+        return 1
+
+    cmd = list(spec.get("cmd", []))
+    opener = ("Read live/BRIEF.md, then run `board brief` and `board recap` and "
+              "begin. Those two commands are the method, this course's unbendable "
+              "rules, the handoff and the lesson; AI_INSTRUCTIONS.md and "
+              "live/TEACHING.md are on disk for the rule that needs its detail, "
+              "and reading either in full costs about ten thousand tokens you "
+              "will then carry all session. The board is already running; do not "
+              "start another.")
+    if spec.get("prompt") == "argv":
+        cmd.append(opener)
+    else:
+        print("\n  then tell it:  %s" % opener)
+
+    print("\nstarting %s in %s\n" % (name, course["dir"]))
+    # Say on the board that somebody is attached. `execvp` replaces this process
+    # with the assistant, so this pid is about to BE the assistant -- which is
+    # what makes the record checkable later without a heartbeat. An interactive
+    # session is idle whenever the person is thinking, and a heartbeat would call
+    # that dead; the process either exists or it does not.
+    agent_state(live, host=this_host(), agent=name, pid=os.getpid(),
+                mode="interactive", cmd=cmd[0], state="attached",
+                started=time.time(), turns=0, last_error=None)
+    try:
+        os.chdir(course["root"])
+        os.execvp(cmd[0], cmd)          # hand the terminal over entirely
+    except OSError as exc:
+        print("could not start %s: %s" % (name, exc), file=sys.stderr)
+        print("check `tutor --agents`, or edit %s" % CONFIG, file=sys.stderr)
+        return 1
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

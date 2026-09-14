@@ -1,0 +1,1663 @@
+/* ==========================================================================
+   board.css -- the live tutoring board.
+
+   Reading first. Wide margins, a real serif for prose, KaTeX for mathematics,
+   and enough type-size headroom that the same page is legible on a laptop at
+   arm's length and on an iPad propped across a desk.
+   ========================================================================== */
+
+:root {
+  --fs: 18px;
+
+  --paper:      #fbfaf7;
+  --paper-2:    #f3f1ec;
+  --ink:        #1c1b19;
+  --ink-2:      #55524c;
+  --ink-3:      #8d887f;
+  --rule:       #ddd9d0;
+  --accent:     #7a1f1f;   /* lesson    */
+  --ask:        #8a5a00;   /* question  */
+  --good:       #1f5c34;   /* correct   */
+  --bad:        #9a2020;   /* wrong     */
+  --note:       #2a4d7a;   /* aside     */
+  --mine:       #e8eef5;   /* student's own message */
+  /* WHEN A STEP SHOULD BE DONE, hot to cold along the plan's own order. Four
+     bands rather than a ramp: four colours on an eleven-pixel circle can be
+     told apart and a gradient cannot. Never a schedule -- every chip is
+     tappable and which one to do is the person's. */
+  --step-now:   #a8320f;
+  --step-soon:  #9a6a05;
+  --step-later: #2a4d7a;
+  --step-some:  #6f6a62;
+}
+
+body[data-mode="dark"], body[data-mode="auto"].sys-dark {
+  --paper:      #16171a;
+  --paper-2:    #1e2025;
+  --ink:        #e6e3dd;
+  --ink-2:      #a9a49b;
+  --ink-3:      #77726a;
+  --rule:       #2e3138;
+  --accent:     #e0827c;
+  --ask:        #e0b45c;
+  --good:       #7fc79a;
+  --bad:        #e88b8b;
+  --note:       #8fb6e6;
+  --mine:       #232a33;
+  --step-now:   #ff9b84;
+  --step-soon:  #e8bb63;
+  --step-later: #8fb6e6;
+  --step-some:  #8e8880;
+}
+
+* { box-sizing: border-box; }
+
+/* The `hidden` attribute has to actually hide things. A UA stylesheet's
+   [hidden]{display:none} loses to any author rule that sets a display, however
+   low its specificity -- author origin simply wins -- so every element toggled
+   by .hidden in the scripts needs this, or it is painted permanently. */
+[hidden] { display: none !important; }
+
+
+/* The viewport's background comes from <html>, and only falls through to <body>
+   when <html> paints none of its own. That matters here because the dark palette
+   is defined on `body[data-mode="dark"]`: an <html> painting `var(--paper)`
+   resolves it from `:root` instead and is therefore ALWAYS the light cream,
+   whatever theme is showing. On a page shorter than the screen -- an empty
+   board, most of all -- the body's dark box stops partway down and that cream
+   fills the rest, which reads as a blank white panel across the bottom half of
+   an iPad. Leave <html> unpainted; the body's background propagates and covers
+   the whole viewport. */
+html { background: none; }
+
+html, body {
+  margin: 0; padding: 0;
+  color: var(--ink);
+  font-size: var(--fs);
+  font-family: var(--prose);
+  line-height: var(--prose-leading);
+  letter-spacing: var(--prose-tracking);
+  -webkit-text-size-adjust: 100%;
+}
+
+/* And the body has to be at least a screen tall, or there is nothing to paint
+   the bottom of the viewport with in the first place. */
+body { background: var(--paper); min-height: 100vh; min-height: 100dvh; }
+
+/* ---------- top bar ---------- */
+/* The whole top stack sticks as one piece: the bar, and the two banners that
+   belong under it. They used to stick to top:0 individually, one layer below
+   the bar, so the end-of-session question and the result of a push were both
+   posted underneath the header where nobody could read them. */
+#chrome { position: sticky; top: 0; z-index: 40; }
+
+#bar {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: .75rem;
+  /* The top inset matters once this is installed to the iPad home screen and
+     runs without Safari's chrome above it. */
+  padding: calc(.5rem + env(safe-area-inset-top)) max(.75rem, env(safe-area-inset-right))
+           .5rem max(.75rem, env(safe-area-inset-left));
+  background: color-mix(in srgb, var(--paper) 88%, transparent);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--rule);
+  font-family: var(--ui);
+  font-size: .82rem;
+}
+.bar-left { display: flex; align-items: center; gap: .5rem; min-width: 0; }
+#btn-home { color: var(--ink-2); text-decoration: none; font-size: 1.1rem;
+            line-height: 1; padding: .1rem .3rem .25rem; border-radius: .3rem; }
+#btn-home:hover { background: var(--paper-2); color: var(--ink); }
+#course { font-weight: 650; letter-spacing: .01em; white-space: nowrap; }
+#chapter { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.muted { color: var(--ink-3); }
+
+.dot {
+  width: .55rem; height: .55rem; border-radius: 50%;
+  background: var(--ink-3); flex: none;
+  transition: background .3s;
+}
+.dot.live { background: #35a35f; box-shadow: 0 0 0 3px color-mix(in srgb, #35a35f 22%, transparent); }
+.dot.dead { background: #b64b4b; }
+
+/* The right group keeps its width; the left group is what gives way, because a
+   course name can be any length and a control cannot be half a control. */
+.bar-right { display: flex; align-items: center; gap: .25rem; flex: none; }
+/* Same rule as the annotation bar, for the same reason: these are controls. */
+.bar-left, .bar-left *, .bar-right, .bar-right * {
+  -webkit-user-select: none; user-select: none; -webkit-touch-callout: none;
+}
+.bar-left button, .bar-right button { touch-action: manipulation; }
+.bar-left { overflow: hidden; }
+#bar button, #bar a {
+  /* A control must never wrap. When the bar got crowded the save's label broke
+     onto a second line, which made the button taller than the row it lived in --
+     so it painted over the chip beside it and the button after it. Crowding
+     caused it; wrapping is what turned crowding into overlap. */
+  white-space: nowrap; flex: none;
+  font: inherit; line-height: 1;
+  padding: .4rem .55rem;
+  border: 1px solid transparent; border-radius: .4rem;
+  background: transparent; color: var(--ink-2); cursor: pointer;
+  text-decoration: none;
+}
+#bar button:hover, #bar a:hover { background: var(--paper-2); color: var(--ink); }
+#btn-slate { border-color: var(--rule); font-weight: 600; white-space: nowrap; }
+.session {
+  flex: none; font-size: .62rem; font-weight: 700;
+  letter-spacing: .12em; text-transform: uppercase;
+  padding: .18rem .4rem; border-radius: .25rem;
+  background: var(--paper-2); color: var(--ink-3);
+}
+.agent {
+  display: inline-flex; align-items: center; gap: .3rem;
+  min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-size: .68rem; color: var(--ink-3);
+}
+.agent::before {
+  content: ""; width: .45rem; height: .45rem; border-radius: 50%;
+  background: var(--ink-3);
+}
+.agent[data-state="listening"]::before,
+.agent[data-state="attached"]::before { background: #35a35f; }
+.agent[data-state="working"]::before {
+  background: var(--ask);
+  animation: pulse 1.1s ease-in-out infinite;
+}
+/* Coming up, or coming back. Amber and pulsing, because both are "wait a
+   moment" rather than "green, go" and emphatically rather than "dead". */
+.agent[data-state="waking"]::before,
+.agent[data-state="reattaching"]::before,
+.agent[data-state="wrapping up"]::before {
+  background: var(--ask);
+  animation: pulse 1.6s ease-in-out infinite;
+}
+.agent[data-state="stale"]::before { background: var(--bad); }
+.agent[data-state="stale"] { color: var(--bad); }
+.agent[data-state="none"] { color: var(--bad); }
+.agent[data-state="none"]::before {
+  background: transparent; border: 1px solid var(--bad);
+  width: .4rem; height: .4rem;
+}
+@keyframes pulse { 50% { opacity: .25; } }
+
+.session[data-kind="homework"] { color: var(--ask); background: color-mix(in srgb, var(--ask) 14%, transparent); }
+.session[data-kind="review"] { color: var(--note); background: color-mix(in srgb, var(--note) 16%, transparent); }
+
+/* ---------- the board ---------- */
+#board {
+  max-width: 46rem;
+  margin: 0 auto;
+  padding: 1.6rem max(1rem, env(safe-area-inset-left)) 7rem max(1rem, env(safe-area-inset-right));
+}
+.empty { text-align: center; color: var(--ink-2); padding: 5rem 1rem; }
+.empty p { margin: .3rem 0; }
+#begin {
+  font: inherit; font-family: var(--ui); font-size: .9rem; font-weight: 600;
+  margin-top: 1.6rem; cursor: pointer;
+  padding: .65rem 1.1rem; border-radius: .45rem;
+  border: 1px solid var(--note); background: var(--note); color: #fff;
+}
+#begin:disabled { background: var(--paper-2); border-color: var(--rule); color: var(--ink-3); }
+.no-tutor { margin-top: 1rem; font-size: .82rem; color: var(--bad); }
+/* Louder than the empty state on purpose: this one is a fault, not a wait. */
+.offline strong { color: var(--bad); }
+.offline p:first-child { font-size: 1.05rem; }
+#offline-retry, #linkbad-retry {
+  font: inherit; font-size: .85rem; margin-top: 1rem; cursor: pointer;
+  padding: .5rem .9rem; border-radius: .45rem;
+  border: 1px solid var(--rule); background: var(--paper); color: var(--ink);
+}
+#linkbad-retry { margin-top: 0; margin-left: auto; flex: none; }
+.linkbad { background: color-mix(in srgb, var(--bad) 14%, var(--paper)); }
+/* The same red as a dropped link, for the same reason: the lesson is readable
+   and it is not going anywhere by itself. */
+.tutorbad { background: color-mix(in srgb, var(--bad) 14%, var(--paper)); }
+
+/* The update strip. Quiet on purpose -- nothing is wrong, and the lesson is
+   what the person is here for. */
+.newver { background: color-mix(in srgb, var(--good) 12%, var(--paper)); font-size: .84rem; }
+.newver button {
+  font: inherit; font-size: .78rem; cursor: pointer; flex: none;
+  padding: .25rem .6rem; border-radius: .35rem;
+  border: 1px solid var(--rule); background: var(--paper); color: var(--ink-2);
+}
+#newver-now { margin-left: auto; }
+.newver button.quiet { border-color: transparent; background: transparent; }
+
+.hwbar { background: color-mix(in srgb, var(--ask) 10%, var(--paper)); font-size: .82rem; }
+#hw-set { font-weight: 700; letter-spacing: .04em; }
+#hw-count { min-width: 0; }
+#hw-build { margin-left: auto; flex: none; font-size: .76rem; }
+#hw-build[data-ok="yes"] { color: var(--good); }
+#hw-build[data-ok="no"] { color: var(--bad); font-family: var(--mono); }
+
+/* The review strip. Same job as the homework one -- say what the sitting is
+   about, because nothing else on an iPad can. */
+.rvbar { background: color-mix(in srgb, var(--note) 10%, var(--paper)); font-size: .82rem; }
+#rv-lead { font-weight: 700; letter-spacing: .04em; text-transform: uppercase;
+           font-size: .68rem; color: var(--note); flex: none; }
+#rv-scope { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#rv-change {
+  margin-left: auto; flex: none; font: inherit; font-size: .74rem; cursor: pointer;
+  padding: .2rem .5rem; border-radius: .35rem;
+  border: 1px solid var(--rule); background: var(--paper); color: var(--ink-2);
+}
+
+/* The ink layer sits over the card it belongs to, and is inert until annotate
+   mode is on -- otherwise it would eat every scroll and every text selection in
+   the lesson. */
+.card { position: relative; }
+/* The box is set from the script -- it reaches out to both edges of the window
+   and halfway into the gap above and below, so there is nowhere in a run of
+   cards that the pen has no canvas under it. `top`/`left` are here only so a
+   layer that has not been sized yet sits on its card rather than at the end of
+   it. */
+canvas.ann-layer {
+  position: absolute; top: 0; left: 0;
+  pointer-events: none;
+  /* The SCROLL is permitted here and taken back by the script when the hand
+     turns out to be a pen -- see the note on `touch-action` below. */
+  touch-action: pan-y pinch-zoom;
+  z-index: 2;
+}
+body.annotating canvas.ann-layer { pointer-events: auto; }
+/* While the pen is at work, the layer refuses the scroll outright. `touch-action`
+   is read when a gesture STARTS and a `touchstart` can only be cancelled while it
+   is cancelable -- which it is not during a fling -- so without this a stroke
+   following hard on the heels of another could be re-read as a pan, and then
+   nothing the pen did marked anything until the page settled. Reported as: "I
+   wrote down the first letter and it stopped writing. I paused for a couple of
+   seconds, tried again, and writing continued fine." `annotate.js` sets the class
+   when the nib is heard from and drops it a second and a half after it goes
+   quiet, so a finger scrolls exactly as freely as before. */
+/* `pinch-zoom` and not `none`. The latch exists to stop one hand's gesture from
+   being re-read as the other's, and a one-finger pan is the only gesture that
+   can be confused with a stroke -- two fingers are never the pen. With `none`
+   here the lesson could not be magnified for the better part of two seconds
+   after every mark, which is the second half of "scrolling AND zooming when
+   annotating is janky". */
+body.pen-writing canvas.ann-layer { touch-action: pinch-zoom; }
+
+/* While annotating, the lesson is a surface to write on and not text to select.
+   Without this the pen drags a native selection instead: the card turns blue,
+   the browser owns the gesture from that moment, and the pointer stream stops
+   reaching the canvas -- so the ink dies mid-stroke and does not come back until
+   a tap somewhere else clears the selection. The slate page has had these three
+   lines from the beginning; the lesson never got them, because until annotate
+   mode existed there was nothing to write on here.
+
+   Only while annotating: selecting and copying a definition out of a card is
+   worth having every other second of the day. */
+/* The WHOLE lesson, not just the cards in it. This said `.card` and `.card *`,
+   and a lesson is not only cards: the student's own turns are `.mine`, the
+   writing surface sits between them, and there is a margin down each side and a
+   gap between every pair of them. A stroke that started on any of that had no
+   ink layer under it and no rule against selecting, so the browser took the
+   gesture, painted a blue smear across whatever text it found, and the stroke
+   was gone. It looked like the pen missing every other mark, because it was:
+   the ones that missed were the ones that started a few pixels off a card.
+
+   `selectstart` was supposed to catch this and does not -- iOS does not fire it
+   for a touch-driven selection, which is the only kind that matters here. */
+/* NOTHING ON THIS PAGE IS TEXT TO SELECT.
+
+   This was `body.annotating #board` -- the lesson, and only while annotate mode
+   was on -- which left every other surface and every other moment able to smear
+   blue across itself. Reported from the device: "I was also just writing on the
+   board and the text 'skip' in 'skip this one' got highlighted, which doesn't
+   hurt functionality but was an eyesore. Highlighting of ANY text should be
+   impossible. When I annotate tutor responses, that's not highlighting either;
+   it's only me marking it up." Both halves of that are right. A native selection
+   is not just an eyesore either: once it begins, the browser owns the gesture and
+   the pointer stream stops reaching the canvas, which is the "annotation
+   intermittently stopped writing" defect from a fortnight ago.
+
+   So it is the whole document, always. The exception is the one place a
+   selection is the point rather than an accident -- a text box, where selecting
+   is how a sentence gets corrected. */
+body {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+input,
+textarea,
+[contenteditable="true"] {
+  -webkit-user-select: text;
+  user-select: text;
+}
+/* `touch-action` IS NOT A RULE ABOUT PLACES ANY MORE.
+
+   It used to be, and it was two rules a person had to hold in their head about
+   their own screen. `body.annotating .card, body.annotating .card *` refused the
+   gesture, so a swipe over a card was always a stroke; everywhere else -- the
+   margins down each side of the column, the gaps -- it was always a scroll. Which
+   got the pen wrong exactly where the pen has least room. Reported from the
+   device: "on the far left and right I can't write/annotate there because it
+   scrolls. I don't want the location to be what determines if I scroll or not. I
+   want whether or not it is my finger operating determining if it scrolls."
+
+   So the ink layer permits the scroll (`touch-action: pan-y pinch-zoom`, above)
+   and `annotate.js` takes it back on `touchstart` when the hand is a pen -- or
+   when it is a finger and the slate has been told a finger writes. A finger that
+   scrolls scrolls natively, with its own momentum, anywhere on the lesson. A pen
+   never scrolls, anywhere on the lesson. Nothing here may put `touch-action:
+   none` back on a card or on the lesson: that is the rule this replaced. */
+body.annotating .card {
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--ask) 35%, transparent);
+  border-radius: .4rem;
+}
+/* A mode you cannot tell you are in is a mode that eats your scrolling. */
+body.annotating #btn-annotate { background: var(--ask); color: #fff; border-color: var(--ask); }
+
+.card {
+  margin: 0 0 2.1rem;
+}
+/* The entry animation belongs to a card that has just ARRIVED, and to no other.
+   It used to be on every `.card`, which is only invisible for as long as nothing
+   re-inserts a card -- and the reconcile did, on every payload, so the whole
+   lesson slid and faded each time the board heard anything at all. `render`
+   already knows which cards are new; that is what `.fresh` means. */
+.card.fresh { animation: rise .28s ease-out both, glow 1.6s ease-out .28s both; }
+@keyframes rise { from { opacity: 0; transform: translateY(.5rem); } to { opacity: 1; transform: none; } }
+@keyframes glow {
+  0%   { box-shadow: -1rem 0 0 -.82rem var(--accent); }
+  100% { box-shadow: -1rem 0 0 -.82rem transparent; }
+}
+
+.card-head {
+  display: flex; align-items: baseline; gap: .6rem;
+  margin-bottom: .5rem;
+  font-family: var(--ui);
+}
+.kind {
+  font-size: .66rem; font-weight: 700;
+  letter-spacing: .13em; text-transform: uppercase;
+  color: var(--accent);
+  flex: none;
+}
+.card-title { font-size: 1.02rem; font-weight: 640; color: var(--ink); }
+.card-num { font-size: .7rem; color: var(--ink-3); margin-left: auto; flex: none; }
+
+/* Feedback that a later card has replaced: folded to its heading, one line, and
+   opened again by tapping it. Not hidden -- a transcript keeps everything -- but
+   out of the reading path, so the reply that is actually live is the one under
+   the working. */
+.card.superseded { margin-bottom: .6rem; opacity: .62; }
+.card.superseded > .body { display: none; }
+.card.superseded.open > .body { display: block; }
+.card.superseded.open { opacity: 1; margin-bottom: 2.1rem; }
+/* Marks are stored as fractions of the card they are on, so a folded card would
+   squash a circle drawn round a line of algebra into its heading. The ink goes
+   with the body and comes back with it. */
+.card.superseded > .ann-layer { display: none; }
+.card.superseded.open > .ann-layer { display: block; }
+.card.superseded > .card-head { cursor: pointer; margin-bottom: 0; }
+.card.superseded.open > .card-head { margin-bottom: .5rem; }
+.card-older {
+  font-size: .62rem; font-weight: 700;
+  letter-spacing: .11em; text-transform: uppercase;
+  color: var(--ink-3); flex: none;
+  border: 1px solid var(--rule); border-radius: .3rem;
+  padding: .08rem .32rem;
+}
+
+.card[data-kind="question"] { --accent: var(--ask); }
+.card[data-kind="correct"]  { --accent: var(--good); }
+.card[data-kind="wrong"]    { --accent: var(--bad); }
+.card[data-kind="review"]   { --accent: var(--note); }
+.card[data-kind="note"]     { --accent: var(--ink-3); }
+
+.card[data-kind="question"] .body,
+.card[data-kind="correct"] .body,
+.card[data-kind="wrong"] .body,
+.card[data-kind="review"] .body {
+  border-left: 3px solid var(--accent);
+  padding-left: 1rem;
+  margin-left: -1rem;
+}
+
+/* ---------- prose ---------- */
+.body > :first-child { margin-top: 0; }
+.body > :last-child { margin-bottom: 0; }
+.body h1, .body h2, .body h3 {
+  font-family: var(--ui);
+  line-height: 1.3; margin: 1.6rem 0 .5rem;
+}
+.body h1 { font-size: 1.3rem; }
+.body h2 { font-size: 1.12rem; }
+.body h3 { font-size: 1rem; color: var(--ink-2); }
+.body p { margin: .75rem 0; }
+.body ul, .body ol { margin: .7rem 0; padding-left: 1.5rem; }
+.body li { margin: .3rem 0; }
+.body li > ul, .body li > ol { margin: .25rem 0; }
+.body blockquote {
+  margin: .9rem 0; padding: .1rem 0 .1rem 1rem;
+  border-left: 3px solid var(--rule); color: var(--ink-2);
+}
+.body hr { border: 0; border-top: 1px solid var(--rule); margin: 1.6rem 0; }
+.body a { color: var(--note); }
+.body strong { font-weight: 700; }
+.body code {
+  font-family: var(--mono);
+  font-size: .88em;
+  background: var(--paper-2); border-radius: .25rem; padding: .08em .3em;
+}
+.body pre {
+  background: var(--paper-2); border: 1px solid var(--rule); border-radius: .45rem;
+  padding: .8rem 1rem; overflow-x: auto; font-size: .85rem; line-height: 1.5;
+}
+.body pre code { background: none; padding: 0; font-size: inherit; }
+
+.body table {
+  border-collapse: collapse; margin: 1rem 0;
+  font-size: .95em;
+  display: block; overflow-x: auto; max-width: 100%;
+}
+.body th, .body td {
+  border: 1px solid var(--rule); padding: .35rem .7rem; text-align: left;
+  white-space: nowrap;
+}
+.body th { background: var(--paper-2); font-weight: 650; }
+
+/* ---------- mathematics ---------- */
+.katex { font-size: 1.06em; }
+.katex-display { margin: 1.05rem 0; overflow-x: auto; overflow-y: hidden; padding: .15rem 0; }
+.katex-error { color: var(--bad); font-family: var(--mono); font-size: .85em; }
+
+/* ---------- figures compiled from TikZ ---------- */
+.figure { margin: 1.3rem 0; text-align: center; }
+.figure img { max-width: 100%; height: auto; }
+body[data-mode="dark"] .figure img,
+body[data-mode="auto"].sys-dark .figure img { filter: invert(1) hue-rotate(180deg); }
+.figure.pending, .figure.error {
+  font-family: var(--mono); font-size: .78rem;
+  color: var(--ink-3); border: 1px dashed var(--rule); border-radius: .45rem;
+  padding: 1.4rem; text-align: center;
+}
+.figure.error { color: var(--bad); border-color: var(--bad); }
+
+/* ---------- the tutor is working ---------- */
+.busy {
+  display: flex; align-items: center; gap: .55rem;
+  margin: 0 0 2.1rem;
+  font-family: var(--ui); font-size: .88rem;
+  color: var(--ink-3);
+}
+.busy-dot {
+  width: .5rem; height: .5rem; border-radius: 50%;
+  background: var(--ask); flex: none;
+  animation: busypulse 1.4s ease-in-out infinite;
+}
+@keyframes busypulse { 0%, 100% { opacity: .25 } 50% { opacity: 1 } }
+.busy-since { color: var(--ink-3); opacity: .75; font-variant-numeric: tabular-nums;
+              flex: none; align-self: flex-start; }
+/* A stall is not a pulse. Something is wrong or something is waiting, and an
+   animation that says "in progress" is the wrong thing on both. */
+.busy-bad { color: var(--bad); align-items: flex-start; }
+.busy-bad .busy-dot { background: var(--bad); animation: none; margin-top: .35rem; }
+/* Long enough to be a sentence now: it says what is wrong and what to do, and
+   the strip has to wrap rather than clip it. */
+.busy { flex-wrap: nowrap; }
+.busy #busy-text { min-width: 0; }
+
+/* ---------- answering a question in a code project ---------- */
+#codeanswer {
+  margin: 0 0 2.1rem;
+  border: 1px solid var(--rule);
+  border-radius: .5rem;
+  background: color-mix(in srgb, var(--ask) 6%, var(--paper));
+  padding: .7rem .9rem;
+  font-family: var(--ui);
+}
+#codeanswer-head {
+  display: flex; align-items: baseline; gap: .6rem; flex-wrap: wrap;
+  margin-bottom: .6rem;
+}
+#codeanswer-label { font-weight: 600; font-size: .92rem; }
+#codeanswer-hint { color: var(--ink-3); font-size: .8rem; }
+#codeanswer-head #codeanswer-skip {
+  margin-left: auto; flex: none;
+  font: inherit; font-size: .78rem;
+  background: transparent; color: var(--ink-3);
+  border: 1px solid var(--rule); border-radius: .35rem;
+  padding: .2rem .55rem;
+}
+#codeanswer-acts { display: flex; gap: .5rem; flex-wrap: wrap; }
+#codeanswer-acts button {
+  font: inherit; font-size: .88rem;
+  padding: .45rem .8rem; border-radius: .4rem;
+  border: 1px solid var(--rule); background: var(--paper); color: var(--ink);
+}
+#codeanswer-acts button.primary {
+  background: var(--ask); border-color: var(--ask); color: #fff;
+}
+
+/* ---------- student messages echoed on the board ---------- */
+.mine {
+  margin: 0 0 1.4rem auto;
+  max-width: 32rem;
+  background: var(--mine);
+  border-radius: .7rem;
+  padding: .6rem .9rem;
+  font-size: .93rem;
+}
+/* Same rule as the card: a turn animates when it arrives, not whenever the
+   board hears something. `render` marks the new ones `.fresh`. */
+.mine.fresh { animation: rise .28s ease-out both; }
+.mine .when {
+  display: block; font-size: .68rem; color: var(--ink-3);
+  font-family: var(--ui); margin-bottom: .15rem;
+}
+.mine .files { margin-top: .4rem; display: flex; gap: .4rem; flex-wrap: wrap; }
+.mine .files img { max-height: 8rem; border-radius: .35rem; border: 1px solid var(--rule); }
+.slate-shot { display: block; margin-top: .5rem; }
+.slate-shot img {
+  width: 100%; border-radius: .4rem;
+  border: 1px solid var(--rule); background: #fff;
+}
+/* What stands where the frozen picture used to, when the working is on a board
+   further down. Deliberately a line and not a thumbnail: a second small copy of
+   the ink is the very thing this replaced. Sized like the timestamp above it,
+   because it is the same kind of remark about the answer rather than part of
+   it -- and given a real target size, since it is tapped with a thumb. */
+.to-board {
+  display: inline-block; margin-top: .35rem;
+  font-family: var(--ui); font-size: .74rem;
+  color: var(--ink-3); background: none;
+  border: 1px solid var(--rule); border-radius: .35rem;
+  padding: .3rem .55rem; min-height: 1.9rem;
+  cursor: pointer;
+}
+.to-board:hover { color: var(--ink); border-color: var(--ink-3); }
+
+/* ---------- end of session ---------- */
+.finish, .pushed, .linkbad, .tutorbad, .hwbar, .newver {
+  display: flex; align-items: center; gap: .8rem;
+  padding: .7rem max(1rem, env(safe-area-inset-left)) .7rem max(1rem, env(safe-area-inset-right));
+  font-family: var(--ui);
+  font-size: .88rem;
+  border-bottom: 1px solid var(--rule);
+  animation: rise .25s ease-out both;
+}
+.finish { background: color-mix(in srgb, var(--note) 12%, var(--paper)); }
+.finish-text { display: flex; flex-direction: column; min-width: 0; }
+.finish-text span { color: var(--ink-2); font-size: .8rem; }
+.finish-acts { margin-left: auto; display: flex; gap: .4rem; flex: none; }
+.finish button {
+  font: inherit; font-size: .85rem;
+  padding: .5rem .9rem; border-radius: .45rem; cursor: pointer;
+  border: 1px solid var(--rule); background: var(--paper); color: var(--ink);
+}
+.finish button.primary { background: var(--note); border-color: var(--note); color: #fff; font-weight: 600; }
+
+.pushed { background: var(--paper-2); }
+.pushed.ok   { background: color-mix(in srgb, var(--good) 14%, var(--paper)); }
+.pushed.bad  { background: color-mix(in srgb, var(--bad) 14%, var(--paper)); }
+.pushed-icon { flex: none; font-weight: 700; }
+.pushed.ok .pushed-icon  { color: var(--good); }
+.pushed.bad .pushed-icon { color: var(--bad); }
+#pushed-text { min-width: 0; overflow-wrap: anywhere; }
+.pushed.bad #pushed-text {
+  font-family: var(--mono); font-size: .76rem;
+}
+/* Taking the document with you. Given a real target size, because it is tapped
+   with a thumb, and put where the eye already is -- beside the line that says
+   the document exists. */
+.pushed-get {
+  flex: none; cursor: pointer; text-decoration: none;
+  font: inherit; font-family: var(--ui); font-size: .78rem; font-weight: 700;
+  padding: .35rem .7rem; border-radius: .35rem;
+  border: 1px solid var(--note); background: var(--note); color: #fff;
+}
+.pushed-get:hover { filter: brightness(1.1); }
+/* Reading it is the second control on the line and reads as one: the primary
+   colour belongs to the thing that takes the document away, which is the one
+   that leaves the app to finish. */
+.pushed-get.quiet {
+  background: transparent; color: var(--ink); border-color: var(--rule);
+  font-weight: 600;
+}
+.pushed-get.quiet:hover { background: var(--paper-2); filter: none; }
+/* It fetches the document and hands it to the share sheet, which takes a
+   moment on a long lesson. Disabled while that is in flight, and it has to LOOK
+   disabled: this is the control whose whole defect was a tap that appeared to
+   do nothing. */
+.pushed-get:disabled { opacity: .55; cursor: default; filter: none; }
+
+#pushed-close {
+  margin-left: auto; flex: none; cursor: pointer;
+  border: 0; background: none; font: inherit; color: var(--ink-3);
+}
+
+/* ---------- the drawing tools, along the bottom ---------- */
+/* They belong to the app rather than floating over the lesson -- but not at the
+   top. Both bars were sticky at top:0 and this one, later in the document and a
+   layer above, simply painted over the header: home, reload, scratch, type size
+   and theme all vanished the moment an answer was owed. They are also the wrong
+   controls to put furthest from the hand holding the pen. So: app chrome at the
+   top where it is always reachable, pen tools at the bottom where the hand is.
+   Column-reverse so the overflow sheet and the selection bar, which follow the
+   tool row in the markup, open upwards from it instead of off the screen. */
+#drawbar {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 41;
+  display: flex; flex-direction: column-reverse;
+  background: #1c1e23;
+  border-top: 1px solid #2c2f37;
+  padding-bottom: env(safe-area-inset-bottom);
+  box-shadow: 0 -6px 20px rgba(0,0,0,.28);
+}
+#drawbar .sl-bar, #drawbar .sl-menu, #drawbar .sl-selbar {
+  border-bottom: 0;
+  border-top: 1px solid var(--sl-line, #2c2f37);
+}
+#drawbar .sl-bar { border-top: 0; }
+/* The overflow sheet opens upward into the lesson; it must not grow past the
+   top of the window on a phone. */
+#drawbar .sl-menu { max-height: 50vh; overflow-y: auto; }
+/* Room for it, so the tools never cover the end of the lesson or the Send
+   button they belong to. Toggled with the bar itself. */
+body.tools-out { padding-bottom: 5.5rem; }
+
+/* ---------- the answer block, inline in the lesson ---------- */
+/* Part of the flow, under the question it answers. It never covers anything,
+   and it is always the same size, so there is nothing to drag or discover. */
+/* The writing surface breaks out of the reading column.
+ 
+   Prose wants a measure -- 46rem, which is why #board has one -- and handwriting
+   wants the glass. Sharing one width meant the surface was about half the screen
+   on an iPad in landscape and less than that on a laptop, while the whole point
+   of the thing is the area you have to write in.
+ 
+   So the surface alone bleeds out to the width of the device and every card
+   stays at a readable line length. Done with margins rather than a transform: a
+   translate of an odd-width box lands the canvas on a half pixel, and a
+   half-pixel canvas is a soft one, which on a handwriting surface is the one
+   thing you would notice. `--room` caps how far it may go, so a 27-inch display
+   does not get a four-foot writing surface; an iPad is inside the cap and
+   therefore goes edge to edge. */
+/* `--gap` is the strip of page left uncovered down each side. It is not
+   decoration: the surface swallows every touch that lands on it, so with the
+   surface running to the edge of the glass there was nowhere on that screenful
+   to put a thumb and scroll the lesson. It is the margin you scroll in. */
+/* A dormant board is a picture of a live one, and has to be indistinguishable
+   from it until it is touched. Everything below that describes a box -- the
+   bleed, the border, the corner, the head, the height of the writing area -- is
+   therefore shared between the two, and if a rule is added to one of them it
+   belongs in the shared selector or the illusion breaks the moment a board is
+   not the one you are on. */
+#writer, .board {
+  --gap: max(2.5rem, env(safe-area-inset-left));
+  --room: 22rem;
+  --bleed: min(0px, max(calc(50% - 50vw + var(--gap)), calc(-1 * var(--room))));
+  margin: .5rem var(--bleed) 2.2rem;
+  border: 1px solid #2c2f37;
+  border-radius: .8rem;
+  overflow: hidden;
+  background: #15161a;
+  box-shadow: 0 2px 14px rgba(0,0,0,.18);
+}
+#writer-head, .board-head {
+  display: flex; align-items: baseline; gap: .6rem;
+  padding: .55rem .9rem;
+  background: #1c1e23;
+  border-bottom: 1px solid #2c2f37;
+  font-family: var(--ui);
+}
+#writer-label, .board-label {
+  font-size: .78rem; font-weight: 700; color: #e9e7e2;
+  letter-spacing: .06em; text-transform: uppercase;
+}
+#writer-hint, .board-hint { font-size: .74rem; color: #8b8f98; }
+/* One rule for both, like every other pair in this header: the live board and a
+   dormant one must not drift apart. */
+#carry, .board-carry {
+  flex: none; cursor: pointer;
+  font: inherit; font-family: var(--ui); font-size: .72rem;
+  padding: .3rem .6rem; border-radius: .35rem;
+  border: 1px solid #3a3e47; background: transparent; color: #b9bcc4;
+  white-space: nowrap;
+}
+#carry:hover, .board-carry:hover { background: #2c2f37; color: #e9e7e2; }
+#skip {
+  margin-left: auto; flex: none; cursor: pointer;
+  font: inherit; font-family: var(--ui); font-size: .74rem;
+  padding: .3rem .6rem; border-radius: .35rem;
+  border: 1px solid #3a3e47; background: transparent; color: #b9bcc4;
+}
+#skip:hover { background: #2c2f37; color: #e9e7e2; }
+#skip:disabled { opacity: .5; cursor: default; }
+
+/* One answer panel, two surfaces. The tabs pick the half; the last one used
+   opens next time, and the label is the remembered choice. */
+#writer-head .tabs { display: inline-flex; gap: .2rem; }
+#writer-head .tab {
+  font: inherit; font-family: var(--ui); font-size: .74rem; cursor: pointer;
+  padding: .28rem .55rem; border-radius: .35rem;
+  border: 1px solid transparent; background: transparent; color: #8b8f98;
+}
+#writer-head .tab:hover { color: #e9e7e2; }
+#writer-head .tab.on { background: #2c2f37; color: #e9e7e2; border-color: #3a3e47; }
+
+/* The typed half. Same dark paper as the writer it sits in, so it reads as one
+   block whether the page is light or dark. */
+#typebox { display: flex; gap: .5rem; align-items: flex-end; padding: .7rem .9rem; }
+#typebox textarea {
+  flex: 1 1 auto; min-width: 0;
+  font: inherit; font-family: var(--ui); font-size: .92rem; line-height: 1.4;
+  padding: .55rem .7rem;
+  border: 1px solid #3a3e47; border-radius: .45rem;
+  background: #101114; color: #e9e7e2;
+  resize: none; overflow-y: auto;
+}
+#typebox textarea:focus { outline: none; border-color: #e0827c; }
+#typebox button {
+  flex: none; font: inherit; font-weight: 600; cursor: pointer;
+  padding: .55rem 1rem; border-radius: .45rem;
+  border: 1px solid #e0827c; background: #e0827c; color: #16171a;
+}
+#typebox button:hover { filter: brightness(1.08); }
+#typebox button.sent { background: #7fc79a; border-color: #7fc79a; }
+
+/* And taller, scaled to the device.
+ 
+   `svh` rather than `vh`: on iOS `vh` is the tallest the viewport ever gets, so
+   anything sized in it spends its first screenful underneath the browser chrome.
+   The `vh` line stays as the fallback for anything that does not know `svh` --
+   a browser that ignores the second declaration keeps the first. */
+#writer #slate, .board-shot {
+  height: clamp(18rem, 68vh, 60rem);
+  height: clamp(18rem, 74svh, 60rem);
+}
+/* The picture fills its box exactly as the canvas does. `block` because an
+   inline image sits on a text baseline and leaves a strip of the box showing
+   under it -- which is precisely the kind of one-line difference that gives the
+   whole thing away. */
+.board-shot {
+  display: block; width: 100%;
+  object-fit: cover; object-position: top left;
+  /* The paper the surface is set to, which the board sets from the slate --
+     see `paintBoards`. The fallback is the slate black, which is what this was
+     before it could follow the setting. */
+  background: var(--shot-bg, #101114);
+}
+.board { cursor: pointer; touch-action: none; }
+.board-send {
+  margin-left: auto; flex: none; cursor: pointer;
+  font: inherit; font-family: var(--ui); font-size: .74rem; font-weight: 700;
+  padding: .3rem .7rem; border-radius: .35rem;
+  border: 1px solid var(--accent); background: var(--accent); color: var(--paper);
+}
+.board-send:hover { filter: brightness(1.1); }
+
+#btn-clip {
+  cursor: pointer; user-select: none;
+  border: 1px solid var(--rule); border-radius: .4rem;
+  padding: .4rem .55rem; color: var(--ink-2); line-height: 1;
+}
+#btn-clip:hover { background: var(--paper-2); color: var(--ink); }
+
+/* It floats over the lesson, which it was never actually told to do: it carried
+   a `bottom` and nothing to make `bottom` mean anything, so it sat in the flow
+   at the end of the document where nobody scrolled past to find it. */
+.jump {
+  position: fixed; z-index: 56;
+  right: max(1.1rem, env(safe-area-inset-right));
+  bottom: 1.5rem;
+  cursor: pointer;
+  font: 600 .78rem var(--ui);
+  padding: .45rem .8rem;
+  border-radius: 1.4rem;
+  border: 1px solid var(--accent);
+  background: var(--accent); color: var(--paper);
+  box-shadow: 0 6px 18px rgba(0,0,0,.22);
+}
+/* Clear of the tool bar, which owns the bottom of the window while writing. */
+body.tools-out .jump { bottom: calc(6.5rem + env(safe-area-inset-bottom)); }
+
+/* ---------- the way back ----------
+   Small, dim, and always somewhere on the glass. Everything about where it sits
+   is set from JavaScript -- see `panicPlace` -- because CSS cannot see the
+   magnification: `position: fixed` pins to the layout viewport, and pinching
+   moves the visual one. Left and top stay at zero and the transform does the
+   work, including a counter-scale so the button is the same size under a thumb
+   however far the page has been zoomed in. */
+/* It is a rescue, so it has to be findable in the state it rescues you from --
+   which is one where the screen is full of something else. A dim circle was
+   neither visible nor self-explanatory: it read as a smudge and said nothing
+   about what pressing it would do. It carries its own name and the board's
+   accent, like every other control that acts rather than describes. */
+#panic, #findink {
+  position: fixed; left: 0; top: 0; z-index: 62;
+  transform-origin: 0 0;
+  display: flex; align-items: center; gap: .35rem;
+  padding: .42rem .7rem .42rem .55rem;
+  border-radius: 1.4rem;
+  border: 1px solid color-mix(in srgb, var(--paper) 55%, var(--accent));
+  background: var(--accent);
+  color: var(--paper);
+  font: 700 .74rem var(--ui);
+  letter-spacing: .02em;
+  box-shadow: 0 4px 14px rgba(0,0,0,.3);
+  cursor: grab;
+  /* The drag is ours; the browser must not take the gesture as a scroll. */
+  touch-action: none;
+  -webkit-user-select: none; user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  transition: box-shadow .18s, filter .18s;
+}
+#panic svg, #findink svg { width: .95rem; height: .95rem; display: block; flex: none; }
+/* The quieter of the pair: `#panic` is the way out of a zoom there is no
+   other way out of, this is a convenience while writing. Same shape, less
+   shout, so the one that matters most stays the one the eye finds. */
+#findink {
+  background: color-mix(in srgb, var(--accent) 22%, var(--paper));
+  color: var(--ink);
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--rule));
+}
+#panic:hover, #findink:hover { filter: brightness(1.1); }
+/* Held down: it has become a thing being moved, and must look like one before
+   the finger travels, or the first drag reads as a tap that did nothing. */
+#panic.holding, #findink.holding {
+  cursor: grabbing;
+  box-shadow: 0 0 0 5px color-mix(in srgb, var(--accent) 32%, transparent),
+              0 4px 14px rgba(0,0,0,.3);
+}
+/* Tapped: acknowledge it, because what the tap does is a change of scale and
+   not a change of content, which is easy to miss on a page you were lost in. */
+#panic.hit, #findink.hit { filter: brightness(1.25); }
+
+/* ---------- what the student said, in the lesson ---------- */
+.mine .signal {
+  display: inline-block; margin-left: .5rem;
+  font-size: .62rem; font-weight: 700; letter-spacing: .1em; text-transform: uppercase;
+  padding: .16rem .4rem; border-radius: .25rem;
+  background: var(--paper-2); color: var(--ink-2);
+}
+.mine .signal[data-signal="done"]     { background: color-mix(in srgb, var(--good) 20%, var(--paper)); color: var(--good); }
+.mine .signal[data-signal="help"]     { background: color-mix(in srgb, var(--bad) 18%, var(--paper)); color: var(--bad); }
+.mine .signal[data-signal="confused"] { background: color-mix(in srgb, var(--note, var(--accent)) 18%, var(--paper)); }
+
+/* ---------- past lessons ---------- */
+#history {
+  position: fixed; top: 0; right: 0; bottom: 0; z-index: 61;
+  width: min(26rem, 94vw);
+  background: var(--paper); border-left: 1px solid var(--rule);
+  display: flex; flex-direction: column;
+  box-shadow: -8px 0 26px rgba(0,0,0,.16);
+  font-family: var(--ui); font-size: .85rem;
+}
+#history-list { flex: 1; overflow-y: auto; padding: .5rem; }
+.session-row {
+  display: block; width: 100%; text-align: left; cursor: pointer;
+  font: inherit; color: var(--ink);
+  padding: .6rem .7rem; margin-bottom: .4rem;
+  border: 1px solid var(--rule); border-radius: .5rem; background: var(--paper);
+}
+.session-row:hover { background: var(--paper-2); }
+.session-name { display: block; font-weight: 650; }
+.session-sub { display: block; margin-top: .15rem; font-size: .72rem; color: var(--ink-3); }
+
+/* Reading an old lesson: say so, plainly, and give one way back. */
+.reading {
+  position: fixed; left: 50%; transform: translateX(-50%);
+  bottom: calc(1.2rem + env(safe-area-inset-bottom)); z-index: 45;
+  display: flex; align-items: center; gap: .7rem;
+  padding: .5rem .5rem .5rem .9rem;
+  border-radius: 2rem; border: 1px solid var(--rule);
+  background: var(--paper-2); box-shadow: 0 6px 22px rgba(0,0,0,.22);
+  font: 600 .8rem var(--ui);
+}
+#reading-what { color: var(--ink-2); }
+#reading-back {
+  font: inherit; cursor: pointer; padding: .35rem .7rem;
+  border-radius: 1.4rem; border: 1px solid var(--accent);
+  background: var(--accent); color: var(--paper);
+}
+
+/* The composer lived here: a docked bar of three signal buttons, shown only in
+   a `code` course, plus rules for a #say/#send pair whose markup had already
+   gone. Both the mode and the buttons are gone, and so is the height the page
+   had to give up for them -- `body[data-mode2="code"]` reserved 5rem at the
+   bottom of every code course and nothing else ever set that attribute. */
+
+/* ---------- scratch drawer ---------- */
+/* Three drawers, one shape: the scratch list, the contents, and the review
+   picker. #contents used to carry a comment saying it borrowed this and an
+   empty rule that borrowed nothing, so it laid out in the flow of the page
+   under the lesson rather than over it. An ID selector is not inheritance. */
+#scratch, #contents, #review, #papers {
+  position: fixed; top: 0; right: 0; bottom: 0; z-index: 60;
+  width: min(24rem, 92vw);
+  background: var(--paper); border-left: 1px solid var(--rule);
+  display: flex; flex-direction: column;
+  box-shadow: -8px 0 26px rgba(0,0,0,.16);
+  font-family: var(--ui); font-size: .85rem;
+}
+.scratch-head, .scratch-foot {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: .7rem .9rem; border-bottom: 1px solid var(--rule);
+}
+.scratch-foot {
+  border-bottom: 0; border-top: 1px solid var(--rule); font-size: .74rem;
+  display: block;
+}
+#btn-add-file {
+  display: block; width: 100%; margin-bottom: .5rem;
+  font: 600 .82rem var(--ui); cursor: pointer;
+  padding: .55rem .8rem; border-radius: .45rem;
+  border: 1px solid var(--accent);
+  background: var(--accent); color: var(--paper);
+}
+#btn-add-file:hover { filter: brightness(1.1); }
+
+/* The way back to a pen when nothing is owed. Quiet, because most of the time
+   the tutor has just asked something and the surface is already open -- and
+   plainly a button, because the moment it is wanted is a moment of not being
+   able to do the obvious thing. */
+#reopen {
+  display: block; margin: 0 0 2.1rem;
+  font: 600 .82rem var(--ui); cursor: pointer;
+  padding: .55rem .95rem; border-radius: 1.4rem;
+  border: 1px dashed var(--rule);
+  background: transparent; color: var(--ink-2);
+}
+#reopen:hover { border-style: solid; border-color: var(--accent);
+                color: var(--accent); }
+.scratch-head button { border: 0; background: none; font: inherit; cursor: pointer; color: var(--ink-2); }
+#scratch-list { flex: 1; overflow-y: auto; padding: .6rem; }
+#papers-list { flex: 1; overflow-y: auto; padding: .2rem .9rem; }
+#scratch-list a { display: block; margin-bottom: .7rem; color: var(--ink); text-decoration: none; }
+#scratch-list img { width: 100%; border-radius: .4rem; border: 1px solid var(--rule); }
+#scratch-list .name { font-size: .72rem; color: var(--ink-3); word-break: break-all; }
+
+/* ---------- drop target ---------- */
+.drop {
+  position: fixed; inset: 0; z-index: 80;
+  /* The drop is handled on window, so this never needs to receive a pointer --
+     and if it ever sticks visible it must not become a wall across the board. */
+  pointer-events: none;
+  display: grid; place-items: center;
+  background: color-mix(in srgb, var(--paper) 82%, transparent);
+  backdrop-filter: blur(3px);
+  font: 600 1rem var(--ui); color: var(--accent);
+}
+.drop span {
+  border: 2px dashed var(--accent); border-radius: 1rem; padding: 2.5rem 3rem;
+  display: block; text-align: center;
+}
+.drop small {
+  display: block; margin-top: .5rem;
+  font-weight: 400; font-size: .78rem; color: var(--ink-2);
+}
+
+/* ---------- the image viewer ---------- */
+/* Opening a picture used to hand it to a new browsing context. Installed to the
+   home screen that context has no chrome and no back button, so looking at your
+   own handwriting was a one-way trip out of the app. This is the way back. */
+#viewer {
+  position: fixed; inset: 0; z-index: 90;
+  display: flex; align-items: center; justify-content: center;
+  padding: 1.5rem;
+  padding-top: max(1.5rem, env(safe-area-inset-top));
+  padding-bottom: max(1.5rem, env(safe-area-inset-bottom));
+  background: rgba(8, 9, 11, .92);
+  backdrop-filter: blur(4px);
+}
+#viewer figure { margin: 0; max-width: 100%; max-height: 100%; display: flex;
+                 flex-direction: column; align-items: center; gap: .6rem; }
+#viewer img {
+  max-width: 100%; max-height: calc(100vh - 7rem);
+  object-fit: contain;
+  border-radius: .5rem; background: #fff;
+  box-shadow: 0 10px 40px rgba(0,0,0,.5);
+}
+#viewer figcaption { font: 500 .8rem var(--ui); color: #b9bec7; }
+#viewer-close {
+  position: absolute; top: max(.9rem, env(safe-area-inset-top)); right: .9rem;
+  width: 2.6rem; height: 2.6rem; border-radius: 50%;
+  border: 1px solid #3a3f48; background: #1c1e23; color: #e9e7e2;
+  font-size: 1.1rem; line-height: 1; cursor: pointer;
+}
+#viewer-close:hover { background: #262a31; }
+body.viewing { overflow: hidden; }
+
+/* ---------- a PDF, read on the board ---------- */
+/* The pages are pictures, drawn by the machine that holds the PDF. Not a frame
+   and not a navigation: iOS renders a PDF in a frame as one unscrollable page,
+   and navigating to one in a standalone app leaves the board with no chrome and
+   no way back. This is a panel the page owns, so ✕ returns to the lesson. */
+#paper {
+  position: fixed; inset: 0; z-index: 95;
+  display: flex; flex-direction: column;
+  background: var(--paper-2, #16171a);
+}
+.paper-bar {
+  flex: none; display: flex; align-items: center; gap: .7rem;
+  padding: .6rem max(.9rem, env(safe-area-inset-right)) .6rem max(.9rem, env(safe-area-inset-left));
+  padding-top: max(.6rem, env(safe-area-inset-top));
+  font-family: var(--ui); font-size: .85rem;
+  background: var(--paper); color: var(--ink);
+  border-bottom: 1px solid var(--rule);
+}
+#paper-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#paper-sub { flex: none; font-size: .78rem; }
+/* The right-hand group starts at the map glyph, which is always there;
+   `save a copy` is not -- a document with no build record has none --
+   so the push to the right cannot hang off it. */
+#paper-get { flex: none; }
+#paper-close {
+  flex: none; cursor: pointer; width: 2.2rem; height: 2.2rem;
+  border-radius: .35rem; border: 1px solid var(--rule);
+  background: var(--paper); color: var(--ink); font: inherit; line-height: 1;
+}
+/* Scrolls itself. The body is locked while this is up, so a two-finger drag
+   inside the pages cannot end up panning the lesson underneath. */
+.paper-pages {
+  flex: 1 1 auto; overflow-y: auto; -webkit-overflow-scrolling: touch;
+  padding: 1rem max(.6rem, env(safe-area-inset-left))
+           max(2rem, env(safe-area-inset-bottom)) max(.6rem, env(safe-area-inset-right));
+  display: flex; flex-direction: column; align-items: center; gap: .9rem;
+}
+/* A page is white because paper is white -- the board's dark skin belongs to
+   the lesson, and a typeset document inverted is a document nobody can read. */
+.paper-pages img {
+  width: 100%; max-width: 46rem; height: auto; display: block;
+  background: #fff; border-radius: .3rem;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, .35);
+}
+.paper-say {
+  max-width: 30rem; margin: 2rem auto; text-align: center;
+  font-family: var(--ui); font-size: .9rem; color: var(--ink-2);
+}
+.paper-say strong { display: block; margin-bottom: .5rem; color: var(--ink); }
+.paper-say button { margin-top: .9rem; }
+.paper-say button + button { margin-left: .45rem; }
+.paper-say .detail {
+  display: block; margin-top: .7rem; text-align: left;
+  font-family: var(--mono); font-size: .72rem; color: var(--ink-3);
+  overflow-wrap: anywhere;
+}
+body.papering { overflow: hidden; }
+
+/* ---------- the documents panel ---------- */
+.paper-row {
+  padding: .8rem 0; border-bottom: 1px solid var(--rule);
+  font-family: var(--ui); font-size: .85rem;
+}
+.paper-row:last-child { border-bottom: 0; }
+.paper-row strong { display: block; }
+.paper-row .name {
+  display: block; margin: .15rem 0 .55rem;
+  font-size: .78rem; color: var(--ink-2); overflow-wrap: anywhere;
+}
+.paper-acts { display: flex; flex-wrap: wrap; gap: .4rem; }
+
+/* ---------- print ---------- */
+@media print {
+  #bar, #drawbar, #scratch, #contents, #review, #papers, .jump, .drop,
+  .finish, .pushed, #panic, #reopen, #viewer, #paper { display: none !important; }
+  body { background: #fff; color: #000; }
+  #board { max-width: none; padding: 0; }
+  .card { break-inside: avoid; animation: none; }
+  .mine { background: #f2f2f2; }
+}
+
+/* ---------- send chooser ---------- */
+/* Docked above the tool bar, because that is where the hand and the Send button
+   already are, and a dialogue in the middle of the page is a dialogue that gets
+   dismissed by accident on a tablet. */
+.sendwhat {
+  position: fixed; z-index: 60;
+  left: 50%; transform: translateX(-50%);
+  bottom: calc(5.4rem + env(safe-area-inset-bottom));
+  display: flex; align-items: center; gap: .4rem; flex-wrap: wrap;
+  justify-content: center;
+  max-width: min(38rem, calc(100vw - 1.5rem));
+  padding: .6rem .7rem;
+  border-radius: .6rem;
+  border: 1px solid var(--rule);
+  background: var(--paper-2);
+  box-shadow: 0 8px 30px rgba(0, 0, 0, .28);
+  font-family: var(--ui); font-size: .84rem;
+}
+#sendwhat-lead { font-weight: 650; margin-right: .2rem; }
+.sendwhat button {
+  font: inherit; cursor: pointer;
+  padding: .45rem .7rem; border-radius: .4rem;
+  border: 1px solid var(--rule); background: var(--paper); color: var(--ink);
+}
+.sendwhat button.primary { background: var(--note); border-color: var(--note); color: #fff; font-weight: 600; }
+.sendwhat button.quiet { border-color: transparent; color: var(--ink-3); }
+.sendwhat button:disabled { opacity: .45; cursor: default; }
+
+.notesend {
+  position: fixed; z-index: 55;
+  left: 50%; transform: translateX(-50%);
+  bottom: calc(1.1rem + env(safe-area-inset-bottom));
+  font: inherit; font-family: var(--ui); font-size: .82rem; font-weight: 600;
+  padding: .55rem .95rem; border-radius: 999px; cursor: pointer;
+  border: 1px solid var(--ask);
+  background: var(--ask); color: #fff;
+  box-shadow: 0 6px 22px rgba(0, 0, 0, .25);
+}
+
+/* ---------- annotation tools ---------- */
+/* Docked at the bottom, like every other pen control on this page. When the
+   answer surface is also open its tool strip owns the bottom edge, so this sits
+   above it rather than on top of it. */
+.annbar {
+  position: fixed; z-index: 58;
+  left: 50%; transform: translateX(-50%);
+  bottom: calc(1rem + env(safe-area-inset-bottom));
+  display: flex; align-items: center; gap: .35rem; flex-wrap: wrap;
+  justify-content: center;
+  max-width: min(40rem, calc(100vw - 1rem));
+  padding: .45rem .55rem;
+  border-radius: .6rem;
+  border: 1px solid var(--rule);
+  background: var(--paper-2);
+  box-shadow: 0 8px 30px rgba(0, 0, 0, .3);
+  font-family: var(--ui); font-size: .8rem;
+}
+body.tools-out .annbar { bottom: calc(5.6rem + env(safe-area-inset-bottom)); }
+/* A control is not prose, and on a tablet the difference is not academic.
+   `body.annotating #board *` already refuses selection over the lesson -- and
+   this bar is fixed-position, OUTSIDE #board, so none of it applied here. Press
+   and hold "Pen" and iOS selects the word; the selection then owns the next
+   drag, so the stroke that should have gone to the ink layer goes to the
+   selection instead. Reported as: the word Pen gets highlighted and the
+   annotation "intermittently stops writing".
+
+   `touch-action: manipulation` is the other half: it drops the double-tap-to-
+   zoom wait, which on these buttons is both a delay and a second way to end up
+   selecting something. */
+.annbar,
+.annbar * {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+.annbar button {
+  font: inherit; cursor: pointer;
+  touch-action: manipulation;
+  padding: .4rem .6rem; border-radius: .4rem;
+  border: 1px solid var(--rule); background: var(--paper); color: var(--ink);
+}
+.annbar button.on { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+.annbar button.primary { background: var(--note); border-color: var(--note); color: #fff; font-weight: 600; }
+.annbar button:disabled { opacity: .4; cursor: default; }
+.ann-inks { display: inline-flex; gap: .25rem; align-items: center; margin: 0 .15rem; }
+.annbar .ann-ink {
+  width: 1.35rem; height: 1.35rem; padding: 0; border-radius: 50%;
+  border: 2px solid transparent;
+}
+.annbar .ann-ink.on { border-color: var(--ink); }
+/* The clip controls, which appear and disappear as a loop is drawn and let go.
+   They are a group so the bar wraps them as one rather than leaving Delete
+   alone on a second line. */
+.ann-clip { display: inline-flex; gap: .35rem; align-items: center; }
+.ann-say {
+  font-size: .72rem; color: var(--ink-2);
+  max-width: 14rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.annbar button.danger {
+  border-color: color-mix(in srgb, var(--bad, #e8746c) 55%, transparent);
+  color: var(--bad, #e8746c);
+}
+
+/* A save with something waiting behind it has to look different from one with
+   nothing to do, or there is no way to tell before leaving. */
+#btn-save.dirty {
+  color: var(--ask);
+  border-color: color-mix(in srgb, var(--ask) 55%, transparent);
+  font-weight: 650;
+}
+
+/* The sitting badge is a control now, not a label. */
+#session { cursor: pointer; border: 1px solid transparent; font-family: var(--ui); }
+#session:hover { border-color: var(--rule); }
+#kind-sets { display: inline-flex; gap: .3rem; flex-wrap: wrap; }
+#kind-sets button.on, #kind-lecture.on, #kind-review.on, #kind-walk.on {
+  background: var(--note); border-color: var(--note); color: #fff; font-weight: 600;
+}
+
+/* WHO WRITES THE CODE IN THIS SITTING. Set apart from the kinds of sitting by a
+   rule down its left, because it is a different question from the one the
+   buttons beside it answer: those say what kind of sitting, this says what the
+   tutor does in it. On a narrow glass it wraps to its own line rather than
+   pushing the sitting kinds off the edge. */
+.kind-stance {
+  display: inline-flex; align-items: center; gap: .3rem;
+  padding-left: .6rem; margin-left: .2rem;
+  border-left: 1px solid var(--rule);
+}
+.kind-stance-lead {
+  font-family: var(--ui); font-size: .68rem; color: var(--ink-3);
+  letter-spacing: .04em;
+}
+#stance-teach.on, #stance-do.on {
+  background: var(--ink-3); border-color: var(--ink-3); color: #fff; font-weight: 600;
+}
+/* A doing stance is the one worth seeing from across the room: it is the state
+   in which the tutor writes code the student would otherwise have written, and
+   it is the one mistake the next card cannot undo. */
+#stance-do.on { background: var(--ask); border-color: var(--ask); color: var(--paper); }
+
+/* A walkthrough's list is files, headed by the directory they sit in -- a flat
+   hundred filenames is not a list anybody reads. Same shape as the group
+   heading the review list already uses. */
+#review-list .pick-dir {
+  font-family: var(--ui); font-size: .66rem; font-weight: 700;
+  letter-spacing: .12em; text-transform: uppercase; color: var(--ink-3);
+  margin: .9rem .3rem .35rem;
+}
+
+/* The contents panel borrows the drawer the scratch list already uses -- the
+   panel. NOT the scroller inside it, which is a separate rule and was never
+   written: `#scratch-list`, `#papers-list`, `#history-list` and `#review-list`
+   each carry the two declarations that make the middle of a drawer the part
+   that moves, and this one carried neither.
+   A drawer is a fixed panel from the top of the glass to the bottom with a head
+   and a foot that do not move, so the list between them has to be told to take
+   the space that is left and to scroll inside it. Untold, it lays out at its
+   full height and runs off the bottom edge, where there is nothing to scroll
+   and no way to reach it -- and the entries that fall off are the ones at the
+   end. Probability's eleven chapters reach the bottom of an iPad on their own,
+   which put every problem set past it: "the bar showing the contents and the
+   Problem Sets is not scrollable, so I can't reach the problem sets." */
+#contents { }
+#contents-list {
+  flex: 1; overflow-y: auto; padding: .5rem;
+  /* The lesson behind must not take over when the list reaches its end, and a
+     drag down the list is the list moving: there is nothing in here a pinch or
+     a double-tap wants. */
+  overscroll-behavior: contain;
+  touch-action: pan-y;
+}
+#contents-list .group {
+  font-family: var(--ui); font-size: .66rem; font-weight: 700;
+  letter-spacing: .12em; text-transform: uppercase; color: var(--ink-3);
+  margin: .9rem 0 .35rem;
+}
+#contents-list .group:first-child { margin-top: .2rem; }
+#contents-list button {
+  display: block; width: 100%; text-align: left;
+  font: inherit; font-family: var(--ui); font-size: .82rem;
+  padding: .5rem .6rem; margin-bottom: .25rem; cursor: pointer;
+  border: 1px solid var(--rule); border-radius: .4rem;
+  background: var(--paper); color: var(--ink);
+}
+#contents-list button:hover { background: var(--paper-2); }
+#contents-list button.here { border-color: var(--note); font-weight: 650; }
+#contents-list button .sub { color: var(--ink-3); font-weight: 400; }
+#contents-list .none { color: var(--ink-3); font-size: .82rem; }
+
+/* ---------- the review picker ---------- */
+/* A list of things to tick, sized for a thumb rather than a mouse: a review is
+   chosen on a tablet, with a pen in the other hand. */
+#review-list { flex: 1; overflow-y: auto; padding: .5rem; }
+#review-list .group {
+  font-family: var(--ui); font-size: .66rem; font-weight: 700;
+  letter-spacing: .12em; text-transform: uppercase; color: var(--ink-3);
+  margin: .9rem .3rem .35rem;
+}
+#review-list button {
+  display: flex; align-items: center; gap: .55rem;
+  width: 100%; text-align: left; cursor: pointer; font: inherit; color: var(--ink);
+  padding: .6rem .7rem; margin-bottom: .3rem;
+  border: 1px solid var(--rule); border-radius: .5rem; background: var(--paper);
+}
+#review-list button:hover { background: var(--paper-2); }
+#review-list button .tick {
+  flex: none; width: 1.15rem; height: 1.15rem; border-radius: .3rem;
+  border: 1.5px solid var(--rule); background: var(--paper);
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: .8rem; line-height: 1; color: var(--paper);
+}
+#review-list button.on { border-color: var(--note); background: color-mix(in srgb, var(--note) 8%, var(--paper)); }
+#review-list button.on .tick { background: var(--note); border-color: var(--note); }
+#review-list button .what { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+#review-list .none { color: var(--ink-3); font-size: .82rem; padding: .5rem .3rem; }
+.review-acts { display: flex; align-items: center; gap: .5rem; }
+.review-acts button {
+  font: inherit; font-size: .78rem; cursor: pointer;
+  padding: .45rem .7rem; border-radius: .4rem;
+  border: 1px solid var(--rule); background: var(--paper); color: var(--ink);
+}
+.review-acts button.primary {
+  margin-left: auto; background: var(--note); border-color: var(--note);
+  color: #fff; font-weight: 600;
+}
+.review-acts button.quiet { border-color: transparent; color: var(--ink-3); }
+.review-acts button:disabled { opacity: .45; cursor: default; }
+#review-count { flex: none; font-size: .74rem; }
+.review-note { margin: .55rem 0 0; font-size: .72rem; line-height: 1.35; }
+
+/* ---------- the overflow menu ---------- */
+/* Anchored under the bar rather than floating over the lesson, so it reads as
+   part of the chrome it came out of. */
+/* FIXED, AND OUT HERE RATHER THAN INSIDE THE BAR -- see the note in
+   `board.html`. Nested inside `#chrome`, which is `position: sticky`, WebKit
+   would not hand a touch drag to this scroller at all: the gesture walked past
+   it to the lesson, which is "when I try to scroll it, the main session page
+   behind it is what scrolls instead". Being in there also trapped it in
+   `#chrome`'s stacking context, so this `z-index` competed only with the bar's
+   own children and not with the page.
+
+   The `top` and `right` here are the floor for the frame before `board.js`
+   measures.
+
+   ON TOP OF EVERYTHING, and that took a second go. At 50 it was above the
+   writing toolbar's own z-index and still came out underneath it, because
+   `#drawbar` is `flex-direction: column-reverse` and grows UPWARD as the
+   slate's own menu and selection bar open inside it -- so on a board with the
+   pen out, the toolbar reached up into the lower half of this menu. Reported as
+   "the writing toolbar when on a board is covering up elements of the
+   three-dot menu from the top right. Make sure that menu is on TOP of
+   everything when it appears." It is 99: above the toolbar, the annotation bar,
+   the send prompts, the panic button and the full-screen drawers. A menu is the
+   most recent thing the person asked for, so nothing should be over it.
+   `board.js` also keeps it clear of the toolbar's top edge, because being drawn
+   on top of a thing is not the same as not overlapping it. */
+.barmenu {
+  position: fixed; z-index: 99;
+  right: max(.6rem, env(safe-area-inset-right));
+  top: calc(3.2rem + env(safe-area-inset-top));
+  display: flex; flex-direction: column; gap: .15rem;
+  min-width: 12rem;
+  padding: .4rem;
+  border: 1px solid var(--rule); border-radius: .5rem;
+  background: var(--paper);
+  box-shadow: 0 10px 34px rgba(0, 0, 0, .3);
+  font-family: var(--ui); font-size: .84rem;
+
+  /* A MENU TALLER THAN THE GLASS IS A MENU WHOSE LAST ENTRIES DO NOT EXIST.
+     Reported as "I can't see the refresh button when I tap the '...' menu."
+     This hangs off a bar that is stuck to the top of the window, so anything
+     past the bottom edge is not merely below the fold -- there is nothing to
+     scroll to reach it, because the page scrolling moves the lesson and not
+     this. Thirteen entries at the reading type size somebody actually uses is
+     past the bottom of an iPad in landscape, and it got there one entry at a
+     time with nobody counting.
+
+     So it scrolls, and it is capped at the space it actually has. Twice, and
+     the order is the point: the `vh` line is the fallback and goes FIRST, and
+     the `dvh` line overrides it wherever `dvh` is understood -- a browser that
+     does not know the unit drops that declaration and keeps the one above it,
+     while one that does gets the honest figure, because on iOS `vh` is the
+     tall viewport and ignores the toolbar. `board.js` then measures the real
+     gap under the bar when it opens -- the banners in the chrome stack change
+     that -- and this pair is the floor under it. */
+  max-height: calc(100vh - 5rem);
+  max-height: calc(100dvh - 5rem);
+  overflow-y: auto;
+  /* No `-webkit-overflow-scrolling: touch`. It is deprecated, it does nothing
+     on any iOS this runs on, and the separate scrolling layer it asks for is
+     implicated in exactly the failure this element had: a nested scroller that
+     never receives the gesture. */
+  /* The lesson behind must not take over when the menu reaches its end. */
+  overscroll-behavior: contain;
+  /* The gesture is this element's, whatever it is: a drag down the menu is the
+     menu scrolling, and there is nothing here a pinch or a double-tap wants. */
+  touch-action: pan-y;
+}
+.barmenu button {
+  font: inherit; text-align: left; cursor: pointer;
+  padding: .5rem .6rem; border-radius: .35rem;
+  border: 1px solid transparent; background: transparent; color: var(--ink);
+  white-space: nowrap;
+}
+.barmenu button:hover { background: var(--paper-2); }
+/* AND A SIGN THAT THERE IS MORE, because on iOS a scroller shows no bar until
+   a finger is already on it -- so a capped menu and a truncated one look
+   identical, which is the report this whole rule came from wearing a new coat.
+   An INSET shadow, deliberately: it is painted on the menu's own box and stays
+   at the bottom edge, where an `::after` would scroll away with the entries. */
+.barmenu.more {
+  box-shadow: 0 10px 34px rgba(0, 0, 0, .3),
+              inset 0 -1.6rem 1.1rem -1.3rem var(--ink-3);
+}
+#btn-more { font-weight: 700; letter-spacing: .05em; }
+
+/* ---------- the receipt ---------- */
+/* Under the writing surface, inside the same block, because that is where the
+   eye already is at the moment of sending. */
+.sent {
+  display: flex; align-items: center; gap: .5rem;
+  padding: .55rem .9rem;
+  background: #1c1e23;
+  border-top: 1px solid #2c2f37;
+  font-family: var(--ui); font-size: .78rem; color: #b9bcc4;
+}
+#sent-mark { color: #7fc79a; font-weight: 700; flex: none; }
+.sent[data-state="working"] #sent-mark {
+  color: var(--ask);
+  animation: pulse 1.1s ease-in-out infinite;
+}
+
+/* ---------- the map ---------- */
+/* The front door of a course: its working parts as a diagram, and a tap on any
+   of them. It covers the glass the way the document viewer does -- a head that
+   does not move, a plane that pans and pinches, and a foot that says what was
+   last tapped -- and it is painted from the same tokens as everything else, so
+   light and dark come out right with no second palette.
+
+   Every colour here is a token. Adding one means adding it to BOTH blocks at
+   the top of this file, or half the board changes theme and the map does not. */
+#map {
+  position: fixed; inset: 0; z-index: 96;
+  display: flex; flex-direction: column;
+  /* Explicit, never transparent: the viewer paints its own ground behind the
+     page and a transparent surface borrows whatever is under it. */
+  background: var(--paper);
+  font-family: var(--ui);
+}
+.map-bar {
+  flex: none; display: flex; align-items: center; gap: .7rem;
+  padding: .6rem max(.9rem, env(safe-area-inset-right)) .6rem max(.9rem, env(safe-area-inset-left));
+  padding-top: max(.6rem, env(safe-area-inset-top));
+  font-size: .85rem; background: var(--paper); color: var(--ink);
+  border-bottom: 1px solid var(--rule);
+}
+#map-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#map-count { flex: none; font-size: .78rem; }
+#map-fit { margin-left: auto; }
+#map-fit, #map-close {
+  flex: none; cursor: pointer; height: 2.2rem; padding: 0 .7rem;
+  border-radius: .35rem; border: 1px solid var(--rule);
+  background: var(--paper); color: var(--ink); font: inherit; line-height: 1;
+  white-space: nowrap; touch-action: manipulation;
+}
+#map-close { width: 2.2rem; padding: 0; }
+
+/* THE PLANE. `touch-action: none` says the browser need not ask the main thread
+   what to do with a touch -- there is nothing here to scroll, and a non-passive
+   `touchmove` listener on a surface somebody drags is how a page that is merely
+   moving starts to stutter. The pan and the pinch are ours; see `plane-core.js`. */
+.map-plane {
+  flex: 1 1 auto; min-height: 0; position: relative; overflow: hidden;
+  background: var(--paper-2);
+  touch-action: none;
+  -webkit-user-select: none; user-select: none;
+  cursor: grab;
+}
+.map-plane:active { cursor: grabbing; }
+/* Panning and pinching are a transform on this one element, never a regenerate:
+   the SVG is built once per payload and the gesture only moves it. */
+.map-sheet {
+  position: absolute; top: 0; left: 0;
+  transform-origin: 0 0; will-change: transform;
+}
+.map-sheet svg { display: block; overflow: visible; }
+
+/* A BOX. The status is a class on the group and the whole visual language is
+   here, so what `done` looks like can change without touching the generator. */
+.map-sheet .node { cursor: pointer; }
+.map-sheet .node rect.box {
+  fill: var(--paper); stroke: var(--rule); stroke-width: 1.2;
+}
+.map-sheet .node .name { font: 650 15px var(--ui); fill: var(--ink); }
+.map-sheet .node .also { font: 400 11px var(--ui); fill: var(--ink-3); }
+.map-sheet .node .does { font: 400 12px var(--ui); fill: var(--ink-2); }
+.map-sheet .node:hover rect.box { stroke: var(--ink-3); }
+.map-sheet .node:focus { outline: none; }
+.map-sheet .node:focus rect.box { stroke: var(--note); stroke-width: 2; }
+
+/* A document is content, and it is not machinery. Dashed, so the difference is
+   visible before the label is read. */
+.map-sheet .node.doc rect.box { stroke-dasharray: 5 4; fill: var(--paper-2); }
+/* And so is a part nothing imports and that imports nothing: it sits in the
+   band under the graph rather than being wired into a relationship that is not
+   there. */
+.map-sheet .node.apart rect.box { stroke-dasharray: 2 3; }
+
+/* The left edge of a box is its status, as a bar of colour rather than a word:
+   a picture is read at a glance and a glance does not read labels. */
+.map-sheet .node rect.mark { fill: var(--rule); }
+.map-sheet .node.done    rect.mark { fill: var(--good); }
+.map-sheet .node.working rect.mark { fill: var(--ask); }
+.map-sheet .node.next    rect.mark { fill: var(--step-now); }
+.map-sheet .node.later   rect.mark { fill: var(--step-later); }
+.map-sheet .node.blocked rect.mark { fill: var(--bad); }
+.map-sheet .node.unknown rect.mark { fill: var(--rule); }
+
+/* Being worked on right now is the one state worth more than a stripe: it is
+   where the person is, and the map's job at that moment is to say so. */
+.map-sheet .node.working rect.box {
+  stroke: var(--ask); stroke-width: 2;
+  fill: color-mix(in srgb, var(--ask) 7%, var(--paper));
+}
+.map-sheet .node.done .name { fill: var(--ink-2); }
+/* And where they last opened something, which is where the course reopens. */
+.map-sheet .node.here rect.box { stroke: var(--note); stroke-width: 2.4; }
+
+/* A NUMBERED STEP, ON THE BOX IT IS ABOUT. */
+.map-sheet .chip { cursor: pointer; }
+.map-sheet .chip circle { fill: var(--step-some); stroke: none; }
+.map-sheet .chip text {
+  font: 700 11px var(--ui); fill: var(--paper);
+  dominant-baseline: auto;
+}
+.map-sheet .chip.now circle   { fill: var(--step-now); }
+.map-sheet .chip.soon circle  { fill: var(--step-soon); }
+.map-sheet .chip.later circle { fill: var(--step-later); }
+.map-sheet .chip.some circle  { fill: var(--step-some); }
+.map-sheet .chip:hover circle { stroke: var(--ink); stroke-width: 1.6; }
+.map-sheet .chip:focus { outline: none; }
+.map-sheet .chip:focus circle { stroke: var(--ink); stroke-width: 2; }
+
+.map-sheet .edge {
+  fill: none; stroke: var(--rule); stroke-width: 1.5;
+  stroke-linecap: round; stroke-linejoin: round;
+}
+/* An arrow eleven imports thick is a different fact from one carrying a single
+   mention, and thickness is the only place to say it without another label. */
+.map-sheet .edge.strong { stroke: var(--ink-3); stroke-width: 2.2; }
+.map-sheet .edge-head { fill: var(--ink-3); }
+
+/* The steps nothing could place, in a tray under the bar. */
+.map-loose {
+  flex: none; display: flex; align-items: center; gap: .4rem;
+  padding: .45rem max(.9rem, env(safe-area-inset-left));
+  overflow-x: auto; overscroll-behavior-x: contain;
+  border-bottom: 1px solid var(--rule); background: var(--paper);
+  font-size: .76rem; white-space: nowrap;
+}
+.loose-chip {
+  flex: none; display: inline-flex; align-items: center; gap: .35rem;
+  border: 1px solid var(--rule); border-radius: 1rem;
+  background: var(--paper); color: var(--ink); cursor: pointer;
+  font: inherit; padding: .2rem .6rem .2rem .2rem; max-width: 16rem;
+}
+.loose-chip .n {
+  flex: none; width: 1.3rem; height: 1.3rem; border-radius: 50%;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-weight: 700; font-size: .7rem; color: var(--paper);
+  background: var(--step-some);
+}
+.loose-chip.now .n   { background: var(--step-now); }
+.loose-chip.soon .n  { background: var(--step-soon); }
+.loose-chip.later .n { background: var(--step-later); }
+.loose-chip .t { overflow: hidden; text-overflow: ellipsis; }
+
+/* What the colours mean, said once, in the foot. */
+.map-legend { display: flex; align-items: center; gap: .7rem; flex-wrap: wrap; }
+.map-legend .key { display: inline-flex; align-items: center; gap: .3rem;
+                   color: var(--ink-3); }
+.map-legend .key::before {
+  content: ""; width: .62rem; height: .62rem; border-radius: 50%;
+  background: var(--step-some);
+}
+.map-legend .key.now::before   { background: var(--step-now); }
+.map-legend .key.soon::before  { background: var(--step-soon); }
+.map-legend .key.later::before { background: var(--step-later); }
+
+/* THE WAYS TO WORK ON ONE BOX. The drawer shape the rest of the board already
+   uses, inside the map so it goes away with it. */
+#work {
+  position: absolute; top: 0; right: 0; bottom: 0; z-index: 8;
+  width: min(24rem, 96vw);
+  background: var(--paper); border-left: 1px solid var(--rule);
+  display: flex; flex-direction: column;
+  box-shadow: -8px 0 26px rgba(0,0,0,.24);
+  font-family: var(--ui); font-size: .85rem;
+}
+.work-what { min-width: 0; display: flex; flex-direction: column; gap: .15rem; }
+#work-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#work-sub { font-size: .74rem; line-height: 1.35;
+            display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical;
+            overflow: hidden; }
+#work-close { border: 0; background: none; font: inherit; cursor: pointer;
+              color: var(--ink-2); flex: none; align-self: flex-start; }
+/* The list between the head and the foot is the part that scrolls. Being inside
+   a fixed panel does not make an element a scroller: it needs the room that is
+   left AND permission to scroll inside it, and the entries that fall off the
+   end of a panel that has neither are unreachable. */
+#work-list {
+  flex: 1; overflow-y: auto; padding: .5rem;
+  overscroll-behavior: contain; touch-action: pan-y;
+}
+.work-way {
+  display: flex; flex-direction: column; gap: .15rem; width: 100%;
+  text-align: left; cursor: pointer; font: inherit;
+  margin-bottom: .4rem; padding: .55rem .7rem; border-radius: .5rem;
+  border: 1px solid var(--rule); background: var(--paper); color: var(--ink);
+}
+.work-way strong { font-weight: 650; }
+.work-way span { color: var(--ink-3); font-size: .76rem; }
+.work-way:hover { border-color: var(--accent); background: var(--paper-2); }
+
+/* THE WAY BACK TO THE MAP, wherever it appears: the bar, a drawer head, the
+   document viewer. One shape and one word, so it is recognised as the same
+   control and as a place rather than an ornament.
+
+   It said `◈` alone at first, and a glyph on its own is not a label: asked for
+   as "make that button that takes me back to the map more obvious as something
+   that would take me back to the map". It carries the word now, and in the title
+   bar it carries a border as well -- it is the one control there that goes
+   somewhere, and the rest act on the lesson in front of you. */
+.to-map { line-height: 1; }
+#bar .to-map {
+  border-color: var(--rule);
+  color: var(--ink);
+  font-weight: 600;
+}
+#bar .to-map:hover { border-color: var(--accent); color: var(--accent); }
+.head-acts { display: flex; align-items: center; gap: .5rem; flex: none; }
+.head-acts .to-map {
+  border: 1px solid var(--rule); border-radius: .4rem;
+  background: none; font: inherit; font-size: .74rem; cursor: pointer;
+  color: var(--ink-2); padding: .18rem .4rem;
+}
+.head-acts .to-map:hover { border-color: var(--accent); color: var(--accent); }
+.paper-bar .to-map {
+  flex: none; cursor: pointer; height: 2.2rem; padding: 0 .6rem;
+  border-radius: .35rem; border: 1px solid var(--rule);
+  background: var(--paper); color: var(--ink); font: inherit; line-height: 1;
+  white-space: nowrap; margin-left: auto;
+}
+/* The map covers the glass, so the lesson underneath must not take a scroll
+   meant for the plane -- the same rule the document viewer already has. */
+body.mapping { overflow: hidden; }

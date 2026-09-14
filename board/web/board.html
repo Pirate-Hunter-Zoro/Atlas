@@ -1,0 +1,627 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Board">
+<meta name="theme-color" content="#fbfaf7" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#16171a" media="(prefers-color-scheme: dark)">
+<title>Board</title>
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<link rel="icon" href="/icon-192.png">
+<link rel="stylesheet" href="/static/typeface.css">
+<link rel="stylesheet" href="/static/katex/katex.min.css">
+<link rel="stylesheet" href="/static/board.css">
+<!-- the drawing controls live in this page now, so they need their styles -->
+<link rel="stylesheet" href="/static/slate.css">
+<script src="/static/typeface.js" defer></script>
+</head>
+<!-- face is applied before anything paints -->
+<body data-mode="auto">
+
+<!-- One stack owns the top of the window. The banners below are part of it, not
+     separate things that also stick to zero -- two sticky elements at the same
+     offset overlap, and the one further down the document wins. -->
+<div id="chrome">
+<header id="bar">
+  <div class="bar-left">
+    <a id="btn-home" href="/" title="home">‹</a>
+    <span id="dot" class="dot" title="connection"></span>
+    <span id="course">board</span>
+    <span id="chapter" class="muted"></span>
+    <button id="session" class="session" type="button" hidden title="lecture, homework or test review"></button>
+    <span id="agent" class="agent" hidden></span>
+  </div>
+  <!-- Thirteen controls in one row is a row that overlaps itself on a tablet.
+       What stays out here is what a lesson actually uses; the rest is real but
+       occasional, and lives one tap away rather than fighting for width. -->
+  <div class="bar-right">
+    <!-- THE WAY TO THE MAP, and the first control in the row.
+         A course opens on a picture of its working parts rather than on an
+         empty board, and getting back to that picture has to be one gesture
+         from anywhere -- so this glyph is repeated in the head of every drawer
+         and on the document viewer, and the slate carries a link of its own.
+         One glyph and not a word: the bar already holds the course, the
+         chapter, the sitting badge and three controls, and a label that gets
+         cut in half is a label whose second half was the useful one.
+
+         It took the contents drawer's place, and the drawer went one tap away
+         under the ⋯ with everything else that is real but occasional. The
+         drawer is a fine index and it keeps every entry it had; it is simply
+         not the front door any more. A list cannot say that one part of a
+         project depends on another, and that -- not finding a name -- was the
+         difficulty. Seven controls in this row is a row that overlaps itself
+         on a tablet, which `test/link.js` has held the line on since it did. -->
+    <button id="btn-map" class="to-map" title="the map of this course">◈ map</button>
+    <button id="btn-annotate" title="write on the lesson itself">✎ annotate</button>
+    <a id="btn-slate" href="/slate" title="write with the Apple Pencil">✎ slate</a>
+    <label id="btn-clip" for="file" title="attach a photo or a PDF">＋</label>
+    <button id="btn-save" title="save this work and push it">⤓ save</button>
+    <button id="btn-more" title="everything else">⋯</button>
+  </div>
+</header>
+
+
+
+<!-- End of session. Asked here, because the person answering is on an iPad. -->
+<div id="finish" class="finish" hidden>
+  <div class="finish-text">
+    <strong id="finish-lead">Session finished.</strong>
+    <span id="finish-sub">Save this work and push it to GitHub?</span>
+  </div>
+  <div class="finish-acts">
+    <button id="finish-no" type="button">Not now</button>
+    <!-- Only in the leaving flow: going without committing has to be a choice
+         somebody makes, not something that happens by walking away. -->
+    <button id="finish-leave" type="button" hidden>Leave without saving</button>
+    <button id="finish-yes" type="button" class="primary">Push</button>
+  </div>
+</div>
+
+<div id="pushed" class="pushed" hidden>
+  <span id="pushed-icon" class="pushed-icon"></span>
+  <span id="pushed-text"></span>
+  <!-- ...and onto the device it is being read on.
+       The repository copy is the archival one and is committed exactly as
+       before. This is the other half: a compute node is not a place an iPad can
+       reach, and a tailnet path is not something anybody can hand to a
+       professor.
+
+       A BUTTON, NOT A LINK, and that is the fix rather than the styling. This
+       was `<a download href="/download/lesson">`, and in a standalone web app
+       iOS ignores `download` and treats the tap as a navigation: the board is
+       replaced by the PDF, with no chrome, no back button and no share sheet.
+       Reported as "it just opens the document up, and I can't put it anywhere.
+       The only thing I can do is exit the app and go back in again." Nothing
+       that hands a document over may navigate this window -- see `saveCopy`. -->
+  <!-- Reading it and keeping it are two different things, and only the second
+       one existed. The share sheet is somewhere to PUT a document; it is not
+       somewhere to read one, and "let me see whether the proof is in there"
+       was not answerable from the board at all. -->
+  <button id="pushed-view" class="pushed-get quiet" type="button" hidden>read it</button>
+  <button id="pushed-get" class="pushed-get" type="button" hidden>save a copy</button>
+  <button id="pushed-close" type="button" title="dismiss">✕</button>
+</div>
+
+<!-- A homework sitting is producing a document, and the state of that document --
+     which problems are still empty, whether the last compile passed -- is not
+     visible anywhere on an iPad unless the board says so. -->
+<div id="hwbar" class="hwbar" hidden>
+  <span id="hw-set"></span>
+  <span id="hw-count" class="muted"></span>
+  <span id="hw-build"></span>
+</div>
+
+<!-- A test review and a walkthrough are both held over a scope the student
+     chose, and a scope that is not written down anywhere is a scope the tutor
+     can quietly widen. Same argument as the homework strip: the state of the
+     sitting is not visible on an iPad unless the board says it. One strip for
+     both, because they are the same fact about the sitting and the bar has room
+     for one of them at a time. -->
+<div id="rvbar" class="rvbar" hidden>
+  <span id="rv-lead">test review</span>
+  <span id="rv-scope" class="muted"></span>
+  <button id="rv-change" type="button">change</button>
+</div>
+
+<!-- A lesson already on screen when the link drops stays readable, but it must
+     stop looking current. A red dot the size of a full stop did not carry it. -->
+<div id="linkbad" class="linkbad" hidden>
+  <span>Not connected — what is on the board may be out of date.</span>
+  <button id="linkbad-retry" type="button">reconnect</button>
+</div>
+
+<!-- A DEAD TUTOR IS NEWS, AND THE BAR IS NOT WHERE NEWS FITS.
+     The chip in the title bar is a dot and two words: the bar is the one row on
+     this page that cannot grow, so a sentence put there comes out as "tutor
+     stopped - nothing is rea..." and the half that says what to do about it is
+     the half that gets cut. Reported in those words. So the chip says the state
+     and this says what it means, across the width, where there is room for it --
+     and it is in the chrome stack rather than in the empty-board panel, because
+     a tutor dies in the middle of a lesson that already has cards on it, which
+     is exactly when that panel is not on screen. -->
+<div id="tutorbad" class="tutorbad" hidden>
+  <span>The tutor stopped. Anything you send starts another and waits in the
+    inbox until it is up.</span>
+</div>
+
+<!-- New code has arrived, and taking it means reloading the page. Which is
+     somebody's decision, not the app's: a reload landing unasked in the middle
+     of a lesson is a white screen, a scroll position gone, and every card
+     folded back to how it renders on a first visit. -->
+<div id="newver" class="newver" hidden>
+  <span>A new version of the board is ready.</span>
+  <button id="newver-now" type="button">load it now</button>
+  <button id="newver-later" type="button" class="quiet">later</button>
+</div>
+</div><!-- /#chrome -->
+
+<!-- THE MENU IS NOT PART OF THE BAR, AND LIVING INSIDE IT COST IT ITS SCROLL.
+     Reported as "there are three dots I can tap to get a menu... that isn't
+     scrollable — or at least when I try to scroll it, the main session page
+     behind it is what scrolls instead."
+
+     It used to hang off `#chrome`, which is `position: sticky`. WebKit does not
+     reliably hand a touch drag to an `overflow` container nested inside a
+     sticky element: the gesture walks straight past it to the page, so the
+     menu was capped and clipped exactly as intended and could not be moved a
+     pixel. Being in there also trapped it in `#chrome`'s stacking context, so
+     its own `z-index` counted for nothing against the rest of the page.
+
+     Out here it is a layer over the lesson, which is what a menu is. `board.js`
+     hangs it under the bar and caps it against the VISIBLE viewport, which is
+     the one measurement that survives a keyboard coming up or a pinch. -->
+<div id="barmenu" class="barmenu" hidden>
+  <button id="btn-smaller" title="smaller type">A&minus;  smaller type</button>
+  <button id="btn-bigger" title="larger type">A+  larger type</button>
+  <button id="btn-face" title="typeface">Aa  reading face</button>
+  <button id="btn-theme" title="light / dark / auto">◐  light / dark</button>
+  <button id="btn-notes-again" title="ask about annotations again" hidden>✎  ask about annotations</button>
+  <button id="btn-contents" title="chapters, problem sets, steps and documents">☰  contents</button>
+  <button id="btn-scratch" title="photos and PDFs">▤  photos and PDFs</button>
+  <button id="btn-history" title="past lessons" hidden>◷  past lessons</button>
+  <button id="btn-print" title="print or save as PDF">⎙  print</button>
+  <!-- Two documents, and they are not the same document. This one is the
+       lesson AS IT WAS READ -- the board's own pixels, photographed by the
+       device that drew them, because that is what was asked for: "I want it as
+       if it were a screenshot of the entire iPad screen scrolled down over the
+       whole tutoring session." The typeset transcript is still what a whole
+       course comes out as; nothing on the device can photograph a sitting that
+       is not on the glass. -->
+  <button id="btn-export" title="this lesson as it looks on the glass — a numbered PDF kept in the repository">⇩  export this lesson</button>
+  <button id="btn-export-all" title="every lesson in this course, typeset as one document">⇩  export the whole course (typeset)</button>
+  <!-- The written-up work is a document too, and it had no button: the only way
+       to compile the thing an evening was actually spent writing was a terminal,
+       which is the one thing this page exists to abolish. -->
+  <button id="btn-export-hw" title="compile the problem set you are writing up, and keep it in the repository">⇩  export the written-up homework</button>
+  <!-- AND A WAY BACK TO A DOCUMENT THAT ALREADY EXISTS.
+       The three buttons above MAKE a document. Reaching one used to be possible
+       only in the banner of the build that made it, and that banner is replaced
+       by the next payload -- so a write-up somebody had just compiled became
+       unreachable about a second after it appeared. Reported as "it compiles the
+       homework, but it's not letting me view the compiled .pdf or save it
+       anywhere locally on the iPad." This is here at every moment, whether the
+       document was made ten seconds or ten days ago. -->
+  <button id="btn-papers" title="read either PDF here, or save a copy to Files">▤  documents · view or save</button>
+  <button id="btn-reload" title="reload the app">↻  reload the app</button>
+</div>
+
+<!-- The drawing tools, along the bottom, where the hand holding the pen is. -->
+<div id="drawbar" hidden></div>
+
+<main id="board">
+  <div id="cards"></div>
+  <!-- A card is a file, and nothing appears until the file exists -- so a minute
+       of the tutor writing looks exactly like a minute of nothing happening. The
+       daemon already says it is working; this is where the lesson says so. -->
+  <div id="busy" class="busy" hidden>
+    <span class="busy-dot"></span>
+    <span id="busy-text">the tutor is writing</span>
+    <span id="busy-since" class="busy-since"></span>
+  </div>
+  <!-- The surface closes when the tutor says the answer is right, because a
+       permanent writing box in a lesson with nothing to answer is furniture.
+       But "right, now strike that line" is a correct card that still wants a
+       pen, and so is remembering three more exercises to mention. Without this
+       there is no way to write anything at all until the tutor happens to ask
+       another question -- a dead end reached by finishing an exercise, which is
+       the worst possible moment for one. -->
+  <button id="reopen" type="button" hidden>write on the board</button>
+
+  <div id="empty" class="empty">
+    <p id="empty-lead">Nothing on the board yet.</p>
+    <p class="muted">The tutor writes here. It appears the moment it is written.</p>
+    <p class="muted">Your working goes on the <a href="/slate">slate</a>.</p>
+    <!-- The cold start. With no card there is no question, so no answer is owed,
+         so nothing opens the slate -- and in maths there is no text box either.
+         Without this the first turn of every session has to come from a
+         terminal, which is the one thing the launcher exists to abolish. -->
+    <button id="begin" class="begin" type="button">ask the tutor to begin</button>
+    <!-- The board being reachable and a tutor being attached are two different
+         things, and the connection dot going green says only the first. Somebody
+         asked the tutor to begin, saw green, and waited on a session nobody had
+         started. -->
+    <p id="no-tutor" class="no-tutor" hidden>No tutor is attached to this course.
+      Anything sent waits in the inbox until one is.</p>
+  </div>
+  <!-- An unreachable board and an empty one look identical unless one of them
+       says so. This is the difference between "the tutor has not written yet"
+       and "nothing you are looking at is live", and reading the first when the
+       second is true wastes a whole sitting. -->
+  <div id="offline" class="empty offline" hidden>
+    <p><strong>Not connected to the board.</strong></p>
+    <p class="muted">This is the link, not the lesson — nothing you have written is lost.
+      The board's own process is not answering.</p>
+    <p class="muted">On a cluster node that usually means its allocation ended and the
+      board has to be started again.</p>
+    <button id="offline-retry" type="button">try again</button>
+  </div>
+</main>
+
+<!-- Two things can be sent and they answer different questions: the working on
+     the slate, and the marks written over the tutor's own words. Asking which is
+     cheaper than guessing wrong, and it only appears when both exist. -->
+<!-- Annotating has its own tools. The tool strip below belongs to the slate --
+     it draws on the answer surface, not on the lesson -- so pointing its eraser
+     and its undo at a card did nothing at all, which reads as broken rather
+     than as out of scope. -->
+<div id="annbar" class="annbar" hidden>
+  <button id="ann-pen" type="button" class="anntool on">Pen</button>
+  <button id="ann-erase" type="button" class="anntool">Erase</button>
+  <!-- The lasso. Ink written over a card used to be write-only: it could be
+       drawn, rubbed out, or cleared, and nothing else -- so working written
+       beside the tutor's own words could not be moved onto your own board
+       without writing it out again. Loop around something and the clip controls
+       below appear. -->
+  <button id="ann-select" type="button" class="anntool">Select</button>
+  <span class="ann-inks">
+    <button type="button" class="ann-ink on" data-ink="#e0b45c" title="amber"></button>
+    <button type="button" class="ann-ink" data-ink="#e8746c" title="red"></button>
+    <button type="button" class="ann-ink" data-ink="#6fc3f7" title="blue"></button>
+    <button type="button" class="ann-ink" data-ink="#7fc79a" title="green"></button>
+  </span>
+  <!-- Shown only when they can do something: with something looped, or with ink
+       on the clipboard waiting to be put somewhere. A row of controls that are
+       always there and usually inert is a row nobody reads. -->
+  <span id="ann-clip" class="ann-clip" hidden>
+    <button id="ann-copy" type="button" title="copy what is looped">Copy</button>
+    <button id="ann-cut" type="button" title="cut what is looped">Cut</button>
+    <button id="ann-paste" type="button" title="paste onto this card">Paste</button>
+    <button id="ann-del" type="button" class="danger" title="delete what is looped">Delete</button>
+  </span>
+  <!-- What just happened, in the bar that did it. There is no general toast on
+       this page and a clipboard needs one: copying is a gesture with no visible
+       result, so without a word here it reads as a button that does nothing. -->
+  <span id="ann-say" class="ann-say" hidden></span>
+  <button id="ann-undo" type="button" title="undo">↶</button>
+  <button id="ann-redo" type="button" title="redo">↷</button>
+  <button id="ann-clear" type="button" title="remove every mark">clear</button>
+  <button id="ann-done" type="button" class="primary">done</button>
+</div>
+
+<!-- Marks can be made with no question owed, and then there is no writing
+     surface and no Send button anywhere on the page. This is the one for them. -->
+<button id="notesend" class="notesend" type="button" hidden>send my annotations</button>
+
+<!-- Which kind of sitting this is, chosen here rather than in a terminal. A
+     student who wants help with a problem set should not have to find a keyboard
+     to say so. -->
+<div id="kind" class="sendwhat" hidden>
+  <span id="kind-lead">This sitting:</span>
+  <button id="kind-lecture" type="button">lecture</button>
+  <span id="kind-sets"></span>
+  <!-- Not buttons that start something: a review has to be told what it covers
+       and a walkthrough what it is over, so each opens the picker. -->
+  <button id="kind-review" type="button">test review…</button>
+  <button id="kind-walk" type="button">walk through…</button>
+  <button id="kind-cancel" type="button" class="quiet">cancel</button>
+  <!-- WHO WRITES THE CODE IN THIS SITTING, which is not always what the
+       repository says. A project has both kinds of work in it: plumbing its
+       owner has written fifty times and wants written for them, and the one
+       algorithm they actually need to understand. One word in tutorboard.json
+       could only answer for both, so the work went to a terminal and the
+       teaching went with it. This answers for the sitting, it is visible while
+       it is in force, and it stops when the sitting does. Hidden in a
+       walkthrough and a review: neither writes code either way. -->
+  <span id="kind-stance" class="kind-stance">
+    <span class="kind-stance-lead">this sitting:</span>
+    <button id="stance-teach" type="button">I teach it</button>
+    <button id="stance-do" type="button">I do it</button>
+  </span>
+</div>
+
+<!-- Asked AFTER the working has gone, never before it. This bar used to stand
+     between the Send button and sending anything at all: with marks anywhere on
+     the board, Send issued no request and raised this instead, and a tap that
+     nobody noticed was a tap that lost an answer. Now the working is already
+     sent by the time this appears, so ignoring it costs nothing. -->
+<div id="sendwhat" class="sendwhat" hidden>
+  <span id="sendwhat-lead">Working sent.</span>
+  <span>You have marks on the lesson too.</span>
+  <button id="send-notes" type="button" class="primary">send those as well</button>
+  <button id="send-cancel" type="button" class="quiet">no, just the working</button>
+  <button id="send-no-ask" type="button" class="quiet">no, and don't ask again</button>
+</div>
+
+<button id="jump" class="jump" hidden>↓ new</button>
+
+<!-- The way back, from anywhere.
+     It is positioned from JavaScript against the VISUAL viewport rather than
+     from CSS, because `position: fixed` is fixed to the layout viewport and the
+     layout viewport does not move when the page is pinch-zoomed -- so a button
+     placed by CSS alone pans off the glass at exactly the moment it is needed.
+     `panicPlace` in board.js. A tap re-centres; a press and hold moves it. -->
+<button id="panic" type="button"
+        title="tap to put the zoom back · press and hold to move this button">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1"
+       stroke-linecap="round" aria-hidden="true">
+    <circle cx="12" cy="12" r="4.4"/>
+    <path d="M12 1.6v4M12 18.4v4M1.6 12h4M18.4 12h4"/>
+  </svg>
+  <span>re-centre</span>
+</button>
+
+<!-- The same idea, for the writing surface, which has a zoom of its own that
+     `#panic` knows nothing about: that one puts the PAGE's magnification back,
+     this one puts the view back over the writing. Two zooms, two ways to get
+     lost, two ways back. It rides directly under `#panic` so there is one thing
+     to move and one place to look, and it is only there while there is a
+     surface to be lost on. The toolbar's ⤢ does the same job and lives in the
+     page chrome, which pinching pans off the glass -- this cannot be. -->
+<button id="findink" type="button" hidden
+        title="put the view back over your writing">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1"
+       stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+    <path d="M3.5 7.5v-4h4M16.5 3.5h4v4M20.5 16.5v4h-4M7.5 20.5h-4v-4"/>
+    <path d="M8 14.5c1.6-3.4 2.6-5.2 3.4-5.2.9 0 .3 3.1 1.2 3.1.7 0 1.4-1.4 3.4-2.6"/>
+  </svg>
+  <span>my writing</span>
+</button>
+
+<!-- Past lessons. A chapter you come back to should still have your own working
+     in it; a transcript that only survives until the next lesson opens is not a
+     transcript. -->
+<aside id="history" hidden>
+  <div class="scratch-head">
+    <strong>Past lessons</strong>
+    <span class="head-acts"><button class="to-map" type="button" title="the map of this course">◈ map</button><button id="btn-history-close">✕</button></span>
+  </div>
+  <div id="history-list"></div>
+  <div class="scratch-foot muted">Read only. The lesson you are in is on the board.</div>
+</aside>
+
+<!-- What this course is made of, and the way to any part of it. Chapters and
+     problem sets are discovered from the repository itself; past lessons are
+     what has already been filed. A course with none of the three -- a code
+     repository -- gets its sections as it goes. -->
+<aside id="contents" hidden>
+  <div class="scratch-head">
+    <strong>Contents</strong>
+    <span class="head-acts"><button class="to-map" type="button" title="the map of this course">◈ map</button><button id="btn-contents-close">✕</button></span>
+  </div>
+  <div id="contents-list"></div>
+  <div class="scratch-foot muted">Opening one files the lesson you are in — it stays
+    readable under ◷.</div>
+</aside>
+
+<!-- What a test review covers is the student's to choose, and it is a list
+     rather than one thing: a test is not one chapter. Everything offered here is
+     discovered from the repository itself -- its chapters, or, in a project with
+     none, its own top-level parts -- so nothing typed can reach the filesystem
+     and nothing invented can reach the tutor's prompt.
+
+     A WALKTHROUGH USES THE SAME PANEL, over the repository's source files. It is
+     the same decision in the same shape -- a list of what exists, ticked, and
+     one request -- and giving it a second panel of its own would be two copies
+     of this to keep in step. The title, the list and the button say which. -->
+<aside id="review" hidden>
+  <div class="scratch-head">
+    <strong id="review-title">What should this review cover?</strong>
+    <span class="head-acts"><button class="to-map" type="button" title="the map of this course">◈ map</button><button id="btn-review-close">✕</button></span>
+  </div>
+  <div id="review-list"></div>
+  <div class="scratch-foot">
+    <div class="review-acts">
+      <button id="review-all" type="button" class="quiet">select all</button>
+      <span id="review-count" class="muted"></span>
+      <button id="review-start" type="button" class="primary" disabled>start review</button>
+    </div>
+    <p class="review-note muted" id="review-note">The questions are the tutor's; the scope is yours.
+      Starting one files the lesson you are in — it stays readable under ◷.</p>
+  </div>
+</aside>
+
+<div id="reading" class="reading" hidden>
+  <span id="reading-what"></span>
+  <button id="reading-back" type="button">back to the lesson</button>
+</div>
+
+<!-- The two documents this board can produce, and both ways to have one.
+     A document is a file, not an event: whether it exists is a question with an
+     answer at every moment, and the payload answers it (`papers`). So this
+     panel is reachable whenever somebody wants it, and it offers to make the
+     one that is not there rather than saying nothing about it. -->
+<aside id="papers" hidden>
+  <div class="scratch-head">
+    <strong>Documents</strong>
+    <span class="head-acts"><button class="to-map" type="button" title="the map of this course">◈ map</button><button id="btn-papers-close">✕</button></span>
+  </div>
+  <div id="papers-list"></div>
+  <div class="scratch-foot muted">Both are kept in the repository and staged for
+    the next save. <strong>Read it here</strong> draws the pages on the board;
+    <strong>save a copy</strong> hands the PDF to iOS, so it can go to Files,
+    iCloud, a phone, or an email — and Cancel comes straight back to the lesson.</div>
+</aside>
+
+<!-- A PDF, read on the board.
+     NOT an iframe and NOT a navigation, and both of those are the point. iOS
+     renders a PDF in a frame as one unscrollable page, and navigating to one in
+     a standalone web app leaves the board with no chrome and no way back --
+     which is the trap `saveCopy` in board.js was written to avoid. So the pages
+     are drawn to PNG by the machine that holds the PDF and shown here, in a
+     viewer this page owns and can close. See `tutorboard/course/paper.py`. -->
+<div id="paper" class="paper" hidden>
+  <div class="paper-bar">
+    <strong id="paper-name">document</strong>
+    <span id="paper-sub" class="muted"></span>
+    <button class="to-map" type="button" title="the map of this course">◈ map</button>
+    <button id="paper-get" type="button" class="pushed-get">save a copy</button>
+    <button id="paper-close" type="button" title="back to the lesson">✕</button>
+  </div>
+  <div id="paper-pages" class="paper-pages"></div>
+</div>
+
+<!-- THE MAP. The front door of a course: its working parts, what is done and
+     what is not, and a tap on any of them.
+
+     A plane rather than a page. Panning and pinching are `plane-core.js`, which
+     the writing surface uses too -- every rule in it was paid for by a gesture
+     that stopped working on somebody's iPad, and two copies of that would be
+     two copies to get wrong.
+
+     Inline SVG rather than canvas, and generated once per payload rather than
+     per frame: crisp at every zoom without a redraw, hit-testing for nothing,
+     themed from the same tokens as everything else, and the labels are real
+     text that can be selected and read aloud. No <foreignObject> -- Safari
+     renders it inconsistently -- so the labels are wrapped here by hand. -->
+<div id="map" class="map" hidden>
+  <div class="map-bar">
+    <strong id="map-title">the map</strong>
+    <span id="map-count" class="muted"></span>
+    <button id="map-fit" type="button" title="fit the whole map on the glass">⤢ fit</button>
+    <button id="map-close" type="button" title="back to the lesson">✕</button>
+  </div>
+  <!-- THE STEPS THAT COULD NOT BE PLACED ON A BOX, and they are not dropped.
+       A step that names no file has nowhere honest to sit on the picture;
+       putting it on a box anyway would be a claim about where the work is, and
+       leaving it out would take a choice away from the person whose plan it is.
+       So it rides here, in the plan's own order, numbered and coloured like
+       every other chip and opening the same sitting. -->
+  <div id="map-loose" class="map-loose" hidden></div>
+  <div id="map-plane" class="map-plane">
+    <div id="map-sheet" class="map-sheet"></div>
+  </div>
+  <div id="map-foot" class="map-foot">
+    <span id="map-legend" class="map-legend">
+      <span class="key now">do first</span><span class="key soon">soon</span><span
+        class="key later">later</span><span class="key some">after that</span>
+    </span>
+    <span id="map-why" class="muted"></span>
+  </div>
+
+  <!-- WHAT A TAP OFFERS. A box is a part of the repository and a chip is a step
+       of the plan; tapping either asks the same question, and every answer opens
+       a sitting already pointed at that part. Named in the person's own words
+       rather than after the sitting kinds underneath -- nobody taps "lecture,
+       stance do". Inside the map, so it is reachable from the map and goes away
+       with it. -->
+  <aside id="work" hidden>
+    <div class="scratch-head">
+      <div class="work-what">
+        <strong id="work-title">this part</strong>
+        <span id="work-sub" class="muted"></span>
+      </div>
+      <button id="work-close" type="button">✕</button>
+    </div>
+    <div id="work-list"></div>
+    <div class="scratch-foot muted">Any of these files the lesson you are in —
+      it stays readable under ◷.</div>
+  </aside>
+</div>
+
+<aside id="scratch" hidden>
+  <div class="scratch-head">
+    <strong>Scratch work</strong>
+    <span class="head-acts"><button class="to-map" type="button" title="the map of this course">◈ map</button><button id="btn-scratch-close">✕</button></span>
+  </div>
+  <div id="scratch-list"></div>
+  <!-- The file input has been in the page from the beginning and nothing ever
+       opened it. Dropping a file and pasting one both worked, and neither is a
+       gesture that exists on a tablet -- so handing the tutor a screenshot of
+       the next three exercises was, in practice, impossible from the device the
+       board is for. -->
+  <div class="scratch-foot">
+    <button id="btn-add-file" type="button">add a photo or a PDF</button>
+    <span class="muted">It goes to the tutor with the lesson. You can also drop
+      one anywhere on this page, or write on the <a href="/slate">slate</a>.</span>
+  </div>
+</aside>
+
+<!-- Maths: answering means writing, and the writing happens here, under the
+     question, so what you are answering stays on screen. -->
+<!-- Maths: answering means writing, and the writing happens here, opened for
+     you the moment an answer is owed. Nothing to drag, nothing to find. -->
+<!-- Sits in the lesson, directly under the question it answers. Moved into
+     place by board.js after each render; never covers anything. -->
+<section id="writer" hidden>
+  <div id="writer-head">
+    <span id="writer-label">Your answer</span>
+    <!-- One answer panel, two surfaces. The student flips between writing and
+         typing, and whichever they used last is the one that opens next time. -->
+    <span class="tabs">
+      <button id="tab-write" type="button" class="tab on">✎ write</button>
+      <button id="tab-type" type="button" class="tab">⌨ type</button>
+    </span>
+    <span id="writer-hint"></span>
+    <!-- A follow-up question is a new board, and a new board is a blank sheet.
+         That is right for a new exercise and wrong in the middle of one: the
+         proof is three cards up and the answer to "is this contrapositive or
+         contradiction?" is written on top of it. So the working can be brought
+         forward, in one tap, by the person who knows whether it belongs here --
+         and only when this board is blank and there is working behind it. -->
+    <button id="carry" type="button" hidden></button>
+    <!-- Not every prompt is worth answering, and a prompt that cannot be
+         declined is a prompt that gets answered badly to make it go away. It
+         lives in this header so it dies with the block it belongs to. -->
+    <button id="skip" type="button">skip this one</button>
+  </div>
+  <div id="slate"></div>
+  <!-- The typed half of the same panel. Saved as it is typed, so flipping to the
+       pen and back does not lose the sentence. -->
+  <div id="typebox" hidden>
+    <textarea id="saybox" rows="3" placeholder="type your answer"></textarea>
+    <button id="send-type" type="button">send</button>
+  </div>
+  <!-- Sending into silence is the thing that makes a person wonder whether it
+       arrived. This sits under the surface they sent from and says it did. -->
+  <div id="sent" class="sent" hidden>
+    <span id="sent-mark">✓</span>
+    <span id="sent-text"></span>
+  </div>
+</section>
+
+<!-- Three signal buttons stood here -- Ready to check, I need help, I'm
+     confused -- and only in a `code` course. There is no mode now and there are
+     no signals: the answer panel above is how every course answers, by writing
+     or by typing, and a sentence saying what was implemented is worth more than
+     a tap that means somebody should go and look for it. -->
+
+<input id="file" type="file" multiple accept="image/*,application/pdf" hidden>
+
+<div id="drop" class="drop" hidden><span>drop a photo or a PDF<small>for work that is not on the slate — paper, a scan, a problem sheet</small></span></div>
+
+<script src="/static/katex/katex.min.js"></script>
+<script src="/static/katex/auto-render.min.js"></script>
+<script src="/static/macros.js"></script>
+<!-- One clipboard for every writing surface on the page. Before slate-core.js
+     and annotate.js, both of which read it. -->
+<script src="/static/ink-clip.js"></script>
+<!-- What the hand is doing, and where the view is allowed to be. Read by
+     slate-core.js and by the map; before both. -->
+<script src="/static/plane-core.js"></script>
+<script src="/static/slate-core.js"></script>
+<script src="/static/annotate.js"></script>
+<!-- The lesson, photographed by the device that drew it. BEFORE board.js and
+     NOT deferred, like every other thing board.js talks to: a deferred script
+     runs after the document is parsed, which is after this classic one at the
+     end of the body -- so loaded that way it did not exist yet when board.js
+     handed it the way to ask how much is written on the live surface, and every
+     photograph ended with a page of blank paper. -->
+<script src="/static/shot.js"></script>
+<script src="/static/board.js"></script>
+</body>
+</html>

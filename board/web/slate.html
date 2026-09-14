@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Board">
+<meta name="theme-color" content="#101114">
+<title>Slate</title>
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<link rel="icon" href="/icon-192.png">
+<link rel="stylesheet" href="/static/typeface.css">
+<link rel="stylesheet" href="/static/slate.css">
+<script src="/static/typeface.js" defer></script>
+</head>
+<!-- face is applied before anything paints -->
+<body>
+
+<!-- The two ways off this page, on one row. The map is the other thing a
+     full-screen surface has to be one gesture from: there is no state of this
+     application it cannot be reached from. The board reads `?map=1`. -->
+<div id="away">
+  <a id="back" href="/board" title="back to the board">‹ board</a>
+  <a id="tomap" href="/board?map=1" title="the map of this course">◈ map</a>
+</div>
+<div id="prompt" hidden><span class="kind"></span><span class="text"></span></div>
+<div id="slate"></div>
+
+<!-- The clipboard is shared with the board's own writing surface and with the
+     marks on the lesson, so copying here and pasting there is one clipboard and
+     not three. Before slate-core.js, which reads it. -->
+<script src="/static/ink-clip.js"></script>
+<!-- What the hand is doing, and where the view is allowed to be. Read by
+     slate-core.js and by the map; before both. -->
+<script src="/static/plane-core.js"></script>
+<script src="/static/slate-core.js"></script>
+<script src="/static/slate.js"></script>
+</body>
+</html>

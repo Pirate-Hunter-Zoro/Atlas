@@ -1,0 +1,808 @@
+# AI_INSTRUCTIONS.md — Tutor-Board
+
+This repository is a tool, not a course. It is the live typeset board the coursework repositories
+use for tutoring. If you are here to *use* the board, the contract you want is the
+`AI_INSTRUCTIONS.md` in the course repository, section "The live board". This file governs work on
+the board itself.
+
+**It runs on one machine: a compute node on a Slurm cluster, no administrator rights, shared home.**
+Every rule below assumes those four facts. Nothing may need `sudo`, nothing may be supervised
+(an allocation ends and the machine stops being yours, so a login is the only moment there is),
+nothing may trust a pid on the shared filesystem without checking whose machine wrote it, and
+nothing may be added for a machine of a different shape.
+
+Read `README.md` first.
+
+## Catch up before you change anything
+
+This repository may be cloned on more than one machine, and work moves between
+them by git, never by hand. The first act of any session here is:
+
+```
+git pull --ff-only
+```
+
+A fix shipped from somewhere else has to be in front of you before you build on
+it, or you will be fixing a board that is not the one running. It is deliberately
+never fatal: no remote, no network, or a diverged branch say so in one line and you
+carry on. `tutor` and `tutor resume` now do this for the machine — pull, re-exec,
+and bounce what is holding old code — but a session of yours may have been open
+since before the last one of those ran, so pull anyway. But start from what is on disk, not from what was there when you last
+opened it. The same rule applies to a course repository — its lesson transcript
+(cards, turns, ink, answers) is versioned too, so a lecture picked up here is the
+same one taught there. The headless tutor pushes that transcript on a beat and the
+session start pulls it; do not re-commit a card another session already wrote.
+
+**Then check the machine you are standing on.** The one iPad address belongs to the machine holding
+the tailnet name, and a node whose name was changed in the admin console still has the old one in
+its local state. Prompt the person rather than assuming it is right.
+
+**On a compute node this is one command, not a checklist:**
+
+```
+bash scripts/setup-node.sh [--tailnet-name <node-name>]
+```
+
+The script is idempotent and reports what it found rather than what it assumed. Do not pin the
+machine's name there — on a cluster it is supposed to change with the allocation. The reasoning, and
+the one step left to a person, are in `README.md` under "One address, and the machine holding it".
+
+## What this must never become
+
+- A chat client. The conversation lives in the assistant's own session. The board displays
+  mathematics and carries the student's answers and scratch work back. Resist every feature that
+  starts to look like a message thread with an assistant reply box.
+- A dependency pit. Python standard library on the server, no framework in the browser, KaTeX
+  vendored. No pip, no npm at run time, no build step. If a change needs a package, it needs a
+  better idea instead.
+- Something the student has to operate. They open a URL. That is the whole interface. Anything
+  that would make them start, restart, or troubleshoot a process is a bug in the design.
+
+## Where code goes, and where it stays
+
+**This is a package, and it is organised by what a thing is ABOUT.** It was not always: `serve.py`
+was 2,806 lines and `boardlib.py` another 1,619, and the cost was never length — it was that
+finding out what `/switch` did meant reading past everything else, and that two people editing two
+unrelated things edited the same enormous method.
+
+```
+serve.py                the entry point, and nothing else. It keeps its name and
+                        its command line because a board is a long-lived process
+                        identified BY that command line.
+tutorboard/
+  paths ports choice    what this machine knows about itself
+  machine processes tex what this machine IS, and what is alive on it
+  limits reasoning      what a model may say, and when it may not say it
+  handoff sense         what a turn means, and what it leaves behind
+  brief carry           what a turn reads before it teaches, and what it tells
+                        the next one -- a turn is its own session, so both are
+                        files rather than conversation
+  machines.py           what this machine can teach, and what was chosen on it
+  net/                  the tailnet it is reached on, and getting out to a model
+  course/               a course on disk: repo, config, document, homework,
+                        review, syllabus, screenshot
+  lesson/               what is on the board now: cards, turns, notes, slate,
+                        archive, state, git, uploads
+  server/               the board itself: app, handler, hub, tikz, spawn,
+                        multipart, and routes/ — one module per family of paths
+  cli/                  reserved for the commands; today they are bin/
+```
+
+**Maintaining it is part of every change, not a separate task.** Concretely:
+
+- **A new route goes in `server/routes/`, in the family it belongs to.** Never back into
+  `handler.py`, which keeps the plumbing and the table and nothing else. `test/choice.py` checks
+  this and will fail if a route drifts home.
+- **A new rule goes in the module that owns the subject**, not in whatever file already has the
+  variable in scope. If it does not fit any of them, that is a new module, not a drawer.
+- **Import modules, never names.** `from tutorboard import machine`, then `machine.node_name()` —
+  not `from tutorboard.machine import node_name`. A test that moves `paths.CHOSEN` or replaces
+  `machine.machine_shape` must move it for every caller, and `from x import y` takes a copy of the
+  binding and quietly defeats both. This is not style; it is why the suite can isolate anything.
+- **A module name is reserved vocabulary.** Do not name a local `state`, `turns`, `cards`, `notes`,
+  `tex`, `handoff` or `hub`. Shadowing the module it came from is the single failure this
+  reorganisation produced most often, and it is invisible until the line runs.
+- **One place derives a path.** `paths.TOOL` is where the tool is; nothing computes it from its own
+  `__file__` again, because a module that moves takes a hand-rolled `dirname(dirname(...))` with it
+  and the only symptom is LaTeX not finding `board-macros.tex`.
+- **A suite that reads source reads the module that owns the rule.** That is what makes "where is
+  this decided" answerable, and it keeps the tests honest about the layout.
+
+## Invariants
+
+- **NOTHING THAT HANDS A DOCUMENT OVER MAY NAVIGATE THE APP.** Installed to the home screen there
+  is no browser chrome, so anything opened in place has no back button and no way out short of
+  killing the app — and iOS ignores `download` on an anchor in a standalone web app and treats the
+  tap as a navigation, so `<a download href="...">` is that dead end and not a saved file. A
+  document is FETCHED and handed to the system as a file (`navigator.share`, which raises the sheet
+  over the board), and the last resort is a NEW context, never this one. `renderScratch` has said
+  this about images since long before it was true of PDFs; `test/link.js` now holds it as a rule.
+- **A rendering defect is only visible in a rendered page, and WebKit is the engine that matters.**
+  The lesson photographer shipped with six of them and every one looked correct in the code: an
+  `<img>` does not paint inside an SVG loaded as an image in WebKit (Blink paints it), `outerHTML`
+  is not XML, a comment containing `--` is not a comment, `rem` has no root to resolve against in a
+  `foreignObject`, `body { min-height: 100vh }` lands on whatever stands in for body, and a still
+  renders the first frame of an animation. Any change to `web/shot.js` gets a case in
+  `test/shot.js` AND a page rendered and looked at — the suite cannot rasterise anything, and the
+  device is where this is used.
+- **One process per course repository.** Ports derive from the directory name so two courses can
+  hold boards at once, and derive it identically on every machine — one machine cannot read
+  another's filesystem, so a shared rule is the only way it knows where to knock. A name
+  maps to a short *sequence* of ports (`tutorboard.ports.port_sequence`) rather than to one, because a hash
+  cannot promise distinct numbers and did not: two courses collided and the second to start simply
+  failed to come up. A start walks the sequence for a free port and records which one it took.
+- **Which course the address serves is a decision, not a race.** `chosen.json` records the course a
+  person named — `tutor <course>` writes it, and so does a tap in the hub — and every board
+  publishes it through `/health`, because only the machine serving can read either the record or the
+  port a course actually took. Nothing may go back to serving whichever board answers first: with
+  two boards up that is alphabetical order wearing a disguise, and it made tapping a course in the
+  hub do nothing visible at all. A board also says who it is in `/health`, and no port is served
+  without that name matching the course being looked for — a port is derived from a name and
+  derivation is not proof.
+- **The machine that opens a course takes the address for it, in the same request.** A tap in the hub
+  is a person naming the lesson they want, so `/switch` records the choice, starts the board and
+  re-points the tailnet name before it answers; the hub then waits until the address really is
+  serving that course before reloading, because reloading sooner lands on the board being tapped
+  away from. A *start* is the opposite case and must not take a name a live board is holding —
+  `tutor restart` walks every course on the machine and would leave the address wherever the
+  alphabet finished. `test/choice.py`, `test/address.py`, `test/hub.js`.
+- **Only a person records a course choice.** `chosen.json` decides which lesson the one installed
+  address opens, and it means *somebody asked for this*. It
+  exists precisely because the answer cannot be derived from disk — working in a course touches its
+  files, so "most recently used" re-elects itself. Machinery must therefore never write it:
+  `agent_start` spawns `tutor headless <course> --respawn`, and `--respawn` means *record nothing*.
+  Its callers are the login hook, the periodic pull, and `tutor restart --tutors`, which loops over
+  every course — so a write here handed the address to whichever course a loop finished on, and the
+  resume that read it back made the mistake permanent. The entry points that are a person naming a
+  course (`tutor <course>`, `tutor agent start <course>`, a tap in the hub) do the recording
+  themselves, before starting anything. `test/choice.py`.
+- **Cards are append-only files.** The assistant writes `live/cards/NNNN-slug.md` and never edits
+  a card the student has already read, except to fix a genuine error — the board is a transcript.
+- **A card carries what the tutor SAID, never what it thought.** Every model worth teaching with
+  reasons before it answers, and the reasoning is written in the first person about the student —
+  "they are confusing the fixed field with the subgroup, so I should probably". Providers are meant
+  to keep that out of the content they return; several of the free ones do not. A card is the
+  lesson, is pushed to every device the moment it is written, and is committed to the transcript, so
+  there is no undo — which is why nothing here trusts a model to have kept its thinking to itself.
+  `tutorboard.reasoning.strip_reasoning` is the one place that knows what thinking looks like: the tutor strips
+  as it comes off the wire, and `board write` strips again on the way in, so an agent this
+  repository has never heard of is covered as well. The second gate takes only a block the card
+  *opens* with — a lesson may be *about* reasoning models and say the word in earnest, and the body
+  of a lesson is not ours to edit. `test/reasoning.py`.
+- **And thinking with no tag on it is REFUSED, not stripped.** On 1 September 2026 the same course
+  got a card that was eight hundred tokens of *"I need to read the student's response… Hmm, wait.
+  Let me re-read"*, cut off mid-sentence, with no tag, channel or bracket anywhere in it. There is
+  nothing in that to strip: the whole reply is the thought. `tutorboard.reasoning.reads_as_reasoning` asks a
+  different question — is this addressed **to** the student or **about** them — and the answer is
+  acted on by refusing: the free chain passes over a model that deliberates and tries the next one,
+  `board write` writes nothing and says why (`--force` for somebody who means it), and the readers
+  (the board, `board recap`, the export) put a one-line notice in place of a card that reached disk
+  some other way, because the brief tells an interactive tutor to write the file itself and that
+  door has no gate on it. **A card that never appears is a wait; a monologue that appears is the
+  lesson.** The discriminator is that a card always has somebody it is talking to — keep it, or a
+  lesson *about* reasoning models will be refused. Calibrated against every card in every course on
+  the machine: one leak caught, no lesson touched. `test/reasoning.py`.
+- **The macro vocabulary is shared.** `web/macros.js` mirrors each course's
+  `latex/coursemacros.sty`. A command that works on the board must work in the `.tex` file, and
+  the reverse. When a course adds a macro, add it here too and add a formula using it to
+  `test/macros.js`.
+- **Math is never touched by the markdown renderer.** `protect()` parks math and code before any
+  markdown parsing and `restore()` puts it back as escaped text for KaTeX to walk. Every change to
+  the renderer needs a case in `test/markdown.js` proving a subscript or an asterisk inside `$…$`
+  still survives.
+- **A bad formula must not blank the board.** KaTeX runs with `throwOnError: false`; a broken TikZ
+  fence caches an `.err` and renders as a marked box. Nothing in the render path may throw.
+- **A lesson is a transcript, and both halves of it are kept.** The student's answers are turns:
+  anchored to the card they answer, and versioned, so a correction supersedes the original *in
+  place* rather than appending another copy. `live/turns.jsonl` is append-only; every revision
+  stays, only the newest is shown. Every send still writes a PNG frozen at that moment into
+  `live/answers/`, one per revision, and archiving takes cards, turns and those frozen answers
+  together — a folder of the assistant's cards with the student's half missing is a record of half
+  a conversation. `test/transcript.py` guards all of it, and none of that is negotiable.
+
+  **What the transcript SHOWS is a separate question, and the answer changed on 31 August 2026.**
+  It used to be the frozen picture, always, on the reasoning that the slate was one surface that got
+  written over — so the picture was the only copy of what had been handed in. That reasoning expired
+  when every question got a page of its own that is never wiped: the page is still there, under that
+  question's board, and the picture beside it is a second dead copy of the same ink. The board is
+  what is shown, and the picture is the fallback wherever there is no board to show — a filed lesson,
+  a past one, or a browser that has never held this question's page, since that mapping is local to
+  the device that made it. Decided by the person whose lesson it is, on the argument that a
+  correct answer is written up into the document and the transcript is not the archival copy.
+  `test/feedback.js` and `test/interactive.js` hold both halves of the rule.
+- **An export is the whole conversation, numbered, and kept.** `board export` and the board's own
+  menu produce one document per sitting: the tutor's cards *and* every page the student handed in,
+  as the picture that was sent, in the board's own reading order. Both halves, for the same reason
+  `board archive` keeps both -- a folder of the assistant's cards with the student's half missing
+  is a record of half a conversation. It goes in `transcripts/`, which git can see, under
+  `<lesson>-vN` -- **numbered, never a timestamp**, asked for in those words -- and it is staged
+  rather than committed, because a commit mid-lesson is the person's decision. `document.py` is
+  the only exporter; the board and the CLI both call it. Two things there are load-bearing and
+  neither is obvious: Unicode in a card is a fatal pdflatex error and is mapped or dropped, and
+  graphicx, xcolor and hyperref load *after* the course's own macros with no options, because an
+  option clash is fatal too. `test/document.py`.
+- **A question is a chain of boards, and nothing takes one away.** One board per attempt: it is
+  frozen exactly where it was written as soon as what it holds has been handed in *and* the tutor
+  has written something since, and the next attempt opens on a **copy** of it. Both halves of that
+  condition are load-bearing — freezing on the send alone forks the page every time somebody
+  presses Send to check their working, and freezing on any card at all cuts a board for a hint
+  about working nobody has sent. The copy is what makes "all my prior work is on it" and
+  "independently of each other" true at the same time, and it is why a new attempt must never be a
+  blank sheet or the same sheet. Asked for from the device on 1 September 2026, in those words.
+  The record is one entry per board — `"<question>#<attempt>": { p, a }` in `board.pages`, per
+  course — and every board keeps the card it sits under, because a reload has no other way to know
+  where it goes. `test/chain.js`.
+- **One session boundary, everywhere.** A sitting is filed by `board open` and by `board archive`,
+  and by nothing else. `board push` used to archive as well, but only in a `code` repository — so
+  the same **⤓ save** filed the lesson away in one course and carried on in another, for no reason
+  visible from the iPad. A commit is a save. Do not give any repository a boundary of its own.
+- **There is no mode, and there must never be one again.** A `mode` of `math` or `code` in
+  `tutorboard.json` decided the method, the first card, the session boundary, half the contents
+  drawer and whether the board had an answer panel or three tap-signals. Every one of those splits
+  is gone: one method, one board, one set of controls, in every repository. A `mode` key still
+  sitting in a course's own file is read and DROPPED — `read_config` pops it — because those files
+  live in the course repositories and a stale key must never be why two boards differ. `stance`
+  (`teach` or `do`) is the one thing a repository may still declare, and it changes nothing but
+  who writes the code.
+- **The signals are gone; a sentence replaced them.** *Ready to check*, *I need help* and *I'm
+  confused* were three buttons docked over the lesson in a code course. What they said is said
+  better in a written or typed turn, which every course has: a tap meaning "look at what I
+  changed" leaves the tutor to guess at what and why. The server still ACCEPTS those three
+  signals, and that is deliberate — an installed app serves a cached shell, and a 400 in reply to
+  a tap on a device that has not picked up the new one yet is a lesson that stops. `begin` and
+  `skip` are still sent by the board.
+- **Never write to a board somebody is using.** Reading a live board is fine — `/health`,
+  `/live`, `board_json`. WRITING to one is not: a probe POSTed to `/slate/save` on the running
+  Galois board on 2 September 2026 replaced page 7 — the sheet an answer had been handed in off,
+  279 strokes — with a two-point `#eee` fixture, and the same payload is still on disk as
+  `page-99`. It read afterwards as the board having cleared or reused the page, which sent the
+  next session looking for a bug that was not there. Every suite in `test/` drives a temporary
+  course for this reason; there is no diagnostic worth a page of somebody's proof. And when the
+  file is the thing, read the file: `board_json` caps a response at 1 MB and a slate is bigger
+  than that, so the endpoint will tell you a full slate has no pages at all.
+- **The slate never loses ink.** Strokes are saved as vectors on an idle timer and again on page
+  change and unload. A change that can drop a stroke is a change that must not ship — the student
+  is writing a proof, not doodling. **A save is addressed to a page by number**, and `dirtyPages`
+  is the queue: "save the current page" is a lie the moment anything can change the page on its
+  own, and the board does — an attempt freezing and its successor opening is a page switch that
+  arrives on a payload. Never reintroduce a save that reads `current` when the wire frees up. And
+  never move the page under a pen that is down; `api.writing()` is how the board asks.
+- **The PNG is for reading, not for looking pretty.** It is always dark ink on white with the
+  paper rules dropped almost to invisible, whatever the screen is showing, because its only job is
+  to be legible to whatever agent opens it. **Which is exactly why it is never what a board
+  shows.** A past board is drawn from the frozen STROKES beside it — `live/answers/<turn>.json`,
+  written once with the picture and never touched again — by the same code, on the same paper, and
+  framed the same way as the live surface. Showing the file instead put a white sheet, cropped to
+  its own ink, in a run of black ones: reported from the iPad as boards whose "color is inverted".
+  The picture stays as the fallback for an answer handed in before the strokes were kept, because
+  an inverted board still shows the working and a blank one does not. `test/chain.js`.
+- **A board whose sheet no longer holds its answer gets the answer back, not a blank page.** The
+  test for "no longer holds it" is fewer strokes than were handed in — a page can only lose them by
+  being cleared, reused or cloned over. Showing the frozen answer takes one stroke fewer as
+  evidence; MOVING the page under the pen takes half, because somebody who sends an answer and then
+  rubs two lines out of it is editing that sheet, and cutting them a fresh copy of the send would
+  orphan the edit. Reversible display, irreversible pen: they are allowed different thresholds and
+  the reason belongs in the code beside them.
+- **The paper is a property of the device, and it is remembered.** Every board on the page is drawn
+  with it — the live surface and every photograph — so forgetting it on a reload repaints a whole
+  sitting in the other scheme, and a photograph keyed only by what is on it never notices. The key
+  carries the paper; the picture box is painted the paper's own colour; and nothing about the paper
+  is a page property, so choosing it must never mark a page dirty.
+- **Nothing expensive happens under a hand.** The picture of a page — `toPNG`, which repaints the
+  whole page offscreen and PNG-encodes it — is a hundred-odd milliseconds of main thread, and it
+  used to run on every autosave, about a second after every stroke. A send encodes it, because it
+  is frozen as the answer; an autosave encodes it only once the hand is off the glass — and the
+  glass is the whole PAGE, not the writing surface: a pen, a finger on the sheet, a tap on the
+  toolbar and a scroll of the lesson all defer it, because the board is part of a page somebody
+  scrolls with a finger. The strokes go to disk at once either way. This is the same defect the annotation
+  layer already had, and the rule generalises: when you add work to a save, a stroke or a frame,
+  ask what is holding the glass while it runs.
+- **An undo step is the list of strokes, not a copy of them** — on the slate and on the annotation
+  layer both — and that is only correct because a
+  stroke on a page is never changed in place. Anything that would change one (dragging a selection,
+  recolouring it) replaces it with a copy and changes that; `dense` and `_bb` are caches and may be
+  dropped on anything at any time. Break the rule and undo silently stops undoing, which no
+  screenshot will show you. It used to serialise the whole page on every pen lift and every touch
+  of the rubber. `test/plane.js` drags and undoes; `test/link.js` undoes two marks on a card one at
+  a time, which is what fails when adding a mark starts pushing onto the live list again.
+- **An ink layer's BOX reaches the window; its bitmap waits for the first mark.** Every card
+  carries one, because it is what takes the pen while annotate mode is on, and allocating each at
+  the card's size in device pixels is hundreds of megabytes over a long lesson — the budget the
+  dormant boards exist to stay inside of. The box exists either way, and it is not the card: it
+  reaches both edges of the window sideways and half the gap to its neighbour up and down, because
+  a run of cards must have no strip in it where the pen has nothing to land on. Ink out there is
+  still stored as fractions OF ITS CARD; the fractions go negative. A hidden neighbour is not a
+  neighbour — the writing surface is in that same list and reports a rectangle of zeros while the
+  panel is shut, and a layer believing it would reach back over the card above and take its pen.
+  The bitmap is capped at four million device pixels and drawn a little below the screen's own
+  resolution above that, because iOS answers a canvas budget it has run out of with blank
+  canvases. And `Annotate.load` redraws what it adopted, never the whole lesson: it runs on every
+  payload.
+- **A repaint draws what can be SEEN.** A page is a plane that grows downward as it is worked, so
+  most of an evening's strokes are a screen or more away — and a full repaint is what a pan, a
+  pinch, a zoom and every erased stroke used to cost. Strokes are culled against the visible box
+  (their own boxes cached on them, cleared wherever points MOVE), and rubbing out repairs the
+  rectangle it emptied rather than the page. Measured in `test/plane.js`, which fails if an erase
+  goes back to costing a whole-page repaint. The annotation layer follows the same rule: an erase
+  sample and a pen lift each repair one clipped rectangle, once a frame, and only the marks that
+  reach into it — `test/link.js` counts the line calls. A repair with no rectangle repairs nothing;
+  it must never fall back to the whole canvas.
+- **The nib marks the page on the frame it lands.** The curve needs three samples before it yields
+  a point, and samples closer together than `MIN_STEP` are dropped, so a pen put down and moved
+  slowly painted nothing until it had travelled a pixel or two — reported as a delay on tapping to
+  write. The landing point is painted as a dot, on both surfaces. A change to the ink pipeline that
+  quietly reintroduces the wait fails `test/plane.js` and `test/link.js`.
+- **Userspace Tailscale only.** The node has no root and no TUN device, and it must stay that
+  way: `--tun=userspace-networking`, binaries and state under `~/.local`. A change that needs
+  `sudo` is a change that cannot be deployed here.
+- **The service worker caches the shell and nothing live.** SSE, the board payload, uploads,
+  slate saves, and figures go to the network every time. A cached lesson is a stale lesson, which
+  is worse than a blank screen. Bump `VERSION` in `sw.js` whenever a shell file changes.
+- **One machine teaches, and one address opens one of its courses.** `tailscale serve` proxies the
+  tailnet HTTPS name to a port on the machine running it, and answers every request with a 502 if
+  its config names a remote tailnet backend — so there is no arrangement in which one origin serves
+  two machines, and nothing here may be built as though there were. The identity moves between
+  cluster nodes, which works because they share one home directory and one ownership record. The hub
+  is a directory listing of this machine's courses; there is no machine to pick and no second list
+  to reconcile. `test/choice.py`, `test/hub.js`.
+- **A tap in the hub moves the address, in the request that serves it.** A course has its own port,
+  so opening one means re-pointing the one name the app is installed against; nothing else is going
+  to. A *start* is the opposite case and must not take a name a live board is holding, because
+  `tutor restart` walks every course on the machine and would leave the address wherever the alphabet
+  finished. `test/address.py`.
+- **A board binds its tailscale address as well as loopback** — the tailnet, not the LAN. That is
+  what makes `http://<machine>:<port>/` reach a board directly, which is the way in when the HTTPS
+  name is pointing at another course.
+- **The tailnet address must never depend on which node you were given.** A cluster node registers
+  under the service name rather than the compute host's, and its state lives in the shared home so
+  the identity follows the user from node to node. The installed iPad app has one origin baked into
+  it; changing that address breaks it silently.
+- **Two kinds of assistant, two ways of expiring.** A headless daemon has a heartbeat and is dead
+  after two minutes of silence. An interactive one is idle for exactly as long as the person in
+  front of it is thinking, so it is judged by whether its process still exists — `tutor` records
+  the pid before `execvp`, which is the pid the assistant then has. Applying the heartbeat rule to
+  both is why the board's indicator was dark in every ordinary session; applying the pid rule to a
+  daemon would believe a killed one whose record looked fresh. `tutorboard.processes.agent_is_attached` is the
+  single place that decides, and the server, `tutor where` and `agent_live` all ask it.
+  `headless --stop` skips interactive records: someone is sitting in front of that terminal.
+- **A pid on a shared filesystem proves nothing.** Every record that crosses `live/` carries the
+  node name, and every liveness check compares it before trusting the pid.
+- **`hidden` must actually hide.** Both stylesheets carry
+  `[hidden] { display: none !important; }`, because a UA stylesheet's `[hidden]` rule loses to any
+  author rule that sets a display. Never remove it; `test/hidden.js` guards it.
+- **Read the CSS before theorising about the platform.** The drop overlay shipped painted over the
+  lesson from the first version, and it was blamed on caching and then on iOS resume semantics
+  before anyone checked a two-line rule. When the user says a fix did not land, verify what is
+  actually being rendered before proposing a mechanism for why.
+- **The first turn must be possible from the device.** An empty board asks no question, so no
+  answer is owed, so nothing opens the slate — and in maths there is no box either. That made the
+  cold start a terminal job, which is the ceremony the launcher exists to remove. An empty board
+  therefore carries one button that sends a `begin` signal, and sending it makes the board
+  non-empty so the button retires itself. A signal has no sentence in it, so its inbox line carries
+  its own meaning: in a headless session that line is the prompt the assistant is woken with, and a
+  bare tag tells it nothing. `test/begin.py` drives the round trip. Do not answer this hole with a
+  composer.
+- **The teaching method ships with the board, not with the course.** `TEACHING.md`
+  at this root is the method every course is taught by, copied into `live/` on
+  every `board start` and pointed at by the brief, the headless prompt and the
+  cold-start line. The course owns its subject; this owns the shape of a turn,
+  because the shape is a property of the board. Do not paste it into a course's
+  `AI_INSTRUCTIONS.md` — the same document in a dozen repositories drifts one
+  repository at a time, and the one that drifts is the one noticed last.
+  `test/teaching.py` guards both the rules and the delivery.
+- **A lecture aims at an exercise.** Pick the section's exercises first, choose a
+  manageable few and say which and why, teach only what each one needs with a
+  worked example, pose one question, stop. Surveying a chapter and asking
+  something at the end is the shape this exists to prevent: it wastes the hour
+  and teaches to nothing.
+- **Annotations are anchored to a card, never to the page.** The lesson reflows on every
+  type-size change, typeface change, rotation and finished figure, so ink stored in page
+  coordinates ends up somewhere else every time. Strokes are fractions of their card's own
+  width and height and are redrawn from that. The layer is `pointer-events: none` until
+  annotate mode is on — an always-live overlay over the lesson is the drop-overlay defect
+  again, and it would eat every scroll and every selection. `test/annotate.py` and
+  `test/link.js` hold both halves.
+- **Whether a gesture scrolls is a question about the HAND, not about the place.** It used to be
+  about the place: `touch-action: none` on the cards, so a swipe over a card was always a stroke and
+  a swipe over the margin down either side of the column was always a scroll — which got the pen
+  wrong exactly where the pen has least room. The ink layer permits the scroll in CSS
+  (`touch-action: pan-y pinch-zoom`) and `annotate.js` takes it back on `touchstart` when the
+  contact is a stylus, or when it is a finger and the slate has been told a finger writes. A finger
+  scrolls natively, with its own momentum, anywhere on the lesson; a pen never scrolls, anywhere on
+  the lesson. Nothing may put `touch-action: none` back on a card or on `#board` — `test/link.js`
+  fails if it comes back. One setting decides what a finger does, and it belongs to the slate:
+  `window.Slate.fingerWrites`.
+- **A stroke belongs to one pointer.** The other contacts arriving on a layer mid-stroke are the
+  rest of the hand holding the pen, or a finger that has landed to scroll, and a `pointerup` is a
+  `pointerup` whoever sent it. The slate answers this by condemning every other contact as a palm
+  the moment the nib lands; the annotation layer, which has no palm map, answers it by checking the
+  id — a move or a lift from anyone but the pointer that began the stroke is ignored. The symptom
+  otherwise is annotation that stops writing partway through a word and cannot be reproduced by
+  anyone holding the pen properly. `test/link.js` lands a second contact mid-stroke.
+- **Nothing that arrives above the reader may move the reader.** Safari has no scroll anchoring, so
+  `render` notes which card or turn the reader is looking at and where on the glass it sits, and
+  puts it back once the lesson has been rebuilt around it. A sent answer is held out of the
+  transcript only while it is the LAST item, so answering a question the tutor has since written
+  under renders a whole board's height above the surface; and the frozen picture has a width and no
+  height, so it occupies nothing until it decodes. Everything after `holdAnchor` either leaves the
+  page alone or says explicitly where it should go, and both of those are decisions — content
+  appearing above somebody is not.
+- **A record keyed to a QUESTION must never be applied to a board the record is not about.** A
+  question has as many boards as it took attempts, and the next attempt opens on a COPY of the one
+  that was handed in — so it holds every stroke of that answer without ever having been the sheet
+  the answer came off. `lostAnswer` asked "has this sheet lost its answer" of it anyway, so erasing
+  the copy, which is the first thing anybody does with one, made the board hand the old answer back
+  under the pen over the new working. The guard is `repairPages`'s, which is why `repairPages` never
+  had the bug: if a board of the question already holds what the record names, there is nothing to
+  repair and nothing to reclaim.
+- **"Has this board lost its answer" is asked when a board is OPENED, never while somebody is
+  sitting on it.** It is a question about a board you are coming back to and finding changed. Asked
+  on every render of the live board it means: clear your own answer's sheet to write it again — an
+  ordinary thing to do — and the next payload rules the answer destroyed and puts it back over your
+  fresh start. `reclaimSeen`/`reclaimOwed` make it once per board per opening, and OWED until a
+  judgement is actually reached, because fetching the frozen strokes and waiting for a hand to come
+  off the glass are not decisions. And a sheet that has GAINED ink since the ruling is a sheet
+  somebody is using: abandon, do not re-judge. `test/chain.js` holds all three and each fails alone.
+- **A document lives in the repository AND can leave on the device.** Both PDFs -- the lesson
+  export and the written-up problem set -- are built into the course repo and tracked in git; that
+  is the archival copy and it is not negotiable. `routes/taking.py` is the other half, and its rule
+  is that **the client never names a path**: it names a kind, and the route resolves it through
+  `live/export.json` or `live/hw.json`. Never add a path or filename parameter to it -- that is a
+  directory traversal waiting to be written, and there are two documents. The resolved path is
+  checked anyway (inside the repo, ends in `.pdf`, exists), because a record is on disk and disk is
+  editable. `test/document.py` holds the refusals.
+- **A CARD ARRIVING NEVER MOVES THE READER.** It grows into view. The reader is stationary and the
+  text grows downward past them, which is what every chat page on the web does and what was asked
+  for in those words. The layout grants it for nothing: the student's working keeps its place in the
+  run when it freezes — a live surface and a dormant board are one box by construction — so nothing
+  above the reader changes height and the reply appears in the space under their working where "the
+  tutor is writing" was. `revealNewest` is for the first paint and for the jump button, which is
+  somebody ASKING to be taken. Nothing else may aim the page at a card.
+- **Nothing on the page can be selected, except a text box.** `user-select: none` on `body`, always,
+  not on the lesson and not only while annotating. It is not only an eyesore: once a native
+  selection begins the browser owns the gesture and the pointer stream stops reaching the canvas,
+  which is how annotation "intermittently stopped writing".
+- **NEWS IS A CARD. THE STUDENT'S OWN ANSWER IS NOT NEWS.** `anythingNew` in `render` is the whole
+  basis of the reveal at the foot of it, and the only reveal it can lead to is `revealNewest` — the
+  top of the newest thing the TUTOR wrote, which with a question open sits directly ABOVE the
+  writing surface. It counted a fresh *turn*, so the payload the send itself provoked threw the page
+  up to the card above the board just written on, and when `penBusy`'s tail won the race it offered
+  a jump button to the same wrong place instead. A turn has its own answer to where the page should
+  be and it is `revealSent`. Never count one here.
+- **A test for a scroll must watch for a deliberate aim, not only for a shift — and must stage the
+  condition.** Two versions of this test proved nothing. The first measured the shift and passed
+  while the board overrode the anchor one line later, because `scrollTo` is a no-op in the harness
+  and nothing was looking at it. The second staged the receipt BELOW the writing surface rather than
+  above it: the condition for the reported defect is that the answered question is not the last card
+  the tutor has written, and without three cards in the lesson the insertion lands somewhere
+  harmless. Spy on `scrollTo` as well as `scrollBy`; hold the render back past `penBusy`'s tail
+  (2.5s from the last pen sample, 1.2s from the last touch anywhere on the page); and prove the
+  staging by asserting the new node really did land above the reader. Then remove the fix and watch
+  the test fail — both of these passed with the fix taken out. `test/interactive.js` carries a small
+  layout engine for the transcript.
+- **What the tutor gets is the ink and the card, not a picture of the lesson.** It wrote the
+  card and can read it back off disk. Flattening rendered HTML and KaTeX into an image needs
+  fonts inlined per send and cannot be verified without a browser; do not add it.
+- **The lesson is reconciled, not rebuilt.** Nodes are keyed by card id and revision, so an
+  unchanged card keeps its node — and with it its scroll position, its typeset mathematics
+  and its ink layer. Never go back to clearing and rebuilding the container: it re-parses
+  every card, re-typesets every formula and re-fetches every figure on every frame, and it
+  discards the annotation layers.
+- **Cards are ordered by their number, not by their mtime.** They are written in sequence and
+  that sequence is their place; sorting by modification time meant correcting a typo in card
+  three moved it after everything the student had since answered.
+- **The student can save without the tutor, and saving is not ending.** `⤓ save`
+  in the title bar raises the push offer at any moment, in every course. It commits
+  and records the outcome; it does **not** archive, and neither does `board push`
+  from a terminal any more. Sessions end by being abandoned far more often than they
+  end tidily, and until this existed the only route to a commit was a prompt that
+  only `board finish` could raise. `test/link.js` and `test/annotate.py` hold both
+  halves.
+- **Nothing automatic writes git history into a repository somebody is working in.**
+  A course is where its owner works, not only where they are taught, and the beat
+  runs unattended every ninety seconds. Two rules, both in `tutorboard/worktree.py`
+  and applied by the beat, `sync`, `tool_pull`, `board push`, the board's save and
+  `catch-up.sh`: a commit names its pathspec (`--only -- live`), because `git commit`
+  commits the whole INDEX and swept up whatever was staged in a terminal under the
+  message "lesson transcript"; and nothing at all happens while a rebase, merge,
+  cherry-pick, revert or bisect is outstanding, or on a detached HEAD. `test/beside.py`.
+- **The way out of a lesson asks.** The back arrow offers save-and-push, leave-without-saving,
+  or stay — every time, not only when the board happens to know something is outstanding. The
+  session survives either way (it is files), but what is on disk is not what is pushed, and
+  walking away is exactly when that gets forgotten. The board also shows the uncommitted count
+  on the save itself, from a `git status` cached for eight seconds, and re-offers once when a
+  session is returned to with work outstanding.
+- **The kind of sitting is chosen on the board, and only from what exists.** The badge is the
+  control; `/session` accepts `lecture`, `homework` or `review`, plus a set name or a list of
+  chapter names matched against the repository's own, so a name from a request never reaches the
+  filesystem. A homework sitting is woken with the path to its assignment sheet and told the
+  problems are not its to choose — the one thing that differs from a lecture. Do not let a
+  homework prompt inherit the lecture's "pick a manageable few".
+- **A test review is held over a scope the student chose, and the scope is a list.** They are the
+  only person who knows what is on the paper, so a review cannot start from one tap the way the
+  other two do: the picker asks first, and it offers `review.units()` — the course's chapters, or,
+  in a project that has none, the project's own top-level parts. A test is not one chapter, so
+  every layer takes a list and never a single name, and the whole scope goes in one request:
+  sending it a chapter at a time would archive the lesson once per tap. Names are re-resolved
+  against the repository on the way out as well as on the way in, so a chapter renamed under a
+  running sitting drops off the strip rather than sending the tutor to read a file that is not
+  there. A review produces **no document** — nothing transcribed into a `.tex`, nothing compiled
+  — because nothing is being handed in and the lesson is the record. Do not give it one, and do
+  not let its prompt inherit the lecture's "pick a manageable few" or the homework's write-up.
+  `review.py`, `test/review.py` and `test/review.js` hold it.
+- **A board is a process, and processes hold old code.** `serve.py` is read once, at start, so a
+  change to this repository reaches a course only when its board restarts — while the pages,
+  served from disk, already look new. `scripts/save-and-push.sh` runs `tutor restart` after a
+  successful push for exactly that reason. Restart only boards answering on this node; a record
+  on the shared home may be another machine's.
+- **A course is navigable from the board.** Chapters and problem sets are discovered, listed
+  under ☰, and opening one goes through `board open` so the lesson being left is archived whole
+  rather than written over. Do not add a registry of chapters; `chapters.tsv` and the chapter
+  directories are the source of truth, and a repository that follows no book correctly has
+  neither — which is also how the board and `sense.py` tell the two apart now that no mode says
+  so. Whether a repository has a syllabus is a fact about it; a mode was a declaration about it,
+  and declarations go stale.
+- **A writing prompt must be declinable.** Teaching is explain, then ask for an example — and a
+  prompt that cannot be refused is a prompt that gets answered badly to make it go away. The answer
+  block carries *skip this one* in its own header, so it dies with the block. A skip is a turn: in
+  the transcript, and it wakes the tutor, because the tutor has to carry on. Unlike a sent answer,
+  which keeps the block open so a mistake can be corrected in place, a skip closes it. What the
+  tutor is told is to carry on and not press the point; whether to work the exercise aloud anyway
+  is its judgement, not a rule. `test/modes.js` holds it.
+- **A homework sitting is bound to a problem set, and the set is discovered.** Two layouts exist —
+  `homework/hwNN/hwNN.tex` and `chapters/chNN-*/homework/chNN-homework.tex` — and neither is more
+  correct, so `homework.py` finds it from the session label and never hardcodes a shape. When it
+  cannot tell, it says so and stops: a wrong guess compiles the wrong document or files handwriting
+  into somebody else's problem. Problem labels are opaque strings, because one course numbers
+  problems 1, 2, 3 and the other 7.1, 7.2, 7.3.
+- **The board does not write LaTeX.** The assistant edits the `.tex` with its own tools, as it does
+  with every other file in the course. The tool owns only what is invisible from a tablet: which
+  set, which problems are still empty, whether the compile passed, and where a page of handwriting
+  is filed. Status is parsed from the `.tex` on every build rather than kept in a record of the
+  board's own — the file is the truth, and two sources of truth drift. Do not add a splice command
+  and do not mirror per-problem state into `live/`.
+- **A failed compile reaches the iPad with its reason.** `board hw build` records the outcome and
+  the tail of the log, and the board shows the LaTeX error itself. "The build failed" without the
+  reason is a message that sends somebody to a laptop, which is the thing this tool exists to
+  avoid.
+- **A document is a file, not an event, and the controls for one must never depend on a banner.**
+  Both PDFs — the lesson and the write-up — are resolved, named and rendered by
+  `course/paper.py`, and the payload says which of them exist on disk (`papers`) on every change.
+  That is the rule rather than a detail: the controls for the write-up used to live in the banner
+  of the build that produced it, which the next payload replaces, so a document that had just
+  compiled was unreachable a second later. Anything new that hands a document over asks `papers`,
+  and never a build record. And the reading half is PNG pages drawn by this machine, never an
+  `<iframe>` and never a navigation of the board's own window — iOS gives a framed PDF one
+  unscrollable page, and a PDF navigated to in a home-screen app is a board with no way back.
+- **The theme has to reach the whole window.** The viewport's background comes from `<html>` and
+  only falls through to `<body>` when `<html>` paints none of its own — and the dark palette is
+  defined on `body[data-mode="dark"]`, so an `<html>` painting `var(--paper)` resolves it from
+  `:root` and is always the light value. That put a cream band under every page shorter than the
+  screen. Leave `<html>` unpainted, give `<body>` the colour and a `min-height`. `test/theme.js`
+  guards it, and fails on the old CSS.
+- **A board with nothing attached must not look like a board with a tutor.** The assistant chip is
+  never hidden: no record reads "no tutor attached", and the empty state says so beside the button
+  it is inviting a tap on. Somebody asked the tutor to begin, saw the *connection* dot go green,
+  and waited on a session nobody had started. Two indicators in one bar means both have to say what
+  they mean.
+- **An unreachable board must say so.** Zero cards and a dead stream used to render identically —
+  "Nothing on the board yet" — so a board whose process had died read as a tutor who had not
+  written, and the only signal otherwise was a dot the size of a full stop. No payload plus a dead
+  stream states the fault where the lesson would be; a lesson already on screen stays readable
+  behind a banner, because discarding what someone is reading is the worse failure. `test/link.js`
+  guards both halves.
+- **Never aim the tailnet name at a board that is not answering here.** `live/.board.json` crosses
+  nodes on a shared home, so every command that re-points `tailscale serve` checks `alive()` first.
+  `board net` did not, and a stale record from an ended allocation was enough for a command that
+  reads like a diagnostic to park the iPad's one baked-in address on a dead port.
+- **One answer panel, and nothing beside it.** Every course has a writing surface and a typed
+  half, one toggle, and whichever the student used last opens next. Nothing decides how a question
+  is answered except the student. Do not reintroduce a mode that hides the typed half or the
+  slate, and do not add a control that stands in for a sentence. `test/modes.js` and
+  `test/answer.js` hold it.
+- **`tutor` is the entry point; `board` is the assistant's tool.** A person runs `tutor` and gets
+  a session. Never add a step that asks them to start the board themselves, or to tell an
+  assistant to — that ceremony is the thing the launcher exists to remove.
+- **Courses are discovered, never registered.** Any sibling directory with a `tutorboard.json`,
+  an `AI_INSTRUCTIONS.md`, or a `live/` folder is a course. Do not add a list, a registry, or a
+  config naming them — the filesystem is the source of truth and it cannot go stale.
+- **One vocabulary, two renderers.** `tex/board-macros.tex` is generated from `web/macros.js` by
+  `tools/sync-macros.py`. Add a macro in one place and regenerate; never hand-edit the TeX file.
+  `--check` fails when they drift.
+- **Do not assert what a model can or cannot see.** Capabilities differ by vendor, by model
+  within a vendor, and by whether the harness attaches the file at all, and all three move. `board
+  eyes` settles it by experiment; prefer running it to recalling an answer.
+- **Do not promise handwriting recognition.** Ink to text or to LaTeX needs a trained engine. The
+  tutor reads the PNG; that is the design, and it is why the slate does not need one.
+- **Platform knowledge lives under `tutorboard/`, in the module for it.** Where TeX is (`tex`),
+  which `tailscale` is in charge (`net/tailscale`), what this machine is called (`machine`). Do not
+  hardcode an architecture directory or a socket path anywhere else. And do not add a branch for a
+  machine this is not run on: it is written for a compute node with no administrator rights on a
+  shared home, and a platform case nobody here exercises is a platform case nobody here can tell is
+  broken.
+- **Nothing model-specific, ever.** The interface is a command line and a directory of files. No
+  SDK, no plugin, no assumption about which assistant is driving. `board wait` is the wake-up
+  primitive precisely because a blocking process exiting is something every agent understands.
+  A model is never a concept in the code: an agent entry is a command recipe, so a different model
+  is a different entry whose `cmd` carries the flag. If you find yourself adding a `model` field,
+  stop.
+- **A headless tutor's permissions are written once, by `board start`, into the course.** Nobody is
+  at a terminal, so nothing can be approved while a turn runs, and a refused tool is not an error:
+  the agent apologises into a log nobody opens and exits 0, which reaches the iPad as a tutor who
+  answered with silence. `TUTOR_PERMISSIONS` in `bin/board` is the whole answer — created never
+  edited, so a course keeps a list it has built up, and committed so its owner can see it. Do not
+  also put the grant on the agent's command line. One policy in two places drifts the first time
+  either moves, and the flag is the copy nobody can see. `test/agents.py` holds it.
+- **A repair may move the egress, never remove it.** An exit node routes all of this machine's
+  outbound traffic elsewhere; serving a lesson does not notice and teaching one entirely does, so a
+  turn that fails is asked about rather than assumed — and only once it has already failed, because
+  a probe in front of every turn is a round trip the student waits through. Rotation is bounded and
+  every candidate is proved before it is kept. It must never switch the exit node *off*: somebody
+  routing everything through one chose to, and exposing the address they hid in order to rescue a
+  session is not a trade this code makes for them. Which endpoints count is `egress_probe` in the
+  config, so no provider is named anywhere but one default value. `test/egress.py` holds it.
+- **The machine's name is pinned, and derived in exactly one place.** Every record that crosses
+  `live/` carries it and every liveness check compares it, so if it moves a machine stops
+  recognising its own boards: `tutor restart` skips them, the hub reports them elsewhere, and a
+  board that is answering becomes impossible to bounce onto new code. It moved here — a machine with
+  no hostname of its own takes its name from the network, and Tailscale's DNS renamed this one
+  mid-session — and it was being derived four different ways in four files (`os.uname()` in the launcher,
+  `socket.gethostname()` in the board and the server), which can disagree on one machine.
+  `tutorboard.machine.node_name()` is the only place allowed to answer, it prefers a pinned file over
+  anything the network says, and `board start` pins it the first time. Never reach for
+  `gethostname()` or `uname()` again. `test/node.py` holds it.
+- **The assistant belongs to the course, not to the terminal.** One is alive at a time, in the
+  repository whose board is showing, resolved most-specific-first: `--agent`, then the course's
+  `tutorboard.json`, then the machine by hostname, then `default_agent`. Switching course on the
+  hub moves it. Never tie an assistant's lifetime to a terminal session, and never make the student
+  start one.
+- **There is one tutor, and when it has nothing left to spend the board says so.** An allowance
+  that has run out is the strangest kind of broken -- the board answers, the machine is healthy, and
+  no lesson can be taught -- so it is detected from what a failed turn SAID, recorded per machine
+  with an expiry rather than a flag, and published in `/health`. What must never be added back is a
+  second tutor to fall through to: a lesson answered worse, by something else, without the student
+  being told, is a worse outcome than a board that reports the failure and names the hour the
+  allowance returns. `board limit` says when; `test/limit.py` holds it.
+- **A fault the person at the board cannot see must have a command that shows it.** The board up, a
+  tutor attached, an empty log and nothing arriving is a state in which everything is fine and looks
+  fine. `board doctor` says whether this machine can teach and whether the tutor it names is even
+  installed; `board limit` says whether there is anything left to spend; `board egress` says whether
+  a turn can get out. When something can only be diagnosed by reading a provider's dashboard by
+  hand, that is the bug.
+- **A config override adjusts a recipe; it does not silently delete one.** `agents` merges one
+  level deeper than every other key, because a machine adding a single field -- `{"claude":
+  {"prompt": "none"}}` -- would otherwise replace the whole recipe and be left with an agent that
+  cannot run anything. Nothing in what they wrote says that. Outright replacement is still available
+  and has to be meant: `"replace": true`.
+- **A failed turn is reported by what it SAID, never by what it exited with.** `exit 1` reached the
+  iPad for every cause there is: a retired model, a missing key, a monologue refused, a timeout.
+  The turn had already written a usable sentence one line above the number. `failure_reason` in
+  `bin/tutor` lifts it out of the turn's own output and hands that to the board, keeping the code
+  in brackets for whoever opens the log. Never stamp a bare exit code as `last_error` again.
+- **A turn is billed for its round trips multiplied by the conversation behind
+  each of them.** That is the whole arithmetic, and every reading decision in
+  `bin/tutor` follows from it. Measured on 8 September 2026 in Galois Theory,
+  eleven cards on one resumed session: turn 3 held 96k of context over 8 round
+  trips and put 0.76M tokens through the model, turn 11 held 176k over 8 and put
+  1.39M through, and the session came to 17.9M tokens ($25.40). Measured after
+  the change on a copy of the same course: 225k tokens over 6 round trips. It is
+  not the cache expiring -- a `--continue` turn re-caches only its increment, 40
+  tokens on a 43k conversation -- it is history being read back on every round
+  trip of every turn.
+  **Count tokens, not dollars.** On a subscription what runs out is a five-hour
+  allowance and that is computed from what went through the model: input, output,
+  and cache both written and read. `quota_tokens` in the config turns that into
+  a percentage, and it is a calibration rather than a published figure.
+  So: **`session_turns` is 1 and a turn is its own session.** It reads back what
+  it needs in two calls -- `board brief` for the standing rules (the method as a
+  paragraph, this course's own *rules that do not bend*, the chapter's handoff,
+  the last turn's note) and `board recap` for the lesson -- holds about 22k
+  whether it is turn 2 or turn 40, and writes what it was thinking to
+  `live/NEXT.md` with `board note` rather than carrying it. The harness prefix
+  costs nothing to re-open: a second `claude -p` in the same directory reads its
+  28k system prompt out of cache for $0.015.
+  Two things a turn must not do are refused by the command rather than asked in a
+  prompt, because both were correct instructions in the document they appeared in
+  and both cost real money: `board wait` refuses a caller inside a headless turn,
+  and `board handoff` is the only writer of `HANDOFF.md` and refuses a body over
+  350 words. `test/tokens.py` holds all of it.
+- **And what it cost is measured, not argued about.** `usage_args` on a recipe
+  makes the agent report its turn (`--output-format json`); every headless turn
+  appends a line to `live/cost.jsonl` and `tutor cost` adds it up, including
+  whether the second half of a session cost more per turn than the first. Never
+  change a reading decision here on reasoning alone -- run the turns and read
+  `tutor cost --turns`. Every number in this bullet came from that measurement,
+  and the four defects it found had all been invisible for weeks.
+- **Every change to how the tutor teaches is also a change to what it costs.**
+  A new rule in `TEACHING.md` is read by every session for ever, a new card kind
+  is more output on every turn, an extra instruction in a prompt is paid for on
+  every turn that carries it. Adding one is fine -- teaching quality comes first
+  -- but say what it costs and take the saving back somewhere else in the same
+  change. Never let a style note ship without the token pass; the two are one
+  piece of work, not a feature and an optimisation to do later.
+- **The subject list is a directory listing, built per request.** The hub shows
+  this machine's own `courses_dir` -- so a machine with a subset of the
+  repositories offers a subset, and adding a course is making a directory. Never
+  cache it, never bake it into the app, and never add a list of subjects
+  anywhere. And never let the hub claim a course is
+  running on the strength of a `live/.board.json` naming another node -- the home
+  directory is shared, so a board that died with an allocation leaves a record
+  identical to a live one. Check it against the nodes Slurm still says are yours;
+  `tutor resume` sweeps the dead ones at login, and where there is no Slurm the
+  answer is unknown, which is left alone rather than deleted.
+- **A compute node can only be caught at login.** Nothing there outlives the
+  allocation, and no node can be *asked* to take the board over, because asking
+  needs something already listening and that is what died. So `tutor resume` is
+  the takeover, and it is written to be run from a login file: silent and quick
+  when there is nothing to do, and refusing to act when a board is alive on a
+  node that is still yours, when Slurm cannot be asked, or when this machine is
+  not one of your allocations. Anything appended to `~/.bashrc` must be guarded
+  on an interactive shell -- a login file that writes to stdout breaks `scp`,
+  `sftp` and git-over-ssh, and the failure surfaces on the other machine as
+  something incomprehensible. `test/resume.py` holds all of it.
+- **`salloc` gives you a shell on the LOGIN node, and the machine it gave you
+  has nobody on it.** So the login hook fires there too, and hands the whole
+  resume to the node over ssh -- the node pulls, re-execs, bounces its own stale
+  boards and brings the lesson up, because everything that decides anything must
+  happen on the machine that will serve it. `--no-hop` is how the far end proves
+  it is the far end, and where ssh cannot get in the work goes inside a Slurm
+  step that holds itself open, because a step's cgroup is emptied the moment the
+  step ends, detached or not.
+- **No session ends without a handoff.** Sessions end by being abandoned — a switched course, a
+  closed lid, an expired allocation — so the departing assistant gets one last turn, with no student
+  attached, to write `HANDOFF.md` at the course root. `SIGTERM` starts that wrap-up; nothing may
+  kill the daemon outright, and no code path may stop an agent without going through it. An
+  assistant's own history does not survive a node, a vendor, or a week. That file is the continuity.
+
+## Where the work is
+
+`README.md` has a "Picking this up in a new session" section: the restart procedure, what is
+verified, what is not, and a table of the defects that already happened with the test that guards
+each one. Read it before changing anything in `web/`.
+
+Two things follow from that table and are worth stating as rules rather than history:
+
+- **A stub DOM proves almost nothing about a page.** Two separate "the writing surface does not
+  work" reports passed every hand-rolled test at the time. Anything touching layout, sizing, or
+  pointer input gets a case in `test/interactive.js` or `test/sizing.js`, which use a real DOM.
+- **When the user says something does not work on the device, do not theorise.** Read the code
+  that draws it and measure. The drop overlay was blamed on caching and then on iOS resume
+  semantics before anyone read a two-line CSS rule; the writing surface was blamed on layout
+  before anyone checked that a page object existed.
+
+## Before you commit
+
+```
+bash test/all.sh
+board doctor
+```
+
+`test/all.sh` runs every suite and installs jsdom itself the first time, because two of them drive
+the pages in a real DOM and those are precisely the ones that caught what the stub DOM waved
+through. Do not add a suite that only a person who remembered a setup step will run.
+
+Then actually load the page and look at it. A test suite cannot tell you the type is too small or
+a lattice collided with a paragraph.
+
+## Persona and mode
+
+The persona is the same as in the course repositories: aloof, blunt, no emojis, no empty praise.
+
+**The no-code rule does not apply here.** In a course repository the point is that the student
+writes the code; withholding it is the teaching. This repository is the *tool*, not the course.
+Nobody is learning anything by being told in English which argument to pass — they are trying to
+get a board in front of a person who is waiting to be taught on it. Write the code, make the edits,
+run the tests, report what happened.
+
+Concretely, in this repository and no other:
+
+- Edit the files directly. Do not narrate an edit the user is then expected to perform.
+- Ship the whole change, not the next step of it. The one-step-at-a-time cadence is a teaching
+  device and there is nothing being taught here.
+- Verification is still yours: `bash test/all.sh` before you claim anything works, and a test for
+  any defect a person had to find on a device.
+- The override phrase is not needed and should never be asked for.
+
+The teaching rules resume the moment the work is in a course repository — including a course whose
+subject happens to be programming. The distinction is what the code is *for*, not what it is
+written in.
