@@ -469,6 +469,20 @@ registry names the staged *directory*, because that is what `hf download --local
 produces; `psych_asr.asr.typists.resolve_nemo_checkpoint` finds the single archive inside
 it at load time, since `restore_from` takes the file and nothing else.
 
+**A NeMo typist here is the published checkpoint with local attention, not the published
+checkpoint.** Full self-attention costs memory in the square of the input length: a
+7-second clip is free and a 50-minute session asks for an 86 GiB attention matrix on a
+44 GiB card. `typists.enable_long_audio` therefore switches the encoder to a sliding window
+(`rel_pos_local_attn`, 256 frames each side — 20 seconds) and sets the subsampling chunking
+factor to 1, which is NVIDIA's own documented recipe for audio longer than the training
+segments. It is a caveat on those two rows of the grid, and the alternative is no row.
+
+**Canary does not yet produce a usable transcript of a session.** It stops after its first
+18 seconds: it is an attention encoder-decoder trained on short segments, and a wider
+attention window does nothing for an autoregressive decoder that has run out of output
+length. It needs chunked inference, which is not built. Its row in the grid reads 100.5%
+WER, and that number is a broken transcript rather than a measurement of the model.
+
 #### Running the typist bake-off
 
 ```bash
