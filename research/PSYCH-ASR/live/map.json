@@ -1,0 +1,210 @@
+{
+  "version": 1,
+  "title": "Stage 1 \u2014 a recording to a graded transcript",
+  "nodes": [
+    {
+      "id": "typist",
+      "name": "the typist",
+      "also": "faster-whisper large-v3",
+      "kind": "part",
+      "status": "working",
+      "does": "Turns the waveform into words. One candidate, never compared \u2014 which is a default, not a decision.",
+      "files": [
+        "psych_asr/asr/typists.py",
+        "psych_asr/cli/transcribe.py",
+        "psych_asr/cli/run_asr.py"
+      ],
+      "dir": "psych_asr/asr",
+      "doc": "",
+      "slide": null,
+      "blockedBy": [],
+      "note": "",
+      "chapter": ""
+    },
+    {
+      "id": "stopwatch",
+      "name": "the stopwatch",
+      "also": "wav2vec2 base, LibriSpeech",
+      "kind": "part",
+      "status": "next",
+      "does": "Puts a start and an end on every word. The least examined box here: a small model trained on read audiobooks.",
+      "files": [
+        "psych_asr/asr/align.py",
+        "psych_asr/cli/align_words.py",
+        "psych_asr/cli/warm_align_cache.py"
+      ],
+      "dir": "psych_asr/asr",
+      "doc": "",
+      "slide": null,
+      "blockedBy": [],
+      "note": "",
+      "chapter": ""
+    },
+    {
+      "id": "name-tagger",
+      "name": "the name-tagger",
+      "also": "five arms: pyannote, Sortformer, DiariZen",
+      "kind": "part",
+      "status": "working",
+      "does": "Says who was speaking when, reading no words at all. Five arms, compared, still undecided.",
+      "files": [
+        "psych_asr/diarize/pyannote_arm.py",
+        "psych_asr/diarize/sortformer_arm.py",
+        "psych_asr/diarize/diarizen_arm.py",
+        "psych_asr/diarize/windowing.py",
+        "psych_asr/cli/diarize_pyannote.py",
+        "psych_asr/cli/diarize_sortformer.py",
+        "psych_asr/cli/diarize_diarizen.py"
+      ],
+      "dir": "psych_asr/diarize",
+      "doc": "",
+      "slide": null,
+      "blockedBy": [],
+      "note": "",
+      "chapter": ""
+    },
+    {
+      "id": "joiner",
+      "name": "the joiner",
+      "also": "Stage 1c",
+      "kind": "part",
+      "status": "done",
+      "does": "Lays the turn table over the timed words, so every word knows who said it.",
+      "files": [
+        "psych_asr/join.py",
+        "psych_asr/cli/join_speakers.py",
+        "psych_asr/artifacts/rttm_io.py"
+      ],
+      "dir": "",
+      "doc": "",
+      "slide": null,
+      "blockedBy": [],
+      "note": "",
+      "chapter": ""
+    },
+    {
+      "id": "corrections",
+      "name": "the corrections",
+      "also": "117 rows of a human error log",
+      "kind": "part",
+      "status": "done",
+      "does": "The first thing here that can tell a transcript it is wrong, built from a human's own error log.",
+      "files": [
+        "psych_asr/transcript/corrections.py",
+        "psych_asr/cli/apply_corrections.py",
+        "psych_asr/artifacts/error_log.py"
+      ],
+      "dir": "psych_asr/transcript",
+      "doc": "",
+      "slide": null,
+      "blockedBy": [],
+      "note": "",
+      "chapter": ""
+    },
+    {
+      "id": "grader",
+      "name": "the grader",
+      "also": "psych_asr.evaluate.grade",
+      "kind": "part",
+      "status": "done",
+      "does": "Reproduces the annotator's own six error labels against the corrected reference, with nobody listening.",
+      "files": [
+        "psych_asr/evaluate/grade.py",
+        "psych_asr/evaluate/labels.py",
+        "psych_asr/cli/grade_arms.py"
+      ],
+      "dir": "psych_asr/evaluate",
+      "doc": "",
+      "slide": null,
+      "blockedBy": [],
+      "note": "",
+      "chapter": ""
+    },
+    {
+      "id": "grid",
+      "name": "the grid",
+      "also": "4 typists x 2 stopwatches x 5 name-taggers",
+      "kind": "part",
+      "status": "next",
+      "does": "A cube, not a table: 40 cells from 13 jobs, because five of six labels cannot move along two axes.",
+      "files": [
+        "slurm_jobs/run_bakeoff.sh",
+        "slurm_jobs/run_typist_bakeoff.sh"
+      ],
+      "dir": "",
+      "doc": "",
+      "slide": null,
+      "blockedBy": [
+        "stopwatch"
+      ],
+      "note": "",
+      "chapter": ""
+    },
+    {
+      "id": "scorer",
+      "name": "the scorer",
+      "also": "psych_asr.cli.score_arms",
+      "kind": "part",
+      "status": "later",
+      "does": "Reads the whole cube and says which combination is worth running on the rest of the sessions.",
+      "files": [
+        "psych_asr/evaluate/score.py",
+        "psych_asr/evaluate/compare.py",
+        "psych_asr/cli/score_arms.py",
+        "psych_asr/cli/compare_arms.py"
+      ],
+      "dir": "",
+      "doc": "",
+      "slide": null,
+      "blockedBy": [
+        "grid"
+      ],
+      "note": "",
+      "chapter": ""
+    }
+  ],
+  "edges": [
+    {
+      "from": "typist",
+      "to": "stopwatch",
+      "label": "words",
+      "weight": 3
+    },
+    {
+      "from": "stopwatch",
+      "to": "joiner",
+      "label": "timed words",
+      "weight": 3
+    },
+    {
+      "from": "name-tagger",
+      "to": "joiner",
+      "label": "turns",
+      "weight": 3
+    },
+    {
+      "from": "joiner",
+      "to": "grader",
+      "label": "a transcript",
+      "weight": 2
+    },
+    {
+      "from": "corrections",
+      "to": "grader",
+      "label": "the reference",
+      "weight": 2
+    },
+    {
+      "from": "grader",
+      "to": "grid",
+      "label": "six labels",
+      "weight": 2
+    },
+    {
+      "from": "grid",
+      "to": "scorer",
+      "label": "40 cells",
+      "weight": 1
+    }
+  ]
+}
