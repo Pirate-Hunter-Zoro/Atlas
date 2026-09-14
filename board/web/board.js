@@ -2000,13 +2000,16 @@ function doExportHomework() {
    on. A progress count is not decoration here: this is the one button on the
    page that can take twenty seconds, and a button that goes quiet for twenty
    seconds is a button somebody presses again. */
-function doExport(scope) {
+function doExport(scope, which) {
   els.pushed.hidden = false;
   els.pushed.className = "pushed";
   els.pushedIcon.textContent = "…";
   offerDocument(null);           /* not the last document's buttons, while this builds */
 
-  if (scope !== "all" && global_TutorShot()) {
+  /* THE PHOTOGRAPH IS OF WHAT IS ON THE GLASS, so it is only ever the lesson
+     that is open. A chapter or a filed sitting is not on the glass; asking the
+     camera for one would photograph this evening and label it last Tuesday. */
+  if ((!scope || scope === "lesson") && global_TutorShot()) {
     els.pushedText.textContent = "photographing the lesson…";
     return global_TutorShot().send(function (done, total) {
       els.pushedText.textContent = "photographing the lesson — card "
@@ -2023,11 +2026,15 @@ function doExport(scope) {
 
   els.pushedText.textContent = scope === "all"
     ? "building the whole course — LaTeX takes a moment…"
-    : "building this lesson as a PDF…";
+    : scope === "chapter"
+      ? "building this chapter — every sitting on it, in order…"
+      : scope === "sitting"
+        ? "building that sitting as a PDF…"
+        : "building this lesson as a PDF…";
   return fetch("/export", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ scope: scope || "lesson" })
+    body: JSON.stringify({ scope: scope || "lesson", which: which || "" })
   }).then(function (r) { return r.json(); })
     .then(function (rec) { paintBanner(null, rec, null); })
     .catch(function () {
@@ -2390,6 +2397,9 @@ function openHistory() {
     }
     list.innerHTML = "";
     sessions.forEach(function (s) {
+      var row = document.createElement("div");
+      row.className = "session-line";
+
       var b = document.createElement("button");
       b.type = "button";
       b.className = "session-row";
@@ -2401,7 +2411,27 @@ function openHistory() {
         [s.session, s.opened, s.cards + " cards",
          s.turns + " of yours"].filter(Boolean).join(" · ");
       b.addEventListener("click", function () { showSession(s.id); });
-      list.appendChild(b);
+      row.appendChild(b);
+
+      /* TAKE IT AWAY, from the one place a person is already looking at the
+         sitting they want. A filed lesson could only be got out of here by
+         exporting the whole course, which is the wrong document by two orders
+         of magnitude when what is wanted is one evening's work. `sitting` is a
+         scope, not a second exporter -- the numbering, the reading order and
+         the whole-conversation rule are the ones every other document gets. */
+      var keep = document.createElement("button");
+      keep.type = "button";
+      keep.className = "session-keep pushed-get";
+      keep.textContent = "PDF";
+      keep.title = "this sitting as a document";
+      keep.addEventListener("click", function (ev) {
+        ev.stopPropagation();          /* not also "open it to read" */
+        document.getElementById("history").hidden = true;
+        doExport("sitting", s.id);
+      });
+      row.appendChild(keep);
+
+      list.appendChild(row);
     });
   }).catch(function () {
     list.innerHTML = '<p class="name">could not read the archive.</p>';

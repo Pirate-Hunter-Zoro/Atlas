@@ -390,6 +390,91 @@ def main():
     else:
         bad("the download route answered for a path it does not own")
 
+
+    # ------------------------------------------------------------- scopes
+    # SCOPES, NOT EXPORTERS. Every one of these goes through one `build` and
+    # gets the same numbering and the same shape; the moment there are two
+    # exporters there are two answers to "what is in a document" and one of them
+    # is out of date. What changes with the scope is WHICH SITTINGS are in it
+    # and nothing else about what a document is.
+    def yes(cond, said, wrong):
+        (ok if cond else bad)(said if cond else wrong)
+
+    # A second sitting on the chapter that is open, so "this chapter" has more
+    # than one thing in it and the reading order can be checked.
+    second = os.path.join(root, "live", "archive", "20260903-201500-ch-3-split")
+    os.makedirs(os.path.join(second, "answers"), exist_ok=True)
+    with open(os.path.join(second, "state.json"), "w", encoding="utf-8") as fh:
+        json.dump({"course": "Galois Theory",
+                   "chapter": "Ch 3 -- Splitting fields",
+                   "session": "lecture", "opened": "2026-09-03 20:00"}, fh)
+    card(second, 1, "question", "Exercise 3.1", "An earlier evening on Ch 3.")
+
+    rec = document.build(root, scope="chapter", make_pdf=False)
+    yes(rec.get("ok") and rec.get("sittings") == 2,
+        "a chapter is every sitting on it, and this one has two",
+        "the chapter scope did not gather both sittings: %r" % rec.get("detail"))
+    if rec.get("ok"):
+        # NOT `tex`: that is the imported module, used later in this same
+        # function. One assignment makes the name local for the whole of it.
+        src = open(os.path.join(root, rec["tex"]), encoding="utf-8").read()
+        yes(src.index("An earlier evening") < src.index("Exercise 3.2"),
+            "and the earlier evening comes first, because it happened first",
+            "the sittings are not in the order they happened")
+        yes("Compute" not in src,
+            "a sitting on a different chapter is not in it",
+            "the chapter scope swept in another chapter's lesson")
+        yes("tableofcontents" in src,
+            "a document holding more than one sitting has a contents page",
+            "several sittings ran together with nothing to find them by")
+        yes("2026-09-03" in src or src.count("section") >= 2,
+            "and each sitting is headed, so three evenings are not one wall",
+            "the sittings are not separated from one another")
+
+    yes(not document.build(root, scope="chapter", which="Ch 99",
+                           make_pdf=False).get("ok"),
+        "a chapter nobody has taught is a miss, not an empty document",
+        "an untaught chapter produced a document anyway")
+
+    rec = document.build(root, scope="sitting",
+                         which="20260826-193000-ch-2-fields", make_pdf=False)
+    yes(rec.get("ok") and rec.get("sittings") == 1,
+        "one filed sitting can be a document on its own",
+        "a filed sitting could not be exported: %r" % rec.get("detail"))
+    if rec.get("ok"):
+        # NOT `tex`: that is the imported module, used later in this same
+        # function. One assignment makes the name local for the whole of it.
+        src = open(os.path.join(root, rec["tex"]), encoding="utf-8").read()
+        yes("Compute" in src and "Exercise 3.2" not in src,
+            "and it is that one, whole, and nothing else",
+            "the wrong sitting came out")
+        yes("tableofcontents" not in src,
+            "a single sitting needs no contents page",
+            "a one-sitting document grew a contents page")
+
+    # A NAME FROM A REQUEST IS LOOKED UP, NEVER CONSTRUCTED -- the same rule as
+    # `walk.resolve`, `reading.find` and every other name from outside.
+    for bad_id in ("../../../etc", "nothing-was-filed-then", "", "20260826",
+                   "live/archive/20260826-193000-ch-2-fields"):
+        got = document.build(root, scope="sitting", which=bad_id, make_pdf=False)
+        yes(not got.get("ok") and "no sitting here" in (got.get("detail") or ""),
+            "a sitting id matching nothing resolves to nothing: %r" % bad_id,
+            "a bad sitting id was not refused: %r" % bad_id)
+
+    yes(not document.build(root, scope="everything", make_pdf=False).get("ok"),
+        "a scope this exporter does not know is refused by name",
+        "an unknown scope was quietly treated as something else")
+
+    # THE NUMBERING IS PER DOCUMENT. One sitting and the whole chapter it
+    # belongs to are two different documents, and `v4` has to answer "which one
+    # is the latest" for one of them rather than for both at once.
+    one = document.build(root, scope="lesson", make_pdf=False)
+    whole = document.build(root, scope="chapter", make_pdf=False)
+    yes(one["name"].rsplit("-v", 1)[0] != whole["name"].rsplit("-v", 1)[0],
+        "a scope has its own series of version numbers",
+        "two different documents share one series: %s and %s"
+        % (one["name"], whole["name"]))
+
     print()
     if fails:
         print("%d FAILURES" % len(fails))

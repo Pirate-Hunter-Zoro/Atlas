@@ -1975,20 +1975,57 @@ def cmd_export(live, args):
     """The whole sitting as one document: the tutor's cards and the student's own
     working, in the order they happened.
 
-        board export                 this lesson, built, numbered, staged
-        board export --all           every filed lesson and this one, as one
-        board export --no-build      write the .tex and stop
+        board export                    this lesson, built, numbered, staged
+        board export --chapter          every sitting on the chapter that is open
+        board export --chapter "Ch 7"   every sitting on that one
+        board export --sitting <id>     one finished sitting, by its archive id
+        board export --all              every filed lesson and this one, as one
+        board export --no-build         write the .tex and stop
+
+    SCOPES, NOT EXPORTERS. All four go through one `document.build`, get the
+    same numbering and produce the same shape -- because the moment there are
+    two exporters there are two answers to "what is in a document" and one of
+    them is out of date.
+
+    What does not change with the scope is the property that makes an export
+    worth having: it is the whole sitting in reading order -- the question,
+    every revision of the working as it was actually sent, what the tutor said,
+    and the next attempt underneath. Half a conversation is what `board archive`
+    refuses to keep, for the same reason.
 
     It used to be the cards alone, named with a timestamp, written into a
     directory git ignores -- which is a record of half a conversation that
     nobody can find and nothing keeps.
     """
-    scope = "all" if "--all" in args else "lesson"
-    rec = document.build(live.root, scope=scope, make_pdf="--no-build" not in args)
+    def after(flag):
+        if flag in args:
+            n = args.index(flag)
+            if n + 1 < len(args) and not args[n + 1].startswith("--"):
+                return args[n + 1]
+        return ""
+
+    scope, which = "lesson", ""
+    if "--all" in args:
+        scope = "all"
+    elif "--sitting" in args:
+        scope, which = "sitting", after("--sitting")
+        if not which:
+            print("board export --sitting needs the id of a filed sitting. "
+                  "`board history` lists them.", file=sys.stderr)
+            return 1
+    elif "--chapter" in args:
+        # No name means the chapter that is open, which is what somebody at a
+        # terminal in the middle of one means by "this chapter".
+        scope, which = "chapter", after("--chapter")
+
+    rec = document.build(live.root, scope=scope, which=which,
+                         make_pdf="--no-build" not in args)
     if not rec.get("ok") and not rec.get("tex"):
         print(rec.get("detail") or "nothing to export", file=sys.stderr)
         return 1
     print(rec["tex"])
+    if rec.get("sittings", 1) > 1:
+        print("%d sittings, in the order they happened" % rec["sittings"])
     if rec.get("pdf"):
         print(rec["pdf"])
     elif rec.get("detail"):

@@ -365,12 +365,43 @@ viewer to draw on yet, and accepting a key nothing can produce is a branch that 
 one entry in `ann_ok` and one in `ann_says` when that surface exists — §2.1's `code/` address
 already lands on the walkthrough picker, which is where that viewer will go.
 
-**Exporting.** `document.build(root, scope=…)` already compiles a lesson, tracks it in git
-and numbers it. Add scopes rather than exporters, keep the numbering, and keep the one
-property that makes an export trustworthy: it is **the whole sitting in reading order** —
-the question, every revision of the working as it was actually sent, what the tutor said,
-and the next attempt underneath. Half a conversation is what `board archive` refuses to
-keep, for the same reason.
+**Exporting — DONE.** Four scopes, one exporter, in `document.SCOPES`:
+
+| | |
+|---|---|
+| `lesson` | the sitting that is open. The unit, and the common case |
+| `chapter` | every sitting filed under one chapter, plus the open one if it is on that chapter |
+| `sitting` | one finished sitting, by the id the archive gave it |
+| `all` | every filed lesson and the open one, as a master document |
+
+`board export --chapter ["Ch 7"]`, `board export --sitting <id>`, `POST /export` with
+`{scope, which}`, and a **PDF** button on every row of the history panel — which is where a
+person is already looking at the sitting they want, and where a filed lesson could
+previously only be got at by exporting the entire course.
+
+`chapter` is the hole the two old scopes left: a chapter that took three evenings was
+exportable as a third of itself or as the whole course, and nothing in between.
+
+What did not change is the property that makes an export worth having — **the whole sitting
+in reading order**: the question, every revision of the working as it was actually sent, what
+the tutor said, and the next attempt underneath. A scope decides which sittings are in the
+document and nothing else about what a document is.
+
+Three things that had to be got right:
+
+- **A stem per scope**, so two documents about the same chapter do not share one series of
+  version numbers. `v4` has to answer "which one is the latest" for *one* document, and one
+  sitting and the chapter it belongs to are two.
+- **A heading and a contents page wherever there is more than one sitting**, not only in
+  `all`. Three evenings running together is a wall of text with one attempt at an exercise
+  directly under another and nothing between them.
+- **A miss is said as a miss.** A chapter nobody taught and a sitting id that is not in the
+  archive are mistakes somebody made, not empty documents; the sitting id is matched against
+  what the archive holds and never joined onto a path.
+
+One trap paid for here, and it is `§7`'s shadowing trap in a new coat: `test/document.py`
+imports `tex` as a module, a new local called `tex` made the name local for the *whole*
+function, and a call two hundred lines above it stopped working.
 
 **Writing, and this is where Paper-Writer comes in.** It is a workspace in this repository
 now — `projects/Paper-Writer`, with its own `service/`, `prompts/`, `config/`, an inbox it

@@ -98,9 +98,16 @@ def post(h, repo, path):
             payload = json.loads(h.read_body().decode("utf-8") or "{}")
         except Exception:
             payload = {}
-        scope = "all" if payload.get("scope") == "all" else "lesson"
+        # THE SCOPE IS MATCHED, NEVER TRUSTED: anything this server does not
+        # recognise is the ordinary one. `which` is a chapter label or a filed
+        # sitting's id, and `document.lessons` looks it up in what the archive
+        # actually holds rather than joining it onto a path.
+        scope = payload.get("scope")
+        if scope not in document.SCOPES:
+            scope = "lesson"
+        which = str(payload.get("which") or "")[:120]
         try:
-            rec = document.build(repo.root, scope=scope)
+            rec = document.build(repo.root, scope=scope, which=which)
         except Exception as e:                       # noqa: BLE001
             rec = {"ok": False, "detail": "export failed: %s" % e}
         rec["at"] = time.time()

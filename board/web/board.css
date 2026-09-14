@@ -913,13 +913,21 @@ body.tools-out .jump { bottom: calc(6.5rem + env(safe-area-inset-bottom)); }
   font-family: var(--ui); font-size: .85rem;
 }
 #history-list { flex: 1; overflow-y: auto; padding: .5rem; }
+/* Two targets on one line: READ it, and TAKE IT AWAY. They are side by side
+   rather than stacked because they are the same size of decision, and the
+   reading half keeps the whole width it had — the PDF button is `flex: none`
+   and the row shrinks around it. */
+.session-line {
+  display: flex; align-items: stretch; gap: .35rem; margin-bottom: .4rem;
+}
 .session-row {
-  display: block; width: 100%; text-align: left; cursor: pointer;
+  display: block; flex: 1; min-width: 0; text-align: left; cursor: pointer;
   font: inherit; color: var(--ink);
-  padding: .6rem .7rem; margin-bottom: .4rem;
+  padding: .6rem .7rem;
   border: 1px solid var(--rule); border-radius: .5rem; background: var(--paper);
 }
 .session-row:hover { background: var(--paper-2); }
+.session-keep { flex: none; align-self: center; font-size: .72rem; }
 .session-name { display: block; font-weight: 650; }
 .session-sub { display: block; margin-top: .15rem; font-size: .72rem; color: var(--ink-3); }
 
