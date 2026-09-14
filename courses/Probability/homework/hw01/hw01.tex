@@ -1,0 +1,321 @@
+% ===========================================================================
+%  Homework 01 — Probability, Fall 2026.  Due September 2, 2026.
+%
+%  Assigned (assignment/Prob.Homework1.2026.pdf):
+%    Problem 1 (instructor's own), then Ross ch.1 exercises 8, 10, 12, 39, 41.
+%    Practice only, not handed in: ch.1 exercises 4, 5, 6, 7, 17.
+%
+%  DIVISION OF LABOUR (see AI_INSTRUCTIONS.md §7):
+%    The assistant transcribes each assigned problem statement faithfully from
+%    the assignment sheet in this folder's assignment/ directory, and emits an
+%    empty, marked solution region beneath it.
+%    The user types the mathematics inside those regions. No assistant writes
+%    inside a SOLUTION region in normal mode.
+% ===========================================================================
+\documentclass[11pt]{article}
+\usepackage{coursemacros}
+
+\title{Homework 01}
+\author{Mikey Ferguson}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\begin{problem}{1}
+  Let $E$ and $F$ be events. Using the axioms of probability, prove that
+  \[
+    P(E \cup F) = P(E) + P(F) - P(EF).
+  \]
+\end{problem}
+% ===== SOLUTION 1 =====
+$E$ is carved by $F$ into two disjoint pieces:
+\[
+  E = EF \cup EF^{c} \quad \text{(disjoint)},
+\]
+so by axiom 3,
+\[
+  P(E) = P(EF) + P(EF^{c})
+  \iff
+  P(EF^{c}) = P(E) - P(EF).
+\]
+Similarly, $P(FE^{c}) = P(F) - P(EF)$.
+
+Therefore, since $E \cup F = EF \cup EF^{c} \cup FE^{c}$ is a union of pairwise
+disjoint sets,
+\begin{align*}
+  P(E \cup F)
+    &= P\!\left(EF \cup EF^{c} \cup FE^{c}\right) \\
+    &= P(EF) + P(EF^{c}) + P(FE^{c}) \\
+    &= P(EF) + \bigl(P(E) - P(EF)\bigr) + \bigl(P(F) - P(EF)\bigr) \\
+    &= P(E) + P(F) - P(EF). \qedhere
+\end{align*}
+% ===== END SOLUTION 1 =====
+
+\begin{problem}{8}
+  If $P(E) = 0.9$ and $P(F) = 0.8$, show that $P(EF) \geqslant 0.7$. In general,
+  show that
+  \[
+    P(EF) \geqslant P(E) + P(F) - 1.
+  \]
+  This is known as Bonferroni's inequality.
+\end{problem}
+% ===== SOLUTION 8 =====
+First we record the bound the argument rests on.
+
+\medskip
+\noindent\textbf{Lemma.} \emph{For any event $A$, $P(A) \leqslant 1$.}
+
+\smallskip
+\noindent Since $\Omega = A \cup A^{c}$ is a union of disjoint sets,
+\[
+  P(\Omega) = 1 = P(A \cup A^{c}) = P(A) + P(A^{c})
+  \quad \text{(disjoint)},
+\]
+so
+\[
+  P(A) + P(A^{c}) = 1
+  \iff
+  P(A) = 1 - P(A^{c})
+  \implies
+  P(A) \leqslant 1,
+\]
+since $P(A^{c}) \geqslant 0$ by the first axiom.
+
+\medskip
+\noindent Now prove $P(EF) \geqslant P(E) + P(F) - 1$. Recall, using Problem 1,
+\[
+  1 \geqslant P(E \cup F) = P(E) + P(F) - P(EF),
+\]
+and therefore
+\[
+  1 + P(EF) \geqslant P(E) + P(F)
+  \iff
+  P(EF) \geqslant P(E) + P(F) - 1 .
+\]
+
+Therefore, if $P(E) = 0.9$ and $P(F) = 0.8$,
+\[
+  P(EF) \geqslant 0.9 + 0.8 - 1 \geqslant 0.7 .
+\]
+% ===== END SOLUTION 8 =====
+
+\begin{problem}{10}
+  Show that
+  \[
+    P\!\left( \bigcup_{i=1}^{n} E_i \right) \leqslant \sum_{i=1}^{n} P(E_i).
+  \]
+  This is known as Boole's inequality.
+
+  \upshape\emph{Hint:} Either use Equation (1.2) and mathematical induction, or
+  else show that $\bigcup_{i=1}^{n} E_i = \bigcup_{i=1}^{n} F_i$, where
+  $F_1 = E_1$, $F_i = E_i \bigcap_{j=1}^{i-1} E_j^{c}$, and use property (iii)
+  of a probability.
+\end{problem}
+% ===== SOLUTION 10 =====
+First we record the monotonicity of $P$, which the argument rests on.
+
+\medskip
+\noindent\textbf{Lemma.} \emph{If $A \subseteq B$ then $P(A) \leqslant P(B)$.}
+
+\smallskip
+\noindent Since $A \subseteq B$, we may carve $B = A \cup BA^{c}$, a union of
+disjoint sets, so
+\[
+  P(B) = P(A \cup BA^{c}) = P(A) + P(BA^{c})
+  \quad \text{(disjoint)} .
+\]
+Note $P(BA^{c}) \geqslant 0$ by the first axiom, so
+\[
+  P(A) = P(B) - P(BA^{c}) \leqslant P(B) .
+\]
+
+\medskip
+\noindent Now prove Boole's inequality. Let
+\[
+  F_1 = E_1,
+  \qquad
+  F_i = E_i E_1^{c} E_2^{c} \cdots E_{i-1}^{c}
+  \quad (i \geqslant 2).
+\]
+Note each $F_i \subseteq E_i$, and $F_i$ is defined such that
+$\bigcup_{i=1}^{n} E_i = \bigcup_{i=1}^{n} F_i$. Further,
+$i \neq j \implies F_i \cap F_j = \varnothing$. So
+\[
+  P\!\left( \bigcup_{i=1}^{n} E_i \right)
+  = P\!\left( \bigcup_{i=1}^{n} F_i \right)
+  = \sum_{i=1}^{n} P(F_i)
+  \quad \text{(disjoint)} .
+\]
+Since $F_i \subseteq E_i$ for all $i$, the Lemma gives $P(F_i) \leqslant P(E_i)$, and
+therefore $\sum_{i=1}^{n} P(F_i) \leqslant \sum_{i=1}^{n} P(E_i)$. Therefore
+\[
+  P\!\left( \bigcup_{i=1}^{n} E_i \right) \leqslant \sum_{i=1}^{n} P(E_i) .
+\]
+
+\medskip
+\noindent\emph{Aside.} Clearly $\bigcup_{i=1}^{n} F_i \subseteq \bigcup_{i=1}^{n} E_i$,
+since $F_i \subseteq E_i$ for all $i$. It remains to prove the other inclusion,
+$\bigcup_{i=1}^{n} E_i \subseteq \bigcup_{i=1}^{n} F_i$, which we do by induction on
+$n$.
+
+\smallskip
+\noindent\emph{Base case.} For $n = 1$, $\bigcup_{i=1}^{1} E_i = E_1 = F_1 =
+\bigcup_{i=1}^{1} F_i$.
+
+\smallskip
+\noindent\emph{Inductive step.} Assume $\bigcup_{i=1}^{n-1} E_i \subseteq
+\bigcup_{i=1}^{n-1} F_i$. Let $e \in \bigcup_{i=1}^{n} E_i$. If $e \in F_n$ we are
+done. If $e \notin F_n = E_n E_1^{c} \cdots E_{n-1}^{c}$, then either $e \notin E_n$,
+or there exists $i < n$ such that $e \in E_i$.
+
+\smallskip
+\noindent If the latter is true, then
+\[
+  e \in \bigcup_{i=1}^{n-1} E_i \subseteq \bigcup_{i=1}^{n-1} F_i
+  \subseteq \bigcup_{i=1}^{n} F_i ,
+\]
+using the inductive hypothesis. If the former is true, the latter must still be true,
+since $e \in \bigcup_{i=1}^{n} E_i$ and $e \notin E_n$ force $e \in E_i$ for some
+$i < n$.
+% ===== END SOLUTION 10 =====
+
+\begin{problem}{12}
+  Let $E$ and $F$ be mutually exclusive events in the sample space of an
+  experiment. Suppose that the experiment is repeated until either event $E$ or
+  event $F$ occurs. What does the sample space of this new super experiment look
+  like? Show that the probability that event $E$ occurs before event $F$ is
+  $P(E) / [P(E) + P(F)]$.
+
+  \upshape\emph{Hint:} Argue that the probability that the original experiment is
+  performed $n$ times and $E$ appears on the $n$th time is
+  $P(E) \times (1-p)^{n-1}$, $n = 1, 2, \ldots$, where $p = P(E) + P(F)$. Add
+  these probabilities to get the desired answer.
+\end{problem}
+% ===== SOLUTION 12 =====
+An outcome of the super experiment is a finite sequence $(o_1, o_2, \dots,
+o_\ell)$ of outcomes of the original experiment, where $\ell \in \mathbb{N}$,
+$o_i \in E^{c}F^{c}$ for every $i < \ell$, and $o_\ell \in E \cup F$. The sample
+space of the super experiment is the set of all such sequences.
+
+For each $n \geqslant 1$, the original experiment is performed $n$ times and $E$
+appears on the $n$th time exactly when the first $n-1$ trials produce neither $E$
+nor $F$ and the $n$th produces $E$, so
+\[
+  P(\text{$E$ before $F$ on trial $n$}) = P(E^{c}F^{c})^{\,n-1} P(E) .
+\]
+
+These events are mutually exclusive across $n$, so by the countable additivity
+axiom,
+\begin{align*}
+  P(\text{$E$ before $F$})
+    &= P\!\left( \bigcup_{n=1}^{\infty} \{\text{$E$ before $F$ on trial $n$}\} \right)
+      && \text{(axiom $\to$ mutually exclusive)} \\
+    &= \sum_{n=1}^{\infty} P(E^{c}F^{c})^{\,n-1} P(E)
+      && \text{(geometric)} \\
+    &= \frac{P(E)}{1 - P(E^{c}F^{c})}
+      = \frac{P(E)}{P(E \cup F)}
+      = \frac{P(E)}{P(E) + P(F)}
+      && \text{(mutually exclusive $\to$ axiom)} .
+\end{align*}
+% ===== END SOLUTION 12 =====
+
+\begin{problem}{39}
+  Stores $A$, $B$, and $C$ have 50, 75, and 100 employees and, respectively, 50,
+  60, and 70 percent of these are women. Resignations are equally likely among
+  all employees, regardless of sex. One employee resigns and this is a woman.
+  What is the probability that she works in store $C$?
+\end{problem}
+% ===== SOLUTION 39 =====
+Write $C$ for the event that the employee who resigns works in store $C$, and
+$W$ for the event that the employee who resigns is a woman. By the definition of
+conditional probability and then the multiplication rule,
+\[
+  P(C \mid W)
+    = \frac{P(C W)}{P(W)}
+    = \frac{P(C)\, P(W \mid C)}{P(W)} .
+\]
+
+The resignation is equally likely among all $50 + 75 + 100 = 225$ employees, so
+$P(C) = 100/225$, and $P(W \mid C) = 0.7$. Splitting $W$ across the three stores
+gives the denominator, so
+\[
+  P(C \mid W)
+    = \frac{\dfrac{100}{225} \cdot 0.7}
+           {0.5 \cdot \dfrac{50}{225}
+            + 0.6 \cdot \dfrac{75}{225}
+            + 0.7 \cdot \dfrac{100}{225}}
+    = \frac{0.7 \cdot \dfrac{4}{9}}
+           {0.5 \cdot \dfrac{2}{9} + 0.6 \cdot \dfrac{1}{3} + 0.7 \cdot \dfrac{4}{9}}
+    = \frac{\dfrac{14}{45}}{\dfrac{1}{9} + \dfrac{1}{5} + \dfrac{14}{45}} .
+\]
+
+Since $\dfrac{1}{9} + \dfrac{1}{5} = \dfrac{14}{45}$,
+\[
+  P(C \mid W)
+    = \frac{14/45}{14/45 + 14/45}
+    = \frac{1}{2} .
+\]
+% ===== END SOLUTION 39 =====
+
+\begin{problem}{41}
+  In a certain species of rats, black dominates over brown. Suppose that a black
+  rat with two black parents has a brown sibling.
+  \begin{enumerate}
+    \item[(a)] What is the probability that this rat is a pure black rat (as
+      opposed to being a hybrid with one black and one brown gene)?
+    \item[(b)] Suppose that when the black rat is mated with a brown rat, all
+      five of their offspring are black. Now, what is the probability that the
+      rat is a pure black rat?
+  \end{enumerate}
+\end{problem}
+% ===== SOLUTION 41 =====
+\textbf{(a)} Write $B$ for the black gene and $b$ for the brown one, so that a
+rat is $BB$, $Bb$ or $bb$ and is black exactly when it carries at least one $B$.
+
+The brown sibling is $bb$, so each parent handed down a $b$; both parents are
+black, so each also carries a $B$. Both parents are therefore $Bb$. The four
+gene pairs $BB$, $Bb$, $bB$, $bb$ an offspring of $Bb \times Bb$ may receive are
+equally likely, and conditioning on the rat itself being black leaves the three
+pairs $BB$, $Bb$, $bB$. Hence
+\[
+  P(BB \mid \text{$bb$ sibling, parents $Bb$ and $Bb$, self black})
+    = \frac{1}{3} .
+\]
+
+\medskip
+\textbf{(b)} By the definition of conditional probability and the multiplication
+rule,
+\[
+  P(BB \mid \text{5 black offspring with a $bb$ mate})
+    = \frac{P(BB)\, P(\text{5 black offspring with a $bb$ mate} \mid BB)}
+           {P(\text{5 black offspring with a $bb$ mate})} .
+\]
+
+For the denominator, split over the two possibilities for the rat, whose
+probabilities $1/3$ and $2/3$ come from part (a). A $BB$ rat mated with a $bb$
+rat produces only $Bb$ offspring, all black; a $Bb$ rat mated with a $bb$ rat
+produces a black offspring with probability $1/2$ each time. Hence
+\[
+  P(\text{5 black offspring})
+    = P(\text{5 black offspring} \mid BB)\, P(BB)
+      + P(\text{5 black offspring} \mid Bb)\, P(Bb)
+\]
+\[
+    = (1)^{5}\left(\tfrac{1}{3}\right)
+      + \left(\tfrac{1}{2}\right)^{5}\left(\tfrac{2}{3}\right)
+    = \frac{1}{3} + \frac{2}{96}
+    = \frac{16}{48} + \frac{1}{48}
+    = \frac{17}{48} .
+\]
+
+Therefore
+\[
+  P(BB \mid \text{5 black offspring with a $bb$ mate})
+    = \frac{\tfrac{1}{3} \cdot (1)^{5}}{\tfrac{17}{48}}
+    = \frac{48}{51}
+    = \frac{16}{17} .
+\]
+% ===== END SOLUTION 41 =====
+
+\end{document}
