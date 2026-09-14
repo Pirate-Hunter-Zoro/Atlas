@@ -22,24 +22,33 @@ anything.
 
 ## The data fence — before anything else
 
-**Do not read anything under `~/phi/`.** Not the audio, not the transcripts, not the turn
+**Do not read anything under `phi/`.** Not the audio, not the transcripts, not the turn
 tables, not the joined JSON, not the arm comparison. Every one of them is derived from
 identifiable therapy-session recordings, and the participant code is in the filename.
 
-> **The session data is not in this repository, and this is the address that changed.**
-> It used to be `data/` at the repository root, kept out of git by a `.gitignore` line.
-> This repository is now part of a public monorepo — and an ignore rule is a guard anybody
-> can delete by accident, so the data moved OUT of the tree entirely, to `~/phi/PSYCH-ASR/`.
-> It is not symlinked back in: a symlink is a tracked file pointing at PHI, which hands the
-> next reader of a public repository a map straight to it. One variable finds it,
-> `PSYCH_ASR_DATA`, read by `psych_asr/config.py` and exported by
-> `slurm_jobs/lib/job_env.sh`. **The fence moved with it** —
-> `~/.claude/hooks/block-phi.py` fences `phi/` whole, by the directory rather than by what
-> is under it, and still refuses the old addresses too.
+> **The session data is at `phi/`, in this workspace, and the address has changed twice.**
+> It was `data/` at the repository root; then, when this became part of a public monorepo,
+> it moved out of the tree to `~/phi/PSYCH-ASR/`; on 14 September 2026 it came back in, to
+> `phi/` beside this file, because a project's data belongs with the project.
+>
+> **What keeps it out of the public repository is not one thing.** `/phi/` is the first,
+> anchored rule in `.gitignore`; `board/test/tracked.py` fails the entire suite if any of
+> it is ever tracked; and the fence below refuses to let you read it whatever git does.
+> It is not symlinked in from anywhere: a symlink is a tracked file pointing at PHI, which
+> hands the next reader of a public repository a map straight to it. One variable finds
+> it, `PSYCH_ASR_DATA`, read by `psych_asr/config.py` and exported by
+> `slurm_jobs/lib/job_env.sh`, and both derive their default from their own location.
+>
+> **The fence did not have to move, and that is the point.**
+> `~/.claude/hooks/block-phi.py` fences `phi/` whole, by the DIRECTORY NAME rather than by
+> what is under it, so the data changing address changed no pattern at all. It still
+> refuses both older addresses too. Renaming this directory would unfence it silently —
+> which is worse than having no fence, because everybody would go on believing in this
+> paragraph. Do not rename it.
 
 Concretely, refuse to open any of these, wherever they live and however they are named:
 
-- anything under `~/phi/` — `~/phi/PSYCH-ASR/inbox/`, `.../stage1/`, `.../stage2/`, and any
+- anything under `phi/` — `phi/inbox/`, `phi/stage1/`, `phi/stage2/`, and any
   tree added later. The whole directory, by the directory: anything anybody ever puts there
   is PHI by the act of putting it there. The QC error-log export in `stage1/` is included:
   two of its columns are verbatim speech.

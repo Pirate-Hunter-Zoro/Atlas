@@ -29,7 +29,7 @@ set -e
 source slurm_jobs/lib/job_env.sh
 
 # INPUT_DIR comes from job_env.sh: the session audio lives OUTSIDE this
-# repository, at $PSYCH_ASR_DATA (default ~/phi/PSYCH-ASR).
+# repository, at $PSYCH_ASR_DATA (default: this workspace's `phi/`).
 STAGE1_DIR=data/stage1
 TYPIST="${1:-large-v3}"
 STOPWATCH="${2:-wav2vec2-base}"

@@ -1,4 +1,22 @@
 # ---- PHI / raw data: NEVER commit ----
+# THE SESSION DATA LIVES AT `phi/`, INSIDE THIS WORKSPACE AND OUTSIDE GIT.
+#
+# It was at `~/phi/PSYCH-ASR/` and it was moved in here on 14 September 2026,
+# deliberately, so that a project's data sits with the project. What keeps it
+# out of a public repository is this rule and the audit in
+# `board/test/tracked.py`, which fails the suite if any of it is ever tracked.
+#
+# THE DIRECTORY KEPT ITS NAME ON PURPOSE. `ai-config/policy/phi.py` fences any
+# path containing `phi/`, whole, by the directory rather than by what is under
+# it -- so moving the data did not change a single pattern and the fence cannot
+# have silently stopped matching. Renaming this directory to anything else
+# would break that, quietly, and the hook would go on looking guarded.
+#
+# Anchored with a leading slash, because that is this file's own hard-won
+# lesson: an unanchored `artifacts/` once swallowed the `psych_asr/artifacts/`
+# subpackage and `git add -A` reported nothing to do.
+/phi/
+
 # Therapy session recordings are identifiable PHI. Filenames themselves
 # contain participant IDs. Audio, converted audio, and every transcript or
 # diarization artifact derived from them stays out of git.

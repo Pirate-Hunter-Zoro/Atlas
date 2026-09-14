@@ -50,16 +50,23 @@ All evaluation pipelines share a single stratified 80/20 train/test split (`crea
 
 ---
 
-## Where the results are, and they are not in here
+## Where the results are, and why git cannot see them
 
-**`~/artifacts/TRD-EHR/results/`.** Outside this repository.
+**`results/`, at the root of this workspace.** It was at `~/artifacts/TRD-EHR/results/`
+until 14 September 2026; it is here now, because a project's output belongs with the
+project and every `results/` path in every script below already meant this name.
 
 1.5 GB of job output, and seven files of it over GitHub's 50 MB warning: the
 `neighbor_results_*.csv` tables under each embedding model, a `results_png_backup.tgz`, and
-the `random_forest_K=1024.joblib` model dumps. This repository is now part of a public
+the `random_forest_K=1024.joblib` model dumps. This repository is part of a public
 monorepo, and none of that is work anybody reads — it is the output of jobs that can be run
-again. Every `results/` path below, and every rsync mirror a job performs into one, means
-that directory.
+again.
+
+**Two rules keep it out of git, and neither is new.** `results/` has been in this
+workspace's `.gitignore` since long before the move, and `board/test/tracked.py` fails the
+whole test suite if a `.joblib`, a `.pkl`, a `.ckpt` or anything over 25 MB is ever
+tracked anywhere in Atlas. What changed on 14 September is only that there is now
+something on this side of those rules.
 
 **The figures and tables derived from it are small, and those are tracked.** That is the
 part that actually matters, because that is what a manuscript cites and what a meeting note

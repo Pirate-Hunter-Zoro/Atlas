@@ -99,22 +99,30 @@ NLTK_DATA = MODELS_ROOT / "nltk_data"
 # ---- Artifacts ----
 # Session content, and therefore PHI.
 #
-# IT DOES NOT LIVE IN THE REPOSITORY. 308 MB of identifiable therapy session audio, with
-# participant IDs in the filenames, sits at ~/phi/PSYCH-ASR -- outside every git
-# repository -- and everything the pipeline writes goes beside it. It used to be a
-# directory at the repository root kept out by a `.gitignore` line, and an ignore rule is
-# a guard anybody can delete by accident. A directory outside the repository is one
-# nothing in here can undo.
+# IT LIVES IN THE WORKSPACE AND OUTSIDE GIT: `phi/`, beside this package. 308 MB of
+# identifiable therapy session audio with participant IDs in the filenames, and
+# everything the pipeline writes goes beside it. It was at `~/phi/PSYCH-ASR` until
+# 14 September 2026; it is here now, because a project's data belongs with the project.
 #
-# It is NOT symlinked in either. A symlink is a tracked file pointing at PHI, which hands
-# the next reader of a public repository a map straight to it.
+# THREE FENCES, and not one of them is trusted alone: `/phi/` is the first rule in this
+# workspace's .gitignore, `board/test/tracked.py` fails the whole suite if any of it is
+# ever tracked, and `ai-config/policy/phi.py` refuses to let an assistant read it by
+# matching the directory NAME. That last one is why this directory is called what it is
+# called -- rename it and 308 MB of PHI silently stops being fenced while everybody goes
+# on believing in the hook. Do not rename it.
+#
+# It is NOT symlinked in. A symlink is a tracked file pointing at PHI, which hands the
+# next reader of a public repository a map straight to it.
 #
 # `PSYCH_ASR_DATA` overrides the root, the same way `PSYCH_ASR_MODELS_ROOT` overrides the
-# weights, for anyone running this off other storage. Absolute on purpose: these paths
-# used to resolve against the submit directory, so a job launched from the wrong place
-# wrote session content somewhere nobody was looking for it.
+# weights, for anyone running this off other storage. Absolute on purpose, and derived
+# from THIS FILE rather than from $HOME: these paths used to resolve against the submit
+# directory, so a job launched from the wrong place wrote session content somewhere
+# nobody was looking for it. `slurm_jobs/lib/job_env.sh` works the same root out the same
+# way, so a Python step and a shell step in one job cannot disagree.
+WORKSPACE_ROOT = Path(__file__).resolve().parent.parent
 DATA_ROOT = Path(os.environ.get(
-    "PSYCH_ASR_DATA", str(Path.home() / "phi" / "PSYCH-ASR")))
+    "PSYCH_ASR_DATA", str(WORKSPACE_ROOT / "phi")))
 
 STAGE1_DIR = DATA_ROOT / "stage1"
 # Stage 2's own directory, and deliberately not a subdirectory of Stage 1's: the

@@ -1922,23 +1922,38 @@ README).
 
 ### Where the session data is, and it is not in here
 
-**`~/phi/PSYCH-ASR/`.** Outside this repository and outside every other one.
+**`phi/`, in this workspace, and git cannot see a byte of it.**
 
-That is the whole of the rule, and it replaces the one this section used to open with. The
-recordings are 308 MB of identifiable PHI with participant IDs in the filenames; they used
-to sit in the repository root, kept out of git by a `.gitignore` line. This repository is
-now part of a public monorepo, and an ignore rule is a guard anybody can delete by
-accident — a directory outside the repository is one nothing in here can undo.
+The recordings are 308 MB of identifiable PHI with participant IDs in the filenames. They
+were at `~/phi/PSYCH-ASR` until 14 September 2026 and they are here now, deliberately: a
+project's data belongs with the project, and a directory nobody can find is a directory
+somebody eventually re-creates somewhere worse.
 
-It is **not symlinked in**. A symlink is a tracked file pointing at PHI, which hands the
-next reader of a public repository a map straight to it.
+**Three fences hold it, and not one of them is trusted on its own.**
+
+| The fence | Where | What it stops |
+| --- | --- | --- |
+| `/phi/`, anchored, the first rule | this workspace's `.gitignore` | git seeing it at all |
+| the tracked-file audit | `board/test/tracked.py` | the whole suite passing if any of it is ever tracked |
+| the directory fence | `ai-config/policy/phi.py` | an assistant reading a syllable of it |
+
+**The directory is called `phi` because the third fence matches on that name**, whole, by
+the directory rather than by what is under it. The move therefore cost that fence nothing
+and it cannot have silently stopped matching. Rename this directory and 308 MB of PHI
+quietly stops being fenced while everybody goes on believing in a hook. Do not rename it.
+
+It is **not symlinked in** from anywhere either. A symlink is a tracked file pointing at
+PHI, which hands the next reader of a public repository a map straight to it.
 
 | | |
 | --- | --- |
-| The audio going in | `~/phi/PSYCH-ASR/inbox/` — exactly one `.wav` |
-| What Stage 1 writes | `~/phi/PSYCH-ASR/stage1/` |
-| What Stage 2 writes | `~/phi/PSYCH-ASR/stage2/` |
+| The audio going in | `phi/inbox/` — exactly one `.wav` |
+| What Stage 1 writes | `phi/stage1/` |
+| What Stage 2 writes | `phi/stage2/` |
 | To point it elsewhere | `PSYCH_ASR_DATA=/some/other/place` |
+
+Both defaults are derived from the code's own location rather than from `$HOME`, so a
+clone of this workspace anywhere finds its own data and never another checkout's.
 
 One variable, read in two places and nowhere else: `psych_asr/config.py` derives
 `DATA_ROOT`, `INBOX_DIR`, `STAGE1_DIR` and `STAGE2_DIR` from it, and

@@ -1,3 +1,11 @@
+# ---- JOB OUTPUT: 1.5 GB of it, and it lives HERE now ----
+# `results/` was at `~/artifacts/TRD-EHR/results/` and it was moved into this
+# workspace on 14 September 2026, deliberately, so that a project's output sits
+# with the project. It is regenerable -- every file in it is written by a job
+# in `slurm_jobs/` -- and seven of them are over GitHub's 50 MB warning, so it
+# stays out of git. The rule was already here; what is new is that there is now
+# something on the other side of it. `board/test/tracked.py` fails the suite if
+# any of it is ever tracked.
 artifacts/
 __pycache__/
 test_data/
