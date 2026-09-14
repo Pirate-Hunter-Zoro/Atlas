@@ -1,0 +1,309 @@
+(* Content-type: application/mathematica *)
+
+(*** Wolfram Notebook File ***)
+(* http://www.wolfram.com/nb *)
+
+(* CreatedBy='Mathematica 6.0' *)
+
+(*CacheID: 234*)
+(* Internal cache information:
+NotebookFileLineBreakTest
+NotebookFileLineBreakTest
+NotebookDataPosition[       145,          7]
+NotebookDataLength[     10880,        301]
+NotebookOptionsPosition[      9230,        263]
+NotebookOutlinePosition[      9724,        282]
+CellTagsIndexPosition[      9681,        279]
+WindowFrame->Normal*)
+
+(* Beginning of Notebook Content *)
+Notebook[{
+
+Cell[CellGroupData[{
+Cell[" Exercises 5.8   ", "Title",ExpressionUUID->"74ce76e0-29ba-446c-b4a6-3d231c4e68a4"],
+
+Cell[CellGroupData[{
+
+Cell["\t5.8.1", "Section",
+ FontSize->18,ExpressionUUID->"640d7e5b-7407-4bab-b3f3-9de94770b47d"],
+
+Cell["\<\
+In deriving equation 5.10, why is it that the density \[Rho] of a substance \
+and not its mass appears?\
+\>", "Text",ExpressionUUID->"6f915fc9-472f-4b05-9746-d8f0c8ff0575"]
+}, Closed]],
+
+Cell[CellGroupData[{
+
+Cell["\t5.8.7", "Section",
+ FontSize->18,ExpressionUUID->"77ab14ca-9f1f-4034-aa91-a7da48cb9ded"],
+
+Cell["\<\
+Find the steady-state solution to equation 5.37 using boundary conditions \
+5.34 and 5.38 (and also equation 5.29).  Specifically, find the exact \
+solutions (not the numerical solutions).
+
+Next, plot the steady-state solutions corresponding to both the pollution \
+density and oxygen concentration using the values used in class (note that \
+\[Gamma] = 2).
+
+Finally, interpret the results.\
+\>", "Text",ExpressionUUID->"b72f39c0-e8e4-4461-b950-4b7fdb3bfee1"]
+}, Closed]],
+
+Cell[CellGroupData[{
+
+Cell[TextData[StyleBox["Predator-prey\nLogistic limited growth\n\
+Reaction-diffusion equations:",
+ FontSize->18]], "Section",ExpressionUUID->"347a7956-6459-4ce3-90d4-\
+7199f8ca59d2"],
+
+Cell[TextData[{
+ "Recall our plankton distribution on the surface of the ocean.  If a new \
+element is introduced in terms of a predator, a tiny crustacean called a \
+copepod, which consumes the plankton, then we have a predator-prey problem.\n\
+\nWe will create a conservation based PDE model for both the predator and the \
+prey.  The flux term for the plankton will assumed to be by diffusion only.  \
+Likewise, the flux term for the tiny crustacean is also by diffusion only.  \
+Although the crustacean has a higher diffusion coefficient due to the \
+increased mobility of the crustacean over the plankton.\n\n\tLet  \[Rho][x,t] \
+ =  plankton concentration\n\n",
+ StyleBox["\t",
+  FontWeight->"Bold"],
+ Cell[BoxData[
+  RowBox[{
+   RowBox[{
+    SubscriptBox["\[PartialD]", "t"], " ", 
+    RowBox[{"(", "\[Rho]", ")"}]}], "  ", "==", "  ", 
+   RowBox[{
+    RowBox[{"-", "  ", 
+     RowBox[{
+      SubscriptBox["\[PartialD]", "x"], " ", 
+      RowBox[{"(", 
+       RowBox[{
+        RowBox[{"-", " ", "\[Mu]"}], "*", 
+        RowBox[{
+         SubscriptBox["\[PartialD]", "x"], " ", 
+         RowBox[{"(", "\[Rho]", ")"}]}]}], ")"}]}]}], "   ", "+", "  ", 
+    RowBox[{"k1", "[", " ", 
+     RowBox[{"\[Rho]", ",", "h"}], "]"}]}]}]],
+  FontWeight->"Bold",ExpressionUUID->"b4b137af-8653-49d3-be82-b1e23fd702bf"],
+ StyleBox["\n\t",
+  FontWeight->"Bold"],
+ Cell[BoxData[
+  RowBox[{
+   RowBox[{
+    SubscriptBox["\[PartialD]", "t"], " ", 
+    RowBox[{"(", "\[Rho]", ")"}]}], "  ", "==", "   ", 
+   RowBox[{
+    RowBox[{"\[Mu]", "*", 
+     RowBox[{
+      SubscriptBox["\[PartialD]", 
+       RowBox[{"x", ",", "x"}]], " ", 
+      RowBox[{"(", "\[Rho]", ")"}]}]}], "   ", "+", "  ", 
+    RowBox[{"k1", "[", " ", 
+     RowBox[{"\[Rho]", ",", "h"}], "]"}]}]}]],
+  FontWeight->"Bold",ExpressionUUID->"87d2e312-cacf-4148-b6cc-66dffd9f73c4"],
+ StyleBox["\n\t",
+  FontWeight->"Bold"],
+ Cell[BoxData[
+  RowBox[{
+   RowBox[{
+    SubscriptBox["\[PartialD]", "t"], " ", 
+    RowBox[{"(", 
+     RowBox[{"\[Rho]", "[", 
+      RowBox[{"x", ",", "t"}], "]"}], ")"}]}], "  ", "==", "   ", 
+   RowBox[{
+    RowBox[{"\[Mu]", "*", 
+     RowBox[{
+      SubscriptBox["\[PartialD]", 
+       RowBox[{"x", ",", "x"}]], " ", 
+      RowBox[{"(", 
+       RowBox[{"\[Rho]", "[", 
+        RowBox[{"x", ",", "t"}], "]"}], ")"}]}]}], "   ", "+", "  ", 
+    RowBox[{"k1", "[", " ", 
+     RowBox[{
+      RowBox[{"\[Rho]", "[", 
+       RowBox[{"x", ",", "t"}], "]"}], ",", 
+      RowBox[{"h", "[", 
+       RowBox[{"x", ",", "t"}], "]"}]}], "]"}]}]}]],
+  FontWeight->"Bold",ExpressionUUID->"09ea5897-bf7d-4fb3-9ab2-1d8703dcb44a"],
+ "\n \n\tLet  h[x,t]  =  crustacean concentration\n\n",
+ StyleBox["  \t",
+  FontWeight->"Bold"],
+ Cell[BoxData[
+  RowBox[{
+   RowBox[{
+    SubscriptBox["\[PartialD]", "t"], " ", 
+    RowBox[{"(", "h", ")"}]}], "  ", "==", " ", 
+   RowBox[{
+    RowBox[{"-", " ", 
+     RowBox[{
+      SubscriptBox["\[PartialD]", "x"], " ", 
+      RowBox[{"(", 
+       RowBox[{
+        RowBox[{"-", " ", "\[Nu]"}], "*", 
+        RowBox[{
+         SubscriptBox["\[PartialD]", "x"], " ", 
+         RowBox[{"(", "h", ")"}]}]}], ")"}]}]}], "   ", "+", "  ", 
+    RowBox[{"k2", "[", " ", 
+     RowBox[{"\[Rho]", ",", "h"}], "]"}]}]}]],
+  FontWeight->"Bold",ExpressionUUID->"dac48444-7561-4d5c-a92d-c36a12b5cdd9"],
+ StyleBox["\n \t",
+  FontWeight->"Bold"],
+ Cell[BoxData[
+  RowBox[{
+   RowBox[{
+    SubscriptBox["\[PartialD]", "t"], " ", 
+    RowBox[{"(", "h", ")"}]}], "  ", "==", "   ", 
+   RowBox[{
+    RowBox[{"\[Nu]", "*", 
+     RowBox[{
+      SubscriptBox["\[PartialD]", 
+       RowBox[{"x", ",", "x"}]], " ", 
+      RowBox[{"(", "h", ")"}]}]}], "   ", "+", "  ", 
+    RowBox[{"k2", "[", " ", 
+     RowBox[{"\[Rho]", ",", "h"}], "]"}]}]}]],
+  FontWeight->"Bold",ExpressionUUID->"f2acad31-31af-4065-8b6e-af900dfd00e4"],
+ StyleBox["\n \t",
+  FontWeight->"Bold"],
+ Cell[BoxData[
+  RowBox[{
+   RowBox[{
+    SubscriptBox["\[PartialD]", "t"], " ", 
+    RowBox[{"(", 
+     RowBox[{"h", "[", 
+      RowBox[{"x", ",", "t"}], "]"}], ")"}]}], "  ", "==", "   ", 
+   RowBox[{
+    RowBox[{"\[Nu]", "*", 
+     RowBox[{
+      SubscriptBox["\[PartialD]", 
+       RowBox[{"x", ",", "x"}]], " ", 
+      RowBox[{"(", 
+       RowBox[{"h", "[", 
+        RowBox[{"x", ",", "t"}], "]"}], ")"}]}]}], "   ", "+", "  ", 
+    RowBox[{"k2", "[", " ", 
+     RowBox[{
+      RowBox[{"\[Rho]", "[", 
+       RowBox[{"x", ",", "t"}], "]"}], ",", 
+      RowBox[{"h", "[", 
+       RowBox[{"x", ",", "t"}], "]"}]}], "]"}]}]}]],
+  FontWeight->"Bold",ExpressionUUID->"a161d21b-f1a7-4306-a07f-2fc03b64c35a"],
+ "\n"
+}], "Text",ExpressionUUID->"88fbbfa5-f837-4395-b184-bfaea4f7e1ce"],
+
+Cell[TextData[{
+ "The source and sink term for the plankton should correspond to its \
+population growth and also its loss because it is consumed by the \
+crustaceans.\n\nThe plankton population growth model could be unlimited \
+growth, logistic limited growth, or another growth model.  For our case, \
+consider a LOGISTIC growth model for the plankton source term:\n\n\t",
+ Cell[BoxData[
+  RowBox[{" ", 
+   RowBox[{"source", " ", "=", " ", 
+    RowBox[{"r", "*", "\[Rho]", "*", 
+     RowBox[{"(", " ", 
+      RowBox[{"1", " ", "-", " ", 
+       FractionBox["\[Rho]", "k"]}], " ", ")"}], " "}]}]}]],
+  FontWeight->"Bold",ExpressionUUID->"167fcd44-65b7-4e5d-9a70-041f0a690964"],
+ "\n\nObserve that the above expression has a \"-\" (the book and the \
+corresponding class presentation had a \"+\") (so that the plankton may NOT \
+be autocatalytic).\nThe plankton sink term will correspond to the plankton \
+being consumed by the crustaceans.  Consider a simple plankton-crustacean \
+interaction model to be proportional to the plankton and crustacean \
+densities:\n\n\tsink =  -  \[Alpha] \[Rho] h\n\nTherefore, the total source \
+and sink term for the plankton is:\n\n\t",
+ Cell[BoxData[
+  RowBox[{
+   RowBox[{"k1", "[", 
+    RowBox[{"\[Rho]", ",", "h"}], "]"}], " ", "=", " ", 
+   RowBox[{
+    RowBox[{"r", "*", "\[Rho]", "*", 
+     RowBox[{"(", " ", 
+      RowBox[{"1", " ", "-", " ", 
+       FractionBox["\[Rho]", "k"]}], " ", ")"}]}], " ", "-", "  ", 
+    RowBox[{"\[Alpha]", "*", "\[Rho]", "*", "h"}]}]}]],
+  FontWeight->"Bold",ExpressionUUID->"56808fc4-c547-41ce-8e13-8e1c0d9ecb6b"],
+ "\n"
+}], "Text",ExpressionUUID->"85f1cf5b-7de3-41be-87fd-24ffab825ba9"],
+
+Cell[TextData[{
+ StyleBox["Using the notebook for this topic presented in class, perform the \
+analysis using a logistic growth model for the plankton rather than the \
+quadratic model presented in the book.  What if any differences in behavior \
+do you observe?\n\nHint: ",
+  FontWeight->"Bold"],
+ "Make ",
+ StyleBox["AccuracyGoal",
+  FontWeight->"Bold"],
+ " smaller if needed to clean up the solution."
+}], "Text",
+ CellChangeTimes->{{3.4665339746953135`*^9, 
+  3.466534017272621*^9}},ExpressionUUID->"d252f2c3-d79d-49ea-a0ea-\
+225170b8f52f"]
+}, Closed]],
+
+Cell[CellGroupData[{
+
+Cell["\t5.8.17", "Section",
+ FontSize->18,ExpressionUUID->"7ea81af6-3c05-466e-94c3-ed77c232cdcb"],
+
+Cell["\<\
+When you solve this problem, do it only one way.  Specifically, by finding \
+the formula corresponding to the steady-state solution.  (Do not use numeric \
+values for the constants that appear in the model).\
+\>", "Text",ExpressionUUID->"92919993-f91f-4502-8f53-fdfdd5d57c9c"],
+
+Cell["\<\
+Also, explicitly show that the homogeneous solutions are as specified in the \
+book.\
+\>", "Text",ExpressionUUID->"1119b95d-2338-4c42-b409-b8230defff66"]
+}, Closed]]
+}, Open  ]]
+},
+WindowSize->{818, 557},
+WindowMargins->{{-1, Automatic}, {Automatic, 9}},
+PrintingCopies->1,
+PrintingPageRange->{Automatic, Automatic},
+Magnification->1.5,
+FrontEndVersion->"11.3 for Microsoft Windows (64-bit) (March 6, 2018)",
+StyleDefinitions->FrontEnd`FileName[{"Creative"}, "NaturalColor.nb", 
+  CharacterEncoding -> "UTF-8"]
+]
+(* End of Notebook Content *)
+
+(* Internal cache information *)
+(*CellTagsOutline
+CellTagsIndex->{}
+*)
+(*CellTagsIndex
+CellTagsIndex->{}
+*)
+(*NotebookFileOutline
+Notebook[{
+Cell[CellGroupData[{
+Cell[567, 22, 89, 0, 98, "Title",ExpressionUUID->"74ce76e0-29ba-446c-b4a6-3d231c4e68a4"],
+Cell[CellGroupData[{
+Cell[681, 26, 96, 1, 114, "Section",ExpressionUUID->"640d7e5b-7407-4bab-b3f3-9de94770b47d"],
+Cell[780, 29, 182, 3, 153, "Text",ExpressionUUID->"6f915fc9-472f-4b05-9746-d8f0c8ff0575"]
+}, Closed]],
+Cell[CellGroupData[{
+Cell[999, 37, 96, 1, 67, "Section",ExpressionUUID->"77ab14ca-9f1f-4034-aa91-a7da48cb9ded"],
+Cell[1098, 40, 469, 10, 497, "Text",ExpressionUUID->"b72f39c0-e8e4-4461-b950-4b7fdb3bfee1"]
+}, Closed]],
+Cell[CellGroupData[{
+Cell[1604, 55, 182, 3, 137, "Section",ExpressionUUID->"347a7956-6459-4ce3-90d4-7199f8ca59d2"],
+Cell[1789, 60, 4612, 132, 1404, "Text",ExpressionUUID->"88fbbfa5-f837-4395-b184-bfaea4f7e1ce"],
+Cell[6404, 194, 1662, 33, 1300, "Text",ExpressionUUID->"85f1cf5b-7de3-41be-87fd-24ffab825ba9"],
+Cell[8069, 229, 544, 13, 382, "Text",ExpressionUUID->"d252f2c3-d79d-49ea-a0ea-225170b8f52f"]
+}, Closed]],
+Cell[CellGroupData[{
+Cell[8650, 247, 97, 1, 67, "Section",ExpressionUUID->"7ea81af6-3c05-466e-94c3-ed77c232cdcb"],
+Cell[8750, 250, 286, 4, 209, "Text",ExpressionUUID->"92919993-f91f-4502-8f53-fdfdd5d57c9c"],
+Cell[9039, 256, 163, 3, 94, "Text",ExpressionUUID->"1119b95d-2338-4c42-b409-b8230defff66"]
+}, Closed]]
+}, Open  ]]
+}
+]
+*)
+

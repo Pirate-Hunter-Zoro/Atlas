@@ -1,0 +1,3104 @@
+(* Content-type: application/mathematica *)
+
+(*** Wolfram Notebook File ***)
+(* http://www.wolfram.com/nb *)
+
+(* CreatedBy='Mathematica 6.0' *)
+
+(*CacheID: 234*)
+(* Internal cache information:
+NotebookFileLineBreakTest
+NotebookFileLineBreakTest
+NotebookDataPosition[       145,          7]
+NotebookDataLength[     95004,       3095]
+NotebookOptionsPosition[     83130,       2765]
+NotebookOutlinePosition[     83751,       2787]
+CellTagsIndexPosition[     83708,       2784]
+WindowFrame->Normal*)
+
+(* Beginning of Notebook Content *)
+Notebook[{
+
+Cell[CellGroupData[{
+Cell[TextData[{
+ StyleBox["Mathematica",
+  FontSlant->"Italic"],
+ " \n",
+ "Advanced Lesson 11\n\nPattern Matching\n\nDr. Dale R. Doty\nUniversity of \
+Tulsa"
+}], "Title"],
+
+Cell[CellGroupData[{
+
+Cell[TextData[StyleBox["  Matching One Element  \"a_\":", "Subtitle"]], \
+"Section"],
+
+Cell[BoxData[
+ RowBox[{" ", 
+  RowBox[{"Remove", "[", "\"\<Global`*\>\"", " ", "]"}]}]], "InputOnly"],
+
+Cell["\<\
+The notation used to match a single (arbitrary) expression is:   \"_\"
+The notation used to assign a local name \"a\" to the pattern match \"_\" is: \
+ \"a_\"\
+\>", "Text",
+ CellChangeTimes->{{3.3898306698856554`*^9, 3.3898306929966555`*^9}}],
+
+Cell[CellGroupData[{
+
+Cell["Example: Function Definition", "Subsection"],
+
+Cell[TextData[{
+ "First, define a function ",
+ StyleBox["without pattern matching",
+  FontVariations->{"Underline"->True}],
+ "   \"_\"  (but use delayed assignment):"
+}], "Text",
+ CellChangeTimes->{{3.3898298103166556`*^9, 3.3898298380016556`*^9}, 
+   3.3898300314356556`*^9}],
+
+Cell[BoxData[
+ RowBox[{
+  RowBox[{"g", "[", "x", "]"}], ":=", 
+  RowBox[{"Sin", "[", "x", "]"}]}]], "InputOnly"],
+
+Cell[BoxData[
+ RowBox[{"?", "g"}]], "Input"],
+
+Cell[BoxData[
+ RowBox[{"g", "[", "x", "]"}]], "Input"],
+
+Cell[BoxData[
+ RowBox[{"g", "[", "y", "]"}]], "Input"],
+
+Cell[BoxData[
+ RowBox[{"g", "[", "a", "]"}]], "Input"],
+
+Cell[BoxData[
+ RowBox[{"g", "[", "3", "]"}]], "Input"],
+
+Cell[TextData[{
+ "\nObserve that the ",
+ StyleBox["only",
+  FontVariations->{"Underline"->True}],
+ " pattern that matches the symbol \"x\" is ",
+ StyleBox["only",
+  FontVariations->{"Underline"->True}],
+ " the symbol \"x\".\n\nNext, define the same function using pattern matching \
+ \"_\".  The \"x_\" will match any arbitrary single symbol \"_\" and assign \
+it the local name \"x\" so that the name \"x\" can be used on the rhs of the \
+assignment."
+}], "Text",
+ CellChangeTimes->{{3.3898307507456555`*^9, 3.3898308574336557`*^9}, {
+   3.389830888188656*^9, 3.389830892707656*^9}, 3.523276563330575*^9}],
+
+Cell[BoxData[
+ RowBox[{
+  RowBox[{"f", "[", "x_", "]"}], ":=", 
+  RowBox[{"Sin", "[", "x", "]"}]}]], "InputOnly"],
+
+Cell[BoxData[
+ RowBox[{"?", "f"}]], "Input"],
+
+Cell[BoxData[
+ RowBox[{"f", "[", "x", "]"}]], "Input"],
+
+Cell[BoxData[
+ RowBox[{"f", "[", "y", "]"}]], "Input"],
+
+Cell[BoxData[
+ RowBox[{"f", "[", "3", "]"}]], "Input"],
+
+Cell[BoxData[
+ RowBox[{"f", "[", "\"\<Anything\>\"", "]"}]], "Input"],
+
+Cell["\<\
+
+More complicated pattern matching can be built up from these single elements:\
+\>", "Text",
+ CellChangeTimes->{3.523276583520777*^9}]
+}, Closed]],
+
+Cell[CellGroupData[{
+
+Cell["Example: Replacement Rules", "Subsection"],
+
+Cell["Next, consider some replacement rules.", "Text"],
+
+Cell[BoxData[
+ RowBox[{
+  RowBox[{"a", "+", "b", "+", "c", "+", "d"}], " ", "/.", 
+  RowBox[{
+   RowBox[{"x_", "+", "y_"}], "\[Rule]", 
+   RowBox[{"x", "*", "y"}]}]}]], "Input"],
+
+Cell[BoxData[
+ RowBox[{" ", 
+  RowBox[{"TreeForm", " ", "[", 
+   RowBox[{"a", " ", "+", "b", "+", "c", "+", "d"}], "]"}]}]], "Input"],
+
+Cell[BoxData[
+ RowBox[{"  ", 
+  RowBox[{"TreeForm", " ", "[", 
+   RowBox[{"a", " ", 
+    RowBox[{"(", 
+     RowBox[{"b", "+", "c", "+", "d"}], ")"}]}], "]"}]}]], "Input"],
+
+Cell[TextData[{
+ "\nNote that after the first replacement, Plus has moved from the top level \
+to a lower level.  Therefore, subsequent possible pattern matches have been \
+moved to a lower level. ",
+ StyleBox["Mathematica",
+  FontSlant->"Italic"],
+ " only continues the search for a pattern match on the part of the \
+expression that has not changed to a lower level.  In this case, all of the \
+remaining Plus expression has been has been moved to a lower level.  \n\
+However, you can request that ",
+ StyleBox["Mathematica",
+  FontSlant->"Italic"],
+ " ",
+ StyleBox["repeat",
+  FontVariations->{"Underline"->True}],
+ " the pattern matching after each substitution until no match at any level \
+can be been found."
+}], "Text",
+ CellChangeTimes->{{3.3898359506256557`*^9, 3.3898359827816553`*^9}, {
+   3.3898360740576553`*^9, 3.3898362096206555`*^9}, 3.523276607901021*^9}],
+
+Cell[BoxData[
+ RowBox[{
+  RowBox[{"a", "+", "b", "+", "c", "+", "d"}], " ", "//.", 
+  RowBox[{
+   RowBox[{"x_", "+", "y_"}], "\[Rule]", 
+   RowBox[{"x", "*", "y"}]}]}]], "Input"],
+
+Cell["\<\
+
+Observe the following:\
+\>", "Text",
+ CellChangeTimes->{{3.3898309826706553`*^9, 3.3898309883996553`*^9}, 
+   3.523276644111383*^9}],
+
+Cell[BoxData[
+ RowBox[{
+  RowBox[{"a", "+", "b", "+", "c", "+", "d"}], " ", "/.", 
+  RowBox[{
+   RowBox[{"x_", "+", "x_"}], "\[Rule]", 
+   RowBox[{"x", "*", "x"}]}]}]], "Input"],
+
+Cell[TextData[{
+ "\nNote that there was no pattern match to: symbol_ + symbol_  (",
+ StyleBox["same",
+  FontVariations->{"Underline"->True}],
+ " symbol in both cases)."
+}], "Text",
+ CellChangeTimes->{3.5232766504414463`*^9}],
+
+Cell[TextData[{
+ "Next, switch the elements ",
+ StyleBox["inside",
+  FontVariations->{"Underline"->True}],
+ " an ordered pair in a list of ordered pairs:"
+}], "Text",
+ CellChangeTimes->{{3.3898310292196555`*^9, 3.3898310768316555`*^9}}],
+
+Cell[BoxData[
+ RowBox[{
+  RowBox[{"{", 
+   RowBox[{
+    RowBox[{"{", 
+     RowBox[{"1", ",", "2"}], "}"}], ",", 
+    RowBox[{"{", 
+     RowBox[{"3", ",", "4"}], "}"}], ",", 
+    RowBox[{"{", 
+     RowBox[{"5", ",", "6"}], "}"}], ",", 
+    RowBox[{"{", 
+     RowBox[{"7", ",", "8"}], "}"}]}], "}"}], "/.", 
+  RowBox[{
+   RowBox[{"{", 
+    RowBox[{"x_", ",", "y_"}], "}"}], "\[Rule]", 
+   RowBox[{"{", 
+    RowBox[{"y", ",", "x"}], "}"}]}]}]], "Input"],
+
+Cell["However, observe the following:", "Text"],
+
+Cell[BoxData[
+ RowBox[{
+  RowBox[{"{", 
+   RowBox[{
+    RowBox[{"{", 
+     RowBox[{"1", ",", "2"}], "}"}], ",", 
+    RowBox[{"{", 
+     RowBox[{"3", ",", "4"}], "}"}]}], "}"}], "/.", 
+  RowBox[{
+   RowBox[{"{", 
+    RowBox[{"x_", ",", "y_"}], "}"}], "\[Rule]", 
+   RowBox[{"{", 
+    RowBox[{"y", ",", "x"}], "}"}]}]}]], "Input"],
+
+Cell[TextData[{
+ "\nObserve that it was the ordered pairs that were switched, ",
+ StyleBox["not",
+  FontVariations->{"Underline"->True}],
+ " the coordinates within the ordered pairs.  Study the above two examples \
+closely until you understand how the pattern match was made in each case.\n\
+The above example allows two distinctly different possibilities for matching \
+a pattern, each of which matches the pattern: ",
+ Cell[BoxData[
+  FormBox[
+   RowBox[{"{", 
+    RowBox[{"x_", ",", "y_"}], "}"}], TraditionalForm]]],
+ ".  Thus, a more ",
+ StyleBox["detailed",
+  FontVariations->{"Underline"->True}],
+ " pattern must be specified so that multiple possibilities of this type are \
+eliminated.  \nConsider a pattern which is a list of elements:  ",
+ Cell[BoxData[
+  FormBox[
+   RowBox[{"{", 
+    RowBox[{"a___", ",", "   ", "...", "   ", ",", "b___"}], "}"}], 
+   TraditionalForm]]],
+ "  which contains a pattern for an ordered pair: ",
+ Cell[BoxData[
+  FormBox[
+   RowBox[{" ", 
+    RowBox[{
+     RowBox[{"...", " ", 
+      RowBox[{"{", 
+       RowBox[{"x_", ",", "y_"}], "}"}]}], " ", "..."}]}], TraditionalForm]]]
+}], "Text",
+ CellChangeTimes->{{3.389831117509656*^9, 3.389831118393656*^9}, {
+   3.389831202832656*^9, 3.389831244681656*^9}, {3.3898312881126556`*^9, 
+   3.3898313166756554`*^9}, {3.3898362947446556`*^9, 3.3898363100616555`*^9}, 
+   3.5232766678716207`*^9}],
+
+Cell[BoxData[
+ RowBox[{
+  RowBox[{"{", 
+   RowBox[{
+    RowBox[{"{", 
+     RowBox[{"1", ",", "2"}], "}"}], ",", 
+    RowBox[{"{", 
+     RowBox[{"3", ",", "4"}], "}"}]}], "}"}], "/.", 
+  RowBox[{
+   RowBox[{"{", 
+    RowBox[{"a___", ",", 
+     RowBox[{"{", 
+      RowBox[{"x_", ",", "y_"}], "}"}], ",", "b___"}], "}"}], "\[Rule]", 
+   RowBox[{"{", 
+    RowBox[{"a", ",", 
+     RowBox[{"{", 
+      RowBox[{"y", ",", "x"}], "}"}], ",", "b"}], "}"}]}]}]], "Input"],
+
+Cell[TextData[{
+ "\nObserve that only the first ordered pair was switched.  However, if we \
+were to use repeated replacement here, the new ",
+ StyleBox["pattern",
+  FontVariations->{"Underline"->True}],
+ " would be ",
+ StyleBox["exactly",
+  FontVariations->{"Underline"->True}],
+ " the same as the old pattern (that was already replaced), thereby setting \
+up a recursive replacement that would ",
+ StyleBox["never",
+  FontVariations->{"Underline"->True}],
+ " stop.  Other procedures would be required to fix this problem."
+}], "Text",
+ CellChangeTimes->{{3.3898363822636557`*^9, 3.3898365108816557`*^9}, 
+   3.5232767024919667`*^9}],
+
+Cell["\<\
+As a further example, consider replacing the head of a function \"Sin\" and \
+its argument \"x\" with pattern matching:\
+\>", "Text",
+ CellChangeTimes->{{3.3898313993056555`*^9, 3.389831421452656*^9}, {
+  3.3898365304166555`*^9, 3.3898365460176554`*^9}}],
+
+Cell[BoxData[
+ RowBox[{
+  RowBox[{"Sin", "[", "x", "]"}], "/.", 
+  RowBox[{
+   RowBox[{"f_", "[", "y_", "]"}], "\[Rule]", 
+   RowBox[{"Tan", "[", 
+    RowBox[{"2", "\[Pi]", " ", "y"}], "]"}]}]}]], "Input",
+ CellChangeTimes->{{3.3898314264626555`*^9, 3.389831430860656*^9}}],
+
+Cell["\<\
+
+Consider trigonometric substitution (i.e. rule replacement).\
+\>", "Text",
+ CellChangeTimes->{3.523276716352105*^9}],
+
+Cell[BoxData[
+ RowBox[{
+  RowBox[{
+   SuperscriptBox[
+    RowBox[{"x", " "}], "2"], "+", " ", 
+   SuperscriptBox[
+    RowBox[{"Sin", "[", "x", "]"}], "2"], " ", "+", " ", 
+   SuperscriptBox[
+    RowBox[{"Cos", "[", "x", "]"}], "2"], " ", "+", 
+   SuperscriptBox["y", "2"]}], " ", "/.", 
+  RowBox[{
+   RowBox[{
+    SuperscriptBox[
+     RowBox[{"Sin", "[", "a_", "]"}], "2"], " ", "+", " ", 
+    SuperscriptBox[
+     RowBox[{"Cos", "[", "a_", "]"}], "2"]}], " ", "\[Rule]", 
+   "1"}]}]], "Input"],
+
+Cell[BoxData[
+ RowBox[{" ", 
+  RowBox[{
+   RowBox[{
+    SuperscriptBox[
+     RowBox[{"Cos", "[", "x", "]"}], "2"], " ", "+", 
+    SuperscriptBox[
+     RowBox[{"x", " "}], "2"], "+", " ", 
+    SuperscriptBox[
+     RowBox[{"Sin", "[", "x", "]"}], "2"], " ", "+", 
+    SuperscriptBox["y", "2"]}], " ", "/.", 
+   RowBox[{
+    RowBox[{
+     SuperscriptBox[
+      RowBox[{"Sin", "[", "a_", "]"}], "2"], " ", "+", " ", 
+     SuperscriptBox[
+      RowBox[{"Cos", "[", "a_", "]"}], "2"]}], " ", "\[Rule]", 
+    "1"}]}]}]], "Input"],
+
+Cell[BoxData[
+ RowBox[{"Head", "[", 
+  RowBox[{
+   SuperscriptBox[
+    RowBox[{"x", " "}], "2"], "+", " ", 
+   SuperscriptBox[
+    RowBox[{"Sin", "[", "x", "]"}], "2"], " ", "+", " ", 
+   SuperscriptBox[
+    RowBox[{"Cos", "[", "x", "]"}], "2"], " ", "+", 
+   SuperscriptBox["y", "2"]}], " ", "]"}]], "Input"],
+
+Cell[BoxData[
+ RowBox[{" ", 
+  RowBox[{"Attributes", " ", "[", "Plus", "]"}]}]], "Input"],
+
+Cell["\<\
+Orderless is an attribute that can be assigned to a symbol f to indicate that \
+the elements ei in expressions of the form f[e1, e2, ... ] should \
+automatically be sorted into canonical order. This property is accounted for \
+in pattern matching.\
+\>", "Item",
+ CellChangeTimes->{{3.3900435711364*^9, 3.3900435741854*^9}},
+ FontWeight->"Bold"],
+
+Cell[TextData[{
+ "Thus, the reason ",
+ StyleBox["Mathematica",
+  FontSlant->"Italic"],
+ " was able to match this pattern (even though algebraic rearrangement was \
+required before a pattern match could be made) was because Plus has attribute \
+Orderless.  A function with attribute Orderless first arranges the arguments \
+into canonical order, then attempts to match a pattern.  \nConsider the \
+following canonical forms  (which explains the pattern match in the above \
+cases):"
+}], "Text",
+ CellChangeTimes->{{3.3898365818696556`*^9, 3.3898366495316553`*^9}}],
+
+Cell[BoxData[
+ RowBox[{
+  SuperscriptBox[
+   RowBox[{"x", " "}], "2"], "+", " ", 
+  SuperscriptBox[
+   RowBox[{"Sin", "[", "x", "]"}], "2"], " ", "+", " ", 
+  SuperscriptBox[
+   RowBox[{"Cos", "[", "x", "]"}], "2"], " ", "+", 
+  SuperscriptBox["y", "2"]}]], "Input"],
+
+Cell[BoxData[
+ RowBox[{
+  SuperscriptBox[
+   RowBox[{"Cos", "[", "x", "]"}], "2"], " ", "+", 
+  SuperscriptBox[
+   RowBox[{"x", " "}], "2"], "+", " ", 
+  SuperscriptBox[
+   RowBox[{"Sin", "[", "x", "]"}], "2"], " ", "+", 
+  SuperscriptBox["y", "2"]}]], "Input"],
+
+Cell["\<\
+
+Next, consider some simple replacements. In what follows, the symbol \"a\" is \
+missing the pattern \"_\":\
+\>", "Text",
+ CellChangeTimes->{{3.389836709523656*^9, 3.3898367429306555`*^9}, {
+   3.389836815773656*^9, 3.3898368223296556`*^9}, 3.5232767449123907`*^9}],
+
+Cell[BoxData[
+ RowBox[{
+  RowBox[{
+   RowBox[{"(", 
+    RowBox[{"a", "+", "b"}], ")"}], "*", "c"}], "  ", "/.", " ", 
+  RowBox[{
+   RowBox[{"a", "*", "c"}], "\[Rule]", "\"\< something new\>\""}]}]], "Input"],
+
+Cell["\<\
+
+No pattern match was achieved.  Why?\
+\>", "Text",
+ CellChangeTimes->{3.5232767603025446`*^9}],
+
+Cell[BoxData[
+ RowBox[{" ", 
+  RowBox[{"TreeForm", " ", "[", 
+   RowBox[{
+    RowBox[{"(", 
+     RowBox[{"a", "+", "b"}], ")"}], "*", "c"}], " ", "]"}]}]], "Input"],
+
+Cell["\<\
+
+Add the pattern \"_\" to get the proper pattern \"a_\":\
+\>", "Text",
+ CellChangeTimes->{{3.3898367732966557`*^9, 3.3898368330666556`*^9}, 
+   3.5232767632425747`*^9}],
+
+Cell[BoxData[
+ RowBox[{
+  RowBox[{
+   RowBox[{"(", 
+    RowBox[{"a", "+", "b"}], ")"}], "*", "c"}], "  ", "/.", " ", 
+  RowBox[{
+   RowBox[{"a_", "*", "c"}], "\[Rule]", "\"\<something new\>\""}]}]], "Input"],
+
+Cell["\<\
+
+Consider some more examples:\
+\>", "Text",
+ CellChangeTimes->{3.5232767677726192`*^9}],
+
+Cell[BoxData[
+ RowBox[{
+  SuperscriptBox[
+   RowBox[{"x", " "}], "2"], "+", " ", 
+  SuperscriptBox[
+   RowBox[{"Sin", "[", "x", "]"}], "2"], " ", "+", " ", 
+  SuperscriptBox[
+   RowBox[{"Cos", "[", "x", "]"}], "2"], " ", "+", 
+  SuperscriptBox["y", "2"]}]], "Input"],
+
+Cell["\<\
+
+Observe the new order above:
+Apply the replacement rule once:\
+\>", "Text",
+ CellChangeTimes->{3.5232767715226574`*^9}],
+
+Cell[BoxData[
+ RowBox[{
+  RowBox[{
+   SuperscriptBox[
+    RowBox[{"x", " "}], "2"], "+", " ", 
+   SuperscriptBox[
+    RowBox[{"Sin", "[", "x", "]"}], "2"], " ", "+", " ", 
+   SuperscriptBox[
+    RowBox[{"Cos", "[", "x", "]"}], "2"], " ", "+", 
+   SuperscriptBox["y", "2"]}], " ", "/.", 
+  RowBox[{
+   RowBox[{
+    SuperscriptBox["a_", "2"], " ", "+", " ", 
+    SuperscriptBox["b_", "2"]}], " ", "\[Rule]", "1"}]}]], "Input"],
+
+Cell["\<\
+
+Apply the replacement rule repeatedly:\
+\>", "Text",
+ CellChangeTimes->{3.5232767741926837`*^9}],
+
+Cell[BoxData[
+ RowBox[{
+  RowBox[{
+   SuperscriptBox[
+    RowBox[{"x", " "}], "2"], "+", " ", 
+   SuperscriptBox[
+    RowBox[{"Sin", "[", "x", "]"}], "2"], " ", "+", " ", 
+   SuperscriptBox[
+    RowBox[{"Cos", "[", "x", "]"}], "2"], " ", "+", 
+   SuperscriptBox["y", "2"]}], " ", "//.", 
+  RowBox[{
+   RowBox[{
+    SuperscriptBox["a_", "2"], " ", "+", " ", 
+    SuperscriptBox["b_", "2"]}], " ", "\[Rule]", "1"}]}]], "Input"]
+}, Closed]]
+}, Closed]],
+
+Cell[CellGroupData[{
+
+Cell[TextData[StyleBox["  Matching One Or More Elements \"a_ _\":", \
+"Subtitle"]], "Section",
+ CellChangeTimes->{
+  3.389836879181656*^9, {3.389836917575656*^9, 3.3898369272256556`*^9}}],
+
+Cell[BoxData[
+ RowBox[{"Clear", "[", 
+  RowBox[{
+  "f", ",", "g", ",", "x", ",", "y", ",", "a", ",", "b", ",", "c", ",", "d"}],
+   "]"}]], "InputOnly"],
+
+Cell[TextData[{
+ "Whereas  \"_\"  will match any single expression,  \"",
+ Cell[BoxData[
+  FormBox["__", TraditionalForm]]],
+ "\"   (i.e. two \"_\")  will match any sequence of ",
+ StyleBox["one or more",
+  FontVariations->{"Underline"->True}],
+ " expressions.\nTherefore  ",
+ Cell[BoxData[
+  FormBox["a__", TraditionalForm]]],
+ "  (i.e. two \"_\") will assign the local name \"a\" to any sequence of ",
+ StyleBox["one or more",
+  FontVariations->{"Underline"->True}],
+ " expressions.\n\nConsider the following examples:"
+}], "Text",
+ CellChangeTimes->{3.3898369099826555`*^9, 3.3898369484496555`*^9}],
+
+Cell[BoxData[
+ RowBox[{
+  RowBox[{"{", 
+   RowBox[{"a", ",", "b", ",", "c", ",", "d"}], "}"}], " ", "/.", " ", 
+  RowBox[{
+   RowBox[{"{", "x__", "}"}], " ", "\[Rule]", " ", 
+   RowBox[{"{", 
+    RowBox[{"\"\<something new\>\"", ",", 
+     RowBox[{"f", "[", "x", "]"}]}], "}"}]}]}]], "Input"],
+
+Cell[TextData[{
+ "Carefully observe that the pattern  \"",
+ Cell[BoxData[
+  FormBox["__", TraditionalForm]]],
+ "\"  matched the complete sequence:  a,b,c,d  of four objects."
+}], "Text",
+ CellChangeTimes->{3.3898370042936554`*^9}],
+
+Cell[BoxData[
+ RowBox[{
+  RowBox[{"{", 
+   RowBox[{"a", ",", "b", ",", "c"}], "}"}], " ", "/.", " ", 
+  RowBox[{
+   RowBox[{"{", "x__", "}"}], " ", "\[Rule]", " ", 
+   RowBox[{"{", 
+    RowBox[{"\"\<something new\>\"", ",", 
+     RowBox[{"f", "[", "x", "]"}]}], "}"}]}]}]], "Input"],
+
+Cell[TextData[{
+ "Carefully observe that the pattern  \"",
+ Cell[BoxData[
+  FormBox["__", TraditionalForm]]],
+ "\"  matched the complete sequence:  a,b,c  of three objects."
+}], "Text",
+ CellChangeTimes->{3.3898370273956556`*^9}],
+
+Cell[BoxData[
+ RowBox[{
+  RowBox[{"{", 
+   RowBox[{"a", ",", "b"}], "}"}], " ", "/.", " ", 
+  RowBox[{
+   RowBox[{"{", "x__", "}"}], " ", "\[Rule]", " ", 
+   RowBox[{"{", 
+    RowBox[{"\"\<something new\>\"", ",", 
+     RowBox[{"f", "[", "x", "]"}]}], "}"}]}]}]], "Input"],
+
+Cell[TextData[{
+ "Carefully observe that the pattern  \"",
+ Cell[BoxData[
+  FormBox["__", TraditionalForm]]],
+ "\"  matched the complete sequence:  a,b  of two objects."
+}], "Text",
+ CellChangeTimes->{3.3898370406316557`*^9}],
+
+Cell[BoxData[
+ RowBox[{
+  RowBox[{"{", "a", "}"}], " ", "/.", " ", 
+  RowBox[{
+   RowBox[{"{", "x__", "}"}], " ", "\[Rule]", " ", 
+   RowBox[{"{", 
+    RowBox[{"\"\<something new\>\"", ",", 
+     RowBox[{"f", "[", "x", "]"}]}], "}"}]}]}]], "Input"],
+
+Cell[TextData[{
+ "Carefully observe that the pattern  \"",
+ Cell[BoxData[
+  FormBox["__", TraditionalForm]]],
+ "\"  matched the complete sequence:   a   of one object."
+}], "Text",
+ CellChangeTimes->{3.3898370568896556`*^9}],
+
+Cell[BoxData[
+ RowBox[{
+  RowBox[{"{", "}"}], " ", "/.", " ", 
+  RowBox[{
+   RowBox[{"{", "x__", "}"}], " ", "\[Rule]", " ", 
+   RowBox[{"{", 
+    RowBox[{"\"\<something new\>\"", ",", 
+     RowBox[{"f", "[", "x", "]"}]}], "}"}]}]}]], "Input"],
+
+Cell[TextData[{
+ "Carefully observe that the pattern  \"",
+ Cell[BoxData[
+  FormBox["__", TraditionalForm]]],
+ "\"  did ",
+ StyleBox["not",
+  FontVariations->{"Underline"->True}],
+ " match the sequence:  \"  \"  of no objects."
+}], "Text",
+ CellChangeTimes->{3.3898370744166555`*^9}]
+}, Closed]],
+
+Cell[CellGroupData[{
+
+Cell[TextData[StyleBox["  Matching Zero Or More Elements  \"a_ _ _\":", \
+"Subtitle"]], "Section",
+ CellChangeTimes->{{3.3898370832716556`*^9, 3.389837085577656*^9}}],
+
+Cell[TextData[{
+ "Whereas  \"",
+ Cell[BoxData[
+  FormBox["__", TraditionalForm]]],
+ "\"  will match any sequence of one or more expressions,  \"",
+ Cell[BoxData[
+  FormBox["___", TraditionalForm]]],
+ "\"   (i.e. three \"_\")  will match any sequence of ",
+ StyleBox["zero or more",
+  FontVariations->{"Underline"->True}],
+ " expressions.\nTherefore  ",
+ Cell[BoxData[
+  FormBox["a___", TraditionalForm]]],
+ "  (i.e. three \"_\") will assign the local name \"a\" to any sequence of ",
+ StyleBox["zero or more",
+  FontVariations->{"Underline"->True}],
+ " expressions.\n\nConsider the following examples:"
+}], "Text",
+ CellChangeTimes->{{3.389837097320656*^9, 3.3898371141256557`*^9}}],
+
+Cell[BoxData[
+ RowBox[{
+  RowBox[{"{", 
+   RowBox[{"a", ",", "b", ",", "c"}], "}"}], " ", "/.", " ", 
+  RowBox[{
+   RowBox[{"{", "x___", "}"}], " ", "\[Rule]", " ", 
+   RowBox[{"{", 
+    RowBox[{"\"\<something new\>\"", ",", 
+     RowBox[{"f", "[", "x", "]"}]}], "}"}]}]}]], "Input"],
+
+Cell[TextData[{
+ "\nCarefully observe that the pattern  \"",
+ Cell[BoxData[
+  FormBox["___", TraditionalForm]]],
+ "\"  matched the complete sequence:  a,b,c  of three objects."
+}], "Text",
+ CellChangeTimes->{3.3898371278566556`*^9, 3.523276929084233*^9}],
+
+Cell[BoxData[
+ RowBox[{
+  RowBox[{"{", 
+   RowBox[{"a", ",", "b"}], "}"}], " ", "/.", " ", 
+  RowBox[{
+   RowBox[{"{", "x___", "}"}], " ", "\[Rule]", " ", 
+   RowBox[{"{", 
+    RowBox[{"\"\<something new\>\"", ",", 
+     RowBox[{"f", "[", "x", "]"}]}], "}"}]}]}]], "Input"],
+
+Cell[TextData[{
+ "\nCarefully observe that the pattern  \"",
+ Cell[BoxData[
+  FormBox["___", TraditionalForm]]],
+ "\"  matched the complete sequence:  a,b  of two objects."
+}], "Text",
+ CellChangeTimes->{3.3898371349466553`*^9, 3.5232769302842445`*^9}],
+
+Cell[BoxData[
+ RowBox[{
+  RowBox[{"{", "a", "}"}], " ", "/.", " ", 
+  RowBox[{
+   RowBox[{"{", "x___", "}"}], " ", "\[Rule]", " ", 
+   RowBox[{"{", 
+    RowBox[{"\"\<something new\>\"", ",", 
+     RowBox[{"f", "[", "x", "]"}]}], "}"}]}]}]], "Input"],
+
+Cell[TextData[{
+ "\nCarefully observe that the pattern  \"",
+ Cell[BoxData[
+  FormBox["___", TraditionalForm]]],
+ "\"  matched the complete sequence:   a   of one object."
+}], "Text",
+ CellChangeTimes->{3.3898371402506557`*^9, 3.5232769317242594`*^9}],
+
+Cell[BoxData[
+ RowBox[{
+  RowBox[{"{", "}"}], " ", "/.", " ", 
+  RowBox[{
+   RowBox[{"{", "x___", "}"}], " ", "\[Rule]", " ", 
+   RowBox[{"{", 
+    RowBox[{"\"\<something new\>\"", ",", 
+     RowBox[{"f", "[", "x", "]"}]}], "}"}]}]}]], "Input"],
+
+Cell[TextData[{
+ "\nCarefully observe that the pattern  \"",
+ Cell[BoxData[
+  FormBox["___", TraditionalForm]]],
+ "\"  did match the sequence:  \"  \"  of no objects."
+}], "Text",
+ CellChangeTimes->{3.389837146846656*^9, 3.5232769337742796`*^9}],
+
+Cell["\<\
+
+Study the following examples carefully:\
+\>", "Text"],
+
+Cell[BoxData[
+ RowBox[{
+  RowBox[{"{", 
+   RowBox[{
+    RowBox[{"{", 
+     RowBox[{"1", ",", "2"}], "}"}], ",", 
+    RowBox[{"{", 
+     RowBox[{"3", ",", "4"}], "}"}], ",", 
+    RowBox[{"{", 
+     RowBox[{"5", ",", "6"}], "}"}], ",", 
+    RowBox[{"{", 
+     RowBox[{"7", ",", "8"}], "}"}]}], "}"}], "//.", 
+  RowBox[{
+   RowBox[{"{", 
+    RowBox[{"x_", ",", 
+     RowBox[{"{", 
+      RowBox[{"a_", ",", "b_"}], "}"}], ",", "z_"}], "}"}], "\[Rule]", 
+   RowBox[{"{", 
+    RowBox[{"x", ",", 
+     RowBox[{"{", "\"\<something new\>\"", "}"}], ",", "z"}], 
+    "}"}]}]}]], "Input"],
+
+Cell[BoxData[
+ RowBox[{
+  RowBox[{"{", 
+   RowBox[{
+    RowBox[{"{", 
+     RowBox[{"1", ",", "2"}], "}"}], ",", 
+    RowBox[{"{", 
+     RowBox[{"3", ",", "4"}], "}"}], ",", 
+    RowBox[{"{", 
+     RowBox[{"5", ",", "6"}], "}"}], ",", 
+    RowBox[{"{", 
+     RowBox[{"7", ",", "8"}], "}"}]}], "}"}], "//.", 
+  RowBox[{
+   RowBox[{"{", 
+    RowBox[{"x_", ",", 
+     RowBox[{"{", 
+      RowBox[{"a_", ",", "b_"}], "}"}], ",", "z__"}], "}"}], "\[Rule]", 
+   RowBox[{"{", 
+    RowBox[{"x", ",", 
+     RowBox[{"{", "\"\<something new\>\"", "}"}], ",", "z"}], 
+    "}"}]}]}]], "Input"],
+
+Cell[BoxData[
+ RowBox[{
+  RowBox[{"{", 
+   RowBox[{
+    RowBox[{"{", 
+     RowBox[{"1", ",", "2"}], "}"}], ",", 
+    RowBox[{"{", 
+     RowBox[{"3", ",", "4"}], "}"}], ",", 
+    RowBox[{"{", 
+     RowBox[{"5", ",", "6"}], "}"}], ",", 
+    RowBox[{"{", 
+     RowBox[{"7", ",", "8"}], "}"}]}], "}"}], "//.", 
+  RowBox[{
+   RowBox[{"{", 
+    RowBox[{"x__", ",", 
+     RowBox[{"{", 
+      RowBox[{"a_", ",", "b_"}], "}"}], ",", "z_"}], "}"}], "\[Rule]", 
+   RowBox[{"{", 
+    RowBox[{"x", ",", 
+     RowBox[{"{", "\"\<something new\>\"", "}"}], ",", "z"}], 
+    "}"}]}]}]], "Input"],
+
+Cell[BoxData[
+ RowBox[{
+  RowBox[{"{", 
+   RowBox[{
+    RowBox[{"{", 
+     RowBox[{"1", ",", "2"}], "}"}], ",", 
+    RowBox[{"{", 
+     RowBox[{"3", ",", "4"}], "}"}], ",", 
+    RowBox[{"{", 
+     RowBox[{"5", ",", "6"}], "}"}], ",", 
+    RowBox[{"{", 
+     RowBox[{"7", ",", "8"}], "}"}]}], "}"}], "//.", 
+  RowBox[{
+   RowBox[{"{", 
+    RowBox[{"x___", ",", 
+     RowBox[{"{", 
+      RowBox[{"a_", ",", "b_"}], "}"}], ",", "z__"}], "}"}], "\[Rule]", 
+   RowBox[{"{", 
+    RowBox[{"x", ",", 
+     RowBox[{"{", "\"\<something new\>\"", "}"}], ",", "z"}], 
+    "}"}]}]}]], "Input"],
+
+Cell[BoxData[
+ RowBox[{
+  RowBox[{"{", 
+   RowBox[{
+    RowBox[{"{", 
+     RowBox[{"1", ",", "2"}], "}"}], ",", 
+    RowBox[{"{", 
+     RowBox[{"3", ",", "4"}], "}"}], ",", 
+    RowBox[{"{", 
+     RowBox[{"5", ",", "6"}], "}"}], ",", 
+    RowBox[{"{", 
+     RowBox[{"7", ",", "8"}], "}"}]}], "}"}], "//.", 
+  RowBox[{
+   RowBox[{"{", 
+    RowBox[{"x___", ",", 
+     RowBox[{"{", 
+      RowBox[{"a_", ",", "b_"}], "}"}], ",", "z___"}], "}"}], "\[Rule]", 
+   RowBox[{"{", 
+    RowBox[{"x", ",", 
+     RowBox[{"{", "\"\<something new\>\"", "}"}], ",", "z"}], 
+    "}"}]}]}]], "Input"],
+
+Cell["\<\
+
+Next, try only one replacement:\
+\>", "Text",
+ CellChangeTimes->{3.5232769401543436`*^9}],
+
+Cell[BoxData[
+ RowBox[{
+  RowBox[{"{", 
+   RowBox[{
+    RowBox[{"{", 
+     RowBox[{"1", ",", "2"}], "}"}], ",", 
+    RowBox[{"{", 
+     RowBox[{"3", ",", "4"}], "}"}], ",", 
+    RowBox[{"{", 
+     RowBox[{"5", ",", "6"}], "}"}], ",", 
+    RowBox[{"{", 
+     RowBox[{"7", ",", "8"}], "}"}]}], "}"}], "/.", 
+  RowBox[{
+   RowBox[{"{", 
+    RowBox[{"x___", ",", 
+     RowBox[{"{", 
+      RowBox[{"a_", ",", "b_"}], "}"}], ",", "z___"}], "}"}], "\[Rule]", 
+   RowBox[{"{", 
+    RowBox[{"x", ",", 
+     RowBox[{"{", "\"\<something new\>\"", "}"}], ",", "z"}], 
+    "}"}]}]}]], "Input"],
+
+Cell["\<\
+
+Then use repeated replacement.  \
+\>", "Text",
+ CellChangeTimes->{3.5232769457743998`*^9}],
+
+Cell[BoxData[
+ RowBox[{
+  RowBox[{"{", 
+   RowBox[{
+    RowBox[{"{", 
+     RowBox[{"1", ",", "2"}], "}"}], ",", 
+    RowBox[{"{", 
+     RowBox[{"3", ",", "4"}], "}"}], ",", 
+    RowBox[{"{", 
+     RowBox[{"5", ",", "6"}], "}"}], ",", 
+    RowBox[{"{", 
+     RowBox[{"7", ",", "8"}], "}"}]}], "}"}], "  ", "//.", 
+  RowBox[{
+   RowBox[{"{", 
+    RowBox[{"x___", ",", 
+     RowBox[{"{", 
+      RowBox[{"a_", ",", "b_"}], "}"}], ",", "z___"}], "}"}], "\[Rule]", 
+   RowBox[{"{", 
+    RowBox[{"x", ",", 
+     RowBox[{"{", "\"\<something new\>\"", "}"}], ",", "z"}], 
+    "}"}]}]}]], "Input"],
+
+Cell[CellGroupData[{
+
+Cell["\<\
+  Example: Find Your Telephone Extension In \[Pi]:\
+\>", "Subsection"],
+
+Cell["\<\
+My TU telephone extension is:  2983.  Exactly where are these digits located \
+in the number \[Pi]?\
+\>", "Text",
+ CellChangeTimes->{{3.3898373265066557`*^9, 3.3898373284046555`*^9}}],
+
+Cell[BoxData[
+ RowBox[{"pi", "=", 
+  RowBox[{"N", "[", 
+   RowBox[{"\[Pi]", ",", "40"}], "]"}]}]], "Input",
+ CellChangeTimes->{{3.389837287516656*^9, 3.3898372882086554`*^9}}],
+
+Cell["\<\
+
+In order to use pattern matching, we need a list (of characters).  The \
+precise characters depend upon the format that the number is represented in.  \
+Thus, our first command is to have a number converted to a string \
+corresponding to the desired output format.  Then, convert the string to a \
+list of characters.  Once we have a list, then we can use pattern matching to \
+locate my TU telephone extension.\
+\>", "Text",
+ CellChangeTimes->{3.523276988494827*^9}],
+
+Cell[CellGroupData[{
+
+Cell["\<\
+ToString[expr] gives a string corresponding to the printed form of expr in \
+OutputForm.
+ToString[expr, form] gives the string corresponding to output in the \
+specified form.\
+\>", "Item",
+ CellChangeTimes->{{3.3900435453134003`*^9, 3.3900435550334*^9}},
+ FontWeight->"Bold"],
+
+Cell["\<\
+Characters \"string\" gives a list of the characters in a string.\
+\>", "Item",
+ CellChangeTimes->{{3.3900435492904*^9, 3.3900435532264*^9}},
+ FontWeight->"Bold"]
+}, Open  ]],
+
+Cell[BoxData[
+ RowBox[{" ", 
+  RowBox[{"piList", " ", "=", 
+   RowBox[{"Characters", " ", "[", 
+    RowBox[{"ToString", "[", "pi", "]"}], "]"}]}]}]], "Input"],
+
+Cell[BoxData[
+ RowBox[{" ", 
+  RowBox[{
+   RowBox[{"findNumber", " ", "[", 
+    RowBox[{"{", 
+     RowBox[{"a___", ",", "\"\<2\>\"", ",", "b___"}], "}"}], "]"}], ":=", 
+   RowBox[{"{", "a", "}"}]}]}]], "InputOnly"],
+
+Cell[BoxData[
+ RowBox[{" ", 
+  RowBox[{"findNumber", " ", "[", "piList", "]"}]}]], "Input"],
+
+Cell[BoxData[
+ RowBox[{"Clear", "[", "findNumber", "]"}]], "InputOnly"],
+
+Cell[BoxData[
+ RowBox[{" ", 
+  RowBox[{
+   RowBox[{"findNumber", " ", "[", 
+    RowBox[{"{", 
+     RowBox[{
+     "a___", ",", "\"\<2\>\"", ",", "\"\<9\>\"", ",", "\"\<8\>\"", ",", 
+      "\"\<3\>\"", ",", "b___"}], "}"}], "]"}], ":=", "\n", "\t            ", 
+   RowBox[{"{", 
+    RowBox[{
+    "a", ",", "\"\<**2983**\>\"", ",", 
+     "\"\< The number of decimal places is = \>\"", ",", 
+     RowBox[{
+      RowBox[{"Length", "[", 
+       RowBox[{"{", "a", "}"}], "]"}], "-", "2"}]}], "}"}]}]}]], "InputOnly"],
+
+Cell[BoxData[
+ RowBox[{"findNumber", " ", "[", "piList", "]"}]], "Input"],
+
+Cell["\<\
+
+Note that no pattern match was found for this list of 10 digits.  Thus, try \
+1000.\
+\>", "Text",
+ CellChangeTimes->{3.5232770335852776`*^9}],
+
+Cell[BoxData[
+ RowBox[{
+  RowBox[{"piList", " ", "=", 
+   RowBox[{"Characters", " ", "[", 
+    RowBox[{"ToString", "[", 
+     RowBox[{"N", "[", 
+      RowBox[{"\[Pi]", ",", "1000"}], "]"}], "]"}], "]"}]}], ";"}]], "Input"],
+
+Cell[BoxData[
+ RowBox[{"findNumber", " ", "[", "piList", "]"}]], "Input"],
+
+Cell[BoxData[
+ RowBox[{"N", "[", 
+  RowBox[{"\[Pi]", ",", "504"}], "]"}]], "Input"]
+}, Closed]],
+
+Cell[CellGroupData[{
+
+Cell["\<\
+  Example: Passing An Unspecified List Of Options (Functional Arguments):\
+\>", "Subsection"],
+
+Cell["\<\
+One important use of pattern matching (of zero or more arguments) is passing \
+an unspecified list of arguments to a function or a module.\
+\>", "Text"],
+
+Cell[BoxData[
+ RowBox[{"Clear", "[", "myPlot", "]"}]], "InputOnly"],
+
+Cell[BoxData[
+ RowBox[{
+  RowBox[{"myPlot", "[", 
+   RowBox[{"f_", ",", 
+    RowBox[{"{", 
+     RowBox[{"x_", ",", "xmin_", ",", "xmax_"}], "}"}], ",", "opts___"}], 
+   "]"}], ":=", "\[IndentingNewLine]", "\[IndentingNewLine]", 
+  RowBox[{"Plot", "[", "\[IndentingNewLine]", "\[IndentingNewLine]", 
+   RowBox[{"f", ",", "\[IndentingNewLine]", "\[IndentingNewLine]", 
+    RowBox[{"{", 
+     RowBox[{"x", ",", "xmin", ",", "xmax"}], "}"}], ",", 
+    "\[IndentingNewLine]", "\[IndentingNewLine]", "opts"}], 
+   "\[IndentingNewLine]", "\[IndentingNewLine]", "]"}]}]], "Input",
+ CellChangeTimes->{{3.3898374509896555`*^9, 3.389837470011656*^9}}],
+
+Cell[BoxData[
+ RowBox[{"??", "myPlot"}]], "Input"],
+
+Cell["\<\
+
+Make a call with zero options.\
+\>", "Text",
+ CellChangeTimes->{3.52327707179566*^9}],
+
+Cell[BoxData[
+ RowBox[{"myPlot", "[", "\[IndentingNewLine]", "\[IndentingNewLine]", 
+  RowBox[{
+   RowBox[{"Sin", "[", "x", "]"}], ",", "\[IndentingNewLine]", 
+   "\[IndentingNewLine]", 
+   RowBox[{"{", 
+    RowBox[{"x", ",", "0", ",", 
+     RowBox[{"2", "\[Pi]"}]}], "}"}]}], "\[IndentingNewLine]", 
+  "\[IndentingNewLine]", "]"}]], "Input",
+ CellChangeTimes->{{3.3898374909896555`*^9, 3.3898375170026555`*^9}}],
+
+Cell["\<\
+
+Make a call with one option.\
+\>", "Text",
+ CellChangeTimes->{3.523277075405696*^9}],
+
+Cell[BoxData[
+ RowBox[{"myPlot", "[", "\[IndentingNewLine]", "\[IndentingNewLine]", 
+  RowBox[{
+   RowBox[{"Sin", "[", "x", "]"}], ",", "\[IndentingNewLine]", 
+   "\[IndentingNewLine]", 
+   RowBox[{"{", 
+    RowBox[{"x", ",", "0", ",", 
+     RowBox[{"2", "\[Pi]"}]}], "}"}], ",", "\[IndentingNewLine]", 
+   "\[IndentingNewLine]", 
+   RowBox[{"PlotLabel", "\[Rule]", "\"\<One Option!\>\""}]}], 
+  "\[IndentingNewLine]", "\[IndentingNewLine]", "]"}]], "Input",
+ CellChangeTimes->{{3.389837501735656*^9, 3.3898375321306553`*^9}, {
+  3.3898377255506554`*^9, 3.389837733610656*^9}}],
+
+Cell["\<\
+
+Make a call with two options.\
+\>", "Text",
+ CellChangeTimes->{3.5232770785257273`*^9}],
+
+Cell[BoxData[
+ RowBox[{"myPlot", "[", "\[IndentingNewLine]", "\[IndentingNewLine]", 
+  RowBox[{
+   RowBox[{"Sin", "[", "x", "]"}], ",", "\[IndentingNewLine]", 
+   "\[IndentingNewLine]", 
+   RowBox[{"{", 
+    RowBox[{"x", ",", "0", ",", 
+     RowBox[{"2", " ", "\[Pi]"}]}], "}"}], ",", "\[IndentingNewLine]", 
+   "\[IndentingNewLine]", 
+   RowBox[{"PlotStyle", "\[Rule]", 
+    RowBox[{"Thickness", "[", ".02", "]"}]}], ",", "\[IndentingNewLine]", 
+   RowBox[{"PlotLabel", "\[Rule]", "\"\<Two Options!\>\""}]}], 
+  "\[IndentingNewLine]", "\[IndentingNewLine]", "]"}]], "Input",
+ CellChangeTimes->{{3.3898375399606557`*^9, 3.3898376989426556`*^9}}]
+}, Closed]]
+}, Closed]],
+
+Cell[CellGroupData[{
+
+Cell[TextData[StyleBox["  Pattern Matching And Delayed Assignments:", \
+"Subtitle"]], "Section"],
+
+Cell["\<\
+As illustrated above, if assignments and replacements are not delayed, then \
+it is possible that undesired assignments and replacements could be made.
+\
+\>", "Text"],
+
+Cell[CellGroupData[{
+
+Cell["\<\
+lhs = rhs evaluates rhs and assigns the result to be the value of lhs. From \
+then on, lhs is replaced by rhs whenever it appears. \
+\>", "Item",
+ GeneratedCell->False,
+ CellAutoOverwrite->False,
+ CellChangeTimes->{{3.3900435173164*^9, 3.3900435266684*^9}},
+ FontWeight->"Bold"],
+
+Cell["\<\
+lhs := rhs assigns rhs to be the delayed value of lhs. rhs is maintained in \
+an unevaluated form. When lhs appears, it is replaced by rhs, evaluated \
+afresh each time.\
+\>", "Item",
+ CellChangeTimes->{{3.3900435194184*^9, 3.3900435286624002`*^9}},
+ FontWeight->"Bold"],
+
+Cell["lhs -> rhs represents a rule that transforms lhs to rhs.", "Item",
+ CellChangeTimes->{{3.3900435209614*^9, 3.3900435297944*^9}},
+ FontWeight->"Bold"],
+
+Cell["\<\
+lhs :> rhs represents a rule that transforms lhs to rhs, evaluating rhs only \
+when the rule is used.\
+\>", "Item",
+ CellChangeTimes->{{3.3900435229494*^9, 3.3900435316814003`*^9}},
+ FontWeight->"Bold"]
+}, Open  ]],
+
+Cell[CellGroupData[{
+
+Cell[TextData[StyleBox[" Assignments And Delayed Assignments,\n Rules And \
+Delayed Rules:",
+ FontSize->16]], "Subsection"],
+
+Cell[CellGroupData[{
+
+Cell[" Immediate Assignments:", "Subsubsection"],
+
+Cell[TextData[{
+ "Every operation in ",
+ StyleBox["Mathematica",
+  FontSlant->"Italic"],
+ " has an equivalent functional form.  \nFor an assignment, i.e. \"",
+ Cell[BoxData[
+  FormBox[
+   RowBox[{"lhs", "=", "rhs"}], TraditionalForm]]],
+ "\" the corresponding command is: ",
+ Cell[BoxData[
+  FormBox[
+   RowBox[{"Set", "[", 
+    RowBox[{"lhs", ",", "rhs"}], "]"}], TraditionalForm]]],
+ ".  \nFor a delayed assignment, i.e. \"",
+ Cell[BoxData[
+  FormBox[
+   RowBox[{":", " ", "="}], TraditionalForm]]],
+ "\" the corresponding command is ",
+ Cell[BoxData[
+  FormBox[
+   RowBox[{"SetDelayed", "[", 
+    RowBox[{"lhs", ",", "rhs"}], "]"}], TraditionalForm]]],
+ "."
+}], "Text",
+ CellChangeTimes->{{3.3898377882986555`*^9, 3.389837856832656*^9}}],
+
+Cell["\<\
+lhs = rhs evaluates rhs and assigns the result to be the value of lhs. From \
+then on, lhs is replaced by rhs whenever it appears.\
+\>", "Item",
+ CellChangeTimes->{{3.3900435088914003`*^9, 3.3900435111504*^9}},
+ FontWeight->"Bold"],
+
+Cell[BoxData[
+ RowBox[{"  ", 
+  RowBox[{"Attributes", " ", "[", "Set", "]"}]}]], "Input"],
+
+Cell[TextData[{
+ "\nNote that Set has attribute ",
+ StyleBox["HoldFirst",
+  FontVariations->{"Underline"->True}],
+ ".  This means that the assignment of the rhs to the lhs will be made before \
+the lhs is evaluated.  Thus, even if the lhs has an assigned value, it will \
+be replaced with the rhs before this assigned value is used."
+}], "Text",
+ CellChangeTimes->{3.523277136946311*^9}],
+
+Cell[BoxData[
+ RowBox[{"Clear", " ", "[", 
+  RowBox[{"a", ",", "b"}], "]"}]], "InputOnly",
+ CellChangeTimes->{{3.389837907247656*^9, 3.389837908676656*^9}}],
+
+Cell[BoxData[
+ RowBox[{"a", "=", "2"}]], "Input"],
+
+Cell[BoxData[
+ RowBox[{"a", "=", "b"}]], "Input"],
+
+Cell[BoxData[
+ RowBox[{"Print", "[", 
+  RowBox[{"\"\<a = \>\"", ",", "a", ",", "\"\<     b = \>\"", ",", "b"}], 
+  "]"}]], "Input"],
+
+Cell[TextData[{
+ "\nThe above assignment is evaluated as:\n\n\t",
+ Cell[BoxData[
+  FormBox[
+   RowBox[{"a", "=", "2"}], TraditionalForm]]],
+ "\n\t",
+ Cell[BoxData[
+  FormBox[
+   RowBox[{"a", "=", "b"}], TraditionalForm]]],
+ "         (Note that the assignment is made before \"a\" is evaluated)\n\t",
+ Cell[BoxData[
+  FormBox["b", TraditionalForm]]]
+}], "Text",
+ CellChangeTimes->{{3.3898379411396556`*^9, 3.3898379503626556`*^9}, 
+   3.523277155396496*^9}],
+
+Cell["\<\
+In what follows, note that the assignment to the rhs is made before assigning \
+its value to the lhs.  Thus, even if we change the value of the rhs after the \
+assignment, it will not take on the new value.\
+\>", "Text"],
+
+Cell[BoxData[
+ RowBox[{"Clear", " ", "[", 
+  RowBox[{"a", ",", "b"}], "]"}]], "InputOnly",
+ CellChangeTimes->{{3.3898379667046556`*^9, 3.3898379669656553`*^9}}],
+
+Cell[BoxData[
+ RowBox[{
+  RowBox[{"a", "=", "2"}], ";", 
+  RowBox[{"b", "=", "3"}], ";"}]], "InputOnly"],
+
+Cell[BoxData[
+ RowBox[{"Print", "[", 
+  RowBox[{"\"\<a = \>\"", ",", "a", ",", "\"\<     b = \>\"", ",", "b"}], 
+  "]"}]], "Input"],
+
+Cell[BoxData[
+ RowBox[{"a", "=", "b"}]], "Input"],
+
+Cell[BoxData[
+ RowBox[{"Print", "[", 
+  RowBox[{"\"\<a = \>\"", ",", "a", ",", "\"\<     b = \>\"", ",", "b"}], 
+  "]"}]], "Input"],
+
+Cell[BoxData[
+ RowBox[{"b", "=", "5"}]], "Input"],
+
+Cell[BoxData[
+ RowBox[{"Print", "[", 
+  RowBox[{"\"\<a = \>\"", ",", "a", ",", "\"\<     b = \>\"", ",", "b"}], 
+  "]"}]], "Input"],
+
+Cell[TextData[{
+ "\nThe above assignment is evaluated as:\n\n\t",
+ Cell[BoxData[
+  FormBox[
+   RowBox[{
+    RowBox[{"a", "=", "2"}], " ", ";", " ", 
+    RowBox[{"b", "=", "3"}]}], TraditionalForm]]],
+ "\n\t",
+ Cell[BoxData[
+  FormBox[
+   RowBox[{"a", "=", "b"}], TraditionalForm]]],
+ "\n\t",
+ Cell[BoxData[
+  FormBox[
+   RowBox[{"a", "=", "3"}], TraditionalForm]]],
+ " \t(Note that the value of \"b\" is evaluated first)\n\t3 \t(Note that the \
+assignment is made before \"a\" is evaluated)\n  \t\t(Note the assignment: ",
+ Cell[BoxData[
+  FormBox[
+   RowBox[{"b", "=", "5"}], TraditionalForm]]],
+ ")"
+}], "Text",
+ CellChangeTimes->{{3.3898379905346556`*^9, 3.389838017070656*^9}, 
+   3.5232772252871947`*^9}]
+}, Closed]],
+
+Cell[CellGroupData[{
+
+Cell[" Delayed Assignments:", "Subsubsection"],
+
+Cell["\<\
+lhs := rhs assigns rhs to be the delayed value of lhs. rhs is maintained in \
+an unevaluated form. When lhs appears, it is replaced by rhs, evaluated \
+afresh each time.\
+\>", "Item",
+ CellChangeTimes->{{3.3900435010634003`*^9, 3.3900435042344*^9}},
+ FontWeight->"Bold"],
+
+Cell[BoxData[
+ RowBox[{"  ", 
+  RowBox[{"Attributes", " ", "[", "SetDelayed", "]"}]}]], "Input"],
+
+Cell[TextData[{
+ "\nNote that ",
+ StyleBox["HoldAll",
+  FontVariations->{"Underline"->True}],
+ " is an attribute of SetDelayed.  Thus, a new value for the rhs can be \
+assigned after the delayed assignment has been made and the lhs will be \
+assigned this new value."
+}], "Text",
+ CellChangeTimes->{3.523277261127553*^9}],
+
+Cell[BoxData[
+ RowBox[{"Clear", " ", "[", 
+  RowBox[{"a", ",", "b"}], "]"}]], "InputOnly",
+ CellChangeTimes->{{3.3898380487816553`*^9, 3.3898380489806557`*^9}}],
+
+Cell[BoxData[
+ RowBox[{
+  RowBox[{"a", "=", "2"}], ";", 
+  RowBox[{"b", "=", "3"}], ";"}]], "InputOnly"],
+
+Cell[BoxData[
+ RowBox[{"Print", "[", 
+  RowBox[{"\"\<a = \>\"", ",", "a", ",", "\"\<     b = \>\"", ",", "b"}], 
+  "]"}]], "Input"],
+
+Cell[BoxData[
+ RowBox[{"a", ":=", "b"}]], "InputOnly"],
+
+Cell[BoxData[
+ RowBox[{"Print", "[", 
+  RowBox[{"\"\<a = \>\"", ",", "a", ",", "\"\<     b = \>\"", ",", "b"}], 
+  "]"}]], "Input"],
+
+Cell[BoxData[
+ RowBox[{"b", "=", "5"}]], "Input"],
+
+Cell[BoxData[
+ RowBox[{"Print", "[", 
+  RowBox[{"\"\<a = \>\"", ",", "a", ",", "\"\<     b = \>\"", ",", "b"}], 
+  "]"}]], "Input"],
+
+Cell[TextData[{
+ "\nThe above assignment is evaluated as:\n\n\t",
+ Cell[BoxData[
+  FormBox[
+   RowBox[{
+    RowBox[{"a", "=", "2"}], " ", ";", " ", 
+    RowBox[{"b", "=", "3"}]}], TraditionalForm]]],
+ "\n\t",
+ Cell[BoxData[
+  FormBox[
+   RowBox[{"a", ":=", "b"}], TraditionalForm]]],
+ "\n\t",
+ Cell[BoxData[
+  FormBox[
+   RowBox[{"b", "=", "5"}], TraditionalForm]]],
+ "\n\tEvaluate: ",
+ Cell[BoxData[
+  FormBox["a", TraditionalForm]]],
+ ",  where:  ",
+ Cell[BoxData[
+  FormBox[
+   RowBox[{"a", ":=", "b"}], TraditionalForm]]],
+ "\n\t",
+ Cell[BoxData[
+  FormBox[
+   RowBox[{"a", ":=", "5"}], TraditionalForm]]],
+ "\t(Note that the value of \"b\" is evaluated first)\n\t5\t(Note that the \
+assignment is made before \"a\" is evaluated)\n  \t\t(Note the assignment: ",
+ Cell[BoxData[
+  FormBox[
+   RowBox[{"b", "=", "5"}], TraditionalForm]]],
+ ")"
+}], "Text",
+ CellChangeTimes->{{3.3898381838006554`*^9, 3.3898382379286556`*^9}, 
+   3.5232772793977356`*^9}]
+}, Closed]],
+
+Cell[CellGroupData[{
+
+Cell[" Immediate Replacement Rules, Example 1:", "Subsubsection"],
+
+Cell["\<\
+The functional form for a rule   \"lhs \[Rule] rhs\"   is:  Rule[lhs, rhs].\
+\>", "Text",
+ CellChangeTimes->{{3.389838249478656*^9, 3.3898382555766554`*^9}}],
+
+Cell["lhs -> rhs represents a rule that transforms lhs to rhs.", "Item",
+ CellChangeTimes->{{3.3900434937644*^9, 3.3900434968864*^9}},
+ FontWeight->"Bold"],
+
+Cell[BoxData[
+ RowBox[{"  ", 
+  RowBox[{"Attributes", " ", "[", "Rule", "]"}]}]], "Input"],
+
+Cell[TextData[{
+ "\nNote that ",
+ StyleBox["neither",
+  FontVariations->{"Underline"->True}],
+ " the lhs or rhs is held from evaluation before the rule is used.  Thus, ",
+ StyleBox["any",
+  FontVariations->{"Underline"->True}],
+ " assignments to the lhs or the rhs will be evaluated ",
+ StyleBox["before",
+  FontVariations->{"Underline"->True}],
+ " the rule is invoked."
+}], "Text",
+ CellChangeTimes->{3.5232773118480606`*^9}],
+
+Cell[BoxData[
+ RowBox[{"Clear", " ", "[", 
+  RowBox[{"a", ",", "b", ",", "c"}], "]"}]], "InputOnly",
+ CellChangeTimes->{{3.3898383060906553`*^9, 3.3898383065416555`*^9}}],
+
+Cell[BoxData[
+ RowBox[{
+  RowBox[{"a", "=", "2"}], ";", 
+  RowBox[{"b", "=", "3"}], ";", 
+  RowBox[{"c", "=", "4"}], ";"}]], "InputOnly"],
+
+Cell[BoxData[
+ RowBox[{"Print", "[", 
+  RowBox[{
+  "\"\<a = \>\"", ",", "a", ",", "\"\<     b = \>\"", ",", "b", ",", 
+   "\"\<     c = \>\"", ",", "c"}], "]"}]], "Input"],
+
+Cell[BoxData[
+ RowBox[{" ", 
+  RowBox[{"rule1", "=", 
+   RowBox[{"b", "\[Rule]", "c"}]}]}]], "Input",
+ CellChangeTimes->{{3.389838339334656*^9, 3.389838343176656*^9}}],
+
+Cell[BoxData[
+ RowBox[{"Print", "[", 
+  RowBox[{
+  "\"\<a = \>\"", ",", "a", ",", "\"\<     b = \>\"", ",", "b", ",", 
+   "\"\<     c = \>\"", ",", "c", ",", "\"\<     rule1 = \>\"", ",", 
+   "rule1"}], "]"}]], "Input",
+ CellChangeTimes->{{3.3898384469546556`*^9, 3.3898384808826556`*^9}}],
+
+Cell["\<\
+
+Note that BOTH the lhs and the rhs in rule1 have been changed from a and b.
+Change the value of \"b\": \
+\>", "Text",
+ CellChangeTimes->{{3.3898383603096557`*^9, 3.3898383831496553`*^9}, {
+   3.3898385624416556`*^9, 3.389838610860656*^9}, 3.523277340288345*^9}],
+
+Cell[BoxData[
+ RowBox[{"b", "=", "5"}]], "Input"],
+
+Cell[BoxData[
+ RowBox[{"Print", "[", 
+  RowBox[{
+  "\"\<a = \>\"", ",", "a", ",", "\"\<     b = \>\"", ",", "b", ",", 
+   "\"\<     c = \>\"", ",", "c", ",", "\"\<     rule1 = \>\"", ",", 
+   "rule1"}], "]"}]], "Input",
+ CellChangeTimes->{{3.3898384469546556`*^9, 3.3898384808826556`*^9}}],
+
+Cell[BoxData[
+ RowBox[{"a", ":=", 
+  RowBox[{"b", " ", "/.", "rule1"}]}]], "InputOnly"],
+
+Cell[BoxData[
+ RowBox[{"?", "a"}]], "Input",
+ CellChangeTimes->{3.3898386694516554`*^9, 3.3898387134096556`*^9}],
+
+Cell[BoxData[
+ RowBox[{"Print", "[", 
+  RowBox[{
+  "\"\<a = \>\"", ",", "a", ",", "\"\<     b = \>\"", ",", "b", ",", 
+   "\"\<     c = \>\"", ",", "c", ",", "\"\<     rule1 = \>\"", ",", 
+   "rule1"}], "]"}]], "Input",
+ CellChangeTimes->{{3.3898384469546556`*^9, 3.3898384808826556`*^9}}],
+
+Cell[TextData[{
+ "\n Thus, the above replacement rule is evaluated as:\n\n\t",
+ Cell[BoxData[
+  FormBox[
+   RowBox[{
+    RowBox[{"a", "=", "2"}], ";", 
+    RowBox[{"b", "=", "3"}], ";", 
+    RowBox[{"c", "=", "4"}], ";"}], TraditionalForm]]],
+ "\n\t",
+ Cell[BoxData[
+  FormBox[
+   RowBox[{"rule1", "=", 
+    RowBox[{"b", "\[Rule]", "c"}]}], TraditionalForm]]],
+ "\n\t",
+ Cell[BoxData[
+  FormBox[
+   RowBox[{"rule1", "=", 
+    RowBox[{"3", "\[Rule]", "4"}]}], TraditionalForm]]],
+ "  \t(Note immediate replacement of both the lhs and rhs)\n\t",
+ Cell[BoxData[
+  FormBox[
+   RowBox[{
+    RowBox[{"b", "=", "5"}], ";"}], TraditionalForm]]],
+ "\n\t",
+ Cell[BoxData[
+  FormBox[
+   RowBox[{"a", ":=", 
+    RowBox[{"b", "  ", "/.", "  ", "rule1"}]}], TraditionalForm]]],
+ "\n\t",
+ Cell[BoxData[
+  FormBox[
+   RowBox[{"a", ":=", 
+    RowBox[{"5", "  ", "/.", "  ", "rule1"}]}], TraditionalForm]]],
+ "  \t(\"b\" is replaced by 5)\n\t",
+ Cell[BoxData[
+  FormBox[
+   RowBox[{"a", ":=", 
+    RowBox[{"5", "  ", "/.", "  ", 
+     RowBox[{"3", "\[Rule]", "4"}]}]}], TraditionalForm]]],
+ "\n\t",
+ Cell[BoxData[
+  FormBox[
+   RowBox[{"a", ":=", 
+    RowBox[{"5", "  ", "/.", "  ", 
+     RowBox[{"3", "\[Rule]", "4"}]}]}], TraditionalForm]]],
+ "\t(Note that the rule is not used)\n\t",
+ Cell[BoxData[
+  FormBox[
+   RowBox[{"a", ":=", "5"}], TraditionalForm]]],
+ "\n\t5   \t\t\t(",
+ Cell[BoxData[
+  FormBox[
+   RowBox[{
+    RowBox[{"b", "=", "5"}], ",", 
+    RowBox[{"c", "=", "4"}]}], TraditionalForm]]],
+ ")"
+}], "Text",
+ CellChangeTimes->{{3.389838422169656*^9, 3.3898384338266554`*^9}, {
+   3.3898387564966555`*^9, 3.389838823983656*^9}, {3.3898390269636555`*^9, 
+   3.3898390618676558`*^9}, 3.5232773895088367`*^9}]
+}, Closed]],
+
+Cell[CellGroupData[{
+
+Cell[" Immediate Replacement Rules, Example 2:", "Subsubsection"],
+
+Cell["\<\
+A small variation of the above procedure keeps the value of \"b\" the same:\
+\>", "Text"],
+
+Cell[BoxData[
+ RowBox[{"  ", 
+  RowBox[{"Clear", " ", "[", 
+   RowBox[{"a", ",", "b", ",", "c"}], "]"}]}]], "InputOnly"],
+
+Cell[BoxData[
+ RowBox[{
+  RowBox[{"a", "=", "2"}], ";", 
+  RowBox[{"b", "=", "3"}], ";", 
+  RowBox[{"c", "=", "4"}], ";"}]], "InputOnly"],
+
+Cell[BoxData[
+ RowBox[{" ", 
+  RowBox[{"rule1", "=", 
+   RowBox[{"b", "\[Rule]", "c"}]}]}]], "Input",
+ CellChangeTimes->{{3.389838839108656*^9, 3.3898388403686557`*^9}}],
+
+Cell[BoxData[
+ RowBox[{"Print", "[", 
+  RowBox[{
+  "\"\<a = \>\"", ",", "a", ",", "\"\<     b = \>\"", ",", "b", ",", 
+   "\"\<     c = \>\"", ",", "c", ",", "\"\<     rule1 = \>\"", ",", 
+   "rule1"}], "]"}]], "Input"],
+
+Cell["\<\
+
+Keep the value of \"b\" the same:\
+\>", "Text",
+ CellChangeTimes->{3.523277435199294*^9}],
+
+Cell[BoxData[
+ RowBox[{"b", "=", "3"}]], "Input"],
+
+Cell[BoxData[
+ RowBox[{"a", ":=", 
+  RowBox[{"b", " ", "/.", "rule1"}]}]], "InputOnly"],
+
+Cell[BoxData[
+ RowBox[{"?", "a"}]], "Input"],
+
+Cell[BoxData[
+ RowBox[{"Print", "[", 
+  RowBox[{
+  "\"\<a = \>\"", ",", "a", ",", "\"\<     b = \>\"", ",", "b", ",", 
+   "\"\<     c = \>\"", ",", "c", ",", "\"\<     rule1 = \>\"", ",", 
+   "rule1"}], "]"}]], "Input"],
+
+Cell[TextData[{
+ "\nThus, the above replacement rule is evaluated as:\n\n\t",
+ Cell[BoxData[
+  FormBox[
+   RowBox[{
+    RowBox[{"a", "=", "2"}], ";", 
+    RowBox[{"b", "=", "3"}], ";", 
+    RowBox[{"c", "=", "4"}], ";"}], TraditionalForm]]],
+ "\n\t",
+ Cell[BoxData[
+  FormBox[
+   RowBox[{"rule1", "=", 
+    RowBox[{"b", "\[Rule]", "c"}]}], TraditionalForm]]],
+ "\n\t",
+ Cell[BoxData[
+  FormBox[
+   RowBox[{"rule1", "=", 
+    RowBox[{"3", "\[Rule]", "4"}]}], TraditionalForm]]],
+ "\t\t(Note immediate replacement of both the lhs and rhs)\n\t",
+ Cell[BoxData[
+  FormBox[
+   RowBox[{"a", ":=", 
+    RowBox[{"b", "  ", "/.", "  ", "rule1"}]}], TraditionalForm]]],
+ "\n\t",
+ Cell[BoxData[
+  FormBox[
+   RowBox[{"a", ":=", 
+    RowBox[{"3", "  ", "/.", "  ", "rule1"}]}], TraditionalForm]]],
+ "\t(\"b\" is replaced by 3)\n\t",
+ Cell[BoxData[
+  FormBox[
+   RowBox[{"a", ":=", 
+    RowBox[{"3", "  ", "/.", "  ", 
+     RowBox[{"3", "\[Rule]", "4"}]}]}], TraditionalForm]]],
+ "\n\t",
+ Cell[BoxData[
+  FormBox[
+   RowBox[{"a", ":=", 
+    RowBox[{"3", "  ", "/.", "  ", 
+     RowBox[{"3", "\[Rule]", "4"}]}]}], TraditionalForm]]],
+ "\t(Note that \"b\" has the value 3 because it was not changed)\n\t",
+ Cell[BoxData[
+  FormBox[
+   RowBox[{"a", ":=", "4"}], TraditionalForm]]],
+ "\t\t\t(Thus, the replacement is used\n\t    \t\t\teven though \"b\" has \
+been assigned to be 3)\n\t4\t\t\t(",
+ Cell[BoxData[
+  FormBox[
+   RowBox[{
+    RowBox[{"b", "=", "3"}], ",", 
+    RowBox[{"c", "=", "4"}]}], TraditionalForm]]],
+ ")"
+}], "Text",
+ CellChangeTimes->{{3.3898388510416555`*^9, 3.3898388628686557`*^9}, {
+   3.389838961839656*^9, 3.3898390098776555`*^9}, {3.3898390810466557`*^9, 
+   3.3898391170476556`*^9}, 3.5232774421393633`*^9}]
+}, Closed]],
+
+Cell[CellGroupData[{
+
+Cell[" Immediate Replacement Rules, Example 3:", "Subsubsection"],
+
+Cell["\<\
+Another small variation is to use immediate assignment along with the \
+immediate rule:\
+\>", "Text"],
+
+Cell[BoxData[
+ RowBox[{"  ", 
+  RowBox[{"Clear", " ", "[", 
+   RowBox[{"a", ",", "b", ",", "c"}], "]"}]}]], "InputOnly"],
+
+Cell[BoxData[
+ RowBox[{
+  RowBox[{"a", "=", "2"}], ";", 
+  RowBox[{"b", "=", "3"}], ";", 
+  RowBox[{"c", "=", "4"}], ";"}]], "InputOnly"],
+
+Cell[BoxData[
+ RowBox[{" ", 
+  RowBox[{"rule1", "=", 
+   RowBox[{"b", "\[Rule]", "c"}]}]}]], "Input",
+ CellChangeTimes->{{3.389839160379656*^9, 3.389839161202656*^9}}],
+
+Cell[BoxData[
+ RowBox[{"Print", "[", 
+  RowBox[{
+  "\"\<a = \>\"", ",", "a", ",", "\"\<     b = \>\"", ",", "b", ",", 
+   "\"\<     c = \>\"", ",", "c", ",", "\"\<     rule1 = \>\"", ",", 
+   "rule1"}], "]"}]], "Input"],
+
+Cell["\<\
+
+Change the value of \"b\":\
+\>", "Text",
+ CellChangeTimes->{3.5232775198401403`*^9}],
+
+Cell[BoxData[
+ RowBox[{"b", "=", "5"}]], "Input"],
+
+Cell[BoxData[
+ RowBox[{"a", "=", 
+  RowBox[{"b", " ", "/.", "rule1"}]}]], "Input"],
+
+Cell[BoxData[
+ RowBox[{"?", "a"}]], "Input"],
+
+Cell[BoxData[
+ RowBox[{"Print", "[", 
+  RowBox[{
+  "\"\<a = \>\"", ",", "a", ",", "\"\<     b = \>\"", ",", "b", ",", 
+   "\"\<     c = \>\"", ",", "c", ",", "\"\<     rule1 = \>\"", ",", 
+   "rule1"}], "]"}]], "Input"],
+
+Cell[TextData[{
+ "\nThus, the above replacement rule with immediate assignment is evaluated \
+as:\n\n\t",
+ Cell[BoxData[
+  FormBox[
+   RowBox[{
+    RowBox[{"a", "=", "2"}], ";", 
+    RowBox[{"b", "=", "3"}], ";", 
+    RowBox[{"c", "=", "4"}], ";"}], TraditionalForm]]],
+ "\n\t",
+ Cell[BoxData[
+  FormBox[
+   RowBox[{"rule1", "=", 
+    RowBox[{"b", "\[Rule]", "c"}]}], TraditionalForm]]],
+ "\n\t",
+ Cell[BoxData[
+  FormBox[
+   RowBox[{"rule1", "=", 
+    RowBox[{"3", "\[Rule]", "4"}]}], TraditionalForm]]],
+ "\t\t(Note immediate replacement of both the lhs and rhs)\n\t",
+ Cell[BoxData[
+  FormBox[
+   RowBox[{
+    RowBox[{"b", "=", "5"}], ";"}], TraditionalForm]]],
+ "\n\t",
+ Cell[BoxData[
+  FormBox[
+   RowBox[{"a", "=", 
+    RowBox[{"b", "  ", "/.", "  ", "rule1"}]}], TraditionalForm]]],
+ "\n\t",
+ Cell[BoxData[
+  FormBox[
+   RowBox[{"a", "=", 
+    RowBox[{"5", "  ", "/.", "  ", "rule1"}]}], TraditionalForm]]],
+ "\t(\"b\" is replaced by 5)\n\t",
+ Cell[BoxData[
+  FormBox[
+   RowBox[{"a", "=", 
+    RowBox[{"5", "  ", "/.", "  ", 
+     RowBox[{"3", "\[Rule]", "4"}]}]}], TraditionalForm]]],
+ "\n\t",
+ Cell[BoxData[
+  FormBox[
+   RowBox[{"a", "=", 
+    RowBox[{"5", "  ", "/.", "  ", 
+     RowBox[{"3", "\[Rule]", "4"}]}]}], TraditionalForm]]],
+ "\t(Note that the rule is not used)\n\t",
+ Cell[BoxData[
+  FormBox[
+   RowBox[{"a", "=", "5"}], TraditionalForm]]],
+ "\n\t5 \t\t\t(",
+ Cell[BoxData[
+  FormBox[
+   RowBox[{
+    RowBox[{"b", "=", "5"}], ",", 
+    RowBox[{"c", "=", "4"}]}], TraditionalForm]]],
+ ")\n"
+}], "Text",
+ CellChangeTimes->{{3.3898391860146556`*^9, 3.389839227134656*^9}, {
+   3.3898393056786556`*^9, 3.389839357419656*^9}, {3.3898396326616554`*^9, 
+   3.3898396389846554`*^9}, 3.523277526010202*^9}]
+}, Closed]],
+
+Cell[CellGroupData[{
+
+Cell[" Delayed Replacement Rules, Example 1:", "Subsubsection"],
+
+Cell["\<\
+The functional form for a delayed rule   \"lhs \[RuleDelayed] rhs\"  is:  \
+RuleDelayed[lhs, rhs].\
+\>", "Text",
+ CellChangeTimes->{{3.3898396653246555`*^9, 3.3898396695066557`*^9}}],
+
+Cell["\<\
+lhs :> rhs represents a rule that transforms lhs to rhs, evaluating rhs only \
+when the rule is used.\
+\>", "Item",
+ CellChangeTimes->{{3.3900434768254004`*^9, 3.3900434798044*^9}},
+ FontWeight->"Bold"],
+
+Cell[BoxData[
+ RowBox[{"  ", 
+  RowBox[{"Attributes", " ", "[", "RuleDelayed", "]"}]}]], "Input"],
+
+Cell[TextData[{
+ "\nNote that RuleDelayed has attribute ",
+ StyleBox["HoldRest",
+  FontVariations->{"Underline"->True}],
+ " which means that the lhs will be immediately replaced while the rhs will \
+be replaced only when the rule is actually used."
+}], "Text",
+ CellChangeTimes->{3.523277574600688*^9}],
+
+Cell[BoxData[
+ RowBox[{"  ", 
+  RowBox[{"Clear", " ", "[", 
+   RowBox[{"a", ",", "b", ",", "c"}], "]"}]}]], "InputOnly"],
+
+Cell[BoxData[
+ RowBox[{
+  RowBox[{"a", "=", "2"}], ";", 
+  RowBox[{"b", "=", "3"}], ";", 
+  RowBox[{"c", "=", "4"}], ";"}]], "InputOnly"],
+
+Cell[BoxData[
+ RowBox[{" ", 
+  RowBox[{"rule2", "=", 
+   RowBox[{"b", "\[RuleDelayed]", "c"}]}]}]], "Input",
+ CellChangeTimes->{{3.3898397359556556`*^9, 3.3898397420206556`*^9}}],
+
+Cell[BoxData[
+ RowBox[{"Print", "[", 
+  RowBox[{
+  "\"\<a = \>\"", ",", "a", ",", "\"\<     b = \>\"", ",", "b", ",", 
+   "\"\<     c = \>\"", ",", "c", ",", "\"\<     rule1 = \>\"", ",", 
+   "rule2"}], "]"}]], "Input",
+ CellChangeTimes->{{3.3898397889356556`*^9, 3.389839789733656*^9}}],
+
+Cell["\<\
+
+Change the value of \"b\" and \"c\":\
+\>", "Text",
+ CellChangeTimes->{3.5232775868408103`*^9}],
+
+Cell[BoxData[
+ RowBox[{
+  RowBox[{"b", "=", "5"}], ";", 
+  RowBox[{"c", "=", "6"}], ";"}]], "InputOnly"],
+
+Cell[BoxData[
+ RowBox[{"Print", "[", 
+  RowBox[{
+  "\"\<a = \>\"", ",", "a", ",", "\"\<     b = \>\"", ",", "b", ",", 
+   "\"\<     c = \>\"", ",", "c", ",", "\"\<     rule1 = \>\"", ",", 
+   "rule2"}], "]"}]], "Input",
+ CellChangeTimes->{{3.3898398063926554`*^9, 3.3898398070396557`*^9}}],
+
+Cell[BoxData[
+ RowBox[{"a", ":=", 
+  RowBox[{"b", " ", "/.", "rule2"}]}]], "InputOnly"],
+
+Cell[BoxData[
+ RowBox[{"?", "a"}]], "Input"],
+
+Cell[BoxData[
+ RowBox[{"Print", "[", 
+  RowBox[{
+  "\"\<a = \>\"", ",", "a", ",", "\"\<     b = \>\"", ",", "b", ",", 
+   "\"\<     c = \>\"", ",", "c", ",", "\"\<     rule1 = \>\"", ",", 
+   "rule2"}], "]"}]], "Input",
+ CellChangeTimes->{{3.3898398425366554`*^9, 3.3898398438976555`*^9}}],
+
+Cell[TextData[{
+ "\nThus, the above delayed replacement rule is evaluated as:\n\n\t",
+ Cell[BoxData[
+  FormBox[
+   RowBox[{
+    RowBox[{"a", "=", "2"}], ";", 
+    RowBox[{"b", "=", "3"}], ";", 
+    RowBox[{"c", "=", "4"}], ";"}], TraditionalForm]]],
+ "\n\t",
+ Cell[BoxData[
+  FormBox[
+   RowBox[{"rule2", "=", 
+    RowBox[{"b", "\[RuleDelayed]", "c"}]}], TraditionalForm]]],
+ "\n\t",
+ Cell[BoxData[
+  FormBox[
+   RowBox[{"rule2", "=", 
+    RowBox[{"3", "\[RuleDelayed]", "c"}]}], TraditionalForm]]],
+ "\t\t(Note that the lhs has been replaced but the rhs has not)\n\t",
+ Cell[BoxData[
+  FormBox[
+   RowBox[{
+    RowBox[{"b", "=", "5"}], ";", 
+    RowBox[{"c", "=", "6"}], ";"}], TraditionalForm]]],
+ "\t\t(Assign new values for \"b\" and \"c\")\n\t",
+ Cell[BoxData[
+  FormBox[
+   RowBox[{"a", ":=", 
+    RowBox[{"b", "  ", "/.", "  ", "rule2"}]}], TraditionalForm]]],
+ "\n\t",
+ Cell[BoxData[
+  FormBox[
+   RowBox[{"a", ":=", 
+    RowBox[{"5", "  ", "/.", "  ", "rule2"}]}], TraditionalForm]]],
+ "\t(\"b\" is replaced by 5)\n\t",
+ Cell[BoxData[
+  FormBox[
+   RowBox[{"a", ":=", 
+    RowBox[{"5", "  ", "/.", "  ", 
+     RowBox[{"3", "\[RuleDelayed]", "c"}]}]}], TraditionalForm]]],
+ "\n\t",
+ Cell[BoxData[
+  FormBox[
+   RowBox[{"a", ":=", 
+    RowBox[{"5", "  ", "/.", "  ", 
+     RowBox[{"3", "\[RuleDelayed]", "6"}]}]}], TraditionalForm]]],
+ "\t(\"c\" is replaced by 6)\n\t",
+ Cell[BoxData[
+  FormBox[
+   RowBox[{"a", ":=", 
+    RowBox[{"5", "  ", "/.", "  ", 
+     RowBox[{"3", "\[RuleDelayed]", "6"}]}]}], TraditionalForm]]],
+ "\t(Note that the rule is not used)\n\t",
+ Cell[BoxData[
+  FormBox[
+   RowBox[{"a", ":=", "5"}], TraditionalForm]]],
+ "\n\t5\t\t\t(",
+ Cell[BoxData[
+  FormBox[
+   RowBox[{
+    RowBox[{"b", "=", "5"}], ",", 
+    RowBox[{"c", "=", "6"}]}], TraditionalForm]]],
+ ")"
+}], "Text",
+ CellChangeTimes->{{3.3898398830716553`*^9, 3.3898400098956556`*^9}, 
+   3.5232776038809805`*^9}]
+}, Closed]],
+
+Cell[CellGroupData[{
+
+Cell[" Delayed Replacement Rules, Example 2:", "Subsubsection"],
+
+Cell["\<\
+As a final example, consider delayed assignment and immediate replacement \
+rule on the same line (i.e. evaluated at the same time)\
+\>", "Text"],
+
+Cell[BoxData[
+ RowBox[{"Clear", " ", "[", 
+  RowBox[{"a", ",", "b", ",", "c"}], "]"}]], "InputOnly",
+ CellChangeTimes->{{3.3898401794256554`*^9, 3.389840179681656*^9}}],
+
+Cell[BoxData[
+ RowBox[{
+  RowBox[{"a", "=", "2"}], ";", 
+  RowBox[{"b", "=", "3"}], ";", 
+  RowBox[{"c", "=", "4"}], ";"}]], "InputOnly"],
+
+Cell[BoxData[
+ RowBox[{"a", ":=", 
+  RowBox[{"b", " ", "/.", 
+   RowBox[{"b", "\[Rule]", "c"}]}]}]], "InputOnly",
+ CellChangeTimes->{3.3898401934586554`*^9, 3.389840278695656*^9}],
+
+Cell[BoxData[
+ RowBox[{"?", "a"}]], "Input"],
+
+Cell[BoxData[
+ RowBox[{"Print", "[", 
+  RowBox[{
+  "\"\<a = \>\"", ",", "a", ",", "\"\<     b = \>\"", ",", "b", ",", 
+   "\"\<     c = \>\"", ",", "c"}], "]"}]], "Input"],
+
+Cell[TextData[{
+ "\nThus, the above delayed replacement rule is evaluated as:\n\n\t",
+ Cell[BoxData[
+  FormBox[
+   RowBox[{
+    RowBox[{"a", "=", "2"}], ";", 
+    RowBox[{"b", "=", "3"}], ";", 
+    RowBox[{"c", "=", "4"}], ";"}], TraditionalForm]]],
+ "\n\t",
+ Cell[BoxData[
+  FormBox[
+   RowBox[{"a", ":=", 
+    RowBox[{"b", "  ", "/.", "  ", 
+     RowBox[{"b", "\[Rule]", "c"}]}]}], TraditionalForm]]],
+ "   \n\t",
+ Cell[BoxData[
+  FormBox[
+   RowBox[{"a", ":=", 
+    RowBox[{"3", "  ", "/.", "  ", 
+     RowBox[{"b", "\[Rule]", "c"}]}]}], TraditionalForm]]],
+ "\t(\"b\" is replaced by 5)\n\t",
+ Cell[BoxData[
+  FormBox[
+   RowBox[{"a", ":=", 
+    RowBox[{"3", "  ", "/.", "  ", 
+     RowBox[{"3", "\[Rule]", "4"}]}]}], TraditionalForm]]],
+ "\t(\"b\" is replaced by 3 and \"c\" is replaced by 4)\n\t",
+ Cell[BoxData[
+  FormBox[
+   RowBox[{"a", ":=", 
+    RowBox[{"3", "  ", "/.", "  ", 
+     RowBox[{"3", "\[Rule]", "4"}]}]}], TraditionalForm]]],
+ "\t(Note that the rule is used)\n\t",
+ Cell[BoxData[
+  FormBox[
+   RowBox[{"a", ":=", "4"}], TraditionalForm]]],
+ "\n\t4\t\t\t(",
+ Cell[BoxData[
+  FormBox[
+   RowBox[{
+    RowBox[{"b", "=", "3"}], ",", 
+    RowBox[{"c", "=", "4"}]}], TraditionalForm]]],
+ ")"
+}], "Text",
+ CellChangeTimes->{{3.3898403126666555`*^9, 3.3898404396856556`*^9}, 
+   3.5232777088920307`*^9}],
+
+Cell["\<\
+Thus, the use of delayed assignment and immediate replacement rule on the \
+same line will not generate assignment conflicts.
+\
+\>", "Text"]
+}, Closed]],
+
+Cell[CellGroupData[{
+
+Cell[" Clearing Before Replacement Rules and Assignments:", "Subsubsection",
+ CellChangeTimes->{3.5232777339722815`*^9}],
+
+Cell["\<\
+It is important to realize that if no values have been assigned to:  a, b and \
+c, then all of the above examples will yield the same result.
+
+Immediate replacement rule:\
+\>", "Text"],
+
+Cell[BoxData[
+ RowBox[{"Clear", " ", "[", 
+  RowBox[{"a", ",", "b", ",", "c"}], "]"}]], "InputOnly",
+ CellChangeTimes->{{3.3898404868516555`*^9, 3.3898404870606556`*^9}}],
+
+Cell[BoxData[
+ RowBox[{"rule1", "=", 
+  RowBox[{"b", "\[Rule]", "c"}]}]], "Input",
+ CellChangeTimes->{{3.389840499082656*^9, 3.389840511209656*^9}}],
+
+Cell[BoxData[
+ RowBox[{"a", ":=", 
+  RowBox[{"b", " ", "/.", "rule1"}]}]], "InputOnly",
+ CellChangeTimes->{{3.3898405145476556`*^9, 3.389840515766656*^9}}],
+
+Cell[BoxData["a"], "Input"],
+
+Cell["\<\
+
+Delayed replacement rule:\
+\>", "Text"],
+
+Cell[BoxData[
+ RowBox[{"  ", 
+  RowBox[{"Clear", " ", "[", 
+   RowBox[{"a", ",", "b", ",", "c"}], "]"}]}]], "InputOnly"],
+
+Cell[BoxData[
+ RowBox[{" ", 
+  RowBox[{"rule2", "=", 
+   RowBox[{"b", "\[RuleDelayed]", "c"}]}]}]], "Input",
+ CellChangeTimes->{{3.389840539636656*^9, 3.389840540667656*^9}}],
+
+Cell[BoxData[
+ RowBox[{"a", ":=", 
+  RowBox[{"b", " ", "/.", "rule2"}]}]], "InputOnly"],
+
+Cell[BoxData["a"], "Input"],
+
+Cell["\<\
+
+Immediate replacement rule on same line as delayed assignment:\
+\>", "Text"],
+
+Cell[BoxData[
+ RowBox[{"  ", 
+  RowBox[{"Clear", " ", "[", 
+   RowBox[{"a", ",", "b", ",", "c"}], "]"}]}]], "InputOnly"],
+
+Cell[BoxData[
+ RowBox[{"a", ":=", 
+  RowBox[{"b", " ", "/.", 
+   RowBox[{"b", "\[Rule]", "c"}]}]}]], "InputOnly",
+ CellChangeTimes->{{3.3898405606756554`*^9, 3.3898405619636555`*^9}}],
+
+Cell[BoxData["a"], "Input"],
+
+Cell["\<\
+
+Observe that in each of the above examples, the value of \"a\" remains the \
+same.\
+\>", "Text",
+ CellChangeTimes->{3.523277754232484*^9}]
+}, Closed]]
+}, Closed]]
+}, Closed]],
+
+Cell[CellGroupData[{
+
+Cell[TextData[{
+ StyleBox[" Exercises", "Title"],
+ "  Advanced Lesson 11 "
+}], "Section"],
+
+Cell["\<\
+Your Name:
+
+Your Math Class:\
+\>", "Program",
+ CellChangeTimes->{{3.390368232619*^9, 3.3903682391219997`*^9}, {
+   3.390368866851*^9, 3.390368908736*^9}, {3.3903690435030003`*^9, 
+   3.390369082222*^9}, 3.3903880065649595`*^9},
+ FontSize->16,
+ FontWeight->"Bold"]
+}, Closed]],
+
+Cell[CellGroupData[{
+
+Cell[" Pattern matching in functional arguments:", "Section"],
+
+Cell["\<\
+When you are instructed to construct a function whose argument will match \
+exactly one arbitrary object, you will write:   f[ x_ ]
+ If you want delayed assignment to that function you will write:   f[ x_ ]  \
+:=  rhs[ x ]\
+\>", "Text"],
+
+Cell[TextData[{
+ "1: Write a delayed assignment function of exactly one argument which will \
+square the argument.\n\tEvaluate:   ? f\n\tEvaluate:   f[2]\n\tEvaluate:   \
+f[x]\n\tEvaluate:   f[y]\t\t",
+ StyleBox["\[DoubleLongRightArrow] ",
+  FontWeight->"Bold"],
+ Cell[BoxData[
+  StyleBox[
+   SuperscriptBox["y", "2"],
+   FontWeight->"Bold"]]],
+ "\n\tEvaluate:   f[\"string\"]\n\tEvaluate:   f[ {1,2,3} ]\n\tEvaluate:   f[ \
+",
+ Cell[BoxData[
+  FormBox[
+   RowBox[{"(", "\[NegativeThinSpace]", GridBox[{
+      {"1", "2"},
+      {"3", "4"}
+     }], "\[NegativeThinSpace]", ")"}], TraditionalForm]]],
+ " ]\t\t",
+ StyleBox["\[DoubleLongRightArrow] ",
+  FontWeight->"Bold"],
+ "{{1,4},{9,16}}",
+ "\n\tEvaluate:   f[ ]\n\tEvaluate:   f[ x,y ]\n\tEvaluate:   f[ 1,2,3,4 ]\n \
+Explain what is different about the last three evaluations."
+}], "Text"],
+
+Cell[TextData[{
+ "2: Write a delayed assignment function of EXACTLY ZERO arguments which will \
+take on the value 3.\n\tEvaluate:   ? f\n\tEvaluate:   f[ ]\t\t\t",
+ StyleBox["\[DoubleLongRightArrow] 3",
+  FontWeight->"Bold"],
+ "\n\tEvaluate:   f[2]\n\tEvaluate:   f[x]\n\tEvaluate:   f[ x,y ]\n\t\
+Evaluate:   f[ 1,2,3,4 ]\n\tEvaluate:   f[ ",
+ Cell[BoxData[
+  FormBox[
+   RowBox[{"(", "\[NegativeThinSpace]", GridBox[{
+      {"1", "2"},
+      {"3", "4"}
+     }], "\[NegativeThinSpace]", ")"}], TraditionalForm]]],
+ " ]\n Explain what is different about the last five evaluations."
+}], "Text"],
+
+Cell[TextData[{
+ "3: Write a delayed assignment function of ONE OR MORE arguments which will \
+square the LIST of arguments.\n\tDoes the square (i.e. Power) have attribute \
+Listable?  What does this mean?\n\tEvaluate:   ? f\n\tEvaluate:   f[2]\n\t\
+Evaluate:   f[x]\n\tEvaluate:   f[y]\t\t\t",
+ StyleBox["\[DoubleLongRightArrow]  ",
+  FontWeight->"Bold"],
+ Cell[BoxData[
+  RowBox[{"{", 
+   SuperscriptBox["y", "2"], "}"}]],
+  FontWeight->"Bold"],
+ StyleBox["  ",
+  FontWeight->"Bold"],
+ "\n\tEvaluate:   f[\"string\"]\n\tEvaluate:   f[ {1,2,3} ]\t\t\t",
+ StyleBox["\[DoubleLongRightArrow] ",
+  FontWeight->"Bold"],
+ "{{1,4,9}}\n\tEvaluate:   f[ ",
+ Cell[BoxData[
+  FormBox[
+   RowBox[{"(", "\[NegativeThinSpace]", GridBox[{
+      {"1", "2"},
+      {"3", "4"}
+     }], "\[NegativeThinSpace]", ")"}], TraditionalForm]]],
+ " ]\n\tEvaluate:   f[ x,y ]\n\tEvaluate:   f[ 1,2,3,4 ]\n\tEvaluate:   f[ x, \
+{1,2,3} ]\t\t",
+ StyleBox["\[DoubleLongRightArrow] ",
+  FontWeight->"Bold"],
+ Cell[BoxData[
+  RowBox[{"{", 
+   RowBox[{
+    SuperscriptBox["x", "2"], ",", 
+    RowBox[{"{", 
+     RowBox[{"1", ",", "4", ",", "9"}], "}"}]}], "}"}]],
+  FontWeight->"Bold"],
+ "\n\tEvaluate:   f[ x, {1,2,3}, ",
+ Cell[BoxData[
+  FormBox[
+   RowBox[{"(", "\[NegativeThinSpace]", GridBox[{
+      {"1", "2"},
+      {"3", "4"}
+     }], "\[NegativeThinSpace]", ")"}], TraditionalForm]]],
+ " ]\n\tEvaluate:   f[ ]\n Explain what is different about the last \
+evaluation."
+}], "Text"],
+
+Cell[TextData[{
+ "4: Write a delayed assignment function of ZERO OR MORE arguments which will \
+square the LIST of arguments.\n\tEvaluate:   ? f\n\tEvaluate:   f[2]\n\t\
+Evaluate:   f[x]\n\tEvaluate:   f[y]\n\tEvaluate:   f[\"string\"]\n\t\
+Evaluate:   f[ {1,2,3} ]\t\t\t",
+ StyleBox["\[DoubleLongRightArrow] ",
+  FontWeight->"Bold"],
+ "{{1,4,9}}\n\tEvaluate:   f[ ",
+ Cell[BoxData[
+  FormBox[
+   RowBox[{"(", "\[NegativeThinSpace]", GridBox[{
+      {"1", "2"},
+      {"3", "4"}
+     }], "\[NegativeThinSpace]", ")"}], TraditionalForm]]],
+ " ]\n\tEvaluate:   f[ x,y ]\n\tEvaluate:   f[ 1,2,3,4 ]\n\tEvaluate:   f[ x, \
+{1,2,3} ]\t\t",
+ StyleBox["\[DoubleLongRightArrow] ",
+  FontWeight->"Bold"],
+ Cell[BoxData[
+  RowBox[{"{", 
+   RowBox[{
+    SuperscriptBox["x", "2"], ",", 
+    RowBox[{"{", 
+     RowBox[{"1", ",", "4", ",", "9"}], "}"}]}], "}"}]],
+  FontWeight->"Bold"],
+ "\n\tEvaluate:   f[ x, {1,2,3}, ",
+ Cell[BoxData[
+  FormBox[
+   RowBox[{"(", "\[NegativeThinSpace]", GridBox[{
+      {"1", "2"},
+      {"3", "4"}
+     }], "\[NegativeThinSpace]", ")"}], TraditionalForm]]],
+ " ]\n\tEvaluate:   f[ ]\n Explain the last evaluation."
+}], "Text"],
+
+Cell[TextData[{
+ "5: Write a delayed assignment function of exactly TWO arguments which will \
+square the first argument times the Sine of the second argument.\n\tEvaluate: \
+  ? f\n\tEvaluate:   f[ ]\n\tEvaluate:   f[x]\n\tEvaluate:   f[ {1,2} ]\n\t\
+Evaluate:   f[ {1,2,3} ]\n\tEvaluate:   f[ 1,2,3,4 ]\n\tEvaluate:   f[ x,y ]\t\
+\t\t",
+ StyleBox["\[DoubleLongRightArrow]  ",
+  FontWeight->"Bold"],
+ Cell[BoxData[
+  RowBox[{
+   SuperscriptBox["x", "2"], " ", 
+   RowBox[{"Sin", "[", "y", "]"}]}]],
+  FontWeight->"Bold"],
+ "\n\tEvaluate:   f[ x, {1,2,3} ]\n\tEvaluate:   f[ \"string\", ",
+ Cell[BoxData[
+  FormBox[
+   RowBox[{"(", "\[NegativeThinSpace]", GridBox[{
+      {"1", "2"},
+      {"3", "4"}
+     }], "\[NegativeThinSpace]", ")"}], TraditionalForm]]],
+ " ]\n Explain why the first five evaluations did not work."
+}], "Text"],
+
+Cell["\<\
+6: Part 1: Write a delayed assignment function of exactly THREE arguments \
+which equals the list of those three arguments.
+ Part 2: Write a delayed assignment function of exactly FOUR arguments which \
+equals the list of those four arguments.\
+\>", "Text"],
+
+Cell[TextData[{
+ "7: Write a delayed assignment function of exactly ONE argument followed by \
+ZERO or more arguments which will square the first argument times the Sine of \
+the LIST of the second arguments.\n\tEvaluate:   ? f\n\tEvaluate:   f[ ]\n\t\
+Evaluate:   f[x]\t  \[DoubleLongRightArrow]  { },  How did ",
+ StyleBox["Mathematica",
+  FontSlant->"Italic"],
+ " calculate this value?\n\tEvaluate:   f[ {1,2} ]\t  Why did ",
+ StyleBox["Mathematica ",
+  FontSlant->"Italic"],
+ "fail to calculate this value?\n\tEvaluate:   f[ x,y ]\t\t  \
+\[DoubleLongRightArrow] ",
+ Cell[BoxData[
+  StyleBox[
+   RowBox[{"{", 
+    RowBox[{
+     SuperscriptBox["x", "2"], " ", 
+     RowBox[{"Sin", "[", "y", "]"}]}], "}"}],
+   FontWeight->"Bold"]]],
+ "\n\tEvaluate:   f[ 2,3,4,5 ]\t  \[DoubleLongRightArrow]  {4 Sin[3],4 \
+Sin[4],4 Sin[5]}\n\tEvaluate:   f[ x, y, z, w ]\n\tEvaluate:   f[ x, {1,2,3}, \
+A, B ]\tLook at this result in:  ColumnForm,  \n\t\t\t\t\t\tHow did ",
+ StyleBox["Mathematica",
+  FontSlant->"Italic"],
+ " calculate this value?\n\tEvaluate:   f[ \"string\", ",
+ Cell[BoxData[
+  FormBox[
+   RowBox[{"(", "\[NegativeThinSpace]", GridBox[{
+      {"1", "2"},
+      {"3", "4"}
+     }], "\[NegativeThinSpace]", ")"}], TraditionalForm]]],
+ " ]"
+}], "Text"],
+
+Cell[TextData[{
+ "8: Write a delayed assignment function of the Sine of exactly one argument \
+which will square the argument which appears inside the Sine function.\n\t\
+Evaluate:   ? f\n\tEvaluate:   f[ Sin[2] ]\t\t  \[DoubleLongRightArrow] 4\n\t\
+Evaluate:   f[ Sin[y] ]\n\tEvaluate:   f[ Sin[ {1,2,3} ] ]\t  Why did ",
+ StyleBox["Mathematica ",
+  FontSlant->"Italic"],
+ "fail to match this pattern?\n\tEvaluate:   f[ Sin[ Log[x] ] ]\n\tEvaluate:  \
+ f[x]\n\tEvaluate:   f[ Cos[y] ]\n\tEvaluate:   f[ 1,2,3,4 ]\n Explain what \
+is different about the last three evaluations."
+}], "Text"],
+
+Cell[TextData[{
+ "9: Write a delayed assignment function which will have several different \
+assignments.  Specifically,  f[ function[ x_ ] ] :=  derivative[ x ] for \
+different functions (\"f\" will be defined using multiple assignments.  Also, \
+\"f\" will ",
+ StyleBox["NOT",
+  FontVariations->{"Underline"->True}],
+ " use the chain rule correctly, i.e. f[ Sin[2x] ]\t\[DoubleLongRightArrow] \
+Cos[ 2x ]   ",
+ StyleBox["NOT",
+  FontVariations->{"Underline"->True}],
+ "  2 Cos[ 2x ]).  \"f\" should use pattern matching to accept as arguments \
+the functions:   Sin[x], Cos[x], Log[x], ",
+ Cell[BoxData[
+  FormBox[
+   SuperscriptBox["E", "x"], TraditionalForm]]],
+ "   and return the corresponding  \"derivative\" functions.\n\tEvaluate:   ? \
+f\n\tEvaluate:   f[ ",
+ Cell[BoxData[
+  FormBox[
+   SuperscriptBox["\[ExponentialE]", "x"], TraditionalForm]]],
+ " ]\n\tEvaluate:   f[ Sin[y] ]\t\t\[DoubleLongRightArrow] Cos[ y ]\n\t\
+Evaluate:   f[ Cos[x + y] ]\n\tEvaluate:   f[ Sin[2] ]\t\t\
+\[DoubleLongRightArrow] Cos[ 2 ]\n\tEvaluate:   f[ Sin[ Log[x] ] ]\n\t\
+Evaluate:   f[ Sin[ {1,2,3} ] ]\t  Why did ",
+ StyleBox["Mathematica ",
+  FontSlant->"Italic"],
+ "fail to match this pattern?"
+}], "Text"],
+
+Cell[TextData[{
+ "10:  Odd functions have the property that:  f( -x )  \
+\[DoubleLongRightArrow]  -f( x ).  Write a delayed assignment function which \
+uses pattern matching which will make this assignment.  (Note that this is a \
+recursive assignment.)\n\tEvaluate:   ? f\n\tEvaluate:   f[ -x ]\n\tEvaluate: \
+  f[ -y ]\t\t\[DoubleLongRightArrow] - f[ y ]\n\tEvaluate:   f[ -Sin[y] ]\n\t\
+Evaluate:   f[ -5 ]\tWhy did ",
+ StyleBox["Mathematica ",
+  FontSlant->"Italic"],
+ "fail to match this pattern?  \n\t\t\t\tHint: look at FullForm[ -5 ]  and  \
+FullForm[ -x ]"
+}], "Text"],
+
+Cell["\<\
+11:  How would you add a new assignment to the function \"f\" in Problem 10 \
+so that the function \"f\" with two assignments would also accept the \
+pattern:   f( -5 )  \[DoubleLongRightArrow]  -f( 5 ) for different negative \
+numbers?  (There are several correct ways to do this.)
+\tEvaluate:   ? f
+\tEvaluate:   f[ -x ]\t\t\[DoubleLongRightArrow] - f[ x ]
+\tEvaluate:   f[ x ]
+\tEvaluate:   f[ -y ]
+\tEvaluate:   f[ -Sin[y] ]
+\tEvaluate:   f[ -5 ]\t\t\[DoubleLongRightArrow] - f[ 5 ]
+\tEvaluate:   f[ -7 ]
+\tEvaluate:   f[ 5 ]\
+\>", "Text"],
+
+Cell[TextData[{
+ "12: Write a delayed assignment function using pattern matching that will \
+accept as its argument a list (of 3 or more elements) which will return the \
+value of the third element in the list.  \n\tEvaluate:   ? f\n\tEvaluate:   \
+f[ ]\t\tWhy did ",
+ StyleBox["Mathematica ",
+  FontSlant->"Italic"],
+ "fail to match this pattern?\n\tEvaluate:   f[x]\tWhy did ",
+ StyleBox["Mathematica ",
+  FontSlant->"Italic"],
+ "fail to match this pattern?\n\tEvaluate:   f[ {1,2} ]\tWhy did ",
+ StyleBox["Mathematica ",
+  FontSlant->"Italic"],
+ "fail to match this pattern?\n\tEvaluate:   f[ {1,2,3} ] \t\
+\[DoubleLongRightArrow] 3\n\tEvaluate:   f[ {1,2,3,4} ]\n\tEvaluate:   f[ \
+{1,2,3,4,5} ]\n\tEvaluate:   f[ {x,y, {1,2,3}, A, B }]\t"
+}], "Text"],
+
+Cell[TextData[{
+ "13: Write a delayed assignment function using pattern matching that will \
+accept as its argument:\n\tA list of elements,\n\tWhich contains another list \
+(of 1 or more elements)\t\n\tWhich will return the inside list of elements.  \
+\n\tEvaluate:   ? f\n\tEvaluate:   f[ 1, 2, {4, 5}, 6 ]\t\tWhy did ",
+ StyleBox["Mathematica ",
+  FontSlant->"Italic"],
+ "fail to match this pattern?\n\tEvaluate:   f[ {1, 2, 3, 4} ]\t\tWhy did ",
+ StyleBox["Mathematica ",
+  FontSlant->"Italic"],
+ "fail to match this pattern?\n\tEvaluate:   f[ {1, 2, { }, 3, 4} ]\tWhy did ",
+ StyleBox["Mathematica ",
+  FontSlant->"Italic"],
+ "fail to match this pattern?\n\tEvaluate:   f[ {{1}, 2, 3, 4} ] \t\t\
+\[DoubleLongRightArrow] {1}\n\tEvaluate:   f[ {1, 2, {3}, 4} ] \t\t\
+\[DoubleLongRightArrow] {3}\n\tEvaluate:   f[ {1, {2, 3}, 4} ] \t\t\
+\[DoubleLongRightArrow] {2, 3}\n\tEvaluate:   f[ {1, 2, 3, {4}} ] \t\t\
+\[DoubleLongRightArrow] {4}\n\tEvaluate:   f[ {1, 2, {3, 4, 5}} ]\n\t\
+Evaluate:   f[ {{1, 2, 3, 4, 5}} ]\n\tEvaluate:   f[ {1, 2, {3,{ 4, 5}}} ]\n\t\
+Evaluate:   f[ {x, y, {1,2,3}, A, B }]\t"
+}], "Text"],
+
+Cell[TextData[{
+ "14: Calculate the FullForm[...] of each expression ",
+ StyleBox["inside",
+  FontVariations->{"Underline"->True}],
+ " the quotation marks:\n\t\"_\"           \[DoubleLongRightArrow]  ",
+ Cell[BoxData[
+  FormBox[
+   RowBox[{"Blank", "[", "]"}], TraditionalForm]]],
+ "\n\t\"x_\"\n\t\"x__\"\n\t\"x___\"\t\n\t\"x_Integer\"\n\t\"x_?EvenQ\"\n\t\
+\"x_?(# > 3&)\"\n\t\"x_Integer?EvenQ\"\nCreate a function which will return \
+the character string \"Positive Integer\" when its argument is a positive \
+integer and have the function remain unevaluated under all other \
+circumstances.  Your function should use pattern matching similar to the last \
+entry given above:\n  \t",
+ Cell[BoxData[
+  FormBox[
+   RowBox[{
+    RowBox[{"f", "[", 
+     RowBox[{
+      RowBox[{
+       RowBox[{"x_.", ".."}], "?"}], "..."}], "]"}], ":=", " "}], 
+   TraditionalForm]]],
+ "\"Positive Integer\"\nEvaluate:\n\t",
+ Cell[BoxData[
+  FormBox[
+   RowBox[{"f", "[", "3", "]"}], TraditionalForm]]],
+ "\n\t",
+ Cell[BoxData[
+  FormBox[
+   RowBox[{"f", "[", "3.45", "]"}], TraditionalForm]]],
+ "\n\t",
+ Cell[BoxData[
+  FormBox[
+   RowBox[{
+    RowBox[{"f", "[", 
+     RowBox[{"-", "3"}], "]"}], " "}], TraditionalForm]]]
+}], "Text"]
+}, Closed]],
+
+Cell[CellGroupData[{
+
+Cell[" Pattern matching in replacement rules:", "Section"],
+
+Cell["\<\
+When you are instructed to construct an immediate replacement rule you will \
+write:   lhs \[Rule] rhs
+When you are instructed to construct a delayed replacement rule you will \
+write:   lhs \[RuleDelayed] rhs
+When you are instructed to apply the replacement rule to an expression you \
+will write: 
+\t  expression(   ...   lhs  ...  )      /.     lhs \[Rule] rhs 
+which will yield:
+\t  expression(   ...  rhs  ...  )\
+\>", "Text"],
+
+Cell[TextData[{
+ "14: Write an immediate replacement rule which pattern matches 2 and \
+replaces it with 222 and assign this rule to: rule1.  Apply this replacement \
+rule to the following expressions:\n\tEvaluate:   ? rule1\t\t\t\
+\[DoubleLongRightArrow]   rule1 =  2 \[Rule] 222\n\tEvaluate:   {1, 2, 3, 4}  \
+/.  rule1\t\[DoubleLongRightArrow]   {1,222,3,4}\n\tEvaluate:   Sin[ 2 ]  /.  \
+rule1\n\tEvaluate:   {1, 2, Sin[ 2 ], ",
+ Cell[BoxData[
+  FormBox[
+   SuperscriptBox["x", 
+    RowBox[{"2", " "}]], TraditionalForm]]],
+ "}  /.  rule1\t\n\tEvaluate:   {1, 2, 3, 2+2}  /.  rule1\t Why was the last \
+replacement missed?\n\tEvaluate:   {1, 2, 3, Hold[ 2+2 ]}  /.  rule1\n\t\
+Evaluate:    2 Sin[ 2 Sin[ 2 Sin[ 2 Sin[ 2 x] ] ] ]  /.  rule1"
+}], "Text"],
+
+Cell[TextData[{
+ "15: Write an immediate replacement rule which pattern matches ",
+ Cell[BoxData[
+  FormBox[
+   SuperscriptBox[
+    RowBox[{"(", "x_", ")"}], "3"], TraditionalForm]]],
+ " and replaces it with ",
+ Cell[BoxData[
+  FormBox[
+   SuperscriptBox["x", "333"], TraditionalForm]]],
+ " and assign this rule to: rule2.  Apply this replacement rule to the \
+following expressions:\n\tEvaluate:   ? rule2\t\t\t\[DoubleLongRightArrow]   \
+rule2 =  ",
+ Cell[BoxData[
+  FormBox[
+   SuperscriptBox[
+    RowBox[{"(", "x_", ")"}], "3"], TraditionalForm]]],
+ " \[Rule] ",
+ Cell[BoxData[
+  FormBox[
+   SuperscriptBox["x", "333"], TraditionalForm]]],
+ "\n\tEvaluate:   ",
+ Cell[BoxData[
+  RowBox[{" ", 
+   RowBox[{
+    RowBox[{"{", " ", 
+     RowBox[{
+      SuperscriptBox["x", "2"], ",", " ", 
+      SuperscriptBox["x", "3"], ",", " ", 
+      SuperscriptBox["x", "4"], ",", " ", 
+      SuperscriptBox["y", "3"], ",", " ", 
+      SuperscriptBox[
+       RowBox[{"Sin", "[", "x", "]"}], "3"], ",", " ", 
+      FractionBox["1", 
+       RowBox[{"2", "+", 
+        SuperscriptBox["z", "3"]}]], " ", ",", " ", 
+      SuperscriptBox[
+       RowBox[{"(", 
+        RowBox[{"x", "+", "y"}], ")"}], "3"]}], "}"}], "/.", "  ", 
+    "rule2"}]}]],
+  FontWeight->"Bold"],
+ "\n\tEvaluate:   ",
+ Cell[BoxData[
+  StyleBox[
+   RowBox[{
+    SuperscriptBox[
+     RowBox[{"(", 
+      FractionBox["1", 
+       RowBox[{"2", "+", "y"}]], ")"}], "3"], "/.", "  ", "rule2"}],
+   FontWeight->"Bold"]]],
+ "\t Why was the last replacement missed?\n\tLook at the following to answer \
+the above question:\n\tEvaluate:    ",
+ Cell[BoxData[
+  RowBox[{"FullForm", "[", 
+   SuperscriptBox["x", "3"], "]"}]],
+  FontWeight->"Bold"],
+ "\n\tEvaluate:    ",
+ Cell[BoxData[
+  RowBox[{"FullForm", "[", 
+   SuperscriptBox[
+    RowBox[{"(", 
+     RowBox[{"2", "+", "y"}], ")"}], "3"], "]"}]],
+  FontWeight->"Bold"],
+ "\n\tEvaluate:    ",
+ Cell[BoxData[
+  RowBox[{
+   RowBox[{"Hold", "[", 
+    SuperscriptBox[
+     RowBox[{"(", 
+      FractionBox["1", 
+       RowBox[{"2", "+", "y"}]], ")"}], "3"], "]"}], "/.", "  ", "rule2"}]],
+  FontWeight->"Bold"],
+ "\n\tEvaluate:    ",
+ Cell[BoxData[
+  RowBox[{"FullForm", "[", 
+   SuperscriptBox[
+    RowBox[{"(", 
+     FractionBox["1", 
+      RowBox[{"2", "+", "y"}]], ")"}], "3"], "]"}]],
+  FontWeight->"Bold"]
+}], "Text"],
+
+Cell[TextData[{
+ "16: Make a list of the previous two rules.  Apply this list of replacement \
+rules to the following expressions: \n\tEvaluate:   ? {rule1, rule2}\t\n\t\
+Evaluate:   ",
+ Cell[BoxData[
+  RowBox[{" ", 
+   RowBox[{
+    RowBox[{"{", " ", 
+     RowBox[{
+      SuperscriptBox["x", "2"], ",", " ", 
+      SuperscriptBox["x", "3"], ",", " ", 
+      SuperscriptBox["x", "4"], ",", " ", 
+      SuperscriptBox["y", "3"], ",", " ", 
+      SuperscriptBox[
+       RowBox[{"Sin", "[", "x", "]"}], "3"], ",", " ", 
+      FractionBox["1", 
+       RowBox[{"2", "+", 
+        SuperscriptBox["z", "3"]}]], " ", ",", " ", 
+      SuperscriptBox[
+       RowBox[{"(", 
+        RowBox[{"x", "+", "y"}], ")"}], "3"]}], "}"}], "/.", 
+    RowBox[{"{", 
+     RowBox[{"rule1", ",", " ", "rule2"}], "}"}]}]}]],
+  FontWeight->"Bold"],
+ "\n\tEvaluate:   ",
+ Cell[BoxData[
+  StyleBox[
+   RowBox[{
+    SuperscriptBox[
+     RowBox[{"(", 
+      RowBox[{
+       StyleBox["2",
+        FontWeight->"Bold"], "+", "y"}], ")"}], "3"], "/.", " ", 
+    RowBox[{"{", 
+     RowBox[{"rule1", ",", " ", "rule2"}], "}"}]}],
+   FontWeight->"Bold"]]],
+ "\tWhy was the first replacement missed?\n\tEvaluate:   ",
+ Cell[BoxData[
+  StyleBox[
+   RowBox[{
+    SuperscriptBox[
+     RowBox[{"(", 
+      RowBox[{
+       StyleBox["2",
+        FontWeight->"Bold"], "+", "y"}], ")"}], "3"], "//.", " ", 
+    RowBox[{"{", 
+     RowBox[{"rule1", ",", " ", "rule2"}], "}"}]}],
+   FontWeight->"Bold"]]],
+ "\tWhy did this work?"
+}], "Text"],
+
+Cell[TextData[{
+ "17: The following example illustrates some of the power of pattern matching \
+and replacement rules.  As you already know, every operation in ",
+ StyleBox["Mathematica",
+  FontSlant->"Italic"],
+ " has an internal functional representation.  \n\nFor example, generate the \
+plot of ",
+ Cell[BoxData[
+  StyleBox[
+   SuperscriptBox["x", "2"],
+   FontWeight->"Bold"]]],
+ " and assign the output to:  plot1.\n\n\tEvaluate:   ",
+ Cell[BoxData[
+  RowBox[{"plot1", "=", 
+   RowBox[{"Plot", "[", 
+    RowBox[{
+     SuperscriptBox["x", "2"], ",", 
+     RowBox[{"{", 
+      RowBox[{"x", ",", "0", ",", "1"}], "}"}]}], "]"}]}]],
+  FontWeight->"Bold"],
+ "\n\n  To display the internal functional representation:\n  \n\tEvaluate:   \
+? plot1\n\n Observe that the contents of plot1 is something like:  \n \n   \
+plot1 = ",
+ Cell[BoxData[
+  FormBox[
+   RowBox[{"Graphics", "[", 
+    RowBox[{"{", 
+     RowBox[{"{", 
+      RowBox[{
+       RowBox[{"{", " ", "}"}], ",", 
+       RowBox[{"{", " ", "}"}], ",", 
+       RowBox[{"{", 
+        RowBox[{
+         RowBox[{"Hue", "[", 
+          RowBox[{"0.67`", ",", "0.6`", ",", "0.6`"}], "]"}], ",", 
+         RowBox[{"Line", "[", 
+          RowBox[{"{", 
+           RowBox[{
+            RowBox[{"{", 
+             RowBox[{
+             "2.040816326530612`*^-8", ",", "4.1649312786339017`*^-16"}], 
+             "}"}], ","}]}]}]}]}]}]}]}]}], TraditionalForm]]],
+ " .........\n \nalong with a list of replacement rules for graphic options.  \
+The first part consists of the Line command, which just connects a sequence \
+of line segments through a list of coordinates  {{x1,y1}, {x2,y2},  ...  }.  \
+\n\n Our objective is to replace the line segments with a list of points \
+using pattern matching and replacement rules.  To accomplish this, we need to \
+understand the pattern in the Line command as well as the Point command.  The \
+patterns are as follows:\n \n \tThe pattern we have:   Line [{{x1,y1}, \
+{x2,y2},  ...  }]\n \tThe pattern we want:  {Point [{x1,y1}], Point \
+[{x2,y2}],  ...  }\n \t \n Thus, we want to use pattern matching and \
+replacement rules to replace:\n \n \t Line [{  ...  , {x,y},  ...  }]\n \t \n \
+with:\n \n  \t {  ...  , Point [{x,y}],  ...  }\n  \t \n This can be \
+accomplished in two steps.  Replace the content in plot1 by creating a \
+replacement rule from:   \n \t\n \tLine [{  ...  , {x,y},  ...  }]  \[Rule]  \
+Line [{  ...  , Point [{x,y}],  ...  }]\n \t\t\n to get an intermediate step \
+(call it plot2).  plot2 will NOT be a proper plot, so it can not be \
+displayed.  The graphic display can be suppressed by ending with a \";\".  \
+Then to see the content of plot2:\n \n \tEvaluate:   ? plot2\n \t\nThen \
+replace the content in plot2 by creating a replacement rule from:   \n \t\n \t\
+Line [{  ...  , Point [{x,y}],  ...  }] \[Rule]  {  ...  , Point [{x,y}],  \
+...  }\n \t\t\n to get our final graphic commands (call it plot3).  Then to \
+see the content of plot3:\n \n \tEvaluate:   ? plot3\n \t\n plot3 will be a \
+proper plot, so it can be displayed.\n \n\tEvaluate:   plot3 \n\t\nYou should \
+conclude that EVERY ",
+ StyleBox["Mathematica",
+  FontSlant->"Italic"],
+ " expression, no matter what its form, can be manipulated in this way."
+}], "Text",
+ CellChangeTimes->{{3.39047221126*^9, 3.390472267766*^9}, 3.390473108457*^9, {
+   3.390473186025*^9, 3.3904734621689997`*^9}}],
+
+Cell[TextData[{
+ StyleBox["Print",
+  FontSize->14,
+  FontWeight->"Bold"],
+ StyleBox[" your homework exercises",
+  FontSize->14],
+ ".\n",
+ StyleBox["But do ",
+  FontSize->14,
+  FontWeight->"Bold",
+  FontColor->RGBColor[1, 0, 0]],
+ StyleBox["NOT",
+  FontSize->18,
+  FontWeight->"Bold",
+  FontColor->RGBColor[1, 0, 0]],
+ StyleBox[" print the above lesson along with the exercises!",
+  FontSize->14,
+  FontWeight->"Bold",
+  FontColor->RGBColor[1, 0, 0]]
+}], "Text",
+ CellChangeTimes->{{3.3903491193324003`*^9, 3.3903491706104*^9}, {
+   3.3903492171244*^9, 3.3903492363613997`*^9}, {3.3903493057854*^9, 
+   3.3903493616624002`*^9}, {3.390367829311*^9, 3.390368046703*^9}, {
+   3.390368151425*^9, 3.390368157087*^9}, {3.3903689909309998`*^9, 
+   3.390369020223*^9}, {3.390369115093*^9, 3.390369186012*^9}, {
+   3.3903692234300003`*^9, 3.390369566137*^9}, {3.390369653565*^9, 
+   3.390369672512*^9}, {3.390369704873*^9, 3.3903697467469997`*^9}, {
+   3.390369895852*^9, 3.390369997834*^9}, {3.390370474823*^9, 
+   3.390370498811*^9}, 3.3903705605439997`*^9, {3.390370625072*^9, 
+   3.390370690086*^9}, {3.390374898767*^9, 3.390374902177*^9}, {
+   3.390383169347*^9, 3.390383198519*^9}, 3.39038573018396*^9, {
+   3.3903876565289598`*^9, 3.3903876566309595`*^9}, {3.39038798227396*^9, 
+   3.3903879827329597`*^9}, {3.39038855499296*^9, 3.39038855570596*^9}, {
+   3.390425911413*^9, 3.390425911724*^9}, {3.3904275729119997`*^9, 
+   3.39042758298*^9}}]
+}, Closed]]
+}, Closed]]
+},
+WindowToolbars->{},
+WindowSize->{975, 563},
+WindowMargins->{{2, Automatic}, {Automatic, 0}},
+PrintingCopies->1,
+PrintingPageRange->{Automatic, Automatic},
+ShowSelection->True,
+Magnification:>FEPrivate`If[
+  FEPrivate`Equal[FEPrivate`$VersionNumber, 6.], 1.5, 1.5 Inherited],
+FrontEndVersion->"8.0 for Microsoft Windows (64-bit) (February 23, 2011)",
+StyleDefinitions->FrontEnd`FileName[{"Creative"}, "PastelColor.nb", 
+  CharacterEncoding -> "WindowsANSI"]
+]
+(* End of Notebook Content *)
+
+(* Internal cache information *)
+(*CellTagsOutline
+CellTagsIndex->{}
+*)
+(*CellTagsIndex
+CellTagsIndex->{}
+*)
+(*NotebookFileOutline
+Notebook[{
+Cell[CellGroupData[{
+Cell[567, 22, 170, 6, 515, "Title"],
+Cell[CellGroupData[{
+Cell[762, 32, 84, 1, 105, "Section"],
+Cell[849, 35, 101, 2, 71, "InputOnly"],
+Cell[953, 39, 252, 5, 66, "Text"],
+Cell[CellGroupData[{
+Cell[1230, 48, 50, 0, 54, "Subsection"],
+Cell[1283, 50, 276, 7, 41, "Text"],
+Cell[1562, 59, 112, 3, 71, "InputOnly"],
+Cell[1677, 64, 44, 1, 57, "Input"],
+Cell[1724, 67, 54, 1, 57, "Input"],
+Cell[1781, 70, 54, 1, 57, "Input"],
+Cell[1838, 73, 54, 1, 57, "Input"],
+Cell[1895, 76, 54, 1, 57, "Input"],
+Cell[1952, 79, 606, 13, 140, "Text"],
+Cell[2561, 94, 113, 3, 71, "InputOnly"],
+Cell[2677, 99, 44, 1, 57, "Input"],
+Cell[2724, 102, 54, 1, 57, "Input"],
+Cell[2781, 105, 54, 1, 57, "Input"],
+Cell[2838, 108, 54, 1, 57, "Input"],
+Cell[2895, 111, 69, 1, 57, "Input"],
+Cell[2967, 114, 144, 4, 66, "Text"]
+}, Closed]],
+Cell[CellGroupData[{
+Cell[3148, 123, 48, 0, 39, "Subsection"],
+Cell[3199, 125, 54, 0, 41, "Text"],
+Cell[3256, 127, 177, 5, 57, "Input"],
+Cell[3436, 134, 133, 3, 57, "Input"],
+Cell[3572, 139, 170, 5, 57, "Input"],
+Cell[3745, 146, 873, 19, 191, "Text"],
+Cell[4621, 167, 178, 5, 57, "Input"],
+Cell[4802, 174, 143, 5, 66, "Text"],
+Cell[4948, 181, 177, 5, 57, "Input"],
+Cell[5128, 188, 224, 6, 66, "Text"],
+Cell[5355, 196, 236, 6, 41, "Text"],
+Cell[5594, 204, 450, 16, 57, "Input"],
+Cell[6047, 222, 47, 0, 41, "Text"],
+Cell[6097, 224, 328, 12, 57, "Input"],
+Cell[6428, 238, 1377, 34, 165, "Text"],
+Cell[7808, 274, 460, 16, 57, "Input"],
+Cell[8271, 292, 634, 15, 115, "Text"],
+Cell[8908, 309, 264, 5, 41, "Text"],
+Cell[9175, 316, 273, 7, 57, "Input"],
+Cell[9451, 325, 127, 4, 66, "Text"],
+Cell[9581, 331, 494, 16, 60, "Input"],
+Cell[10078, 349, 522, 17, 60, "Input"],
+Cell[10603, 368, 309, 9, 63, "Input"],
+Cell[10915, 379, 89, 2, 57, "Input"],
+Cell[11007, 383, 354, 7, 66, "Item"],
+Cell[11364, 392, 563, 11, 116, "Text"],
+Cell[11930, 405, 266, 8, 60, "Input"],
+Cell[12199, 415, 261, 8, 60, "Input"],
+Cell[12463, 425, 275, 6, 66, "Text"],
+Cell[12741, 433, 207, 6, 57, "Input"],
+Cell[12951, 441, 105, 4, 66, "Text"],
+Cell[13059, 447, 164, 5, 57, "Input"],
+Cell[13226, 454, 178, 5, 66, "Text"],
+Cell[13407, 461, 207, 6, 57, "Input"],
+Cell[13617, 469, 97, 4, 66, "Text"],
+Cell[13717, 475, 266, 8, 60, "Input"],
+Cell[13986, 485, 130, 5, 90, "Text"],
+Cell[14119, 492, 424, 13, 60, "Input"],
+Cell[14546, 507, 107, 4, 66, "Text"],
+Cell[14656, 513, 425, 13, 60, "Input"]
+}, Closed]]
+}, Closed]],
+Cell[CellGroupData[{
+Cell[15130, 532, 187, 3, 57, "Section"],
+Cell[15320, 537, 151, 4, 71, "InputOnly"],
+Cell[15474, 543, 601, 15, 115, "Text"],
+Cell[16078, 560, 292, 8, 57, "Input"],
+Cell[16373, 570, 230, 6, 41, "Text"],
+Cell[16606, 578, 282, 8, 57, "Input"],
+Cell[16891, 588, 229, 6, 41, "Text"],
+Cell[17123, 596, 272, 8, 57, "Input"],
+Cell[17398, 606, 225, 6, 41, "Text"],
+Cell[17626, 614, 248, 7, 57, "Input"],
+Cell[17877, 623, 224, 6, 41, "Text"],
+Cell[18104, 631, 243, 7, 57, "Input"],
+Cell[18350, 640, 283, 9, 41, "Text"]
+}, Closed]],
+Cell[CellGroupData[{
+Cell[18670, 654, 166, 2, 57, "Section"],
+Cell[18839, 658, 682, 18, 140, "Text"],
+Cell[19524, 678, 283, 8, 57, "Input"],
+Cell[19810, 688, 254, 6, 66, "Text"],
+Cell[20067, 696, 273, 8, 57, "Input"],
+Cell[20343, 706, 252, 6, 66, "Text"],
+Cell[20598, 714, 249, 7, 57, "Input"],
+Cell[20850, 723, 251, 6, 66, "Text"],
+Cell[21104, 731, 244, 7, 57, "Input"],
+Cell[21351, 740, 245, 6, 66, "Text"],
+Cell[21599, 748, 64, 3, 66, "Text"],
+Cell[21666, 753, 577, 20, 57, "Input"],
+Cell[22246, 775, 578, 20, 57, "Input"],
+Cell[22827, 797, 578, 20, 57, "Input"],
+Cell[23408, 819, 580, 20, 57, "Input"],
+Cell[23991, 841, 581, 20, 57, "Input"],
+Cell[24575, 863, 100, 4, 66, "Text"],
+Cell[24678, 869, 580, 20, 57, "Input"],
+Cell[25261, 891, 101, 4, 66, "Text"],
+Cell[25365, 897, 587, 20, 57, "Input"],
+Cell[CellGroupData[{
+Cell[25977, 921, 80, 2, 54, "Subsection"],
+Cell[26060, 925, 193, 4, 41, "Text"],
+Cell[26256, 931, 175, 4, 57, "Input"],
+Cell[26434, 937, 478, 9, 140, "Text"],
+Cell[CellGroupData[{
+Cell[26937, 950, 286, 7, 66, "Item"],
+Cell[27226, 959, 172, 4, 42, "Item"]
+}, Open  ]],
+Cell[27413, 966, 158, 4, 57, "Input"],
+Cell[27574, 972, 214, 6, 71, "InputOnly"],
+Cell[27791, 980, 91, 2, 57, "Input"],
+Cell[27885, 984, 71, 1, 71, "InputOnly"],
+Cell[27959, 987, 509, 14, 97, "InputOnly"],
+Cell[28471, 1003, 73, 1, 57, "Input"],
+Cell[28547, 1006, 152, 5, 66, "Text"],
+Cell[28702, 1013, 222, 6, 57, "Input"],
+Cell[28927, 1021, 73, 1, 57, "Input"],
+Cell[29003, 1024, 83, 2, 57, "Input"]
+}, Closed]],
+Cell[CellGroupData[{
+Cell[29123, 1031, 103, 2, 39, "Subsection"],
+Cell[29229, 1035, 162, 3, 66, "Text"],
+Cell[29394, 1040, 67, 1, 71, "InputOnly"],
+Cell[29464, 1043, 640, 13, 313, "Input"],
+Cell[30107, 1058, 50, 1, 57, "Input"],
+Cell[30160, 1061, 96, 4, 66, "Text"],
+Cell[30259, 1067, 412, 9, 211, "Input"],
+Cell[30674, 1078, 95, 4, 66, "Text"],
+Cell[30772, 1084, 577, 12, 262, "Input"],
+Cell[31352, 1098, 98, 4, 66, "Text"],
+Cell[31453, 1104, 645, 13, 288, "Input"]
+}, Closed]]
+}, Closed]],
+Cell[CellGroupData[{
+Cell[32147, 1123, 96, 1, 57, "Section"],
+Cell[32246, 1126, 176, 4, 90, "Text"],
+Cell[CellGroupData[{
+Cell[32447, 1134, 288, 7, 66, "Item"],
+Cell[32738, 1143, 280, 6, 66, "Item"],
+Cell[33021, 1151, 155, 2, 42, "Item"],
+Cell[33179, 1155, 212, 5, 42, "Item"]
+}, Open  ]],
+Cell[CellGroupData[{
+Cell[33428, 1165, 123, 2, 87, "Subsection"],
+Cell[CellGroupData[{
+Cell[33576, 1171, 48, 0, 39, "Subsubsection"],
+Cell[33627, 1173, 740, 24, 91, "Text"],
+Cell[34370, 1199, 241, 5, 66, "Item"],
+Cell[34614, 1206, 89, 2, 57, "Input"],
+Cell[34706, 1210, 387, 8, 90, "Text"],
+Cell[35096, 1220, 156, 3, 71, "InputOnly"],
+Cell[35255, 1225, 49, 1, 57, "Input"],
+Cell[35307, 1228, 49, 1, 57, "Input"],
+Cell[35359, 1231, 131, 3, 57, "Input"],
+Cell[35493, 1236, 457, 14, 165, "Text"],
+Cell[35953, 1252, 230, 4, 66, "Text"],
+Cell[36186, 1258, 160, 3, 71, "InputOnly"],
+Cell[36349, 1263, 104, 3, 71, "InputOnly"],
+Cell[36456, 1268, 131, 3, 57, "Input"],
+Cell[36590, 1273, 49, 1, 57, "Input"],
+Cell[36642, 1276, 131, 3, 57, "Input"],
+Cell[36776, 1281, 49, 1, 57, "Input"],
+Cell[36828, 1284, 131, 3, 57, "Input"],
+Cell[36962, 1289, 709, 23, 214, "Text"]
+}, Closed]],
+Cell[CellGroupData[{
+Cell[37708, 1317, 46, 0, 27, "Subsubsection"],
+Cell[37757, 1319, 280, 6, 66, "Item"],
+Cell[38040, 1327, 96, 2, 57, "Input"],
+Cell[38139, 1331, 321, 8, 90, "Text"],
+Cell[38463, 1341, 160, 3, 71, "InputOnly"],
+Cell[38626, 1346, 104, 3, 71, "InputOnly"],
+Cell[38733, 1351, 131, 3, 57, "Input"],
+Cell[38867, 1356, 54, 1, 71, "InputOnly"],
+Cell[38924, 1359, 131, 3, 57, "Input"],
+Cell[39058, 1364, 49, 1, 57, "Input"],
+Cell[39110, 1367, 131, 3, 57, "Input"],
+Cell[39244, 1372, 954, 34, 264, "Text"]
+}, Closed]],
+Cell[CellGroupData[{
+Cell[40235, 1411, 65, 0, 27, "Subsubsection"],
+Cell[40303, 1413, 167, 3, 41, "Text"],
+Cell[40473, 1418, 155, 2, 42, "Item"],
+Cell[40631, 1422, 90, 2, 57, "Input"],
+Cell[40724, 1426, 426, 12, 90, "Text"],
+Cell[41153, 1440, 170, 3, 71, "InputOnly"],
+Cell[41326, 1445, 137, 4, 71, "InputOnly"],
+Cell[41466, 1451, 171, 4, 57, "Input"],
+Cell[41640, 1457, 167, 4, 57, "Input"],
+Cell[41810, 1463, 289, 6, 57, "Input"],
+Cell[42102, 1471, 272, 6, 90, "Text"],
+Cell[42377, 1479, 49, 1, 57, "Input"],
+Cell[42429, 1482, 289, 6, 57, "Input"],
+Cell[42721, 1490, 87, 2, 71, "InputOnly"],
+Cell[42811, 1494, 112, 2, 57, "Input"],
+Cell[42926, 1498, 289, 6, 57, "Input"],
+Cell[43218, 1506, 1702, 59, 338, "Text"]
+}, Closed]],
+Cell[CellGroupData[{
+Cell[44957, 1570, 65, 0, 27, "Subsubsection"],
+Cell[45025, 1572, 99, 2, 41, "Text"],
+Cell[45127, 1576, 120, 3, 71, "InputOnly"],
+Cell[45250, 1581, 137, 4, 71, "InputOnly"],
+Cell[45390, 1587, 169, 4, 57, "Input"],
+Cell[45562, 1593, 219, 5, 57, "Input"],
+Cell[45784, 1600, 100, 4, 66, "Text"],
+Cell[45887, 1606, 49, 1, 57, "Input"],
+Cell[45939, 1609, 87, 2, 71, "InputOnly"],
+Cell[46029, 1613, 44, 1, 57, "Input"],
+Cell[46076, 1616, 219, 5, 57, "Input"],
+Cell[46298, 1623, 1719, 55, 338, "Text"]
+}, Closed]],
+Cell[CellGroupData[{
+Cell[48054, 1683, 65, 0, 27, "Subsubsection"],
+Cell[48122, 1685, 111, 3, 41, "Text"],
+Cell[48236, 1690, 120, 3, 71, "InputOnly"],
+Cell[48359, 1695, 137, 4, 71, "InputOnly"],
+Cell[48499, 1701, 167, 4, 57, "Input"],
+Cell[48669, 1707, 219, 5, 57, "Input"],
+Cell[48891, 1714, 95, 4, 66, "Text"],
+Cell[48989, 1720, 49, 1, 57, "Input"],
+Cell[49041, 1723, 82, 2, 57, "Input"],
+Cell[49126, 1727, 44, 1, 57, "Input"],
+Cell[49173, 1730, 219, 5, 57, "Input"],
+Cell[49395, 1737, 1720, 60, 363, "Text"]
+}, Closed]],
+Cell[CellGroupData[{
+Cell[51152, 1802, 63, 0, 27, "Subsubsection"],
+Cell[51218, 1804, 192, 4, 41, "Text"],
+Cell[51413, 1810, 212, 5, 42, "Item"],
+Cell[51628, 1817, 97, 2, 57, "Input"],
+Cell[51728, 1821, 302, 7, 90, "Text"],
+Cell[52033, 1830, 120, 3, 71, "InputOnly"],
+Cell[52156, 1835, 137, 4, 71, "InputOnly"],
+Cell[52296, 1841, 178, 4, 57, "Input"],
+Cell[52477, 1847, 287, 6, 57, "Input"],
+Cell[52767, 1855, 105, 4, 66, "Text"],
+Cell[52875, 1861, 104, 3, 71, "InputOnly"],
+Cell[52982, 1866, 289, 6, 57, "Input"],
+Cell[53274, 1874, 87, 2, 71, "InputOnly"],
+Cell[53364, 1878, 44, 1, 57, "Input"],
+Cell[53411, 1881, 289, 6, 57, "Input"],
+Cell[53703, 1889, 1902, 65, 363, "Text"]
+}, Closed]],
+Cell[CellGroupData[{
+Cell[55642, 1959, 63, 0, 27, "Subsubsection"],
+Cell[55708, 1961, 155, 3, 66, "Text"],
+Cell[55866, 1966, 168, 3, 71, "InputOnly"],
+Cell[56037, 1971, 137, 4, 71, "InputOnly"],
+Cell[56177, 1977, 179, 4, 71, "InputOnly"],
+Cell[56359, 1983, 44, 1, 57, "Input"],
+Cell[56406, 1986, 171, 4, 57, "Input"],
+Cell[56580, 1992, 1317, 45, 264, "Text"],
+Cell[57900, 2039, 150, 4, 66, "Text"]
+}, Closed]],
+Cell[CellGroupData[{
+Cell[58087, 2048, 120, 1, 27, "Subsubsection"],
+Cell[58210, 2051, 194, 5, 115, "Text"],
+Cell[58407, 2058, 170, 3, 71, "InputOnly"],
+Cell[58580, 2063, 148, 3, 57, "Input"],
+Cell[58731, 2068, 155, 3, 71, "InputOnly"],
+Cell[58889, 2073, 27, 0, 57, "Input"],
+Cell[58919, 2075, 50, 3, 66, "Text"],
+Cell[58972, 2080, 120, 3, 71, "InputOnly"],
+Cell[59095, 2085, 174, 4, 57, "Input"],
+Cell[59272, 2091, 87, 2, 71, "InputOnly"],
+Cell[59362, 2095, 27, 0, 57, "Input"],
+Cell[59392, 2097, 87, 3, 66, "Text"],
+Cell[59482, 2102, 120, 3, 71, "InputOnly"],
+Cell[59605, 2107, 183, 4, 71, "InputOnly"],
+Cell[59791, 2113, 27, 0, 57, "Input"],
+Cell[59821, 2115, 149, 5, 66, "Text"]
+}, Closed]]
+}, Closed]]
+}, Closed]],
+Cell[CellGroupData[{
+Cell[60031, 2127, 89, 3, 85, "Section"],
+Cell[60123, 2132, 273, 9, 121, "Program"]
+}, Closed]],
+Cell[CellGroupData[{
+Cell[60433, 2146, 61, 0, 65, "Section"],
+Cell[60497, 2148, 246, 5, 66, "Text"],
+Cell[60746, 2155, 841, 24, 337, "Text"],
+Cell[61590, 2181, 593, 14, 262, "Text"],
+Cell[62186, 2197, 1455, 43, 443, "Text"],
+Cell[63644, 2242, 1148, 33, 413, "Text"],
+Cell[64795, 2277, 833, 21, 337, "Text"],
+Cell[65631, 2300, 267, 5, 66, "Text"],
+Cell[65901, 2307, 1254, 32, 342, "Text"],
+Cell[67158, 2341, 590, 10, 289, "Text"],
+Cell[67751, 2353, 1201, 28, 289, "Text"],
+Cell[68955, 2383, 577, 11, 215, "Text"],
+Cell[69535, 2396, 553, 13, 264, "Text"],
+Cell[70091, 2411, 755, 16, 266, "Text"],
+Cell[70849, 2429, 1114, 20, 414, "Text"],
+Cell[71966, 2451, 1214, 36, 437, "Text"]
+}, Closed]],
+Cell[CellGroupData[{
+Cell[73217, 2492, 58, 0, 65, "Section"],
+Cell[73278, 2494, 441, 10, 165, "Text"],
+Cell[73722, 2506, 756, 14, 242, "Text"],
+Cell[74481, 2522, 2312, 80, 344, "Text"],
+Cell[76796, 2604, 1489, 49, 156, "Text"],
+Cell[78288, 2655, 3371, 70, 1366, "Text"],
+Cell[81662, 2727, 1440, 34, 82, "Text"]
+}, Closed]]
+}, Closed]]
+}
+]
+*)
+
+(* End of internal cache information *)

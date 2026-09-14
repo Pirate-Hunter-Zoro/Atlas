@@ -1,0 +1,1190 @@
+(* Content-type: application/mathematica *)
+
+(*** Wolfram Notebook File ***)
+(* http://www.wolfram.com/nb *)
+
+(* CreatedBy='Mathematica 6.0' *)
+
+(*CacheID: 234*)
+(* Internal cache information:
+NotebookFileLineBreakTest
+NotebookFileLineBreakTest
+NotebookDataPosition[       145,          7]
+NotebookDataLength[     46506,       1182]
+NotebookOptionsPosition[     40434,       1099]
+NotebookOutlinePosition[     40875,       1116]
+CellTagsIndexPosition[     40832,       1113]
+WindowFrame->Normal*)
+
+(* Beginning of Notebook Content *)
+Notebook[{
+
+Cell[CellGroupData[{
+Cell[" Section 7.1", "Title",ExpressionUUID->"6cb01ec6-fedf-42d5-86ba-cd97bf7d6ec1"],
+
+Cell[TextData[StyleBox["  Bifurcation and Catastrophe\n  (Fast and Slow)",
+ FontWeight->"Bold"]], "Subtitle",ExpressionUUID->"2899d575-92ea-43bd-a4dd-\
+22082d881498"],
+
+Cell[BoxData[
+ RowBox[{" ", 
+  RowBox[{"Remove", "[", "\"\<Global`*\>\"", " ", "]"}], " "}]], "InputOnly",
+ CellChangeTimes->{3.3985417408748055`*^9},
+ CellLabel->
+  "In[261]:=",ExpressionUUID->"3f54ad17-6939-42e6-bc8e-de3db99f35ee"],
+
+Cell[CellGroupData[{
+
+Cell["Gradient Systems", "Section",ExpressionUUID->"d5f4c2cd-546c-471d-8f63-8bce76d2d8d5"],
+
+Cell[TextData[{
+ "An important subclass of dynamical systems are gradient systems:\n\t",
+ Cell[BoxData[
+  FormBox[
+   RowBox[{
+    FractionBox[
+     RowBox[{"d", " ", "x"}], 
+     RowBox[{"d", " ", "t"}]], "=", 
+    RowBox[{"-", 
+     RowBox[{"\[Del]", 
+      RowBox[{"U", "[", 
+       RowBox[{"x", "[", "t", "]"}], "]"}]}]}]}], TraditionalForm]],
+  ExpressionUUID->"1a9976ba-d20d-4277-bc0f-63d2985a5293"],
+ "\n\t\nExample:\nConsider the following simple potential function:"
+}], "Text",ExpressionUUID->"2b3c608d-1263-4cbe-bf01-99e778159e6e"],
+
+Cell[BoxData[
+ RowBox[{
+  RowBox[{"U", "[", "x_", "]"}], "=", 
+  RowBox[{
+   RowBox[{
+    SuperscriptBox["x", "2"], 
+    RowBox[{"(", 
+     RowBox[{"x", "-", "1"}], ")"}]}], "+", "1"}]}]], "Input",
+ CellLabel->
+  "In[262]:=",ExpressionUUID->"d412edb0-8a10-4738-9c68-e15a470467f0"],
+
+Cell[BoxData[
+ RowBox[{"Plot", "[", "\[IndentingNewLine]", "\[IndentingNewLine]", 
+  RowBox[{
+   RowBox[{"U", "[", "x", "]"}], ",", "\[IndentingNewLine]", 
+   "\[IndentingNewLine]", 
+   RowBox[{"{", 
+    RowBox[{"x", ",", 
+     RowBox[{"-", ".4"}], ",", "1.1"}], "}"}], ",", "\[IndentingNewLine]", 
+   "\[IndentingNewLine]", 
+   RowBox[{"Frame", "\[Rule]", "True"}], ",", "\[IndentingNewLine]", 
+   RowBox[{"FrameLabel", "\[Rule]", 
+    RowBox[{"{", 
+     RowBox[{"\"\<x\>\"", ",", "\"\<U\>\""}], "}"}]}], ",", 
+   "\[IndentingNewLine]", 
+   RowBox[{"PlotStyle", "\[Rule]", "Thick"}]}], "\[IndentingNewLine]", 
+  "]"}]], "Input",
+ CellChangeTimes->{{3.3985419228435555`*^9, 3.3985419425935555`*^9}},
+ CellLabel->
+  "In[263]:=",ExpressionUUID->"73f808d4-3fa6-416a-a6a1-a9ab6f466764"],
+
+Cell[TextData[{
+ "\n Therefore, the gradient field for this potential function is:\n\t",
+ Cell[BoxData[
+  FormBox[
+   RowBox[{
+    RowBox[{"-", 
+     RowBox[{"\[Del]", 
+      RowBox[{"U", "[", "x", "]"}]}]}], " ", "=", 
+    RowBox[{"-", 
+     RowBox[{
+      RowBox[{"U", "'"}], "[", "x", "]"}]}]}], TraditionalForm]],
+  ExpressionUUID->"e483cf2a-2c6a-4c96-ac0a-34f0cb027d9f"],
+ "\n\t"
+}], "Text",ExpressionUUID->"204b0e2d-cfe8-491d-a80b-ea169b1a438d"],
+
+Cell[BoxData[
+ RowBox[{"Plot", "[", "\[IndentingNewLine]", "\[IndentingNewLine]", 
+  RowBox[{
+   RowBox[{"-", 
+    RowBox[{
+     SuperscriptBox["U", "\[Prime]",
+      MultilineFunction->None], "[", "x", "]"}]}], ",", "\[IndentingNewLine]",
+    "\[IndentingNewLine]", 
+   RowBox[{"{", 
+    RowBox[{"x", ",", 
+     RowBox[{"-", "0.2"}], ",", "0.8"}], "}"}], ",", "\[IndentingNewLine]", 
+   "\[IndentingNewLine]", 
+   RowBox[{"AxesLabel", "\[Rule]", 
+    RowBox[{"{", 
+     RowBox[{"\"\<x\>\"", ",", "\"\<U\>\""}], "}"}]}], ",", 
+   "\[IndentingNewLine]", 
+   RowBox[{"PlotStyle", "\[Rule]", "Thick"}]}], "\[IndentingNewLine]", 
+  "\[IndentingNewLine]", "]"}]], "Input",
+ CellChangeTimes->{{3.3985419492185555`*^9, 3.3985419638123055`*^9}},
+ CellLabel->
+  "In[264]:=",ExpressionUUID->"c11a5a59-7fbe-40c0-99d8-495db6787c2d"],
+
+Cell["\<\
+
+We can clarify the above one-dimensional gradient field by generating the \
+following vector field (where you should ignore the vertical component):
+\
+\>", "Text",ExpressionUUID->"0899d0e3-1334-40bb-9dfd-00c0e720f64e"],
+
+Cell[BoxData[
+ RowBox[{"VectorPlot", "[", "\[IndentingNewLine]", "\[IndentingNewLine]", 
+  RowBox[{
+   RowBox[{"{", 
+    RowBox[{
+     RowBox[{"-", 
+      RowBox[{
+       SuperscriptBox["U", "\[Prime]",
+        MultilineFunction->None], "[", "x", "]"}]}], ",", "0"}], "}"}], ",", 
+   "\[IndentingNewLine]", "\[IndentingNewLine]", 
+   RowBox[{"{", 
+    RowBox[{"x", ",", 
+     RowBox[{"-", "0.15"}], ",", "0.8"}], "}"}], ",", "\[IndentingNewLine]", 
+   RowBox[{"{", 
+    RowBox[{"y", ",", 
+     RowBox[{"-", "0.5"}], ",", "0.5"}], "}"}], ",", "\[IndentingNewLine]", 
+   "\[IndentingNewLine]", 
+   RowBox[{"Frame", "\[Rule]", "True"}], ",", "\[IndentingNewLine]", 
+   RowBox[{"FrameLabel", "\[Rule]", 
+    RowBox[{"{", 
+     RowBox[{"\"\<x\>\"", ",", "\"\< \>\""}], "}"}]}]}], 
+  "\[IndentingNewLine]", "\[IndentingNewLine]", "]"}]], "Input",
+ CellChangeTimes->{{3.3985419744841805`*^9, 3.3985420104529305`*^9}, {
+  3.466787368109568*^9, 3.4667873746719418`*^9}},
+ CellLabel->
+  "In[265]:=",ExpressionUUID->"0ee7fe5e-9c37-4683-852d-dd04620df4ab"],
+
+Cell["\<\
+
+The above one-dimensional gradient field illustrates that there are two \
+equilibrium points:\
+\>", "Text",ExpressionUUID->"d8c46041-640b-4b80-90fb-820de456da54"],
+
+Cell[BoxData[
+ RowBox[{
+  RowBox[{"Solve", "[", "\[IndentingNewLine]", "\[IndentingNewLine]", 
+   RowBox[{
+    RowBox[{
+     RowBox[{"-", 
+      RowBox[{
+       RowBox[{"U", "'"}], "[", "x", "]"}]}], "\[Equal]", "0"}], ",", 
+    "\[IndentingNewLine]", "\[IndentingNewLine]", " ", "x"}], 
+   "\[IndentingNewLine]", "\[IndentingNewLine]", "]"}], "//", 
+  "TableForm"}]], "Input",
+ CellChangeTimes->{{3.3985420199060555`*^9, 3.3985420389060555`*^9}},
+ CellLabel->
+  "In[266]:=",ExpressionUUID->"ddc1a415-ad8c-43fb-a90f-e5cec2228ba4"],
+
+Cell[TextData[{
+ "Where the first equilibrium point ",
+ Cell[BoxData[
+  FormBox[
+   RowBox[{"x", "\[Rule]", "0"}], TraditionalForm]],ExpressionUUID->
+  "2bf4ed7c-c846-413b-9938-6e5c9516ceb6"],
+ " is unstable and the second equilibrium point ",
+ Cell[BoxData[
+  FormBox[
+   RowBox[{"x", "\[Rule]", 
+    FractionBox["2", "3"]}], TraditionalForm]],ExpressionUUID->
+  "43d221ed-b217-482e-aec9-eb626cdbfc9f"],
+ " is stable."
+}], "Text",ExpressionUUID->"dd866e3f-f3f5-453f-9ce4-1193b8dced83"]
+}, Closed]],
+
+Cell[CellGroupData[{
+
+Cell["Gradient Systems with a Parameter", "Section",ExpressionUUID->"13b6a794-b75e-406a-96f0-b763e0bb00f3"],
+
+Cell[TextData[{
+ "Almost every model that you will develop will contain operational \
+parameters.  If the model is a dynamic system, then the very nature of the \
+model's behavior can change in response to these parameters.\n\nAs an \
+example, consider a potential function which contains a single parameter ",
+ Cell[BoxData[
+  FormBox["\[Alpha]", TraditionalForm]],ExpressionUUID->
+  "09508ec6-b31d-4fe6-bad4-94aea5da2abe"],
+ ":"
+}], "Text",ExpressionUUID->"1a70ad5e-6c57-4ef0-9022-108376856e1b"],
+
+Cell[BoxData[
+ RowBox[{
+  RowBox[{"U", "[", 
+   RowBox[{"x_", ",", "\[Alpha]_"}], "]"}], "=", 
+  RowBox[{
+   RowBox[{
+    SuperscriptBox["x", "2"], 
+    RowBox[{"(", 
+     RowBox[{"x", "-", "1"}], ")"}]}], "+", "1", "+", 
+   RowBox[{"\[Alpha]", " ", "x"}]}]}]], "Input",
+ CellLabel->
+  "In[267]:=",ExpressionUUID->"1009e87d-a682-4c6f-a9fc-53d29d1f3880"],
+
+Cell[TextData[{
+ "The surface corresponding to the potential function for a range of values ",
+ Cell[BoxData[
+  FormBox[
+   RowBox[{"0", "\[LessEqual]", "\[Alpha]", "\[LessEqual]", "0.5", " "}], 
+   TraditionalForm]],ExpressionUUID->"60ed7cd5-ff52-47dc-b6f7-5aa14049ad78"],
+ "is:"
+}], "Text",ExpressionUUID->"37d5e155-cb57-474e-bda6-c8e02001024c"],
+
+Cell[BoxData[
+ RowBox[{"Plot3D", "[", "\[IndentingNewLine]", "\[IndentingNewLine]", 
+  RowBox[{
+   RowBox[{"U", "[", 
+    RowBox[{"x", ",", "\[Alpha]"}], "]"}], ",", " ", "\[IndentingNewLine]", 
+   "\[IndentingNewLine]", 
+   RowBox[{"{", 
+    RowBox[{"x", ",", " ", 
+     RowBox[{"-", "0.15"}], ",", "0.8"}], "}"}], ",", "\[IndentingNewLine]", 
+   RowBox[{"{", 
+    RowBox[{"\[Alpha]", ",", " ", "0", ",", " ", ".5"}], "}"}], ",", 
+   "\[IndentingNewLine]", "\[IndentingNewLine]", 
+   RowBox[{"AxesLabel", "\[Rule]", 
+    RowBox[{"{", 
+     RowBox[{
+     "\"\<x\>\"", ",", "\"\<\[Alpha]\>\"", ",", "\"\<U[x,\[Alpha]] \>\""}], 
+     "}"}]}]}], "\[IndentingNewLine]", "\[IndentingNewLine]", "]"}]], "Input",
+ CellChangeTimes->{{3.3985420559060555`*^9, 3.3985420594685555`*^9}},
+ CellLabel->
+  "In[268]:=",ExpressionUUID->"2c09eae8-816e-4cd7-944f-63a97af30c44"],
+
+Cell[TextData[{
+ "The corresponding gradient system is:\n\t",
+ Cell[BoxData[
+  FormBox[
+   RowBox[{
+    FractionBox[
+     RowBox[{"d", " ", "x"}], 
+     RowBox[{"d", " ", "t"}]], "=", 
+    RowBox[{"-", 
+     RowBox[{"\[Del]", 
+      RowBox[{"U", "[", 
+       RowBox[{
+        RowBox[{"x", "[", "t", "]"}], ",", "\[Alpha]"}], "]"}]}]}]}], 
+   TraditionalForm]],ExpressionUUID->"f3a9c0d9-ece0-4dcf-ae92-50d53fa4a281"],
+ "\nThe following surface plot displays both the gradient ",
+ Cell[BoxData[
+  FormBox[
+   RowBox[{"-", 
+    RowBox[{"\[Del]", 
+     RowBox[{"U", "[", 
+      RowBox[{
+       RowBox[{"x", "[", "t", "]"}], ",", "\[Alpha]"}], "]"}]}]}], 
+   TraditionalForm]],ExpressionUUID->"289208eb-06e3-4d5f-b88a-7e728e7d1837"],
+ " along with the ",
+ Cell[BoxData[
+  FormBox["0", TraditionalForm]],ExpressionUUID->
+  "c23957cc-e7a1-41be-8a3d-a2a435a328e6"],
+ " value.  When ",
+ Cell[BoxData[
+  FormBox[
+   RowBox[{"-", 
+    RowBox[{"\[Del]", 
+     RowBox[{"U", "[", 
+      RowBox[{
+       RowBox[{"x", "[", "t", "]"}], ",", "\[Alpha]"}], "]"}]}]}], 
+   TraditionalForm]],ExpressionUUID->"f146c69d-5611-4b8f-8e12-53b8df0faa99"],
+ " is positive, then the value of  ",
+ Cell[BoxData[
+  FormBox[
+   RowBox[{"x", "[", "t", "]"}], TraditionalForm]],ExpressionUUID->
+  "1a52681d-8e8d-4c17-9199-42495d6e02be"],
+ " is increasing.  When ",
+ Cell[BoxData[
+  FormBox[
+   RowBox[{"-", 
+    RowBox[{"\[Del]", 
+     RowBox[{"U", "[", 
+      RowBox[{
+       RowBox[{"x", "[", "t", "]"}], ",", "\[Alpha]"}], "]"}]}]}], 
+   TraditionalForm]],ExpressionUUID->"99b8499b-4537-4951-889b-e3c41a0849df"],
+ " is negative, then the value of ",
+ Cell[BoxData[
+  FormBox[
+   RowBox[{"x", "[", "t", "]"}], TraditionalForm]],ExpressionUUID->
+  "6368de28-9092-4498-86fb-192c23f58186"],
+ " is decreasing."
+}], "Text",ExpressionUUID->"75ec8f46-0c86-4648-a68f-e5073ab224dd"],
+
+Cell[BoxData[
+ RowBox[{"Show", "[", "\[IndentingNewLine]", "\[IndentingNewLine]", 
+  RowBox[{
+   RowBox[{"plot1", "=", "\[IndentingNewLine]", "\[IndentingNewLine]", 
+    RowBox[{"Plot3D", "[", "\[IndentingNewLine]", "\[IndentingNewLine]", 
+     RowBox[{
+      RowBox[{"Evaluate", "[", 
+       RowBox[{"-", 
+        RowBox[{
+         SubscriptBox["\[PartialD]", "x"], " ", 
+         RowBox[{"U", "[", 
+          RowBox[{"x", ",", "\[Alpha]"}], "]"}]}]}], "]"}], ",", 
+      "\[IndentingNewLine]", "\[IndentingNewLine]", 
+      RowBox[{"{", 
+       RowBox[{"x", ",", " ", 
+        RowBox[{"-", "0.15"}], ",", "0.8"}], "}"}], ",", " ", 
+      "\[IndentingNewLine]", 
+      RowBox[{"{", 
+       RowBox[{"\[Alpha]", ",", " ", "0", ",", " ", ".5"}], "}"}], ",", 
+      "\[IndentingNewLine]", "\[IndentingNewLine]", 
+      RowBox[{"AxesLabel", "\[Rule]", 
+       RowBox[{"{", 
+        RowBox[{
+        "\"\<x\>\"", ",", "\"\<\[Alpha]\>\"", ",", "\"\<-\[Del]U \>\""}], 
+        "}"}]}]}], "\[IndentingNewLine]", "]"}]}], ",", "\[IndentingNewLine]",
+    "\[IndentingNewLine]", 
+   RowBox[{"plot2", "=", "\[IndentingNewLine]", "\[IndentingNewLine]", 
+    RowBox[{"Plot3D", "[", "\[IndentingNewLine]", "\[IndentingNewLine]", 
+     RowBox[{"0", ",", " ", "\[IndentingNewLine]", "\[IndentingNewLine]", 
+      RowBox[{"{", 
+       RowBox[{"x", ",", " ", 
+        RowBox[{"-", "0.15"}], ",", "0.8"}], "}"}], ",", " ", 
+      "\[IndentingNewLine]", 
+      RowBox[{"{", 
+       RowBox[{"\[Alpha]", ",", " ", "0", ",", " ", ".5"}], "}"}]}], 
+     "\[IndentingNewLine]", "]"}]}]}], "\[IndentingNewLine]", "]"}]], "Input",
+ CellChangeTimes->{
+  3.3985420742498055`*^9, {3.3985421115623055`*^9, 3.3985421787810555`*^9}},
+ CellLabel->
+  "In[269]:=",ExpressionUUID->"57d19d10-5259-4096-899e-86042a2829ed"],
+
+Cell["Or, as a vector field:", "Text",ExpressionUUID->"d3df19f6-d909-4319-ae48-9356f7936467"],
+
+Cell[BoxData[
+ RowBox[{"plot3", "=", "\[IndentingNewLine]", "\[IndentingNewLine]", 
+  RowBox[{"VectorPlot", "[", "\[IndentingNewLine]", "\[IndentingNewLine]", 
+   RowBox[{
+    RowBox[{"Evaluate", "[", 
+     RowBox[{"{", 
+      RowBox[{
+       RowBox[{"-", 
+        RowBox[{
+         SubscriptBox["\[PartialD]", "x"], 
+         RowBox[{"U", "[", 
+          RowBox[{"x", ",", "\[Alpha]"}], "]"}]}]}], ",", "0"}], "}"}], "]"}],
+     ",", "\[IndentingNewLine]", "\[IndentingNewLine]", 
+    RowBox[{"{", 
+     RowBox[{"x", ",", 
+      RowBox[{"-", "0.15"}], ",", "0.8"}], "}"}], ",", "\[IndentingNewLine]", 
+    RowBox[{"{", 
+     RowBox[{"\[Alpha]", ",", "0", ",", "0.5"}], "}"}], ",", 
+    "\[IndentingNewLine]", "\[IndentingNewLine]", 
+    RowBox[{"VectorScale", "\[Rule]", 
+     RowBox[{"{", 
+      RowBox[{".02", ",", "2", ",", "None"}], "}"}]}], ",", 
+    "\[IndentingNewLine]", 
+    RowBox[{"Frame", "\[Rule]", "True"}], ",", "\[IndentingNewLine]", 
+    RowBox[{"FrameLabel", "\[Rule]", 
+     RowBox[{"{", 
+      RowBox[{"\"\<x\>\"", ",", "\"\<\[Alpha]\>\""}], "}"}]}]}], 
+   "\[IndentingNewLine]", "\[IndentingNewLine]", "]"}]}]], "Input",
+ CellChangeTimes->{{3.3985421874841805`*^9, 3.3985422167810555`*^9}, {
+  3.3985422853123055`*^9, 3.3985422996248055`*^9}, {3.466787481029275*^9, 
+  3.466787491747819*^9}, {3.466787522372231*^9, 3.4667875547153597`*^9}},
+ CellLabel->
+  "In[270]:=",ExpressionUUID->"94ede39a-89d8-438d-8dfc-6f42eb72d99d"],
+
+Cell[TextData[{
+ "The equilibrium points are clearly a function of ",
+ Cell[BoxData[
+  FormBox["\[Alpha]", TraditionalForm]],ExpressionUUID->
+  "35c99961-d742-430d-a811-9d6dda6e9698"],
+ " as well:"
+}], "Text",ExpressionUUID->"3d6f00a5-dc44-4bdb-b9ee-91800f62e1b9"],
+
+Cell[BoxData[
+ RowBox[{"Solve", "[", "\[IndentingNewLine]", "\[IndentingNewLine]", 
+  RowBox[{
+   RowBox[{
+    RowBox[{"-", 
+     RowBox[{
+      SubscriptBox["\[PartialD]", "x"], " ", 
+      RowBox[{"U", "[", 
+       RowBox[{"x", ",", "\[Alpha]"}], "]"}]}]}], "\[Equal]", "0"}], ",", 
+   "\[IndentingNewLine]", "\[IndentingNewLine]", " ", "\[Alpha]"}], 
+  "\[IndentingNewLine]", "\[IndentingNewLine]", "]"}]], "Input",
+ CellChangeTimes->{{3.3985423186873055`*^9, 3.3985423220466805`*^9}},
+ CellLabel->
+  "In[271]:=",ExpressionUUID->"7a6db980-be2a-45f1-925a-3b14c0963839"],
+
+Cell[BoxData[
+ RowBox[{"plot4", " ", "=", "\[IndentingNewLine]", "\[IndentingNewLine]", 
+  RowBox[{"Plot", "[", "\[IndentingNewLine]", "\[IndentingNewLine]", 
+   RowBox[{
+    RowBox[{
+     RowBox[{"2", " ", "x"}], "-", 
+     RowBox[{"3", " ", 
+      SuperscriptBox["x", "2"]}]}], ",", " ", "\[IndentingNewLine]", 
+    "\[IndentingNewLine]", 
+    RowBox[{"{", 
+     RowBox[{"x", ",", " ", 
+      RowBox[{"-", "0.15"}], ",", "0.8"}], "}"}], ",", "\[IndentingNewLine]", 
+    "\[IndentingNewLine]", 
+    RowBox[{"PlotRange", "\[Rule]", 
+     RowBox[{"{", " ", 
+      RowBox[{"0", ",", " ", ".5"}], "}"}]}], ",", "\[IndentingNewLine]", 
+    RowBox[{"AxesLabel", "\[Rule]", 
+     RowBox[{"{", 
+      RowBox[{"\"\<x\>\"", ",", "\"\<\[Alpha]\>\""}], "}"}]}], ",", 
+    "\[IndentingNewLine]", 
+    RowBox[{"PlotStyle", "\[Rule]", "Thick"}]}], "\[IndentingNewLine]", 
+   "]"}]}]], "Input",
+ CellChangeTimes->{{3.3985423295935555`*^9, 3.3985423413748055`*^9}},
+ CellLabel->
+  "In[272]:=",ExpressionUUID->"fb055740-cbfd-4369-9fd3-43ad8d65c732"],
+
+Cell[TextData[{
+ "The maximum value of the parameter ",
+ Cell[BoxData[
+  FormBox["\[Alpha]", TraditionalForm]],ExpressionUUID->
+  "a4f9971b-667a-4ade-bd4f-9ddc05a53a2c"],
+ " that will produce equilibrium points is:"
+}], "Text",ExpressionUUID->"7fad78ff-2d4b-4fc3-93ea-cf45aa5d8200"],
+
+Cell[BoxData[
+ RowBox[{
+  RowBox[{"(", 
+   RowBox[{"\[Alpha]", "\[Rule]", 
+    RowBox[{
+     RowBox[{"2", " ", "x"}], "-", 
+     RowBox[{"3", " ", 
+      SuperscriptBox["x", "2"]}]}]}], ")"}], "/.", 
+  RowBox[{"Solve", "[", 
+   RowBox[{
+    RowBox[{
+     SubscriptBox["\[PartialD]", "x"], " ", 
+     RowBox[{"(", 
+      RowBox[{
+       RowBox[{"2", " ", "x"}], "-", 
+       RowBox[{"3", " ", 
+        SuperscriptBox["x", "2"]}]}], ")"}]}], "\[Equal]", "0"}], 
+   "]"}]}]], "Input",
+ CellLabel->
+  "In[273]:=",ExpressionUUID->"c2c80551-5e4c-49fb-981f-f39db4053043"],
+
+Cell[TextData[{
+ "It is now possible to examine the one-dimensional slope field along with \
+any equilibrium points as a function of the parameter ",
+ Cell[BoxData[
+  FormBox["\[Alpha]", TraditionalForm]],ExpressionUUID->
+  "c4207050-f83e-4877-a932-83b343a0fe59"],
+ ", ",
+ Cell[BoxData[
+  FormBox[
+   RowBox[{"0", "\[LessEqual]", "\[Alpha]", "\[LessEqual]", "0.5", " "}], 
+   TraditionalForm]],ExpressionUUID->"75049767-b805-4558-90a1-24385a09dc8a"],
+ ":"
+}], "Text",ExpressionUUID->"04cc6d75-b189-49b4-9496-970af5d4f173"],
+
+Cell[BoxData[
+ RowBox[{"Show", "[", "\[IndentingNewLine]", "\[IndentingNewLine]", 
+  RowBox[{
+  "plot3", ",", " ", "\[IndentingNewLine]", "plot4", ",", 
+   "\[IndentingNewLine]", "\[IndentingNewLine]", 
+   RowBox[{"PlotRange", "\[Rule]", 
+    RowBox[{"{", " ", 
+     RowBox[{"0", ",", " ", ".5"}], "}"}]}]}], "\[IndentingNewLine]", 
+  "]"}]], "Input",
+ CellChangeTimes->{{3.3985423689060555`*^9, 3.3985423731560555`*^9}},
+ CellLabel->
+  "In[274]:=",ExpressionUUID->"040338ea-e1fb-4914-b17c-7267426d4b7e"],
+
+Cell[TextData[{
+ "The above plot clearly indicates that for ",
+ Cell[BoxData[
+  FormBox[
+   RowBox[{"\[Alpha]", "<", 
+    FractionBox["1", "3"]}], TraditionalForm]],ExpressionUUID->
+  "0feb4e37-cc32-48e1-a72b-ccc7ec674b72"],
+ ", the gradient system has two equilibrium points, an unstable equilibrium \
+point to the left and a stable equilibrium point to the right.  Also, the \
+above plot clearly indicates that for values of ",
+ Cell[BoxData[
+  FormBox[
+   RowBox[{"\[Alpha]", ">", 
+    FractionBox["1", "3"]}], TraditionalForm]],ExpressionUUID->
+  "8306e8f8-11c5-4594-9e5a-ca651221db94"],
+ ", the gradient system has no equilibrium points."
+}], "Text",ExpressionUUID->"df202c17-c93b-4ca3-a632-3813077abb02"]
+}, Closed]],
+
+Cell[CellGroupData[{
+
+Cell["Example 7.2", "Section",ExpressionUUID->"e69c79d0-85f2-454e-b1c8-31fc7813aecd"],
+
+Cell[TextData[{
+ "The following model illustrates a bifurcation which produces a \"cusp \
+catastrophe\".\nLoosely, for certain values of the parameters there is but \
+one stable equilibrium point.  However, for other values of the parameters, \
+there will be both stable and unstable equilibrium points.  The idea is that \
+the model will \"jump\" from one equilibrium point to a different equilibrium \
+without a smooth transition.\nConsider a potential function of ",
+ StyleBox["one",
+  FontVariations->{"Underline"->True}],
+ " variable ",
+ Cell[BoxData[
+  FormBox["x", TraditionalForm]],ExpressionUUID->
+  "d53c7fec-17a3-4989-9186-6b27084e6a72"],
+ " and ",
+ StyleBox["two",
+  FontVariations->{"Underline"->True}],
+ " parameters ",
+ Cell[BoxData[
+  FormBox[
+   RowBox[{"\[Alpha]", " ", "and", " ", "\[Beta]"}], TraditionalForm]],
+  ExpressionUUID->"7f7aee9d-2300-4d04-be8c-da7a6eb7f22f"],
+ ":"
+}], "Text",ExpressionUUID->"b9dd61e7-9373-491f-b09e-6ae02e150b5b"],
+
+Cell[BoxData[{
+ RowBox[{
+  RowBox[{
+   RowBox[{"Clear", "[", 
+    RowBox[{"x", ",", "\[Alpha]", ",", "\[Beta]"}], "]"}], ";"}], 
+  "\[IndentingNewLine]"}], "\[IndentingNewLine]", 
+ RowBox[{
+  RowBox[{"U", "[", 
+   RowBox[{"x_", ",", "\[Alpha]_", ",", "\[Beta]_"}], "]"}], "=", 
+  RowBox[{
+   FractionBox[
+    SuperscriptBox["x", "4"], "4"], "-", 
+   FractionBox[
+    RowBox[{"\[Alpha]", " ", 
+     SuperscriptBox["x", "2"]}], "2"], "-", 
+   RowBox[{"\[Beta]", " ", "x"}]}]}]}], "Input",
+ CellChangeTimes->{{3.4667897129239216`*^9, 3.466789726954902*^9}},
+ CellLabel->
+  "In[275]:=",ExpressionUUID->"b81454b2-58c0-42a7-ad28-b42407ae0187"],
+
+Cell[TextData[{
+ "\n Therefore, the one-dimensional gradient field for this potential \
+function is:\n\t",
+ Cell[BoxData[
+  FormBox[
+   RowBox[{
+    RowBox[{"-", 
+     RowBox[{"\[Del]", 
+      RowBox[{"U", "[", 
+       RowBox[{"x", ",", "\[Alpha]", ",", "\[Beta]"}], "]"}]}]}], " ", "=", 
+    RowBox[{"-", 
+     RowBox[{
+      SubscriptBox["\[PartialD]", "x"], " ", 
+      RowBox[{"U", "[", 
+       RowBox[{"x", ",", "\[Alpha]", ",", "\[Beta]"}], "]"}]}]}]}], 
+   TraditionalForm]],ExpressionUUID->"e9c7bf3e-787c-4fb0-b8fb-1ede0def2270"],
+ "\t"
+}], "Text",ExpressionUUID->"e9c0ebee-e353-4fca-8d62-d1165e5628ee"],
+
+Cell[BoxData[
+ RowBox[{"-", 
+  RowBox[{
+   SubscriptBox["\[PartialD]", "x"], " ", 
+   RowBox[{"U", "[", 
+    RowBox[{"x", ",", "\[Alpha]", ",", "\[Beta]"}], "]"}]}]}]], "Input",
+ CellLabel->
+  "In[277]:=",ExpressionUUID->"ad51007d-6cc9-4149-a648-9cda5350a3ee"],
+
+Cell["\<\
+The one-dimensional gradient field (along with the two dimensions \
+corresponding to the parameters \[Alpha] and \[Beta]) can be generated as \
+follows:
+(Observe that the scaling of the vector lengths has been adjusted for better \
+visibility.)\
+\>", "Text",ExpressionUUID->"07f48fc1-2602-4290-8867-2dac32893a68"],
+
+Cell[BoxData[
+ RowBox[{"plot5", "=", "\[IndentingNewLine]", "\[IndentingNewLine]", 
+  RowBox[{"VectorPlot3D", "[", "\[IndentingNewLine]", "\[IndentingNewLine]", 
+   RowBox[{
+    RowBox[{"Evaluate", "[", 
+     RowBox[{"{", 
+      RowBox[{"0", ",", "0", ",", 
+       RowBox[{"-", 
+        RowBox[{
+         SubscriptBox["\[PartialD]", "x"], 
+         RowBox[{"U", "[", 
+          RowBox[{"x", ",", "\[Alpha]", ",", "\[Beta]"}], "]"}]}]}]}], "}"}], 
+     "]"}], ",", "\[IndentingNewLine]", "\[IndentingNewLine]", 
+    RowBox[{"{", 
+     RowBox[{"\[Alpha]", ",", 
+      RowBox[{"-", "1.25"}], ",", "1.25"}], "}"}], ",", "\[IndentingNewLine]", 
+    RowBox[{"{", 
+     RowBox[{"\[Beta]", ",", 
+      RowBox[{"-", "1.25"}], ",", "1.25"}], "}"}], ",", "\[IndentingNewLine]", 
+    RowBox[{"{", 
+     RowBox[{"x", ",", 
+      RowBox[{"-", "1.25"}], ",", "1.25"}], "}"}], ",", "\[IndentingNewLine]",
+     "\[IndentingNewLine]", "\[IndentingNewLine]", 
+    RowBox[{"VectorScale", "\[Rule]", 
+     RowBox[{"{", 
+      RowBox[{"Automatic", ",", "0.3", ",", "Automatic"}], "}"}]}], ",", 
+    "\[IndentingNewLine]", 
+    RowBox[{"VectorPoints", "\[Rule]", "10"}]}], "\[IndentingNewLine]", 
+   "\[IndentingNewLine]", "]"}]}]], "Input",
+ CellChangeTimes->{{3.3985423955779305`*^9, 3.3985424610779305`*^9}, {
+   3.3985425011716805`*^9, 3.3985425059216805`*^9}, {3.3985426520310555`*^9, 
+   3.3985426720935555`*^9}, {3.3985428469060555`*^9, 
+   3.3985428474685555`*^9}, {3.4667876295107985`*^9, 
+   3.4667876526978536`*^9}, {3.466787944957867*^9, 3.466787978816592*^9}, {
+   3.4667880672992682`*^9, 3.4667880710960703`*^9}, {3.4667882115464983`*^9, 
+   3.4667882784045897`*^9}, 3.466788344137703*^9, {3.466788492337982*^9, 
+   3.4667885256029687`*^9}, {3.46678867656882*^9, 3.466788676756316*^9}, {
+   3.4667887664420943`*^9, 3.4667888455030766`*^9}, {3.466788932345159*^9, 
+   3.4667889449542923`*^9}, {3.4667890159216795`*^9, 3.4667890810923033`*^9}, 
+   3.4667891574033375`*^9, {3.4667892205896244`*^9, 3.466789265073146*^9}, 
+   3.4667893673211823`*^9},
+ CellLabel->
+  "In[278]:=",ExpressionUUID->"fd278ddd-a371-425a-85ef-6d6f8cf3090e"],
+
+Cell[TextData[{
+ "The above one-dimensional vector field is somewhat hard to visualize.  \
+Therefore, we will perform additional analysis below.\n\nThe corresponding \
+differential equation for the model is:\n\t",
+ Cell[BoxData[
+  FormBox[
+   RowBox[{
+    FractionBox[
+     RowBox[{"d", " ", "x"}], 
+     RowBox[{"d", " ", "t"}]], "=", 
+    RowBox[{"-", 
+     RowBox[{"\[Del]", 
+      RowBox[{"U", "[", 
+       RowBox[{
+        RowBox[{"x", "[", "t", "]"}], ",", "\[Alpha]", ",", "\[Beta]"}], 
+       "]"}]}]}]}], TraditionalForm]],ExpressionUUID->
+  "f4ba24d5-d634-457d-8eec-dda395fa459c"]
+}], "Text",ExpressionUUID->"6f50d235-93ad-405c-b322-4a92e535a608"],
+
+Cell[BoxData[
+ RowBox[{
+  RowBox[{
+   RowBox[{"x", "'"}], "[", "t", "]"}], "\[Equal]", 
+  RowBox[{
+   RowBox[{"-", 
+    SuperscriptBox[
+     RowBox[{"x", "[", "t", "]"}], "3"]}], "+", 
+   RowBox[{
+    RowBox[{"x", "[", "t", "]"}], " ", "\[Alpha]"}], "+", 
+   "\[Beta]"}]}]], "Input",
+ CellLabel->
+  "In[279]:=",ExpressionUUID->"3e40be4d-1d9d-42c9-9a98-5fb327726e24"],
+
+Cell[TextData[{
+ "The equilibrium points for this differential equation satisfy the following \
+equation:\n\t",
+ Cell[BoxData[
+  FormBox[
+   RowBox[{"0", "=", 
+    RowBox[{
+     RowBox[{"-", 
+      SuperscriptBox["x", "3"]}], "+", 
+     RowBox[{"x", " ", "\[Alpha]"}], "+", "\[Beta]"}]}], TraditionalForm]],
+  ExpressionUUID->"7eea86d3-eeca-41e0-89e4-2150c4f99de8"],
+ "\n\nIt is clear, that the equilibrium points define a surface and depend \
+upon the values of both parameters \[Alpha] and \[Beta]."
+}], "Text",ExpressionUUID->"02f06647-397c-4efb-a34d-522e120b87f8"],
+
+Cell[BoxData[
+ RowBox[{"plot6", "=", "\[IndentingNewLine]", "\[IndentingNewLine]", 
+  RowBox[{
+  "ParametricPlot3D", "[", "\[IndentingNewLine]", "\[IndentingNewLine]", 
+   RowBox[{
+    RowBox[{"{", 
+     RowBox[{"\[Alpha]", ",", " ", 
+      RowBox[{
+       SuperscriptBox["x", "3"], "-", 
+       RowBox[{"x", " ", "\[Alpha]"}]}], ",", " ", "x"}], "}"}], ",", " ", 
+    "\[IndentingNewLine]", "\[IndentingNewLine]", 
+    RowBox[{"{", 
+     RowBox[{"\[Alpha]", ",", " ", 
+      RowBox[{"-", "1.25"}], ",", " ", "1.25"}], "}"}], ",", " ", 
+    "\[IndentingNewLine]", 
+    RowBox[{"{", 
+     RowBox[{"x", ",", " ", 
+      RowBox[{"-", "1.25"}], ",", " ", "1.25"}], "}"}], ",", 
+    "\[IndentingNewLine]", "\[IndentingNewLine]", 
+    RowBox[{"AxesLabel", "\[Rule]", 
+     RowBox[{"{", 
+      RowBox[{"\"\<\[Alpha]\>\"", ",", "\"\<\[Beta]\>\"", ",", "\"\<x\>\""}], 
+      "}"}]}], ",", " ", "\[IndentingNewLine]", 
+    RowBox[{"PlotRange", "\[Rule]", 
+     RowBox[{"{", 
+      RowBox[{
+       RowBox[{"{", 
+        RowBox[{
+         RowBox[{"-", "1.25"}], ",", " ", "1.25"}], "}"}], ",", 
+       RowBox[{"{", 
+        RowBox[{
+         RowBox[{"-", "1.25"}], ",", " ", "1.25"}], "}"}], ",", 
+       RowBox[{"{", 
+        RowBox[{
+         RowBox[{"-", "1.5"}], ",", " ", "1.5"}], "}"}]}], "}"}]}]}], 
+   "\[IndentingNewLine]", "]"}]}]], "Input",
+ CellChangeTimes->{3.3985428687966805`*^9},
+ CellLabel->
+  "In[280]:=",ExpressionUUID->"1e729fcf-2625-4673-914a-4c4b82c22bab"],
+
+Cell["\<\
+It is possible to superimpose the surface corresponding to the equilibrium \
+points along with the one-dimensional vector field:\
+\>", "Text",ExpressionUUID->"2cda4e27-fb60-43d2-af1b-728e50e29b38"],
+
+Cell[BoxData[
+ RowBox[{"Show", "[", "\[IndentingNewLine]", 
+  RowBox[{
+  "plot6", ",", "\[IndentingNewLine]", "plot5", ",", " ", 
+   "\[IndentingNewLine]", 
+   RowBox[{"PlotRange", "\[Rule]", 
+    RowBox[{"{", 
+     RowBox[{
+      RowBox[{"{", 
+       RowBox[{
+        RowBox[{"-", "1.25"}], ",", " ", "1.25"}], "}"}], ",", 
+      RowBox[{"{", 
+       RowBox[{
+        RowBox[{"-", "1.25"}], ",", " ", "1.25"}], "}"}], ",", 
+      RowBox[{"{", 
+       RowBox[{
+        RowBox[{"-", "1.25"}], ",", " ", "1.25"}], "}"}]}], "}"}]}]}], 
+  "\[IndentingNewLine]", "]"}]], "Input",
+ CellLabel->
+  "In[281]:=",ExpressionUUID->"dc2c5092-0dd4-4819-8823-bb63b2c3932d"],
+
+Cell["\<\
+Again, the above one-dimensional vector field and the surface corresponding \
+to the equilibrium points is difficult to interpret.  Therefore, segment the \
+above plot into thin slices corresponding to small steps in the parameter \
+\[Alpha]:
+
+Warning! It may take some time to generate the following graphs.\
+\>", "Text",
+ CellChangeTimes->{{3.3985430972810555`*^9, 
+  3.3985431457498055`*^9}},ExpressionUUID->"fc1df75c-3978-4e17-a475-\
+b711740f1862"],
+
+Cell[BoxData[
+ RowBox[{"Table", "[", "\[IndentingNewLine]", "\[IndentingNewLine]", 
+  RowBox[{
+   RowBox[{"Show", "[", "\[IndentingNewLine]", 
+    RowBox[{
+    "plot6", ",", "\[IndentingNewLine]", "plot5", ",", "\[IndentingNewLine]", 
+     RowBox[{"PlotRange", "\[Rule]", 
+      RowBox[{"{", 
+       RowBox[{
+        RowBox[{"{", 
+         RowBox[{"\[Alpha]", ",", 
+          RowBox[{"\[Alpha]", "+", ".25"}]}], "}"}], ",", 
+        RowBox[{"{", 
+         RowBox[{
+          RowBox[{"-", "1.25"}], ",", "1.25"}], "}"}], ",", 
+        RowBox[{"{", 
+         RowBox[{
+          RowBox[{"-", "1.25"}], ",", "1.25"}], "}"}]}], "}"}]}], ",", 
+     "\[IndentingNewLine]", 
+     RowBox[{"ViewPoint", "\[Rule]", 
+      RowBox[{"{", 
+       RowBox[{"3.384", ",", "0.000", ",", 
+        RowBox[{"-", "0.040"}]}], "}"}]}], ",", "\[IndentingNewLine]", 
+     RowBox[{"PlotLabel", "\[Rule]", 
+      RowBox[{"Row", "[", 
+       RowBox[{"{", 
+        RowBox[{
+        "\[Alpha]", ",", "\"\< \[LessEqual] \[Alpha] \[LessEqual] \>\"", ",", 
+         RowBox[{"\[Alpha]", "+", ".25"}]}], "}"}], "]"}]}], ",", 
+     "\[IndentingNewLine]", 
+     RowBox[{"Axes", "\[Rule]", "False"}]}], "\[IndentingNewLine]", "]"}], 
+   ",", "\[IndentingNewLine]", "\[IndentingNewLine]", 
+   RowBox[{"{", 
+    RowBox[{"\[Alpha]", ",", 
+     RowBox[{"-", "1.25"}], ",", "1", ",", ".25"}], "}"}]}], 
+  "\[IndentingNewLine]", "]"}]], "Input",
+ CellChangeTimes->{{3.3985418261248055`*^9, 3.3985418366716805`*^9}, {
+  3.3985429519060555`*^9, 3.3985429553748055`*^9}},
+ CellLabel->
+  "In[282]:=",ExpressionUUID->"77340d70-66ab-4949-8b45-528d4b5d452a"],
+
+Cell["\<\
+Careful examination of the above graphs demonstrates that for negative values \
+of the parameter \[Alpha], that the equilibrium point corresponding to a \
+constant \[Beta] will be stable.  However as the parameter \[Alpha] becomes \
+positive, then the behavior of the model is to jump from a stable equilibrium \
+point right past an unstable equilibrium point until it reaches the next \
+stable equilibrium point.\
+\>", "Text",ExpressionUUID->"d25258a8-8e5f-4903-aae2-579f79ee2f6d"],
+
+Cell[TextData[{
+ "We can further analyze the exact location where this behavior occurs.\nIt \
+is clear from the above graph that the surface of equilibrium points \"folds \
+back upon itself\" when the surface is parallel to the x-axis, i.e. ",
+ Cell[BoxData[
+  FormBox[
+   RowBox[{
+    RowBox[{
+     SubscriptBox["\[PartialD]", "x"], " ", 
+     RowBox[{"(", 
+      RowBox[{
+       RowBox[{"-", 
+        SuperscriptBox["x", "3"]}], "+", 
+       RowBox[{"x", " ", "\[Alpha]"}], "+", "\[Beta]"}], ")"}]}], "=", "0"}], 
+   TraditionalForm]],ExpressionUUID->"2f3dda06-9cf6-4232-8b59-de53f1a759c7"],
+ ":"
+}], "Text",ExpressionUUID->"0ceff8cb-fbc2-46ae-b2cf-d8d7c0d6c940"],
+
+Cell[BoxData[
+ RowBox[{
+  RowBox[{
+   SubscriptBox["\[PartialD]", "x"], " ", 
+   RowBox[{"(", 
+    RowBox[{
+     RowBox[{"-", 
+      SuperscriptBox["x", "3"]}], "+", 
+     RowBox[{"x", " ", "\[Alpha]"}], "+", "\[Beta]"}], ")"}]}], "==", 
+  "0"}]], "Input",
+ CellLabel->
+  "In[283]:=",ExpressionUUID->"324eaaeb-e0e2-4bd8-9785-9c1208be4d1c"],
+
+Cell[TextData[{
+ "Eliminating the variable ",
+ Cell[BoxData[
+  FormBox["x", TraditionalForm]],ExpressionUUID->
+  "a3836c27-b40b-4555-899a-f35461fda1ca"],
+ " from the surface corresponding to the equilibrium points: ",
+ Cell[BoxData[
+  FormBox[
+   RowBox[{"0", "=", 
+    RowBox[{
+     RowBox[{"-", 
+      SuperscriptBox["x", "3"]}], "+", 
+     RowBox[{"x", " ", "\[Alpha]"}], "+", "\[Beta]"}]}], TraditionalForm]],
+  ExpressionUUID->"25ea53b1-f4b8-400d-91bd-e24218db26ad"],
+ ", and the equation corresponding to when the surface \"folds back upon \
+itself\": ",
+ Cell[BoxData[
+  FormBox[
+   RowBox[{"0", "=", 
+    RowBox[{
+     RowBox[{
+      RowBox[{"-", "3"}], " ", 
+      SuperscriptBox["x", "2"]}], "+", "\[Alpha]"}]}], TraditionalForm]],
+  ExpressionUUID->"b3728b9b-ceb2-49d9-99d5-b58bf7f657ff"],
+ ", yields:"
+}], "Text",ExpressionUUID->"c48c463e-617b-405f-9540-ef1783b60f7b"],
+
+Cell[BoxData[
+ RowBox[{"Eliminate", "[", "\[IndentingNewLine]", "\[IndentingNewLine]", 
+  RowBox[{
+   RowBox[{"{", 
+    RowBox[{
+     RowBox[{"0", "==", 
+      RowBox[{
+       RowBox[{"-", 
+        SuperscriptBox["x", "3"]}], "+", 
+       RowBox[{"x", " ", "\[Alpha]"}], "+", "\[Beta]"}]}], ",", 
+     RowBox[{"0", "==", 
+      RowBox[{
+       RowBox[{
+        RowBox[{"-", "3"}], " ", 
+        SuperscriptBox["x", "2"]}], "+", "\[Alpha]"}]}]}], "}"}], ",", 
+   "\[IndentingNewLine]", "\[IndentingNewLine]", "x"}], "\[IndentingNewLine]",
+   "\[IndentingNewLine]", "]"}]], "Input",
+ CellChangeTimes->{{3.3985432008279305`*^9, 3.3985432122498055`*^9}},
+ CellLabel->
+  "In[284]:=",ExpressionUUID->"ccca4c48-f8ad-4f43-81cf-116feec4ab0a"],
+
+Cell["\<\
+The above relationship between the parameters \[Alpha] and \[Beta] \
+corresponds to exactly the values where the solution \"bifurcates\":\
+\>", "Text",ExpressionUUID->"41cfddd8-517c-44c6-bb97-84e09046bed9"],
+
+Cell[BoxData[
+ RowBox[{"ContourPlot", "[", "\[IndentingNewLine]", "\[IndentingNewLine]", 
+  RowBox[{
+   RowBox[{
+    RowBox[{"27", " ", 
+     SuperscriptBox["\[Beta]", "2"]}], "\[Equal]", 
+    RowBox[{"4", " ", 
+     SuperscriptBox["\[Alpha]", "3"]}]}], ",", "\[IndentingNewLine]", 
+   "\[IndentingNewLine]", 
+   RowBox[{"{", 
+    RowBox[{"\[Beta]", ",", 
+     RowBox[{"-", "1"}], ",", "1"}], "}"}], ",", "\[IndentingNewLine]", 
+   RowBox[{"{", 
+    RowBox[{"\[Alpha]", ",", 
+     RowBox[{"-", "1"}], ",", "1"}], "}"}], ",", "\[IndentingNewLine]", 
+   "\[IndentingNewLine]", 
+   RowBox[{"Frame", "\[Rule]", "True"}], ",", "\[IndentingNewLine]", 
+   RowBox[{"FrameLabel", "\[Rule]", 
+    RowBox[{"{", 
+     RowBox[{"\"\<\[Beta]\>\"", ",", "\"\<\[Alpha]\>\""}], "}"}]}], ",", 
+   "\[IndentingNewLine]", 
+   RowBox[{"ContourStyle", "\[Rule]", 
+    RowBox[{"{", 
+     RowBox[{"Thick", ",", "Blue"}], "}"}]}]}], "\[IndentingNewLine]", 
+  "\[IndentingNewLine]", "]"}]], "Input",
+ CellChangeTimes->{{3.3985432970935555`*^9, 3.3985433234060555`*^9}, {
+  3.3985434073123055`*^9, 3.3985434222185555`*^9}},
+ CellLabel->
+  "In[285]:=",ExpressionUUID->"bd0b0425-9a53-463e-a2e2-ad572e7c5666"],
+
+Cell[TextData[{
+ "The above behavior is commonly categorized as a \"cusp catastrophe\".\n\n\
+Next, examine two solutions to the differential equation:\n\t",
+ Cell[BoxData[
+  FormBox[
+   RowBox[{
+    FractionBox[
+     RowBox[{"d", " ", "x"}], 
+     RowBox[{"d", " ", "t"}]], "=", 
+    RowBox[{"-", 
+     RowBox[{"\[Del]", 
+      RowBox[{"U", "[", 
+       RowBox[{
+        RowBox[{"x", "[", "t", "]"}], ",", "\[Alpha]", ",", "\[Beta]"}], 
+       "]"}]}]}]}], TraditionalForm]],ExpressionUUID->
+  "c299900a-f787-4fc0-8b75-6140804b012d"],
+ "\ncorresponding to initial conditions ",
+ Cell[BoxData[
+  FormBox[
+   RowBox[{
+    RowBox[{"x", "[", "0", "]"}], "\[Equal]", 
+    RowBox[{"1", " ", "and", " ", 
+     RowBox[{"x", "[", "0", "]"}]}], "\[Equal]", 
+    RowBox[{"-", "1"}]}], TraditionalForm]],ExpressionUUID->
+  "0f8a6cdf-a57d-4e7e-8f6e-e78e8c117a17"],
+ " and parameter value ",
+ Cell[BoxData[
+  FormBox[
+   RowBox[{"\[Beta]", "\[Rule]", "0"}], TraditionalForm]],ExpressionUUID->
+  "00946858-2b2d-4708-872e-212a2c1caeb8"],
+ "."
+}], "Text",ExpressionUUID->"35a706f3-afc4-4c20-a380-81192c6bef40"],
+
+Cell[BoxData[{
+ RowBox[{
+  RowBox[{
+   RowBox[{
+    RowBox[{"soln1", "[", "\[Alpha]_", "]"}], ":=", "\[IndentingNewLine]", 
+    "\[IndentingNewLine]", 
+    RowBox[{"NDSolve", "[", "\[IndentingNewLine]", "\[IndentingNewLine]", 
+     RowBox[{
+      RowBox[{
+       RowBox[{"{", 
+        RowBox[{
+         RowBox[{
+          RowBox[{
+           SuperscriptBox["x", "\[Prime]",
+            MultilineFunction->None], "[", "t", "]"}], "==", 
+          RowBox[{"\[Beta]", "+", 
+           RowBox[{"\[Alpha]", " ", 
+            RowBox[{"x", "[", "t", "]"}]}], "-", 
+           SuperscriptBox[
+            RowBox[{"x", "[", "t", "]"}], "3"]}]}], ",", 
+         RowBox[{
+          RowBox[{"x", "[", "0", "]"}], "\[Equal]", "1"}]}], "}"}], "/.", 
+       RowBox[{"\[Beta]", "\[Rule]", "0"}]}], ",", "\[IndentingNewLine]", 
+      "\[IndentingNewLine]", 
+      RowBox[{"x", "[", "t", "]"}], ",", "\[IndentingNewLine]", 
+      "\[IndentingNewLine]", 
+      RowBox[{"{", 
+       RowBox[{"t", ",", "0", ",", "20"}], "}"}]}], "\[IndentingNewLine]", 
+     "\[IndentingNewLine]", "]"}]}], ";"}], 
+  "\[IndentingNewLine]"}], "\[IndentingNewLine]", 
+ RowBox[{
+  RowBox[{"soln2", "[", "\[Alpha]_", "]"}], ":=", "\[IndentingNewLine]", 
+  "\[IndentingNewLine]", 
+  RowBox[{"NDSolve", "[", "\[IndentingNewLine]", "\[IndentingNewLine]", 
+   RowBox[{
+    RowBox[{
+     RowBox[{"{", 
+      RowBox[{
+       RowBox[{
+        RowBox[{
+         SuperscriptBox["x", "\[Prime]",
+          MultilineFunction->None], "[", "t", "]"}], "==", 
+        RowBox[{"\[Beta]", "+", 
+         RowBox[{"\[Alpha]", " ", 
+          RowBox[{"x", "[", "t", "]"}]}], "-", 
+         SuperscriptBox[
+          RowBox[{"x", "[", "t", "]"}], "3"]}]}], ",", 
+       RowBox[{
+        RowBox[{"x", "[", "0", "]"}], "\[Equal]", 
+        RowBox[{"-", "1"}]}]}], "}"}], "/.", 
+     RowBox[{"\[Beta]", "\[Rule]", "0"}]}], ",", "\[IndentingNewLine]", 
+    "\[IndentingNewLine]", 
+    RowBox[{"x", "[", "t", "]"}], ",", "\[IndentingNewLine]", 
+    "\[IndentingNewLine]", 
+    RowBox[{"{", 
+     RowBox[{"t", ",", "0", ",", "20"}], "}"}]}], "\[IndentingNewLine]", 
+   "\[IndentingNewLine]", "]"}]}]}], "InputOnly",
+ CellChangeTimes->{{3.3985434351873055`*^9, 3.3985434457029305`*^9}},
+ CellLabel->
+  "In[286]:=",ExpressionUUID->"be3311f1-43b6-4bd1-af5d-0b4fc18a8a3c"],
+
+Cell[BoxData[
+ RowBox[{"Manipulate", "[", "\[IndentingNewLine]", "\[IndentingNewLine]", 
+  RowBox[{
+   RowBox[{"Plot", "[", "\[IndentingNewLine]", "\[IndentingNewLine]", 
+    RowBox[{
+     RowBox[{"Evaluate", "[", 
+      RowBox[{
+       RowBox[{"x", "[", "t", "]"}], "/.", 
+       RowBox[{"(", 
+        RowBox[{
+         RowBox[{"soln1", "[", "\[Alpha]", "]"}], "\[Union]", 
+         RowBox[{"soln2", "[", "\[Alpha]", "]"}]}], ")"}]}], "]"}], ",", " ", 
+     "\[IndentingNewLine]", "\[IndentingNewLine]", 
+     RowBox[{"{", 
+      RowBox[{"t", ",", " ", "0", ",", " ", "20"}], "}"}], ",", 
+     "\[IndentingNewLine]", "\[IndentingNewLine]", 
+     RowBox[{"PlotRange", "\[Rule]", 
+      RowBox[{"{", 
+       RowBox[{
+        RowBox[{"-", "1.25"}], ",", "1.25"}], "}"}]}], ",", 
+     "\[IndentingNewLine]", 
+     RowBox[{"PlotLabel", "\[Rule]", 
+      RowBox[{"Row", "[", 
+       RowBox[{"{", 
+        RowBox[{"\"\< \[Alpha] = \>\"", ",", "\[Alpha]"}], "}"}], "]"}]}], 
+     ",", "\[IndentingNewLine]", 
+     RowBox[{"PlotStyle", "\[Rule]", "Thick"}]}], "\[IndentingNewLine]", 
+    "]"}], ",", "\[IndentingNewLine]", "\[IndentingNewLine]", 
+   RowBox[{"{", 
+    RowBox[{"\[Alpha]", ",", 
+     RowBox[{"-", "1"}], ",", "1.5"}], "}"}]}], "\[IndentingNewLine]", 
+  "]"}]], "Input",
+ CellChangeTimes->{{3.3985418767966805`*^9, 3.3985418848435555`*^9}, {
+  3.3985434522185555`*^9, 3.3985435319841805`*^9}},
+ CellLabel->
+  "In[288]:=",ExpressionUUID->"9904d863-704d-47a6-b626-a678bfad4eae"],
+
+Cell["\<\
+The above sequence of plots clearly indicates for what values of the \
+parameter \[Alpha] the equilibrium point will be a stable equilibrium point.
+
+Summary: Please observe that the above ODE model has the indicated behavior \
+as long as the parameters \[Alpha] and \[Beta] are independent of time.  \
+However, this is usually not the case.\
+\>", "Text",ExpressionUUID->"64d0c78a-67ed-4906-9174-ea17cde7acfb"]
+}, Closed]],
+
+Cell[CellGroupData[{
+
+Cell["Implications for Dynamic Systems with Parameters", "Section",ExpressionUUID->"0794ed00-9b26-40e6-8258-121a01399afe"],
+
+Cell[TextData[{
+ "Clearly, the fundamental behavior of a dynamic system will depend upon the \
+value of its parameters.  The above example shows that when the values of a \
+model's parameters are held fixed, then the solution ",
+ Cell[BoxData[
+  FormBox[
+   RowBox[{"x", "[", "t", "]"}], TraditionalForm]],ExpressionUUID->
+  "7a4174df-f75b-4ebc-9059-856a6b7f981c"],
+ " may strongly depend upon the parameter values.  However, it is often the \
+case that the parameter ",
+ Cell[BoxData[
+  FormBox[
+   RowBox[{"\[Alpha]", "[", "t", "]"}], TraditionalForm]],ExpressionUUID->
+  "792664c3-8ece-4439-b643-87826cdbf8d8"],
+ " changes over time as well as the solution ",
+ Cell[BoxData[
+  FormBox[
+   RowBox[{"x", "[", "t", "]"}], TraditionalForm]],ExpressionUUID->
+  "27e89bab-6b4f-4b0a-bf8b-e5096bdc20a0"],
+ ".  In this case, it is possible for the model to \"bifurcate\" as time \
+progresses."
+}], "Text",ExpressionUUID->"762ef745-3cd0-41b1-977f-6e513f9e6bf1"]
+}, Closed]]
+}, Open  ]]
+},
+WindowSize->{943, 622},
+WindowMargins->{{2, Automatic}, {Automatic, 2}},
+Magnification:>1.5 Inherited,
+FrontEndVersion->"11.3 for Microsoft Windows (64-bit) (March 6, 2018)",
+StyleDefinitions->FrontEnd`FileName[{"Creative"}, "NaturalColor.nb", 
+  CharacterEncoding -> "UTF-8"]
+]
+(* End of Notebook Content *)
+
+(* Internal cache information *)
+(*CellTagsOutline
+CellTagsIndex->{}
+*)
+(*CellTagsIndex
+CellTagsIndex->{}
+*)
+(*NotebookFileOutline
+Notebook[{
+Cell[CellGroupData[{
+Cell[567, 22, 84, 0, 98, "Title",ExpressionUUID->"6cb01ec6-fedf-42d5-86ba-cd97bf7d6ec1"],
+Cell[654, 24, 166, 2, 61, "Subtitle",ExpressionUUID->"2899d575-92ea-43bd-a4dd-22082d881498"],
+Cell[823, 28, 233, 5, 68, "InputOnly",ExpressionUUID->"3f54ad17-6939-42e6-bc8e-de3db99f35ee"],
+Cell[CellGroupData[{
+Cell[1081, 37, 90, 0, 114, "Section",ExpressionUUID->"d5f4c2cd-546c-471d-8f63-8bce76d2d8d5"],
+Cell[1174, 39, 542, 14, 179, "Text",ExpressionUUID->"2b3c608d-1263-4cbe-bf01-99e778159e6e"],
+Cell[1719, 55, 280, 9, 79, "Input",ExpressionUUID->"d412edb0-8a10-4738-9c68-e15a470467f0"],
+Cell[2002, 66, 782, 18, 343, "Input",ExpressionUUID->"73f808d4-3fa6-416a-a6a1-a9ab6f466764"],
+Cell[2787, 86, 451, 13, 139, "Text",ExpressionUUID->"204b0e2d-cfe8-491d-a80b-ea169b1a438d"],
+Cell[3241, 101, 820, 20, 343, "Input",ExpressionUUID->"c11a5a59-7fbe-40c0-99d8-495db6787c2d"],
+Cell[4064, 123, 229, 5, 139, "Text",ExpressionUUID->"0899d0e3-1334-40bb-9dfd-00c0e720f64e"],
+Cell[4296, 130, 1044, 25, 372, "Input",ExpressionUUID->"0ee7fe5e-9c37-4683-852d-dd04620df4ab"],
+Cell[5343, 157, 173, 4, 78, "Text",ExpressionUUID->"d8c46041-640b-4b80-90fb-820de456da54"],
+Cell[5519, 163, 530, 13, 255, "Input",ExpressionUUID->"ddc1a415-ad8c-43fb-a90f-e5cec2228ba4"],
+Cell[6052, 178, 486, 13, 55, "Text",ExpressionUUID->"dd866e3f-f3f5-453f-9ce4-1193b8dced83"]
+}, Closed]],
+Cell[CellGroupData[{
+Cell[6575, 196, 107, 0, 67, "Section",ExpressionUUID->"13b6a794-b75e-406a-96f0-b763e0bb00f3"],
+Cell[6685, 198, 497, 9, 139, "Text",ExpressionUUID->"1a70ad5e-6c57-4ef0-9022-108376856e1b"],
+Cell[7185, 209, 353, 11, 79, "Input",ExpressionUUID->"1009e87d-a682-4c6f-a9fc-53d29d1f3880"],
+Cell[7541, 222, 347, 7, 47, "Text",ExpressionUUID->"37d5e155-cb57-474e-bda6-c8e02001024c"],
+Cell[7891, 231, 858, 19, 343, "Input",ExpressionUUID->"2c09eae8-816e-4cd7-944f-63a97af30c44"],
+Cell[8752, 252, 1840, 56, 179, "Text",ExpressionUUID->"75ec8f46-0c86-4648-a68f-e5073ab224dd"],
+Cell[10595, 310, 1782, 39, 753, "Input",ExpressionUUID->"57d19d10-5259-4096-899e-86042a2829ed"],
+Cell[12380, 351, 93, 0, 47, "Text",ExpressionUUID->"d3df19f6-d909-4319-ae48-9356f7936467"],
+Cell[12476, 353, 1445, 32, 460, "Input",ExpressionUUID->"94ede39a-89d8-438d-8dfc-6f42eb72d99d"],
+Cell[13924, 387, 264, 6, 47, "Text",ExpressionUUID->"3d6f00a5-dc44-4bdb-b9ee-91800f62e1b9"],
+Cell[14191, 395, 571, 13, 255, "Input",ExpressionUUID->"7a6db980-be2a-45f1-925a-3b14c0963839"],
+Cell[14765, 410, 1032, 24, 410, "Input",ExpressionUUID->"fb055740-cbfd-4369-9fd3-43ad8d65c732"],
+Cell[15800, 436, 282, 6, 47, "Text",ExpressionUUID->"7fad78ff-2d4b-4fc3-93ea-cf45aa5d8200"],
+Cell[16085, 444, 564, 19, 83, "Input",ExpressionUUID->"c2c80551-5e4c-49fb-981f-f39db4053043"],
+Cell[16652, 465, 522, 12, 78, "Text",ExpressionUUID->"04cc6d75-b189-49b4-9496-970af5d4f173"],
+Cell[17177, 479, 504, 11, 255, "Input",ExpressionUUID->"040338ea-e1fb-4914-b17c-7267426d4b7e"],
+Cell[17684, 492, 710, 16, 125, "Text",ExpressionUUID->"df202c17-c93b-4ca3-a632-3813077abb02"]
+}, Closed]],
+Cell[CellGroupData[{
+Cell[18431, 513, 85, 0, 67, "Section",ExpressionUUID->"e69c79d0-85f2-454e-b1c8-31fc7813aecd"],
+Cell[18519, 515, 962, 22, 170, "Text",ExpressionUUID->"b9dd61e7-9373-491f-b09e-6ae02e150b5b"],
+Cell[19484, 539, 637, 18, 165, "Input",ExpressionUUID->"b81454b2-58c0-42a7-ad28-b42407ae0187"],
+Cell[20124, 559, 611, 17, 108, "Text",ExpressionUUID->"e9c0ebee-e353-4fca-8d62-d1165e5628ee"],
+Cell[20738, 578, 260, 7, 79, "Input",ExpressionUUID->"ad51007d-6cc9-4149-a648-9cda5350a3ee"],
+Cell[21001, 587, 323, 6, 108, "Text",ExpressionUUID->"07f48fc1-2602-4290-8867-2dac32893a68"],
+Cell[21327, 595, 2120, 42, 489, "Input",ExpressionUUID->"fd278ddd-a371-425a-85ef-6d6f8cf3090e"],
+Cell[23450, 639, 657, 17, 179, "Text",ExpressionUUID->"6f50d235-93ad-405c-b322-4a92e535a608"],
+Cell[24110, 658, 366, 12, 79, "Input",ExpressionUUID->"3e40be4d-1d9d-42c9-9a98-5fb327726e24"],
+Cell[24479, 672, 568, 13, 170, "Text",ExpressionUUID->"02f06647-397c-4efb-a34d-522e120b87f8"],
+Cell[25050, 687, 1466, 38, 414, "Input",ExpressionUUID->"1e729fcf-2625-4673-914a-4c4b82c22bab"],
+Cell[26519, 727, 207, 3, 78, "Text",ExpressionUUID->"2cda4e27-fb60-43d2-af1b-728e50e29b38"],
+Cell[26729, 732, 657, 19, 197, "Input",ExpressionUUID->"dc2c5092-0dd4-4819-8823-bb63b2c3932d"],
+Cell[27389, 753, 462, 10, 170, "Text",ExpressionUUID->"fc1df75c-3978-4e17-a475-b711740f1862"],
+Cell[27854, 765, 1606, 39, 431, "Input",ExpressionUUID->"77340d70-66ab-4949-8b45-528d4b5d452a"],
+Cell[29463, 806, 492, 7, 139, "Text",ExpressionUUID->"d25258a8-8e5f-4903-aae2-579f79ee2f6d"],
+Cell[29958, 815, 665, 16, 112, "Text",ExpressionUUID->"0ceff8cb-fbc2-46ae-b2cf-d8d7c0d6c940"],
+Cell[30626, 833, 339, 11, 83, "Input",ExpressionUUID->"324eaaeb-e0e2-4bd8-9785-9c1208be4d1c"],
+Cell[30968, 846, 880, 25, 78, "Text",ExpressionUUID->"c48c463e-617b-405f-9540-ef1783b60f7b"],
+Cell[31851, 873, 733, 19, 267, "Input",ExpressionUUID->"ccca4c48-f8ad-4f43-81cf-116feec4ab0a"],
+Cell[32587, 894, 216, 3, 78, "Text",ExpressionUUID->"41cfddd8-517c-44c6-bb97-84e09046bed9"],
+Cell[32806, 899, 1178, 28, 409, "Input",ExpressionUUID->"bd0b0425-9a53-463e-a2e2-ad572e7c5666"],
+Cell[33987, 929, 1093, 31, 179, "Text",ExpressionUUID->"35a706f3-afc4-4c20-a380-81192c6bef40"],
+Cell[35083, 962, 2300, 59, 757, "InputOnly",ExpressionUUID->"be3311f1-43b6-4bd1-af5d-0b4fc18a8a3c"],
+Cell[37386, 1023, 1482, 35, 489, "Input",ExpressionUUID->"9904d863-704d-47a6-b626-a678bfad4eae"],
+Cell[38871, 1060, 419, 7, 170, "Text",ExpressionUUID->"64d0c78a-67ed-4906-9174-ea17cde7acfb"]
+}, Closed]],
+Cell[CellGroupData[{
+Cell[39327, 1072, 122, 0, 67, "Section",ExpressionUUID->"0794ed00-9b26-40e6-8258-121a01399afe"],
+Cell[39452, 1074, 954, 21, 139, "Text",ExpressionUUID->"762ef745-3cd0-41b1-977f-6e513f9e6bf1"]
+}, Closed]]
+}, Open  ]]
+}
+]
+*)
+

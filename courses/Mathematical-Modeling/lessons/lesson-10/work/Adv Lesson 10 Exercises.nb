@@ -1,0 +1,587 @@
+(* Content-type: application/vnd.wolfram.mathematica *)
+
+(*** Wolfram Notebook File ***)
+(* http://www.wolfram.com/nb *)
+
+(* CreatedBy='WolframEngine 15.0' *)
+
+(*CacheID: 234*)
+(* Internal cache information:
+NotebookFileLineBreakTest
+NotebookFileLineBreakTest
+NotebookDataPosition[       160,          7]
+NotebookDataLength[     22002,        578]
+NotebookOptionsPosition[     18257,        528]
+NotebookOutlinePosition[     18596,        543]
+CellTagsIndexPosition[     18553,        540]
+WindowFrame->Normal*)
+
+(* Beginning of Notebook Content *)
+Notebook[{
+Cell[TextData[{
+ StyleBox[" Exercises", "Title"],
+ "  Advanced Lesson 10 "
+}], "Section",ExpressionUUID->"0e0ffb55-d894-4f38-8978-668a4c578939"],
+
+Cell["\<\
+Your Name:  Mikey Ferguson
+
+Your Math Class:  MATH 7013 - Advanced Mathematical Modeling\
+\>", "Program",
+ CellChangeTimes->{{3.390368232619*^9, 3.3903682391219997`*^9}, {
+   3.390368866851*^9, 3.390368908736*^9}, {3.3903690435030003`*^9, 
+   3.390369082222*^9}, 3.3903880065649595`*^9},
+ FontSize->16,
+ FontWeight->"Bold",ExpressionUUID->"4f74ec30-5e71-4607-bc4d-92d167ab09c3"],
+
+Cell["\<\
+1:  Construct a Module which will:
+\t Generate a list of 10 integers,  1 \[LessEqual] i \[LessEqual] 10
+\t Average the numbers in the list
+\t Return the average\
+\>", "Text",ExpressionUUID->"b3892fc4-f38a-43b3-81f3-4bf2f9a92c62"],
+
+Cell[BoxData[{
+ RowBox[{
+  RowBox[{"Clear", "[", "m1", "]"}], ";"}], "\[IndentingNewLine]", 
+ RowBox[{"m1", ":=", 
+  RowBox[{"Module", "[", 
+   RowBox[{
+    RowBox[{"{", "list", "}"}], ",", 
+    RowBox[{
+     RowBox[{"list", "=", 
+      RowBox[{"Table", "[", 
+       RowBox[{"i", ",", 
+        RowBox[{"{", 
+         RowBox[{"i", ",", "1", ",", "10"}], "}"}]}], "]"}]}], ";", 
+     RowBox[{"Mean", "[", "list", "]"}]}]}], "]"}]}]}], "Input",ExpressionUUID\
+->"038f4820-1f8d-4345-ae6f-1e845b7c5675"],
+
+Cell[BoxData["m1"], "Input",ExpressionUUID->"b6912ea4-d24c-456c-9283-aabaee42a330"],
+
+Cell[TextData[{
+ "2:  Construct a Module which will:\n\t Generate a list of 10 ordered pairs  \
+{ ",
+ StyleBox["i",
+  FontSlant->"Italic"],
+ ", ",
+ Cell[BoxData[
+  FormBox[
+   SuperscriptBox["i", "2"], TraditionalForm]],ExpressionUUID->
+  "77faeca1-b881-4805-bb61-a954aa547300"],
+ " },  1 \[LessEqual] i \[LessEqual] 10\n\t Return the plot of the list"
+}], "Text",ExpressionUUID->"ffe839eb-8ab2-4624-9d45-1ae790d68a70"],
+
+Cell[BoxData[{
+ RowBox[{
+  RowBox[{"Clear", "[", "m2", "]"}], ";"}], "\[IndentingNewLine]", 
+ RowBox[{"m2", ":=", 
+  RowBox[{"Module", "[", 
+   RowBox[{
+    RowBox[{"{", "pairs", "}"}], ",", 
+    RowBox[{
+     RowBox[{"pairs", "=", 
+      RowBox[{"Table", "[", 
+       RowBox[{
+        RowBox[{"{", 
+         RowBox[{"i", ",", 
+          SuperscriptBox["i", "2"]}], "}"}], ",", 
+        RowBox[{"{", 
+         RowBox[{"i", ",", "1", ",", "10"}], "}"}]}], "]"}]}], ";", 
+     RowBox[{"ListPlot", "[", 
+      RowBox[{"pairs", ",", 
+       RowBox[{"PlotStyle", "\[Rule]", 
+        RowBox[{"PointSize", "[", "0.02`", "]"}]}]}], "]"}]}]}], 
+   "]"}]}]}], "Input",ExpressionUUID->"1b40b8e2-44ac-42ba-b886-fb0d1a25ddaf"],
+
+Cell[BoxData["m2"], "Input",ExpressionUUID->"b9f8d6bb-6805-4a4c-bf8c-7cfe2d185b2e"],
+
+Cell["\<\
+3:  Construct a Module which will:
+\t Define a function:  f[ a_, y0_ ] =  Module [{ },  ...  ]   which will:
+\t Solve the ODE:  y'[t] = a*y[t]    
+\t Subject to the initial condition:  y[0] = y0
+\t Plot  y[t]   for   0 \[LessEqual] t \[LessEqual] 2 
+ Evaluate:  f[2,3]  and f[-2,3]\
+\>", "Text",ExpressionUUID->"944e914c-3c78-45e2-ae85-ac449004beb9"],
+
+Cell[BoxData[{
+ RowBox[{
+  RowBox[{"Clear", "[", 
+   RowBox[{"f", ",", "a", ",", "y0", ",", "t", ",", "y"}], "]"}], ";"}], "\[IndentingNewLine]", 
+ RowBox[{
+  RowBox[{"f", "[", 
+   RowBox[{"a_", ",", "y0_"}], "]"}], ":=", 
+  RowBox[{"Module", "[", 
+   RowBox[{
+    RowBox[{"{", 
+     RowBox[{"sol", ",", "yt"}], "}"}], ",", 
+    RowBox[{
+     RowBox[{"sol", "=", 
+      RowBox[{"DSolve", "[", 
+       RowBox[{
+        RowBox[{"{", 
+         RowBox[{
+          RowBox[{
+           RowBox[{
+            SuperscriptBox["y", "\[Prime]",
+             MultilineFunction->None], "[", "t", "]"}], "\[Equal]", 
+           RowBox[{"a", " ", 
+            RowBox[{"y", "[", "t", "]"}]}]}], ",", 
+          RowBox[{
+           RowBox[{"y", "[", "0", "]"}], "\[Equal]", "y0"}]}], "}"}], ",", 
+        RowBox[{"y", "[", "t", "]"}], ",", "t"}], "]"}]}], ";", 
+     RowBox[{"yt", "=", 
+      RowBox[{
+       RowBox[{"y", "[", "t", "]"}], "/.", "\[VeryThinSpace]", 
+       RowBox[{"First", "[", "sol", "]"}]}]}], ";", 
+     RowBox[{"Plot", "[", 
+      RowBox[{"yt", ",", 
+       RowBox[{"{", 
+        RowBox[{"t", ",", "0", ",", "2"}], "}"}], ",", 
+       RowBox[{"PlotRange", "\[Rule]", "All"}], ",", 
+       RowBox[{"PlotLabel", "\[Rule]", 
+        TemplateBox[{"\"a = \"", "a", "\", y0 = \"", "y0"},
+         "RowDefault"]}]}], "]"}]}]}], "]"}]}]}], "Input",ExpressionUUID->\
+"1aeb3e61-2369-47df-a1ec-2ab8dd58044e"],
+
+Cell[BoxData[
+ RowBox[{"f", "[", 
+  RowBox[{"2", ",", "3"}], "]"}]], "Input",ExpressionUUID->"69ef9d74-b78f-4ce2-9854-c0569a781a11"],
+
+Cell[BoxData[
+ RowBox[{"f", "[", 
+  RowBox[{
+   RowBox[{"-", "2"}], ",", "3"}], "]"}]], "Input",ExpressionUUID->"eeb2fa4c-\
+d510-497c-ac32-6846af1ff5f8"],
+
+Cell["\<\
+4:  Construct a Module exactly as in problem 3, except that y0 will have an \
+assigned value of 1. 
+\t Define a function:   f[ a_ ]  =  Module [{ make changes to y0 here },  ... \
+keep the same ...  ]   
+ Evaluate:  f[2]  and f[-2]\
+\>", "Text",ExpressionUUID->"3bc77f1f-258b-40e6-9a0e-7369ea821ae3"],
+
+Cell[BoxData[{
+ RowBox[{
+  RowBox[{"Clear", "[", 
+   RowBox[{"f", ",", "a", ",", "t", ",", "y"}], "]"}], ";"}], "\[IndentingNewLine]", 
+ RowBox[{
+  RowBox[{"f", "[", "a_", "]"}], ":=", 
+  RowBox[{"Module", "[", 
+   RowBox[{
+    RowBox[{"{", 
+     RowBox[{
+      RowBox[{"y0", "=", "1"}], ",", "sol", ",", "yt"}], "}"}], ",", 
+    RowBox[{
+     RowBox[{"sol", "=", 
+      RowBox[{"DSolve", "[", 
+       RowBox[{
+        RowBox[{"{", 
+         RowBox[{
+          RowBox[{
+           RowBox[{
+            SuperscriptBox["y", "\[Prime]",
+             MultilineFunction->None], "[", "t", "]"}], "\[Equal]", 
+           RowBox[{"a", " ", 
+            RowBox[{"y", "[", "t", "]"}]}]}], ",", 
+          RowBox[{
+           RowBox[{"y", "[", "0", "]"}], "\[Equal]", "y0"}]}], "}"}], ",", 
+        RowBox[{"y", "[", "t", "]"}], ",", "t"}], "]"}]}], ";", 
+     RowBox[{"yt", "=", 
+      RowBox[{
+       RowBox[{"y", "[", "t", "]"}], "/.", "\[VeryThinSpace]", 
+       RowBox[{"First", "[", "sol", "]"}]}]}], ";", 
+     RowBox[{"Plot", "[", 
+      RowBox[{"yt", ",", 
+       RowBox[{"{", 
+        RowBox[{"t", ",", "0", ",", "2"}], "}"}], ",", 
+       RowBox[{"PlotRange", "\[Rule]", "All"}], ",", 
+       RowBox[{"PlotLabel", "\[Rule]", 
+        TemplateBox[{"\"a = \"", "a", "\", y0 = \"", "y0"},
+         "RowDefault"]}]}], "]"}]}]}], "]"}]}]}], "Input",ExpressionUUID->\
+"9182bb43-cd0e-4a59-836f-ff293f6d3679"],
+
+Cell[BoxData[
+ RowBox[{"f", "[", "2", "]"}]], "Input",ExpressionUUID->"8685c578-6583-4e54-ac18-c6964cce9ab8"],
+
+Cell[BoxData[
+ RowBox[{"f", "[", 
+  RowBox[{"-", "2"}], "]"}]], "Input",ExpressionUUID->"358215d8-7e67-427f-89d0-0795b98e7834"],
+
+Cell["\<\
+5:  Construct a Module which will:
+\t Define a function:  f[ n_ ] =  Module [{ },  ...  ]   which will:
+\t Generate a list of n integers,  1 \[LessEqual] i \[LessEqual] n
+\t Average the numbers in the list
+\t Return the average
+ Evaluate:  f[10]  and f[100]\
+\>", "Text",ExpressionUUID->"fb6e4687-8d58-421a-9d45-b3f3602862c4"],
+
+Cell[BoxData[{
+ RowBox[{
+  RowBox[{"Clear", "[", 
+   RowBox[{"f", ",", "n"}], "]"}], ";"}], "\[IndentingNewLine]", 
+ RowBox[{
+  RowBox[{"f", "[", "n_", "]"}], ":=", 
+  RowBox[{"Module", "[", 
+   RowBox[{
+    RowBox[{"{", "list", "}"}], ",", 
+    RowBox[{
+     RowBox[{"list", "=", 
+      RowBox[{"Table", "[", 
+       RowBox[{"i", ",", 
+        RowBox[{"{", 
+         RowBox[{"i", ",", "1", ",", "n"}], "}"}]}], "]"}]}], ";", 
+     RowBox[{"Mean", "[", "list", "]"}]}]}], "]"}]}]}], "Input",ExpressionUUID\
+->"92a204ba-2c45-44c1-b9cb-984dae8a07ec"],
+
+Cell[BoxData[
+ RowBox[{"{", 
+  RowBox[{
+   RowBox[{"f", "[", "10", "]"}], ",", 
+   RowBox[{"f", "[", "100", "]"}]}], "}"}]], "Input",ExpressionUUID->\
+"0a898ef1-ec40-4b31-aef5-5151959233e0"],
+
+Cell["\<\
+6:  In simple economic theory, the state of the economy in year \"n\" is a \
+function of the economy in the previous year.  If the economic model is \
+linear, then the equation for year \"n\" is:
+\t economy[ n_ ] := a * economy[ n-1 ] + b
+ This defines recursively the state of our economy in terms of previous \
+years.
+ Assume that at year 1, the initial state of the economy was = value1
+ \t Define a function:  economy[ n_ ] := a * economy[ n-1 ] + b
+ \t Evaluate:  economy[ 1 ],   economy[ 2 ],   economy[ 10 ]\
+\>", "Text",ExpressionUUID->"df7da89e-c27c-4685-ae9f-f16553d726b5"],
+
+Cell[BoxData[{
+ RowBox[{
+  RowBox[{"Clear", "[", 
+   RowBox[{"economy", ",", "a", ",", "b", ",", "n", ",", "value1"}], "]"}], 
+  ";"}], "\[IndentingNewLine]", 
+ RowBox[{
+  RowBox[{
+   RowBox[{"economy", "[", "1", "]"}], "=", "value1"}], ";"}], "\[IndentingNewLine]", 
+ RowBox[{
+  RowBox[{"economy", "[", "n_", "]"}], ":=", 
+  RowBox[{
+   RowBox[{"a", " ", 
+    RowBox[{"economy", "[", 
+     RowBox[{"n", "-", "1"}], "]"}]}], "+", "b"}]}]}], "Input",ExpressionUUID->\
+"51f5eda8-72ea-4c48-ac9b-b6aa7b4636a9"],
+
+Cell[BoxData[
+ RowBox[{"{", 
+  RowBox[{
+   RowBox[{"economy", "[", "1", "]"}], ",", 
+   RowBox[{"economy", "[", "2", "]"}], ",", 
+   RowBox[{"economy", "[", "10", "]"}]}], "}"}]], "Input",ExpressionUUID->\
+"c3a3c020-ce75-4fca-a1e0-76161b451c2f"],
+
+Cell[TextData[{
+ "7:  In simple economic theory, the state of the economy in year \"n\" is a \
+function of the economy in the previous year.  If the economic model is NOT \
+linear, then the equation for year \"n\" is:\n\t economy[ n_ ] := F[ economy[ \
+n-1 ] ],  for some nonlinear function \"F\"\n This defines recursively the \
+state of our economy in terms of previous years.\n Assume that at year 1, the \
+initial state of the economy was = value1\n \t Define a function:  economy[ \
+n_ ]    if  F[ X_ ] := ",
+ Cell[BoxData[
+  FormBox[
+   SqrtBox[
+    RowBox[{
+     RowBox[{"a", " ", "X"}], " ", "+", " ", "b"}]], TraditionalForm]],
+  ExpressionUUID->"6dafdd4a-8354-4033-901f-d5e0fbb428cf"],
+ "\n \t Evaluate:  economy[ 1 ],   economy[ 2 ],   economy[ 10 ]"
+}], "Text",ExpressionUUID->"ad576bea-5939-424c-a215-a2ddafe1f945"],
+
+Cell[BoxData[{
+ RowBox[{
+  RowBox[{"Clear", "[", 
+   RowBox[{
+   "economy", ",", "F", ",", "X", ",", "a", ",", "b", ",", "n", ",", 
+    "value1"}], "]"}], ";"}], "\[IndentingNewLine]", 
+ RowBox[{
+  RowBox[{
+   RowBox[{"F", "[", "X_", "]"}], ":=", 
+   RowBox[{
+    RowBox[{"a", " ", "X"}], "+", "b"}]}], ";"}], "\[IndentingNewLine]", 
+ RowBox[{
+  RowBox[{
+   RowBox[{"economy", "[", "1", "]"}], "=", "value1"}], ";"}], "\[IndentingNewLine]", 
+ RowBox[{
+  RowBox[{"economy", "[", "n_", "]"}], ":=", 
+  RowBox[{"F", "[", 
+   RowBox[{"economy", "[", 
+    RowBox[{"n", "-", "1"}], "]"}], "]"}]}]}], "Input",ExpressionUUID->\
+"b9152d71-5879-4155-b995-2bc5e88f2cc1"],
+
+Cell[BoxData[
+ RowBox[{"{", 
+  RowBox[{
+   RowBox[{"economy", "[", "1", "]"}], ",", 
+   RowBox[{"economy", "[", "2", "]"}], ",", 
+   RowBox[{"economy", "[", "10", "]"}]}], "}"}]], "Input",ExpressionUUID->\
+"81b4d2bd-d971-4461-8c77-b5b2bef536e9"],
+
+Cell[TextData[{
+ "8:  Assume that the state of the economy in year \"n\" is a function of the \
+economy in the previous two years.  Also, if the economic model is NOT \
+linear, then the equation for year \"n\" is:\n\t economy[ n_ ] := F[ economy[ \
+n-1 ], economy[ n-2 ] ],  for some nonlinear function \"F\"\n This defines \
+recursively the state of our economy in terms of previous years.\n Assume \
+that at year 1, the initial state of the economy was  =  value1\n Assume that \
+at year 2, the initial state of the economy was  =  value2\n \t Define a \
+function:  economy[ n_ ]    if   F[ X_, Y_ ] := ",
+ Cell[BoxData[
+  FormBox[
+   SqrtBox[
+    RowBox[{
+     RowBox[{"a", " ", "X"}], " ", "+", " ", 
+     RowBox[{"b", " ", "Y"}]}]], TraditionalForm]],ExpressionUUID->
+  "bf638070-3355-49d7-8a45-79dbc28c5a5e"],
+ "\n \t Evaluate:  economy[ 1 ],   economy[ 2 ],   economy[ 3 ],   economy[ 5 \
+]"
+}], "Text",ExpressionUUID->"7bb1ed99-b735-49be-92d1-e7bf6337ac12"],
+
+Cell[BoxData[{
+ RowBox[{
+  RowBox[{"Clear", "[", 
+   RowBox[{
+   "economy", ",", "F", ",", "X", ",", "Y", ",", "a", ",", "b", ",", "n", ",",
+     "value1", ",", "value2"}], "]"}], ";"}], "\[IndentingNewLine]", 
+ RowBox[{
+  RowBox[{
+   RowBox[{"F", "[", 
+    RowBox[{"X_", ",", "Y_"}], "]"}], ":=", 
+   RowBox[{
+    RowBox[{"a", " ", "X"}], "+", 
+    RowBox[{"b", " ", "Y"}]}]}], ";"}], "\[IndentingNewLine]", 
+ RowBox[{
+  RowBox[{
+   RowBox[{"economy", "[", "1", "]"}], "=", "value1"}], ";"}], "\[IndentingNewLine]", 
+ RowBox[{
+  RowBox[{
+   RowBox[{"economy", "[", "2", "]"}], "=", "value2"}], ";"}], "\[IndentingNewLine]", 
+ RowBox[{
+  RowBox[{"economy", "[", "n_", "]"}], ":=", 
+  RowBox[{"F", "[", 
+   RowBox[{
+    RowBox[{"economy", "[", 
+     RowBox[{"n", "-", "1"}], "]"}], ",", 
+    RowBox[{"economy", "[", 
+     RowBox[{"n", "-", "2"}], "]"}]}], "]"}]}]}], "Input",ExpressionUUID->\
+"c48151b5-23f5-4ebf-9bc3-a890bbdd6d6e"],
+
+Cell[BoxData[
+ RowBox[{"{", 
+  RowBox[{
+   RowBox[{"economy", "[", "1", "]"}], ",", 
+   RowBox[{"economy", "[", "2", "]"}], ",", 
+   RowBox[{"economy", "[", "3", "]"}], ",", 
+   RowBox[{"economy", "[", "5", "]"}]}], "}"}]], "Input",ExpressionUUID->\
+"012563c1-6437-4680-8ee0-ffce1a9ed0bf"],
+
+Cell["\<\
+9:  Using procedural programming, define the economy in terms of a module \
+(i.e. for k=1,2, ... , n) (Use the information supplied in Problem 6):
+\teconomy[ n_ ] := Module [{ },  ... using Do ...  ]
+\teconomy[ n_ ] := Module [{ },  ... using While ...  ]
+\teconomy[ n_ ] := Module [{ },  ... using For ...  ]
+\tEvaluate:  economy[ 1 ],   economy[ 2 ],   economy[ 10 ]\
+\>", "Text",ExpressionUUID->"65571f45-0315-48f1-a856-06a4f703208a"],
+
+Cell[BoxData[{
+ RowBox[{
+  RowBox[{"Clear", "[", 
+   RowBox[{
+   "economyDo", ",", "economyWhile", ",", "economyFor", ",", "a", ",", "b", ",",
+     "n", ",", "k", ",", "value1"}], "]"}], ";"}], "\[IndentingNewLine]", 
+ RowBox[{
+  RowBox[{"economyDo", "[", "n_", "]"}], ":=", 
+  RowBox[{"Module", "[", 
+   RowBox[{
+    RowBox[{"{", 
+     RowBox[{"e", "=", "value1"}], "}"}], ",", 
+    RowBox[{
+     RowBox[{"Do", "[", 
+      RowBox[{
+       RowBox[{"e", "=", 
+        RowBox[{
+         RowBox[{"a", " ", "e"}], "+", "b"}]}], ",", 
+       RowBox[{"{", 
+        RowBox[{"k", ",", "2", ",", "n"}], "}"}]}], "]"}], ";", "e"}]}], 
+   "]"}]}]}], "Input",ExpressionUUID->"989b9df5-6212-4135-a82d-de09c62e7304"],
+
+Cell[BoxData[
+ RowBox[{
+  RowBox[{"economyWhile", "[", "n_", "]"}], ":=", 
+  RowBox[{"Module", "[", 
+   RowBox[{
+    RowBox[{"{", 
+     RowBox[{
+      RowBox[{"e", "=", "value1"}], ",", 
+      RowBox[{"k", "=", "1"}]}], "}"}], ",", 
+    RowBox[{
+     RowBox[{"While", "[", 
+      RowBox[{
+       RowBox[{"k", "<", "n"}], ",", 
+       RowBox[{
+        RowBox[{"e", "=", 
+         RowBox[{
+          RowBox[{"a", " ", "e"}], "+", "b"}]}], ";", 
+        RowBox[{"k", "=", 
+         RowBox[{"k", "+", "1"}]}]}]}], "]"}], ";", "e"}]}], "]"}]}]], "Input",\
+ExpressionUUID->"37e208ed-cfa3-4886-98cf-f06f8aa5828b"],
+
+Cell[BoxData[
+ RowBox[{
+  RowBox[{"economyFor", "[", "n_", "]"}], ":=", 
+  RowBox[{"Module", "[", 
+   RowBox[{
+    RowBox[{"{", 
+     RowBox[{
+      RowBox[{"e", "=", "value1"}], ",", "k"}], "}"}], ",", 
+    RowBox[{
+     RowBox[{"For", "[", 
+      RowBox[{
+       RowBox[{"k", "=", "2"}], ",", 
+       RowBox[{"k", "\[LessEqual]", "n"}], ",", 
+       RowBox[{"k", "=", 
+        RowBox[{"k", "+", "1"}]}], ",", 
+       RowBox[{"e", "=", 
+        RowBox[{
+         RowBox[{"a", " ", "e"}], "+", "b"}]}]}], "]"}], ";", "e"}]}], 
+   "]"}]}]], "Input",ExpressionUUID->"aa9ab5df-75c2-4b54-a349-502aa8340ba8"],
+
+Cell[BoxData[
+ RowBox[{"{", 
+  RowBox[{
+   RowBox[{"economyDo", "[", "1", "]"}], ",", 
+   RowBox[{"economyDo", "[", "2", "]"}], ",", 
+   RowBox[{"economyDo", "[", "10", "]"}]}], "}"}]], "Input",ExpressionUUID->\
+"9ccc5af7-b5f9-463c-8a30-0a3a2cd4701e"],
+
+Cell[BoxData[
+ RowBox[{"{", 
+  RowBox[{
+   RowBox[{"economyWhile", "[", "1", "]"}], ",", 
+   RowBox[{"economyWhile", "[", "2", "]"}], ",", 
+   RowBox[{"economyWhile", "[", "10", "]"}]}], "}"}]], "Input",ExpressionUUID->\
+"c43e9166-11a4-4614-812a-2c14d48dbc10"],
+
+Cell[BoxData[
+ RowBox[{"{", 
+  RowBox[{
+   RowBox[{"economyFor", "[", "1", "]"}], ",", 
+   RowBox[{"economyFor", "[", "2", "]"}], ",", 
+   RowBox[{"economyFor", "[", "10", "]"}]}], "}"}]], "Input",ExpressionUUID->\
+"652f86e4-0a8b-44b8-8546-383ae0e24548"],
+
+Cell[TextData[{
+ "10:  Using the Which command, define a piecewise function such that:\n\t\
+f(x) = ",
+ Cell[BoxData[
+  FormBox[
+   SuperscriptBox["x", "2"], TraditionalForm]],ExpressionUUID->
+  "3866e66d-8e6c-4a86-b6f0-9e19c6fd1501"],
+ ",   \t\tfor   x < -2\n\tf(x) = Sin[ ",
+ Cell[BoxData[
+  FormBox[
+   SuperscriptBox["x", "2"], TraditionalForm]],ExpressionUUID->
+  "f91995f7-6a75-4d44-a890-723085ae4f49"],
+ " ],   \tfor   -2 \[LessEqual] x < 1\n\tf(x) = 2 x,   \t\tfor   1 \
+\[LessEqual] x < 3\n\tf(x) = x,   \t\tfor   3 \[LessEqual] x \nPlot the \
+function for:     -3 \[LessEqual] x < 4"
+}], "Text",ExpressionUUID->"97572bec-9db9-4411-b4e0-57fdb74bf2af"],
+
+Cell[BoxData[{
+ RowBox[{
+  RowBox[{"Clear", "[", 
+   RowBox[{"f", ",", "x"}], "]"}], ";"}], "\[IndentingNewLine]", 
+ RowBox[{
+  RowBox[{"f", "[", "x_", "]"}], ":=", 
+  RowBox[{"Which", "[", 
+   RowBox[{
+    RowBox[{"x", "<", 
+     RowBox[{"-", "2"}]}], ",", 
+    SuperscriptBox["x", "2"], ",", 
+    RowBox[{
+     RowBox[{"-", "2"}], "\[LessEqual]", "x", "<", "1"}], ",", 
+    RowBox[{"Sin", "[", 
+     SuperscriptBox["x", "2"], "]"}], ",", 
+    RowBox[{"1", "\[LessEqual]", "x", "<", "3"}], ",", 
+    RowBox[{"2", " ", "x"}], ",", 
+    RowBox[{"3", "\[LessEqual]", "x"}], ",", "x"}], "]"}]}]}], "Input",Express\
+ionUUID->"82317f0b-b2de-422e-b729-a8a4d7b39a75"],
+
+Cell[BoxData[
+ RowBox[{"Plot", "[", 
+  RowBox[{
+   RowBox[{"f", "[", "x", "]"}], ",", 
+   RowBox[{"{", 
+    RowBox[{"x", ",", 
+     RowBox[{"-", "3"}], ",", "4"}], "}"}]}], "]"}]], "Input",ExpressionUUID->\
+"6c5d8c58-ffb8-445b-8ab5-89115f13f025"]
+},
+WindowSize->{1100, 850},
+FrontEndVersion->"15.0 for Linux x86 (64-bit) (May 26, 2026)",
+StyleDefinitions->"Default.nb",
+ExpressionUUID->"53e1aa67-6381-4be0-aec1-2e1147a12ddd"
+]
+(* End of Notebook Content *)
+
+(* Internal cache information *)
+(*CellTagsOutline
+CellTagsIndex->{}
+*)
+(*CellTagsIndex
+CellTagsIndex->{}
+*)
+(*NotebookFileOutline
+Notebook[{
+Cell[560, 20, 144, 3, 70, "Section",ExpressionUUID->"0e0ffb55-d894-4f38-8978-668a4c578939"],
+Cell[707, 25, 388, 9, 70, "Program",ExpressionUUID->"4f74ec30-5e71-4607-bc4d-92d167ab09c3"],
+Cell[1098, 36, 239, 5, 70, "Text",ExpressionUUID->"b3892fc4-f38a-43b3-81f3-4bf2f9a92c62"],
+Cell[1340, 43, 498, 14, 70, "Input",ExpressionUUID->"038f4820-1f8d-4345-ae6f-1e845b7c5675"],
+Cell[1841, 59, 83, 0, 70, "Input",ExpressionUUID->"b6912ea4-d24c-456c-9283-aabaee42a330"],
+Cell[1927, 61, 419, 11, 70, "Text",ExpressionUUID->"ffe839eb-8ab2-4624-9d45-1ae790d68a70"],
+Cell[2349, 74, 713, 20, 70, "Input",ExpressionUUID->"1b40b8e2-44ac-42ba-b886-fb0d1a25ddaf"],
+Cell[3065, 96, 83, 0, 70, "Input",ExpressionUUID->"b9f8d6bb-6805-4a4c-bf8c-7cfe2d185b2e"],
+Cell[3151, 98, 360, 7, 70, "Text",ExpressionUUID->"944e914c-3c78-45e2-ae85-ac449004beb9"],
+Cell[3514, 107, 1400, 38, 70, "Input",ExpressionUUID->"1aeb3e61-2369-47df-a1ec-2ab8dd58044e"],
+Cell[4917, 147, 132, 2, 70, "Input",ExpressionUUID->"69ef9d74-b78f-4ce2-9854-c0569a781a11"],
+Cell[5052, 151, 153, 4, 70, "Input",ExpressionUUID->"eeb2fa4c-d510-497c-ac32-6846af1ff5f8"],
+Cell[5208, 157, 310, 6, 70, "Text",ExpressionUUID->"3bc77f1f-258b-40e6-9a0e-7369ea821ae3"],
+Cell[5521, 165, 1401, 38, 70, "Input",ExpressionUUID->"9182bb43-cd0e-4a59-836f-ff293f6d3679"],
+Cell[6925, 205, 109, 1, 70, "Input",ExpressionUUID->"8685c578-6583-4e54-ac18-c6964cce9ab8"],
+Cell[7037, 208, 127, 2, 70, "Input",ExpressionUUID->"358215d8-7e67-427f-89d0-0795b98e7834"],
+Cell[7167, 212, 336, 7, 70, "Text",ExpressionUUID->"fb6e4687-8d58-421a-9d45-b3f3602862c4"],
+Cell[7506, 221, 548, 16, 70, "Input",ExpressionUUID->"92a204ba-2c45-44c1-b9cb-984dae8a07ec"],
+Cell[8057, 239, 190, 5, 70, "Input",ExpressionUUID->"0a898ef1-ec40-4b31-aef5-5151959233e0"],
+Cell[8250, 246, 593, 10, 70, "Text",ExpressionUUID->"df7da89e-c27c-4685-ae9f-f16553d726b5"],
+Cell[8846, 258, 506, 14, 70, "Input",ExpressionUUID->"51f5eda8-72ea-4c48-ac9b-b6aa7b4636a9"],
+Cell[9355, 274, 245, 6, 70, "Input",ExpressionUUID->"c3a3c020-ce75-4fca-a1e0-76161b451c2f"],
+Cell[9603, 282, 828, 15, 70, "Text",ExpressionUUID->"ad576bea-5939-424c-a215-a2ddafe1f945"],
+Cell[10434, 299, 659, 19, 70, "Input",ExpressionUUID->"b9152d71-5879-4155-b995-2bc5e88f2cc1"],
+Cell[11096, 320, 245, 6, 70, "Input",ExpressionUUID->"81b4d2bd-d971-4461-8c77-b5b2bef536e9"],
+Cell[11344, 328, 965, 18, 70, "Text",ExpressionUUID->"7bb1ed99-b735-49be-92d1-e7bf6337ac12"],
+Cell[12312, 348, 931, 27, 70, "Input",ExpressionUUID->"c48151b5-23f5-4ebf-9bc3-a890bbdd6d6e"],
+Cell[13246, 377, 289, 7, 70, "Input",ExpressionUUID->"012563c1-6437-4680-8ee0-ffce1a9ed0bf"],
+Cell[13538, 386, 447, 7, 70, "Text",ExpressionUUID->"65571f45-0315-48f1-a856-06a4f703208a"],
+Cell[13988, 395, 702, 20, 70, "Input",ExpressionUUID->"989b9df5-6212-4135-a82d-de09c62e7304"],
+Cell[14693, 417, 606, 19, 70, "Input",ExpressionUUID->"37e208ed-cfa3-4886-98cf-f06f8aa5828b"],
+Cell[15302, 438, 603, 18, 70, "Input",ExpressionUUID->"aa9ab5df-75c2-4b54-a349-502aa8340ba8"],
+Cell[15908, 458, 251, 6, 70, "Input",ExpressionUUID->"9ccc5af7-b5f9-463c-8a30-0a3a2cd4701e"],
+Cell[16162, 466, 260, 6, 70, "Input",ExpressionUUID->"c43e9166-11a4-4614-812a-2c14d48dbc10"],
+Cell[16425, 474, 254, 6, 70, "Input",ExpressionUUID->"652f86e4-0a8b-44b8-8546-383ae0e24548"],
+Cell[16682, 482, 659, 15, 70, "Text",ExpressionUUID->"97572bec-9db9-4411-b4e0-57fdb74bf2af"],
+Cell[17344, 499, 660, 18, 70, "Input",ExpressionUUID->"82317f0b-b2de-422e-b729-a8a4d7b39a75"],
+Cell[18007, 519, 246, 7, 70, "Input",ExpressionUUID->"6c5d8c58-ffb8-445b-8ab5-89115f13f025"]
+}
+]
+*)
+
+(* End of internal cache information *)

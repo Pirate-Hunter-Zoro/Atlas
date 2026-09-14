@@ -1,0 +1,247 @@
+(* Content-type: application/vnd.wolfram.mathematica *)
+
+(*** Wolfram Notebook File ***)
+(* http://www.wolfram.com/nb *)
+
+(* CreatedBy='WolframEngine 15.0' *)
+
+(*CacheID: 234*)
+(* Internal cache information:
+NotebookFileLineBreakTest
+NotebookFileLineBreakTest
+NotebookDataPosition[       160,          7]
+NotebookDataLength[      9213,        238]
+NotebookOptionsPosition[      7530,        210]
+NotebookOutlinePosition[      7869,        225]
+CellTagsIndexPosition[      7826,        222]
+WindowFrame->Normal*)
+
+(* Beginning of Notebook Content *)
+Notebook[{
+Cell[TextData[{
+ StyleBox[" Exercises:", "Title"],
+ "  Advanced Lesson 14 "
+}], "Section",ExpressionUUID->"66a64cbd-19b7-4b0a-9a5b-c7c2848b1a26"],
+
+Cell["\<\
+Your Name:  Mikey Ferguson
+
+Your Math Class:  MATH 7013 - Advanced Mathematical Modeling\
+\>", "Program",
+ CellChangeTimes->{{3.390368232619*^9, 3.3903682391219997`*^9}, {
+   3.390368866851*^9, 3.390368908736*^9}, {3.3903690435030003`*^9, 
+   3.390369082222*^9}, 3.3903880065649595`*^9},
+ FontSize->16,
+ FontWeight->"Bold",ExpressionUUID->"9faf7263-3fa8-428a-8bd7-886dd14e3352"],
+
+Cell[TextData[{
+ "1: Using Manipulate[ ... ]:\n\nPart1: Create a dynamic 2-D plot of:\n\n\t",
+ Cell[BoxData[
+  FormBox[
+   SuperscriptBox["\[ExponentialE]", 
+    RowBox[{
+     RowBox[{"-", "a"}], " ", "x"}]], TraditionalForm]],ExpressionUUID->
+  "2442de3e-4f36-440f-a89c-c77e5f9caa1c"],
+ "  where  ",
+ Cell[BoxData[
+  FormBox[
+   RowBox[{"0", "\[LessEqual]", "x", "\[LessEqual]", "1", " "}], 
+   TraditionalForm]],ExpressionUUID->"a506ef50-a23f-435c-80c0-89dc2e8db3a9"],
+ "\n\tWith a ",
+ StyleBox["continuous",
+  FontVariations->{"Underline"->True}],
+ " slider for  a  where  ",
+ Cell[BoxData[
+  FormBox[
+   RowBox[{"0", "\[LessEqual]", "a", "\[LessEqual]", "10"}], 
+   TraditionalForm]],ExpressionUUID->"17d51817-612f-4884-bed4-dd1c2b4834a6"],
+ "\n\t\nPart2: Note that the plot jumps around as you move the slider.  Add a \
+PlotRange option to your plot to fix this problem.\n\nPart: Create a dynamic \
+3-D plot of:\n\n\t",
+ Cell[BoxData[
+  FormBox[
+   SuperscriptBox["\[ExponentialE]", 
+    RowBox[{
+     RowBox[{
+      RowBox[{"-", "a"}], " ", "x"}], "-", 
+     RowBox[{"b", " ", "y"}]}]], TraditionalForm]],ExpressionUUID->
+  "4c508329-2a6a-45cd-b52e-adf8c4b3a132"],
+ "  where  ",
+ Cell[BoxData[
+  FormBox[
+   RowBox[{"0", "\[LessEqual]", "x", "\[LessEqual]", "1", " "}], 
+   TraditionalForm]],ExpressionUUID->"95770102-ff97-4398-963b-ef37fddf89ab"],
+ " and  0 \[LessEqual] y \[LessEqual] 1 \n\tWith a ",
+ StyleBox["continuous",
+  FontVariations->{"Underline"->True}],
+ " slider for  a  where  ",
+ Cell[BoxData[
+  FormBox[
+   RowBox[{"0", "\[LessEqual]", "a", "\[LessEqual]", "10"}], 
+   TraditionalForm]],ExpressionUUID->"7f56d10f-d9f3-41f8-86f8-1e756f88e150"],
+ "\n\tWith a ",
+ StyleBox["discrete",
+  FontVariations->{"Underline"->True}],
+ " slider for  b  where  ",
+ Cell[BoxData[
+  FormBox[
+   RowBox[{"0", "\[LessEqual]", "b", "\[LessEqual]", "10"}], 
+   TraditionalForm]],ExpressionUUID->"fb14046f-e9a3-42c3-8d42-2cb076c2bf80"],
+ "  in steps of 2"
+}], "Text",
+ CellChangeTimes->{{3.39038661270596*^9, 3.39038666806696*^9}, {
+   3.39038687211796*^9, 3.3903869916539598`*^9}, {3.39038703139196*^9, 
+   3.3903870853149595`*^9}, {3.39038756030496*^9, 3.39038758131696*^9}, {
+   3.39038763079796*^9, 3.3903876330299597`*^9}, 3.3903914264769597`*^9, 
+   3.390474447683*^9},ExpressionUUID->"668ffb88-454d-4fd6-abd9-403ca6ccb626"],
+
+Cell["Manipulate[Plot[E^(-a x), {x, 0, 1}], {a, 0, 10}]", "Input",ExpressionUUID->"894c0f23-8fc2-40a3-98fc-6eaad8a89cd1"],
+
+Cell["\<\
+Manipulate[Plot[E^(-a x), {x, 0, 1}, PlotRange -> All], {a, 0, 10}]\
+\>", "Input",ExpressionUUID->"e1df2de5-c382-461d-ba94-5bc373b35764"],
+
+Cell["\<\
+Manipulate[
+ Plot3D[E^(-a x - b y), {x, 0, 1}, {y, 0, 1}, PlotRange -> All],
+ {a, 0, 10}, {b, 0, 10, 2}]\
+\>", "Input",ExpressionUUID->"30adea32-8ad5-4bfe-93ef-7bff0d38ac4f"],
+
+Cell[TextData[{
+ "2: Using Manipulate[ ... ]:\n\n      Create a dynamic algebraic calculator \
+that expands the expression:\n\n\t",
+ Cell[BoxData[
+  FormBox[
+   SuperscriptBox[
+    RowBox[{"(", 
+     RowBox[{"x", "+", "y"}], ")"}], "n"], TraditionalForm]],ExpressionUUID->
+  "eecf8348-fa8c-4803-8f37-c7eceba30567"],
+ "  \n\t\n      With a ",
+ StyleBox["discrete",
+  FontVariations->{"Underline"->True}],
+ " slider for  n  where  ",
+ Cell[BoxData[
+  FormBox[
+   RowBox[{"0", "\[LessEqual]", "n", "\[LessEqual]", "10"}], 
+   TraditionalForm]],ExpressionUUID->"0eabf94e-aab7-4aa4-a88b-8aacba94dcd2"],
+ "  in steps of 1"
+}], "Text",
+ CellChangeTimes->{{3.39038661270596*^9, 3.39038666806696*^9}, {
+  3.39038687211796*^9, 3.3903869916539598`*^9}, {3.39038703139196*^9, 
+  3.3903870853149595`*^9}, {3.39038756030496*^9, 3.39038758131696*^9}, {
+  3.39038763079796*^9, 3.3903876330299597`*^9}, {3.3903914264769597`*^9, 
+  3.39039145662596*^9}, {3.3903914867819595`*^9, 3.3903916333009596`*^9}, {
+  3.39039174024496*^9, 3.3903917560819597`*^9}, {3.3903918654959598`*^9, 
+  3.39039186591496*^9}, {3.39047445252*^9, 
+  3.390474454201*^9}},ExpressionUUID->"e85f1add-5649-4d65-846b-08edac51d7bb"],
+
+Cell["Manipulate[Expand[(x + y)^n], {n, 0, 10, 1}]", "Input",ExpressionUUID->"403ef180-aa65-4960-b57b-53b14f35d7f3"],
+
+Cell["\<\
+3:   For the data set:
+\t\tdataList = {1,2,3,4,5,6,7}
+\t Part 1:  Save the data to your hard disk
+\t Part 2:  Display the contents of the disk data file using the FilePrint \
+command
+\t Part 3:  Read the disk file into a list and assign the data to symbol:  \
+myData\
+\>", "Text",
+ CellChangeTimes->{3.390474624434*^9, 
+  3.390474687861*^9},ExpressionUUID->"de6f66a5-9050-448c-ba0e-9c20a3184cf6"],
+
+Cell[BoxData[{
+ RowBox[{
+  RowBox[{"Clear", "[", 
+   RowBox[{"dataList", ",", "myData", ",", "file"}], "]"}], ";"}], "\[IndentingNewLine]", 
+ RowBox[{
+  RowBox[{"dataList", "=", 
+   RowBox[{"{", 
+    RowBox[{"1", ",", "2", ",", "3", ",", "4", ",", "5", ",", "6", ",", "7"}],
+     "}"}]}], ";"}], "\[IndentingNewLine]", 
+ RowBox[{
+  RowBox[{"file", "=", 
+   RowBox[{"FileNameJoin", "[", 
+    RowBox[{"{", 
+     RowBox[{"$TemporaryDirectory", ",", "\"\<dataList.txt\>\""}], "}"}], 
+    "]"}]}], ";"}], "\[IndentingNewLine]", 
+ RowBox[{
+  RowBox[{"Export", "[", 
+   RowBox[{"file", ",", "dataList", ",", "\"\<List\>\""}], "]"}], 
+  ";"}], "\[IndentingNewLine]", "file"}], "Input",ExpressionUUID->"f55b659f-\
+02e5-4e9a-822d-936a28364a65"],
+
+Cell[BoxData[
+ RowBox[{"FilePrint", "[", "file", "]"}]], "Input",ExpressionUUID->"9dada503-7104-4ec4-ae49-1f98a7a404e3"],
+
+Cell[BoxData[{
+ RowBox[{
+  RowBox[{"myData", "=", 
+   RowBox[{"Import", "[", 
+    RowBox[{"file", ",", "\"\<List\>\""}], "]"}]}], 
+  ";"}], "\[IndentingNewLine]", "myData"}], "Input",ExpressionUUID->"69d01480-\
+df96-4bc8-94a1-9c29baaa4372"],
+
+Cell[BoxData[
+ RowBox[{"{", 
+  RowBox[{
+   RowBox[{"Head", "[", "myData", "]"}], ",", 
+   RowBox[{"Length", "[", "myData", "]"}], ",", 
+   RowBox[{"myData", "===", "dataList"}]}], "}"}]], "Input",ExpressionUUID->\
+"eec87551-6bf1-476b-adce-42fb8b03a7b5"],
+
+Cell[TextData[{
+ "4:   Convert the text:  ",
+ StyleBox["Mathematica",
+  FontSlant->"Italic"],
+ "     into a list of characters"
+}], "Text",
+ CellChangeTimes->{
+  3.3904747036359997`*^9},ExpressionUUID->"2e6e59f3-8022-476f-858f-\
+e73af36008fc"],
+
+Cell[BoxData[
+ RowBox[{"Characters", "[", "\"\<Mathematica\>\"", "]"}]], "Input",ExpressionU\
+UID->"72fb187f-a66d-4cab-a846-b7c9f9b93d5d"],
+
+Cell[BoxData[
+ RowBox[{"Length", "[", 
+  RowBox[{"Characters", "[", "\"\<Mathematica\>\"", "]"}], "]"}]], "Input",Exp\
+ressionUUID->"02723457-8820-44fd-b65e-a556d3d3ae53"]
+},
+WindowSize->{1100, 850},
+FrontEndVersion->"15.0 for Linux x86 (64-bit) (May 26, 2026)",
+StyleDefinitions->"Default.nb",
+ExpressionUUID->"53e1aa67-6381-4be0-aec1-2e1147a12ddd"
+]
+(* End of Notebook Content *)
+
+(* Internal cache information *)
+(*CellTagsOutline
+CellTagsIndex->{}
+*)
+(*CellTagsIndex
+CellTagsIndex->{}
+*)
+(*NotebookFileOutline
+Notebook[{
+Cell[560, 20, 145, 3, 70, "Section",ExpressionUUID->"66a64cbd-19b7-4b0a-9a5b-c7c2848b1a26"],
+Cell[708, 25, 388, 9, 70, "Program",ExpressionUUID->"9faf7263-3fa8-428a-8bd7-886dd14e3352"],
+Cell[1099, 36, 2332, 59, 70, "Text",ExpressionUUID->"668ffb88-454d-4fd6-abd9-403ca6ccb626"],
+Cell[3434, 97, 121, 0, 70, "Input",ExpressionUUID->"894c0f23-8fc2-40a3-98fc-6eaad8a89cd1"],
+Cell[3558, 99, 147, 2, 70, "Input",ExpressionUUID->"e1df2de5-c382-461d-ba94-5bc373b35764"],
+Cell[3708, 103, 184, 4, 70, "Input",ExpressionUUID->"30adea32-8ad5-4bfe-93ef-7bff0d38ac4f"],
+Cell[3895, 109, 1183, 26, 70, "Text",ExpressionUUID->"e85f1add-5649-4d65-846b-08edac51d7bb"],
+Cell[5081, 137, 116, 0, 70, "Input",ExpressionUUID->"403ef180-aa65-4960-b57b-53b14f35d7f3"],
+Cell[5200, 139, 406, 10, 70, "Text",ExpressionUUID->"de6f66a5-9050-448c-ba0e-9c20a3184cf6"],
+Cell[5609, 151, 734, 19, 70, "Input",ExpressionUUID->"f55b659f-02e5-4e9a-822d-936a28364a65"],
+Cell[6346, 172, 120, 1, 70, "Input",ExpressionUUID->"9dada503-7104-4ec4-ae49-1f98a7a404e3"],
+Cell[6469, 175, 240, 6, 70, "Input",ExpressionUUID->"69d01480-df96-4bc8-94a1-9c29baaa4372"],
+Cell[6712, 183, 253, 6, 70, "Input",ExpressionUUID->"eec87551-6bf1-476b-adce-42fb8b03a7b5"],
+Cell[6968, 191, 243, 8, 70, "Text",ExpressionUUID->"2e6e59f3-8022-476f-858f-e73af36008fc"],
+Cell[7214, 201, 138, 2, 70, "Input",ExpressionUUID->"72fb187f-a66d-4cab-a846-b7c9f9b93d5d"],
+Cell[7355, 205, 171, 3, 70, "Input",ExpressionUUID->"02723457-8820-44fd-b65e-a556d3d3ae53"]
+}
+]
+*)
+
+(* End of internal cache information *)

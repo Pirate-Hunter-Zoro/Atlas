@@ -1,0 +1,299 @@
+(* Content-type: application/vnd.wolfram.mathematica *)
+
+(*** Wolfram Notebook File ***)
+(* http://www.wolfram.com/nb *)
+
+(* CreatedBy='WolframEngine 15.0' *)
+
+(*CacheID: 234*)
+(* Internal cache information:
+NotebookFileLineBreakTest
+NotebookFileLineBreakTest
+NotebookDataPosition[       160,          7]
+NotebookDataLength[     10577,        290]
+NotebookOptionsPosition[      8157,        254]
+NotebookOutlinePosition[      8496,        269]
+CellTagsIndexPosition[      8453,        266]
+WindowFrame->Normal*)
+
+(* Beginning of Notebook Content *)
+Notebook[{
+Cell[TextData[{
+ StyleBox[" Exercises:", "Title"],
+ "  Advanced Lesson 12 "
+}], "Section",ExpressionUUID->"98c7e24a-514d-44ae-92a3-60ee6bd2b9fa"],
+
+Cell["\<\
+Your Name:  Mikey Ferguson
+
+Your Math Class:  MATH 7013 - Advanced Mathematical Modeling\
+\>", "Program",
+ CellChangeTimes->{{3.390368232619*^9, 3.3903682391219997`*^9}, {
+   3.390368866851*^9, 3.390368908736*^9}, {3.3903690435030003`*^9, 
+   3.390369082222*^9}, 3.3903880065649595`*^9},
+ FontSize->16,
+ FontWeight->"Bold",ExpressionUUID->"38aece20-9880-48ae-be19-e5f2cd947872"],
+
+Cell[TextData[{
+ "1:\t Evaluate:\t",
+ Cell[BoxData[
+  StyleBox[
+   RowBox[{"(", 
+    RowBox[{
+     SuperscriptBox["#", "2"], "&"}], ")"}],
+   FontWeight->"Bold"]],ExpressionUUID->
+  "799dd555-4e1a-4a3a-aa43-efbaaa67d796"],
+ "\t\t for the value 3\n\t Evaluate:\tSin[ # ]&\t\t for the value \[Pi]/2\n\t \
+Evaluate:\t{ #,  Sin[ # ] }&\t for the value \[Pi]/2\n\t Evaluate:\t{ #1,  \
+Sin[ #2 ] }&\t for the value (1, \[Pi]/2)\n\t Evaluate:\t\
+(#\[GreaterEqual]10)&\t\t for the value 12\n\t Evaluate:\t\
+(#\[GreaterEqual]10)&\t\t for the value 8\n\t Evaluate:\t\
+(#1\[GreaterEqual]#2)&\t\t for the value (12, 8)\n\t Evaluate:\t(#1\
+\[GreaterEqual]#2)&\t\t for the value (8, 12)"
+}], "Text",ExpressionUUID->"cc9ab6a1-7927-4334-b1f5-dd688c0c5198"],
+
+Cell[BoxData[{
+ RowBox[{
+  RowBox[{"Clear", "[", 
+   RowBox[{"x", ",", "f", ",", "data", ",", "newData"}], "]"}], ";"}], "\[IndentingNewLine]", 
+ RowBox[{
+  RowBox[{"(", 
+   RowBox[{
+    SuperscriptBox["#1", "2"], "&"}], ")"}], "[", "3", "]"}]}], "Input",Expres\
+sionUUID->"48d306c2-4ba6-4665-ab7b-7735f2440429"],
+
+Cell[BoxData[
+ RowBox[{
+  RowBox[{"(", 
+   RowBox[{
+    RowBox[{"Sin", "[", "#1", "]"}], "&"}], ")"}], "[", 
+  FractionBox["\[Pi]", "2"], "]"}]], "Input",ExpressionUUID->"656fbfad-eb75-\
+4084-b27f-85f3bf8b2127"],
+
+Cell[BoxData[
+ RowBox[{
+  RowBox[{"(", 
+   RowBox[{
+    RowBox[{"{", 
+     RowBox[{"#1", ",", 
+      RowBox[{"Sin", "[", "#1", "]"}]}], "}"}], "&"}], ")"}], "[", 
+  FractionBox["\[Pi]", "2"], "]"}]], "Input",ExpressionUUID->"0fffd94b-d5a3-\
+4215-b0b5-eac2e6c1c533"],
+
+Cell[BoxData[
+ RowBox[{
+  RowBox[{"(", 
+   RowBox[{
+    RowBox[{"{", 
+     RowBox[{"#1", ",", 
+      RowBox[{"Sin", "[", "#2", "]"}]}], "}"}], "&"}], ")"}], "[", 
+  RowBox[{"1", ",", 
+   FractionBox["\[Pi]", "2"]}], "]"}]], "Input",ExpressionUUID->"974d7a3a-\
+0723-4631-a893-b71b9febd0a1"],
+
+Cell[BoxData[
+ RowBox[{
+  RowBox[{"(", 
+   RowBox[{
+    RowBox[{"#1", "\[GreaterEqual]", "10"}], "&"}], ")"}], "[", "12", 
+  "]"}]], "Input",ExpressionUUID->"67ca2f71-55a9-421c-9f75-b26c2901c9bb"],
+
+Cell[BoxData[
+ RowBox[{
+  RowBox[{"(", 
+   RowBox[{
+    RowBox[{"#1", "\[GreaterEqual]", "10"}], "&"}], ")"}], "[", "8", 
+  "]"}]], "Input",ExpressionUUID->"7831352d-3163-4fc4-9129-10b0b3d42b3d"],
+
+Cell[BoxData[
+ RowBox[{
+  RowBox[{"(", 
+   RowBox[{
+    RowBox[{"#1", "\[GreaterEqual]", "#2"}], "&"}], ")"}], "[", 
+  RowBox[{"12", ",", "8"}], "]"}]], "Input",ExpressionUUID->"162c35f2-578c-\
+40d4-b475-2213e18726f2"],
+
+Cell[BoxData[
+ RowBox[{
+  RowBox[{"(", 
+   RowBox[{
+    RowBox[{"#1", "\[GreaterEqual]", "#2"}], "&"}], ")"}], "[", 
+  RowBox[{"8", ",", "12"}], "]"}]], "Input",ExpressionUUID->"334e254d-137b-\
+4218-8f53-1ae359a98dc7"],
+
+Cell["\<\
+2:  Write the commands necessary to select all of the points from the data set:
+\tdata={4, 65, 12, 4, 8, 21, 4};
+ that satisfy the criterion of being \[LessEqual] 20 using a pure function \
+and the Select command.\
+\>", "Text",ExpressionUUID->"951700d7-726d-4bcf-a1f6-eef05e191f11"],
+
+Cell[BoxData[{
+ RowBox[{
+  RowBox[{"data", "=", 
+   RowBox[{"{", 
+    RowBox[{
+    "4", ",", "65", ",", "12", ",", "4", ",", "8", ",", "21", ",", "4"}], 
+    "}"}]}], ";"}], "\[IndentingNewLine]", 
+ RowBox[{"Select", "[", 
+  RowBox[{"data", ",", 
+   RowBox[{
+    RowBox[{"#1", "\[LessEqual]", "20"}], "&"}]}], "]"}]}], "Input",Expression\
+UUID->"ee82c060-afa5-434e-a7fc-9882d73bcb48"],
+
+Cell["\<\
+3:  Write the commands necessary to select all of the points from the data set:
+\tdata={4, 65, 12, 4, 8, 21, 4};
+ that satisfy the criteria of being \[GreaterEqual] 5 and \[LessEqual] 20 \
+using a pure function and the Select command.\
+\>", "Text",ExpressionUUID->"cb826166-4f51-417e-a979-b9551ac9cd51"],
+
+Cell[BoxData[
+ RowBox[{"Select", "[", 
+  RowBox[{"data", ",", 
+   RowBox[{
+    RowBox[{"5", "\[LessEqual]", "#1", "\[LessEqual]", "20"}], "&"}]}], 
+  "]"}]], "Input",ExpressionUUID->"219b3a04-3d81-44bb-a48b-10d1ad1c8511"],
+
+Cell["\<\
+4:  Write the commands necessary to map a pure function onto the set of data \
+points:
+\tdata={4, 65, 12, 4, 8, 21, 4};
+ that evaluates the ordered pairs:  {x, f[x]}.\
+\>", "Text",ExpressionUUID->"3d9f1bb1-f92f-4115-a143-c295428d77bc"],
+
+Cell[BoxData[{
+ RowBox[{
+  RowBox[{"Clear", "[", "f", "]"}], ";"}], "\[IndentingNewLine]", 
+ RowBox[{
+  RowBox[{"(", 
+   RowBox[{
+    RowBox[{"{", 
+     RowBox[{"#1", ",", 
+      RowBox[{"f", "[", "#1", "]"}]}], "}"}], "&"}], ")"}], "/@", 
+  "data"}]}], "Input",ExpressionUUID->"2522bcbb-9d34-427c-9dcf-f6845581e2ce"],
+
+Cell["\<\
+5:  Write the commands necessary to select all of the points from the data set:
+\tnewData={{1,4},{3,2},{2,2},{5,1},{2,5}}; 
+ that satisfy the criterion of having its first coordinate squared being \
+\[LessEqual] the second coordinate using a pure function and the Select \
+command.\
+\>", "Text",ExpressionUUID->"6615a3e4-310f-4811-89c1-6f1a5f935a66"],
+
+Cell[BoxData[{
+ RowBox[{
+  RowBox[{"newData", "=", 
+   RowBox[{"{", 
+    RowBox[{
+     RowBox[{"{", 
+      RowBox[{"1", ",", "4"}], "}"}], ",", 
+     RowBox[{"{", 
+      RowBox[{"3", ",", "2"}], "}"}], ",", 
+     RowBox[{"{", 
+      RowBox[{"2", ",", "2"}], "}"}], ",", 
+     RowBox[{"{", 
+      RowBox[{"5", ",", "1"}], "}"}], ",", 
+     RowBox[{"{", 
+      RowBox[{"2", ",", "5"}], "}"}]}], "}"}]}], ";"}], "\[IndentingNewLine]", 
+ RowBox[{"Select", "[", 
+  RowBox[{"newData", ",", 
+   RowBox[{
+    RowBox[{
+     SuperscriptBox[
+      RowBox[{"#1", "\[LeftDoubleBracket]", "1", "\[RightDoubleBracket]"}], 
+      "2"], "\[LessEqual]", 
+     RowBox[{"#1", "\[LeftDoubleBracket]", "2", "\[RightDoubleBracket]"}]}], 
+    "&"}]}], "]"}]}], "Input",ExpressionUUID->"8495bb3b-24ee-4927-8b0c-\
+a2dc11c1e394"],
+
+Cell[TextData[{
+ "6:  Evaluate the following lines one line at a time.\n\t",
+ Cell[BoxData[{
+  FormBox[
+   RowBox[{"Clear", "[", 
+    RowBox[{"f", ",", "x"}], "]"}], TraditionalForm], "\[IndentingNewLine]", 
+  FormBox[
+   RowBox[{
+    RowBox[{"f", "'"}], "[", "x", "]"}], TraditionalForm], "\[IndentingNewLine]", 
+  FormBox[
+   RowBox[{"f", "'"}], TraditionalForm], "\[IndentingNewLine]", 
+  FormBox[
+   RowBox[{
+    RowBox[{"Sin", "'"}], "[", "x", "]"}], TraditionalForm], "\[IndentingNewLine]", 
+  FormBox[
+   RowBox[{"Sin", "'"}], TraditionalForm]}],ExpressionUUID->
+  "865fe10d-99a7-4d3b-b63e-50e5a0904b65"],
+ " "
+}], "Text",ExpressionUUID->"89f7b2fb-e583-4cbd-85db-ecf95c4b714d"],
+
+Cell[BoxData[{
+ RowBox[{
+  RowBox[{"Clear", "[", 
+   RowBox[{"f", ",", "x"}], "]"}], ";"}], "\[IndentingNewLine]", 
+ RowBox[{
+  SuperscriptBox["f", "\[Prime]",
+   MultilineFunction->None], "[", "x", "]"}]}], "Input",ExpressionUUID->\
+"7cc1a015-c6ed-4195-bb59-dca15acdb649"],
+
+Cell[BoxData[
+ SuperscriptBox["f", "\[Prime]",
+  MultilineFunction->None]], "Input",ExpressionUUID->"7641d3db-525e-4235-b550-\
+93f2777dd921"],
+
+Cell[BoxData[
+ RowBox[{
+  SuperscriptBox["Sin", "\[Prime]",
+   MultilineFunction->None], "[", "x", "]"}]], "Input",ExpressionUUID->\
+"d5bd4915-061d-4549-96ca-5a0fafba54a9"],
+
+Cell[BoxData[
+ SuperscriptBox["Sin", "\[Prime]",
+  MultilineFunction->None]], "Input",ExpressionUUID->"7aea3ce6-800d-46d9-a331-\
+86e8f1a1f4af"]
+},
+WindowSize->{1100, 850},
+FrontEndVersion->"15.0 for Linux x86 (64-bit) (May 26, 2026)",
+StyleDefinitions->"Default.nb",
+ExpressionUUID->"53e1aa67-6381-4be0-aec1-2e1147a12ddd"
+]
+(* End of Notebook Content *)
+
+(* Internal cache information *)
+(*CellTagsOutline
+CellTagsIndex->{}
+*)
+(*CellTagsIndex
+CellTagsIndex->{}
+*)
+(*NotebookFileOutline
+Notebook[{
+Cell[560, 20, 145, 3, 70, "Section",ExpressionUUID->"98c7e24a-514d-44ae-92a3-60ee6bd2b9fa"],
+Cell[708, 25, 388, 9, 70, "Program",ExpressionUUID->"38aece20-9880-48ae-be19-e5f2cd947872"],
+Cell[1099, 36, 740, 16, 70, "Text",ExpressionUUID->"cc9ab6a1-7927-4334-b1f5-dd688c0c5198"],
+Cell[1842, 54, 312, 8, 70, "Input",ExpressionUUID->"48d306c2-4ba6-4665-ab7b-7735f2440429"],
+Cell[2157, 64, 211, 6, 70, "Input",ExpressionUUID->"656fbfad-eb75-4084-b27f-85f3bf8b2127"],
+Cell[2371, 72, 265, 8, 70, "Input",ExpressionUUID->"0fffd94b-d5a3-4215-b0b5-eac2e6c1c533"],
+Cell[2639, 82, 289, 9, 70, "Input",ExpressionUUID->"974d7a3a-0723-4631-a893-b71b9febd0a1"],
+Cell[2931, 93, 196, 5, 70, "Input",ExpressionUUID->"67ca2f71-55a9-421c-9f75-b26c2901c9bb"],
+Cell[3130, 100, 195, 5, 70, "Input",ExpressionUUID->"7831352d-3163-4fc4-9129-10b0b3d42b3d"],
+Cell[3328, 107, 218, 6, 70, "Input",ExpressionUUID->"162c35f2-578c-40d4-b475-2213e18726f2"],
+Cell[3549, 115, 218, 6, 70, "Input",ExpressionUUID->"334e254d-137b-4218-8f53-1ae359a98dc7"],
+Cell[3770, 123, 292, 5, 70, "Text",ExpressionUUID->"951700d7-726d-4bcf-a1f6-eef05e191f11"],
+Cell[4065, 130, 384, 11, 70, "Input",ExpressionUUID->"ee82c060-afa5-434e-a7fc-9882d73bcb48"],
+Cell[4452, 143, 313, 5, 70, "Text",ExpressionUUID->"cb826166-4f51-417e-a979-b9551ac9cd51"],
+Cell[4768, 150, 221, 5, 70, "Input",ExpressionUUID->"219b3a04-3d81-44bb-a48b-10d1ad1c8511"],
+Cell[4992, 157, 245, 5, 70, "Text",ExpressionUUID->"3d9f1bb1-f92f-4115-a143-c295428d77bc"],
+Cell[5240, 164, 317, 9, 70, "Input",ExpressionUUID->"2522bcbb-9d34-427c-9dcf-f6845581e2ce"],
+Cell[5560, 175, 360, 6, 70, "Text",ExpressionUUID->"6615a3e4-310f-4811-89c1-6f1a5f935a66"],
+Cell[5923, 183, 802, 24, 70, "Input",ExpressionUUID->"8495bb3b-24ee-4927-8b0c-a2dc11c1e394"],
+Cell[6728, 209, 684, 18, 70, "Text",ExpressionUUID->"89f7b2fb-e583-4cbd-85db-ecf95c4b714d"],
+Cell[7415, 229, 273, 7, 70, "Input",ExpressionUUID->"7cc1a015-c6ed-4195-bb59-dca15acdb649"],
+Cell[7691, 238, 141, 3, 70, "Input",ExpressionUUID->"7641d3db-525e-4235-b550-93f2777dd921"],
+Cell[7835, 243, 172, 4, 70, "Input",ExpressionUUID->"d5bd4915-061d-4549-96ca-5a0fafba54a9"],
+Cell[8010, 249, 143, 3, 70, "Input",ExpressionUUID->"7aea3ce6-800d-46d9-a331-86e8f1a1f4af"]
+}
+]
+*)
+
+(* End of internal cache information *)

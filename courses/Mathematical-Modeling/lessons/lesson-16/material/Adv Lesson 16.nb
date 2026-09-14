@@ -1,0 +1,404 @@
+(* Content-type: application/mathematica *)
+
+(*** Wolfram Notebook File ***)
+(* http://www.wolfram.com/nb *)
+
+(* CreatedBy='Mathematica 6.0' *)
+
+(*CacheID: 234*)
+(* Internal cache information:
+NotebookFileLineBreakTest
+NotebookFileLineBreakTest
+NotebookDataPosition[       145,          7]
+NotebookDataLength[     13002,        395]
+NotebookOptionsPosition[     11147,        333]
+NotebookOutlinePosition[     11686,        352]
+CellTagsIndexPosition[     11643,        349]
+WindowFrame->Normal*)
+
+(* Beginning of Notebook Content *)
+Notebook[{
+
+Cell[CellGroupData[{
+Cell[TextData[{
+ StyleBox["Mathematica",
+  FontSlant->"Italic"],
+ " \n",
+ "Advanced Lesson 16\n\nPackages\n\nDr. Dale R. Doty\nUniversity of Tulsa"
+}], "Title"],
+
+Cell[CellGroupData[{
+
+Cell[TextData[{
+ StyleBox["  What Packages Are Available In ", "Subtitle"],
+ StyleBox["Mathematica", "Subtitle",
+  FontSlant->"Italic"],
+ StyleBox["?", "Subtitle"]
+}], "Section"],
+
+Cell[BoxData[
+ RowBox[{" ", 
+  RowBox[{"Remove", "[", "\"\<Global`*\>\"", " ", "]"}], " "}]], "InputOnly"],
+
+Cell[TextData[{
+ " ",
+ StyleBox["Mathematica",
+  FontSlant->"Italic"],
+ " 3.0/4.0/5.0/6.0/ ... have many categories of standard add-on packages.  \
+Each package category has 2 to 25 additional sub-categories.  In all, the \
+standard add-on packages add over 1000 additional functions for use in ",
+ StyleBox["Mathematica",
+  FontSlant->"Italic"],
+ ".\n\n",
+ StyleBox["Older",
+  FontVariations->{"Underline"->True}],
+ " primary package categories included (for ",
+ StyleBox["Mathematica",
+  FontSlant->"Italic"],
+ " 5.0):\n\n\tAlgebra\n\tCalculus\n\tDiscrete Mathematics\n\tGeometry\n\t\
+Graphics\n\tLinear Algebra\n\tMiscellaneous\n\tNumber Theory\n\tNumerical \
+Mathematics\n\tStatistics\n\tUtilities\n\t\nThe list of packages is much \
+longer today.\n\n\nAs an example, consider the packages in the ",
+ StyleBox["older",
+  FontVariations->{"Underline"->True}],
+ " package category Statistics (for ",
+ StyleBox["Mathematica",
+  FontSlant->"Italic"],
+ " 5.0):\n\n\tANOVA\t\n\tConfidenceIntervals\n\tContinuousDistributions\n\t\
+DataManipulation\n\tDataSmoothing\n\tDescriptiveStatistics\n\t\
+DiscreteDistributions\n\tHypothesisTests\n\tLinearRepression\n\t\
+MultiDescriptiveStatistics\n\tMultiNormalDistribution\n\tNonlinearFit\n\t\
+NormalDistribution\n\tStatisticsPlots\n\tCommon\n\t\nThe current version of ",
+ StyleBox["Mathematica",
+  FontSlant->"Italic"],
+ " that you are using will have a completely different list of Packages. To \
+see what is there, you might look in the following subdirectory on your C: \
+drive (make changes for your version of ",
+ StyleBox["Mathematica",
+  FontSlant->"Italic"],
+ " and your computer operating system):  \n\n\tC:\\Program Files\\Wolfram \
+Research\\Mathematica\\8.0\\AddOns\\Packages\n\nIn addition, ",
+ StyleBox["Mathematica",
+  FontSlant->"Italic"],
+ " packages are available from a number of different sources (some for free, \
+and some that are commercial).  If you have a specific need that is extremely \
+involved, then it is worth your time to search for existing ",
+ StyleBox["Mathematica",
+  FontSlant->"Italic"],
+ " packages rather then programming your own."
+}], "Text",
+ CellChangeTimes->{{3.3900474182184*^9, 3.3900474211534*^9}, {
+   3.3900492548164*^9, 3.3900492897714*^9}, {3.3900493704203997`*^9, 
+   3.3900493733174*^9}, {3.460907652934837*^9, 3.460907666684925*^9}, {
+   3.4609076968726177`*^9, 3.4609079103114843`*^9}, {3.4609079414835587`*^9, 
+   3.4609081796725826`*^9}, {3.523621586337076*^9, 3.5236215881770945`*^9}, 
+   3.523621663057843*^9}]
+}, Closed]],
+
+Cell[CellGroupData[{
+
+Cell[TextData[StyleBox["  How Do I Load A Package?", "Subtitle"]], "Section"],
+
+Cell["\<\
+ There are several procedures for loading and using packages:\
+\>", "Text"],
+
+Cell[CellGroupData[{
+
+Cell["\<\
+<<name reads in a file, evaluating each expression in it, and returning the \
+last one.\
+\>", "Item",
+ CellChangeTimes->{3.3900472467434*^9, 3.3900475411744003`*^9},
+ FontWeight->"Bold"],
+
+Cell["\<\
+Needs[\"context`\"] loads an appropriate file if the specified context is not \
+already in $Packages. 
+  Needs[\"context`\", \"file\"] loads file if the specified context is not \
+already in $Packages.\
+\>", "Item",
+ CellChangeTimes->{3.3900472512994003`*^9, 3.3900475529264*^9},
+ FontWeight->"Bold"],
+
+Cell["\<\
+$Packages gives a list of the contexts corresponding to all packages which \
+have been loaded in your current Mathematica session.\
+\>", "Item",
+ CellChangeTimes->{3.3900472529254*^9, 3.3900475585064*^9},
+ FontWeight->"Bold"]
+}, Open  ]],
+
+Cell[CellGroupData[{
+
+Cell[BoxData["$Packages"], "Input"],
+
+Cell[BoxData[
+ RowBox[{"{", 
+  RowBox[{"\<\"newContext`\"\>", ",", "\<\"ResourceLocator`\"\>", 
+   ",", "\<\"DocumentationSearch`\"\>", ",", "\<\"GetFEKernelInit`\"\>", 
+   ",", "\<\"JLink`\"\>", ",", "\<\"PacletManager`\"\>", 
+   ",", "\<\"WebServices`\"\>", ",", "\<\"System`\"\>", 
+   ",", "\<\"Global`\"\>"}], "}"}]], "Output",
+ CellChangeTimes->{3.5236217670988836`*^9}]
+}, Open  ]],
+
+Cell[TextData[{
+ "\nPackages are located on your hard disk with specification:   directory` \
+packagename`   where \"directory\" is the location of the file containing the \
+package \"packagename\".  For example, the package category:  \
+\"NumericalCalculus`\",  which contains the package: NLimit.m   is located on \
+my hard disk in directory: \"C:\\\\Program Files\\\\Wolfram \
+Research\\\\Mathematica\\\\7.0\\\\AddOns\\\\Packages\\\\NumericalCalculus\\\\\
+NLimit.m\". All directories can be entered directly into a ",
+ StyleBox["Mathematica",
+  FontSlant->"Italic"],
+ " Notebook by using the: \"Insert\" menu at the top of your screen followed \
+by: File Path.  However, standard add-on packages are located in known \
+sub-directories, and therefore ",
+ StyleBox["Mathematica",
+  FontSlant->"Italic"],
+ " can find them automatically (this is not the case for a non-standard \
+package).\n "
+}], "Text",
+ CellChangeTimes->{{3.3900476480214*^9, 3.3900476766284*^9}, 
+   3.460907123900201*^9, {3.4609071629317007`*^9, 3.460907229494627*^9}, {
+   3.460907260994828*^9, 3.460907267963623*^9}, 3.52362178974911*^9}]
+}, Closed]],
+
+Cell[CellGroupData[{
+
+Cell[TextData[StyleBox["  Example:", "Subtitle"]], "Section"],
+
+Cell["\<\
+As an example, consider \"NumericalCalculus`\".  
+The package that accomplishes this is: NumericalCalculus.m and is located in \
+subdirectory:  Packages.\
+\>", "Text",
+ CellChangeTimes->{
+  3.3900477283004*^9, {3.3900479493124*^9, 3.3900479582344*^9}, {
+   3.460906153737742*^9, 3.4609061919879866`*^9}, {3.460906837632744*^9, 
+   3.4609068499140725`*^9}}],
+
+Cell["\<\
+
+Load the package:\
+\>", "Text",
+ CellChangeTimes->{{3.3900479938274*^9, 3.3900480061394*^9}}],
+
+Cell[BoxData[
+ RowBox[{"Needs", "[", "\"\<NumericalCalculus`\>\"", "]"}]], "Input",
+ CellChangeTimes->{{3.4609057998604774`*^9, 3.4609058077355275`*^9}, 
+   3.4609061375813885`*^9, 3.460906536724568*^9}],
+
+Cell["\<\
+
+Check the current default context:\
+\>", "Text",
+ CellChangeTimes->{3.523630439185604*^9}],
+
+Cell[BoxData["$Context"], "Input"],
+
+Cell["\<\
+
+Check the current context path:\
+\>", "Text",
+ CellChangeTimes->{3.523630436305575*^9}],
+
+Cell[BoxData[
+ RowBox[{"  ", "$ContextPath"}]], "Input"],
+
+Cell["\<\
+
+Note that the desired package has been loaded (along with all necessary \
+additional supporting packages).
+
+We can now display the primary functions contained in this package.\
+\>", "Text",
+ CellChangeTimes->{3.3900480234554*^9, 3.5236304328655405`*^9}],
+
+Cell[BoxData[
+ RowBox[{"?", "NumericalCalculus`*"}]], "Input",
+ CellChangeTimes->{{3.3900477389894*^9, 3.3900477568834*^9}, 
+   3.3900477885134*^9, {3.3900479677014*^9, 3.3900479716404*^9}, 
+   3.460906599818722*^9}],
+
+Cell["\<\
+
+ In particular, we can get information on the specific function that we are \
+about to use:\
+\>", "Text",
+ CellChangeTimes->{{3.3900482699314003`*^9, 3.3900483033194*^9}, 
+   3.523630443995652*^9}],
+
+Cell[BoxData[
+ RowBox[{"?", "NLimit"}]], "Input",
+ CellChangeTimes->{3.3900482009454*^9, 3.4609066224282417`*^9}],
+
+Cell[BoxData[
+ RowBox[{"NLimit", "[", "\[IndentingNewLine]", "\[IndentingNewLine]", 
+  RowBox[{
+   FractionBox[
+    RowBox[{
+     RowBox[{"2", " ", 
+      SuperscriptBox["x", "3"]}], "+", 
+     RowBox[{"Sin", "[", "x", "]"}]}], 
+    RowBox[{
+     RowBox[{"5", " ", 
+      SuperscriptBox["x", "3"]}], "+", 
+     RowBox[{"Log", "[", "x", "]"}]}]], ",", "\[IndentingNewLine]", 
+   "\[IndentingNewLine]", 
+   RowBox[{"x", "\[Rule]", "\[Infinity]"}]}], "\[IndentingNewLine]", 
+  "\[IndentingNewLine]", "]"}]], "Input",
+ CellChangeTimes->{
+  3.3900482433014*^9, {3.3900483152854*^9, 3.3900483505144*^9}, {
+   3.460906671678557*^9, 3.460906679616108*^9}}]
+}, Closed]],
+
+Cell[CellGroupData[{
+
+Cell[TextData[{
+ StyleBox[" Exercises:", "Title"],
+ "  Advanced Lesson 16 "
+}], "Section"],
+
+Cell["\<\
+Your Name:
+
+Your Math Class:\
+\>", "Program",
+ CellChangeTimes->{{3.390368232619*^9, 3.3903682391219997`*^9}, {
+   3.390368866851*^9, 3.390368908736*^9}, {3.3903690435030003`*^9, 
+   3.390369082222*^9}, 3.3903880065649595`*^9},
+ FontSize->16,
+ FontWeight->"Bold"],
+
+Cell["\<\
+1:  Load all of the functions contained in: ComputerArithmetic`\
+\>", "Text",
+ CellChangeTimes->{{3.3900490099714003`*^9, 3.3900490122094*^9}, {
+  3.3900490930854*^9, 3.3900490952743998`*^9}}],
+
+Cell["\<\
+2:  Display all of the packages contained in the current context path.\
+\>", "Text"],
+
+Cell["\<\
+3:  Obtain information on all primary functions in:  ComputerArithmetic`.\
+\>", "Text",
+ CellChangeTimes->{{3.3900491393984003`*^9, 3.3900491529074*^9}}],
+
+Cell["\<\
+4:  Obtain what information there is on: MicroscopicErrorPlot[...].\
+\>", "Text",
+ CellChangeTimes->{{3.3900492140364*^9, 3.3900492177164*^9}}],
+
+Cell[TextData[{
+ StyleBox["Print",
+  FontSize->14,
+  FontWeight->"Bold"],
+ StyleBox[" your homework exercises",
+  FontSize->14],
+ ".\n",
+ StyleBox["But do ",
+  FontSize->14,
+  FontWeight->"Bold",
+  FontColor->RGBColor[1, 0, 0]],
+ StyleBox["NOT",
+  FontSize->18,
+  FontWeight->"Bold",
+  FontColor->RGBColor[1, 0, 0]],
+ StyleBox[" print the above lesson along with the exercises!",
+  FontSize->14,
+  FontWeight->"Bold",
+  FontColor->RGBColor[1, 0, 0]]
+}], "Text",
+ CellChangeTimes->{{3.3903491193324003`*^9, 3.3903491706104*^9}, {
+   3.3903492171244*^9, 3.3903492363613997`*^9}, {3.3903493057854*^9, 
+   3.3903493616624002`*^9}, {3.390367829311*^9, 3.390368046703*^9}, {
+   3.390368151425*^9, 3.390368157087*^9}, {3.3903689909309998`*^9, 
+   3.390369020223*^9}, {3.390369115093*^9, 3.390369186012*^9}, {
+   3.3903692234300003`*^9, 3.390369566137*^9}, {3.390369653565*^9, 
+   3.390369672512*^9}, {3.390369704873*^9, 3.3903697467469997`*^9}, {
+   3.390369895852*^9, 3.390369997834*^9}, {3.390370474823*^9, 
+   3.390370498811*^9}, 3.3903705605439997`*^9, {3.390370625072*^9, 
+   3.390370690086*^9}, {3.390374898767*^9, 3.390374902177*^9}, {
+   3.390383169347*^9, 3.390383198519*^9}, 3.39038573018396*^9, {
+   3.3903876565289598`*^9, 3.3903876566309595`*^9}, {3.39038798227396*^9, 
+   3.3903879827329597`*^9}, {3.39038855499296*^9, 3.39038855570596*^9}, {
+   3.390425911413*^9, 3.390425911724*^9}, {3.3904275729119997`*^9, 
+   3.39042758298*^9}}]
+}, Closed]]
+}, Open  ]]
+},
+WindowSize->{980, 559},
+WindowMargins->{{2, Automatic}, {Automatic, 2}},
+ShowSelection->True,
+Magnification:>FEPrivate`If[
+  FEPrivate`Equal[FEPrivate`$VersionNumber, 6.], 1.5, 1.5 Inherited],
+FrontEndVersion->"8.0 for Microsoft Windows (64-bit) (February 23, 2011)",
+StyleDefinitions->FrontEnd`FileName[{"Creative"}, "PastelColor.nb", 
+  CharacterEncoding -> "WindowsANSI"]
+]
+(* End of Notebook Content *)
+
+(* Internal cache information *)
+(*CellTagsOutline
+CellTagsIndex->{}
+*)
+(*CellTagsIndex
+CellTagsIndex->{}
+*)
+(*NotebookFileOutline
+Notebook[{
+Cell[CellGroupData[{
+Cell[567, 22, 160, 5, 515, "Title"],
+Cell[CellGroupData[{
+Cell[752, 31, 178, 5, 105, "Section"],
+Cell[933, 38, 106, 2, 71, "InputOnly"],
+Cell[1042, 42, 2512, 52, 1185, "Text"]
+}, Closed]],
+Cell[CellGroupData[{
+Cell[3591, 99, 77, 0, 58, "Section"],
+Cell[3671, 101, 85, 2, 41, "Text"],
+Cell[CellGroupData[{
+Cell[3781, 107, 196, 5, 42, "Item"],
+Cell[3980, 114, 310, 7, 66, "Item"],
+Cell[4293, 123, 235, 5, 66, "Item"]
+}, Open  ]],
+Cell[CellGroupData[{
+Cell[4565, 133, 35, 0, 57, "Input"],
+Cell[4603, 135, 375, 7, 102, "Output"]
+}, Open  ]],
+Cell[4993, 145, 1111, 20, 240, "Text"]
+}, Closed]],
+Cell[CellGroupData[{
+Cell[6141, 170, 61, 0, 58, "Section"],
+Cell[6205, 172, 366, 8, 66, "Text"],
+Cell[6574, 182, 104, 4, 66, "Text"],
+Cell[6681, 188, 203, 3, 57, "Input"],
+Cell[6887, 193, 101, 4, 66, "Text"],
+Cell[6991, 199, 34, 0, 57, "Input"],
+Cell[7028, 201, 98, 4, 66, "Text"],
+Cell[7129, 207, 56, 1, 57, "Input"],
+Cell[7188, 210, 264, 7, 115, "Text"],
+Cell[7455, 219, 216, 4, 57, "Input"],
+Cell[7674, 225, 208, 6, 66, "Text"],
+Cell[7885, 233, 113, 2, 57, "Input"],
+Cell[8001, 237, 648, 17, 274, "Input"]
+}, Closed]],
+Cell[CellGroupData[{
+Cell[8686, 259, 90, 3, 87, "Section"],
+Cell[8779, 264, 273, 9, 121, "Program"],
+Cell[9055, 275, 202, 4, 41, "Text"],
+Cell[9260, 281, 94, 2, 41, "Text"],
+Cell[9357, 285, 163, 3, 41, "Text"],
+Cell[9523, 290, 153, 3, 41, "Text"],
+Cell[9679, 295, 1440, 34, 82, "Text"]
+}, Closed]]
+}, Open  ]]
+}
+]
+*)
+
+(* End of internal cache information *)

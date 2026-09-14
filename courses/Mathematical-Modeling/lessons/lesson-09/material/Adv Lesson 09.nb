@@ -1,0 +1,2073 @@
+(* Content-type: application/mathematica *)
+
+(*** Wolfram Notebook File ***)
+(* http://www.wolfram.com/nb *)
+
+(* CreatedBy='Mathematica 6.0' *)
+
+(*CacheID: 234*)
+(* Internal cache information:
+NotebookFileLineBreakTest
+NotebookFileLineBreakTest
+NotebookDataPosition[       145,          7]
+NotebookDataLength[     66115,       2064]
+NotebookOptionsPosition[     55704,       1787]
+NotebookOutlinePosition[     56243,       1806]
+CellTagsIndexPosition[     56200,       1803]
+WindowFrame->Normal*)
+
+(* Beginning of Notebook Content *)
+Notebook[{
+
+Cell[CellGroupData[{
+Cell[TextData[{
+ StyleBox["Mathematica",
+  FontSlant->"Italic"],
+ " \n",
+ "Advanced Lesson 9\n\nProperties of Functions\n\nDr. Dale R. Doty\n\
+University of Tulsa"
+}], "Title"],
+
+Cell[CellGroupData[{
+
+Cell[TextData[StyleBox[" Default Values:", "Subtitle"]], "Section"],
+
+Cell["\<\
+Many times you want to define a function of several arguments.  However, it \
+may be convenient to allow some of the arguments to take on default values if \
+they do not always need to be specified.
+
+The general notation for this is:    variable_: default
+
+and the function (with default value) is:           f[  ... ,variable_: \
+default, ...]:=\
+\>", "Text",
+ CellChangeTimes->{{3.389821868360656*^9, 3.3898218865956554`*^9}}],
+
+Cell[BoxData[
+ RowBox[{" ", 
+  RowBox[{"Remove", "[", "\"\<Global`*\>\"", " ", "]"}]}]], "InputOnly"],
+
+Cell["\<\
+Consider a function that generates a list of integers from a starting to a \
+stopping value (unless no starting value has been specified, in which case \
+the default starting value is 0).\
+\>", "Text"],
+
+Cell[BoxData[
+ RowBox[{
+  RowBox[{"f", "[", " ", 
+   RowBox[{
+    RowBox[{"start_:", " ", "0"}], ",", " ", "stop_"}], "]"}], ":=", " ", 
+  RowBox[{"Range", " ", "[", 
+   RowBox[{"start", ",", " ", "stop"}], "]"}]}]], "InputOnly"],
+
+Cell[BoxData[
+ RowBox[{"f", "[", 
+  RowBox[{"3", ",", "7"}], "]"}]], "Input"],
+
+Cell[BoxData[
+ RowBox[{"f", "[", "7", "]"}]], "Input"],
+
+Cell["\<\
+
+Consider an example of integration with an optional constant of integration \
+(where the default value for the optional constant is:  c):\
+\>", "Text",
+ CellChangeTimes->{3.523199996082512*^9}],
+
+Cell[BoxData[
+ RowBox[{"Clear", "[", " ", 
+  RowBox[{"newIntegrate", ",", "f", ",", "x", ",", "c"}], "]"}]], "InputOnly"],
+
+Cell[BoxData[
+ RowBox[{
+  RowBox[{"newIntegrate", "[", 
+   RowBox[{
+    RowBox[{"f_", "[", "x", "]"}], ",", 
+    RowBox[{"optionalConstant_:", "c"}]}], "]"}], ":=", "\[IndentingNewLine]",
+   "\n", "\t                    ", 
+  RowBox[{
+   RowBox[{"\[Integral]", 
+    RowBox[{
+     RowBox[{"f", "[", "x", "]"}], 
+     RowBox[{"\[DifferentialD]", "x"}]}]}], "+", " ", 
+   "optionalConstant"}]}]], "InputOnly",
+ CellChangeTimes->{3.389821946926656*^9}],
+
+Cell[BoxData[
+ RowBox[{"newIntegrate", "[", 
+  RowBox[{
+   RowBox[{"Tan", "[", "x", "]"}], ",", "9"}], "]"}]], "Input"],
+
+Cell[BoxData[
+ RowBox[{"newIntegrate", "[", 
+  RowBox[{"Tan", "[", "x", "]"}], "]"}]], "Input"],
+
+Cell[BoxData[
+ RowBox[{"c", "=", "1234"}]], "Input"],
+
+Cell[BoxData[
+ RowBox[{"newIntegrate", "[", 
+  RowBox[{"Tan", "[", " ", "x", "]"}], "]"}]], "Input"],
+
+Cell["\<\
+
+Note that I used the specific symbol \"x\" in the definition of the function \
+f[x]  (rather than x_) to ensure that the integral would be with respect to \
+the symbol  \"x\" only.  Recall that this is an extremely dangerous procedure \
+to use in a definition (if x has been previously assigned a value).\
+\>", "Text",
+ CellChangeTimes->{{3.3898220112846556`*^9, 3.3898220260866556`*^9}, 
+   3.523200022832512*^9}],
+
+Cell[BoxData[
+ RowBox[{"newIntegrate", "[", 
+  RowBox[{"Tan", "[", 
+   RowBox[{"2", " ", "x"}], "]"}], "]"}]], "Input"],
+
+Cell["\<\
+
+Next, examine what happens when we change the location of the default \
+argument as well as the number of arguments that have defaults.\
+\>", "Text",
+ CellChangeTimes->{3.5232000430385113`*^9}],
+
+Cell[BoxData[
+ RowBox[{" ", 
+  RowBox[{"Clear", " ", "[", 
+   RowBox[{"f", ",", "g", ",", "h", ",", "x", ",", "y", ",", "z", ",", "c"}], 
+   "]"}]}]], "InputOnly"],
+
+Cell[BoxData[
+ RowBox[{
+  RowBox[{"f", "[", 
+   RowBox[{
+    RowBox[{"x_:", "333"}], ",", "y_", ",", "z_"}], "]"}], ":=", 
+  RowBox[{"{", 
+   RowBox[{"x", ",", "y", ",", "z"}], "}"}]}]], "InputOnly",
+ CellChangeTimes->{{3.389822080912656*^9, 3.3898220814076557`*^9}, {
+  3.389822153839656*^9, 3.389822154332656*^9}}],
+
+Cell[BoxData[
+ RowBox[{"f", "[", 
+  RowBox[{"1", ",", "2", ",", "3"}], "]"}]], "Input"],
+
+Cell[BoxData[
+ RowBox[{"f", "[", 
+  RowBox[{"2", ",", "3"}], "]"}]], "Input"],
+
+Cell["\<\
+\[LineSeparator]Move the default argument to the second position.\
+\>", "Text",
+ CellChangeTimes->{3.389822105372656*^9}],
+
+Cell[BoxData[
+ RowBox[{" ", 
+  RowBox[{"Clear", " ", "[", 
+   RowBox[{"f", ",", "g", ",", "h", ",", "x", ",", "y", ",", "z", ",", "c"}], 
+   "]"}]}]], "InputOnly"],
+
+Cell[BoxData[
+ RowBox[{
+  RowBox[{"f", "[", 
+   RowBox[{"x_", ",", 
+    RowBox[{"y_:", "555"}], ",", "z_"}], "]"}], ":=", 
+  RowBox[{"{", 
+   RowBox[{"x", ",", "y", ",", "z"}], "}"}]}]], "InputOnly",
+ CellChangeTimes->{{3.3898221280586557`*^9, 3.3898221285766554`*^9}}],
+
+Cell[BoxData[
+ RowBox[{"f", "[", 
+  RowBox[{"1", ",", "2", ",", "3"}], "]"}]], "Input"],
+
+Cell[BoxData[
+ RowBox[{"f", "[", 
+  RowBox[{"1", ",", "3"}], "]"}]], "Input"],
+
+Cell["\<\
+
+Create two default arguments.  Note that this will create an ambiguity if we \
+only assigned values to two out of the three arguments.\
+\>", "Text",
+ CellChangeTimes->{3.5232000669255114`*^9}],
+
+Cell[BoxData[
+ RowBox[{" ", 
+  RowBox[{"Clear", " ", "[", 
+   RowBox[{"f", ",", "g", ",", "h", ",", "x", ",", "y", ",", "z", ",", "c"}], 
+   "]"}]}]], "InputOnly"],
+
+Cell[BoxData[
+ RowBox[{
+  RowBox[{"f", "[", 
+   RowBox[{
+    RowBox[{"x_:", "333"}], ",", 
+    RowBox[{"y_:", "444"}], ",", "z_"}], "]"}], ":=", 
+  RowBox[{"{", 
+   RowBox[{"x", ",", "y", ",", "z"}], "}"}]}]], "InputOnly",
+ CellChangeTimes->{{3.3898221667896557`*^9, 3.389822174030656*^9}}],
+
+Cell[BoxData[
+ RowBox[{"f", "[", 
+  RowBox[{"1", ",", "2", ",", "3"}], "]"}]], "Input"],
+
+Cell[BoxData[
+ RowBox[{"f", "[", 
+  RowBox[{"1", ",", "3"}], "]"}]], "Input"],
+
+Cell[TextData[{
+ "\nNote that ",
+ StyleBox["Mathematica",
+  FontSlant->"Italic"],
+ " assumes that the last default (i.e. the second position) is the missing \
+value.\n\nHowever, if two values are missing, then there is no ambiguity."
+}], "Text",
+ CellChangeTimes->{3.523200082589512*^9}],
+
+Cell[BoxData[
+ RowBox[{"f", "[", "3", "]"}]], "Input"]
+}, Closed]],
+
+Cell[CellGroupData[{
+
+Cell[TextData[StyleBox[" Order Of Evaluation Of Assignments:", "Subtitle"]], \
+"Section"],
+
+Cell[TextData[{
+ "The above examples illustrate that it is possible to give a single symbol \
+(function) several different delayed assignments.  The question is, in \
+exactly what order will ",
+ StyleBox["Mathematica",
+  FontSlant->"Italic"],
+ " attempt to perform the assignment.  In general, ",
+ StyleBox["Mathematica",
+  FontSlant->"Italic"],
+ " attempts to order the assignments from more specific to less specific.  \
+For example, f[x_ Integer]:= ...  is more specific than  f[x_]:= ... .  \
+However,  f[x_ Integer]:= ...   and  f[x_  Real]:= ...   are equally specific \
+(at least to ",
+ StyleBox["Mathematica",
+  FontSlant->"Italic"],
+ ") and the order of evaluation will depend upon the order in which you \
+entered the delayed assignments.  The exact order that ",
+ StyleBox["Mathematica",
+  FontSlant->"Italic"],
+ " has chosen can always be discovered with the ??f command."
+}], "Text"],
+
+Cell[BoxData[
+ RowBox[{" ", 
+  RowBox[{"Clear", " ", "[", 
+   RowBox[{"f", ",", "g", ",", "h", ",", "x", ",", "y", ",", "z"}], 
+   "]"}]}]], "InputOnly"],
+
+Cell[BoxData[
+ RowBox[{
+  RowBox[{"f", "[", "x_Integer", "]"}], ":=", 
+  RowBox[{"Sin", "[", "x", "]"}]}]], "InputOnly",
+ CellChangeTimes->{{3.3898223345616555`*^9, 3.3898223369166555`*^9}}],
+
+Cell[BoxData[
+ RowBox[{
+  RowBox[{"f", "[", 
+   RowBox[{"x_", "?", "EvenQ"}], "]"}], ":=", " ", 
+  "\"\<x is even\>\""}]], "InputOnly"],
+
+Cell["Observe:", "Text"],
+
+Cell["?f", "Program"],
+
+Cell["Global`f", "Program",
+ CellChangeTimes->{{3.390038868625*^9, 3.390038871428*^9}}],
+
+Cell["\<\
+f[x_Integer] := Sin[x]
+ 
+f[(x_)?EvenQ] := \"x is even\"\
+\>", "Program",
+ CellChangeTimes->{{3.3898224548236556`*^9, 3.3898224577386556`*^9}}],
+
+Cell[BoxData[
+ RowBox[{
+  RowBox[{"Table", "[", 
+   RowBox[{
+    RowBox[{"{", 
+     RowBox[{"i", ",", 
+      RowBox[{"f", "[", "i", "]"}]}], "}"}], ",", 
+    RowBox[{"{", 
+     RowBox[{"i", ",", "1", ",", "7"}], "}"}]}], "]"}], "//", 
+  "TableForm"}]], "Input",
+ CellChangeTimes->{{3.3898222761236553`*^9, 3.3898222971996555`*^9}}],
+
+Cell[TextData[{
+ "\nNote that every value of the argument was an integer and therefore the \
+value of the function was a Sin[i].  Thus, the delayed assignment as an even \
+integer was never used. \nHowever, \"we\" want to consider an \"even\" \
+integer to be more specific than just an integer.  Thus, if we assign it ",
+ StyleBox["first",
+  FontVariations->{"Underline"->True}],
+ ", then the application of the delayed assignments will be correct."
+}], "Text",
+ CellChangeTimes->{{3.3898223658836555`*^9, 3.389822415209656*^9}, 
+   3.5232001622165117`*^9}],
+
+Cell[BoxData[
+ RowBox[{" ", 
+  RowBox[{"Clear", " ", "[", 
+   RowBox[{"f", ",", "g", ",", "h", ",", "x", ",", "y", ",", "z"}], 
+   "]"}]}]], "InputOnly"],
+
+Cell[BoxData[
+ RowBox[{
+  RowBox[{"f", "[", 
+   RowBox[{"x_", "?", "EvenQ"}], "]"}], ":=", " ", 
+  "\"\<x is even\>\""}]], "InputOnly"],
+
+Cell[BoxData[
+ RowBox[{
+  RowBox[{"f", "[", "x_Integer", "]"}], ":=", 
+  RowBox[{"Sin", "[", "x", "]"}]}]], "InputOnly",
+ CellChangeTimes->{{3.3898224320126553`*^9, 3.3898224371826553`*^9}}],
+
+Cell["Observe:", "Text"],
+
+Cell["?? f", "Program"],
+
+Cell["Global`f", "Program",
+ CellChangeTimes->{{3.390038876666*^9, 3.390038878968*^9}}],
+
+Cell["\<\
+f[(x_)?EvenQ] := \"x is even\"
+ 
+f[x_Integer] := Sin[x]\
+\>", "Program",
+ CellChangeTimes->{{3.3898224916946554`*^9, 3.3898224947116556`*^9}}],
+
+Cell[BoxData[
+ RowBox[{
+  RowBox[{"Table", "[", 
+   RowBox[{
+    RowBox[{"{", 
+     RowBox[{"i", ",", 
+      RowBox[{"f", "[", "i", "]"}]}], "}"}], ",", 
+    RowBox[{"{", 
+     RowBox[{"i", ",", "1", ",", "7"}], "}"}]}], "]"}], "//", 
+  "TableForm"}]], "Input"],
+
+Cell[TextData[{
+ "\nAn \"atomic\"  (i.e. number etc.) value is more specific than any other \
+type, therefore ",
+ StyleBox["Mathematica",
+  FontSlant->"Italic"],
+ " will ",
+ StyleBox["always",
+  FontVariations->{"Underline"->True}],
+ " place it first."
+}], "Text",
+ CellChangeTimes->{{3.3898225347046556`*^9, 3.3898225449476557`*^9}, 
+   3.5232001851755114`*^9}],
+
+Cell[BoxData[
+ RowBox[{" ", 
+  RowBox[{"Clear", " ", "[", 
+   RowBox[{"f", ",", "g", ",", "h", ",", "x", ",", "y", ",", "z"}], 
+   "]"}]}]], "InputOnly"],
+
+Cell[BoxData[
+ RowBox[{
+  RowBox[{"f", "[", "x_", "]"}], ":=", 
+  "\"\< x is arbitrary\>\""}]], "InputOnly"],
+
+Cell[BoxData[
+ RowBox[{
+  RowBox[{"f", "[", 
+   RowBox[{"x_", "?", "EvenQ"}], "]"}], ":=", 
+  "\"\< x is even\>\""}]], "InputOnly"],
+
+Cell[BoxData[
+ RowBox[{
+  RowBox[{"f", "[", "4", "]"}], ":=", 
+  "\"\< x = 4   (most specific)\>\""}]], "InputOnly"],
+
+Cell["Observe:", "Text"],
+
+Cell["?? f", "Program"],
+
+Cell["Global`f", "Program",
+ CellChangeTimes->{{3.390038966435*^9, 3.390038968995*^9}}],
+
+Cell[TextData[Cell[BoxData[GridBox[{
+   {
+    RowBox[{
+     RowBox[{"f", "[", "4", "]"}], ":=", "\"\< x = 4   (most specific)\>\""}]},
+   {" "},
+   {
+    RowBox[{
+     RowBox[{"f", "[", 
+      RowBox[{"x_", "?", "EvenQ"}], "]"}], ":=", "\"\< x is even\>\""}]},
+   {" "},
+   {
+    RowBox[{
+     RowBox[{"f", "[", "x_", "]"}], ":=", "\"\< x is arbitrary\>\""}]}
+  },
+  BaselinePosition->{Baseline, {1, 1}},
+  GridBoxAlignment->{
+   "Columns" -> {{Left}}, "ColumnsIndexed" -> {}, "Rows" -> {{Baseline}}, 
+    "RowsIndexed" -> {}},
+  GridBoxItemSize->{"Columns" -> {{
+       Scaled[0.999]}}, "ColumnsIndexed" -> {}, "Rows" -> {{1.}}, 
+    "RowsIndexed" -> {}}]],
+ CellChangeTimes->{3.3900389146280003`*^9}]], "Program",
+ CellChangeTimes->{3.390038935365*^9}],
+
+Cell[BoxData[
+ RowBox[{
+  RowBox[{"Table", "[", 
+   RowBox[{
+    RowBox[{"{", 
+     RowBox[{"i", ",", 
+      RowBox[{"f", "[", "i", "]"}]}], "}"}], ",", 
+    RowBox[{"{", 
+     RowBox[{"i", ",", "1", ",", "7"}], "}"}]}], "]"}], "//", 
+  "TableForm"}]], "Input"],
+
+Cell["\<\
+
+Observe that the order of assignment has been reversed from how we entered it.\
+\>", "Text",
+ CellChangeTimes->{3.523200213188512*^9}],
+
+Cell[TextData[{
+ "Finally, observe that even when we use the \"Which\" command that the order \
+in which the assignments are listed can be important (",
+ StyleBox["Mathematica",
+  FontSlant->"Italic"],
+ " evaluates the order EXACTLY as specified in the Which command ALWAYS)."
+}], "Text",
+ CellChangeTimes->{{3.3898226094066553`*^9, 3.3898226176966553`*^9}, {
+  3.5232002382275114`*^9, 3.5232002436505117`*^9}}],
+
+Cell[BoxData[
+ RowBox[{" ", 
+  RowBox[{"Clear", " ", "[", 
+   RowBox[{"f", ",", "g", ",", "h", ",", "x", ",", "y", ",", "z"}], 
+   "]"}]}]], "InputOnly"],
+
+Cell[BoxData[
+ RowBox[{
+  RowBox[{"f", "[", "x_", "]"}], ":=", "\[IndentingNewLine]", 
+  "\[IndentingNewLine]", 
+  RowBox[{"Which", "[", "\[IndentingNewLine]", "\[IndentingNewLine]", 
+   RowBox[{
+    RowBox[{"IntegerQ", "[", "x", "]"}], ",", "\"\< x is arbitrary\>\"", ",", 
+    "\[IndentingNewLine]", 
+    RowBox[{"EvenQ", "[", "x", "]"}], ",", "\"\< x is even\>\"", ",", 
+    "\[IndentingNewLine]", 
+    RowBox[{"x", "\[Equal]", "4"}], ",", "\"\< x = 4   (most specific)\>\"", 
+    ",", "\[IndentingNewLine]", "True", ",", "\"\< no value assigned\>\""}], 
+   "\[IndentingNewLine]", "\[IndentingNewLine]", "]"}]}]], "InputOnly",
+ CellChangeTimes->{{3.3898226432266555`*^9, 3.3898226706976557`*^9}}],
+
+Cell["Observe:", "Text"],
+
+Cell["?? f", "Program"],
+
+Cell["Global`f", "Program",
+ CellChangeTimes->{{3.390039006869*^9, 3.390039009705*^9}}],
+
+Cell["\<\
+f[x_] := Which[IntegerQ[x], \" x is arbitrary\", EvenQ[x], \" x is even\", x \
+== 4, \" x = 4   (most specific)\", True, \" no value assigned\"]\
+\>", "Program",
+ CellChangeTimes->{{3.390038985186*^9, 3.390038986251*^9}}],
+
+Cell[BoxData[
+ RowBox[{
+  RowBox[{"Table", "[", 
+   RowBox[{
+    RowBox[{"{", 
+     RowBox[{"i", ",", 
+      RowBox[{"f", "[", "i", "]"}]}], "}"}], ",", 
+    RowBox[{"{", 
+     RowBox[{"i", ",", "1", ",", "7"}], "}"}]}], "]"}], "//", 
+  "TableForm"}]], "Input"],
+
+Cell["\<\
+
+Reverse the order to be most specific to least specific.\
+\>", "Text",
+ CellChangeTimes->{3.5232002588975115`*^9}],
+
+Cell[BoxData[
+ RowBox[{" ", 
+  RowBox[{"Clear", " ", "[", 
+   RowBox[{"f", ",", "g", ",", "h", ",", "x", ",", "y", ",", "z"}], 
+   "]"}]}]], "InputOnly"],
+
+Cell[BoxData[
+ RowBox[{
+  RowBox[{"f", "[", "x_", "]"}], ":=", "\[IndentingNewLine]", 
+  "\[IndentingNewLine]", 
+  RowBox[{"Which", "[", "\[IndentingNewLine]", "\[IndentingNewLine]", 
+   RowBox[{
+    RowBox[{"x", "\[Equal]", "4"}], ",", "\"\< x = 4   (most specific)\>\"", 
+    ",", "\[IndentingNewLine]", 
+    RowBox[{"EvenQ", "[", "x", "]"}], ",", "\"\< x is even\>\"", ",", 
+    "\[IndentingNewLine]", 
+    RowBox[{"IntegerQ", "[", "x", "]"}], ",", "\"\< x is arbitrary\>\"", ",", 
+    "\[IndentingNewLine]", "True", ",", "\"\< no value assigned\>\""}], 
+   "\[IndentingNewLine]", "\[IndentingNewLine]", "]"}]}]], "InputOnly",
+ CellChangeTimes->{{3.389822768221656*^9, 3.3898227925936556`*^9}}],
+
+Cell["Observe:", "Text"],
+
+Cell["?? f", "Program"],
+
+Cell["Global`f", "Program",
+ CellChangeTimes->{{3.390039022329*^9, 3.3900390253199997`*^9}}],
+
+Cell["\<\
+f[x_] := Which[x == 4, \" x = 4   (most specific)\", EvenQ[x], \" x is \
+even\", IntegerQ[x], \" x is arbitrary\", True, \" no value assigned\"]]\
+\>", "Program",
+ CellChangeTimes->{{3.390039029045*^9, 3.390039032223*^9}}],
+
+Cell[BoxData[
+ RowBox[{
+  RowBox[{"Table", "[", 
+   RowBox[{
+    RowBox[{"{", 
+     RowBox[{"i", ",", 
+      RowBox[{"f", "[", "i", "]"}]}], "}"}], ",", 
+    RowBox[{"{", 
+     RowBox[{"i", ",", "1", ",", "7"}], "}"}]}], "]"}], "//", 
+  "TableForm"}]], "Input"],
+
+Cell["\<\
+
+The following illustrates why it is sometimes handy to have a \"trap\" to \
+ensure that an assignment has been made when all other conditions in the \
+Which command fail to yield True.\
+\>", "Text",
+ CellChangeTimes->{3.5232002660985117`*^9}],
+
+Cell[BoxData[
+ RowBox[{"f", "[", 
+  RowBox[{"3", "+", 
+   RowBox[{"4", "\[ImaginaryI]"}]}], "]"}]], "Input"]
+}, Closed]],
+
+Cell[CellGroupData[{
+
+Cell[TextData[StyleBox[" Tagging Functional Arguments In Assignments:", \
+"Subtitle"]], "Section"],
+
+Cell[TextData[{
+ "Sometimes it is desirable to assign an expression to a different expression \
+(sometimes this can be accomplished with replacement rules).  However, \
+sometimes it is more desirable to use delayed assignment rather than \
+replacement rules, especially if the assignment is to be used over again in \
+the future.\n\nAs an example, consider the case where you might want to take \
+a separated linear expression involving a linear operator (like the \
+derivative, integral or Laplace transform) and merge all expressions inside \
+that linear operator.\n\n\t",
+ Cell[BoxData[
+  FormBox[
+   RowBox[{
+    RowBox[{"a", "*", 
+     RowBox[{"L", "[", "x", "]"}]}], " ", "+", " ", 
+    RowBox[{"b", "*", 
+     RowBox[{
+      RowBox[{"L", "[", "y", "]"}], " ", "\[DoubleLongRightArrow]", " ", 
+      RowBox[{"L", "[", 
+       RowBox[{
+        RowBox[{"a", "*", "x"}], " ", "+", " ", 
+        RowBox[{"b", "*", "y"}]}], "]"}]}]}]}], TraditionalForm]]],
+ "         (In this direction)\n\t\nHow do we do this?"
+}], "Text",
+ CellChangeTimes->{{3.3898229147856555`*^9, 3.3898229590076556`*^9}, {
+  3.3898229985176554`*^9, 3.3898230222566557`*^9}}],
+
+Cell[BoxData[
+ RowBox[{" ", 
+  RowBox[{"Clear", " ", "[", 
+   RowBox[{
+   "L", ",", "f", ",", "g", ",", "h", ",", "x", ",", "y", ",", "z", ",", "a", 
+    ",", "b"}], "]"}]}]], "InputOnly"],
+
+Cell[TextData[{
+ "We might just try to make the assignment directly:\n\n\t",
+ Cell[BoxData[
+  FormBox[
+   RowBox[{
+    RowBox[{"a", "*", 
+     RowBox[{"L", "[", "x", "]"}]}], " ", "+", " ", 
+    RowBox[{"b", "*", 
+     RowBox[{
+      RowBox[{"L", "[", "y", "]"}], " ", "\[DoubleLongRightArrow]", " ", 
+      RowBox[{"L", "[", 
+       RowBox[{
+        RowBox[{"a", "*", "x"}], " ", "+", " ", 
+        RowBox[{"b", "*", "y"}]}], "]"}]}]}]}], TraditionalForm]]],
+ "  \n\nthat generates the following error message:"
+}], "Text",
+ CellChangeTimes->{{3.3898230566256557`*^9, 3.3898231054866557`*^9}}],
+
+Cell["a*L[x_] + b*L[y_] := L[a*x + b*y]   ", "Program"],
+
+Cell["\<\
+SetDelayed::write : Tag Plus in a L[x_] + b L[y_] is Protected.\
+\>", "Program",
+ CellChangeTimes->{{3.3900391193599997`*^9, 3.39003914405*^9}, {
+  3.390039182176*^9, 3.390039185454*^9}}],
+
+Cell["$Failed", "Program"],
+
+Cell["What is going on here?", "Text"],
+
+Cell[BoxData[
+ RowBox[{"  ", 
+  RowBox[{"TreeForm", " ", "[", "   ", 
+   RowBox[{"Hold", " ", "[", 
+    RowBox[{
+     RowBox[{
+      RowBox[{"a", "*", 
+       RowBox[{"L", "[", "x_", "]"}]}], " ", "+", " ", 
+      RowBox[{"b", "*", 
+       RowBox[{"L", "[", "y_", "]"}]}]}], " ", ":=", " ", 
+     RowBox[{"L", "[", 
+      RowBox[{
+       RowBox[{"a", "*", "x"}], " ", "+", " ", 
+       RowBox[{"b", "*", "y"}]}], "]"}]}], "]"}], "]"}]}]], "Input"],
+
+Cell["\<\
+
+From the TreeForm, we see that the delayed assignment (i.e. SetDelayed) is \
+trying to assign \[OpenCurlyDoubleQuote]L\[CloseCurlyDoubleQuote] to \
+\[OpenCurlyDoubleQuote]Plus\[CloseCurlyDoubleQuote]:\
+\>", "Text",
+ CellChangeTimes->{{3.3898231447446556`*^9, 3.389823223917656*^9}, {
+  3.523200347372512*^9, 3.5232003674675117`*^9}}],
+
+Cell[BoxData[
+ RowBox[{" ", 
+  RowBox[{"Head", "[", 
+   RowBox[{
+    RowBox[{"a", "*", 
+     RowBox[{"L", "[", "x_", "]"}]}], " ", "+", " ", 
+    RowBox[{"b", "*", 
+     RowBox[{"L", "[", "y_", "]"}]}]}], "]"}]}]], "Input"],
+
+Cell[BoxData[
+ RowBox[{" ", 
+  RowBox[{"Attributes", " ", "[", " ", "Plus", "]"}]}]], "Input"],
+
+Cell["\<\
+We are attempting to make a new assignment to (i.e. modify) the \"Plus\" \
+command which has been given the attribute \"Protected\".\
+\>", "Text"],
+
+Cell["\<\
+Protected is an attribute which prevents any values associated with a symbol \
+from being modified.\
+\>", "Item",
+ CellChangeTimes->{{3.390038572281*^9, 3.390038575216*^9}},
+ FontWeight->"Bold"],
+
+Cell["\<\
+However if we want this to work, the delayed assignment must be made to some \
+symbol. This assignment is usually the head of the outermost function.  \
+However, in this case the head \"Plus\" is \"Protected\", and therefore it \
+would be more natural to tag this delayed assignment to one of the function's \
+internal arguments.  In this case, the only internal argument is the linear \
+operator \"L\", which is a user defined function and has not been protected.\
+\>", "Text",
+ CellChangeTimes->{{3.3898232575986557`*^9, 3.3898233101536555`*^9}}],
+
+Cell["\<\
+f /: lhs = rhs assigns rhs to be the value of lhs, and associates the \
+assignment with the symbol f.\
+\>", "Item",
+ CellChangeTimes->{{3.3900385911099997`*^9, 3.3900385981879997`*^9}},
+ FontWeight->"Bold"],
+
+Cell["Notation:     f /:   lhs = rhs", "Text"],
+
+Cell[BoxData[
+ RowBox[{" ", 
+  RowBox[{"Clear", " ", "[", 
+   RowBox[{
+   "L", ",", "f", ",", "g", ",", "h", ",", "x", ",", "y", ",", "z", ",", "a", 
+    ",", "b"}], "]"}]}]], "InputOnly"],
+
+Cell[BoxData[
+ RowBox[{"L", "/:", "   ", 
+  RowBox[{
+   RowBox[{"L", "[", "x_", "]"}], " ", "+", " ", 
+   RowBox[{"L", "[", "y_", "]"}]}], " ", ":=", " ", 
+  RowBox[{"L", "[", 
+   RowBox[{"x", " ", "+", " ", "y"}], "]"}], "   "}]], "InputOnly"],
+
+Cell[BoxData[
+ RowBox[{"L", "/:", "  ", 
+  RowBox[{
+   RowBox[{"(", 
+    RowBox[{"a_", "?", "NumberQ"}], ")"}], "*", 
+   RowBox[{"L", "[", "x_", "]"}]}], " ", ":=", " ", 
+  RowBox[{"L", "[", 
+   RowBox[{"a", "*", "x"}], " ", "]"}], "   "}]], "InputOnly"],
+
+Cell["\<\
+Observe that the assignments have been made to \"L\" and not to the \
+\[OpenCurlyDoubleQuote]Plus\[CloseCurlyDoubleQuote] command:\
+\>", "Text",
+ CellChangeTimes->{{3.523200635292512*^9, 3.5232006369555116`*^9}}],
+
+Cell["?? L", "Program"],
+
+Cell["Global`L", "Program",
+ CellChangeTimes->{{3.390039201102*^9, 3.390039204672*^9}}],
+
+Cell["\<\
+L[x_] + L[y_] ^:= L[x + y]
+ 
+L[x_]*(a_)?NumberQ ^:= L[a*x]\
+\>", "Program",
+ CellChangeTimes->{{3.3900391941610003`*^9, 3.390039197852*^9}}],
+
+Cell[BoxData[
+ RowBox[{
+  RowBox[{"L", "[", "X1", "]"}], " ", "+", " ", 
+  RowBox[{"L", "[", "X2", "]"}]}]], "Input"],
+
+Cell[BoxData[
+ RowBox[{"4", "*", 
+  RowBox[{"L", "[", 
+   RowBox[{"17", "*", "X4"}], "]"}]}]], "Input"],
+
+Cell[BoxData[
+ RowBox[{
+  RowBox[{"L", "[", "X1", "]"}], " ", "+", " ", 
+  RowBox[{"2", "*", 
+   RowBox[{"L", "[", "X2", "]"}]}], "+", 
+  RowBox[{"3", "*", 
+   RowBox[{"L", "[", "X3", "]"}]}], "+", 
+  RowBox[{"4", "*", 
+   RowBox[{"L", "[", 
+    RowBox[{"17", "*", "X4"}], "]"}]}]}]], "Input"],
+
+Cell[TextData[{
+ "\nBecause most ",
+ StyleBox["Mathematica",
+  FontSlant->"Italic"],
+ " functions have Attribute \"Protected\", they can not be augmented easily \
+to include our new assignment (although removing \"Protected\" for \"Plus\" \
+can be done, it is inefficient and may possibly break this function).  Thus, \
+augmenting the assigned values to a user defined function \"f\" is usually \
+the only possible recourse.  Remember, this assignment rule is specifically \
+for the symbol \"f\", and the assignment will not work if the symbol \"f\" is \
+reassigned to a new value. However, this augmented assignment to the function \
+\"f\" can be used at anytime in the future.\n\nNote that the same result can \
+be accomplished with delayed replacement rules (however it won't occur \
+automatically whenever the expression  ",
+ Cell[BoxData[
+  StyleBox[
+   RowBox[{
+    RowBox[{"a", "*", 
+     RowBox[{"L", "[", "x_", "]"}]}], " ", "+", " ", 
+    RowBox[{"b", "*", 
+     RowBox[{"L", "[", "y_", "]"}]}]}],
+   FontWeight->"Bold"]]],
+ "  occurs in the future  ( i.e. it occurs only on the single line in which \
+the replacement rule is used))."
+}], "Text",
+ CellChangeTimes->{{3.3898233887386556`*^9, 3.3898234530086555`*^9}, {
+   3.3898235087856555`*^9, 3.3898235161686554`*^9}, 3.5232006461145115`*^9}],
+
+Cell[BoxData[
+ RowBox[{" ", 
+  RowBox[{"Clear", " ", "[", 
+   RowBox[{
+   "L", ",", "f", ",", "g", ",", "h", ",", "x", ",", "y", ",", "z", ",", "a", 
+    ",", "b"}], "]"}]}]], "InputOnly"],
+
+Cell[BoxData[
+ RowBox[{
+  RowBox[{
+   RowBox[{"a", "*", 
+    RowBox[{"L", "[", "x", "]"}]}], " ", "+", " ", 
+   RowBox[{"b", "*", 
+    RowBox[{"L", "[", "y", "]"}]}]}], " ", "/.", 
+  RowBox[{
+   RowBox[{
+    RowBox[{"a_", "*", 
+     RowBox[{"L", "[", "x_", "]"}]}], " ", "+", " ", 
+    RowBox[{"b_", "*", 
+     RowBox[{"L", "[", "y_", "]"}]}]}], " ", "\[RuleDelayed]", " ", 
+   RowBox[{"L", "[", 
+    RowBox[{
+     RowBox[{"a", "*", "x"}], " ", "+", " ", 
+     RowBox[{"b", "*", "y"}]}], "]"}], "   "}]}]], "Input",
+ CellChangeTimes->{{3.3898235329846554`*^9, 3.3898235369106555`*^9}}],
+
+Cell["\<\
+
+Observe that the replacement worked in the above line, but as expected fails \
+in the following line:\
+\>", "Text",
+ CellChangeTimes->{3.5232007068405113`*^9}],
+
+Cell[BoxData[
+ RowBox[{
+  RowBox[{"a", "*", 
+   RowBox[{"L", "[", "x", "]"}]}], " ", "+", " ", 
+  RowBox[{"b", "*", 
+   RowBox[{"L", "[", "y", "]"}], " "}]}]], "Input"],
+
+Cell["\<\
+
+Observe that the symbol:  L has no assignments:\
+\>", "Text",
+ CellChangeTimes->{3.5232007183755116`*^9}],
+
+Cell["?? L", "Program"],
+
+Cell["Global`L", "Program",
+ CellChangeTimes->{{3.390039219729*^9, 3.390039223258*^9}}],
+
+Cell["\<\
+Another example where it is desirable to use one of the arguments of a \
+function to assign the \"Delayed Assignments\" rather than the head of the \
+function follows.  In this example we want to show formulas, numbers and \
+properties corresponding to certain values of the functional arguments.  For \
+example, the perimeter of different objects have different formulas.  It \
+might be easier to assign the formula for the perimeter to the specific \
+object rather then make a list of all perimeter formulas and assign that list \
+to the perimeter function.  The advantage of tagging an argument is that it \
+simplifies the processed of adding more objects.\
+\>", "Text"],
+
+Cell[BoxData[
+ RowBox[{"Clear", " ", "[", 
+  RowBox[{
+  "perimeter", ",", " ", "area", ",", " ", "color", ",", " ", "circle", ",", 
+   " ", "square", ",", " ", "triangle"}], "]"}]], "InputOnly"],
+
+Cell[BoxData[
+ RowBox[{" ", 
+  RowBox[{"circle", " ", "/:", " ", 
+   RowBox[{"perimeter", " ", "[", 
+    RowBox[{"circle", " ", "[", "r_", "]"}], "]"}], ":=", 
+   RowBox[{"2", " ", "\[Pi]", " ", "r"}]}]}]], "InputOnly"],
+
+Cell[BoxData[
+ RowBox[{" ", 
+  RowBox[{"circle", " ", "/:", " ", 
+   RowBox[{"area", " ", "[", 
+    RowBox[{"circle", " ", "[", "r_", "]"}], "]"}], ":=", 
+   RowBox[{"\[Pi]", " ", 
+    SuperscriptBox["r", "2"]}]}]}]], "InputOnly"],
+
+Cell[BoxData[
+ RowBox[{" ", 
+  RowBox[{"circle", " ", "/:", " ", 
+   RowBox[{"color", " ", "[", 
+    RowBox[{"circle", " ", "[", "r_", "]"}], "]"}], ":=", " ", 
+   "\"\<Red\>\""}]}]], "InputOnly"],
+
+Cell[BoxData[
+ RowBox[{" ", 
+  RowBox[{"square", " ", "/:", "  ", 
+   RowBox[{"perimeter", " ", "[", " ", 
+    RowBox[{"square", " ", "[", "x_", "]"}], "]"}], ":=", 
+   RowBox[{"4", " ", "x"}]}]}]], "InputOnly"],
+
+Cell[BoxData[
+ RowBox[{" ", 
+  RowBox[{"square", " ", "/:", " ", 
+   RowBox[{"area", " ", "[", " ", 
+    RowBox[{"square", "[", "x_", "]"}], "]"}], ":=", 
+   SuperscriptBox["x", "2"]}]}]], "InputOnly"],
+
+Cell[BoxData[
+ RowBox[{" ", 
+  RowBox[{"square", " ", "/:", " ", 
+   RowBox[{"color", " ", "[", " ", 
+    RowBox[{"square", "[", "x_", "]"}], "]"}], ":=", " ", 
+   "\"\<Blue\>\""}]}]], "InputOnly"],
+
+Cell[BoxData[
+ RowBox[{" ", 
+  RowBox[{"triangle", " ", "/:", "  ", 
+   RowBox[{"area", " ", "[", " ", 
+    RowBox[{"triangle", "[", 
+     RowBox[{"b_", ",", "h_"}], "]"}], "]"}], ":=", 
+   RowBox[{
+    FractionBox["1", "2"], " ", "b", "*", "h"}]}]}]], "InputOnly"],
+
+Cell[BoxData[
+ RowBox[{"triangle", " ", "/:", "  ", 
+  RowBox[{"color", " ", "[", " ", 
+   RowBox[{"triangle", "[", 
+    RowBox[{"b_", ",", "h_"}], "]"}], "]"}], ":=", " ", 
+  "\"\<Green\>\""}]], "InputOnly"],
+
+Cell["Observe:", "Text"],
+
+Cell["\<\
+?? perimeter
+  Global`perimeter\
+\>", "Program",
+ GeneratedCell->False,
+ CellAutoOverwrite->False,
+ CellChangeTimes->{{3.390039245139*^9, 3.3900392493570004`*^9}}],
+
+Cell["\<\
+?? area
+  Global`area\
+\>", "Program",
+ GeneratedCell->False,
+ CellAutoOverwrite->False,
+ CellChangeTimes->{{3.390039253333*^9, 3.39003927876*^9}}],
+
+Cell["\<\
+?? color
+  Global`color\
+\>", "Program",
+ GeneratedCell->False,
+ CellAutoOverwrite->False,
+ CellChangeTimes->{{3.390039254501*^9, 3.3900392775290003`*^9}}],
+
+Cell["\<\
+?? circle
+   Global`circle
+   perimeter[circle[r_]] ^:= 2*Pi*r
+   area[circle[r_]] ^:= Pi*r^2
+   color[circle[r_]] ^:= \"Red\"\
+\>", "Program",
+ GeneratedCell->False,
+ CellAutoOverwrite->False,
+ CellChangeTimes->{{3.390039255649*^9, 3.3900392941359997`*^9}, 
+   3.39003934715*^9}],
+
+Cell["\<\
+?? square
+   Global`square
+   perimeter[square[x_]] ^:= 4*x
+   area[square[x_]] ^:= x^2
+   color[square[x_]] ^:= \"Blue\"\
+\>", "Program",
+ GeneratedCell->False,
+ CellAutoOverwrite->False,
+ CellChangeTimes->{{3.3900392588929996`*^9, 3.390039302676*^9}, 
+   3.390039343801*^9}],
+
+Cell["\<\
+?? triangle
+   Global`triangle
+   area[triangle[b_, h_]] ^:= 1/2*b*h
+   color[triangle[b_, h_]] ^:= \"Green\"\
+\>", "Program",
+ GeneratedCell->False,
+ CellAutoOverwrite->False,
+ CellChangeTimes->{{3.390039261295*^9, 3.390039267368*^9}, {3.39003930594*^9, 
+  3.390039308038*^9}}],
+
+Cell[BoxData[
+ RowBox[{"perimeter", " ", "[", 
+  RowBox[{"circle", " ", "[", "Radius", "]"}], "]"}]], "Input"],
+
+Cell[BoxData[
+ RowBox[{"perimeter", " ", "[", " ", 
+  RowBox[{"square", " ", "[", "Side", "]"}], "]"}]], "Input"],
+
+Cell[BoxData[
+ RowBox[{"area", " ", "[", 
+  RowBox[{"circle", " ", "[", "Radius", "]"}], "]"}]], "Input"],
+
+Cell[BoxData[
+ RowBox[{"area", " ", "[", " ", 
+  RowBox[{"square", "[", "Side", "]"}], "]"}]], "Input"],
+
+Cell[BoxData[
+ RowBox[{"area", " ", "[", " ", 
+  RowBox[{"triangle", "[", " ", 
+   RowBox[{"base", ",", " ", "height"}], "]"}], "]"}]], "Input"],
+
+Cell[BoxData[
+ RowBox[{"color", " ", "[", 
+  RowBox[{"circle", " ", "[", "6", "]"}], "]"}]], "Input"],
+
+Cell[BoxData[
+ RowBox[{" ", 
+  RowBox[{"color", " ", "[", " ", 
+   RowBox[{"square", "[", " ", "Side", "]"}], "]"}]}]], "Input"],
+
+Cell[BoxData[
+ RowBox[{"color", " ", "[", " ", 
+  RowBox[{"triangle", "[", 
+   RowBox[{"3", ",", "4"}], "]"}], "]"}]], "Input"],
+
+Cell["\<\
+
+As a final remark, there are some restrictions on tagging an argument of a \
+function for use as an assignment tag (e.g. the tagged argument can only be \
+nested one level deep). See the Mathematica references for more details.\
+\>", "Text",
+ CellChangeTimes->{3.523200796228512*^9}]
+}, Closed]],
+
+Cell[CellGroupData[{
+
+Cell[TextData[StyleBox[" Head Of A Function:", "Subtitle"]], "Section"],
+
+Cell[TextData[{
+ "As illustrated previously, every expression in ",
+ StyleBox["Mathematica",
+  FontSlant->"Italic"],
+ " has a head.  For \"atomic\" expressions, the head corresponds to its type."
+}], "Text"],
+
+Cell[BoxData[
+ RowBox[{"Head", "[", "3", "]"}]], "Input"],
+
+Cell[BoxData[
+ RowBox[{"Head", "[", "3.33", "]"}]], "Input"],
+
+Cell["\<\
+
+For non-atomic expressions, the head corresponds to the outermost function.\
+\>", "Text",
+ CellChangeTimes->{3.5232008297775116`*^9}],
+
+Cell[BoxData[
+ RowBox[{"  ", 
+  RowBox[{"Head", " ", "[", 
+   RowBox[{"a", "+", "b"}], "]"}]}]], "Input"],
+
+Cell[BoxData[
+ RowBox[{
+  RowBox[{"a", "+", "b"}], "//", "TreeForm"}]], "Input",
+ CellChangeTimes->{{3.3898237822166557`*^9, 3.3898237918216553`*^9}}],
+
+Cell[BoxData[
+ RowBox[{"Head", " ", "[", 
+  RowBox[{"Tan", "[", "x", "]"}], "]"}]], "Input"],
+
+Cell[BoxData[
+ RowBox[{
+  RowBox[{"Tan", "[", "x", "]"}], "//", "TreeForm"}]], "Input",
+ CellChangeTimes->{{3.3898238038746557`*^9, 3.3898238192566557`*^9}}],
+
+Cell[BoxData[
+ RowBox[{"Head", " ", "[", 
+  RowBox[{"Tan", "[", 
+   RowBox[{
+    SuperscriptBox["x", "2"], " ", "+", " ", "1"}], "]"}], "]"}]], "Input"],
+
+Cell[BoxData[
+ RowBox[{
+  RowBox[{"Tan", "[", 
+   RowBox[{
+    SuperscriptBox["x", "2"], " ", "+", " ", "1"}], "]"}], "//", 
+  "TreeForm"}]], "Input",
+ CellChangeTimes->{{3.389823839016656*^9, 3.3898238572206554`*^9}}]
+}, Closed]],
+
+Cell[CellGroupData[{
+
+Cell[TextData[StyleBox[" Attributes Of A Functions:", "Subtitle"]], "Section"],
+
+Cell[TextData[{
+ "As discussed earlier, the attributes that are assigned to a function \
+determine how it behaves within ",
+ StyleBox["Mathematica",
+  FontSlant->"Italic"],
+ ".  For example:"
+}], "Text",
+ CellChangeTimes->{{3.3898239174296556`*^9, 3.3898239232526555`*^9}}],
+
+Cell[BoxData[
+ RowBox[{" ", 
+  RowBox[{"Attributes", " ", "[", " ", "Plus", "]"}]}]], "Input"],
+
+Cell["\<\
+Flat is an attribute that can be assigned to a symbol f to indicate that all \
+expressions involving nested functions f should be flattened out. This \
+property is accounted for in pattern matching.\
+\>", "Item",
+ CellChangeTimes->{{3.390038652979*^9, 3.390038657153*^9}},
+ FontWeight->"Bold"],
+
+Cell[BoxData[
+ RowBox[{" ", 
+  RowBox[{"Clear", " ", "[", 
+   RowBox[{"f", ",", "a", ",", "b", ",", "c", ",", "d"}], 
+   "]"}]}]], "InputOnly"],
+
+Cell[BoxData[
+ RowBox[{"Plus", " ", "[", 
+  RowBox[{"a", ",", 
+   RowBox[{"Plus", " ", "[", 
+    RowBox[{"b", ",", " ", 
+     RowBox[{"Plus", " ", "[", 
+      RowBox[{"c", ",", "d"}], "]"}]}], "]"}]}], "]"}]], "Input"],
+
+Cell[BoxData[
+ RowBox[{
+  RowBox[{"Plus", " ", "[", 
+   RowBox[{"a", ",", 
+    RowBox[{"Plus", " ", "[", 
+     RowBox[{"b", ",", " ", 
+      RowBox[{"Plus", " ", "[", 
+       RowBox[{"c", ",", "d"}], "]"}]}], "]"}]}], "]"}], "//", 
+  "FullForm"}]], "Input",
+ CellChangeTimes->{{3.3898239762136555`*^9, 3.3898239812436557`*^9}}],
+
+Cell["\<\
+Listable is an attribute that can be assigned to a symbol f to indicate that \
+the function f should automatically be threaded over lists that appear as its \
+arguments.\
+\>", "Item",
+ CellChangeTimes->{{3.390038643408*^9, 3.39003864863*^9}},
+ FontWeight->"Bold"],
+
+Cell[BoxData[
+ RowBox[{" ", 
+  RowBox[{"Plus", " ", "[", 
+   RowBox[{
+    RowBox[{"{", 
+     RowBox[{"1", ",", "2", ",", "3"}], "}"}], ",", " ", 
+    RowBox[{"{", 
+     RowBox[{"a", ",", "b", ",", "c"}], "}"}]}], "]"}]}]], "Input"],
+
+Cell["\<\
+NumericFunction is an attribute that can be assigned to a symbol f to \
+indicate that f[arg1, arg2, ... ] should be considered a numeric quantity \
+whenever all the argi are numeric quantities.\
+\>", "Item",
+ CellChangeTimes->{{3.390038636342*^9, 3.390038639656*^9}},
+ FontWeight->"Bold"],
+
+Cell[BoxData[
+ RowBox[{"SetAttributes", "[", 
+  RowBox[{"f", ",", " ", "NumericFunction"}], "]"}]], "InputOnly"],
+
+Cell[BoxData[
+ RowBox[{"Attributes", "[", "f", "]"}]], "Input"],
+
+Cell[BoxData[
+ RowBox[{"NumericQ", "[", 
+  RowBox[{"f", "[", 
+   RowBox[{"a", ",", "b"}], "]"}], "]"}]], "Input"],
+
+Cell[BoxData[{
+ RowBox[{
+  RowBox[{"a", "=", "2"}], ";"}], "\n", 
+ RowBox[{
+  RowBox[{"b", "=", "3"}], ";"}], "\n", 
+ RowBox[{"NumericQ", "[", 
+  RowBox[{"f", "[", 
+   RowBox[{"a", ",", "b"}], "]"}], "]"}]}], "Input"],
+
+Cell["\<\
+OneIdentity is an attribute that can be assigned to a symbol f to indicate \
+that f[x], f[f[x]], etc. are all equivalent to x for the purpose of pattern \
+matching.\
+\>", "Item",
+ CellChangeTimes->{{3.390038707315*^9, 3.3900387104969997`*^9}},
+ FontWeight->"Bold"],
+
+Cell[BoxData[
+ RowBox[{" ", 
+  RowBox[{"Clear", " ", "[", 
+   RowBox[{"f", ",", "a", ",", "b", ",", "c", ",", "d"}], 
+   "]"}]}]], "InputOnly"],
+
+Cell[BoxData[
+ RowBox[{"Plus", "[", "a", "]"}]], "Input"],
+
+Cell[BoxData[
+ RowBox[{"+", "a"}]], "Input",
+ CellChangeTimes->{{3.3898240673666553`*^9, 3.3898240681996555`*^9}}],
+
+Cell[BoxData[
+ RowBox[{"Plus", " ", "[", 
+  RowBox[{"Plus", " ", "[", 
+   RowBox[{"Plus", " ", "[", "a", "]"}], "]"}], "]"}]], "Input"],
+
+Cell[BoxData[
+ RowBox[{"+", 
+  RowBox[{"(", 
+   RowBox[{"+", 
+    RowBox[{"(", 
+     RowBox[{"+", "a"}], ")"}]}], ")"}]}]], "Input",
+ CellChangeTimes->{{3.3898240749986553`*^9, 3.3898241080406556`*^9}}],
+
+Cell["\<\
+Orderless is an attribute that can be assigned to a symbol f to indicate that \
+the elements ei in expressions of the form f[e1, e2, ... ] should \
+automatically be sorted into canonical order. This property is accounted for \
+in pattern matching.\
+\>", "Item",
+ CellChangeTimes->{{3.39003869881*^9, 3.390038702675*^9}},
+ FontWeight->"Bold"],
+
+Cell[BoxData[
+ RowBox[{
+  RowBox[{"Plus", "[", 
+   RowBox[{"a", ",", "b"}], "]"}], "==", 
+  RowBox[{"Plus", "[", 
+   RowBox[{"b", ",", "a"}], "]"}]}]], "Input"],
+
+Cell[BoxData[
+ RowBox[{
+  RowBox[{"a", "+", "b", "+", "c", "+", "d", "+", "e"}], "==", 
+  RowBox[{"c", "+", "e", "+", "b", "+", "a", "+", "d"}]}]], "Input"],
+
+Cell["\<\
+Protected is an attribute which prevents any values associated with a symbol \
+from being modified.\
+\>", "Item",
+ CellChangeTimes->{{3.3900386928719997`*^9, 3.3900386961029997`*^9}},
+ FontWeight->"Bold"],
+
+Cell["\<\
+Plus[a_, b_] := \"Something New\"
+
+SetDelayed::write : \"Tag Plus in a_ + b_ is Protected.\"
+$Failed\
+\>", "Program",
+ GeneratedCell->False,
+ CellAutoOverwrite->False,
+ CellChangeTimes->{{3.390039407038*^9, 3.390039444317*^9}}],
+
+Cell["\<\
+a + b = 4
+
+Set::write : \"Tag Plus in a + b is Protected.\"
+4\
+\>", "Program",
+ GeneratedCell->False,
+ CellAutoOverwrite->False,
+ CellChangeTimes->{{3.3900394542279997`*^9, 3.390039486487*^9}}],
+
+Cell["\<\
+Finally, the other commonly used attributes include variations on \"Hold\".
+
+Hold specifies which arguments in a function are to be held in an unevaluated \
+state UNTIL the subsequent functional assignments are invoked. Arguments that \
+are not held are evaluated (i.e. replaced with any previously assigned \
+values) and they take on those fixed values throughout the evaluation of the \
+function.  The held arguments are not evaluated (i.e. are not replaced with \
+any previously assigned values) and are kept in symbolic form until \
+evaluation is forced later.\
+\>", "Text"],
+
+Cell[CellGroupData[{
+
+Cell["\<\
+HoldAll is an attribute which specifies that all arguments to a function are \
+to be maintained in an unevaluated form.\
+\>", "Item",
+ CellChangeTimes->{{3.39003873201*^9, 3.3900387414969997`*^9}},
+ FontWeight->"Bold"],
+
+Cell["\<\
+HoldFirst is an attribute which specifies that the first argument to a \
+function is to be maintained in an unevaluated form.\
+\>", "Item",
+ CellChangeTimes->{{3.390038735391*^9, 3.390038744153*^9}},
+ FontWeight->"Bold"],
+
+Cell["\<\
+HoldRest is an attribute which specifies that all but the first argument to a \
+function are to be maintained in an unevaluated form.\
+\>", "Item",
+ CellChangeTimes->{{3.390038736795*^9, 3.390038747458*^9}},
+ FontWeight->"Bold"]
+}, Open  ]],
+
+Cell[BoxData[
+ RowBox[{"ClearAll", "[", " ", "multiplication", "]"}]], "InputOnly"],
+
+Cell[BoxData[
+ RowBox[{
+  RowBox[{"a", "=", "2"}], ";", 
+  RowBox[{"b", "=", "3"}], ";"}]], "InputOnly"],
+
+Cell[BoxData[
+ RowBox[{" ", 
+  RowBox[{"multiplication", "[", 
+   RowBox[{"a", ",", "b"}], "]"}]}]], "Input"],
+
+Cell[BoxData[
+ RowBox[{" ", 
+  RowBox[{"Hold", " ", "[", 
+   RowBox[{"multiplication", "[", 
+    RowBox[{"a", ",", "b"}], "]"}], "]"}]}]], "Input"],
+
+Cell[BoxData[
+ RowBox[{" ", 
+  RowBox[{"Attributes", " ", "[", "multiplication", "]"}]}]], "Input"],
+
+Cell[BoxData[
+ RowBox[{"SetAttributes", "[", 
+  RowBox[{"multiplication", ",", "HoldFirst"}], "]"}]], "InputOnly"],
+
+Cell[BoxData[
+ RowBox[{"Attributes", " ", "[", "multiplication", "]"}]], "Input"],
+
+Cell["Observe:", "Text"],
+
+Cell["\<\
+?? multiplication
+  Global`multiplication
+  (InputForm[Definition[multiplication]])\
+\>", "Program",
+ GeneratedCell->False,
+ CellAutoOverwrite->False,
+ CellChangeTimes->{{3.3900395090950003`*^9, 3.3900395127939997`*^9}}],
+
+Cell[BoxData[{
+ RowBox[{
+  RowBox[{"a", "=", "2"}], ";"}], "\[IndentingNewLine]", 
+ RowBox[{
+  RowBox[{"b", "=", "3"}], ";"}]}], "Input",
+ CellChangeTimes->{3.3898242186256557`*^9}],
+
+Cell[BoxData[
+ RowBox[{"multiplication", "[", 
+  RowBox[{"a", ",", "b"}], "]"}]], "Input"],
+
+Cell[TextData[{
+ "\nNotice that the first argument \"a\" was ",
+ StyleBox["not",
+  FontVariations->{"Underline"->True}],
+ " evaluated (even though a has an assigned value)."
+}], "Text",
+ CellChangeTimes->{3.389824247169656*^9, 3.523201051476512*^9}],
+
+Cell["\<\
+Now introduce an assignment to the function's name (which will force the \
+subsequent evaluation of the arguments).\
+\>", "Text"],
+
+Cell[BoxData[
+ RowBox[{"  ", 
+  RowBox[{
+   RowBox[{"multiplication", "[", 
+    RowBox[{"a_", ",", "b_"}], "]"}], ":=", 
+   RowBox[{"a", "*", "b"}]}]}]], "InputOnly"],
+
+Cell["Observe:", "Text"],
+
+Cell["?? multiplication", "Program"],
+
+Cell["Global`multiplication", "Program",
+ CellChangeTimes->{{3.390039537234*^9, 3.390039540373*^9}}],
+
+Cell["\<\
+Attributes[multiplication] = {HoldFirst}
+ 
+multiplication[a_, b_] := a*b\
+\>", "Program",
+ CellChangeTimes->{{3.3900395316029997`*^9, 3.3900395335030003`*^9}}],
+
+Cell[BoxData[{
+ RowBox[{
+  RowBox[{"a", "=", "2"}], ";"}], "\[IndentingNewLine]", 
+ RowBox[{
+  RowBox[{"b", "=", "3"}], ";"}]}], "Input",
+ CellChangeTimes->{3.3898242656786556`*^9}],
+
+Cell[BoxData[
+ RowBox[{"multiplication", "[", 
+  RowBox[{"a", ",", "b"}], "]"}]], "Input"]
+}, Closed]],
+
+Cell[CellGroupData[{
+
+Cell[TextData[StyleBox[" Evaluation Of A Function:", "Subtitle"]], "Section"],
+
+Cell[TextData[{
+ "When ",
+ StyleBox["Mathematica",
+  FontSlant->"Italic"],
+ " invokes a function, the following procedure is used:\n\n\t  First, the \
+head of the function is evaluated along with its attributes.\n\n\t  Second, \
+if the function does NOT have an attribute of  HoldAll, HoldFirst or \
+HoldRest, then all of the arguments to the function are evaluated (i.e. ",
+ StyleBox["Mathematica",
+  FontSlant->"Italic"],
+ " searches for assignments to the individual arguments and makes the \
+replacement and any simplification is performed).  Then, the function is \
+evaluated (using the functional assignment) using the fixed evaluated values \
+of the arguments.\n\t   \n\t   However, if the function DOES have an \
+attribute of  HoldAll, HoldFirst or HoldRest, then the arguments that are not \
+\"Held\" are evaluated (i.e. replaced by any assigned values) and any \
+variables that are \"Held\" are not evaluated (i.e. not replaced by assigned \
+values). ",
+ StyleBox["Mathematica",
+  FontSlant->"Italic"],
+ " then begins to evaluate the function, keeping the \"Held\" variables \
+unevaluated and in symbolic form until evaluation is forced by an internal \
+use of these variables.\n\t   \n\t   \n\t    Recall a previous example:"
+}], "Text"],
+
+Cell[BoxData[
+ RowBox[{" ", 
+  RowBox[{"Attributes", " ", "[", "Table", "]"}]}]], "Input"],
+
+Cell[BoxData[
+ RowBox[{"Table", "[", "\[IndentingNewLine]", "\[IndentingNewLine]", 
+  RowBox[{
+   RowBox[{"RandomReal", "[", "]"}], ",", "\[IndentingNewLine]", 
+   "\[IndentingNewLine]", 
+   RowBox[{"{", 
+    RowBox[{"i", ",", "1", ",", "5"}], "}"}]}], "\[IndentingNewLine]", 
+  "\[IndentingNewLine]", "]"}]], "Input",
+ CellChangeTimes->{{3.398712201052762*^9, 3.398712224740262*^9}}],
+
+Cell[BoxData[
+ RowBox[{"Table", "[", "\[IndentingNewLine]", "\[IndentingNewLine]", 
+  RowBox[{
+   RowBox[{"Evaluate", "[", 
+    RowBox[{"RandomReal", "[", "]"}], "]"}], ",", "\[IndentingNewLine]", 
+   "\[IndentingNewLine]", 
+   RowBox[{"{", 
+    RowBox[{"i", ",", "1", ",", "5"}], "}"}]}], "\[IndentingNewLine]", 
+  "\[IndentingNewLine]", "]"}]], "Input",
+ CellChangeTimes->{{3.398712201052762*^9, 3.398712253271512*^9}}],
+
+Cell[TextData[{
+ "\nNotice that in the first case that RandomReal [ ] was \"held\" in an \
+unevaluated state to generate the table.  Only after the table had been \
+generated was the evaluation of RandomReal [ ] forced yielding five different \
+values.\n\n\t\t",
+ Cell[BoxData[
+  FormBox[
+   TagBox[
+    RowBox[{"Table", "[", 
+     RowBox[{
+      RowBox[{"RandomReal", "[", " ", "]"}], ",", 
+      RowBox[{"{", 
+       RowBox[{"i", ",", "1", ",", "5"}], "}"}]}], "]"}],
+    Function[BoxForm`e$, 
+     TableForm[BoxForm`e$]]], TraditionalForm]]],
+ "\n\t\t",
+ Cell[BoxData[
+  FormBox[
+   RowBox[{"{", 
+    RowBox[{
+     RowBox[{"RandomReal", "[", "]"}], ",", 
+     RowBox[{"RandomReal", "[", "]"}], ",", 
+     RowBox[{"RandomReal", "[", "]"}], ",", 
+     RowBox[{"RandomReal", "[", "]"}], ",", 
+     RowBox[{"RandomReal", "[", "]"}]}], "}"}], TraditionalForm]]],
+ "\n\t\t",
+ Cell[BoxData[
+  FormBox[
+   RowBox[{"{", 
+    RowBox[{
+    "0.7809374086951795`", ",", "0.5806440817890204`", ",", 
+     "0.3414981911709023`", ",", "0.980638479599871`", ",", 
+     "0.7642149574406976`"}], "}"}], TraditionalForm]]],
+ "\n\t\t\nNotice that in the second case that RandomReal [ ] was not \"held\" \
+in an unevaluated state to generate the table.  RandomReal [ ] was evaluated ",
+ StyleBox["before",
+  FontVariations->{"Underline"->True}],
+ " the table was constructed and the ",
+ StyleBox["same",
+  FontVariations->{"Underline"->True}],
+ " evaluated value for RandomReal [ ] was used for all entries in the table. \
+\n\n\t\t",
+ Cell[BoxData[
+  FormBox[
+   RowBox[{"Table", "[", 
+    RowBox[{
+     RowBox[{"Evaluate", "[", 
+      RowBox[{"RandomReal", "[", " ", "]"}], "]"}], ",", 
+     RowBox[{"{", 
+      RowBox[{"i", ",", "1", ",", "5"}], "}"}]}], "]"}], TraditionalForm]]],
+ "\n\t\t\n\t\t",
+ Cell[BoxData[
+  FormBox[
+   RowBox[{"Table", "[", " ", 
+    RowBox[{"0.22234949009386673`", " ", ",", 
+     RowBox[{"{", 
+      RowBox[{"i", ",", "1", ",", "5"}], "}"}]}], "]"}], TraditionalForm]]],
+ "\n\n\t\t",
+ Cell[BoxData[
+  FormBox[
+   RowBox[{"{", 
+    RowBox[{
+    "0.22234949009386673`", ",", "0.22234949009386673`", ",", 
+     "0.22234949009386673`", ",", "0.22234949009386673`", ",", 
+     "0.22234949009386673`"}], "}"}], TraditionalForm]]]
+}], "Text",
+ CellChangeTimes->{{3.3898244263886557`*^9, 3.3898245350286555`*^9}, {
+   3.389824575563656*^9, 3.3898246117516556`*^9}, {3.389824673393656*^9, 
+   3.389824773707656*^9}, 3.5232012838185115`*^9}]
+}, Closed]],
+
+Cell[CellGroupData[{
+
+Cell[TextData[StyleBox[" Documenting Your Functions:", "Subtitle"]], "Section"],
+
+Cell[TextData[{
+ "If you want to find information about ",
+ StyleBox["Mathematica",
+  FontSlant->"Italic"],
+ "'s internal functions, you use the \"?\" command"
+}], "Text"],
+
+Cell[BoxData[{
+ RowBox[{
+  RowBox[{"?", "Sin"}], "\[IndentingNewLine]"}], "\[IndentingNewLine]", 
+ RowBox[{
+  RowBox[{
+   RowBox[{"Sin", "[", "z", "]"}], " ", "gives", " ", "the", " ", "sine", " ",
+    "of", " ", "z"}], " ", ">>", Cell[""]}]}], "Program",
+ CellChangeTimes->{{3.389824795570656*^9, 3.389824799497656*^9}, {
+  3.3898248843116555`*^9, 3.3898249095606556`*^9}, {3.3898249460866556`*^9, 
+  3.3898249496836557`*^9}, {3.3898249888646555`*^9, 3.389825054570656*^9}}],
+
+Cell["\<\
+It is possible to define your own information about a function that you have \
+created.
+The general form is:     function::usage=\"  ...   what ever you want to say  \
+...\"\
+\>", "Text",
+ CellChangeTimes->{{3.389825111832656*^9, 3.3898251223816557`*^9}}],
+
+Cell[BoxData[
+ RowBox[{"  ", 
+  RowBox[{"ClearAll", " ", "[", 
+   RowBox[{"f", ",", "x"}], "]"}]}]], "InputOnly"],
+
+Cell[BoxData[
+ RowBox[{
+  RowBox[{"f", "[", "x_", "]"}], ":=", 
+  SqrtBox["x"]}]], "InputOnly"],
+
+Cell["Observe:", "Text"],
+
+Cell["?? f", "Program"],
+
+Cell["Global`f", "Program",
+ CellChangeTimes->{{3.390039584778*^9, 3.390039588225*^9}}],
+
+Cell[BoxData[
+ StyleBox[
+  RowBox[{
+   RowBox[{"f", "[", "x_", "]"}], " ", ":=", 
+   SqrtBox["x"]}],
+  ShowStringCharacters->True,
+  NumberMarks->True]], "Program",
+ CellChangeTimes->{3.389825195754656*^9, 3.390039578796*^9}],
+
+Cell["Create a message for f:", "Text",
+ CellChangeTimes->{{3.3898252646966553`*^9, 3.3898252660926557`*^9}}],
+
+Cell[BoxData[
+ RowBox[{
+  RowBox[{"f", "::", "usage"}], "=", 
+  "\"\<f[x] is the square root function\>\""}]], "Input"],
+
+Cell["Observe:", "Text"],
+
+Cell["?? f", "Program"],
+
+Cell["f[x] is the square root function", "Program",
+ CellChangeTimes->{{3.3900396080699997`*^9, 3.390039633802*^9}}],
+
+Cell[BoxData[
+ StyleBox[
+  RowBox[{
+   RowBox[{"f", "[", "x_", "]"}], " ", ":=", " ", 
+   SqrtBox["x"]}],
+  ShowStringCharacters->True,
+  NumberMarks->True]], "Program",
+ CellChangeTimes->{3.3898252067436557`*^9, 3.3900396232939997`*^9}],
+
+Cell[TextData[{
+ "Another way to introduce documentation is to comment individual lines of ",
+ StyleBox["Mathematica",
+  FontSlant->"Italic"],
+ ":"
+}], "Text",
+ CellChangeTimes->{{3.3898252815626554`*^9, 3.3898252861456556`*^9}}],
+
+Cell[BoxData[
+ RowBox[{"  ", 
+  RowBox[{"ClearAll", " ", "[", 
+   RowBox[{"f", ",", "x"}], "]"}], "    ", 
+  RowBox[{"(*", " ", 
+   RowBox[{
+   "Clears", " ", "definition", " ", "of", " ", "f", " ", "and", " ", "x"}], 
+   " ", "*)"}]}]], "InputOnly"],
+
+Cell[BoxData[
+ RowBox[{
+  RowBox[{"f", "[", "x_", "]"}], ":=", 
+  SqrtBox["x"], "             ", 
+  RowBox[{"(*", " ", 
+   RowBox[{"Assigns", " ", "a", " ", "value", " ", "to", " ", 
+    RowBox[{"f", "[", "x", "]"}]}], " ", "*)"}]}]], "InputOnly"],
+
+Cell["Observe:", "Text"],
+
+Cell[BoxData[
+ RowBox[{"??", 
+  RowBox[{
+   RowBox[{"f", "\n", "Global`f", "\n", 
+    RowBox[{"f", "[", "x_", "]"}]}], ":=", 
+   SqrtBox["x"]}]}]], "Program",
+ GeneratedCell->False,
+ CellAutoOverwrite->False,
+ CellChangeTimes->{
+  3.389825215740656*^9, {3.390039647045*^9, 3.3900396525290003`*^9}}]
+}, Closed]],
+
+Cell[CellGroupData[{
+
+Cell[TextData[{
+ StyleBox[" Exercises:", "Title"],
+ "  Advanced Lesson 9 "
+}], "Section"],
+
+Cell["\<\
+Your Name:
+
+Your Math Class:\
+\>", "Program",
+ CellChangeTimes->{{3.390368232619*^9, 3.3903682391219997`*^9}, {
+   3.390368866851*^9, 3.390368908736*^9}, {3.3903690435030003`*^9, 
+   3.390369082222*^9}, 3.3903880065649595`*^9},
+ FontSize->16,
+ FontWeight->"Bold"],
+
+Cell["\<\
+1:  Define a function:   f( x, y, z ) = {x, y, z}   such that argument:  y  \
+has a default value of 10, and argument:  z  has a default value of 20.  \
+Evaluate:  f[1,2,3,4],  f[1,2,3],  f[1,2],  f[1], f[ ]\
+\>", "Text"],
+
+Cell["\<\
+2: Make 2 copies of the following code segment by interchanging the second \
+and third lines.  Evaluate each of the 2 code segments.  Also display  ?f  \
+for each of the 2 code segments.  Observe the differences between the 2 code \
+segments (and also differences between how you typed them in and how they are \
+stored) and identify which code segment (first, second or both) that would \
+work if we want the numbers to be identified as:  even or odd or = 2.
+\tf[x_]:=\"x is anything\"
+\tf[x_?OddQ]:=\"x is odd\"
+\tf[x_?EvenQ]:=\"x is even\"
+\tf[2]:=\"x = 2\"
+\tTable[{i,f[i]},{i,1,4,1/2}]  // TableForm\
+\>", "Text"],
+
+Cell["\<\
+3: Make 2 copies of the following code segment by interchanging the second \
+and third lines.  Evaluate each of the 2 code segments.  Also display  ?f  \
+for each of the 2 code segments.  Observe the differences between the 2 code \
+segments (and also differences between how you typed them in and how they are \
+stored) and identify why you get different results.
+\tf[x_?OddQ]:=\" x is odd\"
+\tf[x_?Positive]:=\" x is positive\"
+\tf[x_?IntegerQ ]:=\" x is an integer\"
+\tf[2]:=\" x = 2\"
+\tf[x_]:=\" x is arbitrary\"
+\tTable[{i,f[i]},{i,-2,4,1/2}]  // TableForm\
+\>", "Text"],
+
+Cell[TextData[{
+ "4: Assume that in your research you construct a complicated new function \
+called: myFunction [x].  Your work requires repeated integration involving \
+your new function.  However, ",
+ StyleBox["Mathematica",
+  FontSlant->"Italic"],
+ " is unaware of your new function and its corresponding integral.  Therefore \
+you integrate your function to get: myFunctionIntegral [x].  You would like \
+to assign your new formula to the ",
+ StyleBox["Mathematica",
+  FontSlant->"Italic"],
+ " command Integrate by:\n\t Integrate [ myFunction[x_], x_ ] := \
+myFunctionIntegral [x]\n Part 1: Try this and explain what happens.\n Part 2: \
+Tag this assignment to the functional argument:  myFunction\n Part 3: \
+Evaluate:    ?? myFunction\n Part 4: Evaluate:    \[Integral] Sin[x] \
+\[DifferentialD]x\n Part 5: Evaluate:    \[Integral] myFunction[x] \
+\[DifferentialD]x \n Part 6: Evaluate:    \[Integral] myFunction[y] \
+\[DifferentialD]y\n Part 7: What is the Head of:  \[Integral] myFunction[x] \
+\[DifferentialD]x "
+}], "Text"],
+
+Cell["\<\
+5: Assume that in your research you construct a complicated new function \
+called: myFunction [x, y, z,  ...  ].  The order in which the functional \
+arguments appear is irrelevant and the function should always give the same \
+value irrespective of the order of the arguments.   
+ Part 1: Set your function's attributes to be orderless.
+ Part 2: Evaluate:    ?? myFunction
+ Part 3: Evaluate:    myFunction[1,2,3]   and   myFunction[3,2,1]
+ Part 4: Evaluate:    myFunction[a,b,c,d]   and   myFunction[d,c,b,a]
+ Part 5: Evaluate:    myFunction[c,b,a,d] == myFunction[d,c,b,a]\
+\>", "Text"],
+
+Cell["\<\
+6: Assume that in your research you construct a complicated new function \
+called: myFunction [x, y, z,  ...  ].   When you use your function, the first \
+argument \"x\" is expected to contain information which will take on several \
+different values while your function is being evaluated.  However, all of the \
+remaining arguments:  y, z,  ...   will only be assigned one value each which \
+will remain fixed throughout the evaluation of your function.  
+ Part 1: Set your function's attributes to hold only the first argument.
+ Part 2: Evaluate:    ?? myFunction
+ Part 3: Evaluate:    a=1, b=2, c=3, d=4    and   myFunction[a,b,c,d]   \
+Explain this result.
+ Part 4: Evaluate:    myFunction[a_,b_,c_,d_] := {a, b, c, d}
+ Part 5: Evaluate:    ?? myFunction
+ Part 6: Evaluate:    a=1, b=2, c=3, d=4,  myFunction[a,b,c,d]   
+ Part 7: Explain (i.e. trace) at what point the argument \"a\" was evaluated.\
+\>", "Text",
+ CellChangeTimes->{{3.3904306117130003`*^9, 3.390430618551*^9}}],
+
+Cell["\<\
+7: Assume that in your research you construct a complicated new function \
+called: myFunction [x, y, z,  ...  ].   It is important to document your \
+function so that other users can understand its usage.
+ Part 1: Set your function's usage message to:   \"myFunction [x, y, z,  ...  \
+] is important to understand.\"
+             Set:     myFunction [x_, y_, z_ ] := Sin[x y z]
+             Set your function's attributes to hold all of the arguments.
+ Part 2: Evaluate:    ? myFunction
+ Part 3: Evaluate:    ?? myFunction\
+\>", "Text",
+ CellChangeTimes->{{3.39043070226*^9, 3.3904307317469997`*^9}}],
+
+Cell[TextData[{
+ StyleBox["Print",
+  FontSize->14,
+  FontWeight->"Bold"],
+ StyleBox[" your homework exercises",
+  FontSize->14],
+ ".\n",
+ StyleBox["But do ",
+  FontSize->14,
+  FontWeight->"Bold",
+  FontColor->RGBColor[1, 0, 0]],
+ StyleBox["NOT",
+  FontSize->18,
+  FontWeight->"Bold",
+  FontColor->RGBColor[1, 0, 0]],
+ StyleBox[" print the above lesson along with the exercises!",
+  FontSize->14,
+  FontWeight->"Bold",
+  FontColor->RGBColor[1, 0, 0]]
+}], "Text",
+ CellChangeTimes->{{3.3903491193324003`*^9, 3.3903491706104*^9}, {
+   3.3903492171244*^9, 3.3903492363613997`*^9}, {3.3903493057854*^9, 
+   3.3903493616624002`*^9}, {3.390367829311*^9, 3.390368046703*^9}, {
+   3.390368151425*^9, 3.390368157087*^9}, {3.3903689909309998`*^9, 
+   3.390369020223*^9}, {3.390369115093*^9, 3.390369186012*^9}, {
+   3.3903692234300003`*^9, 3.390369566137*^9}, {3.390369653565*^9, 
+   3.390369672512*^9}, {3.390369704873*^9, 3.3903697467469997`*^9}, {
+   3.390369895852*^9, 3.390369997834*^9}, {3.390370474823*^9, 
+   3.390370498811*^9}, 3.3903705605439997`*^9, {3.390370625072*^9, 
+   3.390370690086*^9}, {3.390374898767*^9, 3.390374902177*^9}, {
+   3.390383169347*^9, 3.390383198519*^9}, 3.39038573018396*^9, {
+   3.3903876565289598`*^9, 3.3903876566309595`*^9}, {3.39038798227396*^9, 
+   3.3903879827329597`*^9}, {3.39038855499296*^9, 3.39038855570596*^9}, {
+   3.390425911413*^9, 3.390425911724*^9}, {3.3904275729119997`*^9, 
+   3.39042758298*^9}}]
+}, Closed]]
+}, Open  ]]
+},
+WindowSize->{972, 570},
+WindowMargins->{{5, Automatic}, {Automatic, 2}},
+ShowSelection->True,
+Magnification:>FEPrivate`If[
+  FEPrivate`Equal[FEPrivate`$VersionNumber, 6.], 1.5, 1.5 Inherited],
+FrontEndVersion->"8.0 for Microsoft Windows (64-bit) (February 23, 2011)",
+StyleDefinitions->FrontEnd`FileName[{"Creative"}, "PastelColor.nb", 
+  CharacterEncoding -> "WindowsANSI"]
+]
+(* End of Notebook Content *)
+
+(* Internal cache information *)
+(*CellTagsOutline
+CellTagsIndex->{}
+*)
+(*CellTagsIndex
+CellTagsIndex->{}
+*)
+(*NotebookFileOutline
+Notebook[{
+Cell[CellGroupData[{
+Cell[567, 22, 176, 6, 511, "Title"],
+Cell[CellGroupData[{
+Cell[768, 32, 67, 0, 105, "Section"],
+Cell[838, 34, 438, 10, 165, "Text"],
+Cell[1279, 46, 101, 2, 71, "InputOnly"],
+Cell[1383, 50, 211, 4, 66, "Text"],
+Cell[1597, 56, 229, 6, 71, "InputOnly"],
+Cell[1829, 64, 77, 2, 57, "Input"],
+Cell[1909, 68, 54, 1, 57, "Input"],
+Cell[1966, 71, 204, 5, 90, "Text"],
+Cell[2173, 78, 121, 2, 71, "InputOnly"],
+Cell[2297, 82, 448, 13, 145, "InputOnly"],
+Cell[2748, 97, 119, 3, 57, "Input"],
+Cell[2870, 102, 95, 2, 57, "Input"],
+Cell[2968, 106, 52, 1, 57, "Input"],
+Cell[3023, 109, 100, 2, 57, "Input"],
+Cell[3126, 113, 425, 8, 115, "Text"],
+Cell[3554, 123, 119, 3, 57, "Input"],
+Cell[3676, 128, 204, 5, 90, "Text"],
+Cell[3883, 135, 163, 4, 71, "InputOnly"],
+Cell[4049, 141, 316, 8, 71, "InputOnly"],
+Cell[4368, 151, 87, 2, 57, "Input"],
+Cell[4458, 155, 77, 2, 57, "Input"],
+Cell[4538, 159, 131, 3, 66, "Text"],
+Cell[4672, 164, 163, 4, 71, "InputOnly"],
+Cell[4838, 170, 269, 7, 71, "InputOnly"],
+Cell[5110, 179, 87, 2, 57, "Input"],
+Cell[5200, 183, 77, 2, 57, "Input"],
+Cell[5280, 187, 203, 5, 90, "Text"],
+Cell[5486, 194, 163, 4, 71, "InputOnly"],
+Cell[5652, 200, 290, 8, 71, "InputOnly"],
+Cell[5945, 210, 87, 2, 57, "Input"],
+Cell[6035, 214, 77, 2, 57, "Input"],
+Cell[6115, 218, 287, 7, 116, "Text"],
+Cell[6405, 227, 54, 1, 57, "Input"]
+}, Closed]],
+Cell[CellGroupData[{
+Cell[6496, 233, 89, 1, 57, "Section"],
+Cell[6588, 236, 896, 20, 167, "Text"],
+Cell[7487, 258, 153, 4, 71, "InputOnly"],
+Cell[7643, 264, 190, 4, 71, "InputOnly"],
+Cell[7836, 270, 135, 4, 71, "InputOnly"],
+Cell[7974, 276, 24, 0, 41, "Text"],
+Cell[8001, 278, 21, 0, 57, "Program"],
+Cell[8025, 280, 87, 1, 57, "Program"],
+Cell[8115, 283, 152, 5, 101, "Program"],
+Cell[8270, 290, 331, 10, 57, "Input"],
+Cell[8604, 302, 557, 10, 140, "Text"],
+Cell[9164, 314, 153, 4, 71, "InputOnly"],
+Cell[9320, 320, 135, 4, 71, "InputOnly"],
+Cell[9458, 326, 190, 4, 71, "InputOnly"],
+Cell[9651, 332, 24, 0, 41, "Text"],
+Cell[9678, 334, 23, 0, 57, "Program"],
+Cell[9704, 336, 87, 1, 57, "Program"],
+Cell[9794, 339, 152, 5, 101, "Program"],
+Cell[9949, 346, 261, 9, 57, "Input"],
+Cell[10213, 357, 362, 11, 66, "Text"],
+Cell[10578, 370, 153, 4, 71, "InputOnly"],
+Cell[10734, 376, 108, 3, 71, "InputOnly"],
+Cell[10845, 381, 131, 4, 71, "InputOnly"],
+Cell[10979, 387, 116, 3, 71, "InputOnly"],
+Cell[11098, 392, 24, 0, 41, "Text"],
+Cell[11125, 394, 23, 0, 57, "Program"],
+Cell[11151, 396, 87, 1, 57, "Program"],
+Cell[11241, 399, 754, 22, 153, "Program"],
+Cell[11998, 423, 261, 9, 57, "Input"],
+Cell[12262, 434, 145, 4, 66, "Text"],
+Cell[12410, 440, 411, 8, 66, "Text"],
+Cell[12824, 450, 153, 4, 71, "InputOnly"],
+Cell[12980, 456, 699, 13, 301, "InputOnly"],
+Cell[13682, 471, 24, 0, 41, "Text"],
+Cell[13709, 473, 23, 0, 57, "Program"],
+Cell[13735, 475, 87, 1, 57, "Program"],
+Cell[13825, 478, 231, 4, 79, "Program"],
+Cell[14059, 484, 261, 9, 57, "Input"],
+Cell[14323, 495, 125, 4, 66, "Text"],
+Cell[14451, 501, 153, 4, 71, "InputOnly"],
+Cell[14607, 507, 697, 13, 301, "InputOnly"],
+Cell[15307, 522, 24, 0, 41, "Text"],
+Cell[15334, 524, 23, 0, 57, "Program"],
+Cell[15360, 526, 92, 1, 57, "Program"],
+Cell[15455, 529, 232, 4, 79, "Program"],
+Cell[15690, 535, 261, 9, 57, "Input"],
+Cell[15954, 546, 253, 6, 90, "Text"],
+Cell[16210, 554, 108, 3, 57, "Input"]
+}, Closed]],
+Cell[CellGroupData[{
+Cell[16355, 562, 98, 1, 57, "Section"],
+Cell[16456, 565, 1148, 24, 264, "Text"],
+Cell[17607, 591, 188, 5, 71, "InputOnly"],
+Cell[17798, 598, 594, 16, 140, "Text"],
+Cell[18395, 616, 55, 0, 57, "Program"],
+Cell[18453, 618, 197, 4, 57, "Program"],
+Cell[18653, 624, 26, 0, 57, "Program"],
+Cell[18682, 626, 38, 0, 41, "Text"],
+Cell[18723, 628, 447, 13, 57, "Input"],
+Cell[19173, 643, 344, 7, 66, "Text"],
+Cell[19520, 652, 223, 7, 57, "Input"],
+Cell[19746, 661, 94, 2, 57, "Input"],
+Cell[19843, 665, 156, 3, 41, "Text"],
+Cell[20002, 670, 204, 5, 42, "Item"],
+Cell[20209, 677, 558, 8, 115, "Text"],
+Cell[20770, 687, 216, 5, 42, "Item"],
+Cell[20989, 694, 46, 0, 41, "Text"],
+Cell[21038, 696, 188, 5, 71, "InputOnly"],
+Cell[21229, 703, 244, 6, 71, "InputOnly"],
+Cell[21476, 711, 254, 7, 71, "InputOnly"],
+Cell[21733, 720, 222, 4, 41, "Text"],
+Cell[21958, 726, 23, 0, 57, "Program"],
+Cell[21984, 728, 87, 1, 57, "Program"],
+Cell[22074, 731, 150, 5, 101, "Program"],
+Cell[22227, 738, 117, 3, 57, "Input"],
+Cell[22347, 743, 103, 3, 57, "Input"],
+Cell[22453, 748, 293, 9, 57, "Input"],
+Cell[22749, 759, 1304, 26, 265, "Text"],
+Cell[24056, 787, 188, 5, 71, "InputOnly"],
+Cell[24247, 794, 585, 17, 57, "Input"],
+Cell[24835, 813, 170, 5, 66, "Text"],
+Cell[25008, 820, 168, 5, 57, "Input"],
+Cell[25179, 827, 116, 4, 66, "Text"],
+Cell[25298, 833, 23, 0, 57, "Program"],
+Cell[25324, 835, 87, 1, 57, "Program"],
+Cell[25414, 838, 683, 10, 140, "Text"],
+Cell[26100, 850, 194, 4, 71, "InputOnly"],
+Cell[26297, 856, 219, 5, 71, "InputOnly"],
+Cell[26519, 863, 230, 6, 73, "InputOnly"],
+Cell[26752, 871, 196, 5, 71, "InputOnly"],
+Cell[26951, 878, 211, 5, 71, "InputOnly"],
+Cell[27165, 885, 201, 5, 73, "InputOnly"],
+Cell[27369, 892, 197, 5, 71, "InputOnly"],
+Cell[27569, 899, 265, 7, 93, "InputOnly"],
+Cell[27837, 908, 208, 5, 71, "InputOnly"],
+Cell[28048, 915, 24, 0, 41, "Text"],
+Cell[28075, 917, 173, 6, 79, "Program"],
+Cell[28251, 925, 157, 6, 79, "Program"],
+Cell[28411, 933, 165, 6, 79, "Program"],
+Cell[28579, 941, 290, 10, 144, "Program"],
+Cell[28872, 953, 286, 10, 144, "Program"],
+Cell[29161, 965, 288, 9, 123, "Program"],
+Cell[29452, 976, 110, 2, 57, "Input"],
+Cell[29565, 980, 113, 2, 57, "Input"],
+Cell[29681, 984, 105, 2, 57, "Input"],
+Cell[29789, 988, 103, 2, 57, "Input"],
+Cell[29895, 992, 144, 3, 57, "Input"],
+Cell[30042, 997, 101, 2, 57, "Input"],
+Cell[30146, 1001, 128, 3, 57, "Input"],
+Cell[30277, 1006, 127, 3, 57, "Input"],
+Cell[30407, 1011, 294, 6, 90, "Text"]
+}, Closed]],
+Cell[CellGroupData[{
+Cell[30738, 1022, 71, 0, 57, "Section"],
+Cell[30812, 1024, 207, 5, 66, "Text"],
+Cell[31022, 1031, 57, 1, 57, "Input"],
+Cell[31082, 1034, 60, 1, 57, "Input"],
+Cell[31145, 1037, 144, 4, 66, "Text"],
+Cell[31292, 1043, 105, 3, 57, "Input"],
+Cell[31400, 1048, 150, 3, 57, "Input"],
+Cell[31553, 1053, 92, 2, 57, "Input"],
+Cell[31648, 1057, 157, 3, 57, "Input"],
+Cell[31808, 1062, 152, 4, 63, "Input"],
+Cell[31963, 1068, 218, 6, 63, "Input"]
+}, Closed]],
+Cell[CellGroupData[{
+Cell[32218, 1079, 78, 0, 57, "Section"],
+Cell[32299, 1081, 273, 7, 42, "Text"],
+Cell[32575, 1090, 94, 2, 57, "Input"],
+Cell[32672, 1094, 303, 6, 66, "Item"],
+Cell[32978, 1102, 143, 4, 71, "InputOnly"],
+Cell[33124, 1108, 218, 6, 57, "Input"],
+Cell[33345, 1116, 327, 9, 57, "Input"],
+Cell[33675, 1127, 273, 6, 66, "Item"],
+Cell[33951, 1135, 231, 7, 57, "Input"],
+Cell[34185, 1144, 298, 6, 66, "Item"],
+Cell[34486, 1152, 112, 2, 71, "InputOnly"],
+Cell[34601, 1156, 63, 1, 57, "Input"],
+Cell[34667, 1159, 113, 3, 57, "Input"],
+Cell[34783, 1164, 217, 7, 109, "Input"],
+Cell[35003, 1173, 274, 6, 66, "Item"],
+Cell[35280, 1181, 143, 4, 71, "InputOnly"],
+Cell[35426, 1187, 57, 1, 57, "Input"],
+Cell[35486, 1190, 114, 2, 57, "Input"],
+Cell[35603, 1194, 135, 3, 57, "Input"],
+Cell[35741, 1199, 202, 6, 57, "Input"],
+Cell[35946, 1207, 351, 7, 66, "Item"],
+Cell[36300, 1216, 160, 5, 57, "Input"],
+Cell[36463, 1223, 156, 3, 57, "Input"],
+Cell[36622, 1228, 214, 5, 42, "Item"],
+Cell[36839, 1235, 237, 8, 123, "Program"],
+Cell[37079, 1245, 203, 8, 123, "Program"],
+Cell[37285, 1255, 588, 10, 165, "Text"],
+Cell[CellGroupData[{
+Cell[37898, 1269, 228, 5, 42, "Item"],
+Cell[38129, 1276, 230, 5, 66, "Item"],
+Cell[38362, 1283, 238, 5, 66, "Item"]
+}, Open  ]],
+Cell[38615, 1291, 83, 1, 71, "InputOnly"],
+Cell[38701, 1294, 104, 3, 71, "InputOnly"],
+Cell[38808, 1299, 109, 3, 57, "Input"],
+Cell[38920, 1304, 147, 4, 57, "Input"],
+Cell[39070, 1310, 99, 2, 57, "Input"],
+Cell[39172, 1314, 114, 2, 71, "InputOnly"],
+Cell[39289, 1318, 81, 1, 57, "Input"],
+Cell[39373, 1321, 24, 0, 41, "Text"],
+Cell[39400, 1323, 230, 7, 101, "Program"],
+Cell[39633, 1332, 181, 5, 84, "Input"],
+Cell[39817, 1339, 90, 2, 57, "Input"],
+Cell[39910, 1343, 249, 6, 66, "Text"],
+Cell[40162, 1351, 139, 3, 41, "Text"],
+Cell[40304, 1356, 166, 5, 71, "InputOnly"],
+Cell[40473, 1363, 24, 0, 41, "Text"],
+Cell[40500, 1365, 36, 0, 57, "Program"],
+Cell[40539, 1367, 100, 1, 57, "Program"],
+Cell[40642, 1370, 169, 5, 101, "Program"],
+Cell[40814, 1377, 181, 5, 84, "Input"],
+Cell[40998, 1384, 90, 2, 57, "Input"]
+}, Closed]],
+Cell[CellGroupData[{
+Cell[41125, 1391, 77, 0, 58, "Section"],
+Cell[41205, 1393, 1248, 23, 414, "Text"],
+Cell[42456, 1418, 90, 2, 57, "Input"],
+Cell[42549, 1422, 384, 8, 211, "Input"],
+Cell[42936, 1432, 421, 9, 211, "Input"],
+Cell[43360, 1443, 2442, 68, 437, "Text"]
+}, Closed]],
+Cell[CellGroupData[{
+Cell[45839, 1516, 79, 0, 58, "Section"],
+Cell[45921, 1518, 171, 5, 42, "Text"],
+Cell[46095, 1525, 475, 9, 109, "Program"],
+Cell[46573, 1536, 265, 6, 66, "Text"],
+Cell[46841, 1544, 113, 3, 71, "InputOnly"],
+Cell[46957, 1549, 95, 3, 77, "InputOnly"],
+Cell[47055, 1554, 24, 0, 41, "Text"],
+Cell[47082, 1556, 23, 0, 57, "Program"],
+Cell[47108, 1558, 87, 1, 57, "Program"],
+Cell[47198, 1561, 225, 7, 61, "Program"],
+Cell[47426, 1570, 109, 1, 41, "Text"],
+Cell[47538, 1573, 119, 3, 57, "Input"],
+Cell[47660, 1578, 24, 0, 41, "Text"],
+Cell[47687, 1580, 23, 0, 57, "Program"],
+Cell[47713, 1582, 116, 1, 57, "Program"],
+Cell[47832, 1585, 237, 7, 61, "Program"],
+Cell[48072, 1594, 229, 6, 42, "Text"],
+Cell[48304, 1602, 250, 7, 71, "InputOnly"],
+Cell[48557, 1611, 247, 6, 77, "InputOnly"],
+Cell[48807, 1619, 24, 0, 41, "Text"],
+Cell[48834, 1621, 298, 9, 111, "Program"]
+}, Closed]],
+Cell[CellGroupData[{
+Cell[49169, 1635, 89, 3, 87, "Section"],
+Cell[49261, 1640, 273, 9, 121, "Program"],
+Cell[49537, 1651, 231, 4, 66, "Text"],
+Cell[49771, 1657, 628, 12, 239, "Text"],
+Cell[50402, 1671, 586, 12, 239, "Text"],
+Cell[50991, 1685, 1033, 19, 327, "Text"],
+Cell[52027, 1706, 598, 10, 214, "Text"],
+Cell[52628, 1718, 992, 16, 288, "Text"],
+Cell[53623, 1736, 610, 11, 189, "Text"],
+Cell[54236, 1749, 1440, 34, 82, "Text"]
+}, Closed]]
+}, Open  ]]
+}
+]
+*)
+
+(* End of internal cache information *)

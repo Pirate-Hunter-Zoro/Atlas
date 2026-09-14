@@ -1,0 +1,1501 @@
+(* Content-type: application/vnd.wolfram.mathematica *)
+
+(*** Wolfram Notebook File ***)
+(* http://www.wolfram.com/nb *)
+
+(* CreatedBy='WolframEngine 15.0' *)
+
+(*CacheID: 234*)
+(* Internal cache information:
+NotebookFileLineBreakTest
+NotebookFileLineBreakTest
+NotebookDataPosition[       160,          7]
+NotebookDataLength[     51091,       1492]
+NotebookOptionsPosition[     45605,       1424]
+NotebookOutlinePosition[     45944,       1439]
+CellTagsIndexPosition[     45901,       1436]
+WindowFrame->Normal*)
+
+(* Beginning of Notebook Content *)
+Notebook[{
+Cell[TextData[{
+ StyleBox[" Exercises", "Title"],
+ "  Advanced Lesson 3 "
+}], "Section",
+ CellChangeTimes->{
+  3.3907952631470003`*^9, {3.460216882811943*^9, 
+   3.460216885921318*^9}},ExpressionUUID->"a6f716ea-bed4-4fa4-97c2-\
+e024ef2ee9d2"],
+
+Cell["\<\
+Your Name:  Mikey Ferguson
+
+Your Math Class:  MATH 7013 - Advanced Mathematical Modeling\
+\>", "Program",
+ CellChangeTimes->{{3.390368232619*^9, 3.3903682391219997`*^9}, {
+   3.390368866851*^9, 3.390368908736*^9}, {3.3903690435030003`*^9, 
+   3.390369082222*^9}, 3.460216894593193*^9},
+ FontSize->16,
+ FontWeight->"Bold",ExpressionUUID->"dea9464a-82bd-4200-965e-fb5e580e4002"],
+
+Cell[TextData[{
+ StyleBox["Note: Most of the following exercises are expressed in every day \
+mathematical notation rather than proper ", "Subsubsection"],
+ StyleBox["Mathematica", "Subsubsection",
+  FontSlant->"Italic"],
+ StyleBox[" notation.  You ", "Subsubsection"],
+ StyleBox["MUST", "Subsubsection",
+  FontVariations->{"Underline"->True}],
+ StyleBox[" convert every day notation into ", "Subsubsection"],
+ StyleBox["Mathematica", "Subsubsection",
+  FontSlant->"Italic"],
+ StyleBox[" notation for your code to work properly.  For example:\n\n\t\
+Equations ", "Subsubsection"],
+ StyleBox["must", "Subsubsection",
+  FontVariations->{"Underline"->True}],
+ StyleBox[" be changed from  \"=\"  to  \"==\"  to work correctly (i.e. ", 
+  "Subsubsection"],
+ Cell[BoxData[
+  FormBox[
+   StyleBox[
+    RowBox[{
+     SuperscriptBox["x", "2"], "==", 
+     RowBox[{"2", "x"}]}], "Subsubsection"], TraditionalForm]],ExpressionUUID->
+  "afc03304-de3e-43ec-8e59-ae606957b136"],
+ StyleBox["  not  ", "Subsubsection"],
+ Cell[BoxData[
+  FormBox[
+   StyleBox[
+    RowBox[{
+     SuperscriptBox["x", "2"], "=", 
+     RowBox[{"2", "x"}]}], "Subsubsection"], TraditionalForm]],ExpressionUUID->
+  "af91eab0-85cb-44b9-8ca4-6327f634ab4d"],
+ StyleBox["  ).  \n\tFunctions ", "Subsubsection"],
+ StyleBox["must", "Subsubsection",
+  FontVariations->{"Underline"->True}],
+ StyleBox[" be expressed as  f[x]  and  not  f(x)  to work correctly.  \n\t\
+Functions ", "Subsubsection"],
+ StyleBox["must", "Subsubsection",
+  FontVariations->{"Underline"->True}],
+ StyleBox[" be defined using  \"_\"  to work correctly (i.e.  ", 
+  "Subsubsection"],
+ Cell[BoxData[
+  FormBox[
+   StyleBox[
+    RowBox[{
+     RowBox[{"f", "[", "x_", "]"}], "=", 
+     RowBox[{
+      RowBox[{"2", 
+       SuperscriptBox["x", "2"]}], "+", "1"}]}], "Subsubsection"], 
+   TraditionalForm]],ExpressionUUID->"ad2e6b29-6747-427c-9634-11ab1cbec5d6"],
+ StyleBox["  and not  ", "Subsubsection"],
+ Cell[BoxData[
+  FormBox[
+   StyleBox[
+    RowBox[{
+     RowBox[{"f", "[", "x", "]"}], "=", 
+     RowBox[{
+      RowBox[{"2", 
+       SuperscriptBox["x", "2"]}], "+", "1"}]}], "Subsubsection"], 
+   TraditionalForm]],ExpressionUUID->"6d9715c3-2644-4681-84d9-b9a2bcc50441"],
+ StyleBox[").\n\t", "Subsubsection"],
+ StyleBox["Mathematica", "Subsubsection",
+  FontSlant->"Italic"],
+ StyleBox[" functions ", "Subsubsection"],
+ StyleBox["must", "Subsubsection",
+  FontVariations->{"Underline"->True}],
+ StyleBox[" start with a capital (i.e.  Sin[x]  not  sin[x]).\n\t", 
+  "Subsubsection"],
+ StyleBox["Your", "Subsubsection",
+  FontVariations->{"Underline"->True}],
+ StyleBox[" functions should start with a lower case letter (i.e.  f[x]  not  \
+F[x]).\n\tSpecial symbols ", "Subsubsection"],
+ StyleBox["must", "Subsubsection",
+  FontVariations->{"Underline"->True}],
+ StyleBox[" be entered correctly (i.e.  ", "Subsubsection"],
+ StyleBox["\[ExponentialE]", "Subsection"],
+ StyleBox["  from the palette and not  e ).\n\t\nThese exercises begin your \
+training in making this conversion on your own automatically.\n", 
+  "Subsubsection"]
+}], "Text",
+ CellChangeTimes->{{3.39064873246*^9, 3.390649069177*^9}, {3.390649104818*^9, 
+   3.390649156885*^9}, {3.390649215119*^9, 3.39064939362*^9}, {
+   3.390649427467*^9, 3.390649437834*^9}, {3.3906856676331425`*^9, 
+   3.3906858924611425`*^9}, {3.3906859679691424`*^9, 3.390686080823142*^9}, {
+   3.390686138196142*^9, 3.390686244913142*^9}, 3.390686344335142*^9, {
+   3.3906897169261427`*^9, 3.3906898397271423`*^9}, {3.3906898702421427`*^9, 
+   3.3906898773081427`*^9}, {3.43906690946875*^9, 3.439066909671875*^9}, {
+   3.439066946203125*^9, 
+   3.439066949328125*^9}},ExpressionUUID->"2be64544-8140-4c18-8ecb-\
+ddae125d83e7"],
+
+Cell[TextData[{
+ "Remember to clear all variables that you will use below:  ",
+ Cell[BoxData[
+  FormBox[
+   StyleBox[
+    RowBox[{"Clear", "[", 
+     RowBox[{
+     "a", ",", "b", ",", "c", ",", "x", ",", "y", ",", "f", ",", "n"}], "]"}],
+    
+    FontWeight->"Bold"], TraditionalForm]],ExpressionUUID->
+  "014441a8-1e72-4abe-920d-8348830f10b1"]
+}], "Text",
+ CellChangeTimes->{{3.3906923197301426`*^9, 3.3906923812721424`*^9}, {
+  3.3906924809361424`*^9, 
+  3.3906924908791423`*^9}},ExpressionUUID->"f3b047fd-87c3-4ef8-a8fd-\
+fe013db74369"],
+
+Cell[BoxData[
+ RowBox[{
+  RowBox[{"Clear", "[", 
+   RowBox[{"a", ",", "b", ",", "c", ",", "x", ",", "y", ",", "f", ",", "n"}], 
+   "]"}], ";"}]], "Input",ExpressionUUID->"2cea9eb0-7882-4857-b877-\
+73fe0d89e40b"],
+
+Cell[TextData[{
+ " 1: Part 1: Solve:  ",
+ StyleBox[" ",
+  FontWeight->"Bold"],
+ Cell[BoxData[
+  RowBox[{
+   RowBox[{
+    RowBox[{"a", " ", 
+     SuperscriptBox["x", "4"]}], " ", "+", " ", 
+    RowBox[{"b", " ", 
+     SuperscriptBox["x", "2"]}], " ", "+", " ", "c"}], " ", "=", " ", "0"}]],
+  FontWeight->"Bold",ExpressionUUID->"25af385e-9df2-4005-91cb-37116ac93afd"],
+ "    for:   ",
+ StyleBox["x",
+  FontWeight->"Bold"],
+ "\n     Part 2: Solve:  ",
+ StyleBox[" ",
+  FontWeight->"Bold"],
+ Cell[BoxData[
+  RowBox[{
+   RowBox[{
+    RowBox[{"a", " ", 
+     SuperscriptBox["x", "4"]}], " ", "+", " ", 
+    RowBox[{"b", " ", 
+     SuperscriptBox["x", "2"]}], " ", "+", " ", "c"}], " ", "=", " ", "0"}]],
+  FontWeight->"Bold",ExpressionUUID->"58c6fa9d-80dc-4232-a037-a23892f9c5b7"],
+ "    for:   ",
+ StyleBox["a",
+  FontWeight->"Bold"]
+}], "Text",
+ CellChangeTimes->{{3.390650355355*^9, 
+  3.390650367828*^9}},ExpressionUUID->"096cee18-2fd2-4036-b5f2-9b827f96dd29"],
+
+Cell[BoxData[
+ RowBox[{"Solve", "[", 
+  RowBox[{
+   RowBox[{
+    RowBox[{
+     RowBox[{"a", " ", 
+      SuperscriptBox["x", "4"]}], "+", 
+     RowBox[{"b", " ", 
+      SuperscriptBox["x", "2"]}], "+", "c"}], "\[Equal]", "0"}], ",", "x"}], 
+  "]"}]], "Input",ExpressionUUID->"0fe56150-f45f-4b11-a603-e2764292c15e"],
+
+Cell[BoxData[
+ RowBox[{"Solve", "[", 
+  RowBox[{
+   RowBox[{
+    RowBox[{
+     RowBox[{"a", " ", 
+      SuperscriptBox["x", "4"]}], "+", 
+     RowBox[{"b", " ", 
+      SuperscriptBox["x", "2"]}], "+", "c"}], "\[Equal]", "0"}], ",", "a"}], 
+  "]"}]], "Input",ExpressionUUID->"f774fc57-3e49-4790-9f95-c793de6e34f4"],
+
+Cell[TextData[{
+ " 2: Part 1: Solve:  ",
+ StyleBox[" ",
+  FontWeight->"Bold"],
+ Cell[BoxData[
+  RowBox[{"\t", 
+   RowBox[{
+    RowBox[{
+     RowBox[{"a", " ", 
+      SuperscriptBox["x", "2"]}], " ", "+", " ", 
+     RowBox[{"b", " ", "y"}], " ", "+", " ", "c"}], " ", "=", " ", 
+    RowBox[{
+     RowBox[{
+      RowBox[{"z", "    ", "and", "     ", "y"}], " ", "+", " ", 
+      RowBox[{"a", " ", 
+       SuperscriptBox["z", "2"]}], " ", "+", " ", 
+      RowBox[{"b", " ", 
+       SuperscriptBox["x", "2"]}], " ", "+", " ", "c"}], "  ", "=", " ", 
+     "1"}]}]}]],
+  FontWeight->"Bold",ExpressionUUID->"1281ab1b-5a40-4c43-9767-cae8cea66fca"],
+ "    for:   ",
+ StyleBox["x",
+  FontWeight->"Bold"],
+ "  and  ",
+ StyleBox["y",
+  FontWeight->"Bold"],
+ "    \n     ",
+ StyleBox["Simplify",
+  FontWeight->"Bold"],
+ " the answer.  \n     Did ",
+ StyleBox["Simplify",
+  FontWeight->"Bold"],
+ " shorten the answer in this case?  (Put your words into a Text Cell.)\n     \
+Part 2: Solve:  ",
+ StyleBox[" ",
+  FontWeight->"Bold"],
+ Cell[BoxData[
+  RowBox[{"\t", 
+   RowBox[{
+    RowBox[{
+     RowBox[{"a", " ", 
+      SuperscriptBox["x", "2"]}], " ", "+", " ", 
+     RowBox[{"b", " ", "y"}], " ", "+", " ", "c"}], " ", "=", " ", 
+    RowBox[{
+     RowBox[{
+      RowBox[{"z", "    ", "and", "     ", "y"}], " ", "+", " ", 
+      RowBox[{"a", " ", 
+       SuperscriptBox["z", "2"]}], " ", "+", " ", 
+      RowBox[{"b", " ", 
+       SuperscriptBox["x", "2"]}], " ", "+", " ", "c"}], "  ", "=", " ", 
+     "1"}]}]}]],
+  FontWeight->"Bold",ExpressionUUID->"a8aa7629-dcc1-47a2-ad01-3206e61155b2"],
+ "    for:   ",
+ StyleBox["a",
+  FontWeight->"Bold"],
+ "  and  ",
+ StyleBox["x",
+  FontWeight->"Bold"],
+ "   "
+}], "Text",
+ CellChangeTimes->{{3.390618476205436*^9, 3.390618508818436*^9}, {
+  3.3906185445984364`*^9, 3.390618593113436*^9}, {3.3906187179814363`*^9, 
+  3.390618734708436*^9}, {3.390650376002*^9, 3.3906503835480003`*^9}, {
+  3.390693095573142*^9, 3.3906931322251425`*^9}, {3.390775768807*^9, 
+  3.3907757698450003`*^9}},ExpressionUUID->"c7ad1e59-8fad-420d-8d5b-\
+f977973d011e"],
+
+Cell[BoxData[
+ RowBox[{"sol2a", "=", 
+  RowBox[{"Solve", "[", 
+   RowBox[{
+    RowBox[{"{", 
+     RowBox[{
+      RowBox[{
+       RowBox[{
+        RowBox[{"a", " ", 
+         SuperscriptBox["x", "2"]}], "+", 
+        RowBox[{"b", " ", "y"}], "+", "c"}], "\[Equal]", "z"}], ",", 
+      RowBox[{
+       RowBox[{"y", "+", 
+        RowBox[{"a", " ", 
+         SuperscriptBox["z", "2"]}], "+", 
+        RowBox[{"b", " ", 
+         SuperscriptBox["x", "2"]}], "+", "c"}], "\[Equal]", "1"}]}], "}"}], ",", 
+    RowBox[{"{", 
+     RowBox[{"x", ",", "y"}], "}"}]}], "]"}]}]], "Input",ExpressionUUID->\
+"fc333da6-5fd8-4ee6-bd8e-9c106b288eb5"],
+
+Cell[BoxData[
+ RowBox[{"Simplify", "[", "sol2a", "]"}]], "Input",ExpressionUUID->"a4d5473f-a00f-4be9-a315-b5c779c8020e"],
+
+Cell[BoxData[
+ RowBox[{"sol2b", "=", 
+  RowBox[{"Solve", "[", 
+   RowBox[{
+    RowBox[{"{", 
+     RowBox[{
+      RowBox[{
+       RowBox[{
+        RowBox[{"a", " ", 
+         SuperscriptBox["x", "2"]}], "+", 
+        RowBox[{"b", " ", "y"}], "+", "c"}], "\[Equal]", "z"}], ",", 
+      RowBox[{
+       RowBox[{"y", "+", 
+        RowBox[{"a", " ", 
+         SuperscriptBox["z", "2"]}], "+", 
+        RowBox[{"b", " ", 
+         SuperscriptBox["x", "2"]}], "+", "c"}], "\[Equal]", "1"}]}], "}"}], ",", 
+    RowBox[{"{", 
+     RowBox[{"a", ",", "x"}], "}"}]}], "]"}]}]], "Input",ExpressionUUID->\
+"0d9540ff-72ae-40d8-8a4f-a3994c9a23fa"],
+
+Cell["\<\
+No. Simplify changed almost nothing here (140 parts before, 138 after). The \
+solutions are already about as short as Mathematica can write them.\
+\>", "Text",ExpressionUUID->"50fe1245-9276-4ef7-b005-7beb91e1f099"],
+
+Cell[TextData[{
+ "3:  Part 1: Generate a plot of  ",
+ Cell[BoxData[
+  FormBox[
+   StyleBox[
+    RowBox[{
+     SuperscriptBox["\[ExponentialE]", 
+      RowBox[{"2", " ", "x"}]], " ", 
+     RowBox[{"sin", "(", 
+      RowBox[{"3", " ", "x"}], ")"}], " ", 
+     RowBox[{"cos", "(", 
+      RowBox[{"4", "x"}], ")"}]}],
+    FontWeight->"Bold"], TraditionalForm]],ExpressionUUID->
+  "97845cc3-f9ea-4459-80f0-4543195bbd82"],
+ "  for  ",
+ Cell[BoxData[
+  FormBox[
+   StyleBox[
+    RowBox[{"0", "\[LessEqual]", "x", "\[LessEqual]", "2"}],
+    FontWeight->"Bold"], TraditionalForm]],ExpressionUUID->
+  "b20b3acd-64bc-4bf4-9d26-87253c45c7bc"],
+ "    (Remember  to enter  ",
+ StyleBox["\[ExponentialE]",
+  FontWeight->"Bold"],
+ "  from the palette and not  ",
+ StyleBox["e",
+  FontWeight->"Bold"],
+ ".)\n     Part 2: Evaluate:  ",
+ StyleBox[" ",
+  FontWeight->"Bold"],
+ " ",
+ Cell[BoxData[
+  RowBox[{"\[Integral]", " ", 
+   RowBox[{
+    SuperscriptBox["\[ExponentialE]", 
+     RowBox[{"2", " ", "x"}]], " ", "sin", 
+    RowBox[{"(", 
+     RowBox[{"3", " ", "x"}], ")"}], " ", "cos", 
+    RowBox[{"(", 
+     RowBox[{"4", "x"}], ")"}], 
+    RowBox[{"\[DifferentialD]", "x"}]}]}]],
+  FontWeight->"Bold",ExpressionUUID->"6ebd0e96-53fb-4286-859f-ad41169269f5"],
+ " \n     Part 3: ",
+ StyleBox["Simplify",
+  FontWeight->"Bold"],
+ " the answer.  \n     Did ",
+ StyleBox["Simplify",
+  FontWeight->"Bold"],
+ " shorten the answer in this case?  (Put your words into a Text Cell.)"
+}], "Text",
+ CellChangeTimes->{
+  3.390618747061436*^9, 3.3906187786054363`*^9, {3.390685519901142*^9, 
+   3.390685575349142*^9}, {3.3906856217181425`*^9, 3.390685656290142*^9}, {
+   3.3906866169291425`*^9, 3.3906867781021423`*^9}, {3.3906931513081427`*^9, 
+   3.3906931551491423`*^9}, {3.390775775071*^9, 
+   3.390775775691*^9}},ExpressionUUID->"fddc18c8-d1f3-4fb2-9613-61f2f79bdd9e"],
+
+Cell[BoxData[
+ RowBox[{"Plot", "[", 
+  RowBox[{
+   RowBox[{
+    SuperscriptBox["\[ExponentialE]", 
+     RowBox[{"2", " ", "x"}]], " ", 
+    RowBox[{"Sin", "[", 
+     RowBox[{"3", " ", "x"}], "]"}], " ", 
+    RowBox[{"Cos", "[", 
+     RowBox[{"4", " ", "x"}], "]"}]}], ",", 
+   RowBox[{"{", 
+    RowBox[{"x", ",", "0", ",", "2"}], "}"}]}], "]"}]], "Input",ExpressionUUID\
+->"48d2e07c-c05f-45b1-8a9a-990a39f5af3b"],
+
+Cell[BoxData[
+ RowBox[{"int3", "=", 
+  RowBox[{"\[Integral]", 
+   RowBox[{
+    RowBox[{
+     SuperscriptBox["\[ExponentialE]", 
+      RowBox[{"2", " ", "x"}]], " ", 
+     RowBox[{"Sin", "[", 
+      RowBox[{"3", " ", "x"}], "]"}], " ", 
+     RowBox[{"Cos", "[", 
+      RowBox[{"4", " ", "x"}], "]"}]}], 
+    RowBox[{"\[DifferentialD]", "x"}]}]}]}]], "Input",ExpressionUUID->\
+"a1a5511d-9551-4524-accf-12f26d809169"],
+
+Cell[BoxData[
+ RowBox[{"Simplify", "[", "int3", "]"}]], "Input",ExpressionUUID->"2fbbd783-1013-4183-9edf-dd4390db058f"],
+
+Cell["\<\
+No. The integral comes back the same size after Simplify, because it is \
+already in its shortest form.\
+\>", "Text",ExpressionUUID->"d65fe6df-5bd6-4804-b09c-a38410a9394a"],
+
+Cell[TextData[{
+ "4:  Part 1: Generate a plot of  ",
+ Cell[BoxData[
+  FormBox[
+   StyleBox[
+    RowBox[{
+     SuperscriptBox["\[ExponentialE]", 
+      RowBox[{"2", " ", "x"}]], " ", 
+     RowBox[{"sin", "(", 
+      RowBox[{"3", " ", "x"}], ")"}], " ", 
+     RowBox[{"cos", "(", 
+      RowBox[{"4", "x"}], ")"}]}],
+    FontWeight->"Bold"], TraditionalForm]],ExpressionUUID->
+  "39a19266-5ed7-471f-8abd-bf511c6b8f68"],
+ "  for  ",
+ Cell[BoxData[
+  FormBox[
+   StyleBox[
+    RowBox[{"0", "\[LessEqual]", "x", "\[LessEqual]", "2"}],
+    FontWeight->"Bold"], TraditionalForm]],ExpressionUUID->
+  "24e205a4-a06f-4306-b765-d569f772b7b7"],
+ "  \n     Part 2: Differentiate:     ",
+ Cell[BoxData[
+  FormBox[
+   StyleBox[
+    RowBox[{
+     SuperscriptBox["\[ExponentialE]", 
+      RowBox[{"2", " ", "x"}]], " ", 
+     RowBox[{"sin", "(", 
+      RowBox[{"3", " ", "x"}], ")"}], " ", 
+     RowBox[{"cos", "(", 
+      RowBox[{"4", " ", "x"}], ")"}]}],
+    FontWeight->"Bold"], TraditionalForm]],ExpressionUUID->
+  "26b7f8eb-a888-4b4f-bd02-3f5637e94d35"],
+ "    with respect to ",
+ StyleBox["x",
+  FontWeight->"Bold"],
+ ".\n     Part 3: ",
+ StyleBox["Simplify",
+  FontWeight->"Bold"],
+ " the answer.  Did ",
+ StyleBox["Simplify",
+  FontWeight->"Bold"],
+ " shorten the answer in this case?\n     Part 4: Define a function  ",
+ Cell[BoxData[
+  FormBox[
+   StyleBox[
+    RowBox[{"f", 
+     RowBox[{"(", "x", ")"}]}],
+    FontWeight->"Bold"], TraditionalForm]],ExpressionUUID->
+  "db2aee2d-b618-419e-a4da-dba487787c13"],
+ "  to be  ",
+ Cell[BoxData[
+  FormBox[
+   StyleBox[
+    RowBox[{
+     SuperscriptBox["\[ExponentialE]", 
+      RowBox[{"2", " ", "x"}]], " ", 
+     RowBox[{"sin", "(", 
+      RowBox[{"3", " ", "x"}], ")"}], " ", 
+     RowBox[{"cos", "(", 
+      RowBox[{"4", " ", "x"}], ")"}]}],
+    FontWeight->"Bold"], TraditionalForm]],ExpressionUUID->
+  "ef00dacb-1547-422b-a61f-e7d27c9bc636"],
+ ".     Remember to use  ",
+ Cell[BoxData[
+  FormBox[
+   StyleBox[
+    RowBox[{
+     RowBox[{"f", "[", "x_", "]"}], "=", " ", "..."}],
+    FontWeight->"Bold"], TraditionalForm]],ExpressionUUID->
+  "1913094e-9049-4a65-873e-5ce33aef0d39"],
+ "    and not ",
+ Cell[BoxData[
+  FormBox[
+   StyleBox[
+    RowBox[{" ", 
+     RowBox[{"f", "[", "x", "]"}]}],
+    FontWeight->"Bold"], TraditionalForm]],ExpressionUUID->
+  "093ff5dd-ceda-40fa-aaf9-7d0b68d6b901"],
+ ".\n     \tHint: Copy, paste and edit your work from Parts 1, 2 and 3 to \
+simplify your work in the following Parts.\n     Part 5: Generate a plot of  ",
+ Cell[BoxData[
+  FormBox[
+   StyleBox[
+    RowBox[{"f", "(", "x", ")"}],
+    FontWeight->"Bold"], TraditionalForm]],ExpressionUUID->
+  "e7b928c2-48b0-414f-99c7-0778f102d487"],
+ "  for  ",
+ Cell[BoxData[
+  FormBox[
+   StyleBox[
+    RowBox[{"0", "\[LessEqual]", "x", "\[LessEqual]", "2"}],
+    FontWeight->"Bold"], TraditionalForm]],ExpressionUUID->
+  "e782ab9e-ba4c-4acc-b549-037f601af605"],
+ "  \n     Part 6: Differentiate:   ",
+ Cell[BoxData[
+  FormBox[
+   StyleBox[
+    RowBox[{"f", "(", "x", ")"}],
+    FontWeight->"Bold"], TraditionalForm]],ExpressionUUID->
+  "e6fffd2c-10c6-4eff-8ede-5d46a3fac5c5"],
+ "  with respect to ",
+ StyleBox["x",
+  FontWeight->"Bold"],
+ " using the  ",
+ Cell[BoxData[
+  FormBox[
+   StyleBox[
+    RowBox[{
+     RowBox[{"f", "'"}], "[", "x", "]"}],
+    FontWeight->"Bold"], TraditionalForm]],ExpressionUUID->
+  "e04b233c-4e51-4bcc-82b8-bb5d7256a518"],
+ "  notation.\n     Part 7: Use  ",
+ Cell[BoxData[
+  FormBox[
+   StyleBox[
+    RowBox[{"Simplify", "[", 
+     RowBox[{
+      RowBox[{"f", "'"}], "[", "x", "]"}], "]"}],
+    FontWeight->"Bold"], TraditionalForm]],ExpressionUUID->
+  "c3d3bd13-a999-4b2d-a5c5-b9ea36f7566a"],
+ "  to simplify the answer.\n     Part 8: Evaluate both  ",
+ Cell[BoxData[
+  FormBox[
+   StyleBox[
+    RowBox[{
+     RowBox[{"f", "'"}], 
+     RowBox[{"(", "x", ")"}]}],
+    FontWeight->"Bold"], TraditionalForm]],ExpressionUUID->
+  "54620cdb-bfdd-4b73-878e-ed2e93c8416f"],
+ "  and  ",
+ Cell[BoxData[
+  FormBox[
+   StyleBox[
+    RowBox[{
+     SubscriptBox["\[PartialD]", "x"], " ", 
+     RowBox[{"(", 
+      RowBox[{"f", "(", "x", ")"}], ")"}]}],
+    FontWeight->"Bold"], TraditionalForm]],ExpressionUUID->
+  "8dd329f3-55ac-4883-a657-7804198b032b"],
+ "  and verify that you get the same result. \n     Part 9: Evaluate both  ",
+ Cell[BoxData[
+  FormBox[
+   StyleBox[
+    RowBox[{
+     RowBox[{"f", "''"}], 
+     RowBox[{"(", "x", ")"}]}],
+    FontWeight->"Bold"], TraditionalForm]],ExpressionUUID->
+  "8c029335-0e75-446a-bcad-8e972e9e7623"],
+ "  and  ",
+ Cell[BoxData[
+  FormBox[
+   StyleBox[
+    RowBox[{
+     SubscriptBox["\[PartialD]", 
+      RowBox[{"x", ",", "x"}]], " ", 
+     RowBox[{"(", 
+      RowBox[{"f", "(", "x", ")"}], ")"}]}],
+    FontWeight->"Bold"], TraditionalForm]],ExpressionUUID->
+  "4340fe6b-0bb8-4452-ac53-f5bc023e2c57"],
+ "  and verify that you get the same result.\n     Part 10: Evaluate both  ",
+ Cell[BoxData[
+  FormBox[
+   StyleBox[
+    RowBox[{
+     RowBox[{"f", "'''"}], 
+     RowBox[{"(", "x", ")"}]}],
+    FontWeight->"Bold"], TraditionalForm]],ExpressionUUID->
+  "568a4593-b1b3-40ae-9d5e-cd238b47b905"],
+ "  and  ",
+ Cell[BoxData[
+  FormBox[
+   StyleBox[
+    RowBox[{
+     SubscriptBox["\[PartialD]", 
+      RowBox[{"x", ",", "x", ",", "x"}]], " ", 
+     RowBox[{"(", 
+      RowBox[{"f", "(", "x", ")"}], ")"}]}],
+    FontWeight->"Bold"], TraditionalForm]],ExpressionUUID->
+  "565a7fed-a986-4f63-9629-c376282ffbf8"],
+ "  and verify that you get the same result. \n                  Hint: To get \
+ ",
+ Cell[BoxData[
+  FormBox[
+   StyleBox[
+    RowBox[{
+     SubscriptBox["\[PartialD]", 
+      RowBox[{"x", ",", "x", ",", "x"}]], 
+     RowBox[{"f", "[", "x", "]"}]}],
+    FontWeight->"Bold"], TraditionalForm]],ExpressionUUID->
+  "def97b6c-6c31-43a6-9b24-e1978ad320de"],
+ "  edit  ",
+ Cell[BoxData[
+  FormBox[
+   StyleBox[
+    RowBox[{
+     SubscriptBox["\[PartialD]", 
+      RowBox[{"x", ",", "x"}]], 
+     RowBox[{"f", "[", "x", "]"}]}],
+    FontWeight->"Bold"], TraditionalForm]],ExpressionUUID->
+  "9825f9e3-6006-4c5b-bea1-56a965ca4e39"],
+ "  by adding ",
+ Cell[BoxData[
+  FormBox[
+   StyleBox[
+    SubscriptBox["  ", 
+     StyleBox[
+      RowBox[{",", "x"}],
+      FontWeight->"Bold"]],
+    FontColor->RGBColor[1, 0, 0]], TraditionalForm]],ExpressionUUID->
+  "08fa1687-116f-4e70-9035-0bc7a0bcf264"],
+ "  to get   ",
+ Cell[BoxData[
+  FormBox[
+   StyleBox[
+    RowBox[{
+     SubscriptBox["\[PartialD]", 
+      RowBox[{"x", ",", "x", ",", "x"}]], 
+     RowBox[{"f", "[", "x", "]"}]}],
+    FontWeight->"Bold"], TraditionalForm]],ExpressionUUID->
+  "ed61ae7d-9ce4-4a5f-9157-7727d406a46f"],
+ "\n     Remember to put your words into one or more Text Cells."
+}], "Text",
+ CellChangeTimes->{
+  3.3906187844054365`*^9, {3.3906867975141425`*^9, 3.390686811380142*^9}, {
+   3.3906869637201424`*^9, 3.3906869827741423`*^9}, {3.3906900002791424`*^9, 
+   3.3906902534031425`*^9}, {3.3906903060211425`*^9, 3.3906905395221424`*^9}, 
+   3.3906930537841425`*^9, {3.3906934192231426`*^9, 3.390693452967142*^9}, {
+   3.3906935348101425`*^9, 3.3906935349261427`*^9}, {3.3906936695931425`*^9, 
+   3.3906938339951425`*^9}, {3.390693905710142*^9, 3.3906939183001423`*^9}, {
+   3.390795404951*^9, 3.390795431123*^9}, {3.439067050875*^9, 
+   3.439067063796875*^9}, {3.439067140234375*^9, 
+   3.43906714328125*^9}},ExpressionUUID->"1ff7e770-9442-40d7-a96d-\
+f8d52a3ce400"],
+
+Cell[BoxData[
+ RowBox[{"Plot", "[", 
+  RowBox[{
+   RowBox[{
+    SuperscriptBox["\[ExponentialE]", 
+     RowBox[{"2", " ", "x"}]], " ", 
+    RowBox[{"Sin", "[", 
+     RowBox[{"3", " ", "x"}], "]"}], " ", 
+    RowBox[{"Cos", "[", 
+     RowBox[{"4", " ", "x"}], "]"}]}], ",", 
+   RowBox[{"{", 
+    RowBox[{"x", ",", "0", ",", "2"}], "}"}]}], "]"}]], "Input",ExpressionUUID\
+->"fcad922d-79ad-460b-9d86-e5e446bd169d"],
+
+Cell[BoxData[
+ RowBox[{"d4", "=", 
+  RowBox[{
+   SubscriptBox["\[PartialD]", "x"], 
+   RowBox[{"(", 
+    RowBox[{
+     SuperscriptBox["\[ExponentialE]", 
+      RowBox[{"2", " ", "x"}]], " ", 
+     RowBox[{"Sin", "[", 
+      RowBox[{"3", " ", "x"}], "]"}], " ", 
+     RowBox[{"Cos", "[", 
+      RowBox[{"4", " ", "x"}], "]"}]}], ")"}]}]}]], "Input",ExpressionUUID->\
+"10e106a3-09d9-4744-924a-8d5a9c8aedc4"],
+
+Cell[BoxData[
+ RowBox[{"Simplify", "[", "d4", "]"}]], "Input",ExpressionUUID->"6daca218-bc63-4005-8966-7be251913567"],
+
+Cell[BoxData[{
+ RowBox[{
+  RowBox[{"Clear", "[", 
+   RowBox[{"f", ",", "x"}], "]"}], ";"}], "\[IndentingNewLine]", 
+ RowBox[{
+  RowBox[{
+   RowBox[{"f", "[", "x_", "]"}], "=", 
+   RowBox[{
+    SuperscriptBox["\[ExponentialE]", 
+     RowBox[{"2", " ", "x"}]], " ", 
+    RowBox[{"Sin", "[", 
+     RowBox[{"3", " ", "x"}], "]"}], " ", 
+    RowBox[{"Cos", "[", 
+     RowBox[{"4", " ", "x"}], "]"}]}]}], ";"}]}], "Input",ExpressionUUID->\
+"dcfe52c2-7159-43c5-a518-de77641d23f6"],
+
+Cell[BoxData[
+ RowBox[{"Plot", "[", 
+  RowBox[{
+   RowBox[{"f", "[", "x", "]"}], ",", 
+   RowBox[{"{", 
+    RowBox[{"x", ",", "0", ",", "2"}], "}"}]}], "]"}]], "Input",ExpressionUUID\
+->"123a9db2-5ac5-4c48-82c7-83d38619196b"],
+
+Cell[BoxData[
+ RowBox[{
+  SuperscriptBox["f", "\[Prime]",
+   MultilineFunction->None], "[", "x", "]"}]], "Input",ExpressionUUID->\
+"bb4d31d0-6f99-4267-a700-2e78837c4db0"],
+
+Cell[BoxData[
+ RowBox[{"Simplify", "[", 
+  RowBox[{
+   SuperscriptBox["f", "\[Prime]",
+    MultilineFunction->None], "[", "x", "]"}], "]"}]], "Input",ExpressionUUID->\
+"59dcadff-0c91-4745-bf32-ffbe42539649"],
+
+Cell[BoxData[
+ RowBox[{"{", 
+  RowBox[{"Simplify", "[", 
+   RowBox[{
+    RowBox[{
+     SuperscriptBox["f", "\[Prime]",
+      MultilineFunction->None], "[", "x", "]"}], "-", 
+    RowBox[{
+     SubscriptBox["\[PartialD]", "x"], 
+     RowBox[{"f", "[", "x", "]"}]}]}], "]"}], "}"}]], "Input",ExpressionUUID->\
+"872a065a-b47b-4f5d-ad43-2d07142b1038"],
+
+Cell[BoxData[
+ RowBox[{"{", 
+  RowBox[{"Simplify", "[", 
+   RowBox[{
+    RowBox[{
+     SuperscriptBox["f", "\[Prime]\[Prime]",
+      MultilineFunction->None], "[", "x", "]"}], "-", 
+    RowBox[{
+     SubscriptBox["\[PartialD]", 
+      RowBox[{"{", 
+       RowBox[{"x", ",", "2"}], "}"}]], 
+     RowBox[{"f", "[", "x", "]"}]}]}], "]"}], "}"}]], "Input",ExpressionUUID->\
+"246b909f-cc58-4bb6-a5b1-38790f32cfea"],
+
+Cell[BoxData[
+ RowBox[{"{", 
+  RowBox[{"Simplify", "[", 
+   RowBox[{
+    RowBox[{
+     SuperscriptBox["f", 
+      TagBox[
+       RowBox[{"(", "3", ")"}],
+       Derivative],
+      MultilineFunction->None], "[", "x", "]"}], "-", 
+    RowBox[{
+     SubscriptBox["\[PartialD]", 
+      RowBox[{"{", 
+       RowBox[{"x", ",", "3"}], "}"}]], 
+     RowBox[{"f", "[", "x", "]"}]}]}], "]"}], "}"}]], "Input",ExpressionUUID->\
+"07ea6866-d3e3-4c30-b070-dfc015274842"],
+
+Cell["\<\
+Simplify does help here: the derivative goes from 46 parts down to 28, \
+because the product rule leaves terms that combine. Parts 8 to 10 show that \
+f'[x] and the partial derivative notation are two ways of writing the same \
+thing: subtracting the two and simplifying gives 0 for the first, second and \
+third derivatives.\
+\>", "Text",ExpressionUUID->"e1fe7e95-2641-42b9-93c5-c799b3df0f5a"],
+
+Cell[TextData[{
+ "5:Find the local (not global) maximum for the function   ",
+ Cell[BoxData[
+  FormBox[
+   StyleBox[
+    RowBox[{
+     SuperscriptBox["x", "3"], " ", "-", " ", "x", " ", "+", " ", "1"}],
+    FontWeight->"Bold"], TraditionalForm]],ExpressionUUID->
+  "c64e269b-8d2a-42e6-8ac6-72a2ecd4aa50"],
+ "\n     Part 1: Start by defining a function  ",
+ Cell[BoxData[
+  FormBox[
+   StyleBox[
+    RowBox[{"f", 
+     RowBox[{"(", "x", ")"}]}],
+    FontWeight->"Bold"], TraditionalForm]],ExpressionUUID->
+  "fbface1a-81a9-4968-bd7b-87efa4b67646"],
+ "  to be  ",
+ Cell[BoxData[
+  FormBox[
+   StyleBox[
+    RowBox[{
+     SuperscriptBox["x", "3"], " ", "-", " ", "x", " ", "+", " ", "1"}],
+    FontWeight->"Bold"], TraditionalForm]],ExpressionUUID->
+  "083c5bef-1ba3-45e6-ac60-f17ec6c9ee5a"],
+ ".\n     Part 2: Evaluate both  ",
+ Cell[BoxData[
+  FormBox[
+   StyleBox[
+    RowBox[{
+     RowBox[{"f", "'"}], 
+     RowBox[{"(", "x", ")"}]}],
+    FontWeight->"Bold"], TraditionalForm]],ExpressionUUID->
+  "08594490-2cc7-40ba-bd2a-7fde54a7eb6c"],
+ "  and  ",
+ Cell[BoxData[
+  FormBox[
+   StyleBox[
+    RowBox[{
+     SubscriptBox["\[PartialD]", "x"], " ", 
+     RowBox[{"(", 
+      RowBox[{"f", "(", "x", ")"}], ")"}]}],
+    FontWeight->"Bold"], TraditionalForm]],ExpressionUUID->
+  "129ef3e7-f2ec-41b5-8e6d-0a7f7658abc8"],
+ "  and verify that you get the same result. \n     Part 3: Evaluate both  ",
+ Cell[BoxData[
+  FormBox[
+   StyleBox[
+    RowBox[{
+     RowBox[{"f", "''"}], 
+     RowBox[{"(", "x", ")"}]}],
+    FontWeight->"Bold"], TraditionalForm]],ExpressionUUID->
+  "5ba7f7a7-00f9-460a-bc2f-4bb1ffcc2656"],
+ "  and  ",
+ Cell[BoxData[
+  FormBox[
+   StyleBox[
+    RowBox[{
+     SubscriptBox["\[PartialD]", 
+      RowBox[{"x", ",", "x"}]], " ", 
+     RowBox[{"(", 
+      RowBox[{"f", "(", "x", ")"}], ")"}]}],
+    FontWeight->"Bold"], TraditionalForm]],ExpressionUUID->
+  "5780c8a6-4eea-49b7-a180-b9fe2a4b904b"],
+ "  and verify that you get the same result. \n     Part 4: Plot the function \
+ ",
+ Cell[BoxData[
+  FormBox[
+   StyleBox[
+    RowBox[{"f", "(", "x", ")"}],
+    FontWeight->"Bold"], TraditionalForm]],ExpressionUUID->
+  "82ef4798-7b16-4ec9-96f6-812d72f4f9e9"],
+ "  on the same graph as its derivative  ",
+ Cell[BoxData[
+  FormBox[
+   StyleBox[
+    RowBox[{
+     RowBox[{"f", "'"}], 
+     RowBox[{"(", "x", ")"}]}],
+    FontWeight->"Bold"], TraditionalForm]],ExpressionUUID->
+  "73677f3e-0550-4a4d-b7eb-94bc0ca8f16a"],
+ ".\n     Part 5: Find the critical points for  ",
+ Cell[BoxData[
+  FormBox[
+   StyleBox[
+    RowBox[{"f", "(", "x", ")"}],
+    FontWeight->"Bold"], TraditionalForm]],ExpressionUUID->
+  "e9bce58d-3b5f-4732-b049-9c984b9e4e8a"],
+ "  by solving  ",
+ Cell[BoxData[
+  FormBox[
+   StyleBox[
+    RowBox[{
+     RowBox[{
+      RowBox[{"f", "'"}], 
+      RowBox[{"(", "x", ")"}]}], "=", "0"}],
+    FontWeight->"Bold"], TraditionalForm]],ExpressionUUID->
+  "09aca07b-75b6-49c2-bfeb-8437b7cd266e"],
+ "  for  ",
+ StyleBox["x",
+  FontWeight->"Bold"],
+ "  and then determine \n                 the local maximum by checking  ",
+ Cell[BoxData[
+  FormBox[
+   StyleBox[
+    RowBox[{"f", "''"}],
+    FontWeight->"Bold"], TraditionalForm]],ExpressionUUID->
+  "5a16795b-67b2-4f1b-a584-c8600f32b9ed"],
+ "  at the critical points.\n                 Remember to put your words into \
+one or more Text Cells."
+}], "Text",
+ CellChangeTimes->{{3.390649653447*^9, 3.390649806072*^9}, {3.390649860981*^9,
+   3.390649946092*^9}, {3.39065043448*^9, 3.3906504774440002`*^9}, {
+  3.390687244894142*^9, 3.3906875119351425`*^9}, {3.3906890976641426`*^9, 
+  3.3906891078171425`*^9}, {3.3906920793841424`*^9, 3.390692142262142*^9}, {
+  3.3906933093501425`*^9, 3.3906933125221424`*^9}, {3.3906935098271427`*^9, 
+  3.390693513915142*^9}, {3.3907956336140003`*^9, 
+  3.390795634597*^9}},ExpressionUUID->"6785949c-19c6-4c31-a88e-7acf15114da9"],
+
+Cell[BoxData[{
+ RowBox[{
+  RowBox[{"Clear", "[", 
+   RowBox[{"f", ",", "x"}], "]"}], ";"}], "\[IndentingNewLine]", 
+ RowBox[{
+  RowBox[{
+   RowBox[{"f", "[", "x_", "]"}], "=", 
+   RowBox[{
+    SuperscriptBox["x", "3"], "-", "x", "+", "1"}]}], ";"}]}], "Input",Express\
+ionUUID->"d40a16a5-998f-40ec-9de5-b8022b6dd402"],
+
+Cell[BoxData[
+ RowBox[{"{", 
+  RowBox[{
+   RowBox[{
+    SuperscriptBox["f", "\[Prime]",
+     MultilineFunction->None], "[", "x", "]"}], ",", 
+   RowBox[{
+    SubscriptBox["\[PartialD]", "x"], 
+    RowBox[{"f", "[", "x", "]"}]}], ",", 
+   RowBox[{"Simplify", "[", 
+    RowBox[{
+     RowBox[{
+      SuperscriptBox["f", "\[Prime]",
+       MultilineFunction->None], "[", "x", "]"}], "-", 
+     RowBox[{
+      SubscriptBox["\[PartialD]", "x"], 
+      RowBox[{"f", "[", "x", "]"}]}]}], "]"}]}], "}"}]], "Input",ExpressionUUI\
+D->"be955219-8f6b-4eee-aff1-157242a2f7db"],
+
+Cell[BoxData[
+ RowBox[{"{", 
+  RowBox[{
+   RowBox[{
+    SuperscriptBox["f", "\[Prime]\[Prime]",
+     MultilineFunction->None], "[", "x", "]"}], ",", 
+   RowBox[{
+    SubscriptBox["\[PartialD]", 
+     RowBox[{"{", 
+      RowBox[{"x", ",", "2"}], "}"}]], 
+    RowBox[{"f", "[", "x", "]"}]}], ",", 
+   RowBox[{"Simplify", "[", 
+    RowBox[{
+     RowBox[{
+      SuperscriptBox["f", "\[Prime]\[Prime]",
+       MultilineFunction->None], "[", "x", "]"}], "-", 
+     RowBox[{
+      SubscriptBox["\[PartialD]", 
+       RowBox[{"{", 
+        RowBox[{"x", ",", "2"}], "}"}]], 
+      RowBox[{"f", "[", "x", "]"}]}]}], "]"}]}], "}"}]], "Input",ExpressionUUI\
+D->"f81f6b9b-add6-468d-8bb8-ccce97db3ed5"],
+
+Cell[BoxData[
+ RowBox[{"Plot", "[", 
+  RowBox[{
+   RowBox[{"{", 
+    RowBox[{
+     RowBox[{"f", "[", "x", "]"}], ",", 
+     RowBox[{
+      SuperscriptBox["f", "\[Prime]",
+       MultilineFunction->None], "[", "x", "]"}]}], "}"}], ",", 
+   RowBox[{"{", 
+    RowBox[{"x", ",", 
+     RowBox[{"-", "2"}], ",", "2"}], "}"}], ",", 
+   RowBox[{"PlotLegends", "\[Rule]", 
+    RowBox[{"{", 
+     RowBox[{"\"\<f\>\"", ",", "\"\<f'\>\""}], "}"}]}]}], "]"}]], "Input",Expr\
+essionUUID->"49106fbe-e8e0-4d61-af6f-a9d751db0977"],
+
+Cell[BoxData[
+ RowBox[{"crit", "=", 
+  RowBox[{"Solve", "[", 
+   RowBox[{
+    RowBox[{
+     RowBox[{
+      SuperscriptBox["f", "\[Prime]",
+       MultilineFunction->None], "[", "x", "]"}], "\[Equal]", "0"}], ",", 
+    "x"}], "]"}]}]], "Input",ExpressionUUID->"7f8d5163-b3ec-4f57-b869-\
+581484412b29"],
+
+Cell[BoxData[
+ RowBox[{"Table", "[", 
+  RowBox[{
+   RowBox[{"{", 
+    RowBox[{
+     RowBox[{"x", "/.", "\[VeryThinSpace]", "s"}], ",", 
+     RowBox[{
+      RowBox[{
+       SuperscriptBox["f", "\[Prime]\[Prime]",
+        MultilineFunction->None], "[", "x", "]"}], "/.", "\[VeryThinSpace]", 
+      "s"}], ",", 
+     RowBox[{
+      RowBox[{"f", "[", "x", "]"}], "/.", "\[VeryThinSpace]", "s"}]}], "}"}], 
+   ",", 
+   RowBox[{"{", 
+    RowBox[{"s", ",", "crit"}], "}"}]}], "]"}]], "Input",ExpressionUUID->\
+"be163be9-d606-4944-a9ad-beff3be3e226"],
+
+Cell["\<\
+The critical points are x = -1/Sqrt[3] and x = +1/Sqrt[3]. The second \
+derivative is -2 Sqrt[3] at the first, which is negative, so that is the \
+local maximum; at the second it is +2 Sqrt[3], a local minimum. The plot \
+agrees: the curve turns over on the left and turns back up on the right.\
+\>", "Text",ExpressionUUID->"e3c1360f-3f61-486c-88e2-bae804a86953"],
+
+Cell[TextData[{
+ "6:  Part 1: Simplify ",
+ Cell[BoxData[
+  FormBox[
+   StyleBox[
+    RowBox[{"Cos", "[", 
+     RowBox[{"n", " ", "\[Pi]"}], "]"}],
+    FontWeight->"Bold"], TraditionalForm]],ExpressionUUID->
+  "e3d12829-fd5a-4f8f-9ab5-49c459673a29"],
+ " without assumptions:\n       Part 2: Simplify ",
+ Cell[BoxData[
+  FormBox[
+   StyleBox[
+    RowBox[{"Cos", "[", 
+     RowBox[{"n", " ", "\[Pi]"}], "]"}],
+    FontWeight->"Bold"], TraditionalForm]],ExpressionUUID->
+  "0c1c943f-7d5d-4b8e-bf2c-1d5c6d239b4c"],
+ " assuming that  ",
+ Cell[BoxData[
+  FormBox[
+   StyleBox[
+    RowBox[{"n", "\[Element]", "Integers"}],
+    FontWeight->"Bold"], TraditionalForm]],ExpressionUUID->
+  "107b7733-6585-4aee-9dab-57500a8ddfe3"],
+ ":\n       Part 3: Simplify ",
+ Cell[BoxData[
+  FormBox[
+   StyleBox[
+    RowBox[{"Cos", "[", 
+     RowBox[{"n", " ", "\[Pi]"}], "]"}],
+    FontWeight->"Bold"], TraditionalForm]],ExpressionUUID->
+  "b33f792e-029d-4351-9187-7e810d05d239"],
+ " assuming that  ",
+ Cell[BoxData[
+  FormBox[
+   StyleBox["n",
+    FontWeight->"Bold"], TraditionalForm]],ExpressionUUID->
+  "34ec4cb1-8866-4ee9-9cd5-fb5aa47246da"],
+ "  is even, i.e.  ",
+ Cell[BoxData[
+  FormBox[
+   StyleBox[
+    RowBox[{
+     RowBox[{"n", "/", "2"}], "\[Element]", "Integers"}],
+    FontWeight->"Bold"], TraditionalForm]],ExpressionUUID->
+  "cb32f9d0-263e-45ec-8cc6-45800d364ef5"],
+ ":\n       Part 4: Simplify ",
+ Cell[BoxData[
+  FormBox[
+   StyleBox[
+    RowBox[{"Cos", "[", 
+     RowBox[{"n", " ", "\[Pi]"}], "]"}],
+    FontWeight->"Bold"], TraditionalForm]],ExpressionUUID->
+  "f31b25c0-3079-4ec9-b96a-0c06c9286d27"],
+ " assuming that  ",
+ Cell[BoxData[
+  FormBox[
+   StyleBox["n",
+    FontWeight->"Bold"], TraditionalForm]],ExpressionUUID->
+  "17769843-4ca0-427b-b71e-637751f62c1b"],
+ "  is odd:"
+}], "Text",
+ CellChangeTimes->{{3.390687621887142*^9, 3.3906876354951425`*^9}, {
+  3.3906876693971424`*^9, 3.3906877062701426`*^9}, {3.3906891134451427`*^9, 
+  3.3906891147961426`*^9}, {3.3907956399370003`*^9, 
+  3.390795640796*^9}},ExpressionUUID->"edaba500-4190-40f7-9026-ceedc7706f53"],
+
+Cell[BoxData[{
+ RowBox[{
+  RowBox[{"Clear", "[", "n", "]"}], ";"}], "\[IndentingNewLine]", 
+ RowBox[{"Simplify", "[", 
+  RowBox[{"Cos", "[", 
+   RowBox[{"n", " ", "\[Pi]"}], "]"}], "]"}]}], "Input",ExpressionUUID->\
+"d9a84cd5-3cba-4a85-9be9-f9d664cdd822"],
+
+Cell[BoxData[
+ RowBox[{"Simplify", "[", 
+  RowBox[{
+   RowBox[{"Cos", "[", 
+    RowBox[{"n", " ", "\[Pi]"}], "]"}], ",", 
+   RowBox[{"n", "\[Element]", 
+    TemplateBox[{},
+     "Integers"]}]}], "]"}]], "Input",ExpressionUUID->"d914b844-d499-472a-\
+a24d-cd537bffb37b"],
+
+Cell[BoxData[
+ RowBox[{"Simplify", "[", 
+  RowBox[{
+   RowBox[{"Cos", "[", 
+    RowBox[{"n", " ", "\[Pi]"}], "]"}], ",", 
+   RowBox[{
+    FractionBox["n", "2"], "\[Element]", 
+    TemplateBox[{},
+     "Integers"]}]}], "]"}]], "Input",ExpressionUUID->"6052fca6-b086-4386-\
+ad3e-e10f0c3bee22"],
+
+Cell[BoxData[
+ RowBox[{"Simplify", "[", 
+  RowBox[{
+   RowBox[{"Cos", "[", 
+    RowBox[{"n", " ", "\[Pi]"}], "]"}], ",", 
+   RowBox[{
+    FractionBox[
+     RowBox[{"n", "-", "1"}], "2"], "\[Element]", 
+    TemplateBox[{},
+     "Integers"]}]}], "]"}]], "Input",ExpressionUUID->"a2112183-2e89-42f9-\
+a35a-9b5da2f7062b"],
+
+Cell[TextData[{
+ "7:  Part 1: Generate a plot of  ",
+ Cell[BoxData[
+  FormBox[
+   StyleBox[
+    RowBox[{
+     SuperscriptBox["x", "5"], " ", 
+     RowBox[{"sin", "(", "x", ")"}]}],
+    FontWeight->"Bold"], TraditionalForm]],ExpressionUUID->
+  "a13cbac1-d4e6-431d-ab3d-6e3ef065e3a2"],
+ "  for  ",
+ Cell[BoxData[
+  FormBox[
+   StyleBox[
+    RowBox[{
+     RowBox[{"-", "1"}], "\[LessEqual]", "x", "\[LessEqual]", "1"}],
+    FontWeight->"Bold"], TraditionalForm]],ExpressionUUID->
+  "fd561561-2edb-428e-b735-13a5c1568a5b"],
+ "  \n       Part 2: Evaluate the following ",
+ StyleBox["indefinite",
+  FontVariations->{"Underline"->True}],
+ " integral to obtain the generic answer:\n\t\t",
+ Cell[BoxData[
+  FormBox[
+   StyleBox[
+    RowBox[{"\[Integral]", 
+     RowBox[{
+      SuperscriptBox["x", "5"], " ", 
+      RowBox[{"sin", "(", "x", ")"}], 
+      RowBox[{"\[DifferentialD]", "x"}]}]}],
+    FontWeight->"Bold"], TraditionalForm]],ExpressionUUID->
+  "e3590a07-806b-457c-9eba-d2d8d770cd3b"],
+ "\n       Part 3:  Evaluate the following ",
+ StyleBox["definite",
+  FontVariations->{"Underline"->True}],
+ " integral:\n\t\t",
+ Cell[BoxData[
+  FormBox[
+   StyleBox[
+    RowBox[{
+     SubsuperscriptBox["\[Integral]", "2", "3"], 
+     RowBox[{
+      SuperscriptBox["x", "5"], " ", 
+      RowBox[{"Sin", "[", "x", "]"}], 
+      RowBox[{"\[DifferentialD]", "x"}]}]}],
+    FontWeight->"Bold"], TraditionalForm]],ExpressionUUID->
+  "3b5a9754-11a7-46bc-8548-ece3e412473d"],
+ "\n       Remember to put your words into a Text Cell."
+}], "Text",
+ CellChangeTimes->{{3.3906501152460003`*^9, 3.390650119284*^9}, {
+   3.3906877898841424`*^9, 3.390687794165142*^9}, {3.390687879894142*^9, 
+   3.3906879435541425`*^9}, {3.3906891185201426`*^9, 
+   3.3906891186081424`*^9}, {3.3906933306231422`*^9, 
+   3.3906933344001427`*^9}, {3.390776326773*^9, 3.390776327424*^9}, 
+   3.390795489519*^9, {3.3907955256*^9, 3.390795564701*^9}, {
+   3.390795645701*^9, 
+   3.3907956466359997`*^9}},ExpressionUUID->"eaff3adb-b6db-47df-96e9-\
+6c423eb35d4c"],
+
+Cell[BoxData[
+ RowBox[{"Plot", "[", 
+  RowBox[{
+   RowBox[{
+    SuperscriptBox["x", "5"], " ", 
+    RowBox[{"Sin", "[", "x", "]"}]}], ",", 
+   RowBox[{"{", 
+    RowBox[{"x", ",", 
+     RowBox[{"-", "1"}], ",", "1"}], "}"}]}], "]"}]], "Input",ExpressionUUID->\
+"5e28f8d4-ac61-46ad-adf0-cc0115312fb6"],
+
+Cell[BoxData[
+ RowBox[{"\[Integral]", 
+  RowBox[{
+   RowBox[{
+    SuperscriptBox["x", "5"], " ", 
+    RowBox[{"Sin", "[", "x", "]"}]}], 
+   RowBox[{"\[DifferentialD]", "x"}]}]}]], "Input",ExpressionUUID->"94d76b05-\
+f9b6-4cc7-8e47-f388770f3864"],
+
+Cell[BoxData[
+ RowBox[{
+  SubsuperscriptBox["\[Integral]", "2", "3"], 
+  RowBox[{
+   RowBox[{
+    SuperscriptBox["x", "5"], " ", 
+    RowBox[{"Sin", "[", "x", "]"}]}], 
+   RowBox[{"\[DifferentialD]", "x"}]}]}]], "Input",ExpressionUUID->"20112976-\
+0f60-4fad-b528-d65b461a6d10"],
+
+Cell["\<\
+The indefinite integral is what repeated integration by parts gives. The \
+definite integral from 2 to 3 comes out exactly as 112 Cos[2] - 63 Cos[3] + \
+40 Sin[2] - 15 Sin[3], which is about 50.016.\
+\>", "Text",ExpressionUUID->"0029b71b-fc78-4b1b-b5d6-eb3704932118"],
+
+Cell[TextData[{
+ "8:  Part 1: ",
+ StyleBox["Try",
+  FontVariations->{"Underline"->True}],
+ " to generate a plot of  ",
+ Cell[BoxData[
+  FormBox[
+   StyleBox[
+    SqrtBox["x"],
+    FontWeight->"Bold"], TraditionalForm]],ExpressionUUID->
+  "b9ba8115-db59-4b7d-88bf-3593a61bd993"],
+ "  for  ",
+ Cell[BoxData[
+  FormBox[
+   StyleBox[
+    RowBox[{
+     RowBox[{"-", "1"}], "\[LessEqual]", "x", "\[LessEqual]", "1"}],
+    FontWeight->"Bold"], TraditionalForm]],ExpressionUUID->
+  "5e0da6b7-bb3b-40ab-943f-89abd5db5276"],
+ "  and note what happens for  ",
+ Cell[BoxData[
+  FormBox[
+   StyleBox[
+    RowBox[{
+     RowBox[{"-", "1"}], "\[LessEqual]", "x", "<", "0"}],
+    FontWeight->"Bold"], TraditionalForm]],ExpressionUUID->
+  "03dd108b-e5a0-4f90-9933-3f4f6288e8f1"],
+ " .\n                   You will better see the plot if you use the plot \
+option:   ",
+ Cell[BoxData[
+  FormBox[
+   StyleBox[
+    RowBox[{"PlotStyle", "\[Rule]", 
+     RowBox[{"Thickness", "[", "0.01", "]"}]}],
+    FontWeight->"Bold"], TraditionalForm]],ExpressionUUID->
+  "549c639a-72e7-4880-8425-4c0db2f6be16"],
+ "\n                         ",
+ Cell[BoxData[
+  FormBox[
+   StyleBox[
+    RowBox[{"Plot", "[", "                        ", 
+     RowBox[{"...", "                          ", ",", 
+      RowBox[{"PlotStyle", "\[Rule]", 
+       RowBox[{"Thickness", "[", "0.01", "]"}]}]}], "]"}],
+    FontWeight->"Bold"], TraditionalForm]],ExpressionUUID->
+  "c8137a40-9073-4426-be93-7b1406b6a413"],
+ "\n       Part 2: Evaluate the following ",
+ StyleBox["indefinite",
+  FontVariations->{"Underline"->True}],
+ " integral to obtain the generic answer:\n\t\t",
+ Cell[BoxData[
+  FormBox[
+   StyleBox[
+    RowBox[{"\[Integral]", 
+     RowBox[{
+      SqrtBox["x"], 
+      RowBox[{"\[DifferentialD]", "x"}]}]}],
+    FontWeight->"Bold"], TraditionalForm]],ExpressionUUID->
+  "e76cb13b-4147-46bb-ac81-c1ba7c1747d2"],
+ "\n       Part 3: Evaluate the following definite integral:\n\t\t",
+ Cell[BoxData[
+  FormBox[
+   StyleBox[
+    RowBox[{
+     SubsuperscriptBox["\[Integral]", "1", "2"], 
+     RowBox[{
+      SqrtBox["x"], 
+      RowBox[{"\[DifferentialD]", "x"}]}]}],
+    FontWeight->"Bold"], TraditionalForm]],ExpressionUUID->
+  "c15126ad-7f52-4a25-8941-bf7763f829a9"],
+ "\n       Part 4: Evaluate the following definite integral:\n\t\t",
+ Cell[BoxData[
+  FormBox[
+   StyleBox[
+    RowBox[{
+     SubsuperscriptBox["\[Integral]", "a", "b"], 
+     RowBox[{
+      SqrtBox["x"], 
+      RowBox[{"\[DifferentialD]", "x"}]}]}],
+    FontWeight->"Bold"], TraditionalForm]],ExpressionUUID->
+  "ea6f2b00-33ba-417f-b800-75fed09e85fb"],
+ "\n                  Why is it ",
+ StyleBox["not",
+  FontVariations->{"Underline"->True}],
+ " surprising that the answer depends upon the values of both  ",
+ Cell[BoxData[
+  FormBox[
+   StyleBox["a",
+    FontWeight->"Bold"], TraditionalForm]],ExpressionUUID->
+  "28aa5329-ce0d-46e5-8475-01c5a46a6af8"],
+ "  and  ",
+ Cell[BoxData[
+  FormBox[
+   StyleBox["b",
+    FontWeight->"Bold"], TraditionalForm]],ExpressionUUID->
+  "1b770e71-d4d5-4b84-b5d6-52934af58549"],
+ "?\n       Part 5: Evaluate the following definite integral ",
+ StyleBox["assuming",
+  FontWeight->"Bold"],
+ " that  ",
+ Cell[BoxData[
+  FormBox[
+   StyleBox[
+    RowBox[{"0", "<", "a", "<", "b"}],
+    FontWeight->"Bold"], TraditionalForm]],ExpressionUUID->
+  "910faed5-c89e-41aa-85d2-b2b03438903e"],
+ ":\n\t\t",
+ Cell[BoxData[
+  FormBox[
+   StyleBox[
+    RowBox[{
+     SubsuperscriptBox["\[Integral]", "a", "b"], 
+     RowBox[{
+      SqrtBox["x"], 
+      RowBox[{"\[DifferentialD]", "x"}]}]}],
+    FontWeight->"Bold"], TraditionalForm]],ExpressionUUID->
+  "cffa49af-9243-4303-b019-dbf7f0532071"],
+ "\n                  Why is it ",
+ StyleBox["not",
+  FontVariations->{"Underline"->True}],
+ " surprising that the answer is both convergent and a real number?\n       \
+Part 6: Evaluate the following definite integral ",
+ StyleBox["assuming",
+  FontWeight->"Bold"],
+ " that  ",
+ Cell[BoxData[
+  FormBox[
+   StyleBox[
+    RowBox[{"a", "<", "0", "<", "b"}],
+    FontWeight->"Bold"], TraditionalForm]],ExpressionUUID->
+  "cbb965bf-e3d9-4a3b-ae9e-e6015bbb1c63"],
+ ":\n\t\t",
+ Cell[BoxData[
+  FormBox[
+   StyleBox[
+    RowBox[{
+     SubsuperscriptBox["\[Integral]", "a", "b"], 
+     RowBox[{
+      SqrtBox["x"], 
+      RowBox[{"\[DifferentialD]", "x"}]}]}],
+    FontWeight->"Bold"], TraditionalForm]],ExpressionUUID->
+  "25e10a5a-8145-4709-a306-b877baec9fb4"],
+ "\n                  Why is it ",
+ StyleBox["not",
+  FontVariations->{"Underline"->True}],
+ " surprising that the answer is both convergent and ",
+ StyleBox["not",
+  FontVariations->{"Underline"->True}],
+ " a real number?"
+}], "Text",
+ CellChangeTimes->{{3.3906879766951427`*^9, 3.3906879809071426`*^9}, {
+  3.3906880533361425`*^9, 3.390688159156142*^9}, {3.3906882701851425`*^9, 
+  3.3906884162991424`*^9}, {3.3906884543861427`*^9, 3.390688472151142*^9}, {
+  3.3906891230501423`*^9, 3.390689123177142*^9}, {3.390795650889*^9, 
+  3.390795652087*^9}},ExpressionUUID->"dd9501fe-2b8a-47f4-89e7-91c766c0c899"],
+
+Cell[BoxData[
+ RowBox[{"Plot", "[", 
+  RowBox[{
+   SqrtBox["x"], ",", 
+   RowBox[{"{", 
+    RowBox[{"x", ",", 
+     RowBox[{"-", "1"}], ",", "1"}], "}"}], ",", 
+   RowBox[{"PlotStyle", "\[Rule]", 
+    RowBox[{"Thickness", "[", "0.01`", "]"}]}]}], "]"}]], "Input",ExpressionUU\
+ID->"60592357-2809-47f3-a30f-1dc2e22d7b01"],
+
+Cell[BoxData[
+ RowBox[{"\[Integral]", 
+  RowBox[{
+   SqrtBox["x"], 
+   RowBox[{"\[DifferentialD]", "x"}]}]}]], "Input",ExpressionUUID->"cb2cfd50-\
+6c18-49f2-b29e-0f7cbfeaf17d"],
+
+Cell[BoxData[
+ RowBox[{
+  SubsuperscriptBox["\[Integral]", "1", "2"], 
+  RowBox[{
+   SqrtBox["x"], 
+   RowBox[{"\[DifferentialD]", "x"}]}]}]], "Input",ExpressionUUID->"19688dfd-\
+41a8-42e2-b4d9-76e339d1601b"],
+
+Cell[BoxData[
+ RowBox[{
+  SubsuperscriptBox["\[Integral]", "a", "b"], 
+  RowBox[{
+   SqrtBox["x"], 
+   RowBox[{"\[DifferentialD]", "x"}]}]}]], "Input",ExpressionUUID->"feccefab-\
+0a0b-4cf3-82f1-0c96c9bac858"],
+
+Cell[BoxData[
+ RowBox[{"Integrate", "[", 
+  RowBox[{
+   SqrtBox["x"], ",", 
+   RowBox[{"{", 
+    RowBox[{"x", ",", "a", ",", "b"}], "}"}], ",", 
+   RowBox[{"Assumptions", "\[Rule]", 
+    RowBox[{"0", "<", "a", "<", "b"}]}]}], "]"}]], "Input",ExpressionUUID->\
+"bd457ec7-4f06-471e-a40e-79fb6ef598e1"],
+
+Cell[BoxData[
+ RowBox[{"Integrate", "[", 
+  RowBox[{
+   SqrtBox["x"], ",", 
+   RowBox[{"{", 
+    RowBox[{"x", ",", "a", ",", "b"}], "}"}], ",", 
+   RowBox[{"Assumptions", "\[Rule]", 
+    RowBox[{"a", "<", "0", "<", "b"}]}]}], "]"}]], "Input",ExpressionUUID->\
+"9dcb40cd-6244-4fed-9dce-271ef51713fa"],
+
+Cell["\<\
+Sqrt[x] is not a real number for negative x, so on -1 <= x < 0 there is \
+nothing to draw and the curve only begins at 0. The indefinite integral is \
+(2/3) x^(3/2), and from 1 to 2 it is (2/3)(2 Sqrt[2] - 1). From a to b with \
+no assumptions Mathematica cannot tell whether the interval crosses the \
+negative axis, so it answers with a ConditionalExpression stating when its \
+result is valid. Assuming 0 < a < b the whole interval is where Sqrt[x] is \
+real, so the answer is real. Assuming a < 0 < b part of the interval is where \
+Sqrt[x] is imaginary, so the answer picks up a factor of I.\
+\>", "Text",ExpressionUUID->"b52665e1-bbce-4092-ae4c-a730c2d30b45"]
+},
+WindowSize->{1100, 850},
+FrontEndVersion->"15.0 for Linux x86 (64-bit) (May 26, 2026)",
+StyleDefinitions->"Default.nb",
+ExpressionUUID->"53e1aa67-6381-4be0-aec1-2e1147a12ddd"
+]
+(* End of Notebook Content *)
+
+(* Internal cache information *)
+(*CellTagsOutline
+CellTagsIndex->{}
+*)
+(*CellTagsIndex
+CellTagsIndex->{}
+*)
+(*NotebookFileOutline
+Notebook[{
+Cell[560, 20, 242, 7, 70, "Section",ExpressionUUID->"a6f716ea-bed4-4fa4-97c2-e024ef2ee9d2"],
+Cell[805, 29, 386, 9, 70, "Program",ExpressionUUID->"dea9464a-82bd-4200-965e-fb5e580e4002"],
+Cell[1194, 40, 3694, 89, 70, "Text",ExpressionUUID->"2be64544-8140-4c18-8ecb-ddae125d83e7"],
+Cell[4891, 131, 539, 15, 70, "Text",ExpressionUUID->"f3b047fd-87c3-4ef8-a8fd-fe013db74369"],
+Cell[5433, 148, 211, 5, 70, "Input",ExpressionUUID->"2cea9eb0-7882-4857-b877-73fe0d89e40b"],
+Cell[5647, 155, 959, 31, 70, "Text",ExpressionUUID->"096cee18-2fd2-4036-b5f2-9b827f96dd29"],
+Cell[6609, 188, 313, 9, 70, "Input",ExpressionUUID->"0fe56150-f45f-4b11-a603-e2764292c15e"],
+Cell[6925, 199, 313, 9, 70, "Input",ExpressionUUID->"f774fc57-3e49-4790-9f95-c793de6e34f4"],
+Cell[7241, 210, 2071, 65, 70, "Text",ExpressionUUID->"c7ad1e59-8fad-420d-8d5b-f977973d011e"],
+Cell[9315, 277, 631, 19, 70, "Input",ExpressionUUID->"fc333da6-5fd8-4ee6-bd8e-9c106b288eb5"],
+Cell[9949, 298, 120, 1, 70, "Input",ExpressionUUID->"a4d5473f-a00f-4be9-a315-b5c779c8020e"],
+Cell[10072, 301, 631, 19, 70, "Input",ExpressionUUID->"0d9540ff-72ae-40d8-8a4f-a3994c9a23fa"],
+Cell[10706, 322, 224, 3, 70, "Text",ExpressionUUID->"50fe1245-9276-4ef7-b005-7beb91e1f099"],
+Cell[10933, 327, 1843, 55, 70, "Text",ExpressionUUID->"fddc18c8-d1f3-4fb2-9613-61f2f79bdd9e"],
+Cell[12779, 384, 412, 12, 70, "Input",ExpressionUUID->"48d2e07c-c05f-45b1-8a9a-990a39f5af3b"],
+Cell[13194, 398, 414, 12, 70, "Input",ExpressionUUID->"a1a5511d-9551-4524-accf-12f26d809169"],
+Cell[13611, 412, 119, 1, 70, "Input",ExpressionUUID->"2fbbd783-1013-4183-9edf-dd4390db058f"],
+Cell[13733, 415, 182, 3, 70, "Text",ExpressionUUID->"d65fe6df-5bd6-4804-b09c-a38410a9394a"],
+Cell[13918, 420, 7328, 234, 70, "Text",ExpressionUUID->"1ff7e770-9442-40d7-a96d-f8d52a3ce400"],
+Cell[21249, 656, 412, 12, 70, "Input",ExpressionUUID->"fcad922d-79ad-460b-9d86-e5e446bd169d"],
+Cell[21664, 670, 405, 12, 70, "Input",ExpressionUUID->"10e106a3-09d9-4744-924a-8d5a9c8aedc4"],
+Cell[22072, 684, 117, 1, 70, "Input",ExpressionUUID->"6daca218-bc63-4005-8966-7be251913567"],
+Cell[22192, 687, 473, 14, 70, "Input",ExpressionUUID->"dcfe52c2-7159-43c5-a518-de77641d23f6"],
+Cell[22668, 703, 225, 6, 70, "Input",ExpressionUUID->"123a9db2-5ac5-4c48-82c7-83d38619196b"],
+Cell[22896, 711, 170, 4, 70, "Input",ExpressionUUID->"bb4d31d0-6f99-4267-a700-2e78837c4db0"],
+Cell[23069, 717, 207, 5, 70, "Input",ExpressionUUID->"59dcadff-0c91-4745-bf32-ffbe42539649"],
+Cell[23279, 724, 346, 10, 70, "Input",ExpressionUUID->"872a065a-b47b-4f5d-ad43-2d07142b1038"],
+Cell[23628, 736, 409, 12, 70, "Input",ExpressionUUID->"246b909f-cc58-4bb6-a5b1-38790f32cfea"],
+Cell[24040, 750, 456, 15, 70, "Input",ExpressionUUID->"07ea6866-d3e3-4c30-b070-dfc015274842"],
+Cell[24499, 767, 404, 6, 70, "Text",ExpressionUUID->"e1fe7e95-2641-42b9-93c5-c799b3df0f5a"],
+Cell[24906, 775, 3829, 117, 70, "Text",ExpressionUUID->"6785949c-19c6-4c31-a88e-7acf15114da9"],
+Cell[28738, 894, 317, 9, 70, "Input",ExpressionUUID->"d40a16a5-998f-40ec-9de5-b8022b6dd402"],
+Cell[29058, 905, 562, 17, 70, "Input",ExpressionUUID->"be955219-8f6b-4eee-aff1-157242a2f7db"],
+Cell[29623, 924, 688, 21, 70, "Input",ExpressionUUID->"f81f6b9b-add6-468d-8bb8-ccce97db3ed5"],
+Cell[30314, 947, 513, 15, 70, "Input",ExpressionUUID->"49106fbe-e8e0-4d61-af6f-a9d751db0977"],
+Cell[30830, 964, 300, 9, 70, "Input",ExpressionUUID->"7f8d5163-b3ec-4f57-b869-581484412b29"],
+Cell[31133, 975, 542, 16, 70, "Input",ExpressionUUID->"be163be9-d606-4944-a9ad-beff3be3e226"],
+Cell[31678, 993, 373, 5, 70, "Text",ExpressionUUID->"e3c1360f-3f61-486c-88e2-bae804a86953"],
+Cell[32054, 1000, 2068, 65, 70, "Text",ExpressionUUID->"edaba500-4190-40f7-9026-ceedc7706f53"],
+Cell[34125, 1067, 255, 6, 70, "Input",ExpressionUUID->"d9a84cd5-3cba-4a85-9be9-f9d664cdd822"],
+Cell[34383, 1075, 268, 8, 70, "Input",ExpressionUUID->"d914b844-d499-472a-a24d-cd537bffb37b"],
+Cell[34654, 1085, 291, 9, 70, "Input",ExpressionUUID->"6052fca6-b086-4386-ad3e-e10f0c3bee22"],
+Cell[34948, 1096, 317, 10, 70, "Input",ExpressionUUID->"a2112183-2e89-42f9-a35a-9b5da2f7062b"],
+Cell[35268, 1108, 2013, 57, 70, "Text",ExpressionUUID->"eaff3adb-b6db-47df-96e9-6c423eb35d4c"],
+Cell[37284, 1167, 299, 9, 70, "Input",ExpressionUUID->"5e28f8d4-ac61-46ad-adf0-cc0115312fb6"],
+Cell[37586, 1178, 245, 7, 70, "Input",ExpressionUUID->"94d76b05-f9b6-4cc7-8e47-f388770f3864"],
+Cell[37834, 1187, 277, 8, 70, "Input",ExpressionUUID->"20112976-0f60-4fad-b528-d65b461a6d10"],
+Cell[38114, 1197, 277, 4, 70, "Text",ExpressionUUID->"0029b71b-fc78-4b1b-b5d6-eb3704932118"],
+Cell[38394, 1203, 5001, 154, 70, "Text",ExpressionUUID->"dd9501fe-2b8a-47f4-89e7-91c766c0c899"],
+Cell[43398, 1359, 320, 9, 70, "Input",ExpressionUUID->"60592357-2809-47f3-a30f-1dc2e22d7b01"],
+Cell[43721, 1370, 176, 5, 70, "Input",ExpressionUUID->"cb2cfd50-6c18-49f2-b29e-0f7cbfeaf17d"],
+Cell[43900, 1377, 208, 6, 70, "Input",ExpressionUUID->"19688dfd-41a8-42e2-b4d9-76e339d1601b"],
+Cell[44111, 1385, 208, 6, 70, "Input",ExpressionUUID->"feccefab-0a0b-4cf3-82f1-0c96c9bac858"],
+Cell[44322, 1393, 299, 8, 70, "Input",ExpressionUUID->"bd457ec7-4f06-471e-a40e-79fb6ef598e1"],
+Cell[44624, 1403, 299, 8, 70, "Input",ExpressionUUID->"9dcb40cd-6244-4fed-9dce-271ef51713fa"],
+Cell[44926, 1413, 675, 9, 70, "Text",ExpressionUUID->"b52665e1-bbce-4092-ae4c-a730c2d30b45"]
+}
+]
+*)
+
+(* End of internal cache information *)

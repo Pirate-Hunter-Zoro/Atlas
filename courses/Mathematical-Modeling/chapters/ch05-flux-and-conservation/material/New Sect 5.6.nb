@@ -1,0 +1,2545 @@
+(* Content-type: application/mathematica *)
+
+(*** Wolfram Notebook File ***)
+(* http://www.wolfram.com/nb *)
+
+(* CreatedBy='Mathematica 6.0' *)
+
+(*CacheID: 234*)
+(* Internal cache information:
+NotebookFileLineBreakTest
+NotebookFileLineBreakTest
+NotebookDataPosition[       145,          7]
+NotebookDataLength[     99163,       2537]
+NotebookOptionsPosition[     87160,       2374]
+NotebookOutlinePosition[     87601,       2391]
+CellTagsIndexPosition[     87558,       2388]
+WindowFrame->Normal*)
+
+(* Beginning of Notebook Content *)
+Notebook[{
+
+Cell[CellGroupData[{
+Cell[" Section 5.6", "Title",ExpressionUUID->"7d4b35c1-03fe-427c-b900-d421a76b90b8"],
+
+Cell[TextData[StyleBox["  Morphogenesis",
+ FontWeight->"Bold"]], "Subtitle",ExpressionUUID->"aec98b06-2a33-435a-b96a-a616f80c02b0"],
+
+Cell["", "Text",ExpressionUUID->"fe380e8e-6996-4fd7-9969-cd5b6f829239"],
+
+Cell[BoxData[
+ RowBox[{" ", 
+  RowBox[{
+   RowBox[{
+    RowBox[{"Remove", "[", "\"\<Global`*\>\"", " ", "]"}], " ", ";"}], 
+   "\[IndentingNewLine]", 
+   RowBox[{"Off", "[", 
+    RowBox[{"NDSolve", "::", "\"\<mxsst\>\""}], "]"}]}]}]], "InputOnly",
+ CellChangeTimes->{
+  3.3985283018591805`*^9, {3.46653226713435*^9, 3.4665322710092754`*^9}},
+ CellLabel->"In[1]:=",ExpressionUUID->"378c6785-61ae-4185-8221-32df100fc851"],
+
+Cell[CellGroupData[{
+
+Cell["\<\
+Morphogenesis
+Reaction-diffusion equations:\
+\>", "Section",ExpressionUUID->"ebc7d97b-8ea0-4b77-9f46-369b296c9d6e"],
+
+Cell[TextData[{
+ "The process whereby form and pattern evolve in a biological system is \
+called morphogenesis.\n\nWe are given a one-dimensional strip of tissue \
+consisting of a homogeneous aggregate of living cells.  Each cell has the \
+same chemicals within it, and these diffuse through the tissue and react with \
+one another.  For simplicity we will consider only two such chemical agents:\n\
+\nOne agent is called a morphogen because in certain high enough \
+concentrations it activates a change in cell structure and these altered \
+cells are then induced to grow.  The differentiated cells give rise to such \
+recognizable features as hair follicles or skin etc..\n\nThe other chemical \
+agent is called an inhibitor because it tends to dampen the growth of the \
+morphogen.\n\nIt is the interplay between the two chemicals and their \
+respective movement that is responsible for the change in their \
+concentrations.\n\n\tLet  \[Rho][x,t]  =  morphogen concentration\n\n\tLet  \
+h[x,t]  =  inhibitor concentration\n\nOur model will be a conservation model \
+for morphogen, where the flux term will be through diffusion only:\n\n",
+ StyleBox["\t",
+  FontWeight->"Bold"],
+ Cell[BoxData[
+  RowBox[{
+   RowBox[{
+    SubscriptBox["\[PartialD]", "t"], " ", 
+    RowBox[{"(", "\[Rho]", ")"}]}], "  ", "==", "  ", 
+   RowBox[{
+    RowBox[{"-", "  ", 
+     RowBox[{
+      SubscriptBox["\[PartialD]", "x"], " ", 
+      RowBox[{"(", 
+       RowBox[{
+        RowBox[{"-", " ", "\[Mu]"}], "*", 
+        RowBox[{
+         SubscriptBox["\[PartialD]", "x"], " ", 
+         RowBox[{"(", "\[Rho]", ")"}]}]}], ")"}]}]}], "   ", "+", "  ", 
+    RowBox[{"k1", "[", " ", 
+     RowBox[{"\[Rho]", ",", "h"}], "]"}]}]}]],
+  FontWeight->"Bold",ExpressionUUID->"1b1f6e82-4a72-4fb4-b64b-b7d679d09a2c"],
+ StyleBox["\n\t",
+  FontWeight->"Bold"],
+ Cell[BoxData[
+  RowBox[{
+   RowBox[{
+    SubscriptBox["\[PartialD]", "t"], " ", 
+    RowBox[{"(", "\[Rho]", ")"}]}], "  ", "==", "   ", 
+   RowBox[{
+    RowBox[{"\[Mu]", "*", 
+     RowBox[{
+      SubscriptBox["\[PartialD]", 
+       RowBox[{"x", ",", "x"}]], " ", 
+      RowBox[{"(", "\[Rho]", ")"}]}]}], "   ", "+", "  ", 
+    RowBox[{"k1", "[", " ", 
+     RowBox[{"\[Rho]", ",", "h"}], "]"}]}]}]],
+  FontWeight->"Bold",ExpressionUUID->"35973dee-253f-4832-9e25-e6d2286aff9b"],
+ StyleBox["\n\t",
+  FontWeight->"Bold"],
+ Cell[BoxData[
+  RowBox[{
+   RowBox[{
+    SubscriptBox["\[PartialD]", "t"], " ", 
+    RowBox[{"(", 
+     RowBox[{"\[Rho]", "[", 
+      RowBox[{"x", ",", "t"}], "]"}], ")"}]}], "  ", "==", "   ", 
+   RowBox[{
+    RowBox[{"\[Mu]", "*", 
+     RowBox[{
+      SubscriptBox["\[PartialD]", 
+       RowBox[{"x", ",", "x"}]], " ", 
+      RowBox[{"(", 
+       RowBox[{"\[Rho]", "[", 
+        RowBox[{"x", ",", "t"}], "]"}], ")"}]}]}], "   ", "+", "  ", 
+    RowBox[{"k1", "[", " ", 
+     RowBox[{
+      RowBox[{"\[Rho]", "[", 
+       RowBox[{"x", ",", "t"}], "]"}], ",", 
+      RowBox[{"h", "[", 
+       RowBox[{"x", ",", "t"}], "]"}]}], "]"}]}]}]],
+  FontWeight->"Bold",ExpressionUUID->"8cc9cd8e-c778-4fa7-b66d-62a4cac41c9a"],
+ "\n\n and inhibitor, where the flux term will be through diffusion only:\n \n\
+",
+ StyleBox["  \t",
+  FontWeight->"Bold"],
+ Cell[BoxData[
+  RowBox[{
+   RowBox[{
+    SubscriptBox["\[PartialD]", "t"], " ", 
+    RowBox[{"(", "h", ")"}]}], "  ", "==", " ", 
+   RowBox[{
+    RowBox[{"-", " ", 
+     RowBox[{
+      SubscriptBox["\[PartialD]", "x"], " ", 
+      RowBox[{"(", 
+       RowBox[{
+        RowBox[{"-", " ", "\[Nu]"}], "*", 
+        RowBox[{
+         SubscriptBox["\[PartialD]", "x"], " ", 
+         RowBox[{"(", "h", ")"}]}]}], ")"}]}]}], "   ", "+", "  ", 
+    RowBox[{"k2", "[", " ", 
+     RowBox[{"\[Rho]", ",", "h"}], "]"}]}]}]],
+  FontWeight->"Bold",ExpressionUUID->"85501e15-39fc-4166-a4e3-bc54f0ecc40f"],
+ StyleBox["\n \t",
+  FontWeight->"Bold"],
+ Cell[BoxData[
+  RowBox[{
+   RowBox[{
+    SubscriptBox["\[PartialD]", "t"], " ", 
+    RowBox[{"(", "h", ")"}]}], "  ", "==", "   ", 
+   RowBox[{
+    RowBox[{"\[Nu]", "*", 
+     RowBox[{
+      SubscriptBox["\[PartialD]", 
+       RowBox[{"x", ",", "x"}]], " ", 
+      RowBox[{"(", "h", ")"}]}]}], "   ", "+", "  ", 
+    RowBox[{"k2", "[", " ", 
+     RowBox[{"\[Rho]", ",", "h"}], "]"}]}]}]],
+  FontWeight->"Bold",ExpressionUUID->"a02a1a69-4e21-4e84-99fd-532f879ce929"],
+ StyleBox["\n \t",
+  FontWeight->"Bold"],
+ Cell[BoxData[
+  RowBox[{
+   RowBox[{
+    SubscriptBox["\[PartialD]", "t"], " ", 
+    RowBox[{"(", 
+     RowBox[{"h", "[", 
+      RowBox[{"x", ",", "t"}], "]"}], ")"}]}], "  ", "==", "   ", 
+   RowBox[{
+    RowBox[{"\[Nu]", "*", 
+     RowBox[{
+      SubscriptBox["\[PartialD]", 
+       RowBox[{"x", ",", "x"}]], " ", 
+      RowBox[{"(", 
+       RowBox[{"h", "[", 
+        RowBox[{"x", ",", "t"}], "]"}], ")"}]}]}], "   ", "+", "  ", 
+    RowBox[{"k2", "[", " ", 
+     RowBox[{
+      RowBox[{"\[Rho]", "[", 
+       RowBox[{"x", ",", "t"}], "]"}], ",", 
+      RowBox[{"h", "[", 
+       RowBox[{"x", ",", "t"}], "]"}]}], "]"}]}]}]],
+  FontWeight->"Bold",ExpressionUUID->"b9e291b3-238a-41fa-95f9-79d3243970b9"],
+ "\n\nThe source and sink terms for both morphogen and inhibitor depend upon \
+their respective concentrations.  Consider the following examples for source \
+and sink terms for the morphogen:"
+}], "Text",ExpressionUUID->"29939e15-64b9-4831-bf98-dc2a3474af92"],
+
+Cell[BoxData[
+ RowBox[{
+  RowBox[{"k1", "[", 
+   RowBox[{"\[Rho]_", ",", "h_"}], "]"}], "=", 
+  RowBox[{
+   FractionBox[
+    RowBox[{"a", "*", 
+     SuperscriptBox["\[Rho]", "2"]}], "h"], "  ", "-", " ", "a"}]}]], "Input",
+ CellLabel->"In[66]:=",ExpressionUUID->"536ed7a7-9b9e-4e3c-b4d1-fdee8025e4dc"],
+
+Cell["And for the inhibitor:", "Text",ExpressionUUID->"d10faaf0-ec6a-4018-a0fb-bf39776e411b"],
+
+Cell[BoxData[
+ RowBox[{
+  RowBox[{"k2", "[", 
+   RowBox[{"\[Rho]_", ",", "h_"}], "]"}], "=", 
+  RowBox[{
+   RowBox[{"c", "*", 
+    SuperscriptBox["\[Rho]", "2"]}], " ", "-", "c"}]}]], "Input",
+ CellLabel->"In[67]:=",ExpressionUUID->"3eb7a0d5-2681-421b-b7ab-af0d2eb74bb0"],
+
+Cell[TextData[{
+ "The precise form of the sink and source terms depends upon the specific \
+biological system under study.  However, some common characteristics are \
+required to insurer that the inhibitor-morphogen relationship behaves as \
+expected.  \n\nFirst, the growth of the morphogen must be autocatalytic, \
+which is to say that it stimulates its own production.  This means that the \
+source term for the morphogen must produce more morphogen.  I.e.\n\n\t",
+ Cell[BoxData[
+  StyleBox[
+   RowBox[{
+    SubscriptBox["\[PartialD]", "\[Rho]"], " ", 
+    RowBox[{"k1", "[", 
+     RowBox[{"\[Rho]", ",", "h"}], "]"}]}],
+   FontWeight->"Bold"]],ExpressionUUID->
+  "e8e29244-9818-4625-bb2c-08883ec8177e"],
+ " > 0\n\t"
+}], "Text",ExpressionUUID->"1ea28675-cdb3-4315-9ba2-4e7a97a9bd5f"],
+
+Cell[BoxData[
+ RowBox[{
+  RowBox[{
+   SubscriptBox["\[PartialD]", "\[Rho]"], " ", 
+   RowBox[{"k1", "[", 
+    RowBox[{"\[Rho]", ",", "h"}], "]"}]}], ">", "0"}]], "Input",
+ CellChangeTimes->{{3.7507036368515253`*^9, 3.750703637449585*^9}},
+ CellLabel->"In[68]:=",ExpressionUUID->"1f4d7dc0-f562-45f3-a4d0-c360f49684b1"],
+
+Cell[BoxData[
+ RowBox[{"Assuming", "[", 
+  RowBox[{
+   RowBox[{
+    RowBox[{"a", ">", "0"}], "\[And]", 
+    RowBox[{"h", ">", "0"}], "\[And]", 
+    RowBox[{"\[Rho]", ">", "0"}]}], ",", 
+   RowBox[{"Simplify", "[", 
+    RowBox[{
+     FractionBox[
+      RowBox[{"2", " ", "a", " ", "\[Rho]"}], "h"], ">", "0"}], "]"}]}], 
+  "]"}]], "Input",
+ CellChangeTimes->{{3.750703665390379*^9, 3.75070388552639*^9}},
+ CellLabel->"In[69]:=",ExpressionUUID->"89eb0a79-8a1e-40bd-a759-210239ef0e62"],
+
+Cell[TextData[{
+ "Second, the level of the inhibitor rises with an increase in morphogen:\n\n\
+\t",
+ Cell[BoxData[
+  StyleBox[
+   RowBox[{
+    SubscriptBox["\[PartialD]", "\[Rho]"], " ", 
+    RowBox[{"k2", "[", 
+     RowBox[{"\[Rho]", ",", "h"}], "]"}]}],
+   FontWeight->"Bold"]],ExpressionUUID->
+  "b2f3ae5d-e42b-4673-ad1b-5a13b5435e07"],
+ " > 0\n"
+}], "Text",ExpressionUUID->"f9fcc8e0-9ad2-455d-9d51-a510ccae873c"],
+
+Cell[BoxData[
+ RowBox[{
+  RowBox[{
+   SubscriptBox["\[PartialD]", "\[Rho]"], " ", 
+   RowBox[{"k2", "[", 
+    RowBox[{"\[Rho]", ",", "h"}], "]"}]}], ">", "0"}]], "Input",
+ CellChangeTimes->{{3.750703893741212*^9, 3.7507038942192593`*^9}},
+ CellLabel->"In[70]:=",ExpressionUUID->"c333a23d-64bc-4168-8ac5-3fb64697e2d9"],
+
+Cell[BoxData[
+ RowBox[{"Assuming", "[", 
+  RowBox[{
+   RowBox[{
+    RowBox[{"c", ">", "0"}], "\[And]", 
+    RowBox[{"\[Rho]", ">", "0"}]}], ",", 
+   RowBox[{"Simplify", "[", 
+    RowBox[{
+     RowBox[{"2", " ", "c", " ", "\[Rho]"}], ">", "0"}], "]"}]}], 
+  "]"}]], "Input",
+ CellChangeTimes->{{3.7507039163984776`*^9, 3.7507039355923967`*^9}},
+ CellLabel->"In[71]:=",ExpressionUUID->"e688e359-5b83-4211-950b-9805a5c8478f"],
+
+Cell[TextData[{
+ "Finally, the inhibitor suppress is the production of morphogen:\n\n\t",
+ Cell[BoxData[
+  StyleBox[
+   RowBox[{
+    SubscriptBox["\[PartialD]", "h"], " ", 
+    RowBox[{"k1", "[", 
+     RowBox[{"\[Rho]", ",", "h"}], "]"}]}],
+   FontWeight->"Bold"]],ExpressionUUID->
+  "49a54cb5-c650-4429-8033-7fe6ee1a3221"],
+ " < 0\n"
+}], "Text",ExpressionUUID->"4e60c0f2-8894-4474-8b04-7980117a0d33"],
+
+Cell[BoxData[
+ RowBox[{
+  RowBox[{
+   SubscriptBox["\[PartialD]", "h"], " ", 
+   RowBox[{"k1", "[", 
+    RowBox[{"\[Rho]", ",", "h"}], "]"}]}], "<", "0"}]], "Input",
+ CellChangeTimes->{{3.75070394312615*^9, 3.7507039488627234`*^9}},
+ CellLabel->"In[72]:=",ExpressionUUID->"0a07ee34-e597-4d78-bd8c-371529636ae3"],
+
+Cell[BoxData[
+ RowBox[{"Assuming", "[", 
+  RowBox[{
+   RowBox[{
+    RowBox[{"a", ">", "0"}], "\[And]", 
+    RowBox[{"h", ">", "0"}], "\[And]", 
+    RowBox[{"\[Rho]", ">", "0"}]}], ",", 
+   RowBox[{"Simplify", "[", 
+    RowBox[{
+     RowBox[{"-", 
+      FractionBox[
+       RowBox[{"a", " ", 
+        SuperscriptBox["\[Rho]", "2"]}], 
+       SuperscriptBox["h", "2"]]}], "<", "0"}], "]"}]}], "]"}]], "Input",
+ CellChangeTimes->{3.7507039876656036`*^9},
+ CellLabel->"In[73]:=",ExpressionUUID->"ae257079-bd00-4583-9724-ff7459e674ca"],
+
+Cell[CellGroupData[{
+
+Cell["Special case: morphogen-inhibitor equilibrium:", "Subsubsection",ExpressionUUID->"284fda64-71c3-425a-95c9-cda4ec91e85b"],
+
+Cell[TextData[{
+ "Consider the special case where the morphogen and inhibitor are both in \
+steady-state equilibrium.  For steady-state conditions, the time derivatives \
+are zero.  Furthermore, consider the special case of a uniform morphogen and \
+inhibitor density distribution (therefore the spatial derivatives will also \
+be zero).\n\nSolve for the ",
+ StyleBox["equilibrium",
+  FontWeight->"Bold",
+  FontVariations->{"Underline"->True}],
+ " and ",
+ StyleBox["uniform",
+  FontWeight->"Bold",
+  FontVariations->{"Underline"->True}],
+ " values of morphogen and inhibitor:"
+}], "Text",ExpressionUUID->"788f1875-563e-4b08-8ae4-5779154a11f0"],
+
+Cell[BoxData[
+ RowBox[{
+  RowBox[{"Solve", "[", "\[IndentingNewLine]", "\[IndentingNewLine]", 
+   RowBox[{
+    RowBox[{"{", "\[IndentingNewLine]", 
+     RowBox[{
+      RowBox[{
+       RowBox[{"k1", "[", 
+        RowBox[{"\[Rho]", ",", "h"}], "]"}], "==", "0"}], ",", 
+      "\[IndentingNewLine]", 
+      RowBox[{
+       RowBox[{"k2", "[", 
+        RowBox[{"\[Rho]", ",", "h"}], "]"}], "==", "0"}]}], 
+     "\[IndentingNewLine]", "}"}], ",", "\[IndentingNewLine]", 
+    "\[IndentingNewLine]", 
+    RowBox[{"{", 
+     RowBox[{"\[Rho]", ",", "h"}], "}"}]}], "\[IndentingNewLine]", 
+   "\[IndentingNewLine]", "]"}], "//", "TableForm"}]], "Input",
+ CellChangeTimes->{{3.3985283373123055`*^9, 3.3985283515779305`*^9}, {
+   3.750704209889824*^9, 3.750704216866521*^9}, 3.7507042503308673`*^9},
+ CellLabel->"In[78]:=",ExpressionUUID->"32009782-359d-4a07-8ed4-bf055df3d7df"]
+}, Closed]],
+
+Cell[CellGroupData[{
+
+Cell["PDE Solution:", "Subsubsection",ExpressionUUID->"3b29eff6-68b3-4b45-a977-12d083397e23"],
+
+Cell["\<\
+Consider a biological strip of tissue ten units wide.  We will assume some \
+reasonable values for the diffusion coefficients \[Mu] and \[Nu].  \
+Specifically, to insure that the inhibitor spreads out faster than the \
+morphogen, we will assume that the diffusion coefficient for the inhibitor is \
+twice is large as the diffusion coefficient of the morphogen.
+
+\t\[Mu]  =  .01
+\t\[Nu]  =  .02
+\
+\>", "Text",ExpressionUUID->"d7798577-1e1d-4afd-b25a-74b59e495d2c"],
+
+Cell[BoxData[{
+ RowBox[{
+  RowBox[{"L", " ", "=", " ", "10"}], ";"}], "\n", 
+ RowBox[{
+  RowBox[{"tStop", " ", "=", "5"}], ";"}], "\n", 
+ RowBox[{
+  RowBox[{"\[Mu]", "  ", "=", "  ", ".01"}], ";"}], "\n", 
+ RowBox[{
+  RowBox[{"\[Nu]", "  ", "=", "  ", ".02"}], ";"}], "\n", 
+ RowBox[{
+  RowBox[{"a", "  ", "=", "  ", ".1"}], ";"}], "\n", 
+ RowBox[{
+  RowBox[{"c", "  ", "=", "  ", ".2"}], ";"}]}], "InputOnly",
+ CellLabel->"In[80]:=",ExpressionUUID->"69efdf52-c6ef-4580-9b79-f0015593876a"],
+
+Cell["\<\
+Setup and solve our system of PDEs.  We will assume that the initial and \
+boundary conditions all correspond to steady-state uniform \
+morphogen-inhibitor conditions.\
+\>", "Text",ExpressionUUID->"02cc539f-1a0d-4638-aee1-b71bcc41e450"],
+
+Cell[BoxData[
+ RowBox[{"SolutionRule", "=", "\[IndentingNewLine]", "\[IndentingNewLine]", 
+  RowBox[{"NDSolve", "[", "\[IndentingNewLine]", 
+   RowBox[{
+    RowBox[{"{", "\[IndentingNewLine]", 
+     RowBox[{
+      RowBox[{
+       RowBox[{
+        SubscriptBox["\[PartialD]", "t"], 
+        RowBox[{"\[Rho]", "[", 
+         RowBox[{"x", ",", "t"}], "]"}]}], "\[Equal]", 
+       RowBox[{
+        RowBox[{"\[Mu]", " ", 
+         RowBox[{
+          SubscriptBox["\[PartialD]", 
+           RowBox[{"x", ",", "x"}]], 
+          RowBox[{"\[Rho]", "[", 
+           RowBox[{"x", ",", "t"}], "]"}]}]}], "+", 
+        RowBox[{"k1", "[", 
+         RowBox[{
+          RowBox[{"\[Rho]", "[", 
+           RowBox[{"x", ",", "t"}], "]"}], ",", 
+          RowBox[{"h", "[", 
+           RowBox[{"x", ",", "t"}], "]"}]}], "]"}]}]}], ",", 
+      "\[IndentingNewLine]", 
+      RowBox[{
+       RowBox[{
+        SubscriptBox["\[PartialD]", "t"], 
+        RowBox[{"h", "[", 
+         RowBox[{"x", ",", "t"}], "]"}]}], "\[Equal]", 
+       RowBox[{
+        RowBox[{"\[Nu]", " ", 
+         RowBox[{
+          SubscriptBox["\[PartialD]", 
+           RowBox[{"x", ",", "x"}]], 
+          RowBox[{"h", "[", 
+           RowBox[{"x", ",", "t"}], "]"}]}]}], "+", 
+        RowBox[{"k2", "[", 
+         RowBox[{
+          RowBox[{"\[Rho]", "[", 
+           RowBox[{"x", ",", "t"}], "]"}], ",", 
+          RowBox[{"h", "[", 
+           RowBox[{"x", ",", "t"}], "]"}]}], "]"}]}]}], ",", 
+      "\[IndentingNewLine]", "\[IndentingNewLine]", 
+      RowBox[{
+       RowBox[{"\[Rho]", "[", 
+        RowBox[{"x", ",", "0"}], "]"}], "\[Equal]", "1"}], ",", 
+      "\[IndentingNewLine]", 
+      RowBox[{
+       RowBox[{"\[Rho]", "[", 
+        RowBox[{"0", ",", "t"}], "]"}], "\[Equal]", "1"}], ",", 
+      "\[IndentingNewLine]", 
+      RowBox[{
+       RowBox[{"\[Rho]", "[", 
+        RowBox[{"L", ",", "t"}], "]"}], "\[Equal]", "1"}], ",", 
+      "\[IndentingNewLine]", 
+      RowBox[{
+       RowBox[{"h", "[", 
+        RowBox[{"x", ",", "0"}], "]"}], "\[Equal]", "1"}], ",", 
+      "\[IndentingNewLine]", 
+      RowBox[{
+       RowBox[{"h", "[", 
+        RowBox[{"0", ",", "t"}], "]"}], "\[Equal]", "1"}], ",", 
+      "\[IndentingNewLine]", 
+      RowBox[{
+       RowBox[{"h", "[", 
+        RowBox[{"L", ",", "t"}], "]"}], "\[Equal]", "1"}]}], 
+     "\[IndentingNewLine]", "}"}], ",", "\[IndentingNewLine]", 
+    "\[IndentingNewLine]", 
+    RowBox[{"{", 
+     RowBox[{
+      RowBox[{"\[Rho]", "[", 
+       RowBox[{"x", ",", "t"}], "]"}], ",", 
+      RowBox[{"h", "[", 
+       RowBox[{"x", ",", "t"}], "]"}]}], "}"}], ",", "\[IndentingNewLine]", 
+    "\[IndentingNewLine]", 
+    RowBox[{"{", 
+     RowBox[{"x", ",", "0", ",", "L"}], "}"}], ",", "\[IndentingNewLine]", 
+    RowBox[{"{", 
+     RowBox[{"t", ",", "0", ",", "tStop"}], "}"}]}], "\[IndentingNewLine]", 
+   "]"}]}]], "Input",
+ CellChangeTimes->{{3.3985283652966805`*^9, 3.3985283691873055`*^9}},
+ CellLabel->"In[86]:=",ExpressionUUID->"dd043f51-112a-45a4-b594-2992a4dbf302"],
+
+Cell["\<\
+Plot the concentration of the morphogen for five units of time:\
+\>", "Text",ExpressionUUID->"7590ccbb-9b92-46ac-86a6-8d23155b0ab7"],
+
+Cell[BoxData[
+ RowBox[{"Plot3D", "[", "\[IndentingNewLine]", "\[IndentingNewLine]", 
+  RowBox[{
+   RowBox[{
+    RowBox[{"\[Rho]", "[", 
+     RowBox[{"x", ",", "t"}], "]"}], "/.", "\[InvisibleSpace]", 
+    RowBox[{"Flatten", "[", "SolutionRule", "]"}]}], ",", 
+   "\[IndentingNewLine]", "\[IndentingNewLine]", 
+   RowBox[{"{", 
+    RowBox[{"x", ",", "0", ",", "L"}], "}"}], ",", "\[IndentingNewLine]", 
+   RowBox[{"{", 
+    RowBox[{"t", ",", "0", ",", "tStop"}], "}"}], ",", "\[IndentingNewLine]", 
+   "\[IndentingNewLine]", 
+   RowBox[{"PlotLabel", "\[Rule]", "\"\<\[Rho][x,t]\>\""}], ",", 
+   "\[IndentingNewLine]", 
+   RowBox[{"PlotRange", "\[Rule]", 
+    RowBox[{"{", 
+     RowBox[{"0", ",", "2"}], "}"}]}], ",", "\[IndentingNewLine]", 
+   RowBox[{"AxesLabel", "\[Rule]", 
+    RowBox[{"{", 
+     RowBox[{
+     "\"\<x-Distance\>\"", ",", "\"\<time\>\"", ",", "\"\<\[Rho]\>\""}], 
+     "}"}]}]}], "\[IndentingNewLine]", "]"}]], "Input",
+ CellChangeTimes->{
+  3.3985283782029305`*^9, 3.3985284247029305`*^9, {3.3985287563435555`*^9, 
+   3.3985287577498055`*^9}},
+ CellLabel->"In[87]:=",ExpressionUUID->"8ee687be-f9e8-49bc-b25b-75429e11794e"],
+
+Cell["\<\
+Plot the concentration of the inhibitor for five units of time:\
+\>", "Text",ExpressionUUID->"8ce604dd-b806-4f58-bc94-03fcade4a0c2"],
+
+Cell[BoxData[
+ RowBox[{"Plot3D", "[", "\[IndentingNewLine]", "\[IndentingNewLine]", 
+  RowBox[{
+   RowBox[{
+    RowBox[{"h", "[", 
+     RowBox[{"x", ",", "t"}], "]"}], "/.", "\[InvisibleSpace]", 
+    RowBox[{"Flatten", "[", "SolutionRule", "]"}]}], ",", 
+   "\[IndentingNewLine]", "\[IndentingNewLine]", 
+   RowBox[{"{", 
+    RowBox[{"x", ",", "0", ",", "L"}], "}"}], ",", "\[IndentingNewLine]", 
+   RowBox[{"{", 
+    RowBox[{"t", ",", "0", ",", "tStop"}], "}"}], ",", "\[IndentingNewLine]", 
+   "\[IndentingNewLine]", 
+   RowBox[{"PlotLabel", "\[Rule]", "\"\<h[x,t]\>\""}], ",", 
+   "\[IndentingNewLine]", 
+   RowBox[{"PlotRange", "\[Rule]", 
+    RowBox[{"{", 
+     RowBox[{"0", ",", "2"}], "}"}]}], ",", "\[IndentingNewLine]", 
+   RowBox[{"AxesLabel", "\[Rule]", 
+    RowBox[{"{", 
+     RowBox[{"\"\<x-Distance\>\"", ",", "\"\<time\>\"", ",", "\"\<h\>\""}], 
+     "}"}]}]}], "\[IndentingNewLine]", "]"}]], "Input",
+ CellChangeTimes->{{3.3985284325935555`*^9, 3.3985284372966805`*^9}, {
+  3.3985289071560555`*^9, 3.3985289087654305`*^9}},
+ CellLabel->"In[88]:=",ExpressionUUID->"47bb1711-d9fc-47ae-970e-f0fe172ed66d"],
+
+Cell["\<\
+Observed that both the morphogen and inhibitor are at uniform steady-state \
+conditions.
+
+\
+\>", "Text",ExpressionUUID->"8e21c105-e36f-498c-91a0-b3e56c78032b"]
+}, Closed]],
+
+Cell[CellGroupData[{
+
+Cell["General Solution:  morphogen-inhibitor ", "Subsubsection",ExpressionUUID->"26fd5e35-b4c3-42c4-89ea-c18aef285666"],
+
+Cell["Next consider the same values as above:", "Text",ExpressionUUID->"06898991-697f-4ad7-b115-b88c6f9ca511"],
+
+Cell[BoxData[{
+ RowBox[{
+  RowBox[{"L", " ", "=", " ", "10"}], ";"}], "\n", 
+ RowBox[{
+  RowBox[{"tStop", " ", "=", "5"}], ";"}], "\n", 
+ RowBox[{
+  RowBox[{"\[Mu]", "  ", "=", "  ", ".01"}], ";"}], "\n", 
+ RowBox[{
+  RowBox[{"\[Nu]", "  ", "=", "  ", ".02"}], ";"}], "\n", 
+ RowBox[{
+  RowBox[{"a", "  ", "=", "  ", ".1"}], ";"}], "\n", 
+ RowBox[{
+  RowBox[{"c", "  ", "=", "  ", ".2"}], ";"}]}], "InputOnly",
+ CellLabel->"In[89]:=",ExpressionUUID->"de1d61e1-3462-45ba-a3a9-3b52a679a8b3"],
+
+Cell["\<\
+Consider an initial morphogen density profile that has a small excess \
+concentration of morphogen in the center of our biological strip:\
+\>", "Text",ExpressionUUID->"083d0c5a-87fb-412a-a311-d655e0e64d79"],
+
+Cell[BoxData[
+ RowBox[{
+  RowBox[{"\[Rho]0", "[", "x_", "]"}], " ", "=", 
+  RowBox[{"1", "+", 
+   RowBox[{".3", "*", 
+    RowBox[{"If", "[", 
+     RowBox[{
+      RowBox[{
+       RowBox[{".4", "*", "L"}], "<", "x", "<", 
+       RowBox[{".6", "*", "L"}]}], ",", 
+      RowBox[{"Cos", "[", 
+       RowBox[{
+        FractionBox["\[Pi]", 
+         RowBox[{".2", "*", "L"}]], 
+        RowBox[{"(", 
+         RowBox[{"x", "-", 
+          RowBox[{".5", "*", "L"}]}], ")"}]}], "]"}], ",", "0"}], 
+     "]"}]}]}]}]], "Input",
+ CellLabel->"In[95]:=",ExpressionUUID->"09e80544-d765-4462-9522-43b22922671c"],
+
+Cell["Plot the initial morphogen density:", "Text",ExpressionUUID->"ca95fa83-77e2-4a15-ab70-9297edc5ecc5"],
+
+Cell[BoxData[
+ RowBox[{"Plot", "[", "\[IndentingNewLine]", "\[IndentingNewLine]", 
+  RowBox[{
+   RowBox[{"\[Rho]0", "[", "x", "]"}], ",", "\[IndentingNewLine]", 
+   "\[IndentingNewLine]", 
+   RowBox[{"{", 
+    RowBox[{"x", ",", "0", ",", "L"}], "}"}], ",", "\[IndentingNewLine]", 
+   "\[IndentingNewLine]", 
+   RowBox[{"PlotStyle", "\[Rule]", 
+    RowBox[{"Thickness", "[", ".01", "]"}]}], ",", "\[IndentingNewLine]", 
+   RowBox[{"PlotRange", "\[Rule]", 
+    RowBox[{"{", 
+     RowBox[{"0", ",", "1.5"}], "}"}]}], ",", "\[IndentingNewLine]", 
+   RowBox[{"AxesLabel", "\[Rule]", 
+    RowBox[{"{", 
+     RowBox[{"\"\<x-Distance\>\"", ",", "\"\<\[Rho]0\>\""}], "}"}]}]}], 
+  "\[IndentingNewLine]", "]"}]], "Input",
+ CellChangeTimes->{{3.3985284442185555`*^9, 3.3985284539216805`*^9}},
+ CellLabel->"In[96]:=",ExpressionUUID->"79ffd448-97b0-4d45-8066-3e38231e9d59"],
+
+Cell["\<\
+The above initial morphogen density profile is out of equilibrium near the \
+center.  We expect that the inhibitor will respond by increasing its \
+production and subsequently suppressing the production of morphogen.
+
+Solve for the morphogen-inhibitor concentrations for five units of time:\
+\>", "Text",ExpressionUUID->"c7eca551-f7ba-427a-84fb-7da15e3299aa"],
+
+Cell[BoxData[{
+ RowBox[{
+  RowBox[{
+   RowBox[{"Off", "[", 
+    RowBox[{"NDSolve", "::", "\"\<mxsst\>\""}], "]"}], ";"}], 
+  "\[IndentingNewLine]"}], "\[IndentingNewLine]", 
+ RowBox[{"SolutionRule", "=", "\[IndentingNewLine]", "\[IndentingNewLine]", 
+  RowBox[{"NDSolve", "[", "\[IndentingNewLine]", 
+   RowBox[{
+    RowBox[{"{", "\[IndentingNewLine]", 
+     RowBox[{
+      RowBox[{
+       RowBox[{
+        SubscriptBox["\[PartialD]", "t"], 
+        RowBox[{"\[Rho]", "[", 
+         RowBox[{"x", ",", "t"}], "]"}]}], "\[Equal]", 
+       RowBox[{
+        RowBox[{"\[Mu]", " ", 
+         RowBox[{
+          SubscriptBox["\[PartialD]", 
+           RowBox[{"x", ",", "x"}]], 
+          RowBox[{"\[Rho]", "[", 
+           RowBox[{"x", ",", "t"}], "]"}]}]}], "+", 
+        RowBox[{"k1", "[", 
+         RowBox[{
+          RowBox[{"\[Rho]", "[", 
+           RowBox[{"x", ",", "t"}], "]"}], ",", 
+          RowBox[{"h", "[", 
+           RowBox[{"x", ",", "t"}], "]"}]}], "]"}]}]}], ",", 
+      "\[IndentingNewLine]", 
+      RowBox[{
+       RowBox[{
+        SubscriptBox["\[PartialD]", "t"], 
+        RowBox[{"h", "[", 
+         RowBox[{"x", ",", "t"}], "]"}]}], "\[Equal]", 
+       RowBox[{
+        RowBox[{"\[Nu]", " ", 
+         RowBox[{
+          SubscriptBox["\[PartialD]", 
+           RowBox[{"x", ",", "x"}]], 
+          RowBox[{"h", "[", 
+           RowBox[{"x", ",", "t"}], "]"}]}]}], "+", 
+        RowBox[{"k2", "[", 
+         RowBox[{
+          RowBox[{"\[Rho]", "[", 
+           RowBox[{"x", ",", "t"}], "]"}], ",", 
+          RowBox[{"h", "[", 
+           RowBox[{"x", ",", "t"}], "]"}]}], "]"}]}]}], ",", 
+      "\[IndentingNewLine]", "\[IndentingNewLine]", 
+      RowBox[{
+       RowBox[{"\[Rho]", "[", 
+        RowBox[{"x", ",", "0"}], "]"}], "\[Equal]", 
+       RowBox[{"\[Rho]0", "[", "x", "]"}]}], ",", "\[IndentingNewLine]", 
+      RowBox[{
+       RowBox[{"\[Rho]", "[", 
+        RowBox[{"0", ",", "t"}], "]"}], "\[Equal]", "1"}], ",", 
+      "\[IndentingNewLine]", 
+      RowBox[{
+       RowBox[{"\[Rho]", "[", 
+        RowBox[{"L", ",", "t"}], "]"}], "\[Equal]", "1"}], ",", 
+      "\[IndentingNewLine]", 
+      RowBox[{
+       RowBox[{"h", "[", 
+        RowBox[{"x", ",", "0"}], "]"}], "\[Equal]", "1"}], ",", 
+      "\[IndentingNewLine]", 
+      RowBox[{
+       RowBox[{"h", "[", 
+        RowBox[{"0", ",", "t"}], "]"}], "\[Equal]", "1"}], ",", 
+      "\[IndentingNewLine]", 
+      RowBox[{
+       RowBox[{"h", "[", 
+        RowBox[{"L", ",", "t"}], "]"}], "\[Equal]", "1"}]}], 
+     "\[IndentingNewLine]", "}"}], ",", "\[IndentingNewLine]", 
+    "\[IndentingNewLine]", 
+    RowBox[{"{", 
+     RowBox[{
+      RowBox[{"\[Rho]", "[", 
+       RowBox[{"x", ",", "t"}], "]"}], ",", 
+      RowBox[{"h", "[", 
+       RowBox[{"x", ",", "t"}], "]"}]}], "}"}], ",", "\[IndentingNewLine]", 
+    "\[IndentingNewLine]", 
+    RowBox[{"{", 
+     RowBox[{"x", ",", "0", ",", "L"}], "}"}], ",", "\[IndentingNewLine]", 
+    RowBox[{"{", 
+     RowBox[{"t", ",", "0", ",", "tStop"}], "}"}], ",", "\[IndentingNewLine]",
+     "\[IndentingNewLine]", 
+    RowBox[{"MaxSteps", "\[Rule]", 
+     RowBox[{"{", 
+      RowBox[{"600", ",", "600"}], "}"}]}]}], "\[IndentingNewLine]", 
+   "]"}]}]}], "Input",
+ CellChangeTimes->{{3.3985284575779305`*^9, 3.3985284623904305`*^9}, {
+  3.466531918828537*^9, 3.466531949718569*^9}, {3.466532127762026*^9, 
+  3.466532167526887*^9}},
+ CellLabel->"In[97]:=",ExpressionUUID->"31aec8c4-163d-43aa-9611-4df7ecdada8d"],
+
+Cell["\<\
+Plot the concentration of the morphogen for five units of time:\
+\>", "Text",ExpressionUUID->"e0e584d0-aedc-40f2-a394-419028470e8c"],
+
+Cell[BoxData[
+ RowBox[{"Plot3D", "[", "\[IndentingNewLine]", "\[IndentingNewLine]", 
+  RowBox[{
+   RowBox[{
+    RowBox[{"\[Rho]", "[", 
+     RowBox[{"x", ",", "t"}], "]"}], "/.", "\[InvisibleSpace]", 
+    RowBox[{"Flatten", "[", "SolutionRule", "]"}]}], ",", 
+   "\[IndentingNewLine]", "\[IndentingNewLine]", 
+   RowBox[{"{", 
+    RowBox[{"x", ",", "0", ",", "L"}], "}"}], ",", "\[IndentingNewLine]", 
+   RowBox[{"{", 
+    RowBox[{"t", ",", "0", ",", "tStop"}], "}"}], ",", "\[IndentingNewLine]", 
+   "\[IndentingNewLine]", 
+   RowBox[{"PlotLabel", "\[Rule]", "\"\<\[Rho][x,t]\>\""}], ",", 
+   "\[IndentingNewLine]", 
+   RowBox[{"PlotRange", "\[Rule]", 
+    RowBox[{"{", 
+     RowBox[{"0", ",", "1.5"}], "}"}]}], ",", "\[IndentingNewLine]", 
+   RowBox[{"PlotPoints", "\[Rule]", "30"}], ",", "\[IndentingNewLine]", 
+   RowBox[{"AxesLabel", "\[Rule]", 
+    RowBox[{"{", 
+     RowBox[{
+     "\"\<x-Distance\>\"", ",", "\"\<time\>\"", ",", "\"\<\[Rho]\>\""}], 
+     "}"}]}]}], "\[IndentingNewLine]", "]"}]], "Input",
+ CellChangeTimes->{{3.3985284664060555`*^9, 3.3985284714841805`*^9}, {
+  3.3985287792185555`*^9, 3.3985287807498055`*^9}},
+ CellLabel->"In[99]:=",ExpressionUUID->"c93680f7-cdf1-43ff-9f52-c88d06ed595a"],
+
+Cell["\<\
+Plot the concentration of the inhibitor for five units of time:\
+\>", "Text",ExpressionUUID->"d7764c3b-80c2-4a9c-91f3-908c65df81d6"],
+
+Cell[BoxData[
+ RowBox[{"Plot3D", "[", "\[IndentingNewLine]", "\[IndentingNewLine]", 
+  RowBox[{
+   RowBox[{
+    RowBox[{"h", "[", 
+     RowBox[{"x", ",", "t"}], "]"}], "/.", "\[InvisibleSpace]", 
+    RowBox[{"Flatten", "[", "SolutionRule", "]"}]}], ",", 
+   "\[IndentingNewLine]", "\[IndentingNewLine]", 
+   RowBox[{"{", 
+    RowBox[{"x", ",", "0", ",", "L"}], "}"}], ",", "\[IndentingNewLine]", 
+   RowBox[{"{", 
+    RowBox[{"t", ",", "0", ",", "tStop"}], "}"}], ",", "\[IndentingNewLine]", 
+   "\[IndentingNewLine]", 
+   RowBox[{"PlotLabel", "\[Rule]", "\"\<h[x,t]\>\""}], ",", 
+   "\[IndentingNewLine]", 
+   RowBox[{"PlotRange", "\[Rule]", 
+    RowBox[{"{", 
+     RowBox[{"0", ",", "2"}], "}"}]}], ",", "\[IndentingNewLine]", 
+   RowBox[{"PlotPoints", "\[Rule]", "30"}], ",", "\[IndentingNewLine]", 
+   RowBox[{"AxesLabel", "\[Rule]", 
+    RowBox[{"{", 
+     RowBox[{"\"\<x-Distance\>\"", ",", "\"\<time\>\"", ",", "\"\<h\>\""}], 
+     "}"}]}]}], "\[IndentingNewLine]", "]"}]], "Input",
+ CellChangeTimes->{{3.3985284757341805`*^9, 3.3985284798123055`*^9}, {
+  3.3985289203591805`*^9, 3.3985289216873055`*^9}},
+ CellLabel->
+  "In[100]:=",ExpressionUUID->"2daa96cc-4851-4b02-a807-e1cd60fdbe9f"],
+
+Cell["\<\
+Observe in the above plot that the inhibitor concentration has increased in \
+response to the non-equilibrium concentration of the morphogen.
+\
+\>", "Text",ExpressionUUID->"9404c565-930d-48bf-9724-54b82f3ccfd6"]
+}, Closed]],
+
+Cell[CellGroupData[{
+
+Cell["Extend the time:", "Subsubsection",ExpressionUUID->"ce1ce44b-be33-493c-abf1-96b063c7e49a"],
+
+Cell["Consider the same conditions, but extend the time:", "Text",ExpressionUUID->"90c07fb9-6361-4292-8a65-9ceb80143b34"],
+
+Cell[BoxData[{
+ RowBox[{
+  RowBox[{"L", " ", "=", " ", "10"}], ";"}], "\n", 
+ RowBox[{
+  RowBox[{"tStop", " ", "=", "27"}], ";"}], "\n", 
+ RowBox[{
+  RowBox[{"\[Mu]", "  ", "=", "  ", ".01"}], ";"}], "\n", 
+ RowBox[{
+  RowBox[{"\[Nu]", "  ", "=", "  ", ".02"}], ";"}], "\n", 
+ RowBox[{
+  RowBox[{"a", "  ", "=", "  ", ".1"}], ";"}], "\n", 
+ RowBox[{
+  RowBox[{"c", "  ", "=", "  ", ".2"}], ";"}]}], "InputOnly",
+ CellLabel->
+  "In[101]:=",ExpressionUUID->"3f525eca-32d7-4149-91a7-f50cb59c95f8"],
+
+Cell["\<\
+Solve the morphogen-inhibitor PDEs for this longer interval of time:\
+\>", "Text",ExpressionUUID->"62be3bf3-9040-4753-99f5-0dcb7482ac53"],
+
+Cell[BoxData[
+ RowBox[{"SolutionRule", "=", "\[IndentingNewLine]", "\[IndentingNewLine]", 
+  RowBox[{"NDSolve", "[", "\[IndentingNewLine]", 
+   RowBox[{
+    RowBox[{"{", "\[IndentingNewLine]", 
+     RowBox[{
+      RowBox[{
+       RowBox[{
+        SubscriptBox["\[PartialD]", "t"], 
+        RowBox[{"\[Rho]", "[", 
+         RowBox[{"x", ",", "t"}], "]"}]}], "\[Equal]", 
+       RowBox[{
+        RowBox[{"\[Mu]", " ", 
+         RowBox[{
+          SubscriptBox["\[PartialD]", 
+           RowBox[{"x", ",", "x"}]], 
+          RowBox[{"\[Rho]", "[", 
+           RowBox[{"x", ",", "t"}], "]"}]}]}], "+", 
+        RowBox[{"k1", "[", 
+         RowBox[{
+          RowBox[{"\[Rho]", "[", 
+           RowBox[{"x", ",", "t"}], "]"}], ",", 
+          RowBox[{"h", "[", 
+           RowBox[{"x", ",", "t"}], "]"}]}], "]"}]}]}], ",", 
+      "\[IndentingNewLine]", 
+      RowBox[{
+       RowBox[{
+        SubscriptBox["\[PartialD]", "t"], 
+        RowBox[{"h", "[", 
+         RowBox[{"x", ",", "t"}], "]"}]}], "\[Equal]", 
+       RowBox[{
+        RowBox[{"\[Nu]", " ", 
+         RowBox[{
+          SubscriptBox["\[PartialD]", 
+           RowBox[{"x", ",", "x"}]], 
+          RowBox[{"h", "[", 
+           RowBox[{"x", ",", "t"}], "]"}]}]}], "+", 
+        RowBox[{"k2", "[", 
+         RowBox[{
+          RowBox[{"\[Rho]", "[", 
+           RowBox[{"x", ",", "t"}], "]"}], ",", 
+          RowBox[{"h", "[", 
+           RowBox[{"x", ",", "t"}], "]"}]}], "]"}]}]}], ",", 
+      "\[IndentingNewLine]", "\[IndentingNewLine]", 
+      RowBox[{
+       RowBox[{"\[Rho]", "[", 
+        RowBox[{"x", ",", "0"}], "]"}], "\[Equal]", 
+       RowBox[{"\[Rho]0", "[", "x", "]"}]}], ",", "\[IndentingNewLine]", 
+      RowBox[{
+       RowBox[{"\[Rho]", "[", 
+        RowBox[{"0", ",", "t"}], "]"}], "\[Equal]", "1"}], ",", 
+      "\[IndentingNewLine]", 
+      RowBox[{
+       RowBox[{"\[Rho]", "[", 
+        RowBox[{"L", ",", "t"}], "]"}], "\[Equal]", "1"}], ",", 
+      "\[IndentingNewLine]", 
+      RowBox[{
+       RowBox[{"h", "[", 
+        RowBox[{"x", ",", "0"}], "]"}], "\[Equal]", "1"}], ",", 
+      "\[IndentingNewLine]", 
+      RowBox[{
+       RowBox[{"h", "[", 
+        RowBox[{"0", ",", "t"}], "]"}], "\[Equal]", "1"}], ",", 
+      "\[IndentingNewLine]", 
+      RowBox[{
+       RowBox[{"h", "[", 
+        RowBox[{"L", ",", "t"}], "]"}], "\[Equal]", "1"}]}], 
+     "\[IndentingNewLine]", "}"}], ",", "\[IndentingNewLine]", 
+    "\[IndentingNewLine]", 
+    RowBox[{"{", 
+     RowBox[{
+      RowBox[{"\[Rho]", "[", 
+       RowBox[{"x", ",", "t"}], "]"}], ",", 
+      RowBox[{"h", "[", 
+       RowBox[{"x", ",", "t"}], "]"}]}], "}"}], ",", "\[IndentingNewLine]", 
+    "\[IndentingNewLine]", 
+    RowBox[{"{", 
+     RowBox[{"x", ",", "0", ",", "L"}], "}"}], ",", "\[IndentingNewLine]", 
+    RowBox[{"{", 
+     RowBox[{"t", ",", "0", ",", "tStop"}], "}"}], ",", "\[IndentingNewLine]",
+     "\[IndentingNewLine]", 
+    RowBox[{"MaxSteps", "\[Rule]", 
+     RowBox[{"{", 
+      RowBox[{"600", ",", "600"}], "}"}]}]}], "\[IndentingNewLine]", 
+   "]"}]}]], "Input",
+ CellChangeTimes->{{3.3985284881091805`*^9, 3.3985284926404305`*^9}},
+ CellLabel->
+  "In[107]:=",ExpressionUUID->"bd6f6f4e-4bfb-42b1-8c9f-fc3d40a4ce48"],
+
+Cell["Plot the morphogen concentration:", "Text",ExpressionUUID->"c6147103-59e6-40fb-a980-f9dace3df242"],
+
+Cell[BoxData[
+ RowBox[{"Plot3D", "[", "\[IndentingNewLine]", "\[IndentingNewLine]", 
+  RowBox[{
+   RowBox[{
+    RowBox[{"\[Rho]", "[", 
+     RowBox[{"x", ",", "t"}], "]"}], "/.", "\[InvisibleSpace]", 
+    RowBox[{"Flatten", "[", "SolutionRule", "]"}]}], ",", 
+   "\[IndentingNewLine]", "\[IndentingNewLine]", 
+   RowBox[{"{", 
+    RowBox[{"x", ",", "0", ",", "L"}], "}"}], ",", "\[IndentingNewLine]", 
+   RowBox[{"{", 
+    RowBox[{"t", ",", "0", ",", "tStop"}], "}"}], ",", "\[IndentingNewLine]", 
+   "\[IndentingNewLine]", 
+   RowBox[{"PlotLabel", "\[Rule]", "\"\<\[Rho][x,t]\>\""}], ",", 
+   "\[IndentingNewLine]", 
+   RowBox[{"PlotRange", "\[Rule]", 
+    RowBox[{"{", 
+     RowBox[{"0", ",", "3"}], "}"}]}], ",", "\[IndentingNewLine]", 
+   RowBox[{"PlotPoints", "\[Rule]", "30"}], ",", "\[IndentingNewLine]", 
+   RowBox[{"AxesLabel", "\[Rule]", 
+    RowBox[{"{", 
+     RowBox[{
+     "\"\<x-Distance\>\"", ",", "\"\<time\>\"", ",", "\"\<\[Rho]\>\""}], 
+     "}"}]}]}], "\[IndentingNewLine]", "]"}]], "Input",
+ CellChangeTimes->{{3.3985284953748055`*^9, 3.3985284995310555`*^9}, {
+  3.3985287889998055`*^9, 3.3985287903748055`*^9}},
+ CellLabel->
+  "In[108]:=",ExpressionUUID->"04af0ecc-f455-4f7f-bae5-df420a50a0d7"],
+
+Cell["Plot the inhibitor concentration:", "Text",ExpressionUUID->"8bfae69b-afda-45f0-b170-99d026256159"],
+
+Cell[BoxData[
+ RowBox[{"Plot3D", "[", "\[IndentingNewLine]", "\[IndentingNewLine]", 
+  RowBox[{
+   RowBox[{
+    RowBox[{"h", "[", 
+     RowBox[{"x", ",", "t"}], "]"}], "/.", "\[InvisibleSpace]", 
+    RowBox[{"Flatten", "[", "SolutionRule", "]"}]}], ",", 
+   "\[IndentingNewLine]", "\[IndentingNewLine]", 
+   RowBox[{"{", 
+    RowBox[{"x", ",", "0", ",", "L"}], "}"}], ",", "\[IndentingNewLine]", 
+   RowBox[{"{", 
+    RowBox[{"t", ",", "0", ",", "tStop"}], "}"}], ",", "\[IndentingNewLine]", 
+   "\[IndentingNewLine]", 
+   RowBox[{"PlotLabel", "\[Rule]", "\"\<h[x,t]\>\""}], ",", 
+   "\[IndentingNewLine]", 
+   RowBox[{"PlotRange", "\[Rule]", 
+    RowBox[{"{", 
+     RowBox[{"0", ",", "3"}], "}"}]}], ",", "\[IndentingNewLine]", 
+   RowBox[{"PlotPoints", "\[Rule]", "30"}], ",", "\[IndentingNewLine]", 
+   RowBox[{"AxesLabel", "\[Rule]", 
+    RowBox[{"{", 
+     RowBox[{"\"\<x-Distance\>\"", ",", "\"\<time\>\"", ",", "\"\<h\>\""}], 
+     "}"}]}]}], "\[IndentingNewLine]", "]"}]], "Input",
+ CellChangeTimes->{{3.3985285030779305`*^9, 3.3985285072029305`*^9}, {
+  3.3985289273904305`*^9, 3.3985289290779305`*^9}},
+ CellLabel->
+  "In[109]:=",ExpressionUUID->"3fc3ad79-328f-469f-89b4-4f925e29e197"]
+}, Closed]],
+
+Cell[CellGroupData[{
+
+Cell["Animate the above solution:", "Subsubsection",ExpressionUUID->"d640763f-5011-4fff-888e-86f5fe414da8"],
+
+Cell["\<\
+It may be easier to visualize the morphogen-inhibitor concentrations as a \
+function of time if animation is used.
+
+Animate the above solution:
+(morphogen = solid line, inhibitor = dashed line)\
+\>", "Text",ExpressionUUID->"72dfa983-1b52-493c-a4ca-a04b5aa7bea6"],
+
+Cell[BoxData[{
+ RowBox[{
+  RowBox[{
+   RowBox[{
+    RowBox[{"{", 
+     RowBox[{
+      RowBox[{"\[Rho]1", "[", 
+       RowBox[{"x_", ",", "t_"}], "]"}], ",", 
+      RowBox[{"h1", "[", 
+       RowBox[{"x_", ",", "t_"}], "]"}]}], "}"}], "=", "\[IndentingNewLine]", 
+    "\[IndentingNewLine]", 
+    RowBox[{"{", 
+     RowBox[{
+      RowBox[{
+       RowBox[{"\[Rho]", "[", 
+        RowBox[{"x", ",", "t"}], "]"}], "/.", "\[InvisibleSpace]", 
+       RowBox[{"Flatten", "[", "SolutionRule", "]"}]}], ",", 
+      RowBox[{
+       RowBox[{"h", "[", 
+        RowBox[{"x", ",", "t"}], "]"}], "/.", "\[InvisibleSpace]", 
+       RowBox[{"Flatten", "[", "SolutionRule", "]"}]}]}], "}"}]}], ";"}], 
+  "\[IndentingNewLine]"}], "\[IndentingNewLine]", 
+ RowBox[{"Animate", "[", "\[IndentingNewLine]", "\[IndentingNewLine]", 
+  RowBox[{
+   RowBox[{"Plot", "[", "\[IndentingNewLine]", "\[IndentingNewLine]", 
+    RowBox[{
+     RowBox[{"{", 
+      RowBox[{
+       RowBox[{"\[Rho]1", "[", 
+        RowBox[{"x", ",", "t"}], "]"}], ",", 
+       RowBox[{"h1", "[", 
+        RowBox[{"x", ",", "t"}], "]"}]}], "}"}], ",", "\[IndentingNewLine]", 
+     "\[IndentingNewLine]", 
+     RowBox[{"{", 
+      RowBox[{"x", ",", "0", ",", "L"}], "}"}], ",", "\[IndentingNewLine]", 
+     "\[IndentingNewLine]", 
+     RowBox[{"PlotRange", "\[Rule]", 
+      RowBox[{"{", 
+       RowBox[{"0", ",", "3"}], "}"}]}], ",", "\[IndentingNewLine]", 
+     RowBox[{"PlotPoints", "\[Rule]", "30"}], ",", "\[IndentingNewLine]", 
+     RowBox[{"PlotStyle", "\[Rule]", 
+      RowBox[{"{", 
+       RowBox[{
+        RowBox[{"{", 
+         RowBox[{
+          RowBox[{"Thickness", "[", ".007", "]"}], ",", 
+          RowBox[{"RGBColor", "[", 
+           RowBox[{"1", ",", "0", ",", "0"}], "]"}]}], "}"}], ",", 
+        RowBox[{"{", 
+         RowBox[{
+          RowBox[{"Thickness", "[", ".007", "]"}], ",", 
+          RowBox[{"Dashing", "[", 
+           RowBox[{"{", 
+            RowBox[{".03", ",", ".03"}], "}"}], "]"}], ",", 
+          RowBox[{"RGBColor", "[", 
+           RowBox[{"0", ",", "0", ",", "1"}], "]"}]}], "}"}]}], "}"}]}], ",", 
+     "\[IndentingNewLine]", 
+     RowBox[{"Frame", "\[Rule]", "True"}], ",", "\[IndentingNewLine]", 
+     RowBox[{"FrameLabel", "\[Rule]", 
+      RowBox[{"{", 
+       RowBox[{
+       "\"\<x-Distance\>\"", ",", 
+        "\"\<\!\(\*StyleBox[\"\[Rho]\",FontColor->RGBColor[1, 0, \
+0]]\)\!\(\*StyleBox[\"[\",FontColor->RGBColor[1, 0, \
+0]]\)\!\(\*StyleBox[\"x\",FontColor->RGBColor[1, 0, \
+0]]\)\!\(\*StyleBox[\",\",FontColor->RGBColor[1, 0, \
+0]]\)\!\(\*StyleBox[\"t\",FontColor->RGBColor[1, 0, \
+0]]\)\!\(\*StyleBox[\"]\",FontColor->RGBColor[1, 0, 0]]\)   and   \
+\!\(\*StyleBox[\"h\",FontColor->RGBColor[0, 0, \
+1]]\)\!\(\*StyleBox[\"[\",FontColor->RGBColor[0, 0, \
+1]]\)\!\(\*StyleBox[\"x\",FontColor->RGBColor[0, 0, \
+1]]\)\!\(\*StyleBox[\",\",FontColor->RGBColor[0, 0, \
+1]]\)\!\(\*StyleBox[\"t\",FontColor->RGBColor[0, 0, \
+1]]\)\!\(\*StyleBox[\"]\",FontColor->RGBColor[0, 0, 1]]\)\>\""}], "}"}]}]}], 
+    "\[IndentingNewLine]", "]"}], ",", "\[IndentingNewLine]", 
+   "\[IndentingNewLine]", 
+   RowBox[{"{", 
+    RowBox[{"t", ",", "0", ",", "tStop"}], "}"}], ",", "\[IndentingNewLine]", 
+   RowBox[{"AnimationRate", "\[Rule]", "1"}]}], "\[IndentingNewLine]", 
+  "]"}]}], "Input",
+ CellChangeTimes->{{3.3985285247654305`*^9, 3.3985285284841805`*^9}, {
+  3.3985290617810555`*^9, 3.3985290672341805`*^9}, {3.3985291069841805`*^9, 
+  3.3985291310779305`*^9}, {3.3985292070154305`*^9, 3.3985292269529305`*^9}, {
+  3.3985292776404305`*^9, 3.3985293079216805`*^9}, {3.3985294127029305`*^9, 
+  3.3985294330935555`*^9}, {3.3985301300466805`*^9, 3.3985302012810555`*^9}},
+ CellLabel->
+  "In[110]:=",ExpressionUUID->"b2b84253-d2ab-42d6-83ad-bd2d04e9a078"]
+}, Closed]]
+}, Closed]],
+
+Cell[CellGroupData[{
+
+Cell["\<\
+Predator-prey
+Reaction-diffusion equations:\
+\>", "Section",ExpressionUUID->"da062679-bab3-4401-a62b-30eef633ae08"],
+
+Cell[BoxData[
+ RowBox[{" ", 
+  RowBox[{
+   RowBox[{
+    RowBox[{"Remove", "[", "\"\<Global`*\>\"", " ", "]"}], " ", ";"}], 
+   "\[IndentingNewLine]", 
+   RowBox[{"Off", "[", 
+    RowBox[{"NDSolve", "::", "\"\<mxsst\>\""}], "]"}]}]}]], "InputOnly",
+ CellChangeTimes->{3.3985285374998055`*^9, 3.4665322563533063`*^9},
+ CellLabel->"In[3]:=",ExpressionUUID->"e341afd3-36f4-4773-a273-4767f4a2ee5b"],
+
+Cell[TextData[{
+ "Recall our plankton distribution on the surface of the ocean.  If a new \
+element is introduced in terms of a predator, a tiny crustacean called a \
+copepod, which consumes the plankton, then we have a predator-prey problem.\n\
+\nWe will create a conservation based PDE model for both the predator and the \
+prey.  The flux term for the plankton will assumed to be by diffusion only.  \
+Likewise, the flux term for the tiny crustacean is also by diffusion only.  \
+Although the crustacean has a higher diffusion coefficient due to the \
+increased mobility of the crustacean over the plankton.\n\n\tLet  \[Rho][x,t] \
+ =  plankton concentration\n\n",
+ StyleBox["\t",
+  FontWeight->"Bold"],
+ Cell[BoxData[
+  RowBox[{
+   RowBox[{
+    SubscriptBox["\[PartialD]", "t"], " ", 
+    RowBox[{"(", "\[Rho]", ")"}]}], "  ", "==", "  ", 
+   RowBox[{
+    RowBox[{"-", "  ", 
+     RowBox[{
+      SubscriptBox["\[PartialD]", "x"], " ", 
+      RowBox[{"(", 
+       RowBox[{
+        RowBox[{"-", " ", "\[Mu]"}], "*", 
+        RowBox[{
+         SubscriptBox["\[PartialD]", "x"], " ", 
+         RowBox[{"(", "\[Rho]", ")"}]}]}], ")"}]}]}], "   ", "+", "  ", 
+    RowBox[{"k1", "[", " ", 
+     RowBox[{"\[Rho]", ",", "h"}], "]"}]}]}]],
+  FontWeight->"Bold",ExpressionUUID->"b0828cb7-9d31-429c-a45e-01fd93e02ec5"],
+ StyleBox["\n\t",
+  FontWeight->"Bold"],
+ Cell[BoxData[
+  RowBox[{
+   RowBox[{
+    SubscriptBox["\[PartialD]", "t"], " ", 
+    RowBox[{"(", "\[Rho]", ")"}]}], "  ", "==", "   ", 
+   RowBox[{
+    RowBox[{"\[Mu]", "*", 
+     RowBox[{
+      SubscriptBox["\[PartialD]", 
+       RowBox[{"x", ",", "x"}]], " ", 
+      RowBox[{"(", "\[Rho]", ")"}]}]}], "   ", "+", "  ", 
+    RowBox[{"k1", "[", " ", 
+     RowBox[{"\[Rho]", ",", "h"}], "]"}]}]}]],
+  FontWeight->"Bold",ExpressionUUID->"2b0a34d0-8f3b-4d7e-b0ca-23dbc1e38a10"],
+ StyleBox["\n\t",
+  FontWeight->"Bold"],
+ Cell[BoxData[
+  RowBox[{
+   RowBox[{
+    SubscriptBox["\[PartialD]", "t"], " ", 
+    RowBox[{"(", 
+     RowBox[{"\[Rho]", "[", 
+      RowBox[{"x", ",", "t"}], "]"}], ")"}]}], "  ", "==", "   ", 
+   RowBox[{
+    RowBox[{"\[Mu]", "*", 
+     RowBox[{
+      SubscriptBox["\[PartialD]", 
+       RowBox[{"x", ",", "x"}]], " ", 
+      RowBox[{"(", 
+       RowBox[{"\[Rho]", "[", 
+        RowBox[{"x", ",", "t"}], "]"}], ")"}]}]}], "   ", "+", "  ", 
+    RowBox[{"k1", "[", " ", 
+     RowBox[{
+      RowBox[{"\[Rho]", "[", 
+       RowBox[{"x", ",", "t"}], "]"}], ",", 
+      RowBox[{"h", "[", 
+       RowBox[{"x", ",", "t"}], "]"}]}], "]"}]}]}]],
+  FontWeight->"Bold",ExpressionUUID->"107c5a0b-b345-4a48-860f-6945a94a1311"],
+ "\n \n\tLet  h[x,t]  =  crustacean concentration\n\n",
+ StyleBox["  \t",
+  FontWeight->"Bold"],
+ Cell[BoxData[
+  RowBox[{
+   RowBox[{
+    SubscriptBox["\[PartialD]", "t"], " ", 
+    RowBox[{"(", "h", ")"}]}], "  ", "==", " ", 
+   RowBox[{
+    RowBox[{"-", " ", 
+     RowBox[{
+      SubscriptBox["\[PartialD]", "x"], " ", 
+      RowBox[{"(", 
+       RowBox[{
+        RowBox[{"-", " ", "\[Nu]"}], "*", 
+        RowBox[{
+         SubscriptBox["\[PartialD]", "x"], " ", 
+         RowBox[{"(", "h", ")"}]}]}], ")"}]}]}], "   ", "+", "  ", 
+    RowBox[{"k2", "[", " ", 
+     RowBox[{"\[Rho]", ",", "h"}], "]"}]}]}]],
+  FontWeight->"Bold",ExpressionUUID->"529fd93d-9bc6-46e4-9939-fa992a1cf86a"],
+ StyleBox["\n \t",
+  FontWeight->"Bold"],
+ Cell[BoxData[
+  RowBox[{
+   RowBox[{
+    SubscriptBox["\[PartialD]", "t"], " ", 
+    RowBox[{"(", "h", ")"}]}], "  ", "==", "   ", 
+   RowBox[{
+    RowBox[{"\[Nu]", "*", 
+     RowBox[{
+      SubscriptBox["\[PartialD]", 
+       RowBox[{"x", ",", "x"}]], " ", 
+      RowBox[{"(", "h", ")"}]}]}], "   ", "+", "  ", 
+    RowBox[{"k2", "[", " ", 
+     RowBox[{"\[Rho]", ",", "h"}], "]"}]}]}]],
+  FontWeight->"Bold",ExpressionUUID->"52b091d4-636d-4532-89fb-adb1bd9e7345"],
+ StyleBox["\n \t",
+  FontWeight->"Bold"],
+ Cell[BoxData[
+  RowBox[{
+   RowBox[{
+    SubscriptBox["\[PartialD]", "t"], " ", 
+    RowBox[{"(", 
+     RowBox[{"h", "[", 
+      RowBox[{"x", ",", "t"}], "]"}], ")"}]}], "  ", "==", "   ", 
+   RowBox[{
+    RowBox[{"\[Nu]", "*", 
+     RowBox[{
+      SubscriptBox["\[PartialD]", 
+       RowBox[{"x", ",", "x"}]], " ", 
+      RowBox[{"(", 
+       RowBox[{"h", "[", 
+        RowBox[{"x", ",", "t"}], "]"}], ")"}]}]}], "   ", "+", "  ", 
+    RowBox[{"k2", "[", " ", 
+     RowBox[{
+      RowBox[{"\[Rho]", "[", 
+       RowBox[{"x", ",", "t"}], "]"}], ",", 
+      RowBox[{"h", "[", 
+       RowBox[{"x", ",", "t"}], "]"}]}], "]"}]}]}]],
+  FontWeight->"Bold",ExpressionUUID->"6530cae6-1cd5-4dfa-93fe-a0bc464e0ca3"],
+ "\n"
+}], "Text",ExpressionUUID->"019c5740-bbd1-4027-a0f7-ea4679902584"],
+
+Cell[CellGroupData[{
+
+Cell["Plankton conservation PDE:", "Subsubsection",ExpressionUUID->"464db0ba-83ce-43cd-9a1d-de951777edb8"],
+
+Cell[TextData[{
+ "The source and sink term for the plankton should correspond to its \
+population growth and also its loss because it is consumed by the \
+crustaceans.\n\nThe plankton population growth model could be unlimited \
+growth, logistic limited growth, or another growth model.  For our case, \
+consider a quadratic growth model for the plankton source term:\n\n\t",
+ Cell[BoxData[
+  RowBox[{" ", 
+   RowBox[{"source", " ", "=", " ", 
+    RowBox[{"r", "*", "\[Rho]", "*", 
+     RowBox[{"(", " ", 
+      RowBox[{"1", " ", "+", " ", 
+       FractionBox["\[Rho]", "k"]}], " ", ")"}], " "}]}]}]],
+  FontWeight->"Bold",ExpressionUUID->"1db891fa-19c1-4125-af00-d8b8abe20efc"],
+ "\n\nObserve that the above expression has a \"+\" rather than a \"-\" (so \
+that the plankton is autocatalytic).\nThe plankton sink term will correspond \
+to the plankton being consumed by the crustaceans.  Consider a simple \
+plankton-crustacean interaction model to be proportional to the plankton and \
+crustacean densities:\n\n\tsink =  -  \[Alpha] \[Rho] h\n\nTherefore, the \
+total source and sink term for the plankton is:\n\n\t",
+ Cell[BoxData[
+  RowBox[{
+   RowBox[{"k1", "[", 
+    RowBox[{"\[Rho]", ",", "h"}], "]"}], " ", "=", " ", 
+   RowBox[{
+    RowBox[{"r", "*", "\[Rho]", "*", 
+     RowBox[{"(", " ", 
+      RowBox[{"1", " ", "+", " ", 
+       FractionBox["\[Rho]", "k"]}], " ", ")"}]}], " ", "-", "  ", 
+    RowBox[{"\[Alpha]", "*", "\[Rho]", "*", "h"}]}]}]],
+  FontWeight->"Bold",ExpressionUUID->"0a4f9edc-8a23-45d1-9927-d99c00ab1263"],
+ "\n"
+}], "Text",ExpressionUUID->"0532664b-2a3f-4d53-8baf-81942fff0cee"],
+
+Cell[BoxData[
+ RowBox[{
+  RowBox[{"k1", "[", 
+   RowBox[{"\[Rho]_", ",", "h_"}], "]"}], " ", "=", " ", 
+  RowBox[{
+   RowBox[{"r", "*", "\[Rho]", "*", 
+    RowBox[{"(", " ", 
+     RowBox[{"1", " ", "+", " ", 
+      FractionBox["\[Rho]", "k"]}], " ", ")"}]}], " ", "-", "  ", 
+   RowBox[{"\[Alpha]", "*", "\[Rho]", "*", "h"}]}]}]], "Input",
+ CellLabel->"In[5]:=",ExpressionUUID->"e1ceb3c7-cd3d-4f36-aac1-f7251a6ac0ea"],
+
+Cell[TextData[{
+ "Determine the condition so that the plankton will be autocatalytic:\n\n\t",
+ Cell[BoxData[
+  StyleBox[
+   RowBox[{
+    SubscriptBox["\[PartialD]", "\[Rho]"], " ", 
+    RowBox[{"k1", "[", 
+     RowBox[{"\[Rho]", ",", "h"}], "]"}]}],
+   FontWeight->"Bold"]],ExpressionUUID->
+  "5fac021a-7d99-4ea5-bb6d-5daa6237ae25"],
+ " > 0\n"
+}], "Text",ExpressionUUID->"f296b2ea-e3fd-4247-a441-8175ecaac3ce"],
+
+Cell[BoxData[
+ RowBox[{
+  SubscriptBox["\[PartialD]", "\[Rho]"], 
+  RowBox[{"(", " ", 
+   RowBox[{"k1", "[", 
+    RowBox[{"\[Rho]", ",", "h"}], "]"}], ")"}]}]], "Input",
+ CellLabel->"In[6]:=",ExpressionUUID->"222e5b2d-9e2e-4aae-928a-e5529c58c895"],
+
+Cell[BoxData[
+ RowBox[{" ", 
+  RowBox[{"Simplify", " ", "[", "\[IndentingNewLine]", "\[IndentingNewLine]", 
+   RowBox[{
+    SubscriptBox["\[PartialD]", "\[Rho]"], 
+    RowBox[{"(", " ", 
+     RowBox[{"k1", "[", 
+      RowBox[{"\[Rho]", ",", "h"}], "]"}], ")"}]}], "\[IndentingNewLine]", 
+   "\[IndentingNewLine]", "]"}]}]], "Input",
+ CellChangeTimes->{{3.3985302620623055`*^9, 3.3985302633591805`*^9}},
+ CellLabel->"In[7]:=",ExpressionUUID->"82c66776-2047-4e02-8d51-1734afc92a28"],
+
+Cell[TextData[{
+ "Therefore, the following inequality must be satisfied in order for the \
+plankton to be autocatalytic:\n\n\t",
+ Cell[BoxData[
+  RowBox[{"r", "-", 
+   RowBox[{"h", " ", "\[Alpha]"}], "+", 
+   FractionBox[
+    RowBox[{"2", " ", "r", " ", "\[Rho]"}], "k"]}]],
+  FontWeight->"Bold",ExpressionUUID->"a6847122-411f-4ce3-9e65-6c14fd6c64d5"],
+ " > 0",
+ "\n"
+}], "Text",ExpressionUUID->"82fe392d-b9dc-47bf-8090-2547e8fff075"],
+
+Cell[TextData[{
+ "Thus, the resulting conservation PDE with diffusion flux,  quadratic growth \
+model and competition sink model is:\n\n",
+ StyleBox["\t",
+  FontWeight->"Bold"],
+ Cell[BoxData[
+  RowBox[{
+   RowBox[{
+    SubscriptBox["\[PartialD]", "t"], " ", 
+    RowBox[{"(", "\[Rho]", ")"}]}], "  ", "==", "   ", 
+   RowBox[{
+    RowBox[{"\[Mu]", "*", 
+     RowBox[{
+      SubscriptBox["\[PartialD]", 
+       RowBox[{"x", ",", "x"}]], " ", 
+      RowBox[{"(", "\[Rho]", ")"}]}]}], "   ", "+", "   ", 
+    RowBox[{"r", "*", "\[Rho]", "*", 
+     RowBox[{"(", " ", 
+      RowBox[{"1", " ", "+", " ", 
+       FractionBox["\[Rho]", "k"]}], " ", ")"}]}], " ", "-", "  ", 
+    RowBox[{"\[Alpha]", "*", "\[Rho]", "*", "h"}]}]}]],
+  FontWeight->"Bold",ExpressionUUID->"66593b21-1312-4aed-924e-f1de17731c95"],
+ StyleBox["\n\t",
+  FontWeight->"Bold"],
+ Cell[BoxData[
+  RowBox[{
+   RowBox[{
+    SubscriptBox["\[PartialD]", "t"], " ", 
+    RowBox[{"(", 
+     RowBox[{"\[Rho]", "[", 
+      RowBox[{"x", ",", "t"}], "]"}], ")"}]}], "  ", "==", "   ", 
+   RowBox[{
+    RowBox[{"\[Mu]", "*", 
+     RowBox[{
+      SubscriptBox["\[PartialD]", 
+       RowBox[{"x", ",", "x"}]], " ", 
+      RowBox[{"(", 
+       RowBox[{"\[Rho]", "[", 
+        RowBox[{"x", ",", "t"}], "]"}], ")"}]}]}], "   ", "+", "   ", 
+    RowBox[{"r", "*", 
+     RowBox[{"\[Rho]", "[", 
+      RowBox[{"x", ",", "t"}], "]"}], "*", 
+     RowBox[{"(", " ", 
+      RowBox[{"1", " ", "+", " ", 
+       FractionBox[
+        RowBox[{"\[Rho]", "[", 
+         RowBox[{"x", ",", "t"}], "]"}], "k"]}], " ", ")"}]}], " ", "-", "  ", 
+    RowBox[{"\[Alpha]", "*", 
+     RowBox[{"\[Rho]", "[", 
+      RowBox[{"x", ",", "t"}], "]"}], "*", 
+     RowBox[{"h", "[", 
+      RowBox[{"x", ",", "t"}], "]"}]}]}]}]],
+  FontWeight->"Bold",ExpressionUUID->"a101627c-7a7e-41f2-9125-17d89fad207f"],
+ "\n"
+}], "Text",ExpressionUUID->"57fb318e-e259-4387-a65a-2039f8ad6d25"]
+}, Closed]],
+
+Cell[CellGroupData[{
+
+Cell["Crustacean conservation PDE:", "Subsubsection",ExpressionUUID->"cb3e957b-af4d-4b22-af2b-f6414c320a2f"],
+
+Cell[TextData[{
+ "The source and sink terms for the crustacean can take many forms.  However \
+for our purposes, assume that the source term corresponds to unlimited growth \
+related to the amount of food (i.e. plankton) and the crustacean density.  \
+Thus, a reasonable model for growth of the crustaceans is:\n\n\t",
+ "source = ",
+ "+ \[Beta] \[Rho] h\n\nHowever, assume that the crustaceans die out rapidly \
+in the absence of food, and that this sink term is quadratic:\n\n",
+ StyleBox["\t",
+  FontWeight->"Bold"],
+ Cell[BoxData[
+  RowBox[{"sink", " ", "=", " ", 
+   RowBox[{
+    RowBox[{"-", "c"}], "*", 
+    SuperscriptBox["h", "2"]}]}]],
+  FontWeight->"Bold",ExpressionUUID->"e4b83ecf-bca3-4f98-896e-14be76b84c0d"],
+ "\n\nTherefore, the total source and sink term for the crustacean is:\n\n\t",
+ Cell[BoxData[
+  RowBox[{
+   RowBox[{"k2", "[", 
+    RowBox[{"\[Rho]", ",", "h"}], "]"}], "=", 
+   RowBox[{
+    RowBox[{
+     RowBox[{"-", "c"}], "*", 
+     SuperscriptBox["h", "2"]}], " ", "+", " ", 
+    RowBox[{"\[Beta]", "*", "\[Rho]", "*", "h"}]}]}]],
+  FontWeight->"Bold",ExpressionUUID->"796df139-f235-47fb-ac22-babb375451ac"],
+ "\n"
+}], "Text",ExpressionUUID->"0eaaf793-be2b-45f7-bdea-f320e391f277"],
+
+Cell[BoxData[
+ RowBox[{
+  RowBox[{"k2", "[", 
+   RowBox[{"\[Rho]_", ",", "h_"}], "]"}], "=", 
+  RowBox[{
+   RowBox[{
+    RowBox[{"-", "c"}], "*", 
+    SuperscriptBox["h", "2"]}], " ", "+", " ", 
+   RowBox[{"\[Beta]", "*", "\[Rho]", "*", "h"}]}]}]], "Input",
+ CellLabel->"In[8]:=",ExpressionUUID->"f85d3d95-af0c-4a2d-b794-4bcb9358ada0"],
+
+Cell[TextData[{
+ "Thus, the resulting conservation PDE with diffusion flux, competition \
+growth model and quadratic sink model is:\n\n",
+ StyleBox["\t",
+  FontWeight->"Bold"],
+ Cell[BoxData[
+  RowBox[{
+   RowBox[{
+    SubscriptBox["\[PartialD]", "t"], " ", 
+    RowBox[{"(", "h", ")"}]}], "  ", "==", "   ", 
+   RowBox[{
+    RowBox[{"\[Mu]", "*", 
+     RowBox[{
+      SubscriptBox["\[PartialD]", 
+       RowBox[{"x", ",", "x"}]], " ", 
+      RowBox[{"(", "h", ")"}]}]}], "   ", "-", "   ", 
+    RowBox[{"c", "*", 
+     SuperscriptBox["h", "2"]}], " ", "+", " ", 
+    RowBox[{"\[Beta]", "*", "\[Rho]", "*", "h"}]}]}]],
+  FontWeight->"Bold",ExpressionUUID->"ee8e23b3-ab0d-4a6d-98b5-4a5553c4c524"],
+ StyleBox["\n\t",
+  FontWeight->"Bold"],
+ Cell[BoxData[
+  RowBox[{
+   RowBox[{
+    SubscriptBox["\[PartialD]", "t"], " ", 
+    RowBox[{"(", 
+     RowBox[{"h", "[", 
+      RowBox[{"x", ",", "t"}], "]"}], ")"}]}], "  ", "==", "   ", 
+   RowBox[{
+    RowBox[{"\[Mu]", "*", 
+     RowBox[{
+      SubscriptBox["\[PartialD]", 
+       RowBox[{"x", ",", "x"}]], " ", 
+      RowBox[{"(", 
+       RowBox[{"h", "[", 
+        RowBox[{"x", ",", "t"}], "]"}], ")"}]}]}], "   ", "-", "   ", 
+    RowBox[{"c", "*", 
+     SuperscriptBox[
+      RowBox[{"h", "[", 
+       RowBox[{"x", ",", "t"}], "]"}], "2"]}], " ", "+", " ", 
+    RowBox[{"\[Beta]", "*", 
+     RowBox[{"\[Rho]", "[", 
+      RowBox[{"x", ",", "t"}], "]"}], "*", 
+     RowBox[{"h", "[", 
+      RowBox[{"x", ",", "t"}], "]"}]}]}]}]],
+  FontWeight->"Bold",ExpressionUUID->"feb69837-3583-4712-b49b-5fae8c925bbc"],
+ "\n"
+}], "Text",ExpressionUUID->"6297436f-7bd9-4264-962a-9290ce3ae26a"]
+}, Closed]],
+
+Cell[CellGroupData[{
+
+Cell["Boundary conditions:", "Subsubsection",ExpressionUUID->"d85687fe-7357-4c3d-af9a-48d2b26549c4"],
+
+Cell[TextData[{
+ "Assume that the slice of ocean has a constant width L from shore to shore.  \
+Since neither the plankton nor the crustaceans can migrate on shore, then the \
+flux of plankton and the crustaceans at the boundaries will be zero.  Since \
+the flux is proportional to the negative of the density gradient, then the \
+boundary conditions translate to:\n\n",
+ StyleBox["\t",
+  FontWeight->"Bold"],
+ Cell[BoxData[
+  RowBox[{
+   RowBox[{
+    SubscriptBox["\[PartialD]", "x"], " ", 
+    RowBox[{"\[Rho]", "[", 
+     RowBox[{"0", ",", "t"}], "]"}]}], " ", "=", " ", "0"}]],
+  FontWeight->"Bold",ExpressionUUID->"588f94fc-ce32-4998-bd08-f003e7d32db4"],
+ "   \t(i.e.  ",
+ Cell[BoxData[
+  FormBox[
+   SubscriptBox["q", "\[Rho]"], TraditionalForm]],ExpressionUUID->
+  "bb494af0-4484-47be-88e5-0ad97678ca9a"],
+ "[0,t]   \[Alpha]   ",
+ Cell[BoxData[
+  RowBox[{
+   RowBox[{"-", 
+    RowBox[{
+     SubscriptBox["\[PartialD]", "x"], " ", 
+     RowBox[{"\[Rho]", "[", 
+      RowBox[{"0", ",", "t"}], "]"}]}]}], " "}]],
+  FontWeight->"Bold",ExpressionUUID->"d5410c5e-a03f-4b49-87e6-706816841a34"],
+ ")\n",
+ StyleBox["\t",
+  FontWeight->"Bold"],
+ Cell[BoxData[
+  RowBox[{
+   RowBox[{
+    SubscriptBox["\[PartialD]", "x"], " ", 
+    RowBox[{"\[Rho]", "[", 
+     RowBox[{"L", ",", "t"}], "]"}]}], " ", "=", " ", "0"}]],
+  FontWeight->"Bold",ExpressionUUID->"3f164f9b-01d7-415f-867f-860471bff57f"],
+ "   \t(i.e.  ",
+ Cell[BoxData[
+  FormBox[
+   SubscriptBox["q", "\[Rho]"], TraditionalForm]],ExpressionUUID->
+  "e4a79219-64b5-42b1-914e-92f000c08c2b"],
+ "[L,t]   \[Alpha]   ",
+ Cell[BoxData[
+  RowBox[{
+   RowBox[{"-", 
+    RowBox[{
+     SubscriptBox["\[PartialD]", "x"], " ", 
+     RowBox[{"\[Rho]", "[", 
+      RowBox[{"L", ",", "t"}], "]"}]}]}], " "}]],
+  FontWeight->"Bold",ExpressionUUID->"0fa3ff2f-edbc-44f3-b213-c91200940028"],
+ ")\n\t\n",
+ StyleBox["\t",
+  FontWeight->"Bold"],
+ Cell[BoxData[
+  RowBox[{
+   RowBox[{
+    SubscriptBox["\[PartialD]", "x"], " ", 
+    RowBox[{"h", "[", 
+     RowBox[{"0", ",", "t"}], "]"}]}], " ", "=", " ", "0"}]],
+  FontWeight->"Bold",ExpressionUUID->"9a676451-1ae3-445d-af49-507361c23c3e"],
+ "   \t(i.e.  ",
+ Cell[BoxData[
+  FormBox[
+   SubscriptBox["q", "h"], TraditionalForm]],ExpressionUUID->
+  "8bfb4195-8698-4336-bb81-8f1c8b561c80"],
+ "[0,t]   \[Alpha]   ",
+ Cell[BoxData[
+  RowBox[{
+   RowBox[{"-", 
+    RowBox[{
+     SubscriptBox["\[PartialD]", "x"], " ", 
+     RowBox[{"h", "[", 
+      RowBox[{"0", ",", "t"}], "]"}]}]}], " "}]],
+  FontWeight->"Bold",ExpressionUUID->"7bfe4f22-207b-4254-af98-a13bb9c3e367"],
+ ")\n",
+ StyleBox["\t",
+  FontWeight->"Bold"],
+ Cell[BoxData[
+  RowBox[{
+   RowBox[{
+    SubscriptBox["\[PartialD]", "x"], " ", 
+    RowBox[{"h", "[", 
+     RowBox[{"L", ",", "t"}], "]"}]}], " ", "=", " ", "0"}]],
+  FontWeight->"Bold",ExpressionUUID->"1d348b95-28b2-4e2f-b2e3-5cbb788f6504"],
+ "   \t(i.e.  ",
+ Cell[BoxData[
+  FormBox[
+   SubscriptBox["q", "h"], TraditionalForm]],ExpressionUUID->
+  "475f22c1-9d81-4009-a8eb-e751034cbc8f"],
+ "[L,t]   \[Alpha]   ",
+ Cell[BoxData[
+  RowBox[{
+   RowBox[{"-", 
+    RowBox[{
+     SubscriptBox["\[PartialD]", "x"], " ", 
+     RowBox[{"h", "[", 
+      RowBox[{"L", ",", "t"}], "]"}]}]}], " "}]],
+  FontWeight->"Bold",ExpressionUUID->"ec435b96-8edc-438e-b91a-d38cfbc62011"],
+ ")\n"
+}], "Text",ExpressionUUID->"8b25aad6-9e13-480c-b13b-bbe7b3621aa6"]
+}, Closed]],
+
+Cell[CellGroupData[{
+
+Cell["Plankton-crustacean uniform equilibrium solution:", "Subsubsection",ExpressionUUID->"f120a2c5-9d30-405f-823d-8a6caf04039a"],
+
+Cell["\<\
+Consider the special case where both the plankton and crustaceans are in \
+steady-state equilibrium.  For steady-state conditions the time derivatives \
+are all zero.  Furthermore, consider the special case of a uniform plankton \
+and crustacean density distribution (therefore the spatial derivatives will \
+also be zero).
+
+Solve for the equilibrium and uniform values for the plankton and crustaceans:\
+\>", "Text",ExpressionUUID->"b55d782e-4618-44bf-9b20-6a461f887c55"],
+
+Cell[BoxData[
+ RowBox[{
+  RowBox[{"Solve", "[", "\[IndentingNewLine]", "\[IndentingNewLine]", 
+   RowBox[{
+    RowBox[{"{", "\[IndentingNewLine]", 
+     RowBox[{
+      RowBox[{
+       RowBox[{"k1", "[", 
+        RowBox[{"\[Rho]", ",", "h"}], "]"}], "==", "0"}], ",", 
+      "\[IndentingNewLine]", 
+      RowBox[{
+       RowBox[{"k2", "[", 
+        RowBox[{"\[Rho]", ",", "h"}], "]"}], "==", "0"}]}], 
+     "\[IndentingNewLine]", "}"}], ",", "\[IndentingNewLine]", 
+    "\[IndentingNewLine]", 
+    RowBox[{"{", 
+     RowBox[{"\[Rho]", ",", "h"}], "}"}]}], "\[IndentingNewLine]", 
+   "\[IndentingNewLine]", "]"}], "//", "TableForm"}]], "Input",
+ CellChangeTimes->{{3.3985285507341805`*^9, 3.3985285589998055`*^9}, {
+  3.3985302749373055`*^9, 3.3985302772966805`*^9}},
+ CellLabel->"In[9]:=",ExpressionUUID->"9f1aaddd-3a38-42e9-b780-658a83c7af36"],
+
+Cell["\<\
+We are not interested in the solutions which have either zero or negative \
+density distributions.  Therefore, only the final uniform steady-state \
+solution will be examined.\
+\>", "Text",ExpressionUUID->"b5f1e083-0077-4572-bb8a-78afd1b1824c"]
+}, Closed]],
+
+Cell[CellGroupData[{
+
+Cell["Define values:", "Subsubsection",ExpressionUUID->"96d21f74-b09b-44b8-9f49-2a20b89644e3"],
+
+Cell["\<\
+Consider a small strip of water ten units wide.  We will assume some \
+reasonable values for the diffusion coefficients \[Mu] and \[Nu].  \
+Specifically, to insure that the crustaceans spread out faster than the \
+plankton, we will assume that the diffusion coefficient for the crustacean is \
+twice is large as the diffusion coefficient for the plankton.
+
+\t\[Mu]  =  .01
+\t\[Nu]  =  .02
+\
+\>", "Text",ExpressionUUID->"60e26da8-9580-4295-b1ec-40e1cb1dec0d"],
+
+Cell[BoxData[{
+ RowBox[{
+  RowBox[{"L", " ", "=", " ", "10"}], ";"}], "\n", 
+ RowBox[{
+  RowBox[{"tStop", " ", "=", "5"}], ";"}], "\n", 
+ RowBox[{
+  RowBox[{"\[Mu]", "  ", "=", "  ", ".01"}], ";"}], "\n", 
+ RowBox[{
+  RowBox[{"\[Nu]", "  ", "=", "  ", ".02"}], ";"}], "\n", 
+ RowBox[{
+  RowBox[{"r", " ", "=", " ", ".04"}], ";"}], "\n", 
+ RowBox[{
+  RowBox[{"k", " ", "=", " ", "100"}], ";"}], "\n", 
+ RowBox[{
+  RowBox[{"\[Alpha]", "  ", "=", "  ", ".1"}], ";"}], "\n", 
+ RowBox[{
+  RowBox[{"\[Beta]", "  ", "=", "  ", ".03"}], ";"}], "\n", 
+ RowBox[{
+  RowBox[{"c", "  ", "=", "  ", ".2"}], ";"}]}], "InputOnly",
+ CellLabel->"In[10]:=",ExpressionUUID->"cd6bb51d-26f0-4413-bda5-e98ae227498a"],
+
+Cell["\<\
+Before we begin, examine the inequality that we derived above which will \
+insure that the plankton will be autocatalytic.\
+\>", "Text",ExpressionUUID->"ca7bc78f-9b77-4e4e-b7bf-889e69104b75"],
+
+Cell[BoxData[
+ RowBox[{"r", "-", 
+  RowBox[{"h", " ", "\[Alpha]"}], "+", 
+  FractionBox[
+   RowBox[{"2", " ", "r", " ", "\[Rho]"}], "k"]}]], "Input",
+ CellLabel->"In[19]:=",ExpressionUUID->"9353809f-40e2-487d-bbe3-8d999e7c9094"],
+
+Cell["\<\
+The above inequality depends upon the current plankton and crustacean \
+densities.  Although our solutions will cover a range of densities, consider \
+the value of this inequality for our equilibrium conditions.
+
+The plankton and crustacean densities for uniform steady-state equilibrium \
+are:\
+\>", "Text",ExpressionUUID->"0b0a8ff4-18a7-461c-ad60-0e7620aad0cd"],
+
+Cell[BoxData[
+ RowBox[{"{", 
+  RowBox[{
+   RowBox[{"\[Rho]", "\[Rule]", 
+    FractionBox[
+     RowBox[{"c", " ", "k", " ", "r"}], 
+     RowBox[{
+      RowBox[{
+       RowBox[{"-", "c"}], " ", "r"}], "+", 
+      RowBox[{"k", " ", "\[Alpha]", " ", "\[Beta]"}]}]]}], ",", 
+   RowBox[{"h", "\[Rule]", 
+    RowBox[{"-", 
+     FractionBox[
+      RowBox[{"k", " ", "r", " ", "\[Beta]"}], 
+      RowBox[{
+       RowBox[{"c", " ", "r"}], "-", 
+       RowBox[{"k", " ", "\[Alpha]", " ", "\[Beta]"}]}]]}]}]}], 
+  "}"}]], "Input",
+ CellLabel->"In[20]:=",ExpressionUUID->"6597be41-1797-4fab-9951-937297c6cc27"],
+
+Cell["\<\
+Substituting the equilibrium densities into the inequality yields:\
+\>", "Text",ExpressionUUID->"49f59297-ecf4-494e-8dc1-dd34e6d4170b"],
+
+Cell[BoxData[
+ RowBox[{
+  RowBox[{"r", "-", 
+   RowBox[{"h", " ", "\[Alpha]"}], "+", 
+   FractionBox[
+    RowBox[{"2", " ", "r", " ", "\[Rho]"}], "k"]}], " ", "/.", 
+  RowBox[{"{", 
+   RowBox[{
+    RowBox[{"\[Rho]", "\[Rule]", 
+     FractionBox[
+      RowBox[{"c", " ", "k", " ", "r"}], 
+      RowBox[{
+       RowBox[{
+        RowBox[{"-", "c"}], " ", "r"}], "+", 
+       RowBox[{"k", " ", "\[Alpha]", " ", "\[Beta]"}]}]]}], ",", 
+    RowBox[{"h", "\[Rule]", 
+     RowBox[{"-", 
+      FractionBox[
+       RowBox[{"k", " ", "r", " ", "\[Beta]"}], 
+       RowBox[{
+        RowBox[{"c", " ", "r"}], "-", 
+        RowBox[{"k", " ", "\[Alpha]", " ", "\[Beta]"}]}]]}]}]}], 
+   "}"}]}]], "Input",
+ CellLabel->"In[21]:=",ExpressionUUID->"bf3bcb20-487e-43e7-85f0-f03131c05661"],
+
+Cell[BoxData[
+ RowBox[{
+  RowBox[{"(", 
+   RowBox[{
+    RowBox[{"r", "-", 
+     RowBox[{"h", " ", "\[Alpha]"}], "+", 
+     FractionBox[
+      RowBox[{"2", " ", "r", " ", "\[Rho]"}], "k"]}], " ", ">", " ", "0"}], 
+   ")"}], "   ", "/.", 
+  RowBox[{"{", 
+   RowBox[{
+    RowBox[{"\[Rho]", "\[Rule]", 
+     FractionBox[
+      RowBox[{"c", " ", "k", " ", "r"}], 
+      RowBox[{
+       RowBox[{
+        RowBox[{"-", "c"}], " ", "r"}], "+", 
+       RowBox[{"k", " ", "\[Alpha]", " ", "\[Beta]"}]}]]}], ",", 
+    RowBox[{"h", "\[Rule]", 
+     RowBox[{"-", 
+      FractionBox[
+       RowBox[{"k", " ", "r", " ", "\[Beta]"}], 
+       RowBox[{
+        RowBox[{"c", " ", "r"}], "-", 
+        RowBox[{"k", " ", "\[Alpha]", " ", "\[Beta]"}]}]]}]}]}], 
+   "}"}]}]], "Input",
+ CellLabel->"In[22]:=",ExpressionUUID->"72d2559a-ebb2-4c42-96fd-10321e58e2cc"]
+}, Closed]],
+
+Cell[CellGroupData[{
+
+Cell["Solve the PDE for uniform equilibrium solution:", "Subsubsection",ExpressionUUID->"90c7b0a8-e627-4ebe-bdc4-2942bd65f95c"],
+
+Cell["\<\
+Setup and solve our system of PDEs.  We will assume that the initial and \
+boundary conditions all correspond to steady-state uniform \
+plankton-crustacean conditions.\
+\>", "Text",ExpressionUUID->"497abb44-9098-4065-8b83-4e6733394515"],
+
+Cell[BoxData[
+ RowBox[{"SolutionRule", "=", "\[IndentingNewLine]", "\[IndentingNewLine]", 
+  RowBox[{"NDSolve", "[", "\[IndentingNewLine]", "\[IndentingNewLine]", 
+   RowBox[{
+    RowBox[{"{", "\[IndentingNewLine]", 
+     RowBox[{
+      RowBox[{
+       RowBox[{
+        SubscriptBox["\[PartialD]", "t"], 
+        RowBox[{"\[Rho]", "[", 
+         RowBox[{"x", ",", "t"}], "]"}]}], "\[Equal]", 
+       RowBox[{
+        RowBox[{"\[Mu]", " ", 
+         RowBox[{
+          SubscriptBox["\[PartialD]", 
+           RowBox[{"x", ",", "x"}]], 
+          RowBox[{"\[Rho]", "[", 
+           RowBox[{"x", ",", "t"}], "]"}]}]}], "+", 
+        RowBox[{"k1", "[", 
+         RowBox[{
+          RowBox[{"\[Rho]", "[", 
+           RowBox[{"x", ",", "t"}], "]"}], ",", 
+          RowBox[{"h", "[", 
+           RowBox[{"x", ",", "t"}], "]"}]}], "]"}]}]}], ",", 
+      "\[IndentingNewLine]", 
+      RowBox[{
+       RowBox[{
+        SubscriptBox["\[PartialD]", "t"], 
+        RowBox[{"h", "[", 
+         RowBox[{"x", ",", "t"}], "]"}]}], "\[Equal]", 
+       RowBox[{
+        RowBox[{"\[Nu]", " ", 
+         RowBox[{
+          SubscriptBox["\[PartialD]", 
+           RowBox[{"x", ",", "x"}]], 
+          RowBox[{"h", "[", 
+           RowBox[{"x", ",", "t"}], "]"}]}]}], "+", 
+        RowBox[{"k2", "[", 
+         RowBox[{
+          RowBox[{"\[Rho]", "[", 
+           RowBox[{"x", ",", "t"}], "]"}], ",", 
+          RowBox[{"h", "[", 
+           RowBox[{"x", ",", "t"}], "]"}]}], "]"}]}]}], ",", 
+      "\[IndentingNewLine]", "\[IndentingNewLine]", 
+      RowBox[{
+       RowBox[{"\[Rho]", "[", 
+        RowBox[{"x", ",", "0"}], "]"}], "\[Equal]", 
+       FractionBox[
+        RowBox[{"c", " ", "k", " ", "r"}], 
+        RowBox[{
+         RowBox[{
+          RowBox[{"-", "c"}], " ", "r"}], "+", 
+         RowBox[{"k", " ", "\[Alpha]", " ", "\[Beta]"}]}]]}], ",", 
+      "\[IndentingNewLine]", 
+      RowBox[{
+       RowBox[{"(", 
+        RowBox[{
+         RowBox[{
+          SubscriptBox["\[PartialD]", "x"], 
+          RowBox[{"\[Rho]", "[", 
+           RowBox[{"x", ",", "t"}], "]"}]}], "/.", "\[InvisibleSpace]", 
+         RowBox[{"x", "\[Rule]", "0"}]}], ")"}], "\[Equal]", "0"}], ",", 
+      "\[IndentingNewLine]", 
+      RowBox[{
+       RowBox[{"(", 
+        RowBox[{
+         RowBox[{
+          SubscriptBox["\[PartialD]", "x"], 
+          RowBox[{"\[Rho]", "[", 
+           RowBox[{"x", ",", "t"}], "]"}]}], "/.", "\[InvisibleSpace]", 
+         RowBox[{"x", "\[Rule]", "L"}]}], ")"}], "\[Equal]", "0"}], ",", 
+      "\[IndentingNewLine]", 
+      RowBox[{
+       RowBox[{"h", "[", 
+        RowBox[{"x", ",", "0"}], "]"}], "\[Equal]", 
+       RowBox[{"-", 
+        FractionBox[
+         RowBox[{"k", " ", "r", " ", "\[Beta]"}], 
+         RowBox[{
+          RowBox[{"c", " ", "r"}], "-", 
+          RowBox[{"k", " ", "\[Alpha]", " ", "\[Beta]"}]}]]}]}], ",", 
+      "\[IndentingNewLine]", 
+      RowBox[{
+       RowBox[{"(", 
+        RowBox[{
+         RowBox[{
+          SubscriptBox["\[PartialD]", "x"], 
+          RowBox[{"h", "[", 
+           RowBox[{"x", ",", "t"}], "]"}]}], "/.", "\[InvisibleSpace]", 
+         RowBox[{"x", "\[Rule]", "0"}]}], ")"}], "\[Equal]", "0"}], ",", 
+      "\[IndentingNewLine]", 
+      RowBox[{
+       RowBox[{"(", 
+        RowBox[{
+         RowBox[{
+          SubscriptBox["\[PartialD]", "x"], 
+          RowBox[{"h", "[", 
+           RowBox[{"x", ",", "t"}], "]"}]}], "/.", "\[InvisibleSpace]", 
+         RowBox[{"x", "\[Rule]", "L"}]}], ")"}], "\[Equal]", "0"}]}], 
+     "\[IndentingNewLine]", "}"}], ",", "\[IndentingNewLine]", 
+    "\[IndentingNewLine]", 
+    RowBox[{"{", 
+     RowBox[{
+      RowBox[{"\[Rho]", "[", 
+       RowBox[{"x", ",", "t"}], "]"}], ",", 
+      RowBox[{"h", "[", 
+       RowBox[{"x", ",", "t"}], "]"}]}], "}"}], ",", "\[IndentingNewLine]", 
+    "\[IndentingNewLine]", 
+    RowBox[{"{", 
+     RowBox[{"x", ",", "0", ",", "L"}], "}"}], ",", "\[IndentingNewLine]", 
+    RowBox[{"{", 
+     RowBox[{"t", ",", "0", ",", "tStop"}], "}"}]}], "\[IndentingNewLine]", 
+   "]"}]}]], "Input",
+ CellChangeTimes->{{3.3985285685154305`*^9, 3.3985285746091805`*^9}},
+ CellLabel->"In[23]:=",ExpressionUUID->"9c51e98c-18ca-4536-8f52-0ae4415a3ff0"],
+
+Cell["\<\
+Plot the concentration of the plankton for five units of time:\
+\>", "Text",ExpressionUUID->"6482898b-58a6-40c8-b78a-7335a6429684"],
+
+Cell[BoxData[
+ RowBox[{"Plot3D", "[", "\[IndentingNewLine]", "\[IndentingNewLine]", 
+  RowBox[{
+   RowBox[{
+    RowBox[{"\[Rho]", "[", 
+     RowBox[{"x", ",", "t"}], "]"}], "/.", "\[InvisibleSpace]", 
+    RowBox[{"Flatten", "[", "SolutionRule", "]"}]}], ",", 
+   "\[IndentingNewLine]", "\[IndentingNewLine]", 
+   RowBox[{"{", 
+    RowBox[{"x", ",", "0", ",", "L"}], "}"}], ",", "\[IndentingNewLine]", 
+   RowBox[{"{", 
+    RowBox[{"t", ",", "0", ",", "tStop"}], "}"}], ",", "\[IndentingNewLine]", 
+   "\[IndentingNewLine]", 
+   RowBox[{"PlotLabel", "\[Rule]", "\"\<\[Rho][x,t]\>\""}], ",", 
+   "\[IndentingNewLine]", 
+   RowBox[{"PlotRange", "\[Rule]", 
+    RowBox[{"{", 
+     RowBox[{"0", ",", "3"}], "}"}]}], ",", "\[IndentingNewLine]", 
+   RowBox[{"AxesLabel", "\[Rule]", 
+    RowBox[{"{", 
+     RowBox[{
+     "\"\<x-Distance\>\"", ",", "\"\<time\>\"", ",", "\"\<\[Rho]\>\""}], 
+     "}"}]}]}], "\[IndentingNewLine]", "]"}]], "Input",
+ CellChangeTimes->{{3.3985285783748055`*^9, 3.3985285824060555`*^9}, {
+  3.3985288442341805`*^9, 3.3985288461560555`*^9}},
+ CellLabel->"In[24]:=",ExpressionUUID->"a90324a6-3926-49af-9b3c-745e89fd1f2c"],
+
+Cell["\<\
+Plot the concentration of the crustacean for five units of time:\
+\>", "Text",ExpressionUUID->"ecb03846-4f17-4e02-abe4-3bb825d5ae1f"],
+
+Cell[BoxData[
+ RowBox[{"Plot3D", "[", "\[IndentingNewLine]", "\[IndentingNewLine]", 
+  RowBox[{
+   RowBox[{
+    RowBox[{"h", "[", 
+     RowBox[{"x", ",", "t"}], "]"}], "/.", "\[InvisibleSpace]", 
+    RowBox[{"Flatten", "[", "SolutionRule", "]"}]}], ",", 
+   "\[IndentingNewLine]", "\[IndentingNewLine]", 
+   RowBox[{"{", 
+    RowBox[{"x", ",", "0", ",", "L"}], "}"}], ",", "\[IndentingNewLine]", 
+   RowBox[{"{", 
+    RowBox[{"t", ",", "0", ",", "tStop"}], "}"}], ",", "\[IndentingNewLine]", 
+   "\[IndentingNewLine]", 
+   RowBox[{"PlotLabel", "\[Rule]", "\"\<h[x,t]\>\""}], ",", 
+   "\[IndentingNewLine]", 
+   RowBox[{"PlotRange", "\[Rule]", 
+    RowBox[{"{", 
+     RowBox[{"0", ",", "1"}], "}"}]}], ",", "\[IndentingNewLine]", 
+   RowBox[{"AxesLabel", "\[Rule]", 
+    RowBox[{"{", 
+     RowBox[{"\"\<x-Distance\>\"", ",", "\"\<time\>\"", ",", "\"\<h  \>\""}], 
+     "}"}]}]}], "\[IndentingNewLine]", "]"}]], "Input",
+ CellChangeTimes->{{3.3985285851248055`*^9, 3.3985285918435555`*^9}, {
+  3.3985289574216805`*^9, 3.3985289590154305`*^9}},
+ CellLabel->"In[25]:=",ExpressionUUID->"ff307877-45c9-4a2b-a315-8fe4946eb7fa"]
+}, Closed]],
+
+Cell[CellGroupData[{
+
+Cell["Solve the PDE for non-uniform plankton density profile:", \
+"Subsubsection",ExpressionUUID->"a35ae66b-b185-4e6a-936a-17f53bcf6c76"],
+
+Cell["\<\
+Consider an initial plankton density profile that has a small excess \
+concentration of plankton in the center of our strip of ocean:\
+\>", "Text",ExpressionUUID->"df3b6a79-50b1-467a-a883-6dd726cb2538"],
+
+Cell[BoxData[
+ RowBox[{
+  RowBox[{"\[Rho]0", "[", "x_", "]"}], " ", "=", 
+  RowBox[{
+   FractionBox[
+    RowBox[{"c", " ", "k", " ", "r"}], 
+    RowBox[{
+     RowBox[{
+      RowBox[{"-", "c"}], " ", "r"}], "+", 
+     RowBox[{"k", " ", "\[Alpha]", " ", "\[Beta]"}]}]], "+", 
+   RowBox[{"If", "[", 
+    RowBox[{
+     RowBox[{
+      RowBox[{".4", "*", "L"}], "<", "x", "<", 
+      RowBox[{".6", "*", "L"}]}], ",", 
+     RowBox[{"Cos", "[", 
+      RowBox[{
+       FractionBox["\[Pi]", 
+        RowBox[{".2", "*", "L"}]], 
+       RowBox[{"(", 
+        RowBox[{"x", "-", 
+         RowBox[{".5", "*", "L"}]}], ")"}]}], "]"}], ",", "0"}], 
+    "]"}]}]}]], "Input",
+ CellLabel->"In[26]:=",ExpressionUUID->"e78657cc-7ad3-477d-8b9b-1e2b67ce152f"],
+
+Cell["Plot the initial plankton density:", "Text",ExpressionUUID->"7973a368-7d45-44f4-9831-3c4ef2717ad2"],
+
+Cell[BoxData[
+ RowBox[{"Plot", "[", "\[IndentingNewLine]", "\[IndentingNewLine]", 
+  RowBox[{
+   RowBox[{"\[Rho]0", "[", "x", "]"}], ",", "\[IndentingNewLine]", 
+   "\[IndentingNewLine]", 
+   RowBox[{"{", 
+    RowBox[{"x", ",", "0", ",", "L"}], "}"}], ",", "\[IndentingNewLine]", 
+   "\[IndentingNewLine]", 
+   RowBox[{"PlotStyle", "\[Rule]", 
+    RowBox[{"Thickness", "[", ".01", "]"}]}], ",", "\[IndentingNewLine]", 
+   RowBox[{"PlotRange", "\[Rule]", 
+    RowBox[{"{", 
+     RowBox[{"0", ",", "4"}], "}"}]}], ",", "\[IndentingNewLine]", 
+   RowBox[{"AxesLabel", "\[Rule]", 
+    RowBox[{"{", 
+     RowBox[{"\"\<x-Distance\>\"", ",", "\"\<\[Rho]0\>\""}], "}"}]}]}], 
+  "\[IndentingNewLine]", "]"}]], "Input",
+ CellChangeTimes->{{3.3985285971716805`*^9, 3.3985286058591805`*^9}},
+ CellLabel->"In[27]:=",ExpressionUUID->"c5340bec-f0a6-48ba-bc20-49cc9d74820b"],
+
+Cell["\<\
+The above initial plankton density profile is out of equilibrium near the \
+center.  We expect that the crustaceans will respond by increasing their \
+production and subsequently suppressing the production of plankton.
+\
+\>", "Text",ExpressionUUID->"27b34d2f-0234-4e9b-b923-735b5dc9a26a"]
+}, Closed]],
+
+Cell[CellGroupData[{
+
+Cell["Solve the PDE for 70 units of time:", "Subsubsection",ExpressionUUID->"ad07c3ff-dd83-4caa-9ee8-d5fff1a59f3b"],
+
+Cell["\<\
+Solve for the plankton-crustacean concentrations for 70 units of time:\
+\>", "Text",ExpressionUUID->"0a66b935-e42f-4f52-b492-e2de29ad9701"],
+
+Cell[BoxData[{
+ RowBox[{
+  RowBox[{"L", " ", "=", " ", "10"}], ";"}], "\n", 
+ RowBox[{
+  RowBox[{"tStop", " ", "=", "70"}], ";"}], "\n", 
+ RowBox[{
+  RowBox[{"\[Mu]", "  ", "=", "  ", ".01"}], ";"}], "\n", 
+ RowBox[{
+  RowBox[{"\[Nu]", "  ", "=", "  ", ".02"}], ";"}], "\n", 
+ RowBox[{
+  RowBox[{"r", " ", "=", " ", ".04"}], ";"}], "\n", 
+ RowBox[{
+  RowBox[{"k", " ", "=", " ", "100"}], ";"}], "\n", 
+ RowBox[{
+  RowBox[{"\[Alpha]", "  ", "=", "  ", ".1"}], ";"}], "\n", 
+ RowBox[{
+  RowBox[{"\[Beta]", "  ", "=", "  ", ".03"}], ";"}], "\n", 
+ RowBox[{
+  RowBox[{"c", "  ", "=", "  ", ".2"}], ";"}]}], "InputOnly",
+ CellLabel->"In[28]:=",ExpressionUUID->"4bf9704e-f3ea-4f2f-9d53-ba903424adf7"],
+
+Cell["\<\
+Setup and solve our system of PDEs.  We will assume that the initial and \
+boundary conditions all correspond to steady-state uniform \
+plankton-crustacean conditions.\
+\>", "Text",ExpressionUUID->"db9d3a89-32dd-4780-98a5-2a832337f223"],
+
+Cell[BoxData[{
+ RowBox[{"SolutionRule", "=", "\[IndentingNewLine]", "\n", 
+  RowBox[{"NDSolve", "[", "\[IndentingNewLine]", 
+   RowBox[{
+    RowBox[{"{", "\n", "\t\t", "\n", "\t", 
+     RowBox[{
+      RowBox[{
+       RowBox[{
+        SubscriptBox["\[PartialD]", "t"], " ", 
+        RowBox[{"(", 
+         RowBox[{"\[Rho]", "[", 
+          RowBox[{"x", ",", "t"}], "]"}], ")"}]}], "  ", "==", "   ", 
+       RowBox[{
+        RowBox[{"\[Mu]", "*", 
+         RowBox[{
+          SubscriptBox["\[PartialD]", 
+           RowBox[{"x", ",", "x"}]], " ", 
+          RowBox[{"(", 
+           RowBox[{"\[Rho]", "[", 
+            RowBox[{"x", ",", "t"}], "]"}], ")"}]}]}], "   ", "+", 
+        RowBox[{"k1", "[", " ", 
+         RowBox[{
+          RowBox[{"\[Rho]", "[", 
+           RowBox[{"x", ",", "t"}], "]"}], ",", 
+          RowBox[{"h", "[", 
+           RowBox[{"x", ",", "t"}], "]"}]}], "]"}]}]}], ",", "\n", "\t\t", 
+      "\n", "\t", 
+      RowBox[{
+       RowBox[{
+        SubscriptBox["\[PartialD]", "t"], " ", 
+        RowBox[{"(", 
+         RowBox[{"h", "[", 
+          RowBox[{"x", ",", "t"}], "]"}], ")"}]}], "  ", "==", "   ", 
+       RowBox[{
+        RowBox[{"\[Nu]", "*", 
+         RowBox[{
+          SubscriptBox["\[PartialD]", 
+           RowBox[{"x", ",", "x"}]], " ", 
+          RowBox[{"(", 
+           RowBox[{"h", "[", 
+            RowBox[{"x", ",", "t"}], "]"}], ")"}]}]}], "   ", "+", 
+        RowBox[{"k2", "[", " ", 
+         RowBox[{
+          RowBox[{"\[Rho]", "[", 
+           RowBox[{"x", ",", "t"}], "]"}], ",", 
+          RowBox[{"h", "[", 
+           RowBox[{"x", ",", "t"}], "]"}]}], "]"}]}]}], ",", "\n", "\t\t", 
+      "\n", "\t", 
+      RowBox[{
+       RowBox[{"\[Rho]", "[", 
+        RowBox[{"x", ",", "0"}], "]"}], " ", "==", 
+       RowBox[{"\[Rho]0", "[", "x", "]"}]}], ",", "\n", "\n", " \t", 
+      RowBox[{
+       RowBox[{"(", 
+        RowBox[{
+         RowBox[{
+          SubscriptBox["\[PartialD]", "x"], " ", 
+          RowBox[{"\[Rho]", "[", 
+           RowBox[{"x", ",", "t"}], "]"}]}], "/.", 
+         RowBox[{"x", "->", "0"}]}], ")"}], " ", "==", " ", "0"}], ",", "\n", 
+      "\t ", 
+      RowBox[{
+       RowBox[{"(", 
+        RowBox[{
+         RowBox[{
+          SubscriptBox["\[PartialD]", "x"], " ", 
+          RowBox[{"\[Rho]", "[", 
+           RowBox[{"x", ",", "t"}], "]"}]}], "/.", 
+         RowBox[{"x", "->", "L"}]}], ")"}], " ", "==", " ", "0"}], ",", 
+      "\[IndentingNewLine]", "\[IndentingNewLine]", "     ", 
+      RowBox[{
+       RowBox[{"h", "[", 
+        RowBox[{"x", ",", "0"}], "]"}], " ", "==", 
+       RowBox[{"-", 
+        FractionBox[
+         RowBox[{"k", " ", "r", " ", "\[Beta]"}], 
+         RowBox[{
+          RowBox[{"c", " ", "r"}], "-", 
+          RowBox[{"k", " ", "\[Alpha]", " ", "\[Beta]"}]}]]}]}], ",", "\n", 
+      "\n", " \t", 
+      RowBox[{
+       RowBox[{"(", 
+        RowBox[{
+         RowBox[{
+          SubscriptBox["\[PartialD]", "x"], " ", 
+          RowBox[{"h", "[", 
+           RowBox[{"x", ",", "t"}], "]"}]}], "/.", 
+         RowBox[{"x", "->", "0"}]}], ")"}], " ", "==", " ", "0"}], ",", "\n", 
+      "\t ", 
+      RowBox[{
+       RowBox[{"(", 
+        RowBox[{
+         RowBox[{
+          SubscriptBox["\[PartialD]", "x"], " ", 
+          RowBox[{"h", "[", 
+           RowBox[{"x", ",", "t"}], "]"}]}], "/.", 
+         RowBox[{"x", "->", "L"}]}], ")"}], " ", "==", " ", "0"}]}], 
+     "\[IndentingNewLine]", "}"}], ",", "\n", "\t", "\n", "\t", 
+    RowBox[{"{", 
+     RowBox[{
+      RowBox[{"\[Rho]", "[", 
+       RowBox[{"x", ",", "t"}], "]"}], ",", 
+      RowBox[{"h", "[", 
+       RowBox[{"x", ",", "t"}], "]"}]}], "}"}], ",", "\n", "\t", "\n", "\t", 
+    RowBox[{"{", 
+     RowBox[{"x", ",", "0", ",", "L"}], "}"}], ",", "\n", "\t", 
+    RowBox[{"{", 
+     RowBox[{"t", ",", "0", ",", "tStop"}], "}"}], ",", "\[IndentingNewLine]",
+     "\[IndentingNewLine]", 
+    RowBox[{"MaxSteps", "\[Rule]", 
+     RowBox[{"{", 
+      RowBox[{"600", ",", "600"}], "}"}]}], ",", "\[IndentingNewLine]", 
+    RowBox[{"AccuracyGoal", "\[Rule]", "1"}]}], "\[IndentingNewLine]", 
+   "]"}]}], "\n", 
+ RowBox[{"\t\t"}]}], "Input",
+ CellChangeTimes->{{3.3985286122966805`*^9, 3.3985286462185555`*^9}, {
+  3.466532477614683*^9, 3.466532488145731*^9}},
+ CellLabel->"In[37]:=",ExpressionUUID->"959010c2-6512-4832-859a-6fa9847ba65f"],
+
+Cell["Plot the concentration of the plankton for 70 units of time:", "Text",ExpressionUUID->"28ca3c31-5b9e-4e56-b0ad-138ca6f2d528"],
+
+Cell[BoxData[
+ RowBox[{"Plot3D", "[", "\[IndentingNewLine]", "\[IndentingNewLine]", 
+  RowBox[{
+   RowBox[{
+    RowBox[{"\[Rho]", "[", 
+     RowBox[{"x", ",", "t"}], "]"}], "/.", "\[InvisibleSpace]", 
+    RowBox[{"Flatten", "[", "SolutionRule", "]"}]}], ",", 
+   "\[IndentingNewLine]", "\[IndentingNewLine]", 
+   RowBox[{"{", 
+    RowBox[{"x", ",", "0", ",", "L"}], "}"}], ",", "\[IndentingNewLine]", 
+   RowBox[{"{", 
+    RowBox[{"t", ",", "0", ",", "tStop"}], "}"}], ",", "\[IndentingNewLine]", 
+   "\[IndentingNewLine]", 
+   RowBox[{"PlotLabel", "\[Rule]", "\"\<\[Rho][x,t]\>\""}], ",", 
+   "\[IndentingNewLine]", 
+   RowBox[{"PlotRange", "\[Rule]", 
+    RowBox[{"{", 
+     RowBox[{"2", ",", "4"}], "}"}]}], ",", "\[IndentingNewLine]", 
+   RowBox[{"PlotPoints", "\[Rule]", "30"}], ",", "\[IndentingNewLine]", 
+   RowBox[{"AxesLabel", "\[Rule]", 
+    RowBox[{"{", 
+     RowBox[{
+     "\"\<x-Distance\>\"", ",", "\"\<time\>\"", ",", "\"\<\[Rho] \>\""}], 
+     "}"}]}]}], "\[IndentingNewLine]", "]"}]], "Input",
+ CellChangeTimes->{{3.3985286504529305`*^9, 3.3985286548748055`*^9}, {
+  3.3985288641404305`*^9, 3.3985288655779305`*^9}},
+ CellLabel->"In[38]:=",ExpressionUUID->"198ecd9f-cbd7-4dcf-8eda-59024bdec0c1"],
+
+Cell["\<\
+Plot the concentration of the crustaceans for 70 units of time:\
+\>", "Text",ExpressionUUID->"934ef47e-4f0e-4d0c-8a6b-b2f62f667026"],
+
+Cell[BoxData[
+ RowBox[{"Plot3D", "[", "\[IndentingNewLine]", "\[IndentingNewLine]", 
+  RowBox[{
+   RowBox[{
+    RowBox[{"h", "[", 
+     RowBox[{"x", ",", "t"}], "]"}], "/.", "\[InvisibleSpace]", 
+    RowBox[{"Flatten", "[", "SolutionRule", "]"}]}], ",", 
+   "\[IndentingNewLine]", "\[IndentingNewLine]", 
+   RowBox[{"{", 
+    RowBox[{"x", ",", "0", ",", "L"}], "}"}], ",", "\[IndentingNewLine]", 
+   RowBox[{"{", 
+    RowBox[{"t", ",", "0", ",", "tStop"}], "}"}], ",", "\[IndentingNewLine]", 
+   "\[IndentingNewLine]", 
+   RowBox[{"PlotLabel", "\[Rule]", "\"\<h[x,t]\>\""}], ",", 
+   "\[IndentingNewLine]", 
+   RowBox[{"PlotRange", "\[Rule]", 
+    RowBox[{"{", 
+     RowBox[{".4", ",", ".5"}], "}"}]}], ",", "\[IndentingNewLine]", 
+   RowBox[{"PlotPoints", "\[Rule]", "30"}], ",", "\[IndentingNewLine]", 
+   RowBox[{"AxesLabel", "\[Rule]", 
+    RowBox[{"{", 
+     RowBox[{"\"\<x-Distance\>\"", ",", "\"\<time\>\"", ",", "\"\<h  \>\""}], 
+     "}"}]}]}], "\[IndentingNewLine]", "]"}]], "Input",
+ CellChangeTimes->{{3.3985286572029305`*^9, 3.3985286630310555`*^9}, {
+  3.3985289675310555`*^9, 3.3985289692654305`*^9}},
+ CellLabel->"In[39]:=",ExpressionUUID->"d7353a3a-082a-47bc-a641-6b31cae6ff2e"],
+
+Cell["\<\
+The above two graphs clearly illustrate that for these specific values that \
+the competition between plankton and crustaceans will return to the \
+equilibrium conditions as time progresses.  However, for other values and for \
+other sub models, the model will predict different behaviors.\
+\>", "Text",ExpressionUUID->"a02fb548-8011-4c61-b3da-c4e7b0489c8d"]
+}, Closed]],
+
+Cell[CellGroupData[{
+
+Cell["Animation:", "Subsubsection",ExpressionUUID->"75264c42-e4ba-4899-817b-b7aa9c67ae7d"],
+
+Cell["\<\
+It may be easier to visualize the above plankton-crustacean interaction if \
+animation is used.
+
+In order to more easily fit both the crustacean and plankton densities onto \
+one graph, re-scale the crustacean density.\
+\>", "Text",ExpressionUUID->"5ff42f9e-0c75-4443-b965-2359609d395d"],
+
+Cell[BoxData[
+ RowBox[{"scale", "=", 
+  RowBox[{
+   FractionBox["\[Rho]", "h"], "      ", "/.", "    ", 
+   RowBox[{"{", 
+    RowBox[{
+     RowBox[{"\[Rho]", "\[Rule]", 
+      FractionBox[
+       RowBox[{"c", " ", "k", " ", "r"}], 
+       RowBox[{
+        RowBox[{
+         RowBox[{"-", "c"}], " ", "r"}], "+", 
+        RowBox[{"k", " ", "\[Alpha]", " ", "\[Beta]"}]}]]}], ",", 
+     RowBox[{"h", "\[Rule]", 
+      RowBox[{"-", 
+       FractionBox[
+        RowBox[{"k", " ", "r", " ", "\[Beta]"}], 
+        RowBox[{
+         RowBox[{"c", " ", "r"}], "-", 
+         RowBox[{"k", " ", "\[Alpha]", " ", "\[Beta]"}]}]]}]}]}], 
+    "}"}]}]}]], "Input",
+ CellLabel->"In[40]:=",ExpressionUUID->"7932e970-c284-4612-834f-298f34b6174a"],
+
+Cell[BoxData[{
+ RowBox[{
+  RowBox[{
+   RowBox[{
+    RowBox[{"{", 
+     RowBox[{
+      RowBox[{"\[Rho]1", "[", 
+       RowBox[{"x_", ",", "t_"}], "]"}], ",", 
+      RowBox[{"h1", "[", 
+       RowBox[{"x_", ",", "t_"}], "]"}]}], "}"}], "=", "\[IndentingNewLine]", 
+    "\[IndentingNewLine]", 
+    RowBox[{"{", 
+     RowBox[{
+      RowBox[{
+       RowBox[{"\[Rho]", "[", 
+        RowBox[{"x", ",", "t"}], "]"}], "/.", "\[InvisibleSpace]", 
+       RowBox[{"Flatten", "[", "SolutionRule", "]"}]}], ",", 
+      RowBox[{
+       RowBox[{"h", "[", 
+        RowBox[{"x", ",", "t"}], "]"}], "/.", "\[InvisibleSpace]", 
+       RowBox[{"Flatten", "[", "SolutionRule", "]"}]}]}], "}"}]}], ";"}], 
+  "\[IndentingNewLine]"}], "\[IndentingNewLine]", 
+ RowBox[{"Animate", "[", "\[IndentingNewLine]", "\[IndentingNewLine]", 
+  RowBox[{
+   RowBox[{"Plot", "[", "\[IndentingNewLine]", "\[IndentingNewLine]", 
+    RowBox[{
+     RowBox[{"{", 
+      RowBox[{
+       RowBox[{"\[Rho]1", "[", 
+        RowBox[{"x", ",", "t"}], "]"}], ",", 
+       RowBox[{"scale", "*", 
+        RowBox[{"h1", "[", 
+         RowBox[{"x", ",", "t"}], "]"}]}]}], "}"}], ",", 
+     "\[IndentingNewLine]", "\[IndentingNewLine]", 
+     RowBox[{"{", 
+      RowBox[{"x", ",", "0", ",", "L"}], "}"}], ",", "\[IndentingNewLine]", 
+     "\[IndentingNewLine]", 
+     RowBox[{"PlotRange", "\[Rule]", 
+      RowBox[{"{", 
+       RowBox[{"2", ",", "4"}], "}"}]}], ",", "\[IndentingNewLine]", 
+     RowBox[{"PlotPoints", "\[Rule]", "30"}], ",", "\[IndentingNewLine]", 
+     RowBox[{"PlotStyle", "\[Rule]", 
+      RowBox[{"{", 
+       RowBox[{
+        RowBox[{"{", 
+         RowBox[{
+          RowBox[{"Thickness", "[", ".007", "]"}], ",", 
+          RowBox[{"RGBColor", "[", 
+           RowBox[{"1", ",", "0", ",", "0"}], "]"}]}], "}"}], ",", 
+        RowBox[{"{", 
+         RowBox[{
+          RowBox[{"Thickness", "[", ".007", "]"}], ",", 
+          RowBox[{"Dashing", "[", 
+           RowBox[{"{", 
+            RowBox[{".03", ",", ".03"}], "}"}], "]"}], ",", 
+          RowBox[{"RGBColor", "[", 
+           RowBox[{"0", ",", "0", ",", "1"}], "]"}]}], "}"}]}], "}"}]}], ",", 
+     "\[IndentingNewLine]", 
+     RowBox[{"Frame", "\[Rule]", "True"}], ",", "\[IndentingNewLine]", 
+     RowBox[{"FrameLabel", "\[Rule]", 
+      RowBox[{"{", 
+       RowBox[{
+       "\"\<x-Distance\>\"", ",", 
+        "\"\<\!\(\*StyleBox[\"\[Rho]\",FontColor->RGBColor[1, 0, \
+0]]\)\!\(\*StyleBox[\"[\",FontColor->RGBColor[1, 0, \
+0]]\)\!\(\*StyleBox[\"x\",FontColor->RGBColor[1, 0, \
+0]]\)\!\(\*StyleBox[\",\",FontColor->RGBColor[1, 0, \
+0]]\)\!\(\*StyleBox[\"t\",FontColor->RGBColor[1, 0, \
+0]]\)\!\(\*StyleBox[\"]\",FontColor->RGBColor[1, 0, 0]]\)   and   \
+\!\(\*StyleBox[\"h\",FontColor->RGBColor[0, 0, \
+1]]\)\!\(\*StyleBox[\"[\",FontColor->RGBColor[0, 0, \
+1]]\)\!\(\*StyleBox[\"x\",FontColor->RGBColor[0, 0, \
+1]]\)\!\(\*StyleBox[\",\",FontColor->RGBColor[0, 0, \
+1]]\)\!\(\*StyleBox[\"t\",FontColor->RGBColor[0, 0, \
+1]]\)\!\(\*StyleBox[\"]\",FontColor->RGBColor[0, 0, 1]]\)\>\""}], "}"}]}]}], 
+    "\[IndentingNewLine]", "]"}], ",", "\[IndentingNewLine]", 
+   "\[IndentingNewLine]", 
+   RowBox[{"{", 
+    RowBox[{"t", ",", "0", ",", "tStop"}], "}"}], ",", "\[IndentingNewLine]", 
+   RowBox[{"AnimationRate", "\[Rule]", "2"}]}], "\[IndentingNewLine]", 
+  "]"}]}], "Input",
+ CellChangeTimes->{{3.3985286688904305`*^9, 3.3985286789998055`*^9}, {
+   3.3985303982966805`*^9, 3.3985304475154305`*^9}, {3.3985305481091805`*^9, 
+   3.3985305550466805`*^9}, 3.3985307449998055`*^9, {3.3985308367966805`*^9, 
+   3.3985309131560555`*^9}},
+ CellLabel->"In[41]:=",ExpressionUUID->"ed5de908-514e-4541-ac77-33e3a3a22980"]
+}, Closed]]
+}, Closed]]
+}, Open  ]]
+},
+WindowSize->{906, 598},
+WindowMargins->{{1, Automatic}, {Automatic, 5}},
+Magnification:>1.5 Inherited,
+FrontEndVersion->"11.3 for Microsoft Windows (64-bit) (March 6, 2018)",
+StyleDefinitions->FrontEnd`FileName[{"Creative"}, "NaturalColor.nb", 
+  CharacterEncoding -> "UTF-8"]
+]
+(* End of Notebook Content *)
+
+(* Internal cache information *)
+(*CellTagsOutline
+CellTagsIndex->{}
+*)
+(*CellTagsIndex
+CellTagsIndex->{}
+*)
+(*NotebookFileOutline
+Notebook[{
+Cell[CellGroupData[{
+Cell[567, 22, 84, 0, 98, "Title",ExpressionUUID->"7d4b35c1-03fe-427c-b900-d421a76b90b8"],
+Cell[654, 24, 131, 1, 35, "Subtitle",ExpressionUUID->"aec98b06-2a33-435a-b96a-a616f80c02b0"],
+Cell[788, 27, 71, 0, 48, "Text",ExpressionUUID->"fe380e8e-6996-4fd7-9969-cd5b6f829239"],
+Cell[862, 29, 419, 10, 98, "InputOnly",ExpressionUUID->"378c6785-61ae-4185-8221-32df100fc851"],
+Cell[CellGroupData[{
+Cell[1306, 43, 125, 3, 149, "Section",ExpressionUUID->"ebc7d97b-8ea0-4b77-9f46-369b296c9d6e"],
+Cell[1434, 48, 5300, 141, 1265, "Text",ExpressionUUID->"29939e15-64b9-4831-bf98-dc2a3474af92"],
+Cell[6737, 191, 301, 8, 945, "Input",ExpressionUUID->"536ed7a7-9b9e-4e3c-b4d1-fdee8025e4dc"],
+Cell[7041, 201, 93, 0, 414, "Text",ExpressionUUID->"d10faaf0-ec6a-4018-a0fb-bf39776e411b"],
+Cell[7137, 203, 271, 7, 715, "Input",ExpressionUUID->"3eb7a0d5-2681-421b-b7ab-af0d2eb74bb0"],
+Cell[7411, 212, 786, 16, 3091, "Text",ExpressionUUID->"1ea28675-cdb3-4315-9ba2-4e7a97a9bd5f"],
+Cell[8200, 230, 317, 7, 724, "Input",ExpressionUUID->"1f4d7dc0-f562-45f3-a4d0-c360f49684b1"],
+Cell[8520, 239, 482, 13, 904, "Input",ExpressionUUID->"89eb0a79-8a1e-40bd-a759-210239ef0e62"],
+Cell[9005, 254, 416, 12, 1233, "Text",ExpressionUUID->"f9fcc8e0-9ad2-455d-9d51-a510ccae873c"],
+Cell[9424, 268, 317, 7, 724, "Input",ExpressionUUID->"c333a23d-64bc-4168-8ac5-3fb64697e2d9"],
+Cell[9744, 277, 422, 11, 715, "Input",ExpressionUUID->"e688e359-5b83-4211-950b-9805a5c8478f"],
+Cell[10169, 290, 401, 11, 1219, "Text",ExpressionUUID->"4e60c0f2-8894-4474-8b04-7980117a0d33"],
+Cell[10573, 303, 311, 7, 715, "Input",ExpressionUUID->"0a07ee34-e597-4d78-bd8c-371529636ae3"],
+Cell[10887, 312, 530, 15, 963, "Input",ExpressionUUID->"ae257079-bd00-4583-9724-ff7459e674ca"],
+Cell[CellGroupData[{
+Cell[11442, 331, 126, 0, 355, "Subsubsection",ExpressionUUID->"284fda64-71c3-425a-95c9-cda4ec91e85b"],
+Cell[11571, 333, 643, 14, 2020, "Text",ExpressionUUID->"788f1875-563e-4b08-8ae4-5779154a11f0"],
+Cell[12217, 349, 865, 20, 3069, "Input",ExpressionUUID->"32009782-359d-4a07-8ed4-bf055df3d7df"]
+}, Closed]],
+Cell[CellGroupData[{
+Cell[13119, 374, 93, 0, 355, "Subsubsection",ExpressionUUID->"3b29eff6-68b3-4b45-a977-12d083397e23"],
+Cell[13215, 376, 473, 10, 2538, "Text",ExpressionUUID->"d7798577-1e1d-4afd-b25a-74b59e495d2c"],
+Cell[13691, 388, 489, 13, 2092, "InputOnly",ExpressionUUID->"69efdf52-c6ef-4580-9b79-f0015593876a"],
+Cell[14183, 403, 246, 4, 945, "Text",ExpressionUUID->"02cc539f-1a0d-4638-aee1-b71bcc41e450"],
+Cell[14432, 409, 2989, 82, 5697, "Input",ExpressionUUID->"dd043f51-112a-45a4-b594-2992a4dbf302"],
+Cell[17424, 493, 142, 2, 414, "Text",ExpressionUUID->"7590ccbb-9b92-46ac-86a6-8d23155b0ab7"],
+Cell[17569, 497, 1141, 26, 3330, "Input",ExpressionUUID->"8ee687be-f9e8-49bc-b25b-75429e11794e"],
+Cell[18713, 525, 142, 2, 414, "Text",ExpressionUUID->"8ce604dd-b806-4f58-bc94-03fcade4a0c2"],
+Cell[18858, 529, 1118, 24, 3330, "Input",ExpressionUUID->"47bb1711-d9fc-47ae-970e-f0fe172ed66d"],
+Cell[19979, 555, 169, 5, 1210, "Text",ExpressionUUID->"8e21c105-e36f-498c-91a0-b3e56c78032b"]
+}, Closed]],
+Cell[CellGroupData[{
+Cell[20185, 565, 119, 0, 355, "Subsubsection",ExpressionUUID->"26fd5e35-b4c3-42c4-89ea-c18aef285666"],
+Cell[20307, 567, 110, 0, 414, "Text",ExpressionUUID->"06898991-697f-4ad7-b115-b88c6f9ca511"],
+Cell[20420, 569, 489, 13, 2092, "InputOnly",ExpressionUUID->"de1d61e1-3462-45ba-a3a9-3b52a679a8b3"],
+Cell[20912, 584, 216, 3, 679, "Text",ExpressionUUID->"083d0c5a-87fb-412a-a311-d655e0e64d79"],
+Cell[21131, 589, 594, 18, 868, "Input",ExpressionUUID->"09e80544-d765-4462-9522-43b22922671c"],
+Cell[21728, 609, 106, 0, 414, "Text",ExpressionUUID->"ca95fa83-77e2-4a15-ab70-9297edc5ecc5"],
+Cell[21837, 611, 860, 18, 3069, "Input",ExpressionUUID->"79ffd448-97b0-4d45-8066-3e38231e9d59"],
+Cell[22700, 631, 369, 6, 1476, "Text",ExpressionUUID->"c7eca551-f7ba-427a-84fb-7da15e3299aa"],
+Cell[23072, 639, 3436, 93, 6741, "Input",ExpressionUUID->"31aec8c4-163d-43aa-9611-4df7ecdada8d"],
+Cell[26511, 734, 142, 2, 414, "Text",ExpressionUUID->"e0e584d0-aedc-40f2-a394-419028470e8c"],
+Cell[26656, 738, 1214, 26, 3591, "Input",ExpressionUUID->"c93680f7-cdf1-43ff-9f52-c88d06ed595a"],
+Cell[27873, 766, 142, 2, 414, "Text",ExpressionUUID->"d7764c3b-80c2-4a9c-91f3-908c65df81d6"],
+Cell[28018, 770, 1195, 26, 3591, "Input",ExpressionUUID->"2daa96cc-4851-4b02-a807-e1cd60fdbe9f"],
+Cell[29216, 798, 221, 4, 945, "Text",ExpressionUUID->"9404c565-930d-48bf-9724-54b82f3ccfd6"]
+}, Closed]],
+Cell[CellGroupData[{
+Cell[29474, 807, 96, 0, 355, "Subsubsection",ExpressionUUID->"ce1ce44b-be33-493c-abf1-96b063c7e49a"],
+Cell[29573, 809, 121, 0, 414, "Text",ExpressionUUID->"90c07fb9-6361-4292-8a65-9ceb80143b34"],
+Cell[29697, 811, 494, 14, 2092, "InputOnly",ExpressionUUID->"3f525eca-32d7-4149-91a7-f50cb59c95f8"],
+Cell[30194, 827, 147, 2, 414, "Text",ExpressionUUID->"62be3bf3-9040-4753-99f5-0dcb7482ac53"],
+Cell[30344, 831, 3181, 87, 6219, "Input",ExpressionUUID->"bd6f6f4e-4bfb-42b1-8c9f-fc3d40a4ce48"],
+Cell[33528, 920, 104, 0, 414, "Text",ExpressionUUID->"c6147103-59e6-40fb-a980-f9dace3df242"],
+Cell[33635, 922, 1216, 27, 3591, "Input",ExpressionUUID->"04af0ecc-f455-4f7f-bae5-df420a50a0d7"],
+Cell[34854, 951, 104, 0, 414, "Text",ExpressionUUID->"8bfae69b-afda-45f0-b170-99d026256159"],
+Cell[34961, 953, 1195, 26, 3591, "Input",ExpressionUUID->"3fc3ad79-328f-469f-89b4-4f925e29e197"]
+}, Closed]],
+Cell[CellGroupData[{
+Cell[36193, 984, 107, 0, 355, "Subsubsection",ExpressionUUID->"d640763f-5011-4fff-888e-86f5fe414da8"],
+Cell[36303, 986, 272, 6, 1476, "Text",ExpressionUUID->"72dfa983-1b52-493c-a4ca-a04b5aa7bea6"],
+Cell[36578, 994, 3730, 86, 6723, "Input",ExpressionUUID->"b2b84253-d2ab-42d6-83ad-bd2d04e9a078"]
+}, Closed]]
+}, Closed]],
+Cell[CellGroupData[{
+Cell[40357, 1086, 125, 3, 102, "Section",ExpressionUUID->"da062679-bab3-4401-a62b-30eef633ae08"],
+Cell[40485, 1091, 393, 9, 116, "InputOnly",ExpressionUUID->"e341afd3-36f4-4773-a273-4767f4a2ee5b"],
+Cell[40881, 1102, 4612, 132, 764, "Text",ExpressionUUID->"019c5740-bbd1-4027-a0f7-ea4679902584"],
+Cell[CellGroupData[{
+Cell[45518, 1238, 106, 0, 39, "Subsubsection",ExpressionUUID->"464db0ba-83ce-43cd-9a1d-de951777edb8"],
+Cell[45627, 1240, 1609, 32, 681, "Text",ExpressionUUID->"0532664b-2a3f-4d53-8baf-81942fff0cee"],
+Cell[47239, 1274, 417, 10, 97, "Input",ExpressionUUID->"e1ceb3c7-cd3d-4f36-aac1-f7251a6ac0ea"],
+Cell[47659, 1286, 410, 11, 137, "Text",ExpressionUUID->"f296b2ea-e3fd-4247-a441-8175ecaac3ce"],
+Cell[48072, 1299, 247, 6, 80, "Input",ExpressionUUID->"222e5b2d-9e2e-4aae-928a-e5529c58c895"],
+Cell[48322, 1307, 480, 10, 196, "Input",ExpressionUUID->"82c66776-2047-4e02-8d51-1734afc92a28"],
+Cell[48805, 1319, 434, 11, 172, "Text",ExpressionUUID->"82fe392d-b9dc-47bf-8090-2547e8fff075"],
+Cell[49242, 1332, 1897, 54, 247, "Text",ExpressionUUID->"57fb318e-e259-4387-a65a-2039f8ad6d25"]
+}, Closed]],
+Cell[CellGroupData[{
+Cell[51176, 1391, 108, 0, 39, "Subsubsection",ExpressionUUID->"cb3e957b-af4d-4b22-af2b-f6414c320a2f"],
+Cell[51287, 1393, 1208, 28, 520, "Text",ExpressionUUID->"0eaaf793-be2b-45f7-bdea-f320e391f277"],
+Cell[52498, 1423, 335, 9, 79, "Input",ExpressionUUID->"f85d3d95-af0c-4a2d-b794-4bcb9358ada0"],
+Cell[52836, 1434, 1626, 48, 233, "Text",ExpressionUUID->"6297436f-7bd9-4264-962a-9290ce3ae26a"]
+}, Closed]],
+Cell[CellGroupData[{
+Cell[54499, 1487, 100, 0, 39, "Subsubsection",ExpressionUUID->"d85687fe-7357-4c3d-af9a-48d2b26549c4"],
+Cell[54602, 1489, 3338, 102, 381, "Text",ExpressionUUID->"8b25aad6-9e13-480c-b13b-bbe7b3621aa6"]
+}, Closed]],
+Cell[CellGroupData[{
+Cell[57977, 1596, 129, 0, 39, "Subsubsection",ExpressionUUID->"f120a2c5-9d30-405f-823d-8a6caf04039a"],
+Cell[58109, 1598, 482, 8, 252, "Text",ExpressionUUID->"b55d782e-4618-44bf-9b20-6a461f887c55"],
+Cell[58594, 1608, 843, 20, 341, "Input",ExpressionUUID->"9f1aaddd-3a38-42e9-b780-658a83c7af36"],
+Cell[59440, 1630, 254, 4, 105, "Text",ExpressionUUID->"b5f1e083-0077-4572-bb8a-78afd1b1824c"]
+}, Closed]],
+Cell[CellGroupData[{
+Cell[59731, 1639, 94, 0, 39, "Subsubsection",ExpressionUUID->"96d21f74-b09b-44b8-9f49-2a20b89644e3"],
+Cell[59828, 1641, 468, 10, 282, "Text",ExpressionUUID->"60e26da8-9580-4295-b1ec-40e1cb1dec0d"],
+Cell[60299, 1653, 693, 19, 319, "InputOnly",ExpressionUUID->"cd6bb51d-26f0-4413-bda5-e98ae227498a"],
+Cell[60995, 1674, 201, 3, 75, "Text",ExpressionUUID->"ca7bc78f-9b77-4e4e-b7bf-889e69104b75"],
+Cell[61199, 1679, 228, 5, 100, "Input",ExpressionUUID->"9353809f-40e2-487d-bbe3-8d999e7c9094"],
+Cell[61430, 1686, 373, 7, 193, "Text",ExpressionUUID->"0b0a8ff4-18a7-461c-ad60-0e7620aad0cd"],
+Cell[61806, 1695, 597, 18, 104, "Input",ExpressionUUID->"6597be41-1797-4fab-9951-937297c6cc27"],
+Cell[62406, 1715, 145, 2, 46, "Text",ExpressionUUID->"49f59297-ecf4-494e-8dc1-dd34e6d4170b"],
+Cell[62554, 1719, 768, 23, 104, "Input",ExpressionUUID->"bf3bcb20-487e-43e7-85f0-f03131c05661"],
+Cell[63325, 1744, 839, 26, 104, "Input",ExpressionUUID->"72d2559a-ebb2-4c42-96fd-10321e58e2cc"]
+}, Closed]],
+Cell[CellGroupData[{
+Cell[64201, 1775, 127, 0, 39, "Subsubsection",ExpressionUUID->"90c7b0a8-e627-4ebe-bdc4-2942bd65f95c"],
+Cell[64331, 1777, 246, 4, 105, "Text",ExpressionUUID->"497abb44-9098-4065-8b83-4e6733394515"],
+Cell[64580, 1783, 4170, 114, 773, "Input",ExpressionUUID->"9c51e98c-18ca-4536-8f52-0ae4415a3ff0"],
+Cell[68753, 1899, 141, 2, 46, "Text",ExpressionUUID->"6482898b-58a6-40c8-b78a-7335a6429684"],
+Cell[68897, 1903, 1139, 25, 370, "Input",ExpressionUUID->"a90324a6-3926-49af-9b3c-745e89fd1f2c"],
+Cell[70039, 1930, 143, 2, 46, "Text",ExpressionUUID->"ecb03846-4f17-4e02-abe4-3bb825d5ae1f"],
+Cell[70185, 1934, 1120, 24, 370, "Input",ExpressionUUID->"ff307877-45c9-4a2b-a315-8fe4946eb7fa"]
+}, Closed]],
+Cell[CellGroupData[{
+Cell[71342, 1963, 137, 1, 39, "Subsubsection",ExpressionUUID->"a35ae66b-b185-4e6a-936a-17f53bcf6c76"],
+Cell[71482, 1966, 212, 3, 75, "Text",ExpressionUUID->"df3b6a79-50b1-467a-a883-6dd726cb2538"],
+Cell[71697, 1971, 735, 23, 104, "Input",ExpressionUUID->"e78657cc-7ad3-477d-8b9b-1e2b67ce152f"],
+Cell[72435, 1996, 105, 0, 46, "Text",ExpressionUUID->"7973a368-7d45-44f4-9831-3c4ef2717ad2"],
+Cell[72543, 1998, 858, 18, 341, "Input",ExpressionUUID->"c5340bec-f0a6-48ba-bc20-49cc9d74820b"],
+Cell[73404, 2018, 298, 5, 134, "Text",ExpressionUUID->"27b34d2f-0234-4e9b-b923-735b5dc9a26a"]
+}, Closed]],
+Cell[CellGroupData[{
+Cell[73739, 2028, 115, 0, 39, "Subsubsection",ExpressionUUID->"ad07c3ff-dd83-4caa-9ee8-d5fff1a59f3b"],
+Cell[73857, 2030, 149, 2, 46, "Text",ExpressionUUID->"0a66b935-e42f-4f52-b492-e2de29ad9701"],
+Cell[74009, 2034, 694, 19, 319, "InputOnly",ExpressionUUID->"4bf9704e-f3ea-4f2f-9d53-ba903424adf7"],
+Cell[74706, 2055, 246, 4, 105, "Text",ExpressionUUID->"db9d3a89-32dd-4780-98a5-2a832337f223"],
+Cell[74955, 2061, 4308, 117, 977, "Input",ExpressionUUID->"959010c2-6512-4832-859a-6fa9847ba65f"],
+Cell[79266, 2180, 131, 0, 46, "Text",ExpressionUUID->"28ca3c31-5b9e-4e56-b0ad-138ca6f2d528"],
+Cell[79400, 2182, 1213, 26, 399, "Input",ExpressionUUID->"198ecd9f-cbd7-4dcf-8eda-59024bdec0c1"],
+Cell[80616, 2210, 142, 2, 46, "Text",ExpressionUUID->"934ef47e-4f0e-4d0c-8a6b-b2f62f667026"],
+Cell[80761, 2214, 1195, 25, 399, "Input",ExpressionUUID->"d7353a3a-082a-47bc-a641-6b31cae6ff2e"],
+Cell[81959, 2241, 368, 5, 134, "Text",ExpressionUUID->"a02fb548-8011-4c61-b3da-c4e7b0489c8d"]
+}, Closed]],
+Cell[CellGroupData[{
+Cell[82364, 2251, 90, 0, 39, "Subsubsection",ExpressionUUID->"75264c42-e4ba-4899-817b-b7aa9c67ae7d"],
+Cell[82457, 2253, 297, 6, 164, "Text",ExpressionUUID->"5ff42f9e-0c75-4443-b965-2359609d395d"],
+Cell[82757, 2261, 726, 21, 104, "Input",ExpressionUUID->"7932e970-c284-4612-834f-298f34b6174a"],
+Cell[83486, 2284, 3634, 85, 747, "Input",ExpressionUUID->"ed5de908-514e-4541-ac77-33e3a3a22980"]
+}, Closed]]
+}, Closed]]
+}, Open  ]]
+}
+]
+*)
+
