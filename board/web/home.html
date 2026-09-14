@@ -55,19 +55,55 @@
     </div>
   </section>
 
-  <section id="others-wrap" hidden>
-    <h2>Other courses</h2>
-    <p class="hint">Tapping one moves the board to it. The address does not change.</p>
-    <ul id="others" class="courses"></ul>
-  </section>
+  <!-- THE ATLAS. This used to be two lists -- "Other courses" and "Earlier" --
+       and a list is not a map. The same objection that killed the first version
+       of the per-workspace map applies to a column of names: "I don't want just
+       a list of all the TODOs. I want a map of the CONTENT." So it is drawn.
 
-  <section id="past-wrap" hidden>
-    <h2>Earlier</h2>
-    <ul id="past" class="courses"></ul>
+       One plane, a region per family, a card per workspace, each card saying
+       what is next in it and how much of it is outstanding. Tapping one opens
+       the sheet; opening from there moves the board. -->
+  <section id="atlas-wrap">
+    <div class="atlas-head">
+      <h2>Everything</h2>
+      <div class="atlas-tools">
+        <button id="atlas-fit" type="button" title="see all of it">fit</button>
+      </div>
+    </div>
+    <div id="atlas-plane" class="atlas-plane">
+      <svg id="atlas-svg" xmlns="http://www.w3.org/2000/svg"></svg>
+    </div>
+    <p id="atlas-empty" class="hint" hidden>Nothing to draw yet.</p>
   </section>
 
   <p id="where" class="where"></p>
 </main>
+
+<!-- One workspace, in full, because a card on a plane is a summary and the
+     decision to open something deserves the whole of what is known. It is also
+     the answer to reading a card on a phone: the picture can be small as long
+     as a tap makes it large. -->
+<div id="sheet" class="sheet" hidden>
+  <div class="sheet-box" role="dialog" aria-modal="true" aria-labelledby="sheet-name">
+    <p class="eyebrow" id="sheet-family"></p>
+    <h3 id="sheet-name"></h3>
+    <p class="sheet-line" id="sheet-where"></p>
+    <p class="sheet-next" id="sheet-next" hidden>
+      <span class="waiting-tag">next</span>
+      <span id="sheet-next-text"></span>
+    </p>
+    <p class="sheet-line" id="sheet-meta"></p>
+    <div class="sheet-actions">
+      <button id="sheet-open" class="action primary" type="button">
+        <span class="action-name">Open this</span>
+        <span class="action-sub" id="sheet-open-sub"></span>
+      </button>
+      <button id="sheet-close" class="action" type="button">
+        <span class="action-name">Not now</span>
+      </button>
+    </div>
+  </div>
+</div>
 
 <!-- The switch overlay. It used to be a word and a 700ms timer: the page said
      "moving the board…", reloaded, and landed back on the course you had just
@@ -81,6 +117,8 @@
   </div>
 </div>
 
+<script src="/static/gauge.js"></script>
+<script src="/static/plane-core.js"></script>
 <script src="/static/home.js"></script>
 </body>
 </html>

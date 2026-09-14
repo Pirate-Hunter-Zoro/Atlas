@@ -16,6 +16,7 @@
   --accent:  #7a1f1f;
   --ask:     #8a5a00;
   --slate:   #22302b;
+  --live:    #35a35f;
 }
 
 body[data-mode="dark"], body[data-mode="auto"].sys-dark {
@@ -28,6 +29,7 @@ body[data-mode="dark"], body[data-mode="auto"].sys-dark {
   --accent:  #e0827c;
   --ask:     #e0b45c;
   --slate:   #cfd8d2;
+  --live:    #57c07f;
 }
 
 * { box-sizing: border-box; }
@@ -131,7 +133,7 @@ body[data-mode="auto"].sys-dark .action.primary { color: #16171a; }
 }
 .action-sub { font-size: .8rem; opacity: .72; margin-top: .2rem; }
 
-/* ---------- lists ---------- */
+/* ---------- headings ---------- */
 h2 {
   font-family: var(--ui);
   font-size: .78rem; font-weight: 700; letter-spacing: .12em; text-transform: uppercase;
@@ -139,30 +141,6 @@ h2 {
   margin: 2.6rem 0 .2rem;
 }
 .hint { margin: 0 0 .8rem; font-size: .82rem; color: var(--ink-3); }
-
-.courses { list-style: none; margin: 0; padding: 0; }
-.courses li { margin-bottom: .5rem; }
-/* A row is two stacked lines, not one line that hopes to fit. The meta line
-   carries a chapter title written by a person -- "Homework 1 - axioms of
-   probability, Ross ch.1 problems" -- and it used to be a nowrap flex item
-   pushed right by `margin-left: auto`, which meant it could not shrink and could
-   not wrap, so it simply ran out through the border and off the card. Anything
-   whose length is somebody else's prose has to be allowed to wrap. */
-.courses button, .courses a {
-  display: flex; flex-direction: column; align-items: stretch; gap: .2rem;
-  width: 100%; min-width: 0; box-sizing: border-box;
-  font: inherit; text-align: left; text-decoration: none;
-  padding: .7rem .9rem;
-  border: 1px solid var(--rule); border-radius: .55rem;
-  background: transparent; color: var(--ink); cursor: pointer;
-}
-.courses button:hover, .courses a:hover { background: var(--paper-2); }
-.courses .name { font-weight: 600; min-width: 0; overflow-wrap: anywhere; }
-.courses .meta {
-  font-size: .76rem; color: var(--ink-3); font-family: var(--ui);
-  min-width: 0; overflow-wrap: anywhere; line-height: 1.35;
-}
-.courses .live { color: #35a35f; }
 
 .where {
   margin-top: 3rem; padding-top: 1rem; border-top: 1px solid var(--rule);
@@ -190,3 +168,114 @@ h2 {
 .pushline.ok  { color: #2f7d4f; }
 .pushline.bad { color: var(--accent); overflow-wrap: anywhere; }
 
+
+/* ==========================================================================
+   The atlas -- one picture of everything.
+
+   Every colour below is a token, defined in BOTH blocks at the top of this
+   file. A colour named once is half the page changing theme and the other half
+   not, which is the defect this rule exists to prevent; the two atlas-only
+   colours are declared with the rest and used here.
+   ========================================================================== */
+
+/* The page is no longer a 34rem column of prose: the atlas is a picture and a
+   picture wants the glass. The reading parts above it keep their measure. */
+main { max-width: 46rem; }
+
+.atlas-head {
+  display: flex; align-items: baseline; justify-content: space-between;
+  gap: .75rem;
+}
+.atlas-head h2 { margin-bottom: .5rem; }
+.atlas-tools { display: flex; gap: .3rem; }
+.atlas-tools button {
+  font-family: var(--ui); font-size: .72rem; line-height: 1;
+  padding: .35rem .6rem;
+  border: 1px solid var(--rule); border-radius: .4rem;
+  background: transparent; color: var(--ink-2); cursor: pointer;
+}
+.atlas-tools button:hover { background: var(--paper-2); color: var(--ink); }
+
+/* A PLANE, not a box. `touch-action: none` because the gesture is decided in
+   JavaScript -- see plane-core.js -- and the browser scrolling underneath a
+   pinch is the surface fighting the hand. `overflow: hidden` so the body never
+   scrolls sideways however far the plane is panned. */
+.atlas-plane {
+  position: relative;
+  height: min(62vh, 30rem);
+  border: 1px solid var(--rule); border-radius: .7rem;
+  background: var(--paper-2);
+  overflow: hidden;
+  touch-action: none;
+  -webkit-user-select: none; user-select: none;
+  cursor: grab;
+}
+.atlas-plane:active { cursor: grabbing; }
+.atlas-plane > svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+
+/* The drawn things. Fills are set here rather than on the elements so the
+   whole picture changes theme with the page and nothing has to repaint. */
+.atlas-plane .fam-label {
+  font-family: var(--ui); font-size: 13px; font-weight: 700;
+  letter-spacing: .12em; text-transform: uppercase;
+  fill: var(--ink-3);
+}
+.atlas-plane .fam-blurb { font-family: var(--ui); font-size: 12px; fill: var(--ink-3); }
+.atlas-plane .fam-rule { stroke: var(--rule); stroke-width: 1; }
+
+.atlas-plane .card-box {
+  fill: var(--paper); stroke: var(--rule); stroke-width: 1;
+}
+.atlas-plane .card-hit { fill: transparent; cursor: pointer; }
+.atlas-plane .card-name {
+  font-family: var(--ui); font-size: 16px; font-weight: 650; fill: var(--ink);
+}
+.atlas-plane .card-next { font-family: var(--ui); font-size: 12.5px; fill: var(--ink-2); }
+.atlas-plane .card-tag {
+  font-family: var(--ui); font-size: 9.5px; font-weight: 700;
+  letter-spacing: .12em; fill: var(--ink-3);
+}
+.atlas-plane .card-meta { font-family: var(--ui); font-size: 11.5px; fill: var(--ink-3); }
+
+/* The workspace the board is in right now. It is the one the door opens, so it
+   is the one that has to be findable at a glance from anywhere on the plane. */
+.atlas-plane .card-box.here { stroke: var(--accent); stroke-width: 2.5; }
+.atlas-plane .card-name.here { fill: var(--accent); }
+
+/* A board that is up somewhere. Green is the same green as the connection dot,
+   which is the only other place on this page that means "answering". */
+.atlas-plane .card-live { fill: var(--live); }
+.atlas-plane .card-open { fill: var(--ask); }
+
+/* ---------- the sheet ---------- */
+.sheet {
+  position: fixed; inset: 0; z-index: 92;
+  display: grid; place-items: end center;
+  background: color-mix(in srgb, var(--ink) 34%, transparent);
+}
+.sheet-box {
+  width: 100%; max-width: 30rem;
+  margin: 0 auto;
+  padding: 1.2rem max(1.1rem, env(safe-area-inset-left))
+           calc(1.2rem + env(safe-area-inset-bottom)) max(1.1rem, env(safe-area-inset-right));
+  background: var(--paper);
+  border: 1px solid var(--rule); border-bottom: 0;
+  border-radius: .9rem .9rem 0 0;
+}
+.sheet-box h3 {
+  margin: 0; font-size: 1.35rem; font-weight: 620; line-height: 1.2;
+}
+.sheet-line {
+  margin: .4rem 0 0; font-family: var(--ui);
+  font-size: .8rem; color: var(--ink-3); overflow-wrap: anywhere;
+}
+.sheet-next {
+  margin: .9rem 0 0; padding: .7rem .9rem;
+  border-left: 3px solid var(--ask);
+  background: color-mix(in srgb, var(--ask) 8%, transparent);
+  border-radius: 0 .4rem .4rem 0;
+  font-size: .92rem; line-height: 1.4;
+}
+.sheet-actions { display: grid; gap: .6rem; margin-top: 1.1rem; }
+@media (min-width: 30rem) { .sheet-actions { grid-template-columns: 1.6fr 1fr; } }
+.sheet-actions .action { min-height: 3.4rem; text-align: left; }
