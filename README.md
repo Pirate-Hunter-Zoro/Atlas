@@ -18,26 +18,34 @@ Atlas/
   README.md          this file
   atlas.json         the families, in the order the front door draws them
   board/             Tutor-Board — the tool. `bash board/install.sh` installs it
-  courses/
-    Galois-Theory/           field theory, taught chapter by chapter
-    Probability/             measure-theoretic probability, with problem sets
-    Mathematical-Modeling/   modelling, in Wolfram
-  research/
-    PSYCH-ASR/       speech recognition on therapy sessions. Data is NOT in here
-    TRD-EHR/         treatment-resistant depression from electronic records
-  projects/
-    libr-local-llm/  local inference infrastructure for the lab
-    Paper-Writer/    the manuscript engine: a job in, a manuscript out
-  practice/
-    Algo-Solutions/       algorithms, in Go
-    Lean-Theorem-Proving/ proofs a machine checks
-  vendor/
-    colibri/         submodule. Pulled forward on every login
-    colibri-build/   submodule, same upstream, pinned at fd93c41
 
+  courses/           a workspace per course
+  research/          a workspace per line of research
+  projects/          a workspace per piece of infrastructure
+  practice/          a workspace per thing kept sharp
+
+  vendor/            somebody else's repositories, as submodules
   ai-config/         the AI assistant configuration. Its OWN private repository,
                      ignored by this one — see below
 ```
+
+**THIS FILE DOES NOT LIST THE WORKSPACES, AND THAT IS THE POINT.** A workspace is a
+second-level directory holding `tutorboard.json`, `AI_INSTRUCTIONS.md` or `live/` — found by
+looking, never declared. `atlas.json` names the *families* and their order and nothing else.
+
+A list of courses in a README is a registry, and a registry is a file somebody has to
+remember to edit when a directory appears or goes. Nobody does, so it stops being true
+quietly, and then it is worse than nothing: a reader believes it. This paragraph replaced
+such a list, and what prompted the replacement was the list having gone stale.
+
+To see what is actually here:
+
+```bash
+ls courses research projects practice      # or open the front door, which draws it
+```
+
+Starting something new is `mkdir courses/Topology`. The front door draws it on the next
+poll; the board finds it; nothing needs telling.
 
 Two levels, and the levels mean something. A **family** is a kind of work. A **workspace** is one
 course or one project — the board treats those identically, which is why there is one word for
