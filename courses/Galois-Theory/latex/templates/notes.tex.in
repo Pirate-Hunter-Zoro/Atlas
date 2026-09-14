@@ -1,0 +1,53 @@
+% ===========================================================================
+%  Chapter @@NUM@@ notes — @@TITLE@@
+%  Garling, A Course in Galois Theory
+%
+%  DIVISION OF LABOUR (see AI_INSTRUCTIONS.md §7):
+%    The assistant owns the scaffold: preamble, sectioning, and the faithful
+%    transcription of definitions, theorem statements, and examples.
+%    The user owns everything between the SOLUTION / NOTE markers. No
+%    assistant writes mathematics inside those regions in normal mode.
+% ===========================================================================
+\documentclass[11pt]{article}
+\usepackage{coursemacros}
+
+\title{Chapter @@NUM@@ --- @@TITLE@@}
+\author{Mikey Ferguson}
+\date{\today}
+
+\begin{document}
+\maketitle
+\tableofcontents
+\bigskip
+
+% ---------------------------------------------------------------------------
+\section{Overview}
+% ===== NOTE @@NUM@@.overview =====
+% TODO(mferguson): in your own words, what is this chapter for and what does
+% it let you do that the previous chapter did not?
+% ===== END NOTE @@NUM@@.overview =====
+
+% ---------------------------------------------------------------------------
+\section{Definitions}
+% Assistant: transcribe each definition from the chapter here, in order,
+% inside a definition environment, with the book's numbering in the label.
+
+% ---------------------------------------------------------------------------
+\section{Results}
+% Assistant: transcribe each theorem/lemma/corollary STATEMENT here using the
+% booktheorem environment, e.g. \begin{booktheorem}{@@NUM@@.1} ... \end{booktheorem}
+% Proofs are the user's work and go in marked regions beneath each statement.
+
+% ---------------------------------------------------------------------------
+\section{Worked examples}
+% ===== NOTE @@NUM@@.examples =====
+% TODO(mferguson): the baby examples you worked by hand while reading.
+% ===== END NOTE @@NUM@@.examples =====
+
+% ---------------------------------------------------------------------------
+\section{Loose ends}
+% ===== NOTE @@NUM@@.questions =====
+% TODO(mferguson): what is still unclear, and what you want to come back to.
+% ===== END NOTE @@NUM@@.questions =====
+
+\end{document}

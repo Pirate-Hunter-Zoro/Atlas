@@ -1,0 +1,997 @@
+% ===========================================================================
+%  Chapter 03 homework — Rings
+%  Garling, A Course in Galois Theory
+%
+%  DIVISION OF LABOUR (see AI_INSTRUCTIONS.md §7):
+%    The assistant transcribes each assigned problem statement faithfully and
+%    emits an empty, marked solution region beneath it.
+%    The user types the mathematics inside those regions. No assistant writes
+%    inside a SOLUTION region in normal mode.
+% ===========================================================================
+\documentclass[11pt]{article}
+\usepackage{coursemacros}
+
+\title{Chapter 03 Homework --- Rings}
+\author{Mikey Ferguson}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+% ---------------------------------------------------------------------------
+% Assigned set (2026-09-02), in the order given by the student's own sheet:
+%   3.1, 3.2, 3.3, 3.8, 3.10, 3.11, 3.12, 3.14, 3.15, 3.17, 3.25, 3.26
+% Statements are transcribed as each problem is reached; solution regions
+% stay empty until the student's answer is agreed correct.
+% ---------------------------------------------------------------------------
+
+\begin{problem}{03.1}
+  Suppose that $S$ is a set and $R$ is a ring. Let $R^{S}$ denote the set of
+  all mappings from $S$ to $R$. Show that $R^{S}$ is a ring, under the
+  operations defined by
+  \[
+    (f+g)(s) = f(s) + g(s), \qquad (fg)(s) = f(s)g(s).
+  \]
+  Show that if $S$ has more than one element then there exist non-zero
+  elements $f$ and $g$ in $R^{S}$ for which $fg = 0$.
+\end{problem}
+% ===== SOLUTION 03.1 =====
+% Transcribed from the student's slate, 2026-09-02 (attempts 1-6, turns
+% t0002-t0004; pages filed in ../handwritten/20260902-3.1-attempt*.png).
+% Typeset exactly as written, on their instruction ("What I wrote is good
+% enough"). Faithful transcription: same steps, same order, nothing added.
+% Not covered by what they wrote, and flagged to them on card 0009:
+%   - only distributivity is verified; the remaining ring axioms are asserted;
+%   - no line asserting f and g are non-zero (needs 1_R =/= 0_R);
+%   - no case split showing (fg)(s) = 0_R at every s.
+\begin{solution}
+  Write $f_{1}, f_{0} \in R^{S}$ for the functions
+  \[
+    f_{1}(s) = 1_{R}, \qquad f_{0}(s) = 0_{R},
+  \]
+  and clearly, by the specified function properties, we have all ring
+  properties.
+
+  Prove $(f+g)h = fh + gh$. Let $s \in S$. Show
+  $\bigl((f+g)h\bigr)(s) = (fh)(s) + (gh)(s)$:
+  \[
+    \bigl((f+g)h\bigr)(s)
+      = \bigl(f(s) + g(s)\bigr)h(s)
+      = f(s)h(s) + g(s)h(s)
+      = (fh)(s) + (gh)(s).
+  \]
+
+  If $\abs{S} > 1$, there exist $s_{1}, s_{2} \in S$ where $s_{1} \neq s_{2}$.
+  Let
+  \[
+    f(s) = \begin{cases} 1_{R} & s = s_{1} \\ 0_{R} & \text{else} \end{cases}
+    \qquad
+    g(s) = \begin{cases} 1_{R} & s = s_{2} \\ 0_{R} & \text{else} \end{cases}
+  \]
+  Then $f(s)g(s) = 0$, so they are zero divisors.
+\end{solution}
+% ===== END SOLUTION 03.1 =====
+
+\begin{problem}{03.2}
+  Suppose that $R$ is an integral domain, with field of fractions $F$. Show
+  that the field of fractions of $R[x_{1},\ldots,x_{n}]$ can be identified
+  naturally with $F(x_{1},\ldots,x_{n})$.
+\end{problem}
+% ===== SOLUTION 03.2 =====
+% TODO(mferguson): your work goes here.
+% ===== END SOLUTION 03.2 =====
+
+\begin{problem}{03.3}
+  Show that an integral domain with a finite number of elements is always a
+  field.
+\end{problem}
+% ===== SOLUTION 03.3 =====
+% Transcribed from the student's slate, 2026-09-08, turn t0035. The proof spans
+% two revisions of the page, because rev 4 replaced the ink rather than adding
+% to it: the main argument and its margin justification are rev 3, the repeat
+% lemma at general exponents is rev 4. Assembled here in the order the argument
+% runs, which is the order they wrote it in. Pages filed at
+%   ../handwritten/20260908-3.3-attempt3-nonzero-powers-justified.png  (rev 3)
+%   ../handwritten/20260908-3.3-attempt4-cancellation-correct.png      (rev 4)
+% (cards 0104-0108, agreed correct on card 0108). Faithful transcription:
+% same steps, same order, nothing added.
+% The skeleton is attributed on their page to Dr. Cox-Steib; the justifications
+% are theirs.
+% Recorded rather than silently repaired, across the revisions:
+%   - rev 1 omitted "non-zero" from the whole argument and concluded that ALL
+%     elements have an inverse, which is false -- 0 never does. The omission was
+%     load-bearing: x^n = x => x^(n-1) = e is cancellation and needs x /= 0.
+%     Flagged on card 0105; rev 2 added (x /= 0) and narrowed the conclusion.
+%     Page filed at
+%     ../handwritten/20260908-3.3-attempt1-powers-repeat-nonzero-missing.png
+%   - rev 2 still asserted that repetition of the powers "means" x^n = x. It
+%     does not: repetition gives x^k = x^l at two exponents, and getting back to
+%     exponent 1 is itself a cancellation. Flagged on card 0106 with the
+%     non-example Z_4, x = 2, whose powers 2, 0, 0, ... repeat with no n >= 2
+%     satisfying 2^n = 2. Rev 3 supplied the reason the powers stay non-zero;
+%     rev 4 supplied the cancellation. Page filed at
+%     ../handwritten/20260908-3.3-attempt2-nonzero-added.png
+% Supplied rather than proved by them:
+%   - nothing in the argument. The naming of the cancellation step as
+%     cancellation is written out below rather than left implicit, but they
+%     performed it: rev 4 rewrites x^l as x^k x^(l-k) and removes the x^k.
+\begin{solution}
+  Let $R$ be a finite integral domain and let $x \in R$ be non-zero.
+
+  Consider the sequence of powers $x, x^{2}, x^{3}, \ldots$. Every term is
+  non-zero: $x \neq 0$, and an integral domain has no zero divisors, so
+  $x^{n} \neq 0$ for all $n$. The powers therefore all lie among the non-zero
+  elements of $R$, of which there are only finitely many, so the sequence must
+  repeat.
+
+  Say the repeat is $x^{k} = x^{\ell}$ with $\ell > k$. Writing the right-hand
+  side as $x^{k}x^{\ell-k}$ gives
+  \[
+    x^{k}x^{\ell-k} = x^{k},
+  \]
+  and cancelling $x^{k}$ --- which is legitimate, $x^{k}$ being non-zero in an
+  integral domain --- leaves
+  \[
+    x^{\ell-k} = e.
+  \]
+  Hence $x \cdot x^{\ell-k} = x$, so the sequence does loop back to $x$: there
+  is an $n$, namely $n = \ell - k + 1$, with $x^{n} = x$.
+
+  Now
+  \[
+    x^{n} = x
+    \iff x^{n-1}x = x
+    \iff x^{n-1} = e
+    \iff x^{n-2}x = e,
+  \]
+  the middle step again being cancellation of $x$. So $x^{n-2}$ is the inverse
+  of $x$, and it is a genuine power since $\ell > k$ forces $n \geq 2$.
+
+  Every non-zero element of $R$ therefore has an inverse, and $R$ is a field.
+\end{solution}
+% ===== END SOLUTION 03.3 =====
+
+\begin{problem}{03.8}
+  Suppose that $K$ is a field. If $f = a_{0} + a_{1}x + \cdots + a_{n}x^{n} \in
+  K[x]$ and $k \in K$, let $(\Phi(f))(k) = a_{0} + a_{1}k + \cdots + a_{n}k^{n}$.
+  Show that $\Phi$ is a ring homomorphism from $K[x]$ to $K^{K}$. Show that if
+  $K$ is finite then $\Phi$ is an epimorphism, but not a monomorphism. What
+  happens if $K$ is infinite?
+\end{problem}
+% ===== SOLUTION 03.8 =====
+% PARTIAL. Transcribed from the student's slate, 2026-09-02, as each piece was
+% agreed correct. Faithful transcription: same steps, same order, nothing added.
+%   - additive half of the homomorphism clause: turn t0011 rev 5, page filed at
+%     ../handwritten/20260902-3.8-attempt5-additive-correct.png (card 0037);
+%   - multiplicative half: turn t0011 rev 12, page filed at
+%     ../handwritten/20260902-3.8-attempt12-product-correct.png (card 0043);
+%   - not a monomorphism, for K = F_2: turn t0011 rev 3, page filed at
+%     ../handwritten/20260902-3.8-attempt3-kernel.png (card 0035);
+%   - epimorphism for finite K: turn t0011 rev 19, page filed at
+%     ../handwritten/20260903-3.8-attempt19-epimorphism-correct.png (card 0050);
+%   - not a monomorphism, for general finite K: turn t0011 rev 20, page filed at
+%     ../handwritten/20260903-3.8-attempt20-kernel-general-correct.png (card
+%     0051). Their page exhibits f = prod_{k in K} delta_k and nothing else, so
+%     that is all that is set. Not supplied here, and flagged on card 0051:
+%       - no line showing f(c) = 0 for arbitrary c in K (some k =/= c kills it);
+%       - no line showing f =/= 0, which needs K[x] to have no zero divisors.
+% Two departures from the ink in the multiplicative half, both recorded rather
+% than silently repaired:
+%   - they wrote the product in K^K as "o" (composition); it is the pointwise
+%     product of 3.1, so it is set here as juxtaposition. Notation, not a step.
+%   - their page has no closing "as k was arbitrary" line, unlike the additive
+%     half. Not added. Still owed.
+% Left implicit in the epimorphism half and not supplied here:
+%   - no general definition of delta_c is on any of their pages; they built it
+%     by hand over F_3 and F_5 only. The general product form is still owed;
+%   - no line saying the sum is finite because K is;
+%   - the discarded terms are h(k)*0; the collapse is shown, not justified;
+%   - no closing "as k_1 was arbitrary" line.
+% Still owed by the student, regions left out of the write-up until then:
+%   the "as k was arbitrary" line for the product; the general delta_c;
+%   non-injectivity for general finite K; the infinite case.
+\begin{solution}
+  Let $f = \sum_{i} a_{i}x^{i}$ and $g = \sum_{i} b_{i}x^{i}$ in $K[x]$.
+
+  \emph{Additive half.} Let $k \in K$. Then
+  \[
+    \bigl(\Phi(f+g)\bigr)(k)
+      = \Bigl(\Phi\bigl(\textstyle\sum_{i}(a_{i}+b_{i})x^{i}\bigr)\Bigr)(k)
+      = \sum_{i}(a_{i}+b_{i})k^{i}
+      = \sum_{i} a_{i}k^{i} + \sum_{i} b_{i}k^{i}
+  \]
+  \[
+      = \Bigl(\Phi\bigl(\textstyle\sum_{i} a_{i}x^{i}\bigr)\Bigr)(k)
+        + \Bigl(\Phi\bigl(\textstyle\sum_{i} b_{i}x^{i}\bigr)\Bigr)(k)
+      = \bigl(\Phi(f)\bigr)(k) + \bigl(\Phi(g)\bigr)(k).
+  \]
+  As $k \in K$ was arbitrary, $\Phi(f+g) = \Phi(f) + \Phi(g)$ in $K^{K}$.
+
+  \emph{Multiplicative half.} Let $k \in K$. Then
+  \[
+    \bigl(\Phi(fg)\bigr)(k)
+      = \Bigl(\Phi\Bigl(\textstyle\sum_{m}
+          \bigl(\sum_{i+j=m} a_{i}b_{j}\bigr)x^{m}\Bigr)\Bigr)(k)
+      = \sum_{m}\Bigl(\sum_{i+j=m} a_{i}b_{j}\Bigr)k^{m}
+  \]
+  \[
+      = \Bigl(\sum_{i} a_{i}k^{i}\Bigr)\Bigl(\sum_{j} b_{j}k^{j}\Bigr)
+      = \Bigl(\Phi\bigl(\textstyle\sum_{i} a_{i}x^{i}\bigr)\Bigr)(k)
+        \cdot \Bigl(\Phi\bigl(\textstyle\sum_{j} b_{j}x^{j}\bigr)\Bigr)(k)
+      = \bigl(\Phi(f)\bigr)(k)\bigl(\Phi(g)\bigr)(k).
+  \]
+
+  \emph{$\Phi$ is an epimorphism when $K$ is finite.} Let $K$ be a finite field
+  and let $h \in K^{K}$ be arbitrary. We find $f \in K[x]$ with
+  $\bigl(\Phi(f)\bigr)(k) = h(k)$. Take
+  \[
+    f(x) = \sum_{k} h(k)\,\delta_{k}(x).
+  \]
+  Let $k_{1} \in K$. Then
+  \[
+    \bigl(\Phi(f)\bigr)(k_{1})
+      = \Bigl(\Phi\Bigl(\textstyle\sum_{k} h(k)\delta_{k}(x)\Bigr)\Bigr)(k_{1})
+      = \sum_{k} h(k)\,\delta_{k}(k_{1})
+      = h(k_{1})\,\delta_{k_{1}}(k_{1})
+      = h(k_{1}) \cdot 1
+      = h(k_{1}).
+  \]
+  So $\Phi$ is an epimorphism.
+
+  \emph{$\Phi$ is not a monomorphism.} Take $K = \Fq{2}$, $f = x^{2} + x$ and
+  $g = 0$. Then $f \neq g$ in $\Fq{2}[x]$, but
+  \[
+    \bigl(\Phi(f)\bigr)(0) = 0 = \bigl(\Phi(g)\bigr)(0),
+    \qquad
+    \bigl(\Phi(f)\bigr)(1) = 1 + 1 = 0 = \bigl(\Phi(g)\bigr)(1),
+  \]
+  so $\Phi(f) = \Phi(g)$ in $\Fq{2}^{\Fq{2}}$ and $\Ker \Phi \neq \{0\}$.
+
+  For an arbitrary finite field $K$, take
+  \[
+    f(x) = \prod_{k \in K} \delta_{k}(x),
+  \]
+  a non-zero element of $\Ker \Phi$.
+\end{solution}
+% ===== END SOLUTION 03.8 =====
+
+\begin{problem}{03.10}
+  What are the units in $R[x]$, where $R$ is an integral domain? What are the
+  units in $\mathbb{Z}_{4}[x]$?
+\end{problem}
+% ===== SOLUTION 03.10 =====
+% PARTIAL. First question only (units in R[x] for R an integral domain),
+% transcribed from the student's slate, 2026-09-07, turn t0023 rev 4, page
+% filed at ../handwritten/20260907-3.10-attempt4-units-of-R-correct.png
+% (card 0064, agreed correct on card 0065). Faithful transcription: same
+% steps, same order, nothing added.
+% Omitted from the transcription, deliberately: rev 4 also carries the answer
+% to a hand-check on Z (the pairs a=b=1 and a=b=-1 solving ab=1), which was a
+% rung on the way to the answer and not a step of this argument.
+% Not supplied by their page, and flagged to them on card 0064:
+%   - the intermediate line deg(fg) = deg 1 = 0 with both degrees non-negative;
+%     their page goes from additivity straight to deg f = deg g = 0.
+% Second question (units in Z_4[x]): the constants, from turn t0023 rev 5
+% (card 0065), and the degree-one unit, from t0023 rev 6, page filed at
+% ../handwritten/20260907-3.10-attempt6-z4-unit-correct.png (card 0066, agreed
+% correct on card 0067). Their earlier claim that 1, 2, 3 are all units there
+% was wrong, was sent back on card 0061, and they retracted it themselves.
+% The closing description is from turn t0023 rev 7 (card 0067, agreed correct
+% on card 0068), transcribed in their own words. One reading was fixed in
+% conversation rather than in the text: "all other coefficients are zero
+% divisors" must permit 0, or the description fails to cover the constants
+% 1 and 3 themselves.
+% Not supplied by their pages, and not asked of them:
+%   - a proof of the description; card 0067 asked for the description only.
+%     (For the record: over Z_4 "zero divisor" and "nilpotent" coincide, and
+%     nilpotent is the condition that generalises.)
+\begin{solution}
+  The units in $R[x]$, for $R$ an integral domain, are
+  \[
+    \{\, a \in R \subseteq R[x] \;:\; a^{-1} \text{ exists} \,\},
+  \]
+  the existence of $a^{-1}$ being what is not guaranteed in an integral
+  domain.
+
+  They must be constants. For in an integral domain $R$, with $f, g \in R[x]$,
+  \[
+    \deg(fg) = \deg(f) + \deg(g),
+  \]
+  since no non-zero coefficients multiply to zero. So $\deg(f) = \deg(g) = 0$.
+
+  In $\mathbb{Z}_{4}[x]$ the units are $1$ and $3$, since $3 \cdot 3 = 9 \equiv
+  1$; and also, taking
+  \[
+    f(x) = 2x + 3, \qquad g(x) = 2x + 3,
+  \]
+  we have $fg = 4x^{2} + 12x + 9 = 1$.
+
+  So in $\mathbb{Z}_{4}[x]$ the units are those $f$ whose constant term is a
+  unit and all of whose other coefficients are zero divisors: constant term in
+  $\{1,3\}$, every other coefficient in $\{0,2\}$.
+\end{solution}
+% ===== END SOLUTION 03.10 =====
+
+\begin{problem}{03.11}
+  Show that an element $a$ of an integral domain $R$ is prime if and only if
+  $R/(a)$ is an integral domain.
+\end{problem}
+% ===== SOLUTION 03.11 =====
+% PARTIAL. Forward direction only (a prime => R/(a) an integral domain),
+% transcribed from the student's slate, 2026-09-07, turn t0026 rev 3, page
+% filed at ../handwritten/20260907-3.11-attempt3-forward-correct.png
+% (cards 0071, 0072, agreed correct on card 0073). Faithful transcription:
+% same steps, same order, nothing added.
+% Recorded rather than silently repaired, across the revisions:
+%   - rev 1 carried the line "r_1 r_2 is nonzero due to R being an integral
+%     domain", which is true but not load-bearing (a class r + (a) is zero
+%     when a | r, not when r = 0); flagged on card 0071 and they removed it;
+%   - rev 2 justified a nmid 1 with "(a need not be prime to achieve this)",
+%     which is false; flagged on card 0072 and they replaced it with the
+%     correct hypothesis, "not a unit".
+% Not supplied by their page, and not required of them: commutativity of
+% R/(a), which is inherited from R.
+% Converse direction, divisibility clause only: transcribed from turn t0026
+% rev 8, page filed at
+% ../handwritten/20260907-3.11-attempt8-converse-divisibility-correct.png
+% (cards 0075-0077, agreed correct on card 0078).
+% Recorded rather than silently repaired, across those revisions:
+%   - revs 5-6 assumed "a nmid bc, a nmid b, a nmid c", which is not the
+%     negation of the divisibility clause; the same page then used a | bc.
+%     Flagged on cards 0075 and 0076; rev 7 fixed the assumption.
+%   - revs 5-7 closed with "and is not a field", which contradicts nothing
+%     that was assumed. Flagged on cards 0075 and 0077; rev 8 fixed it.
+%   - their page still carries the marker "=>" at the head of this direction,
+%     left over from the forward proof; the text below it states the converse,
+%     and it is set here as (<=).
+% Not supplied by their page, and asked of them on card 0078:
+%   - the closing line "contrary to assumption, so a is prime"; the
+%     contrapositive stops at "not an integral domain".
+% Converse direction, unit clause: transcribed from turns t0030 rev 4 and
+% t0031 rev 2, 2026-09-07, pages filed at
+% ../handwritten/20260907-3.11-attempt10-unit-ideal-is-R-correct.png and
+% ../handwritten/20260907-3.11-attempt11-converse-unit-clause-correct.png
+% (cards 0084-0088, agreed correct on card 0089). Also a contrapositive.
+% Recorded rather than silently repaired, across those revisions:
+%   - revs 2-3 closed with "es = s in R, so (a) = R", which concludes
+%     membership in R rather than in (a) and uses nothing proved above it.
+%     Rev 3 changed only the set named, leaving the assertion unearned.
+%     Flagged on cards 0085 and 0086; the root cause was reading membership
+%     in (a) as "for all r in R" rather than "there exists r in R", so the
+%     witness was never picked up. Rev 4 fixed it with the existential and
+%     the witness x = r a^{-1}.
+%   - t0031 rev 1 ended "which cannot be an integral domain" with no reason
+%     given. Flagged on card 0088; rev 2 supplied e = 0.
+% Their line "aa^{-1} = e in (a)" is true but not load-bearing in the argument
+% they finally wrote --- the witness x = r a^{-1} does the work directly. Kept
+% because it is on their page.
+% Not supplied by their page, and not asked of them: Garling (p. 362) defines
+% prime only for non-zero a, which this exercise needs --- R/(0) is isomorphic
+% to R and so is an integral domain, while 0 is not prime.
+\begin{solution}
+  ($\Rightarrow$) Suppose $a \in R$ is prime. Show $R/(a)$ is an integral
+  domain.
+
+  Consider
+  \[
+    (r_{1} + (a))(r_{2} + (a)) = r_{1}r_{2} + (a).
+  \]
+  Take the factors non-zero, so $a \nmid r_{1}$ and $a \nmid r_{2}$ --- else we
+  would have zero divisors. Then $r_{1}r_{2} + (a)$ is non-zero, as
+  $a \nmid r_{1}r_{2}$ since $a$ is prime. So $R/(a)$ has no zero divisors.
+
+  Further, $1 + (a) \neq 0 + (a)$, because $a \nmid 1$ ($a$ is not a unit).
+
+  ($\Leftarrow$) Suppose $R/(a)$ is an integral domain. Show $a \in R$ is
+  prime.
+
+  Suppose $a$ is not prime. So there exist $b, c \in R$ such that $a \mid bc$,
+  but $a \nmid b$ and $a \nmid c$. Note $b + (a)$ and $c + (a)$ lie in
+  $R/(a)$, both non-zero since $a \nmid b$, $a \nmid c$. And
+  \[
+    (b + (a))(c + (a)) = bc + (a) = (a)
+  \]
+  since $a \mid bc$. So $R/(a)$ has zero divisors and is not an integral
+  domain.
+
+  Further, $a$ is not a unit. Suppose $a \in R$ is a unit; show $R/(a)$ is not
+  an integral domain. Note $a^{-1} \in R$, so $aa^{-1} = e \in (a)$. Let
+  $r \in R$. Note $r \in (a)$ if there exists $x \in R$ such that $xa = r$;
+  take $x = ra^{-1}$, which exists since $a$ is a unit in $R$. So $(a) = R$,
+  and
+  \[
+    R/(a) = R/R = \{R\},
+  \]
+  a single-element set, which cannot be an integral domain since it is a ring
+  with $e = 0$.
+\end{solution}
+% ===== END SOLUTION 03.11 =====
+
+\begin{problem}{03.12}
+  Let $R = \mathbb{Z} + i\sqrt{5}\,\mathbb{Z}$.
+  \begin{enumerate}
+    \item Show that the units are $1$ and $-1$.
+    \item Let $\varphi(m + i\sqrt{5}\,n) = m^{2} + 5n^{2}$. Then
+      $\varphi(0) = 0$, $\varphi(1) = \varphi(-1) = 1$ and otherwise
+      $\varphi(\alpha) > 3$. Use this to show that $2 + i\sqrt{5}$ and
+      $2 - i\sqrt{5}$ are irreducible in $R$.
+    \item Show that $2 + i\sqrt{5}$ is not a prime; $R$ is not a unique
+      factorization domain.
+  \end{enumerate}
+\end{problem}
+% ===== SOLUTION 03.12 =====
+% PARTIAL. Part (a) only, transcribed from the student's slate, 2026-09-07,
+% turn t0032 rev 4, page filed at
+% ../handwritten/20260907-3.12a-attempt4-units-correct.png
+% (cards 0091-0093, agreed correct on card 0094). Faithful transcription:
+% same steps, same order, nothing added.
+% The first sentence -- that 1 and -1 are units, each its own inverse -- is
+% theirs from a typed turn answering card 0091, not from the page.
+% Recorded rather than silently repaired, across the revisions:
+%   - rev 3 wrote "phi(alpha) in {-1, 1}" on the line directly beneath its own
+%     "phi : R -> N", which cannot both hold. Flagged on card 0093; rev 4
+%     replaced it with phi(alpha) = 1.
+% Supplied rather than proved by them, and asked of them on card 0090:
+%   - multiplicativity of phi. Their rev 2 expansion dropped the n's from the
+%     cross terms, writing i sqrt5 (m_1 + m_2) for i sqrt5 (m_1 n_2 + m_2 n_1),
+%     and they then asked in writing to skip the algebra. Granted on card 0091,
+%     where the identity was closed for them:
+%     (m_1 m_2 - 5 n_1 n_2)^2 + 5(m_1 n_2 + m_2 n_1)^2
+%       = (m_1^2 + 5 n_1^2)(m_2^2 + 5 n_2^2).
+%     Page filed at
+%     ../handwritten/20260907-3.12-attempt2-phi-multiplicative-skipped.png
+% Part (b) transcribed from the student's slate, 2026-09-08, turn t0032 rev 7,
+% page filed at
+% ../handwritten/20260908-3.12b-attempt7-irreducible-correct.png
+% (cards 0094-0096, agreed correct on card 0097). Faithful transcription:
+% same steps, same order, nothing added.
+% Recorded rather than silently repaired, across the revisions:
+%   - rev 5 abandoned phi for coordinates, matched 2 + i sqrt5 = beta gamma to
+%     the system ac - 5bd = 2, ad + bc = 1, and hunted for a contradiction in
+%     it. There is none: a=1, b=0, c=2, d=1 solves it. The misunderstanding was
+%     the definition -- irreducible read as "admits no factorization" rather
+%     than "every factorization contains a unit". Answered on card 0095.
+%     Page filed at
+%     ../handwritten/20260907-3.12b-attempt5-coordinates-question.png
+%   - rev 6 had the whole argument but stopped before its conclusion, and added
+%     a case box for phi(beta) = 9 listing only m = +-2, n = +-1 -- m = +-3,
+%     n = 0 also gives 9. That branch needs no case work at all. Flagged on
+%     card 0096; rev 7 deleted the box and wrote the closing line.
+%     Page filed at
+%     ../handwritten/20260908-3.12b-attempt6-phi-argument-unfinished.png
+% Supplied rather than proved by them, in (b):
+%   - the remark that 2 - i sqrt5 needs no separate argument, phi of it being 9
+%     as well. Card 0097. Their page named both elements and worked 2 + i sqrt5.
+% Part (c), first half only -- that 2 + i sqrt5 is not prime -- transcribed from
+% the student's slate, 2026-09-08, turn t0032 rev 10, page filed at
+% ../handwritten/20260908-3.12c-attempt10-not-prime-correct.png
+% (cards 0097-0101, agreed correct on card 0101). Faithful transcription:
+% same steps, same order, nothing added.
+% Recorded rather than silently repaired, across the revisions:
+%   - rev 8 unpacked the definition correctly, twice, then pushed phi through it
+%     to 9 phi(c) = phi(beta) phi(gamma) and stalled. Nothing on the page was
+%     false; the break was treating an existence claim as something to solve for
+%     rather than to witness -- beta and gamma were theirs to choose. Named on
+%     card 0098. Page filed at
+%     ../handwritten/20260908-3.12c-attempt8-definition-unpacked-stuck.png
+%   - rev 9 had the whole argument, but claimed phi(c_2) = 1 permits
+%     c_2 = +-i sqrt5 as well as +-1. phi(i sqrt5) = 5, and the claim
+%     contradicts their own part (a). They had checked the spurious candidate
+%     and correctly dismissed it, so the conclusion was never in danger.
+%     Flagged on card 0100; rev 10 deleted the candidate and diagnosed the slip
+%     itself in the margin -- "I forgot n^2 is multiplied by 5 in phi". Page
+%     filed at
+%     ../handwritten/20260908-3.12c-attempt9-not-prime-phi-list-wrong.png
+% The UFD deduction is theirs, from turn t0032 rev 11, page filed at
+% ../handwritten/20260908-3.12c-attempt11-ufd-deduction-correct.png
+% (asked on card 0101, agreed correct on card 0102). Their page reads
+% "Clearly alpha = 2 + i sqrt5 is an irreducible element, but it is not prime.
+% So R = Z + i sqrt5 Z is not a unique factorization domain." The middle clause
+% naming the result -- that irreducibles are prime in a UFD -- is written out
+% here rather than left as their "So"; the result itself was supplied to them on
+% card 0101 as available, not proved by them.
+% Not transcribed, because it is false: their page glossed the conclusion as
+% "an element in R could have multiple different PRIME factorizations".
+% Factorization into primes is essentially unique in any integral domain; what
+% fails in R is uniqueness of factorization into IRREDUCIBLES. Flagged on card
+% 0102, which asks whether 3 is prime in R -- the instance 9 = 3 . 3 =
+% (2 + i sqrt5)(2 - i sqrt5) is a factorization into irreducibles and into
+% neither primes. It is a gloss, not a proof step, so 3.12 does not depend on it.
+% Supplied rather than proved by them, in (c):
+%   - nothing in the argument. The witness beta = gamma = 3 is theirs.
+\begin{solution}
+  \textbf{(a)} Both $1$ and $-1$ are units, each being its own inverse.
+
+  Conversely, suppose $\alpha \in R$ is a unit, so $\alpha\beta = 1$ for some
+  $\beta \in R$. Then
+  \[
+    \varphi(\alpha\beta) = \varphi(1) = 1,
+  \]
+  and so $\varphi(\alpha)\varphi(\beta) = 1$. Since
+  $\varphi : R \to \mathbb{N}$, this gives $\varphi(\alpha) = 1$ and
+  $\varphi(\beta) = \varphi(\alpha)$. Through the definition of $\varphi$, this
+  forces $m = \pm 1$, $n = 0$; that is, $\alpha = \pm 1$.
+
+  \medskip
+  \textbf{(b)} Write $\alpha_{1} = 2 + i\sqrt{5}$ and
+  $\alpha_{2} = 2 - i\sqrt{5}$.
+
+  Neither is a unit, the units being $\pm 1$ by part (a).
+
+  Suppose $\alpha_{1} = \beta\gamma$ with $\beta$ and $\gamma$ both not units.
+  Now
+  \[
+    \varphi(2 + i\sqrt{5}) = 4 + 5 = 9,
+  \]
+  and the only ways to write $9$ as a product of two elements of $\mathbb{N}$
+  are $3 \cdot 3$ and $1 \cdot 9$. Since
+  \[
+    \varphi(\beta\gamma) = \varphi(\beta)\varphi(\gamma) = 9,
+  \]
+  one of these two splittings must occur.
+
+  Could $m^{2} + 5n^{2} = 3$ for $m, n \in \mathbb{Z}$? No: $n = 0$ leaves
+  $m^{2} = 3$, and $|n| \geq 1$ makes the value at least $5$. So the splitting
+  $3 \cdot 3$ cannot occur, and therefore $\varphi(\beta) = 1$ or
+  $\varphi(\gamma) = 1$ --- which means $\beta$ or $\gamma$ is a unit, contrary
+  to assumption.
+
+  Hence $2 + i\sqrt{5}$ is irreducible. The same argument applies verbatim to
+  $2 - i\sqrt{5}$, since $\varphi(2 - i\sqrt{5}) = 9$ also.
+
+  \medskip
+  \textbf{(c)} Write $\alpha = 2 + i\sqrt{5}$. To show $\alpha$ is not prime it
+  is enough to find $\beta, \gamma \in R$ with $\alpha \mid \beta\gamma$ but
+  $\alpha \nmid \beta$ and $\alpha \nmid \gamma$; equivalently, to exhibit some
+  $c_{1} \in R$ with $\alpha c_{1} = \beta\gamma$ while no $c_{2} \in R$
+  satisfies $\alpha c_{2} = \beta$ or $\alpha c_{2} = \gamma$.
+
+  Take $\beta = \gamma = 3$, so $\beta\gamma = 9$. Then
+  \[
+    (2 + i\sqrt{5})(2 - i\sqrt{5}) = 9,
+  \]
+  and $2 - i\sqrt{5} \in R$, so $\alpha \mid \beta\gamma = 9$.
+
+  But $\alpha \nmid 3$. Such a divisibility would require some $c_{2} \in R$
+  with $\alpha c_{2} = 3$, and hence
+  \[
+    \varphi(\alpha)\varphi(c_{2}) = \varphi(3)
+    \iff 9\,\varphi(c_{2}) = 9
+    \implies \varphi(c_{2}) = 1,
+  \]
+  which by part (a) forces $c_{2} = \pm 1$. Neither works:
+  $(2 + i\sqrt{5})(\pm 1) \neq 3$.
+
+  So $\alpha = 2 + i\sqrt{5}$ is not prime.
+
+  Now $\alpha$ is an irreducible element of $R$ by part (b), but it is not
+  prime. In a unique factorization domain every irreducible element is prime, so
+  $R = \mathbb{Z} + i\sqrt{5}\,\mathbb{Z}$ is not a unique factorization domain.
+\end{solution}
+% ===== END SOLUTION 03.12 =====
+
+\begin{problem}{03.14}
+  A proper ideal $I$ of a ring $R$ is said to be \emph{prime} if whenever
+  $ab \in I$ then either $a \in I$ or $b \in I$. Show that a non-zero element
+  $c$ of $R$ is prime if and only if $(c)$ is a prime ideal.
+\end{problem}
+% ===== SOLUTION 03.14 =====
+% Student's own argument, cards 0108-0112, revisions 5-8 of turn t0035.
+% Assembled from three pages: the forward direction and its properness line from
+% rev 6, the reverse direction from rev 5 (rev 6 wrote over it), and the
+% non-unit line from rev 8. Their rev-5 reverse direction was written with the
+% element called a and the factors b, c; the letters are normalised here to
+% match the statement (element c, factors a, b) and nothing else is changed.
+\begin{solution}
+  Throughout, $(c) = \{rc : r \in R\}$, and $a \in (c) \iff c \mid a$.
+
+  \medskip
+  \textbf{($\Rightarrow$)} Suppose $c$ is prime. Let $ab \in (c)$. So there
+  exists $r \in R$ with $cr = ab$, that is, $c \mid ab$. Since $c$ is prime,
+  $c \mid a$ or $c \mid b$. Without loss of generality suppose $c \mid a$. Then
+  there exists $r_{1} \in R$ with $r_{1}c = a$, and so by definition
+  $a \in (c)$.
+
+  Now we must show that $(c)$ is a proper ideal. Note $c$ is prime, and hence
+  not a unit. So $(c) \neq R$, and $(c)$ is therefore a proper ideal.
+
+  \medskip
+  \textbf{($\Leftarrow$)} Suppose $(c)$ is a prime ideal. Suppose $c \mid ab$.
+  Then there exists $r \in R$ with $cr = ab$. So $ab \in (c)$, meaning
+  $a \in (c)$ or $b \in (c)$. Without loss of generality suppose $a \in (c)$.
+  Then there exists $r_{1} \in R$ with $cr_{1} = a$, so $c \mid a$.
+
+  To complete this direction, show $c$ is not a unit. Now $(c)$ is a prime ideal
+  by assumption, so it is a proper ideal of $R$, meaning $c$ can't be a unit.
+\end{solution}
+% ===== END SOLUTION 03.14 =====
+
+\begin{problem}{03.15}
+  Suppose that $f = k_{0} + k_{1}x + \cdots + k_{n}x^{n}$ is a non-zero element
+  of $K[x]$ (where $K$ is a field). An element $a$ of $K$ is a \emph{root} of
+  $f$ if $f(a) = k_{0} + k_{1}a + \cdots + k_{n}a^{n} = 0$. Show that $a$ is a
+  root of $f$ if and only if $f \in (x - a)$, and show that $f$ has at most $n$
+  distinct roots.
+\end{problem}
+% ===== SOLUTION 03.15 =====
+% Student's own argument, cards 0113-0119. Both halves.
+% ($\Leftarrow$) from turn t0036 rev 1 (attempt 1), unchanged. ($\Rightarrow$)
+% from turn t0037 rev 1 (attempt 3): the division-with-remainder argument, with
+% the evaluation line written out as a statement about elements of $K$ (their
+% page evaluated the left side only, leaving an $x$ on the right).
+% At-most-$n$-roots: induction shape and $\deg g = n-1$ from t0037 rev 2/3, the
+% "other root is a root of $g$" clause from t0037 rev 3 (their $g(a) = 0$ is
+% written here as $g(b) = 0$, which is what their prose said), base case from
+% t0037 rev 5.
+\begin{solution}
+  Throughout, $K$ is a field, $a \in K$, and $(x-a)$ denotes the principal ideal
+  $\{g \cdot (x-a) : g \in K[x]\}$ of $K[x]$, so that $f \in (x-a)$ means
+  precisely that $f = g \cdot (x-a)$ for some $g \in K[x]$.
+
+  \medskip
+  \textbf{($\Leftarrow$)} Suppose $f \in (x-a)$; show $f(a) = 0_{K}$. There
+  exists $g \in K[x]$ with $g \cdot (x-a) = f$. Evaluating at $a$, and using
+  that evaluation respects products,
+  \[
+    f(a) = g(a) \cdot (a - a) = g(a) \cdot 0_{K} = 0_{K},
+  \]
+  so $a$ is a root of $f$.
+
+  \medskip
+  \textbf{($\Rightarrow$)} Suppose $f(a) = 0$; show there exists $q \in K[x]$
+  with $f = (x-a)q$.
+
+  If $f = 0$ then $f = 0 \cdot (x-a)$ and we are done, so suppose $f \neq 0$.
+  Both $f$ and $x-a$ are non-zero elements of $K[x]$, so Theorem 3.7 applies:
+  there exist $q, r \in K[x]$ with
+  \[
+    f = (x-a)q + r, \qquad \text{where } r = 0 \text{ or }
+    \deg r < \deg (x-a) = 1 .
+  \]
+  If $r = 0$ we are done. Otherwise $\deg r < 1$ forces $\deg r = 0$, so $r$ is
+  a non-zero constant.
+
+  Now evaluate at $a$. Since evaluation respects sums and products, and since a
+  constant evaluates to itself,
+  \[
+    0 = f(a) = (a-a)\,q(a) + r = 0 \cdot q(a) + r = r ,
+  \]
+  contradicting $r \neq 0$. Hence $r = 0$ after all, and $f = (x-a)q$, that is,
+  $f \in (x-a)$.
+
+  \medskip
+  \textbf{At most $n$ distinct roots.} By induction on $n = \deg f$, over all
+  non-zero $f \in K[x]$.
+
+  \emph{Base case, $n = 0$.} Then $f = k_{0}$ with $k_{0} \neq 0$, and for every
+  $k \in K$ we have $f(k) = k_{0} \neq 0$. So $f$ has no roots at all, and
+  $0 \leq 0 = n$.
+
+  \emph{Inductive step.} Let $n \geq 1$ and suppose every non-zero polynomial in
+  $K[x]$ of degree $n-1$ has at most $n-1$ distinct roots. Let $f$ be non-zero
+  of degree $n$.
+
+  If $f$ has no root in $K$ then it has $0 \leq n$ distinct roots and there is
+  nothing to prove. Otherwise pick a root $a \in K$. By the biconditional just
+  proved, $f = (x-a)g$ for some $g \in K[x]$; and $g \neq 0$ since $f \neq 0$.
+  Since $K$ is a field it is an integral domain, so by Exercise 3.10,
+  \[
+    n = \deg f = \deg (x-a) + \deg g = 1 + \deg g, \qquad
+    \text{hence } \deg g = n-1 .
+  \]
+
+  Now let $b \in K$ be any root of $f$ with $b \neq a$. Evaluating at $b$,
+  \[
+    0 = f(b) = (b-a)\,g(b) .
+  \]
+  Here $b - a \neq 0$ because $b \neq a$, and $K$ has no zero divisors, so
+  $g(b) = 0$. Thus every root of $f$ is either $a$ or a root of $g$.
+
+  By the inductive hypothesis $g$ has at most $n-1$ distinct roots, so the set
+  of roots of $f$ is contained in $\{a\}$ together with a set of at most $n-1$
+  elements. Hence $f$ has at most $n$ distinct roots, completing the induction.
+\end{solution}
+% ===== END SOLUTION 03.15 =====
+
+\begin{problem}{03.17}
+  Suppose that $p$ is a prime number. Let $R$ be the set of rationals which can
+  be written in the form $r/s$, where $p$ does not divide $s$. Show that $R$ is
+  a subring of $\mathbb{Q}$. What are the units in $R$? Show that $R$ is a
+  principal ideal domain.
+\end{problem}
+% ===== SOLUTION 03.17 =====
+\begin{solution}
+  Throughout, $p$ is the fixed prime, and
+  \[
+    R = \left\{ x \in \mathbb{Q} : x = r/s \text{ for some }
+    r,s \in \mathbb{Z},\ s \neq 0,\ p \nmid s \right\} .
+  \]
+  Note that membership in $R$ asks only for \emph{some} representation of $x$
+  with $p \nmid s$; a single bad representation proves nothing. For instance
+  $6/3$ lies in $R$ for $p = 3$, since $6/3 = 2/1$.
+
+  \medskip
+  \textbf{$R$ is a subring of $\mathbb{Q}$.} We check the four conditions.
+
+  \emph{$1 \in R$.} Since $p > 1$ we have $p - 1 \neq 0$, so $1 = (p-1)/(p-1)$
+  is a representation of $1$ of the required form. Its denominator is not
+  divisible by $p$: the smallest positive multiple of $p$ is $p$ itself, and
+  $0 < p-1 < p$, so no multiple of $p$ equals $p-1$. Hence $1 \in R$.
+
+  \emph{Closed under addition.} Let $x, y \in R$, say $x = a/b$ and $y = c/d$
+  with $p \nmid b$ and $p \nmid d$. Then
+  \[
+    x + y = \frac{ad + bc}{bd},
+  \]
+  and $bd \neq 0$. Since $p$ is prime and $p \nmid b$, $p \nmid d$, Euclid's
+  lemma in contrapositive form gives $p \nmid bd$. So this representation of
+  $x+y$ has denominator not divisible by $p$, and $x + y \in R$.
+
+  \emph{Closed under negation.} Let $x = a/b \in R$ with $p \nmid b$. Then
+  $-x = (-a)/b$: the sign moves to the numerator and the denominator is
+  unchanged. Membership in $R$ constrains only the denominator, so
+  $-x \in R$.
+
+  \emph{Closed under multiplication.} With $x = a/b$ and $y = c/d$ as above,
+  \[
+    xy = \frac{ac}{bd},
+  \]
+  and again $p \nmid bd$ by the contrapositive of Euclid's lemma. So
+  $xy \in R$.
+
+  Hence $R$ is a subring of $\mathbb{Q}$. Being a subring of a field, $R$ is
+  a commutative ring with no zero divisors, that is, an integral domain.
+
+  \medskip
+  \textbf{The units of $R$.} We claim
+  \[
+    R^{\times} = \left\{ n/q \in R : p \nmid n \right\} .
+  \]
+
+  \emph{The condition is well defined.} Write $x \in R$ in lowest terms as
+  $a/b$. Every representation of $x$ is $(ra)/(rb)$ for some non-zero integer
+  $r$, and such a representation is admissible ($p \nmid rb$) exactly when
+  $p \nmid r$ and $p \nmid b$. In that case $p \mid ra$ if and only if
+  $p \mid a$, by Euclid's lemma. So whether $p$ divides the numerator does not
+  depend on which admissible representation of $x$ we chose.
+
+  \emph{($\supseteq$).} Let $x = n/q \in R$ with $p \nmid q$ and $p \nmid n$.
+  Since $p \mid 0$, the hypothesis $p \nmid n$ forces $n \neq 0$, so $q/n$ is
+  a rational number. Its denominator $n$ satisfies $p \nmid n$, so
+  $q/n \in R$, and
+  \[
+    \frac{n}{q} \cdot \frac{q}{n} = 1 .
+  \]
+  Hence $x$ is a unit of $R$.
+
+  \emph{($\subseteq$).} We prove the contrapositive: if $n/q \in R$ and
+  $p \mid n$, then $n/q$ is not a unit. By the previous paragraph we may
+  assume $n/q$ is in lowest terms, so $\gcd(n,q) = 1$.
+
+  The inverse of $n/q$ in $\mathbb{Q}$ is $q/n$, and inverses in a field are
+  unique; so if $n/q$ had an inverse in $R$, that inverse would have to be
+  $q/n$, and in particular $q/n$ would lie in $R$. We show it does not, by
+  ruling out \emph{every} representation of it.
+
+  Since $\gcd(q,n) = 1$, the integer fractions equal to $q/n$ are exactly the
+  fractions $(rq)/(rn)$ for non-zero integers $r$. Now $p \mid n$ means
+  $n = pk$ for some integer $k$, so for every non-zero integer $r$,
+  \[
+    r \cdot n = p \cdot (rk) ,
+  \]
+  which exhibits $rk$ as a witness to $p \mid rn$. So every representation of
+  $q/n$ has denominator divisible by $p$, and therefore $q/n \notin R$. Hence
+  $n/q$ is not a unit of $R$.
+
+  Combining the two inclusions, the units of $R$ are precisely the elements
+  of $R$ whose numerator, in lowest terms, is not divisible by $p$.
+
+  \medskip
+  \textbf{$R$ is a principal ideal domain.} $R$ is an integral domain, as
+  noted above. It remains to show that every ideal of $R$ is principal. We
+  use two lemmas.
+
+  \emph{Lemma A.} Every non-zero $x \in R$ can be written $x = u\,p^{k}$ with
+  $u$ a unit of $R$ and $k \geq 0$ an integer.
+
+  Write $x = n/q$ in lowest terms, so $p \nmid q$. Let $k \geq 0$ be the
+  largest integer with $p^{k} \mid n$; this exists because $n \neq 0$, so only
+  finitely many powers of $p$ divide $n$. Put $n = p^{k}n'$, so that
+  $p \nmid n'$. Then
+  \[
+    x = \frac{p^{k}n'}{q} = \frac{n'}{q} \cdot p^{k} ,
+  \]
+  and $u = n'/q$ lies in $R$ with $p \nmid n'$, so $u$ is a unit by the
+  previous part. (For $k = 0$ this says $x$ is itself a unit, as with
+  $7/4$ when $p = 3$.)
+
+  \emph{Lemma B.} If $x = u\,p^{k}$ lies in an ideal $I$ of $R$, with $u$ a
+  unit, then $p^{k} \in I$.
+
+  Indeed $u^{-1} \in R$ because $u$ is a unit, and $p^{k} = u^{-1}x$, so
+  $p^{k} \in I$ by absorption.
+
+  Now let $I$ be an ideal of $R$. If $I = \{0\}$ then $I = (0)$ and we are
+  done, so suppose $I$ contains a non-zero element $a$. Let
+  \[
+    S = \{\, k \geq 0 : p^{k} \in I \,\} .
+  \]
+  By Lemma A, $a = u\,p^{k}$ for a unit $u$ and some $k \geq 0$, and then
+  $p^{k} \in I$ by Lemma B; so $S$ is a non-empty set of non-negative
+  integers. By well-ordering $S$ has a least element $m$, and $p^{m} \in I$.
+  We claim $I = (p^{m})$.
+
+  \emph{($\supseteq$).} $p^{m} \in I$, so $rp^{m} \in I$ for every $r \in R$
+  by absorption. Hence $(p^{m}) \subseteq I$.
+
+  \emph{($\subseteq$).} Let $y \in I$. If $y = 0$ then $y = 0 \cdot p^{m} \in
+  (p^{m})$, so assume $y \neq 0$. By Lemma A, $y = u\,p^{k_{1}}$ with $u$ a
+  unit and $k_{1} \geq 0$. By Lemma B applied to $y \in I$, we get
+  $p^{k_{1}} \in I$, that is, $k_{1} \in S$. Since $m$ is the least element of
+  $S$, this forces $k_{1} \geq m$. Therefore $k_{1} - m \geq 0$, so
+  $r = u\,p^{k_{1}-m}$ is a product of elements of $R$ and hence lies in $R$,
+  and
+  \[
+    r p^{m} = u\,p^{k_{1}-m}p^{m} = u\,p^{k_{1}} = y .
+  \]
+  Hence $y \in (p^{m})$ and $I \subseteq (p^{m})$.
+
+  So $I = (p^{m})$. Every ideal of $R$ is principal, and $R$ is a principal
+  ideal domain.
+\end{solution}
+% ===== END SOLUTION 03.17 =====
+
+\begin{problem}{03.25}
+  Show that an element of a ring $R$ is invertible if and only if it is
+  contained in no maximal proper ideal in $R$.
+\end{problem}
+% ===== SOLUTION 03.25 =====
+\begin{solution}
+  \textbf{($\Rightarrow$) An invertible element lies in no maximal proper
+  ideal.} Suppose $u \in R$ is invertible and that $u \in M$ for some ideal $M$
+  of $R$. If $x \in R$, then $xu \in M$ by absorption, and hence
+  \[
+    x = (xu)u^{-1} \in M
+  \]
+  by absorption again. So $R \subseteq M$; and $M \subseteq R$ because an ideal
+  of $R$ is by definition a subset of $R$. Hence $M = R$, so $M$ is not proper.
+  In particular no \emph{maximal proper} ideal of $R$ can contain $u$.
+
+  Note that maximality plays no part here: it is enough that a maximal proper
+  ideal is proper.
+
+  \medskip
+  \textbf{($\Leftarrow$) An element in no maximal proper ideal is invertible.}
+  We argue by contraposition: suppose $u \in R$ is not invertible, and produce
+  a maximal proper ideal of $R$ containing $u$.
+
+  Let $I = (u) = \{ ux : x \in R \}$, the principal ideal generated by $u$.
+  Then $u \in I$, taking $x = 1$. Moreover $I$ is proper: if $1 \in I$ then
+  $ux = 1$ for some $x \in R$, making $u$ invertible, contrary to assumption.
+
+  By Theorem 3.14, which is proved from Zorn's lemma, every proper ideal of $R$
+  is contained in some maximal proper ideal of $R$. Applying this to $I$ gives a
+  maximal proper ideal $M$ of $R$ with $I \subseteq M$. Since $u \in I$ and
+  $I \subseteq M$, we have $u \in M$.
+
+  So a non-invertible $u$ does lie in a maximal proper ideal, which is the
+  contrapositive of the claim.
+\end{solution}
+% ===== END SOLUTION 03.25 =====
+
+\begin{problem}{03.26}
+  Suppose that $J$ is a proper prime ideal in an integral domain $R$. Show that
+  $J[x]$ is prime in $R[x]$. Show that $J[x]$ is not a maximal proper ideal in
+  $R[x]$.
+\end{problem}
+% ===== SOLUTION 03.26 =====
+% Both parts. Part 2 closed on card 0167, 2026-09-12.
+% Part 1 transcribed from the student's slate, 2026-09-10, turn t0044, revisions 1-6
+% (cards 0150-0159, part 1 agreed correct on card 0160). The argument was built
+% across the revisions and is assembled here in the order it runs: the setup and
+% the a_i b_j term are rev 1, the dichotomy on the other summands is rev 3, the
+% subtraction step and the contraposition line are revs 4-5, the properness
+% paragraph is rev 6. Pages filed at
+%   ../handwritten/ch03-3.26-part1-attempt1-term-vs-coefficient.png      (rev 1)
+%   ../handwritten/ch03-3.26-part1-attempt3-dichotomy-proved.png         (rev 3)
+%   ../handwritten/ch03-3.26-part1-attempt5-contraposition-named.png     (rev 5)
+%   ../handwritten/ch03-3.26-part1-attempt6-proper-rx-witness.png        (rev 6)
+% Faithful transcription: same steps, same order, nothing added.
+% Repaired silently here, all pen rather than argument:
+%   - rev 1 wrote "is a term in ab" for what is the coefficient of x^{i+j};
+%     corrected on cards 0151-0152 and written correctly from rev 3 on;
+%   - the subtraction of the other summands is justified on the page as "ideals
+%     are closed under addition"; it is closure under subtraction (equivalently,
+%     absorption with r = -1 followed by addition);
+%   - the closing line names the polynomials f and g where the rest of the page
+%     names them a and b; unified to a, b.
+% Not covered by what they wrote, and left as written:
+%   - rev 6 does not say why rx is outside J[x] (its coefficient of x is r, and
+%     r is not in J); supplied in the last sentence below.
+% Part 2 transcribed from turn t0047, revisions 1-3 (cards 0163-0167), page at
+%   ../handwritten/ch03-3.26-part2-attempt3-constant-term-zero.png            (rev 3)
+% Repaired silently here, all pen rather than argument:
+%   - the page writes "I is a proper ideal of R" where it means R[x];
+%   - "maximal proper subideal" for "maximal proper ideal";
+%   - the closing witness is called g(x) and never defined; it is x, i.e. the
+%     member of I got by taking a = 0 and r = 1, and is written that way here.
+% Supplied here, one inference the page asserts rather than writes: the page
+% gives both facts -- a(x) has no constant term 1 since a_0 in J, and xr(x)
+% "contains no constants unless it is 0" -- but not the step that adds the two
+% constant terms. The properness paragraph below writes that step out.
+\begin{solution}
+  \textbf{Part 1: $J[x]$ is prime in $R[x]$.}
+
+  \emph{Proper.} Since $J$ is a proper ideal of $R$, there is some $r \in R$
+  with $r \notin J$. Then $rx \in R[x]$, and $rx \notin J[x]$, because the
+  coefficient of $x$ in $rx$ is $r$, which does not lie in $J$, whereas every
+  coefficient of a member of $J[x]$ lies in $J$. Hence $J[x] \neq R[x]$.
+
+  \emph{The implication.} We prove the contrapositive: if $a \notin J[x]$ and
+  $b \notin J[x]$ then $ab \notin J[x]$. (The negation of ``$a \in J[x]$ or
+  $b \in J[x]$'' is ``$a \notin J[x]$ and $b \notin J[x]$''.)
+
+  Suppose $a \notin J[x]$ and $b \notin J[x]$. Then there exist least indices
+  $i$ and $j$ with $a_{i} \notin J$ and $b_{j} \notin J$. The coefficient of
+  $x^{i+j}$ in $ab$ is
+  \[
+    \sum_{\ell + m = i + j} a_{\ell} b_{m}.
+  \]
+  Since $J$ is a prime ideal of $R$ and $a_{i}, b_{j} \notin J$, we have
+  $a_{i} b_{j} \notin J$.
+
+  Take any other pair, so $\ell + m = i + j$ with $(\ell, m) \neq (i, j)$. Then
+  either $\ell < i$ or $m < j$: if both $\ell \geq i$ and $m \geq j$ then
+  $\ell + m = i + j$ forces $\ell = i$ and $m = j$. If $\ell < i$ then
+  $a_{\ell} \in J$ by the minimality of $i$; if $m < j$ then $b_{m} \in J$ by
+  the minimality of $j$. Either way $a_{\ell} b_{m} \in J$, by absorption.
+
+  Now suppose the coefficient of $x^{i+j}$ in $ab$ were in $J$. Subtracting the
+  other summands, each of which lies in $J$, leaves
+  \[
+    \sum_{\substack{\ell + m = i + j}} a_{\ell} b_{m}
+      \;-\!\!\sum_{\substack{\ell + m = i + j \\ (\ell, m) \neq (i, j)}}\!\! a_{\ell} b_{m}
+      \;=\; a_{i} b_{j} \in J,
+  \]
+  since ideals are closed under subtraction. That contradicts
+  $a_{i} b_{j} \notin J$. So the coefficient of $x^{i+j}$ in $ab$ is not in
+  $J$, and therefore $ab \notin J[x]$.
+
+  So $a, b \notin J[x] \Rightarrow ab \notin J[x]$, concluding the proof by
+  contraposition: $ab \in J[x]$ implies $a \in J[x]$ or $b \in J[x]$. With
+  properness, $J[x]$ is a prime ideal of $R[x]$.
+
+  \medskip
+  \textbf{Part 2: $J[x]$ is not a maximal proper ideal in $R[x]$.}
+
+  Since $J$ is proper, $1 \notin J$, and so $x \notin J[x]$. Put
+  \[
+    I \;=\; \{\, a(x) + x r(x) \;:\; a \in J[x],\; r \in R[x] \,\}.
+  \]
+
+  \emph{$I$ is an ideal of $R[x]$.} For $h \in R[x]$,
+  \[
+    h(x)\bigl(a(x) + x r(x)\bigr) \;=\; h(x) a(x) + x\bigl(r(x) h(x)\bigr)
+      \;\in\; I,
+  \]
+  since $h a \in J[x]$ by absorption and $r h \in R[x]$ because $R[x]$ is a
+  ring. It is closed under addition because $J[x]$ and $R[x]$ are.
+
+  \emph{$J[x] \subseteq I$.} Take $r = 0$.
+
+  \emph{The inclusion is strict.} Take $a = 0$ and $r = 1$: then $x \in I$,
+  while $x \notin J[x]$. So $J[x] \subsetneq I$.
+
+  \emph{$I$ is proper.} Suppose $a(x) + x r(x) = 1$ for some $a \in J[x]$ and
+  $r \in R[x]$. The polynomial $x r(x)$ has constant term exactly $0$, so the
+  constant term of the left-hand side is $a_{0}$; the constant term of the
+  right-hand side is $1$. Hence $a_{0} = 1$. But $a \in J[x]$ gives
+  $a_{0} \in J$, and $1 \notin J$ because $J$ is proper --- a contradiction.
+  So $1 \notin I$, and $I \neq R[x]$.
+
+  Therefore $J[x] \subsetneq I \subsetneq R[x]$ with $I$ an ideal, so $J[x]$ is
+  not a maximal proper ideal of $R[x]$.
+\end{solution}
+% ===== END SOLUTION 03.26 =====
+
+\end{document}
