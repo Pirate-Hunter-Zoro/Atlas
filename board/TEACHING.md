@@ -11,12 +11,9 @@ It is written for the assistant, not the student. Read it before your first card
 ---
 
 > **Delivery note.** `board start` copies this file into each course's `live/`,
-> whole and byte for byte. There used to be two deliveries: sections carried
-> `<!-- mode: math -->` or `<!-- mode: code -->` and a repository was handed
-> whichever half its declared mode selected. There is no mode now and there is
-> one method, so every course gets every word of this — including the sections
-> about repositories that follow no book, because most repositories are one and
-> the tutor cannot be told which after the fact.
+> whole and byte for byte. There is one method, so every course gets every word
+> of it — including the sections about repositories that follow no book, because
+> most repositories are one and the tutor cannot be told which after the fact.
 
 ## The rule everything else follows from
 
@@ -662,12 +659,9 @@ that needs doing.
 they are still answered on the board, and one question still ends the turn. What
 changes is where the exercises come from. That is the whole of the difference.
 
-It used to be far more than that. A `mode` in `tutorboard.json` said `math` or
-`code`, and a code repository got a different method, a different first card, and
-three tap-signals — *ready to check*, *I need help*, *I'm confused* — instead of
-an answer panel. All of it is gone. A repository whose subject is code is taught
-by being asked to do things, like everything else on this board, and when the
-student has implemented something they say so in a written or a typed turn.
+A repository whose subject is code is taught by being asked to do things, like
+everything else on this board, and when the student has implemented something
+they say so in a written or a typed turn.
 
 ### 1. The plan is named for you — open it at the step
 
@@ -675,7 +669,7 @@ A project is **not a course**: nothing about it is organised for teaching, and
 there is no book to take the exercises out of. What it has instead is a plan —
 a task list, a planning document, a companion repository holding the narrative —
 and **the briefing names that file and quotes its next few steps**. The board
-found it the same way it finds everything else: the repository's own
+finds it the same way it finds everything else: the repository's own
 `tutorboard.json` if it says, and otherwise what its README already points at.
 
 So do not go looking. Open the plan at the step **this sitting is labelled

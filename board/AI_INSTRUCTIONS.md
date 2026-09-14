@@ -200,11 +200,9 @@ tutorboard/
   together — a folder of the assistant's cards with the student's half missing is a record of half
   a conversation. `test/transcript.py` guards all of it, and none of that is negotiable.
 
-  **What the transcript SHOWS is a separate question, and the answer changed on 31 August 2026.**
-  It used to be the frozen picture, always, on the reasoning that the slate was one surface that got
-  written over — so the picture was the only copy of what had been handed in. That reasoning expired
-  when every question got a page of its own that is never wiped: the page is still there, under that
-  question's board, and the picture beside it is a second dead copy of the same ink. The board is
+  **What the transcript SHOWS is a separate question.** Every question has a page of its own that
+  is never wiped, so a frozen picture of the ink beside it is a second dead copy of the same
+  strokes — and the dead one is what you meet first scrolling back up. The board is
   what is shown, and the picture is the fallback wherever there is no board to show — a filed lesson,
   a past one, or a browser that has never held this question's page, since that mapping is local to
   the device that made it. Decided by the person whose lesson it is, on the argument that a
@@ -233,9 +231,9 @@ tutorboard/
   course — and every board keeps the card it sits under, because a reload has no other way to know
   where it goes. `test/chain.js`.
 - **One session boundary, everywhere.** A sitting is filed by `board open` and by `board archive`,
-  and by nothing else. `board push` used to archive as well, but only in a `code` repository — so
-  the same **⤓ save** filed the lesson away in one course and carried on in another, for no reason
-  visible from the iPad. A commit is a save. Do not give any repository a boundary of its own.
+  and by nothing else. `board push` must never archive: one **⤓ save** that files the lesson away
+  in one course and carries on in another is a difference nobody can see from the iPad. A commit is
+  a save. Do not give any repository a boundary of its own.
 - **There is no mode, and there must never be one again.** A `mode` of `math` or `code` in
   `tutorboard.json` decided the method, the first card, the session boundary, half the contents
   drawer and whether the board had an answer panel or three tap-signals. Every one of those splits
@@ -253,10 +251,9 @@ tutorboard/
   `skip` are still sent by the board.
 - **Never write to a board somebody is using.** Reading a live board is fine — `/health`,
   `/live`, `board_json`. WRITING to one is not: a probe POSTed to `/slate/save` on the running
-  Galois board on 2 September 2026 replaced page 7 — the sheet an answer had been handed in off,
-  279 strokes — with a two-point `#eee` fixture, and the same payload is still on disk as
-  `page-99`. It read afterwards as the board having cleared or reused the page, which sent the
-  next session looking for a bug that was not there. Every suite in `test/` drives a temporary
+  Galois board replaces the sheet an answer was handed in off with a two-point fixture, and it
+  reads afterwards as the board having cleared or reused the page — which sends the next session
+  looking for a bug that is not there. Every suite in `test/` drives a temporary
   course for this reason; there is no diagnostic worth a page of somebody's proof. And when the
   file is the thing, read the file: `board_json` caps a response at 1 MB and a slate is bigger
   than that, so the endpoint will tell you a full slate has no pages at all.
@@ -290,7 +287,7 @@ tutorboard/
   is a page property, so choosing it must never mark a page dirty.
 - **Nothing expensive happens under a hand.** The picture of a page — `toPNG`, which repaints the
   whole page offscreen and PNG-encodes it — is a hundred-odd milliseconds of main thread, and it
-  used to run on every autosave, about a second after every stroke. A send encodes it, because it
+  and it must not run on every autosave, a second after every stroke. A send encodes it, because it
   is frozen as the answer; an autosave encodes it only once the hand is off the glass — and the
   glass is the whole PAGE, not the writing surface: a pen, a finger on the sheet, a tap on the
   toolbar and a scroll of the lesson all defer it, because the board is part of a page somebody
@@ -302,8 +299,8 @@ tutorboard/
   stroke on a page is never changed in place. Anything that would change one (dragging a selection,
   recolouring it) replaces it with a copy and changes that; `dense` and `_bb` are caches and may be
   dropped on anything at any time. Break the rule and undo silently stops undoing, which no
-  screenshot will show you. It used to serialise the whole page on every pen lift and every touch
-  of the rubber. `test/plane.js` drags and undoes; `test/link.js` undoes two marks on a card one at
+  screenshot will show you, and never serialise the whole page on a pen lift or a touch of the
+  rubber. `test/plane.js` drags and undoes; `test/link.js` undoes two marks on a card one at
   a time, which is what fails when adding a mark starts pushing onto the live list again.
 - **An ink layer's BOX reaches the window; its bitmap waits for the first mark.** Every card
   carries one, because it is what takes the pen while annotate mode is on, and allocating each at
@@ -320,7 +317,7 @@ tutorboard/
   payload.
 - **A repaint draws what can be SEEN.** A page is a plane that grows downward as it is worked, so
   most of an evening's strokes are a screen or more away — and a full repaint is what a pan, a
-  pinch, a zoom and every erased stroke used to cost. Strokes are culled against the visible box
+  pinch, a zoom and every erased stroke would otherwise cost. Strokes are culled against the visible box
   (their own boxes cached on them, cleared wherever points MOVE), and rubbing out repairs the
   rectangle it emptied rather than the page. Measured in `test/plane.js`, which fails if an erase
   goes back to costing a whole-page repaint. The annotation layer follows the same rule: an erase
@@ -370,10 +367,10 @@ tutorboard/
 - **`hidden` must actually hide.** Both stylesheets carry
   `[hidden] { display: none !important; }`, because a UA stylesheet's `[hidden]` rule loses to any
   author rule that sets a display. Never remove it; `test/hidden.js` guards it.
-- **Read the CSS before theorising about the platform.** The drop overlay shipped painted over the
-  lesson from the first version, and it was blamed on caching and then on iOS resume semantics
-  before anyone checked a two-line rule. When the user says a fix did not land, verify what is
-  actually being rendered before proposing a mechanism for why.
+- **Read the CSS before theorising about the platform.** An overlay painted permanently over the
+  lesson invites a caching theory and an iOS-resume theory, and the cause is a two-line rule. When
+  the user says a fix did not land, verify what is actually being rendered before proposing a
+  mechanism for why.
 - **The first turn must be possible from the device.** An empty board asks no question, so no
   answer is owed, so nothing opens the slate — and in maths there is no box either. That made the
   cold start a terminal job, which is the ceremony the launcher exists to remove. An empty board
@@ -402,10 +399,10 @@ tutorboard/
   annotate mode is on — an always-live overlay over the lesson is the drop-overlay defect
   again, and it would eat every scroll and every selection. `test/annotate.py` and
   `test/link.js` hold both halves.
-- **Whether a gesture scrolls is a question about the HAND, not about the place.** It used to be
-  about the place: `touch-action: none` on the cards, so a swipe over a card was always a stroke and
-  a swipe over the margin down either side of the column was always a scroll — which got the pen
-  wrong exactly where the pen has least room. The ink layer permits the scroll in CSS
+- **Whether a gesture scrolls is a question about the HAND, not about the place.** Deciding it by
+  place — `touch-action: none` on the cards — makes a swipe over a card always a stroke and a swipe
+  over the margin always a scroll, which gets the pen wrong exactly where the pen has least room.
+  The ink layer permits the scroll in CSS
   (`touch-action: pan-y pinch-zoom`) and `annotate.js` takes it back on `touchstart` when the
   contact is a stylus, or when it is a finger and the slate has been told a finger writes. A finger
   scrolls natively, with its own momentum, anywhere on the lesson; a pen never scrolls, anywhere on
@@ -568,9 +565,9 @@ tutorboard/
 - **A document is a file, not an event, and the controls for one must never depend on a banner.**
   Both PDFs — the lesson and the write-up — are resolved, named and rendered by
   `course/paper.py`, and the payload says which of them exist on disk (`papers`) on every change.
-  That is the rule rather than a detail: the controls for the write-up used to live in the banner
-  of the build that produced it, which the next payload replaces, so a document that had just
-  compiled was unreachable a second later. Anything new that hands a document over asks `papers`,
+  That is the rule rather than a detail: a control living in the banner of the build that produced
+  it dies with that banner on the next payload, leaving a document that has just compiled
+  unreachable a second later. Anything new that hands a document over asks `papers`,
   and never a build record. And the reading half is PNG pages drawn by this machine, never an
   `<iframe>` and never a navigation of the board's own window — iOS gives a framed PDF one
   unscrollable page, and a PDF navigated to in a home-screen app is a board with no way back.
@@ -585,9 +582,9 @@ tutorboard/
   it is inviting a tap on. Somebody asked the tutor to begin, saw the *connection* dot go green,
   and waited on a session nobody had started. Two indicators in one bar means both have to say what
   they mean.
-- **An unreachable board must say so.** Zero cards and a dead stream used to render identically —
-  "Nothing on the board yet" — so a board whose process had died read as a tutor who had not
-  written, and the only signal otherwise was a dot the size of a full stop. No payload plus a dead
+- **An unreachable board must say so.** Zero cards and a dead stream must not render identically:
+  "Nothing on the board yet" over a dead process reads as a tutor who has not written yet, and a dot
+  the size of a full stop is not the difference. No payload plus a dead
   stream states the fault where the lesson would be; a lesson already on screen stays readable
   behind a banner, because discarding what someone is reading is the worse failure. `test/link.js`
   guards both halves.
