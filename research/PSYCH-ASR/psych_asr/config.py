@@ -29,16 +29,22 @@ MODELS_ROOT = Path(os.environ.get(
 # faster-whisper's local-directory branch.
 WHISPER_MODEL_DIR = MODELS_ROOT / "faster-whisper-large-v3"
 
-# The fast decoder, four layers instead of thirty-two. Same env, same call path, same
-# loader -- which is the whole point of having it in the bake-off: it measures what the
-# speed-up costs in words, with nothing else varying.
+# The fast decoder, four decoder layers instead of thirty-two. Same env, same call path,
+# same loader -- which is the whole point of having it in the bake-off: it measures what
+# the speed-up costs in words, with nothing else varying. Systran never published a
+# CTranslate2 build of turbo; staged from deepdml/faster-whisper-large-v3-turbo-ct2, MIT,
+# whose six files are byte-for-byte the same LAYOUT as the staged large-v3 (config.json,
+# model.bin, preprocessor_config.json, tokenizer.json, vocabulary.json), which is what
+# makes it a drop-in for the same loader.
 WHISPER_TURBO_MODEL_DIR = MODELS_ROOT / "faster-whisper-large-v3-turbo"
 
 # The two NVIDIA typists. Both load through nemo.collections.asr straight off disk, so no
 # Hub call is made -- the same reason the Sortformer arms need no HF_HUB_OFFLINE dance.
-# NEITHER IS STAGED YET, AND NEITHER MAY BE STAGED UNTIL ITS WEIGHT LICENCE IS READ: two of
-# five diarizer arms are already non-commercial and a third one added blind is how a pilot
-# ends up undeployable without anyone having decided that.
+# LICENCES READ 2026-09-13: both are CC-BY-4.0, i.e. commercial use permitted with
+# attribution, so neither adds to the two diarizer arms that are already non-commercial.
+# These name the staged DIRECTORY, not the archive: `hf download --local-dir` writes the
+# .nemo file inside it, and restore_from wants the file, so typists.resolve_nemo_checkpoint
+# does that last hop at load time.
 PARAKEET_CHECKPOINT = MODELS_ROOT / "parakeet-tdt-0.6b-v2"
 CANARY_CHECKPOINT = MODELS_ROOT / "canary-1b-flash"
 

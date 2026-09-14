@@ -133,7 +133,32 @@ def transcribe_faster_whisper(decoded_audio, checkpoint, batch_size=16, device="
     return pipeline_model.transcribe(decoded_audio, batch_size=batch_size, print_progress=True)
 
 
-def transcribe_nemo(audio_path, checkpoint, batch_size=1):
+def resolve_nemo_checkpoint(checkpoint):
+    """IN: the staged path   OUT: the .nemo archive inside it, as a Path.
+
+    NeMo's restore_from wants a .nemo FILE and nothing else; `hf download --local-dir`
+    leaves a DIRECTORY with that file inside, next to the README. The registry therefore
+    names the directory -- which is the thing staging produces and the thing the README
+    documents -- and this turns it into the file at the moment of loading.
+
+    A path that is already a .nemo file is returned unchanged, so --checkpoint can point
+    straight at one.
+    """
+    from pathlib import Path
+
+    path = Path(checkpoint)
+    if path.is_file():
+        return path
+    archives = sorted(path.glob("*.nemo"))
+    if len(archives) != 1:
+        raise SystemExit(
+            f"Expected exactly one .nemo archive in {path}, found {len(archives)}. "
+            f"Stage the checkpoint on the login node before running this typist."
+        )
+    return archives[0]
+
+
+def transcribe_nemo(audio_path, checkpoint, batch_size=1, device="cuda"):
     """IN: the audio file path + the staged checkpoint   OUT: the seam dict.
 
     Imports NeMo, so it runs only in nemo_env. It takes the PATH rather than the decoded
@@ -146,7 +171,7 @@ def transcribe_nemo(audio_path, checkpoint, batch_size=1):
     """
     from nemo.collections.asr.models import ASRModel
 
-    model = ASRModel.restore_from(str(checkpoint), map_location="cuda")
+    model = ASRModel.restore_from(str(resolve_nemo_checkpoint(checkpoint)), map_location=device)
     model.eval()
     hypotheses = model.transcribe([str(audio_path)], batch_size=batch_size, timestamps=True)
     # NeMo has returned both a bare list and a (hypotheses, all_hypotheses) tuple across
@@ -169,7 +194,8 @@ def run(name, audio_path, decoded_audio=None, batch_size=None, device="cuda"):
             decoded_audio, entry["checkpoint"], batch_size=batch_size or 16, device=device,
         )
     else:
-        result = transcribe_nemo(audio_path, entry["checkpoint"], batch_size=batch_size or 1)
+        result = transcribe_nemo(audio_path, entry["checkpoint"], batch_size=batch_size or 1,
+                                 device=device)
 
     result.setdefault("language", "en")
     check_segment_contract(result["segments"])

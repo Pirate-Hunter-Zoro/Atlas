@@ -441,6 +441,34 @@ One-time setup:
    `psych_asr/config.py` holds that directory and every other staged path, so no argument
    parser spells one out.
 
+### Typist bake-off — candidate models
+
+faster-whisper large-v3 is the incumbent for one reason: WhisperX bundles it. That is a
+default, not a decision, so Stage 1a now takes a `--typist` and three challengers are
+staged beside it.
+
+| `--typist` | Weights | Env | Weights license |
+| --- | --- | --- | --- |
+| `large-v3` | `Systran/faster-whisper-large-v3` | `asr_env` | MIT |
+| `large-v3-turbo` | `deepdml/faster-whisper-large-v3-turbo-ct2` | `asr_env` | MIT |
+| `parakeet` | `nvidia/parakeet-tdt-0.6b-v2` | `nemo_env` | CC BY 4.0 |
+| `canary` | `nvidia/canary-1b-flash` | `nemo_env` | CC BY 4.0 |
+
+**None of the four is non-commercial.** That matters because diarizer arms A and B already
+are, and a bake-off that picks a winner it cannot ship has measured the wrong thing. CC BY
+4.0 permits commercial use with attribution; it is not the CC BY-NC 4.0 that constrains the
+diarizer choice.
+
+Systran published no CTranslate2 build of large-v3-turbo, which is why the turbo row names
+a third-party conversion. Its six files are the same layout as the staged large-v3
+directory, so one loader takes both and the only thing varying across that pair is the
+decoder depth — four layers against thirty-two.
+
+The two NVIDIA models load through `nemo.collections.asr` off a `.nemo` archive. The
+registry names the staged *directory*, because that is what `hf download --local-dir`
+produces; `psych_asr.asr.typists.resolve_nemo_checkpoint` finds the single archive inside
+it at load time, since `restore_from` takes the file and nothing else.
+
 ### Diarization bake-off — candidate models
 
 community-1 is the incumbent, not a verdict. Diarization is the bottleneck the whole project

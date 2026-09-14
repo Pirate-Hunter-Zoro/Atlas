@@ -127,17 +127,33 @@ Two consequences for the plan below:
       4. whisperx.load_align_model(model_name=...) routes a name through
          torchaudio.pipelines.__all__. Both bundle names verified present in
          asr_env on 2026-09-13.
+      5. ASRModel.restore_from takes a .nemo FILE, never the directory that
+         `hf download --local-dir` produces. config.py names the DIRECTORY --
+         that is what staging makes and what the README documents -- and
+         typists.resolve_nemo_checkpoint does the last hop at load time.
+      6. Systran publishes no CTranslate2 build of large-v3-turbo. The staged
+         weights are deepdml/faster-whisper-large-v3-turbo-ct2, MIT, same six
+         files as the large-v3 directory, so one loader takes both.
+    (DONE 2026-09-13: all four typists are staged and all four have RUN.
+      - LICENCES READ. large-v3 and large-v3-turbo MIT; parakeet-tdt-0.6b-v2 and
+        canary-1b-flash both CC-BY-4.0. NONE is non-commercial, so the typist
+        axis adds no restriction the diarizer arms did not already carry.
+      - scripts/stage_models.sh stages all three new ones; README carries the
+        licence table under "Typist bake-off -- candidate models".
+      - THE NEMO CALL PATH RUNS. nemo_toolkit 2.7.3, one A40; restore_from plus
+        transcribe(timestamps=True), and hypothesis.timestamp["segment"] is the
+        live attribute name that segments_from_nemo reshapes.
+      - Smoke run on a 7.4 s PUBLIC LibriSpeech clip, not session data: parakeet
+        2 segments / 6.3 s covered, canary 1 / 6.8, large-v3-turbo 1 / 7.4, all
+        three correct English. 125 tests pass.)
     STILL OPEN ON STEP 1:
-      a. NOTHING HAS RUN ON AUDIO. The seam is unit-tested and import-checked
-         only; no GPU job has been submitted with it.
-      b. large-v3-turbo, Parakeet and Canary are NOT STAGED. config.py names
-         faster-whisper-large-v3-turbo, parakeet-tdt-0.6b-v2 and canary-1b-flash
-         as placeholders — the exact checkpoints are UNVERIFIED and so are their
-         licences.
-      c. The NeMo call path (restore_from + transcribe(timestamps=True)) has not
-         been run against the installed nemo_toolkit even once.
-      d. Awaiting the user: does a non-commercial typist still enter the bake-off
-         as a measurement, or is it dropped?
+      a. NOTHING HAS RUN ON SESSION AUDIO. The four typists are proved on a
+         7.4-second public clip only. The first real job is 1a-i on the pilot
+         session for each typist, then 1a-ii, then grade_arms against the
+         corrected reference -- which is the bake-off's actual number.
+      d. Awaiting the user, and now only in principle: does a non-commercial
+         typist still enter the bake-off as a measurement, or is it dropped?
+         No candidate currently forces the question.
 
   STEP 2. THE STOPWATCH — AND THE REFERENCE RTTM IT UNBLOCKS. (Added 2026-09-09.)
     Two jobs, and the first is worth more than the second.

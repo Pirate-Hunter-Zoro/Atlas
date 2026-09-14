@@ -82,12 +82,29 @@ stage () {   # stage <repo id> <local directory name>
     hf download "$1" --local-dir "${MODELS_ROOT}/$2"
 }
 
+stage_file () {   # stage_file <repo id> <filename> <local directory name>
+    echo "==== staging $1:$2 -> ${MODELS_ROOT}/$3"
+    hf download "$1" "$2" --local-dir "${MODELS_ROOT}/$3"
+    hf download "$1" README.md --local-dir "${MODELS_ROOT}/$3"
+}
+
 stage Systran/faster-whisper-large-v3                  faster-whisper-large-v3
 stage pyannote/speaker-diarization-community-1         pyannote-speaker-diarization-community-1
 stage pyannote/wespeaker-voxceleb-resnet34-LM          pyannote-wespeaker-voxceleb-resnet34-LM
 stage BUT-FIT/diarizen-wavlm-large-s80-md-v2           diarizen-wavlm-large-s80-md-v2
 stage nvidia/diar_sortformer_4spk-v1                   diar_sortformer_4spk-v1
 stage nvidia/diar_streaming_sortformer_4spk-v2.1       diar_streaming_sortformer_4spk-v2.1
+
+# ---- the other three typists in the Stage 1a bake-off (added 2026-09-13) ----
+# TURBO: Systran never published a CTranslate2 build of large-v3-turbo. deepdml's is the
+# widely used conversion, MIT, and its six files are the same layout as the large-v3
+# directory above -- which is what lets one loader take both.
+# THE TWO NVIDIA TYPISTS: both CC-BY-4.0, so unlike diarizer arms A and B they carry no
+# non-commercial restriction. Only the .nemo archive and the model card are pulled; the
+# canary repo also ships a safetensors copy we never load, and it is 3.5 GB of nothing.
+stage      deepdml/faster-whisper-large-v3-turbo-ct2   faster-whisper-large-v3-turbo
+stage_file nvidia/parakeet-tdt-0.6b-v2 parakeet-tdt-0.6b-v2.nemo  parakeet-tdt-0.6b-v2
+stage_file nvidia/canary-1b-flash      canary-1b-flash.nemo       canary-1b-flash
 
 # ---- the two caches that are not Hugging Face ----
 export TORCH_HOME="${MODELS_ROOT}/torch_home"

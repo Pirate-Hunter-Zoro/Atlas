@@ -94,3 +94,31 @@ def test_the_summary_reports_covered_seconds_not_only_a_count():
     })
     assert any("Covered seconds    : 6.0" in line for line in lines)
     assert any("Segments           : 2" in line for line in lines)
+
+
+def test_a_staged_directory_resolves_to_the_nemo_archive_inside_it(tmp_path):
+    """`hf download --local-dir` leaves a DIRECTORY with the .nemo file and a README in
+    it; restore_from takes the file. The registry names the directory because that is
+    what staging produces, so the last hop happens here."""
+    staged = tmp_path / "parakeet-tdt-0.6b-v2"
+    staged.mkdir()
+    (staged / "README.md").write_text("license: cc-by-4.0")
+    archive = staged / "parakeet-tdt-0.6b-v2.nemo"
+    archive.write_bytes(b"")
+    assert typists.resolve_nemo_checkpoint(staged) == archive
+
+
+def test_a_path_that_is_already_an_archive_is_left_alone(tmp_path):
+    archive = tmp_path / "canary-1b-flash.nemo"
+    archive.write_bytes(b"")
+    assert typists.resolve_nemo_checkpoint(archive) == archive
+
+
+def test_an_unstaged_checkpoint_says_so_instead_of_handing_a_directory_to_nemo(tmp_path):
+    """Without this the failure is NeMo's, thirty seconds into an import, and it reads as
+    a corrupt archive rather than as weights nobody downloaded."""
+    empty = tmp_path / "canary-1b-flash"
+    empty.mkdir()
+    with pytest.raises(SystemExit) as raised:
+        typists.resolve_nemo_checkpoint(empty)
+    assert "Stage the checkpoint" in str(raised.value)
