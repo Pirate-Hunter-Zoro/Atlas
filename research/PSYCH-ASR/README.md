@@ -1920,9 +1920,43 @@ README).
 
 ## Privacy & Data Handling
 
+### Where the session data is, and it is not in here
+
+**`~/phi/PSYCH-ASR/`.** Outside this repository and outside every other one.
+
+That is the whole of the rule, and it replaces the one this section used to open with. The
+recordings are 308 MB of identifiable PHI with participant IDs in the filenames; they used
+to sit in the repository root, kept out of git by a `.gitignore` line. This repository is
+now part of a public monorepo, and an ignore rule is a guard anybody can delete by
+accident — a directory outside the repository is one nothing in here can undo.
+
+It is **not symlinked in**. A symlink is a tracked file pointing at PHI, which hands the
+next reader of a public repository a map straight to it.
+
+| | |
+| --- | --- |
+| The audio going in | `~/phi/PSYCH-ASR/inbox/` — exactly one `.wav` |
+| What Stage 1 writes | `~/phi/PSYCH-ASR/stage1/` |
+| What Stage 2 writes | `~/phi/PSYCH-ASR/stage2/` |
+| To point it elsewhere | `PSYCH_ASR_DATA=/some/other/place` |
+
+One variable, read in two places and nowhere else: `psych_asr/config.py` derives
+`DATA_ROOT`, `INBOX_DIR`, `STAGE1_DIR` and `STAGE2_DIR` from it, and
+`slurm_jobs/lib/job_env.sh` exports it and sets `INPUT_DIR` before any job uses one. The
+paths are **absolute**, which is the other half of the change: they used to resolve against
+the submit directory, so a job launched from the wrong place wrote session content
+somewhere nobody was looking for it.
+
+The tracked tree carries the numbers *about* the sessions — `*.arm_scores.json`, the job
+logs, the figures — and never the sessions themselves. That is the part that matters,
+because that is what a paper cites.
+
+### The rest of it
+
 - Recordings are **identifiable PHI**; participant IDs appear in filenames.
-- `.gitignore` excludes all audio, converted audio, transcripts, diarization output
-  (`.rttm/.srt/.vtt`), and structured feature files (`.json/.csv/.parquet`) by default.
+- `.gitignore` still excludes all audio, converted audio, transcripts, diarization output
+  (`.rttm/.srt/.vtt`), and structured feature files (`.json/.csv/.parquet`) by default —
+  belt and braces behind the directory rule above, not instead of it.
 - All processing is **on-prem**; no external/cloud inference. Local inference runs through the
   sibling `libr-local-llm` repo, whose loopback-only endpoint and default-deny web-tool
   configuration exist to keep that true. Any model or agent that reads transcripts must have

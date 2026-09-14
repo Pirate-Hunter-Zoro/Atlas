@@ -1,337 +1,502 @@
-# HANDOFF — the written map, and what the map taught us
+# HANDOFF — the repository is one, the front door is a map, and five things are left
 
-> **You are in Tutor-Board, in a fresh session, and you have been pointed at this file.**
+> **You are in Atlas, in `board/`, in a fresh session, and you have been pointed at this file.**
 >
-> The map is built and shipped. A course opens on a diagram of its own working parts, the
-> outstanding work is drawn on it, and tapping anything offers six ways to work on that part.
-> **One piece of the original brief is left — the WRITTEN map — and it is §4.**
+> The migration is **done**. Eleven repositories are one, the board runs out of it, the front
+> door is a drawn map of everything, and 31 test suites are green. What is left is the old
+> brief's stage 2 onwards: the address grammar, the written map, meeting notes, documents,
+> and the briefing seeing what was done on a laptop.
 >
-> This file was rewritten on 14 September 2026, replacing a 6,000-word brief for work that is
-> now done. What is here is what is still true and what is still missing. Read §0 and §1 before
-> you touch anything; read the rest as you need it.
+> This file was rewritten on 14 September 2026 and it replaces a brief for work that is
+> finished. Read §0 and §1 before you touch anything. §2 is what is actually left, in the
+> order it should be done. §6 is the one thing the migration did not finish.
 >
-> *(This is not a `board handoff` file. Those are capped at 350 words, live in a course, and are
-> read by every turn's briefing. This repository is the tool rather than a course — `machines.py`
-> excludes it from the course list — so nothing reads this automatically and the cap does not
-> apply. It is deleted when §4 is done; see §8.)*
+> *(This is not a `board handoff` file. Those are capped at 350 words and live in a
+> workspace. Nothing reads this automatically. Delete it when §2 is finished and fold what
+> survives into `README.md` and `TEACHING.md` — see §8.)*
 
 ---
 
 ## 0. Before anything, and none of it is negotiable
 
-**The person who asked for this uses the board while you change it**, on an iPad, in the middle
-of real work. A regression does not annoy them later; it stops the lesson now.
+**The person who asked for this uses the board while you change it**, on an iPad, in the
+middle of real work. A regression does not annoy them later; it stops the lesson now.
+Galois-Theory and PSYCH-ASR must be openable and teachable at every point, and if you cannot
+keep that true, stop and say so rather than press on.
 
-- **Ship, do not merely commit.** `bash scripts/ship.sh "message"` commits, pushes, and restarts
-  every board. A board is a long-lived process that read `serve.py` when it started, so a commit
-  alone changes nothing for them.
-- **Bump `VERSION` in `web/sw.js`** when any shell file changed (`board.html`, `board.js`,
-  `board.css`, `plane-core.js`, anything new you add to the cache list), or the installed app
-  serves its cached copy and your work is invisible. It is at `board-shell-v100`.
-- **Run `bash test/all.sh` before every ship.** 29 suites, all green right now. Keep them green.
-- **The lesson must always be reachable.** Every surface you add is one somebody can be stranded
-  on mid-proof.
-- **Commits here are authored by the person, with no assistant trailers.** `ship.sh` handles it.
+- **Ship, do not merely commit.** `bash board/scripts/ship.sh "message"` commits **only
+  `board/`**, pushes, and restarts every board. A board is a long-lived process that read
+  `serve.py` when it started, so a commit alone changes nothing for them. The pathspec is
+  new and load-bearing: there is one repository now, and a ship without it would file nine
+  workspaces' unfinished work under a commit message about the board.
+- **Bump `VERSION` in `board/web/sw.js`** when any shell file changed (`board.html`,
+  `board.js`, `board.css`, `plane-core.js`, `gauge.js`, `home.html`, `home.js`, anything new
+  you add to the cache list), or the installed app serves its cached copy and your work is
+  invisible. It is at `board-shell-v101`.
+- **Run `bash board/test/all.sh` before every ship.** 31 suites, all green. Keep them green.
+- **`test/tracked.py` is the one that cannot be fixed afterwards.** It runs first in
+  `all.sh` and it refuses PHI, 25-megabyte files, model dumps, other authors' papers and
+  books, and machine-local config — anywhere in the repository. This is public. A thing that
+  is public for an hour has been published, and git remembers.
+- **The lesson must always be reachable.** Every surface you add is one somebody can be
+  stranded on mid-proof.
+- **Commits are authored by the person, with no assistant trailers.** `.githooks/commit-msg`
+  strips them; `save-and-push.sh` turns the hook on for a fresh clone.
 - **Do not "fix" things you notice in passing.** One change, shipped, checked, then the next.
+- **Nothing that cannot go into a public repository may live inside the repository.** Not
+  ignored inside it — outside it, with something inside naming the path. §4.
 
 ---
 
-## 1. What the last four sessions learned, because it will happen to you too
+## 1. What is here now
 
-Everything below was found by the person using the thing, usually within an hour of it shipping,
-and each one is a rule now rather than an anecdote.
+```
+Atlas/                          github.com/Pirate-Hunter-Zoro/Atlas
+  README.md  atlas.json  .gitignore  .gitmodules
+  board/                        the tool. 2,061 commits of history across the whole tree
+  courses/      Galois-Theory · Probability · Mathematical-Modeling
+  research/     PSYCH-ASR · TRD-EHR
+  projects/     libr-local-llm · Paper-Writer
+  practice/     Algo-Solutions · Lean-Theorem-Proving
+  vendor/       colibri (pulled every login) · colibri-build (pinned fd93c41)
+```
 
-- **A list is not a diagram.** The map's first version drew the plan's steps in a column.
-  Rejected: *"I don't want just a list of all the TODOs. I want a map of the CONTENT in the
-  repository."* The boxes are the repository's parts; the work is drawn ON them.
-- **Estimated text overflows.** Labels were wrapped by counting characters against an assumed
-  width. A line of capitals is half again wider than that, so the words ran out of their boxes:
-  *"that visual is shit."* Text is measured with a canvas now, and cached.
-- **One direction is one direction whichever axis it is on.** The column was rejected; a
-  twenty-chapter chain then laid out 6,600px wide, which is the same failure sideways. Long rank
-  sequences wrap into bands of six.
-- **A rule that is right for one kind of turn can be exactly wrong for the other.** Three
-  separate defects, all this shape: the card-first rule produced a plan and no code; the busy
-  strip hid on the card a doing turn OPENS with; a 900-second timeout killed a doing turn
-  mid-flight. In each case the fix was to scope the rule, not to weaken it.
-- **A second tap is ceremony.** Choosing "write the code for me" opened the sitting and then left
-  them looking at *ask the tutor to begin*. Found as a question — *"do I ask the tutor to
-  begin?"* — which is the worst way to find anything.
-- **A glyph is not a label.** A bare diamond did not read as "the map".
-- **Nothing a reader can be waiting on may be silent.** A failure expired off the board on a
-  15-minute clock, leaving a present-tense card over work that had stopped. A failure is news
-  until something newer happens, not until a timer says so.
+**Nothing lists the workspaces.** A second-level directory holding `tutorboard.json`,
+`AI_INSTRUCTIONS.md` or `live/` is one, found by looking. `atlas.json` names and orders the
+five families and flags the two that hold no workspaces — `vendor` (somebody else's work)
+and `board` (what does the offering). Starting a new course is `mkdir courses/Topology`.
 
-**The standing instruction behind all of it:** *"I'm tired of getting massive word dumps from you
-when I need you to explain how something works in these repos."* If a change ends with more
-prose on screen rather than less, it has gone wrong.
+`tutorboard/atlas.py` is the walk, and everything asks it rather than taking a `dirname`.
+`root()` walks up from `paths.TOOL` for `atlas.json`; `TUTORBOARD_COURSES` overrides it and
+now means *the repository root*, which is the same sentence about a different shape. A tree
+with no `atlas.json` gets ONE nameless family whose directory is the root — which is what
+lets the old flat layout and every test fixture work through the same code path.
 
----
+### What is outside the tree, and why
 
-## 2. What exists now
+| What | Where | The rule |
+|---|---|---|
+| 308 MB of therapy audio | `~/phi/PSYCH-ASR/` | Identifiable PHI; participant IDs in the filenames |
+| 1.5 GB of job output | `~/artifacts/TRD-EHR/results/` | Regenerable; seven files over GitHub's 50 MB warning |
+| Other authors' papers and books | on disk, ignored | Their copyright, and this is public |
+| The assistant configuration | `~/claude-config`, private | Its settings name real paths on lab storage |
 
-### 2.1 The map
+Neither of the first two is symlinked in. A symlink is a tracked file pointing at PHI, which
+hands the next reader a map to it. `PSYCH_ASR_DATA` finds the first — read by
+`psych_asr/config.py`, exported by `slurm_jobs/lib/job_env.sh`, absolute on purpose because
+those paths used to resolve against the submit directory.
 
-| | |
-|---|---|
-| `tutorboard/course/map.py` | 710 lines. `status(root, state, archived)`, `shape(root)`, `find(root, id)`. Discovers **parts** (directories holding source, rolled up past `MAX_NODES`), **arrows** (imports between them, counted), **work** (plan steps matched to the part they name). A box's `does` is its own package docstring. 30s cache; `MAX_SCAN`/`HEAD_BYTES` bound the only discovery on this board that opens files rather than listing them. |
-| payload | `load_map` in `lesson/state.py`, one line in `hub.build()`. Key `map`, version 2. |
-| renderer | the map block in `web/board.js`: measured text, layered graph (ranks from dependency depth with cycle-closing edges left out of the ranking, four barycentre passes), bands of `MAP_RANKS_ACROSS`, chips, one column below 640px. |
-| the plane | `web/plane-core.js` — contacts with expiry, pinch pair, clamp, zoom, frame. **Shared with `slate-core.js`**, which delegates to it. Not a fork. |
-| the sheet | `openWork` / `takeWork` in `board.js`, `#work` in `board.html`. Six ways plus "show me the document". |
-| the way back | `.to-map` controls in the bar, every drawer head, the document viewer; `?map=1` from `/slate`. |
-| landing | `board.where.<course>` in `localStorage`: surface, plane `x/y/k`, last box. |
-
-What it draws today: PSYCH-ASR 13 boxes / 19 arrows / 4 chips / 4 in the tray · TRD-EHR 25/30/1/4
-· Galois-Theory 40/30 · Paper-Writer 13/26 · Probability 14/10 · Algo-Solutions 5/2 ·
-libr-local-llm 4/0/0/5.
-
-### 2.2 Sittings, and what a turn is told
-
-`state.json` carries `session` ∈ `lecture | homework | review | walk | make`, plus `chapter`,
-`node`, `aim`, `makes`, `stance`, `review`/`walk` scopes, `hw`.
-
-- **`aim`** ∈ `teach · build · coach · trace · drill · paper · slides` — `course/config.py`,
-  with `AIM_MEANS` saying in writing what each asks of the tutor. Chosen on the map.
-- **`make`** is a sitting whose product is a document. `board open ... --make paper|slides`.
-- **`sense.py`**: `PLAIN_SENSE` (how every card reads, in every briefing), `DOING_SENSE` (the
-  order of a turn that does the work — and it says outright that it overrides `TEACHING.md`),
-  `node_sense` (the box, its purpose, its files, its steps, its document), `aim_sense`,
-  `MAKE_SENSE`.
-- **`board write --over <card>`** replaces a card in place, which is what lets a doing turn open
-  with one sentence and write the report over it. `--title` is a real option now.
-- **`POST /session` takes `begin: true`** and starts the turn itself. The map's sheet sends it;
-  the contents drawer does not.
-- **`doing_timeout: 3600`** in `bin/tutor`, chosen per turn by `turn_timeout(cfg, root)`.
-- A failure stays on the board until something newer lands: `state._failure` / `_newest`.
-
-### 2.3 Tests
-
-29 suites in `test/all.sh`. The ones that will bite you: **`test/map.py`** (the three
-discoveries, arrows being real imports, a chip only where a step names the part, ids looked up
-never constructed, build under a second), **`test/map.js`** (real DOM: every label inside its
-box, ranks, bands, chips, the sheet's six bodies, the landing rule), **`test/teaching.py`** (the
-method, the doing-turn shape, `--over`, the per-turn clock), **`test/panic.js`** (the way back,
-one check per surface), **`test/hanging.js`** (nothing a reader waits on is silent),
-**`test/plane.js`** (the shared plane, both halves).
+**The PHI directory is still waiting to be moved.** See §6; it is the one thing in the
+migration that is not finished.
 
 ---
 
-## 3. What the map is for, in the person's own words
+## 2. What is left, in order
 
-> "The tutor should create a massive diagram of the repository, with its various working parts.
-> This diagram should mark what's completed, what's still being done, etc… I want to be able to
-> tap on something and have some options. Maybe I want to learn about it. Maybe I want to
-> vibecode some progress. Maybe I want to be told what to code and do it myself. Maybe I want to
-> work some problems on it… when going into a course/repo, I should start with the visual map of
-> everything."
+The old brief's stages 2 and 4 through 7. Stage 3 — the atlas — was done first because it is
+what the person asked for first and sees first, and because it needed no grammar to exist.
 
-> "A TODO is a tutoring session. All tutoring sessions should have the capability of being a math
-> tutor, a coder, a coding coacher, a presentation creator, a paper creator, and the ability to
-> show any or all sections of said papers or presentations."
+### 2.1 The address grammar, and three features are waiting on it
 
-All of that is built. The half that is not is the next section.
+Nothing in this system has an address. Before meeting notes, before a paper that cites its
+own figures, and before an annotation can point at a line of code, there has to be one
+grammar for naming a place and one resolver that opens it.
 
----
+```
+#/w/<family>/<workspace>                   the workspace, on its map
+#/w/…/node/<id>                            one box on the map, selected, sheet open
+#/w/…/card/<nnnn>                          one card in the current lesson
+#/w/…/archive/<sitting>/<nnnn>             one card in a finished sitting
+#/w/…/doc/<ident>[/p<n>]                   a document, in the viewer, optionally one page
+#/w/…/code/<path>[::<symbol>]              a walk unit, in the code viewer
+#/w/…/hw/<set>/<problem>                   one problem of a problem set
+#/w/…/slate/<nnnn>                         one page of handwriting
+```
 
-## 4. WHAT IS LEFT: the written map
+Three rules, each of which already exists somewhere in here:
 
-**Structure is derived from disk. Meaning is written by the tutor. Neither is guessed.** The
-derived half is done and it is honest — but nothing on disk knows that the grid search is
-half-built, or that the scorer is blocked on a seam that does not exist yet. A directory listing
-cannot say it, and a model asked to redraw the whole map every turn would disagree with itself
-between turns.
+1. **A name from a browser never reaches a filesystem.** Every component is looked up in
+   what discovery found — `walk.resolve`, `reading.find`, `map.find`, `homework.find` — and
+   a miss is a miss, rendered as "that is not here any more" rather than as an error.
+2. **A link that no longer resolves says so where it is written.** Meeting notes from March
+   must still open in September and half of them will point at things that moved. A dead
+   link reads as dead; it never silently lands somewhere else.
+3. **One resolver.** `web/board.js` gets a single function that takes a fragment and puts
+   the board on that surface. Everything that makes links spells them with one helper. Two
+   spellings of an address is two bugs.
 
-So: **`live/map.json`**, written once by the tutor and kept up to date by it, merged against
-discovery on every read.
+`test/address.py` already guards the *choice* record; add `test/address.js` for the grammar:
+every form resolves, every malformed form fails safely, every surface the grammar names can
+be reached and left. The front door's `id` field (`courses/Probability`) is already the
+qualified spelling and `/health` publishes it.
 
-### 4.1 What it adds that discovery cannot
+### 2.2 The written map, per workspace
 
-A node that is a **stage of the work** rather than a directory. For PSYCH-ASR its owner's own
-names are *the typist*, *the stopwatch*, *the name-tagger*, *the corrections*, *the grader*, *the
-grid*, *the scorer* — which is how they talk about it and is not derivable from a directory
-listing. Each such node *carries* the files it is made of, so every tap on the sheet works
-unchanged.
+**Structure is derived from disk. Meaning is written by the tutor. Neither is guessed.**
+`course/map.py` discovers parts, arrows and work from the tree and it is honest — but nothing
+on disk knows that the grid search is half-built, or that the scorer is blocked on a seam
+that does not exist yet.
 
-And the three things nothing sets today: `blockedBy`, `doc` + `slide` on a part, and edge
-labels that say what flows (`words`, `turns`, `a graded transcript`).
+So: **`live/map.json`** per workspace, written once by the tutor and kept up to date by it,
+**merged against discovery on every read and never echoed back**. A node naming a file that
+no longer exists drops the file; a node whose files have all gone drops out; an edge naming
+an id that is not there is not an edge. Same rule as `walk.scope` and `review.scope`, and
+the same reason: *a fact cannot go stale, a declaration can, so a declaration is checked
+against the facts every time it is read.*
 
-### 4.2 The schema, against what the renderer already reads
+What it adds that discovery cannot is a node that is a **stage of the work** rather than a
+directory. PSYCH-ASR's owner's own names are *the typist*, *the stopwatch*, *the
+name-tagger*, *the corrections*, *the grader*, *the grid*, *the scorer* — which is how they
+talk about it and is not derivable from a directory listing. Each such node *carries* the
+files it is made of, so every tap on the sheet works unchanged. Plus the three things
+nothing sets today: `blockedBy`, `doc` and `slide` on a part, and edge labels saying what
+flows (`words`, `turns`, `a graded transcript`).
 
 ```json
 {
   "version": 1,
   "title": "Stage 1 — audio to a graded transcript",
-  "nodes": [
-    {
-      "id": "typist",
-      "name": "the typist",
-      "also": "faster-whisper large-v3",
-      "kind": "part",
-      "does": "Turns the waveform into words. One candidate, never compared.",
-      "status": "working",
-      "files": ["psych_asr/cli/run_asr.py", "psych_asr/asr/align.py"],
-      "dir": "psych_asr/asr",
-      "doc": "stage2-reference-walkthrough",
-      "slide": 7,
-      "blockedBy": ["seam"],
-      "note": "five of the six error labels are a property of this box alone"
-    }
-  ],
+  "nodes": [{
+    "id": "typist", "name": "the typist", "also": "faster-whisper large-v3",
+    "kind": "part", "status": "working",
+    "does": "Turns the waveform into words. One candidate, never compared.",
+    "files": ["psych_asr/cli/run_asr.py"], "dir": "psych_asr/asr",
+    "doc": "stage2-reference-walkthrough", "slide": 7, "blockedBy": ["seam"]
+  }],
   "edges": [{"from": "typist", "to": "stopwatch", "label": "words", "weight": 3}]
 }
 ```
 
-Every field except `blockedBy` is already in `_node()` and already painted. `kind` is
-`part · doc · chapter · set`; `status` is one of `map.STATUSES`; `does` is capped at `map.DOES`
-(110) because it is read inside a box on a tablet.
+Every field except `blockedBy` is already in `map._node()` and already painted. `kind` is
+`part · doc · chapter · set`; `status` is one of `map.STATUSES`; `does` is capped at
+`map.DOES` (110) because it is read inside a box on a tablet; `id` is `[a-z0-9-]{1,40}` and
+stable, because everything keys off it including `localStorage`'s memory of where you were.
+**The plain name leads** and `also` carries the real identifier.
 
-- `id` — `[a-z0-9-]{1,40}`, stable. Everything keys off it, including the remembered "where you
-  are" in `localStorage`.
-- `name` — **the plain name leads**; `also` carries the real identifier. Same rule `TEACHING.md`
-  already imposes on a walkthrough, and the thing the person's own 33-slide deck does that makes
-  it the plainest document in the project.
-- `files` — re-resolved against `walk.units` on read. A `path::symbol` entry is allowed and goes
-  straight to `walk.resolve`.
-- `status` — `blocked` requires `blockedBy`. Nothing sets `blocked` today.
-
-### 4.3 The merge, and it is the whole safety argument
-
-**`live/map.json` is merged against discovery on every read, never echoed back.** A node naming
-a file that no longer exists drops the file; a node whose files have all gone drops out; an edge
-naming an id that is not there is not an edge. That is the same rule as `walk.scope` and
-`review.scope`, and it is why a written map cannot rot into a lie: *a fact cannot go stale, a
-declaration can, so a declaration is checked against the facts every time it is read.*
-
-Where a written map exists it **replaces** the derived one — do not merge the two sets of boxes,
-which would put `psych_asr/asr` and *the typist* on the same picture saying the same thing twice.
-The derived map stays as the fallback for every repository nobody has drawn, which is most of
-them.
-
-Track `live/map.json` in git like the rest of the transcript, so the map a machine draws is the
-map every machine draws. Add it to the allowlist block in the course `.gitignore` documented in
-README §"Setting up a course repository".
-
-### 4.4 `board map`
+Where a written map exists it **replaces** the derived one. Do not merge the two sets of
+boxes — that puts `psych_asr/asr` and *the typist* on the same picture saying the same thing
+twice. The derived map stays the fallback for every workspace nobody has drawn, which is
+most of them.
 
 ```
 board map < map.json      write live/map.json (validated, rejected loudly if not valid)
 board map --show          print it
-board map --check         say what is stale: nodes naming files that are gone, steps that no
-                          longer exist, documents that moved, ids an edge names that do not
-                          exist, and a node marked `done` whose plan step is still open
+board map --check         what is stale: nodes naming files that are gone, steps that no
+                          longer exist, documents that moved, ids an edge names that do
+                          not exist, a node marked `done` whose plan step is still open
 ```
 
-Same shape as `board note` and `board handoff` — JSON on stdin. Reject loudly: a half-written map
-that silently becomes the front door of a course is worse than none.
+Same shape as `board note` and `board handoff` — JSON on stdin. **The tutor writes it, on
+request, in a sitting**; do not try to generate it in Python. Make it a documented thing a
+person can ask for — *"draw the map"* — and have `TEACHING.md` say how: read the README and
+the plan, name the boxes the way the project's own documents name them, one sentence each,
+and stop. `board brief` must tell a tutor whether this workspace has a map and when it was
+last written, and `TEACHING.md` gains a short section: **keeping the map true is part of
+finishing a piece of work**, exactly as updating the plan already is.
 
-### 4.5 Who writes it
+Track `live/map.json` in git. It is the one exception to "nothing is registered", because it
+carries judgement no file contains — and even it is re-resolved on every read. Write
+PSYCH-ASR's by hand as the worked example, from its README, its plan and its Stage-2 deck.
 
-**The tutor, on request, in a sitting.** Do not try to generate it in Python. Make it a
-documented thing a person can ask for — *"draw the map"* — and have `TEACHING.md` say how: read
-the README and the plan, name the boxes the way the project's own documents name them, one
-sentence each, and stop.
+The atlas already has a place for one field off it: a workspace with a written map has a
+title and a status for the whole of it. That is the only coupling between the front door and
+this, and it is one field.
 
-`board brief` must tell a tutor whether this course has a map and when it was last written.
-`TEACHING.md` gains a short section: **keeping the map true is part of finishing a piece of
-work**, exactly as updating the plan already is. A map that is a lie after three commits is worse
-than no map, because it *looks* authoritative.
+### 2.3 Meeting notes
 
-Write PSYCH-ASR's by hand as the worked example, from its README, its plan and its Stage-2 deck.
+> "have functionality to produce 'meeting notes' for me with in-built links that will take
+> me to those results/code/sections of my board writing to explain those notes."
+
+A control on the atlas: **notes for a meeting**, over a period (since a date, since last
+Monday, since the last set of notes) and over a chosen set of workspaces. It produces a
+document in the same pipeline as every other one — markdown into `document.md_to_tex` into a
+compiled PDF, tracked, numbered v1/v2/v3 rather than stamped with the time. Per workspace:
+
+- **what landed** — commits in the period, scoped to that workspace, summarised rather than
+  listed, plus plan steps that closed;
+- **what it means** — the written map's own words for the parts that changed (§2.2), which
+  is the entire reason the written map is worth having;
+- **what is next** — the next open plan steps;
+- **what is blocked**, and on what — `blockedBy`, the field nothing sets today;
+- **links**, in the §2.1 grammar, on every claim.
+
+Two rules about the prose. It is **short** — a meeting note nobody can read in a lift is not
+a meeting note. And every sentence obeys the one-read rule: one idea per sentence, the
+conclusion first, names and numbers rather than adjectives.
+
+`board notes --meeting --since <date> [--workspace …]`, and the same thing from the atlas,
+because the person is holding an iPad when they need it.
+
+### 2.4 Documents: annotate, export, write
+
+In this order. The first two extend machinery that exists; the third needs another
+repository read first.
+
+**Annotating.** `web/annotate.js` puts an ink layer on each **card** and stores strokes in
+that card's own coordinates — fractions of its width and height, not page pixels — because
+the lesson reflows constantly and ink anchored to the page ends up somewhere else. The same
+trick, one level out: on a **document page**, ink anchored in fractions of the page box,
+keyed by document ident and page number; on **code**, anchored to a line within a walk unit,
+so a comment on line 74 survives the file growing a line at the top. Either one, when sent,
+becomes what a card annotation already becomes — a message in the inbox carrying the picture
+and the anchor — with `writing.py`'s wording extended to name the place in §2.1 terms. You
+are widening the target, not inventing a mechanism.
+
+**Exporting.** `document.build(root, scope=…)` already compiles a lesson, tracks it in git
+and numbers it. Add scopes rather than exporters, keep the numbering, and keep the one
+property that makes an export trustworthy: it is **the whole sitting in reading order** —
+the question, every revision of the working as it was actually sent, what the tutor said,
+and the next attempt underneath. Half a conversation is what `board archive` refuses to
+keep, for the same reason.
+
+**Writing, and this is where Paper-Writer comes in.** It is a workspace in this repository
+now — `projects/Paper-Writer`, with its own `service/`, `prompts/`, `config/`, an inbox it
+reads job prompts out of and an out-directory it delivers to. **Read its README and
+`PROMPT_TEMPLATE.md` before you design this seam**, and keep the seam to one function: a
+`make` sitting in workspace W assembles a job — the plan, the written map, the figures and
+tables it names, the manuscript sections that already exist — drops it in Paper-Writer's
+inbox, and the delivered manuscript lands in W under a tracked path. Then it is a document
+like any other. A correction round is an annotation that goes back in as another job. **Do
+not fold Paper-Writer's engine into the board.** It is a working manuscript factory with its
+own state directory and its own ledgers; the board's business is handing it a job and
+showing the result.
+
+### 2.5 The briefing sees what was done on a laptop
+
+> "I want to be able to pop open my laptop and code up something and have the tutor see that
+> if it pertains to whatever project we're in."
+
+Cheap, and it makes every turn better. Every turn is a cold turn — `session_turns: 1`, a
+fresh `claude -p` reading `board brief` and `board recap` off disk — so the briefing is the
+only place this can go. Add to `tutorboard/brief.py`: commits in this workspace since the
+turn's own timestamp with their subjects, the names of files uncommitted right now, and a
+one-line count of what the diff touches. **Not the diff** — a briefing is about 22k tokens
+and it stays that way.
+
+Two rules. It is **scoped to the workspace**, or a turn about Galois Theory is told about
+PSYCH-ASR's afternoon — `machines._last_touched` already shows the shape of that query. And
+it is **named as the person's work, not the tutor's**: a turn that mistakes a commit
+somebody made on their laptop for something it did itself will report having done work it
+has not done, which is the worst failure mode this board has. Put it in `lesson/git.py` with
+a TTL, because the payload is polled four times a second.
 
 ---
 
-## 5. Smaller things known to be missing or wrong
+## 3. The atlas, as built
 
-- **Git recency is deliberately absent.** `lesson/git.py` already talks to git; a node whose
-  files changed in the last few days could carry a subtle mark. It must never be a *status* —
-  touched is not progressed, and painting them alike would make the map agree with whatever was
-  edited last.
-- **`#panic` is z-index 62, the map is 96 and the document viewer 95.** So the re-centre button
-  is painted over by both. Pre-existing for the viewer; left alone deliberately, because raising
-  it changes a shipped surface. If somebody gets stranded pinch-zoomed on the map, this is why.
-- **Job logs and PHI.** The user-level guard at `~/.claude/hooks/block-phi.py` fences the
-  PSYCH-ASR session data properly — by filename shape and by directory, quote-aware, and it
-  refuses the arm-comparison CLI because running it prints transcript text to stdout. It allows
-  the job-log tree on the understanding that jobs print counts rather than text, and that holds
-  only while nothing in the pipeline logs a transcript line. Worth adding that tree to the guard
-  with a counts-only exemption.
-- **`reading.documents` on the map is capped at 8** and document boxes stand apart, wired to
-  nothing. A written map could attach them to the part they explain.
-- **TRD-EHR draws 25 boxes.** Legible, but near the edge of being a picture. If it gets worse,
-  lower `MAX_NODES` rather than dropping boxes — `_rollup` draws the same repository coarser.
+`web/home.html` + `home.js` + `home.css`, and `test/hub.js` is its suite. One plane, a region
+per family, a card per workspace carrying its name, what is next in it, how much is
+outstanding, whether a board is live and on which node, and when it was last committed to.
+Tapping a card opens a sheet; opening from the sheet moves the board through `/switch`,
+which is unchanged.
+
+Things worth knowing before you change it:
+
+- **`/atlas.json`** is the payload — `machines.atlas_payload()`, cached 30 seconds because
+  it is a `plan.steps` read and a `git log` per workspace. The `current` flag is recomputed
+  on every call even from cache, because it is what the door opens and it moves the instant
+  a board is switched.
+- **"What is next" has two answers and neither is a fallback for the other.** A course that
+  follows a book is planned by `chapters.tsv`, so what is next is the chapter after the one
+  it is in. A project is planned by a task list, so it is the first open step. Asking only
+  about steps left every course's card blank, which on a front door reads as "nothing to do
+  here" rather than "this one is a book".
+- **`gauge.js`** is the measuring, shared with the board's map. It was extracted from
+  `board.js` for this: two surfaces measuring text two slightly different ways is two
+  spellings of one answer.
+- **The layout reads no width of the glass.** Three cards across, a constant. What adapts is
+  the *view*: below 640px the plane opens framed on the card you are in rather than on the
+  whole picture, because a 300-unit card fitted to a 390-unit phone is unreadable. The sheet
+  is the other half of that answer.
+- **`paintAtlas` is wrapped and cannot throw**, the same way `paintMap` is. A front door
+  that throws is a blank screen where the app used to be.
+- A board on an older tool serves no `/atlas.json`; the page says so and the door above it
+  still works.
+
+**It is not yet addressable.** The atlas has no `#/w/…` route (§2.1), and a link to a
+workspace is still a `/switch` POST rather than an address. That is the first thing §2.1
+should fix.
 
 ---
 
-## 6. UI rules that still bind
+## 4. What is ignored, and what is moved instead
 
-- **A drawer's list is the part that scrolls**: `flex: 1` *and* `overflow-y: auto`, both.
-  `test/chrome.js` asserts it for six of them.
-- **The title bar holds six controls.** `test/link.js` refuses a seventh. A label that gets cut
-  in half is a label whose second half was the useful one.
-- **`[hidden]` loses to any author rule that sets a `display`.** Toggle `el.hidden`;
-  `test/hidden.js` guards it.
-- **Every colour is a token**, defined in *both* blocks at the top of `board.css`. A colour in
-  one block is half the board changing theme and the other half not.
-- **Phone width is 390px** and `body` never scrolls horizontally.
-- **The layout is deterministic.** No viewport-dependent geometry: the same repository must lay
-  out identically on every device, or it is not a map you can learn.
-- **Gestures**: read `plane-core.js` before writing a `pointerdown`. A gesture is decided by
-  which contacts are LIVE; a non-passive `touchmove` makes the browser ask the main thread before
-  scrolling a pixel; two fingers are never the pen.
+> **If it cannot go into a public repository, it does not live in the repository.** It lives
+> outside the tree and something inside the tree says where.
+
+The root `.gitignore` therefore holds two honest categories: files a command regenerates,
+and other people's papers and books. **Each workspace keeps its own `.gitignore`**, and
+those are the load-bearing ones — in particular the `live/*` allowlist (cards, slate,
+answers, archive, inbox, text, `state.json`, `turns.jsonl` tracked, the rest ignored), which
+is what makes a lecture the same lesson on whichever machine picks it up. Nothing in the
+root file may shadow one of those: git will not descend into a directory ignored higher up,
+so a rule for `live/` written at the root would make every deeper `!live/cards/`
+unreachable.
+
+Three things were found on the way in and are worth knowing, because they are the shape of
+what will be found next:
+
+- **Three copyrighted textbooks and forty chapter excerpts were tracked**, in the three
+  courses. `split-textbook.sh` said of its own output "they are derived artifacts and
+  git-ignored" — the intent was there from the start and the ignore rule never was. Dropped
+  from history on the way in; the books stay on disk and the excerpts regenerate.
+- **TRD-EHR's `.env` was tracked for 477 commits.** No credentials in it — but it enumerated
+  the on-disk locations of identifiable patient data on lab storage, which is exactly what
+  §4.4's reasoning keeps `claude-config` private for. Dropped from history; `.env.example`
+  carries the keys.
+- **2.19 GiB of TRD-EHR's pack was other authors' published papers.** Dropped, all 477
+  commits kept, 19 MB out the other side. Its old GitHub remote still has every one of them;
+  deleting it is the fix.
+
+One caution, not a blocker: Galois-Theory's tracked `live/archive` is 114 MB of lesson
+transcript and Probability's tracked `live/` is another 20 MB. It is all small files and it
+is the transcript, so it is right that it is tracked. Do not "solve" it by untracking the
+transcript.
+
+`test/tracked.py` is the audit, written as a test rather than as a paragraph. A rule nobody
+can break by accident beats a rule written down.
+
+---
+
+## 5. colibri
+
+`vendor/colibri` is pulled forward on every login and `vendor/colibri-build` is pinned at
+`fd93c41` and never pulled — a build tree that moves underneath a build is the failure it
+exists to avoid.
+
+The pull is `pull_vendor()` in `bin/tutor`, called from `cmd_resume`, because a compute node
+gets one moment and it is the login. **It commits the pointer bump itself**, with a fixed
+message naming the old and new commit, and that is **the only commit anything in this system
+makes on its own**. Without it the repository is left dirty every time colibri moves and the
+board shows the person "unsaved work" for something they did not do. It is guarded three
+ways: only when `vendor/colibri` is the *only* dirty path, never mid-merge or mid-rebase,
+never on a detached HEAD. `scripts/catch-up.sh` does the same update on the same guards.
+
+A clone needs `--recurse-submodules` or `vendor/` arrives empty, which is the first thing a
+new machine gets wrong and gives no error when it happens. `bootstrap.sh` repairs it — and
+it no longer clones anything else, because there is nothing else to clone.
+
+---
+
+## 6. The one thing the migration did not finish
+
+**`~/PSYCH-ASR/data` has not been moved to `~/phi/PSYCH-ASR/`.** Everything else about that
+move is done — the code reads `PSYCH_ASR_DATA`, the READMEs and `AI_INSTRUCTIONS.md` name
+the new path, `~/phi` exists, and the PHI hook fences `phi/` whole and has a test that says
+so. The directory itself is still at the old address, because the tooling declined to move
+308 MB of PHI without a person saying so.
+
+```
+mv ~/PSYCH-ASR/data ~/phi/PSYCH-ASR
+```
+
+Do it before the old directories are deleted, and check afterwards that
+`~/phi/PSYCH-ASR/inbox` holds the one `.wav` the jobs expect. Until it is done, a pipeline
+run will look in `~/phi/PSYCH-ASR/inbox`, find nothing, and say so in one line — which is
+the guard in `job_env.sh` doing its job, not a break.
+
+**The old working directories are still in `~`.** They are not the repository any more and
+nothing points at them: the board, the tutor, `~/.local/bin/tutor` and `~/.local/bin/board`
+all run out of Atlas. Delete them one at a time, and only the ones whose workspace you have
+opened and taken a turn in since the move. `~/live`, `~/R`, `~/bin`, `~/go`, `~/lib`,
+`~/opt` and `~/wolfram-engine-install` are machine state, not work, and go into nothing.
+
+Every old history is archived at `~/archive/*.bundle` — twelve bundles, 298 MB, each
+verified with `git bundle verify`. That is the only copy of the unfiltered TRD-EHR history
+once its remote is deleted.
 
 ---
 
 ## 7. Traps, each one already paid for
 
-- **`board open` is the only thing that opens a sitting.** Writing `state.json` directly skips
-  the archive and the handoff parking, and loses the lesson being left.
-- **Nothing is registered.** If you find yourself writing an index or a list that has to be kept
-  in step with reality, stop — read the thing itself. `live/map.json` is the one exception,
-  because it carries *judgement* no file contains, and even that is re-resolved on every read.
-- **A name from a browser never reaches a filesystem.** Look it up in what discovery found;
-  a miss is a miss. `walk.resolve`, `reading.find`, `map.find`.
-- **A path out of a file is untrusted**, including out of a README. `plan._resolve` and
-  `reading._pointed_at` bound themselves to the repository and its siblings under the same home.
+- **A list is not a diagram.** The map's first version drew the plan's steps in a column and
+  was rejected. The boxes are the content; the work is drawn ON them.
+- **Estimated text overflows.** Measure with a canvas. Cache it. `gauge.js`.
+- **A rule that is right for one kind of turn can be exactly wrong for the other.** Before
+  you make any rule about the order of a turn, ask which kind of turn it is for. The fix is
+  always to scope the rule, never to weaken it.
+- **A second tap is ceremony.** `POST /session` takes `begin: true` for exactly this reason.
+- **A glyph is not a label.** A bare diamond did not read as "the map".
+- **Nothing a reader can be waiting on may be silent.** A failure is news until something
+  newer happens, not until a timer says so.
+- **`board open` is the only thing that opens a sitting.** Writing `state.json` directly
+  skips the archive and the handoff parking, and loses the lesson being left.
+- **Nothing is registered.** `live/map.json` and `atlas.json`'s five family names are the
+  only exceptions in the whole system, and both are re-resolved against the tree on every
+  read.
+- **A path out of a file is untrusted**, including out of a README. The bound WIDENED to the
+  whole repository plus `~/phi` and `~/artifacts` — `paths.within` is the one containment
+  test — and it did not stop being a bound.
 - **The payload is polled four times a second.** Cache anything that touches disk.
-- **`map` is a builtin.** The module keeps the name; every import binds it as `mapping` or
-  `course_map`.
-- **Nothing in `render()` may throw.** `paintMap` is wrapped for exactly this reason: a map that
-  threw would stop the lesson painting, which is a blank board mid-proof caused by the one
-  surface they were not using.
-- **A doing turn and a teaching turn are different shapes.** Before you make any rule about the
-  order of a turn, ask which one it is for. Three defects in one day came from not asking.
+- **`map` is a builtin**, and now `paths` is shadowed too: `course/plan.py` defines a public
+  `paths(root)`, so its import of the tool's `paths` is bound as `toolpaths`. Same trap,
+  same answer — the module keeps its name and the import moves.
+- **A drawer's list is the part that scrolls**: `flex: 1` *and* `overflow-y: auto`, both.
+- **The title bar holds six controls** and `test/link.js` refuses a seventh.
+- **`[hidden]` loses to any author rule that sets a `display`.** Toggle `el.hidden`.
+- **Every colour is a token**, defined in *both* blocks at the top of the stylesheet.
+  `test/hub.js` now checks that for the front door.
+- **Gestures**: read `plane-core.js` first. A gesture is decided by which contacts are LIVE;
+  two fingers are never the pen. And **a pan must not also be a tap** — dragging the atlas
+  with a finger that started on a card used to open that card when it was lifted.
+- **`#panic` is z-index 62, the map is 96 and the document viewer 95**, so the re-centre
+  button is painted over by both. Known, left alone deliberately.
+
+### The three the migration added
+
+- **A SCRIPT THAT DERIVES ITS REPOSITORY FROM ITS OWN LOCATION IS WRONG NOW.**
+  `save-and-push.sh` did, which was right while the tool was its own clone and the script
+  only ever pushed itself. There is one copy of it now and `lesson/git.py` calls it for
+  every workspace — so for about an hour every save committed the repository the *tool* was
+  in. `test/beside.py` taps save on a throwaway repository, and three of its runs committed
+  the real Atlas under the test's own message. The working directory decides, the caller
+  sets it, and `test/beside.py` now asserts the tool's HEAD did not move.
+- **AN IGNORE PATTERN WITH A SLASH IN IT IS ANCHORED TO ITS OWN DIRECTORY.**
+  `.claude/settings.local.json` at the root matched exactly one file and silently missed the
+  nine inside the workspaces, which are the only ones that exist. `**/` on purpose.
+- **A HOOK THAT SILENTLY STOPS MATCHING IS WORSE THAN NO HOOK.** Every path
+  `block-phi.py` knew changed the day the data moved; it would have kept refusing a
+  directory that no longer exists and waved through the same content at its new address. It
+  fences `phi/` **whole**, by the directory rather than by what is under it, and
+  `hooks/test-block-phi.py` drives the real hook through its real entry point: nine things
+  it must refuse at both addresses, nine it must allow.
 
 ---
 
 ## 8. Done, and what to do then
 
-§4 is done when a tutor can be asked to draw PSYCH-ASR's map, `board map --check` says what has
-gone stale in it, the board draws *the typist* and *the scorer* with an arrow between them
-labelled `words`, and tapping *the scorer* still offers the same six ways to work — over the
-files that node carries.
+The whole of it is done when the person can open the app, see everything they are working on
+in one picture, tap into any of it, be taught or coached or have it built, have it written
+up as a paper or a deck by asking, mark up any of those with a finger and get the change
+back, and hand somebody a page of meeting notes whose links land where the notes say they
+do.
 
-Then **delete this file** — `git rm HANDOFF.md` — and fold what survived into `README.md` as a
-section and into `TEACHING.md` as the rules for keeping a map true. This file is scaffolding. A
-repository that keeps its scaffolding accumulates two descriptions of itself that disagree, which
-is exactly why this one was rewritten rather than appended to.
+The first of those is done. The last three are §2.
+
+Then **delete this file** — `git rm board/HANDOFF.md` — and fold what survived into
+`README.md` as sections and into `TEACHING.md` as the rules for keeping a map true. This
+file is scaffolding. A repository that keeps its scaffolding accumulates two descriptions of
+itself that disagree, which is exactly why this one was rewritten rather than appended to.
 
 ---
 
-## 9. Context you would otherwise rediscover
+## 9. The machine
 
-- **The repositories**, siblings in the home folder: `PSYCH-ASR` (spoken-therapy ASR pipeline,
-  its plan now in its own tree under `planning/`), `TRD-EHR` (EHR causal pipeline and a
-  manuscript), `libr-local-llm` (local inference infrastructure), `Paper-Writer` (a manuscript
-  factory), `Algo-Solutions` (LeetCode, Go, 188 files), `Galois-Theory` and `Probability` (book
-  courses with `chapters.tsv` — **these two already work well; do not regress them**),
-  `Lean-Theorem-Proving`, `Mathematical-Modeling`. **`Research-Journey` is gone** — the narrative
-  hub was retired into PSYCH-ASR on 13 September, so anything in the history about a hub holding
-  three projects' plans is history.
-- **The machine** is a Slurm compute node, no root, shared home. Standard library only in Python;
-  plain browser JavaScript; nothing that needs a package manager at runtime. jsdom is a
-  development-only dependency and `test/all.sh` fetches it.
-- **Every turn is its own session.** `session_turns: 1` in `bin/tutor`: a fresh `claude -p` that
-  reads `board brief` and `board recap` off disk, ~22k tokens whether it is turn 2 or turn 40.
-  What the last turn was thinking is carried in `live/NEXT.md` by `board note`, not in a
-  conversation. Do not change this without reading the arithmetic in the comment above it.
+A Slurm compute node, no root, shared home, reachable under two spellings
+(`/home/<user>/…` and `/mnt/dell_storage/homefolders/<user>/…`) — which is why
+`paths.same_dir` compares by realpath and why a string comparison of two paths is a bug
+waiting to be found. Standard library only in Python; plain browser JavaScript; nothing that
+needs a package manager at runtime. `git` is 2.52.0, **`git subtree` is not installed**,
+`git-filter-repo` is, at `~/.local/bin/`. The home directory has about 12 GB free; Atlas is
+1.1 GB of it including `vendor/`.
+
+**One board per workspace stays.** Its own port, its own `live/`, its own state, and the hub
+moves the address between them. `ports.py` is unchanged and must stay unchanged: a port is a
+pure function of the workspace's *directory basename*, the basenames are unique across the
+repository, and two machines derive the same number without talking. Do not make it a
+function of the path.
+
+**Every turn is its own session.** `session_turns: 1` in `bin/tutor`: a fresh `claude -p`
+that reads `board brief` and `board recap` off disk, ~22k tokens whether it is turn 2 or turn
+40. What the last turn was thinking is carried in `live/NEXT.md` by `board note`, not in a
+conversation. Do not change this without reading the arithmetic in the comment above it.

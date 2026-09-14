@@ -97,15 +97,32 @@ TORCH_HOME = MODELS_ROOT / "torch_home"
 NLTK_DATA = MODELS_ROOT / "nltk_data"
 
 # ---- Artifacts ----
-# Session content, and therefore PHI. data/ is gitignored wholesale; nothing here may be
-# written anywhere else.
-STAGE1_DIR = Path("data/stage1")
+# Session content, and therefore PHI.
+#
+# IT DOES NOT LIVE IN THE REPOSITORY. 308 MB of identifiable therapy session audio, with
+# participant IDs in the filenames, sits at ~/phi/PSYCH-ASR -- outside every git
+# repository -- and everything the pipeline writes goes beside it. It used to be a
+# directory at the repository root kept out by a `.gitignore` line, and an ignore rule is
+# a guard anybody can delete by accident. A directory outside the repository is one
+# nothing in here can undo.
+#
+# It is NOT symlinked in either. A symlink is a tracked file pointing at PHI, which hands
+# the next reader of a public repository a map straight to it.
+#
+# `PSYCH_ASR_DATA` overrides the root, the same way `PSYCH_ASR_MODELS_ROOT` overrides the
+# weights, for anyone running this off other storage. Absolute on purpose: these paths
+# used to resolve against the submit directory, so a job launched from the wrong place
+# wrote session content somewhere nobody was looking for it.
+DATA_ROOT = Path(os.environ.get(
+    "PSYCH_ASR_DATA", str(Path.home() / "phi" / "PSYCH-ASR")))
+
+STAGE1_DIR = DATA_ROOT / "stage1"
 # Stage 2's own directory, and deliberately not a subdirectory of Stage 1's: the
 # arm-discovery globs in artifacts/naming.py match "<stem>.*" inside STAGE1_DIR, so a
 # corrected reference stored there would be enrolled as a fifth diarization arm by the
 # bake-off it exists to judge.
-STAGE2_DIR = Path("data/stage2")
-INBOX_DIR = Path("data/inbox")
+STAGE2_DIR = DATA_ROOT / "stage2"
+INBOX_DIR = DATA_ROOT / "inbox"
 
 # ---- Arm names, which are carried in every filename from Stage 1b onward ----
 # Which model produced which transcript is a property of the file, not of a note

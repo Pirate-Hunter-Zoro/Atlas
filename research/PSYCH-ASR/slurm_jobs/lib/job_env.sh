@@ -17,6 +17,30 @@
 # until a job hangs on a node with no internet. There is one copy now.
 # ---------------------------------------------------------------------------
 
+# ---------------------------------------------------------------------------
+# WHERE THE SESSION CONTENT IS, AND IT IS NOT IN THIS REPOSITORY.
+#
+# 308 MB of identifiable therapy session audio, with participant IDs in the
+# filenames, lives at ~/phi/PSYCH-ASR -- outside every git repository -- and
+# everything the pipeline writes goes beside it. It used to sit at the
+# repository root, kept out by a .gitignore line, and an ignore rule is a guard
+# anybody can delete by accident. A directory outside the repository is one
+# nothing in here can undo. It is not symlinked in either: a symlink is a
+# tracked file pointing at PHI, which hands the next reader of a public
+# repository a map straight to it.
+#
+# Exported, so `psych_asr.config` reads the SAME answer -- one root, one
+# override, and no way for a Python step and a shell step in the same job to
+# disagree about where the audio is.
+#
+# ABSOLUTE, which is the other half. These paths were relative to the submit
+# directory, so a job launched from the wrong place wrote session content
+# somewhere nobody was looking for it.
+PSYCH_ASR_DATA="${PSYCH_ASR_DATA:-$HOME/phi/PSYCH-ASR}"
+export PSYCH_ASR_DATA
+DATA_ROOT="$PSYCH_ASR_DATA"
+INPUT_DIR="$DATA_ROOT/inbox"
+
 VENV_ROOT="${PSYCH_ASR_VENV_ROOT:-/media/studies/ehr_study/analysis/mferguson/venvs}"
 MODELS_ROOT="${PSYCH_ASR_MODELS_ROOT:-/media/studies/ehr_study/analysis/mferguson/models}"
 ANACONDA_MODULE="${PSYCH_ASR_ANACONDA_MODULE:-Anaconda3/2025.06-0}"

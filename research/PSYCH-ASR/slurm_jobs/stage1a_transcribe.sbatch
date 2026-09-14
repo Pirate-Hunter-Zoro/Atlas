@@ -25,7 +25,8 @@
 set -e
 source slurm_jobs/lib/job_env.sh
 
-INPUT_DIR=data/inbox
+# INPUT_DIR comes from job_env.sh: the session audio lives OUTSIDE this
+# repository, at $PSYCH_ASR_DATA (default ~/phi/PSYCH-ASR).
 TYPIST="${1:-large-v3}"
 
 case "${TYPIST}" in

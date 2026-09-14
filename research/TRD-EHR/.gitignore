@@ -36,3 +36,12 @@ paper2-counterfactual/references/*_METHODS-SUPPLEMENT.docx
 # The TRIPOD+AI reporting guideline is Collins et al. 2024 (BMJ) -- someone
 # else's paper. The JMIR submission template is ours to use and is tracked.
 formats/TripodAI.pdf
+
+# ---- this machine's own configuration ----
+# `.env` names the on-disk locations of identifiable patient data on lab
+# storage: the person-level CSVs, the patient JSON directory, the cohort file.
+# It was tracked for 477 commits and it has been removed from all of them,
+# because a public repository that publishes a map to where the PHI is kept has
+# published something about the PHI. `.env.example` carries the KEYS, so a
+# clone knows what to fill in and learns nothing about this machine.
+.env
