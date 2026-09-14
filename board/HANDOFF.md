@@ -442,7 +442,7 @@ once its remote is deleted.
 - **`#panic` is z-index 62, the map is 96 and the document viewer 95**, so the re-centre
   button is painted over by both. Known, left alone deliberately.
 
-### The three the migration added
+### The four the migration added
 
 - **A SCRIPT THAT DERIVES ITS REPOSITORY FROM ITS OWN LOCATION IS WRONG NOW.**
   `save-and-push.sh` did, which was right while the tool was its own clone and the script
@@ -460,6 +460,14 @@ once its remote is deleted.
   fences `phi/` **whole**, by the directory rather than by what is under it, and
   `hooks/test-block-phi.py` drives the real hook through its real entry point: nine things
   it must refuse at both addresses, nine it must allow.
+- **A FALLBACK THAT IS RIGHT FOR THE MACHINE CAN BE WRONG FOR EVERY EXPLICIT CALLER.**
+  A saved `courses_dir` can only be wrong after the move, so `courses(cfg)` was made to
+  ignore it and use `atlas.root()`. But every test builds a config naming a temporary tree,
+  and ignoring the key pointed all of them at the real repository: one run of the suite
+  swept two live boards' records and stopped a tutor, through `prune_dead_records` walking
+  a tree it was never given. **Staleness is fixed where it enters, not where it is read** —
+  `load_config` drops a `courses_dir` that holds no `atlas.json`, and everything downstream
+  goes on believing what it is told.
 
 ---
 
