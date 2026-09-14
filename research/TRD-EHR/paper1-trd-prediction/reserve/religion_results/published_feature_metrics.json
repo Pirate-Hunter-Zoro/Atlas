@@ -1,0 +1,50 @@
+{
+    "logistic_regression": {
+        "roc_score": 0.6288482973761907,
+        "auprc": 0.277793108425586,
+        "brier_score": 0.13910014610608465,
+        "weighted_calibration_error": 0.004698200645280401,
+        "calibration_slope": 0.7784954836085018,
+        "calibration_intercept": 0.05818156020577697,
+        "proportion_risk_score_<0.1": 0.10873649600751527,
+        "proportion_risk_score_>0.9": 0.0,
+        "roc_score_ci_low": 0.6131953296110307,
+        "roc_score_ci_high": 0.6438975893513272
+    },
+    "random_forest": {
+        "roc_score": 0.6443330922665292,
+        "auprc": 0.29289845472125026,
+        "brier_score": 0.1387342555130179,
+        "weighted_calibration_error": 0.018062014704076305,
+        "calibration_slope": 1.841508183361801,
+        "calibration_intercept": -0.15494664670898328,
+        "proportion_risk_score_<0.1": 0.02782996712071395,
+        "proportion_risk_score_>0.9": 0.0,
+        "roc_score_ci_low": 0.6297490762847747,
+        "roc_score_ci_high": 0.659277752962502
+    },
+    "gradient_boosting": {
+        "roc_score": 0.6450250733344312,
+        "auprc": 0.28752269506953504,
+        "brier_score": 0.13821409634668652,
+        "weighted_calibration_error": 0.01016748340705796,
+        "calibration_slope": 0.8733625470486562,
+        "calibration_intercept": 0.03932885630208777,
+        "proportion_risk_score_<0.1": 0.06082667919210897,
+        "proportion_risk_score_>0.9": 0.0,
+        "roc_score_ci_low": 0.6292633767928663,
+        "roc_score_ci_high": 0.6601245040343151
+    },
+    "xgboost": {
+        "roc_score": 0.6492070334223609,
+        "auprc": 0.29840250286656395,
+        "brier_score": 0.13758068734172416,
+        "weighted_calibration_error": 0.012381303124567214,
+        "calibration_slope": 1.016370415687561,
+        "calibration_intercept": 0.020168542861938477,
+        "proportion_risk_score_<0.1": 0.07832315564155579,
+        "proportion_risk_score_>0.9": 0.0,
+        "roc_score_ci_low": 0.6336630845579145,
+        "roc_score_ci_high": 0.6638052936712502
+    }
+}

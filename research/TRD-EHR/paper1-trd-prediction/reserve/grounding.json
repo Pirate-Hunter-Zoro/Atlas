@@ -1,0 +1,126 @@
+{
+ "estimand": "Discrimination of a treatment-switch-defined proxy for incident treatment-resistant depression, assigned within one year of the index antidepressant prescription, on a held-out stratified 20% split of 42579 adults with unipolar major depressive disorder, measured by area under the ROC curve.",
+ "venue": "JMIR Mental Health",
+ "reader": "Clinical informatics and psychiatry researchers. They know what an ROC curve is and do not need it defined. They do not know what a sentence-transformer encoder is and will not accept one described only by its name.",
+ "checklist": {
+  "name": "TRIPOD+AI",
+  "items": [
+   "title",
+   "abstract",
+   "background",
+   "objectives",
+   "data source",
+   "participants",
+   "outcome",
+   "predictors",
+   "sample size",
+   "missing data",
+   "analytical methods",
+   "model performance",
+   "model specification",
+   "interpretation",
+   "limitations",
+   "fairness",
+   "data availability"
+  ]
+ },
+ "conventions": {
+  "person": "we",
+  "tense": "past for what was done and found, present for what is true",
+  "interval": "95% CI written as (95% CI 0.643-0.672), en dash between bounds",
+  "auc": "ROC AUC, three decimal places in prose, four in tables",
+  "second_reference": "a model is named once in full then by its classifier"
+ },
+ "out_of_scope": [
+  "any claim of clinical utility or deployment readiness",
+  "any claim that the outcome label is equitable across groups",
+  "any claim about causal effect of treatment",
+  "any claim of external or temporal validity"
+ ],
+ "terminology": [
+  {
+   "term": "feature representation",
+   "aliases": [
+    "feature matrices",
+    "feature matrix",
+    "hand-crafted features",
+    "rule-based",
+    "rule-based approach",
+    "rule-based model",
+    "structured baseline",
+    "tabular model"
+   ],
+   "definition": "The typed feature vector built directly from coded EHR fields. \"feature vector\" and \"typed feature vector\" are APPROVED second names, declared in the manuscript's naming block. \"feature matrix\" is NOT: it was the undeclared third name, eleven uses across the packet, removed 2026-09-07.",
+   "first_use": "",
+   "also_called": [
+    "feature vector",
+    "typed feature vector",
+    "feature-vector",
+    "feature arm",
+    "FEATURE arm"
+   ]
+  },
+  {
+   "term": "embedded representation",
+   "aliases": [
+    "embedding approach",
+    "LLM representation",
+    "neural representation",
+    "text model",
+    "narrative model"
+   ],
+   "definition": "The deterministic Markdown narrative encoded by a pretrained sentence-transformer. \"embedded model\" and \"embedded arm\" are APPROVED second names: one is the classifier fitted on this representation, the other is the study arm.",
+   "first_use": "",
+   "also_called": [
+    "embedded model",
+    "embedded arm",
+    "the embedding"
+   ]
+  },
+  {
+   "term": "TRD",
+   "first_use": "treatment-resistant depression",
+   "aliases": [
+    "computable phenotype",
+    "computable phenotypes",
+    "computable proxy",
+    "medication trajectories",
+    "medication trajectory",
+    "operationalized treatment-history label",
+    "resistant depression"
+   ],
+   "definition": "The OUTCOME LABEL, a treatment-switch proxy. Distinct from 'treatment resistance', which is the underlying construct the label stands in for. The paper turns on that distinction, so the construct's name is not a forbidden alias. The label is described as a PRESCRIPTION SEQUENCE or a treatment-switch proxy and by no other name; four competing names for it were in one Introduction before 2026-09-06."
+  },
+  {
+   "term": "MDD",
+   "first_use": "major depressive disorder",
+   "aliases": [],
+   "definition": "The inclusion diagnosis."
+  },
+  {
+   "term": "EHR",
+   "first_use": "electronic health record",
+   "aliases": [],
+   "definition": "The data source."
+  },
+  {
+   "term": "index date",
+   "aliases": [
+    "anchor date",
+    "index prescription date",
+    "baseline date"
+   ],
+   "definition": "The earliest antidepressant prescription on or after the first documented depression diagnosis."
+  },
+  {
+   "term": "ROC AUC",
+   "aliases": [
+    "AUROC",
+    "C-statistic",
+    "c-index",
+    "AUC"
+   ],
+   "definition": "Area under the receiver operating characteristic curve."
+  }
+ ]
+}
