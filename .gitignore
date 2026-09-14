@@ -83,3 +83,17 @@ Thumbs.db
 **/textbook/*.pdf
 **/chapters/*/reading/ch*.pdf
 **/chapters/*/reading/ch*.txt
+
+# ---- the assistant configuration, which is its own private repository ----
+# `ai-config/` lives INSIDE this tree and is tracked by its own git, not by
+# this one. It holds the operating contract every assistant reads, the PHI
+# guard, and each vendor's settings files -- and it stays private because those
+# settings name real paths on the lab's storage and the guard describes what it
+# is guarding.
+#
+# Inside the tree so that one directory is the whole of the work and a machine
+# is set up by one clone plus one command; ignored here so that a public
+# repository never carries it. `ai-config/README.md` says how it is linked into
+# place, and Atlas's own README names it as a thing that exists and is
+# deliberately elsewhere.
+/ai-config/

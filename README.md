@@ -34,6 +34,9 @@ Atlas/
   vendor/
     colibri/         submodule. Pulled forward on every login
     colibri-build/   submodule, same upstream, pinned at fd93c41
+
+  ai-config/         the AI assistant configuration. Its OWN private repository,
+                     ignored by this one — see below
 ```
 
 Two levels, and the levels mean something. A **family** is a kind of work. A **workspace** is one
@@ -87,13 +90,35 @@ can delete by accident.
 | Therapy session audio (308 MB) | `~/phi/PSYCH-ASR/` | Identifiable PHI. The filenames alone carry participant IDs |
 | Job results and model dumps (1.5 GB) | `~/artifacts/TRD-EHR/results/` | Regenerable output, and seven files over GitHub's 50 MB warning |
 | Other authors' published papers | on disk, beside their citation library | Their copyright, not mine. The library **indexes** are tracked, so a clone arrives with the bibliography described but not carried |
-| My assistant configuration | its own private repository | The permission files name real paths on lab storage, and the PHI hook describes what it is guarding |
+| My assistant configuration | `ai-config/`, its own private repository | The settings name real paths on lab storage, and the PHI guard describes what it is guarding |
 
 Neither of the first two is symlinked in. A symlink is a tracked file pointing at PHI, which hands
 the next reader a map to it. Each workspace's README names the real path, and the pipelines take a
 path as an argument.
 
 `.gitignore` is then left holding only what a command regenerates, plus those reference PDFs.
+
+### `ai-config/` — inside the tree, tracked by its own git
+
+The last row of that table is the odd one, because it is *here* and still not part of this
+repository. `ai-config/` holds the operating contract every AI assistant reads, the PHI guard,
+and each vendor's settings files. It is its own repository, and `/ai-config/` is in the
+`.gitignore` above, so Atlas never tracks a byte of it.
+
+Inside the tree because one directory should be the whole of the work — a machine is one clone
+and one command. Ignored because a public repository must not carry it.
+
+```bash
+git clone https://github.com/Pirate-Hunter-Zoro/ai-config.git ~/Atlas/ai-config
+bash ~/Atlas/ai-config/scripts/install.sh
+```
+
+**It is deliberately not tied to one AI provider.** The contract names no vendor, and neither
+do the rules deciding what counts as PHI; each assistant gets a thin adapter and a symlink
+under whatever filename it happens to look for. Moving to another provider is adapter work,
+not a rewrite of the safety rules under time pressure. `ai-config/README.md` is the whole of
+it, including the one thing that does *not* port: an assistant with no pre-tool hook cannot be
+fenced off from this data at all.
 
 ---
 
