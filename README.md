@@ -29,32 +29,23 @@ Atlas/
                      ignored by this one — see below
 ```
 
-**THIS FILE DOES NOT LIST THE WORKSPACES, AND THAT IS THE POINT.** A workspace is a
-second-level directory holding `tutorboard.json`, `AI_INSTRUCTIONS.md` or `live/` — found by
-looking, never declared. `atlas.json` names the *families* and their order and nothing else.
-
-A list of courses in a README is a registry, and a registry is a file somebody has to
-remember to edit when a directory appears or goes. Nobody does, so it stops being true
-quietly, and then it is worse than nothing: a reader believes it. This paragraph replaced
-such a list, and what prompted the replacement was the list having gone stale.
-
-To see what is actually here:
+**NOTHING LISTS THE WORKSPACES, AND THAT IS THE POINT.** A workspace is a second-level
+directory holding `tutorboard.json`, `AI_INSTRUCTIONS.md` or `live/` — found by looking, never
+declared. A list of them in a README is a registry, and a registry is a file somebody has to
+remember to edit when a directory appears or goes. Nobody does, so it goes quietly false, and
+then it is worse than nothing because a reader believes it.
 
 ```bash
 ls courses research projects practice      # or open the front door, which draws it
 ```
 
-Starting something new is `mkdir courses/Topology`. The front door draws it on the next
-poll; the board finds it; nothing needs telling.
+Starting something new is `mkdir courses/Topology`. The front door draws it on the next poll;
+the board finds it; nothing needs telling.
 
-Two levels, and the levels mean something. A **family** is a kind of work. A **workspace** is one
+Two levels, and they mean something. A **family** is a kind of work. A **workspace** is one
 course or one project — the board treats those identically, which is why there is one word for
-both.
-
-Nothing lists the workspaces. A second-level directory holding `tutorboard.json`,
-`AI_INSTRUCTIONS.md` or `live/` *is* a workspace, found by looking. Starting a new course is
-`mkdir courses/Topology`, and the front door draws it on the next poll. `atlas.json` names and
-orders the five families and says which ones are somebody else's work. That is all it does.
+both. `atlas.json` names and orders the five families and says which hold somebody else's work.
+That is all it does.
 
 ---
 
@@ -89,74 +80,48 @@ None of those three comes from a status somebody typed into a file by hand.
 
 ## What is in the tree that git cannot see
 
-> **The rule this repository used to open with, and reversed on 14 September 2026:** if it
-> cannot go into a public repository, it does not live in the repository — it lives outside the
-> tree and something inside the tree says where.
->
-> **The rule now:** it lives WITH ITS PROJECT, inside the tree, and three independent guards keep
-> git blind to it.
+**Data lives with its project, inside the tree, and three independent guards keep git blind to
+it.** None of the three is trusted alone:
 
-This is written out rather than shrugged off, because a reversal recorded as a shrug gets
-re-reversed by the next person who reads the old reasoning and finds it good — and the old
-reasoning **is** good. A `.gitignore` line is one line, in one file, that anybody can delete by
-accident, and this repository has been bitten by exactly that twice: an unanchored `artifacts/`
-silently swallowed the `psych_asr/artifacts/` source subpackage, and `.claude/settings.local.json`
-at the root matched one file and missed the nine that existed. A thing that is public for an hour
-has been published, and git remembers.
-
-What outweighed it is not tidiness. A project's data belongs with the project. Data kept somewhere
-nobody can find is data somebody eventually re-creates in a worse place, and a workspace you cannot
-hand to a colleague whole is one that only works on the machine it grew on. The old rule bought
-safety by making the repository an incomplete description of the work.
-
-So the rule changed and the guards were built. Three, none of them trusted alone:
-
-1. **An anchored ignore rule**, first in the workspace's own `.gitignore`. Anchored because of the
-   `artifacts/` lesson above.
+1. **An anchored ignore rule** in the workspace's own `.gitignore`. Anchored, because a pattern
+   with no leading slash matches at every depth — an unanchored `artifacts/` swallows a source
+   subpackage of the same name, and one with a slash in it matches only its own directory.
 2. **`board/test/tracked.py` asks GIT ITSELF**, on every run of the suite, whether it can see
-   either directory — `git status --porcelain --untracked-files=all` over each one, which must come
-   back empty. That is the part that makes this safe rather than merely allowed: it fails BEFORE a
-   commit rather than after, and it catches an ignore rule that reads perfectly well and does not
-   work, which is the only failure mode that has ever actually happened here. Break it and the
-   whole suite goes red with the words GIT CAN SEE.
+   either directory — `git status --porcelain --untracked-files=all` over each, which must come
+   back empty. This is the part that makes the arrangement safe rather than merely allowed: it
+   fails before a commit rather than after, and it catches an ignore rule that reads perfectly
+   well and does not work. Break it and the suite goes red with the words GIT CAN SEE.
 3. **`ai-config/policy/phi.py` fences the directory by NAME**, so an assistant cannot read a
    syllable of the audio wherever it sits.
 
-| What | Where it lives | What keeps it out of the public repository |
+| What | Where | Why it cannot be tracked |
 |---|---|---|
-| Therapy session audio (308 MB) | `research/PSYCH-ASR/phi/` | All three guards above. The filenames alone carry participant IDs |
-| Job results and model dumps (1.5 GB) | `research/TRD-EHR/results/` | `results/` was already ignored there; `tracked.py` asks git whether it can see it |
-| Other authors' published papers | on disk, beside their citation library | Their copyright, not mine. The library **indexes** are tracked, so a clone arrives with the bibliography described but not carried |
-| My assistant configuration | `ai-config/`, its own private repository | The settings name real paths on lab storage, and the PHI guard describes what it is guarding |
+| Therapy session audio (308 MB) | `research/PSYCH-ASR/phi/` | Identifiable PHI; the filenames carry participant IDs |
+| Job results and model dumps (1.5 GB) | `research/TRD-EHR/results/` | Regenerable, and seven files over GitHub's 50 MB warning |
+| Other authors' published papers | on disk, beside their citation library | Their copyright. The library **indexes** are tracked, so a clone arrives with the bibliography described but not carried |
+| The assistant configuration | `ai-config/`, its own private repository | Its settings name real paths on lab storage, and the PHI guard describes what it is guarding |
 
-**The directory is called `phi` for the third reason, and the name is load-bearing in a way the
-tree cannot show you.** Renaming it silently unfences 308 MB of identifiable PHI while four
-documents go on promising a guard that has stopped matching. `.gitignore`, the workspace README,
-its `AI_INSTRUCTIONS.md` and `job_env.sh` each say DO NOT RENAME IT where somebody would be about
-to. Neither directory is symlinked, either: a symlink is a tracked file pointing at PHI, which
-hands the next reader a map to it. `PSYCH_ASR_DATA` finds the audio — read by `psych_asr/config.py`,
-exported by `slurm_jobs/lib/job_env.sh`, both deriving their default from **their own file's
-location** rather than from `$HOME`, so a clone anywhere finds its own data and never another
-checkout's.
+**The directory is called `phi` because the fence matches that name, and nothing in the tree
+shows you that.** Renaming it unfences 308 MB of identifiable PHI while four documents go on
+promising a guard that has stopped matching. `.gitignore`, the workspace README, its
+`AI_INSTRUCTIONS.md` and `job_env.sh` each say DO NOT RENAME IT where somebody would be about to.
 
-Two things worth knowing because they are the shape of what will be found next. Three copyrighted
-textbooks and forty chapter excerpts were tracked in three courses: `split-textbook.sh` said of its
-own output "they are derived artifacts and git-ignored" — the intent was there from the start and
-the ignore rule never was. TRD-EHR's `.env` was tracked for 477 commits; no credentials in it, but
-it enumerated the on-disk locations of identifiable patient data on lab storage. Both were dropped
-from history on the way in.
-
-One caution, not a blocker: Galois-Theory's tracked `live/archive` is 114 MB of lesson transcript
-and Probability's tracked `live/` is another 20 MB. It is all small files and it is the transcript,
-so it is right that it is tracked. Do not "solve" it by untracking the transcript.
+Neither directory is symlinked: a symlink is a tracked file pointing at PHI, which hands the next
+reader a map to it. `PSYCH_ASR_DATA` finds the audio — read by `psych_asr/config.py`, exported by
+`slurm_jobs/lib/job_env.sh`, both deriving their default from **their own file's location** rather
+than from `$HOME`, so a clone anywhere finds its own data and never another checkout's.
 
 **Each workspace keeps its own `.gitignore` and those are the load-bearing ones** — in particular
 the `live/*` allowlist (cards, slate, answers, archive, inbox, text, `state.json`, `turns.jsonl`
 tracked, the rest ignored), which is what makes a lecture the same lesson on whichever machine
 picks it up. Nothing in the root file may shadow one of those: git will not descend into a
-directory ignored higher up, so a rule for `live/` written at the root would make every deeper
-`!live/cards/` unreachable. The root `.gitignore` holds two honest categories: files a command
-regenerates, and other people's papers and books.
+directory ignored higher up, so a rule for `live/` at the root makes every deeper `!live/cards/`
+unreachable. The root `.gitignore` holds two categories: files a command regenerates, and other
+people's papers and books.
+
+Galois-Theory's tracked `live/archive` is 114 MB of lesson transcript and Probability's tracked
+`live/` is another 20 MB. It is all small files and it is the transcript, so it is right that it
+is tracked. Do not "solve" it by untracking the transcript.
 
 ### `ai-config/` — inside the tree, tracked by its own git
 
@@ -221,14 +186,8 @@ And the rest of it, in the order it bites:
 2,050 commits, from eleven repositories, merged in with their paths rewritten so every file sits
 where it now lives. `git log --follow` works through the move.
 
-**This is the only copy, and that is deliberate.** The eleven old GitHub remotes are deleted and
-the twelve archived bundles were destroyed on 14 September 2026, once what they held had been
-checked against what is here. What went with them: a few stash entries, the `retired/mac-mini/*`
-branch tips, and the commits `git-filter-repo` pruned because everything they touched was filtered
-out — none of it reachable from any workspace, any test or the board. They also held what was
-deliberately purged on the way in: TRD-EHR's `.env` naming the on-disk locations of identifiable
-patient data, three copyrighted textbooks and forty chapter excerpts. Keeping the only copy of that
-alive in a home directory was the argument for deleting them rather than against it.
+**This clone is the only copy.** There are no upstream remotes for the eleven and no bundles: back
+it up like anything else that exists once.
 
 `vendor/colibri` and `vendor/colibri-build` are submodules of the same upstream at two different
 commits — one pulled forward on every login, one pinned at `fd93c41` and never pulled, because a

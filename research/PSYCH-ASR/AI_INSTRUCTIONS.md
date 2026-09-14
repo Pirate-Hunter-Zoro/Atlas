@@ -735,8 +735,7 @@ your job, not theirs.
 
 **Where the answer lives.** `planning/PSYCH-ASR_TODO.txt` opens with a block headed `WHAT WE DO NEXT`. It names
 the current state, what is blocking, and the ordered steps. Read it, say what the next step is in
-one or two sentences, and start it. `JOURNEY.md` carries the same state as narrative if you need
-the background; `README.md` carries the architecture.
+one or two sentences, and start it. `README.md` carries the architecture.
 
 **The sibling projects keep the same file in the same place.** `~/TRD-EHR/planning/TRD-EHR_TODO.txt`,
 `~/PSYCH-ASR/planning/PSYCH-ASR_TODO.txt`, `~/libr-local-llm/planning/LOCAL-LLM_TODO.txt`. When the

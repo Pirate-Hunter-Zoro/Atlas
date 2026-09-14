@@ -448,7 +448,7 @@ marker in the manuscript and the supplement at once, which is why the gate says 
 the message: renumbering one document and not the other is worse than not renumbering
 at all.
 
-### The heading that stopped being a heading
+### A heading is only a heading at the start of a line
 
 Markdown makes a heading out of `#` only when it opens the line. Anywhere else it is
 four literal characters, and pandoc prints them.
@@ -902,8 +902,8 @@ rebuild script must not do.
 
 Conversion goes through `building.convert_one` rather than a bare pandoc line, so a
 document rebuilt by hand is the document the pipeline would have produced. That
-includes the resource path — see below, because it is the reason the parts used to
-build clean and arrive empty.
+includes the resource path — see below, because it is what keeps a part from building clean
+and arriving empty.
 
 ### The figure that resolves in the whole and not in the part
 
@@ -945,10 +945,9 @@ the reference template brought along, and compares that to the distinct images t
 Markdown asks for. A document that came up short is named in the log with its count.
 `rebuild-docs.sh` fails the run on it, because you were about to ship it.
 
-It found two on its first full pass over a real repository — two reserve documents that
-had been committed carrying none of their nine figures between them, built at some point
-by something that gave pandoc neither a resource path nor a template. Nothing had ever
-said so.
+A first full pass over a real repository finds documents committed carrying none of their
+figures, built by something that gave pandoc neither a resource path nor a template, with
+nothing anywhere saying so.
 
 ### The figure that fits on the page
 

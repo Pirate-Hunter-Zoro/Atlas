@@ -288,8 +288,8 @@ lesson transcript — `live/cards/`, `live/turns.jsonl`, `live/state.json`, `liv
 `live/answers/`, `live/archive/`, `live/inbox/`, `live/text/` — is tracked, so a session started
 on one machine is the same session when the other picks it up. What stays ignored is the
 per-machine runtime: `.board.json`, `agent.json`, `board.log`, the figure cache and exports. This
-matches Probability and Galois-Theory exactly; it used to be `live/` and nothing else, which
-meant a lesson did not travel.
+matches Probability and Galois-Theory exactly. Ignoring `live/` whole is what stops a lesson
+travelling between machines.
 
 The `.lake/` entry is an explicit, agreed exception to the "ignore nothing extra" rule, for three
 reasons:
@@ -359,12 +359,10 @@ Two things were fixed getting there, and both are the kind that lie to you:
   a starting line, not progress past it — this is exactly the "it built" versus "it is proved"
   distinction the last section of this file insists on.
 
-Two statements had to be fixed to get here, and neither was wrong in the way this note previously
-predicted. `E01_TowerLaw`'s `IsScalarTower` formulation of the tower law was correct as written
-and needed no change, and `E02_AdjoinRoot`'s statement matched Mathlib's
-`IntermediateField.adjoin.finrank` exactly. The real failures were a scoped notation used without
-opening its scope and a name collision with Mathlib's root namespace — both recorded under
-"Mistakes worth not repeating" above.
+`E01_TowerLaw`'s `IsScalarTower` formulation of the tower law is correct as written, and
+`E02_AdjoinRoot`'s statement matches Mathlib's `IntermediateField.adjoin.finrank` exactly. The
+failures worth knowing about are a scoped notation used without opening its scope and a name
+collision with Mathlib's root namespace — both under "Mistakes worth not repeating" above.
 
 **The immediate next step** is to start proving. Exercise 01 is the entry point. The scaffolding
 is finished and out of the way: the toolchain is pinned, Mathlib is built, every statement

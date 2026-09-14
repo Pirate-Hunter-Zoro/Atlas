@@ -19,12 +19,8 @@ support a grant application (R21, possibly R01) for processing the full set of s
 > or derived feature ever leaves the node or is sent to an external API. See
 > [Privacy & Data Handling](#privacy--data-handling).
 > **Companion documentation — read this first.** This README documents the *pipeline
-> architecture*. The plain-language research narrative, and the reasoning behind the choices,
-> are in **`JOURNEY.md`** beside it; the two slide decks are in `docs/`; the live task list is
-> `planning/PSYCH-ASR_TODO.txt` and is the answer to "what do we do next". Start with
-> `JOURNEY.md` for "where are we / what's the story". All of it used to live in a separate
-> `Research-Journey` hub, retired 2026-09-13 so that each project's writing sits with the
-> project it belongs to.
+> architecture*. The two slide decks are in `docs/`; the live task list is
+> `planning/PSYCH-ASR_TODO.txt` and is the answer to "what do we do next".
 >
 > **Conceptual walkthrough of Stage 1.** A slide deck explaining what Stage 1 actually does
 > — a broad tour of what each of the five calls accomplishes, with the input and output
@@ -51,9 +47,8 @@ support a grant application (R21, possibly R01) for processing the full set of s
 > six worked examples**, each showing the literal spreadsheet row, the turns before and the
 > turns after; and the model grid now planned. Counts only, no session content.
 >
-> **A fifth part landed on 2026-09-11, taking it to 33 slides, and the grid slide became
-> three-dimensional in the same edit.** The grid had been sweeping two of the three boxes
-> the slide before it declares swappable — so it is now a cube, drawn as two slabs at
+> **The grid slide is three-dimensional**, because sweeping two of the three boxes the slide
+> before it declares swappable is not the experiment it claims: a cube, drawn as two slabs at
 > different depths: 4 typists × 2 stopwatches × 5 name-taggers, 40 cells from 13 jobs. The
 > slide after it is the one that makes 40 cells affordable and is worth reading before the
 > code: the words come from the typist, the times from the stopwatch timing those words,
@@ -111,9 +106,9 @@ support a grant application (R21, possibly R01) for processing the full set of s
 > category of its own.
 >
 > **Two things about its form are deliberate and should survive edits.** It is written in the
-> present tense and never narrates what the project used to believe. And the algorithm is
-> taught *only* by example — an earlier prose walkthrough of the same material ran to fifteen
-> slides and did not land. **It is the fastest way to see where the project actually stands**,
+> present tense and never narrates what the project once believed. And the algorithm is taught
+> *only* by example: prose walkthroughs of the same material run to fifteen slides and do not
+> land. **It is the fastest way to see where the project actually stands**,
 > and the right thing to hand anyone who has not been in the code.
 >
 > **Division of labour between the two files.** The TODO tracks **only what is left**.
@@ -544,11 +539,11 @@ computed from two voices at once. Overlap therefore never contributes to its who
 decision.
 
 **How much overlap this corpus actually has is unmeasured, and the one number we have is a
-floor rather than an estimate.** An earlier version of this section asserted that therapist
-backchannels over patient speech are "constant" in this corpus. That was a premise, not a
-measurement, and session 1 does not support it as stated: the incumbent reported 10.9 s of
-overlap in a 50-minute session, 0.5% of covered speech. But Stage 2's corrected reference then
-found **47 utterances the incumbent never heard at all**, most of them two words long. How
+floor rather than an estimate.** Do not assert that therapist backchannels over patient speech
+are "constant" here: that is a premise, not a measurement, and session 1 does not support it —
+the incumbent reports 10.9 s of overlap in a 50-minute session, 0.5% of covered speech. Stage 2's
+corrected reference finds **47 utterances the incumbent never heard at all**, most of them two
+words long. How
 many of those were spoken over the other person is not yet known — so the honest reading is
 that 10.9 s bounds what community-1 *detected*, not what happened, and settling the difference
 is one of the things the arm comparison is for.
@@ -659,18 +654,17 @@ three, plus `PYTHONNOUSERSITE`, are exported by `activate_env` in
 jobs exported three variables and two exported two, which is the kind of difference nobody
 notices until a job hangs on a node with no internet.
 
-**And importing `psych_asr.config` exports `TORCH_HOME` and `NLTK_DATA` as well**, with
-`setdefault`, so an explicit export still wins. "Every job must export these" was only ever
-true of the *jobs*: a pytest run, a `python -m psych_asr…` on the login node or an
-interactive check got the library default instead, and nltk's default is `~/nltk_data`. On
-13 September 2026 one of them quietly downloaded `punkt_tab` into the home folder —
-whisperx's `alignment.py` calls `nltk.download('punkt_tab', quiet=True)` when the lookup
-misses — leaving 18 MB that duplicated the staged copy. The same call on a compute node
-with no egress hangs instead. `HF_HUB_OFFLINE` is deliberately **not** set on import: it
-belongs to the compute node, and setting it would break
-`psych_asr.cli.warm_align_cache`, whose whole job is to reach `download.pytorch.org` from
-the login node. `tests/conftest.py` imports the module before any test module for the same
-reason — nltk reads the variable when it is imported, so the export has to come first.
+**Importing `psych_asr.config` exports `TORCH_HOME` and `NLTK_DATA` as well**, with
+`setdefault`, so an explicit export still wins. The job scripts cover the jobs and nothing
+else: a pytest run, a `python -m psych_asr…` on the login node or an interactive check gets
+the library default, and nltk's default is `~/nltk_data` — whisperx's `alignment.py` calls
+`nltk.download('punkt_tab', quiet=True)` when the lookup misses, which duplicates the staged
+copy in the home folder on a login node and hangs on a compute node with no egress.
+`HF_HUB_OFFLINE` is deliberately **not** set on import: it belongs to the compute node, and
+setting it breaks `psych_asr.cli.warm_align_cache`, whose whole job is to reach
+`download.pytorch.org` from the login node. `tests/conftest.py` imports the module before any
+test module for the same reason — nltk reads the variable when it is imported, so the export
+has to come first.
 
 ---
 
@@ -1203,12 +1197,12 @@ structure was wrong*:
 | **extract** a span into a turn of its own, splitting its host | Speaker Attribution with `Add Turn?` TRUE |
 | **relabel** the whole host turn | Speaker Attribution with `Add Turn?` FALSE |
 
-The first version of this pass was a `str.replace` loop over the sheet, and all three of
-its failures were silent. It ignored the `Line` column, so a missing two-word backchannel
-replaced *every* occurrence in fifty minutes of speech. It could not represent the 51 rows
-that say the machine wrote nothing — there is no snippet to replace, only a place where a
-turn belongs. And it could not represent the 32 speaker-attribution rows even in
-principle: those do not change the words, they change who said them, which means cutting
+**A `str.replace` loop over the sheet cannot do this, and fails silently three ways.**
+Ignoring the `Line` column makes a missing two-word backchannel replace *every* occurrence in
+fifty minutes of speech. It cannot represent the 51 rows that say the machine wrote nothing —
+there is no snippet to replace, only a place where a turn belongs. And it cannot represent the
+32 speaker-attribution rows even in principle: those do not change the words, they change who
+said them, which means cutting
 one turn into three, and a string replacement has no concept of a turn.
 
 #### Five things the sheet does that a careful reader would get wrong
@@ -1316,9 +1310,9 @@ median turn of 5 words against 43.
 turn's span is the host turn's own, split proportionally to character offset where a turn was
 cut in two; an inserted turn has zero duration, because how long a backchannel lasted is not
 in the spreadsheet. Every turn records which of those it is in a `time_source` field, and the
-annotator's own observed time is kept beside the span as `logged_at` rather than being written
-into it — an earlier version did write it into `start`, which put turns out of order and made
-the talk-time table sum to 107% of the session.
+annotator's own observed time is kept beside the span as `logged_at` and never written into
+`start`, where it puts turns out of order and makes the talk-time table sum to 107% of the
+session.
 
 So this is the corrected **words and turn sequence**, and it is already the reference for
 comparing the arms on attribution and turn structure. It is *not* yet a reference RTTM.
@@ -1926,9 +1920,8 @@ its judgment-cache merge (Stage 3c), each with an sbatch cloned from
 `stage1a_asr.sbatch`; and a `stage_models.sh` extension covering the audio-event and
 dimensional-affect checkpoints.
 
-The plain-language narrative is `JOURNEY.md` and the task list is
-`planning/PSYCH-ASR_TODO.txt` (see the **Companion documentation** note at the top of this
-README).
+The task list is `planning/PSYCH-ASR_TODO.txt` (see the **Companion documentation** note at
+the top of this README).
 
 ---
 
@@ -1938,10 +1931,9 @@ README).
 
 **`phi/`, in this workspace, and git cannot see a byte of it.**
 
-The recordings are 308 MB of identifiable PHI with participant IDs in the filenames. They
-were at `~/phi/PSYCH-ASR` until 14 September 2026 and they are here now, deliberately: a
-project's data belongs with the project, and a directory nobody can find is a directory
-somebody eventually re-creates somewhere worse.
+The recordings are 308 MB of identifiable PHI with participant IDs in the filenames, and they
+sit in the workspace deliberately: a project's data belongs with the project, and a directory
+nobody can find is a directory somebody eventually re-creates somewhere worse.
 
 **Three fences hold it, and not one of them is trusted on its own.**
 
@@ -1972,9 +1964,9 @@ clone of this workspace anywhere finds its own data and never another checkout's
 One variable, read in two places and nowhere else: `psych_asr/config.py` derives
 `DATA_ROOT`, `INBOX_DIR`, `STAGE1_DIR` and `STAGE2_DIR` from it, and
 `slurm_jobs/lib/job_env.sh` exports it and sets `INPUT_DIR` before any job uses one. The
-paths are **absolute**, which is the other half of the change: they used to resolve against
-the submit directory, so a job launched from the wrong place wrote session content
-somewhere nobody was looking for it.
+paths are **absolute**, and that is the other half of it: a path resolved against the submit
+directory means a job launched from the wrong place writes session content somewhere nobody is
+looking for it.
 
 The tracked tree carries the numbers *about* the sessions — `*.arm_scores.json`, the job
 logs, the figures — and never the sessions themselves. That is the part that matters,

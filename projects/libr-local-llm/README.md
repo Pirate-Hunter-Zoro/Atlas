@@ -22,11 +22,9 @@ appears, it uses this too.
 > for. No empirical results, no findings, no model-quality claims. Sizes, ports, walltimes, and
 > resource asks are architecture and belong here.
 
-> **Companion documentation.** [`JOURNEY.md`](JOURNEY.md) is the plain-language narrative — why
-> this exists, what is built, what is designed but not built, and the reasoning behind the
-> choices. The live task list is [`planning/LOCAL-LLM_TODO.txt`](planning/LOCAL-LLM_TODO.txt) and
-> is the answer to "what do we do next". Both used to live in a separate `Research-Journey` hub,
-> retired 2026-09-13 so that each project's writing sits with the project it belongs to.
+> **Companion documentation.** The live task list is
+> [`planning/LOCAL-LLM_TODO.txt`](planning/LOCAL-LLM_TODO.txt) and is the answer to "what do we
+> do next".
 
 > **Where the next phase is planned.** [`DESIGN.md`](DESIGN.md) holds the design for **the fleet** —
 > a preemption-aware service running all three engines (ollama, vllm, colibrì) across the cluster's
@@ -384,7 +382,7 @@ measured. A server that lives under 9 hours schedules sooner on `c3_short`, so t
 Switch the file to `c3` if you want one to outlive that; `ollama-up` rejects a `single` walltime over
 9 h rather than letting Slurm return a partition-limit error that does not say what to change.
 
-**On the CPU ask.** Both jobs used to reserve far more CPU than they use. Measured on a live server
+**On the CPU ask.** Neither job reserves more CPU than it uses. Measured on a live server
 holding a 70 GB model at 100% GPU: **0.1% CPU, 73 MB RSS, node load 0.00.** With weights on the GPU
 the host does almost nothing, and the one expensive phase — the cold model load — is disk-I/O bound,
 not CPU bound. This is not a micro-optimization: an 8-CPU ask left the single-GPU job **queued behind
@@ -684,8 +682,8 @@ Do not re-learn these.
     no network namespace, so *any* user with a shell on the node running the server can connect to
     `127.0.0.1:11500` on it. §4's "the endpoint is loopback, from any other node the connection is
     refused" is true and is a real control against the *cluster network* — it is not a control
-    against the *node's other users*, and this README previously read as though it were both. The
-    honest statement: loopback is necessary and not sufficient, and **ollama has no authentication
+    against the *node's other users*, and it must not be read as both. The honest statement:
+    loopback is necessary and not sufficient, and **ollama has no authentication
     at all**, so today the only thing between another account on compute30x and our endpoint is that
     they have no reason to look. Two consequences: keep the endpoint on the least-populated node we
     reasonably can, and treat "does this engine support an API key" as a selection criterion for
@@ -723,10 +721,10 @@ Do not re-learn these.
     falls through to the endpoint probe.
     Two things fell out of fixing it. The guard now forwards the session flags it saw into the
     corrected `ollama-code` line, because someone typing `-s <id>` has a specific session in mind
-    and a generic example is not an answer. And the `shift 2` used to consume a flag's value was
-    replaced with two single shifts: `shift 2` with one argument left **fails and shifts nothing**,
-    and this function runs in an interactive shell where no `set -e` stops the loop, so a trailing
-    bare `-s` would have spun forever.
+    and a generic example is not an answer. And a flag's value is consumed with two single shifts
+    rather than `shift 2`, which with one argument left **fails and shifts nothing** — this function
+    runs in an interactive shell where no `set -e` stops the loop, so a trailing bare `-s` spins
+    forever.
 
 24. **A context window that is merely "large" still has a cliff at the edge, and the model falls off
     it silently.** (Added 2026-09-09.) A 55K-token agentic coding session against a 65536 window
@@ -825,9 +823,8 @@ Do not re-learn these.
   putting a transcript fragment into a search query, which is an exfiltration event under
   PSYCH-ASR's on-prem constraint. Not yet written.
 - **vllm for PSYCH-ASR Stage 3c.** (Stage *3c* — behavioral and content coding with a local LLM.
-  PSYCH-ASR's Stage 4 is feasibility modeling at N=20 and involves no LLM at all; earlier versions of
-  this README, `JOURNEY.md`, and `LOCAL-LLM_TODO.txt` all mis-numbered this as
-  "Stage 4".) Ollama is right for interactive single-user coding. Batch transcript work
+  PSYCH-ASR's Stage 4 is feasibility modeling at N=20 and involves no LLM at all.) Ollama is right
+  for interactive single-user coding. Batch transcript work
   wants vllm: continuous batching for throughput, and guided decoding against a JSON schema so the
   model is structurally incapable of emitting anything but a valid rating object. The HF safetensors
   copy of `google_medgemma-27b-text-it` is already staged and vllm consumes it directly. Intended
@@ -845,18 +842,16 @@ Do not re-learn these.
   longer-lived server is wanted; `ollama-up` takes an hours argument for shorter ones, which is the
   right choice on `c3_accel` since compute306 is the only 4-GPU node.
 
-**`ollama-code` cannot pick the model for the TUI** also used to live here, on the grounds that
-opencode's `--model` existed on `run` but not on the bare TUI invocation. That is no longer true of
-opencode 1.18.x, where `--model` is a top-level option, so `ollama-code` now passes the adopted
-model to the TUI as well as to one-shots — which matters because the config default is
-`qwen3-coder:30b` and the TUI was therefore one keystroke from evicting a resident `gpt-oss:120b`.
-No config mutation was needed after all. The caveat that replaced it is in §4a: a *resumed* session
+**`ollama-code` passes the adopted model to the TUI as well as to one-shots.** `--model` is a
+top-level option in opencode 1.18.x, and this matters because the config default is
+`qwen3-coder:30b`: without it the TUI is one keystroke from evicting a resident `gpt-oss:120b`.
+No config mutation is needed. The live caveat is in §4a: a *resumed* session
 can still carry its own model and override the flag.
 
-The 4-GPU shard and one-command serving both used to live in this section. They are done (§4, §4a);
-the shard verification says the multi-GPU path on this hardware is sound, which is worth having
-established even though `DESIGN.md` now argues for replicas over sharding wherever a model fits on
-one card. Knowing that the option works is what makes declining to use it a choice.
+The 4-GPU shard and one-command serving are done (§4, §4a). The shard verification says the
+multi-GPU path on this hardware is sound, which is worth having established even though `DESIGN.md`
+argues for replicas over sharding wherever a model fits on one card: knowing the option works is
+what makes declining to use it a choice.
 
 ---
 

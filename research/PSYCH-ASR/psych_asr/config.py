@@ -96,15 +96,13 @@ SORTFORMER_STREAMING_CHECKPOINT = MODELS_ROOT / "diar_streaming_sortformer_4spk-
 TORCH_HOME = MODELS_ROOT / "torch_home"
 NLTK_DATA = MODELS_ROOT / "nltk_data"
 
-# AND IMPORTING THIS MODULE EXPORTS THEM, because "every job must export these" was only
-# ever true of the jobs. `slurm_jobs/lib/job_env.sh` exports both and every .sbatch sources
-# it, so a queued job has always been safe -- but nothing else was. A pytest run, a
-# `python -m psych_asr...` on the login node, an interactive check: each got the library
-# default, and nltk's default is `~/nltk_data`. On 13 September 2026 one of them downloaded
-# `punkt_tab` into the home folder, silently, because whisperx's alignment.py calls
-# `nltk.download('punkt_tab', quiet=True)` when the lookup misses. 18 MB nobody asked for,
-# a duplicate of what was already staged, and on a compute node with no egress that same
-# call is a hang rather than a download.
+# AND IMPORTING THIS MODULE EXPORTS THEM, because the job scripts only cover the jobs.
+# `slurm_jobs/lib/job_env.sh` exports both and every .sbatch sources it; nothing else does.
+# A pytest run, a `python -m psych_asr...` on the login node or an interactive check gets the
+# library default instead, and nltk's default is `~/nltk_data` -- so whisperx's alignment.py,
+# which calls `nltk.download('punkt_tab', quiet=True)` when the lookup misses, silently
+# duplicates the staged package into the home folder. The same call on a compute node with no
+# egress is a hang rather than a download.
 #
 # setdefault, NOT assignment: an explicit export still wins, which is what keeps
 # PSYCH_ASR_MODELS_ROOT meaningful and lets a job override either path. Every env imports
