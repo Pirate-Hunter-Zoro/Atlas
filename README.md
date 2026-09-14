@@ -219,9 +219,16 @@ And the rest of it, in the order it bites:
 ## History
 
 2,050 commits, from eleven repositories, merged in with their paths rewritten so every file sits
-where it now lives. `git log --follow` works through the move. Every old history is archived at
-`~/archive/*.bundle` — twelve bundles, 298 MB, each verified with `git bundle verify`, and for
-TRD-EHR that is the only copy of the unfiltered history once its old remote is deleted.
+where it now lives. `git log --follow` works through the move.
+
+**This is the only copy, and that is deliberate.** The eleven old GitHub remotes are deleted and
+the twelve archived bundles were destroyed on 14 September 2026, once what they held had been
+checked against what is here. What went with them: a few stash entries, the `retired/mac-mini/*`
+branch tips, and the commits `git-filter-repo` pruned because everything they touched was filtered
+out — none of it reachable from any workspace, any test or the board. They also held what was
+deliberately purged on the way in: TRD-EHR's `.env` naming the on-disk locations of identifiable
+patient data, three copyrighted textbooks and forty chapter excerpts. Keeping the only copy of that
+alive in a home directory was the argument for deleting them rather than against it.
 
 `vendor/colibri` and `vendor/colibri-build` are submodules of the same upstream at two different
 commits — one pulled forward on every login, one pinned at `fd93c41` and never pulled, because a
