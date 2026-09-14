@@ -14,6 +14,7 @@ from ... import choice
 from .. import spawn
 from ... import atlas
 from ... import machines
+from ... import meeting
 from ...lesson import state
 
 
@@ -38,6 +39,22 @@ def get(h, repo, path):
         # reads it, and a payload two surfaces share is a payload that grows a
         # field for one of them and breaks the other.
         return h.send_json(machines.atlas_payload(repo))
+
+    if path.startswith("/meeting/"):
+        # A note this board wrote, served back. The NAME is matched against what
+        # is actually in `meetings/`, never joined onto a path: the same rule as
+        # every other name that arrives from a browser.
+        base = atlas.root() or repo.root
+        want = path[len("/meeting/"):].strip("/")
+        out_dir = os.path.join(base, meeting.OUT_DIR)
+        try:
+            names = os.listdir(out_dir)
+        except OSError:
+            names = []
+        for n in names:
+            if n == want + ".pdf":
+                return h.send_file(os.path.join(out_dir, n))
+        return h.send_json({"ok": False, "error": "no such notes"}, status=404)
 
     if path == "/health":
         # `dir` so a caller can confirm it reached the course it meant --
@@ -67,6 +84,29 @@ def get(h, repo, path):
 
 
 def post(h, repo, path):
+    if path == "/notes":
+        # MEETING NOTES, FROM THE FRONT DOOR, because that is what is open when
+        # somebody remembers they have one in ten minutes. The work is the same
+        # `meeting.build` the command line runs -- one builder, so the note the
+        # button makes and the note the terminal makes are the same document.
+        try:
+            payload = json.loads(h.read_body().decode("utf-8"))
+        except Exception:                                    # noqa: BLE001
+            return h.send_json({"ok": False, "detail": "bad json"}, status=400)
+        base = atlas.root() or repo.root
+        when, said = meeting.resolve_since(payload.get("since") or "", base)
+        if when is None:
+            return h.send_json({"ok": False, "detail": said}, status=400)
+        try:
+            rec = meeting.build(base, when, said, here=repo.root)
+        except Exception as exc:                             # noqa: BLE001
+            return h.send_json({"ok": False,
+                                "detail": str(exc)[-300:]}, status=500)
+        # The markdown is not sent: it is the document, it is megabytes on a
+        # long period, and the page shows a name and a link rather than prose.
+        rec.pop("markdown", None)
+        return h.send_json(rec)
+
     if path == "/switch":
         try:
             payload = json.loads(h.read_body().decode("utf-8"))
