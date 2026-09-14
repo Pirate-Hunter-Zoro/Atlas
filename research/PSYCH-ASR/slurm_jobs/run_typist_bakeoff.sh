@@ -64,13 +64,11 @@ if [[ ! -d slurm_jobs || ! -d psych_asr ]]; then
     exit 1
 fi
 
-# NO FALLBACK, AND THAT IS THE FIX. This read `${PSYCH_ASR_DATA:-$HOME/phi/PSYCH-ASR}`
-# until 14 September 2026, which was the address the session data had before it moved into
-# the workspace -- so with the variable unset this script looked in a directory that no
-# longer exists, found no .wav, and reported "data/inbox must hold exactly 1 .wav file"
-# about the wrong folder entirely. A default that has gone stale is worse than none: it
-# turns "you did not set the variable" into "your data is missing". run_bakeoff.sh beside
-# this one already refuses this way, and now both do.
+# NO FALLBACK. A default address for the session data is worse than none: when it goes stale
+# this script looks in a directory that does not exist, finds no .wav, and reports "data/inbox
+# must hold exactly 1 .wav file" about the wrong folder entirely -- turning "you did not set
+# the variable" into "your data is missing". run_bakeoff.sh beside this one refuses the same
+# way.
 WAVS=( "${PSYCH_ASR_DATA:?source slurm_jobs/lib/job_env.sh first}"/inbox/*.wav )
 if [[ ! -e "${WAVS[0]}" || "${#WAVS[@]}" -ne 1 ]]; then
     echo "data/inbox must hold exactly 1 .wav file (found $([[ -e "${WAVS[0]}" ]] && echo "${#WAVS[@]}" || echo 0))." >&2

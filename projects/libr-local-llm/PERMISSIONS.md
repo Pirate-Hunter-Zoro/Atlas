@@ -85,8 +85,8 @@ deliberately narrow:
 
 ### Trap: a heredoc that writes is not a heredoc that reads
 
-The guard's first version blocked this very document, because the prose names the artifact
-extensions. The rule now distinguishes by what is consuming the heredoc: an interpreter can open
+A guard that scans every heredoc blocks this very document, whose prose names the artifact
+extensions. The rule distinguishes by what is consuming the heredoc: an interpreter can open
 a path from inside the body and is still scanned, while `cat > file <<EOF` is writing literal
 text and is exempt. Getting this wrong in the safe direction makes the guard unusable; getting it
 wrong in the other direction makes it useless.
@@ -156,17 +156,16 @@ installer. A push is worth one keystroke.
 
 ### Trap: the allowlist entry has to match what is actually typed
 
-The Tutor-Board allowlist was full of entries reading `Bash(./bin/board next *)` while the real
-invocation was `board next` — the CLI is on `PATH`. Every one of those entries had been silently
-missing for months, and the prompts they were meant to suppress kept arriving. When an allowlist
-appears not to work, compare it against the literal command string in the transcript before
-concluding the mechanism is broken.
+An entry reading `Bash(./bin/board next *)` never matches the real invocation `board next`,
+because the CLI is on `PATH` — and it fails silently, so the prompts it was meant to suppress
+keep arriving. When an allowlist appears not to work, compare it against the literal command
+string in the transcript before concluding the mechanism is broken.
 
-### Trap: the bypass-mode warning had been suppressed
+### Trap: the bypass-mode warning can be suppressed
 
-`skipDangerousModePermissionPrompt` was `true`, which removes the confirmation dialog on entering
-`bypassPermissions`. Now `false`. That prompt is the last thing standing between a tired evening
-and an unattended agent.
+`skipDangerousModePermissionPrompt` must stay `false`. Setting it `true` removes the confirmation
+dialog on entering `bypassPermissions`, and that prompt is the last thing standing between a tired
+evening and an unattended agent.
 
 ### Trap: hooks are live immediately
 
@@ -221,10 +220,10 @@ count on one line rather than a failure.
 
 ### Trap: a secret regex tuned too loose is worse than none
 
-The first version matched `sk-[A-Za-z0-9_-]{24,}` and reported twelve compromised transcripts.
-All 71 hits were one PDF filename containing the letters `sk-str`. A scanner that cries wolf gets
-ignored, which is strictly worse than not running it. Every pattern is now set above the longest
-plausible false positive, and real key formats are matched by their own prefixes.
+`sk-[A-Za-z0-9_-]{24,}` reports twelve compromised transcripts off 71 hits on one PDF filename
+containing the letters `sk-str`. A scanner that cries wolf gets ignored, which is strictly worse
+than not running it. Every pattern is set above the longest plausible false positive, and real key
+formats are matched by their own prefixes.
 
 ---
 
@@ -272,9 +271,8 @@ empty exclusion set.
 
 ### Trap: `rwxrwx---` on this filer does not mean what it says
 
-The home tree reports mode `rwxrwx---` with group `domain users`, a group with 130 members. An
-earlier version of this document concluded from that alone that 130 people could read and write
-the home tree, and said so twice, in public commits. That conclusion was wrong.
+The home tree reports mode `rwxrwx---` with group `domain users`, a group with 130 members.
+**Do not conclude from that alone that 130 people can read and write the home tree.**
 
 The mount is NFSv4 on an Isilon. Access is decided by an NFSv4 ACL, and the POSIX mode the client
 displays is a lossy synthesis of that ACL rather than the thing being enforced. The measurement
@@ -311,9 +309,9 @@ PHI guard would not have caught, and did not catch, the actual leak that happene
 participant session code typed into `PSYCH-ASR/README.md` as prose and pushed to a public remote.
 No artifact was read. A string was written.
 
-That rule had been recorded in the project's task list since the beginning and was violated twice
-anyway, the second time by a writeup describing the very run whose filenames carry the identifier.
-So it is now a `pre-commit` hook in `PSYCH-ASR/.githooks/` and `libr-local-llm/.githooks/`,
+A rule recorded in a task list is not a control: this one is violated by any writeup describing a
+run whose filenames carry the identifier. It is a `pre-commit` hook in `PSYCH-ASR/.githooks/` and
+`libr-local-llm/.githooks/`,
 beside the existing attribution stripper: any staged filename or added line matching the session-code
 shape blocks the commit. Both histories were rewritten with `git-filter-repo` and force-pushed on
 2026-09-04 to remove the code that got out.
@@ -341,11 +339,10 @@ shell pipeline is not one command: `something | grep -v x | tail` is three, and 
 has to match an allow rule or the entire pipeline goes to a prompt. Real work is pipelines, so
 the allowlist was suppressing the prompts nobody was actually hitting.
 
-The evidence is in the per-project file. `.claude/settings.local.json` in this repository had
-accumulated some fifty entries, each one a verbatim 300-character pipeline that had been approved
-once and can never match again — including `Bash(echo *)` and `Bash(grep -viE '^\s*$')`, both of
-which were *already* granted at the user level. An allowlist that grows one literal command at a
-time is a log of prompts, not a policy.
+The evidence is in the per-project file. A `.claude/settings.local.json` left to grow collects
+verbatim 300-character pipelines, each approved once and able to match nothing ever again — and
+duplicates of `Bash(echo *)` and `Bash(grep -viE '^\s*$')` already granted at the user level. An
+allowlist that grows one literal command at a time is a log of prompts, not a policy.
 
 ### What auto mode actually is
 
