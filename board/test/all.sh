@@ -35,7 +35,7 @@ if ! node -e "require('jsdom')" >/dev/null 2>&1; then
   echo
 fi
 
-SUITES="markdown macros hidden chrome theme pages modes typeface export shot interactive plane adopt chain sheets answer feedback hanging panic sizing staying link hub review walk clip map address"
+SUITES="markdown macros hidden chrome theme pages modes typeface export shot interactive plane adopt chain sheets answer feedback hanging panic steering sizing staying link hub review walk clip map address"
 fails=0
 skipped=0
 
@@ -160,6 +160,24 @@ fi
 
 printf '%-12s ' "teaching"
 if out="$(python3 test/teaching.py 2>&1)"; then
+  printf '%s\n' "$out" | tail -1
+else
+  fails=$((fails + 1))
+  echo "FAILED"
+  printf '%s\n' "$out" | grep '^FAIL' | sed 's/^/             /'
+fi
+
+printf '%-12s ' "plainly"
+if out="$(python3 test/plainly.py 2>&1)"; then
+  printf '%s\n' "$out" | tail -1
+else
+  fails=$((fails + 1))
+  echo "FAILED"
+  printf '%s\n' "$out" | grep '^FAIL' | sed 's/^/             /'
+fi
+
+printf '%-12s ' "direction"
+if out="$(python3 test/direction.py 2>&1)"; then
   printf '%s\n' "$out" | tail -1
 else
   fails=$((fails + 1))

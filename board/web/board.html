@@ -382,6 +382,58 @@
   <span>my writing</span>
 </button>
 
+<!-- THE WAY OUT OF THE WHOLE PLAN, from anywhere.
+     Three hours into an evening somebody realises the shape of the work is
+     wrong — the scope, the question, the thing being built — and until this
+     button that meant a terminal: edit the plan by hand, redraw the map, stop
+     the assistant, start another, and hope the one that came back had not kept
+     the old idea in its own conversation.
+
+     It rides in the same moveable stack as the two re-centres, placed against
+     the VISUAL viewport by `panicPlace`, and for the same reason: a control
+     placed by CSS alone pans off the glass when the page is pinched. Above the
+     map and the document viewer in `board.css`, because "always available" is
+     the whole of the promise and those two cover the screen. -->
+<button id="redirect" type="button"
+        title="change what this work is about">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1"
+       stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+    <path d="M3 17c0-5 3.6-8.4 8.6-8.4H19"/>
+    <path d="M15.4 4.8 19.4 8.6 15.4 12.4"/>
+  </svg>
+  <span>change direction</span>
+</button>
+
+<!-- What the button opens. Over everything, including the map, because it is
+     reachable from everywhere and has to land where it was tapped.
+
+     The sheet says what is about to happen before it happens. This archives the
+     lesson, rewrites the plan and replaces the running assistant — four
+     irreversible-looking things at once — and somebody who taps it not knowing
+     that is somebody who will not tap it a second time. -->
+<aside id="steer" hidden>
+  <div class="scratch-head">
+    <strong>Change the direction of this work</strong>
+    <span class="head-acts"><button id="steer-close" type="button" title="back to the lesson">✕</button></span>
+  </div>
+  <div id="steer-body">
+    <p id="steer-now" class="steer-now" hidden></p>
+    <label class="steer-label" for="steerbox">Say what it is about now — the
+      scope, the goal, what to drop. Your words go to the tutor as written.</label>
+    <textarea id="steerbox" rows="6"
+      placeholder="e.g. Drop the model bake-off. This is now about calibrating the clinician ratings, and nothing else."></textarea>
+  </div>
+  <div class="scratch-foot">
+    <p class="steer-note muted">The lesson you are in is filed away and stays
+      readable under ◷. The plan and the map are rewritten to match. A new tutor
+      starts, holding nothing of the old direction.</p>
+    <div class="steer-acts">
+      <button id="steer-cancel" type="button" class="quiet">cancel</button>
+      <button id="steer-go" type="button" class="primary" disabled>change direction</button>
+    </div>
+  </div>
+</aside>
+
 <!-- Past lessons. A chapter you come back to should still have your own working
      in it; a transcript that only survives until the next lesson opens is not a
      transcript. -->

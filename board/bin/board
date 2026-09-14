@@ -34,6 +34,11 @@ The assistant runs these. The student never does.
                                        for it, one sentence each. Replaces the
                                        derived picture; re-checked on every read
     board map --show|--check           read it, or say what has gone stale in it
+    board direction --show             what this workspace is FOR, in their own
+                                       words, when they have changed it. It
+                                       outranks the plan, the map and the
+                                       handoff. `board brief` already has it
+    board direction < what.md          replace it -- their sentence, not yours
     board notes --meeting --since 7d   meeting notes across the repository: what
                                        landed, what it meant, what is blocked —
                                        every claim carrying a link to the thing
@@ -82,9 +87,9 @@ import time
 
 TOOL = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 sys.path.insert(0, TOOL)
-from tutorboard import (atlas, brief, carry, handoff, limits, machine,
-                        manuscript, meeting, paths, ports, processes,
-                        reasoning, sense, tex, worktree)
+from tutorboard import (atlas, brief, carry, direction, handoff, limits,
+                        machine, manuscript, meeting, paths, plain, ports,
+                        processes, reasoning, sense, tex, worktree)
 from tutorboard.net import egress, tailscale
 from tutorboard.course import config, document, homework, paper, review, walk
 # `map` is a builtin; the module keeps the name the board calls the thing and
@@ -852,6 +857,19 @@ def cmd_write(live, args):
               "Write the card itself: the mathematics, addressed to the student. "
               "If you meant it, pass --force.", file=sys.stderr)
         return 1
+    # AND THE SHAPE THE PERSON ACTUALLY COMPLAINED ABOUT: a wall of text.
+    #
+    # "All tutor responses should be EASY to read. I never want to face a wall
+    # of text." `live/TEACHING.md` has asked for that since a card came back
+    # correct and unreadable -- five headings, five hundred words -- and asking
+    # is what `HANDOFF.md` was doing while it grew to eleven times its cap. A
+    # prompt is a preference; this is a door. See `tutorboard/plain.py` for what
+    # counts as a wall and what is not counted at all.
+    if "--force" not in args:
+        bad = plain.wall(body)
+        if bad:
+            print(plain.says_why(*bad), file=sys.stderr)
+            return 1
     if over:
         # Only a card that is already on this board. A path out of an argument is
         # a path somebody could have written anything into, and this one is
@@ -1665,6 +1683,46 @@ def cmd_handoff(live, args):
     return 0
 
 
+
+
+def cmd_direction(live, args):
+    """What this workspace is FOR, in their words. Body on stdin.
+
+        board direction --show          print what is in force
+        board direction < what.md       replace it (the person's words, not yours)
+        board direction --clear         back to what the repository's own
+                                        documents say
+
+    THIS IS THEIRS, NOT YOURS. It is set from the board, in one tap, at the
+    moment somebody realises the whole shape of the work is wrong -- and what it
+    says then outranks the plan, the map, the README and the handoff, all of
+    which were written for the direction it replaced. A turn does not need this
+    command to read it: `board brief` puts it at the top of every briefing.
+
+    Writing one from a turn is for the case where they said it in a message
+    rather than by tapping the button, and it is still their sentence that goes
+    in. Do not paraphrase it into your own plan; the plan is the file you then
+    rewrite to match.
+    """
+    if "--show" in args:
+        text, when = direction.read(live.root)
+        if not text:
+            print("no direction set; the repository's own documents stand")
+            return 0
+        print("set %s\n%s" % (when or "at some point", text))
+        return 0
+    if "--clear" in args:
+        direction.clear(live.root)
+        print("direction cleared")
+        return 0
+    body = sys.stdin.read()
+    kept, when = direction.write(live.root, body)
+    if not kept:
+        print("board direction: nothing on stdin; what is in force was left "
+              "alone", file=sys.stderr)
+        return 1
+    print("%s (set %s)" % (direction.path(live.root), when))
+    return 0
 
 
 def cmd_notes(live, args):
@@ -2866,6 +2924,7 @@ COMMANDS = {
     "egress": cmd_egress, "limit": cmd_limit,
     "brief": cmd_brief, "note": cmd_note, "handoff": cmd_handoff,
     "map": cmd_map, "notes": cmd_notes, "make": cmd_make,
+    "direction": cmd_direction,
 }
 
 

@@ -54,6 +54,13 @@ var els = {
   jump: document.getElementById("jump"),
   panic: document.getElementById("panic"),
   findink: document.getElementById("findink"),
+  redirect: document.getElementById("redirect"),
+  steer: document.getElementById("steer"),
+  steerNow: document.getElementById("steer-now"),
+  steerBox: document.getElementById("steerbox"),
+  steerClose: document.getElementById("steer-close"),
+  steerCancel: document.getElementById("steer-cancel"),
+  steerGo: document.getElementById("steer-go"),
   reopen: document.getElementById("reopen"),
   addFile: document.getElementById("btn-add-file"),
   scratch: document.getElementById("scratch"),
@@ -3927,7 +3934,7 @@ mapButtons().forEach(function (b) {
     /* Whatever is over the lesson goes with it. A drawer left open behind the
        map is a drawer sitting on top of the lesson when the map closes. */
     [els.contents, els.review, els.scratch, els.papersPanel,
-     document.getElementById("history"), els.kind].forEach(function (panel) {
+     document.getElementById("history"), els.kind, els.steer].forEach(function (panel) {
       if (panel) panel.hidden = true;
     });
     if (els.paper && !els.paper.hidden) closePaper();
@@ -4381,7 +4388,8 @@ function addrArrived(a) {
    they want to be and a drawer left open is a drawer sitting on top of it. */
 function addrShut() {
   [els.contents, els.review, els.scratch, els.papersPanel,
-   document.getElementById("history"), els.kind, els.work].forEach(function (p) {
+   document.getElementById("history"), els.kind, els.work,
+   els.steer].forEach(function (p) {
     if (p) p.hidden = true;
   });
   if (els.paper && !els.paper.hidden) closePaper();
@@ -6171,7 +6179,11 @@ function placeWriter(owed, questionNode, live) {
   if (els.findink) {
     var wasHidden = els.findink.hidden;
     els.findink.hidden = !owed;
-    if (wasHidden !== els.findink.hidden) { findSize = null; panicSoon(); }
+    if (wasHidden !== els.findink.hidden) {
+      /* The change of pens moves the button under it, so that one is measured
+         again too — a stale height leaves a gap or an overlap in the stack. */
+      findSize = null; turnSize = null; panicSoon();
+    }
   }
   /* The tool bar is fixed to the bottom of the window, so the page has to give
      up the height it occupies or the last card sits underneath it. */
@@ -6842,6 +6854,7 @@ var panicHold = null;
 var panicFrame = 0;
 var panicSize = null;
 var findSize = null;
+var turnSize = null;
 
 function panicSoon() {
   if (panicFrame) return;
@@ -6879,6 +6892,7 @@ function panicPlace() {
      one is -- `position: fixed` is fixed to the layout viewport, and a control
      that pans off the glass when you pinch is missing at precisely the moment
      being lost makes you want it. */
+  var under = y + bh + 8 / k;          /* where the next one in the stack goes */
   if (els.findink && !els.findink.hidden) {
     if (!findSize || !findSize.w) {
       findSize = { w: els.findink.offsetWidth || 108,
@@ -6887,11 +6901,30 @@ function panicPlace() {
     var fw = findSize.w / k;
     var fh = findSize.h / k;
     var fx = ox + panicAt.x * w - fw / 2;
-    var fy = y + bh + 8 / k;
+    var fy = under;
     fx = Math.min(Math.max(fx, ox + pad), ox + w - fw - pad);
     fy = Math.min(Math.max(fy, oy + pad), oy + h - fh - pad);
     els.findink.style.transform =
       "translate(" + fx + "px," + fy + "px) scale(" + (1 / k) + ")";
+    under = fy + fh + 8 / k;
+  }
+
+  /* And the third: the way out of the whole plan. Same stack, same placement,
+     for the same reason — the moment somebody decides the direction is wrong is
+     not a moment to go hunting through a menu for the button that says so. */
+  if (els.redirect && !els.redirect.hidden) {
+    if (!turnSize || !turnSize.w) {
+      turnSize = { w: els.redirect.offsetWidth || 150,
+                   h: els.redirect.offsetHeight || 32 };
+    }
+    var tw = turnSize.w / k;
+    var th = turnSize.h / k;
+    var tx = ox + panicAt.x * w - tw / 2;
+    var ty = under;
+    tx = Math.min(Math.max(tx, ox + pad), ox + w - tw - pad);
+    ty = Math.min(Math.max(ty, oy + pad), oy + h - th - pad);
+    els.redirect.style.transform =
+      "translate(" + tx + "px," + ty + "px) scale(" + (1 / k) + ")";
   }
 }
 
@@ -7018,6 +7051,92 @@ if (els.panic) {
   });
   panicPlace();
 }
+
+/* ------------------------------------------------ changing the direction */
+/* The plan was wrong, and saying so is one tap from wherever they are.
+
+   Everything this does is on the server -- `/direction` writes it down, files
+   the lesson away, and replaces the running assistant, which is the half no
+   prompt can do. What is here is the sheet, and the sheet's whole job is to say
+   what is about to happen BEFORE it happens: four irreversible-looking things at
+   once, and somebody who taps it not knowing that is somebody who never taps it
+   again.
+
+   It does not ask "are you sure". The confirmation is the sentence they have to
+   write. */
+function steerOpen() {
+  var now = (lastLive && lastLive.direction) || null;
+  if (now && now.text) {
+    els.steerNow.hidden = false;
+    els.steerNow.textContent = "In force" + (now.when ? " since " + now.when : "")
+      + ":\n" + now.text;
+  } else {
+    els.steerNow.hidden = true;
+    els.steerNow.textContent = "";
+  }
+  els.steer.hidden = false;
+  steerReady();
+  /* Not on a tablet: focusing raises the keyboard over the sheet before they
+     have read what it says. They tap the box when they are ready to write. */
+  if (!("ontouchstart" in window)) {
+    try { els.steerBox.focus(); } catch (e) {}
+  }
+}
+
+function steerShut() {
+  els.steer.hidden = true;
+}
+
+/* Nothing to send until there is a sentence. A direction of "" would archive the
+   lesson and wake a tutor with nothing to act on. */
+function steerReady() {
+  els.steerGo.disabled = !els.steerBox.value.trim();
+}
+
+function steerSend() {
+  var text = els.steerBox.value.trim();
+  if (!text) return;
+  els.steerGo.disabled = true;
+  els.steerGo.textContent = "changing…";
+  fetch("/direction", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ text: text })
+  }).then(function (r) { return r.json(); }).then(function (data) {
+    els.steerGo.textContent = "change direction";
+    if (!data || !data.ok) {
+      steerReady();
+      return;
+    }
+    els.steerBox.value = "";
+    steerShut();
+    /* Back to the lesson, whatever was over it. The board it comes back to is
+       empty for a moment -- the old lesson has just been filed -- and then the
+       new tutor writes into it. */
+    addrShut();
+  }).catch(function () {
+    els.steerGo.textContent = "change direction";
+    steerReady();
+  });
+}
+
+if (els.redirect) {
+  els.redirect.addEventListener("click", function () {
+    if (els.steer.hidden) steerOpen(); else steerShut();
+  });
+}
+if (els.steerBox) {
+  els.steerBox.addEventListener("input", steerReady);
+  els.steerBox.addEventListener("keydown", function (e) {
+    if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+      e.preventDefault();
+      steerSend();
+    }
+  });
+}
+if (els.steerGo) els.steerGo.onclick = steerSend;
+if (els.steerClose) els.steerClose.onclick = steerShut;
+if (els.steerCancel) els.steerCancel.onclick = steerShut;
 window.addEventListener("scroll", function () {
   /* `following` reads a rectangle, which forces layout, and this fires for
      every frame of a flick. It is only ever asked while there is a button to

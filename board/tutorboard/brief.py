@@ -23,7 +23,7 @@ import os
 import re
 import time
 
-from . import carry, handoff
+from . import carry, direction, handoff
 from .course import config
 from .course import map as course_map
 from .lesson import git as lesson_git
@@ -256,6 +256,15 @@ def briefing(repo, sense, chapter=None):
         out.append("stance: %s  (this sitting only -- tutorboard.json says %s, "
                    "and that is what the next sitting goes back to)"
                    % (stance, declared))
+
+    # WHAT THIS WORKSPACE IS FOR, when they have said so -- above the method,
+    # above the contract, above everything. A direction is changed at the moment
+    # somebody realises the whole shape of the work is wrong, so every document
+    # under this line may have been written for the one it replaced. A turn that
+    # reads it last has already believed three of them.
+    said = direction.standing(root)
+    if said:
+        out.append(said)
 
     out.append("\n--- the method, and what this sitting is ---\n"
                + sense.session_sense(repo))
