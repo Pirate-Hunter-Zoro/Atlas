@@ -892,6 +892,83 @@ body.tools-out .jump { bottom: calc(6.5rem + env(safe-area-inset-bottom)); }
    not a change of content, which is easy to miss on a page you were lost in. */
 #panic.hit, #findink.hit { filter: brightness(1.25); }
 
+/* ---------- the way out of the whole plan ---------- */
+/* The third member of the moveable stack, and the only one that changes
+   anything: the two above it put a zoom back, this one changes what the work
+   IS. Same shape so it is found in the same place, quieter than `#panic` so the
+   way out of a zoom stays the loudest thing in the corner, and deliberately not
+   red — a direction change is a normal thing to want, not an accident to be
+   warned about.
+
+   ABOVE THE MAP (96) AND THE DOCUMENT VIEWER (95), which the stack is not. The
+   promise is that it is reachable at any moment, and the two surfaces that
+   cover the whole screen are exactly the ones somebody is looking at when they
+   realise the plan is wrong. Under `.barmenu` (99), which is the most recent
+   thing anybody asked for. */
+#redirect {
+  position: fixed; left: 0; top: 0; z-index: 97;
+  transform-origin: 0 0;
+  display: flex; align-items: center; gap: .35rem;
+  padding: .42rem .7rem .42rem .55rem;
+  border-radius: 1.4rem;
+  border: 1px solid color-mix(in srgb, var(--note, var(--accent)) 55%, var(--rule));
+  background: color-mix(in srgb, var(--note, var(--accent)) 16%, var(--paper));
+  color: var(--ink);
+  font: 700 .74rem var(--ui);
+  letter-spacing: .02em;
+  box-shadow: 0 4px 14px rgba(0,0,0,.24);
+  cursor: pointer;
+  touch-action: none;
+  -webkit-user-select: none; user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+#redirect svg { width: .95rem; height: .95rem; display: block; flex: none; }
+#redirect:hover { filter: brightness(1.06); }
+/* The other two ride at 62 and are covered by the map; this one is not, so it
+   is the one thing over a map that must not look like part of it. */
+body.mapping #redirect, body.papering #redirect {
+  box-shadow: 0 6px 20px rgba(0,0,0,.4);
+}
+
+/* The sheet it opens. Over everything the button is over, and wider than the
+   drawers: what goes in it is a paragraph somebody is writing, not a list they
+   are picking from. */
+#steer {
+  position: fixed; top: 0; right: 0; bottom: 0; z-index: 98;
+  width: min(30rem, 96vw);
+  background: var(--paper); border-left: 1px solid var(--rule);
+  display: flex; flex-direction: column;
+  box-shadow: -8px 0 26px rgba(0,0,0,.22);
+  font-family: var(--ui); font-size: .85rem;
+}
+#steer-body { flex: 1; overflow-y: auto; padding: .9rem; }
+.steer-now {
+  margin: 0 0 .9rem; padding: .6rem .7rem;
+  border-left: 3px solid var(--note, var(--accent));
+  background: var(--paper-2); color: var(--ink-2);
+  font-size: .8rem; white-space: pre-wrap;
+}
+.steer-label { display: block; margin-bottom: .45rem; color: var(--ink-2); }
+#steerbox {
+  width: 100%; box-sizing: border-box;
+  font: inherit; font-size: .92rem; line-height: 1.45;
+  color: var(--ink); background: var(--paper-2);
+  border: 1px solid var(--rule); border-radius: .45rem;
+  padding: .6rem .7rem; resize: vertical;
+}
+#steerbox:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+.steer-note { margin: 0 0 .7rem; font-size: .74rem; }
+.steer-acts { display: flex; align-items: center; justify-content: flex-end; gap: .5rem; }
+.steer-acts button {
+  font: 600 .82rem var(--ui); cursor: pointer;
+  padding: .5rem .9rem; border-radius: .45rem;
+  border: 1px solid var(--rule); background: transparent; color: var(--ink-2);
+}
+.steer-acts button.primary {
+  border-color: var(--accent); background: var(--accent); color: var(--paper);
+}
+.steer-acts button:disabled { opacity: .45; cursor: default; }
+
 /* ---------- what the student said, in the lesson ---------- */
 .mine .signal {
   display: inline-block; margin-left: .5rem;

@@ -23,6 +23,7 @@ still answered on the board. `WALK_SENSE` is the whole of the difference.
 
 import os
 
+from . import plain
 from .course import config, homework, plan, reading, review, syllabus, walk
 # `map` is a builtin; the module keeps the name the board calls the thing.
 from .course import map as mapping
@@ -69,8 +70,17 @@ PLAIN_SENSE = (
     "say. Spell out any term, filename or shorthand the first time it appears, "
     "in the same sentence, in a few plain words. No headings in a card under "
     "300 words, and no closing paragraph -- the last useful sentence ends it. "
-    "If they would have to read a sentence twice, it is the wrong sentence. "
-)
+    "If they would have to read a sentence twice, it is the wrong sentence.\n"
+    # Two of the rules above are a door rather than a request, for the reason
+    # HANDOFF.md reached eleven times its cap while a prompt asked nicely: see
+    # `tutorboard/plain.py`. A turn is told the numbers here so it writes the
+    # card once, rather than discovering them from a refusal.
+    "TWO OF THOSE ARE A DOOR, NOT A REQUEST: `board write` refuses a card over "
+    "%d words, and one with a single paragraph over %d. A list of definitions is "
+    "a list, one line each; fenced code and displayed mathematics are not "
+    "counted. What will not fit belongs in a later card, or in a file in the "
+    "repository the board can open -- not on the glass over the lesson. "
+) % (plain.CARD_WORDS, plain.PARAGRAPH_WORDS)
 
 
 METHOD_SENSE = (

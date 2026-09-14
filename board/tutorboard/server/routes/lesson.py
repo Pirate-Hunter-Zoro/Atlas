@@ -15,6 +15,8 @@ from ...course import plan
 from ...course import homework
 from .. import multipart
 from .. import spawn
+from ... import carry
+from ... import direction
 from ... import sense
 from ...course import config
 # `map` is a builtin; the module keeps the name the board calls the thing.
@@ -107,7 +109,72 @@ def _begin(h, repo):
     return tid
 
 
+def _direction(h, repo):
+    """They have changed what this work is FOR. Everything below it is stale.
+
+    THE POINT OF THE BUTTON IS THAT IT IS ONE TAP, FROM ANYWHERE, MID-EVENING.
+    Asked for in these words: *"we may be balls deep in a project and I might
+    realize we need a massive direction change and overhaul... I want maximum
+    power, minimum pain."* Four things have to happen for that to be true, and
+    doing three of them is worse than doing none -- a direction written down that
+    the assistant never reads is a direction the person believes is in force.
+
+    1. **Write it down**, at the root, where it crosses machines and is read at
+       the start of every turn from now on. `tutorboard.direction`.
+    2. **Open a new sitting**, which archives the lesson they are in -- still
+       readable under the history button -- parks the handoff under the chapter
+       it was about, and puts the new direction in the title bar. The lesson that
+       was open was about the old direction; carrying it forward is the thing
+       they just said to stop.
+    3. **Forget what the last turn was aiming at.** `live/NEXT.md` is one turn's
+       note to the next about a lesson that no longer exists.
+    4. **Replace the assistant.** A running tutor holds the old direction in its
+       own conversation and no file on disk can contradict that. This is the half
+       a prompt cannot do, and it is the same `fresh_tutor` a chapter switch uses.
+    """
+    try:
+        payload = json.loads(h.read_body().decode("utf-8") or "{}")
+    except Exception:
+        return h.send_json({"ok": False, "error": "bad json"}, status=400)
+    text = (payload.get("text") or "").strip()
+    if not text:
+        return h.send_json({"ok": False,
+                            "error": "say what the new direction is"}, status=400)
+
+    kept, when = direction.write(repo.root, text)
+    course = repo.state().get("course") or config.read_config(repo.root)["name"] or ""
+    label = direction.label(kept)
+    spawn.board_cli(repo.root, ["open", course, label, "--lecture"])
+    carry.clear_note(repo.root)
+
+    # Their own words, in the transcript, as a turn of theirs -- because that is
+    # what it is. The card that comes back is an answer to something they said,
+    # and a transcript that starts with the answer reads as the tutor deciding to
+    # change direction on its own.
+    tid = turns.next_turn_id(repo)
+    record = {
+        "id": tid, "rev": turns.turn_revision(repo, tid), "kind": "text",
+        "answers": None,
+        "t": time.time(),
+        "iso": time.strftime("%Y-%m-%d %H:%M:%S"),
+        "from": "student", "text": kept, "signal": "direction", "read": False,
+    }
+    turns.write_turn(repo, record)
+    line = ("[direction] " + direction.CHANGED + "\n\nTHEIR WORDS:\n" + kept
+            + "\n\n" + sense.session_sense(repo))
+    with open(repo.messages_path, "a", encoding="utf-8") as fh:
+        fh.write(json.dumps(dict(record, text=line)) + "\n")
+
+    spawn.fresh_tutor(repo.root, course)
+    h.note("the direction changed; the lesson is archived and the tutor replaced")
+    h.server.hub.worker.dirty.set()
+    return h.send_json({"ok": True, "chapter": label, "set": when})
+
+
 def post(h, repo, path):
+    if path == "/direction":
+        return _direction(h, repo)
+
     if path == "/dismiss-finish":
         st = repo.state()
         st.pop("finished", None)

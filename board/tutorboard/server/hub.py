@@ -7,6 +7,7 @@ import os
 import threading
 import time
 
+from .. import direction
 from ..course import config, homework
 from ..lesson import archive, cards, git, notes, slate, state, turns, uploads
 
@@ -115,6 +116,14 @@ class Hub:
         # not, and a tap on any of them to start work there. Every repository
         # has one, drawn or derived. See `course/map.py`.
         data["map"] = state.load_map(self.repo)
+        # WHAT THIS WORKSPACE IS FOR, when they have changed it. The panel that
+        # changes it opens showing what is in force -- a person about to replace
+        # a direction should be able to read the one they are replacing, and on
+        # a device that has been closed since they set it there is nowhere else
+        # it could come from. None where nothing is set, so the board can tell
+        # "never changed" from "changed to nothing".
+        said, when = direction.read(self.repo.root)
+        data["direction"] = {"text": said, "when": when} if said else None
         return data
 
     def poll_loop(self):

@@ -404,6 +404,20 @@ headings, five hundred words, and the answer to *what did you just do* nowhere
 in the first paragraph. Reported as wanting *"a CONCISE EASY TO UNDERSTAND
 explanation of what was just done."*
 
+**Two of those are a door rather than a request.** `board write` refuses a card
+over 450 words, and one carrying a single paragraph over 110 — nothing is
+written and you write it again, shorter. Asking nicely is exactly what was being
+done to `HANDOFF.md` while it grew to eleven times its cap, one reasonable edit
+at a time.
+
+What is not prose is not counted, so nothing has to be mangled to get under the
+cap: a fenced code block, a displayed equation and a table are as long as the
+thing they describe, and a list is counted line by line — which is what a
+problem card carrying every definition it uses is made of. What genuinely will
+not fit is either the next turn's card or a file in the repository the board can
+open. `--force` is there for the card that really does have to be that long, and
+reaching for it twice in an evening means the cap was right.
+
 ---
 
 ## A doing turn: the work first, then one short card
@@ -1025,6 +1039,43 @@ it, and if it matters to the lesson, ask about it. *"You have changed
 that?"* is the right use of it. The heading over that section says whose work it
 is and so does the sentence under it; if you find yourself writing past both of
 them, stop.
+
+---
+
+## When they change the direction of the work
+
+They can say, in one tap from anywhere on the board, that the whole shape of the
+work is wrong. When they have, their sentence is at the **top** of your briefing,
+under *the direction of this work*, and it outranks every other document in the
+repository — the plan, the map, the README, the handoff, the note the last turn
+left you. All of those were written for the direction it replaced.
+
+**A turn woken by the change does the replanning, that turn, in this order:**
+
+1. One plain sentence on the board with `board write`, saying you are
+   re-planning. It lands at once, so nothing is blank while you read.
+2. Read what is actually there — the plan file the briefing names, the map, and
+   the README if the change makes it wrong.
+3. **Rewrite the plan.** Its next steps are now this direction's steps: delete
+   what the change makes pointless, keep what still stands, put the new first
+   step at the top. It is their file and it is in git. Do not append a note to
+   the bottom of a plan that now describes something else.
+4. Redraw the map with `board map` if the boxes no longer describe the work.
+5. `board write --over` that first path, with the report: what the plan says now,
+   what changed, the first step, and the one thing you need from them.
+
+Do not ask whether you should start. Do not hand back a plan of what you would
+do instead of doing it — that is the same failure a doing turn has, in a bigger
+coat, and it is the one they used this button to get away from. If the change is
+too big for one turn, do the first part and say what is left.
+
+**Do not argue the change.** They have decided. If something in it contradicts a
+rule in `AI_INSTRUCTIONS.md`, say so plainly in the card, in one sentence, and do
+the rest of it anyway.
+
+Afterwards the direction stays at the top of every briefing until they change it
+again. A later turn that finds the plan or the map still describing the old
+direction is looking at unfinished work, not at a disagreement.
 
 ---
 

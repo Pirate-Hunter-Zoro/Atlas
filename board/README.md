@@ -433,7 +433,11 @@ is wrong even when every suite is green.
   fingers are never the pen. And **a pan must not also be a tap** — dragging the atlas with a
   a finger that starts on a card and drags the plane must not open that card when it lifts.
 - **`#panic` is z-index 62, the map is 96 and the document viewer 95**, so the re-centre button is
-  painted over by both. Known, left alone deliberately.
+  painted over by both. Known, left alone deliberately: a zoom you are lost in is a zoom of the
+  *lesson*, and both of those surfaces have a ✕. **`#redirect` is 97 and that is not an
+  inconsistency** — a plan is most often discovered to be wrong while looking at the picture of
+  it, so the one control that is promised to be reachable at any moment has to be over the two
+  things that cover the whole screen.
 - **A PORT IS A PURE FUNCTION OF THE WORKSPACE'S DIRECTORY BASENAME**, never of its path.
   `ports.py` must stay that way: the basenames are unique across the repository, and two machines
   derive the same number for the same workspace without talking to each other. One board per
@@ -656,6 +660,43 @@ because it still covers the cases the slate cannot:
 
 For ordinary "here is my answer", use the slate. The `＋` in the title bar is the same upload path
 and is the practical one on iOS, where dragging a file onto a web page is awkward.
+
+## Changing the direction of the work
+
+Three hours into an evening the shape of the work turns out to be wrong — the scope, the
+question, the thing being built. **Saying so is one tap, from any surface**, and the tap is
+worth what it costs only if every part of the board that was pointed at the old direction is
+pointed at the new one before the next turn runs.
+
+The button rides in the same moveable stack as the two re-centres and is placed the same way,
+against the visual viewport — a control placed by CSS alone pans off the glass when the page is
+pinched. It sits **over** the map and the document viewer, which the other two do not: the moment
+somebody decides a plan is wrong is usually the moment they are looking at the picture of it.
+
+The sheet says what is about to happen before it happens, because five things happen at once:
+
+| | |
+|---|---|
+| `DIRECTION.md` at the workspace root | their sentence, stamped with the day. Tracked, so it crosses machines |
+| the lesson they were in | archived whole, still readable under ◷ |
+| the sitting | reopened, named after what they said; the old handoff parks under its own chapter |
+| `live/NEXT.md` | cleared — one turn's note to the next about a lesson that no longer exists |
+| the assistant | **replaced**, not asked to change its mind |
+
+That last row is the half a prompt cannot do. A running tutor holds the old direction in its own
+conversation and no file on disk can contradict it, which is the same reason a chapter switch
+gets a fresh one.
+
+From then on `board brief` puts the direction at the **top** of every briefing, above the
+method, the contract and the handoff — because everything under it may have been written for the
+direction it replaced, and a turn that reads it last has already believed three documents it
+should have doubted. The turn woken by the change is told, in the imperative, to rewrite the
+plan, redraw the map and report what it did; a turn asked politely to consider replanning hands
+back a plan and does nothing. `board direction --show` reads it from a terminal and
+`board direction --clear` takes it off.
+
+`test/direction.py` drives the whole round trip against the real handler; `test/steering.js`
+drives the button and the sheet in a real DOM.
 
 ## Setting it up on the cluster
 
@@ -2329,6 +2370,7 @@ board open "Galois Theory" "Ch 7 — Splitting fields"
 board next lesson splitting-fields   # -> live/cards/0001-splitting-fields.md
 board brief                      # the standing rules, in one call: the method, this
                                  #   course's unbendable rules, the handoff, the note
+board direction --show           # what this work is FOR, when they have changed it
 board recap                      # the lesson so far, in one call
 board note < note.md             # <=120 words for the next turn (a turn is a session)
 board handoff < handoff.md       # HANDOFF.md at session end, <=350 words. Capped.
@@ -2372,6 +2414,30 @@ $\QQ(\sqrt[3]{2})$?
 
 `kind` is one of `lesson`, `question`, `correct`, `wrong`, `review`, `note`, `recap`. It only
 changes the label and the accent colour; `question` is the one that says *your move*.
+
+### The shape of a card is a door, not a request
+
+**`board write` refuses a card over 450 words, and one carrying a single paragraph over 110.**
+Nothing is written and the turn writes it again, shorter. Asked for as *"all tutor responses
+should be EASY to read. I never want to face a wall of text"*, and made a door rather than a
+line in a prompt for the reason `HANDOFF.md` reached 3,824 words against a documented cap of
+350: a prompt is a preference, every edit is reasonable on its own, and nobody notices for a
+fortnight.
+
+Two shapes, because either one alone lets the other through. Past the word count the card is a
+document, and a document belongs in a file the board can open. Under it, one unbroken block is a
+grey rectangle on a tablet held at arm's length — four hundred words in nine paragraphs reads,
+two hundred in one does not.
+
+**What is not prose is not counted**, so nothing has to be mangled to get under the cap: a fenced
+code block, a displayed equation and a table are as long as the thing they describe, and a list
+is counted line by line — which is exactly what a self-contained problem card, carrying every
+definition it uses, is made of. `--force` writes it anyway, for the card that genuinely has to be
+that long.
+
+The numbers live in `tutorboard/plain.py`, and the briefing quotes them from there, so a turn
+knows both before it hits either. `test/plainly.py` holds the door and, just as importantly,
+holds it open for the things that must never be refused.
 
 Mathematics is written in ordinary LaTeX, `$…$` and `$$…$$`, using the same macro vocabulary as
 the course repository's `latex/coursemacros.sty` — `\QQ`, `\degree{L}{K}`, `\GalG{L}{K}`,
