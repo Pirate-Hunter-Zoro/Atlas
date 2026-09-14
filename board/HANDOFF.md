@@ -8,9 +8,10 @@
 > below it is written against it: the written map, meeting notes, documents, and the briefing
 > seeing what was done on a laptop.
 >
-> This file was rewritten on 14 September 2026 and it replaces a brief for work that is
-> finished. Read §0 and §1 before you touch anything. §2 is what is actually left, in the
-> order it should be done. §6 is the one thing the migration did not finish.
+> **Read §0 first: it is the working loop, and it tells you how a session in here runs
+> from beginning to end.** Then §1. §2 is what is actually left, in the order it should be
+> done. This file was rewritten on 14 September 2026 and is kept current by every session
+> that touches it — that upkeep is step 5 of the loop, not an afterthought.
 >
 > *(This is not a `board handoff` file. Those are capped at 350 words and live in a
 > workspace. Nothing reads this automatically. Delete it when §2 is finished and fold what
@@ -18,15 +19,54 @@
 
 ---
 
-## 0. Before anything, and none of it is negotiable
+## 0. How to work in here, and none of it is negotiable
+
+**ONE PIECE OF WORK, SHIPPED, THEN STOP. That is the loop, and you are in it.**
+
+The person who owns this repository wants to hand it a section number and walk away. So a
+session here is not a conversation, it is one turn of a machine:
+
+1. **Read this file.** §2 is what is left, in order. Take the first thing in it that is not
+   marked DONE, unless you were told which one.
+2. **Do the whole of it.** Not the easy half, and not a plan for it.
+3. **Update this file, BEFORE you ship, not after.** Mark what you did DONE, write down
+   what you deferred and why, and correct anything §1 through §9 now says that is no longer
+   true. A handoff that describes yesterday is worse than none, because it is believed.
+   **It comes before the ship because `ship.sh` commits `board/`, and this file is in
+   `board/`** — update it afterwards and the edit sits uncommitted until somebody notices,
+   which is precisely the drift this step exists to prevent.
+4. **`bash board/test/all.sh`.** Green, every suite, before anything is pushed. `tracked.py`
+   runs first and is the one that cannot be fixed afterwards.
+5. **Ship it** — `bash board/scripts/ship.sh "what changed"`. Not "commit it": a board is a
+   long-lived process and a commit alone changes nothing for the person holding the iPad.
+   The bullet below says it again because the difference has cost an evening more than once.
+6. **Then stop, and say one line: which section is next.** Do not start it. The session
+   ends here so that the next one begins with a fresh context and about 20k tokens instead
+   of 400k, which is the entire reason this file exists in the form it does.
+
+**The next session's whole prompt is one line**, and it is this:
+
+> Read `board/HANDOFF.md` and do the next thing in §2.
+
+Nothing else needs to be said to it. If that sentence is not enough for the next session to
+work unattended, the fault is in this file and fixing this file is part of the job.
+
+*(A session cannot clear itself or re-prompt itself — that is the person's `/clear`, or a
+`/loop` running the line above on an interval. What this protocol guarantees is the other
+half: that every session is self-contained, so whichever way it is restarted it needs no
+memory of the last one.)*
+
+### And the things that are not negotiable
 
 **The person who asked for this uses the board while you change it**, on an iPad, in the
 middle of real work. A regression does not annoy them later; it stops the lesson now.
 Galois-Theory and PSYCH-ASR must be openable and teachable at every point, and if you cannot
 keep that true, stop and say so rather than press on.
 
-- **Ship, do not merely commit.** `bash board/scripts/ship.sh "message"` commits **only
-  `board/`**, pushes, and restarts every board. A board is a long-lived process that read
+- **Ship, do not merely commit, and do it yourself without being asked.** Finishing a
+  piece of work includes shipping it; a session that ends with the work only on disk has
+  not finished it. `bash board/scripts/ship.sh "message"` commits **only `board/`**,
+  pushes, and restarts every board. A board is a long-lived process that read
   `serve.py` when it started, so a commit alone changes nothing for them. The pathspec is
   new and load-bearing: there is one repository now, and a ship without it would file nine
   workspaces' unfinished work under a commit message about the board.
@@ -44,8 +84,11 @@ keep that true, stop and say so rather than press on.
 - **Commits are authored by the person, with no assistant trailers.** `.githooks/commit-msg`
   strips them; `save-and-push.sh` turns the hook on for a fresh clone.
 - **Do not "fix" things you notice in passing.** One change, shipped, checked, then the next.
-- **Nothing that cannot go into a public repository may live inside the repository.** Not
-  ignored inside it — outside it, with something inside naming the path. §4.
+- **Nothing that cannot go into a public repository may be TRACKED by it.** As of
+  14 September 2026 two such directories do live inside the tree, by the owner's decision,
+  and what holds them is three independent guards rather than their absence. Read §4 before
+  you move anything on this subject in either direction; it records the rule that was
+  overturned and why.
 
 ---
 
@@ -75,20 +118,22 @@ lets the old flat layout and every test fixture work through the same code path.
 
 ### What is outside the tree, and why
 
-| What | Where | The rule |
+| What | Where | What keeps it out of the public repository |
 |---|---|---|
-| 308 MB of therapy audio | `~/phi/PSYCH-ASR/` | Identifiable PHI; participant IDs in the filenames |
-| 1.5 GB of job output | `~/artifacts/TRD-EHR/results/` | Regenerable; seven files over GitHub's 50 MB warning |
+| 308 MB of therapy audio | `research/PSYCH-ASR/phi/` | An anchored `/phi/` ignore rule, `test/tracked.py`, and the assistant fence — three, and none trusted alone |
+| 1.5 GB of job output | `research/TRD-EHR/results/` | `results/` was already ignored there; `test/tracked.py` asks git whether it can see it |
 | Other authors' papers and books | on disk, ignored | Their copyright, and this is public |
 | The assistant configuration | `ai-config/`, its own private repository | Its settings name real paths on lab storage. Inside the tree, ignored by it, tracked by its own git |
 
-Neither of the first two is symlinked in. A symlink is a tracked file pointing at PHI, which
-hands the next reader a map to it. `PSYCH_ASR_DATA` finds the first — read by
-`psych_asr/config.py`, exported by `slurm_jobs/lib/job_env.sh`, absolute on purpose because
-those paths used to resolve against the submit directory.
+**The first two came back INSIDE the tree on 14 September 2026**, by the owner's decision,
+reversing the rule §4 used to open with. Read §4 before you argue with it; it records the
+reasoning on both sides and what was built to make the new arrangement hold.
 
-**The PHI directory is still waiting to be moved.** See §6; it is the one thing in the
-migration that is not finished.
+Neither is symlinked. A symlink is a tracked file pointing at the real thing, which hands
+the next reader of a public repository a map straight to it. `PSYCH_ASR_DATA` finds the
+first — read by `psych_asr/config.py`, exported by `slurm_jobs/lib/job_env.sh`, and both
+now derive their default from **their own file's location** rather than from `$HOME`, so a
+clone anywhere finds its own data and never another checkout's.
 
 ---
 
@@ -358,13 +403,53 @@ tap and a link cannot drift apart. §2.1.
 
 ---
 
-## 4. What is ignored, and what is moved instead
+## 4. What is ignored, and the rule that was overturned
 
-> **If it cannot go into a public repository, it does not live in the repository.** It lives
-> outside the tree and something inside the tree says where.
+> **THE OLD RULE, 14 September 2026, morning:** if it cannot go into a public repository,
+> it does not live in the repository. It lives outside the tree and something inside the
+> tree says where.
+>
+> **THE RULE NOW, the same afternoon, by the owner's decision:** it lives WITH ITS PROJECT,
+> inside the tree, and three independent guards keep git blind to it.
 
-The root `.gitignore` therefore holds two honest categories: files a command regenerates,
-and other people's papers and books. **Each workspace keeps its own `.gitignore`**, and
+This is written out at length because a reversal recorded as a shrug gets re-reversed by the
+next person who reads the old reasoning and finds it good — and the old reasoning IS good.
+Both halves belong on the page.
+
+**What the old rule was protecting.** A `.gitignore` line is one line, in one file, that
+anybody can delete by accident, and this repository has already been bitten by exactly that
+class of failure twice: an unanchored `artifacts/` silently swallowed the
+`psych_asr/artifacts/` source subpackage, and `.claude/settings.local.json` at the root
+matched one file and missed the nine that existed. A thing that is public for an hour has
+been published, and git remembers. For 308 MB of identifiable therapy audio with
+participant IDs in the filenames, that is not a risk you take for tidiness.
+
+**What the owner wanted instead, and it is not tidiness.** A project's data belongs with the
+project. Data kept somewhere nobody can find is data somebody eventually re-creates in a
+worse place, and a workspace you cannot hand to a colleague whole is one that only works on
+the machine it grew on. The old rule bought safety by making the repository an incomplete
+description of the work.
+
+**So the rule changed and the guards were built.** The arrangement rests on three
+independent things, none of which is trusted alone:
+
+1. **An anchored ignore rule**, first in the workspace's own `.gitignore`. Anchored because
+   of the `artifacts/` lesson above.
+2. **`test/tracked.py` asks GIT ITSELF**, on every run of the suite, whether it can see
+   either directory — `git status --porcelain --untracked-files=all` over each one, which
+   must come back empty. That is the part that makes this safe rather than merely allowed:
+   it fails BEFORE a commit rather than after, and it catches an ignore rule that reads
+   perfectly well and does not work, which is the only failure mode that has ever actually
+   happened here. Break the rule and the whole suite goes red with the words GIT CAN SEE.
+3. **`ai-config/policy/phi.py` fences the directory by NAME**, so an assistant cannot read a
+   syllable of the audio wherever it sits.
+
+**The directory is called `phi` for that third reason**, and the name is now load-bearing in
+a way somebody looking at the tree cannot see. §7 has it as a trap; four files say so where
+a person might be about to rename it.
+
+The root `.gitignore` holds two honest categories: files a command regenerates, and other
+people's papers and books. **Each workspace keeps its own `.gitignore`**, and
 those are the load-bearing ones — in particular the `live/*` allowlist (cards, slate,
 answers, archive, inbox, text, `state.json`, `turns.jsonl` tracked, the rest ignored), which
 is what makes a lecture the same lesson on whichever machine picks it up. Nothing in the
@@ -417,22 +502,27 @@ it no longer clones anything else, because there is nothing else to clone.
 
 ---
 
-## 6. The one thing the migration did not finish
+## 6. The data move — DONE, 14 September 2026
 
-**`~/PSYCH-ASR/data` has not been moved to `~/phi/PSYCH-ASR/`.** Everything else about that
-move is done — the code reads `PSYCH_ASR_DATA`, the READMEs and `AI_INSTRUCTIONS.md` name
-the new path, `~/phi` exists, and the PHI hook fences `phi/` whole and has a test that says
-so. The directory itself is still at the old address, because the tooling declined to move
-308 MB of PHI without a person saying so.
+Both directories are now inside their own workspaces and git is blind to both. Verified,
+not assumed: `git status --porcelain --untracked-files=all` over each comes back empty,
+`git check-ignore -v` names the rule and the file, the whole suite is green, and the
+tracked-file audit was deliberately broken once to watch it go red before being put back.
 
-```
-mv ~/PSYCH-ASR/data ~/phi/PSYCH-ASR
-```
+| | Was | Is |
+|---|---|---|
+| Session audio | `~/phi/PSYCH-ASR/` | `research/PSYCH-ASR/phi/` |
+| Job output | `~/artifacts/TRD-EHR/results/` | `research/TRD-EHR/results/` |
 
-Do it before the old directories are deleted, and check afterwards that
-`~/phi/PSYCH-ASR/inbox` holds the one `.wav` the jobs expect. Until it is done, a pipeline
-run will look in `~/phi/PSYCH-ASR/inbox`, find nothing, and say so in one line — which is
-the guard in `job_env.sh` doing its job, not a break.
+`~/phi` and `~/artifacts` are gone. Both moves were renames on one filesystem, so nothing
+was copied and nothing was re-read.
+
+What moved with it: `job_env.sh` and `psych_asr/config.py` derive the root from their own
+location instead of `$HOME`; twelve job scripts, two READMEs, `AI_INSTRUCTIONS.md` and the
+policy's own comment name the new address. **`ai-config/policy/phi.py` did not change by one
+character**, because it fences the directory by name — which is the argument for that design
+made twice in one day, since the move out of the tree that morning broke every pattern that
+named a location.
 
 **The old working directories are still in `~`.** They are not the repository any more and
 nothing points at them: the board, the tutor, `~/.local/bin/tutor` and `~/.local/bin/board`
@@ -481,6 +571,18 @@ once its remote is deleted.
 - **`#panic` is z-index 62, the map is 96 and the document viewer 95**, so the re-centre
   button is painted over by both. Known, left alone deliberately.
 
+### The one the data move added
+
+- **A DIRECTORY NAME CAN BE LOAD-BEARING WITH NOTHING IN THE TREE SAYING SO.**
+  `research/PSYCH-ASR/phi/` is fenced from the assistant by `ai-config/policy/phi.py`, which
+  matches **the directory's name**, not its path. That is why the data could move twice in
+  one day and cost the fence nothing — and it means renaming that directory silently
+  unfences 308 MB of identifiable PHI while four documents go on promising a guard that has
+  stopped matching. A hook that silently stops matching is worse than no hook; this is that
+  trap again, wearing a name instead of a path. `.gitignore`, the README,
+  `AI_INSTRUCTIONS.md` and `job_env.sh` each say DO NOT RENAME IT where somebody would be
+  about to.
+
 ### The four the migration added
 
 - **A SCRIPT THAT DERIVES ITS REPOSITORY FROM ITS OWN LOCATION IS WRONG NOW.**
@@ -518,12 +620,18 @@ up as a paper or a deck by asking, mark up any of those with a finger and get th
 back, and hand somebody a page of meeting notes whose links land where the notes say they
 do.
 
-The first of those is done. The last three are §2.
+The first of those is done, and so is the grammar everything else hangs off (§2.1). What is
+left is §2.2 through §2.5, in that order.
 
 Then **delete this file** — `git rm board/HANDOFF.md` — and fold what survived into
 `README.md` as sections and into `TEACHING.md` as the rules for keeping a map true. This
 file is scaffolding. A repository that keeps its scaffolding accumulates two descriptions of
 itself that disagree, which is exactly why this one was rewritten rather than appended to.
+
+**Deleting it is the last turn of the loop in §0, not an exception to it**: finish §2.5,
+ship it, fold this file away, ship that. The line that has been starting every session —
+*read `board/HANDOFF.md` and do the next thing in §2* — then has nothing to find, which is
+how the loop is meant to end and the only honest signal that it has.
 
 ---
 

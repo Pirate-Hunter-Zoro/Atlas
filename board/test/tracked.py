@@ -121,20 +121,20 @@ for rel in files:
     if low.endswith(PHI_SUFFIXES):
         fail("%s is audio or a transcript artifact. PSYCH-ASR's session data is "
              "identifiable, its filenames carry participant IDs, and it lives "
-             "at ~/phi/PSYCH-ASR/ -- outside every repository. Nothing of that "
-             "shape may be tracked anywhere in here." % rel)
+             "in `research/PSYCH-ASR/phi/`, which git is blind to. Nothing of "
+             "that shape may be TRACKED anywhere in here." % rel)
 
     # A participant identifier in a tracked filename, which is how the audio
     # was named: a two-or-three letter prefix and a number, then `_session`.
     if "_session" in base and any(c.isdigit() for c in base):
         fail("%s looks like a session file named after a participant. If it is "
-             "not, rename it; if it is, it belongs at ~/phi/." % rel)
+             "not, rename it; if it is, it belongs in `research/PSYCH-ASR/phi/`." % rel)
 
     # ---- no regenerable artifacts ----------------------------------------
     if low.endswith(ARTIFACT_SUFFIXES):
         fail("%s is a model dump or a serialized result. It is output of a job "
-             "that can be run again, so it lives at ~/artifacts/ and the "
-             "workspace README names the path. The figures and tables derived "
+             "that can be run again, so it lives in its workspace's own ignored "
+             "`results/`, which the README explains. The figures and tables derived "
              "from it are small, and THOSE are tracked." % rel)
 
     # ---- no build directories --------------------------------------------
@@ -180,26 +180,56 @@ for rel in files:
              "and no values instead." % rel)
 
 
-# ---- the two directories that must not exist inside the tree at all -------
-# Not "must not be tracked" -- must not BE here. A `.gitignore` entry is a
-# guard somebody can delete by accident, and the failure it guards against is
-# 308 MB of therapy audio inside a repository that is about to be pushed.
-for gone, what, where in (
-        ("research/PSYCH-ASR/data", "308 MB of identifiable therapy session audio",
-         "~/phi/PSYCH-ASR/"),
-        ("research/TRD-EHR/results", "1.5 GB of regenerable job output",
-         "~/artifacts/TRD-EHR/results/")):
+# ---- the two directories that live inside the tree and must stay invisible -
+#
+# THESE USED TO BE FORBIDDEN HERE and they are not any more. Until 14 September
+# 2026 this block failed if either directory existed at all, on the reasoning
+# that an ignore rule is a guard somebody deletes by accident. The owner
+# decided the other way -- a project's data belongs with the project -- so the
+# rule changed shape rather than being dropped: they may be here, and git must
+# not be able to see one byte of either.
+#
+# Which turns a guard that was an assertion about the filesystem into one that
+# asks GIT ITSELF the question. `git status --porcelain --untracked-files=all`
+# over the directory is the whole test: it lists every file git would offer to
+# add, ignored ones excluded, so an empty answer is git saying it is blind to
+# the tree. That is stronger than reading `.gitignore` and believing it -- the
+# pattern that once swallowed `psych_asr/artifacts/` was in the file and read
+# perfectly well, and only asking git would have caught it.
+#
+# It is also the only check in here that fails BEFORE anything is committed
+# rather than after, which for 308 MB of identifiable therapy audio in a public
+# repository is the difference that matters. A thing that is public for an hour
+# has been published.
+for held, what in (
+        ("research/PSYCH-ASR/phi", "308 MB of identifiable therapy session audio"),
+        ("research/TRD-EHR/results", "1.5 GB of regenerable job output")):
     checked += 1
-    path = os.path.join(HERE, gone)
+    path = os.path.join(HERE, held)
     if os.path.islink(path):
-        fail("%s is a SYMLINK. A symlink is a tracked file pointing at the "
-             "thing it is standing in for, which hands the next reader of this "
-             "repository a map straight to it. The pipeline takes a path; give "
-             "it the real one, and name it in the workspace README." % gone)
-    elif os.path.isdir(path):
-        fail("%s exists inside the repository. It is %s and it belongs at %s. "
-             "An ignore rule is not a good enough guard for this one."
-             % (gone, what, where))
+        fail("%s is a SYMLINK. Whatever it points at, a symlink is a tracked "
+             "file standing in for it, and it hands the next reader of this "
+             "public repository a map straight to the real thing. It was a "
+             "real directory; put it back." % held)
+        continue
+    if not os.path.isdir(path):
+        # Not an error. A fresh clone has neither -- one is PHI that never
+        # leaves this machine and the other regenerates from a job -- and the
+        # workspace README of each says where it comes from.
+        continue
+    seen = subprocess.run(
+        ["git", "status", "--porcelain", "--untracked-files=all", "--", held],
+        cwd=HERE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+    listed = [l for l in seen.stdout.decode("utf-8", "replace").split("\n") if l.strip()]
+    if seen.returncode != 0:
+        fail("could not ask git whether it can see %s." % held)
+    elif listed:
+        fail("GIT CAN SEE %s -- %d path(s), starting %s. It is %s and it sits "
+             "inside a public repository, so the ignore rule is the only thing "
+             "between it and a push. Something has broken that rule. Do not "
+             "commit anything until `git status --porcelain "
+             "--untracked-files=all -- %s` is empty."
+             % (held, len(listed), listed[0].strip()[:80], what, held))
 
 
 print()
