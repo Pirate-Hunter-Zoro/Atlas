@@ -35,7 +35,7 @@ if ! node -e "require('jsdom')" >/dev/null 2>&1; then
   echo
 fi
 
-SUITES="markdown macros hidden chrome theme pages modes typeface export shot interactive plane adopt chain sheets answer feedback hanging panic sizing staying link hub review walk clip map"
+SUITES="markdown macros hidden chrome theme pages modes typeface export shot interactive plane adopt chain sheets answer feedback hanging panic sizing staying link hub review walk clip map address"
 fails=0
 skipped=0
 
@@ -113,7 +113,7 @@ else
   printf '%s\n' "$out" | grep '^FAIL' | sed 's/^/             /'
 fi
 
-printf '%-12s ' "address"
+printf '%-12s ' "tailnet"
 if out="$(python3 test/address.py 2>&1)"; then
   printf '%s\n' "$out" | tail -1
 else

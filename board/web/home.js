@@ -514,16 +514,86 @@ els.sheetOpen.onclick = function () {
   var c = sheetFor;
   closeSheet();
   if (!c) return;
+  /* THROUGH THE ADDRESS, not around it. A tap and a link have to do the same
+     thing or there are two ways into a workspace and one of them will rot;
+     `addrRoute` is the single one, and it reproduces exactly what this button
+     did before. A shell with no grammar -- an older cached one -- falls back to
+     the switch, which is the half that matters. */
+  var at = addrOf(c);
+  if (at) {
+    addrDone = "";
+    if (window.location.hash === at) addrRoute();
+    else window.location.hash = at;
+    return;
+  }
   /* Already here: this is the door, not a switch. Going through /switch for a
      board that is already serving is a restart somebody did not ask for. */
   if (c.current) { location.href = "/board"; return; }
   switchTo(c.repo);
 };
+
+/* ------------------------------------------------------------ the address */
+/* THE FRONT DOOR IS THE ONLY THING THAT CAN MOVE THE ONE ADDRESS between two
+   workspaces, so it is where every cross-workspace link lands. A board handed
+   an address for somewhere else sends it here; this switches, and then goes on
+   to the surface the address named.
+
+   `address.js` is the grammar and `board.js` the resolver for surfaces inside a
+   workspace. All this page decides is WHICH workspace, which is the one
+   question it is the only page able to answer. */
+var addrDone = "";          /* the address this page has already acted on */
+
+function addrOf(c) {
+  if (!window.Address || !c || !c.id) return "";
+  return window.Address.format({ ws: c.id, surface: "workspace" });
+}
+
+function addrNow() {
+  if (!window.Address) return null;
+  try { return window.Address.parse(window.location.hash || ""); }
+  catch (e) { return null; }
+}
+
+function addrRoute() {
+  var a = addrNow();
+  /* Not until the atlas has arrived: which workspaces exist is the whole of
+     what this has to decide, and guessing is how a link opens the wrong one. */
+  if (!a || !atlas) return;
+  if (a.text === addrDone) return;
+  addrDone = a.text;
+
+  var mine = null;
+  (atlas.workspaces || []).forEach(function (c) { if (c.id === a.ws) mine = c; });
+  if (!mine) {
+    /* A MISS IS A MISS. Said on the atlas, where the person is looking, and the
+       door above it still works. */
+    els.atlasEmpty.hidden = false;
+    els.atlasEmpty.textContent = "there is no " + a.ws + " in this repository "
+                               + "any more — everything that is here is below";
+    return;
+  }
+
+  /* A bare workspace address is the sheet's own "open", and lands exactly
+     where that landed: the lesson if the board is already serving it, the
+     front door of the workspace that was just opened otherwise. An address
+     naming a SURFACE goes to the board, because that is where surfaces are. */
+  var deep = a.surface !== "workspace";
+  if (mine.current) {
+    location.href = "/board" + (deep ? a.text : "");
+    return;
+  }
+  switchTo(mine.repo, deep ? a.text : "");
+}
+
+window.addEventListener("hashchange", addrRoute);
 document.addEventListener("keydown", function (ev) {
   if (ev.key === "Escape" && !els.sheet.hidden) closeSheet();
 });
 
-function switchTo(repo) {
+/* `addr`, when there is one, is where to go once the board has moved: the
+   surface the link named, on the board itself. Without one this lands exactly
+   where it always did. */
+function switchTo(repo, addr) {
   if (moving) return;                 /* one at a time; a second tap is a queue */
   moving = { repo: repo };
   showBusy("opening " + repo + "…", "asking");
@@ -540,7 +610,7 @@ function switchTo(repo) {
        poll is only how we know not to reload too early. There is nothing to ask
        a person about, and asking was worse than useless -- from the iPad it read
        as a switch that could not be made. */
-    location.href = "/";
+    location.href = addr ? "/board" + addr : "/";
   }).catch(function (e) {
     showBusy("could not open " + repo, e.message || String(e));
     moving = null;
@@ -617,6 +687,9 @@ function refresh() {
     }
     var w = (all[2] || {}).where;
     els.where.textContent = w || "";
+    /* Only now: the atlas is what says which workspaces exist, and an address
+       cannot be routed before that is known. */
+    addrRoute();
   }).catch(function () {
     els.dot.className = "dot dead";
   });

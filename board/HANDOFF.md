@@ -3,9 +3,10 @@
 > **You are in Atlas, in `board/`, in a fresh session, and you have been pointed at this file.**
 >
 > The migration is **done**. Eleven repositories are one, the board runs out of it, the front
-> door is a drawn map of everything, and 31 test suites are green. What is left is the old
-> brief's stage 2 onwards: the address grammar, the written map, meeting notes, documents,
-> and the briefing seeing what was done on a laptop.
+> door is a drawn map of everything, and 32 test suites are green. What is left is the old
+> brief's stage 2 onwards. The address grammar is now done as well (§2.1) and everything
+> below it is written against it: the written map, meeting notes, documents, and the briefing
+> seeing what was done on a laptop.
 >
 > This file was rewritten on 14 September 2026 and it replaces a brief for work that is
 > finished. Read §0 and §1 before you touch anything. §2 is what is actually left, in the
@@ -32,8 +33,8 @@ keep that true, stop and say so rather than press on.
 - **Bump `VERSION` in `board/web/sw.js`** when any shell file changed (`board.html`,
   `board.js`, `board.css`, `plane-core.js`, `gauge.js`, `home.html`, `home.js`, anything new
   you add to the cache list), or the installed app serves its cached copy and your work is
-  invisible. It is at `board-shell-v101`.
-- **Run `bash board/test/all.sh` before every ship.** 31 suites, all green. Keep them green.
+  invisible. It is at `board-shell-v102`.
+- **Run `bash board/test/all.sh` before every ship.** 32 suites, all green. Keep them green.
 - **`test/tracked.py` is the one that cannot be fixed afterwards.** It runs first in
   `all.sh` and it refuses PHI, 25-megabyte files, model dumps, other authors' papers and
   books, and machine-local config — anywhere in the repository. This is public. A thing that
@@ -95,40 +96,76 @@ migration that is not finished.
 
 The old brief's stages 2 and 4 through 7. Stage 3 — the atlas — was done first because it is
 what the person asked for first and sees first, and because it needed no grammar to exist.
+**2.1 is now done too**; it is kept below because 2.2 through 2.5 are all written against it
+and because what was deliberately deferred inside it has to be findable.  The next thing is
+2.2.
 
-### 2.1 The address grammar, and three features are waiting on it
+### 2.1 The address grammar — DONE, and three features are no longer waiting on it
 
-Nothing in this system has an address. Before meeting notes, before a paper that cites its
-own figures, and before an annotation can point at a line of code, there has to be one
-grammar for naming a place and one resolver that opens it.
+`web/address.js` is the grammar and nothing else: it parses, it spells, it
+touches no DOM and makes no request, so both pages load it and a test drives it
+with no browser at all. `addrGo` in `web/board.js` is the one resolver.
+`test/address.js` is the suite, in `all.sh` — and the Python `test/address.py`,
+which is about the *tailnet* address and a different thing entirely, is now
+labelled `tailnet` in the runner so two rows are not called the same name.
 
 ```
 #/w/<family>/<workspace>                   the workspace, on its map
-#/w/…/node/<id>                            one box on the map, selected, sheet open
+#/w/…/node/<id>                            one box, selected, sheet open
 #/w/…/card/<nnnn>                          one card in the current lesson
 #/w/…/archive/<sitting>/<nnnn>             one card in a finished sitting
-#/w/…/doc/<ident>[/p<n>]                   a document, in the viewer, optionally one page
-#/w/…/code/<path>[::<symbol>]              a walk unit, in the code viewer
+#/w/…/doc/<ident>[/p<n>]                   a document, optionally one page
+#/w/…/code/<path>[::<symbol>]              a walk unit
 #/w/…/hw/<set>/<problem>                   one problem of a problem set
 #/w/…/slate/<nnnn>                         one page of handwriting
 ```
 
-Three rules, each of which already exists somewhere in here:
+The three rules, and where each one lives:
 
-1. **A name from a browser never reaches a filesystem.** Every component is looked up in
-   what discovery found — `walk.resolve`, `reading.find`, `map.find`, `homework.find` — and
-   a miss is a miss, rendered as "that is not here any more" rather than as an error.
-2. **A link that no longer resolves says so where it is written.** Meeting notes from March
-   must still open in September and half of them will point at things that moved. A dead
-   link reads as dead; it never silently lands somewhere else.
-3. **One resolver.** `web/board.js` gets a single function that takes a fragment and puts
-   the board on that surface. Everything that makes links spells them with one helper. Two
-   spellings of an address is two bugs.
+1. **A name from a browser never reaches a filesystem.** Nothing in
+   `address.js` builds a path; every component is looked up by the resolver in
+   the payload the board already holds — `mapInfo.nodes`, `lastLive.cards`,
+   `readingInfo.documents`, `walkInfo.units`, `knownSets`, `lastLive.slate`,
+   and for a past sitting the archive's own list. A miss is said as "that is
+   not here any more", never as an error and never as something near it.
+2. **A link that no longer resolves says so where it is written.**
+   `markAddresses` runs at the end of every render and marks every `#/w/…`
+   anchor in the lesson against that same payload: struck through and grey for
+   an address whose target has gone, red and wavy for text that is not an
+   address at all, ordinary for one that still resolves. Rendered links to an
+   address also lost their `target="_blank"` — a second tab is a second board.
+3. **One resolver, one speller.** `Address.format` is the only thing anywhere
+   that builds an address and it refuses to spell anything its own parser would
+   reject. `spell()` on the board fills in this workspace. The grammar is
+   strict for the same reason: a card is four digits, never one and never
+   seven.
 
-`test/address.py` already guards the *choice* record; add `test/address.js` for the grammar:
-every form resolves, every malformed form fails safely, every surface the grammar names can
-be reached and left. The front door's `id` field (`courses/Probability`) is already the
-qualified spelling and `/health` publishes it.
+**How the board knows which workspace it is**: `/health`'s `id`, fetched once at
+load. Until that answers, `mapLand` does not land — an address naming another
+workspace cannot be told from one naming this one, and landing on the wrong
+guess is worse than landing a moment later.
+
+**Another workspace is another board on another port**, and the only thing that
+can move the one address between them is the front door. The board hands the
+whole address to `/` ; `home.js` routes it — switch, then on to `/board` plus
+the address. Recorded in `sessionStorage`, so a switch that does not land is
+reported rather than bounced between two pages for as long as anybody watches.
+The atlas's sheet now opens a workspace *through* the address as well, so a tap
+and a link do the same thing by the same code.
+
+**The bar carries where the board is**, by `replaceState`, riding on
+`mapRemember` — which already decides what "here" means and is called from
+everywhere that changes it. Never `pushState`: a pan is not a page. It never
+downgrades, either: landing on a card and then having the bar revert to the
+bare workspace is a link nobody can copy off the glass.
+
+**Two forms name something finer than the board can paint today**, and neither
+is dropped or faked. `code/<path>::<symbol>` opens the walkthrough picker with
+that file chosen and says which function it was pointing at; `hw/<set>/<problem>`
+opens the set in the contents drawer and names the problem. Both are one line of
+honest text over the containing surface. A code viewer and a per-problem surface
+are §2.4's business; when they exist, two branches of `addrGo` change and no
+address written before then breaks.
 
 ### 2.2 The written map, per workspace
 
@@ -313,9 +350,11 @@ Things worth knowing before you change it:
 - A board on an older tool serves no `/atlas.json`; the page says so and the door above it
   still works.
 
-**It is not yet addressable.** The atlas has no `#/w/…` route (§2.1), and a link to a
-workspace is still a `/switch` POST rather than an address. That is the first thing §2.1
-should fix.
+**It is addressable now.** `#/w/<family>/<workspace>[/…]` on the front door is routed by
+`addrRoute` in `home.js`: a workspace that is already serving goes straight to the board, one
+that is not is switched to first, and a workspace that is not in the repository any more says
+so on the atlas rather than throwing. The sheet's own "open" goes through the same route, so a
+tap and a link cannot drift apart. §2.1.
 
 ---
 
