@@ -269,6 +269,25 @@ def load_config():
             with open(CONFIG, "w", encoding="utf-8") as fh:
                 json.dump(DEFAULT_CONFIG, fh, indent=2)
                 fh.write("\n")
+
+    # A `courses_dir` LEFT OVER FROM THE FLAT LAYOUT is dropped here.
+    #
+    # The key used to mean "the directory the courses are siblings in", and
+    # every machine has one saved from before the move naming the home
+    # directory. Read literally after the move, `tutor where` walked `~` flat,
+    # found the old working directories still sitting there, and listed
+    # Tutor-Board itself as a course.
+    #
+    # The test is whether it holds an `atlas.json`, which is what a repository
+    # root is. So a person who deliberately points this at ANOTHER checkout
+    # still gets what they asked for, and a value that can only be wrong is
+    # wrong once, here, instead of at every use. `atlas.root()` needs no
+    # configuring at all: it derives from where this package actually is.
+    said = cfg.get("courses_dir")
+    if said:
+        said = os.path.expanduser(said)
+        if not os.path.isfile(os.path.join(said, "atlas.json")):
+            cfg["courses_dir"] = atlas.root()
     return cfg
 
 
@@ -558,11 +577,13 @@ def courses(cfg):
     root" rather than "the directory the courses are siblings in", which is the
     same sentence about the new shape; `atlas.root()` reads it.
     """
-    # `TUTORBOARD_COURSES` beats the configuration, which is what `atlas.root()`
-    # already decides; `courses_dir` is what a person set, and it is honoured
-    # when they did. One variable, one meaning, and a config key that still
-    # means something.
-    base = os.environ.get("TUTORBOARD_COURSES") or cfg.get("courses_dir")
+    # `TUTORBOARD_COURSES` beats the configuration; `courses_dir` is what a
+    # person set, and it is honoured when they set something real. A value left
+    # over from the flat layout is dropped by `load_config` before it gets here
+    # -- see the note there, which is where that belongs, because a stale value
+    # should be wrong ONCE at load rather than at every use.
+    base = os.environ.get("TUTORBOARD_COURSES") or cfg.get("courses_dir") \
+        or atlas.root()
     out = []
     for w in atlas.workspaces(base):
         info = read_course(w["root"])
