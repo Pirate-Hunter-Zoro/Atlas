@@ -256,6 +256,7 @@ def atlas_payload(repo):
 
     from .course import plan as course_plan          # circular at module scope
     from .course import syllabus
+    from .course import map as course_map
 
     def clipped(said):
         said = (said or "").strip()
@@ -317,6 +318,20 @@ def atlas_payload(repo):
             c["aim"] = ""
             c["session"] = ""
         c["stance"] = (config.read_config(root) or {}).get("stance") or "teach"
+        # THE ONE FIELD THE WRITTEN MAP LENDS THE FRONT DOOR, and it is one on
+        # purpose. A workspace somebody has drawn has a sentence for the whole
+        # of itself -- "Stage 1 -- audio to a graded transcript" -- which is a
+        # better label for a card than a directory name, and is the only thing
+        # on this page that could not have been derived. Everything else about
+        # the map stays behind the card: the atlas is a picture of the
+        # repository, not a picture of every picture in it.
+        c["drawn"] = ""
+        try:
+            drawn = course_map.written_status(root)
+            if drawn["has"] and not drawn["problems"]:
+                c["drawn"] = clipped(drawn["title"])
+        except Exception:                            # noqa: BLE001
+            c["drawn"] = ""
 
     out = {"families": [dict(f) for f in atlas.families()], "workspaces": cards}
     for f in out["families"]:

@@ -30,6 +30,10 @@ The assistant runs these. The student never does.
     board handoff < handoff.md         write HANDOFF.md at session end, <=350 words,
                                        stamped with its chapter. The only writer.
     board handoff --show|--check       read it, or say how long it is
+    board map < map.json               draw this project: the boxes YOU would name
+                                       for it, one sentence each. Replaces the
+                                       derived picture; re-checked on every read
+    board map --show|--check           read it, or say what has gone stale in it
     board inbox [--all]                what the student sent; marks it read
     board slate [--all]                paths of the pages written on the iPad
     board wait [--timeout N]           block until the student sends something
@@ -1655,6 +1659,142 @@ def cmd_handoff(live, args):
     return 0
 
 
+
+def cmd_map(live, args):
+    """The written map: the tutor's own words for what this project IS.
+
+        board map < map.json       write it (validated; refused whole if not valid)
+        board map --show           print what is there
+        board map --check          say what has gone stale
+
+    **Structure is derived from disk; meaning is written here.** The derived map
+    is honest and it is not enough: nothing on disk knows that a box is called
+    *the typist*, that it runs one candidate and never compares them, or that
+    the scorer is blocked on a seam that does not exist yet. Those are the
+    sentences the owner of the project uses about it, and no amount of reading
+    the directory listing produces them.
+
+    THE TUTOR WRITES THIS, ON REQUEST, IN A SITTING -- "draw the map". It is not
+    generated. `TEACHING.md` says how: read the README and the plan, name the
+    boxes the way the project's own documents name them, one sentence each, and
+    stop.
+
+    Where it exists it REPLACES the derived picture rather than joining it, and
+    it is merged against discovery on every read -- a node naming a file that has
+    gone loses the file, a node whose files have all gone drops out, an edge
+    naming a box that is not there is not an edge. A fact cannot go stale; a
+    declaration can; so the declaration is checked against the facts every time
+    it is read. `--check` is that same pass, said out loud instead of silently.
+
+    It is tracked in git, which makes it the one exception to "nothing is
+    registered" alongside `atlas.json`'s family names. It earns that by carrying
+    judgement no file in the repository contains.
+    """
+    if "--show" in args:
+        clean, problems = course_map.read_written(live.root)
+        if problems:
+            for line in problems:
+                print("  " + line, file=sys.stderr)
+            return 1
+        if not clean:
+            print("no written map. `board map < map.json` draws one; until then "
+                  "the board derives a picture from the tree.")
+            return 0
+        json.dump(clean, sys.stdout, indent=2)
+        sys.stdout.write("\n")
+        return 0
+
+    if "--check" in args:
+        stale = course_map.check(live.root)
+        if not course_map.written_status(live.root)["has"]:
+            print("no written map, so there is nothing to have gone stale.")
+            return 0
+        if not stale:
+            print("the written map is true: every file, document and arrow on "
+                  "it is still there.")
+            return 0
+        print("%d thing(s) the map claims that the tree does not:" % len(stale))
+        for line in stale:
+            print("  " + line)
+        # Not a failure. Staleness is news, and the person decides what to do
+        # about it; a non-zero exit would make `board map --check` unusable in
+        # anything that chains commands with `&&`.
+        return 0
+
+    body = sys.stdin.read()
+    if not body.strip():
+        print("board map: nothing on stdin; the map was left alone",
+              file=sys.stderr)
+        return 1
+    try:
+        raw = json.loads(body)
+    except ValueError as exc:
+        print("board map: that is not valid JSON -- %s\nNothing was written."
+              % exc, file=sys.stderr)
+        return 1
+
+    problems, path = course_map.write_written(live.root, raw)
+    if problems:
+        # ALL OF THEM, AT ONCE. Fixing a map one refusal per round trip is how a
+        # five-minute job becomes an evening, and the tutor writing it is paying
+        # for a whole turn each time.
+        print("board map: %d problem(s), and nothing was written."
+              % len(problems), file=sys.stderr)
+        for line in problems:
+            print("  " + line, file=sys.stderr)
+        return 1
+
+    clean, _ = course_map.read_written(live.root)
+    stale = course_map.check(live.root)
+    boxes, arrows = len(clean["nodes"]), len(clean["edges"])
+    print("%s (%d box%s, %d arrow%s)"
+          % (path, boxes, "" if boxes == 1 else "es",
+             arrows, "" if arrows == 1 else "s"))
+    if stale:
+        print("%d of them do not match the tree; `board map --check` says which."
+              % len(stale))
+
+    # IS IT ACTUALLY TRACKABLE? Every workspace ignores `live/`, because `live/`
+    # is runtime state -- and this one file in it is not. A map that is written,
+    # looks written, and is invisible to git is lost the next time the workspace
+    # is cloned, and nothing would have said so at the time.
+    #
+    # Asked of git rather than read out of `.gitignore`, because the SHAPE of
+    # the rule decides the answer and reading it would not show that: `live/`
+    # excludes the directory, and git never descends into an excluded directory,
+    # so no `!live/map.json` under it can work. `live/*` excludes the same files
+    # and leaves that door open. One character, and the difference between a
+    # tracked map and a lost one.
+    if _is_ignored(live.root, os.path.join("live", "map.json")):
+        sys.stdout.flush()       # or the warning lands above what it is about
+        print("\nBUT GIT CANNOT SEE IT. `live/` is ignored in this workspace, "
+              "so this map is\nlocal to this machine and the next clone will "
+              "not have it.\n\n"
+              "  In %s, change\n"
+              "      live/\n"
+              "  to\n"
+              "      live/*\n"
+              "      !live/map.json\n\n"
+              "  The shape matters: git will not descend into a directory it "
+              "has excluded, so a\n  negation under `live/` can never fire. "
+              "`live/*` excludes the same files and\n  leaves the door open "
+              "for this one." % os.path.join(live.root, ".gitignore"),
+              file=sys.stderr)
+        return 1
+    return 0
+
+
+def _is_ignored(root, rel):
+    """Would git ignore this path? Asked of git, never inferred from the file."""
+    try:
+        p = subprocess.run(["git", "check-ignore", "-q", rel],
+                           cwd=root, stdout=subprocess.DEVNULL,
+                           stderr=subprocess.DEVNULL)
+    except OSError:
+        return False
+    return p.returncode == 0
+
+
 def inside_a_daemon_turn(live):
     """Is a headless turn in flight on this machine right now?
 
@@ -2512,6 +2652,7 @@ COMMANDS = {
     "walk": cmd_walk,
     "egress": cmd_egress, "limit": cmd_limit,
     "brief": cmd_brief, "note": cmd_note, "handoff": cmd_handoff,
+    "map": cmd_map,
 }
 
 

@@ -1581,6 +1581,18 @@ body.tools-out .annbar { bottom: calc(5.6rem + env(safe-area-inset-bottom)); }
 .map-sheet .edge.strong { stroke: var(--ink-3); stroke-width: 2.2; }
 .map-sheet .edge-head { fill: var(--ink-3); }
 
+/* WHAT FLOWS ALONG AN ARROW, where a written map says so — `words`, `turns`,
+   `a graded transcript`. On a plate the colour of the plane, because a word
+   laid straight over a curve is unreadable, and the plate sits in the gutter
+   between two ranks, which is empty by construction. A derived map carries
+   none of these: an import is not a thing that flows, and the arrow's
+   thickness already says how much of one it is. */
+.map-sheet .edge-plate { fill: var(--paper); stroke: none; }
+.map-sheet .edge-label {
+  fill: var(--ink-3); font-size: 10.5px; font-weight: 500;
+  text-anchor: middle; pointer-events: none;
+}
+
 /* The steps nothing could place, in a tray under the bar. */
 .map-loose {
   flex: none; display: flex; align-items: center; gap: .4rem;
@@ -1635,6 +1647,16 @@ body.tools-out .annbar { bottom: calc(5.6rem + env(safe-area-inset-bottom)); }
             overflow: hidden; }
 #work-close { border: 0; background: none; font: inherit; cursor: pointer;
               color: var(--ink-2); flex: none; align-self: flex-start; }
+
+/* WHAT THIS BOX IS WAITING ON. Only a written map can say it — nothing on disk
+   knows that a stage is stuck behind a seam that does not exist yet — and it
+   belongs on the sheet rather than on the box, because the sheet is what opens
+   when somebody taps a box intending to work on it. That is the moment "you
+   cannot, yet, and here is why" is worth a line. */
+.work-blocked {
+  margin: .35rem 0 0; font-size: .74rem; font-weight: 600;
+  color: var(--bad); grid-column: 1 / -1;
+}
 /* The list between the head and the foot is the part that scrolls. Being inside
    a fixed panel does not make an element a scroller: it needs the room that is
    left AND permission to scroll inside it, and the entries that fall off the

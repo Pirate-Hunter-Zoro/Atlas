@@ -3399,19 +3399,28 @@ function mapEdgePath(a, b) {
     var d = Math.max(34, (bx - ax) / 2);
     return { d: "M" + ax + "," + ay + " C" + (ax + d) + "," + ay
                 + " " + (bx - d) + "," + by + " " + bx + "," + by,
-             hx: bx, hy: by, dir: "right" };
+             hx: bx, hy: by, dir: "right",
+             /* IN THE GUTTER, which is empty by construction -- a rank boundary
+                is exactly where there are no boxes. That is the only place on
+                this picture a word can go without covering something. */
+             mx: (ax + bx) / 2, my: (ay + by) / 2 };
   }
   if (Math.abs(b.x - a.x) < 1 && b.y > a.y) {
     var cx = a.x + a.w / 2;
     return { d: "M" + cx + "," + (a.y + a.h) + " L" + cx + "," + (b.y - gap),
-             hx: cx, hy: b.y - gap, dir: "down" };
+             hx: cx, hy: b.y - gap, dir: "down",
+             mx: cx, my: (a.y + a.h + b.y - gap) / 2 };
   }
   var sx = a.x + a.w / 2, sy = a.y + a.h;
   var tx = b.x + b.w / 2, ty = b.y + b.h + gap;
   var dip = Math.max(36, Math.abs(tx - sx) / 4);
   return { d: "M" + sx + "," + sy + " C" + sx + "," + (sy + dip)
               + " " + tx + "," + (ty + dip) + " " + tx + "," + ty,
-           hx: tx, hy: ty, dir: "up" };
+           hx: tx, hy: ty, dir: "up",
+           /* A back edge dips below both ends, so the bottom of the dip is
+              below every box it passes. `0.75` rather than half because a cubic
+              does not reach its control points. */
+           mx: (sx + tx) / 2, my: Math.max(sy, ty) + dip * 0.75 };
 }
 
 function mapArrow(head) {
@@ -3464,6 +3473,25 @@ function mapDraw(info) {
     svg.appendChild(line);
     svg.appendChild(mapEl("polygon", { "class": "edge-head",
                                        points: mapArrow(path).join(" ") }));
+    /* WHAT FLOWS ALONG IT, where a written map says. `words`, `turns`, `a
+       graded transcript` -- the noun, not a sentence: an arrow that has to be
+       read as prose is a arrow nobody reads. A derived map has no labels and
+       never will, because an import is not a thing that flows; it is a
+       dependency, and the thickness already says how much of one.
+
+       Painted on a plate the colour of the plane, because a word laid straight
+       over a curve is unreadable and this picture is looked at while somebody
+       is thinking about something else. */
+    if (e.label && path.mx !== undefined) {
+      var w = mapWidth(e.label, 10.5, 500) + 10;
+      svg.appendChild(mapEl("rect", { "class": "edge-plate",
+                                      x: path.mx - w / 2, y: path.my - 8,
+                                      width: w, height: 16, rx: 5 }));
+      var t = mapEl("text", { "class": "edge-label",
+                              x: path.mx, y: path.my + 3.5 });
+      t.textContent = e.label;
+      svg.appendChild(t);
+    }
   });
 
   out.placed.forEach(function (p) {
@@ -3884,6 +3912,11 @@ function workOn(id) {
 }
 
 function openWork(id, step) {
+  /* Last time's "waiting on" line goes before this time's is worked out. The
+     sheet's list is rebuilt from scratch every open; this line is not in the
+     list, so it would otherwise stack. */
+  var stale = els.work.querySelector(".work-blocked");
+  if (stale && stale.parentNode) stale.parentNode.removeChild(stale);
   var node = workOn(id);
   workNode = node ? node.id : "";
   workStep = step || "";
@@ -3906,6 +3939,30 @@ function openWork(id, step) {
   if (node && node.does && !chip) sub.push(node.does);
   if (chip && chip.summary) sub.push(chip.summary);
   els.workSub.textContent = sub.join(" — ");
+
+  /* WHAT THIS ONE IS WAITING ON, and it is the field nothing could set until a
+     map could be written by hand. Discovery can see that a directory exists and
+     what it imports; it cannot see that the scorer is stuck behind a seam that
+     has not been built yet, because there is nothing on disk that says so.
+
+     It goes HERE rather than on the box. A box is eleven characters wide at the
+     zoom somebody actually reads the map at, and "a list is not a diagram" was
+     paid for once already -- but this is the sheet that opens when a person taps
+     a box intending to work on it, which is the exact moment "you cannot, yet,
+     and here is why" is worth saying. Named by the plain names of the boxes it
+     names, never their ids, because the ids are not what anybody calls them. */
+  var why = (node && node.blockedBy) || [];
+  if (why.length) {
+    var names = why.map(function (id) {
+      var on = workOn(id);
+      return on ? on.name : id;
+    });
+    var line = document.createElement("p");
+    line.className = "work-blocked";
+    line.textContent = "waiting on " + names.join(" and ")
+                     + (names.length === 1 ? "" : "");
+    els.workSub.insertAdjacentElement("afterend", line);
+  }
 
   var host = els.workList;
   host.innerHTML = "";
