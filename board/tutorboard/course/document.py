@@ -287,10 +287,35 @@ def inline_tex(s):
         part = re.sub(r"\*\*\*(.+?)\*\*\*", r"\\textbf{\\emph{\1}}", part)
         part = re.sub(r"\*\*(.+?)\*\*", r"\\textbf{\1}", part)
         part = re.sub(r"(?<![\w*])\*([^*\n]+)\*(?![\w*])", r"\\emph{\1}", part)
-        part = re.sub(r"\[([^\]]+)\]\(([^)\s]+)\)", r"\\href{\2}{\1}", part)
+
+        # A URL IS NOT PROSE, so it is lifted out before anything escapes
+        # anything and put back afterwards. `#`, `%`, `&` and `_` are all legal
+        # in a URL and all four are rewritten by the passes below, so a link
+        # left in place came out of them as `\href{\#/w/...}` -- which is not a
+        # mangled link, it is a FATAL LaTeX error, `You can't use macro
+        # parameter character # in horizontal mode`, and no PDF at all.
+        #
+        # Every §2.1 address is a fragment, so every one of them hit this the
+        # first time a meeting note was typeset.
+        links = []
+
+        def _lift(m):
+            links.append(m.group(2))
+            return "\0LINK%d\0{%s}" % (len(links) - 1, m.group(1))
+
+        part = re.sub(r"\[([^\]]+)\]\(([^)\s]+)\)", _lift, part)
+
         for a, b in (("&", "\\&"), ("%", "\\%"), ("#", "\\#")):
             part = part.replace(a, b)
         part = re.sub(r"(?<![\\{])_", r"\\_", part)
+
+        # hyperref reads \href's first argument almost verbatim -- `_`, `~` and
+        # `&` go through untouched -- but `#` and `%` still have to be escaped,
+        # and it strips the backslash again on the way out. So the URL is put
+        # back RAW apart from those two.
+        for k, url in enumerate(links):
+            safe = url.replace("#", "\\#").replace("%", "\\%")
+            part = part.replace("\0LINK%d\0" % k, "\\href{%s}" % safe)
         parts[n] = part
     return "".join(parts)
 

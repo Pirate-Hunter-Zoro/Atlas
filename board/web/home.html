@@ -67,6 +67,12 @@
     <div class="atlas-head">
       <h2>Everything</h2>
       <div class="atlas-tools">
+        <!-- NOTES FOR A MEETING, from the front door, because the front door is
+             what is open when somebody remembers they have one in ten minutes.
+             A glyph is not a label -- that was paid for once already with the
+             map's bare diamond -- so this says what it makes. -->
+        <button id="atlas-notes" type="button"
+                title="meeting notes across everything">notes</button>
         <button id="atlas-fit" type="button" title="see all of it">fit</button>
       </div>
     </div>
@@ -83,6 +89,28 @@
      decision to open something deserves the whole of what is known. It is also
      the answer to reading a card on a phone: the picture can be small as long
      as a tap makes it large. -->
+<!-- HOW FAR BACK, and nothing else. The period is the only thing a person
+     genuinely has to say; which workspaces is answered by "the ones that
+     moved", which is what the note does anyway. Four buttons rather than a date
+     field: a date picker on a tablet, ten minutes before a meeting, is the
+     wrong shape of question. -->
+<div id="notes" class="sheet" hidden>
+  <div class="sheet-box" role="dialog" aria-modal="true" aria-labelledby="notes-title">
+    <p class="eyebrow">notes for a meeting</p>
+    <h3 id="notes-title">How far back?</h3>
+    <p class="sheet-line" id="notes-line">What landed, what it meant, what is
+      blocked — with a link on every claim.</p>
+    <div id="notes-since" class="notes-since">
+      <button type="button" data-since="last">since the last notes</button>
+      <button type="button" data-since="monday">since Monday</button>
+      <button type="button" data-since="7d">the last week</button>
+      <button type="button" data-since="30d">the last month</button>
+    </div>
+    <p class="sheet-line" id="notes-said" hidden></p>
+    <button class="sheet-open" id="notes-close" type="button">close</button>
+  </div>
+</div>
+
 <div id="sheet" class="sheet" hidden>
   <div class="sheet-box" role="dialog" aria-modal="true" aria-labelledby="sheet-name">
     <p class="eyebrow" id="sheet-family"></p>

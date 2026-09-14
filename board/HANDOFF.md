@@ -3,10 +3,11 @@
 > **You are in Atlas, in `board/`, in a fresh session, and you have been pointed at this file.**
 >
 > The migration is **done**. Eleven repositories are one, the board runs out of it, the front
-> door is a drawn map of everything, and 32 test suites are green. What is left is the old
+> door is a drawn map of everything, and 33 test suites are green. What is left is the old
 > brief's stage 2 onwards. The address grammar is now done as well (§2.1) and everything
-> below it is written against it. The written map is done as well (§2.2). What is left is
-> meeting notes, documents, and the briefing seeing what was done on a laptop.
+> below it is written against it. The written map (§2.2) and meeting notes (§2.3) are done
+> as well. What is left is documents (§2.4) and the briefing seeing what was done on a
+> laptop (§2.5).
 >
 > **Read §0 first: it is the working loop, and it tells you how a session in here runs
 > from beginning to end.** Then §1. §2 is what is actually left, in the order it should be
@@ -74,7 +75,7 @@ keep that true, stop and say so rather than press on.
   `board.js`, `board.css`, `plane-core.js`, `gauge.js`, `home.html`, `home.js`, anything new
   you add to the cache list), or the installed app serves its cached copy and your work is
   invisible. It is at `board-shell-v102`.
-- **Run `bash board/test/all.sh` before every ship.** 32 suites, all green. Keep them green.
+- **Run `bash board/test/all.sh` before every ship.** 33 suites, all green. Keep them green.
 - **`test/tracked.py` is the one that cannot be fixed afterwards.** It runs first in
   `all.sh` and it refuses PHI, 25-megabyte files, model dumps, other authors' papers and
   books, and machine-local config — anywhere in the repository. This is public. A thing that
@@ -141,10 +142,9 @@ clone anywhere finds its own data and never another checkout's.
 
 The old brief's stages 2 and 4 through 7. Stage 3 — the atlas — was done first because it is
 what the person asked for first and sees first, and because it needed no grammar to exist.
-**2.1 and 2.2 are now done too**; both are kept below because 2.3 through 2.5 are written
-against them and because what was deliberately deferred inside each has to be findable. The
-next thing is 2.3, meeting notes — which is the first thing that spends what 2.1 and 2.2
-built: links in the §2.1 grammar, on claims written in the §2.2 vocabulary.
+**2.1, 2.2 and 2.3 are now done**; all three are kept below because what was deliberately
+deferred inside each has to be findable, and because 2.4 and 2.5 are written against them.
+The next thing is **2.4, documents** — annotate, export, write, in that order.
 
 ### 2.1 The address grammar — DONE, and three features are no longer waiting on it
 
@@ -274,30 +274,59 @@ report is correct: the grader is marked `done` while step 3 of the plan still na
 `grade_arms`. It has been left as it is rather than silenced, because that is what the check
 is for and a map edited to quiet a checker is a map nobody should believe.
 
-### 2.3 Meeting notes
+### 2.3 Meeting notes — DONE
 
 > "have functionality to produce 'meeting notes' for me with in-built links that will take
 > me to those results/code/sections of my board writing to explain those notes."
 
-A control on the atlas: **notes for a meeting**, over a period (since a date, since last
-Monday, since the last set of notes) and over a chosen set of workspaces. It produces a
-document in the same pipeline as every other one — markdown into `document.md_to_tex` into a
-compiled PDF, tracked, numbered v1/v2/v3 rather than stamped with the time. Per workspace:
+`tutorboard/meeting.py`, `board notes --meeting --since <spec>`, and a **notes** button on the
+atlas beside **fit**. `test/meeting.py` is the suite, 30 checks.
 
-- **what landed** — commits in the period, scoped to that workspace, summarised rather than
-  listed, plus plan steps that closed;
-- **what it means** — the written map's own words for the parts that changed (§2.2), which
-  is the entire reason the written map is worth having;
-- **what is next** — the next open plan steps;
-- **what is blocked**, and on what — `blockedBy`, the field nothing sets today;
-- **links**, in the §2.1 grammar, on every claim.
+This is the first thing that SPENDS §2.1 and §2.2 and it does not work without either.
 
-Two rules about the prose. It is **short** — a meeting note nobody can read in a lift is not
-a meeting note. And every sentence obeys the one-read rule: one idea per sentence, the
-conclusion first, names and numbers rather than adjectives.
+```
+board notes --meeting --since 7d
+board notes --meeting --since 2026-09-01 --workspace research/PSYCH-ASR
+board notes --meeting --since last        since the last set of notes
+board notes --meeting --since monday --print     markdown, no PDF
+```
 
-`board notes --meeting --since <date> [--workspace …]`, and the same thing from the atlas,
-because the person is holding an iPad when they need it.
+Per workspace that **moved**: what landed (commits, summarised past six, plus the plan steps
+that came off), what it means in the written map's own words, what is next, what is blocked
+and on what. Every claim carries its address.
+
+**Nothing in a note is generated prose.** Every sentence is assembled from something a person
+already wrote: a commit subject, a plan step, the name they gave a box. A note whose
+sentences were invented has to be verified before it can be used, which is worse than none.
+
+Decisions worth knowing before you change it:
+
+- **A plan step that closed is a DELETED LINE.** These plans are written to "DELETE, don't
+  annotate", so nothing records that a step finished — the deletion is the record, and
+  `meeting.closed` reads it out of `git log -U0` over the plan's own files. That is the only
+  place in the system that treats a diff as a fact.
+- **A workspace is in the note because it MOVED** — commits or a closed step. Being blocked
+  is a standing fact, not news: a note for a quiet fortnight listing every blocked box in the
+  repository is long, and length is the one thing a meeting note cannot afford. A blockage on
+  a workspace that *is* moving is reported, which is when somebody can act on it.
+- **A link is real or it is not a link.** With no board running to link through, the address
+  is written out as text and the note says why, once. Wrapping an inert fragment in something
+  that looks clickable is the same failure the grammar exists to prevent, one layer out.
+- **Any running board is a valid base.** Each one serves the same front door and the front
+  door switches (§2.1), so the first reachable board is a door to all of them.
+- **One speller.** `meeting._address` produces exactly what `Address.format` produces,
+  character for character, and the suites check it both ways.
+
+**Two bugs this found in the existing document pipeline**, both of which had been waiting for
+the first document to contain a link:
+
+1. **`#` is a macro parameter character.** `inline_tex` escaped `#`, `%`, `&` and `_` *after*
+   turning `[text](url)` into `\href{url}{text}`, so every address came out as
+   `\href{\#/w/…}` — not a mangled link, a **fatal** LaTeX error and no PDF at all. URLs are
+   now lifted out before the escape pass and put back after, with only `#` and `%` escaped,
+   which is what hyperref wants. Every §2.1 address is a fragment, so every one of them hit it.
+2. **`md_to_tex` returns a string, not a list.** `"\n".join()` on it joined its *characters*
+   and produced a forty-page document one letter per line, which compiled perfectly.
 
 ### 2.4 Documents: annotate, export, write
 
@@ -610,9 +639,10 @@ up as a paper or a deck by asking, mark up any of those with a finger and get th
 back, and hand somebody a page of meeting notes whose links land where the notes say they
 do.
 
-The first of those is done, and so are the grammar everything else hangs off (§2.1) and the
-written map that gives it something worth saying (§2.2). What is left is §2.3 through §2.5,
-in that order.
+The first of those is done, and so are the grammar everything else hangs off (§2.1), the
+written map that gives it something worth saying (§2.2), and the meeting notes that spend
+both (§2.3) — which is the last of the four things in the paragraph above. What is left is
+§2.4 and §2.5.
 
 Then **delete this file** — `git rm board/HANDOFF.md` — and fold what survived into
 `README.md` as sections and into `TEACHING.md` as the rules for keeping a map true. This

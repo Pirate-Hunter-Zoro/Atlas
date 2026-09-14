@@ -68,6 +68,11 @@ var els = {
   sheetOpenSub: document.getElementById("sheet-open-sub"),
   sheetClose: document.getElementById("sheet-close"),
   where: document.getElementById("where"),
+  notes: document.getElementById("notes"),
+  notesSince: document.getElementById("notes-since"),
+  notesSaid: document.getElementById("notes-said"),
+  notesClose: document.getElementById("notes-close"),
+  notesBtn: document.getElementById("atlas-notes"),
   busy: document.getElementById("busy"),
   busyText: document.getElementById("busy-text"),
   busySub: document.getElementById("busy-sub")
@@ -539,6 +544,98 @@ els.sheetOpen.onclick = function () {
   switchTo(c.repo);
 };
 
+/* ------------------------------------------------------ notes for a meeting */
+/* "have functionality to produce 'meeting notes' for me with in-built links
+    that will take me to those results/code/sections of my board writing to
+    explain those notes."
+
+   The front door is what is open when somebody remembers they have a meeting in
+   ten minutes, so it is where this lives. One question is asked -- how far back
+   -- because it is the only one whose answer the person actually has. WHICH
+   workspaces is not asked: the answer is "the ones that moved", and that is
+   what the note does anyway.
+
+   A build is LaTeX and can take a few seconds, so the button says what it is
+   doing and the panel stays open until there is something to say. Nothing a
+   reader can be waiting on may be silent. */
+function openNotes() {
+  els.notesSaid.hidden = true;
+  Array.prototype.forEach.call(
+    els.notesSince.querySelectorAll("button"),
+    function (b) { b.disabled = false; });
+  els.notes.hidden = false;
+}
+
+function closeNotes() { els.notes.hidden = true; }
+
+function notesSay(text, bad) {
+  els.notesSaid.hidden = false;
+  els.notesSaid.className = "sheet-line" + (bad ? " bad" : "");
+  els.notesSaid.textContent = text;
+}
+
+function makeNotes(since) {
+  Array.prototype.forEach.call(
+    els.notesSince.querySelectorAll("button"),
+    function (b) { b.disabled = true; });
+  notesSay("writing them… LaTeX takes a moment.");
+  fetch("/notes", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ since: since })
+  }).then(function (r) { return r.json(); }).then(function (rec) {
+    rec = rec || {};
+    if (!rec.ok && !rec.name) {
+      notesSay(rec.detail || "the notes could not be written", true);
+      Array.prototype.forEach.call(
+        els.notesSince.querySelectorAll("button"),
+        function (b) { b.disabled = false; });
+      return;
+    }
+    var covered = (rec.workspaces || []).length;
+    /* THE NOTE IS WRITTEN EVEN WHEN LaTeX IS NOT HAPPY. Saying only "failed"
+       sends somebody off to write it again by hand, when the markdown and the
+       .tex are both sitting there. */
+    if (!rec.ok) {
+      notesSay(rec.name + " is written, but LaTeX would not typeset it. "
+               + "The text of it is in " + rec.tex + ".", true);
+      return;
+    }
+    notesSay(rec.name + " — " + covered
+             + (covered === 1 ? " workspace" : " workspaces")
+             + ". It is in meetings/, and staged for the next save.");
+    if (rec.pdf) {
+      var a = document.createElement("a");
+      a.className = "action primary";
+      a.href = "/meeting/" + encodeURIComponent(rec.name);
+      a.target = "_blank";
+      a.rel = "noopener";
+      a.innerHTML = '<span class="action-name">Read it</span>';
+      els.notesSaid.insertAdjacentElement("afterend", a);
+    }
+  }).catch(function (e) {
+    notesSay(e.message || "the board did not answer", true);
+    Array.prototype.forEach.call(
+      els.notesSince.querySelectorAll("button"),
+      function (b) { b.disabled = false; });
+  });
+}
+
+if (els.notesBtn) els.notesBtn.onclick = openNotes;
+if (els.notesClose) els.notesClose.onclick = closeNotes;
+if (els.notes) {
+  els.notes.addEventListener("click", function (ev) {
+    if (ev.target === els.notes) closeNotes();
+  });
+}
+if (els.notesSince) {
+  els.notesSince.addEventListener("click", function (ev) {
+    var b = ev.target.closest ? ev.target.closest("button[data-since]") : null;
+    if (b && !b.disabled) makeNotes(b.getAttribute("data-since"));
+  });
+}
+
+
 /* ------------------------------------------------------------ the address */
 /* THE FRONT DOOR IS THE ONLY THING THAT CAN MOVE THE ONE ADDRESS between two
    workspaces, so it is where every cross-workspace link lands. A board handed
@@ -594,7 +691,9 @@ function addrRoute() {
 
 window.addEventListener("hashchange", addrRoute);
 document.addEventListener("keydown", function (ev) {
-  if (ev.key === "Escape" && !els.sheet.hidden) closeSheet();
+  if (ev.key !== "Escape") return;
+  if (!els.sheet.hidden) closeSheet();
+  else if (els.notes && !els.notes.hidden) closeNotes();
 });
 
 /* `addr`, when there is one, is where to go once the board has moved: the

@@ -34,6 +34,9 @@ The assistant runs these. The student never does.
                                        for it, one sentence each. Replaces the
                                        derived picture; re-checked on every read
     board map --show|--check           read it, or say what has gone stale in it
+    board notes --meeting --since 7d   meeting notes across the repository: what
+                                       landed, what it meant, what is blocked —
+                                       every claim carrying a link to the thing
     board inbox [--all]                what the student sent; marks it read
     board slate [--all]                paths of the pages written on the iPad
     board wait [--timeout N]           block until the student sends something
@@ -76,9 +79,9 @@ import time
 
 TOOL = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 sys.path.insert(0, TOOL)
-from tutorboard import (brief, carry, handoff, limits, machine,
-                        paths, ports, processes, reasoning, sense, tex,
-                        worktree)
+from tutorboard import (atlas, brief, carry, handoff, limits, machine,
+                        meeting, paths, ports, processes, reasoning, sense,
+                        tex, worktree)
 from tutorboard.net import egress, tailscale
 from tutorboard.course import config, document, homework, paper, review, walk
 # `map` is a builtin; the module keeps the name the board calls the thing and
@@ -1660,6 +1663,83 @@ def cmd_handoff(live, args):
 
 
 
+
+def cmd_notes(live, args):
+    """Meeting notes across the repository: what landed, and what it meant.
+
+        board notes --meeting --since 7d
+        board notes --meeting --since 2026-09-01 --workspace research/PSYCH-ASR
+        board notes --meeting --since last          (since the last set)
+        board notes --meeting --since monday --print   (markdown, no PDF)
+
+    A note per workspace that moved, with **what landed** (commits, summarised,
+    plus the plan steps that came off), **what it means** in the words of that
+    workspace's own written map, **what is next**, and **what is blocked and on
+    what**. Every claim carries an address in the §2.1 grammar, so a note read in
+    September opens the thing it is about or says plainly that it has moved.
+
+    NOTHING IN IT IS GENERATED PROSE. Every sentence is assembled out of
+    something a person already wrote down: a commit subject, a plan step, the
+    name they gave a box. A meeting note whose sentences were invented has to be
+    checked before it can be used, which is worse than having none.
+
+    A workspace with nothing to say is LEFT OUT rather than written up as "no
+    activity" -- eleven headings with nothing under ten of them is the shape of a
+    report nobody reads, and it buries the one that moved.
+
+    The document goes to `meetings/` at the repository root, numbered v1/v2/v3
+    rather than stamped with the time, staged rather than committed.
+    """
+    if "--meeting" not in args:
+        print("board notes: say what kind. `board notes --meeting --since 7d`.\n"
+              "(If you meant the one-line note for the next turn, that is "
+              "`board note`, singular.)", file=sys.stderr)
+        return 1
+
+    spec = ""
+    if "--since" in args:
+        n = args.index("--since")
+        if n + 1 < len(args):
+            spec = args[n + 1]
+    base = atlas.root() or live.root
+
+    when, human = meeting.resolve_since(spec, base)
+    if when is None:
+        print("board notes: %s" % human, file=sys.stderr)
+        return 1
+
+    want = []
+    for i, a in enumerate(args):
+        if a == "--workspace" and i + 1 < len(args):
+            want.append(args[i + 1])
+
+    rec = meeting.build(base, when, human, want=want or None,
+                        make_pdf="--print" not in args, here=live.root)
+    if not rec.get("ok") and not rec.get("name"):
+        print("board notes: %s" % rec.get("detail", "nothing was written"),
+              file=sys.stderr)
+        return 1
+
+    if "--print" in args:
+        sys.stdout.write(rec["markdown"])
+        return 0
+
+    covered = rec["workspaces"]
+    print("%s" % os.path.join(base, rec["pdf"] or rec["tex"]))
+    print("%d workspace%s: %s"
+          % (len(covered), "" if len(covered) == 1 else "s",
+             ", ".join(covered) if covered else "none of them moved"))
+    if not rec["ok"]:
+        # THE MARKDOWN IS THE NOTE; the PDF is a rendering of it. LaTeX failing
+        # is a typesetting problem, not a lost note, and saying "failed" without
+        # saying the .tex is there sends somebody to write it again by hand.
+        print("\nLaTeX did not produce a PDF, but the note itself is written:\n"
+              "  %s\n%s" % (rec["tex"], (rec["detail"] or "").strip()[:400]),
+              file=sys.stderr)
+        return 1
+    return 0
+
+
 def cmd_map(live, args):
     """The written map: the tutor's own words for what this project IS.
 
@@ -2652,7 +2732,7 @@ COMMANDS = {
     "walk": cmd_walk,
     "egress": cmd_egress, "limit": cmd_limit,
     "brief": cmd_brief, "note": cmd_note, "handoff": cmd_handoff,
-    "map": cmd_map,
+    "map": cmd_map, "notes": cmd_notes,
 }
 
 

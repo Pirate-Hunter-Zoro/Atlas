@@ -276,6 +276,31 @@ main { max-width: 46rem; }
   border-radius: 0 .4rem .4rem 0;
   font-size: .92rem; line-height: 1.4;
 }
+/* HOW FAR BACK, and nothing else. One question, because the period is the only
+   part of it the person actually has an answer to — which workspaces is
+   answered by "the ones that moved", and the note works that out itself.
+   Buttons rather than a date field: a date picker on a tablet, ten minutes
+   before a meeting, is the wrong shape of question. */
+.notes-since { display: grid; gap: .5rem; margin-top: 1.1rem; }
+@media (min-width: 30rem) { .notes-since { grid-template-columns: 1fr 1fr; } }
+.notes-since button {
+  font: inherit; font-family: var(--ui); font-size: .92rem;
+  padding: .75rem .9rem; text-align: left; cursor: pointer;
+  color: var(--ink); background: var(--paper);
+  border: 1px solid var(--rule); border-radius: .5rem;
+}
+.notes-since button:hover:not(:disabled) {
+  border-color: var(--accent); background: var(--paper-2);
+}
+/* A build is LaTeX and takes a few seconds. The buttons go quiet for the whole
+   of it, because a second tap is a second document. */
+.notes-since button:disabled { opacity: .45; cursor: default; }
+/* `--accent`, not a `--bad` of its own. This stylesheet has no such token, and
+   inventing one means defining it in BOTH blocks at the top or it is invisible
+   in one theme — which is the rule `test/hub.js` enforces. `.pushline.bad`
+   already made this exact decision. */
+.sheet-line.bad { color: var(--accent); }
+
 .sheet-actions { display: grid; gap: .6rem; margin-top: 1.1rem; }
 @media (min-width: 30rem) { .sheet-actions { grid-template-columns: 1.6fr 1fr; } }
 .sheet-actions .action { min-height: 3.4rem; text-align: left; }
