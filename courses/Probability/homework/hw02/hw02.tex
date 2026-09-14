@@ -1,0 +1,388 @@
+% ===========================================================================
+%  Homework 02 — Homework 02
+%
+%  DIVISION OF LABOUR (see AI_INSTRUCTIONS.md §7):
+%    The assistant transcribes each assigned problem statement faithfully from
+%    the assignment sheet in this folder's assignment/ directory, and emits an
+%    empty, marked solution region beneath it.
+%    The user types the mathematics inside those regions. No assistant writes
+%    inside a SOLUTION region in normal mode.
+% ===========================================================================
+\documentclass[11pt]{article}
+\usepackage{coursemacros}
+
+\title{Homework 02}
+\author{Mikey Ferguson}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+% ---------------------------------------------------------------------------
+% Assistant: replace this block with one problem/solution pair per assigned
+% problem, in the order assigned, following the pattern below exactly.
+% ---------------------------------------------------------------------------
+
+\begin{problem}{1}
+  Let $X$, $Y$ and $Z$ be random variables and let $c$ be a number. Prove that
+  \[
+    \Var(cX) = c^{2}\Var(X),
+  \]
+  \[
+    \Cov(cX, Y) = c\,\Cov(X, Y)
+  \]
+  and
+  \[
+    \Cov(X + Y, Z) = \Cov(X, Z) + \Cov(Y, Z).
+  \]
+\end{problem}
+% ===== SOLUTION 1 =====
+\paragraph{(i) $\Var(cX) = c^{2}\Var(X)$.}
+\begin{align*}
+  \Var(cX)
+    &= \E\!\left(\left(cX - \E(cX)\right)^{2}\right)\\
+    &= \E\!\left(c^{2}X^{2} - 2cX\,\E(cX) + \left(\E(cX)\right)^{2}\right)\\
+    &= \E\!\left(c^{2}X^{2} - 2c^{2}X\,\E(X) + \left(c\,\E(X)\right)^{2}\right)\\
+    &= \E\!\left(c^{2}X^{2} - 2c^{2}X\,\E(X) + c^{2}\left(\E(X)\right)^{2}\right)\\
+    &= \E\!\left(c^{2}\left(X^{2} - 2X\,\E(X) + \left(\E(X)\right)^{2}\right)\right)\\
+    &= c^{2}\,\E\!\left(X^{2} - 2X\,\E(X) + \left(\E(X)\right)^{2}\right)\\
+    &= c^{2}\,\E\!\left(\left(X - \E(X)\right)^{2}\right)\\
+    &= c^{2}\Var(X).
+\end{align*}
+
+\paragraph{(ii) $\Cov(cX,Y) = c\,\Cov(X,Y)$.}
+Starting from the deviation definition $\Cov(X,Y) = \EE{(X-\mu_{X})(Y-\mu_{Y})}$, and
+using $\mu_{cX} = c\,\mu_{X}$:
+\begin{align*}
+  \Cov(cX, Y)
+    &= \EE{(cX - \mu_{cX})(Y - \mu_{Y})}\\
+    &= \EE{(cX - c\mu_{X})(Y - \mu_{Y})}\\
+    &= \EE{c\,(X - \mu_{X})(Y - \mu_{Y})}\\
+    &= c\,\EE{(X - \mu_{X})(Y - \mu_{Y})}\\
+    &= c\,\Cov(X,Y).
+\end{align*}
+
+\paragraph{(iii) $\Cov(X+Y,Z) = \Cov(X,Z) + \Cov(Y,Z)$.}
+\begin{align*}
+  \Cov(X+Y, Z)
+    &= \EE{\left((X+Y) - \mu_{X+Y}\right)(Z - \mu_{Z})}\\
+    &= \EE{(X + Y - \mu_{X} - \mu_{Y})(Z - \mu_{Z})}\\
+    &= \EE{\left((X - \mu_{X}) + (Y - \mu_{Y})\right)(Z - \mu_{Z})}\\
+    &= \EE{(X - \mu_{X})(Z - \mu_{Z}) + (Y - \mu_{Y})(Z - \mu_{Z})}\\
+    &= \EE{(X - \mu_{X})(Z - \mu_{Z})} + \EE{(Y - \mu_{Y})(Z - \mu_{Z})}\\
+    &= \Cov(X,Z) + \Cov(Y,Z).
+\end{align*}
+The collapse $\mu_{X+Y} = \mu_{X} + \mu_{Y}$ on the second line, and the split of the
+expectation on the fifth, are both linearity of expectation --- which is exactly what
+Problem 2 proves.
+% ===== END SOLUTION 1 =====
+
+\begin{problem}{2}
+  Let $X_{1}$ and $X_{2}$ be discrete random variables and suppose that $a_{1}$
+  and $a_{2}$ are real numbers. Using the joint probability mass function for
+  $X_{1}$ and $X_{2}$, show that
+  \[
+    \E[a_{1}X_{1} + a_{2}X_{2}] = a_{1}\E[X_{1}] + a_{2}\E[X_{2}].
+  \]
+\end{problem}
+% ===== SOLUTION 2 =====
+Write $p(x_{1},x_{2})$ for the joint probability mass function of $X_{1}$ and $X_{2}$,
+and $p_{X_{1}}$, $p_{X_{2}}$ for the marginals.
+\begin{align*}
+  \EE{a_{1}X_{1} + a_{2}X_{2}}
+    &= \sum_{x_{1}}\sum_{x_{2}} \left(a_{1}x_{1} + a_{2}x_{2}\right) p(x_{1},x_{2})\\
+    &= \sum_{x_{1}}\sum_{x_{2}} a_{1}x_{1}\,p(x_{1},x_{2})
+       + \sum_{x_{1}}\sum_{x_{2}} a_{2}x_{2}\,p(x_{1},x_{2})\\
+    &= \sum_{x_{1}} a_{1}x_{1}\,p_{X_{1}}(x_{1})
+       + \sum_{x_{2}}\sum_{x_{1}} a_{2}x_{2}\,p(x_{1},x_{2})\\
+    &= \sum_{x_{1}} a_{1}x_{1}\,p_{X_{1}}(x_{1})
+       + \sum_{x_{2}} a_{2}x_{2}\,p_{X_{2}}(x_{2})\\
+    &= a_{1}\sum_{x_{1}} x_{1}\,p_{X_{1}}(x_{1})
+       + a_{2}\sum_{x_{2}} x_{2}\,p_{X_{2}}(x_{2})\\
+    &= a_{1}\EE{X_{1}} + a_{2}\EE{X_{2}}.
+\end{align*}
+The third and fourth lines are marginalization: summing the joint pmf over the variable
+that does not appear in the summand leaves the marginal pmf of the other.
+% ===== END SOLUTION 2 =====
+
+\begin{problem}{9}
+  (Edition 11, Chapter 2.) If the distribution function of $X$ is given by
+  \[
+    F(b) =
+    \begin{cases}
+      0            & b < 0,\\
+      \frac{1}{2}  & 0 \le b < 1,\\
+      \frac{3}{5}  & 1 \le b < 2,\\
+      \frac{4}{5}  & 2 \le b < 3,\\
+      \frac{9}{10} & 3 \le b < 3.5,\\
+      1            & b \ge 3.5,
+    \end{cases}
+  \]
+  calculate the probability mass function of $X$.
+\end{problem}
+% ===== SOLUTION 9 =====
+The mass at each point is the size of the jump of $F$ there, so subtract consecutive
+values of $F$: $p(1) = F(1) - F(0)$, and so on.
+\[
+  p(0) = \tfrac{1}{2},\qquad
+  p(1) = \tfrac{1}{10},\qquad
+  p(2) = \tfrac{1}{5},\qquad
+  p(3) = \tfrac{1}{10},\qquad
+  p(3.5) = \tfrac{1}{10},
+\]
+and $p(x) = 0$ for every other $x$.
+% ===== END SOLUTION 9 =====
+
+\begin{problem}{12}
+  (Edition 11, Chapter 2.) On a multiple-choice exam with three possible
+  answers for each of the five questions, what is the probability that a
+  student would get four or more correct answers just by guessing?
+\end{problem}
+% ===== SOLUTION 12 =====
+Five questions, three options each, so the number correct is $\Bin{5}{1/3}$ and
+$\PR{\text{correct}} = \tfrac{1}{3}$ on any one question. Four or more correct means
+four or five:
+\begin{align*}
+  \PR{4} + \PR{5}
+    &= \binom{5}{4}\left(\tfrac{1}{3}\right)^{4}\left(\tfrac{2}{3}\right)
+       + \left(\tfrac{1}{3}\right)^{5}\\
+    &= \frac{10}{243} + \frac{1}{243}
+     = \boxed{\frac{11}{243}}.
+\end{align*}
+% ===== END SOLUTION 12 =====
+
+\begin{problem}{22}
+  (Edition 11, Chapter 2.) If a fair coin is successively flipped, find the
+  probability that a head first appears on the fifth trial.
+\end{problem}
+% ===== SOLUTION 22 =====
+A first head on the fifth trial is exactly the one sequence $TTTTH$, and the flips are
+independent and fair, so
+\[
+  \PR{\text{first head on trial }5} = \left(\tfrac{1}{2}\right)^{5} = \frac{1}{32}.
+\]
+% ===== END SOLUTION 22 =====
+
+\begin{problem}{37}
+  (Edition 11, Chapter 2.) Let $X_1, X_2, \dots, X_n$ be independent random
+  variables, each having a uniform distribution over $(0,1)$. Let
+  $M = \operatorname{maximum}(X_1, X_2, \dots, X_n)$. Show that the
+  distribution function of $M$, $F_M(\cdot)$, is given by
+  \[
+    F_M(x) = x^n, \qquad 0 \le x \le 1.
+  \]
+  What is the probability density function of $M$?
+\end{problem}
+% ===== SOLUTION 37 =====
+The maximum is at most $x$ exactly when \emph{every} $X_{i}$ is at most $x$. Concretely,
+for $n = 3$ and $x = \tfrac{1}{2}$, the event is $X_{1}\le\tfrac{1}{2}$,
+$X_{2}\le\tfrac{1}{2}$, $X_{3}\le\tfrac{1}{2}$, which by independence has probability
+$\tfrac{1}{2}\cdot\tfrac{1}{2}\cdot\tfrac{1}{2} = \left(\tfrac{1}{2}\right)^{3}$.
+In general, using independence and $\PR{X_{i}\le x} = x$ for $0 \le x \le 1$,
+\[
+  F_{M}(x) = \PR{M \le x}
+           = \PR{X_{1}\le x}\PR{X_{2}\le x}\cdots\PR{X_{n}\le x}
+           = x^{n}, \qquad 0 \le x \le 1 .
+\]
+The curve runs from $0$ to $1$ and is steeper near $1$ as $n$ grows. Differentiating,
+\[
+  f_{M}(x) = \diff{}{x}\left[x^{n}\right] = n x^{\,n-1}, \qquad 0 \le x \le 1 .
+\]
+% ===== END SOLUTION 37 =====
+
+% ---------------------------------------------------------------------------
+% Remaining assigned work, from the text, Edition 11:
+%   problems 61, 76, 86, along with *16 and *49.
+%   The starred problems are in the back of the book and are not handed in.
+%   Statements for 76, *16, *49 are in the textbook and are
+%   not reproduced on the assignment sheet; transcribe each one as it is
+%   reached. Problem 86 is printed on the sheet and is transcribed below.
+% ---------------------------------------------------------------------------
+
+\begin{problem}{61}
+  (Edition 11, Chapter 2.) Let $X$ and $W$ be the working and subsequent
+  repair times of a certain machine. Let $Y = X + W$ and suppose that the
+  joint probability density of $X$ and $Y$ is
+  \[
+    f_{X,Y}(x,y) = \lambda^2 e^{-\lambda y}, \qquad 0 < x < y < \infty.
+  \]
+  \begin{enumerate}
+    \item Find the density of $X$.
+    \item Find the density of $Y$.
+    \item Find the joint density of $X$ and $W$.
+    \item Find the density of $W$.
+  \end{enumerate}
+\end{problem}
+% ===== SOLUTION 61 =====
+\paragraph{(a) The density of $X$.}
+Integrate the joint density over $y$. The region is $0 < x < y < \infty$, so for a fixed
+$x$ the variable $y$ runs from $x$ up to $\infty$:
+\begin{align*}
+  f_{X}(x) &= \int_{y} f_{X,Y}(x,y)\,dy
+            = \int_{x}^{\infty} \lambda^{2} e^{-\lambda y}\,dy .
+\end{align*}
+Substituting $u = -\lambda y$, so that $du = -\lambda\,dy$, $dy = -du/\lambda$, and
+$y = x$ becomes $u = -\lambda x$:
+\begin{align*}
+  f_{X}(x) &= \int_{-\lambda x}^{-\infty} \lambda^{2} e^{u}\left(-\frac{du}{\lambda}\right)
+            = \lambda \int_{-\infty}^{-\lambda x} e^{u}\,du
+            = \lambda\left[e^{u}\right]_{-\infty}^{-\lambda x}\\
+           &= \lambda\left[e^{-\lambda x} - 0\right]
+            = \boxed{\lambda e^{-\lambda x}}, \qquad x > 0 .
+\end{align*}
+
+\paragraph{(b) The density of $Y$.}
+% \todo{label slip on the handwritten page: the left side is written
+% $f_Y(x,y)$ where it should be $f_Y(y)$. Mathematics unaffected.}
+Integrate the joint density over $x$ instead. For a fixed $y$, the region
+$0 < x < y$ makes $x$ run from $0$ to $y$, and $\lambda^{2}e^{-\lambda y}$ is constant
+in $x$:
+\begin{align*}
+  f_{Y}(y) &= \int_{x} f_{X,Y}(x,y)\,dx
+            = \int_{0}^{y} \lambda^{2} e^{-\lambda y}\,dx
+            = \left[x\,\lambda^{2} e^{-\lambda y}\right]_{0}^{y}\\
+           &= \boxed{\lambda^{2} y\, e^{-\lambda y}}, \qquad y \in (0,\infty).
+\end{align*}
+
+\paragraph{(c) The joint density of $X$ and $W$.}
+Here $Y = X + W$, so substituting $y = x + w$ into $f_{X,Y}$ turns the exponent into a
+sum, and the constraint $x < y$ becomes $w > 0$:
+\[
+  f_{X,W}(x,w) = \boxed{\lambda^{2} e^{-(x+w)\lambda}}, \qquad x > 0,\ w > 0 .
+\]
+
+\paragraph{(d) The density of $W$.}
+Integrate the joint density of part~(c) over $x$, which now runs from $0$ to $\infty$.
+Substituting $u = -(x+w)\lambda$, so $du = -\lambda\,dx$ and $dx = -du/\lambda$:
+\begin{align*}
+  f_{W}(w) &= \int_{0}^{\infty} \lambda^{2} e^{-(x+w)\lambda}\,dx
+            = \int_{-\lambda w}^{-\infty} -\lambda e^{u}\,du
+            = \lambda \int_{-\infty}^{-\lambda w} e^{u}\,du\\
+           &= \boxed{\lambda e^{-\lambda w}}, \qquad w > 0 .
+\end{align*}
+\paragraph{(e) $X$ and $W$ are independent.}
+Multiplying the two marginals from (a) and (d) reproduces the joint density from (c):
+\[
+  f_{X}(x)\,f_{W}(w) = \lambda^{2} e^{-\lambda x}\,e^{-\lambda w}
+                     = \lambda^{2} e^{-(x+w)\lambda}
+                     = f_{X,W}(x,w),
+\]
+therefore $X$ and $W$ are independent.
+% ===== END SOLUTION 61 =====
+
+\begin{problem}{76}
+  (Edition 11, Chapter 2.) Let $X$ and $Y$ be independent random variables
+  with means $\mu_x$ and $\mu_y$ and variances $\sigma_x^2$ and
+  $\sigma_y^2$. Show that
+  \[
+    \Var(XY) = \sigma_x^2 \sigma_y^2 + \mu_y^2 \sigma_x^2
+             + \mu_x^2 \sigma_y^2 .
+  \]
+\end{problem}
+% ===== SOLUTION 76 =====
+Start from the computational form of the variance, applied to the single random variable
+$XY$, and use independence twice --- once on $\E[X^{2}Y^{2}]$ and once on $\E[XY]$:
+\begin{align*}
+  \Var[XY] &= \EE{(XY)^{2}} - \left(\EE{XY}\right)^{2}\\
+           &= \EE{X^{2}Y^{2}} - \left(\EE{X}\EE{Y}\right)^{2}
+              &&\text{($X$, $Y$ independent)}\\
+           &= \EE{X^{2}}\EE{Y^{2}} - \E^{2}[X]\cdot\E^{2}[Y].
+\end{align*}
+Now substitute the second moments, using
+$\EE{X^{2}} = \Var(X) + \left(\E(X)\right)^{2} = \sigma_{x}^{2} + \mu_{x}^{2}$ and
+likewise for $Y$:
+\begin{align*}
+  \Var[XY]
+    &= \left(\sigma_{x}^{2} + \mu_{x}^{2}\right)
+       \left(\sigma_{y}^{2} + \mu_{y}^{2}\right)
+       - \mu_{x}^{2}\cdot\mu_{y}^{2}\\
+    &= \sigma_{x}^{2}\sigma_{y}^{2} + \mu_{y}^{2}\sigma_{x}^{2}
+       + \mu_{x}^{2}\sigma_{y}^{2} + \mu_{x}^{2}\mu_{y}^{2}
+       - \mu_{x}^{2}\mu_{y}^{2}\\
+    &= \sigma_{x}^{2}\sigma_{y}^{2} + \mu_{y}^{2}\sigma_{x}^{2}
+       + \mu_{x}^{2}\sigma_{y}^{2}. \qquad\therefore
+\end{align*}
+The $+\mu_{x}^{2}\mu_{y}^{2}$ produced by expanding the product cancels the
+$-\mu_{x}^{2}\mu_{y}^{2}$ carried down from $\left(\E[XY]\right)^{2}$, leaving the
+required three terms.
+% ===== END SOLUTION 76 =====
+
+\begin{problem}{86}
+  (From Edition 11.) Each new book donated to a library must be processed.
+  Suppose that the time it takes a librarian to process a book has mean
+  $10$ minutes and standard deviation $3$ minutes. If a librarian has $40$
+  books that must be processed one at a time,
+  \begin{enumerate}
+    \item approximate the probability that it will take more than $420$
+      minutes to process all these books;
+    \item approximate the probability that at least $25$ books will be
+      processed in the first $240$ minutes.
+  \end{enumerate}
+\end{problem}
+% ===== SOLUTION 86 =====
+Let $T_{i}$ be the time taken to process book $i$. The $T_{i}$ are independent and
+identically distributed with $\EE{T_{i}} = 10$ minutes and $\mathrm{SD}(T_{i}) = 3$
+minutes, so $\Var(T_{i}) = 9$ min$^{2}$. Because the books are processed one at a time,
+the moment book $n$ is finished is
+\[
+  S_{n} = T_{1} + T_{2} + \cdots + T_{n},
+\]
+and by linearity of expectation and independence,
+\[
+  \EE{S_{n}} = 10n, \qquad \Var(S_{n}) = 9n, \qquad \mathrm{SD}(S_{n}) = 3\sqrt{n}.
+\]
+The standard deviation is the square root of the variance of the sum; it is not $n$ times
+$\mathrm{SD}(T_{i})$. By the central limit theorem, for $n$ this large
+\[
+  Z = \frac{S_{n} - \EE{S_{n}}}{\mathrm{SD}(S_{n})}
+\]
+is approximately standard normal, and $\Phi(z) = \PR{Z \le z}$ denotes the standard normal
+distribution function.
+
+\paragraph{(a) More than $420$ minutes to process all $40$ books.}
+All $40$ books are finished at time $S_{40}$, with
+\begin{gather*}
+  \EE{S_{40}} = 10(40) = 400 \text{ minutes}, \qquad
+  \Var(S_{40}) = 9(40) = 360 \text{ min}^{2},\\
+  \mathrm{SD}(S_{40}) = \sqrt{360} = 6\sqrt{10} \approx 18.97 .
+\end{gather*}
+Standardizing $420$,
+\[
+  z = \frac{420 - 400}{6\sqrt{10}} = \frac{20}{6\sqrt{10}} = \frac{10}{3\sqrt{10}}
+    = \frac{\sqrt{10}}{3} \approx 1.054 .
+\]
+The event is ``more than,'' so it is the upper tail:
+\begin{align*}
+  \PR{S_{40} > 420}
+    &\approx \PR{Z > \tfrac{\sqrt{10}}{3}}
+     = 1 - \Phi\!\left(\tfrac{\sqrt{10}}{3}\right)\\
+    &= 1 - 0.8541
+     = \boxed{0.1459}.
+\end{align*}
+
+\paragraph{(b) At least $25$ books processed in the first $240$ minutes.}
+The normal approximation applies to a sum of processing times, not to a count of books, so
+the event must first be rewritten as a statement about $S_{25}$. At least $25$ books are
+finished by minute $240$ precisely when the $25$th book is finished by minute $240$, that
+is when $S_{25} \le 240$. Note the reversal: \emph{more} books completed corresponds to
+\emph{less} time elapsed, so the inequality runs the other way. Here
+\[
+  \EE{S_{25}} = 10(25) = 250 \text{ minutes}, \qquad
+  \Var(S_{25}) = 9(25) = 225 \text{ min}^{2}, \qquad
+  \mathrm{SD}(S_{25}) = 15 ,
+\]
+and standardizing $240$ gives
+\[
+  z = \frac{240 - 250}{15} = -\frac{10}{15} = -\frac{2}{3} \approx -0.667 .
+\]
+The event is ``at most,'' so it is the lower tail:
+\begin{align*}
+  \PR{\text{at least }25\text{ books by minute }240}
+    &= \PR{S_{25} \le 240}\\
+    &\approx \PR{Z \le -\tfrac{2}{3}}
+     = \Phi\!\left(-\tfrac{2}{3}\right)
+     = \boxed{0.2525}.
+\end{align*}
+% ===== END SOLUTION 86 =====
+
+\end{document}

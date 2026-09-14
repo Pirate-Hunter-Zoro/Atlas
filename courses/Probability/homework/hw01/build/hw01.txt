@@ -1,0 +1,88 @@
+Homework 01
+Mikey Ferguson
+August 31, 2026
+
+Problem 1. Let E and F be events. Using the axioms of probability, prove that
+P (E ∪ F ) = P (E) + P (F ) − P (EF ).
+E is carved by F into two disjoint pieces:
+E = EF ∪ EF c
+
+(disjoint),
+
+so by axiom 3,
+P (E) = P (EF ) + P (EF c ) ⇐⇒ P (EF c ) = P (E) − P (EF ).
+Similarly, P (F E c ) = P (F ) − P (EF ).
+Therefore, since E ∪ F = EF ∪ EF c ∪ F E c is a union of pairwise disjoint sets,
+P (E ∪ F ) = P (EF ∪ EF c ∪ F E c )
+= P (EF ) + P (EF c ) + P (F E c )
+
+
+= P (EF ) + P (E) − P (EF ) + P (F ) − P (EF )
+= P (E) + P (F ) − P (EF ).
+Problem 8. If P (E) = 0.9 and P (F ) = 0.8, show that P (EF ) ⩾ 0.7. In general, show that
+P (EF ) ⩾ P (E) + P (F ) − 1.
+This is known as Bonferroni’s inequality.
+First we record the bound the argument rests on.
+Lemma. For any event A, P (A) ⩽ 1.
+Since Ω = A ∪ Ac is a union of disjoint sets,
+P (Ω) = 1 = P (A ∪ Ac ) = P (A) + P (Ac )
+
+(disjoint),
+
+so
+P (A) + P (Ac ) = 1 ⇐⇒ P (A) = 1 − P (Ac ) =⇒ P (A) ⩽ 1,
+since P (Ac ) ⩾ 0 by the first axiom.
+Now prove P (EF ) ⩾ P (E) + P (F ) − 1. Recall, using Problem 1,
+1 ⩾ P (E ∪ F ) = P (E) + P (F ) − P (EF ),
+1
+
+2
+
+and therefore
+1 + P (EF ) ⩾ P (E) + P (F ) ⇐⇒ P (EF ) ⩾ P (E) + P (F ) − 1.
+Therefore, if P (E) = 0.9 and P (F ) = 0.8,
+P (EF ) ⩾ 0.9 + 0.8 − 1 ⩾ 0.7.
+Problem 10. Show that
+P
+
+n
+[
+i=1
+
+!
+Ei
+
+⩽
+
+n
+X
+
+P (Ei ).
+
+i=1
+
+This is known as Boole’s inequality.
+S
+S
+Hint: Either use Equation
+and mathematical induction, or else show that ni=1 Ei = ni=1 Fi ,
+Ti−1 (1.2)
+where F1 = E1 , Fi = Ei j=1 Ejc , and use property (iii) of a probability.
+Problem 12. Let E and F be mutually exclusive events in the sample space of an experiment.
+Suppose that the experiment is repeated until either event E or event F occurs. What does the
+sample space of this new super experiment look like? Show that the probability that event E occurs
+before event F is P (E)/[P (E) + P (F )].
+Hint: Argue that the probability that the original experiment is performed n times and E
+appears on the nth time is P (E) × (1 − p)n−1 , n = 1, 2, . . ., where p = P (E) + P (F ). Add these
+probabilities to get the desired answer.
+Problem 39. Stores A, B, and C have 50, 75, and 100 employees and, respectively, 50, 60, and
+70 percent of these are women. Resignations are equally likely among all employees, regardless of
+sex. One employee resigns and this is a woman. What is the probability that she works in store C?
+Problem 41. In a certain species of rats, black dominates over brown. Suppose that a black rat
+with two black parents has a brown sibling.
+(a) What is the probability that this rat is a pure black rat (as opposed to being a hybrid with one
+black and one brown gene)?
+(b) Suppose that when the black rat is mated with a brown rat, all five of their offspring are black.
+Now, what is the probability that the rat is a pure black rat?
+
+
