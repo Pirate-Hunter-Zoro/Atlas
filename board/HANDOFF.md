@@ -79,7 +79,7 @@ lets the old flat layout and every test fixture work through the same code path.
 | 308 MB of therapy audio | `~/phi/PSYCH-ASR/` | Identifiable PHI; participant IDs in the filenames |
 | 1.5 GB of job output | `~/artifacts/TRD-EHR/results/` | Regenerable; seven files over GitHub's 50 MB warning |
 | Other authors' papers and books | on disk, ignored | Their copyright, and this is public |
-| The assistant configuration | `~/claude-config`, private | Its settings name real paths on lab storage |
+| The assistant configuration | `ai-config/`, its own private repository | Its settings name real paths on lab storage. Inside the tree, ignored by it, tracked by its own git |
 
 Neither of the first two is symlinked in. A symlink is a tracked file pointing at PHI, which
 hands the next reader a map to it. `PSYCH_ASR_DATA` finds the first — read by
@@ -342,7 +342,7 @@ what will be found next:
   from history on the way in; the books stay on disk and the excerpts regenerate.
 - **TRD-EHR's `.env` was tracked for 477 commits.** No credentials in it — but it enumerated
   the on-disk locations of identifiable patient data on lab storage, which is exactly what
-  §4.4's reasoning keeps `claude-config` private for. Dropped from history; `.env.example`
+  §4.4's reasoning keeps `ai-config` private for. Dropped from history; `.env.example`
   carries the keys.
 - **2.19 GiB of TRD-EHR's pack was other authors' published papers.** Dropped, all 477
   commits kept, 19 MB out the other side. Its old GitHub remote still has every one of them;
