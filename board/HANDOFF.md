@@ -5,8 +5,8 @@
 > The migration is **done**. Eleven repositories are one, the board runs out of it, the front
 > door is a drawn map of everything, and 32 test suites are green. What is left is the old
 > brief's stage 2 onwards. The address grammar is now done as well (§2.1) and everything
-> below it is written against it: the written map, meeting notes, documents, and the briefing
-> seeing what was done on a laptop.
+> below it is written against it. The written map is done as well (§2.2). What is left is
+> meeting notes, documents, and the briefing seeing what was done on a laptop.
 >
 > **Read §0 first: it is the working loop, and it tells you how a session in here runs
 > from beginning to end.** Then §1. §2 is what is actually left, in the order it should be
@@ -141,9 +141,10 @@ clone anywhere finds its own data and never another checkout's.
 
 The old brief's stages 2 and 4 through 7. Stage 3 — the atlas — was done first because it is
 what the person asked for first and sees first, and because it needed no grammar to exist.
-**2.1 is now done too**; it is kept below because 2.2 through 2.5 are all written against it
-and because what was deliberately deferred inside it has to be findable.  The next thing is
-2.2.
+**2.1 and 2.2 are now done too**; both are kept below because 2.3 through 2.5 are written
+against them and because what was deliberately deferred inside each has to be findable. The
+next thing is 2.3, meeting notes — which is the first thing that spends what 2.1 and 2.2
+built: links in the §2.1 grammar, on claims written in the §2.2 vocabulary.
 
 ### 2.1 The address grammar — DONE, and three features are no longer waiting on it
 
@@ -212,77 +213,66 @@ honest text over the containing surface. A code viewer and a per-problem surface
 are §2.4's business; when they exist, two branches of `addrGo` change and no
 address written before then breaks.
 
-### 2.2 The written map, per workspace
+### 2.2 The written map — DONE
 
-**Structure is derived from disk. Meaning is written by the tutor. Neither is guessed.**
-`course/map.py` discovers parts, arrows and work from the tree and it is honest — but nothing
-on disk knows that the grid search is half-built, or that the scorer is blocked on a seam
-that does not exist yet.
+`live/map.json` per workspace, written by the tutor, **merged against discovery on every
+read and never echoed back**. Where one exists it REPLACES the derived picture; the derived
+map stays the fallback for every workspace nobody has drawn, which is most of them.
 
-So: **`live/map.json`** per workspace, written once by the tutor and kept up to date by it,
-**merged against discovery on every read and never echoed back**. A node naming a file that
-no longer exists drops the file; a node whose files have all gone drops out; an edge naming
-an id that is not there is not an edge. Same rule as `walk.scope` and `review.scope`, and
-the same reason: *a fact cannot go stale, a declaration can, so a declaration is checked
-against the facts every time it is read.*
-
-What it adds that discovery cannot is a node that is a **stage of the work** rather than a
-directory. PSYCH-ASR's owner's own names are *the typist*, *the stopwatch*, *the
-name-tagger*, *the corrections*, *the grader*, *the grid*, *the scorer* — which is how they
-talk about it and is not derivable from a directory listing. Each such node *carries* the
-files it is made of, so every tap on the sheet works unchanged. Plus the three things
-nothing sets today: `blockedBy`, `doc` and `slide` on a part, and edge labels saying what
-flows (`words`, `turns`, `a graded transcript`).
-
-```json
-{
-  "version": 1,
-  "title": "Stage 1 — audio to a graded transcript",
-  "nodes": [{
-    "id": "typist", "name": "the typist", "also": "faster-whisper large-v3",
-    "kind": "part", "status": "working",
-    "does": "Turns the waveform into words. One candidate, never compared.",
-    "files": ["psych_asr/cli/run_asr.py"], "dir": "psych_asr/asr",
-    "doc": "stage2-reference-walkthrough", "slide": 7, "blockedBy": ["seam"]
-  }],
-  "edges": [{"from": "typist", "to": "stopwatch", "label": "words", "weight": 3}]
-}
-```
-
-Every field except `blockedBy` is already in `map._node()` and already painted. `kind` is
-`part · doc · chapter · set`; `status` is one of `map.STATUSES`; `does` is capped at
-`map.DOES` (110) because it is read inside a box on a tablet; `id` is `[a-z0-9-]{1,40}` and
-stable, because everything keys off it including `localStorage`'s memory of where you were.
-**The plain name leads** and `also` carries the real identifier.
-
-Where a written map exists it **replaces** the derived one. Do not merge the two sets of
-boxes — that puts `psych_asr/asr` and *the typist* on the same picture saying the same thing
-twice. The derived map stays the fallback for every workspace nobody has drawn, which is
-most of them.
+`course/map.py` holds it: `validate` (pure, no filesystem), `read_written`, `write_written`,
+`_resolve_written`, `_from_written` — tried first in `_shape` — plus `check` and
+`written_status`. `status()` now carries a `written` flag so the board, the briefing and the
+atlas can all tell whose words they are looking at.
 
 ```
-board map < map.json      write live/map.json (validated, rejected loudly if not valid)
+board map < map.json      write it — validated, and refused WHOLE with every
+                          problem printed at once. Nothing is half-applied.
 board map --show          print it
-board map --check         what is stale: nodes naming files that are gone, steps that no
-                          longer exist, documents that moved, ids an edge names that do
-                          not exist, a node marked `done` whose plan step is still open
+board map --check         what the map claims that the tree does not
 ```
 
-Same shape as `board note` and `board handoff` — JSON on stdin. **The tutor writes it, on
-request, in a sitting**; do not try to generate it in Python. Make it a documented thing a
-person can ask for — *"draw the map"* — and have `TEACHING.md` say how: read the README and
-the plan, name the boxes the way the project's own documents name them, one sentence each,
-and stop. `board brief` must tell a tutor whether this workspace has a map and when it was
-last written, and `TEACHING.md` gains a short section: **keeping the map true is part of
-finishing a piece of work**, exactly as updating the plan already is.
+**The resolution rule, which is the whole reason this is allowed to exist:** a node naming a
+file that has gone loses the file; a node whose files have *all* gone drops out; an edge
+naming a box that is not there is not an edge; a `doc` that has moved is cleared; a
+`blockedBy` naming a dropped box is dropped. *A fact cannot go stale, a declaration can, so a
+declaration is checked against the facts every time it is read.* `--check` is that same pass
+said out loud instead of silently, plus the one thing resolution cannot see: a box marked
+`done` with an open plan step on it.
 
-Track `live/map.json` in git. It is the one exception to "nothing is registered", because it
-carries judgement no file contains — and even it is re-resolved on every read. Write
-PSYCH-ASR's by hand as the worked example, from its README, its plan and its Stage-2 deck.
+**What was built beyond the brief, and why:**
 
-The atlas already has a place for one field off it: a workspace with a written map has a
-title and a status for the whole of it. That is the only coupling between the front door and
-this, and it is one field.
+- **`board map` asks git whether the file it just wrote is visible**, and refuses with the
+  exact edit if not. Every workspace ignores `live/`, and `live/` is the *directory* form —
+  git will not descend into an excluded directory, so no `!live/map.json` under it can ever
+  fire. It has to become `live/*` plus the negation. That is one character's difference
+  between a tracked map and one silently lost on the next clone, and it is not the kind of
+  thing to leave to a paragraph in a document. PSYCH-ASR's `.gitignore` is already changed.
+- **Edge labels are painted**, on a plate in the gutter between two ranks, which is empty by
+  construction. A derived map never carries one: an import is not a thing that flows, and
+  the arrow's thickness already says how much of one it is.
+- **`blockedBy` is painted on the work sheet, not on the box.** A box is eleven characters
+  wide at the zoom people read the map at, and *a list is not a diagram* was paid for once
+  already — but the sheet is what opens when somebody taps a box intending to work on it,
+  which is the exact moment "you cannot, yet, and here is why" is worth a line.
+- **The briefing says which kind of map it is**, in `brief.map_sense`. A turn that cannot
+  tell a drawn map from a directory listing will read `psych_asr/asr` back to the person as
+  though it were how they think about their own work. It also says how stale it is, because
+  keeping the map true is part of finishing a piece of work and a rule nobody is reminded of
+  lasts about three weeks.
+- **The atlas gets one field**, `drawn` — the written title, on the sheet. One, on purpose:
+  the atlas is a picture of the repository, not a picture of every picture in it.
+
+`TEACHING.md` gains **Drawing the map**: read the README and the plan, name the boxes the way
+the project's own documents name them, one sentence each, and stop — plus the ignore-shape
+rule and the section on keeping it true.
+
+**PSYCH-ASR's is written**, by hand, from its README and its plan: *the typist*, *the
+stopwatch*, *the name-tagger*, *the joiner*, *the corrections*, *the grader*, *the grid*,
+*the scorer* — eight boxes, seven labelled arrows, with the grid blocked on the stopwatch and
+the scorer on the grid. `board map --check` reports exactly one thing about it, and the
+report is correct: the grader is marked `done` while step 3 of the plan still names
+`grade_arms`. It has been left as it is rather than silenced, because that is what the check
+is for and a map edited to quiet a checker is a map nobody should believe.
 
 ### 2.3 Meeting notes
 
@@ -620,8 +610,9 @@ up as a paper or a deck by asking, mark up any of those with a finger and get th
 back, and hand somebody a page of meeting notes whose links land where the notes say they
 do.
 
-The first of those is done, and so is the grammar everything else hangs off (§2.1). What is
-left is §2.2 through §2.5, in that order.
+The first of those is done, and so are the grammar everything else hangs off (§2.1) and the
+written map that gives it something worth saying (§2.2). What is left is §2.3 through §2.5,
+in that order.
 
 Then **delete this file** — `git rm board/HANDOFF.md` — and fold what survived into
 `README.md` as sections and into `TEACHING.md` as the rules for keeping a map true. This

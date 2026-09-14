@@ -27,8 +27,15 @@ What the checks are actually about, in the order they cost something:
     must not take them away.
   * A NODE ID FROM A BROWSER IS LOOKED UP, NEVER CONSTRUCTED. Same rule as
     `walk.resolve` and `reading.find`: a miss is a miss.
+  * A WRITTEN MAP IS A DECLARATION, AND A DECLARATION CAN GO STALE. So it is
+    checked against the tree on every read: a node naming a file that has gone
+    loses the file, a node whose files have all gone drops out, an edge naming a
+    box that is not there is not an edge. This is the whole reason the one
+    exception to "nothing is registered" is allowed to exist, and it is the half
+    of it that is easiest to quietly lose.
 """
 
+import json
 import os
 import shutil
 import sys
@@ -290,6 +297,136 @@ try:
           and config.clean_aim("whatever") is None)
     check("and every aim says in writing what it asks the tutor to do",
           all(config.AIM_MEANS.get(a) for a in config.AIMS))
+
+
+    # --- the written map: the tutor's own words, checked against the tree ----
+    #
+    # STRUCTURE IS DERIVED FROM DISK. MEANING IS WRITTEN. The derived map knows
+    # `psych_asr/asr` exists and imports `psych_asr/transcript`; it cannot know
+    # the box is called *the typist* or that the scorer is blocked on a seam
+    # nobody has built. That is what this file is for, and the price of letting
+    # a declaration into a system whose first principle is that nothing is
+    # registered is that the declaration is re-checked every single read.
+    fresh()
+    write(os.path.join(proj, "psych_asr", "evaluate", "score.py"),
+          "def score():\n    return 1" + PAD)
+    drawn = {
+        "version": 1,
+        "title": "Stage 1 — a recording to a graded transcript",
+        "nodes": [
+            {"id": "typist", "name": "the typist", "also": "faster-whisper",
+             "kind": "part", "status": "working",
+             "does": "Turns the waveform into words.",
+             "files": ["psych_asr/asr/align.py"], "dir": "psych_asr/asr"},
+            {"id": "grader", "name": "the grader", "kind": "part",
+             "status": "done",
+             "files": ["psych_asr/evaluate/grade.py"]},
+            # Its OWN file. Two boxes claiming one file is a modelling
+            # mistake and the step would land on whichever was written last,
+            # which is a chip on a box nobody meant.
+            {"id": "scorer", "name": "the scorer", "kind": "part",
+             "status": "later", "files": ["psych_asr/evaluate/score.py"],
+             "blockedBy": ["grader"]},
+        ],
+        "edges": [{"from": "typist", "to": "grader", "label": "words",
+                   "weight": 3}],
+    }
+    problems, _path = mapping.write_written(proj, drawn)
+    check("a valid written map is accepted", not problems)
+
+    fresh()
+    m = mapping.status(proj)
+    ids = by_id(m)
+    check("and it REPLACES the derived picture rather than joining it",
+          m["written"] is True
+          and set(ids) == {"typist", "grader", "scorer"}
+          and not any(n["id"].startswith("psych") for n in m["nodes"]))
+    check("the plain name leads and the identifier rides in `also`",
+          ids["typist"]["name"] == "the typist"
+          and ids["typist"]["also"] == "faster-whisper")
+    check("the title of the whole picture is the one that was written",
+          m["title"] == "Stage 1 — a recording to a graded transcript")
+    check("an edge says what flows along it",
+          m["edges"][0].get("label") == "words")
+    check("and a box says what it is waiting on",
+          ids["scorer"]["blockedBy"] == ["grader"])
+    check("the plan's steps still land on written boxes by the paths they name",
+          any(x["num"] == "1" for x in ids["grader"]["steps"])
+          and any(x["num"] == "2" for x in ids["typist"]["steps"]))
+    check("and a step that names nothing is still in the tray, not dropped",
+          any("DESK" in (x["title"] or "").upper() for x in m["loose"]))
+
+    # A declaration is checked against the facts EVERY TIME IT IS READ. Not at
+    # write time -- the file was valid when it was written and the tree moved
+    # underneath it, which is the only way this ever actually goes wrong.
+    os.remove(os.path.join(proj, "psych_asr", "evaluate", "grade.py"))
+    os.remove(os.path.join(proj, "psych_asr", "evaluate", "score.py"))
+    fresh()
+    m = mapping.status(proj)
+    ids = by_id(m)
+    check("a box whose files have ALL gone drops out of the picture",
+          "grader" not in ids and "scorer" not in ids)
+    check("an arrow that has lost an end is not an arrow",
+          all(e["from"] in ids and e["to"] in ids for e in m["edges"]))
+    check("the boxes that are still real are still there",
+          "typist" in ids)
+
+    stale = mapping.check(proj)
+    check("and `board map --check` says so out loud, per box",
+          any("grader" in line for line in stale)
+          and any("scorer" in line for line in stale))
+
+    # `blockedBy` pointing at a box that has gone is the one kind of staleness
+    # that is INVISIBLE on the picture: the box simply stops saying why it is
+    # stuck, and nothing anywhere says the reason was lost.
+    write(os.path.join(proj, "psych_asr", "evaluate", "grade.py"), "x = 1" + PAD)
+    write(os.path.join(proj, "psych_asr", "evaluate", "score.py"), "y = 2" + PAD)
+    fresh()
+    m = mapping.status(proj)
+    check("a blockedBy naming a box that survives is kept",
+          by_id(m)["scorer"]["blockedBy"] == ["grader"])
+
+    # --- refused whole, and every problem at once ---------------------------
+    for bad, why in (
+            ({"version": 2, "nodes": [{"id": "a", "name": "x"}]},
+             "a version this reader does not know"),
+            ({"version": 1, "nodes": []}, "a map with no boxes on it"),
+            ({"version": 1, "nodes": [{"id": "Not An Id", "name": "x"}]},
+             "an id that is not an id"),
+            ({"version": 1, "nodes": [{"id": "a", "name": "x",
+                                       "files": ["../../etc/passwd"]}]},
+             "a path that climbs out of the workspace"),
+            ({"version": 1, "nodes": [{"id": "a", "name": "x"}],
+              "edges": [{"from": "a", "to": "ghost"}]},
+             "an arrow to a box the file does not declare"),
+            ({"version": 1, "nodes": [{"id": "a", "name": "x",
+                                       "status": "nearly"}]},
+             "a status that is not one of the six"),
+            ({"version": 1, "nodes": [{"id": "a", "name": "x",
+                                       "does": "y" * (mapping.DOES + 1)}]},
+             "a sentence too long to sit in a box")):
+        clean, problems = mapping.validate(bad)
+        check("refused: " + why, clean is None and len(problems) >= 1)
+
+    clean, problems = mapping.validate(
+        {"version": 9, "nodes": [{"id": "Bad", "name": ""}]})
+    check("and every problem comes back at once, not one per round trip",
+          clean is None and len(problems) >= 2)
+
+    # A refusal that half-applies is worse than one that refuses: the hole ends
+    # up exactly where the person made the mistake they wanted to be told about.
+    before = mapping.read_written(proj)[0]
+    problems, _ = mapping.write_written(proj, {"version": 1, "nodes": []})
+    check("a refused map does not overwrite the one already there",
+          problems and mapping.read_written(proj)[0] == before)
+
+    # --- a workspace nobody has drawn is unchanged --------------------------
+    fresh()
+    check("a workspace with no written map still gets the derived one",
+          mapping.status(book) and mapping.status(book)["written"] is False)
+    check("and the briefing can tell the two apart",
+          mapping.written_status(proj)["has"] is True
+          and mapping.written_status(book)["has"] is False)
 
     # --- a map is not a thing to be configured -------------------------------
     src = open(os.path.join(ROOT, "tutorboard", "course", "map.py"),

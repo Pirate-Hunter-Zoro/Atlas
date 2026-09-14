@@ -30,11 +30,17 @@ the arrow between two of them is the order they are read in.
 Standard library only, like everything else.
 """
 
+import json
 import os
 import re
 import time
 
 from . import homework, plan, reading, review, syllabus, walk
+# `paths` as `toolpaths`, because this package already has a module by that name
+# in spirit -- `course/plan.py` defines a public `paths(root)` and had to do
+# exactly this. Same trap, same answer: the module keeps its name and the import
+# moves.
+from .. import paths as toolpaths
 
 # What a node's state of completion may be, and there are six of them. A
 # seventh would be a distinction nobody can hold in their head while looking at
@@ -584,9 +590,453 @@ def _from_parts(root):
             "why": "Drawn from this repository's own top-level parts."}
 
 
+# ---------------------------------------------------------------------------
+# the written map
+# ---------------------------------------------------------------------------
+# STRUCTURE IS DERIVED FROM DISK. MEANING IS WRITTEN BY THE TUTOR. NEITHER IS
+# GUESSED.
+#
+# Everything above this line is honest and none of it is enough. Discovery can
+# see that `psych_asr/asr` exists, that it imports `psych_asr/transcript`, and
+# that a plan step names it. It cannot see that the box is called *the typist*,
+# that it runs one candidate model and never compares them, or that the scorer
+# below it is blocked on a seam that does not exist yet. Those are the sentences
+# the owner of the project actually uses, and they are not derivable from a
+# directory listing at any price.
+#
+# So a workspace may carry `live/map.json`: nodes that are STAGES OF THE WORK
+# rather than directories, each carrying the files it is made of, with the three
+# fields nothing else sets -- `blockedBy`, `doc` and `slide` -- and edges that
+# say what flows along them.
+#
+# **It is merged against discovery on every read and never echoed back.** A node
+# naming a file that has gone drops the file; a node whose files have all gone
+# drops out; an edge naming an id that is not there is not an edge. Same rule as
+# `walk.scope` and `review.scope`, and the same reason:
+#
+#     A FACT CANNOT GO STALE. A DECLARATION CAN. So a declaration is checked
+#     against the facts every time it is read.
+#
+# Where a written map exists it REPLACES the derived one rather than being added
+# to it -- two sets of boxes saying the same thing in two vocabularies is a
+# picture nobody can read. The derived map stays the fallback for every
+# workspace nobody has drawn, which is most of them.
+#
+# This is the one exception to "nothing is registered", alongside `atlas.json`'s
+# family names, and it earns it by carrying judgement no file contains. Even it
+# is re-resolved on every read.
+
+WRITTEN_VERSION = 1
+
+# An id is what everything keys off, including `localStorage`'s memory of which
+# box the person was last looking at, so it is narrow and it is stable.
+ID_RE = re.compile(r"^[a-z0-9-]{1,40}$")
+
+KINDS = ("part", "doc", "chapter", "set")
+
+# An edge label is read on the arrow, at whatever zoom the plane is at. `words`,
+# `turns`, `a graded transcript` -- what FLOWS, not a sentence about it.
+EDGE_LABEL = 24
+
+# A box blocked on nine things is a box nobody can act on, and the picture is
+# for acting on.
+MAX_BLOCKED = 8
+
+# Long enough for a real name, short enough to sit in a box on a tablet.
+MAX_NAME = 60
+MAX_ALSO = 60
+
+
+def written_path(root):
+    """Where a workspace's written map lives. Tracked, unlike the rest of `live/`."""
+    return os.path.join(root, "live", "map.json")
+
+
+def _text(value, limit):
+    out = str(value or "").strip()
+    return out[:limit]
+
+
+def validate(raw):
+    """`(clean, problems)` -- and a written map with any problem is not written.
+
+    REFUSED LOUDLY AND WHOLE, never half-applied. A map is one picture; a
+    half-valid one is a picture with a hole in it, and the hole is exactly where
+    the person made the mistake they would like to be told about. `board map`
+    prints every problem at once, because fixing them one round trip at a time
+    is how a five-minute job becomes an evening.
+
+    Nothing in here touches the filesystem. What exists is `_resolve_written`'s
+    question and it is asked again on every read; this one only asks whether the
+    document says something a map could mean.
+    """
+    problems = []
+
+    if not isinstance(raw, dict):
+        return None, ["the top level must be an object, not a %s"
+                      % type(raw).__name__]
+
+    version = raw.get("version")
+    if version != WRITTEN_VERSION:
+        problems.append("version must be %d, not %r -- the shape of this file "
+                        "is allowed to change and the number is how a reader "
+                        "knows which shape it is looking at"
+                        % (WRITTEN_VERSION, version))
+
+    nodes_in = raw.get("nodes")
+    if not isinstance(nodes_in, list) or not nodes_in:
+        problems.append("`nodes` must be a non-empty list; a map with no boxes "
+                        "on it is a blank plane between somebody and their work")
+        nodes_in = []
+
+    nodes, seen = [], {}
+    for i, one in enumerate(nodes_in):
+        where = "node %d" % (i + 1)
+        if not isinstance(one, dict):
+            problems.append("%s is not an object" % where)
+            continue
+        nid = str(one.get("id") or "").strip()
+        if not ID_RE.match(nid):
+            problems.append("%s: id %r must be 1-40 characters of a-z, 0-9 and "
+                            "hyphen. Everything keys off it, including which box "
+                            "the browser reopens on." % (where, nid))
+            continue
+        where = "node `%s`" % nid
+        if nid in seen:
+            problems.append("%s appears twice; an id names one box" % where)
+            continue
+        seen[nid] = True
+
+        name = _text(one.get("name"), MAX_NAME)
+        if not name:
+            problems.append("%s has no `name`. THE PLAIN NAME LEADS -- *the "
+                            "typist*, not `faster-whisper`; the real identifier "
+                            "goes in `also`." % where)
+        kind = str(one.get("kind") or "part").strip()
+        if kind not in KINDS:
+            problems.append("%s: kind %r is not one of %s"
+                            % (where, kind, ", ".join(KINDS)))
+            kind = "part"
+        status_in = str(one.get("status") or "unknown").strip()
+        if status_in not in STATUSES:
+            problems.append("%s: status %r is not one of %s"
+                            % (where, status_in, ", ".join(STATUSES)))
+            status_in = "unknown"
+
+        does = str(one.get("does") or "").strip()
+        if len(does) > DOES:
+            problems.append("%s: `does` is %d characters and the cap is %d. It "
+                            "is read inside a box on a tablet, so it is one "
+                            "sentence about what the thing does."
+                            % (where, len(does), DOES))
+
+        files = one.get("files") or []
+        if not isinstance(files, list):
+            problems.append("%s: `files` must be a list" % where)
+            files = []
+        clean_files = []
+        for f in files:
+            rel = str(f or "").strip().replace("\\", "/").lstrip("/")
+            if not rel or rel == "." or ".." in rel.split("/"):
+                problems.append("%s: %r is not a path inside this workspace"
+                                % (where, f))
+                continue
+            clean_files.append(rel)
+
+        d = str(one.get("dir") or "").strip().replace("\\", "/").strip("/")
+        if ".." in d.split("/"):
+            problems.append("%s: `dir` %r is not inside this workspace"
+                            % (where, one.get("dir")))
+            d = ""
+
+        slide = one.get("slide")
+        if slide is not None:
+            if not isinstance(slide, int) or isinstance(slide, bool) or slide < 1:
+                problems.append("%s: `slide` must be a page number from 1, not %r"
+                                % (where, slide))
+                slide = None
+
+        blocked = one.get("blockedBy") or []
+        if not isinstance(blocked, list):
+            problems.append("%s: `blockedBy` must be a list of node ids" % where)
+            blocked = []
+        blocked = [str(b or "").strip() for b in blocked][:MAX_BLOCKED]
+
+        nodes.append({
+            "id": nid, "name": name, "also": _text(one.get("also"), MAX_ALSO),
+            "kind": kind, "status": status_in, "does": does[:DOES],
+            "files": clean_files[:MAX_FILES], "dir": d,
+            "doc": str(one.get("doc") or "").strip(),
+            "slide": slide, "blockedBy": [b for b in blocked if b],
+            "note": _text(one.get("note"), DOES),
+            "chapter": _text(one.get("chapter"), MAX_NAME),
+        })
+
+    if len(nodes) > MAX_NODES:
+        problems.append("%d boxes, and past %d it is not a picture any more. "
+                        "Roll some of them up into the stage they belong to."
+                        % (len(nodes), MAX_NODES))
+
+    edges_in = raw.get("edges") or []
+    if not isinstance(edges_in, list):
+        problems.append("`edges` must be a list")
+        edges_in = []
+    edges = []
+    for i, one in enumerate(edges_in):
+        where = "edge %d" % (i + 1)
+        if not isinstance(one, dict):
+            problems.append("%s is not an object" % where)
+            continue
+        a = str(one.get("from") or "").strip()
+        b = str(one.get("to") or "").strip()
+        if a not in seen or b not in seen:
+            problems.append("%s: %r -> %r names a box this file does not "
+                            "declare" % (where, a, b))
+            continue
+        if a == b:
+            problems.append("%s: %r points at itself" % (where, a))
+            continue
+        weight = one.get("weight", 1)
+        if not isinstance(weight, int) or isinstance(weight, bool) or weight < 1:
+            weight = 1
+        label = _text(one.get("label"), EDGE_LABEL)
+        edges.append({"from": a, "to": b, "label": label, "weight": weight})
+
+    # A node that says it is blocked by a box no edge and no node knows about is
+    # a typo, and a typo in a `blockedBy` is invisible on the picture -- the box
+    # simply never says why it is stuck.
+    for node in nodes:
+        for b in node["blockedBy"]:
+            if b not in seen:
+                problems.append("node `%s` is blockedBy `%s`, which this file "
+                                "does not declare" % (node["id"], b))
+
+    if problems:
+        return None, problems
+
+    return {
+        "version": WRITTEN_VERSION,
+        "title": _text(raw.get("title"), 90),
+        "nodes": nodes,
+        "edges": edges,
+    }, []
+
+
+def read_written(root):
+    """What is on disk, validated. `(clean, problems)`; `(None, [])` if none.
+
+    A file that is not there is not a problem -- most workspaces have no written
+    map and the derived one is the right answer for them. A file that is there
+    and is broken IS a problem, and it is reported rather than silently ignored,
+    because a map somebody wrote and cannot see is worse than no map at all.
+    """
+    path = written_path(root)
+    try:
+        with open(path, "r", encoding="utf-8") as fh:
+            raw = json.load(fh)
+    except OSError:
+        return None, []
+    except ValueError as exc:
+        return None, ["%s is not valid JSON: %s" % (path, exc)]
+    return validate(raw)
+
+
+def write_written(root, raw):
+    """Validate and store. `(problems, path)` -- nothing is written if any."""
+    clean, problems = validate(raw)
+    if problems:
+        return problems, written_path(root)
+    path = written_path(root)
+    try:
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        tmp = path + ".new"
+        with open(tmp, "w", encoding="utf-8") as fh:
+            json.dump(clean, fh, indent=2, sort_keys=False)
+            fh.write("\n")
+        os.replace(tmp, path)
+    except OSError as exc:
+        return ["could not write %s: %s" % (path, exc)], path
+    _cache.pop(os.path.realpath(root), None)
+    return [], path
+
+
+def _here(root, rel):
+    """Does this workspace really hold that path, and is it really inside it?"""
+    if not rel:
+        return False
+    target = os.path.join(root, rel)
+    if not toolpaths.within(target, root):
+        return False
+    return os.path.exists(target)
+
+
+def _resolve_written(root, clean):
+    """The written map, checked against the tree, every time it is read.
+
+    This is the whole of why a written map is allowed to exist. What comes back
+    is never what is on disk: it is what is on disk INTERSECTED with what is
+    still there, so a map written in March is either true in September or
+    visibly smaller.
+    """
+    nodes, dropped = [], set()
+    for node in clean["nodes"]:
+        node = dict(node)
+        declared = list(node["files"])
+        node["files"] = [f for f in declared if _here(root, f)]
+        if declared and not node["files"]:
+            # Every file it was made of has gone. The box is not a box any more.
+            dropped.add(node["id"])
+            continue
+        if node["dir"] and not os.path.isdir(os.path.join(root, node["dir"])):
+            node["dir"] = ""
+        if node["doc"]:
+            found, _name = reading.find(root, node["doc"])
+            if not found:
+                node["doc"] = ""
+                node["slide"] = None
+        nodes.append(node)
+
+    alive = set(n["id"] for n in nodes)
+    for node in nodes:
+        node["blockedBy"] = [b for b in node["blockedBy"] if b in alive]
+
+    edges = [dict(e) for e in clean["edges"]
+             if e["from"] in alive and e["to"] in alive]
+
+    return nodes, edges, dropped
+
+
+def _from_written(root):
+    """A repository whose owner has drawn it. Replaces the derived picture."""
+    clean, problems = read_written(root)
+    if not clean or problems:
+        return None
+    nodes, edges, _dropped = _resolve_written(root, clean)
+    if not nodes:
+        return None
+
+    # The plan's steps land on written boxes the same way they land on derived
+    # ones, by the paths the step NAMES -- so a box called *the typist* still
+    # collects the step that talks about `psych_asr.cli.run_asr`. Its files and
+    # its directory are both what it answers to.
+    by_dir = {}
+    for node in nodes:
+        owned = list(node["files"])
+        if node["dir"]:
+            owned.append(node["dir"])
+        by_dir[node["id"]] = owned
+    on, loose = _attach(_plan_steps(root), by_dir)
+    for node in nodes:
+        node["steps"] = on.get(node["id"], [])[:MAX_CHIPS]
+
+    return {
+        "title": clean["title"],
+        "nodes": nodes,
+        "edges": edges,
+        "loose": loose,
+        "why": "Drawn by hand in live/map.json, and re-checked against the "
+               "tree on every read.",
+        "written": True,
+    }
+
+
+def check(root):
+    """What has gone stale in the written map. The list `board map --check` prints.
+
+    Everything here is something the resolver would silently SWALLOW on the next
+    read -- a file dropped, a box dropped, an edge dropped -- plus the one thing
+    it cannot see, which is a box claiming to be `done` while the plan still has
+    an open step sitting on it. Silent correctness is right for a payload painted
+    four times a second and wrong for a person asking what needs attention.
+    """
+    clean, problems = read_written(root)
+    if problems:
+        return problems
+    if not clean:
+        return []
+
+    out = []
+    nodes, edges, dropped = _resolve_written(root, clean)
+    alive = set(n["id"] for n in nodes)
+
+    for node in clean["nodes"]:
+        gone = [f for f in node["files"] if not _here(root, f)]
+        if node["id"] in dropped:
+            out.append("`%s` (%s) is gone from the picture: every file it was "
+                       "made of has been moved or deleted -- %s"
+                       % (node["id"], node["name"], ", ".join(gone[:4])))
+            continue
+        for f in gone:
+            out.append("`%s` names %s, which is not there any more"
+                       % (node["id"], f))
+        if node["dir"] and not os.path.isdir(os.path.join(root, node["dir"])):
+            out.append("`%s` sits in %s/, which is not there any more"
+                       % (node["id"], node["dir"]))
+        if node["doc"]:
+            found, _name = reading.find(root, node["doc"])
+            if not found:
+                out.append("`%s` points at the document `%s`, which this "
+                           "workspace does not offer any more"
+                           % (node["id"], node["doc"]))
+        for b in node["blockedBy"]:
+            if b not in alive:
+                out.append("`%s` is blocked by `%s`, which is no longer on the "
+                           "picture" % (node["id"], b))
+
+    for e in clean["edges"]:
+        if e["from"] not in alive or e["to"] not in alive:
+            out.append("the arrow %s -> %s has lost an end"
+                       % (e["from"], e["to"]))
+
+    # A box that says `done` with an open step on it. The plan is the fact and
+    # the status is the declaration, so the plan wins and the person is told.
+    on, _loose = _attach(_plan_steps(root),
+                         dict((n["id"], list(n["files"])
+                               + ([n["dir"]] if n["dir"] else []))
+                              for n in nodes))
+    for node in nodes:
+        if node["status"] == "done" and on.get(node["id"]):
+            steps = ", ".join(s["label"] for s in on[node["id"]][:3])
+            out.append("`%s` is marked done, but the plan still has %s on it"
+                       % (node["id"], steps))
+
+    return out
+
+
+def written_status(root):
+    """Whether this workspace has a written map, and when it was written.
+
+    `board brief` shows it so a tutor knows whether it is looking at somebody's
+    own words or at a directory listing, and the atlas shows the title. A tutor
+    that cannot tell the two apart will believe a derived map is what the person
+    thinks, which is the one thing this whole section exists to prevent.
+    """
+    path = written_path(root)
+    try:
+        when = os.path.getmtime(path)
+    except OSError:
+        return {"has": False, "title": "", "written": 0, "nodes": 0,
+                "stale": 0, "problems": []}
+    clean, problems = read_written(root)
+    if problems or not clean:
+        return {"has": True, "title": "", "written": when, "nodes": 0,
+                "stale": 0, "problems": problems or ["unreadable"]}
+    nodes, _edges, _dropped = _resolve_written(root, clean)
+    return {"has": True, "title": clean["title"], "written": when,
+            "nodes": len(nodes), "stale": len(check(root)), "problems": []}
+
+
 def _shape(root):
-    """The picture, with no judgement in it yet."""
-    for build in (_from_chapters, _from_code, _from_parts):
+    """The picture, with no judgement in it yet.
+
+    THE WRITTEN MAP IS TRIED FIRST AND IT REPLACES THE DERIVED ONE. Not merged
+    with it: `psych_asr/asr` and *the typist* on one picture is the same thing
+    said twice in two vocabularies, and the person reading it has to work out
+    that they are the same thing before they can use either. Where somebody has
+    drawn their project, that drawing IS the map; the three derivations below
+    are the fallback for every workspace nobody has drawn, which is most of them.
+    """
+    for build in (_from_written, _from_chapters, _from_code, _from_parts):
         try:
             found = build(root)
         except Exception:                                    # noqa: BLE001
@@ -681,6 +1131,11 @@ def status(root, state=None, archived=None):
     return {
         "version": 2,
         "title": found["title"],
+        # WHOSE WORDS THESE ARE. A tutor handed a derived map and a written one
+        # with no way to tell them apart will read a directory listing as what
+        # the person thinks about their own project, which is the single thing
+        # this distinction exists to prevent.
+        "written": bool(found.get("written")),
         "nodes": nodes,
         "edges": found["edges"],
         # Every step of the plan this module could not place. Offered rather

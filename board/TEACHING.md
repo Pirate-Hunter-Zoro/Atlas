@@ -874,6 +874,11 @@ about. It is derived from disk on every build — the directories that hold
 source, the imports between them, the steps of the plan matched to the parts
 they name — so there is nothing to maintain and nothing that can go stale.
 
+**Unless somebody has drawn it, in which case the drawing is the map.** See
+*Drawing the map*, below. Your briefing says which of the two you are looking
+at, and the difference matters: a derived map is a directory listing, and a
+written one is what the person thinks about their own work.
+
 **What this means for you is that a sitting opened from the map arrives already
 scoped.** The briefing names the box: what it is, in the words of its own
 package docstring; the files it is made of; the steps of the plan that sit on
@@ -909,6 +914,93 @@ The third and the second are the pair most easily confused and the confusion is
 expensive in exactly one direction: writing the code for somebody who asked to
 be told what to write takes the evening's work away from them, and no later card
 gives it back.
+
+---
+
+## Drawing the map
+
+**Structure is derived from disk. Meaning is written by you. Neither is guessed.**
+
+The derived map is honest and it is not enough. It can see that `psych_asr/asr`
+exists, that it imports `psych_asr/transcript`, and that a plan step names it.
+It cannot see that the box is called *the typist*, that it runs one candidate
+model and never compares it against another, or that the scorer below it is
+blocked on a seam nobody has built yet. Those are the sentences the owner of the
+project actually uses about it, and no amount of reading the tree produces them.
+
+So a workspace may carry `live/map.json`, and **you write it, on request, in a
+sitting.** *"Draw the map"* is a thing a person can ask for. It is not generated
+and there is no command that infers it.
+
+### How
+
+1. **Read what they already wrote.** The README, the plan the README points at,
+   and any deck or walkthrough document in the workspace. You are not inventing
+   names; you are collecting the ones they use.
+2. **Name the boxes the way those documents name them.** A box is a **stage of
+   the work**, not a directory — *the typist*, *the stopwatch*, *the
+   name-tagger*, *the corrections*, *the grader*, *the grid*, *the scorer*. The
+   plain name leads and the real identifier goes in `also`, so the box reads as
+   the thing it is and still says which module that is.
+3. **One sentence each**, in `does`, capped at 110 characters because it is read
+   inside a box on a tablet. What it does, not what it is made of.
+4. **Carry the files.** Every box lists the files it is made of in `files`, so
+   every tap on the sheet opens a sitting scoped to real code. A stage with no
+   files is a stage nobody can work on from the picture.
+5. **Say what flows.** An edge takes a `label` — `words`, `turns`, `a graded
+   transcript`. The noun, not a sentence.
+6. **Say what is stuck, and on what.** `blockedBy` names other boxes. It is the
+   field nothing else in this system can set, and it is most of why a written
+   map is worth having.
+7. **Point at the explanation.** `doc` is a document ident this workspace
+   offers, and `slide` is a page number in it.
+8. **Then stop.** A map is not a plan and it is not a task list — the plan's
+   steps arrive on the boxes by themselves, and a box invented to hold a step is
+   a list wearing a diagram's clothes.
+
+`board map < map.json` writes it. It is **validated and refused whole** if
+anything is wrong, with every problem printed at once; nothing is half-applied.
+`board map --show` prints it and `board map --check` says what has gone stale.
+
+**It is the one file in `live/` that is tracked**, because it carries judgement
+no file in the repository contains. Every workspace ignores `live/`, so the
+first map written in one will be refused with the exact edit needed — `live/`
+becomes `live/*` plus `!live/map.json`. The shape matters and it is not a style
+choice: git will not descend into a directory it has excluded, so a negation
+written under `live/` can never fire.
+
+### It is checked against the tree on every read, and that is the deal
+
+A node naming a file that has gone loses the file. A node whose files have *all*
+gone drops out of the picture. An edge naming a box that is not there is not an
+edge. You never see a map claiming something the repository does not have.
+
+    A fact cannot go stale. A declaration can. So a declaration is checked
+    against the facts every time it is read.
+
+That is the same rule `walk.scope` and `review.scope` follow, and it is the only
+reason a written map is allowed to exist at all in a system whose first
+principle is that nothing is registered.
+
+### Keeping the map true is part of finishing a piece of work
+
+Exactly as updating the plan already is. When you have finished something:
+
+- a stage that is now working is not `next` any more;
+- a stage that is now unblocked has lost its `blockedBy`;
+- a file that moved has moved on the map too;
+- a stage that did not exist when the map was drawn is a box that is missing
+  from it.
+
+`board map --check` tells you the first three in one call. The fourth is the one
+only you can notice, and it is the one that makes a map quietly stop being
+believed. **A map that describes last month is worse than no map**, because the
+person reading it has no way to tell which half is still true — the same reason
+a stale handoff is worse than none.
+
+Do not redraw the whole thing to change one box. Read it with `board map
+--show`, change what is wrong, write it back.
+
 
 ---
 

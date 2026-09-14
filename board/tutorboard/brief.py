@@ -21,9 +21,11 @@ never.
 
 import os
 import re
+import time
 
 from . import carry, handoff
 from .course import config
+from .course import map as course_map
 
 
 CONTRACT = "AI_INSTRUCTIONS.md"
@@ -109,6 +111,57 @@ def contract_map(root):
             for l in text.splitlines() if re.match(r"^##\s+\S", l)]
 
 
+
+def map_sense(root):
+    """One paragraph: is this project drawn, when, and is the drawing still true.
+
+    KEEPING THE MAP TRUE IS PART OF FINISHING A PIECE OF WORK, exactly as
+    updating the plan already is, and a rule nobody is reminded of is a rule
+    that lasts about three weeks. So the reminder is in the briefing, where
+    every turn sees it, rather than in a document a turn is told not to read.
+    """
+    try:
+        info = course_map.written_status(root)
+    except Exception:                                        # noqa: BLE001
+        return ("the map could not be read, so treat the picture on the board "
+                "as derived from the tree rather than as anybody's words.")
+
+    if not info["has"]:
+        return ("NOT DRAWN. The board is showing a picture derived from the "
+                "directory tree -- honest, and nobody's words. It knows that "
+                "directories exist and what imports what; it does not know what "
+                "any of it is FOR, which stage of the work a box is, or what is "
+                "blocked. If the person asks you to draw the map, or if you are "
+                "about to explain this project back to them, write one with "
+                "`board map < map.json` -- live/TEACHING.md says how. Name the "
+                "boxes the way their README and their plan name them.")
+
+    if info["problems"]:
+        return ("live/map.json EXISTS AND IS NOT VALID, so the board has fallen "
+                "back to the derived picture and the person cannot see what they "
+                "wrote. `board map --show` prints the reason. Fix it before "
+                "anything else that touches the map: %s"
+                % "; ".join(info["problems"][:3]))
+
+    when = ""
+    try:
+        when = time.strftime("%d %b", time.localtime(info["written"]))
+    except (OSError, ValueError):
+        when = ""
+    lead = ("DRAWN%s, %d box%s%s. These are the person's own names for their "
+            "own work -- use them. Saying `psych_asr/asr` where they wrote "
+            "*the typist* is answering in a vocabulary they did not choose."
+            % (" " + when if when else "", info["nodes"],
+               "" if info["nodes"] == 1 else "es",
+               (" -- \"%s\"" % info["title"]) if info["title"] else ""))
+    if info["stale"]:
+        lead += ("\n%d thing(s) on it no longer match the tree; `board map "
+                 "--check` says which. Keeping the map true is part of "
+                 "finishing a piece of work, the same way updating the plan is."
+                 % info["stale"])
+    return lead
+
+
 def briefing(repo, sense, chapter=None):
     """The whole cold briefing as one string.
 
@@ -167,6 +220,13 @@ def briefing(repo, sense, chapter=None):
                    "unfinished in an earlier one is not this chapter's business. Do "
                    "not go looking for it -- not in live/archive/, not in "
                    "live/handoffs/, not in an older chapter's write-up.")
+
+    # WHOSE PICTURE OF THIS PROJECT THE BOARD IS SHOWING, and whether it is
+    # still true. A turn that cannot tell a drawn map from a directory listing
+    # will read `psych_asr/asr` back to the person as though it were how they
+    # think about their own work. It is three lines and it decides whether the
+    # turn is allowed to speak in the project's own vocabulary.
+    out.append("\n--- the map ---\n" + map_sense(root))
 
     note = carry.read_note(root)
     if note:

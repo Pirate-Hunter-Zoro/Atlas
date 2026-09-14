@@ -486,6 +486,13 @@ function openSheet(c) {
   els.sheetFamily.textContent = fam;
   els.sheetName.textContent = c.course || c.repo;
   els.sheetWhere.textContent = c.id + (c.chapter ? "  ·  " + c.chapter : "");
+  /* WHAT THE PERSON CALLS THIS WHOLE WORKSPACE, where they have drawn it. The
+     one field the written map lends the front door, and it belongs on the sheet
+     rather than on the card: a card already carries a name, what is next and
+     how much is outstanding, and a fourth line on it is a paragraph. */
+  if (c.drawn) {
+    els.sheetWhere.textContent += "  ·  " + c.drawn;
+  }
   if (c.next) {
     els.sheetNextText.textContent = c.next_label || c.next;
     els.sheetNext.hidden = false;
