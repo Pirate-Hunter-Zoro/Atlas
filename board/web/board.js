@@ -109,6 +109,7 @@ var els = {
   paperName: document.getElementById("paper-name"),
   paperSub: document.getElementById("paper-sub"),
   paperGet: document.getElementById("paper-get"),
+  paperInk: document.getElementById("paper-ink"),
   paperPages: document.getElementById("paper-pages"),
   carry: document.getElementById("carry"),
   busy: document.getElementById("busy"),
@@ -1820,6 +1821,21 @@ function openPaper(kind, label, then) {
         + (got.truncated ? " (the first " + got.n + " only)" : "");
       els.paperPages.innerHTML = "";
       got.pages.forEach(function (url, i) {
+        /* EACH PAGE IN ITS OWN BOX, because the box is what the ink is
+           anchored to. A page is a picture whose size on the glass depends on
+           the width of the panel and the zoom -- so ink stored in page pixels
+           would be somewhere else the moment the iPad rotates. Stored in
+           fractions of this box, it is in the same place on the page for ever,
+           which is the trick `annotate.js` already plays one level in, on
+           cards.
+
+           The key is the tail of a §2.1 address, `doc/<ident>/p<n>`, so a mark
+           sent to the tutor names a place the tutor can open. */
+        var box = document.createElement("div");
+        box.className = "paper-page";
+        var ident = kind.indexOf("doc/") === 0 ? kind.slice(4) : kind;
+        box.dataset.ann = "doc/" + ident + "/p" + (i + 1);
+
         var img = document.createElement("img");
         img.src = url;
         /* Lazily, because a hundred-page transcript is a hundred pictures and
@@ -1827,8 +1843,27 @@ function openPaper(kind, label, then) {
         img.loading = i < 2 ? "eager" : "lazy";
         img.decoding = "async";
         img.alt = "page " + (i + 1);
-        els.paperPages.appendChild(img);
+        box.appendChild(img);
+        els.paperPages.appendChild(box);
+        /* A picture arrives with no height until it has decoded, and a layer
+           sized against a zero-height box covers nothing. `annotate.js` already
+           re-sizes on its own when a card grows; this is the same event, said
+           explicitly because an image is the one thing that grows all at once
+           long after it was inserted. */
+        if (window.Annotate) {
+          window.Annotate.attach(box);
+          img.addEventListener("load", function () {
+            window.Annotate.redrawAll();
+          });
+        }
       });
+      /* Marks made on this document before, put back. Same call the lesson
+         makes; the store is keyed by a string and does not care which kind of
+         thing the string names. */
+      if (window.Annotate && lastLive) {
+        window.Annotate.load(lastLive.notes);
+        window.Annotate.loadSent(lastLive.notes_sent);
+      }
       /* The address bar now names this document, so a link to it can be copied
          off the glass. */
       mapRemember();
@@ -1885,6 +1920,12 @@ function paperSay(html) {
 }
 
 function closePaper() {
+  /* The pen goes with the panel. Leaving annotate mode on when the document
+     closes drops somebody back into the lesson with the pen out and the
+     toolbar up, which is a mode they did not ask for and did not turn on. */
+  if (window.Annotate && window.Annotate.isOn()) {
+    setAnnotating(false);
+  }
   paperOpen = null;
   els.paper.hidden = true;
   document.body.classList.remove("papering");
@@ -2515,6 +2556,14 @@ function setAnnotating(next) {
   els.annotate.setAttribute("aria-pressed", next ? "true" : "false");
   els.annotate.title = next ? "stop writing on the lesson"
                             : "write on the lesson itself";
+  /* The same mode, reported on whichever control is actually reachable. A
+     document is read full-screen over the chrome, so while one is open the pen
+     on the paper bar is the only one of the two anybody can see. */
+  if (els.paperInk) {
+    els.paperInk.setAttribute("aria-pressed", next ? "true" : "false");
+    els.paperInk.title = next ? "stop writing on this page"
+                              : "write on this page";
+  }
   paintAnnTools();
 }
 
@@ -6626,6 +6675,12 @@ if (window.TutorShot) {
 /* Three controls, one document, and none of them navigates this window. */
 els.pushedGet.onclick = function (e) { saveCopy(bannerKind, e.currentTarget); };
 els.pushedView.onclick = function () { openPaper(bannerKind); };
+if (els.paperInk) {
+  els.paperInk.onclick = function () {
+    setAnnotating(!(window.Annotate && window.Annotate.isOn()));
+  };
+}
+
 els.paperGet.onclick = function (e) { saveCopy(paperOpen, e.currentTarget); };
 document.getElementById("paper-close").onclick = closePaper;
 document.getElementById("btn-papers").onclick = openPapers;

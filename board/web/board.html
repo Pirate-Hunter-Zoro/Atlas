@@ -469,6 +469,13 @@
     <strong id="paper-name">document</strong>
     <span id="paper-sub" class="muted"></span>
     <button class="to-map" type="button" title="the map of this course">◈ map</button>
+    <!-- THE PEN, HERE, because the title bar is underneath this panel. A
+         document is read full-screen and `#chrome` is behind it, so the
+         lesson's own annotate button cannot be reached while one is open --
+         which made a page of a deck the one surface on the board you could look
+         at and not write on. -->
+    <button id="paper-ink" type="button" aria-pressed="false"
+            title="write on this page">✎</button>
     <button id="paper-get" type="button" class="pushed-get">save a copy</button>
     <button id="paper-close" type="button" title="back to the lesson">✕</button>
   </div>
