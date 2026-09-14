@@ -44,6 +44,48 @@ var REACH = 160;
 /* The most device pixels one layer's bitmap may hold. See `size`. */
 var CAP = 4e6;
 
+/* ------------------------------------------------------- what carries ink */
+/* WIDENING THE TARGET, NOT INVENTING A MECHANISM.
+   
+   Everything below this was written for CARDS and works unchanged for anything
+   else that can hold a rectangle of ink. What made it card-only was one
+   assumption spelled eleven times: that the thing being annotated is found by
+   `[data-card="…"]`. It is found by these two functions now.
+
+   A node carries EITHER `data-card` -- a card in the lesson, the original and
+   still the common case -- or `data-ann`, whose value is the tail of a §2.1
+   address:
+
+       doc/<ident>/p<n>      one page of a document
+       code/<path>[::<sym>]  a walk unit          (not drawn on yet; §2.4)
+
+   The id is just a string to everything downstream: the store, the undo
+   history, the autosave, the payload. That is why this works at all, and it is
+   why the id must stay opaque -- the moment something in here parses it, the
+   next surface needs a new branch. `writing.py` is the one place that reads it,
+   because the tutor has to be told WHERE a mark is, and the address is exactly
+   that sentence. */
+function keyOf(node) {
+  if (!node || !node.dataset) return "";
+  return node.dataset.card || node.dataset.ann || "";
+}
+
+/* Matched by scanning rather than by building a selector. An id is opaque, and
+   `doc/stage-2/p7` in an attribute selector is one stray quote away from
+   throwing -- which in here means the ink silently stops being drawn. */
+function nodeFor(id) {
+  if (!id) return null;
+  var all = document.querySelectorAll("[data-card],[data-ann]");
+  for (var i = 0; i < all.length; i++) {
+    if (keyOf(all[i]) === id) return all[i];
+  }
+  return null;
+}
+
+function allNodes() {
+  return document.querySelectorAll("[data-card],[data-ann]");
+}
+
 /* The nearest neighbour that is actually on the page.
 
    A hidden element -- the writing surface with the panel shut, and it sits in
@@ -152,7 +194,7 @@ function layerOf(card) {
    fractions are fractions of. */
 /* Is there anything to paint on this card's layer? */
 function marked(card) {
-  return (store[card.dataset.card] || []).length > 0
+  return (store[keyOf(card)] || []).length > 0
       || !!(drawing && drawing.card === card);
 }
 
@@ -211,7 +253,7 @@ function size(card, canvas) {
   canvas.width = Math.round((w + p.l + p.r) * dpr);
   canvas.height = Math.round((h + p.t + p.b) * dpr);
   /* A resize invalidates every cached pixel path on this card. */
-  var strokes = store[card.dataset.card] || [];
+  var strokes = store[keyOf(card)] || [];
   for (var i = 0; i < strokes.length; i++) { strokes[i]._k = null; strokes[i]._bbk = null; }
   return true;
 }
@@ -413,7 +455,7 @@ function padBox(box, m) {
    typeset mathematics, is the main thread gone and a pen that answers late. */
 function draw(card, measured) {
   if (!card) return;
-  var id = card.dataset.card;
+  var id = keyOf(card);
   if (!id) return;
   var canvas = layerOf(card);
   if (!measured) size(card, canvas);
@@ -457,7 +499,7 @@ function whereOn(id) {
    follows, and for the same reason -- the picture's only job is to be legible to
    whatever opens it. */
 function png(id) {
-  var src = document.querySelector('[data-card="' + id + '"]');
+  var src = nodeFor(id);
   if (!src) return "";
   var live = src.querySelector("canvas." + LAYER);
   if (!live || !live._w) return "";
@@ -525,7 +567,7 @@ function restore(snap) {
   store[snap.id] = snap.strokes;
   dirty[snap.id] = true;
   handed[snap.id] = false;
-  draw(document.querySelector('[data-card="' + snap.id + '"]'));
+  draw(nodeFor(snap.id));
   onChange();
 }
 
@@ -694,7 +736,7 @@ function dropPick() {
   if (!pick) return;
   var id = pick.id;
   pick = null;
-  var card = document.querySelector('[data-card="' + id + '"]');
+  var card = nodeFor(id);
   if (card) draw(card);
   onChange();
 }
@@ -729,13 +771,13 @@ function toPixels(s, cv) {
    the three is the only one that costs a layout, and it is the rarest. */
 function pasteCard() {
   if (pick) {
-    var held = document.querySelector('[data-card="' + pick.id + '"]');
+    var held = nodeFor(pick.id);
     if (held) return held;
   }
-  if (lastCard && lastCard.parentNode && lastCard.dataset.card) return lastCard;
+  if (lastCard && lastCard.parentNode && keyOf(lastCard)) return lastCard;
   var mid = (window.innerHeight || 700) / 2;
   var best = null, bestGap = Infinity;
-  var cards = document.querySelectorAll("[data-card]");
+  var cards = allNodes();
   for (var i = 0; i < cards.length; i++) {
     var r = cards[i].getBoundingClientRect();
     if (!r.height) continue;
@@ -751,7 +793,7 @@ var CLIP = {
      a card reaches the writing board. */
   copy: function () {
     if (!pick || !window.InkClip) return 0;
-    var card = document.querySelector('[data-card="' + pick.id + '"]');
+    var card = nodeFor(pick.id);
     if (!card) return 0;
     var cv = layerOf(card);
     var got = pickStrokes().map(function (s) { return toPixels(s, cv); });
@@ -773,7 +815,7 @@ var CLIP = {
     pick = null;
     dirty[id] = true;
     handed[id] = false;
-    draw(document.querySelector('[data-card="' + id + '"]'));
+    draw(nodeFor(id));
     onChange();
     return n;
   },
@@ -792,8 +834,8 @@ var CLIP = {
     var clip = window.InkClip.get();
     if (!clip) return 0;
     var card = pasteCard();
-    if (!card || !card.dataset.card) return 0;
-    var id = card.dataset.card;
+    if (!card || !keyOf(card)) return 0;
+    var id = keyOf(card);
     var cv = layerOf(card);
     /* The layer may never have been sized -- this is a card nobody has written
        on -- and everything below is in its coordinates. */
@@ -1149,7 +1191,7 @@ function armTouch(want) {
 
 function begin(ev, card) {
   if (!on) return;
-  var id = card.dataset.card;
+  var id = keyOf(card);
   if (!id) return;
   dropSelection();
   /* A finger scrolls the lesson unless the slate has been told a finger writes.
@@ -1469,7 +1511,7 @@ window.Annotate = {
   /* Attach to a card node. Idempotent: the lesson is reconciled, so the same
      node comes back frame after frame and must not collect listeners. */
   attach: function (card) {
-    if (!card || !card.dataset.card || card._annotated) return;
+    if (!card || !keyOf(card) || card._annotated) return;
     card._annotated = true;
     var canvas = layerOf(card);
     /* A card grows after it is first laid out -- a figure finishes compiling,
@@ -1501,7 +1543,7 @@ window.Annotate = {
     draw(card);
   },
   redrawAll: function () {
-    var cards = document.querySelectorAll("[data-card]");
+    var cards = allNodes();
     Array.prototype.forEach.call(cards, function (c) {
       /* Never the card being written on: its ink is already on the glass, and
          repainting it from scratch is exactly the work that makes a line arrive
@@ -1541,7 +1583,7 @@ window.Annotate = {
        rest. */
     fresh.forEach(function (id) {
       if (!(store[id] || []).length) return;
-      var card = document.querySelector('[data-card="' + id + '"]');
+      var card = nodeFor(id);
       if (card) draw(card);
     });
   },
@@ -1594,7 +1636,7 @@ window.Annotate = {
     var ids = window.Annotate.marked();
     ids.forEach(function (id) { remember(id); store[id] = []; dirty[id] = true;
                                 handed[id] = false;
-                                draw(document.querySelector('[data-card="' + id + '"]')); });
+                                draw(nodeFor(id)); });
     if (ids.length) onChange();
     return ids.length;
   },
@@ -1634,7 +1676,7 @@ window.Annotate = {
     store[id] = [];
     dirty[id] = true;
     handed[id] = false;
-    draw(document.querySelector('[data-card="' + id + '"]'));
+    draw(nodeFor(id));
     onChange();
   },
   payload: function (id, send) {

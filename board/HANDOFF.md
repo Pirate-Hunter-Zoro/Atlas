@@ -333,15 +333,37 @@ the first document to contain a link:
 In this order. The first two extend machinery that exists; the third needs another
 repository read first.
 
-**Annotating.** `web/annotate.js` puts an ink layer on each **card** and stores strokes in
-that card's own coordinates — fractions of its width and height, not page pixels — because
-the lesson reflows constantly and ink anchored to the page ends up somewhere else. The same
-trick, one level out: on a **document page**, ink anchored in fractions of the page box,
-keyed by document ident and page number; on **code**, anchored to a line within a walk unit,
-so a comment on line 74 survives the file growing a line at the top. Either one, when sent,
-becomes what a card annotation already becomes — a message in the inbox carrying the picture
-and the anchor — with `writing.py`'s wording extended to name the place in §2.1 terms. You
-are widening the target, not inventing a mechanism.
+**Annotating — DONE for documents; code is waiting on a code viewer.**
+
+The widening was one idea: `annotate.js` was card-only because of a single assumption spelled
+eleven times — that the thing being annotated is found by `[data-card="…"]`. It is found by
+`keyOf(node)` and `nodeFor(id)` now, and a node carries **either** `data-card` (a card, the
+original and still the common case) **or** `data-ann`, whose value is the tail of a §2.1
+address. Everything downstream — the store, the undo history, the autosave, the payload —
+treats the id as an opaque string, which is exactly why this worked at all. Nothing in
+`annotate.js` parses it; `writing.py` is the only thing that reads it, because the tutor has
+to be told *where* a mark is and the address is that sentence.
+
+`doc/<ident>/p<n>` is live: each page of the document viewer is wrapped in its own
+`.paper-page` box, ink is anchored in fractions of that box, and the pen is on the paper bar
+because `#chrome` is behind the panel at z-index 95 — which had made a page of a deck the one
+surface on the board you could look at and not write on.
+
+Two things that had to be got right and are worth not undoing:
+
+- **The key never becomes a path.** A record used to be written to `<notes>/<card>.json`,
+  safe only because a card is four digits. `ann_ok` validates the key against known shapes
+  and `ann_file` *derives* a flat filename with a short digest, so two anchors can never
+  collide and none can climb out. A card's record keeps its old name, so no existing ink
+  moved. And the anchors use `\A…\Z`, not `^…$`: in Python `$` also matches before a
+  trailing newline, so `doc/a/p1\n` passed a `$`-anchored check and went into a filename.
+- **A mark on a document answers no card**, so `answers` is empty for one and the turn falls
+  to where its time puts it. Claiming a card would file it under one it has nothing to do with.
+
+`test/anchor.py` is the suite. **`code/<path>[::<sym>]#L<n>` is not built**: there is no code
+viewer to draw on yet, and accepting a key nothing can produce is a branch that rots. It is
+one entry in `ann_ok` and one in `ann_says` when that surface exists — §2.1's `code/` address
+already lands on the walkthrough picker, which is where that viewer will go.
 
 **Exporting.** `document.build(root, scope=…)` already compiles a lesson, tracks it in git
 and numbers it. Add scopes rather than exporters, keep the numbering, and keep the one

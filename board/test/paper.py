@@ -366,8 +366,18 @@ check("every last-resort open is a NEW context (%d of them)" % len(opens),
       len(opens) >= 1)
 
 # 5. Reading it is pictures, because iOS gives a PDF in a frame one page.
+#
+# The PROPERTY, not the line. This used to pin
+# `els.paperPages.appendChild(img)` and broke the day each page was wrapped in
+# its own box so ink could be anchored to it (§2.4) -- which changed nothing
+# about what is on the glass. What matters is that a page is an <img> built
+# here and put into the panel, and that there is no frame anywhere near it.
 check("the pages are drawn server-side and shown as pictures",
-      "<iframe" not in html and 'els.paperPages.appendChild(img)' in js)
+      "<iframe" not in html
+      and 'createElement("img")' in js
+      and re.search(r"els\.paperPages\.appendChild\(\w+\)", js) is not None)
+check("and each page is its own box, so ink anchors to the page it is on",
+      'class = "paper-page"' in js.replace("className", "class"))
 check("and the panel can be closed, which is the whole reason it is a panel",
       "function closePaper()" in js and 'id="paper-close"' in html)
 

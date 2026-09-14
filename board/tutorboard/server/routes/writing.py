@@ -7,6 +7,7 @@ between those two is most of what these routes are about.
 import re
 import shutil
 import time
+import hashlib
 import json
 import os
 
@@ -23,6 +24,64 @@ def get(h, repo, path):
     return NOT_MINE
 
 
+# ---------------------------------------------------------------------------
+# WHAT A MARK CAN BE ANCHORED TO
+# ---------------------------------------------------------------------------
+# A card, and now a page of a document. The key is the tail of a §2.1 address,
+# so the tutor can be told WHERE a mark is in the same words a link uses.
+#
+#     0007                  card 7 of the lesson
+#     doc/<ident>/p<n>      page n of a document this workspace offers
+#
+# A NAME FROM A BROWSER NEVER REACHES A FILESYSTEM, and this is the one place
+# in the annotation path where it could: the record used to be written to
+# `<notes>/<card>.json`, which was safe only because a card is four digits. A
+# key with a slash in it joined onto a path is the oldest hole there is, so the
+# key is VALIDATED against these shapes and then the filename is DERIVED from
+# it rather than being it.
+# `\Z`, NOT `$`. In Python `$` also matches just before a trailing newline, so
+# `"doc/a/p1\n"` passed a `$`-anchored check -- and that string then went into a
+# filename. A key arrives from a browser; it gets the strict end-of-string.
+ANN_CARD = re.compile(r"\A\d{1,4}\Z")
+ANN_DOC = re.compile(r"\Adoc/[a-z0-9-]{1,40}/p\d{1,4}\Z")
+
+
+def ann_ok(key):
+    return bool(ANN_CARD.match(key) or ANN_DOC.match(key))
+
+
+def ann_file(key):
+    """The filename for one key's record, and it can never climb out.
+
+    A card keeps its own name, so every record already on disk is found exactly
+    where it was. Anything else is flattened -- there is no `/` left in it to be
+    a directory -- and carries a short digest of the key, because two different
+    addresses must never flatten onto one file.
+    """
+    if ANN_CARD.match(key):
+        return key
+    flat = re.sub(r"[^A-Za-z0-9-]+", "-", key).strip("-")[:60]
+    digest = hashlib.sha1(key.encode("utf-8")).hexdigest()[:8]
+    return "%s-%s" % (flat or "mark", digest)
+
+
+def ann_says(key, answering_now):
+    """What the tutor is told about WHERE the mark is, in §2.1 terms."""
+    if ANN_CARD.match(key):
+        lead = ("this is their ANSWER to your question on card %s" % key
+                if answering_now else "they wrote on your card %s" % key)
+        return lead, ("Open the image, read what they marked, and answer it "
+                      "against that card's own text in live/cards/.")
+    m = re.match(r"\Adoc/([a-z0-9-]+)/p(\d+)\Z", key)
+    if m:
+        return ("they wrote on page %s of the document `%s`"
+                % (m.group(2), m.group(1)),
+                "Open the image to see the marks. The document itself is one "
+                "this workspace offers -- `board doctor` lists them -- and the "
+                "address of that page is #/w/<family>/<workspace>/%s." % key)
+    return "they wrote on %s" % key, "Open the image to see the marks."
+
+
 def post(h, repo, path):
     if path == "/annotate/save":
         # Marks written over the tutor's own cards. Saving keeps them across
@@ -35,8 +94,9 @@ def post(h, repo, path):
         except Exception:
             return h.send_json({"ok": False, "error": "bad json"}, status=400)
         card = str(payload.get("card") or "")
-        if not re.match(r"^\d{1,4}$", card):
-            return h.send_json({"ok": False, "error": "bad card"}, status=400)
+        if not ann_ok(card):
+            return h.send_json({"ok": False, "error": "bad anchor"}, status=400)
+        stem = ann_file(card)
         strokes = payload.get("strokes") or []
         # Whether these marks have been handed to the tutor, recorded next
         # to them. Without it a reload cannot tell ink that was delivered
@@ -45,9 +105,9 @@ def post(h, repo, path):
         # A plain save only ever arrives for a card that just changed, so
         # "not a send" is exactly the right moment to clear the flag.
         sent = bool(payload.get("send"))
-        with open(os.path.join(repo.notes, card + ".json"), "w", encoding="utf-8") as fh:
+        with open(os.path.join(repo.notes, stem + ".json"), "w", encoding="utf-8") as fh:
             json.dump({"card": card, "strokes": strokes, "sent": sent}, fh)
-        h.note("annotate card %s: %d strokes, %s"
+        h.note("annotate %s: %d strokes, %s"
                   % (card, len(strokes), "SENT" if sent else "saved only"))
 
         png = payload.get("png") or ""
@@ -56,7 +116,7 @@ def post(h, repo, path):
         if marker in png:
             import base64
             try:
-                saved_png = os.path.join(repo.notes, card + ".png")
+                saved_png = os.path.join(repo.notes, stem + ".png")
                 with open(saved_png, "wb") as fh:
                     fh.write(base64.b64decode(png.split(marker, 1)[1]))
             except Exception:
@@ -78,7 +138,12 @@ def post(h, repo, path):
             json.dump({"card": card, "strokes": strokes}, fh)
         record = {
             "id": tid, "rev": rev, "kind": "annotation",
-            "answers": card,
+            # WHICH CARD THIS SITS UNDER in the transcript -- and a mark on a
+            # page of a document sits under no card at all. Claiming one would
+            # file the turn beneath a card it has nothing to do with; empty
+            # lets it fall to where its time puts it, which is the truth.
+            "answers": card if ANN_CARD.match(card) else "",
+            "anchor": card,
             "t": time.time(),
             "iso": time.strftime("%Y-%m-%d %H:%M:%S"),
             "from": "student",
@@ -98,13 +163,11 @@ def post(h, repo, path):
         # that asked the student to decide something gets marks back, and
         # "they wrote on your card" reads like a passing note.
         answering_now = (card == turns.newest_question(repo))
-        msg["text"] = ("[annotation] %s card %s%s. Open the image, read what "
-                       "they marked, and answer it against that card's own "
-                       "text in live/cards/.%s"
-                       % ("this is their ANSWER to your question on"
-                          if answering_now else "they wrote on your",
-                          card,
+        lead, how = ann_says(card, answering_now)
+        msg["text"] = ("[annotation] %s%s. %s%s"
+                       % (lead,
                           (", " + record["where"]) if record["where"] else "",
+                          how,
                           " Treat it as the answer to that question."
                           if answering_now else ""))
         msg["slate"] = os.path.join(repo.answers, base + ".png")

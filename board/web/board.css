@@ -1087,10 +1087,25 @@ body.viewing { overflow: hidden; }
 /* A page is white because paper is white -- the board's dark skin belongs to
    the lesson, and a typeset document inverted is a document nobody can read. */
 .paper-pages img {
-  width: 100%; max-width: 46rem; height: auto; display: block;
+  width: 100%; height: auto; display: block;
   background: #fff; border-radius: .3rem;
   box-shadow: 0 6px 24px rgba(0, 0, 0, .35);
 }
+/* ONE PAGE, IN ITS OWN BOX, and the box is what the ink is anchored to.
+
+   A page's size on the glass is whatever the panel's width and the reader's
+   zoom make it, so ink stored in page pixels is somewhere else the moment the
+   iPad rotates. Stored in fractions of this box it stays on the same words for
+   ever — which is the trick the lesson already plays one level in, on cards.
+
+   `position: relative` is the whole of what the layer needs: `canvas.ann-layer`
+   is absolutely positioned and would otherwise hang off `.paper-pages` and land
+   on page one whichever page was written on. */
+.paper-page {
+  position: relative;
+  width: 100%; max-width: 46rem;
+}
+
 .paper-say {
   max-width: 30rem; margin: 2rem auto; text-align: center;
   font-family: var(--ui); font-size: .9rem; color: var(--ink-2);
@@ -1186,6 +1201,14 @@ body.papering { overflow: hidden; }
   font-family: var(--ui); font-size: .8rem;
 }
 body.tools-out .annbar { bottom: calc(5.6rem + env(safe-area-inset-bottom)); }
+/* ABOVE THE DOCUMENT PANEL while one is open. `#paper` is z-index 95 and this
+   bar is 58, so with a deck on the glass the pen's own controls were behind it
+   — the ink went down and there was no way to change the nib, undo it or put
+   it away. Only while papering: in the lesson the bar's ordinary place in the
+   stack is the right one, and raising it there would put it over the menu,
+   which is the one thing that must stay on top. */
+body.papering .annbar { z-index: 96; }
+#paper-ink[aria-pressed="true"] { color: var(--ask); }
 /* A control is not prose, and on a tablet the difference is not academic.
    `body.annotating #board *` already refuses selection over the lesson -- and
    this bar is fixed-position, OUTSIDE #board, so none of it applied here. Press
