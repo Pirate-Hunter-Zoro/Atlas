@@ -2852,6 +2852,10 @@ function takeStance() {
    for the sitting they are about to open, and it goes back to null the moment
    one is open, because the next sitting starts from the repository again. */
 var stancePick = null;
+/* What the repository declares, from the payload. It was a hard-coded "teach"
+   here, so the chooser showed the wrong thing in every repository whose standing
+   answer is `do` -- and the busy strip could not tell a doing turn from a
+   teaching one unless the sitting had overridden it. */
 var declaredStance = "teach";
 
 function paintStance() {
@@ -2921,6 +2925,7 @@ function paintReview(state, info, walk) {
   /* What the sitting is running under, so the chooser opens showing the truth
      rather than showing the repository's answer over the top of an override. */
   currentStance = state.stance || null;
+  declaredStance = state.declared_stance || "teach";
   var live = walking ? walkInfo : reviewInfo;
   var scope = (live && live.scope) || [];
   els.rvbar.hidden = !on;
@@ -5305,6 +5310,9 @@ var busyTurn = -1;
    them with "the tutor is writing" one second later. */
 var busyStalled = null;
 var busyFrom = 0;
+/* Whether the turn running now is one that does the work. Held rather than
+   recomputed in `tickBusy`, which fires on a timer and has no payload. */
+var busyDoing = false;
 var busyTimer = null;
 /* WHEN SEND WAS TAPPED, AND WHETHER ANYTHING HAS ANSWERED YET.
 
@@ -5346,6 +5354,31 @@ function saySending() {
 
 /* The newest card's mtime -- a correction to an existing card counts as much as
    a new one, since either way something appeared for them to read. */
+/* IS THIS A TURN THAT DOES THE WORK, rather than one that teaches it.
+
+   The four ways of saying so are the four `sense.session_sense` reads, because
+   they live in different places and a person taps one without knowing which:
+   the aim they chose on the map, a stance chosen for the sitting, a sitting
+   whose product is a document, or a repository whose standing answer is `do`.
+
+   The board needs this for one reason and it is the whole of why the strip
+   below was wrong: in a doing turn, a card landing does NOT mean the work is
+   finished. */
+function doingTurn(state) {
+  state = state || {};
+  var aim = state.aim || "";
+  if (state.session === "make") return true;
+  if (aim === "build" || aim === "paper" || aim === "slides") return true;
+  if (aim === "teach" || aim === "coach" || aim === "trace" || aim === "drill") {
+    return false;
+  }
+  var kind = state.session || "lecture";
+  if (kind !== "lecture" && kind !== "homework") return false;
+  /* The sitting's answer, or failing that the repository's own -- which the
+     payload carries, because the client cannot read tutorboard.json. */
+  return (state.stance || state.declared_stance || "teach") === "do";
+}
+
 function newestCard(data) {
   var newest = 0;
   (data.cards || []).forEach(function (c) {
@@ -5504,6 +5537,7 @@ function paintBusy(data) {
   els.busy.classList.remove("busy-bad");
   /* A new turn restarts the clock; the same turn continuing does not. */
   var turn = st.turns || 0;
+  busyDoing = doingTurn(data.state);
   if (busyTurn !== turn || !busySince) {
     busyTurn = turn;
     /* THE DAEMON'S CLOCK, NOT THIS PAGE'S.
@@ -5521,7 +5555,21 @@ function paintBusy(data) {
      daemon says "working" for all of it. So this counted on for minutes after
      the answer was already on screen, which is how a 34-second card came to look
      like a four-minute wait. Once something new is on the board, stop talking. */
-  if (newestCard(data) > busyFrom) {
+  /* ...AND THAT IS A TEACHING TURN'S RULE TOO.
+
+     In a turn that DOES the work, the card landing is the opposite signal. The
+     turn opens with one sentence saying what it is about to do -- so the board
+     is not blank while it works -- and then writes code, runs it, and replaces
+     that sentence with the report. Hiding the strip when the sentence lands
+     takes the indicator away at precisely the moment there is most to say, and
+     leaves somebody looking at a one-line card for several minutes with nothing
+     on screen saying anything is happening. Reported as: "is claude going to
+     town in the background? If so, I'd like an indication that this is what's
+     happening on the app."
+
+     So in a doing turn the strip stays for as long as the tutor says it is
+     working, and says what kind of work it is. */
+  if (!busyDoing && newestCard(data) > busyFrom) {
     els.busy.hidden = true;
     if (busyTimer) { clearInterval(busyTimer); busyTimer = null; }
     return;
@@ -5547,6 +5595,17 @@ function tickBusy() {
     return;
   }
   var secs = Math.max(0, Math.round((Date.now() - busySince) / 1000));
+  /* A DOING TURN SAYS WHAT IT IS DOING. "The tutor is writing" is true of a
+     card and reads as false when the card is already on screen and nothing has
+     changed for four minutes -- which is what a turn spends writing code, running
+     it and reading what came back. Say that instead, and say where the answer
+     will appear, because the one-line card already up is not it. */
+  if (busyDoing) {
+    els.busyText.textContent = secs > 150
+      ? "still working — writing the code and running it. The report lands here"
+      : "working on it — writing the code and running it";
+    return;
+  }
   /* Past a couple of minutes, silence stops being reassuring. Say that this one
      is long rather than letting the number say it alone. */
   els.busyText.textContent = secs > 150

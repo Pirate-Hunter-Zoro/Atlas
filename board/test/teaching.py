@@ -372,6 +372,24 @@ try:
             sys.stdin = old_stdin
         return code, out.getvalue().strip()
 
+    # A flag is not part of a title. `board write lesson --title "..."` is the
+    # obvious thing to type and there was no such option, so the flag went INTO
+    # the title: a card on the board called `--title Opening: verify the call
+    # path`, filed under `0001-title-opening-...`. The title is what the reader
+    # sees and what the transcript is indexed by.
+    code, flagged = write(["lesson", "--title", "Opening: verify the call path"],
+                          "one sentence.")
+    head = open(flagged, encoding="utf-8").read()
+    check("a --title is read as the title rather than written into it",
+          code == 0 and "title: Opening: verify the call path" in head)
+    check("and the card is filed under the title, not under the flag",
+          os.path.basename(flagged) == "0001-opening-verify-the-call-path.md")
+    code, odd = write(["lesson", "--nonsense", "real name"], "x")
+    check("an option nobody implemented is dropped, not printed on the board",
+          code == 0 and "--nonsense" not in open(odd, encoding="utf-8").read())
+    for name in os.listdir(repo.cards):
+        os.remove(os.path.join(repo.cards, name))
+
     code, first = write(["lesson", "starting"], "I am about to split it in two.")
     check("a doing turn can put one sentence up at once",
           code == 0 and os.path.basename(first).startswith("0001-"))

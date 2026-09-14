@@ -785,8 +785,34 @@ def cmd_write(live, args):
         if not args:
             args = ["lesson"]
     kind = args[0] if args[0] in KINDS else "lesson"
-    rest = [a for a in (args[1:] if args[0] in KINDS else args) if a != "--force"]
-    title = " ".join(rest)
+    rest = args[1:] if args[0] in KINDS else args
+    # A TITLE IS A TITLE, AND A FLAG IS NOT PART OF IT.
+    #
+    # `board write lesson --title "Opening: verify the call path"` is the obvious
+    # thing to type and there was no such option, so the flag itself went into
+    # the title: the board showed a card called `--title Opening: verify the
+    # call path` and filed it under `0001-title-opening-verify-...`. The title is
+    # what the reader sees at the top of the card and what the transcript is
+    # indexed by, so a stray flag in it is visible and permanent.
+    #
+    # So the flag is accepted, and anything else that looks like one is dropped
+    # rather than spelled out in the lesson. An unknown option is a mistake; a
+    # mistake printed on the board is a worse one.
+    words = []
+    skip = False
+    for i, a in enumerate(rest):
+        if skip:
+            skip = False
+            continue
+        if a in ("--title", "--name", "--slug"):
+            skip = True
+            if i + 1 < len(rest):
+                words.append(rest[i + 1])
+            continue
+        if a.startswith("--"):
+            continue
+        words.append(a)
+    title = " ".join(words).strip()
     body = sys.stdin.read()
     # The last gate before a card becomes the lesson. A reasoning model that was
     # given a card to write and handed back its own deliberation first -- "the

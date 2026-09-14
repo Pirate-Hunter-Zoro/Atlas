@@ -249,6 +249,74 @@ await sleep(40);
   ? ok('and a long one says it is long, rather than leaving the number to')
   : fail('a three-minute turn is not being flagged as long: "' + says() + '"');
 
+// ----------------------------------- a turn that DOES the work says so, and stays
+//
+// In a doing turn the card landing is the OPPOSITE signal to a teaching turn's:
+// the turn opens with one sentence saying what it is about to do, then writes
+// code and runs it for minutes, then replaces that sentence with the report.
+// The strip used to hide the moment any card appeared -- which is right when the
+// card IS the answer and takes the indicator away at exactly the wrong moment
+// here. Reported as: "is claude going to town in the background? If so, I'd like
+// an indication that this is what's happening on the app."
+{
+  const doing = (agent) => JSON.stringify({
+    state: { course: 'PSYCH-ASR', session: 'lecture', chapter: 'cli',
+             aim: 'build', stance: 'do', declared_stance: 'teach' },
+    // The opening sentence, written by the turn itself a moment ago.
+    cards: [{ id: '0001', kind: 'lesson', title: 'opening',
+              html: '<p>About to split it in two.</p>', mtime: t0 - 5 }],
+    turns: [{ id: 't0009', rev: 1, kind: 'text', answers: null, t: t0 - 20,
+              signal: 'begin', text: '' }],
+    agent: agent, waiting: null, history: 0,
+  });
+  es.onmessage({ data: doing({ agent: 'claude', state: 'working', turns: 9,
+                               turn_started: t0 - 40 }) });
+  await sleep(40);
+  !busy().hidden
+    ? ok('a doing turn keeps saying so after its opening card has landed')
+    : fail('the indicator went away while the tutor was writing code');
+  /writing the code and running it/.test(says())
+    ? ok('and says what kind of work it is, not merely "writing"')
+    : fail('a doing turn is described as writing a card: "' + says() + '"');
+
+  // A different turn, started seven minutes ago -- the clock is set once per
+  // turn from the daemon's own stamp, so a long one has to arrive as its own.
+  es.onmessage({ data: doing({ agent: 'claude', state: 'working', turns: 10,
+                               turn_started: t0 - 400 }) });
+  await sleep(40);
+  /report lands here/.test(says())
+    ? ok('and a long one says where the answer will appear')
+    : fail('a seven-minute doing turn says: "' + says() + '"');
+
+  // And a TEACHING turn is unchanged: its card is the answer, so once it lands
+  // there is nothing left to wait for and the strip stops talking. Two frames,
+  // because that is the real sequence -- the turn starts with the old card on
+  // the board, and the new one arrives while it is running.
+  const teach = (agent, cards) => {
+    const f = JSON.parse(doing(agent));
+    f.state = { course: 'Galois Theory', session: 'lecture', aim: 'teach',
+                declared_stance: 'teach' };
+    f.cards = cards;
+    return JSON.stringify(f);
+  };
+  const old = { id: '0001', kind: 'lesson', title: 'q',
+                html: '<p>old</p>', mtime: t0 - 300 };
+  es.onmessage({ data: teach({ agent: 'claude', state: 'working', turns: 11,
+                               turn_started: t0 - 40 }, [old]) });
+  await sleep(40);
+  !busy().hidden
+    ? ok('a teaching turn says so while its card is still being written')
+    : fail('a teaching turn in progress says nothing');
+  es.onmessage({ data: teach({ agent: 'claude', state: 'working', turns: 11,
+                               turn_started: t0 - 40 },
+                             [old, { id: '0002', kind: 'lesson', title: 'a',
+                                     html: '<p>new</p>', mtime: t0 - 1 }]) });
+  await sleep(40);
+  busy().hidden
+    ? ok('and stops the moment its card lands, because the card is the answer')
+    : fail('the strip counts on over a card that is already the answer');
+}
+
 // ------------------------------------------------------------ and silence
 // Nothing waiting, nothing working: there is genuinely nothing to say, and
 // saying something anyway is furniture.

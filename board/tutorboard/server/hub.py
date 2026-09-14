@@ -46,6 +46,14 @@ class Hub:
         board_state = self.repo.state()
         cfg = config.read_config(self.repo.root)
         board_state.setdefault("course", cfg["name"])
+        # WHAT THE REPOSITORY ITSELF SAYS about who writes the code, which is
+        # not always what this sitting says. The board needs both: the chooser
+        # shows which is in force, and the busy strip has to know whether the
+        # turn running now is one that DOES the work -- because in one of those
+        # a card landing means the work is starting rather than finished. It was
+        # a constant `"teach"` in the client until now, which is a guess that is
+        # wrong in exactly the repositories this matters most in.
+        board_state["declared_stance"] = cfg.get("stance") or "teach"
         data = {
             "state": board_state,
             "cards": on_board,

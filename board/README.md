@@ -53,6 +53,37 @@ for](#the-machine-this-is-written-for).
 >
 > ### Where this is right now, 13 September 2026 (latest)
 >
+> **The board now says when the tutor is off writing code.** It did not, and the
+> reason is a rule that is right for one kind of turn and exactly wrong for the
+> other. The busy strip hid the moment any card landed — correct when the card
+> IS the answer and the turn is only tidying up afterwards. In a doing turn the
+> card that lands first is the *opening sentence*, written before the work
+> starts, so the indicator disappeared at precisely the moment there was most to
+> say and left a one-line card on screen for several minutes with nothing
+> happening. Asked as: *"is claude going to town in the background? If so, I'd
+> like an indication that this is what's happening on the app."*
+>
+> It was, in fact, going to town. The strip now stays up for the whole of a
+> doing turn and says what kind of work it is — *working on it — writing the code
+> and running it*, and past two and a half minutes *still working… the report
+> lands here*, because the card already on screen is not the answer.
+>
+> The board works out which kind of turn it is the same four ways
+> `session_sense` does, and one of them was a lie: `declaredStance` was a
+> hard-coded `"teach"` in the client, so a repository whose `tutorboard.json`
+> says `do` looked like a teaching repository to every control that asked. The
+> payload carries `declared_stance` now, which also fixes the stance chooser
+> showing the wrong answer in those repositories.
+>
+> **And a flag stopped being part of a card's title.** `board write lesson
+> --title "…"` is the obvious thing to type and there was no such option, so the
+> flag went into the title: a card on the board headed `--title Opening: verify
+> the call path`, filed under `0001-title-opening-…`. `--title` is an option now,
+> and anything else that looks like a flag is dropped rather than printed on the
+> board. Shell version `board-shell-v99`.
+>
+> ### Where this was earlier on 13 September 2026 (starting from the map)
+>
 > **Choosing a way to work on the map now starts the turn.** It did not, and the
 > defect was found the worst way a defect can be — as a question: *"do I ask the
 > tutor to begin?"* Tapping **write the code for me** opened the sitting
