@@ -1,0 +1,65 @@
+# ---- PHI / raw data: NEVER commit ----
+# Therapy session recordings are identifiable PHI. Filenames themselves
+# contain participant IDs. Audio, converted audio, and every transcript or
+# diarization artifact derived from them stays out of git.
+*.m4a
+*.wav
+*.mp3
+*.flac
+*.mp4
+*.mov
+data/
+transcripts/
+diarization/
+*.rttm
+*.srt
+*.vtt
+
+# Transcript/feature outputs (may contain session content)
+*.json
+*.jsonl
+*.csv
+*.parquet
+
+# ---- Environments / caches / artifacts ----
+venvs/
+__pycache__/
+*.pyc
+.pytest_cache/
+logs/
+slurm_jobs/**/logs/
+# ANCHORED TO THE REPO ROOT with a leading slash, all four of them. Unanchored,
+# `artifacts/` matches at ANY depth -- and it silently swallowed the whole
+# psych_asr/artifacts/ subpackage, which `git add -A` then reported as nothing to
+# do. A source directory disappearing from a commit because an output directory
+# shares its name is exactly the failure a leading slash prevents.
+/scratch/
+/artifacts/
+/figures/
+
+# ---- Editor / OS / secrets ----
+.claude/
+.vscode/
+.env
+.DS_Store
+
+# live tutoring board (Tutor-Board) — scratch space, never tracked
+live/
+
+# the board's own config must survive the blanket *.json rule above
+!tutorboard.json
+
+# so must the markdown linter's, which is config and not data
+!.markdownlint.json
+
+# ---- LaTeX build artifacts ----
+# docs/*.tex is the source and docs/*.pdf is the deliverable; everything
+# pdflatex writes alongside them regenerates on the next build.
+*.aux
+*.log
+*.nav
+*.out
+*.snm
+*.toc
+*.fls
+*.fdb_latexmk
