@@ -49,7 +49,11 @@ class Repo(object):
         self.slate = os.path.join(self.live, "slate")
         self.inbox = os.path.join(self.live, "inbox")
         self.messages_path = os.path.join(self.inbox, "messages.jsonl")
-        for d in (self.live, self.slate, self.inbox):
+        # A failure stops being news when something NEWER lands on the board, so
+        # the reader under test has to be able to see the cards and the answers.
+        self.cards = os.path.join(self.live, "cards")
+        self.turns_path = os.path.join(self.live, "turns.jsonl")
+        for d in (self.live, self.slate, self.inbox, self.cards):
             os.makedirs(d, exist_ok=True)
 
     def agent(self, **kw):
@@ -119,8 +123,40 @@ repo.agent(host=host, agent="claude", pid=os.getpid(), state="listening",
            last_error="timed out",
            failed_at=time.time() - state.FAILURE_FRESH - 10)
 got = state.load_agent(repo)
-check("and a failure from an hour ago is history rather than news",
+check("and a failure from yesterday is history rather than news",
       got and not got.get("failure"))
+
+# A FAILURE ENDS WHEN SOMETHING NEWER HAPPENS, NOT WHEN A CLOCK SAYS SO.
+#
+# This expired at fifteen minutes, and fifteen minutes is nothing to a turn that
+# was asked to write code: one timed out after twenty, having left an opening
+# sentence on the board saying "running the four typists on the pilot session's
+# real audio". Five minutes later the board stopped mentioning the failure at
+# all -- so what was there was a present-tense card about work that had stopped,
+# a tutor listening, and nothing anywhere saying so.
+failed_at = time.time() - 3000
+repo.agent(host=host, agent="claude", pid=os.getpid(), state="listening",
+           last_error="timed out", failed_at=failed_at)
+old_card = os.path.join(repo.cards, "0001-opening.md")
+with open(old_card, "w", encoding="utf-8") as fh:
+    fh.write("---\nkind: lesson\n---\nAbout to run the four typists.\n")
+os.utime(old_card, (failed_at - 600, failed_at - 600))
+got = state.load_agent(repo)
+check("a failure with nothing newer than it is still the news, an hour on",
+      got and got.get("failure") and got["failure"]["error"] == "timed out")
+
+# ...and the thing that actually ends it is a card, because a card newer than
+# the failure IS the turn that succeeded.
+with open(os.path.join(repo.cards, "0002-report.md"), "w", encoding="utf-8") as fh:
+    fh.write("---\nkind: lesson\n---\nDone: four typists run.\n")
+got = state.load_agent(repo)
+check("and a card written since clears it, because that is the success",
+      got and not got.get("failure"))
+for name in ("0001-opening.md", "0002-report.md"):
+    try:
+        os.remove(os.path.join(repo.cards, name))
+    except OSError:
+        pass
 
 repo.agent(host=host, agent="claude", pid=os.getpid(), state="listening",
            last_error=None, failed_at=0)

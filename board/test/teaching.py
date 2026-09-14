@@ -322,6 +322,47 @@ check("every briefing carries the rule about how a card reads",
       "ANSWER in the first sentence" in sense_mod.PLAIN_SENSE
       and "One idea per sentence" in sense_mod.PLAIN_SENSE)
 
+# A DOING TURN IS NOT GIVEN A TEACHING TURN'S CLOCK.
+#
+# One timeout, 900 seconds, for every turn. A teaching turn writes a card in
+# thirty; a doing turn stages models, runs a test suite and submits jobs, and the
+# first successful one took 56 minutes. The second was killed at 15 with eight
+# files changed and nothing committed.
+import importlib.machinery as _im                            # noqa: E402
+import importlib.util as _iu                                 # noqa: E402
+
+_tl = importlib.machinery.SourceFileLoader("tutorcli", os.path.join(ROOT, "bin", "tutor"))
+tutorcli = importlib.util.module_from_spec(
+    importlib.util.spec_from_loader("tutorcli", _tl))
+_tl.exec_module(tutorcli)
+_cfg = tutorcli.load_config()
+
+_clock = tempfile.mkdtemp(prefix="tutor-clock-")
+try:
+    os.makedirs(os.path.join(_clock, "live"))
+
+    def _sitting(**kw):
+        import json as _j
+        with open(os.path.join(_clock, "live", "state.json"), "w",
+                  encoding="utf-8") as fh:
+            _j.dump(kw, fh)
+
+    _sitting(session="lecture", aim="teach")
+    teach_for = tutorcli.turn_timeout(_cfg, _clock)
+    _sitting(session="lecture", aim="build", stance="do")
+    build_for = tutorcli.turn_timeout(_cfg, _clock)
+    _sitting(session="make", makes="paper")
+    make_for = tutorcli.turn_timeout(_cfg, _clock)
+    check("a turn that writes the code gets longer than one that writes a card",
+          build_for > teach_for)
+    check("and long enough for work that actually runs (%d minutes)"
+          % (build_for // 60), build_for >= 2400)
+    check("a sitting that makes a document gets the same",
+          make_for == build_for)
+    check("while a teaching turn's clock is unchanged", teach_for == 900)
+finally:
+    shutil.rmtree(_clock, ignore_errors=True)
+
 home = tempfile.mkdtemp(prefix="tutor-doing-")
 try:
     root = os.path.join(home, "Course")

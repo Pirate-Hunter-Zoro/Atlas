@@ -47,6 +47,7 @@ import sys
 TOOL = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 sys.path.insert(0, TOOL)
 from tutorboard import choice, handoff, limits, machine, paths, processes, worktree
+from tutorboard.course import config
 from tutorboard.net import egress
 
 BOARD = os.path.join(TOOL, "bin", "board")
@@ -140,6 +141,21 @@ DEFAULT_CONFIG = {
     # machine falls through to default_agent.
     "hosts": {},
     "headless_timeout": 900,
+    # ---------------------------------------------------------------------
+    # AND HOW LONG A TURN THAT DOES THE WORK GETS, which is not the same number
+    # ---------------------------------------------------------------------
+    # A teaching turn writes a card and stops: thirty seconds, a minute if the
+    # mathematics is long. Fifteen minutes is a generous cap on that and a
+    # nonsense cap on a turn that was asked to WRITE THE CODE -- that one stages
+    # models, runs a test suite, submits jobs and reads what came back. The first
+    # successful one took 56 minutes; the second was killed at 15 with eight
+    # files changed, nothing committed, and an opening sentence on the board that
+    # still said "running the four typists" twenty minutes after nothing was.
+    #
+    # So the kind of sitting picks the number. It is still a cap rather than a
+    # licence -- a turn that has genuinely hung has to end -- but it is a cap
+    # that matches the work.
+    "doing_timeout": 3600,
     # How long the wrap-up turn gets. It is one turn, but it writes files.
     "handoff_timeout": 600,
     # ---------------------------------------------------------------------
@@ -752,6 +768,42 @@ def chapter_now(root):
             return (json.load(fh) or {}).get("chapter") or ""
     except (OSError, ValueError):
         return ""
+
+
+# The four ways a sitting says "this turn does the work", and they are the same
+# four `sense.session_sense` reads: a person taps one of them on the map without
+# knowing which of the three files it lands in.
+DOING_AIMS = ("build", "paper", "slides")
+
+
+def doing_now(root):
+    """Is the sitting that is open one whose product is a change, not a card?"""
+    try:
+        with open(os.path.join(root, "live", "state.json"), "r", encoding="utf-8") as fh:
+            st = json.load(fh) or {}
+    except (OSError, ValueError):
+        return False
+    if st.get("session") == "make":
+        return True
+    if (st.get("aim") or "") in DOING_AIMS:
+        return True
+    if (st.get("session") or "lecture") not in ("lecture", "homework"):
+        return False
+    own = (st.get("stance") or "").strip().lower()
+    if own:
+        return own == "do"
+    try:
+        return (config.read_config(root).get("stance") or "teach") == "do"
+    except Exception:
+        return False
+
+
+def turn_timeout(cfg, root):
+    """How long this turn gets, by what kind of turn it is."""
+    plain = int(cfg.get("headless_timeout", 900) or 900)
+    if not doing_now(root):
+        return plain
+    return max(plain, int(cfg.get("doing_timeout", 3600) or 3600))
 
 
 def handoff_clause(root):
@@ -1710,7 +1762,7 @@ def headless(cfg, course, agent_name, session):
         mark = os.path.getsize(logpath) if os.path.exists(logpath) else 0
         try:
             p = subprocess.run(cmd, cwd=root, stdout=log, stderr=subprocess.STDOUT,
-                               timeout=cfg.get("headless_timeout", 900))
+                               timeout=turn_timeout(cfg, root))
             err = None if p.returncode == 0 else "exit %d" % p.returncode
             # A resume that finds nothing to resume is not a broken turn; it is a
             # first turn wearing the wrong recipe. Try it once as one.
@@ -1723,7 +1775,7 @@ def headless(cfg, course, agent_name, session):
                 cmd = with_usage(spec, [a.replace("{prompt}", HEADLESS_FIRST_PROMPT % fill)
                                         for a in first])
                 p = subprocess.run(cmd, cwd=root, stdout=log, stderr=subprocess.STDOUT,
-                                   timeout=cfg.get("headless_timeout", 900))
+                                   timeout=turn_timeout(cfg, root))
                 err = None if p.returncode == 0 else "exit %d" % p.returncode
                 fresh = True
         except subprocess.TimeoutExpired:

@@ -46,7 +46,7 @@ def load_agent(repo):
         # is a dead end in the middle of a lesson.
         st["state"] = "reattaching" if _reattaching(st) else "stale"
     # And whatever went wrong last, if it is still news. See `_failure`.
-    st["failure"] = _failure(st)
+    st["failure"] = _failure(repo, st)
     return st
 
 
@@ -67,11 +67,30 @@ def load_agent(repo):
 # only reported while it is still the newest thing that has happened to this
 # tutor -- a turn that has since succeeded clears it, and one from an hour ago
 # is history rather than news.
-FAILURE_FRESH = 900
+# A cap on how long a failure can still be called news, and it is generous on
+# purpose. What ENDS a failure is something newer happening -- see `_failure`.
+# This is only here so that a board opened the morning after does not lead with
+# last night's timeout.
+FAILURE_FRESH = 12 * 3600
 
 
-def _failure(st):
-    """The last turn's failure, if it is still the newest thing to report."""
+def _failure(repo, st):
+    """The last turn's failure, while it is still the newest thing that happened.
+
+    THIS USED TO EXPIRE ON A CLOCK, at fifteen minutes, and the clock was the
+    wrong instrument. A doing turn that timed out left an opening sentence on the
+    board -- "running the four typists on the pilot session's real audio" -- and
+    fifteen minutes later the board stopped mentioning the failure at all. What
+    was left was a present-tense card about work that had stopped, a tutor
+    listening, and nothing anywhere saying so. That is the exact shape of the
+    complaint this whole indicator exists for: "I don't ever want to be left
+    hanging."
+
+    So a failure is news until something newer happens -- a card written, an
+    answer sent -- which is the thing that actually makes it old. A turn that has
+    since succeeded clears it, because a card newer than the failure IS the
+    success. The clock stays only as a long backstop.
+    """
     if not st.get("last_error"):
         return None
     try:
@@ -80,7 +99,40 @@ def _failure(st):
         return None
     if not at or time.time() - at > FAILURE_FRESH:
         return None
+    # Anything newer than the failure means the board has moved on.
+    if _newest(repo) > at + 1:
+        return None
     return {"error": st["last_error"], "at": at}
+
+
+def _newest(repo):
+    """When the board last had something happen on it: a card, or an answer.
+
+    Asked with `getattr` rather than by attribute, and it is not defensive habit:
+    this is called from `load_agent`, which every payload runs, and the whole
+    point of the agent block is to say when something has gone wrong. A board
+    that threw while working out what to report would take the lesson with it.
+    """
+    newest = 0.0
+    cards_dir = getattr(repo, "cards", None)
+    if cards_dir:
+        try:
+            for name in os.listdir(cards_dir):
+                if not name.endswith(".md"):
+                    continue
+                try:
+                    newest = max(newest, os.path.getmtime(os.path.join(cards_dir, name)))
+                except OSError:
+                    continue
+        except OSError:
+            pass
+    turns_path = getattr(repo, "turns_path", None)
+    if turns_path:
+        try:
+            newest = max(newest, os.path.getmtime(turns_path))
+        except OSError:
+            pass
+    return newest
 
 
 # How long a restart is given before the board stops calling it a restart. Long

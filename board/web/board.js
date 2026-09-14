@@ -5423,7 +5423,7 @@ function longAgo(ms) {
 
 /* What to say about a tutor that is not currently writing, given that something
    is sitting in the inbox for it. Returns null when there is nothing to say. */
-function stalledWord(st, waiting) {
+function stalledWord(st, waiting, unsaved) {
   var who = (st && st.agent) || "the tutor";
 
   /* A FAILED TURN IS NEWS ON ITS OWN, AND CANNOT WAIT ON THE INBOX TO SAY SO.
@@ -5438,12 +5438,23 @@ function stalledWord(st, waiting) {
 
      Timed from the failure rather than from the send, because that is the fact
      -- how long ago it fell over -- and it is the one a person can act on. */
+  /* AND WHETHER THE WORK IS STILL THERE, which after a doing turn is the fact
+     that decides what to do next. "Send again to retry it" reads as starting
+     over, and a turn that was stopped after twenty minutes of writing code has
+     left every one of those files on disk, uncommitted. Saying so is the
+     difference between sending again to CONTINUE and sending again expecting
+     the same twenty minutes back. */
+  var kept = (st && st.failure && !st.retrying && unsaved)
+    ? " Its work so far is still here — " + unsaved
+      + (unsaved === 1 ? " file changed" : " files changed")
+      + ", not yet saved."
+    : "";
   var failed = st && st.failure
     ? { text: (st.retrying
                ? who + " hit a problem and is trying again"
                : who + "'s last turn failed")
             + " — " + failWord(st.failure.error)
-            + (st.retrying ? "." : ". Send again to retry it."),
+            + (st.retrying ? "." : ". Send again to carry on.") + kept,
         bad: !st.retrying,
         since: Date.now() - (st.failure.at || 0) * 1000 }
     : null;
@@ -5498,7 +5509,8 @@ function paintBusy(data) {
   /* The tutor has picked it up, or given up waiting for it to be picked up. */
   if (working || Date.now() - sendingAt > SENDING_FOR) sendingAt = 0;
   if (!working) {
-    var stalled = data.archived ? null : stalledWord(st, data.waiting);
+    var stalled = data.archived ? null
+      : stalledWord(st, data.waiting, data.unsaved || 0);
     if (stalled) {
       els.busy.hidden = false;
       els.busy.classList.toggle("busy-bad", !!stalled.bad);

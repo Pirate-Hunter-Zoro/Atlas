@@ -317,6 +317,35 @@ await sleep(40);
     : fail('the strip counts on over a card that is already the answer');
 }
 
+// -------------------------------- a turn that was stopped says the work survived
+//
+// A doing turn timed out after twenty minutes with eight files changed. What
+// the board then said was "send again to retry it", which reads as starting
+// over -- and what it said fifteen minutes after that was nothing at all,
+// because the failure expired on a clock. Both are the same complaint the strip
+// exists for: "I don't ever want to be left hanging."
+{
+  es.onmessage({ data: JSON.stringify({
+    state: { course: 'PSYCH-ASR', session: 'lecture', aim: 'build',
+             stance: 'do', declared_stance: 'teach' },
+    cards: [{ id: '0001', kind: 'lesson', title: 'opening',
+              html: '<p>About to run the four typists.</p>', mtime: t0 - 900 }],
+    turns: [], history: 0, unsaved: 8,
+    agent: { agent: 'claude', state: 'listening', turns: 1,
+             failure: { error: 'timed out', at: t0 - 600 } },
+  }) });
+  await sleep(40);
+  !busy().hidden && /ran too long/.test(says())
+    ? ok('a turn that was stopped for running too long says so')
+    : fail('a stopped turn is silent or misdescribed: "' + says() + '"');
+  /8 files changed/.test(says())
+    ? ok('and says the work it did is still here, so sending again continues it')
+    : fail('the board implies twenty minutes of work was lost: "' + says() + '"');
+  /carry on/.test(says()) && !/retry it/.test(says())
+    ? ok('and offers to carry on rather than to start over')
+    : fail('"' + says() + '"');
+}
+
 // ------------------------------------------------------------ and silence
 // Nothing waiting, nothing working: there is genuinely nothing to say, and
 // saying something anyway is furniture.

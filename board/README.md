@@ -53,6 +53,40 @@ for](#the-machine-this-is-written-for).
 >
 > ### Where this is right now, 13 September 2026 (latest)
 >
+> **A turn that writes code was being killed at fifteen minutes, and the board
+> then went quiet about it.** Both halves were found in one sitting: "what's
+> going on with the tutor?" — and the honest answer was that it had timed out
+> twenty minutes earlier, with eight files changed, and nothing on the board said
+> so.
+>
+> **One clock for every turn was the cause.** `headless_timeout: 900` is generous
+> for a teaching turn, which writes a card and stops, and nonsense for one asked
+> to write the code — the first successful doing turn in PSYCH-ASR took 56
+> minutes: it staged four ASR models, found a real bug, ran 125 tests and
+> committed. The next was stopped at 15 minutes mid-flight. The sitting now picks
+> the number: `doing_timeout: 3600` when the aim, the stance or the kind of
+> sitting says the turn's product is a change rather than a card.
+>
+> **And the failure expired on a clock, which was the wrong instrument.**
+> `FAILURE_FRESH` was 900 seconds, so fifteen minutes after the timeout the board
+> stopped mentioning it — leaving a present-tense opening card ("running the four
+> typists on the pilot session's real audio"), a tutor listening, and no trace of
+> the failure anywhere. A failure is now news until **something newer happens**:
+> a card written, an answer sent. A card newer than the failure IS the turn that
+> succeeded, and that is what clears it. The clock stays only as a twelve-hour
+> backstop so a board opened the next morning does not lead with last night's.
+>
+> **The message also stopped implying the work was lost.** It said *"send again
+> to retry it"*, which reads as starting over; twenty minutes of code was sitting
+> on disk uncommitted. It now reads *"send again to carry on. Its work so far is
+> still here — 8 files changed, not yet saved."*
+>
+> `test/waking.py` holds the failure's lifetime, `test/hanging.js` what the strip
+> says about a stopped turn, and `test/teaching.py` that a doing turn gets the
+> longer clock. Shell version `board-shell-v100`.
+>
+> ### Where this was earlier on 13 September 2026 (saying it is working)
+>
 > **The board now says when the tutor is off writing code.** It did not, and the
 > reason is a rule that is right for one kind of turn and exactly wrong for the
 > other. The busy strip hid the moment any card landed — correct when the card
