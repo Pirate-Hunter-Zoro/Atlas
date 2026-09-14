@@ -108,3 +108,20 @@ sole_wav() {
 sole_aligned() {
     _sole_match "Did Stage 1a run?" "$1" "*.aligned.json"
 }
+
+# ---------------------------------------------------------------------------
+# session_stem <inbox dir>
+#
+# Print the session stem -- the inbox WAV's basename without ".wav".
+#
+# THE STEM COMES FROM THE AUDIO, never from globbing the artifacts. Once the typist
+# grid runs there are several aligned transcripts, one per cell, and a dotted arm is
+# indistinguishable from a dotted stem -- so the Python side's find_sole_stem() stops
+# rather than guessing, and every grid-aware caller must pass --stem. The inbox holds
+# exactly one WAV, so the stem is never ambiguous there.
+# ---------------------------------------------------------------------------
+session_stem() {
+    local audio_path
+    audio_path="$(sole_wav "$1")" || return 1
+    basename "${audio_path}" .wav
+}

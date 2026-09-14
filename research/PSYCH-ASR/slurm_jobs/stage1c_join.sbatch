@@ -26,10 +26,22 @@ set -e
 source slurm_jobs/lib/job_env.sh
 
 STAGE1_DIR=data/stage1
+INPUT_DIR=data/inbox
 
 activate_env asr_env
 
-ALIGNED_PATH="$(sole_aligned "${STAGE1_DIR}")"
+# $1 names which cell's aligned transcript every arm is joined onto. It was optional when
+# Stage 1a ran once and there was only one; the typist bake-off writes one per cell, and
+# then globbing for a sole file finds several and stops. Absent, the old behaviour stands.
+ALIGNED_PATH="${1:-}"
+if [[ -z "${ALIGNED_PATH}" ]]; then
+    ALIGNED_PATH="$(sole_aligned "${STAGE1_DIR}")"
+elif [[ ! -f "${ALIGNED_PATH}" ]]; then
+    echo "No such aligned transcript: ${ALIGNED_PATH}" >&2
+    exit 1
+fi
+STEM="$(session_stem "${INPUT_DIR}")"
+echo "Session           : ${STEM}"
 echo "Aligned transcript: ${ALIGNED_PATH}"
 
 JOINED=0
@@ -75,7 +87,12 @@ fi
 # Needs two arms to mean anything, so it is skipped rather than failed when only one landed.
 if [[ "${JOINED}" -ge 2 ]]; then
     echo ""
-    python -m psych_asr.cli.compare_arms || echo "Arm comparison failed (the per-arm transcripts are still valid)."
+    # --stem for the same reason the aligned path is now an argument: discovery by glob
+    # stops being unambiguous the moment a second cell exists. The diff itself still
+    # requires every arm to sit on the IDENTICAL word sequence, so once typist cells are
+    # present it refuses -- which is why the failure is reported and not fatal.
+    python -m psych_asr.cli.compare_arms --stem "${STEM}" \
+        || echo "Arm comparison failed (the per-arm transcripts are still valid)."
 else
     echo ""
     echo "Arm comparison SKIPPED: only ${JOINED} arm(s) joined; a diff needs at least two."

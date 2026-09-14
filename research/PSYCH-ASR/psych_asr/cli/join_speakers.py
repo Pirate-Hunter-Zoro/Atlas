@@ -28,6 +28,9 @@ def build_parser():
     parser.add_argument("rttm", type=str, help="path to <stem>.<arm>.rttm from Stage 1b")
     parser.add_argument("--arm", type=str, default=None,
                         help="arm name for the output filenames (default: inferred from the RTTM filename)")
+    parser.add_argument("--stem", type=str, default=None,
+                        help="session stem; default is the aligned filename minus its suffix, "
+                             "which is only the bare stem when Stage 1a ran un-armed")
     parser.add_argument("--outdir", type=str, default=None,
                         help="where to write (default: beside the aligned JSON)")
     return parser
@@ -39,7 +42,11 @@ def main(argv=None):
     aligned_file = Path(args.aligned)
     rttm_file = Path(args.rttm)
 
-    stem = stem_from_aligned(aligned_file)
+    # stem_from_aligned strips the suffix and nothing else, so an ARMED aligned transcript
+    # hands back "<stem>.<typist>+<stopwatch>" -- and naming the output from that gives a
+    # file with the cell in it twice. --stem is how a grid caller says which part is the
+    # session; without a grid there is no arm in the name and the two agree.
+    stem = args.stem or stem_from_aligned(aligned_file)
     arm = args.arm or arm_from(rttm_file, stem, RTTM_SUFFIX)
 
     output_dir = Path(args.outdir) if args.outdir else aligned_file.parent

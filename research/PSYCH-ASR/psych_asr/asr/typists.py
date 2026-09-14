@@ -30,6 +30,12 @@ is the file between Stage 1b and Stage 1c.
 
 from .. import config
 
+# The sliding-attention half-window, in encoder frames, that the NVIDIA typists are given
+# before a session-length file is handed to them. 256 frames is 20 seconds each side at
+# the FastConformer's 80 ms stride -- comfortably longer than any single utterance, and
+# short enough that the attention matrix stops growing with the recording.
+NEMO_LOCAL_ATTENTION_CONTEXT = 256
+
 # One entry per candidate in the typist bake-off. "env" is not read by any code here; it
 # is in the table because the answer to "why did this import fail" is always in it.
 TYPISTS = {
@@ -158,7 +164,28 @@ def resolve_nemo_checkpoint(checkpoint):
     return archives[0]
 
 
-def transcribe_nemo(audio_path, checkpoint, batch_size=1, device="cuda"):
+def enable_long_audio(model, context=NEMO_LOCAL_ATTENTION_CONTEXT):
+    """IN: a restored NeMo model (+ the half-window, in encoder frames)   OUT: nothing.
+
+    SWITCHES THE ENCODER FROM GLOBAL ATTENTION TO A SLIDING WINDOW. Both NVIDIA typists are
+    FastConformers, and full self-attention costs memory in the SQUARE of the input length.
+    A 7-second clip is free; a 50-minute therapy session asks for an 86 GiB attention matrix
+    and dies on a 44 GiB card. That is not a tuning problem -- a bigger GPU does not exist
+    for it -- so the encoder is told to attend within a window instead.
+
+    The convolution subsampling in front of the encoder has the same problem for its own
+    reason, and chunking factor 1 makes it process the waveform in pieces.
+
+    THIS CHANGES THE MODEL, and it is honest to say so: a NeMo typist in this bake-off is
+    the published checkpoint with local attention, not the published checkpoint. Both calls
+    are NVIDIA's own documented recipe for audio longer than the training segments, and the
+    alternative is no NeMo row in the grid at all.
+    """
+    model.change_attention_model("rel_pos_local_attn", [context, context])
+    model.change_subsampling_conv_chunking_factor(1)
+
+
+def transcribe_nemo(audio_path, checkpoint, batch_size=1, device="cuda", long_audio=True):
     """IN: the audio file path + the staged checkpoint   OUT: the seam dict.
 
     Imports NeMo, so it runs only in nemo_env. It takes the PATH rather than the decoded
@@ -173,6 +200,8 @@ def transcribe_nemo(audio_path, checkpoint, batch_size=1, device="cuda"):
 
     model = ASRModel.restore_from(str(resolve_nemo_checkpoint(checkpoint)), map_location=device)
     model.eval()
+    if long_audio:
+        enable_long_audio(model)
     hypotheses = model.transcribe([str(audio_path)], batch_size=batch_size, timestamps=True)
     # NeMo has returned both a bare list and a (hypotheses, all_hypotheses) tuple across
     # versions. One file went in, so one hypothesis comes out either way.

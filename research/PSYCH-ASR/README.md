@@ -469,6 +469,32 @@ registry names the staged *directory*, because that is what `hf download --local
 produces; `psych_asr.asr.typists.resolve_nemo_checkpoint` finds the single archive inside
 it at load time, since `restore_from` takes the file and nothing else.
 
+#### Running the typist bake-off
+
+```bash
+bash slurm_jobs/run_typist_bakeoff.sh
+bash slurm_jobs/run_typist_bakeoff.sh --typist parakeet --stopwatch wav2vec2-large
+```
+
+Nine jobs: one 1a-i transcribe and one 1a-ii align per typist, then one CPU job that joins
+every typist's words onto **one** name-tagger's turn table and grades the lot. Each align
+depends on its own transcribe with `afterok`; the grading job depends on all four with
+`afterany`, so one typist crashing still grades the others and shows up as a missing row.
+
+**The stopwatch and the name-tagger are held fixed**, which is the whole point — every
+difference in the word columns is then the typist and nothing else. Holding the name-tagger
+costs nothing, because five of the six error labels never move along that axis anyway.
+
+**Each job gets its own log**, overridden on the `sbatch` command line: the two Stage 1a
+`.sbatch` files name a fixed log path, which is right for one typist and destroys three of
+four logs for a bake-off. The answer is the grid table at the end of
+`slurm_jobs/logs/stage1c_join_and_grade_out.txt`.
+
+`slurm_jobs/stage1c_join_and_grade.sbatch` names the cell explicitly with `--arm`, so a row
+reads `<typist>+<stopwatch>+<name-tagger>` rather than just the diarizer the RTTM filename
+knows about. It also passes `--stem` to the grader, which is not optional once more than one
+aligned transcript exists — `find_sole_stem()` finds several and stops rather than guessing.
+
 ### Diarization bake-off — candidate models
 
 community-1 is the incumbent, not a verdict. Diarization is the bottleneck the whole project
@@ -1777,15 +1803,19 @@ default and once at a shorter `chunk_size`, and score both against the same turn
 │   ├── stage_models.sh        # login-node staging of every offline model asset
 │   └── save-and-push.sh       # commit + push, invoked by the board's push button
 ├── slurm_jobs/            # .sbatch job scripts; logs/ gitignored
-│   ├── lib/job_env.sh                    # activate_env / report_gpu / sole_wav
+│   ├── lib/job_env.sh                    # activate_env / report_gpu / sole_wav / session_stem
 │   ├── run_bakeoff.sh                    # submits the whole 1a -> 1b×N -> 1c chain
+│   ├── run_typist_bakeoff.sh             # submits 1a-i×N -> 1a-ii×N -> join + grade
 │   ├── stage1a_asr.sbatch                # 1 GPU
+│   ├── stage1a_transcribe.sbatch         # 1 GPU, env follows the typist
+│   ├── stage1a_align.sbatch              # 1 GPU, always asr_env
 │   ├── stage1b_pyannote.sbatch           # 1 GPU, asr_env
 │   ├── stage1b_diarizen.sbatch           # 1 GPU, diarizen_env, speaker count pinned
 │   ├── stage1b_diarizen_free.sbatch      # 1 GPU, diarizen_env, shipped config
 │   ├── stage1b_sortformer.sbatch         # 1 GPU, nemo_env, offline + windowed
 │   ├── stage1b_sortformer_streaming.sbatch  # 1 GPU, nemo_env
 │   ├── stage1c_join.sbatch               # NO GPU — join, render, gate, cross-arm diff
+│   ├── stage1c_join_and_grade.sbatch     # NO GPU — the typist bake-off's last two steps
 │   └── gpu_smoke.sbatch                  # GPU/ctranslate2 sanity job
 ├── tests/                 # pytest over SYNTHETIC transcripts and turn tables — no PHI
 └── data/                  # raw + derived data — GITIGNORED (PHI)

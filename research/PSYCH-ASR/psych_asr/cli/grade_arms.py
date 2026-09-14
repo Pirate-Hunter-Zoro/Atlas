@@ -165,6 +165,17 @@ def format_profile(arm, profile):
     return lines
 
 
+def _tallied(count):
+    """IN: a count out of the correction report, possibly absent   OUT: it, right-aligned.
+
+    A report written before a given count was recorded carries None there, and a missing
+    count is not a zero -- printing one would claim the annotator ticked nothing. It prints
+    as a dash, and formatting it no longer ends the job one line before the grid table that
+    the whole grading pass exists to produce.
+    """
+    return f"{'—' if count is None else count:>10}"
+
+
 def format_calibration(tally, profile):
     """IN: the sheet's own numbers + the profile of the arm it was annotated against
     OUT: the side-by-side lines. Counts only.
@@ -175,10 +186,10 @@ def format_calibration(tally, profile):
         f"describe the same errors",
         "=" * 78,
         f"{'':<22}{'her rows':>10}{'findings':>10}",
-        f"{'Total':<22}{tally['rows']:>10}{profile['findings']:>10}",
-        f"{'Turns wrong':<22}{tally['rows_changing_turn_structure']:>10}"
+        f"{'Total':<22}{_tallied(tally['rows'])}{profile['findings']:>10}",
+        f"{'Turns wrong':<22}{_tallied(tally['rows_changing_turn_structure'])}"
         f"{profile['findings_changing_turn_structure']:>10}",
-        f"{'Words only':<22}{tally['rows_changing_words_only']:>10}"
+        f"{'Words only':<22}{_tallied(tally['rows_changing_words_only'])}"
         f"{profile['findings_changing_words_only']:>10}",
         "",
     ]
