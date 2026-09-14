@@ -587,27 +587,38 @@ def read_state(path):
         return {}
 
 
-def lessons(root, scope="lesson"):
-    """The sittings to put in the document, oldest first.
+# WHAT A DOCUMENT CAN BE OF. Scopes, not exporters -- every one of these goes
+# through the same `build`, gets the same numbering and produces the same shape,
+# because the moment there are two exporters there are two answers to "what is
+# in a document" and one of them is out of date.
+#
+#     lesson    the sitting that is open. The unit, and the common case.
+#     chapter   every sitting filed under one chapter, and the open one if it is
+#               on that chapter. A chapter that took three evenings is one piece
+#               of work and was previously exportable only as a third of itself
+#               or as the entire course.
+#     sitting   one finished sitting, by the id the archive gave it. §2.1 made
+#               those addressable; this is what makes one of them a document.
+#     all       every filed lesson and the open one, as a master document.
+SCOPES = ("lesson", "chapter", "sitting", "all")
 
-    A lesson is the unit -- one sitting, one document, numbered v1, v2, v3 as it
-    is exported again. `scope="all"` is the other thing somebody shows a
-    professor: every filed lesson in the course, then the one still open, as a
-    single master document.
-    """
+
+def _live_sitting(root):
     live = os.path.join(root, "live")
-    here = {"cards": os.path.join(live, "cards"),
+    return {"cards": os.path.join(live, "cards"),
             "turns": os.path.join(live, "turns.jsonl"),
             "answers": os.path.join(live, "answers"),
             "state": read_state(os.path.join(live, "state.json"))}
-    if scope != "all":
-        return [here]
+
+
+def _filed(root):
+    """Every archived sitting, oldest first, as something a document can hold."""
     out = []
-    archive = os.path.join(live, "archive")
+    archive = os.path.join(root, "live", "archive")
     try:
         names = sorted(os.listdir(archive))
     except OSError:
-        names = []
+        return out
     for name in names:
         folder = os.path.join(archive, name)
         if not os.path.isdir(folder):
@@ -617,9 +628,50 @@ def lessons(root, scope="lesson"):
                     "answers": os.path.join(folder, "answers"),
                     "state": read_state(os.path.join(folder, "state.json")),
                     "filed": name})
-    if read_cards(here["cards"]) or read_turns(here["turns"]):
-        out.append(here)
     return out
+
+
+def _has_anything(s):
+    return bool(read_cards(s["cards"]) or read_turns(s["turns"]))
+
+
+def lessons(root, scope="lesson", which=""):
+    """The sittings to put in the document, oldest first.
+
+    `which` narrows the two scopes that need it -- a chapter label, or the id of
+    a filed sitting. IT IS NEVER JOINED ONTO A PATH: a sitting id from a request
+    is matched against what `_filed` found, the same rule as every other name
+    that arrives from outside. A miss is an empty list, which `build` reports as
+    a miss rather than as an empty document.
+    """
+    here = _live_sitting(root)
+
+    if scope == "all":
+        out = _filed(root)
+        if _has_anything(here):
+            out.append(here)
+        return out
+
+    if scope == "sitting":
+        want = str(which or "").strip()
+        return [s for s in _filed(root) if s["filed"] == want]
+
+    if scope == "chapter":
+        # The chapter asked for, or the one open right now. Matched on the label
+        # the sitting was FILED under, which is what `state.json` carries and
+        # what the history shows, so "export this chapter" means the same thing
+        # in both places.
+        want = str(which or "").strip() or ((here["state"] or {}).get("chapter") or "").strip()
+        if not want:
+            return []
+        out = [s for s in _filed(root)
+               if ((s["state"] or {}).get("chapter") or "").strip() == want]
+        if (((here["state"] or {}).get("chapter") or "").strip() == want
+                and _has_anything(here)):
+            out.append(here)
+        return out
+
+    return [here]
 
 
 def author_name(root, state):
@@ -720,31 +772,72 @@ def track(root, paths):
         return False
 
 
-def build(root, scope="lesson", make_pdf=True):
+def build(root, scope="lesson", make_pdf=True, which=""):
     """The whole conversation as one document, numbered and tracked.
+
+    THE PROPERTY THAT MAKES AN EXPORT TRUSTWORTHY is that it is the whole
+    sitting in reading order -- the question, every revision of the working as it
+    was actually sent, what the tutor said, and the next attempt underneath.
+    Adding a scope changes WHICH sittings are in the document and nothing else
+    about what a document is; half a conversation is what `board archive`
+    refuses to keep, for the same reason.
 
     Returns a record the board can paint: what it is called, whether LaTeX
     agreed, and where it went.
     """
-    sittings = lessons(root, scope)
+    if scope not in SCOPES:
+        return {"ok": False,
+                "detail": "%r is not something to export. It is one of: %s"
+                          % (scope, ", ".join(SCOPES))}
+
+    sittings = lessons(root, scope, which)
     sittings = [s for s in sittings
                 if read_cards(s["cards"]) or read_turns(s["turns"])]
     if not sittings:
+        # SAID AS THE MISS IT IS. A scope that matched nothing is not an empty
+        # document; a person asking for a chapter that was never taught, or a
+        # sitting id that is not in the archive, has made a mistake and needs to
+        # be told which.
+        if scope == "sitting":
+            have = [x["filed"] for x in _filed(root)]
+            return {"ok": False,
+                    "detail": ("no sitting here is called %r. This workspace "
+                               "has %d filed: %s"
+                               % (which, len(have), ", ".join(have[-6:])
+                                  or "none"))}
+        if scope == "chapter":
+            return {"ok": False,
+                    "detail": "nothing has been taught on %s yet"
+                              % (which or "this chapter")}
         return {"ok": False, "detail": "there is no lesson here to export yet"}
 
     last = sittings[-1]["state"] or {}
     course = last.get("course") or os.path.basename(root)
+    # A STEM PER SCOPE, so two documents about the same chapter do not share one
+    # series of version numbers. `v4` has to answer "which one is the latest"
+    # for ONE document; one sitting and the whole chapter it belongs to are two.
     if scope == "all":
         title = course
         stem = slugify(course) + "-complete"
+    elif scope == "chapter":
+        title = (which or last.get("chapter") or course or "Lesson")
+        stem = slugify(title) + "-chapter"
+    elif scope == "sitting":
+        title = last.get("chapter") or course or "Lesson"
+        stem = slugify(title) + "-" + slugify(which)[:24]
     else:
         title = last.get("chapter") or course or "Lesson"
         stem = slugify(title)
 
+    # A HEADING PER SITTING wherever a document holds more than one of them, and
+    # not only in `all`. Three evenings on one chapter run together into an
+    # unreadable wall otherwise, with the student's second attempt at an
+    # exercise sitting directly under the first with nothing between them.
+    many = len(sittings) > 1
     body = []
     for s in sittings:
         body.extend(render_lesson(s["cards"], s["turns"], s["answers"], root,
-                                  heading_for(s) if scope == "all" else None))
+                                  heading_for(s) if many else None))
 
     out_dir = os.path.join(root, OUT_DIR)
     os.makedirs(out_dir, exist_ok=True)
@@ -760,12 +853,14 @@ def build(root, scope="lesson", make_pdf=True):
             "date": time.strftime("%B %d, %Y"),
             "macros": "\\usepackage{coursemacros}\n" if os.path.exists(sty) else "",
         })
-        if scope == "all":
+        # A contents page wherever there is more than one sitting to find.
+        if many:
             fh.write("\\tableofcontents\n\\clearpage\n")
         fh.write("\n".join(body))
         fh.write("\n\\end{document}\n")
 
     rec = {"ok": True, "name": name, "version": version, "scope": scope,
+           "which": which, "sittings": len(sittings),
            "tex": os.path.relpath(tex_path, root), "pdf": None, "detail": ""}
     if make_pdf:
         ok, res = compile_pdf(root, tex_path)
