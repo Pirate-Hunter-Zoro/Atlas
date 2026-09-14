@@ -3,7 +3,7 @@
 > **You are in Atlas, in `board/`, in a fresh session, and you have been pointed at this file.**
 >
 > The migration is **done**. Eleven repositories are one, the board runs out of it, the front
-> door is a drawn map of everything, and 35 test suites are green. What is left is the old
+> door is a drawn map of everything, and 36 test suites are green. What is left is the old
 > brief's stage 2 onwards. The address grammar is now done as well (§2.1) and everything
 > below it is written against it. The written map (§2.2) and meeting notes (§2.3) are done
 > as well. What is left is documents (§2.4) and the briefing seeing what was done on a
@@ -75,7 +75,7 @@ keep that true, stop and say so rather than press on.
   `board.js`, `board.css`, `plane-core.js`, `gauge.js`, `home.html`, `home.js`, anything new
   you add to the cache list), or the installed app serves its cached copy and your work is
   invisible. It is at `board-shell-v102`.
-- **Run `bash board/test/all.sh` before every ship.** 35 suites, all green. Keep them green.
+- **Run `bash board/test/all.sh` before every ship.** 36 suites, all green. Keep them green.
 - **`test/tracked.py` is the one that cannot be fixed afterwards.** It runs first in
   `all.sh` and it refuses PHI, 25-megabyte files, model dumps, other authors' papers and
   books, and machine-local config — anywhere in the repository. This is public. A thing that
@@ -142,10 +142,10 @@ clone anywhere finds its own data and never another checkout's.
 
 The old brief's stages 2 and 4 through 7. Stage 3 — the atlas — was done first because it is
 what the person asked for first and sees first, and because it needed no grammar to exist.
-**2.1 through 2.4 are now done**; all four are kept below because what was deliberately
-deferred inside each has to be findable.
-The next thing is **2.5**, the briefing seeing what was done on a laptop — the last of
-them, and the cheapest.
+**All of §2 is now done** — 2.1 through 2.5. Every section is kept below because what was
+deliberately deferred inside each has to be findable, and because §8 says what to do with
+this file now that there is nothing left in §2 to do.
+**§2 is finished.** What happens now is §8: fold this file away.
 
 ### 2.1 The address grammar — DONE, and three features are no longer waiting on it
 
@@ -457,26 +457,41 @@ that reads `delivered()` and `Annotate`'s stored marks. It was left because it i
 part of §2.4 with no worked example behind it: no manuscript has come back yet, so there is
 nothing to correct and no way to know what a correction job should actually say.
 
-### 2.5 The briefing sees what was done on a laptop
+### 2.5 The briefing sees what was done on a laptop — DONE
 
 > "I want to be able to pop open my laptop and code up something and have the tutor see that
 > if it pertains to whatever project we're in."
 
-Cheap, and it makes every turn better. Every turn is a cold turn — `session_turns: 1`, a
-fresh `claude -p` reading `board brief` and `board recap` off disk — so the briefing is the
-only place this can go. Add to `tutorboard/brief.py`: commits in this workspace since the
-turn's own timestamp with their subjects, the names of files uncommitted right now, and a
-one-line count of what the diff touches. **Not the diff** — a briefing is about 22k tokens
-and it stays that way.
+`lesson_git.beside_the_lesson(repo)` and `brief.beside_sense(repo)`, in the briefing between
+the map and the handoff. `test/beside_lesson.py` is the suite.
 
-Two rules. It is **scoped to the workspace**, or a turn about Galois Theory is told about
-PSYCH-ASR's afternoon — `machines._last_touched` already shows the shape of that query. And
-it is **named as the person's work, not the tutor's**: a turn that mistakes a commit
-somebody made on their laptop for something it did itself will report having done work it
-has not done, which is the worst failure mode this board has. Put it in `lesson/git.py` with
-a TTL, because the payload is polled four times a second.
+What a turn is told: what the person committed to **this workspace** since the newest card
+the tutor wrote, and which files are uncommitted right now. Subjects and filenames — **never
+the diff**. A briefing is about 22k tokens and it stays that way.
 
----
+- **`_seen_until` is the newest card's mtime**, because a card is the tutor saying something
+  and therefore the last moment it certainly knew the state of the world. Failing that, the
+  sitting's `opened`. Capped at three days either way: a lecture opened a fortnight ago and
+  left open is the ordinary case here, and a fortnight of commits is a changelog, not news.
+- **Scoped by pathspec**, not filtered afterwards, and cached for 20 seconds because the
+  payload is polled four times a second.
+- **`live/` is not somebody's work.** It is where the board writes cards, ink and state while
+  a sitting runs, so reporting it would open every turn with a list of what the board itself
+  just did. The uncommitted count is taken *after* that filter, so the number and the list
+  are about the same files.
+- **Paths are relative to the workspace.** `git status --porcelain` prints them relative to
+  the GIT ROOT, so in this repository every name arrived with `courses/Galois-Theory/` on the
+  front — a turn would have had to strip a prefix to find a file sitting right beside it.
+- **Silent when there is nothing.** A heading over "no changes" is forty tokens of nothing,
+  on every turn, for ever.
+
+**The wording IS the feature, and it is the only part of this worth being careful about.** A
+turn that mistakes a commit somebody made on their laptop for something it did itself will
+report having done work it has never seen — confidently, in a card, with nothing on the board
+able to contradict it. That is the worst failure this board has: invisible from outside, and
+it makes everything else the tutor says worth less. So whose work it is, is said three times
+— in the heading, in the sentence, and as an instruction about what to do with it — and the
+suite checks that every mention of the tutor having done it is inside a prohibition.
 
 ## 3. The atlas, as built
 

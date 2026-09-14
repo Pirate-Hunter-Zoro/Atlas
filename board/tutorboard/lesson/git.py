@@ -352,3 +352,173 @@ def run_push(repo, message=None):
     with open(os.path.join(repo.live, "push.json"), "w", encoding="utf-8") as fh:
         json.dump(record, fh, indent=2)
     return record
+
+
+# ---------------------------------------------------------------------------
+# what somebody did while the board was not looking
+# ---------------------------------------------------------------------------
+#     "I want to be able to pop open my laptop and code up something and have
+#      the tutor see that if it pertains to whatever project we're in."
+#
+# Every turn is a cold turn -- `session_turns: 1`, a fresh `claude -p` reading
+# `board brief` off disk -- so the briefing is the only place this can go. A
+# tutor that has just been told what changed can teach the thing that changed;
+# one that has not will cheerfully explain a function somebody rewrote at lunch.
+#
+# TWO RULES, and the second is the one that matters.
+#
+#   SCOPED TO THE WORKSPACE. There is one repository holding nine of them now,
+#   and `git log` at its root answers about all nine. A turn about Galois Theory
+#   told about PSYCH-ASR's afternoon is a turn that will try to teach it.
+#
+#   NAMED AS THE PERSON'S WORK, NEVER THE TUTOR'S. A turn that mistakes a commit
+#   somebody made on their laptop for something it did itself will report having
+#   done work it has not done, and that is the worst failure this board has: it
+#   is undetectable from the outside, it is confidently stated, and it makes
+#   every other thing the tutor says less believable. The wording below says
+#   whose work it is three times, in three different ways, on purpose.
+#
+# NOT THE DIFF. A briefing is about 22k tokens and it stays that way. Subjects,
+# filenames, and a count -- enough to know what to go and read, which is what a
+# turn needs, and nothing that grows with the size of an afternoon's work.
+
+_BESIDE = {}
+BESIDE_TTL = 20.0
+
+# How many commits and how many filenames are worth saying. Past these it is the
+# COUNT that is the fact -- "eleven commits" tells a turn what it needs, and the
+# eleventh subject does not.
+BESIDE_COMMITS = 8
+BESIDE_FILES = 12
+
+# The furthest back this ever looks, whatever the sitting says. A lecture opened
+# a fortnight ago and left open is the ordinary case on this board, and a
+# fortnight of somebody's commits is not news, it is a changelog.
+BESIDE_WINDOW = 3 * 86400
+
+
+def _seen_until(repo):
+    """The moment the tutor's knowledge of this workspace stops.
+
+    The newest card it wrote, because a card is the tutor saying something and
+    therefore the last point at which it certainly knew the state of the world.
+    Failing that the sitting's own opening. Either way capped at
+    `BESIDE_WINDOW`, so what comes back is news rather than history.
+    """
+    newest = 0
+    try:
+        for name in os.listdir(repo.cards):
+            if not name.endswith((".md", ".markdown", ".tex")):
+                continue
+            try:
+                newest = max(newest, os.path.getmtime(
+                    os.path.join(repo.cards, name)))
+            except OSError:
+                continue
+    except OSError:
+        newest = 0
+
+    if not newest:
+        said = (repo.state() or {}).get("opened") or ""
+        for shape in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M"):
+            try:
+                newest = time.mktime(time.strptime(said, shape))
+                break
+            except (ValueError, OverflowError):
+                continue
+
+    floor = time.time() - BESIDE_WINDOW
+    return max(newest or floor, floor)
+
+
+def beside_the_lesson(repo):
+    """What somebody did to THIS workspace that the tutor has not been told.
+
+    `{"commits": [...], "uncommitted": [...], "files": n, "since": t}` or None
+    when this is not a git repository. Cached, because the payload is polled
+    four times a second and this is two `git` calls.
+    """
+    now = time.time()
+    key = os.path.realpath(repo.root)
+    hit = _BESIDE.get(key)
+    if hit and now - hit[0] < BESIDE_TTL:
+        return hit[1]
+
+    value = None
+    if worktree.git_dir(repo.root):
+        since = _seen_until(repo)
+        value = {"since": since, "commits": [], "uncommitted": [], "files": 0}
+        try:
+            # SCOPED BY PATHSPEC, not filtered afterwards. The pathspec is what
+            # makes this answer about one workspace in a repository that holds
+            # nine.
+            p = subprocess.run(
+                ["git", "--no-optional-locks", "log",
+                 "--since=@%d" % int(since), "--no-merges",
+                 "--pretty=%at%x00%s", "--", repo.root],
+                cwd=repo.root, stdout=subprocess.PIPE,
+                stderr=subprocess.DEVNULL, timeout=10)
+            if p.returncode == 0:
+                for line in p.stdout.decode("utf-8", "replace").splitlines():
+                    at, _, subject = line.partition("\0")
+                    if not subject.strip():
+                        continue
+                    try:
+                        when = int(at)
+                    except ValueError:
+                        when = 0
+                    value["commits"].append({"at": when,
+                                             "subject": subject.strip()[:100]})
+        except (OSError, subprocess.TimeoutExpired):
+            pass
+
+        try:
+            # `git status --porcelain` prints paths relative to the GIT ROOT,
+            # not to the directory it was run in -- so in a repository holding
+            # nine workspaces every name comes back with the workspace's own
+            # directory on the front of it. A turn in Galois-Theory told about
+            # `courses/Galois-Theory/notes/ch04.tex` has to strip a prefix to
+            # find a file that is right there beside it.
+            top = repo.root
+            tp = subprocess.run(["git", "rev-parse", "--show-toplevel"],
+                                cwd=repo.root, stdout=subprocess.PIPE,
+                                stderr=subprocess.DEVNULL, timeout=10)
+            if tp.returncode == 0:
+                said = tp.stdout.decode("utf-8", "replace").strip()
+                if said:
+                    top = said
+            p = subprocess.run(
+                ["git", "--no-optional-locks", "status", "--porcelain",
+                 "--", repo.root],
+                cwd=repo.root, stdout=subprocess.PIPE,
+                stderr=subprocess.DEVNULL, timeout=10)
+            if p.returncode == 0:
+                names = []
+                for line in p.stdout.decode("utf-8", "replace").splitlines():
+                    if not line.strip():
+                        continue
+                    # `XY <path>`, and a rename is `XY <old> -> <new>`.
+                    rel = line[3:].strip().strip('"')
+                    if " -> " in rel:
+                        rel = rel.split(" -> ", 1)[1]
+                    try:
+                        here = os.path.relpath(os.path.join(top, rel), repo.root)
+                    except ValueError:
+                        here = rel
+                    names.append(here)
+                # THE LESSON'S OWN SCRATCH IS NOT SOMEBODY'S WORK. `live/` is
+                # where the board writes cards, ink and state while a sitting is
+                # running; reporting it as "they changed these files" would make
+                # every turn open with a list of what the board itself just did.
+                theirs = [n for n in names
+                          if not n.startswith("live" + os.sep) and n != "live"]
+                # COUNTED AFTER THE FILTER, so the number and the list are about
+                # the same thing. "2 files are uncommitted" over a list of one is
+                # a turn wondering what the other one was.
+                value["files"] = len(theirs)
+                value["uncommitted"] = theirs[:BESIDE_FILES]
+        except (OSError, subprocess.TimeoutExpired):
+            pass
+
+    _BESIDE[key] = (now, value)
+    return value

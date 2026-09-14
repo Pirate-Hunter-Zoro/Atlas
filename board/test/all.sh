@@ -95,7 +95,7 @@ else
   printf '%s\n' "$out" | grep '^FAIL' | sed 's/^/             /'
 fi
 
-printf '%-12s ' "beside"
+printf '%-12s ' "untouched"
 if out="$(python3 test/beside.py 2>&1)"; then
   printf '%s\n' "$out" | tail -1
 else
@@ -178,6 +178,15 @@ fi
 
 printf '%-12s ' "walk"
 if out="$(python3 test/walk.py 2>&1)"; then
+  printf '%s\n' "$out" | tail -1
+else
+  fails=$((fails + 1))
+  echo "FAILED"
+  printf '%s\n' "$out" | grep '^FAIL' | sed 's/^/             /'
+fi
+
+printf '%-12s ' "beside"
+if out="$(python3 test/beside_lesson.py 2>&1)"; then
   printf '%s\n' "$out" | tail -1
 else
   fails=$((fails + 1))
