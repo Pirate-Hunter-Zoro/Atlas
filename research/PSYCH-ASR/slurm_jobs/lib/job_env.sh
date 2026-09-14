@@ -18,25 +18,41 @@
 # ---------------------------------------------------------------------------
 
 # ---------------------------------------------------------------------------
-# WHERE THE SESSION CONTENT IS, AND IT IS NOT IN THIS REPOSITORY.
+# WHERE THE SESSION CONTENT IS: `phi/`, IN THIS WORKSPACE AND OUTSIDE GIT.
 #
 # 308 MB of identifiable therapy session audio, with participant IDs in the
-# filenames, lives at ~/phi/PSYCH-ASR -- outside every git repository -- and
-# everything the pipeline writes goes beside it. It used to sit at the
-# repository root, kept out by a .gitignore line, and an ignore rule is a guard
-# anybody can delete by accident. A directory outside the repository is one
-# nothing in here can undo. It is not symlinked in either: a symlink is a
-# tracked file pointing at PHI, which hands the next reader of a public
-# repository a map straight to it.
+# filenames, and everything the pipeline writes goes beside it. It was at
+# `~/phi/PSYCH-ASR` until 14 September 2026 and it is here now, because a
+# project's data belongs with the project.
+#
+# THREE THINGS KEEP IT OUT OF A PUBLIC REPOSITORY, and no one of them is
+# trusted on its own:
+#
+#   * `/phi/` is the first rule in this workspace's .gitignore, anchored;
+#   * `board/test/tracked.py` fails the whole suite if any of it is ever
+#     tracked, which is a rule nobody can break by accident;
+#   * `ai-config/policy/phi.py` fences any path naming that directory, whole,
+#     so the assistant cannot read a syllable of it at this address either.
+#
+# THE DIRECTORY KEEPS ITS NAME ON PURPOSE. That third fence matches on the
+# directory NAME, so the move cost it nothing -- and renaming this directory
+# would silently unfence 308 MB of PHI while leaving everybody believing in a
+# hook that had stopped matching. Do not rename it.
 #
 # Exported, so `psych_asr.config` reads the SAME answer -- one root, one
 # override, and no way for a Python step and a shell step in the same job to
 # disagree about where the audio is.
 #
-# ABSOLUTE, which is the other half. These paths were relative to the submit
-# directory, so a job launched from the wrong place wrote session content
-# somewhere nobody was looking for it.
-PSYCH_ASR_DATA="${PSYCH_ASR_DATA:-$HOME/phi/PSYCH-ASR}"
+# ABSOLUTE, which is the other half, and now derived from THIS FILE's own
+# location rather than from $HOME. These paths were relative to the submit
+# directory once, so a job launched from the wrong place wrote session content
+# somewhere nobody was looking for it. There is exactly one copy of this script
+# and it belongs to the workspace it sits in, so its own path is the honest
+# answer to "which workspace's data" -- and it stays right if the workspace is
+# ever cloned somewhere else, which $HOME did not.
+_JOB_ENV_LIB="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
+PSYCH_ASR_WORKSPACE="$(cd "$_JOB_ENV_LIB/../.." && pwd)"
+PSYCH_ASR_DATA="${PSYCH_ASR_DATA:-$PSYCH_ASR_WORKSPACE/phi}"
 export PSYCH_ASR_DATA
 DATA_ROOT="$PSYCH_ASR_DATA"
 INPUT_DIR="$DATA_ROOT/inbox"

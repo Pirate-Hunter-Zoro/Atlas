@@ -16,7 +16,7 @@
 # dead arm then shows up as a missing file, which is a result rather than a silent gap.
 #
 # Run FROM THE REPO ROOT. Requires exactly one .wav in $PSYCH_ASR_DATA/inbox
-# (default ~/phi/PSYCH-ASR/inbox) -- the session audio is not in this repository.
+# (default: this workspace's `phi/inbox`) -- the session audio is not in this repository.
 # ---------------------------------------------------------------------------
 
 set -o errexit
@@ -39,7 +39,7 @@ if [[ ! -d slurm_jobs || ! -d psych_asr ]]; then
     exit 1
 fi
 
-WAVS=( "${PSYCH_ASR_DATA:-$HOME/phi/PSYCH-ASR}"/inbox/*.wav )
+WAVS=( "${PSYCH_ASR_DATA:?source slurm_jobs/lib/job_env.sh first}"/inbox/*.wav )
 if [[ ! -e "${WAVS[0]}" || "${#WAVS[@]}" -ne 1 ]]; then
     echo "data/inbox must hold exactly 1 .wav file (found $([[ -e "${WAVS[0]}" ]] && echo "${#WAVS[@]}" || echo 0))." >&2
     exit 1

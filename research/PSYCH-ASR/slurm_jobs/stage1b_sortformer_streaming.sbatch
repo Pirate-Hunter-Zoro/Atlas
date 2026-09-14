@@ -27,7 +27,7 @@ set -e
 source slurm_jobs/lib/job_env.sh
 
 # INPUT_DIR comes from job_env.sh: the session audio lives OUTSIDE this
-# repository, at $PSYCH_ASR_DATA (default ~/phi/PSYCH-ASR).
+# repository, at $PSYCH_ASR_DATA (default: this workspace's `phi/`).
 
 activate_env nemo_env
 report_gpu
