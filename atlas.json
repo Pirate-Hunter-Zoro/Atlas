@@ -1,0 +1,56 @@
+{
+  "_": [
+    "The families, in the order they should be drawn, one sentence each.",
+    "",
+    "That is ALL this file holds. It does not list the workspaces. A workspace",
+    "is a second-level directory that holds tutorboard.json, AI_INSTRUCTIONS.md",
+    "or live/ -- discovered, never registered -- because a file that has to be",
+    "edited when a directory is made is the registry this system refuses to",
+    "have. Making a new course is `mkdir courses/Topology`, and the front door",
+    "draws it on the next poll.",
+    "",
+    "Two flags, and both mean 'not a workspace you can be taught in':",
+    "",
+    "  vendor  somebody else's repositories, tracked by pointer. Discovery",
+    "          skips the family entirely -- nothing in it is the person's to",
+    "          be graded on.",
+    "  tool    the family directory IS the thing, with no workspaces under it.",
+    "          `board/` is the tutoring board's own source. It is drawn on the",
+    "          atlas because it is real work, and it is not offered as a",
+    "          subject because it is what does the offering."
+  ],
+  "families": [
+    {
+      "id": "courses",
+      "name": "Courses",
+      "blurb": "Graduate coursework, taught chapter by chapter."
+    },
+    {
+      "id": "research",
+      "name": "Research",
+      "blurb": "The projects that become papers."
+    },
+    {
+      "id": "projects",
+      "name": "Projects",
+      "blurb": "Infrastructure the research runs on, and the tools that write it up."
+    },
+    {
+      "id": "practice",
+      "name": "Practice",
+      "blurb": "Kept sharp: algorithms, and proofs a machine checks."
+    },
+    {
+      "id": "board",
+      "name": "The board",
+      "blurb": "The tool that maps, teaches and writes up everything above.",
+      "tool": true
+    },
+    {
+      "id": "vendor",
+      "name": "Vendor",
+      "blurb": "Pulled, not written. Tracked by pointer at a commit.",
+      "vendor": true
+    }
+  ]
+}

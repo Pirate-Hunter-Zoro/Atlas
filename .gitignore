@@ -1,0 +1,80 @@
+# ===========================================================================
+#  What this repository does not carry.
+#
+#  The rule, and it is the whole of the rule:
+#
+#      If it cannot go into a public repository, it does not LIVE in the
+#      repository. It lives outside the tree and something inside the tree
+#      says where.
+#
+#  So this file is left holding two honest categories: files a command
+#  regenerates, and other people's papers. It does not hold "the 308 MB of
+#  therapy audio we would rather not push" -- that is not in here at all, it
+#  is at ~/phi/PSYCH-ASR/, and research/PSYCH-ASR/README.md says so. An ignore
+#  rule is a guard somebody can delete by accident; a directory outside the
+#  repository is a guard nothing in here can undo.
+#
+#  EACH WORKSPACE KEEPS ITS OWN .gitignore, and those are the load-bearing
+#  ones. In particular the `live/*` allowlist -- cards, slate, answers,
+#  archive, inbox, text, state.json, turns.jsonl tracked, the rest ignored --
+#  is what makes a lecture the same lesson on whichever machine picks it up.
+#  Nothing here may shadow one of those: git will not descend into a directory
+#  ignored higher up, so a rule for `live/` written HERE would make every
+#  deeper `!live/cards/` unreachable. That is why this file names no directory
+#  a workspace re-includes.
+# ===========================================================================
+
+# ---- build products, every language in here ----
+__pycache__/
+*.pyc
+*.pyo
+node_modules/
+*.log
+
+# Lean's compiled Mathlib: 14 GB across 150,582 files, and `lake build`
+# recreates all of it. It never leaves the machine.
+.lake/
+build/
+
+# ---- LaTeX, which writes eight files beside every one it is asked for ----
+*.aux
+*.nav
+*.snm
+*.toc
+*.fls
+*.fdb_latexmk
+*.synctex.gz
+
+# ---- other people's published papers ----
+# The citation libraries hold PDFs whose copyright belongs to their authors.
+# The INDEXES are tracked -- README.md, CITATION_MAP.md, the role-grouped
+# manifests -- so a clone arrives with the bibliography described but not
+# carried. Anything that grows a reference shelf gets the same treatment.
+**/references/*.pdf
+
+# ---- editor and OS cruft ----
+.DS_Store
+Thumbs.db
+*~
+.*.swp
+.vscode/
+
+# ---- per-machine assistant state ----
+# `.claude/settings.json` is a workspace's committed permission policy and is
+# tracked by the workspace that owns it; `settings.local.json` is this machine's
+# and is not.
+.claude/settings.local.json
+.claude/state/
+
+# ---- other people's BOOKS, and every excerpt cut out of one ----
+# A course keeps its set text on disk and reads it; a public repository does not
+# redistribute it. `scripts/split-textbook.sh` says of its own output "they are
+# derived artifacts and git-ignored" -- which was the intent from the start and
+# was never actually enforced, so forty chapter excerpts and three whole
+# textbooks were tracked. The excerpts regenerate from the book in one command.
+#
+# What IS tracked is everything the person wrote about the reading: the notes,
+# the homework, the typeset transcripts, chapters.tsv. That is the work.
+**/textbook/*.pdf
+**/chapters/*/reading/ch*.pdf
+**/chapters/*/reading/ch*.txt
