@@ -3123,100 +3123,24 @@ var mapBox = { x0: 0, y0: 0, x1: 0, y1: 0 };
 var mapHere = "";            /* the box last opened -- where you are */
 var mapView = { k: 1, fit: 1, ox: 0, oy: 0, held: false };
 
-function mapEl(tag, attrs) {
-  var node = document.createElementNS("http://www.w3.org/2000/svg", tag);
-  for (var key in attrs) {
-    if (Object.prototype.hasOwnProperty.call(attrs, key)) {
-      node.setAttribute(key, attrs[key]);
-    }
-  }
-  return node;
-}
+function mapEl(tag, attrs) { return window.Gauge.el(tag, attrs); }
 
 /* ------------------------------------------------------------ measuring */
 /* How wide this string actually is, in the face the board actually ships.
 
-   The estimate this replaced -- characters times a constant -- is right for
-   lower-case prose and badly wrong for the SHOUTED headings these plans are
-   written in, which is how the labels came to run past the edges of their
-   boxes. A 2D context measures the real font; the answers are cached because a
-   payload re-measures the same forty labels. Where there is no canvas at all the
-   estimate comes back as the fallback, and a fallback that wraps early is a box
-   with room to spare rather than one that overflows. */
-var mapFace = null, mapGauge = null, mapWidths = null;
+   The measuring itself lives in `gauge.js`, because there are two planes that
+   draw text into boxes now -- this map, and the atlas on the front door -- and
+   two surfaces measuring text two slightly different ways is two spellings of
+   one answer. Read that file for why an estimate is not good enough; the short
+   version is that a line of capitals is half again wider than characters times
+   a constant, and the labels ran out of their boxes.
 
-function mapUiFace() {
-  if (mapFace) return mapFace;
-  mapFace = "system-ui, -apple-system, 'Segoe UI', sans-serif";
-  try {
-    var said = window.getComputedStyle(document.body).getPropertyValue("--ui");
-    if (said && said.trim()) mapFace = said.trim();
-  } catch (e) { /* the default stack is a fair guess */ }
-  return mapFace;
-}
-
-function mapFont(size, weight) {
-  return (weight || 400) + " " + size + "px " + mapUiFace();
-}
-
-function mapWidth(text, size, weight) {
-  var font = mapFont(size, weight);
-  if (!mapWidths) mapWidths = Object.create(null);
-  var key = font + " " + text;
-  var got = mapWidths[key];
-  if (got !== undefined) return got;
-  var w = 0;
-  try {
-    if (mapGauge === null) {
-      var c = document.createElement("canvas");
-      mapGauge = (c && c.getContext) ? c.getContext("2d") : false;
-    }
-    if (mapGauge) {
-      mapGauge.font = font;
-      var m = mapGauge.measureText(text);
-      w = (m && typeof m.width === "number") ? m.width : 0;
-    }
-  } catch (e) { w = 0; }
-  if (!(w > 0)) w = text.length * size * 0.62;
-  mapWidths[key] = w;
-  return w;
-}
-
-/* Wrap to a measured width, and tell the truth when it does not fit. */
+   These four are the names the rest of this file already calls. They stay. */
+function mapUiFace() { return window.Gauge.uiFace(); }
+function mapFont(size, weight) { return window.Gauge.font(size, weight); }
+function mapWidth(text, size, weight) { return window.Gauge.width(text, size, weight); }
 function mapWrap(text, size, weight, room, maxLines) {
-  var words = String(text || "").trim().split(/\s+/).filter(Boolean);
-  var lines = [], line = "";
-  while (words.length && lines.length < maxLines) {
-    var word = words[0];
-    var probe = line ? line + " " + word : word;
-    if (mapWidth(probe, size, weight) <= room) {
-      line = probe;
-      words.shift();
-      continue;
-    }
-    if (!line) {
-      /* One word wider than the box -- a long path, usually. Break it rather
-         than let it run out of the box, which is the whole defect this
-         measuring exists to fix. */
-      var cut = word;
-      while (cut.length > 1 && mapWidth(cut + "-", size, weight) > room) {
-        cut = cut.slice(0, -1);
-      }
-      words[0] = word.slice(cut.length);
-      line = cut + "-";
-    }
-    lines.push(line);
-    line = "";
-  }
-  if (line && lines.length < maxLines) lines.push(line);
-  if (words.length && lines.length) {
-    var last = lines[lines.length - 1];
-    while (last && mapWidth(last + "…", size, weight) > room) {
-      last = last.slice(0, -1);
-    }
-    lines[lines.length - 1] = last.replace(/[ ,;:.\-]+$/, "") + "…";
-  }
-  return lines;
+  return window.Gauge.wrap(text, size, weight, room, maxLines);
 }
 
 function mapShape(node) {
