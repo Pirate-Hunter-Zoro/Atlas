@@ -259,7 +259,15 @@ function restore(html, store) {
 function inline(s) {
   return s
     .replace(/!\[([^\]]*)\]\(([^)\s]+)\)/g, '<img alt="$1" src="$2">')
-    .replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>')
+    /* AN ADDRESS STAYS IN THIS PAGE. Every other link is the web, and the web
+       opens in its own tab so that a tap on a citation is not the lesson
+       leaving the glass. An address is the opposite thing: it is this board
+       being asked to go somewhere, and a second tab is a second board. */
+    .replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, function (all, text, href) {
+      return href.indexOf("#/w/") === 0
+        ? '<a href="' + href + '">' + text + "</a>"
+        : '<a href="' + href + '" target="_blank" rel="noopener">' + text + "</a>";
+    })
     .replace(/\*\*\*([^*]+)\*\*\*/g, "<strong><em>$1</em></strong>")
     .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
     .replace(/(^|[\s(])\*([^*\n]+)\*(?=$|[\s.,;:)!?])/g, "$1<em>$2</em>")
@@ -1049,6 +1057,10 @@ function render(data) {
     window.Annotate.loadSent(data.notes_sent);
   }
   renderScratch(data.uploads || []);
+  /* And every address written into the lesson, checked against the payload
+     that just arrived. A card naming a document that moved this morning reads
+     as dead this afternoon, in its own sentence. */
+  markAddresses();
 
   /* Put the reader back where they were. Everything below this either leaves the
      page alone or says explicitly where it should go, and both of those are
@@ -1772,9 +1784,12 @@ var paperOpen = null;
    route, the rasteriser, the cache and the page URLs are the same ones -- what
    differs is only how the file was found. A deck has no build record, so there
    is no `save a copy` for it and the button hides itself. */
-function openDoc(id, name) { openPaper("doc/" + id, name); }
+function openDoc(id, name, then) { openPaper("doc/" + id, name, then); }
 
-function openPaper(kind, label) {
+/* `then` is handed what `/view` answered, once the pages are on screen. An
+   address naming one page of a document cannot scroll to it until the pictures
+   exist, and there is nothing else on this page that knows when that is. */
+function openPaper(kind, label, then) {
   if (!kind) return;
   paperOpen = kind;
   els.paper.hidden = false;
@@ -1795,7 +1810,11 @@ function openPaper(kind, label) {
     .then(function (r) { return r.json(); })
     .then(function (got) {
       if (paperOpen !== kind) return;          /* closed, or another opened */
-      if (!got || !got.ok) return paperFailed(kind, got || {});
+      if (!got || !got.ok) {
+        paperFailed(kind, got || {});
+        if (then) then(null);
+        return;
+      }
       els.paperName.textContent = got.name || label || paperTitle(kind);
       els.paperSub.textContent = got.n + (got.n === 1 ? " page" : " pages")
         + (got.truncated ? " (the first " + got.n + " only)" : "");
@@ -1810,10 +1829,15 @@ function openPaper(kind, label) {
         img.alt = "page " + (i + 1);
         els.paperPages.appendChild(img);
       });
+      /* The address bar now names this document, so a link to it can be copied
+         off the glass. */
+      mapRemember();
+      if (then) then(got);
     })
     .catch(function () {
       if (paperOpen !== kind) return;
       paperFailed(kind, { detail: "the board did not answer" });
+      if (then) then(null);
     });
 }
 
@@ -1864,6 +1888,7 @@ function closePaper() {
   paperOpen = null;
   els.paper.hidden = true;
   document.body.classList.remove("papering");
+  mapRemember();               /* and the address stops naming the document */
   /* The pictures go with it. A hundred decoded pages held behind a closed
      panel is memory the iPad wants for the lesson. */
   els.paperPages.innerHTML = "";
@@ -2342,11 +2367,16 @@ function openHistory() {
   });
 }
 
-function showSession(id) {
+/* `then` is handed the sitting once it is on screen, or `null` if there was
+   none to show. An address naming a card inside a past sitting has to wait for
+   the sitting itself before it can ask whether that card is in it, and asking
+   the server twice for the same lesson to find out is a second request for an
+   answer already in hand. */
+function showSession(id, then) {
   fetch("/archive/" + encodeURIComponent(id))
     .then(function (r) { return r.json(); })
     .then(function (d) {
-      if (!d || d.ok === false) return;
+      if (!d || d.ok === false) { if (then) then(null); return; }
       document.getElementById("history").hidden = true;
       reading = id;
       seenIds = {};
@@ -2357,8 +2387,9 @@ function showSession(id) {
         (d.state && (d.state.chapter || d.state.course)) || id;
       render({ state: d.state || {}, cards: d.cards || [], turns: d.turns || [],
                uploads: [], messages: [], archived: true });
+      if (then) then(d);
     })
-    .catch(function () { /* stay where we are */ });
+    .catch(function () { if (then) then(null); /* else stay where we are */ });
 }
 
 function backToLesson() {
@@ -2989,6 +3020,9 @@ function paintReviewPicker() {
     }
     var b = document.createElement("button");
     b.type = "button";
+    /* Its own name on it, so an address naming a file can find its row rather
+       than counting from the top of a hundred. */
+    b.dataset.unit = u.name;
     b.innerHTML = '<span class="tick">✓</span><span class="what"></span>';
     b.querySelector(".what").textContent = walking ? u.short : u.label;
     if (reviewPick.indexOf(u.name) >= 0) b.classList.add("on");
@@ -3992,6 +4026,12 @@ function mapRemember() {
   try {
     window.localStorage.setItem(MAP_WHERE + course, JSON.stringify(here));
   } catch (e) { /* a private window, or no room. The map is the fallback. */ }
+  /* AND THE SAME PLACE, SPELLED AS AN ADDRESS. An address nobody can obtain is
+     a feature nobody uses: this is where one is got from -- off the bar, by
+     being somewhere. Only the three surfaces `here.surface` already names, and
+     always `replaceState`, so the back button still leaves the board rather
+     than walking backwards through a pan. */
+  addrShow(here);
 }
 
 /* Writing on every frame of a pan would be a JSON encode and a storage write
@@ -4020,7 +4060,21 @@ function mapRecall() {
 /* Once per load, on the first payload that knows which course this is. */
 function mapLand() {
   if (mapLanded || !mapCourse()) return;
+  /* AN ADDRESS IN THE BAR OUTRANKS EVERYTHING, and it is the one thing here
+     that cannot be acted on the moment a payload arrives: until `/health` has
+     said which workspace this board IS, an address naming another one cannot
+     be told apart from one naming this one. Landing is not marked done, so the
+     next payload tries again -- and `addrReady` runs this by hand the moment
+     the answer lands, because a board whose lesson is already on screen gets no
+     further payload to be prompted by. */
+  if (addrWanted && !boardIdKnown) return;
   mapLanded = true;
+  if (addrWanted) {
+    var asked = addrWanted;
+    addrWanted = null;
+    addrGo(asked);
+    return;
+  }
   /* An address that asks for the map outranks anything remembered: it is
      somebody tapping "map" on the writing surface a second ago. */
   if (mapAsked()) { openMap(); return; }
@@ -4066,11 +4120,419 @@ function mapAsked() {
       window.history.replaceState({}, "",
         window.location.pathname
         + (window.location.search || "").replace(/([?&])map=1(&|$)/, "$1")
-                                        .replace(/[?&]$/, ""));
+                                        .replace(/[?&]$/, "")
+        /* The fragment survives. It is the address, and rewriting the bar to
+           drop `map=1` used to take it with it. */
+        + (window.location.hash || ""));
     }
   } catch (e) { return false; }
   return asked;
 }
+
+
+/* ------------------------------------------------------------- addresses */
+/* ONE RESOLVER. `address.js` is the grammar and has no opinion about browsers;
+   this is the only thing anywhere that takes an address and puts the board on
+   the surface it names.
+
+       #/w/<family>/<workspace>[/…]
+
+   Three rules, and they are the whole of why this is one function:
+
+     1. A NAME FROM A BROWSER NEVER REACHES A FILESYSTEM. Every component is
+        looked up in what discovery already found and handed to this page --
+        `mapInfo.nodes`, `lastLive.cards`, `readingInfo.documents`,
+        `walkInfo.units`, `knownSets`, `lastLive.slate`, and for a past sitting
+        the archive's own list. A miss is a miss, said as "that is not here any
+        more", never as an error and never as something near it.
+     2. A LINK THAT NO LONGER RESOLVES SAYS SO WHERE IT IS WRITTEN. Meeting
+        notes from March open in September and half of what they point at has
+        moved. `markAddresses` checks every address written into the lesson
+        against the same payload this resolver uses, so a dead one reads as dead
+        in the sentence it is in rather than after the tap.
+     3. TWO SPELLINGS OF AN ADDRESS IS TWO BUGS. `spell` is the only thing on
+        this page that builds one, and it is what puts the current surface in
+        the bar so that an address can be copied off the glass at all.
+
+   Two surfaces the grammar names are finer than anything the board can paint
+   today: one function inside a file, and one problem inside a set. Neither is
+   dropped and neither is faked -- the address lands on the thing that CONTAINS
+   it and says in one line what it was pointing at. See §2.4 of the handoff. */
+
+var boardId = "";              /* this board's own `family/workspace` */
+var boardIdKnown = false;      /* whether `/health` has answered at all */
+var addrWanted = null;         /* an address waiting for the first payload */
+var addrGoneSaid = Object.create(null);   /* address text -> why it is dead */
+var BOUNCED = "board.addr.bounced";
+
+function ADDR() { return window.Address || null; }
+
+function addrParse(text) {
+  var g = ADDR();
+  if (!g) return null;
+  try { return g.parse(text); } catch (e) { return null; }
+}
+
+/* The one link speller on this page. Everything it is given is placed in THIS
+   workspace, because a board can only make an address for where it is. */
+function spell(spec) {
+  var g = ADDR();
+  if (!g || !boardId || boardId.indexOf("/") < 0) return "";
+  var out = { ws: boardId }, k;
+  for (k in spec) {
+    if (Object.prototype.hasOwnProperty.call(spec, k)) out[k] = spec[k];
+  }
+  return g.format(out);
+}
+
+/* Where the board is now, in the bar. `mapRemember` already decides what "here"
+   means and is called from every place that changes it, so this rides along
+   rather than growing a second idea of the same thing. Always `replaceState`:
+   a pan is not a page, and the back button must still leave the board. */
+function addrShow(here) {
+  if (!here || !window.history || !window.history.replaceState) return;
+  var want;
+  if (here.surface === "map") {
+    want = spell(here.node ? { surface: "node", node: here.node }
+                           : { surface: "workspace" });
+  } else if (typeof here.surface === "string"
+             && here.surface.indexOf("document:doc/") === 0) {
+    want = spell({ surface: "doc",
+                   doc: here.surface.slice("document:doc/".length) });
+  } else {
+    /* THE LESSON, WITH NOTHING OVER IT -- and the bar may already name a card,
+       a past sitting, a problem or a page of handwriting. Every one of those IS
+       the lesson with something pointed out on it, none of them can be spelled
+       from `here`, and overwriting one with the bare workspace takes a link off
+       the glass a second after it was followed. Never downgrade. */
+    var now = addrParse(window.location.hash || "");
+    if (now && now.ws === boardId && now.surface !== "workspace") return;
+    want = spell({ surface: "workspace" });
+  }
+  if (!want || want === window.location.hash) return;
+  try {
+    window.history.replaceState({}, "", window.location.pathname
+                                        + (window.location.search || "") + want);
+  } catch (e) { /* a browser that refuses keeps the bar it had */ }
+}
+
+/* What the board says about where a link put it, or failed to. `els.pushed` is
+   the page's one place for news, and news is what this is: it stays up until
+   something newer happens rather than until a timer says so. */
+function addrSaid(icon, text, bad) {
+  els.pushed.hidden = false;
+  els.pushed.className = bad ? "pushed bad" : "pushed";
+  els.pushedIcon.textContent = icon;
+  els.pushedText.textContent = text;
+  offerDocument(null);      /* the banner's buttons belong to a document */
+}
+
+function addrDead(a, why) {
+  addrGoneSaid[a.text] = why;
+  markAddresses();
+  addrSaid("✕", why, true);
+  return "gone";
+}
+
+function addrArrived(a) {
+  delete addrGoneSaid[a.text];
+  try { window.sessionStorage.removeItem(BOUNCED); } catch (e) {}
+  markAddresses();
+  return "ok";
+}
+
+/* Everything over the lesson goes, because an address is somebody saying where
+   they want to be and a drawer left open is a drawer sitting on top of it. */
+function addrShut() {
+  [els.contents, els.review, els.scratch, els.papersPanel,
+   document.getElementById("history"), els.kind, els.work].forEach(function (p) {
+    if (p) p.hidden = true;
+  });
+  if (els.paper && !els.paper.hidden) closePaper();
+  closeViewer();
+  if (!els.map.hidden) closeMap();
+}
+
+/* A card, anywhere in whatever transcript is on screen. Lit for a moment: a
+   lesson is a wall of text, and "it scrolled somewhere" is not "here". */
+function addrToCard(id) {
+  var node = null;
+  try { node = els.cards.querySelector('[data-card="' + id + '"]'); }
+  catch (e) { return false; }
+  if (!node) return false;
+  if (node.scrollIntoView) node.scrollIntoView({ block: "start" });
+  node.classList.add("landed");
+  window.setTimeout(function () { node.classList.remove("landed"); }, 2400);
+  return true;
+}
+
+function addrRow(host, attr, value) {
+  var rows, i;
+  try { rows = host.querySelectorAll("[" + attr + "]"); } catch (e) { return null; }
+  for (i = 0; i < rows.length; i++) {
+    if (rows[i].getAttribute(attr) === value) return rows[i];
+  }
+  return null;
+}
+
+/* ANOTHER WORKSPACE IS ANOTHER BOARD ON ANOTHER PORT, and the one thing that
+   can move the single address between them is the front door. Hand it the whole
+   thing: it switches, then comes back to it.
+
+   Once, and recorded, because if the switch does not land this is still the
+   wrong board -- and sending it back would be a page bouncing between two
+   surfaces for as long as anybody watched it. */
+function addrElsewhere(a) {
+  var tried = "";
+  try { tried = window.sessionStorage.getItem(BOUNCED) || ""; } catch (e) {}
+  if (tried === a.text) {
+    return addrDead(a, "that is in " + a.ws
+                    + ", and this board could not be moved there");
+  }
+  try { window.sessionStorage.setItem(BOUNCED, a.text); } catch (e) {}
+  window.location.href = "/" + a.text;
+  return "elsewhere";
+}
+
+function addrGo(a) {
+  if (!a) return "bad";
+  if (boardId && a.ws !== boardId) return addrElsewhere(a);
+
+  addrShut();
+  /* A past lesson is left for every surface but one, because every other
+     surface is about the lesson that is open. */
+  if (reading && a.surface !== "archive") backToLesson();
+
+  var surface = a.surface;
+
+  if (surface === "workspace") {
+    if (!openMap()) {
+      addrSaid("↳", "this workspace has no map drawn yet — here is the lesson");
+    }
+    return addrArrived(a);
+  }
+
+  if (surface === "node") {
+    var box = null;
+    ((mapInfo && mapInfo.nodes) || []).forEach(function (n) {
+      if (n.id === a.node) box = n;
+    });
+    if (!box) return addrDead(a, "that box is not on this map any more");
+    if (!openMap()) return addrDead(a, "this workspace has no map to open");
+    openWork(box.id, "");
+    return addrArrived(a);
+  }
+
+  if (surface === "card") {
+    var have = false;
+    ((lastLive && lastLive.cards) || []).forEach(function (c) {
+      if (c.id === a.card) have = true;
+    });
+    if (!have) {
+      return addrDead(a, "card " + a.card
+                      + " is not in the lesson that is open");
+    }
+    addrToCard(a.card);
+    return addrArrived(a);
+  }
+
+  if (surface === "archive") {
+    showSession(a.sitting, function (d) {
+      if (!d) {
+        addrDead(a, "that sitting is not in this workspace's history");
+        return;
+      }
+      var inIt = false;
+      (d.cards || []).forEach(function (c) { if (c.id === a.card) inIt = true; });
+      if (!inIt) {
+        addrDead(a, "card " + a.card + " is not in that sitting");
+        return;
+      }
+      addrToCard(a.card);
+      addrArrived(a);
+    });
+    return "ok";
+  }
+
+  if (surface === "doc") {
+    var known = null;
+    ((readingInfo && readingInfo.documents) || []).forEach(function (d) {
+      if (d.id === a.doc) known = d;
+    });
+    if (!known) {
+      return addrDead(a, "that document is not in this workspace any more");
+    }
+    openDoc(known.id, known.name, function (got) {
+      if (!got) return;              /* `openPaper` has already said why */
+      if (!a.page) { addrArrived(a); return; }
+      var pages = els.paperPages.querySelectorAll("img");
+      if (a.page > pages.length) {
+        addrDead(a, known.name + " has "
+                 + (pages.length === 1 ? "one page" : pages.length + " pages")
+                 + ", so there is no page " + a.page);
+        return;
+      }
+      if (pages[a.page - 1].scrollIntoView) {
+        pages[a.page - 1].scrollIntoView({ block: "start" });
+      }
+      addrArrived(a);
+    });
+    return "ok";
+  }
+
+  if (surface === "code") {
+    var unit = null;
+    ((walkInfo && walkInfo.units) || []).forEach(function (u) {
+      if (u.path === a.path) unit = u;
+    });
+    if (!unit) {
+      return addrDead(a, "there is no " + a.path + " in this workspace");
+    }
+    openPicker("walk");
+    /* Chosen, so the one tap left is "start walkthrough". Reopening the picker
+       normally starts from what the sitting already covers; an address is a
+       person naming one file, which outranks that. */
+    reviewPick = [unit.name];
+    paintReviewPicker();
+    /* NOT `row`: this file already has a top-level `row()` that builds the
+       drawer's buttons, and shadowing it inside a function that may one day
+       call it is the same trap `paths` and `map` have already sprung here. */
+    var unitRow = addrRow(els.reviewList, "data-unit", unit.name);
+    if (unitRow && unitRow.scrollIntoView) unitRow.scrollIntoView({ block: "center" });
+    addrSaid("↳", a.symbol
+      ? "the board cannot open one function on its own yet — this is "
+        + unit.short + ", which " + a.symbol + " is in"
+      : unit.path + ", ready to walk through");
+    return addrArrived(a);
+  }
+
+  if (surface === "hw") {
+    if ((knownSets || []).indexOf(a.set) < 0) {
+      return addrDead(a, "there is no problem set called " + a.set + " here");
+    }
+    var hw = (lastLive && lastLive.hw) || null;
+    /* The problems of a set are only in the payload while that set is the
+       sitting. Where they are, an address naming one that is not there is
+       dead; where they are not, the set is as far as this can honestly check. */
+    if (hw && hw.name === a.set) {
+      var found = false;
+      (hw.problems || []).forEach(function (p) {
+        if (p.label === a.problem) found = true;
+      });
+      if (!found) return addrDead(a, a.set + " has no problem " + a.problem);
+    }
+    openContents();
+    var srow = addrRow(els.contentsList, "data-set", a.set);
+    if (srow) {
+      srow.classList.add("here");
+      if (srow.scrollIntoView) srow.scrollIntoView({ block: "center" });
+    }
+    addrSaid("↳", "problem " + a.problem + " of " + a.set
+             + " — the board opens a set, not yet one problem inside one");
+    return addrArrived(a);
+  }
+
+  if (surface === "slate") {
+    var page = null;
+    ((lastLive && lastLive.slate) || []).forEach(function (p) {
+      if (p.page === a.page) page = p;
+    });
+    if (!page) return addrDead(a, "there is no page " + a.page + " on the slate");
+    openViewer(page.url, "slate — page " + a.page);
+    return addrArrived(a);
+  }
+
+  return "bad";
+}
+
+/* Whether an address can be resolved RIGHT NOW, without opening anything, and
+   why not. The same lookups `addrGo` makes, against the same payload, so the
+   mark on a link and what happens when it is tapped cannot disagree. A
+   workspace and a past sitting are not pre-checked: the first always resolves,
+   and the second is only answerable by asking the archive. */
+function addrMisses(a) {
+  var why = "";
+  if (!boardId || a.ws !== boardId) return "";   /* another board's to answer */
+  if (a.surface === "node") {
+    why = "that box is not on this map any more";
+    ((mapInfo && mapInfo.nodes) || []).forEach(function (n) {
+      if (n.id === a.node) why = "";
+    });
+  } else if (a.surface === "card") {
+    why = "card " + a.card + " is not in the lesson that is open";
+    ((lastLive && lastLive.cards) || []).forEach(function (c) {
+      if (c.id === a.card) why = "";
+    });
+  } else if (a.surface === "doc") {
+    why = "that document is not in this workspace any more";
+    ((readingInfo && readingInfo.documents) || []).forEach(function (d) {
+      if (d.id === a.doc) why = "";
+    });
+  } else if (a.surface === "code") {
+    why = "there is no " + a.path + " in this workspace";
+    ((walkInfo && walkInfo.units) || []).forEach(function (u) {
+      if (u.path === a.path) why = "";
+    });
+  } else if (a.surface === "hw") {
+    if ((knownSets || []).indexOf(a.set) < 0) {
+      why = "there is no problem set called " + a.set + " here";
+    }
+  } else if (a.surface === "slate") {
+    why = "there is no page " + a.page + " on the slate";
+    ((lastLive && lastLive.slate) || []).forEach(function (p) {
+      if (p.page === a.page) why = "";
+    });
+  }
+  return why;
+}
+
+/* EVERY ADDRESS WRITTEN INTO THE LESSON, MARKED WHERE IT IS WRITTEN. A dead
+   link reads as dead in its own sentence; it never quietly lands somewhere
+   near. Gibberish is a third thing again and says so. */
+function markAddresses() {
+  var links, i, el, a, why;
+  try { links = els.cards.querySelectorAll('a[href^="#/w/"]'); }
+  catch (e) { return; }
+  for (i = 0; i < links.length; i++) {
+    el = links[i];
+    el.classList.add("addr");
+    a = addrParse(el.getAttribute("href"));
+    if (!a) {
+      el.classList.add("bad");
+      el.classList.remove("dead");
+      el.title = "this is not an address";
+      continue;
+    }
+    el.classList.remove("bad");
+    why = addrGoneSaid[a.text] || addrMisses(a);
+    if (why) el.classList.add("dead"); else el.classList.remove("dead");
+    el.title = why || a.text;
+  }
+}
+
+/* Read once, before anything is painted, so a cold start on a link lands where
+   the link said rather than where this board was last left. */
+addrWanted = addrParse((window.location && window.location.hash) || "");
+
+fetch("/health", { cache: "no-store" })
+  .then(function (r) { return r.json(); })
+  .then(function (h) { boardId = (h && h.id) || ""; })
+  .catch(function () {
+    /* Then this board cannot tell its own workspace from another's, and an
+       address is treated as its own rather than bouncing somebody out of a
+       lesson over a request that failed. */
+  })
+  .then(function () {
+    boardIdKnown = true;
+    mapLand();
+  });
+
+window.addEventListener("hashchange", function () {
+  var a = addrParse(window.location.hash || "");
+  if (!a) return;               /* not an address; the bar is not ours to mind */
+  if (!boardIdKnown) { addrWanted = a; return; }
+  addrGo(a);
+});
 
 
 /* --------------------------------------------------------------- contents */
@@ -4127,10 +4589,12 @@ function openContents() {
   if (contents.sets.length) {
     host.appendChild(group("Problem sets"));
     contents.sets.forEach(function (x) {
-      host.appendChild(row(x.name, x.rel, currentSet === x.name, function () {
+      var r = row(x.name, x.rel, currentSet === x.name, function () {
         els.contents.hidden = true;
         setSitting("homework", x.name);
-      }));
+      });
+      r.dataset.set = x.name;      /* what an address to a problem lands on */
+      host.appendChild(r);
     });
   }
 

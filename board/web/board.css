@@ -439,6 +439,30 @@ body.annotating #btn-annotate { background: var(--ask); color: #fff; border-colo
 .body hr { border: 0; border-top: 1px solid var(--rule); margin: 1.6rem 0; }
 .body a { color: var(--note); }
 .body strong { font-weight: 700; }
+
+/* AN ADDRESS, AND A DEAD ONE.
+
+   Meeting notes written in March open in September and half of what they point
+   at has moved. A link that no longer resolves has to read as dead in the
+   sentence it is in -- not as an ordinary link that quietly lands somewhere
+   near, and not as an error after the tap. `markAddresses` in `board.js` does
+   the checking, against the payload already on the page.
+
+   Struck through and grey rather than red: a dead link is not a failure of the
+   note, it is a thing that has since moved, and the sentence around it is
+   still worth reading. `.bad` -- text that is not an address at all -- is the
+   one that is somebody's mistake, so that one is red. */
+.body a.addr { text-decoration-color: var(--rule); }
+.body a.addr.dead {
+  color: var(--ink-3);
+  text-decoration: line-through;
+  text-decoration-thickness: 1px;
+}
+.body a.addr.bad { color: var(--bad); text-decoration: underline wavy; }
+
+/* Where an address just put you. A lesson is a wall of text and "it scrolled
+   somewhere" is not the same as "here". */
+.card.landed { box-shadow: 0 0 0 2px var(--note); border-radius: 6px; }
 .body code {
   font-family: var(--mono);
   font-size: .88em;
