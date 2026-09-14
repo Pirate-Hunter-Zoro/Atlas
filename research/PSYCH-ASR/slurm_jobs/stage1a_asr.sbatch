@@ -13,12 +13,15 @@
 # aligned transcript this job writes, so that a DER difference between arms is a
 # difference between diarizers and not between transcripts.
 #
-# Submit FROM THE REPO ROOT -- every path below is relative to the submit directory.
+# Submit FROM THE REPO ROOT. The CODE paths below are relative to the
+# submit directory; the session audio is not in this repository at all
+# and is found through $PSYCH_ASR_DATA -- see job_env.sh.
 
 set -e
 source slurm_jobs/lib/job_env.sh
 
-INPUT_DIR=data/inbox
+# INPUT_DIR comes from job_env.sh: the session audio lives OUTSIDE this
+# repository, at $PSYCH_ASR_DATA (default ~/phi/PSYCH-ASR).
 
 activate_env asr_env
 report_gpu

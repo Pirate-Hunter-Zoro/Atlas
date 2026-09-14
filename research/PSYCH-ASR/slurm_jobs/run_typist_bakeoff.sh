@@ -26,7 +26,7 @@
 # correct when one typist runs and destroys three of four logs when the bake-off does --
 # so the log paths are overridden here, per typist.
 #
-# Run FROM THE REPO ROOT. Requires exactly one .wav in data/inbox, and the chosen
+# Run FROM THE REPO ROOT. Requires exactly one .wav in $PSYCH_ASR_DATA/inbox, and the chosen
 # name-tagger's RTTM already in data/stage1 from the diarizer bake-off.
 # ---------------------------------------------------------------------------
 
@@ -62,13 +62,13 @@ if [[ ! -d slurm_jobs || ! -d psych_asr ]]; then
     exit 1
 fi
 
-WAVS=( data/inbox/*.wav )
+WAVS=( "${PSYCH_ASR_DATA:-$HOME/phi/PSYCH-ASR}"/inbox/*.wav )
 if [[ ! -e "${WAVS[0]}" || "${#WAVS[@]}" -ne 1 ]]; then
     echo "data/inbox must hold exactly 1 .wav file (found $([[ -e "${WAVS[0]}" ]] && echo "${#WAVS[@]}" || echo 0))." >&2
     exit 1
 fi
 STEM=$(basename "${WAVS[0]}" .wav)
-TURN_TABLE="data/stage1/${STEM}.${NAME_TAGGER}.rttm"
+TURN_TABLE="${PSYCH_ASR_DATA:-$HOME/phi/PSYCH-ASR}/stage1/${STEM}.${NAME_TAGGER}.rttm"
 if [[ ! -f "${TURN_TABLE}" ]]; then
     echo "No ${TURN_TABLE}: the grading job would wait for four GPU jobs and then have "\
          "nothing to join onto. Run Stage 1b for ${NAME_TAGGER} first, or name an arm "\

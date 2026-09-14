@@ -50,6 +50,30 @@ All evaluation pipelines share a single stratified 80/20 train/test split (`crea
 
 ---
 
+## Where the results are, and they are not in here
+
+**`~/artifacts/TRD-EHR/results/`.** Outside this repository.
+
+1.5 GB of job output, and seven files of it over GitHub's 50 MB warning: the
+`neighbor_results_*.csv` tables under each embedding model, a `results_png_backup.tgz`, and
+the `random_forest_K=1024.joblib` model dumps. This repository is now part of a public
+monorepo, and none of that is work anybody reads — it is the output of jobs that can be run
+again. Every `results/` path below, and every rsync mirror a job performs into one, means
+that directory.
+
+**The figures and tables derived from it are small, and those are tracked.** That is the
+part that actually matters, because that is what a manuscript cites and what a meeting note
+links to.
+
+The reference libraries are the other half of the same rule, and they were already right:
+`paper1-trd-prediction/references/` and `paper2-counterfactual/references/` hold PDFs whose
+copyright belongs to their authors, so the **indexes** are tracked — `README.md`,
+`CITATION_MAP.md`, the role-grouped manifests — and the PDFs are not. A clone arrives with
+the bibliography described but not carried, and `CITATION_MAP.md` says what each missing
+prefix is. Those PDFs were also removed from all 477 commits of history when this
+repository moved in; so was `.env`, which enumerated the on-disk locations of identifiable
+patient data on lab storage. Copy `.env.example` to `.env` and fill it in.
+
 ## Project Structure
 
 ### 1. Data Loading (`scripts/data_loading`)

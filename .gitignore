@@ -63,8 +63,13 @@ Thumbs.db
 # `.claude/settings.json` is a workspace's committed permission policy and is
 # tracked by the workspace that owns it; `settings.local.json` is this machine's
 # and is not.
-.claude/settings.local.json
-.claude/state/
+# `**/` on purpose: a pattern with a slash in it is anchored to the directory
+# its .gitignore sits in, so `.claude/settings.local.json` written HERE matches
+# only the one at the repository root and silently misses the nine inside the
+# workspaces -- which are the only ones that actually exist.
+**/.claude/settings.local.json
+**/.claude/settings.local.json.bak
+**/.claude/state/
 
 # ---- other people's BOOKS, and every excerpt cut out of one ----
 # A course keeps its set text on disk and reads it; a public repository does not

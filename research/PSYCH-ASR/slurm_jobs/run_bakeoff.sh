@@ -15,7 +15,8 @@
 # arms with AFTERANY, so one arm crashing still produces transcripts for the others; a
 # dead arm then shows up as a missing file, which is a result rather than a silent gap.
 #
-# Run FROM THE REPO ROOT. Requires exactly one .wav in data/inbox.
+# Run FROM THE REPO ROOT. Requires exactly one .wav in $PSYCH_ASR_DATA/inbox
+# (default ~/phi/PSYCH-ASR/inbox) -- the session audio is not in this repository.
 # ---------------------------------------------------------------------------
 
 set -o errexit
@@ -38,7 +39,7 @@ if [[ ! -d slurm_jobs || ! -d psych_asr ]]; then
     exit 1
 fi
 
-WAVS=( data/inbox/*.wav )
+WAVS=( "${PSYCH_ASR_DATA:-$HOME/phi/PSYCH-ASR}"/inbox/*.wav )
 if [[ ! -e "${WAVS[0]}" || "${#WAVS[@]}" -ne 1 ]]; then
     echo "data/inbox must hold exactly 1 .wav file (found $([[ -e "${WAVS[0]}" ]] && echo "${#WAVS[@]}" || echo 0))." >&2
     exit 1
