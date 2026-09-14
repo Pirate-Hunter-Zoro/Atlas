@@ -486,6 +486,7 @@ WER, and that number is a broken transcript rather than a measurement of the mod
 #### Running the typist bake-off
 
 ```bash
+source slurm_jobs/lib/job_env.sh                 # sets PSYCH_ASR_DATA; the script refuses without it
 bash slurm_jobs/run_typist_bakeoff.sh
 bash slurm_jobs/run_typist_bakeoff.sh --typist parakeet --stopwatch wav2vec2-large
 ```
@@ -657,6 +658,19 @@ three, plus `PYTHONNOUSERSITE`, are exported by `activate_env` in
 `slurm_jobs/lib/job_env.sh`, which every job sources — before that helper existed, four
 jobs exported three variables and two exported two, which is the kind of difference nobody
 notices until a job hangs on a node with no internet.
+
+**And importing `psych_asr.config` exports `TORCH_HOME` and `NLTK_DATA` as well**, with
+`setdefault`, so an explicit export still wins. "Every job must export these" was only ever
+true of the *jobs*: a pytest run, a `python -m psych_asr…` on the login node or an
+interactive check got the library default instead, and nltk's default is `~/nltk_data`. On
+13 September 2026 one of them quietly downloaded `punkt_tab` into the home folder —
+whisperx's `alignment.py` calls `nltk.download('punkt_tab', quiet=True)` when the lookup
+misses — leaving 18 MB that duplicated the staged copy. The same call on a compute node
+with no egress hangs instead. `HF_HUB_OFFLINE` is deliberately **not** set on import: it
+belongs to the compute node, and setting it would break
+`psych_asr.cli.warm_align_cache`, whose whole job is to reach `download.pytorch.org` from
+the login node. `tests/conftest.py` imports the module before any test module for the same
+reason — nltk reads the variable when it is imported, so the export has to come first.
 
 ---
 

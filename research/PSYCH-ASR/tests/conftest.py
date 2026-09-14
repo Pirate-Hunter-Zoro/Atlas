@@ -4,6 +4,15 @@ import random
 
 import pytest
 
+# FIRST, AND THE ORDER IS THE WHOLE POINT. Importing psych_asr.config exports NLTK_DATA and
+# TORCH_HOME (see the comment there), and both are read by their library AT IMPORT: nltk
+# builds `nltk.data.path` from the environment when it is imported, so setting the variable
+# afterwards changes nothing. pytest loads this file before it collects any test module, and
+# `test_join.py` imports whisperx on its first line -- which imports nltk. This import is
+# what puts the export in front of that chain. Move it below a test import and the caches
+# quietly go back to the home folder.
+from psych_asr import config as _config  # noqa: F401  (imported for its side effect)
+
 VOCAB = "so how has the week been since we last talked I don't know it was fine".split()
 
 
