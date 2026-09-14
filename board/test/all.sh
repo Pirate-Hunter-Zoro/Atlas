@@ -65,6 +65,18 @@ else
   printf '%s\n' "$out" | grep '^FAIL' | sed 's/^/             /'
 fi
 
+# The tracked-file audit runs EARLY, because what it guards -- no PHI, no
+# 50-megabyte artifact, no other author's book inside a public repository -- is
+# the only failure in this suite that cannot be undone by fixing it afterwards.
+printf '%-12s ' "tracked"
+if out="$(python3 test/tracked.py 2>&1)"; then
+  printf '%s\n' "$out" | tail -1
+else
+  fails=$((fails + 1))
+  echo "FAILED"
+  printf '%s\n' "$out" | grep '^FAIL' | sed 's/^/             /'
+fi
+
 printf '%-12s ' "choice"
 if out="$(python3 test/choice.py 2>&1)"; then
   printf '%s\n' "$out" | tail -1

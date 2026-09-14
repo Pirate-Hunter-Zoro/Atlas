@@ -2,36 +2,44 @@
 # ---------------------------------------------------------------------------
 # bootstrap.sh -- set a new machine up as a tutoring host.
 #
-#   bash bootstrap.sh [--courses <file>] [--name <tailnet-name>] [--no-clone]
+#   bash board/bootstrap.sh [--name <tailnet-name>] [--no-clone]
 #
 # Run it once on the machine that will run the board: a cluster node, a desktop,
-# a laptop. It clones the course repositories, puts `tutor` and
-# `board` on the path, reports what is missing, and tells you what remains.
+# a laptop. It puts `tutor` and `board` on the path, fills in the vendored
+# submodules, reports what is missing, and tells you what remains.
 #
 # It does not use sudo, does not install anything system-wide, and does not
 # start anything you did not ask for.
 #
-# The list of course repositories is deliberately NOT in this repository, which
-# is public. Keep it at ~/.config/tutor-board/courses.txt -- one entry per line:
+# IT NO LONGER CLONES ANYTHING, and that is the whole of what the move to one
+# repository did to this file. It used to read a private list of eleven git URLs
+# from ~/.config/tutor-board/courses.txt and clone each of them beside the tool
+# -- a list kept out of this repository because this repository is public, and a
+# list that therefore had to be copied by hand onto every new machine and kept in
+# step with reality for ever.
 #
-#     https://github.com/you/Some-Course.git
-#     https://github.com/you/odd-remote-name.git   Nice-Directory-Name
+# There is one repository now. Setting a machine up is:
 #
-# The second field is optional and only needed when the directory you want does
-# not match the repository name. Blank lines and # comments are ignored.
+#     git clone --recurse-submodules https://github.com/Pirate-Hunter-Zoro/Atlas.git
+#     bash Atlas/board/bootstrap.sh
+#
+# and everything arrives together, at the same commit, with nothing to remember.
+# What is left here is the vendored submodules -- `--recurse-submodules` is the
+# first thing a new machine gets wrong -- and `--no-clone` still skips that.
 # ---------------------------------------------------------------------------
 set -uo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PARENT="$(dirname "$HERE")"
+# The repository root -- the directory holding atlas.json, one level above the
+# tool. It was the tool's parent because the courses were its siblings, which is
+# the same sentence about a different shape.
+ROOT="$(git -C "$HERE" rev-parse --show-toplevel 2>/dev/null || dirname "$HERE")"
 CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/tutor-board"
-COURSES="$CONFIG_DIR/courses.txt"
 NAME=""
 CLONE=1
 
 while [ $# -gt 0 ]; do
   case "$1" in
-    --courses) shift; COURSES="$1" ;;
     --name)    shift; NAME="$1" ;;
     --no-clone) CLONE=0 ;;
     -h|--help) sed -n '2,20p' "$0"; exit 0 ;;
@@ -44,52 +52,38 @@ say()  { printf '%s\n' "$*"; }
 good() { printf '  ok    %s\n' "$*"; }
 warn() { printf '  ----  %s\n' "$*"; }
 
-say "Tutor-Board bootstrap"
-say "  tool:    $HERE"
-say "  courses: $PARENT"
+say "Atlas bootstrap"
+say "  repository: $ROOT"
+say "  the board:  $HERE"
 say
 
 # --- the tool itself --------------------------------------------------------
 bash "$HERE/install.sh" | sed 's/^/  /'
 say
 
-# --- the course repositories ------------------------------------------------
+# --- the vendored submodules ------------------------------------------------
+# Somebody else's repositories, tracked by pointer. A clone made without
+# `--recurse-submodules` arrives with an EMPTY vendor/, which is the first thing
+# a new machine gets wrong and gives no error when it happens -- the directory is
+# simply there and has nothing in it.
 if [ "$CLONE" -eq 1 ]; then
-  if [ ! -f "$COURSES" ]; then
-    warn "no course list at $COURSES"
-    say  "        Create it — one git URL per line — then re-run. On a machine that"
-    say  "        already has the repositories, this prints the list to copy over:"
-    say  "          for d in $PARENT/*/; do git -C \"\$d\" remote get-url origin 2>/dev/null; done"
-  else
-    say "Cloning courses listed in $COURSES"
-    while IFS= read -r line; do
-      case "$line" in ''|\#*) continue ;; esac
-      url="$(printf '%s' "$line" | awk '{print $1}')"
-      name="$(printf '%s' "$line" | awk '{print $2}')"
-      [ -n "$name" ] || name="$(basename "$url" .git)"
-      dest="$PARENT/$name"
-      if [ -d "$dest/.git" ]; then
-        good "$name already cloned"
-      elif git clone --quiet "$url" "$dest" 2>/dev/null; then
-        # `git clone` exits 0 for a repository whose default branch does not
-        # exist, leaving an empty working tree. Saying "cloned" there sends
-        # someone hunting for a problem in the wrong place.
-        if git -C "$dest" rev-parse --verify --quiet HEAD >/dev/null; then
-          good "$name cloned"
-          # Tracked hooks are per-clone; turn them on so the attribution
-          # stripper is live from this machine's first commit.
-          if [ -d "$dest/.githooks" ]; then
-            git -C "$dest" config core.hooksPath .githooks
-          else
-            warn "$name has no .githooks — commits here are not protected"
-          fi
+  if [ -f "$ROOT/.gitmodules" ]; then
+    say "Filling in the vendored submodules"
+    if git -C "$ROOT" submodule update --init --recursive >/dev/null 2>&1; then
+      while read -r _ path _; do
+        [ -n "$path" ] || continue
+        if [ -n "$(ls -A "$ROOT/$path" 2>/dev/null)" ]; then
+          good "$path at $(git -C "$ROOT/$path" rev-parse --short HEAD 2>/dev/null)"
         else
-          warn "$name cloned EMPTY — does its default branch exist on the remote?"
+          warn "$path is still empty"
         fi
-      else
-        warn "$name FAILED to clone from $url"
-      fi
-    done < "$COURSES"
+      done < <(git -C "$ROOT" submodule status | awk '{print $1, $2, $3}')
+    else
+      warn "could not fetch the submodules; vendor/ will be empty until there is a network"
+      say  "        git -C $ROOT submodule update --init --recursive"
+    fi
+  else
+    warn "no .gitmodules at $ROOT -- is the board inside its repository?"
   fi
   say
 fi

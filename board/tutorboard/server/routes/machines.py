@@ -12,6 +12,7 @@ from ...net import tailscale
 from ... import limits
 from ... import choice
 from .. import spawn
+from ... import atlas
 from ... import machines
 from ...lesson import state
 
@@ -26,10 +27,17 @@ def get(h, repo, path):
             pass
         urls = [u for u in info.get("urls", []) if "127.0.0.1" not in u]
         return h.send_json({
-            "courses": machines.sibling_courses(repo),
+            "courses": machines.workspaces(repo),
             "where": (urls[0] if urls else "") ,
             "node": info.get("node"),
         })
+
+    if path == "/atlas.json":
+        # Everything the front door draws, in one request. The hub's
+        # `/courses.json` stays exactly as it was -- the board's own switcher
+        # reads it, and a payload two surfaces share is a payload that grows a
+        # field for one of them and breaks the other.
+        return h.send_json(machines.atlas_payload(repo))
 
     if path == "/health":
         # `dir` so a caller can confirm it reached the course it meant --
@@ -47,6 +55,10 @@ def get(h, repo, path):
         agent = state.load_agent(repo) or {}
         return h.send_json({"ok": True, "root": repo.root,
                                "dir": os.path.basename(repo.root),
+                               # The qualified name too, so a caller can tell
+                               # `courses/Probability` from a future
+                               # `practice/Probability` without guessing.
+                               "id": atlas.identify(repo.root),
                                "host": tailscale.tailnet_self() or "",
                                "chosen": machines.chosen_target(),
                                "tutor": agent.get("state") or None,
@@ -62,23 +74,32 @@ def post(h, repo, path):
             return h.send_json({"ok": False, "error": "bad json"}, status=400)
         want = payload.get("repo") or ""
 
-        # Only a sibling directory this server already discovered. No paths
-        # from the request ever reach the filesystem.
+        # Only a workspace this server already discovered. No path from a
+        # request ever reaches the filesystem: the name is matched against what
+        # the walk found, and the ROOT comes off the match rather than being
+        # rebuilt out of the name. Rebuilding it was safe while every course was
+        # a sibling and `dirname(root)` was the whole tree; it is not safe now,
+        # because the same name can sit under two families.
+        #
+        # Either spelling is accepted -- `Probability` or `courses/Probability`
+        # -- because the hub has always sent the bare directory and an address
+        # (§9) spells the qualified one.
         match = None
-        for c in machines.sibling_courses(repo):
-            if c["repo"] == want:
+        for c in machines.workspaces(repo):
+            if want in (c["repo"], c["id"]):
                 match = c
                 break
         if not match:
             return h.send_json({"ok": False, "error": "unknown course"}, status=404)
-        target = os.path.join(os.path.dirname(repo.root), match["repo"])
+        target = match["root"]
 
         # A tap in the hub is a person saying which course they mean. The
         # record is written first and unconditionally, because it is the one
         # thing that survives this board being restarted, and it is what every
         # later question about "which course" is answered from.
         choice.remember_chosen(match["repo"], target,
-                                 host=tailscale.tailnet_self() or "")
+                                 host=tailscale.tailnet_self() or "",
+                                 family=match["family"])
 
         # THE ADDRESS IS MOVED HERE, IN THIS REQUEST, BY THE MACHINE SERVING.
         #

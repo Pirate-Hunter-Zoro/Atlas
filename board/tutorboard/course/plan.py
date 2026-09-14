@@ -36,6 +36,13 @@ import os
 import re
 import time
 
+# `paths` is bound as `toolpaths` because THIS module defines a public
+# `paths(root)` -- every plan a workspace has -- and the import would shadow it.
+# Same trap as `map` being a builtin, same answer: the module keeps its name and
+# the import is the one that moves.
+from .. import atlas
+from .. import paths as toolpaths
+
 # What a plan is called, when nothing names one. Ordered: a repository with both
 # a ROADMAP and a TODO means the TODO, because the TODO is the one that changes.
 COMMON = ("TODO.md", "TODO.txt", "TASKS.md", "PLAN.md", "ROADMAP.md", "NEXT.md")
@@ -67,62 +74,79 @@ def _named(root):
     return _resolve(root, said) if said else None
 
 
-def _resolve(root, rel):
-    """A path from a README or a config, made real -- or None.
+def _allowed(target, root):
+    """May a path written in a file be read? Three places, and nowhere else.
 
-    Three places, because a plan legitimately lives in any of them: inside this
-    repository, in a SIBLING repository (a narrative hub that holds the plans for
-    several projects, which is exactly PSYCH-ASR's arrangement), or under `~`
-    where a README writes it for a human reader.
+    A path out of a file is a path somebody could have written anything into,
+    and this one is read, listed in a drawer and named in a prompt. So the
+    bound is explicit and it is small:
 
-    It may not go anywhere else. A path out of a file is a path somebody could
-    have written anything into, and this one is read, listed in a drawer, and
-    named in a prompt.
+    1. inside this workspace;
+    2. anywhere inside the repository -- which is the bound that WIDENED when
+       eleven repositories became one. A README pointing at another project's
+       plan used to be pointing at a sibling directory; it now points across
+       the tree at `../../projects/libr-local-llm/LOCAL-LLM_TODO.txt`, and that
+       is a normal thing to do rather than an exception;
+    3. the two directories that are deliberately OUTSIDE the tree -- the PHI
+       directory and the artifact directory -- because a workspace README's
+       whole job is to say where its data went, and a plan may legitimately
+       live beside it.
+
+    Widened, not removed. `/etc/passwd` is still not a plan.
     """
+    return toolpaths.within(target, root, atlas.root(),
+                            *toolpaths.outside_tree())
+
+
+def _resolve(root, rel):
+    """A path from a README or a config, made real -- or None."""
     rel = str(rel or "").strip().strip("`'\"")
     if not rel:
         return None
     root = os.path.realpath(root)
-    home = os.path.realpath(os.path.expanduser("~"))
-    parent = os.path.dirname(root)
 
     if rel.startswith("~"):
         tries = [os.path.expanduser(rel)]
     elif os.path.isabs(rel):
         tries = [rel]
     else:
-        tries = [os.path.join(root, rel), os.path.join(parent, rel)]
+        # The workspace first, then the repository root, so `courses/Probability
+        # /chapters.tsv` written from anywhere resolves the way it reads.
+        tries = [os.path.join(root, rel),
+                 os.path.join(os.path.dirname(root), rel),
+                 os.path.join(atlas.root(), rel)]
 
     if not os.path.dirname(rel.lstrip("~/")):
         # A bare filename, which is how a README names a plan it expects the
         # reader to already know the location of: "its live task list is
-        # LOCAL-LLM_TODO.txt". The arrangement these repositories actually use
-        # is a narrative hub beside them holding every project's plan, so look
-        # one level into each sibling before giving up. Bounded and shallow: a
-        # directory listing of the parent and of each child, not a tree walk.
-        tries += _beside(parent, os.path.basename(rel))
+        # LOCAL-LLM_TODO.txt". Look through the repository for it -- one listing
+        # of each family and one of each workspace, which is exactly the two
+        # levels the tree has. Bounded and shallow: two directory listings
+        # deep, not a tree walk.
+        tries += _beside(atlas.root(), os.path.basename(rel))
 
     for path in tries:
         target = os.path.realpath(path)
         if not os.path.isfile(target):
             continue
-        # Inside this repository, or beside it under the same home. Anywhere
-        # else is refused rather than read.
-        if target == root or target.startswith(root + os.sep):
-            return target
-        if target.startswith(parent + os.sep) and target.startswith(home + os.sep):
+        if _allowed(target, root):
             return target
     return None
 
 
-def _beside(parent, name):
-    """Where a bare plan filename could be, in the directory holding this repo."""
+def _beside(base, name):
+    """Where a bare plan filename could be: two levels down from the root.
+
+    `base` is the repository root, so the first level is the families and the
+    second is the workspaces. It was the courses' parent directory and its
+    children when they were siblings -- the same two listings, one shape up.
+    """
     out = []
     try:
-        for sib in sorted(os.listdir(parent)):
-            if sib.startswith("."):
+        for fam in sorted(os.listdir(base)):
+            if fam.startswith("."):
                 continue
-            here = os.path.join(parent, sib)
+            here = os.path.join(base, fam)
             if not os.path.isdir(here):
                 continue
             out.append(os.path.join(here, name))

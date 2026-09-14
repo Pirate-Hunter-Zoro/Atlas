@@ -11,8 +11,15 @@ But a working project does write down what it is doing next. It is not called a
 syllabus and it is not kept in the repository, and those were the only two
 reasons nothing read it. What is guarded here is that reading it stays
 discovery rather than configuration, that a path out of a README can never
-reach outside the repository and its siblings, and that a document somebody
-else wrote is never offered as though it were one of this project's own.
+reach outside the repository, and that a document somebody else wrote is never
+offered as though it were one of this project's own.
+
+The tree here is a MONOREPO, because that is what there is now: a family
+directory, a workspace inside it, and a README in one workspace pointing across
+the tree at a plan in another. That pointer used to reach a SIBLING directory
+and now reaches two levels away, which is the one thing about path resolution
+the move actually changed -- and the bound is still a bound, which is the
+other half and the half worth a test.
 """
 
 import json
@@ -24,7 +31,7 @@ import tempfile
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 from tutorboard.course import plan, reading      # noqa: E402
-from tutorboard import sense                     # noqa: E402
+from tutorboard import atlas, sense              # noqa: E402
 
 fails = []
 
@@ -64,14 +71,21 @@ ORIENTATION
   Standing context, not a task. Preserve on every edit.
 """
 
-# --- the sandbox: a hub, and two projects beside it ---------------------------
+# --- the sandbox: one repository, three workspaces in two families -----------
 # The arrangement these repositories actually use, and the one nothing could
-# read: the code is in one directory and the plan for it is in another beside it.
+# read: the code is in one workspace and the plan for it is in another, across
+# the tree rather than beside it.
 home = tempfile.mkdtemp(prefix="tutor-plan-home-")
-proj = os.path.join(home, "PSYCH-ASR")
-hub = os.path.join(home, "Research-Journey")
-book = os.path.join(home, "Galois-Theory")
+real_home = os.environ.get("HOME")
+real_courses = os.environ.get("TUTORBOARD_COURSES")
+proj = os.path.join(home, "research", "PSYCH-ASR")
+hub = os.path.join(home, "research", "Research-Journey")
+book = os.path.join(home, "courses", "Galois-Theory")
 try:
+    write(os.path.join(home, "atlas.json"), json.dumps({"families": [
+        {"id": "courses", "name": "Courses"},
+        {"id": "research", "name": "Research"},
+    ]}))
     write(os.path.join(hub, "planning", "PSYCH-ASR_TODO.txt"), TODO)
     pdf(os.path.join(hub, "psych-asr-feasibility", "stage1_pipeline_walkthrough.pdf"))
     pdf(os.path.join(hub, "psych-asr-feasibility", "stage2_reference_walkthrough.pdf"))
@@ -85,29 +99,33 @@ try:
     write(os.path.join(proj, "tutorboard.json"), json.dumps({"name": "PSYCH-ASR"}))
     write(os.path.join(proj, "README.md"), """# PSYCH-ASR
 
-This project's live task list is `~/Research-Journey/planning/PSYCH-ASR_TODO.txt`.
+This project's live task list is `~/research/Research-Journey/planning/PSYCH-ASR_TODO.txt`.
 
 A conceptual walkthrough of Stage 1 lives at
-`~/Research-Journey/psych-asr-feasibility/stage1_pipeline_walkthrough.pdf`.
+`~/research/Research-Journey/psych-asr-feasibility/stage1_pipeline_walkthrough.pdf`.
 Everything after that deck has its own: `stage2_reference_walkthrough.pdf`, in
 the same directory, is the sequel.
 
 The E-value is discussed in
-`~/Research-Journey/paper2-counterfactual/references/11_VanderWeeleDing2017_Evalue.pdf`.
+`~/research/Research-Journey/paper2-counterfactual/references/11_VanderWeeleDing2017_Evalue.pdf`.
 
 Do not read %s.
 """ % os.path.join(outside, "SECRET_TODO.md"))
 
     # `~` is written in these READMEs and has to mean this test's home, not the
     # person running it.
-    real_home = os.environ.get("HOME")
     os.environ["HOME"] = home
+    # The repository root, for the same reason `HOME` is set: the bound a path
+    # out of a README is checked against is the REPOSITORY now, and the test
+    # must not be checked against the one this machine really has.
+    os.environ["TUTORBOARD_COURSES"] = home
+    atlas.forget()
     plan._cache.clear()
     reading._cache.clear()
 
     # --- where the plan is ---------------------------------------------------
     check("a plan in a hub beside the repository is found from the README",
-          plan.where(proj) == "~/Research-Journey/planning/PSYCH-ASR_TODO.txt")
+          plan.where(proj) == "~/research/Research-Journey/planning/PSYCH-ASR_TODO.txt")
 
     steps = plan.steps(proj)
     check("and its steps are read, in the plan's own order",
@@ -124,10 +142,17 @@ Do not read %s.
           not [x for x in steps if "ORIENTATION" in x["label"]])
 
     # --- a path out of a file is not a path anything will follow -------------
-    check("a plan outside this home is refused, however plainly it is named",
+    check("a plan outside the repository is refused, however plainly it is named",
           plan._resolve(proj, os.path.join(outside, "SECRET_TODO.md")) is None)
     check("and so is one reached by climbing out of the tree",
           plan._resolve(proj, "../../../../etc/passwd") is None)
+    # The bound WIDENED to the repository when eleven of them became one, and
+    # this is what that buys: a README in one workspace naming a plan in
+    # another, spelled the way somebody writes it in a file that lives two
+    # levels down.
+    check("but a plan in another workspace, named relatively, is reached",
+          plan._resolve(proj, "../../research/Research-Journey/planning/PSYCH-ASR_TODO.txt")
+          == os.path.realpath(os.path.join(hub, "planning", "PSYCH-ASR_TODO.txt")))
 
     # --- a README names its dependencies' plans too, and a hub owns none -----
     # PSYCH-ASR points at LOCAL-LLM_TODO.txt because it runs on that
@@ -137,7 +162,7 @@ Do not read %s.
     write(os.path.join(hub, "planning", "LOCAL-LLM_TODO.txt"),
           "STEP 1. WEB ACCESS FOR THE CODING AGENT.\n  Not this project's step.\n")
     write(os.path.join(proj, "README.md"), open(os.path.join(proj, "README.md")).read()
-          + "\nIt depends on `~/Research-Journey/planning/LOCAL-LLM_TODO.txt`.\n")
+          + "\nIt depends on `~/research/Research-Journey/planning/LOCAL-LLM_TODO.txt`.\n")
     plan._cache.clear()
     check("a plan named after this repository is its own, and the rest are mentions",
           plan.paths(proj) == [os.path.join(hub, "planning", "PSYCH-ASR_TODO.txt")])
@@ -207,8 +232,8 @@ A multi-project narrative hub. The live task lists are
     # --- what the tutor is told ---------------------------------------------
     write(os.path.join(proj, "README.md"), """# PSYCH-ASR
 
-This project's live task list is `~/Research-Journey/planning/PSYCH-ASR_TODO.txt`.
-A walkthrough is at `~/Research-Journey/psych-asr-feasibility/stage1_pipeline_walkthrough.pdf`,
+This project's live task list is `~/research/Research-Journey/planning/PSYCH-ASR_TODO.txt`.
+A walkthrough is at `~/research/Research-Journey/psych-asr-feasibility/stage1_pipeline_walkthrough.pdf`,
 and `stage2_reference_walkthrough.pdf` is in the same directory.
 """)
     plan._cache.clear()
@@ -216,7 +241,7 @@ and `stage2_reference_walkthrough.pdf` is in the same directory.
 
     line = sense.where_sense(None, proj)
     check("a project's tutor is told where the plan is, by name",
-          "~/Research-Journey/planning/PSYCH-ASR_TODO.txt" in line)
+          "~/research/Research-Journey/planning/PSYCH-ASR_TODO.txt" in line)
     # The round trips this removes: a 1,500-line README, a pointer out of it,
     # and a 1,300-line task list, paid for on every cold turn.
     check("and handed the steps rather than sent to find them",
@@ -244,6 +269,11 @@ and `stage2_reference_walkthrough.pdf` is in the same directory.
 finally:
     if real_home is not None:
         os.environ["HOME"] = real_home
+    if real_courses is None:
+        os.environ.pop("TUTORBOARD_COURSES", None)
+    else:
+        os.environ["TUTORBOARD_COURSES"] = real_courses
+    atlas.forget()
     shutil.rmtree(home, ignore_errors=True)
     shutil.rmtree(outside, ignore_errors=True)
 

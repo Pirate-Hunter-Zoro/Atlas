@@ -31,26 +31,46 @@ import time
 
 
 def git_dir(root):
-    """This repository's `.git`, resolved, or None if there is not one.
+    """The `.git` of the repository this directory is IN, or None.
 
     `.git` is a directory in an ordinary clone and a FILE holding `gitdir: ...`
     in a linked worktree or a submodule. Reading only the directory case is how
     a guard silently stops guarding for anybody working in a worktree.
+
+    It WALKS UP, and that is what the move to one repository changed. A
+    workspace used to be its own clone with its own `.git` beside its `live/`;
+    it is now `courses/Galois-Theory` inside Atlas, and the `.git` that decides
+    whether a commit is safe to make is several levels above it. A guard that
+    looked only in the workspace found nothing and concluded there was nothing
+    to guard -- which reads as "no repository here", and is the most dangerous
+    possible answer for a function whose whole job is to say "somebody is
+    part-way through a rebase, do not commit".
+
+    So a rebase outstanding anywhere in Atlas stops the transcript beat in
+    every workspace. That is correct and it is not over-cautious: there is one
+    index and one HEAD now, and they are what the rebase is holding.
     """
-    here = os.path.join(root, ".git")
-    if os.path.isdir(here):
-        return here
-    if os.path.isfile(here):
-        try:
-            with open(here, "r", encoding="utf-8") as fh:
-                for line in fh:
-                    if line.startswith("gitdir:"):
-                        path = line.split(":", 1)[1].strip()
-                        if not os.path.isabs(path):
-                            path = os.path.join(root, path)
-                        return os.path.normpath(path)
-        except OSError:
+    here = os.path.realpath(root)
+    for _ in range(40):
+        found = os.path.join(here, ".git")
+        if os.path.isdir(found):
+            return found
+        if os.path.isfile(found):
+            try:
+                with open(found, "r", encoding="utf-8") as fh:
+                    for line in fh:
+                        if line.startswith("gitdir:"):
+                            path = line.split(":", 1)[1].strip()
+                            if not os.path.isabs(path):
+                                path = os.path.join(here, path)
+                            return os.path.normpath(path)
+            except OSError:
+                return None
             return None
+        up = os.path.dirname(here)
+        if up == here:
+            return None
+        here = up
     return None
 
 

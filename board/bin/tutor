@@ -46,7 +46,7 @@ import sys
 
 TOOL = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 sys.path.insert(0, TOOL)
-from tutorboard import choice, handoff, limits, machine, paths, processes, worktree
+from tutorboard import atlas, choice, handoff, limits, machine, paths, processes, worktree
 from tutorboard.course import config
 from tutorboard.net import egress
 
@@ -57,7 +57,12 @@ CONFIG_DIR = os.path.join(
 CONFIG = os.path.join(CONFIG_DIR, "config.json")
 
 DEFAULT_CONFIG = {
-    "courses_dir": os.path.dirname(TOOL),
+    # The repository root. It was `dirname(TOOL)` because a course was a
+    # directory sitting next to the board; it is now the directory holding
+    # `atlas.json`, one level above the tool, and `atlas.root()` is what walks
+    # to it. The key keeps its name so a config file already on a machine still
+    # reads -- what it MEANS is the same sentence about a different shape.
+    "courses_dir": atlas.root(),
     "default_agent": "claude",
     "agents": {
         # `prompt: argv`  -- the brief is passed as a final argument
@@ -534,34 +539,37 @@ def resolve_agent(cfg, course, override=None, interactive=False, say=None):
 def courses(cfg):
     """Whatever is on disk. No registry, so nothing to keep in step.
 
-    `TUTORBOARD_COURSES` beats the configuration, and it is not a nicety. It is
-    how a test says "these courses, not this machine's", and until 7 September
-    only the shell scripts had heard of it: `catch-up.sh` walked the directory it
-    was pointed at, then handed the machine to `tutor restart --tutors`, which
-    asked the configuration and found the real home. Running the test suite therefore bounced the board somebody was being
-    taught on, and -- because a `HOME` the test HAD moved gave a different
-    config and so a different derived port -- left a second board for the same
-    course answering on a port nobody knew about. One variable, one meaning,
-    everywhere.
+    `atlas.workspaces()` is the walk: the families named in `atlas.json`, a
+    workspace per second-level directory, vendor skipped, the board skipped. It
+    used to be one listing of the board's parent directory, and the thing that
+    has NOT changed is that nothing anywhere lists the workspaces -- a directory
+    holding `tutorboard.json`, `AI_INSTRUCTIONS.md` or `live/` is one, found by
+    looking.
+
+    `TUTORBOARD_COURSES` still beats everything, and it is not a nicety. It is
+    how a test says "this tree, not this machine's", and until 7 September only
+    the shell scripts had heard of it: `catch-up.sh` walked the directory it was
+    pointed at, then handed the machine to `tutor restart --tutors`, which asked
+    the configuration and found the real home. Running the test suite therefore
+    bounced the board somebody was being taught on, and -- because a `HOME` the
+    test HAD moved gave a different config and so a different derived port --
+    left a second board for the same course answering on a port nobody knew
+    about. One variable, one meaning, everywhere. It now means "the repository
+    root" rather than "the directory the courses are siblings in", which is the
+    same sentence about the new shape; `atlas.root()` reads it.
     """
-    base = os.path.expanduser(os.environ.get("TUTORBOARD_COURSES")
-                              or cfg["courses_dir"])
+    # `TUTORBOARD_COURSES` beats the configuration, which is what `atlas.root()`
+    # already decides; `courses_dir` is what a person set, and it is honoured
+    # when they did. One variable, one meaning, and a config key that still
+    # means something.
+    base = os.environ.get("TUTORBOARD_COURSES") or cfg.get("courses_dir")
     out = []
-    try:
-        names = sorted(os.listdir(base))
-    except OSError:
-        return out
-    for name in names:
-        root = os.path.join(base, name)
-        if not os.path.isdir(root) or os.path.abspath(root) == TOOL:
-            continue
-        if not (os.path.isfile(os.path.join(root, "tutorboard.json")) or
-                os.path.isfile(os.path.join(root, "AI_INSTRUCTIONS.md")) or
-                os.path.isdir(os.path.join(root, "live"))):
-            continue
-        info = read_course(root)
-        info["root"] = root
-        info["dir"] = name
+    for w in atlas.workspaces(base):
+        info = read_course(w["root"])
+        info["root"] = w["root"]
+        info["dir"] = w["dir"]
+        info["id"] = w["id"]
+        info["family"] = w["family"]
         out.append(info)
     return out
 
@@ -2084,7 +2092,8 @@ def remember_course(course):
     course once would go on resuming it for ever, quietly, taking the tailnet
     name with it every time. Naming one is how you say otherwise.
     """
-    choice.remember_chosen(course["dir"], course["root"])
+    choice.remember_chosen(course["dir"], course["root"],
+                           family=course.get("family") or "")
 
 
 def chosen_course(cfg):
@@ -2325,6 +2334,111 @@ def _running_jobs():
     return sorted(out, reverse=True)
 
 
+def pull_vendor(quiet=False):
+    """Move `vendor/colibri` forward, and COMMIT THE POINTER ITSELF.
+
+        "Regarding some kind of external repo like colibri, I want to have that
+         git pulled every time I salloc, just like tutoring becomes available
+         every time I salloc. I want it tracked in our repo too."
+
+    A submodule is exactly that: the repository tracks a POINTER to a commit in
+    somebody else's repository, and the pointer is a tracked file like anything
+    else. This is the half that makes it happen on a compute node, and it lives
+    in `cmd_resume` because a compute node gets ONE moment and it is the login.
+    No second hook, no timer.
+
+    The third rule is the one that bites. A bumped pointer is a change in the
+    working tree, so pulling colibri leaves the repository dirty every time
+    colibri moves -- and `git.repo_dirty` is on the board, which means the
+    person is shown "unsaved work" for something they did not do, on a file they
+    have never heard of. So the pull commits the bump, with a fixed message
+    naming the old commit and the new one.
+
+    **That is the only commit anything in this system makes on its own**, so it
+    is guarded three ways, and every guard is one `scripts/catch-up.sh` already
+    has written out for the course loop:
+
+    * only when `vendor/colibri` is the ONLY dirty path. Anything else in the
+      tree and this does nothing at all -- a commit that sweeps up somebody's
+      afternoon because a vendored library moved is the exact failure the
+      `--only` pathspec exists to prevent;
+    * never when a merge or a rebase is outstanding, because a terminal in here
+      has its own plan for the next commit;
+    * never on a detached HEAD, where a commit is reachable from nothing.
+
+    `vendor/colibri-build` is NOT pulled. It is the same upstream pinned at an
+    older commit because it is a BUILD TREE, and a build tree that moves
+    underneath a build is the failure it exists to avoid. Moving it forward is
+    the person's to do, by hand.
+    """
+    base = atlas.root()
+    sub = os.path.join(base, "vendor", "colibri")
+    if not os.path.isdir(os.path.join(sub, ".git")) and \
+       not os.path.isfile(os.path.join(sub, ".git")):
+        return None                      # not a checkout here; nothing to do
+
+    def say(msg):
+        if not quiet:
+            print("  " + msg)
+
+    busy = worktree.busy_reason(base)
+    if busy:
+        say("colibri not pulled: %s in the repository" % busy)
+        return False
+
+    env = dict(os.environ, GIT_TERMINAL_PROMPT="0", GIT_ASKPASS="/bin/false")
+
+    def git(*args, **kw):
+        return subprocess.run(["git"] + list(args), cwd=kw.pop("cwd", base),
+                              env=env, stdout=subprocess.PIPE,
+                              stderr=subprocess.STDOUT, timeout=kw.get("timeout", 90))
+
+    try:
+        before = git("rev-parse", "HEAD", cwd=sub).stdout.decode().strip()
+        p = git("submodule", "update", "--remote", "--merge", "vendor/colibri")
+        after = git("rev-parse", "HEAD", cwd=sub).stdout.decode().strip()
+    except (OSError, subprocess.TimeoutExpired):
+        say("could not reach colibri's remote; leaving it where it is")
+        return False
+    if p.returncode != 0:
+        out = p.stdout.decode("utf-8", "replace").strip().splitlines()
+        say("colibri not pulled: %s" % (out[-1] if out else "update failed"))
+        return False
+    if before == after:
+        return True                      # already current, and silent about it
+
+    # --- the pointer is now dirty. Commit it, or say why not. ---------------
+    try:
+        if git("rev-parse", "--abbrev-ref", "HEAD").stdout.decode().strip() == "HEAD":
+            say("colibri moved, but HEAD is detached here, so the pointer is "
+                "left uncommitted")
+            return False
+        status = git("status", "--porcelain").stdout.decode("utf-8", "replace")
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+
+    dirty = [l[3:].strip() for l in status.splitlines() if l.strip()]
+    stray = [d for d in dirty if d.rstrip("/") != "vendor/colibri"]
+    if stray:
+        say("colibri moved to %s, and the pointer is left uncommitted because "
+            "there is other uncommitted work here: %s"
+            % (after[:8], ", ".join(stray[:3])))
+        return False
+
+    msg = ("vendor/colibri moves from %s to %s\n\n"
+           "The pointer only. Written by `tutor resume` on login, which is the "
+           "one moment a compute node gets, and committed here rather than left "
+           "dirty -- an uncommitted pointer nobody touched shows on the board as "
+           "unsaved work, which is a lie the person cannot act on."
+           % (before[:8], after[:8]))
+    try:
+        git("commit", "--only", "-m", msg, "--", "vendor/colibri")
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+    say("colibri moved %s -> %s, pointer committed" % (before[:8], after[:8]))
+    return True
+
+
 def cmd_resume(cfg, args):
     """Take the board over on this machine. Safe to run from a login hook.
 
@@ -2359,6 +2473,11 @@ def cmd_resume(cfg, args):
     swept = prune_dead_records(cfg, host)
     if swept:
         say("cleared a dead board record for: %s" % ", ".join(swept))
+
+    # Somebody else's repository, pulled forward and tracked by pointer. Here
+    # because a login is the one moment a compute node gets -- the same reason
+    # everything else in this function is here.
+    pull_vendor(quiet=quiet)
 
     found = courses(cfg)
 
@@ -2646,10 +2765,20 @@ def main(argv):
             print(__doc__.strip())
             return 0
         elif a in ("--list", "-l"):
+            # Grouped by family, because a flat list of nine is a list and the
+            # families are what make it readable. The heading is printed when
+            # it changes rather than looked up, so a new family needs no edit
+            # here.
+            seen = ""
             for c in courses(cfg):
+                fam = c.get("family") or ""
+                if fam != seen:
+                    seen = fam
+                    print("\n%s" % (fam or "workspaces"))
                 print("  %-26s %-6s %s"
                       % (c.get("name") or c["dir"],
                          "do" if c.get("stance") == "do" else "", c["dir"]))
+            print()
             return 0
         elif a == "--agents":
             print("config: %s" % CONFIG)

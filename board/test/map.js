@@ -113,7 +113,7 @@ function board(W, H) {
       removeItem: (k) => { delete store[k]; },
     },
   });
-  for (const f of ['typeface.js', 'macros.js', 'plane-core.js', 'slate-core.js',
+  for (const f of ['typeface.js', 'macros.js', 'gauge.js', 'plane-core.js', 'slate-core.js',
                    'annotate.js', 'shot.js']) {
     try { window.eval(fs.readFileSync(path.join(WEB, f), 'utf8')); }
     catch (e) { fail(f + ': ' + e.message); }
