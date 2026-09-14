@@ -1,0 +1,108 @@
+#!/usr/bin/env bash
+# ---------------------------------------------------------------------------
+# save-and-push.sh -- commit everything in this repository and push it.
+#
+#   scripts/save-and-push.sh ["commit message"]
+#
+# Run at the end of a session, usually from the board's "push" button rather
+# than by hand.
+#
+# The commit is authored by whoever `git config user.name` says, and carries no
+# trailers, no co-authors, and no attribution to any assistant. The work is the
+# repository owner's; the history should say so and nothing else.
+#
+# Exits 0 on success or when there was simply nothing to commit. Any other exit
+# means the push did not happen, and the reason is on stdout.
+# ---------------------------------------------------------------------------
+set -uo pipefail
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$ROOT" || { echo "cannot enter $ROOT"; exit 1; }
+
+MSG="${1:-lesson complete}"
+
+# Never sit waiting on a credential prompt nobody can see: fail and say so.
+export GIT_TERMINAL_PROMPT=0
+export GIT_ASKPASS=/bin/false
+
+git rev-parse --is-inside-work-tree >/dev/null 2>&1 || {
+  echo "not a git repository: $ROOT"
+  exit 1
+}
+
+# Never commit into an operation somebody started in a terminal. This script is
+# run unattended -- from the board's save button, from `board finish`, from
+# ship.sh -- and a repository part-way through a rebase or a merge has its own
+# plan for its next commit. Say what is in the way and change nothing; the same
+# rule lives in `tutorboard/worktree.py` for everything on the Python side.
+GITDIR="$(git rev-parse --git-dir)"
+for marker in rebase-merge rebase-apply MERGE_HEAD CHERRY_PICK_HEAD \
+              REVERT_HEAD BISECT_LOG; do
+  if [ -e "$GITDIR/$marker" ]; then
+    echo "$marker is outstanding in this repository, so nothing was committed."
+    echo "Finish or abort it, then save again. Nothing has been lost."
+    exit 1
+  fi
+done
+if [ "$(git rev-parse --abbrev-ref HEAD)" = "HEAD" ]; then
+  echo "HEAD is detached here, so a commit would be reachable from nothing."
+  echo "Check out a branch, then save again. Nothing has been lost."
+  exit 1
+fi
+
+# A clone has to opt into tracked hooks once. Do it here rather than making
+# anyone remember, so the attribution stripper is on from the first commit.
+if [ -d "$ROOT/.githooks" ] && [ -z "$(git config core.hooksPath || true)" ]; then
+  git config core.hooksPath .githooks
+  echo "enabled .githooks for this clone"
+fi
+
+git add -A || { echo "git add failed"; exit 1; }
+
+if git diff --cached --quiet; then
+  echo "nothing to commit"
+  ahead="$(git rev-list --count @{upstream}..HEAD 2>/dev/null || echo 0)"
+  [ "$ahead" = "0" ] && { echo "already up to date"; exit 0; }
+  echo "$ahead commit(s) not yet pushed; pushing those"
+else
+  git commit -m "$MSG" || { echo "git commit failed"; exit 1; }
+  echo "committed: $MSG"
+fi
+
+if ! git remote get-url origin >/dev/null 2>&1; then
+  echo "committed locally; no 'origin' remote to push to"
+  exit 0
+fi
+
+branch="$(git rev-parse --abbrev-ref HEAD)"
+if git rev-parse --abbrev-ref '@{upstream}' >/dev/null 2>&1; then
+  out="$(git push 2>&1)"
+else
+  out="$(git push -u origin "$branch" 2>&1)"
+fi
+status=$?
+
+if [ $status -ne 0 ]; then
+  echo "push failed:"
+  echo "$out" | tail -5
+  exit $status
+fi
+
+echo "pushed $branch to origin"
+
+# A board is a long-lived process that read serve.py when it started, so a change
+# to this tool does not reach a course until its board comes back. The pages are
+# served from disk and look new while the endpoints behind them are still the old
+# ones -- a difference that is invisible from the outside and costs an evening to
+# find. So changing the tool restarts the boards it drives.
+#
+# Only this repository's push does this: a course pushing its own work has no
+# business bouncing anybody's board.
+if [ "$(basename "$(git rev-parse --show-toplevel)")" = "Tutor-Board" ]; then
+  if command -v tutor >/dev/null 2>&1; then
+    echo
+    tutor restart || echo "  (boards could not be restarted; run 'tutor restart' by hand)"
+  fi
+fi
+
+exit 0

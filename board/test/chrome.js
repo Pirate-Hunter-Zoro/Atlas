@@ -1,0 +1,352 @@
+// Two bars cannot both own the top of the window.
+//
+// #bar (home, reload, scratch, type size, theme, print) and #drawbar (the pen
+// tools) were both `position: sticky; top: 0`, and the tool bar, later in the
+// document and a layer above, painted straight over the header. The moment an
+// answer was owed there was no way to reload, open the scratch drawer, change
+// the type size or leave the lesson -- and nothing looked broken, because the
+// covering bar is a perfectly good bar.
+//
+// Read the CSS rather than trusting a rendered page: there is no browser here,
+// and this is exactly the class of defect a stub DOM reports as fine.
+
+const fs = require('fs');
+const path = require('path');
+
+const CSS = fs.readFileSync(path.join(__dirname, '..', 'web', 'board.css'), 'utf8');
+const HTML = fs.readFileSync(path.join(__dirname, '..', 'web', 'board.html'), 'utf8');
+const errors = [];
+const ok = (m) => console.log('ok   ' + m);
+const fail = (m) => { errors.push(m); console.log('FAIL ' + m); };
+
+// The declarations of one top-level rule, with @media blocks left out.
+function block(selector) {
+  // Comments first: a declaration written under an explanatory comment is still
+  // a declaration, and leaving them in made `decl` miss the line after one.
+  const screen = CSS.replace(/\/\*[\s\S]*?\*\//g, '')
+                    .replace(/@media[^{]*\{(?:[^{}]*\{[^{}]*\}\s*)*\}/g, '');
+  const re = new RegExp('(^|[},])\\s*' + selector.replace(/[#.]/g, '\\$&')
+                        + '\\s*\\{([^}]*)\\}', 'mg');
+  // Every rule with this selector, not merely the first: a stylesheet may well
+  // add to a selector further down, and testing only the first one reports a
+  // property as missing while it is sitting there.
+  let m, body = '';
+  while ((m = re.exec(screen)) !== null) body += ';' + m[2];
+  return body || null;
+}
+
+function decl(body, prop) {
+  if (!body) return null;
+  const m = new RegExp('(?:^|;|\\n)\\s*' + prop + '\\s*:\\s*([^;]+)', 'm').exec(body);
+  return m ? m[1].trim() : null;
+}
+
+const bar = block('#chrome');
+const draw = block('#drawbar');
+
+bar ? ok('#chrome has a rule') : fail('#chrome has no rule at all');
+draw ? ok('#drawbar has a rule') : fail('#drawbar has no rule at all');
+
+// The header owns the top.
+/sticky|fixed/.test(decl(bar, 'position') || '') && decl(bar, 'top') === '0'
+  ? ok('the chrome stack is pinned to the top')
+  : fail('the chrome stack no longer holds the top of the window');
+
+// One stack, not three things racing for the same offset. The end-of-session
+// question and the push result used to stick to top:0 a layer below the header,
+// which posted both of them underneath it.
+/<div id="chrome">[\s\S]*<header id="bar">[\s\S]*id="finish"[\s\S]*id="pushed"[\s\S]*id="hwbar"[\s\S]*id="linkbad"[\s\S]*id="tutorbad"[\s\S]*<\/div>/
+  .test(HTML)
+  ? ok('the banners are inside the chrome stack, under the bar')
+  : fail('the banners are not part of the chrome stack');
+
+['.finish, .pushed, .linkbad, .tutorbad, .hwbar, .newver', '#bar'].forEach((sel) => {
+  const b = block(sel);
+  if (b === null) return fail(sel + ' has no rule');
+  decl(b, 'position') === null || decl(b, 'top') === null
+    ? ok(sel + ' does not separately claim the top')
+    : fail(sel + ' sticks to the top on its own and will overlap the stack');
+});
+
+// A control in the bar must never wrap. It did: the save's label broke onto a
+// second line once the bar filled up, which made the button taller than its row,
+// and it painted straight over the agent chip and the button beside it. This is
+// the same family as the two bars fighting for the top -- something in the chrome
+// growing past the space it was given and covering what is next to it.
+const barBtn = block('#bar button, #bar a');
+if (barBtn === null) fail('#bar controls have no rule of their own');
+else if (/nowrap/.test(decl(barBtn, 'white-space') || ''))
+  ok('a control in the bar cannot wrap onto a second line');
+else fail('bar controls may wrap — a two-line button overlaps its neighbours');
+
+// And the left group is what gives way when the course name is long.
+const left = block('.bar-left');
+/hidden/.test(decl(left, 'overflow') || '')
+  ? ok('the left group truncates rather than pushing the controls off the edge')
+  : fail('a long course name can still push the controls out of the bar');
+
+// The tools own the bottom, and must not claim a top edge at all.
+/sticky|fixed/.test(decl(draw, 'position') || '') && decl(draw, 'bottom') === '0'
+  ? ok('#drawbar is pinned to the bottom')
+  : fail('#drawbar is not docked to the bottom: ' + JSON.stringify(decl(draw, 'position')));
+
+decl(draw, 'top') === null
+  ? ok('#drawbar does not also claim the top edge')
+  : fail('#drawbar is anchored to the top again — it will cover the header');
+
+// Docked to the bottom, its own children must open upward or they leave the
+// screen: the overflow sheet and the selection bar follow the row in the markup.
+/column-reverse/.test(decl(draw, 'flex-direction') || '')
+  ? ok('the overflow sheet opens upward from the tool row')
+  : fail('#drawbar stacks downward; its menu will open off the bottom of the screen');
+
+// A fixed bar covers whatever is under it unless the page gives up the height.
+/padding-bottom/.test(block('body.tools-out') || '')
+  ? ok('the page reserves room for the tools')
+  : fail('nothing reserves height for the fixed tool bar — it will cover the last card');
+
+// The safe area on a home-screen iPad is below the tool row, not above it.
+/env\(safe-area-inset-bottom\)/.test(draw || '')
+  ? ok('the tool bar clears the home indicator')
+  : fail('#drawbar ignores the bottom safe-area inset');
+
+// The composer was a docked bar of three signal buttons, shown only in a course
+// whose mode was `code`. Both are gone, and nothing may bring back either the
+// bar or the page padding that reserved 5rem of every code course's screen for
+// it -- a fixed element nobody can see is a fixed element covering the lesson.
+!block('#composer')
+  ? ok('there is no composer bar to dock')
+  : fail('#composer is styled again; the signals were removed with the mode');
+!block('body\\[data-mode2="code"\\]')
+  ? ok('and no course gives up screen height for one')
+  : fail('something still reserves height for a composer that does not exist');
+!/data-mode2\s*=/.test(CSS.replace(/\/\*[\s\S]*?\*\//g, ''))
+  ? ok('nothing paints from a mode attribute any more')
+  : fail('data-mode2 is back in the stylesheet');
+
+// An entry animation on every card, rather than on the ones that just arrived,
+// is invisible for exactly as long as nothing re-inserts a card. The reconcile
+// did, on every payload, and the whole lesson slid and faded each time -- the
+// board "glitching and shifting and going right back". `render` already marks
+// what is new.
+!/animation:\s*rise/.test(block('.card') || '')
+  ? ok('a card that is merely on screen does not animate')
+  : fail('every .card carries an entry animation; any re-insertion replays it '
+         + 'across the whole lesson');
+/animation:\s*rise/.test(block('.card.fresh') || '')
+  ? ok('and a card that has just arrived does')
+  : fail('nothing animates a newly arrived card');
+!/animation:\s*rise/.test(block('.mine') || '')
+  ? ok('the same holds for the student\'s own turns')
+  : fail('every .mine carries an entry animation');
+
+// The writing surface is not a paragraph, and must not share a paragraph's
+// width. #board carries a 46rem measure because prose needs one; the surface
+// inside it was therefore about half an iPad in landscape, on a tool whose whole
+// value is the area you have to write in.
+{
+  // The live surface and a dormant board share one rule, so that a board nobody
+  // is writing on is indistinguishable from the one they are.
+  const wr = block('#writer, .board') || '';
+  /\bmargin:[^;]*var\(--bleed\)/.test(wr) || /margin-(left|inline)/.test(wr)
+    ? ok('#writer breaks out of the reading column')
+    : fail('#writer is still confined to the 46rem prose measure');
+  /50vw/.test(wr)
+    ? ok('and does so against the viewport, so it scales with the device')
+    : fail('#writer\'s width is not derived from the viewport');
+  /max\(/.test(wr) && /--room/.test(wr)
+    ? ok('with a cap, so a large display does not get an absurd surface')
+    : fail('the breakout is uncapped');
+  !/transform:/.test(wr)
+    ? ok('and without a transform, which would land the canvas on a half pixel')
+    : fail('#writer is translated; the canvas will be soft');
+
+  const sl = block('#writer #slate, .board-shot') || '';
+  /svh/.test(sl)
+    ? ok('the surface height uses svh, so iOS chrome does not eat the top of it')
+    : fail('the surface is sized in vh; on iOS its first screenful hides under the chrome');
+  /height:\s*clamp\([^;]*vh/.test(sl)
+    ? ok('and keeps a vh fallback for browsers that do not know svh')
+    : fail('no fallback height: an older browser gets no height at all');
+}
+
+// --- the overflow menu has to fit on the glass ----------------------------
+//
+// Reported as "I can't see the refresh button when I tap the '...' menu."
+// The menu hangs off #chrome, which is stuck to the top of the window, so an
+// entry past the bottom edge is not below the fold -- it is UNREACHABLE:
+// scrolling the page moves the lesson, not this. And it got there one entry at
+// a time with nobody counting, which is why this is a test rather than a
+// tidy-up: the menu is where every occasional control goes, so it only grows.
+{
+  const JS = fs.readFileSync(path.join(__dirname, '..', 'web', 'board.js'), 'utf8');
+  const menu = block('.barmenu') || '';
+
+  /overflow-y:\s*auto/.test(menu)
+    ? ok('the overflow menu scrolls')
+    : fail('the menu does not scroll — entries past the bottom edge are unreachable');
+
+  // Capped against the viewport, with a fallback: on iOS `vh` is the TALL
+  // viewport and ignores the toolbar, so `dvh` is the one that tells the truth
+  // -- and the plain `vh` line has to come first, for anything that does not
+  // know `dvh` and would drop the whole declaration.
+  const caps = menu.match(/max-height:\s*calc\(100d?vh[^;]*/g) || [];
+  caps.some((c) => /100dvh/.test(c))
+    ? ok('and is capped against the dynamic viewport')
+    : fail('the menu has no dvh height cap, so iOS gives it the tall viewport');
+  caps.some((c) => /100vh/.test(c) && !/dvh/.test(c))
+    ? ok('with a vh fallback for browsers that do not know dvh')
+    : fail('no vh fallback: an older browser gets no cap at all');
+
+  /overscroll-behavior:\s*contain/.test(menu)
+    ? ok('and the lesson behind does not take over at the end of it')
+    : fail('scrolling past the end of the menu scrolls the lesson underneath');
+
+  // The CSS cap is the floor. The real figure is measured, because the stack
+  // the menu hangs from grows with its banners -- a save offer, an export
+  // result and the homework strip are all up at exactly the moment somebody
+  // goes looking for the reload.
+  /function placeMenu\(\)/.test(JS) && /getBoundingClientRect\(\)\.top/.test(JS)
+    ? ok('and the room under the bar is measured when it opens, not guessed')
+    : fail('nothing measures the space the menu actually has');
+  /els\.barmenu\.hidden = !els\.barmenu\.hidden;\s*\n\s*if \(!els\.barmenu\.hidden\) placeMenu\(\);/
+    .test(JS)
+    ? ok('measured on the tap that opens it')
+    : fail('the menu is opened without being measured');
+
+  // And a sign that there is more. On iOS a scroller shows no bar until a
+  // finger is on it, so a capped menu and a truncated one look identical --
+  // which is the same defect wearing a new coat.
+  /\.barmenu\.more/.test(CSS) && /classList\.toggle\("more"/.test(JS)
+    ? ok('and says when there is more below it')
+    : fail('a scrollable menu gives no sign that anything is below the fold');
+
+  // The control that was actually missing.
+  /id="btn-reload"/.test(HTML)
+    ? ok('reload the app is in the menu')
+    : fail('there is no reload entry at all');
+
+  // --- AND IT HAS TO BE ABLE TO RECEIVE THE GESTURE ----------------------
+  //
+  // Reported once it was capped and scrollable: "that isn't scrollable — or at
+  // least when I try to scroll it, the main session page behind it is what
+  // scrolls instead." Two halves, and this is the first: the menu hung inside
+  // `#chrome`, which is `position: sticky`, and WebKit does not reliably hand a
+  // touch drag to a scroller nested in a sticky element. The gesture walked
+  // past it to the lesson. Being in there also trapped it in `#chrome`'s
+  // stacking context, so its own `z-index` competed with the bar's children
+  // rather than with the page.
+  const chromeBlock = HTML.slice(HTML.indexOf('<div id="chrome">'),
+                                 HTML.indexOf('/#chrome'));
+  !/id="barmenu"/.test(chromeBlock)
+    ? ok('the menu is not nested inside the sticky bar')
+    : fail('the menu lives inside #chrome, which is position: sticky — WebKit '
+           + 'will not give a scroller in there the touch drag, so the lesson '
+           + 'scrolls instead');
+  /id="barmenu"/.test(HTML)
+    ? ok('and is still on the page, as a layer over the lesson')
+    : fail('the menu was lost altogether');
+  /position:\s*fixed/.test(menu)
+    ? ok('and is fixed, so it hangs over the lesson rather than inside the bar')
+    : fail('the menu is still positioned against an ancestor');
+  !/-webkit-overflow-scrolling/.test(menu)
+    ? ok('with no deprecated overflow-scrolling layer to lose the gesture in')
+    : fail('-webkit-overflow-scrolling is back; it is the separate scrolling '
+           + 'layer this element could not be scrolled inside');
+
+  // And ON TOP. `#drawbar` is `column-reverse` and grows upward as the slate's
+  // own menu and selection bar open inside it, so on a board with the pen out
+  // the writing toolbar reached up into the lower half of this menu. Reported
+  // as "the writing toolbar when on a board is covering up elements of the
+  // three-dot menu from the top right. Make sure that menu is on TOP of
+  // everything when it appears."
+  {
+    const zOf = (sel) => {
+      const b = block(sel) || '';
+      const m = /z-index:\s*(\d+)/.exec(b);
+      return m ? +m[1] : null;
+    };
+    const mine = zOf('.barmenu');
+    const others = ['#drawbar', '.annbar', '.notesend', '.jump', '.sendwhat',
+                    '#history', '#panic, #findink', '#scratch, #contents, #review, #papers',
+                    '.drop', '#viewer', '#paper']
+      .map((sel) => ({ sel, z: zOf(sel) }))
+      .filter((r) => r.z !== null);
+    const over = others.filter((r) => r.z >= mine);
+    mine !== null
+      ? ok('the menu declares a stacking order (' + mine + ')')
+      : fail('the menu has no z-index at all');
+    !over.length
+      ? ok('and nothing on the page is drawn over it (highest other layer: '
+           + Math.max.apply(null, others.map((r) => r.z)) + ')')
+      : fail('these are at or above the menu and will cover it: '
+             + over.map((r) => r.sel + ' (' + r.z + ')').join(', '));
+  }
+}
+
+// --- a drawer's list is the part that moves --------------------------------
+//
+// Every drawer is the same shape: a fixed panel down the right of the glass,
+// with a head and a foot that stay put and a list between them. The list is
+// therefore the scroller, and being inside a scrolling panel does not make it
+// one -- it has to take the room that is left (`flex: 1`) and scroll inside it
+// (`overflow-y`). Without both it lays out at its full height, runs off the
+// bottom of a panel that is pinned to the bottom of the window, and the entries
+// that fall off the end are unreachable: there is nothing to scroll, and the
+// page behind takes the drag instead.
+//
+// `#contents-list` was the one that had neither, and the end of the contents is
+// where the problem sets are. Reported as "the bar showing the contents and the
+// Problem Sets is not scrollable, so I can't reach the problem sets."
+[['#scratch-list', 'the scratch drawer'],
+ ['#papers-list', 'the documents drawer'],
+ ['#history-list', 'past lessons'],
+ ['#review-list', 'the review picker'],
+ ['#contents-list', 'the contents']].forEach(([sel, what]) => {
+  const b = block(sel);
+  if (b === null) return fail(sel + ' has no rule of its own — ' + what
+                              + ' cannot scroll');
+  const grows = /^1\b|^1 |^1$/.test(decl(b, 'flex') || '')
+                || decl(b, 'flex-grow') === '1';
+  const scrolls = /auto|scroll/.test(decl(b, 'overflow-y') || decl(b, 'overflow') || '');
+  grows && scrolls
+    ? ok(what + ' takes the room between the head and the foot, and scrolls')
+    : fail(what + ' (' + sel + ') '
+           + (grows ? 'does not scroll' : 'does not take the space it is given')
+           + ' — its last entries fall off the bottom of the drawer');
+});
+
+// --- and the map is a panel of the same shape -------------------------------
+//
+// A head that does not move, a plane between, a foot that does not move. The
+// plane is the part that has to take the room that is left -- being inside a
+// fixed panel does not make an element fill it -- and it must clip rather than
+// scroll, because what moves inside it is a transform and not a scrollbar.
+{
+  const map = block('#map');
+  const plane = block('.map-plane');
+  map && /fixed/.test(decl(map, 'position') || '')
+    ? ok('the map covers the glass')
+    : fail('#map is not a fixed surface — it will lay out in the flow of the lesson');
+  /* The viewer paints its own ground behind the page; a transparent surface
+     borrows whatever is under it and comes out in the wrong theme. */
+  /var\(--paper/.test(decl(map, 'background') || '')
+    ? ok('and paints an explicit background from the tokens')
+    : fail('the map surface is transparent — it will take the host\'s theme');
+  const grows = /^1\b|^1 /.test(decl(plane, 'flex') || '');
+  grows && /hidden/.test(decl(plane, 'overflow') || '')
+    ? ok('the plane takes the room between the head and the foot, and clips')
+    : fail('the map plane does not fill the panel, or does not clip — the picture '
+           + 'will run off the bottom with nothing to scroll');
+  /none/.test(decl(plane, 'touch-action') || '')
+    ? ok('and the browser is told not to ask the main thread about a touch on it')
+    : fail('the plane has no touch-action, so every drag asks before it moves');
+  // `body.mapping` locks the lesson underneath, the way `body.papering` does.
+  /hidden/.test(decl(block('body.mapping'), 'overflow') || '')
+    ? ok('and the lesson underneath cannot take a scroll meant for the plane')
+    : fail('nothing locks the page behind the map');
+}
+
+console.log(errors.length ? '\n' + errors.length + ' FAILURES'
+                          : '\nevery bar is where it belongs');
+process.exit(errors.length ? 1 : 0);

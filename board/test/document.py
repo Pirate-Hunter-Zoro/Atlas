@@ -1,0 +1,402 @@
+#!/usr/bin/env python3
+"""A lesson becomes a document, and the document is both halves of it.
+
+Asked for from the device: "export the ENTIRE tutoring conversation as a .pdf --
+the whole tutor/user conversation as one master scrolled .pdf that I can show to
+my professor", tracked in git, and numbered by version rather than stamped with
+the time, because a folder of timestamps is an eyesore that still does not say
+which one is the latest.
+
+`board export` used to write the tutor's cards alone into a directory git
+ignores, named with the second it happened. Every clause of that is what this
+suite exists to keep fixed.
+
+The PDF itself is only compiled when this machine has LaTeX; everything else is
+checked either way, because the failure this catches most often is a preamble
+that only breaks against a real course's own macros.
+"""
+
+import base64
+import json
+import os
+import subprocess
+import sys
+import tempfile
+import time
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+TOOL = os.path.dirname(HERE)
+sys.path.insert(0, TOOL)
+
+from tutorboard import tex
+from tutorboard.course import document              # noqa: E402
+
+fails = []
+
+
+def ok(msg):
+    print("ok   " + msg)
+
+
+def bad(msg):
+    fails.append(msg)
+    print("FAIL " + msg)
+
+
+# A real 1x1 PNG, so `includegraphics` has something that actually decodes.
+PNG = base64.b64decode(
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmM"
+    "IQAAAABJRU5ErkJggg==")
+
+
+def card(folder, idx, kind, title, body):
+    with open(os.path.join(folder, "%04d-%s.md" % (idx, kind)), "w",
+              encoding="utf-8") as fh:
+        fh.write("---\nkind: %s\ntitle: %s\n---\n\n%s\n" % (kind, title, body))
+
+
+def turn(path, rec):
+    with open(path, "a", encoding="utf-8") as fh:
+        fh.write(json.dumps(rec) + "\n")
+
+
+def course(root):
+    """A course with one filed lesson and one still open, both with answers."""
+    live = os.path.join(root, "live")
+    for d in ("cards", "answers", "archive"):
+        os.makedirs(os.path.join(live, d), exist_ok=True)
+    with open(os.path.join(live, "state.json"), "w", encoding="utf-8") as fh:
+        json.dump({"course": "Galois Theory", "chapter": "Ch 3 -- Splitting fields",
+                   "session": "lecture", "opened": "2026-09-01 18:00"}, fh)
+
+    # The lesson still open: a question, two attempts at it, and a reply.
+    card(os.path.join(live, "cards"), 1, "question", "Exercise 3.2",
+         "Show that $\\QQ(\\sqrt[3]{2})$ is not normal over $\\QQ$.\n\n"
+         "Watch the save button (⤓) and mind that α ≤ β.")
+    card(os.path.join(live, "cards"), 2, "note", "nearly",
+         "The third line does not follow -- say why the other root is missing.")
+    card(os.path.join(live, "cards"), 3, "correct", "that is the proof", "Good.")
+    for rev in (1, 2):
+        with open(os.path.join(live, "answers", "t0001-r%d.png" % rev), "wb") as fh:
+            fh.write(PNG)
+        turn(os.path.join(live, "turns.jsonl"),
+             {"id": "t0001", "rev": rev, "kind": "ink", "answers": "0001",
+              "t": 1788000000 + rev * 100, "iso": "2026-09-01 18:0%d:00" % rev,
+              "from": "student", "page": rev, "strokes": 12,
+              "png": "/answers/t0001-r%d.png" % rev,
+              "ink": "/answers/t0001-r%d.json" % rev})
+    turn(os.path.join(live, "turns.jsonl"),
+         {"id": "t0002", "rev": 1, "kind": "text", "answers": "0001",
+          "t": 1788000350, "iso": "2026-09-01 18:05:50", "from": "student",
+          "text": "I think the other root is complex.", "signal": "done"})
+
+    # And one that was filed earlier.
+    filed = os.path.join(live, "archive", "20260826-193000-ch-2-fields")
+    os.makedirs(os.path.join(filed, "answers"), exist_ok=True)
+    with open(os.path.join(filed, "state.json"), "w", encoding="utf-8") as fh:
+        json.dump({"course": "Galois Theory", "chapter": "Ch 2 -- Fields",
+                   "session": "homework", "opened": "2026-08-26 19:00"}, fh)
+    card(filed, 1, "question", "Exercise 2.1", "Compute $[\\QQ(\\sqrt2):\\QQ]$.")
+    with open(os.path.join(filed, "answers", "t0001-r1.png"), "wb") as fh:
+        fh.write(PNG)
+    turn(os.path.join(filed, "turns.jsonl"),
+         {"id": "t0001", "rev": 1, "kind": "ink", "answers": "0001",
+          "t": 1787900000, "iso": "2026-08-26 19:20:00", "from": "student",
+          "page": 1, "strokes": 4, "png": "/answers/t0001-r1.png",
+          "ink": "/answers/t0001-r1.json"})
+
+    subprocess.run(["git", "init", "-q", "."], cwd=root,
+                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    subprocess.run(["git", "config", "user.email", "t@example.com"], cwd=root,
+                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    subprocess.run(["git", "config", "user.name", "A Student"], cwd=root,
+                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    return live
+
+
+def staged(root):
+    p = subprocess.run(["git", "diff", "--cached", "--name-only"], cwd=root,
+                       stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+    return p.stdout.decode("utf-8", "replace").split()
+
+
+def main():
+    tmp = tempfile.mkdtemp(prefix="tb-doc-")
+    root = os.path.join(tmp, "Galois-Theory")
+    os.makedirs(root)
+    course(root)
+
+    # ---------------------------------------------------------- both halves
+    rec = document.build(root, scope="lesson", make_pdf=False)
+    tex_src = open(os.path.join(root, rec["tex"]), encoding="utf-8").read()
+
+    if "Exercise 3.2" in tex_src and "nearly" in tex_src:
+        ok("the tutor's cards are in the document")
+    else:
+        bad("the tutor's cards are missing from the export")
+
+    if tex_src.count("includegraphics") == 2:
+        ok("and so is every page the student handed in, one picture each")
+    else:
+        bad("the student's own working is not in the document (%d pictures) -- "
+            "which is a record of half a conversation"
+            % tex_src.count("includegraphics"))
+
+    if "attempt 1 of 3" in tex_src and "attempt 2 of 3" in tex_src:
+        ok("every revision is kept, and says which attempt it is")
+    else:
+        bad("the attempts are collapsed or unlabelled, so the document does not "
+            "show the work happening")
+
+    if "I think the other root is complex." in tex_src:
+        ok("a typed answer is in it too")
+    else:
+        bad("typed answers are dropped from the export")
+
+    if "live/answers/t0001-r1.png" in tex_src:
+        ok("the pictures are named relative to the repository, so the .tex "
+           "still builds on another machine")
+    else:
+        bad("the export names images by an absolute path")
+
+    # Reading order: the answers sit under the question they answer, above the
+    # card that replies to them.
+    q, a, reply = (tex_src.find("Exercise 3.2"), tex_src.find("You wrote"),
+                   tex_src.find("nearly"))
+    if -1 not in (q, a, reply) and q < a < reply:
+        ok("and it reads in the order it happened: question, working, reply")
+    else:
+        bad("the conversation is out of order (%d, %d, %d)" % (q, a, reply))
+
+    # ------------------------------------------------------------- the name
+    if rec["name"] == "ch-3-splitting-fields-v1":
+        ok("the first export of a lesson is v1")
+    else:
+        bad("the export is not named for its lesson and version: " + rec["name"])
+
+    two = document.build(root, scope="lesson", make_pdf=False)
+    three = document.build(root, scope="lesson", make_pdf=False)
+    if (two["version"], three["version"]) == (2, 3):
+        ok("and exporting it again counts up, rather than overwriting it")
+    else:
+        bad("versions do not count up: %r then %r" % (two["version"], three["version"]))
+
+    import re
+    if not re.search(r"\d{6,}", three["name"]):
+        ok("with no timestamp in the name, which was the whole complaint")
+    else:
+        bad("the name is stamped with the time: " + three["name"])
+
+    # --------------------------------------------------------- tracked in git
+    files = staged(root)
+    if any(f.endswith("ch-3-splitting-fields-v3.tex") for f in files):
+        ok("an export is staged in git, so the next save carries it")
+    else:
+        bad("the export is not tracked by git at all: %r" % files)
+
+    if rec["tex"].startswith("transcripts/"):
+        ok("and it goes somewhere git can see -- not into live/, which is ignored")
+    else:
+        bad("the export lands in " + rec["tex"])
+
+    # ------------------------------------------------------- the whole course
+    every = document.build(root, scope="all", make_pdf=False)
+    alltex = open(os.path.join(root, every["tex"]), encoding="utf-8").read()
+    if "Exercise 2.1" in alltex and "Exercise 3.2" in alltex:
+        ok("the whole course exports as one document, filed lessons and all")
+    else:
+        bad("the master document is missing a lesson")
+    if "\\tableofcontents" in alltex and alltex.count("\\section{") == 2:
+        ok("with a contents page and a section per sitting")
+    else:
+        bad("the master document has no way to navigate it")
+    if "Ch 2 -- Fields -- homework (2026-08-26 19:30)" in alltex \
+            and "(in progress)" in alltex:
+        ok("each sitting named by when it was filed, and the open one saying so")
+    else:
+        bad("two sittings on one chapter cannot be told apart in the contents")
+    if every["name"] == "galois-theory-complete-v1":
+        ok("and it is numbered on its own, not muddled in with the lessons")
+    else:
+        bad("the master document is called " + every["name"])
+
+    # ------------------------------------------------------------- Unicode
+    if "⤓" not in tex_src and "α" not in tex_src and "\\alpha" in tex_src:
+        ok("characters pdflatex cannot read are mapped or dropped, never left "
+           "in to kill the build")
+    else:
+        bad("raw Unicode reaches LaTeX, which is a fatal error and not a warning")
+
+    # ------------------------------------------------------- and it compiles
+    if tex.have_tex():
+        built = document.build(root, scope="lesson", make_pdf=True)
+        if built.get("ok") and built.get("pdf"):
+            ok("and LaTeX agrees: the document compiles")
+        else:
+            bad("the export does not compile: " + (built.get("detail") or "?"))
+        if built.get("pdf") and not os.path.exists(
+                os.path.join(root, built["pdf"].replace(".pdf", ".aux"))):
+            ok("leaving no scratch files behind for git to pick up")
+        else:
+            bad("the build leaves .aux files in a tracked directory")
+    else:
+        print("skip  no LaTeX on this machine, so the compile is not checked")
+
+    # ---------------------------- and it can be taken off the board -------
+    #
+    # The repository copy is the archival one and none of the above changes.
+    # But a compute node is not a place an iPad can reach and a tailnet path is
+    # not something anybody can hand to a professor, so a document that exists
+    # only there is one the person who asked for it cannot use. Asked for in
+    # those terms: "so I can save it to files in my iCloud, get it on my phone,
+    # and email it to my prof, lickety split."
+    #
+    # THE CLIENT NEVER NAMES A PATH. It names a kind, and the route resolves it
+    # through the records the board already keeps -- because a query parameter
+    # carrying a repo-relative path is a directory traversal waiting to be
+    # written, and there is nothing it would buy: there are two documents and
+    # the board knows where both of them are. These cases are the proof that the
+    # resolution is the fence.
+    from tutorboard.server.routes import taking            # noqa: E402
+
+    class FakeRepo:
+        def __init__(self, root):
+            self.root = root
+            self.live = os.path.join(root, "live")
+
+        def state(self):
+            return {"course": "Galois Theory"}
+
+    fake = FakeRepo(root)
+    os.makedirs(fake.live, exist_ok=True)
+
+    good_rel = os.path.join(document.OUT_DIR, "probe-v1.pdf")
+    good = os.path.join(root, good_rel)
+    os.makedirs(os.path.dirname(good), exist_ok=True)
+    with open(good, "wb") as fh:
+        fh.write(b"%PDF-1.4 probe")
+    if taking._pdf_in(fake, good_rel):
+        ok("a PDF the board itself recorded resolves")
+    else:
+        bad("a real exported PDF was refused by the download route")
+
+    refuse = [
+        ("../../../../etc/passwd", "a path climbing out of the repository"),
+        ("/etc/passwd", "an absolute path somewhere else"),
+        (os.path.join(document.OUT_DIR, "probe-v1.tex"), "a .tex rather than a .pdf"),
+        (os.path.join(document.OUT_DIR, "nothing-v9.pdf"), "a PDF that is not there"),
+        (None, "no record at all"),
+    ]
+    for evil, why in refuse:
+        if taking._pdf_in(fake, evil) is None:
+            ok("and refuses " + why)
+        else:
+            bad("the download route accepted " + why)
+
+    # The name it arrives under has to say whose it is and what it is from: in a
+    # Files app it sits beside everything else a person owns, and
+    # `ch07-homework.pdf` is not enough to tell.
+    named = taking._named(fake, "ch07-homework")
+    if named.lower().startswith("galois"):
+        ok("and the file arrives named for its course (%s.pdf)" % named)
+    else:
+        bad("the download is named '%s', which says nothing about the course" % named)
+    if taking._named(fake, "galois-theory-v3") == "galois-theory-v3":
+        ok("without saying it twice when the name already carries it")
+    else:
+        bad("the course is prefixed onto a name that already carries it")
+
+    # And the handler has to say SAVE THIS rather than show it. A PDF is in the
+    # inline-safe list, so a browser handed one renders it in the tab -- which
+    # on an iPad is a preview with no obvious route into Files, and the whole
+    # point of this was the share sheet.
+    hsrc = open(os.path.join(TOOL, "tutorboard", "server", "handler.py"),
+                encoding="utf-8").read()
+    if "def send_file(self, path, cache=False, untrusted=False, download=None)" in hsrc:
+        ok("and the handler can be told to hand a file over rather than show it")
+    else:
+        bad("send_file has no download mode, so a PDF opens in the tab instead "
+            "of reaching the share sheet")
+    tsrc = open(os.path.join(TOOL, "tutorboard", "server", "routes", "taking.py"),
+                encoding="utf-8").read()
+    # One route serves both kinds now -- the resolving and the naming moved into
+    # `course/paper.py`, because the payload and the viewer need the same
+    # answers -- so what matters is that the one route that serves them says
+    # SAVE THIS. The two kinds are driven through it below.
+    if '"/download/lesson", "/download/homework"' in tsrc \
+            and "download=filename" in tsrc:
+        ok("and both documents are handed over, not shown")
+    else:
+        bad("one of the two downloads still renders in the tab")
+
+    # And the whole chain, from the URL to the header, without a socket. The
+    # two checks above are about shape; this is the thing a browser actually
+    # reads, and it is the difference between a share sheet and a preview.
+    from tutorboard.server.handler import Handler           # noqa: E402
+
+    class Caught(Exception):
+        pass
+
+    class FakeHandler:
+        """Enough of the handler for send_file to do its work and be watched."""
+
+        head_only = False
+        INLINE_OK = Handler.INLINE_OK
+        send_file = Handler.send_file
+
+        def __init__(self):
+            self.sent = None
+
+        def send_bytes(self, body, ctype, cache=False, nosniff=False,
+                       extra=None, status=200):
+            self.sent = {"len": len(body), "ctype": ctype, "extra": extra,
+                         "status": status}
+
+    with open(os.path.join(fake.live, "export.json"), "w", encoding="utf-8") as fh:
+        json.dump({"ok": True, "pdf": good_rel, "at": time.time()}, fh)
+
+    h = FakeHandler()
+    taking.get(h, fake, "/download/lesson")
+    got = h.sent or {}
+    if got.get("status") == 200 and got.get("ctype") == "application/pdf":
+        ok("asking for the lesson gets a PDF back")
+    else:
+        bad("the lesson download returned %r" % (got,))
+    disp = (got.get("extra") or ("", ""))[1]
+    if (got.get("extra") or ("",))[0] == "Content-Disposition" \
+            and disp.startswith("attachment;") and "Galois-Theory" in disp:
+        ok("as an attachment named for its course (%s)" % disp)
+    else:
+        bad("the response header is %r, so an iPad previews it instead of "
+            "offering to save it" % (got.get("extra"),))
+
+    # The write-up, by the SET's name: a course numbers its homework
+    # `ch07-homework.tex` in one place and `hw04.tex` in another, and the set is
+    # what a person calls it either way.
+    with open(os.path.join(fake.live, "hw.json"), "w", encoding="utf-8") as fh:
+        json.dump({"ok": True, "pdf": good_rel, "set": "ch07", "at": time.time()}, fh)
+    h2 = FakeHandler()
+    taking.get(h2, fake, "/download/homework")
+    disp2 = ((h2.sent or {}).get("extra") or ("", ""))[1]
+    if "ch07" in disp2 and disp2.startswith("attachment;"):
+        ok("and the write-up comes down under the name of its set (%s)" % disp2)
+    else:
+        bad("the write-up download is named %r" % (disp2,))
+
+    # A kind nobody asked about is not this module's business.
+    h3 = FakeHandler()
+    if taking.get(h3, fake, "/download/../../etc/passwd") is not None:
+        ok("and a URL it does not recognise is left to the other routes")
+    else:
+        bad("the download route answered for a path it does not own")
+
+    print()
+    if fails:
+        print("%d FAILURES" % len(fails))
+        return 1
+    print("a lesson exports as the whole conversation, numbered and tracked")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
