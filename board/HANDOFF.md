@@ -22,6 +22,25 @@
 
 ## 0. How to work in here, and none of it is negotiable
 
+**YOU SHIP WHAT YOU CHANGE, IN THE SESSION YOU CHANGE IT, WITHOUT BEING ASKED.**
+
+That is the rule, and it is not only about §2. It covers a section of the plan, a one-line
+fix to a stale sentence in a README, a test you corrected, a directory somebody removed that
+the tree still remembers — anything. Work that ends the session sitting in the working tree
+is work nobody has: the person owning this repository uses it from an iPad, off a board that
+runs from the last commit, so uncommitted work is invisible to them AND it is the next
+session's mystery diff. **If you touched it, ship it before you say you are done.**
+
+Two mechanics this repository has that make "ship it" mean more than "commit it":
+
+- `bash board/scripts/ship.sh "message"` commits **only `board/`**, pushes, and restarts every
+  board. Boards are long-lived processes that read `serve.py` when they started, so a commit
+  alone changes nothing for somebody holding an iPad.
+- **Changes outside `board/` are not covered by that**, and this is the easy half to forget.
+  `bash board/scripts/save-and-push.sh "message" -- <paths>` is how those go, with a pathspec
+  so one workspace's change does not sweep up another's unfinished afternoon. A session that
+  edited the root `README.md` and shipped only `board/` has left half its work behind.
+
 **ONE PIECE OF WORK, SHIPPED, THEN STOP. That is the loop, and you are in it.**
 
 The person who owns this repository wants to hand it a section number and walk away. So a
@@ -99,15 +118,17 @@ keep that true, stop and say so rather than press on.
 Atlas/                          github.com/Pirate-Hunter-Zoro/Atlas
   README.md  atlas.json  .gitignore  .gitmodules
   board/                        the tool. 2,061 commits of history across the whole tree
-  courses/      Galois-Theory · Probability · Mathematical-Modeling
-  research/     PSYCH-ASR · TRD-EHR
-  projects/     libr-local-llm · Paper-Writer
-  practice/     Algo-Solutions · Lean-Theorem-Proving
+  courses/  research/  projects/  practice/      a workspace per directory under each
   vendor/       colibri (pulled every login) · colibri-build (pinned fd93c41)
 ```
 
-**Nothing lists the workspaces.** A second-level directory holding `tutorboard.json`,
-`AI_INSTRUCTIONS.md` or `live/` is one, found by looking. `atlas.json` names and orders the
+**Nothing lists the workspaces — including this file.** There WAS a list of them here, four
+lines naming eight directories, sitting two lines above the sentence saying that no such list
+exists. It went stale the first time one of them was removed, which is how this was noticed.
+`ls courses research projects practice` is the answer, and the front door draws it.
+
+A second-level directory holding `tutorboard.json`, `AI_INSTRUCTIONS.md` or `live/` is a
+workspace, found by looking. `atlas.json` names and orders the
 five families and flags the two that hold no workspaces — `vendor` (somebody else's work)
 and `board` (what does the offering). Starting a new course is `mkdir courses/Topology`.
 
