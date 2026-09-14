@@ -26,6 +26,7 @@ import time
 from . import carry, handoff
 from .course import config
 from .course import map as course_map
+from .lesson import git as lesson_git
 
 
 CONTRACT = "AI_INSTRUCTIONS.md"
@@ -162,6 +163,68 @@ def map_sense(root):
     return lead
 
 
+
+def beside_sense(repo):
+    """What somebody did to this workspace that you have not been told about.
+
+    THE WORDING IS THE FEATURE. A turn reading this has to come away certain
+    that the work described is THE PERSON'S, done somewhere else, with no
+    involvement from it -- because the alternative is a turn that reports having
+    written code it has never seen, in a card, confidently, with nothing on the
+    board able to contradict it. That is the worst failure mode this board has:
+    it is invisible from the outside and it makes everything else the tutor says
+    worth less.
+
+    So whose work it is, is said in the heading, said again in the sentence, and
+    said a third time as an instruction about what to do with it.
+    """
+    try:
+        rec = lesson_git.beside_the_lesson(repo)
+    except Exception:                                        # noqa: BLE001
+        return ""
+    if not rec:
+        return ""                       # not a git repository; nothing to say
+
+    commits = rec.get("commits") or []
+    files = rec.get("uncommitted") or []
+    if not commits and not files:
+        return ""                       # SILENT WHEN THERE IS NOTHING. A
+                                        # heading over "no changes" is 40 tokens
+                                        # of nothing, on every turn, for ever.
+
+    out = ["\n--- what THEY did, away from the board ---"]
+    out.append(
+        "Work below was done by the PERSON, in their own editor, outside this "
+        "board. YOU DID NOT DO ANY OF IT. Do not describe it as something you "
+        "did, do not report it as progress you made, and do not assume you know "
+        "what is in it -- read the files if the lesson touches them.")
+
+    if commits:
+        out.append("")
+        out.append("They committed %d thing%s to this workspace:"
+                   % (len(commits), "" if len(commits) == 1 else "s"))
+        for c in commits[:lesson_git.BESIDE_COMMITS]:
+            out.append("  - %s" % c["subject"])
+        if len(commits) > lesson_git.BESIDE_COMMITS:
+            out.append("  - …and %d more."
+                       % (len(commits) - lesson_git.BESIDE_COMMITS))
+
+    if files:
+        out.append("")
+        out.append("And %d file%s in this workspace %s uncommitted right now:"
+                   % (rec["files"], "" if rec["files"] == 1 else "s",
+                      "is" if rec["files"] == 1 else "are"))
+        out.append("  " + ", ".join(files))
+        if rec["files"] > len(files):
+            out.append("  (%d more, and the lesson's own live/ is not counted)"
+                       % (rec["files"] - len(files)))
+
+    out.append("")
+    out.append("If it bears on what you are teaching, open it and teach THAT. "
+               "If it does not, say nothing about it at all.")
+    return "\n".join(out)
+
+
 def briefing(repo, sense, chapter=None):
     """The whole cold briefing as one string.
 
@@ -227,6 +290,14 @@ def briefing(repo, sense, chapter=None):
     # think about their own work. It is three lines and it decides whether the
     # turn is allowed to speak in the project's own vocabulary.
     out.append("\n--- the map ---\n" + map_sense(root))
+
+    # WHAT CHANGED WHILE THE BOARD WAS NOT LOOKING. Placed after the map and
+    # before the handoff on purpose: it is about the world the lesson sits in
+    # rather than about the lesson, and a turn should have read what the
+    # workspace IS before it is told what moved in it.
+    beside = beside_sense(repo)
+    if beside:
+        out.append(beside)
 
     note = carry.read_note(root)
     if note:
