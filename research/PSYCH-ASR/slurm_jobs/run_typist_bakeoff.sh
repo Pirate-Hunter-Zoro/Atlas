@@ -26,8 +26,10 @@
 # correct when one typist runs and destroys three of four logs when the bake-off does --
 # so the log paths are overridden here, per typist.
 #
-# Run FROM THE REPO ROOT. Requires exactly one .wav in $PSYCH_ASR_DATA/inbox, and the chosen
-# name-tagger's RTTM already in data/stage1 from the diarizer bake-off.
+# Run FROM THE REPO ROOT, having sourced slurm_jobs/lib/job_env.sh -- that is what sets
+# PSYCH_ASR_DATA, and this script refuses rather than guessing. Requires exactly one .wav in
+# $PSYCH_ASR_DATA/inbox, and the chosen name-tagger's RTTM already in stage1/ from the
+# diarizer bake-off.
 # ---------------------------------------------------------------------------
 
 set -o errexit
@@ -62,13 +64,20 @@ if [[ ! -d slurm_jobs || ! -d psych_asr ]]; then
     exit 1
 fi
 
-WAVS=( "${PSYCH_ASR_DATA:-$HOME/phi/PSYCH-ASR}"/inbox/*.wav )
+# NO FALLBACK, AND THAT IS THE FIX. This read `${PSYCH_ASR_DATA:-$HOME/phi/PSYCH-ASR}`
+# until 14 September 2026, which was the address the session data had before it moved into
+# the workspace -- so with the variable unset this script looked in a directory that no
+# longer exists, found no .wav, and reported "data/inbox must hold exactly 1 .wav file"
+# about the wrong folder entirely. A default that has gone stale is worse than none: it
+# turns "you did not set the variable" into "your data is missing". run_bakeoff.sh beside
+# this one already refuses this way, and now both do.
+WAVS=( "${PSYCH_ASR_DATA:?source slurm_jobs/lib/job_env.sh first}"/inbox/*.wav )
 if [[ ! -e "${WAVS[0]}" || "${#WAVS[@]}" -ne 1 ]]; then
     echo "data/inbox must hold exactly 1 .wav file (found $([[ -e "${WAVS[0]}" ]] && echo "${#WAVS[@]}" || echo 0))." >&2
     exit 1
 fi
 STEM=$(basename "${WAVS[0]}" .wav)
-TURN_TABLE="${PSYCH_ASR_DATA:-$HOME/phi/PSYCH-ASR}/stage1/${STEM}.${NAME_TAGGER}.rttm"
+TURN_TABLE="${PSYCH_ASR_DATA}/stage1/${STEM}.${NAME_TAGGER}.rttm"
 if [[ ! -f "${TURN_TABLE}" ]]; then
     echo "No ${TURN_TABLE}: the grading job would wait for four GPU jobs and then have "\
          "nothing to join onto. Run Stage 1b for ${NAME_TAGGER} first, or name an arm "\
