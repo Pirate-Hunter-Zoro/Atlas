@@ -1,0 +1,527 @@
+(* Content-type: application/mathematica *)
+
+(*** Wolfram Notebook File ***)
+(* http://www.wolfram.com/nb *)
+
+(* CreatedBy='Mathematica 6.0' *)
+
+(*CacheID: 234*)
+(* Internal cache information:
+NotebookFileLineBreakTest
+NotebookFileLineBreakTest
+NotebookDataPosition[       145,          7]
+NotebookDataLength[     22680,        519]
+NotebookOptionsPosition[     18991,        456]
+NotebookOutlinePosition[     19484,        475]
+CellTagsIndexPosition[     19441,        472]
+WindowFrame->Normal*)
+
+(* Beginning of Notebook Content *)
+Notebook[{
+
+Cell[CellGroupData[{
+Cell["Exercises 3.5 ", "Title",ExpressionUUID->"9831ff98-a463-4484-9032-c20480a95454"],
+
+Cell[CellGroupData[{
+
+Cell["#6   (With modifications) ", "Section",ExpressionUUID->"75341e6a-b658-41bd-b7d1-a01e4b41ad86"],
+
+Cell["\<\
+Use the information contained in problem #6.
+Part 1: Determine the symbolic formula for the equilibrium points \
+corresponding to Equation 3.47 (do not substitute Equation 3.48 at this \
+time). Briefly give an interpretation for each of the 3 equilibrium points \
+for this solution.\
+\>", "Text",ExpressionUUID->"9cfb03fb-8476-4add-9c88-adaaad829937"],
+
+Cell["\<\
+Part 2:  Assign some typical values to the constants:
+\tr  =  .1
+\tk  =  100
+\tc  =  .05
+\t\[Alpha]  =  .01
+\t\[Beta]  =  .002
+Solve for the numerical values of the 3 equilibrium points.
+Extract the three equilibrium points into a list of points.
+Finally, generate a ListPlot of the three points.
+(Set:  \tPlotStyle\[Rule]PointSize[0.03]  to increase the size of the points)\
+\>", "Text",ExpressionUUID->"a37ae195-733e-498e-b73a-0f8e0099fa96"],
+
+Cell[" Graph the location of the equilibrium points.", "Text",ExpressionUUID->"0f86c9eb-7c25-4f3e-83f8-d60357537a5f"],
+
+Cell[TextData[{
+ "Part 3:  Graph the vector field using the following VectorPlots options:\n\t\
+",
+ Cell[BoxData[
+  FormBox[
+   RowBox[{
+    RowBox[{"{", 
+     RowBox[{"n1", ",", "0", ",", "120", ",", "12"}], "}"}], ",", 
+    "\[IndentingNewLine]", 
+    RowBox[{"{", 
+     RowBox[{"n2", ",", "0", ",", "10"}], "}"}], ",", "\[IndentingNewLine]", 
+    "\[IndentingNewLine]", 
+    RowBox[{"AspectRatio", "\[Rule]", "1"}], ",", "\[IndentingNewLine]", 
+    RowBox[{"VectorScale", "\[Rule]", 
+     RowBox[{"{", 
+      RowBox[{"0.1", ",", "0.5", ",", 
+       RowBox[{
+        RowBox[{"Min", "[", 
+         RowBox[{"#5", ",", "4"}], "]"}], "&"}]}], "}"}]}], ",", 
+    "\[IndentingNewLine]", 
+    RowBox[{"Frame", "\[Rule]", "True"}]}], TraditionalForm]],ExpressionUUID->
+  "6982ce0f-e1c5-4f34-9119-c02592bd8c36"]
+}], "Text",
+ CellChangeTimes->{
+  3.3983652599449997`*^9, {3.3983652909849997`*^9, 3.398365304207*^9}, 
+   3.39836535577*^9, {3.465147178409274*^9, 3.4651471879586544`*^9}, {
+   3.465147348010023*^9, 3.465147348916377*^9}, {3.465147799895879*^9, 
+   3.465147799895879*^9}, {3.465147833991811*^9, 
+   3.465147833991811*^9}},ExpressionUUID->"40fb22f0-cb50-4ca2-a727-\
+f4ce90fa38f6"],
+
+Cell["\<\
+Part 4:  Graph both the vector field and the 3 equilibrium points on the same \
+graph.  Visually, specify which equilibrium points appear to be stable.\
+\>", "Text",ExpressionUUID->"19d8f8b6-11a5-4dbd-b90c-f7fd02dcd967"],
+
+Cell["\<\
+Part 5:  Find the numerical solution of the ODE with initial populations:
+\tn1[0]  =  20
+\tn2[0]  =  12
+for   0 \[LessEqual] t \[LessEqual] 300\
+\>", "Text",ExpressionUUID->"cd9599cd-5a19-42fb-a561-746b515999b9"],
+
+Cell["\<\
+Part 6:  Generate a parametric plot of the solution for   0 \[LessEqual] t \
+\[LessEqual] 300\
+\>", "Text",ExpressionUUID->"7b45918b-3635-4213-b077-aa01de03ed46"],
+
+Cell["\<\
+Part 7:  Show the plots from parts 2, 3 and 6 all on one graph.
+Does the behavior of this solution support the contention that the \
+equilibrium point is stable?\
+\>", "Text",ExpressionUUID->"f83da0c2-389f-4ae0-b720-a785bb2da06b"],
+
+Cell["\<\
+Part 8:  Calculate the Jacobian matrix for this system.  Then, evaluate the \
+Jacobian matrix at the equilibrium point indicated in Part 7.\
+\>", "Text",ExpressionUUID->"8623e462-0486-4b57-8a9a-489c146ede83"],
+
+Cell["\<\
+Part 9:  Find the eigenvalues for the Jacobian matrix.  Is the corresponding \
+linear system stable or unstable?  Finally, can we use Theorem 3.2?\
+\>", "Text",ExpressionUUID->"0e3202ec-3093-43a5-bd3a-ada319cd2609"]
+}, Closed]],
+
+Cell[CellGroupData[{
+
+Cell["#8   (Not in book) ", "Section",ExpressionUUID->"e23b1c3d-0ca9-4bd9-8b38-796cc80298b0"],
+
+Cell[TextData[{
+ "For the following ODE:\n\t",
+ Cell[BoxData[
+  FormBox[
+   RowBox[{
+    RowBox[{
+     RowBox[{"n", "'"}], "[", "t", "]"}], " ", "=", " ", 
+    RowBox[{
+     RowBox[{"r", "*", 
+      RowBox[{"n", "[", "t", "]"}], "*", 
+      RowBox[{"(", 
+       RowBox[{"1", " ", "-", " ", 
+        FractionBox[
+         RowBox[{"n", "[", "t", "]"}], "k"]}], ")"}]}], " ", "-", " ", 
+     RowBox[{"e", "*", 
+      RowBox[{"n", "[", "t", "]"}]}]}]}], TraditionalForm]],
+  FontWeight->"Bold",ExpressionUUID->"7b133776-adc9-49dc-9207-16567607ce52"],
+ "\nSubject to the initial condition:  ",
+ StyleBox["n[0]  =  n0",
+  FontWeight->"Bold"]
+}], "Text",ExpressionUUID->"acc53787-924c-4116-8cd7-1125be79bfd9"],
+
+Cell["Part 1:  Find the equilibrium points:", "Text",ExpressionUUID->"60fbb9ed-bff7-494f-b3a4-b8cc0d001008"],
+
+Cell["\<\
+Part 2: Use Theorem 3.1 to determine what restriction must be put on both \"e\
+\" and \"r\" at the equilibrium point:  n[t]\[Rule]0  so that it is an \
+attractor (i.e. stable) for the nonlinear ODE. \
+\>", "Text",ExpressionUUID->"759ccb6d-b698-4947-bfed-ccaf32a6204b"],
+
+Cell[TextData[{
+ "Part 3: Use Theorem 3.1 to determine what restriction must be put on both \
+\"e\" and \"r\" at the equilibrium point:  ",
+ Cell[BoxData[
+  FormBox[
+   StyleBox[
+    RowBox[{
+     RowBox[{"n", "[", "t", "]"}], "\[Rule]", 
+     FractionBox[
+      RowBox[{"k", " ", 
+       RowBox[{"(", 
+        RowBox[{
+         RowBox[{"-", "e"}], "+", "r"}], ")"}]}], "r"]}],
+    FontWeight->"Bold"], TraditionalForm]],ExpressionUUID->
+  "17d1df29-141c-4792-a1f4-5c1cc3a6a8b6"],
+ " (assume k > 0 and r > 0) so that it is an attractor (i.e. stable) for the \
+nonlinear ODE. "
+}], "Text",ExpressionUUID->"721cc699-6e32-4375-9b1b-d28998933336"],
+
+Cell["\<\
+Part 4: To visualize this result consider some representative values:
+\tr = .1
+\te = .05
+\tk = 1000
+Calculate the numeric values of the two equilibrium points.\
+\>", "Text",ExpressionUUID->"566bd2b4-e4d1-42f9-b7bf-209d82242bc6"],
+
+Cell[TextData[{
+ "Plot the \"vector field\" for the 1-dimensional ODE by using \
+\"VectorPlots\" with a \"dummy\" variable for the vertical component set to \
+0. You should interpret this vector field in the left-right direction only \
+for this 1-dimensional problem. The following code accomplishes this result:\n\
+\t",
+ Cell[BoxData[
+  FormBox[
+   RowBox[{"\[IndentingNewLine]", 
+    RowBox[{"VectorPlot", "[", "\[IndentingNewLine]", "\[IndentingNewLine]", 
+     RowBox[{
+      RowBox[{"{", 
+       RowBox[{
+        RowBox[{
+         RowBox[{"r", " ", "n", " ", 
+          RowBox[{"(", 
+           RowBox[{"1", "-", 
+            FractionBox["n", "k"]}], ")"}]}], "-", 
+         RowBox[{"e", " ", "n"}]}], ",", "0"}], "}"}], ",", 
+      "\[IndentingNewLine]", "\[IndentingNewLine]", 
+      RowBox[{"{", 
+       RowBox[{"n", ",", "0", ",", "1000"}], "}"}], ",", 
+      "\[IndentingNewLine]", 
+      RowBox[{"{", 
+       RowBox[{"t", ",", "0", ",", "1000"}], "}"}], ",", 
+      "\[IndentingNewLine]", "\[IndentingNewLine]", 
+      RowBox[{"AspectRatio", "\[Rule]", "1"}], ",", "\[IndentingNewLine]", 
+      RowBox[{"VectorScale", "\[Rule]", 
+       RowBox[{"{", 
+        RowBox[{"0.1", ",", "0.4", ",", 
+         RowBox[{"#5", "&"}]}], "}"}]}], ",", "\[IndentingNewLine]", 
+      RowBox[{"Frame", "\[Rule]", "True"}]}], "\[IndentingNewLine]", 
+     "\[IndentingNewLine]", "]"}]}], TraditionalForm]],ExpressionUUID->
+  "a3bb4f12-4a06-4399-a336-4cd2a4b788ef"],
+ "\nInterpret the stability at both equilibrium points for the specific \
+values of \"e\" and \"r\" used and compare the results to what you found in \
+Parts 2 and 3."
+}], "Text",
+ CellChangeTimes->{{3.398364975039*^9, 3.398365022682*^9}, {
+  3.4651474334573655`*^9, 3.4651474378172426`*^9}, {3.4651479921872196`*^9, 
+  3.465147993093504*^9}, {3.4651480953081336`*^9, 
+  3.465148098652397*^9}},ExpressionUUID->"a0ac658c-07a5-4613-a15e-\
+5aebb98c9575"]
+}, Closed]],
+
+Cell[CellGroupData[{
+
+Cell["#9   (Not in book)", "Section",ExpressionUUID->"2ee398eb-8297-44ed-b198-05075c475877"],
+
+Cell[TextData[{
+ "Interesting growth models are obtained from the study of chemical \
+interactions.  A simple case is that of two chemicals whose quantities at \
+time t are M1[t] and M2[t].  They combine to form a new chemical which is \
+denoted by M3[t].  It is known that the ",
+ StyleBox["rate",
+  FontVariations->{"Underline"->True}],
+ " of growth of M3 is proportional (with constant k3a) to the product of M1 \
+and M2 less the ",
+ StyleBox["rate",
+  FontVariations->{"Underline"->True}],
+ " at which chemical M3 breaks apart into its components.  It is also known \
+that the ",
+ StyleBox["rate",
+  FontVariations->{"Underline"->True}],
+ " that chemical M3 breaks apart into its constituent components M1 and M2 \
+occurs at a ",
+ StyleBox["rate",
+  FontVariations->{"Underline"->True}],
+ " proportional to the level of M3 itself (with constant k3b).  Also, because \
+chemical M1 is consumed to make chemical M3, it is assumed that the ",
+ StyleBox["rate",
+  FontVariations->{"Underline"->True}],
+ " of decrease of chemical M1 is proportional (with constant k1) to the ",
+ StyleBox["rate",
+  FontVariations->{"Underline"->True}],
+ " of increase of chemical M3.  Finally, a similar condition holds for \
+chemical M2, however the rate of proportionality (with constant k2) is \
+assumed to be different. (Assume that all constants of proportionality (there \
+are 4 of them) are positive.  Assign the + or - using the above description.)\
+\n\nPart 1:  Your first task is to develop a system of ordinary differential \
+equations which describe this scenario and to find the corresponding symbolic \
+solution (without using initial conditions).  Observe that derivatives will \
+appear on both sides of some equations.  Also observe that the symbolic \
+solution has constants of integration which are contained within a \
+trigonometric function.  Therefore, any attempt to symbolically \"Solve\" for \
+the constants of integration using initial conditions is expected to meet \
+with failure.  Numerical solutions would be required for this case."
+}], "Text",ExpressionUUID->"bed6bb24-48fb-43e4-a9b0-1fc77f62909d"],
+
+Cell["\<\
+Part 2: Your second task is to symbolically Solve the above 3 ODEs for the 3 \
+derivatives: {M1'[t],M2'[t],M3'[t]} in terms of M1[t],M2[t],M3[t] and \
+Simplify the result. Next, solve this new ODE system using these \
+algebraically rearranged ODE equations and observe that the resulting \
+replacement rule solution is the same as found in Part 1.\
+\>", "Text",ExpressionUUID->"242a8685-f503-4bc4-a2d3-f9da0130a683"],
+
+Cell["\<\
+Part 3: Your third task is to find the equilibrium points in terms of M1,M2 \
+and M3 using the ODE system generated in Part 2.  Are the equilibrium points \
+isolated for this problem?\
+\>", "Text",ExpressionUUID->"a80941e3-e80c-459b-bea0-e25b34295561"],
+
+Cell[TextData[{
+ "Part 4: Your forth task is to visualize what might be happening.  Although \
+a 3-dimensional vector field may be used, it will be hard to see what is \
+happening.  Therefore, consider the following simplified problem: assume that \
+M2 = M1 (i.e. both the concentrations and rates of reaction for chemicals M1 \
+and M2 are the same).  Then find the equilibrium points in terms of M1 and \
+M3.  \nNext, assign:\n\tk1=1\n\tk2=1\n\tk3a=1\n\tk3b=2\nPlot the equilibrium \
+points M3 vs. M1 for  0 \[LessEqual] M1 \[LessEqual] 2\nPlot the vector field \
+corresponding to M1'[t] and M3'[t].\n(You might want to use the following \
+VectorPlot Options to improve the appearance.)\n\t",
+ Cell[BoxData[
+  FormBox[
+   RowBox[{
+    RowBox[{"{", 
+     RowBox[{"M1", ",", "0", ",", "2"}], "}"}], ",", "\[IndentingNewLine]", 
+    RowBox[{"{", 
+     RowBox[{"M3", ",", "0", ",", "2"}], "}"}], ",", "\[IndentingNewLine]", 
+    RowBox[{"AspectRatio", "\[Rule]", "1"}], ",", "\[IndentingNewLine]", 
+    RowBox[{"VectorScale", "\[Rule]", 
+     RowBox[{"{", 
+      RowBox[{"0.1", ",", "0.3", ",", 
+       RowBox[{"#5", "&"}]}], "}"}]}], ",", "\[IndentingNewLine]", 
+    RowBox[{"Frame", "\[Rule]", "True"}]}], TraditionalForm]],ExpressionUUID->
+  "186a40f3-3abf-49df-8ccd-8a1b1b40b6d5"],
+ "\nThen show the graph of the equilibrium points and the vector field \
+together."
+}], "Text",
+ CellChangeTimes->{{3.398365626974*^9, 3.398365647017*^9}, 
+   3.398365680752*^9, {3.4651482104195623`*^9, 3.4651482129199457`*^9}, {
+   3.465148355940053*^9, 
+   3.465148360627943*^9}},ExpressionUUID->"59213573-82e2-425d-88cf-\
+cd35a9ac70bc"],
+
+Cell["\<\
+Part 5: Using Part 4, explain why there are an infinite number of \
+non-isolated equilibrium points for this problem.  Also explain why the \
+behavior of the ODE model is consistent with the expected behavior of the \
+chemical system.  Using the above plots, are the equilibrium points stable in \
+the sense that if you start at a M1 and M3 value away from a specific \
+equilibrium point, will the resulting solution move back to that specific \
+equilibrium point?  Finally, explain why Theorem 3.2 can not be used to \
+determine the stability of the equilibrium points.\
+\>", "Text",ExpressionUUID->"88a9507e-e7ce-4c93-b9bd-2f17059d8108"]
+}, Closed]],
+
+Cell[CellGroupData[{
+
+Cell["#10 (Not in book)", "Section",ExpressionUUID->"2d215ea2-f415-4e2d-a2ee-ca18efed5d19"],
+
+Cell[TextData[{
+ "Consider our simple nonlinear pendulum problem.  The second order ODE is:\n\
+\t\[Theta]''[t] = -r*\[Theta]'[t] - ",
+ Cell[BoxData[
+  FormBox[
+   StyleBox[
+    FractionBox["g", "L"],
+    FontWeight->"Bold"], TraditionalForm]],ExpressionUUID->
+  "86beb517-6013-4233-9823-691e00b280c9"],
+ "*Sin[\[Theta][t]]   where r =",
+ Cell[BoxData[
+  FormBox[
+   StyleBox[
+    FractionBox[
+     RowBox[{" ", "k1"}], "m"],
+    FontWeight->"Bold"], TraditionalForm]],ExpressionUUID->
+  "240e8fd6-a61e-4ffb-9dd8-3b4e872280d2"],
+ "\t\nThe corresponding first order system is:\n\t\tx1 = \[Theta]\n\t\tx1' = \
+\[Theta] ' = x2\n\t\tx2' = \[Theta] '' =  -r*\[Theta] ' - ",
+ Cell[BoxData[
+  FormBox[
+   StyleBox[
+    FractionBox["g", "L"],
+    FontWeight->"Bold"], TraditionalForm]],ExpressionUUID->
+  "5cab59a9-e0e9-4899-a40b-b5a9c9f4d10e"],
+ "*Sin[\[Theta]] \n\t\t     =  -r*x2 - ",
+ Cell[BoxData[
+  FormBox[
+   StyleBox[
+    FractionBox["g", "L"],
+    FontWeight->"Bold"], TraditionalForm]],ExpressionUUID->
+  "0535ba9e-5435-41af-948b-ddded2b3f5dd"],
+ "*Sin[x1] \nPart 1:  Verify by direct substitution that x1 = \[Pi] and x2 = \
+0 (which corresponds to the upward vertical position for the pendulum) is an \
+equilibrium point for the nonlinear pendulum problem."
+}], "Text",ExpressionUUID->"2ec8b2fc-dca7-49bc-a500-d7779c1d7886"],
+
+Cell["\<\
+Part 2:  Calculate the Jacobian matrix for this system.  Then, evaluate the \
+Jacobian matrix at the equilibrium point (x1 = \[Pi] and x2 = 0).\
+\>", "Text",ExpressionUUID->"505939ba-0d30-428d-a691-97d51d5c5bd8"],
+
+Cell[TextData[{
+ "Part 3:  Find the eigenvalues for the Jacobian matrix.  Is the \
+corresponding linear system stable or unstable?  Finally, can we use Theorem \
+3.2?  Hint, you might simplify to better see the result:\n\t\t",
+ Cell[BoxData[
+  FormBox[
+   RowBox[{"Assuming", "[", "\[IndentingNewLine]", 
+    RowBox[{
+     RowBox[{"L", ">", "0"}], ",", "\[IndentingNewLine]", 
+     RowBox[{
+     "Simplify", "[", "\[IndentingNewLine]", "...", "\[IndentingNewLine]", 
+      "]"}]}], "\[IndentingNewLine]", "]"}], TraditionalForm]],
+  ExpressionUUID->"22cdda6a-0cf2-4989-b502-17fe56682c05"]
+}], "Text",
+ CellChangeTimes->{{3.398366151084*^9, 3.398366224851*^9}, {3.398366264612*^9,
+   3.39836626834*^9}},ExpressionUUID->"63a61ad7-35f4-49d7-9384-5e8134d77c21"]
+}, Closed]],
+
+Cell[CellGroupData[{
+
+Cell["#11 (Not in book)", "Section",ExpressionUUID->"519aca7f-8856-4fbe-8df7-1a8157955d16"],
+
+Cell["\<\
+For our inverted pendulum feedback control problem in Section 3.4, determine \
+the smallest value of feedback control coefficient c1 such that the system \
+will be stable. For the other values, use:
+\tg= 32.2;
+\tL=3;
+\tm=1;
+\tk1=.1;    (* Damping *)
+\tc2=1; 
+Hint: You might want to plot both the real and imaginary parts of \[Lambda]1 \
+i.e. Re[\[Lambda]1] and Im[\[Lambda]1]. What condition holds at the \
+transition between stable and unstable?\
+\>", "Text",
+ CellChangeTimes->{{3.398366364667*^9, 
+  3.398366508491*^9}},ExpressionUUID->"d7a1b1a6-ad2e-45bd-82ce-b89eb4238c6b"]
+}, Closed]],
+
+Cell[CellGroupData[{
+
+Cell["#12 (Not in book)", "Section",ExpressionUUID->"4d4f9221-a5fe-4de6-bea2-c4a6236f45ab"],
+
+Cell[TextData[{
+ "Assume that a double pendulum system is driven by a constant torque motor.  \
+The motor is located at the upper pendulum pivot and produces a rotation in \
+the counterclockwise direction.  The vector force applied to the pendulum \
+mass m1 is given by:  torqueForce ",
+ Cell[BoxData[
+  FormBox[
+   OverscriptBox[
+    SubscriptBox["uPerpV", "rod"], "\[RightVector]"], TraditionalForm]],
+  ExpressionUUID->"0f16873e-65fc-4bec-91ec-3cce9cc46367"],
+ " , where ",
+ Cell[BoxData[
+  FormBox[
+   OverscriptBox[
+    SubscriptBox["uPerpV", "rod"], "\[RightVector]"], TraditionalForm]],
+  ExpressionUUID->"b1631f0d-399f-4c56-82b1-526ca4486b4e"],
+ " is a vector of unit length directed perpendicular to the upper rod.   \
+Also, the \"torqueForce\" is defined to be the net force produced by the \
+constant torque motor torque on mass m1, and it is just added to the other \
+forces in the equation of motion.  Finally, the value of torqueForce produced \
+by the motor through the upper pendulum rod is assumed to be known.\nPart 1: \
+Derive the nonlinear ODE symbolic formulas corresponding to a constant torque \
+motor.\n\nPart 2: Find a numerical solution to the nonlinear ODE system \
+developed in Part 1.  Use the following values:\n\tL1 = 2\n\tm1 = 2\n\tk1 = \
+10.\n\tL2 = 1\n\tm2 = 1\n\tk2 = 0.1\n\tg = 32\n\tmaxTime = 6\n\ttorqueForce = \
+110\n and initial conditions:\n\t\[Theta]1[0] = 0.1\n\t\[Theta]1'[0] = 0\n\t\
+\[Theta]2[0] = 0\n\t\[Theta]2'[0] = 0\n\t\nPart 3: Generate a 2-dimensional \
+plot of the 2 angles vs. time.  Also, generate an animation for the above \
+solution (remember to adjust the ",
+ "AnimationRate",
+ " and to stop the animation before you print when you hand this in). \n\
+Remark:  The dynamic behavior of this system is quite chaotic, and therefore \
+the solution will change significantly for small changes in the above values. \
+ If you have some extra time, re-run your notebook several times using \
+slightly higher and lower values for the torqueForce, and observe the \
+resulting changes in the motion of the lower pendulum."
+}], "Text",
+ CellChangeTimes->{{3.398366754915*^9, 
+  3.39836684869*^9}},ExpressionUUID->"02954247-0acf-4bb7-b0f9-285b7561d2be"]
+}, Closed]]
+}, Open  ]]
+},
+WindowSize->{675, 460},
+WindowMargins->{{4, Automatic}, {Automatic, 2}},
+PrintingCopies->1,
+PrintingPageRange->{Automatic, Automatic},
+Magnification->1.5,
+FrontEndVersion->"11.3 for Microsoft Windows (64-bit) (March 6, 2018)",
+StyleDefinitions->FrontEnd`FileName[{"Creative"}, "NaturalColor.nb", 
+  CharacterEncoding -> "UTF-8"]
+]
+(* End of Notebook Content *)
+
+(* Internal cache information *)
+(*CellTagsOutline
+CellTagsIndex->{}
+*)
+(*CellTagsIndex
+CellTagsIndex->{}
+*)
+(*NotebookFileOutline
+Notebook[{
+Cell[CellGroupData[{
+Cell[567, 22, 86, 0, 98, "Title",ExpressionUUID->"9831ff98-a463-4484-9032-c20480a95454"],
+Cell[CellGroupData[{
+Cell[678, 26, 100, 0, 114, "Section",ExpressionUUID->"75341e6a-b658-41bd-b7d1-a01e4b41ad86"],
+Cell[781, 28, 361, 6, 267, "Text",ExpressionUUID->"9cfb03fb-8476-4add-9c88-adaaad829937"],
+Cell[1145, 36, 453, 11, 612, "Text",ExpressionUUID->"a37ae195-733e-498e-b73a-0f8e0099fa96"],
+Cell[1601, 49, 117, 0, 94, "Text",ExpressionUUID->"0f86c9eb-7c25-4f3e-83f8-d60357537a5f"],
+Cell[1721, 51, 1185, 29, 459, "Text",ExpressionUUID->"40fb22f0-cb50-4ca2-a727-f4ce90fa38f6"],
+Cell[2909, 82, 230, 3, 153, "Text",ExpressionUUID->"19d8f8b6-11a5-4dbd-b90c-f7fd02dcd967"],
+Cell[3142, 87, 222, 5, 267, "Text",ExpressionUUID->"cd9599cd-5a19-42fb-a561-746b515999b9"],
+Cell[3367, 94, 172, 3, 94, "Text",ExpressionUUID->"7b45918b-3635-4213-b077-aa01de03ed46"],
+Cell[3542, 99, 240, 4, 153, "Text",ExpressionUUID->"f83da0c2-389f-4ae0-b720-a785bb2da06b"],
+Cell[3785, 105, 218, 3, 153, "Text",ExpressionUUID->"8623e462-0486-4b57-8a9a-489c146ede83"],
+Cell[4006, 110, 225, 3, 153, "Text",ExpressionUUID->"0e3202ec-3093-43a5-bd3a-ada319cd2609"]
+}, Closed]],
+Cell[CellGroupData[{
+Cell[4268, 118, 93, 0, 67, "Section",ExpressionUUID->"e23b1c3d-0ca9-4bd9-8b38-796cc80298b0"],
+Cell[4364, 120, 702, 20, 245, "Text",ExpressionUUID->"acc53787-924c-4116-8cd7-1125be79bfd9"],
+Cell[5069, 142, 108, 0, 94, "Text",ExpressionUUID->"60fbb9ed-bff7-494f-b3a4-b8cc0d001008"],
+Cell[5180, 144, 278, 4, 153, "Text",ExpressionUUID->"759ccb6d-b698-4947-bfed-ccaf32a6204b"],
+Cell[5461, 150, 643, 17, 245, "Text",ExpressionUUID->"721cc699-6e32-4375-9b1b-d28998933336"],
+Cell[6107, 169, 238, 6, 324, "Text",ExpressionUUID->"566bd2b4-e4d1-42f9-b7bf-209d82242bc6"],
+Cell[6348, 177, 1909, 42, 1194, "Text",ExpressionUUID->"a0ac658c-07a5-4613-a15e-5aebb98c9575"]
+}, Closed]],
+Cell[CellGroupData[{
+Cell[8294, 224, 92, 0, 67, "Section",ExpressionUUID->"2ee398eb-8297-44ed-b198-05075c475877"],
+Cell[8389, 226, 2110, 38, 1071, "Text",ExpressionUUID->"bed6bb24-48fb-43e4-a9b0-1fc77f62909d"],
+Cell[10502, 266, 426, 6, 267, "Text",ExpressionUUID->"242a8685-f503-4bc4-a2d3-f9da0130a683"],
+Cell[10931, 274, 262, 4, 153, "Text",ExpressionUUID->"a80941e3-e80c-459b-bea0-e25b34295561"],
+Cell[11196, 280, 1622, 31, 1086, "Text",ExpressionUUID->"59213573-82e2-425d-88cf-cd35a9ac70bc"],
+Cell[12821, 313, 649, 9, 382, "Text",ExpressionUUID->"88a9507e-e7ce-4c93-b9bd-2f17059d8108"]
+}, Closed]],
+Cell[CellGroupData[{
+Cell[13507, 327, 91, 0, 67, "Section",ExpressionUUID->"2d215ea2-f415-4e2d-a2ee-ca18efed5d19"],
+Cell[13601, 329, 1327, 35, 652, "Text",ExpressionUUID->"2ec8b2fc-dca7-49bc-a500-d7779c1d7886"],
+Cell[14931, 366, 222, 3, 153, "Text",ExpressionUUID->"505939ba-0d30-428d-a691-97d51d5c5bd8"],
+Cell[15156, 371, 757, 15, 515, "Text",ExpressionUUID->"63a61ad7-35f4-49d7-9384-5e8134d77c21"]
+}, Closed]],
+Cell[CellGroupData[{
+Cell[15950, 391, 91, 0, 67, "Section",ExpressionUUID->"519aca7f-8856-4fbe-8df7-1a8157955d16"],
+Cell[16044, 393, 589, 14, 553, "Text",ExpressionUUID->"d7a1b1a6-ad2e-45bd-82ce-b89eb4238c6b"]
+}, Closed]],
+Cell[CellGroupData[{
+Cell[16670, 412, 91, 0, 67, "Section",ExpressionUUID->"4d4f9221-a5fe-4de6-bea2-c4a6236f45ab"],
+Cell[16764, 414, 2199, 38, 1953, "Text",ExpressionUUID->"02954247-0acf-4bb7-b0f9-285b7561d2be"]
+}, Closed]]
+}, Open  ]]
+}
+]
+*)
+

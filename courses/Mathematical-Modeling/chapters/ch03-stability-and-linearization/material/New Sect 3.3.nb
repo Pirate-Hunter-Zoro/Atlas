@@ -1,0 +1,1825 @@
+(* Content-type: application/mathematica *)
+
+(*** Wolfram Notebook File ***)
+(* http://www.wolfram.com/nb *)
+
+(* CreatedBy='Mathematica 6.0' *)
+
+(*CacheID: 234*)
+(* Internal cache information:
+NotebookFileLineBreakTest
+NotebookFileLineBreakTest
+NotebookDataPosition[       145,          7]
+NotebookDataLength[     65261,       1817]
+NotebookOptionsPosition[     58628,       1725]
+NotebookOutlinePosition[     59060,       1742]
+CellTagsIndexPosition[     59017,       1739]
+WindowFrame->Normal*)
+
+(* Beginning of Notebook Content *)
+Notebook[{
+
+Cell[CellGroupData[{
+Cell[" Section 3.3", "Title",ExpressionUUID->"d6413e2a-75dd-4d7d-bb99-be83e47d4803"],
+
+Cell[TextData[StyleBox["  Liapunov Functions",
+ FontWeight->"Bold"]], "Subtitle",ExpressionUUID->"35c97960-17ec-4d0b-a75d-\
+da6f6e039ba7"],
+
+Cell[BoxData[
+ RowBox[{" ", 
+  RowBox[{"Remove", "[", "\"\<Global`*\>\"", " ", "]"}], " "}]], "InputOnly",
+ CellChangeTimes->{3.398352136171*^9},
+ CellLabel->
+  "In[1220]:=",ExpressionUUID->"404beec7-d728-4f41-bc25-aa1c74f40050"],
+
+Cell[CellGroupData[{
+
+Cell["  Introduction", "Section",ExpressionUUID->"eadf5fe3-5b60-474d-bdc9-2ac9ff1442d2"],
+
+Cell[TextData[{
+ "To summarize what we have accomplished:\n\nWe considered a second order \
+ODE.\n\nWe expressed the second order ODE as a first order system  (Position \
+and velocity).\n\nThen we examined the resulting vector field for the first \
+order system and observed that the solutions of the ODE system would follow \
+the vector field.\n          \nThus, we are now motivated to study the \
+relationship between the solutions of an ODE, the corresponding vector field \
+for the first order system.  In addition, we will examine an extension of the \
+idea of total energy (potential plus kinetic) which will determine if an \
+equilibrium point is an attractor.  \nThe conceptual idea is quite simple:\n\t\
+ For a simple dynamic system such as the pendulum problem or the mass-spring \
+problem, the total energy of the system is a combination of both the \
+potential and kinetic energies. The potential energy is usually a function of \
+position (spring displacement for the mass-spring problem and angular \
+displacement for the pendulum problem).  The kinetic energy is usually a \
+function of velocity.  If the dynamic system experiences no losses, then the \
+total energy remains constant.  For this case, orbits in the phase plane \
+neither expand nor contract ( i.e. stable, but the equilibrium point is not \
+an attractor).  However, if the dynamic system experiences losses (by \
+friction for the mass-spring problem and by viscous damping for the pendulum) \
+then the total energy will decrease with time.  For this case, a solution \
+orbit will be attracted to the equilibrium position (i.e. stable).  However, \
+if the dynamic system continually gains energy (by some process that \
+transfers energy from the outside to the dynamic system), then the total \
+energy will increase with time.  For this case, a solution orbit will \
+continue to expand away from an equilibrium position (i.e. unstable).\n\t \
+Therefore, what we would like to do is extend the idea of conservation of \
+energy to more general systems.  A function that plays a role equivalent to \
+total energy is called a Liapunov function.  The behavior of the Liapunov \
+function was described above:\n\t If it decreases along an orbit, then the \
+equilibrium point is asymptotically stable\n\t If it is constant along an \
+orbit, then the equilibrium is stable but not asymptotically stable\n\t If it \
+increases along an orbit, then the equilibrium point is unstable\n In \
+summary, we want to find a function V[",
+ Cell[BoxData[
+  FormBox[
+   OverscriptBox["X", "\[Rule]"], TraditionalForm]],ExpressionUUID->
+  "079f020f-d14a-4ba6-a2c5-9ba05c866b51"],
+ "] such that:\n \t V[",
+ Cell[BoxData[
+  FormBox[
+   OverscriptBox["X", "\[Rule]"], TraditionalForm]],ExpressionUUID->
+  "c1a3a85e-7d19-4ca8-a1d1-483bb5c54578"],
+ "] = 0  where ",
+ Cell[BoxData[
+  FormBox[
+   OverscriptBox["X", "\[Rule]"], TraditionalForm]],ExpressionUUID->
+  "f1759fc6-08e7-4322-819c-788ac400997a"],
+ " is an isolated equilibrium point (i.e. no remaining energy at the rest \
+point).\n \t V[",
+ Cell[BoxData[
+  FormBox[
+   OverscriptBox["x", "\[Rule]"], TraditionalForm]],ExpressionUUID->
+  "25123e3a-a662-495c-bfad-aff16f8e73d0"],
+ "] \[GreaterEqual] 0   (i.e. total energy is non-negative).\n\t ",
+ Cell[BoxData[
+  FormBox[
+   RowBox[{
+    RowBox[{
+     SubscriptBox["\[PartialD]", "t"], " ", 
+     RowBox[{"(", 
+      RowBox[{"V", "[", 
+       RowBox[{
+        FormBox[
+         OverscriptBox["x", "\[Rule]"],
+         TraditionalForm], "[", "t", "]"}], "]"}], ")"}]}], " ", 
+    "\[LessEqual]", "  ", "0"}], TraditionalForm]],ExpressionUUID->
+  "51d40fcf-4fe7-446f-b235-27d15ae99994"],
+ "  along an orbit ",
+ Cell[BoxData[
+  FormBox[
+   RowBox[{
+    FormBox[
+     OverscriptBox["x", "\[Rule]"],
+     TraditionalForm], "[", "t", "]"}], TraditionalForm]],ExpressionUUID->
+  "185d34ad-0969-46df-978e-551946850eca"],
+ " (i.e. total energy decreases or remains constant in time).\nFinally, \
+observe that there may be many different Liapunov functions."
+}], "Text",ExpressionUUID->"7300437b-0120-4cca-86f8-474837fd7cbe"]
+}, Closed]],
+
+Cell[CellGroupData[{
+
+Cell["  Construction of Liapunov Functions", "Section",ExpressionUUID->"4e10cf94-7c78-4c9a-ab75-891998299c8d"],
+
+Cell[TextData[{
+ "In short, a Liapunov function V[",
+ Cell[BoxData[
+  FormBox[
+   OverscriptBox["x", "\[Rule]"], TraditionalForm]],ExpressionUUID->
+  "0046fbde-1868-495b-8e03-c408ac21956a"],
+ "], ",
+ Cell[BoxData[
+  FormBox[
+   OverscriptBox["x", "\[Rule]"], TraditionalForm]],ExpressionUUID->
+  "c26b76c5-0c78-41c1-9307-dd58e1108096"],
+ " = ",
+ Cell[BoxData[
+  FormBox[
+   RowBox[{"(", GridBox[{
+      {"x1"},
+      {"x2"}
+     }], ")"}], TraditionalForm]],ExpressionUUID->
+  "cf0e98dc-5f7c-45ad-aa0a-7d1dff243c16"],
+ " is one which:\n \t V[",
+ Cell[BoxData[
+  FormBox[
+   OverscriptBox["X", "\[Rule]"], TraditionalForm]],ExpressionUUID->
+  "bd50dc87-1a67-4e57-badd-af27dc38c071"],
+ "] = 0  where ",
+ Cell[BoxData[
+  FormBox[
+   OverscriptBox["X", "\[Rule]"], TraditionalForm]],ExpressionUUID->
+  "10222011-7931-4d51-a7c6-c3710f3a98eb"],
+ "= ",
+ Cell[BoxData[
+  FormBox[
+   RowBox[{"(", GridBox[{
+      {
+       SubscriptBox["x1", "0"]},
+      {
+       SubscriptBox["x2", "0"]}
+     }], ")"}], TraditionalForm]],ExpressionUUID->
+  "d4683b5b-89d8-499e-ba86-3732749c14f3"],
+ " is an isolated equilibrium point\n \t V[",
+ Cell[BoxData[
+  FormBox[
+   OverscriptBox["x", "\[Rule]"], TraditionalForm]],ExpressionUUID->
+  "8660b420-4d33-4fde-bcd7-cd14499a52a1"],
+ "] \[GreaterEqual] 0   \n\t ",
+ Cell[BoxData[
+  FormBox[
+   RowBox[{
+    RowBox[{
+     SubscriptBox["\[PartialD]", "t"], " ", 
+     RowBox[{"(", 
+      RowBox[{"V", "[", 
+       RowBox[{
+        FormBox[
+         OverscriptBox["x", "\[Rule]"],
+         TraditionalForm], "[", "t", "]"}], "]"}], ")"}]}], " ", 
+    "\[LessEqual]", "  ", "0"}], TraditionalForm]],ExpressionUUID->
+  "a11c3b5c-80ed-4873-b30c-b1a91436ef97"],
+ "  along orbits ",
+ Cell[BoxData[
+  FormBox[
+   RowBox[{
+    FormBox[
+     OverscriptBox["x", "\[Rule]"],
+     TraditionalForm], "[", "t", "]"}], TraditionalForm]],ExpressionUUID->
+  "7c557b25-323a-456a-8f26-3a0c39888126"],
+ " inside an appropriate region \[CapitalOmega]\nThe last condition is \
+equivalent to:\n\t",
+ Cell[BoxData[
+  FormBox[
+   RowBox[{
+    SubscriptBox["\[PartialD]", "t"], " ", 
+    RowBox[{"(", 
+     RowBox[{"V", "[", 
+      RowBox[{
+       FormBox[
+        OverscriptBox["x", "\[Rule]"],
+        TraditionalForm], "[", "t", "]"}], "]"}], ")"}]}], TraditionalForm]],
+  ExpressionUUID->"23a014d5-6b19-44b6-8ca4-c56ad17fa81e"],
+ " = ",
+ Cell[BoxData[
+  FormBox[
+   RowBox[{
+    SubscriptBox["\[PartialD]", "t"], " ", 
+    RowBox[{"V", "[", 
+     RowBox[{
+      FormBox[
+       OverscriptBox["x", "\[Rule]"],
+       TraditionalForm], "[", "t", "]"}], "]"}]}], TraditionalForm]],
+  ExpressionUUID->"22a64c5e-38a9-4467-9a95-8c521641a54d"],
+ " = (",
+ Cell[BoxData[
+  FormBox[
+   RowBox[{
+    SubscriptBox["\[PartialD]", "x1"], " ", 
+    RowBox[{"V", "[", 
+     FormBox[
+      OverscriptBox["x", "\[Rule]"],
+      TraditionalForm], "]"}]}], TraditionalForm]],ExpressionUUID->
+  "a2f32df3-b4d6-42b3-91e3-aa71b5d0360d"],
+ ") * x1'[t] + (",
+ Cell[BoxData[
+  FormBox[
+   RowBox[{
+    SubscriptBox["\[PartialD]", "x2"], " ", 
+    RowBox[{"V", "[", 
+     FormBox[
+      OverscriptBox["x", "\[Rule]"],
+      TraditionalForm], "]"}]}], TraditionalForm]],ExpressionUUID->
+  "757c8c49-3de7-44e2-b483-8b2eefe1877c"],
+ ") * x2'[t]    \[LessEqual]  0"
+}], "Text",
+ CellChangeTimes->{
+  3.398352855557*^9},ExpressionUUID->"27be1c82-8535-42a4-b64c-d866a557b791"],
+
+Cell[BoxData[
+ RowBox[{
+  RowBox[{
+   SubscriptBox["\[PartialD]", "t"], " ", 
+   RowBox[{"V", "[", " ", 
+    RowBox[{
+     RowBox[{"x1", "[", "t", "]"}], ",", 
+     RowBox[{"x2", "[", "t", "]"}]}], " ", "]"}]}], "   ", "\[LessEqual]", 
+  "  ", "0"}]], "Input",
+ CellLabel->
+  "In[1221]:=",ExpressionUUID->"44fac868-e6a0-4bb3-8bb8-4071c31a3c74"],
+
+Cell["Or, in traditional form:", "Text",ExpressionUUID->"cd3ff761-9656-4407-b1a8-42d48c960a19"],
+
+Cell[BoxData[
+ RowBox[{
+  RowBox[{
+   RowBox[{
+    SubscriptBox["\[PartialD]", "t"], " ", 
+    RowBox[{"V", "[", " ", 
+     RowBox[{
+      RowBox[{"x1", "[", "t", "]"}], ",", 
+      RowBox[{"x2", "[", "t", "]"}]}], " ", "]"}]}], " ", "\[LessEqual]", 
+   "  ", "0"}], "  ", "//", "TraditionalForm"}]], "Input",
+ CellLabel->
+  "In[1222]:=",ExpressionUUID->"1b2b8bf0-770a-4343-955b-a11f5f0f7402"],
+
+Cell["\<\
+Fact:    For a time independent vector field, two distinctive orbits can \
+never intersect as t \[Rule] \[Infinity].  Observe that the orbit starting at \
+an equilibrium point can never move from the location (i.e. the solution \
+orbit is constant).  One consequence of this is that an orbit starting at a \
+non-equilibrium point can never reach the equilibrium point in a finite \
+amount of time (Otherwise this orbit would intersect the constant orbit of \
+the equilibrium point).
+  
+Define an invariant set in the domain to be one for which any orbit that \
+begins in this set remains within it for all future time.  Example, any \
+equilibrium point is invariant. Also, if R is any subset of the domain which \
+contains no invariant subsets, then whenever an orbit enters the set R it \
+must leave again after a finite amount of time.\
+\>", "Text",ExpressionUUID->"e367dd6b-191f-4fee-995e-30b9a4816a5b"],
+
+Cell[CellGroupData[{
+
+Cell["  Theorem 3.4", "Subsubsection",ExpressionUUID->"8c96e0ab-6e15-498a-a9a1-f541d5963c74"],
+
+Cell[TextData[{
+ "Let ",
+ Cell[BoxData[
+  FormBox[
+   OverscriptBox["X", "\[Rule]"], TraditionalForm]],ExpressionUUID->
+  "da575018-5c55-4049-9d98-2686876c1f30"],
+ " be an isolated equilibrium point of the ODE system:    \n\t  \t   x1' = \
+f1[x1,x2]\n\t \t   x2' = f2[x1,x2]    \n   in some open subset \
+\[CapitalOmega] of the domain.     \n   Assume that there exist V[",
+ Cell[BoxData[
+  FormBox[
+   OverscriptBox["x", "\[Rule]"], TraditionalForm]],ExpressionUUID->
+  "a25019ae-39bc-460c-bcb2-0bc3ed20a021"],
+ "], a Liapunov function on \[CapitalOmega].   \n   Then, ",
+ Cell[BoxData[
+  FormBox[
+   OverscriptBox["X", "\[Rule]"], TraditionalForm]],ExpressionUUID->
+  "4403071c-a48c-4646-8465-b9e8d9cfcd20"],
+ " is an attractor (i.e. is stable).\n   \n    Furthermore: Suppose R is \
+defined to be the subset of \[CapitalOmega] in which ",
+ Cell[BoxData[
+  FormBox[
+   RowBox[{
+    SubscriptBox["\[PartialD]", "t"], " ", 
+    RowBox[{"V", "[", 
+     RowBox[{
+      FormBox[
+       OverscriptBox["x", "\[Rule]"],
+       TraditionalForm], "[", "t", "]"}], "]"}]}], TraditionalForm]],
+  ExpressionUUID->"6f453eef-5a22-4745-8f59-3e3ee58e025b"],
+ "  = 0, for ",
+ Cell[BoxData[
+  FormBox[
+   RowBox[{
+    FormBox[
+     OverscriptBox["x", "\[Rule]"],
+     TraditionalForm], "[", "t", "]"}], TraditionalForm]],ExpressionUUID->
+  "4b1fe53e-e5ee-4678-a92a-b276c6ed9ba8"],
+ " inside \[CapitalOmega].    \n    If R contains no invariant subsets other \
+than the equilibrium point ",
+ Cell[BoxData[
+  FormBox[
+   OverscriptBox["X", "\[Rule]"], TraditionalForm]],ExpressionUUID->
+  "c53087c9-1a28-40fe-a4b8-5662f56cb54f"],
+ " itself, then ",
+ Cell[BoxData[
+  FormBox[
+   OverscriptBox["X", "\[Rule]"], TraditionalForm]],ExpressionUUID->
+  "0832f22c-2c6f-4dd8-8b2b-71fea1d2175c"],
+ " is an asymptotically stable equilibrium point.\n          \n       (For an \
+outline of the proof see the book)\n       \nThus, one way to study stability \
+is to find a Liapunov function and analyze its behavior in the vicinity of an \
+equilibrium point."
+}], "Text",
+ CellChangeTimes->{{3.398352175814*^9, 3.398352187782*^9}, {3.398352864748*^9,
+   3.398352866514*^9}},ExpressionUUID->"6293a163-33cf-4768-9b98-86d3b282f077"]
+}, Closed]]
+}, Closed]],
+
+Cell[CellGroupData[{
+
+Cell["  Example: Mass-Spring System With Damping", "Section",ExpressionUUID->"8d83b70b-a455-4a40-92ae-9f0d5aab4212"],
+
+Cell[TextData[{
+ "For the mass-spring problem and the pendulum problem, the total energy can \
+be used as a Liapunov function.  Both of these problems can be expressed as a \
+second-order ODE of the form: \n\t\t",
+ Cell[BoxData[
+  FormBox[
+   RowBox[{
+    RowBox[{
+     RowBox[{
+      RowBox[{"p", "''"}], "[", "t", "]"}], " ", "+", " ", 
+     RowBox[{"r", " ", 
+      RowBox[{
+       RowBox[{"p", "'"}], "[", "t", "]"}]}], " ", "+", " ", 
+     RowBox[{"f", "[", 
+      RowBox[{"p", "[", "t", "]"}], "]"}]}], " ", "=", " ", "0"}], 
+   TraditionalForm]],ExpressionUUID->"d5c8d722-4bf6-4599-854b-c22e2e666af2"],
+ "\nwhere ",
+ Cell[BoxData[
+  FormBox[
+   RowBox[{"p", "[", "t", "]"}], TraditionalForm]],ExpressionUUID->
+  "0d114317-7400-4b92-b300-5fed1edebbdf"],
+ " would correspond to the displacement for the mass-spring problem or the \
+angular displacement for the pendulum problem.\nHowever, we will only \
+consider the ",
+ StyleBox["mass-spring problem",
+  FontVariations->{"Underline"->True}],
+ " which is linear:\n\t\t",
+ Cell[BoxData[
+  StyleBox[
+   RowBox[{
+    RowBox[{
+     RowBox[{
+      RowBox[{
+       RowBox[{"x", "'"}], "'"}], "[", "t", "]"}], " ", "+", " ", 
+     RowBox[{"r", " ", 
+      RowBox[{
+       RowBox[{"x", "'"}], "[", "t", "]"}]}], " ", "+", " ", 
+     RowBox[{
+      FractionBox["k1", "m"], 
+      RowBox[{"x", "[", "t", "]"}]}]}], " ", "=", " ", "0"}],
+   FontWeight->"Bold"]],ExpressionUUID->
+  "b9589d86-c60b-49f1-a37d-cefdfb396ad2"],
+ "\nMultiply this equation by ",
+ Cell[BoxData[
+  FormBox[
+   RowBox[{
+    RowBox[{"x", "'"}], "[", "t", "]"}], TraditionalForm]],ExpressionUUID->
+  "ab7d3956-4f73-4b1f-b345-2c146f220360"],
+ " (which corresponds to the velocity):\n\t\t",
+ Cell[BoxData[
+  StyleBox[
+   RowBox[{
+    RowBox[{"(", 
+     RowBox[{
+      RowBox[{
+       RowBox[{
+        RowBox[{
+         RowBox[{"x", "'"}], "'"}], "[", "t", "]"}], " ", "+", " ", 
+       RowBox[{"r", " ", 
+        RowBox[{
+         RowBox[{"x", "'"}], "[", "t", "]"}]}], " ", "+", " ", 
+       RowBox[{
+        FractionBox["k1", "m"], 
+        RowBox[{"x", "[", "t", "]"}]}]}], " ", "=", " ", "0"}], ")"}], "*", 
+    " ", 
+    RowBox[{
+     RowBox[{"x", "'"}], "[", "t", "]"}]}],
+   FontWeight->"Bold"]],ExpressionUUID->
+  "3f6ae8eb-c9f6-416c-b238-19d84ed676ae"],
+ "\nand put the friction term on the right hand side:\n\t\t",
+ Cell[BoxData[
+  RowBox[{
+   StyleBox[
+    RowBox[{
+     RowBox[{"(", 
+      RowBox[{
+       RowBox[{
+        RowBox[{
+         RowBox[{"x", "'"}], "'"}], "[", "t", "]"}], " ", "+", " ", 
+       RowBox[{
+        FractionBox["k1", "m"], 
+        RowBox[{"x", "[", "t", "]"}]}]}], " ", ")"}], "*", " ", 
+     RowBox[{
+      RowBox[{"x", "'"}], "[", "t", "]"}]}],
+    FontWeight->"Bold"], 
+   StyleBox["=",
+    FontWeight->"Bold"], " ", 
+   RowBox[{
+    RowBox[{"-", " ", "r"}], " ", 
+    RowBox[{
+     RowBox[{"x", "'"}], "[", "t", "]"}], 
+    StyleBox["*",
+     FontWeight->"Bold"], 
+    StyleBox[" ",
+     FontWeight->"Bold"], 
+    StyleBox[
+     RowBox[{
+      RowBox[{"x", "'"}], "[", "t", "]"}],
+     FontWeight->"Bold"]}]}]],
+  FontWeight->"Bold",ExpressionUUID->"a5cd1943-5cd9-45c3-84f0-bcd344b9065d"],
+ "\nand integrate:\n",
+ StyleBox["\t",
+  FontWeight->"Bold"],
+ Cell[BoxData[
+  RowBox[{
+   StyleBox[
+    RowBox[{"\[Integral]", 
+     RowBox[{
+      RowBox[{"(", 
+       RowBox[{
+        RowBox[{
+         RowBox[{
+          RowBox[{"x", "'"}], "'"}], "[", "t", "]"}], " ", "+", " ", 
+        RowBox[{
+         FractionBox["k1", "m"], 
+         RowBox[{"x", "[", "t", "]"}]}]}], " ", ")"}], "*", " ", 
+      RowBox[{
+       RowBox[{"x", "'"}], "[", "t", "]"}], 
+      RowBox[{"\[DifferentialD]", "t"}]}]}],
+    FontWeight->"Bold"], 
+   StyleBox["=",
+    FontWeight->"Bold"], " ", 
+   RowBox[{"\[Integral]", 
+    RowBox[{
+     RowBox[{"-", " ", "r"}], " ", 
+     RowBox[{
+      RowBox[{"x", "'"}], "[", "t", "]"}], 
+     StyleBox["*",
+      FontWeight->"Bold"], 
+     StyleBox[" ",
+      FontWeight->"Bold"], 
+     StyleBox[
+      RowBox[{
+       RowBox[{"x", "'"}], "[", "t", "]"}],
+      FontWeight->"Bold"], 
+     RowBox[{"\[DifferentialD]", "t"}]}]}]}]],
+  FontWeight->"Bold",ExpressionUUID->"9bfb77b2-473c-438e-96b9-aca69cd32bb5"]
+}], "Text",
+ CellChangeTimes->{{3.398352876139*^9, 
+  3.398352906605*^9}},ExpressionUUID->"8cfdc47a-9720-45c6-8176-caa77cfb4856"],
+
+Cell[BoxData[
+ RowBox[{
+  RowBox[{"\[Integral]", 
+   RowBox[{
+    StyleBox[
+     RowBox[{"(", 
+      RowBox[{
+       RowBox[{
+        RowBox[{
+         RowBox[{"x", "'"}], "'"}], "[", "t", "]"}], " ", "+", " ", 
+       RowBox[{
+        FractionBox["k1", "m"], 
+        RowBox[{"x", "[", "t", "]"}]}]}], " ", ")"}],
+     FontWeight->"Bold"], 
+    StyleBox["*",
+     FontWeight->"Bold"], 
+    StyleBox[" ",
+     FontWeight->"Bold"], 
+    StyleBox[
+     RowBox[{
+      RowBox[{"x", "'"}], "[", "t", "]"}],
+     FontWeight->"Bold"], 
+    RowBox[{"\[DifferentialD]", "t"}]}]}], 
+  StyleBox["==",
+   FontWeight->"Bold"], " ", 
+  RowBox[{"\[Integral]", 
+   RowBox[{
+    RowBox[{"-", " ", "r"}], " ", 
+    RowBox[{
+     RowBox[{"x", "'"}], "[", "t", "]"}], 
+    StyleBox["*",
+     FontWeight->"Bold"], 
+    StyleBox[" ",
+     FontWeight->"Bold"], 
+    StyleBox[
+     RowBox[{
+      RowBox[{"x", "'"}], "[", "t", "]"}],
+     FontWeight->"Bold"], 
+    RowBox[{"\[DifferentialD]", "t"}]}]}]}]], "Input",
+ CellLabel->
+  "In[1223]:=",ExpressionUUID->"ab0b6e4a-284b-4a95-b185-15d7ddc6bfaa"],
+
+Cell[TextData[{
+ "One interpretation of this expression for a mechanical system is that: \n\t\
+\t",
+ Cell[BoxData[
+  StyleBox[
+   RowBox[{
+    FractionBox["1", "2"], " ", 
+    SuperscriptBox[
+     RowBox[{
+      SuperscriptBox["x", "\[Prime]",
+       MultilineFunction->None], "[", "t", "]"}], "2"]}],
+   FontWeight->"Bold"]],ExpressionUUID->
+  "376a198b-1540-4494-8b67-921c37a82bdf"],
+ " \t\tis related to the kinetic energy \n\t\t",
+ Cell[BoxData[
+  StyleBox[
+   FractionBox[
+    RowBox[{"k1", " ", 
+     SuperscriptBox[
+      RowBox[{"x", "[", "t", "]"}], "2"]}], 
+    RowBox[{"2", " ", "m"}]],
+   FontWeight->"Bold"]],ExpressionUUID->
+  "b426ea55-aaed-477a-9424-99bea6e43140"],
+ "    \t\tis related to the potential energy\n\t\t",
+ Cell[BoxData[
+  StyleBox[
+   RowBox[{
+    RowBox[{"-", "r"}], " ", 
+    RowBox[{"\[Integral]", 
+     RowBox[{
+      SuperscriptBox[
+       RowBox[{
+        SuperscriptBox["x", "\[Prime]",
+         MultilineFunction->None], "[", "t", "]"}], "2"], 
+      RowBox[{"\[DifferentialD]", "t"}]}]}]}],
+   FontWeight->"Bold"]],ExpressionUUID->
+  "cacf7d46-3759-407f-aefe-4aab6bf0928b"],
+ " \tis related to the frictional losses\nThis is just a reformulation of the \
+conservation of energy.\n\nTherefore, take the Liapunov function to be:\n\t \t\
+ V[x,x'] = ",
+ Cell[BoxData[
+  StyleBox[
+   RowBox[{
+    FractionBox[
+     RowBox[{"k1", " ", 
+      SuperscriptBox[
+       RowBox[{"x", "[", "t", "]"}], "2"]}], 
+     RowBox[{"2", " ", "m"}]], "+", 
+    RowBox[{
+     FractionBox["1", "2"], " ", 
+     SuperscriptBox[
+      RowBox[{
+       SuperscriptBox["x", "\[Prime]",
+        MultilineFunction->None], "[", "t", "]"}], "2"]}]}],
+   FontWeight->"Bold"]],ExpressionUUID->
+  "4bb2488b-3302-4a23-8b03-8d5e173df357"],
+ "\nThen V satisfies the 3 conditions to be a Liapunov function:\n\t \t \
+V[0,0] = 0  where ",
+ Cell[BoxData[
+  FormBox[
+   OverscriptBox["X", "\[Rule]"], TraditionalForm]],ExpressionUUID->
+  "4e2f5995-9038-4d54-a149-b2569aa5ba0c"],
+ "= ",
+ Cell[BoxData[
+  FormBox[
+   RowBox[{"(", GridBox[{
+      {"0"},
+      {"0"}
+     }], ")"}], TraditionalForm]],ExpressionUUID->
+  "83c6f4f7-913c-4525-b3c9-00c9529ffd9d"],
+ " is an isolated equilibrium point\n\t \t V[x,x'] \[GreaterEqual] 0   \n\t\t \
+",
+ Cell[BoxData[
+  FormBox[
+   RowBox[{
+    RowBox[{
+     SubscriptBox["\[PartialD]", "t"], " ", 
+     RowBox[{"(", 
+      RowBox[{"V", "[", 
+       RowBox[{
+        RowBox[{"x", "[", "t", "]"}], ",", 
+        RowBox[{
+         RowBox[{"x", " ", "'"}], "[", "t", "]"}]}], "]"}], ")"}]}], " ", 
+    "\[LessEqual]", "  ", "0"}], TraditionalForm]],ExpressionUUID->
+  "c45d9a10-331f-4702-b386-0db43275f09d"],
+ "  along orbits ",
+ Cell[BoxData[
+  FormBox[
+   RowBox[{
+    FormBox[
+     OverscriptBox["x", "\[Rule]"],
+     TraditionalForm], "[", "t", "]"}], TraditionalForm]],ExpressionUUID->
+  "b1d09b79-3c70-46d5-a553-df63fce95fc4"],
+ " inside an appropriate region \[CapitalOmega]"
+}], "Text",
+ CellChangeTimes->{{3.398352915472*^9, 
+  3.398352927928*^9}},ExpressionUUID->"726d3f5c-2341-4d43-977e-bc23d58b943b"],
+
+Cell["In order to verify this, let:", "Text",ExpressionUUID->"832bfe40-46cf-46af-9cdd-07d6e11340a1"],
+
+Cell[BoxData[
+ RowBox[{
+  RowBox[{"V", "[", 
+   RowBox[{"x_", ",", "y_"}], "]"}], ":=", 
+  RowBox[{
+   FractionBox[
+    RowBox[{"k1", " ", 
+     SuperscriptBox["x", "2"]}], 
+    RowBox[{"2", " ", "m"}]], "+", 
+   RowBox[{
+    FractionBox["1", "2"], " ", 
+    SuperscriptBox["y", "2"]}]}]}]], "InputOnly",
+ CellLabel->
+  "In[1224]:=",ExpressionUUID->"1a7a4a1c-bb3f-4d21-a618-3e0fe6687a7e"],
+
+Cell["Therefore V = 0 at the equilibrium point:", "Text",ExpressionUUID->"d9d063bd-5302-44fa-a655-80da0d136664"],
+
+Cell[BoxData[
+ RowBox[{"V", "[", 
+  RowBox[{"0", ",", "0"}], "]"}]], "Input",
+ CellLabel->
+  "In[1225]:=",ExpressionUUID->"c75360df-296e-4e66-987a-6584b19f9b9f"],
+
+Cell["Check to see if V produces the correct formula:", "Text",ExpressionUUID->"6bdc1af9-e5f5-4dd2-b67d-0eeff7a6f3e9"],
+
+Cell[BoxData[
+ RowBox[{"V", "[", 
+  RowBox[{
+   RowBox[{"x", "[", "t", "]"}], ",", 
+   RowBox[{
+    RowBox[{"x", "'"}], "[", "t", "]"}]}], "]"}]], "Input",
+ CellLabel->
+  "In[1226]:=",ExpressionUUID->"5e05703b-0cf3-411a-a431-3a3601d107ac"],
+
+Cell["\<\
+Finally, verify that the derivative of V is negative along an orbit:\
+\>", "Text",ExpressionUUID->"31888a33-39ff-4b1d-8d81-fd947d377469"],
+
+Cell[BoxData[
+ RowBox[{
+  RowBox[{
+   SubscriptBox["\[PartialD]", "t"], " ", 
+   RowBox[{"V", "[", 
+    RowBox[{
+     RowBox[{"x", "[", "t", "]"}], ",", 
+     RowBox[{
+      RowBox[{"x", "'"}], "[", "t", "]"}]}], "]"}]}], "==", 
+  RowBox[{
+   SubscriptBox["\[PartialD]", "t"], " ", 
+   RowBox[{"(", 
+    RowBox[{
+     RowBox[{"-", "r"}], 
+     RowBox[{"\[Integral]", " ", 
+      RowBox[{
+       SuperscriptBox[
+        RowBox[{
+         RowBox[{"x", "'"}], "[", "t", "]"}], "2"], 
+       RowBox[{"\[DifferentialD]", "t"}]}]}]}], ")"}]}]}]], "Input",
+ CellLabel->
+  "In[1227]:=",ExpressionUUID->"410d42bb-4271-4973-8510-a74e481b3808"],
+
+Cell[TextData[{
+ "but  ",
+ Cell[BoxData[
+  StyleBox[
+   RowBox[{
+    RowBox[{
+     RowBox[{"-", "r"}], " ", 
+     SuperscriptBox[
+      RowBox[{
+       SuperscriptBox["x", "\[Prime]",
+        MultilineFunction->None], "[", "t", "]"}], "2"]}], " ", 
+    "\[LessEqual]", " ", "0"}],
+   FontWeight->"Bold"]],ExpressionUUID->
+  "c47e3772-cde7-48d6-b955-2396bac00cd5"],
+ " as long as  r \[GreaterEqual] 0, so\n\t\t",
+ Cell[BoxData[
+  StyleBox[
+   RowBox[{
+    RowBox[{
+     SubscriptBox["\[PartialD]", "t"], " ", 
+     RowBox[{"V", "[", 
+      RowBox[{
+       RowBox[{"x", "[", "t", "]"}], ",", 
+       RowBox[{
+        RowBox[{"x", "'"}], "[", "t", "]"}]}], "]"}]}], " ", "\[LessEqual]", 
+    " ", "0"}],
+   FontWeight->"Bold"]],ExpressionUUID->
+  "f0b9ee53-68d5-4f5a-a77a-9f60fe43e9a9"],
+ "\nTherefore, V is indeed a Liapunov function and by Theorem 3.4, the \
+equilibrium point is an attractor."
+}], "Text",
+ CellChangeTimes->{
+  3.398352934381*^9},ExpressionUUID->"1ad63213-d84d-4f29-985d-8e8fa1f82ec5"],
+
+Cell["Graph the Liapunov function:   m \[Rule] 1,  k1 \[Rule] 1/10", "Text",ExpressionUUID->"08e69944-5f4a-409c-99f8-44b3cc603efc"],
+
+Cell[BoxData[
+ RowBox[{
+  RowBox[{"V", "[", 
+   RowBox[{"x1", ",", "x2"}], "]"}], "/.", 
+  RowBox[{"{", 
+   RowBox[{
+    RowBox[{"m", " ", "\[Rule]", " ", "1"}], ",", "  ", 
+    RowBox[{"k1", " ", "\[Rule]", " ", 
+     RowBox[{"1", "/", "10"}]}]}], "}"}]}]], "Input",
+ CellLabel->
+  "In[1228]:=",ExpressionUUID->"5dcf03d8-51b6-4bca-8809-5f20cb64f9cb"],
+
+Cell[BoxData[
+ RowBox[{"Show", "[", "\[IndentingNewLine]", 
+  RowBox[{
+   RowBox[{"Plot3D", "[", "\[IndentingNewLine]", 
+    RowBox[{
+     RowBox[{
+      RowBox[{"V", "[", 
+       RowBox[{"x1", ",", "x2"}], "]"}], "/.", "\[InvisibleSpace]", 
+      RowBox[{"{", 
+       RowBox[{
+        RowBox[{"m", "\[Rule]", "1"}], ",", 
+        RowBox[{"k1", "\[Rule]", 
+         FractionBox["1", "10"]}]}], "}"}]}], ",", "\[IndentingNewLine]", 
+     "\[IndentingNewLine]", 
+     RowBox[{"{", 
+      RowBox[{"x1", ",", 
+       RowBox[{"-", "10"}], ",", "10"}], "}"}], ",", "\[IndentingNewLine]", 
+     RowBox[{"{", 
+      RowBox[{"x2", ",", 
+       RowBox[{"-", "4"}], ",", "4"}], "}"}], ",", "\[IndentingNewLine]", 
+     "\[IndentingNewLine]", 
+     RowBox[{"AxesLabel", "\[Rule]", 
+      RowBox[{"{", 
+       RowBox[{"\"\<x1\>\"", ",", "\"\<x2\>\"", ",", "\"\<V\>\""}], "}"}]}]}],
+     "\[IndentingNewLine]", "]"}], ",", "\[IndentingNewLine]", 
+   "\[IndentingNewLine]", 
+   RowBox[{"Graphics3D", "[", 
+    RowBox[{"{", 
+     RowBox[{
+      RowBox[{"PointSize", "[", ".04", "]"}], ",", "Red", ",", 
+      RowBox[{"Point", "[", 
+       RowBox[{"{", 
+        RowBox[{"0", ",", "0", ",", "0"}], "}"}], "]"}]}], "}"}], "]"}]}], 
+  "\[IndentingNewLine]", "\[IndentingNewLine]", "]"}]], "Input",
+ CellChangeTimes->{{3.398353276535*^9, 3.398353324344*^9}, {3.398353612866*^9,
+   3.398353713442*^9}},
+ CellLabel->
+  "In[1229]:=",ExpressionUUID->"d16ece79-9dc8-47b7-b189-96281aeda2ad"]
+}, Closed]],
+
+Cell[CellGroupData[{
+
+Cell["  Example 3.7  Pendulum With Damping", "Section",ExpressionUUID->"37da462b-0c3c-42ab-a9bb-0b9a0093cd5f"],
+
+Cell[TextData[{
+ "Consider the resulting ODE for a pendulum with damping:\n\t\t",
+ Cell[BoxData[
+  FormBox[
+   RowBox[{
+    RowBox[{
+     RowBox[{"\[Theta]", " ", "''"}], " ", "+", " ", 
+     RowBox[{"r", " ", "*", " ", 
+      RowBox[{"\[Theta]", " ", "'"}]}], " ", "+", " ", 
+     RowBox[{
+      RowBox[{"g", "/", "L"}], " ", "*", " ", 
+      RowBox[{"Sin", "[", "\[Theta]", "]"}]}]}], " ", "=", " ", "0"}], 
+   TraditionalForm]],ExpressionUUID->"aa74fcbc-222f-41a2-92dd-1a21df54740a"],
+ "\nWritten as a first order system: \n",
+ Cell[BoxData[
+  FormBox[
+   RowBox[{"\t\t ", 
+    RowBox[{
+     RowBox[{"x1", " ", "=", " ", "\[Theta]"}], "\n", "\t\t ", 
+     RowBox[{"x2", " ", "=", " ", 
+      RowBox[{"\[Theta]", " ", "'"}]}]}]}], TraditionalForm]],ExpressionUUID->
+  "041bbe41-ea69-4478-8220-be8bcca285b2"],
+ "\n \n",
+ Cell[BoxData[
+  FormBox[
+   RowBox[{"\t\t ", 
+    RowBox[{
+     RowBox[{
+      RowBox[{"x1", "'"}], " ", "=", " ", 
+      RowBox[{
+       RowBox[{"f1", "[", 
+        RowBox[{"x1", ",", "x2"}], "]"}], " ", "=", " ", "x2"}]}], "\n", 
+     "\t\t ", 
+     RowBox[{
+      RowBox[{"x2", "'"}], " ", "=", " ", 
+      RowBox[{
+       RowBox[{"f2", "[", 
+        RowBox[{"x1", ",", "x2"}], "]"}], " ", "=", " ", 
+       RowBox[{
+        RowBox[{
+         RowBox[{
+          RowBox[{"-", " ", "r"}], " ", "*", " ", 
+          RowBox[{"\[Theta]", "'"}]}], " ", "-", " ", 
+         RowBox[{
+          RowBox[{"g", "/", "L"}], " ", "*", " ", 
+          RowBox[{"Sin", "[", "\[Theta]", "]"}]}]}], "  ", "=", " ", 
+        RowBox[{
+         RowBox[{
+          RowBox[{"-", " ", "r"}], " ", "*", " ", "x2"}], " ", "-", " ", 
+         RowBox[{
+          RowBox[{"g", "/", "L"}], " ", "*", " ", 
+          RowBox[{"Sin", "[", "x1", "]"}], " "}]}]}]}]}]}]}], 
+   TraditionalForm]],ExpressionUUID->"49053b4a-46ae-4f30-977a-c8d596b0e71e"],
+ "\n \nEquilibrium point (just one of an infinite number of equilibrium \
+points):\n  \t\t",
+ Cell[BoxData[
+  FormBox[
+   SubscriptBox["x1", "0"], TraditionalForm]],ExpressionUUID->
+  "1905f02c-31df-4457-966c-76aeef54b8b8"],
+ " = 0\n \t \t",
+ Cell[BoxData[
+  FormBox[
+   SubscriptBox["x2", "0"], TraditionalForm]],ExpressionUUID->
+  "6d8ebd34-2975-4933-b3ab-f07a137ae204"],
+ " = 0  \nLiapunov function (one choice of many is the total energy):\nTake \
+the above ODE, multiply by  \[Theta] '[t], move the friction term to the rhs, \
+then integrate and simplify the result:"
+}], "Text",
+ CellChangeTimes->{{3.3983522206219997`*^9, 3.398352228936*^9}, {
+  3.398352939903*^9, 
+  3.3983529963269997`*^9}},ExpressionUUID->"02b74300-5c09-45d6-b7f8-\
+63c0163e0038"],
+
+Cell[BoxData[
+ RowBox[{" ", 
+  RowBox[{
+   RowBox[{"Simplify", "[", "\[IndentingNewLine]", "\[IndentingNewLine]", 
+    RowBox[{
+     RowBox[{"\[Integral]", 
+      RowBox[{
+       RowBox[{"(", 
+        RowBox[{
+         RowBox[{
+          RowBox[{
+           RowBox[{"\[Theta]", "'"}], "'"}], "[", "t", "]"}], "  ", "+", " ", 
+         RowBox[{
+          FormBox[
+           FractionBox["g", "L"],
+           TraditionalForm], " ", "*", " ", 
+          RowBox[{"Sin", "[", 
+           RowBox[{"\[Theta]", "[", "t", "]"}], "]"}]}]}], ")"}], "*", " ", 
+       RowBox[{
+        RowBox[{"\[Theta]", "'"}], "[", "t", "]"}], 
+       RowBox[{"\[DifferentialD]", "t"}]}]}], " ", "+", " ", "constant"}], 
+    "\[IndentingNewLine]", "\[IndentingNewLine]", "]"}], "==", 
+   RowBox[{"\[Integral]", 
+    RowBox[{
+     RowBox[{"-", " ", "r"}], " ", "*", " ", 
+     RowBox[{
+      RowBox[{"\[Theta]", "'"}], "[", "t", "]"}], "*", " ", 
+     RowBox[{
+      RowBox[{"\[Theta]", "'"}], "[", "t", "]"}], 
+     RowBox[{"\[DifferentialD]", "t"}]}]}]}]}]], "Input",
+ CellChangeTimes->{{3.3983537406949997`*^9, 3.398353770126*^9}},
+ CellLabel->
+  "In[1230]:=",ExpressionUUID->"78f35724-d743-4cd3-9756-4f1b50fe6137"],
+
+Cell["\<\
+It was necessary to add a constant of integration so that the next \
+requirement could be achieved.
+Define the Liapunov function to be:   \[Theta] \[Rule] x1   \[Theta] ' \
+\[Rule] x2\
+\>", "Text",
+ CellChangeTimes->{{3.3983522315150003`*^9, 
+  3.398352233258*^9}},ExpressionUUID->"e90ebf81-1830-426f-bcf1-7b2a4a51ef1c"],
+
+Cell[BoxData[
+ RowBox[{
+  RowBox[{"V", "[", 
+   RowBox[{"x1_", ",", "x2_"}], "]"}], ":=", 
+  RowBox[{"constant", "-", 
+   FractionBox[
+    RowBox[{"g", " ", 
+     RowBox[{"Cos", "[", "x1", "]"}]}], "L"], "+", 
+   RowBox[{
+    FractionBox["1", "2"], " ", 
+    SuperscriptBox["x2", "2"]}]}]}]], "InputOnly",
+ CellLabel->
+  "In[1231]:=",ExpressionUUID->"8005c514-05ae-4ebe-a2cc-df34d9a7ba24"],
+
+Cell["Select the constant of integration so that V[0,0] = 0 ", "Text",
+ CellChangeTimes->{
+  3.39835223492*^9},ExpressionUUID->"d68810ba-3435-4524-9784-dbd0a9192087"],
+
+Cell[BoxData[
+ RowBox[{" ", 
+  RowBox[{"constantRule", "  ", "=", " ", 
+   RowBox[{"Solve", "[", " ", 
+    RowBox[{
+     RowBox[{
+      RowBox[{"V", "[", 
+       RowBox[{"0", ",", "0"}], "]"}], " ", "==", " ", "0"}], " ", ",", 
+     "constant"}], "]"}]}]}]], "Input",
+ CellLabel->
+  "In[1232]:=",ExpressionUUID->"25172ea7-283b-4ee2-8730-e89db7003b2b"],
+
+Cell[BoxData[
+ RowBox[{
+  RowBox[{"VNew", "[", 
+   RowBox[{"x1_", ",", "x2_"}], "]"}], " ", "=", " ", 
+  RowBox[{
+   RowBox[{"V", "[", 
+    RowBox[{"x1", ",", "x2"}], "]"}], "  ", "/.", 
+   RowBox[{"constant", "\[Rule]", 
+    FractionBox["g", "L"]}]}]}]], "Input",
+ CellLabel->
+  "In[1233]:=",ExpressionUUID->"26af3634-f7ce-4957-948b-ed86e13eb328"],
+
+Cell[TextData[{
+ "Then V satisfies the 3 conditions to be a Liapunov function:\n \t\t \
+VNew[0,0] = 0  where ",
+ Cell[BoxData[
+  FormBox[
+   OverscriptBox["\[Theta]", "\[Rule]"], TraditionalForm]],ExpressionUUID->
+  "47efa775-44f9-43da-ad17-d1eeff9e18e4"],
+ "= ",
+ Cell[BoxData[
+  FormBox[
+   RowBox[{"(", GridBox[{
+      {"0"},
+      {"0"}
+     }], ")"}], TraditionalForm]],ExpressionUUID->
+  "5fa938a9-f2d6-4797-94c8-48be7e2616ce"],
+ " is an isolated equilibrium point\n\t \t VNew[\[Theta],\[Theta] '] \
+\[GreaterEqual] 0   \n\t\t ",
+ Cell[BoxData[
+  FormBox[
+   RowBox[{
+    RowBox[{
+     SubscriptBox["\[PartialD]", "t"], " ", 
+     RowBox[{"(", 
+      RowBox[{"VNew", "[", 
+       RowBox[{
+        RowBox[{"\[Theta]", "[", "t", "]"}], ",", 
+        RowBox[{
+         RowBox[{"\[Theta]", " ", "'"}], "[", "t", "]"}]}], "]"}], ")"}]}], 
+    " ", "\[LessEqual]", "  ", "0"}], TraditionalForm]],ExpressionUUID->
+  "9cdc1808-df5e-48a6-9004-b45f9593cc75"],
+ "  along orbits ",
+ Cell[BoxData[
+  FormBox[
+   RowBox[{
+    FormBox[
+     OverscriptBox["\[Theta]", "\[Rule]"],
+     TraditionalForm], "[", "t", "]"}], TraditionalForm]],ExpressionUUID->
+  "1a8a5103-20ee-483a-a72a-0fedcbc68676"],
+ " inside an appropriate region \[CapitalOmega]"
+}], "Text",
+ CellChangeTimes->{{3.398353001083*^9, 
+  3.398353004433*^9}},ExpressionUUID->"2f1f5d66-3928-4690-a1b0-885826bc2ace"],
+
+Cell["In order to verify this, let:", "Text",ExpressionUUID->"8e35a30c-c6c1-4abb-8bc0-08929b660642"],
+
+Cell[BoxData[
+ RowBox[{
+  RowBox[{
+   RowBox[{"VNew", "[", 
+    RowBox[{"x1_", ",", "x2_"}], "]"}], " ", "=", " ", 
+   RowBox[{
+    FractionBox["g", "L"], "+", 
+    FractionBox[
+     SuperscriptBox["x2", "2"], "2"], "-", 
+    FractionBox[
+     RowBox[{"g", " ", 
+      RowBox[{"Cos", "[", "x1", "]"}]}], "L"]}]}], ";"}]], "InputOnly",
+ CellLabel->
+  "In[1234]:=",ExpressionUUID->"1bd9b151-7506-4913-a35d-c7dadad34752"],
+
+Cell["\<\
+Therefore VNew = 0 at the equilibrium point:  \[Theta] \[Rule] x1=0     \
+\[Theta] ' \[Rule] x2=0\
+\>", "Text",ExpressionUUID->"2b4937d7-6fbe-43fc-8876-ddd467381196"],
+
+Cell[BoxData[
+ RowBox[{"VNew", "[", 
+  RowBox[{"0", ",", "0"}], "]"}]], "Input",
+ CellLabel->
+  "In[1235]:=",ExpressionUUID->"0cf216cf-2ee8-417b-8e69-c15085ad83b8"],
+
+Cell["\<\
+Check to see if VNew produces the correct formula as given above:\
+\>", "Text",ExpressionUUID->"6f198a4a-6a17-453e-99c4-278ebd54a843"],
+
+Cell[BoxData[
+ RowBox[{"VNew", "[", 
+  RowBox[{
+   RowBox[{"\[Theta]", "[", "t", "]"}], ",", 
+   RowBox[{
+    RowBox[{"\[Theta]", "'"}], "[", "t", "]"}]}], "]"}]], "Input",
+ CellLabel->
+  "In[1236]:=",ExpressionUUID->"0bdedf1e-be24-43c5-b48a-a48399827000"],
+
+Cell[TextData[{
+ "Finally, verify that the derivative of VNew is negative along an orbit:  \
+\[Theta][t]\nRemember to use the formula developed above:  ",
+ Cell[BoxData[
+  StyleBox[
+   RowBox[{
+    RowBox[{"VNew", "[", 
+     RowBox[{
+      RowBox[{"\[Theta]", "[", "t", "]"}], ",", 
+      RowBox[{
+       RowBox[{"\[Theta]", "'"}], "[", "t", "]"}]}], "]"}], "=", 
+    RowBox[{
+     RowBox[{"-", "r"}], " ", 
+     RowBox[{"\[Integral]", 
+      RowBox[{
+       SuperscriptBox[
+        RowBox[{
+         SuperscriptBox["\[Theta]", "\[Prime]",
+          MultilineFunction->None], "[", "t", "]"}], "2"], 
+       RowBox[{"\[DifferentialD]", "t"}]}]}]}]}],
+   FontWeight->"Bold"]],ExpressionUUID->"991345ee-ed9d-4ce1-a917-c5706bff65e8"]
+}], "Text",ExpressionUUID->"cfb8b442-5037-4902-a137-0e50826a022b"],
+
+Cell[BoxData[
+ RowBox[{
+  RowBox[{
+   SubscriptBox["\[PartialD]", "t"], " ", 
+   RowBox[{"V", "[", 
+    RowBox[{
+     RowBox[{"\[Theta]", "[", "t", "]"}], ",", 
+     RowBox[{
+      RowBox[{"\[Theta]", "'"}], "[", "t", "]"}]}], "]"}]}], "==", "   ", 
+  RowBox[{
+   SubscriptBox["\[PartialD]", "t"], " ", 
+   RowBox[{"(", 
+    RowBox[{
+     RowBox[{"-", "r"}], " ", 
+     RowBox[{"\[Integral]", 
+      RowBox[{
+       SuperscriptBox[
+        RowBox[{
+         RowBox[{"\[Theta]", "'"}], "[", "t", "]"}], "2"], 
+       RowBox[{"\[DifferentialD]", "t"}]}]}]}], ")"}]}]}]], "Input",
+ CellLabel->
+  "In[1237]:=",ExpressionUUID->"793d70fe-5c22-44f0-b782-78700b3f6d96"],
+
+Cell[TextData[{
+ "but  ",
+ Cell[BoxData[
+  StyleBox[
+   RowBox[{
+    RowBox[{
+     RowBox[{"-", "r"}], " ", 
+     SuperscriptBox[
+      RowBox[{
+       SuperscriptBox[
+        StyleBox["\[Theta]",
+         FontWeight->"Bold"], "\[Prime]",
+        MultilineFunction->None], "[", "t", "]"}], "2"]}], " ", 
+    "\[LessEqual]", " ", "0"}],
+   FontWeight->"Bold"]],ExpressionUUID->
+  "c6059075-bac9-40b8-b5f1-813bbefc07bc"],
+ " as long as  r \[GreaterEqual] 0, so\n\t\t",
+ Cell[BoxData[
+  StyleBox[
+   RowBox[{
+    RowBox[{
+     SubscriptBox["\[PartialD]", "t"], " ", 
+     RowBox[{"VNew", "[", 
+      RowBox[{
+       RowBox[{"\[Theta]", "[", "t", "]"}], ",", 
+       RowBox[{
+        RowBox[{"\[Theta]", "'"}], "[", "t", "]"}]}], "]"}]}], " ", 
+    "\[LessEqual]", " ", "0"}],
+   FontWeight->"Bold"]],ExpressionUUID->
+  "2b03b74a-2c7e-4978-a4ed-353788bafe71"],
+ "\nTherefore, VNew is indeed a Liapunov function and by Theorem 3.4, the \
+equilibrium point is an attractor if the set R does not contain other \
+invariant subsets other than the equilibrium point."
+}], "Text",
+ CellChangeTimes->{
+  3.398353009947*^9},ExpressionUUID->"8f39e1f9-9fd2-4db4-b674-6fc75e0f6b66"],
+
+Cell[TextData[{
+ "Next, examine the set R: \nRemember:   ",
+ Cell[BoxData[
+  StyleBox[
+   RowBox[{
+    RowBox[{"VNew", "[", 
+     RowBox[{
+      RowBox[{"\[Theta]", "[", "t", "]"}], ",", 
+      RowBox[{
+       RowBox[{"\[Theta]", "'"}], "[", "t", "]"}]}], "]"}], "=", 
+    RowBox[{
+     RowBox[{"-", "r"}], " ", 
+     RowBox[{"\[Integral]", 
+      RowBox[{
+       SuperscriptBox[
+        RowBox[{
+         SuperscriptBox["\[Theta]", "\[Prime]",
+          MultilineFunction->None], "[", "t", "]"}], "2"], 
+       RowBox[{"\[DifferentialD]", "t"}]}]}]}]}],
+   FontWeight->"Bold"]],ExpressionUUID->
+  "0908f64a-0b00-4865-85a5-4d689fb25839"],
+ "   and   \[Theta] \[Rule] x1   \[Theta] ' \[Rule] x2  \nFor this ODE,  R = \
+{(x1,x2) | ",
+ Cell[BoxData[
+  StyleBox[
+   RowBox[{
+    SubscriptBox["\[PartialD]", "t"], " ", 
+    RowBox[{"V", "[", 
+     RowBox[{
+      RowBox[{"x1", "[", "t", "]"}], ",", 
+      RowBox[{"x2", "[", "t", "]"}]}], "]"}]}],
+   FontWeight->"Bold"]],ExpressionUUID->
+  "f17371e9-17d8-42c0-8889-265c79ca8644"],
+ " = 0}   \n                           = {(x1,x2) | ",
+ Cell[BoxData[
+  StyleBox[
+   RowBox[{
+    RowBox[{"-", "r"}], " ", 
+    SuperscriptBox[
+     RowBox[{"x2", "[", "t", "]"}], "2"]}],
+   FontWeight->"Bold"]],ExpressionUUID->
+  "e4d13eec-87bd-4833-8fb9-046635e32988"],
+ " = 0}                             \n                           = {(x1,x2) | \
+x2 = 0}\nThus, this set contains just the points in the phase plane on the x2 \
+axis (i.e. \[Theta] ' = 0).  We have to determine if the set R has any \
+invariant subsets other than the equilibrium points (i.e. are their orbits \
+that start inside of R and remain fully inside of R without being one of the \
+equilibrium points).  The answer to this question for this ODE is no!  To see \
+why, examine the direction of the orbit which starts inside of R  (i.e.on the \
+x2 axis).  The vector direction of this orbit will be given by ",
+ Cell[BoxData[
+  FormBox[
+   RowBox[{"(", GridBox[{
+      {
+       RowBox[{"x1", "'"}]},
+      {
+       RowBox[{"x2", "'"}]}
+     }], ")"}], TraditionalForm]],ExpressionUUID->
+  "866b17c0-10ad-4ef8-aebe-9802a5c7f9af"],
+ ".   For an orbit to stay inside of the set R, this vector direction must \
+have x2 = 0.  Thus for (x1,x2) \[Epsilon] R:\n                             \n\
+\t x1' = f1[x1,x2] = x2 = 0\t\t(orbit starts on the x2 axis, x2 = 0)\n\t x2' \
+= f2[x1,x2] =  - r * x2 - ",
+ Cell[BoxData[
+  FormBox[
+   FractionBox["g", "L"], TraditionalForm]],ExpressionUUID->
+  "ad7d5d83-1575-4f98-a99d-7ed82ecb6566"],
+ " * Sin[x1] \n                 =  - r * 0 - ",
+ Cell[BoxData[
+  FormBox[
+   FractionBox["g", "L"], TraditionalForm]],ExpressionUUID->
+  "d9822b16-ae81-4785-a034-268b3ef8d1ff"],
+ " * Sin[x1]\t\t(orbit starts on the x2 axis, x2 = 0)\n                 =  - ",
+ Cell[BoxData[
+  FormBox[
+   FractionBox["g", "L"], TraditionalForm]],ExpressionUUID->
+  "c86aacf7-128f-4b9f-ba30-f20e97e0709b"],
+ " * Sin[x1] \n                        \nTherefore,   ",
+ Cell[BoxData[
+  FormBox[
+   RowBox[{"(", GridBox[{
+      {
+       RowBox[{"x1", "'"}]},
+      {
+       RowBox[{"x2", "'"}]}
+     }], ")"}], TraditionalForm]],ExpressionUUID->
+  "bb03f77f-b227-42f2-98f2-2b1f7494dc2d"],
+ " = ",
+ Cell[BoxData[
+  FormBox[
+   RowBox[{"(", GridBox[{
+      {"0"},
+      {
+       RowBox[{
+        RowBox[{
+         RowBox[{"-", " ", 
+          FormBox[
+           FractionBox["g", "L"],
+           TraditionalForm]}], " ", "*", " ", 
+         RowBox[{"Sin", "[", "x1", "]"}]}], " "}]}
+     }], ")"}], TraditionalForm]],ExpressionUUID->
+  "bc7dab44-2f3e-460e-99ba-a37b39da7d1d"],
+ "  \nThe invariant set  R corresponds to the x2 axis.  Therefore, the \
+coordinates of the points on the x2 axis correspond to: x1 = Anything and x2 \
+= 0.  Note that for this orbit to remain inside an invariant subset of R:  \
+that x2' must be 0 (to remain on the x2 axis).  This condition is only met \
+when: \n\t\t  ",
+ Cell[BoxData[
+  FormBox[
+   RowBox[{
+    RowBox[{
+     RowBox[{"-", " ", 
+      FormBox[
+       FractionBox["g", "L"],
+       TraditionalForm]}], " ", "*", " ", 
+     RowBox[{"Sin", "[", "x1", "]"}]}], "  ", "=", " ", "0"}], 
+   TraditionalForm]],ExpressionUUID->"3f48d753-2f61-44dc-88c9-a8beaf89b6dc"],
+ "\n\t\t ",
+ Cell[BoxData[
+  FormBox[
+   RowBox[{" ", 
+    RowBox[{
+     RowBox[{"Sin", "[", "x1", "]"}], "  ", "=", " ", "0"}]}], 
+   TraditionalForm]],ExpressionUUID->"985c41fc-7f61-4208-bfe9-525f795a004a"],
+ "\n\t\t  ",
+ Cell[BoxData[
+  FormBox[
+   RowBox[{
+    RowBox[{"x1", "  ", "=", " ", "0"}], ",", " ", 
+    RowBox[{"\[PlusMinus]", "\[Pi]"}], ",", " ", 
+    RowBox[{
+     RowBox[{"\[PlusMinus]", "2"}], "\[Pi]"}], ",", " ", "..."}], 
+   TraditionalForm]],ExpressionUUID->"45c39c39-0918-47e3-9563-e281486eaaec"],
+ "\nwhich correspond exactly to the equilibrium points:  (x1,x2) = (0,0), (\
+\[PlusMinus]\[Pi],0), (\[PlusMinus]2\[Pi],0), (\[PlusMinus]3\[Pi],0), ...  . \
+\nThus, by Theorem 3.4 the equilibrium point (0,0) is asymptotically stable \
+because of the required behavior of both the Liapunov function and the \
+invariant set R are satisfied.\n(However, ",
+ StyleBox["not",
+  FontWeight->"Bold",
+  FontVariations->{"Underline"->True},
+  FontColor->RGBColor[1, 0, 0]],
+ " all of the equilibrium points will be ",
+ StyleBox["attractors",
+  FontWeight->"Bold",
+  FontVariations->{"Underline"->True},
+  FontColor->RGBColor[1, 0, 0]],
+ ":  (x1,x2) = (\[PlusMinus]\[Pi],0), (\[PlusMinus]3\[Pi],0), ...   . )\n\
+Also, observe from our previous work that the stability for this point is \
+only local, not global  (i.e. that \[CapitalOmega] must be defined so that \
+|x1| < \[Pi]). "
+}], "Text",
+ CellChangeTimes->{{3.3983530228129997`*^9, 3.398353057658*^9}, {
+  3.398353853066*^9, 
+  3.398353872841*^9}},ExpressionUUID->"dbebe988-2069-42c9-9a81-aae948b412e8"],
+
+Cell["Graph the Liapunov function:   g->9.8,  L->1", "Text",
+ CellChangeTimes->{
+  3.398352255951*^9},ExpressionUUID->"144df8ee-2937-4c28-b53e-ef684f790603"],
+
+Cell[BoxData[
+ RowBox[{
+  RowBox[{"VNew", "[", 
+   RowBox[{"x1", ",", "x2"}], "]"}], "/.", 
+  RowBox[{"{", 
+   RowBox[{
+    RowBox[{"g", "\[Rule]", "9.8"}], ",", 
+    RowBox[{"L", "\[Rule]", "1"}]}], "}"}]}]], "Input",
+ CellLabel->
+  "In[1238]:=",ExpressionUUID->"2642954d-cfe2-4f21-9c92-283a4e869ef9"],
+
+Cell[BoxData[
+ RowBox[{"Show", "[", "\[IndentingNewLine]", "\[IndentingNewLine]", 
+  RowBox[{
+   RowBox[{"Plot3D", "[", "\[IndentingNewLine]", "\[IndentingNewLine]", 
+    RowBox[{
+     RowBox[{
+      RowBox[{"VNew", "[", 
+       RowBox[{"x1", ",", "x2"}], "]"}], "/.", "\[InvisibleSpace]", 
+      RowBox[{"{", 
+       RowBox[{
+        RowBox[{"g", "\[Rule]", "9.8"}], ",", 
+        RowBox[{"L", "\[Rule]", "1"}]}], "}"}]}], ",", "\[IndentingNewLine]", 
+     "\[IndentingNewLine]", 
+     RowBox[{"{", 
+      RowBox[{"x1", ",", 
+       RowBox[{
+        RowBox[{"-", "3"}], " ", "\[Pi]"}], ",", 
+       RowBox[{"3", " ", "\[Pi]"}]}], "}"}], ",", "\[IndentingNewLine]", 
+     RowBox[{"{", 
+      RowBox[{"x2", ",", 
+       RowBox[{"-", "8"}], ",", "8"}], "}"}], ",", "\[IndentingNewLine]", 
+     "\[IndentingNewLine]", 
+     RowBox[{"PlotPoints", "\[Rule]", "40"}], ",", "\[IndentingNewLine]", 
+     RowBox[{"Ticks", "\[Rule]", 
+      RowBox[{"{", 
+       RowBox[{
+        RowBox[{"{", 
+         RowBox[{"0", ",", "\[Pi]", ",", 
+          RowBox[{"2", " ", "\[Pi]"}], ",", 
+          RowBox[{"3", " ", "\[Pi]"}], ",", 
+          RowBox[{"-", "\[Pi]"}], ",", 
+          RowBox[{
+           RowBox[{"-", "2"}], " ", "\[Pi]"}], ",", 
+          RowBox[{
+           RowBox[{"-", "3"}], " ", "\[Pi]"}]}], "}"}], ",", "Automatic", ",",
+         "Automatic"}], "}"}]}], ",", "\[IndentingNewLine]", 
+     RowBox[{"AxesLabel", "\[Rule]", 
+      RowBox[{"{", 
+       RowBox[{"\"\<x1\>\"", ",", "\"\<x2\>\"", ",", "\"\<V\>\""}], "}"}]}]}],
+     "\[IndentingNewLine]", "]"}], ",", "\[IndentingNewLine]", 
+   "\[IndentingNewLine]", 
+   RowBox[{"Graphics3D", "[", 
+    RowBox[{"{", 
+     RowBox[{
+      RowBox[{"PointSize", "[", ".04", "]"}], ",", "Red", ",", 
+      RowBox[{"Table", "[", 
+       RowBox[{
+        RowBox[{"Point", "[", 
+         RowBox[{"{", 
+          RowBox[{
+           RowBox[{"n", " ", "\[Pi]"}], ",", "0", ",", 
+           RowBox[{"9.8", "\[InvisibleSpace]", "+", 
+            FractionBox[
+             SuperscriptBox["0", "2"], "2"], "-", 
+            RowBox[{"9.8", " ", 
+             RowBox[{"Cos", "[", 
+              RowBox[{"n", " ", "\[Pi]"}], "]"}]}]}]}], "}"}], "]"}], ",", 
+        RowBox[{"{", 
+         RowBox[{"n", ",", 
+          RowBox[{"-", "3"}], ",", "3"}], "}"}]}], "]"}]}], "}"}], "]"}]}], 
+  "\[IndentingNewLine]", "\[IndentingNewLine]", "]"}]], "Input",
+ CellChangeTimes->{{3.398354001168*^9, 3.398354019744*^9}, {3.398354053028*^9,
+   3.398354068066*^9}, {3.3983540981280003`*^9, 3.398354117392*^9}, {
+  3.398354393653*^9, 3.398354419251*^9}, {3.398354463439*^9, 
+  3.398354465399*^9}},
+ CellLabel->
+  "In[1239]:=",ExpressionUUID->"2e04249e-358c-4a69-94f6-d86c6d503aac"],
+
+Cell[TextData[{
+ "Observe the behavior at the equilibrium points.  \n\nHowever, ",
+ StyleBox["not",
+  FontWeight->"Bold",
+  FontVariations->{"Underline"->True},
+  FontColor->RGBColor[1, 0, 0]],
+ " all of the equilibrium points will be ",
+ StyleBox["attractors",
+  FontWeight->"Bold",
+  FontVariations->{"Underline"->True},
+  FontColor->RGBColor[1, 0, 0]],
+ ":  (x1,x2) = (\[PlusMinus]\[Pi],0), (\[PlusMinus]3\[Pi],0), ...   . "
+}], "Text",
+ CellChangeTimes->{{3.398354304641*^9, 3.39835435076*^9}, {3.398354440902*^9, 
+  3.39835444188*^9}},ExpressionUUID->"8f9c004b-c741-4453-a6da-f8207fcdcb1c"]
+}, Closed]],
+
+Cell[CellGroupData[{
+
+Cell["  Example 3.3  Van der Pol Equation", "Section",ExpressionUUID->"a3d029a7-f05a-48f0-a41f-99a5ad2d2a49"],
+
+Cell[TextData[{
+ "The next example illustrates the use of a Liapunov function other than the \
+energy equation.\n\t",
+ Cell[BoxData[
+  FormBox[
+   RowBox[{"\t", 
+    RowBox[{
+     RowBox[{
+      RowBox[{"x1", "'"}], " ", "=", " ", 
+      RowBox[{
+       RowBox[{"f1", "[", 
+        RowBox[{"x1", ",", "x2"}], "]"}], " ", "=", " ", 
+       RowBox[{"-", " ", "x2"}]}]}], "\n", "\t", 
+     RowBox[{
+      RowBox[{"x2", "'"}], " ", "=", " ", 
+      RowBox[{
+       RowBox[{"f2", "[", 
+        RowBox[{"x1", ",", "x2"}], "]"}], " ", "=", " ", 
+       RowBox[{"x1", " ", "-", " ", 
+        RowBox[{"\[Alpha]", " ", "*", " ", 
+         RowBox[{"(", 
+          RowBox[{
+           RowBox[{
+            FormBox[
+             SuperscriptBox["x2", "3"],
+             TraditionalForm], "/", "3"}], " ", "-", " ", "x2"}], ")"}], 
+         " "}]}]}]}]}]}], TraditionalForm]],ExpressionUUID->
+  "0d7080c1-4f73-466e-a64a-c643f3fd7b9d"],
+ "\nEquilibrium point :  ",
+ Cell[BoxData[
+  FormBox[
+   OverscriptBox["X", "\[Rule]"], TraditionalForm]],ExpressionUUID->
+  "1f82f87b-4501-4a02-82ba-603128f51bd3"],
+ " = ",
+ Cell[BoxData[
+  FormBox[
+   OverscriptBox["0", "\[Rule]"], TraditionalForm]],ExpressionUUID->
+  "8b813023-d5c6-4890-95e4-089ca068afeb"],
+ " (remember: \[Alpha] < 0 \[Rule] Stable and \[Alpha] > 0 \[Rule]  Unstable)\
+\nLiapunov function (one choice of many, but is NOT the total energy):   \n\t\
+\t  V[x1,x2] =",
+ Cell[BoxData[
+  FormBox[
+   FractionBox[
+    RowBox[{" ", 
+     FormBox[
+      SuperscriptBox["x1", "2"],
+      TraditionalForm]}], "2"], TraditionalForm]],
+  FontWeight->"Bold",ExpressionUUID->"4eaee2c7-5c78-40c6-a388-9417b7b7cf72"],
+ StyleBox[" +  ",
+  FontWeight->"Bold"],
+ Cell[BoxData[
+  FormBox[
+   FractionBox[
+    RowBox[{" ", 
+     FormBox[
+      SuperscriptBox["x2", "2"],
+      TraditionalForm]}], "2"], TraditionalForm]],
+  FontWeight->"Bold",ExpressionUUID->"327931a4-184f-4150-b8c4-9473596a2043"],
+ "\nTherefore, the Liapunov function V satisfies the required conditions:    \
+\n\t\t  V[0,0] = 0   \n\t\t  V[x1,x2] > 0   ( except at the equilibrium \
+point)   \n\t \t  ",
+ Cell[BoxData[
+  FormBox[
+   RowBox[{
+    SubscriptBox["\[PartialD]", "t"], " ", 
+    RowBox[{"V", "[", 
+     RowBox[{
+      FormBox[
+       OverscriptBox["x", "\[Rule]"],
+       TraditionalForm], "[", "t", "]"}], "]"}]}], TraditionalForm]],
+  ExpressionUUID->"ead151d1-a755-4ce0-80b5-88019b9316cf"],
+ " \[LessEqual] 0 (for ",
+ Cell[BoxData[
+  FormBox[
+   RowBox[{
+    FormBox[
+     OverscriptBox["x", "\[Rule]"],
+     TraditionalForm], "[", "t", "]"}], TraditionalForm]],ExpressionUUID->
+  "27a8d3ca-e02c-4153-9d7d-40f147d56818"],
+ " \[Epsilon] \[CapitalOmega])   \nCarrying out the first and third \
+requirements in ",
+ StyleBox["Mathematica",
+  FontSlant->"Italic"],
+ ":"
+}], "Text",
+ CellChangeTimes->{{3.398352264343*^9, 3.398352273598*^9}, {3.398353080951*^9,
+   3.398353098066*^9}},ExpressionUUID->"d71aee25-8532-427a-9971-5aeb9d10fd2e"],
+
+Cell[BoxData[
+ RowBox[{" ", 
+  RowBox[{
+   RowBox[{"V", "[", 
+    RowBox[{"x1_", ",", "x2_"}], "]"}], " ", "=", 
+   RowBox[{
+    FormBox[
+     FractionBox[
+      RowBox[{" ", 
+       FormBox[
+        SuperscriptBox["x1", "2"],
+        TraditionalForm]}], "2"],
+     TraditionalForm], " ", "+", "  ", 
+    FormBox[
+     FractionBox[
+      RowBox[{" ", 
+       FormBox[
+        SuperscriptBox["x2", "2"],
+        TraditionalForm]}], "2"],
+     TraditionalForm]}]}]}]], "Input",
+ CellLabel->
+  "In[1240]:=",ExpressionUUID->"d92c6d01-8f63-434c-ad15-1994a4200257"],
+
+Cell[BoxData[
+ RowBox[{" ", 
+  RowBox[{"V", "[", 
+   RowBox[{"0", ",", "0"}], "]"}]}]], "Input",
+ CellLabel->
+  "In[1241]:=",ExpressionUUID->"1e1a7f8a-f6d8-4a5c-bce6-1ecb8c741fb1"],
+
+Cell["\<\
+Thus, the equilibrium point satisfies the required condition.
+
+Next, determined the slope of the Liapunov function in the direction of a \
+orbit (i.e. a solution of the ODE).\
+\>", "Text",
+ CellChangeTimes->{
+  3.398352276583*^9},ExpressionUUID->"a08c9ef6-24b5-4c24-8b93-3e4c1c8e4198"],
+
+Cell[BoxData[
+ RowBox[{
+  SubscriptBox["\[PartialD]", "t"], " ", 
+  RowBox[{"V", "[", 
+   RowBox[{
+    RowBox[{"x1", "[", "t", "]"}], ",", 
+    RowBox[{"x2", "[", "t", "]"}]}], "]"}]}]], "Input",
+ CellLabel->
+  "In[1242]:=",ExpressionUUID->"a3a09785-9e21-4298-afbd-88632e0c32dc"],
+
+Cell["Substitute the ODE:", "Text",ExpressionUUID->"4ac95acb-5a23-4a69-b89a-c5d78c685344"],
+
+Cell[BoxData[
+ RowBox[{"eq1", "=", "\[IndentingNewLine]", "\[IndentingNewLine]", 
+  RowBox[{
+   RowBox[{
+    SubscriptBox["\[PartialD]", "t"], 
+    RowBox[{"V", "[", 
+     RowBox[{
+      RowBox[{"x1", "[", "t", "]"}], ",", 
+      RowBox[{"x2", "[", "t", "]"}]}], "]"}]}], "/.", "\[IndentingNewLine]", 
+   "\[IndentingNewLine]", "\[InvisibleSpace]", 
+   RowBox[{"{", "\[IndentingNewLine]", 
+    RowBox[{
+     RowBox[{
+      RowBox[{
+       SuperscriptBox["x1", "\[Prime]",
+        MultilineFunction->None], "[", "t", "]"}], "\[Rule]", 
+      RowBox[{"-", 
+       RowBox[{"x2", "[", "t", "]"}]}]}], ",", "\[IndentingNewLine]", 
+     RowBox[{
+      RowBox[{
+       SuperscriptBox["x2", "\[Prime]",
+        MultilineFunction->None], "[", "t", "]"}], "\[Rule]", 
+      RowBox[{
+       RowBox[{"x1", "[", "t", "]"}], "-", 
+       RowBox[{"\[Alpha]", " ", 
+        RowBox[{"(", 
+         RowBox[{
+          FractionBox[
+           SuperscriptBox[
+            RowBox[{"x2", "[", "t", "]"}], "3"], "3"], "-", 
+          RowBox[{"x2", "[", "t", "]"}]}], ")"}]}]}]}]}], 
+    "\[IndentingNewLine]", "}"}]}]}]], "Input",
+ CellChangeTimes->{{3.398354499111*^9, 3.398354513646*^9}},
+ CellLabel->
+  "In[1243]:=",ExpressionUUID->"18df3af2-9d55-45e3-b3c9-f22f65e08885"],
+
+Cell[BoxData[
+ RowBox[{" ", 
+  RowBox[{"Simplify", "[", " ", "eq1", "]"}]}]], "Input",
+ CellLabel->
+  "In[1244]:=",ExpressionUUID->"5ac9b06f-32dc-4055-a379-131ef569d5da"],
+
+Cell[TextData[{
+ "It is clear from this equation that V'[",
+ Cell[BoxData[
+  FormBox[
+   OverscriptBox["x", "\[Rule]"], TraditionalForm]],ExpressionUUID->
+  "31dda3a5-39fd-4919-af63-74894a709032"],
+ "[t]] \[LessEqual] 0 when both: \[Alpha] \[LessEqual] 0 and ",
+ Cell[BoxData[
+  SuperscriptBox[
+   RowBox[{"x2", "[", "t", "]"}], "2"]],
+  FontWeight->"Bold",ExpressionUUID->"26134584-ce94-4117-9d9a-e1725bd64251"],
+ StyleBox[" \[LessEqual]",
+  FontWeight->"Bold"],
+ " 3.  This can be used to define our open subset \[CapitalOmega] of our \
+domain (this is consistent with our earlier work).\n\nThus, V[x1,x2] =",
+ Cell[BoxData[
+  FormBox[
+   StyleBox[
+    FractionBox[
+     RowBox[{" ", 
+      FormBox[
+       SuperscriptBox["x1", "2"],
+       TraditionalForm]}], "2"],
+    FontWeight->"Bold"], TraditionalForm]],ExpressionUUID->
+  "02c4a4ef-7805-43b2-81f5-54530a9219fa"],
+ " +  ",
+ Cell[BoxData[
+  FormBox[
+   StyleBox[
+    FractionBox[
+     RowBox[{" ", 
+      FormBox[
+       SuperscriptBox["x2", "2"],
+       TraditionalForm]}], "2"],
+    FontWeight->"Bold"], TraditionalForm]],ExpressionUUID->
+  "894d6a79-3665-4b31-a1a7-7285e6c8807c"],
+ " is an acceptable Liapunov function for this ODE and equilibrium point at \
+the origin. Thus, if the condition on the invariant set R is also met, then \
+by Theorem 3.4, the equilibrium point is an attractor. \nNext, examine the \
+set R:\n \nFor this ODE,  R = {(x1,x2) | ",
+ Cell[BoxData[
+  StyleBox[
+   RowBox[{
+    SubscriptBox["\[PartialD]", "t"], " ", 
+    RowBox[{"V", "[", 
+     RowBox[{
+      RowBox[{"x1", "[", "t", "]"}], ",", 
+      RowBox[{"x2", "[", "t", "]"}]}], "]"}]}],
+   FontWeight->"Bold"]],ExpressionUUID->
+  "c00d73f3-a5fa-48df-9e7e-85c01d3721f8"],
+ " = 0}   \n                           = {(x1,x2) | ",
+ Cell[BoxData[
+  StyleBox[
+   RowBox[{
+    RowBox[{"-", 
+     FractionBox["1", "3"]}], " ", "\[Alpha]", " ", 
+    SuperscriptBox[
+     RowBox[{"x2", "[", "t", "]"}], "2"], " ", 
+    RowBox[{"(", 
+     RowBox[{
+      RowBox[{"-", "3"}], "+", 
+      SuperscriptBox[
+       RowBox[{"x2", "[", "t", "]"}], "2"]}], ")"}]}],
+   FontWeight->"Bold"]],ExpressionUUID->
+  "a923716f-9a52-4c22-87dd-e774a5bfa019"],
+ " = 0}                             \n                           = {(x1,x2) | \
+x2 = 0}\nThus, this set contains just the points in the phase plane on the x2 \
+axis.  We have to determine if the set R has any invariant subsets other than \
+the equilibrium point.  The answer to this question for this ODE is no!  To \
+see why, examine the direction of the orbit which starts on the x2 axis.  The \
+vector direction will be given by ",
+ Cell[BoxData[
+  FormBox[
+   RowBox[{"(", GridBox[{
+      {
+       RowBox[{"x1", "'"}]},
+      {
+       RowBox[{"x2", "'"}]}
+     }], ")"}], TraditionalForm]],ExpressionUUID->
+  "f54691dd-86e0-4a05-a6ef-0a0729e3252f"],
+ ".    Thus for (x1,x2) \[Epsilon] R:                             \n\t",
+ Cell[BoxData[
+  FormBox[
+   RowBox[{"\t ", 
+    RowBox[{
+     RowBox[{
+      RowBox[{"x1", "'"}], " ", "=", " ", 
+      RowBox[{
+       RowBox[{"f1", "[", 
+        RowBox[{"x1", ",", "x2"}], "]"}], " ", "=", " ", 
+       RowBox[{
+        RowBox[{"-", " ", "x2"}], " ", "=", " ", "0"}]}]}], "\n", "\t ", 
+     RowBox[{
+      RowBox[{"x2", "'"}], " ", "=", " ", 
+      RowBox[{
+       RowBox[{"f2", "[", 
+        RowBox[{"x1", ",", "x2"}], "]"}], " ", "=", "   ", 
+       RowBox[{"x1", " ", "-", " ", 
+        RowBox[{"\[Alpha]", " ", "*", " ", 
+         RowBox[{"(", 
+          RowBox[{
+           RowBox[{
+            FormBox[
+             SuperscriptBox["x2", "3"],
+             TraditionalForm], "/", "3"}], " ", "-", " ", "x2"}], 
+          ")"}]}]}]}]}], "\n", "        \t\t                ", 
+     RowBox[{"=", "  ", "x1", "   "}]}]}], TraditionalForm]],ExpressionUUID->
+  "7ad1b541-af37-4d95-819a-9494f74d4419"],
+ "                     \n",
+ Cell[BoxData[
+  FormBox[
+   RowBox[{"(", GridBox[{
+      {
+       RowBox[{"x1", "'"}]},
+      {
+       RowBox[{"x2", "'"}]}
+     }], ")"}], TraditionalForm]],ExpressionUUID->
+  "08531ecb-5e69-4a99-9e02-8ece9789aa3a"],
+ " = ",
+ Cell[BoxData[
+  FormBox[
+   RowBox[{
+    RowBox[{"(", GridBox[{
+       {"0"},
+       {
+        RowBox[{"x1", " "}]}
+      }], ")"}], "."}], TraditionalForm]],ExpressionUUID->
+  "02d9128f-d686-4466-a86c-1c5d1619d5d7"],
+ "   Therefore, to remain on the x2 axis then x2' = 0, and consequently x1 = \
+0 ( i.e. the equilibrium point).  This condition is only met at the origin \
+which is the equilibrium point. Thus, by Theorem 3.4 the equilibrium point is \
+asymptotically stable. "
+}], "Text",
+ CellChangeTimes->{{3.3983531114820004`*^9, 
+  3.3983531196689997`*^9}},ExpressionUUID->"d585f6d7-7816-4e0d-9b7b-\
+eba8f6af7e29"],
+
+Cell["Graph the Liapunov function: ", "Text",ExpressionUUID->"c2a8d53e-0022-464a-a516-6435a1a39472"],
+
+Cell[BoxData[
+ RowBox[{"Show", "[", "\[IndentingNewLine]", 
+  RowBox[{
+   RowBox[{"Plot3D", "[", "\[IndentingNewLine]", "\[IndentingNewLine]", 
+    RowBox[{
+     RowBox[{"V", "[", 
+      RowBox[{"x1", ",", "x2"}], "]"}], ",", "\[IndentingNewLine]", 
+     "\[IndentingNewLine]", 
+     RowBox[{"{", 
+      RowBox[{"x1", ",", 
+       RowBox[{"-", "2"}], ",", "2"}], "}"}], ",", "\[IndentingNewLine]", 
+     RowBox[{"{", 
+      RowBox[{"x2", ",", 
+       RowBox[{"-", "2"}], ",", "2"}], "}"}], ",", "\[IndentingNewLine]", 
+     "\[IndentingNewLine]", 
+     RowBox[{"AxesLabel", "\[Rule]", 
+      RowBox[{"{", 
+       RowBox[{"\"\<x1\>\"", ",", "\"\<x2\>\"", ",", "\"\<V\>\""}], "}"}]}]}],
+     "\[IndentingNewLine]", "]"}], ",", "\[IndentingNewLine]", 
+   "\[IndentingNewLine]", 
+   RowBox[{"Graphics3D", "[", 
+    RowBox[{"{", 
+     RowBox[{
+      RowBox[{"PointSize", "[", ".04", "]"}], ",", "Red", ",", 
+      RowBox[{"Point", "[", 
+       RowBox[{"{", 
+        RowBox[{"0", ",", "0", ",", "0"}], "}"}], "]"}]}], "}"}], "]"}]}], 
+  "\[IndentingNewLine]", "\[IndentingNewLine]", "]"}]], "Input",
+ CellChangeTimes->{{3.398354586218*^9, 3.398354598472*^9}},
+ CellLabel->
+  "In[1245]:=",ExpressionUUID->"26c34780-8bec-41e5-829d-dde1ebd48cae"]
+}, Closed]]
+}, Open  ]]
+},
+WindowSize->{1139, 662},
+WindowMargins->{{2, Automatic}, {Automatic, 2}},
+Magnification->1.5,
+FrontEndVersion->"11.3 for Microsoft Windows (64-bit) (March 6, 2018)",
+StyleDefinitions->FrontEnd`FileName[{"Creative"}, "NaturalColor.nb", 
+  CharacterEncoding -> "UTF-8"]
+]
+(* End of Notebook Content *)
+
+(* Internal cache information *)
+(*CellTagsOutline
+CellTagsIndex->{}
+*)
+(*CellTagsIndex
+CellTagsIndex->{}
+*)
+(*NotebookFileOutline
+Notebook[{
+Cell[CellGroupData[{
+Cell[567, 22, 84, 0, 98, "Title",ExpressionUUID->"d6413e2a-75dd-4d7d-bb99-be83e47d4803"],
+Cell[654, 24, 138, 2, 35, "Subtitle",ExpressionUUID->"35c97960-17ec-4d0b-a75d-da6f6e039ba7"],
+Cell[795, 28, 229, 5, 68, "InputOnly",ExpressionUUID->"404beec7-d728-4f41-bc25-aa1c74f40050"],
+Cell[CellGroupData[{
+Cell[1049, 37, 88, 0, 114, "Section",ExpressionUUID->"eadf5fe3-5b60-474d-bdc9-2ac9ff1442d2"],
+Cell[1140, 39, 4076, 78, 957, "Text",ExpressionUUID->"7300437b-0120-4cca-86f8-474837fd7cbe"]
+}, Closed]],
+Cell[CellGroupData[{
+Cell[5253, 122, 110, 0, 67, "Section",ExpressionUUID->"4e10cf94-7c78-4c9a-ab75-891998299c8d"],
+Cell[5366, 124, 3343, 113, 309, "Text",ExpressionUUID->"27be1c82-8535-42a4-b64c-d866a557b791"],
+Cell[8712, 239, 344, 10, 61, "Input",ExpressionUUID->"44fac868-e6a0-4bb3-8bb8-4071c31a3c74"],
+Cell[9059, 251, 95, 0, 48, "Text",ExpressionUUID->"cd3ff761-9656-4407-b1a8-42d48c960a19"],
+Cell[9157, 253, 393, 11, 61, "Input",ExpressionUUID->"1b2b8bf0-770a-4343-955b-a11f5f0f7402"],
+Cell[9553, 266, 916, 14, 231, "Text",ExpressionUUID->"e367dd6b-191f-4fee-995e-30b9a4816a5b"],
+Cell[CellGroupData[{
+Cell[10494, 284, 93, 0, 39, "Subsubsection",ExpressionUUID->"8c96e0ab-6e15-498a-a9a1-f541d5963c74"],
+Cell[10590, 286, 2197, 55, 481, "Text",ExpressionUUID->"6293a163-33cf-4768-9b98-86d3b282f077"]
+}, Closed]]
+}, Closed]],
+Cell[CellGroupData[{
+Cell[12836, 347, 116, 0, 67, "Section",ExpressionUUID->"8d83b70b-a455-4a40-92ae-9f0d5aab4212"],
+Cell[12955, 349, 4309, 139, 417, "Text",ExpressionUUID->"8cfdc47a-9720-45c6-8176-caa77cfb4856"],
+Cell[17267, 490, 1076, 40, 85, "Input",ExpressionUUID->"ab0b6e4a-284b-4a95-b185-15d7ddc6bfaa"],
+Cell[18346, 532, 3041, 96, 468, "Text",ExpressionUUID->"726d3f5c-2341-4d43-977e-bc23d58b943b"],
+Cell[21390, 630, 100, 0, 48, "Text",ExpressionUUID->"832bfe40-46cf-46af-9cdd-07d6e11340a1"],
+Cell[21493, 632, 388, 13, 93, "InputOnly",ExpressionUUID->"1a7a4a1c-bb3f-4d21-a618-3e0fe6687a7e"],
+Cell[21884, 647, 112, 0, 48, "Text",ExpressionUUID->"d9d063bd-5302-44fa-a655-80da0d136664"],
+Cell[21999, 649, 161, 4, 61, "Input",ExpressionUUID->"c75360df-296e-4e66-987a-6584b19f9b9f"],
+Cell[22163, 655, 118, 0, 48, "Text",ExpressionUUID->"6bdc1af9-e5f5-4dd2-b67d-0eeff7a6f3e9"],
+Cell[22284, 657, 239, 7, 61, "Input",ExpressionUUID->"5e05703b-0cf3-411a-a431-3a3601d107ac"],
+Cell[22526, 666, 147, 2, 48, "Text",ExpressionUUID->"31888a33-39ff-4b1d-8d81-fd947d377469"],
+Cell[22676, 670, 633, 21, 84, "Input",ExpressionUUID->"410d42bb-4271-4973-8510-a74e481b3808"],
+Cell[23312, 693, 1002, 32, 111, "Text",ExpressionUUID->"1ad63213-d84d-4f29-985d-8e8fa1f82ec5"],
+Cell[24317, 727, 131, 0, 48, "Text",ExpressionUUID->"08e69944-5f4a-409c-99f8-44b3cc603efc"],
+Cell[24451, 729, 351, 10, 61, "Input",ExpressionUUID->"5dcf03d8-51b6-4bca-8809-5f20cb64f9cb"],
+Cell[24805, 741, 1464, 37, 481, "Input",ExpressionUUID->"d16ece79-9dc8-47b7-b189-96281aeda2ad"]
+}, Closed]],
+Cell[CellGroupData[{
+Cell[26306, 783, 110, 0, 67, "Section",ExpressionUUID->"37da462b-0c3c-42ab-a9bb-0b9a0093cd5f"],
+Cell[26419, 785, 2598, 71, 443, "Text",ExpressionUUID->"02b74300-5c09-45d6-b7f8-63c0163e0038"],
+Cell[29020, 858, 1191, 32, 240, "Input",ExpressionUUID->"78f35724-d743-4cd3-9756-4f1b50fe6137"],
+Cell[30214, 892, 330, 7, 79, "Text",ExpressionUUID->"e90ebf81-1830-426f-bcf1-7b2a4a51ef1c"],
+Cell[30547, 901, 389, 12, 88, "InputOnly",ExpressionUUID->"8005c514-05ae-4ebe-a2cc-df34d9a7ba24"],
+Cell[30939, 915, 166, 2, 48, "Text",ExpressionUUID->"d68810ba-3435-4524-9784-dbd0a9192087"],
+Cell[31108, 919, 351, 10, 61, "Input",ExpressionUUID->"25172ea7-283b-4ee2-8730-e89db7003b2b"],
+Cell[31462, 931, 348, 10, 78, "Input",ExpressionUUID->"26af3634-f7ce-4957-948b-ed86e13eb328"],
+Cell[31813, 943, 1366, 41, 185, "Text",ExpressionUUID->"2f1f5d66-3928-4690-a1b0-885826bc2ace"],
+Cell[33182, 986, 100, 0, 48, "Text",ExpressionUUID->"8e35a30c-c6c1-4abb-8bc0-08929b660642"],
+Cell[33285, 988, 418, 13, 92, "InputOnly",ExpressionUUID->"1bd9b151-7506-4913-a35d-c7dadad34752"],
+Cell[33706, 1003, 176, 3, 48, "Text",ExpressionUUID->"2b4937d7-6fbe-43fc-8876-ddd467381196"],
+Cell[33885, 1008, 164, 4, 61, "Input",ExpressionUUID->"0cf216cf-2ee8-417b-8e69-c15085ad83b8"],
+Cell[34052, 1014, 144, 2, 48, "Text",ExpressionUUID->"6f198a4a-6a17-453e-99c4-278ebd54a843"],
+Cell[34199, 1018, 256, 7, 61, "Input",ExpressionUUID->"0bdedf1e-be24-43c5-b48a-a48399827000"],
+Cell[34458, 1027, 796, 21, 86, "Text",ExpressionUUID->"cfb8b442-5037-4902-a137-0e50826a022b"],
+Cell[35257, 1050, 661, 21, 84, "Input",ExpressionUUID->"793d70fe-5c22-44f0-b782-78700b3f6d96"],
+Cell[35921, 1073, 1166, 35, 142, "Text",ExpressionUUID->"8f39e1f9-9fd2-4db4-b674-6fc75e0f6b66"],
+Cell[37090, 1110, 5774, 154, 927, "Text",ExpressionUUID->"dbebe988-2069-42c9-9a81-aae948b412e8"],
+Cell[42867, 1266, 157, 2, 48, "Text",ExpressionUUID->"144df8ee-2937-4c28-b53e-ef684f790603"],
+Cell[43027, 1270, 302, 9, 61, "Input",ExpressionUUID->"2642954d-cfe2-4f21-9c92-283a4e869ef9"],
+Cell[43332, 1281, 2697, 66, 576, "Input",ExpressionUUID->"2e04249e-358c-4a69-94f6-d86c6d503aac"],
+Cell[46032, 1349, 595, 14, 110, "Text",ExpressionUUID->"8f9c004b-c741-4453-a6da-f8207fcdcb1c"]
+}, Closed]],
+Cell[CellGroupData[{
+Cell[46664, 1368, 109, 0, 67, "Section",ExpressionUUID->"a3d029a7-f05a-48f0-a41f-99a5ad2d2a49"],
+Cell[46776, 1370, 2939, 87, 420, "Text",ExpressionUUID->"d71aee25-8532-427a-9971-5aeb9d10fd2e"],
+Cell[49718, 1459, 559, 21, 85, "Input",ExpressionUUID->"d92c6d01-8f63-434c-ad15-1994a4200257"],
+Cell[50280, 1482, 180, 5, 61, "Input",ExpressionUUID->"1e1a7f8a-f6d8-4a5c-bce6-1ecb8c741fb1"],
+Cell[50463, 1489, 295, 7, 109, "Text",ExpressionUUID->"a08c9ef6-24b5-4c24-8b93-3e4c1c8e4198"],
+Cell[50761, 1498, 279, 8, 61, "Input",ExpressionUUID->"a3a09785-9e21-4298-afbd-88632e0c32dc"],
+Cell[51043, 1508, 90, 0, 48, "Text",ExpressionUUID->"4ac95acb-5a23-4a69-b89a-c5d78c685344"],
+Cell[51136, 1510, 1251, 34, 318, "Input",ExpressionUUID->"18df3af2-9d55-45e3-b3c9-f22f65e08885"],
+Cell[52390, 1546, 170, 4, 61, "Input",ExpressionUUID->"5ac9b06f-32dc-4055-a379-131ef569d5da"],
+Cell[52563, 1552, 4694, 135, 680, "Text",ExpressionUUID->"d585f6d7-7816-4e0d-9b7b-eba8f6af7e29"],
+Cell[57260, 1689, 100, 0, 48, "Text",ExpressionUUID->"c2a8d53e-0022-464a-a516-6435a1a39472"],
+Cell[57363, 1691, 1237, 30, 439, "Input",ExpressionUUID->"26c34780-8bec-41e5-829d-dde1ebd48cae"]
+}, Closed]]
+}, Open  ]]
+}
+]
+*)
+

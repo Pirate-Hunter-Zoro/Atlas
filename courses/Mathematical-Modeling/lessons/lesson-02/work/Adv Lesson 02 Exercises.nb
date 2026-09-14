@@ -1,0 +1,1070 @@
+(* Content-type: application/vnd.wolfram.mathematica *)
+
+(*** Wolfram Notebook File ***)
+(* http://www.wolfram.com/nb *)
+
+(* CreatedBy='WolframEngine 15.0' *)
+
+(*CacheID: 234*)
+(* Internal cache information:
+NotebookFileLineBreakTest
+NotebookFileLineBreakTest
+NotebookDataPosition[       160,          7]
+NotebookDataLength[     38541,       1061]
+NotebookOptionsPosition[     33372,        996]
+NotebookOutlinePosition[     33711,       1011]
+CellTagsIndexPosition[     33668,       1008]
+WindowFrame->Normal*)
+
+(* Beginning of Notebook Content *)
+Notebook[{
+Cell[TextData[{
+ StyleBox[" Exercises ", "Title"],
+ "  Advanced Lesson 2"
+}], "Section",
+ CellChangeTimes->{{3.390375117367*^9, 3.390375117499*^9}, 
+   3.3907918372790003`*^9, {3.460216356171318*^9, 
+   3.460216360061943*^9}},ExpressionUUID->"afd722ec-7472-4b3a-aba7-\
+2b63474f4a1b"],
+
+Cell["\<\
+Your Name:  Mikey Ferguson
+
+Your Math Class:  MATH 7013 - Advanced Mathematical Modeling\
+\>", "Program",
+ CellChangeTimes->{{3.390368232619*^9, 3.3903682391219997`*^9}, {
+   3.390368866851*^9, 3.390368908736*^9}, {3.3903690435030003`*^9, 
+   3.390369082222*^9}, 3.460216512952568*^9},
+ FontSize->16,
+ FontWeight->"Bold",ExpressionUUID->"1eefcaa3-e993-4ece-91c9-a072151617a5"],
+
+Cell[TextData[{
+ "Remember to clear all variables that you will use below:  ",
+ Cell[BoxData[
+  FormBox[
+   RowBox[{"Clear", "[", 
+    RowBox[{
+    "a", ",", "b", ",", "c", ",", "d", ",", "i", ",", "n", ",", "f", ",", "g",
+      ",", "h"}], "]"}], TraditionalForm]],ExpressionUUID->
+  "54c9f4ca-c98e-44a4-b035-31f912bfc6d1"]
+}], "Text",
+ CellChangeTimes->{{3.390692597644142*^9, 3.3906926408551426`*^9}, {
+  3.3907193082234*^9, 
+  3.3907193127434*^9}},ExpressionUUID->"15a456c9-1aac-4a91-b129-6906dc2e1fb2"],
+
+Cell[BoxData[
+ RowBox[{
+  RowBox[{"Clear", "[", 
+   RowBox[{
+   "a", ",", "b", ",", "c", ",", "d", ",", "i", ",", "n", ",", "f", ",", "g", 
+    ",", "h"}], "]"}], ";"}]], "Input",ExpressionUUID->"8ea40fe3-4e22-4a85-\
+bc14-a614e759c81d"],
+
+Cell[TextData[{
+ "1: ",
+ StyleBox["After",
+  FontVariations->{"Underline"->True}],
+ " evaluation, how many digits of numerical accuracy do each of the following \
+expressions have?\n\t\[GrayCircle] 3/7\n\t\[GrayCircle] 2+3/7\n\t\
+\[GrayCircle] 2.0+3.0/7.0\t\t(Hint: You can use   InputForm[2.0 + 3.0/7.0]   \
+to see all digits.)\n\t\[GrayCircle] 1.23+1.2345/1.234567   (See the Hint.)\n\
+\t\[GrayCircle] 1.2+1.2345678901234567890+1.23456789012345678901234567890\n\t\
+\[GrayCircle] 1.2345678901234567890+1.23456789012345678901234567890\n\t\
+\[GrayCircle] N[2/7]   (See the Hint.)\n\t\[GrayCircle] N[2/7,100]\n\t\
+\[GrayCircle] After evaluation, why does ",
+ StyleBox["Mathematica",
+  FontSlant->"Italic"],
+ " leave ",
+ Cell[BoxData[
+  FormBox[
+   SqrtBox["2"], TraditionalForm]],ExpressionUUID->
+  "c74d6d98-1b10-418b-ab35-35a9cc1d0e17"],
+ " as ",
+ Cell[BoxData[
+  FormBox[
+   SqrtBox["2"], TraditionalForm]],ExpressionUUID->
+  "9cfa9ffb-53b3-49a2-8c52-38f98b641e7b"],
+ " and not as ",
+ Cell[BoxData[
+  FormBox[
+   RowBox[{
+    SqrtBox["2"], " ", "\[Rule]"}], TraditionalForm]],ExpressionUUID->
+  "078a95eb-cd07-4413-8a6e-3ace5e6621aa"],
+ " 1.4142135623730951"
+}], "Text",
+ CellChangeTimes->{{3.3901682233866*^9, 3.3901683123806*^9}, {
+   3.3901683604096003`*^9, 3.3901684386886*^9}, {3.3901685090556*^9, 
+   3.3901685116586*^9}, {3.3901685442546*^9, 3.3901686127556*^9}, {
+   3.3901686481116*^9, 3.3901686663236*^9}, {3.3901687012906*^9, 
+   3.3901687735986*^9}, {3.3901688095025997`*^9, 3.3901688705226*^9}, {
+   3.3901696512806*^9, 3.3901696669666*^9}, {3.3903800783529997`*^9, 
+   3.390380444362*^9}, {3.390380492519*^9, 3.390380512209*^9}, {
+   3.390380704762*^9, 3.390380717965*^9}, {3.3907169137994003`*^9, 
+   3.3907169226434*^9}, {3.3907172612584*^9, 3.3907172774354*^9}, {
+   3.3907174533264*^9, 3.3907176276734*^9}, 3.3907177293473997`*^9, {
+   3.3907178189244003`*^9, 3.3907178415464*^9}, {3.3907178845004*^9, 
+   3.3907179061684*^9}, 3.3907187126784*^9, {3.390773931276*^9, 
+   3.390773941097*^9}},ExpressionUUID->"6ea3a84e-3ad6-4a73-9bd0-bda218c052ea"],
+
+Cell[BoxData[
+ RowBox[{"{", 
+  RowBox[{
+   FractionBox["3", "7"], ",", 
+   RowBox[{"Precision", "[", 
+    FractionBox["3", "7"], "]"}]}], "}"}]], "Input",ExpressionUUID->"785d2fe5-\
+2696-475b-9163-7e9f65d14294"],
+
+Cell[BoxData[
+ RowBox[{"{", 
+  RowBox[{
+   RowBox[{"2", "+", 
+    FractionBox["3", "7"]}], ",", 
+   RowBox[{"Precision", "[", 
+    RowBox[{"2", "+", 
+     FractionBox["3", "7"]}], "]"}]}], "}"}]], "Input",ExpressionUUID->\
+"8c173f04-050e-491c-8d8d-ef740577be24"],
+
+Cell[BoxData[
+ RowBox[{"{", 
+  RowBox[{
+   RowBox[{"InputForm", "[", 
+    RowBox[{"2.`", "\[VeryThinSpace]", "+", 
+     FractionBox["3.`", "7.`"]}], "]"}], ",", 
+   RowBox[{"Precision", "[", 
+    RowBox[{"2.`", "\[VeryThinSpace]", "+", 
+     FractionBox["3.`", "7.`"]}], "]"}]}], "}"}]], "Input",ExpressionUUID->\
+"d31a8ed1-7805-43ea-ba78-197f17e7e6ad"],
+
+Cell[BoxData[
+ RowBox[{"{", 
+  RowBox[{
+   RowBox[{"InputForm", "[", 
+    RowBox[{"1.23`", "\[VeryThinSpace]", "+", 
+     FractionBox["1.2345`", "1.234567`"]}], "]"}], ",", 
+   RowBox[{"Precision", "[", 
+    RowBox[{"1.23`", "\[VeryThinSpace]", "+", 
+     FractionBox["1.2345`", "1.234567`"]}], "]"}]}], "}"}]], "Input",Expressio\
+nUUID->"e10c56ec-da39-4e67-b4a1-885009c817fb"],
+
+Cell[BoxData[
+ RowBox[{"{", 
+  RowBox[{
+   RowBox[{"InputForm", "[", 
+    RowBox[{
+    "1.2`", "\[VeryThinSpace]", "+", "1.234567890123456789`19.0915149772127", 
+     "+", "1.2345678901234567890123456789`29.091514977212704"}], "]"}], ",", 
+   RowBox[{"Precision", "[", 
+    RowBox[{
+    "1.2`", "\[VeryThinSpace]", "+", "1.234567890123456789`19.0915149772127", 
+     "+", "1.2345678901234567890123456789`29.091514977212704"}], "]"}]}], 
+  "}"}]], "Input",ExpressionUUID->"010d33e6-e4f8-4d42-a59a-585c2a098396"],
+
+Cell[BoxData[
+ RowBox[{"{", 
+  RowBox[{
+   RowBox[{"InputForm", "[", 
+    RowBox[{
+    "1.234567890123456789`19.0915149772127", "+", 
+     "1.2345678901234567890123456789`29.091514977212704"}], "]"}], ",", 
+   RowBox[{"Precision", "[", 
+    RowBox[{
+    "1.234567890123456789`19.0915149772127", "+", 
+     "1.2345678901234567890123456789`29.091514977212704"}], "]"}]}], 
+  "}"}]], "Input",ExpressionUUID->"133c3cd4-6edc-454f-a0a6-51e6734773ff"],
+
+Cell[BoxData[
+ RowBox[{"{", 
+  RowBox[{
+   RowBox[{"InputForm", "[", 
+    RowBox[{"N", "[", 
+     FractionBox["2", "7"], "]"}], "]"}], ",", 
+   RowBox[{"Precision", "[", 
+    RowBox[{"N", "[", 
+     FractionBox["2", "7"], "]"}], "]"}]}], "}"}]], "Input",ExpressionUUID->\
+"55545b4f-b2f2-46cf-9c0e-c50e08954e91"],
+
+Cell[BoxData[
+ RowBox[{"{", 
+  RowBox[{
+   RowBox[{"N", "[", 
+    RowBox[{
+     FractionBox["2", "7"], ",", "100"}], "]"}], ",", 
+   RowBox[{"Precision", "[", 
+    RowBox[{"N", "[", 
+     RowBox[{
+      FractionBox["2", "7"], ",", "100"}], "]"}], "]"}]}], "}"}]], "Input",Exp\
+ressionUUID->"d9a36c38-bea8-4c3b-b55e-be19edd77b4b"],
+
+Cell[BoxData[
+ RowBox[{"{", 
+  RowBox[{
+   SqrtBox["2"], ",", 
+   RowBox[{"N", "[", 
+    SqrtBox["2"], "]"}]}], "}"}]], "Input",ExpressionUUID->"9a5a7eb3-5d73-\
+49c2-8c1c-69231e751b7b"],
+
+Cell["\<\
+Exact numbers carry infinite precision, so 3/7 and 2 + 3/7 stay as fractions. \
+A number written with a decimal point is a machine number carrying about 16 \
+digits, so 2.0 + 3.0/7.0 and 1.23 + 1.2345/1.234567 have about 16. When \
+precisions are mixed the answer is only as good as the worst input: adding \
+1.2 to the 19-digit and 29-digit numbers drops the result to machine \
+precision, while the 19- and 29-digit numbers on their own give 19. N[2/7] \
+gives about 16 digits and N[2/7, 100] gives 100. Sqrt[2] stays as Sqrt[2] \
+because it is exact; Mathematica only turns it into a decimal when asked with \
+N.\
+\>", "Text",ExpressionUUID->"32475f20-a3ed-470d-8bfd-232f0b64fb8b"],
+
+Cell[TextData[{
+ "2: \[GrayCircle] i: Evaluate exactly: ",
+ StyleBox[" ",
+  FontSize->16],
+ Cell[BoxData[
+  StyleBox[
+   RowBox[{
+    UnderoverscriptBox["\[Sum]", 
+     RowBox[{"n", "=", "1"}], "100"], " ", 
+    FractionBox["1", "n"]}],
+   FontWeight->"Bold"]],
+  FontSize->16,ExpressionUUID->"d88b7ce3-e1ba-4294-8871-07da8a7baa7c"],
+ "  \n    \[GrayCircle] ii: Evaluate: ",
+ StyleBox[" ",
+  FontSize->16],
+ Cell[BoxData[
+  StyleBox[
+   RowBox[{
+    UnderoverscriptBox["\[Sum]", 
+     RowBox[{"n", "=", "1"}], "100"], " ", 
+    FractionBox["1.0", "n"]}],
+   FontWeight->"Bold"]],
+  FontSize->16,ExpressionUUID->"de81ed91-5046-49d7-b00d-310c7c834975"],
+ "  \n    \[GrayCircle] iii: Evaluate: ",
+ StyleBox[" ",
+  FontSize->16],
+ Cell[BoxData[
+  StyleBox[
+   RowBox[{
+    UnderoverscriptBox["\[Sum]", 
+     RowBox[{"n", "=", "1"}], "100"], " ", 
+    RowBox[{"N", "[", 
+     FractionBox["1", "n"], "]"}]}],
+   FontWeight->"Bold"]],
+  FontSize->16,ExpressionUUID->"b507fedc-de63-4048-a137-159f1745734f"],
+ "  \n    \[GrayCircle] iv: Evaluate: ",
+ StyleBox[" ",
+  FontSize->16],
+ Cell[BoxData[
+  StyleBox[
+   RowBox[{"N", "[", 
+    RowBox[{
+     UnderoverscriptBox["\[Sum]", 
+      RowBox[{"n", "=", "1"}], "100"], " ", 
+     FractionBox["1", "n"]}], "]"}],
+   FontWeight->"Bold"]],
+  FontSize->16,ExpressionUUID->"5d9bd4c9-5450-4d1b-820e-b1327497cacf"],
+ "  \n    \[GrayCircle] v: Evaluate:   ",
+ Cell[BoxData[
+  FormBox[
+   StyleBox[
+    RowBox[{
+     StyleBox[
+      UnderoverscriptBox["\[Sum]", 
+       RowBox[{
+        StyleBox["n",
+         FontSlant->"Plain"], "=", "1"}], "100"],
+      FontSize->14], " ", 
+     FractionBox["1", 
+      StyleBox["n",
+       FontSlant->"Plain"]]}],
+    FontWeight->"Bold"], TraditionalForm]],ExpressionUUID->
+  "8e17e41f-ef7e-43c1-a2a2-29d5da12e521"],
+ " to 50 digit accuracy\n    \[GrayCircle] vi: ",
+ StyleBox["Try",
+  FontVariations->{"Underline"->True}],
+ " to evaluate:   ",
+ Cell[BoxData[
+  FormBox[
+   StyleBox[
+    RowBox[{
+     StyleBox[
+      UnderoverscriptBox["\[Sum]", 
+       RowBox[{
+        StyleBox["n",
+         FontSlant->"Plain"], "=", "1"}], "100"],
+      FontSize->14], " ", 
+     FractionBox["1.0", 
+      StyleBox["n",
+       FontSlant->"Plain"]]}],
+    FontWeight->"Bold"], TraditionalForm]],ExpressionUUID->
+  "771d3133-621a-4872-b02e-e5aec4555d0a"],
+ " to 50 digit accuracy using ",
+ Cell[BoxData[
+  FormBox[
+   StyleBox[
+    RowBox[{
+     StyleBox["N",
+      FontSlant->"Plain"], "[", 
+     RowBox[{
+      RowBox[{
+       StyleBox[
+        UnderoverscriptBox["\[Sum]", 
+         RowBox[{"n", "=", "1"}], "100"],
+        FontSize->14], 
+       FractionBox["1.0", 
+        StyleBox["n",
+         FontSlant->"Plain"]]}], ",", " ", "50"}], "]"}],
+    FontWeight->"Bold"], TraditionalForm]],ExpressionUUID->
+  "d5f92562-85c2-4bbd-a61d-f76141b7d065"],
+ "\n            (Keep the 1.0)\n            (Why did it ",
+ StyleBox["fail",
+  FontVariations->{"Underline"->True}],
+ " to give 50 digit accuracy?)"
+}], "Text",
+ CellChangeTimes->{{3.390375182149*^9, 3.390375218159*^9}, {3.390375281145*^9,
+    3.39037544659*^9}, {3.390375479126*^9, 3.390375694005*^9}, 
+   3.390380514932*^9, {3.4390618478125*^9, 3.43906186890625*^9}, {
+   3.439061900265625*^9, 
+   3.43906192634375*^9}},ExpressionUUID->"9c715531-f52d-49ca-adc2-\
+1e0f65ac0965"],
+
+Cell[BoxData[
+ RowBox[{
+  UnderoverscriptBox["\[Sum]", 
+   RowBox[{"n", "=", "1"}], "100"], 
+  FractionBox["1", "n"]}]], "Input",ExpressionUUID->"9a593722-00a6-40e3-9b8f-\
+cb23843a8f64"],
+
+Cell[BoxData[
+ RowBox[{
+  UnderoverscriptBox["\[Sum]", 
+   RowBox[{"n", "=", "1"}], "100"], 
+  FractionBox["1.`", "n"]}]], "Input",ExpressionUUID->"b9e22a54-198a-4815-\
+97d0-16a15a417b7c"],
+
+Cell[BoxData[
+ RowBox[{
+  UnderoverscriptBox["\[Sum]", 
+   RowBox[{"n", "=", "1"}], "100"], 
+  RowBox[{"N", "[", 
+   FractionBox["1", "n"], "]"}]}]], "Input",ExpressionUUID->"35c855ba-f8d5-\
+4541-9608-c39701a9437c"],
+
+Cell[BoxData[
+ RowBox[{"N", "[", 
+  RowBox[{
+   UnderoverscriptBox["\[Sum]", 
+    RowBox[{"n", "=", "1"}], "100"], 
+   FractionBox["1", "n"]}], "]"}]], "Input",ExpressionUUID->"ff537d74-9b78-\
+4e3c-9c60-907888b36eb8"],
+
+Cell[BoxData[
+ RowBox[{"N", "[", 
+  RowBox[{
+   RowBox[{
+    UnderoverscriptBox["\[Sum]", 
+     RowBox[{"n", "=", "1"}], "100"], 
+    FractionBox["1", "n"]}], ",", "50"}], "]"}]], "Input",ExpressionUUID->\
+"15ee28a4-a4cd-446d-9df2-c049039ecfc4"],
+
+Cell[BoxData[
+ RowBox[{"N", "[", 
+  RowBox[{
+   RowBox[{
+    UnderoverscriptBox["\[Sum]", 
+     RowBox[{"n", "=", "1"}], "100"], 
+    FractionBox["1.`", "n"]}], ",", "50"}], "]"}]], "Input",ExpressionUUID->\
+"0a653ca6-2af4-4d04-bbee-1d6533056f0a"],
+
+Cell["\<\
+All six are the same sum. Written exactly it is one large fraction. Writing \
+1.0/n makes every term approximate, so that version carries only about 16 \
+digits. Asking for 50 digits works from the exact sum, because Mathematica \
+can go back to the fraction and recompute. It fails for the 1.0 version: \
+those digits never existed, and N cannot invent them.\
+\>", "Text",ExpressionUUID->"eb2e7a61-2d96-467b-a6c6-4320b27583cd"],
+
+Cell[TextData[{
+ " 3: \[GrayCircle] Evaluate to 500 significant digits: ",
+ Cell[BoxData[
+  StyleBox[
+   FormBox[
+    SuperscriptBox["\[ExponentialE]", 
+     StyleBox["\[Pi]",
+      FontWeight->"Bold"]],
+    TraditionalForm],
+   FontWeight->"Bold"]],
+  FontSize->16,ExpressionUUID->"aab16a2d-c671-487a-a172-d00b89d12803"],
+ "  (Remember to use ",
+ StyleBox["\[ExponentialE]",
+  FontWeight->"Bold"],
+ " from the palette and not ",
+ StyleBox["e",
+  FontWeight->"Bold"],
+ ")\n     \[GrayCircle] Evaluate exactly: ",
+ StyleBox[" ",
+  FontSize->16],
+ Cell[BoxData[
+  StyleBox[
+   FormBox[
+    SuperscriptBox["\[ExponentialE]", 
+     StyleBox["\[Pi]",
+      FontWeight->"Bold"]],
+    TraditionalForm],
+   FontWeight->"Bold"]],
+  FontSize->16,ExpressionUUID->"d7addd00-4c20-40f2-a7bc-223d9679df07"],
+ "          Why did it remain the same?"
+}], "Text",
+ CellChangeTimes->{{3.390375244703*^9, 3.390375258473*^9}, {3.390377116962*^9,
+    3.390377138668*^9}, 3.390380520752*^9, 3.3907187545234003`*^9, {
+   3.439061964453125*^9, 
+   3.4390619919375*^9}},ExpressionUUID->"51f0c30f-d5cc-4891-8de5-\
+4a00a49096a0"],
+
+Cell[BoxData[
+ RowBox[{"N", "[", 
+  RowBox[{
+   SuperscriptBox["\[ExponentialE]", "\[Pi]"], ",", "500"}], "]"}]], "Input",E\
+xpressionUUID->"dffb722e-5c59-4a84-ac7f-d719b8fe3e0d"],
+
+Cell[BoxData[
+ SuperscriptBox["\[ExponentialE]", "\[Pi]"]], "Input",ExpressionUUID->"c7c5d89d-8d64-4191-b644-364b0f6b2dee"],
+
+Cell["\<\
+N[E^Pi, 500] prints 500 digits. Evaluated on its own, E^Pi stays as E^Pi \
+because it is exact, and Mathematica never converts an exact expression to a \
+decimal unless asked.\
+\>", "Text",ExpressionUUID->"31d65fbb-7ab9-4a5f-8272-998a38c15da4"],
+
+Cell[TextData[{
+ " 4: \[GrayCircle] Evaluate the complex number exactly: ",
+ StyleBox[" ",
+  FontSize->16],
+ Cell[BoxData[
+  StyleBox[
+   RowBox[{
+    RowBox[{
+     UnderoverscriptBox["\[Sum]", 
+      RowBox[{"n", "=", "1"}], "10"], " ", 
+     FractionBox["1", 
+      RowBox[{"n", " ", "+", " ", 
+       RowBox[{"2", "\[ImaginaryI]"}]}]]}], "  "}],
+   FontWeight->"Bold"]],
+  FontSize->16,ExpressionUUID->"161dc342-05dd-4133-b01c-89759eea108d"],
+ "\n        (Use the Basic Math Input Palette to enter \"\[ImaginaryI]\".)\n  \
+   \[GrayCircle] Evaluate to 50 significant digits: ",
+ StyleBox[" ",
+  FontSize->16],
+ Cell[BoxData[
+  StyleBox[
+   RowBox[{
+    UnderoverscriptBox["\[Sum]", 
+     RowBox[{"n", "=", "1"}], "10"], " ", 
+    FractionBox["1", 
+     RowBox[{"n", " ", "+", " ", 
+      RowBox[{"2", "\[ImaginaryI]"}]}]]}],
+   FontWeight->"Bold"]],
+  FontSize->16,ExpressionUUID->"c401676e-56cf-48df-a7bf-70bf654e65f6"],
+ "    \n     \[GrayCircle] Try to evaluate ",
+ StyleBox[" ",
+  FontSize->16],
+ Cell[BoxData[
+  StyleBox[
+   RowBox[{
+    UnderoverscriptBox["\[Sum]", 
+     RowBox[{"n", "=", "1"}], "10"], " ", 
+    FractionBox["1", 
+     RowBox[{"n", " ", "+", " ", 
+      RowBox[{"2.0", "\[ImaginaryI]"}]}]]}],
+   FontWeight->"Bold"]],
+  FontSize->16,ExpressionUUID->"852a92cf-434b-4c85-9f4a-07f1e9d5283e"],
+ " to 50 significant digits\n            (Keep the 2.0)\n            (Why did \
+it ",
+ StyleBox["fail",
+  FontVariations->{"Underline"->True}],
+ " to give 50 digit accuracy?)   "
+}], "Text",
+ CellChangeTimes->{{3.390375809803*^9, 3.390375957906*^9}, {3.390376004941*^9,
+    3.390376070615*^9}, 3.390380524234*^9, {3.3903807380880003`*^9, 
+   3.390380738672*^9}, {3.390774010609*^9, 3.390774034644*^9}, {
+   3.390774098611*^9, 
+   3.390774139307*^9}},ExpressionUUID->"29e5b7f9-e12a-45e2-9b9e-eab2bee9f249"],
+
+Cell[BoxData[
+ RowBox[{
+  UnderoverscriptBox["\[Sum]", 
+   RowBox[{"n", "=", "1"}], "10"], 
+  FractionBox["1", 
+   RowBox[{"n", "+", 
+    RowBox[{"2", " ", "\[ImaginaryI]"}]}]]}]], "Input",ExpressionUUID->\
+"e65612d4-eea2-409d-9f50-c1569fffa833"],
+
+Cell[BoxData[
+ RowBox[{"N", "[", 
+  RowBox[{
+   RowBox[{
+    UnderoverscriptBox["\[Sum]", 
+     RowBox[{"n", "=", "1"}], "10"], 
+    FractionBox["1", 
+     RowBox[{"n", "+", 
+      RowBox[{"2", " ", "\[ImaginaryI]"}]}]]}], ",", "50"}], "]"}]], "Input",E\
+xpressionUUID->"e00c288f-4b84-4ebb-9d7b-b730f6e1ffe9"],
+
+Cell[BoxData[
+ RowBox[{"N", "[", 
+  RowBox[{
+   RowBox[{
+    UnderoverscriptBox["\[Sum]", 
+     RowBox[{"n", "=", "1"}], "10"], 
+    FractionBox["1", 
+     RowBox[{"n", "+", 
+      RowBox[{"2.`", " ", "\[ImaginaryI]"}]}]]}], ",", "50"}], "]"}]], "Input",\
+ExpressionUUID->"b75de73b-5d93-4e2f-a920-2e197a621b4f"],
+
+Cell["\<\
+The exact sum is a single complex fraction, and N of it prints 50 digits. \
+Writing 2.0 I instead of 2 I makes every term approximate, so the answer \
+stops at about 16 digits no matter how many are requested.\
+\>", "Text",ExpressionUUID->"2402e421-7c7c-457d-aaab-87db9ffe1c2b"],
+
+Cell[TextData[{
+ " 5: \[GrayCircle] Evaluate exactly: ",
+ StyleBox[" ",
+  FontSize->16],
+ Cell[BoxData[
+  StyleBox[
+   RowBox[{"Sin", "[", "6", "]"}],
+   FontWeight->"Bold"]],
+  FontSize->16,ExpressionUUID->"78209509-8c4e-4101-90b8-8c5fab8978e2"],
+ "  \n     \[GrayCircle] Evaluate: ",
+ StyleBox[" ",
+  FontSize->16],
+ Cell[BoxData[
+  StyleBox[
+   RowBox[{"Sin", "[", "6.0", "]"}],
+   FontWeight->"Bold"]],
+  FontSize->16,ExpressionUUID->"41066546-3a54-4350-a292-1c517f1e301b"],
+ "  \n     \[GrayCircle] Evaluate to 50 significant digits: ",
+ StyleBox[" ",
+  FontSize->16],
+ Cell[BoxData[
+  StyleBox[
+   RowBox[{"Sin", "[", "6", "]"}],
+   FontWeight->"Bold"]],
+  FontSize->16,ExpressionUUID->"20a192b6-2014-47de-bb07-5295c7528e42"],
+ "  \n     \[GrayCircle] ",
+ StyleBox["Try",
+  FontVariations->{"Underline"->True}],
+ " to evaluate to 50 significant digits: ",
+ StyleBox[" ",
+  FontSize->16],
+ Cell[BoxData[
+  StyleBox[
+   RowBox[{"Sin", "[", "6.0", "]"}],
+   FontWeight->"Bold"]],
+  FontSize->16,ExpressionUUID->"81e3104f-5acc-4a58-aaf1-a6f8083d8124"],
+ "  Why does it fail to get 50 digits?\n     \[GrayCircle] ",
+ StyleBox["Try",
+  FontVariations->{"Underline"->True}],
+ " to evaluate to 50 significant digits: ",
+ StyleBox[" ",
+  FontSize->16],
+ Cell[BoxData[
+  StyleBox[
+   RowBox[{"Sin", "[", 
+    RowBox[{"N", "[", 
+     RowBox[{"6", ",", "20"}], "]"}], "]"}],
+   FontWeight->"Bold"]],
+  FontSize->16,ExpressionUUID->"0086a93c-9383-4f62-89a8-ac7e08ed3592"],
+ "   Why does it fail to get 50 digits?"
+}], "Text",
+ CellChangeTimes->{{3.390376177741*^9, 3.3903761953269997`*^9}, {
+   3.390376251955*^9, 3.390376254749*^9}, {3.3903763031470003`*^9, 
+   3.390376315616*^9}, 3.3903805299820004`*^9, {3.439062054671875*^9, 
+   3.439062098640625*^9}},ExpressionUUID->"08203725-4974-43d8-8a4c-\
+76b51fff9c3f"],
+
+Cell[BoxData[
+ RowBox[{"Sin", "[", "6", "]"}]], "Input",ExpressionUUID->"5b44772d-4793-4f8f-a434-e108903be9b9"],
+
+Cell[BoxData[
+ RowBox[{"Sin", "[", "6.`", "]"}]], "Input",ExpressionUUID->"410261df-1660-41e0-b1f3-7f6a4c76eab3"],
+
+Cell[BoxData[
+ RowBox[{"N", "[", 
+  RowBox[{
+   RowBox[{"Sin", "[", "6", "]"}], ",", "50"}], "]"}]], "Input",ExpressionUUID\
+->"ef100ad7-c2e1-400e-a505-5cd6027f5785"],
+
+Cell[BoxData[
+ RowBox[{"N", "[", 
+  RowBox[{
+   RowBox[{"Sin", "[", "6.`", "]"}], ",", "50"}], "]"}]], "Input",ExpressionUU\
+ID->"5bd85412-c301-45b0-b832-f08ab90c6b42"],
+
+Cell[BoxData[
+ RowBox[{"N", "[", 
+  RowBox[{
+   RowBox[{"Sin", "[", 
+    RowBox[{"N", "[", 
+     RowBox[{"6", ",", "20"}], "]"}], "]"}], ",", "50"}], "]"}]], "Input",Expr\
+essionUUID->"447b0836-1b35-4c99-8e6e-d5ff9a6f405a"],
+
+Cell["\<\
+Sin[6] stays as Sin[6]: 6 is exact and the sine has no simpler exact form. \
+Sin[6.0] is -0.279415. N[Sin[6], 50] gives 50 correct digits because it \
+starts from the exact form. N[Sin[6.0], 50] cannot, because 6.0 carries only \
+about 16 digits, and N[Sin[N[6, 20]], 50] stops near 19 digits for the same \
+reason. An answer can never be more precise than its input.\
+\>", "Text",ExpressionUUID->"fac13aad-e641-4e4f-be2d-3cae6813e1c6"],
+
+Cell[TextData[{
+ "6: \[GrayCircle] Define a user function:  ",
+ Cell[BoxData[
+  FormBox[
+   StyleBox[
+    RowBox[{
+     StyleBox["f",
+      FontSlant->"Plain"], " ", "[", "nTerms_", " ", "]"}],
+    FontWeight->"Bold"], TraditionalForm]],ExpressionUUID->
+  "4adc6a1b-0709-4df2-aef7-363a0cde432d"],
+ "  using the formula  ",
+ Cell[BoxData[
+  StyleBox[
+   RowBox[{
+    UnderoverscriptBox["\[Sum]", 
+     RowBox[{"n", "=", "1"}], 
+     StyleBox["nTerms",
+      FontWeight->"Bold"]], " ", 
+    FractionBox["1", "n"]}],
+   FontWeight->"Bold"]],
+  FontSize->16,ExpressionUUID->"b7bc0e62-d991-4c14-b69e-124c2a44eb7f"],
+ "   which will evaluate exactly.\n    \[GrayCircle] Evaluate:  ",
+ StyleBox["f [1]",
+  FontWeight->"Bold"],
+ ",  ",
+ StyleBox["f [10]",
+  FontWeight->"Bold"],
+ ", ",
+ StyleBox["f [100]",
+  FontWeight->"Bold"]
+}], "Text",
+ CellChangeTimes->{{3.390376345012*^9, 3.39037649308*^9}, 3.390380533752*^9, {
+   3.3906926310831423`*^9, 3.3906926313461423`*^9}, {3.43906211659375*^9, 
+   3.439062186671875*^9}},ExpressionUUID->"03a12685-b706-48b1-b063-\
+ac23ecd4c23c"],
+
+Cell[BoxData[{
+ RowBox[{
+  RowBox[{"Clear", "[", 
+   RowBox[{"f", ",", "n", ",", "nTerms"}], "]"}], ";"}], "\[IndentingNewLine]", 
+ RowBox[{
+  RowBox[{"f", "[", "nTerms_", "]"}], ":=", 
+  RowBox[{
+   UnderoverscriptBox["\[Sum]", 
+    RowBox[{"n", "=", "1"}], "nTerms"], 
+   FractionBox["1", "n"]}]}]}], "Input",ExpressionUUID->"d3a00ddb-1f33-46d5-\
+a510-d91e250c0af8"],
+
+Cell[BoxData[
+ RowBox[{"{", 
+  RowBox[{
+   RowBox[{"f", "[", "1", "]"}], ",", 
+   RowBox[{"f", "[", "10", "]"}], ",", 
+   RowBox[{"f", "[", "100", "]"}]}], "}"}]], "Input",ExpressionUUID->\
+"00ea5514-ef18-4775-81af-ac0e7211ab62"],
+
+Cell[TextData[{
+ "7: It is possible to determine the name associated with every system \
+function using:\n\n\t\t",
+ Cell[BoxData[
+  FormBox[
+   StyleBox[
+    RowBox[{"Names", "[", " ", "\"\<System`*\>\"", " ", "]"}],
+    FontWeight->"Bold"], TraditionalForm]],ExpressionUUID->
+  "efce373b-6bfe-4c89-8b0e-1ac4db74f9ec"],
+ "     (Remember the \"wild card\" ",
+ Cell[BoxData[
+  FormBox[
+   StyleBox["*",
+    FontSize->14,
+    FontWeight->"Bold"], TraditionalForm]],ExpressionUUID->
+  "7b0b0746-4696-4b8c-94e6-75dcade2d5c2"],
+ " and use ",
+ StyleBox["`",
+  FontSize->14,
+  FontWeight->"Bold"],
+ " and not ",
+ StyleBox["' ",
+  FontSize->14,
+  FontWeight->"Bold"],
+ ")\n\t\t\n    \[GrayCircle] Evaluate the above expression to determine which \
+system functions are available.\n       Please ",
+ StyleBox["delete",
+  FontWeight->"Bold",
+  FontVariations->{"Underline"->True}],
+ " this list of system functions ",
+ StyleBox["before",
+  FontVariations->{"Underline"->True}],
+ " you print your notebook because\n       the list is too long to print!\n   \
+ \[GrayCircle] Determine the total number of system functions available:\n    \
+\n\t\t",
+ Cell[BoxData[
+  FormBox[
+   StyleBox[
+    RowBox[{"Length", "[", " ", 
+     RowBox[{"Names", "[", " ", "\"\<System`*\>\"", " ", "]"}], " ", "]"}],
+    FontWeight->"Bold"], TraditionalForm]],ExpressionUUID->
+  "2db40101-9128-42c3-a805-2a09387d2ebe"]
+}], "Text",
+ CellChangeTimes->{
+  3.390377770832*^9, 3.39037817377*^9, 3.3903794742790003`*^9, {
+   3.3903795045629997`*^9, 3.390379554225*^9}, {3.3903795853789997`*^9, 
+   3.3903796185109997`*^9}, 3.390380546866*^9, 3.390380754752*^9, {
+   3.390774419283*^9, 3.390774614369*^9}, 3.390791909118*^9, {
+   3.390792030663*^9, 3.390792030829*^9}, 3.397919936120927*^9, {
+   3.439062257953125*^9, 3.4390623019375*^9}, {3.439062400609375*^9, 
+   3.439062459578125*^9}},ExpressionUUID->"9a3a0f3a-5942-410b-afb6-\
+efd65e2f3217"],
+
+Cell[BoxData[
+ TagBox[
+  RowBox[{"Names", "[", "\"\<System`*\>\"", "]"}],
+  HoldForm]], "Input",ExpressionUUID->"77dde81a-a7d1-4488-bb55-67b6bf003cd8"],
+
+Cell[BoxData[
+ RowBox[{"Length", "[", 
+  RowBox[{"Names", "[", "\"\<System`*\>\"", "]"}], "]"}]], "Input",ExpressionU\
+UID->"dd10e5fc-6c7c-4fb0-a236-471fd5835764"],
+
+Cell[TextData[{
+ "8: \[GrayCircle] Part 1:  Define a function (name it ",
+ Cell[BoxData[
+  FormBox[
+   StyleBox[
+    RowBox[{"myDiff1", "[", " ", "...", " ", "]"}],
+    FontWeight->"Bold"], TraditionalForm]],ExpressionUUID->
+  "cee2096d-e622-4abb-a0f9-83920537c1f7"],
+ ") that differentiates a function  ",
+ StyleBox["f",
+  FontWeight->"Bold"],
+ "  with respect \n                      to  ",
+ StyleBox["x",
+  FontWeight->"Bold"],
+ "  using ",
+ StyleBox["immediate",
+  FontVariations->{"Underline"->True}],
+ " assignment (i.e. \"",
+ Cell[BoxData[
+  FormBox[Cell[TextData[StyleBox["=",
+    FontWeight->"Bold"]],ExpressionUUID->
+    "7dad8a5b-e456-40af-a4c1-4a202d786c1d"], TraditionalForm]],ExpressionUUID->
+  "f892aba0-109b-49a2-9c29-4d1354e86032"],
+ "\")\n\n\t\t\t",
+ Cell[BoxData[
+  FormBox[
+   StyleBox[
+    RowBox[{
+     RowBox[{"Clear", "[", 
+      RowBox[{"x", ",", "f"}], "]"}], ";"}],
+    FontWeight->"Bold"], TraditionalForm]],ExpressionUUID->
+  "b27538c0-e5ae-4bd0-bb56-3847f17a41e0"],
+ "\n\n\t\t\t",
+ Cell[BoxData[
+  FormBox[
+   StyleBox[
+    RowBox[{
+     RowBox[{"myDiff1", "[", "f_", "]"}], "=", " ", 
+     RowBox[{
+      SubscriptBox["\[PartialD]", "x"], " ", "f"}]}],
+    FontWeight->"Bold"], TraditionalForm]],ExpressionUUID->
+  "b4e0219d-9509-4c3a-9173-3cc1de008ca5"],
+ "\n\n     \[GrayCircle] Part 2:  Evaluate the following lines of code:\n\t\t\
+\t",
+ Cell[BoxData[
+  FormBox[
+   StyleBox[
+    RowBox[{"myDiff1", "[", 
+     RowBox[{
+      SuperscriptBox["x", "2"], "+", 
+      RowBox[{"3", "x"}], "+", "4"}], "]"}],
+    FontWeight->"Bold"], TraditionalForm]],ExpressionUUID->
+  "f094c940-f44e-413e-8b7a-c29a7565c838"],
+ "\n\t\t\t",
+ Cell[BoxData[
+  FormBox[
+   StyleBox[
+    RowBox[{"myDiff1", "[", 
+     SuperscriptBox["\[ExponentialE]", 
+      RowBox[{
+       RowBox[{"2", "x"}], "+", "3"}]], "]"}],
+    FontWeight->"Bold"], TraditionalForm]],ExpressionUUID->
+  "ceafea8e-590d-4fc1-b64d-2f9375abf7ea"],
+ "\n\t\t\t",
+ Cell[BoxData[
+  FormBox[
+   StyleBox[
+    RowBox[{"myDiff1", "[", 
+     RowBox[{"f", "[", "x", "]"}], "]"}],
+    FontWeight->"Bold"], TraditionalForm]],ExpressionUUID->
+  "54e65ed2-e93f-4f5a-b7b6-db38ce43496f"],
+ "\n\t\t\t",
+ Cell[BoxData[
+  FormBox[
+   StyleBox[
+    RowBox[{"?", "myDiff1"}],
+    FontWeight->"Bold"], TraditionalForm]],ExpressionUUID->
+  "a4a63063-7243-4aac-8ae7-85a14dd0845b"],
+ "\n                     Explain (in a Text Cell) why you did NOT get the \
+correct answers for differentiation.\n\t\n     \[GrayCircle] Part 3:  Define \
+a function (name it ",
+ Cell[BoxData[
+  FormBox[
+   StyleBox[
+    RowBox[{"myDiff2", "[", " ", "...", " ", "]"}],
+    FontWeight->"Bold"], TraditionalForm]],ExpressionUUID->
+  "ee83972c-082c-4065-a736-d188b8608661"],
+ ") that differentiates a function  ",
+ StyleBox["f",
+  FontWeight->"Bold"],
+ "  with respect \n                     to  ",
+ StyleBox["x",
+  FontWeight->"Bold"],
+ "  using ",
+ StyleBox["delayed",
+  FontVariations->{"Underline"->True}],
+ " assignment (i.e. \"",
+ StyleBox[":",
+  FontWeight->"Bold"],
+ Cell[BoxData[
+  FormBox["=", TraditionalForm]],
+  FontWeight->"Bold",ExpressionUUID->"fa3e5878-8029-4b87-afc6-4222ad56127c"],
+ "\")\n\n\t\t\t",
+ Cell[BoxData[
+  FormBox[
+   StyleBox[
+    RowBox[{
+     RowBox[{"myDiff2", "[", "f_", "]"}], ":=", " ", 
+     RowBox[{
+      SubscriptBox["\[PartialD]", "x"], " ", "f"}]}],
+    FontWeight->"Bold"], TraditionalForm]],ExpressionUUID->
+  "4070a04a-564b-4ca1-a9dc-0ea88a51e58a"],
+ "\n\n     \[GrayCircle] Part 4:  Evaluate the following lines of code:\n\t\t\
+\t",
+ Cell[BoxData[
+  FormBox[
+   StyleBox[
+    RowBox[{"myDiff2", "[", 
+     RowBox[{
+      SuperscriptBox["x", "2"], "+", 
+      RowBox[{"3", "x"}], "+", "4"}], "]"}],
+    FontWeight->"Bold"], TraditionalForm]],ExpressionUUID->
+  "850aa1a7-ae5c-4408-bb62-67f7eaeb12da"],
+ "\n\t\t\t",
+ Cell[BoxData[
+  FormBox[
+   StyleBox[
+    RowBox[{"myDiff2", "[", 
+     SuperscriptBox["\[ExponentialE]", 
+      RowBox[{
+       RowBox[{"2", "x"}], "+", "3"}]], "]"}],
+    FontWeight->"Bold"], TraditionalForm]],ExpressionUUID->
+  "29e658f1-43b4-4f86-a953-3a0b1f7f0aa4"],
+ "\n\t\t\t",
+ Cell[BoxData[
+  FormBox[
+   StyleBox[
+    RowBox[{"myDiff2", "[", 
+     RowBox[{"f", "[", "x", "]"}], "]"}],
+    FontWeight->"Bold"], TraditionalForm]],ExpressionUUID->
+  "7e9167a0-e94b-4829-94ca-b5e0a74d69e6"],
+ "\n\t\t\t",
+ Cell[BoxData[
+  FormBox[
+   StyleBox[
+    RowBox[{"?", "myDiff2"}],
+    FontWeight->"Bold"], TraditionalForm]],ExpressionUUID->
+  "4b388bb0-9de6-4fa5-8b57-c180d1f1ccd3"],
+ "\n                     Explain (in a Text Cell) why you DID get the correct \
+answers.\n\n     \[GrayCircle] Part 5:  Explain (in a Text Cell) why you ",
+ StyleBox["must",
+  FontVariations->{"Underline"->True}],
+ " (for this case) use ",
+ StyleBox["delayed",
+  FontVariations->{"Underline"->True}],
+ " assignment (i.e.  \"",
+ Cell[BoxData[
+  FormBox[
+   StyleBox[":=",
+    FontWeight->"Bold"], TraditionalForm]],ExpressionUUID->
+  "e5c171c7-774e-4d09-b3e3-8eb2e3da5366"],
+ "\") \n                     to define your function ",
+ Cell[BoxData[
+  FormBox[
+   StyleBox[
+    RowBox[{"myDiff2", "[", " ", "...", " ", "]"}],
+    FontWeight->"Bold"], TraditionalForm]],ExpressionUUID->
+  "fc206b94-4aac-49b8-b475-e70d49e10205"],
+ " so that it will work properly."
+}], "Text",
+ CellChangeTimes->{
+  3.390378440027*^9, 3.390379486467*^9, {3.3903796319639997`*^9, 
+   3.390379670763*^9}, {3.390379701064*^9, 3.390379785216*^9}, {
+   3.390380552295*^9, 3.390380614347*^9}, {3.390726463576*^9, 
+   3.3907266942139997`*^9}, {3.3907267401210003`*^9, 3.390726750259*^9}, {
+   3.390726795407*^9, 3.390726833645*^9}, {3.39072686962*^9, 
+   3.3907269371029997`*^9}, {3.390727009285*^9, 3.390727026301*^9}, {
+   3.3907270603120003`*^9, 3.390727080098*^9}, {3.3907271164779997`*^9, 
+   3.390727129764*^9}, {3.390727180031*^9, 3.390727226979*^9}, {
+   3.390727278085*^9, 3.3907274149309998`*^9}, {3.390727496291*^9, 
+   3.390727533027*^9}, {3.3907277922530003`*^9, 3.390727858658*^9}, {
+   3.390727920907*^9, 3.390728256959*^9}, {3.390728316027*^9, 
+   3.390728347784*^9}, {3.390729380947*^9, 3.390729384506*^9}, {
+   3.390729464335*^9, 3.3907294817*^9}, {3.390729694454*^9, 
+   3.3907297441219997`*^9}, {3.3907753707279997`*^9, 3.390775377894*^9}, {
+   3.39077540848*^9, 3.3907755372939997`*^9}, 3.390791974908*^9, {
+   3.39079201401*^9, 3.3907920141289997`*^9}, {3.390792044208*^9, 
+   3.390792045718*^9}, {3.43906251159375*^9, 3.439062529546875*^9}, 
+   3.439062592015625*^9, 
+   3.439062648328125*^9},ExpressionUUID->"99166308-c421-4f3e-92ba-\
+eb63142bb2e3"],
+
+Cell[BoxData[{
+ RowBox[{
+  RowBox[{"Clear", "[", 
+   RowBox[{"x", ",", "f"}], "]"}], ";"}], "\[IndentingNewLine]", 
+ RowBox[{
+  RowBox[{"myDiff1", "[", "f_", "]"}], "=", 
+  RowBox[{
+   SubscriptBox["\[PartialD]", "x"], "f"}]}]}], "Input",ExpressionUUID->\
+"92224ebc-4675-4bbf-b0b3-d75c1d0a656b"],
+
+Cell[BoxData[
+ RowBox[{"{", 
+  RowBox[{
+   RowBox[{"myDiff1", "[", 
+    RowBox[{
+     SuperscriptBox["x", "2"], "+", 
+     RowBox[{"3", " ", "x"}], "+", "4"}], "]"}], ",", 
+   RowBox[{"myDiff1", "[", 
+    RowBox[{
+     SuperscriptBox["\[ExponentialE]", 
+      RowBox[{"2", " ", "x"}]], "+", "3"}], "]"}], ",", 
+   RowBox[{"myDiff1", "[", 
+    RowBox[{"f", "[", "x", "]"}], "]"}]}], "}"}]], "Input",ExpressionUUID->\
+"f827b027-66af-4e32-98c7-1f7cb7646d3e"],
+
+Cell["?myDiff1", "Input",ExpressionUUID->"96cb4359-d936-4b8e-a01a-a7ddcb4a66fe"],
+
+Cell[BoxData[{
+ RowBox[{
+  RowBox[{"Clear", "[", 
+   RowBox[{"x", ",", "f"}], "]"}], ";"}], "\[IndentingNewLine]", 
+ RowBox[{
+  RowBox[{"myDiff2", "[", "f_", "]"}], ":=", 
+  RowBox[{
+   SubscriptBox["\[PartialD]", "x"], "f"}]}]}], "Input",ExpressionUUID->\
+"e706d0e6-d575-43b0-a2ae-ffad6e54658e"],
+
+Cell[BoxData[
+ RowBox[{"{", 
+  RowBox[{
+   RowBox[{"myDiff2", "[", 
+    RowBox[{
+     SuperscriptBox["x", "2"], "+", 
+     RowBox[{"3", " ", "x"}], "+", "4"}], "]"}], ",", 
+   RowBox[{"myDiff2", "[", 
+    RowBox[{
+     SuperscriptBox["\[ExponentialE]", 
+      RowBox[{"2", " ", "x"}]], "+", "3"}], "]"}], ",", 
+   RowBox[{"myDiff2", "[", 
+    RowBox[{"f", "[", "x", "]"}], "]"}]}], "}"}]], "Input",ExpressionUUID->\
+"c4cf910c-05a5-4285-9e88-23e70d3e6c7e"],
+
+Cell["?myDiff2", "Input",ExpressionUUID->"c6cde272-87ff-4bc5-a81e-a9417ca03ca1"],
+
+Cell["\<\
+Part 2: myDiff1 was defined with =, so the right-hand side was worked out \
+once, at definition time, when f was still an empty symbol. The derivative of \
+the symbol f with respect to x is 0, so 0 is what got stored, and myDiff1 \
+returns 0 for every input. Part 4: myDiff2 was defined with :=, which stores \
+the right-hand side unevaluated. The derivative is taken when the function is \
+called, on the expression actually passed in, so the answers are correct. \
+Part 5: whenever the right-hand side only makes sense once the argument has a \
+value, the definition must be delayed. Immediate assignment computes on an \
+empty symbol and freezes that answer.\
+\>", "Text",ExpressionUUID->"b83dbbd4-3923-4b50-adf0-8680d705888f"]
+},
+WindowSize->{1100, 850},
+FrontEndVersion->"15.0 for Linux x86 (64-bit) (May 26, 2026)",
+StyleDefinitions->"Default.nb",
+ExpressionUUID->"53e1aa67-6381-4be0-aec1-2e1147a12ddd"
+]
+(* End of Notebook Content *)
+
+(* Internal cache information *)
+(*CellTagsOutline
+CellTagsIndex->{}
+*)
+(*CellTagsIndex
+CellTagsIndex->{}
+*)
+(*NotebookFileOutline
+Notebook[{
+Cell[560, 20, 283, 7, 70, "Section",ExpressionUUID->"afd722ec-7472-4b3a-aba7-2b63474f4a1b"],
+Cell[846, 29, 386, 9, 70, "Program",ExpressionUUID->"1eefcaa3-e993-4ece-91c9-a072151617a5"],
+Cell[1235, 40, 507, 12, 70, "Text",ExpressionUUID->"15a456c9-1aac-4a91-b129-6906dc2e1fb2"],
+Cell[1745, 54, 236, 6, 70, "Input",ExpressionUUID->"8ea40fe3-4e22-4a85-bc14-a614e759c81d"],
+Cell[1984, 62, 2065, 44, 70, "Text",ExpressionUUID->"6ea3a84e-3ad6-4a73-9bd0-bda218c052ea"],
+Cell[4052, 108, 211, 6, 70, "Input",ExpressionUUID->"785d2fe5-2696-475b-9163-7e9f65d14294"],
+Cell[4266, 116, 262, 8, 70, "Input",ExpressionUUID->"8c173f04-050e-491c-8d8d-ef740577be24"],
+Cell[4531, 126, 353, 9, 70, "Input",ExpressionUUID->"d31a8ed1-7805-43ea-ba78-197f17e7e6ad"],
+Cell[4887, 137, 377, 9, 70, "Input",ExpressionUUID->"e10c56ec-da39-4e67-b4a1-885009c817fb"],
+Cell[5267, 148, 510, 11, 70, "Input",ExpressionUUID->"010d33e6-e4f8-4d42-a59a-585c2a098396"],
+Cell[5780, 161, 444, 11, 70, "Input",ExpressionUUID->"133c3cd4-6edc-454f-a0a6-51e6734773ff"],
+Cell[6227, 174, 311, 9, 70, "Input",ExpressionUUID->"55545b4f-b2f2-46cf-9c0e-c50e08954e91"],
+Cell[6541, 185, 329, 10, 70, "Input",ExpressionUUID->"d9a36c38-bea8-4c3b-b55e-be19edd77b4b"],
+Cell[6873, 197, 185, 6, 70, "Input",ExpressionUUID->"9a5a7eb3-5d73-49c2-8c1c-69231e751b7b"],
+Cell[7061, 205, 694, 10, 70, "Text",ExpressionUUID->"32475f20-a3ed-470d-8bfd-232f0b64fb8b"],
+Cell[7758, 217, 3287, 110, 70, "Text",ExpressionUUID->"9c715531-f52d-49ca-adc2-1e0f65ac0965"],
+Cell[11048, 329, 186, 5, 70, "Input",ExpressionUUID->"9a593722-00a6-40e3-9b8f-cb23843a8f64"],
+Cell[11237, 336, 188, 5, 70, "Input",ExpressionUUID->"b9e22a54-198a-4815-97d0-16a15a417b7c"],
+Cell[11428, 343, 215, 6, 70, "Input",ExpressionUUID->"35c855ba-f8d5-4541-9608-c39701a9437c"],
+Cell[11646, 351, 217, 6, 70, "Input",ExpressionUUID->"ff537d74-9b78-4e3c-9c60-907888b36eb8"],
+Cell[11866, 359, 245, 7, 70, "Input",ExpressionUUID->"15ee28a4-a4cd-446d-9df2-c049039ecfc4"],
+Cell[12114, 368, 247, 7, 70, "Input",ExpressionUUID->"0a653ca6-2af4-4d04-bbee-1d6533056f0a"],
+Cell[12364, 377, 438, 6, 70, "Text",ExpressionUUID->"eb2e7a61-2d96-467b-a6c6-4320b27583cd"],
+Cell[12805, 385, 1101, 35, 70, "Text",ExpressionUUID->"51f0c30f-d5cc-4891-8de5-4a00a49096a0"],
+Cell[13909, 422, 179, 4, 70, "Input",ExpressionUUID->"dffb722e-5c59-4a84-ac7f-d719b8fe3e0d"],
+Cell[14091, 428, 123, 1, 70, "Input",ExpressionUUID->"c7c5d89d-8d64-4191-b644-364b0f6b2dee"],
+Cell[14217, 431, 254, 4, 70, "Text",ExpressionUUID->"31d65fbb-7ab9-4a5f-8272-998a38c15da4"],
+Cell[14474, 437, 1822, 52, 70, "Text",ExpressionUUID->"29e5b7f9-e12a-45e2-9b9e-eab2bee9f249"],
+Cell[16299, 491, 246, 7, 70, "Input",ExpressionUUID->"e65612d4-eea2-409d-9f50-c1569fffa833"],
+Cell[16548, 500, 309, 9, 70, "Input",ExpressionUUID->"e00c288f-4b84-4ebb-9d7b-b730f6e1ffe9"],
+Cell[16860, 511, 311, 9, 70, "Input",ExpressionUUID->"b75de73b-5d93-4e2f-a920-2e197a621b4f"],
+Cell[17174, 522, 288, 4, 70, "Text",ExpressionUUID->"2402e421-7c7c-457d-aaab-87db9ffe1c2b"],
+Cell[17465, 528, 1807, 55, 70, "Text",ExpressionUUID->"08203725-4974-43d8-8a4c-76b51fff9c3f"],
+Cell[19275, 585, 111, 1, 70, "Input",ExpressionUUID->"5b44772d-4793-4f8f-a434-e108903be9b9"],
+Cell[19389, 588, 113, 1, 70, "Input",ExpressionUUID->"410261df-1660-41e0-b1f3-7f6a4c76eab3"],
+Cell[19505, 591, 166, 4, 70, "Input",ExpressionUUID->"ef100ad7-c2e1-400e-a505-5cd6027f5785"],
+Cell[19674, 597, 168, 4, 70, "Input",ExpressionUUID->"5bd85412-c301-45b0-b832-f08ab90c6b42"],
+Cell[19845, 603, 223, 6, 70, "Input",ExpressionUUID->"447b0836-1b35-4c99-8e6e-d5ff9a6f405a"],
+Cell[20071, 611, 446, 6, 70, "Text",ExpressionUUID->"fac13aad-e641-4e4f-be2d-3cae6813e1c6"],
+Cell[20520, 619, 1070, 34, 70, "Text",ExpressionUUID->"03a12685-b706-48b1-b063-ac23ecd4c23c"],
+Cell[21593, 655, 368, 10, 70, "Input",ExpressionUUID->"d3a00ddb-1f33-46d5-a510-d91e250c0af8"],
+Cell[21964, 667, 229, 6, 70, "Input",ExpressionUUID->"00ea5514-ef18-4775-81af-ac0e7211ab62"],
+Cell[22196, 675, 1906, 51, 70, "Text",ExpressionUUID->"9a3a0f3a-5942-410b-afb6-efd65e2f3217"],
+Cell[24105, 728, 151, 3, 70, "Input",ExpressionUUID->"77dde81a-a7d1-4488-bb55-67b6bf003cd8"],
+Cell[24259, 733, 163, 3, 70, "Input",ExpressionUUID->"dd10e5fc-6c7c-4fb0-a236-471fd5835764"],
+Cell[24425, 738, 6521, 190, 70, "Text",ExpressionUUID->"99166308-c421-4f3e-92ba-eb63142bb2e3"],
+Cell[30949, 930, 295, 8, 70, "Input",ExpressionUUID->"92224ebc-4675-4bbf-b0b3-d75c1d0a656b"],
+Cell[31247, 940, 455, 13, 70, "Input",ExpressionUUID->"f827b027-66af-4e32-98c7-1f7cb7646d3e"],
+Cell[31705, 955, 80, 0, 70, "Input",ExpressionUUID->"96cb4359-d936-4b8e-a01a-a7ddcb4a66fe"],
+Cell[31788, 957, 296, 8, 70, "Input",ExpressionUUID->"e706d0e6-d575-43b0-a2ae-ffad6e54658e"],
+Cell[32087, 967, 455, 13, 70, "Input",ExpressionUUID->"c4cf910c-05a5-4285-9e88-23e70d3e6c7e"],
+Cell[32545, 982, 80, 0, 70, "Input",ExpressionUUID->"c6cde272-87ff-4bc5-a81e-a9417ca03ca1"],
+Cell[32628, 984, 740, 10, 70, "Text",ExpressionUUID->"b83dbbd4-3923-4b50-adf0-8680d705888f"]
+}
+]
+*)
+
+(* End of internal cache information *)

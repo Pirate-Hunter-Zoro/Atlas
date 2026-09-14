@@ -1,0 +1,1087 @@
+(* Content-type: application/mathematica *)
+
+(*** Wolfram Notebook File ***)
+(* http://www.wolfram.com/nb *)
+
+(* CreatedBy='Mathematica 6.0' *)
+
+(*CacheID: 234*)
+(* Internal cache information:
+NotebookFileLineBreakTest
+NotebookFileLineBreakTest
+NotebookDataPosition[       145,          7]
+NotebookDataLength[     43730,       1079]
+NotebookOptionsPosition[     36999,        984]
+NotebookOutlinePosition[     37441,       1001]
+CellTagsIndexPosition[     37398,        998]
+WindowFrame->Normal*)
+
+(* Beginning of Notebook Content *)
+Notebook[{
+
+Cell[CellGroupData[{
+Cell[" Section 1.2", "Title",ExpressionUUID->"1bddd2ce-b521-46c0-a51f-0b009fe5a741"],
+
+Cell[TextData[StyleBox["  Conservation laws:\n  What comes out is what goes \
+in:", "Subtitle",
+ FontWeight->"Bold"]], "Subtitle",
+ CellChangeTimes->{
+  3.3982871369974003`*^9},ExpressionUUID->"04b0a651-c858-44b4-9f3b-\
+a5bcfacf94d2"],
+
+Cell[BoxData[
+ RowBox[{" ", 
+  RowBox[{
+   RowBox[{"Remove", "[", "\"\<Global`*\>\"", " ", "]"}], " ", 
+   ";"}]}]], "InputOnly",
+ CellChangeTimes->{3.3982871262174*^9},
+ CellLabel->
+  "In[215]:=",ExpressionUUID->"e3e503f6-3068-48f2-82a9-f5eb5ec1884b"],
+
+Cell[CellGroupData[{
+
+Cell[" Introduction:  The Basic Conservation Law", "Section",ExpressionUUID->"92ef01df-0724-42b0-aa91-a402288555d0"],
+
+Cell[TextData[{
+ "Another frequently used application for ordinary and partial differential \
+equations is the representation of conservation laws.  There are a number of \
+physical quantities that obey a conservation law.  For example, the \
+conservation of mass, linear momentum, angular momentum and energy in physics \
+to name just a few.  Also,  conservation laws usually form the basis of \
+modeling phenomena beyond the physical sciences.  The basic structure of \
+these laws is of the following type:\n\nConsider a \"volume\" (often called a \
+control volume) for which the amount of some quantity will be measured.   \
+Thus for this control volume the quantity to be conserved will obey the \
+following law:\n\n\t",
+ StyleBox["Rate of increase of quantity = rate in - rate out + rate created",
+  FontSize->14,
+  FontWeight->"Bold"],
+ "\n"
+}], "Text",ExpressionUUID->"81741170-a796-4fee-a5c0-4a2d2a2ad848"]
+}, Closed]],
+
+Cell[CellGroupData[{
+
+Cell[" Example 1.5", "Section",ExpressionUUID->"6b76c5ff-d05d-45cd-8d46-28edbe3b8dde"],
+
+Cell[CellGroupData[{
+
+Cell[TextData[StyleBox[" Conservation of mass", "Subtitle"]], "Subsection",ExpressionUUID->"3ed24975-41e4-4842-9290-57d03fff8642"],
+
+Cell[TextData[{
+ "Consider a tank (control volume) in which water is flowing at a constant \
+rate  k1 (volume per unit time).  \nAlso assume that the water evaporates \
+from the tank at a rate which we assume is proportional to ",
+ Cell[BoxData[
+  FormBox[
+   SuperscriptBox["v", 
+    RowBox[{" ", 
+     FractionBox["2", "3"]}]], TraditionalForm]],ExpressionUUID->
+  "281bd91b-2eda-416a-b44a-cabcea8cb983"],
+ " (v = volume).  \nIf we assume that the water in the tank is incompressible \
+then the volume of water ( which corresponds to the mass) will be conserved.  \
+\n\nThe conservation law is as follows:\n\n\t",
+ StyleBox["Rate of increase of quantity = rate in - rate out + rate created",
+  FontWeight->"Bold"],
+ "\n\n\trate in = k1\n\trate out = k2*",
+ Cell[BoxData[
+  FormBox[
+   SuperscriptBox["v", 
+    RowBox[{" ", 
+     FractionBox["2", "3"]}]], TraditionalForm]],ExpressionUUID->
+  "6ae0fa5e-be29-49d7-b1c7-07c4bcebc01e"],
+ "\n\trate created = 0\n\t\n Therefore:\n\t \n\tv ' [t] = k1 - k2*",
+ Cell[BoxData[
+  FormBox[
+   SuperscriptBox["v", 
+    RowBox[{" ", 
+     FractionBox["2", "3"]}]], TraditionalForm]],ExpressionUUID->
+  "92d4e7de-b55a-49d9-8e82-63d8911a2789"],
+ ", \n\nwhere the constant k1 corresponds to the rate of water flowing into \
+the tank and the constant k2 corresponds to the constant of proportionally \
+for evaporation.\n\nIt is now possible to find if there is an equilibrium \
+volume for this ODE. The equilibrium would correspond to a constant volume of \
+water, i.e. v '[t] = 0.  Make this substitution into the ODE and solve for v:"
+}], "Text",
+ CellChangeTimes->{{3.3982874012553997`*^9, 3.3982874120234003`*^9}, {
+  3.463760237750849*^9, 
+  3.463760244500719*^9}},ExpressionUUID->"a9385f37-de2d-40b4-b0fc-\
+f6b296066ece"],
+
+Cell[BoxData[
+ RowBox[{
+  RowBox[{"Solve", "[", "\[IndentingNewLine]", "\[IndentingNewLine]", 
+   RowBox[{
+    RowBox[{"0", "==", 
+     RowBox[{"k1", "-", 
+      RowBox[{"k2", " ", 
+       SuperscriptBox["v", 
+        RowBox[{"2", "/", "3"}]]}]}]}], ",", "\[IndentingNewLine]", 
+    "\[IndentingNewLine]", "v"}], "\[IndentingNewLine]", 
+   "\[IndentingNewLine]", "]"}], "//", "TableForm"}]], "Input",
+ CellChangeTimes->{{3.3982874203344*^9, 3.3982874696644*^9}, {
+  3.3982875002424*^9, 3.3982875104184*^9}, {3.3982877948644*^9, 
+  3.3982877999184*^9}},
+ CellLabel->
+  "In[216]:=",ExpressionUUID->"06a64a4b-cd20-44f5-9926-814749b993e2"],
+
+Cell["\<\
+For our problem, the equilibrium point corresponds to the second solution.  \
+Let's assign some values to the constants and analyze the behavior of the \
+equation:\
+\>", "Text",
+ CellChangeTimes->{{3.3982875195424*^9, 
+  3.3982875200044003`*^9}},ExpressionUUID->"3d85c04b-babd-4d89-be86-\
+da372b71d31e"],
+
+Cell[BoxData[{
+ RowBox[{
+  RowBox[{"k1", "=", "100000"}], ";"}], "\n", 
+ RowBox[{
+  RowBox[{"k2", "=", "10"}], ";"}]}], "InputOnly",
+ CellLabel->
+  "In[217]:=",ExpressionUUID->"35435188-1118-4851-8550-bcf6c4888e2e"],
+
+Cell["\<\
+  Next find the value of the volume corresponding to the equilibrium water \
+volume:\
+\>", "Text",ExpressionUUID->"098cd238-3029-4329-a1b4-c61fc6191e4c"],
+
+Cell[BoxData[
+ FractionBox[
+  RowBox[{"k1", " ", 
+   SqrtBox[
+    FractionBox["k1", "k2"]]}], "k2"]], "Input",
+ CellChangeTimes->{3.3982875436144*^9},
+ CellLabel->
+  "In[219]:=",ExpressionUUID->"21ba786b-d0e4-4cd8-8cde-456ed1ced011"],
+
+Cell["\<\
+Next, look at a graph of the solution to this ODE.  The first case will start \
+with an empty tank.\
+\>", "Text",ExpressionUUID->"a50eeb78-5c41-4422-bbad-9fa7a7b30f12"],
+
+Cell[BoxData[
+ RowBox[{"solutionRule1", "=", "\[IndentingNewLine]", "\[IndentingNewLine]", 
+  RowBox[{"NDSolve", "[", "\[IndentingNewLine]", "\[IndentingNewLine]", 
+   RowBox[{
+    RowBox[{"{", "\[IndentingNewLine]", 
+     RowBox[{
+      RowBox[{
+       RowBox[{
+        SuperscriptBox["v", "\[Prime]",
+         MultilineFunction->None], "[", "t", "]"}], "==", 
+       RowBox[{"k1", "-", 
+        RowBox[{"k2", " ", 
+         SuperscriptBox[
+          RowBox[{"v", "[", "t", "]"}], 
+          RowBox[{"2", "/", "3"}]]}]}]}], ",", "\[IndentingNewLine]", 
+      RowBox[{
+       RowBox[{"v", "[", "0", "]"}], "==", "0"}]}], "\[IndentingNewLine]", 
+     "}"}], ",", "\[IndentingNewLine]", "\[IndentingNewLine]", 
+    RowBox[{"v", "[", "t", "]"}], ",", "\[IndentingNewLine]", 
+    RowBox[{"{", 
+     RowBox[{"t", ",", "0", ",", "100"}], "}"}]}], "\[IndentingNewLine]", 
+   "\[IndentingNewLine]", "]"}]}]], "Input",
+ CellChangeTimes->{{3.3982875530044003`*^9, 3.3982875868454*^9}},
+ CellLabel->
+  "In[220]:=",ExpressionUUID->"4c5bac39-d083-4ff6-8f24-25cb04b0d3f7"],
+
+Cell[" Extract the solution using the solution rule:", "Text",ExpressionUUID->"6b54d8f3-39c3-4b4b-9f75-b3e0bbe134bd"],
+
+Cell[BoxData[
+ RowBox[{
+  RowBox[{"v1", "[", "t_", "]"}], "=", 
+  RowBox[{
+   RowBox[{"v", "[", "t", "]"}], "/.", "\[InvisibleSpace]", 
+   "solutionRule1"}]}]], "Input",
+ CellLabel->
+  "In[221]:=",ExpressionUUID->"97d28047-11c2-4ae0-9795-9b75d7321de2"],
+
+Cell[BoxData[
+ RowBox[{"plot1", "=", "\[IndentingNewLine]", "\[IndentingNewLine]", 
+  RowBox[{"Plot", "[", "\[IndentingNewLine]", "\[IndentingNewLine]", 
+   RowBox[{
+    RowBox[{"v1", "[", "t", "]"}], ",", "\[IndentingNewLine]", 
+    "\[IndentingNewLine]", 
+    RowBox[{"{", 
+     RowBox[{"t", ",", "1", ",", "100"}], "}"}], ",", "\[IndentingNewLine]", 
+    "\[IndentingNewLine]", 
+    RowBox[{"PlotRange", "\[Rule]", 
+     RowBox[{"{", 
+      RowBox[{"0", ",", "1000000"}], "}"}]}], ",", "\[IndentingNewLine]", 
+    RowBox[{"PlotStyle", "\[Rule]", 
+     RowBox[{"Thickness", "[", ".01", "]"}]}]}], "\[IndentingNewLine]", 
+   "\[IndentingNewLine]", "]"}]}]], "Input",
+ CellChangeTimes->{3.3982876009224*^9},
+ CellLabel->
+  "In[222]:=",ExpressionUUID->"b55bc09a-d876-4c84-8112-e3ae87f86c8f"],
+
+Cell["\<\
+Next, look at a graph of the solution to this ODE.  The second case will \
+start with a \"full\" tank.\
+\>", "Text",ExpressionUUID->"fd2befb2-8576-4d46-9b12-43be238ce078"],
+
+Cell[BoxData[
+ RowBox[{"solutionRule2", "=", "\[IndentingNewLine]", "\[IndentingNewLine]", 
+  RowBox[{"NDSolve", "[", "\[IndentingNewLine]", "\[IndentingNewLine]", 
+   RowBox[{
+    RowBox[{"{", "\[IndentingNewLine]", 
+     RowBox[{
+      RowBox[{
+       RowBox[{
+        SuperscriptBox["v", "\[Prime]",
+         MultilineFunction->None], "[", "t", "]"}], "==", 
+       RowBox[{"k1", "-", 
+        RowBox[{"k2", " ", 
+         SuperscriptBox[
+          RowBox[{"v", "[", "t", "]"}], 
+          RowBox[{"2", "/", "3"}]]}]}]}], ",", "\[IndentingNewLine]", 
+      RowBox[{
+       RowBox[{"v", "[", "0", "]"}], "==", "2000000"}]}], 
+     "\[IndentingNewLine]", "}"}], ",", "\[IndentingNewLine]", 
+    "\[IndentingNewLine]", 
+    RowBox[{"v", "[", "t", "]"}], ",", "\[IndentingNewLine]", 
+    RowBox[{"{", 
+     RowBox[{"t", ",", "0", ",", "100"}], "}"}]}], "\[IndentingNewLine]", 
+   "\[IndentingNewLine]", "]"}]}]], "Input",
+ CellChangeTimes->{{3.3982876176464*^9, 3.3982876264504004`*^9}, {
+  3.3982892075994*^9, 3.3982892111144*^9}},
+ CellLabel->
+  "In[223]:=",ExpressionUUID->"38047b51-17d9-4c20-8ba4-aaa231c714ff"],
+
+Cell[" Extract the solution using the solution rule:", "Text",ExpressionUUID->"8adc08ef-eca6-4d0c-b3a2-18a88c479170"],
+
+Cell[BoxData[
+ RowBox[{
+  RowBox[{"v2", "[", "t_", "]"}], "=", 
+  RowBox[{
+   RowBox[{"v", "[", "t", "]"}], "/.", "\[InvisibleSpace]", 
+   "solutionRule2"}]}]], "Input",
+ CellLabel->
+  "In[224]:=",ExpressionUUID->"bdabe39f-0738-4943-9c8b-078ad9fb3ec1"],
+
+Cell[BoxData[
+ RowBox[{"plot2", "=", "\[IndentingNewLine]", "\[IndentingNewLine]", 
+  RowBox[{"Plot", "[", "\[IndentingNewLine]", "\[IndentingNewLine]", 
+   RowBox[{
+    RowBox[{"v2", "[", "t", "]"}], ",", "\[IndentingNewLine]", 
+    "\[IndentingNewLine]", 
+    RowBox[{"{", 
+     RowBox[{"t", ",", "1", ",", "100"}], "}"}], ",", "\[IndentingNewLine]", 
+    "\[IndentingNewLine]", 
+    RowBox[{"PlotRange", "\[Rule]", 
+     RowBox[{"{", 
+      RowBox[{"0", ",", "2000000"}], "}"}]}], ",", "\[IndentingNewLine]", 
+    RowBox[{"PlotStyle", "\[Rule]", 
+     RowBox[{"Thickness", "[", ".01", "]"}]}]}], "\[IndentingNewLine]", 
+   "\[IndentingNewLine]", "]"}]}]], "Input",
+ CellChangeTimes->{3.3982876415654*^9},
+ CellLabel->
+  "In[225]:=",ExpressionUUID->"9217f337-3015-4e34-9c7f-32a9612ca149"],
+
+Cell[" Finally, look at both solutions:", "Text",ExpressionUUID->"8cc89dd6-8569-4551-a225-b0a5483892eb"],
+
+Cell[BoxData[
+ RowBox[{" ", 
+  RowBox[{"Show", " ", "[", 
+   RowBox[{"plot2", ",", "plot1"}], "]"}]}]], "Input",
+ CellLabel->
+  "In[226]:=",ExpressionUUID->"8b392281-71a5-4c31-a0f8-8ee5b9ce2e06"],
+
+Cell["\<\
+Observe that the above solutions are consistent with the equilibrium water \
+volume for this problem.
+The second plot \"plot2\" was listed first in the Show command because we \
+wanted the PlotRange on this graph to be used simultaneously for both graphs.\
+\>", "Text",ExpressionUUID->"fb6809ac-05aa-408f-978a-8933bd14eecf"]
+}, Closed]]
+}, Closed]],
+
+Cell[CellGroupData[{
+
+Cell[" Example 1.6", "Section",ExpressionUUID->"84541684-9837-4d20-b095-c9c8d0db9c72"],
+
+Cell[CellGroupData[{
+
+Cell[TextData[StyleBox[" Organic pollution", "Subtitle"]], "Subsection",ExpressionUUID->"dc484a7b-2e90-4541-bf5a-23eabb6b7f55"],
+
+Cell["\<\
+Consider an example of an organic pollutant that enters a lake at a constant \
+rate, \[Sigma].  Also, bacterial action metabolizes (decomposes) the \
+pollutant at a rate proportional to its total mass in the lake (this defines \
+an ODE).  In doing so, the dissolved oxygen in the lake water is used up at \
+the same rate that the pollutant decomposes.  However, oxygen in the air \
+reenters the lake through the surface-to-air-contact (this is called \
+reaeration) at a rate proportional to the difference between the maximum \
+dissolved oxygen level that the lake can support and its current actual value \
+(this defines another ODE).  
+The ODEs become :
+
+\tx1[t] =  mass of the pollutant
+\tx2[t] =  dissolved oxygen level
+\t\[Sigma]  =  constant rate of pollutant input
+\txm =  maximum (saturation) level of oxygen
+\t
+ Rate of change in pollutant:
+\tx1'[t] = \[Sigma] - k*x1[t]
+
+ Rate of change in the oxygen level:
+\tx2'[t] =  - k*x1[t] + k2*(xm - x2[t])
+\
+\>", "Text",ExpressionUUID->"59961639-3d0b-48b5-9fd9-22543ce2da96"],
+
+Cell["\<\
+ Look for possible equilibrium points between the pollutant level and oxygen \
+level.
+ This would correspond to 0 values for: x1'[t] and x2'[t]\
+\>", "Text",ExpressionUUID->"23e835fd-a69b-4e5b-97c0-d754f2f8edca"],
+
+Cell[BoxData[
+ RowBox[{"Clear", "[", 
+  RowBox[{"k", ",", "k2", ",", "x1", ",", "x2", ",", "\[Sigma]", ",", "xm"}], 
+  "]"}]], "InputOnly",
+ CellLabel->
+  "In[227]:=",ExpressionUUID->"2c91a839-f8e2-483a-a71f-87e2f538eb04"],
+
+Cell[BoxData[
+ RowBox[{
+  RowBox[{"Solve", "[", "\[IndentingNewLine]", "\[IndentingNewLine]", 
+   RowBox[{
+    RowBox[{"{", "\[IndentingNewLine]", 
+     RowBox[{
+      RowBox[{"0", "==", 
+       RowBox[{"\[Sigma]", "-", 
+        RowBox[{"k", " ", "x1"}]}]}], ",", "\[IndentingNewLine]", 
+      RowBox[{"0", "==", 
+       RowBox[{
+        RowBox[{
+         RowBox[{"-", "k"}], " ", "x1"}], "+", 
+        RowBox[{"k2", " ", 
+         RowBox[{"(", 
+          RowBox[{"xm", "-", "x2"}], ")"}]}]}]}]}], "\[IndentingNewLine]", 
+     "}"}], ",", "\[IndentingNewLine]", "\[IndentingNewLine]", 
+    RowBox[{"{", 
+     RowBox[{"x1", ",", "x2"}], "}"}]}], "\[IndentingNewLine]", 
+   "\[IndentingNewLine]", "]"}], "//", "TableForm"}]], "Input",
+ CellChangeTimes->{{3.3982878374524*^9, 3.3982878421214*^9}, {
+  3.3982892209014*^9, 3.3982892248634*^9}},
+ CellLabel->
+  "In[228]:=",ExpressionUUID->"93216185-8d59-4ca2-8e35-37ef80343e9c"],
+
+Cell["\<\
+Observe that the above model predicts the existence of equilibrium conditions.
+
+This system of ODEs is simple enough to solve directly:\
+\>", "Text",ExpressionUUID->"44539faf-9166-4b49-ac87-c187b444ed1e"],
+
+Cell[BoxData[
+ RowBox[{"solution", "=", "\[IndentingNewLine]", "\[IndentingNewLine]", 
+  RowBox[{"DSolve", "[", "\[IndentingNewLine]", "\[IndentingNewLine]", 
+   RowBox[{
+    RowBox[{"{", "\[IndentingNewLine]", 
+     RowBox[{
+      RowBox[{
+       RowBox[{
+        SuperscriptBox["x1", "\[Prime]",
+         MultilineFunction->None], "[", "t", "]"}], "==", 
+       RowBox[{"\[Sigma]", "-", 
+        RowBox[{"k", " ", 
+         RowBox[{"x1", "[", "t", "]"}]}]}]}], ",", "\[IndentingNewLine]", 
+      RowBox[{
+       RowBox[{
+        SuperscriptBox["x2", "\[Prime]",
+         MultilineFunction->None], "[", "t", "]"}], "==", 
+       RowBox[{
+        RowBox[{
+         RowBox[{"-", "k"}], " ", 
+         RowBox[{"x1", "[", "t", "]"}]}], "+", 
+        RowBox[{"k2", " ", 
+         RowBox[{"(", 
+          RowBox[{"xm", "-", 
+           RowBox[{"x2", "[", "t", "]"}]}], ")"}]}]}]}], ",", 
+      "\[IndentingNewLine]", 
+      RowBox[{
+       RowBox[{"x1", "[", "0", "]"}], "==", 
+       SubscriptBox["X1", "0"]}], ",", "\[IndentingNewLine]", 
+      RowBox[{
+       RowBox[{"x2", "[", "0", "]"}], "==", 
+       SubscriptBox["X2", "0"]}]}], "\[IndentingNewLine]", "}"}], ",", 
+    "\[IndentingNewLine]", "\[IndentingNewLine]", 
+    RowBox[{"{", 
+     RowBox[{
+      RowBox[{"x1", "[", "t", "]"}], ",", 
+      RowBox[{"x2", "[", "t", "]"}]}], "}"}], ",", "\[IndentingNewLine]", 
+    "t"}], "\[IndentingNewLine]", "]"}]}]], "Input",
+ CellChangeTimes->{{3.3982878676574*^9, 3.3982878724184*^9}, 
+   3.3982879050713997`*^9, 3.3982879589934*^9, {3.3982892300514*^9, 
+   3.3982892395884*^9}},
+ CellLabel->
+  "In[229]:=",ExpressionUUID->"86321399-8e26-47c1-8f3f-004884d2ed8b"],
+
+Cell["Display the solution in TableForm after simplification:", "Text",
+ CellChangeTimes->{
+  3.3982873156644*^9, {3.3982879673534*^9, 
+   3.3982879693764*^9}},ExpressionUUID->"a2b95ab3-a44c-415b-9196-\
+f1ec29ea5a3f"],
+
+Cell[BoxData[
+ RowBox[{"  ", 
+  RowBox[{
+   RowBox[{"Simplify", " ", "[", "solution", "]"}], "    ", "//", 
+   "TableForm"}]}]], "Input",
+ CellChangeTimes->{3.3982873115114*^9, 3.3982879418684*^9},
+ CellLabel->
+  "In[230]:=",ExpressionUUID->"39beee0a-8ce7-4ffa-8aa3-55bf60f01d59"],
+
+Cell["\<\
+The above formula is too complicated to understand directly.  Therefore, \
+consider some numerical examples.
+
+Choose some simple values for our constants and analyze the system of \
+differential equations:\
+\>", "Text",ExpressionUUID->"d7965e20-7e81-468f-956c-c10ad28fad21"],
+
+Cell[BoxData[{
+ RowBox[{
+  RowBox[{"xm", "=", "100"}], ";"}], "\n", 
+ RowBox[{
+  RowBox[{"k", "=", "10"}], ";"}], "\n", 
+ RowBox[{
+  RowBox[{"k2", "=", "20"}], ";"}], "\n", 
+ RowBox[{
+  RowBox[{"\[Sigma]", "=", "50"}], ";"}]}], "InputOnly",
+ CellLabel->
+  "In[231]:=",ExpressionUUID->"7fd9c0e0-2255-4da8-8517-93eb9107068a"],
+
+Cell["\<\
+
+Let's look at a numerical solution for a typical starting value:\
+\>", "Text",ExpressionUUID->"c4723ebe-8203-47d9-87ad-8d19b922e7e0"],
+
+Cell[BoxData[
+ RowBox[{"solutionRule", "=", "\[IndentingNewLine]", "\[IndentingNewLine]", 
+  RowBox[{"NDSolve", "[", "\[IndentingNewLine]", "\[IndentingNewLine]", 
+   RowBox[{
+    RowBox[{"{", "\[IndentingNewLine]", 
+     RowBox[{
+      RowBox[{
+       RowBox[{
+        SuperscriptBox["x1", "\[Prime]",
+         MultilineFunction->None], "[", "t", "]"}], "==", 
+       RowBox[{"\[Sigma]", "-", 
+        RowBox[{"k", " ", 
+         RowBox[{"x1", "[", "t", "]"}]}]}]}], ",", "\[IndentingNewLine]", 
+      RowBox[{
+       RowBox[{
+        SuperscriptBox["x2", "\[Prime]",
+         MultilineFunction->None], "[", "t", "]"}], "==", 
+       RowBox[{
+        RowBox[{
+         RowBox[{"-", "k"}], " ", 
+         RowBox[{"x1", "[", "t", "]"}]}], "+", 
+        RowBox[{"k2", " ", 
+         RowBox[{"(", 
+          RowBox[{"xm", "-", 
+           RowBox[{"x2", "[", "t", "]"}]}], ")"}]}]}]}], ",", 
+      "\[IndentingNewLine]", 
+      RowBox[{
+       RowBox[{"x1", "[", "0", "]"}], "==", "20"}], ",", 
+      "\[IndentingNewLine]", 
+      RowBox[{
+       RowBox[{"x2", "[", "0", "]"}], "==", "30"}]}], "\[IndentingNewLine]", 
+     "}"}], ",", "\[IndentingNewLine]", "\[IndentingNewLine]", 
+    RowBox[{"{", 
+     RowBox[{
+      RowBox[{"x1", "[", "t", "]"}], ",", 
+      RowBox[{"x2", "[", "t", "]"}]}], "}"}], ",", "\[IndentingNewLine]", 
+    RowBox[{"{", 
+     RowBox[{"t", ",", "0", ",", "1"}], "}"}]}], "\[IndentingNewLine]", 
+   "\[IndentingNewLine]", "]"}]}]], "Input",
+ CellChangeTimes->{{3.3982879874234*^9, 3.3982879949004*^9}, {
+  3.3982892470594*^9, 3.3982892562874002`*^9}},
+ CellLabel->
+  "In[235]:=",ExpressionUUID->"c9187d69-7fbe-40a5-859b-6ff234e01a42"],
+
+Cell[" Extract the two solutions from the replacement rule:", "Text",ExpressionUUID->"f9e6598d-fcd5-4891-912f-e9eddb0e13fd"],
+
+Cell[BoxData[
+ RowBox[{
+  RowBox[{"x1New", "[", "t_", "]"}], "=", " ", 
+  RowBox[{
+   RowBox[{"x1", "[", "t", "]"}], "  ", "/.", "   ", 
+   RowBox[{"Flatten", "[", "solutionRule", "]"}]}]}]], "Input",
+ CellChangeTimes->{{3.3982880401764*^9, 3.3982880524954*^9}},
+ CellLabel->
+  "In[236]:=",ExpressionUUID->"e282d29f-1e27-4c54-a4eb-20a19104dc82"],
+
+Cell[BoxData[
+ RowBox[{
+  RowBox[{"x2New", "[", "t_", "]"}], "=", " ", 
+  RowBox[{
+   RowBox[{"x2", "[", "t", "]"}], "  ", "/.", "   ", 
+   RowBox[{"Flatten", "[", "solutionRule", "]"}]}]}]], "Input",
+ CellChangeTimes->{3.3982880636684*^9},
+ CellLabel->
+  "In[237]:=",ExpressionUUID->"75a238f6-9ecc-4f2f-83bc-79b3618d4eee"],
+
+Cell["\<\
+  Look at the two solutions, the concentration of the pollutant and the level \
+of oxygen.\
+\>", "Text",ExpressionUUID->"0a8847bb-9a8f-4d3d-9bcf-1b809247942d"],
+
+Cell[BoxData[
+ RowBox[{"Plot", "[", "\[IndentingNewLine]", "\[IndentingNewLine]", 
+  RowBox[{
+   RowBox[{"{", 
+    RowBox[{
+     RowBox[{"x1New", "[", "t", "]"}], ",", 
+     RowBox[{"x2New", "[", "t", "]"}]}], "}"}], ",", "\[IndentingNewLine]", 
+   "\[IndentingNewLine]", 
+   RowBox[{"{", 
+    RowBox[{"t", ",", "0", ",", ".3"}], "}"}], ",", "\[IndentingNewLine]", 
+   "\[IndentingNewLine]", 
+   RowBox[{"PlotStyle", "\[Rule]", 
+    RowBox[{"{", 
+     RowBox[{
+      RowBox[{"{", 
+       RowBox[{
+        RowBox[{"Thickness", "[", ".01", "]"}], ",", "Red"}], "}"}], ",", 
+      RowBox[{"{", 
+       RowBox[{
+        RowBox[{"Thickness", "[", ".01", "]"}], ",", "Blue"}], "}"}]}], 
+     "}"}]}], ",", "\[IndentingNewLine]", 
+   RowBox[{"PlotLabel", "\[Rule]", 
+    RowBox[{"Style", "[", 
+     RowBox[{
+     "\"\<\!\(\*StyleBox[\"x1New\",FontColor->RGBColor[1, 0, \
+0]]\)\!\(\*StyleBox[\"[\",FontColor->RGBColor[1, 0, \
+0]]\)\!\(\*StyleBox[\"t\",FontColor->RGBColor[1, 0, \
+0]]\)\!\(\*StyleBox[\"]\",FontColor->RGBColor[1, 0, 0]]\),  \
+\!\(\*StyleBox[\"x2New\",FontColor->RGBColor[0, 0, \
+1]]\)\!\(\*StyleBox[\"[\",FontColor->RGBColor[0, 0, \
+1]]\)\!\(\*StyleBox[\"t\",FontColor->RGBColor[0, 0, \
+1]]\)\!\(\*StyleBox[\"]\",FontColor->RGBColor[0, 0, 1]]\)\>\"", ",", "14", 
+      ",", "Bold"}], "]"}]}]}], "\[IndentingNewLine]", "]"}]], "Input",
+ CellChangeTimes->{
+  3.3982872507184*^9, {3.3982881095894003`*^9, 3.3982881596754*^9}, {
+   3.3982883695193996`*^9, 3.3982883715964003`*^9}},
+ CellLabel->
+  "In[238]:=",ExpressionUUID->"112de5b6-207a-4ddd-8b24-2f56e8dc9ba7"],
+
+Cell["\<\
+  We can also look at the parametric plot for the two solutions:\
+\>", "Text",ExpressionUUID->"20e8aca5-338e-4c3a-b879-6ac32c906e23"],
+
+Cell[BoxData[
+ RowBox[{"ParametricPlot", "[", "\[IndentingNewLine]", "\[IndentingNewLine]", 
+  RowBox[{
+   RowBox[{"{", 
+    RowBox[{
+     RowBox[{"x1New", "[", "t", "]"}], ",", 
+     RowBox[{"x2New", "[", "t", "]"}]}], "}"}], ",", "\[IndentingNewLine]", 
+   "\[IndentingNewLine]", 
+   RowBox[{"{", 
+    RowBox[{"t", ",", "0", ",", "1"}], "}"}], ",", "\[IndentingNewLine]", 
+   "\[IndentingNewLine]", 
+   RowBox[{"PlotRange", "\[Rule]", 
+    RowBox[{"{", 
+     RowBox[{
+      RowBox[{"{", 
+       RowBox[{"0", ",", "20"}], "}"}], ",", 
+      RowBox[{"{", 
+       RowBox[{"0", ",", "100"}], "}"}]}], "}"}]}], ",", 
+   "\[IndentingNewLine]", 
+   RowBox[{"AxesLabel", "\[Rule]", 
+    RowBox[{"{", 
+     RowBox[{"\"\<Pollutant\>\"", ",", "\"\<Oxygen\>\""}], "}"}]}], ",", 
+   "\[IndentingNewLine]", 
+   RowBox[{"PlotStyle", "\[Rule]", 
+    RowBox[{"Thickness", "[", ".01", "]"}]}], ",", "\[IndentingNewLine]", 
+   RowBox[{"AspectRatio", "\[Rule]", ".7"}]}], "\[IndentingNewLine]", 
+  "]"}]], "Input",
+ CellChangeTimes->{{3.3982881907953997`*^9, 3.3982882280364*^9}},
+ CellLabel->
+  "In[239]:=",ExpressionUUID->"49bb0d1e-8a7f-4f06-8b92-13216b6de9fd"]
+}, Closed]]
+}, Closed]],
+
+Cell[CellGroupData[{
+
+Cell[" Example 1.7", "Section",ExpressionUUID->"2ae3c342-f472-4602-b849-ba28bdb1a975"],
+
+Cell[CellGroupData[{
+
+Cell[TextData[StyleBox[" Biochemical Reactions", "Subtitle"]], "Subsection",ExpressionUUID->"248fd1ec-74cc-4ab3-9591-15a7e0680102"],
+
+Cell[TextData[{
+ " A number of biochemical reactions involve a substrate and enzyme, whose \
+concentrations are denoted by S and E respectively.  These interact to form a \
+complex whose concentration is C.  This is a reversible reaction that occurs \
+at a rate proportional to the product of S and E, with a rate constant kC, \
+and which can then dissociate back into its constituents at a rate \
+proportional to C itself, with rate constant kES.  When the reaction energy \
+is high enough, however, the enzyme can cleave the substrate to form a new \
+product of concentration P.  When this happens, the enzyme is released and \
+becomes available again.  This is an irreversible reaction that occurs at a \
+rate proportional to C, with rate constant k.  Finally, P will be inactivated \
+into form D (for \"dead\") at a rate proportional to its own concentration, \
+at a rate of k1.\n\nThis sequence of reactions can be summarized by the \
+following diagram:\n  \n",
+ StyleBox["\te + s ",
+  FontSize->16,
+  FontWeight->"Bold"],
+ Cell[BoxData[
+  FormBox[
+   UnderscriptBox[
+    FormBox[
+     OverscriptBox["\[RightArrowLeftArrow]", "kc"],
+     TraditionalForm], "kes"], TraditionalForm]],
+  FontSize->16,
+  FontWeight->"Bold",ExpressionUUID->"d364e5ba-7119-4126-a584-491ee77fd288"],
+ StyleBox[" c ",
+  FontSize->16,
+  FontWeight->"Bold"],
+ Cell[BoxData[
+  FormBox[
+   OverscriptBox["\[LongRightArrow]", "k"], TraditionalForm]],
+  FontSize->16,
+  FontWeight->"Bold",ExpressionUUID->"ebdd0a39-cafc-4a48-8335-87d034660d75"],
+ StyleBox[" p + e ",
+  FontSize->16,
+  FontWeight->"Bold"],
+ Cell[BoxData[
+  FormBox[
+   OverscriptBox["\[LongRightArrow]", "k1"], TraditionalForm]],
+  FontSize->16,
+  FontWeight->"Bold",ExpressionUUID->"23be7e57-b988-44bc-9e3a-229f9a1ca436"],
+ StyleBox[" dead",
+  FontSize->16,
+  FontWeight->"Bold"],
+ "  \n   ",
+ "\n",
+ "Choose some reasonable numerical values to study the behavior of this \
+system:"
+}], "Text",ExpressionUUID->"99a9db25-ee47-4900-a6d8-7d23f5c9cbda"],
+
+Cell[BoxData[
+ RowBox[{"Clear", "[", 
+  RowBox[{"c", ",", "e", ",", "s", ",", "p", ",", "dead"}], 
+  "]"}]], "InputOnly",
+ CellLabel->
+  "In[240]:=",ExpressionUUID->"8795018f-c78b-48f7-af6e-ce7a08e2662e"],
+
+Cell[BoxData[{
+ RowBox[{
+  RowBox[{"kc", "=", ".3"}], ";"}], "\n", 
+ RowBox[{
+  RowBox[{"kes", "=", ".2"}], ";"}], "\n", 
+ RowBox[{
+  RowBox[{"k", "=", ".15"}], ";"}], "\n", 
+ RowBox[{
+  RowBox[{"k1", "=", ".05"}], ";"}], "\n", 
+ RowBox[{
+  RowBox[{"c0", "=", "20"}], ";"}], "\n", 
+ RowBox[{
+  RowBox[{"e0", "=", "30"}], ";"}], "\n", 
+ RowBox[{
+  RowBox[{"p0", "=", "10"}], ";"}], "\n", 
+ RowBox[{
+  RowBox[{"s0", "=", "50"}], ";"}], "\n", 
+ RowBox[{
+  RowBox[{"dead0", "=", "40"}], ";"}]}], "InputOnly",
+ CellLabel->
+  "In[241]:=",ExpressionUUID->"23dc0dc2-9054-4c0b-ab30-59d66d3c3695"],
+
+Cell["Find the numerical solution of the ODE system:", "Text",ExpressionUUID->"06768f0e-06eb-4d10-8df0-1bd6d05f3ab1"],
+
+Cell[BoxData[
+ RowBox[{"solutionRule", "=", "\[IndentingNewLine]", "\[IndentingNewLine]", 
+  RowBox[{"NDSolve", "[", "\[IndentingNewLine]", "\[IndentingNewLine]", 
+   RowBox[{
+    RowBox[{"{", "\[IndentingNewLine]", 
+     RowBox[{
+      RowBox[{
+       RowBox[{
+        SuperscriptBox["c", "\[Prime]",
+         MultilineFunction->None], "[", "t", "]"}], "==", 
+       RowBox[{
+        RowBox[{"kc", " ", 
+         RowBox[{"e", "[", "t", "]"}], " ", 
+         RowBox[{"s", "[", "t", "]"}]}], "-", 
+        RowBox[{
+         RowBox[{"(", 
+          RowBox[{"k", "+", "kes"}], ")"}], " ", 
+         RowBox[{"c", "[", "t", "]"}]}]}]}], ",", "\[IndentingNewLine]", 
+      RowBox[{
+       RowBox[{
+        SuperscriptBox["p", "\[Prime]",
+         MultilineFunction->None], "[", "t", "]"}], "==", 
+       RowBox[{
+        RowBox[{"k", " ", 
+         RowBox[{"c", "[", "t", "]"}]}], "-", 
+        RowBox[{"k1", " ", 
+         RowBox[{"p", "[", "t", "]"}]}]}]}], ",", "\[IndentingNewLine]", 
+      RowBox[{
+       RowBox[{
+        SuperscriptBox["s", "\[Prime]",
+         MultilineFunction->None], "[", "t", "]"}], "==", 
+       RowBox[{
+        RowBox[{
+         RowBox[{"-", "kc"}], " ", 
+         RowBox[{"e", "[", "t", "]"}], " ", 
+         RowBox[{"s", "[", "t", "]"}]}], "+", 
+        RowBox[{"kes", " ", 
+         RowBox[{"c", "[", "t", "]"}]}]}]}], ",", "\[IndentingNewLine]", 
+      RowBox[{
+       RowBox[{
+        SuperscriptBox["e", "\[Prime]",
+         MultilineFunction->None], "[", "t", "]"}], "==", 
+       RowBox[{"-", 
+        RowBox[{
+         SuperscriptBox["c", "\[Prime]",
+          MultilineFunction->None], "[", "t", "]"}]}]}], ",", 
+      "\[IndentingNewLine]", 
+      RowBox[{
+       RowBox[{
+        SuperscriptBox["dead", "\[Prime]",
+         MultilineFunction->None], "[", "t", "]"}], "==", 
+       RowBox[{"k1", " ", 
+        RowBox[{"p", "[", "t", "]"}]}]}], ",", "\[IndentingNewLine]", 
+      "\[IndentingNewLine]", 
+      RowBox[{
+       RowBox[{"c", "[", "0", "]"}], "==", "c0"}], ",", "\[IndentingNewLine]", 
+      RowBox[{
+       RowBox[{"p", "[", "0", "]"}], "==", "p0"}], ",", "\[IndentingNewLine]", 
+      RowBox[{
+       RowBox[{"s", "[", "0", "]"}], "==", "s0"}], ",", "\[IndentingNewLine]", 
+      RowBox[{
+       RowBox[{"e", "[", "0", "]"}], "==", "e0"}], ",", "\[IndentingNewLine]", 
+      RowBox[{
+       RowBox[{"dead", "[", "0", "]"}], "==", "dead0"}]}], 
+     "\[IndentingNewLine]", "}"}], ",", "\[IndentingNewLine]", 
+    "\[IndentingNewLine]", 
+    RowBox[{"{", 
+     RowBox[{
+      RowBox[{"c", "[", "t", "]"}], ",", 
+      RowBox[{"p", "[", "t", "]"}], ",", 
+      RowBox[{"s", "[", "t", "]"}], ",", 
+      RowBox[{"e", "[", "t", "]"}], ",", 
+      RowBox[{"dead", "[", "t", "]"}]}], "}"}], ",", "\[IndentingNewLine]", 
+    RowBox[{"{", 
+     RowBox[{"t", ",", "0", ",", "10"}], "}"}]}], "\[IndentingNewLine]", 
+   "]"}]}]], "Input",
+ CellChangeTimes->{{3.3982892731514*^9, 3.3982893025504*^9}},
+ CellLabel->
+  "In[250]:=",ExpressionUUID->"71c61a95-c927-4a76-ab3a-46633671cf34"],
+
+Cell["Extract the five solutions from the replacement rule:", "Text",ExpressionUUID->"8c7e34b1-8cc8-4589-99d3-818723f16e1a"],
+
+Cell[BoxData[
+ RowBox[{
+  RowBox[{"c1", "[", "t_", "]"}], "=", 
+  RowBox[{
+   RowBox[{"c", "[", "t", "]"}], " ", "/.", " ", 
+   RowBox[{"Flatten", "[", "solutionRule", "]"}]}]}]], "Input",
+ CellChangeTimes->{3.3982882957144003`*^9},
+ CellLabel->
+  "In[251]:=",ExpressionUUID->"54dbcb78-cde4-4636-af1f-678e21e8dea6"],
+
+Cell[BoxData[
+ RowBox[{
+  RowBox[{"p1", "[", "t_", "]"}], "=", 
+  RowBox[{
+   RowBox[{"p", "[", "t", "]"}], " ", "/.", " ", 
+   RowBox[{"Flatten", "[", "solutionRule", "]"}]}]}]], "Input",
+ CellChangeTimes->{3.3982883002264*^9},
+ CellLabel->
+  "In[252]:=",ExpressionUUID->"19c76b61-3d52-4698-9340-961d7af0a43e"],
+
+Cell[BoxData[
+ RowBox[{
+  RowBox[{"s1", "[", "t_", "]"}], "=", 
+  RowBox[{
+   RowBox[{"s", "[", "t", "]"}], " ", "/.", " ", 
+   RowBox[{"Flatten", "[", "solutionRule", "]"}]}]}]], "Input",
+ CellChangeTimes->{3.3982883045464*^9},
+ CellLabel->
+  "In[253]:=",ExpressionUUID->"1531e3e5-2f61-464f-9153-113ea19b5cac"],
+
+Cell[BoxData[
+ RowBox[{
+  RowBox[{"e1", "[", "t_", "]"}], "=", 
+  RowBox[{
+   RowBox[{"e", "[", "t", "]"}], " ", "/.", " ", 
+   RowBox[{"Flatten", "[", "solutionRule", "]"}]}]}]], "Input",
+ CellChangeTimes->{3.3982883165193996`*^9},
+ CellLabel->
+  "In[254]:=",ExpressionUUID->"366c3274-c14d-4b9b-8f79-a9e97747ed5c"],
+
+Cell[BoxData[
+ RowBox[{
+  RowBox[{"dead1", "[", "t_", "]"}], "=", 
+  RowBox[{
+   RowBox[{"dead", "[", "t", "]"}], " ", "/.", " ", 
+   RowBox[{"Flatten", "[", "solutionRule", "]"}]}]}]], "Input",
+ CellChangeTimes->{3.3982883210704*^9},
+ CellLabel->
+  "In[255]:=",ExpressionUUID->"9fecf3f0-f379-4fb2-86cb-e46d076f3986"],
+
+Cell["Plot all five solutions on a single graph:", "Text",ExpressionUUID->"f4eecc39-fbe3-427d-8c8d-ba3f9e2e88c4"],
+
+Cell[BoxData[
+ RowBox[{"Plot", "[", "\[IndentingNewLine]", "\[IndentingNewLine]", 
+  RowBox[{
+   RowBox[{"{", 
+    RowBox[{
+     RowBox[{"c1", "[", "t", "]"}], ",", 
+     RowBox[{"p1", "[", "t", "]"}], ",", 
+     RowBox[{"s1", "[", "t", "]"}], ",", 
+     RowBox[{"e1", "[", "t", "]"}], ",", 
+     RowBox[{"dead1", "[", "t", "]"}]}], "}"}], ",", "\[IndentingNewLine]", 
+   "\[IndentingNewLine]", 
+   RowBox[{"{", 
+    RowBox[{"t", ",", "0", ",", "10"}], "}"}], ",", "\[IndentingNewLine]", 
+   "\[IndentingNewLine]", "\[IndentingNewLine]", 
+   RowBox[{"PlotStyle", "\[Rule]", 
+    RowBox[{"{", 
+     RowBox[{
+      RowBox[{"{", 
+       RowBox[{
+        RowBox[{"Thickness", "[", ".01", "]"}], ",", "Red"}], "}"}], ",", 
+      RowBox[{"{", 
+       RowBox[{
+        RowBox[{"Thickness", "[", ".01", "]"}], ",", "Green"}], "}"}], ",", 
+      RowBox[{"{", 
+       RowBox[{
+        RowBox[{"Thickness", "[", ".01", "]"}], ",", "Blue"}], "}"}], ",", 
+      RowBox[{"{", 
+       RowBox[{
+        RowBox[{"Thickness", "[", ".01", "]"}], ",", "Cyan"}], "}"}], ",", 
+      RowBox[{"{", 
+       RowBox[{
+        RowBox[{"Thickness", "[", ".01", "]"}], ",", "Magenta"}], "}"}]}], 
+     "}"}]}], ",", "\[IndentingNewLine]", 
+   RowBox[{"PlotLabel", "\[Rule]", 
+    RowBox[{"Style", "[", 
+     RowBox[{
+     "\"\<\!\(\*StyleBox[\"c1\",FontColor->RGBColor[1, 0, \
+0]]\)\!\(\*StyleBox[\"[\",FontColor->RGBColor[1, 0, \
+0]]\)\!\(\*StyleBox[\"t\",FontColor->RGBColor[1, 0, \
+0]]\)\!\(\*StyleBox[\"]\",FontColor->RGBColor[1, 0, 0]]\),  \
+\!\(\*StyleBox[\"p1\",FontColor->RGBColor[0, 1, \
+0]]\)\!\(\*StyleBox[\"[\",FontColor->RGBColor[0, 1, \
+0]]\)\!\(\*StyleBox[\"t\",FontColor->RGBColor[0, 1, \
+0]]\)\!\(\*StyleBox[\"]\",FontColor->RGBColor[0, 1, 0]]\),  \
+\!\(\*StyleBox[\"s1\",FontColor->RGBColor[0, 0, \
+1]]\)\!\(\*StyleBox[\"[\",FontColor->RGBColor[0, 0, \
+1]]\)\!\(\*StyleBox[\"t\",FontColor->RGBColor[0, 0, \
+1]]\)\!\(\*StyleBox[\"]\",FontColor->RGBColor[0, 0, 1]]\),  \
+\!\(\*StyleBox[\"e1\",FontColor->RGBColor[0, 1, \
+1]]\)\!\(\*StyleBox[\"[\",FontColor->RGBColor[0, 1, \
+1]]\)\!\(\*StyleBox[\"t\",FontColor->RGBColor[0, 1, \
+1]]\)\!\(\*StyleBox[\"]\",FontColor->RGBColor[0, 1, 1]]\),  \
+\!\(\*StyleBox[\"dead1\",FontColor->RGBColor[1, 0, \
+1]]\)\!\(\*StyleBox[\"[\",FontColor->RGBColor[1, 0, \
+1]]\)\!\(\*StyleBox[\"t\",FontColor->RGBColor[1, 0, \
+1]]\)\!\(\*StyleBox[\"]\",FontColor->RGBColor[1, 0, 1]]\)\>\"", ",", "16", 
+      ",", "Bold"}], "]"}]}]}], "\[IndentingNewLine]", "]"}]], "Input",
+ CellChangeTimes->{{3.3982883838384*^9, 3.3982885342784*^9}},
+ CellLabel->
+  "In[256]:=",ExpressionUUID->"1b56ef6a-632e-48b3-9e95-d4731a1b534e"],
+
+Cell["\<\
+Because there are five solutions, it may be desirable to use \"Dashing\" to \
+help distinguish the individual curves:\
+\>", "Text",ExpressionUUID->"9ba694ef-10d6-4f07-8786-baa9f89cc442"],
+
+Cell[BoxData[
+ RowBox[{"Plot", "[", "\[IndentingNewLine]", "\[IndentingNewLine]", 
+  RowBox[{
+   RowBox[{"{", 
+    RowBox[{
+     RowBox[{"c1", "[", "t", "]"}], ",", 
+     RowBox[{"p1", "[", "t", "]"}], ",", 
+     RowBox[{"s1", "[", "t", "]"}], ",", 
+     RowBox[{"e1", "[", "t", "]"}], ",", 
+     RowBox[{"dead1", "[", "t", "]"}]}], "}"}], ",", "\[IndentingNewLine]", 
+   "\[IndentingNewLine]", 
+   RowBox[{"{", 
+    RowBox[{"t", ",", "0", ",", "10"}], "}"}], ",", "\[IndentingNewLine]", 
+   "\[IndentingNewLine]", 
+   RowBox[{"PlotStyle", "\[Rule]", 
+    RowBox[{"{", 
+     RowBox[{
+      RowBox[{"{", 
+       RowBox[{
+        RowBox[{"Thickness", "[", ".007", "]"}], ",", 
+        RowBox[{"Dashing", "[", 
+         RowBox[{"{", 
+          RowBox[{".01", ",", ".0"}], "}"}], "]"}], ",", "Red"}], "}"}], ",", 
+      RowBox[{"{", 
+       RowBox[{
+        RowBox[{"Thickness", "[", ".007", "]"}], ",", 
+        RowBox[{"Dashing", "[", 
+         RowBox[{"{", 
+          RowBox[{".01", ",", ".01"}], "}"}], "]"}], ",", "Green"}], "}"}], 
+      ",", 
+      RowBox[{"{", 
+       RowBox[{
+        RowBox[{"Thickness", "[", ".007", "]"}], ",", 
+        RowBox[{"Dashing", "[", 
+         RowBox[{"{", 
+          RowBox[{".01", ",", ".02"}], "}"}], "]"}], ",", "Blue"}], "}"}], 
+      ",", 
+      RowBox[{"{", 
+       RowBox[{
+        RowBox[{"Thickness", "[", ".007", "]"}], ",", 
+        RowBox[{"Dashing", "[", 
+         RowBox[{"{", 
+          RowBox[{".01", ",", ".03"}], "}"}], "]"}], ",", "Cyan"}], "}"}], 
+      ",", 
+      RowBox[{"{", 
+       RowBox[{
+        RowBox[{"Thickness", "[", ".007", "]"}], ",", 
+        RowBox[{"Dashing", "[", 
+         RowBox[{"{", 
+          RowBox[{".01", ",", ".05"}], "}"}], "]"}], ",", "Magenta"}], 
+       "}"}]}], "}"}]}], ",", "\[IndentingNewLine]", 
+   RowBox[{"PlotLabel", "\[Rule]", 
+    RowBox[{"Style", "[", 
+     RowBox[{
+     "\"\<\!\(\*StyleBox[\"c1\",FontColor->RGBColor[1, 0, \
+0]]\)\!\(\*StyleBox[\"[\",FontColor->RGBColor[1, 0, \
+0]]\)\!\(\*StyleBox[\"t\",FontColor->RGBColor[1, 0, \
+0]]\)\!\(\*StyleBox[\"]\",FontColor->RGBColor[1, 0, 0]]\),  \
+\!\(\*StyleBox[\"p1\",FontColor->RGBColor[0, 1, \
+0]]\)\!\(\*StyleBox[\"[\",FontColor->RGBColor[0, 1, \
+0]]\)\!\(\*StyleBox[\"t\",FontColor->RGBColor[0, 1, \
+0]]\)\!\(\*StyleBox[\"]\",FontColor->RGBColor[0, 1, 0]]\),  \
+\!\(\*StyleBox[\"s1\",FontColor->RGBColor[0, 0, \
+1]]\)\!\(\*StyleBox[\"[\",FontColor->RGBColor[0, 0, \
+1]]\)\!\(\*StyleBox[\"t\",FontColor->RGBColor[0, 0, \
+1]]\)\!\(\*StyleBox[\"]\",FontColor->RGBColor[0, 0, 1]]\),  \
+\!\(\*StyleBox[\"e1\",FontColor->RGBColor[0, 1, \
+1]]\)\!\(\*StyleBox[\"[\",FontColor->RGBColor[0, 1, \
+1]]\)\!\(\*StyleBox[\"t\",FontColor->RGBColor[0, 1, \
+1]]\)\!\(\*StyleBox[\"]\",FontColor->RGBColor[0, 1, 1]]\),  \
+\!\(\*StyleBox[\"dead1\",FontColor->RGBColor[1, 0, \
+1]]\)\!\(\*StyleBox[\"[\",FontColor->RGBColor[1, 0, \
+1]]\)\!\(\*StyleBox[\"t\",FontColor->RGBColor[1, 0, \
+1]]\)\!\(\*StyleBox[\"]\",FontColor->RGBColor[1, 0, 1]]\)\>\"", ",", "16", 
+      ",", "Bold"}], "]"}]}]}], "\[IndentingNewLine]", "]"}]], "Input",
+ CellChangeTimes->{{3.3982885526043997`*^9, 3.3982887093844*^9}},
+ CellLabel->
+  "In[257]:=",ExpressionUUID->"249358fa-d00b-4ff5-8e36-ac36ac186e66"],
+
+Cell["\<\
+Further analysis can be performed for this system, however it will not be \
+done at this time.\
+\>", "Text",ExpressionUUID->"3f61baac-293f-42e4-a0b8-505fe5a80318"]
+}, Closed]]
+}, Closed]]
+}, Open  ]]
+},
+WindowSize->{1100, 694},
+WindowMargins->{{0, Automatic}, {Automatic, 1}},
+Magnification:>1.5 Inherited,
+FrontEndVersion->"11.3 for Microsoft Windows (64-bit) (March 6, 2018)",
+StyleDefinitions->FrontEnd`FileName[{"Creative"}, "NaturalColor.nb", 
+  CharacterEncoding -> "UTF-8"]
+]
+(* End of Notebook Content *)
+
+(* Internal cache information *)
+(*CellTagsOutline
+CellTagsIndex->{}
+*)
+(*CellTagsIndex
+CellTagsIndex->{}
+*)
+(*NotebookFileOutline
+Notebook[{
+Cell[CellGroupData[{
+Cell[567, 22, 84, 0, 98, "Title",ExpressionUUID->"1bddd2ce-b521-46c0-a51f-0b009fe5a741"],
+Cell[654, 24, 234, 5, 61, "Subtitle",ExpressionUUID->"04b0a651-c858-44b4-9f3b-a5bcfacf94d2"],
+Cell[891, 31, 252, 7, 68, "InputOnly",ExpressionUUID->"e3e503f6-3068-48f2-82a9-f5eb5ec1884b"],
+Cell[CellGroupData[{
+Cell[1168, 42, 116, 0, 114, "Section",ExpressionUUID->"92ef01df-0724-42b0-aa91-a402288555d0"],
+Cell[1287, 44, 914, 15, 354, "Text",ExpressionUUID->"81741170-a796-4fee-a5c0-4a2d2a2ad848"]
+}, Closed]],
+Cell[CellGroupData[{
+Cell[2238, 64, 86, 0, 67, "Section",ExpressionUUID->"6b76c5ff-d05d-45cd-8d46-28edbe3b8dde"],
+Cell[CellGroupData[{
+Cell[2349, 68, 130, 0, 54, "Subsection",ExpressionUUID->"3ed24975-41e4-4842-9290-57d03fff8642"],
+Cell[2482, 70, 1761, 38, 715, "Text",ExpressionUUID->"a9385f37-de2d-40b4-b0fc-f6b296066ece"],
+Cell[4246, 110, 635, 15, 263, "Input",ExpressionUUID->"06a64a4b-cd20-44f5-9926-814749b993e2"],
+Cell[4884, 127, 313, 7, 78, "Text",ExpressionUUID->"3d85c04b-babd-4d89-be86-da372b71d31e"],
+Cell[5200, 136, 215, 6, 117, "InputOnly",ExpressionUUID->"35435188-1118-4851-8550-bcf6c4888e2e"],
+Cell[5418, 144, 163, 3, 47, "Text",ExpressionUUID->"098cd238-3029-4329-a1b4-c61fc6191e4c"],
+Cell[5584, 149, 233, 7, 141, "Input",ExpressionUUID->"21ba786b-d0e4-4cd8-8cde-456ed1ced011"],
+Cell[5820, 158, 178, 3, 47, "Text",ExpressionUUID->"a50eeb78-5c41-4422-bbad-9fa7a7b30f12"],
+Cell[6001, 163, 1058, 24, 448, "Input",ExpressionUUID->"4c5bac39-d083-4ff6-8f24-25cb04b0d3f7"],
+Cell[7062, 189, 117, 0, 47, "Text",ExpressionUUID->"6b54d8f3-39c3-4b4b-9f75-b3e0bbe134bd"],
+Cell[7182, 191, 252, 7, 79, "Input",ExpressionUUID->"97d28047-11c2-4ae0-9795-9b75d7321de2"],
+Cell[7437, 200, 790, 17, 402, "Input",ExpressionUUID->"b55bc09a-d876-4c84-8112-e3ae87f86c8f"],
+Cell[8230, 219, 181, 3, 47, "Text",ExpressionUUID->"fd2befb2-8576-4d46-9b12-43be238ce078"],
+Cell[8414, 224, 1114, 26, 448, "Input",ExpressionUUID->"38047b51-17d9-4c20-8ba4-aaa231c714ff"],
+Cell[9531, 252, 117, 0, 47, "Text",ExpressionUUID->"8adc08ef-eca6-4d0c-b3a2-18a88c479170"],
+Cell[9651, 254, 252, 7, 79, "Input",ExpressionUUID->"bdabe39f-0738-4943-9c8b-078ad9fb3ec1"],
+Cell[9906, 263, 790, 17, 402, "Input",ExpressionUUID->"9217f337-3015-4e34-9c7f-32a9612ca149"],
+Cell[10699, 282, 104, 0, 47, "Text",ExpressionUUID->"8cc89dd6-8569-4551-a225-b0a5483892eb"],
+Cell[10806, 284, 195, 5, 79, "Input",ExpressionUUID->"8b392281-71a5-4c31-a0f8-8ee5b9ce2e06"],
+Cell[11004, 291, 334, 5, 108, "Text",ExpressionUUID->"fb6809ac-05aa-408f-978a-8933bd14eecf"]
+}, Closed]]
+}, Closed]],
+Cell[CellGroupData[{
+Cell[11387, 302, 86, 0, 67, "Section",ExpressionUUID->"84541684-9837-4d20-b095-c9c8d0db9c72"],
+Cell[CellGroupData[{
+Cell[11498, 306, 127, 0, 54, "Subsection",ExpressionUUID->"dc484a7b-2e90-4541-bf5a-23eabb6b7f55"],
+Cell[11628, 308, 1037, 23, 600, "Text",ExpressionUUID->"59961639-3d0b-48b5-9fd9-22543ce2da96"],
+Cell[12668, 333, 222, 4, 78, "Text",ExpressionUUID->"23e835fd-a69b-4e5b-97c0-d754f2f8edca"],
+Cell[12893, 339, 222, 5, 87, "InputOnly",ExpressionUUID->"2c91a839-f8e2-483a-a71f-87e2f538eb04"],
+Cell[13118, 346, 922, 23, 343, "Input",ExpressionUUID->"93216185-8d59-4ca2-8e35-37ef80343e9c"],
+Cell[14043, 371, 214, 4, 108, "Text",ExpressionUUID->"44539faf-9166-4b49-ac87-c187b444ed1e"],
+Cell[14260, 377, 1660, 42, 460, "Input",ExpressionUUID->"86321399-8e26-47c1-8f3f-004884d2ed8b"],
+Cell[15923, 421, 217, 4, 47, "Text",ExpressionUUID->"a2b95ab3-a44c-415b-9196-f1ec29ea5a3f"],
+Cell[16143, 427, 280, 7, 79, "Input",ExpressionUUID->"39beee0a-8ce7-4ffa-8aa3-55bf60f01d59"],
+Cell[16426, 436, 284, 6, 108, "Text",ExpressionUUID->"d7965e20-7e81-468f-956c-c10ad28fad21"],
+Cell[16713, 444, 323, 10, 175, "InputOnly",ExpressionUUID->"7fd9c0e0-2255-4da8-8517-93eb9107068a"],
+Cell[17039, 456, 144, 3, 78, "Text",ExpressionUUID->"c4723ebe-8203-47d9-87ad-8d19b922e7e0"],
+Cell[17186, 461, 1657, 42, 489, "Input",ExpressionUUID->"c9187d69-7fbe-40a5-859b-6ff234e01a42"],
+Cell[18846, 505, 124, 0, 47, "Text",ExpressionUUID->"f9e6598d-fcd5-4891-912f-e9eddb0e13fd"],
+Cell[18973, 507, 345, 8, 79, "Input",ExpressionUUID->"e282d29f-1e27-4c54-a4eb-20a19104dc82"],
+Cell[19321, 517, 323, 8, 79, "Input",ExpressionUUID->"75a238f6-9ecc-4f2f-83bc-79b3618d4eee"],
+Cell[19647, 527, 169, 3, 47, "Text",ExpressionUUID->"0a8847bb-9a8f-4d3d-9bcf-1b809247942d"],
+Cell[19819, 532, 1568, 37, 314, "Input",ExpressionUUID->"112de5b6-207a-4ddd-8b24-2f56e8dc9ba7"],
+Cell[21390, 571, 143, 2, 47, "Text",ExpressionUUID->"20e8aca5-338e-4c3a-b879-6ac32c906e23"],
+Cell[21536, 575, 1145, 29, 372, "Input",ExpressionUUID->"49bb0d1e-8a7f-4f06-8b92-13216b6de9fd"]
+}, Closed]]
+}, Closed]],
+Cell[CellGroupData[{
+Cell[22730, 610, 86, 0, 67, "Section",ExpressionUUID->"2ae3c342-f472-4602-b849-ba28bdb1a975"],
+Cell[CellGroupData[{
+Cell[22841, 614, 131, 0, 54, "Subsection",ExpressionUUID->"248fd1ec-74cc-4ab3-9591-15a7e0680102"],
+Cell[22975, 616, 1991, 48, 480, "Text",ExpressionUUID->"99a9db25-ee47-4900-a6d8-7d23f5c9cbda"],
+Cell[24969, 666, 204, 5, 87, "InputOnly",ExpressionUUID->"8795018f-c78b-48f7-af6e-ce7a08e2662e"],
+Cell[25176, 673, 587, 20, 321, "InputOnly",ExpressionUUID->"23dc0dc2-9054-4c0b-ab30-59d66d3c3695"],
+Cell[25766, 695, 117, 0, 47, "Text",ExpressionUUID->"06768f0e-06eb-4d10-8df0-1bd6d05f3ab1"],
+Cell[25886, 697, 3022, 78, 665, "Input",ExpressionUUID->"71c61a95-c927-4a76-ab3a-46633671cf34"],
+Cell[28911, 777, 124, 0, 47, "Text",ExpressionUUID->"8c7e34b1-8cc8-4589-99d3-818723f16e1a"],
+Cell[29038, 779, 315, 8, 79, "Input",ExpressionUUID->"54dbcb78-cde4-4636-af1f-678e21e8dea6"],
+Cell[29356, 789, 311, 8, 79, "Input",ExpressionUUID->"19c76b61-3d52-4698-9340-961d7af0a43e"],
+Cell[29670, 799, 311, 8, 79, "Input",ExpressionUUID->"1531e3e5-2f61-464f-9153-113ea19b5cac"],
+Cell[29984, 809, 315, 8, 79, "Input",ExpressionUUID->"366c3274-c14d-4b9b-8f79-a9e97747ed5c"],
+Cell[30302, 819, 317, 8, 79, "Input",ExpressionUUID->"9fecf3f0-f379-4fb2-86cb-e46d076f3986"],
+Cell[30622, 829, 113, 0, 47, "Text",ExpressionUUID->"f4eecc39-fbe3-427d-8c8d-ba3f9e2e88c4"],
+Cell[30738, 831, 2630, 59, 372, "Input",ExpressionUUID->"1b56ef6a-632e-48b3-9e95-d4731a1b534e"],
+Cell[33371, 892, 196, 3, 47, "Text",ExpressionUUID->"9ba694ef-10d6-4f07-8786-baa9f89cc442"],
+Cell[33570, 897, 3213, 77, 372, "Input",ExpressionUUID->"249358fa-d00b-4ff5-8e36-ac36ac186e66"],
+Cell[36786, 976, 173, 3, 47, "Text",ExpressionUUID->"3f61baac-293f-42e4-a0b8-505fe5a80318"]
+}, Closed]]
+}, Closed]]
+}, Open  ]]
+}
+]
+*)
+
