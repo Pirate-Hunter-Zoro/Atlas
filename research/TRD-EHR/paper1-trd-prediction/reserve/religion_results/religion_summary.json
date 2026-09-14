@@ -1,0 +1,68 @@
+[
+    {
+        "contrast": "feature_no_religion_vs_published_feature",
+        "model": "logistic_regression",
+        "reference_roc": 0.6288482973761907,
+        "no_religion_roc": 0.6289931284026818,
+        "delta_roc": 0.000144831026491,
+        "delta_ci_low": -0.0011187309857428,
+        "delta_ci_high": 0.0014967892717624,
+        "excludes_zero": false,
+        "verdict": "null"
+    },
+    {
+        "contrast": "feature_no_religion_vs_published_feature",
+        "model": "xgboost",
+        "reference_roc": 0.6492070334223609,
+        "no_religion_roc": 0.6493982161056493,
+        "delta_roc": 0.0001911826832884,
+        "delta_ci_low": -0.0005242431788622,
+        "delta_ci_high": 0.0008955322695518,
+        "excludes_zero": false,
+        "verdict": "null"
+    },
+    {
+        "contrast": "narrative_no_religion_vs_control",
+        "model": "logistic_regression",
+        "reference_roc": 0.6600447286327693,
+        "no_religion_roc": 0.6613203300467096,
+        "delta_roc": 0.0012756014139403,
+        "delta_ci_low": -0.001693198789737,
+        "delta_ci_high": 0.0039256905394423,
+        "excludes_zero": false,
+        "verdict": "null"
+    },
+    {
+        "contrast": "narrative_no_religion_vs_control",
+        "model": "xgboost",
+        "reference_roc": 0.6376960696563723,
+        "no_religion_roc": 0.6345766174747178,
+        "delta_roc": -0.0031194521816544,
+        "delta_ci_low": -0.0083484840386323,
+        "delta_ci_high": 0.0023864937494231,
+        "excludes_zero": false,
+        "verdict": "null"
+    },
+    {
+        "contrast": "narrative_no_religion_vs_published_embedded",
+        "model": "logistic_regression",
+        "reference_roc": 0.6571461031909129,
+        "no_religion_roc": 0.6613203300467096,
+        "delta_roc": 0.0041742268557967,
+        "delta_ci_low": -0.0005525715594434,
+        "delta_ci_high": 0.0087002767948388,
+        "excludes_zero": false,
+        "verdict": "null"
+    },
+    {
+        "contrast": "narrative_no_religion_vs_published_embedded",
+        "model": "xgboost",
+        "reference_roc": 0.6357234748944438,
+        "no_religion_roc": 0.6345766174747178,
+        "delta_roc": -0.0011468574197259,
+        "delta_ci_low": -0.0081053940619972,
+        "delta_ci_high": 0.0060275534258373,
+        "excludes_zero": false,
+        "verdict": "null"
+    }
+]

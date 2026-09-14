@@ -1,0 +1,62 @@
+CAUSAL FOREST — VALIDATION SUMMARY
+================================================================
+Source : results/causal_pipeline/validation_report.json
+Run    : causal_forest_orchestrator job family 1992628
+         (sweep 1992629_0..2 -> leaderboard 1992630 -> validate 1992631)
+Cohort : DV260629v1-PV260710v1, re-derived 2026-07-21
+
+Contrast keys are comparison-arm-first (first-named arm = treatment T=1), so a
+positive ATE means the first-named arm raises P(TRD).
+
+
+SIGN-FLIP ANTISYMMETRY  (fwd vs reverse forest, SAME population)
+----------------------------------------------------------------
+The estimator-correctness check: refitting each pair with treatment/control
+swapped should give tau_rev ~= -tau_fwd patient-by-patient. Expect
+pearson_r ~= -1, slope ~= -1, per-patient mean_sum ~= 0, and a tiny max_sum.
+
+  Contrast              pearson_r    slope      mean_sum     max_sum
+  --------------------  ---------    -------    ---------    --------
+  snri_vs_ssri          -0.99986    -1.0002    -2.7e-05     0.0063
+  bupropion_vs_ssri     -0.99987    -0.9995    +5.4e-06     0.0048
+  bupropion_vs_snri     -0.99995    -1.0000    -8.8e-06     0.0027
+
+VERDICT: essentially perfect on all three. The reverse forest returns the
+negated per-patient CATE; the forests are internally consistent.
+
+
+TRANSITIVITY  (descriptive, NON-doubly-robust)
+----------------------------------------------------------------
+Additivity identity checked at the ATE level:
+  bupropion_vs_snri  ~=  bupropion_vs_ssri  -  snri_vs_ssri
+
+  Per-contrast ATE on P(TRD):
+    snri_vs_ssri        = +0.0375
+    bupropion_vs_ssri   = +0.0403
+    bupropion_vs_snri   = +0.0174   (direct estimate)
+
+  predicted bupropion_vs_snri = 0.0403 - 0.0375 = 0.0029
+  actual    bupropion_vs_snri =                   0.0174
+  abs gap                     =                   0.0145
+
+VERDICT: the gap is EXPECTED, not a failure. The per-patient identity
+  (Y_bup - Y_snri) = (Y_bup - Y_ssri) - (Y_snri - Y_ssri)
+is exact, but the three ATEs are each averaged over a DIFFERENT two-arm
+subpopulation:
+    snri_vs_ssri       -> index class SSRI or SNRI
+    bupropion_vs_ssri  -> index class SSRI or bupropion
+    bupropion_vs_snri  -> index class SNRI or bupropion
+Different covariate mixes + effect heterogeneity mean ATE-level additivity is
+not guaranteed; only the sign-flip (same population, fwd vs reverse) is a true
+correctness test, and it passed. The gap (~0.014, on the order of the ATEs
+themselves) reflects population composition and the faint, confounding-laden
+signal -- trust the direction (bupropion worst, all positive), not the exact
+magnitude decomposition.
+
+
+BOTTOM LINE
+----------------------------------------------------------------
+Validation is clean. Sign-flip confirms the forests are internally consistent;
+the transitivity gap is a property of different-population ATEs, not a bug.
+Every causal number remains HYPOTHESIS-GENERATING ONLY (residual confounding by
+indication; see writeup/CAUSAL_IDENTIFICATION.md).

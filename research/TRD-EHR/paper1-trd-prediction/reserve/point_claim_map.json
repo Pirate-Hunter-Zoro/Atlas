@@ -1,0 +1,294 @@
+{
+  "papers": [
+    {
+      "number": 1,
+      "title": "Typed Feature Vectors, Generalized Pretrained Transformer Embeddings of Deterministic Patient Narratives, and Nearest-Neighbor Retrieval for Predicting a Treatment-Switch-Defined Electronic Health Record Proxy for Treatment-Resistant Depression: Retrospective Cohort Study",
+      "venue": "JMIR Mental Health",
+      "word_limit": 12000,
+      "one_line": "Two encodings of the same curated EHR record predict a treatment-switch TRD proxy equally well, retrieval over the embedding loses to a fitted model, and neither result says anything about embedding a raw record."
+    }
+  ],
+  "points": [
+    {
+      "id": "p.1",
+      "paper": 1,
+      "point": "A generalized pretrained transformer embedding of a patient narrative does not significantly outperform a typed feature vector built from the same record."
+    },
+    {
+      "id": "p.2",
+      "paper": 1,
+      "point": "Nearest-neighbor retrieval over that embedding captures real label-informative structure and still loses decisively to a model fitted on the same representation."
+    }
+  ],
+  "claims": [
+    {
+      "id": "c.1",
+      "paper": 1,
+      "kind": "comparative",
+      "serves": [
+        "p.1"
+      ],
+      "headline": true,
+      "claim": "Embedded logistic regression reached ROC AUC 0.657 against 0.649 for the best feature-vector model, a paired difference of +0.008 whose interval includes zero.",
+      "evidence": [
+        "e.ml.1",
+        "e.ml.2",
+        "e.paired.1"
+      ]
+    },
+    {
+      "id": "c.2",
+      "paper": 1,
+      "kind": "mechanistic",
+      "serves": [
+        "p.1"
+      ],
+      "claim": "Representation and learner interact: the embedding significantly helped logistic regression and significantly hurt all three tree ensembles.",
+      "evidence": [
+        "e.paired.2",
+        "e.paired.3"
+      ]
+    },
+    {
+      "id": "c.3",
+      "paper": 1,
+      "kind": "descriptive",
+      "serves": [
+        "p.1"
+      ],
+      "claim": "Discrimination stayed inside a 0.012 band across four encoders, so the null is not an artifact of one encoder.",
+      "evidence": [
+        "e.enc.1"
+      ]
+    },
+    {
+      "id": "c.4",
+      "paper": 1,
+      "kind": "mechanistic",
+      "serves": [
+        "p.1"
+      ],
+      "claim": "Permuting narrative concepts localizes the embedded signal to psychiatric history, medication burden and prior treatment exposure, which are the same domains carrying the largest feature-vector weights.",
+      "evidence": [
+        "e.abl.1",
+        "e.abl.2",
+        "e.imp.1"
+      ]
+    },
+    {
+      "id": "c.5",
+      "paper": 1,
+      "kind": "descriptive",
+      "serves": [
+        "p.1"
+      ],
+      "claim": "The fitted embedded model used 385 of 4,096 dimensions, with 80% of the coefficient magnitude in about 179 of them.",
+      "evidence": [
+        "e.spar.1"
+      ]
+    },
+    {
+      "id": "c.6",
+      "paper": 1,
+      "kind": "descriptive",
+      "serves": [
+        "p.2"
+      ],
+      "headline": true,
+      "claim": "Nearest-neighbor retrieval reached ROC AUC 0.594 against 0.499 for random retrieval and 0.432 for farthest retrieval, so proximity in the embedding tracks the outcome.",
+      "evidence": [
+        "e.knn.1",
+        "e.knn.2",
+        "e.knn.3"
+      ]
+    },
+    {
+      "id": "c.7",
+      "paper": 1,
+      "kind": "comparative",
+      "serves": [
+        "p.2"
+      ],
+      "claim": "Retrieval fell 0.063 ROC AUC short of a classifier fitted on the same embedding, on intervals that do not overlap, and the shortfall reproduced on every encoder.",
+      "evidence": [
+        "e.knn.1",
+        "e.ml.1",
+        "e.knn.enc.1"
+      ]
+    },
+    {
+      "id": "c.8",
+      "paper": 1,
+      "kind": "mechanistic",
+      "serves": [
+        "p.2"
+      ],
+      "claim": "Which neighbors were retrieved mattered far more than how they were weighted, which is what one expects if the geometry rather than the weighting carries the information.",
+      "evidence": [
+        "e.knn.4"
+      ]
+    },
+    {
+      "id": "c.9",
+      "paper": 1,
+      "kind": "methodological",
+      "serves": [
+        "p.1",
+        "p.2"
+      ],
+      "headline": false,
+      "claim": "The narrative was rendered by fixed rules from the same curated field inventory as the feature vector, so the comparison is between two encodings of one tailored record rather than between a tailored and a raw one.",
+      "evidence": [
+        "e.xwalk.1",
+        "e.xwalk.2",
+        "e.feat.1"
+      ]
+    },
+    {
+      "id": "c.10",
+      "paper": 1,
+      "kind": "limitation",
+      "serves": [
+        "p.1",
+        "p.2"
+      ],
+      "claim": "Embedding a whole untailored patient record was not attempted, because a full history is far longer than the curated slice and the constraint is the encoder's input rather than any finding reported here.",
+      "evidence": [
+        "e.hist.1",
+        "e.hist.2",
+        "e.enc.2"
+      ]
+    },
+    {
+      "id": "c.11",
+      "paper": 1,
+      "kind": "implication",
+      "serves": [
+        "p.1",
+        "p.2"
+      ],
+      "claim": "Whether an embedding of a whole record predicts as well is open, and answering it requires a way past the input-length constraint rather than a better encoder.",
+      "evidence": [
+        "e.hist.1",
+        "e.enc.2"
+      ]
+    },
+    {
+      "id": "c.12",
+      "paper": 1,
+      "kind": "limitation",
+      "serves": [
+        "p.1",
+        "p.2"
+      ],
+      "claim": "The outcome counts antidepressant switches and cannot see why a switch happened, so intolerance, cost, non-adherence and prescriber preference are counted identically with non-response.",
+      "evidence": [
+        "e.out.1",
+        "e.out.2"
+      ]
+    },
+    {
+      "id": "c.13",
+      "paper": 1,
+      "kind": "limitation",
+      "serves": [
+        "p.1",
+        "p.2"
+      ],
+      "claim": "This is internal validation by one random split of one health system, so the reported discrimination is an upper bound on later or external data.",
+      "evidence": [
+        "e.split.1",
+        "e.lit.walsh"
+      ]
+    },
+    {
+      "id": "c.14",
+      "paper": 1,
+      "kind": "limitation",
+      "serves": [
+        "p.1"
+      ],
+      "claim": "The two representations do not receive an identical field inventory, and ten of the eleven asymmetries favour the narrative.",
+      "evidence": [
+        "e.xwalk.1",
+        "e.xwalk.3"
+      ]
+    },
+    {
+      "id": "c.15",
+      "paper": 1,
+      "kind": "implication",
+      "serves": [
+        "p.1",
+        "p.2"
+      ],
+      "claim": "Discrimination near 0.65 is too modest for clinical use, and temporal and multisite validation with the whole pipeline frozen is the next evaluation.",
+      "evidence": [
+        "e.ml.1",
+        "e.lit.lage",
+        "e.lit.walsh"
+      ]
+    },
+    {
+      "id": "c.16",
+      "paper": 1,
+      "kind": "descriptive",
+      "role": "setup",
+      "claim": "The cohort was 42,579 adults with unipolar MDD from one community health system, 17.5% of them TRD-positive under the proxy.",
+      "evidence": [
+        "e.coh.1",
+        "e.coh.2"
+      ]
+    },
+    {
+      "id": "c.17",
+      "paper": 1,
+      "kind": "methodological",
+      "role": "setup",
+      "claim": "Every predictor was fixed at the index prescription and the outcome was ascertained over the following year, so no predictor reads post-index data.",
+      "evidence": [
+        "e.design.1",
+        "e.design.2"
+      ]
+    },
+    {
+      "id": "c.18",
+      "paper": 1,
+      "kind": "descriptive",
+      "role": "reporting",
+      "claim": "The study is reported against TRIPOD+AI, and the completed checklist accompanies the submission.",
+      "evidence": [
+        "e.lit.tripod"
+      ]
+    },
+    {
+      "id": "c.19",
+      "paper": 1,
+      "kind": "descriptive",
+      "serves": [
+        "p.1"
+      ],
+      "claim": "Neither representation was systematically better calibrated, and each held both a near-ideally calibrated model and a poor one.",
+      "evidence": [
+        "e.cal.1",
+        "e.cal.2"
+      ]
+    },
+    {
+      "id": "c.20",
+      "paper": 1,
+      "kind": "methodological",
+      "serves": [
+        "p.1",
+        "p.2"
+      ],
+      "claim": "Train/test comparability, the volume-confound checks and the subgroup analysis found no artifact that would explain either result.",
+      "evidence": [
+        "e.val.1",
+        "e.val.2",
+        "e.val.3"
+      ]
+    }
+  ],
+  "_note": "The point-and-claim map this packet is gated against. TWO points, and the claims about hand-picked patient data (c.9, c.10, c.11) serve BOTH rather than forming a third: they are a scope condition on two answers, not a third answer. A third point was written on 2026-09-06 and removed the same day; see review/two_points_rationale.md section 0. Run this through paperwriter.gates.ladder.check to reproduce the verdict. Evidence ids here are the map's own labels, not the frozen ledger's."
+}
