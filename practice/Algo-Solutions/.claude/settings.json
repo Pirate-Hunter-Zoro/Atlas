@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "defaultMode": "acceptEdits",
+    "allow": [
+      "Bash(board:*)",
+      "Bash(board *)",
+      "Bash(pdftotext:*)",
+      "Bash(pdftotext *)",
+      "Bash(pdfinfo:*)",
+      "Bash(pdfinfo *)",
+      "Bash(go test:*)",
+      "Bash(go build:*)",
+      "Bash(go vet:*)"
+    ]
+  }
+}
