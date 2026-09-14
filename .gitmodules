@@ -1,0 +1,23 @@
+[submodule "vendor/colibri"]
+	path = vendor/colibri
+	url = https://github.com/JustVugg/colibri.git
+[submodule "vendor/colibri-build"]
+	path = vendor/colibri-build
+	url = https://github.com/JustVugg/colibri.git
+
+# vendor/colibri is PULLED FORWARD on every login: `tutor resume` runs
+# `git submodule update --remote --merge vendor/colibri` and then commits the
+# pointer bump itself, with a fixed message naming the old and new commit. That
+# is the only commit anything in this system makes on its own, and it is
+# guarded hard -- only when vendor/colibri is the ONLY dirty path, never
+# mid-merge or mid-rebase, never on a detached HEAD. Without that commit the
+# repository is left dirty every time colibri moves, and the board shows the
+# person "unsaved work" for something they did not do.
+#
+# vendor/colibri-build is the SAME upstream at a different commit, and it is
+# PINNED at fd93c41 and never pulled. It is a build tree, and a build tree that
+# moves underneath a build is the failure it exists to avoid. Moving it forward
+# is the person's to do, by hand.
+#
+# Git shares nothing between two checkouts of one upstream, so this costs 24 MB
+# of pack twice. That is the honest price of them being two versions.
