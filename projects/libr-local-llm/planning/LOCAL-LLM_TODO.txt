@@ -1,0 +1,375 @@
+LOCAL-LLM (libr-local-llm) — REMAINING WORK
+================================================
+
+NOTE TO FUTURE EDITORS (INCLUDING CLAUDE): This file tracks what's LEFT to do,
+never what's been finished. Git history records completion. Conventions mirrored
+from the sibling planning/PSYCH-ASR_TODO.txt and planning/TRD-EHR_TODO.txt:
+
+1. DELETE, don't annotate. When a task is completed, DELETE its entry. No
+   checkmarks, "DONE" tags, or "(completed YYYY-MM-DD)" markers on finished TASKS.
+2. STAMP new items with provenance. Open a new item or section with
+   "(Added YYYY-MM-DD.)". Convert relative dates to absolute.
+3. PERMANENT-CONTEXT exception. ORIENTATION, HARD CONSTRAINTS, and DECISIONS
+   LOCKED are standing context, not task entries. Preserve them on every edit.
+4. SINGLE SOURCE OF TRUTH for what's LEFT. Durable facts about what EXISTS and
+   how it is wired graduate into libr-local-llm/README.md, not here. That README
+   also carries the bootstrap sequence and the TRAPS list; do not duplicate them.
+
+(Added 2026-08-17. Repo created same day, split out of PSYCH-ASR.)
+
+================================================================
+WHAT WE DO NEXT — READ THIS FIRST, ANSWER FROM IT
+================================================================
+The user should never have to remember the plan. When they ask what is next, the
+answer is here, and it is the first unfinished step below. Read it, say what the
+step is, and start it.
+
+STATE AS OF 2026-09-04. The infrastructure works: Ollama serves from user-local
+install, both sbatch jobs run, the 4-GPU shard is verified, and three driver
+commands work from anywhere. Nothing here is blocked on another person, which
+makes this the repo to work in while the other two wait.
+
+  STEP 1. WEB ACCESS FOR THE CODING AGENT. Small, already decided, and the
+    decision and its rationale are in libr-local-llm/README.md §6. Section 1
+    below is the work.
+
+  STEP 2. THE VLLM PATH — this is the real next build, and it carries the PHI
+    boundary's remaining layer. Section 3 below, and milestone M0/M1 of the fleet
+    in DESIGN.md. The clinical model must never run through opencode at all: it
+    is driven from a plain Python client with no tool-calling surface anywhere in
+    the code, so no setting can re-enable a search call over a transcript. That
+    property is not a configuration choice, which is the whole point of it.
+    Two carry-overs already paid for: scrub SLURM_* before any srun or sbatch the
+    launcher shells out, and expect a multi-minute cold load, because 65 GB off
+    the NFS studies share runs about 230 MB/s and the share is the bottleneck
+    rather than the GPU.
+
+  STEP 3. THE GUARD WIDENING — blocked on PSYCH-ASR, and in a fixed order. That
+    repo's arm-diff writer splits into a full artifact and a numbers-only summary
+    sibling first, then the human eyeballs the summary once, and only then does
+    config/block-phi.py learn the *.summary.json shape and PERMISSIONS.md §2 say
+    so. Do not widen the fence before the writer exists. Section 2 below.
+
+  STEP 4. THE FLEET BEYOND M1. Designed in full in libr-local-llm/DESIGN.md, none
+    of it built. Section 4 below tracks the work; DESIGN.md holds the reasoning
+    and is the single source of truth for the architecture. Do not restate it.
+
+  STEP 5. HOUSEKEEPING, section 5. Never the answer to "what's next" unless
+    everything above is done.
+
+ONE STANDING NOTE ON SCOPE: this is infrastructure, not a research project. No
+manuscript, no results, no data. Durable facts about what exists and how it is
+wired belong in libr-local-llm/README.md; this file tracks only what is left.
+
+================================================================
+ORIENTATION
+================================================================
+Shared inference infrastructure for LIBR compute. Serves BOTH PSYCH-ASR (Stage 3c
+transcript NLP, PHI) and TRD-EHR (MedGemma work). Not a research project — no
+manuscript, no results, no data. Repo: ~/libr-local-llm (git initialized
+2026-08-17; origin = github.com/Pirate-Hunter-Zoro/libr-local-llm, PUBLIC).
+
+STAGE NUMBERING: the transcript-reading LLM work in PSYCH-ASR is Stage 3c
+("Behavioral and content coding with a local LLM"). PSYCH-ASR's Stage 4 is
+feasibility modeling at N=20 and involves no LLM.
+
+WHAT EXISTS (detail in libr-local-llm/README.md, do not restate here)
+- Ollama v0.32.14 user-local at ~/bin/ollama + ~/lib/ollama. No admin used.
+- Weights (~117 GB GGUF) at
+  /media/studies/ehr_study/analysis/mferguson/models/ollama
+- Models: qwen3-coder:30b (coder default), medgemma:27b-it-q8_0 (clinical
+  prototyping), gpt-oss:120b (needs c3_accel, 4 GPU).
+- Two Slurm jobs: slurm_jobs/ollama_serve.sbatch (1x A40, c3_short) and
+  slurm_jobs/ollama_serve_accel.sbatch (4x A40, c3_accel). The 4-GPU shard is
+  verified working. (Updated 2026-08-20.)
+- Three driver commands in bin/: ollama-up, ollama-code, ollama-down. They run
+  from anywhere, including the login node and a VSCode terminal on another
+  compute node. (Added 2026-08-20.)
+- opencode v1.18.18 (npm -g opencode-ai) as the coding front end; config at
+  ~/.config/opencode/opencode.json, tracked copy at config/opencode.json.
+- libr-local-llm/DESIGN.md — the design for THE FLEET (section 4 below). Design
+  only; nothing in it is built. It is the single source of truth for the fleet's
+  architecture and arguments; this file tracks only the work left. Do not restate
+  its reasoning here. (Added 2026-08-22.)
+
+================================================================
+HARD CONSTRAINTS
+================================================================
+- PHI NEVER LEAVES THE CLUSTER. PSYCH-ASR recordings/transcripts are
+  identifiable. Every model reading them runs on LIBR hardware. No external API.
+- ENDPOINT IS LOOPBACK ONLY. OLLAMA_HOST=127.0.0.1:11500, reached by stepping
+  onto the job's node with `srun --jobid=<id> --overlap` (preferred; SSH needs a
+  key agent that is not always present). Do NOT rebind to 0.0.0.0 — that exposes
+  a PHI-processing endpoint to every user on the cluster. (SSH→srun correction
+  2026-08-20.)
+- LOOPBACK IS NOT A BOUNDARY AGAINST THE NODE'S OTHER USERS. Slurm gives a job no
+  network namespace, so any account with a shell on the serving node can reach
+  127.0.0.1:11500 on it, and ollama has NO authentication at all. Loopback is
+  necessary and NOT sufficient; the constraint above is a control against the
+  cluster network, not against node-local users. Treat "supports an API key" as a
+  selection criterion for every engine added from here on (colibrì does; ollama
+  does not). Trap 20 in libr-local-llm/README.md §7. (Added 2026-08-22.)
+- FAIR-SHARE IS A REAL COST AND IT LANDS ON US. Slurm weighs recent usage, so a
+  long-lived server drives down OUR priority and makes the TRD-EHR and PSYCH-ASR
+  pipeline jobs schedule worse. The serving stack competes with the research it
+  exists to serve. Hard caps, short walltimes, and idle release are self-defence,
+  not altruism. (Added 2026-08-22.)
+- NO ADMIN RIGHTS. Everything installs under $HOME or the studies share.
+- THIS REPO IS PUBLIC. origin = github.com/Pirate-Hunter-Zoro/libr-local-llm,
+  visibility PUBLIC. Defensible because it holds serving config only — no PHI, no
+  data, no credentials — but it means nothing sensitive can EVER be committed
+  here. Config files in this repo are world-readable the moment they are pushed.
+  (Added 2026-08-17.)
+- c3_accel (compute306) is the cluster's ONLY 4-GPU node. Request gpu:4 only
+  when actually running gpt-oss:120b; use c3_short with gpu:1 otherwise. (c3 and
+  c3_short are the same six nodes; c3_short is far less contended and its 9 h cap
+  fits an 8 h server. Corrected 2026-08-20.)
+
+================================================================
+DECISIONS LOCKED
+================================================================
+- OLLAMA FOR INTERACTIVE, VLLM FOR BATCH. Ollama wins for single-user
+  interactive coding: trivial model switching, auto load/evict, keep-alive
+  returns the GPU when idle. vllm wins for Stage 3c batch transcript work:
+  continuous batching, and guided decoding against a JSON schema so a fidelity
+  rating cannot come back as prose.
+- MEDGEMMA AT q8, NOT q4, in ollama. Quantization damage shows up first on
+  careful text extraction. Production passes run bf16 on vllm from the HF
+  safetensors already staged at models/google_medgemma-27b-text-it.
+- PROTOTYPE ON OLLAMA, PRODUCE ON VLLM. Iterating fidelity prompts against a
+  restartless ollama endpoint is much faster; final passes go through vllm.
+- OPENCODE PROVIDERS ARE DEFAULT-DENY. enabled_providers:["ollama"]. opencode
+  ships ~8 hosted remote "free" models under an opencode/ provider that are one
+  keystroke away in the model picker.
+- OPENCODE WEB TOOLS ARE DEFAULT-DENY, AND ONLY THE CODER AGENT IS RAISED.
+  Top-level permission block denies webfetch/websearch for every agent; a single
+  `coder` primary agent (default_agent) is the sole exception. As of 2026-08-20
+  the agreed setting for that agent is webfetch `allow`, websearch `ask` (see
+  item 1; superseded the earlier "both ask, never allow"). The top-level deny is
+  never relaxed for anyone else. Rationale:
+  opencode's own default for nearly every gated tool is ALLOW, so "we never
+  configured web tools" meant they were ON. Resolution order is built-in agent
+  defaults, then global permission, then per-agent; last wins. The built-in
+  `explore` subagent ships with webfetch/websearch ALLOW and is only closed by
+  the global deny — a per-agent-only config would have left it open. Verify with
+  `opencode agent list`, which prints each agent's fully resolved rule stack.
+- WEB PERMISSIONS ARE PER AGENT, NOT PER MODEL. There is no opencode setting
+  that grants web access to a model. Any model can be driven by any agent, so
+  the boundary is the WORKLOAD: a coder agent running medgemma is fine, a
+  transcript-coding agent running qwen3 is not. Do not reason about this in
+  terms of "which models can surf". (Added 2026-08-20.)
+- WEB ACCESS HAS TWO RISKS, NOT ONE. Egress: anything in context can leave in a
+  search query or fetch URL, and outbound HTTPS works from compute nodes, so
+  opencode config is the ONLY thing keeping PHI on the cluster. Ingress: fetched
+  pages enter context as text the model cannot distinguish from instructions,
+  and the coder agent has file and shell access — so prompt injection is live
+  even with no PHI in the session. (Added 2026-08-20.)
+- CLAUDE IS NOT REACHABLE FROM OPENCODE. opencode's own docs state Anthropic
+  prohibits routing Claude subscriptions through it; the plugins that did were
+  removed in 1.3.0. The only supported Anthropic path is a per-token API key,
+  which LIBR does not have. Claude Code (LIBR seat) = non-PHI work; opencode +
+  ollama = local/PHI work. Two tools, clean split. Do not re-litigate.
+
+The following were decided 2026-08-22 while designing the fleet. Reasoning lives
+in libr-local-llm/DESIGN.md; only the decisions are recorded here.
+
+- THREE ENGINES, THREE JOBS, NO BLENDING. ollama = one user, instant model
+  switching. vllm = concurrency, batch corpora, schema-guided decoding. colibrì =
+  models that do not fit in VRAM at all. Nothing about routing between them is
+  smarter than the best model among them; a fleet buys coverage, throughput and
+  uptime, NOT accuracy we did not already have.
+- CITIZENSHIP IS THE CORE FEATURE, NOT A COURTESY. The hardware is already bought
+  and already powered, so the marginal cost of this service is other people's
+  queue time. A fleet that has to be torn down by hand when a colleague complains
+  has already failed. Every yield is voluntary (no admin = no preemption, no QoS).
+- REPLICAS, NOT SHARDS, WHEREVER A MODEL FITS ON ONE CARD. NVLink reports all
+  links inactive on these nodes, so tensor parallelism pays a PCIe all-reduce tax
+  every layer. N independent single-GPU replicas give more aggregate throughput
+  AND can be surrendered one at a time; a 4-GPU job is an all-or-nothing
+  surrender. This SUPERSEDES the "MedGemma needs two A40s with TP" assumption in
+  item 3 below.
+- c3_accel IS BOOKED, NEVER HELD. Requested only for work that genuinely needs
+  184 GB of VRAM in one address space. Never the default, never held idle, never
+  the home of a long-lived interactive server. Shortest idle timeout of anything
+  in the fleet.
+- THE BATCH PLANE IS A FILESYSTEM QUEUE, NOT A NETWORK SERVICE. Requests as files
+  on the studies share, claimed by atomic rename, results written back. No socket
+  to expose, preemption-tolerant for free, progress inspectable with `ls`. This is
+  ALSO how PHI-boundary layer 3 gets delivered — as a property of the
+  architecture, not a discipline someone maintains. Never use it for interactive
+  traffic.
+- NO STATE FILE, EVER. Ask Slurm. Extends the rule the three driver commands
+  already follow (libr-local-llm/README.md §4a).
+- THE SLOW MODEL IS A CONSULTANT, NOT A LOOP DRIVER. The right use of a
+  high-single-digit-tok/s model is one hard question inside a fast agent's loop,
+  not driving the loop. 30 s of consultation in a 5-minute task is invisible;
+  driving the whole loop at that rate is unusable.
+- NO QUALITY-BASED AUTO-ROUTING. Cheap-model-answers-then-escalate-on-confidence
+  is research-grade and unreliable. Escalation is explicit: a human or an agent
+  names the big model. Do not build the clever version.
+- BIGGER IS NOT THE SAME CLAIM AS BETTER. colibrì's 744B container is int4, and
+  int4's measured cost concentrates on the hardest questions. Whether it beats a
+  well-served 27-120B model at 8-bit on OUR tasks is a measurement owed (section 4),
+  not an assumption.
+
+================================================================
+1. WEB ACCESS FOR THE CODING AGENT  (NEXT — small, and already decided)
+================================================================
+(Added 2026-08-20.) Decision and rationale are in libr-local-llm/README.md §6
+"Web access: decided scope"; do not restate them here. The edit itself is not
+applied.
+
+- config/opencode.json: raise agent.coder webfetch from "ask" to "allow".
+- LEAVE agent.coder websearch at "ask". That is the direction where prompt text
+  leaves the building; a URL you typed is the lower-risk direction.
+- LEAVE the top-level permission deny alone. It is the only thing closing the
+  built-in explore subagent, which ships with webfetch ALLOW.
+- Mirror the change into ~/.config/opencode/opencode.json — the repo copy is a
+  tracked copy, not the live file.
+- Verify with `opencode agent list`: coder shows allow/ask, EVERY other agent
+  still shows both deny. If explore comes back allow, the global block was
+  edited by mistake and it fails silently.
+
+Ordering note: this makes item 2 more urgent, not less. Loosening the two
+config layers is exactly why the layer that cannot be misconfigured matters.
+
+================================================================
+2. THE PHI BOUNDARY — REMAINING LAYER  (HIGHEST PRIORITY — blocks Stage 3c use)
+================================================================
+Two of three layers now exist (see DECISIONS LOCKED and libr-local-llm/README.md
+§6). Both are configuration, and configuration is one bad edit from being wrong.
+
+The remaining layer is the one that cannot be misconfigured: THE CLINICAL MODEL
+MUST NEVER RUN THROUGH OPENCODE AT ALL. It is driven from a plain Python client
+with no tool-calling surface anywhere in the code, so there is no setting that
+could re-enable a search call over a transcript.
+
+This is NOT separate work from item 3 — that client IS the vllm driver. The
+no-tools property falls out of reusing TRD-EHR's serving pattern. Tracked here
+because it is the constraint; built there.
+
+[ ] LET CONTENT-FREE SUMMARIES THROUGH THE GUARD. (Added 2026-09-04. Cross-listed
+    from PSYCH-ASR_TODO.txt, section GROUND TRUTH WITHOUT READING THE DATA.)
+    config/block-phi.py currently blocks the arm-comparison artifact whole, because
+    it embeds verbatim disputed transcript text — which also blocks the region
+    COUNTS, DURATIONS and per-arm LABELS inside it, none of which is content. The
+    fix is on the PSYCH-ASR side: that writer splits into the full artifact
+    (blocked, correctly) and a numbers-only summary sibling. This repo's half is
+    teaching the guard the summary shape afterwards, and updating PERMISSIONS.md §2
+    "What stays readable, deliberately" to say so.
+    ORDER MATTERS AND IS NOT NEGOTIABLE: the writer exists and the human eyeballs
+    its output ONCE before the guard is widened. A shape allowed by pattern that
+    later grows a text field is how a fence stops working silently, and nothing
+    would announce it. Prefer a *.summary.json convention over an enumerated list —
+    a fence has to be readable at a glance to stay correct.
+
+================================================================
+3. VLLM PATH FOR PSYCH-ASR STAGE 3c
+================================================================
+Not started. The HF safetensors are already staged — vllm consumes them directly,
+no GGUF conversion and no quantization loss. Carries item 2's remaining layer: no
+tool-calling surface in this client, ever.
+
+REVISED 2026-08-22. MedGemma 27B at bf16 is ~55 GB and does not fit one A40, so
+it needs EITHER two cards with tensor parallelism OR 8-bit weights on one card.
+Per DECISIONS LOCKED, prefer the second: one card per replica, several replicas.
+Sharding on compute306 is verified working, which makes declining to use it a
+choice rather than a gap. This item is now milestone M0/M1 of the fleet (section 4) —
+build it there, tracked here.
+
+- Write a vllm serve sbatch alongside the ollama ones. Two carry-overs from the
+  4-GPU shard work (detail in
+  libr-local-llm/README.md §7): scrub SLURM_* before any srun/sbatch the launcher
+  shells out, or it breaks when run from inside another allocation; and expect a
+  multi-minute cold load, since 65 GB off the NFS studies share ran ~230 MB/s and
+  the share, not the GPU, is the bottleneck. (Added 2026-08-20.)
+- Define the fidelity-rating JSON schema for guided decoding. Split the
+  instrument first: operationalizable items ("was homework assigned?") are where
+  a local model looks excellent; subjective scales ("rate warmth 1-7") are where
+  it will not.
+- Validation plan before any claim: double-code a subset with two human raters,
+  compute human-human ICC, then model-consensus ICC on the same sessions.
+- Open decision carried from PSYCH-ASR README Stage 3c: MedGemma's medical tuning
+  may buy little on a discourse-pragmatics task; a strong general 30B instruct
+  model may fit better and would need staging. Decide by measuring agreement.
+
+================================================================
+4. THE FLEET  (the repo's next phase — designed, none of it built)
+================================================================
+(Added 2026-08-22.) Design, arguments, placement reasoning, yield ladder,
+citizenship rules and anticipated traps are in libr-local-llm/DESIGN.md. Read it
+before writing any of this. Do NOT restate its reasoning here; this section
+tracks only what is left to do.
+
+WHERE IT SITS IN PRIORITY. Items 1 and 2 are small, already decided, and the
+fleet must not regress either of them. Item 3 is no longer separate work — it IS
+milestones M0 and M1 below. Everything after M1 is new capability rather than
+unblocking, so PSYCH-ASR Stage 3c does not wait on any of it.
+
+MILESTONES. Each is useful alone. Do not start the next until the previous
+milestone's exit criterion is actually met, not approximately met.
+
+M0 — VLLM EXISTS. User-local install into a conda prefix, one replica, one model,
+one c3_short node, reached the way ollama already is.
+  EXIT: a schema-guided structured response comes back from a real prompt, AND
+  the resident-set / fallback diagnostics were read rather than the output merely
+  eyeballed. A model that silently fell back to CPU still exits 0.
+
+M1 — THE BATCH PLANE. Filesystem work queue on the studies share, N workers, one
+real corpus pass end to end. Claims need a heartbeat or timestamp so a dead
+worker's item is reclaimed rather than lost.
+  EXIT: a pass completes with a worker deliberately killed mid-run, and no item
+  is lost or double-processed.
+  This is the milestone that unblocks Stage 3c and delivers item 2's remaining
+  PHI layer as architecture.
+
+M2 — COLIBRÌ PLACEMENT MEASUREMENT. Stage GLM-5.2 int4 on the studies share
+(~429 GB), build the engine, measure decode on ONE c3 node and on c3_accel under
+a snapshot-and-restore protocol for the learned routing profile.
+  EXIT: our own paired numbers for both placements, and the single-GPU decision
+  (DESIGN.md §4.1) either confirmed or reversed on OUR data rather than another
+  host's log.
+  Before this runs: KV persistence OFF (it defaults ON and appends ~182 KB/token
+  into the model directory), API key set, and the model directory's permissions
+  actually checked.
+
+M3 — THE SUPERVISOR. Convergence loop, yield ladder, drain-then-cancel, the
+post-yield hold-off, hard caps, idle release.
+  EXIT: it demonstrably yields a node to another user's pending job and does NOT
+  immediately reclaim it; and killing the supervisor leaves every backend serving.
+
+M4 — THE FRONT DOOR. Router: health checks, one model namespace, queue-aware
+fall-through, single-slot queueing for colibrì (it serves one generation at a
+time and must never be load-balanced onto).
+  EXIT: a client session survives a backend being yielded and replaced
+  mid-conversation.
+
+M5 — THE CONSULTANT TOOL. A fast agent that can ask the big model one question.
+  EXIT: used voluntarily, twice, because it was better than not having it.
+
+OPEN DECISION, BLOCKS M4 AND NOTHING BEFORE IT. Interactive serving across more
+than one node needs the client and backend to talk across nodes, and loopback
+forbids it. DESIGN.md §5.4 lays out four options and recommends: stay single-node
+for anything touching PHI, and treat a token-authenticated bind to the node
+address as a separate, explicitly recorded decision for a non-PHI plane only. NOT
+DECIDED. Do not let it get decided by a config edit.
+
+MEASUREMENTS OWED (nothing built on these until they exist):
+- colibrì on one A40 vs four — is it within the projected ~40%?
+- atomic rename on THIS NFS share — is it a safe claim primitive? Race it.
+- vllm replicas vs one 4-way shard, same model, same batch, aggregate tokens.
+- does yielding on pending-queue evidence actually help the other job? Instrument
+  every yield: did the triggering job start, and how long after?
+- 744B int4 vs a well-served 27-120B at 8-bit, on tasks from our own repos,
+  scored blind.
+- reacquisitions that beat the job they yielded to. This number must be zero.
+- our fair-share factor before and during a week of fleet operation.
+
+================================================================
+5. HOUSEKEEPING
+================================================================
+- Both sbatch jobs are 8 h walltime. c3 and c3_accel allow up to 7 days if a
+  longer-lived server is wanted.
+- PSYCH-ASR/scripts/setup_coder.sh was deleted 2026-08-17 (dead URL, no-op model
+  preload, exec'd an uninstalled binary, and a `sed` that deleted every line
+  containing "coder" from four rc files). Do not resurrect it.
