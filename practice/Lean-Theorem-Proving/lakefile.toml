@@ -1,0 +1,18 @@
+name = "leantp"
+version = "0.1.0"
+defaultTargets = ["LeanTP", "Exercises"]
+
+[[require]]
+name = "mathlib"
+scope = "leanprover-community"
+
+# Shared library: notation, helper lemmas, and tactic shorthands that get
+# reused across exercises. The analogue of Algo-Solutions' datastructures/
+# and helpermath/ packages.
+[[lean_lib]]
+name = "LeanTP"
+
+# Every exercise, discovered by glob so adding a file needs no config edit.
+[[lean_lib]]
+name = "Exercises"
+globs = ["Exercises.+"]
