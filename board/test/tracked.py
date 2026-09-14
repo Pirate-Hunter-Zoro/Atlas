@@ -158,6 +158,21 @@ for rel in files:
         fail("%s is this machine's own permission allowlist. It names real "
              "paths on lab storage and it is not the same on two machines. "
              "`.claude/settings.json` is the shared one and is tracked." % rel)
+    # ---- no assistant configuration --------------------------------------
+    # `ai-config/` sits INSIDE this tree and is tracked by its own git. The
+    # only thing keeping it out of this one is a `/ai-config/` line in the root
+    # `.gitignore`, which is exactly the kind of guard this file exists because
+    # somebody deletes by accident. What it holds names real paths on lab
+    # storage and describes what the PHI fence is guarding, so it is private
+    # for the same reason TRD-EHR's `.env` had to go.
+    if low.startswith("ai-config/"):
+        fail("%s is the assistant configuration. It lives inside this tree and "
+             "is tracked by its OWN git -- `ai-config/README.md` says how. Its "
+             "settings name real paths on lab storage and its policy describes "
+             "what the PHI fence guards, so this public repository carries none "
+             "of it. Something has removed `/ai-config/` from the root "
+             ".gitignore; put it back." % rel)
+
     if base == ".env":
         fail("%s is a .env. TRD-EHR's enumerated the on-disk locations of "
              "identifiable patient data, which is exactly what a public "
