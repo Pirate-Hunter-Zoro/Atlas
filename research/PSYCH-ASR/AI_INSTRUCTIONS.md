@@ -117,9 +117,10 @@ is no and the fence applies to you. Uncertainty resolves to refusal.
 
 ### The fence is a control, not a promise
 
-For assistants that run under a hook, a `PreToolUse` guard
-(`~/claude-config/hooks/block-phi.py`) refuses the reads above before the tool runs, and
-its behaviour is covered by a case table in that repository. **The hook is not the rule.**
+For assistants that run under a hook, a pre-tool guard refuses the reads above before the
+tool runs. It lives in `ai-config/` — the rules in `policy/phi.py`, which names no vendor,
+and one thin adapter per assistant that links itself wherever that assistant looks for a
+hook — and a case table in that repository covers what it refuses and what it allows. **The hook is not the rule.**
 An assistant working here without that hook is bound by this section exactly as much, and
 "nothing stopped me" is not a defence. Equally, do not go looking for ways around the hook:
 a guard you route around is a guard you have decided does not apply to you, which is the
