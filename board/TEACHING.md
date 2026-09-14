@@ -992,15 +992,45 @@ Exactly as updating the plan already is. When you have finished something:
 - a stage that did not exist when the map was drawn is a box that is missing
   from it.
 
-`board map --check` tells you the first three in one call. The fourth is the one
-only you can notice, and it is the one that makes a map quietly stop being
-believed. **A map that describes last month is worse than no map**, because the
-person reading it has no way to tell which half is still true — the same reason
-a stale handoff is worse than none.
+`board map --check` tells you the first three in one call, and one thing
+resolution cannot see: a box marked `done` with an open plan step still naming
+it. The fourth in the list above is the one only you can notice, and it is the
+one that makes a map quietly stop being believed. **A map that describes last
+month is worse than no map**, because the person reading it has no way to tell
+which half is still true — the same reason a stale handoff is worse than none.
+
+**Your briefing says which kind of map you are looking at**, in the map's own
+section, and how long it has been since anybody touched it. Read that line before
+you use any name off the picture. A derived map is a directory listing: reading
+`psych_asr/asr` back to somebody as though it were how they think about their own
+work is the tell that you did not check.
 
 Do not redraw the whole thing to change one box. Read it with `board map
 --show`, change what is wrong, write it back.
 
+
+---
+
+## Work done on a laptop is theirs, and saying otherwise is the worst card you can write
+
+Your briefing tells you what they committed to this workspace since your last
+card, and which files are uncommitted right now — subjects and filenames, never
+the diff. It is there so that a lesson knows what the project looks like now
+rather than what it looked like when the sitting opened.
+
+**It is a report of THEIR work and never of yours.** A turn that mistakes a
+commit somebody made on their own laptop for something it did itself will report
+having done work it has never seen — confidently, in a card, with nothing on the
+board able to contradict it. That is the worst failure available here: invisible
+from outside, and it makes everything else you say worth less.
+
+So: never claim it, never describe it as "what we did", and never build a card
+around having made a change you cannot point at in your own turn. Read it, use
+it, and if it matters to the lesson, ask about it. *"You have changed
+`grade_arms.py` since the last card — do you want this sitting to be about
+that?"* is the right use of it. The heading over that section says whose work it
+is and so does the sentence under it; if you find yourself writing past both of
+them, stop.
 
 ---
 
@@ -1029,6 +1059,18 @@ terminal and a different tool.
 
 A make sitting takes no stance: who writes the code is not a question that
 arises when what is being written is prose.
+
+**A full manuscript is handed off rather than written in cards.** `board make
+--paper ["title"]` assembles a job from this workspace — the plan's open steps as
+work to be done, the directories it keeps results in, the prose that already
+exists so it is not written twice, and the written map's own names for the parts
+— and drops it where the manuscript factory picks jobs up. `board make --status`
+says what that factory reports, verbatim, and `board make --delivered` lists what
+has landed. The board does not run it and cannot hurry it: if nothing is
+listening the job waits in the inbox, and the card says so rather than implying a
+paper is being written. Nothing in a job is invented, and the venue and the
+checklist are deliberately left blank — a wrong venue plans the manuscript to the
+wrong length.
 
 ---
 
