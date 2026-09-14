@@ -37,6 +37,9 @@ The assistant runs these. The student never does.
     board notes --meeting --since 7d   meeting notes across the repository: what
                                        landed, what it meant, what is blocked —
                                        every claim carrying a link to the thing
+    board make --paper ["title"]       assemble a manuscript job out of this
+                                       workspace and drop it in Paper-Writer's
+                                       inbox. --status, --delivered, --dry-run
     board inbox [--all]                what the student sent; marks it read
     board slate [--all]                paths of the pages written on the iPad
     board wait [--timeout N]           block until the student sends something
@@ -80,8 +83,8 @@ import time
 TOOL = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 sys.path.insert(0, TOOL)
 from tutorboard import (atlas, brief, carry, handoff, limits, machine,
-                        meeting, paths, ports, processes, reasoning, sense,
-                        tex, worktree)
+                        manuscript, meeting, paths, ports, processes,
+                        reasoning, sense, tex, worktree)
 from tutorboard.net import egress, tailscale
 from tutorboard.course import config, document, homework, paper, review, walk
 # `map` is a builtin; the module keeps the name the board calls the thing and
@@ -1740,6 +1743,99 @@ def cmd_notes(live, args):
     return 0
 
 
+
+def cmd_make(live, args):
+    """Hand a manuscript job to Paper-Writer, and see what it has done with it.
+
+        board make --paper ["title"]     assemble a job and drop it in the inbox
+        board make --paper --dry-run     print the job; drop nothing
+        board make --status              what the factory says it is doing
+        board make --delivered           manuscripts that have landed here
+
+    Options for the job: --venue "<journal, word limit>", --checklist "<name>",
+    --notes "<free prose>". All three are things the board deliberately does not
+    guess -- a wrong venue plans the manuscript to the wrong length and an
+    inferred checklist places the wrong obligations, and the template this fills
+    in says so itself.
+
+    **THE BOARD DOES NOT RUN PAPER-WRITER.** It writes one file into a drop
+    folder and reads a status file back. The factory is a working manuscript
+    engine with its own daemon, its own state directory and its own ledgers; the
+    board's business is handing it a job and showing the result. If the daemon is
+    not running the job waits in the inbox, which is what should happen and is
+    said rather than discovered.
+
+    What the board assembles, all of it off disk in this workspace: the plan's
+    open steps (as WORK, not as claims -- a step is a thing to do), the
+    directories this workspace actually keeps results in, the manuscript prose
+    that already exists so it is not written twice, and the written map's own
+    names for the parts, which is the terminology lock half-written.
+    """
+    def after(flag):
+        if flag in args:
+            n = args.index(flag)
+            if n + 1 < len(args) and not args[n + 1].startswith("--"):
+                return args[n + 1]
+        return ""
+
+    if "--status" in args:
+        rec = manuscript.status()
+        if not rec.get("ok"):
+            print(rec["detail"], file=sys.stderr)
+            return 1
+        queued = manuscript.waiting()
+        if queued:
+            print("%d job%s waiting in %s:"
+                  % (len(queued), "" if len(queued) == 1 else "s", rec["out"]))
+            for j in queued:
+                print("  %s" % j["name"])
+            print()
+        if rec.get("said"):
+            sys.stdout.write(rec["said"])
+            if not rec["said"].endswith("\n"):
+                print()
+        else:
+            print(rec["detail"])
+        return 0
+
+    if "--delivered" in args:
+        got = manuscript.delivered(live.root)
+        if not got:
+            print("nothing has been delivered into %s/ yet"
+                  % manuscript.LANDING)
+            return 0
+        for d in got:
+            print("%s  (%s)" % (d["rel"],
+                                time.strftime("%d %b %H:%M",
+                                              time.localtime(d["at"]))))
+        return 0
+
+    if "--paper" not in args:
+        print("board make: say what to make. `board make --paper \"title\"`, "
+              "or --status, or --delivered.", file=sys.stderr)
+        return 1
+
+    rec = manuscript.submit(live.root,
+                            title=after("--paper"),
+                            venue=after("--venue"),
+                            checklist=after("--checklist"),
+                            notes=after("--notes"),
+                            dry_run="--dry-run" in args)
+    if not rec.get("ok"):
+        print("board make: %s" % rec["detail"], file=sys.stderr)
+        return 1
+    if rec.get("dry_run"):
+        sys.stdout.write(rec["markdown"])
+        print("\n--- nothing was dropped; the inbox is %s" % rec["inbox"],
+              file=sys.stderr)
+        return 0
+    print(rec["path"])
+    print(rec["detail"])
+    print("Read it before it is admitted -- it is a job somebody will be held "
+          "to, and the venue and the checklist are blank on purpose.")
+    return 0
+
+
 def cmd_map(live, args):
     """The written map: the tutor's own words for what this project IS.
 
@@ -2769,7 +2865,7 @@ COMMANDS = {
     "walk": cmd_walk,
     "egress": cmd_egress, "limit": cmd_limit,
     "brief": cmd_brief, "note": cmd_note, "handoff": cmd_handoff,
-    "map": cmd_map, "notes": cmd_notes,
+    "map": cmd_map, "notes": cmd_notes, "make": cmd_make,
 }
 
 

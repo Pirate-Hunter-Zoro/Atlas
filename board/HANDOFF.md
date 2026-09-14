@@ -3,7 +3,7 @@
 > **You are in Atlas, in `board/`, in a fresh session, and you have been pointed at this file.**
 >
 > The migration is **done**. Eleven repositories are one, the board runs out of it, the front
-> door is a drawn map of everything, and 33 test suites are green. What is left is the old
+> door is a drawn map of everything, and 35 test suites are green. What is left is the old
 > brief's stage 2 onwards. The address grammar is now done as well (§2.1) and everything
 > below it is written against it. The written map (§2.2) and meeting notes (§2.3) are done
 > as well. What is left is documents (§2.4) and the briefing seeing what was done on a
@@ -75,7 +75,7 @@ keep that true, stop and say so rather than press on.
   `board.js`, `board.css`, `plane-core.js`, `gauge.js`, `home.html`, `home.js`, anything new
   you add to the cache list), or the installed app serves its cached copy and your work is
   invisible. It is at `board-shell-v102`.
-- **Run `bash board/test/all.sh` before every ship.** 33 suites, all green. Keep them green.
+- **Run `bash board/test/all.sh` before every ship.** 35 suites, all green. Keep them green.
 - **`test/tracked.py` is the one that cannot be fixed afterwards.** It runs first in
   `all.sh` and it refuses PHI, 25-megabyte files, model dumps, other authors' papers and
   books, and machine-local config — anywhere in the repository. This is public. A thing that
@@ -142,9 +142,10 @@ clone anywhere finds its own data and never another checkout's.
 
 The old brief's stages 2 and 4 through 7. Stage 3 — the atlas — was done first because it is
 what the person asked for first and sees first, and because it needed no grammar to exist.
-**2.1, 2.2 and 2.3 are now done**; all three are kept below because what was deliberately
-deferred inside each has to be findable, and because 2.4 and 2.5 are written against them.
-The next thing is **2.4, documents** — annotate, export, write, in that order.
+**2.1 through 2.4 are now done**; all four are kept below because what was deliberately
+deferred inside each has to be findable.
+The next thing is **2.5**, the briefing seeing what was done on a laptop — the last of
+them, and the cheapest.
 
 ### 2.1 The address grammar — DONE, and three features are no longer waiting on it
 
@@ -328,10 +329,11 @@ the first document to contain a link:
 2. **`md_to_tex` returns a string, not a list.** `"\n".join()` on it joined its *characters*
    and produced a forty-page document one letter per line, which compiled perfectly.
 
-### 2.4 Documents: annotate, export, write
+### 2.4 Documents: annotate, export, write — DONE
 
-In this order. The first two extend machinery that exists; the third needs another
-repository read first.
+In this order, and shipped in that order as three separate changes. The first two extended
+machinery that existed; the third needed Paper-Writer's README and `PROMPT_TEMPLATE.md` read
+first, which is where its whole design came from.
 
 **Annotating — DONE for documents; code is waiting on a code viewer.**
 
@@ -403,17 +405,57 @@ One trap paid for here, and it is `§7`'s shadowing trap in a new coat: `test/do
 imports `tex` as a module, a new local called `tex` made the name local for the *whole*
 function, and a call two hundred lines above it stopped working.
 
-**Writing, and this is where Paper-Writer comes in.** It is a workspace in this repository
-now — `projects/Paper-Writer`, with its own `service/`, `prompts/`, `config/`, an inbox it
-reads job prompts out of and an out-directory it delivers to. **Read its README and
-`PROMPT_TEMPLATE.md` before you design this seam**, and keep the seam to one function: a
-`make` sitting in workspace W assembles a job — the plan, the written map, the figures and
-tables it names, the manuscript sections that already exist — drops it in Paper-Writer's
-inbox, and the delivered manuscript lands in W under a tracked path. Then it is a document
-like any other. A correction round is an annotation that goes back in as another job. **Do
-not fold Paper-Writer's engine into the board.** It is a working manuscript factory with its
-own state directory and its own ledgers; the board's business is handing it a job and
-showing the result.
+**Writing — DONE, and the seam is one module.** `tutorboard/manuscript.py`,
+`board make --paper ["title"]`, `test/writing_up.py`.
+
+Paper-Writer admits a job by finding a filled-in `PROMPT_TEMPLATE.md` in a drop folder once
+the file has stopped changing. That is a contract made of a directory and a file format —
+the loosest coupling two programs can have — and it is why this module is 300 lines rather
+than a second copy of somebody else's engine. Three verbs:
+
+```
+board make --paper ["title"]   assemble a job from this workspace and drop it
+board make --paper --dry-run   print the job; drop nothing
+board make --status            what the FACTORY says it is doing, verbatim
+board make --delivered         manuscripts that have landed in this workspace
+```
+
+**The board does not run Paper-Writer.** No import, no process — `test/writing_up.py` checks
+both. If the daemon is not running the job waits in the inbox, which is what should happen
+and is said out loud rather than discovered later.
+
+What the board assembles, all of it off disk in the workspace: the plan's open steps, the
+directories it actually keeps results in, the manuscript prose that already exists so it is
+not written twice, and the written map's own names for the parts — which is the terminology
+lock half-written, and is §2.2 being spent a second time.
+
+Four decisions worth not undoing:
+
+- **`PAPER_SOURCE_DIRS` IS AN ALLOWLIST, WITH A SECOND REFUSAL BEHIND IT.** This is the board
+  choosing, on somebody's behalf, which trees a manuscript factory may mine — and one
+  workspace here holds 308 MB of identifiable therapy audio and its transcripts.
+  `RESULT_DIRS` names what may be offered; `NEVER` refuses ``phi``, `data`, `inbox`,
+  `stage1`, `stage2`, `raw`, `audio` by directory name whatever else changes. The failure is
+  silent and one-way: a job naming that tree would be admitted, gathered, and every number in
+  the resulting ledger would come from patient data in a manuscript nobody would think to
+  check. The suite fails if this stops holding.
+- **Nothing in a job is invented.** The plan's steps go in as WORK, not as claims — a step is
+  a thing to do and a claim is a thing to argue, and the template says so itself. The venue
+  and the checklist are left blank on purpose: a wrong venue plans the manuscript to the
+  wrong length and an inferred checklist places the wrong obligations.
+- **A job appears whole.** Written to `.part` and renamed, because the harness admits a file
+  once it has stopped changing and a file that appears empty and grows is one it may read
+  halfway through.
+- **`service/paperwriter.env` is read, not run** — it is deliberately "plain KEY=value with
+  no logic", which is the only reason that is safe. What this machine actually runs with
+  outranks the documented default, so a job lands where something is looking.
+
+**What is NOT built:** the correction round. "A correction round is an annotation that goes
+back in as another job" — the annotation half exists now (§2.4's first third can mark up any
+page of any document) and turning a marked-up manuscript into a follow-up job is one function
+that reads `delivered()` and `Annotate`'s stored marks. It was left because it is the one
+part of §2.4 with no worked example behind it: no manuscript has come back yet, so there is
+nothing to correct and no way to know what a correction job should actually say.
 
 ### 2.5 The briefing sees what was done on a laptop
 
