@@ -34,6 +34,7 @@ import re
 import time
 
 from . import paper
+from .. import atlas, paths
 
 # Where a document worth showing is kept. `live/` is the board's own working
 # directory -- the exported transcript is in there and it is `paper.py`'s, not
@@ -121,9 +122,14 @@ def _pointed_at(root):
 
     The same rule `plan.py` uses for task lists, and for the same reason: a
     README that names a document has declared it, and the decks for a project
-    live in the hub beside the code rather than in it. Bounded to this
-    repository and its siblings under the same home -- a path out of a file is a
-    path somebody could have written anything into.
+    routinely live in another workspace rather than in this one. Bounded to the
+    REPOSITORY, plus the two directories deliberately outside it -- a path out
+    of a file is a path somebody could have written anything into.
+
+    That bound widened when eleven repositories became one, and it widened by
+    exactly one level: a deck named as `../../research/PSYCH-ASR/docs/…` is now
+    a normal thing for a README to say rather than a reach across the home
+    directory. It did not stop being a bound.
 
     Two passes, because a README names the second deck the way a person would:
     the first is given in full, and *"in the same directory"* is how the one
@@ -137,23 +143,22 @@ def _pointed_at(root):
         return []
     root = os.path.realpath(root)
     parent = os.path.dirname(root)
-    home = os.path.realpath(os.path.expanduser("~"))
+    base = atlas.root()
 
     def keep(target):
         if not os.path.isfile(target) or not _ok(target) or not _ours(target):
             return False
-        return (target.startswith(root + os.sep)
-                or (target.startswith(parent + os.sep)
-                    and target.startswith(home + os.sep)))
+        return paths.within(target, root, base, *paths.outside_tree())
 
     named = [m.group(0) for m in POINTER.finditer(text)]
-    out, seen, where = [], set(), [root, parent]
+    out, seen, where = [], set(), [root, parent, base]
 
     for rel in named:
         if not os.path.dirname(rel.lstrip("~/")):
             continue                      # a bare name; the second pass has it
         tries = ([os.path.expanduser(rel)] if rel.startswith("~")
-                 else [os.path.join(root, rel), os.path.join(parent, rel)])
+                 else [os.path.join(root, rel), os.path.join(parent, rel),
+                       os.path.join(base, rel)])
         for candidate in tries:
             target = os.path.realpath(candidate)
             if keep(target) and target not in seen:

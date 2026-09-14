@@ -53,3 +53,56 @@ def same_dir(a, b):
 # against. State a test can reach is state a test will eventually corrupt.
 STATE_DIR = os.environ.get("BOARD_STATE_DIR") or \
     os.path.join(HOME, ".local", "state", "tutor-board")
+
+
+# ---------------------------------------------------------------------------
+# What lives OUTSIDE the repository, on purpose
+# ---------------------------------------------------------------------------
+# One rule made these two directories: if it cannot go into a public
+# repository, it does not live in the repository -- it lives outside the tree
+# and something inside the tree says where.
+#
+#   PHI        308 MB of identifiable therapy session audio. The filenames
+#              themselves carry participant IDs.
+#   ARTIFACTS  1.5 GB of job output: neighbour tables, model dumps, the figure
+#              cache. Regenerable, unread, and seven files of it are over
+#              GitHub's 50 MB warning.
+#
+# Neither is symlinked into the tree. A symlink is a TRACKED FILE pointing at
+# PHI, which hands the next reader of a public repository a map straight to it.
+# A pipeline takes a path; it is given the real one.
+#
+# They are named here rather than in the two modules that resolve paths,
+# because a README is allowed to point AT them -- that is the whole reason they
+# are worth naming -- and "which directories may a path out of a file reach"
+# must have exactly one answer.
+PHI = os.environ.get("TUTORBOARD_PHI") or os.path.join(HOME, "phi")
+ARTIFACTS = os.environ.get("TUTORBOARD_ARTIFACTS") or os.path.join(HOME, "artifacts")
+
+
+def outside_tree():
+    """The directories a path out of a file may reach that are not the repository."""
+    return (os.path.realpath(PHI), os.path.realpath(ARTIFACTS))
+
+
+def within(target, *roots):
+    """Is `target` inside one of `roots`? By realpath, and a root counts as itself.
+
+    The containment test every path-out-of-a-file check uses, in one place,
+    because getting it slightly different in two modules is how one of them
+    ends up accepting `/etc/../home/...`.
+    """
+    try:
+        target = os.path.realpath(target)
+    except OSError:
+        target = os.path.abspath(target)
+    for r in roots:
+        if not r:
+            continue
+        try:
+            r = os.path.realpath(r)
+        except OSError:
+            r = os.path.abspath(r)
+        if target == r or target.startswith(r + os.sep):
+            return True
+    return False

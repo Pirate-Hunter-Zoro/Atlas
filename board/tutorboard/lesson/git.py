@@ -13,26 +13,43 @@ import subprocess
 import sys
 import time
 
-from .. import paths, worktree
+from .. import atlas, paths, worktree
 from ..course import homework
 
 
-_DIRTY = {"at": 0.0, "value": None}
+# Keyed by workspace root. One process serves one board, so in practice this
+# holds one entry -- but a key that is not the workspace is a cache that answers
+# about the wrong workspace the first time anything asks twice, and this now
+# lives in a repository where "the wrong workspace" is nine other people's
+# afternoons.
+_DIRTY = {}
 DIRTY_TTL = 8.0
 
 
 def repo_dirty(repo):
-    """How many files are uncommitted here, or None if that cannot be told.
+    """How many files are uncommitted IN THIS WORKSPACE, or None if it cannot be told.
 
     This exists so the board can show that there is something to save. Leaving a
     session is silent -- a lid closes, an app is swiped away -- and the student
     should be able to see, before they go, that going now loses something.
+
+    **Scoped to the workspace**, which is the whole of what the move to one
+    repository changed here. `git status --porcelain` at the root of a monorepo
+    answers about every workspace in it, so a board on Galois Theory would show
+    an unsaved-work badge because somebody's afternoon on TRD-EHR is
+    uncommitted -- a warning about work the person looking at it cannot see,
+    attached to the button that would then commit it. The pathspec is the fix
+    and it is one argument.
+
+    `run_push` is deliberately NOT scoped the same way: see its own note.
     """
     now = time.time()
-    if _DIRTY["value"] is not None and now - _DIRTY["at"] < DIRTY_TTL:
-        return _DIRTY["value"]
+    key = os.path.realpath(repo.root)
+    hit = _DIRTY.get(key)
+    if hit and hit[1] is not None and now - hit[0] < DIRTY_TTL:
+        return hit[1]
     value = None
-    if os.path.isdir(os.path.join(repo.root, ".git")):
+    if worktree.git_dir(repo.root):
         try:
             # `--no-optional-locks`, because this is a BADGE. An ordinary
             # `git status` takes `.git/index.lock` to write back the index it
@@ -44,7 +61,7 @@ def repo_dirty(repo):
             # the badge keeps answering while somebody else holds the lock,
             # instead of going blank at the moment it has most to say.
             p = subprocess.run(["git", "--no-optional-locks", "status",
-                                "--porcelain"], cwd=repo.root,
+                                "--porcelain", "--", repo.root], cwd=repo.root,
                                stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
                                timeout=10)
             if p.returncode == 0:
@@ -53,8 +70,7 @@ def repo_dirty(repo):
                 value = len(lines)
         except (OSError, subprocess.TimeoutExpired):
             value = None
-    _DIRTY["at"] = now
-    _DIRTY["value"] = value
+    _DIRTY[key] = (now, value)
     return value
 
 
@@ -163,8 +179,34 @@ def build_before_push(repo):
     return {"set": name, "ok": code == 0, "detail": out[-800:]}
 
 
+def other_dirty_workspaces(repo):
+    """Which OTHER workspaces have uncommitted work right now.
+
+    There is one repository, so a save commits the whole of it -- and the person
+    tapping save is looking at one workspace and thinking about one afternoon.
+    This is what turns that from a surprise into a sentence on the card: "also
+    saved: research/TRD-EHR, projects/Paper-Writer". Naming them is the whole
+    point; a save that quietly swept two other projects' work into a commit
+    titled after a Galois Theory lesson is a commit nobody can find again.
+    """
+    out = []
+    try:
+        for w in atlas.workspaces():
+            if paths.same_dir(w["root"], repo.root):
+                continue
+            p = subprocess.run(["git", "--no-optional-locks", "status",
+                                "--porcelain", "--", w["root"]],
+                               cwd=w["root"], stdout=subprocess.PIPE,
+                               stderr=subprocess.DEVNULL, timeout=10)
+            if p.returncode == 0 and p.stdout.strip():
+                out.append(w["id"])
+    except (OSError, subprocess.TimeoutExpired):
+        return []
+    return out
+
+
 def run_push(repo, message=None):
-    """Commit and push this repository, and record what happened.
+    """Commit and push, and record what happened.
 
     The work is the repository owner's. The script carries no co-author trailer
     and neither does anything here -- history should credit the person who did
@@ -172,11 +214,23 @@ def run_push(repo, message=None):
 
     It commits the whole tree on purpose: **save** means save, and a save that
     left the afternoon's code behind because it was not the lesson would be the
-    wrong kind of clever. What it will not do is commit into an operation
-    somebody is part-way through. A rebase or a merge outstanding means a
-    terminal in this repository has its own plan for the next commit, and a tap
-    on an iPad is not an instruction to walk over it -- so the tap says what is
-    in the way instead, on the board, where the person who tapped is looking.
+    wrong kind of clever. That was already true when a workspace was its own
+    clone; with one repository it means MORE, because the whole tree is now
+    every workspace. So two things are different and neither of them is the
+    behaviour:
+
+    * the commit message NAMES THE WORKSPACE the save was tapped in, because
+      2,061 commits called "lesson complete" are not a history;
+    * the record names every other workspace that had work in it, so the card
+      says what else went along rather than leaving it to be discovered.
+
+    What it still will not do is commit into an operation somebody is part-way
+    through. A rebase or a merge outstanding means a terminal in this repository
+    has its own plan for the next commit, and a tap on an iPad is not an
+    instruction to walk over it -- so the tap says what is in the way instead,
+    on the board, where the person who tapped is looking. That guard reads the
+    REPOSITORY's git directory now, not the workspace's, which is the same
+    question asked one level up.
     """
     busy = worktree.busy_reason(repo.root)
     if busy:
@@ -216,18 +270,51 @@ def run_push(repo, message=None):
     # costs nothing.
     built = build_before_push(repo)
 
-    script = os.path.join(repo.root, "scripts", "save-and-push.sh")
+    # Said before the commit, because afterwards there is nothing left to
+    # compare against -- and this is the sentence the card needs.
+    also = other_dirty_workspaces(repo)
+
+    # The workspace leads the message. `save-and-push.sh` lives with the tool
+    # now, one copy for the one repository, and it is run FROM THE REPOSITORY
+    # ROOT: a push is a push of the repository and pretending otherwise from a
+    # subdirectory is how a commit ends up with half of what somebody meant.
+    said = message or "lesson complete"
+    where = atlas.identify(repo.root)
+    if where and not said.startswith(where):
+        said = "%s: %s" % (where, said)
+
+    # The repository THIS WORKSPACE is in, asked of git rather than derived by
+    # taking `dirname` of its git directory -- which is right for an ordinary
+    # clone and wrong for a linked worktree or a submodule, where the git
+    # directory lives somewhere else entirely.
+    top = repo.root
+    try:
+        p = subprocess.run(["git", "rev-parse", "--show-toplevel"], cwd=repo.root,
+                           stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+                           timeout=10)
+        said = p.stdout.decode("utf-8", "replace").strip()
+        if p.returncode == 0 and said:
+            top = said
+    except (OSError, subprocess.TimeoutExpired):
+        pass
+
+    # ONE copy of the script, and the working directory is what tells it which
+    # repository to commit. A workspace has no `scripts/` of its own any more --
+    # there is one repository and the tool's copy is the only copy -- and the
+    # script derives its root from `pwd`, not from where it is installed. That
+    # distinction is not pedantry: for about an hour it derived the root from its
+    # own location instead, and a test that taps save on a throwaway repository
+    # committed the real Atlas three times.
+    script = os.path.join(paths.TOOL, "scripts", "save-and-push.sh")
     if os.path.exists(script):
-        cmd = ["bash", script]
-        if message:
-            cmd.append(message)
+        cmd = ["bash", script, said]
     else:
         cmd = ["bash", "-c",
                'set -e; export GIT_TERMINAL_PROMPT=0; git add -A; '
                'git diff --cached --quiet || git commit -m "$1"; git push'
-               , "_", message or "lesson complete"]
+               , "_", said]
     try:
-        p = subprocess.run(cmd, cwd=repo.root, stdout=subprocess.PIPE,
+        p = subprocess.run(cmd, cwd=top, stdout=subprocess.PIPE,
                            stderr=subprocess.STDOUT, timeout=180)
         out = p.stdout.decode("utf-8", "replace").strip()
         code = p.returncode
@@ -240,8 +327,16 @@ def run_push(repo, message=None):
         "ok": code == 0,
         "at": time.time(),
         "iso": time.strftime("%Y-%m-%d %H:%M:%S"),
+        "workspace": where,
         "detail": out[-1200:],
     }
+    if also:
+        # Not a warning and not a failure. One repository, one push, and this
+        # is the half of it the person tapping could not see.
+        record["also"] = also
+        record["detail"] = ("this is one repository, so the save also carried "
+                            "uncommitted work in: " + ", ".join(also) + "\n\n"
+                            + record["detail"])
     if cleared:
         record["cleared_lock"] = True
         record["detail"] = cleared + "\n" + record["detail"]

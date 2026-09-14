@@ -760,18 +760,42 @@ script = os.path.join(ROOT, "scripts", "catch-up.sh")
 check("there is a script that catches a machine up in one command",
       os.path.isfile(script))
 src_c = open(script, encoding="utf-8").read()
-check("it pulls the tool first and re-runs itself on what arrived, since "
+check("it pulls the repository first and re-runs itself on what arrived, since "
       "everything below it reads this repository",
-      "git -C \"$HERE\" pull --ff-only" in src_c and "exec bash" in src_c)
-check("it never treats the tool as a course, whatever the path is spelled like "
-      "-- this one holds an AI_INSTRUCTIONS.md like every course does",
-      'pwd -P' in src_c and "continue" in src_c)
-check("a course whose history diverged is TAGGED before it is reset, so nothing "
-      "is destroyed that was not already pushed",
-      'tag -f "$tag"' in src_c and 'reset --hard "origin/$branch"' in src_c)
-check("and only the board's own scratch is cleaned, never a person's untracked "
-      "work elsewhere in a course",
-      "clean -fdq -- live" in src_c)
+      'git -C "$COURSES" pull --ff-only' in src_c and "exec bash" in src_c)
+check("and moves vendor/colibri forward with it, because a login is the one "
+      "moment a compute node gets",
+      "submodule update --init --remote --merge vendor/colibri" in src_c)
+check("but never vendor/colibri-build, which is pinned: a build tree that moves "
+      "underneath a build is the failure it exists to avoid",
+      "--remote --merge vendor/colibri-build" not in src_c)
+
+# ELEVEN repositories became ONE, and most of this script went with them. It
+# used to fetch, stash, tag and `reset --hard` each course onto its origin --
+# machinery that existed because eleven working trees could each be in the wrong
+# place independently. There is one working tree now and one `--ff-only` pull,
+# which CANNOT rewrite anything: the worst it does is decline.
+#
+# So the tag and the stash are not guards that were removed. They were the
+# safety rails on a cliff, and the cliff is gone. What is asserted here is the
+# stronger property that replaced them.
+check("it cannot reset or force anything -- a pull that will not fast-forward "
+      "says so and changes nothing, which is what removed the need to tag first",
+      "reset --hard" not in src_c and "--force" not in src_c
+      and "stash push" not in src_c)
+check("it still refuses to touch a repository somebody is part-way through, "
+      "because that is what holds the one index and the one HEAD",
+      "rebase-merge rebase-apply MERGE_HEAD" in src_c
+      and "left exactly as it is" in src_c)
+check("and still refuses a detached HEAD, where origin/HEAD reads as a branch "
+      "name and walked somebody onto the remote's default branch once",
+      '--abbrev-ref HEAD 2>/dev/null)" = "HEAD"' in src_c)
+check("it walks TWO levels, a family then a workspace, not one",
+      '"$COURSES"/*/*/' in src_c)
+check("and does not count the board's own scratch as somebody's uncommitted "
+      "work, which made every workspace with a board on it look like it needed "
+      "rescuing",
+      "grep -v '/live/'" in src_c)
 check("it restarts the boards and the tutors",
       'restart --tutors' in src_c)
 check("and then says what is actually true: what is running, and how to reach "

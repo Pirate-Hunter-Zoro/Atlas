@@ -12,6 +12,10 @@
 #
 #      bash scripts/ship.sh ["commit message"]
 #
+#  It commits ONLY the tool's own directory. Everything lives in one repository
+#  now, and a ship that ran `git add -A` would file nine workspaces' unfinished
+#  work under a commit message about the board.
+#
 #  The commit is authored by whoever `git config user.name` says. No trailers,
 #  no co-authors, no attribution to any assistant -- the work belongs to the
 #  person whose repository this is and the history should say only that.
@@ -23,8 +27,23 @@ cd "$HERE" || { echo "cannot enter $HERE" >&2; exit 1; }
 
 MSG="${1:-board and tutor updates}"
 
-echo "== $(basename "$HERE") =="
-bash "$HERE/scripts/save-and-push.sh" "$MSG"
+# The TOOL's path inside the repository, worked out rather than typed: this is
+# `board` today and the point of deriving it is that a rename does not silently
+# turn shipping into "commit everything".
+ROOT="$(git -C "$HERE" rev-parse --show-toplevel 2>/dev/null || echo "$HERE")"
+REL="$(git -C "$HERE" rev-parse --show-prefix 2>/dev/null)"
+REL="${REL%/}"
+
+echo "== the tool (${REL:-the repository}) =="
+# ONLY the tool's own paths. There is one repository now: without the pathspec,
+# shipping a change to the board would sweep up whatever is uncommitted in nine
+# other workspaces and commit it under "board and tutor updates". A course's
+# half-finished proof is not a board update and must never be filed as one.
+if [ -n "$REL" ]; then
+  bash "$HERE/scripts/save-and-push.sh" "$MSG" -- "$REL"
+else
+  bash "$HERE/scripts/save-and-push.sh" "$MSG"
+fi
 status=$?
 if [ $status -ne 0 ]; then
   echo

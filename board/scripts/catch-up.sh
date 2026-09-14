@@ -20,30 +20,43 @@
 #  It is machine-agnostic on purpose. Run it anywhere; it works out what this
 #  machine is.
 #
-#  Nothing here destroys work that is not already pushed, and as of 2026-09-03
-#  that is true rather than merely intended:
+#  NOTHING HERE CAN DESTROY WORK, and that is now a property of the commands it
+#  runs rather than a set of guards around them.
 #
-#    * A repository already sitting on origin is LEFT ALONE, uncommitted work
-#      and all. It has nothing to catch up to, so there is nothing to put right.
-#    * A repository that does have to move gets its uncommitted work STASHED
-#      first -- `git stash list` names it, `git stash pop` is the way back.
-#    * A repository holding commits origin does not have is TAGGED before it is
-#      reset, so `git reset --hard <tag>` brings those commits back.
+#  It used to fetch, stash, tag and hard-reset eleven repositories onto their
+#  origins, because eleven working trees could each be in the wrong place
+#  independently and putting a machine right meant moving each of them. There
+#  is ONE repository now and one pull, and the pull is `--ff-only`: it cannot
+#  rewrite history, cannot move a dirty tree, and cannot lose a commit. The
+#  worst case is that it declines and says why.
 #
-#  The three used to be one branch, and it reset anything DIRTY. A repository
-#  sitting exactly on origin with somebody's afternoon in the working tree took
-#  that branch: the tag was placed at HEAD, which already was origin, so it
-#  preserved nothing, and the reset threw the afternoon away to move the
-#  repository nowhere. That is what these three cases exist to keep apart.
+#  That did not make the guards unnecessary -- it removed the thing they were
+#  guarding. The two that are still here are the two that are still about
+#  something real:
+#
+#    * a rebase, a merge, a cherry-pick, a revert or a bisect outstanding means
+#      a terminal here has its own plan for the next commit;
+#    * a detached HEAD means somebody is reading around in an old commit, and
+#      `origin/HEAD` exists in most clones -- so without the check, the branch
+#      name once read as "HEAD" and a reset walked them onto the remote's
+#      default branch.
+#
+#  The history worth keeping: the three cases used to be one branch that reset
+#  anything DIRTY. A repository sitting exactly on origin with somebody's
+#  afternoon in the working tree took that branch -- the tag was placed at HEAD,
+#  which already WAS origin, so it preserved nothing, and the reset threw the
+#  afternoon away to move the repository nowhere.
 # ===========================================================================
 set -uo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-# The courses are this repository's siblings. TUTORBOARD_COURSES overrides that
-# for the test, which needs a tree of its own: what the course loop DOES to a
-# repository is the part of this script worth testing, and it cannot be tested
-# against the real home without doing it to the real home.
-COURSES="${TUTORBOARD_COURSES:-$(dirname "$HERE")}"
+# The repository root -- the directory holding `atlas.json`, one level above the
+# tool. It used to be the directory the courses were siblings in.
+# TUTORBOARD_COURSES overrides it for the test, which needs a tree of its own:
+# what the loop below DOES to a repository is the part of this script worth
+# testing, and it cannot be tested against the real home without doing it to the
+# real home. One variable, one meaning, everywhere.
+COURSES="${TUTORBOARD_COURSES:-$(git -C "$HERE" rev-parse --show-toplevel 2>/dev/null || dirname "$HERE")}"
 TUTOR="$HERE/bin/tutor"
 BOARD="$HERE/bin/board"
 
@@ -54,8 +67,10 @@ for a in "$@"; do
   case "$a" in
     --tidy)   TIDY=1 ;;
     --report) REPORT=1 ;;
-    # Just the course loop: no pulling the tool, no restarting anything. The
-    # test uses it; a person has no reason to.
+    # The repository and the workspaces, and nothing that touches a process:
+    # no restarts, no machine report. With one repository the "course loop" IS
+    # the pull, so this now means "put the files right and stop". The test uses
+    # it; a person has no reason to.
     --courses-only) COURSES_ONLY=1 ;;
     -h|--help) sed -n '3,12p' "${BASH_SOURCE[0]}" | sed 's/^#  \{0,1\}//'; exit 0 ;;
   esac
@@ -80,136 +95,111 @@ CATCHUP_LOG="${TUTORBOARD_CATCHUP_LOG:-$HOME/.tutorboard-catch-up.log}"
   done
 } >> "$CATCHUP_LOG" 2>/dev/null
 
-# ---------------------------------------------------------------- the tool
-if [ "$REPORT" -eq 0 ] && [ "$COURSES_ONLY" -eq 0 ]; then
-  say "the tool"
-  before="$(git -C "$HERE" rev-parse HEAD 2>/dev/null)"
-  if out="$(git -C "$HERE" pull --ff-only 2>&1)"; then
-    after="$(git -C "$HERE" rev-parse HEAD 2>/dev/null)"
+# --------------------------------------------------------------- the guards
+# Asked BEFORE the pull, not after it. A `git pull` into a repository somebody
+# is part-way through fails, and the script then exited saying "could not pull"
+# -- which is true, useless, and hides the one fact the person needs. Whether it
+# is safe to touch this repository at all is the first question, not a
+# consequence of a command that has already been tried.
+BUSY=""
+gitdir="$(git -C "$COURSES" rev-parse --git-dir 2>/dev/null)"
+case "$gitdir" in /*) ;; *) gitdir="$COURSES/$gitdir" ;; esac
+for marker in rebase-merge rebase-apply MERGE_HEAD CHERRY_PICK_HEAD \
+              REVERT_HEAD BISECT_LOG; do
+  [ -e "$gitdir/$marker" ] && BUSY="$marker is outstanding"
+done
+if [ -z "$BUSY" ] && \
+   [ "$(git -C "$COURSES" rev-parse --abbrev-ref HEAD 2>/dev/null)" = "HEAD" ]; then
+  BUSY="HEAD is detached"
+fi
+
+# ------------------------------------------------------------ the repository
+if [ "$REPORT" -eq 0 ]; then
+  say "the repository"
+  if [ -n "$BUSY" ]; then
+    line "$BUSY — the repository is left exactly as it is, and nothing below"
+    line "this will touch it either. Finish or abort that, then run this again."
+  else
+  before="$(git -C "$COURSES" rev-parse HEAD 2>/dev/null)"
+  if out="$(git -C "$COURSES" pull --ff-only 2>&1)"; then
+    after="$(git -C "$COURSES" rev-parse HEAD 2>/dev/null)"
     if [ "$before" != "$after" ]; then
-      line "pulled $(git -C "$HERE" rev-list --count "$before".."$after") commit(s)"
+      line "pulled $(git -C "$COURSES" rev-list --count "$before".."$after") commit(s)"
       # Everything below reads this repository, so run it again on what arrived.
       line "re-running on the code that just landed"
       exec bash "$HERE/scripts/catch-up.sh" "$@"
     fi
     line "already current"
   else
-    line "COULD NOT PULL THE TOOL — fix this first, everything else depends on it:"
+    line "COULD NOT PULL — fix this first, everything else depends on it:"
     printf '%s\n' "$out" | sed 's/^/     /'
     exit 1
   fi
+
+  # Somebody else's repositories, tracked by pointer. Only `vendor/colibri`
+  # moves; `vendor/colibri-build` is pinned on purpose and a `--remote` here
+  # would walk it forward under whatever is building against it.
+  #
+  # `--init` so a clone that forgot `--recurse-submodules` is repaired rather
+  # than left with an empty vendor/, which is the first thing a new machine
+  # gets wrong. Never fatal: a machine with no network still teaches.
+  if [ -f "$COURSES/.gitmodules" ]; then
+    if git -C "$COURSES" submodule update --init --remote --merge vendor/colibri \
+         >/dev/null 2>&1; then
+      line "vendor/colibri at $(git -C "$COURSES/vendor/colibri" rev-parse --short HEAD 2>/dev/null)"
+    else
+      line "vendor/colibri not pulled; left where it is"
+    fi
+    git -C "$COURSES" submodule update --init vendor/colibri-build >/dev/null 2>&1 || true
+  fi
+  fi
 fi
 
-# --------------------------------------------------------- the course repos
+# -------------------------------------------------------- the workspaces
+# This used to be a loop that fetched, stashed, tagged and reset ELEVEN
+# repositories, and most of it has gone because the thing it was for has gone:
+# there is one repository, it was pulled above, and no workspace can be behind
+# on its own any more.
+#
+# The three guards did NOT go anywhere. They each cost an afternoon once, and
+# they now ask about the repository, because that is what holds the one index
+# and the one HEAD they were always really guarding:
+#
+#   * mid-operation -- a rebase, a merge, a cherry-pick, a revert or a bisect
+#     means a terminal here has its own plan for the next commit;
+#   * a detached HEAD -- somebody is reading around in an old commit, and
+#     `origin/HEAD` exists in most clones, so without this check the branch
+#     name read as "HEAD" and a reset walked them onto the remote's default
+#     branch;
+#   * uncommitted work goes into the STASH before anything moves it, and if it
+#     will not stash, nothing else happens. An unmoved repository is a
+#     nuisance; a deleted afternoon is not.
+#
+# The pull above is `--ff-only`, which is the fourth guard and the quietest
+# one: it cannot rewrite anything, so the worst case is that it declines.
 if [ "$REPORT" -eq 0 ]; then
-  say "the courses"
-  for dir in "$COURSES"/*/; do
+  say "the workspaces"
+
+  # What is actually uncommitted, per workspace, not counting the board's own
+  # scratch. A running board writes into `live/` continuously and none of it is
+  # work anybody meant to keep, so counting it made every workspace with a
+  # board on it look like it needed rescuing.
+  for dir in "$COURSES"/*/*/; do
     root="${dir%/}"
-    [ -d "$root/.git" ] || continue
-    # Never this repository. It holds an AI_INSTRUCTIONS.md like every course
-    # does, so the test below would happily have taken it for one and reset it --
-    # over the top of whatever was being worked on. Compared by realpath, because
-    # this home is reachable under two names and a string comparison misses.
-    if [ "$(cd "$root" && pwd -P)" = "$(cd "$HERE" && pwd -P)" ]; then
-      continue
-    fi
-    # A course repository, by the same test the board uses.
+    [ -d "$root" ] || continue
+    # A workspace, by the same test the board uses.
     if [ ! -f "$root/tutorboard.json" ] && [ ! -f "$root/AI_INSTRUCTIONS.md" ] \
        && [ ! -d "$root/live" ]; then
       continue
     fi
-    name="$(basename "$root")"
-
-    # NEVER INTO A REPOSITORY SOMEBODY IS PART-WAY THROUGH SOMETHING IN. A
-    # rebase, a merge, a cherry-pick or a bisect means a terminal here has its
-    # own plan for the next commit, and stashing or resetting underneath that is
-    # how an afternoon disappears -- `git stash` may even succeed and leave the
-    # operation half-applied. The same rule lives in `tutorboard/worktree.py`
-    # for everything on the Python side, and there is one reason for it: a course
-    # is somewhere its owner WORKS, not only somewhere they are taught.
-    gitdir="$(git -C "$root" rev-parse --git-dir 2>/dev/null)"
-    case "$gitdir" in /*) ;; *) gitdir="$root/$gitdir" ;; esac
-    busy=""
-    for marker in rebase-merge rebase-apply MERGE_HEAD CHERRY_PICK_HEAD \
-                  REVERT_HEAD BISECT_LOG; do
-      [ -e "$gitdir/$marker" ] && busy="$marker"
-    done
-    if [ -n "$busy" ]; then
-      line "$name: $busy is outstanding — left exactly as it is"
-      continue
-    fi
-
-    git -C "$root" fetch --quiet origin 2>/dev/null
-    branch="$(git -C "$root" rev-parse --abbrev-ref HEAD 2>/dev/null)"
-    [ -z "$branch" ] && { line "$name: no branch checked out, skipped"; continue; }
-    # A detached HEAD is somebody looking at an old commit, and `origin/HEAD`
-    # exists in most clones -- so without this the branch below happily read
-    # "HEAD" as a branch name and reset a repository somebody was reading around
-    # in onto the remote's default branch.
-    if [ "$branch" = "HEAD" ]; then
-      line "$name: HEAD is detached — left exactly as it is"
-      continue
-    fi
-    if ! git -C "$root" rev-parse --verify --quiet "origin/$branch" >/dev/null; then
-      line "$name: no origin/$branch, left alone"
-      continue
-    fi
-    # What is actually dirty, not counting the board's own scratch. A running
-    # board writes into `live/` continuously and none of it is work anybody
-    # meant to keep, so counting it made every course with a board on it look
-    # like it needed rescuing.
-    dirty="$(git -C "$root" status --porcelain 2>/dev/null | grep -v '^.. live/' || true)"
-
-    # Two ancestry questions, asked once and named, because the old single
-    # condition conflated "has work in the tree" with "is in the wrong place".
-    ahead=0; behind=0
-    git -C "$root" merge-base --is-ancestor HEAD "origin/$branch" 2>/dev/null || ahead=1
-    git -C "$root" merge-base --is-ancestor "origin/$branch" HEAD 2>/dev/null || behind=1
-
-    # CASE 1: nothing to catch up to. This is the one that used to destroy
-    # work. A repository sitting exactly on origin is already right, and there
-    # is no version of putting a machine right that involves deleting work from
-    # a machine that is already right.
-    if [ "$ahead" -eq 0 ] && [ "$behind" -eq 0 ]; then
-      if [ -n "$dirty" ]; then
-        line "$name: current, with uncommitted work left where it is"
-      else
-        line "$name: current"
-      fi
-      continue
-    fi
-
-    # It has to move, so the working tree is about to be walked over. Uncommitted
-    # work goes into the stash BEFORE anything touches it. If it will not stash,
-    # nothing else happens to this repository: an unmoved course is a nuisance,
-    # and a deleted afternoon is not.
-    if [ -n "$dirty" ]; then
-      if git -C "$root" stash push -u -m "catch-up $(date '+%Y-%m-%d %H:%M:%S')" >/dev/null 2>&1; then
-        line "$name: uncommitted work stashed — \`git -C $root stash pop\` is the way back"
-      else
-        line "$name: HAS UNCOMMITTED WORK THAT WOULD NOT STASH — left alone"
-        continue
-      fi
-    fi
-
-    # CASE 2: this machine holds commits origin does not. Now the tag preserves
-    # something, which is the only case in which it ever did.
-    if [ "$ahead" -eq 1 ]; then
-      tag="before-catch-up-$(date +%Y%m%d-%H%M%S)"
-      git -C "$root" tag -f "$tag" >/dev/null 2>&1
-      git -C "$root" reset --hard "origin/$branch" >/dev/null 2>&1 \
-        && line "$name: diverged, reset to origin/$branch (its commits kept as tag $tag)" \
-        || line "$name: COULD NOT RESET — look at it by hand"
-      # Only the board's own scratch. A course may hold untracked work of the
-      # person's -- a downloaded paper, a draft -- and this is not the command
-      # that gets to decide about that.
-      git -C "$root" clean -fdq -- live 2>/dev/null
-    # CASE 3: simply behind. Fast-forward, which is what the stash above made
-    # possible.
+    rel="${root#$COURSES/}"
+    dirty="$(git -C "$COURSES" status --porcelain -- "$root" 2>/dev/null \
+             | grep -v '/live/' || true)"
+    n="$(printf '%s' "$dirty" | grep -c . || true)"
+    if [ "${n:-0}" -gt 0 ]; then
+      line "$rel: $n uncommitted file(s), left where they are"
     else
-      git -C "$root" merge --ff-only "origin/$branch" >/dev/null 2>&1 \
-        && line "$name: fast-forwarded" \
-        || line "$name: could not fast-forward, left alone"
+      line "$rel: current"
     fi
   done
 fi
@@ -227,7 +217,7 @@ fi
 # ------------------------------------------------------- stop the empty ones
 if [ "$TIDY" -eq 1 ]; then
   say "boards with nothing in them"
-  for dir in "$COURSES"/*/; do
+  for dir in "$COURSES"/*/*/; do
     root="${dir%/}"
     [ -d "$root/live/cards" ] || continue
     [ -f "$root/live/.board.json" ] || continue
@@ -240,21 +230,28 @@ if [ "$TIDY" -eq 1 ]; then
 fi
 
 # ------------------------------------------------------------------ the truth
+if [ "$COURSES_ONLY" -eq 1 ]; then
+  exit 0
+fi
+
 say "what is actually running here"
 "$TUTOR" where 2>&1 | sed 's/^/   /'
 
 say "how to reach each of them"
-python3 - "$COURSES" "$HERE" <<'PY'
+TUTORBOARD_COURSES="$COURSES" python3 - "$COURSES" "$HERE" <<'PY'
 import json, os, sys
 sys.path.insert(0, sys.argv[2])
 from tutorboard import machine, processes
 from tutorboard.net import tailscale
 
-courses, tool = sys.argv[1], sys.argv[2]
+from tutorboard import atlas
+
 me = tailscale.tailnet_self() or machine.node_name()
-for name in sorted(os.listdir(courses)):
-    root = os.path.join(courses, name)
-    rec = os.path.join(root, "live", ".board.json")
+# `atlas.workspaces()` rather than a listing, so this says exactly what the
+# board says: same walk, same two levels, vendor skipped. A report that
+# disagrees with the thing it is reporting on is worse than no report.
+for w in atlas.workspaces():
+    rec = os.path.join(w["root"], "live", ".board.json")
     if not os.path.isfile(rec):
         continue
     try:
@@ -262,13 +259,12 @@ for name in sorted(os.listdir(courses)):
             info = json.load(fh)
     except (OSError, ValueError):
         continue
-    if not processes.board_is_running(info.get("pid"), root):
+    if not processes.board_is_running(info.get("pid"), w["root"]):
         continue
-    port = info.get("port")
-    print("   %-24s http://%s:%s/" % (name, me, port))
+    print("   %-30s http://%s:%s/" % (w["id"], me, info.get("port")))
 print()
-print("   the installed app's address serves the course that was last chosen on")
-print("   this machine. The URLs above reach one board each, directly.")
+print("   the installed app's address serves the workspace that was last chosen")
+print("   on this machine. The URLs above reach one board each, directly.")
 PY
 
 printf '\n'

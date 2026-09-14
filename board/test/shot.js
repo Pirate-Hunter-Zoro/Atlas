@@ -510,7 +510,7 @@ for (const sel of MUST_GO) {
       : Promise.resolve({ ok: true, json: () => Promise.resolve({ ok: true }) });
   };
 
-  for (const f of ['typeface.js', 'macros.js', 'plane-core.js', 'slate-core.js', 'annotate.js']) {
+  for (const f of ['typeface.js', 'macros.js', 'gauge.js', 'plane-core.js', 'slate-core.js', 'annotate.js']) {
     try { w.eval(fs.readFileSync(path.join(WEB, f), 'utf8')); } catch (e) { /* not under test */ }
   }
   // Deliberately NOT shot.js, so the fallback is what is under test here.
@@ -564,7 +564,7 @@ for (const sel of MUST_GO) {
   w.fetch = (u) => (/slate\/state/.test(String(u))
     ? Promise.resolve({ json: () => Promise.resolve({ pages: [] }) })
     : new Promise(() => {}));
-  for (const f of ['typeface.js', 'macros.js', 'plane-core.js', 'slate-core.js', 'annotate.js',
+  for (const f of ['typeface.js', 'macros.js', 'gauge.js', 'plane-core.js', 'slate-core.js', 'annotate.js',
                    'shot.js', 'board.js']) {
     try { w.eval(fs.readFileSync(path.join(WEB, f), 'utf8')); }
     catch (e) { fail('loading ' + f + ': ' + e.message); }

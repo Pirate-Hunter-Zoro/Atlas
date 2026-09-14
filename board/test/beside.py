@@ -295,6 +295,10 @@ try:
 
     # And a save from the iPad rescues itself, rather than handing back git's
     # advice to delete a file the person cannot reach.
+    # Where the tool's own repository is before any of this, so the check below
+    # can say it did not move.
+    tool_head_before = git(ROOT, "rev-parse", "HEAD")[1].strip()
+
     tapping = make_repo(work, "tapping")
     shutil.copytree(os.path.join(ROOT, "scripts"), os.path.join(tapping, "scripts"))
     tap_lock = os.path.join(worktree.git_dir(tapping), "index.lock")
@@ -308,6 +312,28 @@ try:
           "src/app.py" in git(tapping, "show", "--name-only", "--format=", "HEAD")[1])
     check("and the board is told a lock was cleared, not left to wonder",
           rec.get("cleared_lock") is True and "lock" in (rec.get("detail") or ""))
+
+    # AND IT COMMITTED THE REPOSITORY IT WAS ASKED ABOUT, not the one the tool
+    # happens to live in.
+    #
+    # There is one repository now, so there is one copy of `save-and-push.sh` --
+    # the tool's -- and `run_push` calls it for every workspace. For about an
+    # hour on 14 September that script derived its root from its OWN LOCATION
+    # rather than from the working directory it was given, so every save
+    # committed the repository the TOOL was in. This test was what found it: it
+    # builds a throwaway repository, taps save on it, and three runs committed
+    # the real Atlas instead, under this test's own message.
+    #
+    # The check is that the tool's own repository did not move. A save is the
+    # most dangerous button on the board precisely because it is the one
+    # somebody presses without looking.
+    tool_head_after = git(ROOT, "rev-parse", "HEAD")[1].strip()
+    check("and a save from one workspace does not commit the repository the "
+          "tool lives in",
+          tool_head_after == tool_head_before)
+    check("and the record names the workspace it saved, so a history of 2,061 "
+          "commits called 'lesson complete' is not what this produces",
+          isinstance(rec.get("workspace"), str))
 
     # The badge is the other half: an ordinary `git status` takes the lock to
     # write back the index it refreshed, every eight seconds, in a repository
