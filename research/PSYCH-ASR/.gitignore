@@ -61,8 +61,20 @@ slurm_jobs/**/logs/
 .env
 .DS_Store
 
-# live tutoring board (Tutor-Board) — scratch space, never tracked
-live/
+# live tutoring board (Tutor-Board) — scratch space, never tracked, with one
+# exception. THE SHAPE MATTERS AND IT IS NOT A STYLE CHOICE: this was `live/`,
+# and git will not descend into a directory it has excluded, so no `!live/…`
+# below it could ever have worked. `live/*` excludes the same things and leaves
+# the door open for exactly one of them to be let back in.
+live/*
+
+# THE WRITTEN MAP IS TRACKED. It is the one file in `live/` that is not runtime
+# state: it carries the tutor's own names for the stages of this project —
+# *the typist*, *the stopwatch*, *the name-tagger* — which is judgement no file
+# in this repository contains and which no amount of reading the tree recovers.
+# It is re-checked against the tree on every read, so it cannot claim anything
+# the repository does not have. `board map --check` says what has gone stale.
+!live/map.json
 
 # the board's own config must survive the blanket *.json rule above
 !tutorboard.json
