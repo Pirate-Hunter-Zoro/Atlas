@@ -43,6 +43,14 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const store = {};
 let storeThrows = false;
 const posts = [];
+// What the sheet asked the plan for, kept apart from the sittings it opens:
+// reading a step is not opening one, and `pick` below wants the sitting.
+const planAsks = [];
+// The whole of one step, as the server would read it back off the plan. Longer
+// than the 240-character blurb on the chip, which is the entire point of it.
+const WHOLE = 'STEP 2. THE STOPWATCH — AND THE REFERENCE RTTM IT UNBLOCKS.\n'
+            + '  Re-align the corrected words to the waveform.\n'
+            + '  2b. THE LAST LINE IS THE POINT, and nothing above it says so.';
 
 function board(W, H, face) {
   const dom = new JSDOM(fs.readFileSync(path.join(WEB, 'board.html'), 'utf8'), {
@@ -89,6 +97,12 @@ function board(W, H, face) {
   window.fetch = (u, opts) => {
     if (/slate\/state/.test(String(u))) {
       return Promise.resolve({ json: () => Promise.resolve({ pages: [] }) });
+    }
+    if (/\/plan\/step$/.test(String(u))) {
+      planAsks.push({ url: String(u), body: JSON.parse(opts.body) });
+      return Promise.resolve({
+        json: () => Promise.resolve({ ok: true, text: WHOLE }),
+      });
     }
     if (opts && opts.body) {
       posts.push({ url: String(u), body: JSON.parse(opts.body) });
@@ -507,6 +521,29 @@ const at = (doc, id) => {
     title === 'THE STOPWATCH'
       ? ok('tapping a numbered step asks the same question about that step')
       : fail('the chip sheet is headed ' + JSON.stringify(title));
+
+    // AND THE QUESTION IS ASKED ABOUT THE WHOLE STEP. The chip carries 240
+    // characters, which is the length that tells two chips apart on the map;
+    // choosing how to work on a step against three sentences and an ellipsis
+    // is choosing against the wrong thing. Reported as "the text just bleeds
+    // over and is unreadable ... I need to be able to see the full text".
+    await sleep(10);
+    const said = doc.getElementById('work-text');
+    !said.hidden && said.textContent.indexOf('THE LAST LINE IS THE POINT') >= 0
+      ? ok('and shows the whole of what the plan says about it')
+      : fail('the sheet showed ' + JSON.stringify(said.textContent.slice(0, 60)));
+    const asked = planAsks[planAsks.length - 1];
+    asked && asked.body.step === '2. THE STOPWATCH'
+      ? ok('asked for by the step\'s own label, which the server looks up')
+      : fail('asked for as ' + JSON.stringify(asked && asked.body));
+    // A BOX IS NOT A STEP. There is no plan text to show for one, and a panel
+    // left holding the last step somebody tapped is a panel telling them the
+    // wrong thing about the box they are looking at now.
+    w.__openWork('evaluate', '');
+    await sleep(10);
+    doc.getElementById('work-text').hidden
+      ? ok('and a box, which is not a step, is asked about on its own terms')
+      : fail('the box sheet kept a step\'s text');
     p = await pick('evaluate', '2. THE STOPWATCH', 'Teach me how this works');
     p && p.body.step === '2. THE STOPWATCH' && p.body.node === 'evaluate'
       ? ok('and opens a sitting carrying both the step and the part it is on')

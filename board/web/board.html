@@ -347,6 +347,17 @@
   <button id="send-no-ask" type="button" class="quiet">no, and don't ask again</button>
 </div>
 
+<!-- THE THREE THINGS "SAVE" MEANS, asked once, on the glass, in the same shape
+     as every other choice the board puts up. Over the original is a real
+     overwrite and says so; the strokes stay in the drawer either way, so a
+     later compile that rewrites the PDF has not taken the writing with it. -->
+<div id="keepwhat" class="sendwhat" hidden>
+  <span id="keepwhat-lead">Keep this writing?</span>
+  <button id="keep-same" type="button" class="primary">write it into this PDF</button>
+  <button id="keep-new" type="button">save as a new file</button>
+  <button id="keep-none" type="button" class="quiet">don't save it</button>
+</div>
+
 <button id="jump" class="jump" hidden>↓ new</button>
 
 <!-- The way back, from anywhere.
@@ -544,6 +555,13 @@
          at and not write on. -->
     <button id="paper-ink" type="button" aria-pressed="false"
             title="write on this page">✎</button>
+    <!-- WHAT BECOMES OF THE WRITING. The pen above has always worked; the ink
+         went into the board's own drawer and stayed there, which is a place to
+         keep a mark and not a place to keep a document. This asks the only
+         question there is about it -- over the original, as a new file, or not
+         at all -- and it is hidden until there is ink to ask about. -->
+    <button id="paper-keep" type="button" hidden
+            title="put this writing into a PDF">keep writing</button>
     <button id="paper-get" type="button" class="pushed-get">save a copy</button>
     <button id="paper-close" type="button" title="back to the lesson">✕</button>
   </div>
@@ -602,6 +620,12 @@
       </div>
       <button id="work-close" type="button">✕</button>
     </div>
+    <!-- WHAT THE PLAN SAYS ABOUT THIS STEP, in full, before the question of
+         what to do about it. The blurb above it is 240 characters, which is the
+         length that tells two chips apart on the map and not the length that
+         says what the work is. Its own scroller rather than part of the list,
+         so a sixty-line step never pushes the ways to work off the panel. -->
+    <pre id="work-text" hidden></pre>
     <div id="work-list"></div>
     <div class="scratch-foot muted">Any of these files the lesson you are in —
       it stays readable under ◷.</div>

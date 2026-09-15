@@ -1897,7 +1897,11 @@ body.papering .annbar { z-index: 96; }
   font-family: var(--ui); font-size: .85rem;
 }
 .work-what { min-width: 0; display: flex; flex-direction: column; gap: .15rem; }
-#work-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* THE TITLE WRAPS. It was one line with an ellipsis on the end, in a panel
+   24rem wide, over step names that run to a hundred and ten characters -- so
+   the sheet that asks what to do about a step was naming half of it. A title
+   is three lines at worst and the head is not the part that scrolls. */
+#work-title { overflow-wrap: anywhere; }
 #work-sub { font-size: .74rem; line-height: 1.35;
             display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical;
             overflow: hidden; }
@@ -1913,6 +1917,19 @@ body.papering .annbar { z-index: 96; }
   margin: .35rem 0 0; font-size: .74rem; font-weight: 600;
   color: var(--bad); grid-column: 1 / -1;
 }
+/* THE STEP, AS THE PLAN WROTE IT. Pre-wrapped, because these plans put their
+   sub-steps on their own lines and a paragraph is what the blurb already is.
+   Bounded to two fifths of the panel with a scroller of its own: the ways to
+   work are what the sheet is for and a long step must not push them off it. */
+#work-text {
+  flex: none; max-height: 40%; overflow-y: auto;
+  overscroll-behavior: contain; touch-action: pan-y;
+  margin: 0; padding: .5rem .7rem;
+  border-bottom: 1px solid var(--rule); background: var(--paper-2);
+  font: inherit; font-size: .74rem; line-height: 1.4; color: var(--ink-2);
+  white-space: pre-wrap; overflow-wrap: anywhere;
+}
+
 /* The list between the head and the foot is the part that scrolls. Being inside
    a fixed panel does not make an element a scroller: it needs the room that is
    left AND permission to scroll inside it, and the entries that fall off the
