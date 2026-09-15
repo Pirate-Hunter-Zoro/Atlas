@@ -1,3 +1,4 @@
 {"id": "t0049", "rev": 1, "kind": "text", "answers": null, "t": 1789430725.517854, "iso": "2026-09-14 19:05:25", "from": "student", "text": "We need to do all the exercises in chapter 4", "signal": "direction", "read": false}
 {"id": "t0050", "rev": 1, "kind": "ink", "answers": null, "t": 1789431269.6186092, "iso": "2026-09-14 19:14:29", "from": "student", "page": 1, "strokes": 132, "png": "/answers/t0050-r1.png", "ink": "/answers/t0050-r1.json", "read": false}
 {"id": "t0050", "rev": 2, "kind": "ink", "answers": null, "t": 1789433944.912684, "iso": "2026-09-14 19:59:04", "from": "student", "page": 1, "strokes": 299, "png": "/answers/t0050-r2.png", "ink": "/answers/t0050-r2.json", "read": false}
+{"id": "t0050", "rev": 3, "kind": "ink", "answers": "0002", "t": 1789484766.227746, "iso": "2026-09-15 10:06:06", "from": "student", "page": 1, "strokes": 348, "png": "/answers/t0050-r3.png", "ink": "/answers/t0050-r3.json", "read": false}
