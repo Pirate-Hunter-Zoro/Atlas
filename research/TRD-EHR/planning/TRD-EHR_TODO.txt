@@ -103,6 +103,10 @@ next one starts:
   STEP 5. REBUILD ALL FOUR PACKET DOCUMENTS AND CHECK THE FIGURE GEOMETRY. The
     4.50in pair-on-a-page threshold still governs; nothing in this work should
     move a panel, so a change there means something went wrong.
+    One command, and it builds both forms: scripts/rebuild-packet.sh. The .docx
+    is the submission and the .pdf is the reading copy -- the board renders PDFs
+    and only PDFs, so with no .pdf the packet cannot be read on the iPad at all.
+    Add --strict for the run before submitting.
 
 THE STANDING RULE BEHIND ALL OF IT: one section per turn, the user reads it, and
 only then the next. The failure mode being prevented is a large correct-looking

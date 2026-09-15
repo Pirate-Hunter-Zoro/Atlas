@@ -165,6 +165,42 @@ def audit(project_rec, paper_num, log_fn=None):
     return sweep.run(project_rec, paper_num, log_fn=log_fn).notes()
 
 
+def _format_flags(fmt, reference):
+    """The pandoc flags that depend on what is being BUILT rather than on what from.
+
+    One function because there are two converters -- `convert` for the assembled
+    manuscript and `convert_one` for a document on disk -- and the flags have to
+    be the same in both. A hand rebuild that produced a different document from
+    the pipeline's would be worse than no hand rebuild.
+
+    A .docx takes the journal's styles. A PDF takes a TeX engine that reads
+    UTF-8 and a face that has the glyphs a statistics paper uses; both of
+    pandoc's defaults are wrong for one, and each is wrong in its own way. See
+    `config.PDF_ENGINE`.
+    """
+    if fmt == "docx":
+        return ["--reference-doc", str(reference)] if reference else []
+    if fmt != "pdf":
+        return []
+    out = []
+    if config.PDF_ENGINE:
+        out += ["--pdf-engine", config.PDF_ENGINE]
+    for name, value in (("mainfont", config.PDF_MAINFONT),
+                        ("monofont", config.PDF_MONOFONT)):
+        if value:
+            out += ["-V", f"{name}={value}"]
+    return out
+
+
+def _format_timeout(fmt):
+    """How long one conversion may take.
+
+    A .docx is a zip written in one pass. A PDF is a TeX run over sixty pages
+    and thirty figures, more than once, and 300 seconds is not always enough of
+    it."""
+    return 900 if fmt == "pdf" else 300
+
+
 def convert(project_rec, paper_num, title, fmt, reference_docx=None, log_fn=None):
     """Convert the assembled manuscript to one format. Returns the path, or None.
 
@@ -182,11 +218,11 @@ def convert(project_rec, paper_num, title, fmt, reference_docx=None, log_fn=None
                "--resource-path", _resource_path(source,
                                                  config.BUILD_RESOURCE_DIRS)]
     reference = reference_docx or config.REFERENCE_DOCX
-    if fmt == "docx" and reference:
-        command += ["--reference-doc", str(reference)]
+    command += _format_flags(fmt, reference)
 
     try:
-        result = subprocess.run(command, capture_output=True, text=True, timeout=300)
+        result = subprocess.run(command, capture_output=True, text=True,
+                                timeout=_format_timeout(fmt))
     except (OSError, subprocess.SubprocessError) as exc:
         if log_fn:
             log_fn(f"paper {paper_num}: could not run pandoc ({exc}). The manuscript "
@@ -376,11 +412,11 @@ def convert_one(source, fmt, reference_docx=None, resource_roots=(), log_fn=None
                "--from", "markdown", "--standalone",
                "--resource-path", _resource_path(source, roots)]
     reference = reference_docx or config.REFERENCE_DOCX
-    if fmt == "docx" and reference:
-        command += ["--reference-doc", str(reference)]
+    command += _format_flags(fmt, reference)
 
     try:
-        result = subprocess.run(command, capture_output=True, text=True, timeout=300)
+        result = subprocess.run(command, capture_output=True, text=True,
+                                timeout=_format_timeout(fmt))
     except (OSError, subprocess.SubprocessError) as exc:
         if log_fn:
             log_fn(f"could not run pandoc on {source.name} ({exc}). The Markdown is "
