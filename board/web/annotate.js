@@ -1355,7 +1355,21 @@ function mine(ev, d) {
 
 function move(ev) {
   var d = drawing;
-  if (ev && ev.pointerType !== "touch" && on) penSeen();
+  /* THE LATCH IS ABOUT A NIB THAT IS DOWN, NOT ONE THAT IS NEAR.
+
+     An Apple Pencil hovers: within about a centimetre of the glass it sends
+     `pointermove` with `pointerType: "pen"` and nothing touching anything. This
+     ran on every one of them, so simply HOLDING the pencil over the lesson kept
+     `body.pen-writing` alive, and the layer went on refusing the one-finger pan
+     for as long as the pencil was in somebody's hand -- which, while
+     annotating, is the whole time. Reported from the iPad: annotating with the
+     pencil and unable to scroll with a finger at all.
+
+     `d` is the test, because it is exactly "a stroke is in progress". The case
+     the latch exists for is the NEXT stroke of the same word, and that one is
+     already covered: `penAt` was last set during the previous stroke, a
+     fraction of a second earlier, and the window is 700 ms. */
+  if (ev && ev.pointerType !== "touch" && on && d) penSeen();
   if (!on || !d) return;
   if (!mine(ev, d)) return;
   if (d.loop) {

@@ -2606,6 +2606,15 @@ Anything the hand does is ignored for half a second after the pen last reported,
 which is what palm rejection actually is: without it, the heel of a hand resting
 on the glass drags the canvas out from under the nib mid-word.
 
+**THE PEN LATCH IS ABOUT A NIB THAT IS DOWN, NOT ONE THAT IS NEAR.** An Apple
+Pencil hovers — within about a centimetre of the glass it reports `pointermove`
+with nothing touching anything — so a latch refreshed on every pen move is a
+latch held open for as long as the pencil is in somebody's hand, which while
+annotating is the whole time. A stroke in progress is the whole of the test.
+Nothing is lost by it: the case the latch exists for is the *next* stroke of the
+same word, and that arrives inside the 700 ms window the previous stroke already
+opened. `test/link.js` drives a hover and fails if the scroll closes.
+
 ### What the slate can do
 
 Strokes are stored as vectors rather than pixels, which is what makes the editing possible.
