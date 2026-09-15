@@ -1,35 +1,33 @@
 <!-- chapter: 1. THE TYPIST BAKE-OFF — VARY THE ASR MODEL -->
-This was a DOING sitting on plan step 1, the typist bake-off. The stance was set
-for the sitting only; the repository's standing answer is teach.
+The lesson on the board is FIELD EXTENSIONS AND THE TOWER LAW, not the typist
+bake-off the chapter label names. Teach what is on the board.
 
-WHERE IT GOT TO. The bake-off has run end to end on the pilot session and has its
-first number. `slurm_jobs/run_typist_bakeoff.sh` submits nine jobs: transcribe and
-align per typist, then one CPU job joining every typist's words onto ONE
-name-tagger's turn table and grading the lot. Stopwatch and name-tagger held fixed,
-so the word columns move with the typist alone. Commits 5b6e060 and 7bcb37d. 125
-tests pass. The grid is in planning/PSYCH-ASR_TODO.txt under step 1.
+BOARD STATE. live/cards/ was cleared between turns and restarted at 0001 with a
+bake-off card that states an intention only. The field-extension cards are gone
+from disk, so whatever you pose, pose it WHOLE.
 
-WHAT IT MEASURED. large-v3 1.4% WER, and its row reproduces the incumbent
-community-1 row exactly, which is the split path's regression check passing on real
-audio. large-v3-turbo 3.9%. parakeet 5.8%. The incumbent wins on words, and it is
-not close.
+WHERE THEY GOT TO. Proving a degree-7 extension has no intermediate field. They
+wrote [L:k] = [L:M][M:k], enumerated both factorisations (7·1 and 1·7), and the
+open case is row one: [M:k] = 1 forces M = k. They attacked it and did not land it.
 
-THE ONE FINDING WORTH FOLLOWING. Parakeet has the BEST speaker column in the whole
-grid -- 1.4% against 2.4-2.5% everywhere else. It emits 452 segments where
-whisperx's VAD emits 121, and the finer segments give the Stage 1c join better
-boundaries for its speaker labels. That is a result about segmentation, not words,
-and nothing in the plan predicted it.
+WHAT THEY GOT WRONG. They went for contradiction: suppose l₁ ∉ k, let {l₂} be the
+basis, then prove c·l₂ ≠ l₁. Stuck, correctly — that inequality is false. The
+misunderstanding is directional. They treat spanning as an obstacle to defeat
+rather than the hypothesis to use. Spanning HANDS them a scalar reaching every
+element; that is the lever. They also wrote k for both the field and the scalar,
+which is part of why the false statement looked provable.
 
-WHAT IS BROKEN. Canary transcribed 17.8 seconds of a 3038-second session and
-stopped -- an attention encoder-decoder out of output length, not an attention-window
-problem. It needs chunked inference. Its 100.5% row is a broken transcript, not a
-word error rate, and must never be quoted as canary's.
+WHAT THEY GOT RIGHT — DO NOT RE-TEACH. The tower law and both rows. Which field
+is the vectors and which the scalars. The definition of degree, built unprompted
+from scratch: ℂ over ℝ, basis {1, i}, answer 2, with "fewest" now corrected in.
+And the meaning of [L:k] = 1, stated correctly in their own handwriting.
 
-TEACH THIS NEXT: the seam has no duration check. check_segment_contract passed
-canary's one segment as well-formed because it does not know how long the audio was.
-One argument and one comparison stops a typist writing a file that covers 0.6% of a
-recording. It is small, it is the user's own decision to make, and the run just
-showed why it matters.
+NEXT, AND ONLY THIS. Apply spanning to the element 1: it gives 1 = c·l₂ with c in
+k. Then c ≠ 0, so l₂ = c⁻¹ lies in k, so L = k. One equation, and the whole
+missing step. Then [L:M] = 1 ⇒ M = L, then the prime-degree statement handed back
+whole.
 
-There is no student reading yet this session -- the only signal was "begin", so
-nothing is known about how they work.
+HOW THEY WORK. They answer by rewriting the object, not in prose. They revise the
+SAME page and sometimes resend it byte-identical — check for new strokes before
+marking. Their real question sits at the FOOT of the page under the working. Read
+the whole image first.
