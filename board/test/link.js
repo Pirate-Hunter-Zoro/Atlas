@@ -61,6 +61,21 @@ window.fetch = (u) => (/slate\/state/.test(String(u))
 window.renderMathInElement = () => {};
 window.requestAnimationFrame = (fn) => setTimeout(fn, 0);
 window.scrollTo = () => {};
+// THIS SUITE IS ABOUT WHERE THINGS SIT, NOT ABOUT HOW THEY ARRIVE.
+//
+// A card is typed out character by character, over a second or two, and the
+// writing surface is held where it is until the last one lands -- both of which
+// are `test/feedback.js`'s subject and neither of which this file asserts
+// anything about. It is synchronous throughout, so a card mid-animation would
+// only ever be caught half-written. Asking for reduced motion is the honest way
+// to opt out: `typeOut` then finishes the card before it returns, which is
+// exactly what somebody with that preference set sees.
+window.matchMedia = (q) => ({
+  matches: /prefers-reduced-motion/.test(String(q)),
+  media: String(q), onchange: null,
+  addListener() {}, removeListener() {},
+  addEventListener() {}, removeEventListener() {}, dispatchEvent() { return false; },
+});
 window.addEventListener('error', (e) => fail('uncaught: ' + e.message));
 
 // Hand the stream back to the test, so a dropped link can actually be staged.

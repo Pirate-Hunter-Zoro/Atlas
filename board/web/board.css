@@ -395,26 +395,24 @@ body.annotating #btn-annotate { background: var(--ask); color: #fff; border-colo
   100% { box-shadow: -1rem 0 0 -.82rem transparent; }
 }
 
-/* A BLOCK IS WRITTEN, NOT PLACED.
+/* A CARD IS TYPED, AND TYPING MOVES NOTHING.
 
-   The block is already in the document, already typeset and already measured;
-   this uncovers it from the top down. `steps()` is the whole effect -- the step
-   count is the block's own height in line boxes, handed over by `revealLines` --
-   so the clip lands on line boundaries and a line is either written or not
-   there, never sliced through the middle of its glyphs. Nothing here touches
-   the text, so mathematics, figures and ink are safe by construction. */
-.card .body > .writing {
-  animation: write var(--write-ms, 320ms) steps(var(--write-steps, 6), end) both;
-}
-@keyframes write {
-  from { clip-path: inset(0 0 100% 0); }
-  to   { clip-path: inset(0 0 0 0); }
-}
-/* Somebody who has asked for less movement gets the blocks in order and no
-   wipe: the pacing is the information, the animation is the flourish. */
-@media (prefers-reduced-motion: reduce) {
-  .card .body > .writing { animation: none; }
-}
+   The whole card is laid out the moment it arrives. What has not been said yet
+   is `visibility: hidden`, which occupies its space to the pixel and wraps
+   exactly where it will wrap -- so moving one character from `tw-soon` to
+   `tw-said` cannot reflow the card, and cannot move the writing surface under
+   it. `typeOut` in `board.js` does the moving; this is the whole of the
+   stylesheet's part in it.
+
+   A wipe cannot do this job. The reveal before it clipped each block from the
+   top down, a line at a time, which meant a block was either laid out or not --
+   so the card grew by a paragraph at every step and shoved the lesson down with
+   it. A clip is a rectangle and text does not arrive in rectangles.
+
+   Nothing here for reduced motion: `typeOut` reads the preference itself and
+   types nothing at all, because the pacing IS the effect and there is no
+   quieter version of it to offer. */
+.tw-soon { visibility: hidden; }
 
 .card-head {
   display: flex; align-items: baseline; gap: .6rem;
@@ -1373,8 +1371,8 @@ body.papering { overflow: hidden; }
   body { background: #fff; color: #000; }
   #board { max-width: none; padding: 0; }
   .card { break-inside: avoid; animation: none; }
-  /* and a page printed mid-reveal prints the whole card */
-  .card .body > .writing { animation: none; clip-path: none; }
+  /* and a page printed mid-typing prints the whole card */
+  .tw-soon { visibility: visible; }
   .mine { background: #f2f2f2; }
 }
 
