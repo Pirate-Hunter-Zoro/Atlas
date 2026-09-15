@@ -110,6 +110,18 @@ const boards = () => Array.from(doc.querySelectorAll('[data-board="0001"]'));
 // on it and that the ink is not shared with another page.
 const ink = (n) => ({ c: '#eee', w: 3, pts: [[10 + n, 10 + n], [90 + n, 90 + n]] });
 
+// The pen goes back on the glass for each of these, and comes off again: a
+// synthetic pointerdown with no lift leaves the surface believing a hand is on
+// it -- and the board will not move a page under a hand, nor repaint the lesson
+// under one, which is what keeps a payload from landing mid-stroke.
+const lift = () => {
+  const ev = new window.Event('pointerup', { bubbles: true, cancelable: true });
+  Object.assign(ev, { pointerId: 91, pointerType: 'pen', pressure: 0,
+                      clientX: 200, clientY: 200, isPrimary: true });
+  const sheet = doc.querySelector('#writer canvas.sl-sheet');
+  if (sheet) sheet.dispatchEvent(ev);
+};
+
 // The lesson: one exercise, worked over several attempts.
 const lesson = (cards, turns) => JSON.stringify({
   state: { course: 'Galois Theory', session: 'lecture', mode: 'math' },
@@ -249,6 +261,7 @@ await sleep(40);
   boards().length === 2
     ? ok('while the attempts it was not opened on stay where they are')
     : fail('opening one board disturbed the others (' + boards().length + ')');
+  lift();
 }
 
 // -------------------------------------- a follow-up question is a blank board
@@ -333,15 +346,6 @@ await sleep(40);
 // time. The boards were pointing at a moving target.
 const mapping = () =>
   JSON.parse(window.localStorage.getItem('board.pages.n:Galois Theory:-') || '{}');
-// The pen goes back on the glass for each of these, and comes off again: a
-// synthetic pointerdown with no lift leaves the surface believing a hand is on
-// it, and the board will not move a page under a hand.
-const lift = () => {
-  const ev = new window.Event('pointerup', { bubbles: true, cancelable: true });
-  Object.assign(ev, { pointerId: 91, pointerType: 'pen', pressure: 0,
-                      clientX: 200, clientY: 200, isPrimary: true });
-  doc.querySelector('#writer canvas.sl-sheet').dispatchEvent(ev);
-};
 
 {
   const q9 = card('0009', 'question', 'Exercise 3.4', 9);

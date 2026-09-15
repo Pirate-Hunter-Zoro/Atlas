@@ -31,6 +31,8 @@
 "use strict";
 
 var face = null, ctx = null, widths = null;
+var watchers = [];               /* surfaces to tell when the answers change */
+var faceReady = false;           /* has the real face actually arrived yet */
 
 /* The face the board actually ships, off the page's own `--ui` token rather
    than guessed: the fallback stack and the real one do not measure the same. */
@@ -46,6 +48,62 @@ function uiFace() {
 
 function font(size, weight) {
   return (weight || 400) + " " + size + "px " + uiFace();
+}
+
+/* THE ANSWER IS WRONG UNTIL THE FACE HAS LOADED, AND NOTHING SAID SO.
+
+   `measureText` measures the font the canvas can resolve AT THAT MOMENT. The
+   board's reading face is OpenDyslexic, a web font served from this repository
+   and declared `font-display: swap` -- so for the first fraction of a second
+   after a cold load the family does not exist yet, the canvas quietly falls back
+   to the next name in the stack, and it answers in system-ui. That is a much
+   narrower face: the wrap is computed against it, the boxes are laid out to fit
+   it, and then the labels are PAINTED in OpenDyslexic and run straight out of
+   their boxes. The measuring was put here to end exactly that defect and it had
+   half of it left -- the half that only shows on the first paint after a load,
+   which is the paint everybody sees.
+
+   Worse, every answer is cached for the life of the page, so the wrong numbers
+   outlived the moment that produced them.
+
+   So: when the fonts settle, throw the cache away and tell whoever is drawing.
+   A plane redraws from its own data, which is cheap and already happens on every
+   payload. Where there is no `document.fonts` at all the cache simply stands, as
+   it did before, and the estimate remains the fallback. */
+function faceLoaded() {
+  if (faceReady) return;
+  faceReady = true;
+  widths = null;
+  var list = watchers.slice();
+  for (var i = 0; i < list.length; i++) {
+    try { list[i](); } catch (e) { /* one surface must not stop another */ }
+  }
+}
+
+function watchFace() {
+  var fonts = null;
+  try { fonts = document.fonts; } catch (e) { fonts = null; }
+  if (!fonts || !fonts.ready || !fonts.ready.then) { faceReady = true; return; }
+  try {
+    fonts.ready.then(faceLoaded, faceLoaded);
+  } catch (e) { faceReady = true; return; }
+  /* A face can also arrive later than `ready` settles -- it is loaded when it is
+     first USED, and a box drawn in a weight nothing else on the page uses is
+     exactly that case. */
+  try {
+    fonts.addEventListener("loadingdone", function () {
+      faceReady = false;
+      faceLoaded();
+    });
+  } catch (e) { /* older browsers: `ready` is all there is */ }
+}
+
+/* Told when the measurements change under it. A surface registers once and
+   redraws from its own data; there is no payload involved and nothing to fetch. */
+function onFace(fn) {
+  if (typeof fn !== "function") return;
+  watchers.push(fn);
+  if (!watchers.wired) { watchers.wired = true; watchFace(); }
 }
 
 function width(text, size, weight) {
@@ -126,7 +184,11 @@ window.Gauge = {
   font: font,
   width: width,
   wrap: wrap,
-  el: el
+  el: el,
+  onFace: onFace,
+  /* For the suites, and for anything that needs to know whether the numbers it
+     is holding were measured in the face they will be painted in. */
+  faceReady: function () { return faceReady; }
 };
 
 })();

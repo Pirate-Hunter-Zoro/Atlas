@@ -2561,6 +2561,16 @@ function create(opts) {
      scroll the diagram out from under them. The tail is generous on purpose --
      the gap between two words of a proof is longer than it feels. */
   api.busy = function () { return handBusy(); };
+  /* NARROWER THAN `busy`, AND FOR A DIFFERENT QUESTION. `busy` has a long tail
+     on purpose -- the gap between two words of a proof is longer than it feels --
+     and that is right for "may I spend a hundred milliseconds encoding a
+     picture". It is far too generous for "may I repaint", which has to happen
+     promptly after a send. This is the nib actually being down: the window in
+     which a few hundred milliseconds of layout is felt in the hand as the
+     surface going dead for half a second. */
+  api.inking = function () {
+    return !!drawing || !!lasso || !!dragging || penDown;
+  };
 
   /* Whether anything on this surface has not reached the disk: a page whose
      strokes are dirty, a save on the wire, a save being retried, or a picture
