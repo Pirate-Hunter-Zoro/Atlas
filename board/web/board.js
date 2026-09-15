@@ -1100,7 +1100,12 @@ function render(data) {
   /* A past lesson is read only: no pen, no box, nothing to send into a session
      that has already been filed. */
   liveSlot = liveKey;
-  placeWriter(owed && !data.archived, qNode, live);
+  /* THE HOLD IS ON THE BOARD FOLLOWING A CARD, NEVER ON A TAP.
+     Somebody who touches an earlier board is asking for the surface to go there
+     now, and a request made by hand outranks an animation. `workingOn` and
+     `reopenedFor` are what a tap sets; with either of them the surface moves. */
+  placeWriter(owed && !data.archived, qNode, live,
+              typingCards() && !workingOn && reopenedFor === null);
   /* The boards do not come and go with the answer panel.
 
      They used to: the whole set was torn down the moment nothing was owed, which
@@ -1130,7 +1135,7 @@ function render(data) {
   freshNodes.length = 0;
   /* After the typesetting, never before: KaTeX measures what it renders, and it
      cannot measure what is display:none. */
-  if (!firstPaint) freshCards.forEach(revealLines);
+  if (!firstPaint) freshCards.forEach(typeOut);
   freshCards.length = 0;
 
   /* The ink layer is per card and idempotent: reconciled nodes keep the layer
@@ -2231,93 +2236,218 @@ function revealNewest(smooth) {
   else window.scrollTo(0, top);
 }
 
-/* A CARD ARRIVES A LINE AT A TIME.
+/* A CARD IS TYPED OUT, AND NOTHING MOVES WHILE IT IS.
 
-   Asked for as a matter of style, and restated as a specification: "once the
-   response is ready, just have it written out line by line in a visually
-   pleasing way, and let me see it get written out line by line" -- the way any
-   chat page on the web behaves. A card is a file and it arrives whole, so there
-   is nothing to stream; this is a reveal of something already in hand, which is
-   the honest version of the effect and the only one that cannot show a
+   Asked for in these words: "let's instead have it get typed out character by
+   character at a nice quick pace that outpaces reading but not outpacing my
+   eyes seeing it getting written". A card is a file and it arrives whole, so
+   there is nothing to stream; this is a reveal of something already in hand,
+   which is the honest version of the effect and the only one that cannot show a
    half-parsed formula.
 
-   It pairs with the rule above it. The reader is stationary and the card grows
-   downward into the space under their working, so a card that appears a line at
-   a time reads as the tutor writing rather than as a wall landing.
+   WHAT MAKES IT SMOOTH IS THAT THE CARD IS ITS FINAL SIZE FROM THE FIRST FRAME.
+   The version before this hid each block outright, so the card was one paragraph
+   tall when it landed and grew by a paragraph at a time -- and everything below
+   it, the writing surface included, was shoved down on every step. Reported from
+   the device: "the next board just shows up right underneath the board I was
+   writing on, and then a jarring change occurs and suddenly all of the tutor
+   response between the two shows up". That is the card growing, seen from
+   behind the glass.
 
-   TWO GRAINS, AND BOTH OF THEM MATTER. Blocks -- the children of the body, which
-   is what markdown produced: a paragraph, a formula, a list, a figure -- arrive
-   one after another, and each one is then wiped downward a LINE at a time by a
-   clip whose step count is the block's own measured height in line boxes. The
-   block is never cut up: splitting inside one would break typeset mathematics,
-   and hiding anything BEFORE KaTeX has measured it would break it too, so this
-   runs after the typesetting pass, never before, and the measurement it takes is
-   of the laid-out block.
+   So nothing is ever removed from the layout. Every character of the card is
+   laid out the moment it arrives; what changes is only whether a character is
+   PAINTED. A run of text is split into the part already said and the part not
+   said yet, the second carrying `visibility: hidden` -- which occupies its space
+   exactly, to the pixel, and wraps exactly where it will wrap. Moving one
+   character from one to the other cannot reflow anything, in the card or under
+   it. The clip-path wipe it replaces could not do this: a clip is a rectangle,
+   and text does not arrive in rectangles.
 
-   NOTHING APPEARS AT ONCE, AND NOTHING CANCELS IT. A hand on the page used to
-   dump the remainder instantly, which on a tablet is every reader every time --
-   a touch to scroll is a touch. That was the flash. The whole reveal is capped
-   at REVEAL_ALL instead, which is the real protection: a long card is written
-   faster, not skipped.
+   MATHEMATICS, CODE AND FIGURES ARE ATOMS. Splitting the characters of a KaTeX
+   subtree destroys it, and a formula half-typed is nonsense to read anyway. Each
+   one is hidden whole and appears whole when the cursor reaches it, costing
+   TYPE_ATOM characters of time so it lands in its place in the sentence rather
+   than out of nowhere. This runs after the typesetting pass, never before:
+   KaTeX cannot measure what is not laid out.
 
-   It runs whether or not the card is on the glass. A reveal below the fold
-   costs nothing, changes no height above the reader, and is already finished by
-   the time somebody scrolls down to it; the jump button still says it is there. */
-var WRITE_LINE = 95;       /* one line of prose, in milliseconds */
-var WRITE_MIN = 150;       /* even a one-line block is written, not placed */
-var WRITE_MAX = 900;       /* and a long paragraph does not become a wait */
-var REVEAL_ALL = 6000;
+   NOTHING CANCELS IT. A hand on the page used to dump the remainder instantly,
+   which on a tablet is every reader every time -- a touch to scroll is a touch.
+   The cap on the whole card is the protection instead: a long card is typed
+   faster, never skipped.
 
-/* How many line boxes tall a laid-out block is. `offsetHeight` over the
-   computed `line-height`, which is what the wipe steps on. Zero outside a real
-   layout -- jsdom, a hidden card -- and one step is the honest answer there. */
-function lineCount(el) {
-  var lh = parseFloat(window.getComputedStyle(el).lineHeight);
-  if (!(lh > 0)) lh = 20;
-  var h = el.offsetHeight || 0;
-  return Math.max(1, Math.round(h / lh));
+   It runs whether or not the card is on the glass. Typing below the fold costs
+   nothing, changes no height above the reader, and is over by the time somebody
+   scrolls down to it. */
+var TYPE_CPS = 110;        /* characters a second: past reading speed, still a hand */
+var TYPE_MIN = 420;        /* even one line is typed, not placed */
+var TYPE_ALL = 4200;       /* and the longest card there can be is over in four seconds */
+var TYPE_ATOM = 10;        /* what a formula or a figure costs, in characters */
+
+/* What is never cut into characters. A KaTeX subtree is one object; so is a
+   table, a compiled diagram, a picture and a block of code, where the alignment
+   is the meaning. */
+var TYPE_ATOMIC = ".katex, .katex-display, pre, table, svg, img, figure";
+
+/* Whether anything is being typed at this moment. The writing surface reads it:
+   see `placeWriter`.
+
+   A COUNT AND A DEADLINE, BECAUSE A HELD SURFACE THAT NEVER COMES BACK IS WORSE
+   THAN NO HOLD AT ALL. `requestAnimationFrame` does not run in a backgrounded
+   tab, so a card that arrives while the app is in the background stops
+   mid-sentence -- and a counter alone would keep the writing surface parked
+   until somebody came back and watched it finish. The deadline is what the card
+   asked for plus a second, so the hold lets go on its own whatever happens to
+   the animation. */
+var typingNow = 0;
+var typingUntil = 0;
+
+function typingCards() { return typingNow > 0 && Date.now() < typingUntil; }
+
+/* The card's content in the order it is read: runs of text, and atoms. */
+function typeUnits(root) {
+  var units = [];
+  (function walk(node) {
+    var kids = node.childNodes;
+    for (var i = 0; i < kids.length; i++) {
+      var n = kids[i];
+      if (n.nodeType === 3) {
+        /* Whitespace between two inline elements is not a character anybody
+           watches arrive, and hiding it would open a gap that closes again. */
+        if (n.data && /\S/.test(n.data)) units.push({ text: n, full: n.data });
+        continue;
+      }
+      if (n.nodeType !== 1) continue;
+      if (n.matches && n.matches(TYPE_ATOMIC)) { units.push({ atom: n }); continue; }
+      walk(n);
+    }
+  })(root);
+  return units;
 }
 
-function revealLines(card) {
-  if (!card || card._revealing) return;
+/* Lay a unit out in full and paint none of it. */
+function typeDress(u) {
+  if (u.atom) {
+    u.was = u.atom.style.visibility;
+    u.atom.style.visibility = "hidden";
+    u.n = TYPE_ATOM;
+    return;
+  }
+  var span = document.createElement("span");
+  span.className = "tw";
+  var said = document.createElement("span");
+  said.className = "tw-said";
+  var soon = document.createElement("span");
+  soon.className = "tw-soon";
+  soon.appendChild(document.createTextNode(u.full));
+  span.appendChild(said);
+  span.appendChild(soon);
+  u.text.parentNode.replaceChild(span, u.text);
+  u.span = span;
+  u.said = said;
+  u.soon = soon;
+  u.n = u.full.length;
+}
+
+/* Paint the first `k` characters of it, and no more. */
+function typeShow(u, k) {
+  if (u.atom) {
+    if (k > 0) u.atom.style.visibility = u.was || "";
+    return;
+  }
+  if (u.at === k) return;
+  u.at = k;
+  u.said.textContent = u.full.slice(0, k);
+  u.soon.textContent = u.full.slice(k);
+}
+
+/* And put the DOM back the way markdown left it, so nothing downstream -- the
+   address marker, the annotation layer, an export -- ever sees the scaffolding. */
+function typeUndress(u) {
+  if (u.atom) { u.atom.style.visibility = u.was || ""; return; }
+  if (!u.span || !u.span.parentNode) return;
+  u.span.parentNode.replaceChild(document.createTextNode(u.full), u.span);
+}
+
+function typeOut(card) {
+  if (!card || card._typed) return;
+  card._typed = true;
   var body = card.querySelector(".body");
   if (!body) return;
-  var kids = [];
-  for (var i = 0; i < body.children.length; i++) {
-    if (!body.children[i].hidden) kids.push(body.children[i]);
-  }
-  if (!kids.length) return;
+  var units = typeUnits(body);
+  if (!units.length) return;
 
-  /* Measured while the whole card is still laid out, because a block cannot be
-     measured once the block above it has been hidden. */
-  var lines = kids.map(lineCount);
-  var want = lines.map(function (n) {
-    return Math.max(WRITE_MIN, Math.min(WRITE_MAX, n * WRITE_LINE));
+  var total = 0;
+  units.forEach(function (u) {
+    typeDress(u);
+    u.start = total;
+    u.at = 0;
+    total += u.n;
   });
-  var total = want.reduce(function (a, b) { return a + b; }, 0);
-  var scale = total > REVEAL_ALL ? REVEAL_ALL / total : 1;
+  if (!total) { units.forEach(typeUndress); return; }
 
-  card._revealing = true;
-  for (var k = 1; k < kids.length; k++) kids[k].hidden = true;
+  /* Somebody who has asked for less movement gets the card, whole, now. The
+     pacing is a flourish and they have said they do not want flourishes. */
+  var still = false;
+  try {
+    still = !!(window.matchMedia
+               && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
+  } catch (e) { /* no matchMedia: type it */ }
 
-  var at = 0;
-  var write = function () {
-    var el = kids[at];
-    var ms = Math.max(60, Math.round(want[at] * scale));
-    el.hidden = false;
-    el.style.setProperty("--write-ms", ms + "ms");
-    el.style.setProperty("--write-steps", String(lines[at]));
-    el.classList.add("writing");
-    setTimeout(function () {
-      el.classList.remove("writing");
-      el.style.removeProperty("--write-ms");
-      el.style.removeProperty("--write-steps");
-    }, ms + 80);
-    at++;
-    if (at < kids.length) setTimeout(write, ms);
-    else setTimeout(function () { card._revealing = false; }, ms);
+  var ms = still ? 0
+    : Math.max(TYPE_MIN, Math.min(TYPE_ALL, Math.round(total / TYPE_CPS * 1000)));
+  var rate = total / Math.max(1, ms);          /* characters per millisecond */
+  var t0 = null, at = 0;
+
+  var done = function () {
+    units.forEach(typeUndress);
+    try { body.normalize(); } catch (e) { /* not fatal */ }
+    body.classList.remove("typing");
   };
-  write();
+
+  /* NOTHING TYPED IS NOTHING HELD, AND IT HAPPENS NOW.
+     With the preference set there is no animation to wait for, so the card is
+     whole before this function returns and the writing surface is never held
+     back by it -- not for one frame. */
+  if (!ms) {
+    units.forEach(function (u) { typeShow(u, u.n); });
+    done();
+    return;
+  }
+
+  typingNow++;
+  typingUntil = Math.max(typingUntil, Date.now() + ms + 1000);
+  body.classList.add("typing");
+
+  var finish = function () {
+    done();
+    typingNow--;
+    /* And now the writing surface may come down under it. `placeWriter` held it
+       where it was for exactly this long; one more render is what moves it. */
+    if (!typingNow && lastLive) render(lastLive);
+  };
+
+  /* THE CLOCK IS READ HERE, NOT TAKEN FROM THE CALLBACK.
+
+     `requestAnimationFrame` hands its callback a timestamp, and a page that has
+     replaced it with a timer -- a test harness, an older browser, a polyfill --
+     hands it nothing. Subtracting that gives NaN, no character is ever due, and
+     the card sits half-typed for ever with the writing surface held behind it.
+     A card that cannot finish is worse than one that does not animate. */
+  var step = function () {
+    var now = Date.now();
+    if (t0 === null) t0 = now;
+    var want = ms ? Math.min(total, Math.ceil((now - t0) * rate)) : total;
+    while (at < units.length && units[at].start < want) {
+      var u = units[at];
+      var take = Math.min(u.n, want - u.start);
+      typeShow(u, take);
+      if (take >= u.n) at++;
+      else break;
+    }
+    if (at < units.length) { window.requestAnimationFrame(step); return; }
+    finish();
+  };
+  window.requestAnimationFrame(step);
 }
 
 /* ------------------------------------------------------- keeping the place --
@@ -6425,7 +6555,7 @@ function tickBusy() {
    backwards. What is left in the layout is `--gap` on `#writer`: the strip of
    page down each side that is there to put a thumb on. */
 
-function placeWriter(owed, questionNode, live) {
+function placeWriter(owed, questionNode, live, hold) {
   els.writer.hidden = !owed;
   /* The surface's re-centre exists while the surface does, and not otherwise:
      a button offering to find writing on a board that is not on screen is a
@@ -6458,8 +6588,24 @@ function placeWriter(owed, questionNode, live) {
   /* The anchor is looked up by card id now, so it can be any node in the lesson
      rather than only the last child -- which means checking it is actually IN
      the lesson before inserting beside it. */
+  /* AND IT DOES NOT MOVE UNDER A CARD THAT IS STILL BEING WRITTEN.
+
+     Asked for in these words: "I want the next board to not show up until all of
+     the tutor response has been written." It used to come down the instant the
+     card existed, which was while the card was one paragraph tall -- so the next
+     board appeared directly under the last one and the tutor's answer then
+     filled in between them.
+
+     Held where it is, rather than hidden: hiding it would take the tool bar off
+     the bottom of the screen and put it back a few seconds later, which is a
+     bigger movement than the one being removed. The card types out BELOW it --
+     new cards land at the end of the lesson and this surface has no key, so the
+     reconcile steps over it -- and the surface comes down under the card in one
+     move when the last character lands. `typeOut` renders once more to do it. */
   var host = questionNode && questionNode.parentNode;
-  if (host && questionNode.nextSibling !== els.writer) {
+  if (hold) {
+    /* leave it exactly where the reader last saw it */
+  } else if (host && questionNode.nextSibling !== els.writer) {
     host.insertBefore(els.writer, questionNode.nextSibling);
   } else if (!host && els.writer.parentNode !== els.cards) {
     els.cards.appendChild(els.writer);

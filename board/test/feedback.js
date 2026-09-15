@@ -273,29 +273,39 @@ const withNew = Object.assign({}, lesson, {
     : fail('a jump was offered to a card that is on screen');
 }
 
-// 4a. And it arrives a block at a time, not as one wall of text.
+// 4a. And it is TYPED — every block laid out from the first frame, and the
+//     characters painted in over it.
+//
+//     The rule this replaced hid each block outright, so the card was one
+//     paragraph tall when it landed and grew by a paragraph at a time. What grew
+//     with it was everything underneath, the writing surface included. Reported
+//     from the device: "the next board just shows up right underneath the board I
+//     was writing on, and then a jarring change occurs and suddenly all of the
+//     tutor response between the two shows up."
 {
   const fresh = nodeFor('0007');
   const body = fresh && fresh.querySelector('.body');
   const blocks = body ? Array.from(body.children) : [];
-  if (blocks.length < 2) {
-    ok('a one-block card has nothing to reveal (skipped)');
-  } else {
-    const shown = blocks.filter((b) => !b.hidden).length;
-    shown === 1
-      ? ok('a card that has just arrived shows its first block and holds the rest')
-      : fail(shown + ' of ' + blocks.length + ' blocks were shown at once — the '
-             + 'card is still landing as one wall of text');
-  }
-  // And nothing is hidden BEFORE the mathematics has been measured: KaTeX
-  // cannot measure what is display:none, and a formula measured at zero width
+  const hidden = blocks.filter((b) => b.hidden).length;
+  hidden === 0
+    ? ok('every block of a card that has just arrived is laid out, so the card '
+         + 'is its final size before a word of it is painted')
+    : fail(hidden + ' of ' + blocks.length + ' blocks were taken out of the '
+           + 'layout — the card will grow under the reader as they land');
+  const soon = body && body.querySelector('.tw-soon');
+  soon && soon.textContent.length
+    ? ok('and what has not been said yet is there, unpainted, holding its space')
+    : fail('nothing is waiting to be typed — the card arrived whole');
+
+  // And nothing is dressed BEFORE the mathematics has been measured: KaTeX
+  // cannot measure what is not laid out, and a formula measured at zero width
   // comes back wrong for the rest of the sitting.
   const js2 = fs.readFileSync(path.join(WEB, 'board.js'), 'utf8');
   const order = js2.indexOf('freshNodes.forEach(typeset)')
-                < js2.indexOf('freshCards.forEach(revealLines)');
+                < js2.indexOf('freshCards.forEach(typeOut)');
   order
-    ? ok('and the reveal runs after the typesetting, never before it')
-    : fail('blocks are hidden before KaTeX has measured them, which breaks '
+    ? ok('and the typing runs after the typesetting, never before it')
+    : fail('the card is cut up before KaTeX has measured it, which breaks '
            + 'display mathematics');
 }
 
@@ -305,20 +315,34 @@ const withNew = Object.assign({}, lesson, {
 //     instant it arrived. Touching the glass used to show every remaining block
 //     at once, and on a tablet a touch is how you scroll -- so the reveal was
 //     cancelled by the very gesture it was written for. The cap on the whole
-//     reveal is the protection now: a long card is written faster, never
-//     skipped.
+//     card is the protection now: a long card is typed faster, never skipped.
+//
+//     AND THE CARD DOES NOT CHANGE SIZE WHILE IT IS TYPED. That is the property
+//     the whole of 4a exists for, and it is the one worth measuring rather than
+//     inferring: a height taken the moment the card lands and again when the
+//     last character does must be the same number.
 {
   const fresh = nodeFor('0007');
-  const blocks = Array.from(fresh.querySelector('.body').children);
+  const body = fresh.querySelector('.body');
+  const tall = fresh.offsetHeight;
   ['touchstart', 'wheel', 'pointerdown'].forEach((ev) => {
     window.dispatchEvent(new window.Event(ev));
   });
-  await sleep(260);                  // long enough for a block or two to land
-  const shown = blocks.filter((b) => !b.hidden).length;
-  shown < blocks.length
+  await sleep(120);                  // well inside the shortest card's own time
+  const soon = body.querySelector('.tw-soon');
+  soon && soon.textContent.length
     ? ok('and a touch to scroll does not throw the rest of it on screen at once')
     : fail('touching the page dumped the whole card — which is the flash the '
-           + 'reveal exists to prevent');
+           + 'typing exists to prevent');
+  await sleep(900);                  // past TYPE_MIN, so the card is finished
+  !body.querySelector('.tw-soon')
+    ? ok('and when the last character lands the scaffolding is gone, so nothing '
+         + 'downstream ever sees it')
+    : fail('the card finished typing with the split spans still in the lesson');
+  fresh.offsetHeight === tall
+    ? ok('and the card is exactly the height it was when it arrived')
+    : fail('the card changed height while it was typed (' + tall + ' → '
+           + fresh.offsetHeight + '), which is the lesson moving under the reader');
 }
 
 // 4c. And a card whose first line is BELOW the fold is OFFERED, not taken to.
@@ -909,6 +933,20 @@ const farDown = Object.assign({}, withNew, {
   !els.writer.hidden
     ? ok('a new question opens a surface')
     : fail('the new question has no writing surface at all');
+
+  // AND IT WAITS WHERE IT IS UNTIL THE QUESTION HAS FINISHED BEING WRITTEN.
+  //
+  // Asked for from the device: "I want the next board to not show up until all
+  // of the tutor response has been written." It is HELD, not hidden -- hiding it
+  // takes the tool bar off the bottom of the screen and puts it back a few
+  // seconds later, which is a bigger movement than the one being removed.
+  const posedCard = doc.querySelector('[data-card="0054"]');
+  posedCard && posedCard.nextElementSibling !== els.writer
+    ? ok('and it stays where the reader last saw it while the card is typed')
+    : fail('the surface came down under a card that is still being written, so '
+           + 'the answer fills in between the two boards');
+
+  await sleep(900);                  // past TYPE_MIN: the card is finished
   const under = doc.querySelector('[data-card="0054"]');
   under && under.nextElementSibling === els.writer
     ? ok('and it is the LIVE one, under the question just asked')
