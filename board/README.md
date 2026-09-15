@@ -432,12 +432,19 @@ is wrong even when every suite is green.
 - **Gestures**: read `plane-core.js` first. A gesture is decided by which contacts are LIVE; two
   fingers are never the pen. And **a pan must not also be a tap** — dragging the atlas with a
   a finger that starts on a card and drags the plane must not open that card when it lifts.
-- **`#panic` is z-index 62, the map is 96 and the document viewer 95**, so the re-centre button is
-  painted over by both. Known, left alone deliberately: a zoom you are lost in is a zoom of the
-  *lesson*, and both of those surfaces have a ✕. **`#redirect` is 97 and that is not an
-  inconsistency** — a plan is most often discovered to be wrong while looking at the picture of
-  it, so the one control that is promised to be reachable at any moment has to be over the two
-  things that cover the whole screen.
+- **The re-centre stack is `recentre.js`, shared with the front door.** `#panic` puts the PAGE's
+  magnification back; under it ride the re-centres for the planes that have a pan and zoom the
+  page knows nothing about — `#findink` for the writing surface, `#mapback` for the map,
+  `#atlasback` on the front door — and `#redirect`, which is the only one that changes what the
+  work IS. All of them are placed against the VISUAL viewport, because `position: fixed` pins to
+  the layout one and a pinch moves the other. The first button is the handle: press and hold
+  moves the stack, a tap acts, and the two are told apart by TIME, never by distance.
+- **The stack is z-index 62, and 97 while `body.mapping`.** The map is 96 and the document viewer
+  95, so on the map the way back was painted over by the thing you were lost in. Raised only
+  there: everywhere else 62 is right, over the lesson and under the menu. **`#redirect` is 97
+  always** — a plan is most often discovered to be wrong while looking at the picture of it, so
+  the one control promised to be reachable at any moment has to be over the two things that
+  cover the whole screen.
 - **A PORT IS A PURE FUNCTION OF THE WORKSPACE'S DIRECTORY BASENAME**, never of its path.
   `ports.py` must stay that way: the basenames are unique across the repository, and two machines
   derive the same number for the same workspace without talking to each other. One board per

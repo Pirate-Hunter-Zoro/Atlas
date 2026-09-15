@@ -57,6 +57,8 @@ var els = {
   atlasSvg: document.getElementById("atlas-svg"),
   atlasEmpty: document.getElementById("atlas-empty"),
   atlasFit: document.getElementById("atlas-fit"),
+  panic: document.getElementById("panic"),
+  atlasBack: document.getElementById("atlasback"),
   sheet: document.getElementById("sheet"),
   sheetFamily: document.getElementById("sheet-family"),
   sheetName: document.getElementById("sheet-name"),
@@ -403,6 +405,27 @@ function atlasFrame(force) {
 }
 
 els.atlasFit.onclick = function () { atlasFrame(true); };
+
+/* THE WAY BACK, and there are two of them because there are two ways to be lost.
+
+   `recentre.js` owns the stack -- where it sits against the VISUAL viewport, how
+   it is dragged, and what putting the page's own magnification back means. What
+   is here is the second button: the atlas is a plane, a plane can be panned into
+   empty space, and the `fit` control that answers that is in the page chrome,
+   which a pinch takes off the glass. The board has had this pair for the lesson
+   and the writing surface; the front door had neither. */
+if (els.panic && window.Recentre) {
+  window.Recentre.mount({
+    key: "board.panic",
+    buttons: [
+      { el: els.panic },
+      { el: els.atlasBack, onTap: function (el) {
+          atlasFrame(true);
+          window.Recentre.flash(el);
+        } },
+    ],
+  });
+}
 
 /* The gestures. `plane-core.js` owns what a gesture IS -- which contacts are
    live, which two a pinch is between, when a refusal expires -- so this is only

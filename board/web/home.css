@@ -304,3 +304,57 @@ main { max-width: 46rem; }
 .sheet-actions { display: grid; gap: .6rem; margin-top: 1.1rem; }
 @media (min-width: 30rem) { .sheet-actions { grid-template-columns: 1.6fr 1fr; } }
 .sheet-actions .action { min-height: 3.4rem; text-align: left; }
+
+/* ---------- the way back ----------
+   The same pair the board carries, for the same two ways of being lost: the
+   page's own pinch, and the atlas plane's pan and zoom. Everything about where
+   they sit is set from JavaScript -- `recentre.js`, shared with the board --
+   because CSS cannot see the magnification: `position: fixed` pins to the
+   layout viewport, and pinching moves the visual one. Left and top stay at zero
+   and the transform does the work, including a counter-scale so a button is the
+   same size under a thumb however far the page has been zoomed in.
+
+   `fit` in the atlas head does the same job as the second of these and lives in
+   the page chrome, which pinching pans off the glass. This cannot be. */
+#panic, #atlasback {
+  position: fixed; left: 0; top: 0; z-index: 62;
+  transform-origin: 0 0;
+  display: flex; align-items: center; gap: .35rem;
+  padding: .42rem .7rem .42rem .55rem;
+  border-radius: 1.4rem;
+  border: 1px solid color-mix(in srgb, var(--paper) 55%, var(--accent));
+  background: var(--accent);
+  color: var(--paper);
+  font: 700 .74rem var(--ui);
+  letter-spacing: .02em;
+  box-shadow: 0 4px 14px rgba(0,0,0,.3);
+  cursor: grab;
+  /* The drag is ours; the browser must not take the gesture as a scroll. */
+  touch-action: none;
+  -webkit-user-select: none; user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  transition: box-shadow .18s, filter .18s;
+}
+#panic svg, #atlasback svg { width: .95rem; height: .95rem; display: block; flex: none; }
+/* The quieter of the pair: the first is the way out of a zoom there is no other
+   way out of, this is a convenience. Same shape, less shout, so the one that
+   matters most stays the one the eye finds. */
+#atlasback {
+  background: color-mix(in srgb, var(--accent) 22%, var(--paper));
+  color: var(--ink);
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--rule));
+}
+#panic:hover, #atlasback:hover { filter: brightness(1.1); }
+/* Held down: it has become a thing being moved, and must look like one before
+   the finger travels, or the first drag reads as a tap that did nothing. */
+#panic.holding, #atlasback.holding {
+  cursor: grabbing;
+  box-shadow: 0 0 0 5px color-mix(in srgb, var(--accent) 32%, transparent),
+              0 4px 14px rgba(0,0,0,.3);
+}
+/* Tapped: acknowledge it, because what the tap does is a change of scale and
+   not a change of content, which is easy to miss on a page you were lost in. */
+#panic.hit, #atlasback.hit { filter: brightness(1.25); }
+/* Over the sheets, which cover the whole glass: a sheet has its own close and
+   the stack must not sit under one. */
+#panic { z-index: 63; }

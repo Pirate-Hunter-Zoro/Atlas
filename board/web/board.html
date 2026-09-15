@@ -382,6 +382,22 @@
   <span>my writing</span>
 </button>
 
+<!-- And the same again for the MAP, which is a plane with a pan and a zoom of
+     its own exactly as the writing surface is. Its own ways back -- the +
+     in its head, and the fit it opens on -- are page chrome, and page chrome is
+     what a pinch pans off the glass. Only there while the map is.
+     Asked for as: "I need a scroll reset like we have in the actual tutoring
+     sessions." -->
+<button id="mapback" type="button" hidden
+        title="put the map back where it opens">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1"
+       stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+    <path d="M3.5 7.5v-4h4M16.5 3.5h4v4M20.5 16.5v4h-4M7.5 20.5h-4v-4"/>
+    <path d="M9 15V9.6l3 3 3-3V15"/>
+  </svg>
+  <span>the map</span>
+</button>
+
 <!-- THE WAY OUT OF THE WHOLE PLAN, from anywhere.
      Three hours into an evening somebody realises the shape of the work is
      wrong — the scope, the question, the thing being built — and until this
@@ -673,6 +689,7 @@
      slate-core.js and by the map; before both. -->
 <script src="/static/address.js"></script>
 <script src="/static/gauge.js"></script>
+<script src="/static/recentre.js"></script>
 <script src="/static/plane-core.js"></script>
 <script src="/static/slate-core.js"></script>
 <script src="/static/annotate.js"></script>

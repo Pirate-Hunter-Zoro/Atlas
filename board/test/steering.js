@@ -85,7 +85,7 @@ const zoomTo = async (scale, offsetLeft, offsetTop) => {
 
 window.addEventListener('error', (e) => fail('uncaught: ' + e.message));
 
-for (const f of ['typeface.js', 'macros.js', 'gauge.js', 'plane-core.js', 'slate-core.js', 'annotate.js']) {
+for (const f of ['typeface.js', 'macros.js', 'gauge.js', 'recentre.js', 'plane-core.js', 'slate-core.js', 'annotate.js']) {
   try { window.eval(fs.readFileSync(path.join(WEB, f), 'utf8')); }
   catch (e) { fail(f + ': ' + e.message); }
 }
