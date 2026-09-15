@@ -14,6 +14,7 @@ import os
 from . import NOT_MINE
 from .. import multipart
 from .. import spawn
+from ...course import burn
 from ...lesson import slate
 from ...lesson import turns
 
@@ -83,6 +84,35 @@ def ann_says(key, answering_now):
 
 
 def post(h, repo, path):
+    if path == "/annotate/burn":
+        # THE INK, MADE INTO A DOCUMENT. Marking up your own compiled write-up
+        # already worked; what it produced was a record in the board's drawer,
+        # which is not a thing anybody can hand over or read next year. This is
+        # the way out, and there are exactly three of them because there are
+        # three things "save" means: over the original, as a new file, or not at
+        # all. `none` writes nothing and is answered without drawing a page.
+        #
+        # Deliberately a POST that can overwrite a file the repository builds.
+        # That is the asked-for behaviour and it is safe for one reason worth
+        # stating where it happens: the strokes are not in the PDF. They are in
+        # the annotation record, so a compile that destroys the burned rendering
+        # destroys nothing that cannot be burned again.
+        try:
+            payload = json.loads(h.read_body().decode("utf-8"))
+        except Exception:
+            return h.send_json({"ok": False, "error": "bad json"}, status=400)
+        kind = str(payload.get("kind") or "")
+        mode = str(payload.get("mode") or "")
+        got = burn.burn(repo, kind, mode)
+        h.note("burn %s (%s): %s" % (kind, mode,
+                                     got.get("detail") or got.get("why")))
+        if got.get("ok") and got.get("mode") != "none":
+            # The PDF under the viewer just changed, so the payload has to go
+            # out again -- the page cache is keyed on modification time and the
+            # controls are drawn off `papers`.
+            h.server.hub.worker.dirty.set()
+        return h.send_json(got, status=200 if got.get("ok") else 400)
+
     if path == "/annotate/save":
         # Marks written over the tutor's own cards. Saving keeps them across
         # a reload; sending makes them a turn. They are anchored to a card,

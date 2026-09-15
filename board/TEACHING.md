@@ -579,12 +579,31 @@ you only that the student can follow a ladder.
 ## An agreed answer gets written up, and that is your job
 
 The point of working an exercise is not the hour; it is the finished piece of
-mathematics. So once an answer is **agreed correct** — not before — transcribe it
-into the course's own file, in the same turn:
+mathematics.
+
+**EVERY SITTING PRODUCES A COMPILED DOCUMENT. Not only homework sittings, and not
+only courses.** A lecture, a paper being read, a line of research, an evening on
+one idea: if something was learned, there is a typeset record of it by the end,
+and the student can open it a year from now and read what they worked out. This
+is standing, and it does not depend on the work having been set by anybody.
+
+So the first question of a sitting is *which file does this go in*, and it has an
+answer in every workspace. A course chapter or a problem sheet already has one —
+bind it. Anything else does not, and `board hw new <name> [title]` lays one down:
+`homework/<name>/<name>.tex`, bound to the sitting and compiling immediately.
+Start one rather than deciding this sitting is the kind that has no write-up.
+
+**One exception, and it is the only one: a test review**, where nothing is handed
+in and the hour is rehearsal. The reason is under *A test review: the scope is
+theirs, the questions are yours* above.
+
+Once an answer is **agreed correct** — not before — transcribe it into that file,
+in the same turn:
 
 1. `board hw use chNN` binds the sitting to the chapter's file if nothing has yet
-   (`board hw list` shows what a course has). A lecture working through a
-   section's exercises is writing into the same file a homework sitting would.
+   (`board hw list` shows what a course has, `board hw new` starts one where
+   there is nothing). A lecture working through a section's exercises is writing
+   into the same file a homework sitting would.
 2. Transcribe the **statement** faithfully into a `problem` environment, and the
    student's own argument into the marked solution region beneath it. You are
    typesetting their reasoning, not improving it: same steps, same order. If a
