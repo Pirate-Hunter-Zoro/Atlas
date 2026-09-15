@@ -1,2 +1,2 @@
-<!-- set: 2026-09-14 19:05 -->
-We need to do all the exercises in chapter 4
+<!-- set: 2026-09-15 15:17 -->
+Let’s prioritize the remaining book problems except the one we skipped, and then move on to the worksheet problems
