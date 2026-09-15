@@ -299,7 +299,29 @@ const withNew = Object.assign({}, lesson, {
            + 'display mathematics');
 }
 
-// 4b. And a card whose first line is BELOW the fold is OFFERED, not taken to.
+// 4b. A HAND ON THE PAGE DOES NOT DUMP THE REST OF THE CARD.
+//
+//     Reported from the device as a flash: the card was there, whole, the
+//     instant it arrived. Touching the glass used to show every remaining block
+//     at once, and on a tablet a touch is how you scroll -- so the reveal was
+//     cancelled by the very gesture it was written for. The cap on the whole
+//     reveal is the protection now: a long card is written faster, never
+//     skipped.
+{
+  const fresh = nodeFor('0007');
+  const blocks = Array.from(fresh.querySelector('.body').children);
+  ['touchstart', 'wheel', 'pointerdown'].forEach((ev) => {
+    window.dispatchEvent(new window.Event(ev));
+  });
+  await sleep(260);                  // long enough for a block or two to land
+  const shown = blocks.filter((b) => !b.hidden).length;
+  shown < blocks.length
+    ? ok('and a touch to scroll does not throw the rest of it on screen at once')
+    : fail('touching the page dumped the whole card — which is the flash the '
+           + 'reveal exists to prevent');
+}
+
+// 4c. And a card whose first line is BELOW the fold is OFFERED, not taken to.
 //
 //     There is nothing to watch grow down there, and a page that has silently
 //     changed under somebody has to say so — but taking them is still taking

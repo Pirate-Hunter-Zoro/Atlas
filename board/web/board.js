@@ -2208,28 +2208,50 @@ function revealNewest(smooth) {
 
 /* A CARD ARRIVES A LINE AT A TIME.
 
-   Asked for as a matter of style, and it is: "is there a way you could
-   stylistically have the response from the tutor show up line by line instead of
-   all just being thrown in one text block at once?" A card is a file and it
-   arrives whole -- there is nothing to stream -- so this is a reveal of
-   something already in hand, which is the honest version of the effect and the
-   only one that cannot show a half-parsed formula.
+   Asked for as a matter of style, and restated as a specification: "once the
+   response is ready, just have it written out line by line in a visually
+   pleasing way, and let me see it get written out line by line" -- the way any
+   chat page on the web behaves. A card is a file and it arrives whole, so there
+   is nothing to stream; this is a reveal of something already in hand, which is
+   the honest version of the effect and the only one that cannot show a
+   half-parsed formula.
 
    It pairs with the rule above it. The reader is stationary and the card grows
-   downward into the space under their working, so a card that appears a
-   paragraph at a time reads as the tutor writing rather than as a wall landing.
+   downward into the space under their working, so a card that appears a line at
+   a time reads as the tutor writing rather than as a wall landing.
 
-   Blocks, not lines: the children of the body, which is what markdown produced.
-   A paragraph, a formula, a list, a figure. Splitting inside them would break
-   typeset mathematics, and hiding anything BEFORE KaTeX has measured it would
-   break it too -- so this runs after the typesetting pass, never before.
+   TWO GRAINS, AND BOTH OF THEM MATTER. Blocks -- the children of the body, which
+   is what markdown produced: a paragraph, a formula, a list, a figure -- arrive
+   one after another, and each one is then wiped downward a LINE at a time by a
+   clip whose step count is the block's own measured height in line boxes. The
+   block is never cut up: splitting inside one would break typeset mathematics,
+   and hiding anything BEFORE KaTeX has measured it would break it too, so this
+   runs after the typesetting pass, never before, and the measurement it takes is
+   of the laid-out block.
 
-   The whole reveal is capped at REVEAL_ALL, because a long card must not become
-   a thing you wait for. And it only ever applies to a card whose first line is
-   already on the glass: the point is to watch it arrive, and animating a card
-   nobody is looking at is a page quietly changing height under a reader. */
-var REVEAL_STEP = 90;
-var REVEAL_ALL = 1400;
+   NOTHING APPEARS AT ONCE, AND NOTHING CANCELS IT. A hand on the page used to
+   dump the remainder instantly, which on a tablet is every reader every time --
+   a touch to scroll is a touch. That was the flash. The whole reveal is capped
+   at REVEAL_ALL instead, which is the real protection: a long card is written
+   faster, not skipped.
+
+   It runs whether or not the card is on the glass. A reveal below the fold
+   costs nothing, changes no height above the reader, and is already finished by
+   the time somebody scrolls down to it; the jump button still says it is there. */
+var WRITE_LINE = 95;       /* one line of prose, in milliseconds */
+var WRITE_MIN = 150;       /* even a one-line block is written, not placed */
+var WRITE_MAX = 900;       /* and a long paragraph does not become a wait */
+var REVEAL_ALL = 6000;
+
+/* How many line boxes tall a laid-out block is. `offsetHeight` over the
+   computed `line-height`, which is what the wipe steps on. Zero outside a real
+   layout -- jsdom, a hidden card -- and one step is the honest answer there. */
+function lineCount(el) {
+  var lh = parseFloat(window.getComputedStyle(el).lineHeight);
+  if (!(lh > 0)) lh = 20;
+  var h = el.offsetHeight || 0;
+  return Math.max(1, Math.round(h / lh));
+}
 
 function revealLines(card) {
   if (!card || card._revealing) return;
@@ -2239,29 +2261,38 @@ function revealLines(card) {
   for (var i = 0; i < body.children.length; i++) {
     if (!body.children[i].hidden) kids.push(body.children[i]);
   }
-  if (kids.length < 2) return;
-  var box = card.getBoundingClientRect();
-  if (!(box.top < window.innerHeight)) return;   /* nobody is watching */
+  if (!kids.length) return;
+
+  /* Measured while the whole card is still laid out, because a block cannot be
+     measured once the block above it has been hidden. */
+  var lines = kids.map(lineCount);
+  var want = lines.map(function (n) {
+    return Math.max(WRITE_MIN, Math.min(WRITE_MAX, n * WRITE_LINE));
+  });
+  var total = want.reduce(function (a, b) { return a + b; }, 0);
+  var scale = total > REVEAL_ALL ? REVEAL_ALL / total : 1;
 
   card._revealing = true;
-  var step = Math.max(30, Math.min(REVEAL_STEP, REVEAL_ALL / kids.length));
   for (var k = 1; k < kids.length; k++) kids[k].hidden = true;
-  var at = 1;
-  var tick = function () {
-    /* A hand on the page outranks a flourish: show the rest at once rather than
-       making somebody wait on an animation to read what has already arrived. */
-    if (handledAt > card._revealFrom) {
-      for (var n = at; n < kids.length; n++) kids[n].hidden = false;
-      card._revealing = false;
-      return;
-    }
-    kids[at].hidden = false;
+
+  var at = 0;
+  var write = function () {
+    var el = kids[at];
+    var ms = Math.max(60, Math.round(want[at] * scale));
+    el.hidden = false;
+    el.style.setProperty("--write-ms", ms + "ms");
+    el.style.setProperty("--write-steps", String(lines[at]));
+    el.classList.add("writing");
+    setTimeout(function () {
+      el.classList.remove("writing");
+      el.style.removeProperty("--write-ms");
+      el.style.removeProperty("--write-steps");
+    }, ms + 80);
     at++;
-    if (at < kids.length) setTimeout(tick, step);
-    else card._revealing = false;
+    if (at < kids.length) setTimeout(write, ms);
+    else setTimeout(function () { card._revealing = false; }, ms);
   };
-  card._revealFrom = Date.now();
-  setTimeout(tick, step);
+  write();
 }
 
 /* ------------------------------------------------------- keeping the place --
