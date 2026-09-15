@@ -461,14 +461,17 @@ is wrong even when every suite is green.
 - **Gestures**: read `plane-core.js` first. A gesture is decided by which contacts are LIVE; two
   fingers are never the pen. And **a pan must not also be a tap** — dragging the atlas with a
   a finger that starts on a card and drags the plane must not open that card when it lifts.
-- **The re-centre stack is `recentre.js`, shared with the front door.** `#panic` puts the PAGE's
-  magnification back; under it ride the re-centres for the planes that have a pan and zoom the
-  page knows nothing about — `#findink` for the writing surface, `#mapback` for the map,
-  `#atlasback` on the front door — and `#redirect`, which is the only one that changes what the
-  work IS. All of them are placed against the VISUAL viewport, because `position: fixed` pins to
-  the layout one and a pinch moves the other. The first button is the handle: press and hold
-  moves the stack, a tap acts, and the two are told apart by TIME, never by distance.
-- **The stack is z-index 62, and 97 while `body.mapping`.** The map is 96 and the document viewer
+- **The floating buttons are `recentre.js`, shared with the front door.** `#panic` puts the
+  PAGE's magnification back; beside it are the re-centres for the planes that have a pan and zoom
+  the page knows nothing about — `#findink` (**my ink**) for the writing surface, `#mapback` for
+  the map, `#atlasback` on the front door — and `#redirect` (**rethink**), the only one that
+  changes what the work IS. All of them are placed against the VISUAL viewport, because
+  `position: fixed` pins to the layout one and a pinch moves the other. **Each is its own widget**
+  — its own place, remembered under its own `board.panic.<id>` — so a press and hold picks up
+  that one and leaves the rest where they are; a tap acts, and the two are told apart by TIME,
+  never by distance. They start out down the right-hand edge in order, from wherever the group
+  was last left, so nothing jumps the first time a board runs with them separate.
+- **They are z-index 62, and 97 while `body.mapping`.** The map is 96 and the document viewer
   95, so on the map the way back was painted over by the thing you were lost in. Raised only
   there: everywhere else 62 is right, over the lesson and under the menu. **`#redirect` is 97
   always** — a plan is most often discovered to be wrong while looking at the picture of it, so
@@ -628,6 +631,41 @@ The moment the tutor replies, that changes: your answer takes its proper place u
 question, the receipt stands down, and **the writing surface moves below the feedback** — so
 correcting your work happens under the criticism of it rather than scrolled off above it.
 
+### A card is typed out, and nothing moves while it is
+
+A card arrives whole — it is a file — so this is a reveal of something already in hand rather
+than a stream. It is typed **character by character** at 110 a second, past reading speed and
+still visibly a hand, capped so the longest card there can be is over in four seconds.
+`typeOut` in `board.js` is all of it; `test/feedback.js` is the suite.
+
+**The card is its final size from the first frame, and that is the whole design.** Nothing is
+ever taken out of the layout: every character is laid out the moment the card lands, and what
+has not been said yet carries `visibility: hidden`, which occupies its space to the pixel and
+wraps exactly where it will wrap. Moving one character from unsaid to said cannot reflow the
+card or anything under it. The reveal this replaced hid each block outright, so a card was one
+paragraph tall when it landed and grew by a paragraph at a time — and what grew with it was the
+lesson, the writing surface included.
+
+- **Mathematics, code, tables and figures are atoms.** Cutting a KaTeX subtree into characters
+  destroys it, and half a formula is nonsense to read. Each is hidden whole and appears whole
+  when the cursor reaches it, costing a few characters of time so it lands in its place in the
+  sentence. The typing runs **after** the typesetting pass, never before: KaTeX cannot measure
+  what is not laid out.
+- **Nothing cancels it.** A hand on the page used to dump the remainder, and on a tablet a touch
+  is how you scroll. The cap is the protection instead: a long card is typed faster, never
+  skipped.
+- **`prefers-reduced-motion` types nothing at all**, synchronously, before `typeOut` returns.
+  The pacing IS the effect and there is no quieter version of it to offer.
+
+**And the next writing surface waits for the last character.** It used to come down the instant
+the card existed — which was while the card was one paragraph tall, so the next board appeared
+directly under the last one and the tutor's answer filled in between them. It is **held where it
+is**, not hidden: hiding it takes the tool bar off the bottom of the screen and puts it back a
+few seconds later, which is a bigger movement than the one being removed. A tap on an earlier
+board overrides the hold — a request made by hand outranks an animation — and the hold carries a
+deadline as well as a count, so a card that stops mid-sentence in a backgrounded tab cannot park
+the surface for ever.
+
 ### Writing on the lesson itself
 
 A question about a lesson is nearly always a question about one *place* in it — this line,
@@ -717,10 +755,11 @@ question, the thing being built. **Saying so is one tap, from any surface**, and
 worth what it costs only if every part of the board that was pointed at the old direction is
 pointed at the new one before the next turn runs.
 
-The button rides in the same moveable stack as the two re-centres and is placed the same way,
-against the visual viewport — a control placed by CSS alone pans off the glass when the page is
-pinched. It sits **over** the map and the document viewer, which the other two do not: the moment
-somebody decides a plan is wrong is usually the moment they are looking at the picture of it.
+The button says **rethink**, and is placed the way the two re-centres are, against the visual
+viewport — a control placed by CSS alone pans off the glass when the page is pinched. It moves on
+its own and is remembered on its own; it is nobody's passenger. It sits **over** the map and the
+document viewer, which the other two do not: the moment somebody decides a plan is wrong is
+usually the moment they are looking at the picture of it.
 
 The sheet says what is about to happen before it happens, because five things happen at once:
 

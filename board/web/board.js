@@ -7269,10 +7269,10 @@ if (els.panic && window.Recentre) {
           mapRemember();
           window.Recentre.flash(el);
         } },
-      /* Its tap belongs to the stack too, now that every button in the stack
-         can be pressed and held to move the trio: a `click` listener of its own
-         would fire alongside this one. */
-      { el: els.redirect, w: 150, onTap: function () {
+      /* Its tap is registered here rather than as a `click` listener of its
+         own, because `Recentre` has to tell a tap from a press-and-hold to move
+         the button -- two listeners would fire one after the other. */
+      { el: els.redirect, w: 96, onTap: function () {
           if (els.steer.hidden) steerOpen(); else steerShut();
         } },
     ],
