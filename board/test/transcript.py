@@ -99,9 +99,39 @@ with open(repo.state_path, "w", encoding="utf-8") as fh:
     json.dump({"course": "Test Course", "chapter": "Chapter 7",
                "session": "lecture", "opened": "2026-01-01 10:00"}, fh)
 
+# A MARK ON A CARD BELONGS TO THE SITTING THAT CARD WAS IN.
+#
+# Cards are numbered from 0001 inside a sitting and the annotation record is
+# named after that number, so a record left in `live/annotations` when a
+# section is filed is not stale, it is misfiled: the board reads the directory,
+# keys what it finds by the bare number, and lays last night's ink over
+# tonight's card 1. Reported from the device as old annotations showing up on
+# new tutoring text blocks.
+#
+# A mark on a page of a DOCUMENT is not part of any sitting -- it is anchored
+# to a document this workspace offers, and outlives every lesson in it. Those
+# carry a flattened, digest-carrying name and must be left exactly where they
+# are.
+with open(os.path.join(repo.notes, "0001.json"), "w", encoding="utf-8") as fh:
+    json.dump({"card": "0001", "strokes": [[[1, 2]]]}, fh)
+with open(os.path.join(repo.notes, "0001.png"), "wb") as fh:
+    fh.write(b"\x89PNG\r\n\x1a\n")
+with open(os.path.join(repo.notes, "doc-a-p1-deadbeef.json"), "w",
+          encoding="utf-8") as fh:
+    json.dump({"card": "doc/a/p1", "strokes": []}, fh)
+with open(os.path.join(repo.text, "0001.txt"), "w", encoding="utf-8") as fh:
+    fh.write("half a sentence")
+
 rc = os.system("cd %s && python3 %s archive >/dev/null 2>&1"
                % (tmp, os.path.join(ROOT, "bin", "board")))
 check("archiving a session succeeds", rc == 0)
+left = os.listdir(repo.notes)
+check("no mark keyed by a card number is left behind",
+      not [n for n in left if n[0].isdigit()])
+check("but a mark on a document is not a lesson's to file",
+      "doc-a-p1-deadbeef.json" in left)
+check("nor is a typed draft left to reappear under the next card 1",
+      not os.listdir(repo.text))
 check("the live transcript is cleared for the next lesson",
       not os.path.exists(repo.turns_path))
 check("no answer files are left behind", not os.listdir(repo.answers))
@@ -124,6 +154,11 @@ check("its ink is reachable from inside the archive",
       past["turns"][0]["png"].startswith("/archive/"))
 frozen = os.path.join(repo.archive, sessions[0]["id"], "answers", "t0001-r2.png")
 check("and the file it points at is really there", os.path.isfile(frozen))
+check("a past lesson still carries the marks made on its cards",
+      past["notes"].get("0001") == [[[1, 2]]])
+check("and they are read from the archive, not from the live lesson",
+      os.path.isfile(os.path.join(repo.archive, sessions[0]["id"],
+                                  "annotations", "0001.json")))
 
 # --- a turn id is unique for the life of the course, not of one lesson -------
 #

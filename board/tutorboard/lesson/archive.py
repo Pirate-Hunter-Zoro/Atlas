@@ -7,7 +7,7 @@ to hurry one to a conclusion. The student's own working is in there too.
 import json
 import os
 
-from . import cards, turns
+from . import cards, notes, turns
 
 
 def list_archive(repo):
@@ -64,5 +64,15 @@ def archived_session(repo, name):
         for key in ("png", "ink"):
             if t.get(key, "").startswith("/answers/"):
                 t[key] = "/archive/%s/answers/%s" % (name, t[key][len("/answers/"):])
+    # And the marks made on this sitting's own cards, which travelled in here
+    # with it. Read from the archived folder for the same reason the frozen ink
+    # above is: the live directory has moved on to another lesson whose cards
+    # are numbered from 0001 again, so anything keyed by a card number and left
+    # behind there belongs to a different card of a different evening.
+    saved_notes, repo.notes = repo.notes, os.path.join(folder, "annotations")
+    try:
+        marks = notes.load_notes(repo)
+    finally:
+        repo.notes = saved_notes
     return {"id": name, "state": st, "cards": in_it, "turns": answers,
-            "archived": True}
+            "notes": marks, "archived": True}
