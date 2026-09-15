@@ -118,6 +118,8 @@ var els = {
   paperSub: document.getElementById("paper-sub"),
   paperGet: document.getElementById("paper-get"),
   paperInk: document.getElementById("paper-ink"),
+  paperKeep: document.getElementById("paper-keep"),
+  keepwhat: document.getElementById("keepwhat"),
   paperPages: document.getElementById("paper-pages"),
   carry: document.getElementById("carry"),
   busy: document.getElementById("busy"),
@@ -144,6 +146,7 @@ var els = {
   workTitle: document.getElementById("work-title"),
   workSub: document.getElementById("work-sub"),
   workList: document.getElementById("work-list"),
+  workText: document.getElementById("work-text"),
   workClose: document.getElementById("work-close")
 };
 
@@ -1962,6 +1965,10 @@ function openPaper(kind, label, then) {
         window.Annotate.load(lastLive.notes);
         window.Annotate.loadSent(lastLive.notes_sent);
       }
+      /* Marks restored means there may be something to keep, and the offer is
+         drawn off the store rather than off this session's strokes -- ink put on
+         this document a week ago is still ink on this document. */
+      paintKeep();
       /* The address bar now names this document, so a link to it can be copied
          off the glass. */
       mapRemember();
@@ -2025,6 +2032,8 @@ function closePaper() {
     setAnnotating(false);
   }
   paperOpen = null;
+  closeKeep();
+  if (els.paperKeep) els.paperKeep.hidden = true;
   els.paper.hidden = true;
   document.body.classList.remove("papering");
   mapRemember();               /* and the address stops naming the document */
@@ -2825,6 +2834,9 @@ if (window.Annotate) {
     queueNoteSave();
     paintAnnTools();
     paintNotesSend();
+    /* The offer to keep this writing appears the moment there IS writing, and
+       goes away when the last stroke is erased. Same signal the autosave uses. */
+    paintKeep();
   });
   /* The clipboard is shared with both writing surfaces, so it fills up without
      anything on the lesson being touched: copying on the slate is what makes
@@ -4268,6 +4280,56 @@ function workOn(id) {
   return found;
 }
 
+/* THE STEP, IN FULL, AND IT IS FETCHED ON THE TAP.
+
+   The chip carries a 240-character blurb, which is what a chip on the map wants
+   and is not what this sheet wants: a person tapping a step is about to choose
+   how to work on it, and the choice was being made against three sentences and
+   an ellipsis.
+
+   Fetched rather than carried, because the payload is polled four times a
+   second and a plan's twelve whole steps is tens of kilobytes of it, on every
+   poll, for a panel that is open for as long as it takes to tap one of seven
+   buttons.
+
+   A second tap while the first is in flight is the ordinary case — somebody
+   opens the wrong chip and opens the right one — so the answer is dropped
+   unless it is still the step being asked about. And a request that fails falls
+   back to the blurb rather than to an empty box: the blurb is already here and
+   nothing is gained by hiding it because the network did not answer. */
+var stepWanted = "";
+
+function showStep(chip) {
+  var box = els.workText;
+  if (!box) return;
+  stepWanted = (chip && chip.label) || "";
+  box.textContent = "";
+  box.hidden = true;
+  if (!stepWanted) return;
+  var asked = stepWanted;
+  var blurb = (chip && chip.summary) || "";
+  box.textContent = "reading the plan…";
+  box.hidden = false;
+
+  function settle(text) {
+    if (asked !== stepWanted) return;
+    box.textContent = text;
+    box.hidden = !text;
+    box.scrollTop = 0;
+  }
+  fetch("/plan/step", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ step: asked })
+  }).then(function (r) {
+    return r.json().catch(function () { return {}; });
+  }).then(function (got) {
+    settle((got && got.ok !== false && got.text) ? got.text : blurb);
+  }).catch(function () {
+    settle(blurb);
+  });
+}
+
 function openWork(id, step) {
   /* Last time's "waiting on" line goes before this time's is worked out. The
      sheet's list is rebuilt from scratch every open; this line is not in the
@@ -4294,8 +4356,8 @@ function openWork(id, step) {
   if (chip) sub.push("step " + chip.num + (node ? " · " + node.name : ""));
   else if (node && node.also) sub.push(node.also);
   if (node && node.does && !chip) sub.push(node.does);
-  if (chip && chip.summary) sub.push(chip.summary);
   els.workSub.textContent = sub.join(" — ");
+  showStep(chip);
 
   /* WHAT THIS ONE IS WAITING ON, and it is the field nothing could set until a
      map could be written by hand. Discovery can see that a directory exists and
@@ -7120,7 +7182,101 @@ els.pushedView.onclick = function () { openPaper(bannerKind); };
 if (els.paperInk) {
   els.paperInk.onclick = function () {
     setAnnotating(!(window.Annotate && window.Annotate.isOn()));
+    paintKeep();
   };
+}
+
+/* ------------------------------------------------- keeping what was written */
+
+/* Ink on the document that is open, counted off the annotation store. The keys
+   are the ones `openPaper` put on the page boxes, so this asks the same
+   question the burner will ask on the server: is there anything on this
+   document at all. */
+function inkOnPaper(kind) {
+  if (!kind || !window.Annotate) return 0;
+  var ident = kind.indexOf("doc/") === 0 ? kind.slice(4) : kind;
+  var prefix = "doc/" + ident + "/p";
+  return window.Annotate.marked().filter(function (id) {
+    return id.indexOf(prefix) === 0;
+  }).length;
+}
+
+/* The button appears when there is something to keep and goes away when there
+   is not. Offering it over a clean document would be offering to write a file
+   identical to the one already there. */
+function paintKeep() {
+  if (!els.paperKeep) return;
+  var n = paperOpen ? inkOnPaper(paperOpen) : 0;
+  els.paperKeep.hidden = !n;
+  els.paperKeep.textContent = n === 1 ? "keep writing (1 page)"
+                                      : "keep writing (" + n + " pages)";
+}
+
+function closeKeep() { if (els.keepwhat) els.keepwhat.hidden = true; }
+
+/* The outcome, in the viewer's own subtitle, which is where this panel already
+   says how many pages a document has. Not `paperSay`: that one replaces the
+   pages with a message, and the pages are what somebody is looking at. */
+var keepSaidTimer = null;
+function keepSaid(text) {
+  if (!els.paperSub) return;
+  var was = els.paperSub.dataset.was || els.paperSub.textContent;
+  els.paperSub.dataset.was = was;
+  els.paperSub.textContent = text;
+  clearTimeout(keepSaidTimer);
+  keepSaidTimer = setTimeout(function () {
+    els.paperSub.textContent = els.paperSub.dataset.was || "";
+    delete els.paperSub.dataset.was;
+  }, 4000);
+}
+
+function keepWriting(mode) {
+  closeKeep();
+  var kind = paperOpen;
+  if (!kind) return;
+  if (mode === "none") {
+    /* Answered here as well as on the server, so that the one choice which
+       writes nothing also costs nothing -- no request, no page drawn, and the
+       marks left exactly where they are. */
+    keepSaid("Kept on the board. Nothing written to a file.");
+    return;
+  }
+  els.paperKeep.disabled = true;
+  var was = els.paperKeep.textContent;
+  els.paperKeep.textContent = "writing…";
+  fetch("/annotate/burn", {
+    method: "POST", credentials: "same-origin",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ kind: kind, mode: mode })
+  }).then(function (r) { return r.json(); }).then(function (got) {
+    els.paperKeep.disabled = false;
+    els.paperKeep.textContent = was;
+    if (!got || !got.ok) {
+      keepSaid((got && got.detail) || "That did not work.");
+      return;
+    }
+    keepSaid(got.detail || "Saved.");
+    /* The pages under the viewer are now a render of a file that has changed,
+       so the one that was overwritten is reopened rather than left showing the
+       version from before the ink went in. */
+    if (got.mode === "same") openPaper(kind, els.paperName.textContent);
+  }).catch(function () {
+    els.paperKeep.disabled = false;
+    els.paperKeep.textContent = was;
+    keepSaid("The board did not answer.");
+  });
+}
+
+if (els.paperKeep) {
+  els.paperKeep.onclick = function () {
+    if (!els.keepwhat) return keepWriting("new");
+    els.keepwhat.hidden = false;
+  };
+}
+if (els.keepwhat) {
+  document.getElementById("keep-same").onclick = function () { keepWriting("same"); };
+  document.getElementById("keep-new").onclick = function () { keepWriting("new"); };
+  document.getElementById("keep-none").onclick = function () { keepWriting("none"); };
 }
 
 els.paperGet.onclick = function (e) { saveCopy(paperOpen, e.currentTarget); };

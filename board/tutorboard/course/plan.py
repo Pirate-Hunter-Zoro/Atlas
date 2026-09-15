@@ -437,3 +437,68 @@ def status(root, state):
         "here": here,
         "next": found[0]["label"],
     }
+
+
+# How much of one step may be read back out of the plan. A step here runs to
+# sixty lines; two hundred is room for the longest and a stop before a plan with
+# no next step hands over the rest of the file.
+WHOLE_LINES = 200
+
+
+def whole(root, label):
+    """Every line the plan wrote about ONE step, as it wrote them.
+
+    `steps` trims a step to 240 characters, which is the right length for a chip
+    and the wrong one for the sheet that opens when somebody taps it: that sheet
+    asks what to do about this step, and it was asking about three sentences and
+    an ellipsis. The body is where the plan says what the work actually is.
+
+    Read back off disk between the step's own line and the next step's, the same
+    window `map._step_text` matches modules over, and with the indentation the
+    plan uses stripped evenly so a step written four spaces in is not shown four
+    spaces in inside a panel 24rem wide. Line breaks are KEPT -- these plans put
+    sub-steps on their own lines and joining them into a paragraph is what the
+    240-character blurb already does.
+
+    `None` when no step has that label, which is the same miss `/session` makes
+    of a step name that is not one of ours: an id from a browser is looked up in
+    what the plan actually says and never turned into a path.
+    """
+    found = steps(root)
+    here = None
+    for i, step in enumerate(found):
+        if step["label"] == label:
+            here = i
+            break
+    if here is None:
+        return None
+    step = found[here]
+    target, line = step.get("file"), step.get("line")
+    if not target or not line:
+        return None
+
+    stop = None
+    for later in found[here + 1:]:
+        if later.get("file") == target and later.get("line"):
+            stop = later["line"]
+            break
+    try:
+        with open(target, "r", encoding="utf-8", errors="replace") as fh:
+            lines = fh.read().splitlines()
+    except OSError:
+        return None
+    end = len(lines) if stop is None else max(line, stop - 1)
+    body = lines[line - 1:min(end, line - 1 + WHOLE_LINES)]
+
+    while body and not body[-1].strip():
+        body.pop()
+    pad = [len(x) - len(x.lstrip()) for x in body if x.strip()]
+    cut = min(pad) if pad else 0
+    return {
+        "num": step["num"],
+        "title": step["title"],
+        "label": step["label"],
+        "where": _short(root, target),
+        "line": line,
+        "text": "\n".join(x[cut:] if x.strip() else "" for x in body),
+    }
