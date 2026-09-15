@@ -1120,8 +1120,31 @@ function penSeen() {
   }, 500);
 }
 
+/* A CONTROL IS NOT A PLACE TO DRAW, AND THE PEN HAS TO BE ABLE TO PRESS ONE.
+
+   This listener is on the DOCUMENT, so it sees the touch that lands on the
+   annotation bar exactly as it sees one that lands on a card. A
+   `preventDefault` on `touchstart` is also what suppresses the synthetic click
+   the browser would otherwise send -- so with a stylus the Pen, Erase, Select,
+   undo and colour buttons took the touch and then did nothing, and the only way
+   to change tools was to put the pencil down and use a finger. Reported as:
+   "I'm trying to use the pen to select the eraser tool ... I have to use my
+   finger".
+
+   So the refusal is about the ink, and it stops at the edge of anything that is
+   a control. Nothing is given up by letting these through: a button has no
+   scroll of its own to refuse. The writing surface's own tools are covered by
+   the same test, because the board draws them into the same page. */
+function onControl(ev) {
+  var t = ev && ev.target;
+  if (!t || !t.closest) return false;
+  return !!t.closest("button, a, input, textarea, select, label, [role='button'],"
+                     + " .annbar, .sl-tools");
+}
+
 function onTouchStart(ev) {
   if (!on) return;
+  if (onControl(ev)) return;
   if ((drawing || stylus(ev)) && ev.cancelable) ev.preventDefault();
 }
 

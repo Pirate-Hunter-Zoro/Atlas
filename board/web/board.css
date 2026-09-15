@@ -108,8 +108,28 @@ body { background: var(--paper); min-height: 100vh; min-height: 100dvh; }
 #btn-home { color: var(--ink-2); text-decoration: none; font-size: 1.1rem;
             line-height: 1; padding: .1rem .3rem .25rem; border-radius: .3rem; }
 #btn-home:hover { background: var(--paper-2); color: var(--ink); }
-#course { font-weight: 650; letter-spacing: .01em; white-space: nowrap; }
-#chapter { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* WHAT GIVES WAY FIRST, WHEN THE ROW IS FULLER THAN THE GLASS IS WIDE.
+
+   Every item here was `nowrap` and none of them could shrink, so the group
+   simply overran and `.bar-left`'s `overflow: hidden` cut the last one through
+   the middle of a word -- a chip reading "claud" hard against the map button,
+   with no ellipsis to say it had been cut. Reported as: "the things at the top
+   bar get kind of cut off."
+
+   A flex item cannot shrink below its own text unless it is told its minimum is
+   zero, which is what makes the ellipsis possible at all. The order is the
+   order of what can be spared: the chapter goes first (the lesson says which
+   chapter it is), then the tutor's words, then the course name last -- it is
+   the one thing naming where you are. */
+#course {
+  font-weight: 650; letter-spacing: .01em; white-space: nowrap;
+  flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis;
+  flex-shrink: 1;
+}
+#chapter {
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  flex: 0 1 auto; min-width: 0; flex-shrink: 3;
+}
 .muted { color: var(--ink-3); }
 
 .dot {
@@ -149,14 +169,23 @@ body { background: var(--paper); min-height: 100vh; min-height: 100dvh; }
   padding: .18rem .4rem; border-radius: .25rem;
   background: var(--paper-2); color: var(--ink-3);
 }
+/* A BLOCK, NOT A FLEX BOX, SO THE WORDS CAN END IN AN ELLIPSIS.
+   `text-overflow` acts on inline content; in an `inline-flex` the words are a
+   flex item and it never fired, so a squeezed chip was chopped rather than
+   trimmed. Its minimum is the dot: the colour is the half that carries the
+   state, and a dot alone against the map button still says attached, working or
+   dead. The words are on the chip's `title` and in the strip below. */
 .agent {
-  display: inline-flex; align-items: center; gap: .3rem;
-  min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  display: block;
+  flex: 0 1 auto; flex-shrink: 2; min-width: .45rem;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   font-size: .68rem; color: var(--ink-3);
 }
 .agent::before {
   content: ""; width: .45rem; height: .45rem; border-radius: 50%;
   background: var(--ink-3);
+  display: inline-block; vertical-align: middle; margin-right: .3rem;
+  flex: none;
 }
 .agent[data-state="listening"]::before,
 .agent[data-state="attached"]::before { background: #35a35f; }
