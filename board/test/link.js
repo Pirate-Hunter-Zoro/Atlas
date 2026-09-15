@@ -773,6 +773,28 @@ if (es && window.Annotate) {
                + '-- or it refuses everything, including the pinch');
       ink('pointerup', 180, 60, 0.5);
 
+      // AND A PENCIL THAT IS MERELY NEAR THE GLASS CLOSES NOTHING OFF.
+      //
+      // An Apple Pencil hovers: within about a centimetre it sends
+      // `pointermove` with `pointerType: "pen"` and no contact anywhere. The
+      // latch was refreshed on every one of them, so holding the pencil over
+      // the lesson kept `body.pen-writing` alive indefinitely and the layer went
+      // on refusing the one-finger pan for as long as the pencil was in
+      // somebody's hand. Reported from the iPad: "I'm annotating with my pencil,
+      // but try to scroll with my finger, which doesn't work while annotating."
+      //
+      // The latch is about a nib that is DOWN. A stroke in progress is the whole
+      // of the test, and the case it exists for -- the next stroke of the same
+      // word -- is covered by the 700 ms window it already has.
+      doc.body.classList.remove('pen-writing');
+      ink('pointermove', 200, 60, 0);
+      ink('pointermove', 220, 62, 0);
+      !doc.body.classList.contains('pen-writing')
+        ? ok('and a pencil hovering over the lesson closes nothing off, so a '
+             + 'finger can still scroll it')
+        : fail('hovering the pencil latches the scroll shut, which is it shut '
+               + 'for as long as the pencil is in your hand');
+
       // And a lift the layer never sees -- the nib leaving past its edge, the
       // browser taking the gesture, the app going to the background -- must not
       // leave a stroke half-open, because the next pen-down would then replace it
