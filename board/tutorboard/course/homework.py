@@ -74,6 +74,79 @@ def sets(root):
     return sorted(found.values(), key=lambda s: s["name"])
 
 
+SCAFFOLD = r"""%% ===========================================================================
+%%  %(title)s
+%%
+%%  THE WRITE-UP, and it is the assistant's to type.
+%%    The assistant transcribes each question or topic faithfully and emits an
+%%    empty, marked solution region beneath it. The student does the
+%%    mathematics; the assistant typesets what they agreed was right.
+%% ===========================================================================
+\documentclass[11pt]{article}
+%(preamble)s
+\title{%(title)s}
+\author{%(author)s}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+%% One problem/solution pair per thing worked, in the order it was assigned or
+%% chosen. A region stays empty until the answer in it is agreed correct.
+
+\end{document}
+"""
+
+PLAIN_PREAMBLE = r"""\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage[margin=1in]{geometry}
+%% The two environments everything here is written in. A workspace with its own
+%% `coursemacros.sty` gets that instead, and these match its definitions so a
+%% document reads the same either way.
+\newenvironment{problem}[1]
+  {\par\medskip\noindent\textbf{Problem #1.}\ \itshape}
+  {\par\medskip}
+\newenvironment{solution}
+  {\par\noindent\textbf{Solution.}\ }
+  {\par\medskip}
+\newcommand{\todo}[1]{\textbf{[TODO: #1]}}
+"""
+
+
+def scaffold(root, name, title=None, author=None):
+    """Start a write-up for something that has none, and return its record.
+
+    A course has its sets laid down by its own `make scaffold`. Everything else
+    -- a line of research, a paper being read, an evening spent on one idea --
+    has nowhere for the write-up to go, so the rule that an agreed answer gets
+    typeset could not be followed there at all. This is the missing floor:
+    `homework/<name>/<name>.tex`, which is the portable layout `sets()` already
+    looks for, so the document is bound and reported the moment it exists.
+
+    Refuses to overwrite. A write-up already started is somebody's evening.
+    """
+    slug = re.sub(r"[^a-z0-9-]+", "-", str(name or "").strip().lower()).strip("-")
+    if not slug:
+        return None, "a write-up needs a name: board hw new <name>"
+    where = os.path.join(root, "homework", slug)
+    tex = os.path.join(where, slug + ".tex")
+    if os.path.exists(tex):
+        return None, "%s already exists" % os.path.relpath(tex, root)
+
+    has_macros = os.path.isfile(os.path.join(root, "latex", "coursemacros.sty"))
+    preamble = "\\usepackage{coursemacros}\n" if has_macros else PLAIN_PREAMBLE
+    body = SCAFFOLD % {
+        "title": title or slug.replace("-", " ").title(),
+        "preamble": preamble,
+        "author": author or "",
+    }
+    os.makedirs(where, exist_ok=True)
+    with open(tex, "w", encoding="utf-8") as fh:
+        fh.write(body)
+    return {"name": slug, "tex": os.path.abspath(tex),
+            "rel": os.path.relpath(tex, root), "dir": where}, None
+
+
 def assignment(set_dir):
     """The sheet as it was handed out, if the set keeps one.
 
@@ -133,6 +206,37 @@ def find(root, state):
                 return s
     if len(every) == 1:
         return every[0]
+    return None
+
+
+def bound(root, state):
+    """The set this sitting is WRITING INTO, or None -- pinned or named, only.
+
+    Narrower than `find`, and deliberately: `find` also falls back to the lone
+    set in a course, which is the right answer for "compile the thing" and the
+    wrong one for "put a homework line in front of the assistant every turn".
+    A course with one set would then carry that line through a sitting about
+    something else entirely, and a line that is sometimes noise stops being read.
+
+    A session label naming a chapter IS a binding. `board hw use` writes the pin,
+    but a lecture that opens as "Ch 4 -- field extensions" and works the chapter's
+    exercises is writing them up into ch04's file whether or not anybody ran that
+    command, and the write-up is owed either way.
+    """
+    every = sets(root)
+    if not every:
+        return None
+    pinned = (state or {}).get("hw")
+    if pinned:
+        want = os.path.abspath(os.path.join(root, pinned))
+        for s in every:
+            if s["tex"] == want or s["name"] == pinned:
+                return s
+    names = _hints((state or {}).get("chapter")) + _hints((state or {}).get("course"))
+    for n in names:
+        for s in every:
+            if s["name"] == n:
+                return s
     return None
 
 

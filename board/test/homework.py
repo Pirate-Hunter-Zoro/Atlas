@@ -117,6 +117,24 @@ try:
     check("and says what there was to choose from",
           homework.status(prob, {})["ambiguous"] == ["hw04", "hw05"])
 
+    # --- which set is being WRITTEN INTO, which is a narrower question --------
+    #
+    # `find` answers "compile what?" and falls back to the lone set in a course.
+    # `bound` answers "is this sitting owing a write-up?", and that one may not
+    # guess: a line put in front of the assistant every turn has to be about the
+    # file the sitting is actually filling, or it becomes noise and stops being
+    # read. A chapter named in the session label is a binding; nothing is not.
+    check("a named chapter binds the sitting without anybody running `hw use`",
+          (homework.bound(gal, {"session": "lecture",
+                                "chapter": "Ch 7 — splitting fields"}) or {}).get("name")
+          == "ch07")
+    check("a pin binds it too",
+          (homework.bound(prob, {"hw": "homework/hw04/hw04.tex"}) or {}).get("name")
+          == "hw04")
+    check("a sole set is NOT a binding, though it is a findable set",
+          homework.bound(gal, {"session": "lecture", "chapter": "loose ends"}) is None
+          and (homework.find(gal, {}) or {}).get("name") == "ch07")
+
     # --- how much of it is done ----------------------------------------------
     st = homework.status(prob, {"chapter": "Homework 4"})
     check("every problem is counted", st["total"] == 3)
@@ -229,6 +247,84 @@ try:
 
     code, out = run(gal, "hw", "list")
     check("list works without a session being open", code == 0 and "ch07" in out)
+
+    # ---- a write-up for something that has none -----------------------------
+    #
+    # Every sitting produces a compiled document, and most workspaces are not
+    # courses: there is no chapter to bind and no sheet to bind to, so the rule
+    # had no file to be obeyed with and the evening stayed in the cards. The
+    # portable layout is the answer, because `sets()` already looks for it.
+    bare = os.path.join(tmp, "bare")
+    write(os.path.join(bare, "tutorboard.json"), '{"name": "B", "mode": "math"}')
+    check("a workspace can start with no sets at all", homework.sets(bare) == [])
+
+    made, why = homework.scaffold(bare, "Yoneda Lemma", title="Notes on Yoneda")
+    check("one can be started by name", made and why is None)
+    check("in the layout every workspace can hold",
+          made and made["rel"] == os.path.join("homework", "yoneda-lemma",
+                                               "yoneda-lemma.tex"))
+    check("and it is found the moment it exists",
+          [s["name"] for s in homework.sets(bare)] == ["yoneda-lemma"])
+    check("and binds the sitting without a pin",
+          (homework.bound(bare, {"chapter": "Yoneda Lemma"}) or {}) .get("name")
+          == "yoneda-lemma" or
+          (homework.find(bare, {}) or {}).get("name") == "yoneda-lemma")
+
+    body = open(made["tex"], encoding="utf-8").read()
+    check("it carries a title somebody chose", "Notes on Yoneda" in body)
+    check("and stands alone where there is no coursemacros.sty",
+          "newenvironment{problem}" in body and "usepackage{coursemacros}" not in body)
+
+    # A write-up already started is somebody's evening, and a second `new` on the
+    # same name must not be the thing that ends it.
+    again, why2 = homework.scaffold(bare, "yoneda-lemma")
+    check("starting the same one twice refuses rather than overwrites",
+          again is None and "already exists" in (why2 or ""))
+    check("and the first one is untouched",
+          open(made["tex"], encoding="utf-8").read() == body)
+
+    check("a name that flattens to nothing is refused",
+          homework.scaffold(bare, "///")[0] is None)
+
+    # Where the workspace HAS the shared preamble, the document uses it, so a
+    # write-up started this way reads like every other one in that course.
+    withmac = os.path.join(tmp, "withmac")
+    write(os.path.join(withmac, "tutorboard.json"), '{"name": "W", "mode": "math"}')
+    write(os.path.join(withmac, "latex", "coursemacros.sty"), "% macros")
+    m2, _ = homework.scaffold(withmac, "reading-group")
+    check("a course's own macros are used when the course has them",
+          "usepackage{coursemacros}" in open(m2["tex"], encoding="utf-8").read())
+
+    code, out = run(bare, "hw", "new", "second-topic", "A", "Second", "Topic")
+    check("the command line starts one too", code == 0 and "second-topic" in out)
+    with open(os.path.join(bare, "live", "state.json"), encoding="utf-8") as fh:
+        check("and pins the sitting to it",
+              json.load(fh).get("hw", "").endswith("second-topic.tex"))
+
+    # ---- the brief carries the debt, in a LECTURE, with nothing pinned -------
+    #
+    # A chapter's exercises get worked in sittings opened as lectures, and the
+    # write-up is owed there exactly as it is in a homework sitting. The brief
+    # used to print a homework line only when `state["hw"]` was set, which only
+    # `board hw use` and `--homework` write. So a lecture opened as "Ch 4" was
+    # never once told that a file existed and was empty; an evening of agreed
+    # mathematics stayed in the cards, and what compiled was the scaffold.
+    #
+    # The counts are the point, not the name. "homework set: ch07" is a fact
+    # about configuration and reads as already handled. "0 of 3 written up" is
+    # a debt.
+    code, out = run(gal, "open", "G", "Ch 07 — splitting fields")
+    with open(os.path.join(gal, "live", "state.json"), encoding="utf-8") as fh:
+        lecture = json.load(fh)
+    check("a lecture pins nothing, which is what made this invisible",
+          lecture.get("session") != "homework" and not lecture.get("hw"))
+    code, out = run(gal, "brief")
+    check("the brief tells a lecture that a chapter's write-up is owed",
+          code == 0 and "ch07" in out)
+    check("and says how much of it, not merely which file",
+          code == 0 and "1 of 3 written up" in out)
+    check("and names the region the next agreed answer goes in",
+          code == 0 and "next 7.2" in out)
 
     # ---- the write-up is part of the commit ------------------------------
     #

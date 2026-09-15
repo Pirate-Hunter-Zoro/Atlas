@@ -53,6 +53,7 @@ The assistant runs these. The student never does.
     board hw [status]                  this sitting's problem set: what is still empty
     board hw list                      every problem set in this repository
     board hw use <name>                say which set this sitting is (hw04, ch07)
+    board hw new <name> [title]        start a write-up where there is none
     board hw build                     compile it; the result appears on the board
     board hw file <label> [--turn tNN]  file a sent page into the set's handwritten/
     board review [status]              what this test review covers
@@ -1214,6 +1215,25 @@ def cmd_hw(live, args):
         print("no problem set called %r in this repository" % want, file=sys.stderr)
         return 1
 
+    if sub == "new":
+        # A WRITE-UP FOR SOMETHING THAT HAS NONE. Courses get their sets from
+        # their own scaffold; a line of research, a paper, an evening on one
+        # idea gets nothing -- so the rule that agreed work is typeset had no
+        # file to be typeset into, and the evening stayed in the cards.
+        if not rest:
+            print("usage: board hw new <name> [title]", file=sys.stderr)
+            return 1
+        made, why = homework.scaffold(live.root, rest[0],
+                                      title=" ".join(rest[1:]) or None,
+                                      author=(state or {}).get("student"))
+        if not made:
+            print(why, file=sys.stderr)
+            return 1
+        live.set_state(hw=made["rel"])
+        print("started %s  (%s)" % (made["name"], made["rel"]))
+        print("this sitting writes into it; board hw build compiles it")
+        return 0
+
     if sub in ("--list", "list"):
         every = homework.sets(live.root)
         if not every:
@@ -1300,7 +1320,7 @@ def cmd_hw(live, args):
         print(os.path.relpath(dest, live.root))
         return 0
 
-    print("unknown: board hw %s  (status, list, use, build, file)" % sub, file=sys.stderr)
+    print("unknown: board hw %s  (status, list, new, use, build, file)" % sub, file=sys.stderr)
     return 1
 
 

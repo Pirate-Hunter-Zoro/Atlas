@@ -88,7 +88,15 @@ class Hub:
         # to it -- a lecture that works through a section's exercises is writing
         # them up into the same file, and the state of that file is exactly as
         # invisible from an iPad either way.
-        if board_state.get("session") == "homework" or board_state.get("hw"):
+        # Bound means pinned OR named by the session label. Requiring the pin
+        # made the panel depend on somebody having run `board hw use`, so a
+        # sitting opened as "Ch 4" filled no file and said nothing about it.
+        bound = None
+        try:
+            bound = homework.bound(self.repo.root, board_state)
+        except Exception:
+            bound = None
+        if board_state.get("session") == "homework" or bound:
             data["hw"] = state.load_hw(self.repo)
         # The names alone, always: the board offers them when switching, and a
         # lecture has no `hw` block to carry them in. A glob, not a parse.
