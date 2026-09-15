@@ -54,6 +54,7 @@ var els = {
   jump: document.getElementById("jump"),
   panic: document.getElementById("panic"),
   findink: document.getElementById("findink"),
+  mapback: document.getElementById("mapback"),
   redirect: document.getElementById("redirect"),
   steer: document.getElementById("steer"),
   steerNow: document.getElementById("steer-now"),
@@ -3919,6 +3920,9 @@ function openMap(why) {
   }
   els.map.hidden = false;
   document.body.classList.add("mapping");
+  /* The way back out of the picture's own pan and zoom, while there is a picture
+     to be lost in. */
+  if (els.mapback) { els.mapback.hidden = false; panicRemeasure(); }
   mapDrawn = "";                       /* the plane had no size while hidden */
   paintMap(mapInfo, (lastLive && lastLive.state) || {});
   if (why !== "restored") mapRemember();
@@ -3929,6 +3933,7 @@ function closeMap() {
   els.map.hidden = true;
   els.work.hidden = true;
   document.body.classList.remove("mapping");
+  if (els.mapback) { els.mapback.hidden = true; panicRemeasure(); }
   mapRemember();
 }
 
@@ -6075,11 +6080,27 @@ function paintBusy(data) {
          saying so would be the board guessing. This is the half-second of the
          send that belongs to the wire. */
       els.busy.hidden = false;
-      els.busyText.textContent = sendingWord || "sending to the tutor";
+      /* THE LINK IS THE FIRST THING THAT COULD BE WRONG, AND IT IS THE ONE
+         THING THE STRIP USED TO BE UNABLE TO SAY.
+
+         "Sending" is a claim about a message being carried, and with the stream
+         down nothing is carrying it: the send may never have left, and no
+         payload is coming to correct the word. The board it was sent to can go
+         down underneath a send -- a restart, a node change, a dropped tailnet
+         link -- and what the person saw was "sending to the tutor" for the rest
+         of the evening. Reported as: "now 'sending to the tutor' is hanging". */
+      els.busyText.textContent = linkDead
+        ? "not connected to the board — this has not been sent yet"
+        : (sendingWord || "sending to the tutor");
+      els.busy.classList.toggle("busy-bad", !!linkDead);
       els.busySince.textContent = "";
       busySince = 0;
       busyTurn = -1;
-      if (busyTimer) { clearInterval(busyTimer); busyTimer = null; }
+      /* AND THE CLOCK KEEPS RUNNING. This used to stop the ticker, so the only
+         thing that could ever clear a stuck "sending" was the next payload --
+         which is precisely what does not arrive when the send is the thing that
+         went wrong. `tickBusy` re-asks on its own now. */
+      if (!busyTimer) busyTimer = setInterval(tickBusy, 1000);
       return;
     }
     els.busy.hidden = true;
@@ -6141,7 +6162,15 @@ function paintBusy(data) {
 }
 
 function tickBusy() {
-  if (!els.busy || els.busy.hidden || !busySince) return;
+  if (!els.busy || els.busy.hidden) return;
+  /* A send with no clock of its own: nothing here counts up, but the expiry has
+     to be able to fire without a payload, and the words change the moment the
+     link does. */
+  if (!busySince && sendingAt) {
+    if (lastLive) paintBusy(lastLive);
+    return;
+  }
+  if (!busySince) return;
   els.busySince.textContent = longAgo(Date.now() - busySince);
   /* A stall keeps its own words -- they say what is wrong, which the writing
      message does not, and the number beside them is doing the counting. */
@@ -6193,7 +6222,7 @@ function placeWriter(owed, questionNode, live) {
     if (wasHidden !== els.findink.hidden) {
       /* The change of pens moves the button under it, so that one is measured
          again too — a stale height leaves a gap or an overlap in the stack. */
-      findSize = null; turnSize = null; panicSoon();
+      panicRemeasure();
     }
   }
   /* The tool bar is fixed to the bottom of the window, so the page has to give
@@ -6833,235 +6862,56 @@ els.jump.onclick = function () {
    shrank as fast as the page grew. So the surface is left alone and this is the
    way back instead: one tap puts the magnification where it started.
 
-   Two things about it are not ordinary.
+   Where the stack sits, how it is dragged, and what the first tap does are all
+   in `recentre.js`, because the front door has the same two ways of being lost
+   and needed the same answer. What is here is which buttons this page has and
+   what the ones under the first one do.
 
-   It is placed from here rather than from CSS. `position: fixed` is fixed to
-   the LAYOUT viewport, and pinching moves the visual one, so a control placed
-   by CSS alone slides off the glass exactly when it is wanted. Its position is
-   kept as a fraction of what can be SEEN, re-applied on every visual-viewport
-   event, and counter-scaled so it stays the same size under a thumb.
+   Four, in order down the glass:
 
-   And it moves. A control that is always on top is a control that is sooner or
-   later on top of the one line you are trying to read, and where that is
-   depends on the hand holding the tablet. A press and hold picks it up; a tap
-   does the thing. The distinction is time, not distance, because a tap on a
-   tablet always travels a little. */
-var PANIC_KEY = "board.panic";
-/* Hard against the right edge, just under the bar: clear of the 46rem prose
-   measure, and high enough that it is not over the writing surface or the tools.
-   Wherever it lands it is in somebody's way eventually, which is what the press
-   and hold is for. */
-var panicAt = { x: .975, y: .1 };      /* of the visible window, its centre */
-var panicHold = null;
+     #panic     the page's own magnification, put back. The one that is dragged.
+     #findink   the view, put back over the writing. A surface with a zoom of
+                its own that `#panic` knows nothing about.
+     #mapback   the same, for the map of this workspace -- which is a plane with
+                its own pan and zoom, covers the whole glass, and until now was
+                painted OVER the way out of both.
+     #redirect  the way out of the whole plan. The only one that changes what
+                the work is rather than where you are looking at it from. */
+function panicSoon() { if (window.Recentre) window.Recentre.soon(); }
+function panicPlace() { if (window.Recentre) window.Recentre.place(); }
+function panicRemeasure() { if (window.Recentre) window.Recentre.remeasure(); }
 
-/* Coalesced to one placement per frame, and its own size measured only when
-   something could have changed it.
+if (els.panic && window.Recentre) {
+  window.Recentre.mount({
+    key: "board.panic",
+    buttons: [
+      { el: els.panic },
+      { el: els.findink, onTap: function (el) {
+          if (!writer || !writer.fitInk) return;
+          writer.fitInk();
+          window.Recentre.flash(el);
+        } },
+      /* THE MAP IS A PLANE, AND A PLANE CAN BE PANNED INTO NOTHING.
 
-   This is hung off every scroll and every visual-viewport event, which during a
-   flick on a tablet is every frame -- and it was reading two offsets and writing
-   a transform each time. A forced layout per scroll event is how a page that is
-   merely scrolling starts to stutter, and a control that stutters while
-   everything else moves smoothly reads as the whole screen misbehaving. */
-var panicFrame = 0;
-var panicSize = null;
-var findSize = null;
-var turnSize = null;
-
-function panicSoon() {
-  if (panicFrame) return;
-  panicFrame = window.requestAnimationFrame(function () {
-    panicFrame = 0;
-    panicPlace();
+         Its own ways back -- the ⤢ in the map's head, and the fit it opens on
+         -- are page chrome, and page chrome is exactly what a pinch pans off
+         the glass. So the map got the same treatment the writing surface
+         already had: a button in the stack that puts the picture back where it
+         opens, at the size it opens at, with the top of it on screen. */
+      { el: els.mapback, onTap: function (el) {
+          if (els.map && els.map.hidden) return;
+          mapView.held = false;
+          mapFit();
+          mapRemember();
+          window.Recentre.flash(el);
+        } },
+      /* Placed, not wired: `#redirect` opens the steer sheet from a listener of
+         its own, further down this file. */
+      { el: els.redirect, onTap: null, w: 150 },
+    ],
   });
 }
 
-function panicPlace() {
-  if (!els.panic || els.panic.hidden) return;
-  var vv = window.visualViewport;
-  var w = vv ? vv.width : window.innerWidth;
-  var h = vv ? vv.height : window.innerHeight;
-  var ox = vv ? vv.offsetLeft : 0;
-  var oy = vv ? vv.offsetTop : 0;
-  var k = (vv && vv.scale) ? vv.scale : 1;
-  /* The button is drawn at 1/k, so the room it takes in the page's own units is
-     its CSS size divided by the magnification. */
-  if (!panicSize || !panicSize.w) {
-    panicSize = { w: els.panic.offsetWidth || 108, h: els.panic.offsetHeight || 32 };
-  }
-  var bw = panicSize.w / k;
-  var bh = panicSize.h / k;
-  var pad = 6 / k;
-  var x = ox + panicAt.x * w - bw / 2;
-  var y = oy + panicAt.y * h - bh / 2;
-  x = Math.min(Math.max(x, ox + pad), ox + w - bw - pad);
-  y = Math.min(Math.max(y, oy + pad), oy + h - bh - pad);
-  els.panic.style.transform =
-    "translate(" + x + "px," + y + "px) scale(" + (1 / k) + ")";
-
-  /* The surface's own re-centre rides directly under it: one thing to move, one
-     place to look. Placed here rather than by CSS for the same reason the first
-     one is -- `position: fixed` is fixed to the layout viewport, and a control
-     that pans off the glass when you pinch is missing at precisely the moment
-     being lost makes you want it. */
-  var under = y + bh + 8 / k;          /* where the next one in the stack goes */
-  if (els.findink && !els.findink.hidden) {
-    if (!findSize || !findSize.w) {
-      findSize = { w: els.findink.offsetWidth || 108,
-                   h: els.findink.offsetHeight || 32 };
-    }
-    var fw = findSize.w / k;
-    var fh = findSize.h / k;
-    var fx = ox + panicAt.x * w - fw / 2;
-    var fy = under;
-    fx = Math.min(Math.max(fx, ox + pad), ox + w - fw - pad);
-    fy = Math.min(Math.max(fy, oy + pad), oy + h - fh - pad);
-    els.findink.style.transform =
-      "translate(" + fx + "px," + fy + "px) scale(" + (1 / k) + ")";
-    under = fy + fh + 8 / k;
-  }
-
-  /* And the third: the way out of the whole plan. Same stack, same placement,
-     for the same reason — the moment somebody decides the direction is wrong is
-     not a moment to go hunting through a menu for the button that says so. */
-  if (els.redirect && !els.redirect.hidden) {
-    if (!turnSize || !turnSize.w) {
-      turnSize = { w: els.redirect.offsetWidth || 150,
-                   h: els.redirect.offsetHeight || 32 };
-    }
-    var tw = turnSize.w / k;
-    var th = turnSize.h / k;
-    var tx = ox + panicAt.x * w - tw / 2;
-    var ty = under;
-    tx = Math.min(Math.max(tx, ox + pad), ox + w - tw - pad);
-    ty = Math.min(Math.max(ty, oy + pad), oy + h - th - pad);
-    els.redirect.style.transform =
-      "translate(" + tx + "px," + ty + "px) scale(" + (1 / k) + ")";
-  }
-}
-
-/* There is no way to set the page's magnification directly -- it is the user's,
-   and rightly so. What a browser does honour is a change to the viewport
-   declaration: clamping the maximum scale to 1 makes it zoom out to fit. The
-   clamp is lifted again a moment later, or the page could never be zoomed in
-   again, which would be a cure worse than the disease. Best effort: on anything
-   that ignores it the scroll still happens, which is most of the value. */
-var panicViewport = null;      /* the declaration to put back, if any */
-
-function panicRestore() {
-  if (!panicViewport) return;
-  var meta = document.querySelector('meta[name="viewport"]');
-  if (meta) meta.setAttribute("content", panicViewport);
-  panicViewport = null;
-}
-
-function panicUnzoom() {
-  var meta = document.querySelector('meta[name="viewport"]');
-  if (!meta) return;
-  var was = meta.getAttribute("content") || "";
-  if (/maximum-scale/.test(was)) return;         /* a reset is already running */
-  panicViewport = was;
-  meta.setAttribute("content", was + ", maximum-scale=1");
-  /* Put it back, and mean it. A clamp left in place is a page that can never be
-     zoomed again -- a worse state than the one this exists to leave, and one
-     with no button of its own. So the restore hangs off everything that could
-     plausibly happen next, not off a single timer that a backgrounded app is
-     free to drop on the floor. */
-  setTimeout(panicRestore, 450);
-  window.addEventListener("pointerdown", panicRestore, { once: true });
-  document.addEventListener("visibilitychange", panicRestore, { once: true });
-}
-
-/* Magnification only. It does NOT move the lesson.
-
-   It did at first, and that was a misreading of what "lost" means here: being
-   zoomed too far into the writing is not the same as being in the wrong part of
-   the transcript, and answering the first with the second takes the page away
-   from somebody who was looking at exactly the right thing. The zoom is the
-   thing that cannot be undone by hand once the surface fills the glass; the
-   scrolling never needed help. */
-function panicRecentre() {
-  panicUnzoom();
-  els.panic.classList.add("hit");
-  setTimeout(function () { els.panic.classList.remove("hit"); }, 420);
-  /* The magnification settles over the next few frames, and every one of them
-     changes what "the visible window" means. */
-  [0, 120, 300, 500].forEach(function (ms) { setTimeout(panicPlace, ms); });
-  panicSize = null;
-}
-
-if (els.panic) {
-  try {
-    var saved = JSON.parse(localStorage.getItem(PANIC_KEY) || "null");
-    if (saved && typeof saved.x === "number" && typeof saved.y === "number") {
-      panicAt = { x: saved.x, y: saved.y };
-    }
-  } catch (e) { /* a corrupt preference is not worth a broken board */ }
-
-  els.panic.addEventListener("pointerdown", function (ev) {
-    ev.preventDefault();
-    try { els.panic.setPointerCapture(ev.pointerId); } catch (e) {}
-    panicHold = {
-      id: ev.pointerId, x: ev.clientX, y: ev.clientY, drag: false,
-      timer: setTimeout(function () {
-        if (!panicHold) return;
-        panicHold.drag = true;
-        els.panic.classList.add("holding");
-        if (navigator.vibrate) { try { navigator.vibrate(8); } catch (e) {} }
-      }, 380),
-    };
-  });
-
-  els.panic.addEventListener("pointermove", function (ev) {
-    if (!panicHold || ev.pointerId !== panicHold.id || !panicHold.drag) return;
-    var vv = window.visualViewport;
-    var w = vv ? vv.width : window.innerWidth;
-    var h = vv ? vv.height : window.innerHeight;
-    var ox = vv ? vv.offsetLeft : 0;
-    var oy = vv ? vv.offsetTop : 0;
-    /* clientX is in the layout viewport's units, which is what the offsets
-       convert out of. */
-    panicAt.x = Math.min(Math.max((ev.clientX - ox) / w, 0), 1);
-    panicAt.y = Math.min(Math.max((ev.clientY - oy) / h, 0), 1);
-    panicPlace();
-  });
-
-  var panicRelease = function (ev) {
-    if (!panicHold || ev.pointerId !== panicHold.id) return;
-    clearTimeout(panicHold.timer);
-    var dragged = panicHold.drag;
-    panicHold = null;
-    els.panic.classList.remove("holding");
-    if (dragged) {
-      try { localStorage.setItem(PANIC_KEY, JSON.stringify(panicAt)); } catch (e) {}
-      return;
-    }
-    if (ev.type !== "pointercancel") panicRecentre();
-  };
-  els.panic.addEventListener("pointerup", panicRelease);
-  els.panic.addEventListener("pointercancel", panicRelease);
-
-  /* No press-and-hold of its own: it is parked against the button above it, so
-     moving that one moves this one. A tap is all it does. */
-  if (els.findink) {
-    els.findink.addEventListener("click", function () {
-      if (!writer || !writer.fitInk) return;
-      writer.fitInk();
-      els.findink.classList.add("hit");
-      setTimeout(function () { els.findink.classList.remove("hit"); }, 420);
-    });
-  }
-
-  ["resize", "scroll"].forEach(function (ev) {
-    if (window.visualViewport) window.visualViewport.addEventListener(ev, panicSoon);
-    window.addEventListener(ev, panicSoon, { passive: true });
-  });
-  window.addEventListener("resize", function () { panicSize = null; });
-  window.addEventListener("orientationchange", function () {
-    panicSize = null;
-    setTimeout(panicPlace, 120);
-  });
-  panicPlace();
-}
 
 /* ------------------------------------------------ changing the direction */
 /* The plan was wrong, and saying so is one tap from wherever they are.

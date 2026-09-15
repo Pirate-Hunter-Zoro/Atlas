@@ -86,7 +86,7 @@ const zoomTo = async (scale, offsetLeft, offsetTop) => {
 
 window.addEventListener('error', (e) => fail('uncaught: ' + e.message));
 
-for (const f of ['typeface.js', 'macros.js', 'gauge.js', 'plane-core.js', 'slate-core.js', 'annotate.js']) {
+for (const f of ['typeface.js', 'macros.js', 'gauge.js', 'recentre.js', 'plane-core.js', 'slate-core.js', 'annotate.js']) {
   try { window.eval(fs.readFileSync(path.join(WEB, f), 'utf8')); }
   catch (e) { fail(f + ': ' + e.message); }
 }
@@ -193,9 +193,9 @@ const press = (type, x, y) => btn.dispatchEvent(
       ? ok('the button says what it does')
       : fail('the button is unlabelled: ' + JSON.stringify(btn.textContent));
     const css = fs.readFileSync(path.join(WEB, 'board.css'), 'utf8');
-    // The rule is shared with the surface's own re-centre, which is the same
-    // control for the other zoom on this page.
-    const rule = (css.match(/#panic(?:,\s*#findink)?\s*\{[^}]*\}/) || [''])[0];
+    // The rule is shared with the re-centres for the other two zooms on this
+    // page -- the writing surface's, and the map's. One shape, one corner.
+    const rule = (css.match(/#panic(?:,\s*#(?:findink|mapback))*\s*\{[^}]*\}/) || [''])[0];
     /background:\s*var\(--accent\)/.test(rule)
       ? ok('and is painted in the accent, not in the page it sits on')
       : fail('the button has no contrasting fill; it reads as a smudge');
@@ -215,14 +215,24 @@ const press = (type, x, y) => btn.dispatchEvent(
     find && find.hidden
       ? ok('and is absent while there is no surface to be lost on')
       : fail('a button offering to find writing on a board that is not there');
-    /#panic,\s*#findink\s*\{[^}]*position:\s*fixed/.test(css)
+    /#panic,\s*#findink[^{]*\{[^}]*position:\s*fixed/.test(css)
       ? ok('and is placed by script against the visible window, as the other is')
       : fail('the second button is laid out by CSS alone, so a pinch takes it '
              + 'off the glass at the moment it is wanted');
-    const js = fs.readFileSync(path.join(WEB, 'board.js'), 'utf8');
-    /els\.findink\.style\.transform/.test(js)
-      ? ok('and rides under the first, so there is one thing to move')
-      : fail('nothing ever positions it');
+    // Asked of the RUNNING page rather than of the source: where the placement
+    // lives moved once already, when the front door needed the same stack and
+    // the machinery came out into `recentre.js`. What must be true is that the
+    // button ends up carrying a transform, wherever the code for it sits.
+    if (find) {
+      find.hidden = false;
+      window.Recentre.remeasure();
+      window.Recentre.place();
+      /translate/.test(find.style.transform || '')
+        ? ok('and rides under the first, so there is one thing to move')
+        : fail('nothing ever positions it');
+      find.hidden = true;
+      window.Recentre.place();
+    }
     !/opacity:\s*0?\.[0-8]/.test(rule)
       ? ok('and is not dimmed away')
       : fail('the button is still faded out at rest');
@@ -454,6 +464,56 @@ const press = (type, x, y) => btn.dispatchEvent(
         : fail('a sheet now covers the top of the glass, so the bar control is '
                + 'unreachable while one is open');
     }
+  }
+
+  // 8. THE MAP IS A PLANE, AND A PLANE CAN BE PANNED INTO NOTHING.
+  //    The map covers the whole glass and has a pan and a zoom the page knows
+  //    nothing about; its own ⤢ is page chrome, which a pinch takes away. So it
+  //    gets the same treatment the writing surface already had -- and the stack
+  //    has to be ABOVE the map while one is open, which is the one thing the
+  //    z-index order got wrong for as long as the map has existed.
+  {
+    const back = doc.getElementById('mapback');
+    back ? ok('the map has a re-centre of its own')
+         : fail('a map panned into empty space has no way back');
+    back && back.hidden
+      ? ok('and is absent while there is no map to be lost on')
+      : fail('the map re-centre is offered with no map on the glass');
+    back && /map/i.test(back.textContent)
+      ? ok('and says which of the three it is')
+      : fail('the three re-centres are not tellable apart');
+    const css = fs.readFileSync(path.join(WEB, 'board.css'), 'utf8');
+    const mapZ = (css.match(/#map\s*\{[^}]*z-index:\s*(\d+)/) || [])[1];
+    const upZ = (css.match(/body\.mapping\s+#panic[^{]*\{[^}]*z-index:\s*(\d+)/) || [])[1];
+    (mapZ && upZ && Number(upZ) > Number(mapZ))
+      ? ok('and the stack rises over the map, which used to paint over it')
+      : fail('the way back is underneath the thing it is a way back from');
+    // And only there: everywhere else the stack's ordinary place in the order is
+    // the right one -- over the lesson, under the menu.
+    /body\.mapping\s+#panic/.test(css)
+      ? ok('and only while the map is open')
+      : fail('the stack was raised everywhere, so it now sits over the menu');
+  }
+
+  // 9. THE SAME TWO ZOOMS EXIST ON THE FRONT DOOR, which had neither way back.
+  //    The atlas is a plane drawn by the same measuring and moved by the same
+  //    gestures as the map, on a page that pinches like any other.
+  {
+    const home = fs.readFileSync(path.join(WEB, 'home.html'), 'utf8');
+    /id="panic"/.test(home)
+      ? ok('the front door has the page re-centre too')
+      : fail('a pinched front door has no way back');
+    /id="atlasback"/.test(home)
+      ? ok('and one for the atlas plane itself')
+      : fail('an atlas panned into empty space has no way back');
+    /static\/recentre\.js/.test(home)
+      ? ok('and it is the same machinery, not a second copy of it')
+      : fail('the front door spells the stack its own way');
+    const hcss = fs.readFileSync(path.join(WEB, 'home.css'), 'utf8');
+    /#panic,\s*#atlasback\s*\{[^}]*position:\s*fixed/.test(hcss)
+      ? ok('and they are placed against the visible window, as on the board')
+      : fail('the front door lays them out by CSS alone, so a pinch takes them '
+             + 'off the glass at the moment they are wanted');
   }
 
   console.log(errors.length ? '\n' + errors.length + ' FAILURES'

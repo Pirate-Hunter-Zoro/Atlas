@@ -881,7 +881,7 @@ body.tools-out .jump { bottom: calc(6.5rem + env(safe-area-inset-bottom)); }
    neither visible nor self-explanatory: it read as a smudge and said nothing
    about what pressing it would do. It carries its own name and the board's
    accent, like every other control that acts rather than describes. */
-#panic, #findink {
+#panic, #findink, #mapback {
   position: fixed; left: 0; top: 0; z-index: 62;
   transform-origin: 0 0;
   display: flex; align-items: center; gap: .35rem;
@@ -900,26 +900,37 @@ body.tools-out .jump { bottom: calc(6.5rem + env(safe-area-inset-bottom)); }
   -webkit-tap-highlight-color: transparent;
   transition: box-shadow .18s, filter .18s;
 }
-#panic svg, #findink svg { width: .95rem; height: .95rem; display: block; flex: none; }
+#panic svg, #findink svg, #mapback svg { width: .95rem; height: .95rem; display: block; flex: none; }
 /* The quieter of the pair: `#panic` is the way out of a zoom there is no
    other way out of, this is a convenience while writing. Same shape, less
    shout, so the one that matters most stays the one the eye finds. */
-#findink {
+#findink, #mapback {
   background: color-mix(in srgb, var(--accent) 22%, var(--paper));
   color: var(--ink);
   border-color: color-mix(in srgb, var(--accent) 45%, var(--rule));
 }
-#panic:hover, #findink:hover { filter: brightness(1.1); }
+
+/* OVER THE MAP, AND ONLY THERE.
+
+   The stack sits at 62 and the map is 96, so on the map the way back was
+   painted over by the very thing somebody was lost in -- and the map's own
+   controls are chrome, which a pinch pans off the glass. Raised while the map
+   is open rather than always, because everywhere else the stack's ordinary
+   place in the order is the right one: over the lesson, under the menu. */
+body.mapping #panic,
+body.mapping #findink,
+body.mapping #mapback { z-index: 97; }
+#panic:hover, #findink:hover, #mapback:hover { filter: brightness(1.1); }
 /* Held down: it has become a thing being moved, and must look like one before
    the finger travels, or the first drag reads as a tap that did nothing. */
-#panic.holding, #findink.holding {
+#panic.holding, #findink.holding, #mapback.holding {
   cursor: grabbing;
   box-shadow: 0 0 0 5px color-mix(in srgb, var(--accent) 32%, transparent),
               0 4px 14px rgba(0,0,0,.3);
 }
 /* Tapped: acknowledge it, because what the tap does is a change of scale and
    not a change of content, which is easy to miss on a page you were lost in. */
-#panic.hit, #findink.hit { filter: brightness(1.25); }
+#panic.hit, #findink.hit, #mapback.hit { filter: brightness(1.25); }
 
 /* ---------- the way out of the whole plan ---------- */
 /* The third member of the moveable stack, and the only one that changes
@@ -1250,7 +1261,7 @@ body.papering { overflow: hidden; }
 /* ---------- print ---------- */
 @media print {
   #bar, #drawbar, #scratch, #contents, #review, #papers, .jump, .drop,
-  .finish, .pushed, #panic, #reopen, #viewer, #paper { display: none !important; }
+  .finish, .pushed, #panic, #mapback, #reopen, #viewer, #paper { display: none !important; }
   body { background: #fff; color: #000; }
   #board { max-width: none; padding: 0; }
   .card { break-inside: avoid; animation: none; }
