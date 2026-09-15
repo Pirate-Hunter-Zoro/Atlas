@@ -46,7 +46,7 @@ must be openable and teachable at every point.
 - **Bump `VERSION` in `web/sw.js`** when any shell file changes (`board.html`, `board.js`,
   `board.css`, `plane-core.js`, `gauge.js`, `home.html`, `home.js`, anything added to the
   cache list), or the installed app serves its cached copy and the work is invisible.
-- **`bash test/all.sh` before every ship.** 36 suites, all green. `test/tracked.py` runs
+- **`bash test/all.sh` before every ship.** 65 suites, all green. `test/tracked.py` runs
   first and refuses PHI, 25-megabyte files, model dumps, other authors' papers and
   machine-local config anywhere in the repository — this is public, and git remembers.
 - **Check the address after a ship.** `tutor restart` bounces every board; the HTTPS name
@@ -303,7 +303,17 @@ could look at and not write on.
 - **A mark on a document answers no card**, so `answers` is empty for one and the turn falls to
   where its time puts it. Claiming a card would file it under one it has nothing to do with.
 
-`test/anchor.py` is the suite.
+**A MARK BELONGS TO ITS SITTING, BECAUSE THE KEY DOES NOT.** Cards are numbered from 0001 inside
+one sitting, so `0001` names a different card the moment a section is filed — and both halves of
+the system held the old one. `board archive` moves the card-keyed records into the sitting's own
+folder with the cards, leaving a document's marks where they are: those are anchored to a document
+the workspace offers and outlive every lesson in it. The browser's store is dropped when the
+sitting under it changes, and only then — `load` merges rather than replaces, deliberately, so a
+store dropped on any other payload is ink vanishing between two strokes of one word.
+`archived_session` reads a past sitting's marks out of the archive, so the transcript keeps its
+markup the way it already keeps its ink.
+
+`test/anchor.py` and `test/marks.js` are the suites.
 
 **Exporting.** Four scopes, one exporter, in `document.SCOPES`:
 

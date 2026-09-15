@@ -131,6 +131,14 @@ class Live:
         self.tikz = os.path.join(self.dir, "tikzcache")
         self.slate = os.path.join(self.dir, "slate")
         self.answers = os.path.join(self.dir, "answers")
+        # The same two directories `course.repo.Repo` calls `notes` and `text`,
+        # under the same names, because they are the same directories: marks on
+        # the tutor's cards, and typed answers in progress. Not in the list
+        # below -- a board creates them when it starts, and a CLI command that
+        # only ever reads them should not leave one behind in a repository
+        # nobody has opened a board in.
+        self.notes = os.path.join(self.dir, "annotations")
+        self.text = os.path.join(self.dir, "text")
         for d in (self.dir, self.cards, self.inbox, self.uploads, self.archive,
                   self.tikz, self.slate, self.answers):
             os.makedirs(d, exist_ok=True)
@@ -718,6 +726,38 @@ def cmd_archive(live, args):
         for n in frozen:
             os.rename(os.path.join(live.answers, n), os.path.join(adest, n))
         print("archived %d answer file(s)" % len(frozen))
+
+    # MARKS AND DRAFTS ARE KEYED BY CARD NUMBER, AND CARD NUMBERS START AGAIN
+    # AT 0001 IN EVERY SITTING.
+    #
+    # So a record left behind in `live/` is not merely stale, it is MISFILED:
+    # `notes.load_notes` reads every `NNNN.json` in the directory and hands it
+    # to the board keyed by that bare number, and the board lays it over
+    # whichever card now carries it. Reported from the device as old
+    # annotations showing up on new tutoring text blocks, which is exactly
+    # what it was -- last night's ink on card 1, drawn over tonight's card 1.
+    #
+    # Only the card-keyed ones. A mark on a page of a document is anchored to
+    # the document and not to the lesson, and `writing.ann_file` gives those a
+    # flattened, digest-carrying name for that reason -- they belong to the
+    # workspace and outlive every sitting in it.
+    card_key = re.compile(r"^\d{1,4}\.(json|png)$")
+    marks = sorted(n for n in os.listdir(live.notes)
+                   if card_key.match(n)) if os.path.isdir(live.notes) else []
+    if marks:
+        ndest = os.path.join(dest, "annotations")
+        os.makedirs(ndest, exist_ok=True)
+        for n in marks:
+            os.rename(os.path.join(live.notes, n), os.path.join(ndest, n))
+        print("archived %d annotation file(s)" % len(marks))
+    drafts = sorted(n for n in os.listdir(live.text)
+                    if re.match(r"^\d{1,4}\.txt$", n)) if os.path.isdir(live.text) else []
+    if drafts:
+        tdest = os.path.join(dest, "text")
+        os.makedirs(tdest, exist_ok=True)
+        for n in drafts:
+            os.rename(os.path.join(live.text, n), os.path.join(tdest, n))
+        print("archived %d typed draft(s)" % len(drafts))
     try:
         with open(os.path.join(dest, "state.json"), "w", encoding="utf-8") as fh:
             json.dump(st, fh, indent=2)

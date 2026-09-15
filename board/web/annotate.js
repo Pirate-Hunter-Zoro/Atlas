@@ -1687,6 +1687,38 @@ window.Annotate = {
   /* The server's record of what has been delivered, seeded on load. Same guard
      as `load`: this device is authoritative for a card it already knows about,
      because a mark drawn during the round trip is not in the copy coming back. */
+  /* EVERYTHING THIS PAGE REMEMBERS ABOUT MARKS, DROPPED, BECAUSE THE SITTING
+     UNDERNEATH THEM HAS CHANGED.
+
+     `load` merges and never replaces -- deliberately, because this device's
+     copy is authoritative while somebody is drawing on it and accepting the
+     server's version mid-stroke truncated what had just been drawn. The cost
+     of that is that the store outlives the lesson: card numbers start again at
+     0001 in every sitting, so a page held open across an archive went on
+     holding last night's ink under key `0001` and drew it over tonight's card
+     1. Same for a past sitting opened from the history -- the live lesson's
+     marks were laid over cards they were never made on.
+
+     So the store is dropped when the sitting changes, and only then. Never on
+     a payload: a lesson hears one four times a second. `board.js` owns that
+     decision because it is the thing that knows which sitting is on screen. */
+  forget: function () {
+    Object.keys(store).forEach(function (id) {
+      delete store[id];
+      delete dirty[id];
+      delete handed[id];
+    });
+    past.length = 0;
+    future.length = 0;
+    pick = null;
+    lastCard = null;
+    /* The canvases keep their bitmaps until something repaints them, and a
+       layer whose card has gone is about to be removed anyway -- but the ones
+       that survive the reconcile would otherwise still be showing ink the
+       store no longer has. */
+    Array.prototype.forEach.call(allNodes(), function (c) { draw(c); });
+    onChange();
+  },
   loadSent: function (map) {
     if (!map) return;
     Object.keys(map).forEach(function (id) {

@@ -149,6 +149,10 @@ var els = {
 
 var seenIds = Object.create(null);
 var firstPaint = true;
+/* Which sitting the last frame was of. `null` until the first one, so the marks
+   restored from the very first payload are not thrown away before they are
+   drawn. See the note in `render`. */
+var sittingKey = null;
 /* When a hand last touched the page. Several things here want to put the page
    somewhere and then put it there again a moment later, once the mathematics has
    typeset and the images have decoded and everything above has settled to its
@@ -576,6 +580,27 @@ function render(data) {
     if (reading) { els.jump.hidden = false; return; }
   }
   var state = data.state || {};
+
+  /* WHICH SITTING IS ON SCREEN, AND THE MARKS THAT BELONG TO IT.
+
+     Cards are numbered from 0001 within a sitting, and the annotation store is
+     keyed by that number -- so the key `0001` means a different card the moment
+     a section is archived or a past lesson is opened. Nothing dropped the store
+     at either boundary, and the ink went on being drawn under its old key over
+     whatever card now carries it. Reported from the device: old annotations
+     showing up on new tutoring text blocks.
+
+     The sitting's own stamp is what identifies it, plus its label, because
+     `opened` is to the minute and two sittings can share one. A past lesson is
+     named by the archive's own id, which is unique by construction. */
+  var sitting = data.archived
+    ? "past:" + (reading || "")
+    : "live:" + (state.opened || "") + "|" + (state.chapter || "");
+  if (sittingKey !== null && sitting !== sittingKey && window.Annotate) {
+    window.Annotate.forget();
+  }
+  sittingKey = sitting;
+
   els.course.textContent = state.course || "board";
   /* A review's label is "Test review — Ch 1, Ch 7", which the strip underneath
      already says in full and in the course's own words. Repeating it here costs
@@ -2555,8 +2580,11 @@ function showSession(id, then) {
       bar.hidden = false;
       document.getElementById("reading-what").textContent =
         (d.state && (d.state.chapter || d.state.course)) || id;
+      /* Its own marks, not the lesson's. `render` drops whatever the previous
+         sitting left in the store before this lands. */
       render({ state: d.state || {}, cards: d.cards || [], turns: d.turns || [],
-               uploads: [], messages: [], archived: true });
+               notes: d.notes || {}, uploads: [], messages: [],
+               archived: true });
       if (then) then(d);
     })
     .catch(function () { if (then) then(null); /* else stay where we are */ });
