@@ -288,6 +288,31 @@ await sleep(40);
     ? ok('and a long one says where the answer will appear')
     : fail('a seven-minute doing turn says: "' + says() + '"');
 
+  // AND IT ONLY SAYS "CODE" WHERE THE SITTING IS ABOUT CODE. `doingTurn` is also
+  // true for a paper, for a deck, and for a repository whose standing answer is
+  // `do` with no aim named at all -- and over a sitting doing none of those,
+  // "writing the code and running it" is a sentence about somebody else's
+  // evening. Reported in exactly those terms, from a board the reader did not
+  // know they were on.
+  {
+    const noAim = JSON.stringify({
+      state: { course: 'Galois Theory', session: 'lecture', chapter: 'Ch 04',
+               stance: 'do', declared_stance: 'do' },
+      cards: [{ id: '0001', kind: 'lesson', title: 'opening',
+                html: '<p>Working on it.</p>', mtime: t0 - 5 }],
+      turns: [],
+      agent: { agent: 'claude', state: 'working', turns: 11,
+               turn_started: t0 - 40 },
+      waiting: null, history: 0,
+    });
+    es.onmessage({ data: noAim });
+    await sleep(40);
+    !busy().hidden && !/code/.test(says())
+      ? ok('a doing turn with no aim named says it is working, and claims nothing else')
+      : fail('a sitting that writes no code is described as writing code: "'
+             + says() + '"');
+  }
+
   // And a TEACHING turn is unchanged: its card is the answer, so once it lands
   // there is nothing left to wait for and the strip stops talking. Two frames,
   // because that is the real sequence -- the turn starts with the old card on

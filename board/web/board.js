@@ -5996,7 +5996,7 @@ var busyFrom = 0;
 /* Whether the turn running now is one that does the work. Held rather than
    recomputed in `tickBusy`, which fires on a timer and has no payload. */
 var busyDoing = false;
-var busyMath = false;
+var busyAim = "";                /* what the work IS, when the turn does it */
 var busyTimer = null;
 /* WHEN SEND WAS TAPPED, AND WHETHER ANYTHING HAS ANSWERED YET.
 
@@ -6256,9 +6256,7 @@ function paintBusy(data) {
   /* A new turn restarts the clock; the same turn continuing does not. */
   var turn = st.turns || 0;
   busyDoing = doingTurn(data.state);
-  /* A turn that DOES the work still does not write code in a repository whose
-     work is mathematics, and saying it does is worse than saying nothing. */
-  busyMath = ((data.state || {}).mode || "") === "math";
+  busyAim = (data.state || {}).aim || "";
   if (busyTurn !== turn || !busySince) {
     busyTurn = turn;
     /* THE DAEMON'S CLOCK, NOT THIS PAGE'S.
@@ -6330,18 +6328,21 @@ function tickBusy() {
      it and reading what came back. Say that instead, and say where the answer
      will appear, because the one-line card already up is not it. */
   if (busyDoing) {
-    /* Say WHAT it is working on only where that is known. On a mathematics
-       board it is the mathematics, and naming code there is a sentence about
-       somebody else's evening. */
-    if (busyMath) {
-      els.busyText.textContent = secs > 150
-        ? "still working on it — the answer lands here"
-        : "working on it";
-      return;
-    }
+    /* WHAT the work is, and only where the sitting has said. A turn that does
+       the work is not always a turn that writes code: `doingTurn` is true for a
+       paper and for a deck as well, and it is true for a repository whose
+       standing answer is `do` without naming any aim at all. Saying "writing
+       the code and running it" over a sitting that is doing none of those is a
+       sentence about somebody else's evening -- reported, from the wrong board,
+       as "that doesn't make much sense as a message". So the aim chooses the
+       words and the fallback claims nothing. */
+    var doingWord = busyAim === "build" ? " — writing the code and running it"
+                  : busyAim === "paper" ? " — writing it up"
+                  : busyAim === "slides" ? " — putting the deck together"
+                  : "";
     els.busyText.textContent = secs > 150
-      ? "still working — writing the code and running it. The report lands here"
-      : "working on it — writing the code and running it";
+      ? "still working" + doingWord + ". The report lands here"
+      : "working on it" + doingWord;
     return;
   }
   /* Past a couple of minutes, silence stops being reassuring. Say that this one

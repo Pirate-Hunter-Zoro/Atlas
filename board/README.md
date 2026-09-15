@@ -92,6 +92,11 @@ a sheet; opening from the sheet moves the board through `/switch`.
   project is planned by a task list, so it is the first open step. Asking only about steps left
   every course's card blank, which on a front door reads as "nothing to do here" rather than "this
   one is a book".
+- **THE BUSY STRIP NAMES THE WORK ONLY WHERE THE SITTING HAS.** `doingTurn` is true for a
+  build, a paper, a deck, and for a repository whose standing answer is `do` with no aim at
+  all — so the words come off `state.aim`, and with none they claim nothing beyond "working
+  on it". `mode` is NOT available to branch on and must not be resurrected: `read_config`
+  drops it deliberately, because a subject is not a setting.
 - **THE FACE IS A WEB FONT, SO THE FIRST MEASUREMENT IS OF THE WRONG ONE.** `measureText`
   answers in whatever the canvas can resolve at that moment, and OpenDyslexic is declared
   `font-display: swap` — so on a cold load the wrap is computed against a much narrower
