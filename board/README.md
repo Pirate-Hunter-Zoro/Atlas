@@ -459,6 +459,11 @@ is wrong even when every suite is green.
   always** — a plan is most often discovered to be wrong while looking at the picture of it, so
   the one control promised to be reachable at any moment has to be over the two things that
   cover the whole screen.
+- **NOTHING AUTOMATIC CLAIMS THE ADDRESS.** `board vpn serve` is the FORCED claim and its
+  whole meaning is a person saying "point it at THIS course"; `board vpn serve --if-free`
+  asks first, through `ts_repoint`, and is what `link()` in `bin/tutor` calls on every
+  launch. Calling the forced one there meant starting a tutor in any workspace took the
+  address from whatever course was being read on the iPad. `test/serving.py` is the suite.
 - **ONE HTTPS NAME, ONE BOARD, AND A DEPLOY MUST NOT MOVE IT.** `tailscale serve status`
   prints a TCP forward per board AND the https names at the bottom; only the `/ proxy
   http://127.0.0.1:PORT` lines say where a NAME points, and reading the first `127.0.0.1:`

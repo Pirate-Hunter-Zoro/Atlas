@@ -2500,6 +2500,9 @@ def cmd_vpn(live, args):
             if not info:
                 print("start the board first", file=sys.stderr)
                 return 1
+            if "--if-free" in args:
+                ts_repoint(info["port"])
+                return 0
             code, out = ts("serve", "--bg", "--https=443",
                            serve_target(info["port"]), timeout=40)
             print(out.strip() or "serving")
@@ -2545,9 +2548,18 @@ def cmd_vpn(live, args):
         if not info:
             print("start the board first", file=sys.stderr)
             return 1
-        # Forced on purpose: this is the one command whose whole meaning is
-        # "point the address at THIS course", so it takes the name from whoever
-        # is holding it. Everything else asks first -- see ts_repoint.
+        # `--if-free` ASKS FIRST, and it is what anything automatic must use.
+        #
+        # A bare `serve` is forced on purpose: it is the one command whose whole
+        # meaning is "point the address at THIS course", spoken by a person. That
+        # made it exactly the wrong thing for `link()` in `bin/tutor` to call on
+        # every launch, which it did -- so starting a tutor in any workspace
+        # silently took the address from whatever course somebody was reading on
+        # the iPad. One URL is baked into that device and there is no way from it
+        # to say which course was meant.
+        if "--if-free" in args:
+            ts_repoint(info["port"])
+            return 0
         code, out = ts("serve", "--bg", "--https=443",
                        serve_target(info["port"]), timeout=40)
         print(out.strip() or "serving")
