@@ -744,6 +744,29 @@ BUILD_FORMATS = tuple(f.strip() for f in
                       os.environ.get("PAPER_BUILD_FORMATS", "docx").split(",")
                       if f.strip())
 
+# --- PDF, which is a different machine from .docx ----------------------------
+#
+# A .docx is a zip pandoc writes itself. A PDF goes through a TeX engine, and two
+# of the defaults are wrong for a manuscript full of statistics.
+#
+# pdflatex REFUSES a Unicode minus. `difference +0.008 (−0.001 to 0.017)` stops the
+# run with "Unicode character − (U+2212) not set up for use with LaTeX", and a paper
+# that reports differences has hundreds of them. xelatex reads UTF-8, so it is the
+# default here rather than pandoc's.
+#
+# And xelatex's own default face is Latin Modern, which has no ₀₈₉, no ρ and no ≈.
+# Pandoc reports each one as "Missing character" on stderr and exits 0, so the symbol
+# is simply not on the page — a ρ dropped out of "ρ = 0.41" is a silent change to what
+# the paper says, in the direction nobody checks. So the face is named, and it is one
+# with the coverage: DejaVu Sans is installed on every machine this runs on.
+#
+# Both are overridable because a journal that wants a serif is a real request and this
+# is not the place to argue with it — but then the glyph coverage is the setter's
+# problem, and a run that starts reporting missing characters is why.
+PDF_ENGINE = os.environ.get("PAPER_PDF_ENGINE", "xelatex").strip() or "xelatex"
+PDF_MAINFONT = os.environ.get("PAPER_PDF_MAINFONT", "DejaVu Sans").strip()
+PDF_MONOFONT = os.environ.get("PAPER_PDF_MONOFONT", "DejaVu Sans Mono").strip()
+
 # A reference document supplying the journal's styles, if the project has one. The
 # job prompt may name one per paper; this is the fallback.
 _REFDOC_RAW = os.environ.get("PAPER_REFERENCE_DOCX", "").strip()

@@ -29,9 +29,14 @@ senior author. Read it before proposing an addition to the main text.
 
 ## The packet
 
-Four documents, each as Markdown source plus a built `.docx`. The Markdown is
-the source of truth; the `.docx` is a build artifact and is regenerated rather
-than edited.
+Four documents, each as Markdown source plus a built `.docx` and a built `.pdf`.
+The Markdown is the source of truth; both built forms are artifacts and are
+regenerated rather than edited.
+
+The `.docx` is what the journal takes and what the senior author marks up. The
+`.pdf` is the reading copy: the tutoring board renders PDFs and only PDFs, so it
+is how the packet is read on the iPad beside a lesson rather than on a laptop
+beside one.
 
 | Document | What it is |
 | --- | --- |
@@ -49,7 +54,7 @@ had claimed it was.
 
 All four carry HTML comment blocks at the top and inside sections recording the
 decisions that govern them — naming rules, what may not drift back, which
-reviewer comment a passage answers. Those comments never reach the `.docx`.
+reviewer comment a passage answers. Those comments never reach either built form.
 Read them before editing the prose around them.
 
 ## `parts/` — the packet, one file per section
@@ -126,7 +131,15 @@ From anywhere in this repository:
 rebuild                                  # every document whose Markdown you changed
 rebuild --strict                         # and fail on a figure that will not fit
 rebuild reserve/religion_sensitivity.md  # one document
+
+bash ../scripts/rebuild-packet.sh        # the four packet documents, .docx AND .pdf
 ```
+
+`rebuild` builds a `.docx`. The packet's four also carry a `.pdf`, and
+`scripts/rebuild-packet.sh` is the one command that keeps both current — run it
+after editing any of the four. It names those four rather than building a PDF of
+everything: fifty-five PDFs would bury the packet in the board's document drawer,
+which offers two dozen.
 
 A document is addressed by its path, and its `.docx` is written beside its source,
 so a document in `reserve/` or `review/` rebuilds the same way as one at the top
