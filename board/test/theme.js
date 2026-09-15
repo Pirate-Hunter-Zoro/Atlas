@@ -87,6 +87,66 @@ const board = fs.readFileSync(path.join(WEB, 'board.css'), 'utf8');
   ? ok('board.css still switches --paper by theme')
   : fail('board.css no longer defines a dark --paper — this test is now lying');
 
+// A VERDICT HAS A COLOUR, AND THE COLOUR COSTS NO HEIGHT.
+//
+// Green for right, red for not, amber for a question put back — asked for as
+// "a little more fun/interactive/dopamine reward-esque", and true of a sitting
+// over a repository as much as one over a proof.
+//
+// The constraint that is easy to break later: annotations are anchored as
+// fractions of the card they were drawn on, so a panel that pads a card moves
+// ink that was put down weeks ago. The tint is a background and a spread
+// shadow, and neither is allowed to grow into vertical geometry.
+{
+  const all = rules(board);
+  const decl = (sel) => (all.find(([s]) =>
+    s.split(',').some((one) => one.trim() === sel)) || [null, ''])[1];
+
+  const wants = { correct: '--good', wrong: '--bad', question: '--ask' };
+  for (const kind of Object.keys(wants)) {
+    const d = decl('.card[data-kind="' + kind + '"]');
+    d.includes('--accent') && d.includes(wants[kind])
+      ? ok('a ' + kind + ' card carries ' + wants[kind])
+      : fail('a ' + kind + ' card no longer carries its own colour');
+  }
+
+  const panel = all.find(([sel, body]) =>
+    /\.card\[data-kind="correct"\]\s+\.body/.test(sel) && paintsBackground(body));
+  if (!panel) {
+    fail('a verdict card is no longer washed in its own colour — the board is '
+         + 'back to reading the same whatever it says');
+  } else {
+    ok('and the card is washed in it, not merely ruled down one side');
+    ['wrong', 'question'].forEach((kind) => {
+      new RegExp('\\.card\\[data-kind="' + kind + '"\\]\\s+\\.body').test(panel[0])
+        ? ok('and a ' + kind + ' card is washed in the same way')
+        : fail('only some kinds are washed, which reads as a bug rather than a '
+               + 'verdict');
+    });
+    /(^|;)\s*(padding|margin)(-top|-bottom)?\s*:[^;]*(rem|px|em)\s+/.test(panel[1])
+    || /(^|;)\s*(padding|margin)-(top|bottom)\s*:/.test(panel[1])
+      ? fail('the wash pads the card vertically, which moves every annotation '
+             + 'ever drawn on one: the tint must be paint, not layout')
+      : ok('and it costs no height, so ink stays on the words it was drawn over');
+  }
+
+  const marks = ['correct', 'wrong', 'question'].every((kind) =>
+    decl('.card[data-kind="' + kind + '"] .kind::before').includes('content'));
+  marks
+    ? ok('and each verdict chip carries its own mark')
+    : fail('a verdict is colour alone, which is nothing to somebody who cannot '
+           + 'tell the two of them apart');
+
+  // `.card` is declared in several places; the wash may live in any of them.
+  const light = all.some(([sel, body]) =>
+    sel.split(',').some((one) => one.trim() === '.card') && body.includes('--wash'));
+  const dark = all.find(([sel, body]) =>
+    /body\[data-mode="dark"\]\s*\.card/.test(sel) && body.includes('--wash'));
+  light && dark
+    ? ok('and the wash is mixed for both themes, not just the light one')
+    : fail('the wash is defined once, so one theme gets a tint nobody can see');
+}
+
 console.log(errors.length ? '\n' + errors.length + ' FAILURES'
                           : '\nthe theme reaches the whole window');
 process.exit(errors.length ? 1 : 0);
