@@ -453,19 +453,106 @@ body.annotating #btn-annotate { background: var(--ask); color: #fff; border-colo
   padding: .08rem .32rem;
 }
 
+/* WHAT THE CARD SAYS, IN COLOUR, BEFORE A WORD OF IT IS READ.
+
+   Green got it right, red did not, amber is being asked something. A verdict is
+   the one thing on a board that is worth knowing from across a desk, and it is
+   worth knowing a half second before you have read the sentence that carries it.
+   The kinds already mean this -- `board write correct` is the tutor saying so --
+   so nothing here is a new judgement, only the existing one made visible.
+
+   IT IS NOT ONLY FOR MATHEMATICS. A sitting over a repository has the same three
+   moods: a step that worked, a step that did not, and a question put back to the
+   person. The colours are the sitting's, not the subject's.
+
+   `--wash` is the panel and `--flash` is the moment it lands. Both are mixed
+   from the kind's own `--accent`, so a kind is one colour decision and the rest
+   follows -- including in dark mode, where the accents are already lighter and
+   the wash has to be heavier to show at all against the paper. */
 .card[data-kind="question"] { --accent: var(--ask); }
 .card[data-kind="correct"]  { --accent: var(--good); }
 .card[data-kind="wrong"]    { --accent: var(--bad); }
 .card[data-kind="review"]   { --accent: var(--note); }
 .card[data-kind="note"]     { --accent: var(--ink-3); }
+.card[data-kind="recap"]    { --accent: var(--ink-2); }
 
+.card {
+  --wash:  color-mix(in srgb, var(--accent)  8%, var(--paper));
+  --flash: color-mix(in srgb, var(--accent) 30%, var(--paper));
+}
+body[data-mode="dark"] .card,
+body[data-mode="auto"].sys-dark .card {
+  --wash:  color-mix(in srgb, var(--accent) 14%, var(--paper));
+  --flash: color-mix(in srgb, var(--accent) 34%, var(--paper));
+}
+
+/* THE PANEL COSTS NO HEIGHT, AND THAT IS NOT A DETAIL.
+
+   Marks are anchored as fractions of the card they were drawn on, so a card that
+   grows by a padding moves ink that was put down weeks ago onto the wrong line.
+   So the tint is a background plus a spread `box-shadow` of the same colour --
+   which bleeds the panel out past the text on three sides and paints nothing at
+   all into the layout. The shadow is offset right by its own spread so the left
+   edge stays flush with the accent rule rather than leaking past it.
+
+   `lesson` and `recap` get no panel. They are the reading, and a page tinted
+   end to end says nothing at all. */
 .card[data-kind="question"] .body,
 .card[data-kind="correct"] .body,
 .card[data-kind="wrong"] .body,
-.card[data-kind="review"] .body {
+.card[data-kind="review"] .body,
+.card[data-kind="note"] .body {
   border-left: 3px solid var(--accent);
   padding-left: 1rem;
   margin-left: -1rem;
+  border-radius: 0 .4rem .4rem 0;
+  background: var(--wash);
+  box-shadow: .5rem 0 0 .5rem var(--wash);
+}
+
+/* AND IT ARRIVES LIT. A verdict card lands at flash strength and settles to the
+   wash over a second and a half, so the colour is an event and then a label.
+   Only the three that are a verdict or a question: an aside that pulsed would
+   be an aside demanding the room. */
+.card.fresh[data-kind="correct"] .body,
+.card.fresh[data-kind="wrong"] .body,
+.card.fresh[data-kind="question"] .body {
+  animation: verdict 1.5s ease-out both;
+}
+@keyframes verdict {
+  0%   { background: var(--flash); box-shadow: .5rem 0 0 .5rem var(--flash); }
+  100% { background: var(--wash);  box-shadow: .5rem 0 0 .5rem var(--wash); }
+}
+
+/* The label is a chip in the same colour, with the mark the eye actually reads:
+   a tick, a cross, a question mark. Text, not an icon font and not a picture --
+   it inherits the colour, it scales with the type, and it is still there when a
+   card is folded to its heading, which is often the only thing on screen. */
+.card[data-kind="correct"] .kind,
+.card[data-kind="wrong"] .kind,
+.card[data-kind="question"] .kind {
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  border-radius: .3rem;
+  padding: .14rem .42rem;
+}
+.card[data-kind="correct"] .kind::before  { content: "\2713\00a0"; }
+.card[data-kind="wrong"] .kind::before    { content: "\2715\00a0"; }
+.card[data-kind="question"] .kind::before { content: "?\00a0"; }
+
+/* The one flourish that is purely a reward: the tick pops in. It is small, it
+   happens once, and it is the difference between a colour and a moment. */
+.card.fresh[data-kind="correct"] .kind { animation: pop .55s ease-out both; }
+@keyframes pop {
+  0%   { transform: scale(.72); opacity: 0; }
+  55%  { transform: scale(1.14); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card.fresh[data-kind="correct"] .body,
+  .card.fresh[data-kind="wrong"] .body,
+  .card.fresh[data-kind="question"] .body,
+  .card.fresh[data-kind="correct"] .kind { animation: none; }
 }
 
 /* ---------- prose ---------- */

@@ -216,9 +216,12 @@ thing you can do.
 - **"I do not know how to start" is a legitimate and useful answer.** It means the
   step before this one did not land. Go back one step, teach that, and re-pose --
   do not repeat the same prompt louder, and do not mark them wrong for saying it.
-- **Never label a question `wrong`.** The card kinds carry tone: `wrong` says
-  *you got this wrong*. Use `note` or `review` when you are answering a question,
-  `wrong` only when there is an actual argument with an actual break in it.
+- **Never label a question `wrong`.** The card kinds carry tone, and the board
+  paints it: `correct` lands green, `wrong` red, `question` amber, and the colour
+  is on the glass before a word of the card has been read. `wrong` says *you got
+  this wrong* in a colour you can see from across a desk. Use `note` or `review`
+  when you are answering a question, `wrong` only when there is an actual
+  argument with an actual break in it.
 - A page with both working and a question is both: answer the question, then say
   where the working stands.
 
