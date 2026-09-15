@@ -34,11 +34,15 @@ import re
 import time
 
 from . import paper
-from .. import atlas, paths
+from .. import atlas, fenced, paths
 
 # Where a document worth showing is kept. `live/` is the board's own working
 # directory -- the exported transcript is in there and it is `paper.py`'s, not
 # this module's -- and the rest are build output, dependencies, or data.
+#
+# NOT THE FENCE. `fenced.NEVER` is the fence, it is checked separately, and it
+# is checked on the whole path rather than on the directories this walk happens
+# to prune -- see `_fenced`.
 IGNORE = {"live", "node_modules", "__pycache__", "build", "dist", "target",
           "venv", ".venv", "env", "site-packages", "vendor", "results",
           "data", "test_data", "archive"}
@@ -95,7 +99,8 @@ def _in_repo(root):
         if depth >= MAX_DEPTH:
             dirs[:] = []
         dirs[:] = sorted(d for d in dirs if not d.startswith(".")
-                         and d not in IGNORE and d.lower() not in NOT_OURS)
+                         and d not in IGNORE and d.lower() not in NOT_OURS
+                         and not fenced.refused(d))
         for name in sorted(files):
             if not name.lower().endswith(".pdf") or name.startswith("."):
                 continue
@@ -105,6 +110,24 @@ def _in_repo(root):
     return out
 
 
+def _fenced(path):
+    """Is this document inside a directory nothing here may look into?
+
+    `fenced.NEVER`, on the path as a whole. The pruning above is the cheap half
+    and it is not the rule: it only sees the directories this walk descends
+    through, and this module reaches documents it did not walk to -- the ones a
+    README names, which may be anywhere. `research/PSYCH-ASR/phi/stage1/Audio
+    Transcription.pdf` was offered under the id `audio-transcription`, rendered
+    to PNGs, and its address written into a tutor's prompt next to an
+    instruction to open and read a page of it.
+
+    Asked at any depth, and not standing in for a depth limit or a size floor:
+    those exclude that file today by accident, which is not the same as
+    refusing it.
+    """
+    return fenced.refused(os.path.normpath(path).replace(os.sep, "/"))
+
+
 def _ours(path):
     """Is this a document about this project, or somebody else's paper?
 
@@ -112,9 +135,14 @@ def _ours(path):
     so the directory test that keeps them out of the walk has to apply to what
     the README names too -- or `E-value, Ann Intern Med` turns up in a drawer
     next to the pipeline walkthrough as though it were one of ours.
+
+    And the fence is asked here rather than beside the walk, because this is the
+    one question every route into this module passes through.
     """
     parts = [p.lower() for p in os.path.normpath(path).split(os.sep)]
-    return not any(p in NOT_OURS for p in parts)
+    if any(p in NOT_OURS for p in parts):
+        return False
+    return not _fenced(path)
 
 
 def _pointed_at(root):
@@ -282,6 +310,12 @@ def find(root, ident_wanted):
             target = os.path.realpath(os.path.expanduser(doc["rel"])
                                       if doc["rel"].startswith("~")
                                       else os.path.join(root, doc["rel"]))
+            if _fenced(target):
+                # Unreachable through `documents()`, and asked anyway. This is
+                # the function that turns a name from a browser into a file on
+                # disk, and it is the last place the fence can be asked before
+                # the rasteriser opens it.
+                return None, None
             return (target, doc["name"]) if os.path.isfile(target) else (None, None)
     return None, None
 

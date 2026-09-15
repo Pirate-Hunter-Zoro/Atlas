@@ -24,7 +24,7 @@ still answered on the board. `WALK_SENSE` is the whole of the difference.
 import os
 
 from . import plain
-from .course import config, homework, plan, reading, review, syllabus, walk
+from .course import config, homework, plan, reading, results, review, syllabus, walk
 # `map` is a builtin; the module keeps the name the board calls the thing.
 from .course import map as mapping
 
@@ -281,6 +281,35 @@ def reading_sense(repo):
         "replaces the exercise. One slide per card at most. Never paste a slide "
         "in place of a question, and never show a page you have not opened and "
         "read yourself. " % (found[0]["id"], named))
+
+
+def results_sense(repo):
+    """The figures this workspace made, named, with how to put one on a card.
+
+    `reading_sense`'s shape, for the other kind of picture. A tutor teaching the
+    overlap between two arms had to describe a histogram somebody was looking at
+    on a laptop; the figure exists, the pipeline wrote it, and there was no
+    address for it.
+    """
+    try:
+        found = results.figures(repo.root)
+    except Exception:                                        # noqa: BLE001
+        return ""
+    if not found:
+        return ""
+    named = "; ".join(
+        "%s%s (%s)" % (f["name"], " in " + f["where"] if f["where"] else "",
+                       f["id"])
+        for f in found[:6])
+    return (
+        "THIS WORKSPACE'S OWN FIGURES CAN GO ON THE BOARD, and you may put one "
+        "in a card: write a markdown image whose source is /result/<id> -- for "
+        "example ![the overlap](/result/%s) -- and that figure appears in the "
+        "lesson. The most recently written ones are: %s. These are the "
+        "pipeline's output, not yours: show one to ask about what it shows, "
+        "and say what you are looking at UNDER it. Never show a figure you "
+        "have not opened and read yourself, and never let one stand in place of "
+        "the question. One figure per card at most. " % (found[0]["id"], named))
 
 
 def review_sense(repo, st):
@@ -670,6 +699,7 @@ def _session_sense(repo):
            else METHOD_SENSE + where_sense(book, repo.root))
     how += doing
     how += reading_sense(repo)
+    how += results_sense(repo)
     if kind == "homework":
         st_hw = homework.status(repo.root, st)
         if st_hw and st_hw.get("name"):

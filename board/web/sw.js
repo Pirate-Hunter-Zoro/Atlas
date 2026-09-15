@@ -10,7 +10,7 @@
    network -- a cached lesson is a stale lesson, which is worse than none.
    ========================================================================== */
 
-var VERSION = "board-shell-v118";
+var VERSION = "board-shell-v119";
 
 var SHELL = [
   "/",
@@ -61,7 +61,13 @@ var RUNTIME = /\/static\/(katex\/fonts|fonts)\//;
    cached lesson, made one layer down, and this file's own rule against it is
    the reason it is here. `/view/` renders and `/paper/` is content-addressed by
    the PDF's modification time -- neither wants the shell's cache-then-serve. */
-var LIVE = /^\/(events|board\.json|courses\.json|hosts\.json|health|switch|chose|start|say|upload|slate\/(save|state)|figure\/|uploads\/|slate\/page-|download\/|view\/|paper\/)/;
+/* AND `/result/`, which is the same mistake waiting in a third place. A figure
+   out of a workspace is REBUILT AT THE SAME NAME by the next job -- the id is
+   derived from the path, so `propensity_by_arm.png` is a new picture under an
+   old address every time the pipeline runs. A cached one is last week's result
+   wearing this week's label, which is the one failure a figure on a board must
+   not have: it is being looked at to decide something. */
+var LIVE = /^\/(events|board\.json|courses\.json|hosts\.json|health|switch|chose|start|say|upload|slate\/(save|state)|figure\/|result\/|uploads\/|slate\/page-|download\/|view\/|paper\/)/;
 
 self.addEventListener("install", function (e) {
   e.waitUntil(

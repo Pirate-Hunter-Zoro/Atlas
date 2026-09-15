@@ -233,6 +233,82 @@ try:
     _, after = git(saving, "rev-parse", "HEAD")
     check("and it commits nothing either", before == after)
 
+    # --- DID THIS COMMIT TOUCH THE TOOL? ------------------------------------
+    #
+    # A board is a long-lived process that read the tool's Python when it
+    # started, so a push that changes the tool has to bring the boards back or
+    # they go on serving the old endpoints from pages that look new. The tail of
+    # `save-and-push.sh` decides that, and it asked the question of the wrong
+    # directory: the prefix came from the SCRIPT's own location -- `board/scripts`
+    # -- so the test was `^board/scripts/` and a change to `board/tutorboard/` or
+    # `board/web/`, which is most changes, matched nothing. `ship.sh` was never
+    # affected because it restarts the tutors itself; the save button, `board
+    # finish` and `lesson/git.py` all were.
+    #
+    # Laid out the way the real repository is: the tool under `board/`, a
+    # workspace beside it. `tutor` is a recording stub, because what is being
+    # tested is the decision and not anybody's running board.
+    bounced = make_repo(work, "bounced")
+    tool = os.path.join(bounced, "board")
+    os.makedirs(os.path.join(tool, "web"))
+    shutil.copytree(os.path.join(ROOT, "scripts"), os.path.join(tool, "scripts"))
+    open(os.path.join(tool, "web", "board.js"), "w").write("// the pages\n")
+    git(bounced, "add", "-A")
+    git(bounced, "commit", "-qm", "the tool")
+    git(bounced, "push", "-q", "origin", "main")
+
+    fakebin = os.path.join(work, "bin")
+    os.makedirs(fakebin)
+    restarted = os.path.join(work, "restarted")
+    with open(os.path.join(fakebin, "tutor"), "w") as fh:
+        fh.write('#!/bin/sh\nprintf "%s\\n" "$*" >> "' + restarted + '"\n')
+    os.chmod(os.path.join(fakebin, "tutor"), 0o755)
+    env = dict(os.environ)
+    env["PATH"] = fakebin + os.pathsep + env.get("PATH", "")
+
+    def saved(cwd, script, msg):
+        """Run the sandbox's own copy of the script, and say what it printed."""
+        if os.path.exists(restarted):
+            os.remove(restarted)
+        p = subprocess.run(["bash", script, msg], capture_output=True, text=True,
+                           cwd=cwd, env=env)
+        said = p.stdout + p.stderr
+        bounce = open(restarted).read() if os.path.exists(restarted) else ""
+        return p.returncode, said, bounce
+
+    here = os.path.join(tool, "scripts", "save-and-push.sh")
+    open(os.path.join(tool, "web", "board.js"), "w").write("// changed\n")
+    code, said, bounce = saved(bounced, here, "the board's pages")
+    check("a commit that changed the tool's pages says the boards come back",
+          code == 0 and "the tool changed" in said)
+    check("and the boards are actually restarted",
+          "restart" in bounce)
+
+    open(os.path.join(bounced, "src", "app.py"), "w").write("a lesson\n")
+    code, said, bounce = saved(bounced, here, "a workspace's own work")
+    check("a commit that touched only a workspace restarts nothing",
+          code == 0 and "the tool changed" not in said)
+    check("and nothing was asked to come back", bounce == "")
+
+    # AND THE SAME ANSWER FROM A RELATIVE INVOCATION, which is the quieter half
+    # of the same defect. `${BASH_SOURCE[0]}` is the path as typed, the script
+    # cd's to the repository root before it asks, and `git -C` resolves a
+    # relative directory against THAT -- so `cd board && bash
+    # scripts/save-and-push.sh` asked git about `<root>/scripts`, got nothing,
+    # and skipped the restart without a word.
+    open(os.path.join(tool, "web", "board.js"), "w").write("// changed again\n")
+    code, said, bounce = saved(tool, os.path.join("scripts", "save-and-push.sh"),
+                               "from inside the tool")
+    check("the same commit run by a relative path from inside the tool still "
+          "bounces the boards", code == 0 and "the tool changed" in said
+          and "restart" in bounce)
+
+    open(os.path.join(bounced, "src", "app.py"), "w").write("more lesson\n")
+    code, said, bounce = saved(tool, os.path.join("scripts", "save-and-push.sh"),
+                               "a workspace, from inside the tool")
+    check("and a workspace-only commit run the same way still restarts nothing",
+          code == 0 and "the tool changed" not in said and bounce == "")
+
     # --- THE LOCK A KILLED GIT LEAVES BEHIND --------------------------------
     #
     # Everything above runs git under a subprocess timeout. A git killed at its

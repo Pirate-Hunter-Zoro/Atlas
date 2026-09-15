@@ -33,7 +33,7 @@ import os
 import re
 import time
 
-from . import atlas
+from . import atlas, fenced
 from .course import config, plan
 from .course import map as course_map
 
@@ -129,30 +129,22 @@ def inbox(base=None):
 # the job rather than guessing, because a guessed venue plans the manuscript to
 # the wrong length and a guessed checklist places the wrong obligations.
 
-# Directories a workspace keeps results in, in the order the template's own
-# example names them. Only the ones that exist are offered.
+# WHAT MAY BE MINED, AND WHAT MAY NEVER BE. Both come from `fenced.py`, and the
+# only reason they are named again here is that a caller reads better for it.
 #
-# AN ALLOWLIST, AND IT MUST STAY ONE. `PAPER_SOURCE_DIRS` is what the gathering
-# stage is permitted to mine, and this is the board choosing it on somebody's
-# behalf. A blocklist here -- "everything except the obvious ones" -- would hand
-# a manuscript factory whatever a workspace happens to grow next, and one of the
-# workspaces in this repository holds 308 MB of identifiable therapy audio and
-# its transcripts.
-RESULT_DIRS = ("results", "figures", "tables", "artifacts", "analysis")
-
-# AND NEVER THIS ONE, WHATEVER ELSE CHANGES. `research/PSYCH-ASR/phi/` is session
-# content: the recordings, the turn tables, the joined transcripts. It is fenced
-# from the assistant by `ai-config/policy/phi.py`, which matches the directory
-# NAME -- and this is a second place the same name has to be refused, because
-# what is being written here is not something an assistant reads, it is a
-# configuration line telling a different program which trees to mine.
+# They used to be declared in this file, and `course/reading.py` had its own
+# opinion about the same tree and a different answer: the manuscript factory
+# could not be pointed at `phi/` while the document drawer offered a transcript
+# out of it to a tutor. Two lists about one rule, and one of them wrong.
 #
-# The allowlist above already excludes it and this is belt and braces on
-# purpose. The failure mode is silent and one-way: a job naming that directory
-# would be admitted, gathered, and every number in the resulting ledger would be
-# derived from identifiable patient data, in a manuscript nobody would think to
-# check for it. `test/writing_up.py` fails the suite if this ever stops holding.
-NEVER = ("phi", "data", "inbox", "stage1", "stage2", "raw", "audio")
+# The allowlist is what the gathering stage is permitted to mine -- the board
+# choosing `PAPER_SOURCE_DIRS` on somebody's behalf. The refusal is checked
+# again on top of it, which is belt and braces on purpose: it is what makes
+# adding a name to the allowlist safe without re-deriving which workspaces hold
+# what. `test/writing_up.py` fails the suite if either stops holding.
+RESULT_DIRS = fenced.RESULT_DIRS
+NEVER = fenced.NEVER
+refused = fenced.refused
 
 # Where a delivered manuscript lands inside the workspace that asked for it.
 # TRACKED, which is the point: "the delivered manuscript lands in W under a
@@ -177,12 +169,6 @@ def _evidence(root):
         if os.path.isdir(where) and not refused(where):
             out.append(where)
     return out
-
-
-def refused(path):
-    """Is any part of this path a directory a job must never be pointed at?"""
-    parts = [x.lower() for x in str(path or "").replace("\\", "/").split("/")]
-    return any(x in NEVER for x in parts)
 
 
 def _sections(root):
