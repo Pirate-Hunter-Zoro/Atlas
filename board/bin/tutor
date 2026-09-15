@@ -658,7 +658,13 @@ def link(root):
         return
     # `board net` re-points an existing serve on its own; this is for the case
     # where there is no serve yet, which is every first link on a fresh daemon.
-    code, out = board(root, "vpn", "serve")
+    #
+    # `--if-free`, and that word is the whole of it. A bare `vpn serve` is the
+    # forced claim -- a person saying "point the address at this course" -- and
+    # calling it here meant every tutor launch in every workspace took the name,
+    # whoever was reading whatever on the iPad. Starting a tutor in PSYCH-ASR
+    # dropped somebody mid-proof in Galois Theory into a different course.
+    code, out = board(root, "vpn", "serve", "--if-free")
     if code != 0:
         print(out.strip(), file=sys.stderr)
 
