@@ -278,6 +278,18 @@ function paintAtlas(payload) {
   }
 }
 
+/* And drawn again when the reading face arrives. Every card here is sized by
+   measuring its own text, and a measurement taken before the web font loaded is
+   a measurement of a narrower fallback -- so the first atlas of a cold load is
+   laid out for a face it is not painted in. `gauge.js` says when. */
+if (window.Gauge && window.Gauge.onFace) {
+  window.Gauge.onFace(function () {
+    if (!atlas) return;
+    atlasDrawn = "";
+    paintAtlas(atlas);
+  });
+}
+
 function paintAtlasNow(payload) {
   atlas = payload || { families: [], workspaces: [] };
   var laid = aLayout(atlas);

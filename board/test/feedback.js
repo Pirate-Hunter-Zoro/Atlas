@@ -94,6 +94,11 @@ if (realCreate) {
   window.Slate.create = function (opts) {
     const api = realCreate(opts);
     api.busy = () => !!window.__slateBusy;
+    // The same door, for the narrower question the repaint asks: is a nib on the
+    // glass RIGHT NOW. In jsdom there is no pen, and a synthetic pointerdown with
+    // no matching lift would otherwise leave the surface believing a stroke is
+    // still in progress for the rest of the file.
+    api.inking = () => !!window.__slateInking;
     window.__slate = api;          // the instance, for the page-mapping tests
     return api;
   };
@@ -1085,6 +1090,57 @@ const farDown = Object.assign({}, withNew, {
   /--gap:\s*max\(/.test(wr)
     ? ok('while the strip of page down each side survives, to put a thumb on')
     : fail('the writing surface runs to the edge of the glass again');
+}
+
+// ----------------------------------------------------------------------------
+// A PAYLOAD DOES NOT LAND IN THE MIDDLE OF A STROKE.
+//
+// Repainting the lesson is a few hundred milliseconds of main thread -- the
+// transcript reconciled, cards laid out, KaTeX run -- and the main thread is
+// also what turns pen samples into ink. Payloads arrive constantly WHILE
+// writing, because the writing is what produces them: the slate saves, the
+// server notices, the hub pushes. Reported as: "sometimes when I'm writing on
+// the board, touchscreen response sometimes glitches out for half a second".
+{
+  const inkedCard = card('0009', 'note', 'written while the nib was down', 9);
+  const later = Object.assign({}, lesson, {
+    cards: lesson.cards.concat([inkedCard]),
+  });
+
+  // A nib on the glass, said through the same door the board asks it through.
+  window.__slateInking = true;
+
+  es.onmessage({ data: JSON.stringify(later) });
+  await sleep(30);
+
+  !nodeFor('0009')
+    ? ok('a card that arrives mid-stroke is held rather than drawn under the pen')
+    : fail('the lesson repainted while the nib was down, which is the stall');
+
+  // And it lands the moment the hand comes off -- not seconds later, because a
+  // reply the student is waiting for must not wait on a timer.
+  window.__slateInking = false;
+  await sleep(200);
+  nodeFor('0009')
+    ? ok('and it is drawn as soon as the hand lifts')
+    : fail('the held payload never arrived; the lesson stopped updating');
+
+  // AND A STROKE THAT NEVER ENDS DOES NOT STOP THE LESSON. A nib lifted past the
+  // edge of the glass, a gesture the browser took, an app backgrounded: each can
+  // leave a surface believing a stroke is still in progress. Waiting on that for
+  // ever is a worse failure than the stall the hold avoids.
+  {
+    window.__slateInking = true;
+    const stuck = card('0010', 'note', 'written during a stroke that never ended', 10);
+    es.onmessage({ data: JSON.stringify(Object.assign({}, lesson, {
+      cards: lesson.cards.concat([inkedCard, stuck]),
+    })) });
+    await sleep(900);
+    nodeFor('0010')
+      ? ok('and a hold has a ceiling, so a stuck stroke cannot freeze the lesson')
+      : fail('a stroke that never ended stopped the board updating for good');
+    window.__slateInking = false;
+  }
 }
 
 console.log(errors.length ? '\n' + errors.length + ' FAILURES'

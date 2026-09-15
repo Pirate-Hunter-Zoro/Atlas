@@ -44,7 +44,7 @@ const store = {};
 let storeThrows = false;
 const posts = [];
 
-function board(W, H) {
+function board(W, H, face) {
   const dom = new JSDOM(fs.readFileSync(path.join(WEB, 'board.html'), 'utf8'), {
     runScripts: 'outside-only', pretendToBeVisual: true,
     url: 'https://board.test/board',
@@ -65,7 +65,10 @@ function board(W, H) {
           w += size * (ch === ch.toUpperCase() && ch !== ch.toLowerCase() ? 0.72
                        : ch === ' ' ? 0.28 : 0.52);
         }
-        return { width: w };
+        // A canvas answers in the face it can resolve AT THAT MOMENT. Before the
+        // web font has loaded that is the fallback, which is narrower than the
+        // face the label will actually be painted in.
+        return { width: face && !face.loaded ? w * 0.7 : w };
       },
     };
     return new Proxy(ctx, {
@@ -96,6 +99,24 @@ function board(W, H) {
   window.renderMathInElement = () => {};
   window.requestAnimationFrame = (fn) => setTimeout(fn, 0);
   window.scrollTo = () => {};
+  if (face) {
+    // A FontFaceSet that has not settled yet, and a way to say when it does.
+    const dones = [];
+    let settle;
+    const ready = new Promise((r) => { settle = r; });
+    Object.defineProperty(window.document, 'fonts', {
+      configurable: true,
+      value: {
+        ready,
+        addEventListener: (kind, fn) => { if (kind === 'loadingdone') dones.push(fn); },
+      },
+    });
+    face.land = () => {
+      face.loaded = true;
+      settle();
+      dones.forEach((fn) => { try { fn(); } catch (e) {} });
+    };
+  }
   window.EventSource = function () {
     this.readyState = 1; this.close = function () {}; this.addEventListener = function () {};
   };
@@ -691,6 +712,81 @@ const at = (doc, id) => {
     /id="barmenu"[\s\S]*id="btn-contents"/.test(html)
       ? ok('the contents drawer kept every entry and moved one tap away')
       : fail('the contents drawer was removed rather than moved');
+  }
+
+  // ------------------------------------- measured in the face it is painted in
+  //
+  // The reading face is a web font, served from this repository and declared
+  // `font-display: swap`. Until it has loaded, a canvas measures the FALLBACK --
+  // a much narrower face -- so a map drawn on a cold load is laid out for a font
+  // it is not painted in, and the words run out of their boxes. That is the
+  // defect this whole family of checks exists for, surviving in the one paint
+  // everybody sees. Reported as: "words are overflowing each box".
+  {
+    const face = { loaded: false };
+    const w = board(980, 620, face);
+    const doc = w.document;
+    w.__render(payload());
+    await sleep(15);
+
+    // Measured HERE, in the real face, and never through the gauge: the whole
+    // defect is that the gauge is holding numbers taken in the wrong one, so
+    // asking it whether they fit is asking the accused.
+    const realWidth = (text, size) => {
+      let x = 0;
+      for (const ch of String(text)) {
+        x += size * (ch === ch.toUpperCase() && ch !== ch.toLowerCase() ? 0.72
+                     : ch === ' ' ? 0.28 : 0.52);
+      }
+      return x;
+    };
+    const fits = () => {
+      const over = [];
+      doc.querySelectorAll('#map-sheet .node').forEach((g) => {
+        const box = +g.querySelector('rect.box').getAttribute('width');
+        g.querySelectorAll('text').forEach((t) => {
+          if (t.parentNode !== g) return;
+          const cls = t.getAttribute('class');
+          const size = cls === 'name' ? 15 : cls === 'also' ? 11 : 12;
+          if (realWidth(t.textContent, size) > box - 13 * 2 - 5 + 0.5) {
+            over.push(t.textContent);
+          }
+        });
+      });
+      return over;
+    };
+
+    // Before the face lands the map IS laid out wrong -- that is not a bug in
+    // the map, it is the browser answering with what it has. What must not
+    // happen is it staying that way.
+    const wrongBefore = fits().length;
+
+    // While the fallback is what is being measured, the lines it produced are
+    // too long for the real face -- which is the state the map used to be left
+    // in for good.
+    const before = doc.querySelectorAll('#map-sheet .node text').length;
+    face.land();
+    await sleep(25);
+
+    const over = fits();
+    wrongBefore > 0
+      ? ok('a map drawn before the font loaded does overflow, measured honestly '
+           + '(' + wrongBefore + ' line(s))')
+      : fail('the fallback face was not narrow enough to reproduce the defect, '
+             + 'so this check proves nothing');
+    !over.length
+      ? ok('once the reading face arrives, every label fits the box it is in')
+      : fail('the map kept the measurements it took before the font loaded: '
+             + JSON.stringify(over.slice(0, 3)));
+    doc.querySelectorAll('#map-sheet .node').length === 5
+      ? ok('and the map is still the same map, redrawn rather than rebuilt from a payload')
+      : fail('the redraw lost the picture');
+    before > 0
+      ? ok('and it had been drawn before the face landed, so nothing waited on the font')
+      : fail('the map did not draw at all until the font loaded');
+    w.Gauge.faceReady()
+      ? ok('and the gauge knows its answers are now in the right face')
+      : fail('the gauge still believes it is measuring a fallback');
   }
 
   console.log(errors.length ? '\n' + errors.length + ' FAILURES'

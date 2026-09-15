@@ -92,6 +92,20 @@ a sheet; opening from the sheet moves the board through `/switch`.
   project is planned by a task list, so it is the first open step. Asking only about steps left
   every course's card blank, which on a front door reads as "nothing to do here" rather than "this
   one is a book".
+- **THE FACE IS A WEB FONT, SO THE FIRST MEASUREMENT IS OF THE WRONG ONE.** `measureText`
+  answers in whatever the canvas can resolve at that moment, and OpenDyslexic is declared
+  `font-display: swap` — so on a cold load the wrap is computed against a much narrower
+  fallback and the labels are then painted in the real face and run out of their boxes.
+  `gauge.js` throws its cache away when `document.fonts` settles and calls whoever registered
+  with `Gauge.onFace`; the map and the atlas each clear their signature and redraw. Neither
+  waits on the font to draw the first time — a picture that arrives late is worse than one
+  that is briefly wrong.
+- **A PAYLOAD IS HELD WHILE A NIB IS DOWN.** A repaint is a few hundred milliseconds of main
+  thread and the main thread is what turns pen samples into ink, so a payload landing
+  mid-stroke is felt as the surface going dead. `renderOrHold` in `board.js` keeps the newest
+  payload — they are whole pictures, so an older one holds nothing new — and draws it when the
+  hand lifts, asking `writer.inking()` (the nib, not `busy()`'s multi-second tail). The hold
+  has a **700 ms ceiling**: a stroke that never ends must not stop the lesson.
 - **`gauge.js`** is the measuring, shared with the board's map. It was extracted from `board.js`
   for this: two surfaces measuring text two slightly different ways is two spellings of one answer.
 - **The layout reads no width of the glass.** Three cards across, a constant. What adapts is the

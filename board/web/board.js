@@ -3732,6 +3732,23 @@ function paintMap(info, state) {
   catch (e) { mapDrawn = ""; }
 }
 
+/* AND DRAWN AGAIN THE MOMENT THE READING FACE ARRIVES.
+
+   Every box on this map is sized by measuring its label, and until the web font
+   has loaded that measurement is of a fallback face that is far narrower than
+   the one the label will be painted in -- so the first map of a cold load is
+   laid out for the wrong face and its words run out of their boxes. `gauge.js`
+   throws its cached answers away when the fonts settle and calls this; the
+   signature is cleared so the plane rebuilds rather than deciding nothing has
+   changed. Nothing is fetched and no payload is involved. */
+if (window.Gauge && window.Gauge.onFace) {
+  window.Gauge.onFace(function () {
+    if (!mapInfo) return;
+    mapDrawn = "";
+    paintMap(mapInfo, (lastLive && lastLive.state) || {});
+  });
+}
+
 function paintMapNow(info, state) {
   mapInfo = info || null;
   var can = !!(mapInfo && (mapInfo.nodes || []).length);
@@ -5067,6 +5084,73 @@ function paintLink(dead) {
   if (dead && !everGotData) els.empty.hidden = true;
 }
 
+/* NOT WHILE THE NIB IS DOWN.
+
+   A payload repaints the whole lesson: the transcript is reconciled, cards are
+   laid out, and KaTeX typesets whatever changed. That is a few hundred
+   milliseconds of main thread, and the main thread is also what turns pen
+   samples into ink -- so a payload landing mid-stroke is felt in the hand as the
+   surface going dead for half a second. And payloads land constantly WHILE
+   writing, because the writing itself is what produces them: the slate saves,
+   the server notices, the hub pushes.
+
+   Reported as: "sometimes when I'm writing on the board, touchscreen response
+   sometimes glitches out for half a second, which isn't the worst but is...
+   annoying."
+
+   So a payload that arrives with a nib down is held, and the NEWEST one is drawn
+   the moment the nib lifts. Only the newest: they are whole pictures of the
+   lesson, not increments, so an older one has nothing in it the newer lacks.
+
+   The window is deliberately the stroke itself and not `busy()`, whose tail runs
+   for seconds after the last sample -- that tail is right for "may I spend a
+   hundred milliseconds encoding a PNG" and much too generous for "may I show
+   what just arrived". A card must appear the moment the hand stops, not two and
+   a half seconds later. */
+var heldPayload = null;
+var heldTimer = null;
+var heldSince = 0;
+/* AND NEVER FOR LONG. A stroke is a second of somebody's life; a surface that
+   believes one is still in progress is a lesson that has stopped updating, and
+   that is a far worse failure than the stall this avoids. A nib lifted past the
+   edge of the glass, a gesture the browser took for itself, an app sent to the
+   background -- each of those can leave a stroke that never ends. So the hold
+   has a ceiling, and past it the payload is drawn whatever the hand is doing. */
+var HOLD_FOR = 700;
+
+function inking() {
+  try {
+    if (writer && writer.inking && writer.inking()) return true;
+    if (window.Annotate && window.Annotate.busy()) return true;
+  } catch (e) { /* a surface that cannot answer is a surface that is not drawing */ }
+  return false;
+}
+
+function drawHeld() {
+  if (inking() && Date.now() - heldSince < HOLD_FOR) return;
+  if (heldTimer) { clearInterval(heldTimer); heldTimer = null; }
+  var data = heldPayload;
+  heldPayload = null;
+  if (!data) return;
+  try { render(data); } catch (e) { /* a torn frame is not worth the lesson */ }
+}
+
+function renderOrHold(data) {
+  if (!inking()) {
+    heldPayload = null;
+    if (heldTimer) { clearInterval(heldTimer); heldTimer = null; }
+    render(data);
+    return;
+  }
+  if (!heldPayload) heldSince = Date.now();
+  heldPayload = data;
+  /* Polled rather than hung off pointerup, because a stroke does not always end
+     with one: a nib lifted past the edge of the glass, a gesture the browser
+     took for itself, an app sent to the background. A held payload that waits
+     for an event that never comes is a lesson that stops updating. */
+  if (!heldTimer) heldTimer = setInterval(drawHeld, 120);
+}
+
 function connect() {
   if (source) source.close();
   source = new EventSource("/events");
@@ -5076,7 +5160,7 @@ function connect() {
     if (!ev.data) return;
     everGotData = true;
     paintLink(false);
-    try { render(JSON.parse(ev.data)); } catch (e) { /* ignore a torn frame */ }
+    try { renderOrHold(JSON.parse(ev.data)); } catch (e) { /* ignore a torn frame */ }
   };
 }
 
