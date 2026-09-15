@@ -19,15 +19,242 @@
 \maketitle
 
 % ---------------------------------------------------------------------------
-% Assistant: replace this block with one problem/solution pair per assigned
-% exercise, in the order assigned, following the pattern below exactly.
+% Assigned set: all eleven exercises of chapter 4, 4.1 through 4.11.
+% Printed here in the book's order. The sitting works them in a different
+% order (4.1, 4.4, 4.6, 4.5, then 4.2, 4.3, then 4.7-4.11).
+% Statements are all transcribed; solution regions stay empty until the
+% student's answer is agreed correct.
 % ---------------------------------------------------------------------------
 
 \begin{problem}{04.1}
-  \todo{statement not yet transcribed}
+  Suppose that $\degree{L}{K}$ is a prime number. What fields are there
+  intermediate between $L$ and $K$?
 \end{problem}
 % ===== SOLUTION 04.1 =====
-% TODO(mferguson): your work goes here.
+% Transcribed from the student's slate, 2026-09-15 (pages 01-03, turns leading
+% to cards 0003-0006). Typeset exactly as written: same steps, same order,
+% nothing added.
+% One notation change only, agreed on card 0004: the scalar with
+% k(l_1) = 1 was called k_1 on the page, the same name as the general
+% coefficient. It is called k_0 here, as on card 0003.
+% Not covered by what they wrote, and flagged to them on card 0005:
+%   - the closing line that K =/= L is given verbally, not on the page;
+%     the page stops at the list.
+\begin{solution}
+  \textbf{Lemma.} If $\degree{L}{K} = 1$ then $L = K$.
+
+  If $\degree{L}{K} = 1$, that means you only need one vector of $L$ to span
+  all of $L$ if you are given any coefficients in $K$. Suppose $\set{\ell_{1}}$
+  spans $L$. Then
+  \[
+    \forall\, \ell \in L,\ \exists\, k \in K \text{ s.t. } k\ell_{1} = \ell .
+  \]
+  So $k_{0}\ell_{1} = 1$ for some $k_{0} \in K$, and surely $k_{0} \neq 0$,
+  since that forces $k_{0}\ell_{1} = 0$. Hence $k_{0} = \ell_{1}^{-1}$, so
+  $\ell_{1}^{-1} \in K$, so $\ell_{1} \in K$, since $K$ is a field.
+
+  Let $\ell \in L$; show $\ell \in K$. There is $k_{1}$ with
+  $k_{1}\ell_{1} = \ell$. Both $k_{1}, \ell_{1} \in K$, so $\ell \in K$.
+
+  \medskip
+  \textbf{The exercise.} Let $\degree{L}{K} = p$ be prime and let $M$ be
+  intermediate, $K \subseteq M \subseteq L$. The tower law gives
+  \[
+    \degree{L}{K} = \degree{L}{M}\,\degree{M}{K},
+  \]
+  and the only factorisations of $p$ into positive degrees are
+  \[
+    \begin{array}{ccc}
+      p & 1 & p \\
+      p & p & 1
+    \end{array}
+  \]
+  that is, $\degree{L}{M} = 1$ with $\degree{M}{K} = p$, or $\degree{L}{M} = p$
+  with $\degree{M}{K} = 1$. By the lemma the first gives $M = L$ and the
+  second gives $M = K$. Both occur:
+  \[
+    \degree{L}{K} = \degree{L}{L}\,\degree{L}{K}
+    \qquad\text{and}\qquad
+    \degree{L}{K} = \degree{L}{K}\,\degree{K}{K}.
+  \]
+
+  Which fields are intermediate? Just $L$ and $K$.
+\end{solution}
 % ===== END SOLUTION 04.1 =====
+
+\begin{problem}{04.2}
+  Suppose that $\ext{L}{K}$ and that $K_{1}$ and $K_{2}$ are two intermediate
+  fields such that $L = \adjoin{K}{K_{1}, K_{2}}$. Show that
+  $\degree{L}{K} \leq \degree{K_{1}}{K}\,\degree{K_{2}}{K}$.
+\end{problem}
+% ===== SOLUTION 04.2 =====
+% TODO(mferguson): your work goes here.
+% ===== END SOLUTION 04.2 =====
+
+\begin{problem}{04.3}
+  Suppose that $\ext{\adjoin{K}{\alpha}}{K}$ is a finite simple extension. For
+  each $\beta$ in $\adjoin{K}{\alpha}$, let $T_{\alpha}(\beta) = \alpha\beta$.
+  $T_{\alpha}$ is a linear mapping of $\adjoin{K}{\alpha}$ (considered as a
+  vector space over $K$) into itself. Show that $\det(xI - T_{\alpha})$ is the
+  minimal polynomial of $\alpha$ over $K$.
+\end{problem}
+% ===== SOLUTION 04.3 =====
+% TODO(mferguson): your work goes here.
+% ===== END SOLUTION 04.3 =====
+
+\begin{problem}{04.4}
+  Show that $x^{3} + 3x + 1$ is irreducible in $\polyring{\QQ}{x}$. Suppose
+  that $\alpha$ is a root of $x^{3} + 3x + 1$ in $\CC$. Express $\alpha^{-1}$
+  and $(1 + \alpha)^{-1}$ as linear combinations, with rational coefficients,
+  of $1$, $\alpha$ and $\alpha^{2}$.
+\end{problem}
+% ===== SOLUTION 04.4 =====
+% Transcribed from the student's slate, 2026-09-15 (pages 04-07, turns leading
+% to cards 0007-0010). Typeset exactly as written: same steps, same order,
+% nothing added.
+% Not covered by what they wrote, and flagged to them on cards 0007 and 0009:
+%   - why the only candidate rational roots are +1 and -1 (monic, constant 1)
+%     is used but not stated;
+%   - "no rational root, hence irreducible" needs the degree-three hypothesis
+%     to be sound; the page asserts the implication without it.
+\begin{solution}
+  \textbf{Irreducibility.} $f(x) = x^{3} + 3x + 1 \in \polyring{\QQ}{x}$, so
+  the possible rational roots are $\set{1, -1}$.
+  \[
+    f(-1) = -1 - 3 + 1 \neq 0, \qquad f(1) = 1 + 3 + 1 \neq 0 .
+  \]
+  So $f(x)$ has no rational roots and is hence irreducible in
+  $\polyring{\QQ}{x}$.
+
+  \medskip
+  \textbf{Inverting $\alpha$.} $\alpha$ is a root, so
+  $f(\alpha) = \alpha^{3} + 3\alpha + 1 = 0$. Then
+  \[
+    \alpha^{3} + 3\alpha + 1 = 0
+    \iff
+    -1 = \alpha(\alpha^{2} + 3),
+    \quad\text{so}\quad
+    \alpha^{-1} = \underbrace{-1}_{\in\QQ}\cdot\,\alpha^{2}
+                  \;\underbrace{-\;3}_{\in\QQ}\cdot\,1 .
+  \]
+
+  \medskip
+  \textbf{Inverting $1 + \alpha$.} Set $\beta = 1 + \alpha$, so
+  $\alpha = \beta - 1$. From $\alpha^{3} + 3\alpha + 1 = 0$,
+  \begin{align*}
+    (\beta - 1)^{3} + 3(\beta - 1) + 1 &= 0 \\
+    \iff (\beta - 1)(\beta^{2} - 2\beta + 1) + 3\beta - 3 + 1 &= 0 \\
+    \iff \beta^{3} - 2\beta^{2} + \beta - \beta^{2} + 2\beta - 1
+         + 3\beta - 3 + 1 &= 0 \\
+    \iff \beta^{3} - 3\beta^{2} + 6\beta - 3 &= 0 \\
+    \iff 1 &= \tfrac{1}{3}\beta^{3} - \beta^{2} + 2\beta \\
+    \iff 1 &= \beta\bigl(\tfrac{1}{3}\beta^{2} - \beta + 2\bigr),
+  \end{align*}
+  so
+  \begin{align*}
+    \beta^{-1} = (\alpha + 1)^{-1}
+      &= \tfrac{1}{3}(\alpha + 1)^{2} - (\alpha + 1) + 2 \\
+      &= \tfrac{1}{3}(\alpha^{2} + 2\alpha + 1) - \alpha + 1 \\
+      &= \underbrace{\tfrac{1}{3}}_{\in\QQ}\,\alpha^{2}
+         \;\underbrace{-\;\tfrac{1}{3}}_{\in\QQ}\,\alpha
+         \;+\;\underbrace{\tfrac{4}{3}}_{\in\QQ}\cdot 1
+       = (\alpha + 1)^{-1}.
+  \end{align*}
+\end{solution}
+% ===== END SOLUTION 04.4 =====
+
+\begin{problem}{04.5}
+  Suppose that $\ext{\ext{\adjoin{L}{\alpha}}{L}}{K}$ and that
+  $\degree{\adjoin{L}{\alpha}}{L}$ and $\degree{L}{K}$ are relatively prime.
+  Show that the minimal polynomial of $\alpha$ over $L$ has its coefficients
+  in $K$.
+\end{problem}
+
+\begin{remark}
+  As printed, 4.5 is false. The tower $K = \QQ$, $L = \QQ(2^{1/3})$,
+  $\alpha = 2^{1/6}$ has $\degree{\adjoin{L}{\alpha}}{L} = 2$ and
+  $\degree{L}{K} = 3$, which are coprime, while the minimal polynomial of
+  $\alpha$ over $L$ is $x^{2} - 2^{1/3}$, whose constant term is not rational.
+  The repaired hypothesis is that
+  $\degree{\adjoin{K}{\alpha}}{K}$ and $\degree{L}{K}$ are relatively prime.
+  Established in the sitting of 2026-09-15, card 0016.
+\end{remark}
+% ===== SOLUTION 04.5 =====
+% TODO(mferguson): your work goes here.
+% In progress as of 2026-09-15 (slate page 11, answers t0050-r1..r15).
+% ===== END SOLUTION 04.5 =====
+
+\begin{problem}{04.6}
+  Suppose that $\degree{L}{K}$ is a prime number. Show that $\ext{L}{K}$ is
+  simple.
+\end{problem}
+% ===== SOLUTION 04.6 =====
+% Transcribed from the student's slate, 2026-09-15 (page 10, turn leading to
+% card 0013). Typeset exactly as written: same steps, same order, nothing
+% added.
+% Not covered by what they wrote, and supplied on card 0013:
+%   - why K(alpha) =/= K: alpha lies in K(alpha) by definition and alpha is
+%     not in K;
+%   - why an l outside K exists at all: p is prime so p >= 2, so L =/= K.
+\begin{solution}
+  $\degree{L}{K} = p$. $L$ and $K$ are the only intermediate fields
+  (Exercise 4.1).
+
+  Note $\adjoin{K}{\alpha}$ is by definition the smallest subfield containing
+  $\alpha \in L$ and all $k \in K$.
+
+  Pick $\alpha = \ell$ where $\ell \notin K$, which exists since
+  $\degree{L}{K} > 1$. Note $K \subsetneq \adjoin{K}{\alpha}$.
+
+  So $\adjoin{K}{\alpha}$ must be $L$, the only other intermediate subfield
+  between $K$ and $L$.
+\end{solution}
+% ===== END SOLUTION 04.6 =====
+
+\begin{problem}{04.7}
+  Show that if $\ext{L}{K}$ is algebraic and $K$ is countable then $L$ is
+  countable. Show that there exist real numbers which are transcendental over
+  the rationals.
+\end{problem}
+% ===== SOLUTION 04.7 =====
+% TODO(mferguson): your work goes here.
+% ===== END SOLUTION 04.7 =====
+
+\begin{problem}{04.8}
+  Suppose that $\ext{L}{K}$ is an extension, that $\alpha$ is an element of
+  $L$ which is transcendental over $K$, and that $f$ is a non-constant element
+  of $\polyring{K}{x}$. Show that $f(\alpha)$ is transcendental over $K$. Show
+  that, if $\beta$ is an element of $L$ which satisfies $f(\beta) = \alpha$,
+  then $\beta$ is transcendental over $K$.
+\end{problem}
+% ===== SOLUTION 04.8 =====
+% TODO(mferguson): your work goes here.
+% ===== END SOLUTION 04.8 =====
+
+\begin{problem}{04.9}
+  Suppose that $a$ and $b$ are complex numbers which are transcendental over
+  $\QQ$. Is $ab$ transcendental over $\QQ$?
+\end{problem}
+% ===== SOLUTION 04.9 =====
+% TODO(mferguson): your work goes here.
+% ===== END SOLUTION 04.9 =====
+
+\begin{problem}{04.10}
+  Suppose that $\ext{\adjoin{K}{\alpha, \beta}}{K}$ is an extension, that
+  $\alpha$ is algebraic over $K$, but not in $K$, and that $\beta$ is
+  transcendental over $K$. Show that $\ext{\adjoin{K}{\alpha, \beta}}{K}$ is
+  not simple.
+\end{problem}
+% ===== SOLUTION 04.10 =====
+% TODO(mferguson): your work goes here.
+% ===== END SOLUTION 04.10 =====
+
+\begin{problem}{04.11}
+  Show that the condition that $\ext{L}{K}$ is algebraic cannot be dropped
+  from Theorem 4.8.
+\end{problem}
+% ===== SOLUTION 04.11 =====
+% TODO(mferguson): your work goes here.
+% ===== END SOLUTION 04.11 =====
 
 \end{document}
