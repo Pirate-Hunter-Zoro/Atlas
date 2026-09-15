@@ -1,10 +1,10 @@
-# HANDOFF — five changes to the board
+# HANDOFF — six changes to the board
 
-Five gaps between what the board does and what it is used for, found while asking three
-questions of the TRD-EHR map: where is the e(x) histogram TODO, how do I read the paper, and
-how do I reach PSYCH-ASR's decks. Ordered smallest first. **One change, shipped, checked, then
-the next** — that is the repository's rule and it is the right one here, because four of these
-touch the same three modules.
+Six gaps between what the board does and what it is used for. Five came from asking three
+questions of the TRD-EHR map: where is the e(x) histogram TODO, how do I read the paper, and how
+do I reach PSYCH-ASR's decks. The sixth came from shipping the answer to the first. Ordered
+smallest first. **One change, shipped, checked, then the next** — that is the repository's rule
+and it is the right one here, because four of these touch the same three modules.
 
 Each section says what is true now, what should be true, and where. Nothing below is a plan for
 a plan: the paths are real and were read, not guessed.
@@ -21,15 +21,50 @@ a plan: the paths are real and were read, not guessed.
   `bash board/scripts/save-and-push.sh "message" -- <paths>` with a pathspec.
 - Commits carry no assistant trailers. `.githooks/commit-msg` strips them.
 
-**The working tree is not clean and not all of it is yours.** Finished and green: the whole-step
-text on the map's work sheet (`plan.whole`, the `/plan/step` route, `#work-text`, and checks in
-`test/plan.py` and `test/map.js`). In flight and somebody else's: `#keepwhat` and `#paper-keep`
-in `board.html`, `board/tutorboard/course/burn.py`, and edits to `brief.py`,
-`course/homework.py`, `server/hub.py`, `test/homework.py`. Ship with a pathspec or ask.
+**The working tree is not clean, and what is in it is somebody's unfinished afternoon rather
+than anything below.** `TEACHING.md`, `bin/board`, `test/all.sh`, `test/homework.py`,
+`tutorboard/brief.py`, `course/homework.py`, `server/hub.py`, `routes/writing.py`, and two
+untracked `burn.py` files under `course/` and `test/`. None of it belongs to these six changes,
+so ship with a pathspec or ask before ship.sh sweeps it up under one message.
 
 ---
 
-## 1. `reading.py` does not fence `phi`, and the tutor is handed what is inside it
+## 1. A direct `save-and-push.sh` does not bounce the boards it just changed
+
+**Now.** The tail of `board/scripts/save-and-push.sh` asks *did this commit touch the tool*, and
+asks it of the wrong directory. `TOOL_REL` comes from
+`git -C "$(dirname "${BASH_SOURCE[0]}")" rev-parse --show-prefix`, and the script's own directory
+is `board/scripts`, not `board` — so the test is `grep -q "^board/scripts/"` over the commit's
+files and a change to `board/tutorboard/` or `board/web/` never matches. `ship.sh` gets this
+right two lines from the same idea: it derives its prefix from `$HERE`, which is `board`.
+
+There is a second way to get nothing, and it is quieter. `BASH_SOURCE[0]` is the path as typed,
+the script has already `cd`'d to the repository root, and `git -C` resolves a relative directory
+against *that*. Run it as `cd board && bash scripts/save-and-push.sh` and `git -C scripts` fails,
+`TOOL_REL` is empty, and the `[ -n "$TOOL_REL" ]` guard skips the restart without a word.
+
+`ship.sh` is unaffected in practice — it calls `tutor restart --tutors` itself, and that restarts
+boards as well as daemons. What is affected is every direct caller: the board's own save button,
+`board finish`, and `lesson/git.py`. Tap save with an uncommitted tool change in the tree and the
+commit lands, the push lands, and every board goes on serving the old Python from a page that
+looks new. That is the exact failure the comment above the block describes and costs an evening
+to find.
+
+**Want.** The prefix is the tool's own, derived once and correctly, and a relative invocation
+from any directory reaches the same answer. Consider deriving it in one place both scripts read,
+since they are now computing the same value two ways and only one of them works.
+
+**Where.** `board/scripts/save-and-push.sh`, the `TOOL_REL` block at the end. `board/scripts/ship.sh`
+holds the correct derivation.
+
+**Check.** `board/test/beside.py` already builds a throwaway repository and taps save on it —
+that suite exists because this same block was wrong in a different way. Extend it: a commit
+touching `board/` reports the restart, one touching only a workspace does not, and both hold
+when the script is invoked by a relative path from inside `board/`.
+
+---
+
+## 2. `reading.py` does not fence `phi`, and the tutor is handed what is inside it
 
 **Now.** `reading.IGNORE` in `board/tutorboard/course/reading.py` lists `live`, `results`,
 `data`, `archive` and the usual build directories. It does not list `phi`.
@@ -58,7 +93,7 @@ the sandbox README names it by path.
 
 ---
 
-## 2. A plan's steps are read in one form only, so half of TRD-EHR is invisible
+## 3. A plan's steps are read in one form only, so half of TRD-EHR is invisible
 
 **Now.** `plan._collect` is called from `_steps_in` over `(("step", STEP), ("item", TODO_ITEM),
 ("heading", HEADING))` and **breaks at the first kind that matches anything**.
@@ -93,7 +128,7 @@ the next step whatever kind that is.
 
 ---
 
-## 3. A results figure cannot be shown on the board
+## 4. A results figure cannot be shown on the board
 
 **Now.** `results/counterfactual_pipeline/<contrast>/propensity_by_arm.png` exists and cannot be
 put on the glass. `reading.py` offers PDFs only and refuses `results` by name. `routes/pages.py`
@@ -129,7 +164,7 @@ directory refused, the bound held, the cache rule asserted by reading `sw.js`.
 
 ---
 
-## 4. A hand-written map has no document boxes
+## 5. A hand-written map has no document boxes
 
 **Now.** `map._from_code` builds a node per document automatically — TRD-EHR's derived map
 carries three, and tapping one offers *Show me the document*. `map._from_written` takes `doc`
@@ -154,7 +189,7 @@ per deck. This is a judgement about what a written map *is*, so decide it before
 
 ---
 
-## 5. The paper is not a document the board can show
+## 6. The paper is not a document the board can show
 
 **Now.** Paper 1 is `research/TRD-EHR/paper1-trd-prediction/manuscript.md` and `manuscript.docx`,
 with `supplement`, `cover_letter` and `tripod_ai_checklist` beside it in the same two forms.
