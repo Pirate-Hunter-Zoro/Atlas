@@ -7,7 +7,7 @@ import os
 import time
 
 from .. import machine, processes
-from ..course import homework, paper, plan, reading, review, syllabus, walk
+from ..course import homework, paper, plan, reading, results, review, syllabus, walk
 # `map` is a builtin, and a module called `map` imported under its own name
 # would shadow it for the rest of this file. The file keeps the name the board
 # calls the thing; the binding does not.
@@ -241,6 +241,20 @@ def load_reading(repo):
     """
     try:
         return reading.status(repo)
+    except Exception:                                        # noqa: BLE001
+        return None
+
+
+def load_results(repo):
+    """The figures this workspace's own pipeline made.
+
+    The other half of `load_reading`. A document is what the project was written
+    with; a figure is what it produced, and `results/<contrast>/
+    propensity_by_arm.png` could not be put on the glass without somebody
+    copying it into the lesson inbox. See `course/results.py`.
+    """
+    try:
+        return results.status(repo)
     except Exception:                                        # noqa: BLE001
         return None
 

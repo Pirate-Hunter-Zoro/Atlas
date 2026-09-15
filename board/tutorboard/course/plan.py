@@ -57,7 +57,14 @@ POINTER = re.compile(
 # How many steps are worth putting in a drawer. A plan has forty items in it and
 # a person opening a drawer wants to know what is next, not to read the plan --
 # which is on disk and can be opened whole.
-MAX_STEPS = 12
+#
+# It was 12 while a plan was read in one form only. `TRD-EHR_TODO.txt` has five
+# `STEP`s and thirteen unchecked checklist items, and a cap of 12 over both
+# would have cut six of them -- which is the same defect the merge was written
+# to end, half-fixed and harder to see. Doubled rather than made per-kind: two
+# numbers are two things to get wrong, and the picture is protected by
+# `map.MAX_CHIPS` at six to a box whatever this says.
+MAX_STEPS = 24
 
 # The blurb under a step in the drawer, and in the line a tutor is woken with.
 # Enough to tell two steps apart; not enough to be the step.
@@ -292,6 +299,12 @@ HEADING = re.compile(r"^(#{2,4})\s+(\S.*)$")
 # Where these plans put the thing to do next, and it is worth honouring: a file
 # that says "start here in a fresh session" has answered the question this
 # module exists to ask.
+#
+# A RESUME MARKER IS NOT ONE OF THESE. `TRD-EHR_TODO.txt` carries
+# `<<< RESUME HERE 2026-09-01 >>>` on a checklist item eleven hundred lines
+# further down, and it says where somebody stopped reading rather than what the
+# plan does next. The block at the top says that, in those words, and it is the
+# one this honours. Order is the file's own from there.
 START_HERE = re.compile(r"NEXT ACTION|START HERE|WHAT WE DO NEXT|READ THIS FIRST",
                         re.IGNORECASE)
 
@@ -369,11 +382,24 @@ def _steps_in(target, say_which):
             begin = i
             break
 
-    out = []
-    for kind, rx in (("step", STEP), ("item", TODO_ITEM), ("heading", HEADING)):
-        out = _collect(lines, begin, kind, rx)
-        if out:
-            break
+    # EVERY FORM THE PLAN WROTE, TOGETHER, IN THE PLAN'S OWN ORDER.
+    #
+    # This tried each kind in turn and stopped at the first that matched
+    # anything. `TRD-EHR_TODO.txt` opens with `STEP 1.` through `STEP 5.`, all
+    # about paper 1's manuscript, so those five were the whole of what the board
+    # knew about it: the file's thirteen unchecked `- [ ]` items -- the
+    # falsification battery, the 5-fold CV, the entire counterfactual half --
+    # reached the board nowhere, and a checklist item written today was
+    # invisible for the same reason.
+    #
+    # Headings stay the last resort they always were. A document with `##`
+    # sections and no steps in it is a different kind of file, and reading its
+    # headings as tasks is what that branch is for -- reading them as tasks
+    # ALONGSIDE real steps would put the plan's own section titles in the drawer
+    # next to the work.
+    out = _collect(lines, begin, (("step", STEP), ("item", TODO_ITEM)))
+    if not out:
+        out = _collect(lines, begin, (("heading", HEADING),))
     # Which plan this came out of. `PSYCH-ASR_TODO.txt` becomes `PSYCH-ASR`,
     # which is what its owner calls the project and what a drawer has room for.
     who = _project_of(target)
@@ -382,29 +408,73 @@ def _steps_in(target, say_which):
         x["file"] = target
         if say_which and who:
             x["label"] = "%s · %s" % (who, x["label"])
+    return _distinct(out)
+
+
+def _distinct(found):
+    """One label, one step -- because `label` is what a step is looked up BY.
+
+    `/session` files a sitting under it and `/plan/step` reads a step back out
+    of the plan by it, so two steps answering to one label is one of them
+    unreachable. A numbered `STEP 3.` and a checklist item somebody wrote as
+    `- [ ] 3. …` are the way it happens.
+
+    Suffixed rather than dropped: a step the plan wrote is a step, and the one
+    that loses the collision is still the person's to open.
+    """
+    seen, out = {}, []
+    for step in found:
+        label = step["label"]
+        seen[label] = seen.get(label, 0) + 1
+        if seen[label] > 1:
+            step = dict(step, label="%s (%d)" % (label, seen[label]))
+        out.append(step)
     return out
 
 
-def _collect(lines, begin, kind, rx):
-    found = []
+def _collect(lines, begin, kinds):
+    """Every step in one plan, in one pass, whatever form each one is written in.
+
+    `kinds` is `(name, regex)` pairs, tried in order on each line so that a line
+    matching two of them is the first kind -- which only arises for a heading
+    that is also something else, and the plan's own word for it wins.
+    """
+    # WHERE EACH ENTRY OF THE PLAN BEGINS, whatever kind it is. Two things need
+    # this and both of them were wrong when it was a per-kind scan: the ORDER,
+    # which is the file's, and the STOP LINE, which is the next entry of any
+    # kind rather than the next one of the same kind. A step whose body ran on
+    # over the checklist items after it was matched against every module they
+    # mention, and `map._attach` put its chip on boxes the step says nothing
+    # about.
+    #
+    # A finished `- [x]` item is in this list and is not a step. It is not a
+    # thing to do, and it is still the end of whatever prose came before it.
+    marks = []
     for i in range(begin, len(lines)):
-        m = rx.match(lines[i])
-        if not m:
-            continue
-        if kind == "item":
-            if m.group(1).strip():          # already done; not a thing to do
-                continue
-            num, head = str(len(found) + 1), m.group(2)
-        elif kind == "heading":
-            num, head = str(len(found) + 1), m.group(2)
-        else:
-            num, head = m.group(1), m.group(2)
-        # The body is whatever follows until the next one of the same kind, and
-        # it is the half that says what the step actually involves.
-        body = []
-        for line in lines[i + 1:]:
-            if rx.match(line):
+        for kind, rx in kinds:
+            m = rx.match(lines[i])
+            if m:
+                marks.append((i, kind, m))
                 break
+
+    found = []
+    for at, (i, kind, m) in enumerate(marks):
+        if kind == "item" and m.group(1).strip():
+            continue                        # already done; not a thing to do
+        if kind == "step":
+            # The plan's own number, because a person reading the file and a
+            # person reading the drawer have to be talking about the same step.
+            num, head = m.group(1), m.group(2)
+        else:
+            # A checklist item has no number of its own, so it takes its place
+            # in the MERGED sequence -- the first item after five steps is 6,
+            # not a second 1 on a picture that already has one.
+            num, head = str(len(found) + 1), m.group(2)
+        # The body is whatever follows until the next entry, and it is the half
+        # that says what the step actually involves.
+        stop = marks[at + 1][0] if at + 1 < len(marks) else len(lines)
+        body = []
+        for line in lines[i + 1:stop]:
             body.append(line)
             if len(" ".join(body)) > SUMMARY * 3:
                 break

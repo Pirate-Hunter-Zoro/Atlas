@@ -23,16 +23,18 @@
 set -uo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# shellcheck source=scripts/tool.sh
+. "$HERE/scripts/tool.sh"
 cd "$HERE" || { echo "cannot enter $HERE" >&2; exit 1; }
 
 MSG="${1:-board and tutor updates}"
 
 # The TOOL's path inside the repository, worked out rather than typed: this is
 # `board` today and the point of deriving it is that a rename does not silently
-# turn shipping into "commit everything".
-ROOT="$(git -C "$HERE" rev-parse --show-toplevel 2>/dev/null || echo "$HERE")"
-REL="$(git -C "$HERE" rev-parse --show-prefix 2>/dev/null)"
-REL="${REL%/}"
+# turn shipping into "commit everything". `scripts/tool.sh` is the one place it
+# is derived, because `save-and-push.sh` needs the same answer and the copy it
+# had was wrong.
+REL="$(tool_prefix)"
 
 echo "== the tool (${REL:-the repository}) =="
 # ONLY the tool's own paths. There is one repository now: without the pathspec,

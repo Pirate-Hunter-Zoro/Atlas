@@ -27,6 +27,14 @@
 # ---------------------------------------------------------------------------
 set -uo pipefail
 
+# Where the tool's own helpers are, worked out BEFORE the `cd` below: after it,
+# `${BASH_SOURCE[0]}` as typed no longer resolves from the working directory.
+# `tool.sh` answers where the tool is and where it sits in its repository, which
+# is the question the restart block at the end of this file asks.
+SCRIPTS="$(cd "$(dirname "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd -P)"
+# shellcheck source=scripts/tool.sh
+. "$SCRIPTS/tool.sh"
+
 # THE REPOSITORY THIS WAS RUN IN, and that emphasis is the whole of a defect
 # this script had for about an hour on 14 September.
 #
@@ -147,15 +155,28 @@ echo "pushed $branch to origin"
 # the machine every time somebody saved a Galois Theory lesson, which is a
 # restart in the middle of a lesson for no reason at all.
 #
-# So: did this commit touch `board/`? Asked of the commit that was just made.
-TOOL_REL="$(git -C "$(dirname "${BASH_SOURCE[0]}")" rev-parse --show-prefix 2>/dev/null)"
-TOOL_REL="${TOOL_REL%/}"
-if [ -n "$TOOL_REL" ] && git diff-tree --no-commit-id --name-only -r HEAD 2>/dev/null \
-   | grep -q "^$TOOL_REL/"; then
+# So: did this commit touch `board/`? Asked of the commit that was just made,
+# and of THE TOOL's directory rather than of this script's. `scripts` is one
+# level too deep: the test was `^board/scripts/`, so a change to the board's
+# Python or its pages -- which is most changes -- matched nothing and no board
+# ever came back. `ship.sh` calls `tutor restart --tutors` itself and so was
+# never affected; every direct caller was, which is the save button, `board
+# finish` and `lesson/git.py`. See `scripts/tool.sh`.
+#
+# And of the RIGHT repository. One copy of this script serves every workspace,
+# and `test/beside.py` runs it against throwaway repositories: a commit in a
+# repository the tool does not live in cannot have changed the tool, whatever
+# the commit happens to have touched.
+TOOL_REL="$(tool_prefix)"
+TOOL_ROOT="$(tool_root)"
+if [ "$TOOL_ROOT" = "$ROOT" ] && git diff-tree --no-commit-id --name-only -r HEAD 2>/dev/null \
+   | grep -q "^${TOOL_REL:+$TOOL_REL/}"; then
+  echo
+  echo "the tool changed, so the boards come back on the new code"
   if command -v tutor >/dev/null 2>&1; then
-    echo
-    echo "the tool changed, so the boards come back on the new code"
     tutor restart || echo "  (boards could not be restarted; run 'tutor restart' by hand)"
+  else
+    echo "  (tutor is not on PATH; run 'tutor restart' by hand)"
   fi
 fi
 

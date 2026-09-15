@@ -504,11 +504,7 @@ def _from_code(root):
     # The documents somebody already wrote are content too, and the map is where
     # you would look for them. They depend on nothing and nothing depends on
     # them, so they stand apart rather than being wired into the graph.
-    try:
-        docs = reading.documents(root)
-    except Exception:                                        # noqa: BLE001
-        docs = []
-    for d in docs[:8]:
+    for d in _documents(root)[:MAX_LOOSE_DOCS]:
         nid = _unique(taken, _slug("doc-" + d["id"], "doc"))
         nodes.append(_node(nid, d["name"], "doc", also="document",
                            doc=d["id"], does="Written about how this works."))
@@ -632,6 +628,15 @@ WRITTEN_VERSION = 1
 # box the person was last looking at, so it is narrow and it is stable.
 ID_RE = re.compile(r"^[a-z0-9-]{1,40}$")
 
+# And a `doc` is an id too -- the one `reading.ident` gives a document, in the
+# same alphabet for the same reason. Checked for SHAPE here because the natural
+# mistake is to write the path instead, and a path and an id fail differently:
+# an id that is not one of ours resolves to nothing, and a path would be
+# resolved. `_resolve_written` silently blanks a `doc` that does not resolve,
+# which is the right thing on a payload and the wrong thing to be told nothing
+# about.
+DOC_RE = re.compile(r"^[a-z0-9-]{1,40}$")
+
 KINDS = ("part", "doc", "chapter", "set")
 
 # An edge label is read on the arrow, at whatever zoom the plane is at. `words`,
@@ -749,6 +754,15 @@ def validate(raw):
                             % (where, one.get("dir")))
             d = ""
 
+        doc = str(one.get("doc") or "").strip()
+        if doc and not DOC_RE.match(doc):
+            problems.append("%s: `doc` %r is not a document id. It is the short "
+                            "name `reading.py` gives a document -- lower case, "
+                            "digits and hyphens, as `board read` lists them -- "
+                            "and never a path. `board read` prints the ids."
+                            % (where, one.get("doc")))
+            doc = ""
+
         slide = one.get("slide")
         if slide is not None:
             if not isinstance(slide, int) or isinstance(slide, bool) or slide < 1:
@@ -766,7 +780,7 @@ def validate(raw):
             "id": nid, "name": name, "also": _text(one.get("also"), MAX_ALSO),
             "kind": kind, "status": status_in, "does": does[:DOES],
             "files": clean_files[:MAX_FILES], "dir": d,
-            "doc": str(one.get("doc") or "").strip(),
+            "doc": doc,
             "slide": slide, "blockedBy": [b for b in blocked if b],
             "note": _text(one.get("note"), DOES),
             "chapter": _text(one.get("chapter"), MAX_NAME),
@@ -915,6 +929,27 @@ def _from_written(root):
     if not nodes:
         return None
 
+    # THE DOCUMENTS NO BOX CLAIMS ARE BOXES OF THEIR OWN.
+    #
+    # A derived map builds one per document automatically -- TRD-EHR's carries
+    # three, and tapping one offers *Show me the document*. A written map took
+    # `doc` only from what its author typed on a node, so PSYCH-ASR's two
+    # walkthrough decks -- the documents `reading.py` was written for -- were on
+    # no box at all and reachable from the ⋯ menu and nowhere else. The
+    # workspace's own `live/map.json` leaves every `doc` empty, which is what a
+    # person writing a diagram of their pipeline does.
+    #
+    # So the map shows them without anybody hand-wiring each one, and `check`
+    # names every one it added -- because a box the author did not draw on their
+    # own diagram is something they should be told about and be able to claim.
+    # Claiming it is one field: put the id in `doc` on the box it belongs to and
+    # this stops adding it.
+    #
+    # They depend on nothing and nothing depends on them, so they stand apart
+    # rather than being wired into the graph -- the same as on a derived map.
+    added = _loose_docs(root, nodes)
+    nodes += added
+
     # The plan's steps land on written boxes the same way they land on derived
     # ones, by the paths the step NAMES -- so a box called *the typist* still
     # collects the step that talks about `psych_asr.cli.run_asr`. Its files and
@@ -935,13 +970,61 @@ def _from_written(root):
         "edges": edges,
         "loose": loose,
         "why": "Drawn by hand in live/map.json, and re-checked against the "
-               "tree on every read.",
+               "tree on every read."
+               + ("" if not added else
+                  " One document is on no box in it, so the map shows it as one "
+                  "of its own." if len(added) == 1 else
+                  " %d documents are on no box in it, so the map shows each as "
+                  "one of its own." % len(added)),
         "written": True,
     }
 
 
-def check(root):
+# How many unclaimed documents may become boxes. `_from_code`'s own limit, and
+# for the same reason: a reference library is thirty PDFs and a picture is not.
+MAX_LOOSE_DOCS = 8
+
+
+def _loose_docs(root, nodes):
+    """A box per document this workspace offers that no written box claims.
+
+    `also` says `document` and `does` says what it is, which is how a person
+    reading their own diagram can tell which boxes they drew -- and `check`
+    lists every one of these by name so the answer is not only on the picture.
+    """
+    claimed = set(n["doc"] for n in nodes if n.get("doc"))
+    taken = set(n["id"] for n in nodes)
+    # Past `MAX_NODES` it is not a picture, and that is true of a box the map
+    # added as much as of one the author drew.
+    room = min(MAX_LOOSE_DOCS, max(0, MAX_NODES - len(nodes)))
+    out = []
+    for d in _documents(root):
+        if len(out) >= room:
+            break
+        if d["id"] in claimed:
+            continue
+        nid = _unique(taken, _slug("doc-" + d["id"], "doc"))
+        out.append(_node(nid, d["name"], "doc", also="document",
+                         doc=d["id"], blockedBy=[],
+                         does="Written about how this works."))
+    return out
+
+
+def _documents(root):
+    try:
+        return reading.documents(root)
+    except Exception:                                        # noqa: BLE001
+        return []
+
+
+def check(root, documents=True):
     """What has gone stale in the written map. The list `board map --check` prints.
+
+    `documents=False` leaves out the documents no box claims, which is what
+    `written_status` counts. A deck nobody has placed is worth saying once and
+    it is not the map having gone stale: it never clears unless the author
+    decides to claim it, and a permanent 2 on a briefing is a number that stops
+    being read.
 
     Everything here is something the resolver would silently SWALLOW on the next
     read -- a file dropped, a box dropped, an edge dropped -- plus the one thing
@@ -988,6 +1071,18 @@ def check(root):
             out.append("the arrow %s -> %s has lost an end"
                        % (e["from"], e["to"]))
 
+    # A DOCUMENT NO BOX CLAIMS. Reported rather than left to be noticed: the map
+    # puts it on the picture as a box of its own, which is right for a deck
+    # nobody has placed and wrong for one that belongs on a stage the author has
+    # already drawn. Both are one field apart, and this is the line that says
+    # which boxes on the picture the author did not draw.
+    claimed = set(n["doc"] for n in clean["nodes"] if n.get("doc"))
+    for d in (_documents(root) if documents else []):
+        if d["id"] not in claimed:
+            out.append("the document `%s` (%s) is on no box, so the map shows "
+                       "it as one of its own. Put its id in `doc` on the box it "
+                       "belongs to if it belongs on one." % (d["id"], d["rel"]))
+
     # A box that says `done` with an open step on it. The plan is the fact and
     # the status is the declaration, so the plan wins and the person is told.
     on, _loose = _attach(_plan_steps(root),
@@ -1023,7 +1118,8 @@ def written_status(root):
                 "stale": 0, "problems": problems or ["unreadable"]}
     nodes, _edges, _dropped = _resolve_written(root, clean)
     return {"has": True, "title": clean["title"], "written": when,
-            "nodes": len(nodes), "stale": len(check(root)), "problems": []}
+            "nodes": len(nodes), "stale": len(check(root, documents=False)),
+            "problems": []}
 
 
 def _shape(root):

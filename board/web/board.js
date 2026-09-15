@@ -968,6 +968,7 @@ function render(data) {
   if (data.contents) contents = data.contents;
   planInfo = data.plan || null;
   readingInfo = data.reading || null;
+  resultsInfo = data.results || null;
   pastCount = data.history || 0;
   /* Once per load, and only now: where a course opens depends on what its
      documents are, and this is the first payload that says. */
@@ -5024,6 +5025,7 @@ window.addEventListener("hashchange", function () {
 var contents = { chapters: [], sets: [] };
 var planInfo = null;        /* what this project says it is doing next */
 var readingInfo = null;     /* and what it can be shown */
+var resultsInfo = null;     /* and what its own pipeline produced */
 var pastCount = 0;
 
 function row(label, sub, current, go) {
@@ -5120,6 +5122,22 @@ function openContents() {
       host.appendChild(row(d.name, d.iso || "", false, function () {
         els.contents.hidden = true;
         openDoc(d.id, d.name);
+      }));
+    });
+  }
+
+  /* And what the project PRODUCED. A figure the pipeline wrote had no route to
+     the glass at all -- the only one was copying it into the lesson inbox, a
+     second copy of a file the next job overwrites. Newest first, because the
+     one being asked about is the one that has just changed. It opens in the
+     viewer this page owns, not in a tab with no way back out of it. */
+  if (resultsInfo && (resultsInfo.figures || []).length) {
+    host.appendChild(group("Figures"));
+    resultsInfo.figures.forEach(function (f) {
+      var sub = f.where ? f.where : (f.iso || "");
+      host.appendChild(row(f.name, sub, false, function () {
+        els.contents.hidden = true;
+        openViewer("/result/" + f.id, f.where ? f.name + " — " + f.where : f.name);
       }));
     });
   }

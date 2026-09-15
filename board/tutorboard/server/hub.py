@@ -119,6 +119,11 @@ class Hub:
         # and the documents somebody already wrote about how it works.
         data["plan"] = state.load_plan(self.repo)
         data["reading"] = state.load_reading(self.repo)
+        # And what it PRODUCED, which is the other half and had no route to the
+        # glass at all. A figure a pipeline wrote could only reach a lesson by
+        # somebody copying it into the inbox -- a second copy of a file the next
+        # job overwrites. See `course/results.py`.
+        data["results"] = state.load_results(self.repo)
         # And the picture the whole lot hangs on. A course opens on this rather
         # than on an empty board: the working parts, what is done and what is
         # not, and a tap on any of them to start work there. Every repository

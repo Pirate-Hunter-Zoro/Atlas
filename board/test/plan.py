@@ -76,6 +76,25 @@ ORIENTATION
   Standing context, not a task. Preserve on every edit.
 """
 
+# A plan that writes both forms, which is what a real one does. `TRD-EHR_TODO.txt`
+# opens with five `STEP`s about the manuscript and then keeps thirteen unchecked
+# checklist items, and the whole second half of it reached the board nowhere.
+BOTH = """TRD-EHR — REMAINING WORK
+
+WHAT WE DO NEXT — READ THIS FIRST, ANSWER FROM IT
+
+  STEP 1. INTEGRATE HIS SECTIONS. Take the rewritten Methods first.
+  STEP 4. THE CLARITY PASS — ONE SECTION AT A TIME.
+    Out of order on purpose: the plan's numbers are the plan's.
+
+THE FALSIFICATION HALF
+
+- [ ] 5-FOLD CV OVER THE WHOLE PIPELINE. Added 2026-08-28. NOT BUILT.
+    The body of an item is read the same way a step's is.
+- [x] REFIT INSIDE THE BOOTSTRAP. DONE 2026-08-27. Finished, so not a task.
+- [ ] FALSIFICATION BATTERY (all four). The last one.
+"""
+
 # --- the sandbox: one repository, three workspaces in two families -----------
 # The arrangement these repositories actually use, and the one nothing could
 # read: the code is in one workspace and the plan for it is in another, across
@@ -212,6 +231,54 @@ A multi-project narrative hub. The live task lists are
           not [x for x in plan.steps(proj) if " · " in x["label"]])
     plan._cache.clear()
 
+    # --- EVERY FORM THE PLAN WROTE, IN THE PLAN'S OWN ORDER -----------------
+    #
+    # `_collect` was called once per kind and broke at the first kind that
+    # matched anything, so a plan opening with `STEP` entries was those entries
+    # and nothing else. Half of TRD-EHR -- the falsification battery, the 5-fold
+    # CV, the entire counterfactual half -- was invisible on the board, and so
+    # was any checklist item added to it afterwards.
+    write(os.path.join(hub, "planning", "TRD-EHR_TODO.txt"), BOTH)
+    write(os.path.join(proj, "tutorboard.json"),
+          json.dumps({"name": "TRD-EHR",
+                      "plan": "~/research/Research-Journey/planning/TRD-EHR_TODO.txt"}))
+    plan._cache.clear()
+    both = plan.steps(proj)
+    check("a plan's numbered steps and its checklist items are all read",
+          [x["title"] for x in both] == [
+              "INTEGRATE HIS SECTIONS",
+              "THE CLARITY PASS — ONE SECTION AT A TIME",
+              "5-FOLD CV OVER THE WHOLE PIPELINE",
+              "FALSIFICATION BATTERY (all four)"])
+    check("a finished item is not offered as a thing to do",
+          not [x for x in both if "REFIT INSIDE THE BOOTSTRAP" in x["title"]])
+    # THE NUMBERING RULE. A `STEP` keeps the number the plan gave it, because a
+    # person reading the file and a person reading the drawer have to be talking
+    # about the same step -- so step 4 is 4 even though it is the second entry.
+    # An item has no number of its own and takes its place in the merged
+    # sequence, which is what stops the first item being a second 1 on a picture
+    # that already has one.
+    check("a numbered step keeps the plan's number, wherever it falls",
+          [x["num"] for x in both[:2]] == ["1", "4"])
+    check("and an item numbers on from the steps rather than restarting at 1",
+          [x["num"] for x in both[2:]] == ["3", "4"])
+    check("no two steps answer to one label, because a label is the lookup key",
+          len(set(x["label"] for x in both)) == len(both))
+    # The stop line is the next entry of ANY kind. A step whose body ran on over
+    # the items after it was matched against every module they mention, and its
+    # chip landed on boxes it says nothing about.
+    body = plan.whole(proj, both[1]["label"])
+    check("a step's window stops at the next entry whatever kind that is",
+          body and "the plan's numbers are the plan's" in body["text"]
+          and "5-FOLD CV" not in body["text"])
+    check("and an item's body is read the same way a step's is",
+          "read the same way a step's is" in both[2]["summary"])
+    check("the item before a finished one stops there too, and does not "
+          "swallow it", "DONE 2026-08-27" not in both[2]["summary"])
+    write(os.path.join(proj, "tutorboard.json"), json.dumps({"name": "PSYCH-ASR"}))
+    os.remove(os.path.join(hub, "planning", "TRD-EHR_TODO.txt"))
+    plan._cache.clear()
+
     # --- a repository that declares one outright ----------------------------
     write(os.path.join(proj, "MY_PLAN.md"),
           "## First thing\nDo it.\n\n## Second thing\nThen this.\n")
@@ -254,6 +321,56 @@ A multi-project narrative hub. The live task lists are
     check("and one this course does not offer resolves to nothing",
           reading.find(proj, "../../../etc/passwd") == (None, None)
           and reading.find(proj, "not-a-document") == (None, None))
+
+    # --- THE FENCE, WHICH IS NOT A DEPTH AND NOT A SIZE FLOOR ---------------
+    #
+    # `research/PSYCH-ASR/phi/` is session content: the recordings, the turn
+    # tables, the joined transcripts. `manuscript.py` refused that directory by
+    # name and this module did not, so `phi/stage1/Audio Transcription.pdf` was
+    # offered in the drawer under the id `audio-transcription`, `paper.pages_of`
+    # rendered it to PNGs, and `sense.reading_sense` wrote its address into a
+    # tutor's prompt beside an instruction to open and read a page before showing
+    # one. One rule, two lists, one of them wrong. `tutorboard/fenced.py` is the
+    # one list now.
+    #
+    # Fat enough to clear the size floor and shallow enough to be walked to, so
+    # that what refuses it is the refusal rather than either bound.
+    fence = os.path.join(proj, "phi", "stage1")
+    pdf(os.path.join(fence, "Audio Transcription.pdf"))
+    write(os.path.join(proj, "README.md"), """# PSYCH-ASR
+
+This project's live task list is `~/research/Research-Journey/planning/PSYCH-ASR_TODO.txt`.
+A walkthrough is at `~/research/Research-Journey/psych-asr-feasibility/stage1_pipeline_walkthrough.pdf`,
+and `stage2_reference_walkthrough.pdf` is in the same directory.
+
+The session content is under `phi/stage1/Audio Transcription.pdf`.
+""")
+    reading._cache.clear()
+    fenced_ids = [d["id"] for d in reading.documents(proj)]
+    check("a document inside the fenced directory is offered nowhere, however "
+          "plainly the README names it",
+          "audio-transcription" not in fenced_ids)
+    check("and the two decks that are this project's own are still offered",
+          "stage1-pipeline-walkthrough" in fenced_ids
+          and "stage2-reference-walkthrough" in fenced_ids)
+    check("an id naming it resolves to nothing, so nothing renders it",
+          reading.find(proj, "audio-transcription") == (None, None))
+    check("and the walk does not reach it either",
+          not [p for p in reading._in_repo(proj) if "Audio Transcription" in p])
+    check("nor does the README-pointer path, which is the one the directory "
+          "test alone would have walked past",
+          not [p for p in reading._pointed_at(proj)
+               if "Audio Transcription" in p])
+    check("the refusal is by directory name at any depth",
+          reading._fenced(os.path.join("a", "b", "c", "phi", "x.pdf"))
+          and not reading._fenced(os.path.join(
+              "docs", "stage2_reference_walkthrough.pdf")))
+    fenced_line = sense.reading_sense(type("R", (), {"root": proj})())
+    check("and a tutor is never told the address of a page of it",
+          "audio-transcription" not in fenced_line
+          and "stage2-reference-walkthrough" in fenced_line)
+    shutil.rmtree(os.path.join(proj, "phi"))
+    reading._cache.clear()
 
     # --- what the tutor is told ---------------------------------------------
     write(os.path.join(proj, "README.md"), """# PSYCH-ASR
