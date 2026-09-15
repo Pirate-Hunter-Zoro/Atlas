@@ -1099,6 +1099,7 @@ function render(data) {
     /* Something is on the board. Whatever the send was waiting for has landed,
        whether or not the tutor's own state ever said so. */
     sendingAt = 0;
+    sendingWord = "";
     /* A CARD ARRIVING NEVER MOVES THE READER. IT GROWS INTO VIEW.
 
        Asked for twice, the second time as a specification: "when I submit the
@@ -1339,6 +1340,10 @@ function paintSession(state, push, agent, exported, hwBuilt) {
          `#tutorbad` carries the sentence. */
     : "tutor stopped";
   }
+  /* The chip is the first thing the bar gives up width on, and squeezed hard it
+     is its status dot and nothing else. So the words live somewhere they can
+     still be got at rather than only in a chip that may have been trimmed. */
+  els.agent.title = els.agent.textContent;
   var kind = state.session || "lecture";
   sittingKind = kind;
   els.session.hidden = false;
@@ -5861,10 +5866,16 @@ var busyTimer = null;
    until the tutor picks it up. It expires: an inbox nobody is reading must not
    leave "sending" on the screen for the rest of the evening. */
 var sendingAt = 0;
+var sendingWord = "";
 var SENDING_FOR = 100000;
 
-function saySending() {
+function saySending(word) {
   sendingAt = Date.now();
+  /* WHAT was sent, when it is not a page of working. A direction change archives
+     the lesson and replaces the tutor, which takes long enough to read as
+     nothing happening at all -- and "sending to the tutor" would be a lie about
+     which tutor. Empty means the ordinary send, and the ordinary words. */
+  sendingWord = word || "";
   if (lastLive) paintBusy(lastLive);
   /* AND GO AND LOOK AT IT, NOW.
 
@@ -6039,7 +6050,7 @@ function paintBusy(data) {
   var st = data.agent || null;
   var working = !!st && st.state === "working" && !data.archived;
   /* The tutor has picked it up, or given up waiting for it to be picked up. */
-  if (working || Date.now() - sendingAt > SENDING_FOR) sendingAt = 0;
+  if (working || Date.now() - sendingAt > SENDING_FOR) { sendingAt = 0; sendingWord = ""; }
   if (!working) {
     var stalled = data.archived ? null
       : stalledWord(st, data.waiting, data.unsaved || 0);
@@ -6064,7 +6075,7 @@ function paintBusy(data) {
          saying so would be the board guessing. This is the half-second of the
          send that belongs to the wire. */
       els.busy.hidden = false;
-      els.busyText.textContent = "sending to the tutor";
+      els.busyText.textContent = sendingWord || "sending to the tutor";
       els.busySince.textContent = "";
       busySince = 0;
       busyTurn = -1;
@@ -7098,6 +7109,19 @@ function steerSend() {
   if (!text) return;
   els.steerGo.disabled = true;
   els.steerGo.textContent = "changing…";
+  /* NOT SILENT WHILE IT HAPPENS. Everything this tap sets off is on the server
+     and none of it is quick: the lesson is filed, a new sitting is opened, and
+     the running tutor is stopped and another started in its place. The sheet
+     shuts, the board comes back empty because the old lesson has just gone, and
+     until the new tutor writes its first card there is nothing on the glass at
+     all. Reported as: "I did get a response, but I had to wait a bit and it
+     didn't give me any kind of 'tutor is working' visual confirmation — I was
+     left hanging."
+
+     The strip already exists for exactly this and the direction change was the
+     one send that never lit it. Said on the tap rather than on the reply, for
+     the same reason the ordinary send is. */
+  saySending("changing direction — replacing the tutor");
   fetch("/direction", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -7105,6 +7129,9 @@ function steerSend() {
   }).then(function (r) { return r.json(); }).then(function (data) {
     els.steerGo.textContent = "change direction";
     if (!data || !data.ok) {
+      sendingAt = 0;
+      sendingWord = "";
+      if (lastLive) paintBusy(lastLive);
       steerReady();
       return;
     }
@@ -7116,6 +7143,9 @@ function steerSend() {
     addrShut();
   }).catch(function () {
     els.steerGo.textContent = "change direction";
+    sendingAt = 0;
+    sendingWord = "";
+    if (lastLive) paintBusy(lastLive);
     steerReady();
   });
 }
