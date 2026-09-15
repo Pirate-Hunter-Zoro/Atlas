@@ -287,14 +287,19 @@ def run_push(repo, message=None):
     # taking `dirname` of its git directory -- which is right for an ordinary
     # clone and wrong for a linked worktree or a submodule, where the git
     # directory lives somewhere else entirely.
+    #
+    # ITS OWN NAME FOR THE ANSWER. This read `said` as its scratch variable --
+    # the commit MESSAGE, built three lines above -- so every save from the
+    # board committed with the absolute path of the repository as its subject
+    # and the workspace's name nowhere in it. A message is not a place.
     top = repo.root
     try:
         p = subprocess.run(["git", "rev-parse", "--show-toplevel"], cwd=repo.root,
                            stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
                            timeout=10)
-        said = p.stdout.decode("utf-8", "replace").strip()
-        if p.returncode == 0 and said:
-            top = said
+        found = p.stdout.decode("utf-8", "replace").strip()
+        if p.returncode == 0 and found:
+            top = found
     except (OSError, subprocess.TimeoutExpired):
         pass
 

@@ -313,6 +313,21 @@ try:
     check("and the board is told a lock was cleared, not left to wonder",
           rec.get("cleared_lock") is True and "lock" in (rec.get("detail") or ""))
 
+    # AND THE COMMIT SAYS WHAT THE SAVE WAS.
+    #
+    # The message is built here -- the workspace, then what the person or the
+    # tutor called it -- and then the block that works out which repository to
+    # run in reused the same variable for `git rev-parse --show-toplevel`. So
+    # every save from the board committed under the absolute path of the
+    # repository, with the workspace's name nowhere in it. A history is only a
+    # history if the subjects are about the work.
+    subject = git(tapping, "log", "-1", "--format=%s")[1].strip()
+    check("and the commit subject is what the save was about, not where the "
+          "repository is",
+          "saved from the board" in subject and not subject.startswith("/"))
+    check("and it leads with the workspace, so one history of many can be read",
+          subject.startswith("tapping"))
+
     # AND IT COMMITTED THE REPOSITORY IT WAS ASKED ABOUT, not the one the tool
     # happens to live in.
     #
