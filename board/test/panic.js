@@ -209,9 +209,15 @@ const press = (type, x, y) => btn.dispatchEvent(
     find
       ? ok('the writing surface has a re-centre of its own')
       : fail('there is no way back from a zoom into the writing');
-    find && /writing/i.test(find.textContent)
+    const said = (n) => (n ? (n.textContent || '').trim().toLowerCase() : '');
+    find && said(find) && said(find) !== said(btn)
       ? ok('and it says which of the two it is')
-      : fail('the two re-centres are not tellable apart');
+      : fail('the two re-centres are not tellable apart: both say "'
+             + said(btn) + '"');
+    /ink|writ/.test(said(find))
+      ? ok('and what it says is about the writing, not about the page')
+      : fail('the writing re-centre is labelled "' + said(find)
+             + '", which names neither the writing nor whose it is');
     find && find.hidden
       ? ok('and is absent while there is no surface to be lost on')
       : fail('a button offering to find writing on a board that is not there');
@@ -265,7 +271,9 @@ const press = (type, x, y) => btn.dispatchEvent(
     : fail('the drag re-centred the board as well — every move is now a surprise');
 
   let stored = null;
-  try { stored = JSON.parse(window.localStorage.getItem('board.panic') || 'null'); }
+  // Each button is remembered under its own key: they are separate widgets and
+  // a shared anchor is what made them one.
+  try { stored = JSON.parse(window.localStorage.getItem('board.panic.panic') || 'null'); }
   catch (e) { /* reported below */ }
   stored && typeof stored.x === 'number'
     ? ok('where it was put is remembered, so it is not re-placed every session')
@@ -495,31 +503,55 @@ const press = (type, x, y) => btn.dispatchEvent(
       : fail('the stack was raised everywhere, so it now sits over the menu');
   }
 
-  // 8b. AND ANY OF THEM MOVES THE WHOLE STACK.
-  //     They travel together, so which one is under the thumb when somebody
-  //     decides to shift them out of the way is an accident of where their hand
-  //     already was. Asked for as: "I want to be able to drag the trio around by
-  //     putting my finger on any of them."
+  // 8b. AND EACH OF THEM MOVES ITSELF, AND NOTHING ELSE.
+  //
+  //     They were one stack with one anchor: a press on any of them moved all
+  //     three, because all three were one object. They are three now -- putting
+  //     the zoom back, finding your own writing, and abandoning the plan have
+  //     nothing to do with each other -- and a control that moves something other
+  //     than itself is a control nobody can aim. Asked for as: "make the
+  //     re-centre, the writing re-centre, and the change direction buttons
+  //     independent of each other - three separate widgets not stuck to each
+  //     other."
   {
     const turn = doc.getElementById('redirect');
+    const spot = (el) => {
+      const m = /translate\(([-\d.]+)px,\s*([-\d.]+)px\)/.exec(el.style.transform || '');
+      return m ? { x: +m[1], y: +m[2] } : null;
+    };
     const wasPanic = at();
+    const wasTurn = spot(turn);
     const press2 = (type, x, y) => turn.dispatchEvent(
       new window.MouseEvent(type, { bubbles: true, clientX: x || 0, clientY: y || 0,
                                     pointerId: 9 }));
     press2('pointerdown', 600, 300);
     await sleep(500);
     turn.classList.contains('holding')
-      ? ok('a press and hold on the bottom button picks the stack up')
-      : fail('only the top button can be moved, which nobody was told');
+      ? ok('a press and hold picks up whichever button is under the thumb')
+      : fail('only one of them can be moved, which nobody was told');
     press2('pointermove', 200, 520);
+    const nowTurn = spot(turn);
+    nowTurn && wasTurn && (nowTurn.x !== wasTurn.x || nowTurn.y !== wasTurn.y)
+      ? ok('and that one follows the finger')
+      : fail('the button was held but would not move');
     const nowPanic = at();
-    nowPanic && (nowPanic.x !== wasPanic.x || nowPanic.y !== wasPanic.y)
-      ? ok('and the whole trio goes with it')
-      : fail('the bottom button moved on its own, or nothing moved');
+    nowPanic && wasPanic
+      && nowPanic.x === wasPanic.x && nowPanic.y === wasPanic.y
+      ? ok('while the others stay exactly where they were put')
+      : fail('moving one dragged the rest along behind it — they are still one '
+             + 'object wearing three coats');
+
     press2('pointerup', 200, 520);
     !turn.classList.contains('holding')
       ? ok('and it is put down where it was left')
-      : fail('the stack is still held after the finger lifted');
+      : fail('the button is still held after the finger lifted');
+    let mine = null;
+    try { mine = JSON.parse(window.localStorage.getItem('board.panic.redirect') || 'null'); }
+    catch (e) { /* reported below */ }
+    mine && typeof mine.x === 'number'
+      ? ok('and remembered under its own name, not the group\'s')
+      : fail('where this one was put was not saved separately, so the next '
+             + 'session puts it back with the others');
   }
 
   // 9. THE SAME TWO ZOOMS EXIST ON THE FRONT DOOR, which had neither way back.

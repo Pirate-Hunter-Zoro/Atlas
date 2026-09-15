@@ -9,8 +9,10 @@
    somewhere with nothing recognisable on the glass, and neither can be undone
    by the gesture that caused it once the surface fills the screen.
 
-   So there is a small stack of buttons in one corner, and this file is all of
-   it: where they sit, how they are moved, and what a tap on the first one does.
+   So there are a few small buttons floating over the page, and this file is all
+   of it: where each one sits, how each one is moved, and what a tap on the first
+   one does. Each is its own widget -- its own place, remembered on its own -- so
+   putting one somewhere does not drag the others along behind it.
 
    THE ONE THING THAT IS EASY TO GET WRONG. `position: fixed` is fixed to the
    LAYOUT viewport, and pinching moves the VISUAL one -- so a control placed by
@@ -37,17 +39,34 @@
    is in somebody's way eventually, which is what the press and hold is for. */
 var DEFAULT_AT = { x: .975, y: .1 };
 var HOLD_MS = 380;               /* a press, rather than a tap: held by TIME */
-var GAP = 8;                     /* between one button in the stack and the next */
+var ROW = .07;                   /* where the next one starts out, down the glass */
 
-var stack = [];                  /* [{ el, onTap, size, fallback }] -- top first */
-var at = { x: DEFAULT_AT.x, y: DEFAULT_AT.y };
-var key = "";
+/* EACH BUTTON IS ITS OWN WIDGET, WITH ITS OWN PLACE ON THE GLASS.
+
+   They were one stack: one anchor, the rest parked underneath it, and dragging
+   any of them moved the trio. That is one object made of three controls that
+   have nothing to do with each other -- putting the zoom back, finding your own
+   writing, and abandoning the plan -- so wanting the first one somewhere and the
+   third one somewhere else was not a thing the arrangement could express. Asked
+   for as: "make the re-centre, the writing re-centre, and the change direction
+   buttons independent of each other - three separate widgets not stuck to each
+   other."
+
+   So each carries its own anchor and its own remembered position, under its own
+   key. They start out where the stack used to put them, so nothing jumps on the
+   day this changes, and from then on each one goes where it is put. */
+var items = [];                  /* [{ el, onTap, size, fallback, at, key }] */
+var base = "";
 var held = null;
 var frame = 0;
 var wired = false;
 
 function forget() {
-  for (var i = 0; i < stack.length; i++) stack[i].size = null;
+  for (var i = 0; i < items.length; i++) items[i].size = null;
+}
+
+function remember(one) {
+  try { localStorage.setItem(one.key, JSON.stringify(one.at)); } catch (e) {}
 }
 
 /* Coalesced to one placement per frame, and each button's own size measured
@@ -66,7 +85,7 @@ function soon() {
 }
 
 function place() {
-  if (!stack.length) return;
+  if (!items.length) return;
   var vv = window.visualViewport;
   var w = vv ? vv.width : window.innerWidth;
   var h = vv ? vv.height : window.innerHeight;
@@ -74,10 +93,9 @@ function place() {
   var oy = vv ? vv.offsetTop : 0;
   var k = (vv && vv.scale) ? vv.scale : 1;
   var pad = 6 / k;
-  var next = null;               /* the top of the next button down */
 
-  for (var i = 0; i < stack.length; i++) {
-    var one = stack[i];
+  for (var i = 0; i < items.length; i++) {
+    var one = items[i];
     if (!one.el || one.el.hidden) continue;
     if (!one.size || !one.size.w) {
       one.size = { w: one.el.offsetWidth || one.fallback.w,
@@ -87,13 +105,15 @@ function place() {
        size divided by the magnification. */
     var bw = one.size.w / k;
     var bh = one.size.h / k;
-    var x = ox + at.x * w - bw / 2;
-    var y = (next === null) ? oy + at.y * h - bh / 2 : next;
+    var x = ox + one.at.x * w - bw / 2;
+    var y = oy + one.at.y * h - bh / 2;
+    /* Clamped into the visible window, and NOT written back into the anchor: a
+       button parked off the edge of a phone comes back where it was put when
+       the same board is opened on a tablet. */
     x = Math.min(Math.max(x, ox + pad), ox + w - bw - pad);
     y = Math.min(Math.max(y, oy + pad), oy + h - bh - pad);
     one.el.style.transform =
       "translate(" + x + "px," + y + "px) scale(" + (1 / k) + ")";
-    next = y + bh + GAP / k;
   }
 }
 
@@ -154,18 +174,11 @@ function pageBack(el) {
   forget();
 }
 
-/* EVERY BUTTON MOVES THE STACK, not only the one at the top.
+/* EVERY BUTTON MOVES ITSELF, AND ONLY ITSELF.
 
-   They are parked against each other and travel together, so which one is under
-   the thumb when somebody decides to shift them out of the way is an accident of
-   where their hand already was. Reaching for the top one first is a rule nobody
-   was told and the bottom two simply did not respond to a press. Asked for as:
-   "I want to be able to drag the trio around by putting my finger on any of
-   them."
-
-   The drag moves the anchor, which is the top of the stack, so a press on the
-   third button moves all three and keeps their order -- the stack is one object
-   however many of it is on the glass. */
+   A press and hold on any of them picks that one up. It used to pick up all
+   three, because all three were one object; they are three now, and a control
+   that moves something other than itself is a control nobody can aim. */
 function drag(one) {
   one.el.addEventListener("pointerdown", function (ev) {
     ev.preventDefault();
@@ -178,9 +191,9 @@ function drag(one) {
     var ox0 = vv0 ? vv0.offsetLeft : 0;
     var oy0 = vv0 ? vv0.offsetTop : 0;
     held = {
-      id: ev.pointerId, drag: false,
-      dx: (ev.clientX - ox0) / w0 - at.x,
-      dy: (ev.clientY - oy0) / h0 - at.y,
+      id: ev.pointerId, drag: false, one: one,
+      dx: (ev.clientX - ox0) / w0 - one.at.x,
+      dy: (ev.clientY - oy0) / h0 - one.at.y,
       timer: setTimeout(function () {
         if (!held) return;
         held.drag = true;
@@ -198,12 +211,10 @@ function drag(one) {
     var ox = vv ? vv.offsetLeft : 0;
     var oy = vv ? vv.offsetTop : 0;
     /* clientX is in the layout viewport's units, which is what the offsets
-       convert out of. The finger carries the button it is actually on, so the
-       anchor moves by the offset between that button and the top of the stack
-       -- otherwise pressing the third one teleports the stack up by two
-       buttons before it has moved at all. */
-    at.x = Math.min(Math.max((ev.clientX - ox) / w - held.dx, 0), 1);
-    at.y = Math.min(Math.max((ev.clientY - oy) / h - held.dy, 0), 1);
+       convert out of. `dx`/`dy` hold where on the button the finger landed, so
+       it does not jump under the thumb the moment it comes free. */
+    one.at.x = Math.min(Math.max((ev.clientX - ox) / w - held.dx, 0), 1);
+    one.at.y = Math.min(Math.max((ev.clientY - oy) / h - held.dy, 0), 1);
     place();
   });
 
@@ -217,7 +228,7 @@ function drag(one) {
     held = null;
     one.el.classList.remove("holding");
     if (moved) {
-      try { localStorage.setItem(key, JSON.stringify(at)); } catch (e) {}
+      remember(one);
       return;
     }
     if (ev.type !== "pointercancel" && one.onTap) one.onTap(one.el);
@@ -226,38 +237,57 @@ function drag(one) {
   one.el.addEventListener("pointercancel", release);
 }
 
+/* A remembered position, or nothing. */
+function saved(k) {
+  try {
+    var got = JSON.parse(localStorage.getItem(k) || "null");
+    if (got && typeof got.x === "number" && typeof got.y === "number") {
+      return { x: got.x, y: got.y };
+    }
+  } catch (e) { /* a corrupt preference is not worth a broken board */ }
+  return null;
+}
+
 /* mount({ key, buttons: [{ el, onTap, w, h }] })
 
-   The first button is the stack's handle and the one that is dragged. `onTap`
-   defaults to putting the page's magnification back, which is what the first
-   one is for on every surface; the ones under it say what they do. */
+   The first button's tap puts the page's magnification back, which is what it is
+   for on every surface; the rest say what they do. Every one of them is placed
+   on its own and remembered on its own, under `<key>.<id>`. */
 function mount(spec) {
   spec = spec || {};
-  key = spec.key || "board.panic";
-  stack = [];
+  base = spec.key || "board.panic";
+  items = [];
+  /* Where the group used to sit, as one. Read once, so that the first time a
+     board runs with separate buttons they are found where they were left rather
+     than back in the corner. */
+  var wasGroup = saved(base);
   (spec.buttons || []).forEach(function (b, i) {
     if (!b || !b.el) return;
+    var id = b.el.id || ("b" + i);
     /* The handle's tap puts the page back unless it is told otherwise. A button
-       under it with no `onTap` is one that carries its own listener already --
-       it rides in the stack to be PLACED, and a second listener here would fire
-       alongside its own. */
-    stack.push({
+       with no `onTap` is one that carries its own listener already -- it is here
+       to be PLACED, and a second listener would fire alongside its own. */
+    var one = {
       el: b.el,
       onTap: b.onTap || (i === 0 ? pageBack : null),
       size: null,
       fallback: { w: b.w || 108, h: b.h || 32 },
-    });
-  });
-  if (!stack.length) return;
-
-  try {
-    var saved = JSON.parse(localStorage.getItem(key) || "null");
-    if (saved && typeof saved.x === "number" && typeof saved.y === "number") {
-      at = { x: saved.x, y: saved.y };
+      key: base + "." + id,
+      at: null,
+    };
+    one.at = saved(one.key);
+    if (!one.at) {
+      /* Down the right-hand edge in the order they were given, which is where
+         the stack put them -- from wherever the group was last left, if it was
+         ever moved. */
+      var from = wasGroup || DEFAULT_AT;
+      one.at = { x: from.x, y: Math.min(from.y + i * ROW, 1) };
     }
-  } catch (e) { /* a corrupt preference is not worth a broken board */ }
+    items.push(one);
+  });
+  if (!items.length) return;
 
-  for (var i = 0; i < stack.length; i++) drag(stack[i]);
+  for (var i = 0; i < items.length; i++) drag(items[i]);
 
   if (!wired) {
     wired = true;
