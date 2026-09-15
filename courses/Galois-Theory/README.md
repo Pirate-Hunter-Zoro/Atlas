@@ -12,6 +12,8 @@ D. J. H. Garling, *A Course in Galois Theory* (Cambridge University Press).
 
 ```
 HANDOFF.md          what the last session left for the next one — read first
+PLAN.md             the order of work: which exercises are open, and in which order
+DIRECTION.md        what this workspace is for, in the student's own words. Outranks the plan
 textbook/           the full scanned text (tracked — private repo)
 chapters.tsv        chapter table — numbers, titles, page ranges. Single source of truth.
 latex/
