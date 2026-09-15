@@ -1025,7 +1025,13 @@ const farDown = Object.assign({}, withNew, {
   // Get thoroughly lost: zoom in hard, somewhere with nothing on it.
   slate.zoom ? slate.zoom(6) : null;
   const before = slate.view();
-  find.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+  // A TAP, in pointer events: every button in the re-centre stack can also be
+  // pressed and held to move the trio, so the tap is decided on pointerup by
+  // how long the contact lasted rather than by a click.
+  find.dispatchEvent(new window.MouseEvent('pointerdown',
+    { bubbles: true, clientX: 0, clientY: 0, pointerId: 11 }));
+  find.dispatchEvent(new window.MouseEvent('pointerup',
+    { bubbles: true, clientX: 0, clientY: 0, pointerId: 11 }));
   const after = slate.view();
   const box = slate.inkBox();
   const top = -after.oy / after.k;

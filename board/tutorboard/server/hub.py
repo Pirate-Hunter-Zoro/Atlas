@@ -55,6 +55,14 @@ class Hub:
         # a constant `"teach"` in the client until now, which is a guess that is
         # wrong in exactly the repositories this matters most in.
         board_state["declared_stance"] = cfg.get("stance") or "teach"
+        # AND WHAT KIND OF WORK THIS REPOSITORY HOLDS. The busy strip says what
+        # a turn is doing while it does it, and in a repository whose work is
+        # mathematics "writing the code and running it" is a sentence about
+        # somebody else's evening. Reported from a Galois sitting: "I just got a
+        # tutor response that said 'working on it - writing the code and running
+        # it' after I submitted some math ... that doesn't make much sense as a
+        # message."
+        board_state["mode"] = cfg.get("mode") or "text"
         data = {
             "state": board_state,
             "cards": on_board,

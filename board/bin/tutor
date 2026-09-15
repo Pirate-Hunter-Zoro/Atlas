@@ -1964,8 +1964,42 @@ def cmd_restart(cfg, args):
     process is worse than leaving a stale one. `--tutors` adds the daemons.
     """
     host = this_host()
+    # WHO HOLDS THE ADDRESS, BEFORE ANYTHING IS STOPPED.
+    #
+    # There is one HTTPS name and it points at one board. A start claims it only
+    # when it is pointing at nothing -- but this loop stops each board in turn,
+    # so while one is down the name it holds IS pointing at nothing, and the
+    # next course to come up takes it. The alphabet decided which. Somebody
+    # mid-proof in Galois Theory looked up at a board labelled PSYCH-ASR, on a
+    # device with one URL baked into it, with no way to say which course they
+    # meant. A deploy must not move somebody's address.
+    #
+    # The name points at ONE port, machine-wide, so it is asked once; which
+    # course that is is then read off the board each one is actually running on,
+    # because a port is a pure function of the workspace's directory basename
+    # and the record in `live/.board.json` is the fact rather than a derivation
+    # of it.
+    all_courses = courses(cfg)
+    held_port = None
+    for c in all_courses:
+        code, out = board(c["root"], "vpn", "holder")
+        if code == 0 and out.strip().isdigit():
+            held_port = int(out.strip())
+        break
+    held_before = None
+    if held_port:
+        for c in all_courses:
+            try:
+                with open(os.path.join(c["root"], "live", ".board.json"),
+                          "r", encoding="utf-8") as fh:
+                    if json.load(fh).get("port") == held_port:
+                        held_before = (c["dir"], c["root"], held_port)
+                        break
+            except (OSError, ValueError):
+                continue
+
     touched, skipped = [], []
-    for c in courses(cfg):
+    for c in all_courses:
         live = os.path.join(c["root"], "live")
         try:
             with open(os.path.join(live, ".board.json"), "r", encoding="utf-8") as fh:
@@ -1983,6 +2017,19 @@ def cmd_restart(cfg, args):
             touched.append(c["dir"])
         else:
             skipped.append("%s (%s)" % (c["dir"], out.strip().splitlines()[-1:] or "failed"))
+
+    # And give it back. The board that had the name has just come up on the new
+    # code; whatever the loop pointed the name at in the meantime, it goes back
+    # to where it was. `vpn serve` is the forced claim, which is the right verb:
+    # this is not a guess about which course is wanted, it is a restoration of
+    # the one that was.
+    if held_before:
+        name, root, port = held_before
+        code, out = board(root, "vpn", "holder")
+        now = out.strip() if code == 0 else ""
+        if now != str(port):
+            board(root, "vpn", "serve")
+            print("the address is back on %s" % name)
 
     if touched:
         print("restarted: %s" % ", ".join(touched))

@@ -2325,10 +2325,51 @@ def ts_info():
     return v4, (name or None)
 
 
+def served_ports(out):
+    """Every local port an HTTPS name is proxying to right now.
+
+    `tailscale serve status` lists two different things and they look alike. A
+    TCP FORWARD is printed once per board, with its own port, as a tree of
+    `tcp://…:PORT` lines -- one board's plain-HTTP address on the tailnet. The
+    HTTPS NAME is the thing this is actually about, and it appears at the bottom
+    as `https://<name>` followed by `|-- / proxy http://127.0.0.1:PORT`.
+
+    The first pattern in the output is therefore a TCP forward belonging to some
+    board or other, in whatever order the daemon felt like printing them, and
+    reading THAT as "who holds the address" is how a guard against stealing the
+    name came to be a coin toss. Somebody mid-proof in Galois Theory looked up
+    at a board labelled PSYCH-ASR. Only the proxy lines count.
+    """
+    return [int(p) for p in
+            re.findall(r"proxy\s+https?://127\.0\.0\.1:(\d+)", out or "")]
+
+
+def served_by_name(out):
+    """{https name: local port} -- which name is pointed where.
+
+    There is more than one name. This node answers to its own
+    `compute-node.<tailnet>` and to the stable `board.<tailnet>` the iPad has in
+    its home screen, and they can point at different boards. "Who holds the
+    address" is only a question about one of them at a time.
+    """
+    by = {}
+    name = None
+    for line in (out or "").splitlines():
+        line = line.strip()
+        m = re.match(r"https://([^\s/]+)", line)
+        if m:
+            name = m.group(1)
+            continue
+        m = re.search(r"proxy\s+https?://127\.0\.0\.1:(\d+)", line)
+        if m and name:
+            by[name] = int(m.group(1))
+    return by
+
+
 def served_port(out):
     """Which local port the tailnet name is proxying to right now, if any."""
-    m = re.search(r"127\.0\.0\.1:(\d+)", out or "")
-    return int(m.group(1)) if m else None
+    ports = served_ports(out)
+    return ports[0] if ports else None
 
 
 def port_answers(port):
@@ -2387,8 +2428,11 @@ def ts_repoint(port, force=False):
         return
     if target in out:
         return
-    held = served_port(out)
-    if not force and held and held != port and port_answers(held):
+    # ANY https name that is proxying to a board which is up owns the address.
+    # Asking only about the first one found was the same mistake as reading a
+    # TCP forward for a proxy: two names, and the answer depended on order.
+    held = [p for p in served_ports(out) if p != port and port_answers(p)]
+    if not force and held:
         return
     code, _ = ts("serve", "--bg", "--https=443", target, timeout=40)
     if code == 0:
@@ -2398,6 +2442,32 @@ def ts_repoint(port, force=False):
 
 def cmd_vpn(live, args):
     sub = args[0] if args else "status"
+
+    # WHICH PORT THE NAME IS POINTING AT, as a number and nothing else.
+    # `tutor restart` bounces every board on the machine one after another, and
+    # while one is down the name it holds points at nothing -- which is exactly
+    # the condition under which the next board to come up is allowed to take it.
+    # So a deploy handed the address to whichever course the loop reached last.
+    # This is how the restart remembers who had it, before it starts stopping
+    # things. Asked for in the only words it needs: "I thought I was in Galois
+    # Theory - why the hell is the top left label PSYCH-ASR?"
+    if sub == "holder":
+        if not ts_daemon_running():
+            return 1
+        code, out = ts("serve", "status", timeout=15)
+        if code != 0:
+            return 1
+        by = served_by_name(out)
+        _, me = ts_info()
+        # This node's own name first, because that is the one `board net` prints
+        # and the one the iPad has. Failing that, any name at all.
+        held = by.get(me) if me else None
+        if not held and by:
+            held = sorted(by.values())[0]
+        if not held:
+            return 1
+        print(held)
+        return 0
 
     if sub == "down":
         ts("down")

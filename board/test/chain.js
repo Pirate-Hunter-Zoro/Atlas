@@ -713,6 +713,44 @@ const lift = () => {
            + ' of ' + slate.pages() + ')');
 }
 
+// ----------------------------------------------------------------------------
+// AND A TURN RECORDED BEFORE ANY OF THIS STILL GETS ITS BOARD BACK.
+//
+// A page handed in when nothing had declared itself a question was written down
+// answering NOTHING, and a turn about nothing can never be given a board: it is
+// a picture for ever, and the lesson has no working between one response and the
+// next. Those turns are on disk in sittings that are already under way, so the
+// fix has to reach them rather than only the next send.
+{
+  const m1 = card('0200', 'lesson', 'the exercise, and the first rung', 40);
+  const m2 = card('0201', 'lesson', 'what the degree actually counts', 41);
+  const kept3 = () => Array.from(doc.querySelectorAll('[data-board="0201"]'));
+  const reply = card('0202', 'note', 'the second line is where it goes', 42);
+
+  es.onmessage({ data: lesson([m1, m2]) });
+  await sleep(40);
+  doc.getElementById('reopen').onclick();
+  await sleep(40);
+  slate.load({ w: 1130, h: 1514, strokes: [ink(50)] });
+
+  // Sent while 0201 was the newest card, and recorded against nothing -- which
+  // is how every page handed in under a lesson card used to be written down.
+  const orphan = { id: 't0200', rev: 1, kind: 'ink', answers: null,
+                   t: t0 + 4150, page: slate.at(), strokes: 1,
+                   png: '/answers/t0200-r1.png', ink: '/answers/t0200-r1.json' };
+
+  es.onmessage({ data: lesson([m1, m2, reply], [orphan]) });
+  await sleep(40);
+
+  kept3().length === 1
+    ? ok('a turn that named nothing is adopted by the card it was written under')
+    : fail('the orphaned answer is still a picture with no board (' + kept3().length
+           + ' kept)');
+  doc.querySelector('[data-card="0202"]').nextElementSibling === writer()
+    ? ok('and the next board opens under the response, as it always did')
+    : fail('there is still no board between one response and the next');
+}
+
 console.log(errors.length ? '\n' + errors.length + ' FAILURES'
                           : '\nan exercise is a chain of boards, and every one of them stays');
 process.exit(errors.length ? 1 : 0);

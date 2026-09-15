@@ -495,6 +495,33 @@ const press = (type, x, y) => btn.dispatchEvent(
       : fail('the stack was raised everywhere, so it now sits over the menu');
   }
 
+  // 8b. AND ANY OF THEM MOVES THE WHOLE STACK.
+  //     They travel together, so which one is under the thumb when somebody
+  //     decides to shift them out of the way is an accident of where their hand
+  //     already was. Asked for as: "I want to be able to drag the trio around by
+  //     putting my finger on any of them."
+  {
+    const turn = doc.getElementById('redirect');
+    const wasPanic = at();
+    const press2 = (type, x, y) => turn.dispatchEvent(
+      new window.MouseEvent(type, { bubbles: true, clientX: x || 0, clientY: y || 0,
+                                    pointerId: 9 }));
+    press2('pointerdown', 600, 300);
+    await sleep(500);
+    turn.classList.contains('holding')
+      ? ok('a press and hold on the bottom button picks the stack up')
+      : fail('only the top button can be moved, which nobody was told');
+    press2('pointermove', 200, 520);
+    const nowPanic = at();
+    nowPanic && (nowPanic.x !== wasPanic.x || nowPanic.y !== wasPanic.y)
+      ? ok('and the whole trio goes with it')
+      : fail('the bottom button moved on its own, or nothing moved');
+    press2('pointerup', 200, 520);
+    !turn.classList.contains('holding')
+      ? ok('and it is put down where it was left')
+      : fail('the stack is still held after the finger lifted');
+  }
+
   // 9. THE SAME TWO ZOOMS EXIST ON THE FRONT DOOR, which had neither way back.
   //    The atlas is a plane drawn by the same measuring and moved by the same
   //    gestures as the map, on a page that pinches like any other.

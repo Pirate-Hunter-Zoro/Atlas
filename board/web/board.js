@@ -624,6 +624,28 @@ function render(data) {
     at[c.id] = n;
     if (c.kind === "question") isQuestion[c.id] = true;
   });
+  /* AND A TURN THAT NAMES NOTHING IS ADOPTED BY THE CARD IT WAS WRITTEN UNDER.
+
+     A page handed in while no card had declared itself a question was recorded
+     answering nothing at all, and a turn that is about nothing cannot be given
+     a board, kept, revised or found again: it froze into a picture the moment
+     it was sent and the lesson lost every board between one response and the
+     next. Reported as: "I see no prior board work in between responses
+     anywhere, which really disorganizes the tutoring session."
+
+     Which card it was about is not a guess. It is the last one written before
+     the page was sent -- the thing they were looking at when they wrote it --
+     and both halves of that are on disk, so a lesson recorded before any of
+     this comes back with its boards rather than staying broken. Ink only: the
+     opening "begin" and a direction change are about the sitting rather than
+     about a card, and they keep falling where their time puts them. */
+  var written = ordered.filter(function (c) { return typeof c.mtime === "number"; });
+  (data.turns || []).forEach(function (t) {
+    if (t.answers || t.kind !== "ink") return;
+    var anchor = null;
+    written.forEach(function (c) { if (c.mtime <= t.t) anchor = c.id; });
+    if (anchor) t.answers = anchor;
+  });
   (data.turns || []).forEach(function (t) {
     if (t.answers && at[t.answers] !== undefined) isQuestion[t.answers] = true;
   });
@@ -5890,6 +5912,7 @@ var busyFrom = 0;
 /* Whether the turn running now is one that does the work. Held rather than
    recomputed in `tickBusy`, which fires on a timer and has no payload. */
 var busyDoing = false;
+var busyMath = false;
 var busyTimer = null;
 /* WHEN SEND WAS TAPPED, AND WHETHER ANYTHING HAS ANSWERED YET.
 
@@ -6149,6 +6172,9 @@ function paintBusy(data) {
   /* A new turn restarts the clock; the same turn continuing does not. */
   var turn = st.turns || 0;
   busyDoing = doingTurn(data.state);
+  /* A turn that DOES the work still does not write code in a repository whose
+     work is mathematics, and saying it does is worse than saying nothing. */
+  busyMath = ((data.state || {}).mode || "") === "math";
   if (busyTurn !== turn || !busySince) {
     busyTurn = turn;
     /* THE DAEMON'S CLOCK, NOT THIS PAGE'S.
@@ -6220,6 +6246,15 @@ function tickBusy() {
      it and reading what came back. Say that instead, and say where the answer
      will appear, because the one-line card already up is not it. */
   if (busyDoing) {
+    /* Say WHAT it is working on only where that is known. On a mathematics
+       board it is the mathematics, and naming code there is a sentence about
+       somebody else's evening. */
+    if (busyMath) {
+      els.busyText.textContent = secs > 150
+        ? "still working on it — the answer lands here"
+        : "working on it";
+      return;
+    }
     els.busyText.textContent = secs > 150
       ? "still working — writing the code and running it. The report lands here"
       : "working on it — writing the code and running it";
@@ -6944,9 +6979,12 @@ if (els.panic && window.Recentre) {
           mapRemember();
           window.Recentre.flash(el);
         } },
-      /* Placed, not wired: `#redirect` opens the steer sheet from a listener of
-         its own, further down this file. */
-      { el: els.redirect, onTap: null, w: 150 },
+      /* Its tap belongs to the stack too, now that every button in the stack
+         can be pressed and held to move the trio: a `click` listener of its own
+         would fire alongside this one. */
+      { el: els.redirect, w: 150, onTap: function () {
+          if (els.steer.hidden) steerOpen(); else steerShut();
+        } },
     ],
   });
 }
@@ -7039,11 +7077,9 @@ function steerSend() {
   });
 }
 
-if (els.redirect) {
-  els.redirect.addEventListener("click", function () {
-    if (els.steer.hidden) steerOpen(); else steerShut();
-  });
-}
+/* `#redirect`'s tap is wired where the stack is mounted, at the top of this
+   file: every button up there can also be pressed and held to move the trio, so
+   a second listener here would fire alongside it. */
 if (els.steerBox) {
   els.steerBox.addEventListener("input", steerReady);
   els.steerBox.addEventListener("keydown", function (e) {

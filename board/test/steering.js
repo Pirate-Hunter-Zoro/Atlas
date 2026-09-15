@@ -185,7 +185,16 @@ const zOf = (sel) => {
 
   // 4. The sheet says what is about to happen. Four things at once, one of them
   //    archiving the lesson they are in.
-  btn.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+  // A TAP, in pointer events, because that is what the stack listens for: every
+  // button in it can also be pressed and held to move the trio, and telling a
+  // tap from a press is done on pointerup by how long the contact lasted.
+  const tap = (el) => {
+    el.dispatchEvent(new window.MouseEvent('pointerdown',
+      { bubbles: true, clientX: 0, clientY: 0, pointerId: 7 }));
+    el.dispatchEvent(new window.MouseEvent('pointerup',
+      { bubbles: true, clientX: 0, clientY: 0, pointerId: 7 }));
+  };
+  tap(btn);
   !sheet.hidden ? ok('tapping it opens the sheet')
                 : fail('the button did nothing');
   {
