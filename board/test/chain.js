@@ -648,6 +648,71 @@ const lift = () => {
            + p19 + ')');
 }
 
+// ----------------------------------------------------------------------------
+// AND A CARD THAT ASKS WITHOUT SAYING SO STILL KEEPS ITS BOARDS.
+//
+// All of the above hangs off `kind: question`. A tutor that poses the exercise
+// in a `lesson` card and asks at the foot of it breaks nothing visible on the
+// board -- and used to take the whole chain with it: the ink froze into a
+// picture the moment it was sent, no board was kept, and there was nothing to
+// revise in place. Reported from a Galois sitting: "my written response was
+// frozen in an image above ... ALL boards were independent of each other and I
+// could edit them any time. Where did this feature go?"
+//
+// The student's own work is the authority. A card somebody has written an
+// answer against was a question, whatever it called itself.
+{
+  const l1 = card('0100', 'lesson', 'the whole run, and the first exercise', 30);
+  const l2 = card('0101', 'lesson', 'where the seven comes from', 31);
+  const kept2 = () => Array.from(doc.querySelectorAll('[data-board="0101"]'));
+
+  es.onmessage({ data: lesson([l1, l2]) });
+  await sleep(40);
+
+  // Nothing is owed -- no card asked -- so the way onto a board is the button
+  // that exists for exactly that.
+  const re = doc.getElementById('reopen');
+  re && !re.hidden
+    ? ok('a lesson that asked nothing still offers a board to write on')
+    : fail('a lesson card asked in prose and there was no way to answer it');
+  re.onclick();
+  await sleep(40);
+  !writer().hidden
+    ? ok('and it opens')
+    : fail('the board was asked for and did not open');
+
+  slate.load({ w: 1130, h: 1514, strokes: [ink(40)] });
+  const page = slate.at();
+  const sent = { id: 't0100', rev: 1, kind: 'ink', answers: '0101', t: t0 + 3200,
+                 page, strokes: 1, png: '/answers/t0100-r1.png',
+                 ink: '/answers/t0100-r1.json' };
+  es.onmessage({ data: lesson([l1, l2], [sent]) });
+  await sleep(40);
+
+  kept2().length === 0 && !writer().hidden
+    ? ok('and what was handed in is the live board, not a photograph of one')
+    : fail('the answer froze the moment it was sent: ' + kept2().length
+           + ' kept, writer ' + (writer().hidden ? 'gone' : 'open'));
+
+  // And the chain runs from there exactly as it does under a question card: the
+  // attempt is kept where it was written, and the next one opens under the
+  // feedback with the working carried onto it.
+  const pagesBefore = slate.pages();
+  const back = card('0102', 'note', 'the second line is where it goes', 32);
+  es.onmessage({ data: lesson([l1, l2, back], [sent]) });
+  await sleep(40);
+  kept2().length === 1
+    ? ok('and after the feedback lands it is kept, as a board')
+    : fail('the attempt did not persist (' + kept2().length + ' of them)');
+  doc.querySelector('[data-card="0102"]').nextElementSibling === writer()
+    ? ok('while the next attempt is live under the feedback it answers')
+    : fail('the live surface is not under the reply');
+  slate.pages() === pagesBefore + 1 && slate.inkOn(slate.at()) === 1
+    ? ok('opened on a copy, so the working so far is still under the pen')
+    : fail('the next board came up blank or shared a sheet (page ' + slate.at()
+           + ' of ' + slate.pages() + ')');
+}
+
 console.log(errors.length ? '\n' + errors.length + ' FAILURES'
                           : '\nan exercise is a chain of boards, and every one of them stays');
 process.exit(errors.length ? 1 : 0);

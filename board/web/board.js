@@ -601,11 +601,35 @@ function render(data) {
     return (a.id || "").localeCompare(b.id || "");
   });
   var at = Object.create(null);
+  /* A CARD THE STUDENT HAS ANSWERED IS A QUESTION, WHATEVER IT CALLED ITSELF.
+
+     Everything the answer block is made of hangs off a card id: which board is
+     open, which page it is on, where the surface sits in the transcript,
+     whether a sent answer is a live board or a dead picture of one. All of it
+     was hung off `kind: question` alone -- and a tutor that poses the exercise
+     in a `lesson` card and asks at the foot of it, which is easy to do and
+     breaks nothing visible on the board, left the student's ink with nothing to
+     be about. It froze into a picture the moment it was sent, no board was kept
+     for it, and there was nothing to revise in place. Reported as: "my written
+     response was frozen in an image above ... ALL boards were independent of
+     each other and I could edit them any time. Where did this feature go?"
+
+     So the student's own work is the second authority, and the stronger one: a
+     card somebody has written an answer against was a question in the only
+     sense that matters here. It is read off the turns, which are on disk, so it
+     survives a reload and a second device -- and once a card has one answer it
+     keeps its boards for good. */
   var isQuestion = Object.create(null);
   ordered.forEach(function (c, n) {
     at[c.id] = n;
     if (c.kind === "question") isQuestion[c.id] = true;
   });
+  (data.turns || []).forEach(function (t) {
+    if (t.answers && at[t.answers] !== undefined) isQuestion[t.answers] = true;
+  });
+  /* And the one a board was asked for on, which has no answer against it yet --
+     that first send is exactly the moment there is nothing to go on. */
+  if (reopenedFor && at[reopenedFor] !== undefined) isQuestion[reopenedFor] = true;
   /* A filed lesson and a past one are read-only: no surface is built for either,
      so the frozen picture is the only record there is and it stays. */
   var live = !data.archived && !reading;
@@ -901,7 +925,7 @@ function render(data) {
 
   var lastQuestion = 0, lastSent = 0, newestQ = null;
   (data.cards || []).forEach(function (c) {
-    if (c.kind === "question" && c.mtime > lastQuestion) {
+    if (isQuestion[c.id] && c.mtime > lastQuestion) {
       lastQuestion = c.mtime;
       newestQ = c.id;
     }
@@ -914,6 +938,15 @@ function render(data) {
   var owed = !!newestQ && !settled;
 
   lastNewestQ = newestQ || "";
+  /* And the newest card of any kind, which is what "write on the board" anchors
+     to when the tutor has asked nothing: the student is answering the thing they
+     have just read, and a turn that names it can be revised, kept and come back
+     to. A turn that names nothing is a picture. */
+  lastNewestCard = "";
+  var newestAt = 0;
+  (data.cards || []).forEach(function (c) {
+    if (c.mtime > newestAt) { newestAt = c.mtime; lastNewestCard = c.id; }
+  });
   if (workingOn && workingOnAt !== (newestQ || "")) {
     workingOn = null;
     workingOnAt = null;
@@ -940,7 +973,7 @@ function render(data) {
      student picked, if they went back to an earlier one. A question that has
      scrolled off the top of the transcript is still a question, and going back
      to add a line to the proof under it is ordinary work, not an edge case. */
-  var qids = ordered.filter(function (c) { return c.kind === "question"; })
+  var qids = ordered.filter(function (c) { return !!isQuestion[c.id]; })
                     .map(function (c) { return c.id; });
 
   /* Where each question's run ends: the last card written before the next
@@ -949,7 +982,7 @@ function render(data) {
   var runEndOf = Object.create(null);
   var openQ = null;
   ordered.forEach(function (c) {
-    if (c.kind === "question") { openQ = c.id; runEndOf[c.id] = c.id; return; }
+    if (isQuestion[c.id]) { openQ = c.id; runEndOf[c.id] = c.id; return; }
     if (openQ) runEndOf[openQ] = c.id;
   });
 
@@ -5044,6 +5077,8 @@ var reopenedFor = null;
    takes the newest by mtime -- two answers to one question, and the request
    expiring the instant it was made if they ever disagreed. */
 var lastNewestQ = "";
+/* The newest card of any kind, for the same reason and read at the same moment. */
+var lastNewestCard = "";
 /* Which question they are answering, if they went back to an earlier one, and
    which question was newest when they went. Going back is a deliberate excursion
    and the tutor asking something NEW ends it -- the same rule `reopenedFor` has
@@ -6821,7 +6856,11 @@ els.begin.onclick = function () {
 };
 if (els.reopen) {
   els.reopen.onclick = function () {
-    reopenedFor = lastNewestQ;
+    /* On a lesson with an open question this is that question. With none -- a
+       tutor that posed the exercise in a `lesson` card and asked at the foot of
+       it -- it is the newest card, so what they write is ABOUT something and
+       keeps a board of its own. Empty only when there is no card at all. */
+    reopenedFor = lastNewestQ || lastNewestCard;
     workingOn = null;
     workingOnAt = null;
     els.reopen.hidden = true;
