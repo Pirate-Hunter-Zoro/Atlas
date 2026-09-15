@@ -445,6 +445,14 @@ is wrong even when every suite is green.
   always** — a plan is most often discovered to be wrong while looking at the picture of it, so
   the one control promised to be reachable at any moment has to be over the two things that
   cover the whole screen.
+- **ONE HTTPS NAME, ONE BOARD, AND A DEPLOY MUST NOT MOVE IT.** `tailscale serve status`
+  prints a TCP forward per board AND the https names at the bottom; only the `/ proxy
+  http://127.0.0.1:PORT` lines say where a NAME points, and reading the first `127.0.0.1:`
+  in the output reads a forward belonging to whichever board printed first. `served_by_name`
+  in `bin/board` is the parse. `tutor restart` bounces every board in turn, so the name's
+  holder is briefly down and the next board up is free to claim it — `cmd_restart` in
+  `bin/tutor` therefore reads the holder BEFORE it stops anything and hands the name back
+  afterwards. Getting either half wrong drops somebody mid-proof into another course.
 - **A PORT IS A PURE FUNCTION OF THE WORKSPACE'S DIRECTORY BASENAME**, never of its path.
   `ports.py` must stay that way: the basenames are unique across the repository, and two machines
   derive the same number for the same workspace without talking to each other. One board per

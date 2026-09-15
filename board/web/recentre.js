@@ -154,14 +154,33 @@ function pageBack(el) {
   forget();
 }
 
-/* Only the top button is draggable. The ones below are parked against it, so
-   moving one moves the stack: one thing to move, one place to look. */
+/* EVERY BUTTON MOVES THE STACK, not only the one at the top.
+
+   They are parked against each other and travel together, so which one is under
+   the thumb when somebody decides to shift them out of the way is an accident of
+   where their hand already was. Reaching for the top one first is a rule nobody
+   was told and the bottom two simply did not respond to a press. Asked for as:
+   "I want to be able to drag the trio around by putting my finger on any of
+   them."
+
+   The drag moves the anchor, which is the top of the stack, so a press on the
+   third button moves all three and keeps their order -- the stack is one object
+   however many of it is on the glass. */
 function drag(one) {
   one.el.addEventListener("pointerdown", function (ev) {
     ev.preventDefault();
     try { one.el.setPointerCapture(ev.pointerId); } catch (e) { /* not fatal */ }
+    /* Where this button sits relative to the anchor, as a fraction of the
+       visible window, measured before anything moves. */
+    var vv0 = window.visualViewport;
+    var w0 = vv0 ? vv0.width : window.innerWidth;
+    var h0 = vv0 ? vv0.height : window.innerHeight;
+    var ox0 = vv0 ? vv0.offsetLeft : 0;
+    var oy0 = vv0 ? vv0.offsetTop : 0;
     held = {
       id: ev.pointerId, drag: false,
+      dx: (ev.clientX - ox0) / w0 - at.x,
+      dy: (ev.clientY - oy0) / h0 - at.y,
       timer: setTimeout(function () {
         if (!held) return;
         held.drag = true;
@@ -179,9 +198,12 @@ function drag(one) {
     var ox = vv ? vv.offsetLeft : 0;
     var oy = vv ? vv.offsetTop : 0;
     /* clientX is in the layout viewport's units, which is what the offsets
-       convert out of. */
-    at.x = Math.min(Math.max((ev.clientX - ox) / w, 0), 1);
-    at.y = Math.min(Math.max((ev.clientY - oy) / h, 0), 1);
+       convert out of. The finger carries the button it is actually on, so the
+       anchor moves by the offset between that button and the top of the stack
+       -- otherwise pressing the third one teleports the stack up by two
+       buttons before it has moved at all. */
+    at.x = Math.min(Math.max((ev.clientX - ox) / w - held.dx, 0), 1);
+    at.y = Math.min(Math.max((ev.clientY - oy) / h - held.dy, 0), 1);
     place();
   });
 
@@ -235,13 +257,7 @@ function mount(spec) {
     }
   } catch (e) { /* a corrupt preference is not worth a broken board */ }
 
-  drag(stack[0]);
-  for (var i = 1; i < stack.length; i++) {
-    (function (one) {
-      if (!one.onTap) return;
-      one.el.addEventListener("click", function () { one.onTap(one.el); });
-    })(stack[i]);
-  }
+  for (var i = 0; i < stack.length; i++) drag(stack[i]);
 
   if (!wired) {
     wired = true;
