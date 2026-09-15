@@ -25,6 +25,7 @@ import time
 
 from . import carry, direction, handoff
 from .course import config
+from .course import homework
 from .course import map as course_map
 from .lesson import git as lesson_git
 
@@ -240,8 +241,31 @@ def briefing(repo, sense, chapter=None):
     head = " — ".join(x for x in (st.get("course"), st.get("session"),
                                   st.get("chapter")) if x)
     out.append(head or "no session open")
-    if st.get("hw"):
-        out.append("homework set: %s" % st["hw"])
+    # THE WRITE-UP, on the brief, every turn a set is bound. Counts and not just
+    # a name: "homework set: ch04" is a fact about configuration and reads as
+    # already handled, where "0 of 11 written up, next 04.1" is a debt, and a
+    # debt on the brief is the only thing that reliably gets paid. An agreed
+    # answer is transcribed in the turn it is agreed (TEACHING.md), and a sitting
+    # that goes an evening without this line in front of it writes up nothing.
+    hw_set = homework.bound(root, st)
+    if hw_set:
+        try:
+            hw_st = homework.status(root, st)
+        except Exception:
+            hw_st = None
+        if hw_st and hw_st.get("total"):
+            line = "homework set: %s -- %d of %d written up" % (
+                hw_st["name"], hw_st["written"], hw_st["total"])
+            if hw_st.get("stated", 0) < hw_st["total"]:
+                line += ", %d statement(s) not yet transcribed" % (
+                    hw_st["total"] - hw_st["stated"])
+            if hw_st.get("next"):
+                line += ", next %s" % hw_st["next"]
+            out.append(line)
+        else:
+            out.append("homework set: %s -- no problem environments in the file "
+                       "yet; lay the skeleton down before the first answer lands"
+                       % hw_set["name"])
     # The stance of THIS SITTING, which is the repository's unless the sitting
     # said otherwise. Both are printed when they disagree: a turn reading
     # "stance: do" in a repository whose file says teach has to be able to see
