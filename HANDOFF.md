@@ -1,222 +1,356 @@
-# HANDOFF — six changes to the board
+# HANDOFF — the style of a sitting, and the documents it produces
 
-Six gaps between what the board does and what it is used for. Five came from asking three
-questions of the TRD-EHR map: where is the e(x) histogram TODO, how do I read the paper, and how
-do I reach PSYCH-ASR's decks. The sixth came from shipping the answer to the first. Ordered
-smallest first. **One change, shipped, checked, then the next** — that is the repository's rule
-and it is the right one here, because four of these touch the same three modules.
+Seven changes, and they are one piece of work in two halves.
 
-Each section says what is true now, what should be true, and where. Nothing below is a plan for
-a plan: the paths are real and were read, not guessed.
+**The first half is that a sitting's style is chosen once, at the moment it opens, and cannot
+be changed afterwards.** `aim` reaches `live/state.json` from exactly one place — a tap on the
+map, through `POST /session` — and `/session` opens a *new* sitting: `board open` archives the
+lesson and a chapter change replaces the tutor. So "wait, now teach me how this works", said
+three hours into building something, costs the evening it is said in. That is the limitation.
+
+**The second half is that a sitting cannot produce a document about what it just did.** There
+is a `make` sitting and it makes one, but it is a sitting you have to *leave the lesson for*,
+its product has no agreed home, its briefing never says the write-up is about the machinery
+rather than about the lesson, and once the file exists nothing shows it beside the others or
+takes a word of feedback on it.
+
+Ordered smallest first. **One change, shipped, checked, then the next** — four of these touch
+`config.py`, `sense.py` and `routes/lesson.py` together, so the order matters more than usual.
+
+Each section says what is true now, what should be true, and where. The paths are real and were
+read.
 
 ---
 
 ## Before anything
 
 - `bash board/test/all.sh` — 71 suites, about twelve minutes. Green before and after.
-- Bump `VERSION` in `board/web/sw.js` whenever a shell file changes (`board.html`, `board.js`,
-  `board.css`, and the rest of the cache list), or the installed app serves its cached copy.
+- Bump `VERSION` in `board/web/sw.js` whenever a shell file changes. Changes 5 and 7 both
+  change the shell, and change 7 is *only* a shell change, so it is invisible without the bump.
 - `bash board/scripts/ship.sh "message"` commits **only `board/`**, pushes, and restarts every
-  running board. Anything outside `board/` goes through
+  running board. Anything outside `board/` — `atlas.json`, a workspace's `writeups/`,
+  `projects/Paper-Writer/PROMPT_TEMPLATE.md` — goes through
   `bash board/scripts/save-and-push.sh "message" -- <paths>` with a pathspec.
 - Commits carry no assistant trailers. `.githooks/commit-msg` strips them.
 
-**The working tree is not clean, and what is in it is somebody's unfinished afternoon rather
-than anything below.** `TEACHING.md`, `bin/board`, `test/all.sh`, `test/homework.py`,
-`tutorboard/brief.py`, `course/homework.py`, `server/hub.py`, `routes/writing.py`, and two
-untracked `burn.py` files under `course/` and `test/`. None of it belongs to these six changes,
-so ship with a pathspec or ask before ship.sh sweeps it up under one message.
+**The working tree holds an unfinished afternoon in `projects/libr-local-llm`** — four modified
+files and seven untracked ones under `bin/`, `scripts/` and `slurm_jobs/`. None of it belongs to
+anything below. Ship with a pathspec.
 
 ---
 
-## 1. A direct `save-and-push.sh` does not bounce the boards it just changed
+## The vocabulary, settled first, because everything below uses it
 
-**Now.** The tail of `board/scripts/save-and-push.sh` asks *did this commit touch the tool*, and
-asks it of the wrong directory. `TOOL_REL` comes from
-`git -C "$(dirname "${BASH_SOURCE[0]}")" rev-parse --show-prefix`, and the script's own directory
-is `board/scripts`, not `board` — so the test is `grep -q "^board/scripts/"` over the commit's
-files and a change to `board/tutorboard/` or `board/web/` never matches. `ship.sh` gets this
-right two lines from the same idea: it derives its prefix from `$HERE`, which is `board`.
+`config.AIMS` already has the seven words and they are the words to keep. The names used out
+loud map onto them, and nothing new is coined:
 
-There is a second way to get nothing, and it is quieter. `BASH_SOURCE[0]` is the path as typed,
-the script has already `cd`'d to the repository root, and `git -C` resolves a relative directory
-against *that*. Run it as `cd board && bash scripts/save-and-push.sh` and `git -C scripts` fails,
-`TOOL_REL` is empty, and the `[ -n "$TOOL_REL" ]` guard skips the restart without a word.
+| Said out loud | The aim | What the tutor does |
+|---|---|---|
+| vibe coding | `build` | writes the code, runs it, reports what changed |
+| math coaching | `teach` | works it through properly and makes the person do the step |
+| coach coding | `coach` | names the calls and arguments in English; the person types |
+| — | `trace` | reads code that already exists, line by line |
+| — | `drill` | asks cold over a scope |
+| — | `paper` | the product is a write-up |
+| — | `slides` | the product is a deck |
 
-`ship.sh` is unaffected in practice — it calls `tutor restart --tutors` itself, and that restarts
-boards as well as daemons. What is affected is every direct caller: the board's own save button,
-`board finish`, and `lesson/git.py`. Tap save with an uncommitted tool change in the tree and the
-commit lands, the push lands, and every board goes on serving the old Python from a page that
-looks new. That is the exact failure the comment above the block describes and costs an evening
-to find.
-
-**Want.** The prefix is the tool's own, derived once and correctly, and a relative invocation
-from any directory reaches the same answer. Consider deriving it in one place both scripts read,
-since they are now computing the same value two ways and only one of them works.
-
-**Where.** `board/scripts/save-and-push.sh`, the `TOOL_REL` block at the end. `board/scripts/ship.sh`
-holds the correct derivation.
-
-**Check.** `board/test/beside.py` already builds a throwaway repository and taps save on it —
-that suite exists because this same block was wrong in a different way. Extend it: a commit
-touching `board/` reports the restart, one touching only a workspace does not, and both hold
-when the script is invoked by a relative path from inside `board/`.
+A **stance** (`teach` / `do`) is who writes the code. An **aim** is what the sitting is for. They
+are not independent — `build` with a `teach` stance is a contradiction — and today the browser
+resolves that by sending both from the `WORK` table in `board.js`. It should not: see change 2.
 
 ---
 
-## 2. `reading.py` does not fence `phi`, and the tutor is handed what is inside it
+## 1. The aim cannot be changed without losing the lesson
 
-**Now.** `reading.IGNORE` in `board/tutorboard/course/reading.py` lists `live`, `results`,
-`data`, `archive` and the usual build directories. It does not list `phi`.
-`reading.documents("research/PSYCH-ASR")` therefore returns `phi/stage1/Audio Transcription.pdf`
-under the id `audio-transcription`, the drawer offers it, `paper.pages_of` will render it to
-PNGs in `live/paper/`, and `sense.reading_sense` writes its `/doc/` address into the tutor's
-prompt alongside an instruction to open and read a page before showing one.
+**Now.** `_mark` in `board/tutorboard/server/routes/lesson.py` writes `st["aim"]`, and `_mark`
+is called only from `POST /session`. Every path through `/session` calls
+`spawn.board_cli(root, ["open", …])`, which archives the open lesson; the chapter path also
+calls `spawn.fresh_tutor`. There is no route, no button and no `board` subcommand that changes
+the aim of the sitting that is open.
 
-`tutorboard/manuscript.py` already refuses this by name — its `NEVER` list is `phi`, `data`,
-`inbox`, `stage1`, `stage2`, `raw`, `audio` — so the manuscript factory cannot mine the tree the
-document drawer hands over freely. The two should agree, and the agreement should be one list
-rather than two that drift.
+The running tutor is the other half of it. A turn is a headless call and only a *fresh* one
+reads `sense.session_sense` — `HEADLESS_RESUME_PROMPT` in `board/bin/tutor` tells a resumed turn
+in as many words not to re-read anything. So writing a new `aim` into `state.json` and stopping
+there changes nothing for the assistant that is mid-conversation.
 
-**Want.** A document under a fenced directory is never found, never named to a tutor, and never
-rendered. The refusal is by directory name at any depth, the way `manuscript.NEVER` works, and
-it does not depend on `MAX_DEPTH` or on a size floor happening to exclude it.
+**Want.** One control, reachable from anywhere on the board, that changes the style of the
+sitting that is open. Nothing is archived, no tutor is replaced, the transcript carries on, and
+the next card is written under the new aim.
 
-**Where.** `board/tutorboard/course/reading.py` (`IGNORE`, `_ours`, `_in_repo`, `_pointed_at` —
-the README-pointer path needs the same refusal, or a README naming a deck inside `phi` walks
-straight past the directory test). `board/tutorboard/manuscript.py` holds the list worth reusing.
+**Where.**
 
-**Check.** `board/test/plan.py` is where `reading` is covered. It builds a sandbox repository
-with a reference library in it; add a `phi` directory with a fat PDF inside and assert it is
-offered nowhere — not by `documents`, not by `find`, not in `sense.reading_sense`, and not when
-the sandbox README names it by path.
+- **`POST /aim`** in `routes/lesson.py`, beside `/direction`. It does the same four things
+  `_direction` does, minus the two destructive ones: write the aim to `state.json`, write the
+  person's tap into `live/turns.jsonl` as a turn of theirs with `signal: "aim"`, append a line
+  to `repo.messages_path` carrying `[aim] ` + `config.AIM_MEANS[aim]` + `sense.session_sense(repo)`,
+  and `spawn.wake_tutor` if nothing is listening. It does **not** call `board_cli(["open", …])`
+  and it does **not** call `fresh_tutor`.
+- **`sense.SIGNAL_SENSE` gains `"aim"`** — one sentence saying the person has changed what they
+  want from this sitting mid-lesson, that everything already on the board stands, and that the
+  next card is written the new way.
+- **`bin/board` gains `board aim <name>`**, so the terminal can do it too. `--aim` on
+  `board open` already exists and stays.
+- **`board.js`** gains the control. The seven labels already exist in `WORK` (~4301) — reuse the
+  strings, do not write a second set. Show which aim is in force: `state.aim` is already in the
+  payload, and `els.kindStance` (~3295) is the precedent for a control that displays what is
+  current.
 
----
+**The tap is the instruction.** It wakes a turn, the same way choosing a way to work on the map
+does and for the reason written above `_begin`. "Wait, now teach me how this works" is an
+interruption, not a preference to be applied later.
 
-## 3. A plan's steps are read in one form only, so half of TRD-EHR is invisible
+**Only the five aims that need no scope** — `teach`, `build`, `coach`, `paper`, `slides`. `trace`
+needs a list of files and `drill` needs a scope, and choosing one of those is choosing what it is
+over, which is a map tap and a new sitting. Say that in the panel rather than offering a button
+that then asks a second question.
 
-**Now.** `plan._collect` is called from `_steps_in` over `(("step", STEP), ("item", TODO_ITEM),
-("heading", HEADING))` and **breaks at the first kind that matches anything**.
-`planning/TRD-EHR_TODO.txt` opens with `STEP 1.` through `STEP 5.`, all about paper 1's
-manuscript, so those five are the entire map. The file's thirteen unchecked `- [ ]` items — the
-falsification battery, the 5-fold CV, the whole counterfactual half — reach the board nowhere.
-A new checklist item written today is invisible for the same reason.
+**And `MAKE_SENSE` has to stop being keyed on the sitting kind.** `sense._session_sense` reaches
+it through `if kind == "make"`, so an aim of `paper` in a lecture gets `AIM_MEANS["paper"]` and
+none of the method. Key it on `kind == "make" or aim in ("paper", "slides")`. Without this,
+change 3 lands and nothing reads it.
 
-**Want.** Every kind of step a plan writes, in the plan's own order, from the block the plan says
-to start at. Headings stay the last resort they are: a document with `##` sections and no steps
-in it is a different case and reading its headings as tasks is what that branch is for.
-
-**Decide before writing.** Three things fall out and none has an obvious answer:
-
-- **Numbering.** `STEP` takes its `num` from the file; `- [ ]` gets a positional counter. Merge
-  the two and step 1 collides with item 1. The `num` is shown on the chip and in `label`, and
-  `label` is the key `/session` and `/plan/step` look a step up by, so it cannot be cosmetic.
-- **`MAX_STEPS` is 12** and TRD-EHR would have eighteen. A drawer is not the plan; decide whether
-  the cap rises, stays and truncates, or becomes per-kind.
-- **Order.** File order mixes a `STEP 4` at line 47 with a `- [ ]` at line 1550 that carries
-  `<<< RESUME HERE >>>`. The plan's own "what we do next" block is the answer for the first, and
-  it is not obvious it is the answer for the second.
-
-**Where.** `board/tutorboard/course/plan.py` (`_collect`, `_steps_in`, `MAX_STEPS`).
-`map._attach` and `map._step_text` consume the result and window each step against the next one
-*in the same file*, so mixed kinds must still produce a correct stop line — get this wrong and
-chips land on boxes the step says nothing about.
-
-**Check.** `board/test/plan.py`. Its fixture is a `STEP`-shaped plan; give it both forms and
-assert the order, the numbering rule that gets chosen, and that a step's window still stops at
-the next step whatever kind that is.
+**Check.** A new `board/test/aiming.py`: the route writes the aim, leaves `live/archive/`
+untouched, leaves the card count unchanged, and puts a line in the inbox that contains the new
+aim's sentence. `test/steering.js` is the model for the panel; `test/direction.py` is the model
+for the route, and is also the contrast — that one asserts the lesson *is* archived.
 
 ---
 
-## 4. A results figure cannot be shown on the board
+## 2. A sitting that nobody opened from the map has no style at all
 
-**Now.** `results/counterfactual_pipeline/<contrast>/propensity_by_arm.png` exists and cannot be
-put on the glass. `reading.py` offers PDFs only and refuses `results` by name. `routes/pages.py`
-serves `/static/` (the web directory), `/figure/` (compiled TikZ out of `live/tikzcache`),
-`/uploads/` (the lesson inbox) and `/answers/`. Nothing serves an image out of the workspace. The
-only route a figure has to the board today is somebody copying it into `live/inbox/uploads/`.
+**Now.** `aim` is unset unless somebody tapped a box. `tutor galois`, `board open`, a chapter tap
+in the contents drawer, and a board resumed after a reboot all leave it empty, and `aim_sense`
+returns `""`. The sitting then runs on stance alone, which is `teach` everywhere except
+`research/TRD-EHR` and `projects/Paper-Writer`. So the ordinary way in has no style, and the
+style it falls back to is the wrong one for a project.
 
-**Want.** A tutor can put a figure the pipeline produced into a card, and a person can open one
-from the map, without a copy. This is the largest of the five and the one with the most ways to
-get it wrong.
+**Want.** A family default, overridable at every level below it.
 
-**Constraints, and they are the design.**
+    courses, practice   →  teach     the mathematics worked properly
+    research, projects  →  build     the tutor writes it and reports
 
-- **An id, never a path.** Same rule as `reading.find`: what arrives from a browser is compared
-  against what discovery found, and a miss is a miss. A query parameter carrying a repo-relative
-  path is a traversal waiting to happen.
-- **An allowlist, with the `phi` refusal behind it.** `RESULT_DIRS` and `NEVER` in
-  `manuscript.py` are the precedent, and change 1 should have made that list reusable.
-- **Bounded.** A results tree holds hundreds of PNGs. `reading.MAX_DOCS` is 24 for a reason a
-  figure drawer needs too.
-- **Not cached by the service worker.** A figure is rebuilt at the same name by the next job, and
-  a cached one served under a new name is last week's result wearing this week's label. `sw.js`
-  sends `/download/`, `/view/` and `/paper/` to the network always; a figure route joins them.
-- **The payload is polled four times a second.** Whatever discovery this needs is cached the way
-  `reading.documents`, `walk.units` and `plan.steps` are — 30 seconds, off a bounded walk.
+Precedence, once, in one function: **the sitting's own aim → the workspace's `tutorboard.json` →
+the family's default in `atlas.json`.**
 
-**Where.** A new module beside `reading.py` for finding them; `routes/pages.py` for serving one;
-`sense.py` for telling a tutor the address exists, in the shape `reading_sense` already uses;
-`web/sw.js` for the cache rule.
+**Where.**
 
-**Check.** A new suite, named for what it protects. Every traversal refused, every fenced
-directory refused, the bound held, the cache rule asserted by reading `sw.js`.
+- **`atlas.json` gains `"aim"` on each family.** That file "names and orders the five families
+  and says which hold somebody else's work" — a default style is a property of a family, and it
+  is still not a registry of workspaces. `atlas.families()` carries it through; `atlas.family_of`
+  already answers which family a root is in.
+- **`config.py` gains `aim_for(root, state)`**, written beside `stance_for` and in the same
+  shape.
+- **`stance_for` becomes derived, not parallel.** Add `AIM_STANCE` to `config.py` — `build`,
+  `paper` and `slides` are `do`; `teach`, `coach`, `trace` and `drill` are `teach` — and resolve
+  stance as: the sitting's own stance → the sitting's aim → the repository's stance → the family
+  aim's stance. This is what stops the browser from deciding it, and `board.js`'s `WORK` table
+  should then stop sending `stance` at all.
+- **`bin/tutor.doing_now` (~815) re-implements this and must stop.** It reads `state.json` and
+  `config.read_config` by hand to decide a turn's timeout, and its `DOING_AIMS` is a third copy
+  of the same list. Import the one answer.
+- `config.read_config` still drops `mode`, and four `tutorboard.json` files still carry one.
+  Leave them ignored. Do not resurrect `mode` as the place a default aim is declared.
 
----
-
-## 5. A hand-written map has no document boxes
-
-**Now.** `map._from_code` builds a node per document automatically — TRD-EHR's derived map
-carries three, and tapping one offers *Show me the document*. `map._from_written` takes `doc`
-only from what the map's author typed on a node, and blanks it when `reading.find` cannot resolve
-it. PSYCH-ASR's `live/map.json` leaves every `doc` empty, so its two walkthrough decks — the
-documents `reading.py` was written for — are on no box, and are reachable from ⋯ and nowhere
-else.
-
-**Want.** A written map shows the workspace's documents without the author hand-wiring each one,
-and `map.check` says so when a document exists that no box claims.
-
-**Decide.** Whether unclaimed documents become their own boxes on a written map the way they do
-on a derived one, or whether `map.check` merely reports them and the author places them. The
-first is less typing and risks a written map — which is a hand-drawn statement about a project —
-growing boxes its author did not draw. The second keeps the map the author's and costs an edit
-per deck. This is a judgement about what a written map *is*, so decide it before writing.
-
-**Where.** `board/tutorboard/course/map.py`: `_from_written` (~909), the `doc` field's validation
-(~892), `check` (~943), and `_from_code`'s document-node loop (~512) as the worked example.
-
-**Check.** `board/test/map.py`.
+**Check.** A new `board/test/aiming.py` (the same suite as change 1): a course with no
+`tutorboard.json` aim gets `teach`, a project gets `build`, a workspace that names one wins over
+its family, a sitting that names one wins over its workspace, and `stance_for` agrees with
+`doing_now` for all seven aims.
 
 ---
 
-## 6. The paper is not a document the board can show
+## 3. A document a sitting produces has no home, and the three that exist disagree
 
-**Now.** Paper 1 is `research/TRD-EHR/paper1-trd-prediction/manuscript.md` and `manuscript.docx`,
-with `supplement`, `cover_letter` and `tripod_ai_checklist` beside it in the same two forms.
-`reading.py` finds PDFs of at least 20 kB and nothing else, so the paper is on no map, in no
-drawer, and cannot be read on the iPad. The board renders PDFs and only PDFs — `paper.pages_of`
-is the whole mechanism and it shells out to `pdftoppm`, `pdftocairo` or `gs`.
+**Now.** `MAKE_SENSE` tells the tutor to "keep it in the repository, as a file, under a name that
+says what it is", and that is the whole of the convention. What actually exists is three:
 
-**Want.** The write-up is readable on the glass, as a document like any other.
+| Where | Shape |
+|---|---|
+| `research/TRD-EHR/paper1-trd-prediction/` | `manuscript.{md,pdf,docx}`, `supplement.*`, `cover_letter.*`, `tripod_ai_checklist.*`, with `parts/`, `references/`, `review/`, `reserve/` beside them |
+| `research/PSYCH-ASR/docs/` | `stage1_pipeline_walkthrough.{tex,pdf}` and `stage2_reference_walkthrough.{tex,pdf}` — beamer, aspectratio 169, Boadilla |
+| `manuscripts/` | where `manuscript.LANDING` says a Paper-Writer delivery goes |
 
-**Two ways, and they are not close.** Rendering the packet to PDF keeps the board unchanged and
-makes the paper a normal document, at the cost of a build step and a stale PDF whenever the
-markdown moves ahead of it — and TRD-EHR rebuilds four packet documents as a deliberate step of
-its own plan, so that build already exists to hang it on. Teaching the board to show markdown is
-a second viewer, a second renderer, and a second thing to keep working, for a document the rest
-of the workflow already converts. Prefer the first unless there is a reason not to.
+And `reading.py` finds a document only if it is a PDF of at least 20 kB within three levels,
+capped at 24, with `NOT_OURS` names pruned — which is right for a drawer and does not scale to a
+workspace with fifty.
 
-**Where.** The TRD-EHR side, not the board: whatever builds `manuscript.docx` gains a PDF, and
-`reading.py` then finds it with no change at all. Confirm that before writing any board code —
-if it is true, this change is not a board change.
+**Want.** One shape, discovered rather than registered, that the two existing layouts already
+satisfy so nothing has to move.
+
+**The shape: a document is a STEM in a DIRECTORY, in however many formats it has.**
+`manuscript.md` + `manuscript.pdf` + `manuscript.docx` is one document. `stage1_pipeline_walkthrough.tex`
++ `.pdf` is one document. The directory is the group, and the group is what the library draws a
+heading from. Nothing is declared:
+
+- **Title** from the source — `\title{…}` in a `.tex`, the first `# ` in a `.md`. The filename is
+  the fallback, through `reading._pretty`.
+- **Kind** from the source — `\documentclass[…]{beamer}` is a deck, anything else is a paper.
+- **Stale** is arithmetic: the source's mtime against the PDF's.
+
+**New documents land in `writeups/<slug>/`** — `<slug>.tex`, `<slug>.pdf`, `figures/`,
+`feedback/`. One directory per document, because a deck's figures and its rounds of feedback need
+somewhere to be. `writeups` and not `papers`: `reading.NOT_OURS` already means a `papers/`
+directory is somebody else's library.
+
+**Where.** A new `board/tutorboard/course/library.py`. It is not an edit to `reading.py` —
+that module answers "what can be put on the glass in a card", is capped at 24 and walks three
+deep, and those are the right numbers for a drawer. `library.py` answers "everything this
+workspace has written", groups it, and is allowed to be bigger and deeper. Both read
+`fenced.refused`, and `library.py` refuses `NOT_OURS` names the same way, or TRD-EHR's
+`references/` arrives as forty documents by other people. Cache it the way `reading.documents`
+does — 30 seconds off a bounded walk — because the payload is polled four times a second.
+
+**Check.** A new `board/test/library.py` with both existing shapes as fixtures: the flat pair in
+a `docs/` directory, the four-stem `paperN-*` directory, a `phi/` directory that is found
+nowhere, a `references/` directory that is found nowhere, and a `.tex` newer than its `.pdf`
+reported stale.
+
+---
+
+## 4. The write-up would be about the lesson, and it must be about the subject
+
+**Now.** `MAKE_SENSE` in `sense.py` is entirely about *how* to work — sections, show each one,
+take corrections, keep it in the repository. It says nothing about what the document is. A tutor
+that has just spent three hours teaching, asked to write it up, writes up the three hours.
+
+**Want.** An explainer. **"Here is how this works, and here is the mathematics"** — written for
+somebody who was not there. No first person, no "we covered", no "the student then", no reference
+to the sitting, the cards, the questions or the person. If a concept was taught by hand-checking
+three examples, the document explains the concept and shows the examples; it does not narrate the
+hand-check.
+
+**Where.**
+
+- `sense.MAKE_SENSE` gains that paragraph, stated as a refusal rather than a preference.
+- `config.AIM_MEANS["paper"]` and `["slides"]` say it in one sentence each, because those are the
+  words a person taps and the words the tutor is given and they must not drift — which is why
+  that dictionary is in `config.py` in the first place.
+- `board/TEACHING.md`, the "A make sitting" section (~1104). That file is the contract and is
+  copied into every workspace's `live/` on start, so a rule that is in `sense.py` and not in
+  there is a rule with two versions.
+- **The scope is the box, not the evening.** `node_sense` already puts `state.node` and its files
+  into the prompt. Say outright that the document is about that machinery. A mid-sitting
+  "write this up" with no node set is about the chapter label, and with neither it asks before
+  it drafts.
+
+**Check.** `board/test/teaching.py` asserts the phrases are in the briefing for both aims and in
+both files. `board/test/writing_up.py` covers the job side.
+
+---
+
+## 5. Nothing shows a workspace's documents together, and nothing takes feedback on one
+
+**Now.** The ⋯ menu's `btn-papers` panel (`openPapers`, `board.js` ~1850) offers exactly two
+things: `lesson` and `homework`, off `state.load_papers`. The contents drawer offers what
+`reading.py` found, one flat list, as things to put on the glass. Neither is "every paper and
+presentation in this project", neither is reachable without opening a lesson first, and there is
+nowhere to say what is wrong with one.
+
+**Want.** A library: one surface, per workspace, that draws everything `library.py` found and
+takes feedback on any of it.
+
+**Where.**
+
+- **A page of its own, `/library`,** with its own `library.html`, `library.js`, `library.css`.
+  `/slate` is the precedent, and it is served in `board/tutorboard/server/handler.py` (~169) —
+  put this one beside it. Add all four to `SHELL` in `web/sw.js` and bump `VERSION`.
+- **Reachable without the lesson.** A button in the ⋯ menu on the board, and a link on each
+  workspace's tile on the atlas front door (`web/home.js`), because "view all papers and
+  presentations related to a project very easily" means not opening a sitting to get there.
+- **What it draws.** Grouped by directory: title, kind, page count, when the PDF was last built,
+  and a stale mark where the source is newer. Tapping one reads it on the glass through the
+  existing renderer — `reading.pages` and `/doc/<id>/<page>.png` in `routes/taking.py`, which
+  already do exactly this and need no change.
+- **Feedback** is written where the document is: `writeups/<slug>/feedback/<date>-v<n>.md` for a
+  new document, `<dir>/feedback/<stem>-<date>-v<n>.md` for the two existing layouts. Dated and
+  versioned, never stamped with the time — `manuscript._next_version` is the rule. Tracked, so it
+  crosses machines. A note may carry a page number, since the reader is looking at a page when
+  they write it.
+- **An id, never a path.** What arrives from the browser is compared against what `library.py`
+  discovered, and a miss is a miss. `reading.find` is the rule and `/result/` is the worked
+  example.
+
+**Check.** A new `board/test/library.js` for the page, in the shape of `test/pages.js`; the route
+and the feedback write in `board/test/library.py`.
+
+---
+
+## 6. Feedback has to change the document, and that is where the two kinds part
+
+**Now.** Nothing acts on feedback because there is no feedback. This is the change that decides
+what the library *is*, so decide it before writing any of it.
+
+**The two kinds are changed by different machinery.**
+
+- **A board-made explainer** — a `.tex` under `writeups/` the board compiled — is revised by the
+  board.
+- **A Paper-Writer manuscript** — delivered into `manuscripts/` — is revised by Paper-Writer.
+  `manuscript.submit` is the seam and it only knows how to ask for a NEW paper:
+  `projects/Paper-Writer/PROMPT_TEMPLATE.md` has `Evidence`, `Claims`, `Venue`,
+  `Reporting checklist`, `Scope` and `Anything the harness cannot work out`, and no revision
+  section at all. **That half is a change in Paper-Writer's own repository** — a `## Revision`
+  section naming the delivered document and the feedback file — with `manuscript.revise(root,
+  document, feedback)` beside `submit` on this side. Until it exists, a revision is a fresh job
+  carrying the feedback in the free-prose section and the existing prose in the do-not-rewrite
+  list that `_sections` already builds.
+
+**Do not route an explainer through Paper-Writer.** It is a manuscript factory with gates for
+venue, claims, citations and a reporting checklist. "How the serve harness works, and the
+arithmetic behind the batch size" has no venue and makes no claims, and every one of those gates
+would either refuse it or invent something to satisfy itself.
+
+**The decision, and it is the one that matters.** A revise turn runs on the same daemon as the
+lesson, and `turn_plan` in `bin/tutor` resumes the agent's conversation by default. A revision
+resumed into a lesson drags the lesson into the document and the document back into the lesson.
+So a `[revise]` turn must run **fresh** — `turn_plan`'s `fresh` path, its own session — and must
+write no card: its report goes back to the library, not onto the glass. The alternative is a
+second daemon per workspace, which doubles the cost and the failure modes for a turn that takes
+a minute. Prefer the fresh turn.
+
+**And that is what makes the library a separate interface rather than a sitting.** Feedback from
+it never writes to `live/cards/`, never archives the lesson, and never changes `state.json`.
+Somebody mid-proof on an iPad is not interrupted by somebody correcting a deck.
+
+**Where.** `bin/tutor` — `turn_signal` (~968) already reads the signal off the inbox line, and
+`turn_plan` (~932) is where fresh-versus-resumed is decided. `board/tutorboard/manuscript.py`
+for `revise`. `routes/` for the dispatch. `projects/Paper-Writer/PROMPT_TEMPLATE.md` for the
+other half, shipped separately with its own pathspec.
+
+**Check.** A new `board/test/revising.py`: a `[revise]` line takes the fresh path, writes no
+card, leaves `state.json` byte-identical, and lands its report beside the document.
+
+---
+
+## 7. A revised document is served from the service worker's cache, one page at a time
+
+**Now.** `LIVE` in `board/web/sw.js` (~70) sends `download/`, `view/`, `paper/`, `result/`,
+`figure/` and the rest straight to the network. **`doc/` is not in it.** `/doc/<id>/<page>.png`
+is deliberately the *stable* address — `routes/taking.py` says so where it refuses to cache it
+server-side, because a card written last month has to survive the deck being rebuilt — so it
+falls through to the shell rule, which caches any 200 it sees.
+
+That is the same mistake the file's own comments describe twice, in the third place, and every
+change above makes it bite: a document revised on feedback is rebuilt at the same name, and the
+person who asked for the change is served the page they asked to have changed.
+
+**Want.** `doc/` in `LIVE`. Bump `VERSION`.
+
+**Check.** `board/test/offline.js` reads `sw.js` and asserts the rule. It already does this for
+the others; add the case.
 
 ---
 
 ## Settled, so nobody re-derives it
 
-**The e(x) histogram is built.** `results/counterfactual_pipeline/<contrast>/propensity_by_arm.png`,
-per contrast: both arms overlaid on a shared unit bin grid, band edges at 0.10 and 0.90 drawn,
-trimmed margins shaded, test set only. It is absent from `planning/TRD-EHR_TODO.txt` because that
-file deletes finished entries by its own standing rule, not because it was forgotten. What is
-still open beside it, and is written into the plan: whether the figure gains a train-side panel,
-and whether the symmetric band stays or adapts to arm prevalence.
+**The previous six changes are done.** `scripts/tool.sh` holds `tool_prefix` and `tool_root` and
+both scripts read them. `tutorboard/fenced.py` is the one list, and `reading.py` reads it.
+`plan._collect` takes `STEP` and `- [ ]` together in file order, with `_distinct` settling the
+label collisions, and `MAX_STEPS` is 24. `course/results.py` and `/result/` put a figure on the
+glass. `map._unclaimed` gives a written map its document boxes. `paper1-trd-prediction` has its
+PDFs and `reading.py` finds them with no board change at all.
+
+**`mode` is gone and is not coming back.** `config.read_config` reads and drops it; four
+`tutorboard.json` files still carry `"mode": "math"` or `"mode": "code"` and it means nothing.
+A default style is declared per family in `atlas.json`, not per repository in a `mode`.
+
+**Aim and stance are not two settings to be set two ways.** One is derived from the other —
+`AIM_STANCE` in `config.py`, change 2 — and the browser sends neither on its own authority.
