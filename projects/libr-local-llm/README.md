@@ -948,6 +948,15 @@ Do not re-learn these.
     371.7 GB, the VRAM hot tier at 45.7 GB and projected residency at 100% throughout. The serve job
     passes `--ctx 131072`.
 
+32. **`core.fileMode` is `false` here, so `chmod +x` never reaches the index and a fresh clone gets
+    a driver script it cannot run.** (Added 2026-09-16.) The setting is right — the filer's mode bits
+    are synthesised from an NFSv4 ACL and are not to be trusted, which is traps 25 and 28 — but the
+    consequence is that git records a new script as 644 however it looks on disk, `git status` says
+    nothing, and the failure appears only in somebody else's checkout as a bare *Permission denied*
+    from a command on `PATH`. `git update-index --chmod=+x <path>` sets it in the index directly.
+    **The `ollama-*` three are still 644** and have been since August; they work here because this
+    clone's on-disk bits are fine, and they will not work in the next one.
+
 ---
 
 ## 8. Not done yet
