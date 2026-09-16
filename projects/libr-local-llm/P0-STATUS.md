@@ -80,7 +80,7 @@ This cost the first tier-1 measurement run and 8.7 GB of a 100 GB home share.
 pip decides where to install by calling `test_writable_dir()`, which on POSIX is one line:
 `os.access(path, os.W_OK)`. On this Isilon that call returns **False** for a directory the same
 process can then write to without error — the filer synthesises the POSIX mode bits lossily from
-the real NFSv4 ACL, which is the same defect `PERMISSIONS.md` documents for the mode bits generally.
+the real NFSv4 ACL, which is the same defect `ai-config/PERMISSIONS.md` documents for the mode bits generally.
 pip concludes the environment is unwritable, logs *"Defaulting to user installation because normal
 site-packages is not writeable"*, and puts 8.7 GB in `~/.local` — which then **shadows the
 environment at import time**, so the job runs a copy of vLLM nobody meant to install.
