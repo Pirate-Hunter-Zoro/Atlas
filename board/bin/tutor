@@ -2370,14 +2370,9 @@ def hop_to_allocation(cfg, rest):
     # that cgroup is emptied the moment the step ends, detached or not. So it
     # holds itself open, which ties the board's life to the allocation's -- which
     # is the truth about a compute node anyway.
-    job = os.environ.get("SLURM_JOB_ID") or ""
+    job = job_holding(target)
     if not job:
-        for when, nodes, jid in _running_jobs():
-            if target in nodes:
-                job = jid
-                break
-    if not job:
-        tell("ssh could not get in, and no job id to hand it to Slurm with")
+        tell("ssh could not get in, and no running allocation of yours holds it")
         return 1
     log = open(os.path.expanduser("~/.tutor-resume.log"), "a", buffering=1)
     step = ["srun", "--overlap", "--jobid", job, "--nodes=1", "--ntasks=1",
@@ -2433,6 +2428,37 @@ def _running_jobs():
     except (OSError, subprocess.TimeoutExpired):
         return []
     return sorted(out, reverse=True)
+
+
+def job_holding(target):
+    """The running allocation that actually holds `target`, or "".
+
+    The id handed to `srun --jobid` has to be the allocation that owns the node,
+    and the one in this shell's environment routinely is not it. `salloc` exports
+    `SLURM_JOB_ID` for the job it just made, while the node a hop is aimed at
+    comes off the board record FIRST -- a node that outlives the shell which
+    started the board, and so usually belongs to an older allocation on a
+    different machine. Hand Slurm a job holding no part of `target` and the step
+    is refused for "Requested node configuration is not available", which names
+    neither the job nor the node: the log then reads like a partition problem
+    rather than a mismatch made here, and the hop reports success either way.
+
+    This shell's own job wins when it does hold the node -- it is the allocation
+    the person asked for a moment ago. Otherwise the newest one that holds it.
+    Names are compared short and lower-cased, because `squeue` and `scontrol`
+    disagree about domains and case where nothing else does.
+    """
+    want = (target or "").split(".")[0].strip().lower()
+    if not want:
+        return ""
+    owners = []
+    for _when, nodes, jid in _running_jobs():
+        if want in [n.split(".")[0].strip().lower() for n in nodes]:
+            owners.append(jid)
+    here = (os.environ.get("SLURM_JOB_ID") or "").strip()
+    if here and here in owners:
+        return here
+    return owners[0] if owners else ""
 
 
 def pull_vendor(quiet=False):
