@@ -19,6 +19,11 @@
         is and asks for the revision, and the reply says which machinery took
         it -- the board for a document it compiled, the manuscript factory for
         one it delivered.
+     4. A DOCUMENT THAT HAS BEEN MARKED UP HAS ALREADY SAID SOMETHING. Ink on
+        its pages goes into the note as the pages it is on and a picture of
+        each, so the send button is live with an empty textarea and says so.
+        Asking somebody to type out a ring they have already drawn round a
+        figure is the translation this whole surface exists to avoid.
    ========================================================================== */
 
 var els = {
@@ -37,6 +42,7 @@ var els = {
   noteWhere: document.getElementById("note-where"),
   noteText: document.getElementById("note-text"),
   notePage: document.getElementById("note-page"),
+  noteMarks: document.getElementById("note-marks"),
   noteSaid: document.getElementById("note-said"),
   noteCancel: document.getElementById("note-cancel"),
   noteSend: document.getElementById("note-send")
@@ -139,6 +145,16 @@ function row(doc) {
     old.className = "lib-stale";
     old.textContent = "the source has changed since this PDF was built";
     box.appendChild(old);
+  }
+
+  if (doc.marks && doc.marks.pages) {
+    var ink = document.createElement("span");
+    ink.className = "lib-marks";
+    ink.textContent = "marked up on " + doc.marks.pages
+      + (doc.marks.pages === 1 ? " page" : " pages")
+      + ", " + doc.marks.strokes
+      + (doc.marks.strokes === 1 ? " stroke" : " strokes");
+    box.appendChild(ink);
   }
 
   if ((doc.notes || []).length) {
@@ -254,16 +270,27 @@ function say(doc, page) {
   els.noteWhere.textContent = doc.rel;
   els.noteText.value = "";
   els.noteSaid.hidden = true;
-  els.noteSend.disabled = true;
   els.noteSend.textContent = "send it";
   els.notePage.hidden = !notePage;
   if (notePage) els.notePage.textContent = "about page " + notePage;
+  var ink = (doc.marks && doc.marks.pages) || 0;
+  els.noteMarks.hidden = !ink;
+  if (ink) {
+    els.noteMarks.textContent = "Your marks on " + ink
+      + (ink === 1 ? " page" : " pages")
+      + " go with this. Send it with nothing typed and the ink is the feedback.";
+  }
+  els.noteSend.disabled = !ink;
   els.note.hidden = false;
   els.noteText.focus();
 }
 
+/* Live as soon as there is either half of a complaint. The marks are already
+   on disk, so nothing has to be collected here -- the server reads them where
+   it reads the text. */
 els.noteText.addEventListener("input", function () {
-  els.noteSend.disabled = !els.noteText.value.trim();
+  els.noteSend.disabled = !els.noteText.value.trim()
+    && !((noteFor && noteFor.marks && noteFor.marks.pages) || 0);
 });
 
 els.noteCancel.onclick = function () {
@@ -273,7 +300,8 @@ els.noteCancel.onclick = function () {
 
 els.noteSend.onclick = function () {
   var said = els.noteText.value.trim();
-  if (!noteFor || !said) return;
+  var ink = (noteFor && noteFor.marks && noteFor.marks.pages) || 0;
+  if (!noteFor || (!said && !ink)) return;
   els.noteSend.disabled = true;
   els.noteSend.textContent = "sending…";
   fetch("/library/feedback", {
@@ -297,6 +325,10 @@ els.noteSend.onclick = function () {
     }
     els.noteSaid.className = "note-said";
     els.noteSaid.textContent = "Filed at " + got.rel + ". "
+      + (got.marks
+         ? "Your marks on " + got.marks
+           + (got.marks === 1 ? " page went" : " pages went") + " with it. "
+         : "")
       + (got.detail || "");
     els.noteSend.textContent = "sent";
     els.noteText.value = "";

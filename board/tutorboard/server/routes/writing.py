@@ -44,11 +44,24 @@ def get(h, repo, path):
 # `"doc/a/p1\n"` passed a `$`-anchored check -- and that string then went into a
 # filename. A key arrives from a browser; it gets the strict end-of-string.
 ANN_CARD = re.compile(r"\A\d{1,4}\Z")
-ANN_DOC = re.compile(r"\Adoc/[a-z0-9-]{1,40}/p\d{1,4}\Z")
+ANN_DOC = re.compile(r"\Adoc/([a-z0-9-]{1,40})/p(\d{1,4})\Z")
 
 
 def ann_ok(key):
     return bool(ANN_CARD.match(key) or ANN_DOC.match(key))
+
+
+def ann_doc_page(key):
+    """`(ident, page)` for a mark on a page of a document, or None.
+
+    THE ONE PLACE THAT TAKES A KEY APART. Everything else that wants to know
+    which document a mark is on -- the sentence the tutor is told, the library
+    reading ink back as feedback -- asks here, because a second spelling of this
+    pattern is a second answer to "is this key one of ours", and that question
+    is the one this file exists to answer exactly once.
+    """
+    found = ANN_DOC.match(str(key or ""))
+    return (found.group(1), int(found.group(2))) if found else None
 
 
 def ann_file(key):
@@ -73,10 +86,10 @@ def ann_says(key, answering_now):
                 if answering_now else "they wrote on your card %s" % key)
         return lead, ("Open the image, read what they marked, and answer it "
                       "against that card's own text in live/cards/.")
-    m = re.match(r"\Adoc/([a-z0-9-]+)/p(\d+)\Z", key)
+    m = ann_doc_page(key)
     if m:
-        return ("they wrote on page %s of the document `%s`"
-                % (m.group(2), m.group(1)),
+        return ("they wrote on page %d of the document `%s`"
+                % (m[1], m[0]),
                 "Open the image to see the marks. The document itself is one "
                 "this workspace offers -- `board doctor` lists them -- and the "
                 "address of that page is #/w/<family>/<workspace>/%s." % key)

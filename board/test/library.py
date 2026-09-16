@@ -36,6 +36,7 @@ from tutorboard import manuscript
 from tutorboard.course import library, reading
 from tutorboard.course import repo as course_repo
 from tutorboard.lesson import archive
+from tutorboard.lesson import notes as lesson_notes
 from tutorboard.server import handler, hub, spawn, tikz
 
 fails = []
@@ -160,6 +161,9 @@ check("every id is distinct, so two documents never answer to one name",
 # ---------------------------------------------------------------------------
 # feedback, written where the document is
 # ---------------------------------------------------------------------------
+# A note is written against the REPO rather than the root: the marks on a
+# document's pages live in the board's own drawer, and a note carries them.
+repo = course_repo.Repo(tmp)
 flat = one("TRD prediction from EHR text")
 put("writeups/serve-harness/serve-harness.tex",
     "\\documentclass{article}\n\\title{How the serve harness works}\n")
@@ -178,7 +182,7 @@ check("a note on a writeups/ document does not, because it has its own directory
 check("and it is dated and versioned, never stamped with the time",
       first.endswith("-v1.md") and time.strftime("%Y-%m-%d") in first)
 
-rec = library.write_note(tmp, flat["id"], "Section 3 is about the wrong split.",
+rec = library.write_note(repo, flat["id"], "Section 3 is about the wrong split.",
                          page=14)
 check("a note is written", rec.get("ok") and os.path.isfile(rec["path"]))
 said = open(rec["path"], encoding="utf-8").read()
@@ -186,18 +190,121 @@ check("it names the document it is about", flat["rel"] in said)
 check("and the page, because the reader was looking at one", "page 14" in said)
 check("and it carries their words rather than a summary of them",
       "wrong split" in said)
-again = library.write_note(tmp, flat["id"], "And the abstract overclaims.")
+again = library.write_note(repo, flat["id"], "And the abstract overclaims.")
 check("a second round the same day is v2, not an overwrite",
       again["rel"].endswith("-v2.md") and os.path.isfile(rec["path"]))
 library.forget()
 check("the document then says how many rounds it has had",
       len(library.find(tmp, flat["id"])["notes"]) == 2)
 check("a note about a document nobody has is refused",
-      library.write_note(tmp, "not-a-document", "x").get("ok") is False)
-check("and a note with nothing in it is refused",
-      library.write_note(tmp, flat["id"], "   ").get("ok") is False)
+      library.write_note(repo, "not-a-document", "x").get("ok") is False)
+check("and a note with nothing in it, on a document nobody marked, is refused",
+      library.write_note(repo, flat["id"], "   ").get("ok") is False)
 check("a feedback note is not offered back as a document of its own",
       not [d for d in library.documents(tmp) if "feedback" in (d["dir"] or "")])
+
+# ---------------------------------------------------------------------------
+# feedback made of MARKS
+# ---------------------------------------------------------------------------
+# A ring round a figure is a complaint. It was already storable -- the viewer
+# gives every page a box and `annotate.js` saves the strokes against
+# `doc/<ident>/p<n>` -- and nothing read it where the textarea is read.
+from tutorboard.server.routes import writing as writing_route          # noqa: E402
+
+
+def ink(key, strokes=3, png=True):
+    """Marks on one page, saved exactly the way `/annotate/save` saves them."""
+    stem = writing_route.ann_file(key)
+    with open(os.path.join(repo.notes, stem + ".json"), "w", encoding="utf-8") as fh:
+        json.dump({"card": key, "sent": False,
+                   "strokes": [{"p": [[0.1, 0.1], [0.2, 0.2]]}] * strokes}, fh)
+    if png:
+        with open(os.path.join(repo.notes, stem + ".png"), "wb") as fh:
+            fh.write(b"\x89PNG\r\n\x1a\n")
+
+
+check("every id is short enough to be an annotation key",
+      all(len(d["id"]) <= library.IDENT_MAX for d in library.documents(tmp)))
+
+marked = one("How the serve harness works")
+idents = library.mark_idents(tmp, marked)
+check("a document can be marked under its library name",
+      marked["id"] in idents)
+check("and under the drawer's name for the same file, which is where marking "
+      "works today",
+      reading.ident(tmp, library.path_of(tmp, marked, ".pdf")) in idents)
+
+ink("doc/%s/p2" % marked["id"], strokes=4)
+ink("doc/%s/p5" % idents[-1], strokes=2, png=False)
+found = library.marks(repo, marked)
+check("both are read back, in page order",
+      [(m["page"], m["strokes"]) for m in found] == [(2, 4), (5, 2)])
+check("and the picture of the page is named where one was saved",
+      found[0]["png"].startswith("live/annotations/")
+      and found[1]["png"] == "")
+
+library.forget()
+inked = library.write_note(repo, marked["id"], "   ")
+check("a note with nothing typed is accepted once there is ink on the document",
+      inked.get("ok") is True and inked.get("marks") == 2)
+said = open(inked["path"], encoding="utf-8").read()
+check("the note says which pages were marked and where the pictures are",
+      "page 2, 4 strokes" in said and found[0]["png"] in said)
+check("and tells whoever reads it to open the image rather than guess",
+      "OPEN THE IMAGE" in said)
+check("marks handed over this way are recorded as sent, so the board stops "
+      "offering them as unsent ink",
+      all(lesson_notes.load_notes_sent(repo).get(m["key"]) for m in found))
+check("and the payload says a document has been drawn on",
+      [d["marks"] for d in library.status(repo)["documents"]
+       if d["id"] == marked["id"]] == [{"pages": 2, "strokes": 6}])
+
+# ---------------------------------------------------------------------------
+# a machine with no poppler on it
+# ---------------------------------------------------------------------------
+# HOW MANY PAGES is asked of `pdfinfo`, because a modern PDF keeps its page tree
+# in a compressed object stream and counting `/Type /Page` in the bytes finds
+# nothing at all. A machine without poppler therefore has to show NO count
+# rather than a wrong one -- and every other thing the library knows about a
+# document comes off the source file, so nothing else may go with it.
+from tutorboard.course import paper as course_paper                   # noqa: E402
+
+# One document with a REAL PDF beside it, because the question is whether a
+# count that exists on a machine with poppler goes MISSING on one without --
+# and every other fixture here is a file full of padding, which pdfinfo answers
+# nothing about whether it is installed or not.
+ONE_PAGE = (b"%PDF-1.4\n"
+            b"1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n"
+            b"2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj\n"
+            b"3 0 obj<</Type/Page/Parent 2 0 R/MediaBox[0 0 200 200]>>endobj\n"
+            b"trailer<</Root 1 0 R/Size 4>>\n%%EOF\n")
+os.makedirs(os.path.join(tmp, "writeups", "one-page"), exist_ok=True)
+with open(os.path.join(tmp, "writeups", "one-page", "one-page.tex"), "w",
+          encoding="utf-8") as fh:
+    fh.write("\\documentclass{article}\n\\title{A document of one page}\n")
+with open(os.path.join(tmp, "writeups", "one-page", "one-page.pdf"), "wb") as fh:
+    fh.write(ONE_PAGE)
+
+real_env = course_paper.raster_env
+course_paper.raster_env = lambda: dict(os.environ, PATH="/nonexistent")
+library.forget()
+blind = library.documents(tmp)
+course_paper.raster_env = real_env
+library.forget()
+sighted = library.documents(tmp)
+
+check("with no poppler on the machine, every document is still listed",
+      len(blind) == len(sighted) and len(blind) >= 7)
+check("and every one of them still has its title, its kind and its formats",
+      [(d["title"], d["kind"], d["formats"]) for d in blind]
+      == [(d["title"], d["kind"], d["formats"]) for d in sighted])
+counted = {d["title"]: d["pages"] for d in sighted}
+check("a machine WITH poppler counts the pages of a document that has some",
+      counted.get("A document of one page") == 1)
+check("and what is missing without it is the count, missing rather than wrong",
+      all(d["pages"] == 0 for d in blind))
+check("and staleness still works, because it is arithmetic on two mtimes",
+      [d["stale"] for d in blind] == [d["stale"] for d in sighted])
 
 # ---------------------------------------------------------------------------
 # which machinery revises which
@@ -217,7 +324,6 @@ check("and a document the board compiled is the board's",
 # ---------------------------------------------------------------------------
 # the route, over real HTTP
 # ---------------------------------------------------------------------------
-repo = course_repo.Repo(tmp)
 woken = []
 spawn.wake_tutor = lambda r: woken.append(r) or True
 spawn.fresh_tutor = lambda root, course: fails.append("a tutor was replaced")
@@ -315,8 +421,13 @@ try:
                         {"document": "not-a-document", "text": "x"})
     check("feedback on a document nobody has is refused", status == 404)
     status, body = post("/library/feedback",
-                        {"document": mine["id"], "text": "  "})
-    check("and feedback with nothing in it is refused", status == 400)
+                        {"document": flat["id"], "text": "  "})
+    check("and feedback with nothing in it, on a document nobody drew on, "
+          "is refused", status == 400)
+    status, body = post("/library/feedback", {"document": mine["id"], "text": ""})
+    check("while the same empty note on a document that HAS been marked up "
+          "sends the ink",
+          status == 200 and body.get("ok") is True and body.get("marks") == 2)
 
     status, body = get("/library/view/" + mine["id"])
     check("asking for the pages of a document reaches the renderer",
