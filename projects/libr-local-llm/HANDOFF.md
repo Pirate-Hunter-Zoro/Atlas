@@ -30,7 +30,9 @@ the artefacts that cross the fence are code and numbers, and both are readable.
 **The engine.** `vendor/colibri`, a submodule, fast-forwarded daily by `colibri-pull.timer`
 and on every login by `tutor resume`. `vendor/colibri-build` is the same upstream pinned at
 `fd93c41` and is the tree to *build* from; pulling it underneath a build is the failure the
-pin exists to prevent.
+pin exists to prevent. The `p0` jobs find it by asking git for the submit directory's root,
+so a checkout anywhere uses its own build tree and one outside a checkout is refused by name
+rather than run against nothing.
 
 **The model.** GLM-5.2 int4, 429 GB, staged at
 `/media/studies/ehr_study/analysis/mferguson/models/colibri/glm52_i4`.
@@ -86,15 +88,9 @@ the right way, and the report says so without anyone rereading the session.
 
 ---
 
-## Known stale, and it will waste an afternoon
+## Traps that cost a run each
 
-`COLI_DIR=$HOME/colibri-build/c` is wrong in four files —
-`slurm_jobs/p0/{t34567_colibri,t4b_omp_sweep,t5b_dense_confirm,t6_gpu_scaling}.sbatch`. The
-build tree is `vendor/colibri-build/c` now and there is nothing at the old path. This is the
-same class of error the pull timer had: a path written when colibrì was a loose clone in
-`$HOME`, left behind when it became a submodule.
-
-Two traps from P0 that cost a run each, both written up as findings 7 and 8 in `P0-STATUS.md`:
+Two from P0, both written up as findings 7 and 8 in `P0-STATUS.md`:
 `PYTHONNOUSERSITE=1` (pip's writability probe lies on this filer and shadows the environment),
 and `CUDA_HOME=$EBROOTCUDA` with `VLLM_USE_FLASHINFER_SAMPLER=0` if vLLM is in the picture.
 
