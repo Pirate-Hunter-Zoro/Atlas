@@ -56,9 +56,13 @@ import unicodedata
 from dataclasses import dataclass, field
 
 from ..artifacts.error_log import (
+    BRACKET,
     INSERTION,
     OMISSION,
+    QUOTE_CHARS,
+    ROLE_ALIASES,
     SPEAKER_ATTRIBUTION,
+    _squash,
 )
 from ..evaluate.labels import best_label_mapping
 from .render import DIALOGUE_LINE, HEADING_LINE
@@ -218,6 +222,10 @@ class Locus:
     how: str
     crosses_turns: bool = False
     matched: str | None = None
+    # The character span of the LINE the annotator wrote down, when the locus came from
+    # one. It is the fence the logged timestamp is allowed to move an insertion inside:
+    # the line says which words were on screen, the clock says where among them.
+    window: tuple | None = None
 
 
 @dataclass
@@ -231,6 +239,10 @@ class Edit:
     speaker: str | None = None
     timestamp: float | None = None
     notes: list = field(default_factory=list)
+    # Where the previous placement rule would have put this edit: the end of the host turn.
+    # Kept so the report can measure the new rule against the one it replaced instead of
+    # asserting that it is better.
+    legacy_start: int | None = None
 
 
 REPLACE, INSERT, EXTRACT, RELABEL = "replace", "insert", "extract", "relabel"
@@ -352,7 +364,8 @@ def locate(correction, turns, lines, document, claimed=None):
         # A heading line means "this turn", with no offset inside it; a dialogue line gives
         # the span of that line's own words, and an insertion goes at its end.
         if hint["kind"] == DIALOGUE_LINE:
-            return Locus(hint["turn"], hint["end"], None, BY_LINE)
+            return Locus(hint["turn"], hint["end"], None, BY_LINE,
+                         window=(hint["start"], hint["end"]))
         return Locus(hint["turn"], None, None, BY_LINE)
 
     by_time = _time_locus(turns, correction.timestamp)
@@ -361,8 +374,84 @@ def locate(correction, turns, lines, document, claimed=None):
     return None
 
 
+def insertion_point(correction, locus, turn):
+    """IN: a Correction + its Locus + the host turn   OUT: a character offset in the host.
+
+    A locus with a start already names a position the annotator pointed at, by line number
+    or by matched snippet, and that is the finest evidence there is. A locus that is only
+    "this turn" has none, and used to fall back to the END of the turn -- which is where
+    the reported time lag came from, because a backchannel heard four seconds into a
+    forty-second turn was written after all forty seconds of it. Such a row is placed by
+    its logged time instead.
+    """
+    text = turn.get("text", "")
+    fallback = locus.start if locus.start is not None else len(text)
+    timed = offset_for_time(turn, correction.timestamp)
+    if timed is None:
+        return fallback
+    if locus.window is None:
+        return timed
+    # A line the annotator read off the screen is about ninety characters of one turn, and
+    # the row used to go at the END of it however early in the line it was heard. The clock
+    # picks the gap between words inside that line; it does not get to leave the line,
+    # because the line is the column the annotator was surest about.
+    low, high = locus.window
+    inside = [point for point in _split_points(text) if low <= point <= high]
+    if not inside:
+        return fallback
+    return min(inside, key=lambda point: abs(point - timed))
+
+
+def _linear(turn, offset, length):
+    """The straight-line character-to-time guess, kept only to measure against."""
+    if length <= 0:
+        return turn["start"]
+    share = max(0.0, min(1.0, offset / length))
+    return turn["start"] + (turn["end"] - turn["start"]) * share
+
+
+def unit_speaker(unit, correction, turn, first):
+    """Who a unit's words are attributed to, in order of evidence.
+
+    The Speaker column is the row's own answer and governs its first utterance. A later
+    utterance in the same cell has only the role the annotator bracketed after it. A unit
+    with NEITHER -- the (laughs) case, where the bracket named no role -- inherits the
+    speaker of the turn it is being cut into, because an edit with no speaker is not an
+    edit: it would leave the reference with a turn labelled UNKNOWN that nobody logged.
+    """
+    if first:
+        return correction.speaker or (unit.role if unit else None) or turn.get("speaker")
+    return unit.role or turn.get("speaker")
+
+
+def to_edits(correction, locus, turns):
+    """IN: a Correction + its Locus + the turn list   OUT: list[Edit], in cell order.
+
+    One utterance in the Actual Speech cell is one edit. A cell holding two -- the
+    annotator's "<utterance> (Participant)<utterance> (Interviewer)" -- is two people
+    speaking and becomes two edits with two speakers, the second cut in immediately after
+    the first. Before the cell grammar existed the whole cell went in as one block of text,
+    brackets and quotation marks included.
+    """
+    edits = [to_edit(correction, locus, turns)]
+    tail = correction.units_beyond_the_first
+    if not tail or "unplaced" in edits[0].notes or edits[0].kind == RELABEL:
+        return edits
+    turn = turns[locus.turn]
+    point = edits[0].end
+    for unit in tail:
+        if not unit.text:
+            continue
+        edits.append(Edit(correction.row, INSERT, point, point, text=unit.text,
+                          speaker=unit_speaker(unit, correction, turn, first=False),
+                          timestamp=correction.timestamp,
+                          notes=["a later utterance in the same cell, inserted after the "
+                                 "first"]))
+    return edits
+
+
 def to_edit(correction, locus, turns):
-    """IN: a Correction + its Locus + the turn list   OUT: an Edit.
+    """IN: a Correction + its Locus + the turn list   OUT: an Edit for its FIRST utterance.
 
     This is where the six error labels and the Add Turn? flag become the four things that
     can actually be done to a turn.
@@ -377,6 +466,8 @@ def to_edit(correction, locus, turns):
         if not correction.add_turn:
             return Edit(correction.row, RELABEL, 0, 0,
                         speaker=correction.speaker, notes=notes)
+        first = correction.actual_units[0] if correction.actual_units else None
+        speaker = unit_speaker(first, correction, turn, first=True)
         if span:
             # Matched on the annotator's own words: those characters ARE the utterance, so
             # they move across intact. Matched on the machine's rendering instead: the
@@ -384,17 +475,22 @@ def to_edit(correction, locus, turns):
             moved = (turn["text"][span[0]:span[1]] if locus.matched == "actual"
                      else (correction.actual_text or ""))
             return Edit(correction.row, EXTRACT, span[0], span[1], text=moved,
-                        speaker=correction.speaker, timestamp=correction.timestamp, notes=notes)
-        point = locus.start if locus.start is not None else len(turn["text"])
+                        speaker=speaker, timestamp=correction.timestamp, notes=notes)
+        point = insertion_point(correction, locus, turn)
         notes.append("no span found; the reattributed words were inserted rather than moved")
         return Edit(correction.row, INSERT, point, point, text=correction.actual_text or "",
-                    speaker=correction.speaker, timestamp=correction.timestamp, notes=notes)
+                    speaker=speaker, timestamp=correction.timestamp, notes=notes,
+                    legacy_start=locus.start if locus.start is not None else len(turn["text"]))
 
     if correction.error == OMISSION and correction.is_pure_omission:
-        point = locus.start if locus.start is not None else len(turn["text"])
+        point = insertion_point(correction, locus, turn)
         if correction.add_turn:
+            first = correction.actual_units[0] if correction.actual_units else None
             return Edit(correction.row, INSERT, point, point, text=correction.actual_text or "",
-                        speaker=correction.speaker, timestamp=correction.timestamp, notes=notes)
+                        speaker=unit_speaker(first, correction, turn, first=True),
+                        timestamp=correction.timestamp, notes=notes,
+                        legacy_start=(locus.start if locus.start is not None
+                                      else len(turn["text"])))
         # Words missing from inside a turn the diarizer got right: they go back into it.
         return Edit(correction.row, REPLACE, point, point,
                     text=" " + (correction.actual_text or ""), notes=notes)
@@ -410,16 +506,78 @@ def to_edit(correction, locus, turns):
                 text=correction.actual_text or "", notes=notes)
 
 
+def _clock(turn, length):
+    """IN: a turn + its text length   OUT: the (offset, time) anchors, ends included.
+
+    Anchors are the aligner's word times when the turn carries them and only the turn's
+    own two endpoints when it does not, which is what makes both directions of the
+    character-to-time map degrade to the old straight line rather than to an error.
+    """
+    anchors = [(0, turn["start"])]
+    previous = turn["start"]
+    for offset, time in turn.get("clock") or []:
+        if 0 < offset < length and time >= previous:
+            anchors.append((offset, time))
+            previous = time
+    anchors.append((length, max(turn["end"], previous)))
+    return anchors
+
+
 def _interpolate(turn, offset, length):
     """IN: a turn + a character offset into it + its text length   OUT: a time inside it.
 
-    Linear in characters. Speech is not, which is exactly why the result is labelled
-    "interpolated" wherever it is used rather than being presented as a measurement.
+    Piecewise linear between word anchors, straight-line across a turn with none. Speech is
+    not linear in characters, which is why the result is labelled "interpolated" wherever
+    it is used rather than being presented as a measurement -- but between two adjacent
+    word times the error is bounded by one word instead of by the length of the turn.
     """
     if length <= 0:
         return turn["start"]
-    share = max(0.0, min(1.0, offset / length))
-    return turn["start"] + (turn["end"] - turn["start"]) * share
+    offset = max(0, min(length, offset))
+    anchors = _clock(turn, length)
+    for (left, left_time), (right, right_time) in zip(anchors, anchors[1:]):
+        if offset <= right:
+            if right == left:
+                return left_time
+            share = (offset - left) / (right - left)
+            return left_time + (right_time - left_time) * share
+    return anchors[-1][1]
+
+
+def _split_points(text):
+    """Where a turn may be cut open: between words, or at either end."""
+    return [0] + [index for index, character in enumerate(text)
+                  if character.isspace()] + [len(text)]
+
+
+def offset_for_time(turn, timestamp):
+    """IN: a turn + the time the annotator logged   OUT: a character offset in it, or None.
+
+    THE INVERSE of `_interpolate`, snapped to the nearest gap between words so a cut never
+    lands inside one. This is what answers the second defect in the QC feedback: an
+    interjection used to go at the END of whichever turn hosted it, however early in that
+    turn it was heard, so a turn lasting a minute displaced it by up to a minute. The
+    logged timestamp is an independent measurement of WHERE, not only of WHEN, and this
+    turns it into a position.
+
+    None when there is no timestamp or the turn has no duration -- the caller then falls
+    back to the evidence it had before.
+    """
+    text = turn.get("text", "")
+    if timestamp is None or not text or turn["end"] <= turn["start"]:
+        return None
+    length = len(text)
+    anchors = _clock(turn, length)
+    raw = length
+    for (left, left_time), (right, right_time) in zip(anchors, anchors[1:]):
+        if timestamp <= right_time:
+            if right_time == left_time:
+                raw = left
+            else:
+                share = (timestamp - left_time) / (right_time - left_time)
+                raw = left + (right - left) * max(0.0, min(1.0, share))
+            break
+    return min(_split_points(text), key=lambda point: abs(point - raw))
 
 
 def _rebuild_turn(turn, edits):
@@ -447,8 +605,16 @@ def _rebuild_turn(turn, edits):
             speaker = edit.speaker or speaker
             rows.append(edit.row)
 
+    # BY POSITION, THEN BY LOGGED TIME. Two rows whose insertion points snap to the same
+    # gap between words are two utterances in one place, and the order they come out in is
+    # the order they were heard -- not the order they happen to sit in the spreadsheet,
+    # which is what put a reply before the thing it replied to when the speakers were
+    # trading quickly.
     ordered = sorted((edit for edit in edits if edit.kind != RELABEL),
-                     key=lambda edit: (edit.start, edit.end))
+                     key=lambda edit: (edit.start, edit.end,
+                                       float("inf") if edit.timestamp is None
+                                       else edit.timestamp,
+                                       edit.row))
     produced, buffer, buffer_start, cursor = [], [], 0, 0
 
     def flush(end_offset):
@@ -597,6 +763,55 @@ def role_mapping(turns, corrections, placements):
     return mapping, votes
 
 
+def placement_lag(turns):
+    """IN: the corrected turn list   OUT: how far every placed utterance moved, in seconds.
+
+    THE MEASUREMENT THE PLACEMENT RULE IS JUDGED BY, and the reason it is a number rather
+    than a claim. Every turn the pass created carries `logged_at`, the time the annotator
+    heard it, beside the interpolated time of the position it was actually written at. The
+    gap between those two is the lag the QC feedback described: the interjection is
+    present, just not where it was heard.
+
+    Signed, so a systematic direction is visible -- positive means the utterance landed
+    LATER in the transcript than it was heard. The buckets count the ones a reader would
+    notice: two seconds is about a word, ten is a different exchange.
+    """
+    lags = sorted(turn["start"] - turn["logged_at"] for turn in turns
+                  if turn.get("logged_at") is not None)
+    if not lags:
+        return {"placed_turns": 0}
+    sizes = sorted(abs(lag) for lag in lags)
+    middle = len(sizes) // 2
+    return {
+        "placed_turns": len(lags),
+        "mean_seconds": round(sum(sizes) / len(sizes), 2),
+        "median_seconds": round(sizes[middle] if len(sizes) % 2 else
+                                (sizes[middle - 1] + sizes[middle]) / 2, 2),
+        "worst_seconds": round(sizes[-1], 2),
+        "mean_signed_seconds": round(sum(lags) / len(lags), 2),
+        "within_2s": sum(1 for size in sizes if size <= 2.0),
+        "within_10s": sum(1 for size in sizes if size <= 10.0),
+        "beyond_10s": sum(1 for size in sizes if size > 10.0),
+    }
+
+
+def stray_marks(turns):
+    """IN: a turn list   OUT: counts of the two marks the QC feedback named.
+
+    A quotation mark and a parenthesised role are how the annotator WROTE a cell, not
+    something anybody said, so every one of them in a corrected transcript is a mark the
+    reader has to see past. Counted before and after the pass so a regression in the cell
+    parser shows up as a number rather than as a complaint three weeks later.
+    """
+    text = " ".join(turn.get("text", "") for turn in turns)
+    return {
+        "double_quotes": sum(1 for character in text if character in QUOTE_CHARS),
+        "bracketed_role_names": sum(
+            1 for match in BRACKET.finditer(text)
+            if _squash(match.group(1)) in ROLE_ALIASES),
+    }
+
+
 def apply_corrections(transcript_turns, corrections, index):
     """IN: the baseline turn list + the parsed log + the render index
     OUT: (corrected turns, report dict)
@@ -630,7 +845,8 @@ def apply_corrections(transcript_turns, corrections, index):
         if locus.how == ALREADY_CLAIMED:
             outcomes[correction.row] = ACCOUNTED
             continue
-        edit = to_edit(correction, locus, turns)
+        row_edits = to_edits(correction, locus, turns)
+        edit = row_edits[0]
         if "unplaced" in edit.notes:
             outcomes[correction.row] = UNPLACED
             notes_by_row[correction.row] = [n for n in edit.notes if n != "unplaced"]
@@ -647,16 +863,45 @@ def apply_corrections(transcript_turns, corrections, index):
         if edit.end > edit.start:
             taken.append((edit.start, edit.end))
 
-        edits_by_turn.setdefault(locus.turn, []).append(edit)
+        # An insertion point inside a span an earlier row moved or rewrote is pushed to the
+        # end of that span. Left where it was it would cut the extracted words in half and
+        # produce two turns whose interpolated spans overlap.
+        for one in row_edits:
+            if one.kind != INSERT:
+                continue
+            for start, end in taken:
+                if start < one.start < end:
+                    one.start = one.end = end
+        edits_by_turn.setdefault(locus.turn, []).extend(row_edits)
         outcomes[correction.row] = APPLIED
-        if edit.notes:
-            notes_by_row[correction.row] = edit.notes
+        notes = [note for one in row_edits for note in one.notes]
+        if notes:
+            notes_by_row[correction.row] = notes
 
     mapping, votes = role_mapping(turns, corrections, placements)
 
     rebuilt = []
     for position, turn in enumerate(turns):
         rebuilt.extend(_rebuild_turn(turn, edits_by_turn.get(position, [])))
+    # Measured BEFORE the merge: a backchannel that turns out to belong to the speaker
+    # either side of it is joined back into their turn, and the merged turn's start is the
+    # host's rather than the inserted piece's.
+    lag = placement_lag(rebuilt)
+    # THE SAME UTTERANCES UNDER THE RULE THIS REPLACED: the end of the host turn, timed by
+    # straight-line interpolation. Same rows, same hosts, so the two numbers are comparable.
+    was, adrift = [], []
+    for position, turn_edits in edits_by_turn.items():
+        host = turns[position]
+        length = len(host.get("text", ""))
+        for edit in turn_edits:
+            if edit.timestamp is None:
+                continue
+            legacy = edit.legacy_start if edit.legacy_start is not None else edit.start
+            was.append({"start": _linear(host, legacy, length),
+                        "logged_at": edit.timestamp})
+            if abs(_interpolate(host, edit.start, length) - edit.timestamp) > 10.0:
+                adrift.append(edit.row)
+    previous_lag = placement_lag(was)
     for turn in rebuilt:
         turn["speaker"] = mapping.get(turn["speaker"], turn["speaker"])
     corrected = merge_adjacent(rebuilt)
@@ -688,6 +933,20 @@ def apply_corrections(transcript_turns, corrections, index):
 
     report = {
         "corrections_read": len(corrections),
+        "placement_lag": lag,
+        "placement_lag_under_the_previous_rule": previous_lag,
+        # Rows whose Line column and Timestamp column disagree about where they belong by
+        # more than ten seconds. Not a placement failure: the row was placed inside the
+        # turn its line named, and the annotator's own clock says that turn is elsewhere.
+        "rows_landing_over_10s_from_their_logged_time": sorted(set(adrift)),
+        "stray_marks_before": stray_marks(turns),
+        "stray_marks_after": stray_marks(corrected),
+        "brackets_cut_naming_no_role": sum(c.brackets_dropped for c in corrections),
+        "cells_holding_more_than_one_utterance": sum(
+            1 for c in corrections if len(c.actual_units) > 1 or len(c.ai_units) > 1),
+        "utterances_placed_beyond_the_first": sum(
+            1 for edits in edits_by_turn.values() for edit in edits
+            for note in edit.notes if note.startswith("a later utterance")),
         "rows_changing_turn_structure": structural,
         "rows_changing_words_only": len(corrections) - structural,
         "words_found_on_the_page": found,

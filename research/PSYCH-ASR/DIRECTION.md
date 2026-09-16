@@ -1,0 +1,4 @@
+<!-- set: 2026-09-16 09:10 -->
+We need to improve the algorithm that repairs the diarized transcript based on the feedback .csv. Let me give you the feedback I’ve received from Madison so far, and try to improve the algorithm based on that - and to make triple sure, you are NOT looking at any actual transcript text, right? Only the code that you write - which runs locally - is doing that. Right? Anyways, here’s the feedback - think you can work with this?             “There are lots of random, unpaired quotation marks and parenthetical speaker attributions now. For example, instead of saying "Right", it's saying " Right" (Participant)", which is how I entered it into the actual text column.
+
+There's also a time lag when the speakers switch rapidly or talk over each other. The interjections are present, just not in the right place.”

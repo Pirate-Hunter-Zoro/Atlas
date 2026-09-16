@@ -1,33 +1,10 @@
-<!-- chapter: 1. THE TYPIST BAKE-OFF — VARY THE ASR MODEL -->
-The lesson on the board is FIELD EXTENSIONS AND THE TOWER LAW, not the typist
-bake-off the chapter label names. Teach what is on the board.
+<!-- chapter: New direction — We need to improve the algorithm that repairs the diarized… -->
+The work is the transcript repair, redirected mid-session by them: make `psych_asr/transcript/corrections.py` stop injecting Madison's own annotation marks, and stop mislaying interjections when speakers overlap. Her two complaints are the whole agenda — stray unpaired quotation marks with `(Participant)`-style attributions in the output, and a time lag on rapid speaker switches where the interjection is present but misplaced.
 
-BOARD STATE. live/cards/ was cleared between turns and restarted at 0001 with a
-bake-off card that states an intention only. The field-extension cards are gone
-from disk, so whatever you pose, pose it WHOLE.
+Where they got to: the provenance question is settled and should not be re-opened. They suspected the stray marks were contamination — my first corrected output fed back in as input. It is not. The repair reads `data/stage1/<stem>.baseline.diarized.json` only, `data/stage2/` is write-only, and the render guard in `apply_corrections.check_render_matches` refuses on any dialogue or line-count difference. The marks come from the Actual Text cell parsed as literal replacement text. They accepted that, and decided the first corrected transcript is disposable — it is already emailed to Madison, so overwrite it and keep no `.attempt1`.
 
-WHERE THEY GOT TO. Proving a degree-7 extension has no intermediate field. They
-wrote [L:k] = [L:M][M:k], enumerated both factorisations (7·1 and 1·7), and the
-open case is row one: [M:k] = 1 forces M = k. They attacked it and did not land it.
+Open and unanswered: card 0005 asks which of three Actual Text specimens the naive rule ruins — delete every quotation mark, then delete a trailing parenthesis group. The answer is B, `"she said "no" and just left" (Interviewer)`: the inner quotes are reported speech, content rather than wrapping, and the rule eats them. Start the next turn by grading that, then teach the rule that fixes it — unwrap only anchored ends, a leading and trailing quote as a pair, and strip a trailing bracket only when its contents is a name in `ROLE_ALIASES`. The naive move is live at `psych_asr/artifacts/error_log.py:168`.
 
-WHAT THEY GOT WRONG. They went for contradiction: suppose l₁ ∉ k, let {l₂} be the
-basis, then prove c·l₂ ≠ l₁. Stuck, correctly — that inequality is false. The
-misunderstanding is directional. They treat spanning as an obstacle to defeat
-rather than the hypothesis to use. Spanning HANDS them a scalar reaching every
-element; that is the lever. They also wrote k for both the field and the scalar,
-which is part of why the false statement looked provable.
+After that, the lag half. Their own counters already exist and should be used rather than rebuilt: `stray_marks` and the lag statistics near `corrections.py:798` report before and after.
 
-WHAT THEY GOT RIGHT — DO NOT RE-TEACH. The tower law and both rows. Which field
-is the vectors and which the scalars. The definition of degree, built unprompted
-from scratch: ℂ over ℝ, basis {1, i}, answer 2, with "fewest" now corrected in.
-And the meaning of [L:k] = 1, stated correctly in their own handwriting.
-
-NEXT, AND ONLY THIS. Apply spanning to the element 1: it gives 1 = c·l₂ with c in
-k. Then c ≠ 0, so l₂ = c⁻¹ lies in k, so L = k. One equation, and the whole
-missing step. Then [L:M] = 1 ⇒ M = L, then the prime-degree statement handed back
-whole.
-
-HOW THEY WORK. They answer by rewriting the object, not in prose. They revise the
-SAME page and sometimes resend it byte-identical — check for new strokes before
-marking. Their real question sits at the FOOT of the page under the working. Read
-the whole image first.
+How they work: five exercises at once was too many and I withdrew them in card 0003 — give one, wait. They answer logistics and decisions promptly and in a sentence; they do not answer a question they were not asked. They also police the data fence, so say plainly what the code reads.
