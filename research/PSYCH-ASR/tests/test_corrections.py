@@ -13,16 +13,21 @@ from psych_asr.artifacts.error_log import (
     SUBSTITUTION,
     THERAPIST,
     Correction,
+    Unit,
     parse_line,
     parse_timestamp,
+    parse_units,
     read_error_log,
     split_role_suffix,
+    strip_quotes,
 )
 from psych_asr.transcript.corrections import (
     ACCOUNTED,
     DocumentIndex,
     apply_corrections,
     normalize,
+    offset_for_time,
+    stray_marks,
 )
 from psych_asr.transcript.render import (
     DIALOGUE_LINE,
@@ -370,3 +375,152 @@ def test_a_row_whose_words_are_nowhere_is_reported_not_guessed():
     )], index)
     assert report["unplaced_rows"] == [2]
     assert report["words_before"] == report["words_after"]
+
+
+# ------------------------------------------------- the cell grammar, and the two defects
+# it was written for: stray quotation marks and parenthesised speaker names surviving into
+# the reference, and an interjection landing at the end of the turn that hosts it.
+
+
+def test_a_quoted_utterance_with_a_bracketed_role_is_one_clean_unit():
+    """The sheet's own convention, and the one the annotator reported back as broken."""
+    assert parse_units('" Right" (Participant)') == [
+        Unit(text="Right", role=PARTICIPANT, dropped=0)]
+
+
+def test_a_quotation_mark_comes_off_whether_or_not_it_has_a_partner():
+    assert strip_quotes('Right"') == "Right"
+    assert strip_quotes('"Right') == "Right"
+    assert strip_quotes('he said "okay" twice') == "he said okay twice"
+
+
+def test_a_trailing_comma_is_not_stripped_because_it_is_the_whole_correction():
+    """A Punctuation row's actual text can BE a comma; quote-stripping must not eat it."""
+    assert parse_units('"Right,"') == [Unit(text="Right,", role=None, dropped=0)]
+
+
+def test_interviewer_is_a_role_name_and_not_a_parenthetical_to_transcribe():
+    assert parse_units('" Mm-hm" (Interviewer)') == [
+        Unit(text="Mm-hm", role=THERAPIST, dropped=0)]
+
+
+def test_a_cell_with_two_units_is_two_utterances_with_two_speakers():
+    assert parse_units('" Right" (Participant)" Mm-hm" (Interviewer)') == [
+        Unit(text="Right", role=PARTICIPANT, dropped=0),
+        Unit(text="Mm-hm", role=THERAPIST, dropped=0),
+    ]
+
+
+def test_a_bracket_that_names_no_role_is_cut_and_counted():
+    assert parse_units('" Right" (laughs)') == [Unit(text="Right", role=None, dropped=1)]
+
+
+def test_a_second_utterance_in_one_cell_becomes_its_own_turn():
+    """Both utterances arrive, each under its own speaker, in the order written."""
+    segments, turns = conversation()
+    correction = make_correction(
+        row=7, error=SPEAKER_ATTRIBUTION, line=None, timestamp=11.0, speaker=None,
+        ai_text=None, actual_text="Right", add_turn=True,
+        actual_units=[Unit(text="Right", role=PARTICIPANT),
+                      Unit(text="Mm-hm", role=THERAPIST)])
+    corrected, report = run(turns, [correction])
+    placed = [turn for turn in corrected if turn["origin"] != "asr"]
+    assert [turn["text"] for turn in placed] == ["Right", "Mm-hm"]
+    assert [turn["speaker"] for turn in placed] == [PARTICIPANT, THERAPIST]
+    assert report["utterances_placed_beyond_the_first"] == 1
+
+
+def test_a_unit_with_no_role_of_its_own_inherits_the_turn_it_lands_in():
+    """The (laughs) case. An edit with no speaker is not an edit -- it would leave a turn
+    in the reference labelled UNKNOWN that nobody logged."""
+    segments, turns = conversation()
+    correction = make_correction(
+        row=7, error=OMISSION, line=None, timestamp=11.0, speaker=None,
+        ai_text=None, actual_text="Right", add_turn=True,
+        actual_units=[Unit(text="Right", role=None, dropped=1)])
+    corrected, _ = run(turns, [correction])
+    assert all(turn["speaker"] != "UNKNOWN" for turn in corrected)
+
+
+def test_no_quotation_mark_or_bracketed_role_reaches_the_corrected_transcript():
+    """The reader's complaint, as a number. Read off the corrected turns, not the cells."""
+    segments, turns = conversation()
+    correction = make_correction(
+        row=7, error=SPEAKER_ATTRIBUTION, line=None, timestamp=11.0, speaker=PARTICIPANT,
+        ai_text=None, actual_text="Right", add_turn=True,
+        actual_units=[Unit(text="Right", role=PARTICIPANT)])
+    corrected, report = run(turns, [correction])
+    assert report["stray_marks_after"] == {"double_quotes": 0, "bracketed_role_names": 0}
+
+
+def test_the_reader_left_the_quotes_in_before_the_grammar_existed():
+    """What the annotator saw: the old reader stripped only the OUTER quote of a cell."""
+    cell = '" Right" (Participant)'
+    assert cell.strip().strip('"') == ' Right" (Participant)'   # the old _text
+    assert parse_units(cell)[0].text == "Right"
+
+
+# ---------------------------------------------------------------- where an insertion goes
+
+
+def long_turn():
+    """One forty-second turn with word times, and a second speaker after it."""
+    words = []
+    clock = 0.0
+    text = "So how has the week been since we last talked about the schedule"
+    for word in text.split():
+        words.append({"word": word, "start": clock, "end": clock + 3.0})
+        clock += 3.0
+    segments = [
+        {"start": 0.0, "end": clock, "speaker": "SPEAKER_00", "text": text, "words": words},
+        {"start": clock, "end": clock + 5.0, "speaker": "SPEAKER_01", "text": "It was fine."},
+    ]
+    return segments, group_into_turns(segments, keep_word_times=True)
+
+
+def test_the_timestamp_picks_the_offset_inside_the_turn_not_only_the_turn():
+    segments, turns = long_turn()
+    # Three words a second each: "the" begins at 9 s, and the gap before it is where a
+    # turn may be cut. A straight line across the whole turn would say offset 15.
+    assert offset_for_time(turns[0], 9.0) == len("So how has")
+
+
+def test_an_interjection_lands_where_it_was_heard_not_at_the_end_of_its_host():
+    segments, turns = long_turn()
+    correction = make_correction(
+        row=7, error=OMISSION, line=None, timestamp=9.0, speaker=PARTICIPANT,
+        ai_text=None, actual_text="mm hmm", add_turn=True,
+        actual_units=[Unit(text="mm hmm", role=PARTICIPANT)])
+    corrected, report = run(turns, [correction])
+    placed = [turn for turn in corrected if turn["origin"] == "inserted"]
+    assert len(placed) == 1
+    assert abs(placed[0]["start"] - 9.0) < 1.0
+    assert report["placement_lag"]["within_2s"] == 1
+    assert report["placement_lag_under_the_previous_rule"]["worst_seconds"] > 10.0
+
+
+def test_two_interjections_in_one_turn_come_out_in_the_order_they_were_heard():
+    """Sheet order is not time order when the speakers are trading quickly."""
+    segments, turns = long_turn()
+    late = make_correction(
+        row=7, error=OMISSION, line=None, timestamp=30.0, speaker=PARTICIPANT,
+        ai_text=None, actual_text="I see", add_turn=True,
+        actual_units=[Unit(text="I see", role=PARTICIPANT)])
+    early = make_correction(
+        row=8, error=OMISSION, line=None, timestamp=9.0, speaker=PARTICIPANT,
+        ai_text=None, actual_text="mm hmm", add_turn=True,
+        actual_units=[Unit(text="mm hmm", role=PARTICIPANT)])
+    corrected, _ = run(turns, [late, early])
+    placed = [turn["text"] for turn in corrected if turn["origin"] == "inserted"]
+    assert placed == ["mm hmm", "I see"]
+
+
+def test_the_corrected_pieces_still_tile_their_host_after_a_timed_insertion():
+    segments, turns = long_turn()
+    correction = make_correction(
+        row=7, error=OMISSION, line=None, timestamp=9.0, speaker=PARTICIPANT,
+        ai_text=None, actual_text="mm hmm", add_turn=True,
+        actual_units=[Unit(text="mm hmm", role=PARTICIPANT)])
+    corrected, _ = run(turns, [correction])
+    for earlier, later in zip(corrected, corrected[1:]):
+        assert earlier["end"] <= later["start"] + 1e-9

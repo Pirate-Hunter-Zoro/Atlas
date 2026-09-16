@@ -173,6 +173,37 @@ def format_report(stem, log_path, source_name, drift_note, corrections, summary,
                              for kind, count in sorted(tally["evidence"].items()))
         lines.append(f"  {label:<16}-> {data['role_mapping'].get(label, label):<12}"
                      f"{roles:<34}({evidence})")
+    lag = data["placement_lag"]
+    if lag["placed_turns"]:
+        lines += ["", f"Where the {lag['placed_turns']} placed utterances landed, against the "
+                      "time the annotator logged them (which is the clock they are now "
+                      "placed BY, fenced by the Line column -- so this measures how far "
+                      "the two columns agree, not an independent check):",
+                  f"  mean off by {lag['mean_seconds']}s, median {lag['median_seconds']}s, "
+                  f"worst {lag['worst_seconds']}s "
+                  f"(signed mean {lag['mean_signed_seconds']:+}s, + is late)",
+                  f"  within 2s: {lag['within_2s']}   within 10s: {lag['within_10s']}   "
+                  f"beyond 10s: {lag['beyond_10s']}"]
+        before = data["placement_lag_under_the_previous_rule"]
+        if before.get("placed_turns"):
+            lines += [f"  the same utterances under the previous rule (end of the host turn, "
+                      f"straight-line): mean {before['mean_seconds']}s, median "
+                      f"{before['median_seconds']}s, worst {before['worst_seconds']}s, "
+                      f"within 2s: {before['within_2s']}"]
+        if data["rows_landing_over_10s_from_their_logged_time"]:
+            lines += ["  rows whose Line and Timestamp columns disagree by over 10s: "
+                      f"{data['rows_landing_over_10s_from_their_logged_time']}"]
+    before, after = data["stray_marks_before"], data["stray_marks_after"]
+    lines += ["", "Marks that belong to the spreadsheet and not to the speech "
+                  "(machine transcript -> corrected):",
+              f"  quotation marks     {before['double_quotes']} -> {after['double_quotes']}",
+              f"  bracketed roles     {before['bracketed_role_names']} -> "
+              f"{after['bracketed_role_names']}"]
+    lines += ["", f"Brackets cut that named no role: "
+                  f"{data['brackets_cut_naming_no_role']}",
+              f"Cells holding more than one utterance: "
+              f"{data['cells_holding_more_than_one_utterance']}"
+              f"  ({data['utterances_placed_beyond_the_first']} extra utterances placed)"]
     lines += ["", "Corrected turns by origin:      "
                   + "  ".join(f"{k}={v}" for k, v in sorted(data["turns_by_origin"].items())),
               "Corrected turns by time source: "
@@ -226,7 +257,9 @@ def main(argv=None):
         report(f"WARNING: the error log's Session ID is not the stem being corrected. "
                f"Applying it anyway; check that this is the sheet you meant.")
 
-    turns = group_into_turns(transcript.get("segments", []))
+    # WITH the word times: the correction pass needs them to turn the annotator's logged
+    # timestamp into a character position inside the turn it belongs to.
+    turns = group_into_turns(transcript.get("segments", []), keep_word_times=True)
     corrected, data = apply_corrections(turns, corrections, index)
 
     # No segments underneath a corrected turn any more, so each turn IS its own segment.

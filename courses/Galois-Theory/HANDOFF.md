@@ -1,36 +1,36 @@
 <!-- chapter: New direction — Let’s prioritize the remaining book problems except the one… -->
-The direction changed mid-session: remaining book exercises first, worksheet
-after. `PLAN.md` at the root carries the order and the README points at it. Read
-PLAN.md, not this, for what is open.
+Read PLAN.md at the root for the order of what is open; the README points at it.
 
-**Closed in Chapter 4, never re-teach:** 4.1 (prime degree forces no intermediate
-fields), 4.4 (irreducibility of x³+3x+1 and inverting α and 1+α by hand), 4.5
-(coprime degrees), 4.6 (prime degree means simple). In 4.5 they spotted
-themselves that the printed statement needs the minimal polynomial to be monic.
-Tower law and minimal-polynomial arithmetic are solid; do not re-explain either.
+**Closed in Chapter 4, never re-teach:** 4.1, 4.4, 4.5, 4.6, and now **4.9**.
+They answered 4.9 cleanly and unprompted: a = π, b = 1/π, ab = 1, so the product
+of two transcendentals need not be transcendental. They generalised it
+themselves — in any L:K, both a and b can lie outside K while ab = 1 lies inside.
+Tower law, minimal-polynomial arithmetic, and the definition of transcendental
+are solid. Do not re-explain any of them.
 
 **4.2 is out.** They skipped it and asked for it to stay skipped.
 
-**Where they stopped.** Exercise 4.9 (a, b transcendental over ℚ — is ab?) is
-posed and open. I asked one sub-step first: from a non-zero rational polynomial
-with 1/π as a root, build one with π as a root, by reversing the coefficients.
-They did not attempt it. They replied "So next question is what?" and the session
-ended. Nothing mathematical went wrong this session.
+**Two things to correct when they recur.** They wrote "algebraic in ℚ" for
+"algebraic over ℚ" — membership confused with the element-to-base-field
+relation. And they called 1 "certainly algebraic" without naming x − 1. Both
+were fixed in a sentence on card 0003. Neither is a real gap, but asserting
+algebraicity without exhibiting the polynomial is worth watching: 4.8 and 4.10
+are that same move done twice.
 
-**Teach next: 4.9 itself, restated in full.** Hand them the reversal fact rather
-than asking for it again — they have already declined it once, and 4.9 is a
-one-line counterexample (a = π, b = 1/π) that puts a finished exercise back on
-the board. Then 4.8, 4.10, 4.7, then 4.11, then 4.3.
+**Where they stopped.** Exercise 4.8 is posed in full on card 0003 and open:
+α ∈ L transcendental over K, f non-constant in K[x], show f(α) is transcendental,
+then show f(β) = α forces β transcendental. I asked only the first half —
+assuming g(f(α)) = 0 for non-zero g, which polynomial has α as a root, and why
+is it not zero. No answer yet.
 
-**How this student works.** They abandon a sub-step rather than argue with it,
-and they say so by asking for the next question. It has happened three times now:
-4.2 at the spanning-set step, worksheet Problem 6 at squaring γ, and this lemma.
-Read that as a request to be given the whole exercise, not as confusion. Give the
-scaffolding away and re-pose the exercise in full; do not repeat the sub-step in
-different words.
+**Teach next: the composite.** The answer is g(f(x)), non-zero because
+deg g(f(x)) = (deg g)(deg f) ≥ 1. Then the second half of 4.8, then 4.10, 4.7,
+4.11, 4.3.
 
-**Their photographs sometimes arrive as HEIC and cannot be decoded here.** Ask
-for a screenshot, which is always a PNG.
+**How this student works.** They abandon a sub-step by asking for the next
+question rather than arguing. Read that as give me the whole exercise: hand over
+the scaffolding and re-pose the exercise in full. Given the whole thing, they
+solve it. Their photographs sometimes arrive as HEIC and cannot be decoded here;
+ask for a screenshot.
 
-The worksheet "Field Extensions and the Ring F[x]" is read and waiting; Problem 6
-is half-open and gets re-posed from the top when the book is clear.
+The worksheet "Field Extensions and the Ring F[x]" waits; Problem 6 is half-open.

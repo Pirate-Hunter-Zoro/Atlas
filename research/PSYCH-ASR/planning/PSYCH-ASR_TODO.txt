@@ -53,9 +53,9 @@ the least examined component in the pipeline.
 
 The corrected reference built from Madison's 117-row error log is the first
 object in this project that can tell a transcript it is wrong. That is what makes
-steps 1 and 2 possible now, and they were not possible before.
+steps 2 and 3 possible now, and they were not possible before.
 
-WHAT CHANGED ON 2026-09-11, AND IT REMOVES A BLOCKER FROM STEP 3. The grader now
+WHAT CHANGED ON 2026-09-11, AND IT REMOVES A BLOCKER FROM STEP 4. The grader now
 exists: psych_asr.evaluate.grade plus psych_asr.cli.grade_arms take any arm's
 transcript and produce MADISON'S OWN BREAKDOWN of it — the six error labels and
 her Add Turn? split — computed from the corrected reference with nobody
@@ -64,7 +64,7 @@ so it crosses the fence. See README.md, "Grading an arm against the reference".
 Two consequences for the plan below:
   * THE GRID IS A CUBE, NOT A TABLE. Three swappable boxes means three axes:
     4 typists x 2 stopwatches x 5 name-taggers = 40 CELLS, from 13 jobs (8 runs
-    of 1a, 5 of 1b). Step 3 said "typist x name-tagger" and that was two of the
+    of 1a, 5 of 1b). The grid step said "typist x name-tagger" and that was two of the
     three boxes the section above declares swappable.
   * FIVE OF THE SIX LABELS CANNOT MOVE ALONG TWO OF THE AXES. The words come
     from the typist; the times from the stopwatch timing those words; who-spoke
@@ -74,8 +74,66 @@ Two consequences for the plan below:
     moves along the other two. One word-level measurement per row, one
     attribution measurement per cell — which is what makes 40 cells affordable.
 
+WHAT CHANGED ON 2026-09-16. Madison read a corrected transcript, reported two
+defects in it, and both are repaired: her notation no longer comes through as
+speech, and an interjection is placed where it was heard rather than at the end
+of whatever turn hosts it. The reference and all nine arms' error profiles were
+rebuilt from the fixed code. What a later reader needs is the rules that came out
+of it, not the story.
+
+DECISIONS LOCKED — THE CELL GRAMMAR, AND WHERE AN UTTERANCE GOES.
+  * A TEXT CELL IS A SEQUENCE OF UNITS, not a string. A unit is an optionally
+    quoted run of speech followed by at most one bracketed role;
+    error_log.parse_units is the parser, and Correction carries ai_units and
+    actual_units beside the first-unit shortcuts ai_text/actual_text. Two units
+    in one cell are two people speaking, and become two edits with two speakers.
+  * EVERY DOUBLE QUOTE COMES OUT, paired or not, wherever it sits
+    (error_log.strip_quotes). NO other punctuation is touched: a trailing comma
+    is the entire content of a Punctuation row.
+  * A BRACKET NAMING A ROLE SETS THE SPEAKER AND CLOSES THE UNIT. A bracket
+    naming anything else -- (laughs), (inaudible) -- is CUT and does NOT close
+    it, so its unit leaves with no role of its own and INHERITS THE SPEAKER OF
+    THE TURN IT LANDS IN. The user's call, made on the board: nothing inside a
+    bracket is worth keeping, and an edit with no speaker is not an edit.
+    "Interviewer" is a role name for the therapist side and was missing from
+    ROLE_ALIASES, which is why those cells survived into the transcript whole.
+  * THE LOGGED TIMESTAMP PICKS THE OFFSET INSIDE THE HOST TURN, FENCED BY THE
+    LINE COLUMN: the line says which words were on screen, the clock says where
+    among them, and the clock may not leave the line (corrections.offset_for_time
+    and corrections.insertion_point). The times are the aligner's word times,
+    carried into the turn table by group_into_turns(keep_word_times=True) as a
+    "clock" of (character offset, second) anchors; _interpolate is piecewise
+    between them and degrades to the old straight line for a turn with none.
+  * INSERTIONS ON ONE HOST ARE ORDERED BY POSITION, THEN BY LOGGED TIME, never by
+    spreadsheet row. An insertion point falling inside a span an earlier row
+    already moved or rewrote is pushed to the end of that span, or the two pieces
+    overlap in time.
+  * THE PASS MEASURES ITS OWN PLACEMENT AND PRINTS IT: report["placement_lag"]
+    beside report["placement_lag_under_the_previous_rule"], and stray_marks
+    before and after. On the pilot sheet the 74 placed utterances went from 22
+    within two seconds of their logged time to 68, median 3.24 s -> 0.44 s. That
+    is agreement between the Line column and the Timestamp column and NOT an
+    independent check, because the rows are now placed by that clock.
+
+WHAT THE REPAIR LEFT ON THE TABLE (2026-09-16). Both belong to step 5, which is
+where the scorer is calibrated, and neither is a code defect.
+  * FOUR ROWS WHOSE LINE AND TIMESTAMP DISAGREE by more than ten seconds -- sheet
+    rows 41, 50, 53 and 75, named by the pass in
+    report["rows_landing_over_10s_from_their_logged_time"]. Each was placed
+    inside the turn its Line column named, and the annotator's own clock says
+    that turn is elsewhere in the session. One of the two columns is wrong on
+    those rows and the code cannot tell which.
+  * THE PUNCTUATION LABEL IS NOT CALIBRATED: her sheet holds 1 punctuation row
+    and the grader finds 25 of them on the arm she annotated. No other label is
+    out by more than a few.
+
+THE FENCE IS UNCHANGED BY THIS. The assistant reads no transcript text, no cell
+of the error log, and no corrected output. It reads and writes the CODE; the code
+runs locally and reads the data. Every check below is a count, a duration or a
+distribution.
+
 >>> NEXT ACTION (start here in a fresh session) <<<
-  STEP 1. THE TYPIST BAKE-OFF — VARY THE ASR MODEL. (Added 2026-09-09.)
+  STEP 2. THE TYPIST BAKE-OFF — VARY THE ASR MODEL. (Added 2026-09-09.)
     The user's call, and it is first. Grade each candidate's words against the
     corrected reference; report WER and, separately, the counts that matter here
     (missed backchannels, invented text on silence).
@@ -97,7 +155,7 @@ Two consequences for the plan below:
     scorer do not care which typist ran — the RTTM seam of 1b, done again for 1a.
     Cut that seam FIRST; it is the whole reason the diarizer swap was cheap.
 
-    ACTIVE-BUILD LEDGER (opened 2026-09-13). Delete this whole block when step 1
+    ACTIVE-BUILD LEDGER (opened 2026-09-13). Delete this whole block when this step
     lands; the durable parts graduate into REFERENCE CONVENTIONS.
     (DONE: the seam is cut. Stage 1a is now TWO jobs with a file between them.
       - psych_asr/asr/typists.py — the registry, STDLIB-ONLY AT IMPORT so --typist
@@ -181,7 +239,7 @@ Two consequences for the plan below:
         9. grade_arms died one line before the grid table when the correction
            report carried a None count. A missing count prints as a dash.)
 
-    STILL OPEN ON STEP 1:
+    STILL OPEN ON THE BAKE-OFF:
       a. CANARY IS NOT MEASURED. It transcribed the first 17.8 seconds of a
          3038-second session and stopped: canary-1b-flash is an attention
          encoder-decoder trained on short segments, and a wider attention
@@ -206,7 +264,7 @@ Two consequences for the plan below:
          typist still enter the bake-off as a measurement, or is it dropped?
          No candidate currently forces the question.
 
-  STEP 2. THE STOPWATCH — AND THE REFERENCE RTTM IT UNBLOCKS. (Added 2026-09-09.)
+  STEP 3. THE STOPWATCH — AND THE REFERENCE RTTM IT UNBLOCKS. (Added 2026-09-09.)
     Two jobs, and the first is worth more than the second.
     2a. RE-ALIGN MADISON'S CORRECTED WORDS TO THE WAVEFORM. Take the corrected
         turn text out of <stem>.corrected.turns.json, run the aligner over the
@@ -226,8 +284,8 @@ Two consequences for the plan below:
     NOTE: 2a is a prerequisite for trusting ANY timing number, including every
     DER in the diarizer bake-off. It is not optional polish.
 
-  STEP 3. THE GRID, WHICH IS A CUBE. (Added 2026-09-09, corrected 2026-09-11.)
-    Once steps 1 and 2 have candidates that run, sweep typist x stopwatch x
+  STEP 4. THE GRID, WHICH IS A CUBE. (Added 2026-09-09, corrected 2026-09-11.)
+    Once steps 2 and 3 have candidates that run, sweep typist x stopwatch x
     name-tagger against the corrected reference: 4 x 2 x 5 = 40 CELLS. The
     earlier version of this step swept two axes and left the stopwatch out of
     the grid that exists because nobody had noticed it was a variable.
@@ -242,7 +300,7 @@ Two consequences for the plan below:
     splitting on ".". Nothing in the naming, the join or the grader needs to know
     that an arm is now a triple.
 
-  STEP 4. R1 — CALIBRATE THE SCORER, BEFORE ANY DER IS BELIEVED.
+  STEP 5. R1 — CALIBRATE THE SCORER, BEFORE ANY DER IS BELIEVED.
     Assistant-side, CPU, fixed seed, and it touches NO session data: the turn
     table is synthetic, generated from a random alternating two-speaker process.
     Inject one controlled corruption at a time at a known magnitude — boundary
@@ -257,7 +315,7 @@ Two consequences for the plan below:
     unvalidated. Full statement of the route is under GROUND TRUTH WITHOUT
     READING THE DATA.
 
-  STEP 5. WIDEN THE RETURN CHANNEL, IN THIS ORDER, AND THE ORDER IS NOT
+  STEP 6. WIDEN THE RETURN CHANNEL, IN THIS ORDER, AND THE ORDER IS NOT
     NEGOTIABLE.
       2a. Split the arm-diff writer. <stem>.arm_comparison.json stays exactly as
           it is and stays blocked; a new <stem>.arm_diff_summary.json carries
@@ -269,12 +327,12 @@ Two consequences for the plan below:
     A shape allowed by pattern that later grows a text field is how a fence stops
     working silently, and nothing would announce it.
 
-  STEP 6. R3 — THE TWO REFERENCE-FREE MEASUREMENTS. Self-consistency under a
+  STEP 7. R3 — THE TWO REFERENCE-FREE MEASUREMENTS. Self-consistency under a
     perturbation that must not change the answer, and the consensus
     pseudo-reference. Both are assistant-ownable end to end, turn tables in and
     numbers out. R3 already sharpened the arm C anomaly without any reference.
 
-  STEP 7. R2 — THE SYNTHETIC OVERLAP SWEEP. Build it only after the user settles
+  STEP 8. R2 — THE SYNTHETIC OVERLAP SWEEP. Build it only after the user settles
     four things, each of which changes what the curve means: which source speech,
     what the overlap grid is, whether the mix is additive at fixed SNR or
     convolved with a room impulse response first, and whether the synthetic
@@ -365,7 +423,7 @@ DECISIONS LOCKED
   align cleanly against diarization turns.
   AMENDED 2026-09-09: WHISPERX STAYS THE GLUE; THE MODELS INSIDE IT ARE NOW
   VARIABLES. Locking whisperx locked its DEFAULTS by accident — one transcriber
-  and one aligner, neither ever compared to an alternative. That is now Steps 1
+  and one aligner, neither ever compared to an alternative. That is now Steps 2
   and 2. Concretely: large-v3-turbo is a drop-in inside whisperx and changes
   nothing structural; a NeMo transcriber is NOT, and needs a separate 1a entry
   point that emits the same <stem>.aligned.json contract. Swapping the ALIGNER is
@@ -570,7 +628,7 @@ THE FIRST CHECK THAT MATTERS, before touching any feature/modeling work.
 
 LATER, NOT NEXT (demoted 2026-09-09 -- the single ">>> NEXT ACTION" marker now lives in
 WHAT WE DO NEXT at the top of this file, and it is the typist bake-off. This block stays
-because it is fully specified and should not be re-derived; do it after Steps 1-2):
+because it is fully specified and should not be re-derived; do it after the bake-off and the stopwatch):
 *** HOW CLOSE DID EACH ARM GET TO THE CORRECTED RECORDING? *** The reference now exists. The human annotated the WHOLE of session
 1 against the baseline arm's transcript -- 117 logged errors, not a stratified subset -- and
 psych_asr.cli.apply_corrections turns that spreadsheet into data/stage2/, applying 115 of

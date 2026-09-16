@@ -69,7 +69,7 @@ from __future__ import annotations
 
 import csv
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 # The header row is the one that names this column. Found, not assumed: the export has a
@@ -129,11 +129,113 @@ ERROR_ALIASES = {
 
 THERAPIST = "THERAPIST"
 PARTICIPANT = "PARTICIPANT"
+# Every written name for a role, squashed to alphanumerics -- so "(Participant)" and
+# "Participant" are the same key and the brackets never have to be handled here.
+# "Interviewer" is the therapist side: this sheet's two roles are the clinician and the
+# person being interviewed, and an unrecognized role name is what makes a bracket survive
+# into the transcript as literal text.
 ROLE_ALIASES = {
     "therapist": THERAPIST, "clinician": THERAPIST, "t": THERAPIST,
+    "interviewer": THERAPIST, "counselor": THERAPIST, "counsellor": THERAPIST,
+    "doctor": THERAPIST, "dr": THERAPIST,
     "participant": PARTICIPANT, "patient": PARTICIPANT, "client": PARTICIPANT,
-    "p": PARTICIPANT,
+    "p": PARTICIPANT, "interviewee": PARTICIPANT, "subject": PARTICIPANT,
+    "respondent": PARTICIPANT,
 }
+
+# Every double-quote character, straight or curly. They come out of a text cell WHEREVER
+# they are and whether or not they pair up: the annotator quotes each utterance as they
+# type it, a spreadsheet round trip doubles and drops them unevenly, and a quote left in
+# the middle of a snippet both stops it matching the transcript and lands in the corrected
+# reference as a stray mark.
+QUOTE_CHARS = '"\u201c\u201d\u201e\u201f\u2033'
+
+# A bracketed group, round, square or curly. Non-nesting on purpose: the sheet's brackets
+# hold one word.
+BRACKET = re.compile(r"[\(\[\{]([^)\]\}]*)[\)\]\}]")
+
+
+def strip_quotes(text):
+    """IN: a run of cell text   OUT: the same run with every double quote removed.
+
+    Edge single quotes go too, so a quoted word does not keep half its pair; an apostrophe
+    inside a word is untouched. NO other punctuation is stripped -- a trailing comma is the
+    entire content of a Punctuation row.
+    """
+    if text is None:
+        return None
+    cleaned = "".join(character for character in str(text)
+                      if character not in QUOTE_CHARS)
+    return cleaned.strip().strip("\u2018\u2019'`").strip() or None
+
+
+@dataclass
+class Unit:
+    """One utterance from a text cell, plus the role the annotator named for it.
+
+    `dropped` counts the bracketed groups cut out of this unit that named no role --
+    (laughs), (inaudible), (pause). Their text is not transcript content and does not go
+    into the reference; the count is kept so the report can say how much was cut.
+    """
+    text: str | None
+    role: str | None
+    dropped: int = 0
+
+
+def parse_units(cell):
+    """IN: a raw text cell   OUT: list[Unit], in the order they were written.
+
+    THE CELL GRAMMAR. A cell is a sequence of units, each an optionally quoted run of
+    speech followed by at most one bracketed role:
+
+        " Right" (Participant)                          -> one unit
+        " Right" (Participant)" Mm-hm" (Interviewer)    -> two units, two speakers
+        " Right" (laughs)                               -> one unit, no role of its own
+
+    A bracket does two jobs: it names who spoke, and it marks where one utterance ends and
+    the next begins. A bracket whose contents is a name in ROLE_ALIASES does both and
+    closes the unit. A bracket whose contents is anything else does NEITHER -- it is cut as
+    text and the run continues -- so the unit leaves with no role of its own and inherits
+    the speaker of the turn it lands in rather than arriving speakerless.
+
+    A trailing bare role word with no brackets at all is still a role: the sheet's older
+    convention is "<utterance> <Role>", and split_role_suffix handles the tail.
+    """
+    if cell is None:
+        return []
+    raw = str(cell).strip()
+    if _blank(strip_quotes(raw) or ""):
+        return []
+
+    units, pending, dropped, position = [], [], 0, 0
+    for match in BRACKET.finditer(raw):
+        pending.append(raw[position:match.start()])
+        position = match.end()
+        role = ROLE_ALIASES.get(_squash(match.group(1)))
+        if role is None:
+            dropped += 1
+            continue
+        units.append(Unit(text=strip_quotes("".join(pending)), role=role, dropped=dropped))
+        pending, dropped = [], 0
+
+    tail_text, tail_role = split_role_suffix(strip_quotes("".join(pending) + raw[position:]))
+    if tail_text or tail_role:
+        units.append(Unit(text=tail_text, role=tail_role, dropped=dropped))
+    elif dropped and units:
+        units[-1].dropped += dropped
+    return units
+
+
+def lead_unit(units):
+    """IN: the units of one cell   OUT: (the first unit's text, its role).
+
+    The row-level view of a cell, for everything that predates the grammar: the locator
+    searches for the first utterance, and the role vote reads the role the annotator wrote
+    first. The rest of the units are on the Correction as `ai_units`/`actual_units`.
+    """
+    if not units:
+        return None, None
+    return units[0].text, units[0].role
 
 
 def split_role_suffix(text):
@@ -179,6 +281,21 @@ class Correction:
     add_turn: bool
     subtract_turn: bool
     notes: str | None
+    # The whole cell, parsed. `ai_text`/`actual_text` above are the FIRST unit of each,
+    # which is what a single-utterance row has always meant; a cell holding two utterances
+    # becomes two edits with two speakers and needs the rest.
+    ai_units: list = field(default_factory=list)
+    actual_units: list = field(default_factory=list)
+
+    @property
+    def units_beyond_the_first(self):
+        """The utterances in the Actual Speech cell after the first one."""
+        return self.actual_units[1:]
+
+    @property
+    def brackets_dropped(self):
+        """How many bracketed groups naming no role were cut out of this row's cells."""
+        return sum(unit.dropped for unit in self.ai_units + self.actual_units)
 
     @property
     def is_pure_omission(self):
@@ -331,8 +448,10 @@ def read_error_log(path):
         session = str(cell(row, "session")).strip() or last_session
         last_session = session
 
-        ai_text, ai_role = split_role_suffix(_text(cell(row, "ai_text")))
-        actual_text, actual_role = split_role_suffix(_text(cell(row, "actual_text")))
+        ai_units = parse_units(cell(row, "ai_text"))
+        actual_units = parse_units(cell(row, "actual_text"))
+        ai_text, ai_role = lead_unit(ai_units)
+        actual_text, actual_role = lead_unit(actual_units)
         corrections.append(Correction(
             row=number,
             session=session,
@@ -349,6 +468,8 @@ def read_error_log(path):
             add_turn=_flag(cell(row, "add_turn")),
             subtract_turn=_flag(cell(row, "subtract_turn")),
             notes=_text(cell(row, "notes")),
+            ai_units=ai_units,
+            actual_units=actual_units,
         ))
     return ErrorLog(path=path, header_row=header_index + 1, corrections=corrections,
                     incomplete_rows=incomplete, padding_rows=padding)
