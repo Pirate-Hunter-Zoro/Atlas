@@ -1,5 +1,5 @@
 [Unit]
-Description=Daily pull of ~/colibri
+Description=Daily pull of vendor/colibri
 
 [Timer]
 OnCalendar=daily

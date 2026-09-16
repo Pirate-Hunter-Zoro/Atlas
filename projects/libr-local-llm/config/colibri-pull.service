@@ -1,5 +1,5 @@
 [Unit]
-Description=Fast-forward ~/colibri (once a day)
+Description=Fast-forward vendor/colibri in Atlas (once a day)
 
 [Service]
 Type=oneshot

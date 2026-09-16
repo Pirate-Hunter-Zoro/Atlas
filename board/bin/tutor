@@ -20,6 +20,7 @@ tutor -- start a tutoring session.
     tutor agent stop galois     ask it to write its handoff and go
     tutor cost [galois]         what the turns on this machine actually cost
     tutor cost --all            every course, one line each
+    tutor pull                  move vendor/colibri forward and commit the pointer
     tutor where                 what is up, on this machine and on the tailnet
     tutor restart [--tutors]    restart every board here (and its tutor) on current code
 
@@ -2526,7 +2527,13 @@ def pull_vendor(quiet=False):
     somebody else's repository, and the pointer is a tracked file like anything
     else. This is the half that makes it happen on a compute node, and it lives
     in `cmd_resume` because a compute node gets ONE moment and it is the login.
-    No second hook, no timer.
+
+    A login is not the only moment a workstation gets, and a machine left up for
+    a week never has one. So `tutor pull` exposes this same routine, and
+    `colibri-pull.timer` runs it daily -- the same guards, the same commit
+    message, one implementation. A timer is safe here only BECAUSE of the third
+    rule below: it commits nothing when anything else in the tree is dirty, so
+    it cannot sweep up an afternoon it arrived in the middle of.
 
     The third rule is the one that bites. A bumped pointer is a change in the
     working tree, so pulling colibri leaves the repository dirty every time
@@ -3013,6 +3020,12 @@ def main(argv):
 
     if args and args[0] == "where":
         return cmd_where(cfg, args[1:])
+
+    if args and args[0] == "pull":
+        # What the daily timer runs. `resume` does this too, on login; this is
+        # the same routine with nothing else attached, so a timer never starts a
+        # board or hops to an allocation.
+        return 0 if pull_vendor(quiet="--quiet" in argv) is not False else 1
 
     if args and args[0] == "cost":
         return cmd_cost(cfg, args[1:])
