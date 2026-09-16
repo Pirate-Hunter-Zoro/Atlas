@@ -37,19 +37,45 @@ that touches this work: it goes beside `node` and `aim` in `_mark`, and
 ## What to do next
 
 **1. A delivered manuscript never arrives in the workspace that asked for one,
-and the revision route is waiting on documents that are not there.** The job the
-board writes ends "The finished paper is to be delivered into `<workspace>/
-manuscripts/`", and nothing in `paperwriter` reads that line: `stages/delivery.py`
-copies into `config.OUT_DIR/<project>/<paper>/` and stops. So
-`manuscript.delivered` finds nothing, `library.py` marks nothing
-`made: paper-writer`, and the factory branch of the library's feedback route can
-only fire for a manuscript somebody copied in by hand. Two honest fixes and the
-first is better: name the landing as a **field** in the job the way
-`## Revision` names the document, and have `delivery.deliver` place a second
-copy there; or point `PAPER_OUT_DIR` at each asking workspace, which cannot work
-because one harness serves every workspace. The prose instruction should go
-either way — an instruction no code reads is a promise the board is making on
-somebody else's behalf.
+and every document route downstream is waiting on files that are not there.**
+`manuscript.job` ends with the sentence "The finished paper is to be delivered
+into `<workspace>/manuscripts/`", and nothing in `paperwriter` reads it:
+`stages/delivery.deliver` copies into `config.OUT_DIR/<project>/<paper>/` and
+stops. So `manuscript.delivered` finds nothing, no document is ever marked
+`made: paper-writer` by `library.py`, and the factory branch of the library's
+feedback route — including the whole revision path that just shipped — can only
+fire for a manuscript somebody copied in by hand. An instruction no code reads
+is a promise the board is making on somebody else's behalf.
+
+**The fix is a field, read the way `## Revision` is read.** Not `PAPER_OUT_DIR`:
+one harness serves every workspace, so a single out-directory cannot be each
+asking workspace's own.
+
+1. `PROMPT_TEMPLATE.md` gains `## Delivery`, carrying one line —
+   `landing: /abs/path/to/workspace/manuscripts`. **Absolute**, for the same
+   reason `## Revision` carries `workspace:`: the factory is another repository
+   and cannot resolve a relative path against a root nobody named.
+2. `jobspec.landing(prompt_text)` reads it, through `_path_value` and never
+   `_clean` — that one strips `-` and `_` from both ends and has already turned
+   one real workspace path into one that does not exist.
+3. `stages/delivery.deliver` places a **second** copy of every artifact there,
+   keeping the subtree it keeps under `OUT_DIR`. `deliver_one` is already
+   content-addressed, so re-delivery is a verified no-op. It must not raise: a
+   landing that cannot be written is recorded and the paper stays DELIVERED,
+   the same rule a missing pandoc and a failed `git push` already get.
+4. `manuscript.job` writes the section instead of the prose sentence,
+   `os.path.join(root, LANDING)` absolute. Delete the sentence — two statements
+   of one fact is one of them going stale.
+5. `manuscript._sections` lists every `.md` under `manuscripts/` as prose not to
+   be written again. `report.md` will now be one of them, and telling the
+   factory not to rewrite its own report is telling it the report is the paper.
+   Skip it there.
+
+Tests: `tests/test_pipeline.py` for the second copy and for a landing that
+cannot be written; `board/test/writing_up.py` for the field in the job;
+`board/test/revising.py` for the cross-check, where the factory's parser already
+reads a job the board wrote. When it lands, item 2 below becomes possible for a
+manuscript as well as for an explainer.
 
 **2. Take one document all the way round, and what is left of it is the half a
 machine cannot check.** Open a `paper` sitting on a box — PSYCH-ASR's correction
