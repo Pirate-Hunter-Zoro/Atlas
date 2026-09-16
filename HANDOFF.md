@@ -13,7 +13,7 @@ a plan: the paths are real and were read, not guessed.
 
 ## Before anything
 
-- `bash board/test/all.sh` — 65 suites, about twelve minutes. Green before and after.
+- `bash board/test/all.sh` — 71 suites, about twelve minutes. Green before and after.
 - Bump `VERSION` in `board/web/sw.js` whenever a shell file changes (`board.html`, `board.js`,
   `board.css`, and the rest of the cache list), or the installed app serves its cached copy.
 - `bash board/scripts/ship.sh "message"` commits **only `board/`**, pushes, and restarts every
