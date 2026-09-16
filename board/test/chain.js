@@ -178,8 +178,26 @@ kept.length === 1
 kept.length === 1 && doc.querySelector('[data-card="0001"]').nextElementSibling === kept[0]
   ? ok('and it is still where it was written, under the question')
   : fail('the kept board moved somewhere other than where it was written');
+
+// AND THE NEXT ONE WAITS FOR THE REPLY TO FINISH BEING WRITTEN.
+//
+// "no next board showing up until the agent's response is rendered." The reply
+// is typed out, and while it is, the surface stays above it rather than being
+// pushed down by a card that is still filling in. It is the same board either
+// way -- this is about when it moves, not about whether it is there.
+doc.querySelector('[data-card="0002"] .body.typing')
+  ? ok('the reply is being typed out')
+  : fail('the reply landed whole, with no typing at all');
+writer().nextElementSibling === doc.querySelector('[data-card="0002"]')
+  ? ok('and the live surface stays above it while it is written, rather than '
+       + 'being shoved down by a card that is still arriving')
+  : fail('the surface moved under a reply that is still being written');
+
+await sleep(900);                       // past this card's own typing time
+
 doc.querySelector('[data-card="0002"]').nextElementSibling === writer()
-  ? ok('while the next attempt is live under the feedback it answers')
+  ? ok('and when the last character lands, the next attempt is live under the '
+       + 'feedback it answers')
   : fail('the live surface is not under the tutor\'s reply');
 
 slate.pages() === 2

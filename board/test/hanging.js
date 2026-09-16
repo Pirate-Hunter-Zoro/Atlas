@@ -342,6 +342,93 @@ await sleep(40);
     : fail('the strip counts on over a card that is already the answer');
 }
 
+// ------------------------------------------- a turn that is RE-PLANNING says so
+//
+// Reported from a direction change in PSYCH-ASR: "I just tried to change the
+// direction of the project... but I got left hanging for a bit while it was
+// thinking and modifying the plan - I want a visual indication that the
+// replanning is still happening like I get when waiting on a tutor response."
+//
+// The turn a direction change wakes is told, in order: write ONE sentence so the
+// board is not blank, read the plan, rewrite it, redraw the map, then write the
+// report over that sentence. So its first act is to put a card on the board --
+// and the strip's ordinary rule is that a card landing IS the answer, so it
+// stopped talking about ten seconds into a job that takes minutes.
+//
+// The daemon says what a turn was woken for; see `turn_signal` in `bin/tutor`.
+{
+  const replan = (cards) => JSON.stringify({
+    state: { course: 'PSYCH-ASR', session: 'lecture', aim: 'teach',
+             declared_stance: 'teach' },
+    cards: cards,
+    turns: [{ id: 't0020', rev: 1, kind: 'text', answers: null, t: t0 - 60,
+              signal: 'direction', text: 'Drop the bake-off.' }],
+    agent: { agent: 'claude', state: 'working', turns: 1,
+             turn_started: t0 - 40, turn_signal: 'direction' },
+    waiting: null, history: 0,
+  });
+  const opening = { id: '0001', kind: 'lesson', title: '',
+                    body: 'Re-planning now.', mtime: t0 - 30 };
+
+  es.onmessage({ data: replan([]) });
+  await sleep(40);
+  !busy().hidden && /re-planning/.test(says())
+    ? ok('a turn woken by a direction change says it is re-planning')
+    : fail('a re-planning turn is described as something else: "' + says() + '"');
+
+  // THE CARD IT OPENS WITH IS A RECEIPT, NOT AN ANSWER.
+  es.onmessage({ data: replan([opening]) });
+  await sleep(40);
+  !busy().hidden
+    ? ok('and goes on saying so after its opening card has landed, because the '
+         + 'plan is what is being waited for and it is not written yet')
+    : fail('the indicator went away over a card that says the work has STARTED');
+  /rewriting it|new plan lands here/.test(says())
+    ? ok('and says what it is doing to the plan, rather than "writing"')
+    : fail('"' + says() + '"');
+
+  // And it stops when the turn does -- the report is written over that card, and
+  // the turn ends. Nothing here counts on the card to say so.
+  es.onmessage({ data: JSON.stringify({
+    state: { course: 'PSYCH-ASR', session: 'lecture', aim: 'teach' },
+    cards: [{ id: '0001', kind: 'lesson', title: '',
+              body: 'The plan is rewritten. First step: calibrate.',
+              mtime: t0 - 1 }],
+    turns: [], history: 0,
+    agent: { agent: 'claude', state: 'listening', turns: 1 },
+    waiting: null,
+  }) });
+  await sleep(40);
+  busy().hidden
+    ? ok('and stops the moment the turn does')
+    : fail('the strip is still re-planning after the turn ended: "' + says() + '"');
+}
+
+// ------------------- and the tutor being REPLACED is not a tutor that is missing
+//
+// A direction change stops the assistant and starts another: that is the half a
+// prompt cannot do. In between, the words in the inbox are unclaimed and nothing
+// is reading the board -- which is true, alarming, and entirely beside the point,
+// because it is exactly what the person just asked for.
+{
+  es.onmessage({ data: JSON.stringify({
+    state: { course: 'PSYCH-ASR', session: 'lecture' },
+    cards: [], turns: [], history: 0,
+    agent: { agent: 'claude', state: 'stopped', turns: 4 },
+    waiting: { since: t0 - 30, count: 1, signal: 'direction' },
+  }) });
+  await sleep(40);
+  /being replaced/.test(says())
+    ? ok('a direction waiting for a tutor that is being replaced says that')
+    : fail('"' + says() + '"');
+  !busy().classList.contains('busy-bad')
+    ? ok('and is not painted as a failure, because nothing has failed')
+    : fail('an expected replacement is painted as a dead end');
+  /No need to send again/.test(says())
+    ? ok('and says the one thing that stops a second send')
+    : fail('"' + says() + '"');
+}
+
 // -------------------------------- a turn that was stopped says the work survived
 //
 // A doing turn timed out after twenty minutes with eight files changed. What

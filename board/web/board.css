@@ -254,6 +254,58 @@ body { background: var(--paper); min-height: 100vh; min-height: 100dvh; }
 #newver-now { margin-left: auto; }
 .newver button.quiet { border-color: transparent; background: transparent; }
 
+/* AN ANSWER WAITING SOMEWHERE ELSE.
+
+   A stack of rows rather than one line, because the whole point of it is that
+   more than one turn can be running at once -- that is the thing that was asked
+   for. Each row is a button the width of the strip: a notification somebody has
+   to aim at on a tablet is a notification they stop using.
+
+   It shares the chrome's own rhythm and colour and it is deliberately the
+   quietest thing in there. Nothing is wrong; something is READY. */
+.newsbar {
+  display: block;
+  padding: .55rem max(1rem, env(safe-area-inset-left)) .55rem max(1rem, env(safe-area-inset-right));
+  font-family: var(--ui);
+  border-bottom: 1px solid var(--rule);
+  background: color-mix(in srgb, var(--good) 11%, var(--paper));
+  animation: rise .25s ease-out both;
+}
+.newsbar-lead {
+  display: flex; align-items: center; gap: .5rem;
+  font-size: .7rem; text-transform: uppercase; letter-spacing: .07em;
+  color: var(--ink-2);
+}
+#news-lead { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#news-hide {
+  margin-left: auto; flex: none; font: inherit; font-size: .9rem; cursor: pointer;
+  line-height: 1; padding: .15rem .35rem; border-radius: .3rem;
+  border: 1px solid transparent; background: transparent; color: var(--ink-2);
+}
+/* The dot is the one thing on this strip somebody looks for rather than reads,
+   so it is the one thing that moves. */
+.news-dot {
+  flex: none; width: .5rem; height: .5rem; border-radius: 50%;
+  background: var(--good); animation: newspulse 2.4s ease-in-out infinite;
+}
+@keyframes newspulse { 0%, 100% { opacity: 1; } 50% { opacity: .35; } }
+@media (prefers-reduced-motion: reduce) {
+  .news-dot { animation: none; }
+}
+.news-row {
+  display: flex; align-items: baseline; gap: .55rem; width: 100%;
+  text-decoration: none;
+  margin-top: .35rem; text-align: left; cursor: pointer;
+  font: inherit; font-size: .86rem;
+  padding: .45rem .6rem; border-radius: .4rem;
+  border: 1px solid var(--rule); background: var(--paper); color: var(--ink);
+}
+.news-where { font-weight: 700; flex: none; }
+.news-what { color: var(--ink-2); min-width: 0; overflow: hidden;
+             text-overflow: ellipsis; white-space: nowrap; }
+.news-when { margin-left: auto; flex: none; color: var(--ink-2); font-size: .76rem; }
+.news-go { flex: none; color: var(--ink-2); }
+
 .hwbar { background: color-mix(in srgb, var(--ask) 10%, var(--paper)); font-size: .82rem; }
 #hw-set { font-weight: 700; letter-spacing: .04em; }
 #hw-count { min-width: 0; }

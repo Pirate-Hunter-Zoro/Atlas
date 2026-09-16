@@ -125,6 +125,10 @@ var els = {
   busy: document.getElementById("busy"),
   busyText: document.getElementById("busy-text"),
   busySince: document.getElementById("busy-since"),
+  newsBar: document.getElementById("newsbar"),
+  newsLead: document.getElementById("news-lead"),
+  newsList: document.getElementById("news-list"),
+  newsHide: document.getElementById("news-hide"),
   typebox: document.getElementById("typebox"),
   saybox: document.getElementById("saybox"),
   sendType: document.getElementById("send-type"),
@@ -793,7 +797,27 @@ function render(data) {
   var freshCards = [];
 
   items.forEach(function (item) {
-    var stamp = item.key + (item.turn ? ":r" + (item.turn.rev || 1) : "");
+    /* A CARD WRITTEN OVER IS A CARD ARRIVING, AND IT USED TO BE NOTHING AT ALL.
+
+       The stamp was identity alone for a card, so a card rewritten in place had
+       been seen already: not fresh, not news, not typed out. That is every
+       response in a sitting that DOES the work. `board write` lands one sentence
+       so the board is not blank, the turn then writes code for four minutes, and
+       `board write --over` replaces that sentence with the report -- which
+       therefore appeared instantly, whole, with no typing and with the next
+       board already sitting under it. Reported from a direction change in
+       PSYCH-ASR: "when the response from the agent came back, it just showed up
+       suddenly and the next board, etc. was there before it."
+
+       The mtime is the version of a card, exactly as `rev` is the version of a
+       turn, and it belongs in the stamp for the same reason. With it here the
+       overwrite is fresh, so it types out; `anythingNew` is true, so the send
+       stops saying it is in flight; and `typingCards` holds the writing surface
+       where it is until the last character lands. One line, and it is what makes
+       the typing rule true of EVERY response rather than only of the ones that
+       happen to be written once. */
+    var stamp = item.key + (item.turn ? ":r" + (item.turn.rev || 1)
+                                      : ":m" + Math.round(item.card.mtime));
     var fresh = !firstPaint && !seenIds[stamp];
     /* NEWS IS A CARD. YOUR OWN ANSWER IS NOT NEWS.
 
@@ -829,8 +853,7 @@ function render(data) {
        is part of that identity -- the surface is built a frame after the first
        payment, and without this the turn keeps the picture it was born with. */
     var onBoard = !!item.turn && onABoard(item.turn);
-    var wantKey = stamp + (item.card ? ":m" + Math.round(item.card.mtime)
-                                     : (onBoard ? ":b" : ""));
+    var wantKey = stamp + (item.card ? "" : (onBoard ? ":b" : ""));
     if (onScreen[wantKey]) {
       wanted.push({ key: wantKey, node: null });     /* keep what is there */
       return;
@@ -943,6 +966,29 @@ function render(data) {
      which also keeps its scroll position and any selection inside it. */
   reconcile(els.cards, wanted);
   paintSuperseded(superseded);
+
+  /* KaTeX walks the DOM it is handed. Handing it the whole lesson every frame
+     re-renders mathematics that was already rendered; hand it only what was
+     just inserted. */
+  freshNodes.forEach(typeset);
+  freshNodes.length = 0;
+  /* After the typesetting, never before: KaTeX measures what it renders, and it
+     cannot measure what is display:none.
+
+     AND BEFORE `placeWriter`, WHICH IS THE HALF THAT WAS MISSING. The writing
+     surface is held where it is while a card types -- that is what "no next
+     board showing up until the agent's response is rendered" means -- and the
+     thing it asks in order to decide is `typingCards()`. These two lines used to
+     run at the FOOT of this function, a hundred lines after that question was
+     asked, so on the one frame that matters -- the frame the response lands on
+     -- nothing was typing yet, the surface came straight down under the new
+     question, and the answer then filled in above it. Every frame after that
+     held correctly, which is why this looked intermittent rather than wrong.
+
+     Nothing else here depends on the order: the cards are in the document by
+     now, which is all either pass needs. */
+  if (!firstPaint) freshCards.forEach(typeOut);
+  freshCards.length = 0;
 
   /* The way out stays open until the tutor has actually said something. Keyed on
      CARDS, not on the transcript: asking makes the transcript non-empty, so
@@ -1123,7 +1169,12 @@ function render(data) {
      The one board that is not drawn is the one the LIVE surface is standing in
      for, because that one is really there. With the panel shut there is no such
      board, and every one of them gets its picture. */
-  paintBoards(qids, els.writer.hidden ? null : liveKey, !live);
+  /* A SURFACE HELD SHUT IS STILL THE SURFACE FOR THAT QUESTION.
+     Every question's board is drawn as a picture except the one the live surface
+     is standing in for -- so a surface held shut for the two seconds a card is
+     typing had its dormant photograph drawn in its place, which is the next
+     board showing up early wearing a different hat. See `writerHeldShut`. */
+  paintBoards(qids, (els.writer.hidden && !writerHeldShut) ? null : liveKey, !live);
   /* Offered exactly when there is no surface to write on: the tutor has written
      something, and nothing is owed. */
   if (els.reopen) {
@@ -1132,15 +1183,8 @@ function render(data) {
                         || !els.writer.hidden;
   }
   paintBusy(data);
-  /* KaTeX walks the DOM it is handed. Handing it the whole lesson every frame
-     re-renders mathematics that was already rendered; hand it only what was
-     just inserted. */
-  freshNodes.forEach(typeset);
-  freshNodes.length = 0;
-  /* After the typesetting, never before: KaTeX measures what it renders, and it
-     cannot measure what is display:none. */
-  if (!firstPaint) freshCards.forEach(typeOut);
-  freshCards.length = 0;
+  /* And what has landed in the workspaces this one is not. See `paintNews`. */
+  paintNews(data);
 
   /* The ink layer is per card and idempotent: reconciled nodes keep the layer
      they already had, new ones get one. Then the saved marks are laid back
@@ -1167,6 +1211,10 @@ function render(data) {
 
   if (firstPaint) {
     firstPaint = false;
+    /* Somebody is looking at this workspace. Said once here and again on every
+       card that lands, which is what keeps it from notifying about the lesson
+       being read right now. */
+    markSeen(true);
     revealNewest(false);
     /* Mathematics is typeset and answer images decode after this frame, and
        both change the height of everything above the newest card -- so the
@@ -1186,6 +1234,10 @@ function render(data) {
        the page a screenful while nobody was doing anything at all. */
   } else {
     cardsArrived++;
+    /* Read, because it landed in front of somebody. Without this the workspace
+       being worked in would notify about its own cards the moment the reader
+       switched away from it. */
+    markSeen(false);
     /* Something is on the board. Whatever the send was waiting for has landed,
        whether or not the tutor's own state ever said so. */
     sendingAt = 0;
@@ -6266,6 +6318,14 @@ var busyFrom = 0;
    recomputed in `tickBusy`, which fires on a timer and has no payload. */
 var busyDoing = false;
 var busyAim = "";                /* what the work IS, when the turn does it */
+/* WHAT THE TURN WAS WOKEN FOR, off the daemon's own record. One value matters
+   so far and it is `direction`: the turn a direction change wakes spends its
+   first ten seconds writing a card that says it is re-planning, and then several
+   minutes reading the plan, rewriting it and redrawing the map. The strip's
+   ordinary rule -- a card landed, so the answer is here, so stop talking -- is
+   exactly wrong over that card. Reported as: "I got left hanging for a bit while
+   it was thinking and modifying the plan." */
+var busySignal = "";
 var busyTimer = null;
 /* WHEN SEND WAS TAPPED, AND WHETHER ANYTHING HAS ANSWERED YET.
 
@@ -6431,6 +6491,18 @@ function stalledWord(st, waiting, unsaved) {
      standing fact about this tutor. */
   if (held < 4000) return failed;
   var many = waiting.count > 1 ? " (" + waiting.count + " things waiting)" : "";
+  /* A DIRECTION CHANGE REPLACES THE TUTOR IT WAS SENT TO, so every state below
+     is the expected one rather than a stall, and none of the sentences below
+     describe it. The old tutor is writing its handoff and a new one is coming up
+     behind it; that takes as long as it takes and the only wrong answer is
+     silence -- or worse, "no tutor is reading the board", which is true, alarming
+     and entirely beside the point. */
+  if (waiting.signal === "direction") {
+    return { text: "the new direction is in the inbox. The tutor is being "
+                 + "replaced, and the one that comes up re-plans from it. "
+                 + "No need to send again.",
+             since: held };
+  }
   if (!st || st.state === "stale") {
     return { text: "handed in — but no tutor is reading the board" + many
                  + ". It will be answered as soon as one is attached.",
@@ -6468,6 +6540,8 @@ function paintBusy(data) {
   /* The tutor has picked it up, or given up waiting for it to be picked up. */
   if (working || Date.now() - sendingAt > SENDING_FOR) { sendingAt = 0; sendingWord = ""; }
   if (!working) {
+    /* No turn, no turn's words. The ticker fires without a payload. */
+    busySignal = "";
     var stalled = data.archived ? null
       : stalledWord(st, data.waiting, data.unsaved || 0);
     if (stalled) {
@@ -6526,6 +6600,7 @@ function paintBusy(data) {
   var turn = st.turns || 0;
   busyDoing = doingTurn(data.state);
   busyAim = (data.state || {}).aim || "";
+  busySignal = st.turn_signal || "";
   if (busyTurn !== turn || !busySince) {
     busyTurn = turn;
     /* THE DAEMON'S CLOCK, NOT THIS PAGE'S.
@@ -6556,8 +6631,14 @@ function paintBusy(data) {
      happening on the app."
 
      So in a doing turn the strip stays for as long as the tutor says it is
-     working, and says what kind of work it is. */
-  if (!busyDoing && newestCard(data) > busyFrom) {
+     working, and says what kind of work it is.
+
+     A RE-PLANNING TURN IS THE SAME SHAPE, whatever the sitting is. The turn a
+     direction change wakes is told, in order: write one sentence so the board is
+     not blank, read the plan, rewrite it, redraw the map, then write the report
+     over that sentence. Its opening card is a receipt, not an answer, and hiding
+     the strip on it leaves the several minutes that follow silent. */
+  if (!busyDoing && busySignal !== "direction" && newestCard(data) > busyFrom) {
     els.busy.hidden = true;
     if (busyTimer) { clearInterval(busyTimer); busyTimer = null; }
     return;
@@ -6591,6 +6672,18 @@ function tickBusy() {
     return;
   }
   var secs = Math.max(0, Math.round((Date.now() - busySince) / 1000));
+  /* RE-PLANNING SAYS RE-PLANNING, and it says it before anything else here.
+     A direction change is the one send where the person knows they have asked
+     for something big, so "the tutor is writing" is both true and useless: what
+     they are waiting to hear is that the PLAN is being redone, and where it will
+     appear when it is. It outranks the doing words below because the sitting's
+     aim is about the evening's work and this turn is about none of it. */
+  if (busySignal === "direction") {
+    els.busyText.textContent = secs > 120
+      ? "still re-planning — the new plan lands here"
+      : "re-planning — reading the plan and rewriting it for the new direction";
+    return;
+  }
   /* A DOING TURN SAYS WHAT IT IS DOING. "The tutor is writing" is true of a
      card and reads as false when the card is already on screen and nothing has
      changed for four minutes -- which is what a turn spends writing code, running
@@ -6621,6 +6714,169 @@ function tickBusy() {
     : "the tutor is writing";
 }
 
+/* ------------------------------------------- an answer waiting somewhere else
+
+   THE PROBLEM, in the words it was reported in: "maybe something I give the
+   agent to do or think about is going to take a while. I want to be able to go
+   into a different section of a project, or a different fucking project
+   completely, and put other agents to work on other things while the first one
+   is working. We should set up a notification system where if a response that
+   takes a while comes back in a session, I'll get notified somewhere in the app
+   and can click that notification to take me back to that tutoring session."
+
+   A turn set going in PSYCH-ASR goes on running while its person works in
+   Galois-Theory, and until this there was nothing anywhere that said it had
+   finished: the only way to find out was to switch back and look, which is the
+   one thing somebody doing other work will not do. The server answers the whole
+   of the question off the shared filesystem -- see `tutorboard/news.py` -- and
+   what is here is the strip and the way back.
+
+   TWO THINGS THIS IS NOT.
+
+   It is not over the lesson. A notification about somewhere else that lands on
+   top of the proof somebody is reading has made their evening worse to tell them
+   about a card. It is a strip in the chrome, under the bar, with everything else
+   that is true but not what they are doing.
+
+   And it is not a queue of things to dismiss. The row goes when the answer is
+   read, which means going THERE -- and `✕` mutes this particular answer rather
+   than marking it read, because a person who taps it has not read anything. The
+   next card in that workspace brings the row back. */
+
+/* Answers the reader has waved away, by workspace and by the answer's own time:
+   muting `research/PSYCH-ASR` at 10:04 does not mute the card it writes at 10:30.
+   In the page rather than on disk, deliberately -- it is a gesture about this
+   sitting, not a fact about the workspace. */
+var newsMuted = Object.create(null);
+
+function newsKey(item) {
+  return item.id + "@" + Math.round(item.when || 0);
+}
+
+/* The way back, and it is the SAME way the front door uses. A workspace other
+   than this one is another board on another port, and the installed app has one
+   origin baked into it -- so the browser cannot navigate there. The front door
+   is what moves the single name, and an address is how it is told where to.
+
+   A LINK, not a button with a handler. It is a link to a place: it belongs in
+   the address bar, it can be held down and opened in a tab, and the URL it goes
+   to is readable on the row rather than buried in a closure. Its own name is the
+   fallback when the grammar cannot spell the workspace -- better a front door
+   than a notification that does nothing. */
+function newsHref(item) {
+  var at = "";
+  if (window.Address && item && item.id) {
+    at = window.Address.format({ ws: item.id, surface: "workspace" });
+  }
+  return at ? "/" + at : "/";
+}
+
+function newsAgo(when) {
+  var ms = Date.now() - (when || 0) * 1000;
+  if (ms < 60000) return "just now";
+  return longAgo(ms) + " ago";
+}
+
+function paintNews(data) {
+  if (!els.newsBar) return;
+  var items = (data && data.news) || [];
+  var show = [];
+  items.forEach(function (n) {
+    if (!newsMuted[newsKey(n)]) show.push(n);
+  });
+  /* Three at a time. A fourth is a list, and a list in the chrome is a page
+     somebody has to scroll past to reach their own lesson. */
+  show = show.slice(0, 3);
+  if (!show.length) {
+    els.newsBar.hidden = true;
+    els.newsList.textContent = "";
+    newsShown = "";
+    return;
+  }
+  var sig = show.map(newsKey).join("~");
+  els.newsBar.hidden = false;
+  els.newsLead.textContent = show.length === 1
+    ? "An answer is waiting in another workspace"
+    : show.length + " answers are waiting elsewhere";
+  /* Rebuilt only when the list has actually changed. This is painted on every
+     payload, which is several times a second while a turn runs, and replacing
+     the rows under a thumb is a tap that lands on nothing. */
+  if (sig === newsShown) return;
+  newsShown = sig;
+  els.newsList.textContent = "";
+  show.forEach(function (n) {
+    var row = document.createElement("a");
+    row.className = "news-row";
+    row.href = newsHref(n);
+    row.dataset.ws = n.id;
+    var where = document.createElement("span");
+    where.className = "news-where";
+    where.textContent = n.course || n.repo || n.id;
+    var what = document.createElement("span");
+    what.className = "news-what";
+    /* What it says it is, and failing that where it is. A card with no title is
+       ordinary -- most of them have none -- so the chapter is the fallback and
+       the plain fact is the last resort. */
+    what.textContent = n.title || n.chapter || "the tutor wrote a card";
+    var when = document.createElement("span");
+    when.className = "news-when";
+    when.textContent = newsAgo(n.when);
+    var go = document.createElement("span");
+    go.className = "news-go";
+    go.textContent = "→";
+    row.appendChild(where);
+    row.appendChild(what);
+    row.appendChild(when);
+    row.appendChild(go);
+    els.newsList.appendChild(row);
+  });
+}
+
+var newsShown = "";
+
+if (els.newsHide) {
+  els.newsHide.onclick = function () {
+    ((lastLive && lastLive.news) || []).forEach(function (n) {
+      newsMuted[newsKey(n)] = true;
+    });
+    els.newsBar.hidden = true;
+    newsShown = "";
+  };
+}
+
+/* SOMEBODY IS LOOKING AT THIS BOARD, AND ONLY THE PAGE CAN SAY SO.
+
+   The server cannot: a board is a long-lived process that goes on running in an
+   empty room, and a request arriving proves a browser is open rather than that
+   anybody is in front of it. So the page says it, at the three moments it is
+   true -- when the lesson first paints, when a card lands in front of the
+   reader, and when the tab comes back to the front after being away.
+
+   Throttled, because the third of those fires on every app switch on a tablet
+   and this is a write to a shared filesystem. `keepalive` so the last one, sent
+   as the app goes into the background, is not cancelled with the page. */
+var seenAt = 0;
+var SEEN_EVERY = 20000;
+
+function markSeen(force) {
+  /* A BOARD IN A BACKGROUND TAB IS NOT BEING READ, and this is the whole point
+     of the feature: the person is working in another workspace, on another
+     device or behind another tab, while a turn runs here. A page that went on
+     marking itself seen from behind everything else would quietly cancel its own
+     notification -- the one case the notification exists for. */
+  if (document.hidden) return;
+  var now = Date.now();
+  if (!force && now - seenAt < SEEN_EVERY) return;
+  seenAt = now;
+  try {
+    fetch("/seen", { method: "POST", keepalive: true }).catch(function () {});
+  } catch (e) { /* offline; the marker is a convenience, not the lesson */ }
+}
+
+document.addEventListener("visibilitychange", function () {
+  if (!document.hidden) markSeen(true);
+});
+
 /* The writing surface used to be capped against the visual viewport here, so
    that pinch-zooming the page could not make it swallow the glass. The cap
    worked and was still wrong: it was a fraction of what could be SEEN, so it
@@ -6635,7 +6891,31 @@ function tickBusy() {
    backwards. What is left in the layout is `--gap` on `#writer`: the strip of
    page down each side that is there to put a thumb on. */
 
+/* Whether the surface is shut only because something is still being typed into
+   the lesson -- rather than because nothing is owed. `paintBoards` needs the
+   difference; see its call. */
+var writerHeldShut = false;
+
 function placeWriter(owed, questionNode, live, hold) {
+  /* A BOARD THAT IS NOT OPEN YET DOES NOT OPEN WHILE A CARD IS STILL TYPING.
+
+     "I want the next board to not show up until all of the tutor response has
+      been written", and then again: "no next board showing up until the agent's
+      response is rendered."
+
+     Holding a surface WHERE IT IS answers that for a sitting that already has
+     one open. It answers nothing at all when there is none -- a tutor that asks
+     its first question in the same payload as the answer to the last one opens a
+     board, and the board opened the instant the card existed, which is while the
+     card was still blank. The objection to hiding it does not apply here: what
+     hiding costs is the tool bar going off the bottom of the screen and coming
+     back, and a surface that was never open has no tool bar to take away. It
+     simply arrives a beat later, under a response that has finished.
+
+     `typeOut` renders once more when the last character lands, which is what
+     opens it. */
+  writerHeldShut = !!(hold && owed && els.writer.hidden);
+  if (writerHeldShut) owed = false;
   els.writer.hidden = !owed;
   /* The surface's re-centre exists while the surface does, and not otherwise:
      a button offering to find writing on a board that is not on screen is a
@@ -6684,7 +6964,32 @@ function placeWriter(owed, questionNode, live, hold) {
      move when the last character lands. `typeOut` renders once more to do it. */
   var host = questionNode && questionNode.parentNode;
   if (hold) {
-    /* leave it exactly where the reader last saw it */
+    /* HELD -- BUT ONLY AGAINST THE CARD THAT IS TYPING.
+
+       "Leave it exactly where it is" was the whole of this, and it left the
+       surface above things that belong above IT. The receipt for the answer just
+       sent is a turn, not a card: it is never typed, it is the student's own
+       working, and the reconcile steps over an unkeyed surface -- so it landed
+       BELOW the board it had just been written on and hopped above it a couple
+       of seconds later when the reply finished. A shuffle is the thing this hold
+       exists to remove, not a thing for it to add.
+
+       So the surface comes down as far as the first card that is still being
+       typed and no further. Everything above that -- the receipt, an older card,
+       a figure that finished -- reconciles into its proper place immediately;
+       only the writing that is still arriving stays below.
+
+       The card says so itself: `typeOut` marks the body it is painting into. */
+    var kids = els.cards.children;
+    var below = null, passed = false;
+    for (var k = 0; k < kids.length; k++) {
+      if (kids[k] === els.writer) { passed = true; continue; }
+      if (passed && kids[k].querySelector
+          && kids[k].querySelector(".body.typing")) { below = kids[k]; break; }
+    }
+    if (below && below.previousElementSibling !== els.writer) {
+      els.cards.insertBefore(els.writer, below);
+    }
   } else if (host && questionNode.nextSibling !== els.writer) {
     host.insertBefore(els.writer, questionNode.nextSibling);
   } else if (!host && els.writer.parentNode !== els.cards) {

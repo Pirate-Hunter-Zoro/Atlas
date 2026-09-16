@@ -46,7 +46,7 @@ must be openable and teachable at every point.
 - **Bump `VERSION` in `web/sw.js`** when any shell file changes (`board.html`, `board.js`,
   `board.css`, `plane-core.js`, `gauge.js`, `home.html`, `home.js`, anything added to the
   cache list), or the installed app serves its cached copy and the work is invisible.
-- **`bash test/all.sh` before every ship.** 65 suites, all green. `test/tracked.py` runs
+- **`bash test/all.sh` before every ship.** 71 suites, all green. `test/tracked.py` runs
   first and refuses PHI, 25-megabyte files, model dumps, other authors' papers and
   machine-local config anywhere in the repository — this is public, and git remembers.
 - **Check the address after a ship.** `tutor restart` bounces every board; the HTTPS name
@@ -121,6 +121,52 @@ a sheet; opening from the sheet moves the board through `/switch`.
   throws is a blank screen in place of the app.
 - A board on an older tool serves no `/atlas.json`; the page says so and the door above it still
   works.
+
+### Work that came back while you were somewhere else
+
+Set a turn going in PSYCH-ASR, go and do something in Galois-Theory, and until now the only way
+to find out whether the first one had finished was to switch back and look — which is the one
+thing somebody in the middle of other work will not do. **A turn that finishes in an empty room
+says so on the surface you are actually looking at**, and the row it says it on is the way back.
+
+`tutorboard/news.py` is the whole of the server half, and it is two numbers per workspace:
+
+| | |
+|---|---|
+| when its newest card was written | the mtime of the newest file in `live/cards`. A card is the answer, and it is a file |
+| when somebody last **looked** at it | `live/.seen.json`, written by the page — not by the server |
+
+News is the first being newer than the second. Nothing is registered and nothing talks to another
+machine: every lesson is a directory on one shared filesystem, so the board serving *one*
+workspace answers for all of them by looking, which is the same rule the rest of this tool is
+built on.
+
+- **Only the page can say somebody is looking.** A board is a long-lived process that goes on
+  running in an empty room, so a request arriving proves a browser is open and not that anybody
+  is in front of it. `POST /seen` is sent on the first payload, when a card lands in front of the
+  reader, and when the tab comes back to the front — throttled to once every twenty seconds,
+  with `keepalive` so the last one is not cancelled by the app going into the background. Never
+  while the tab is hidden: a board left open behind something else that went on marking itself
+  read would cancel its own notification, which is the one case this exists for.
+- **A workspace nobody has opened since this shipped is not news.** With no marker at all every
+  lesson on the machine is "newer than never", so the first board up would announce eleven of
+  them, each about last week. The first sight writes the marker at that workspace's newest card;
+  day one is silent and everything after it is exact.
+- **Where it appears.** On the board, a strip in `#chrome` — under the bar, with the other things
+  that are true and are not what you are doing, never over the lesson and never over the board you
+  are writing on. On the front door, a row under the hero and a badge on the card in the atlas.
+  Three rows at most on the board, four on the door: a fourth is a list, and a list in the chrome
+  is a page to scroll past to reach your own lesson.
+- **The row is a link**, spelled with the address grammar — `/#/w/<family>/<workspace>` — so it
+  goes through the front door, which is the only thing that can move the one https name from this
+  board to that one. Being a link and not a handler is also what makes it hold-to-open and
+  readable.
+- **`✕` mutes an answer; it does not mark it read.** Somebody who waves it away has read nothing,
+  so the next card in that workspace brings the row back. What clears a notification is going
+  there.
+- Cached five seconds against the hub's quarter-second poll, and the cache is dropped the instant
+  a board marks itself seen — a badge still up after the answer was read is a badge nobody trusts
+  again. `test/elsewhere.py` and `test/notify.js` are the suites.
 
 ### What a link in here can name
 
@@ -636,7 +682,14 @@ correcting your work happens under the criticism of it rather than scrolled off 
 A card arrives whole — it is a file — so this is a reveal of something already in hand rather
 than a stream. It is typed **character by character** at 110 a second, past reading speed and
 still visibly a hand, capped so the longest card there can be is over in four seconds.
-`typeOut` in `board.js` is all of it; `test/feedback.js` is the suite.
+`typeOut` in `board.js` is all of it; `test/feedback.js` and `test/typed.js` are the suites.
+
+**Every response, whatever wrote it and however it lands.** A card written once and a card
+written *over* are both responses, and `board write --over` is how every turn that does the work
+answers: one sentence so the board is not blank, then several minutes of code, then the report
+replacing that sentence. So the mtime is part of a card's identity here, exactly as `rev` is part
+of a turn's — without it a rewritten card had "already been seen", and the whole effect was
+switched off in precisely the sittings that take longest to answer.
 
 **The card is its final size from the first frame, and that is the whole design.** Nothing is
 ever taken out of the layout: every character is laid out the moment the card lands, and what
@@ -657,14 +710,25 @@ lesson, the writing surface included.
 - **`prefers-reduced-motion` types nothing at all**, synchronously, before `typeOut` returns.
   The pacing IS the effect and there is no quieter version of it to offer.
 
-**And the next writing surface waits for the last character.** It used to come down the instant
-the card existed — which was while the card was one paragraph tall, so the next board appeared
-directly under the last one and the tutor's answer filled in between them. It is **held where it
-is**, not hidden: hiding it takes the tool bar off the bottom of the screen and puts it back a
-few seconds later, which is a bigger movement than the one being removed. A tap on an earlier
-board overrides the hold — a request made by hand outranks an animation — and the hold carries a
-deadline as well as a count, so a card that stops mid-sentence in a backgrounded tab cannot park
-the surface for ever.
+**And the next writing surface waits for the last character.** A board that comes down the
+instant the card exists comes down while the card is still blank, so the next board appears under
+the last one and the tutor's answer fills in between them.
+
+Which of two things that means depends on whether there is already a surface open:
+
+- **One that is open is held where it is**, not hidden — hiding it takes the tool bar off the
+  bottom of the screen and puts it back a few seconds later, which is a bigger movement than the
+  one being removed. It comes down as far as the first card still being typed and no further, so
+  the receipt for the answer just sent still takes its proper place above it immediately.
+- **One that is not open does not open.** There is no tool bar to flicker, so it simply arrives a
+  beat later under a response that has finished. Nothing is drawn in its place either: a
+  question's dormant board is not photographed while its live surface is held shut.
+
+The typing pass therefore runs **before** anything decides where the surface goes — it used to
+run at the foot of the render, a hundred lines after that decision, so on the one frame that
+mattered nothing was typing yet and the hold did nothing. A tap on an earlier board overrides it
+— a request made by hand outranks an animation — and the hold carries a deadline as well as a
+count, so a card that stops mid-sentence in a backgrounded tab cannot park the surface for ever.
 
 ### Writing on the lesson itself
 
@@ -783,8 +847,26 @@ plan, redraw the map and report what it did; a turn asked politely to consider r
 back a plan and does nothing. `board direction --show` reads it from a terminal and
 `board direction --clear` takes it off.
 
+**And it says so for the whole of the several minutes it takes.** Replacing the assistant and
+rewriting a plan is not quick, and the turn that does it is told to write one sentence FIRST so
+the board is not blank — which is exactly the card the busy strip would ordinarily read as *the
+answer is here, stop talking*. So the daemon records what a turn was woken for (`turn_signal` in
+`bin/tutor`, off the `[direction]` tag the inbox carries), and the strip:
+
+| when | what it says |
+|---|---|
+| the tap | *changing direction — replacing the tutor* |
+| the old one is going, the new one coming up | *the new direction is in the inbox. The tutor is being replaced, and the one that comes up re-plans from it. No need to send again* |
+| the turn is running | *re-planning — reading the plan and rewriting it for the new direction* |
+| past two minutes | *still re-planning — the new plan lands here* |
+
+None of it is painted as a failure, because nothing has failed: a board that cannot tell a
+deliberate replacement from a dead tutor reports the one thing the person just asked for in the
+words of the thing they most fear. The strip stops when the **turn** does, not when a card lands.
+
 `test/direction.py` drives the whole round trip against the real handler; `test/steering.js`
-drives the button and the sheet in a real DOM.
+drives the button and the sheet in a real DOM; `test/hanging.js` holds the words above and
+`test/elsewhere.py` the signal underneath them.
 
 ## Setting it up on the cluster
 
@@ -2814,6 +2896,9 @@ tutorboard/        the board itself, organised by what a thing is about:
   brief carry      what a turn reads before it teaches, and what it tells the
                    next one -- a turn is its own session, so both are files
   machines.py      the other machines, and what each can teach
+  news.py          an answer that landed in a workspace nobody was looking at:
+                   the newest card against `live/.seen.json`, workspace by
+                   workspace, off the shared filesystem
   net/             reaching them: tailscale, socks, boards, egress
   course/          a course on disk: repo, config, document, homework, review,
                    plan (what a project says it is doing next, which is a book
@@ -2854,6 +2939,9 @@ live/
                    minimum is "nothing at all" would otherwise commit it
   archive/         previous lessons, filed by `board open` or `board archive`
   .board.json      which node, which pid, which port
+  .seen.json       when a browser last had this workspace open. Written by the
+                   page, never by the server: a board goes on running in an
+                   empty room. It is what a notification is measured against
 ```
 
 and one directory outside `live/`, because it is meant to be kept and the rest of `live/` is

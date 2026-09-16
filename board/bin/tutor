@@ -949,6 +949,32 @@ def turn_plan(spec, carried, recycle):
             fresh)
 
 
+# WHAT A TURN WAS WOKEN FOR, so the board can say it while the turn runs.
+#
+# `board inbox` prints a message as `[<iso>] [<signal>] <text>`, and the signal
+# is the one word that says what kind of work this turn is. The board needs it
+# for exactly one reason and it is a reported one: a direction change wakes a
+# turn that rewrites the plan, and that turn OPENS with a card saying it is
+# re-planning. The strip's rule is "a card landed, so stop talking", so the
+# indicator went away in the first ten seconds of a job that takes minutes --
+# "I got left hanging for a bit while it was thinking and modifying the plan".
+#
+# Anchored at the start of the message rather than searched for, because a
+# student who writes "[help]" in the middle of a sentence has not sent a signal.
+_SIGNAL_TAG = re.compile(r"^\[[^\]\n]*\]\s*\[([a-z]+)\]")
+
+
+def turn_signal(out):
+    """The signal the inbox message carries, or "". Never raises."""
+    for line in (out or "").splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        m = _SIGNAL_TAG.match(line)
+        return m.group(1) if m else ""
+    return ""
+
+
 def agent_state(live, **kw):
     path = os.path.join(live, "agent.json")
     try:
@@ -1748,7 +1774,8 @@ def headless(cfg, course, agent_name, session):
         # the working state, which on a reload or a second device is nowhere
         # near when the turn began.
         agent_state(live, state="working", turns=turns,
-                    turn_started=time.time(), last_error=None, failed_at=0)
+                    turn_started=time.time(), turn_signal=turn_signal(out),
+                    last_error=None, failed_at=0)
         log.write("\n=== %s turn %d ===\n%s\n" % (time.strftime("%H:%M:%S"), turns, out))
 
         # Keep saying so while the turn runs. The heartbeat used to be written
