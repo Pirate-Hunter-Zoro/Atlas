@@ -302,6 +302,7 @@ try:
     # The login node knocks on the node instead, and everything that decides
     # anything happens over there.
     real_sp = tutor.subprocess
+    was_job = os.environ.get("SLURM_JOB_ID")
     try:
         class FakeSP(object):
             PIPE = real_sp.PIPE
@@ -411,9 +412,51 @@ try:
               "--overlap" in step and "--jobid" in step)
         check("and the step holds itself open, or the board dies with it",
               "sleep" in step)
+
+        # WHICH job, and this is the whole of it. The id has to be the
+        # allocation that holds `target`, and until this was asserted the
+        # assertion above passed on `--jobid` being present while the value came
+        # from whatever allocation the shell RUNNING THE SUITE sat in -- so the
+        # test read green on a machine where the real thing was refused.
+        check("with the id of the job that actually holds that node",
+              "--jobid 77" in step)
+
+        # The failure it guards. `salloc` exports SLURM_JOB_ID for the job it
+        # just made, while the node a hop is aimed at comes off the board record
+        # FIRST -- a node that outlives the shell which started the board, and so
+        # usually belongs to an older allocation on a different machine. Pair
+        # this shell's id with that node and Slurm refuses the step for
+        # "Requested node configuration is not available", which names neither
+        # the job nor the node and so reads like a broken partition.
+        sp.ssh, sp.steps = [], []
+        os.environ["SLURM_JOB_ID"] = "66"        # holds compute304, not compute303
+        tutor.hop_to_allocation(cfg, ["--quiet"])
+        step = " ".join(sp.steps[0]) if sp.steps else ""
+        check("and never the allocation this shell sits in, when that one holds "
+              "no part of the node being knocked on",
+              "--jobid 77" in step and "--jobid 66" not in step)
+
+        # It is preferred when it does hold the node: that is the allocation the
+        # person asked for a moment ago.
+        sp.steps = []
+        os.environ["SLURM_JOB_ID"] = "77"
+        tutor.hop_to_allocation(cfg, ["--quiet"])
+        check("though this shell's own allocation wins when it does hold it",
+              "--jobid 77" in (" ".join(sp.steps[0]) if sp.steps else ""))
+
+        # Nothing holds it: a line in the log beats a step Slurm will refuse.
+        sp.steps = []
+        sp.jobs = b"2026-09-11T12:09:27|compute304|66\n"
+        code = tutor.hop_to_allocation(cfg, ["--quiet"])
+        check("a node no running allocation of yours holds gets no step at all",
+              code == 1 and not sp.steps)
     finally:
         tutor.subprocess = real_sp
         os.environ.pop("SLURM_JOB_NODELIST", None)
+        if was_job is None:
+            os.environ.pop("SLURM_JOB_ID", None)
+        else:
+            os.environ["SLURM_JOB_ID"] = was_job
         tutor.this_host = lambda: "compute301"
         machine.slurm_nodes = lambda: {"compute301"}
         processes.board_is_running = lambda pid, root: pid == 33
