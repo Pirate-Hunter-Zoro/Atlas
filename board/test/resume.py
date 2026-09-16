@@ -303,6 +303,8 @@ try:
     # anything happens over there.
     real_sp = tutor.subprocess
     was_job = os.environ.get("SLURM_JOB_ID")
+    was_log = tutor.RESUME_LOG
+    was_watch = tutor.STEP_WATCH_SECONDS
     try:
         class FakeSP(object):
             PIPE = real_sp.PIPE
@@ -317,6 +319,9 @@ try:
                 self.ssh_out = b"Newer is up here, at https://board.example.ts.net/\n"
                 self.jobs = b"2026-09-11T12:43:54|compute303|77\n" \
                             b"2026-09-11T12:09:27|compute304|66\n"
+                # None: the step is placed and holds itself open. A number: the
+                # exit Slurm hands back for a step it would not place.
+                self.step_code = None
 
             class Done(object):
                 def __init__(self, code, out):
@@ -340,9 +345,28 @@ try:
                     return FakeSP.Done(self.ssh_code, self.ssh_out)
                 return FakeSP.Done(0, b"")
 
+            class Step(object):
+                """A step, as the hop now has to see it: alive, or gone."""
+
+                def __init__(self, code):
+                    self.code = code
+
+                def poll(self):
+                    return self.code
+
             def Popen(self, cmd, **kw):
                 self.steps.append(cmd)
-                return None
+                # A refused step writes its reason into the log the hop opened
+                # and exits; a placed one writes nothing and stays. The fake has
+                # to do both, because the hop believes the process now rather
+                # than the bare fact that srun was executed.
+                if self.step_code is not None and kw.get("stdout"):
+                    kw["stdout"].write(
+                        "srun: error: Unable to create step for job %s: "
+                        "Requested node configuration is not available\n"
+                        % cmd[cmd.index("--jobid") + 1])
+                    kw["stdout"].flush()
+                return FakeSP.Step(self.step_code)
 
         sp = FakeSP()
         tutor.subprocess = sp
@@ -450,6 +474,57 @@ try:
         code = tutor.hop_to_allocation(cfg, ["--quiet"])
         check("a node no running allocation of yours holds gets no step at all",
               code == 1 and not sp.steps)
+
+        # --- believing the STEP, not the fact that srun ran -----------------
+        #
+        # `Popen` returning says only that srun was executed. Slurm refuses a
+        # step it cannot place a hundredth of a second later, and that refusal
+        # landed in the log UNDERNEATH a line already claiming the board had
+        # started inside the job -- so the only trace a hop leaves said the
+        # opposite of what happened, on exactly the login somebody would read.
+        import contextlib          # noqa: E402
+        import io as _io2          # noqa: E402
+
+        sp.jobs = b"2026-09-11T12:43:54|compute303|77\n" \
+                  b"2026-09-11T12:09:27|compute304|66\n"
+        os.environ["SLURM_JOB_ID"] = "77"
+        tutor.RESUME_LOG = os.path.join(tmp, "resume.log")
+        # The window is not what is under test here, the branch is. Its real
+        # value is asserted below, off the constant.
+        tutor.STEP_WATCH_SECONDS = 0.2
+
+        def hop_saying():
+            heard = _io2.StringIO()
+            with contextlib.redirect_stdout(heard):
+                rc = tutor.hop_to_allocation(cfg, ["--quiet"])
+            return rc, heard.getvalue()
+
+        sp.steps, sp.step_code = [], None
+        rc, said = hop_saying()
+        check("a step that stays up is the board starting, and says so",
+              rc == 0 and "started inside job 77" in said)
+
+        sp.steps, sp.step_code = [], 1
+        rc, said = hop_saying()
+        check("but a step Slurm refuses is never reported as a board that "
+              "started, which is what the log used to claim",
+              rc == 1 and "started inside job" not in said)
+        check("and what it reports is what srun itself said, naming the job",
+              "Unable to create step for job 77" in said
+              and "Requested node configuration is not available" in said)
+        # Refuse a SECOND one. The log now holds two refusals, so a report that
+        # read the whole file instead of seeking to the mark taken before this
+        # step started would hand back the previous hop's words as well.
+        sp.steps, sp.step_code = [], 1
+        rc, again = hop_saying()
+        check("and only this hop's lines, never the tail of an older one",
+              rc == 1 and again.count("Unable to create step") == 1)
+
+        # Long enough to outlast a refusal by two orders of magnitude, short
+        # enough that a login never notices -- and a zero here would restore the
+        # bug exactly, so the number itself is worth an assertion.
+        check("the watch window is a real one, since a zero would restore the "
+              "bug exactly", 0.5 <= was_watch <= 30.0)
     finally:
         tutor.subprocess = real_sp
         os.environ.pop("SLURM_JOB_NODELIST", None)
@@ -457,6 +532,8 @@ try:
             os.environ.pop("SLURM_JOB_ID", None)
         else:
             os.environ["SLURM_JOB_ID"] = was_job
+        tutor.RESUME_LOG = was_log
+        tutor.STEP_WATCH_SECONDS = was_watch
         tutor.this_host = lambda: "compute301"
         machine.slurm_nodes = lambda: {"compute301"}
         processes.board_is_running = lambda pid, root: pid == 33
