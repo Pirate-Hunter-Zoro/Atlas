@@ -2287,6 +2287,18 @@ def allocation_nodes():
     return out
 
 
+# The log the login hook redirects itself into, and the only trace a hop leaves
+# on the machine it hopped FROM. Named here so a test can point it somewhere
+# else; `install-autostart.sh` writes the same path into the hook.
+RESUME_LOG = "~/.tutor-resume.log"
+
+# How long to watch a Slurm step before believing in it. A refusal measures a
+# hundredth of a second, so this is two orders of magnitude of margin, and it is
+# spent only on a login where ssh had ALREADY failed after its own ten-second
+# connect timeout. Nothing waits on it: the hook backgrounds the whole resume.
+STEP_WATCH_SECONDS = 5.0
+
+
 def hop_to_allocation(cfg, rest):
     """Run this resume on the compute node, from the login node that holds it.
 
@@ -2374,15 +2386,39 @@ def hop_to_allocation(cfg, rest):
     if not job:
         tell("ssh could not get in, and no running allocation of yours holds it")
         return 1
-    log = open(os.path.expanduser("~/.tutor-resume.log"), "a", buffering=1)
+    log_path = os.path.expanduser(RESUME_LOG)
+    log = open(log_path, "a", buffering=1)
+    mark = os.path.getsize(log_path)
     step = ["srun", "--overlap", "--jobid", job, "--nodes=1", "--ntasks=1",
             "--nodelist", target, "bash", "-c", line + "; exec sleep 31536000"]
     try:
-        subprocess.Popen(step, stdout=log, stderr=subprocess.STDOUT,
-                         stdin=subprocess.DEVNULL, start_new_session=True)
+        running = subprocess.Popen(step, stdout=log, stderr=subprocess.STDOUT,
+                                   stdin=subprocess.DEVNULL, start_new_session=True)
     except OSError as exc:
         tell("ssh could not get in, and neither could srun: %s" % exc)
         return 1
+
+    # Then WATCH it for a moment, because `Popen` returning says only that srun
+    # was EXECUTED. Slurm refuses a step it cannot place in about a hundredth of
+    # a second, and that refusal used to arrive after this function had already
+    # printed that the board was started inside the job and returned 0 -- so the
+    # log carried a success line with the truth four lines below it, and the one
+    # place anybody looks said the opposite of what happened. A step that really
+    # was created holds itself open for the life of the allocation, so anything
+    # that exits inside this window did not start a board.
+    gone = None
+    deadline = time.time() + STEP_WATCH_SECONDS
+    while True:
+        gone = running.poll()
+        if gone is not None or time.time() >= deadline:
+            break
+        time.sleep(0.05)
+
+    if gone is not None:
+        tell("ssh could not get in, and the step did not stay up: %s"
+             % (step_said(log_path, mark) or "srun exited %s without a word" % gone))
+        return 1
+
     tell("ssh could not get in; started inside job %s instead, which holds the "
          "board open for as long as the allocation" % job)
     return 0
@@ -2459,6 +2495,24 @@ def job_holding(target):
     if here and here in owners:
         return here
     return owners[0] if owners else ""
+
+
+def step_said(path, mark, lines=2):
+    """What srun appended to the log after `mark`, as one line.
+
+    The reason a step was refused is in the log and not in the exit status:
+    "Unable to create step for job N: Requested node configuration is not
+    available" names the job it was asked of, while an exit of 1 names nothing.
+    Reading back from a mark taken before the step started is what makes the
+    reported line the step's OWN words rather than the tail of an older hop.
+    """
+    try:
+        with open(path, encoding="utf-8", errors="replace") as fh:
+            fh.seek(mark)
+            fresh = [l.strip() for l in fh.read().splitlines() if l.strip()]
+    except (OSError, ValueError):
+        return ""
+    return " / ".join(fresh[-lines:])
 
 
 def pull_vendor(quiet=False):

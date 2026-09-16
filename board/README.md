@@ -975,6 +975,13 @@ instead, which needs no credential of its own and which holds itself open for th
 allocation. That last part is not decoration: everything a step starts lives in the step's cgroup,
 and that cgroup is emptied the moment the step ends, detached or not.
 
+The step is asked of the allocation that **holds that node**, which is frequently not the one this
+shell sits in: `salloc` exports its own job id, while the node being knocked on is whichever one a
+board was last recorded on. Give Slurm a job that holds no part of the node and it refuses the step
+for a node configuration, naming neither. So the step is also watched for a moment before anything
+claims a board started, since a refusal takes about a hundredth of a second and arrives after
+`Popen` has already returned.
+
 ```
 salloc …                     and nothing else
 tutor resume --no-hop        do it here, wherever here is
