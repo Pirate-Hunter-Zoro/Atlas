@@ -55,6 +55,14 @@ class Hub:
         # a constant `"teach"` in the client until now, which is a guess that is
         # wrong in exactly the repositories this matters most in.
         board_state["declared_stance"] = cfg.get("stance") or "teach"
+        # AND WHAT THIS SITTING IS ACTUALLY RUNNING UNDER, resolved once, here.
+        # A sitting nobody opened from the map names no aim, and the answer then
+        # comes from the workspace or from its family's default in `atlas.json` --
+        # which the client cannot read and must not re-derive. The chooser shows
+        # `aim_now`, and the busy strip asks `stance_now` whether the turn running
+        # is one that DOES the work. See `course/config.aim_for`.
+        board_state["aim_now"] = config.aim_for(self.repo.root, board_state)
+        board_state["stance_now"] = config.stance_for(self.repo.root, board_state)
         data = {
             "state": board_state,
             "cards": on_board,

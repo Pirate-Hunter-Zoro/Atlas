@@ -72,6 +72,8 @@ var els = {
   sheetOpen: document.getElementById("sheet-open"),
   sheetOpenSub: document.getElementById("sheet-open-sub"),
   sheetClose: document.getElementById("sheet-close"),
+  sheetLibrary: document.getElementById("sheet-library"),
+  sheetLibrarySub: document.getElementById("sheet-library-sub"),
   where: document.getElementById("where"),
   notes: document.getElementById("notes"),
   notesSince: document.getElementById("notes-since"),
@@ -634,6 +636,9 @@ function openSheet(c) {
   els.sheetOpenSub.textContent = c.current
     ? "you are already here"
     : "moves the board; the address does not change";
+  els.sheetLibrarySub.textContent = c.current
+    ? "everything written up in here"
+    : "moves the board, then opens its library";
   els.sheet.hidden = false;
 }
 
@@ -673,6 +678,18 @@ els.sheetOpen.onclick = function () {
   var c = sheetFor;
   closeSheet();
   openWorkspace(c);
+};
+
+/* The library of a workspace, from the front door. It is served by whichever
+   board is answering at this address, so a workspace that is not the one being
+   served has to be switched to first -- which is the same journey Open this
+   makes, ending on a different page. */
+els.sheetLibrary.onclick = function () {
+  var c = sheetFor;
+  closeSheet();
+  if (!c) return;
+  if (c.current) { location.href = "/library"; return; }
+  switchTo(c.repo, "", "/library");
 };
 
 /* ------------------------------------------------------ notes for a meeting */
@@ -829,8 +846,13 @@ document.addEventListener("keydown", function (ev) {
 
 /* `addr`, when there is one, is where to go once the board has moved: the
    surface the link named, on the board itself. Without one this lands exactly
-   where it always did. */
-function switchTo(repo, addr) {
+   where it always did.
+
+   `page` is the other kind of destination: a whole page of the board's rather
+   than a surface inside the lesson. `/library` is the one that wanted it, and
+   it wanted it for the reason the address grammar does not cover it -- the
+   library is not a place in a lesson. */
+function switchTo(repo, addr, page) {
   if (moving) return;                 /* one at a time; a second tap is a queue */
   moving = { repo: repo };
   showBusy("opening " + repo + "…", "asking");
@@ -847,7 +869,7 @@ function switchTo(repo, addr) {
        poll is only how we know not to reload too early. There is nothing to ask
        a person about, and asking was worse than useless -- from the iPad it read
        as a switch that could not be made. */
-    location.href = addr ? "/board" + addr : "/";
+    location.href = page || (addr ? "/board" + addr : "/");
   }).catch(function (e) {
     showBusy("could not open " + repo, e.message || String(e));
     moving = null;

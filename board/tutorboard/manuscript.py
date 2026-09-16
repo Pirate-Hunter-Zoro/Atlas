@@ -21,6 +21,8 @@ So the board's whole business here is three things:
                sections that template asks for
     DROP       write it into the inbox, once, and say where it went
     SHOW       read the status file back, and find what was delivered
+    REVISE     drop a job that names a document already delivered, and the
+               written feedback on it -- see `revise`
 
 Nothing in here imports `paperwriter`. Nothing in here starts a process. If the
 daemon is not running, a job sits in the inbox until it is -- which is exactly
@@ -176,7 +178,11 @@ def _sections(root):
     out = []
     where = os.path.join(root, LANDING)
     for base, dirs, files in os.walk(where):
-        dirs[:] = [d for d in dirs if not d.startswith(".")]
+        # Not the rounds of feedback. A note saying what is wrong with section 3
+        # is not prose to be preserved, and listing it as prose not to be written
+        # again is the factory being told to keep the complaint in the paper.
+        dirs[:] = [d for d in dirs
+                   if not d.startswith(".") and d.lower() != "feedback"]
         for n in sorted(files):
             if n.lower().endswith((".md", ".tex")) and not n.startswith("_"):
                 out.append(os.path.relpath(os.path.join(base, n), root))
@@ -227,7 +233,7 @@ def _vocabulary(root):
     return out
 
 
-def job(root, title="", venue="", checklist="", notes=""):
+def job(root, title="", venue="", checklist="", notes="", revision=None):
     """The filled-in template, as text. Nothing is written to disk here.
 
     Kept separate from `submit` so that `board make --paper --dry-run` can print
@@ -283,6 +289,21 @@ def job(root, title="", venue="", checklist="", notes=""):
                             " you say why. -->")
 
     out += ["", "---", "", "## Scope", "", "1 paper."]
+
+    # ONLY WHEN THERE IS ONE. The section is absent from a new paper's job, which
+    # is what tells the factory that this is a first draft rather than a
+    # correction -- and the template says so in as many words. Two lines, both of
+    # them paths this board found in this workspace.
+    if revision and revision.get("document"):
+        out += ["", "---", "", REVISION, "",
+                "document: %s" % revision["document"]]
+        if revision.get("feedback"):
+            out.append("feedback: %s" % revision["feedback"])
+        out += ["",
+                "This document exists and has been read. Revise it: its "
+                "structure, its terminology and its claims stand except where "
+                "the feedback says otherwise. Do not re-plan it from the claims "
+                "list -- a correction re-planned is a different paper."]
 
     out += ["", "---", "", "## Anything the harness cannot work out", ""]
     if notes:
@@ -349,7 +370,7 @@ def _next_version(where, stem):
 
 
 def submit(root, title="", venue="", checklist="", notes="", base=None,
-           dry_run=False):
+           dry_run=False, revision=None):
     """Assemble a job and drop it in the inbox. The one function of the seam.
 
     Returns a record the board can paint. It never starts anything: if the
@@ -363,7 +384,8 @@ def submit(root, title="", venue="", checklist="", notes="", base=None,
                           "nothing to hand a manuscript job to" % WRITER}
 
     where = inbox(base)
-    body = job(root, title=title, venue=venue, checklist=checklist, notes=notes)
+    body = job(root, title=title, venue=venue, checklist=checklist, notes=notes,
+               revision=revision)
     stem = _slug(title or config.read_config(root).get("name")
                  or os.path.basename(root))
 
@@ -399,6 +421,85 @@ def submit(root, title="", venue="", checklist="", notes="", base=None,
                      "the daemon is not running the job waits, which is what "
                      "should happen.")
     return rec
+
+
+# WHAT A REVISION IS, AND WHY IT IS NOT A SECOND ENGINE.
+#
+# A document the board compiled -- a `.tex` under `writeups/` -- is revised by
+# the board: a fresh turn, on the feedback, on the same daemon. A manuscript
+# DELIVERED INTO `manuscripts/` is revised by the thing that wrote it, because it
+# is the thing holding the evidence, the terminology lock, the reporting
+# checklist and the venue's word limit.
+#
+# `submit` only knows how to ask for a NEW paper, and the template it fills in
+# has no revision section: Evidence, Claims, Venue, Reporting checklist, Scope,
+# and one free-prose field. NAMING A DELIVERED DOCUMENT IS A CHANGE IN
+# PAPER-WRITER'S OWN REPOSITORY -- a `## Revision` section in
+# `PROMPT_TEMPLATE.md`, shipped separately. Until its parsers read one, a
+# revision is exactly what the template can already express: a job carrying the
+# feedback in the free-prose section, and the prose that already exists in the
+# do-not-rewrite list `_sections` builds.
+#
+# And an explainer is NOT routed through here. The factory has gates for venue,
+# claims, citations and a reporting checklist; "how the serve harness works, and
+# the arithmetic behind the batch size" has no venue and makes no claims, and
+# every one of those gates would either refuse it or invent something to satisfy
+# itself.
+REVISION = "## Revision"
+
+
+def _quote(root, rel, limit=6000):
+    """The feedback, as it was written, or "" if it cannot be read.
+
+    Quoted rather than summarised: it is the person's own account of what is
+    wrong with a document, and a paraphrase of it is the board deciding what the
+    complaint was.
+    """
+    try:
+        with open(os.path.join(root, rel), "r", encoding="utf-8") as fh:
+            return fh.read(limit).strip()
+    except OSError:
+        return ""
+
+
+def revise(root, document, feedback, base=None, dry_run=False):
+    """Ask the factory to revise something it delivered, on written feedback.
+
+    `document` is what `course/library.py` discovered -- a record, or the
+    repository-relative path of one of its files. `feedback` is the
+    repository-relative path of the note. Both are paths this board FOUND rather
+    than names that arrived from a browser; nothing here builds one.
+    """
+    if isinstance(document, dict):
+        title = document.get("title") or document.get("stem") or ""
+        rel = document.get("rel") or ""
+    else:
+        rel = str(document or "")
+        title = os.path.splitext(os.path.basename(rel))[0].replace("_", " ")
+    if not rel:
+        return {"ok": False, "detail": "no document was named"}
+    said = _quote(root, feedback) if feedback else ""
+
+    notes = ["THIS IS A REVISION, NOT A NEW PAPER. The document already exists "
+             "in this workspace at `%s`, it has been read, and what follows is "
+             "what is wrong with it. Revise that document: keep its structure, "
+             "its terminology and its claims except where the feedback says "
+             "otherwise, and do not start again." % rel, ""]
+    if feedback:
+        notes += ["The feedback is filed at `%s`." % feedback, ""]
+    if said:
+        notes += ["What they said, in their words:", "", said, ""]
+    else:
+        notes += ["No feedback file could be read, which is a defect rather than "
+                  "a licence to guess: do not revise anything until somebody says "
+                  "what is wrong.", ""]
+
+    out = submit(root, title=title or None, notes="\n".join(notes).strip(),
+                 base=base, dry_run=dry_run,
+                 revision={"document": rel, "feedback": feedback or ""})
+    out["revision"] = rel
+    out["feedback"] = feedback or ""
+    return out
 
 
 def status(base=None):

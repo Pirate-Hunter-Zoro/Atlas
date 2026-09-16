@@ -1577,6 +1577,36 @@ body.papering .annbar { z-index: 96; }
    it is the one mistake the next card cannot undo. */
 #stance-do.on { background: var(--ask); border-color: var(--ask); color: var(--paper); }
 
+/* WHAT THIS SITTING IS FOR, and it is the row that does not wait. The buttons
+   above it choose the sitting to OPEN; these five change the one that is open,
+   so they get a whole line of their own and a sentence saying so -- a control
+   that takes effect on tap, sitting beside three that do not, is a control
+   somebody taps twice. */
+.kind-aim {
+  display: flex; align-items: center; gap: .3rem; flex-wrap: wrap;
+  flex-basis: 100%;
+  padding-top: .5rem; margin-top: .1rem;
+  border-top: 1px solid var(--rule);
+}
+.kind-aim-lead {
+  font-family: var(--ui); font-size: .68rem; color: var(--ink-3);
+  letter-spacing: .04em;
+}
+#kind-aim-ways { display: inline-flex; gap: .3rem; flex-wrap: wrap; }
+.kind-aim-note {
+  flex-basis: 100%;
+  font-family: var(--ui); font-size: .66rem; line-height: 1.35;
+  color: var(--ink-3);
+}
+#kind-aim-ways button.on {
+  background: var(--ink-3); border-color: var(--ink-3); color: #fff; font-weight: 600;
+}
+/* The three that WRITE, marked the way a doing stance is: this is the state in
+   which the tutor writes what the person would otherwise have written. */
+#kind-aim-ways button.on.does {
+  background: var(--ask); border-color: var(--ask); color: var(--paper);
+}
+
 /* A walkthrough's list is files, headed by the directory they sit in -- a flat
    hundred filenames is not a list anybody reads. Same shape as the group
    heading the review list already uses. */

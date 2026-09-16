@@ -171,9 +171,88 @@ def _direction(h, repo):
     return h.send_json({"ok": True, "chapter": label, "set": when})
 
 
+def _aim(h, repo):
+    """They have changed WHAT THIS SITTING IS FOR, and the lesson stays where it is.
+
+    THE AIM WAS CHOSEN ONCE, AT THE MOMENT THE SITTING OPENED, AND COULD NOT BE
+    CHANGED AFTERWARDS. `_mark` writes it and `_mark` is reached only from
+    `/session`, and every path through `/session` calls `board open`, which
+    archives the lesson. So "wait, now teach me how this works", said three hours
+    into building something, cost the evening it was said in.
+
+    This is `_direction` minus the two destructive halves. Four things happen and
+    none of them is `board open` or `fresh_tutor`:
+
+    1. **Write it into `state.json`**, so the next card is written the new way
+       and a device that reloads sees which aim is in force.
+    2. **Put their tap in the transcript**, as a turn of theirs, because that is
+       what it is -- the card that comes back is an answer to something they did.
+    3. **Say it in the inbox**, which in a headless turn IS the prompt: what the
+       new aim asks for, that everything already on the board stands, and what
+       this sitting is.
+    4. **Wake a tutor if none is listening.** The tap is the instruction, the
+       same way choosing a way to work on the map is -- see `_begin`. "Now teach
+       me how this works" is an interruption, not a preference to apply later.
+
+    A running tutor is NOT replaced. A turn is a headless call and only a fresh
+    one reads `session_sense`, so the waking line above is how the assistant
+    mid-conversation finds out; replacing it would throw away the lesson this
+    exists to keep.
+    """
+    try:
+        payload = json.loads(h.read_body().decode("utf-8") or "{}")
+    except Exception:
+        return h.send_json({"ok": False, "error": "bad json"}, status=400)
+    aim = config.clean_aim(payload.get("aim"))
+    if not aim:
+        return h.send_json({"ok": False, "error": "not one of the aims"},
+                           status=400)
+    # The two that are chosen OVER something. A walkthrough needs a list of files
+    # and a drill needs a scope, and choosing one of those is choosing what it is
+    # over -- which is a tap on the map and a new sitting. Refused by name here
+    # rather than accepted and then asked a second question.
+    if aim in config.AIMS_OVER:
+        return h.send_json({"ok": False, "error": "%s is held over a scope; "
+                                                  "open it from the map" % aim},
+                           status=400)
+
+    st = repo.state()
+    if st.get("aim") == aim:
+        # Already what it is. Waking a turn to be told nothing changed is a model
+        # call somebody pays for, so this is where a double tap stops.
+        return h.send_json({"ok": True, "aim": aim, "changed": False})
+    st["aim"] = aim
+    with open(repo.state_path, "w", encoding="utf-8") as fh:
+        json.dump(st, fh, indent=2)
+
+    tid = turns.next_turn_id(repo)
+    record = {
+        "id": tid, "rev": turns.turn_revision(repo, tid), "kind": "text",
+        "answers": None,
+        "t": time.time(),
+        "iso": time.strftime("%Y-%m-%d %H:%M:%S"),
+        "from": "student", "text": "This sitting is now: %s." % aim,
+        "signal": "aim", "read": False,
+    }
+    turns.write_turn(repo, record)
+    line = ("[aim] " + config.AIM_MEANS.get(aim, "") + " "
+            + sense.SIGNAL_SENSE.get("aim", "") + "\n\n"
+            + sense.session_sense(repo))
+    with open(repo.messages_path, "a", encoding="utf-8") as fh:
+        fh.write(json.dumps(dict(record, text=line)) + "\n")
+
+    if spawn.wake_tutor(repo):
+        h.note("nothing was reading the board; starting a tutor")
+    h.server.hub.worker.dirty.set()
+    return h.send_json({"ok": True, "aim": aim, "changed": True})
+
+
 def post(h, repo, path):
     if path == "/direction":
         return _direction(h, repo)
+
+    if path == "/aim":
+        return _aim(h, repo)
 
     if path == "/dismiss-finish":
         st = repo.state()

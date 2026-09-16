@@ -12,8 +12,9 @@ lives. Every other module asks here rather than taking a `dirname`, because
 there is now exactly one right answer to "where is the repository root" and it
 is worth having exactly one place that knows it.
 
-**Nothing is registered.** `atlas.json` names and orders the families and says
-which of them are somebody else's work. It does NOT list the workspaces: a
+**Nothing is registered.** `atlas.json` names and orders the families, says
+which of them are somebody else's work, and gives each a default style for a
+sitting nobody chose one for (`aim`; `course/config.aim_for` resolves it). It does NOT list the workspaces: a
 second-level directory holding `tutorboard.json`, `AI_INSTRUCTIONS.md` or
 `live/` IS one, found by looking. A file that has to be edited when a directory
 is made is the registry this system refuses to have -- and the thing that makes
@@ -109,12 +110,17 @@ def families(base=None):
             "id": ident,
             "name": fam.get("name") or ident.replace("-", " ").title(),
             "blurb": fam.get("blurb") or "",
+            # WHAT A SITTING IN THIS FAMILY IS FOR when nothing below it says
+            # otherwise. Carried through as written and checked where it is used
+            # -- `course/config.aim_for` owns the precedence and is the only
+            # thing that decides what an unrecognised word means.
+            "aim": str(fam.get("aim") or ""),
             "vendor": bool(fam.get("vendor")),
             "tool": bool(fam.get("tool")),
             "dir": os.path.join(base, ident),
         })
     if not out:
-        out = [{"id": "", "name": "", "blurb": "", "vendor": False,
+        out = [{"id": "", "name": "", "blurb": "", "aim": "", "vendor": False,
                 "tool": False, "dir": base}]
     _CACHE["families"][base] = out
     return out

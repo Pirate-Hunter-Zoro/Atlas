@@ -473,10 +473,17 @@ const at = (doc, id) => {
     };
 
     let p = await pick('evaluate', '', 'Write the code for me');
-    p && p.body.session === 'lecture' && p.body.stance === 'do'
+    p && p.body.session === 'lecture'
       && p.body.aim === 'build' && p.body.node === 'evaluate'
       ? ok('“write the code for me” opens a lecture the tutor writes in')
       : fail('wrong body: ' + JSON.stringify(p && p.body));
+    // AND SENDS NO STANCE. `build` with a stance of `teach` is a contradiction,
+    // so the aim already answers who writes the code -- `config.AIM_STANCE` --
+    // and a browser sending both is the browser deciding it, on its own
+    // authority, over what the repository and its family have already said.
+    p && p.body.stance === undefined
+      ? ok('and does not send a stance beside it; the aim answers that')
+      : fail('the browser sent a stance of its own: ' + JSON.stringify(p && p.body));
     // THE TAP IS THE INSTRUCTION. Landing on the lesson behind the map and
     // having to find a second button saying "ask the tutor to begin" is the
     // ceremony this replaces, and it was found as a question rather than as a
@@ -486,7 +493,8 @@ const at = (doc, id) => {
       : fail('the sitting opens but nothing starts it');
 
     p = await pick('evaluate', '', 'Tell me what to write, I\'ll code it');
-    p && p.body.stance === 'teach' && p.body.aim === 'coach'
+    p && p.body.aim === 'coach' && p.body.session === 'lecture'
+      && p.body.stance === undefined
       ? ok('“tell me what to write” is the same sitting with a different job')
       : fail('wrong body: ' + JSON.stringify(p && p.body));
 

@@ -34,6 +34,10 @@ The assistant runs these. The student never does.
                                        for it, one sentence each. Replaces the
                                        derived picture; re-checked on every read
     board map --show|--check           read it, or say what has gone stale in it
+    board aim [name]                   what THIS SITTING is for -- teach, build,
+                                       coach, paper, slides -- changed in place.
+                                       Nothing is archived and no tutor is
+                                       replaced. No name prints what is in force
     board direction --show             what this workspace is FOR, in their own
                                        words, when they have changed it. It
                                        outranks the plan, the map and the
@@ -1785,6 +1789,55 @@ def cmd_direction(live, args):
     return 0
 
 
+def cmd_aim(live, args):
+    """What THIS SITTING is for, changed without losing the lesson.
+
+        board aim                   what is in force, and whether it was chosen
+        board aim build             change it; the next card is written that way
+
+    `board open --aim` chooses one for a sitting being OPENED, which archives the
+    lesson that was on the board. This changes the one that is open: nothing is
+    archived, no tutor is replaced, and every card already written stands.
+
+    `trace` and `drill` are not here. Each is held over a scope -- a list of
+    files, a part of the repository -- so choosing one is choosing what it is
+    over, and that is `board open --walk` or `board open --review`.
+
+    The BOARD's own control does one more thing than this does: a tap there wakes
+    a turn, because a tap is the instruction. Here the person is already at a
+    keyboard talking to the assistant, so the aim is written down and the next
+    fresh turn reads it -- said out loud below rather than left to be discovered.
+    """
+    st = live.state()
+    offered = ", ".join(a for a in config.AIMS if a not in config.AIMS_OVER)
+    if not args:
+        own = config.clean_aim(st.get("aim"))
+        now = config.aim_for(live.root, st)
+        if own:
+            print("aim: %s  (chosen for this sitting)" % own)
+        elif now:
+            print("aim: %s  (inherited: this workspace or its family says so)" % now)
+        else:
+            print("no aim in force; the sitting runs on its stance alone")
+        print("  change it: board aim <%s>" % offered)
+        return 0
+    aim = config.clean_aim(args[0])
+    if not aim:
+        print("board aim: not one of: %s" % ", ".join(config.AIMS), file=sys.stderr)
+        return 2
+    if aim in config.AIMS_OVER:
+        print("board aim: %s is held over a scope -- open it with "
+              "board open --%s --over <name>"
+              % (aim, "walk" if aim == "trace" else "review"), file=sys.stderr)
+        return 2
+    live.set_state(aim=aim)
+    print("aim: %s  (the lesson is untouched)" % aim)
+    print("  %s" % config.AIM_MEANS.get(aim, ""))
+    print("  a turn already mid-conversation reads this on its next fresh turn;")
+    print("  the board's own control wakes one instead.")
+    return 0
+
+
 def cmd_notes(live, args):
     """Meeting notes across the repository: what landed, and what it meant.
 
@@ -3066,7 +3119,7 @@ COMMANDS = {
     "egress": cmd_egress, "limit": cmd_limit,
     "brief": cmd_brief, "note": cmd_note, "handoff": cmd_handoff,
     "map": cmd_map, "notes": cmd_notes, "make": cmd_make,
-    "direction": cmd_direction,
+    "direction": cmd_direction, "aim": cmd_aim,
 }
 
 

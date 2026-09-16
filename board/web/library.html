@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Board">
+<title>Library</title>
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<link rel="icon" href="/icon-192.png">
+<link rel="stylesheet" href="/static/typeface.css">
+<!-- The board's own sheet, for the palette, the dark mode and the reading face.
+     A second set of colours for a second page is two sets to keep in step, and
+     this page is read in the same room, on the same glass, as the lesson. -->
+<link rel="stylesheet" href="/static/board.css">
+<link rel="stylesheet" href="/static/library.css">
+<script src="/static/typeface.js" defer></script>
+</head>
+<body>
+
+<!-- A PAGE, NOT A PANEL OVER THE LESSON. Everything here is about documents
+     this workspace has written, and none of it touches the sitting on the
+     board: feedback lands beside the document it is about and wakes a turn of
+     its own. So the two ways out are the two other surfaces, on one row. -->
+<header id="libbar">
+  <a id="lib-back" href="/board" title="back to the lesson">‹ board</a>
+  <a id="lib-map" href="/board?map=1" title="the map of this workspace">◈ map</a>
+  <strong id="lib-where"></strong>
+  <span id="lib-count" class="muted"></span>
+</header>
+
+<main id="library">
+  <p id="lib-none" class="lib-none" hidden></p>
+  <div id="lib-list"></div>
+</main>
+
+<!-- One document, read on the glass. The pages are PNGs drawn by the machine
+     that holds the PDF, for every reason `course/paper.py` gives: iOS renders a
+     PDF in a frame as one unscrollable page, and navigating to one in a
+     standalone app is a page with no way back. -->
+<div id="reader" hidden>
+  <div id="reader-bar">
+    <strong id="reader-name"></strong>
+    <span id="reader-sub" class="muted"></span>
+    <button id="reader-say" type="button">say what is wrong</button>
+    <button id="reader-close" type="button" title="back to the library">✕</button>
+  </div>
+  <div id="reader-pages"></div>
+</div>
+
+<!-- FEEDBACK, AND IT IS NEVER JUST FILED. It lands beside the document, dated
+     and versioned, and the same request asks for the revision -- a note nothing
+     acts on is a note somebody believes is in force. A page number rides with
+     it because the reader is looking at a page when they write it. -->
+<div id="note" hidden>
+  <div id="note-box">
+    <strong id="note-title"></strong>
+    <p id="note-where" class="muted"></p>
+    <textarea id="note-text" rows="7"
+      placeholder="What is wrong with it, and what should it say instead."></textarea>
+    <p id="note-page" class="muted" hidden></p>
+    <p id="note-said" class="note-said" hidden></p>
+    <div id="note-acts">
+      <button id="note-cancel" type="button" class="quiet">cancel</button>
+      <button id="note-send" type="button" class="primary" disabled>send it</button>
+    </div>
+  </div>
+</div>
+
+<script src="/static/library.js"></script>
+</body>
+</html>

@@ -76,6 +76,8 @@ var els = {
   kindReview: document.getElementById("kind-review"),
   kindWalk: document.getElementById("kind-walk"),
   kindStance: document.getElementById("kind-stance"),
+  kindAim: document.getElementById("kind-aim"),
+  kindAimWays: document.getElementById("kind-aim-ways"),
   stanceTeach: document.getElementById("stance-teach"),
   stanceDo: document.getElementById("stance-do"),
   kindCancel: document.getElementById("kind-cancel"),
@@ -3227,6 +3229,9 @@ function paintKindChooser() {
      code that is already there, so neither has a stance to take and offering
      one would suggest they did. */
   paintStance();
+  /* AND WHAT THE SITTING IS FOR, which is the other question and the one that
+     could not be answered at all once a sitting was open. */
+  paintAim();
   els.kindSets.innerHTML = "";
   if (!knownSets.length) {
     var none = document.createElement("span");
@@ -3303,6 +3308,68 @@ function paintStance() {
 
 var currentStance = null;
 
+/* ------------------------------------------ what this sitting is FOR */
+/* THE ONE CONTROL THAT CHANGES A SITTING WITHOUT LOSING IT.
+
+   Everything else on this panel opens a NEW sitting, which files the lesson
+   away. The aim was chosen once, on the map, at the moment of opening -- so
+   "wait, now teach me how this works", said three hours into building
+   something, cost the evening it was said in. This is the way out of that: the
+   aim of the sitting that is open, changed in place, with the transcript, the
+   cards and the tutor all left exactly where they are.
+
+   THE FIVE ARE THE FIVE `WORK` ALREADY NAMES, and the labels are the strings
+   that table already carries -- one set of words for the map's sheet and for
+   this, or the two drift. The two aims with a `needs` are left out on purpose:
+   each is held over a scope, and choosing one is choosing what it is over,
+   which is a tap on a box and a new sitting.
+
+   THE TAP IS THE INSTRUCTION, so it is sent at once rather than held like a
+   stance pick -- `/aim` writes it, puts it in the transcript and wakes a turn.
+   See `_aim` in `routes/lesson.py`. */
+var currentAim = null;            /* what the sitting says, if it says anything */
+var aimNow = "";                  /* what it is running under, workspace or family */
+
+function aimWays() {
+  return WORK.filter(function (way) {
+    return way.aim !== "show" && !way.needs;
+  });
+}
+
+function paintAim() {
+  /* Hidden in the two sittings that read rather than write, for the reason the
+     stance chooser is: a review asks and a walkthrough traces, and neither is
+     a sitting whose style is anybody's to change mid-way. */
+  var reading = sittingKind === "review" || sittingKind === "walk";
+  els.kindAim.hidden = reading;
+  if (reading) return;
+  var now = currentAim || aimNow || "";
+  var host = els.kindAimWays;
+  host.innerHTML = "";
+  aimWays().forEach(function (way) {
+    var b = document.createElement("button");
+    b.type = "button";
+    b.textContent = way.label;
+    b.title = way.sub;
+    if (way.aim === now) b.className = "on" + (way.does ? " does" : "");
+    b.onclick = function () { setAim(way.aim); };
+    host.appendChild(b);
+  });
+}
+
+function setAim(aim) {
+  els.kind.hidden = true;
+  /* Painted before the answer comes back, because the payload that carries it
+     is a poll away and a control that does nothing for a second is a control
+     somebody taps again. The next payload is the truth either way. */
+  currentAim = aim;
+  fetch("/aim", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ aim: aim })
+  }).catch(function () { /* the payload will say what actually happened */ });
+}
+
 els.stanceTeach.onclick = function () {
   stancePick = "teach";
   paintStance();
@@ -3358,6 +3425,12 @@ function paintReview(state, info, walk) {
      rather than showing the repository's answer over the top of an override. */
   currentStance = state.stance || null;
   declaredStance = state.declared_stance || "teach";
+  /* What the sitting says, and what it is actually running under -- which are
+     different whenever nobody chose, and the second is the workspace's or its
+     family's answer. Resolved by the server (`config.aim_for`), never here: two
+     places deciding a precedence is one of them being wrong. */
+  currentAim = state.aim || null;
+  aimNow = state.aim_now || "";
   var live = walking ? walkInfo : reviewInfo;
   var scope = (live && live.scope) || [];
   els.rvbar.hidden = !on;
@@ -4301,13 +4374,17 @@ var workStep = "";
 var WORK = [
   { aim: "teach", label: "Teach me how this works",
     sub: "Worked through, with the mathematics done properly.",
-    session: "lecture", stance: "teach" },
+    session: "lecture" },
   { aim: "build", label: "Write the code for me",
     sub: "The tutor does the work and reports what it changed.",
-    session: "lecture", stance: "do" },
+    /* `does` is a PAINT HINT and is never sent: the three aims whose product is
+       a change are marked the way a doing stance is, because that is the state
+       in which the tutor writes what the person would otherwise have written.
+       Who actually writes the code is `config.AIM_STANCE`, on the server. */
+    session: "lecture", does: true },
   { aim: "coach", label: "Tell me what to write, I'll code it",
     sub: "One step at a time, in English. You type it.",
-    session: "lecture", stance: "teach" },
+    session: "lecture" },
   { aim: "trace", label: "Walk me through the code",
     sub: "Line by line, through what is already there.",
     session: "walk", needs: "files" },
@@ -4315,11 +4392,11 @@ var WORK = [
     sub: "Asked cold, over this part of the repository.",
     session: "review", needs: "part" },
   { aim: "paper", label: "Write it up as a paper",
-    sub: "A document rather than an answer, kept in the repository.",
-    session: "make", makes: "paper" },
+    sub: "A document rather than an answer, kept in writeups/.",
+    session: "make", makes: "paper", does: true },
   { aim: "slides", label: "Build me a deck about it",
     sub: "Slides you can then read on the board.",
-    session: "make", makes: "slides" },
+    session: "make", makes: "slides", does: true },
   { aim: "show", label: "Show me the document",
     sub: "On the glass, a page at a time.",
     session: "", needs: "doc" }
@@ -4474,7 +4551,10 @@ function takeWork(way, node, chip) {
     aim: way.aim,
     node: (node && node.id) || null,
     step: (chip && chip.label) || null,
-    stance: way.stance || null,
+    /* NO STANCE. The aim answers it -- `build` with a stance of `teach` is a
+       contradiction -- and `config.AIM_STANCE` is where that answer lives. The
+       browser was sending both, which made it the thing deciding, on its own
+       authority, something the repository and its family had already said. */
     makes: way.makes || null,
     /* AND GET ON WITH IT. Choosing a way to work is the instruction; a second
        tap on "ask the tutor to begin", on the lesson behind the map they were
@@ -6393,9 +6473,12 @@ function doingTurn(state) {
   }
   var kind = state.session || "lecture";
   if (kind !== "lecture" && kind !== "homework") return false;
-  /* The sitting's answer, or failing that the repository's own -- which the
-     payload carries, because the client cannot read tutorboard.json. */
-  return (state.stance || state.declared_stance || "teach") === "do";
+  /* The sitting's answer, or failing that the one the server resolved for it --
+     `stance_now`, which is the sitting's own stance, its aim, the repository's
+     word, or its family's default, in that order and decided in one place. The
+     client cannot read `tutorboard.json` and must not re-derive a precedence. */
+  return (state.stance || state.stance_now
+          || state.declared_stance || "teach") === "do";
 }
 
 function newestCard(data) {
@@ -7605,6 +7688,12 @@ if (els.keepwhat) {
 els.paperGet.onclick = function (e) { saveCopy(paperOpen, e.currentTarget); };
 document.getElementById("paper-close").onclick = closePaper;
 document.getElementById("btn-papers").onclick = openPapers;
+/* A PAGE, so it is a navigation rather than a panel -- and a plain one, the way
+   the slate is: the lesson is files and is still here when you come back, and
+   nothing on the library page can change it. */
+document.getElementById("btn-library").onclick = function () {
+  window.location.href = "/library";
+};
 /* Escape leaves the document, the way it leaves the picture viewer. A panel
    that covers the whole glass needs more than one way out of it. */
 document.addEventListener("keydown", function (e) {

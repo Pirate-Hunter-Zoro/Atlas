@@ -15,6 +15,13 @@ never be the reason a board behaves differently from its neighbour.
 import json
 import os
 
+from .. import atlas
+
+
+# Who writes the code. Declared here rather than beside `clean_stance` below,
+# because `read_config` has to be able to say whether a repository ANSWERED the
+# question or was given the default -- see `said_stance`.
+STANCES = ("teach", "do")
 
 DEFAULT_CONFIG = {"name": None, "subtitle": "", "stance": "teach"}
 
@@ -26,11 +33,18 @@ def read_config(root):
     is only ever about how the board behaves, never about whether it works.
     """
     cfg = dict(DEFAULT_CONFIG)
+    # What the FILE said, kept apart from what it is defaulted to. The two are
+    # different answers and `said_stance` below turns on the difference.
+    said = {}
     try:
         with open(os.path.join(root, "tutorboard.json"), "r", encoding="utf-8") as fh:
-            cfg.update(json.load(fh) or {})
+            said = json.load(fh) or {}
     except (OSError, ValueError):
-        pass
+        said = {}
+    if isinstance(said, dict):
+        cfg.update(said)
+    else:
+        said = {}
 
     if not cfg.get("name"):
         cfg["name"] = os.path.basename(os.path.abspath(root)).replace("-", " ")
@@ -44,6 +58,12 @@ def read_config(root):
     # one failure here that cannot be undone by the next card, so it is only ever
     # done because a repository asked for it in writing.
     cfg["stance"] = "do" if stance == "do" else "teach"
+    # AND WHETHER IT WAS SAID AT ALL, which the default above cannot express. A
+    # family declares a default style in `atlas.json`, and that default can only
+    # apply to a repository that has not answered for itself -- so "teach because
+    # it says teach" and "teach because nothing said anything" have to be
+    # different answers here. See `stance_for`.
+    cfg["said_stance"] = str(said.get("stance") or "").strip().lower() in STANCES
     return cfg
 
 
@@ -63,8 +83,8 @@ def read_config(root):
 # So the repository's word is the DEFAULT and a sitting may say otherwise. What
 # does not change is that neither is ever guessed: a sitting stance is written by
 # the person opening the sitting, on the board or at a terminal, and a sitting
-# that says nothing inherits rather than infers.
-STANCES = ("teach", "do")
+# that says nothing inherits rather than infers. The two words themselves are
+# `STANCES`, at the top of this file, because `read_config` needs them too.
 
 
 def clean_stance(stance):
@@ -74,16 +94,37 @@ def clean_stance(stance):
 
 
 def stance_for(root, state):
-    """What this sitting's stance actually is: its own, or the repository's.
+    """What this sitting's stance actually is, and it is DERIVED, not parallel.
 
     Read here rather than in each caller so that there is one answer to it. A
     walkthrough is the exception and it is not this function's exception to
     make -- `sense` holds it, because what a walkthrough refuses is not a stance
     but a method: there is nothing to write either way when the machinery is
     already on disk.
+
+    AN AIM ALREADY ANSWERS THIS. `build` with a stance of `teach` is a
+    contradiction, and while the two were resolved separately the browser was
+    sending both -- deciding on its own authority something the repository and
+    the family had already said. So the order is:
+
+        this sitting's own stance  -- somebody tapped it, for this evening
+        this sitting's aim         -- `AIM_STANCE`; build writes, coach does not
+        the repository's stance    -- `tutorboard.json`, where it says so
+        its family's default aim   -- `atlas.json`, through `aim_for`
+
+    and nothing below the first two is a guess: each is something written down
+    somewhere, by somebody, about this workspace or the family it is in.
     """
     own = clean_stance((state or {}).get("stance"))
-    return own or read_config(root).get("stance") or "teach"
+    if own:
+        return own
+    mine = clean_aim((state or {}).get("aim"))
+    if mine:
+        return AIM_STANCE.get(mine, "teach")
+    cfg = read_config(root)
+    if cfg.get("said_stance"):
+        return cfg.get("stance") or "teach"
+    return AIM_STANCE.get(aim_for(root, state), "teach")
 
 
 # ---------------------------------------------------------------------------
@@ -143,10 +184,79 @@ AIM_MEANS = {
              "Nothing new is written in this sitting.",
     "drill": "They asked to be SET PROBLEMS on this, cold. Ask; do not explain "
              "first.",
+    # These two say what the document IS ABOUT as well as what to do, because
+    # these are the words a person taps and the words the tutor is given, and
+    # they must not drift from `sense.MAKE_SENSE`. That is why this dictionary is
+    # in this file rather than in `sense`.
     "paper": "They asked you to WRITE IT UP as a document: the product of this "
-             "sitting is a paper kept in the repository, not an answer. Draft "
-             "it, show them sections as you go, and take corrections.",
+             "sitting is a paper kept in writeups/, not an answer. Draft it, "
+             "show them sections as you go, and take corrections. It is an "
+             "explainer about the machinery -- how this works, and the "
+             "mathematics -- written for somebody who was not in the room. It "
+             "is not a write-up of this sitting.",
     "slides": "They asked you to BUILD A DECK about this: the product of this "
-              "sitting is slides kept in the repository. Draft them, show them "
-              "on the board a page at a time, and take corrections.",
+              "sitting is slides kept in writeups/. Draft them, show them on "
+              "the board a page at a time, and take corrections. The deck "
+              "explains the machinery to somebody who was not in the room; it "
+              "is not a record of this sitting.",
 }
+
+
+# THE TWO AIMS THAT ARE HELD OVER A SCOPE rather than simply chosen. A
+# walkthrough needs a list of files and a drill needs a part of the repository to
+# ask over, so choosing one of those IS choosing what it is over -- which is a
+# tap on the map and a new sitting. Everything that offers the aims as a choice
+# for the sitting already open leaves these two out and says why.
+AIMS_OVER = ("trace", "drill")
+
+# WHICH AIMS WRITE AND WHICH TEACH, so that a stance never has to be chosen
+# beside an aim that has already answered. `build`, `paper` and `slides` produce
+# a change to the repository; the other four produce cards.
+AIM_STANCE = {
+    "build": "do",
+    "paper": "do",
+    "slides": "do",
+    "teach": "teach",
+    "coach": "teach",
+    "trace": "teach",
+    "drill": "teach",
+}
+
+
+def family_aim(root, base=None):
+    """The default style of the family this workspace sits in, or "".
+
+    `atlas.json` "names and orders the five families and says which hold somebody
+    else's work" -- and a default style is a property of a family in exactly that
+    sense. It is still not a registry of workspaces: nothing there names one, and
+    making a course is still `mkdir courses/Topology`.
+    """
+    try:
+        fam = atlas.family_of(root, base)
+        for one in atlas.families(base):
+            if one["id"] == fam:
+                return clean_aim(one.get("aim")) or ""
+    except Exception:                                        # noqa: BLE001
+        return ""
+    return ""
+
+
+def aim_for(root, state, base=None):
+    """What this sitting is FOR, with the whole precedence in one function.
+
+        the sitting's own aim   -- tapped on the map, or `board aim`
+        the workspace's own     -- `tutorboard.json`
+        the family's default    -- `atlas.json`
+
+    A SITTING NOBODY OPENED FROM THE MAP HAD NO STYLE AT ALL. `tutor galois`,
+    `board open`, a chapter tapped in the contents drawer and a board resumed
+    after a reboot all left `aim` unset, so the sitting ran on stance alone --
+    which is `teach` nearly everywhere and is the wrong answer for a project.
+    """
+    own = clean_aim((state or {}).get("aim"))
+    if own:
+        return own
+    said = clean_aim(read_config(root).get("aim"))
+    if said:
+        return said
+    return family_aim(root, base)

@@ -1,0 +1,190 @@
+#!/usr/bin/env python3
+"""A revision is a turn, and it is not part of the lesson.
+
+Feedback on a document comes off the library page, which is not a sitting. The
+turn it wakes has to be able to edit a document and rebuild it without touching
+the evening somebody else is having on the same board -- and the thing that makes
+that hard is not the card, it is the CONVERSATION.
+
+`turn_plan` resumes the agent's own session by default, which is what makes a
+twelve-card lesson affordable. A revision resumed into a lesson drags the lesson
+into the document and the document back into the lesson. The alternative was a
+second daemon per workspace, which doubles the cost and the failure modes for a
+turn that takes a minute.
+
+So: a `[revise]` line runs fresh, writes no card, leaves `state.json` alone, and
+puts its report beside the document. What is guarded here is each of those, plus
+the one that only shows up a turn later -- that the lesson does not then resume
+into the revision's session.
+"""
+
+import importlib.machinery
+import importlib.util
+import json
+import os
+import sys
+import tempfile
+
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, ROOT)
+
+from tutorboard import atlas, manuscript, sense
+from tutorboard.course import library
+
+_tl = importlib.machinery.SourceFileLoader("tutorcli", os.path.join(ROOT, "bin", "tutor"))
+tutorcli = importlib.util.module_from_spec(
+    importlib.util.spec_from_loader("tutorcli", _tl))
+_tl.exec_module(tutorcli)
+
+fails = []
+
+
+def check(name, cond):
+    if cond:
+        print("ok   " + name)
+    else:
+        fails.append(name)
+        print("FAIL " + name)
+
+
+SPEC = {"headless": ["agent", "-p", "{prompt}", "--continue"],
+        "headless_first": ["agent", "-p", "{prompt}"]}
+
+# ---------------------------------------------------------------------------
+# which turn a revision is
+# ---------------------------------------------------------------------------
+check("a revision line is read as the signal it carries",
+      tutorcli.turn_signal("[2026-09-16 18:02:11] [revise] the document is x")
+      == "revise")
+
+for carried in (0, 1, 7, 40):
+    use, template, fresh = tutorcli.turn_plan(SPEC, carried, 12, "revise")
+    check("a revision runs fresh with %d turn(s) there to resume" % carried,
+          fresh is True and use == SPEC["headless_first"]
+          and template is tutorcli.HEADLESS_REVISE_PROMPT)
+
+use, template, fresh = tutorcli.turn_plan(SPEC, 3, 12)
+check("while an ordinary turn still resumes the lesson",
+      fresh is False and use == SPEC["headless"]
+      and template is tutorcli.HEADLESS_RESUME_PROMPT)
+
+# THE ONE THAT ONLY SHOWS UP A TURN LATER. The revision's session is now the
+# agent's current conversation, and `--continue` would put the next card of the
+# lesson inside it.
+check("the lesson does not resume into the revision's session",
+      tutorcli.carry_after("revise", True, 6) == 0)
+check("and an ordinary turn still carries what it carried",
+      tutorcli.carry_after("", False, 6) == 7
+      and tutorcli.carry_after("", True, 6) == 1)
+
+# ---------------------------------------------------------------------------
+# what that turn is told
+# ---------------------------------------------------------------------------
+said = tutorcli.HEADLESS_REVISE_PROMPT
+check("it is told this turn is not part of the lesson",
+      "NOT PART OF THE LESSON" in said)
+check("and to write no card, in as many words", "Write no card" in said)
+for name in ("board write", "board open", "live/state.json", "live/cards/",
+             "HANDOFF.md", "board wait"):
+    check("and not to touch %s" % name, name in said)
+check("it is told to revise the source rather than write a new document",
+      "REVISE THE DOCUMENT" in said and "Do not start it again" in said)
+check("and to leave its report beside the document, in the feedback file",
+      "bottom of the feedback file" in said.lower()
+      or "BOTTOM OF THE FEEDBACK FILE" in said)
+check("it is not sent to read the contract or the cards, none of which is about "
+      "this document",
+      "Do not read" in said and "TEACHING.md" in said)
+
+line = sense.revise_sense("writeups/serve/serve.tex",
+                          "writeups/serve/feedback/2026-09-16-v1.md")
+check("the line it is woken with names the document",
+      "writeups/serve/serve.tex" in line)
+check("and the feedback file", "writeups/serve/feedback/2026-09-16-v1.md" in line)
+check("and says the lesson on the board is somebody else's",
+      "NOT PART OF THE LESSON" in line and "live/cards/" in line)
+
+# ---------------------------------------------------------------------------
+# the other kind, which the board does not revise itself
+# ---------------------------------------------------------------------------
+tmp = tempfile.mkdtemp(prefix="tutor-revising-")
+os.makedirs(os.path.join(tmp, "projects", "Paper-Writer"), exist_ok=True)
+with open(os.path.join(tmp, "atlas.json"), "w", encoding="utf-8") as fh:
+    json.dump({"families": [{"id": "projects", "name": "Projects"},
+                            {"id": "research", "name": "Research"}]}, fh)
+with open(os.path.join(tmp, "projects", "Paper-Writer", "tutorboard.json"), "w",
+          encoding="utf-8") as fh:
+    json.dump({"name": "Paper-Writer"}, fh)
+work = os.path.join(tmp, "research", "Trial")
+os.makedirs(os.path.join(work, "manuscripts", "feedback"))
+with open(os.path.join(work, "tutorboard.json"), "w", encoding="utf-8") as fh:
+    json.dump({"name": "Trial"}, fh)
+with open(os.path.join(work, "manuscripts", "manuscript.md"), "w",
+          encoding="utf-8") as fh:
+    fh.write("# A delivered manuscript\n")
+note = os.path.join("manuscripts", "feedback", "manuscript-2026-09-16-v1.md")
+with open(os.path.join(work, note), "w", encoding="utf-8") as fh:
+    fh.write("# Feedback\n\nSection 3 reports the wrong split.\n")
+
+os.environ["TUTORBOARD_COURSES"] = tmp
+atlas.forget()
+library.forget()
+
+out = manuscript.revise(work, {"title": "A delivered manuscript",
+                               "rel": "manuscripts/manuscript.md"},
+                        note, base=tmp, dry_run=True)
+body = out.get("markdown") or ""
+check("a revision job is assembled rather than refused", out.get("ok") is True)
+check("it carries a Revision section, which a new paper's job does not",
+      manuscript.REVISION in body
+      and manuscript.REVISION not in manuscript.job(work))
+check("the section names the delivered document",
+      "document: manuscripts/manuscript.md" in body)
+check("and the feedback file", "feedback: %s" % note in body)
+check("it says the existing document stands except where the feedback says not",
+      "Revise it" in body and "different paper" in body)
+check("their words are in the job as well, where every parser reads",
+      "wrong split" in body)
+check("and the feedback file is not listed as prose to preserve",
+      note not in body.split(manuscript.REVISION)[-1].split("Manuscript prose")[-1])
+check("a revision with no document named is refused rather than guessed at",
+      manuscript.revise(work, {"title": "x", "rel": ""}, note,
+                        base=tmp, dry_run=True).get("ok") is False)
+
+# AND AN EXPLAINER IS NOT ROUTED THROUGH THE FACTORY. It is a manuscript factory
+# with gates for venue, claims, citations and a reporting checklist; "how the
+# serve harness works" has no venue and makes no claims, and every one of those
+# gates would either refuse it or invent something to satisfy itself.
+os.makedirs(os.path.join(work, "writeups", "serve-harness"))
+with open(os.path.join(work, "writeups", "serve-harness", "serve-harness.tex"),
+          "w", encoding="utf-8") as fh:
+    fh.write("\\documentclass{article}\n\\title{How the serve harness works}\n")
+with open(os.path.join(work, "writeups", "serve-harness", "serve-harness.pdf"),
+          "w", encoding="utf-8") as fh:
+    fh.write("x" * 30000)
+library.forget()
+made = {d["title"]: d["made"] for d in library.documents(work)}
+check("a board-made explainer is the board's to revise",
+      made.get("How the serve harness works") == "board")
+check("and a delivered manuscript is the factory's",
+      made.get("A delivered manuscript") == "paper-writer")
+
+# The other half of the seam, which lives in Paper-Writer's own repository. It is
+# checked when it is there, and said plainly when it is not, rather than making
+# this suite depend on another workspace being checked out.
+template = os.path.join(os.path.dirname(ROOT), "projects", "Paper-Writer",
+                        "PROMPT_TEMPLATE.md")
+if os.path.isfile(template):
+    text = open(template, encoding="utf-8").read()
+    check("the template names a revision section for the board to fill in",
+          manuscript.REVISION in text)
+    check("and says to leave it out for a new paper",
+          "LEAVE THIS OUT FOR A NEW PAPER" in text)
+else:
+    print("ok   (Paper-Writer is not checked out here; its template is not read)")
+
+print()
+if fails:
+    print("%d FAILURES" % len(fails))
+    sys.exit(1)
+print("a revision changes the document and leaves the lesson exactly where it was")

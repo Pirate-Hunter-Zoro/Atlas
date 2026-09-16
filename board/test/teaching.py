@@ -288,6 +288,8 @@ if serveapp:
           "hand-check" in serveapp.SIGNAL_SENSE["skip"]
           and "restated in full" in serveapp.SIGNAL_SENSE["skip"])
 
+
+
 board_src = open(os.path.join(ROOT, "bin", "board"), encoding="utf-8").read()
 check("board start installs it rather than assuming it is there",
       "install_teaching(live)" in board_src)
@@ -305,6 +307,41 @@ check("board start installs it rather than assuming it is there",
 # that the turn is actually TOLD, in the line it is woken with, and that there is
 # a way to replace an opening sentence with a report once the work is done.
 from tutorboard import sense as sense_mod                   # noqa: E402
+from tutorboard.course import config as course_config        # noqa: E402
+
+# A DOCUMENT IS ABOUT THE SUBJECT, NOT ABOUT THE SITTING.
+#
+# Everything else in the make method is about HOW to work -- sections, show each
+# one, take the corrections -- and it said nothing about what the document IS. A
+# tutor that has just spent three hours teaching, asked to write it up, writes up
+# the three hours. It is a refusal rather than a preference, and it has to hold in
+# three places that must not drift: the method a turn is given, the one sentence
+# behind the word a person taps, and the contract copied into every workspace.
+for phrase, why in [
+    ("NEVER THIS SITTING", "the document is about the subject, not the evening"),
+    ("EXPLAINER", "and is named as an explainer"),
+    ("was not in the room", "written for somebody who was not there"),
+    ("no first person", "with no first person"),
+    ("narrate the hand-check", "and no narration of how it was taught"),
+    ("SCOPE IS THE BOX", "scoped to the box rather than the evening"),
+    ("writeups/", "and kept where a document goes"),
+]:
+    check("the make method says " + why, phrase in sense_mod.MAKE_SENSE)
+for _aim in ("paper", "slides"):
+    _said = course_config.AIM_MEANS[_aim]
+    check("the word a person taps for %s says it too" % _aim,
+          "explainer" in _said.lower() or "explains" in _said.lower())
+    check("and that it is not a record of the sitting (%s)" % _aim,
+          "not a write-up of this sitting" in _said
+          or "not a record of this sitting" in _said)
+for phrase, why in [
+    ("about the SUBJECT", "the contract says the same"),
+    ("was not in the room", "for somebody who was not there"),
+    ("refusal", "and says it is a refusal rather than a preference"),
+    ("writeups/", "and names where a new document goes"),
+]:
+    check("TEACHING.md: " + why, phrase in text)
+
 from tutorboard.course import config as config_mod          # noqa: E402
 from tutorboard.course.repo import Repo                      # noqa: E402
 

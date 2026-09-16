@@ -10,12 +10,13 @@
    network -- a cached lesson is a stale lesson, which is worse than none.
    ========================================================================== */
 
-var VERSION = "board-shell-v120";
+var VERSION = "board-shell-v121";
 
 var SHELL = [
   "/",
   "/board",
   "/slate",
+  "/library",
   "/static/home.css",
   "/static/home.js",
   "/static/gauge.js",
@@ -25,6 +26,8 @@ var SHELL = [
   "/static/typeface.js",
   "/static/board.css",
   "/static/board.js",
+  "/static/library.css",
+  "/static/library.js",
   "/static/shot.js",
   "/static/macros.js",
   "/static/slate.css",
@@ -61,13 +64,22 @@ var RUNTIME = /\/static\/(katex\/fonts|fonts)\//;
    cached lesson, made one layer down, and this file's own rule against it is
    the reason it is here. `/view/` renders and `/paper/` is content-addressed by
    the PDF's modification time -- neither wants the shell's cache-then-serve. */
+/* AND `/doc/`, WHICH IS THE SAME MISTAKE IN THE THIRD PLACE, and the one every
+   change above makes bite. `/doc/<id>/<page>.png` is deliberately the STABLE
+   address of a page -- `routes/taking.py` refuses to cache it server-side for
+   exactly that reason, because a card written last month has to survive the deck
+   being rebuilt -- so it fell through to the shell rule, which caches any 200 it
+   sees. A document revised on feedback is rebuilt at the same name, and the
+   person who asked for the change was then served the page they asked to have
+   changed. `/library/` goes with it: the list, and the pages of a document read
+   from it, are live for the same reason. */
 /* AND `/result/`, which is the same mistake waiting in a third place. A figure
    out of a workspace is REBUILT AT THE SAME NAME by the next job -- the id is
    derived from the path, so `propensity_by_arm.png` is a new picture under an
    old address every time the pipeline runs. A cached one is last week's result
    wearing this week's label, which is the one failure a figure on a board must
    not have: it is being looked at to decide something. */
-var LIVE = /^\/(events|board\.json|courses\.json|hosts\.json|health|switch|chose|start|say|upload|slate\/(save|state)|figure\/|result\/|uploads\/|slate\/page-|download\/|view\/|paper\/)/;
+var LIVE = /^\/(events|board\.json|courses\.json|hosts\.json|health|switch|chose|start|say|aim|upload|slate\/(save|state)|figure\/|result\/|uploads\/|slate\/page-|download\/|view\/|paper\/|doc\/|library\.json|library\/)/;
 
 self.addEventListener("install", function (e) {
   e.waitUntil(
