@@ -19,7 +19,14 @@ set -uo pipefail
 
 B=/media/studies/ehr_study/analysis/mferguson
 export MODEL=$B/models/colibri/glm52_i4
-export COLI_DIR=$HOME/colibri-build/c
+# The build tree is `vendor/colibri-build` inside the Atlas checkout, not a clone in
+# $HOME. Derived from the submit directory so any checkout finds its own, and refused
+# outright when it is not there: a path that silently points at nothing turns "colibri
+# moved" into "coli is broken".
+ATLAS="$(git -C "${SLURM_SUBMIT_DIR:-$PWD}" rev-parse --show-toplevel 2>/dev/null)"
+export COLI_DIR="$ATLAS/vendor/colibri-build/c"
+[ -x "$COLI_DIR/coli" ] || { echo "no coli at '$COLI_DIR'; is this inside the Atlas"\
+    " checkout, and has vendor/colibri-build been built?" >&2; exit 1; }
 export OUTDIR=$B/fleet-p0/t3457_$SLURM_JOB_ID
 mkdir -p "$OUTDIR"
 AB=$B/fleet-p0/coli_ab.sh
