@@ -52,6 +52,9 @@ var els = {
   slateSub: document.getElementById("hero-slate"),
   waiting: document.getElementById("waiting"),
   waitingText: document.getElementById("waiting-text"),
+  answers: document.getElementById("answers"),
+  answersLead: document.getElementById("answers-lead"),
+  answersList: document.getElementById("answers-list"),
   atlasWrap: document.getElementById("atlas-wrap"),
   atlasPlane: document.getElementById("atlas-plane"),
   atlasSvg: document.getElementById("atlas-svg"),
@@ -263,7 +266,80 @@ function aText(x, y, cls, text) {
   return t;
 }
 
+/* ------------------------------------------ an answer waiting somewhere else
+
+   The board carries this strip too, and for the same reason; this is the half
+   that is on screen when somebody comes back to the app rather than to a
+   lesson. A turn set going before dinner finishes into an empty room, and the
+   only thing that made it findable was remembering which workspace it was in.
+
+   The fact comes off the atlas payload -- `news` per workspace, computed by
+   `tutorboard/news.py` -- so this costs no request of its own. */
+function answerAgo(when) {
+  var secs = Math.max(0, Math.round(Date.now() / 1000 - (when || 0)));
+  if (secs < 60) return "just now";
+  var mins = Math.round(secs / 60);
+  if (mins < 60) return mins + "m ago";
+  var hrs = Math.round(mins / 60);
+  if (hrs < 24) return hrs + "h ago";
+  return Math.round(hrs / 24) + "d ago";
+}
+
+var answersShown = "";
+
+function paintAnswers(payload) {
+  if (!els.answers) return;
+  var waiting = [];
+  ((payload && payload.workspaces) || []).forEach(function (c) {
+    if (c.news && !c.current) waiting.push(c);
+  });
+  waiting.sort(function (a, b) { return (b.news_at || 0) - (a.news_at || 0); });
+  waiting = waiting.slice(0, 4);
+  if (!waiting.length) {
+    els.answers.hidden = true;
+    els.answersList.textContent = "";
+    answersShown = "";
+    return;
+  }
+  var sig = waiting.map(function (c) {
+    return c.id + "@" + Math.round(c.news_at || 0);
+  }).join("~");
+  els.answers.hidden = false;
+  els.answersLead.textContent = waiting.length === 1
+    ? "an answer is waiting"
+    : waiting.length + " answers are waiting";
+  if (sig === answersShown) return;
+  answersShown = sig;
+  els.answersList.textContent = "";
+  waiting.forEach(function (c) {
+    var row = document.createElement("button");
+    row.type = "button";
+    row.className = "answer-row";
+    row.dataset.ws = c.id;
+    var where = document.createElement("span");
+    where.className = "answer-where";
+    where.textContent = c.course || c.repo || c.id;
+    var what = document.createElement("span");
+    what.className = "answer-what";
+    what.textContent = c.news_title || c.chapter || "the tutor wrote a card";
+    var when = document.createElement("span");
+    when.className = "answer-when";
+    when.textContent = answerAgo(c.news_at);
+    row.appendChild(where);
+    row.appendChild(what);
+    row.appendChild(when);
+    /* THE SAME DOOR THE CARD OPENS. A notification that took a second route
+       into a workspace would be a second behaviour to keep true; this is the
+       sheet's own button, minus the sheet. */
+    row.addEventListener("click", function () { openWorkspace(c); });
+    els.answersList.appendChild(row);
+  });
+}
+
 function paintAtlas(payload) {
+  /* Outside the try below and before it: a picture that could not be drawn is
+     not a reason to lose the one row that says work has come back. */
+  try { paintAnswers(payload); } catch (e) { /* not the way back; the row is */ }
   /* NOTHING IN HERE MAY THROW. A front door that throws is a blank screen
      where the app used to be, and this one is the way back into a lesson. The
      same wrapping `paintMap` has, for the same reason. */
@@ -302,7 +378,11 @@ function paintAtlasNow(payload) {
      twenty seconds and an SVG rebuilt under a finger is a pan that stutters. */
   var sig = atlasCards.map(function (c) {
     return [c.id, c.course, c.next, c.open, c.cards, c.running, c.node,
-            Math.round((c.touched || 0) / 60), c.current].join("|");
+            Math.round((c.touched || 0) / 60), c.current,
+            /* An unread answer is part of the picture, so it is part of the
+               signature: without it the badge appears only when something else
+               about the card happens to change. */
+            c.news ? Math.round(c.news_at || 0) : 0].join("|");
   }).join("~");
   if (sig === atlasDrawn) return;
   atlasDrawn = sig;
@@ -325,10 +405,19 @@ function paintAtlasNow(payload) {
 
   atlasCards.forEach(function (c) {
     var here = !!c.current;
+    /* An answer landed in this one and nobody has read it. Never on the card
+       you are standing in: the lesson is on the other side of one tap, and a
+       badge about where you already are is furniture. */
+    var news = !!c.news && !here;
     g.appendChild(window.Gauge.el("rect", {
       x: c._x, y: c._y, width: c._w, height: c._h, rx: 10,
-      class: "card-box" + (here ? " here" : "")
+      class: "card-box" + (here ? " here" : "") + (news ? " news" : "")
     }));
+    if (news) {
+      g.appendChild(window.Gauge.el("circle", {
+        cx: c._x + c._w - 13, cy: c._y + 13, r: 5.5, class: "card-news"
+      }));
+    }
 
     var tx = c._x + A_PAD;
     var ty = c._y + A_PAD + 14;
@@ -557,9 +646,10 @@ els.sheetClose.onclick = closeSheet;
 els.sheet.addEventListener("click", function (ev) {
   if (ev.target === els.sheet) closeSheet();
 });
-els.sheetOpen.onclick = function () {
-  var c = sheetFor;
-  closeSheet();
+/* ONE WAY INTO A WORKSPACE. The sheet's button, a notification row, and
+   anything else that opens one all come here: two routes in is two behaviours
+   that drift, and the one that rots is the one used less often. */
+function openWorkspace(c) {
   if (!c) return;
   /* THROUGH THE ADDRESS, not around it. A tap and a link have to do the same
      thing or there are two ways into a workspace and one of them will rot;
@@ -577,6 +667,12 @@ els.sheetOpen.onclick = function () {
      board that is already serving is a restart somebody did not ask for. */
   if (c.current) { location.href = "/board"; return; }
   switchTo(c.repo);
+}
+
+els.sheetOpen.onclick = function () {
+  var c = sheetFor;
+  closeSheet();
+  openWorkspace(c);
 };
 
 /* ------------------------------------------------------ notes for a meeting */

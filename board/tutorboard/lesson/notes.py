@@ -40,7 +40,7 @@ def load_messages(repo, limit=60):
 # survives.
 def waiting(repo, limit=400):
     """The oldest thing in the inbox nobody has picked up, and how many there are."""
-    oldest, count = None, 0
+    oldest, count, signal = None, 0, ""
     for rec in load_messages(repo, limit=limit):
         if rec.get("read"):
             continue
@@ -51,9 +51,15 @@ def waiting(repo, limit=400):
             continue
         if at and (oldest is None or at < oldest):
             oldest = at
+            # WHAT is waiting, not merely that something is. A direction change
+            # is the one send that replaces the tutor it was sent to, so the
+            # several minutes before anything picks it up are expected rather
+            # than wrong -- and a strip that cannot tell the two apart reports
+            # the expected one in the words of a stall.
+            signal = (rec.get("signal") or "")
     if not count:
         return None
-    return {"since": oldest, "count": count}
+    return {"since": oldest, "count": count, "signal": signal}
 
 
 def load_notes_sent(repo):

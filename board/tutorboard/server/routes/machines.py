@@ -15,6 +15,7 @@ from .. import spawn
 from ... import atlas
 from ... import machines
 from ... import meeting
+from ... import news
 from ...lesson import state
 
 
@@ -56,6 +57,11 @@ def get(h, repo, path):
                 return h.send_file(os.path.join(out_dir, n))
         return h.send_json({"ok": False, "error": "no such notes"}, status=404)
 
+    if path == "/news":
+        # The same list the board payload carries, for a surface that is not on
+        # the stream -- the front door polls, it does not subscribe.
+        return h.send_json({"news": news.waiting(repo)})
+
     if path == "/health":
         # `dir` so a caller can confirm it reached the course it meant --
         # ports are derived from names and derivation is not proof, and the
@@ -84,6 +90,26 @@ def get(h, repo, path):
 
 
 def post(h, repo, path):
+    # SOMEBODY IS LOOKING AT THIS WORKSPACE, NOW.
+    #
+    # The one fact the notifications are built out of, and the only one that
+    # cannot be derived: a board is a long-lived process that goes on running in
+    # an empty room, so "a request arrived" and "a person is reading this" are
+    # different things. The page says it -- on its first payload, when a card
+    # lands in front of it, and when the tab comes back to the front -- and it is
+    # throttled there rather than here.
+    #
+    # It marks THIS workspace and no other: a name from a browser never reaches
+    # the filesystem, and there is exactly one root this server may write into.
+    if path == "/seen":
+        news.mark_seen(repo.root)
+        # The next payload has to be able to say the badge has gone; without
+        # this it says the old answer for up to `news.TTL`, and a notification
+        # that survives being read is one nobody trusts again.
+        news.forget()
+        h.server.hub.worker.dirty.set()
+        return h.send_json({"ok": True})
+
     if path == "/notes":
         # MEETING NOTES, FROM THE FRONT DOOR, because that is what is open when
         # somebody remembers they have one in ten minutes. The work is the same

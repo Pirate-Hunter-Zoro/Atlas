@@ -7,7 +7,7 @@ import os
 import threading
 import time
 
-from .. import direction
+from .. import direction, news
 from ..course import config, homework
 from ..lesson import archive, cards, git, notes, slate, state, turns, uploads
 
@@ -137,6 +137,12 @@ class Hub:
         # "never changed" from "changed to nothing".
         said, when = direction.read(self.repo.root)
         data["direction"] = {"text": said, "when": when} if said else None
+        # AN ANSWER THAT LANDED SOMEWHERE ELSE. A turn set going in one
+        # workspace goes on running while its person works in another, and until
+        # this there was nothing anywhere that said it had finished -- the only
+        # way to find out was to switch back and look. `news.waiting` is cached
+        # hard; see the module.
+        data["news"] = news.waiting(self.repo)
         return data
 
     def poll_loop(self):

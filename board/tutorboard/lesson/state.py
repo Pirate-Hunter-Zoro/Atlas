@@ -47,6 +47,13 @@ def load_agent(repo):
         st["state"] = "reattaching" if _reattaching(st) else "stale"
     # And whatever went wrong last, if it is still news. See `_failure`.
     st["failure"] = _failure(repo, st)
+    # WHAT THE TURN WAS WOKEN FOR belongs to the turn, and the record outlives
+    # it: `turn_signal` is written when a turn starts and every path out of a
+    # turn would otherwise have to remember to clear it. Cleared HERE, once,
+    # because a stale one is a strip saying "re-planning" over a tutor that has
+    # been listening for an hour.
+    if st.get("state") != "working":
+        st["turn_signal"] = ""
     return st
 
 

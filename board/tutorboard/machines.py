@@ -14,7 +14,7 @@ import os
 import subprocess
 import time
 
-from . import atlas, choice, machine, paths, ports
+from . import atlas, choice, machine, news, paths, ports
 from .course import config
 from .lesson import cards
 
@@ -237,6 +237,19 @@ def _last_touched(root):
     return 0.0
 
 
+def _mark_news(cards, repo):
+    """Hang `news` and `news_at` on each card. Never raises; see `news`."""
+    try:
+        waiting = {n["id"]: n for n in news.waiting(repo)}
+    except Exception:                                # noqa: BLE001
+        waiting = {}
+    for c in cards:
+        hit = waiting.get(c.get("id"))
+        c["news"] = bool(hit)
+        c["news_at"] = hit["when"] if hit else 0
+        c["news_title"] = (hit or {}).get("title") or ""
+
+
 def atlas_payload(repo):
     """Everything the front door draws, in family order.
 
@@ -252,6 +265,7 @@ def atlas_payload(repo):
         # switched. Everything else in here can be half a minute old.
         for c in _ATLAS["value"]["workspaces"]:
             c["current"] = paths.same_dir(c["root"], repo.root)
+        _mark_news(_ATLAS["value"]["workspaces"], repo)
         return _ATLAS["value"]
 
     from .course import plan as course_plan          # circular at module scope
@@ -332,6 +346,12 @@ def atlas_payload(repo):
                 c["drawn"] = clipped(drawn["title"])
         except Exception:                            # noqa: BLE001
             c["drawn"] = ""
+
+    # AND WHICH OF THEM ANSWERED WHILE NOBODY WAS LOOKING. Outside the cache
+    # above and re-asked on every hit, for the same reason `current` is: a badge
+    # saying an answer is waiting, half a minute after it was read, is a badge
+    # that teaches somebody to ignore badges.
+    _mark_news(cards, repo)
 
     out = {"families": [dict(f) for f in atlas.families()], "workspaces": cards}
     for f in out["families"]:
