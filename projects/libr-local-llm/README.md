@@ -277,7 +277,7 @@ A delimited `# >>> ollama >>>` block in `~/.bashrc` sets these. A backup of the 
 | Variable | Value | Why |
 | --- | --- | --- |
 | `PATH` | **prepend** `$HOME/bin` | reach the ollama binary |
-| `PATH` | **append** `$HOME/Atlas/projects/libr-local-llm/bin` | reach the driver commands (§4a). See below — this one has three constraints |
+| `PATH` | **append** `$HOME/Atlas/projects/libr-local-llm/bin` | reach the driver commands — `ollama-*` (§4a) and `coli-*` (§4c). See below — this one has three constraints |
 | `OLLAMA_MODELS` | `/media/studies/.../models/ollama` | weights on studies, not the 100 GB home share |
 | `OLLAMA_HOST` | `127.0.0.1:11500` | non-default port avoids collisions on shared nodes; **loopback keeps a PHI-processing endpoint off the cluster network** |
 | `OLLAMA_CONTEXT_LENGTH` | `65536` in `~/.bashrc`, **overridden to `131072` in the accel sbatch** | ollama defaults to a few thousand tokens; an agent silently truncates its own history there. 65536 is the number that has to be safe on *one* 46 GB card, where `medgemma:27b-it-q8_0` is 29.6 GB before any KV cache. The accel profile has four cards and 114 GB of them idle, so it serves `gpt-oss:120b` at the model's full 131072 — see §7.24 for why that is a *quality* setting and not just a capacity one |
@@ -351,12 +351,16 @@ answering; and `bash -lc 'set -e'` returning zero with the guard file present an
 
 ## 4. Serving
 
-Two Slurm jobs. Submit **from the repo root** — the log paths are relative.
+Three Slurm jobs. Submit **from the repo root** — the log paths are relative.
 
 | Job | Partition | GPUs | CPUs | Use |
 | --- | --- | --- | --- | --- |
 | `slurm_jobs/ollama_serve.sbatch` | `c3_short` | 1 | 4 | daily driver (qwen3-coder, medgemma) |
 | `slurm_jobs/ollama_serve_accel.sbatch` | `c3_accel` | 4 | 8 | `gpt-oss:120b` only |
+| `slurm_jobs/colibri_serve.sbatch` | `c3_short` | 1 | 88 | GLM-5.2 int4 for work that cannot leave the building (§4c) |
+
+The rest of this section is about the two ollama jobs. The colibrì one is a different animal —
+88 CPUs and most of a terabyte to answer one user — and has §4c to itself.
 
 **On the partition choice.** `c3` and `c3_short` are two queues over the *same six nodes*
 (compute300–305, one A40 each). They differ only in time limit — 7 days versus 9 hours — and in how
@@ -512,6 +516,132 @@ Two things to know:
 - **This is the case that trips trap §7.19.** Running Slurm commands from inside an allocation is
   what breaks without the `SLURM_*` scrub. Verified working from compute302 against a server on
   compute306.
+
+---
+
+## 4c. colibrì (GLM-5.2): serving it, and putting it to work
+
+The second serving stack, and it is not a second Ollama. One job, five driver commands, and a
+model that holds most of a 1 TB node to answer one user at a time. Use it for the work that
+cannot leave the building; use §4a for everything else.
+
+| Piece | Path |
+| --- | --- |
+| Engine source, pinned | `vendor/colibri-build/c` in the Atlas checkout (a submodule) |
+| Built engine | `vendor/colibri-build/c/colibri` — **not in git**, rebuild after a clone |
+| Launcher | `vendor/colibri-build/c/coli` — needs Python ≥ 3.10 |
+| Checkpoint | `…/mferguson/models/colibri/glm52_i4`, 429 GB of data in 498 GB of share |
+| Serve job | `slurm_jobs/colibri_serve.sbatch` |
+| Shared derivation | `scripts/colibri-env.sh` |
+
+### The commands
+
+| Command | Does |
+| --- | --- |
+| `coli-build [clean]` | Compiles the engine with `ARCH=native CUDA=1 CUDA_ARCH=sm_86`. |
+| `coli-up [-t hours] [-c cpus] [-M gb]` | Submits the serve job, waits for the engine to load, then **warms it with one real generation** and only then reports success. |
+| `coli-code [-d dir] [-a claude\|opencode] [--yes] [message…]` | Opens a coding agent in any directory, pointed at the served model. No message → the TUI; a message → one shot. |
+| `coli-ask [-f file] [-n tokens] [--think] "question"` | One question, no agent, no tools, no preamble. |
+| `coli-down` | Cancels the server. It holds most of a node — run it. |
+| `coli` | Not the engine launcher — a signpost that prints the five above and says whether a server is up. `coli --raw` reaches the real launcher. |
+
+They find the job through `squeue` and step onto its node with `srun --overlap`, exactly as the
+`ollama-*` trio does, and for the same reason: the endpoint is loopback on the serving node and
+**must stay that way**. Every path, default and module list is derived once in
+`scripts/colibri-env.sh` and sourced by all five plus the sbatch, so there is one answer to "where
+is colibrì" rather than five that can drift.
+
+### Why `coli-up` warms before it returns
+
+A bound socket is not a loaded model, and a loaded model is not a warm one. The gateway constructs
+its HTTP server **before** the engine, deliberately, so a bad argument fails in milliseconds
+instead of after 429 GB — which means a TCP probe answers instantly and tells you nothing. Then the
+engine mmaps the checkpoint and faults expert slabs in *during generation*, so the first caller
+pays the rest of the cold start one token at a time.
+
+So `coli-up` watches the gateway's own `API listening on` line for the load, and the job sends its
+own first request for the warm. The request is lodged in the accept queue while the model is still
+loading, costing nothing, and `COLIBRI-SERVE READY` carries the prompt-token count, the completion
+count and the seconds — not a rate, because that clock is mostly the load and a tok/s computed from
+it would look like a benchmark and not be one. `--no-warm` skips the wait and says what it skipped.
+
+### What the serve job does differently from `t34567_colibri.sbatch`
+
+Every P0 finding, applied rather than measured, plus the two things P0 did not have to get right
+because it never served:
+
+- **`--gpu auto --auto-tier`, and `CUDA_DENSE=0` behind it.** Without the first the engine runs
+  CPU-only beside an idle card and says nothing (trap 30). The second is needed because the first
+  turns `CUDA_DENSE` on by itself.
+- **`--ctx 131072`.** The family default is 4096, which is smaller than a coding agent's system
+  prompt (trap 31).
+- **One GPU.** Four are worth 0.9 % on this model; the other three cards are each worth far more as
+  tier-1 throughput to somebody else. `c3_short` on compute300–305, never `c3`, never compute306.
+- **88 CPUs, not 92.** `MaxCPUsPerNode` is a *partition*-wide cap, so one co-tenant holding two CPUs
+  makes a 92-CPU request pend on `(Resources)` forever beside an idle GPU.
+- **`OMP_NUM_THREADS` from `SLURM_CPUS_PER_TASK`, allowed to exceed the physical core count.** The
+  engine self-tunes down to 48 on this box and is wrong to.
+- **`numactl --interleave=all`.** `coli tune`'s candidate set is thread counts and CUDA stream
+  shapes; it cannot propose memory placement, so it cannot find this and does not know it is
+  missing. `coli doctor` recommends `COLI_NUMA=1` instead, and that is measurably behind.
+- **`XEXP`, `DRAFT` and `CUDA_DENSE` all unset**, each a measured loss. `MTP` is left alone
+  rather than set either way: the engine turns native speculative decoding on by itself at
+  `draft=1` and says so in the log, and what P0 measured was setting it explicitly on top of
+  that. Which of the two states it measured is not recoverable from the result, so the job
+  takes the engine's default and the question stays open in `P0-STATUS.md`.
+- **`PYTHONNOUSERSITE=1`**, because `os.access` lies on this filer and pip installs 8.7 GB into
+  `~/.local` that then shadows the environment at import time.
+- **`TMPDIR` on the studies share.** `/tmp` is a node-local RAM tmpfs, so `coli`'s serve pidfile
+  written on one node is simply absent from the next.
+
+Lower `-M` to schedule sooner. 950 GB holds every expert warm in page cache; less memory is not a
+failure, it is a slower tail, because the engine streams what will not fit.
+
+### Where the transcript goes, and why it is not in this repo
+
+**A driver that can read `phi` writes a transcript that quotes `phi`.** The model's reasoning is
+session content the moment it repeats a line of the session back, and that rules out both places a
+coding agent would put it by default.
+
+Not `slurm_jobs/logs/**`: that directory is *exempt* from the PHI fence, on the stated
+understanding that the jobs print counts and durations and never text. The gateway honours that
+with `COLI_DEBUG` unset — it writes a banner, a plan and one access line per request, no bodies —
+but `COLI_DEBUG=1` tees every decoded token to stderr and `COLI_DEBUG=2` adds the whole rendered
+prompt, prior turns and tool results included. **The serve job refuses to start when it is set**,
+by name, at the top. That is enforcement rather than hope, and it is the right shape for a promise
+everything downstream is relying on.
+
+Not `~/.claude/projects` or `~/.local/share/opencode` either, which is where both front ends keep
+their history and where a hosted assistant reads all day.
+
+So `coli-code` points both stores at `$COLI_SESSION_ROOT`, which ends in a directory named `phi`.
+That name is fenced whole and at any depth by `ai-config/policy/phi.py` — the rule that survived
+the session data moving twice in one day without changing by a character. Nothing new had to be
+invented and there is no second rule to keep in step with the first.
+
+### The preamble is the bill, and it decides which command you want
+
+The engine decodes at single-digit tokens per second and **prefills at a few**, so the cost of a
+question is dominated by how much text precedes it. A coding agent sends its system prompt and its
+whole tool catalog before your first word, and that is the larger half of a working day's wait.
+`P0-STATUS.md` finding 20 has the measured rates and the measured preamble; the shape of the answer
+is that **`coli-ask` is the interactive command and `coli-code` is an overnight one.**
+
+Three consequences are built into the tools rather than left as advice. `coli-code` gives each front
+end a **fresh, empty config directory** — no MCP servers, no plugins, no global `CLAUDE.md`, all of
+which travel in the same request and are billed at the same rate — and `--instructions` is what opts
+the repository's instructions back in, with a warning about what they cost. It tells the client the
+real context window, because the client does not recognise this model and otherwise assumes one
+nearly twice as large. And `coli-ask` exists at all because a bare question skips the preamble
+entirely; it streams, so that a long prefill looks like work rather than a hang.
+
+Leave the server up between tasks. The engine keeps a KV prefix per slot and matches each request's
+tokenised prompt against it, so a preamble already paid for is not paid again — that is what makes
+an agent loop finish at all, and it is why `coli-down` between two jobs is expensive.
+
+A fresh config directory also means **the PHI hook in `~/.claude` is not loaded**. That is the
+point: this model runs on our own hardware and reading `phi` is the job it exists for. It is also
+exactly why the transcript goes behind the fence.
 
 ---
 
@@ -763,6 +893,60 @@ Do not re-learn these.
     traceback whose top frames are all `contextlib`. Export `CUDA_HOME=$EBROOTCUDA` to fix the
     lookup, and set `VLLM_USE_FLASHINFER_SAMPLER=0` anyway: a kernel build inside the serving path
     is a cold-start hazard, and the JIT cache would land on a shared NFS filer.
+
+27. **`coli serve` binds its port before it loads the model, so a TCP probe reports a server that
+    cannot generate a token.** (Added 2026-09-16.) The gateway constructs its `APIServer` first and
+    the `Engine` second, on purpose — a bad argument then fails in milliseconds instead of after
+    429 GB. The consequence at the other end is that `127.0.0.1:8000` accepts a connection about two
+    seconds into a job whose model needs several minutes, so the readiness check that works for
+    ollama — probe the port — reports success against a socket with nothing behind it. The line that
+    actually means the model is up is the gateway's own `OpenAI-compatible API listening on …`, on
+    **stderr**, printed after the engine is constructed; `coli-up` greps for that.
+    The connection a probe gets is not wasted, though, and the serve job uses it: a request sent
+    into the accept queue while the engine is still loading costs nothing and is served the instant
+    it can be, which is how the warm-up generation is already in flight before the model finishes
+    loading.
+
+28. **`coli doctor` reports the model directory read-only when it is writable — it is `os.access`
+    again.** (Added 2026-09-16.) `storage.persistence` warns *"model directory is read-only; disable
+    persistence or change permissions"* against a directory the same account writes to without
+    error. Same root cause as trap 25: the filer synthesises POSIX mode bits lossily from the real
+    NFSv4 ACL and `os.access` believes them. The warning is a false negative and KV persistence and
+    `.coli_usage` both work; do not go changing permissions to satisfy it.
+
+29. **The cold load is not 101 seconds any more, and the reason is that the router learned.**
+    (Added 2026-09-16.) The checkpoint's `.coli_usage` has grown from 58,240 expert selections to
+    1,698,816, and at that confidence the planner stops streaming and **pins**: `plan 432.5 GB
+    (conf 1.00) … -> pinning 432.5 GB`, read off the filer before the first token. That is minutes,
+    not seconds, and it is the load `coli-up` waits through. It is also the cold-start cost being
+    paid in one place instead of leaking into the first user's decode rate, which is the better
+    trade — but a job that budgets 101 seconds for a load will conclude the server hung.
+
+30. **On Linux, `coli` runs CPU-only unless you pass `--gpu`, and it does not mention that it
+    did.** (Added 2026-09-16.) The launcher has a block that detects a card and enables CUDA by
+    itself — and it is scoped to `win32`, with a comment saying Linux has "the explicit-flag UX"
+    instead. So `coli serve --model …` on a node holding an A40 loads 429 GB, serves happily, and
+    never touches the card. Nothing in the startup output says so; `nvidia-smi` reports 0 MiB used
+    and `GET /health` reports `"gpus": 0`. Upstream knows the shape of this failure — the code
+    carries a note about `--gpu`/`--vram` once being ignored silently and *"GPU benchmarks published
+    by mistake (#121)"*.
+    **`coli doctor` will not catch it**, because doctor plans and serve runs: doctor reported a
+    45.7 GB VRAM hot tier and ~2152 hot experts for a configuration that then used neither. Measured
+    cost of the mistake on the first pass here: **0.64 tok/s decode and 1.3 tok/s prefill**, which is
+    the same 0.64 P0 recorded as its "cold" number. Pass `--gpu auto --auto-tier`, and read
+    `/health` rather than the plan to confirm it took.
+    One thing rides along with the fix: `--gpu` does `setdefault("CUDA_DENSE", "1")`, and
+    `CUDA_DENSE=1` measured 2.56 tok/s against 2.67. Every variable the planner writes is a
+    setdefault, so exporting `CUDA_DENSE=0` in the job wins.
+
+31. **The context window defaults to 4096, which is smaller than a coding agent's system prompt.**
+    (Added 2026-09-16.) The GLM family's registered `default_context` is 4096 and its maximum is
+    1048576. An agent whose preamble does not fit is truncated from the front, which is where the
+    system prompt and the tool definitions live — the same failure mode as trap 24, at a
+    twentieth of the size. Raising it is nearly free on this box: `coli plan` from 4096 to 131072
+    grows the runtime allocation from 7.3 GB to 45.0 GB and moves nothing else, with warm experts at
+    371.7 GB, the VRAM hot tier at 45.7 GB and projected residency at 100% throughout. The serve job
+    passes `--ctx 131072`.
 
 ---
 

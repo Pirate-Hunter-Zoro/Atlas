@@ -1,0 +1,115 @@
+#!/bin/bash
+# One question to the model, no agent, no tools, no preamble.
+#
+#   coli-ask "what does a Kaplan-Meier curve assume"
+#   coli-ask -f notes.md "summarise this"      # a file as the context
+#   coli-ask -n 2048 "..."                     # a longer answer
+#   coli-ask --think "..."                     # let GLM-5.2 reason first
+#
+# This exists because the preamble is the bill. A coding agent sends 10-20k
+# tokens of system prompt and tool catalog before your first word, and prefill on
+# the CPU-streaming path runs at a few tokens per second. A bare question skips
+# all of it and answers in about a minute.
+#
+# The answer goes to stdout and nowhere else -- not to a job log, not to a
+# session store. Redirect it yourself if you want to keep it, and mind where.
+set -euo pipefail
+
+_self="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd -P)"
+. "$(dirname "$_self")/scripts/colibri-env.sh"
+
+NGEN=1024
+CTXFILE=""
+THINK=0
+SYSTEM=""
+while [ $# -gt 0 ]; do
+    case "$1" in
+        -n|--tokens)  NGEN="$2"; shift 2 ;;
+        -f|--file)    CTXFILE="$2"; shift 2 ;;
+        -s|--system)  SYSTEM="$2"; shift 2 ;;
+        -p|--port)    COLI_PORT="$2"; shift 2 ;;
+        --think)      THINK=1; shift ;;
+        -h|--help)   awk 'NR>1 && /^#/ { sub(/^# ?/, ""); print; next } NR>1 { exit }' "$0"; exit 0 ;;
+        --)           shift; break ;;
+        *)            break ;;
+    esac
+done
+PROMPT="$*"
+[ -n "$PROMPT" ] || { echo "coli-ask: nothing to ask." >&2; exit 2; }
+[ -z "$CTXFILE" ] || [ -r "$CTXFILE" ] || { echo "coli-ask: cannot read $CTXFILE" >&2; exit 2; }
+
+JOB_ID="$(squeue -u "$USER" -n "$COLI_JOB_NAME" -t RUNNING -h -o '%i' | head -1)"
+[ -n "$JOB_ID" ] || { echo "No colibri server is running. Start one: coli-up" >&2; exit 1; }
+
+# The request is built on THIS side and handed over as a file, so nothing that
+# might be session text is ever interpolated into a command line -- a command
+# line is visible in `ps` to every other user on the node.
+#
+# It goes on shared storage, not in $TMPDIR. /tmp here is a node-local RAM
+# tmpfs, so a file written on this node is simply absent on the serving one --
+# and under the phi fence, because -f can hand it session text.
+mkdir -p "$COLI_SESSION_ROOT/requests"
+# No chmod here on purpose. This filer serves NFSv4 ACLs and synthesises the
+# POSIX mode bits from them lossily -- the same defect that makes `os.access`
+# lie -- so a chmod writes back a mode derived from a bad reading and can drop
+# the real ACL. The parent directory already restricts this tree.
+REQ="$(mktemp "$COLI_SESSION_ROOT/requests/ask.XXXXXX")"
+trap 'rm -f "$REQ"' EXIT
+CTXFILE="$CTXFILE" SYSTEM="$SYSTEM" PROMPT="$PROMPT" NGEN="$NGEN" THINK="$THINK" \
+MODEL_ID="$COLI_MODEL_ID" python3 - "$REQ" <<'PY'
+import json, os, sys
+prompt = os.environ["PROMPT"]
+ctx = os.environ.get("CTXFILE") or ""
+if ctx:
+    prompt = open(ctx, encoding="utf-8", errors="replace").read() + "\n\n" + prompt
+msgs = []
+if os.environ.get("SYSTEM"):
+    msgs.append({"role": "system", "content": os.environ["SYSTEM"]})
+msgs.append({"role": "user", "content": prompt})
+body = {"model": os.environ["MODEL_ID"], "messages": msgs,
+        "max_tokens": int(os.environ["NGEN"]), "stream": True}
+if os.environ["THINK"] == "1":
+    body["enable_thinking"] = True
+open(sys.argv[1], "w", encoding="utf-8").write(json.dumps(body))
+PY
+
+# The reply is streamed so there is something on the screen while a long prefill
+# runs; without it a five-minute wait looks like a hang.
+srun_on_server() {
+    (
+        for v in $(env | grep -oE '^SLURM_[A-Z_0-9]+' || true); do unset "$v"; done
+        exec srun --jobid="$JOB_ID" --overlap "$@"
+    )
+}
+
+srun_on_server --quiet python3 - "$REQ" "$COLI_PORT" <<'PY'
+import json, sys, time, urllib.request
+req_path, port = sys.argv[1], sys.argv[2]
+body = open(req_path, "rb").read()
+r = urllib.request.Request(f"http://127.0.0.1:{port}/v1/chat/completions",
+                           data=body, headers={"Content-Type": "application/json"})
+t0 = time.time(); first = None; n = 0
+with urllib.request.urlopen(r, timeout=7200) as resp:
+    for raw in resp:
+        line = raw.decode("utf-8", "replace").strip()
+        if not line.startswith("data:"):
+            continue
+        payload = line[5:].strip()
+        if payload == "[DONE]":
+            break
+        try:
+            chunk = json.loads(payload)
+        except ValueError:
+            continue
+        delta = (chunk.get("choices") or [{}])[0].get("delta") or {}
+        piece = delta.get("content") or delta.get("reasoning_content") or ""
+        if piece:
+            if first is None:
+                first = time.time() - t0
+            n += 1
+            sys.stdout.write(piece); sys.stdout.flush()
+dt = time.time() - t0
+sys.stdout.write("\n")
+sys.stderr.write("[%d chunks, first token %.1fs, %.1fs total, %.2f tok/s]\n"
+                 % (n, first or dt, dt, n / max(dt - (first or 0), 1e-9)))
+PY

@@ -1,0 +1,31 @@
+#!/bin/bash
+# Build the colibri engine from the vendored, pinned tree.
+#
+#   coli-build          # incremental
+#   coli-build clean    # from scratch
+#
+# The binary is not in git -- it is 1.2 MB of this node's instruction set -- so
+# it has to be rebuilt after a fresh clone and after the submodule pointer moves.
+set -euo pipefail
+
+_self="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd -P)"
+. "$(dirname "$_self")/scripts/colibri-env.sh"
+coli_require launcher || exit 1
+coli_load_modules || exit 1
+
+cd "$COLI_DIR"
+[ "${1:-}" = clean ] && make clean >/dev/null 2>&1 || true
+
+# ARCH=native is load-bearing and measured: it defines __AVX512VNNI__, which is
+# the difference between the 67.8 and 89.5 GB/s int4 kernel. sm_86 is the A40.
+# vendor/colibri-build is pinned on purpose -- vendor/colibri is the read-only
+# checkout the daily timer fast-forwards, and pulling it underneath a build is
+# the failure the pin exists to prevent.
+echo "Building $(git -C "$COLI_DIR/.." rev-parse --short HEAD) in ${COLI_DIR}"
+make ARCH=native CUDA=1 CUDA_ARCH=sm_86 -j"${COLI_BUILD_JOBS:-16}" colibri
+
+echo
+"$COLI_ENGINE" --version 2>/dev/null || true
+ls -l "$COLI_ENGINE"
+echo
+echo "Check it against the model:  python3 $COLI_LAUNCHER doctor --model \$COLI_MODEL"

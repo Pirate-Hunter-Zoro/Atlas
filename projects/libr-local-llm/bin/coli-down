@@ -1,0 +1,21 @@
+#!/bin/bash
+# Cancel the colibri server job. It holds most of a 1 TB node -- do not leave it
+# up after you are done.
+#
+#   coli-down
+set -euo pipefail
+
+_self="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd -P)"
+. "$(dirname "$_self")/scripts/colibri-env.sh"
+
+FOUND=0
+# -n matches the job name exactly.
+for JOB_ID in $(squeue -u "$USER" -n "$COLI_JOB_NAME" -t RUNNING,PENDING -h -o '%i'); do
+    NODE="$(squeue -j "$JOB_ID" -h -o '%N')"
+    scancel "$JOB_ID"
+    echo "Cancelled ${COLI_JOB_NAME} job ${JOB_ID} (${NODE:-unallocated})"
+    FOUND=1
+done
+
+[ "$FOUND" -eq 0 ] && echo "No colibri server jobs to cancel."
+exit 0

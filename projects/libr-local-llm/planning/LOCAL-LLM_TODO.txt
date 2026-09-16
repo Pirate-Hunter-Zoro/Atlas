@@ -57,6 +57,15 @@ makes this the repo to work in while the other two wait.
   STEP 5. HOUSEKEEPING, section 5. Never the answer to "what's next" unless
     everything above is done.
 
+  (Added 2026-09-16.) Two colibri questions are open and are NOT steps above,
+  because neither blocks anything: how many KV slots to serve (one today, and a
+  second client evicts the first client's prefix, which costs a whole agent
+  preamble to rebuild), and whether MTP should be forced off. The engine enables
+  speculative decoding itself, so what P0 measured as a loss was MTP=1 set on top
+  of that, and which of the two states it measured is not recoverable. One A/B on
+  a warm server, in one job on one node, settles it. Do not quote a tier-2 tok/s
+  figure again until it is settled.
+
 ONE STANDING NOTE ON SCOPE: this is infrastructure, not a research project. No
 manuscript, no results, no data. Durable facts about what exists and how it is
 wired belong in libr-local-llm/README.md; this file tracks only what is left.
@@ -91,6 +100,10 @@ WHAT EXISTS (detail in libr-local-llm/README.md, do not restate here)
   only; nothing in it is built. It is the single source of truth for the fleet's
   architecture and arguments; this file tracks only the work left. Do not restate
   its reasoning here. (Added 2026-08-22.)
+- The colibri stack: slurm_jobs/colibri_serve.sbatch serving GLM-5.2 int4 from
+  the vendored engine, and five driver commands in bin/ (coli-build, coli-up,
+  coli-code, coli-ask, coli-down) that open a coding agent in any directory
+  against it. README section 4c is the architecture. (Added 2026-09-16.)
 
 ================================================================
 HARD CONSTRAINTS
