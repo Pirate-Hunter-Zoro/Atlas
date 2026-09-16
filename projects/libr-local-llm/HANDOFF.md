@@ -6,9 +6,13 @@ is the next build.**
 `coli-up`, `coli-code`, `coli-ask`, `coli-down` and `coli-build` exist, are on `PATH`, and serve
 GLM-5.2 int4 to a coding agent in any directory. README §4c is the architecture and is the file to
 read before touching any of it; `P0-STATUS.md` findings 16–20 are the measurements. This file says
-what is left, and it is two things: **make the board able to start colibrì on any workspace from
-anywhere**, and then **use that to do the diarization job**. They are one piece of work, because
-the second is how the first is tested.
+what is left.
+
+**Three parts, and the third is not about colibrì at all.** Part one makes the board able to start
+colibrì on any workspace from anywhere. Part two uses that to do the diarization job, which is how
+part one is tested. Part three is two things the board got wrong in a Galois-Theory sitting, both
+reported from the iPad, both unrelated to everything above and both waiting here because this is
+the file the next session opens.
 
 What has actually been run through it: the model emits a correct Anthropic `tool_use` block in
 43.6 s, which is the whole of a coding CLI's loop; `coli-ask` answers a real question in 51 s at
@@ -236,7 +240,111 @@ Leave the server up between tasks for the same reason; `coli-down` between two j
 
 ---
 
-## Decisions to take before writing, not during
+# Part three — two things the board got wrong last sitting
+
+Neither is a colibrì change, so both follow the board's own rules rather than this project's:
+`bash board/test/all.sh` green before and after, **`VERSION` in `board/web/sw.js` bumped**, and
+`bash board/scripts/ship.sh "message"`, which commits only `board/`. Read `../../HANDOFF.md`
+first — the board tree is somebody else's unfinished afternoon and both of these touch files in it.
+
+---
+
+## 6. The tutor told the student to write it up, and the write-up is the tutor's job
+
+**Now.** Card 0004 in Galois-Theory: *"Two words to add when you write it up."* Reported in exactly
+these terms — *"I'M not fucking writing anything up. The tutor's going to write up what I want it
+to, right? Once I've corrected my work? It should put phrases in like that - that makes me uneasy."*
+
+The rule is already in `board/TEACHING.md` and it is not weakly put: a whole section, *An agreed
+answer gets written up, and that is your job*, saying every sitting produces a compiled document and
+the tutor transcribes the agreed answer in the same turn. That section governs **the act**, and the
+card obeyed it. What escaped is **the sentence**. Nothing in the document forbids addressing the
+student as the person who will write something up, so the tutor did, and handed over an errand that
+does not exist.
+
+**There is a second defect inside the same clause and it is the worse one.** "Two words to add when
+you write it up" *defers a correction*. The argument is incomplete without the word **non-zero** —
+that is a fact about the proof, not a note for later — and the place it gets fixed is the write-up,
+which the tutor writes. Phrasing it that way makes the fix conditional on something the student was
+never going to do, so the proof stays wrong in a document they have been told is finished.
+
+**Want.** Two sentences of rule.
+
+- A card never tells the student to write, typeset, transcribe or *add to* anything. The write-up is
+  the tutor's, stated as a fact about what the document now says rather than as an instruction to a
+  person.
+- A correction belonging in the write-up is made in the write-up, in the same turn, and the card
+  says what was wrong and that it is now right. Never *"add X when you write it up"*, which is both
+  halves of this failure in one clause.
+
+**Where.** `board/TEACHING.md`. The rule's home is the section that already owns the act — *An
+agreed answer gets written up, and that is your job* — and the phrasing half belongs beside *Say it
+plainly*, where sentence-level rules already live. *Work done on a laptop is theirs, and saying
+otherwise is the worst card you can write* is the model to copy: a named phrasing failure, quoted,
+with the reason it lands badly. Check `board/AI_INSTRUCTIONS.md` says nothing that contradicts it.
+TEACHING.md is copied into every workspace's `live/` on `board start`, so nothing else needs
+touching for the rule to reach every course.
+
+**Check.** `board/test/teaching.py` already asserts that particular rules survive into the delivered
+copy, and that is where this goes. **A phrasing rule cannot honestly be unit-tested against a real
+card**, and a test that pretended to would be a test of nothing — so assert the rule is in the
+document that reaches the course, and treat the next sitting's first card as the real check.
+
+---
+
+## 7. The next board arrived before the answer, and the pulse stopped
+
+**Now.** From the same sitting: *"the response appeared how I wanted it to, but before it did, the
+second board showed up right underneath the last board, and I was left hanging."*
+
+Two surfaces answer the question *has the reply arrived*, and they answer it differently.
+
+- **The writing surface asks whether a card is typing.** `placeWriter` is handed
+  `typingCards() && !workingOn && reopenedFor === null` as its hold. That is already the right idea,
+  and the comment above the typeset pass in `render` records this same defect being fixed once
+  before, when `typeOut` ran a hundred lines too late: *"the surface came straight down under the
+  new question, and the answer then filled in above it. Every frame after that held correctly, which
+  is why this looked intermittent rather than wrong."*
+- **The busy strip asks whether a card exists.** `awaitingReply` is recomputed near the top of
+  `render` — the last item in the transcript, if that item is not text — and is cleared the instant
+  a card lands after the student's turn. `paintSent` hides the strip on the same frame. **Nothing on
+  that path consults `typingCards()`**, so the yellow pulse stops when the card's *record* arrives,
+  which is before a word of it is on the glass.
+
+That is the gap the student fell into, and it explains the shape of the report exactly: the pulse
+went, the next board came down, and the answer arrived afterwards. Note also that `typingCards()` is
+`typingNow > 0 && Date.now() < typingUntil` — a hold with a **deadline**, which fails on precisely
+the longest card.
+
+**Want.** One predicate, asked by both, and it is not *does a card exist*. A reply has landed when
+its node is in the document, its mathematics is typeset, its images have decoded and the type-out
+has finished. Until then the strip keeps pulsing and the surface does not move. The student's words
+are the specification and they are exact: **no next board until the whole response is rendered, and
+the pulse visible at all times until it is.**
+
+**Where.** `board/web/board.js` — `awaitingReply` in `render`, `paintSent`, the hold argument to
+`placeWriter`, and `typingCards`. The deadline inside `typingCards` is the part to think about
+rather than copy forward.
+
+**Decide.** Whether the strip's words change while it holds. It currently reads *"sent at 20:14 —
+the tutor is reading it"*, which stops being true the moment the card starts typing and then stays
+on screen for the whole of it. *"the tutor is writing"* is the honest second state and the board
+already uses that wording elsewhere. One more state, or one that is slightly wrong for a few
+seconds — pick it deliberately rather than by leaving the string alone.
+
+**Check.** `board/test/hanging.js`, which is the suite for exactly this — *"Nothing the reader can
+be waiting on is allowed to be silent"* — is jsdom, asserts what a person can read on the glass, and
+was written from the same person saying *"I don't ever want to be left hanging."* Assert: on the
+frame a card arrives and begins typing, the strip is still visible and the writing surface has not
+moved; on the frame the type-out ends, both change.
+
+**And bump `VERSION` in `board/web/sw.js`.** `board.js` is a shell file, so without the bump the
+installed app serves its cached copy — the fix ships and nothing happens, which on a rendering
+change is indistinguishable from the fix not working.
+
+---
+
+## Decisions to take before writing, not during — parts one and two
 
 **A colibrì turn writes a card, and in one workspace that card is committed.** Cards are how every
 turn reports, and `research/PSYCH-ASR/.gitignore` excludes `live/*` with `live/map.json` the single
