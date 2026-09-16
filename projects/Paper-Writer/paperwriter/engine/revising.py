@@ -23,7 +23,7 @@ it can be interrupted, resumed, and watched.
 
 from .. import config, paths
 from ..infra import journal, storage
-from ..stages import review, surgery
+from ..stages import review, revision, surgery
 
 
 def flagged(records, project_id, paper_num):
@@ -111,8 +111,13 @@ def _resweep(records, project_rec, paper_num, section_rec, log_fn=print):
            f"({len(before)} outstanding issue(s))")
 
     try:
+        # On a revision the author's own account of what is wrong leads the brief,
+        # on every sweep and every section. It is not consumed by being read once:
+        # a second sweep that has forgotten what the correction was for is a second
+        # sweep looking for something else to change.
         report = review.review(project_rec, paper_num, section, prose,
-                               pass_num=100 + sweeps, log_fn=log_fn)
+                               pass_num=100 + sweeps, log_fn=log_fn,
+                               lead_brief=revision.brief(project_rec))
     except RuntimeError as exc:
         # The sweep is a bonus pass over prose that is already committed and already
         # readable. A failure here must never cost the paper, so it counts as a sweep

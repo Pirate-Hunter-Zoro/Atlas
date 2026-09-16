@@ -17,7 +17,7 @@ and no human gesture is required for the second one.
 
 from .. import config, states
 from ..infra import journal
-from ..stages import evidence, grounding, planning
+from ..stages import evidence, grounding, planning, revision
 from . import admission
 from . import paper as paper_level
 from . import stalling
@@ -41,6 +41,9 @@ def advance(records, project_rec, log_fn=print):
             return
 
         if status == states.PROMPT_DROPPED:
+            if revision.wanted(project_rec["prompt_text"]):
+                _open_revision(records, project_rec, log_fn=log_fn)
+                return
             journal.set_status(records, project_rec, states.GATHERING)
             result = evidence.run(records[key], log_fn=log_fn)
             journal.set_status(records, records[key], states.GATHERED,
@@ -82,6 +85,40 @@ def advance(records, project_rec, log_fn=print):
             return
     except RuntimeError as exc:
         stalling.stall(records, records.get(key, project_rec), str(exc), log_fn=log_fn)
+
+
+def _open_revision(records, project_rec, log_fn=print):
+    """A job that names a document it is correcting, straight to its one paper.
+
+    EVERYTHING SKIPPED HERE IS MACHINERY FOR DECIDING WHAT THE PAPER IS. Gathering
+    freezes the evidence a paper will be written against, grounding fixes what each
+    thing is called, and planning turns the claims list into papers — and this
+    document has already been written against evidence, under names somebody chose,
+    from a plan that produced it. Running them again does not confirm those answers.
+    It produces a second set, and the second set is a different paper, which is the
+    one outcome a correction must never be.
+
+    No model call and no transient status, so a failure here stalls the project where
+    it still says PROMPT_DROPPED — which is resumable, and re-drops cleanly once the
+    document it names is where the job says it is."""
+    key = project_rec["key"]
+    plan = revision.plan(project_rec)
+    record = journal.new_paper(project_rec["project_id"], 1,
+                               plan["papers"][0].get("title"))
+    journal.write_record(record)
+    records[record["key"]] = record
+    journal.set_status(records, project_rec, states.PROJECT_PLANNED, paper_count=1,
+                       title=plan.get("title", ""), revision=True)
+    journal.set_status(records, records[key], states.PAPERS_IN_PROGRESS)
+    journal.log_decision(
+        key, "REVISION",
+        f"this job names a document that already exists: "
+        f"{plan['revision']['named']}. Gathering, grounding and planning are skipped "
+        f"— the document was written against frozen evidence under a fixed "
+        f"terminology, and re-deriving either is how a correction becomes a "
+        f"different paper.")
+    log_fn(f"{project_rec['project_id']}: REVISION of "
+           f"{plan['revision']['named']} — nothing re-planned")
 
 
 def _advance_papers(records, project_rec, log_fn=print):

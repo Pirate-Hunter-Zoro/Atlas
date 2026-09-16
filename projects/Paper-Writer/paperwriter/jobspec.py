@@ -222,3 +222,51 @@ def title(prompt_text):
             return cleaned
     match = _HEADER_RE.search(prompt_text or "")
     return match.group(1).strip() if match else ""
+
+
+# A job that names a document it is correcting, and the two other parsers that need
+# to know. Fields are `key: value` lines, one per line, inside `## Revision`.
+_REVISION_FIELD_RE = re.compile(
+    r"^\s*(document|feedback|workspace)\s*:\s*(.+?)\s*$", re.IGNORECASE | re.MULTILINE)
+
+# HTML comments are stripped before the fields are read, and that is load-bearing
+# rather than tidy: PROMPT_TEMPLATE.md documents this section by showing two example
+# lines inside a comment, so a parser that looks through comments reads the template's
+# own illustration as a job naming `manuscripts/manuscript.md`.
+_COMMENT_RE = re.compile(r"<!--.*?-->", re.S)
+
+
+def revision(prompt_text):
+    """What the job says it is correcting: `{document, feedback, workspace}`, or {}.
+
+    ABSENT FOR A NEW PAPER, AND THAT ABSENCE IS THE SIGNAL. A job carrying this
+    section is a correction to a document that already exists and has been read, so
+    the pipeline does not plan it, does not outline it, and does not draft it — it
+    edits the delivered text where the feedback says to and leaves the rest alone.
+    Re-planning a correction from the claims list is how it becomes a different paper.
+
+    `document` is required and the rest are optional: a revision with nothing named
+    is not a revision, and is read as an ordinary job rather than guessed at.
+    """
+    body = section_matching(sections(prompt_text or ""), "revision", "correction")
+    if not body:
+        return {}
+    out = {}
+    for match in _REVISION_FIELD_RE.finditer(_COMMENT_RE.sub(" ", body)):
+        key = match.group(1).lower()
+        value = _path_value(match.group(2))
+        if value and key not in out:            # the first line wins, like every
+            out[key] = value                    # other parser in this module
+    return out if out.get("document") else {}
+
+
+def _path_value(raw):
+    """One field's value, which is a PATH and not prose.
+
+    NOT `_clean`. That one strips markdown list and emphasis markers from both ends,
+    which is right for a claim and silently wrong for a filename: `_FORMATTING`
+    contains `-` and `_`, so a workspace at `/data/psych-asr_` arrives as
+    `/data/psych-asr` and the document it names is then nowhere. Backticks and quotes
+    are stripped because a person writing a path in markdown reaches for them; the
+    characters inside are left exactly as they were typed."""
+    return str(raw or "").strip().strip("`\"'").strip()
