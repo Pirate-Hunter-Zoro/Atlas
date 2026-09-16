@@ -26,7 +26,7 @@
       "name": "the stopwatch",
       "also": "wav2vec2 base, LibriSpeech",
       "kind": "part",
-      "status": "next",
+      "status": "later",
       "does": "Puts a start and an end on every word. The least examined box here: a small model trained on read audiobooks.",
       "files": [
         "psych_asr/asr/align.py",
@@ -36,8 +36,10 @@
       "dir": "psych_asr/asr",
       "doc": "",
       "slide": null,
-      "blockedBy": [],
-      "note": "",
+      "blockedBy": [
+        "corrections"
+      ],
+      "note": "re-aligning the corrected words needs the corrected words to be right",
       "chapter": ""
     },
     {
@@ -76,7 +78,7 @@
         "psych_asr/artifacts/rttm_io.py"
       ],
       "dir": "",
-      "doc": "",
+      "doc": "stage1-pipeline-walkthrough",
       "slide": null,
       "blockedBy": [],
       "note": "",
@@ -87,18 +89,18 @@
       "name": "the corrections",
       "also": "117 rows of a human error log",
       "kind": "part",
-      "status": "done",
-      "does": "The first thing here that can tell a transcript it is wrong, built from a human's own error log.",
+      "status": "next",
+      "does": "Turns the human's error log into the corrected reference. Two defects reported 16 Sep.",
       "files": [
         "psych_asr/transcript/corrections.py",
         "psych_asr/cli/apply_corrections.py",
         "psych_asr/artifacts/error_log.py"
       ],
       "dir": "psych_asr/transcript",
-      "doc": "",
+      "doc": "stage2-reference-walkthrough",
       "slide": null,
       "blockedBy": [],
-      "note": "",
+      "note": "her quotes and bracketed speaker names come through as speech; interjections land at the end of the host turn ",
       "chapter": ""
     },
     {
@@ -106,7 +108,7 @@
       "name": "the grader",
       "also": "psych_asr.evaluate.grade",
       "kind": "part",
-      "status": "done",
+      "status": "working",
       "does": "Reproduces the annotator's own six error labels against the corrected reference, with nobody listening.",
       "files": [
         "psych_asr/evaluate/grade.py",
@@ -117,7 +119,7 @@
       "doc": "",
       "slide": null,
       "blockedBy": [],
-      "note": "",
+      "note": "its numbers move when the reference is rebuilt",
       "chapter": ""
     },
     {
@@ -135,7 +137,8 @@
       "doc": "",
       "slide": null,
       "blockedBy": [
-        "stopwatch"
+        "stopwatch",
+        "corrections"
       ],
       "note": "",
       "chapter": ""
