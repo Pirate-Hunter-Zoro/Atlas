@@ -88,6 +88,28 @@ TRIPOD+AI
 
 ---
 
+## Revision
+
+<!-- LEAVE THIS OUT FOR A NEW PAPER. Fill it in only when the paper already exists
+     and somebody has said what is wrong with it: name the delivered document, and
+     name the file holding the feedback. Both are paths inside the workspace that
+     is asking, relative to its root.
+
+       document: manuscripts/manuscript.md
+       feedback: manuscripts/feedback/manuscript-2026-09-16-v1.md
+
+     A job with this section is a REVISION: the structure, the terminology lock and
+     the claims of the existing document stand except where the feedback says
+     otherwise, and the evidence is already frozen. A revision is not a fresh draft
+     of the same argument, and re-planning one from the claims list is how a
+     correction turns into a different paper.
+
+     The board fills this in from its library page — `tutorboard/manuscript.py`,
+     `revise` — and writes the feedback into the free-prose section below as well,
+     so a harness that does not read this section yet still gets what was said. -->
+
+---
+
 ## Anything the harness cannot work out
 
 <!-- Free prose. Read by the grounding and planning stages, ignored by the parsers.
