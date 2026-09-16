@@ -63,7 +63,11 @@ The first six were recorded earlier on 2026-09-09 and still stand. Seven through
    partition containing that node. It is safe anyway — partition-priority preemption needs a
    higher-tier partition on the same node and there is none. State the rule as **`c3_short` on
    compute300–305, `c3_accel` on compute306, never `c3`**.
-3. **GLM-5.2 is 429 GB, not 372.** 149 files. Corrected in `FLEET-BUILD.md` and `README.md`.
+3. **GLM-5.2 is 429 GB, not 372** — and it occupies **498 GB** of the share. Corrected in
+   `FLEET-BUILD.md` and `README.md`. The two numbers are the same files measured two ways and
+   both are needed: 429.3 GB is the data (`du --apparent-size`), 498.5 GB is what the filer
+   actually allocates for it, a 16 % gap across 142 shards. **Plan free space against the
+   larger one.** Quoting the smaller against a quota is how a stage runs out at 90 %.
 4. **colibrì sizes its thread pool from the machine, not the allocation** — it prints *"48
    physical-core threads instead of 96 logical CPUs"* and re-execs once to apply it.
    **Superseded in part by finding 9: the pin is right, the engine's choice of value is wrong.**
