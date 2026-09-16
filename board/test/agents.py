@@ -382,6 +382,26 @@ check("a tutor mid-turn is not bounced out of the card it is writing",
       "mid-turn" in tool_src)
 check("a restart that did not happen is not reported as one",
       "did not come back" in tool_src and 'now["pid"] != was' in tool_src)
+# AND THE SAME MISTAKE THE OTHER WAY ROUND. `agent_start` writes `waking` with no
+# pid and then forks, so a record read the instant it returns has no pid in it --
+# and the check above then called every successful restart one it had left alone.
+# Read off a real ship, with both daemons coming back on the new code at the
+# time: "left alone: claude starting in Galois-Theory".
+restart_src = tool_src[tool_src.index("def cmd_restart("):]
+restart_src = restart_src[:restart_src.index("\ndef ", 1)]
+check("a restart that DID happen is not reported as one that did not",
+      "RESTART_WAIT" in restart_src and "coming back" in restart_src)
+# The tutor half only: the boards above have a `left alone` of their own, for a
+# board belonging to another node, and it is the right answer there.
+tutors_src = restart_src[restart_src.index('"--tutors" not in args'):]
+check("and it waits for the daemon's own record rather than reading it once",
+      tutors_src.index("agent_start(cfg, c, name)")
+      < tutors_src.index("for _ in range(RESTART_WAIT)")
+      < tutors_src.index('print("  left alone'))
+check("the wait is bounded, because a person is watching a terminal",
+      tutor.RESTART_WAIT and tutor.RESTART_WAIT <= 60)
+check("a start still on its way is its own answer, not a failure",
+      "coming.append" in restart_src and "held.append" in restart_src)
 check("and a tutor still writing its handoff is said to be, not claimed restarted",
       "still writing its handoff" in tool_src)
 check("and stopping one waits for its handoff to be written",
