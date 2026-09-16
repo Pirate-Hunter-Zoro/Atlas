@@ -91,22 +91,30 @@ TRIPOD+AI
 ## Revision
 
 <!-- LEAVE THIS OUT FOR A NEW PAPER. Fill it in only when the paper already exists
-     and somebody has said what is wrong with it: name the delivered document, and
-     name the file holding the feedback. Both are paths inside the workspace that
-     is asking, relative to its root.
+     and somebody has said what is wrong with it: name the delivered document, the
+     file holding the feedback, and the root the two of them are relative to.
 
        document: manuscripts/manuscript.md
        feedback: manuscripts/feedback/manuscript-2026-09-16-v1.md
+       workspace: /home/you/Atlas/research/TRD-EHR
 
-     A job with this section is a REVISION: the structure, the terminology lock and
-     the claims of the existing document stand except where the feedback says
-     otherwise, and the evidence is already frozen. A revision is not a fresh draft
-     of the same argument, and re-planning one from the claims list is how a
-     correction turns into a different paper.
+     `document` is the MARKDOWN the paper was delivered as, never a .docx or a .pdf:
+     those are built from it, so an edit made anywhere else is discarded by the next
+     build. `workspace` may be left out when the document is named absolutely.
+
+     A job with this section is a REVISION and takes a different path through the
+     harness: gathering, grounding, planning, the argument map and outlining are all
+     skipped, the delivered document is split on its own headings into the sections
+     the editor works on, and the editorial sweep makes anchored edits where the
+     feedback says to. Every sentence the feedback does not reach is bit-identical
+     afterwards, by construction. The structure, the terminology and the claims of
+     the existing document stand except where the feedback says otherwise, and
+     re-planning one from the claims list is how a correction turns into a different
+     paper. `paperwriter/stages/revision.py` is the whole of it.
 
      The board fills this in from its library page — `tutorboard/manuscript.py`,
      `revise` — and writes the feedback into the free-prose section below as well,
-     so a harness that does not read this section yet still gets what was said. -->
+     so what was said is in the job twice and readable either way. -->
 
 ---
 

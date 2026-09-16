@@ -27,10 +27,10 @@ first is wrong by the time the paper is finished. The sweep is where the editor 
 the whole thing.
 """
 
-from .. import paths, states
+from .. import jobspec, paths, states
 from ..gates import prose
 from ..infra import journal, shipping, storage
-from ..stages import argument, building, delivery, outlining
+from ..stages import argument, building, delivery, outlining, revision
 from . import revising, stalling
 from . import section as section_level
 
@@ -54,6 +54,9 @@ def advance(records, project_rec, paper_rec, log_fn=print):
             return
 
         if status == states.QUEUED:
+            if revision.wanted(project_rec["prompt_text"]):
+                _open_revision(records, project_rec, paper_rec, log_fn=log_fn)
+                return
             # The argument map first: which claim lands in which section, and what a
             # reader has to accept before each one. The outliner inherits that
             # assignment and expands it into paragraphs — it does not move a claim
@@ -144,6 +147,46 @@ def advance(records, project_rec, paper_rec, log_fn=print):
         # doubles each time, so a persistent bug is retried hourly rather than being
         # retried in a hot loop or abandoned.
         stalling.stall(records, records.get(key, paper_rec), str(exc), log_fn=log_fn)
+
+
+def _open_revision(records, project_rec, paper_rec, log_fn=print):
+    """Import the delivered document and hand it straight to the sweep.
+
+    ARGUING, OUTLINING AND DRAFTING ARE SKIPPED, AND THE OUTLINE GATE WITH THEM.
+    `gates/structure.py` asks whether a proposed plan is a well-formed manuscript —
+    contiguous numbering, IMRaD order, budgets inside the venue's limit, a topic
+    sentence per planned paragraph. Every one of those is a question about a document
+    that does not exist yet, and asked of one that does, a failure has no repair short
+    of a rewrite. A correction that rewrites the paper is the defect this path exists
+    to prevent.
+
+    What the sections land in is the REVISING sweep, which is the anchored-edit loop:
+    the editor names a span and `patching` splices the replacement in, so every
+    sentence the feedback does not reach is bit-identical afterwards by construction
+    rather than by instruction. Each section carries the feedback as its one
+    outstanding issue, which is what puts it in `revising.flagged`."""
+    pid = project_rec["project_id"]
+    paper_num = paper_rec["paper_num"]
+    spec = jobspec.revision(project_rec["prompt_text"])
+    outline = revision.import_document(project_rec, paper_num, log_fn=log_fn)
+
+    note = (f"REVISION: {spec['document']} — "
+            + (f"see {spec['feedback']}" if spec.get("feedback")
+               else "the feedback is quoted in the job"))
+    for section in outline["sections"]:
+        record = journal.new_section(pid, paper_num, section["number"])
+        journal.write_record(record)
+        records[record["key"]] = record
+        # ACCEPTED rather than PENDING: the prose exists and nothing is going to draft
+        # it. The outstanding issue is what the sweep reads, and it is the feedback
+        # rather than a defect a gate found — this section is queued because somebody
+        # said the document is wrong, not because it failed arithmetic.
+        journal.set_status(records, records[record["key"]], states.ACCEPTED,
+                           outstanding_issues=[note], revision=True)
+    journal.set_status(records, paper_rec, states.REVISING,
+                       section_count=len(outline["sections"]), revision=True)
+    log_fn(f"paper {paper_num}: {len(outline['sections'])} delivered section(s) "
+           f"imported; going straight to the revision sweep")
 
 
 def _as_path(value):

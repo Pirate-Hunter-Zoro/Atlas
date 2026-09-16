@@ -39,13 +39,19 @@ class LengthReport:
     reason: str
 
 
-def check(words, budget=None):
+def check(words, budget=None, absolute=None):
     """Gate a section's word count against its planned budget.
 
     `words` is the count already computed by another gate, so this costs nothing.
     `budget` is the outline's plan for this section; absent, only the absolute floor
-    applies, because a section nobody budgeted has no ceiling to break."""
-    absolute = config.SECTION_MIN_WORDS
+    applies, because a section nobody budgeted has no ceiling to break.
+
+    `absolute` overrides that floor, and there is exactly one caller that needs to:
+    a REVISION imports a section that was delivered rather than planning one, and
+    "this is not a section yet" is false of prose a person has read. A delivered
+    forty-word data-availability statement is the right length, and a gate that tells
+    the editor to grow it to a hundred and fifty is asking for invented content."""
+    absolute = config.SECTION_MIN_WORDS if absolute is None else int(absolute)
 
     if not budget or budget <= 0:
         if words >= absolute:

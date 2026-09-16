@@ -1,8 +1,9 @@
 # HANDOFF — a sitting's style, and the documents it produces
 
-**The seven changes are in and the suite is green. What has not happened is a
-document going round the loop: nothing has been written into `writeups/` yet, so
-the shape is defined, routed and tested, and unproven.**
+**The loop is closed everywhere a machine can check it, and nowhere a model can.
+A document can be written up, listed, read on the glass, marked up, complained
+about in words or in ink, and revised by whichever machinery made it — and none
+of that has been done once by a person with a real document in front of them.**
 
 `board/README.md` is the architecture. This file says what is left.
 
@@ -11,12 +12,15 @@ the shape is defined, routed and tested, and unproven.**
 ## Before anything
 
 - `bash board/test/all.sh` — 74 suites, about twelve minutes. Green before and after.
+- `cd projects/Paper-Writer && python3 -m unittest discover -s tests` — 499 tests,
+  about fifteen seconds. Green before and after, and it is the other half of the
+  document seam now.
 - Bump `VERSION` in `board/web/sw.js` whenever a shell file changes. The library
   page is three of them.
 - `bash board/scripts/ship.sh "message"` commits **only `board/`**, pushes, and
   restarts every running board. Anything outside `board/` — `atlas.json`, a
-  workspace's `writeups/`, `projects/Paper-Writer/PROMPT_TEMPLATE.md` — goes
-  through `bash board/scripts/save-and-push.sh "message" -- <paths>`.
+  workspace's `writeups/`, `projects/Paper-Writer` — goes through
+  `bash board/scripts/save-and-push.sh "message" -- <paths>`.
 - Commits carry no assistant trailers. `.githooks/commit-msg` strips them.
 
 **`projects/libr-local-llm` has its own handoff and it is the live one.** The
@@ -32,34 +36,56 @@ that touches this work: it goes beside `node` and `aim` in `_mark`, and
 
 ## What to do next
 
-**1. Take one document all the way round, and it is the only thing here that
-proves the rest.** Open a `paper` sitting on a box — PSYCH-ASR's correction
+**1. A delivered manuscript never arrives in the workspace that asked for one,
+and the revision route is waiting on documents that are not there.** The job the
+board writes ends "The finished paper is to be delivered into `<workspace>/
+manuscripts/`", and nothing in `paperwriter` reads that line: `stages/delivery.py`
+copies into `config.OUT_DIR/<project>/<paper>/` and stops. So
+`manuscript.delivered` finds nothing, `library.py` marks nothing
+`made: paper-writer`, and the factory branch of the library's feedback route can
+only fire for a manuscript somebody copied in by hand. Two honest fixes and the
+first is better: name the landing as a **field** in the job the way
+`## Revision` names the document, and have `delivery.deliver` place a second
+copy there; or point `PAPER_OUT_DIR` at each asking workspace, which cannot work
+because one harness serves every workspace. The prose instruction should go
+either way — an instruction no code reads is a promise the board is making on
+somebody else's behalf.
+
+**2. Take one document all the way round, and what is left of it is the half a
+machine cannot check.** Open a `paper` sitting on a box — PSYCH-ASR's correction
 algorithm is the obvious one — let it write into `writeups/<slug>/`, compile it,
-then open `/library`, read it on the glass, and say something is wrong with it.
-What to watch: the explainer is about the machinery rather than about the evening
-(that rule is a refusal in three files and has never been tested against a model),
-the revision turn writes no card, and `live/state.json` is untouched when it
-finishes.
+open `/library`, read it on the glass, and say something is wrong with it. The
+wiring under all of that is now covered end to end (`test/library.py`,
+`test/revising.py`, and `tests/test_revision.py` in the factory). What is not:
 
-**2. Paper-Writer does not read `## Revision` yet.** Its template names the
-section and `manuscript.revise` fills it in, but `paperwriter/`'s own parsers
-ignore it, so a revision is admitted as a fresh job — which works, and re-plans
-the manuscript from the claims list, which is how a correction becomes a
-different paper. That half is a change in `projects/Paper-Writer`: read the
-section, skip the outline gate when it is present, and edit the delivered
-document instead of drafting one.
+- **The explainer rule against a model.** "A make sitting writes about the
+  subject, never about the sitting" is a refusal in `sense.MAKE_SENSE`,
+  `config.AIM_MEANS` and `TEACHING.md`, and `test/teaching.py` checks only that
+  the three agree with each other. Whether a tutor that has just spent three
+  hours teaching obeys it is unknown.
+- **The revision turn against a model**, both kinds: the board's own `[revise]`
+  turn, and the factory's editorial sweep reading somebody's actual complaint at
+  the top of its brief.
+- **Ink that a person actually drew.** The marks route is tested with fixture
+  strokes, which is not the same as a ring round a figure at 200% zoom on an
+  iPad.
 
-**3. A correction round made of MARKS.** Written feedback has a route; ink does
-not. Any page of any document can already be marked up, and turning those marks
-into the body of a revision is one function reading `Annotate`'s stored marks
-where the textarea is read now. It waits on a worked example: nothing has come
-back marked up yet.
+**3. The library reader cannot be drawn on, and the board's viewer can.** Ink on
+a page of a document becomes feedback now — `library.marks` reads it where the
+textarea is read, and a note carries the marked pages and the picture of each.
+But the ink has to be made on the board, through the drawer, and then the note
+written on a different surface. `library.js` draws its pages as plain `<img>`
+in `#reader-pages`; giving each one `data-ann="doc/<id>/p<n>"` and attaching
+`annotate.js` is the missing half, and `IDENT_MAX` is already 40 so a library id
+is a legal annotation key. What that costs is a pen UI on a second surface,
+which is the reason it is not done rather than an oversight.
 
-**4. Two measurements nobody has taken.** A library of fifty documents runs
-`pdfinfo` once per PDF on a cold open — memoised on modification time, so it is
-one hit per build, and it has only been run against three workspaces. And a
-machine without poppler shows no page count at all rather than a wrong one,
-which is right and untested on such a machine.
+**4. `board/test/all.sh` never runs the factory's suite.** The two repositories
+hold one seam between them — `manuscript.job` writes a `## Revision` section and
+`jobspec.revision` reads it — and `test/revising.py` now checks both sides
+against each other when Paper-Writer is checked out. Nothing checks the reverse
+direction: a change to `manuscript.job`'s field names passes the board's suite
+and breaks the factory silently, and only the board's suite is a habit.
 
 ---
 
@@ -93,6 +119,33 @@ as the answer.
 
 ## Settled, so nobody re-derives it
 
+- **A revision is not a new paper, and the factory now knows it.** A job
+  carrying `## Revision` skips gathering, grounding, planning, the argument map
+  and outlining; `stages/revision.py` splits the delivered Markdown on its own
+  headings into the sections the editor works on, and the anchored-edit loop
+  changes what the feedback names and nothing else. The outline gate is skipped
+  because it asks whether a proposed plan is a well-formed manuscript, which is
+  a question about a document that does not exist yet.
+- **The job names three things and all three are load-bearing.** The
+  **source**, never the rendering — `library.py` puts the PDF in `rel` because
+  that is what goes on the glass, so the record carries `source` beside it. The
+  feedback file. And the **workspace** the other two are relative to, because
+  the factory is another workspace and cannot resolve a relative path against a
+  root nobody named.
+- **A delivered section is not re-budgeted.** Its budget is the length it
+  already is, and `length.check` takes `absolute=0` from that path: a forty-word
+  data-availability statement is the right length, and a floor telling the
+  editor to grow it is a gate asking for invented content.
+- **Ink is a complaint.** `library.marks` reads the strokes already stored
+  against `doc/<ident>/p<n>`, a note carries the marked pages and the picture of
+  each, the send button is live with an empty box, and the marks are recorded as
+  handed over. A document is asked for under both names it has — the drawer's
+  and the library's — because it is one document and its ink is its ink.
+  `writing.ann_doc_page` is the one place a key is taken apart.
+- **Fifty documents cost 0.74 s to open cold on the shared home**, 0.41 s on
+  local disk, 0.1 s reopened, and 0.21 s on a machine with no poppler — where
+  every document is still listed with its title, kind, formats and staleness,
+  and only the page count is missing. Measured, and in `board/README.md`.
 - **The aim of the open sitting changes in place.** `POST /aim`, `board aim`, and
   the five aims that need no scope in the sitting-kind chooser. Nothing is
   archived, no tutor is replaced, and the tap wakes a turn because the tap is the

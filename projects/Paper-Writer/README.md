@@ -33,15 +33,16 @@ somebody will publish.
 8. [The final sweep — every gate, on the thing that ships](#the-final-sweep--every-gate-on-the-thing-that-ships)
 9. [State machines](#state-machines)
 10. [The stages, end to end](#the-stages-end-to-end)
-11. [Robustness: nothing fails, everything stalls](#robustness-nothing-fails-everything-stalls)
-12. [Running it](#running-it)
-13. [The workflow: "here are results, write me a paper"](#the-workflow-here-are-results-write-me-a-paper)
-14. [What comes out](#what-comes-out)
-15. [Configuration reference](#configuration-reference)
-16. [Watching a run](#watching-a-run)
-17. [Working in this repository](#working-in-this-repository)
-18. [Code layout](#code-layout)
-19. [Known limits and honest caveats](#known-limits-and-honest-caveats)
+11. [A revision — the document comes back](#a-revision--the-document-comes-back)
+12. [Robustness: nothing fails, everything stalls](#robustness-nothing-fails-everything-stalls)
+13. [Running it](#running-it)
+14. [The workflow: "here are results, write me a paper"](#the-workflow-here-are-results-write-me-a-paper)
+15. [What comes out](#what-comes-out)
+16. [Configuration reference](#configuration-reference)
+17. [Watching a run](#watching-a-run)
+18. [Working in this repository](#working-in-this-repository)
+19. [Code layout](#code-layout)
+20. [Known limits and honest caveats](#known-limits-and-honest-caveats)
 
 ---
 
@@ -744,6 +745,9 @@ QUEUED → ARGUING → ARGUED → OUTLINING → OUTLINED → DRAFTING → DRAFTE
        → REVISING → BUILDING → BUILT → DELIVERING → DELIVERED → COMPLETED
 ```
 
+A job correcting a document that already exists takes the short way across both of
+these — see [A revision](#a-revision--the-document-comes-back).
+
 **Section (inside DRAFTING):**
 
 ```
@@ -775,6 +779,7 @@ different count.
 | `sweep` | — (pure) | — (it *is* the validation) | Nothing. It returns findings, and they lead `report.md` |
 | `building` | — (pure, then pandoc) | The final sweep | `manuscript.md` and `report.md`, then a `.docx` of each |
 | `delivery` | — (pure) | Content hash | The output folder, atomically |
+| `revision` | — (pure; no model) | The document is where the job says, is Markdown, and has headings | The delivered sections, and an outline derived from them |
 | `shipping` | — (pure, then git) | A refusal check on the working tree | A commit, and a push if asked |
 
 **One ordering decision is the most important in the engine**, and it is
@@ -782,6 +787,59 @@ counter-intuitive: the ledger is merged *before* the prose is placed. A contradi
 found there is one more editorial pass. A contradiction found after the prose is on
 disk is a corrupt ledger with a matching section beside it, and nothing downstream can
 tell which of the two is wrong.
+
+---
+
+## A revision — the document comes back
+
+A job whose prompt carries a `## Revision` section names a document this harness
+already delivered and a file holding what somebody said is wrong with it. It is not a
+new paper and it does not take the pipeline above.
+
+**Everything before the editorial sweep is machinery for deciding what the paper
+is.** Gathering freezes the evidence; grounding fixes what each thing is called;
+planning turns a claims list into papers; the argument map places each claim; the
+outline budgets the sections. The delivered document has already answered all five,
+in prose somebody has read. Running them again does not confirm those answers — it
+produces a second set, and a paper written from the second set is a different paper
+wearing the first one's title.
+
+So a revision is short, and `paperwriter/stages/revision.py` is the whole of it:
+
+```
+PROMPT_DROPPED → PROJECT_PLANNED → PAPERS_IN_PROGRESS      (no model call)
+         QUEUED → REVISING → BUILDING → BUILT → DELIVERED → COMPLETED
+```
+
+| | |
+|---|---|
+| import | the delivered Markdown is split on its own `# ` headings into the same `sections/sNN.md` files drafting would have written, and the outline is **derived** from what is there |
+| brief | the feedback leads every editorial pass, above the gates, on every section and every sweep |
+| sweep | `engine.revising` runs — the anchored-edit loop, so prose the feedback does not name is not passed through a model at all |
+| build | assembly, the final sweep, conversion and delivery, unchanged |
+
+**The outline gate does not run, and that is the point.** `gates/structure.py` asks
+whether a proposed plan is a well-formed manuscript: contiguous numbering, IMRaD
+order, budgets inside the venue's limit, a topic sentence for every planned
+paragraph. Every one of those is a question about a document that does not exist yet.
+Asked of one that does, a failure has no repair short of a rewrite — and a correction
+that rewrites the paper is the outcome this whole path exists to prevent.
+
+**A delivered section is not re-budgeted.** Its budget is the length it already is,
+and `length.check` takes an `absolute=0` from this path so its floor is dropped: a
+forty-word data-availability statement is the right length, and a gate telling the
+editor to grow it to a hundred and fifty is a gate asking for invented content.
+
+**What is refused rather than guessed at.** A document that is nowhere the job says
+it is; a `.docx` or `.pdf` named where the Markdown was meant, because every other
+format is built from the Markdown and an edit made elsewhere is discarded by the next
+build; a document with no headings; and prose sitting above the first heading, which
+a section list has nowhere to keep and would silently drop on reassembly. Each one
+stalls with the path it tried, and a re-drop resumes.
+
+**Nothing in the import calls a model.** It is a parse and a quotation, which is why
+the whole path is covered by `tests/test_revision.py` with a temp directory and a
+string.
 
 ---
 
@@ -1342,7 +1400,8 @@ paperwriter/
              `figures.py` is the only one about the page rather than the prose.
   models/    THE ONLY place an external model is reached.
   stages/    one module per stage. Propose, validate, apply atomically.
-             `sweep.py` is the only one whose scope is the whole delivered packet.
+             `sweep.py` is the only one whose scope is the whole delivered packet;
+             `revision.py` is the only one that calls no model at all.
   engine/    the nested project → paper → section state machine.
   daemons/   the two entry points. Thin: a lock, a loop, a call into engine/.
 prompts/     the committed base prompts. Load-bearing non-code artifacts.

@@ -243,7 +243,8 @@ def run_gates(prose, section, memory, references=None):
     terms = terminology.check(prose, memory.terminology)
     cites = citations.check(prose, references if references is not None
                             else memory.references)
-    words = length.check(read.words, budget=section.get("words"))
+    words = length.check(read.words, budget=section.get("words"),
+                         absolute=0 if section.get("delivered") else None)
 
     failures = []
     if not nums.passed:
@@ -384,8 +385,14 @@ def gate_failures(project_rec, paper_num, section, prose):
     return failures, measurements
 
 
-def review(project_rec, paper_num, section, prose, pass_num=1, log_fn=None):
+def review(project_rec, paper_num, section, prose, pass_num=1, log_fn=None,
+           lead_brief=""):
     """Run one editorial pass. Returns a report; applies nothing.
+
+    `lead_brief` goes ABOVE the gates. Only a revision passes one, and what it
+    carries is the author's own account of what is wrong with the document — which
+    outranks every gate below it, because a gate asks whether the prose is well made
+    and this asks whether it says the right thing.
 
     Report keys:
       issues        — anchored find/replace repairs, each with kind and severity
@@ -400,7 +407,8 @@ def review(project_rec, paper_num, section, prose, pass_num=1, log_fn=None):
     failures, gate_brief, measurements = run_gates(prose, section, memory)
 
     payload = model_review(project_rec, paper_num, section_num, prose,
-                           ground_truth(project_rec, paper_num, section), gate_brief,
+                           ground_truth(project_rec, paper_num, section),
+                           (lead_brief or "") + gate_brief,
                            pass_num, log_fn=log_fn)
     issues, structural = normalise(payload)
 
