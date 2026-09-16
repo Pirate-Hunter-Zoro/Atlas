@@ -1,0 +1,178 @@
+#!/bin/bash
+# Bring GLM-5.2 up on a compute node behind an HTTP gateway, and wait until it is
+# actually warm. Run from anywhere, including the login node.
+#
+#   coli-up                  # 88 CPUs, 950 GB, 8 h
+#   coli-up -t 4             # 4-hour walltime
+#   coli-up -c 60 -M 600     # smaller ask, schedules sooner, slower expert tail
+#   coli-up --no-warm        # return as soon as it listens, do not warm first
+#
+# Exits 0 only when the model has answered a request. "Listening" is not "ready"
+# on this engine and the difference is a factor of four -- see below.
+set -euo pipefail
+
+_self="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd -P)"
+. "$(dirname "$_self")/scripts/colibri-env.sh"
+
+WARM=1
+while [ $# -gt 0 ]; do
+    case "$1" in
+        -t|--time)  COLI_HOURS="$2"; shift 2 ;;
+        -c|--cpus)  COLI_CPUS="$2"; shift 2 ;;
+        -M|--mem)   COLI_MEM_GB="$2"; shift 2 ;;
+        -p|--port)  COLI_PORT="$2"; shift 2 ;;
+        --no-warm)  WARM=""; shift ;;
+        -h|--help)   awk 'NR>1 && /^#/ { sub(/^# ?/, ""); print; next } NR>1 { exit }' "$0"; exit 0 ;;
+        *) echo "coli-up: unknown argument '$1'" >&2; exit 2 ;;
+    esac
+done
+
+coli_require engine || exit 1
+
+if [ "$COLI_HOURS" -gt 9 ] 2>/dev/null; then
+    echo "c3_short caps at 9 hours. For longer, move the sbatch to c3 (7 d) --" >&2
+    echo "but read the preemption note in README before you do." >&2
+    exit 2
+fi
+
+# 92 is MaxCPUsPerNode and it is a PARTITION-wide cap, not a per-job one: asking
+# for 92 on a node where somebody else holds 2 CPUs pends on "(Resources)"
+# indefinitely while every GPU on it sits idle. --exclusive is refused outright
+# on every partition here, with a message that names neither the limit nor the flag.
+if [ "$COLI_CPUS" -gt 92 ] 2>/dev/null; then
+    echo "92 CPUs is the partition cap; asking for ${COLI_CPUS} is refused at" >&2
+    echo "submission with a message that names neither the cap nor the flag." >&2
+    exit 2
+fi
+
+OUT_LOG="$COLI_LOG_DIR/colibri_serve_out.txt"
+ERR_LOG="$COLI_LOG_DIR/colibri_serve_err.txt"
+
+EXISTING="$(squeue -u "$USER" -n "$COLI_JOB_NAME" -t RUNNING,PENDING -h -o '%i' | head -1)"
+if [ -n "$EXISTING" ]; then
+    echo "A ${COLI_JOB_NAME} job is already submitted: ${EXISTING}" >&2
+    echo "Use 'coli-down' first if you want a fresh one, or 'coli-code' to connect." >&2
+    exit 1
+fi
+
+# Truncate both. The readiness check greps these files for sentinels, and a hit
+# left over from the last job would report a warm server that is not up yet.
+mkdir -p "$COLI_LOG_DIR"
+: > "$OUT_LOG"
+: > "$ERR_LOG"
+
+# The SLURM_* scrub matters when this is run from inside another allocation -- a
+# VSCode remote session on a compute node, an interactive srun. sbatch inherits
+# the outer job's SLURM_* variables and they OVERRIDE the #SBATCH directives in
+# the file, so the server would come up with the wrong partition, memory or GPU
+# count and say nothing about it.
+JOB_ID="$(
+    for v in $(env | grep -oE '^SLURM_[A-Z_0-9]+' || true); do unset "$v"; done
+    sbatch --parsable \
+           --chdir="$LLM_REPO" \
+           --cpus-per-task="$COLI_CPUS" \
+           --mem="${COLI_MEM_GB}G" \
+           --time="${COLI_HOURS}:00:00" \
+           --export="ALL,LLM_REPO=${LLM_REPO},COLI_PORT=${COLI_PORT},COLI_MODEL=${COLI_MODEL},COLI_MODEL_ID=${COLI_MODEL_ID}" \
+           "$LLM_REPO/slurm_jobs/colibri_serve.sbatch"
+)"
+echo "Submitted ${COLI_JOB_NAME} as job ${JOB_ID}  (${COLI_CPUS} cpu, ${COLI_MEM_GB} GB, ${COLI_HOURS} h)"
+
+echo "Waiting for allocation (Ctrl-C is safe -- the job stays queued)"
+ALLOCATED=0
+LAST_REASON=""
+STATE=""
+for _ in $(seq 1 240); do
+    STATE="$(squeue -j "$JOB_ID" -h -o '%T' 2>/dev/null || true)"
+    [ "$STATE" = "RUNNING" ] && { ALLOCATED=1; break; }
+    if [ -z "$STATE" ]; then
+        echo "Job ${JOB_ID} left the queue without running. Check ${ERR_LOG}" >&2
+        exit 1
+    fi
+    REASON="$(squeue -j "$JOB_ID" -h -o '%r' 2>/dev/null || true)"
+    if [ "$REASON" != "$LAST_REASON" ]; then
+        echo "  pending: ${REASON}"
+        LAST_REASON="$REASON"
+    fi
+    sleep 5
+done
+
+if [ "$ALLOCATED" -ne 1 ]; then
+    echo "Job ${JOB_ID} is still ${STATE} after 20 minutes (reason: ${LAST_REASON})." >&2
+    echo "A 950 GB ask needs a nearly empty node; 'coli-up -M 600' schedules sooner." >&2
+    echo "It remains queued. Watch it with squeue, or drop it with 'coli-down'." >&2
+    exit 1
+fi
+
+NODE="$(squeue -j "$JOB_ID" -h -o '%N')"
+
+# A job with no reserved GPU can still SEE the node's cards and will happily use
+# one Slurm promised to somebody else.
+ALLOC="$(scontrol show job "$JOB_ID" | grep -oP 'AllocTRES=\K\S+')"
+case "$ALLOC" in
+    *gres/gpu=*) ;;
+    *) echo "Job ${JOB_ID} has no GPU reservation: ${ALLOC}" >&2; exit 1 ;;
+esac
+
+# The cold load reads 429 GB off the filer. It took 101 s on a cold page cache
+# and 48 s warm, so a long wait here is the disk, not a hang.
+#
+# Watch the gateway's OWN line, not the port. The port is bound before the model
+# is loaded -- the HTTP server is constructed first on purpose, so a bad argument
+# fails in milliseconds rather than after 429 GB -- so a TCP probe answers
+# instantly and says nothing about whether anything can generate.
+echo -n "Loading 429 GB"
+LISTENING=""
+for _ in $(seq 1 900); do
+    if grep -q 'API listening on' "$ERR_LOG" 2>/dev/null; then LISTENING=1; break; fi
+    if grep -q 'COLIBRI-SERVE FAILED' "$OUT_LOG" 2>/dev/null; then
+        echo; grep 'COLIBRI-SERVE FAILED' "$OUT_LOG" >&2; exit 1
+    fi
+    if [ "$(squeue -j "$JOB_ID" -h -o '%T' 2>/dev/null)" != "RUNNING" ]; then
+        echo; echo "Job ${JOB_ID} stopped running. Check ${ERR_LOG}" >&2; exit 1
+    fi
+    echo -n "."
+    sleep 2
+done
+echo
+
+if [ -z "$LISTENING" ]; then
+    echo "Job ${JOB_ID} is running on ${NODE} but the engine never loaded." >&2
+    echo "Check ${ERR_LOG}" >&2
+    exit 1
+fi
+
+if [ -z "$WARM" ]; then
+    echo "Listening:  job ${JOB_ID}  node ${NODE}  ${ALLOC}"
+    echo "NOT WARM. The engine faults expert slabs in during generation, so the"
+    echo "first request decodes at roughly a fifth of the steady rate."
+    echo "Connect:    coli-code"
+    exit 0
+fi
+
+# Warming is one real generation, sent by the job itself. Until it finishes the
+# model is listening and slow, which is the worst state to hand a user.
+echo -n "Warming (the job's own first generation; its clock includes the load)"
+for _ in $(seq 1 3600); do
+    if grep -q 'COLIBRI-SERVE READY' "$OUT_LOG" 2>/dev/null; then break; fi
+    if grep -q 'COLIBRI-SERVE FAILED' "$OUT_LOG" 2>/dev/null; then
+        echo; grep 'COLIBRI-SERVE FAILED' "$OUT_LOG" >&2; exit 1
+    fi
+    echo -n "."
+    sleep 5
+done
+echo
+
+READY="$(grep 'COLIBRI-SERVE READY' "$OUT_LOG" | tail -1)"
+if [ -z "$READY" ]; then
+    echo "Job ${JOB_ID} is listening on ${NODE} but the warm-up never returned." >&2
+    echo "Check ${ERR_LOG}; connect anyway with 'coli-code'." >&2
+    exit 1
+fi
+
+echo "Server warm:  job ${JOB_ID}  node ${NODE}  ${ALLOC}"
+echo "  ${READY#COLIBRI-SERVE READY }"
+echo "Endpoint:     127.0.0.1:${COLI_PORT} (loopback on ${NODE} only)"
+echo "Connect:      coli-code            # Claude Code, in the current directory"
+echo "              coli-code -a opencode"
+echo "              coli-ask 'question'  # one-shot, no agent preamble"

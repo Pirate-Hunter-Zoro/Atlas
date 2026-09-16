@@ -186,6 +186,146 @@ from §10.**
 Plus the one already known and paid for twice: **job output must not go to `/tmp`.** It is a
 node-local RAM tmpfs, so a job on compute303 writes logs compute300 cannot see.
 
+### 16. `coli serve` ran CPU-only on a node holding an idle A40, and said nothing
+
+(Added 2026-09-16.) The launcher's GPU auto-enable block is scoped to `win32`; on Linux CUDA is
+turned on only by an explicit `--gpu`, `--vram` or `--auto-tier`. A serve command with none of them
+loads 429 GB, answers requests, and never touches the card. **Measured on that configuration:
+0.64 tok/s decode, 1.3 tok/s prefill** — which is the same 0.64 recorded above as the *cold* tier-2
+number, so it is worth asking whether the cold/warm gap in finding 10 was partly this.
+
+`coli doctor` does not catch it. Doctor **plans** and serve **runs**: doctor reported a 45.7 GB VRAM
+hot tier and ~2152 hot experts for a configuration that used neither. `GET /health` is the thing
+that tells the truth — it carries `"gpus"` and `"vram_gb"` from the running engine.
+
+Two smaller facts fell out. `--gpu` does `setdefault("CUDA_DENSE","1")`, and finding 15 measured
+`CUDA_DENSE=1` at 2.56 against 2.67, so a job wanting the GPU has to turn that back off explicitly;
+every variable the planner writes is a `setdefault`, so an exported `CUDA_DENSE=0` wins. And with
+the plan applied the engine reports `[MTP] … draft=0` where the CPU-only run reported `draft=1`.
+
+### 17. The context window defaults to 4096 and the maximum is 1048576
+
+(Added 2026-09-16.) `family_by_id("glm").limits.default_context` is **4096**. That is smaller than
+any coding agent's system prompt, and an over-long prompt is truncated from the front, which is
+where the system prompt and the tool definitions live — trap 24's failure mode at a twentieth of
+the size. Raising it is nearly free here: `coli plan` at 4096 / 32768 / 65536 / 131072 gives runtime
+allocations of 7.3 / 15.8 / 25.6 / **45.0 GB** and moves nothing else. Warm experts stay at
+371.7 GB, the VRAM hot tier at 45.7 GB, projected residency at 100%.
+
+### 18. The cold load is no longer 101 seconds, because the router learned
+
+(Added 2026-09-16.) `.coli_usage` has grown from the 58,240 selections noted below to **1,735,272**,
+and at that confidence the planner stops streaming and pins: `plan 424.5 GB (conf 1.00) … -> pinning
+424.5 GB`, read off the filer before the first token. Observed rate against a cold-ish page cache:
+93 GB at 3:45 and 250 GB at 6:00, so several hundred MB/s and **minutes, not seconds**. That is the
+better trade — the cold-start cost is paid in one place instead of leaking into the first user's
+decode rate, which is what finding 10 describes — but a supervisor budgeting 101 seconds for a load
+will call it a hang.
+
+### 19. Two things the launcher reports that are not true on this filer
+
+(Added 2026-09-16.) `coli doctor` warns `storage.persistence: model directory is read-only; disable
+persistence or change permissions` against a directory the same account writes to without error.
+Same root cause as finding 7: `os.access` believes mode bits the filer synthesised lossily from an
+NFSv4 ACL. The warning is a false negative; `.coli_usage` and KV persistence both work. **Do not
+chmod to satisfy it** — a chmod on this filer writes back a mode derived from that same bad reading.
+
+And the gateway **binds its port before it loads the model** — `APIServer` is constructed before
+`Engine`, on purpose, so a bad argument fails in milliseconds instead of after 429 GB. A TCP probe
+therefore succeeds about two seconds into a job whose model needs minutes. The line that means the
+model is up is the gateway's own `OpenAI-compatible API listening on …` on stderr. The connection a
+probe gets is not wasted: a request lodged in the accept queue during the load is served the
+instant the engine exists, which is how `colibri_serve.sbatch` has its warm-up already in flight.
+
+### 20. Tier 2 measured as a served endpoint: 3.8 tok/s prefill, 2.3–3.0 tok/s decode
+
+(Added 2026-09-16. One A40, 88 CPUs, `numactl --interleave=all`, `--gpu auto --auto-tier`,
+`CUDA_DENSE=0`, `--ctx 131072`, compute301, warm, one request at a time.)
+
+| prompt | time to first token | implied prefill | decode |
+|---|---|---|---|
+| 35 tokens | 6.0 s | — | 2.98 tok/s |
+| 961 tokens | 249.9 s | 3.8 tok/s | 2.26 tok/s |
+| 3,857 tokens | 1382.7 s | **2.8 tok/s** | — |
+| 35 tokens, **CPU-only** (finding 16) | 26.6 s | 1.3 tok/s | 0.64 tok/s |
+
+Decode lands inside the 3.2–4.4 range recorded above, at the low end, on the node that was the slow
+one in finding 13. **Prefill is the new number and it is the one that governs**, because it had
+never been measured here.
+
+**And prefill does not scale linearly.** Four times the tokens cost six times the wall clock, so the
+rate falls as the prompt grows — attention, and it means a preamble cannot be priced by multiplying
+a small measurement. Extrapolating those two points to a 15,900-token coding-agent preamble gives
+**somewhere between two and three hours before the first word.** That is an extrapolation from two
+measurements and is labelled as one; what is measured is the two rows above it. Upstream warns about
+exactly this and says it applies hardest to Claude Code, and nothing here disagrees.
+
+**What makes an agent loop survivable anyway is the KV prefix cache, and it works.** Observed in the
+gateway's own accounting across two stateless HTTP requests that shared a preamble:
+
+```
+[API] KV slot 0 prefix  19/980  token, prefill 961
+[API] KV slot 0 prefix 963/4820 token, prefill 3857
+```
+
+963 tokens matched and were not re-run. So the 80 minutes is paid **once per conversation**, not per
+turn, and each later turn prefills only what it added. That is the difference between an overnight
+job and an impossible one, and it is the argument for the serve job holding one long-lived process
+rather than starting an engine per task.
+
+Two consequences for anything built on this. **A drive that resets the conversation resets the
+bill** — a fresh session per task is right advice for tier 1 and expensive advice here. And **a
+second concurrent client evicts the first client's prefix**, because the server runs one KV slot;
+the engine supports 16 and `COLI_KV_SLOTS` is wired through, but nobody has measured what a slot
+costs at a 131072 window.
+
+**The coding agent's preamble, priced exactly.** Claude Code's first request was captured against a
+stub endpoint that answers instantly, rather than discovered by waiting for the real one:
+
+```
+/v1/messages?beta=true  bytes=63009  system=5991  tools=21 (48223 chars)  messages=9272
+```
+
+63 kB, **~15,900 tokens, and the tool catalog is three quarters of it** — 21 tools, 48 kB. Against
+3.8 tok/s falling with length, that is **an hour and a half before the first word**, once per
+conversation. A fresh, empty config directory is what keeps it to 15,900: MCP servers, plugins and
+a global `CLAUDE.md` all land in the same request and are all paid at the same rate.
+
+Two client facts fell out of the same capture, and both are settings rather than surprises. The
+client does not recognise the model id, so it assumes the 200k window it uses for the ones it does
+know and sizes auto-compact against that — 69k tokens past what the server accepts. It names its own
+fix: `CLAUDE_CODE_MAX_CONTEXT_TOKENS`. And the protocol itself needs nothing: system prompt, 21 tool
+definitions and streaming all went through the Anthropic path unmodified, and the reply came back.
+
+**And a disconnected client does not stop a prefill.** The probe was killed mid-request and the
+engine went on prefilling 3,857 tokens for another twenty minutes, with everything behind it queued.
+`/health` counted the request `cancelled` while still reporting it `active`. Budget for that before
+cancelling something and immediately submitting its replacement.
+
+### What was actually run through it, end to end
+
+(Added 2026-09-16, same server, after the queue drained.)
+
+**The agent mechanism works on the real model.** One tool definition, a short prompt, no agent
+preamble — `POST /v1/messages` came back in **43.6 s** with `stop_reason=tool_use` and a single
+`tool_use` block naming the tool and its argument correctly:
+
+```
+tool_use: name=read_file  input={"path": "notes.txt"}
+```
+
+That is the thing a coding CLI's loop is made of, and it is the last part that could have been
+protocol rather than wall clock. It is not. What stands between this and a finished task is time.
+
+**`coli-ask` is genuinely interactive.** A real question, 200 tokens of answer: **7.2 s to first
+token, 51.2 s total, 3.14 tok/s**, and the answer was correct. This is the command to reach for.
+
+**Claude Code's protocol path is verified but was not run to completion against the model.** Its
+system prompt, 21 tool definitions and streaming all went through against a stub endpoint and the
+reply came back; the preamble is the 15,900 tokens priced above, so a first turn is the two-to-three
+hours the extrapolation gives. Nobody has sat through one yet. That is the next thing to do and it
+is an overnight job, not a demonstration.
+
 ---
 
 ## What this does to the design

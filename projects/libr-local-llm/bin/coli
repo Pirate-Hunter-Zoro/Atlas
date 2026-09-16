@@ -1,0 +1,45 @@
+#!/bin/bash
+# A signpost, not a fence.
+#
+# `coli` is the engine's own launcher and it lives in the vendored build tree,
+# not on PATH. Reaching for it by name is the obvious thing to do and gets
+# "command not found", which says nothing about what does work. This says it.
+#
+# Same idea as config/opencode-guard.sh, and the same escape hatch: the real
+# launcher is one line below and runs if you pass --raw.
+set -uo pipefail
+
+_self="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd -P)"
+. "$(dirname "$_self")/scripts/colibri-env.sh"
+
+if [ "${1:-}" = "--raw" ]; then
+    shift
+    coli_require launcher || exit 1
+    coli_load_modules || exit 1
+    exec python3 "$COLI_LAUNCHER" "$@"
+fi
+
+# Quoted delimiter. Unquoted, the backticks around a command name in the first
+# line are command substitution, and the command they substitute is this one.
+cat >&2 <<'BANNER'
+coli is the engine launcher and is not what you run here. The commands are:
+
+    coli-up                       start the server and wait until it is warm
+    coli-code [-d dir] [msg]      a coding agent in any directory
+    coli-ask "question"           one question, no agent -- much faster
+    coli-down                     stop the server
+    coli-build                    rebuild the engine after a clone
+
+README section 4c is the architecture. The raw launcher, if you really want it:
+
+    coli --raw <subcommand> ...   e.g. coli --raw doctor --model $COLI_MODEL
+
+BANNER
+
+JOB_ID="$(squeue -u "$USER" -n "$COLI_JOB_NAME" -t RUNNING -h -o '%i' 2>/dev/null | head -1)"
+if [ -n "$JOB_ID" ]; then
+    printf 'A server is up: job %s on %s.\n' "$JOB_ID" "$(squeue -j "$JOB_ID" -h -o '%N')" >&2
+else
+    printf 'No server is running.\n' >&2
+fi
+exit 2

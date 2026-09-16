@@ -1,0 +1,214 @@
+#!/bin/bash
+# Put colibri to work in a directory. Any directory, any task.
+#
+#   coli-code                          # Claude Code, TUI, in the current directory
+#   coli-code -d ~/Atlas/research/X    # ...somewhere else
+#   coli-code "fix the failing test"   # one-shot, no TUI
+#   coli-code -a opencode              # the other front end
+#   coli-code --yes "..."              # do not stop to ask about each tool call
+#   coli-code --instructions           # carry the repository's CLAUDE.md in too
+#
+# The endpoint is loopback-only on the serving node, so the client has to run
+# there. This steps into the existing allocation with `srun --overlap` rather
+# than ssh: no key, and it lands inside the job with the right devices visible.
+set -euo pipefail
+
+_self="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd -P)"
+. "$(dirname "$_self")/scripts/colibri-env.sh"
+
+AGENT=claude
+WORKDIR="$PWD"
+YES=""
+INSTRUCTIONS=""
+while [ $# -gt 0 ]; do
+    case "$1" in
+        -a|--agent)  AGENT="$2"; shift 2 ;;
+        -d|--dir)    WORKDIR="$2"; shift 2 ;;
+        -p|--port)   COLI_PORT="$2"; shift 2 ;;
+        --yes)       YES=1; shift ;;
+        --instructions) INSTRUCTIONS=1; shift ;;
+        -h|--help)   awk 'NR>1 && /^#/ { sub(/^# ?/, ""); print; next } NR>1 { exit }' "$0"; exit 0 ;;
+        --)          shift; break ;;
+        *)           break ;;
+    esac
+done
+MESSAGE="$*"
+
+case "$AGENT" in
+    claude|opencode) ;;
+    *) echo "coli-code: -a takes 'claude' or 'opencode'" >&2; exit 2 ;;
+esac
+
+[ -d "$WORKDIR" ] || { echo "coli-code: no such directory: $WORKDIR" >&2; exit 2; }
+WORKDIR="$(cd "$WORKDIR" && pwd -P)"
+
+# Find the server. Ask Slurm rather than reading a state file: a state file goes
+# stale the moment a job ends, squeue never does.
+JOB_ID="$(squeue -u "$USER" -n "$COLI_JOB_NAME" -t RUNNING -h -o '%i' | head -1)"
+if [ -z "$JOB_ID" ]; then
+    PENDING="$(squeue -u "$USER" -n "$COLI_JOB_NAME" -t PENDING -h -o '%i' | head -1)"
+    if [ -n "$PENDING" ]; then
+        echo "The server is queued as job ${PENDING} and has not started yet." >&2
+        echo "Reason: $(squeue -j "$PENDING" -h -o '%r')" >&2
+    else
+        echo "No colibri server is running. Start one:" >&2
+        echo "    coli-up" >&2
+    fi
+    exit 1
+fi
+NODE="$(squeue -j "$JOB_ID" -h -o '%N')"
+echo "Using ${COLI_JOB_NAME} job ${JOB_ID} on ${NODE}" >&2
+
+# --------------------------------------------------------------- the transcript
+#
+# A driver that can read `phi` writes a transcript that quotes `phi`. Both front
+# ends keep their session history under $HOME by default -- ~/.claude/projects and
+# ~/.local/share/opencode -- which is exactly where a hosted assistant reads all
+# day. Redirect both stores under a directory named `phi`, which is fenced whole
+# and by name in ai-config/policy/phi.py, so the existing rule covers this without
+# a new rule to keep in step.
+SESSION_DIR="$COLI_SESSION_ROOT/$AGENT"
+mkdir -p "$SESSION_DIR"
+# No chmod here on purpose. This filer serves NFSv4 ACLs and synthesises the
+# POSIX mode bits from them lossily -- the same defect that makes `os.access`
+# lie -- so a chmod writes back a mode derived from a bad reading and can drop
+# the real ACL. The parent directory already restricts this tree.
+
+# Clearing the outer job's SLURM_* is load-bearing. Run from inside another
+# allocation -- a VSCode remote session on a compute node, an interactive srun --
+# the nested srun inherits the OUTER job's step context and dies with exit 192,
+# even though --jobid names a different job explicitly.
+srun_on_server() {
+    (
+        for v in $(env | grep -oE '^SLURM_[A-Z_0-9]+' || true); do unset "$v"; done
+        exec srun --jobid="$JOB_ID" --overlap "$@"
+    )
+}
+
+BASE="http://127.0.0.1:${COLI_PORT}"
+
+if [ "$AGENT" = claude ]; then
+    # A fresh config directory is not just about where the transcript lands: it
+    # also decides the size of the preamble, and on this engine the preamble is
+    # the bill. Prefill runs at a few tokens per second on the CPU-streaming
+    # path, so every token of system prompt, tool catalog, MCP server, plugin and
+    # CLAUDE.md is paid for in wall-clock before the first word comes back.
+    # An empty config dir carries none of them.
+    #
+    # It also means the PHI hook in ~/.claude is not loaded. That is the point:
+    # this model runs on our own hardware and reading `phi` is the job it exists
+    # for. It is also why the transcript goes behind the fence above.
+    mkdir -p "$SESSION_DIR"
+    if [ ! -f "$SESSION_DIR/.claude.json" ]; then
+        cat > "$SESSION_DIR/.claude.json" <<'SEED'
+{ "hasCompletedOnboarding": true, "theme": "dark", "autoUpdates": false }
+SEED
+    fi
+    if [ -n "$INSTRUCTIONS" ] && [ -r "$HOME/.claude/CLAUDE.md" ]; then
+        cp -L "$HOME/.claude/CLAUDE.md" "$SESSION_DIR/CLAUDE.md"
+        echo "Carrying CLAUDE.md into the preamble ($(wc -c <"$SESSION_DIR/CLAUDE.md") bytes)." >&2
+        echo "At a few tokens per second of prefill, that is minutes before the first word." >&2
+    else
+        rm -f "$SESSION_DIR/CLAUDE.md"
+    fi
+
+    # ANTHROPIC_AUTH_TOKEN, not ANTHROPIC_API_KEY. Both reach the gateway --
+    # colibri accepts `Authorization: Bearer` as well as `x-api-key` -- but the
+    # API_KEY spelling makes the client ask, on first run in a fresh config
+    # directory, whether you really meant to use a key it has not seen. That
+    # prompt is a blocking question in a session that may be running unattended.
+    # The token spelling sets the bearer header and asks nothing. The gateway
+    # does not check it either way unless COLI_API_KEY is set on the server.
+    ENVS=(
+        "ANTHROPIC_BASE_URL=$BASE"
+        "ANTHROPIC_AUTH_TOKEN=local"
+        "ANTHROPIC_MODEL=$COLI_MODEL_ID"
+        "ANTHROPIC_DEFAULT_OPUS_MODEL=$COLI_MODEL_ID"
+        "ANTHROPIC_DEFAULT_SONNET_MODEL=$COLI_MODEL_ID"
+        "ANTHROPIC_DEFAULT_HAIKU_MODEL=$COLI_MODEL_ID"
+        "ANTHROPIC_SMALL_FAST_MODEL=$COLI_MODEL_ID"
+        "CLAUDE_CONFIG_DIR=$SESSION_DIR"
+        # The client does not know this model, so it assumes the 200k window it
+        # uses for the ones it does know and sizes auto-compact against that --
+        # which is 69k tokens past what the server will accept, and the overrun
+        # surfaces as a refused request rather than a compaction. Tell it the
+        # real number; it says so itself in the warning it prints.
+        "CLAUDE_CODE_MAX_CONTEXT_TOKENS=${COLI_CTX:-131072}"
+        # Every one of these is a call to a host this node cannot reach and
+        # would not be told about: telemetry, the changelog, the updater, and
+        # the small-model calls that title a conversation. Off, or the client
+        # spends its time timing out.
+        "DISABLE_NON_ESSENTIAL_MODEL_CALLS=1"
+        "DISABLE_TELEMETRY=1"
+        "DISABLE_ERROR_REPORTING=1"
+        "DISABLE_AUTOUPDATER=1"
+        "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1"
+    )
+    CLI=(claude)
+    [ -n "$YES" ] && CLI+=(--dangerously-skip-permissions)
+    if [ -n "$MESSAGE" ]; then CLI+=(-p "$MESSAGE"); fi
+else
+    ENVS=(
+        "OPENAI_BASE_URL=$BASE/v1"
+        "OPENAI_API_KEY=local"
+        "XDG_DATA_HOME=$SESSION_DIR/data"
+        "XDG_STATE_HOME=$SESSION_DIR/state"
+        "XDG_CONFIG_HOME=$SESSION_DIR/config"
+    )
+    mkdir -p "$SESSION_DIR/config/opencode"
+    # opencode reaches the gateway as a plain OpenAI-compatible provider. Its own
+    # config lives under the fenced XDG_CONFIG_HOME so the ollama provider in
+    # config/opencode.json is not disturbed.
+    cat > "$SESSION_DIR/config/opencode/opencode.json" <<JSON
+{
+  "\$schema": "https://opencode.ai/config.json",
+  "model": "colibri/${COLI_MODEL_ID}",
+  "enabled_providers": ["colibri"],
+  "permission": { "webfetch": "deny", "websearch": "deny" },
+  "provider": {
+    "colibri": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "Colibri (GLM-5.2 int4, local)",
+      "options": { "baseURL": "${BASE}/v1" },
+      "models": { "${COLI_MODEL_ID}": { "name": "GLM-5.2 int4 (colibri)" } }
+    }
+  }
+}
+JSON
+    CLI=(opencode)
+    if [ -n "$MESSAGE" ]; then CLI+=(run -m "colibri/${COLI_MODEL_ID}" -- "$MESSAGE")
+    else CLI+=(-m "colibri/${COLI_MODEL_ID}"); fi
+fi
+
+# The invocation crosses a `bash -lc` string boundary, so everything interpolated
+# into it is quoted with printf %q: the far side is the same bash, so %q
+# round-trips exactly and a path or prompt containing a quote cannot break the
+# command apart. A login shell is used so nvm's PATH -- and therefore both CLIs --
+# exists on the far node.
+Q_ENV="$(printf '%q ' "${ENVS[@]}")"
+Q_CLI="$(printf '%q ' "${CLI[@]}")"
+Q_DIR="$(printf '%q' "$WORKDIR")"
+
+# `unset -f opencode` first. ~/.bashrc defines an `opencode` SHELL FUNCTION that
+# probes OLLAMA_HOST and, finding nothing there, prints the ollama-up advice
+# instead of running anything -- it is a signpost for the ollama stack and has no
+# idea this one exists. The far side is a login shell, so the function is defined
+# there. `command opencode` would also reach past it, but not through `exec`:
+# `exec` takes a program, and `command` is a builtin, so the two do not compose.
+REMOTE="unset -f opencode 2>/dev/null; cd ${Q_DIR} && export ${Q_ENV} && exec ${Q_CLI}"
+
+cat >&2 <<BANNER
+Directory:  ${WORKDIR}
+Endpoint:   ${BASE}  (${COLI_MODEL_ID})
+Transcript: ${SESSION_DIR}  -- behind the phi fence, deliberately
+
+This model decodes at 3.2-4.4 tok/s and prefills at a few tok/s. A short, single
+ask works. An iterative agent session re-pays its growing context every turn.
+BANNER
+
+if [ -n "$MESSAGE" ]; then
+    srun_on_server --quiet bash -lc "$REMOTE"
+else
+    # --pty is what makes the terminal interactive through Slurm.
+    srun_on_server --quiet --pty bash -lc "$REMOTE"
+fi
