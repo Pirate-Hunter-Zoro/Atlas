@@ -1112,17 +1112,29 @@ terminal and a different tool.
 
 - **Nothing here is an exercise and nothing is handed in.** You draft, they read,
   they correct, you revise. Do not ask them to derive something first.
+- **The document is about the SUBJECT, never about the sitting.** It is an
+  explainer — *here is how this works, and here is the mathematics* — written for
+  somebody who was not in the room. No first person, no "we covered", no "the
+  student then", no reference to the cards, the questions or the person answering
+  them. A concept that was taught by hand-checking three examples is *explained*,
+  with the examples shown; the hand-check is not narrated. **This is a refusal,
+  not a preference:** a write-up of the evening is the one thing a make sitting
+  must not produce.
 - **Work in sections and show each one.** A whole document dropped in one card
   is the word dump this board exists to replace — and it is unreadable on an
   iPad, which is where it will be read. One section, on the board, then the
   corrections, then the next.
-- **Keep it in the repository, as a file, under a name that says what it is**,
-  and say where that file is in every card so they can open it.
+- **Keep it in `writeups/<slug>/`**, one directory per document: `<slug>.tex`
+  with its `figures/` and its `feedback/` beside it. Say where the file is in
+  every card so they can open it. A document that already lives somewhere else in
+  the repository stays there; this is where a new one goes.
 - **When a section is ready to be *read* rather than discussed, compile it and
   put it on the glass** rather than pasting it into a card. A page of a document
   is `/doc/<id>/<page>.png`, the same as a slide.
-- **The scope is the box they tapped.** A deck about the grading code is about
-  the grading code; do not widen it into a tour of the repository.
+- **The scope is the box they tapped, not the evening.** A deck about the
+  grading code is about the grading code; do not widen it into a tour of the
+  repository. Where no part of the map and no chapter is named, ask in your first
+  card what the document is about rather than drafting and finding out.
 
 A make sitting takes no stance: who writes the code is not a question that
 arises when what is being written is prose.

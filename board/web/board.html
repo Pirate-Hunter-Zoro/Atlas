@@ -230,6 +230,14 @@
        anywhere locally on the iPad." This is here at every moment, whether the
        document was made ten seconds or ten days ago. -->
   <button id="btn-papers" title="read either PDF here, or save a copy to Files">▤  documents · view or save</button>
+  <!-- AND EVERY DOCUMENT THIS WORKSPACE HAS WRITTEN, which is a different list
+       from the two above. Those are the two the BOARD makes -- the exported
+       lesson and the compiled write-up. This is the papers and the decks
+       themselves, grouped as documents rather than files, with a way to say
+       what is wrong with one. It is a page rather than a panel because
+       feedback written from it must not touch the lesson somebody else is
+       mid-proof in. -->
+  <button id="btn-library" title="every paper and deck in this workspace, and feedback on one">▤  library · papers &amp; decks</button>
   <button id="btn-reload" title="reload the app">↻  reload the app</button>
 </div>
 
@@ -354,6 +362,24 @@
     <span class="kind-stance-lead">this sitting:</span>
     <button id="stance-teach" type="button">I teach it</button>
     <button id="stance-do" type="button">I do it</button>
+  </span>
+  <!-- WHAT THIS SITTING IS FOR, CHANGED WHERE IT IS RATHER THAN BY OPENING
+       ANOTHER ONE. It used to be chosen once, on the map, at the moment the
+       sitting opened — and every route to it archived the lesson. So "wait, now
+       teach me how this works", said three hours into building something, cost
+       the evening it was said in.
+
+       These buttons are not the chooser above them: a tap here takes effect at
+       once, on the sitting that is open, and the transcript, the cards and the
+       tutor all stay exactly where they are. The two aims that are held over a
+       scope are not offered, because choosing one of those is choosing what it
+       is over — which is a tap on the map and a new sitting. -->
+  <span id="kind-aim" class="kind-aim">
+    <span class="kind-aim-lead">for:</span>
+    <span id="kind-aim-ways"></span>
+    <span class="kind-aim-note">Changes this sitting at once — nothing is filed
+      away. Tracing code and being set problems are chosen over something, so
+      those start a new sitting from ◈ map.</span>
   </span>
 </div>
 

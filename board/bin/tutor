@@ -806,14 +806,16 @@ def chapter_now(root):
         return ""
 
 
-# The four ways a sitting says "this turn does the work", and they are the same
-# four `sense.session_sense` reads: a person taps one of them on the map without
-# knowing which of the three files it lands in.
-DOING_AIMS = ("build", "paper", "slides")
-
-
 def doing_now(root):
-    """Is the sitting that is open one whose product is a change, not a card?"""
+    """Is the sitting that is open one whose product is a change, not a card?
+
+    ASKED OF `course/config.py`, WHICH IS THE ONE ANSWER. This function used to
+    hold its own copy of the aims that write -- a third list of the same three
+    words, beside `sense`'s and the browser's -- and it read `tutorboard.json` by
+    hand as well, so a family's default style in `atlas.json` reached the prompt
+    and not the clock. A doing turn on a teaching turn's timeout is a turn killed
+    at fifteen minutes with eight files changed and nothing committed.
+    """
     try:
         with open(os.path.join(root, "live", "state.json"), "r", encoding="utf-8") as fh:
             st = json.load(fh) or {}
@@ -821,15 +823,16 @@ def doing_now(root):
         return False
     if st.get("session") == "make":
         return True
-    if (st.get("aim") or "") in DOING_AIMS:
-        return True
-    if (st.get("session") or "lecture") not in ("lecture", "homework"):
-        return False
-    own = (st.get("stance") or "").strip().lower()
-    if own:
-        return own == "do"
     try:
-        return (config.read_config(root).get("stance") or "teach") == "do"
+        # The sitting's own aim first, whatever kind of sitting it is: somebody
+        # who asked for a deck about the machinery they were walking through has
+        # asked for work to be done, and the kind of sitting does not say so.
+        mine = config.clean_aim(st.get("aim"))
+        if mine:
+            return config.AIM_STANCE.get(mine) == "do"
+        if (st.get("session") or "lecture") not in ("lecture", "homework"):
+            return False
+        return config.stance_for(root, st) == "do"
     except Exception:
         return False
 
@@ -929,25 +932,90 @@ HEADLESS_RESUME_PROMPT = (
 )
 
 
-def turn_plan(spec, carried, recycle):
+# A REVISION IS A TURN, AND IT IS NOT PART OF THE LESSON.
+#
+# Feedback on a document comes off the library page, which is not a sitting: it
+# never writes to `live/cards/`, never archives the lesson and never changes
+# `state.json`, because somebody mid-proof on an iPad must not be interrupted by
+# somebody correcting a deck.
+#
+# That is the whole reason this turn RUNS FRESH. `turn_plan` resumes the agent's
+# conversation by default, and a revision resumed into a lesson drags the lesson
+# into the document and the document back into the lesson. The alternative was a
+# second daemon per workspace, which doubles the cost and the failure modes for a
+# turn that takes a minute.
+#
+# So it is its own session, it writes no card, and its report goes back beside
+# the document rather than onto the glass.
+HEADLESS_REVISE_PROMPT = (
+    "You are running headless, and THIS TURN IS NOT PART OF THE LESSON. Nobody "
+    "is waiting at a board for a card. Somebody read a document this workspace "
+    "has written and said what is wrong with it, from the library page.\n\n"
+    "They sent this:\n\n%(inbox)s\n\n"
+    "Do this, and nothing else:\n"
+    "1. Read the feedback file the text above names, and read the document it is "
+    "about. Both are paths in this repository.\n"
+    "2. REVISE THE DOCUMENT. Edit the source the document is built from -- the "
+    "`.tex` or the `.md` beside it -- and rebuild the PDF if it has one. Keep "
+    "its structure, its names for things and its claims except where the "
+    "feedback says otherwise. Do not start it again and do not widen it.\n"
+    "3. Write what you changed at the BOTTOM OF THE FEEDBACK FILE, under a "
+    "`## What was changed` heading: what you changed, what you left and why, "
+    "and anything in the feedback you could not act on. That file is the record "
+    "of this round and it is where the person who wrote the feedback will look.\n\n"
+    "**Write no card.** Do not run `board write`, do not run `board open`, do "
+    "not touch `live/state.json`, `live/cards/` or `HANDOFF.md`, and do not run "
+    "`board wait`. There is a lesson on this board and it belongs to somebody "
+    "else's evening; this turn must leave every part of it exactly as it found "
+    "it.\n\n"
+    "Do not read `AI_INSTRUCTIONS.md`, `live/TEACHING.md` or the cards: none of "
+    "them is about this document. `board brief` is not needed either. End the "
+    "turn when the document and the feedback file are both written."
+)
+
+
+def turn_plan(spec, carried, recycle, signal=""):
     """Which recipe and which prompt this turn gets, and whether it is fresh.
 
     `carried` is how many turns the agent's current session already holds; 0
     means there is nothing to resume. `recycle` is `session_turns` from the
-    config -- 0 resumes for ever.
+    config -- 0 resumes for ever. `signal` is what the inbox line says this turn
+    is for, which matters for exactly one of them.
 
     Resuming saves re-reading the contract, the method and the lesson. It is not
     free: a resumed turn resends the whole conversation as input, so turn twenty
     pays for nineteen turns of history. Past a point a fresh session that reads
     the contract once and the lesson back through `board recap` is cheaper than
     carrying everything, so this is where the two are traded off.
+
+    A REVISION IS ALWAYS FRESH, whatever is there to resume. It is not part of
+    the lesson -- see `HEADLESS_REVISE_PROMPT` -- and resuming one into a lesson
+    drags the lesson into the document and the document back into the lesson.
     """
     recipe = spec.get("headless")
     first = spec.get("headless_first") or recipe
+    if signal == "revise":
+        return first, HEADLESS_REVISE_PROMPT, True
     fresh = carried == 0 or bool(recycle) and carried >= recycle
     return (first if fresh else recipe,
             HEADLESS_FIRST_PROMPT if fresh else HEADLESS_RESUME_PROMPT,
             fresh)
+
+
+def carry_after(signal, fresh, carried):
+    """How many turns the agent's session carries once this turn has finished.
+
+    Ordinarily: one if it started a new session, one more if it resumed. The
+    exception is a revision, and it is the reason this is a function rather than
+    an expression. A revision runs FRESH, so the agent's current conversation is
+    now about a document -- and leaving the count at one would make the next turn
+    of the LESSON resume into it, which is exactly the drag the revision was made
+    fresh to avoid. Zero, so the next lesson turn starts its own session and
+    reads the lesson back with `board recap`.
+    """
+    if signal == "revise":
+        return 0
+    return 1 if fresh else carried + 1
 
 
 # WHAT A TURN WAS WOKEN FOR, so the board can say it while the turn runs.
@@ -1803,7 +1871,8 @@ def headless(cfg, course, agent_name, session):
         # starting over. Everything a fresh session needs is on disk: the
         # contract, the method, and `board recap` for the lesson.
         first = spec.get("headless_first") or recipe
-        use, template, fresh = turn_plan(spec, carried, recycle)
+        this_signal = turn_signal(out)
+        use, template, fresh = turn_plan(spec, carried, recycle, this_signal)
         if fresh and carried:
             log.write("-- starting a fresh session after %d turn(s); the lesson "
                       "is read back with `board recap`\n" % carried)
@@ -1923,7 +1992,7 @@ def headless(cfg, course, agent_name, session):
             agent_state(live, state="listening", last_error=failure_reason(said, err),
                         failed_at=time.time(), retrying=pending is not None)
         else:
-            carried = 1 if fresh else carried + 1
+            carried = carry_after(this_signal, fresh, carried)
             # What it cost, from the turn's own mouth. Written before anything
             # else here, because this is the whole justification for a turn
             # being its own session and it is worth nothing unmeasured.

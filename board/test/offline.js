@@ -122,6 +122,43 @@ function ask(handlers, url, init) {
     ? ok('live data is left to the network, as it must be')
     : fail('the worker intercepted a live request');
 
+  // 6. A DOCUMENT'S PAGES ARE LIVE. `/doc/<id>/<page>.png` is deliberately the
+  //    STABLE address of a page -- the server refuses to cache it for exactly
+  //    that reason, so a card written last month survives the deck being
+  //    rebuilt -- which meant it fell through to the shell rule, the one that
+  //    caches any 200 it sees. A document revised on feedback is rebuilt at the
+  //    same name, and the person who asked for the change was served the page
+  //    they asked to have changed.
+  ({ handlers } = scope({}));
+  res = ask(handlers, base + '/doc/stage2-reference-walkthrough/24.png');
+  res === undefined
+    ? ok('a page of a document is left to the network, so a revised one is not stale')
+    : fail('the worker cached a document page');
+
+  // And the library with it: the list, and the pages of a document read from it.
+  ({ handlers } = scope({}));
+  res = ask(handlers, base + '/library.json');
+  res === undefined
+    ? ok('and so is the list of what a workspace has written')
+    : fail('the worker cached the library list');
+  ({ handlers } = scope({}));
+  res = ask(handlers, base + '/library/view/serve-harness');
+  res === undefined
+    ? ok('and a document opened from it')
+    : fail('the worker cached a library document');
+
+  // 7. The library PAGE is shell, though, like the board and the slate: it has
+  //    to open on an iPad that cannot reach the node yet.
+  ({ handlers } = scope({ '/library': new Response('<html>the library</html>', {
+    headers: { 'Content-Type': 'text/html' } }) }));
+  res = await ask(handlers, base + '/library', { navigate: true });
+  /the library/.test(res ? await res.text() : '')
+    ? ok('while the library page itself is cached, like the board and the slate')
+    : fail('the library page is not part of the shell');
+  /"\/library"/.test(SRC)
+    ? ok('and is listed in the shell, so it is there after one visit')
+    : fail('/library is not in SHELL');
+
   console.log(errors.length ? '\n' + errors.length + ' FAILURES'
                             : '\nan unreachable board still paints something');
   process.exit(errors.length ? 1 : 0);

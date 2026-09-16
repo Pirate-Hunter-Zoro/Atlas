@@ -39,6 +39,17 @@ SIGNAL_SENSE = {
             "them on it; carry on with the lesson. If it was a hand-check, treat "
             "that idea as known and go to the next one -- or, if it was the last "
             "one, straight to the exercise, restated in full.",
+    # A CHANGE OF AIM IS AN INTERRUPTION, NOT A NEW SITTING. `/aim` writes the
+    # new aim and wakes a turn; nothing is archived and no tutor is replaced, so
+    # the one thing that has to be said is that everything already on the board
+    # still stands. Without it a turn woken by this reads a changed style as a
+    # changed subject and starts the evening again.
+    "aim": "they have changed WHAT THEY WANT FROM THIS SITTING, in the middle of "
+           "it, and nothing else about it has changed. Everything already on the "
+           "board stands: the lesson was not filed away, you are not a new "
+           "tutor, and what you have both agreed is still agreed. Write the NEXT "
+           "card the new way. Do not start over, do not re-introduce yourself, "
+           "and do not recap what you have just done together.",
     "done": "their work is ready for you to check.",
     "help": "they are stuck and want help.",
     "confused": "something is not making sense to them.",
@@ -581,7 +592,7 @@ def node_sense(repo, st):
     return said
 
 
-def aim_sense(st):
+def aim_sense(st, aim=None):
     """What this sitting is FOR, in the words the person tapped.
 
     Not a mode and not a stance: it is the answer to "what do you want to do
@@ -589,8 +600,15 @@ def aim_sense(st):
     opened as *tell me what to write* and one opened as *write it for me* are
     both `stance: teach`-shaped requests in the old vocabulary and they are not
     the same evening, and a tutor that is not told which will pick one.
+
+    `aim` is what the CALLER resolved, where the caller has more to go on than
+    the sitting does: a sitting nobody opened from the map names none, and
+    `config.aim_for` then answers from the workspace or its family. The two
+    sittings held over a scope do not pass one -- a review that inherited
+    `build` from its family would be told to write code, which is the one thing
+    a review does not do.
     """
-    aim = config.clean_aim((st or {}).get("aim"))
+    aim = config.clean_aim(aim or (st or {}).get("aim"))
     if not aim:
         return ""
     return " " + config.AIM_MEANS.get(aim, "")
@@ -600,13 +618,62 @@ MAKE_SENSE = (
     "THIS IS A MAKE SITTING: its product is a DOCUMENT, not an answer. "
     "Nothing here is an exercise and nothing is handed in. You draft, they read "
     "and correct, you revise. "
+    # WHAT THE DOCUMENT IS ABOUT, and it was the half nothing said. Everything
+    # else here is about HOW to work -- sections, show each one, take
+    # corrections -- and a tutor that has just spent three hours teaching, asked
+    # to write it up, writes up the three hours. Stated as a refusal, because a
+    # preference in a prompt is what produced the narration.
+    "WHAT IT IS ABOUT IS THE SUBJECT, NEVER THIS SITTING. The document is an "
+    "EXPLAINER: here is how this works, and here is the mathematics, written "
+    "for somebody who was not in the room. So: no first person, no 'we "
+    "covered', no 'the student then', no 'as we saw above', and no reference at "
+    "all to this sitting, its cards, its questions, or the person answering "
+    "them. If a concept was taught by hand-checking three examples, the "
+    "document explains the concept and shows the examples -- it does not "
+    "narrate the hand-check. A write-up of the evening is the one thing this "
+    "sitting must not produce. "
+    "AND ITS SCOPE IS THE BOX, NOT THE EVENING. It is about the machinery named "
+    "below -- the part of the map this sitting is on, or the chapter it is "
+    "labelled with -- and not about everything that came up while you were "
+    "looking at it. If neither is named, ask in your first card what the "
+    "document is to be about rather than drafting something and finding out. "
     "Work in sections: write one, put it on the board for them to read, take "
     "the corrections, then write the next -- a whole document dropped at once "
     "is the word dump this board exists to replace. "
-    "Keep it in the repository as a file, under a name that says what it is, "
-    "and say in every card where that file is so they can open it. "
+    "KEEP IT IN `writeups/<slug>/`, one directory per document: `<slug>.tex` "
+    "with its `figures/` and its `feedback/` beside it, `<slug>` being a short "
+    "name that says what the document is. Say in every card where that file is "
+    "so they can open it. A document already living somewhere else in this "
+    "repository stays where it is; this is where a NEW one goes. "
     "When a section is ready to be READ rather than discussed, compile it and "
     "let them read it on the glass rather than pasting it into a card. ")
+
+
+# WHAT A REVISION TURN IS WOKEN WITH, and it names both files.
+#
+# The turn's own instructions are in `bin/tutor` (`HEADLESS_REVISE_PROMPT`) and
+# they say to read "the feedback file the text above names" -- this is that text.
+# Two paths, both of them found by `course/library.py` in the workspace rather
+# than built out of anything a browser sent.
+#
+# It says outright that this is not the lesson. A turn that reads "here is some
+# feedback" on a board with a lesson on it writes a card about the feedback,
+# which is the one thing this route exists not to do.
+REVISE_SENSE = (
+    "Feedback has been written on a document in this repository, from the "
+    "LIBRARY rather than from the lesson. The document is `%s`. The feedback is "
+    "`%s`. Read both, revise the document on what it says, and write what you "
+    "changed at the bottom of that feedback file. "
+    "THIS IS NOT PART OF THE LESSON: there may be a sitting open on this board "
+    "that belongs to somebody else's evening. Write no card, do not open or "
+    "archive a sitting, and leave live/state.json, live/cards/ and HANDOFF.md "
+    "exactly as you found them."
+)
+
+
+def revise_sense(document_rel, feedback_rel):
+    """The inbox line for one round of feedback on one document."""
+    return REVISE_SENSE % (document_rel, feedback_rel)
 
 
 def session_sense(repo):
@@ -628,7 +695,7 @@ def session_sense(repo):
     # order the turn happens in.
     aim = config.clean_aim(st.get("aim"))
     doing = (st.get("session") == "make"
-             or aim in ("build", "paper", "slides")
+             or (aim and config.AIM_STANCE.get(aim) == "do")
              or (st.get("session") in (None, "", "lecture")
                  and config.stance_for(repo.root, st) == "do"))
     return said + (DOING_SENSE if doing else "")
@@ -678,14 +745,22 @@ def _session_sense(repo):
     # A sitting whose product is a document. It takes none of the method above:
     # there is no exercise, nothing is handed in, and the stance question -- who
     # writes the code -- does not arise when what is being written is prose.
-    if kind == "make":
-        makes = (st.get("makes") or "paper").strip().lower()
+    #
+    # KEYED ON THE PRODUCT, NOT ON THE KIND OF SITTING. This used to be reached
+    # only through `kind == "make"`, so an aim of `paper` chosen mid-lesson got
+    # the one sentence in `AIM_MEANS` and none of the method: no sections, no
+    # showing each one, no file kept in the repository. The aim is the thing a
+    # person actually taps, so it is the thing this turns on.
+    mine = config.clean_aim(st.get("aim"))
+    if kind == "make" or mine in ("paper", "slides"):
+        makes = (st.get("makes")
+                 or ("slides" if mine == "slides" else "paper")).strip().lower()
         said = MAKE_SENSE
         said += ("What they asked for is %s."
                  % ("a DECK of slides" if makes == "slides" else "a PAPER"))
         if chapter:
             said += " It is about %r." % chapter
-        return said + node_sense(repo, st) + aim_sense(st)
+        return said + node_sense(repo, st) + aim_sense(st, mine or makes)
 
     # Whether this repository follows a book, which is the ONLY question about a
     # subject anything here still asks. A course with a syllabus has its
@@ -700,6 +775,16 @@ def _session_sense(repo):
     how += doing
     how += reading_sense(repo)
     how += results_sense(repo)
+
+    # WHAT THIS SITTING IS FOR, RESOLVED: its own aim, the workspace's, or its
+    # family's default in `atlas.json`. Everything from here down is a lecture or
+    # a homework sitting -- the two a person reaches without going through the
+    # map -- and before this they carried no style at all, so they ran on stance
+    # alone, which is `teach` nearly everywhere and is the wrong answer for a
+    # project. It is on every return below, or the sitting it is missing from is
+    # the one that has no style.
+    for_it = aim_sense(st, config.aim_for(repo.root, st))
+
     if kind == "homework":
         st_hw = homework.status(repo.root, st)
         if st_hw and st_hw.get("name"):
@@ -710,11 +795,12 @@ def _session_sense(repo):
                      "assigned before teaching anything." % os.path.dirname(st_hw["rel"]))
             return (how + "This is a HOMEWORK sitting on %s (%s). The problems are "
                     "assigned, not yours to choose. %s Transcribe each statement "
-                    "before you teach it." % (st_hw["name"], st_hw["rel"], where))
+                    "before you teach it." % (st_hw["name"], st_hw["rel"], where)
+                    + for_it)
 
     if chapter:
         return (how + "This sitting is labelled %r and it is a %s. Start there."
-                % (chapter, kind)) + node_sense(repo, st) + aim_sense(st)
+                % (chapter, kind)) + node_sense(repo, st) + for_it
     # A course that follows a book says so on disk. Naming its actual first
     # chapter beats telling an assistant to work it out, which is what produced
     # a Galois course opened at field extensions -- chapter four.
@@ -726,9 +812,9 @@ def _session_sense(repo):
                 "chapter you are opening in your first card. Do not start from "
                 "whatever you consider the foundation of the subject -- start "
                 "where the book starts."
-                % (kind, len(every), syllabus.label(book)))
+                % (kind, len(every), syllabus.label(book))) + for_it
     return (how + "This sitting is a %s and carries no label of its own, so the only "
             "thing that says where to start is what the repository points at -- "
             "read that before your first card, and say in that card what you are "
             "opening and why. Do not guess from the subject and do not survey the "
-            "repository for an agenda of your own." % kind)
+            "repository for an agenda of your own." % kind) + for_it

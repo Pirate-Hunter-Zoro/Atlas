@@ -19,9 +19,10 @@ on a shared home.** Nothing needs `sudo`, nothing is supervised, and nothing ass
 will still be yours tomorrow — see [The machine this is written
 for](#the-machine-this-is-written-for).
 
-**Contents** — [What it is not](#what-it-is-not) · [The three surfaces](#the-three-surfaces) ·
+**Contents** — [What it is not](#what-it-is-not) · [The surfaces](#the-surfaces) ·
 [Commands](#commands) · [Writing a card](#writing-a-card) · [The slate](#the-slate--writing-by-hand)
-· [Getting work back](#getting-work-back) ·
+· [The library](#the-library--every-paper-and-deck-a-workspace-has) ·
+[Getting work back](#getting-work-back) ·
 [Exporting it](#exporting-the-whole-conversation) · [Any agent](#any-agent-not-just-one) ·
 [Layout](#layout) · [The machine](#the-machine-this-is-written-for) ·
 [Setup, start to finish](#setup-start-to-finish) ·
@@ -44,9 +45,10 @@ must be openable and teachable at every point.
   started, so a commit alone changes nothing for somebody holding an iPad. Changes outside
   `board/` need `bash scripts/save-and-push.sh "message" -- <paths>`.
 - **Bump `VERSION` in `web/sw.js`** when any shell file changes (`board.html`, `board.js`,
-  `board.css`, `plane-core.js`, `gauge.js`, `home.html`, `home.js`, anything added to the
-  cache list), or the installed app serves its cached copy and the work is invisible.
-- **`bash test/all.sh` before every ship.** 71 suites, all green. `test/tracked.py` runs
+  `board.css`, `plane-core.js`, `gauge.js`, `home.html`, `home.js`, `library.html`,
+  `library.js`, `library.css`, anything added to the cache list), or the installed app
+  serves its cached copy and the work is invisible.
+- **`bash test/all.sh` before every ship.** 74 suites, all green. `test/tracked.py` runs
   first and refuses PHI, 25-megabyte files, model dumps, other authors' papers and
   machine-local config anywhere in the repository — this is public, and git remembers.
 - **Check the address after a ship.** `tutor restart` bounces every board; the HTTPS name
@@ -461,11 +463,12 @@ done it is inside a prohibition.
 
 ### What is deliberately not built
 
-- **The correction round.** A correction round is an annotation that goes back in as another job.
-  The annotation half exists — any page of any document can be marked up — and turning a marked-up
-  manuscript into a follow-up job is one function reading `delivered()` and `Annotate`'s stored
-  marks. It waits because it is the one part with no worked example behind it: no manuscript has
-  come back yet, so there is nothing to correct and no way to know what a correction job should say.
+- **A correction round made of MARKS.** Written feedback has a route — the library page writes a
+  note beside the document and `manuscript.revise` drops a job that names both — and ink does not.
+  Any page of any document can be marked up already; turning those marks into the body of a
+  revision is one function reading `Annotate`'s stored marks instead of a textarea. It waits for
+  the same reason it always did: nothing has come back marked up yet, so there is no worked example
+  of what such a job should say.
 - **Annotating code.** `code/<path>[::<sym>]#L<n>` is one entry in `ann_ok` and one in `ann_says`,
   and it is not written, because there is no code viewer to draw on and accepting a key nothing can
   produce is a branch that rots. The `code/` address already lands on the walkthrough picker, which
@@ -578,9 +581,9 @@ Not a chat client. The conversation still happens wherever the assistant is runn
 an editor, an SSH session. The board is the *display* for the mathematics, plus a back channel for
 the student's answers and working. One process per course repository.
 
-## The three surfaces
+## The surfaces
 
-Four pages, and it is worth being clear about which is which, because they were built in that
+Pages, and it is worth being clear about which is which, because they were built in that
 order and the earlier ones did not know the later ones were coming.
 
 | Surface | Who writes there | What for |
@@ -589,6 +592,11 @@ order and the earlier ones did not know the later ones were coming.
 | **The board** (`/board`) | the assistant | the lesson: prose, typeset mathematics, tables, compiled diagrams |
 | **The answer panel** (`/board`) | the student | one block under the question — write on the slate, or type, with a toggle |
 | **The drop zone** | the student | a file that was not written on the slate |
+| **The library** (`/library`) | the student | every paper and deck this workspace has written, and a word about what is wrong with one |
+
+The library is the one that touches nothing else: it writes no card, opens no
+sitting and changes no `state.json`, so reading a document or correcting one
+cannot interrupt a lesson in progress.
 
 Answering happens in one panel under the question: the slate and a typed half, and a toggle
 between them. Whichever the student used last is the one that opens next. Nothing has to be
@@ -1735,6 +1743,11 @@ said about itself — which is the point, because a fact cannot go stale and a d
 | A `--walk` sitting covers | its source files, where it has any | its source files |
 | Answering | the answer panel | the answer panel |
 
+A third thing is declared rather than read off the tree, and it is one word:
+`aim` in `tutorboard.json`, which says what a sitting in this workspace is for
+when nobody chose. It beats its family's default in `atlas.json` and is beaten by
+the sitting itself. `mode` is still read and dropped; it means nothing.
+
 `chapters.tsv` or `chapters/chNN-*/` is what makes the first column true; there is no flag for it.
 A repository with neither is told so and pointed at its README, and is explicitly told **not** to
 manufacture chapters out of the README's own headings — which is a thing that happened, once, on a
@@ -1916,7 +1929,7 @@ any other step is *later*, a chapter with a lesson filed against it is *done*,
 and everything else says *unknown*. Git recency is deliberately absent — touched
 is not progressed.
 
-### Tapping something, and the six ways to work on it
+### Tapping something, and the seven ways to work on it
 
 Tapping a box asks *what do you want to do about this*; tapping a chip asks the
 same about that step. Every answer opens a sitting **already pointed at that
@@ -1947,12 +1960,55 @@ section at a time and read on the glass rather than pasted into a card.
 `TEACHING.md` holds the rules. Asked for as *"have you write up papers or
 presentations, and SHOW me these on the iPad."*
 
-And the sitting carries an **aim** — which of the six was tapped — into
+And the sitting carries an **aim** — which of the seven was tapped — into
 `state.json` and into the line the tutor is woken with, along with the box's
 purpose, its files, its steps and its document. A tutor woken into "tell me what
 to write" knows that is what it is; one woken into "write it for me" knows it is
 that. A single `stance` cannot tell those two apart, and they are not the same
 evening.
+
+**A stance is derived from the aim, never sent beside it.** `build` with a
+stance of `teach` is a contradiction, so `config.AIM_STANCE` answers who writes
+the code and `config.stance_for` resolves it in one place: the sitting's own
+stance, then its aim, then `tutorboard.json`, then the family's default. The
+browser sends neither on its own authority.
+
+#### The aim can be changed without losing the lesson
+
+"Wait, now teach me how this works", said three hours into building something,
+used to cost the evening it was said in: the aim reached `state.json` only
+through `POST /session`, and every path through that calls `board open`, which
+archives the lesson.
+
+The sitting-kind chooser carries the five aims that need no scope — **teach**,
+**build**, **coach**, **paper**, **slides** — and a tap on one changes the
+sitting that is open. `POST /aim` writes it, puts the tap in the transcript,
+wakes a turn, and does nothing else: no archive, no new tutor, every card still
+on the board. `board aim <name>` is the same thing from a terminal, minus the
+waking. **trace** and **drill** are not offered, because each is held over a
+scope — a list of files, a part of the repository — and choosing one is choosing
+what it is over, which is a tap on the map and a new sitting.
+
+The waking is the half no file can do: a turn is a headless call, and only a
+*fresh* one re-reads `sense.session_sense`, so writing a new aim into
+`state.json` and stopping there changes nothing for the assistant that is
+mid-conversation.
+
+#### Every sitting has a style, including the ones nobody chose one for
+
+`tutor galois`, `board open`, a chapter tapped in the contents drawer and a board
+resumed after a reboot all name no aim. They used to run on stance alone, which
+is `teach` nearly everywhere and is the wrong answer for a project. So a family
+declares a default in `atlas.json` and it is overridable at every level below:
+
+    courses, practice   →  teach     the mathematics worked properly
+    research, projects  →  build     the tutor writes it and reports
+
+`config.aim_for` holds the whole precedence — **the sitting's own aim → the
+workspace's `tutorboard.json` → the family's default** — and it is the only
+place that knows it. `atlas.json` is still not a registry of workspaces: a
+default style is a property of a family, and making a course is still
+`mkdir courses/Topology`.
 
 ### The map is a plane
 
@@ -2156,6 +2212,58 @@ The rules that go with it are in `TEACHING.md` and they are short: the slide goe
 the question goes under it, one slide per card, never a slide instead of a question, and never a
 page the tutor has not opened and read itself. A slide is an object to work on. A card with a
 picture and no question is the word dump in a new medium.
+
+### The library — every paper and deck a workspace has
+
+Asked for as *"view all papers and presentations related to a project very
+easily"*, and the point of it is that it costs no sitting: `/library` is a page
+of its own, reachable from the ⋯ menu on the board and from **Papers & decks** on
+a workspace's sheet on the atlas front door.
+
+**A document is a stem in a directory, in however many formats it has.**
+`manuscript.md` + `.pdf` + `.docx` is one document; `stage1_pipeline_walkthrough.tex`
++ `.pdf` is one document. The directory is the group and the heading. Nothing is
+registered and nothing had to move: the title comes out of the source
+(`\title{…}` in a `.tex`, the first `# ` in a `.md`), the kind comes out of it
+too (`\documentclass[…]{beamer}` is a deck), and *stale* is arithmetic — the
+source's modification time against the PDF's. `course/library.py` is the whole
+of it, and it reads the same fence `reading.py` does, so nothing out of `phi/`
+and nothing out of somebody else's `references/` is ever in the list.
+
+It is **not** `reading.py`. That module answers "what can go on the glass in a
+card", is capped at 24 documents and walks three deep, and those are the right
+numbers for a drawer.
+
+**A new document goes in `writeups/<slug>/`** — `<slug>.tex`, `<slug>.pdf`,
+`figures/`, `feedback/` — one directory per document, because a deck's figures
+and its rounds of feedback need somewhere to be.
+
+#### Feedback, and what acts on it
+
+Tapping a document reads it on the glass through the viewer the board already
+owns. **Say what is wrong** writes a note where the document is —
+`feedback/<date>-v<n>.md`, dated and versioned, never stamped with the time,
+tracked so it crosses machines — carrying the page they were looking at. The same
+request asks for the revision, because a note nothing acts on is a note somebody
+believes is in force.
+
+**Which machinery revises it depends on which wrote it.** A document this
+repository holds the source of is revised by the board: a `[revise]` line in the
+inbox, and a turn woken on it. A manuscript delivered into `manuscripts/` goes
+back to Paper-Writer — `manuscript.revise` drops a job with a `## Revision`
+section naming the document and the feedback file — because the factory is what
+holds the evidence, the terminology lock, the checklist and the venue's word
+limit. An explainer is never routed through it: "how the serve harness works"
+has no venue and makes no claims, and every one of those gates would either
+refuse it or invent something to satisfy itself.
+
+**A revision turn runs fresh and writes no card.** `turn_plan` resumes the
+agent's conversation by default; a revision resumed into a lesson drags the
+lesson into the document and the document back into the lesson. So it is its own
+session, its report goes at the bottom of the feedback file, and
+`live/cards/`, `live/state.json` and the archive are left exactly as they were —
+somebody mid-proof on an iPad is not interrupted by somebody correcting a deck.
+That is what makes the library a separate interface rather than a sitting.
 
 ### A walkthrough — code that is already there
 
@@ -2548,6 +2656,8 @@ board next lesson splitting-fields   # -> live/cards/0001-splitting-fields.md
 board brief                      # the standing rules, in one call: the method, this
                                  #   course's unbendable rules, the handoff, the note
 board direction --show           # what this work is FOR, when they have changed it
+board aim                        # what THIS SITTING is for, and whether it was chosen
+board aim build                  # change it in place; nothing is archived
 board recap                      # the lesson so far, in one call
 board note < note.md             # <=120 words for the next turn (a turn is a session)
 board handoff < handoff.md       # HANDOFF.md at session end, <=350 words. Capped.
@@ -2912,6 +3022,9 @@ tutorboard/        the board itself, organised by what a thing is about:
                    course's chapter table in the form a project has one),
                    reading (the documents it can be SHOWN, as opposed to the two
                    it builds),
+                   library (everything the workspace HAS written, grouped into
+                   documents by stem and directory, and where feedback on one
+                   goes),
                    walk (what a walkthrough can be held over: a file, or one
                    definition inside one), syllabus, screenshot, paper (the two
                    documents: resolving one, naming it, and rendering its pages
@@ -2924,6 +3037,7 @@ web/               the hub   — home.html, home.css, home.js
                    the board — board.html, board.css, board.js, macros.js, vendored KaTeX
                    the ink layer — annotate.js, over the tutor's own cards
                    the slate — slate.html, slate.css, slate.js
+                   the library — library.html, library.css, library.js
                    the app   — manifest.webmanifest, sw.js, icon-*.png (icon.tex makes them)
 test/              node test/markdown.js and node test/macros.js
 ```
@@ -2956,6 +3070,9 @@ runtime state:
 
 ```
 transcripts/       <lesson>-v1.pdf, -v2.pdf … written by `board export`
+writeups/<slug>/   a document a make sitting produced: <slug>.tex, <slug>.pdf,
+                   figures/, and feedback/<date>-vN.md — one directory per
+                   document, drawn by the library page
 ```
 
 ---

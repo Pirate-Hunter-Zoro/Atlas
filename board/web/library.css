@@ -1,0 +1,130 @@
+/* ==========================================================================
+   library.css -- the documents a workspace has written.
+
+   The palette, the dark mode and the reading face come from board.css, which
+   this page also loads: one set of colours for one room. What is here is only
+   the shape of this page -- a bar, a grouped list, a reader, and the panel that
+   takes a note about what is wrong.
+   ========================================================================== */
+
+body { font-family: var(--ui); color: var(--ink); }
+
+/* ---------- the bar ---------- */
+#libbar {
+  position: sticky; top: 0; z-index: 20;
+  display: flex; align-items: baseline; gap: .8rem; flex-wrap: wrap;
+  padding: .7rem 1rem;
+  background: var(--paper-2);
+  border-bottom: 1px solid var(--rule);
+}
+#libbar a {
+  color: var(--ink-2); text-decoration: none;
+  font-size: .9rem; padding: .2rem .4rem; border-radius: .3rem;
+}
+#libbar a:hover { background: var(--paper); color: var(--ink); }
+#lib-where { font-size: 1rem; }
+.muted { color: var(--ink-3); font-size: .78rem; }
+
+/* ---------- the list ---------- */
+#library { max-width: 46rem; margin: 0 auto; padding: 1rem 1rem 6rem; }
+
+.lib-none {
+  color: var(--ink-2); font-size: .9rem; line-height: 1.5;
+  max-width: 34rem;
+}
+
+/* The directory is the group, and the heading is the same shape the walkthrough
+   picker uses for the directory it heads a list of files with. */
+.lib-dir {
+  font-size: .66rem; font-weight: 700; letter-spacing: .12em;
+  text-transform: uppercase; color: var(--ink-3);
+  margin: 1.4rem .2rem .4rem;
+}
+.lib-dir:first-child { margin-top: .2rem; }
+
+.lib-row {
+  display: flex; flex-direction: column; gap: .2rem;
+  padding: .7rem .8rem;
+  border: 1px solid var(--rule); border-radius: .5rem;
+  background: var(--paper-2);
+  margin-bottom: .5rem;
+}
+.lib-name {
+  font: inherit; font-size: 1rem; font-weight: 600;
+  text-align: left; padding: 0;
+  border: 0; background: none; color: var(--ink); cursor: pointer;
+}
+.lib-name:disabled { cursor: default; color: var(--ink-2); }
+.lib-meta { font-size: .74rem; color: var(--ink-3); }
+/* Two states worth seeing without reading: a PDF that no longer matches its
+   source, and a document somebody has already said something about. */
+.lib-stale { font-size: .74rem; color: var(--ask); }
+.lib-rounds { font-size: .74rem; color: var(--note); }
+
+.lib-acts { display: flex; gap: .4rem; margin-top: .35rem; flex-wrap: wrap; }
+.lib-acts button, #note-acts button, #reader-bar button {
+  font: inherit; font-size: .82rem; cursor: pointer;
+  padding: .35rem .7rem; border-radius: .4rem;
+  border: 1px solid var(--rule); background: var(--paper); color: var(--ink);
+}
+.lib-acts button.quiet, #note-acts button.quiet {
+  border-color: transparent; color: var(--ink-2);
+}
+#note-acts button.primary {
+  background: var(--note); border-color: var(--note); color: #fff; font-weight: 600;
+}
+#note-acts button:disabled { opacity: .45; cursor: default; }
+
+/* ---------- reading one ---------- */
+#reader {
+  position: fixed; inset: 0; z-index: 40;
+  display: flex; flex-direction: column;
+  background: var(--paper);
+}
+#reader-bar {
+  display: flex; align-items: center; gap: .6rem; flex-wrap: wrap;
+  padding: .6rem 1rem;
+  border-bottom: 1px solid var(--rule); background: var(--paper-2);
+}
+#reader-bar strong { font-size: .95rem; }
+#reader-bar button:last-child { margin-left: auto; }
+#reader-pages {
+  flex: 1; overflow: auto;
+  padding: 1rem; display: flex; flex-direction: column; align-items: center;
+  gap: 1rem;
+  -webkit-overflow-scrolling: touch;
+}
+.lib-page { margin: 0; max-width: 54rem; width: 100%; }
+.lib-page img {
+  display: block; width: 100%; height: auto;
+  border: 1px solid var(--rule); border-radius: .2rem;
+  background: #fff;
+}
+.lib-page figcaption {
+  text-align: center; font-size: .7rem; color: var(--ink-3); padding-top: .25rem;
+}
+
+/* ---------- saying what is wrong ---------- */
+#note {
+  position: fixed; inset: 0; z-index: 60;
+  display: flex; align-items: center; justify-content: center;
+  padding: 1rem;
+  background: rgba(0, 0, 0, .45);
+}
+#note-box {
+  width: min(32rem, 100%);
+  display: flex; flex-direction: column; gap: .5rem;
+  padding: 1rem;
+  border-radius: .6rem; border: 1px solid var(--rule);
+  background: var(--paper);
+  box-shadow: 0 10px 40px rgba(0, 0, 0, .35);
+}
+#note-text {
+  font: inherit; font-size: .9rem; line-height: 1.5;
+  padding: .6rem; border-radius: .4rem;
+  border: 1px solid var(--rule); background: var(--paper-2); color: var(--ink);
+  resize: vertical;
+}
+#note-acts { display: flex; gap: .5rem; justify-content: flex-end; }
+.note-said { font-size: .8rem; color: var(--ink-2); line-height: 1.45; margin: 0; }
+.note-said.bad { color: var(--bad); }

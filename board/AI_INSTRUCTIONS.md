@@ -80,7 +80,8 @@ tutorboard/
   machines.py           what this machine can teach, and what was chosen on it
   net/                  the tailnet it is reached on, and getting out to a model
   course/               a course on disk: repo, config, document, homework,
-                        review, syllabus, screenshot
+                        review, syllabus, screenshot, reading (documents it can
+                        be SHOWN), library (documents it has WRITTEN)
   lesson/               what is on the board now: cards, turns, notes, slate,
                         archive, state, git, uploads
   server/               the board itself: app, handler, hub, tikz, spawn,
@@ -333,8 +334,10 @@ tutorboard/
   way: `--tun=userspace-networking`, binaries and state under `~/.local`. A change that needs
   `sudo` is a change that cannot be deployed here.
 - **The service worker caches the shell and nothing live.** SSE, the board payload, uploads,
-  slate saves, and figures go to the network every time. A cached lesson is a stale lesson, which
-  is worse than a blank screen. Bump `VERSION` in `sw.js` whenever a shell file changes.
+  slate saves, figures, document pages and the library go to the network every time. A cached
+  lesson is a stale lesson, which is worse than a blank screen — and a cached document page is
+  the revision somebody asked for, served as the thing they asked to have changed. Bump
+  `VERSION` in `sw.js` whenever a shell file changes.
 - **One machine teaches, and one address opens one of its courses.** `tailscale serve` proxies the
   tailnet HTTPS name to a port on the machine running it, and answers every request with a 502 if
   its config names a remote tailnet backend — so there is no arrangement in which one origin serves

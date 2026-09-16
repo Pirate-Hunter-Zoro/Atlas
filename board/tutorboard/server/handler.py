@@ -19,7 +19,8 @@ from http.server import BaseHTTPRequestHandler
 from .. import paths
 from ..lesson import cards
 from . import routes
-from .routes import lesson, machines, pages, saving, taking, writing   # noqa: F401
+from .routes import (library, lesson, machines, pages, saving, taking,   # noqa: F401
+                     writing)
 
 WEB = paths.WEB
 
@@ -50,7 +51,8 @@ class Handler(BaseHTTPRequestHandler):
     QUIET_GET = re.compile(
         r"^/(events|board\.json|courses\.json|health|static/|figure/|"
         r"icon-\d+\.png|apple-touch-icon\.png|manifest\.webmanifest|sw\.js|"
-        r"slate/(page-|state)|answers/|uploads/|notes/|favicon)")
+        r"slate/(page-|state)|answers/|uploads/|notes/|favicon|"
+        r"library/view/)")
 
     def log_request(self, code="-", size="-"):
         try:
@@ -168,11 +170,17 @@ class Handler(BaseHTTPRequestHandler):
             return self.send_file(os.path.join(WEB, os.path.basename(path)), cache=True)
         if path in ("/slate", "/slate/"):
             return self.send_file(os.path.join(WEB, "slate.html"))
+        # A PAGE OF ITS OWN, not a panel over the lesson. "View all papers and
+        # presentations related to a project very easily" means not opening a
+        # sitting to get there -- and feedback written from it must not touch the
+        # lesson somebody else is mid-proof in. `/slate` is the precedent.
+        if path in ("/library", "/library/"):
+            return self.send_file(os.path.join(WEB, "library.html"))
         if re.match(r"^/slate/page-\d+\.png$", path):
             return self.send_file(os.path.join(repo.slate, os.path.basename(path)))
 
-        for mod in (routes.pages, routes.taking, routes.lesson, routes.writing,
-                    routes.machines):
+        for mod in (routes.pages, routes.taking, routes.library, routes.lesson,
+                    routes.writing, routes.machines):
             answered = mod.get(self, repo, path)
             if answered is not routes.NOT_MINE:
                 return answered
@@ -195,7 +203,7 @@ class Handler(BaseHTTPRequestHandler):
         # Ten stat calls against a route that is about to write a PNG.
         repo.ensure_dirs()
 
-        for mod in (routes.saving, routes.lesson, routes.writing,
+        for mod in (routes.saving, routes.library, routes.lesson, routes.writing,
                     routes.machines):
             answered = mod.post(self, repo, path)
             if answered is not routes.NOT_MINE:
