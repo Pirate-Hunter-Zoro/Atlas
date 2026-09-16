@@ -69,12 +69,12 @@ appears, it uses this too.
 > `P0-STATUS.md`. `HANDOFF.md` is rewritten at the end of every session and is never a record of
 > architecture — this README is.
 
-> **How the assistant is fenced in.** [`PERMISSIONS.md`](PERMISSIONS.md) is the architecture record
-> for Claude Code's permission configuration on this account: which commands skip the prompt, which
-> paths are refused outright, and the `PreToolUse` hook that makes `PSYCH-ASR` diarization and ASR
-> outputs unreadable no matter which interpreter is asked to open them. Verbatim copies of the hook
-> and the user-level settings live in [`config/`](config/), because `~/.claude/` is gitignored
-> everywhere and the configuration would otherwise not survive a rebuild. (Added 2026-09-02.)
+> **How the assistant is fenced in.** Not here. `Atlas/ai-config` is the private repository that
+> owns every AI assistant's configuration on this account: the operating contract, the PHI guard
+> that makes `PSYCH-ASR` diarization and ASR outputs unreadable no matter which interpreter is
+> asked to open them, one settings file per vendor, and the daily audit that checks all of it. Its
+> `PERMISSIONS.md` is the architecture record. It is private because the settings name real paths
+> on the lab's storage and the guard describes what it is guarding; this repository is public.
 
 ---
 
@@ -216,7 +216,7 @@ and shares nothing with them: its own script, its own log, its own timer.
 Everything in the table above lives outside this repository, so verbatim copies are tracked
 under [`config/`](config/) — `~/.local/bin` and `~/.config/systemd` are not backed up by
 anything, and a documented timer whose script is gone rebuilds into a dead unit. Same
-arrangement as §2.2 and as the Claude Code fencing in `PERMISSIONS.md`. The copies are
+arrangement as §2.2, whose own copies live in `Atlas/ai-config`. The copies are
 reference, not the running article: if you edit one, install it and check `diff`.
 
 `colibri-pull` is fast-forward-only and never fatal: a dirty tree or a diverged branch is logged and
@@ -243,36 +243,29 @@ on, or at 00:00 if you happen to already be logged in. Verified 2026-08-30 by ba
 persistent record three days and cold-starting the timer: it fired at once, then re-armed for the
 following day.
 
-### 2.2 Keeping the Claude Code fencing honest
+### 2.2 Keeping the assistant fencing honest
 
-(Added 2026-09-02.) The permission audit in [`scripts/harden-claude.sh`](scripts/harden-claude.sh)
-runs **once a day, automatically**, on the same machinery as §2.1 and for the same reason: crontab
-is refused by pam on this cluster, so a systemd `--user` timer with `Persistent=true` is what is
-left. See §2.1 for why that setting is load-bearing — the argument is identical and is not repeated
-here.
+The permission audit runs **once a day, automatically**, on the same machinery as §2.1 and for the
+same reason: crontab is refused by pam on this cluster, so a systemd `--user` timer with
+`Persistent=true` is what is left. See §2.1 for why that setting is load-bearing — the argument is
+identical and is not repeated here.
+
+**It lives in `Atlas/ai-config`, not here**, along with everything else that configures an AI
+assistant on this account. `ai-config/scripts/install.sh` installs the wrapper and the timer;
+`ai-config/PERMISSIONS.md` §6 says what the audit checks and what it refuses to do on a timer. The
+short version: it reports, it repairs file modes, and it never deletes.
 
 | Piece | Path |
 | --- | --- |
-| The wrapper (day guard, logging) | `~/.local/bin/harden-claude` |
-| The audit itself | `libr-local-llm/scripts/harden-claude.sh` |
-| Log (one line per run) | `~/.local/state/harden-claude.log` |
-| Once-a-day guard | `~/.local/state/harden-claude.stamp` |
-| Timer + service units | `~/.config/systemd/user/harden-claude.{timer,service}` |
-| Tracked copies, for a rebuild | [`config/harden-claude*`](config/) |
-
-The wrapper is a day guard and a log line; the audit lives in this repository, so what runs on the
-timer and what is documented are the same file. `harden-claude --force` runs it regardless of the
-day guard.
+| Wrapper (day guard, logging) | `~/.local/bin/ai-config-audit` |
+| The audit itself | `ai-config/scripts/audit.sh` |
+| Log (one line per run) | `~/.local/state/ai-config-audit.log` |
+| Timer + service units | `~/.config/systemd/user/ai-config-audit.{timer,service}` |
 
 **One deliberate difference from `colibri-pull`: this one is fatal on a real problem.** A failed
 pull is benign and is only logged. A missing PHI guard is not, so the wrapper exits non-zero and
 the unit lands in `systemctl --user --failed`, which is the only passive way anybody finds out. A
-log nobody reads is not a notification. Warnings — the unread home ACL, a flagged key — are steady
-state and stay a terse count on one line.
-
-What it checks, and what it refuses to do on a timer, is in
-[`PERMISSIONS.md`](PERMISSIONS.md) §6. The short version: it reports and it repairs file modes, it
-never deletes.
+log nobody reads is not a notification.
 
 ---
 
@@ -284,7 +277,7 @@ A delimited `# >>> ollama >>>` block in `~/.bashrc` sets these. A backup of the 
 | Variable | Value | Why |
 | --- | --- | --- |
 | `PATH` | **prepend** `$HOME/bin` | reach the ollama binary |
-| `PATH` | **append** `$HOME/libr-local-llm/bin` | reach the driver commands (§4a). See below — this one has three constraints |
+| `PATH` | **append** `$HOME/Atlas/projects/libr-local-llm/bin` | reach the driver commands (§4a). See below — this one has three constraints |
 | `OLLAMA_MODELS` | `/media/studies/.../models/ollama` | weights on studies, not the 100 GB home share |
 | `OLLAMA_HOST` | `127.0.0.1:11500` | non-default port avoids collisions on shared nodes; **loopback keeps a PHI-processing endpoint off the cluster network** |
 | `OLLAMA_CONTEXT_LENGTH` | `65536` in `~/.bashrc`, **overridden to `131072` in the accel sbatch** | ollama defaults to a few thousand tokens; an agent silently truncates its own history there. 65536 is the number that has to be safe on *one* 46 GB card, where `medgemma:27b-it-q8_0` is 29.6 GB before any KV cache. The accel profile has four cards and 114 GB of them idle, so it serves `gpt-oss:120b` at the model's full 131072 — see §7.24 for why that is a *quality* setting and not just a capacity one |
@@ -303,7 +296,7 @@ The driver commands live in the repo, not in `~/bin`, so that they stay tracked 
 reviewable alongside the sbatch files they drive. The cost is that `PATH` has to point at them, and
 the line that does it is fussier than it looks:
 
-1. **Reference it through `$HOME`, not the storage path.** `$HOME/libr-local-llm` and
+1. **Reference it through `$HOME`, not the storage path.** `$HOME/Atlas/projects/libr-local-llm` and
    `/mnt/dell_storage/homefolders/.../libr-local-llm` are the *same directory* — same inode, two
    mounts. Hardcoding the `/mnt` form works but bakes in a mount layout for no benefit.
 2. **Append, never prepend.** `$HOME/bin` is prepended because the ollama binary must win. The repo's
@@ -750,7 +743,7 @@ Do not re-learn these.
     `os.access` lies.** (Added 2026-09-09.) pip decides where to install with
     `test_writable_dir()`, which on POSIX is one line: `os.access(path, os.W_OK)`. The Isilon
     synthesises POSIX mode bits lossily from the real NFSv4 ACL, so that call returns **False** for
-    a directory the same process then writes to without error — the same defect `PERMISSIONS.md`
+    a directory the same process then writes to without error — the same defect `ai-config/PERMISSIONS.md`
     documents for mode bits generally. pip logs *"Defaulting to user installation because normal
     site-packages is not writeable"* and puts the payload in `~/.local`, which then **shadows the
     environment at import time**. 8.7 GB of vLLM landed on a 100 GB home share this way and a job

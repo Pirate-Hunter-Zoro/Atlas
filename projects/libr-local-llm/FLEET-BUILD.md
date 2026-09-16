@@ -141,7 +141,7 @@ Three rules about where it lives:
 2. **Not in the sbatch files, not on a command line.** Slurm scripts are readable and `ps` is
    readable by other users on a shared node. The backend reads the file; the launcher never echoes
    it.
-3. **`chmod 600` is necessary and its enforcement is unverified here.** `PERMISSIONS.md` records the
+3. **`chmod 600` is necessary and its enforcement is unverified here.** `ai-config/PERMISSIONS.md` records the
    finding: this home is NFSv4 on an Isilon, access is decided by an NFSv4 ACL, and **the POSIX mode
    the client shows is a lossy synthesis of that ACL rather than the thing being enforced** — and
    the home's own ACL cannot be read from this account because `nfs4_getfacl` is not installed. So

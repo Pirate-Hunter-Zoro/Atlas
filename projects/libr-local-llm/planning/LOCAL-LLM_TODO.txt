@@ -47,7 +47,7 @@ makes this the repo to work in while the other two wait.
   STEP 3. THE GUARD WIDENING — blocked on PSYCH-ASR, and in a fixed order. That
     repo's arm-diff writer splits into a full artifact and a numbers-only summary
     sibling first, then the human eyeballs the summary once, and only then does
-    config/block-phi.py learn the *.summary.json shape and PERMISSIONS.md §2 say
+    ai-config/policy/phi.py learn the *.summary.json shape and ai-config/PERMISSIONS.md §2 say
     so. Do not widen the fence before the writer exists. Section 2 below.
 
   STEP 4. THE FLEET BEYOND M1. Designed in full in libr-local-llm/DESIGN.md, none
@@ -66,7 +66,7 @@ ORIENTATION
 ================================================================
 Shared inference infrastructure for LIBR compute. Serves BOTH PSYCH-ASR (Stage 3c
 transcript NLP, PHI) and TRD-EHR (MedGemma work). Not a research project — no
-manuscript, no results, no data. Repo: ~/libr-local-llm (git initialized
+manuscript, no results, no data. Repo: ~/Atlas/projects/libr-local-llm (git initialized
 2026-08-17; origin = github.com/Pirate-Hunter-Zoro/libr-local-llm, PUBLIC).
 
 STAGE NUMBERING: the transcript-reading LLM work in PSYCH-ASR is Stage 3c
@@ -250,12 +250,12 @@ because it is the constraint; built there.
 
 [ ] LET CONTENT-FREE SUMMARIES THROUGH THE GUARD. (Added 2026-09-04. Cross-listed
     from PSYCH-ASR_TODO.txt, section GROUND TRUTH WITHOUT READING THE DATA.)
-    config/block-phi.py currently blocks the arm-comparison artifact whole, because
+    ai-config/policy/phi.py currently blocks the arm-comparison artifact whole, because
     it embeds verbatim disputed transcript text — which also blocks the region
     COUNTS, DURATIONS and per-arm LABELS inside it, none of which is content. The
     fix is on the PSYCH-ASR side: that writer splits into the full artifact
     (blocked, correctly) and a numbers-only summary sibling. This repo's half is
-    teaching the guard the summary shape afterwards, and updating PERMISSIONS.md §2
+    teaching the guard the summary shape afterwards, and updating ai-config/PERMISSIONS.md §2
     "What stays readable, deliberately" to say so.
     ORDER MATTERS AND IS NOT NEGOTIABLE: the writer exists and the human eyeballs
     its output ONCE before the guard is widened. A shape allowed by pattern that
