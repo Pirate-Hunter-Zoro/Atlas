@@ -1431,14 +1431,6 @@ package's 0.0145 abs_gap. Worth an assertion when the sweep is wired.
       "crosses zero" there is an underpowered contrast at n=2,210, not a
       confident null. Worth saying that way in the text rather than letting
       the reader infer a demonstrated absence of effect.
-      REMAINING GAP, deliberately not built: ate_overlap_weighted has NO
-      figure showing the population it averages over. Both per-patient
-      histograms are fed in_band_effects, i.e. they are the hard-trimmed
-      population unweighted. A weighted counterpart (all patients, bars
-      weighted by e(1-e)) is drawable but needs the propensity column carried
-      alongside the pooled contrasts, since the weights cannot be
-      reconstructed after the fact. Only worth building if the two averages
-      ever disagree enough to need diagnosing.
       TRAP PAID FOR HERE: results/ is line 11 of .gitignore, so nothing under
       it EVER appears in a source-control panel or a file explorer that hides
       ignored files. Artifacts copied there are invisible in that view by
@@ -1470,10 +1462,73 @@ WHAT EXISTS NOW, per contrast, under ARTIFACTS_DIR/counterfactual_pipeline/<key>
                            the table is computed.
   propensity_by_arm.png    e(x) as two overlaid histograms on a shared unit
                            bin grid, band edges drawn, trimmed margins shaded.
+  overlap_weights_by_arm.png
+                           the same patients on the WEIGHT axis w = e(1-e).
+                           Not a redundant view: w folds the probability axis
+                           about a half, so w alone cannot say whether a
+                           low-weight patient was an almost-certain reference
+                           or an almost-certain comparison patient -- two
+                           different ways for overlap to fail, and the arm
+                           colour is what recovers the direction. Carries the
+                           identity the sensitivity analysis rests on: because w
+                           is symmetric about a half, the two-sided cut on e IS
+                           the one-sided cut w < 0.09 (TRIM_WEIGHT, derived from
+                           PROB_FLOOR). The step and the ramp on one axis.
+  propensity_grades.json   e(x) graded as a classifier of the arm actually
+                           prescribed, with bootstrap 95% CIs on every metric
+                           and the quantile calibration bin table (each bin's
+                           observed share carrying its own interval). Beside it
+                           roc_curve_propensity_<key>.png,
+                           pr_curve_propensity_<key>.png and
+                           calibration_curve_propensity_<key>.png.
+  overlap_weighted_effects.png
+                           the population ate_overlap_weighted averages over --
+                           every eligible patient weighted by e(1-e) -- against
+                           the hard-trimmed population unweighted, both as
+                           densities, with the Kish ESS on the axes.
 Written BEFORE the bootstrap in run_one.py, so regenerating the accounting does
 not cost 2 x N_BOOTSTRAP refits. New in core.py: split_arm_census,
 population_report (with _side_accounting / _trim_accounting), balance_frame,
-plot_propensity_by_arm.
+plot_propensity_by_arm, grade_propensity_model (with bootstrap_metric_intervals),
+plot_overlap_weighted_effects.
+
+THE PROPENSITY GRADES, and HOW TO READ THEM. e(x) is the one honestly gradeable
+model in this package -- both arm models predict TRD under a treatment half the
+cohort did not get, so neither counterfactual column can be checked at all,
+while the arm actually prescribed is observed for everyone. The model is fitted
+on the TRAIN pool and scored on the test frame, so these are held-out numbers.
+The two halves point in OPPOSITE directions and the write-up has to say which is
+which: DISCRIMINATION high is BAD (covariates determine the prescription,
+confounding by indication has room, the trim is load-bearing), CALIBRATION good
+is GOOD (the band's sentence -- "at least 10% of people like you got each drug"
+-- is only true of a calibrated e(x)).
+  contrast            n     prev   AUC [95% CI]          AUPRC  Brier   ECE     cal slope [95% CI]
+  snri_vs_ssri        6242  0.204  0.704 [0.687, 0.719]  0.424  0.1441  0.0130  0.953 [0.862, 1.044]
+  bupropion_vs_ssri   5900  0.158  0.656 [0.636, 0.675]  0.291  0.1257  0.0051  0.869 [0.641, 1.076]
+  bupropion_vs_snri   2210  0.423  0.714 [0.693, 0.734]  0.635  0.2103  0.0179  0.911 [0.811, 1.003]
+THE READ: all three are MODERATELY separable and WELL calibrated. Every slope
+interval covers 1 and every ECE is under 0.02, so the 0.10/0.90 edges cut where
+they claim to and the overlap weights are weights on real probabilities. The
+AUCs are the uncomfortable half -- 0.66 to 0.71 is not near-random assignment,
+so measured covariates carry real information about which drug was prescribed.
+That is the positivity argument for keeping the trim, not a result to celebrate.
+Binning is by QUANTILE: e(x) concentrates below 0.4 on the SSRI-referenced
+contrasts, so equal-width bins would leave half of them empty.
+
+THE TWO AVERAGES AGREE, which settles the question the sensitivity estimand was
+added to ask. Every gap is smaller than the per-draw sd of the estimate itself
+(0.0064 to 0.0094, measured 2026-08-28), so none of them is a difference the
+data can resolve:
+  contrast            trimmed  weighted   gap      Kish ESS / eligible / in band
+  snri_vs_ssri         0.0337   0.0343   +0.0006   5,374 / 6,242 / 4,968
+  bupropion_vs_ssri    0.0407   0.0426   +0.0019   5,186 / 5,900 / 4,543
+  bupropion_vs_snri    0.0162   0.0134   -0.0028   2,059 / 2,210 / 2,051
+Note the SIGN of the gap flips on the near-balanced contrast, which is the one
+place the weighting and the cliff disagree about direction rather than size.
+The ESS is 86% of eligible on the SSRI-referenced pairs and 93% on the balanced
+one, so the weighting is not throwing away the population either. The reportable
+sentence: the effect does not hinge on where the cutoff was drawn. State it that
+way in the battery, with overlap_weighted_effects.png beside it.
 
 EVERY NUMBER RECONCILES with the 2026-08-28 table measured by hand -- all arm
 counts, all TRD rates, all trim and retain counts on all three contrasts.
@@ -1515,50 +1570,85 @@ encodes as all-zeros by design. Worth knowing when the balance table reaches
 categorical columns, since it is the same asymmetry seen from the other side.
 
 
-- [ ] 5-FOLD CV OVER THE WHOLE PIPELINE. Added 2026-08-28. NOT BUILT.
-      Every number in the package rests on ONE 80/20 partition. Two
-      consequences: the estimand is the fifth of the cohort that landed in
-      test, and nothing separates a real effect from a lucky partition.
-      SHAPE: wrap the existing per-contrast chain in a 5-fold loop so every
-      eligible patient serves in exactly one test fold and the union of folds
-      is the WHOLE eligible population, not 20% of it. Folds STRATIFIED ON
-      INDEX ARM AND TRD LABEL JOINTLY -- the estimator's behaviour depends on
-      both the arm balance and the event rate, and the current split happens
-      to be balanced on both (see the table above); the folds must reproduce
-      that by design rather than inherit it by luck.
-      COST IS NOT THE OBSTACLE: three contrasts currently run in 4m20s total,
-      so 5x is ~22 minutes, well inside the existing 4h wall. This is a
-      design decision, not a compute one.
-      TWO QUESTIONS TO ANSWER FIRST:
-      (1) Does CV REPLACE the shared frozen split here, or sit beside it? The
-          frozen split is what makes this package's gradeable metrics
-          comparable to Paper 1's classical-ML numbers. Replacing it breaks
-          that comparison; adding it means reporting everything twice. Likely
-          answer: shared split stays the headline for the GRADEABLE half, CV
-          becomes the robustness layer for the EFFECT estimates. Decide it.
-      (2) How do fold results combine? Averaging point estimates across folds
-          is easy. The interval is not: pooling all fold-by-draw averages into
-          one percentile cut CONFLATES two different sources of variation,
-          since between-fold spread measures sensitivity to the partition
-          while the bootstrap measures sampling and estimation uncertainty.
-          RECOMMENDED: report three separate quantities -- fold-averaged point
-          estimate, bootstrap interval, between-fold spread. Do not fuse them.
-      KNOCK-ON: band membership is recomputed per fold as well as per draw, so
-      the trimmed share becomes a per-fold quantity and belongs in the
-      population report above, not only in effect_results.json.
-      KNOCK-ON 2: the bootstrap already refits three models per draw; folding
-      multiplies that by five. The joblib chunking in bootstrap_effect assumes
-      one population per call, so the fold loop goes OUTSIDE it -- do not try
-      to parallelise folds and draws in the same Parallel call.
+STANDING CONTEXT -- THE CV ROBUSTNESS LAYER IS BUILT. Landed 2026-09-16, and the
+two questions the old entry said to answer first were answered as that entry
+recommended, so both are now decisions rather than options:
+  (1) CV does NOT REPLACE the frozen split. The frozen 80/20 stays the headline
+      and keeps the interval, because it is what makes this package's gradeable
+      metrics comparable to Paper 1's classical-ML numbers. The folds sit beside
+      it and answer a different question: how much of the headline depends on
+      which fifth of the cohort landed in test.
+  (2) THREE QUANTITIES, KEPT SEPARATE, never fused: fold-averaged point estimate,
+      the frozen split's bootstrap interval quoted unchanged, and the between-fold
+      spread as sd/min/max. summarize_cv emits all three and cv_summary.json
+      carries them per estimand.
+NO BOOTSTRAP RUNS INSIDE THE FOLDS, which is what kills the old entry's "5x the
+wall" worry -- the layer is five single fits per contrast, not five bootstraps,
+and measured wall per contrast is unchanged. It also would not have bought a
+reportable interval: pooling fold-by-draw averages into one percentile cut
+conflates partition sensitivity with sampling and estimation uncertainty.
+
+WHERE IT LIVES: ARTIFACTS_DIR/counterfactual_pipeline/<key>/cv/ -- fold_<k>.json
+(that fold's point estimates, arm grades, propensity grades), fold_<k>_risks.csv,
+cv_summary.json, and cv_fold_estimates_<estimand>.png. Deliberately NO per-fold
+figures: five copies of every diagnostic is not five times the information. New in
+core.py: EligiblePool / eligible_pool, cv_fold_indices, fold_populations,
+run_cv_folds, summarize_cv, plot_cv_fold_estimates, over N_CV_FOLDS and
+CV_ESTIMANDS.
+
+THE POOL IS VERIFIED EQUAL, PATIENT FOR PATIENT, to the union of the frozen
+split's two eligible sides -- 31,331 for snri_vs_ssri, 29,901 for
+bupropion_vs_ssri, 10,978 for bupropion_vs_snri -- and the five test sides tile
+it exactly once. Folds are StratifiedKFold on ARM CROSSED WITH TRD LABEL (four
+strata, the interaction and not two margins), and the per-fold comparison share
+and TRD rate match the pool's to four decimals.
+
+THE RESULT, and it is the good one:
+  contrast            estimand    fold mean   fold sd   fold range         frozen    CI half-width  sd/hw
+  snri_vs_ssri        trimmed      0.0308     0.0016   [0.0288, 0.0329]    0.0337      0.0121       0.13
+  snri_vs_ssri        weighted     0.0311     0.0017   [0.0287, 0.0332]    0.0343      0.0123       0.14
+  bupropion_vs_ssri   trimmed      0.0369     0.0014   [0.0357, 0.0393]    0.0407      0.0143       0.10
+  bupropion_vs_ssri   weighted     0.0396     0.0012   [0.0380, 0.0412]    0.0426      0.0141       0.08
+  bupropion_vs_snri   trimmed      0.0179     0.0017   [0.0157, 0.0204]    0.0162      0.0182       0.10
+  bupropion_vs_snri   weighted     0.0159     0.0013   [0.0143, 0.0177]    0.0134      0.0178       0.07
+THE PARTITION IS NOT WHERE THE UNCERTAINTY LIVES. Between-fold sd is 7-14% of the
+bootstrap CI half-width on every contrast and both estimands. Combined with the
+2026-08-28 finding that test-set resampling adds essentially nothing to the
+interval, the whole width is MODEL-ESTIMATION uncertainty: more training patients
+would narrow these intervals, more test patients and a different partition would
+not. That is one sentence for Limitations, now supported twice.
+
+BUT REPORT THIS HONESTLY, it is the one wrinkle: on BOTH SSRI-referenced
+contrasts the frozen point estimate sits ABOVE all five folds -- 0.0337 against a
+fold range topping out at 0.0329, and 0.0407 against 0.0393 -- roughly two fold-sds
+above the fold mean. On bupropion_vs_snri it falls inside the fold range. The
+frozen test fifth is one more draw of the same kind the folds are, so a ~2-sd
+position is not alarming, and every gap is far inside the bootstrap interval, so
+NO CONCLUSION CHANGES. What it does mean: the fold-averaged estimate is the less
+partition-dependent number, and a write-up quoting the frozen point estimate
+alone is quoting the high end of a small range on two of three contrasts. Quote
+both, or quote the fold mean with the frozen interval.
+
+PER-FOLD PROPENSITY GRADES are in cv_summary.json's per_fold_propensity block, so
+a fold spread driven by one badly fitted propensity model can be told apart from
+one spread evenly. It is the second: arm AUC varies 0.697-0.723, 0.652-0.679 and
+0.710-0.735 across folds, and every fold's calibration slope sits between 0.79
+and 1.08. No fold is an outlier in either.
+
+STILL OPEN from the old entry, and NOT closed by this work: the per-fold trimmed
+share is computed and persisted inside each fold_<k>.json, but population_report
+is a frozen-split artifact and does not yet carry a per-fold section. Whether it
+should is a reporting decision, not a bug.
 
 - [ ] <<< RESUME HERE 2026-09-01 >>> FALSIFICATION BATTERY (all four; the
       estimate is NOT reportable without them).
       PRIORITY SETTLED 2026-09-01, and the 2026-08-28 marker note is superseded.
-      Of that day's three meeting items, population accounting and the
-      arm-coloured histogram are BUILT (standing context above); 5-fold CV
-      stays open and sits AFTER the battery, as a robustness layer rather than
-      a rung of it. So what stands between the pipeline and a reportable number
-      is (1), the formal e(x) metrics now folded into (2), then (3) and (4).
+      All three of that day's meeting items are BUILT -- population accounting,
+      the arm-coloured histogram, and the 5-fold CV robustness layer (standing
+      context above for each). CV was never a rung of the battery and is not one
+      now; it sits beside the headline. So what stands between the pipeline and a
+      reportable number is (1), the formal e(x) metrics now folded into (2), then
+      (3) and (4).
 
       *** DIVISION OF LABOUR, set by the student 2026-09-01 and now written into
       AI_INSTRUCTIONS.md in every repo (see the section "The division of labour").
@@ -1620,32 +1710,16 @@ categorical columns, since it is the same asymmetry seen from the other side.
           summarize_effect emits the trim report and the two averages, the
           population report now states the retained counts and the arm ratio
           either side of the band, and plot_propensity_by_arm draws the
-          distribution. What IS still owed, added 2026-09-01 from the question
-          "what formal metric judges e(x), other than the picture" -- the
-          E-value does NOT answer that, it is rung 3 and concerns UNMEASURED
-          confounding:
-            - CALIBRATION of e(x). The band means "at least 10% of people like
-              you got each drug", and that sentence is only true if e(x) is
-              calibrated; an uncalibrated 0.10 is not a 10% of anything and the
-              trim boundary stops meaning what the paper says. Slope and
-              intercept, a reliability table of observed arm share against
-              predicted e(x) by bin, and the Brier score. count_weighted_slope
-              and the per-arm calibration bin table already do this against the
-              OUTCOME models -- same machinery, different target. Cheapest real
-              gap on this rung.
-            - C-STATISTIC of e(x) predicting arm. READ IT BACKWARDS: unlike every
-              other AUC in this project HIGH IS BAD. Near 1 means covariates
-              determine treatment, overlap is gone and the design is dead; near
-              0.5 means treatment is near-random given X. It is a positivity
-              diagnostic, not a performance number, and must be labelled as one
-              wherever it is reported.
+          distribution. grade_propensity_model answers the 2026-09-01
+          question "what formal metric judges e(x), other than the picture" --
+          the E-value does NOT answer it, that is rung 3 and concerns UNMEASURED
+          confounding. Its calibration, its arm c-statistic and the Kish ESS are
+          built, and the numbers and how to read them are in the standing-context
+          block above. WHAT IS STILL OWED:
             - OVERLAP COEFFICIENT between the two arm-conditional e(x) densities
-              (integrated minimum). The scalar version of the histogram.
-            - KISH ESS under the overlap weights, (sum w)^2 / sum(w^2): how many
-              patients the overlap-weighted sensitivity average is actually
-              worth. Same formula already used in the KNN arm's ranking analysis.
-          All four ride on the ONE propensity column already on the risk frame,
-          so they cost essentially nothing. They are the student's to write.
+              (integrated minimum). The scalar version of the histogram, and the
+              last of the four. Rides on the ONE propensity column already on the
+              risk frame, so it costs essentially nothing.
           What follows is the rationale for the screen itself, kept as standing
           context.
           The trimmed count and share are reported per contrast -- never truncate

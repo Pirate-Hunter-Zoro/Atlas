@@ -23,6 +23,10 @@
 # not an estimate. Note that the old frozen-vector bootstrap was instantaneous --
 # if this job finishes in seconds, the refit is not happening.
 #
+# After the bootstrap the job runs the cross-validation robustness layer, which
+# is five single fits per contrast rather than five bootstraps -- the folds carry
+# no bootstrap by design, so the wall above is unchanged by it.
+#
 # CPU-only. No --gres=gpu: this is logistic regression on 59 feature columns.
 # =============================================================================
 
@@ -59,3 +63,13 @@ export MKL_NUM_THREADS=1
 export OPENBLAS_NUM_THREADS=1
 
 python -m scripts.pipeline.counterfactual.run_one
+
+# Mirror this contrast's artifacts into the repo's results/ tree, matching the
+# causal package. Scoped to THIS contrast's directory rather than the whole
+# counterfactual_pipeline/ tree because the array runs three of these
+# concurrently, and three rsyncs over one shared parent would race. No --delete
+# for the same reason: a sibling contrast's output is not this job's to prune.
+LOCAL_RESULTS_DIR="results/counterfactual_pipeline"
+mkdir -p "${LOCAL_RESULTS_DIR}"
+CONTRAST_KEY=$(python -c "from scripts.shared.treatment_registry import TREATMENT_REGISTRY; print(TREATMENT_REGISTRY[${SLURM_ARRAY_TASK_ID}]['key'])")
+rsync -a "${ARTIFACTS_DIR}/counterfactual_pipeline/${CONTRAST_KEY}/" "${LOCAL_RESULTS_DIR}/${CONTRAST_KEY}/"
