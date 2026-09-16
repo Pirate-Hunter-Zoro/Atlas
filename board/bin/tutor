@@ -2053,6 +2053,15 @@ def headless(cfg, course, agent_name, session):
     return 0
 
 
+# HOW LONG A RESTART WAITS FOR A BOUNCED DAEMON TO RECORD ITS OWN PID.
+#
+# `agent_start` writes `waking` with no pid and then forks; the pid arrives once
+# the daemon has brought the link, the board and the sitting up, which is
+# seconds. Bounded, because a restart is run by somebody watching a terminal and
+# a command that waits for ever is a command nobody runs after a ship.
+RESTART_WAIT = 20
+
+
 def cmd_restart(cfg, args):
     """Restart every long-lived process on this machine, on the current code.
 
@@ -2149,7 +2158,7 @@ def cmd_restart(cfg, args):
     # is left alone -- bouncing it loses the card it is writing, and the student
     # is the one who pays for that.
     import signal as _sig
-    bounced, held = [], []
+    bounced, coming, held = [], [], []
     for c in courses(cfg):
         st = agent_live(c["root"])
         if not st or st.get("mode") == "interactive":
@@ -2206,17 +2215,46 @@ def cmd_restart(cfg, args):
                         " minute)" % c["dir"])
             continue
         code, msg = agent_start(cfg, c, name)
-        now = agent_live(c["root"]) or {}
-        if code == 0 and now.get("pid") and now["pid"] != was:
+        if code != 0:
+            held.append("%s (%s)" % (c["dir"], msg.strip() or "did not come back"))
+            continue
+        # A RECORD WITH NO PID IN IT IS NOT A RESTART THAT DID NOT HAPPEN.
+        #
+        # This read the record once, immediately after the start -- and a start
+        # writes `waking` with no pid BEFORE it forks, so the read found a
+        # pidless record every time and reported every successful restart as one
+        # it had left alone. That is the defect above it wearing the opposite
+        # coat: it used to claim restarts it had not performed, and then denied
+        # the ones it had. Read off a real ship, with both daemons in fact coming
+        # back on the new code: "left alone: claude starting in Galois-Theory".
+        #
+        # So wait for the daemon's OWN record -- a pid, and a different one --
+        # and then say which of the three things happened.
+        back = None
+        for _ in range(RESTART_WAIT):
+            now = agent_live(c["root"]) or {}
+            if now.get("pid") and now["pid"] != was:
+                back = now
+                break
+            time.sleep(1.0)
+        if back:
             bounced.append(c["dir"] if name == was_name
                            else "%s (%s -> %s)" % (c["dir"], was_name, name))
+        elif agent_live(c["root"]):
+            # Launched, still on its way, and the one that was there is already
+            # gone: not a failure, and not a restart anybody can confirm yet.
+            # Saying "left alone" here is the lie -- nothing was left alone.
+            coming.append("%s (%s)" % (c["dir"], name))
         else:
             held.append("%s (%s)" % (c["dir"], msg.strip() or "did not come back"))
 
     if bounced:
         print("tutors restarted: %s" % ", ".join(bounced))
-    elif not held:
+    elif not held and not coming:
         print("no tutors were attached on %s" % host)
+    for h in coming:
+        print("  coming back: %s -- the old one is gone; it records its pid "
+              "when it starts listening" % h)
     for h in held:
         print("  left alone: %s" % h)
     return 0
