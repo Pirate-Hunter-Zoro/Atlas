@@ -10,8 +10,8 @@ what is left.
 
 **Three parts, and the third is not about colibrì at all.** Part one makes the board able to start
 colibrì on any workspace from anywhere. Part two uses that to do the diarization job, which is how
-part one is tested. Part three is two things the board got wrong in a Galois-Theory sitting, both
-reported from the iPad, both unrelated to everything above and both waiting here because this is
+part one is tested. Part three is four things the board got wrong in a Galois-Theory sitting, all
+reported from the iPad, none of them related to anything above, and all waiting here because this is
 the file the next session opens.
 
 What has actually been run through it: the model emits a correct Anthropic `tool_use` block in
@@ -242,12 +242,17 @@ Leave the server up between tasks for the same reason; `coli-down` between two j
 
 ---
 
-# Part three — two things the board got wrong last sitting
+# Part three — four things the board got wrong last sitting
 
-Neither is a colibrì change, so both follow the board's own rules rather than this project's:
+None is a colibrì change, so all four follow the board's own rules rather than this project's:
 `bash board/test/all.sh` green before and after, **`VERSION` in `board/web/sw.js` bumped**, and
 `bash board/scripts/ship.sh "message"`, which commits only `board/`. Read `../../HANDOFF.md`
 first — it says what has just changed in the board and what is left of it.
+
+**7, 8 and 9 are one piece of work, and 8 and 9 are the same file.** Change 7 decides when the strip
+is up for a written answer; change 8 decides that it is up at all for a typed one. Doing them apart
+means writing the same predicate twice and reconciling it afterwards. Change 6 is independent and is
+the smallest — start there.
 
 ---
 
@@ -343,6 +348,92 @@ moved; on the frame the type-out ends, both change.
 **And bump `VERSION` in `board/web/sw.js`.** `board.js` is a shell file, so without the bump the
 installed app serves its cached copy — the fix ships and nothing happens, which on a rendering
 change is indistinguishable from the fix not working.
+
+---
+
+## 8. Typing an answer gets no pulse at all, because one condition is doing two jobs
+
+**Now.** Reported from the iPad: *"I also don't see the yellow pulsing tutor working signal whenever
+I elect to type a response instead of writing one."* This one is exact and the mechanism is a single
+clause.
+
+`render` in `board/web/board.js` decides what is outstanding like this:
+
+```js
+awaitingReply = null;
+var lastItem = items[items.length - 1];
+if (lastItem && lastItem.turn && lastItem.turn.kind !== "text") {
+  awaitingReply = lastItem.turn;
+  items.pop();
+}
+```
+
+`paintSent` shows the strip only when `awaitingReply` is set, so **a typed answer never raises it.**
+A written one does.
+
+**The condition is doing two unrelated jobs and only one of them is about `kind`.** The `items.pop()`
+is right, and the comment above it explains why: a page of ink that has been sent and not yet
+answered is *not* rendered into the transcript, because the same ink is still on the writing surface
+directly below and showing a frozen copy immediately above is the same thing twice. That argument is
+about ink and holds for ink only — a typed answer is duplicated nowhere, so it stays in the
+transcript, correctly. **Setting `awaitingReply` has nothing to do with any of that.** An answer sent
+and not yet replied to is outstanding whether it was typed or written, and the reader is owed the
+same pulse either way.
+
+What the student does see is the brief `paintBusy` strip from `saySending`, which is the wire saying
+the tap left. It expires. Then there is silence for the whole turn, which is the thing
+`board/test/hanging.js` exists to prevent.
+
+**Want.** Split the clause. `awaitingReply` is set for any pending turn; only the `items.pop()` stays
+conditional on the kind.
+
+**Where.** `board/web/board.js`, `render`, the block quoted above. `paintSent` needs no change once
+it is fed correctly. Do this **with change 7**, not before it — both decide when the strip is up, and
+landing them apart means writing the same predicate twice.
+
+**Check.** `board/test/hanging.js`, one case beside the written one: send a typed answer, assert the
+strip is visible and says the tutor is reading it.
+
+---
+
+## 9. A typed answer does not come back for correction, and the ink does
+
+**Now.** Reported in the same breath: *"my typed response doesn't get saved on the appearance unlike
+previously writing boards."* Going back to a question answered in ink gives the page of ink back, on
+a surface that can take another line. Going back to one answered by typing does not give the words
+back.
+
+**The feature exists, so do not build it twice.** `restoreTextAnswer` in `board/web/board.js` is
+written, named and commented as exactly this — *"the typed answer already sent against this question,
+brought back for correction — the typed counterpart of the slate restoring its page of ink."* So this
+is a defect in **when it runs**, not a gap in what exists, and the work is to reproduce it on the
+device and find which gate is shut. Three are visible from reading and the report does not by itself
+say which:
+
+- It is called only from `paintPanel`, and only when the panel is open **and already showing the type
+  half**. A question answered by typing that opens on the slate never reaches it.
+- `panelKind()` consults `pickedKind[question]` — a remembered tab press — before it consults the
+  question's own history. One tab pressed on that question outranks what the question was actually
+  answered with.
+- It returns early if the box has anything in it, and `restoreTextDraft` runs first. The draft is
+  deleted server-side by `/say` on send, so that should leave the box empty and let the restore
+  through — but the ordering is where to look if it does not.
+
+**Reproduce before editing.** Two of those three are a one-line change and the third is a decision
+about which source of truth wins, so guessing costs more than looking.
+
+**Want.** Reopening a question you typed an answer to puts the words back in the box, on the same
+tab, the way reopening one you wrote on puts the ink back on the slate. The two halves of the answer
+panel behave the same, or the person has to remember which kind of answer they gave.
+
+**Where.** `board/web/board.js`: `restoreTextAnswer`, `restoreTextDraft`, `paintPanel`, `panelKind`,
+`loadedTextTurn`. The ink side — `answering.latest` carrying an old answer back onto the surface it
+was written on — is the behaviour to match, and its own comment says it is meant to work for a turn
+of **any** kind.
+
+**Check.** Whichever suite covers the answer panel's two halves. Assert both directions: a question
+answered in ink reopens with the ink, a question answered by typing reopens with the words, and
+pressing the other tab on either does not silently discard what is there.
 
 ---
 
