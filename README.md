@@ -169,7 +169,7 @@ And the rest of it, in the order it bites:
 - **Bump `VERSION` in `board/web/sw.js`** when any shell file changed (`board.html`, `board.js`,
   `board.css`, `plane-core.js`, `gauge.js`, `home.html`, `home.js`, anything new in the cache
   list), or the installed app serves its cached copy and the work is invisible.
-- **Run `bash board/test/all.sh` before every ship.** 65 suites. Keep them green.
+- **Run `bash board/test/all.sh` before every ship.** 71 suites. Keep them green.
 - **`board/test/tracked.py` is the one that cannot be fixed afterwards.** It runs first and refuses
   PHI, 25-megabyte files, model dumps, other authors' papers and books, and machine-local config,
   anywhere in the repository. This is public, and git remembers.
