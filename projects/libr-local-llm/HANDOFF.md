@@ -31,13 +31,14 @@ client's preamble is 15,900 tokens and prefill at that size is two to three hour
 - `../../board/bin/tutor` — the agent registry, `resolve_agent`, and the headless daemon. Most of
   what follows is a sixth entry in a table that already has five.
 
-**The board tree is not clean, and roughly twenty files under `board/` belong to somebody else's
-unfinished afternoon** — `bin/tutor`, `sense.py`, `server/routes/lesson.py`, `web/board.js` and the
-rest. Three of the five pieces below touch files in that set. Read `../../HANDOFF.md` before
-editing any of them, check what is already in the working tree rather than assuming the committed
-version, and ship with a pathspec. In particular **`POST /aim`, `_aim` and `test/aiming.py` are in
-the working tree and not in the history**; treat them as a design to agree with, not as something
-you can call.
+**The board tree is clean and that afternoon has shipped.** `POST /aim`, `_aim` and
+`test/aiming.py` are in the history now, so they are something to CALL and copy rather than a
+design to agree with — read `_aim` in `board/tutorboard/server/routes/lesson.py` and its suite
+before writing piece 4, which is the same shape. Two other things from it govern what follows:
+`course/config.py` now holds `aim_for`, `AIM_STANCE` and a `stance_for` derived from the aim, so a
+fifth `resolve_agent` layer has a precedence function to sit beside rather than invent; and
+`config.read_config` is where a per-workspace default is read, if an agent ever needs one. Ship
+with a pathspec regardless: one repository, nine workspaces.
 
 ---
 
@@ -156,8 +157,9 @@ sitting that does not name it opens.
 when they are absent, with the reason written above it: *"both belong to the SITTING and not to the
 repository … a box chosen for an evening's work is not a statement about what the repository is."*
 An `agent` belongs beside them under precisely that rule, and `sense.SIGNAL_SENSE` is where the
-tutor is told what the tap meant. The in-flight `POST /aim` is the worked example of a control that
-changes the open sitting without archiving it — read it, but do not build on it until it lands.
+tutor is told what the tap meant — it has an `aim` entry now, written for exactly this kind of tap.
+`POST /aim` is the worked example of a control that changes the open sitting without archiving it,
+it has landed, and `board/test/aiming.py` is its suite.
 
 **Decide before writing.** Switching the assistant mid-sitting is not the same as switching the
 aim. The aim changes what the next card is; the agent changes *who writes it*, and the conversation
@@ -245,7 +247,7 @@ Leave the server up between tasks for the same reason; `coli-down` between two j
 Neither is a colibrì change, so both follow the board's own rules rather than this project's:
 `bash board/test/all.sh` green before and after, **`VERSION` in `board/web/sw.js` bumped**, and
 `bash board/scripts/ship.sh "message"`, which commits only `board/`. Read `../../HANDOFF.md`
-first — the board tree is somebody else's unfinished afternoon and both of these touch files in it.
+first — it says what has just changed in the board and what is left of it.
 
 ---
 

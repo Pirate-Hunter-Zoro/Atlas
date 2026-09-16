@@ -19,10 +19,14 @@ the shape is defined, routed and tested, and unproven.**
   through `bash board/scripts/save-and-push.sh "message" -- <paths>`.
 - Commits carry no assistant trailers. `.githooks/commit-msg` strips them.
 
-**The working tree still holds an unfinished afternoon in
-`projects/libr-local-llm`** — four modified files and seven untracked ones under
-`bin/`, `scripts/` and `slurm_jobs/`. None of it belongs to anything below. Ship
-with a pathspec.
+**`projects/libr-local-llm` has its own handoff and it is the live one.** The
+colibrì harness is committed, and that file asks for five pieces against the
+board — a sixth agent in the registry, a per-agent timeout, a start control
+shaped like `spawn.wake_tutor`, a fifth `resolve_agent` layer that is the
+sitting, and a machine-wide refusal of a second sitting — plus two phrasing
+defects from a Galois sitting. None of that is below. The fifth layer is the one
+that touches this work: it goes beside `node` and `aim` in `_mark`, and
+`config.aim_for` is the precedence function to sit beside rather than reinvent.
 
 ---
 
