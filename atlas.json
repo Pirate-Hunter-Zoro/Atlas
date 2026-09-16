@@ -1,6 +1,15 @@
 {
   "_": [
-    "The families, in the order they should be drawn, one sentence each.",
+    "The families, in the order they should be drawn, one sentence each, and",
+    "the style a sitting in one runs under when nothing below it says otherwise.",
+    "",
+    "  aim  what a sitting in this family is FOR when nobody chose: 'teach' in",
+    "       a family of coursework, where the mathematics is done properly and",
+    "       the person does the step; 'build' in a family of work, where the",
+    "       tutor writes it and reports what it changed. A workspace overrides",
+    "       it in its own tutorboard.json, and a sitting overrides that. It is",
+    "       not a mode and it is not a registry: `course/config.aim_for` is the",
+    "       one place the precedence lives.",
     "",
     "That is ALL this file holds. It does not list the workspaces. A workspace",
     "is a second-level directory that holds tutorboard.json, AI_INSTRUCTIONS.md",
@@ -22,21 +31,25 @@
   "families": [
     {
       "id": "courses",
+      "aim": "teach",
       "name": "Courses",
       "blurb": "Graduate coursework, taught chapter by chapter."
     },
     {
       "id": "research",
+      "aim": "build",
       "name": "Research",
       "blurb": "The projects that become papers."
     },
     {
       "id": "projects",
+      "aim": "build",
       "name": "Projects",
       "blurb": "Infrastructure the research runs on, and the tools that write it up."
     },
     {
       "id": "practice",
+      "aim": "teach",
       "name": "Practice",
       "blurb": "Kept sharp: algorithms, and proofs a machine checks."
     },
