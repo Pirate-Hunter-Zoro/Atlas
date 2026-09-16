@@ -12,6 +12,9 @@
 //     rather than a panel over the board.
 //   * A DOCUMENT WITH NO PDF CANNOT BE READ, and saying so on the button beats
 //     a viewer that opens empty.
+//   * INK IS A COMPLAINT. A document somebody has drawn on can be sent back with
+//     nothing typed, because asking them to write out the ring they drew round a
+//     figure is the translation this surface exists to remove.
 
 const fs = require('fs');
 const path = require('path');
@@ -52,6 +55,13 @@ const LIBRARY = {
       stem: 'serve-harness', title: 'How the serve harness works',
       kind: 'paper', formats: ['tex'], rel: 'writeups/serve-harness/serve-harness.tex',
       pages: 0, pdf: false, stale: false, iso: '', notes: [],
+    },
+    {
+      id: 'writeups-batch-size-batch-size', dir: 'writeups/batch-size',
+      stem: 'batch-size', title: 'What the batch size costs',
+      kind: 'paper', formats: ['pdf', 'tex'], rel: 'writeups/batch-size/batch-size.pdf',
+      pages: 6, pdf: true, stale: false, iso: '2026-09-14', notes: [],
+      marks: { pages: 2, strokes: 9 },
     },
   ],
 };
@@ -109,12 +119,12 @@ const named = (title) => rows().filter(
   //    fifty rows says nothing about which four are one piece of work.
   const heads = Array.prototype.map.call(
     doc.querySelectorAll('.lib-dir'), (d) => d.textContent);
-  heads.join('|') === 'docs|writeups/serve-harness'
+  heads.join('|') === 'docs|writeups/serve-harness|writeups/batch-size'
     ? ok('the documents are grouped by the directory they live in')
     : fail('the groups are: ' + heads.join('|'));
-  rows().length === 3
+  rows().length === 4
     ? ok('and every document is drawn once, whatever formats it has')
-    : fail(rows().length + ' rows for three documents');
+    : fail(rows().length + ' rows for four documents');
 
   // 3. The two states worth seeing without reading.
   /source has changed/.test(named('Did the Computer Hear It Right?').textContent)
@@ -131,6 +141,12 @@ const named = (title) => rows().filter(
   /no PDF yet/.test(named('How the serve harness works').textContent)
     ? ok('and says why')
     : fail('nothing says why it cannot be read');
+
+  // 4b. INK IS A COMPLAINT, and a document carrying some says so before it is
+  //     opened -- otherwise the only way to find out is to open the note panel.
+  /marked up on 2 pages, 9 strokes/.test(named('What the batch size costs').textContent)
+    ? ok('a document somebody has drawn on says so on its row')
+    : fail('nothing says the document has been marked up');
 
   // 5. Reading one asks for its pages BY ID and draws them.
   tap(named('How Audio Becomes a Transcript').querySelector('.lib-name'));
@@ -151,6 +167,18 @@ const named = (title) => rows().filter(
   doc.getElementById('note-send').disabled
     ? ok('with nothing written, there is nothing to send')
     : fail('empty feedback can be sent');
+
+  // 6b. And on a document that HAS been marked up, an empty note is the ink.
+  tap(named('What the batch size costs').querySelectorAll('.lib-acts button')[1]);
+  !doc.getElementById('note-send').disabled
+    ? ok('a marked-up document can be sent back with nothing typed')
+    : fail('the ink could not be sent without typing something as well');
+  /Your marks on 2 pages/.test(doc.getElementById('note-marks').textContent)
+    && !doc.getElementById('note-marks').hidden
+    ? ok('and the panel says the marks are going with it')
+    : fail('nothing says what happens to the ink');
+  doc.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Escape' }));
+  tap(doc.getElementById('reader-say'));
 
   sent.length = 0;
   const box = doc.getElementById('note-text');

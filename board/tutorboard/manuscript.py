@@ -299,6 +299,13 @@ def job(root, title="", venue="", checklist="", notes="", revision=None):
                 "document: %s" % revision["document"]]
         if revision.get("feedback"):
             out.append("feedback: %s" % revision["feedback"])
+        # WHICH ROOT THOSE TWO ARE RELATIVE TO. The factory is a separate workspace
+        # with its own state directory and no idea where this one is, and both paths
+        # above are written relative to a repository root so that they stay true when
+        # it is cloned somewhere else. Without this line the only thing it could do
+        # is guess from the evidence directories, which a workspace with no results
+        # tree does not have.
+        out.append("workspace: %s" % os.path.realpath(root))
         out += ["",
                 "This document exists and has been read. Revise it: its "
                 "structure, its terminology and its claims stand except where "
@@ -472,7 +479,12 @@ def revise(root, document, feedback, base=None, dry_run=False):
     """
     if isinstance(document, dict):
         title = document.get("title") or document.get("stem") or ""
-        rel = document.get("rel") or ""
+        # THE SOURCE, NOT THE RENDERING. `library.py` sets `rel` to the PDF wherever
+        # there is one, because `rel` is what goes on the glass -- and a revision
+        # pointed at the PDF is a revision asked to edit a picture of the document.
+        # The factory edits the Markdown it delivered; everything else is built from
+        # it, so an edit anywhere else is discarded by the next build.
+        rel = document.get("source") or document.get("rel") or ""
     else:
         rel = str(document or "")
         title = os.path.splitext(os.path.basename(rel))[0].replace("_", " ")

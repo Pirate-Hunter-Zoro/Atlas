@@ -56,9 +56,12 @@ body { font-family: var(--ui); color: var(--ink); }
 }
 .lib-name:disabled { cursor: default; color: var(--ink-2); }
 .lib-meta { font-size: .74rem; color: var(--ink-3); }
-/* Two states worth seeing without reading: a PDF that no longer matches its
-   source, and a document somebody has already said something about. */
+/* Three states worth seeing without reading: a PDF that no longer matches its
+   source, a document somebody has drawn on, and one somebody has already said
+   something about. Ink is in the pen's own colour, because that is what it
+   looks like on the page it is on. */
 .lib-stale { font-size: .74rem; color: var(--ask); }
+.lib-marks { font-size: .74rem; color: #e0b45c; }
 .lib-rounds { font-size: .74rem; color: var(--note); }
 
 .lib-acts { display: flex; gap: .4rem; margin-top: .35rem; flex-wrap: wrap; }

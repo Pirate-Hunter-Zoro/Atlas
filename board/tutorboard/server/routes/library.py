@@ -10,7 +10,8 @@ that is not the lesson's.
     GET  /library/view/<id>         the pages of one, drawn by the renderer the
                                     board already has
     POST /library/feedback          one round of feedback, written where the
-                                    document is, and then acted on
+                                    document is, and then acted on -- in words,
+                                    in ink, or in both
 
 AN ID, NEVER A PATH. What arrives from the browser is compared against what
 discovery found -- `library.find` -- and a miss is a miss. `reading.find` is the
@@ -35,7 +36,7 @@ from ...lesson import turns
 
 def get(h, repo, path):
     if path == "/library.json":
-        return h.send_json(library.status(repo.root))
+        return h.send_json(library.status(repo))
 
     if path.startswith("/library/view/"):
         # The same rasteriser, the same cache and the same `/paper/<name>.png`
@@ -62,7 +63,7 @@ def post(h, repo, path):
         if not doc:
             return h.send_json({"ok": False, "error": "no such document"},
                                status=404)
-        rec = library.write_note(repo.root, ident, text, page=page)
+        rec = library.write_note(repo, ident, text, page=page)
         if not rec.get("ok"):
             return h.send_json(rec, status=400)
         rec.update(_revise(h, repo, doc, rec["rel"]))

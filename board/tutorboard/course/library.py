@@ -68,6 +68,13 @@ FURNITURE = {"readme", "handoff", "license", "licence", "notice", "changelog",
              "contributing", "todo", "ai_instructions", "teaching", "claude",
              "agents", "direction", "index"}
 
+# HOW LONG AN ID MAY BE, and the number is not this module's. It is
+# `writing.ANN_DOC`'s: a mark on a page of a document is anchored to
+# `doc/<ident>/p<n>` and that pattern allows forty characters, so an id longer
+# than this is a document that cannot be written on. Derived rather than stored,
+# so shortening it costs nothing but a different URL.
+IDENT_MAX = 40
+
 # A PIECE OF A DOCUMENT IS NOT A DOCUMENT. `paper1-trd-prediction/parts/
 # manuscript/` holds that manuscript's own sections, one file each, and drawing
 # them beside it makes one document look like twelve. The whole is in the
@@ -218,11 +225,11 @@ def _ident(rel, stem, taken):
     checked by being looked up in `documents()` rather than trusted.
     """
     base = stem if rel in (".", "") else rel.replace(os.sep, "-") + "-" + stem
-    slug = re.sub(r"[^a-z0-9]+", "-", base.lower()).strip("-")[:60] or "document"
+    slug = re.sub(r"[^a-z0-9]+", "-", base.lower()).strip("-")[:IDENT_MAX] or "document"
     out, n = slug, 1
     while out in taken:
         n += 1
-        out = "%s-%d" % (slug[:56], n)
+        out = "%s-%d" % (slug[:IDENT_MAX - 4], n)
     return out
 
 
@@ -245,6 +252,11 @@ def _record(root, rel, stem, formats, taken):
         "kind": kind,
         "formats": sorted(e.lstrip(".") for e in formats),
         "rel": os.path.relpath(pdf or src, root).replace(os.sep, "/"),
+        # THE SOURCE, SEPARATELY, AND IT IS NOT `rel`. `rel` is what to put on the
+        # glass, which is the PDF wherever there is one -- and a revision handed that
+        # is a revision asked to edit a rendering. Whatever revises this document
+        # edits the file it was built from.
+        "source": (os.path.relpath(src, root).replace(os.sep, "/") if src else ""),
         "at": built or max(_mtime(p) for p in formats.values()),
         "built": built,
         "size": _size(pdf or src),
@@ -419,19 +431,144 @@ def next_note(root, doc, day=None):
     return os.path.join(where, "%s%s-v%d.md" % (prefix, day, high + 1))
 
 
-def write_note(root, ident_wanted, text, page=0):
+# ---------------------------------------------------------------------------
+# feedback made of MARKS
+# ---------------------------------------------------------------------------
+# WRITTEN FEEDBACK HAD A ROUTE AND INK DID NOT, and the two say different
+# things. "Figure 3 is wrong" is a sentence; a ring round the axis label and an
+# arrow to the caption is the same complaint located, and typing out where it
+# points is a translation nobody should have to perform.
+#
+# Nothing new is stored. A page of a document already carries ink -- the viewer
+# gives every page a box, `annotate.js` attaches to it, and the strokes are
+# saved against `doc/<ident>/p<n>` exactly as a mark on a card is saved against
+# its card. What was missing is the reading: this is the function that looks
+# the marks up where the textarea is read.
+#
+# TWO IDENTS FOR ONE DOCUMENT, and both are asked. The drawer names a document
+# by `reading.ident` -- the slug of its filename -- and this module names it by
+# where it sits, because a library has to tell two `manuscript.pdf`s apart.
+# Marking works on the board today, which means under the drawer's name; the
+# library's own name is what a mark made on the library page would carry. A
+# document is one document and its ink is its ink, so a note carries whatever is
+# there under either.
+
+def marked_pages(repo):
+    """Every page of every document that has ink on it. `{ident: {page: n}}`.
+
+    ONE PASS OVER THE DRAWER, FOR THE WHOLE LIBRARY. Asked per document it is a
+    read and a parse of every annotation record per document, which on a
+    workspace with fifty documents and a term's worth of marked-up cards is
+    thousands of file reads for one payload. The drawer is small and the
+    question is the same for every row, so it is asked once.
+
+    A page count is NOT consulted here, deliberately. `pdfinfo` missing is a
+    page count of zero, and deriving "which pages could be marked" from it would
+    lose the ink for a reason that has nothing to do with the ink.
+    """
+    from ..lesson import notes as lesson_notes        # local: avoids a cycle
+    from ..server.routes import writing               # local: avoids a cycle
+
+    out = {}
+    for key, strokes in lesson_notes.load_notes(repo).items():
+        found = writing.ann_doc_page(key)
+        if not found or not strokes:
+            continue
+        out.setdefault(found[0], {})[found[1]] = len(strokes)
+    return out
+
+
+def mark_idents(root, doc):
+    """Every annotation ident this one document could have been marked under."""
+    out = [doc["id"]]
+    target = path_of(root, doc, ".pdf")
+    if target:
+        drawer = reading.ident(root, target)
+        if drawer and drawer not in out:
+            out.append(drawer)
+    return out
+
+
+def marks(repo, doc, index=None):
+    """Every marked page of one document, in page order.
+
+    `[{page, ident, key, strokes, png}]`, where `png` is repository-relative and
+    is the picture of that page's ink the viewer saved beside the strokes. The
+    strokes themselves are coordinates and are no use to a reader; the image is
+    the thing a revision turn opens.
+
+    `index` is `marked_pages`, which a caller asking about every document in a
+    workspace reads once and passes in.
+    """
+    from ..server.routes import writing               # local: avoids a cycle
+
+    index = marked_pages(repo) if index is None else index
+    if not index:
+        return []
+    out = []
+    for ident in mark_idents(repo.root, doc):
+        for page, strokes in (index.get(ident) or {}).items():
+            key = "doc/%s/p%d" % (ident, page)
+            # The filename is DERIVED from the key by the one function that
+            # does that derivation, never rebuilt here. It is the rule this
+            # system is load-bearing on for security, and a second
+            # implementation of it is the way that rule stops holding.
+            png = os.path.join(repo.notes, writing.ann_file(key) + ".png")
+            out.append({"page": page, "ident": ident, "key": key,
+                        "strokes": strokes,
+                        "png": (os.path.relpath(png, repo.root).replace(os.sep, "/")
+                                if os.path.isfile(png) else "")})
+    out.sort(key=lambda m: (m["page"], m["ident"]))
+    return out
+
+
+def _handed_over(repo, found):
+    """Record that these marks have gone to somebody, next to the marks.
+
+    The board asks this to tell ink that was delivered from ink that was only
+    autosaved -- without it, yesterday's forgotten marks demand a decision every
+    time anything is sent. A note that carries them IS the delivery, so the flag
+    is set here for the same reason `/annotate/save` sets it when a mark is sent
+    as a turn.
+    """
+    from ..server.routes import writing               # local: avoids a cycle
+
+    import json as _json
+    for mark in found:
+        path = os.path.join(repo.notes, writing.ann_file(mark["key"]) + ".json")
+        try:
+            with open(path, "r", encoding="utf-8") as fh:
+                rec = _json.load(fh)
+            if rec.get("sent"):
+                continue
+            rec["sent"] = True
+            with open(path, "w", encoding="utf-8") as fh:
+                _json.dump(rec, fh)
+        except (OSError, ValueError):
+            continue
+
+
+def write_note(repo, ident_wanted, text, page=0):
     """One round of feedback on one document. Returns a record to paint.
 
     The note says which document and which page it is about, because it is read
     later by a turn that was not in the room -- and a page number is worth
     carrying, since the person writing it is looking at a page when they do.
+
+    MARKS COUNT AS SAYING SOMETHING. A ring round a figure and an arrow to its
+    caption is a complaint, and refusing the note for an empty textarea would be
+    the board asking somebody to type out what they have already drawn. The ink
+    goes into the note as the pages it is on and the picture of each, because
+    the strokes are coordinates and the image is what a reader can open.
     """
+    root = repo.root
     doc = find(root, ident_wanted)
     if not doc:
         return {"ok": False, "error": "no such document"}
     said = (text or "").strip()
-    if not said:
-        return {"ok": False, "error": "say what is wrong with it"}
+    found = marks(repo, doc)
+    if not said and not found:
+        return {"ok": False, "error": "say what is wrong with it, or mark it up"}
     target = next_note(root, doc)
     try:
         os.makedirs(os.path.dirname(target), exist_ok=True)
@@ -443,26 +580,60 @@ def write_note(root, ident_wanted, text, page=0):
             "- written: %s" % time.strftime("%Y-%m-%d %H:%M")]
     if page:
         head.append("- about page %d" % int(page))
-    head += ["", said, ""]
+    if found:
+        head.append("- marked up on %d page%s"
+                    % (len(found), "" if len(found) == 1 else "s"))
+    head += ["", said or
+             "They wrote on it rather than typing. The marks are the feedback.",
+             ""]
+    if found:
+        head += ["## What they marked", "",
+                 "Each line is one page of this document with their ink on it. "
+                 "OPEN THE IMAGE: the marks are where the complaint is, and the "
+                 "page number alone does not say what they point at.", ""]
+        for mark in found:
+            line = "- page %d, %d stroke%s" % (mark["page"], mark["strokes"],
+                                               "" if mark["strokes"] == 1 else "s")
+            line += " -- `%s`" % mark["png"] if mark["png"] else " -- no image was "\
+                                                                 "saved for this page"
+            head.append(line)
+        head.append("")
     try:
         with open(target, "w", encoding="utf-8") as fh:
             fh.write("\n".join(head))
     except OSError as exc:
         return {"ok": False, "error": "could not write %s: %s" % (target, exc)}
+    _handed_over(repo, found)
     forget()
     return {"ok": True, "document": doc["id"], "path": target,
             "rel": os.path.relpath(target, root).replace(os.sep, "/"),
-            "made": doc["made"], "title": doc["title"]}
+            "made": doc["made"], "title": doc["title"],
+            "marks": len(found)}
 
 
-def status(root):
+def status(repo):
     """What the library page draws, and nothing more."""
+    root = repo.root
     try:
         found = documents(root)
     except Exception:                                        # noqa: BLE001
         found = []
+    try:
+        index = marked_pages(repo)
+    except Exception:                                        # noqa: BLE001
+        index = {}
     for doc in found:
         doc["iso"] = (time.strftime("%Y-%m-%d", time.localtime(doc["at"]))
                       if doc["at"] else "")
+        # HOW MUCH INK IS ON IT, because the page has to be able to say that
+        # marks will go with the note -- somebody who drew on three pages and
+        # then found an empty textarea refusing to send has been told their
+        # marks do not count.
+        try:
+            ink = marks(repo, doc, index=index)
+        except Exception:                                    # noqa: BLE001
+            ink = []
+        doc["marks"] = {"pages": len(ink),
+                        "strokes": sum(m["strokes"] for m in ink)}
     return {"workspace": atlas.identify(root), "documents": found,
             "writeups": WRITEUPS}

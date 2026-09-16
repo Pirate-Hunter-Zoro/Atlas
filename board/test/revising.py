@@ -151,6 +151,23 @@ check("a revision with no document named is refused rather than guessed at",
       manuscript.revise(work, {"title": "x", "rel": ""}, note,
                         base=tmp, dry_run=True).get("ok") is False)
 
+# WHICH ROOT THOSE PATHS ARE RELATIVE TO. The factory is another workspace with its
+# own state directory, and it cannot resolve `manuscripts/manuscript.md` against a
+# root nobody named.
+check("the job names the workspace the two paths are relative to",
+      "workspace: %s" % os.path.realpath(work) in body)
+
+# AND IT NAMES THE SOURCE, NOT THE RENDERING. `library.py` sets `rel` to the PDF
+# wherever there is one, because `rel` is what goes on the glass -- and a revision
+# pointed at a PDF is a revision asked to edit a picture of the document.
+built = manuscript.revise(work, {"title": "A delivered manuscript",
+                                 "source": "manuscripts/manuscript.md",
+                                 "rel": "manuscripts/manuscript.pdf"},
+                          note, base=tmp, dry_run=True).get("markdown") or ""
+check("a document with a PDF beside it is revised by its source",
+      "document: manuscripts/manuscript.md" in built
+      and "document: manuscripts/manuscript.pdf" not in built)
+
 # AND AN EXPLAINER IS NOT ROUTED THROUGH THE FACTORY. It is a manuscript factory
 # with gates for venue, claims, citations and a reporting checklist; "how the
 # serve harness works" has no venue and makes no claims, and every one of those
@@ -166,6 +183,11 @@ library.forget()
 made = {d["title"]: d["made"] for d in library.documents(work)}
 check("a board-made explainer is the board's to revise",
       made.get("How the serve harness works") == "board")
+src = {d["title"]: (d.get("source"), d["rel"]) for d in library.documents(work)}
+check("and a document carries its source beside the file the glass draws",
+      src.get("How the serve harness works")
+      == ("writeups/serve-harness/serve-harness.tex",
+          "writeups/serve-harness/serve-harness.pdf"))
 check("and a delivered manuscript is the factory's",
       made.get("A delivered manuscript") == "paper-writer")
 
@@ -180,8 +202,37 @@ if os.path.isfile(template):
           manuscript.REVISION in text)
     check("and says to leave it out for a new paper",
           "LEAVE THIS OUT FOR A NEW PAPER" in text)
+    check("and asks for the workspace those paths are relative to",
+          "workspace:" in text)
+    check("and says the document named is the source rather than a built format",
+          "never a .docx" in text)
 else:
     print("ok   (Paper-Writer is not checked out here; its template is not read)")
+
+# BOTH SIDES OF THE SEAM, AGAINST EACH OTHER. The board writes a job and the
+# factory parses one, and until this ran the only thing checked was that each of
+# them was self-consistent -- which is how a field gets written in one spelling
+# and read in another for a month without anybody noticing. Skipped where the
+# factory is not checked out, rather than making this suite depend on it.
+writer = os.path.join(os.path.dirname(ROOT), "projects", "Paper-Writer")
+if os.path.isdir(os.path.join(writer, "paperwriter")):
+    sys.path.insert(0, writer)
+    from paperwriter import jobspec as pw_jobspec              # noqa: E402
+
+    spec = pw_jobspec.revision(body)
+    check("the factory reads the document out of the job the board wrote",
+          spec.get("document") == "manuscripts/manuscript.md")
+    check("and the feedback file", spec.get("feedback") == note)
+    check("and the workspace those two are relative to",
+          spec.get("workspace") == os.path.realpath(work))
+    check("so the two of them resolve to the file on disk",
+          os.path.isfile(os.path.join(spec["workspace"], spec["document"])))
+    check("and a job for a NEW paper is read as one, which is what makes the "
+          "section the signal",
+          pw_jobspec.revision(manuscript.job(work)) == {})
+    sys.path.remove(writer)
+else:
+    print("ok   (Paper-Writer is not checked out here; its parser is not run)")
 
 print()
 if fails:

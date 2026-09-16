@@ -2238,6 +2238,24 @@ numbers for a drawer.
 `figures/`, `feedback/` — one directory per document, because a deck's figures
 and its rounds of feedback need somewhere to be.
 
+**What fifty documents cost, measured.** A cold open is one `pdfinfo` per PDF
+and nothing else that costs more than a `stat`: **0.74 s for fifty on this
+cluster's shared home, 0.41 s on local disk**, which is about 15 ms and 8 ms a
+document. The count is memoised on the file's own modification time, so the
+same library reopened is **0.1 s** and only a rebuilt PDF is paid for again —
+and inside `CACHE_SECONDS` the whole payload is held, so tapping between pages
+of one document costs nothing at all. There is no page-count budget and none is
+needed; `MAX_DOCS` is 120 because a library longer than that is a file manager,
+not because of what it would cost.
+
+**And on a machine with no poppler it is 0.21 s and there are no page counts at
+all** — measured with the renderer's PATH pointed at nothing. Every document is
+still listed, with its title, its kind, its formats and whether it is stale,
+because all four come off the source file rather than off the PDF. A missing
+count is missing, which is what it should be: counting `/Type /Page` in the
+bytes finds nothing in either of the layouts here, so the alternative is not a
+worse count but a confident zero.
+
 #### Feedback, and what acts on it
 
 Tapping a document reads it on the glass through the viewer the board already
@@ -2247,15 +2265,48 @@ tracked so it crosses machines — carrying the page they were looking at. The s
 request asks for the revision, because a note nothing acts on is a note somebody
 believes is in force.
 
+**Ink is a complaint too, and it needs no textarea.** A ring round a figure and
+an arrow to its caption is the same objection as "figure 3 is mislabelled",
+already located — and typing out where it points is a translation nobody should
+have to perform. Nothing new is stored to do this: a page of a document has
+carried ink for as long as the viewer has, saved against `doc/<ident>/p<n>` the
+way a mark on a card is saved against its card. `library.marks` is the reading
+of it, and a note carries the pages that were drawn on and the picture of each,
+because the strokes are coordinates and the image is what a reader opens. So the
+send button is live with an empty box on a document somebody has marked, the row
+says how much ink is on it, and the marks are recorded as handed over — the same
+flag `/annotate/save` sets when ink is sent as a turn, so the board stops
+offering them as unsent.
+
+**A document is named twice and its ink is its ink.** The drawer calls a
+document by `reading.ident`, the slug of its filename; the library calls it by
+where it sits, because two `manuscript.pdf`s in one workspace have to be told
+apart. Marking works on the board today, which is under the first name.
+`library.mark_idents` asks under both, and `IDENT_MAX` is 40 because that is
+what `writing.ANN_DOC` allows — an id longer than an annotation key is a
+document that cannot be written on.
+
 **Which machinery revises it depends on which wrote it.** A document this
 repository holds the source of is revised by the board: a `[revise]` line in the
 inbox, and a turn woken on it. A manuscript delivered into `manuscripts/` goes
 back to Paper-Writer — `manuscript.revise` drops a job with a `## Revision`
-section naming the document and the feedback file — because the factory is what
-holds the evidence, the terminology lock, the checklist and the venue's word
-limit. An explainer is never routed through it: "how the serve harness works"
-has no venue and makes no claims, and every one of those gates would either
-refuse it or invent something to satisfy itself.
+section naming three things, and the factory reads all three — because the
+factory is what holds the evidence, the terminology lock, the checklist and the
+venue's word limit. An explainer is never routed through it: "how the serve
+harness works" has no venue and makes no claims, and every one of those gates
+would either refuse it or invent something to satisfy itself.
+
+| | |
+|---|---|
+| `document` | the **source**, never the rendering. `library.py` puts the PDF in `rel` because `rel` is what goes on the glass, and a revision pointed at a PDF is a revision asked to edit a picture — so the record carries `source` beside it, and that is what the job names |
+| `feedback` | where the note landed, so the factory quotes the person's own words rather than the board's summary of them |
+| `workspace` | the root the other two are relative to. The factory is another workspace with its own state directory and cannot resolve `manuscripts/manuscript.md` against a root nobody named |
+
+On the other side of that seam a revision **skips the planner**: the delivered
+Markdown is split on its own headings into the sections its editor works on, and
+the anchored-edit loop changes what the feedback names and nothing else. Its
+README has the path. A correction re-planned from the claims list is a different
+paper, which is the failure the section exists to prevent.
 
 **A revision turn runs fresh and writes no card.** `turn_plan` resumes the
 agent's conversation by default; a revision resumed into a lesson drags the
