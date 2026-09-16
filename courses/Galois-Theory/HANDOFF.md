@@ -1,36 +1,33 @@
 <!-- chapter: New direction — Let’s prioritize the remaining book problems except the one… -->
-Read PLAN.md at the root for the order of what is open; the README points at it.
+PLAN.md at the root has the order of what is open; the README points at it.
 
-**Closed in Chapter 4, never re-teach:** 4.1, 4.4, 4.5, 4.6, and now **4.9**.
-They answered 4.9 cleanly and unprompted: a = π, b = 1/π, ab = 1, so the product
-of two transcendentals need not be transcendental. They generalised it
-themselves — in any L:K, both a and b can lie outside K while ab = 1 lies inside.
-Tower law, minimal-polynomial arithmetic, and the definition of transcendental
-are solid. Do not re-explain any of them.
+**Closed in Chapter 4, never re-teach:** 4.1, 4.4, 4.5, 4.6, 4.9, and the first
+half of 4.8. **4.2 is out** — they skipped it and asked for it to stay skipped.
 
-**4.2 is out.** They skipped it and asked for it to stay skipped.
+**4.8 second half, all but written.** Show β transcendental given α
+transcendental, f non-constant, f(β) = α. They own the skeleton: assume β
+algebraic, reach "α algebraic over K", contradict. This session they supplied
+the link that was missing — c₂β², c₁β and c₀ all lie in K(β), so α = f(β) ∈
+K(β). Credit that; it took three cards to get there. Their stated reason was
+closure under addition alone, and card 0007 adds the one line that closure under
+multiplication is what put c₂β² in.
 
-**Two things to correct when they recur.** They wrote "algebraic in ℚ" for
-"algebraic over ℚ" — membership confused with the element-to-base-field
-relation. And they called 1 "certainly algebraic" without naming x − 1. Both
-were fixed in a sentence on card 0003. Neither is a real gap, but asserting
-algebraicity without exhibiting the polynomial is worth watching: 4.8 and 4.10
-are that same move done twice.
+**The old error looks dead.** For three revisions they finished by composing
+with h, which needs α to be a root of something built from h, and h's root is β;
+on the last of those they patched it by writing "f(α) = β", the hypothesis
+reversed. It has not reappeared. Do not re-litigate it unless it comes back on
+paper.
 
-**Where they stopped.** Exercise 4.8 is posed in full on card 0003 and open:
-α ∈ L transcendental over K, f non-constant in K[x], show f(α) is transcendental,
-then show f(β) = α forces β transcendental. I asked only the first half —
-assuming g(f(α)) = 0 for non-zero g, which polynomial has α as a root, and why
-is it not zero. No answer yet.
+**Next.** Card 0007 restates 4.8's second half in full and asks for the whole
+proof, photographed; grade that. The only fragile joint left is β algebraic ⇒
+[K(β):K] finite ⇒ every element of K(β), including α, is algebraic. Then 4.10,
+4.7, 4.11, 4.3, then the worksheet "Field Extensions and the Ring F[x]", whose
+Problem 6 is half-open.
 
-**Teach next: the composite.** The answer is g(f(x)), non-zero because
-deg g(f(x)) = (deg g)(deg f) ≥ 1. Then the second half of 4.8, then 4.10, 4.7,
-4.11, 4.3.
+**How this student works.** They argue back when they are right, and have been
+right here once. Their handwritten α and β are nearly identical — read glyphs
+slowly before correcting a line. When they abandon a sub-step by asking for the
+next question, that means give me the whole exercise. Photographs sometimes
+arrive as undecodable HEIC.
 
-**How this student works.** They abandon a sub-step by asking for the next
-question rather than arguing. Read that as give me the whole exercise: hand over
-the scaffolding and re-pose the exercise in full. Given the whole thing, they
-solve it. Their photographs sometimes arrive as HEIC and cannot be decoded here;
-ask for a screenshot.
-
-The worksheet "Field Extensions and the Ring F[x]" waits; Problem 6 is half-open.
+`board write --help` does not print help; it creates a blank card.
