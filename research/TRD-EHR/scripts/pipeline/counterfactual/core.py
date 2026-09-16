@@ -1,4 +1,5 @@
 import os
+import json
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
@@ -9,6 +10,7 @@ from sklearn.linear_model import (
     LogisticRegression,
     LinearRegression
 )
+from sklearn.model_selection import StratifiedKFold
 
 from scripts.shared.utils import (
     load_trd_set,
@@ -18,10 +20,27 @@ from scripts.shared.utils import (
 from scripts.pipeline.predictions.create_train_test_split import create_train_test_split
 from scripts.pipeline.predictions.classical_ml import make_classifier
 from scripts.pipeline.predictions.trd_prediction_computation import compute_metrics
-from scripts.shared.plots import N_BOOTSTRAP
+from scripts.shared.plots import (
+    N_BOOTSTRAP,
+    bootstrap_sample_indices,
+    plot_calibration,
+    plot_precision_recall,
+    plot_receiving_operator_characteristic,
+)
 
 PROB_FLOOR = 0.1
 PROB_CEILING = 0.9
+# The overlap weight at the band edges. e(1-e) is symmetric about a half, so
+# e < PROB_FLOOR and e > PROB_CEILING are the SAME set of patients as
+# w < TRIM_WEIGHT -- the hard trim is exactly a threshold on the weight axis, and
+# the weighted estimand is that step replaced by a ramp. Derived, never typed twice.
+TRIM_WEIGHT = PROB_FLOOR * (1 - PROB_FLOOR)
+
+# Fold count for the cross-validation robustness layer. Five keeps each fold's test
+# side about the size of the frozen split's (a fifth of the eligible population), so a
+# per-fold estimate is comparable to the headline rather than being a different
+# precision of thing.
+N_CV_FOLDS = 5
 
 # The two bootstrap schemes, named once here so the artifact keys, the figure
 # filenames and the write-up all read from the same strings.
@@ -1012,4 +1031,581 @@ def plot_ate_sampling_distribution(
     ax.legend(loc='upper right', fontsize=8)
     fig.tight_layout()
     fig.savefig(save_dir / f"ate_sampling_distribution_{estimand}_{scheme}.png", dpi=150)
+    plt.close(fig)
+
+
+# The scalar metrics compute_metrics returns that are worth an interval. The two
+# extreme-prediction proportions it also returns are descriptions of the propensity
+# column rather than measurements of fit, and the overlap report already carries them.
+GRADEABLE_METRIC_KEYS = (
+    'roc_score',
+    'auprc',
+    'brier_score',
+    'weighted_calibration_error',
+    'calibration_slope',
+    'calibration_intercept',
+)
+
+
+def bootstrap_metric_intervals(y_true: np.ndarray, y_prob: np.ndarray) -> dict:
+    """Percentile confidence intervals for every gradeable metric compute_metrics returns.
+
+    Resamples PATIENTS and recomputes the metric, which is the right bootstrap for a
+    model that is already fitted: the propensity model is trained on the TRAIN pool and
+    scored on the test frame, so the uncertainty being described here is the uncertainty
+    of MEASURING its performance on a test set of this size, not the uncertainty of the
+    fit. That is the opposite of the effect bootstrap in this module, which refits inside
+    every draw because there the estimand itself depends on the fit.
+
+    Uses the same resamples as the curve bands in scripts/shared/plots.py, drawn from the
+    same seed, so a reported interval and the band on the figure beside it cannot
+    disagree.
+
+    Args:
+        y_true (np.ndarray): Binary outcome, one row per scored patient.
+        y_prob (np.ndarray): Predicted probabilities, aligned with y_true.
+
+    Returns:
+        dict: metric name -> {'ci_low', 'ci_high', 'n_valid_draws'}, over the draws that
+            produced a finite value. A draw that sampled one class only cannot have an
+            AUC and is dropped rather than counted as zero.
+    """
+    sample_indices = bootstrap_sample_indices(len(y_true))
+    per_draw = {key: np.full(sample_indices.shape[0], np.nan) for key in GRADEABLE_METRIC_KEYS}
+    for i in range(sample_indices.shape[0]):
+        rows = sample_indices[i]
+        y_true_draw, y_prob_draw = y_true[rows], y_prob[rows]
+        if len(np.unique(y_true_draw)) < 2:
+            continue
+        draw_metrics = compute_metrics(y_true_draw, y_prob_draw)
+        for key in GRADEABLE_METRIC_KEYS:
+            per_draw[key][i] = draw_metrics[key]
+    intervals = {}
+    for key, values in per_draw.items():
+        finite = values[np.isfinite(values)]
+        intervals[key] = {
+            "ci_low": float(np.percentile(finite, 2.5)) if finite.size else float("nan"),
+            "ci_high": float(np.percentile(finite, 97.5)) if finite.size else float("nan"),
+            "n_valid_draws": int(finite.size),
+        }
+    return intervals
+
+
+def grade_propensity_model(spec_dict: dict, risk_df: pd.DataFrame, save_dir: Path) -> dict:
+    """Grade e(x) as what it is -- a binary classifier of which arm the patient got.
+
+    The one honestly gradeable model in this pipeline. Both arm models predict TRD under a
+    treatment half the cohort did not receive, so grade_arm_models can only score each on
+    its own arm and neither counterfactual column can be checked at all. The propensity
+    model has no such problem: its outcome, the arm actually prescribed, is observed for
+    every patient, and it is fitted on the TRAIN pool and scored on the test frame, so
+    these are held-out numbers.
+
+    Read it for TWO different things, and do not collapse them:
+      DISCRIMINATION says how strongly measured covariates determine the prescription. A
+      near-0.5 AUC would mean assignment looks random given X, which is the comfortable
+      case for a causal claim; a high AUC means confounding by indication has plenty of
+      room, and the overlap trim is load-bearing rather than cosmetic.
+      CALIBRATION says whether e(x) can be believed as a NUMBER, which is what the
+      overlap band and the overlap weights both assume. A miscalibrated propensity makes
+      the 0.10/0.90 edges cut somewhere other than where they claim to, and that lands in
+      the reported estimand rather than in a diagnostic.
+    So a POOR grade here is not a bad result and a good one is not reassurance -- they
+    point in opposite directions, and the write-up has to say which.
+
+    Binning is by QUANTILE, not equal width. e(x) is concentrated wherever the arms are
+    unbalanced -- below 0.4 on the SSRI-referenced contrasts -- so equal-width bins would
+    leave half of them empty and put the whole curve in three points.
+
+    Writes roc_curve_propensity_<key>.png, pr_curve_propensity_<key>.png and
+    calibration_curve_propensity_<key>.png into save_dir, all three with bootstrap 95%
+    bands.
+
+    Args:
+        spec_dict (dict): The pairwise contrast spec (its 'key', 'display_name' and arms).
+        risk_df (pd.DataFrame): Output of attach_propensity -- needs 'propensity' and
+            'is_comparison'.
+        save_dir (Path): Directory to write the three figures into.
+
+    Returns:
+        dict: Point estimates for every metric in compute_metrics, a 'ci' block from
+            bootstrap_metric_intervals, the quantile calibration bin table with a 95%
+            interval on each bin's observed fraction, and the grading population --
+            n_scored, n_comparison and the comparison-arm prevalence the PR curve's
+            no-skill line sits at.
+    """
+    arm_label = (risk_df['is_comparison'] == 1).to_numpy().astype(int)
+    propensity = risk_df['propensity'].to_numpy()
+    mode = f"propensity_{spec_dict['key']}"
+    outcome_blurb = f"P(comparison arm = {spec_dict['comparison_arm']} | X)"
+
+    metrics = compute_metrics(arm_label, propensity)
+    roc_score, roc_ci_low, roc_ci_high = plot_receiving_operator_characteristic(
+        y_true=arm_label, y_prob=propensity, mode=mode, save_dir=save_dir,
+        title=f"{spec_dict['display_name']} -- propensity discrimination\n{outcome_blurb}",
+    )
+    auprc, auprc_ci_low, auprc_ci_high = plot_precision_recall(
+        y_true=arm_label, y_prob=propensity, mode=mode, save_dir=save_dir,
+        title=f"{spec_dict['display_name']} -- propensity precision-recall\n{outcome_blurb}",
+    )
+    calibration_bins = plot_calibration(
+        y_true=arm_label, y_prob=propensity, mode=mode, save_dir=save_dir,
+        title=f"{spec_dict['display_name']} -- propensity calibration (quantile bins)\n{outcome_blurb}",
+        strategy='quantile', bootstrap=True,
+    )
+
+    # The curve functions recompute their own headline score; cross-check rather than
+    # trust, because a silent disagreement here would mean the figure and the JSON are
+    # describing different vectors.
+    assert np.isclose(roc_score, metrics['roc_score']), "ROC score disagrees between compute_metrics and the figure"
+
+    return {
+        'key': spec_dict['key'],
+        'display_name': spec_dict['display_name'],
+        'outcome': outcome_blurb,
+        'n_scored': int(len(risk_df)),
+        'n_comparison': int(arm_label.sum()),
+        'comparison_prevalence': float(arm_label.mean()),
+        **metrics,
+        'ci': bootstrap_metric_intervals(arm_label, propensity),
+        # Kept separately from the AUPRC interval because the two curve functions return
+        # the same quantity by different routes; this is the one the figure was drawn from.
+        'auprc_curve_ci': {'ci_low': float(auprc_ci_low), 'ci_high': float(auprc_ci_high), 'average_precision': float(auprc)},
+        'roc_curve_ci': {'ci_low': float(roc_ci_low), 'ci_high': float(roc_ci_high)},
+        'calibration_bins': calibration_bins,
+    }
+
+
+def plot_overlap_weighted_effects(spec_dict: dict, risk_df: pd.DataFrame, save_dir: Path) -> None:
+    """Render the population ate_overlap_weighted actually averages over, against the trimmed one.
+
+    The figure the other effect histograms are not. All three of them are fed
+    in_band_effects, so every one of them draws the HARD-TRIMMED population unweighted --
+    and none of them shows the population behind the sensitivity estimand. The overlap
+    weights e(x)(1 - e(x)) cannot be recovered from a plotted histogram after the fact,
+    which is why this needs the propensity column rather than a re-bin of an existing
+    figure.
+
+    Both histograms are drawn as DENSITIES on one axes, because the weighted one has no
+    patient count: its bar heights are sums of weights, and against a raw count they would
+    be unreadably short. Densities put the two estimands' populations on a comparable
+    vertical scale, so the thing to read off is the SHAPE difference -- where the weighting
+    moves mass that the cliff at the band edge does not.
+
+    The two vertical lines are the two reported averages. When they sit on top of each
+    other the hard trim is not doing anything the smooth weighting does not, and the
+    sensitivity estimand is redundant; when they separate, this figure is where the reason
+    is visible. Purely a side-effect plot, no returned metric.
+
+    Args:
+        spec_dict (dict): The pairwise contrast spec (its 'display_name').
+        risk_df (pd.DataFrame): Output of attach_propensity -- needs risk_ref, risk_comp,
+            propensity and in_prob_interval.
+        save_dir (Path): Directory to write the figure into.
+    """
+    per_patient_effect = (risk_df['risk_comp'] - risk_df['risk_ref']).to_numpy()
+    propensity = risk_df['propensity'].to_numpy()
+    in_band = risk_df['in_prob_interval'].to_numpy()
+    overlap_weight = propensity * (1 - propensity)
+
+    trimmed_effects = per_patient_effect[in_band]
+    ate_trimmed = float(trimmed_effects.mean())
+    ate_weighted = float(np.average(per_patient_effect, weights=overlap_weight))
+
+    # One shared bin grid, clipped to the 1st/99th percentile of the WHOLE column exactly
+    # as plot_effect_distribution clips: the weighted population includes the trimmed
+    # patients, so a grid cut on the in-band rows alone would drop the very mass this
+    # figure exists to show.
+    bins = np.linspace(*np.percentile(per_patient_effect, [1, 99]), 51)
+
+    fig, ax = plt.subplots()
+    ax.hist(per_patient_effect, bins=bins, weights=overlap_weight, density=True,
+            color='tab:purple', alpha=0.55,
+            label=f"Overlap-weighted, all {len(per_patient_effect)} eligible")
+    ax.hist(trimmed_effects, bins=bins, density=True,
+            histtype='step', linewidth=1.8, color='black',
+            label=f"Hard-trimmed, {int(in_band.sum())} in band")
+    ax.axvline(x=0, color='green', linestyle='--', label="No effect")
+    ax.axvline(x=ate_weighted, color='tab:purple', linestyle='--',
+               label=f"Overlap-weighted ATE ({ate_weighted:.4f})")
+    ax.axvline(x=ate_trimmed, color='red', linestyle=':',
+               label=f"Hard-trimmed ATE ({ate_trimmed:.4f})")
+    # The effective sample size of the weights, which is the number the weighted curve is
+    # really worth. Kish's formula: (sum w)^2 / sum w^2, the n an unweighted mean would
+    # need to match this weighted mean's variance.
+    kish_ess = float(overlap_weight.sum() ** 2 / np.square(overlap_weight).sum())
+    ax.text(
+        0.02, 0.98,
+        f"weighted ESS = {kish_ess:,.0f}\nof {len(per_patient_effect):,} eligible",
+        transform=ax.transAxes, ha='left', va='top', fontsize=9,
+        bbox=dict(boxstyle='round,pad=0.3', facecolor='white', edgecolor='grey', alpha=0.85),
+    )
+    ax.set_xlabel("Effect on P(TRD): comparison arm minus reference arm")
+    ax.set_ylabel("Density")
+    ax.set_title(f"{spec_dict['display_name']} -- overlap-weighted vs hard-trimmed population")
+    ax.legend(loc='upper right', fontsize=9)
+    fig.savefig(save_dir / "overlap_weighted_effects.png")
+    plt.close(fig)
+
+
+def plot_overlap_weight_distribution(spec_dict: dict, risk_df: pd.DataFrame, save_dir: Path) -> None:
+    """Render the distribution of the overlap weights themselves, coloured by arm.
+
+    The companion to plot_propensity_by_arm, on the axis the weighted estimand actually
+    uses. Worth a separate figure because w = e(x)(1 - e(x)) FOLDS the propensity axis
+    about a half: a patient at w = 0.02 is either an almost-certain reference patient or
+    an almost-certain comparison patient, and the weight alone cannot say which. Those are
+    two different ways for overlap to fail, so the arm colour is not decoration here -- it
+    is the only thing that recovers the direction the weight threw away.
+
+    The dashed line at TRIM_WEIGHT is the whole argument of the sensitivity analysis in one
+    mark. Because w is symmetric about a half, the hard trim's two-sided cut on e is
+    EXACTLY a one-sided cut on w, so the shaded region is the patients the headline
+    estimand drops entirely and the weighted one keeps at reduced strength. The step
+    against the ramp, drawn.
+
+    Drawn on the TEST side only, where the propensity column is scored. Purely a
+    side-effect plot, no returned metric.
+
+    Args:
+        spec_dict (dict): The pairwise contrast spec (its 'display_name' and the two arms).
+        risk_df (pd.DataFrame): Output of attach_propensity.
+        save_dir (Path): Directory to write the figure into.
+    """
+    propensity = risk_df['propensity'].to_numpy()
+    overlap_weight = propensity * (1 - propensity)
+    is_comparison = (risk_df['is_comparison'] == 1).to_numpy()
+    in_band = risk_df['in_prob_interval'].to_numpy()
+
+    # Fixed grid over the full range the weight can take: w peaks at 0.25 when the two
+    # treatments are equally likely, so [0, 0.25] is the whole axis by construction and
+    # rescaling to the observed support would hide how far from that peak the mass sits.
+    bins = np.linspace(0.0, 0.25, 51)
+
+    fig, ax = plt.subplots()
+    ax.axvspan(0.0, TRIM_WEIGHT, color='grey', alpha=0.12,
+               label=f"Dropped by the hard trim (w < {TRIM_WEIGHT:g})")
+    for mask, colour, role in ((~is_comparison, 'tab:blue', 'reference'),
+                               (is_comparison, 'tab:orange', 'comparison')):
+        arm_n = int(mask.sum())
+        mean_weight = float(overlap_weight[mask].mean()) if arm_n else float("nan")
+        ax.hist(
+            overlap_weight[mask], bins=bins, color=colour, alpha=0.55,
+            label=f"{spec_dict[f'{role}_arm']} ({role}, n={arm_n}, mean w={mean_weight:.3f})",
+        )
+    ax.axvline(TRIM_WEIGHT, color='black', linestyle='--', linewidth=1.2)
+    # The weighted average's own denominator, said on the axes: how many patients the
+    # weighting leaves the estimate worth, against how many went into it.
+    kish_ess = float(overlap_weight.sum() ** 2 / np.square(overlap_weight).sum())
+    ax.text(
+        0.02, 0.98,
+        f"weighted ESS = {kish_ess:,.0f} of {len(overlap_weight):,}\n"
+        f"hard trim keeps {int(in_band.sum()):,}",
+        transform=ax.transAxes, ha='left', va='top', fontsize=9,
+        bbox=dict(boxstyle='round,pad=0.3', facecolor='white', edgecolor='grey', alpha=0.85),
+    )
+    ax.set_xlabel("Overlap weight w = e(x)(1 - e(x)), peaking at 0.25 when the arms are equally likely")
+    ax.set_ylabel("Number of patients")
+    ax.set_title(f"{spec_dict['display_name']} -- overlap weights by arm (test set)")
+    ax.legend(loc='upper right', fontsize=9)
+    fig.savefig(save_dir / "overlap_weights_by_arm.png")
+    plt.close(fig)
+
+
+@dataclass
+class EligiblePool:
+    """Every patient eligible for one contrast, across the WHOLE cohort, loaded once.
+
+    The frozen-split path (build_eligible_populations) reads the feature parquet once per
+    side and never needs this. The cross-validation path would read it twice per fold,
+    which is ten reads of the same file to produce five partitions of one population --
+    so the pool is built once and every fold is a boolean mask over it.
+
+    Attributes:
+        matrix (pd.DataFrame): Feature rows for every eligible patient, index = patient id.
+        comparison_flag (np.ndarray): 1 for the comparison arm, 0 for the reference arm,
+            aligned with matrix by position.
+        trd_labels (np.ndarray): Binary TRD outcome, aligned with matrix by position.
+    """
+    matrix: pd.DataFrame
+    comparison_flag: np.ndarray
+    trd_labels: np.ndarray
+
+
+def eligible_pool(spec_dict: dict) -> EligiblePool:
+    """Load every patient in either arm of one contrast, ignoring the frozen split entirely.
+
+    The CV pool is the WHOLE eligible population, not the fifth of it that landed in the
+    frozen test side. That is the point of the exercise: under the frozen split the
+    estimand is whichever fifth of the cohort the partition happened to put in test, and
+    five folds whose test sides tile the population replace that with an estimate every
+    eligible patient contributed to exactly once.
+
+    Args:
+        spec_dict (dict): The pairwise contrast spec (its 'reference_arm', 'comparison_arm').
+
+    Returns:
+        EligiblePool: The pooled matrix, arm flag and TRD labels, aligned by position.
+    """
+    # get_AD_mappings spans the full SOURCE population, which is wider than the feature
+    # parquet; intersecting first is what keeps load_feature_matrix's .loc from raising on
+    # a patient who has an index prescription but no feature row.
+    mappings = get_AD_mappings()
+    cohort_ids = set(pd.read_parquet(Path(os.environ['FEATURE_DATAFRAME_PATH']), columns=[]).index)
+    cohort_matrix = load_feature_matrix(set(mappings.keys()) & cohort_ids)
+    arms = pd.Series(cohort_matrix.index.map(mappings))
+    keep_mask = arms.isin([spec_dict['reference_arm'], spec_dict['comparison_arm']]).to_numpy()
+
+    kept_matrix = cohort_matrix[keep_mask]
+    kept_flag = (arms == spec_dict['comparison_arm']).astype(int).to_numpy()[keep_mask]
+    trd_patients = load_trd_set()
+    kept_labels = np.array([int(patient_id in trd_patients) for patient_id in kept_matrix.index])
+    return EligiblePool(matrix=kept_matrix, comparison_flag=kept_flag, trd_labels=kept_labels)
+
+
+def cv_fold_indices(pool: EligiblePool, n_splits: int = N_CV_FOLDS) -> list:
+    """Row-index partitions for the CV layer, stratified on INDEX ARM AND TRD LABEL JOINTLY.
+
+    Both matter and neither implies the other. The estimator's behaviour depends on the arm
+    balance, because that is what the propensity model is predicting and what decides how
+    lopsided the trim is; it also depends on the event rate, because that is what the two
+    outcome models are fitted against. A fold that reproduced one and not the other would
+    be a different estimation problem wearing the same name. The frozen split happens to be
+    balanced on both; the folds reproduce that by design rather than inherit it by luck.
+
+    Stratifying on the interaction rather than on two margins is what makes the guarantee
+    joint: four strata, arm crossed with outcome, each spread evenly across folds.
+
+    Args:
+        pool (EligiblePool): Output of eligible_pool.
+        n_splits (int, optional): Fold count. Defaults to N_CV_FOLDS.
+
+    Returns:
+        list: One (train row indices, test row indices) tuple per fold, in fold order.
+            Every row appears in exactly one test side, and the test sides tile the pool.
+    """
+    joint_strata = pool.comparison_flag * 2 + pool.trd_labels
+    splitter = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=int(os.environ['SEED']))
+    return list(splitter.split(pool.matrix, joint_strata))
+
+
+def fold_populations(pool: EligiblePool, train_rows: np.ndarray, test_rows: np.ndarray) -> EligiblePopulations:
+    """Assemble one fold's EligiblePopulations out of the pool and a pair of row-index arrays.
+
+    Produces exactly the object build_eligible_populations produces for the frozen split, so
+    every estimator, grader and figure downstream is the same code on a different partition.
+    Nothing in this package should know whether it was handed a fold or the frozen split.
+
+    Args:
+        pool (EligiblePool): Output of eligible_pool.
+        train_rows (np.ndarray): Positional indices of this fold's training rows.
+        test_rows (np.ndarray): Positional indices of this fold's test rows.
+
+    Returns:
+        EligiblePopulations: Training arms split in two, test side whole with its arm flag.
+    """
+    train_matrix = pool.matrix.iloc[train_rows]
+    train_flag = pool.comparison_flag[train_rows]
+    train_labels = pool.trd_labels[train_rows]
+    return EligiblePopulations(
+        ref_arm_train_matrix=train_matrix[train_flag == 0],
+        ref_arm_train_labels=train_labels[train_flag == 0],
+        comp_arm_train_matrix=train_matrix[train_flag == 1],
+        comp_arm_train_labels=train_labels[train_flag == 1],
+        eligible_test_matrix=pool.matrix.iloc[test_rows],
+        eligible_test_labels=pool.trd_labels[test_rows],
+        test_comparison_flag=pool.comparison_flag[test_rows],
+    )
+
+
+# The estimands the CV layer reports across folds. Both, because the fold spread is a
+# property of the averaging rule as much as of the partition, and the whole reason the
+# sensitivity estimand exists is to be compared against the headline one.
+CV_ESTIMANDS = ('ate_trimmed', 'ate_overlap_weighted')
+
+
+def run_cv_folds(spec_dict: dict, save_dir: Path, n_splits: int = N_CV_FOLDS) -> list[dict]:
+    """Estimate the contrast once per fold and persist each fold's own numbers.
+
+    NO BOOTSTRAP IN HERE, and that is the design rather than a shortcut. Folding multiplies
+    whatever it wraps by n_splits, and the bootstrap is the one expensive thing in this
+    package -- 2 x N_BOOTSTRAP refits of three models. It also would not buy an interval
+    anybody could report: between-fold spread measures sensitivity to the partition while
+    the bootstrap measures sampling and estimation uncertainty, so pooling fold-by-draw
+    averages into one percentile cut conflates two different quantities. The frozen split
+    keeps the interval; the folds supply the partition-sensitivity term beside it.
+
+    Each fold writes fold_<k>.json (its point estimates, arm grades and propensity grades)
+    and fold_<k>_risks.csv (its risk frame) into save_dir. Deliberately no per-fold
+    figures: five copies of every diagnostic is not five times the information, and the
+    cross-fold figure is the one that answers the question folding was run to ask.
+
+    Args:
+        spec_dict (dict): The pairwise contrast spec.
+        save_dir (Path): The cv/ directory for this contrast.
+        n_splits (int, optional): Fold count. Defaults to N_CV_FOLDS.
+
+    Returns:
+        list[dict]: One row per fold, carrying 'fold', the summarize_effect keys, and
+            'propensity_roc' / 'propensity_calibration_slope' lifted out of the fold's
+            propensity grades so the cross-fold table can be read without reopening five
+            files. Rows are in fold order.
+    """
+    pool = eligible_pool(spec_dict)
+    fold_rows = []
+    for fold_index, (train_rows, test_rows) in enumerate(cv_fold_indices(pool, n_splits)):
+        population = fold_populations(pool, train_rows, test_rows)
+        risk_df = estimate_once(population)
+        point_estimates = summarize_effect(risk_df)
+        # The propensity model is refitted per fold, so its grades are per fold too --
+        # a fold whose e(x) went badly calibrated would make that fold's trim mean
+        # something different, and that is exactly the kind of thing folding is for.
+        arm_label = (risk_df['is_comparison'] == 1).to_numpy().astype(int)
+        propensity_metrics = compute_metrics(arm_label, risk_df['propensity'].to_numpy())
+        with open(save_dir / f"fold_{fold_index}.json", 'w') as f:
+            json.dump({
+                'fold': fold_index,
+                'n_train': int(len(train_rows)),
+                'n_test': int(len(test_rows)),
+                **point_estimates,
+                'arm_grades': grade_arm_models(risk_df),
+                'propensity_grades': propensity_metrics,
+            }, f, indent=4, default=float)
+        risk_df.to_csv(save_dir / f"fold_{fold_index}_risks.csv", index_label="patient_id")
+        fold_rows.append({
+            'fold': fold_index,
+            'n_train': int(len(train_rows)),
+            'n_test': int(len(test_rows)),
+            **point_estimates,
+            'propensity_roc': propensity_metrics['roc_score'],
+            'propensity_calibration_slope': propensity_metrics['calibration_slope'],
+        })
+    return fold_rows
+
+
+def summarize_cv(spec_dict: dict, fold_rows: list[dict], frozen_point: dict, frozen_cis: dict) -> dict:
+    """Collapse the folds into the THREE quantities, kept separate on purpose.
+
+    They answer three different questions and fusing them would answer none:
+      1. FOLD-AVERAGED POINT ESTIMATE -- the estimate every eligible patient contributed
+         to exactly once, rather than the fifth of them the frozen partition happened to
+         put in test. This is the robustness number.
+      2. BOOTSTRAP INTERVAL -- quoted unchanged from the frozen split, which still owns it.
+         It measures sampling and estimation uncertainty.
+      3. BETWEEN-FOLD SPREAD -- sd, min and max across folds. It measures sensitivity to
+         the partition, which is a different thing, and a reader comparing it against (2)
+         is doing the comparison this layer exists to enable.
+    A fold spread smaller than the interval half-width means the partition is not where
+    the uncertainty lives. Larger means the frozen split's number is partly an artifact of
+    which patients it tested on, and the headline should say so.
+
+    Args:
+        spec_dict (dict): The pairwise contrast spec.
+        fold_rows (list[dict]): Output of run_cv_folds.
+        frozen_point (dict): summarize_effect on the frozen split -- the headline estimates.
+        frozen_cis (dict): The interval keys from bootstrap_effect, both schemes.
+
+    Returns:
+        dict: Per estimand, the three quantities plus the frozen point estimate and the
+            signed gap between it and the fold average; and alongside them the per-fold
+            propensity grades, because a fold spread driven by one badly fitted propensity
+            model is a different finding from one spread evenly across folds.
+    """
+    summary = {
+        'key': spec_dict['key'],
+        'display_name': spec_dict['display_name'],
+        'n_folds': len(fold_rows),
+        'n_eligible_total': int(sum(row['n_test'] for row in fold_rows)),
+        'estimands': {},
+    }
+    for estimand in CV_ESTIMANDS:
+        values = np.array([row[estimand] for row in fold_rows], dtype=float)
+        finite = values[np.isfinite(values)]
+        fold_mean = float(finite.mean()) if finite.size else float("nan")
+        summary['estimands'][estimand] = {
+            'fold_estimates': [float(v) for v in values],
+            # 1. the robustness point estimate
+            'fold_mean': fold_mean,
+            # 3. the partition-sensitivity term. ddof=1: five folds are a sample of
+            # partitions, not the population of them.
+            'fold_sd': float(finite.std(ddof=1)) if finite.size > 1 else float("nan"),
+            'fold_min': float(finite.min()) if finite.size else float("nan"),
+            'fold_max': float(finite.max()) if finite.size else float("nan"),
+            # the frozen split's own numbers, quoted for the comparison
+            'frozen_point': float(frozen_point[estimand]),
+            'frozen_minus_fold_mean': float(frozen_point[estimand] - fold_mean),
+            **{
+                f"frozen_{bound}_{scheme}": float(frozen_cis[f"{estimand}_ci_{bound}_{scheme}"])
+                for scheme in BOOTSTRAP_SCHEMES for bound in ('low', 'high')
+            },
+        }
+    summary['per_fold_propensity'] = [
+        {
+            'fold': row['fold'],
+            'n_test': row['n_test'],
+            'roc_score': float(row['propensity_roc']),
+            'calibration_slope': float(row['propensity_calibration_slope']),
+        }
+        for row in fold_rows
+    ]
+    return summary
+
+
+def plot_cv_fold_estimates(spec_dict: dict, cv_summary: dict, estimand: str, save_dir: Path) -> None:
+    """Render the per-fold estimates against the frozen split's point estimate and interval.
+
+    The figure the three quantities are for. One marker per fold on a single axis, the
+    fold average as a solid line, the frozen point estimate as a dashed one, and the
+    frozen bootstrap interval as a shaded span -- so the reader's eye does the comparison
+    the summary states in numbers: is the fold scatter narrow against the interval, or
+    comparable to it?
+
+    The two are NOT nested and the figure must not suggest they are. A fold marker falling
+    outside the shaded span is not a significance test failing; the span is an interval for
+    the frozen split's estimand and the marker is a different fold's estimand. What the
+    picture licenses is a judgement about MAGNITUDE: scatter much narrower than the span
+    means the partition is not where the uncertainty lives.
+
+    Purely a side-effect plot, no returned metric.
+
+    Args:
+        spec_dict (dict): The pairwise contrast spec (its 'display_name').
+        cv_summary (dict): Output of summarize_cv.
+        estimand (str): Which of CV_ESTIMANDS to draw; names the file too.
+        save_dir (Path): Directory to write the figure into.
+    """
+    block = cv_summary['estimands'][estimand]
+    estimates = np.array(block['fold_estimates'], dtype=float)
+    folds = np.arange(len(estimates))
+
+    fig, ax = plt.subplots()
+    # The TOTAL-scheme interval, the wider of the two, because this comparison is against
+    # the whole reported uncertainty rather than its estimation-only component.
+    ax.axhspan(block['frozen_low_total'], block['frozen_high_total'], color='orange', alpha=0.18,
+               label=f"Frozen-split 95% CI, total scheme [{block['frozen_low_total']:.4f}, {block['frozen_high_total']:.4f}]")
+    ax.axhline(0.0, color='green', linestyle='--', label="No effect")
+    ax.axhline(block['frozen_point'], color='red', linestyle='--',
+               label=f"Frozen-split point estimate ({block['frozen_point']:.4f})")
+    ax.axhline(block['fold_mean'], color='navy', linestyle='-',
+               label=f"Fold-averaged estimate ({block['fold_mean']:.4f})")
+    ax.plot(folds, estimates, marker='o', linestyle='none', color='navy', markersize=9,
+            label=f"Per-fold estimate (sd {block['fold_sd']:.4f})")
+    ax.set_xticks(folds)
+    ax.set_xticklabels([f"fold {k}" for k in folds])
+    # Which of the two spreads is bigger is the actionable read, so state it rather than
+    # leaving it to be measured off the axis.
+    half_width = 0.5 * (block['frozen_high_total'] - block['frozen_low_total'])
+    verdict = ("fold spread is SMALLER than the CI half-width:\npartition is not where the uncertainty lives"
+               if block['fold_sd'] < half_width else
+               "fold spread is COMPARABLE TO OR LARGER than the\nCI half-width: the frozen split's number is\npartly an artifact of its partition")
+    ax.text(
+        0.02, 0.02,
+        f"fold sd {block['fold_sd']:.4f} vs CI half-width {half_width:.4f}\n{verdict}",
+        transform=ax.transAxes, ha='left', va='bottom', fontsize=8,
+        bbox=dict(boxstyle='round,pad=0.3', facecolor='white', edgecolor='grey', alpha=0.85),
+    )
+    ax.set_ylabel(f"Average effect on P(TRD) ({estimand})")
+    ax.set_title(f"{spec_dict['display_name']} -- {N_CV_FOLDS}-fold cross-validation against the frozen split")
+    ax.legend(loc='upper right', fontsize=8)
+    fig.savefig(save_dir / f"cv_fold_estimates_{estimand}.png")
     plt.close(fig)
