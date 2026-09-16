@@ -953,7 +953,11 @@ Do not re-learn these.
     are synthesised from an NFSv4 ACL and are not to be trusted, which is traps 25 and 28 — but the
     consequence is that git records a new script as 644 however it looks on disk, `git status` says
     nothing, and the failure appears only in somebody else's checkout as a bare *Permission denied*
-    from a command on `PATH`. `git update-index --chmod=+x <path>` sets it in the index directly.
+    from a command on `PATH`. `git update-index --chmod=+x <path>` sets it in the index directly
+    — **and then `save-and-push.sh` throws it away**, because that script commits with
+    `git commit --only -- <paths>`, which re-reads those paths from the working tree, where
+    there is no mode to read. Set the bit, check `git diff --cached --summary` shows the mode
+    changes and nothing else, then commit the index with a plain `git commit`.
     **The `ollama-*` three are still 644** and have been since August; they work here because this
     clone's on-disk bits are fine, and they will not work in the next one.
 
