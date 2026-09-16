@@ -68,7 +68,57 @@ def build_parser():
                         help=f"the QC export; found by {ERROR_LOG_GLOB!r} in --stage1 when absent")
     parser.add_argument("--dry-run", action="store_true",
                         help="resolve and report every correction, write nothing")
+    parser.add_argument("--anonymise", "--anonymize", action="store_true",
+                        dest="anonymise",
+                        help="keep the session stem out of the printed report, so the "
+                             "counts can be read by someone who may not know which "
+                             "participant this is")
     return parser
+
+
+# What the stem is replaced by under --anonymise. Not a blank: a reader has to be able to
+# see that something was removed, or the report reads as though the session were unnamed.
+REDACTED = "<session>"
+
+
+def resolve_stem(stage1, logged_session):
+    """IN: the Stage 1 directory + the Session ID the sheet claims   OUT: (stem, note).
+
+    `find_sole_stem` is the answer whenever the directory holds exactly one aligned file.
+    It stops being the answer the moment the typist grid runs -- its own docstring says so
+    -- because a dotted arm cannot be told from a dotted stem, so the count goes to five or
+    eight and it refuses.
+
+    THE SHEET IS THE FALLBACK, and it is a better one than a glob. The error log's Session
+    ID column is a person writing down which session they annotated; the filenames are a
+    pipeline's naming convention. When discovery cannot decide, the annotator's own answer
+    is the one to take, and the note says it was taken so nobody thinks it was discovered.
+    """
+    try:
+        return find_sole_stem(stage1), ""
+    except SystemExit as refusal:
+        if not logged_session:
+            raise
+        return logged_session, ("stem taken from the error log's Session ID; "
+                                "discovery could not choose (%s)" % refusal)
+
+
+def scrub(lines, stem, log_name):
+    """IN: report lines + the two identifiers   OUT: the same lines, de-identified.
+
+    A whole-string replace rather than a pattern, and it runs over the FINISHED lines
+    rather than at each place a name is formatted in. Every identifier in this report is
+    one of two literal strings, so replacing them where they actually appear cannot miss
+    one that a future edit adds -- which is exactly what a per-site redaction does miss.
+    """
+    out = []
+    for line in lines:
+        if stem:
+            line = line.replace(stem, REDACTED)
+        if log_name:
+            line = line.replace(log_name, "<error log>")
+        out.append(line)
+    return out
 
 
 def find_error_log(stage1_dir):
@@ -229,8 +279,24 @@ def main(argv=None):
     args = build_parser().parse_args(argv)
 
     stage1 = Path(args.stage1)
-    stem = args.stem or find_sole_stem(stage1)
     log_path = Path(args.error_log) if args.error_log else find_error_log(stage1)
+
+    # The sheet is read first now, because it is what names the session when the Stage 1
+    # directory holds more than one aligned file and discovery refuses to guess.
+    log = read_error_log(log_path)
+    corrections = log.corrections
+    if not corrections:
+        raise SystemExit(f"{log_path.name} holds no corrections; nothing to apply.")
+    logged = sessions(corrections)
+    if len(logged) != 1:
+        raise SystemExit(f"{log_path.name} covers {len(logged)} sessions. One sheet per "
+                         "session: split it before applying.")
+
+    stem_note = ""
+    if args.stem:
+        stem = args.stem
+    else:
+        stem, stem_note = resolve_stem(stage1, logged[0])
 
     source_json = diarized_path(stage1, stem, args.arm)
     if not source_json.exists():
@@ -245,14 +311,8 @@ def main(argv=None):
     drift_note = check_render_matches(rendered, index,
                                       transcript_path(stage1, stem, args.arm))
 
-    log = read_error_log(log_path)
-    corrections = log.corrections
-    if not corrections:
-        raise SystemExit(f"{log_path.name} holds no corrections; nothing to apply.")
-    logged = sessions(corrections)
-    if len(logged) != 1:
-        raise SystemExit(f"{log_path.name} covers {len(logged)} sessions. One sheet per "
-                         "session: split it before applying.")
+    if stem_note:
+        report(stem_note)
     if logged[0] != stem:
         report(f"WARNING: the error log's Session ID is not the stem being corrected. "
                f"Applying it anyway; check that this is the sheet you meant.")
@@ -300,6 +360,10 @@ def main(argv=None):
         lines.append(f"\nWrote {corrected_transcript_path(args.outdir, stem)}")
         lines.append(f"Wrote {corrected_turns_path(args.outdir, stem)}")
         lines.append(f"Wrote {correction_report_path(args.outdir, stem)}")
+    # Last, so that the written paths -- which carry the stem in their filenames -- are
+    # scrubbed too. Redacting before they are appended is the bug this ordering prevents.
+    if args.anonymise:
+        lines = scrub(lines, stem, log_path.name)
     report(lines)
 
 
