@@ -2375,12 +2375,37 @@ def ts(*args, **kw):
 
 
 def ts_daemon_running():
-    try:
-        p = subprocess.run(["pgrep", "-f", "tailscaled --tun=userspace-networking"],
-                           stdout=subprocess.PIPE)
-        return p.returncode == 0
-    except OSError:
-        return False
+    """Is OUR tailscaled up on THIS machine?
+
+    `pgrep -x`, matching the executable's name rather than a string inside a
+    command line. The pattern this used -- `-f "tailscaled --tun=..."` -- is
+    matched by any process that merely MENTIONS it, which on this cluster
+    includes every `srun bash -c` wrapper and every shell one-liner written to
+    ask the question. A false yes here is the worst answer available: the caller
+    concludes the link is up and never starts one, and the board serves on
+    loopback at an address the iPad cannot reach.
+    """
+    return tailscale.daemon_running()
+
+
+def ts_talks(timeout=12.0):
+    """Can the CLI actually reach the daemon? A socket file is not an answer.
+
+    The socket lives in the SHARED home, so the path existing says only that
+    some machine once had a daemon -- and the daemon takes a moment to bind it
+    after being started. Waiting on the file alone therefore returns the instant
+    a start begins, and the `tailscale up` that follows fails with "failed to
+    connect to local tailscaled", which is what it did on compute306 while every
+    process looked healthy and the iPad stayed white.
+    """
+    end = time.time() + timeout
+    while True:
+        code, _ = ts("status", timeout=8)
+        if code == 0:
+            return True
+        if time.time() >= end:
+            return False
+        time.sleep(0.5)
 
 
 TS_OWNER = os.path.join(TS_DIR, "owner.json")
@@ -2426,16 +2451,23 @@ def ts_start_daemon():
     if ts_daemon_running():
         return True
     os.makedirs(TS_DIR, exist_ok=True)
+    # A socket file with no daemon behind it is a leftover from another node --
+    # this directory is the shared home -- and `tailscaled` will not bind an
+    # address that is already a file. Removed only when nothing of ours is
+    # running here, which is the branch above.
+    try:
+        os.remove(TS_SOCK)
+    except OSError:
+        pass
     log = open(TS_LOG, "ab")
     subprocess.Popen(
         ["tailscaled", "--tun=userspace-networking", "--socket=" + TS_SOCK,
          "--statedir=" + TS_DIR, "--socks5-server=localhost:1055"],
         stdout=log, stderr=log, start_new_session=True)
-    for _ in range(40):
-        time.sleep(0.25)
-        if os.path.exists(TS_SOCK):
-            ts_claim()
-            return True
+    # The daemon ANSWERING is the test, not its socket existing: see `ts_talks`.
+    if ts_talks():
+        ts_claim()
+        return True
     return False
 
 

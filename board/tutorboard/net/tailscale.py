@@ -172,6 +172,23 @@ def unpublish_board(port, timeout=20):
         return False
 
 
+def daemon_running():
+    """Is OUR tailscaled up on THIS machine?
+
+    By process NAME. Asking `pgrep -f` for a string inside the command line
+    matches anything that merely MENTIONS it -- every `srun bash -c` wrapper and
+    every shell one-liner written to ask the question -- and a false yes is the
+    worst answer available here: the caller concludes the link is up, never
+    starts one, and the board serves on loopback at an address the iPad cannot
+    reach, with every process looking healthy.
+    """
+    try:
+        p = subprocess.run(["pgrep", "-x", "tailscaled"], stdout=subprocess.PIPE)
+        return p.returncode == 0
+    except OSError:
+        return False
+
+
 def tailscale_cli():
     """(argv_prefix, kind) for talking to whichever tailscale this machine has.
 

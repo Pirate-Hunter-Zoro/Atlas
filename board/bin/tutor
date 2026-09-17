@@ -55,7 +55,7 @@ sys.path.insert(0, TOOL)
 from tutorboard import (atlas, choice, handoff, limits, machine, paths, processes,
                         supervise, worktree)
 from tutorboard.course import config
-from tutorboard.net import egress
+from tutorboard.net import egress, tailscale
 
 BOARD = os.path.join(TOOL, "bin", "board")
 CONFIG_DIR = os.path.join(
@@ -3498,7 +3498,12 @@ def watch_once(cfg, host, memo, say, claim=False):
             tverdict = supervise.tutor_verdict(
                 st, host, processes.pid_alive(st.get("pid")))
         if tverdict in ("revive", "adopt") and now >= mem["tutor_at"]:
+            # Only where something is still RUNNING there. A record that says
+            # `stopped` has already let go -- asking that node again is a
+            # whole-machine stop aimed at a machine that has nothing of this
+            # lesson left, and it arrives after the board has already moved.
             if (tverdict == "adopt" and theirs_live
+                    and st.get("state") != "stopped"
                     and not take_from(st["host"], say, asked)):
                 mem["tutor_tries"] += 1
                 mem["tutor_at"] = now + supervise.next_try(mem["tutor_tries"])
@@ -3519,6 +3524,49 @@ def watch_once(cfg, host, memo, say, claim=False):
             say(did[-1])
         elif tverdict == "ok":
             mem["tutor_tries"] = 0
+
+    # --- THE ADDRESS, EVERY PASS ------------------------------------------
+    # A board can be perfect and unreachable, and that is the whole of what the
+    # iPad experiences: one HTTPS name, which needs a `tailscaled` on THIS node
+    # and a `tailscale serve` pointing at a port that answers. Both can fail with
+    # nothing dying -- a link that lost a race while a generation was starting,
+    # a name still pointing at the port of a board that has moved -- and until
+    # now nothing ever looked again. `link` was called after a board START, so a
+    # link that failed there was never retried: measured on compute306, where
+    # every process was healthy, both boards answered on loopback, and the glass
+    # stayed white.
+    addr = memo.setdefault("#address", {"at": 0.0, "tries": 0})
+    now = time.time()
+    if now >= addr["at"]:
+        here = [c for c in courses(cfg)
+                if processes.board_is_running(
+                    (board_record(c["root"]) or {}).get("pid"), c["root"])
+                and (board_record(c["root"]) or {}).get("node") == host]
+        if here:
+            # Whichever course the address is FOR: the one somebody chose, if it
+            # is one of the boards up here. `link` takes the name only if it is
+            # pointing at nothing, so this cannot move it off a live board.
+            want = last_board(cfg)
+            if not want or want["dir"] not in [c["dir"] for c in here]:
+                want = here[0]
+            why = None
+            if not tailscale.daemon_running():
+                why = "there is no tailnet link on this node"
+            else:
+                code, out = board(want["root"], "vpn", "holder")
+                port = (out or "").strip()
+                if not (code == 0 and port.isdigit()
+                        and supervise.answering(int(port))):
+                    why = "the address is not pointing at a board that answers"
+            if why:
+                link(want["root"])
+                addr["tries"] += 1
+                addr["at"] = now + supervise.next_try(addr["tries"])
+                did.append("%s, so the link was brought up for %s"
+                           % (why, want["dir"]))
+                say(did[-1])
+            else:
+                addr["tries"] = 0
     return did
 
 
@@ -3653,6 +3701,19 @@ def cmd_down(cfg, args):
                         handover=time.strftime("%Y-%m-%d %H:%M:%S"))
             code, msg = agent_stop(c, wait=True)
             print("  %s" % (msg or "").strip())
+        # ONLY A BOARD THIS MACHINE ACTUALLY HAS. `board stop` against a record
+        # naming another node does not stop anything -- it cannot -- and it
+        # DELETES THE RECORD, which is worse than doing nothing: the process goes
+        # on serving with nothing on disk naming it, so the hub cannot find it,
+        # the watch loop sees no record and leaves it alone, and the next tutor
+        # start puts a SECOND board on a fallback port against the same `live/`.
+        # That is not hypothetical; it is what this line did the first time it
+        # ran, to PSYCH-ASR, ten seconds after the board had moved.
+        on = (board_record(c["root"]) or {}).get("node")
+        if on and on != host:
+            print("  %s: its board is on %s, not here; left alone"
+                  % (c["dir"], on))
+            continue
         code, out = board(c["root"], "stop")
         print("  %s: %s" % (c["dir"], last_line(out)))
     if not named:
