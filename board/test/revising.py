@@ -17,6 +17,12 @@ puts its report beside the document. What is guarded here is each of those, plus
 the one that only shows up a turn later -- that the lesson does not then resume
 into the revision's session.
 
+AN OVERHAUL IS THE SAME TURN WITH A WIDER LICENCE. `[rework]` is the other ask
+on the library's own panel, and the ONE thing that separates it from a revision
+is that the do-not-widen sentence is not in the prompt -- so that absence is
+asserted here, because a prompt that grew the sentence back would look like a
+working feature and behave like a correction.
+
 A SHIP IS THE SAME TURN WITH A DIFFERENT JOB, and it is guarded here for that
 reason: a mission told to ship itself wakes a `[ship]` line, which runs fresh,
 writes no card and pushes what another assistant wrote. Everything about the
@@ -101,6 +107,75 @@ check("and to leave its report beside the document, in the feedback file",
 check("it is not sent to read the contract or the cards, none of which is about "
       "this document",
       "Do not read" in said and "TEACHING.md" in said)
+
+# ---------------------------------------------------------------------------
+# AND THE WIDER ASK ON THE SAME PANEL: AN OVERHAUL
+# ---------------------------------------------------------------------------
+# "That presentation needs an overhaul now that we plan to use colibri" is not a
+# correction. The revision prompt above says outright *do not start it again and
+# do not widen it*, which is exactly right for "figure 3 is mislabelled" -- so
+# until there was a second ask, the only route to an overhaul was a terminal.
+check("an overhaul line is read as the signal it carries",
+      tutorcli.turn_signal("[2026-09-17 20:10:00] [rework] the deck is for x")
+      == "rework")
+for carried in (0, 1, 7, 40):
+    use, template, fresh = tutorcli.turn_plan(SPEC, carried, 12, "rework")
+    check("an overhaul runs fresh with %d turn(s) there to resume" % carried,
+          fresh is True and use == SPEC["headless_first"]
+          and template is tutorcli.HEADLESS_REWORK_PROMPT)
+check("and the lesson does not resume into the overhaul's session",
+      tutorcli.carry_after("rework", True, 6) == 0)
+
+# A DOING TURN'S CLOCK, and a plain revision deliberately does not get one: a
+# correction changes what a note names and is over in a minute, while an
+# overhaul rewrites thirty-three pages and runs LaTeX at the end of it.
+CLOCK = {"headless_timeout": 900, "doing_timeout": 3600}
+_empty = tempfile.mkdtemp()
+check("an overhaul gets a doing turn's time, whatever the sitting says",
+      tutorcli.turn_timeout(CLOCK, _empty, None, "rework") == 3600)
+check("while a correction is left on the sitting's own clock",
+      tutorcli.turn_timeout(CLOCK, _empty, None, "revise") == 900)
+
+worked = tutorcli.HEADLESS_REWORK_PROMPT
+check("an overhaul is told this turn is not part of the lesson",
+      "NOT PART OF THE LESSON" in worked)
+check("and to write no card", "Write no card" in worked)
+for name in ("board write", "board open", "live/state.json", "live/cards/",
+             "HANDOFF.md", "board wait"):
+    check("and an overhaul is not to touch %s" % name, name in worked)
+check("THE DO-NOT-WIDEN SENTENCE IS NOT IN IT, which is the whole difference "
+      "between the two asks",
+      "do not widen" not in worked.lower()
+      and "do not start it again" not in worked.lower())
+check("while it IS still in the correction's prompt, where it belongs",
+      "Do not start it again and do not widen it" in said)
+check("an overhaul is told it may restructure, cut, reorder and rewrite",
+      "restructure" in worked and "reorder" in worked and "cut what" in worked)
+check("and told where the brief is, because the purpose outranks the shape",
+      "What this document is FOR now" in worked and "brief" in worked)
+check("it is told the source is committed, so it works rather than hedging",
+      "committed" in worked and "one diff" in worked)
+check("and to leave its record in the feedback file like a correction does",
+      "BOTTOM OF THE FEEDBACK FILE" in worked)
+check("a deck stays a deck: the KIND is the one thing an overhaul may not "
+      "change", "same KIND of document" in worked)
+check("and the file stays where it is, because the library names a document by "
+      "its path and the ink on its pages is anchored to that name",
+      "LEAVE THE FILE WHERE IT IS" in worked)
+
+line = sense.rework_sense("writeups/deck/deck.tex",
+                          "writeups/deck/feedback/2026-09-17-v1.md",
+                          "a fifteen-minute briefing for the lab meeting")
+check("the line an overhaul is woken with names the source it edits",
+      "writeups/deck/deck.tex" in line)
+check("and the feedback file",
+      "writeups/deck/feedback/2026-09-17-v1.md" in line)
+check("and the purpose, so the board can say what is being written while the "
+      "turn runs", "a fifteen-minute briefing for the lab meeting" in line)
+check("and says outright that this is not a correction",
+      "OVERHAUL" in line and "not a correction" in line)
+check("and that the lesson on the board is somebody else's",
+      "NOT PART OF THE LESSON" in line and "live/cards/" in line)
 
 # ---------------------------------------------------------------------------
 # AND THE OTHER TURN OF THE SAME SHAPE: A MISSION SHIPPING ITSELF

@@ -16,6 +16,14 @@ formats each.
 What is guarded here is that, the fence around it, and the write: a note lands
 where the document is, dated and versioned, and the reply says which machinery
 was asked to act on it.
+
+AND THE THREE THINGS THAT MADE A CORRECTION SILENT. The page had no way to know
+a revision had landed, no way to read what the turn said it changed, and no way
+to ask for an overhaul rather than a correction. So: a STAMP that moves when a
+PDF is rebuilt and not when a note is filed, a round of feedback readable
+through a route that takes a NAME out of what discovery found, and a `[rework]`
+ask that costs a purpose and is refused against an uncommitted source -- because
+an overhaul replaces the whole document and git is the only undo it has.
 """
 
 import json
@@ -323,6 +331,111 @@ check("and staleness still works, because it is arithmetic on two mtimes",
       [d["stale"] for d in blind] == [d["stale"] for d in sighted])
 
 # ---------------------------------------------------------------------------
+# HAS ANYTHING MOVED? -- the cheap question the page asks every few seconds
+# ---------------------------------------------------------------------------
+# `/library.json` walks the workspace, reads a title out of every source and
+# runs `pdfinfo` per PDF, which is why it is cached. The stamp is stats only, so
+# it can be asked often -- and the two rules it lives or dies by are that it
+# MOVES when a document is rebuilt and does NOT move when a note is filed,
+# because a page that redraws on its own feedback is a page in a loop.
+library.forget()
+one_stamp = library.stamp(tmp)
+check("the stamp hands out the same ids the list does",
+      set(one_stamp["documents"]) == set(d["id"] for d in library.documents(tmp)))
+check("and one hash over all of it, for the page to compare",
+      bool(one_stamp["stamp"]) and one_stamp["ok"] is True)
+check("asked twice with nothing touched, it is the same answer",
+      library.stamp(tmp) == one_stamp)
+
+library.write_note(repo, flat["id"], "A third round, filed.")
+library.forget()
+check("FILING A NOTE DOES NOT MOVE IT -- otherwise the page redraws on its own "
+      "feedback, for ever",
+      library.stamp(tmp)["stamp"] == one_stamp["stamp"])
+
+time.sleep(0.02)
+put("writeups/serve-harness/serve-harness.pdf", size=30001)
+library.forget()
+rebuilt = library.stamp(tmp)
+check("rebuilding a PDF moves the whole stamp",
+      rebuilt["stamp"] != one_stamp["stamp"])
+check("and moves that document's own, which is what says WHICH one to re-draw",
+      rebuilt["documents"][mine["id"]] != one_stamp["documents"][mine["id"]])
+check("while every other document's is untouched, so a 33-page deck is not "
+      "re-drawn because something else was built",
+      [i for i in one_stamp["documents"]
+       if i != mine["id"] and rebuilt["documents"].get(i)
+       != one_stamp["documents"][i]] == [])
+
+time.sleep(0.02)
+put("docs/stage1_pipeline_walkthrough.tex",
+    "\\documentclass[aspectratio=169]{beamer}\n"
+    "\\title{How Audio Becomes a Transcript}\n% edited\n")
+library.forget()
+sourced = library.stamp(tmp)
+check("editing a SOURCE moves it too, because that document is stale now and "
+      "the row says so",
+      sourced["documents"][ident] != rebuilt["documents"][ident])
+
+# ---------------------------------------------------------------------------
+# what a round of feedback actually said
+# ---------------------------------------------------------------------------
+# The turn writes `## What was changed` at the bottom of the feedback file, and
+# that is the answer to *did it do what I asked* -- while `notes` returns names,
+# sizes and dates and not a word of the contents. So the record lived in a file
+# the iPad cannot open.
+library.forget()
+rounds = library.find(tmp, flat["id"])["notes"]
+first_round = rounds[0]["name"]
+with open(os.path.join(library.feedback_dir(tmp, flat), first_round), "a",
+          encoding="utf-8") as fh:
+    fh.write("\n## What was changed\n\nSection 3 now names the held-out split.\n")
+got = library.note_text(tmp, flat, first_round)
+check("a round of feedback can be read back", got.get("ok") is True)
+check("it carries what the person wrote", "wrong split" in got["text"])
+check("and what the turn said it changed, which is the whole point of reading it",
+      "## What was changed" in got["text"] and "held-out split" in got["text"])
+check("and says which file it is, so the words on the glass have a home",
+      got["rel"].endswith(first_round))
+for bad in ("", "../../../etc/passwd", "2026-01-01-v9.md",
+            os.path.join("feedback", first_round)):
+    check("a name that is not one of this document's is refused: %r" % bad,
+          library.note_text(tmp, flat, bad).get("ok") is False)
+check("and a round belonging to a DIFFERENT document is refused as well, "
+      "because the names are matched per document",
+      library.note_text(tmp, library.find(tmp, mine["id"]),
+                        first_round).get("ok") is False)
+
+# ---------------------------------------------------------------------------
+# the second ask: an overhaul rather than a correction
+# ---------------------------------------------------------------------------
+# "that presentation needs an overhaul now that we plan to use colibri" is not a
+# correction, and the prompt a correction is woken with says outright *do not
+# start it again and do not widen it*. So there are two asks, and the new one
+# costs a sentence saying what the document is FOR now.
+check("anything unrecognised is read as a correction, never as an overhaul",
+      [library.clean_ask(x) for x in ("", None, "REWORK", "rewrite", "revise")]
+      == ["revise", "revise", "rework", "revise", "revise"])
+
+refused = library.write_note(repo, mine["id"], "", ask="rework",
+                             purpose="make it better")
+check("an overhaul with no real purpose in it is refused rather than started",
+      refused.get("ok") is False and "FOR now" in refused["error"])
+
+PURPOSE = ("a fifteen-minute briefing for the lab meeting on what colibri does "
+           "to a transcript, for people who have never seen the pipeline")
+worked = library.write_note(repo, mine["id"], "", ask="rework", purpose=PURPOSE)
+check("with one, it is written -- and with nothing typed, which a correction "
+      "would refuse", worked.get("ok") is True and worked["ask"] == "rework")
+said = open(worked["path"], encoding="utf-8").read()
+check("the file says which ask it was, so a round read back is not ambiguous",
+      "- ask: rework" in said and said.startswith("# Rework of"))
+check("and carries the purpose as its own section, which is what the turn works "
+      "to", "What this document is FOR now" in said and PURPOSE in said)
+check("a correction is still a correction in the same file",
+      "- ask: revise" in open(rec["path"], encoding="utf-8").read())
+
+# ---------------------------------------------------------------------------
 # which machinery revises which
 # ---------------------------------------------------------------------------
 put("manuscripts/manuscript.md", "# A delivered manuscript\n")
@@ -451,8 +564,133 @@ try:
     status, body = get("/library/view/not-a-document")
     check("and a name that is not one of ours draws nothing",
           status == 200 and body.get("ok") is False and body.get("why") == "none")
+
+    # THE STAMP, OVER THE WIRE. Asked every few seconds while the page is in
+    # front of somebody, so it is the one route here that has to be cheap.
+    status, body = get("/library/stamp")
+    check("the page can ask whether anything has moved",
+          status == 200 and body.get("ok") is True and bool(body.get("stamp")))
+    check("and is told per document as well as overall, so it re-draws the one "
+          "that changed",
+          mine["id"] in (body.get("documents") or {}))
+    check("nothing about a title, a page count or a round of feedback is in it",
+          not [k for k in body if k not in ("ok", "stamp", "documents")])
+
+    # WHAT A ROUND SAID, over the wire, by id and name.
+    library.forget()
+    named = library.find(repo.root, flat["id"])["notes"][0]["name"]
+    status, body = get("/library/note/%s/%s" % (flat["id"], named))
+    check("a round of feedback can be read on the glass",
+          status == 200 and body.get("ok") is True
+          and "wrong split" in body.get("text", ""))
+    status, body = get("/library/note/%s/%s" % (flat["id"], "2026-01-01-v9.md"))
+    check("a name that is not one of that document's is refused", status == 404)
+    status, body = get("/library/note/not-a-document/%s" % named)
+    check("and a document nobody has has no rounds to read", status == 404)
+
+    # THE SECOND ASK, over the wire. A rework in this fixture is not refused for
+    # git: there is no repository over the temporary directory, and refusing
+    # there would make the ask unavailable rather than safe.
+    status, body = post("/library/feedback",
+                        {"document": mine["id"], "ask": "rework",
+                         "purpose": PURPOSE, "text": ""})
+    check("an overhaul is accepted from the panel",
+          status == 200 and body.get("ok") is True and body.get("ask") == "rework")
+    with open(repo.messages_path, encoding="utf-8") as fh:
+        lines = [json.loads(l) for l in fh if l.strip()]
+    line = lines[-1]
+    check("the inbox carries an overhaul, marked as one, not as a revision",
+          line.get("signal") == "rework" and line["text"].startswith("[rework]"))
+    check("it carries the purpose, so the board can say what is being written "
+          "while the turn runs", PURPOSE in line["text"])
+    check("and it names the SOURCE rather than the rendering, because that is "
+          "the file the turn edits",
+          mine["source"] in line["text"] and mine["source"].endswith(".tex"))
+    check("THE DO-NOT-WIDEN SENTENCE IS NOT IN IT -- that is the whole "
+          "difference between the two asks",
+          "do not widen" not in line["text"].lower())
+    check("and the lesson is still nobody else's business",
+          "NOT PART OF THE LESSON" in line["text"]
+          and open(repo.state_path, encoding="utf-8").read() == state_before)
+
+    status, body = post("/library/feedback",
+                        {"document": mine["id"], "ask": "rework",
+                         "purpose": "make it nicer"})
+    check("an overhaul with no real purpose in it is refused over the wire too",
+          status == 400 and body.get("ok") is False)
+
+    # AN OVERHAUL OF A DELIVERED MANUSCRIPT IS NOT ASKED FOR HERE. The factory
+    # holds its evidence, its terminology lock and its venue, and "restructure,
+    # cut and rewrite" is what every one of those gates exists to refuse.
+    status, body = post("/library/feedback",
+                        {"document": delivered["id"], "ask": "rework",
+                         "purpose": PURPOSE})
+    check("and an overhaul of a delivered manuscript is refused by name",
+          status == 409 and "manuscript factory" in (body.get("error") or ""))
 finally:
     httpd.shutdown()
+
+# ---------------------------------------------------------------------------
+# AN OVERHAUL AGAINST AN UNCOMMITTED SOURCE, and this one needs a real
+# repository over it: the refusal is git's answer about one path.
+# ---------------------------------------------------------------------------
+# An overhaul replaces the whole document and git is the only undo it has.
+# Committed as it stands, the whole overhaul is one diff and reverting it costs
+# nothing -- so the board refuses rather than committing somebody's
+# half-finished edit, because the state they would revert to is one they never
+# chose.
+import subprocess as _sp                                              # noqa: E402
+
+from tutorboard.server.routes import library as library_route         # noqa: E402
+
+repo_tmp = tempfile.mkdtemp(prefix="tutor-library-git-")
+
+
+def _git(*args):
+    return _sp.run(["git"] + list(args), cwd=repo_tmp, stdout=_sp.DEVNULL,
+                   stderr=_sp.DEVNULL).returncode
+
+
+with open(os.path.join(repo_tmp, "tutorboard.json"), "w", encoding="utf-8") as fh:
+    json.dump({"name": "Git Workspace"}, fh)
+os.makedirs(os.path.join(repo_tmp, "writeups", "deck"), exist_ok=True)
+deck_tex = os.path.join(repo_tmp, "writeups", "deck", "deck.tex")
+with open(deck_tex, "w", encoding="utf-8") as fh:
+    fh.write("\\documentclass{beamer}\n\\title{A deck to overhaul}\n")
+with open(os.path.join(repo_tmp, "writeups", "deck", "deck.pdf"), "wb") as fh:
+    fh.write(ONE_PAGE)
+
+if _git("init", "-q") == 0:
+    _git("config", "user.email", "t@example.invalid")
+    _git("config", "user.name", "Test")
+    _git("add", "-A")
+    _git("-c", "commit.gpgsign=false", "commit", "-q", "-m", "the deck as it stands")
+    git_repo = course_repo.Repo(repo_tmp)
+    library.forget()
+    deck = [d for d in library.documents(repo_tmp) if d["stem"] == "deck"][0]
+    check("with the source committed as it stands, an overhaul is allowed",
+          library_route.rework_refused(git_repo, deck) == "")
+    with open(deck_tex, "a", encoding="utf-8") as fh:
+        fh.write("% an edit nobody has committed\n")
+    library.forget()
+    deck = [d for d in library.documents(repo_tmp) if d["stem"] == "deck"][0]
+    stop = library_route.rework_refused(git_repo, deck)
+    check("and against an uncommitted source it is refused, by name",
+          bool(stop) and deck["source"] in stop
+          and "nothing has committed" in stop)
+    check("the refusal says nothing was written, because nothing was",
+          "Nothing has been written" in stop)
+    check("and names a TAP rather than a git command, because a refusal whose "
+          "remedy is a terminal has sent somebody to a keyboard to get past "
+          "this board's own guard",
+          "save on the board" in stop and "git commit" not in stop)
+    check("a correction is NOT refused for the same tree -- it changes what the "
+          "note names and does not replace the document",
+          library.write_note(git_repo, deck["id"], "The title is wrong.")
+          .get("ok") is True)
+else:
+    print("skip  no git on this machine, so the uncommitted-source refusal is "
+          "not exercised")
 
 print()
 if fails:

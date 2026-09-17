@@ -916,11 +916,15 @@ def doing_now(root, signal=""):
     right about the evening; only the signal this turn was woken with says what
     THIS turn does.
     """
-    if signal in ("handover", "ship"):
+    if signal in ("handover", "rework", "ship"):
         # A step handed over writes code. A ship reads a diff, judges it and
         # runs a push against a remote over a tailnet -- neither is a card, and
         # a doing turn on a teaching turn's clock is a turn killed with the work
-        # half done.
+        # half done. A REWORK is the same arithmetic on a document: thirty-three
+        # pages rewritten and a LaTeX build at the end of it, which a teaching
+        # turn's fifteen minutes kills with the deck half replaced. A plain
+        # revision is not here on purpose -- it changes what a note names and
+        # is over in a minute.
         return True
     try:
         with open(os.path.join(root, "live", "state.json"), "r", encoding="utf-8") as fh:
@@ -1101,6 +1105,60 @@ HEADLESS_REVISE_PROMPT = (
 )
 
 
+# AN OVERHAUL IS THE OTHER ASK ON THE SAME PANEL, AND IT IS NOT A REVISION.
+#
+# `HEADLESS_REVISE_PROMPT` above says to keep the document's structure, its names
+# for things and its claims: "Do not start it again and do not widen it." That is
+# exactly right for "figure 3 is mislabelled" and exactly wrong for "that
+# presentation needs an overhaul now that we plan to use colibri" -- and until
+# there was a second ask, the only route to an overhaul was a terminal.
+#
+# SO THE DO-NOT-WIDEN SENTENCE IS NOT IN HERE, and that is the whole of the
+# difference. What replaces it is a brief: the feedback file carries a sentence
+# saying what the document is FOR now, and that sentence outranks the shape the
+# document presently has.
+#
+# THE UNDO IS GIT, AND IT IS ALREADY IN PLACE BEFORE THIS TURN RUNS. An overhaul
+# replaces thirty-three pages. `/library/feedback` refuses a rework whose source
+# is uncommitted -- see `tutorboard/leaving.py` -- so this turn starts from a
+# committed source by construction and the whole overhaul is one diff. It is told
+# so, because a turn that thinks it has no undo hedges.
+HEADLESS_REWORK_PROMPT = (
+    "You are running headless, and THIS TURN IS NOT PART OF THE LESSON. Nobody "
+    "is waiting at a board for a card. Somebody read a document this workspace "
+    "has written and asked for it to be OVERHAULED, from the library page.\n\n"
+    "They sent this:\n\n%(inbox)s\n\n"
+    "Do this, and nothing else:\n"
+    "1. Read the feedback file the text above names, and read the document it is "
+    "about. Both are paths in this repository. The feedback file has a `## What "
+    "this document is FOR now` section: that is the brief, and it outranks the "
+    "shape the document presently has.\n"
+    "2. REWORK THE DOCUMENT to that purpose. Edit the source it is built from -- "
+    "the `.tex` or the `.md` beside it -- and rebuild the PDF if it has one. Its "
+    "structure, its section order, its length and what it covers are all yours "
+    "to change: restructure it, cut what the new purpose does not need, reorder "
+    "what it does, and rewrite. Keep it the same KIND of document -- a deck stays "
+    "a deck and a paper stays a paper -- and keep anything the brief does not "
+    "touch. LEAVE THE FILE WHERE IT IS, under the name it has: the library names "
+    "a document by its path, and the marks somebody has drawn on its pages are "
+    "anchored to that name. The source is committed as it stands, so this "
+    "overhaul is one diff and reverting it costs nothing; work accordingly "
+    "rather than hedging.\n"
+    "3. Write what you changed at the BOTTOM OF THE FEEDBACK FILE, under a "
+    "`## What was changed` heading: what the document is now, what you cut and "
+    "why, and anything in the brief you could not act on. That file is the "
+    "record of this round and it is where the person who asked will look.\n\n"
+    "**Write no card.** Do not run `board write`, do not run `board open`, do "
+    "not touch `live/state.json`, `live/cards/` or `HANDOFF.md`, and do not run "
+    "`board wait`. There is a lesson on this board and it belongs to somebody "
+    "else's evening; this turn must leave every part of it exactly as it found "
+    "it.\n\n"
+    "Do not read `AI_INSTRUCTIONS.md`, `live/TEACHING.md` or the cards: none of "
+    "them is about this document. `board brief` is not needed either. End the "
+    "turn when the document and the feedback file are both written."
+)
+
+
 # A SHIP IS A TURN, AND IT IS NOT PART OF THE LESSON EITHER.
 #
 # A mission was set going in this workspace from a board somewhere else and told
@@ -1166,6 +1224,10 @@ def turn_plan(spec, carried, recycle, signal=""):
     first = spec.get("headless_first") or recipe
     if signal == "revise":
         return first, HEADLESS_REVISE_PROMPT, True
+    # An overhaul is a revision's louder twin and runs fresh for the same
+    # reason. What differs is only what it is allowed to do to the document.
+    if signal == "rework":
+        return first, HEADLESS_REWORK_PROMPT, True
     # A ship is the same shape: its own session, nothing of the lesson in it,
     # and nothing of it left in the lesson afterwards.
     if signal == "ship":
@@ -1180,14 +1242,14 @@ def carry_after(signal, fresh, carried):
     """How many turns the agent's session carries once this turn has finished.
 
     Ordinarily: one if it started a new session, one more if it resumed. The
-    exceptions are a revision and a ship, and they are the reason this is a
-    function rather than an expression. A revision runs FRESH, so the agent's current conversation is
+    exceptions are a revision, an overhaul and a ship, and they are the reason
+    this is a function rather than an expression. A revision runs FRESH, so the agent's current conversation is
     now about a document -- and leaving the count at one would make the next turn
     of the LESSON resume into it, which is exactly the drag the revision was made
     fresh to avoid. Zero, so the next lesson turn starts its own session and
     reads the lesson back with `board recap`.
     """
-    if signal in ("revise", "ship"):
+    if signal in ("revise", "rework", "ship"):
         return 0
     return 1 if fresh else carried + 1
 

@@ -289,7 +289,66 @@
   not simple.
 \end{problem}
 % ===== SOLUTION 04.10 =====
-% TODO(mferguson): your work goes here.
+% The student's answer, agreed correct over cards 0011, 0012, 0021, 0022, 0027
+% and 0028: the case split, the algebraic branch, the non-vanishing of
+% f - alpha g, the tower, and the closing step are all theirs.
+% Not theirs: nothing. Facts quoted, not proved here -- the degree fact, the
+% tower law, and finite-implies-algebraic, all from the chapter.
+\begin{solution}
+  Suppose, for a contradiction, that the extension is simple: there is a single
+  $\gamma \in \adjoin{K}{\alpha,\beta}$ with
+  $\adjoin{K}{\gamma} = \adjoin{K}{\alpha,\beta}$. Over $K$, the element
+  $\gamma$ is either algebraic or transcendental, and there is no third case,
+  so both must be ruled out.
+
+  \medskip
+  \textbf{Case 1: $\gamma$ algebraic over $K$.} Then $\degree{K(\gamma)}{K}$ is
+  finite, and every element of a finite extension of $K$ is algebraic over $K$.
+  Now $\beta \in \adjoin{K}{\gamma}$, because
+  $\adjoin{K}{\gamma} = \adjoin{K}{\alpha,\beta}$. So $\beta$ is algebraic over
+  $K$, contradicting the hypothesis that $\beta$ is transcendental over $K$.
+
+  \medskip
+  \textbf{Case 2: $\gamma$ transcendental over $K$.} Consider the tower
+  \[
+    K \subseteq \adjoin{K}{\alpha} \subseteq \adjoin{K}{\alpha,\gamma}.
+  \]
+  First, $\degree{K(\alpha)}{K}$ is finite, because $\alpha$ is algebraic over
+  $K$ and so has a minimal polynomial over $K$ of which it is a root.
+
+  Second, $\degree{K(\alpha,\gamma)}{K(\alpha)}$ is finite. Since
+  $\adjoin{K}{\gamma} = \adjoin{K}{\alpha,\beta}$ we have
+  $\alpha \in \adjoin{K}{\gamma}$, so
+  \[
+    \alpha = \frac{f(\gamma)}{g(\gamma)}
+    \qquad\text{for some } f, g \in \polyring{K}{x} \text{ with } g(\gamma) \neq 0,
+  \]
+  and hence $f(\gamma) - \alpha g(\gamma) = 0$. The polynomial
+  $f(x) - \alpha g(x)$ lies in $\polyring{K(\alpha)}{x}$ and is not the zero
+  polynomial: if it were, then $f_i = \alpha g_i$ for every $i$, and picking one
+  index $i$ with $g_i \neq 0$ gives $\alpha = f_i / g_i \in K$, contradicting
+  $\alpha \notin K$. So $\gamma$ is a root of a non-zero polynomial over
+  $\adjoin{K}{\alpha}$, i.e.\ $\gamma$ is algebraic over $\adjoin{K}{\alpha}$,
+  and therefore has a minimal polynomial over $\adjoin{K}{\alpha}$, making
+  $\degree{K(\alpha,\gamma)}{K(\alpha)}$ finite.
+
+  By the tower law,
+  \[
+    \degree{K(\alpha,\gamma)}{K}
+      = \degree{K(\alpha,\gamma)}{K(\alpha)} \cdot \degree{K(\alpha)}{K},
+  \]
+  a product of two finite numbers, so $\degree{K(\alpha,\gamma)}{K}$ is finite.
+  Then $\degree{K(\gamma)}{K}$ is finite too, since
+  $K \subseteq \adjoin{K}{\gamma} \subseteq \adjoin{K}{\alpha,\gamma}$ and the
+  tower law makes $\degree{K(\gamma)}{K}$ a factor of a finite number. A finite
+  extension has every element algebraic over the base field, so $\gamma$ is
+  algebraic over $K$ --- contradicting the assumption of this case, that
+  $\gamma$ is transcendental over $K$.
+
+  \medskip
+  Both cases are impossible, so no such $\gamma$ exists and
+  $\ext{\adjoin{K}{\alpha,\beta}}{K}$ is not simple.
+\end{solution}
 % ===== END SOLUTION 04.10 =====
 
 \begin{problem}{04.11}

@@ -231,3 +231,51 @@ def _reason(root, base=None):
                ", ".join(shown),
                " and %d more" % more if more else "",
                "it" if len(hit) == 1 else "them"))
+
+
+# ---------------------------------------------------------------------------
+# THE OTHER QUESTION GIT ANSWERS: is this file safe to let something overwrite?
+# ---------------------------------------------------------------------------
+# An overhaul from the library page replaces a whole document -- thirty-three
+# pages of a deck, rewritten to a new purpose -- and git is the only undo there
+# is. So the rework is refused unless the source is committed as it stands:
+# then the overhaul is one diff and reverting it costs nothing, and a turn that
+# went the wrong way has cost an afternoon rather than the document.
+#
+# REFUSED RATHER THAN COMMITTED FOR THEM. Committing somebody's half-finished
+# edit to make room for an overhaul is a worse undo than none: the state they
+# would revert to is one they never chose.
+#
+# IT IS HERE BECAUSE `pending` IS HERE. `git status --porcelain -uall` has one
+# parser in this tool and a second would go quietly false on one side -- which is
+# the same reason the phi policy is loaded rather than copied. `worktree.py` is
+# the other half of this question and is deliberately git-free: it reads the
+# files git leaves behind, and this needs git's own answer about one path.
+def uncommitted(root, rel):
+    """Is this path, relative to `root`, something a commit would still carry?
+
+    True when git would report it -- modified, staged, untracked, conflicted.
+    False when it is committed as it stands, and False when there is no
+    repository at all: a workspace outside git has no undo to protect and
+    refusing there would make the feature unavailable rather than safe.
+    """
+    if not rel:
+        return False
+    top = _top(root)
+    try:
+        mine = os.path.relpath(os.path.realpath(os.path.join(root, rel)),
+                               os.path.realpath(top))
+    except ValueError:
+        return False
+    if not git_here(root):
+        return False
+    mine = mine.replace(os.sep, "/")
+    for path in pending(root):
+        if path.replace(os.sep, "/") == mine:
+            return True
+    return False
+
+
+def git_here(root):
+    """Is there a repository over this path at all?"""
+    return _git(["rev-parse", "--git-dir"], root, timeout=10) is not None

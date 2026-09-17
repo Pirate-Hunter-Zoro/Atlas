@@ -20,6 +20,17 @@
 //     rather than on the board's viewer and then written about on a third
 //     surface. `send` is never set from this page: ink on a document is a
 //     complaint about the document, and it becomes a turn when the note goes.
+//   * NOTHING THE READER IS WAITING ON IS SILENT. The revision goes out in the
+//     same request that files the note, and the only thing that used to change
+//     afterwards was a line saying the note was filed. So the page polls a
+//     STAMP, says the turn is running, and re-draws the open document when its
+//     bytes move -- WITHOUT throwing a 33-page deck back to page 1, and without
+//     reaching for the hub's stream, which carries the LESSON's payload.
+//   * TWO ASKS, FROM ONE PANEL. A correction keeps the document's structure and
+//     its claims; an overhaul may restructure, cut and rewrite, and costs a
+//     sentence saying what the document is for now. The send is dead until that
+//     sentence exists, because the refusal underneath it is the server's and a
+//     button that sends and then apologises is worse than one that waits.
 
 const fs = require('fs');
 const path = require('path');
@@ -71,6 +82,30 @@ const LIBRARY = {
   ],
 };
 
+/* WHERE EVERY DOCUMENT IS AND WHEN IT LAST CHANGED -- stats only, which is what
+   lets the page ask it every few seconds. Mutated below to stand for a deck
+   that has just been rebuilt on disk by the turn the note woke. */
+let STAMP = {
+  ok: true, stamp: 'all-1',
+  documents: {
+    'docs-stage1-pipeline-walkthrough': 'a1',
+    'docs-stage2-reference-walkthrough': 'b1',
+    'writeups-serve-harness-serve-harness': 'c1',
+    'writeups-batch-size-batch-size': 'd1',
+  },
+};
+
+/* HOW MANY PAGES THE DECK HAS. Moved below to stand for the other kind of
+   revision: an overhaul that reflows the document, after which the ink on page
+   7 is about something that may no longer be on page 7. */
+let VIEW_PAGES = 2;
+
+/* What a turn wrote at the bottom of the feedback file, which is the answer to
+   *did it do what I asked*. */
+const NOTE = '# Feedback on Did the Computer Hear It Right?\n\n'
+  + 'Slide 7 has the old sample rate on it.\n\n'
+  + '## What was changed\n\nSlide 7 now says 16 kHz.\n';
+
 const dom = new JSDOM(fs.readFileSync(path.join(WEB, 'library.html'), 'utf8'), {
   runScripts: 'outside-only', pretendToBeVisual: true,
   url: 'https://board.test/library',
@@ -85,10 +120,19 @@ window.fetch = (u, opts) => {
   if (/library\.json/.test(url)) {
     return Promise.resolve({ json: () => Promise.resolve(LIBRARY) });
   }
+  if (/library\/stamp/.test(url)) {
+    return Promise.resolve({ json: () => Promise.resolve(STAMP) });
+  }
+  if (/library\/note\//.test(url)) {
+    return Promise.resolve({ json: () => Promise.resolve({
+      ok: true, name: '2026-09-10-v1.md', text: NOTE, truncated: false,
+    }) });
+  }
   if (/library\/view\//.test(url)) {
     return Promise.resolve({ json: () => Promise.resolve({
-      ok: true, n: 2, truncated: false,
-      pages: ['/paper/abc123-1.png', '/paper/abc123-2.png'],
+      ok: true, n: VIEW_PAGES, truncated: false,
+      pages: ['/paper/abc123-1.png', '/paper/abc123-2.png',
+              '/paper/abc123-3.png'].slice(0, VIEW_PAGES),
       /* Marks already on this document, sent WITH the pages: this page holds
          no live payload to read them out of, because it opens no sitting. */
       ink: { 'doc/docs-stage1-pipeline-walkthrough/p2': [[[0.1, 0.1], [0.3, 0.4]]] },
@@ -122,8 +166,17 @@ for (const f of ['ink-clip.js', 'annotate.js']) {
   catch (e) { fail(f + ': ' + e.message); }
 }
 
+/* A tablet picked up again would arrive with a turn already recorded as in
+   flight -- the page keeps that where a reload finds it. Nothing is, here. */
+try { window.localStorage.removeItem('library.flight'); } catch (e) {}
+
 try { window.eval(fs.readFileSync(path.join(WEB, 'library.js'), 'utf8')); }
 catch (e) { fail('library.js: ' + e.message); }
+
+/* The poll's own interval, turned down so a test can watch two passes of it
+   rather than sitting out eight seconds. The page reads the global on every
+   pass, so this is the same code path at a different cadence. */
+window.STAMP_EVERY = 60;
 
 const tap = (el) => el.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
 const rows = () => Array.prototype.slice.call(doc.querySelectorAll('.lib-row'));
@@ -292,6 +345,173 @@ const named = (title) => rows().filter(
   /asked to revise/.test(doc.getElementById('note-said').textContent)
     ? ok('and that something was asked to act on it')
     : fail('the note reads as filed and forgotten');
+
+  // 6c. A TURN IS RUNNING, AND THE PAGE SAYS SO. The reply said a turn was
+  //     woken, which is not the same as the document having changed -- so the
+  //     line stays until the bytes move, and it is on the row as well as in the
+  //     reader, because the document being worked on is usually not the open one.
+  /being revised/.test(doc.getElementById('reader-said').textContent)
+    && !doc.getElementById('reader-said').hidden
+    ? ok('the reader says a revision is in flight, rather than going silent')
+    : fail('nothing says the revision is running: '
+           + doc.getElementById('reader-said').textContent);
+  const onRow = doc.querySelector(
+    '.lib-flight[data-id="docs-stage1-pipeline-walkthrough"]');
+  onRow && !onRow.hidden && /being revised/.test(onRow.textContent)
+    ? ok('and so does the row, without anything being opened')
+    : fail('the row does not say a turn is running on that document');
+
+  // 6d. THE STAMP IS POLLED, AND IT IS NOT THE LESSON'S STREAM. Section 7
+  //     below is the other half of this: nothing is ever SENT at the lesson.
+  sent.length = 0;
+  await sleep(220);
+  sent.filter((r) => /library\/stamp/.test(r.url)).length >= 2
+    ? ok('the page keeps asking whether anything has moved')
+    : fail('the stamp is asked '
+           + sent.filter((r) => /library\/stamp/.test(r.url)).length + ' time(s)');
+  !sent.filter((r) => /library\.json/.test(r.url)).length
+    ? ok('and asks for the expensive list only when the stamp says to')
+    : fail('the page is polling the whole list');
+  !/EventSource/.test(fs.readFileSync(path.join(WEB, 'library.js'), 'utf8'))
+    ? ok('never by subscribing to the lesson’s own stream, whose payload is the '
+         + 'lesson’s')
+    : fail('library.js opened the hub’s stream');
+
+  // 6e. AND WHEN IT LANDS, THE OPEN DOCUMENT IS RE-DRAWN WHERE IT WAS.
+  //     Throwing a 33-page deck back to page 1 after a one-line fix is its own
+  //     defect, so the scroll is kept and the pages are rebuilt under it.
+  doc.getElementById('reader-pages').scrollTop = 900;
+  sent.length = 0;
+  STAMP = {
+    ok: true, stamp: 'all-2',
+    documents: Object.assign({}, STAMP.documents,
+                             { 'docs-stage1-pipeline-walkthrough': 'a2' }),
+  };
+  await sleep(300);
+  const again = sent.filter((r) => /library\/view\//.test(r.url));
+  again.length && again[0].url === '/library/view/docs-stage1-pipeline-walkthrough'
+    ? ok('the open document is re-drawn the moment its bytes move')
+    : fail('the reader never re-fetched: ' + JSON.stringify(sent.map((r) => r.url)));
+  sent.filter((r) => /library\.json/.test(r.url)).length
+    ? ok('and the list is asked for again, so every row is right as well')
+    : fail('the list was not re-fetched when something moved');
+  doc.getElementById('reader-pages').scrollTop !== 0
+    ? ok('the reader keeps its place across the re-draw')
+    : fail('a one-line fix threw the reader back to page 1');
+  doc.querySelectorAll('#reader-pages .lib-page img').length === 2
+    ? ok('and the pages are there again, drawn from the new render')
+    : fail('the re-draw left the reader empty');
+  window.Annotate.marked().length
+    ? ok('the ink is still on it -- a ring somebody drew is theirs, not the '
+         + 'render’s')
+    : fail('the re-draw threw away the marks');
+  doc.getElementById('reader-said').hidden
+    || !/being revised/.test(doc.getElementById('reader-said').textContent)
+    ? ok('and the in-flight line goes when the document itself changes')
+    : fail('the page still says a revision is running after it landed');
+
+  // 6e2. THE INK IS KEPT, AND THE PAGE SAYS SO OUT LOUD. After a correction
+  //      the mark on page 7 is still about page 7. After an overhaul that
+  //      reflows the deck it is not -- and the marks are somebody's work, so
+  //      they are kept and the page says which version they were drawn on
+  //      rather than deleting them or pretending nothing moved.
+  VIEW_PAGES = 3;
+  STAMP = {
+    ok: true, stamp: 'all-2b',
+    documents: Object.assign({}, STAMP.documents,
+                             { 'docs-stage1-pipeline-walkthrough': 'a3' }),
+  };
+  await sleep(300);
+  doc.querySelectorAll('#reader-pages .lib-page img').length === 3
+    ? ok('an overhaul that reflows the document is drawn at its new length')
+    : fail('the reflowed document was not re-drawn');
+  window.Annotate.marked().length
+    ? ok('and the marks are still there, rather than deleted because it moved')
+    : fail('a reflow threw away somebody’s ink');
+  /drawn on a version with 2 pages/.test(
+    doc.getElementById('reader-said').textContent)
+    ? ok('with the page saying out loud which version they were drawn on')
+    : fail('nothing says the ink is older than the document: '
+           + doc.getElementById('reader-said').textContent);
+
+  // 6f. A DOCUMENT NOBODY TOUCHED IS NOT RE-DRAWN. A 33-page deck redrawn
+  //     because a different document was built is the same defect the other way.
+  sent.length = 0;
+  STAMP = {
+    ok: true, stamp: 'all-3',
+    documents: Object.assign({}, STAMP.documents,
+                             { 'writeups-batch-size-batch-size': 'd2' }),
+  };
+  await sleep(300);
+  !sent.filter((r) => /library\/view\//.test(r.url)).length
+    ? ok('and is left alone when it is a different document that moved')
+    : fail('the reader re-drew for somebody else’s rebuild');
+
+  // 6g. WHAT A ROUND ACTUALLY DID, read on the glass. The turn writes
+  //     `## What was changed` into the feedback file, and the row could say
+  //     "one round" and not a word of what it was.
+  sent.length = 0;
+  tap(named('Did the Computer Hear It Right?').querySelector('.lib-rounds'));
+  await sleep(20);
+  const asknote = sent.filter((r) => /library\/note\//.test(r.url))[0];
+  asknote
+    && asknote.url === '/library/note/docs-stage2-reference-walkthrough/2026-09-10-v1.md'
+    ? ok('a round of feedback is asked for by the document id and the note name')
+    : fail('the round was asked for as: ' + (asknote && asknote.url));
+  /What was changed/.test(doc.getElementById('round-text').textContent)
+    ? ok('and what the turn said it changed is on the glass')
+    : fail('the round opened without its contents');
+  doc.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Escape' }));
+  doc.getElementById('round').hidden
+    ? ok('escape closes it')
+    : fail('the round panel would not close');
+
+  // 6h. THE SECOND ASK. An overhaul may restructure, cut and rewrite, and the
+  //     prompt a correction is woken with forbids exactly that -- so this is a
+  //     different ask rather than a longer note.
+  sent.length = 0;
+  tap(named('Did the Computer Hear It Right?').querySelectorAll('.lib-acts button')[1]);
+  tap(doc.getElementById('ask-rework'));
+  !doc.getElementById('note-purpose-box').hidden
+    ? ok('asking for an overhaul asks what the document is for now')
+    : fail('the overhaul takes no purpose');
+  doc.getElementById('note-send').disabled
+    ? ok('and the send is dead until that sentence exists')
+    : fail('an overhaul could be sent with no purpose in it');
+  doc.getElementById('note-purpose').value = 'a short one';
+  doc.getElementById('note-purpose')
+     .dispatchEvent(new window.Event('input', { bubbles: true }));
+  doc.getElementById('note-send').disabled
+    ? ok('“make it better” is not a purpose, and is refused before it is sent')
+    : fail('a three-word purpose armed the send');
+  const AIM = 'a fifteen-minute briefing for the lab meeting on what colibri '
+    + 'does to a transcript';
+  doc.getElementById('note-purpose').value = AIM;
+  doc.getElementById('note-purpose')
+     .dispatchEvent(new window.Event('input', { bubbles: true }));
+  !doc.getElementById('note-send').disabled
+    ? ok('and with one, the overhaul can go with nothing else typed')
+    : fail('a real purpose did not arm the send');
+  tap(doc.getElementById('note-send'));
+  await sleep(20);
+  const over = sent.filter((r) => /library\/feedback/.test(r.url))[0];
+  if (!over) {
+    fail('the overhaul was never sent');
+  } else {
+    const body = JSON.parse(over.opts.body || '{}');
+    body.ask === 'rework' && body.purpose === AIM
+      ? ok('it is sent as an overhaul, carrying the purpose')
+      : fail('the overhaul was sent as: ' + over.opts.body);
+    body.document === 'docs-stage2-reference-walkthrough'
+      && !/\.pdf|\.tex/.test(over.opts.body)
+      ? ok('against the document id, with no path anywhere in it')
+      : fail('the overhaul named a path: ' + over.opts.body);
+  }
+  tap(doc.getElementById('ask-revise'));
+  doc.getElementById('note-purpose-box').hidden
+    ? ok('and going back to a correction puts the purpose away again')
+    : fail('the purpose box stayed open for a correction');
+  doc.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Escape' }));
 
   // 7. NOTHING HERE TOUCHES THE LESSON.
   const lesson = sent.filter((r) => /\/(say|session|aim|direction|board\.json|events)/

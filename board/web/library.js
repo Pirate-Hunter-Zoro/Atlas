@@ -7,7 +7,7 @@
    presentation in this project", neither was reachable without opening a lesson
    first, and there was nowhere at all to say what was wrong with one.
 
-   Three rules this page keeps, and each of them was paid for elsewhere first:
+   Seven rules this page keeps, and each of them was paid for elsewhere first:
 
      1. AN ID, NEVER A PATH. What goes over the wire is the id `library.py`
         handed out, and the server looks it up in what it discovered. Nothing
@@ -24,7 +24,21 @@
         each, so the send button is live with an empty textarea and says so.
         Asking somebody to type out a ring they have already drawn round a
         figure is the translation this whole surface exists to avoid.
-     5. AND THE RING IS DRAWN HERE. The pen is on the page being read, not on
+     5. NOTHING THE READER IS WAITING ON IS SILENT. A note dispatches the
+        revision in the same request, and the only thing that used to change on
+        the glass afterwards was a line saying the note was filed. So the page
+        holds a STAMP -- `GET /library/stamp`, stats only -- asks for it every
+        few seconds while it is in front of somebody, says the turn is running,
+        and re-draws the open document the moment its bytes move. Not the hub's
+        stream: that payload is the LESSON's, and this page opens no sitting on
+        purpose.
+     6. A RE-DRAW KEEPS THE READER'S PLACE, and the ink stays on. Throwing a
+        33-page deck back to page 1 after a one-line fix is its own defect. The
+        marks are kept rather than cleared, because a ring somebody drew is
+        theirs -- and where the page count moved, the page says out loud that
+        they were drawn on an older version rather than pretending page 7 is
+        still page 7.
+     7. AND THE RING IS DRAWN HERE. The pen is on the page being read, not on
         a second surface: each page carries `data-ann="doc/<id>/p<n>"`, which
         is the anchor `annotate.js` has taken since the board's own viewer
         first drew a document, and the strokes go to `/annotate/save` the same
@@ -45,6 +59,7 @@ var els = {
   readerPen: document.getElementById("reader-pen"),
   readerSay: document.getElementById("reader-say"),
   readerClose: document.getElementById("reader-close"),
+  readerSaid: document.getElementById("reader-said"),
   note: document.getElementById("note"),
   noteTitle: document.getElementById("note-title"),
   noteWhere: document.getElementById("note-where"),
@@ -53,7 +68,16 @@ var els = {
   noteMarks: document.getElementById("note-marks"),
   noteSaid: document.getElementById("note-said"),
   noteCancel: document.getElementById("note-cancel"),
-  noteSend: document.getElementById("note-send")
+  noteSend: document.getElementById("note-send"),
+  askRevise: document.getElementById("ask-revise"),
+  askRework: document.getElementById("ask-rework"),
+  purposeBox: document.getElementById("note-purpose-box"),
+  purpose: document.getElementById("note-purpose"),
+  round: document.getElementById("round"),
+  roundTitle: document.getElementById("round-title"),
+  roundList: document.getElementById("round-list"),
+  roundText: document.getElementById("round-text"),
+  roundClose: document.getElementById("round-close")
 };
 
 /* The board's own theme, read the way the board reads it: one choice, made
@@ -76,8 +100,55 @@ if (window.matchMedia) {
 var docs = [];
 var openDoc = null;          /* the document being read */
 var openPages = 0;           /* how many pages it turned out to have */
+var drawnPages = 0;          /* how many it had when the ink on it was drawn */
 var noteFor = null;          /* the document a note is being written about */
 var notePage = 0;
+var noteAsk = "revise";      /* which of the two asks the panel is on */
+
+/* HOW OFTEN THE CHEAP QUESTION IS ASKED, and only while the page is visible.
+   The stamp is a walk and a stat per document with no `pdfinfo` in it, so this
+   is affordable where `/library.json` -- which reads titles out of sources --
+   is not. A backgrounded tab asks nothing at all. */
+var STAMP_EVERY = 4000;
+var stampTimer = null;
+var stamps = {};             /* id -> hash of where that document is and when */
+var stampAll = "";           /* one hash of all of it */
+
+/* WHAT WAS ASKED FOR AND HAS NOT LANDED. A turn was dispatched in the same
+   request that filed the note, and it runs for a minute or for an hour. Kept
+   where a reload finds it again, because a tablet put down and picked up is the
+   normal case and "the board forgot you asked" is the silence this removes. */
+var FLIGHT_KEY = "library.flight";
+var flight = null;           /* {id, ask, at, stamp} */
+
+/* HOW SHORT A PURPOSE MAY BE. The server is the rule -- `library.PURPOSE_LEAST`
+   -- and this is the same number so the button is dead rather than the send
+   being refused. */
+var PURPOSE_LEAST = 25;
+
+try { flight = JSON.parse(localStorage.getItem(FLIGHT_KEY) || "null"); }
+catch (e) { flight = null; }
+
+function remember(what) {
+  flight = what;
+  try {
+    if (what) localStorage.setItem(FLIGHT_KEY, JSON.stringify(what));
+    else localStorage.removeItem(FLIGHT_KEY);
+  } catch (e) { /* a private window. The state still holds for this page. */ }
+}
+
+/* HOW LONG AGO, in the largest unit that is still true. A line that says "asked
+   1440 minutes ago" is a line nobody reads, and this one is read while waiting. */
+function since(at) {
+  var mins = Math.max(0, Math.round((Date.now() - (at || 0)) / 60000));
+  if (!mins) return "just now";
+  if (mins === 1) return "a minute ago";
+  if (mins < 60) return mins + " minutes ago";
+  var hours = Math.round(mins / 60);
+  if (hours < 24) return hours === 1 ? "an hour ago" : hours + " hours ago";
+  var days = Math.round(hours / 24);
+  return days === 1 ? "yesterday" : days + " days ago";
+}
 
 function load() {
   fetch("/library.json", { credentials: "same-origin" })
@@ -135,6 +206,108 @@ function paint(got) {
   });
 }
 
+/* ------------------------------------------------- has anything moved yet */
+/* ONE HASH, ASKED OFTEN. `/library.json` walks the workspace, reads a title out
+   of every source and runs `pdfinfo` per PDF, and is cached for thirty seconds
+   for that reason -- it is the wrong thing to poll. `/library/stamp` is stats
+   only: where each document is, when its source and its PDF last changed, and
+   how big they are. Nothing else is in it, so filing a note cannot move it and
+   the page cannot redraw on its own feedback.
+
+   DO NOT REACH FOR THE HUB'S STREAM HERE. `/events` carries the LESSON's
+   payload, and this page opens no sitting on purpose. */
+function poll() {
+  if (stampTimer) clearTimeout(stampTimer);
+  stampTimer = null;
+  if (document.hidden) return;       /* a backgrounded tab asks nothing */
+  fetch("/library/stamp", { credentials: "same-origin" })
+    .then(function (r) { return r.json(); })
+    .then(function (got) { moved(got || {}); })
+    .catch(function () { /* the poll is quiet about a board that is down; the
+                            list's own fetch is what says so on the glass. */ })
+    .then(function () {
+      if (!document.hidden) stampTimer = setTimeout(poll, STAMP_EVERY);
+    });
+}
+
+function moved(got) {
+  if (!got.ok) return;
+  var was = stamps;
+  var now = got.documents || {};
+  var first = !stampAll;
+  stamps = now;
+  /* WHAT LANDED. The overall hash says "ask for the list again"; the
+     per-document one says "the document being read is the one that moved", and
+     redrawing a 33-page deck because a different document was rebuilt is its
+     own defect. */
+  var changed = got.stamp !== stampAll;
+  stampAll = got.stamp;
+  if (first) { paintFlight(); return; }   /* the first answer is the baseline */
+  if (!changed) { paintFlight(); return; }
+  load();
+  if (openDoc && now[openDoc.id] !== was[openDoc.id]) redraw();
+  paintFlight();
+}
+
+/* WHAT WAS ASKED FOR, AND WHETHER IT HAS LANDED. Cleared by the document's own
+   bytes moving -- not by a timer and not by the reply to the send, which says
+   only that the turn was woken. */
+function paintFlight() {
+  if (flight && stamps[flight.id] && flight.stamp
+      && stamps[flight.id] !== flight.stamp) {
+    remember(null);
+  }
+  /* THE DOCUMENT IS GONE. An overhaul may rename the source it was written
+     from, and there is then nothing left to wait for -- an unlanded turn held
+     against a document that no longer exists would sit on the page for ever.
+     Only once a stamp has actually been read, or the very first pass clears
+     what a reload just restored. */
+  if (flight && stampAll && !stamps[flight.id]) remember(null);
+  if (flight && !flight.stamp && stamps[flight.id]) {
+    /* The send landed before the first stamp did. Take this one as the
+       baseline, or the very next poll reads as the revision arriving. */
+    flight.stamp = stamps[flight.id];
+    remember(flight);
+  }
+  paintReaderSaid();
+  var rows = els.list.querySelectorAll(".lib-flight");
+  for (var i = 0; i < rows.length; i++) {
+    rows[i].textContent = flightWords(rows[i].dataset.id);
+    rows[i].hidden = !rows[i].textContent;
+  }
+}
+
+function flightWords(id) {
+  if (!flight || flight.id !== id) return "";
+  return (flight.ask === "rework"
+    ? "being overhauled — asked " : "being revised — asked ")
+    + since(flight.at)
+    + ". This page re-draws it the moment the file changes.";
+}
+
+/* THE ONE LINE IN THE READER, and it carries both things a reader can be owed:
+   that a turn is running on this document, and that the ink on it was drawn on
+   a version with a different number of pages. */
+function paintReaderSaid() {
+  if (!openDoc) { els.readerSaid.hidden = true; return; }
+  var said = [];
+  var running = flightWords(openDoc.id);
+  if (running) said.push(running);
+  if (drawnPages && openPages && drawnPages !== openPages
+      && window.Annotate && window.Annotate.marked().length) {
+    /* KEPT, NOT CLEARED. A ring somebody drew is theirs, and a document that
+       reflowed is not a reason to throw it away -- but the mark on page 7 is
+       about something that may no longer be on page 7, and the page says so
+       rather than pretending otherwise. */
+    said.push("Your marks were drawn on a version with " + drawnPages
+      + (drawnPages === 1 ? " page" : " pages")
+      + "; this one has " + openPages
+      + ". They are still here, on the page numbers they were made on.");
+  }
+  els.readerSaid.textContent = said.join(" ");
+  els.readerSaid.hidden = !said.length;
+}
+
 function row(doc) {
   var box = document.createElement("div");
   box.className = "lib-row";
@@ -179,14 +352,30 @@ function row(doc) {
     box.appendChild(ink);
   }
 
+  /* THE ROUNDS ARE READABLE. The turn writes `## What was changed` at the
+     bottom of the feedback file, which is the answer to *did it do what I
+     asked* -- and the row could say a document had had three rounds and not a
+     word of what any of them did. */
   if ((doc.notes || []).length) {
-    var rounds = document.createElement("span");
+    var rounds = document.createElement("button");
+    rounds.type = "button";
     rounds.className = "lib-rounds";
     rounds.textContent = doc.notes.length
       + (doc.notes.length === 1 ? " round of feedback" : " rounds of feedback")
-      + ", last on " + doc.notes[doc.notes.length - 1].day;
+      + ", last on " + doc.notes[doc.notes.length - 1].day
+      + " — read what changed";
+    rounds.addEventListener("click", function () { openRounds(doc); });
     box.appendChild(rounds);
   }
+
+  /* WHAT IS RUNNING ON IT. Painted from the row rather than only from the
+     reader, because the document being worked on is usually not the one open. */
+  var going = document.createElement("span");
+  going.className = "lib-flight";
+  going.dataset.id = doc.id;
+  going.textContent = flightWords(doc.id);
+  going.hidden = !going.textContent;
+  box.appendChild(going);
 
   var acts = document.createElement("div");
   acts.className = "lib-acts";
@@ -213,11 +402,55 @@ function act(label, cls, fn) {
 function read(doc) {
   openDoc = doc;
   openPages = 0;
+  drawnPages = 0;
   els.reader.hidden = false;
-  els.readerName.textContent = doc.title || doc.stem;
-  els.readerSub.textContent = "drawing the pages…";
-  els.readerPages.innerHTML = "";
   els.readerPages.scrollTop = 0;
+  draw(doc, 0);
+}
+
+/* THE SAME DOCUMENT AGAIN, BECAUSE ITS BYTES MOVED. Asked for by the stamp
+   poll, never by the reader: a revision was dispatched in the same request that
+   filed the note, and this is the half where it appears in front of you.
+
+   The render cache is keyed on the PDF's own modification time -- `paper._digest`
+   -- so a re-fetch gets the new pages rather than the old ones out of a cache.
+   Nothing had to change there; nothing asked. */
+function redraw() {
+  if (!openDoc || els.reader.hidden) return;
+  draw(openDoc, pageInView());
+}
+
+/* WHERE THE READER WAS, PUT BACK. A picture has no height until it has decoded,
+   so a scroll position set the instant the markup exists lands nowhere: the
+   page is restored as the images above it arrive, and stops being restored once
+   they all have. Otherwise a 33-page deck comes back at page 1 after a one-line
+   fix, which is its own defect. */
+var placeWanted = 0;
+var placeUntil = 0;
+
+function keepPlace() {
+  if (!placeWanted || Date.now() > placeUntil) { placeWanted = 0; return; }
+  var want = els.readerPages.querySelector(
+    '.lib-page[data-page="' + placeWanted + '"]');
+  if (!want) return;
+  /* Against the SCROLLER'S OWN rectangle, for the reason `pageInView` gives:
+     `offsetTop` is measured from whichever ancestor happens to be positioned. */
+  var top = els.readerPages.getBoundingClientRect().top;
+  els.readerPages.scrollTop += want.getBoundingClientRect().top - top;
+}
+
+function draw(doc, place) {
+  openPages = 0;
+  placeWanted = place || 0;
+  /* Eight seconds is the whole budget for putting somebody back where they
+     were. Past that they have scrolled somewhere themselves and a jump is
+     the page taking the document off them. */
+  placeUntil = Date.now() + 8000;
+  els.readerName.textContent = doc.title || doc.stem;
+  els.readerSub.textContent = place ? "re-drawing the pages…" : "drawing the pages…";
+  els.readerPages.innerHTML = "";
+  if (!place) els.readerPages.scrollTop = 0;
+  paintReaderSaid();
   var asked = doc.id;
   fetch("/library/view/" + encodeURIComponent(doc.id),
         { credentials: "same-origin" })
@@ -251,6 +484,7 @@ function read(doc) {
         n.textContent = i + 1;
         fig.appendChild(n);
         els.readerPages.appendChild(fig);
+        img.addEventListener("load", keepPlace);
         if (window.Annotate) {
           window.Annotate.attach(fig);
           /* A picture has no height until it has decoded, and a layer sized
@@ -262,9 +496,18 @@ function read(doc) {
       });
       /* Marks made on this document before, put back. They came with the
          pages: this page holds no live payload to read them out of, because
-         it opens no sitting. */
+         it opens no sitting. KEPT ACROSS A RE-DRAW for the same reason -- the
+         keys are `doc/<id>/p<n>` and are the document's, not this drawing's. */
       if (window.Annotate) window.Annotate.load(got.ink || {});
+      /* HOW MANY PAGES THE INK WAS DRAWN ON. Taken the first time this document
+         is drawn with marks on it, so a later re-draw can say out loud that the
+         deck reflowed under them. */
+      if (!drawnPages && window.Annotate && window.Annotate.marked().length) {
+        drawnPages = openPages;
+      }
+      keepPlace();
       paintPen();
+      paintReaderSaid();
     })
     .catch(function () {
       els.readerSub.textContent = "The board is not answering.";
@@ -284,7 +527,10 @@ function closeReader() {
   }
   openDoc = null;
   openPages = 0;
+  drawnPages = 0;
+  placeWanted = 0;
   els.reader.hidden = true;
+  els.readerSaid.hidden = true;
   paintPen();
 }
 
@@ -386,8 +632,8 @@ function say(doc, page) {
   els.noteTitle.textContent = doc.title || doc.stem;
   els.noteWhere.textContent = doc.rel;
   els.noteText.value = "";
+  els.purpose.value = "";
   els.noteSaid.hidden = true;
-  els.noteSend.textContent = "send it";
   els.notePage.hidden = !notePage;
   if (notePage) els.notePage.textContent = "about page " + notePage;
   var ink = (doc.marks && doc.marks.pages) || 0;
@@ -397,47 +643,132 @@ function say(doc, page) {
       + (ink === 1 ? " page" : " pages")
       + " go with this. Send it with nothing typed and the ink is the feedback.";
   }
-  els.noteSend.disabled = !ink;
+  /* A document the board did not write is corrected by the factory that did,
+     and an overhaul does not come back through here -- so the ask is not
+     offered rather than offered and refused. `rework_refused` is the rule; this
+     is the same sentence one surface up. */
+  els.askRework.disabled = doc.made === "paper-writer";
+  els.askRework.title = els.askRework.disabled
+    ? "the manuscript factory wrote this one, and an overhaul is asked for there"
+    : "restructure, cut and rewrite it to a new purpose";
+  setAsk("revise");
   els.note.hidden = false;
   els.noteText.focus();
 }
 
+/* WHICH OF THE TWO ASKS. Not a second question after the tap: the panel is on
+   one of them at all times, and which one is visible before anything is typed.
+   A correction keeps the document's structure, its names for things and its
+   claims; an overhaul may restructure, cut, reorder and rewrite, and costs a
+   sentence saying what the document is for now. */
+function setAsk(which) {
+  noteAsk = which === "rework" ? "rework" : "revise";
+  els.askRevise.classList.toggle("on", noteAsk === "revise");
+  els.askRework.classList.toggle("on", noteAsk === "rework");
+  els.purposeBox.hidden = noteAsk !== "rework";
+  els.noteText.placeholder = noteAsk === "rework"
+    ? "Anything else about it — what to keep, what to drop. Optional."
+    : "What is wrong with it, and what should it say instead.";
+  els.noteSend.textContent = noteAsk === "rework" ? "overhaul it" : "send it";
+  paintSend();
+  if (noteAsk === "rework") els.purpose.focus();
+}
+
+els.askRevise.onclick = function () { setAsk("revise"); };
+els.askRework.onclick = function () { setAsk("rework"); };
+
 /* Live as soon as there is either half of a complaint. The marks are already
    on disk, so nothing has to be collected here -- the server reads them where
-   it reads the text. */
-els.noteText.addEventListener("input", function () {
-  els.noteSend.disabled = !els.noteText.value.trim()
-    && !((noteFor && noteFor.marks && noteFor.marks.pages) || 0);
-});
+   it reads the text. An overhaul is live on its PURPOSE instead: the words are
+   optional there and the sentence saying what the document is for is not. */
+function paintSend() {
+  var ink = (noteFor && noteFor.marks && noteFor.marks.pages) || 0;
+  els.noteSend.disabled = noteAsk === "rework"
+    ? els.purpose.value.trim().length < PURPOSE_LEAST
+    : !els.noteText.value.trim() && !ink;
+}
+
+els.noteText.addEventListener("input", paintSend);
+els.purpose.addEventListener("input", paintSend);
 
 els.noteCancel.onclick = function () {
   els.note.hidden = true;
   noteFor = null;
 };
 
+/* ------------------------------------------------- reading a round back */
+function openRounds(doc) {
+  els.roundTitle.textContent = doc.title || doc.stem;
+  els.roundList.innerHTML = "";
+  els.roundText.textContent = "";
+  var rounds = (doc.notes || []).slice().reverse();      /* newest first */
+  rounds.forEach(function (note, i) {
+    var b = act(note.day + " · v" + note.v, "quiet", function () {
+      showRound(doc, note, b);
+    });
+    els.roundList.appendChild(b);
+    if (!i) showRound(doc, note, b);
+  });
+  els.round.hidden = false;
+}
+
+function showRound(doc, note, button) {
+  var all = els.roundList.querySelectorAll("button");
+  for (var i = 0; i < all.length; i++) all[i].classList.remove("on");
+  if (button) button.classList.add("on");
+  els.roundText.textContent = "reading…";
+  /* THE ID AND THE NAME, both matched on the server against what discovery
+     found beside this document. Never a path -- the server holds the only
+     mapping from one to the other. */
+  fetch("/library/note/" + encodeURIComponent(doc.id) + "/"
+        + encodeURIComponent(note.name), { credentials: "same-origin" })
+    .then(function (r) { return r.json(); })
+    .then(function (got) {
+      els.roundText.textContent = (got && got.ok)
+        ? (got.text || "") + (got.truncated ? "\n\n… (longer than this)" : "")
+        : "That round could not be read: "
+          + ((got && got.error) || "the board refused it") + ".";
+    })
+    .catch(function () {
+      els.roundText.textContent = "The board is not answering.";
+    });
+}
+
+els.roundClose.onclick = function () { els.round.hidden = true; };
+
 els.noteSend.onclick = function () {
   var said = els.noteText.value.trim();
+  var aim = els.purpose.value.trim();
   var ink = (noteFor && noteFor.marks && noteFor.marks.pages) || 0;
-  if (!noteFor || (!said && !ink)) return;
+  if (!noteFor) return;
+  if (noteAsk === "rework" ? aim.length < PURPOSE_LEAST : (!said && !ink)) return;
+  var asked = noteAsk;
+  var was = els.noteSend.textContent;
+  var forDoc = noteFor.id;
   els.noteSend.disabled = true;
-  els.noteSend.textContent = "sending…";
+  els.noteSend.textContent = asked === "rework" ? "overhauling…" : "sending…";
   fetch("/library/feedback", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     credentials: "same-origin",
     /* THE ID, and the page if there is one. Never the path -- the server holds
-       the only mapping from one to the other. */
-    body: JSON.stringify({ document: noteFor.id, text: said, page: notePage })
+       the only mapping from one to the other. `ask` is which of the two this
+       is, and `purpose` is what an overhaul is written to. */
+    body: JSON.stringify({ document: forDoc, text: said, page: notePage,
+                           ask: asked, purpose: aim })
   }).then(function (r) {
     return r.json().catch(function () { return {}; });
   }).then(function (got) {
     els.noteSaid.hidden = false;
     if (!got || got.ok === false) {
       els.noteSaid.className = "note-said bad";
-      els.noteSaid.textContent = "That could not be written: "
-        + ((got && got.error) || "the board refused it") + ".";
+      /* A REFUSAL NAMES WHAT IS IN THE WAY and nothing was written -- an
+         overhaul against an uncommitted source is the one that matters, since
+         git is the only undo it has. Said here in the server's own words. */
+      els.noteSaid.textContent = ((got && got.error)
+        || "the board refused it") + ".";
       els.noteSend.disabled = false;
-      els.noteSend.textContent = "send it";
+      els.noteSend.textContent = was;
       return;
     }
     els.noteSaid.className = "note-said";
@@ -449,6 +780,15 @@ els.noteSend.onclick = function () {
       + (got.detail || "");
     els.noteSend.textContent = "sent";
     els.noteText.value = "";
+    els.purpose.value = "";
+    /* WHAT IS NOW IN FLIGHT. The reply says a turn was woken, which is not the
+       same as the document having changed -- so this is held against the
+       document's own stamp and is cleared by its bytes moving, nothing else. */
+    if (got.asked) {
+      remember({ id: forDoc, ask: asked, at: Date.now(),
+                 stamp: stamps[forDoc] || "" });
+      paintFlight();
+    }
     /* The list carries how many rounds a document has had, so it is worth
        being right about a second after one lands. */
     load();
@@ -457,21 +797,30 @@ els.noteSend.onclick = function () {
     els.noteSaid.className = "note-said bad";
     els.noteSaid.textContent = "The board is not answering; nothing was written.";
     els.noteSend.disabled = false;
-    els.noteSend.textContent = "send it";
+    els.noteSend.textContent = was;
   });
 };
 
 document.addEventListener("keydown", function (ev) {
   if (ev.key !== "Escape") return;
-  if (!els.note.hidden) els.noteCancel.onclick();
+  if (!els.round.hidden) els.roundClose.onclick();
+  else if (!els.note.hidden) els.noteCancel.onclick();
   else if (!els.reader.hidden) closeReader();
 });
 
 paintPen();
 load();
+poll();
 /* A document is rebuilt by a job, a compile, or the revision this page just
-   asked for, and this page is left open on a desk. Not a poll: it is looked at
-   again when somebody comes back to it. */
+   asked for. While the page is in front of somebody the stamp poll is what
+   notices; coming BACK to it after it was backgrounded re-asks both, because
+   the poll stops when the tab does. */
 document.addEventListener("visibilitychange", function () {
-  if (!document.hidden) load();
+  if (document.hidden) {
+    if (stampTimer) clearTimeout(stampTimer);
+    stampTimer = null;
+    return;
+  }
+  load();
+  poll();
 });

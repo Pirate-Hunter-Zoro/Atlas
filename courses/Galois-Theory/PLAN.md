@@ -4,13 +4,12 @@ Garling's Chapter 4 exercises come first. The worksheet follows them.
 
 ## Book exercises, Chapter 4
 
-Open, in teaching order: **4.8, 4.10, 4.7**, then **4.11**, then **4.3**. 4.8 is
-the general fact behind 4.9, 4.10 uses 4.8, 4.7 is a counting argument. 4.3 is
-the hardest in the chapter, so it goes last.
+Open, in teaching order: **4.7**, then **4.11**, then **4.3**. 4.7 is a counting
+argument and stands apart. 4.3 is the hardest in the chapter, so it goes last.
 
 **4.2 is out.** It was skipped and it stays skipped.
 
-Closed, and never re-taught: **4.1, 4.4, 4.5, 4.6, 4.9**.
+Closed, and never re-taught: **4.1, 4.4, 4.5, 4.6, 4.8, 4.9, 4.10**.
 
 ## Then the worksheet
 
