@@ -562,6 +562,42 @@ finally:
         os.environ["TUTORBOARD_COURSES"] = was_env
     shutil.rmtree(away, ignore_errors=True)
 
+# And `tutor where` is where a person asks. It read the pid against THIS
+# machine's process table, so a daemon listening perfectly well on the node the
+# board is on came back as `stale` -- on the machine they type the question on.
+import contextlib                                            # noqa: E402
+import io as _io                                             # noqa: E402
+
+seen = tempfile.mkdtemp(prefix="tutor-where-")
+seen_live = os.path.join(seen, "Away-Course", "live")
+os.makedirs(seen_live)
+open(os.path.join(seen, "Away-Course", "AI_INSTRUCTIONS.md"), "w").close()
+with open(os.path.join(seen_live, "agent.json"), "w", encoding="utf-8") as fh:
+    json.dump({"host": "othernode", "agent": "claude", "state": "listening",
+               "pid": 4021421, "last_seen": time.time()}, fh)
+was_env = os.environ.pop("TUTORBOARD_COURSES", None)
+try:
+    out = _io.StringIO()
+    with contextlib.redirect_stdout(out):
+        tutor.cmd_where({"courses_dir": seen, "agents": {}}, [])
+    said = out.getvalue()
+    check("a tutor listening on another node is not reported as a stale record",
+          "claude listening on othernode" in said and "stale" not in said)
+
+    with open(os.path.join(seen_live, "agent.json"), "w", encoding="utf-8") as fh:
+        json.dump({"host": "othernode", "agent": "claude", "state": "listening",
+                   "pid": 4021421,
+                   "last_seen": time.time() - processes.AWAY_SILENCE - 1}, fh)
+    out = _io.StringIO()
+    with contextlib.redirect_stdout(out):
+        tutor.cmd_where({"courses_dir": seen, "agents": {}}, [])
+    check("and one that stopped beating there is still called stale",
+          "stale" in out.getvalue())
+finally:
+    if was_env is not None:
+        os.environ["TUTORBOARD_COURSES"] = was_env
+    shutil.rmtree(seen, ignore_errors=True)
+
 # The record is the only evidence there is from another machine: the pid in it
 # belongs to a process table this one cannot read, and reading the local one
 # instead is how a stranger's process gets mistaken for a tutor.

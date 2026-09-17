@@ -1324,7 +1324,7 @@ this machine: compute301
 
   Galois Theory            board:up :8787   agent:opencode listening
   Probability              board:-          agent:-
-  TRD-EHR                  board:on compute301  agent:-
+  TRD-EHR                  board:on compute302  agent:claude listening on compute302
 
   reachable at https://board.<tailnet>.ts.net/
 ```
@@ -1339,6 +1339,12 @@ person in front of it is thinking, and a heartbeat there would call a perfectly 
 dead the moment somebody went to make tea — so it is judged by whether its process is still
 running. `tutor` records the pid before handing the terminal over, which is the same pid the
 assistant then has.
+
+**A tutor on another of your nodes is named, not called stale.** The board and the tutor can end
+up on different machines — see *Arriving on a new node* — and asking whether that pid is alive
+*here* said `stale` about a daemon listening perfectly well over there, on the very machine you
+type the question on. Across a shared filesystem the heartbeat is what can be checked, and it is
+checked the same way the repair checks it: a quarter of an hour of silence, and only then stale.
 
 Either way the host is compared first, and a recycled pid running something else does not count:
 the home directory is shared across compute nodes, so a record from an ended allocation is very
