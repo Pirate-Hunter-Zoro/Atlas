@@ -765,6 +765,24 @@ function render(data) {
      so the frozen picture is the only record there is and it stays. */
   var live = !data.archived && !reading;
 
+  /* ------------------------------------------- one step, handed over */
+  /* THE WAY OUT OF ONE STEP OF COACHING, WITHOUT LEAVING IT.
+
+     A coach card names the calls, the arguments and the order and lets you type
+     it, and there was no way out of any one of them: the only escape was the
+     aim chooser, which changes the WHOLE sitting to `build` and writes every
+     card after it the new way. Asked for as "in coach coding mode, I still want
+     to be able to have a 'fuck this, you do this step' option."
+
+     ON THE NEWEST CARD ONLY, because that is the step. The ones above it are
+     steps that have already been typed, and a button offering to write them is
+     a button that means nothing. `/handover` names the card, the sitting is
+     left exactly as it is, and the card that comes back is a report of that
+     step with the next one posed under it. See `_handover` in
+     `routes/lesson.py`. */
+  var coaching = live && (state.aim_now || state.aim || "") === "coach";
+  var thisStep = ordered.length ? ordered[ordered.length - 1].id : "";
+
   /* Whether a written answer already has a board carrying the same ink.
 
      The transcript froze every ink answer into a picture at the moment it was
@@ -1067,6 +1085,14 @@ function render(data) {
       node.innerHTML = head + '<div class="body"></div>';
       if (shown) node.querySelector(".card-title").textContent = shown;
       node.querySelector(".body").innerHTML = renderMarkdown(c.body || "");
+      if (coaching && c.id === thisStep) {
+        var over = document.createElement("button");
+        over.type = "button";
+        over.className = "hand-over";
+        over.textContent = "you do this step";
+        over.addEventListener("click", function () { handOver(c.id, over); });
+        node.appendChild(over);
+      }
     } else {
       var m = item.turn;
       node.className = "mine" + (fresh ? " fresh" : "");
@@ -3803,6 +3829,22 @@ function paintAim() {
     b.onclick = function () { setAim(way.aim); };
     host.appendChild(b);
   });
+}
+
+/* One step, written for them, and the sitting stays a coaching one. Painted
+   before the answer comes back for the reason `setAim` is: the payload that
+   carries it is a poll away, and a control that does nothing for a second is a
+   control somebody taps again. */
+function handOver(card, button) {
+  if (button) {
+    button.disabled = true;
+    button.textContent = "handed over";
+  }
+  fetch("/handover", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ card: card })
+  }).catch(function () { /* the payload will say what actually happened */ });
 }
 
 function setAim(aim) {
@@ -6848,7 +6890,8 @@ function paintBoards(qids, liveKey, off) {
    May is still read on this board, and a turn whose whole content was a tap has
    nothing else to render, so the labels stay. */
 var SIGNAL_LABEL = { done: "ready to check", help: "needs help", confused: "confused",
-                     begin: "asked the tutor to begin", skip: "skipped this one" };
+                     begin: "asked the tutor to begin", skip: "skipped this one",
+                     handover: "handed this step over" };
 
 /* The answer block, in every course.
 
