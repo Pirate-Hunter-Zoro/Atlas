@@ -244,8 +244,32 @@
        to work on other things while the first one is working." The newsbar at
        the top is the other half of the same sentence — how it comes back. -->
   <button id="btn-work-elsewhere" title="hand another workspace a job while this one runs">⇥  put an assistant to work elsewhere</button>
+  <!-- WHAT THE BOARD ACTUALLY DID, because a rendering fault cannot be reported
+       in prose. Two of them have now been diagnosed from a sentence and one of
+       those diagnoses was wrong: there was no way to see whether a card typed,
+       whether the hold was taken, or whether it let go early. This is that. -->
+  <button id="btn-trace" title="what the board just did, for reporting a glitch">◔  what just happened</button>
   <button id="btn-reload" title="reload the app">↻  reload the app</button>
 </div>
+
+<!-- A rendering fault is over before anybody can describe it, so the board keeps
+     its own last few hundred moves and this reads them back. Timestamps are
+     relative to the first line, in milliseconds, because what matters is the
+     GAPS: a card that asked for 1400 ms and finished in 4000 is a stalled main
+     thread, and a hold that let go before its card finished is the next board
+     arriving early. -->
+<aside id="trace" hidden>
+  <div class="scratch-head">
+    <strong>What just happened</strong>
+    <span class="head-acts"><button id="trace-copy" type="button">copy</button><button id="trace-close" type="button">✕</button></span>
+  </div>
+  <div id="trace-list"></div>
+  <div class="scratch-foot">
+    <p id="trace-said" class="muted"></p>
+    <p class="muted">Newest last. Read it after something looks wrong, before
+      doing anything else — a reload throws it away.</p>
+  </div>
+</aside>
 
 <!-- A WORKSPACE, A TASK, AND NOTHING ELSE. The list is every workspace this
      machine has, which is a directory walk rather than a registry, so a host

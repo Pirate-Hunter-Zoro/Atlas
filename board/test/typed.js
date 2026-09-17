@@ -367,6 +367,77 @@ await sleep(2800);            // past TYPE_MIN and past this card's own time
     : fail('a real title was mistaken for a slug and thrown away');
 }
 
+// ------------------------------------- and the board says what it just did
+//
+// Two rendering faults have now been diagnosed from a sentence, and one of those
+// diagnoses was wrong: nothing could say whether a card typed, whether the hold
+// was taken, or whether it let go early. Each wrong guess costs an evening and
+// then another report in the same words. So the board keeps its own last few
+// hundred moves and `☰ → what just happened` reads them back.
+{
+  const list = () => doc.getElementById('trace-list');
+  const rows = () => Array.prototype.map.call(list().querySelectorAll('.tr'),
+    (r) => r.dataset.what);
+
+  doc.getElementById('btn-trace').click();
+  await sleep(40);
+  !doc.getElementById('trace').hidden
+    ? ok('the trace opens from the bar menu, on the device that saw the fault')
+    : fail('there is no way to read what the board did');
+
+  /* Everything above this point in the file drove a real type-out, so the two
+     events that matter are already in the buffer. */
+  rows().indexOf('type') !== -1
+    ? ok('and it records a card starting to type, with what it asked for')
+    : fail('a type-out leaves no trace: ' + rows().join(','));
+  rows().indexOf('typed') !== -1
+    ? ok('and finishing, with what it actually took — the two being far apart '
+         + 'is a stalled main thread, which is the whole diagnosis')
+    : fail('a finished card leaves no trace: ' + rows().join(','));
+  rows().indexOf('writer') !== -1
+    ? ok('and where the surface went, with the hold that decided it')
+    : fail('the surface placement leaves no trace: ' + rows().join(','));
+
+  /* The line that answers the question before anybody reads three hundred rows. */
+  /moves, and nothing in them looks wrong|stall|took no hold/
+    .test(doc.getElementById('trace-said').textContent)
+    ? ok('and it says up front whether anything in it looks wrong')
+    : fail('the summary says nothing: "'
+           + doc.getElementById('trace-said').textContent + '"');
+
+  // THE ONE IT EXISTS FOR. A frame arriving after the watchdog deadline means
+  // the main thread was away longer than `TYPE_STALL`, so the hold was released
+  // with the card half painted -- the next board came down early and the rest of
+  // the card appeared at once. Invisible from the outside, and the thing no
+  // person can report.
+  //
+  // Staged by STARVING THE ANIMATION FRAME, which is the real cause rather than
+  // a stand-in for it: `typingUntil` lives inside board.js's own closure and is
+  // not reachable from here, and reaching for it would be testing the variable
+  // instead of the behaviour.
+  const before = rows().filter((r) => r === 'stall').length;
+  const realRaf = window.requestAnimationFrame;
+  window.requestAnimationFrame = (fn) => setTimeout(fn, 2700);
+  es.onmessage({ data: frame([{ id: '0011', kind: 'lesson',
+                                body: 'a long stretch of prose '.repeat(30),
+                                mtime: t0 + 900 }, question],
+                             { agent: 'claude', state: 'working', turns: 5,
+                               turn_started: t0 }) });
+  await sleep(2900);          /* one frame, arriving well past TYPE_STALL */
+  window.requestAnimationFrame = realRaf;
+  await sleep(120);
+  doc.getElementById('btn-trace').click();
+  await sleep(40);
+  rows().filter((r) => r === 'stall').length > before
+    ? ok('and a hold that let go while its card was still painting is RECORDED, '
+         + 'which is the one thing here nobody can see or report')
+    : fail('the watchdog can fire and leave no trace of it');
+  /stall/.test(doc.getElementById('trace-said').textContent)
+    ? ok('and the summary says so in words, at the top')
+    : fail('a stall is in the log and the summary does not mention it: "'
+           + doc.getElementById('trace-said').textContent + '"');
+}
+
 console.log(errors.length ? '\n' + errors.length + ' FAILURES'
   : '\nevery response is typed, and the next board waits for it');
 process.exit(errors.length ? 1 : 0);
