@@ -1539,6 +1539,15 @@ def sync_transcript(root, log=None):
         note("transcript: could not reach the remote")
 
 
+def agent_record(root):
+    """What `live/agent.json` says, believed or not."""
+    try:
+        with open(os.path.join(root, "live", "agent.json"), "r", encoding="utf-8") as fh:
+            return json.load(fh)
+    except (OSError, ValueError):
+        return None
+
+
 def agent_live(root):
     """The daemon recorded for this course, if it is really there.
 
@@ -1546,11 +1555,7 @@ def agent_live(root):
     written by a node whose allocation has since ended -- so the host is checked
     before the pid is believed.
     """
-    try:
-        with open(os.path.join(root, "live", "agent.json"), "r", encoding="utf-8") as fh:
-            st = json.load(fh)
-    except (OSError, ValueError):
-        return None
+    st = agent_record(root)
     return st if processes.agent_is_attached(st, this_host()) else None
 
 
@@ -1658,7 +1663,7 @@ def agent_stop(course, wait=False):
 
 
 def cmd_agent(cfg, args):
-    """tutor agent status|start|stop [course]
+    """tutor agent status|start|ensure|stop [course]
 
     The board drives this when a course is opened or left. Each course keeps its
     own assistant: they are cheap while idle, and one that survives being left
@@ -1684,6 +1689,19 @@ def cmd_agent(cfg, args):
 
     if sub == "stop":
         code, msg = agent_stop(course, wait="--wait" in args)
+        print(msg, file=sys.stderr if code else sys.stdout)
+        return code
+
+    if sub == "ensure":
+        # `start` that says nothing when there was nothing to do. This is what
+        # another machine asks over ssh on every login -- see `ensure_agent_away`
+        # -- and a line per shell for a tutor that is fine is noise in the one
+        # log where a real failure has to be findable. It speaks when it starts
+        # something, and when it cannot.
+        if agent_live(course["root"]):
+            return 0
+        name = resolve_agent(cfg, course, _flag(args, "--agent"))
+        code, msg = agent_start(cfg, course, name)
         print(msg, file=sys.stderr if code else sys.stdout)
         return code
 
@@ -2407,6 +2425,40 @@ RESUME_LOG = "~/.tutor-resume.log"
 STEP_WATCH_SECONDS = 5.0
 
 
+def tool_line(tail):
+    """This tool, run on another machine, as one shell word-list.
+
+    The path is resolved rather than taken from `argv[0]`: the other end may
+    have it on `PATH` under a different name, or not at all, and the checkout is
+    on the shared home either way.
+    """
+    return " ".join(shlex.quote(a) for a in
+                    [sys.executable, os.path.realpath(__file__)] + list(tail))
+
+
+def ssh_tool(target, tail, timeout=300):
+    """Run this tool on another of your nodes. Returns (code, output).
+
+    255 means ssh itself could not get in -- a credential this shell does not
+    have, usually -- as distinct from the tool running there and failing, which
+    is a code of its own with something to read underneath it. Callers choose
+    what to do about the difference: the login hop asks Slurm instead, and a
+    repair that only wanted to start a tutor says so and stops.
+    """
+    try:
+        p = subprocess.run(["ssh", "-n", "-o", "BatchMode=yes",
+                            "-o", "ConnectTimeout=10", "-o", "LogLevel=ERROR",
+                            "-o", "StrictHostKeyChecking=accept-new",
+                            target, tool_line(tail)],
+                           stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                           stdin=subprocess.DEVNULL, timeout=timeout)
+        return p.returncode, p.stdout.decode("utf-8", "replace")
+    except subprocess.TimeoutExpired:
+        return 255, ""
+    except OSError as exc:
+        return 255, str(exc)
+
+
 def hop_to_allocation(cfg, rest):
     """Run this resume on the compute node, from the login node that holds it.
 
@@ -2449,9 +2501,8 @@ def hop_to_allocation(cfg, rest):
     if not target:
         return None
 
-    remote = [sys.executable, os.path.realpath(__file__), "resume", "--no-hop"]
-    remote += [a for a in rest if a != "--no-hop"]
-    line = " ".join(shlex.quote(a) for a in remote)
+    tail = ["resume", "--no-hop"] + [a for a in rest if a != "--no-hop"]
+    line = tool_line(tail)
 
     # One line either way, and it is printed even under `--quiet`. Quiet is for
     # a login that had nothing to do; this one crossed a machine, and it is the
@@ -2462,18 +2513,7 @@ def hop_to_allocation(cfg, rest):
     # ssh first, because it leaves nothing behind on this machine: the board ends
     # up in the node's own user session, exactly where it sits when somebody
     # opens a terminal there, and it needs no process here to stay alive.
-    try:
-        p = subprocess.run(["ssh", "-n", "-o", "BatchMode=yes",
-                            "-o", "ConnectTimeout=10", "-o", "LogLevel=ERROR",
-                            "-o", "StrictHostKeyChecking=accept-new",
-                            target, line],
-                           stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                           stdin=subprocess.DEVNULL, timeout=300)
-        out, code = p.stdout.decode("utf-8", "replace"), p.returncode
-    except subprocess.TimeoutExpired:
-        out, code = "", 255
-    except OSError as exc:
-        out, code = str(exc), 255
+    code, out = ssh_tool(target, tail)
 
     if code != 255:
         for l in out.splitlines():
@@ -2844,6 +2884,10 @@ def cmd_resume(cfg, args):
         if nodes is None or on in nodes:
             say("%s is on %s, which is still yours; leaving it there "
                 "(--force to move it here)" % (course["dir"], on))
+            # Leaving the BOARD there is right. Leaving the question of whether
+            # anything is listening to it unasked is what kept a dead tutor
+            # dead: see `ensure_agent_away`.
+            ensure_agent_away(course, on, args)
             return 0
 
     # Not every machine you log in to is a machine you should start a board on.
@@ -2881,6 +2925,45 @@ def ensure_agent(cfg, course, args, say):
     name = resolve_agent(cfg, course, _flag(args, "--agent"))
     code, msg = agent_start(cfg, course, name)
     return (", %s attached" % name) if code == 0 else (", no tutor (%s)" % msg)
+
+
+def ensure_agent_away(course, on, args):
+    """Put a tutor back on a board that is running on ANOTHER of your nodes.
+
+    A BOARD AND ITS TUTOR ARE TWO PROCESSES AND THEY DIE SEPARATELY. An
+    allocation ending takes the daemon with it; the board comes back on the next
+    node you log in to, and from there the course reads "board on compute301, no
+    tutor" -- which nothing went and did anything about. `tutor resume` saw a
+    board on a node that is still yours, said it was leaving it there, and
+    returned before it reached `ensure_agent`; `tutor restart --tutors` only
+    bounces tutors that are already attached, and reports "no tutors were
+    attached" for one that died. So the lesson sat on the iPad with nothing
+    listening to it for as long as the person went on logging in to the machine
+    they work on rather than the one the board is on.
+
+    The record is trusted first, because the common case is a tutor that is
+    perfectly well and a login that should cost nothing -- and `agent_attached_
+    away` is the only honest test from here, a pid on another machine being
+    unreadable. Only a silent record is worth an ssh.
+
+    Over ssh only, and not the hop's Slurm fallback: a step has to hold itself
+    open for the life of what it starts, and one sleeping step per login is too
+    much to pay for a repair that is usually not needed. When ssh cannot get in,
+    say so -- a board with nothing listening to it is the one thing the person
+    must not have to guess at.
+    """
+    if "--no-agent" in args:
+        return
+    if processes.agent_attached_away(agent_record(course["root"]), on):
+        return
+    code, out = ssh_tool(on, ["agent", "ensure", course["dir"]], timeout=120)
+    said = [l.strip() for l in out.splitlines() if l.strip()]
+    for line in said:
+        print("%s: %s" % (on, line))
+    if code == 255 and not said:
+        print("%s: that board has no tutor and ssh could not get in to start "
+              "one -- run `tutor agent start %s` there"
+              % (on, course["dir"]))
 
 
 def cmd_cost(cfg, args):

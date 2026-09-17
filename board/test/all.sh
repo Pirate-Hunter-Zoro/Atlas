@@ -35,7 +35,7 @@ if ! node -e "require('jsdom')" >/dev/null 2>&1; then
   echo
 fi
 
-SUITES="markdown macros hidden chrome theme pages modes typeface export shot interactive plane adopt chain sheets answer feedback typed hanging panic steering sizing staying link hub review walk clip map address marks notify library"
+SUITES="markdown macros hidden chrome theme pages modes typeface export shot interactive plane adopt chain sheets answer mine feedback typed hanging panic steering sizing staying link hub review walk clip map address marks notify library"
 fails=0
 skipped=0
 

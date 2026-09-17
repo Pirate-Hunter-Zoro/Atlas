@@ -714,6 +714,32 @@ The moment the tutor replies, that changes: your answer takes its proper place u
 question, the receipt stands down, and **the writing surface moves below the feedback** — so
 correcting your work happens under the criticism of it rather than scrolled off above it.
 
+### The verdict is down your own answer, and every answer is kept
+
+**The colour is on the thing you are looking at, which is your own words.** Green got it right,
+red did not, **amber is everything else** — a reply that answers rather than marks, which is most
+of a build sitting and most of a walkthrough. The judgement is the tutor's existing one: the
+newest reply in a question's run decides it, `correct` and `wrong` are the two verdicts and every
+other reply to working is amber. It is a rule for every kind of sitting, not for mathematics.
+
+A question whose reply has not arrived is painted **nothing at all**. Waiting is a different state
+from *neither right nor wrong*, and the pulsing strip is what says so. The colour lands on the
+answer the moment the reply does — the verdict is part of the turn's identity on the page, so a
+node already on screen picks it up rather than keeping the colour it was born with.
+
+Both halves of an answer carry it: the receipt in the transcript, and the board holding the
+working further down, which is what a person actually scrolls back to. `verdictOf` in `board.js`,
+`.mine[data-verdict]` and `.board[data-verdict]` in the stylesheet, `test/mine.js`.
+
+**And a typed answer is kept, the way a written one is.** Ink keeps every attempt — a board
+apiece, down the page — and typing used to keep one: a send revised the newest turn on the
+question, so a second answer overwrote the first, and a question open for an evening ended with
+one of the four things said under it. A send now revises **only what the box was handed to
+correct** (`correctingTurn`, set where an old answer is loaded back in and nowhere else).
+Everything typed into an empty box is a new answer, kept in the order it was given, under the
+feedback it was replying to, and labelled *answer 2 of 3* the way a second board says *attempt 2
+of 3*.
+
 ### A card is typed out, and nothing moves while it is
 
 A card arrives whole — it is a file — so this is a reveal of something already in hand rather
@@ -986,6 +1012,27 @@ What it is careful about is when *not* to act:
 - a board on a node that Slurm still says is yours is left where it is;
 - no Slurm at all means *unknown*, not *gone*, and is also left alone;
 - a machine Slurm does not list as yours — a login node — gets no board at all.
+
+**A board and its tutor die separately, and a board coming back is not a tutor coming back.** The
+daemon belongs to the allocation that started it; the board comes back on whichever node you next
+log in to. So the two end up on different machines, the older allocation ends, and from the
+machine you actually work on the course reads *board on compute301, no tutor* — with every
+recovery path looking away from it. Leaving the board where it is is right; leaving the question
+of whether anything is listening to it unasked is what kept a dead tutor dead for an evening.
+
+So a login asks the node the board is on, over ssh, with `tutor agent ensure`. The record is
+believed first, and `processes.agent_attached_away` is the only honest test from another machine:
+a heartbeat, never the pid, because a pid written on one node names a process table this one
+cannot read and very likely a stranger. A listening daemon rewrites its record every time
+`board wait` times out, so three missed wake-ups — a quarter of an hour — is silence nothing
+healthy produces. A tutor that is well therefore costs the login nothing, and a silent one is
+asked about exactly once per shell. `tutor restart --tutors` is not that path and never was: it
+bounces tutors that are attached, and says *no tutors were attached* about one that has died.
+
+Over ssh only, and not the Slurm step the hop falls back to: a step has to hold itself open for
+the life of what it started, and one sleeping step per login is too much to pay for a repair that
+is usually not needed. When ssh cannot get in, the line says so and names the command to run
+there — a board with nothing listening to it is the one thing you must never have to guess at.
 
 ### `salloc` is the whole of it
 
@@ -1408,8 +1455,13 @@ which is what a stop is for.
 ```
 tutor agent status           which courses have one attached
 tutor agent start galois     attach one there, leaving the others listening
+tutor agent ensure galois    the same, silent when one is already listening
 tutor agent stop galois      ask it to write its handoff and go
 ```
+
+`ensure` is what another machine asks over ssh on every login — see *Arriving on a new node* —
+so it says nothing when there was nothing to do. A line per shell for a tutor that is perfectly
+well is noise in the one log a real failure has to be findable in.
 
 Nothing about this asks the student to operate anything. They open a course; the assistant is
 there.
