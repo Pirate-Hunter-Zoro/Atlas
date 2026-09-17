@@ -480,12 +480,68 @@ await sleep(40);
 go().click();
 await sleep(60);
 JSON.stringify(elsewhereOf()) === JSON.stringify({ repo: 'TRD-EHR',
-    agent: 'colibri', task: 'reproduce the corrected transcript' })
+    agent: 'colibri', ship: false, task: 'reproduce the corrected transcript' })
   ? ok('and the job goes out naming the workspace, the assistant and the task')
   : fail('what went out was ' + JSON.stringify(elsewhereOf()));
 panel.hidden && task.value === ''
   ? ok('then it closes, and you are back where you were')
   : fail('the panel stayed open over a job that went');
+
+/* ---------------------------------------- and whether it ships itself
+//
+// "when I put anything on a mission, I should have the option to tell it to
+//  ship its changes once it is done - I don't know if colibri is capable of
+//  doing that, but the tutor certainly should be once colibri is done."
+//
+// One switch, and a sentence under it saying who actually pushes: never the
+// assistant that did the work. "Ship it" otherwise reads as "and nobody looks
+// at it", and the opposite is the whole design. */
+{
+  const ship = () => doc.getElementById('elsewhere-ship');
+  const shipNote = () => doc.getElementById('elsewhere-ship-note');
+  doc.getElementById('btn-work-elsewhere').click();
+  await sleep(80);
+  !ship().checked
+    ? ok('the panel opens with the ship switch off, every time')
+    : fail('a mission was about to be pushed because a box was still ticked');
+  shipNote().hidden
+    ? ok('and says nothing about pushing until it is asked to')
+    : fail('the ship note is up over a switch nobody set');
+
+  doc.getElementById('elsewhere-list').querySelectorAll('button')[0].click();
+  await sleep(40);
+  ship().checked = true;
+  ship().dispatchEvent(new window.Event('change'));
+  await sleep(40);
+  !shipNote().hidden && /ordinary tutor/.test(shipNote().textContent)
+    ? ok('ticked, it says who pushes — the workspace\'s own tutor')
+    : fail('the switch says nothing about who pushes: "' + shipNote().textContent + '"');
+  /not colibri|could not read/.test(shipNote().textContent)
+    ? ok('and that it is not the assistant that did the work: "'
+         + shipNote().textContent + '"')
+    : fail('the note does not say whose work is being checked: "'
+           + shipNote().textContent + '"');
+
+  task.value = 'repair the diarization on the pilot';
+  task.dispatchEvent(new window.Event('input'));
+  await sleep(40);
+  go().click();
+  await sleep(60);
+  (elsewhereOf() || {}).ship === true
+    ? ok('and the switch goes out with the mission, because the record is '
+         + 'written once and read when it finishes')
+    : fail('the ship switch never reached the server: '
+           + JSON.stringify(elsewhereOf()));
+
+  // A DECISION ABOUT THIS MISSION, not a setting. The next one starts off.
+  doc.getElementById('btn-work-elsewhere').click();
+  await sleep(80);
+  !ship().checked
+    ? ok('and the next mission starts with it off again')
+    : fail('the ship switch was still ticked for the next mission');
+  doc.getElementById('elsewhere-close').click();
+  await sleep(20);
+}
 
 // A REFUSAL IS AN ANSWER AND IT GOES ON THE GLASS. One colibri sitting at a
 // time, machine-wide: a second tap would evict the first one's KV prefix and

@@ -8,6 +8,7 @@ import threading
 import time
 
 from .. import assistants, colibri, direction, fenced, missions, news
+from . import spawn
 from ..course import config, homework
 from ..lesson import archive, cards, git, notes, slate, state, turns, uploads
 
@@ -180,6 +181,19 @@ class Hub:
 
     def poll_loop(self):
         while True:
+            # A MISSION THAT WAS TOLD TO SHIP ITSELF, AND HAS FINISHED.
+            #
+            # Here because this loop is the only thing in the tool that runs
+            # without anybody asking it to and outlives the request that started
+            # it: a mission ends in a workspace with no board and no browser on
+            # it, so nothing there is going to notice. Throttled inside
+            # `ship_missions` to one walk every twenty seconds, and the ship is
+            # claimed with an exclusive create, so every board on the machine
+            # running this loop still hands each mission over exactly once.
+            try:
+                spawn.ship_missions()
+            except Exception:
+                pass
             try:
                 data = self.build()
                 # The digest covers content only; seq is stamped afterwards, or

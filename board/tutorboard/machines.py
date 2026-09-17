@@ -280,6 +280,7 @@ def _mark_missions(cards, repo):
             "id": hit.get("id"), "state": hit.get("state"),
             "task": hit.get("task") or "", "agent": hit.get("agent") or "",
             "at": hit.get("at") or 0, "ship": bool(hit.get("ship")),
+            "shipped": hit.get("shipped") or 0,
             "reason": hit.get("reason") or "",
         }
 

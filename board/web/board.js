@@ -91,6 +91,8 @@ var els = {
   elsewhereFence: document.getElementById("elsewhere-fence"),
   elsewhereTask: document.getElementById("elsewhere-task"),
   elsewhereSaid: document.getElementById("elsewhere-said"),
+  elsewhereShip: document.getElementById("elsewhere-ship"),
+  elsewhereShipNote: document.getElementById("elsewhere-ship-note"),
   elsewhereGo: document.getElementById("elsewhere-go"),
   stanceTeach: document.getElementById("stance-teach"),
   stanceDo: document.getElementById("stance-do"),
@@ -7501,6 +7503,16 @@ function paintMissions(show) {
     var pill = document.createElement("span");
     pill.className = "mission-state";
     pill.textContent = MISSION_WORD[m.state] || m.state || "";
+    /* AND WHETHER IT WAS TOLD TO SHIP ITSELF, which is a different thing after
+       it has finished from before: `ship` is what was asked for, `shipped` is
+       that a tutor has been handed the diff. The push's own outcome is the push
+       banner's -- one surface per fact. */
+    var tag = null;
+    if (m.ship) {
+      tag = document.createElement("span");
+      tag.className = "mission-ship";
+      tag.textContent = m.shipped ? "ship handed over" : "ships itself";
+    }
     var where = document.createElement("span");
     where.className = "news-where";
     where.textContent = m.course || m.repo || m.ws || "";
@@ -7514,6 +7526,7 @@ function paintMissions(show) {
     when.className = "news-when";
     when.textContent = newsAgo(m.at);
     row.appendChild(pill);
+    if (tag) row.appendChild(tag);
     row.appendChild(where);
     row.appendChild(what);
     row.appendChild(when);
@@ -8508,6 +8521,10 @@ function openElsewhere() {
   elsewhereChose = false;
   els.elsewhereSaid.textContent = "";
   els.elsewhereSaid.classList.remove("bad");
+  /* And the switch, for the same reason the assistant is: it is a decision about
+     THIS mission, and a push nobody asked for because a checkbox was still
+     ticked from last time is the one mistake this panel must not make. */
+  if (els.elsewhereShip) els.elsewhereShip.checked = false;
   paintElsewhere();
   if (elsewhereList) return;
   fetch("/atlas.json").then(function (r) { return r.json(); })
@@ -8607,7 +8624,29 @@ function paintElsewhere() {
     });
   }
   paintFence(els.elsewhereFence, fence, elsewhereAgent);
+
+  /* WHO ACTUALLY PUSHES, said on the switch rather than left to be discovered.
+     "Ship it" reads as "and nobody looks at it", and the opposite is true: the
+     work is pushed by the workspace's ordinary tutor reading the diff, never by
+     the assistant that wrote it -- which is the whole reason a local model's
+     work can go to a public remote at all. */
+  if (els.elsewhereShipNote) {
+    var note = els.elsewhereShipNote;
+    note.hidden = !(els.elsewhereShip && els.elsewhereShip.checked);
+    if (!note.hidden) {
+      note.textContent = "When it finishes, this workspace's ordinary tutor "
+        + "reads the diff and pushes it \u2014 not "
+        + (elsewhereAgent || "whatever ran the mission")
+        + ", so the work gets a second pair of eyes"
+        + (fence.length ? " that could not read " + fence.join(", ") : "")
+        + ".";
+    }
+  }
   els.elsewhereGo.disabled = !elsewherePick || !els.elsewhereTask.value.trim();
+}
+
+if (els.elsewhereShip) {
+  els.elsewhereShip.addEventListener("change", paintElsewhere);
 }
 
 els.elsewhereTask.addEventListener("input", function () {
@@ -8623,6 +8662,7 @@ els.elsewhereGo.onclick = function () {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ repo: elsewherePick, agent: elsewhereAgent,
+                           ship: !!(els.elsewhereShip && els.elsewhereShip.checked),
                            task: els.elsewhereTask.value.trim() })
   }).then(function (r) { return r.json(); }).then(function (got) {
     /* A REFUSAL IS AN ANSWER AND IT GOES ON THE GLASS. One colibri sitting at a

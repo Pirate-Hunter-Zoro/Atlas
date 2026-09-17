@@ -13,7 +13,7 @@ import subprocess
 import sys
 import time
 
-from .. import atlas, paths, worktree
+from .. import atlas, leaving, paths, worktree
 from ..course import homework
 
 
@@ -242,6 +242,27 @@ def run_push(repo, message=None):
                        "commit now would land in the middle of it. Nothing has "
                        "been lost -- finish or abort that in the terminal and "
                        "press save again." % busy),
+        }
+        with open(os.path.join(repo.live, "push.json"), "w", encoding="utf-8") as fh:
+            json.dump(record, fh, indent=2)
+        return record
+    # AND NOTHING THAT REACHES FOR SESSION CONTENT. The same check the command
+    # line makes, on the same push, because this is the same push: a tap on save
+    # commits the whole repository and a fixture cut out of a transcript goes
+    # with it. See `tutorboard/leaving.py` for what it catches.
+    #
+    # NO OVERRIDE HERE, and that is the difference between this surface and the
+    # command line. `board push --anyway` is a keyboard act; a button on a
+    # tablet that waves a PHI fence through is the thing the fence is for. The
+    # way past it from the iPad is to tell the tutor, which is a person deciding
+    # and an assistant acting.
+    phi = leaving.reason(repo.root)
+    if phi:
+        record = {
+            "ok": False,
+            "at": time.time(),
+            "iso": time.strftime("%Y-%m-%d %H:%M:%S"),
+            "detail": phi,
         }
         with open(os.path.join(repo.live, "push.json"), "w", encoding="utf-8") as fh:
             json.dump(record, fh, indent=2)

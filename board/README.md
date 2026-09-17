@@ -217,12 +217,81 @@ colibrì runs in ended* are the same word and two different next moves.
   because a thing that has not finished comes before one that has. A running or failed mission also
   marks its box on the atlas, bottom right, so the top-right answer badge and this can both be on
   one box — a mission that landed a card is both.
-- **`ship` is carried and not yet honoured.** The field is written at dispatch because the record
-  is written once; the switch that sets it and the diff check that lets a hosted turn push a local
-  model's work are HANDOFF item 2.
-
 `tutorboard/missions.py` is the whole of it, `GET /missions` is the surface for anything that polls
 rather than subscribes, and `test/elsewhere.py` and `test/notify.js` are the suites.
+
+### A mission can be told to ship itself, and somebody else pushes it
+
+**The want:** *"when I put anything on a mission, I should have the option to tell it to ship its
+changes once it is done — I don't know if colibri is capable of doing that, but the tutor certainly
+should be once colibri is done."*
+
+One switch on `⇥ put an assistant to work elsewhere`, carried in the mission record as `ship`, and
+honoured when the mission ends `done`.
+
+**The assistant that did the work is never the one that pushes it.** The local model decodes at
+three tokens a second and it is the one assistant allowed to read the fenced directory, so its own
+diff is the one thing it must not push. When the mission finishes, the workspace's ordinary tutor is
+woken with a `[ship]` line naming what the mission was asked to do and who did it — a hosted turn, a
+second pair of eyes, and a turn that could not have read the session content it is checking the diff
+for. The switch says so on the glass, because *ship it* otherwise reads as *and nobody looks*.
+
+- **`done` only.** A mission that failed may well have left changes in the tree, and pushing those
+  is the opposite of what the word "failed" means to whoever set it going. Nothing is lost: the
+  changes are still there and save is a tap.
+- **A private daemon is stopped first, and only when it is listening.** `tutor agent start` will not
+  swap one assistant for another — a live record is *already listening* and the start is a no-op —
+  so the local model's daemon is stopped before the hosted one is started. A daemon mid-turn is
+  doing something somebody asked for, so the ship waits for the next pass rather than killing it.
+  And a tutor already sitting there that may **not** read the fence ships it where it stands: the
+  rule is not "the default assistant", it is that whoever pushes could not have read what it is
+  checking.
+- **The ship turn is a revision's twin.** It runs fresh, writes no card, touches no `state.json`,
+  and the lesson does not resume into it. `HEADLESS_SHIP_PROMPT` in `bin/tutor`; `turn_plan` and
+  `carry_after` treat `ship` exactly as they treat `revise`, and `doing_now` gives it a doing turn's
+  clock because reading a diff and pushing over a tailnet is not a fifteen-minute card.
+- **Handed over exactly once.** Every board on the machine sweeps every workspace's missions from
+  its own poll loop, so the ship is claimed with an exclusive create — `O_EXCL` is the one thing
+  that is atomic on a shared filesystem — and `shipped` in the record is what a person reads.
+- **The mission's job ends when the ship is handed over.** What the push then did is `push.json`,
+  which the board already paints. One surface per fact.
+
+### What leaves this machine, and the check git cannot make
+
+`board push` and the save button both run what they are about to commit past
+`ai-config/policy/phi.py` first. That policy is the lab's, not this tool's: `names_phi` is loaded
+out of the repository by path rather than copied in here, and a repository with no policy file
+refuses nothing rather than deciding for itself what session content is.
+
+**A `.gitignore` already stops a phi FILE** — `test/tracked.py` audits every tracked path — and it
+can do nothing at all about phi CONTENT. A fixture cut out of a transcript, an example hard-coded
+from one, a docstring quoting a span: written by the one assistant allowed to read that directory,
+pushed by a turn that was not. Every push from this tool is unattended, so the last thing before a
+public remote was nothing.
+
+- **Per file, by the workspace it is in.** A push here commits the whole repository, so *is the
+  pushing workspace fenced* is the wrong question — a fixture in `PSYCH-ASR` goes out under a push
+  from anywhere. Checking every changed line was the other option and it is wrong the other way:
+  this repository's own documentation names the fenced directory on nearly every page, so it would
+  refuse the commit that documents the check. Prose about a fence is not a hole in one. So each
+  changed path is looked up against the workspaces that hold one (`fenced.holds`, already cached on
+  every payload), and only those files are read.
+- **Untracked files are the whole point.** `git status --porcelain -uall`, because a fixture
+  written an hour ago has never been tracked and `git diff` cannot see it. For a tracked file it is
+  the ADDED lines, so a line that was already committed is not read again.
+- **What it catches, said plainly.** The fenced directory by name, the old data tree, and the
+  artifact shapes. It is a regex: a bare sentence of dialogue with no path and no extension around
+  it is not catchable this way, and a guard believed to do more than it does is worse than none.
+  That is the other half of why the ship turn is a hosted assistant reading the diff — the machine
+  check has no judgement in it, which is what lets it run unattended, and the turn has judgement,
+  which is what covers what a regex cannot see.
+- **The refusal names the file**, changes nothing, and is written where the board paints it —
+  `worktree.busy_reason`'s shape, for the same reason. `board push --anyway` is the override and it
+  is deliberately a keyboard act: a button on a tablet that waves a PHI fence through is the thing
+  the fence is for. From the iPad the way past it is to tell the tutor, which is a person deciding
+  and an assistant acting.
+
+`tutorboard/leaving.py` is the whole of it and `test/tracked.py` is the suite.
 
 ### What a link in here can name
 
@@ -3440,6 +3509,10 @@ tutorboard/        the board itself, organised by what a thing is about:
                    workspace nobody is looking at, recorded in the workspace it
                    is about, its ending derived off the newest card and
                    `agent.json` and then frozen into the record
+  leaving.py       what is about to leave this machine and whether it may: every
+                   path a push would commit, checked against the repository's
+                   own PHI policy where it sits in a workspace that holds a
+                   fence
   net/             reaching them: tailscale, socks, boards, egress
   course/          a course on disk: repo, config, document, homework, review,
                    plan (what a project says it is doing next, which is a book
