@@ -62,7 +62,7 @@ thing, and only the person holding the iPad can strike those.
 
 ## Before anything
 
-- `bash board/test/all.sh` — 81 suites, about twelve minutes. Green before and
+- `bash board/test/all.sh` — 82 suites, about twelve minutes. Green before and
   after.
   The last of them is Paper-Writer's own, run where it is checked out, so the
   factory's tests are part of the board's habit rather than a second one nobody
@@ -109,97 +109,150 @@ opened for any reason other than typing code a card told you to type is an
 evening this failed.** Everything in this section is a thing that still sends
 somebody to a keyboard.
 
-**A mission is finished work, and so is a document asked for from any sitting at
-all, corrected or overhauled without leaving the page it is on. All of that is
-Settled below.** Items 1 and 2 are both the answer panel and are independent of
-everything: 1 is which half of it opens and what is in the box, 2 is what the box
-renders, and 1 is first because it is the small one and is a complaint from a live
-sitting. Item 3 is the meeting deck, which reuses the library's reader and
-deliberately does NOT reuse its feedback route. Item 4 is the map, and the last
-part of it is a standing rule rather than a task. Item 5 is item 4's other half
-and must land after it, because the refactor renames the boxes its TODOs are
-attached to. Item 6 is the verdict a person can feel, and it settles a question
-item 8 has been holding open. Item 7 is the acceptance test of the mission and is
-also the job all of it exists for. Item 8 is not a build.
+**A mission is finished work, and so is a document asked for from any sitting
+at all, corrected or overhauled without leaving the page it is on, and so is
+which half of the answer panel a question opens on. All of that is Settled
+below.** Item 1 is first because it is a live complaint about something this
+file already claims is fixed, for the third time in the same words, and nothing
+else here is that. Item 2 is the rest of the answer panel — what the box
+renders while it is being typed in, and where a sent answer stays. Item 3 is the
+meeting deck, which reuses the library's reader and deliberately does NOT reuse
+its feedback route. Item 4 is the map, and the last part of it is a standing
+rule rather than a task. Item 5 is item 4's other half and must land after it,
+because the refactor renames the boxes its TODOs are attached to. Item 6 is the
+verdict a person can feel, and it settles a question item 8 has been holding
+open. Item 7 is the acceptance test of the mission and is also the job all of it
+exists for. Item 8 is not a build.
 
 ---
 
 ## What to do next
 
-### 1. The answer panel opens on the half you used last, and a typed box is never pre-filled
+### 1. The response types out, and the next board waits for ALL of it
 
-**The want, in their words:** *"the spot for the next user response defaults to
-the 'typed' response, even if the last response that I gave was a board-written
-one. The default that shows up should be whatever last one I used was. If I wrote
-last, a board should show up. If I typed last, a typing thing should show up."*
+**The report, from a live sitting, after two fixes that were believed:** *"I just
+submitted a written board response, and the recurring issue of the next written
+board appearing right below it, and then seconds later the entire tutor response
+spontaneously completely showing up in between the boards at once occured AGAIN.
+It should have been fixed so that the tutor response would show up character by
+character and then the next writing board wouldn't show up until AFTER the tutor
+response was COMPLETELY rendered."*
 
-And the second half, which is a different rule for each surface: *"Written board
-responses are preserved and carry over to the next writing board, as they should.
-But typed responses should not carry over — there's no way I'm going to type the
-same thing again. Writing it is pragmatic to have saved because I'm fixing a proof
-writeup or something; this is not the case with typing. All new typed input boxes
-should render empty."*
+**THE FIRST MOVE IS EVIDENCE, NOT A PATCH.** Two rendering faults here have
+already been diagnosed from a sentence and one of those diagnoses was WRONG —
+that is written into the comment above `trace` in `board.js`, and this report is
+what the wrong guess cost. The board records what it did for exactly this
+purpose: **☰ → what just happened**, with a copy button, the last 300 moves. It
+is in memory and per page load, so it is gone after a reload and has to be taken
+from the sitting it happened in. **Ask for it before writing a line of code**,
+and read it against this. And if that sitting is gone, one question to the owner
+settles the likeliest cause on its own: **is Reduce Motion on, on that iPad?**
 
-**Now, read off the code rather than guessed at.** `panelKind` already has the
-right SHAPE and a wrong last term. It asks three things in order: what was tapped
-on THIS question (`pickedKind[q]`), what this question was last answered with
-(`answering.latest.kind`), and then `answerKind()`. That third term reads
-`localStorage["answer-kind"]` and falls back to `"write"` — and `setAnswerKind`
-is called from `pickKind` and **nowhere else**. So what is remembered is the last
-TAB somebody pressed, not the last surface they actually answered on: press
-*type* once, answer in ink for a month, and every new question still opens on the
-box. That is the report, exactly.
+| the line | what it settles |
+|---|---|
+| no `fresh` line naming the reply's card | the card was never seen as new, so nothing was ever going to type it. The stamp is the card's key plus `":m"` and its rounded mtime; two writes inside one second collapse |
+| `skip why=already typed \| no body \| no units \| nothing to paint` | `typeOut` ran and declined, and says which of the four |
+| `whole why=reduced motion held=N` | Reduce Motion is ON on that device and the card was painted whole BY DESIGN. See below; this is the likeliest line and it makes this item a decision rather than a bug |
+| `type card=.. ms=.. chars=..` then `typed asked=N took=M` | it typed. `took` far above `asked` is a main thread that was away |
+| `stall late=N held=N` | the watchdog let go while the card was half painted: the surface came down, the next board arrived, and the rest appeared in one go. That is the reported shape, from its own cause |
+| `writer owed=.. hold=.. shut=.. at=..` | whether the hold was in force when the surface was placed, and which card it went under |
+| `reply cards=.. owed=.. agent=..` | whether the payload was recognised as a reply landing at all. `replyLanding` gates the settle, so no line here means no hold of any kind was taken |
 
-**(a) The remembered half is the one that was SENT.** Two send paths, both
-already in front of you: `say()` for the typed half, and the writer's `onSend`
-hook in `makeWriter` for the ink. Each records the kind it just sent, through
-`setAnswerKind`, in the same line that already runs there. The tab press keeps
-setting it too — a tap is a statement — but it stops being the *only* thing that
-does. Nothing else in `panelKind` moves: the two terms above it are per-question
-and both are right.
+**And the trace cannot say which CODE it came from, which is the other half of
+"it didn't work".** `board.js` is in `sw.js`'s `SHELL`, so an installed app
+serves its cached copy until `VERSION` moves, and nothing on the page says which
+shell is running. **Put that version in the trace panel's head and as the first
+line of the copied text** — it is what separates *the fix is wrong* from *the fix
+never reached the glass*, and `board-shell-v135` is what shipped with the answer
+panel. It has to come from the RUNNING page and not from the server: a server on
+new code serving a tablet that held on to an old shell is precisely the case
+being diagnosed, so a version the server reports would read correct in the one
+situation it is there to catch. `caches.keys()` answers it from the page, and the
+cache's name IS `VERSION`.
 
-**(b) The FIRST question of a sitting has no last, and the aim answers it.** Their
-rule: a sitting that might have them working something out opens on the board; a
-sitting where they are directing opens on the keyboard. *"If the AI mode is math
-teacher or code coaching, then it should be the board... If the AI mode is vibe
-coding, then it should be the keyboard."*
+**The likeliest cause, and `test/typed.js` currently asserts it as correct.**
+`typeOut` asks `prefers-reduced-motion: reduce`, and when it matches it paints
+the card WHOLE and takes a 250ms `TYPE_SETTLE` hold in place of the animation.
+That suite asserts it in its own window, in these words: *"with Reduce Motion on
+the card is painted whole and at once, which is what was asked for — the pacing
+is the flourish, not the hold"*. The report says the opposite. So if the trace
+says `whole why=reduced motion`, **the fix reverses that assertion**, and the
+reversal IS the item:
 
-**Do not write a second table for this.** `config.AIM_STANCE` already maps all
-seven aims onto exactly that split — `teach`, `coach`, `trace` and `drill` are
-`"teach"`; `build`, `paper` and `slides` are `"do"` — which reproduces all three
-of their answers and gives a principled one for the four they did not name. And
-it is already resolved and already on the glass: `hub.build` puts
-`config.stance_for`'s answer in the payload as `state.stance_now`. So the fallback
-inside `answerKind` is one field: `"do"` opens the box, anything else opens the
-board. A localStorage value written on another workspace's sitting must not
-outrank it — this is the FIRST question, there is no last half, and the sitting's
-own aim is a better answer than a month-old tap made somewhere else.
+- **Decide it once and write the rule down.** The owner has now asked three
+  times, in their own words, for the response to arrive character by character.
+  An explicit request about one animation outranks a system-wide default about
+  movement, and Reduce Motion goes on governing everything else on the page —
+  the card's entry slide, the settle, the reveal. Do not compromise by
+  shortening the animation: a faster dump is still a dump.
+- With the animation on for everybody, the `!ms` branch of `typeOut` stops being
+  the Reduce Motion branch. What is left of it is the card with nothing to type,
+  which is a different case and already has its own `skip` lines.
 
-**(c) A new typed box renders empty, and the ink's carry-over gets no typed
-twin.** Three things can put text in `#saybox` and they are not equal:
+**Then the hold itself, and this is the part no suite reaches.** Read off the
+code, not assumed:
 
-- `restoreTextDraft` loads `textDrafts[answering.question]` — what they typed
-  against THIS question and did not send, kept per question and persisted so it
-  survives a reload. **Keep it.** That is not carrying over; that is not losing
-  work.
-- `restoreTextAnswer` loads the question's last SENT typed answer back into the
-  box and sets `correctingTurn`. **This is the one to move.** Item 2 wants that
-  answer visible as a rendered block above the box rather than as raw source
-  inside it, and a tap on that block is what loads it back for correction. Until
-  6 lands, the box is still where a correction is made — so this is a decision
-  about ORDER, not a thing to delete blind: either take 6 first and let it move
-  the answer out of the box, or leave `restoreTextAnswer` alone here and say so.
-- `paintCarry`/`carryOver` is the ink's *carry over from question N* control.
-  There is no typed equivalent and there must not be one. Say that where the
-  next person would go looking for it.
+- **`placeWriter` holds two different ways and only one of them is tested.**
+  `writerHeldShut = hold && owed && els.writer.hidden` holds shut a surface that
+  is NOT YET OPEN, which is the case `test/typed.js` drives. **An ink send always
+  leaves the surface open**, so the reported flow takes the other branch: the
+  surface moves down only as far as the first node after it whose body carries
+  `.body.typing`.
+- **`.body.typing` is set only on the animated path.** The `!ms` branch returns
+  before `body.classList.add("typing")`, so on any path that paints a card
+  without typing it the open-surface branch finds nothing to hold against,
+  `below` is null, and the only hold is the settle. A hold that depends on a
+  class the animation happens to set is lost by every path that does not
+  animate. `settleTimer` is already a per-frame hold and is the shape to copy.
+- **A fresh card is appended BELOW the surface.** `reconcile` steps over the
+  unkeyed `#writer` and inserts new nodes before `cursor`, which is null at the
+  end of the lesson. So while a card types, the order is receipt, surface, card,
+  and the surface comes down under it in one move when the last character lands
+  (`typeOut`'s `finish` calls `releaseTyping`, which renders once more). With no
+  hold in force the surface goes straight to `questionNode.nextSibling`, which
+  puts the card between the two boards. **That is the geometry the report
+  describes** — a hint, not a diagnosis.
+- **The watchdog can let go mid-card.** `TYPE_STALL` is 2500ms of silence, pushed
+  out by every frame, and `keepTyping` already traces `stall` when a frame
+  arrives after the deadline. On a tablet with a figure decoding that is
+  reachable, and when it fires the board jumps in exactly the reported way.
 
-**Check.** `test/typed.js` owns the answer panel and `test/mine.js` owns what
-happens to an answer after it is sent. Assert: an ink answer sent on question 1
-opens question 2 on the board even with `localStorage["answer-kind"]` set to
-`type`, and a typed answer opens the next one on the box; the first question of a
-sitting with `stance_now: "do"` opens on the box and one with `"teach"` opens on
-the board, whatever localStorage holds; a tab press still wins on the question it
-was pressed on; and a question with no draft of its own opens with an empty box.
+**Decide, deliberately:**
+
+1. **Reduce Motion**, as above: who wins for this one animation, written down
+   where `typeOut` reads the query.
+2. **Whether the hold stays a DOM-class question.** A per-frame hold cannot be
+   lost by a path that skips the animation. Changing it touches every reason a
+   card can arrive un-animated, which is why it is a decision and not a
+   tidy-up.
+3. **What a stall should do.** Letting go beats parking the surface for ever —
+   that is right and is written where `TYPE_STALL` is defined — but letting go
+   currently means the board jumps. Finishing the card whole AND keeping the
+   settle would hold the ORDER even when the pacing is lost.
+
+**What to assert, and the gap is structural: no suite drives the reported
+flow.** `test/interactive.js` presses the real `.sl-send` with real strokes and
+never delivers a reply; `test/typed.js` delivers replies as frames and never
+sends anything. The fault lives in the seam between them.
+
+- **One window, the whole flow:** strokes on the canvas, `.sl-send` pressed, the
+  payload the send provokes carrying the student's ink turn, then the payload
+  carrying the reply card and the next question. Assert that the reply is typed
+  (`.tw-soon` present, `.tw-said` shorter than the body), that the surface is
+  not under the new question until the last character lands, and that no dormant
+  photograph is painted where it stands.
+- **The same flow with `matchMedia` stubbed to reduce motion.** jsdom has none,
+  so every other suite in this repository runs with the animation ON, and that
+  is why this has never been caught by a test. `test/typed.js` already builds
+  such a window; reuse the pattern rather than a third one.
+- **A stall:** stop the frames mid-card, push past `TYPE_STALL`, and assert
+  whichever answer decision 3 took. Not found from the iPad a fourth time.
+- `test/typed.js`'s doing-sitting overwrite assertions stay as they are: a card
+  written over is a different path and is not what this item is about.
+
+**And it is not done until it has been seen on the glass.** A written answer sent
+in a real sitting, with the reply arriving. The suite can assert the order; only
+the device can say whether it reads as one event or two.
 
 ### 2. The answer box renders as it is typed, and what was sent stays where it was typed
 
@@ -284,10 +337,11 @@ mathematics and prose rather than as source, and the box under it is empty and
 ready for the next thing. A second answer pushes the first up, the way a second
 page of ink gets a second board.
 
-*And item 1(c) is waiting on exactly this.* The box is pre-filled with the last
-sent answer today because the box is the only place a correction can be made.
-Moving the answer to a block above it is what lets the box be empty, which is the
-rule item 1 states and cannot finish on its own.
+*And the panel's other half has been waiting on exactly this.* The box is
+pre-filled with the last sent answer today because the box is the only place a
+correction can be made, so `restoreTextAnswer` stays where it is until there is
+somewhere else to put the answer. Moving it to a block above the box is what
+lets the box open empty every time.
 
 *And this is the same build as (a), not a second one.* One rendered block above
 the box: a **preview** of what is being typed before the send, and the **record**
@@ -891,6 +945,26 @@ as the answer.
 
 ## Settled, so nobody re-derives it
 
+- **The answer panel opens on the half an answer was last SENT on, and a typed
+  box only ever holds what was typed against the question it sits under.**
+  `setAnswerKind` runs from both send paths — `say` for the words, the writer's
+  `onSend` for the ink — and from a tab press as well, because a tap is a
+  statement; what it writes is stamped with the sitting (`sittingTag`: the course
+  and `opened`), so a half remembered in another workspace names no sitting here
+  and is ignored. Per-question answers still outrank it, in this order: a tab
+  press on THIS question, then what this question was answered with, then the
+  remembered half. **The first question of a sitting has no last half, so its aim
+  answers it** — `answerKind` falls back to `doingTurn`, which opens the box in
+  a sitting that does the work and the board in one that teaches. That is the
+  board's one map from aims onto surfaces and must not grow a second.
+  **Ink carries over from question to question on request and typing never
+  does:** `carryOver` has no typed twin and must not be given one — *"there's no
+  way I'm going to type the same thing again."* A new box opens empty apart from
+  an unsent draft typed against that question, which is kept per question and
+  survives a reload. `restoreTextAnswer` still loads a SENT typed answer back
+  into the box on the question it belongs to, because the box is the only place
+  a correction can be made until item 2 puts the answer in a block above it.
+  `test/half.js` is the suite.
 - **A document is corrected, or overhauled, without leaving the page it is on.**
   Three things used to answer *no* to that and each was a missing piece rather
   than a missing mechanism.
