@@ -270,7 +270,12 @@
      arriving early. -->
 <aside id="trace" hidden>
   <div class="scratch-head">
-    <strong>What just happened</strong>
+    <!-- WHICH SHELL IS RUNNING, read from the page's own cache rather than from
+         the server: an installed app serves its cached `board.js` until `sw.js`'s
+         VERSION moves, so "the fix is wrong" and "the fix never reached the
+         glass" are the same sentence from a chair, and a version the server
+         reported would read correct in exactly that case. -->
+    <span><strong>What just happened</strong><span id="trace-shell" class="muted"></span></span>
     <span class="head-acts"><button id="trace-copy" type="button">copy</button><button id="trace-close" type="button">✕</button></span>
   </div>
   <div id="trace-list"></div>

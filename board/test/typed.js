@@ -69,6 +69,10 @@ window.fetch = (u) => (/slate\/state/.test(String(u))
 window.renderMathInElement = () => {};
 window.requestAnimationFrame = (fn) => setTimeout(fn, 0);
 window.scrollTo = function () {};
+// The shell the page is RUNNING is the cache's own name, and an installed app
+// answers it about itself. The name here is a fixture: what is asserted is that
+// the panel reads it off the page, not which version shipped today.
+window.caches = { keys: () => Promise.resolve(['katex-fonts', 'board-shell-vTEST']) };
 window.addEventListener('error', (e) => fail('uncaught: ' + e.message));
 window.EventSource = function () {
   window.__es = this;
@@ -219,19 +223,21 @@ await sleep(2800);            // past TYPE_MIN and past this card's own time
 
 // ------------------------- AND WITH REDUCE MOTION ON, WHICH IS WHERE IT BROKE
 //
-// Reported after all of the above was shipped and believed: "the next board
-// showed up over the yellow pulsing 'working on response' indicator, and then
-// the AI response just all showed up at once between the boards."
+// Twice. First the hold: with `prefers-reduced-motion: reduce` the card was
+// painted whole and that branch returned WITHOUT TAKING ONE, so the surface came
+// down beside a card that had appeared in the same breath.
 //
-// The hold and the animation are two different things and one branch treated
-// them as one. With `prefers-reduced-motion: reduce` the card is painted whole
-// -- which is right, the pacing is a flourish and they asked for less movement
-// -- and that branch returned WITHOUT TAKING A HOLD. So the surface came down
-// beside a card that had appeared in the same breath.
+// Then the whole reading of it. This file used to assert that painting the card
+// whole was correct for somebody who had asked for less movement -- "the pacing
+// is the flourish, not the hold" -- and the owner reported the same fault a
+// third time in their own words: "it should have been fixed so that the tutor
+// response would show up character by character." An explicit request about ONE
+// animation outranks a system-wide default about movement, so Reduce Motion is
+// no longer consulted here at all, and this window asserts the reversal.
 //
-// And no suite saw it, because jsdom has no `matchMedia`: every test in this
-// repository runs with the animation on. This one asks for it off, in its own
-// window, which is the only honest way to assert the branch.
+// No suite saw either fault, because jsdom has no `matchMedia`: every other test
+// in this repository runs with the animation on. This one asks for it off, in
+// its own window, which is the only honest way to assert the branch.
 {
   const dom2 = new JSDOM(fs.readFileSync(path.join(WEB, 'board.html'), 'utf8'), {
     runScripts: 'outside-only', pretendToBeVisual: true,
@@ -304,15 +310,16 @@ await sleep(2800);            // past TYPE_MIN and past this card's own time
   await sleep(5);           /* the frame the records land on, before any rAF */
 
   d2.querySelector('[data-card="0002"] .body')
-  && !/tw-soon/.test(d2.querySelector('[data-card="0002"] .body').innerHTML)
-    ? ok('with Reduce Motion on the card is painted whole and at once, which is '
-         + 'what was asked for — the pacing is the flourish, not the hold')
-    : fail('the card is being animated for somebody who asked for less movement');
+  && /tw-soon/.test(d2.querySelector('[data-card="0002"] .body').innerHTML)
+    ? ok('with Reduce Motion ON the card is STILL typed, because the owner asked '
+         + 'for that one animation by name and this is the reversal')
+    : fail('the card was painted whole for a device with Reduce Motion on, which '
+           + 'is the report arriving for the third time');
 
   at2('writer') < at2('0003') && at2('0003') !== -1
     ? ok('AND THE SURFACE HAS NOT COME DOWN under the new question on that '
-         + 'frame, because the hold is taken whether or not there is an '
-         + 'animation to wait for')
+         + 'frame, because the hold is taken on the frame the reply lands and '
+         + 'not on the first animation frame after it')
     : fail('the next board arrived in the same breath as the answer, which is '
            + 'the reported glitch: the hold was the animation');
 
@@ -327,7 +334,8 @@ await sleep(2800);            // past TYPE_MIN and past this card's own time
          + 'the pulse staying up until there is something to read')
     : fail('nothing says the answer is on its way: "'
            + d2.getElementById('sent-text').textContent + '"');
-  await sleep(500);
+  await sleep(4600);       /* this card's whole typing time, now that it types:
+                              480 characters is capped at TYPE_ALL */
   d2.getElementById('sent').hidden
     ? ok('and lets go a moment later, so nothing is held for longer than the '
          + 'order requires')
@@ -404,6 +412,31 @@ await sleep(2800);            // past TYPE_MIN and past this card's own time
     ? ok('and it says up front whether anything in it looks wrong')
     : fail('the summary says nothing: "'
            + doc.getElementById('trace-said').textContent + '"');
+
+  // AND WHICH CODE IT CAME FROM, WHICH IS THE OTHER HALF OF "IT DIDN'T WORK".
+  // `board.js` is cached by the service worker, so an installed app serves its
+  // own copy until `VERSION` moves: a report of a fault that did not work has to
+  // be able to say whether the fix ever reached the glass. Read from the page's
+  // cache and never from the server, because a server on new code serving a
+  // device holding an old shell is the case it exists to catch.
+  /board-shell-vTEST/.test(doc.getElementById('trace-shell').textContent)
+    ? ok('and the panel names the shell the page is RUNNING, off its own cache')
+    : fail('nothing says which shell is on the glass: "'
+           + doc.getElementById('trace-shell').textContent + '"');
+  {
+    let copied = null;
+    Object.defineProperty(window.navigator, 'clipboard', {
+      value: { writeText: (t) => { copied = t; return Promise.resolve(); } },
+      configurable: true,
+    });
+    doc.getElementById('trace-copy').onclick(
+      { currentTarget: doc.getElementById('trace-copy') });
+    await sleep(20);
+    copied && /board-shell-vTEST/.test(String(copied).split('\n')[0])
+      ? ok('and the copied text says it on its FIRST line, before a single move')
+      : fail('the pasted report does not name the shell: "'
+             + String(copied).split('\n')[0] + '"');
+  }
 
   // THE ONE IT EXISTS FOR. A frame arriving after the watchdog deadline means
   // the main thread was away longer than `TYPE_STALL`, so the hold was released

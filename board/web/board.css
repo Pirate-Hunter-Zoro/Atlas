@@ -511,9 +511,10 @@ body.annotating #btn-annotate { background: var(--ask); color: #fff; border-colo
    so the card grew by a paragraph at every step and shoved the lesson down with
    it. A clip is a rectangle and text does not arrive in rectangles.
 
-   Nothing here for reduced motion: `typeOut` reads the preference itself and
-   types nothing at all, because the pacing IS the effect and there is no
-   quieter version of it to offer. */
+   Nothing here for reduced motion, and nothing in `typeOut` either: the owner
+   asked three times for the response to arrive character by character, and an
+   explicit request about one animation outranks a system-wide default about
+   movement. Reduce Motion still governs the rest of the page. */
 .tw-soon { visibility: hidden; }
 
 .card-head {
@@ -1825,6 +1826,7 @@ body.papering .annbar { z-index: 96; }
 #trace-list .tr[data-what="stall"] { color: var(--bad); }
 #trace-list .tr[data-what="stall"] .tr-what { color: var(--bad); }
 #trace-list .tr[data-what="skip"] { color: var(--ask); }
+#trace-shell { margin-left: .5rem; font: 400 .72rem var(--mono); }
 #trace-copy { border: 0; background: none; font: inherit; cursor: pointer;
               color: var(--accent); }
 
