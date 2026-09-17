@@ -437,6 +437,15 @@ else
   printf '%s\n' "$out" | grep '^FAIL' | sed 's/^/             /'
 fi
 
+printf '%-12s ' "perpetual"
+if out="$(python3 test/perpetual.py 2>&1)"; then
+  printf '%s\n' "$out" | tail -1
+else
+  fails=$((fails + 1))
+  echo "FAILED"
+  printf '%s\n' "$out" | grep '^FAIL' | sed 's/^/             /'
+fi
+
 # THE OTHER HALF OF THE DOCUMENT SEAM. `manuscript.job` writes `## Revision` and
 # `## Delivery`; `jobspec.revision` and `jobspec.landing` read them. `revising.py`
 # checks that direction. Nothing checked the reverse: a change to a field name in
