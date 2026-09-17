@@ -39,7 +39,7 @@ section.
 **`projects/libr-local-llm` has its own handoff and it is still the live one.**
 The five pieces it asked for against the board are shipped and are under
 *Settled* below; what is left in that file is the diarization job itself, which
-is item 5 here.
+is item 6 here.
 
 ---
 
@@ -57,9 +57,10 @@ somebody to a keyboard.
 
 **Items 2, 3 and 4 are one piece of work** — a *mission* — and they land in that
 order: a mission cannot be told to ship itself before it is a record, and it
-cannot be a record before the board knows which workspaces are fenced. Item 1 is
-independent and is the smallest, so start there. Item 5 is the acceptance test of
-2, 3 and 4 and is also the job all of it exists for. Item 6 is not a build.
+cannot be a record before the board knows which workspaces are fenced. Items 1
+and 5 are independent of that and of each other; item 1 is the smallest, so start
+there. Item 6 is the acceptance test of 2, 3 and 4 and is also the job all of it
+exists for. Item 7 is not a build.
 
 ---
 
@@ -229,7 +230,107 @@ is one more thing that can be wrong. Take it deliberately.
 a remote, and this is the same failure one step earlier. A fixture diff carrying a
 transcript line must be refused, and the refusal must name the file.
 
-### 5. Put colibrì on the diarization repair, which is what all of the above is for
+### 5. A document is corrected, or overhauled, without leaving the page it is on
+
+**The want, and it was asked as a question:** *"let's say I'm working in
+PSYCH-ASR, and want to view the presentation on stage2. That presentation needs
+an overhaul now that we plan to use colibrì. But can I view it in a slick UI very
+easily, and complain to the tutor/agent about things about it that need to be
+fixed, and will the tutor just fix, recompile, and make that fix and it'll appear
+right in front of me?"*
+
+**Most of that chain already answers yes, and it was checked rather than
+assumed.** `/library` finds that deck — `docs-stage2-reference-walkthrough`, *Did
+the Computer Hear It Right?*, 33 pages, `.pdf` beside `.tex`, not stale — and the
+fence does not catch it, because `fenced.NEVER` matches a DIRECTORY named
+`stage2` and this is a stem in `docs/`. It reads in the same rasteriser the board
+uses, takes ink, and `POST /library/feedback` writes the note and dispatches the
+revision in the same request. It is not a Paper-Writer document, so the board
+takes it: a `[revise]` line, a fresh turn that writes no card, and
+`HEADLESS_REVISE_PROMPT` telling it to edit the source **and rebuild the PDF**,
+which the tutor's own grants allow.
+
+**Three things answer no, and each is a missing piece rather than a missing
+mechanism.**
+
+**(a) It does not appear in front of you.** `library.js` does not poll: `load()`
+runs after a send and on `visibilitychange`, and the open reader never re-fetches
+at all. The render cache is keyed on the PDF's modification time — `paper._digest`
+— so a re-fetch WOULD get the new pages. Nothing asks for one.
+
+*Want.* The page says a revision is in flight, and re-draws when it lands.
+`test/hanging.js`'s charter is *"nothing the reader can be waiting on is allowed
+to be silent"*, and this page has no version of it: you send, and the only thing
+that ever changes is a line saying the note was filed.
+
+*Where, and do not reach for the stream.* A stamp, not a subscription:
+`GET /library/stamp` returning one hash of every document's `rel`, mtime and size
+is cheap enough to ask every few seconds while the page is visible, where
+`/library.json` walks the workspace and reads titles out of sources (cached 30 s
+in `CACHE_SECONDS`). **Do not put the hub's SSE payload on this page.** It opens
+no sitting on purpose, and that payload is the lesson's.
+
+*And the reader keeps the reader's place.* `read(doc)` sets
+`els.readerPages.scrollTop = 0` and rebuilds every page. A re-draw that throws a
+33-page deck back to page 1 after a one-line fix is its own defect.
+
+*Decide: what happens to the ink.* Marks are keyed `doc/<id>/p<n>` and come back
+with the pages through `library.ink`. After a correction that is right. After an
+overhaul that reflows the deck, the ink on page 7 is about something that is no
+longer on page 7. Either it is cleared when the page count moves, or it is kept
+and the page says out loud that it was drawn on an older version. Both are
+defensible; choosing by accident is not.
+
+**(b) You cannot read what it says it changed.** The turn appends
+`## What was changed` to the feedback file, which is the answer to *did it do what
+I asked* — and `library.notes` returns names, sizes and dates, not a word of the
+contents. So the page can say a document has had three rounds and cannot say what
+any of them did, and the record lives in a file the iPad cannot open.
+
+*Want.* `GET /library/note/<id>/<name>`, and the rounds already listed under each
+document become readable. An id and a name matched against what `library.notes`
+found, never a path from the browser — the rule the rest of that route follows.
+
+**(c) An overhaul is refused by design, and that refusal is correct.**
+`HEADLESS_REVISE_PROMPT` says to keep the document's structure, its names for
+things and its claims: *"Do not start it again and do not widen it."* That is
+exactly right for a correction and exactly wrong for *"that presentation needs an
+overhaul now that we plan to use colibrì."* There is no second ask, so the only
+route to an overhaul today is a terminal.
+
+*Want.* Two asks from one panel. **Fix this** is what exists. **Rework it** is
+new: the same feedback file and the same record, a `[rework]` signal, and a
+prompt that may restructure, cut, reorder and rewrite. It requires a sentence
+saying what the document is now FOR, which is `/direction`'s shape one level
+down — an overhaul with no new purpose in it is a rewrite for its own sake.
+
+Two things a rework must do that a revision does not:
+
+- **Stay a library turn.** No card, no sitting, no `state.json`. The charter of
+  this page is that correcting a deck cannot interrupt somebody's proof, and an
+  overhaul is a longer turn rather than a different kind of interruption. **Do
+  not route it through a `make` sitting:** every path into one calls `board
+  open`, which archives the lesson.
+- **Commit the source before it starts.** An overhaul replaces thirty-three pages
+  and git is the only undo there is. `docs/*.tex` is tracked, so one commit of
+  the source before the turn touches it makes the whole overhaul one diff. A
+  rework against an uncommitted source is refused by name, the way
+  `worktree.busy_reason` refuses a push mid-rebase.
+
+**Check.** `test/library.py` owns discovery and the note; `test/revising.py` owns
+which machinery takes which document. Assert: the stamp moves when a PDF is
+rebuilt and not otherwise; a re-draw keeps the page the reader was on; `## What
+was changed` is readable through the route and a name that is not in
+`library.notes` is refused; a `[rework]` line reaches the inbox carrying the new
+purpose, and the prompt that turn is given does **not** contain the do-not-widen
+sentence; and a rework against an uncommitted source is refused rather than
+started.
+
+**And the half no test reaches:** whether that reader is in fact *slick* on a
+tablet. It is two taps from the board — `▤ library · papers & decks` in the bar
+menu — and no person has read a real document on it. That is item 7.
+
+### 6. Put colibrì on the diarization repair, which is what all of the above is for
 
 It is now the acceptance test of items 2, 3 and 4 as well as the job that has
 been waiting since before any of this existed. **The ask, the scoring and the
@@ -254,7 +355,7 @@ Three things about running it that are the board's rather than that file's:
 `research/PSYCH-ASR/HANDOFF.md` holds the *teaching* thread on the same code; it
 is a different conversation and the two do not merge.
 
-### 6. And the three things no test can hold
+### 7. And the three things no test can hold
 
 None of these is a build. Each is an evening in front of the thing.
 
@@ -266,15 +367,15 @@ None of these is a build. Each is an evening in front of the thing.
   bubble that did not need one. Both are one line to remove —
   `.mine[data-verdict]` in `board/web/board.css`, and the `nth` clause in
   `render`.
-- **One document, all the way round.** Open a `paper` sitting on a box, let it
-  write into `writeups/<slug>/`, compile it, open `/library`, read it on the
-  glass, draw on it, and say something is wrong with it. Every seam under that is
-  covered end to end (`test/library.py`, `test/revising.py`, `test/writing_up.py`,
-  and the factory's `tests/test_pipeline.py` and `tests/test_revision.py`). What
-  is not: the explainer rule against a model, the revision turn against a model,
-  and ink that a person actually drew — the marks route is tested with fixture
-  strokes, which is not a ring round a figure at 200% zoom on an iPad, and the
-  library's own pen has never met a stylus.
+- **One document, all the way round** — item 5 is the build; this is the evening.
+  Open a `paper` sitting on a box, let it write into `writeups/<slug>/`, compile
+  it, open `/library`, read it on the glass, draw on it, and say something is
+  wrong with it. Four things no suite reaches: **the explainer rule against a
+  model**, **the revision turn against a model**, **ink a person actually drew** —
+  the marks route is tested with fixture strokes, which is not a ring round a
+  figure at 200% zoom on an iPad, and that page's pen has never met a stylus —
+  and **whether the reader is any good**, which is the one word in the question
+  item 5 came from that no amount of code answers: *slick*.
 - **The three teaching rules that were asked for out loud**, all of them
   instructions rather than mechanisms: the question restated under the definition
   list so it is the last thing above the board, the write-up compiled problem by
