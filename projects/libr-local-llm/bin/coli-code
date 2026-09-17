@@ -6,7 +6,14 @@
 #   coli-code "fix the failing test"   # one-shot, no TUI
 #   coli-code -a opencode              # the other front end
 #   coli-code --yes "..."              # do not stop to ask about each tool call
+#   coli-code -c "and now the tests"   # continue the session already open
 #   coli-code --instructions           # carry the repository's CLAUDE.md in too
+#
+# -c is not a nicety on this model, it is the whole cost argument. The client's
+# preamble is 15,900 tokens and prefill runs at a few tokens a second, so a fresh
+# session is two to three hours before the first word; a continued one reuses the
+# KV prefix and starts answering. Anything driving this in turns -- the tutor
+# board's headless daemon, most obviously -- must continue rather than reopen.
 #
 # The endpoint is loopback-only on the serving node, so the client has to run
 # there. This steps into the existing allocation with `srun --overlap` rather
@@ -19,6 +26,7 @@ _self="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd -P)"
 AGENT=claude
 WORKDIR="$PWD"
 YES=""
+CONTINUE=""
 INSTRUCTIONS=""
 while [ $# -gt 0 ]; do
     case "$1" in
@@ -26,6 +34,7 @@ while [ $# -gt 0 ]; do
         -d|--dir)    WORKDIR="$2"; shift 2 ;;
         -p|--port)   COLI_PORT="$2"; shift 2 ;;
         --yes)       YES=1; shift ;;
+        -c|--continue) CONTINUE=1; shift ;;
         --instructions) INSTRUCTIONS=1; shift ;;
         -h|--help)   awk 'NR>1 && /^#/ { sub(/^# ?/, ""); print; next } NR>1 { exit }' "$0"; exit 0 ;;
         --)          shift; break ;;
@@ -146,6 +155,10 @@ SEED
     )
     CLI=(claude)
     [ -n "$YES" ] && CLI+=(--dangerously-skip-permissions)
+    # The session store is already per-agent under $COLI_SESSION_ROOT and
+    # CLAUDE_CONFIG_DIR points at it, so there is nothing to wire here: the
+    # client finds its own last conversation in the directory it was given.
+    [ -n "$CONTINUE" ] && CLI+=(--continue)
     if [ -n "$MESSAGE" ]; then CLI+=(-p "$MESSAGE"); fi
 else
     ENVS=(
@@ -176,7 +189,12 @@ else
 }
 JSON
     CLI=(opencode)
-    if [ -n "$MESSAGE" ]; then CLI+=(run -m "colibri/${COLI_MODEL_ID}" -- "$MESSAGE")
+    if [ -n "$MESSAGE" ]; then
+        CLI+=(run)
+        # `-c` on `run`, and only there: continuing is a property of a
+        # non-interactive turn. The TUI opens on its own last session already.
+        [ -n "$CONTINUE" ] && CLI+=(-c)
+        CLI+=(-m "colibri/${COLI_MODEL_ID}" -- "$MESSAGE")
     else CLI+=(-m "colibri/${COLI_MODEL_ID}"); fi
 fi
 
