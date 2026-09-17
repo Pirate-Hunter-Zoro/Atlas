@@ -284,6 +284,7 @@
   <div id="elsewhere-list"></div>
   <div class="scratch-foot">
     <div id="elsewhere-who" class="elsewhere-who"></div>
+    <div id="elsewhere-fence" class="elsewhere-fence" hidden></div>
     <textarea id="elsewhere-task" rows="3"
               placeholder="what should it do there?"></textarea>
     <div id="elsewhere-said" class="elsewhere-said"></div>
@@ -444,8 +445,13 @@
        could be reached from a tablet: a flag on a command line, a file that is a
        statement about the workspace for ever, a hostname, and a default. -->
   <span id="kind-who" class="kind-who" hidden>
-    <span class="kind-who-lead">who:</span>
+    <span id="kind-who-lead" class="kind-who-lead">who:</span>
     <span id="kind-who-ways"></span>
+    <!-- AND WHETHER THIS WORKSPACE HOLDS A FENCE. The row is drawn for this
+         even where there is nothing to choose between: a box holding session
+         content that no assistant on this machine may read is the one case
+         where the absence of a choice is the thing worth saying. -->
+    <span id="kind-who-fence" class="kind-who-fence" hidden></span>
     <span id="kind-who-note" class="kind-who-note"></span>
     <button id="kind-who-up" type="button" hidden>start the server</button>
   </span>

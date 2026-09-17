@@ -93,59 +93,26 @@ opened for any reason other than typing code a card told you to type is an
 evening this failed.** Everything in this section is a thing that still sends
 somebody to a keyboard.
 
-**Items 1, 2 and 3 are one piece of work** — a *mission* — and they land in that
-order: a mission cannot be told to ship itself before it is a record, and it
-cannot be a record before the board knows which workspaces are fenced. Item 4 is
-independent of all three, and is where a document is corrected; item 5 is where
-a lesson turns into one, so those two are worth reading together. Item 6 is the
-answer box and is independent of everything. Item 7 is the meeting deck, which
-reuses item 4's reader and deliberately does NOT reuse its feedback route. Item 8
-is the map, and the last part of it is a standing rule rather than a task. Item 9
-is item 8's other half and must land after it, because the refactor renames the
-boxes its TODOs are attached to. Item 10 is the verdict a person can feel, and it
-settles a question item 12 has been holding open. Item 11 is the acceptance test
-of 1, 2 and 3 and is also the job all of it exists for. Item 12 is not a build.
+**Items 1 and 2 are one piece of work** — a *mission* — and they land in that
+order: a mission cannot be told to ship itself before it is a record. Item 3 is
+independent of both, and is where a document is corrected; item 4 is where a
+lesson turns into one, so those two are worth reading together. Items 5 and 6
+are both the answer panel and are independent of everything: 5 is which half of
+it opens and what is in the box, 6 is what the box renders, and 5 is first
+because it is the small one and is a complaint from a live sitting. Item 7 is
+the meeting deck, which reuses item 3's reader and deliberately does NOT reuse
+its feedback route. Item 8 is the map, and the last part of it is a standing
+rule rather than a task. Item 9 is item 8's other half and must land after it,
+because the refactor renames the boxes its TODOs are attached to. Item 10 is the
+verdict a person can feel, and it settles a question item 12 has been holding
+open. Item 11 is the acceptance test of 1 and 2 and is also the job all of it
+exists for. Item 12 is not a build.
 
 ---
 
 ## What to do next
 
-### 1. The board must know which workspaces hold a fence, and say so before the tap
-
-**The want:** *"if I'm in PSYCH-ASR on the iPad, we should know that there is a
-phi folder that I can't let claude or any outsourced AI model see."*
-
-**Now.** The fence is real and it is per-PATH. `ai-config/policy/phi.py` answers
-`names_phi(text)` and `bash_is_blocked(command)`; the per-assistant adapters in
-`ai-config/adapters/` translate a tool call into one of those two; and
-`tutorboard/fenced.py` is the list of directory names nothing in the board may
-point at, read by `course/reading.py` and `manuscript.py`. All of that holds.
-
-**What is missing is per-WORKSPACE and it is a question about what a person can
-see.** Nothing anywhere says *this workspace holds fenced content, and one
-assistant on this machine may read it*. So the `who:` row offers `claude` and
-`colibri` side by side in PSYCH-ASR exactly as it does in Galois-Theory, and the
-only thing standing between a tap and a hosted model reaching for session
-content is a hook the person cannot see.
-
-**Want.** A workspace says whether it holds a fence, and the chooser says which
-assistant may read it. `fenced.NEVER` is the list and the answer is a directory
-walk one level deep, which is what `machines.workspaces` already does.
-
-**Decide, and do not take the easy half.** Refusing a hosted assistant outright
-in a fenced workspace is the wrong answer and must not be written: the teaching
-thread on that same code is a hosted conversation today and works, because the
-fence stops it reading `phi` rather than stopping it existing. What is owed is
-**visibility plus a default**: the row says the workspace is fenced and names the
-one assistant that may read it, the mission dispatcher defaults to that one
-there, and a hosted pick carries a line saying what it will not be able to open.
-The protection stays where it is.
-
-**Check.** `board/test/colibri.py` owns the registry half; the fence half
-belongs beside `test/plan.py`'s fenced-document case, which already asserts that
-a document inside a fenced directory is offered nowhere.
-
-### 2. A mission is a thing, and closing the iPad does not end it
+### 1. A mission is a thing, and closing the iPad does not end it
 
 **The want:** *"when I put colibri or anything on a mission, just because I close
 the iPad doesn't mean that should end. Next time I open the iPad and access the
@@ -191,7 +158,7 @@ serving a different workspace; a mission whose daemon has gone reads as failed
 rather than as running; and a mission that has landed a card reads as done and
 comes off the list when it is looked at.
 
-### 3. A mission can be told to ship itself, and the diff is checked before it goes
+### 2. A mission can be told to ship itself, and the diff is checked before it goes
 
 **The want:** *"when I put anything on a mission, I should have the option to tell
 it to ship its changes once it is done - I don't know if colibri is capable of
@@ -210,7 +177,7 @@ model's: it decodes at three tokens a second and it is the one assistant that ca
 read `phi`. So when a colibrì mission finishes, the workspace's ORDINARY tutor is
 woken with the mission's own report and ships it — a hosted turn, a second pair
 of eyes on a local model's work, and a turn that cannot read the session data
-itself. The signal mechanism is the same one item 2 uses, and the one `/handover`
+itself. The signal mechanism is the same one item 1 uses, and the one `/handover`
 already runs on.
 
 **AND THE CHECK THAT DOES NOT EXIST YET, which is the sharp end of this.**
@@ -229,13 +196,16 @@ read it.
 
 **Decide.** Whether the refusal is per-workspace or everywhere. Everywhere is
 cheaper to reason about and costs a regex over a diff; per-workspace is faster and
-is one more thing that can be wrong. Take it deliberately.
+is one more thing that can be wrong. Take it deliberately. *"Does this workspace
+hold a fence"* is answered by `fenced.holds` now, so per-workspace is a lookup
+rather than a second walk — which removes a cost from that side of the decision
+and none of the risk.
 
 **Check.** `test/tracked.py` is the suite that already exists to stop PHI reaching
 a remote, and this is the same failure one step earlier. A fixture diff carrying a
 transcript line must be refused, and the refusal must name the file.
 
-### 4. A document is corrected, or overhauled, without leaving the page it is on
+### 3. A document is corrected, or overhauled, without leaving the page it is on
 
 **The want, and it was asked as a question:** *"let's say I'm working in
 PSYCH-ASR, and want to view the presentation on stage2. That presentation needs
@@ -335,7 +305,7 @@ started.
 tablet. It is two taps from the board — `▤ library · papers & decks` in the bar
 menu — and no person has read a real document on it. That is item 6.
 
-### 5. Any sitting can be asked for a paper OR a deck of what it covered, at any moment
+### 4. Any sitting can be asked for a paper OR a deck of what it covered, at any moment
 
 **The want, and it was asked as a question:** *"let's say I open up libr-local-llm
 and I want to learn how colibrì works. Can I have a tutoring session where I'm
@@ -417,7 +387,7 @@ sections on the board one at a time, because there the document IS the evening;
 that stays exactly as it is, for a paper and for a deck. One asked for
 **alongside** a lesson must not push the lesson off the glass — so it lands in
 the library, the board says it is being written and says when it is there, and
-correcting it is item 4's loop. Take that deliberately rather than by streaming
+correcting it is item 3's loop. Take that deliberately rather than by streaming
 sections, or slides, into a transcript somebody is mid-proof in.
 
 **(c) The default style fights the ask, in this workspace above all.**
@@ -454,6 +424,81 @@ model for `/writeup`; assert both products, and assert both work in a review and
 a walkthrough, where the aim row does not appear. `test/walk.py` owns what is
 offered: assert that a `#!` script with no suffix is walkable and that a README
 still is not.
+
+### 5. The answer panel opens on the half you used last, and a typed box is never pre-filled
+
+**The want, in their words:** *"the spot for the next user response defaults to
+the 'typed' response, even if the last response that I gave was a board-written
+one. The default that shows up should be whatever last one I used was. If I wrote
+last, a board should show up. If I typed last, a typing thing should show up."*
+
+And the second half, which is a different rule for each surface: *"Written board
+responses are preserved and carry over to the next writing board, as they should.
+But typed responses should not carry over — there's no way I'm going to type the
+same thing again. Writing it is pragmatic to have saved because I'm fixing a proof
+writeup or something; this is not the case with typing. All new typed input boxes
+should render empty."*
+
+**Now, read off the code rather than guessed at.** `panelKind` already has the
+right SHAPE and a wrong last term. It asks three things in order: what was tapped
+on THIS question (`pickedKind[q]`), what this question was last answered with
+(`answering.latest.kind`), and then `answerKind()`. That third term reads
+`localStorage["answer-kind"]` and falls back to `"write"` — and `setAnswerKind`
+is called from `pickKind` and **nowhere else**. So what is remembered is the last
+TAB somebody pressed, not the last surface they actually answered on: press
+*type* once, answer in ink for a month, and every new question still opens on the
+box. That is the report, exactly.
+
+**(a) The remembered half is the one that was SENT.** Two send paths, both
+already in front of you: `say()` for the typed half, and the writer's `onSend`
+hook in `makeWriter` for the ink. Each records the kind it just sent, through
+`setAnswerKind`, in the same line that already runs there. The tab press keeps
+setting it too — a tap is a statement — but it stops being the *only* thing that
+does. Nothing else in `panelKind` moves: the two terms above it are per-question
+and both are right.
+
+**(b) The FIRST question of a sitting has no last, and the aim answers it.** Their
+rule: a sitting that might have them working something out opens on the board; a
+sitting where they are directing opens on the keyboard. *"If the AI mode is math
+teacher or code coaching, then it should be the board... If the AI mode is vibe
+coding, then it should be the keyboard."*
+
+**Do not write a second table for this.** `config.AIM_STANCE` already maps all
+seven aims onto exactly that split — `teach`, `coach`, `trace` and `drill` are
+`"teach"`; `build`, `paper` and `slides` are `"do"` — which reproduces all three
+of their answers and gives a principled one for the four they did not name. And
+it is already resolved and already on the glass: `hub.build` puts
+`config.stance_for`'s answer in the payload as `state.stance_now`. So the fallback
+inside `answerKind` is one field: `"do"` opens the box, anything else opens the
+board. A localStorage value written on another workspace's sitting must not
+outrank it — this is the FIRST question, there is no last half, and the sitting's
+own aim is a better answer than a month-old tap made somewhere else.
+
+**(c) A new typed box renders empty, and the ink's carry-over gets no typed
+twin.** Three things can put text in `#saybox` and they are not equal:
+
+- `restoreTextDraft` loads `textDrafts[answering.question]` — what they typed
+  against THIS question and did not send, kept per question and persisted so it
+  survives a reload. **Keep it.** That is not carrying over; that is not losing
+  work.
+- `restoreTextAnswer` loads the question's last SENT typed answer back into the
+  box and sets `correctingTurn`. **This is the one to move.** Item 6 wants that
+  answer visible as a rendered block above the box rather than as raw source
+  inside it, and a tap on that block is what loads it back for correction. Until
+  6 lands, the box is still where a correction is made — so this is a decision
+  about ORDER, not a thing to delete blind: either take 6 first and let it move
+  the answer out of the box, or leave `restoreTextAnswer` alone here and say so.
+- `paintCarry`/`carryOver` is the ink's *carry over from question N* control.
+  There is no typed equivalent and there must not be one. Say that where the
+  next person would go looking for it.
+
+**Check.** `test/typed.js` owns the answer panel and `test/mine.js` owns what
+happens to an answer after it is sent. Assert: an ink answer sent on question 1
+opens question 2 on the board even with `localStorage["answer-kind"]` set to
+`type`, and a typed answer opens the next one on the box; the first question of a
+sitting with `stance_now: "do"` opens on the box and one with `"teach"` opens on
+the board, whatever localStorage holds; a tab press still wins on the question it
+was pressed on; and a question with no draft of its own opens with an empty box.
 
 ### 6. The answer box renders as it is typed, and what was sent stays where it was typed
 
@@ -537,6 +582,11 @@ slate keeps its ink.** After a send, the block above the box holds the answer as
 mathematics and prose rather than as source, and the box under it is empty and
 ready for the next thing. A second answer pushes the first up, the way a second
 page of ink gets a second board.
+
+*And item 5(c) is waiting on exactly this.* The box is pre-filled with the last
+sent answer today because the box is the only place a correction can be made.
+Moving the answer to a block above it is what lets the box be empty, which is the
+rule item 5 states and cannot finish on its own.
 
 *And this is the same build as (a), not a second one.* One rendered block above
 the box: a **preview** of what is being typed before the send, and the **record**
@@ -1050,7 +1100,7 @@ still on the glass with every animation refused.
 
 ### 11. Put colibrì on the diarization repair, which is what all of the above is for
 
-It is now the acceptance test of items 1, 2 and 3 as well as the job that has
+It is now the acceptance test of items 1 and 2 as well as the job that has
 been waiting since before any of this existed. **The ask, the scoring and the
 numbers to beat are in `projects/libr-local-llm/HANDOFF.md`**, in the owner's own
 words; they are not repeated here, because a number in two files is a number
@@ -1065,7 +1115,7 @@ Three things about running it that are the board's rather than that file's:
 - **Nothing on the board will kill the turn.** The `colibri` recipe carries a
   four-hour `timeout` that `turn_timeout` takes as a floor, and the daemon's beat
   thread keeps the indicator green throughout. What WILL kill it is the serve
-  job's walltime — item 2's last paragraph.
+  job's walltime — item 1's last paragraph.
 - **`PSYCH-ASR` is the only kind of workspace it will open in**, because a colibrì
   sitting refuses where a card of its own would be committed and that workspace
   ignores `live/*` while a course does not.
@@ -1084,17 +1134,17 @@ None of these is a build. Each is an evening in front of the thing.
   the `nth` clause in `render`, and one line to remove. (The other question this
   bullet used to ask — whether green on the answer and a mark on the card is the
   same thing said twice — is answered in item 10: the response carries the band.)
-- **One document, all the way round** — item 4 is the build; this is the evening.
+- **One document, all the way round** — item 3 is the build; this is the evening.
   Open a `paper` sitting on a box, let it write into `writeups/<slug>/`, compile
   it, open `/library`, read it on the glass, draw on it, and say something is
   wrong with it. Four things no suite reaches: **the content/scope split against a
-  model** — item 5 lets the evening be the scope, and whether a tutor holding
+  model** — item 4 lets the evening be the scope, and whether a tutor holding
   that still refuses to narrate the evening is the whole of whether the split
   worked; **the revision turn against a model**; **ink a person actually drew** —
   the marks route is tested with fixture strokes, which is not a ring round a
   figure at 200% zoom on an iPad, and that page's pen has never met a stylus —
   and **whether the reader is any good**, which is the one word in the question
-  item 4 came from that no amount of code answers: *slick*.
+  item 3 came from that no amount of code answers: *slick*.
 - **The three teaching rules that were asked for out loud**, all of them
   instructions rather than mechanisms: the question restated under the definition
   list so it is the last thing above the board, the write-up compiled problem by
@@ -1137,6 +1187,29 @@ as the answer.
 
 ## Settled, so nobody re-derives it
 
+- **A workspace says whether it holds a fence, and both choosers say it before
+  the tap.** The fence was real and per-PATH — every walk refused a fenced
+  directory — and nothing anywhere said that a WORKSPACE had one, so the *who:*
+  row offered a hosted model in a box holding session content exactly as it does
+  in one holding a textbook. `fenced.holds` is the answer: a walk one level down
+  for the names in `NEVER`, cached a minute, carried on `machines.workspaces` and
+  on the board's own payload so a dispatcher can say it about a box nobody is
+  looking at. **One level deep is the rule**, because this labels a workspace on
+  a chooser rather than guarding a file about to be opened — a `data/` directory
+  six levels down inside a vendored dependency is not this workspace's fence.
+  **Visibility and a default, never a refusal**, and that was the decision: the
+  fence stops a hosted assistant READING `phi` rather than stops it existing, and
+  the teaching thread on this code is a hosted conversation that works. So every
+  assistant stays on the row, a tap is honoured, `⇥ put an assistant to work
+  elsewhere` merely DEFAULTS to the reader over a fenced target, and a pick that
+  is not the reader carries a line naming what it will not be able to open.
+  **Who the reader is comes out of the registry** — the recipe carrying
+  `private`, and exactly one does — never a name written into the browser, where
+  it would go out of step with `bin/tutor` the first time either moved. A machine
+  that has not got that assistant draws the row anyway and says so: a fenced box
+  with nothing that may read it is the one case where the absence of a choice is
+  the thing worth saying. `board/test/plan.py`, `board/test/colibri.py`,
+  `board/test/who.js`.
 - **One step of a coaching sitting can be handed over, and the sitting stays a
   coaching one.** `coach` names the calls and lets them type it, and the only
   way out of one step of that was `POST /aim`, which changes the WHOLE sitting

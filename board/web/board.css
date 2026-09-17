@@ -1654,6 +1654,20 @@ body.papering .annbar { z-index: 96; }
   font-family: var(--ui); font-size: .66rem; line-height: 1.35;
   color: var(--ink-3);
 }
+/* THE FENCE, and it is the one line in this row that is not about preference.
+   Coloured like the doing stance for the same reason: it is the state in which
+   a tap does something no later card can undo. */
+.kind-who-fence, .elsewhere-fence {
+  flex-basis: 100%;
+  font-family: var(--ui); font-size: .66rem; line-height: 1.35;
+  color: var(--ask);
+}
+.elsewhere-fence { margin: .35rem .1rem 0; }
+#elsewhere-list .fence {
+  margin-left: auto;             /* the far end of the row, away from the name */
+  font-family: var(--ui); font-size: .62rem; letter-spacing: .06em;
+  text-transform: uppercase; color: var(--ask);
+}
 
 /* WHAT THIS SITTING IS FOR, and it is the row that does not wait. The buttons
    above it choose the sitting to OPEN; these five change the one that is open,

@@ -978,10 +978,13 @@ on the cluster.
 An allocation ending takes the board, the tutor and `tailscaled` with it, on a machine you will
 never be given back. The tailnet name the iPad has baked into it then points at nothing, and
 **no node can be asked to take over**, because being asked requires something already listening
-and that is precisely what died. A supervisor does not help either: it brings a service back after
-a machine reboots, and a compute node does not reboot, it stops being yours.
+and that is precisely what died. A supervisor that outlives the machine does not help either: it
+brings a service back after a reboot, and a compute node does not reboot, it stops being yours.
 
-The only moment a compute node gets is the moment you log in to it.
+So there are two moments a compute node gets. The moment you log in to it, which is this section;
+and the whole life of a job that queued its own successor, which is
+[the allocation renewing itself](#the-allocation-renews-itself-and-the-board-repairs-itself) and is
+a supervisor of the only shape that works here -- one that IS the machine.
 
 ```
 tutor resume                 take the board over here
@@ -1094,8 +1097,64 @@ git-over-ssh with a remote error nobody can read — takes a lock so five termin
 backgrounds itself so no prompt ever waits on the network. `~/.tutor-resume.log` has whatever it
 said; `export TUTOR_BOARD_NO_RESUME=1` turns it off for one shell.
 
-The board is up for as long as the allocation is, which is the honest ceiling on a cluster: nothing
-on a node outlives the job that gave it to you.
+Nothing on a node outlives the job that gave it to you. That is why the allocation is the thing
+that renews itself.
+
+### The allocation renews itself, and the board repairs itself
+
+```
+tutor serve                  start the chain: one job, seven days, and a successor already queued
+tutor serve status           which generation is up, where, and what it has repaired
+tutor serve stop             end it -- the flag, then the cancel
+tutor watch                  the repair loop by itself, worth running inside an `salloc`
+```
+
+**A generation queues its own successor before it does anything else**, with
+`--dependency=afterany:<itself>`, so the queue is always holding the next machine. `afterany` and
+not `afterok`, because a generation that crashed is when the next one is most needed. Then it
+catches the tool up, re-execs onto it, runs `tutor resume`, and watches — and five minutes before
+its walltime Slurm signals it (`--signal=B:USR1@300`), which is the daemons' cue to write their
+handoffs while there is still a machine to write them on. `slurm/tutor-serve.sbatch` is twenty
+lines of finding the checkout and handing the batch shell to `tutor serve inside`; every decision
+is in `bin/tutor` and `tutorboard/supervise.py`, where it can be tested without a cluster.
+
+**Ending it takes a flag as well as a cancel, and that is not belt-and-braces.** Cancelling the
+running generation is *precisely* what its successor's dependency is waiting for, so a chain
+cancelled one job at a time comes straight back — which is the chain working as designed at the
+worst possible moment. `tutor serve stop` writes `serve-stopped` in the state directory first and
+then cancels the whole job name at once. `scancel -u $USER` also ends it, because that takes the
+queued successor with it.
+
+**The partition is the one setting in here with a wrong answer.** `c3_short` outranks `c3`
+(priority tier 20 against 10) and `c3`'s PreemptMode is SUSPEND, so a seven-day board on `c3` is
+SIGSTOPped by the first busy afternoon: alive, holding its port, answering nothing, which is the
+failure a pid check cannot see. `c3_accel`'s node is in no higher-tier partition. It is
+`serve_partition`, `serve_time`, `serve_cpus` and `serve_mem` in the config.
+
+**The watch loop is what makes a death cost twenty seconds instead of an evening.** It revives a
+board whose pid is gone, stops and restarts one that is alive and has failed `/health` twice —
+wedged, which nothing could see before — and puts back a tutor daemon that died. What it refuses
+to do is the load-bearing half:
+
+- nothing without a record. `board stop` and `tutor headless --stop` remove theirs, and that is a
+  person saying no;
+- nothing on a node Slurm still says is yours, because the pid in that record cannot be read from
+  here;
+- nothing a restart is already doing — `tutor restart --tutors` writes `restarting` first, exactly
+  so a bounce can be told from a death;
+- nothing off a record that has gone stale. `live/agent.json` is never swept, so one saying
+  `listening` on a node that died two days ago reads just like one from a node that died a minute
+  ago; an hour is the window.
+
+**A handover is not a stop, and it is one field.** The walltime's own stop leaves the same record a
+person's `tutor agent stop` leaves, so `hand_over` writes `handover` into it first and the next
+generation picks up only those — on whichever node it lands, including the same one, which on a
+single-node partition is the common case.
+
+The chain cannot watch itself all the way down: a generation that fell over in its first second
+never reached the line that queues its successor. So the loop re-checks its successor every five
+minutes, and `tutor resume` repairs the chain on any login — but only where one was started and
+not stopped.
 
 ## Starting a session
 
@@ -3216,6 +3275,26 @@ are **not** looking at: pick one, say what to do, and go back to what you were d
 of theirs in that workspace's inbox — which is what `board wait` watches — and the start is
 `tutor agent start <workspace> --agent <name>`, layer 1, for that daemon only. What comes back
 comes back through the newsbar, hours later, on whichever board is open then.
+
+### A workspace that holds a fence
+
+`fenced.holds` walks a workspace one level down and returns the fenced directory names it finds —
+`NEVER`, the same list every path check reads. It rides on `machines.workspaces` and on the board's
+own payload, so both choosers can say it: the *who:* row names the directories and names the one
+assistant that may open them, and `⇥ put an assistant to work elsewhere` marks the row you pick the
+workspace from and defaults to that assistant there.
+
+**Visibility and a default, never a refusal.** The fence stops a hosted assistant READING `phi`; it
+does not stop one existing, and the teaching thread on this code is a hosted conversation. So every
+assistant stays on the row, a tap is honoured, and a pick that is not the reader carries a line
+saying what it will not be able to open. The protection stays in `ai-config/policy/phi.py` and in
+the walks that refuse a fenced path.
+
+**Who the reader is comes out of the registry**, not out of a name in the browser: it is the recipe
+carrying `private`, and exactly one does. A machine that has not got that assistant installed draws
+the row anyway and says so — a fenced box with nothing that may read it is the case where the
+absence of a choice is the thing worth saying. One level deep is the rule: this labels a workspace
+on a chooser, so a `data/` directory six levels down inside a vendored dependency is not a fence.
 
 ### The local model
 
