@@ -22,7 +22,10 @@
 set -uo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." >/dev/null 2>&1 && pwd -P)"
-[ -x "$HERE/bin/tutor" ] || {
+# `-f` and not `-x`: this repository is cloned with core.fileMode off, so the
+# execute bit on a tracked file is not something to test for. Nothing here execs
+# the tool anyway -- python3 is given the path.
+[ -f "$HERE/bin/tutor" ] || {
   echo "cannot find bin/tutor next to $0 -- this script has been moved out of the"
   echo "tool's scripts/ directory, which is the only place it knows itself from." >&2
   exit 1
