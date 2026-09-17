@@ -1107,7 +1107,13 @@ tutor serve                  start the chain: one job, seven days, and a success
 tutor serve status           which generation is up, where, and what it has repaired
 tutor serve stop             end it -- the flag, then the cancel
 tutor watch                  the repair loop by itself, worth running inside an `salloc`
+
+bash board/scripts/serve.sh  the same, with nothing on the PATH and from any directory
 ```
+
+`scripts/serve.sh` is there for one moment: **after `scancel -u $USER`**, which is the thing that
+really ends a chain, because it takes the running generation and the queued successor together. It
+needs no install and takes the same words (`status`, `stop`, `restart`).
 
 **A generation queues its own successor before it does anything else**, with
 `--dependency=afterany:<itself>`, so the queue is always holding the next machine. `afterany` and

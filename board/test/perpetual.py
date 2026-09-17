@@ -384,6 +384,21 @@ try:
           "nothing on this cluster can suspend",
           "--time=7-00:00:00" in script and "--partition=c3_accel" in script)
 
+    # The one command that has to be findable without reading anything: after
+    # `scancel -u $USER` there is nothing left of the chain, and that is the
+    # cancel a person actually reaches for.
+    starter = os.path.join(ROOT, "scripts", "serve.sh")
+    shell = open(starter, encoding="utf-8").read()
+    check("there is a script that starts the chain, and it is where every other "
+          "script in here is",
+          os.path.exists(starter) and os.access(starter, os.X_OK))
+    check("it needs nothing on the PATH and no particular directory, and hands "
+          "straight to the one command that decides",
+          "BASH_SOURCE" in shell and "bin/tutor" in shell and "serve" in shell)
+    check("and it says what it is for: the chain does not survive `scancel -u`, "
+          "which is the whole point of a cancel",
+          "scancel -u $USER" in shell)
+
     src = open(os.path.join(ROOT, "bin", "tutor"), encoding="utf-8").read()
     check("the successor is queued BEFORE the code is caught up and before a "
           "single board is started, because everything after that line can fail "
