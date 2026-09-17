@@ -194,7 +194,7 @@ try:
                                  "headless": ["claude", "-p", "{prompt}"]}},
            "hosts": {}}
 
-    calls = {"board": [], "agent": []}
+    calls = {"board": [], "agent": [], "link": []}
 
     def fake_board(root, *args):
         calls["board"].append((os.path.basename(root), args[0]))
@@ -208,6 +208,7 @@ try:
 
     tutor.board = fake_board
     tutor.agent_start = fake_agent_start
+    tutor.link = lambda root: calls["link"].append(os.path.basename(root))
     processes.board_is_running = lambda pid, root: pid in alive
     processes.pid_alive = lambda pid, needle=None: pid in alive
     supervise.answering = lambda port, timeout=3.0: True
@@ -223,6 +224,11 @@ try:
           "exactly where it is",
           ("Elsewhere", "start") not in calls["board"]
           and ("Elsewhere", "stop") not in calls["board"])
+    check("a board that comes back gets the tailnet link back too -- one on "
+          "loopback with no link is one the iPad cannot reach, and on a node "
+          "that has just taken the serving over there is no link yet",
+          calls["link"] == [w for w, act in calls["board"] if act == "start"]
+          and "DeadBoard" in calls["link"])
     check("a tutor that is listening is not restarted",
           ("Up", "claude") not in calls["agent"])
     check("a tutor a person stopped is not restarted",

@@ -3432,6 +3432,17 @@ def watch_once(cfg, host, memo, say):
                 # somewhere the iPad is not looking.
                 board(root, "stop")
             code, out = board(root, "start")
+            if code == 0:
+                # AND THE ADDRESS, which is the half the iPad actually feels. A
+                # board back on loopback with no tailnet link is a board nobody
+                # can reach, and on a node that has just taken the serving over
+                # there is no link yet: `tailscaled` died with the allocation
+                # that had it, and the claim in the shared state directory still
+                # names that node. `link` clears a claim from a node Slurm no
+                # longer gives you, starts the daemon, and takes the HTTPS name
+                # only if it is pointing at nothing -- which is exactly the
+                # rule a start follows anyway.
+                link(root)
             mem["misses"] = 0
             mem["board_tries"] = 0 if code == 0 else mem["board_tries"] + 1
             mem["board_at"] = now + supervise.next_try(mem["board_tries"])
