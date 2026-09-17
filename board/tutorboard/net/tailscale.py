@@ -200,6 +200,28 @@ def tailscale_cli():
     """
     if os.path.exists(TS_SOCK):
         return (["tailscale", "--socket", TS_SOCK], "userspace")
+    # A `tailscaled` WE CAN RUN, under this home directory, means the daemon is
+    # ours to start and there is no system install to defer to.
+    #
+    # Deciding that on the socket file alone -- the line above, which used to be
+    # the whole of it -- is a chicken and egg that can only be resolved by luck.
+    # The socket exists only while our daemon is running, so on a node that has
+    # not linked yet this fell through to the CLI we installed OURSELVES under
+    # ~/.local/bin and called it a system install, and `board vpn up` then took
+    # the "nothing to start, do not fight it" branch and started nothing. A fresh
+    # node could therefore never bring the link up at all.
+    #
+    # It worked for a year by accident: Slurm SIGKILLs a node's processes when an
+    # allocation ends, which leaves the socket file behind on the shared home,
+    # and the next node read that leftover as "userspace". A graceful `board vpn
+    # down` removes it -- so handing the board over deliberately, which is the
+    # one time this has to work, was the one time it could not.
+    #
+    # In a system directory it is not ours: a root-run daemon is already there
+    # and starting a second one would fight it for the same node key.
+    daemon = shutil.which("tailscaled")
+    if daemon and os.path.realpath(daemon).startswith(os.path.realpath(paths.HOME) + os.sep):
+        return (["tailscale", "--socket", TS_SOCK], "userspace")
     found = shutil.which("tailscale")
     if found:
         return ([found], "system")
