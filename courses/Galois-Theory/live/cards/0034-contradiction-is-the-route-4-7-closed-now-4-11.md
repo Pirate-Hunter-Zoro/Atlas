@@ -26,7 +26,7 @@ What it uses:
   polynomial in $K[x]$.
 - $t$ transcendental over $K$ --- a root of no non-zero polynomial in $K[x]$.
 - $K(t)$ --- the field of rational functions in $t$: everything of the form
-  $f(t)/g(t)$ with $f, g \in \polyring{K}{x}$ and $g \neq 0$.
+  $f(t)/g(t)$ with $f, g \in K[x]$ and $g \neq 0$.
 - "Cannot be dropped" --- exhibit one extension $L : K$ that is *not*
   algebraic, together with one monomorphism $\tau : L \to L$ fixing $K$ which
   does *not* map $L$ onto $L$.
