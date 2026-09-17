@@ -198,6 +198,10 @@ try:
 
     def fake_board(root, *args):
         calls["board"].append((os.path.basename(root), args[0]))
+        if args[0] == "vpn":
+            # `vpn holder` answers with the port the HTTPS name is proxying to,
+            # and nothing else -- that is the contract the loop reads.
+            return 0, "9001"
         return 0, "board up (pid 1)"
 
     def fake_agent_start(cfg_, course, name, session=None):
@@ -213,6 +217,9 @@ try:
     processes.pid_alive = lambda pid, needle=None: pid in alive
     supervise.answering = lambda port, timeout=3.0: True
     machine.slurm_nodes = lambda: {HOST, HOST + "b"}
+    # The tailnet link is up and the address points at a board that answers,
+    # unless a case below says otherwise.
+    tutor.tailscale.daemon_running = lambda: True
 
     memo = {}
     did = tutor.watch_once(cfg, HOST, memo, lambda line: None)
@@ -229,6 +236,32 @@ try:
           "that has just taken the serving over there is no link yet",
           calls["link"] == [w for w, act in calls["board"] if act == "start"]
           and "DeadBoard" in calls["link"])
+
+    # THE ADDRESS IS CHECKED EVERY PASS, not only after a board starts. `link`
+    # used to be called on a start alone, so a link that failed while a
+    # generation was coming up was never retried: on compute306 every process
+    # was healthy, both boards answered on loopback, and the glass stayed white.
+    def addr_lines(said):
+        return [l for l in said if "link was brought up" in l]
+
+    memo = {}
+    said = tutor.watch_once(cfg, HOST, memo, lambda line: None)
+    check("with the link up and the address on a board that answers, the loop "
+          "leaves the address alone",
+          not addr_lines(said))
+    tutor.tailscale.daemon_running = lambda: False
+    memo = {}
+    said = tutor.watch_once(cfg, HOST, memo, lambda line: None)
+    check("with no link on this node it is brought up, even though no board "
+          "needed starting",
+          len(addr_lines(said)) == 1)
+    # And it backs off like every other repair, so a node that cannot link does
+    # not spend seven days trying every twenty seconds.
+    said = tutor.watch_once(cfg, HOST, memo, lambda line: None)
+    check("and a link that will not come up is not retried on the next pass",
+          not addr_lines(said))
+    tutor.tailscale.daemon_running = lambda: True
+
     check("a tutor that is listening is not restarted",
           ("Up", "claude") not in calls["agent"])
     check("a tutor a person stopped is not restarted",
@@ -369,6 +402,16 @@ try:
           "knows to pick the tutor back up",
           src_tutor.index("def cmd_down(") < src_tutor.index("handover=time.strftime")
           < src_tutor.index("agent_stop(c, wait=True)"))
+    check("it never reaches for a board that belongs to another node: `board "
+          "stop` cannot stop one and DELETES the record, which leaves the "
+          "process serving with nothing naming it and the next tutor start "
+          "putting a second board on a fallback port",
+          'if on and on != host:' in src_tutor
+          and "left alone" in src_tutor)
+    check("and a node is not asked to let go of a tutor that has already "
+          "stopped, since that ask is a whole-machine stop arriving after the "
+          "board has moved",
+          'st.get("state") != "stopped"' in src_tutor)
     check("and it lets go of the tailnet link only when no single workspace was "
           "named, because the link belongs to the machine",
           'if not named:' in src_tutor and '"vpn", "down"' in src_tutor)
