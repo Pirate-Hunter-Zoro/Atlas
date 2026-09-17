@@ -23,6 +23,10 @@ tutor -- start a tutoring session.
     tutor pull                  move vendor/colibri forward and commit the pointer
     tutor where                 what is up, on this machine and on the tailnet
     tutor restart [--tutors]    restart every board here (and its tutor) on current code
+    tutor watch                 keep the boards and tutors here up, and repair what dies
+    tutor serve                 serve from a Slurm job that renews its own allocation
+    tutor serve status          which generation is up, where, and what it repaired
+    tutor serve stop            end that chain
 
 One command, from anywhere. It finds the course, brings its board up, opens a
 session, and launches whichever assistant you use -- already pointed at the
@@ -47,7 +51,8 @@ import sys
 
 TOOL = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 sys.path.insert(0, TOOL)
-from tutorboard import atlas, choice, handoff, limits, machine, paths, processes, worktree
+from tutorboard import (atlas, choice, handoff, limits, machine, paths, processes,
+                        supervise, worktree)
 from tutorboard.course import config
 from tutorboard.net import egress
 
@@ -273,6 +278,17 @@ DEFAULT_CONFIG = {
     # far more than nothing, because the thing worth watching is whether the
     # figure is FLAT across a lesson, and a constant factor does not affect that.
     "quota_tokens": None,
+    # ---------------------------------------------------------------------
+    # What the serving job asks Slurm for, per generation
+    # ---------------------------------------------------------------------
+    # `tutor serve` submits a job that submits its own successor, so these are
+    # the terms the board's machine is renewed on. The partition is the one
+    # decision in here with a wrong answer: see `serve_settings`, which says why
+    # a seven-day board on `c3` gets suspended and one on `c3_accel` does not.
+    "serve_partition": "c3_accel",
+    "serve_time": "7-00:00:00",
+    "serve_cpus": 2,
+    "serve_mem": "8G",
 }
 
 
@@ -2978,6 +2994,14 @@ def cmd_resume(cfg, args):
     # everything else in this function is here.
     pull_vendor(quiet=quiet)
 
+    # AND THE CHAIN ITSELF, WHICH IS THE ONE THING A LOGIN CAN REPAIR THAT
+    # NOTHING ELSE CAN. A generation that fell over in its first second never
+    # reached the line that queues its successor, so the self-renewing
+    # allocation is the one part of this that cannot watch itself all the way
+    # down. A login is exactly the moment somebody is here to notice, and this
+    # is quiet and free when the chain is fine.
+    chain_repair(cfg, say)
+
     found = courses(cfg)
 
     # A board that DIED is not a board that was stopped, and until now nothing
@@ -3306,6 +3330,585 @@ def cmd_where(cfg, args):
                     print("  reachable at %s" % l.strip().split()[0])
                     break
             break
+
+    # WHICH MACHINE THIS IS ALL STANDING ON, AND FOR HOW LONG. Everything above
+    # is about processes; none of it says that the node they are on is borrowed
+    # and when it goes back. One line, and only where there is a chain to
+    # describe -- `tutor serve status` is the whole of it.
+    rows = supervise.serve_jobs()
+    for r in rows or []:
+        if r["state"] == "RUNNING":
+            print("\n  served from job %s on %s, %s of this generation left"
+                  % (r["id"], r["node"], r["left"]))
+        elif r["dependency"]:
+            print("  job %s is queued behind it, so the board outlives this "
+                  "allocation" % r["id"])
+    if rows == []:
+        print("\n  no serving chain: this machine's board goes when its "
+              "allocation does (tutor serve)")
+    return 0
+
+
+# ---------------------------------------------------------------------------
+# Watching what is up, and holding on to the machine it is up on
+# ---------------------------------------------------------------------------
+def serve_settings(cfg):
+    """What one generation of the serving chain asks Slurm for.
+
+    `c3_accel` by default, and that is a measurement rather than a taste. Every
+    partition on this cluster that holds the ordinary compute nodes has a HIGHER
+    priority tier than the long one -- `c3_short` is tier 20, `c3` is tier 10 --
+    and `c3`'s PreemptMode is SUSPEND. So a seven-day board on `c3` is SIGSTOPped
+    by the first busy afternoon: the process is alive, the port is held, nothing
+    answers, and that is the one failure a pid check cannot see and a person
+    cannot diagnose. `c3_accel`'s node is in no higher-tier partition, so nothing
+    can suspend it, and two CPUs out of ninety-six for a week on a GPU node is a
+    rounding error nobody will come asking about.
+
+    Every value is a config key, because the day the cluster is rearranged this
+    has to be answerable without a commit.
+    """
+    return {"partition": cfg.get("serve_partition") or "c3_accel",
+            "time": cfg.get("serve_time") or "7-00:00:00",
+            "cpus": cfg.get("serve_cpus") or 2,
+            "mem": cfg.get("serve_mem") or "8G"}
+
+
+def last_line(out):
+    """The last thing a command said, for a one-line report. Never an empty one."""
+    said = [l.strip() for l in (out or "").splitlines() if l.strip()]
+    return said[-1] if said else "no reason given"
+
+
+def watch_once(cfg, host, memo, say):
+    """One pass over every workspace, repairing what is down. Returns what it did.
+
+    `memo` is the loop's memory, keyed by workspace: how many health probes have
+    missed in a row, how many repairs have been tried, and when the next one is
+    allowed. A board that is a second late writing a slate PNG is not a board to
+    bounce, and a tutor that cannot start -- no allowance, no command on the path
+    -- must not be started every twenty seconds for seven days.
+
+    What it will NOT do is the load-bearing half:
+
+    - nothing without a record. `board stop` and `tutor headless --stop` remove
+      theirs, and a workspace nobody has ever opened never had one. Both mean a
+      person has not asked for this, and a watchdog that starts nine boards
+      because it found nine directories is a worse failure than the one it fixes.
+    - nothing whose record names a node that is still an allocation of yours.
+      The pid in it cannot be read from here, so the only honest answer is to
+      leave it, and the login-time repair (`ensure_agent_away`) is what reaches
+      across to a node over ssh.
+    - nothing a restart is already doing. `tutor restart --tutors` writes
+      `restarting` before it signals, exactly so a bounce can be told from a
+      death, and this waits that grace out before deciding a bounce has failed.
+    """
+    did = []
+    held = machine.slurm_nodes()
+    for c in courses(cfg):
+        root, name = c["root"], c["dir"]
+        mem = memo.setdefault(name, {"misses": 0, "board_tries": 0, "board_at": 0.0,
+                                     "tutor_tries": 0, "tutor_at": 0.0})
+        now = time.time()
+
+        # --- the board ------------------------------------------------------
+        rec = board_record(root) or {}
+        theirs = rec.get("node") and rec["node"] != host
+        # "Still one of yours" is what Slurm answers, and unknown (no squeue at
+        # all, or a controller not answering) counts as still yours: the wrong
+        # move here is to take a live board off another machine.
+        theirs_live = None if held is None else (rec.get("node") in held)
+        if theirs and theirs_live is False:
+            verdict = "adopt"
+        else:
+            pid_ok = processes.board_is_running(rec.get("pid"), root)
+            answers = supervise.answering(rec.get("port")) if (rec and pid_ok) else False
+            mem["misses"] = 0 if answers else mem["misses"] + 1
+            verdict = supervise.board_verdict(rec, host, pid_ok, answers, mem["misses"])
+        if verdict in ("revive", "hung", "adopt") and now >= mem["board_at"]:
+            if verdict == "hung":
+                # Wedged rather than gone: the pid has to be taken out before a
+                # start, or the port is still held and the new one lands
+                # somewhere the iPad is not looking.
+                board(root, "stop")
+            code, out = board(root, "start")
+            mem["misses"] = 0
+            mem["board_tries"] = 0 if code == 0 else mem["board_tries"] + 1
+            mem["board_at"] = now + supervise.next_try(mem["board_tries"])
+            note = "%s: board %s" % (name, {"revive": "was dead", "hung": "was wedged",
+                                            "adopt": "moved here"}[verdict])
+            did.append(note if code == 0 else
+                       "%s -- and would not start (%s)" % (note, last_line(out)))
+            say(did[-1])
+        elif verdict == "ok":
+            mem["board_tries"] = 0
+
+        # --- the tutor ------------------------------------------------------
+        st = agent_record(root) or {}
+        theirs = st.get("host") and st["host"] != host
+        theirs_live = None if held is None else (st.get("host") in held)
+        if theirs and theirs_live is False and supervise.left_behind(st):
+            tverdict = "adopt"
+        else:
+            tverdict = supervise.tutor_verdict(
+                st, host, processes.pid_alive(st.get("pid")))
+        if tverdict in ("revive", "adopt") and now >= mem["tutor_at"]:
+            # Whatever configuration says now, not what the dead record named:
+            # the same rule `cmd_restart` follows, and for the same reason.
+            agent_name = resolve_agent(cfg, c) or st.get("agent")
+            # The handover flag has been acted on; leaving it set would make
+            # every later stop of this tutor look like a machine going away.
+            if st.get("handover"):
+                agent_state(os.path.join(root, "live"), handover=None)
+            code, msg = agent_start(cfg, c, agent_name)
+            mem["tutor_tries"] = 0 if code == 0 else mem["tutor_tries"] + 1
+            mem["tutor_at"] = now + supervise.next_try(mem["tutor_tries"])
+            did.append("%s: tutor %s -- %s"
+                       % (name, "moved here" if tverdict == "adopt" else "was dead",
+                          (msg or "").strip()))
+            say(did[-1])
+        elif tverdict == "ok":
+            mem["tutor_tries"] = 0
+    return did
+
+
+def cmd_watch(cfg, args):
+    """Keep the boards and tutors on this machine up. Runs until it is stopped.
+
+        tutor watch                 the loop
+        tutor watch --once          one pass, then stop
+        tutor watch --interval 30   how often to look (seconds)
+
+    This is what the serving job runs, and it is worth running by hand inside an
+    `salloc` too: it is the difference between a tutor that died at four o'clock
+    and a tutor that was back at four o'clock and twenty seconds.
+
+    It repairs only what a person has already asked for -- see `watch_once` --
+    and it says what it repaired into whatever log it was started with, as well
+    as into `watch.json`, which is what `tutor serve status` reads.
+    """
+    interval = float(_flag(args, "--interval") or supervise.POLL)
+    once = "--once" in args
+    host = this_host()
+    memo, repairs, checks = {}, [], 0
+    started = time.time()
+
+    stopping = {"now": False}
+
+    def bye(*_):
+        stopping["now"] = True
+    for sig in (signal.SIGTERM, signal.SIGINT):
+        try:
+            signal.signal(sig, bye)
+        except (OSError, ValueError):
+            pass
+
+    def say(line):
+        print("[%s] %s" % (time.strftime("%H:%M:%S"), line))
+
+    while True:
+        checks += 1
+        try:
+            did = watch_once(cfg, host, memo, say)
+        except Exception as exc:                             # noqa: BLE001
+            # A WATCHDOG MAY NOT DIE OF THE THING IT IS WATCHING. One unreadable
+            # record, one workspace half-way through being created, one NFS
+            # hiccup -- any of them would take the loop down and leave nothing
+            # watching anything, which is worse than the fault it tripped over.
+            did = []
+            say("the watch pass failed and the loop is carrying on: %r" % (exc,))
+        repairs = (repairs + did)[-20:]
+        supervise.note_watch(host=host, pid=os.getpid(), started=started,
+                             last=time.time(), checks=checks, repairs=repairs,
+                             job=os.environ.get("SLURM_JOB_ID") or "")
+        if once or stopping["now"]:
+            break
+        if supervise.stopped():
+            say("tutor serve stop was called; the watch loop is standing down")
+            break
+        end = time.time() + interval
+        while time.time() < end and not stopping["now"]:
+            time.sleep(0.5)
+        if stopping["now"]:
+            break
+    return 0
+
+
+def ensure_successor(cfg, job, say):
+    """Queue the generation that takes over when this one ends. Returns its id.
+
+    Idempotent on purpose, and that is not decoration: `--requeue` means this
+    script can be run a second time for the same job id after a node failure,
+    and the first thing it does is this. A pending job whose dependency names
+    this job IS the successor -- asked of Slurm rather than of a file, because
+    the file cannot know that a submission was refused.
+    """
+    if supervise.stopped():
+        say("not queueing a successor: tutor serve stop was called")
+        return None
+    rows = supervise.serve_jobs()
+    if rows is None:
+        say("squeue did not answer, so no successor was queued this time")
+        return None
+    already = supervise.successor_of(job, rows)
+    if already:
+        return already["id"]
+    want = serve_settings(cfg)
+    new, err = supervise.submit(want["partition"], want["time"], want["cpus"],
+                                want["mem"], after=job,
+                                chdir=atlas.root())
+    if err:
+        say("could not queue the next generation: %s" % err)
+        return None
+    say("job %s is queued behind this one, on %s for %s"
+        % (new, want["partition"], want["time"]))
+    return new
+
+
+def previously_serving(cfg, host):
+    """The workspaces the generation before this one had boards up in.
+
+    Read off `live/.board.json` naming a node Slurm no longer gives you, which
+    is the only evidence there is: nothing records a generation's set of boards,
+    and the records that imply it are swept on the next resume.
+
+    A board on a node that is STILL yours is not in here. That is an allocation
+    of your own with a board in it -- an `salloc` for coach coding, most likely --
+    and taking its lesson away from it is the one thing `tutor resume` has always
+    refused to do.
+    """
+    held = machine.slurm_nodes()
+    if held is None:
+        return []
+    out = []
+    for c in courses(cfg):
+        on = (board_record(c["root"]) or {}).get("node")
+        if on and on != host and on not in held:
+            out.append(c)
+    return out
+
+
+def hand_over(cfg, host, say, deadline=240):
+    """The walltime is coming. Get the lesson to a saving point while it can be.
+
+    A generation ends and its node stops being yours, which takes the board, the
+    tutor and `tailscaled` with it. The transcript beat has pushed the lesson
+    itself every ninety seconds, so what is actually at risk is the one thing
+    only the daemon can write: the handoff, which is the whole of what the next
+    session knows. So each daemon is asked to stop the way a person switching
+    course asks it -- SIGTERM, which is the wrap-up turn -- and this waits.
+
+    Bounded, because the warning is finite: Slurm gives the job
+    `HANDOVER_WARNING` seconds and then takes the machine whatever anybody is
+    part-way through.
+    """
+    asked = []
+    for c in courses(cfg):
+        st = agent_live(c["root"])
+        if not st or st.get("mode") == "interactive":
+            continue
+        if st.get("host") and st["host"] != host:
+            continue
+        # WHY it is being stopped, on disk, before it is stopped. The daemon's
+        # exit record cannot carry this -- it does not know -- and the next
+        # generation has to tell a machine that went from a person who left.
+        agent_state(os.path.join(c["root"], "live"),
+                    handover=time.strftime("%Y-%m-%d %H:%M:%S"))
+        code, msg = agent_stop(c)
+        say("handover: %s" % (msg or "").strip())
+        if code == 0:
+            asked.append(c)
+    end = time.time() + deadline
+    while time.time() < end:
+        if not any(agent_live(c["root"]) for c in asked):
+            break
+        time.sleep(2)
+    for c in asked:
+        # The last push, now that nothing is writing. The daemon's own beat does
+        # this every ninety seconds; this one is for the handoff it just wrote.
+        try:
+            sync_transcript(c["root"])
+        except Exception:                                    # noqa: BLE001
+            pass
+    say("handover done; the next generation takes it from here")
+
+
+def chain_repair(cfg, say):
+    """Put the serving chain back if it was meant to be running and is not.
+
+    Only where one was started and not stopped: the record says a chain exists,
+    no stop flag says a person ended it, and Slurm has nothing under the job
+    name. Anything less than all three and this does nothing at all, because the
+    alternative is a login hook that submits a seven-day job on a machine where
+    nobody ever asked for one.
+    """
+    rec = supervise.chain_record()
+    if not rec.get("job") or supervise.stopped():
+        return
+    if machine.slurm_nodes() is None:
+        return
+    rows = supervise.serve_jobs()
+    if rows is None or rows:
+        return                     # unknown, or perfectly well
+    want = serve_settings(cfg)
+    job, err = supervise.submit(want["partition"], want["time"], want["cpus"],
+                                want["mem"], chdir=atlas.root())
+    if err:
+        say("the serving chain had stopped and could not be restarted: %s" % err)
+        return
+    supervise.note_generation(job=job, node=None, started=time.time(),
+                              generation=(rec.get("generation") or 0) + 1,
+                              previous=rec.get("job"), successor=None,
+                              partition=want["partition"], walltime=want["time"])
+    say("the serving chain had stopped; job %s is queued to take it back up" % job)
+
+
+def cmd_serve(cfg, args):
+    """Serve the board from a Slurm job that keeps renewing its own allocation.
+
+        tutor serve            start the chain (refuses a second one)
+        tutor serve status     which generation is up, where, what it repaired
+        tutor serve stop       end it: the flag, then the cancel
+        tutor serve restart    end it and start a fresh one on current settings
+
+    The point of it is that `salloc` stops being part of the day. A generation
+    submits its successor with `--dependency=afterany:<itself>` before it does
+    anything else, so the queue always holds the next machine; the board, the
+    tutors and a watch loop run inside the current one; and the tailnet name
+    follows whichever node the chain is on, which is the address the iPad has
+    baked into it.
+
+    `tutor serve inside` is what the job script runs. It is not for typing.
+    """
+    sub = (args[0] if args and not args[0].startswith("-") else "start")
+    rest = args[1:] if args and not args[0].startswith("-") else args
+
+    if sub == "inside":
+        return serve_inside(cfg, rest)
+
+    if sub == "chain":
+        job = os.environ.get("SLURM_JOB_ID") or _flag(rest, "--job")
+        if not job:
+            print("no job to chain behind: run this inside one, or pass --job",
+                  file=sys.stderr)
+            return 1
+        return 0 if ensure_successor(cfg, job, print) else 1
+
+    if sub == "status":
+        return serve_status(cfg)
+
+    if sub in ("stop", "restart"):
+        supervise.mark_stopped("tutor serve %s" % sub)
+        err = supervise.cancel()
+        if err:
+            print("the flag is set, but scancel said: %s" % err, file=sys.stderr)
+        else:
+            print("the chain is cancelled and will not queue another generation")
+        if sub == "stop":
+            print("what is running on the node now goes when its job does.")
+            print("start it again with: tutor serve")
+            return 0
+        # A restart has to wait for the queue to actually be empty of the old
+        # chain, or the guard below refuses the new one for being a second.
+        for _ in range(30):
+            rows = supervise.serve_jobs()
+            if rows is not None and not rows:
+                break
+            time.sleep(1.0)
+
+    # --- starting it -------------------------------------------------------
+    if machine.slurm_nodes() is None:
+        print("there is no Slurm here, so there is nothing to renew: this "
+              "machine's board comes back with `tutor resume`.", file=sys.stderr)
+        return 1
+    rows = supervise.serve_jobs()
+    if rows is None:
+        print("squeue did not answer, so I cannot tell whether a chain is "
+              "already running. Nothing was submitted.", file=sys.stderr)
+        return 1
+    if rows and "--force" not in rest:
+        print("a serving chain is already there:")
+        for r in rows:
+            print("  job %-9s %-9s %s" % (r["id"], r["state"],
+                                          r["node"] or "(%s)" % r["dependency"]))
+        print("\ntutor serve status   what it is doing")
+        print("tutor serve restart  replace it with a fresh one")
+        return 1
+    supervise.clear_stopped()
+    want = serve_settings(cfg)
+    job, err = supervise.submit(want["partition"], want["time"], want["cpus"],
+                                want["mem"], chdir=atlas.root())
+    if err:
+        print("could not submit the serving job: %s" % err, file=sys.stderr)
+        return 1
+    supervise.note_generation(started=time.time(), job=job, generation=1,
+                              partition=want["partition"], walltime=want["time"],
+                              node=None, previous=None)
+    print("job %s is queued: %s, %s, %s CPU(s), %s"
+          % (job, want["partition"], want["time"], want["cpus"], want["mem"]))
+    print("it brings the boards and the tutors up itself, watches them, and "
+          "queues the next generation before it does either.")
+    print("\nwatch it arrive:  tutor serve status")
+    print("end it for good:  tutor serve stop")
+    return 0
+
+
+def serve_inside(cfg, args):
+    """One generation of the chain, from the inside. Run by the job script.
+
+    The order is the whole of it:
+
+    1. Queue the successor. FIRST, before the code is caught up and before a
+       single board is started, because everything after this line can fail and
+       the one thing that must not is the chain. A generation that dies in its
+       first second still leaves a machine queued behind it.
+    2. Catch the tool up and re-exec onto it. A generation lasts seven days; it
+       should not start seven days behind.
+    3. Take the board over on this node -- the tailnet link, the boards, the
+       tutors -- which is `tutor resume`, the same routine a login runs, and
+       which leaves a board alone on an allocation you are still holding.
+    4. Watch, until the walltime warning arrives.
+    5. Hand over: the daemons write their handoffs while there is still a machine.
+    """
+    job = os.environ.get("SLURM_JOB_ID") or ""
+    host = this_host()
+
+    def say(line):
+        print("[%s] %s" % (time.strftime("%Y-%m-%d %H:%M:%S"), line), flush=True)
+
+    say("generation up on %s as job %s" % (host, job or "(no job id)"))
+    if supervise.stopped():
+        say("tutor serve stop was called; this generation is standing down and "
+            "queueing nothing")
+        return 0
+
+    successor = ensure_successor(cfg, job, say) if job else None
+    was = supervise.chain_record()
+    supervise.note_generation(
+        job=job, node=host, started=time.time(), successor=successor,
+        generation=(was.get("generation") or 0) + 1 if was.get("job") != job
+        else was.get("generation"),
+        previous=was.get("job") if was.get("job") != job else was.get("previous"),
+        partition=os.environ.get("SLURM_JOB_PARTITION") or "")
+
+    # The walltime warning, and an ordinary cancel, are the same event: this
+    # machine is about to stop being ours. `--signal=B:USR1@N` is what Slurm
+    # sends before the limit; SIGTERM is what `scancel` sends, and it arrives
+    # with a grace period of its own (KillWait), which is shorter -- so the
+    # handover is given what is left rather than the full four minutes.
+    going = {"why": None, "at": 0.0}
+
+    def leaving(signum, _frame):
+        if going["why"]:
+            return
+        going["why"] = "the walltime" if signum == signal.SIGUSR1 else "a cancel"
+        going["at"] = time.time()
+    for sig in (signal.SIGUSR1, signal.SIGTERM, signal.SIGINT):
+        try:
+            signal.signal(sig, leaving)
+        except (OSError, ValueError):
+            pass
+
+    # WHAT THE LAST GENERATION WAS SERVING, ASKED BEFORE ANYTHING SWEEPS IT.
+    # `cmd_resume` calls `prune_dead_records`, which deletes exactly the records
+    # that say which lessons were up when that machine went -- and it is right to
+    # delete them. So they are read first: a handover that brings back only the
+    # one course somebody last chose is a handover that loses the others.
+    previous = previously_serving(cfg, host)
+
+    tool_sync(cfg, quiet=True)          # may re-exec; see `tool_reexec`
+    # NOT `--force`, and that is the difference between a serving job and a
+    # thief. `--force` means "take the board off a machine that is still alive",
+    # and the machine that is still alive is usually an `salloc` of your own with
+    # somebody mid-proof on it. The plain resume leaves that where it is and says
+    # so; when that allocation ends, the watch loop below sees a record naming a
+    # node Slurm no longer gives you and moves the lesson here, which is the same
+    # decision made at the moment it is actually true.
+    code = cmd_resume(cfg, [])
+    say("resume returned %d" % code)
+    for c in previous:
+        if processes.board_is_running((board_record(c["root"]) or {}).get("pid"),
+                                      c["root"]):
+            continue
+        code, out = board(c["root"], "start")
+        say("%s was up on the machine that went, and is up here again: %s"
+            % (c["dir"], last_line(out) if code else "started"))
+
+    memo, repairs, checks = {}, [], 0
+    loop_started, last_chain = time.time(), time.time()
+    while not going["why"]:
+        checks += 1
+        try:
+            did = watch_once(cfg, host, memo, say)
+        except Exception as exc:                             # noqa: BLE001
+            did = []
+            say("the watch pass failed and the loop is carrying on: %r" % (exc,))
+        repairs = (repairs + did)[-20:]
+        supervise.note_watch(host=host, pid=os.getpid(), job=job,
+                             started=loop_started, last=time.time(),
+                             checks=checks, repairs=repairs)
+        if supervise.stopped():
+            say("tutor serve stop was called; standing down")
+            return 0
+        # THE CHAIN IS WATCHED TOO. A submission can be refused -- a queue limit,
+        # a controller restart mid-sbatch -- and a chain that has quietly stopped
+        # being a chain is the one failure of this arrangement nobody would see
+        # until the board went dark a week later.
+        if job and time.time() - last_chain > supervise.SUCCESSOR_EVERY:
+            last_chain = time.time()
+            nxt = ensure_successor(cfg, job, say)
+            if nxt and nxt != successor:
+                successor = nxt
+                supervise.note_generation(successor=nxt)
+        end = time.time() + supervise.POLL
+        while time.time() < end and not going["why"]:
+            time.sleep(0.5)
+
+    say("%s is taking this node; handing over" % going["why"])
+    left = supervise.HANDOVER_WARNING - 30 if going["why"] == "the walltime" else 20
+    hand_over(cfg, host, say, deadline=max(10, left))
+    return 0
+
+
+def serve_status(cfg):
+    """What the chain is doing, in the fewest lines that can be acted on."""
+    rows = supervise.serve_jobs()
+    rec = supervise.chain_record()
+    if supervise.stopped():
+        print("STOPPED -- `tutor serve stop` was called; nothing will be queued.")
+        print("start it again with: tutor serve\n")
+    if rows is None:
+        print("squeue did not answer here, so what follows is the record only.")
+    elif not rows:
+        print("nothing of the chain is in the queue.")
+        if rec.get("job"):
+            print("the last generation recorded was job %s on %s."
+                  % (rec["job"], rec.get("node") or "?"))
+        print("start it with: tutor serve")
+    for r in rows or []:
+        if r["state"] == "RUNNING":
+            print("running   job %-9s on %-11s %s left, %s"
+                  % (r["id"], r["node"], r["left"], r["partition"]))
+        else:
+            print("%-9s job %-9s %s"
+                  % (r["state"].lower(), r["id"],
+                     "waiting on %s" % r["dependency"] if r["dependency"]
+                     else "(no dependency -- it will start when it can)"))
+    if rec.get("generation"):
+        print("generation %s of this chain%s"
+              % (rec["generation"],
+                 ", the one before it was job %s" % rec["previous"]
+                 if rec.get("previous") else ""))
+    w = supervise.watch_record()
+    if w.get("last"):
+        ago = int(time.time() - w["last"])
+        print("watched on %s, %d check(s), last %s"
+              % (w.get("host") or "?", w.get("checks") or 0,
+                 "%d s ago" % ago if ago < 300 else
+                 "%s -- WHICH IS NOT RECENT" % time.strftime(
+                     "%H:%M:%S", time.localtime(w["last"]))))
+        for line in (w.get("repairs") or [])[-5:]:
+            print("  repaired: %s" % line)
     return 0
 
 
@@ -3410,6 +4013,15 @@ def main(argv):
 
     if args and args[0] == "where":
         return cmd_where(cfg, args[1:])
+
+    # The allocation, rather than anything in it. `serve` is the chain that keeps
+    # a machine under the board; `watch` is the loop that keeps the board up on
+    # the machine, and is worth running by hand inside an `salloc` too.
+    if args and args[0] == "serve":
+        return cmd_serve(cfg, argv[argv.index("serve") + 1:])
+
+    if args and args[0] == "watch":
+        return cmd_watch(cfg, argv[argv.index("watch") + 1:])
 
     if args and args[0] == "pull":
         # What the daily timer runs. `resume` does this too, on login; this is

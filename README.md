@@ -209,8 +209,11 @@ error; `bootstrap.sh` repairs it.
 
 A Slurm compute node with no root and a shared home directory reachable under two different
 paths. Python standard library only; plain browser JavaScript; nothing that needs a package
-manager at runtime. Logging in to a node is the one moment a node gets, so that is when the board
-comes back, the repository pulls, and `vendor/colibri` moves forward.
+manager at runtime. A login is one of the two moments a compute node gets, so that is when the
+repository pulls, `vendor/colibri` moves forward, and a board that is down comes back. The other
+is `tutor serve`: a batch job that queues its own successor before it does anything else, so the
+allocation under the board renews itself and a process that dies is back inside twenty seconds --
+`board/README.md` has it.
 
 It runs anywhere a `python3` and a browser are. The Slurm parts notice they are not needed.
 

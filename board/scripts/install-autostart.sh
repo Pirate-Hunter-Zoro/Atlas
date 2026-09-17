@@ -5,17 +5,23 @@
 #   bash scripts/install-autostart.sh --login-hook
 #   bash scripts/install-autostart.sh --uninstall
 #
-# A supervisor is the wrong shape here. One brings a service back after a machine
-# reboots; a compute node does not reboot, it ceases to be yours -- the
-# allocation ends and takes the board, the tutor and tailscaled with it, on a
-# machine you will never be given back. There is no process left to notice, and
-# no way for the iPad to ask, because asking requires something already
-# listening.
+# A supervisor that OUTLIVES the machine is the wrong shape here. One brings a
+# service back after a machine reboots; a compute node does not reboot, it ceases
+# to be yours -- the allocation ends and takes the board, the tutor and
+# tailscaled with it, on a machine you will never be given back. There is no
+# process left to notice, and no way for the iPad to ask, because asking requires
+# something already listening.
 #
-# The only moment a compute node gets is the moment you log in to it, so that is
-# where the hook goes -- and `salloc` hands you a shell on the LOGIN node, so it
-# goes on every interactive shell rather than only on the ones you open on the
-# node itself. `tutor resume` decides what to do from there.
+# A supervisor that IS the machine works, and that is `tutor serve`: a batch job
+# which queues its own successor before it does anything else, watches the board
+# for the life of its allocation, and hands over when the walltime comes. This
+# hook is the other half and is not replaced by it -- a login is where the
+# repository gets pulled, and it is the one moment that can put a chain back
+# which fell over before it queued anything.
+#
+# So the hook goes on every interactive shell rather than only on the ones you
+# open on a compute node, because `salloc` hands you a shell on the LOGIN node.
+# `tutor resume` decides what to do from there.
 #
 # No sudo. It runs as you, which is what you want -- the daemon needs your
 # tailnet, your git credentials and your agent's own auth.
