@@ -48,7 +48,7 @@ must be openable and teachable at every point.
   `board.css`, `plane-core.js`, `gauge.js`, `home.html`, `home.js`, `library.html`,
   `library.js`, `library.css`, anything added to the cache list), or the installed app
   serves its cached copy and the work is invisible.
-- **`bash test/all.sh` before every ship.** 82 suites, all green. `test/tracked.py` runs
+- **`bash test/all.sh` before every ship.** 83 suites, all green. `test/tracked.py` runs
   first and refuses PHI, 25-megabyte files, model dumps, other authors' papers and
   machine-local config anywhere in the repository — this is public, and git remembers.
   The last of them is **Paper-Writer's own**, run where it is checked out and skipped
@@ -865,7 +865,10 @@ of 3*.
 A card arrives whole — it is a file — so this is a reveal of something already in hand rather
 than a stream. It is typed **character by character** at 110 a second, past reading speed and
 still visibly a hand, capped so the longest card there can be is over in four seconds.
-`typeOut` in `board.js` is all of it; `test/feedback.js` and `test/typed.js` are the suites.
+`typeOut` in `board.js` is all of it; `test/feedback.js`, `test/typed.js` and `test/seam.js` are
+the suites, and `test/seam.js` is the one that drives the whole flow a person performs — ink on
+the glass, Send, the receipt, the reply, the next question — because the fault that survived
+three reports lived in the seam between the other two.
 
 **Every response, whatever wrote it and however it lands.** A card written once and a card
 written *over* are both responses, and `board write --over` is how every turn that does the work
@@ -890,8 +893,15 @@ lesson, the writing surface included.
 - **Nothing cancels it.** A hand on the page used to dump the remainder, and on a tablet a touch
   is how you scroll. The cap is the protection instead: a long card is typed faster, never
   skipped.
-- **`prefers-reduced-motion` types nothing at all**, synchronously, before `typeOut` returns.
-  The pacing IS the effect and there is no quieter version of it to offer.
+- **Reduce Motion does not govern this one animation.** The owner asked for the response to
+  arrive character by character, by name, three times; an explicit request about one animation
+  outranks a system-wide default about movement, and `typeOut` does not consult
+  `prefers-reduced-motion` at all. It still governs everything else on the page — the card's
+  entry slide, the reveal, the settle. A shorter animation is not a compromise available here:
+  what gets reported is the answer arriving all at once, and a faster dump is still a dump.
+  A suite therefore cannot opt out of the animation either: anything asserting where the
+  writing surface sits has to wait for the typing, the way the two flows at the foot of
+  `test/link.js` do.
 
 **And the next writing surface waits for the last character.** A board that comes down the
 instant the card exists comes down while the card is still blank, so the next board appears under
@@ -907,11 +917,32 @@ Which of two things that means depends on whether there is already a surface ope
   beat later under a response that has finished. Nothing is drawn in its place either: a
   question's dormant board is not photographed while its live surface is held shut.
 
-The typing pass therefore runs **before** anything decides where the surface goes — it used to
-run at the foot of the render, a hundred lines after that decision, so on the one frame that
-mattered nothing was typing yet and the hold did nothing. A tap on an earlier board overrides it
-— a request made by hand outranks an animation — and the hold carries a deadline as well as a
-count, so a card that stops mid-sentence in a backgrounded tab cannot park the surface for ever.
+The typing pass therefore runs **before** anything decides where the surface goes, on the same
+frame the reply lands; deciding first and typing afterwards means nothing is typing yet on the
+one frame that matters, and the hold does nothing. A tap on an earlier board overrides it — a
+request made by hand outranks an animation.
+
+**The hold is a list of the cards still arriving, not a class on a body.** `typingHeld` in
+`board.js` is taken and given back with the hold itself, and the surface comes down as far as the
+first card in it. A marker that the *animation* sets is lost by every path that holds without
+animating, and there is always one of those.
+
+**A stall loses the pacing and never the order.** The hold carries a deadline as well as a count
+— 2500ms of silence, pushed out by every frame — so a card that stops mid-sentence in a
+backgrounded tab cannot park the surface for ever. What happens when that deadline passes is that
+the card is finished **whole** and the hold moves to a 250ms settle: the animation is gone, the
+answer still lands as its own event with the board arriving after it. Letting go silently is how
+the fault this machinery exists to prevent comes back out of its own safety valve.
+
+**☰ → what just happened** reads back the board's last three hundred moves — every card that
+typed, what it asked for and what it took, every placement of the surface and the hold that
+decided it, and every stall. It is in memory and per page load, so it is gone after a reload and
+has to be taken from the sitting it happened in; the copy button is there because the person who
+can see a fault is not the person who can read the source. Its head, and the first line of what
+it copies, is **which shell is running**, read from the page's own cache rather than from the
+server: an installed app serves its cached `board.js` until `VERSION` in `sw.js` moves, so *the
+fix is wrong* and *the fix never reached this device* are the same sentence from a chair, and a
+version the server reported would read correct in exactly the case it is there to catch.
 
 ### Writing on the lesson itself
 

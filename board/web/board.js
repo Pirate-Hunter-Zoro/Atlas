@@ -558,6 +558,47 @@ function trace(what, of) {
   if (traceLog.length > TRACE_MAX) traceLog.shift();
 }
 
+/* AND WHICH CODE IT CAME FROM, WHICH IS THE OTHER HALF OF "IT DIDN'T WORK".
+
+   `board.js` is in `sw.js`'s `SHELL`, so an installed app serves its cached copy
+   until `VERSION` moves, and nothing on the glass said which shell was running.
+   Two rendering faults were then diagnosed from a sentence, one of those
+   diagnoses was wrong, and neither report could distinguish *the fix is wrong*
+   from *the fix never reached this tablet*.
+
+   IT HAS TO COME FROM THE RUNNING PAGE AND NOT FROM THE SERVER. A server on new
+   code serving a device that held on to an old shell is precisely the case being
+   diagnosed, so a version the server reported would read correct in the one
+   situation it exists to catch. The cache's name IS `VERSION`, so the page can
+   answer it about itself -- and more than one shell cache present is itself
+   worth seeing, so they are all named rather than one being chosen. */
+var shellVersion = "shell unknown";
+
+function askShell() {
+  try {
+    if (!window.caches || !window.caches.keys) return;
+    window.caches.keys().then(function (keys) {
+      var mine = (keys || []).filter(function (k) {
+        return /^board-shell-/.test(String(k));
+      });
+      if (mine.length) shellVersion = mine.join(" + ");
+    }, function () { /* no answer: unknown, and saying so is the honest line */ });
+  } catch (e) { /* no cache storage at all: a browser tab, not the app */ }
+}
+askShell();
+
+/* Reduce Motion is not consulted by `typeOut` any more, and the next fault
+   reported from a device that has it on will still want to know that it does. */
+function traceHead() {
+  var still = "?";
+  try {
+    still = (window.matchMedia
+             && window.matchMedia("(prefers-reduced-motion: reduce)").matches)
+      ? "yes" : "no";
+  } catch (e) { /* no matchMedia */ }
+  return shellVersion + "  ·  reduce motion: " + still;
+}
+
 /* ------------------------------------------------------------------ render */
 var KIND_LABEL = {
   lesson: "lesson",
@@ -2622,11 +2663,30 @@ var TYPE_ATOMIC = ".katex, .katex-display, pre, table, svg, img, figure";
 var typingNow = 0;
 var typingUntil = 0;
 var TYPE_STALL = 2500;     /* silence, not elapsed time, is what releases a hold */
-/* And how long a card that is NOT animated holds the surface anyway. Short
+/* And how long a card whose PACING was lost holds the surface anyway. Short
    enough that nobody waits, long enough that the answer and the next board are
-   two events rather than one. See the `!ms` branch of `typeOut`. */
+   two events rather than one. A stall is what takes it: see `finish` in
+   `typeOut`. */
 var TYPE_SETTLE = 250;
 var settleTimer = null;
+var settleNode = null;
+
+/* WHICH CARDS ARE STILL ARRIVING -- A FACT ABOUT THE PAGE, NOT A CLASS ON A BODY.
+
+   `placeWriter` comes down as far as the first card that is still arriving, and
+   it used to find that card by looking for `.body.typing` -- a class only the
+   ANIMATION sets. So every path that holds the surface WITHOUT animating held
+   nothing findable: the loop found no card, the surface did not move, and the
+   receipt for the answer just handed in stayed below the board it was written
+   on until something else shook the page. A hold that depends on a class the
+   animation happens to set is lost by every path that does not animate, and
+   there is one of those again the moment a stall finishes a card early.
+
+   So the hold and the marker are the same fact now: taken together, given back
+   together, and nothing has to remember to set a class. */
+var typingHeld = [];
+
+function cardArriving(node) { return !!node && typingHeld.indexOf(node) !== -1; }
 
 /* AND A HOLD NEVER SURVIVES INTO THE NEXT PAYLOAD.
 
@@ -2642,35 +2702,51 @@ function settleEnd(again) {
   if (!settleTimer) return;
   clearTimeout(settleTimer);
   settleTimer = null;
+  if (settleNode) {
+    var s = typingHeld.indexOf(settleNode);
+    if (s !== -1) typingHeld.splice(s, 1);
+    settleNode = null;
+  }
   if (typingNow > 0) typingNow--;
   if (again && !typingNow && lastLive) render(lastLive);
 }
 
 function typingCards() { return typingNow > 0 && Date.now() < typingUntil; }
 
-/* One hold on the page, taken and given back in pairs. */
-function holdTyping() {
+/* One hold on the page, taken and given back in pairs, and the card it is for.
+   The node is what `placeWriter` looks for; see `typingHeld`. */
+function holdTyping(node) {
   typingNow++;
+  if (node && typingHeld.indexOf(node) === -1) typingHeld.push(node);
   keepTyping();
 }
 
-/* Still going. Called on every frame the animation actually gets. */
+/* Still going. Called on every frame the animation actually gets, and it
+   answers one question: had the watchdog already let go.
+
+   A frame arriving AFTER the deadline means the main thread was away for longer
+   than `TYPE_STALL`, so the hold expired with this card still half painted --
+   the surface came down, the next board arrived, and the rest of the card
+   appeared in one go when the thread came back. That is the reported glitch
+   exactly, and it is indistinguishable from every other cause without the line
+   this records.
+
+   LETTING GO IS RIGHT; LETTING GO SILENTLY IS NOT. A held surface that never
+   comes back is worse than no hold at all, which is why the deadline exists --
+   but the caller now gets told, so a card whose pacing is lost can still be
+   finished as ONE event followed by the board, rather than as a jump. See
+   `finish` in `typeOut`. */
 function keepTyping() {
   var now = Date.now();
-  /* AND THE WATCHDOG HAD ALREADY LET GO, which is the one thing here that
-     nobody can report and nobody can see. A frame arriving AFTER the deadline
-     means the main thread was away for longer than `TYPE_STALL`, so the hold
-     was released while this card was still half painted -- the surface came
-     down, the next board arrived, and the rest of the card appeared in one go
-     when the thread came back. That is the reported glitch exactly, and it is
-     indistinguishable from every other cause without this line. */
-  if (typingNow > 0 && typingUntil && now > typingUntil) {
-    trace("stall", { late: now - typingUntil, held: typingNow });
-  }
+  var late = !!(typingNow > 0 && typingUntil && now > typingUntil);
+  if (late) trace("stall", { late: now - typingUntil, held: typingNow });
   typingUntil = now + TYPE_STALL;
+  return late;
 }
 
-function releaseTyping() {
+function releaseTyping(node) {
+  var h = node ? typingHeld.indexOf(node) : -1;
+  if (h !== -1) typingHeld.splice(h, 1);
   if (typingNow > 0) typingNow--;
   /* And now the writing surface may come down under it, and the receipt above
      it may stop talking. `placeWriter` and `paintSent` held for exactly this
@@ -2790,16 +2866,26 @@ function typeOut(card) {
     return;
   }
 
-  /* Somebody who has asked for less movement gets the card, whole, now. The
-     pacing is a flourish and they have said they do not want flourishes. */
-  var still = false;
-  try {
-    still = !!(window.matchMedia
-               && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
-  } catch (e) { /* no matchMedia: type it */ }
+  /* EVERY CARD TYPES, AND REDUCE MOTION DOES NOT GOVERN THIS ONE ANIMATION.
 
-  var ms = still ? 0
-    : Math.max(TYPE_MIN, Math.min(TYPE_ALL, Math.round(total / TYPE_CPS * 1000)));
+     This used to ask `prefers-reduced-motion: reduce` and, where it matched,
+     paint the card whole and hold a quarter of a second in place of typing --
+     on the reading that the pacing is a flourish and somebody who asked for
+     less movement does not want flourishes. `test/typed.js` asserted it in
+     those words. It was wrong, and the report that settles it is the third in
+     the owner's own words: "the tutor response would show up character by
+     character and then the next writing board wouldn't show up until AFTER the
+     tutor response was COMPLETELY rendered."
+
+     AN EXPLICIT REQUEST ABOUT ONE ANIMATION OUTRANKS A SYSTEM-WIDE DEFAULT
+     ABOUT MOVEMENT. Reduce Motion goes on governing everything else on the page
+     -- the card's entry slide, the reveal, the settle -- and it is not consulted
+     here. Nor is there a compromise in a shorter animation: what was reported is
+     the answer arriving all at once, and a faster dump is still a dump.
+
+     What is left of the un-animated path is a card with nothing to type, which
+     is a different case and has its own `skip` lines above. */
+  var ms = Math.max(TYPE_MIN, Math.min(TYPE_ALL, Math.round(total / TYPE_CPS * 1000)));
   var rate = total / Math.max(1, ms);          /* characters per millisecond */
   var t0 = null, at = 0;
 
@@ -2809,64 +2895,37 @@ function typeOut(card) {
     body.classList.remove("typing");
   };
 
-  /* THE HOLD IS NOT THE ANIMATION, AND CONFLATING THEM COST THE WHOLE FEATURE.
-
-     This used to say "nothing typed is nothing held, and it happens now", and
-     return without taking a hold at all. Somebody who asks for less movement
-     gets the card whole and immediately -- that part is right, and the pacing is
-     a flourish. What they must not ALSO get is the next board arriving on top of
-     the answer, because that is not a flourish: it is the whole of "no next
-     board showing up until the AI response has been COMPLETELY rendered".
-
-     So with Reduce Motion on, the hold was never taken, `replyArriving()` was
-     false on the one frame that matters, and the surface came down beside a card
-     that had appeared in the same breath. Reported as the next board landing over
-     the pulsing strip and "then the AI response just all showed up at once
-     between the boards" -- and NO SUITE EVER SAW IT, because jsdom has no
-     `matchMedia`, so every test in this repository runs with the animation on.
-
-     `TYPE_SETTLE` is the hold, and it is not an animation: nothing moves during
-     it and nothing is faded. It is the gap that makes "the answer, and then the
-     board" legible instead of simultaneous, which is the thing that was asked
-     for. Reduce Motion is about movement, not about latency, and a quarter of a
-     second in which the page is perfectly still is neither. One animation frame
-     was tried and is not enough -- it lands inside the same tick, so the two
-     arrive together and the complaint stands. */
-  if (!ms) {
-    /* ONLY FOR A CARD THAT IS ANSWERING A SEND. A question arriving on a cold
-       board is answering nothing and nobody is waiting on it, so holding its
-       surface shut buys a beat of nothing; the hold is for the case the
-       complaint was about, which is a reply landing on work just handed in. */
-    /* ONE SETTLE PER FRAME, NOT PER CARD. A reply and the next question arrive
-       in the same payload and both are fresh, so both come through here -- and
-       with a hold each and one timer to release them, the second overwrote the
-       first and left a hold nothing could ever give back. The surface then
-       stayed where it was and the receipt went on saying `arriving` until the
-       watchdog expired. The settle is a property of the frame the reply landed
-       on, so `settleTimer` is both the timer and the flag. */
-    if (replyLanding && !settleTimer) {
-      holdTyping();
-      settleTimer = setTimeout(function () { settleEnd(true); }, TYPE_SETTLE);
-    }
-    units.forEach(function (u) { typeShow(u, u.n); });
-    done();
-    trace("whole", { card: which, why: "reduced motion",
-                     held: !!settleTimer });
-    return;
-  }
-
-  holdTyping();
+  holdTyping(card);
   body.classList.add("typing");
   var began = Date.now();
   trace("type", { card: which, ms: ms, units: units.length, chars: total });
 
-  var finish = function () {
+  var finish = function (stalled) {
     done();
     /* How long it ACTUALLY took beside what it asked for. The two being far
        apart is a stalled main thread, which is the difference between a card
        that typed and a card that appeared. */
-    trace("typed", { card: which, asked: ms, took: Date.now() - began });
-    releaseTyping();
+    trace("typed", { card: which, asked: ms, took: Date.now() - began,
+                     stalled: stalled ? 1 : 0 });
+    /* A STALL LOSES THE PACING. IT MUST NOT ALSO LOSE THE ORDER.
+
+       The watchdog letting go beats parking the surface for ever, and that is
+       not in question. What letting go USED to mean is that the rest of the
+       card was painted in one go on the late frame and the board came down in
+       the same breath -- the whole of the reported fault, arriving from its own
+       safety valve.
+
+       So the card is finished whole, which is the pacing gone, and the hold is
+       handed to the settle rather than given back: nothing moves for
+       `TYPE_SETTLE`, and then the surface comes down. Two events, one of which
+       is no longer pretty. The hold taken above is the one the settle gives
+       back, so `typingNow` is not touched here. */
+    if (stalled && !settleTimer) {
+      settleNode = card;
+      settleTimer = setTimeout(function () { settleEnd(true); }, TYPE_SETTLE);
+      return;
+    }
+    releaseTyping(card);
   };
 
   /* THE CLOCK IS READ HERE, NOT TAKEN FROM THE CALLBACK.
@@ -2880,9 +2939,12 @@ function typeOut(card) {
     var now = Date.now();
     if (t0 === null) t0 = now;
     /* A FRAME IS PROOF OF LIFE. Nothing else here can tell a card that is
-       taking its time from a tab that stopped animating. */
-    keepTyping();
-    var want = ms ? Math.min(total, Math.ceil((now - t0) * rate)) : total;
+       taking its time from a tab that stopped animating -- and a frame that
+       arrives too late to be proof of anything says so, which is this card's
+       cue to stop pacing and land. */
+    var stalled = keepTyping();
+    var want = stalled ? total
+      : Math.min(total, Math.ceil((now - t0) * rate));
     while (at < units.length && units[at].start < want) {
       var u = units[at];
       var take = Math.min(u.n, want - u.start);
@@ -2891,7 +2953,7 @@ function typeOut(card) {
       else break;
     }
     if (at < units.length) { window.requestAnimationFrame(step); return; }
-    finish();
+    finish(stalled);
   };
   window.requestAnimationFrame(step);
 }
@@ -6106,8 +6168,11 @@ var awaitingReply = null;  /* an answer sent and not yet replied to */
    waiting for is still arriving. See `replyArriving`. */
 var heldReply = null;
 /* What was outstanding when the LAST payload was drawn, and whether a reply is
-   landing on this one. Both are read by `typeOut`, which is the only thing that
-   can tell a card that answers a send from a card that merely arrived. */
+   landing on this one. It has to be remembered across payloads, because the card
+   that answers a send arrives in the very payload that clears the send: by the
+   time anything downstream asks, nothing is outstanding any more. The receipt
+   reads it, and so does the trace, where it is the line that says whether a
+   payload was recognised as a reply landing at all. */
 var wasAwaiting = null;
 var replyLanding = false;
 var working = false;       /* and is it in the middle of a turn right now */
@@ -7971,13 +8036,17 @@ function placeWriter(owed, questionNode, live, hold) {
        a figure that finished -- reconciles into its proper place immediately;
        only the writing that is still arriving stays below.
 
-       The card says so itself: `typeOut` marks the body it is painting into. */
+       WHICH CARD THAT IS COMES FROM THE HOLD ITSELF, not from a class on its
+       body. `.body.typing` is set by the animation, so any path that holds the
+       surface without animating -- a card finished early by a stall, and
+       whatever the next one of those turns out to be -- left this loop with
+       nothing to find. `typingHeld` cannot drift from the hold, because it IS
+       the hold; see `holdTyping`. */
     var kids = els.cards.children;
     var below = null, passed = false;
     for (var k = 0; k < kids.length; k++) {
       if (kids[k] === els.writer) { passed = true; continue; }
-      if (passed && kids[k].querySelector
-          && kids[k].querySelector(".body.typing")) { below = kids[k]; break; }
+      if (passed && cardArriving(kids[k])) { below = kids[k]; break; }
     }
     if (below && below.previousElementSibling !== els.writer) {
       els.cards.insertBefore(els.writer, below);
@@ -8943,6 +9012,9 @@ document.getElementById("btn-export-hw").onclick = doExportHomework;
    opened: the whole design of the buffer is that it costs nothing until then. */
 function paintTrace() {
   var host = document.getElementById("trace-list");
+  askShell();                 /* it may have installed since the page opened */
+  var head = document.getElementById("trace-shell");
+  if (head) head.textContent = traceHead();
   host.textContent = "";
   if (!traceLog.length) {
     var none = document.createElement("div");
@@ -8970,13 +9042,16 @@ function paintTrace() {
   });
   host.scrollTop = host.scrollHeight;
   /* THE ONE LINE THAT SAYS WHETHER ANYTHING IS WRONG, so the panel answers the
-     question before it is read line by line. A stall is the hold letting go
-     while a card was still painting; a skip is a card that never held at all. */
+     question before it is read line by line. A stall is the main thread having
+     been away longer than the watchdog waits: the card lands whole and the
+     board still waits for it, so what was lost is the pacing and not the order.
+     A skip is a card that never held at all. */
   var stalls = traceLog.filter(function (e) { return e.what === "stall"; }).length;
   var skips = traceLog.filter(function (e) { return e.what === "skip"; }).length;
   document.getElementById("trace-said").textContent =
-      stalls ? stalls + " stall(s): the hold let go while a card was still being "
-                      + "painted, so the next board came down early."
+      stalls ? stalls + " stall(s): the main thread was away, so a card landed "
+                      + "whole instead of typing. The next board still waited "
+                      + "for it."
     : skips ? skips + " card(s) took no hold at all — they arrived whole."
     : traceLog.length + " moves, and nothing in them looks wrong.";
 }
@@ -8998,9 +9073,11 @@ document.getElementById("trace-close").onclick = function () {
    who can read the source, and reading three hundred lines aloud is not a bug
    report. */
 document.getElementById("trace-copy").onclick = function (e) {
-  var text = traceLog.map(function (x) {
+  /* THE SHELL FIRST, BEFORE A SINGLE MOVE. Three hundred lines pasted into a
+     report say what the board did; the first line says which board did it. */
+  var text = [traceHead()].concat(traceLog.map(function (x) {
     return x.at + "\t" + x.what + "\t" + (x.of ? traceSay(x.of) : "");
-  }).join("\n");
+  })).join("\n");
   var said = e.currentTarget;
   var back = function (word) {
     said.textContent = word;
