@@ -507,6 +507,16 @@ var KIND_LABEL = {
    and is never folded. */
 var REPLY_KIND = { wrong: 1, correct: 1, review: 1, note: 1 };
 
+/* What a reply says about the answer it replied to. Two kinds are a verdict;
+   everything else that answers working is "open", which is the amber default
+   -- see where `verdictOf` is built. */
+var VERDICT_OF = { correct: "correct", wrong: "wrong" };
+
+/* The verdict on each question, by card id, as of the last render. Read by
+   `paintBoards`, which runs after the transcript is built and paints the same
+   answer's board with the same colour. */
+var lastVerdicts = Object.create(null);
+
 function timeLabel(t) {
   var d = new Date(t * 1000);
   return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
@@ -744,18 +754,76 @@ function render(data) {
     run.slice(0, -1).forEach(function (id) { superseded[id] = true; });
   });
 
+  /* AND THE NEWEST REPLY IN A QUESTION'S RUN IS THE VERDICT ON WHAT THEY SENT.
+
+     Asked for in these words: "if I'm right in my response, put a nice green
+     sidebar down the response as it comes back. Red if I'm wrong. Yellow if
+     it's not really a right/wrong situation -- like if we're vibe-coding or I
+     ask a question." Every sitting, not only a lecture: a step that worked, a
+     step that did not, and a question put back to the person are the three
+     moods of a build as much as of a proof.
+
+     AMBER IS THE DEFAULT, NOT A THIRD CASE. Most replies in a doing sitting and
+     most in a walkthrough are neither right nor wrong -- `note` and `review`
+     are the tutor answering rather than marking -- and a surface that knows
+     only green and red has to guess at all of them.
+
+     `--ask` is that amber, and not `--note`, which the kinds use for `review`:
+     `--note` is the blue of an aside, and what was asked for is yellow.
+
+     WAITING IS NOT AMBER. A question whose reply has not arrived is a different
+     state from one answered with something that is neither right nor wrong, and
+     painting both the same colour is the defect this exists to fix in a new
+     coat. So an unanswered turn carries no verdict at all -- the pulsing strip
+     is what says the tutor is reading it -- and the colour arrives with the
+     reply, which is exactly when there is something to say.
+
+     This walk is `runEndOf`'s, deliberately: `isQuestion` rather than
+     `kind === "question"`, because a tutor who poses the exercise in a `lesson`
+     card and asks at the foot of it has asked a question, and the student's own
+     answer against that card is what settles it. The folding runs above split
+     on the kind alone and are left exactly as they were. */
+  var verdictOf = Object.create(null);
+  var verdictFor = null;
+  ordered.forEach(function (c) {
+    if (isQuestion[c.id]) { verdictFor = c.id; return; }
+    if (verdictFor && REPLY_KIND[c.kind]) {
+      verdictOf[verdictFor] = VERDICT_OF[c.kind] || "open";
+    }
+  });
+  lastVerdicts = verdictOf;
+
+  /* Every typed answer a question has, in order, so the second one can say
+     which it is. The boards say "attempt 2 of 3" for a second page of ink and
+     the words are owed the same, for the same reason: a question that stays
+     open for an evening collects several answers, and three bubbles in a row
+     under one card are otherwise three unlabelled things. */
+  var typedOn = Object.create(null);
+  (data.turns || []).forEach(function (t) {
+    if (t.kind !== "text" || t.signal || !t.answers) return;
+    (typedOn[t.answers] = typedOn[t.answers] || []).push(t.id);
+  });
+
   var items = [];
   ordered.forEach(function (c, n) {
     items.push({ pos: n, sub: 0, t: c.mtime, key: "card:" + c.id, card: c });
   });
   (data.turns || []).forEach(function (t) {
     var when = t.t0 || t.t;
-    var pos;
+    var pos = -1;
+    ordered.forEach(function (c, n) { if (c.mtime <= when) pos = n; });
     if (t.answers && at[t.answers] !== undefined) {
-      pos = at[t.answers];
-    } else {
-      pos = -1;
-      ordered.forEach(function (c, n) { if (c.mtime <= when) pos = n; });
+      /* Under the card it answers -- BUT NEVER ABOVE A CARD WRITTEN BEFORE IT.
+         A question stays open for an evening and collects several answers, so
+         pinning every one of them to the question card stacked a whole sitting's
+         typing hours above the feedback each piece of it was replying to. The
+         two rules disagree only when the question is not the newest card, and
+         where they disagree the clock is right.
+
+         Ink is unaffected in practice and would be right if it were: its board
+         is placed at the end of the question's run by `paintBoards`, and this
+         line moves a one-line receipt, not the working. */
+      pos = t.kind === "text" ? Math.max(pos, at[t.answers]) : at[t.answers];
     }
     items.push({ pos: pos, sub: 1, t: when, key: "turn:" + t.id, turn: t });
   });
@@ -855,7 +923,21 @@ function render(data) {
        is part of that identity -- the surface is built a frame after the first
        payment, and without this the turn keeps the picture it was born with. */
     var onBoard = !!item.turn && onABoard(item.turn);
-    var wantKey = stamp + (item.card ? "" : (onBoard ? ":b" : ""));
+    /* The verdict is part of the turn's identity too: it is written by a card
+       that arrives minutes after the turn did, and a node kept because its key
+       had not changed would keep the colour it was born with -- which is no
+       colour at all, for ever. */
+    var says = (item.turn && item.turn.answers)
+      ? (verdictOf[item.turn.answers] || "") : "";
+    /* Which typed answer of how many, and it is in the key because the "of" end
+       of it changes when the NEXT one is sent -- on a node that would otherwise
+       be kept exactly as it is. */
+    var oneOf = (item.turn && item.turn.kind === "text" && item.turn.answers)
+      ? (typedOn[item.turn.answers] || []) : [];
+    var nth = oneOf.length > 1 ? oneOf.indexOf(item.turn.id) + 1 : 0;
+    var wantKey = stamp + (item.card ? ""
+      : (onBoard ? ":b" : "") + (says ? ":v" + says : "")
+        + (nth ? ":n" + nth + "/" + oneOf.length : ""));
     if (onScreen[wantKey]) {
       wanted.push({ key: wantKey, node: null });     /* keep what is there */
       return;
@@ -883,12 +965,14 @@ function render(data) {
       node.className = "mine" + (fresh ? " fresh" : "");
       node.dataset.turn = m.id;
       if (m.answers) node.dataset.answers = m.answers;
+      if (says) node.dataset.verdict = says;
       node.innerHTML = '<span class="when"></span><span class="text"></span>';
       var when = "you · " + timeLabel(m.t);
       if (m.kind === "annotation") {
         when += " · wrote on card " + (m.answers || "?");
         if (m.where) when += " " + m.where;
       }
+      if (nth) when += " · answer " + nth + " of " + oneOf.length;
       if ((m.rev || 1) > 1) when += " · revised";
       node.querySelector(".when").textContent = when;
       if (m.signal) {
@@ -6280,6 +6364,13 @@ function paintBoards(qids, liveKey, off) {
       anchor.parentNode.insertBefore(slot, anchor.nextSibling);
     }
     slot.hidden = false;
+    /* The same verdict as the turn above it, on the same answer. A question
+       answered in ink keeps its board for the rest of the sitting, and that
+       board -- not the one-line receipt in the transcript -- is what the person
+       actually looks back at. */
+    var said = lastVerdicts[it.qid];
+    if (said) slot.dataset.verdict = said;
+    else delete slot.dataset.verdict;
     /* Which attempt this is, but only once there is more than one -- on a
        question answered in one go the number is noise. */
     var which = it.of > 1
@@ -7308,6 +7399,7 @@ function restoreTextDraft() {
   if (lastTextQuestion !== null) flushTextDraft();
   lastTextQuestion = answering.question;
   loadedTextTurn = null;    /* a different question is a different answer */
+  correctingTurn = null;
   els.saybox.value = textDrafts[answering.question] || "";
   autosize();
 }
@@ -7371,6 +7463,14 @@ function paintPanel() {
    box, and newer local typing wins. */
 var loadedTextTurn = null;
 
+/* Which typed answer the box is CORRECTING -- as opposed to which one it last
+   sent, which is what `loadedTextTurn` remembers so that a send is not
+   immediately loaded back over the empty box it left. Two different questions,
+   and answering the second with the first is what made every typed answer
+   overwrite the one before it. Set here and nowhere else: the box is correcting
+   an answer exactly when an answer was put into it. */
+var correctingTurn = null;
+
 function restoreTextAnswer() {
   var t = answering.latest;
   if (!t || t.kind !== "text" || t.signal || !t.text) return;
@@ -7378,6 +7478,7 @@ function restoreTextAnswer() {
   if (id === loadedTextTurn) return;
   if (els.saybox.value.trim()) return;
   loadedTextTurn = id;
+  correctingTurn = t.id;
   els.saybox.value = t.text;
   autosize();
 }
@@ -7394,13 +7495,25 @@ function say(signal) {
   els.saybox.value = "";
   if (answering.question) { textDrafts[answering.question] = ""; }
   autosize();
-  /* Revising an existing typed answer keeps its place in the transcript; a fresh
-     one starts a turn. Signals always start fresh. */
-  var revise = null;
-  if (!signal && answering.latest && answering.latest.kind === "text"
-      && !answering.latest.signal) {
-    revise = answering.latest.id;
-  }
+  /* A CORRECTION REVISES; A SECOND ANSWER IS A SECOND ANSWER.
+
+     This asked `answering.latest` -- the newest turn on this question, of any
+     kind -- so EVERY typed answer after the first one overwrote the one before
+     it. A question stays open for an evening, and the whole of a Galois sitting
+     answered card 0001: three typed answers, hours apart, each a reply to a
+     different piece of feedback, and the transcript held the last of them. It
+     landed as "when I type a response and send it... it disappears once the
+     tutor response comes in", beside the comparison that says what is owed:
+     "just like previous writing boards, previous text prompts should be
+     preserved too". Ink keeps every attempt -- a board apiece, down the page --
+     and typing kept one.
+
+     `correctingTurn` is the narrower question and the right one: is the box
+     holding an answer it was HANDED, to fix. Only then is a send a new revision
+     of that answer, which is what keeps a correction in the place of the thing
+     it corrects. Anything typed into an empty box is new, and new is kept.
+     Signals always start fresh. */
+  var revise = (!signal && correctingTurn) ? correctingTurn : null;
   return fetch("/say", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -7408,6 +7521,10 @@ function say(signal) {
                            answers: answering.question, turn: revise })
   }).then(function (r) { return r.json(); }).then(function (data) {
     if (data && data.turn) loadedTextTurn = data.turn + ":r" + (data.rev || 1);
+    /* The box is empty again, so it is correcting nothing. Without this the
+       NEXT thing typed into it would be sent as a revision of what was just
+       sent, which is the defect wearing a different coat. */
+    correctingTurn = null;
     els.sendType.classList.add("sent");
     setTimeout(function () { els.sendType.classList.remove("sent"); }, 900);
   });
@@ -7427,7 +7544,12 @@ function sendTyped() {
 
 els.sendType.onclick = sendTyped;
 
-els.saybox.addEventListener("input", function () { autosize(); saveTextDraft(); });
+els.saybox.addEventListener("input", function () {
+  /* Cleared by hand is starting over, not correcting what was in it. */
+  if (!els.saybox.value.trim()) correctingTurn = null;
+  autosize();
+  saveTextDraft();
+});
 els.saybox.addEventListener("keydown", function (e) {
   if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
     e.preventDefault();

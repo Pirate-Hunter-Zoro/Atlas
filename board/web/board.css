@@ -757,6 +757,28 @@ body[data-mode="auto"].sys-dark .figure img { filter: invert(1) hue-rotate(180de
 /* Same rule as the card: a turn animates when it arrives, not whenever the
    board hears something. `render` marks the new ones `.fresh`. */
 .mine.fresh { animation: rise .28s ease-out both; }
+
+/* THE VERDICT, DOWN THE STUDENT'S OWN ANSWER.
+
+   Green got it right, red did not, amber is everything else -- a reply that
+   answers rather than marks, which is most of a build sitting and most of a
+   walkthrough. The colour is the tutor's existing judgement moved to where the
+   person is actually looking, which is their own words, not the card above
+   them: see `verdictOf` in board.js.
+
+   A turn with no reply yet has no rule at all. Waiting is not a verdict, and
+   the pulsing strip is what says so.
+
+   A line, not a wash. The card that carries the verdict is already tinted end
+   to end, and tinting the answer to match would say the same thing twice in the
+   same colour a finger's width apart. */
+.mine[data-verdict="correct"] { --verdict: var(--good); }
+.mine[data-verdict="wrong"]   { --verdict: var(--bad); }
+.mine[data-verdict="open"]    { --verdict: var(--ask); }
+.mine[data-verdict] {
+  border-left: 3px solid var(--verdict);
+  border-radius: .2rem .7rem .7rem .2rem;
+}
 .mine .when {
   display: block; font-size: .68rem; color: var(--ink-3);
   font-family: var(--ui); margin-bottom: .15rem;
@@ -994,6 +1016,18 @@ body.tools-out { padding-bottom: 5.5rem; }
   background: var(--shot-bg, #101114);
 }
 .board { cursor: pointer; touch-action: none; }
+/* And the same verdict down the board that holds the working, which is what a
+   person scrolls back to rather than the one-line receipt in the transcript.
+   `--verdict` and not `--accent`: the send button on this board is painted from
+   `--accent`, and a Send that turns green because the last answer was right is
+   a button saying something about the next one. */
+.board[data-verdict="correct"] { --verdict: var(--good); }
+.board[data-verdict="wrong"]   { --verdict: var(--bad); }
+.board[data-verdict="open"]    { --verdict: var(--ask); }
+.board[data-verdict] {
+  border-left: 3px solid var(--verdict);
+  padding-left: .45rem;
+}
 .board-send {
   margin-left: auto; flex: none; cursor: pointer;
   font: inherit; font-family: var(--ui); font-size: .74rem; font-weight: 700;

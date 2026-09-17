@@ -16,6 +16,12 @@ from . import paths
 # compute node; short enough that a start which died leaves a board that says so.
 WAKING_GRACE = 300
 
+# How long a tutor's record is believed from a DIFFERENT machine, where the pid
+# in it cannot be checked. Three of the daemon's own wake-ups: it rewrites the
+# record every time `board wait` times out, so a quarter of an hour of silence
+# is not something a listening tutor produces.
+AWAY_SILENCE = 900
+
 
 def waking_now(record):
     """Is this `waking` record still plausibly a start in flight?"""
@@ -130,6 +136,32 @@ def agent_is_attached(record, host):
     if record.get("pid"):
         return pid_alive(record["pid"])
     return (time.time() - record.get("last_seen", 0)) <= 120
+
+
+def agent_attached_away(record, node, now=None):
+    """Does this record still look like a tutor listening on ANOTHER node?
+
+    A different question from `agent_is_attached`, and it has to be: the pid in
+    the record belongs to a process table this machine cannot read, and reading
+    the local one instead is how a stranger's process gets mistaken for a tutor.
+    The heartbeat is the only evidence there is from here. A listening daemon
+    rewrites its record every time `board wait` times out -- 300 s -- and every
+    30 s while a turn runs, so `AWAY_SILENCE` is three missed wake-ups.
+
+    Wrong in one direction only: a tutor that died in the last few minutes still
+    reads as attached, and the next login asks again.
+    """
+    if not record or not node:
+        return False
+    if record.get("host") != node:
+        return False
+    if record.get("state") == "waking":
+        return waking_now(record)
+    try:
+        seen = float(record.get("last_seen") or 0)
+    except (TypeError, ValueError):
+        return False
+    return 0 <= (time.time() if now is None else now) - seen <= AWAY_SILENCE
 
 
 def _cmdline(pid):

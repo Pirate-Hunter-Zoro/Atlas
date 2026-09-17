@@ -24,6 +24,9 @@ import tempfile
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 
+sys.path.insert(0, ROOT)
+from tutorboard import processes                              # noqa: E402
+
 loader = importlib.machinery.SourceFileLoader("tutor", os.path.join(ROOT, "bin", "tutor"))
 spec = importlib.util.spec_from_loader("tutor", loader)
 tutor = importlib.util.module_from_spec(spec)
@@ -455,6 +458,132 @@ check("a daemon that simply died is not dressed up as a restart",
 check("and the board has a word for it that is not 'nothing is reading'",
       'agent.state === "reattaching"' in
       open(os.path.join(ROOT, "web", "board.js"), encoding="utf-8").read())
+
+print()
+# A BOARD AND ITS TUTOR ARE TWO PROCESSES AND THEY DIE SEPARATELY.
+#
+# The daemon's node lost its allocation; the board came back on the next node
+# logged in to, and no tutor came with it. Nothing was ever going to notice from
+# the machine the person actually works on: `tutor resume` saw a board on a node
+# that is still theirs, said it was leaving it there, and returned BEFORE
+# `ensure_agent` -- and `tutor restart --tutors` only bounces tutors that are
+# already attached, so it reported "no tutors were attached" and moved on. The
+# lesson sat on the iPad with nothing listening to it.
+
+away = tempfile.mkdtemp(prefix="tutor-away-")
+away_root = os.path.join(away, "Fake-Course")
+away_live = os.path.join(away_root, "live")
+os.makedirs(away_live)
+open(os.path.join(away_root, "AI_INSTRUCTIONS.md"), "w").close()
+with open(os.path.join(away_live, ".board.json"), "w", encoding="utf-8") as fh:
+    json.dump({"pid": 1, "port": 9098, "node": "othernode", "root": away_root,
+               "started": time.time()}, fh)
+
+AWAY_CFG = {"courses_dir": away, "default_agent": "claude",
+            "agents": {"claude": {"cmd": ["claude"],
+                                  "headless": [sys.executable, "-c", "pass"]}}}
+
+was_env = os.environ.pop("TUTORBOARD_COURSES", None)
+started, sshed = [], []
+real = {k: getattr(tutor, k) for k in
+        ("board", "link", "sync", "pull_vendor", "prune_dead_records",
+         "ssh_tool", "agent_start")}
+real_nodes = tutor.machine.slurm_nodes
+tutor.board = lambda root, *a: (0, "")
+tutor.link = lambda root: None
+tutor.sync = lambda root, quiet=False: None
+tutor.pull_vendor = lambda quiet=False: None
+tutor.prune_dead_records = lambda cfg, host: []
+tutor.agent_start = lambda cfg, c, name, session=None: (started.append(c["dir"]) or (0, "started"))
+tutor.ssh_tool = lambda target, tail, timeout=300: (
+    sshed.append((target, list(tail))) or (0, "claude starting in Fake-Course\n"))
+tutor.machine.slurm_nodes = lambda: {host, "othernode"}
+
+
+def away_agent(**kw):
+    path = os.path.join(away_live, "agent.json")
+    if not kw:
+        if os.path.exists(path):
+            os.remove(path)
+        return
+    with open(path, "w", encoding="utf-8") as fh:
+        json.dump(kw, fh)
+
+
+try:
+    check("the fixture's board is the one a resume would bring back",
+          (tutor.last_board(AWAY_CFG) or {}).get("dir") == "Fake-Course")
+
+    away_agent()
+    del sshed[:]
+    tutor.cmd_resume(AWAY_CFG, ["--quiet"])
+    check("a board left on another of your nodes is still asked whether a "
+          "tutor is listening to it",
+          sshed == [("othernode", ["agent", "ensure", "Fake-Course"])])
+    check("and the board itself is not moved to do it", not started)
+
+    away_agent(host="othernode", agent="claude", state="listening",
+               pid=4021421, last_seen=time.time())
+    del sshed[:]
+    tutor.cmd_resume(AWAY_CFG, ["--quiet"])
+    check("a tutor that is beating over there costs the login nothing",
+          sshed == [])
+
+    away_agent(host="othernode", agent="claude", state="listening",
+               pid=4021421, last_seen=time.time() - 3600)
+    del sshed[:]
+    tutor.cmd_resume(AWAY_CFG, ["--quiet"])
+    check("but one that has been silent for an hour is asked about",
+          sshed == [("othernode", ["agent", "ensure", "Fake-Course"])])
+
+    del sshed[:]
+    tutor.cmd_resume(AWAY_CFG, ["--quiet", "--no-agent"])
+    check("--no-agent still means no tutor, here or anywhere else", sshed == [])
+
+    # `ensure` is `start` that says nothing when there was nothing to do: it is
+    # asked on every login from another machine, and a line per shell for a
+    # tutor that is fine is noise in the one log a real failure has to be
+    # findable in.
+    away_agent(host=host, agent="claude", state="listening", pid=os.getpid())
+    del started[:]
+    check("ensure starts nothing when a tutor is already attached",
+          tutor.cmd_agent(AWAY_CFG, ["ensure", "Fake-Course"]) == 0 and not started)
+
+    away_agent(host=host, agent="claude", state="listening", pid=999999)
+    del started[:]
+    check("and starts one when the record names a process that is gone",
+          tutor.cmd_agent(AWAY_CFG, ["ensure", "Fake-Course"]) == 0
+          and started == ["Fake-Course"])
+finally:
+    for k, v in real.items():
+        setattr(tutor, k, v)
+    tutor.machine.slurm_nodes = real_nodes
+    if was_env is not None:
+        os.environ["TUTORBOARD_COURSES"] = was_env
+    shutil.rmtree(away, ignore_errors=True)
+
+# The record is the only evidence there is from another machine: the pid in it
+# belongs to a process table this one cannot read, and reading the local one
+# instead is how a stranger's process gets mistaken for a tutor.
+now = time.time()
+check("a record from the node in question, beating, reads as attached",
+      processes.agent_attached_away(
+          {"host": "othernode", "last_seen": now, "state": "listening"}, "othernode"))
+check("the same record does not vouch for a different node",
+      not processes.agent_attached_away(
+          {"host": "othernode", "last_seen": now}, "thirdnode"))
+check("silence past three of the daemon's own wake-ups is death",
+      not processes.agent_attached_away(
+          {"host": "othernode", "last_seen": now - processes.AWAY_SILENCE - 1},
+          "othernode"))
+check("a start in flight over there is not a death either",
+      processes.agent_attached_away(
+          {"host": "othernode", "state": "waking", "waking_at": now}, "othernode"))
+check("and one that never finished does not claim to be starting for ever",
+      not processes.agent_attached_away(
+          {"host": "othernode", "state": "waking",
+           "waking_at": now - processes.WAKING_GRACE - 1}, "othernode"))
+
 
 print("%d FAILURES" % len(fails) if fails else "the assistant follows the course")
 sys.exit(1 if fails else 0)
