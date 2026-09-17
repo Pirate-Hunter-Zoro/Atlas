@@ -1,0 +1,203 @@
+{
+  "version": 1,
+  "title": "Local inference on LIBR compute, and the fleet it is becoming",
+  "nodes": [
+    {
+      "id": "ollama",
+      "name": "The everyday server",
+      "also": "ollama, user-local",
+      "kind": "part",
+      "status": "working",
+      "does": "Serves the coding models on one A40 from a user-local install. No admin rights anywhere in it.",
+      "files": [
+        "slurm_jobs/ollama_serve.sbatch",
+        "slurm_jobs/ollama_serve_accel.sbatch"
+      ],
+      "dir": "",
+      "doc": "",
+      "slide": null,
+      "blockedBy": [],
+      "note": "Serving is done; what is left on it is the walltime note in the plan's housekeeping section.",
+      "chapter": ""
+    },
+    {
+      "id": "ollama-drivers",
+      "name": "Up, code, down",
+      "also": "bin/ollama-*",
+      "kind": "part",
+      "status": "done",
+      "does": "Three scripts that submit the job, wait until it is really serving, and open an agent on its node.",
+      "files": [
+        "bin/ollama-up",
+        "bin/ollama-code",
+        "bin/ollama-down"
+      ],
+      "dir": "",
+      "doc": "",
+      "slide": null,
+      "blockedBy": [],
+      "note": "",
+      "chapter": ""
+    },
+    {
+      "id": "opencode",
+      "name": "The coding agent",
+      "also": "opencode, and its fence",
+      "kind": "part",
+      "status": "done",
+      "does": "opencode on the serving node, with web access denied globally and raised for one agent only.",
+      "files": [
+        "config/opencode.json",
+        "config/opencode-guard.sh"
+      ],
+      "dir": "",
+      "doc": "",
+      "slide": null,
+      "blockedBy": [],
+      "note": "",
+      "chapter": ""
+    },
+    {
+      "id": "colibri",
+      "name": "The consultant",
+      "also": "colibri, GLM-5.2 int4",
+      "kind": "part",
+      "status": "working",
+      "does": "744B on most of a 1 TB node, one user at a time, for work that cannot leave the building.",
+      "files": [
+        "slurm_jobs/colibri_serve.sbatch",
+        "scripts/colibri-env.sh"
+      ],
+      "dir": "",
+      "doc": "",
+      "slide": null,
+      "blockedBy": [],
+      "note": "Serving is done. Two questions are open: how many KV slots, and whether MTP should be forced off.",
+      "chapter": ""
+    },
+    {
+      "id": "coli-commands",
+      "name": "The five colibri commands",
+      "also": "bin/coli*",
+      "kind": "part",
+      "status": "done",
+      "does": "Build, submit, ask, code and cancel. Each finds the job through squeue and steps onto its node.",
+      "files": [
+        "bin/coli",
+        "bin/coli-build",
+        "bin/coli-up",
+        "bin/coli-ask",
+        "bin/coli-code",
+        "bin/coli-down"
+      ],
+      "dir": "",
+      "doc": "",
+      "slide": null,
+      "blockedBy": [],
+      "note": "coli-ask is the interactive one and coli-code is the overnight one: the preamble is the bill.",
+      "chapter": ""
+    },
+    {
+      "id": "engine",
+      "name": "The engine",
+      "also": "vendor/colibri-build/c",
+      "kind": "part",
+      "status": "done",
+      "does": "The int4 GLM kernel, built at a pinned commit. ARCH=native is what selects the fast path.",
+      "files": [],
+      "dir": "",
+      "doc": "",
+      "slide": null,
+      "blockedBy": [],
+      "note": "It lives outside this repository, in the Atlas checkout, and is not in git. Rebuild after a clone.",
+      "chapter": ""
+    },
+    {
+      "id": "upstream",
+      "name": "Keeping upstream current",
+      "also": "a daily user timer",
+      "kind": "part",
+      "status": "done",
+      "does": "Pulls the read-only colibri clone once a day. Never build in it; the timer expects a clean tree.",
+      "files": [
+        "config/colibri-pull",
+        "config/colibri-pull.service",
+        "config/colibri-pull.timer"
+      ],
+      "dir": "",
+      "doc": "",
+      "slide": null,
+      "blockedBy": [],
+      "note": "",
+      "chapter": ""
+    },
+    {
+      "id": "p0",
+      "name": "The measurement campaign",
+      "also": "P0",
+      "kind": "part",
+      "status": "working",
+      "does": "Twelve tests that decide the fleet's shape. Ten have passed and fifteen findings contradict the runbook.",
+      "files": [],
+      "dir": "slurm_jobs/p0",
+      "doc": "fleet-walkthrough",
+      "slide": null,
+      "blockedBy": [],
+      "note": "",
+      "chapter": ""
+    },
+    {
+      "id": "fleet",
+      "name": "The fleet",
+      "also": "",
+      "kind": "part",
+      "status": "later",
+      "does": "Three engines behind one front door, taking GPUs when free and yielding them when somebody else is blocked.",
+      "files": [],
+      "dir": "",
+      "doc": "",
+      "slide": null,
+      "blockedBy": [],
+      "note": "Designed in full in DESIGN.md and scheduled in FLEET-BUILD.md. None of it is built.",
+      "chapter": ""
+    }
+  ],
+  "edges": [
+    {
+      "from": "ollama-drivers",
+      "to": "ollama",
+      "label": "drive",
+      "weight": 1
+    },
+    {
+      "from": "ollama-drivers",
+      "to": "opencode",
+      "label": "open",
+      "weight": 1
+    },
+    {
+      "from": "coli-commands",
+      "to": "colibri",
+      "label": "drive",
+      "weight": 1
+    },
+    {
+      "from": "engine",
+      "to": "colibri",
+      "label": "loaded by",
+      "weight": 1
+    },
+    {
+      "from": "upstream",
+      "to": "engine",
+      "label": "pinned from",
+      "weight": 1
+    },
+    {
+      "from": "p0",
+      "to": "fleet",
+      "label": "decides",
+      "weight": 1
+    }
+  ]
+}

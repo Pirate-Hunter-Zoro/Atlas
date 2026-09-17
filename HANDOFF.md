@@ -6,13 +6,14 @@ is for, choosing who writes it, starting the local model, putting a workspace to
 work, reading a document, marking it up, complaining about it — is a tap.
 
 **Most of the pieces are in and none of them has been used in anger.** A document
-can be written up, listed, read on the glass, marked up, complained about in
-words or in ink, corrected or overhauled by whichever machinery made it, and
-re-drawn in front of you where you were reading it, with what each round changed
-readable on the glass. A student's own answer carries its verdict and every
-attempt they typed is kept. The local model can be chosen for a sitting, started
-from the glass, watched through four states, and handed a job in a workspace
-nobody is looking at.
+can be asked for from any sitting at all — about a box, a chapter or the evening
+that has just been taught — written up, listed, read on the glass, marked up,
+complained about in words or in ink, corrected or overhauled by whichever
+machinery made it, and re-drawn in front of you where you were reading it, with
+what each round changed readable on the glass. A student's own answer carries its
+verdict and every attempt they typed is kept. The local model can be chosen for a
+sitting, started from the glass, watched through four states, and handed a job in
+a workspace nobody is looking at.
 
 **What is left is what still sends somebody to a keyboard**, and that is the next
 section.
@@ -52,9 +53,9 @@ An item is not done because its code runs. It is done when the suite is green,
 the rule is written where the next turn will read it, and the item is out of this
 file.
 
-**Two of them are not builds and do not come out this way.** Item 5's last part
+**Two of them are not builds and do not come out this way.** Item 4's last part
 is a standing rule — it lands in `TEACHING.md` and `sense.py` and then it is a
-*Settled* entry like anything else. Item 7 is a list of evenings in front of the
+*Settled* entry like anything else. Item 6 is a list of evenings in front of the
 thing, and only the person holding the iPad can strike those.
 
 ---
@@ -92,7 +93,7 @@ when that session ships.
 **`projects/libr-local-llm` has its own handoff and it is still the live one.**
 The five pieces it asked for against the board are shipped and are under
 *Settled* below; what is left in that file is the diarization job itself, which
-is item 8 here.
+is item 7 here.
 
 ---
 
@@ -108,145 +109,24 @@ opened for any reason other than typing code a card told you to type is an
 evening this failed.** Everything in this section is a thing that still sends
 somebody to a keyboard.
 
-**A mission is finished work, and so is correcting or overhauling a document
-without leaving the page it is on. Both are Settled below.** Item 1 is where a
-lesson turns into a document, which is the other end of that loop. Items 2 and 3
-are both the answer panel and are independent of everything: 2 is which half of
-it opens and what is in the box, 3 is what the box renders, and 2 is first
-because it is the small one and is a complaint from a live sitting. Item 4 is the
-meeting deck, which reuses the library's reader and deliberately does NOT reuse
-its feedback route. Item 5 is the map, and the last part of it is a standing rule
-rather than a task. Item 6 is item 5's other half and must land after it, because
-the refactor renames the boxes its TODOs are attached to. Item 7 is the verdict a
-person can feel, and it settles a question item 9 has been holding open. Item 8
-is the acceptance test of the mission and is also the job all of it exists for.
-Item 9 is not a build.
+**A mission is finished work, and so is a document asked for from any sitting at
+all, corrected or overhauled without leaving the page it is on. All of that is
+Settled below.** Items 1 and 2 are both the answer panel and are independent of
+everything: 1 is which half of it opens and what is in the box, 2 is what the box
+renders, and 1 is first because it is the small one and is a complaint from a live
+sitting. Item 3 is the meeting deck, which reuses the library's reader and
+deliberately does NOT reuse its feedback route. Item 4 is the map, and the last
+part of it is a standing rule rather than a task. Item 5 is item 4's other half
+and must land after it, because the refactor renames the boxes its TODOs are
+attached to. Item 6 is the verdict a person can feel, and it settles a question
+item 8 has been holding open. Item 7 is the acceptance test of the mission and is
+also the job all of it exists for. Item 8 is not a build.
 
 ---
 
 ## What to do next
 
-### 1. Any sitting can be asked for a paper OR a deck of what it covered, at any moment
-
-**The want, and it was asked as a question:** *"let's say I open up libr-local-llm
-and I want to learn how colibrì works. Can I have a tutoring session where I'm
-walked through simple lessons to understand this and how we utilize the cluster
-hardware, and at any point can I have a presentation or paper written up going
-through the things we talked about in that tutoring session? Can I do that in ANY
-tutoring session?"*
-
-**The lesson half mostly answers yes.** `libr-local-llm` is a workspace the walk
-finds, `library` offers `DESIGN.md`, `FLEET-BUILD.md`, `P0-STATUS.md` and the
-fleet-walkthrough deck, and the `paper` and `slides` aims, the `make` method and
-`writeups/<slug>/` all exist — so both products have machinery behind them
-already. **The asking half answers no, for a paper and for a deck alike, and it
-is refused in writing.** Four things, and the first is the one that matters.
-
-**(a) It is refused outright, in four places, and it is one rule doing two jobs.**
-**BOTH PRODUCTS, EVERY TIME.** A paper and a deck are the same ask with a
-different file at the end of it — *"have you write up papers"* and *"build me a
-presentation about it"* are the two sentences the `make` sitting was built for —
-so every change below lands in **both**, and two of the four places word the
-refusal differently, which is exactly how a rule gets fixed in one and left in
-the other:
-
-| where | what it says now |
-| --- | --- |
-| `sense.MAKE_SENSE` | *"AND ITS SCOPE IS THE BOX, NOT THE EVENING … not about everything that came up while you were looking at it"* — shared by both products |
-| `config.AIM_MEANS["paper"]` | *"It is not a write-up of this sitting."* |
-| `config.AIM_MEANS["slides"]` | *"it is not a record of this sitting."* |
-| `TEACHING.md` | *A make sitting: the product is a document, not an answer* — *"The scope is the box they tapped, not the evening"* |
-
-All four were written against a real failure: a tutor that has just spent three
-hours teaching, asked to write it up, writes up the three hours — first person,
-*"as we saw above"*, the hand-check narrated instead of the concept explained.
-
-That failure is about **content** and the rule against it is right. What got
-banned alongside it is **scope**, and scope is exactly what was asked for. Those
-are two different sentences welded into one refusal — the same shape as the
-condition that set `awaitingReply` and popped the transcript. Split them:
-
-- **Content is always the subject.** No first person, no *"we covered"*, no *"the
-  student then"*, no reference to the sitting, its cards or its questions. A
-  concept taught by hand-checking three examples is explained and its examples
-  shown; the hand-check is not narrated. **Unchanged.**
-- **Scope may be the box, the chapter, OR THE EVENING.** When it is the evening
-  the scope is *the concepts the cards covered* — the topic list, off `board
-  recap` — and each is explained from scratch for somebody who was not in the
-  room. Not the order it was taught in, not the questions, not the answers.
-  *"A deck about the four things this sitting covered"* and *"write those four
-  things up as a paper"* are both legitimate asks, and there is currently no way
-  to phrase either that the rule does not refuse.
-
-**(b) Asking for a document is an AIM CHANGE, so it is refused wherever changing
-the aim is refused.** `paintAim` hides the whole `for:` row when
-`sittingKind` is `review` or `walk`, and `WRITEUP_SENSE` is deliberately withheld
-from both. So in the two sittings where a write-up is worth the most — you have
-just traced `coli-code` line by line, or just been drilled cold over a scope —
-there is no way to ask for one at all. That is the answer to *"in ANY tutoring
-session?"* and it is no.
-
-*Want.* **A document is not an aim.** An aim says what the sitting is FOR; a
-paper or a deck is a *product* you can ask any sitting for without changing what
-it is for. So it is its own act — `POST /writeup`, carrying **`paper` or
-`slides`** and optionally what it is about, defaulting to what this sitting has
-covered — which changes no aim, archives nothing, replaces no tutor, and is
-therefore available in a review and a walkthrough like everything else.
-
-**Two controls, not one, and not a second question after the tap.** Which of the
-two is known at the moment of tapping, and `config.AIMS` keeps `paper` and
-`slides` as separate words for exactly this reason — *"what the tutor has to do
-differs and the word for it should not"*. **The words already exist and must not
-be reinvented:** `WORK` in `board.js` carries `{aim: "paper", makes: "paper",
-label: "Write it up as a paper"}` and `{aim: "slides", makes: "slides", label:
-"Build me a deck about it"}`. Draw the control from that table, filtered to those
-two, the way `aimWays` already filters it — one set of words for the map's sheet
-and for this, or the two drift.
-
-*Decide: where it lands while it is being written.* A `make` sitting puts the
-sections on the board one at a time, because there the document IS the evening;
-that stays exactly as it is, for a paper and for a deck. One asked for
-**alongside** a lesson must not push the lesson off the glass — so it lands in
-the library, the board says it is being written and says when it is there, and
-correcting it is the library's own loop. Take that deliberately rather than by streaming
-sections, or slides, into a transcript somebody is mid-proof in.
-
-**(c) The default style fights the ask, in this workspace above all.**
-`libr-local-llm` declares only a name, so `aim_for` falls through to its family's
-default in `atlas.json`, which is `build` — and `stance_for` is therefore `do`. A
-plain lecture opened there is a DOING turn: the tutor writes code and reports.
-Being taught costs a tap on `teach` in the `for:` row first, which is one tap and
-is the wrong way round for a workspace somebody arrives at wanting to understand
-it. Decide whether a family default should apply to a sitting nobody chose a
-style for, or only to one opened from the map.
-
-**(d) The thing most worth walking through is not offered.** `walk._walkable`
-keys on the file EXTENSION and `walk.SOURCE` lists twenty-one of them, none of
-which is *none*. `bin/coli-code`, `bin/coli-up`, `bin/coli-ask` and `bin/coli`
-are extensionless bash scripts with a shebang, and they are the entire surface of
-colibrì — so a walkthrough of that workspace offers six files and not one of them
-is the one you would ask for. A shebang is as good a declaration as a suffix and
-is what `file(1)` would use.
-
-*And the map is undrawn.* `projects/libr-local-llm/live/` is empty, so there is
-no `map.json`: no picture of the project, and no box to tap to open a sitting
-about the engine or the gateway. The plan's five steps are all build tasks — *WEB
-ACCESS FOR THE CODING AGENT*, *THE VLLM PATH* — so the contents drawer offers
-engineering work rather than lessons. `board map` is what draws one and
-`map._unclaimed` gives it its document boxes; nothing needs building, it needs
-doing once.
-
-**Check.** `test/teaching.py` owns the rule that the places agree, and it is where
-the split content/scope wording is asserted — **for a paper and for a deck
-separately**, because `AIM_MEANS` words the refusal differently in each, and
-explicitly that the anti-narration half is still refused in all four places.
-`test/aiming.py` owns a route that changes a sitting without losing it and is the
-model for `/writeup`; assert both products, and assert both work in a review and
-a walkthrough, where the aim row does not appear. `test/walk.py` owns what is
-offered: assert that a `#!` script with no suffix is walkable and that a README
-still is not.
-
-### 2. The answer panel opens on the half you used last, and a typed box is never pre-filled
+### 1. The answer panel opens on the half you used last, and a typed box is never pre-filled
 
 **The want, in their words:** *"the spot for the next user response defaults to
 the 'typed' response, even if the last response that I gave was a board-written
@@ -303,7 +183,7 @@ twin.** Three things can put text in `#saybox` and they are not equal:
   survives a reload. **Keep it.** That is not carrying over; that is not losing
   work.
 - `restoreTextAnswer` loads the question's last SENT typed answer back into the
-  box and sets `correctingTurn`. **This is the one to move.** Item 3 wants that
+  box and sets `correctingTurn`. **This is the one to move.** Item 2 wants that
   answer visible as a rendered block above the box rather than as raw source
   inside it, and a tap on that block is what loads it back for correction. Until
   6 lands, the box is still where a correction is made — so this is a decision
@@ -321,7 +201,7 @@ sitting with `stance_now: "do"` opens on the box and one with `"teach"` opens on
 the board, whatever localStorage holds; a tab press still wins on the question it
 was pressed on; and a question with no draft of its own opens with an empty box.
 
-### 3. The answer box renders as it is typed, and what was sent stays where it was typed
+### 2. The answer box renders as it is typed, and what was sent stays where it was typed
 
 **The want, in two messages:** *"when I'm typing a response to a tutor, I want to
 be able to type latex commands in the typing box — like \gamma, etc. — and have
@@ -404,10 +284,10 @@ mathematics and prose rather than as source, and the box under it is empty and
 ready for the next thing. A second answer pushes the first up, the way a second
 page of ink gets a second board.
 
-*And item 2(c) is waiting on exactly this.* The box is pre-filled with the last
+*And item 1(c) is waiting on exactly this.* The box is pre-filled with the last
 sent answer today because the box is the only place a correction can be made.
 Moving the answer to a block above it is what lets the box be empty, which is the
-rule item 2 states and cannot finish on its own.
+rule item 1 states and cannot finish on its own.
 
 *And this is the same build as (a), not a second one.* One rendered block above
 the box: a **preview** of what is being typed before the send, and the **record**
@@ -459,7 +339,7 @@ because the renderer parks math and code before any markdown parsing and
 restores it afterwards, and every change to it needs a case proving that still
 holds.
 
-### 4. The meeting deck: one at a time, annotated for DIRECTION rather than for correction
+### 3. The meeting deck: one at a time, annotated for DIRECTION rather than for correction
 
 **The want.** *"I have generally two — sometimes three — meetings per week to talk
 about my research… We should somehow be keeping track of our most recent updates
@@ -597,7 +477,7 @@ trap — a mark on a meeting deck produces a direction PROPOSAL on that workspac
 board and does **not** write a feedback file, does not archive anything, and does
 not replace any assistant.
 
-### 5. Three doors, then a family, then a diagram that explains the project
+### 4. Three doors, then a family, then a diagram that explains the project
 
 **The complaint, and it is about all three levels at once.** *"It's just an ugly
 grid of projects in an inner box that has wacky zooming. On the homescreen, I want
@@ -727,9 +607,9 @@ three surfaces, that the top two are not planes, and that `atlas.json`'s blurbs
 reach the glass. `test/walk.py` owns what is walkable, and gains vendor. And
 `test/teaching.py` for the standing rule, in the two places it has to agree.
 
-### 6. A sitting belongs to ONE component, and leaving it is a new sitting
+### 5. A sitting belongs to ONE component, and leaving it is a new sitting
 
-**The want, and it is item 5's other half.** *"When a tutoring session is
+**The want, and it is item 4's other half.** *"When a tutoring session is
 launched, that should happen from tapping on the particular component of that
 project/course/research-project map. There should be TODOs present, each
 corresponding with some component. The tutoring session should be AWARE of what
@@ -794,7 +674,7 @@ retrieval component"* is an instruction to a person holding a tablet, which is t
 same defect as *"two words to add when you write it up."* Every place already has
 an ADDRESS (§2.1) and the board already renders one as something you can open, so
 the card names the box by its address and the tap opens the sitting there. With
-item 5's diagram, the boundary it is pointing at is also visible.
+item 4's diagram, the boundary it is pointing at is also visible.
 
 *Decide: what happens when that box has no TODO.* The want says *"which should
 hopefully have a TODO associated with it"* — hopefully is doing a lot of work
@@ -806,8 +686,8 @@ first card asks. **Proposing it is better and is barely more work**, because the
 discovery is the valuable part and it is lost otherwise.
 
 **(c) And the refactor will move every box, which is the ordering constraint.**
-Item 5 rewrites what a component IS — from a directory to a thing in a diagram —
-and the TODOs are attached by path. So: item 5 first, then this. Doing them the
+Item 4 rewrites what a component IS — from a directory to a thing in a diagram —
+and the TODOs are attached by path. So: item 4 first, then this. Doing them the
 other way round means attaching the plan to boxes that are about to be renamed.
 
 **Check.** `test/map.py` owns *"the map is of the content, and none of it is
@@ -819,7 +699,7 @@ pretending to a focus it has not got. `test/teaching.py` for the rule itself, in
 both places it has to agree. And the hand-off card's address is `test/address.js`'s
 subject: assert the box it names opens.
 
-### 7. A verdict you can feel: dopamine for right, playful frustration for wrong
+### 6. A verdict you can feel: dopamine for right, playful frustration for wrong
 
 **The want.** *"dopamine for the user when they answer correctly, and playful
 frustration when they answer incorrectly. When we're in the context of the user
@@ -853,7 +733,7 @@ holding the working. **It is not painted on the card.** The card takes its band
 from its own KIND instead — so for the not-right-or-wrong reply the answer says
 amber and the card says `--ink-3`, which is grey.
 
-*And this answers a question that has been sitting open.* Item 9 asks whether
+*And this answers a question that has been sitting open.* Item 8 asks whether
 green on the answer and a tick on the card a finger's width apart is the same
 thing said twice. The want above settles it: **the response carries the band.**
 The answer keeps a quieter version of it, and one of the two is the moment while
@@ -919,7 +799,7 @@ grey, and that a `lesson` card which is not replying to anything stays plain.
 `prefers-reduced-motion` on; assert there that the colour and the mark are both
 still on the glass with every animation refused.
 
-### 8. Put colibrì on the diarization repair, which is what all of the above is for
+### 7. Put colibrì on the diarization repair, which is what all of the above is for
 
 It is now the acceptance test of a mission — the record and the ship both — as
 well as the job that has been waiting since before any of this existed. **The
@@ -946,7 +826,7 @@ Three things about running it that are the board's rather than that file's:
 `research/PSYCH-ASR/HANDOFF.md` holds the *teaching* thread on the same code; it
 is a different conversation and the two do not merge.
 
-### 9. And the three things no test can hold
+### 8. And the three things no test can hold
 
 None of these is a build. Each is an evening in front of the thing.
 
@@ -956,14 +836,15 @@ None of these is a build. Each is an evening in front of the thing.
   *answer 2 of 3* is useful or is a number on a bubble that did not need one —
   the `nth` clause in `render`, and one line to remove. (The other question this
   bullet used to ask — whether green on the answer and a mark on the card is the
-  same thing said twice — is answered in item 7: the response carries the band.)
+  same thing said twice — is answered in item 6: the response carries the band.)
 - **One document, all the way round** — the build is Settled; this is the evening.
   Open a `paper` sitting on a box, let it write into `writeups/<slug>/`, compile
   it, open `/library`, read it on the glass, draw on it, and say something is
   wrong with it. Four things no suite reaches: **the content/scope split against a
-  model** — item 1 lets the evening be the scope, and whether a tutor holding
-  that still refuses to narrate the evening is the whole of whether the split
-  worked; **the revision turn against a model**; **ink a person actually drew** —
+  model** — the scope may now be the evening, and whether a tutor holding that
+  still refuses to narrate the evening is the whole of whether the split worked;
+  **a document asked for from a review, against a model**, which is the same
+  question with no box to fall back on; **the revision turn against a model**; **ink a person actually drew** —
   the marks route is tested with fixture strokes, which is not a ring round a
   figure at 200% zoom on an iPad, and that page's pen has never met a stylus —
   and **whether the reader is any good**, which is the one word in the question
@@ -1465,6 +1346,56 @@ as the answer.
   the five aims that need no scope in the sitting-kind chooser. Nothing is
   archived, no tutor is replaced, and the tap wakes a turn because the tap is the
   instruction. `board/test/aiming.py`.
+- **A document is a PRODUCT, not an aim, and any sitting can be asked for one.**
+  `POST /writeup` carries `paper` or `slides`, changes no aim, archives nothing,
+  replaces no tutor and writes nothing into the transcript — a student turn with
+  no card coming is what leaves the board waiting for one. Two controls in the
+  sitting-kind panel, drawn from `WORK`'s own words, and that row is never
+  hidden: a review and a walkthrough are the two sittings the `for:` row leaves
+  out and the two where a write-up is worth the most.
+- **It lands in the library, and the board says so.** The turn writes no card at
+  all — a make sitting shows sections because there the document IS the evening;
+  one asked for alongside a lesson must not push the lesson off the glass. So
+  `tutorboard/writeups.py` is the record: one file per ask under `live/writeups/`,
+  three states, a row in the chrome strip. The state is **derived from
+  `library.stamp` and then frozen**, which is `missions.py`'s reasoning — nothing
+  is alive to report it, and every later document also differs from the stamp
+  taken at the ask. Reading it retires the row and the server remembers. **An
+  empty library and an unreadable one are different values**, `[]` and `None`:
+  crediting an ask with every document a workspace already had, because the
+  stamp came back empty by accident, is the one wrong answer this can give, so
+  nothing is derived from `None` and the ask runs to its two-hour ceiling.
+- **A writeup turn runs fresh and on a doing turn's clock.** `doing_now` and
+  `turn_plan` take it off the SIGNAL, because the sitting's aim deliberately has
+  not moved: a paper with a LaTeX build on a teaching turn's fifteen minutes is a
+  turn killed half way. Fresh for a revision's reason — a lesson resumed into a
+  write-up is exactly the narration a write-up must not be.
+- **How a document reads and what it covers are two questions.** The refusal
+  answered both with one sentence, so *"a deck about the four things this sitting
+  covered"* had no phrasing anywhere that the rule did not refuse. Never a
+  narration of the sitting, unchanged. Scope may be the box, the chapter or the
+  evening; where it is the evening it is the concepts the cards covered, read
+  back with `board recap --all`. Both halves hold in all four places —
+  `sense.MAKE_SENSE`, both `config.AIM_MEANS` entries, `TEACHING.md` — because
+  two of the four worded the old refusal differently.
+- **A family default is a style, never an instruction to write code.**
+  `config.aim_for` drops a doing aim inherited from `atlas.json` and the sitting
+  runs on stance, which is `teach` unless the workspace said otherwise in
+  writing. The rule it follows from is already in `read_config`: writing the code
+  for somebody who wanted to learn it is the one failure that cannot be undone by
+  the next card, and a sentence about a directory is not a repository asking. A
+  teaching default still applies. A tapped aim and a declared one are untouched.
+- **A `#!` line is as good a declaration as a suffix.** `walk._walkable` reads a
+  shebang where there is no extension, and the interpreter it names is what
+  decides which language's patterns look for a definition inside it — so
+  `bin/coli`, `bin/coli-up`, `bin/coli-ask` and `bin/coli-code` are walkable, and
+  `libr-local-llm` offers sixteen files rather than six. A file with neither a
+  suffix nor a shebang declared nothing and is still not machinery.
+- **`libr-local-llm` has a written map.** Nine boxes in the project's own words —
+  the everyday server, the consultant, the five colibrì commands, the engine, the
+  measurement campaign, the fleet — and `board map --check` says it is true. Its
+  `.gitignore` had `live/`, which git cannot see past, so it is `live/*` plus
+  `!live/map.json`, after the `*.json` rule or that rule wins.
 - **Every sitting has a style.** A family default in `atlas.json`, overridden by
   `tutorboard.json`, overridden by the sitting. `config.aim_for` is the whole
   precedence and `config.stance_for` derives the stance from it — the browser
