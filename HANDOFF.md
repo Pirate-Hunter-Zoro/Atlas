@@ -332,7 +332,7 @@ started.
 tablet. It is two taps from the board — `▤ library · papers & decks` in the bar
 menu — and no person has read a real document on it. That is item 7.
 
-### 6. Any sitting can be asked to write up what it covered, at any moment
+### 6. Any sitting can be asked for a paper OR a deck of what it covered, at any moment
 
 **The want, and it was asked as a question:** *"let's say I open up libr-local-llm
 and I want to learn how colibrì works. Can I have a tutoring session where I'm
@@ -344,16 +344,28 @@ tutoring session?"*
 **The lesson half mostly answers yes.** `libr-local-llm` is a workspace the walk
 finds, `library` offers `DESIGN.md`, `FLEET-BUILD.md`, `P0-STATUS.md` and the
 fleet-walkthrough deck, and the `paper` and `slides` aims, the `make` method and
-`writeups/<slug>/` all exist. **The write-up half answers no, and it is refused
-in writing.** Four things, and the first is the one that matters.
+`writeups/<slug>/` all exist — so both products have machinery behind them
+already. **The asking half answers no, for a paper and for a deck alike, and it
+is refused in writing.** Four things, and the first is the one that matters.
 
-**(a) `MAKE_SENSE` refuses it outright, and it is one rule doing two jobs.** The
-text is *"AND ITS SCOPE IS THE BOX, NOT THE EVENING … not about everything that
-came up while you were looking at it"*, and `config.AIM_MEANS["paper"]` says *"It
-is not a write-up of this sitting."* Both were written against a real failure: a
-tutor that has just spent three hours teaching, asked to write it up, writes up
-the three hours — first person, *"as we saw above"*, the hand-check narrated
-instead of the concept explained.
+**(a) It is refused outright, in four places, and it is one rule doing two jobs.**
+**BOTH PRODUCTS, EVERY TIME.** A paper and a deck are the same ask with a
+different file at the end of it — *"have you write up papers"* and *"build me a
+presentation about it"* are the two sentences the `make` sitting was built for —
+so every change below lands in **both**, and two of the four places word the
+refusal differently, which is exactly how a rule gets fixed in one and left in
+the other:
+
+| where | what it says now |
+| --- | --- |
+| `sense.MAKE_SENSE` | *"AND ITS SCOPE IS THE BOX, NOT THE EVENING … not about everything that came up while you were looking at it"* — shared by both products |
+| `config.AIM_MEANS["paper"]` | *"It is not a write-up of this sitting."* |
+| `config.AIM_MEANS["slides"]` | *"it is not a record of this sitting."* |
+| `TEACHING.md` | *A make sitting: the product is a document, not an answer* — *"The scope is the box they tapped, not the evening"* |
+
+All four were written against a real failure: a tutor that has just spent three
+hours teaching, asked to write it up, writes up the three hours — first person,
+*"as we saw above"*, the hand-check narrated instead of the concept explained.
 
 That failure is about **content** and the rule against it is right. What got
 banned alongside it is **scope**, and scope is exactly what was asked for. Those
@@ -367,9 +379,10 @@ condition that set `awaitingReply` and popped the transcript. Split them:
 - **Scope may be the box, the chapter, OR THE EVENING.** When it is the evening
   the scope is *the concepts the cards covered* — the topic list, off `board
   recap` — and each is explained from scratch for somebody who was not in the
-  room. Not the order it was taught in, not the questions, not the answers. *"A
-  deck about the four things this sitting covered"* is a legitimate ask and there
-  is currently no way to phrase it that the rule does not refuse.
+  room. Not the order it was taught in, not the questions, not the answers.
+  *"A deck about the four things this sitting covered"* and *"write those four
+  things up as a paper"* are both legitimate asks, and there is currently no way
+  to phrase either that the rule does not refuse.
 
 **(b) Asking for a document is an AIM CHANGE, so it is refused wherever changing
 the aim is refused.** `paintAim` hides the whole `for:` row when
@@ -379,20 +392,30 @@ just traced `coli-code` line by line, or just been drilled cold over a scope —
 there is no way to ask for one at all. That is the answer to *"in ANY tutoring
 session?"* and it is no.
 
-*Want.* **A write-up is not an aim.** An aim says what the sitting is FOR; a
-write-up is a product you can ask any sitting for without changing what it is
-for. So it is its own act — `POST /writeup`, carrying `paper` or `slides` and
-optionally what it is about, defaulting to what this sitting has covered — which
-changes no aim, archives nothing, replaces no tutor, and is therefore available
-in a review and a walkthrough like everything else.
+*Want.* **A document is not an aim.** An aim says what the sitting is FOR; a
+paper or a deck is a *product* you can ask any sitting for without changing what
+it is for. So it is its own act — `POST /writeup`, carrying **`paper` or
+`slides`** and optionally what it is about, defaulting to what this sitting has
+covered — which changes no aim, archives nothing, replaces no tutor, and is
+therefore available in a review and a walkthrough like everything else.
 
-*Decide: where the sections land.* A `make` sitting puts them on the board a
-section at a time, because there the document IS the evening; that stays exactly
-as it is. A write-up asked for **alongside** a lesson must not push the lesson
-off the glass — so it lands in the library, the board says it is being written
-and says when it is there, and correcting it is item 5's loop. Take that
-deliberately rather than by streaming sections into a transcript somebody is
-mid-proof in.
+**Two controls, not one, and not a second question after the tap.** Which of the
+two is known at the moment of tapping, and `config.AIMS` keeps `paper` and
+`slides` as separate words for exactly this reason — *"what the tutor has to do
+differs and the word for it should not"*. **The words already exist and must not
+be reinvented:** `WORK` in `board.js` carries `{aim: "paper", makes: "paper",
+label: "Write it up as a paper"}` and `{aim: "slides", makes: "slides", label:
+"Build me a deck about it"}`. Draw the control from that table, filtered to those
+two, the way `aimWays` already filters it — one set of words for the map's sheet
+and for this, or the two drift.
+
+*Decide: where it lands while it is being written.* A `make` sitting puts the
+sections on the board one at a time, because there the document IS the evening;
+that stays exactly as it is, for a paper and for a deck. One asked for
+**alongside** a lesson must not push the lesson off the glass — so it lands in
+the library, the board says it is being written and says when it is there, and
+correcting it is item 5's loop. Take that deliberately rather than by streaming
+sections, or slides, into a transcript somebody is mid-proof in.
 
 **(c) The default style fights the ask, in this workspace above all.**
 `libr-local-llm` declares only a name, so `aim_for` falls through to its family's
@@ -419,13 +442,15 @@ engineering work rather than lessons. `board map` is what draws one and
 `map._unclaimed` gives it its document boxes; nothing needs building, it needs
 doing once.
 
-**Check.** `test/teaching.py` owns the three-places-agree rule and is where the
-split content/scope wording is asserted — including, explicitly, that the
-anti-narration half is still refused in all three places. `test/aiming.py` owns a
-route that changes a sitting without losing it and is the model for `/writeup`;
-assert it works in a review and a walkthrough, where the aim row does not appear.
-`test/walk.py` owns what is offered: assert that a `#!` script with no suffix is
-walkable and that a README still is not.
+**Check.** `test/teaching.py` owns the rule that the places agree, and it is where
+the split content/scope wording is asserted — **for a paper and for a deck
+separately**, because `AIM_MEANS` words the refusal differently in each, and
+explicitly that the anti-narration half is still refused in all four places.
+`test/aiming.py` owns a route that changes a sitting without losing it and is the
+model for `/writeup`; assert both products, and assert both work in a review and
+a walkthrough, where the aim row does not appear. `test/walk.py` owns what is
+offered: assert that a `#!` script with no suffix is walkable and that a README
+still is not.
 
 ### 7. Put colibrì on the diarization repair, which is what all of the above is for
 
