@@ -39,7 +39,7 @@ from http.server import ThreadingHTTPServer
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 
-from tutorboard import atlas, machines, news
+from tutorboard import atlas, colibri, machine, machines, missions, news
 from tutorboard.course import repo as course_repo
 from tutorboard.lesson import notes, state, turns
 from tutorboard.server import handler, hub, tikz
@@ -317,6 +317,151 @@ try:
         check("and the refused job is NOT left in that workspace's transcript "
               "with nothing that will ever read it",
               len(turns.load_turns(_repo.Repo(psych))) == before)
+        check("and it left no mission record either, because a row about a job "
+              "nobody is doing is worse than no row",
+              [m for m in missions.stored(psych)
+               if m["task"] == "and another one"] == [])
+
+        # ------------------------------------------------------------------
+        # A MISSION IS A THING, AND CLOSING THE IPAD DOES NOT END IT
+        # ------------------------------------------------------------------
+        # "when I put colibri or anything on a mission, just because I close the
+        # iPad doesn't mean that should end. Next time I open the iPad and access
+        # the board, that mission should still be going or notify me somewhere if
+        # it's done."
+        #
+        # The daemon already survived the lid -- it is `setsid` with stdin on
+        # DEVNULL. What is checked here is the RECORD, which is the half that did
+        # not exist: on disk in the workspace the mission is about, readable from
+        # a board serving a different one, and carrying an ending that outlives
+        # the evidence it was derived from.
+        _spawn.tutor_cli = lambda args, timeout=30: (0, "colibri starting")
+        status, body = send({"repo": "PSYCH-ASR", "agent": "colibri",
+                             "task": "grade the four typists against the gold",
+                             "ship": True})
+        one = body.get("mission")
+        check("a dispatched mission is a file in the workspace it is ABOUT, "
+              "under live/, which no repository tracks",
+              status == 200 and one
+              and os.path.isfile(os.path.join(psych, "live", "missions",
+                                              one + ".json")))
+        rec = [m for m in missions.stored(psych) if m["id"] == one]
+        rec = rec[0] if rec else {}
+        check("and it carries what was asked, which assistant, and when",
+              rec.get("task") == "grade the four typists against the gold"
+              and rec.get("agent") == "colibri" and rec.get("at") > 0)
+        check("and whether it is to ship itself, which is the switch HANDOFF "
+              "item 2 honours and this one only has to keep",
+              rec.get("ship") is True)
+        check("and which workspace it was sent from, which is the one field "
+              "nobody can reconstruct a day later",
+              rec.get("from") == "courses/Galois-Theory")
+
+        # READABLE FROM A BOARD SERVING SOMEWHERE ELSE, which is the whole point:
+        # this server is Galois-Theory and the mission is in PSYCH-ASR.
+        missions.forget()
+        got = ask("/missions")["missions"]
+        mine = [m for m in got if m["id"] == one]
+        check("and a board serving a DIFFERENT workspace reads it off disk",
+              len(mine) == 1 and mine[0]["ws"] == "research/PSYCH-ASR")
+        check("and says it is running, which is the state to leave alone",
+              mine and mine[0]["state"] == "running")
+        check("and that it is not in the workspace being read, so the row can "
+              "carry a way back to it",
+              mine and mine[0]["here"] is False)
+
+        # A MISSION WHOSE DAEMON HAS GONE IS FAILED, NOT RUNNING. A failed turn
+        # is reported in the busy strip of the board nobody is looking at.
+        gone = json.dumps({"agent": "colibri", "state": "listening",
+                           "pid": 999999999, "turns": 1,
+                           "last_seen": time.time(),
+                           "host": machine.node_name(), "mode": "headless"})
+        write(os.path.join(psych, "live", "agent.json"), gone)
+        old_rec = dict(rec)
+        old_rec["at"] = time.time() - missions.START_GRACE - 60
+        missions.write(psych, old_rec)
+        missions.forget()
+        judged = [m for m in missions.listing(galois) if m["id"] == one]
+        check("a mission whose daemon has gone reads as failed rather than as "
+              "running, which is the difference between sending it again and "
+              "waiting all evening",
+              judged and judged[0]["state"] == "failed")
+        check("and says so in words, rather than leaving a state word to guess "
+              "from",
+              judged and "attached" in judged[0]["reason"])
+        check("and a start that was asked for seconds ago is NOT that, because "
+              "`agent start` forks and the daemon is not up yet",
+              missions.judge(psych, dict(old_rec, at=time.time()),
+                             said={})["state"] == "running")
+
+        # AND AN ENDING OUTLIVES THE EVIDENCE IT CAME FROM. A daemon that is
+        # started again, or any later turn at all, would otherwise turn last
+        # night's failure into "running" on every board that looked.
+        alive = json.dumps({"agent": "colibri", "state": "listening",
+                            "pid": os.getpid(), "turns": 2,
+                            "last_seen": time.time(),
+                            "host": machine.node_name(), "mode": "headless"})
+        write(os.path.join(psych, "live", "agent.json"), alive)
+        missions.forget()
+        judged = [m for m in missions.listing(galois) if m["id"] == one]
+        check("a mission that ended stays ended once something has read it, "
+              "because the evidence expires and the ending must not",
+              judged and judged[0]["state"] == "failed")
+
+        # A MISSION THAT LANDED A CARD IS DONE, and it is the card that says so
+        # -- the same rule `news` is built on, because a card IS the answer.
+        status, body = send({"repo": "PSYCH-ASR", "agent": "colibri",
+                             "task": "and now write the comparison up"})
+        two = body.get("mission")
+        card(psych, "0017", "typists", "Two of the four agree.",
+             time.time() + 1, title="the comparison")
+        missions.forget()
+        judged = [m for m in missions.listing(galois) if m["id"] == two]
+        check("a mission that has landed a card reads as done",
+              judged and judged[0]["state"] == "done")
+        check("and says which card, so the row can point AT the answer",
+              judged and judged[0]["card"] == "0017")
+
+        # AND COMES OFF THE LIST WHEN IT IS LOOKED AT -- which means going there,
+        # and the board serving that workspace is what stamps it.
+        check("a finished mission comes off the list when somebody looks at "
+              "the workspace holding it",
+              missions.looked(psych) >= 1
+              and [m["id"] for m in missions.listing(galois)] == [])
+        check("and it is still recorded as having FINISHED, because a look is "
+              "not what ended it",
+              [m["ended"] for m in missions.stored(psych) if m["id"] == two]
+              == ["done"])
+        check("and a RUNNING one does not, because it is still running and "
+              "that is the fact being reported",
+              missions.dispatch(trd, task="hold the grid", turn="t0101")
+              and [m["id"] for m in missions.listing(galois)] == ["t0101"])
+
+        # `/seen` IS THE FAR END OF THE ROW, and it stamps THIS workspace only.
+        missions.dispatch(galois, task="finish the proof", turn="t0202")
+        card(galois, "0002", "done", "The proof closes.", time.time() + 2)
+        missions.forget()
+        ask("/seen", "POST")
+        check("the page saying somebody is looking at this board is what takes "
+              "its own finished missions off, and nowhere else's",
+              [m["id"] for m in missions.listing(galois)] == ["t0101"])
+
+        # THE ONE ASSISTANT WITH A CEILING. A colibri turn runs inside the serve
+        # job's allocation, so the mission cannot outlive that job's walltime --
+        # and an allocation ending leaves no process anywhere to record it.
+        ceiling = missions.dispatch(trd, task="decode the long one",
+                                    turn="t0303", agent="colibri",
+                                    ceiling=time.time() - 5)
+        missions.forget()
+        judged = [m for m in missions.listing(galois) if m["id"] == "t0303"]
+        check("a mission still running past the walltime of the allocation its "
+              "assistant runs in has failed, and says that rather than nothing",
+              judged and judged[0]["state"] == "failed"
+              and "allocation" in judged[0]["reason"])
+        check("and the ceiling is read off Slurm's own time-left rather than "
+              "guessed from a default",
+              colibri.time_left("2:03:04") == 7384
+              and colibri.time_left("UNLIMITED") is None)
     finally:
         _spawn.tutor_cli = real_tutor_cli
     httpd.shutdown()

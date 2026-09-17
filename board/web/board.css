@@ -306,6 +306,31 @@ body { background: var(--paper); min-height: 100vh; min-height: 100dvh; }
 .news-when { margin-left: auto; flex: none; color: var(--ink-2); font-size: .76rem; }
 .news-go { flex: none; color: var(--ink-2); }
 
+/* A MISSION ROW IS AN ANSWER ROW PLUS A STATE, and the state is the only thing
+   on it that is worth a colour: still going, done, failed. The row wraps so a
+   failed one can put the reason on a second line -- "nothing is attached to
+   that workspace any more" and "the allocation ended" are the same word and
+   two different next moves, and neither fits beside a task. */
+.mission-row { flex-wrap: wrap; }
+.mission-state {
+  flex: none; font-size: .66rem; text-transform: uppercase; letter-spacing: .07em;
+  padding: .1rem .3rem; border-radius: .25rem;
+  border: 1px solid var(--rule); color: var(--ink-2);
+}
+.mission-row[data-state="running"] .mission-state {
+  color: var(--good); border-color: color-mix(in srgb, var(--good) 45%, var(--rule));
+}
+.mission-row[data-state="failed"] .mission-state {
+  color: var(--bad); border-color: color-mix(in srgb, var(--bad) 45%, var(--rule));
+}
+.mission-row[data-state="failed"] {
+  border-color: color-mix(in srgb, var(--bad) 30%, var(--rule));
+}
+.mission-why {
+  flex-basis: 100%; margin-top: .2rem;
+  font-size: .76rem; color: var(--bad);
+}
+
 .hwbar { background: color-mix(in srgb, var(--ask) 10%, var(--paper)); font-size: .82rem; }
 #hw-set { font-weight: 700; letter-spacing: .04em; }
 #hw-count { min-width: 0; }

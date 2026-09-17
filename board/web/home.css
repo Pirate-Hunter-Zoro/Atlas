@@ -143,6 +143,33 @@ main {
                text-overflow: ellipsis; white-space: nowrap; }
 .answer-when { margin-left: auto; flex: none; color: var(--ink-2); font-size: .78rem; }
 
+/* ---------- a mission still running somewhere ---------- */
+/* The same panel, one tense earlier. `--accent` for a failure rather than a
+   `--bad` of its own: this stylesheet has no such token and inventing one means
+   defining it in both blocks at the top or it is invisible in one theme, which
+   is the rule `test/hub.js` enforces. */
+.missions { margin-top: .7rem; }
+.mission-row { flex-wrap: wrap; }
+.mission-state {
+  flex: none; font-family: var(--ui);
+  font-size: .6rem; font-weight: 700; letter-spacing: .1em; text-transform: uppercase;
+  padding: .1rem .3rem; border-radius: .25rem;
+  border: 1px solid var(--rule); color: var(--ink-2);
+}
+.mission-row[data-state="running"] .mission-state {
+  color: var(--live); border-color: color-mix(in srgb, var(--live) 45%, var(--rule));
+}
+.mission-row[data-state="failed"] .mission-state {
+  color: var(--accent); border-color: color-mix(in srgb, var(--accent) 45%, var(--rule));
+}
+.mission-row[data-state="failed"] {
+  border-color: color-mix(in srgb, var(--accent) 30%, var(--rule));
+}
+.mission-why {
+  flex-basis: 100%; margin-top: .2rem;
+  font-size: .78rem; color: var(--accent);
+}
+
 /* ---------- the two big doors ---------- */
 .actions { display: grid; gap: .7rem; margin-top: 1.6rem; }
 @media (min-width: 30rem) { .actions { grid-template-columns: 1.4fr 1fr; } }
@@ -286,6 +313,16 @@ main { max-width: 46rem; }
   fill: var(--live); stroke: var(--paper); stroke-width: 2;
 }
 .atlas-plane .card-box.news { stroke: var(--live); stroke-width: 2; }
+/* SOMETHING IS STILL WORKING IN THIS BOX, or stopped without finishing. Bottom
+   right, so a box can carry this and the answer badge at once -- a mission that
+   landed a card is both. Hollow for running, filled for failed: the one you act
+   on is the one that is solid. */
+.atlas-plane .card-mission.running {
+  fill: none; stroke: var(--live); stroke-width: 2;
+}
+.atlas-plane .card-mission.failed {
+  fill: var(--accent); stroke: var(--paper); stroke-width: 2;
+}
 .atlas-plane .card-open { fill: var(--ask); }
 
 /* ---------- the sheet ---------- */

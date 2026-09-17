@@ -7,7 +7,7 @@ import os
 import threading
 import time
 
-from .. import assistants, colibri, direction, fenced, news
+from .. import assistants, colibri, direction, fenced, missions, news
 from ..course import config, homework
 from ..lesson import archive, cards, git, notes, slate, state, turns, uploads
 
@@ -170,6 +170,12 @@ class Hub:
         # way to find out was to switch back and look. `news.waiting` is cached
         # hard; see the module.
         data["news"] = news.waiting(self.repo)
+        # AND WHAT IS STILL RUNNING THERE. The same sentence in the present
+        # tense: `news` is a card that landed, a mission is a job that was set
+        # going and has not come back yet. A closed lid does not end one, so the
+        # board that comes up tomorrow reads them off disk rather than out of a
+        # browser's memory. Cached hard; see `missions.py`.
+        data["missions"] = missions.waiting(self.repo)
         return data
 
     def poll_loop(self):

@@ -55,6 +55,9 @@ var els = {
   answers: document.getElementById("answers"),
   answersLead: document.getElementById("answers-lead"),
   answersList: document.getElementById("answers-list"),
+  missions: document.getElementById("missions"),
+  missionsLead: document.getElementById("missions-lead"),
+  missionsList: document.getElementById("missions-list"),
   atlasWrap: document.getElementById("atlas-wrap"),
   atlasPlane: document.getElementById("atlas-plane"),
   atlasSvg: document.getElementById("atlas-svg"),
@@ -338,10 +341,96 @@ function paintAnswers(payload) {
   });
 }
 
+/* WHAT IS STILL RUNNING SOMEWHERE NOBODY IS LOOKING.
+
+   "when I put colibri or anything on a mission, just because I close the iPad
+    doesn't mean that should end. Next time I open the iPad and access the board,
+    that mission should still be going or notify me somewhere if it's done."
+
+   The panel above is a turn that finished. This is one that has not, and the
+   front door is where it matters most: this page is what is open when somebody
+   comes back to the app, so a job set going before bed is read from here rather
+   than from the lesson it was left in.
+
+   THE CURRENT WORKSPACE IS NOT EXCLUDED, and that is the one rule this panel
+   does not share with the answers above it. A badge about an answer in the
+   workspace you are standing in is furniture -- the lesson is one tap away. A
+   mission is not: it was set going hours ago, the board does not open by
+   itself, and "still going" about the workspace you are about to enter is
+   exactly what somebody needs to know before they enter it. */
+var MISSION_WORD = { running: "still going", done: "done", failed: "failed" };
+var missionsShown = "";
+
+function paintMissions(payload) {
+  if (!els.missions) return;
+  var going = [];
+  ((payload && payload.workspaces) || []).forEach(function (c) {
+    if (c.mission && c.mission.state) {
+      going.push({ ws: c, m: c.mission });
+    }
+  });
+  going.sort(function (a, b) { return (b.m.at || 0) - (a.m.at || 0); });
+  going = going.slice(0, 4);
+  if (!going.length) {
+    els.missions.hidden = true;
+    els.missionsList.textContent = "";
+    missionsShown = "";
+    return;
+  }
+  var sig = going.map(function (g) {
+    return g.ws.id + "/" + g.m.id + "@" + g.m.state;
+  }).join("~");
+  var live = going.filter(function (g) { return g.m.state === "running"; }).length;
+  els.missions.hidden = false;
+  els.missionsLead.textContent = live === going.length
+    ? (live === 1 ? "a mission is still going"
+                  : live + " missions are still going")
+    : (going.length === 1 ? "a mission has ended"
+                          : going.length + " missions, and not all are running");
+  if (sig === missionsShown) return;
+  missionsShown = sig;
+  els.missionsList.textContent = "";
+  going.forEach(function (g) {
+    var row = document.createElement("button");
+    row.type = "button";
+    row.className = "answer-row mission-row";
+    row.dataset.ws = g.ws.id;
+    row.dataset.state = g.m.state;
+    var pill = document.createElement("span");
+    pill.className = "mission-state";
+    pill.textContent = MISSION_WORD[g.m.state] || g.m.state;
+    var where = document.createElement("span");
+    where.className = "answer-where";
+    where.textContent = g.ws.course || g.ws.repo || g.ws.id;
+    var what = document.createElement("span");
+    what.className = "answer-what";
+    what.textContent = (g.m.agent ? g.m.agent + ": " : "") + (g.m.task || "");
+    var when = document.createElement("span");
+    when.className = "answer-when";
+    when.textContent = answerAgo(g.m.at);
+    row.appendChild(pill);
+    row.appendChild(where);
+    row.appendChild(what);
+    row.appendChild(when);
+    if (g.m.state === "failed" && g.m.reason) {
+      var why = document.createElement("span");
+      why.className = "mission-why";
+      why.textContent = g.m.reason;
+      row.appendChild(why);
+    }
+    /* THE SAME DOOR EVERYTHING ELSE ON THIS PAGE OPENS. A mission that failed
+       is one somebody has to go and look at, and a row that says so and cannot
+       take them there is half a notification. */
+    row.addEventListener("click", function () { openWorkspace(g.ws); });
+    els.missionsList.appendChild(row);
+  });
+}
+
 function paintAtlas(payload) {
   /* Outside the try below and before it: a picture that could not be drawn is
      not a reason to lose the one row that says work has come back. */
   try { paintAnswers(payload); } catch (e) { /* not the way back; the row is */ }
+  try { paintMissions(payload); } catch (e) { /* likewise */ }
   /* NOTHING IN HERE MAY THROW. A front door that throws is a blank screen
      where the app used to be, and this one is the way back into a lesson. The
      same wrapping `paintMap` has, for the same reason. */
@@ -418,6 +507,18 @@ function paintAtlasNow(payload) {
     if (news) {
       g.appendChild(window.Gauge.el("circle", {
         cx: c._x + c._w - 13, cy: c._y + 13, r: 5.5, class: "card-news"
+      }));
+    }
+    /* AND WHETHER SOMETHING IS STILL WORKING IN THERE. Bottom right, because
+       the top right is the answer badge and a box can carry both: a mission
+       that landed a card is a mission that is done AND an answer nobody has
+       read. `done` gets no mark of its own for that reason -- the badge above
+       already says it. */
+    var job = c.mission && c.mission.state;
+    if (job === "running" || job === "failed") {
+      g.appendChild(window.Gauge.el("circle", {
+        cx: c._x + c._w - 13, cy: c._y + c._h - 13, r: 5,
+        class: "card-mission " + job
       }));
     }
 
