@@ -422,6 +422,18 @@ say which:
 **Reproduce before editing.** Two of those three are a one-line change and the third is a decision
 about which source of truth wins, so guessing costs more than looking.
 
+**One of the three is measured now, and it is the third.** `board/test/mine.js` drives the real
+panel in jsdom: a question answered by typing, reopened, opens on the type half and the words come
+back — so the feature works when the box is empty and the question is one the box has not already
+loaded something for. It failed in that suite exactly twice, both times because the box still held
+a value from an earlier question and `restoreTextAnswer` returns early on a non-empty box. That is
+gate three doing its job against a stale draft rather than against nothing, which is the shape to
+look for on the device: what is IN the box when you go back, not whether the restore is wired up.
+
+**And the persistence half of the same report is shipped**, separately and from the other
+direction: a typed answer is no longer overwritten by the next one. See *A correction revises; a
+second answer is a second answer* in `../../HANDOFF.md`. It changes nothing about this item.
+
 **Want.** Reopening a question you typed an answer to puts the words back in the box, on the same
 tab, the way reopening one you wrote on puts the ink back on the slate. The two halves of the answer
 panel behave the same, or the person has to remember which kind of answer they gave.

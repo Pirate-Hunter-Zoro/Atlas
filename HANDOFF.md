@@ -1,9 +1,12 @@
-# HANDOFF — a sitting's style, and the documents it produces
+# HANDOFF — the answer is theirs, and the tutor that reads it stays up
 
 **The loop is closed everywhere a machine can check it, and nowhere a model can.
 A document can be written up, listed, read on the glass, marked up, complained
 about in words or in ink, and revised by whichever machinery made it — and none
-of that has been done once by a person with a real document in front of them.**
+of that has been done once by a person with a real document in front of them.
+The same is now true of the two things a student's own answer owes them: the
+verdict is down their words and every answer they typed is still there, and no
+person has yet spent an evening in front of either.**
 
 `board/README.md` is the architecture. This file says what is left.
 
@@ -11,7 +14,7 @@ of that has been done once by a person with a real document in front of them.**
 
 ## Before anything
 
-- `bash board/test/all.sh` — 75 suites, about twelve minutes. Green before and
+- `bash board/test/all.sh` — 76 suites, about twelve minutes. Green before and
   after.
   The last of them is Paper-Writer's own, run where it is checked out, so the
   factory's 516 tests are now part of the board's habit rather than a second one
@@ -39,80 +42,17 @@ that touches this work: it goes beside `node` and `aim` in `_mark`, and
 
 ## What to do next
 
-**1. The tutor's verdict is painted on the tutor's card, and the student is
-looking at their own answer.** Asked for in these terms: *"if I'm right in my
-response, put a nice green sidebar down the response as it comes back. Red if
-I'm wrong. Yellow if it's not really a right/wrong situation — like if we're
-vibe-coding or I ask a question."* **All tutoring adopts it**, every kind of
-sitting, not only a mathematics lecture.
+**1. Look at a sitting with the colours on and say whether they help.** The
+verdict down the student's own answer and the labelled run of typed answers are
+both in, both covered by `board/test/mine.js`, and neither has been seen by a
+person teaching. Two things to watch for, because a test cannot: whether green
+on the answer and a tick on the card a finger's width apart is the same thing
+said twice, and whether *answer 2 of 3* is useful or is a number on a bubble
+that did not need one. Both are one line to remove if they are noise —
+`.mine[data-verdict]` in `board/web/board.css`, and the `nth` clause in
+`render`.
 
-Everything needed is already on the page and none of it is joined up:
-
-- The colour vocabulary exists. `board/web/board.css:522-527` maps
-  `.card[data-kind=…]` to `--accent`: `correct` → `--good`, `wrong` → `--bad`,
-  `review` → `--note`. Reuse those three variables rather than inventing a
-  fourth palette — the wash, the flash and the chip at `board.css:529-590` all
-  derive from `--accent`, so a student's answer picks up the same treatment for
-  free.
-- The join exists. A turn carries `answers: <card id>`; `render()` in
-  `board/web/board.js` builds the per-question runs at lines 735-745 and
-  `REPLY_KIND` (board.js:508) is already the list of card kinds that count as a
-  reply to working. The newest non-superseded reply in a question's run is the
-  verdict.
-- The node to paint exists. `board.js:881-905` builds the student's own turn as
-  `<div class="mine" data-turn data-answers>`; `.mine` is styled at
-  `board.css:749-756` and has no left border today.
-
-So: derive a verdict per question from the newest reply card's kind — `correct`
-→ green, `wrong` → red, **everything else amber**, including `note`, `review`,
-and a question still unanswered — set it as `data-verdict` on the `.mine` node
-and on the frozen board slot `boardSlot` builds (`board.js:6113`), and give both
-a left border off `--accent` in CSS. Amber is the DEFAULT, not a third case:
-most turns in a doing sitting or a walkthrough are neither right nor wrong, and
-a surface that only knows green and red has to guess.
-
-Two things to decide rather than assume, and decide them by looking:
-`KIND_LABEL` (board.js:490-498) already prints "not quite" for `wrong`, so check
-the colour is not saying a third time what two other elements say; and a
-question whose reply has not arrived yet must read as *waiting*, not as amber
-meaning *neither* — they are different states and one colour for both is the
-defect this item is about in a new coat.
-
-**Check.** `board/test/review.js` or whichever real-DOM suite already drives
-`render()` with cards and turns: a `correct` card after a turn paints green on
-the turn, a `wrong` card red, a `note` amber, and a turn with no reply yet does
-not paint a verdict at all.
-
-**2. A typed answer is not kept, and a written one is.** Asked for in these
-terms: *"when I type a response and send it, I want to see my typed response
-preserved — it disappears in the text box after I send it and disappears once
-the tutor response comes in. Just like previous writing boards, previous text
-prompts should be preserved too."*
-
-**Half of this is already written up, in detail, as change 9 in
-`projects/libr-local-llm/HANDOFF.md` — read that first and do not design it
-twice.** That half is *reopening* a question you typed an answer to: the feature
-is `restoreTextAnswer` in `board/web/board.js`, it exists, and the work is to
-reproduce the failure on the device and find which of three gates is shut. It
-names all three.
-
-The half that is new here is **persistence down the page**, and it is the
-comparison the request makes: a question answered in ink keeps a labelled board
-under it for the rest of the sitting (`boardSlot`, `board.js:6113`;
-`paintBoards`, `board.js:6215`), and a question answered by typing gets a
-right-aligned bubble (`.mine`, `board.css:749`) and nothing else. Give the typed
-answer the same standing: kept under its question, labelled, and still there
-after the reply lands.
-
-**Reproduce before editing.** The typed turn *is* recorded — `/say` writes a
-`kind: "text"` turn at `board/tutorboard/server/routes/lesson.py:604-616` — and
-`render()` deliberately does **not** pop a text turn from the transcript
-(board.js:772-778 pops only non-text), so the words are on the page somewhere
-already. Find out whether the complaint is that they are invisible, that they are
-in the wrong place, or that the box empties and nothing replaces it, before
-changing what renders. `board.js:7390-7394` is where the box is cleared on send.
-
-**3. Put colibrì on the diarization repair.** `coli-up`, `coli-code` and
+**2. Put colibrì on the diarization repair.** `coli-up`, `coli-code` and
 `coli-ask` exist and serve GLM-5.2 int4 to a coding agent in any directory, and
 the job they were built for has never been run. It is written out as **part two
 of `projects/libr-local-llm/HANDOFF.md`**, in the owner's own words, with the
@@ -138,7 +78,7 @@ Colibrì is the only assistant that may read `phi`, and that is the entire reaso
 it exists. `research/PSYCH-ASR/HANDOFF.md` holds the *teaching* thread on the
 same code; it is a different conversation and the two do not merge.
 
-**4. Take one document all the way round, and what is left of it is the half a
+**3. Take one document all the way round, and what is left of it is the half a
 machine cannot check.** Open a `paper` sitting on a box — PSYCH-ASR's correction
 algorithm is the obvious one — let it write into `writeups/<slug>/`, compile it,
 open `/library`, read it on the glass, draw on it, and say something is wrong
@@ -197,6 +137,45 @@ as the answer.
 
 ## Settled, so nobody re-derives it
 
+- **A board and its tutor die separately, and the board coming back is not the
+  tutor coming back.** The daemon belongs to the allocation that started it; the
+  board comes back on whichever node you next log in to, so the two end up on
+  different machines and the older one ends. From the machine you work on, the
+  course then reads *board on compute301, no tutor*, and every path that could
+  have repaired it looked away: `cmd_resume` said it was leaving the board where
+  it was and returned **before** `ensure_agent`, and `tutor restart --tutors`
+  bounces tutors that are attached and reports *no tutors were attached* about
+  one that has died. A login now asks the node the board is on, over ssh, with
+  `tutor agent ensure` — `start` that says nothing when there is nothing to do.
+  The record is believed first and `processes.agent_attached_away` is the only
+  honest test from another machine: the heartbeat, never the pid, because a pid
+  written on one node names a process table this one cannot read. Three missed
+  wake-ups is the window. Over ssh only and not the hop's Slurm fallback: a step
+  holds itself open for the life of what it starts, and one sleeping step per
+  login is too much for a repair usually not needed. `board/test/agents.py`.
+- **The verdict is painted on the student's own answer, and amber is the
+  default.** The newest reply in a question's run decides it — `correct` is
+  green, `wrong` is red, and every other reply to working is amber, because most
+  replies in a doing sitting and most in a walkthrough are neither right nor
+  wrong. `--ask` is that amber and `--note` is not: `--note` is the blue of an
+  aside, and what was asked for is yellow. A question with no reply yet is
+  painted **nothing** — waiting is not a verdict, and the pulsing strip is what
+  says so. The verdict is part of the turn's identity on the page, so a node
+  already on screen takes the colour when the reply lands instead of keeping the
+  one it was born with, and the board holding the working is painted with it
+  because that is what a person scrolls back to. `verdictOf` in `board.js`,
+  `board/test/mine.js`.
+- **A correction revises; a second answer is a second answer.** A send asked
+  `answering.latest` — the newest turn on the question, of any kind — so every
+  typed answer overwrote the one before it, and a Galois evening spent entirely
+  on card 0001 kept the last of four. `correctingTurn` is the narrower question
+  and the right one: the box is correcting an answer exactly when an answer was
+  loaded into it, and it is cleared by a send, by emptying the box, and by
+  moving to another question. Everything typed into an empty box is new and is
+  kept, in the order it was given, under the feedback it replied to — a turn
+  sits under the card it answers but never above a card written before it — and
+  labelled *answer 2 of 3*, which is the wording the boards already use for a
+  second page of ink.
 - **A delivered manuscript lands in the workspace that asked for it.** The job
   carries `## Delivery` with one absolute `landing:` line —
   `manuscript.landing_for`, read by `jobspec.landing` through `_path_value` —
