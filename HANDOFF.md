@@ -59,7 +59,7 @@ thing, and only the person holding the iPad can strike those.
 
 ## Before anything
 
-- `bash board/test/all.sh` — 78 suites, about twelve minutes. Green before and
+- `bash board/test/all.sh` — 81 suites, about twelve minutes. Green before and
   after.
   The last of them is Paper-Writer's own, run where it is checked out, so the
   factory's tests are part of the board's habit rather than a second one nobody
@@ -129,13 +129,15 @@ mission was dispatched, so:
 - Nothing says a mission **failed**. A failed turn is reported in the busy strip
   of that workspace's own board, which is precisely the board nobody is looking
   at. It is invisible until you go there.
-- Nothing survives the two ways a mission really dies. The daemon belongs to the
-  allocation that started it, so an allocation ending takes it with it — the rule
-  already settled for the board — and **a colibrì turn runs inside the SERVE
-  job's allocation**, because `coli-code` steps into it with `srun --overlap`. So
-  a colibrì mission's ceiling is the serve job's walltime, 8 h by default and 9 h
-  on `c3_short`. A mission longer than that cannot finish, and `coli-up -t` is
-  the only lever.
+- Nothing survives a mission dying, and the two ways it dies differ. The machine
+  under a board-side daemon is renewed — the serving chain holds the next one in
+  the queue, and the generation that lands adopts a daemon its predecessor left
+  behind — so the process comes back, and nothing tells it what it was put on,
+  which is what the record below is for. Colibrì has no such cover: **a colibrì
+  turn runs inside the SERVE job's allocation**, because `coli-code` steps into
+  it with `srun --overlap`, so a colibrì mission's ceiling is that job's
+  walltime, 8 h by default and 9 h on `c3_short`. A mission longer than that
+  cannot finish, and `coli-up -t` is the only lever.
 
 **Want.** A mission is a record in the workspace it is about, and every board can
 read every workspace's. It carries what was asked, which assistant, when it was
@@ -1187,6 +1189,61 @@ as the answer.
 
 ## Settled, so nobody re-derives it
 
+- **The allocation renews itself, and a loop inside it puts back what dies.**
+  Two failures had no answer here. A process died — `serve.py` on an exception,
+  the tutor daemon on an OOM — and the record on disk went on naming a dead pid
+  until somebody logged in, because a login was the only moment anything looked.
+  And the allocation ended, which takes the node, both processes and
+  `tailscaled` with it and leaves nothing anywhere to notice. `tutor serve` is
+  the answer to the second: a batch job that submits its successor with
+  `--dependency=afterany:<itself>` **before it does anything else**, so the
+  queue always holds the next machine and a generation that falls over in its
+  first second still leaves one behind it. `afterany` rather than `afterok`,
+  because a generation that crashed is when the next one is most needed. That
+  makes the first worth writing, and `tutor watch` is it — one pass every twenty
+  seconds over every workspace, inside the generation: a board whose pid is
+  gone; a board that is alive and has failed `/health` twice, which is *wedged*
+  and is the failure a pid check cannot see, stopped before it is started
+  because otherwise the port is still held and the new one lands where the iPad
+  is not looking; and a tutor daemon that died. `scripts/install-autostart.sh`'s
+  refusal stands exactly as it was written and this does not contradict it: the
+  supervisor it refused OUTLIVES the machine and comes back to a machine that is
+  not there, and this one IS the machine — it ends when the allocation does, and
+  the thing that brings the board back is the job queued seven days earlier.
+  **Ending it is a flag BEFORE a cancel**, which is not belt-and-braces:
+  cancelling the running generation is precisely what its successor's dependency
+  is waiting for, so a chain cancelled one job at a time comes straight back,
+  which is the design working at the worst possible moment. `serve-stopped` in
+  the state directory is checked before any submission and on every pass of the
+  loop, and `tutor serve stop` writes it and then cancels the whole job name at
+  once. **The partition is the one setting in here with a wrong answer**: `c3` is
+  PreemptMode SUSPEND under higher-tier partitions, so a seven-day board there is
+  SIGSTOPped by the first busy afternoon — alive, holding its port, answering
+  nothing, and undiagnosable. `c3_accel`'s node is in no higher-tier partition,
+  and two CPUs of ninety-six for a week is a rounding error. It is
+  `serve_partition`, `serve_time`, `serve_cpus` and `serve_mem` in the config,
+  because the day the cluster is rearranged this has to be answerable without a
+  commit. **A handover is not a stop, and the difference is one field**: the
+  walltime warning (`--signal=B:USR1@300`, so the handoffs get written while
+  there is still a machine) makes every daemon exit leaving the same record a
+  person's `tutor agent stop` leaves, and one of those must be picked back up
+  while the other must never be — `hand_over` writes `handover` first, and it is
+  honoured regardless of which node the next generation lands on, since on a
+  single-node partition the same one is the common case. Believed for an hour:
+  `live/agent.json` is never swept, so a record saying `listening` on a node
+  whose allocation ended two days ago reads exactly like one from a node that
+  went a minute ago. What the watchdog REFUSES is the load-bearing half —
+  nothing without a record, because `board stop` and `tutor headless --stop`
+  remove theirs and that is a person saying no; nothing on a node Slurm still
+  says is yours, because the pid in that record cannot be read from here and the
+  live one is usually an `salloc` with somebody mid-proof on it; nothing a
+  `restarting` flag says is already in flight. And the chain cannot watch itself
+  all the way down, so the loop re-checks its own successor every five minutes
+  and `tutor resume` repairs the chain on any login, but only where one was
+  started and not stopped. `board/README.md` has the shape;
+  `tutorboard/supervise.py` holds every decision off records and a clock so none
+  of it needs a cluster to test, and `test/perpetual.py` is mostly assertions
+  about what it will not do.
 - **A workspace says whether it holds a fence, and both choosers say it before
   the tap.** The fence was real and per-PATH — every walk refused a fenced
   directory — and nothing anywhere said that a WORKSPACE had one, so the *who:*
@@ -1337,7 +1394,9 @@ as the answer.
   The record is believed first and `processes.agent_attached_away` is the only
   honest test from another machine: the heartbeat, never the pid, because a pid
   written on one node names a process table this one cannot read. Three missed
-  wake-ups is the window. Over ssh only and not the hop's Slurm fallback: a step
+  wake-ups is the window. Inside a serving generation `tutor watch` makes the
+  same repair on its own node every twenty seconds, and a login is what reaches
+  across to another. Over ssh only and not the hop's Slurm fallback: a step
   holds itself open for the life of what it starts, and one sleeping step per
   login is too much for a repair usually not needed. And `tutor where` names a
   tutor on another node instead of calling it `stale`, which it did because it
