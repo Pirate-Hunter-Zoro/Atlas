@@ -326,6 +326,17 @@ body { background: var(--paper); min-height: 100vh; min-height: 100dvh; }
 .mission-row[data-state="failed"] {
   border-color: color-mix(in srgb, var(--bad) 30%, var(--rule));
 }
+/* A DOCUMENT ASKED FOR FROM THIS SITTING wears the same row and the same pill,
+   because it is the same sentence about a different thing: something was set
+   going and here is where it got to. Its three states are `writing`, `done` and
+   `failed`, so only the first two need a colour of their own -- a mission's
+   `running` and `failed` already carry the other two readings. */
+.mission-row[data-state="writing"] .mission-state {
+  color: var(--good); border-color: color-mix(in srgb, var(--good) 45%, var(--rule));
+}
+.mission-row[data-state="done"] .mission-state {
+  color: var(--ask); border-color: color-mix(in srgb, var(--ask) 45%, var(--rule));
+}
 .mission-why {
   flex-basis: 100%; margin-top: .2rem;
   font-size: .76rem; color: var(--bad);
@@ -1723,7 +1734,12 @@ body.papering .annbar { z-index: 96; }
   font-family: var(--ui); font-size: .68rem; color: var(--ink-3);
   letter-spacing: .04em;
 }
-#kind-aim-ways { display: inline-flex; gap: .3rem; flex-wrap: wrap; }
+#kind-aim-ways,
+/* The two that ask for a DOCUMENT rather than changing the sitting. Same row
+   shape, because it is the same kind of control -- a tap that takes effect at
+   once -- and the words are the same table's. Its own line, because a paper is
+   not an aim and the two must not read as one list of seven. */
+#kind-doc-ways { display: inline-flex; gap: .3rem; flex-wrap: wrap; }
 .kind-aim-note {
   flex-basis: 100%;
   font-family: var(--ui); font-size: .66rem; line-height: 1.35;

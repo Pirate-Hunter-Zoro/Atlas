@@ -115,6 +115,10 @@ def stance_for(root, state):
 
     and nothing below the first two is a guess: each is something written down
     somewhere, by somebody, about this workspace or the family it is in.
+
+    The last of those can only ever resolve to `teach` now, and `aim_for` is
+    where that is decided rather than here: a family default is a style and is
+    never on its own the answer to who writes the code.
     """
     own = clean_stance((state or {}).get("stance"))
     if own:
@@ -189,17 +193,28 @@ AIM_MEANS = {
     # these are the words a person taps and the words the tutor is given, and
     # they must not drift from `sense.MAKE_SENSE`. That is why this dictionary is
     # in this file rather than in `sense`.
+    #
+    # AND EACH ANSWERS TWO QUESTIONS SEPARATELY. How the document reads is
+    # fixed -- the subject explained, never the evening narrated. What it covers
+    # is not: a paper about the concepts an evening covered is a legitimate ask,
+    # and one refusal answering both questions turned it away.
     "paper": "They asked you to WRITE IT UP as a document: the product of this "
              "sitting is a paper kept in writeups/, not an answer. Draft it, "
              "show them sections as you go, and take corrections. It is an "
              "explainer about the machinery -- how this works, and the "
-             "mathematics -- written for somebody who was not in the room. It "
-             "is not a write-up of this sitting.",
+             "mathematics -- written for somebody who was not in the room, and "
+             "never a narration of this sitting: no first person, and no "
+             "reference to its cards or its questions. What it COVERS may be "
+             "one part of the repository, a chapter, or the concepts this "
+             "sitting covered.",
     "slides": "They asked you to BUILD A DECK about this: the product of this "
               "sitting is slides kept in writeups/. Draft them, show them on "
               "the board a page at a time, and take corrections. The deck "
-              "explains the machinery to somebody who was not in the room; it "
-              "is not a record of this sitting.",
+              "explains the machinery to somebody who was not in the room and "
+              "is never a narration of this sitting: no first person, and no "
+              "reference to its cards or its questions. What it COVERS may be "
+              "one part of the repository, a chapter, or the concepts this "
+              "sitting covered.",
 }
 
 
@@ -288,12 +303,30 @@ def aim_for(root, state, base=None):
 
         the sitting's own aim   -- tapped on the map, or `board aim`
         the workspace's own     -- `tutorboard.json`
-        the family's default    -- `atlas.json`
+        the family's default    -- `atlas.json`, and only where it teaches
 
     A SITTING NOBODY OPENED FROM THE MAP HAD NO STYLE AT ALL. `tutor galois`,
     `board open`, a chapter tapped in the contents drawer and a board resumed
     after a reboot all left `aim` unset, so the sitting ran on stance alone --
     which is `teach` nearly everywhere and is the wrong answer for a project.
+
+    A FAMILY DEFAULT IS A STYLE, NEVER AN INSTRUCTION TO WRITE CODE, and that is
+    the one asymmetry in this function. `read_config` already states the rule it
+    follows from: writing the code for somebody who wanted to learn it is the one
+    failure here that cannot be undone by the next card, so it is only ever done
+    because a repository asked for it in writing. A sentence about a DIRECTORY is
+    not a repository asking. `projects` defaults to `build`, and `libr-local-llm`
+    declares only a name -- so a plain lecture opened in a workspace somebody
+    arrives at wanting to understand was a DOING turn, and being taught cost a
+    tap on `teach` first. That is the wrong way round, and a tap is exactly what
+    this whole tool exists to remove.
+
+    So a doing aim inherited from a family is dropped and the sitting runs on
+    stance, which is `teach` unless the workspace says otherwise in writing. A
+    teaching default still applies: it takes nothing away and it is what gives a
+    bare `tutor galois` its style. Nothing changes for a sitting that TAPPED an
+    aim, or for a workspace that declared one -- both of those are somebody
+    saying it, which is all this asks for.
     """
     own = clean_aim((state or {}).get("aim"))
     if own:
@@ -301,4 +334,5 @@ def aim_for(root, state, base=None):
     said = clean_aim(read_config(root).get("aim"))
     if said:
         return said
-    return family_aim(root, base)
+    fam = family_aim(root, base)
+    return "" if AIM_STANCE.get(fam) == "do" else fam

@@ -173,6 +173,11 @@
     <span id="news-lead">An answer is waiting</span>
     <button id="news-hide" type="button" class="quiet" title="not now">✕</button>
   </div>
+  <!-- A document asked for from the sitting on THIS board is first: it is the
+       only row in here about work happening where the reader is, and the turn
+       writing it is told to write no card, so this strip is the only place it
+       can be said at all. -->
+  <div id="writeup-list"></div>
   <div id="mission-list"></div>
   <div id="news-list"></div>
 </div>
@@ -471,6 +476,26 @@
     <span id="kind-who-fence" class="kind-who-fence" hidden></span>
     <span id="kind-who-note" class="kind-who-note"></span>
     <button id="kind-who-up" type="button" hidden>start the server</button>
+  </span>
+  <!-- A DOCUMENT IS NOT AN AIM, so it is not in the row above it. An aim says
+       what the sitting is FOR; a paper or a deck is a PRODUCT any sitting can be
+       asked for. Asking used to mean changing the aim — which makes every card
+       after it a make card — and the aim row is hidden in a review and a
+       walkthrough, so in the two sittings where a write-up is worth the most
+       there was no way to ask at all.
+
+       So this row is never hidden, and it has TWO buttons rather than one: which
+       of the two is known at the moment of tapping, and a second question after
+       the tap is the ceremony this tool exists to remove. It lands in the
+       library, not on the glass — the lesson somebody is mid-proof in stays
+       where it is. -->
+  <span id="kind-doc" class="kind-aim">
+    <span class="kind-aim-lead">write up:</span>
+    <span id="kind-doc-ways"></span>
+    <span class="kind-aim-note">Written alongside this sitting and kept in the
+      library, not on the board. Nothing here is filed away and the tutor keeps
+      teaching. About what this sitting has covered, unless a box or a chapter
+      says otherwise.</span>
   </span>
 </div>
 

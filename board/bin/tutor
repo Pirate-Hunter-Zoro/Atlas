@@ -909,22 +909,26 @@ def doing_now(root, signal=""):
     and not the clock. A doing turn on a teaching turn's timeout is a turn killed
     at fifteen minutes with eight files changed and nothing committed.
 
-    AND TWO TURNS ANSWER IT WITHOUT THE SITTING. A step handed over -- `POST
+    AND THREE TURNS ANSWER IT WITHOUT THE SITTING. A step handed over -- `POST
     /handover` -- is a doing turn inside a coaching sitting, and the sitting is
     left saying `coach` on purpose, because the next card is a coach card again.
-    A ship is not part of the sitting at all. So the state says `teach` and is
+    A ship is not part of the sitting at all. And a document asked for mid-
+    sitting -- `POST /writeup` -- is deliberately not an aim change: a paper is a
+    product rather than a style, so the sitting still says `drill` or `trace`
+    while this turn writes one and compiles it. So the state says `teach` and is
     right about the evening; only the signal this turn was woken with says what
     THIS turn does.
     """
-    if signal in ("handover", "rework", "ship"):
+    if signal in ("handover", "rework", "ship", "writeup"):
         # A step handed over writes code. A ship reads a diff, judges it and
         # runs a push against a remote over a tailnet -- neither is a card, and
         # a doing turn on a teaching turn's clock is a turn killed with the work
         # half done. A REWORK is the same arithmetic on a document: thirty-three
         # pages rewritten and a LaTeX build at the end of it, which a teaching
-        # turn's fifteen minutes kills with the deck half replaced. A plain
-        # revision is not here on purpose -- it changes what a note names and
-        # is over in a minute.
+        # turn's fifteen minutes kills with the deck half replaced. A WRITEUP is
+        # that arithmetic from nothing: a paper drafted whole and built, which is
+        # the longest of the four. A plain revision is not here on purpose -- it
+        # changes what a note names and is over in a minute.
         return True
     try:
         with open(os.path.join(root, "live", "state.json"), "r", encoding="utf-8") as fh:
@@ -1159,6 +1163,42 @@ HEADLESS_REWORK_PROMPT = (
 )
 
 
+# A DOCUMENT ASKED FOR MID-SITTING IS A TURN, AND IT IS NOT PART OF THE LESSON.
+#
+# Asked for as a question -- "at any point can I have a presentation or paper
+# written up going through the things we talked about in that tutoring session?
+# Can I do that in ANY tutoring session?" -- and the answer was no, because
+# asking meant changing the sitting's AIM and the aim row is withheld from a
+# review and a walkthrough.
+#
+# `POST /writeup` is the act that changes no aim. Which makes this turn's whole
+# problem the one a revision already has: there is a lesson on this board and it
+# belongs to somebody's evening, so a deck's slides must not stream into a
+# transcript somebody is mid-proof in. It runs FRESH for that reason and writes
+# no card; the document appears in the LIBRARY, where correcting it is already a
+# loop that exists.
+#
+# WHAT IT IS ABOUT AND HOW TO WRITE IT ARE BOTH IN THE INBOX LINE, not here --
+# `sense.writeup_sense` carries the scope and appends `sense.MAKE_SENSE` whole,
+# so the rules about a document are in one place rather than two that drift.
+HEADLESS_WRITEUP_PROMPT = (
+    "You are running headless, and THIS TURN IS NOT PART OF THE LESSON. Nobody "
+    "is waiting at a board for a card. Somebody asked, from the sitting open on "
+    "this board, for a document to be written.\n\n"
+    "%(inbox)s\n\n"
+    "Do what the text above says, and nothing else. It names the product, what "
+    "the document is about, and where the file goes; follow it exactly. Where it "
+    "says the scope is the concepts this sitting covered, `board recap --all` is "
+    "how you read the lesson back -- one call, not one per card.\n\n"
+    "**Write no card.** Do not run `board write`, do not run `board open`, do "
+    "not touch `live/state.json`, `live/cards/` or `HANDOFF.md`, and do not run "
+    "`board wait`. The sitting on this board is somebody's evening and its aim "
+    "has not changed. Do not read `AI_INSTRUCTIONS.md` or `live/TEACHING.md`: "
+    "the method for a document is in the text above. `board brief` is not needed "
+    "either. End the turn when the document is written and built."
+)
+
+
 # A SHIP IS A TURN, AND IT IS NOT PART OF THE LESSON EITHER.
 #
 # A mission was set going in this workspace from a board somewhere else and told
@@ -1232,6 +1272,12 @@ def turn_plan(spec, carried, recycle, signal=""):
     # and nothing of it left in the lesson afterwards.
     if signal == "ship":
         return first, HEADLESS_SHIP_PROMPT, True
+    # And a document asked for mid-sitting. Fresh for the revision's reason
+    # rather than the ship's: the lesson resumed into it is exactly the narration
+    # a write-up must not be, and this is the one turn whose product is that
+    # document.
+    if signal == "writeup":
+        return first, HEADLESS_WRITEUP_PROMPT, True
     fresh = carried == 0 or bool(recycle) and carried >= recycle
     return (first if fresh else recipe,
             HEADLESS_FIRST_PROMPT if fresh else HEADLESS_RESUME_PROMPT,
@@ -1242,14 +1288,15 @@ def carry_after(signal, fresh, carried):
     """How many turns the agent's session carries once this turn has finished.
 
     Ordinarily: one if it started a new session, one more if it resumed. The
-    exceptions are a revision, an overhaul and a ship, and they are the reason
-    this is a function rather than an expression. A revision runs FRESH, so the agent's current conversation is
-    now about a document -- and leaving the count at one would make the next turn
-    of the LESSON resume into it, which is exactly the drag the revision was made
+    exceptions are a revision, an overhaul, a ship and a document asked for
+    mid-sitting, and they are the reason this is a function rather than an
+    expression. A revision runs FRESH, so the agent's current conversation is now
+    about a document -- and leaving the count at one would make the next turn of
+    the LESSON resume into it, which is exactly the drag the revision was made
     fresh to avoid. Zero, so the next lesson turn starts its own session and
     reads the lesson back with `board recap`.
     """
-    if signal in ("revise", "rework", "ship"):
+    if signal in ("revise", "rework", "ship", "writeup"):
         return 0
     return 1 if fresh else carried + 1
 

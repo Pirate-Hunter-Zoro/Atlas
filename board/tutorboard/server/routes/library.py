@@ -7,6 +7,9 @@ deck. What a note does is land beside the document it is about and wake a turn
 that is not the lesson's.
 
     GET  /library.json              everything `course/library.py` found
+    POST /writeup                   a paper or a deck asked for from the sitting
+                                    on the board, landing here rather than on it
+    POST /writeup/seen              one finished ask waved off the board's strip
     GET  /library/stamp             one hash of where every document is and
                                     when it last changed, cheap enough to ask
                                     every few seconds
@@ -44,7 +47,8 @@ from urllib.parse import unquote
 
 from . import NOT_MINE
 from .. import spawn
-from ... import leaving, manuscript, sense
+from ... import leaving, manuscript, sense, writeups
+from ...course import config
 from ...course import library
 from ...lesson import turns
 
@@ -123,7 +127,102 @@ def post(h, repo, path):
                            purpose=rec.get("purpose") or ""))
         return h.send_json(rec)
 
+    if path == "/writeup":
+        return _writeup(h, repo)
+
+    if path == "/writeup/seen":
+        try:
+            payload = json.loads(h.read_body().decode("utf-8") or "{}")
+        except Exception:
+            return h.send_json({"ok": False, "error": "bad json"}, status=400)
+        # A `writing` one cannot be waved away: it is still being written, and
+        # that is the fact the strip is reporting. `writeups.seen` refuses it.
+        got = writeups.seen(repo.root, str(payload.get("id") or ""))
+        h.server.hub.worker.dirty.set()
+        return h.send_json({"ok": bool(got)})
+
     return NOT_MINE
+
+
+def _writeup(h, repo):
+    """A PAPER OR A DECK, ASKED FOR FROM ANY SITTING, WITHOUT CHANGING IT.
+
+    **The want, and it was asked as a question:** *"at any point can I have a
+    presentation or paper written up going through the things we talked about in
+    that tutoring session? Can I do that in ANY tutoring session?"* The answer
+    was no, twice over.
+
+    A DOCUMENT IS NOT AN AIM, and that is the whole design. An aim says what the
+    sitting is FOR; a paper or a deck is a PRODUCT. Asking for one used to mean
+    `POST /aim` -- the sitting becomes a make sitting, and every card after it is
+    written that way -- and the aim row is withheld from a review and from a
+    walkthrough, so in the two sittings where a write-up is worth the most there
+    was no way to ask at all. This changes no aim, archives nothing, replaces no
+    tutor, and is therefore available everywhere, like everything else on this
+    page.
+
+    IT IS IN THIS FILE RATHER THAN BESIDE `/aim`, because every rule that makes
+    it safe is this file's: no card, no sitting, no `state.json`. The document
+    lands in the library and the library's own loop corrects it.
+
+    AND NOTHING GOES IN THE TRANSCRIPT, which is the one place this differs from
+    `/aim` and `/handover`. Both of those put the tap in as a turn of the
+    student's, because a card is coming back and a transcript that opens with the
+    answer reads as the tutor deciding something on its own. Here no card is
+    coming: a student turn with no reply is what sets `awaitingReply`, and the
+    board would sit waiting for a card that this turn is told not to write. So
+    what says it is happening is the RECORD -- `tutorboard/writeups.py` -- which
+    the board paints in the strip and which survives a closed lid, and the reply
+    carries its id.
+
+    THE SCOPE IS THE EVENING UNLESS THEY SAID OTHERWISE. A box tapped on the map
+    already opens a make sitting scoped to that box; the ask with no route at all
+    was *"write up the four things we just covered"*, so that is the default and
+    `sense.writeup_sense` says how to read the lesson back for it.
+    """
+    try:
+        payload = json.loads(h.read_body().decode("utf-8") or "{}")
+    except Exception:
+        return h.send_json({"ok": False, "error": "bad json"}, status=400)
+    makes = writeups.clean_makes(payload.get("makes"))
+    if not makes:
+        # Named rather than defaulted. Which of the two is known at the moment of
+        # tapping -- there are two controls for exactly that reason -- so a
+        # request that does not say has gone wrong somewhere worth hearing about.
+        return h.send_json({"ok": False, "error": "paper or slides"}, status=400)
+    about = str(payload.get("about") or "").strip()[:writeups.ABOUT_CHARS]
+
+    # An id from the same series the lesson's turns use, so nothing in the inbox
+    # has to be told apart by shape. NOT written into `live/turns.jsonl`; see
+    # above.
+    wid = turns.next_turn_id(repo)
+    rec = writeups.ask(repo.root, wid, makes, about,
+                       agent=config.sitting_agent(repo.root) or "")
+    line = "[writeup] " + sense.writeup_sense(makes, about)
+    record = {
+        "id": wid, "rev": 0, "kind": "text", "answers": None,
+        "t": time.time(),
+        "iso": time.strftime("%Y-%m-%d %H:%M:%S"),
+        "from": "student", "text": line, "signal": "writeup", "read": False,
+    }
+    try:
+        with open(repo.messages_path, "a", encoding="utf-8") as fh:
+            fh.write(json.dumps(record) + "\n")
+    except OSError as exc:
+        return h.send_json({"ok": False,
+                            "error": "nothing could be asked: %s" % exc},
+                           status=500)
+    # A request that sits in an inbox beside a board with no tutor on it is a tap
+    # that did nothing for ever -- the same reason `/say` and `_revise` wake one.
+    if spawn.wake_tutor(repo):
+        h.note("nothing was reading the board; starting a tutor to write it")
+    h.server.hub.worker.dirty.set()
+    return h.send_json({"ok": True, "id": wid, "makes": makes,
+                        "about": rec.get("about") or "", "state": "writing",
+                        "detail": ("It is being written now and will appear in "
+                                   "the library. That turn is not part of the "
+                                   "lesson: it writes no card and leaves the "
+                                   "sitting on the board alone.")})
 
 
 def rework_refused(repo, doc):

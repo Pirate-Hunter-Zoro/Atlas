@@ -73,6 +73,19 @@ try:
     write(proj, "README.md", "# a project\n" + BODY)
     write(proj, "notes.txt", "not machinery\n" + BODY)
     write(proj, "psych_asr/tiny.py", "x = 1\n")
+    # A SHEBANG IS AS GOOD A DECLARATION AS A SUFFIX, and `SOURCE` keyed on the
+    # suffix alone -- so the entire surface of colibrì, which is `bin/coli`,
+    # `bin/coli-up`, `bin/coli-ask` and `bin/coli-code`, was invisible. A
+    # walkthrough of that workspace offered six files and not one of them was
+    # the one anybody would ask for.
+    write(proj, "bin/coli-up",
+          "#!/usr/bin/env bash\nset -eu\nwarm() {\n" + BODY + "\n}\n")
+    write(proj, "bin/coli-ask", "#!/bin/bash\n" + BODY + "\n")
+    write(proj, "bin/tally", "#!/usr/bin/env python3\ndef tally(rows):\n" + BODY + "\n")
+    # And a file that declared nothing at all is not machinery. A licence, a
+    # lock file and a data dump all have no suffix either.
+    write(proj, "LICENSE", "All rights reserved.\n" + BODY)
+    write(proj, "README", "# prose with no suffix\n" + BODY)
     for d in ("live", "node_modules", "__pycache__", "results", "data", ".git"):
         os.makedirs(os.path.join(proj, d), exist_ok=True)
         write(proj, os.path.join(d, "buried.py"), "def buried():\n" + BODY + "\n")
@@ -83,9 +96,26 @@ try:
           and "psych_asr/transcript/corrections.py" in names)
     check("and shell scripts, because a pipeline is taught by its job script too",
           "scripts/run.sh" in names)
+    check("and a script with a #! line and no suffix at all, which is what a "
+          "driver command is",
+          "bin/coli-up" in names and "bin/coli-ask" in names
+          and "bin/tally" in names)
     # A README is read by reading it. A walkthrough over one is a lecture with
     # extra steps, and offering it buries the files that do something.
     check("but never prose", not [n for n in names if n.endswith((".md", ".txt"))])
+    check("and never a file that declared nothing -- no suffix and no shebang",
+          "LICENSE" not in names and "README" not in names)
+    # The symbol check has to know which language a shebang stands in for, or a
+    # function named inside a suffixless script is a name it cannot verify --
+    # and an unverifiable name is one `resolve` refuses to carry.
+    chosen, _ = walk.resolve(proj, ["bin/coli-up::warm"])
+    check("a function inside a #! bash script is found the way one in a .sh is",
+          [u["name"] for u in chosen] == ["bin/coli-up::warm"])
+    chosen, _ = walk.resolve(proj, ["bin/tally::tally"])
+    check("and one inside a #! python script too",
+          [u["name"] for u in chosen] == ["bin/tally::tally"])
+    check("while a name such a script does not define is still refused",
+          walk.resolve(proj, ["bin/coli-up::missing"])[1] == ["bin/coli-up::missing"])
     check("and never build output, dependencies, data or the board's own live/",
           not [n for n in names if n.split("/")[0]
                in ("live", "node_modules", "__pycache__", "results", "data", ".git")])

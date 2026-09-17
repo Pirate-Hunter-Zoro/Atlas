@@ -81,14 +81,92 @@ DEFINITION[".bash"] = DEFINITION[".sh"]
 DEFINITION[".r"] = DEFINITION[".R"]
 
 
+# A SHEBANG IS AS GOOD A DECLARATION AS A SUFFIX, and it is what `file(1)`
+# would use. `SOURCE` keys on the extension, and the entire surface of colibrì
+# is `bin/coli`, `bin/coli-up`, `bin/coli-ask` and `bin/coli-code` -- bash
+# scripts with a `#!` line and no suffix at all. So a walkthrough of that
+# workspace offered six files and not one of them was the one you would ask for.
+#
+# Which language it is comes off the same line, because `_has_definition` has to
+# know: a symbol named inside `bin/coli-up` is looked for with the `.sh`
+# patterns, and a name it cannot check is a name it will not carry.
+#
+# `SCRIPT` is the answer for a script whose interpreter nothing here recognises.
+# It is deliberately not a key in `DEFINITION`: the file is still machinery and
+# is still offered, and a symbol inside it simply cannot be verified. It is spelt
+# `#!` because that is the only thing the file actually said about itself.
+SCRIPT = "#!"
+
+# What an interpreter on a `#!` line means for the patterns in `DEFINITION`. The
+# whole line is searched rather than the last word of it, so `#!/usr/bin/env
+# python3` and `#!/bin/bash` both land -- and the order matters for one pair:
+# `sh` is a substring of `bash`, so `bash` is asked first.
+INTERPRETERS = (
+    ("python", ".py"),
+    ("bash", ".sh"),
+    ("zsh", ".sh"),
+    ("Rscript", ".R"),
+    ("node", ".js"),
+    ("julia", ".jl"),
+    ("sh", ".sh"),
+)
+
+# How much of a file is read to find its shebang. A shebang is the first line or
+# there is no shebang; reading a couple of hundred bytes rather than one line is
+# what stops a file with no newline in it at all being read whole.
+SHEBANG_BYTES = 256
+
+
+def _shebang(root, rel):
+    """What a `#!` line declares this file to be, or "".
+
+    `""` means it declared nothing: no shebang, so not machinery this can name.
+    Otherwise the extension the interpreter stands in for, or `SCRIPT` where the
+    interpreter is one `INTERPRETERS` does not list.
+
+    Asked only of a file with NO extension, so nothing here can override what a
+    suffix already said.
+    """
+    try:
+        with open(os.path.join(root, rel), "rb") as fh:
+            first = fh.read(SHEBANG_BYTES).split(b"\n", 1)[0]
+    except OSError:
+        return ""
+    line = first.decode("utf-8", "replace")
+    if not line.startswith(SCRIPT):
+        return ""
+    for word, ext in INTERPRETERS:
+        if word in line:
+            return ext
+    return SCRIPT
+
+
+def _language(root, rel):
+    """What this file is, as a key `SOURCE` and `DEFINITION` understand.
+
+    The extension where there is one, what the `#!` line declares where there is
+    not, and `""` for a file that said nothing at all. One function, because
+    "which language is this" is asked by both `_walkable` and `_has_definition`
+    and the two must give the same answer.
+    """
+    ext = os.path.splitext(rel)[1]
+    return ext if ext else _shebang(root, rel)
+
+
 def _walkable(root, rel):
-    """Is this path a piece of machinery somebody could be walked through?"""
-    if os.path.splitext(rel)[1] not in SOURCE:
-        return False
+    """Is this path a piece of machinery somebody could be walked through?
+
+    An extension answers first and a `#!` line answers for a file that has none.
+    A README has an extension and is refused by it; a licence, a lock file or a
+    data dump has neither, and is refused for having said nothing.
+    """
     name = os.path.basename(rel)
     if name.startswith(".") or name == "__init__.py":
         # An `__init__.py` is a namespace rather than a thing that does
         # anything, and offering forty of them buries the files that do.
+        return False
+    said = _language(root, rel)
+    if said not in SOURCE and said != SCRIPT:
         return False
     try:
         return os.path.getsize(os.path.join(root, rel)) >= MIN_BYTES
@@ -156,7 +234,7 @@ def _has_definition(root, rel, symbol):
     is no `grade` in that file sends the tutor looking for machinery that is not
     there, and it will find something else and teach that instead.
     """
-    pattern = DEFINITION.get(os.path.splitext(rel)[1])
+    pattern = DEFINITION.get(_language(root, rel))
     if not pattern:
         return False
     rx = re.compile(pattern % re.escape(symbol), re.MULTILINE)

@@ -32,8 +32,9 @@ from http.server import ThreadingHTTPServer
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 
-from tutorboard import atlas, sense
+from tutorboard import atlas, sense, writeups
 from tutorboard.course import config
+from tutorboard.course import library
 from tutorboard.course import repo as course_repo
 from tutorboard.lesson import archive, turns
 from tutorboard.server import handler, hub, spawn, tikz
@@ -93,7 +94,6 @@ own = workspace("projects", "Lectures", {"aim": "teach"})
 loose = workspace("nowhere", "Odd")
 
 check("a course with nothing declared is taught", config.aim_for(course, {}) == "teach")
-check("a project with nothing declared is built", config.aim_for(project, {}) == "build")
 check("a workspace that names an aim beats its family",
       config.aim_for(own, {}) == "teach")
 check("a sitting that names one beats its workspace",
@@ -103,10 +103,34 @@ check("a family that declares nothing leaves the sitting with no aim",
 check("and a word that is not an aim is dropped rather than obeyed",
       config.aim_for(course, {"aim": "whatever"}) == "teach")
 
+# A FAMILY DEFAULT IS A STYLE, NEVER AN INSTRUCTION TO WRITE CODE.
+#
+# `projects` defaults to `build` in `atlas.json` and `libr-local-llm` declares
+# only a name, so a plain lecture opened in it was a DOING turn: the tutor wrote
+# code and reported. Being taught cost a tap on `teach` in the `for:` row first,
+# which is one tap and is the wrong way round for a workspace somebody arrives
+# at wanting to understand it.
+#
+# The rule it gives way to is one `read_config` already states about a stance:
+# writing the code for somebody who wanted to learn it is the one failure here
+# that cannot be undone by the next card, so it is only ever done because a
+# repository asked for it IN WRITING. A sentence about a directory is not a
+# repository asking. A teaching default still applies -- it takes nothing away,
+# and it is what gives a bare `tutor galois` its style.
+check("a family default that TEACHES still reaches a sitting nobody chose",
+      config.aim_for(course, {}) == "teach")
+check("but one that WRITES does not, so the sitting runs on stance",
+      config.aim_for(project, {}) == "" and config.stance_for(project, {}) == "teach")
+check("a workspace that asked for it in writing still gets it",
+      config.aim_for(workspace("projects", "Written", {"aim": "build"}), {}) == "build")
+check("and so does a sitting that tapped it",
+      config.aim_for(project, {"aim": "build"}) == "build"
+      and config.stance_for(project, {"aim": "build"}) == "do")
+check("and `stance: do` in writing is untouched by any of it",
+      config.stance_for(workspace("projects", "Doer", {"stance": "do"}), {}) == "do")
+
 # STANCE IS DERIVED FROM THE AIM, not chosen beside it.
-check("a project's default style means the tutor writes the code",
-      config.stance_for(project, {}) == "do")
-check("while a course's means it does not",
+check("a course's default style means the tutor does not write the code",
       config.stance_for(course, {}) == "teach")
 check("a repository that says `stance` in writing still wins over its family",
       config.stance_for(workspace("projects", "Taught", {"stance": "teach"}), {})
@@ -147,11 +171,15 @@ for aim in config.AIMS:
           tutorcli.doing_now(project)
           == (config.stance_for(project, {"aim": aim}) == "do"))
 sitting(project, session="lecture")
-check("a project's plain lecture is a doing turn, so it gets a doing turn's clock",
+check("a project's plain lecture is a teaching turn, because nobody chose "
+      "otherwise and a family default cannot choose it for them",
+      not tutorcli.doing_now(project))
+sitting(project, session="lecture", aim="build")
+check("and it is a doing turn the moment somebody taps `build`",
       tutorcli.doing_now(project))
 os.makedirs(os.path.join(course, "live"), exist_ok=True)
 sitting(course, session="lecture")
-check("and a course's is not", not tutorcli.doing_now(course))
+check("and a course's plain lecture is not", not tutorcli.doing_now(course))
 
 # A STEP HANDED OVER IS A DOING TURN INSIDE A COACHING SITTING, and the sitting
 # is left saying `coach` on purpose. So the state is right about the evening and
@@ -175,9 +203,15 @@ sitting(course, session="lecture")            # as the checks below expect it
 # ---------------------------------------------------------------------------
 # what the tutor is told about a sitting nobody chose a style for
 # ---------------------------------------------------------------------------
+sitting(project, session="lecture")
 said = sense.session_sense(course_repo.Repo(project))
-check("a project's sitting is told to write the code even with no aim tapped",
+check("a project's sitting nobody chose a style for is not told to write code",
+      "DOING TURN" not in said and config.AIM_MEANS["build"] not in said)
+sitting(project, session="lecture", aim="build")
+said = sense.session_sense(course_repo.Repo(project))
+check("and is, the moment somebody taps it",
       "DOING TURN" in said and config.AIM_MEANS["build"] in said)
+sitting(project, session="lecture")
 said = sense.session_sense(course_repo.Repo(course))
 check("a course's is told to teach it",
       "DOING TURN" not in said and config.AIM_MEANS["teach"] in said)
@@ -198,7 +232,7 @@ said = sense.session_sense(course_repo.Repo(project))
 check("an aim of paper gets the make method, not only its one sentence",
       "MAKE SITTING" in said and "Work in sections" in said)
 check("and is told the document is about the subject rather than the sitting",
-      "NEVER THIS SITTING" in said)
+      "NEVER A NARRATION OF THIS SITTING" in said)
 
 # ---------------------------------------------------------------------------
 # the route, over real HTTP
@@ -369,6 +403,112 @@ try:
     check("a sitting that already writes the code has nothing to hand over",
           status == 400 and "already writing" in (body.get("error") or ""))
     post("/aim", {"aim": "teach"})
+
+    # ------------------------------------------------------- and a document
+    # A PAPER OR A DECK, ASKED FOR FROM ANY SITTING, WITHOUT CHANGING IT.
+    #
+    # **The want, and it was asked as a question:** *"at any point can I have a
+    # presentation or paper written up going through the things we talked about
+    # in that tutoring session? Can I do that in ANY tutoring session?"*
+    #
+    # It was refused twice over. Asking meant `POST /aim`, which makes the whole
+    # sitting a make sitting and every card after it a make card -- and the aim
+    # row is withheld from a review and a walkthrough, so in the two sittings
+    # where a write-up is worth the most there was no route at all.
+    #
+    # So a document is a PRODUCT rather than an aim. Everything the `/aim` block
+    # guards has to hold here as well, and two things more: the aim itself must
+    # not move, and it has to work in the two sittings that have no aim row.
+    post("/aim", {"aim": "coach"})
+    before_state = dict(repo.state())
+    turns_before = len(turns.load_turns(repo))
+
+    status, body = post("/writeup", {"makes": "essay"})
+    check("a product that is not one of the two is refused by name",
+          status == 400 and "paper or slides" in (body.get("error") or ""))
+    status, body = post("/writeup", {})
+    check("and so is a request that does not say which",
+          status == 400 and not body.get("ok"))
+    check("neither of those asked for anything",
+          len(turns.load_turns(repo)) == turns_before
+          and not writeups.waiting(repo))
+
+    woke_before = len(woken)
+    status, body = post("/writeup", {"makes": "slides"})
+    check("the board takes the ask",
+          status == 200 and body.get("ok") is True
+          and body.get("makes") == "slides" and body.get("id"))
+    check("THE AIM OF THE SITTING HAS NOT MOVED", repo.state() == before_state)
+    check("the lesson is not filed away", not archive.list_archive(repo))
+    check("the cards are all still on the board",
+          len([n for n in os.listdir(repo.cards) if n.endswith(".md")]) == 3)
+    check("the tutor is not replaced", not replaced)
+    # `/aim` and `/handover` both put the tap in the transcript, because a card
+    # is coming back. Here no card is coming: the turn is told to write none, and
+    # a student turn with nothing answering it is what leaves the board waiting
+    # for a card that never arrives.
+    check("NOTHING GOES IN THE TRANSCRIPT, because no card is coming",
+          len(turns.load_turns(repo)) == turns_before)
+
+    with open(repo.messages_path, "r", encoding="utf-8") as fh:
+        lines = [json.loads(l) for l in fh if l.strip()]
+    line = lines[-1].get("text", "")
+    check("the line says what happened", line.startswith("[writeup]"))
+    check("it says which product", "a DECK of slides" in line)
+    check("it says the turn writes no card and leaves the sitting alone",
+          "Write no card" in line and "aim of it has not changed" in line)
+    check("it carries the method for a document rather than restating it",
+          sense.MAKE_SENSE in line)
+    check("and the scope with nobody naming one is the evening",
+          "THE CONCEPTS THIS SITTING COVERED" in line)
+    check("it arrives unread, or nothing wakes on it",
+          lines[-1].get("read") is False)
+    check("a turn is woken on it", len(woken) == woke_before + 1)
+
+    # WHAT THE BOARD SAYS WHILE IT IS BEING WRITTEN. The turn writes no card, so
+    # it is invisible on the board by construction -- which leaves "I asked for
+    # a deck and nothing happened" with nowhere to be answered.
+    writeups.forget()
+    said = board.build().get("writeups") or []
+    check("the board says a document is being written",
+          len(said) == 1 and said[0]["state"] == "writing"
+          and said[0]["makes"] == "slides")
+
+    # AND WHEN IT IS THERE, which is derived from the library rather than
+    # reported: nothing is alive to report it.
+    where = os.path.join(tmp, "writeups", "how-the-harness-works")
+    os.makedirs(where, exist_ok=True)
+    with open(os.path.join(where, "how-the-harness-works.tex"), "w",
+              encoding="utf-8") as fh:
+        fh.write("\\title{How the harness works}\n" + "x" * 3000)
+    library.forget()
+    writeups.forget()
+    said = board.build().get("writeups") or []
+    check("and says when it is in the library, naming which document",
+          len(said) == 1 and said[0]["state"] == "done"
+          and "how-the-harness-works" in said[0]["doc"])
+
+    status, body = post("/writeup/seen", {"id": said[0]["id"]})
+    library.forget()
+    writeups.forget()
+    check("reading it takes the row away, and the server is what remembers",
+          status == 200 and body.get("ok") is True
+          and not board.build().get("writeups"))
+
+    # THE TWO SITTINGS THE AIM ROW IS WITHHELD FROM, which is the whole point.
+    for kind, extra in (("review", {"review": ["Ch 1"]}),
+                        ("walk", {"walk": ["a.py"]})):
+        with open(repo.state_path, "w", encoding="utf-8") as fh:
+            json.dump(dict({"course": "Test Course", "session": kind}, **extra), fh)
+        was = dict(repo.state())
+        status, body = post("/writeup", {"makes": "paper"})
+        check("a paper can be asked for in a %s, where no aim can be changed"
+              % kind, status == 200 and body.get("ok") is True)
+        check("and the %s is exactly as it was" % kind, repo.state() == was)
+        status, body = post("/aim", {"aim": "trace"})
+        check("while changing the aim there is still refused (%s)" % kind,
+              status == 400)
+    writeups.forget()
 
     # The board has to be able to SHOW which aim is in force, including when it
     # was never chosen -- resolved by the server, never re-derived in the client.
