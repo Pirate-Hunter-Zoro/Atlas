@@ -724,20 +724,32 @@ MAKE_SENSE = (
     # corrections -- and a tutor that has just spent three hours teaching, asked
     # to write it up, writes up the three hours. Stated as a refusal, because a
     # preference in a prompt is what produced the narration.
-    "WHAT IT IS ABOUT IS THE SUBJECT, NEVER THIS SITTING. The document is an "
-    "EXPLAINER: here is how this works, and here is the mathematics, written "
-    "for somebody who was not in the room. So: no first person, no 'we "
-    "covered', no 'the student then', no 'as we saw above', and no reference at "
-    "all to this sitting, its cards, its questions, or the person answering "
-    "them. If a concept was taught by hand-checking three examples, the "
-    "document explains the concept and shows the examples -- it does not "
-    "narrate the hand-check. A write-up of the evening is the one thing this "
-    "sitting must not produce. "
-    "AND ITS SCOPE IS THE BOX, NOT THE EVENING. It is about the machinery named "
-    "below -- the part of the map this sitting is on, or the chapter it is "
-    "labelled with -- and not about everything that came up while you were "
-    "looking at it. If neither is named, ask in your first card what the "
-    "document is to be about rather than drafting something and finding out. "
+    #
+    # TWO QUESTIONS, NOT ONE, and the refusal used to answer both with the same
+    # word. HOW it reads is fixed: the subject, explained, never the evening
+    # narrated. WHAT it covers is not: "a deck about the four things this
+    # sitting covered" is a legitimate ask and the old wording refused it along
+    # with the narration it was written against.
+    "HOW IT READS IS FIXED, AND IT IS NEVER A NARRATION OF THIS SITTING. The "
+    "document is an EXPLAINER: here is how this works, and here is the "
+    "mathematics, written for somebody who was not in the room. So: no first "
+    "person, no 'we covered', no 'the student then', no 'as we saw above', and "
+    "no reference at all to this sitting, its cards, its questions, or the "
+    "person answering them. If a concept was taught by hand-checking three "
+    "examples, the document explains the concept and shows the examples -- it "
+    "does not narrate the hand-check. A write-up of the evening is the one "
+    "thing this sitting must not produce. "
+    "WHAT IT COVERS IS A DIFFERENT QUESTION, and its scope may be THE BOX, THE "
+    "CHAPTER, OR THE WHOLE EVENING. Where the machinery named below says which "
+    "-- the part of the map this sitting is on, or the chapter it is labelled "
+    "with -- that is the scope, and not everything else that came up while you "
+    "were looking at it. WHERE THE SCOPE IS THE EVENING it is the concepts this "
+    "sitting covered and nothing else about it: read the lesson back with "
+    "`board recap --all`, take the list of topics off the cards, and explain "
+    "each one from scratch. Not the order they were taught in, not the "
+    "questions, not the answers, not who got what wrong. If nothing names a "
+    "box, a chapter or the evening, ask in your first card what the document is "
+    "to be about rather than drafting something and finding out. "
     "Work in sections: write one, put it on the board for them to read, take "
     "the corrections, then write the next -- a whole document dropped at once "
     "is the word dump this board exists to replace. "
@@ -834,6 +846,79 @@ SHIP_SENSE = (
 def ship_sense(agent, task):
     """The inbox line for a mission that has been told to ship itself."""
     return SHIP_SENSE % (agent or "an assistant", (task or "").strip())
+
+
+# WHAT A DOCUMENT ASKED FOR MID-SITTING IS WOKEN WITH, and the whole of the
+# difference from a make sitting is WHERE IT LANDS.
+#
+# A make sitting puts the sections on the board one at a time, because there the
+# document IS the evening. One asked for ALONGSIDE a lesson must not push the
+# lesson off the glass: somebody is mid-proof, and streaming a deck's slides into
+# their transcript is the interruption the whole library surface exists to avoid.
+# So this turn writes the document, compiles it, and says nothing on the board --
+# the library is where it appears, and correcting it is the library's own loop.
+#
+# IT TAKES THE MAKE METHOD WHOLE, because everything else about writing one is
+# unchanged: the subject rather than the sitting, sections rather than a dump,
+# `writeups/<slug>/`. `MAKE_SENSE` is that method and is appended by
+# `writeup_sense` rather than restated, or the two drift.
+#
+# THE SCOPE IS THE EVENING UNLESS SOMETHING ELSE IS NAMED, and that is the
+# difference from the map's own route. A box tapped on the map opens a make
+# sitting scoped to the box; this is the ask that had no route at all -- "write up
+# the four things we just covered" -- so the default is the concepts the cards
+# covered, read back with `board recap --all`.
+WRITEUP_ASK_SENSE = (
+    "A DOCUMENT HAS BEEN ASKED FOR FROM THE SITTING ON THIS BOARD, and THIS "
+    "TURN IS NOT PART OF THE LESSON. Nobody is waiting at a board for a card. "
+    "What they asked for is %(what)s.\n\n"
+    "WHAT IT IS ABOUT: %(about)s\n\n"
+    "Write it, compile it, and end the turn. It appears in the LIBRARY, which is "
+    "where they will read it and where they will say what is wrong with it -- so "
+    "there is nothing to put on the board and nothing to show them a section at "
+    "a time.\n\n"
+    "HOW TO WRITE ONE FOLLOWS, AND EVERY LINE OF IT ABOUT THE DOCUMENT HOLDS. "
+    "What follows is the method a make sitting is given, and it opens by calling "
+    "itself one -- read it as the method for this document rather than as a "
+    "statement about this sitting, which is unchanged and is not a make "
+    "sitting. THE LINES ABOUT CARDS ARE THE ONES THAT DO NOT APPLY, and they "
+    "are the only ones: showing it to them a section at a time, saying in every "
+    "card where the file is, and asking in your first card what it should be "
+    "about. You write no card at all, and what it is about is already named "
+    "above. Everything else -- what the document IS, what it may cover, the "
+    "directory it goes in -- holds exactly as written.\n\n"
+    "**Write no card.** Do not run `board write`, do not run `board open`, do "
+    "not touch `live/state.json`, `live/cards/` or `HANDOFF.md`, and do not run "
+    "`board wait`. There is a lesson on this board, it belongs to somebody's "
+    "evening, and the aim of it has not changed: leave every part of it exactly "
+    "as you found it. End the turn when the document is written and built.\n\n"
+)
+
+# What the scope sentence says when nobody named one. The topic list is the card
+# titles and `board recap` is the one call that reads them back -- see
+# `cmd_recap` in `bin/board`, which exists so that a turn does not read a lesson
+# one card at a time.
+WRITEUP_EVENING = (
+    "THE CONCEPTS THIS SITTING COVERED, and nothing else about the sitting. "
+    "Read the lesson back with `board recap --all` -- one call, not one per "
+    "card -- and take the list of topics off the cards. Explain each of them "
+    "from scratch for somebody who was not in the room. Not the order they were "
+    "taught in, not the questions asked, not the answers given, and not who got "
+    "what wrong."
+)
+
+
+def writeup_sense(makes, about=""):
+    """The inbox line for a paper or a deck asked for from any sitting.
+
+    `about` is what they said it was about, where they said anything. Where they
+    did not, the scope is the evening -- which is the ask this route exists for
+    and is the one a make sitting cannot express.
+    """
+    said = (about or "").strip()
+    return (WRITEUP_ASK_SENSE
+            % {"what": ("a DECK of slides" if makes == "slides" else "a PAPER"),
+               "about": said or WRITEUP_EVENING}) + MAKE_SENSE
 
 
 def session_sense(repo, doing=None):

@@ -2300,6 +2300,70 @@ The waking is the half no file can do: a turn is a headless call, and only a
 `state.json` and stopping there changes nothing for the assistant that is
 mid-conversation.
 
+#### A paper or a deck can be asked for from ANY sitting, and it is not an aim
+
+Asked as a question — *"at any point can I have a presentation or paper written
+up going through the things we talked about in that tutoring session? Can I do
+that in ANY tutoring session?"* — and the answer was no, twice over. Asking meant
+changing the **aim**, which makes the whole sitting a make sitting and every card
+after it a make card; and the aim row is hidden in a review and a walkthrough, so
+in the two sittings where a write-up is worth the most there was no route at all.
+
+**A document is a PRODUCT, not an aim.** An aim says what the sitting is *for*; a
+paper or a deck is something any sitting can be asked for. So it is its own act:
+**`POST /writeup`** carries `paper` or `slides` and optionally what it is about,
+changes no aim, archives nothing, replaces no tutor, and is available everywhere.
+Two controls in the sitting-kind panel, drawn from `WORK`'s own words filtered to
+the two products, and that row is never hidden.
+
+**It lands in the library, not on the glass.** A make sitting puts its sections
+on the board one at a time, because there the document *is* the evening. One
+asked for alongside a lesson must not push the lesson off the screen, so the turn
+writes no card at all — it writes the document, compiles it, and ends. Correcting
+it is the library's own loop.
+
+**Which leaves one thing with nowhere to be said: that it is being written, and
+that it is there.** A turn that writes no card is invisible on the board by
+construction. `tutorboard/writeups.py` is the record: one file per ask under
+`live/writeups/`, three states — *being written*, *in the library*, *did not
+land* — and a row in the chrome strip beside the missions. The state is **derived
+from the library and then frozen**, the way a mission's ending is: `library.stamp`
+is stats only, so what this ask produced is arithmetic over the stamp taken when
+it was asked, and freezing is what stops next week's deck being credited to it.
+Reading it retires the row, and the *server* remembers that, because the fact is
+about the document rather than about one page.
+
+**It costs nothing when nothing is being written**, which is nearly always: an
+empty `live/writeups/` is one failed `listdir`, cached for five seconds. With an
+ask open it is one `library.stamp` in the same window — **3 ms in
+`libr-local-llm`, 5 ms in `PSYCH-ASR`, 24 ms for the 44 documents in
+Galois-Theory**, measured on this cluster's shared home — shared across every
+open ask rather than paid per ask.
+
+**Nothing goes in the transcript**, which is the one place this differs from
+`POST /aim` and `POST /handover`. Both of those put the tap in as a turn of the
+student's because a card is coming back. Here none is: a student turn with
+nothing answering it is what leaves the board waiting for a card that this turn
+is told not to write.
+
+**And the signal reaches the clock.** `doing_now` answers *is this a turn that
+writes* from the sitting, and the sitting's aim deliberately has not moved — so a
+paper plus a LaTeX build would run on a teaching turn's fifteen minutes. It also
+runs **fresh**, for a revision's reason: a lesson resumed into a write-up is
+exactly the narration a write-up must not be.
+
+#### What a document covers, and how it reads, are two questions
+
+The refusal that stopped a tutor narrating the evening it had just taught was
+answering both with one sentence. **How it reads is fixed** — the subject
+explained, for somebody who was not in the room, no first person and no reference
+to the cards. **What it covers is not:** the scope may be the box, the chapter,
+**or the whole evening**. Where it is the evening it is *the concepts this sitting
+covered* — `board recap --all` reads the lesson back in one call and the card
+titles are the topic list — and not the order they were taught in, the questions,
+or who got what wrong. The split holds in all four places that say it:
+`sense.MAKE_SENSE`, both `config.AIM_MEANS` entries, and `TEACHING.md`.
+
 #### And one step of a coaching sitting can be handed over without leaving it
 
 `coach` names the calls and lets them type it, and changing the aim is a blunt
@@ -2343,6 +2407,19 @@ workspace's `tutorboard.json` → the family's default** — and it is the only
 place that knows it. `atlas.json` is still not a registry of workspaces: a
 default style is a property of a family, and making a course is still
 `mkdir courses/Topology`.
+
+**A family default is a style, never an instruction to write code**, and that is
+the one asymmetry in that precedence. `read_config` states the rule it follows
+from: writing the code for somebody who wanted to learn it is the one failure
+here that cannot be undone by the next card, so it is only ever done because a
+repository asked for it **in writing** — and a sentence about a *directory* is
+not a repository asking. `projects` defaults to `build` and `libr-local-llm`
+declares only a name, so a plain lecture opened in a workspace somebody arrives
+at wanting to understand was a doing turn, and being taught cost a tap. So a
+doing aim inherited from a family is dropped and the sitting runs on stance,
+which is `teach` unless the workspace says otherwise. A **teaching** default
+still applies — it takes nothing away, and it is what gives a bare `tutor galois`
+its style. Tap an aim, or write one in `tutorboard.json`, and nothing changes.
 
 ### The map is a plane
 
@@ -2750,6 +2827,16 @@ them. **A definition is checked against the file before it is carried anywhere**
 announced over a function that is not there sends the tutor looking, and it finds something else
 and teaches that. A name that matches nothing is refused and named; an ambiguous one resolves to
 nothing rather than to whichever was walked first.
+
+**A `#!` line is as good a declaration as a suffix**, and it is what `file(1)` would use. The
+list of what can be walked through keyed on the extension, so the entire surface of colibrì —
+`bin/coli`, `bin/coli-up`, `bin/coli-ask`, `bin/coli-code` — was invisible: extensionless bash
+scripts with a shebang. A walkthrough of `libr-local-llm` offered six files and not one of them
+was the one anybody would ask for. Now a file with **no** extension is read for a shebang (256
+bytes, only where there is no suffix to go on, and only in a directory the walk already visits),
+and the interpreter it names is what decides which language's patterns look for a definition
+inside it. A file with neither a suffix nor a shebang — a licence, a lock file, a data dump — is
+still not machinery, because it declared nothing.
 
 On the board it is the same picker the test review uses — the sitting badge, then **walk
 through…** — over the repository's source files, headed by the directory each sits in. There is
@@ -3571,6 +3658,10 @@ tutorboard/        the board itself, organised by what a thing is about:
                    workspace nobody is looking at, recorded in the workspace it
                    is about, its ending derived off the newest card and
                    `agent.json` and then frozen into the record
+  writeups.py      a paper or a deck asked for from a sitting, which is a
+                   PRODUCT rather than an aim: one record per ask, its state
+                   derived off `library.stamp` and then frozen, so the board can
+                   say a document is being written by a turn that writes no card
   leaving.py       what is about to leave this machine and whether it may: every
                    path a push would commit, checked against the repository's
                    own PHI policy where it sits in a workspace that holds a

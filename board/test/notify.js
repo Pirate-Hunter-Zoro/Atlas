@@ -101,12 +101,13 @@ const bar = () => doc.getElementById('newsbar');
    the answer row's own classes because it is the same row with a state on it. */
 const rows = () => Array.from(doc.querySelectorAll('#news-list .news-row'));
 
-const frame = (news, missions) => JSON.stringify({
+const frame = (news, missions, papers) => JSON.stringify({
   state: { course: 'Galois Theory', session: 'lecture' },
   cards: [{ id: '0001', kind: 'lesson', title: '', body: 'A field is a ring.',
             mtime: t0 - 600 }],
   turns: [], agent: { agent: 'claude', state: 'listening', turns: 2 },
   waiting: null, history: 0, news: news || [], missions: missions || [],
+  writeups: papers || null,
 });
 
 // Nothing elsewhere: nothing to say, and saying something anyway is furniture.
@@ -278,6 +279,69 @@ await sleep(60);
     : fail('waving away a running mission silenced its failure');
   doc.getElementById('news-hide').dispatchEvent(new window.Event('click'));
   await sleep(10);
+}
+
+/* ----------------------------------- a document asked for from THIS sitting
+
+   The only row in this strip that is about the board in front of you. It is in
+   the chrome for the same reason the rest of it is: the turn writing a deck must
+   not push a proof off the glass, which is the whole design of `POST /writeup`.
+
+   IT EXISTS BECAUSE THAT TURN IS TOLD TO WRITE NO CARD, so nothing about it can
+   appear on the board itself and "I asked for a deck and nothing happened" had
+   nowhere at all to be answered. */
+{
+  const papers = () => Array.from(doc.querySelectorAll('#writeup-list .mission-row'));
+  const paper = (over) => Object.assign({
+    id: 't0021', makes: 'slides', about: '', at: t0 - 90,
+    agent: 'claude', state: 'writing', doc: '',
+  }, over || {});
+
+  es.onmessage({ data: frame([], [], [paper()]) });
+  await sleep(60);
+  !bar().hidden && papers().length === 1
+    ? ok('a deck asked for mid-sitting says on the board that it is being written')
+    : fail('nothing says the document is being written');
+  /being written/.test((papers()[0] || {}).textContent || '')
+    ? ok('and which of the three states it is in')
+    : fail('the row does not say the document is in progress');
+  /what this sitting has covered/.test((papers()[0] || {}).textContent || '')
+    ? ok('and what it is about, which with nobody naming one is the evening')
+    : fail('the row claims nothing about the scope: "'
+           + (papers()[0] || {}).textContent + '"');
+  papers()[0].tagName !== 'A'
+    ? ok('and offers no way to read a document that is not written yet')
+    : fail('a document being written pretends to be somewhere to go');
+
+  // AND WHEN IT IS THERE. The library is where it went, so that is where the
+  // row goes -- and going there is what retires it, which the SERVER remembers
+  // because the fact is about the document rather than about this page.
+  es.onmessage({ data: frame([], [], [paper({ state: 'done',
+                                              doc: 'writeups-harness' })]) });
+  await sleep(60);
+  /in the library/.test((papers()[0] || {}).textContent || '')
+    ? ok('and says when it is in the library')
+    : fail('a finished document reads as still being written');
+  papers()[0].tagName === 'A' && /\/library$/.test(papers()[0].getAttribute('href'))
+    ? ok('and the row is the way to it')
+    : fail('the finished row is not a link to the library');
+  papers()[0].dispatchEvent(new window.Event('click'));
+  await sleep(30);
+  window.asked.some((r) => r.url === '/writeup/seen' && r.how === 'POST')
+    ? ok('reading it tells the server, so a second device does not offer it again')
+    : fail('nothing told the server the document had been looked at');
+
+  // IT IS NOT WAVED AWAY WHILE IT IS STILL BEING WRITTEN. `✕` is a gesture
+  // about news from elsewhere; this is work happening here, and it comes back.
+  es.onmessage({ data: frame([], [], [paper()]) });
+  await sleep(60);
+  doc.getElementById('news-hide').dispatchEvent(new window.Event('click'));
+  es.onmessage({ data: frame([], [], [paper()]) });
+  await sleep(60);
+  !bar().hidden && papers().length === 1
+    ? ok('and a document still being written cannot be dismissed, because it is '
+         + 'still being written')
+    : fail('waving away news from elsewhere silenced work happening here');
 }
 
 /* --------------------------------------------------------- the front door */

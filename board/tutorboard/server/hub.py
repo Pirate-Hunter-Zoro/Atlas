@@ -7,7 +7,7 @@ import os
 import threading
 import time
 
-from .. import assistants, colibri, direction, fenced, missions, news
+from .. import assistants, colibri, direction, fenced, missions, news, writeups
 from . import spawn
 from ..course import config, homework
 from ..lesson import archive, cards, git, notes, slate, state, turns, uploads
@@ -177,6 +177,13 @@ class Hub:
         # board that comes up tomorrow reads them off disk rather than out of a
         # browser's memory. Cached hard; see `missions.py`.
         data["missions"] = missions.waiting(self.repo)
+        # AND A DOCUMENT ASKED FOR FROM THE SITTING THAT IS OPEN. The turn that
+        # writes one is told to write no card, so it is invisible on the board by
+        # construction -- which leaves "I asked for a deck and nothing happened"
+        # with nowhere to be answered. The record says it is being written and
+        # then says it is in the library. Cheap when there is nothing to say,
+        # which is nearly always; see `tutorboard/writeups.py`.
+        data["writeups"] = writeups.waiting(self.repo)
         return data
 
     def poll_loop(self):

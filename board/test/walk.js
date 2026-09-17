@@ -293,6 +293,35 @@ paint('review', { reviewScope: ['Ch 01 — Groups'] });
 paintKindChooser();
 check('and neither is a review', registry['kind-stance'].hidden === true);
 
+// --- but a DOCUMENT can be asked for in either of them -----------------------
+// A paper or a deck is a PRODUCT, not an aim. Tapping `paper` in the `for:` row
+// changes the SITTING -- every card after it is a make card -- and that row is
+// hidden in exactly these two sittings, so in the two where a write-up is worth
+// the most there was no way to ask for one at all. Asked as a question: *"at any
+// point can I have a presentation or paper written up going through the things we
+// talked about in that tutoring session? Can I do that in ANY tutoring
+// session?"*
+//
+// TWO CONTROLS, NOT ONE, AND NOT A SECOND QUESTION AFTER THE TAP. Which of the
+// two is known at the moment of tapping, and the words are `WORK`'s own.
+check('a review is still asked whether it should produce a document',
+      registry['kind-doc'].hidden === false
+      && registry['kind-doc-ways'].children.length === 2);
+paint('walk', { walkScope: ['psych_asr/evaluate/grade.py'] });
+paintKindChooser();
+check('and so is a walkthrough',
+      registry['kind-doc'].hidden === false
+      && registry['kind-doc-ways'].children.length === 2);
+check('and the two are a paper and a deck, in the map sheet’s own words',
+      /paper/i.test(registry['kind-doc-ways'].children[0].textContent)
+      && /deck/i.test(registry['kind-doc-ways'].children[1].textContent));
+posts.length = 0;
+registry['kind-doc-ways'].children[1].onclick();
+check('tapping one asks for it and says which product, without touching the aim',
+      posts.length === 1 && posts[0].url === '/writeup'
+      && posts[0].body.makes === 'slides'
+      && !('aim' in posts[0].body) && !('session' in posts[0].body));
+
 paint('lecture', {});
 paintKindChooser();
 registry['stance-do'].onclick();

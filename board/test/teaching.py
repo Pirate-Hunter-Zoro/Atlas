@@ -382,12 +382,10 @@ from tutorboard.course import config as course_config        # noqa: E402
 # three places that must not drift: the method a turn is given, the one sentence
 # behind the word a person taps, and the contract copied into every workspace.
 for phrase, why in [
-    ("NEVER THIS SITTING", "the document is about the subject, not the evening"),
-    ("EXPLAINER", "and is named as an explainer"),
+    ("EXPLAINER", "the document is named as an explainer"),
     ("was not in the room", "written for somebody who was not there"),
     ("no first person", "with no first person"),
     ("narrate the hand-check", "and no narration of how it was taught"),
-    ("SCOPE IS THE BOX", "scoped to the box rather than the evening"),
     ("writeups/", "and kept where a document goes"),
 ]:
     check("the make method says " + why, phrase in sense_mod.MAKE_SENSE)
@@ -395,16 +393,73 @@ for _aim in ("paper", "slides"):
     _said = course_config.AIM_MEANS[_aim]
     check("the word a person taps for %s says it too" % _aim,
           "explainer" in _said.lower() or "explains" in _said.lower())
-    check("and that it is not a record of the sitting (%s)" % _aim,
-          "not a write-up of this sitting" in _said
-          or "not a record of this sitting" in _said)
+
+# TWO SENTENCES WERE WELDED INTO ONE REFUSAL, AND ONLY ONE OF THEM WAS RIGHT.
+#
+# The failure it was written against was a tutor narrating the evening it had
+# just taught -- first person, "as we saw above", the hand-check retold instead
+# of the concept explained. That is about CONTENT and the refusal is correct.
+#
+# What got banned alongside it is SCOPE: "AND ITS SCOPE IS THE BOX, NOT THE
+# EVENING". So *"a deck about the four things this sitting covered"* -- which is
+# the ask `POST /writeup` exists for -- had no phrasing anywhere that the rule
+# did not refuse. The two are separated now, and BOTH halves have to hold in all
+# four places, because two of the four worded the old refusal differently and
+# that is exactly how a rule gets fixed in one and left in the other.
+WHERE_THE_RULE_LIVES = (
+    ("the make method", sense_mod.MAKE_SENSE),
+    ("the word a person taps for a paper", course_config.AIM_MEANS["paper"]),
+    ("the word a person taps for a deck", course_config.AIM_MEANS["slides"]),
+    ("TEACHING.md", text),
+)
+for _where, _said in WHERE_THE_RULE_LIVES:
+    check("%s still refuses a narration of the sitting" % _where,
+          "narration of this sitting" in _said.lower())
+    check("%s allows the evening as a scope" % _where,
+          "the concepts this sitting covered" in _said)
+# And the scope half says what the evening MEANS, in the two places a turn reads:
+# the concepts, read back in one call, not the order or the questions or who got
+# what wrong.
+for phrase, why in [
+    ("THE BOX, THE CHAPTER, OR THE WHOLE EVENING", "all three scopes are named"),
+    ("board recap --all", "the lesson is read back in one call"),
+    ("not the questions", "and the questions are not the document"),
+]:
+    check("the make method says " + why, phrase in sense_mod.MAKE_SENSE)
 for phrase, why in [
     ("about the SUBJECT", "the contract says the same"),
     ("was not in the room", "for somebody who was not there"),
     ("refusal", "and says it is a refusal rather than a preference"),
     ("writeups/", "and names where a new document goes"),
+    ("board recap --all", "and how the evening is read back"),
 ]:
     check("TEACHING.md: " + why, phrase in text)
+
+# ---------------------------------------------------------------------------
+# A DOCUMENT IS A PRODUCT, NOT AN AIM
+# ---------------------------------------------------------------------------
+# Asked for from any sitting at all, including the two the aim row is withheld
+# from. The route is guarded in `test/aiming.py`; what is guarded here is the
+# line the turn is woken with, because in headless that string IS the prompt.
+for _makes, _word in (("paper", "a PAPER"), ("slides", "a DECK of slides")):
+    _line = sense_mod.writeup_sense(_makes)
+    check("a %s asked for mid-sitting says which product it is" % _makes,
+          _word in _line)
+    check("and carries the make method whole rather than restating it (%s)" % _makes,
+          sense_mod.MAKE_SENSE in _line)
+    check("and says the turn writes no card (%s)" % _makes,
+          "Write no card" in _line and "THIS TURN IS NOT PART OF THE LESSON" in _line)
+    check("and that the sitting's own aim has not changed (%s)" % _makes,
+          "aim of it has not changed" in _line)
+    # The scope with nobody naming one is the evening, which is the whole reason
+    # this route exists: the map already opens a make sitting over a box.
+    check("with the evening as its scope where nobody named one (%s)" % _makes,
+          "THE CONCEPTS THIS SITTING COVERED" in _line
+          and "board recap --all" in _line)
+    _named = sense_mod.writeup_sense(_makes, "the serve harness")
+    check("and what they said it was about where they said anything (%s)" % _makes,
+          "the serve harness" in _named
+          and "THE CONCEPTS THIS SITTING COVERED" not in _named)
 
 from tutorboard.course import config as config_mod          # noqa: E402
 from tutorboard.course.repo import Repo                      # noqa: E402

@@ -84,6 +84,8 @@ var els = {
   kindWhoUp: document.getElementById("kind-who-up"),
   kindAim: document.getElementById("kind-aim"),
   kindAimWays: document.getElementById("kind-aim-ways"),
+  kindDoc: document.getElementById("kind-doc"),
+  kindDocWays: document.getElementById("kind-doc-ways"),
   trace: document.getElementById("trace"),
   elsewhere: document.getElementById("elsewhere"),
   elsewhereList: document.getElementById("elsewhere-list"),
@@ -147,6 +149,7 @@ var els = {
   newsLead: document.getElementById("news-lead"),
   newsList: document.getElementById("news-list"),
   missionList: document.getElementById("mission-list"),
+  writeupList: document.getElementById("writeup-list"),
   newsHide: document.getElementById("news-hide"),
   typebox: document.getElementById("typebox"),
   saybox: document.getElementById("saybox"),
@@ -3614,6 +3617,10 @@ function paintKindChooser() {
   /* AND WHO WRITES IT, which is a third question and is answered for the
      sitting being OPENED rather than the one that is. */
   paintWho();
+  /* AND WHETHER THEY WANT A DOCUMENT OUT OF IT, which is not a question about
+     the sitting at all — so it is asked in every one of them, including the two
+     the aim row above is hidden in. */
+  paintDoc();
   els.kindSets.innerHTML = "";
   if (!knownSets.length) {
     var none = document.createElement("span");
@@ -3900,6 +3907,62 @@ function paintAim() {
     b.onclick = function () { setAim(way.aim); };
     host.appendChild(b);
   });
+}
+
+/* ------------------------------- a document, from any sitting at all */
+/* A PAPER OR A DECK IS A PRODUCT, NOT AN AIM, so these are not two more buttons
+   in the row above.
+
+   Tapping `paper` up there changes the SITTING: every card after it is a make
+   card, and the row itself is hidden in a review and a walkthrough — so in the
+   two sittings where a write-up is worth the most there was no way to ask for
+   one. Asked as a question: *"at any point can I have a presentation or paper
+   written up going through the things we talked about in that tutoring session?
+   Can I do that in ANY tutoring session?"*
+
+   `POST /writeup` changes no aim, archives nothing and replaces no tutor. The
+   document is written alongside the lesson and lands in the LIBRARY, because a
+   deck's slides arriving in a transcript somebody is mid-proof in is the
+   interruption the library page exists to avoid.
+
+   THE WORDS ARE `WORK`'s, filtered to the two products, the way `aimWays`
+   filters it — one set of words for the map's sheet and for this, or the two
+   drift. And there are TWO buttons rather than one because which of the two is
+   known at the moment of tapping; a second question after the tap is the
+   ceremony this tool exists to remove. */
+function docWays() {
+  return WORK.filter(function (way) { return !!way.makes; });
+}
+
+function paintDoc() {
+  if (!els.kindDoc) return;
+  /* Never hidden. That is the whole point of it: a review and a walkthrough are
+     exactly the sittings the aim row leaves out. */
+  var host = els.kindDocWays;
+  host.innerHTML = "";
+  docWays().forEach(function (way) {
+    var b = document.createElement("button");
+    b.type = "button";
+    b.textContent = way.label;
+    b.title = way.sub;
+    b.onclick = function () { askWriteup(way.makes, b); };
+    host.appendChild(b);
+  });
+}
+
+/* Painted before the answer comes back, for the reason `setAim` is: the payload
+   that carries the record is a poll away, and a control that does nothing for a
+   second is a control somebody taps again. The strip in the chrome is the truth
+   from the next payload on — see `paintWriteups`. */
+function askWriteup(makes, button) {
+  els.kind.hidden = true;
+  if (button) button.disabled = true;
+  fetch("/writeup", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ makes: makes })
+  }).catch(function () { /* the payload will say what actually happened */ })
+    .then(function () { if (button) button.disabled = false; });
 }
 
 /* One step, written for them, and the sitting stays a coaching one. Painted
@@ -7546,11 +7609,112 @@ function paintMissions(show) {
   });
 }
 
-/* The one line at the top of the strip, over both lists. Built out of what is
-   actually in them: a lead that says "an answer is waiting" over three rows
+/* A DOCUMENT ASKED FOR FROM THIS SITTING, WHICH IS THE ONE ROW ABOUT HERE.
+
+   Everything else in this strip is about somewhere else. This is about the board
+   in front of you — and it is in the chrome rather than on the glass for exactly
+   the reason the rest of it is: the lesson underneath belongs to somebody's
+   evening, and a deck being written must not push a proof off the screen. That
+   is the whole design of `POST /writeup`.
+
+   IT EXISTS BECAUSE THE TURN IS TOLD TO WRITE NO CARD. A write-up turn is
+   invisible on the board by construction, so "I asked for a deck and nothing
+   happened" had nowhere at all to be answered. The server holds the record and
+   derives its state from the library — see `tutorboard/writeups.py`.
+
+   A FINISHED ONE IS A LINK TO THE LIBRARY, because that is where it went and
+   because reading it is what takes the row away. `✕` on the bar mutes rows about
+   elsewhere; a finished write-up is told to the SERVER it has been seen, since
+   the fact is about the document rather than about this page. */
+var WRITEUP_WORD = { writing: "being written", done: "in the library",
+                     failed: "did not land" };
+var writeupShown = "";
+
+function writeupKey(w) {
+  return (w.id || "") + "@" + (w.state || "");
+}
+
+function writeupsShowing(data) {
+  return ((data && data.writeups) || []).slice(0, 3);
+}
+
+function writeupSeen(id) {
+  fetch("/writeup/seen", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ id: id })
+  }).catch(function () { /* the next payload is the truth either way */ });
+}
+
+function paintWriteups(show) {
+  if (!els.writeupList) return;
+  var sig = show.map(writeupKey).join("~");
+  if (sig === writeupShown) return;
+  writeupShown = sig;
+  els.writeupList.textContent = "";
+  show.forEach(function (w) {
+    var done = w.state === "done";
+    var row = document.createElement(done ? "a" : "div");
+    row.className = "news-row mission-row";
+    row.dataset.state = w.state || "";
+    if (done) {
+      row.href = "/library";
+      /* Going there IS reading it, so the row is retired on the way out rather
+         than left for a second tap. */
+      row.onclick = function () { writeupSeen(w.id); };
+    }
+    var pill = document.createElement("span");
+    pill.className = "mission-state";
+    pill.textContent = WRITEUP_WORD[w.state] || w.state || "";
+    var where = document.createElement("span");
+    where.className = "news-where";
+    where.textContent = w.makes === "slides" ? "a deck" : "a paper";
+    var what = document.createElement("span");
+    what.className = "news-what";
+    /* What they asked it to be about, and where they said nothing the truthful
+       answer is the evening — which is what the server defaulted it to. */
+    what.textContent = w.about || "what this sitting has covered";
+    var when = document.createElement("span");
+    when.className = "news-when";
+    when.textContent = newsAgo(w.at);
+    row.appendChild(pill);
+    row.appendChild(where);
+    row.appendChild(what);
+    row.appendChild(when);
+    if (done) {
+      var go = document.createElement("span");
+      go.className = "news-go";
+      go.textContent = "→";
+      row.appendChild(go);
+    }
+    if (w.state === "failed") {
+      var why = document.createElement("span");
+      why.className = "mission-why";
+      why.textContent = "nothing has appeared in the library. Ask again.";
+      row.appendChild(why);
+    }
+    els.writeupList.appendChild(row);
+  });
+}
+
+/* The one line at the top of the strip, over all three lists. Built out of what
+   is actually in them: a lead that says "an answer is waiting" over three rows
    about missions is furniture that lies. */
-function newsLeadFor(answers, jobs) {
+function newsLeadFor(answers, jobs, papers) {
   var parts = [];
+  var writing = 0;
+  (papers || []).forEach(function (w) {
+    if (w.state === "writing") writing++;
+  });
+  var landed = (papers || []).length - writing;
+  if (writing) {
+    parts.push(writing === 1 ? "a document is being written here"
+                             : writing + " documents are being written here");
+  }
+  if (landed) {
+    parts.push(landed === 1 ? "a document is in the library"
+                            : landed + " documents are in the library");
+  }
   var going = 0;
   jobs.forEach(function (m) { if (m.state === "running") going++; });
   var ended = jobs.length - going;
@@ -7582,17 +7746,21 @@ function paintNews(data) {
      somebody has to scroll past to reach their own lesson. */
   show = show.slice(0, 3);
   var jobs = els.missionList ? missionsShowing(data) : [];
-  if (!show.length && !jobs.length) {
+  var papers = els.writeupList ? writeupsShowing(data) : [];
+  if (!show.length && !jobs.length && !papers.length) {
     els.newsBar.hidden = true;
     els.newsList.textContent = "";
     if (els.missionList) els.missionList.textContent = "";
+    if (els.writeupList) els.writeupList.textContent = "";
     newsShown = "";
     missionShown = "";
+    writeupShown = "";
     return;
   }
   var sig = show.map(newsKey).join("~");
   els.newsBar.hidden = false;
-  els.newsLead.textContent = newsLeadFor(show, jobs);
+  els.newsLead.textContent = newsLeadFor(show, jobs, papers);
+  if (els.writeupList) paintWriteups(papers);
   if (els.missionList) paintMissions(jobs);
   /* Rebuilt only when the list has actually changed. This is painted on every
      payload, which is several times a second while a turn runs, and replacing
@@ -7641,9 +7809,16 @@ if (els.newsHide) {
     ((lastLive && lastLive.missions) || []).forEach(function (m) {
       missionMuted[missionKey(m)] = true;
     });
+    /* A DOCUMENT BEING WRITTEN HERE IS NOT MUTED, and that is deliberate: it
+       comes back on the next payload. This is a gesture about news from
+       elsewhere, and a write-up in progress is the one row in here about work
+       happening on this board. A finished one is retired by going to read it,
+       which tells the server — `writeupSeen` — because the fact is about the
+       document rather than about this page. */
     els.newsBar.hidden = true;
     newsShown = "";
     missionShown = "";
+    writeupShown = "";
   };
 }
 

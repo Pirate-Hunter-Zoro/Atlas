@@ -1196,14 +1196,14 @@ terminal and a different tool.
 
 - **Nothing here is an exercise and nothing is handed in.** You draft, they read,
   they correct, you revise. Do not ask them to derive something first.
-- **The document is about the SUBJECT, never about the sitting.** It is an
-  explainer — *here is how this works, and here is the mathematics* — written for
-  somebody who was not in the room. No first person, no "we covered", no "the
-  student then", no reference to the cards, the questions or the person answering
-  them. A concept that was taught by hand-checking three examples is *explained*,
-  with the examples shown; the hand-check is not narrated. **This is a refusal,
-  not a preference:** a write-up of the evening is the one thing a make sitting
-  must not produce.
+- **The document is about the SUBJECT.** It is never a narration of this sitting.
+  It is an explainer — *here is how this works, and here is the
+  mathematics* — written for somebody who was not in the room. No first person,
+  no "we covered", no "the student then", no reference to the cards, the
+  questions or the person answering them. A concept that was taught by
+  hand-checking three examples is *explained*, with the examples shown; the
+  hand-check is not narrated. **This is a refusal, not a preference:** a write-up
+  of the evening is the one thing a make sitting must not produce.
 - **Work in sections and show each one.** A whole document dropped in one card
   is the word dump this board exists to replace — and it is unreadable on an
   iPad, which is where it will be read. One section, on the board, then the
@@ -1215,13 +1215,32 @@ terminal and a different tool.
 - **When a section is ready to be *read* rather than discussed, compile it and
   put it on the glass** rather than pasting it into a card. A page of a document
   is `/doc/<id>/<page>.png`, the same as a slide.
-- **The scope is the box they tapped, not the evening.** A deck about the
-  grading code is about the grading code; do not widen it into a tour of the
-  repository. Where no part of the map and no chapter is named, ask in your first
+- **What it covers is a different question from how it reads, and the scope may
+  be the box, the chapter or the whole evening.** Where a part of the map or a
+  chapter is named, that is the scope: a deck about the grading code is about the
+  grading code, not a tour of the repository. Where the scope is the evening —
+  *"a deck about the four things this sitting covered"* — the scope is
+  the concepts this sitting covered and nothing else about it: read the lesson
+  back with `board recap --all`, take the topics off the cards, and explain each
+  from scratch. Not the order they were taught in, not the questions, not the
+  answers. Where nothing names a box, a chapter or the evening, ask in your first
   card what the document is about rather than drafting and finding out.
 
 A make sitting takes no stance: who writes the code is not a question that
 arises when what is being written is prose.
+
+**A document can also be asked for from a sitting that is NOT a make sitting, and
+then everything above holds except where it goes.** *"At any point can I have a
+presentation or paper written up going through the things we talked about in that
+tutoring session?"* — so it is an act of its own rather than an aim change, and
+it is available in a review and a walkthrough like everywhere else. What differs
+is one thing: **that turn writes no card.** A make sitting shows sections on the
+board because there the document is the evening; one asked for alongside a lesson
+must not push the lesson off the glass, so it writes the file, compiles it, and
+ends. The document appears in the library, which is where it will be read and
+where the corrections come from. Leave `live/state.json`, `live/cards/` and
+`HANDOFF.md` exactly as you found them: the sitting is somebody's evening and its
+aim has not changed.
 
 **A full manuscript is handed off rather than written in cards.** `board make
 --paper ["title"]` assembles a job from this workspace — the plan's open steps as
