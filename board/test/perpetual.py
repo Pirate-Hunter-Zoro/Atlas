@@ -523,6 +523,55 @@ try:
     check("and starting the chain again clears it", not supervise.stopped())
 
     # =======================================================================
+    # A generation lands on a node that has never linked
+    # =======================================================================
+    # AND IT HAS TO BE ABLE TO BRING THE LINK UP THERE, which for a year it could
+    # not. `tailscale_cli` decided "our daemon in userspace" against "a system
+    # install to leave alone" by whether the SOCKET FILE existed -- and the socket
+    # exists only while our daemon is running. So on a node that had not linked
+    # yet it fell through to the CLI we install ourselves under ~/.local/bin,
+    # called it a system install, and `board vpn up` started nothing at all.
+    #
+    # It worked by accident: Slurm SIGKILLs a node's processes when an allocation
+    # ends, leaving the socket file on the shared home for the next node to
+    # misread as "userspace". A graceful handover removes it -- so the one time
+    # this had to work was the one time it could not. Measured on compute306:
+    # both boards answering on loopback, no tailnet daemon, white glass.
+    from tutorboard.net import tailscale as _ts
+    was_sock, was_which = _ts.TS_SOCK, _ts.shutil.which
+    _ts.TS_SOCK = os.path.join(state, "never-existed.sock")
+    try:
+        _ts.shutil.which = lambda n: os.path.join(paths.HOME, ".local", "bin", n)
+        prefix, kind = _ts.tailscale_cli()
+        check("with no socket yet, a `tailscaled` under this home is still ours "
+              "to start -- otherwise a fresh node can never link, which is every "
+              "node the chain hands over to",
+              kind == "userspace" and "--socket" in (prefix or []))
+        _ts.shutil.which = lambda n: "/usr/bin/" + n
+        prefix, kind = _ts.tailscale_cli()
+        check("and a daemon in a system directory is still left alone, because "
+              "starting a second one fights the first for the same node key",
+              kind == "system")
+        _ts.shutil.which = lambda n: None
+        check("and a machine with no tailscale at all is still told so",
+              _ts.tailscale_cli()[1] == "missing")
+    finally:
+        _ts.TS_SOCK, _ts.shutil.which = was_sock, was_which
+
+    board_src = open(os.path.join(ROOT, "bin", "board"), encoding="utf-8").read()
+    check("the daemon is looked for by process NAME, in one place, since a "
+          "pattern inside a command line is matched by every shell one-liner "
+          "written to ask the question",
+          "tailscale.daemon_running()" in board_src
+          and 'pgrep", "-x", "tailscaled"' in open(
+              os.path.join(ROOT, "tutorboard", "net", "tailscale.py"),
+              encoding="utf-8").read())
+    check("and a start waits for the daemon to ANSWER rather than for its socket "
+          "file to appear, which in a shared home says only that some machine "
+          "once had one",
+          "def ts_talks(" in board_src and "if ts_talks():" in board_src)
+
+    # =======================================================================
     # The job script itself
     # =======================================================================
     script = open(supervise.SCRIPT, encoding="utf-8").read()
