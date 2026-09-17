@@ -19,6 +19,44 @@ section.
 
 ---
 
+## How to work from this file
+
+**ONE ITEM PER SESSION, AND THE ITEM COMES OUT OF THIS FILE WHEN IT IS DONE.**
+Nobody has to ask for that. *"Look at HANDOFF"* means all of it:
+
+1. **Take the lowest-numbered item under *What to do next* that is a build.** It
+   is the lowest-numbered one on purpose — the numbering carries the order things
+   have to land in, and each item says what it depends on where that matters. If
+   the owner names a different one, that wins.
+2. **Read that item whole before touching anything.** Each one says what already
+   exists (measured, not assumed), what is missing, where it goes, the decisions
+   to take deliberately, and what to assert. The decisions are the expensive part:
+   several items name a route that is *wrong* to reuse and say why, and taking
+   the obvious next line of code instead is how the work gets undone.
+3. **Build it, test it, ship it.** `bash board/test/all.sh` green before and
+   after, `VERSION` in `board/web/sw.js` bumped if a shell file changed, and
+   `ship.sh` / `save-and-push.sh` per the split below.
+4. **Then DELETE that item from this file** and write what landed into
+   *Settled, so nobody re-derives it* — the rule, not the story, in the tense of
+   something that is true now. Renumber what is left. The file is *what is left*;
+   an item that is done and still sitting here is the next session's wasted
+   half-hour.
+5. **Say what was cut.** If part of the item turned out to be wrong, blocked, or
+   a bad idea once the code was in front of you, do not silently drop it: leave
+   that part in the file with one line saying what blocks it, and take out only
+   what actually landed.
+
+An item is not done because its code runs. It is done when the suite is green,
+the rule is written where the next turn will read it, and the item is out of this
+file.
+
+**Two of them are not builds and do not come out this way.** Item 9's last part
+is a standing rule — it lands in `TEACHING.md` and `sense.py` and then it is a
+*Settled* entry like anything else. Item 11 is a list of evenings in front of the
+thing, and only the person holding the iPad can strike those.
+
+---
+
 ## Before anything
 
 - `bash board/test/all.sh` — 78 suites, about twelve minutes. Green before and
@@ -39,7 +77,7 @@ section.
 **`projects/libr-local-llm` has its own handoff and it is still the live one.**
 The five pieces it asked for against the board are shipped and are under
 *Settled* below; what is left in that file is the diarization job itself, which
-is item 9 here.
+is item 10 here.
 
 ---
 
@@ -63,8 +101,9 @@ there. Item 6 is where a lesson turns into a document, and item 5 is how that
 document is then corrected, so they are worth reading together. Item 7 is the
 answer box and is independent of everything. Item 8 is the meeting deck, which
 reuses item 5's reader and deliberately does NOT reuse its feedback route. Item 9
+is the map, and the last part of it is a standing rule rather than a task. Item 10
 is the acceptance test of 2, 3 and 4 and is also the job all of it exists for.
-Item 10 is not a build.
+Item 11 is not a build.
 
 ---
 
@@ -725,7 +764,137 @@ trap — a mark on a meeting deck produces a direction PROPOSAL on that workspac
 board and does **not** write a feedback file, does not archive anything, and does
 not replace any assistant.
 
-### 9. Put colibrì on the diarization repair, which is what all of the above is for
+### 9. Three doors, then a family, then a diagram that explains the project
+
+**The complaint, and it is about all three levels at once.** *"It's just an ugly
+grid of projects in an inner box that has wacky zooming. On the homescreen, I want
+a nice 'Research' option, 'Courses' option, and 'Projects' option, and honestly
+something pertaining to vendor/ as well, because who knows when we'll want to
+explore external tools in the same way we're exploring everything else with
+tutoring sessions. That's the best way to dive into how Colibri works. When I
+select one of those four options, I want to see all available
+projects/courses/research projects/vendor tools portrayed in again a visually
+pleasing way, and then we can go into an individual project map."*
+
+**(a) The front door draws a list as though it were a diagram, and that is the
+whole of the complaint.** `home.js` builds ONE SVG plane — a region per family, a
+card per workspace, `A_FAM_TOP`, `A_FAM_GAP`, `A_EDGE` — and hands it to
+`plane-core.js` to be panned and pinched, with a `fit` button because it cannot be
+seen at once. Six families and a dozen workspaces is **a list of six**. A list is
+not a diagram, and drawing it on a plane is what produces the wacky zooming: the
+gesture layer is solving a problem the content does not have.
+
+*Want.* Three levels, and only the last of them is a plane.
+
+1. **The door:** the families, as large tappable things. `atlas.json` already
+   carries them in the order they should be drawn, with a `name` and a one-sentence
+   `blurb` each — *"Graduate coursework, taught chapter by chapter."*, *"The
+   projects that become papers."* Those sentences exist and the front door does
+   not use them as anything but a heading. No plane, no pinch, no fit button.
+2. **The family:** its workspaces, each with what it is and what is happening in
+   it. `machines.atlas_payload` already computes per workspace what is next, how
+   many cards, which chapter, whether a board is up and on which node — all of it
+   is in the payload today and gets drawn as a small card in a grid. No plane here
+   either.
+3. **The project map:** a diagram, which is the one thing here that genuinely
+   needs a plane. `plane-core.js` stays, and it finally has content whose shape
+   justifies it.
+
+**(b) `vendor/` becomes explorable, and that changes a rule that is written
+down.** `atlas.json` says today: *"vendor — somebody else's repositories, tracked
+by pointer. Discovery skips the family entirely — nothing in it is the person's to
+be graded on."* The reason given is about GRADING, and the ask is about TRACING:
+*"who knows when we'll want to explore external tools in the same way… That's the
+best way to dive into how Colibri works."* Those are different claims and the rule
+conflates them, the same way `MAKE_SENSE` conflated content with scope.
+
+*Want.* A vendor tree is walkable and diagrammable and is **never** a workspace
+you hand work in to: no cards, no write-up, no homework, no push. A `trace`
+sitting over `vendor/colibri` is exactly the right shape and it is currently
+impossible. Split the rule in `atlas.json`'s own prose so the next reader does not
+re-merge it, and remember that `atlas.workspaces()` skipping the family is what
+several things depend on — widen the walk, do not widen what counts as a
+workspace.
+
+**(c) The project map is a package diagram and the ask is a class diagram. More of
+it exists than it looks.** `map._from_code(root)` already derives nodes and
+weighted edges from the source: on `research/PSYCH-ASR` it returns **13 nodes and
+19 edges** right now, with real arrows — `psych-asr-cli → psych-asr-artifacts`
+carrying 25 imports, `→ psych-asr-transcript` carrying 10. `_module_paths` reads
+what a file imports, `_owner` decides which box owns the target, `_edges`
+deduplicates and counts, and `_rollup` groups. The skeleton is there and it works.
+
+What is missing is **granularity**. The nodes are DIRECTORIES. IntelliJ's diagram
+is worth what it is worth because its nodes are the *things* — the classes — and
+its arrows are uses and inheritance. *"Just looking at it should communicate
+everything one needs to know to understand how the project works, and when we work
+on a TODO, it's obvious what moving parts we'll be affecting."*
+
+*The primitive for the nodes already exists in another file.*
+`walk.DEFINITION` is a per-language pattern for *"is there a thing called X
+defined here"*, anchored at the start of a line, for Python, Go, JS/TS, Lean, sh,
+R and Rust. That is the definition-finder a symbol-level diagram needs, and it is
+already written and already used to check a walkthrough's symbol before it reaches
+a prompt.
+
+*Decide: how far without a parser, and the answer is not the same in every
+language.* A regex is honest about definitions and a liar about calls. **For
+Python — which is most of this repository — use `ast`.** It is standard library,
+which is this codebase's own rule in every module, and it gives classes,
+functions, decorators, base classes and call sites exactly rather than
+approximately. For everything else keep `walk.DEFINITION`, draw the coarser
+diagram, and **say on the diagram that it is coarser** rather than letting
+somebody trust a Lean box as much as a Python one.
+
+*And decide the levels, because `MAX_NODES = 44` is about to be the binding
+constraint.* A symbol-level diagram of a real project is hundreds of boxes, and
+400 boxes on a plane is the ugly grid again with more effort. Three depths —
+package, module, symbol — expanding on a tap, with the arrows rolled up to
+whatever depth is showing. `_rollup` already does exactly that kind of grouping
+for files.
+
+*What must NOT be lost.* The written map is judgement and the derived one is not.
+`live/map.json` carries *the typist*, *the stopwatch*, *the name-tagger* — names
+*"which is judgement no file in this repository contains and which no amount of
+reading the tree recovers"*, and `meeting.py` spends those names in every note it
+writes. The derived diagram is a second layer UNDER the hand-drawn one, not a
+replacement: the boxes keep their human names, and the structure appears inside
+and between them. `map._unclaimed` is where the two are already reconciled.
+
+**(d) And the code has to deserve the diagram. This is a standing rule, not a
+task.** *"Not only do I want the project/course/research-project level maps to be
+rendered in this way, but we need to make the code behave so that it can be
+rendered that way too. Basically, all code ever produced, be it by vibe-coding or
+coach-coding, must keep this desire for organization and scalability in mind. No
+piece-of-shit code even though we can get away with it in Python."*
+
+A diagram is a mirror. A module that does six unrelated things draws as one box
+with eleven arrows into it and teaches nobody anything — and the failure is the
+module, not the renderer. So the rule belongs where every turn is bound by it,
+which is `TEACHING.md` beside *A doing turn: the work first, then one short card*
+and in `sense.DOING_SENSE`, which in a headless turn is the whole prompt. In one
+sentence: **a new thing goes in a module named for the one job it does, and if
+that means moving something first, move it first.**
+
+*And the refactor is real work with a real order.* The owner's own reading is
+*"courses are pretty organized, and we've tried our best in the research projects
+and other projects like Algo-Solutions and Lean-Theorem-Proving, but still, we
+need to LOCK IN."* **Draw the diagram before refactoring anything.** The diagram is
+the instrument: the box with too many arrows into it is the next refactor, and
+guessing which module is untidy before you can see the graph is how the wrong one
+gets rewritten. Take them one workspace at a time, and take the one the diagram
+makes look worst.
+
+**Check.** `test/map.py` owns *"the map is of the content, and none of it is
+invented"*, which is the property that must survive all of this: assert every
+derived node and every arrow traces to a real definition or a real import, that a
+symbol `ast` cannot find is not drawn, and that the hand-written names still win
+over derived ones. `test/hub.js` owns the front door — assert the three levels are
+three surfaces, that the top two are not planes, and that `atlas.json`'s blurbs
+reach the glass. `test/walk.py` owns what is walkable, and gains vendor. And
+`test/teaching.py` for the standing rule, in the two places it has to agree.
+
+### 10. Put colibrì on the diarization repair, which is what all of the above is for
 
 It is now the acceptance test of items 2, 3 and 4 as well as the job that has
 been waiting since before any of this existed. **The ask, the scoring and the
@@ -750,7 +919,7 @@ Three things about running it that are the board's rather than that file's:
 `research/PSYCH-ASR/HANDOFF.md` holds the *teaching* thread on the same code; it
 is a different conversation and the two do not merge.
 
-### 10. And the three things no test can hold
+### 11. And the three things no test can hold
 
 None of these is a build. Each is an evening in front of the thing.
 
