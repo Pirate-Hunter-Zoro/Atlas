@@ -39,7 +39,7 @@ section.
 **`projects/libr-local-llm` has its own handoff and it is still the live one.**
 The five pieces it asked for against the board are shipped and are under
 *Settled* below; what is left in that file is the diarization job itself, which
-is item 7 here.
+is item 8 here.
 
 ---
 
@@ -61,8 +61,8 @@ cannot be a record before the board knows which workspaces are fenced. Items 1
 and 5 are independent of that and of each other; item 1 is the smallest, so start
 there. Item 6 is where a lesson turns into a document, and item 5 is how that
 document is then corrected, so they are worth reading together. Item 7 is the
-acceptance test of 2, 3 and 4 and is also the job all of it exists for. Item 8 is
-not a build.
+answer box and is independent of everything. Item 8 is the acceptance test of 2,
+3 and 4 and is also the job all of it exists for. Item 9 is not a build.
 
 ---
 
@@ -452,7 +452,89 @@ a walkthrough, where the aim row does not appear. `test/walk.py` owns what is
 offered: assert that a `#!` script with no suffix is walkable and that a README
 still is not.
 
-### 7. Put colibrì on the diarization repair, which is what all of the above is for
+### 7. Mathematics renders in the answer box as it is typed
+
+**The want:** *"when I'm typing a response to a tutor, I want to be able to type
+latex commands in the typing box — like \gamma, etc. — and have that render as I
+type it. And then when I send it, have it stay rendered that way. I still like
+how everything else is rendered dyslexic friendly."*
+
+**Half of this already works, and it is worth knowing which half before building
+anything.** Measured by driving the real page: a typed answer goes through
+`renderMarkdown`, which parks `$\gamma^2 = 2$` into a `span.math-raw`, and
+`reconcile` pushes **every** newly inserted node into `freshNodes` — a card or a
+turn, no distinction — which `typeset` then walks with `$`, `$$`, `\(` and `\[`
+and 64 macros out of `macros.js`. So **a sent answer containing `$\gamma^2 = 2$`
+already comes back typeset in the transcript, today.** Nothing needs building for
+the "stay rendered" half.
+
+**Two things do not work, and the second is a decision rather than a build.**
+
+**(a) Nothing renders while you type, and nothing ever can in that box.**
+`#saybox` is a `<textarea>`. A textarea holds characters and no markup, by
+definition, so there is no version of this that renders inside it.
+
+*Want.* A preview under the box that renders on a debounce and says, in advance,
+exactly what the transcript will show.
+
+*And do not reach for the clever option.* Replacing the textarea with a
+`contenteditable` renders in place and costs everything that textarea carries:
+iOS autocorrect and its undo stack, selection behaviour under a thumb, the
+`input` handler that drives `saveTextDraft` and `correctingTurn`, `autosize`, the
+⌘-Enter send — and `test/mine.js` and `test/typed.js` both drive that element
+directly. A preview loses none of it.
+
+*One renderer, or the preview lies.* `renderMarkdown` then `typeset`, the same
+pair a card goes through, on the same debounce the draft save already uses. Two
+renderers would differ on exactly the input somebody is squinting at.
+
+*Only when there is something to show.* A preview that is always there doubles
+the height of the answer panel for everybody who never types a formula. It
+appears when the text contains a delimiter or a backslash command, and not
+otherwise.
+
+*And the face stays where it is, which is the half that was asked to be left
+alone.* The reading face is `body.dataset.face` — OpenDyslexic by default — and
+KaTeX ships its own fonts, so prose is dyslexic-friendly and mathematics is not
+touched, by construction rather than by a rule. The preview inherits that for
+free. **Do not give it a font of its own**, and `test/typeface.js` is the suite
+that already asserts the reading face reaches prose and never the maths.
+
+**(b) A bare `\gamma` renders nowhere, and never will without a decision.**
+Verified in the same run: `$\gamma^2 = 2$` is typeset and the `\gamma` beside it
+with no delimiters stays literal. On an iPad keyboard a `$` is a hunt, so this is
+the whole of why it feels like the feature is missing.
+
+Three ways, and one of them must not be written:
+
+- **Auto-wrap anything that looks like TeX.** *Refused.* `\d+` in a regex,
+  `C:\temp`, and a shell escape are all backslash commands to a pattern and none
+  of them is mathematics — and this board is used in code workspaces, where that
+  is what a person is most likely to be typing.
+- **Make the `$` cost a thumb rather than a keyboard hunt.** A one-tap `$…$` on
+  the answer panel that wraps the selection or drops a pair and puts the caret
+  between them. Cheap, obvious, and nothing can misread it.
+- **Say what is wrong rather than doing nothing.** A backslash command sitting
+  outside any delimiter is almost certainly a mistake, and the preview is exactly
+  where to say so: *"`\gamma` will not render — wrap it in `$…$`"*. That is the
+  board's own rule, the same one `board write` follows when it refuses a card
+  over 450 words instead of trimming it silently.
+
+Take the second and the third. They compose, they are each one control, and
+neither of them can be wrong about what somebody meant.
+
+**Check.** `test/typed.js` owns the answer panel. Assert: with `$\gamma$` in the
+box the preview holds a `.katex`; with plain prose there is no preview at all;
+what the preview shows is what the transcript shows after the send, because it is
+the same renderer; the prose in the preview carries `body.dataset.face` and the
+`.katex` does not; and a bare `\gamma` raises the hint rather than silently
+rendering nothing. `test/markdown.js` and `test/macros.js` own the renderer and
+the macro list either side of it — `test/markdown.js` matters more than it looks,
+because the renderer parks math and code before any markdown parsing and
+restores it afterwards, and every change to it needs a case proving that still
+holds.
+
+### 8. Put colibrì on the diarization repair, which is what all of the above is for
 
 It is now the acceptance test of items 2, 3 and 4 as well as the job that has
 been waiting since before any of this existed. **The ask, the scoring and the
@@ -477,7 +559,7 @@ Three things about running it that are the board's rather than that file's:
 `research/PSYCH-ASR/HANDOFF.md` holds the *teaching* thread on the same code; it
 is a different conversation and the two do not merge.
 
-### 8. And the three things no test can hold
+### 9. And the three things no test can hold
 
 None of these is a build. Each is an evening in front of the thing.
 
