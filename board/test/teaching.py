@@ -58,6 +58,19 @@ for phrase, why in [
     ("HANDOFF.md", "the session ends in writing"),
     ("Write the card before", "the card lands before the turn's other work"),
     ("board hw", "an agreed answer is typeset into the course's own file"),
+    # THE QUESTION IS THE LAST THING ON THE CARD. Reported from the iPad: "I've
+    # got a board to write on and have to scroll up to see the question again."
+    # The definition list sits between the statement and the answer block, so a
+    # card that asks once at the top asks it six lines above where the pen is.
+    ("Then ask it again", "a posing card closes by restating the question"),
+    ("last line of the card", "and that restatement is the last thing on it"),
+    ("pointer", "a pointer back to the statement is not a restatement"),
+    # PROBLEM BY PROBLEM. The rule was always "in the same turn"; what was
+    # missing is that batching is the same defect in smaller units.
+    ("Problem by problem", "the write-up happens problem by problem"),
+    ("next problem is posed",
+     "and is compiled before the next problem is posed"),
+    ("Batching", "so three worked and one transcription pass is refused too"),
     ("board finish", "the session ends by offering the push"),
     ("assignment sheet", "a homework sitting reads the sheet it was set"),
     ("not yours", "and does not choose its own problems there"),
@@ -253,18 +266,17 @@ check("and so does the cold start, which in headless is the whole prompt",
 # prompt, and a tutor that reads "teach what the exercise needs" without the
 # shape attached writes a lecture and asks at the bottom of it. So every sitting
 # carries the shape, and it carries the SAME one -- one paragraph, hoisted.
+# AS A MODULE OF ITS PACKAGE, and that matters more than it looks. This used to
+# load `sense.py` by path under a name of its own, which cannot resolve the
+# relative imports at the top of it -- so the load raised, `serveapp` became
+# None, a note was printed, and EVERY check below this line was silently
+# skipped. A suite that says "ok" for a block it did not run is worse than one
+# that has no block, and it stayed that way long enough for the shape of the
+# headless prompt to be unguarded.
 sys.path.insert(0, ROOT)
-loader2 = importlib.machinery.SourceFileLoader(
-    "serveapp", os.path.join(ROOT, "tutorboard", "sense.py"))
-spec2 = importlib.util.spec_from_loader("serveapp", loader2)
-serveapp = importlib.util.module_from_spec(spec2)
-try:
-    loader2.exec_module(serveapp)
-except Exception as exc:                      # pragma: no cover - import guard
-    serveapp = None
-    print("note: serve.py did not import (%s); checking its source instead" % exc)
+from tutorboard import sense as serveapp                     # noqa: E402
 
-sense = serveapp.METHOD_SENSE if serveapp else ""
+sense = serveapp.METHOD_SENSE
 if serveapp:
     for phrase, why in [
         ("LESSON IS", "the sense line says the lesson is exercises"),
@@ -276,8 +288,33 @@ if serveapp:
         ("self-contained", "every posing card is self-contained"),
         ("scroll back", "so nothing has to be hunted for up the transcript"),
         ("One question per turn", "one question per turn"),
+        ("THEN ASK IT AGAIN", "and the question is asked again under the list"),
+        ("LAST thing on the card", "so it is the last thing above the board"),
     ]:
         check("the headless prompt " + why, phrase in sense)
+
+    # THE WRITE-UP, IN THE PROMPT AND NOT ONLY IN THE DOCUMENT. `TEACHING.md`
+    # has said "in the same turn" since it was written, and in a headless
+    # session that is a file the tutor may or may not open while this string is
+    # the whole prompt -- which is how a sitting worked five problems and
+    # compiled nothing.
+    for phrase, why in [
+        ("TURN THAT AGREES AN ANSWER", "the write-up is part of that turn"),
+        ("before you pose the next one", "and lands before the next problem"),
+        ("board hw build", "it is compiled, by name"),
+        ("COMPILING IS YOURS", "and compiling is the tutor's job, not theirs"),
+        ("never leave the write-up for the end",
+         "and it is never left to the end of the sitting"),
+    ]:
+        check("the headless prompt " + why, phrase in serveapp.WRITEUP_SENSE)
+    check("every sitting that hands something in is told to write it up",
+          "how += WRITEUP_SENSE" in serve_src)
+    # The two that hand nothing in say so themselves, and must not be told to
+    # transcribe: a review is rehearsal and a walkthrough reads code that is
+    # already written.
+    check("and the two that hand nothing in are not",
+          "no write-up" in serveapp.WALK_SENSE
+          and "WRITEUP_SENSE" not in serveapp.WALK_SENSE)
     check("and every kind of sitting is given the same shape",
           serve_src.count("METHOD_SENSE") >= 4)
     # A review inverts one thing and only one: it asks before it teaches.
@@ -486,6 +523,35 @@ try:
     code, _said = write(["--over", "../../../etc/passwd", "lesson", "no"], "x")
     check("a card outside this board is refused rather than written over",
           code == 1)
+
+    # ASKING WHAT A COMMAND DOES MUST NOT WRITE ONE. `board write --help` went
+    # straight to `cmd_write`, which drops anything that looks like an option,
+    # read an empty body off the terminal and put a blank card on the lesson --
+    # pushed to every device, in the transcript, with no undo.
+    before = sorted(os.listdir(repo.cards))
+    out = _io.StringIO()
+    old_stdin, sys.stdin = sys.stdin, _io.StringIO("")
+    try:
+        with _ctx.redirect_stdout(out):
+            code = boardcli.main(["write", "--help", "--repo", root])
+    finally:
+        sys.stdin = old_stdin
+    said = out.getvalue()
+    check("`board write --help` prints what the command is for",
+          code == 0 and "board write" in said and "--over" in said)
+    check("and writes no card while it does it",
+          sorted(os.listdir(repo.cards)) == before)
+    # The fix is in the dispatcher, so it is every command's, not one command's.
+    out = _io.StringIO()
+    with _ctx.redirect_stdout(out):
+        code = boardcli.main(["handoff", "--help", "--repo", root])
+    check("and every other command answers the same question the same way",
+          code == 0 and "board handoff" in out.getvalue())
+    out = _io.StringIO()
+    with _ctx.redirect_stdout(out):
+        code = boardcli.main(["--help"])
+    check("while the bare word still prints the whole list",
+          code == 0 and len(out.getvalue()) > 200)
 finally:
     shutil.rmtree(home, ignore_errors=True)
 

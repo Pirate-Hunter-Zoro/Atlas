@@ -198,6 +198,28 @@ which definition the sheet means.
 The cost is a few lines and the saving is the thing this board exists for — the
 whole of what they need to answer is on the card in front of them, so the answer
 is written rather than hunted for.
+
+### Then ask it again, and that is the last line of the card
+
+The statement goes at the top. The definitions go under it. Then **the question
+again**, in full, at the bottom — so the last thing on the card, immediately
+above the board they write on, is what they are being asked to do.
+
+Asking once at the top does not survive the list. The definitions are five or
+six lines of symbols, and a student reading on a tablet arrives at the answer
+block having last seen the question six lines ago, under a reference list, and
+scrolls back up past all of it to remember what they were proving. They said so:
+*"I've got a board to write on and have to scroll up to see the question again."*
+
+Twice on one card is not repetition. The first statement says what this is for;
+the second is the question standing where the pen is. Write out the whole ask —
+*Show that every subgroup of index 2 is normal* — not *so, prove it*, which is a
+pointer and has the same defect as a reference instead of a re-pose.
+
+This holds for every card that poses a problem: the opening statement in step 1,
+the re-posed exercise, a homework problem, a review question. If the card has a
+definition list on it, the question comes after the list.
+
 ### 4. Read what comes back, and respond to *that*
 
 The answer arrives as an image of handwriting. Open it. Read what they actually
@@ -597,6 +619,13 @@ Start one rather than deciding this sitting is the kind that has no write-up.
 in and the hour is rehearsal. The reason is under *A test review: the scope is
 theirs, the questions are yours* above.
 
+**Problem by problem, in the turn that agrees the answer.** Not at the end of the
+sitting, not when the sheet is finished, and not when somebody asks where the
+PDF is. One problem is agreed correct, it is typeset and compiled before the
+next one is posed, and the board shows the document filling up as the evening
+goes. A sitting that works five problems and compiles nothing has produced an
+hour of conversation and no mathematics.
+
 Once an answer is **agreed correct** — not before — transcribe it into that file,
 in the same turn:
 
@@ -617,6 +646,11 @@ in the same turn:
 3. `board hw file <label>` files their handwriting beside it.
 4. `board hw build` compiles, and the result appears on the board. A failure
    shows the actual LaTeX error there, so fix it rather than leaving it.
+
+All four happen before the next problem is posed. Batching them — three problems
+worked, then one transcription pass — is the same defect as leaving it to the
+end, in smaller units: what is on disk is behind what has been agreed, and the
+gap is exactly the part that gets lost when the sitting stops early.
 
 **You are allowed to compile, and it is your job, not the student's.** The
 course's permissions file grants `board`, its `scripts/build.sh`, and the LaTeX

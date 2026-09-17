@@ -48,9 +48,12 @@ must be openable and teachable at every point.
   `board.css`, `plane-core.js`, `gauge.js`, `home.html`, `home.js`, `library.html`,
   `library.js`, `library.css`, anything added to the cache list), or the installed app
   serves its cached copy and the work is invisible.
-- **`bash test/all.sh` before every ship.** 74 suites, all green. `test/tracked.py` runs
+- **`bash test/all.sh` before every ship.** 75 suites, all green. `test/tracked.py` runs
   first and refuses PHI, 25-megabyte files, model dumps, other authors' papers and
   machine-local config anywhere in the repository — this is public, and git remembers.
+  The last of the 75 is **Paper-Writer's own**, run where it is checked out and skipped
+  loudly where it is not: the two repositories hold one seam between them and only this
+  suite is a habit, so a field renamed in the factory has to break something somebody runs.
 - **Check the address after a ship.** `tutor restart` bounces every board; the HTTPS name
   should point at the workspace being worked in.
 - **One change, shipped, checked, then the next.** Do not fix things noticed in passing.
@@ -429,6 +432,26 @@ already exists so it is not written twice, and the written map's own names for t
 - **`service/paperwriter.env` is read, not run** — it is deliberately "plain KEY=value with no
   logic", which is the only reason that is safe. What this machine actually runs with outranks the
   documented default, so a job lands where something is looking.
+- **The job names where the paper lands, as a field.** `## Delivery`, one line,
+  `landing: <workspace>/manuscripts/<paper>` — `manuscript.landing_for`, read by the factory's
+  `jobspec.landing`, and `stages/delivery` places a second copy of every artifact there while
+  keeping its own under `PAPER_OUT_DIR`. **Absolute**, for the same reason `## Revision` carries
+  `workspace:`: the factory is another repository and cannot resolve a relative path against a root
+  nobody named. And it cannot be a setting — one harness serves every workspace, so a single
+  out-directory cannot be each asking workspace's own. A landing that is relative or unwritable is
+  recorded on the paper and the paper stays DELIVERED; the work is already safe under `OUT_DIR` by
+  the time it is attempted, the same rule a missing pandoc gets.
+- **It is the paper's own directory, and the factory appends nothing to it.** Two papers from one
+  workspace would otherwise both be `manuscript.md` in one folder — and naming it here is what
+  lets a **revision** land exactly over the document it corrects: `landing_for` gives the
+  corrected document's own directory when the job carries one, and the paper's slug under
+  `manuscripts/` when it does not. A correction placed beside the original under a slug of a
+  title that has drifted is two documents where there is one paper, and the library offers both.
+- **The factory's own output is not this workspace's prose.** `_sections` builds the
+  do-not-rewrite list out of `manuscripts/` and now that papers really land there it skips
+  `feedback/`, `parts/`, `sections/` and `report.md` — `NOT_DOCUMENTS`, the same names
+  `course/library.py` refuses, and `manuscript.delivered` skips them too. Handing the factory its
+  own report back as prose to preserve is telling it the report is the paper.
 
 ### The briefing sees what was done on a laptop
 
@@ -463,12 +486,6 @@ done it is inside a prohibition.
 
 ### What is deliberately not built
 
-- **A correction round made of MARKS.** Written feedback has a route — the library page writes a
-  note beside the document and `manuscript.revise` drops a job that names both — and ink does not.
-  Any page of any document can be marked up already; turning those marks into the body of a
-  revision is one function reading `Annotate`'s stored marks instead of a textarea. It waits for
-  the same reason it always did: nothing has come back marked up yet, so there is no worked example
-  of what such a job should say.
 - **Annotating code.** `code/<path>[::<sym>]#L<n>` is one entry in `ann_ok` and one in `ann_says`,
   and it is not written, because there is no code viewer to draw on and accepting a key nothing can
   produce is a branch that rots. The `code/` address already lands on the walkthrough picker, which
@@ -648,8 +665,20 @@ The shape, in a mathematics course:
    4.12* is not a re-pose when it is eleven cards up a tablet — and ask for it,
    **with every definition it uses listed under it**, one line each. Nobody
    should have to scroll back up a lesson to find out what they are proving.
-5. **Read what comes back.** A wrong answer gets its break located, not repaired.
-6. **When the chosen set is done, offer more** as a question — the student
+5. **Then ask it again, as the last line of the card.** Statement at the top,
+   definitions under it, the question again at the bottom — so the last thing
+   above the board they write on is what they are being asked to do. Asking once
+   at the top does not survive six lines of symbols: *"I've got a board to write
+   on and have to scroll up to see the question again."* Twice on one card is the
+   question standing where the pen is, not repetition.
+6. **Read what comes back.** A wrong answer gets its break located, not repaired.
+7. **Write it up and compile it, before the next problem is posed.** `board hw
+   use`, the statement and their own argument into the file, `board hw file`,
+   `board hw build`. Problem by problem — not at the end of the sheet, and not in
+   batches of three, because a sitting is abandoned far more often than it is
+   finished tidily and the gap between what is agreed and what is on disk is
+   exactly what gets lost. Compiling is the tutor's job, never the student's.
+8. **When the chosen set is done, offer more** as a question — the student
    answers, or taps **skip**, which means *move on*.
 
 Any rung can be skipped, like any other prompt, and a student who skips every one
@@ -2278,12 +2307,24 @@ says how much ink is on it, and the marks are recorded as handed over — the sa
 flag `/annotate/save` sets when ink is sent as a turn, so the board stops
 offering them as unsent.
 
+**And the ring is drawn on the page being read.** `✎ mark it up` in the reader
+bar; each page carries `data-ann="doc/<id>/p<n>"` and `annotate.js` attaches to
+it, exactly as the board's own viewer has since it first drew a document. The
+pen is off until it is asked for, so a long document still scrolls. Strokes go
+to `/annotate/save` with **`send` never set** — ink on a document is a complaint
+about the document, and it becomes a turn when the note goes, not when the pen
+lifts; sending on every stroke would wake a tutor per ring drawn. The marks
+already on a document come back **with its pages**: `library.ink` puts them in
+the `/library/view/<id>` payload, because this page opens no sitting and so has
+no live payload to read them out of. Closing the reader forgets the store — the
+next document has its own page 1, and one paper's marks drawn over another's is
+the defect `test/marks.js` exists for.
+
 **A document is named twice and its ink is its ink.** The drawer calls a
 document by `reading.ident`, the slug of its filename; the library calls it by
 where it sits, because two `manuscript.pdf`s in one workspace have to be told
-apart. Marking works on the board today, which is under the first name.
-`library.mark_idents` asks under both, and `IDENT_MAX` is 40 because that is
-what `writing.ANN_DOC` allows — an id longer than an annotation key is a
+apart. `library.mark_idents` asks under both, and `IDENT_MAX` is 40 because that
+is what `writing.ANN_DOC` allows — an id longer than an annotation key is a
 document that cannot be written on.
 
 **Which machinery revises it depends on which wrote it.** A document this
@@ -2731,7 +2772,16 @@ board vpn up|status|serve|down   # the Tailscale link
 board doctor                     # is this machine equipped, and who teaches on it
 board limit                      # has the tutor's allowance here run out
 board stop
+board <command> --help           # what that one command is for, off its own docstring
 ```
+
+**`--help` on a subcommand is answered by the dispatcher, before the repository is even
+found.** `board write --help` used to reach `cmd_write`, which drops anything that looks
+like an option, read an empty body off the terminal and put a **blank card on the lesson**
+— pushed to every device, in the transcript, with no undo. Somebody finding out what a
+command does must not be able to damage a sitting by asking. Only in the first position:
+further along it may be the value of an option, and guessing which turns `--title --help`
+into a help screen instead of a card.
 
 ## Writing a card
 
@@ -3451,7 +3501,8 @@ python3 test/limit.py    that an allowance running out is reported rather than h
 python3 test/tokens.py   what a turn is allowed to read, what it must not run, and that
                          what it cost is measured rather than argued about
 
-bash test/all.sh         all of the above, in order. The two real-DOM suites need
+bash test/all.sh         all of the above, in order, and Paper-Writer's 516 tests
+                         where it is checked out. The two real-DOM suites need
                          jsdom; this fetches it on first run and carries on
                          without it if there is no network. A setup step someone
                          has to remember is a setup step that does not happen.

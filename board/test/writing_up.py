@@ -141,6 +141,60 @@ try:
           "manuscripts/01-methods.md" in body)
     check("and the job says where the finished paper is to land",
           "research/PSYCH-ASR/manuscripts" in body)
+    # AS A FIELD, NOT AS A SENTENCE. This was prose for months, nothing in the
+    # factory read it, and every delivered paper stopped in the factory's own
+    # out-directory -- so no workspace ever saw one and the library's whole
+    # factory branch could only fire for a manuscript somebody copied in by hand.
+    check("and it says it in the field `jobspec.landing` reads",
+          manuscript.DELIVERY in body
+          and ("landing: " + os.path.join(os.path.realpath(proj), "manuscripts",
+                                          "the-bake-off")) in body)
+    # THE PAPER'S OWN DIRECTORY. The factory appends nothing, so a workspace
+    # that writes two papers would otherwise have two files called
+    # `manuscript.md` in one folder.
+    check("and it is this paper's own directory under the landing area",
+          manuscript.landing_for(proj, "The bake-off")
+          == os.path.join(os.path.realpath(proj), "manuscripts", "the-bake-off"))
+    check("while a revision lands over the document it corrects, not beside it",
+          manuscript.landing_for(
+              proj, "Anything at all",
+              {"document": "manuscripts/trd-prediction/manuscript.md"})
+          == os.path.join(os.path.realpath(proj), "manuscripts",
+                          "trd-prediction"))
+    check("and a document at the top of the landing area lands back there",
+          manuscript.landing_for(proj, "x", {"document": "manuscripts/m.md"})
+          == os.path.join(os.path.realpath(proj), "manuscripts"))
+    check("absolutely, because the factory cannot resolve a path against a root "
+          "nobody named",
+          all(line.split(": ", 1)[1].startswith("/")
+              for line in body.splitlines() if line.startswith("landing: ")))
+    check("and says it once -- two statements of one fact is one of them stale",
+          body.count("landing: ") == 1
+          and "is to be delivered into" not in body)
+
+    # THE FACTORY'S OWN OUTPUT IS NOT THIS WORKSPACE'S PROSE. Now that a paper
+    # actually lands here, `manuscripts/` fills up with what the factory delivered
+    # beside the manuscript, and handing any of it back as "prose not to be
+    # written again" tells the factory the wrong thing about its own work.
+    write(os.path.join(proj, "manuscripts", "report.md"), "# The report\n")
+    write(os.path.join(proj, "manuscripts", "a-paper", "parts", "manuscript",
+                       "04-methods.md"), "# Methods\n")
+    write(os.path.join(proj, "manuscripts", "feedback",
+                       "manuscript-2026-09-16-v1.md"), "# What is wrong\n")
+    body = manuscript.job(proj, title="The bake-off")
+    check("the author's report is not offered as prose to keep",
+          "report.md" not in body)
+    check("nor one document's own sections, which are what it was assembled from",
+          "04-methods.md" not in body)
+    check("nor the complaint about it",
+          "manuscript-2026-09-16-v1.md" not in body)
+    check("and the prose that IS this workspace's is still there",
+          "manuscripts/01-methods.md" in body)
+    check("and none of it is listed as a manuscript that landed here either",
+          not any(d["rel"].endswith(("04-methods.md",
+                                     "manuscript-2026-09-16-v1.md"))
+                  for d in manuscript.delivered(proj)))
+    os.remove(os.path.join(proj, "manuscripts", "report.md"))
 
     # The written map, spent again: a terminology lock half-written.
     course_map.write_written(proj, {

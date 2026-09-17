@@ -259,6 +259,22 @@ check("and the payload says a document has been drawn on",
       [d["marks"] for d in library.status(repo)["documents"]
        if d["id"] == marked["id"]] == [{"pages": 2, "strokes": 6}])
 
+# THE INK COMES BACK WITH THE PAGES. The library page opens no sitting and reads
+# no `state.json`, so it holds no live payload to restore marks out of -- the
+# pages it asks for carry their own. Under BOTH names the document has, for the
+# same reason `marks` asks under both: it is one document and its ink is its ink.
+back = library.ink(repo, marked)
+check("the pages of a document carry the strokes already on them",
+      sorted(back) == sorted(["doc/%s/p2" % marked["id"],
+                              "doc/%s/p5" % idents[-1]]))
+check("as coordinates, which is what puts them back in the same place",
+      len(back["doc/%s/p2" % marked["id"]]) == 4)
+check("and a document nobody has drawn on carries none, rather than somebody "
+      "else's marks",
+      library.ink(repo, [d for d in library.documents(tmp)
+                         if d["title"] == "How Audio Becomes a Transcript"][0])
+      == {})
+
 # ---------------------------------------------------------------------------
 # a machine with no poppler on it
 # ---------------------------------------------------------------------------

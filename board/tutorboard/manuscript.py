@@ -156,6 +156,31 @@ LANDING = "manuscripts"
 MAX_CLAIMS = 12
 
 
+def landing_for(root, title="", revision=None):
+    """The directory this job's artifacts are to be written into. ABSOLUTE.
+
+    Absolute for the same reason `## Revision` carries `workspace:`: the factory
+    is another repository with its own root and cannot resolve a relative path
+    against one nobody named.
+
+    THE PAPER'S OWN DIRECTORY, not the landing area, because a workspace writes
+    more than one paper and two of them would otherwise both be `manuscript.md`
+    in one folder. Naming it is this side's business -- the factory appends
+    nothing -- and that is what lets a revision land exactly OVER the document it
+    corrects. A correction placed beside the original under a slug of a title
+    that has since drifted is two documents where there is one paper, and the
+    library would offer both.
+    """
+    here = os.path.realpath(root)
+    said = (revision or {}).get("document") or ""
+    if said:
+        # `os.path.dirname` of a repository-relative path, which is where the
+        # document being corrected already sits. A document at the top of the
+        # landing area has no directory of its own and lands back there.
+        return os.path.normpath(os.path.join(here, os.path.dirname(said)))
+    return os.path.join(here, LANDING, _slug(title or os.path.basename(here)))
+
+
 def _evidence(root):
     """The read-only trees the gathering stage may mine, for this workspace.
 
@@ -173,17 +198,39 @@ def _evidence(root):
     return out
 
 
+# WHAT IS IN `manuscripts/` THAT IS NOT A DOCUMENT IN ITS OWN RIGHT. Every name
+# here arrives with a delivered paper, and neither of the two questions asked
+# about that directory -- what prose is not to be written again, and what
+# manuscripts have landed -- wants any of it.
+#
+#   feedback/   a note saying what is wrong with section 3 is not prose to be
+#               preserved, and listing it is the factory being told to keep the
+#               complaint in the paper
+#   parts/      one document split into its own sections, `paths.parts_dir`. The
+#               whole is in the directory above; these are what it was assembled
+#               from, and twelve of them fill a list capped at forty
+#   sections/   the drafting stage's own working files, same reason
+#
+# `course/library.py` refuses the last two by the same names and for the same
+# reason, and the three lists agree deliberately.
+NOT_DOCUMENTS = ("feedback", "parts", "sections")
+
+# `report.md` is the author's report -- what was checked, how the prose measures,
+# what a section shipped still holding -- delivered beside the manuscript. Telling
+# the factory not to rewrite its own report is telling it the report is the paper.
+NOT_PROSE_FILES = ("report.md",)
+
+
 def _sections(root):
     """Manuscript prose that already exists here, so a job does not re-write it."""
     out = []
     where = os.path.join(root, LANDING)
     for base, dirs, files in os.walk(where):
-        # Not the rounds of feedback. A note saying what is wrong with section 3
-        # is not prose to be preserved, and listing it as prose not to be written
-        # again is the factory being told to keep the complaint in the paper.
         dirs[:] = [d for d in dirs
-                   if not d.startswith(".") and d.lower() != "feedback"]
+                   if not d.startswith(".") and d.lower() not in NOT_DOCUMENTS]
         for n in sorted(files):
+            if n.lower() in NOT_PROSE_FILES:
+                continue
             if n.lower().endswith((".md", ".tex")) and not n.startswith("_"):
                 out.append(os.path.relpath(os.path.join(base, n), root))
         if len(out) >= 40:
@@ -290,6 +337,14 @@ def job(root, title="", venue="", checklist="", notes="", revision=None):
 
     out += ["", "---", "", "## Scope", "", "1 paper."]
 
+    # WHERE IT LANDS, AS A FIELD THE FACTORY READS. The sentence this replaces
+    # said the same thing in prose and nothing read it, so every delivered paper
+    # stopped in the factory's own out-directory and no workspace ever saw one.
+    # `jobspec.landing` reads this line; `stages/delivery` places a second copy
+    # there and appends nothing to it.
+    out += ["", "---", "", DELIVERY, "",
+            "landing: %s" % landing_for(root, title, revision)]
+
     # ONLY WHEN THERE IS ONE. The section is absent from a new paper's job, which
     # is what tells the factory that this is a first draft rather than a
     # correction -- and the template says so in as many words. Two lines, both of
@@ -343,8 +398,6 @@ def job(root, title="", venue="", checklist="", notes="", revision=None):
             out.append("- `%s`" % rel)
         out.append("")
 
-    out.append("The finished paper is to be delivered into `%s/%s/`."
-               % (ws, LANDING))
     return "\n".join(out).rstrip() + "\n"
 
 
@@ -453,6 +506,12 @@ def submit(root, title="", venue="", checklist="", notes="", base=None,
 # every one of those gates would either refuse it or invent something to satisfy
 # itself.
 REVISION = "## Revision"
+
+# AND WHERE THE FINISHED PAPER GOES. One `landing:` line, absolute, read by
+# `jobspec.landing`. The board says this in the job because the job is the only
+# place that knows which workspace asked: one harness serves every workspace, so
+# `PAPER_OUT_DIR` cannot be each asking workspace's own.
+DELIVERY = "## Delivery"
 
 
 def _quote(root, rel, limit=6000):
@@ -572,7 +631,11 @@ def delivered(root):
     where = os.path.join(root, LANDING)
     out = []
     for base_dir, dirs, files in os.walk(where):
-        dirs[:] = [d for d in dirs if not d.startswith(".")]
+        # A piece of a paper is not a paper, and a complaint about one is not one
+        # either. Both now really are in here: the factory delivers `parts/`
+        # beside the manuscript and the library files feedback next to it.
+        dirs[:] = [d for d in dirs
+                   if not d.startswith(".") and d.lower() not in NOT_DOCUMENTS]
         for n in sorted(files):
             if not n.lower().endswith((".md", ".docx", ".pdf")):
                 continue

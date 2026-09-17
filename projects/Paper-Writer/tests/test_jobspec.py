@@ -7,6 +7,7 @@ too literal is a job that cannot be submitted. Both directions are tested.
 
 import support                                                      # noqa: F401
 import unittest                                                     # noqa: E402
+from pathlib import Path                                            # noqa: E402
 
 from paperwriter import jobspec                                     # noqa: E402
 
@@ -116,6 +117,50 @@ class ChecklistTests(unittest.TestCase):
 
     def test_an_absent_checklist_is_empty(self):
         self.assertEqual(jobspec.checklist("# Title\n\nnothing\n"), "")
+
+
+class LandingTests(unittest.TestCase):
+    """`## Delivery` says where the finished paper goes in the workspace that asked.
+
+    One harness serves every workspace, so `PAPER_OUT_DIR` cannot be each asking
+    workspace's own and the job is the only place that knows which one asked."""
+
+    def test_a_job_naming_none_lands_nowhere_in_particular(self):
+        """Absent is the ordinary case for a job dropped by hand, not a defect."""
+        self.assertEqual(jobspec.landing(support.PROMPT), "")
+
+    def test_the_landing_is_read(self):
+        self.assertEqual(
+            jobspec.landing("## Delivery\n\nlanding: /home/x/Atlas/research/T/"
+                            "manuscripts\n"),
+            "/home/x/Atlas/research/T/manuscripts")
+
+    def test_a_path_keeps_its_trailing_punctuation(self):
+        """`_path_value`, never `_clean`: that one strips `-` and `_` from both ends,
+        and a workspace at `/data/psych-asr_` is then one that does not exist."""
+        self.assertEqual(
+            jobspec.landing("## Delivery\n\nlanding: /data/psych-asr_/manuscripts\n"),
+            "/data/psych-asr_/manuscripts")
+
+    def test_backticks_are_stripped_and_the_path_inside_is_not(self):
+        self.assertEqual(
+            jobspec.landing("## Delivery\n\nlanding: `/w/manuscripts`\n"),
+            "/w/manuscripts")
+
+    def test_the_first_line_wins(self):
+        self.assertEqual(
+            jobspec.landing("## Delivery\n\nlanding: /one\nlanding: /two\n"), "/one")
+
+    def test_a_section_naming_nothing_is_empty(self):
+        self.assertEqual(jobspec.landing("## Delivery\n\nput it somewhere nice\n"), "")
+
+    def test_the_templates_own_example_is_not_read_as_a_landing(self):
+        """PROMPT_TEMPLATE.md illustrates the field inside an HTML comment, and a
+        parser that looks through comments delivers every paper to `/home/you`."""
+        template = Path(__file__).resolve().parent.parent / "PROMPT_TEMPLATE.md"
+        if not template.exists():                       # pragma: no cover
+            self.skipTest("no template in this checkout")
+        self.assertEqual(jobspec.landing(template.read_text(encoding="utf-8")), "")
 
 
 class TitleTests(unittest.TestCase):

@@ -1293,6 +1293,46 @@ Nothing in the report is generated. Every line is read off state the pipeline al
 committed, because a report that *summarised* the paper would be a second opinion about
 it, and this is a record.
 
+### Where it lands, and who asked
+
+Delivery puts every artifact under `PAPER_OUT_DIR/<project>/<paper>/`. It also puts a
+**second copy** wherever the job said to, and the job is the only place that can say:
+one harness serves every workspace that drops a prompt, so a single out-directory
+cannot be each asking workspace's own.
+
+```
+## Delivery
+
+landing: /home/you/Atlas/research/TRD-EHR/manuscripts/trd-prediction
+```
+
+`jobspec.landing` reads it, through `_path_value` and never `_clean` — that one strips
+`-` and `_` from both ends of a line, which is right for a claim and silently turns
+`/data/psych-asr_` into a directory that does not exist. `stages/delivery` writes into
+it and **appends nothing**, keeping whatever subtree each artifact had.
+
+**It is the paper's own directory, and naming it is the asking side's business.** A
+workspace writes more than one paper and two of them would otherwise both be
+`manuscript.md` in one folder — and it is what lets a **revision** land exactly over the
+document it corrects rather than beside it, under a slug of a title that has drifted
+since. `manuscript.landing_for` on the board is the whole of that decision: the paper's
+slug under `manuscripts/` for a new paper, and the corrected document's own directory
+for a revision.
+
+**Absolute**, for the same reason `## Revision` carries `workspace:` — the harness is
+another repository and cannot resolve a relative path against a root nobody named. A
+relative landing is refused, and refused *loudly*: the reason is recorded on the paper
+rather than dropped, because a landing silently ignored is a paper nobody can find and
+no error anywhere.
+
+**It never raises.** The paper is already delivered under `OUT_DIR` by the time this
+runs, so a landing that cannot be written is a note on a paper that stays DELIVERED —
+the same rule a missing pandoc and a failed push get. Re-delivery is content-addressed,
+so a job run twice copies nothing twice.
+
+Omitting the section delivers under `OUT_DIR` only, which is what a job dropped by hand
+has always done. `board make --paper` fills it in from the workspace it was run in.
+
 ### And then it can commit
 
 If the delivery folder is a git working tree, `infra/shipping.py` will commit the
@@ -1326,7 +1366,7 @@ is overridable with a `PAPER_`-prefixed environment variable. The ones worth kno
 | Variable | Default | What it decides |
 |---|---|---|
 | `PAPER_SOURCE_DIRS` | — | Colon-separated read-only trees the gathering stage may mine. |
-| `PAPER_OUT_DIR` | `../Manuscripts` | Where the drop folder lives and finished papers land. |
+| `PAPER_OUT_DIR` | `../Manuscripts` | Where the drop folder lives and finished papers land. Not where the asking workspace gets its copy — that is `## Delivery` in the job, because one harness serves many workspaces. |
 | `PAPER_STATE_DIR` | `state/` | The whole runtime tree. Redirect it and everything moves. |
 | `PAPER_MODEL` | `claude-opus-5` | Every text call. There are no tiers. |
 | `PAPER_SENTENCE_MEAN_MAX` | `22` | Mean words per sentence, ceiling. |

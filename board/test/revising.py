@@ -206,6 +206,10 @@ if os.path.isfile(template):
           "workspace:" in text)
     check("and says the document named is the source rather than a built format",
           "never a .docx" in text)
+    check("the template names a delivery section for the landing to go in",
+          manuscript.DELIVERY in text)
+    check("and asks for it absolutely, because the factory is another repository",
+          "ABSOLUTE" in text and "landing:" in text)
 else:
     print("ok   (Paper-Writer is not checked out here; its template is not read)")
 
@@ -230,6 +234,23 @@ if os.path.isdir(os.path.join(writer, "paperwriter")):
     check("and a job for a NEW paper is read as one, which is what makes the "
           "section the signal",
           pw_jobspec.revision(manuscript.job(work)) == {})
+
+    # AND THE LANDING, the same way. A sentence of prose said this for months and
+    # nothing read it, so every delivered paper stopped in the factory's own
+    # out-directory and no workspace ever saw one.
+    check("the factory reads the landing out of the job the board wrote",
+          pw_jobspec.landing(body)
+          == os.path.join(os.path.realpath(work), manuscript.LANDING))
+    check("and it is absolute, so the factory can resolve it from its own root",
+          os.path.isabs(pw_jobspec.landing(body)))
+    check("a revision lands in the corrected document's own directory, so the "
+          "correction replaces it rather than sitting beside it",
+          pw_jobspec.landing(body)
+          == os.path.dirname(os.path.join(os.path.realpath(work),
+                                          "manuscripts", "manuscript.md")))
+    check("a new paper's job names a landing too -- it is not the revision signal",
+          pw_jobspec.landing(manuscript.job(work)).startswith(
+              os.path.join(os.path.realpath(work), manuscript.LANDING)))
     sys.path.remove(writer)
 else:
     print("ok   (Paper-Writer is not checked out here; its parser is not run)")

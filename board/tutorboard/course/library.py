@@ -361,7 +361,39 @@ def pages(repo, ident_wanted, width=paper.PAGE_WIDTH):
         return {"ok": False, "why": "unbuilt",
                 "detail": ("%s has no PDF beside it yet, so there are no pages "
                            "to draw." % doc["title"])}
-    return paper.pages_of(repo, target, doc["stem"] + ".pdf", "library", width)
+    out = paper.pages_of(repo, target, doc["stem"] + ".pdf", "library", width)
+    if out.get("ok"):
+        out["ink"] = ink(repo, doc)
+    return out
+
+
+def ink(repo, doc):
+    """The strokes already on this document's pages, `{key: strokes}`.
+
+    SENT WITH THE PAGES, because the reader has to put them back the moment it
+    draws one. The board's viewer gets the same thing out of the live payload it
+    is already holding; this page holds no payload -- it opens no sitting and
+    reads no `state.json` -- so the pages it asks for carry their own ink.
+
+    Coordinates, not pictures. They are fractions of the page's own box, which
+    is what lets the same marks land in the same place on a rotated iPad, and
+    `annotate.js` is the only thing that reads them.
+
+    UNDER BOTH NAMES THIS DOCUMENT HAS. A document marked from the drawer
+    carries the drawer's ident and one marked from here carries the library's,
+    and it is one document either way -- `mark_idents` is the same answer
+    `marks` uses when it reads the ink back as a complaint.
+    """
+    from ..lesson import notes as lesson_notes        # local: avoids a cycle
+    from ..server.routes import writing               # local: avoids a cycle
+
+    wanted = set(mark_idents(repo.root, doc))
+    out = {}
+    for key, strokes in lesson_notes.load_notes(repo).items():
+        found = writing.ann_doc_page(key)
+        if found and strokes and found[0] in wanted:
+            out[key] = strokes
+    return out
 
 
 # ---------------------------------------------------------------------------

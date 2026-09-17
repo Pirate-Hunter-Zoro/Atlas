@@ -428,6 +428,29 @@ else
   printf '%s\n' "$out" | grep '^FAIL' | sed 's/^/             /'
 fi
 
+# THE OTHER HALF OF THE DOCUMENT SEAM. `manuscript.job` writes `## Revision` and
+# `## Delivery`; `jobspec.revision` and `jobspec.landing` read them. `revising.py`
+# checks that direction. Nothing checked the reverse: a change to a field name in
+# the factory passes the board's suite and breaks the board silently, and only the
+# board's suite is a habit. So the habit runs both.
+#
+# Skipped, loudly, where the factory is not checked out -- the board is a program
+# in its own right and must not need a sibling repository to be testable.
+printf '%-12s ' "factory"
+FACTORY="$HERE/../projects/Paper-Writer"
+if [ -d "$FACTORY/paperwriter" ]; then
+  if out="$(cd "$FACTORY" && python3 -m unittest discover -s tests 2>&1)"; then
+    printf '%s\n' "$out" | grep -E '^Ran [0-9]+ tests' | sed 's/$/, and they pass/'
+  else
+    fails=$((fails + 1))
+    echo "FAILED"
+    printf '%s\n' "$out" | grep -E '^(FAIL|ERROR):' | sed 's/^/             /'
+  fi
+else
+  skipped=$((skipped + 1))
+  echo "skipped (Paper-Writer is not checked out here)"
+fi
+
 printf '%-12s ' "macros/tex"
 if python3 tools/sync-macros.py --check >/dev/null 2>&1; then
   echo "TeX and KaTeX know the same commands"

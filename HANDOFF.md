@@ -11,10 +11,12 @@ of that has been done once by a person with a real document in front of them.**
 
 ## Before anything
 
-- `bash board/test/all.sh` — 74 suites, about twelve minutes. Green before and after.
-- `cd projects/Paper-Writer && python3 -m unittest discover -s tests` — 499 tests,
-  about fifteen seconds. Green before and after, and it is the other half of the
-  document seam now.
+- `bash board/test/all.sh` — 75 suites, about twelve minutes. Green before and after.
+  The last of them is Paper-Writer's own, run where it is checked out, so the
+  factory's 516 tests are now part of the board's habit rather than a second one
+  nobody has.
+- `cd projects/Paper-Writer && python3 -m unittest discover -s tests` — 516 tests,
+  about twenty seconds. Still worth running alone while working in there.
 - Bump `VERSION` in `board/web/sw.js` whenever a shell file changes. The library
   page is three of them.
 - `bash board/scripts/ship.sh "message"` commits **only `board/`**, pushes, and
@@ -36,53 +38,113 @@ that touches this work: it goes beside `node` and `aim` in `_mark`, and
 
 ## What to do next
 
-**1. A delivered manuscript never arrives in the workspace that asked for one,
-and every document route downstream is waiting on files that are not there.**
-`manuscript.job` ends with the sentence "The finished paper is to be delivered
-into `<workspace>/manuscripts/`", and nothing in `paperwriter` reads it:
-`stages/delivery.deliver` copies into `config.OUT_DIR/<project>/<paper>/` and
-stops. So `manuscript.delivered` finds nothing, no document is ever marked
-`made: paper-writer` by `library.py`, and the factory branch of the library's
-feedback route — including the whole revision path that just shipped — can only
-fire for a manuscript somebody copied in by hand. An instruction no code reads
-is a promise the board is making on somebody else's behalf.
+**1. The tutor's verdict is painted on the tutor's card, and the student is
+looking at their own answer.** Asked for in these terms: *"if I'm right in my
+response, put a nice green sidebar down the response as it comes back. Red if
+I'm wrong. Yellow if it's not really a right/wrong situation — like if we're
+vibe-coding or I ask a question."* **All tutoring adopts it**, every kind of
+sitting, not only a mathematics lecture.
 
-**The fix is a field, read the way `## Revision` is read.** Not `PAPER_OUT_DIR`:
-one harness serves every workspace, so a single out-directory cannot be each
-asking workspace's own.
+Everything needed is already on the page and none of it is joined up:
 
-1. `PROMPT_TEMPLATE.md` gains `## Delivery`, carrying one line —
-   `landing: /abs/path/to/workspace/manuscripts`. **Absolute**, for the same
-   reason `## Revision` carries `workspace:`: the factory is another repository
-   and cannot resolve a relative path against a root nobody named.
-2. `jobspec.landing(prompt_text)` reads it, through `_path_value` and never
-   `_clean` — that one strips `-` and `_` from both ends and has already turned
-   one real workspace path into one that does not exist.
-3. `stages/delivery.deliver` places a **second** copy of every artifact there,
-   keeping the subtree it keeps under `OUT_DIR`. `deliver_one` is already
-   content-addressed, so re-delivery is a verified no-op. It must not raise: a
-   landing that cannot be written is recorded and the paper stays DELIVERED,
-   the same rule a missing pandoc and a failed `git push` already get.
-4. `manuscript.job` writes the section instead of the prose sentence,
-   `os.path.join(root, LANDING)` absolute. Delete the sentence — two statements
-   of one fact is one of them going stale.
-5. `manuscript._sections` lists every `.md` under `manuscripts/` as prose not to
-   be written again. `report.md` will now be one of them, and telling the
-   factory not to rewrite its own report is telling it the report is the paper.
-   Skip it there.
+- The colour vocabulary exists. `board/web/board.css:522-527` maps
+  `.card[data-kind=…]` to `--accent`: `correct` → `--good`, `wrong` → `--bad`,
+  `review` → `--note`. Reuse those three variables rather than inventing a
+  fourth palette — the wash, the flash and the chip at `board.css:529-590` all
+  derive from `--accent`, so a student's answer picks up the same treatment for
+  free.
+- The join exists. A turn carries `answers: <card id>`; `render()` in
+  `board/web/board.js` builds the per-question runs at lines 735-745 and
+  `REPLY_KIND` (board.js:508) is already the list of card kinds that count as a
+  reply to working. The newest non-superseded reply in a question's run is the
+  verdict.
+- The node to paint exists. `board.js:881-905` builds the student's own turn as
+  `<div class="mine" data-turn data-answers>`; `.mine` is styled at
+  `board.css:749-756` and has no left border today.
 
-Tests: `tests/test_pipeline.py` for the second copy and for a landing that
-cannot be written; `board/test/writing_up.py` for the field in the job;
-`board/test/revising.py` for the cross-check, where the factory's parser already
-reads a job the board wrote. When it lands, item 2 below becomes possible for a
-manuscript as well as for an explainer.
+So: derive a verdict per question from the newest reply card's kind — `correct`
+→ green, `wrong` → red, **everything else amber**, including `note`, `review`,
+and a question still unanswered — set it as `data-verdict` on the `.mine` node
+and on the frozen board slot `boardSlot` builds (`board.js:6113`), and give both
+a left border off `--accent` in CSS. Amber is the DEFAULT, not a third case:
+most turns in a doing sitting or a walkthrough are neither right nor wrong, and
+a surface that only knows green and red has to guess.
 
-**2. Take one document all the way round, and what is left of it is the half a
+Two things to decide rather than assume, and decide them by looking:
+`KIND_LABEL` (board.js:490-498) already prints "not quite" for `wrong`, so check
+the colour is not saying a third time what two other elements say; and a
+question whose reply has not arrived yet must read as *waiting*, not as amber
+meaning *neither* — they are different states and one colour for both is the
+defect this item is about in a new coat.
+
+**Check.** `board/test/review.js` or whichever real-DOM suite already drives
+`render()` with cards and turns: a `correct` card after a turn paints green on
+the turn, a `wrong` card red, a `note` amber, and a turn with no reply yet does
+not paint a verdict at all.
+
+**2. A typed answer is not kept, and a written one is.** Asked for in these
+terms: *"when I type a response and send it, I want to see my typed response
+preserved — it disappears in the text box after I send it and disappears once
+the tutor response comes in. Just like previous writing boards, previous text
+prompts should be preserved too."*
+
+**Half of this is already written up, in detail, as change 9 in
+`projects/libr-local-llm/HANDOFF.md` — read that first and do not design it
+twice.** That half is *reopening* a question you typed an answer to: the feature
+is `restoreTextAnswer` in `board/web/board.js`, it exists, and the work is to
+reproduce the failure on the device and find which of three gates is shut. It
+names all three.
+
+The half that is new here is **persistence down the page**, and it is the
+comparison the request makes: a question answered in ink keeps a labelled board
+under it for the rest of the sitting (`boardSlot`, `board.js:6113`;
+`paintBoards`, `board.js:6215`), and a question answered by typing gets a
+right-aligned bubble (`.mine`, `board.css:749`) and nothing else. Give the typed
+answer the same standing: kept under its question, labelled, and still there
+after the reply lands.
+
+**Reproduce before editing.** The typed turn *is* recorded — `/say` writes a
+`kind: "text"` turn at `board/tutorboard/server/routes/lesson.py:604-616` — and
+`render()` deliberately does **not** pop a text turn from the transcript
+(board.js:772-778 pops only non-text), so the words are on the page somewhere
+already. Find out whether the complaint is that they are invisible, that they are
+in the wrong place, or that the box empties and nothing replaces it, before
+changing what renders. `board.js:7390-7394` is where the box is cleared on send.
+
+**3. Put colibrì on the diarization repair.** `coli-up`, `coli-code` and
+`coli-ask` exist and serve GLM-5.2 int4 to a coding agent in any directory, and
+the job they were built for has never been run. It is written out as **part two
+of `projects/libr-local-llm/HANDOFF.md`**, in the owner's own words, with the
+scoring already decided:
+
+```
+python3 -m psych_asr.cli.apply_corrections --dry-run --anonymise
+```
+
+Counts, spreadsheet rows and seconds, naming the participant nowhere. Before:
+`unplaced_rows` is `[16, 32]`, `within_2s` is 68 of 74, stray marks at zero. A
+reconstruction is better if those move the right way — which is what makes a
+rule colibrì proposes checkable by somebody not cleared for the data it was
+tested on.
+
+**Start it before you stop for the day.** The first turn is hours rather than
+minutes: the client's preamble is 15,900 tokens and prefill at that size is two
+to three hours. After it the KV prefix carries the preamble, so the thing not to
+do is kill it at ninety minutes and start again — that is the whole cost, paid
+twice. Leave the server up between tasks.
+
+Colibrì is the only assistant that may read `phi`, and that is the entire reason
+it exists. `research/PSYCH-ASR/HANDOFF.md` holds the *teaching* thread on the
+same code; it is a different conversation and the two do not merge.
+
+**4. Take one document all the way round, and what is left of it is the half a
 machine cannot check.** Open a `paper` sitting on a box — PSYCH-ASR's correction
 algorithm is the obvious one — let it write into `writeups/<slug>/`, compile it,
-open `/library`, read it on the glass, and say something is wrong with it. The
-wiring under all of that is now covered end to end (`test/library.py`,
-`test/revising.py`, and `tests/test_revision.py` in the factory). What is not:
+open `/library`, read it on the glass, draw on it, and say something is wrong
+with it. Every seam under
+that is covered end to end (`test/library.py`, `test/revising.py`,
+`test/writing_up.py`, and `tests/test_pipeline.py` and `tests/test_revision.py`
+in the factory). What is not:
 
 - **The explainer rule against a model.** "A make sitting writes about the
   subject, never about the sitting" is a refusal in `sense.MAKE_SENSE`,
@@ -94,24 +156,13 @@ wiring under all of that is now covered end to end (`test/library.py`,
   the top of its brief.
 - **Ink that a person actually drew.** The marks route is tested with fixture
   strokes, which is not the same as a ring round a figure at 200% zoom on an
-  iPad.
-
-**3. The library reader cannot be drawn on, and the board's viewer can.** Ink on
-a page of a document becomes feedback now — `library.marks` reads it where the
-textarea is read, and a note carries the marked pages and the picture of each.
-But the ink has to be made on the board, through the drawer, and then the note
-written on a different surface. `library.js` draws its pages as plain `<img>`
-in `#reader-pages`; giving each one `data-ann="doc/<id>/p<n>"` and attaching
-`annotate.js` is the missing half, and `IDENT_MAX` is already 40 so a library id
-is a legal annotation key. What that costs is a pen UI on a second surface,
-which is the reason it is not done rather than an oversight.
-
-**4. `board/test/all.sh` never runs the factory's suite.** The two repositories
-hold one seam between them — `manuscript.job` writes a `## Revision` section and
-`jobspec.revision` reads it — and `test/revising.py` now checks both sides
-against each other when Paper-Writer is checked out. Nothing checks the reverse
-direction: a change to `manuscript.job`'s field names passes the board's suite
-and breaks the factory silently, and only the board's suite is a habit.
+  iPad — and the library's own pen has never met a stylus.
+- **The two teaching rules that were asked for out loud**, both of them
+  instructions rather than mechanisms: the question restated under the
+  definition list so it is the last thing above the board, and the write-up
+  compiled problem by problem rather than at the end. `test/teaching.py` holds
+  the three places each is written down; no test can hold whether a tutor does
+  it, and the next sitting is the only way to find out.
 
 ---
 
@@ -145,6 +196,46 @@ as the answer.
 
 ## Settled, so nobody re-derives it
 
+- **A delivered manuscript lands in the workspace that asked for it.** The job
+  carries `## Delivery` with one absolute `landing:` line —
+  `manuscript.landing_for`, read by `jobspec.landing` through `_path_value` —
+  and `stages/delivery` places a second copy of every artifact there, appending
+  nothing, and keeps its own under `OUT_DIR`. The line names the PAPER'S OWN
+  directory, which is what lets a revision land over the document it corrects
+  rather than beside it under a slug of a title that has drifted. Not a setting: one
+  harness serves every workspace, so `PAPER_OUT_DIR` cannot be each asking
+  workspace's own. Absolute, because the factory cannot resolve a relative path
+  against a root nobody named. It never raises — a landing that is relative or
+  unwritable is recorded and the paper stays DELIVERED, the rule a missing
+  pandoc already gets — and re-delivery is content-addressed, so a job run twice
+  copies nothing twice. The do-not-rewrite list skips `feedback/`, `parts/`,
+  `sections/` and `report.md`: telling the factory not to rewrite its own report
+  is telling it the report is the paper.
+- **The library reader takes ink.** Each page carries
+  `data-ann="doc/<id>/p<n>"`, `annotate.js` attaches to it, and the pen is off
+  until asked for so a long document still scrolls. `send` is never set from
+  that page — ink on a document is a complaint about the document and becomes a
+  turn when the note goes. The marks already on it arrive **with its pages**,
+  through `library.ink`, because that page opens no sitting and has no live
+  payload to read them out of.
+- **The board's suite runs the factory's.** The two repositories hold one seam
+  and only the board's suite is a habit, so `test/all.sh` runs
+  `projects/Paper-Writer`'s tests last, and skips loudly where it is not checked
+  out. `test/revising.py` checks the other direction, field by field.
+- **`--help` on a subcommand is the dispatcher's, not the command's.** Answered
+  before the repository is found, and only in the first position: further along
+  it may be the value of an option. It exists because `board write --help`
+  reached `cmd_write`, which drops anything option-shaped, read an empty body off
+  the terminal and put a blank card on a lesson with no undo.
+- **A posed problem is asked twice on its own card.** Statement, definitions,
+  then the question again as the last line — because the definition list sits
+  between the first asking and the board they write on. And the write-up is part
+  of the turn that agrees an answer: `board hw use`, transcribe, `board hw file`,
+  `board hw build`, before the next problem is posed. Both are in `TEACHING.md`,
+  in `sense.METHOD_SENSE` and `sense.WRITEUP_SENSE`, and in `test/teaching.py`
+  — which now actually runs the block that guards them, having imported
+  `sense.py` by path under a name of its own for long enough that every check in
+  it was being skipped.
 - **A revision is not a new paper, and the factory now knows it.** A job
   carrying `## Revision` skips gathering, grounding, planning, the argument map
   and outlining; `stages/revision.py` splits the delivered Markdown on its own

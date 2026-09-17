@@ -124,10 +124,16 @@ def advance(records, project_rec, paper_rec, log_fn=print):
             artifacts = list(paths.documents(pid_, paper_num))
             artifacts += list(paths.part_documents(pid_, paper_num))
             artifacts += [_as_path(p) for p in (paper_rec.get("built_paths") or [])]
-            dest = delivery.deliver(project_rec, paper_num, artifacts,
-                                    paper_name=paper_rec.get("title"))
+            dest, landed = delivery.deliver(project_rec, paper_num, artifacts,
+                                            paper_name=paper_rec.get("title"),
+                                            log_fn=log_fn)
+            # `landed` is the second copy, in the workspace that asked for the paper.
+            # Recorded rather than raised: a landing that cannot be written leaves a
+            # sentence saying so on a paper that is nonetheless DELIVERED, because the
+            # work is safe under OUT_DIR by the time it is attempted.
             journal.set_status(records, records[key], states.DELIVERED,
-                               delivered_paths=[str(d) for d in dest])
+                               delivered_paths=[str(d) for d in dest],
+                               landed=landed)
             log_fn(f"paper {paper_num}: DELIVERED -> "
                    f"{dest[0].parent if dest else '(nothing to deliver)'}")
 

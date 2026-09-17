@@ -88,6 +88,32 @@ TRIPOD+AI
 
 ---
 
+## Delivery
+
+<!-- Where the finished paper is to land, in the workspace that asked for it. ONE
+     line, and the path is ABSOLUTE:
+
+       landing: /home/you/Atlas/research/TRD-EHR/manuscripts/trd-prediction
+
+     Absolute for the same reason `## Revision` carries `workspace:`: the harness is
+     another repository with its own root, and it cannot resolve a relative path
+     against one nobody named. A relative value is refused and recorded, and the
+     paper stays under the harness's own output folder.
+
+     THIS PAPER'S OWN DIRECTORY, not a shared drop point. Every artifact is written
+     into it as well as under `PAPER_OUT_DIR`, and nothing is appended: name a folder
+     per paper, or a workspace that writes two ends up with two files called
+     `manuscript.md` in one. Naming it here is also what lets a REVISION land exactly
+     over the document it corrects -- point it at that document's own directory.
+     Re-delivery is content-addressed and a verified no-op, so a job run twice copies
+     nothing twice.
+
+     Leave it out and the paper is delivered under `PAPER_OUT_DIR` only, which is what
+     a job dropped by hand has always done. `board make --paper` fills this in from
+     the workspace it was run in. -->
+
+---
+
 ## Revision
 
 <!-- LEAVE THIS OUT FOR A NEW PAPER. Fill it in only when the paper already exists
