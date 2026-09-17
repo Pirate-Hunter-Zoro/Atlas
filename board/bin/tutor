@@ -882,7 +882,7 @@ def chapter_now(root):
         return ""
 
 
-def doing_now(root):
+def doing_now(root, signal=""):
     """Is the sitting that is open one whose product is a change, not a card?
 
     ASKED OF `course/config.py`, WHICH IS THE ONE ANSWER. This function used to
@@ -891,7 +891,15 @@ def doing_now(root):
     hand as well, so a family's default style in `atlas.json` reached the prompt
     and not the clock. A doing turn on a teaching turn's timeout is a turn killed
     at fifteen minutes with eight files changed and nothing committed.
+
+    AND ONE TURN ANSWERS IT WITHOUT THE SITTING. A step handed over -- `POST
+    /handover` -- is a doing turn inside a coaching sitting, and the sitting is
+    left saying `coach` on purpose, because the next card is a coach card again.
+    So the state says `teach` and is right about the evening; only the signal
+    this turn was woken with says what THIS turn does.
     """
+    if signal == "handover":
+        return True
     try:
         with open(os.path.join(root, "live", "state.json"), "r", encoding="utf-8") as fh:
             st = json.load(fh) or {}
@@ -913,7 +921,7 @@ def doing_now(root):
         return False
 
 
-def turn_timeout(cfg, root, spec=None):
+def turn_timeout(cfg, root, spec=None, signal=""):
     """How long this turn gets, by what kind of turn it is AND which agent runs it.
 
     The two numbers in the configuration are about the SITTING: a teaching turn
@@ -927,9 +935,13 @@ def turn_timeout(cfg, root, spec=None):
     that FAILED rather than one that was interrupted. A `timeout` on the recipe
     is taken as a FLOOR, so the existing numbers stay exactly as they are for
     every other agent and the slow one carries its own.
+
+    `signal` is what the inbox line says this turn is for, and it reaches here
+    because one kind of turn is not the kind of turn its sitting is -- see
+    `doing_now`.
     """
     plain = int(cfg.get("headless_timeout", 900) or 900)
-    if doing_now(root):
+    if doing_now(root, signal):
         plain = max(plain, int(cfg.get("doing_timeout", 3600) or 3600))
     try:
         floor = int((spec or {}).get("timeout") or 0)
@@ -2064,7 +2076,7 @@ def headless(cfg, course, agent_name, session):
         mark = os.path.getsize(logpath) if os.path.exists(logpath) else 0
         try:
             p = subprocess.run(cmd, cwd=root, stdout=log, stderr=subprocess.STDOUT,
-                               timeout=turn_timeout(cfg, root, spec))
+                               timeout=turn_timeout(cfg, root, spec, this_signal))
             err = None if p.returncode == 0 else "exit %d" % p.returncode
             # A resume that finds nothing to resume is not a broken turn; it is a
             # first turn wearing the wrong recipe. Try it once as one.
@@ -2077,7 +2089,7 @@ def headless(cfg, course, agent_name, session):
                 cmd = with_usage(spec, [a.replace("{prompt}", HEADLESS_FIRST_PROMPT % fill)
                                         for a in first])
                 p = subprocess.run(cmd, cwd=root, stdout=log, stderr=subprocess.STDOUT,
-                                   timeout=turn_timeout(cfg, root, spec))
+                                   timeout=turn_timeout(cfg, root, spec, this_signal))
                 err = None if p.returncode == 0 else "exit %d" % p.returncode
                 fresh = True
         except subprocess.TimeoutExpired:

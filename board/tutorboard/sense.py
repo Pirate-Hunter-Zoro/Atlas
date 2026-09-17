@@ -50,6 +50,18 @@ SIGNAL_SENSE = {
            "tutor, and what you have both agreed is still agreed. Write the NEXT "
            "card the new way. Do not start over, do not re-introduce yourself, "
            "and do not recap what you have just done together.",
+    # ONE STEP HANDED OVER, AND THE SITTING IS STILL A COACHING SITTING.
+    # `coach` names the calls and lets them type it, and there was no way out of
+    # one step of that: the only escape was `/aim`, which changes the WHOLE
+    # sitting to `build`, so the way to get one step written for you was to stop
+    # being coached and have every card after it written the new way. Asked for
+    # as *"in coach coding mode, I still want to be able to have a 'fuck this,
+    # you do this step' option."* `handover_sense` names the card and says what
+    # to write; this is what the tap meant.
+    "handover": "they do not want to type this one. You write it -- this step "
+                "and no more -- and then carry on coaching. The aim has not "
+                "changed, nothing has been filed away, and you are not a new "
+                "tutor.",
     "done": "their work is ready for you to check.",
     "help": "they are stuck and want help.",
     "confused": "something is not making sense to them.",
@@ -224,6 +236,39 @@ DOING_SENSE = (
     "the job is genuinely too big for one turn, do the FIRST PART OF IT and "
     "report that, rather than describing all of it and doing none. "
 )
+
+
+# WHAT A HANDED-OVER STEP IS, and the one thing it must not come back as.
+#
+# `coach` is one step per card, named in English, typed by them. The tap that
+# reaches this hands over ONE of those steps and leaves the sitting coaching, so
+# the turn it wakes is a doing turn inside a teaching sitting -- `DOING_SENSE`
+# carries the order, and this carries what is different about it.
+#
+# THE STEP IS NOT WRITTEN UP AS A COACH CARD AFTERWARDS. A card explaining how
+# the step was done is a lecture nobody asked for: they handed it over because
+# they did not want to type it, and their next act is the NEXT step. So the one
+# card is a short report with the next step posed under it, which is also what
+# keeps the lesson moving without a second tap.
+HANDOVER_SENSE = (
+    "THE STEP IS CARD %s, AND IT IS THE ONLY ONE YOU WRITE. Do what that card "
+    "told them to do: write it, run what needs running, and leave the "
+    "repository as that card described. Do not take the step after it, do not "
+    "widen it into the rest of the job, and do not change the aim of this "
+    "sitting -- they asked for one step, not for the wheel.\n"
+    "THEN ONE CARD, AND IT IS NOT A COACH CARD ABOUT THE STEP YOU JUST DID. A "
+    "card explaining how you did it is a lecture nobody asked for. That card "
+    "is, in this order: three or four lines of REPORT -- what you changed, "
+    "which files, what you ran and what came back -- and then THE NEXT STEP, "
+    "posed the way you were posing them before, naming the calls, the "
+    "arguments and the order in English for them to type. If the step you were "
+    "handed was the last one, say what is left instead of inventing another. "
+)
+
+
+def handover_sense(card):
+    """The inbox line for one step handed over, naming the card it is about."""
+    return HANDOVER_SENSE % card
 
 
 # What a stance chosen for THIS SITTING has to say that a repository's own does
@@ -732,7 +777,7 @@ def revise_sense(document_rel, feedback_rel):
     return REVISE_SENSE % (document_rel, feedback_rel)
 
 
-def session_sense(repo):
+def session_sense(repo, doing=None):
     """What this sitting is, wrapped in the two rules that hold for all of them.
 
     HOW IT READS comes first, because it governs every card this turn writes and
@@ -742,6 +787,11 @@ def session_sense(repo):
     it overrides is an override nobody applies.
 
     Everything between them is `_session_sense`, which is the sitting itself.
+
+    `doing` is answered from the sitting unless a CALLER knows better, and one
+    does: a step handed over is a doing turn inside a coaching sitting, and the
+    sitting is unchanged on purpose. Asking the state would say `teach`, which
+    is right about the sitting and wrong about this turn.
     """
     st = repo.state()
     said = PLAIN_SENSE + _session_sense(repo)
@@ -749,11 +799,12 @@ def session_sense(repo):
     # them, a paper, a deck. Whether it says so through the sitting's aim, the
     # kind of sitting, or the stance -- all three mean the same thing about the
     # order the turn happens in.
-    aim = config.clean_aim(st.get("aim"))
-    doing = (st.get("session") == "make"
-             or (aim and config.AIM_STANCE.get(aim) == "do")
-             or (st.get("session") in (None, "", "lecture")
-                 and config.stance_for(repo.root, st) == "do"))
+    if doing is None:
+        aim = config.clean_aim(st.get("aim"))
+        doing = (st.get("session") == "make"
+                 or (aim and config.AIM_STANCE.get(aim) == "do")
+                 or (st.get("session") in (None, "", "lecture")
+                     and config.stance_for(repo.root, st) == "do"))
     return said + (DOING_SENSE if doing else "")
 
 

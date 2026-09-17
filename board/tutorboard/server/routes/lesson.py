@@ -22,6 +22,7 @@ from ...course import config
 # `map` is a builtin; the module keeps the name the board calls the thing.
 from ...course import map as mapping
 from ...lesson import archive
+from ...lesson import cards
 from ...lesson import turns
 
 
@@ -259,12 +260,108 @@ def _aim(h, repo):
     return h.send_json({"ok": True, "aim": aim, "changed": True})
 
 
+def _card_here(repo, card):
+    """Is `card` the id of a card on this board?
+
+    Nothing here builds a path out of what a browser sent: the id is matched
+    against the cards that exist, the same way `/session` looks a label up in
+    what discovery found. A miss is a miss.
+    """
+    if not re.match(r"^\d{4}$", str(card or "")):
+        return False
+    try:
+        names = os.listdir(repo.cards)
+    except OSError:
+        return False
+    for name in names:
+        m = cards.CARD_RE.match(name)
+        if m and m.group(1) == card:
+            return True
+    return False
+
+
+def _handover(h, repo):
+    """ONE STEP WRITTEN FOR THEM, AND THE SITTING IS STILL A COACHING SITTING.
+
+    **The want:** *"in coach coding mode, I still want to be able to have a
+    'fuck this, you do this step' option."*
+
+    `coach` names the calls, the arguments and the order in English and lets
+    them type it, and there was no way out of one step of that. The only escape
+    was `POST /aim`, which changes the WHOLE sitting to `build` -- so the way to
+    get one step written for you was to stop being coached, and the next card
+    and every card after it was written the new way.
+
+    This is `_aim` minus the part that changes the sitting. Four things happen
+    and none of them touches `live/state.json`:
+
+    1. **Their tap in the transcript**, as a turn of theirs, naming the card.
+    2. **A line in the inbox**, which in a headless turn IS the prompt: what the
+       tap meant, which card the step is, and that the card that comes back is a
+       report with the next coach step under it rather than a write-up of what
+       was just done.
+    3. **A DOING TURN'S SENSE**, said outright rather than read off the sitting.
+       The sitting still says `coach`, which is right about the sitting and
+       wrong about this turn: the work is a change to the repository, so the
+       order is a sentence, then the work, then the report over the top of it.
+    4. **A tutor woken if none is listening**, because the tap is the
+       instruction -- the same rule `_begin` and `_aim` follow.
+
+    THE TURN CARRIES THE CARD IN `card`, NOT IN `answers`. `answers` means "this
+    is the student's answer to that card", and the board reads it as a card
+    somebody has written against -- which gives the card a writing surface and a
+    board of its own. A step handed over is not an answer to it.
+
+    Refused where the tutor is ALREADY writing the code. In a sitting whose
+    stance is `do` there is nothing being withheld, so the tap means nothing,
+    and waking a turn to be told so is a model call somebody pays for -- the
+    same place a second tap on the aim it already has stops.
+    """
+    try:
+        payload = json.loads(h.read_body().decode("utf-8") or "{}")
+    except Exception:
+        return h.send_json({"ok": False, "error": "bad json"}, status=400)
+    card = str(payload.get("card") or "").strip()
+    if not _card_here(repo, card):
+        return h.send_json({"ok": False, "error": "no such card"}, status=404)
+
+    st = repo.state()
+    if config.stance_for(repo.root, st) != "teach":
+        return h.send_json({"ok": False,
+                            "error": "nothing to hand over; the tutor is "
+                                     "already writing the code"}, status=400)
+
+    tid = turns.next_turn_id(repo)
+    record = {
+        "id": tid, "rev": turns.turn_revision(repo, tid), "kind": "text",
+        "answers": None, "card": card,
+        "t": time.time(),
+        "iso": time.strftime("%Y-%m-%d %H:%M:%S"),
+        "from": "student", "text": "You write this step.",
+        "signal": "handover", "read": False,
+    }
+    turns.write_turn(repo, record)
+    line = ("[handover] " + sense.SIGNAL_SENSE.get("handover", "") + " "
+            + sense.handover_sense(card) + "\n\n"
+            + sense.session_sense(repo, doing=True))
+    with open(repo.messages_path, "a", encoding="utf-8") as fh:
+        fh.write(json.dumps(dict(record, text=line)) + "\n")
+
+    if spawn.wake_tutor(repo):
+        h.note("nothing was reading the board; starting a tutor")
+    h.server.hub.worker.dirty.set()
+    return h.send_json({"ok": True, "card": card})
+
+
 def post(h, repo, path):
     if path == "/direction":
         return _direction(h, repo)
 
     if path == "/aim":
         return _aim(h, repo)
+
+    if path == "/handover":
+        return _handover(h, repo)
 
     if path == "/dismiss-finish":
         st = repo.state()
