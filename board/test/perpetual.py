@@ -369,8 +369,12 @@ try:
     # The job script itself
     # =======================================================================
     script = open(supervise.SCRIPT, encoding="utf-8").read()
-    check("the job script exists where the submitter looks for it, and runs",
-          os.path.exists(supervise.SCRIPT) and os.access(supervise.SCRIPT, os.X_OK))
+    # Existence and nothing about the mode: this repository is cloned with
+    # core.fileMode off, so a tracked file's execute bit is not a fact about a
+    # clone. `sbatch` reads the script rather than executing it, and `serve.sh`
+    # is run with `bash`, so neither needs one.
+    check("the job script exists where the submitter looks for it",
+          os.path.exists(supervise.SCRIPT))
     check("it finds the checkout without trusting $0, which inside a batch job "
           "is Slurm's own copy of the script",
           "TUTOR_BOARD_TOOL" in script and "scontrol show job" in script)
@@ -391,7 +395,7 @@ try:
     shell = open(starter, encoding="utf-8").read()
     check("there is a script that starts the chain, and it is where every other "
           "script in here is",
-          os.path.exists(starter) and os.access(starter, os.X_OK))
+          os.path.exists(starter))
     check("it needs nothing on the PATH and no particular directory, and hands "
           "straight to the one command that decides",
           "BASH_SOURCE" in shell and "bin/tutor" in shell and "serve" in shell)
