@@ -32,8 +32,19 @@ __pycache__/
 *.pyc
 node_modules/
 
-# live tutoring board (Tutor-Board) — scratch space, never tracked
-live/
+# live tutoring board (Tutor-Board) — scratch space, never tracked, with one
+# exception. `live/map.json` is the written map: the boxes this project is made
+# of, in the names its own documents use, which no amount of reading the
+# directory listing produces. It is judgement rather than runtime state, so it is
+# tracked and travels with a clone.
+#
+# The SHAPE matters, and `live/` alone cannot express it: git never descends into
+# a directory it has excluded, so a negation under `live/` can never fire.
+# `live/*` excludes the same files and leaves the door open for this one. The
+# negation also has to come after the `*.json` rule above, or that rule is the
+# last match and wins.
+live/*
+!live/map.json
 
 # ---- LaTeX build artifacts ----
 # docs/*.tex is the source and docs/*.pdf is the deliverable; everything
