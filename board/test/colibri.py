@@ -313,6 +313,28 @@ check("the recipe says WHY it is one at a time, so the reason travels with it",
 check("and why its cards must not be committed",
       "phi" in (spec.get("private") or ""))
 
+# AND THAT `private` IS WHAT NAMES THE READER OF A FENCE, which is the half the
+# board leans on. A workspace holding a fenced directory says so on both
+# choosers and names the one assistant that may open it -- and it names it by
+# looking for the recipe carrying `private`, because the alternative is the name
+# `colibri` written into a browser, where it would go out of step with this
+# table the first time either moved. Exactly one recipe may carry it: two would
+# make "the one assistant" a list, and the board would take whichever sorted
+# first.
+carries = [n for n, sp in AGENTS.items() if sp.get("private")]
+check("exactly one recipe in the table says it may read a fence, so naming it "
+      "is a lookup rather than a second list: " + ", ".join(carries),
+      carries == ["colibri"])
+listed = json.loads(subprocess.run(
+    [sys.executable, os.path.join(ROOT, "bin", "tutor"), "--agents", "--json"],
+    stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+    ).stdout.decode("utf-8", "replace").strip().splitlines()[-1])
+check("and it reaches the browser, which is where the chooser reads it",
+      [a["name"] for a in listed["agents"] if a.get("private")] == ["colibri"])
+check("beside whether this machine has it at all, because an assistant that "
+      "is not installed here cannot be the answer either",
+      all("missing" in a for a in listed["agents"]))
+
 os.environ["TUTORBOARD_COURSES"] = tree
 atlas.forget()
 other = os.path.join(tree, "projects", "Elsewhere")

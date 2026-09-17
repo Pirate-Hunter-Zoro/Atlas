@@ -31,7 +31,7 @@ import tempfile
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 from tutorboard.course import plan, reading      # noqa: E402
-from tutorboard import atlas, sense              # noqa: E402
+from tutorboard import atlas, fenced, machines, sense   # noqa: E402
 
 fails = []
 
@@ -369,7 +369,50 @@ The session content is under `phi/stage1/Audio Transcription.pdf`.
     check("and a tutor is never told the address of a page of it",
           "audio-transcription" not in fenced_line
           and "stage2-reference-walkthrough" in fenced_line)
+
+    # --- AND THE SAME QUESTION ASKED OF THE WHOLE WORKSPACE -----------------
+    #
+    # Every check above is the fence refusing a PATH that was about to be handed
+    # to something. None of them answers the question a person asks before any
+    # of it: *does this box hold content only one assistant may read?* Nothing
+    # did, so the `who:` row offered a hosted model here exactly as it does in a
+    # course, and the only thing between that tap and a hosted model reaching
+    # for session content was a hook the person cannot see.
+    #
+    # ONE LEVEL DEEP, because this labels a workspace on a chooser rather than
+    # guarding a file about to be opened. The names themselves, not a flag: a
+    # row saying `phi/` names something a person can go and look at.
+    fenced.forget()
+    check("a workspace holding a fenced directory says so, by name",
+          fenced.holds(proj) == ("phi",))
+    check("and one that holds none says nothing, which is every other workspace",
+          fenced.holds(book) == ())
+    os.makedirs(os.path.join(book, "test_data"), exist_ok=True)
+    write(os.path.join(book, "docs", "stage2_reference_walkthrough.pdf"), "x")
+    fenced.forget()
+    check("a directory whose name merely CONTAINS one is not a fence, and "
+          "neither is a file named after one",
+          fenced.holds(book) == ())
+    os.makedirs(os.path.join(book, "chapters", "data"), exist_ok=True)
+    fenced.forget()
+    check("nor is one two levels down, which is a vendored dependency's "
+          "working directory rather than this workspace's fence",
+          fenced.holds(book) == ())
+    shutil.rmtree(os.path.join(book, "chapters", "data"))
+    shutil.rmtree(os.path.join(book, "test_data"))
+    shutil.rmtree(os.path.join(book, "docs"))
+
+    # And it reaches the board attached to the workspace it is about, which is
+    # what lets a dispatcher say it about a box nobody is looking at.
+    fenced.forget()
+    listed = {w["repo"]: w.get("fenced")
+              for w in machines.workspaces(type("R", (), {"root": book})())}
+    check("every workspace the board lists carries its own answer",
+          listed.get("PSYCH-ASR") == ["phi"]
+          and listed.get("Research-Journey") == [])
+
     shutil.rmtree(os.path.join(proj, "phi"))
+    fenced.forget()
     reading._cache.clear()
 
     # --- what the tutor is told ---------------------------------------------

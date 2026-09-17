@@ -7,7 +7,7 @@ import os
 import threading
 import time
 
-from .. import assistants, colibri, direction, news
+from .. import assistants, colibri, direction, fenced, news
 from ..course import config, homework
 from ..lesson import archive, cards, git, notes, slate, state, turns, uploads
 
@@ -100,6 +100,13 @@ class Hub:
             # seconds, which is the rule `machines.held_nodes` already follows.
             "assistants": assistants.listing(),
             "colibri": colibri.status(),
+            # AND WHETHER THIS WORKSPACE HOLDS A FENCE, which is the third
+            # thing the chooser needs and the one nothing said. The registry
+            # above carries which assistant may read one -- the recipe with
+            # `private` on it -- so naming it is a lookup in what is already
+            # here rather than a second list. The names, so the row can say
+            # what a hosted pick will not be able to open. See `fenced.holds`.
+            "fenced": list(fenced.holds(self.repo.root)),
         }
         # Only in a homework sitting, and read from the .tex itself rather than
         # from a record the board keeps: the file is the truth, the assistant

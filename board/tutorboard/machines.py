@@ -14,7 +14,7 @@ import os
 import subprocess
 import time
 
-from . import atlas, choice, machine, news, paths, ports
+from . import atlas, choice, fenced, machine, news, paths, ports
 from .course import config
 from .lesson import cards
 
@@ -79,6 +79,15 @@ def workspaces(repo):
             # By the directory it is, not by the name this caller spells it
             # with: the same home is reachable under two paths here.
             "current": paths.same_dir(root, repo.root),
+            # WHETHER THIS BOX HOLDS CONTENT ONLY ONE ASSISTANT MAY READ, said
+            # here so a chooser can say it before the tap. The fence was real
+            # and per-PATH: every walk refused a fenced directory and nothing
+            # anywhere said that a WORKSPACE had one, so the `who:` row offered
+            # a hosted model beside the local one in a workspace holding
+            # session content, identically to one holding a textbook. The names
+            # themselves, not a flag: "fenced" is a warning and `phi/` is a
+            # thing a person can go and look at. See `fenced.holds`.
+            "fenced": list(fenced.holds(root)),
             "course": cfg["name"],
             "chapter": "",
             "cards": 0,

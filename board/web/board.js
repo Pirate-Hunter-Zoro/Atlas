@@ -77,7 +77,9 @@ var els = {
   kindWalk: document.getElementById("kind-walk"),
   kindStance: document.getElementById("kind-stance"),
   kindWho: document.getElementById("kind-who"),
+  kindWhoLead: document.getElementById("kind-who-lead"),
   kindWhoWays: document.getElementById("kind-who-ways"),
+  kindWhoFence: document.getElementById("kind-who-fence"),
   kindWhoNote: document.getElementById("kind-who-note"),
   kindWhoUp: document.getElementById("kind-who-up"),
   kindAim: document.getElementById("kind-aim"),
@@ -86,6 +88,7 @@ var els = {
   elsewhere: document.getElementById("elsewhere"),
   elsewhereList: document.getElementById("elsewhere-list"),
   elsewhereWho: document.getElementById("elsewhere-who"),
+  elsewhereFence: document.getElementById("elsewhere-fence"),
   elsewhereTask: document.getElementById("elsewhere-task"),
   elsewhereSaid: document.getElementById("elsewhere-said"),
   elsewhereGo: document.getElementById("elsewhere-go"),
@@ -1236,6 +1239,10 @@ function render(data) {
      an empty list, and is why the chooser is not drawn rather than drawn empty. */
   if (data.assistants !== undefined) assistants = data.assistants;
   if (data.colibri !== undefined) colibriNow = data.colibri;
+  /* AND WHETHER THIS WORKSPACE HOLDS A FENCE. A directory walk on the server,
+     because the browser cannot look at a disk -- and the names rather than a
+     flag, so the row can say what a hosted pick will not be able to open. */
+  if (data.fenced !== undefined) fencedHere = data.fenced || [];
 
   papers = data.papers || {};
   renderPapers();                /* a build that lands while it is open shows */
@@ -3660,6 +3667,53 @@ function setSitting(kind, name, chapter) {
 var agentPick = null;       /* what they tapped, for the sitting about to open */
 var assistants = null;      /* what this machine has; null means it could not say */
 var colibriNow = null;      /* and what the local model's server is doing */
+var fencedHere = [];        /* the fenced directories THIS workspace holds */
+
+/* WHO MAY READ A FENCE, out of the same registry the buttons come from. The
+   recipe carrying `private` is the one assistant allowed to open one -- it runs
+   on our own hardware and nothing leaves the node -- so this is a lookup in what
+   the payload already carries rather than a name written down a second time
+   somewhere the browser can read. */
+function fenceReader() {
+  var all = (assistants && assistants.agents) || [];
+  return all.filter(function (a) { return a["private"]; })[0] || null;
+}
+
+/* WHAT A FENCED WORKSPACE SAYS, BEFORE THE TAP RATHER THAN AFTER IT.
+   Deliberately NOT a refusal: the fence stops a hosted assistant READING `phi`,
+   not existing, and the teaching thread on this very code is a hosted
+   conversation. So this is visibility -- the row names the directories, names
+   the one assistant that may open them, and where the pick is somebody else says
+   what that pick will not be able to open. The protection stays where it is. */
+function paintFence(node, names, now) {
+  names = names || [];
+  if (!names.length) {
+    node.textContent = "";
+    node.hidden = true;
+    return;
+  }
+  var held = names.map(function (n) { return n + "/"; }).join(", ");
+  var reader = fenceReader();
+  var line = "fenced — " + held + " ";
+  if (!reader) {
+    line += "is content no assistant on this machine may read.";
+  } else if (reader.missing) {
+    line += "may be read only by " + reader.name
+          + ", which is not installed here.";
+  } else {
+    line += "may be read only by " + reader.name + ".";
+    if (now !== reader.name) {
+      /* "may" rather than "will" where nobody is named: whatever is already
+         listening over there might BE the reader, and this line must not say
+         something it cannot know. */
+      line += now ? (" " + now + " will not be able to open " + held + ".")
+                  : (" whatever is listening there may not be able to open "
+                     + held + ".");
+    }
+  }
+  node.textContent = line;
+  node.hidden = false;
+}
 
 function takeAgent() {
   var chosen = agentPick;
@@ -3668,19 +3722,25 @@ function takeAgent() {
 }
 
 function paintWho() {
-  /* Nothing to choose between, or nobody could say what there is: no row. A
-     chooser offering one name is furniture. */
+  /* Who this machine can actually offer. One name is not a choice and a chooser
+     offering one is furniture, so the buttons need two; the row itself is drawn
+     for a fence as well, which is the case below. */
   var have = (assistants && assistants.agents || []).filter(function (a) {
     return a.headless && !a.missing;
   });
   var reading = sittingKind === "review" || sittingKind === "walk";
-  els.kindWho.hidden = reading || have.length < 2;
+  /* A fence is drawn even where there is nothing to choose between. A box
+     holding session content on a machine carrying one assistant is the case
+     where the absence of a choice is exactly the thing worth saying. */
+  var choosing = have.length > 1;
+  els.kindWho.hidden = reading || (!choosing && !fencedHere.length);
   if (els.kindWho.hidden) return;
 
   var now = agentPick || currentAgent || (assistants && assistants["default"]);
   var host = els.kindWhoWays;
   host.innerHTML = "";
-  have.forEach(function (a) {
+  els.kindWhoLead.hidden = !choosing;
+  (choosing ? have : []).forEach(function (a) {
     var b = document.createElement("button");
     b.type = "button";
     b.textContent = a.name;
@@ -3702,6 +3762,8 @@ function paintWho() {
     };
     host.appendChild(b);
   });
+
+  paintFence(els.kindWhoFence, fencedHere, now);
 
   /* AND WHAT THE LOCAL MODEL'S SERVER IS DOING, which is the half no button can
      express. Four states off `squeue`: nothing submitted, queued behind an
@@ -8306,9 +8368,23 @@ document.getElementById("btn-library").onclick = function () {
 var elsewhereList = null;       /* the workspaces, once asked for */
 var elsewherePick = null;       /* which one, by its bare directory name */
 var elsewhereAgent = null;      /* and who, or nothing for whatever is there */
+var elsewhereChose = false;     /* whether that `null` is a tap or a default */
+
+/* THE FENCE OF THE WORKSPACE BEING AIMED AT, which is the one thing this panel
+   could not see. A mission is dispatched INTO a box nobody is looking at, so
+   there is no second chance to notice what is in it. */
+function elsewhereFenced() {
+  var hit = (elsewhereList || []).filter(function (w) {
+    return w.repo === elsewherePick;
+  })[0];
+  return (hit && hit.fenced) || [];
+}
 
 function openElsewhere() {
   els.elsewhere.hidden = false;
+  /* A pick belongs to the mission being dispatched, not to the panel: the
+     default is the fence's and the last box aimed at may have held none. */
+  elsewhereChose = false;
   els.elsewhereSaid.textContent = "";
   els.elsewhereSaid.classList.remove("bad");
   paintElsewhere();
@@ -8357,6 +8433,15 @@ function paintElsewhere() {
       where.textContent = w.chapter || "";
       b.appendChild(name);
       b.appendChild(where);
+      /* And whether it holds a fence, ON THE ROW, because the choice of
+         workspace is made before the choice of assistant and this is what
+         makes that second choice matter. */
+      if ((w.fenced || []).length) {
+        var fenceTag = document.createElement("span");
+        fenceTag.className = "fence";
+        fenceTag.textContent = "fenced";
+        b.appendChild(fenceTag);
+      }
       b.onclick = function () { elsewherePick = w.repo; paintElsewhere(); };
       host.appendChild(b);
     });
@@ -8364,7 +8449,17 @@ function paintElsewhere() {
 
   /* And who. Empty means "whatever is listening there, or whatever that
      workspace resolves to" -- which is the honest default, because a workspace
-     may already have a tutor and a start against one is a no-op that says so. */
+     may already have a tutor and a start against one is a no-op that says so.
+
+     EXCEPT WHERE THE TARGET HOLDS A FENCE, and there the default is the one
+     assistant that may read it. Not a refusal of the others: they are still on
+     the row and still tappable, and a tap is remembered as a tap -- what changes
+     is which of them is already chosen when nobody says. */
+  var fence = elsewhereFenced();
+  if (!elsewhereChose) {
+    var reader = fence.length ? fenceReader() : null;
+    elsewhereAgent = (reader && !reader.missing) ? reader.name : null;
+  }
   var who = els.elsewhereWho;
   who.textContent = "";
   var have = (assistants && assistants.agents || []).filter(function (a) {
@@ -8384,11 +8479,13 @@ function paintElsewhere() {
       }
       b.onclick = function () {
         elsewhereAgent = a ? a.name : null;
+        elsewhereChose = true;
         paintElsewhere();
       };
       who.appendChild(b);
     });
   }
+  paintFence(els.elsewhereFence, fence, elsewhereAgent);
   els.elsewhereGo.disabled = !elsewherePick || !els.elsewhereTask.value.trim();
 }
 

@@ -25,10 +25,15 @@ tutor has been read; a directory that reaches a manuscript factory has been
 mined. Neither can be taken back afterwards, which is why the check is cheap,
 central, and belt-and-braces over whatever allowlist sits in front of it.
 
-Standard library only, like everything else. Nothing here touches the
+Standard library only, like everything else. `refused` does not touch the
 filesystem -- it is a question about a path, and it is asked of paths that have
-not been opened yet.
+not been opened yet. `holds` is the same question asked of a WORKSPACE, and that
+one is a directory listing, because whether a workspace has a fence in it is a
+fact about what is on disk.
 """
+
+import os
+import time
 
 
 # AND NEVER THESE, WHATEVER ELSE CHANGES.
@@ -59,3 +64,58 @@ def refused(path):
     """
     parts = [x.lower() for x in str(path or "").replace("\\", "/").split("/")]
     return any(x in NEVER for x in parts)
+
+
+# ---------------------------------------------------------------------------
+# Does this WORKSPACE hold a fence, and is that sayable before a tap
+# ---------------------------------------------------------------------------
+# The question above is asked of a path that is about to be handed to something.
+# This one is asked of a whole workspace, before anything has been chosen: *does
+# this box hold content only one assistant may read?* Nothing answered it, so the
+# chooser offered a hosted model in a fenced workspace exactly as it does in a
+# course, and the only thing between that tap and a hosted model reaching for
+# session content was a hook the person cannot see.
+#
+# ONE LEVEL DEEP, AND THAT IS THE RULE RATHER THAN A SHORTCUT. `refused` matches
+# the name at any depth because it is guarding a file that is about to be opened.
+# This is labelling a workspace on a chooser, and a fence is a top-level
+# directory of the workspace that holds it. Walking the whole tree to label a row
+# would put a `data/` directory six levels down inside somebody's vendored
+# dependency on the front door, which is a warning that is true and means
+# nothing.
+#
+# Cached, because the hub asks this on every build -- four times a second -- and
+# `machines.workspaces` asks it once per workspace per poll. A fence appearing is
+# a `mkdir`, not an event.
+SEEN_TTL = 60.0
+_SEEN = {}
+
+
+def holds(root):
+    """The fenced directories this workspace actually has, as a sorted tuple.
+
+    Empty means no fence, which is the answer for every workspace but one today.
+    A root that cannot be listed is not a workspace with a fence -- it is a
+    directory that is not there, and saying "fenced" about it would be a warning
+    nobody can act on.
+    """
+    root = str(root or "")
+    if not root:
+        return ()
+    now = time.time()
+    hit = _SEEN.get(root)
+    if hit and now - hit[0] < SEEN_TTL:
+        return hit[1]
+    try:
+        found = tuple(sorted(
+            n for n in os.listdir(root)
+            if n.lower() in NEVER and os.path.isdir(os.path.join(root, n))))
+    except OSError:
+        found = ()
+    _SEEN[root] = (now, found)
+    return found
+
+
+def forget():
+    """Drop the cache. For a test, and for a walk that has just made one."""
+    _SEEN.clear()

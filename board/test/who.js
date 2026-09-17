@@ -67,9 +67,10 @@ window.fetch = (u, opt) => {
       { repo: 'PSYCH-ASR', id: 'research/PSYCH-ASR', family_name: 'Research',
         course: 'PSYCH-ASR', chapter: 'cli', current: true },
       { repo: 'TRD-EHR', id: 'research/TRD-EHR', family_name: 'Research',
-        course: 'TRD-EHR', chapter: 'the grid', current: false },
+        course: 'TRD-EHR', chapter: 'the grid', current: false,
+        fenced: ['phi'] },
       { repo: 'Galois-Theory', id: 'courses/Galois-Theory', family_name: 'Courses',
-        course: 'Galois Theory', chapter: 'Ch 04', current: false },
+        course: 'Galois Theory', chapter: 'Ch 04', current: false, fenced: [] },
     ] }) });
   }
   if (/\/elsewhere$/.test(String(u))) {
@@ -134,6 +135,7 @@ const chosen = () => {
   return b ? b.textContent : '';
 };
 const note = () => doc.getElementById('kind-who-note').textContent;
+const fence = () => doc.getElementById('kind-who-fence').textContent;
 const start = () => doc.getElementById('kind-who-up');
 const open = () => { doc.getElementById('session').click(); };
 const sessionOf = () => {
@@ -289,6 +291,78 @@ await sleep(40);
   ? ok('and the next sitting starts from the repository again')
   : fail('the pick outlived its sitting: ' + JSON.stringify(sessionOf()));
 
+// ------------------------------ and whether this box holds something fenced
+//
+// "if I'm in PSYCH-ASR on the iPad, we should know that there is a phi folder
+// that I can't let claude or any outsourced AI model see."
+//
+// The fence was real and per-PATH: every walk refused a fenced directory, and
+// nothing anywhere said that a WORKSPACE had one. So this row offered `claude`
+// beside `colibri` in a box holding session content exactly as it does in a box
+// holding a textbook, and the only thing between the tap and a hosted model
+// reaching for that content was a hook the person cannot see.
+//
+// Visibility and a default, NOT a refusal. The fence stops a hosted assistant
+// READING `phi` rather than stops it existing — the teaching thread on this very
+// code is a hosted conversation and works.
+es.onmessage({ data: frame({
+  assistants: { default: 'claude', agents: [HOSTED, LOCAL] },
+  colibri: { state: 'warm', detail: 'warm on compute304' },
+  fenced: ['phi'] }) });
+await sleep(60);
+open();
+await sleep(40);
+/phi\//.test(fence())
+  ? ok('a fenced workspace says so, and names the directory rather than a flag: "'
+       + fence() + '"')
+  : fail('nothing on the row says this box holds a fence: "' + fence() + '"');
+/only by colibri/.test(fence())
+  ? ok('and names the one assistant that may read it, out of the registry')
+  : fail('"' + fence() + '"');
+/claude will not be able to open phi\//.test(fence())
+  ? ok('and the hosted pick in force carries what it will not be able to open')
+  : fail('a hosted pick says nothing about the fence: "' + fence() + '"');
+ways().join(',') === 'claude,colibri'
+  ? ok('while both are still offered — the fence stops a hosted assistant '
+       + 'READING phi, not existing')
+  : fail('a fence removed a choice: ' + ways().join(','));
+
+doc.getElementById('kind-who-ways').querySelectorAll('button')[1].click();
+await sleep(40);
+!/will not be able to open/.test(fence()) && /only by colibri/.test(fence())
+  ? ok('and picking the one that may read it drops the warning, keeping the fence')
+  : fail('"' + fence() + '"');
+
+// A machine that has not GOT the one that may read it is the honest half of the
+// same sentence: there is nothing to choose, and the row is drawn anyway to say
+// why. A chooser that vanishes here would be a fence nobody is told about.
+const ABSENT_LOCAL = Object.assign({}, LOCAL, { missing: 'coli-code' });
+es.onmessage({ data: frame({
+  assistants: { default: 'claude', agents: [HOSTED, ABSENT_LOCAL] },
+  colibri: null, fenced: ['phi'] }) });
+await sleep(60);
+open();
+await sleep(40);
+!row().hidden && /colibri, which is not installed here/.test(fence())
+  ? ok('with the reader not installed the row is still drawn, because the '
+       + 'absence of a choice is the thing worth saying: "' + fence() + '"')
+  : fail('row hidden: ' + row().hidden + ' / "' + fence() + '"');
+ways().length === 0
+  ? ok('and one name is still not a choice, so no buttons are drawn under it')
+  : fail('a chooser offering one name is furniture: ' + ways().join(','));
+
+// And a box with no fence says nothing at all. A warning on every workspace is
+// a warning nobody reads.
+es.onmessage({ data: frame({
+  assistants: { default: 'claude', agents: [HOSTED, LOCAL] },
+  colibri: { state: 'warm', detail: 'warm on compute304' }, fenced: [] }) });
+await sleep(60);
+open();
+await sleep(40);
+doc.getElementById('kind-who-fence').hidden && fence() === ''
+  ? ok('and a workspace holding no fence is not warned about one')
+  : fail('an unfenced workspace carries a fence line: "' + fence() + '"');
+
 // ------------------------------------- not in the two sittings that only read
 es.onmessage({ data: frame({
   state: { course: 'PSYCH-ASR', session: 'walk' },
@@ -359,9 +433,48 @@ await sleep(40);
 const whoBtns = () => Array.prototype.map.call(
   doc.getElementById('elsewhere-who').querySelectorAll('button'),
   (b) => b.textContent);
+const whoOn = () => {
+  const b = doc.getElementById('elsewhere-who').querySelector('button.on');
+  return b ? b.textContent : '';
+};
+const elsewhereFence = () =>
+  doc.getElementById('elsewhere-fence').textContent;
 whoBtns().join(',') === 'whatever is there,claude,colibri'
   ? ok('who is offered, with the honest default first: ' + whoBtns().join(','))
   : fail('the who row offers: ' + whoBtns().join(','));
+
+// A MISSION GOES INTO A BOX NOBODY IS LOOKING AT, so there is no second chance
+// to notice what is in it. TRD-EHR holds a fence here, and that changes which
+// assistant is already chosen when nobody says otherwise.
+rows()[0].indexOf('fenced') !== -1
+  ? ok('a workspace holding a fence is marked on the row you pick it from')
+  : fail('the list says nothing: ' + rows()[0]);
+whoOn() === 'colibri'
+  ? ok('and aiming at it defaults to the one assistant that may read it, '
+       + 'rather than to whatever is listening')
+  : fail('the default over a fenced workspace is "' + whoOn() + '"');
+/only by colibri/.test(elsewhereFence())
+  ? ok('with the reason under it: "' + elsewhereFence() + '"')
+  : fail('the panel says nothing about the fence: "' + elsewhereFence() + '"');
+
+// Still a default and not a refusal: the others are on the row, a tap is
+// remembered as a tap, and it carries what that pick will not be able to open.
+doc.getElementById('elsewhere-who').querySelectorAll('button')[1].click();
+await sleep(40);
+whoOn() === 'claude' && /claude will not be able to open phi\//.test(elsewhereFence())
+  ? ok('a hosted pick is honoured and says what it will not open: "'
+       + elsewhereFence() + '"')
+  : fail('"' + whoOn() + '" / "' + elsewhereFence() + '"');
+
+// And an unfenced workspace is not warned about somebody else's fence.
+doc.getElementById('elsewhere-list').querySelectorAll('button')[1].click();
+await sleep(40);
+doc.getElementById('elsewhere-fence').hidden
+  ? ok('while the box next to it, holding none, is told nothing')
+  : fail('an unfenced workspace carries a fence line: "' + elsewhereFence() + '"');
+
+doc.getElementById('elsewhere-list').querySelectorAll('button')[0].click();
+await sleep(40);
 doc.getElementById('elsewhere-who').querySelectorAll('button')[2].click();
 await sleep(40);
 go().click();
