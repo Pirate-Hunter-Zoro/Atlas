@@ -616,6 +616,12 @@ try:
           "single board is started, because everything after that line can fail "
           "and the chain must not",
           src.index("successor = ensure_successor") < src.index("tool_sync(cfg, quiet=True)"))
+    check("a restart waits for the old generation to finish its handoff, which "
+          "is a model turn per tutor, and says so rather than cancelling a chain "
+          "and starting nothing",
+          "for n in range(240):" in src
+          and "waiting for the old generation to finish its handoff" in src
+          and "nothing new was submitted" in src)
     check("a login repairs the chain too -- a generation that fell over in its "
           "first second never reached the line that queues its successor",
           "chain_repair(cfg, say)" in src)
