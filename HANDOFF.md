@@ -452,12 +452,25 @@ a walkthrough, where the aim row does not appear. `test/walk.py` owns what is
 offered: assert that a `#!` script with no suffix is walkable and that a README
 still is not.
 
-### 7. Mathematics renders in the answer box as it is typed
+### 7. The answer box renders as it is typed, and what was sent stays where it was typed
 
-**The want:** *"when I'm typing a response to a tutor, I want to be able to type
-latex commands in the typing box — like \gamma, etc. — and have that render as I
-type it. And then when I send it, have it stay rendered that way. I still like
-how everything else is rendered dyslexic friendly."*
+**The want, in two messages:** *"when I'm typing a response to a tutor, I want to
+be able to type latex commands in the typing box — like \gamma, etc. — and have
+that render as I type it. And then when I send it, have it stay rendered that way.
+I still like how everything else is rendered dyslexic friendly."*
+
+*"The typed prompt also disappears after I send it, unlike the written board when
+I send that. I don't want the typed prompt disappearing — I want it rendering just
+like you said."*
+
+**The second message is the frame for the whole item, and the comparison in it is
+exact.** Sent ink stays where it was made: `paintBoards` draws a board per
+attempt with the ink still on it, down the page, and the live surface stays open
+underneath — *"I want the actual writing board containing my response"* is why.
+Sent typing leaves **nothing** where it was made: `say()` empties the box, and
+the answer becomes an entry in the transcript instead. One half of the panel
+keeps what you handed in and the other half clears it, and the person is looking
+at the half that clears.
 
 **Half of this already works, and it is worth knowing which half before building
 anything.** Measured by driving the real page: a typed answer goes through
@@ -468,7 +481,7 @@ and 64 macros out of `macros.js`. So **a sent answer containing `$\gamma^2 = 2$`
 already comes back typeset in the transcript, today.** Nothing needs building for
 the "stay rendered" half.
 
-**Two things do not work, and the second is a decision rather than a build.**
+**Three things do not work, and the last is a decision rather than a build.**
 
 **(a) Nothing renders while you type, and nothing ever can in that box.**
 `#saybox` is a `<textarea>`. A textarea holds characters and no markup, by
@@ -500,7 +513,42 @@ touched, by construction rather than by a rule. The preview inherits that for
 free. **Do not give it a font of its own**, and `test/typeface.js` is the suite
 that already asserts the reading face reaches prose and never the maths.
 
-**(b) A bare `\gamma` renders nowhere, and never will without a decision.**
+**(b) The sent answer does not stay where it was typed.** `say()` runs
+`els.saybox.value = ""`, so the words leave the place the person is looking at.
+They come back only on a *reopen* of that question, through `restoreTextAnswer`,
+and they come back as raw source in a textarea rather than as the mathematics
+they were written as.
+
+*What was checked, so nobody hunts for a phantom.* Nothing deletes a typed answer
+from the transcript. The `items.pop()` in `render` is ink-only, `paintSuperseded`
+touches `[data-card]` and never a `.mine` node, and every attempt is kept and
+labelled *answer 2 of 3* — and that entry is already rendered through
+`renderMarkdown` and KaTeX, and already sits directly above the writing surface.
+The disappearance to fix is the BOX, not the transcript. (The other half of the
+same old report — *"it disappears once the tutor response comes in"* — was the
+`answering.latest` overwrite, and that is fixed and shipped; an iPad still
+serving a shell older than `board-shell-v126` will go on showing it.)
+
+*Want.* **The typed half keeps what it sent, in place, rendered — the way the
+slate keeps its ink.** After a send, the block above the box holds the answer as
+mathematics and prose rather than as source, and the box under it is empty and
+ready for the next thing. A second answer pushes the first up, the way a second
+page of ink gets a second board.
+
+*And this is the same build as (a), not a second one.* One rendered block above
+the box: a **preview** of what is being typed before the send, and the **record**
+of what was sent after it. That is what makes the two halves of the panel finally
+symmetrical — box and rendered block against slate and board — and it is why
+these are one item.
+
+*Decide: what a tap on it does.* The slate's answer is that going back to an
+earlier board hands the ink back on a surface that can take another line, and
+`restoreTextAnswer` is the typed counterpart already written. So a tap on the
+rendered block should load it back into the box for correction — which sets
+`correctingTurn`, which is what makes the send a revision of that answer rather
+than a new one. Wire it to the function that exists rather than to a new one.
+
+**(c) A bare `\gamma` renders nowhere, and never will without a decision.**
 Verified in the same run: `$\gamma^2 = 2$` is typeset and the `\gamma` beside it
 with no delimiters stays literal. On an iPad keyboard a `$` is a hunt, so this is
 the whole of why it feels like the feature is missing.
@@ -523,12 +571,15 @@ Three ways, and one of them must not be written:
 Take the second and the third. They compose, they are each one control, and
 neither of them can be wrong about what somebody meant.
 
-**Check.** `test/typed.js` owns the answer panel. Assert: with `$\gamma$` in the
-box the preview holds a `.katex`; with plain prose there is no preview at all;
-what the preview shows is what the transcript shows after the send, because it is
-the same renderer; the prose in the preview carries `body.dataset.face` and the
-`.katex` does not; and a bare `\gamma` raises the hint rather than silently
-rendering nothing. `test/markdown.js` and `test/macros.js` own the renderer and
+**Check.** `test/typed.js` owns the answer panel and `test/mine.js` owns what
+happens to an answer after it is sent. Assert: with `$\gamma$` in the box the
+block holds a `.katex`; with plain prose there is no block at all; what it shows
+before the send is what the transcript shows after it, because it is the same
+renderer; **the words are still on the glass on the frame after the send, and
+still rendered**; a tap on them loads them back into the box and the next send
+revises that answer rather than starting a new one; the prose carries
+`body.dataset.face` and the `.katex` does not; and a bare `\gamma` raises the
+hint rather than silently rendering nothing. `test/markdown.js` and `test/macros.js` own the renderer and
 the macro list either side of it — `test/markdown.js` matters more than it looks,
 because the renderer parks math and code before any markdown parsing and
 restores it afterwards, and every change to it needs a case proving that still
