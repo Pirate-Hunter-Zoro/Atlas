@@ -48,10 +48,10 @@ must be openable and teachable at every point.
   `board.css`, `plane-core.js`, `gauge.js`, `home.html`, `home.js`, `library.html`,
   `library.js`, `library.css`, anything added to the cache list), or the installed app
   serves its cached copy and the work is invisible.
-- **`bash test/all.sh` before every ship.** 81 suites, all green. `test/tracked.py` runs
+- **`bash test/all.sh` before every ship.** 82 suites, all green. `test/tracked.py` runs
   first and refuses PHI, 25-megabyte files, model dumps, other authors' papers and
   machine-local config anywhere in the repository — this is public, and git remembers.
-  The last of the 75 is **Paper-Writer's own**, run where it is checked out and skipped
+  The last of them is **Paper-Writer's own**, run where it is checked out and skipped
   loudly where it is not: the two repositories hold one seam between them and only this
   suite is a habit, so a field renamed in the factory has to break something somebody runs.
 - **Check the address after a ship.** `tutor restart` bounces every board; the HTTPS name
@@ -2060,10 +2060,16 @@ manufacture chapters out of the README's own headings — which is a thing that 
 repository that has none.
 
 The answer panel is the same everywhere: a writing surface and a typed half, one toggle,
-and whichever the student used last is the one that opens next time. An old question remembers
-its own answer, though: a board you wrote on reopens with the ink still on it, and a typed
-answer reopens with the text in the box, both editable and re-sendable as a revision of that
-same response rather than a new one.
+and the half that opens is the half an answer was last **sent** on — recorded on both send
+paths rather than by the tab last pressed, and stamped with the sitting it was sent in, so a
+half remembered in another workspace does not follow you here. The first question of a sitting
+has no last half, so its aim decides: `doingTurn` opens the box where the sitting does the work
+and the board where it teaches. An old question remembers its own answer: a board you wrote on
+reopens with the ink still on it, and a typed answer reopens with the text in the box, both
+editable and re-sendable as a revision of that same response rather than a new one. Ink carries
+over from one question to the next on request (`carryOver`); typing never does, and a new box
+opens empty apart from an unsent draft typed against that question. `test/half.js` is the
+suite.
 
 ### Working in a course from a terminal, while it is a course
 
@@ -4022,6 +4028,8 @@ node test/macros.js      every KaTeX macro, plus real formulas from both courses
 node test/hidden.js      that `hidden` elements are actually hidden
 node test/pages.js       every page's script runs against its own markup
 node test/modes.js       that the answer panel is one, and the signals stay in code
+node test/half.js        which half of that panel a question opens on, and that a new
+                         typed box is empty
 node test/typeface.js    that the reading face reaches prose and never the maths
 node test/interactive.js drives the real board in a real DOM and writes on it
 node test/sizing.js      that every screen size opens at natural writing size
