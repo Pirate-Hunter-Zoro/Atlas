@@ -179,25 +179,27 @@ kept.length === 1 && doc.querySelector('[data-card="0001"]').nextElementSibling 
   ? ok('and it is still where it was written, under the question')
   : fail('the kept board moved somewhere other than where it was written');
 
-// AND THE NEXT ONE WAITS FOR THE REPLY TO FINISH BEING WRITTEN.
+// AND THE REPLY IS WRITTEN ABOVE IT, NOT BELOW IT.
 //
 // "no next board showing up until the agent's response is rendered." The reply
-// is typed out, and while it is, the surface stays above it rather than being
-// pushed down by a card that is still filling in. It is the same board either
-// way -- this is about when it moves, not about whether it is there.
+// types out in the place it will keep -- above the board the next attempt is
+// made on -- so the board is where it always was and the last character moves
+// nothing. Holding the surface in place while the card typed BELOW it is what
+// the previous four attempts at this did, and a card typing under a full-height
+// board is a card nobody sees until the board moves off it.
 doc.querySelector('[data-card="0002"] .body.typing')
   ? ok('the reply is being typed out')
   : fail('the reply landed whole, with no typing at all');
-writer().nextElementSibling === doc.querySelector('[data-card="0002"]')
-  ? ok('and the live surface stays above it while it is written, rather than '
-       + 'being shoved down by a card that is still arriving')
-  : fail('the surface moved under a reply that is still being written');
+doc.querySelector('[data-card="0002"]').nextElementSibling === writer()
+  ? ok('and it is above the live surface while it is written, where the reader '
+       + 'can watch it arrive')
+  : fail('the reply is not above the surface, so it types out underneath it');
 
 await sleep(900);                       // past this card's own typing time
 
 doc.querySelector('[data-card="0002"]').nextElementSibling === writer()
-  ? ok('and when the last character lands, the next attempt is live under the '
-       + 'feedback it answers')
+  ? ok('and the last character moves nothing: the next attempt is still live '
+       + 'under the feedback it answers')
   : fail('the live surface is not under the tutor\'s reply');
 
 slate.pages() === 2

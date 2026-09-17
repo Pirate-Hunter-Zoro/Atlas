@@ -903,19 +903,21 @@ lesson, the writing surface included.
   writing surface sits has to wait for the typing, the way the two flows at the foot of
   `test/link.js` do.
 
-**And the next writing surface waits for the last character.** A board that comes down the
-instant the card exists comes down while the card is still blank, so the next board appears under
-the last one and the tutor's answer fills in between them.
+**A card lands ABOVE the writing surface, and that is the whole of it.** `tailAnchor` in
+`board.js`: a new node at the end of the lesson is inserted in front of the surface, never
+appended after it. The surface has no key of its own, so a reconcile that appends puts the
+tutor's reply *underneath* a full-height open board, off the bottom of the glass — it types out
+where nobody can see a character of it, and the jump at the end is the surface taking its proper
+place and revealing the finished card in one go. Read from a chair that is "the next board
+appeared under my answer and then the whole response showed up at once between the boards",
+which sounds like a question about when the surface moves and is not one. Put the card above the
+board and nothing has to move at all.
 
-Which of two things that means depends on whether there is already a surface open:
-
-- **One that is open is held where it is**, not hidden — hiding it takes the tool bar off the
-  bottom of the screen and puts it back a few seconds later, which is a bigger movement than the
-  one being removed. It comes down as far as the first card still being typed and no further, so
-  the receipt for the answer just sent still takes its proper place above it immediately.
-- **One that is not open does not open.** There is no tool bar to flicker, so it simply arrives a
-  beat later under a response that has finished. Nothing is drawn in its place either: a
-  question's dormant board is not photographed while its live surface is held shut.
+**And a surface that is not open yet does not open** until the last character lands. There is no
+tool bar to flicker, so it simply arrives a beat later under a response that has finished, and
+nothing is drawn in its place either: a question's dormant board is not photographed while its
+live surface is held shut. That is `writerHeldShut`, and it is the branch the hold still exists
+for.
 
 The typing pass therefore runs **before** anything decides where the surface goes, on the same
 frame the reply lands; deciding first and typing afterwards means nothing is typing yet on the
@@ -923,9 +925,10 @@ one frame that matters, and the hold does nothing. A tap on an earlier board ove
 request made by hand outranks an animation.
 
 **The hold is a list of the cards still arriving, not a class on a body.** `typingHeld` in
-`board.js` is taken and given back with the hold itself, and the surface comes down as far as the
-first card in it. A marker that the *animation* sets is lost by every path that holds without
-animating, and there is always one of those.
+`board.js` is taken and given back with the hold itself. A marker that the *animation* sets is
+lost by every path that holds without animating, and there is always one of those. What reads it:
+whether a surface that is not open yet may open, whether the receipt still says the answer is
+arriving, and how far down a surface that has been moved up by hand may come.
 
 **A stall loses the pacing and never the order.** The hold carries a deadline as well as a count
 — 2500ms of silence, pushed out by every frame — so a card that stops mid-sentence in a

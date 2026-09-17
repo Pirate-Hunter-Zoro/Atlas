@@ -1,27 +1,33 @@
-// ONE WINDOW, THE WHOLE FLOW: WRITE, SEND, AND THE REPLY TYPES OUT ABOVE THE
-// NEXT BOARD.
+// ONE WINDOW, THE WHOLE FLOW: WRITE, SEND, AND THE REPLY TYPES OUT WHERE YOU
+// ARE LOOKING.
 //
-// Reported from a live sitting, after two fixes that were believed: "I just
-// submitted a written board response, and the recurring issue of the next
-// written board appearing right below it, and then seconds later the entire
-// tutor response spontaneously completely showing up in between the boards at
-// once occured AGAIN. It should have been fixed so that the tutor response would
-// show up character by character and then the next writing board wouldn't show
-// up until AFTER the tutor response was COMPLETELY rendered."
+// Reported from a live sitting, four times, and patched three times in the wrong
+// place: "I just submitted a written board response, and the recurring issue of
+// the next written board appearing right below it, and then seconds later the
+// entire tutor response spontaneously completely showing up in between the
+// boards at once occured AGAIN. It should have been fixed so that the tutor
+// response would show up character by character and then the next writing board
+// wouldn't show up until AFTER the tutor response was COMPLETELY rendered."
 //
-// THE FAULT LIVED IN A SEAM BETWEEN TWO SUITES, WHICH IS WHY IT SURVIVED THREE
-// REPORTS. `test/interactive.js` presses the real Send with real strokes and
-// never delivers a reply. `test/typed.js` delivers replies as frames and never
-// sends anything. So the one flow a person actually performs -- ink on the glass,
-// Send, the receipt, the reply, the next question -- was driven by nothing, and
-// an ink send is precisely the case that leaves the writing surface OPEN, which
-// is the branch of `placeWriter` the other suites never take.
+// THE SENTENCE SOUNDS LIKE A QUESTION ABOUT WHEN THE SURFACE MOVES, AND IT IS
+// NOT. The board's own trace settled it: the card typed, for 4256ms, with the
+// hold in force the whole time -- and nobody saw a character of it, because a
+// new card was APPENDED to the lesson and the writing surface is the last child
+// of a lesson with a board open on it. So the reply typed itself out underneath
+// a full-height board, off the bottom of the glass. The jump at the end was the
+// surface taking its proper place, which revealed the finished card all at once.
 //
-// What is asserted here is the invariant and not the implementation: THE SURFACE
-// NEVER COMES DOWN PAST A CARD THAT IS STILL HALF PAINTED. Every insertion of
-// the surface is watched, in three windows -- the ordinary one, one with Reduce
-// Motion on, and one whose animation frames arrive too late to be proof of
-// anything.
+// So a card goes ABOVE the surface, from the frame it lands, and then nothing
+// has to move at all. That is what this file asserts, in the flow a person
+// actually performs -- ink on the glass, Send, the receipt, the reply, the next
+// question -- which no suite drove: `test/interactive.js` presses the real Send
+// and never delivers a reply, `test/typed.js` delivers replies as frames and
+// never sends anything, and an ink send is the case that leaves the surface
+// OPEN.
+//
+// THE INVARIANT IS THAT THE SURFACE DOES NOT MOVE. Every insertion of it is
+// watched, in three windows: the ordinary one, one with Reduce Motion on, and
+// one whose animation frames arrive too late to be proof of anything.
 //
 // jsdom, because every assertion is about what a person sees on the glass.
 
@@ -190,20 +196,18 @@ async function flow(name, opts) {
   es.onmessage({ data: frame([asked], [ink]) });
   await sleep(80);
 
-  // EVERY MOVE OF THE SURFACE FROM HERE, AND WHETHER THE REPLY WAS WHOLE WHEN IT
-  // HAPPENED. This is the invariant, and it does not depend on any timing: the
-  // surface may sit anywhere it likes ABOVE a card that is still arriving, and
-  // must never be inserted below one.
+  // EVERY MOVE OF THE SURFACE FROM HERE. This is the invariant and it depends on
+  // no timing at all: a reply lands above the board you would answer it on, so
+  // there is nothing for the surface to do while the reply types, and a surface
+  // that does not move cannot reveal a finished card by moving.
   const host = d.getElementById('cards');
   const realInsert = host.insertBefore.bind(host);
   const realAppend = host.appendChild.bind(host);
   const moves = [];
-  const watch = (n) => {
-    if (!n || n.id !== 'writer') return;
-    moves.push({ half: half(), below: at('writer') > at('0002') && at('0002') !== -1 });
-  };
+  const watch = (n) => { if (n && n.id === 'writer') moves.push(at('writer')); };
   host.insertBefore = function (n, r) { const out = realInsert(n, r); watch(n); return out; };
   host.appendChild = function (n) { const out = realAppend(n); watch(n); return out; };
+  const sat = at('writer');
 
   // ------------------------------------------- the reply, and the next question
   //
@@ -222,32 +226,41 @@ async function flow(name, opts) {
       ? ok(name + ': with only the part already said painted')
       : fail(name + ': the whole of it is painted at once');
   }
-  at('writer') !== -1 && at('0003') !== -1 && at('writer') < at('0003')
-    ? ok(name + ': and the next board has NOT come down under the new question '
-         + 'while the reply is still arriving')
-    : fail(name + ': the next board arrived between the answer and the reply, '
-           + 'which is the geometry the report describes');
+  at('0002') !== -1 && at('0002') < at('writer')
+    ? ok(name + ': and it is ABOVE the board, in the order the transcript reads, '
+         + 'from the frame it lands — which is the whole of this')
+    : fail(name + ': the reply landed BELOW the writing surface, where it types '
+           + 'out under a full-height board and nobody sees a character of it');
+  at('0003') !== -1 && at('0003') < at('writer')
+    ? ok(name + ': and so is the next question, so the surface is still the last '
+         + 'thing in the lesson')
+    : fail(name + ': the new question landed below the surface');
   !d.querySelector('[data-slot^="0003"]')
     ? ok(name + ': and nothing is drawn in its place, so the new question is not '
          + 'answered by a photograph of an empty board')
-    : fail(name + ': a dormant board was painted where the held surface belongs');
+    : fail(name + ': a dormant board was painted where the surface already is');
 
-  // --------------------------------------------------- and then it lets go
+  // --------------------------------------------------- and then it finishes
+  const order = Array.prototype.map.call(host.children, (n) => n.id || n.dataset.card
+    || n.dataset.slot || '?').join(',');
   await sleep(5200);                     /* past TYPE_ALL and the settle */
 
   !half()
     ? ok(name + ': the reply finishes and takes its scaffolding out of the lesson')
     : fail(name + ': the reply is still half painted');
-  at('writer') > at('0002')
-    ? ok(name + ': and only then does the surface come down past it')
-    : fail(name + ': the surface never came down after the reply finished');
+  Array.prototype.map.call(host.children, (n) => n.id || n.dataset.card
+    || n.dataset.slot || '?').join(',') === order
+    ? ok(name + ': and the last character changes NOTHING on the page — the '
+         + 'lesson is in the same order it was in while it typed')
+    : fail(name + ': the page was rearranged when the card finished, and that '
+           + 'rearrangement is what reads as the whole answer appearing at once');
 
-  const bad = moves.filter((m) => m.below && m.half);
-  !bad.length
-    ? ok(name + ': AND THE SURFACE WAS NEVER ONCE INSERTED BELOW A HALF PAINTED '
-         + 'REPLY (' + moves.length + ' move(s) watched)')
-    : fail(name + ': the surface was moved below a reply that was still being '
-           + 'painted, ' + bad.length + ' time(s) of ' + moves.length);
+  !moves.length
+    ? ok(name + ': AND THE SURFACE WAS NEVER MOVED AT ALL, from the frame the '
+         + 'reply landed to the last character of it')
+    : fail(name + ': the surface was inserted ' + moves.length + ' time(s) while '
+           + 'the reply arrived (indices ' + moves.join(',') + ', it was at '
+           + sat + ')');
 
   return { w: w, d: d };
 }
@@ -263,30 +276,16 @@ await flow('reduce motion', { reduceMotion: true });
 // arrives after it means the main thread was away. Letting go beats parking the
 // surface for ever -- that is not in question. What letting go used to MEAN is
 // the reported fault arriving out of its own safety valve: the rest of the card
-// was painted in one go and the surface came down in the same breath.
+// painted in one go and the board moving in the same breath.
 //
-// So a stall now finishes the card WHOLE and keeps a settle: the pacing is lost,
-// the order is not. Staged by starving the animation frame, which is the real
-// cause rather than a stand-in for it -- `typingUntil` lives inside board.js's
-// own closure, and reaching into it would test the variable instead of the
-// behaviour.
-//
-// ONE FRESH CARD IN THE PAYLOAD, WHICH IS WHAT MAKES THIS SHARP. The reply has
-// to be the only thing holding: with a second card still arriving, the surface
-// stays where it is for that card's sake and the assertion passes without ever
-// touching the stall. What is measured is the GAP -- the moment the card became
-// whole, against the moment the surface came down past it. Nothing else here can
-// tell "the answer, then the board" from "both at once".
+// Staged by starving the animation frame, which is the real cause rather than a
+// stand-in for it -- `typingUntil` lives inside board.js's own closure, and
+// reaching into it would test the variable instead of the behaviour.
 {
   const { w, d, es } = board(null);
   const u0 = Date.now() / 1000 - 600;
   const asked = { id: '0001', kind: 'question', title: 'Exercise 4.7',
                   body: 'Show that $L$ is countable.', mtime: u0 };
-  /* FEEDBACK, NOT A NEW QUESTION: the same exercise goes back for a revision, so
-     the surface is still owed and has somewhere to come down to, and the reply
-     is the only card arriving. That is the shape that makes the gap measurable
-     at all -- with a second card in flight the surface is held for ITS sake and
-     the stall is never reached. */
   const reply = { id: '0002', kind: 'wrong', title: 'the union, except f = 0',
                   body: REPLY.repeat(2), mtime: u0 + 120 };
   const ink = { id: 't0001', rev: 1, kind: 'ink', answers: '0001', t: u0 + 60,
@@ -316,21 +315,14 @@ await flow('reduce motion', { reduceMotion: true });
     return !!(b && b.querySelector('.tw-soon'));
   };
 
-  let wholeAt = null, movedAt = null;
   const host = d.getElementById('cards');
   const realInsert = host.insertBefore.bind(host);
-  const realAppend = host.appendChild.bind(host);
-  const watch = (n) => {
-    if (!n || n.id !== 'writer' || movedAt !== null) return;
-    if (at('0002') !== -1 && at('writer') > at('0002')) movedAt = Date.now();
+  const moves = [];
+  host.insertBefore = function (n, r) {
+    const out = realInsert(n, r);
+    if (n && n.id === 'writer') moves.push(at('writer'));
+    return out;
   };
-  host.insertBefore = function (n, r) { const o = realInsert(n, r); watch(n); return o; };
-  host.appendChild = function (n) { const o = realAppend(n); watch(n); return o; };
-  const poll = setInterval(function () {
-    if (wholeAt === null && d.querySelector('[data-card="0002"]') && !half()) {
-      wholeAt = Date.now();
-    }
-  }, 5);
 
   /* The thread goes away: one frame, arriving well past the watchdog. */
   w.requestAnimationFrame = (fn) => setTimeout(fn, 2700);
@@ -341,26 +333,94 @@ await flow('reduce motion', { reduceMotion: true });
     ? ok('stall: the card whose frames stopped coming is finished WHOLE rather '
          + 'than left half painted')
     : fail('stall: the card is still half painted after the watchdog let go');
-  movedAt === null
-    ? ok('stall: and the surface has NOT come down in the same breath, because '
-         + 'the hold moved to the settle instead of being given back')
-    : fail('stall: the rest of the card and the next board arrived as one event, '
-           + 'which is the reported fault coming out of its own watchdog');
+  at('0002') < at('writer')
+    ? ok('stall: and it is still above the board, so finishing it early moved '
+         + 'nothing and revealed nothing')
+    : fail('stall: the card is below the surface');
+  !moves.length
+    ? ok('stall: and the surface was never moved, which is what makes a lost '
+         + 'animation a lost animation rather than a jump')
+    : fail('stall: the surface moved ' + moves.length + ' time(s) when the '
+           + 'watchdog let go');
+}
 
-  await sleep(600);                      /* past TYPE_SETTLE */
+// ------------------------------------ AND A BOARD THAT IS NOT OPEN YET WAITS
+//
+// The other half of `placeWriter`, and the one the settle still exists for. With
+// no question owed there is no surface on the page, so there is nothing to hold
+// in place -- what must not happen is one APPEARING beside a card that arrived
+// in the same breath. `writerHeldShut` is that branch, and a stall is where it
+// used to be lost: the hold was given back on the late frame, so the board came
+// up in the same tick as the rest of the card.
+//
+// Measured as a GAP, because that is the thing being asked for: the card lands,
+// and then the board does.
+//
+// ONE FRESH CARD, AND IT IS THE QUESTION ITSELF -- which is what makes this
+// sharp rather than accidentally true. A question both types out AND is the
+// thing that is owed, so the only hold on the page is its own: give it back on
+// the late frame and the board comes up in the same tick as the last of the
+// card. With a second card still arriving the surface would wait for THAT and
+// the assertion would pass without ever touching the stall.
+{
+  const { w, d, es } = board(null);
+  const u0 = Date.now() / 1000 - 600;
+  const opening = { id: '0001', kind: 'lesson', title: '',
+                    body: 'We are counting polynomials tonight.', mtime: u0 };
+  const nextQ = { id: '0002', kind: 'question', title: 'your move',
+                  body: REPLY.repeat(2), mtime: u0 + 120 };
+  const frame = (cards) => JSON.stringify({
+    state: { course: 'Galois Theory', session: 'lecture', mode: 'math' },
+    cards: cards, turns: [], history: 0,
+    agent: { agent: 'claude', state: 'working', turns: 2, turn_started: u0 },
+  });
+
+  es.onmessage({ data: frame([opening]) });
+  await sleep(120);
+
+  const writer = () => d.getElementById('writer');
+  const half = () => {
+    const b = d.querySelector('[data-card="0002"] .body');
+    return !!(b && b.querySelector('.tw-soon'));
+  };
+
+  writer() && writer().hidden
+    ? ok('shut: with nothing owed there is no board on the page')
+    : fail('shut: a surface is open with no question to answer');
+
+  let wholeAt = null, openAt = null;
+  const poll = setInterval(function () {
+    if (wholeAt === null && d.querySelector('[data-card="0002"]') && !half()) {
+      wholeAt = Date.now();
+    }
+    if (openAt === null && writer() && !writer().hidden) openAt = Date.now();
+  }, 5);
+
+  w.requestAnimationFrame = (fn) => setTimeout(fn, 2700);
+  es.onmessage({ data: frame([opening, nextQ]) });
+  await sleep(2780);
+
+  !half()
+    ? ok('shut: a stalled card is finished whole')
+    : fail('shut: the card is still half painted');
+  writer().hidden
+    ? ok('shut: and the board has NOT come up in the same breath — the hold moved '
+         + 'to the settle rather than being given back')
+    : fail('shut: the board appeared in the same tick as the rest of the card, '
+           + 'which is the reported fault out of its own watchdog');
+
+  await sleep(900);
   clearInterval(poll);
 
-  movedAt !== null
-    ? ok('stall: and a beat later it comes down, so a hold that is lost is still '
-         + 'given back — parking the surface for ever is worse')
-    : fail('stall: the surface is parked, which is what the watchdog exists to '
-           + 'prevent');
-  movedAt !== null && wholeAt !== null && movedAt - wholeAt >= 100
-    ? ok('stall: and the gap between the card landing and the board arriving is '
-         + (movedAt - wholeAt) + 'ms — two events, one of which is no longer '
-         + 'pretty')
-    : fail('stall: the card and the board landed together ('
-           + (movedAt - wholeAt) + 'ms apart), which reads as one event');
+  writer() && !writer().hidden
+    ? ok('shut: and a beat later it opens, so a hold that is lost is still given '
+         + 'back — parking the page is worse')
+    : fail('shut: no board ever opened for the new question');
+  wholeAt !== null && openAt !== null && openAt - wholeAt >= 100
+    ? ok('shut: with ' + (openAt - wholeAt) + 'ms between the card landing and '
+         + 'the board arriving — two events, one of which is no longer pretty')
+    : fail('shut: the card and the board landed together ('
+           + (openAt - wholeAt) + 'ms apart), which reads as one event');
 }
 
 console.log(errors.length ? '\n' + errors.length + ' FAILURES'
