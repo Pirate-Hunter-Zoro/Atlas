@@ -284,10 +284,10 @@ DEFAULT_CONFIG = {
     # ---------------------------------------------------------------------
     # `tutor serve` submits a job that submits its own successor, so these are
     # the terms the board's machine is renewed on. The partition is the one
-    # decision in here with a wrong answer: see `serve_settings`, which says why
-    # a seven-day board on `c3` gets suspended and one on `c3_accel` does not.
-    "serve_partition": "c3_accel",
-    "serve_time": "7-00:00:00",
+    # decision in here with a wrong answer, and both seven-day partitions are
+    # wrong ones: see `serve_settings`, which has the measurements.
+    "serve_partition": "c3_short",
+    "serve_time": "09:00:00",
     "serve_cpus": 2,
     "serve_mem": "8G",
 }
@@ -3369,21 +3369,34 @@ def cmd_where(cfg, args):
 def serve_settings(cfg):
     """What one generation of the serving chain asks Slurm for.
 
-    `c3_accel` by default, and that is a measurement rather than a taste. Every
-    partition on this cluster that holds the ordinary compute nodes has a HIGHER
-    priority tier than the long one -- `c3_short` is tier 20, `c3` is tier 10 --
-    and `c3`'s PreemptMode is SUSPEND. So a seven-day board on `c3` is SIGSTOPped
-    by the first busy afternoon: the process is alive, the port is held, nothing
-    answers, and that is the one failure a pid check cannot see and a person
-    cannot diagnose. `c3_accel`'s node is in no higher-tier partition, so nothing
-    can suspend it, and two CPUs out of ninety-six for a week on a GPU node is a
-    rounding error nobody will come asking about.
+    `c3_short`, nine hours, and both halves of that are measurements.
+
+    The seven-day partitions are the ones a chain would rather have, and neither
+    can serve a board:
+
+    - `c3_accel`'s node has NO ROUTE TO TAILSCALE'S CONTROL PLANE. Measured, from
+      inside a job on compute306: github 200, api.anthropic.com 405, and
+      `controlplane.tailscale.com` reset at the first read, every time, while the
+      same request from compute301 answers 200 in a third of a second. A tutor
+      could teach from there; the iPad could not reach it, and the iPad is the
+      point.
+    - `c3` holds the nodes that do work, and `c3_short` OUTRANKS IT -- priority
+      tier 20 against 10 -- with `c3`'s PreemptMode set to SUSPEND under a GANG
+      scheduler. So a seven-day board there is SIGSTOPped, and time-sliced, by
+      the first busy afternoon: alive, holding its port, answering nothing, on a
+      node whose watch loop is frozen in the same cgroup. It is the one failure
+      nothing in here can see or report.
+
+    `c3_short` is the top tier, so nothing can preempt it, and its nine-hour
+    ceiling is the thing this whole chain exists to make irrelevant: a handover
+    costs the seconds the scheduler takes, about three times a day, and it is
+    automatic.
 
     Every value is a config key, because the day the cluster is rearranged this
     has to be answerable without a commit.
     """
-    return {"partition": cfg.get("serve_partition") or "c3_accel",
-            "time": cfg.get("serve_time") or "7-00:00:00",
+    return {"partition": cfg.get("serve_partition") or "c3_short",
+            "time": cfg.get("serve_time") or "09:00:00",
             "cpus": cfg.get("serve_cpus") or 2,
             "mem": cfg.get("serve_mem") or "8G"}
 

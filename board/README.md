@@ -1183,11 +1183,21 @@ worst possible moment. `tutor serve stop` writes `serve-stopped` in the state di
 then cancels the whole job name at once. `scancel -u $USER` also ends it, because that takes the
 queued successor with it.
 
-**The partition is the one setting in here with a wrong answer.** `c3_short` outranks `c3`
-(priority tier 20 against 10) and `c3`'s PreemptMode is SUSPEND, so a seven-day board on `c3` is
-SIGSTOPped by the first busy afternoon: alive, holding its port, answering nothing, which is the
-failure a pid check cannot see. `c3_accel`'s node is in no higher-tier partition. It is
-`serve_partition`, `serve_time`, `serve_cpus` and `serve_mem` in the config.
+**`c3_short`, nine hours, and both halves are measurements.** The seven-day partitions are the
+ones a chain would rather have and neither can serve a board:
+
+- **`c3_accel` has no route to Tailscale's control plane.** From inside a job on compute306:
+  github 200, `api.anthropic.com` 405, `controlplane.tailscale.com` reset at the first read, every
+  time — while the same request from compute301 answers 200. A tutor can teach from there; the
+  iPad cannot reach it, and the iPad is the point.
+- **`c3` is suspended by `c3_short`**, which outranks it (priority tier 20 against 10) with
+  `PreemptMode=SUSPEND` under a GANG scheduler. A seven-day board there is SIGSTOPped and
+  time-sliced by the first busy afternoon: alive, holding its port, answering nothing, on a node
+  whose watch loop is frozen in the same cgroup. It is the one failure nothing in here can see.
+
+`c3_short` is the top tier, so nothing preempts it, and its nine-hour ceiling is what the chain
+exists to make irrelevant — a handover costs the seconds the scheduler takes, about three times a
+day. All four are config keys: `serve_partition`, `serve_time`, `serve_cpus`, `serve_mem`.
 
 **The watch loop is what makes a death cost twenty seconds instead of an evening.** It revives a
 board whose pid is gone, stops and restarts one that is alive and has failed `/health` twice —

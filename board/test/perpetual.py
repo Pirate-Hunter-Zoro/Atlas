@@ -590,9 +590,11 @@ try:
     check("and it hands the job's batch shell straight to the tool, so the "
           "walltime signal reaches the thing that acts on it",
           "exec python3" in script and "serve inside" in script)
-    check("the defaults in it are a seven-day generation, on the one partition "
-          "nothing on this cluster can suspend",
-          "--time=7-00:00:00" in script and "--partition=c3_accel" in script)
+    check("its defaults are the partition that can actually serve a board and "
+          "the longest walltime that partition allows -- neither seven-day "
+          "partition can: c3_accel has no route to tailscale's control plane, "
+          "and c3 is suspended by c3_short, which outranks it",
+          "--time=09:00:00" in script and "--partition=c3_short" in script)
 
     # The one command that has to be findable without reading anything: after
     # `scancel -u $USER` there is nothing left of the chain, and that is the
