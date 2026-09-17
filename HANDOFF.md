@@ -74,6 +74,19 @@ thing, and only the person holding the iPad can strike those.
   `bash board/scripts/save-and-push.sh "message" -- <paths>`.
 - Commits carry no assistant trailers. `.githooks/commit-msg` strips them.
 
+**A session of its own is live on the serving chain, so leave it alone.**
+`tutor serve`, `tutor watch`, `tutorboard/supervise.py`,
+`slurm/tutor-serve.sbatch`, `test/perpetual.py` and the `serve_*` keys in
+`DEFAULT_CONFIG` are being worked on there. What has landed is under *Settled*
+below and in `board/README.md`; what is in flight is in neither, so reading the
+code is fine and editing any of those six is how two sessions produce one
+conflict. `board/bin/tutor` will move under you either way: pull before you
+start, and keep whatever your item needs in there small enough to rebase.
+Everything else in the tree is yours. **The chain is stopped on purpose** while
+that session works — `serve-stopped` is in the state directory, `tutor serve
+status` says so, and nothing but `tutor serve` clears it. This block comes out
+when that session ships.
+
 **`projects/libr-local-llm` has its own handoff and it is still the live one.**
 The five pieces it asked for against the board are shipped and are under
 *Settled* below; what is left in that file is the diarization job itself, which
