@@ -153,6 +153,25 @@ os.makedirs(os.path.join(course, "live"), exist_ok=True)
 sitting(course, session="lecture")
 check("and a course's is not", not tutorcli.doing_now(course))
 
+# A STEP HANDED OVER IS A DOING TURN INSIDE A COACHING SITTING, and the sitting
+# is left saying `coach` on purpose. So the state is right about the evening and
+# says the wrong thing about this one turn: only the signal it was woken with
+# can say, and it has to reach the clock as well as the prompt. A doing turn on
+# a teaching turn's fifteen minutes is a turn killed with files staged and
+# nothing committed.
+sitting(course, session="lecture", aim="coach")
+check("a coaching sitting is a teaching turn, as it was",
+      not tutorcli.doing_now(course))
+check("but the step it hands over is a doing turn",
+      tutorcli.doing_now(course, "handover"))
+CLOCK = {"headless_timeout": 900, "doing_timeout": 3600}
+check("so the handed-over step gets a doing turn's clock",
+      tutorcli.turn_timeout(CLOCK, course) == 900
+      and tutorcli.turn_timeout(CLOCK, course, None, "handover") == 3600)
+check("and every other signal leaves the clock where it was",
+      tutorcli.turn_timeout(CLOCK, course, None, "help") == 900)
+sitting(course, session="lecture")            # as the checks below expect it
+
 # ---------------------------------------------------------------------------
 # what the tutor is told about a sitting nobody chose a style for
 # ---------------------------------------------------------------------------
@@ -282,6 +301,74 @@ try:
     status, body = post("/aim", {"aim": "whatever"})
     check("and so is a word that is not an aim at all", status == 400)
     check("neither of those changed the sitting", repo.state().get("aim") == "teach")
+
+    # ----------------------------------------------------------------- one step
+    # THE WAY OUT OF ONE STEP OF COACHING, WITHOUT LEAVING IT. Everything the
+    # `/aim` block above guards has to hold here too, and one thing more: the
+    # sitting must still be a coaching sitting afterwards, or this is the escape
+    # it was built to replace wearing a smaller button.
+    status, body = post("/aim", {"aim": "coach"})
+    check("the sitting is a coaching one", repo.state().get("aim") == "coach")
+    turns_before = len(turns.load_turns(repo))
+    woke_before = len(woken)
+
+    status, body = post("/handover", {"card": "0009"})
+    check("a card that is not on the board is a miss, not a path",
+          status == 404 and not body.get("ok"))
+    status, body = post("/handover", {"card": "../../etc/passwd"})
+    check("and neither is anything shaped like a path", status == 404)
+    check("nothing was said to the tutor about either",
+          len(turns.load_turns(repo)) == turns_before)
+
+    status, body = post("/handover", {"card": "0003"})
+    check("the board takes the step",
+          status == 200 and body.get("ok") is True and body.get("card") == "0003")
+    check("THE SITTING IS STILL A COACHING SITTING",
+          repo.state().get("aim") == "coach")
+    check("the lesson is not filed away", not archive.list_archive(repo))
+    check("the cards are all still on the board",
+          len([n for n in os.listdir(repo.cards) if n.endswith(".md")]) == 3)
+    check("the tutor is not replaced", not replaced)
+    check("and nothing else about the sitting moved",
+          repo.state().get("chapter") == "The serve harness"
+          and repo.state().get("session") == "lecture")
+
+    sent = turns.load_turns(repo)[-1]
+    check("their tap is in the transcript as a turn of theirs",
+          sent.get("from") == "student" and sent.get("signal") == "handover")
+    check("and it names the card it handed over", sent.get("card") == "0003")
+    # `answers` means "the student answered that card", which is what gives a
+    # card a writing surface of its own. A step handed over is not an answer.
+    check("without claiming to be an answer to it", not sent.get("answers"))
+
+    with open(repo.messages_path, "r", encoding="utf-8") as fh:
+        lines = [json.loads(l) for l in fh if l.strip()]
+    line = lines[-1].get("text", "")
+    check("the line says what happened", line.startswith("[handover]"))
+    check("it says the step is theirs to write and no more",
+          "CARD 0003" in line and "ONLY ONE YOU WRITE" in line)
+    check("it says the sitting has not changed",
+          "carry on coaching" in line and "not a new tutor" in line)
+    check("it refuses the card that explains how the step was done",
+          "NOT A COACH CARD ABOUT THE STEP YOU JUST DID" in line)
+    check("and asks for the next step under the report", "THE NEXT STEP" in line)
+    # The sitting says `coach`, so nothing about the STATE would produce this.
+    check("THE TURN IS TOLD IT IS A DOING TURN, which the sitting does not say",
+          "THIS IS A DOING TURN" in line
+          and "DOING TURN" not in sense.session_sense(repo))
+    check("it still says what this sitting is",
+          config.AIM_MEANS["coach"] in line)
+    check("it arrives unread, or nothing wakes on it",
+          lines[-1].get("read") is False)
+    check("a turn is woken on it", len(woken) == woke_before + 1)
+
+    # Where the tutor is already writing the code there is nothing to hand over,
+    # and waking a turn to be told so is a model call somebody pays for.
+    post("/aim", {"aim": "build"})
+    status, body = post("/handover", {"card": "0003"})
+    check("a sitting that already writes the code has nothing to hand over",
+          status == 400 and "already writing" in (body.get("error") or ""))
+    post("/aim", {"aim": "teach"})
 
     # The board has to be able to SHOW which aim is in force, including when it
     # was never chosen -- resolved by the server, never re-derived in the client.

@@ -2081,6 +2081,34 @@ The waking is the half no file can do: a turn is a headless call, and only a
 `state.json` and stopping there changes nothing for the assistant that is
 mid-conversation.
 
+#### And one step of a coaching sitting can be handed over without leaving it
+
+`coach` names the calls and lets them type it, and changing the aim is a blunt
+way out of one step of that: it changes the whole sitting, and every card after
+it is written the new way. So a coach card carries a tap at its foot — *you do
+this step* — and **`POST /handover` hands over that step and nothing else.**
+Asked for as *"in coach coding mode, I still want to be able to have a 'fuck
+this, you do this step' option."*
+
+It is `POST /aim` with the part that changes the sitting taken out. `state.json`
+is not touched: the aim still says `coach`, nothing is archived, no tutor is
+replaced, and the card that comes back is a short report of that step with the
+next one posed under it. **Never a coach card about the step just done** — a
+card explaining how it was done is a lecture nobody asked for, and the person's
+next act is the next step. `TEACHING.md` holds that rule.
+
+**Offered on the newest card only**, because that is the step: the ones above it
+have already been typed. Refused where the tutor is already writing the code,
+where the tap would mean nothing and waking a turn costs real money.
+
+**The signal reaches the clock as well as the prompt**, and that is the half
+that is easy to miss. `doing_now` answers *is this a turn that writes code* from
+the SITTING, and the sitting says `coach` on purpose — so a handed-over step
+would get a teaching turn's fifteen minutes for work that stages files and runs
+a suite. `bin/tutor` takes the inbox line's signal, so the turn runs on a doing
+turn's hour, and `sense.session_sense(repo, doing=True)` tells it the order to
+work in: the sentence, the work, the report over the top of it.
+
 #### Every sitting has a style, including the ones nobody chose one for
 
 `tutor galois`, `board open`, a chapter tapped in the contents drawer and a board

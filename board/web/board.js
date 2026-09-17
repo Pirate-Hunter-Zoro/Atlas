@@ -1059,7 +1059,13 @@ function render(data) {
     var oneOf = (item.turn && item.turn.kind === "text" && item.turn.answers)
       ? (typedOn[item.turn.answers] || []) : [];
     var nth = oneOf.length > 1 ? oneOf.indexOf(item.turn.id) + 1 : 0;
-    var wantKey = stamp + (item.card ? ""
+    /* Whether this card is the step on offer is part of its identity too, for
+       the same reason the verdict is part of a turn's: the aim can change under
+       a card nothing else touched, and a node kept because its key had not
+       moved would keep a button the sitting no longer offers -- or go on
+       lacking one it now does. */
+    var offer = !!item.card && coaching && item.card.id === thisStep;
+    var wantKey = stamp + (item.card ? (offer ? ":h" : "")
       : (onBoard ? ":b" : "") + (says ? ":v" + says : "")
         + (nth ? ":n" + nth + "/" + oneOf.length : ""));
     if (onScreen[wantKey]) {
@@ -1085,7 +1091,7 @@ function render(data) {
       node.innerHTML = head + '<div class="body"></div>';
       if (shown) node.querySelector(".card-title").textContent = shown;
       node.querySelector(".body").innerHTML = renderMarkdown(c.body || "");
-      if (coaching && c.id === thisStep) {
+      if (offer) {
         var over = document.createElement("button");
         over.type = "button";
         over.className = "hand-over";

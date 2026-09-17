@@ -805,6 +805,21 @@ body[data-mode="auto"].sys-dark .figure img { filter: invert(1) hue-rotate(180de
 }
 .to-board:hover { color: var(--ink); border-color: var(--ink-3); }
 
+/* One step of a coaching sitting, handed over. It sits at the foot of the step
+   it is about and is deliberately quiet: the card is the thing to read, and a
+   button that competes with it is a button that gets tapped instead of the
+   step being attempted. */
+.hand-over {
+  display: inline-block; margin-top: .6rem;
+  font-family: var(--ui); font-size: .74rem;
+  color: var(--ink-3); background: none;
+  border: 1px dashed var(--rule); border-radius: .35rem;
+  padding: .3rem .55rem; min-height: 1.9rem;
+  cursor: pointer;
+}
+.hand-over:hover { color: var(--ink); border-color: var(--ink-3); }
+.hand-over:disabled { opacity: .5; cursor: default; }
+
 /* ---------- end of session ---------- */
 .finish, .pushed, .linkbad, .tutorbad, .hwbar, .newver {
   display: flex; align-items: center; gap: .8rem;
