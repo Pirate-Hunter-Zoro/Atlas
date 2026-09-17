@@ -3115,8 +3115,21 @@ def cmd_where(cfg, args):
         try:
             with open(os.path.join(live, "agent.json"), "r", encoding="utf-8") as fh:
                 st = json.load(fh)
-            agent = ("%s %s" % (st.get("agent"), st.get("state"))) \
-                if processes.agent_is_attached(st, host) else "stale"
+            if processes.agent_is_attached(st, host):
+                agent = "%s %s" % (st.get("agent"), st.get("state"))
+            elif processes.agent_attached_away(st, st.get("host")):
+                # A TUTOR ON ANOTHER NODE IS NOT A STALE RECORD.
+                #
+                # This asked one question -- is that pid alive HERE -- so a
+                # daemon listening perfectly well on the node the board is on
+                # read as `stale` from the machine the person types on, which is
+                # the machine they type `tutor where` on. The heartbeat is what
+                # can be checked across a shared filesystem, and it is checked
+                # the same way the repair does it.
+                agent = "%s %s on %s" % (st.get("agent"), st.get("state"),
+                                         st.get("host"))
+            else:
+                agent = "stale"
         except (OSError, ValueError):
             pass
         print("  %-24s board:%-10s agent:%s" % (c.get("name") or c["dir"], board_up, agent))
