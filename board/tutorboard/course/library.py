@@ -31,6 +31,7 @@ THE FENCE IS THE SAME ONE. `fenced.refused` on the whole path, and
 Standard library only, like everything else.
 """
 
+import hashlib
 import os
 import re
 import subprocess
@@ -233,7 +234,14 @@ def _ident(rel, stem, taken):
     return out
 
 
-def _record(root, rel, stem, formats, taken):
+def _offered(formats):
+    """The source and the PDF of one stem, or None if it is not a document.
+
+    WHAT MAKES A STEM A DOCUMENT, IN ONE PLACE. `_record` builds a record from
+    this and `stamp` hands out ids from it, and the two have to agree exactly:
+    an id the stamp invented for a stem the list does not offer is an id the
+    page would ask about and never be answered.
+    """
     src = formats.get(".tex") or formats.get(".md") or ""
     pdf = formats.get(".pdf") or ""
     if not src and not pdf:
@@ -241,6 +249,14 @@ def _record(root, rel, stem, formats, taken):
     # A PDF nobody here wrote the source of, and small enough to be a figure.
     if not src and _size(pdf) < MIN_PDF_BYTES:
         return None
+    return src, pdf
+
+
+def _record(root, rel, stem, formats, taken):
+    pair = _offered(formats)
+    if not pair:
+        return None
+    src, pdf = pair
     title, kind = _from_source(src, stem)
     where = "" if rel in (".", "") else rel.replace(os.sep, "/")
     built = _mtime(pdf)
@@ -313,6 +329,55 @@ def forget():
     """Drop the cache. For a test that writes a document under the process."""
     _cache.clear()
     _PAGES.clear()
+
+
+# ---------------------------------------------------------------------------
+# HAS ANYTHING MOVED? -- the cheap question, asked often
+# ---------------------------------------------------------------------------
+# A revision is dispatched in the same request that files the note, and then the
+# page went silent: `load()` ran after a send and on `visibilitychange`, and the
+# open reader never re-fetched at all. So the deck was rebuilt on disk and the
+# only thing that ever changed on the glass was a line saying the note was
+# filed.
+#
+# A STAMP, NOT A SUBSCRIPTION. The hub's SSE payload is the LESSON's -- this
+# page opens no sitting on purpose, and putting a sitting's stream on it would
+# undo the one rule it exists to keep. So the page asks a question small enough
+# to ask every few seconds, and `/library.json` stays the expensive answer it
+# already is: that one walks the workspace, reads titles out of sources and runs
+# `pdfinfo` per PDF, which is why it is cached for `CACHE_SECONDS`.
+#
+# WHAT IS IN IT, AND WHAT IS NOT. Where each document is, when its source and
+# its PDF last changed, and how big they are -- `stat` and nothing else. No
+# titles, no page counts, no notes: a note being filed must not move the stamp,
+# or the page redraws on its own feedback. And the source is in it beside the
+# PDF because a revision that edits the `.tex` and fails to rebuild has still
+# changed the row -- that document is stale now, and the list says so.
+#
+# PER DOCUMENT AS WELL AS OVERALL. The overall hash answers "ask for the list
+# again"; the per-document one answers "the document being read is the one that
+# moved, so redraw it" -- and redrawing a 33-page deck because a different
+# document was rebuilt is its own defect.
+def stamp(root):
+    """Where every document is and when it last changed. Stats only."""
+    taken, docs, lines = set(), {}, []
+    for (rel, stem), formats in _walk(root):
+        pair = _offered(formats)
+        if not pair:
+            continue
+        src, pdf = pair
+        ident = _ident(rel, stem, taken)
+        taken.add(ident)
+        one = "|".join(
+            "%s@%d:%d" % (os.path.relpath(p, root).replace(os.sep, "/"),
+                          int(_mtime(p) * 1000), _size(p))
+            for p in (src, pdf) if p)
+        docs[ident] = hashlib.sha1(one.encode("utf-8")).hexdigest()[:12]
+        lines.append(ident + " " + one)
+        if len(docs) >= MAX_DOCS:
+            break
+    whole = hashlib.sha1("\n".join(lines).encode("utf-8")).hexdigest()[:16]
+    return {"ok": True, "stamp": whole, "documents": docs}
 
 
 def find(root, ident_wanted):
@@ -438,6 +503,50 @@ def notes(root, doc):
         out.append({"name": n, "at": _mtime(p), "size": _size(p),
                     "day": m.group("day"), "v": int(m.group("n"))})
     out.sort(key=lambda x: (x["day"], x["v"]))
+    return out
+
+
+# HOW MUCH OF A ROUND IS READ BACK. A note is a paragraph and a list of marked
+# pages; the `## What was changed` the turn appends to it is the longest part and
+# is the half worth reading. Bounded anyway, because this is a file a turn writes
+# and a turn that loops writes a large one.
+NOTE_BYTES = 200000
+
+
+def note_text(root, doc, name_wanted):
+    """One round of feedback on one document, as text.
+
+    WHY THIS EXISTS. The revision turn writes `## What was changed` at the
+    bottom of the feedback file, and that is the answer to *did it do what I
+    asked* -- while `notes` returns names, sizes and dates and not a word of the
+    contents. So the page could say a document had had three rounds and could
+    not say what any of them did, and the record lived in a file the iPad cannot
+    open.
+
+    A NAME OUT OF `notes`, NEVER A PATH. What arrives from the browser is
+    compared against the names this module found beside this document, and a
+    miss is a miss -- the rule `find` holds for an id, one level down. Nothing
+    here joins a name from a browser onto a directory.
+    """
+    wanted = str(name_wanted or "").strip()
+    found = None
+    for rec in notes(root, doc):
+        if rec["name"] == wanted:
+            found = rec
+            break
+    if not found:
+        return {"ok": False, "error": "no such round of feedback on this document"}
+    path = os.path.join(feedback_dir(root, doc), found["name"])
+    try:
+        with open(path, "r", encoding="utf-8", errors="replace") as fh:
+            text = fh.read(NOTE_BYTES)
+    except OSError as exc:
+        return {"ok": False, "error": "could not read %s: %s" % (found["name"], exc)}
+    out = dict(found)
+    out.update({"ok": True, "document": doc["id"], "title": doc["title"],
+                "rel": os.path.relpath(path, root).replace(os.sep, "/"),
+                "text": text,
+                "truncated": _size(path) > NOTE_BYTES})
     return out
 
 
@@ -580,7 +689,35 @@ def _handed_over(repo, found):
             continue
 
 
-def write_note(repo, ident_wanted, text, page=0):
+# THE TWO ASKS, AND THEY ARE NOT THE SAME DOCUMENT AFTERWARDS.
+#
+# `revise` is a correction: the structure, the names for things and the claims
+# stand, and what the note points at changes. That is the right answer to
+# "figure 3 is mislabelled" and it is the wrong answer to "that presentation
+# needs an overhaul now that we plan to use colibri" -- and the prompt a
+# revision is woken with says outright *do not start it again and do not widen
+# it*, so until there was a second ask the only route to an overhaul was a
+# terminal.
+#
+# `rework` may restructure, cut, reorder and rewrite. What it requires in
+# exchange is a sentence saying what the document is now FOR: that is
+# `/direction`'s shape one level down, and an overhaul with no new purpose in it
+# is a rewrite for its own sake.
+ASKS = ("revise", "rework")
+
+# HOW SHORT A PURPOSE MAY BE. Not a validation for its own sake: "make it
+# better" is the sentence this refusal exists to catch, and a turn handed that
+# is a turn choosing the document's purpose on its own.
+PURPOSE_LEAST = 25
+
+
+def clean_ask(ask):
+    """Which of the two asks this is. Anything unrecognised is a correction."""
+    want = str(ask or "").strip().lower()
+    return want if want in ASKS else "revise"
+
+
+def write_note(repo, ident_wanted, text, page=0, ask="revise", purpose=""):
     """One round of feedback on one document. Returns a record to paint.
 
     The note says which document and which page it is about, because it is read
@@ -592,14 +729,26 @@ def write_note(repo, ident_wanted, text, page=0):
     the board asking somebody to type out what they have already drawn. The ink
     goes into the note as the pages it is on and the picture of each, because
     the strokes are coordinates and the image is what a reader can open.
+
+    A REWORK IS THE SAME FILE AND THE SAME ROUNDS. It is a longer turn rather
+    than a different kind of record, so it lands where a correction lands and is
+    read back the same way -- with the purpose it was given as its own section,
+    because that sentence is the thing the turn is working to.
     """
     root = repo.root
     doc = find(root, ident_wanted)
     if not doc:
         return {"ok": False, "error": "no such document"}
+    ask = clean_ask(ask)
     said = (text or "").strip()
+    aim = (purpose or "").strip()
     found = marks(repo, doc)
-    if not said and not found:
+    if ask == "rework" and len(aim) < PURPOSE_LEAST:
+        return {"ok": False,
+                "error": "say what the document is FOR now, in a sentence -- an "
+                         "overhaul with no new purpose in it is a rewrite for "
+                         "its own sake"}
+    if ask == "revise" and not said and not found:
         return {"ok": False, "error": "say what is wrong with it, or mark it up"}
     target = next_note(root, doc)
     try:
@@ -607,17 +756,26 @@ def write_note(repo, ident_wanted, text, page=0):
     except OSError as exc:
         return {"ok": False, "error": "could not make %s: %s"
                                       % (os.path.dirname(target), exc)}
-    head = ["# Feedback on %s" % doc["title"], "",
+    head = ["# %s %s" % ("Rework of" if ask == "rework" else "Feedback on",
+                         doc["title"]), "",
             "- document: `%s`" % (doc["rel"]),
-            "- written: %s" % time.strftime("%Y-%m-%d %H:%M")]
+            "- written: %s" % time.strftime("%Y-%m-%d %H:%M"),
+            "- ask: %s" % ask]
     if page:
         head.append("- about page %d" % int(page))
     if found:
         head.append("- marked up on %d page%s"
                     % (len(found), "" if len(found) == 1 else "s"))
     head += ["", said or
-             "They wrote on it rather than typing. The marks are the feedback.",
+             ("There is nothing wrong with it in particular. What it is for has "
+              "changed." if ask == "rework" else
+              "They wrote on it rather than typing. The marks are the feedback."),
              ""]
+    if aim:
+        head += ["## What this document is FOR now", "",
+                 "THIS IS THE OVERHAUL'S BRIEF, and it outranks the document's "
+                 "present shape. Restructure, cut, reorder and rewrite as this "
+                 "requires.", "", aim, ""]
     if found:
         head += ["## What they marked", "",
                  "Each line is one page of this document with their ink on it. "
@@ -640,6 +798,7 @@ def write_note(repo, ident_wanted, text, page=0):
     return {"ok": True, "document": doc["id"], "path": target,
             "rel": os.path.relpath(target, root).replace(os.sep, "/"),
             "made": doc["made"], "title": doc["title"],
+            "ask": ask, "purpose": aim,
             "marks": len(found)}
 
 

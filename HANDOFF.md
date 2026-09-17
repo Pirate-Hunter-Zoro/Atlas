@@ -7,10 +7,12 @@ work, reading a document, marking it up, complaining about it — is a tap.
 
 **Most of the pieces are in and none of them has been used in anger.** A document
 can be written up, listed, read on the glass, marked up, complained about in
-words or in ink, and revised by whichever machinery made it. A student's own
-answer carries its verdict and every attempt they typed is kept. The local model
-can be chosen for a sitting, started from the glass, watched through four states,
-and handed a job in a workspace nobody is looking at.
+words or in ink, corrected or overhauled by whichever machinery made it, and
+re-drawn in front of you where you were reading it, with what each round changed
+readable on the glass. A student's own answer carries its verdict and every
+attempt they typed is kept. The local model can be chosen for a sitting, started
+from the glass, watched through four states, and handed a job in a workspace
+nobody is looking at.
 
 **What is left is what still sends somebody to a keyboard**, and that is the next
 section.
@@ -50,9 +52,9 @@ An item is not done because its code runs. It is done when the suite is green,
 the rule is written where the next turn will read it, and the item is out of this
 file.
 
-**Two of them are not builds and do not come out this way.** Item 6's last part
+**Two of them are not builds and do not come out this way.** Item 5's last part
 is a standing rule — it lands in `TEACHING.md` and `sense.py` and then it is a
-*Settled* entry like anything else. Item 8 is a list of evenings in front of the
+*Settled* entry like anything else. Item 7 is a list of evenings in front of the
 thing, and only the person holding the iPad can strike those.
 
 ---
@@ -90,7 +92,7 @@ when that session ships.
 **`projects/libr-local-llm` has its own handoff and it is still the live one.**
 The five pieces it asked for against the board are shipped and are under
 *Settled* below; what is left in that file is the diarization job itself, which
-is item 9 here.
+is item 8 here.
 
 ---
 
@@ -106,125 +108,25 @@ opened for any reason other than typing code a card told you to type is an
 evening this failed.** Everything in this section is a thing that still sends
 somebody to a keyboard.
 
-**A mission is finished work and is Settled below**, both halves of it: the
-record, and being able to tell one to ship itself. Item 1 is where a document is
-corrected; item 2 is where a lesson turns into one, so those two are worth
-reading together. Items 3 and 4 are both the answer panel and are independent of
-everything: 3 is which half of it opens and what is in the box, 4 is what the box
-renders, and 3 is first because it is the small one and is a complaint from a
-live sitting. Item 5 is the meeting deck, which reuses item 1's reader and
-deliberately does NOT reuse its feedback route. Item 6 is the map, and the last
-part of it is a standing rule rather than a task. Item 7 is item 6's other half
-and must land after it, because the refactor renames the boxes its TODOs are
-attached to. Item 8 is the verdict a person can feel, and it settles a question
-item 10 has been holding open. Item 9 is the acceptance test of the mission and
-is also the job all of it exists for. Item 10 is not a build.
+**A mission is finished work, and so is correcting or overhauling a document
+without leaving the page it is on. Both are Settled below.** Item 1 is where a
+lesson turns into a document, which is the other end of that loop. Items 2 and 3
+are both the answer panel and are independent of everything: 2 is which half of
+it opens and what is in the box, 3 is what the box renders, and 2 is first
+because it is the small one and is a complaint from a live sitting. Item 4 is the
+meeting deck, which reuses the library's reader and deliberately does NOT reuse
+its feedback route. Item 5 is the map, and the last part of it is a standing rule
+rather than a task. Item 6 is item 5's other half and must land after it, because
+the refactor renames the boxes its TODOs are attached to. Item 7 is the verdict a
+person can feel, and it settles a question item 9 has been holding open. Item 8
+is the acceptance test of the mission and is also the job all of it exists for.
+Item 9 is not a build.
 
 ---
 
 ## What to do next
 
-### 1. A document is corrected, or overhauled, without leaving the page it is on
-
-**The want, and it was asked as a question:** *"let's say I'm working in
-PSYCH-ASR, and want to view the presentation on stage2. That presentation needs
-an overhaul now that we plan to use colibrì. But can I view it in a slick UI very
-easily, and complain to the tutor/agent about things about it that need to be
-fixed, and will the tutor just fix, recompile, and make that fix and it'll appear
-right in front of me?"*
-
-**Most of that chain already answers yes, and it was checked rather than
-assumed.** `/library` finds that deck — `docs-stage2-reference-walkthrough`, *Did
-the Computer Hear It Right?*, 33 pages, `.pdf` beside `.tex`, not stale — and the
-fence does not catch it, because `fenced.NEVER` matches a DIRECTORY named
-`stage2` and this is a stem in `docs/`. It reads in the same rasteriser the board
-uses, takes ink, and `POST /library/feedback` writes the note and dispatches the
-revision in the same request. It is not a Paper-Writer document, so the board
-takes it: a `[revise]` line, a fresh turn that writes no card, and
-`HEADLESS_REVISE_PROMPT` telling it to edit the source **and rebuild the PDF**,
-which the tutor's own grants allow.
-
-**Three things answer no, and each is a missing piece rather than a missing
-mechanism.**
-
-**(a) It does not appear in front of you.** `library.js` does not poll: `load()`
-runs after a send and on `visibilitychange`, and the open reader never re-fetches
-at all. The render cache is keyed on the PDF's modification time — `paper._digest`
-— so a re-fetch WOULD get the new pages. Nothing asks for one.
-
-*Want.* The page says a revision is in flight, and re-draws when it lands.
-`test/hanging.js`'s charter is *"nothing the reader can be waiting on is allowed
-to be silent"*, and this page has no version of it: you send, and the only thing
-that ever changes is a line saying the note was filed.
-
-*Where, and do not reach for the stream.* A stamp, not a subscription:
-`GET /library/stamp` returning one hash of every document's `rel`, mtime and size
-is cheap enough to ask every few seconds while the page is visible, where
-`/library.json` walks the workspace and reads titles out of sources (cached 30 s
-in `CACHE_SECONDS`). **Do not put the hub's SSE payload on this page.** It opens
-no sitting on purpose, and that payload is the lesson's.
-
-*And the reader keeps the reader's place.* `read(doc)` sets
-`els.readerPages.scrollTop = 0` and rebuilds every page. A re-draw that throws a
-33-page deck back to page 1 after a one-line fix is its own defect.
-
-*Decide: what happens to the ink.* Marks are keyed `doc/<id>/p<n>` and come back
-with the pages through `library.ink`. After a correction that is right. After an
-overhaul that reflows the deck, the ink on page 7 is about something that is no
-longer on page 7. Either it is cleared when the page count moves, or it is kept
-and the page says out loud that it was drawn on an older version. Both are
-defensible; choosing by accident is not.
-
-**(b) You cannot read what it says it changed.** The turn appends
-`## What was changed` to the feedback file, which is the answer to *did it do what
-I asked* — and `library.notes` returns names, sizes and dates, not a word of the
-contents. So the page can say a document has had three rounds and cannot say what
-any of them did, and the record lives in a file the iPad cannot open.
-
-*Want.* `GET /library/note/<id>/<name>`, and the rounds already listed under each
-document become readable. An id and a name matched against what `library.notes`
-found, never a path from the browser — the rule the rest of that route follows.
-
-**(c) An overhaul is refused by design, and that refusal is correct.**
-`HEADLESS_REVISE_PROMPT` says to keep the document's structure, its names for
-things and its claims: *"Do not start it again and do not widen it."* That is
-exactly right for a correction and exactly wrong for *"that presentation needs an
-overhaul now that we plan to use colibrì."* There is no second ask, so the only
-route to an overhaul today is a terminal.
-
-*Want.* Two asks from one panel. **Fix this** is what exists. **Rework it** is
-new: the same feedback file and the same record, a `[rework]` signal, and a
-prompt that may restructure, cut, reorder and rewrite. It requires a sentence
-saying what the document is now FOR, which is `/direction`'s shape one level
-down — an overhaul with no new purpose in it is a rewrite for its own sake.
-
-Two things a rework must do that a revision does not:
-
-- **Stay a library turn.** No card, no sitting, no `state.json`. The charter of
-  this page is that correcting a deck cannot interrupt somebody's proof, and an
-  overhaul is a longer turn rather than a different kind of interruption. **Do
-  not route it through a `make` sitting:** every path into one calls `board
-  open`, which archives the lesson.
-- **Commit the source before it starts.** An overhaul replaces thirty-three pages
-  and git is the only undo there is. `docs/*.tex` is tracked, so one commit of
-  the source before the turn touches it makes the whole overhaul one diff. A
-  rework against an uncommitted source is refused by name, the way
-  `worktree.busy_reason` refuses a push mid-rebase.
-
-**Check.** `test/library.py` owns discovery and the note; `test/revising.py` owns
-which machinery takes which document. Assert: the stamp moves when a PDF is
-rebuilt and not otherwise; a re-draw keeps the page the reader was on; `## What
-was changed` is readable through the route and a name that is not in
-`library.notes` is refused; a `[rework]` line reaches the inbox carrying the new
-purpose, and the prompt that turn is given does **not** contain the do-not-widen
-sentence; and a rework against an uncommitted source is refused rather than
-started.
-
-**And the half no test reaches:** whether that reader is in fact *slick* on a
-tablet. It is two taps from the board — `▤ library · papers & decks` in the bar
-menu — and no person has read a real document on it. That is item 4.
-
-### 2. Any sitting can be asked for a paper OR a deck of what it covered, at any moment
+### 1. Any sitting can be asked for a paper OR a deck of what it covered, at any moment
 
 **The want, and it was asked as a question:** *"let's say I open up libr-local-llm
 and I want to learn how colibrì works. Can I have a tutoring session where I'm
@@ -306,7 +208,7 @@ sections on the board one at a time, because there the document IS the evening;
 that stays exactly as it is, for a paper and for a deck. One asked for
 **alongside** a lesson must not push the lesson off the glass — so it lands in
 the library, the board says it is being written and says when it is there, and
-correcting it is item 1's loop. Take that deliberately rather than by streaming
+correcting it is the library's own loop. Take that deliberately rather than by streaming
 sections, or slides, into a transcript somebody is mid-proof in.
 
 **(c) The default style fights the ask, in this workspace above all.**
@@ -344,7 +246,7 @@ a walkthrough, where the aim row does not appear. `test/walk.py` owns what is
 offered: assert that a `#!` script with no suffix is walkable and that a README
 still is not.
 
-### 3. The answer panel opens on the half you used last, and a typed box is never pre-filled
+### 2. The answer panel opens on the half you used last, and a typed box is never pre-filled
 
 **The want, in their words:** *"the spot for the next user response defaults to
 the 'typed' response, even if the last response that I gave was a board-written
@@ -401,7 +303,7 @@ twin.** Three things can put text in `#saybox` and they are not equal:
   survives a reload. **Keep it.** That is not carrying over; that is not losing
   work.
 - `restoreTextAnswer` loads the question's last SENT typed answer back into the
-  box and sets `correctingTurn`. **This is the one to move.** Item 4 wants that
+  box and sets `correctingTurn`. **This is the one to move.** Item 3 wants that
   answer visible as a rendered block above the box rather than as raw source
   inside it, and a tap on that block is what loads it back for correction. Until
   6 lands, the box is still where a correction is made — so this is a decision
@@ -419,7 +321,7 @@ sitting with `stance_now: "do"` opens on the box and one with `"teach"` opens on
 the board, whatever localStorage holds; a tab press still wins on the question it
 was pressed on; and a question with no draft of its own opens with an empty box.
 
-### 4. The answer box renders as it is typed, and what was sent stays where it was typed
+### 3. The answer box renders as it is typed, and what was sent stays where it was typed
 
 **The want, in two messages:** *"when I'm typing a response to a tutor, I want to
 be able to type latex commands in the typing box — like \gamma, etc. — and have
@@ -502,10 +404,10 @@ mathematics and prose rather than as source, and the box under it is empty and
 ready for the next thing. A second answer pushes the first up, the way a second
 page of ink gets a second board.
 
-*And item 3(c) is waiting on exactly this.* The box is pre-filled with the last
+*And item 2(c) is waiting on exactly this.* The box is pre-filled with the last
 sent answer today because the box is the only place a correction can be made.
 Moving the answer to a block above it is what lets the box be empty, which is the
-rule item 3 states and cannot finish on its own.
+rule item 2 states and cannot finish on its own.
 
 *And this is the same build as (a), not a second one.* One rendered block above
 the box: a **preview** of what is being typed before the send, and the **record**
@@ -557,7 +459,7 @@ because the renderer parks math and code before any markdown parsing and
 restores it afterwards, and every change to it needs a case proving that still
 holds.
 
-### 5. The meeting deck: one at a time, annotated for DIRECTION rather than for correction
+### 4. The meeting deck: one at a time, annotated for DIRECTION rather than for correction
 
 **The want.** *"I have generally two — sometimes three — meetings per week to talk
 about my research… We should somehow be keeping track of our most recent updates
@@ -695,7 +597,7 @@ trap — a mark on a meeting deck produces a direction PROPOSAL on that workspac
 board and does **not** write a feedback file, does not archive anything, and does
 not replace any assistant.
 
-### 6. Three doors, then a family, then a diagram that explains the project
+### 5. Three doors, then a family, then a diagram that explains the project
 
 **The complaint, and it is about all three levels at once.** *"It's just an ugly
 grid of projects in an inner box that has wacky zooming. On the homescreen, I want
@@ -825,9 +727,9 @@ three surfaces, that the top two are not planes, and that `atlas.json`'s blurbs
 reach the glass. `test/walk.py` owns what is walkable, and gains vendor. And
 `test/teaching.py` for the standing rule, in the two places it has to agree.
 
-### 7. A sitting belongs to ONE component, and leaving it is a new sitting
+### 6. A sitting belongs to ONE component, and leaving it is a new sitting
 
-**The want, and it is item 6's other half.** *"When a tutoring session is
+**The want, and it is item 5's other half.** *"When a tutoring session is
 launched, that should happen from tapping on the particular component of that
 project/course/research-project map. There should be TODOs present, each
 corresponding with some component. The tutoring session should be AWARE of what
@@ -892,7 +794,7 @@ retrieval component"* is an instruction to a person holding a tablet, which is t
 same defect as *"two words to add when you write it up."* Every place already has
 an ADDRESS (§2.1) and the board already renders one as something you can open, so
 the card names the box by its address and the tap opens the sitting there. With
-item 6's diagram, the boundary it is pointing at is also visible.
+item 5's diagram, the boundary it is pointing at is also visible.
 
 *Decide: what happens when that box has no TODO.* The want says *"which should
 hopefully have a TODO associated with it"* — hopefully is doing a lot of work
@@ -904,8 +806,8 @@ first card asks. **Proposing it is better and is barely more work**, because the
 discovery is the valuable part and it is lost otherwise.
 
 **(c) And the refactor will move every box, which is the ordering constraint.**
-Item 6 rewrites what a component IS — from a directory to a thing in a diagram —
-and the TODOs are attached by path. So: item 6 first, then this. Doing them the
+Item 5 rewrites what a component IS — from a directory to a thing in a diagram —
+and the TODOs are attached by path. So: item 5 first, then this. Doing them the
 other way round means attaching the plan to boxes that are about to be renamed.
 
 **Check.** `test/map.py` owns *"the map is of the content, and none of it is
@@ -917,7 +819,7 @@ pretending to a focus it has not got. `test/teaching.py` for the rule itself, in
 both places it has to agree. And the hand-off card's address is `test/address.js`'s
 subject: assert the box it names opens.
 
-### 8. A verdict you can feel: dopamine for right, playful frustration for wrong
+### 7. A verdict you can feel: dopamine for right, playful frustration for wrong
 
 **The want.** *"dopamine for the user when they answer correctly, and playful
 frustration when they answer incorrectly. When we're in the context of the user
@@ -951,7 +853,7 @@ holding the working. **It is not painted on the card.** The card takes its band
 from its own KIND instead — so for the not-right-or-wrong reply the answer says
 amber and the card says `--ink-3`, which is grey.
 
-*And this answers a question that has been sitting open.* Item 10 asks whether
+*And this answers a question that has been sitting open.* Item 9 asks whether
 green on the answer and a tick on the card a finger's width apart is the same
 thing said twice. The want above settles it: **the response carries the band.**
 The answer keeps a quieter version of it, and one of the two is the moment while
@@ -1017,7 +919,7 @@ grey, and that a `lesson` card which is not replying to anything stays plain.
 `prefers-reduced-motion` on; assert there that the colour and the mark are both
 still on the glass with every animation refused.
 
-### 9. Put colibrì on the diarization repair, which is what all of the above is for
+### 8. Put colibrì on the diarization repair, which is what all of the above is for
 
 It is now the acceptance test of a mission — the record and the ship both — as
 well as the job that has been waiting since before any of this existed. **The
@@ -1044,7 +946,7 @@ Three things about running it that are the board's rather than that file's:
 `research/PSYCH-ASR/HANDOFF.md` holds the *teaching* thread on the same code; it
 is a different conversation and the two do not merge.
 
-### 10. And the three things no test can hold
+### 9. And the three things no test can hold
 
 None of these is a build. Each is an evening in front of the thing.
 
@@ -1054,18 +956,18 @@ None of these is a build. Each is an evening in front of the thing.
   *answer 2 of 3* is useful or is a number on a bubble that did not need one —
   the `nth` clause in `render`, and one line to remove. (The other question this
   bullet used to ask — whether green on the answer and a mark on the card is the
-  same thing said twice — is answered in item 8: the response carries the band.)
-- **One document, all the way round** — item 1 is the build; this is the evening.
+  same thing said twice — is answered in item 7: the response carries the band.)
+- **One document, all the way round** — the build is Settled; this is the evening.
   Open a `paper` sitting on a box, let it write into `writeups/<slug>/`, compile
   it, open `/library`, read it on the glass, draw on it, and say something is
   wrong with it. Four things no suite reaches: **the content/scope split against a
-  model** — item 2 lets the evening be the scope, and whether a tutor holding
+  model** — item 1 lets the evening be the scope, and whether a tutor holding
   that still refuses to narrate the evening is the whole of whether the split
   worked; **the revision turn against a model**; **ink a person actually drew** —
   the marks route is tested with fixture strokes, which is not a ring round a
   figure at 200% zoom on an iPad, and that page's pen has never met a stylus —
   and **whether the reader is any good**, which is the one word in the question
-  item 1 came from that no amount of code answers: *slick*.
+  the library came from that no amount of code answers: *slick*.
 - **The three teaching rules that were asked for out loud**, all of them
   instructions rather than mechanisms: the question restated under the definition
   list so it is the last thing above the board, the write-up compiled problem by
@@ -1108,6 +1010,60 @@ as the answer.
 
 ## Settled, so nobody re-derives it
 
+- **A document is corrected, or overhauled, without leaving the page it is on.**
+  Three things used to answer *no* to that and each was a missing piece rather
+  than a missing mechanism.
+  **It appears in front of you.** `GET /library/stamp` is where every document
+  is, when its source and its PDF last changed and how big they are — `stat`
+  and nothing else, no titles read out of sources and no `pdfinfo` — so the page
+  asks it every four seconds while it is visible and asks the expensive
+  `/library.json` only when the answer moves. One hash overall says *ask for the
+  list again*; a hash per document says *the one being read moved*, so a
+  33-page deck is not re-drawn because something else was built. **Not the hub's
+  SSE payload:** that is the lesson's, and this page opens no sitting on
+  purpose. Filing a note cannot move the stamp, which is what stops the page
+  redrawing on its own feedback. The re-draw **keeps the reader's place** —
+  restored as the images above it decode, because a picture has no height until
+  it has, and abandoned after eight seconds, by which time they have scrolled
+  somewhere themselves — and **keeps the ink**: a ring somebody drew is theirs,
+  and where the page count moved the reader says out loud which version they
+  were drawn on rather than pretending page 7 is still page 7. A turn that was
+  asked for says so on the row and in the reader until that document's own bytes
+  move, and nothing else clears it: the reply says a turn was WOKEN, which is
+  not the same as the document having changed.
+  **You can read what it says it changed.** `GET /library/note/<id>/<name>`, and
+  the rounds under each document are the button that opens it. That file is
+  where the turn writes `## What was changed`; the name is matched against what
+  `library.notes` found beside THAT document, which is the rule `find` holds for
+  an id one level down.
+  **And an overhaul is a second ask rather than a longer note.** `revise` keeps
+  the document's structure, its names for things and its claims — *do not start
+  it again and do not widen it* — which is right for "figure 3 is mislabelled"
+  and wrong for *"that presentation needs an overhaul now that we plan to use
+  colibrì"*. `rework` may restructure, cut, reorder and rewrite:
+  `HEADLESS_REWORK_PROMPT` is the revision's prompt with that sentence gone and
+  a brief in its place, `turn_plan` and `carry_after` treat it as they treat
+  `revise`, and `doing_now` gives it a doing turn's clock because thirty-three
+  pages and a LaTeX build is not fifteen minutes. A plain revision stays on the
+  sitting's clock; it changes what a note names and is over in a minute. It
+  costs a **purpose** — a sentence saying what the document is FOR now, written
+  into the note as its own section, because an overhaul with no new purpose in
+  it is a rewrite for its own sake — and a **committed source**, refused
+  otherwise by name with nothing written, because an overhaul replaces the whole
+  document and git is the only undo it has; committed as it stands, the whole
+  overhaul is one diff. The board refuses rather than committing a half-finished
+  edit, since the state that would be reverted to is one nobody chose. The
+  refusal names **⤓ save** on the board rather than `git commit`: a guard whose
+  remedy is a terminal has sent somebody to a keyboard to get past this board's
+  own rule. `leaving.uncommitted` is the git half and is there because
+  `git status --porcelain -uall` has one parser in this tool and a second goes
+  quietly false on one side; a workspace with no repository over it refuses
+  nothing, having no undo to protect. A **delivered manuscript** is not
+  overhauled from here at all: the factory holds its evidence, its terminology
+  lock and its venue, and "restructure, cut and rewrite" is what every one of
+  those gates exists to refuse. A paper whose purpose has changed is a new
+  paper. Still a LIBRARY turn either way — no card, no sitting, no
+  `state.json` — because correcting a deck must not interrupt somebody's proof.
 - **A mission can be told to ship itself, and the assistant that did the work is
   never the one that pushes it.** One switch on `⇥ put an assistant to work
   elsewhere`, carried in the record as `ship`, honoured when the mission ends

@@ -3,9 +3,16 @@
 
    The palette, the dark mode and the reading face come from board.css, which
    this page also loads: one set of colours for one room. What is here is only
-   the shape of this page -- a bar, a grouped list, a reader, and the panel that
-   takes a note about what is wrong.
+   the shape of this page -- a bar, a grouped list, a reader, the panel that
+   takes a note about what is wrong, and the one that reads a round of it back.
    ========================================================================== */
+
+/* THE GUARD, carried here as well as in board.css. `[hidden]` in the UA sheet
+   loses to any author rule that sets a display, and this page has four elements
+   the script toggles with `hidden` that are laid out with `flex` -- the reader,
+   the note panel, the purpose box inside it and the round panel. `test/hidden.js`
+   is where that is checked; it once cost two wrong diagnoses on the board. */
+[hidden] { display: none !important; }
 
 body { font-family: var(--ui); color: var(--ink); }
 
@@ -56,13 +63,24 @@ body { font-family: var(--ui); color: var(--ink); }
 }
 .lib-name:disabled { cursor: default; color: var(--ink-2); }
 .lib-meta { font-size: .74rem; color: var(--ink-3); }
-/* Three states worth seeing without reading: a PDF that no longer matches its
-   source, a document somebody has drawn on, and one somebody has already said
-   something about. Ink is in the pen's own colour, because that is what it
-   looks like on the page it is on. */
+/* Four states worth seeing without reading: a PDF that no longer matches its
+   source, a document somebody has drawn on, one somebody has already said
+   something about, and one with a turn running on it. Ink is in the pen's own
+   colour, because that is what it looks like on the page it is on. */
 .lib-stale { font-size: .74rem; color: var(--ask); }
 .lib-marks { font-size: .74rem; color: #e0b45c; }
-.lib-rounds { font-size: .74rem; color: var(--note); }
+/* The rounds are a BUTTON: the turn writes what it changed at the bottom of the
+   feedback file, and a row that says "three rounds" and cannot say what any of
+   them did is a record in a file the iPad cannot open. */
+.lib-rounds {
+  font: inherit; font-size: .74rem; color: var(--note);
+  text-align: left; padding: 0; border: 0; background: none; cursor: pointer;
+  text-decoration: underline; text-decoration-style: dotted;
+  text-underline-offset: .2em;
+}
+/* WHAT IS RUNNING ON IT. A turn was dispatched in the same request that filed
+   the note, and the row is where it is visible without opening anything. */
+.lib-flight { font-size: .74rem; color: var(--ask); }
 
 .lib-acts { display: flex; gap: .4rem; margin-top: .35rem; flex-wrap: wrap; }
 .lib-acts button, #note-acts button, #reader-bar button {
@@ -104,6 +122,13 @@ body.annotating .lib-page img {
   -webkit-user-select: none; user-select: none;
   -webkit-user-drag: none; -webkit-touch-callout: none;
 }
+/* The one line in the reader that is owed to a reader: a turn running on this
+   document, and ink that was drawn on a version with a different page count. */
+.reader-said {
+  margin: 0; padding: .45rem 1rem;
+  font-size: .78rem; line-height: 1.45; color: var(--ink-2);
+  background: var(--paper-2); border-bottom: 1px solid var(--rule);
+}
 #reader-pages {
   flex: 1; overflow: auto;
   padding: 1rem; display: flex; flex-direction: column; align-items: center;
@@ -138,11 +163,68 @@ body.annotating .lib-page img {
   background: var(--paper);
   box-shadow: 0 10px 40px rgba(0, 0, 0, .35);
 }
-#note-text {
+#note-text, #note-purpose {
   font: inherit; font-size: .9rem; line-height: 1.5;
   padding: .6rem; border-radius: .4rem;
   border: 1px solid var(--rule); background: var(--paper-2); color: var(--ink);
   resize: vertical;
+}
+/* TWO ASKS, ON ONE ROW, WITH THE LIVE ONE LIT. Which one the panel is on is
+   visible before anything is typed -- an overhaul chosen by accident is
+   thirty-three pages rewritten. */
+#note-ask { display: flex; gap: .4rem; }
+#note-ask button {
+  font: inherit; font-size: .8rem; cursor: pointer; flex: 1;
+  padding: .35rem .6rem; border-radius: .4rem;
+  border: 1px solid var(--rule); background: var(--paper-2); color: var(--ink-2);
+}
+#note-ask button.on {
+  background: var(--paper); color: var(--ink); font-weight: 600;
+  border-color: var(--note);
+}
+#note-ask button:disabled { opacity: .4; cursor: default; }
+#note-purpose-box { display: flex; flex-direction: column; gap: .35rem; }
+#note-purpose-box p { margin: 0; }
+
+/* ---------- reading a round back ---------- */
+#round {
+  position: fixed; inset: 0; z-index: 70;
+  display: flex; align-items: center; justify-content: center;
+  padding: 1rem;
+  background: rgba(0, 0, 0, .45);
+}
+#round-box {
+  width: min(44rem, 100%); max-height: 84vh;
+  display: flex; flex-direction: column; gap: .5rem;
+  padding: 1rem;
+  border-radius: .6rem; border: 1px solid var(--rule);
+  background: var(--paper);
+  box-shadow: 0 10px 40px rgba(0, 0, 0, .35);
+}
+#round-list { display: flex; gap: .4rem; flex-wrap: wrap; }
+#round-list button {
+  font: inherit; font-size: .78rem; cursor: pointer;
+  padding: .25rem .55rem; border-radius: .4rem;
+  border: 1px solid var(--rule); background: var(--paper-2); color: var(--ink-2);
+}
+#round-list button.on {
+  border-color: var(--note); color: var(--ink); font-weight: 600;
+}
+/* The note is Markdown a turn wrote, read as the text it is: rendering it would
+   need the board's renderer on a page that loads none of it, and what a reader
+   wants here is the words. */
+#round-text {
+  flex: 1; overflow: auto; margin: 0;
+  font-family: var(--mono);
+  font-size: .78rem; line-height: 1.55; white-space: pre-wrap;
+  padding: .7rem; border-radius: .4rem;
+  border: 1px solid var(--rule); background: var(--paper-2); color: var(--ink);
+}
+#round-acts { display: flex; justify-content: flex-end; }
+#round-acts button {
+  font: inherit; font-size: .82rem; cursor: pointer;
+  padding: .35rem .7rem; border-radius: .4rem;
+  border: 1px solid transparent; background: var(--paper); color: var(--ink-2);
 }
 #note-acts { display: flex; gap: .5rem; justify-content: flex-end; }
 .note-said { font-size: .8rem; color: var(--ink-2); line-height: 1.45; margin: 0; }

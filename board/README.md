@@ -729,7 +729,7 @@ order and the earlier ones did not know the later ones were coming.
 | **The board** (`/board`) | the assistant | the lesson: prose, typeset mathematics, tables, compiled diagrams |
 | **The answer panel** (`/board`) | the student | one block under the question — write on the slate, or type, with a toggle |
 | **The drop zone** | the student | a file that was not written on the slate |
-| **The library** (`/library`) | the student | every paper and deck this workspace has written, and a word about what is wrong with one |
+| **The library** (`/library`) | the student | every paper and deck this workspace has written; a word about what is wrong with one, or an overhaul of it, and the corrected pages re-drawn where you were reading |
 
 The library is the one that touches nothing else: it writes no card, opens no
 sitting and changes no `state.json`, so reading a document or correcting one
@@ -2632,6 +2632,67 @@ apart. `library.mark_idents` asks under both, and `IDENT_MAX` is 40 because that
 is what `writing.ANN_DOC` allows — an id longer than an annotation key is a
 document that cannot be written on.
 
+**And it appears in front of you.** `GET /library/stamp` is where each document
+is, when its source and its PDF last changed and how big they are — `stat` and
+nothing else, no titles and no `pdfinfo` — so the page asks it every four
+seconds while it is visible and asks the expensive `/library.json` only when the
+answer moves. One hash overall says *ask for the list again*; a hash per document
+says *the one being read moved, re-draw it*, so a 33-page deck is not re-drawn
+because something else was built. **Not the hub's stream:** that payload is the
+lesson's, and this page opens no sitting on purpose. The render cache is keyed on
+the PDF's own modification time, so a re-fetch gets the new pages.
+
+**A re-draw keeps the reader's place, and keeps the ink.** The scroll is
+restored as the images above it decode — a picture has no height until it has,
+so a position set the instant the markup exists lands nowhere — and it stops
+being restored after eight seconds, by which time the reader has scrolled
+somewhere themselves. The marks stay: a ring somebody drew is theirs, and a
+document that reflowed is not a reason to delete it. Where the page count moved,
+the reader says out loud which version they were drawn on rather than pretending
+page 7 is still page 7.
+
+**A turn that was asked for says so until it lands.** The reply to a note says a
+turn was woken, which is not the same as the document having changed — so the
+page holds what was asked for, paints it on the row and in the reader, and clears
+it when that document's own bytes move. Nothing else clears it. It is kept where
+a reload finds it, because a tablet put down and picked up is the normal case.
+
+**A round of feedback is readable.** `GET /library/note/<id>/<name>`, and the
+rounds under each document are the button that opens it. That file is where the
+turn writes `## What was changed`, which is the answer to *did it do what I
+asked*, and without the route the record lived somewhere the iPad cannot open.
+The name is matched against what `library.notes` found beside **that** document
+— the rule `find` holds for an id, one level down.
+
+#### Two asks, and an overhaul is not a correction
+
+`revise` keeps the document's structure, its names for things and its claims:
+the prompt says outright *do not start it again and do not widen it*, which is
+right for "figure 3 is mislabelled" and wrong for *"that presentation needs an
+overhaul now that we plan to use colibrì"*.
+
+`rework` may restructure, cut, reorder and rewrite. It is the same panel, the
+same feedback file and the same rounds — a longer turn rather than a different
+kind of record — and `HEADLESS_REWORK_PROMPT` is `HEADLESS_REVISE_PROMPT` with
+the do-not-widen sentence gone and a brief in its place. What it costs:
+
+| | |
+|---|---|
+| **a purpose** | a sentence saying what the document is FOR now, at least 25 characters, written into the note under `## What this document is FOR now`. `/direction`'s shape one level down: an overhaul with no new purpose in it is a rewrite for its own sake |
+| **a committed source** | refused otherwise, by name, with nothing written. An overhaul replaces the whole document and git is the only undo it has; committed as it stands, the whole overhaul is one diff. The board refuses rather than committing a half-finished edit, because the state that would be reverted to is one nobody chose. The refusal names **⤓ save** on the board rather than `git commit`: a guard whose remedy is a terminal has sent somebody to a keyboard to get past the board's own rule |
+| **not a delivered manuscript** | the factory holds its evidence, its terminology lock and its venue, and "restructure, cut and rewrite" is what every one of those gates exists to refuse. A paper whose purpose has changed is a new paper |
+
+`leaving.uncommitted` is the git half, and it is there rather than in
+`worktree.py` because `git status --porcelain -uall` has one parser in this tool
+and a second would go quietly false on one side. A workspace with no repository
+over it refuses nothing: there is no undo to protect and refusing would make the
+ask unavailable rather than safe.
+
+An overhaul gets a **doing turn's clock** — `doing_now` says so on the signal —
+because thirty-three pages rewritten with a LaTeX build at the end of it is not
+fifteen minutes. A plain revision is left on the sitting's own clock: it changes
+what a note names and is over in a minute.
+
 **Which machinery revises it depends on which wrote it.** A document this
 repository holds the source of is revised by the board: a `[revise]` line in the
 inbox, and a turn woken on it. A manuscript delivered into `manuscripts/` goes
@@ -2654,9 +2715,10 @@ the anchored-edit loop changes what the feedback names and nothing else. Its
 README has the path. A correction re-planned from the claims list is a different
 paper, which is the failure the section exists to prevent.
 
-**A revision turn runs fresh and writes no card.** `turn_plan` resumes the
-agent's conversation by default; a revision resumed into a lesson drags the
-lesson into the document and the document back into the lesson. So it is its own
+**A revision turn runs fresh and writes no card**, and so does an overhaul.
+`turn_plan` resumes the agent's conversation by default; a revision resumed into
+a lesson drags the lesson into the document and the document back into the
+lesson. So it is its own
 session, its report goes at the bottom of the feedback file, and
 `live/cards/`, `live/state.json` and the archive are left exactly as they were —
 somebody mid-proof on an iPad is not interrupted by somebody correcting a deck.
@@ -3520,8 +3582,8 @@ tutorboard/        the board itself, organised by what a thing is about:
                    reading (the documents it can be SHOWN, as opposed to the two
                    it builds),
                    library (everything the workspace HAS written, grouped into
-                   documents by stem and directory, and where feedback on one
-                   goes),
+                   documents by stem and directory, where feedback on one goes,
+                   and the stamp that says whether any of it has moved),
                    walk (what a walkthrough can be held over: a file, or one
                    definition inside one), syllabus, screenshot, paper (the two
                    documents: resolving one, naming it, and rendering its pages

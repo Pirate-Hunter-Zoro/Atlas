@@ -777,6 +777,38 @@ def revise_sense(document_rel, feedback_rel):
     return REVISE_SENSE % (document_rel, feedback_rel)
 
 
+# WHAT A REWORK TURN IS WOKEN WITH, and the difference from a revision is one
+# word in the ask and the whole of what the turn may do.
+#
+# `REVISE_SENSE` above is a correction. A rework is an overhaul -- "that
+# presentation needs an overhaul now that we plan to use colibri" -- and it
+# carries the sentence saying what the document is FOR now, because an overhaul
+# with no new purpose in it is a rewrite for its own sake.
+#
+# It names the purpose HERE as well as in the feedback file. The file is where
+# the turn reads it in full; the inbox line is what the board paints while the
+# turn runs, and "the tutor is doing something to a document" with no statement
+# of what is the silence this whole surface exists to remove.
+REWORK_SENSE = (
+    "An OVERHAUL has been asked for on a document in this repository, from the "
+    "LIBRARY rather than from the lesson. The document is `%s`. What was asked "
+    "for is `%s`. This is not a correction: the document's purpose has changed, "
+    "and it is now for this --\n\n%s\n\n"
+    "Read both files, rework the document to that purpose, and write what you "
+    "changed at the bottom of that feedback file. Its present structure, its "
+    "order and its sections are yours to change. "
+    "THIS IS NOT PART OF THE LESSON: there may be a sitting open on this board "
+    "that belongs to somebody else's evening. Write no card, do not open or "
+    "archive a sitting, and leave live/state.json, live/cards/ and HANDOFF.md "
+    "exactly as you found them."
+)
+
+
+def rework_sense(document_rel, feedback_rel, purpose):
+    """The inbox line for an overhaul of one document."""
+    return REWORK_SENSE % (document_rel, feedback_rel, (purpose or "").strip())
+
+
 # WHAT A SHIP TURN IS WOKEN WITH, and it names the mission rather than the diff.
 #
 # A mission was set going in this workspace from a board somewhere else, told to

@@ -52,6 +52,12 @@
     <button id="reader-say" type="button">say what is wrong</button>
     <button id="reader-close" type="button" title="back to the library">✕</button>
   </div>
+  <!-- NOTHING THE READER CAN BE WAITING ON IS SILENT. A revision was dispatched
+       in the same request that filed the note, and the only thing that used to
+       change on the glass was a line saying the note was filed. This says the
+       turn is running, and it says afterwards when the ink on the page was
+       drawn on a version with a different number of pages in it. -->
+  <p id="reader-said" class="reader-said" hidden></p>
   <div id="reader-pages"></div>
 </div>
 
@@ -63,8 +69,28 @@
   <div id="note-box">
     <strong id="note-title"></strong>
     <p id="note-where" class="muted"></p>
+    <!-- TWO ASKS, FROM ONE PANEL. A correction keeps the document's structure,
+         its names for things and its claims -- which is right for "figure 3 is
+         mislabelled" and wrong for "that presentation needs an overhaul now
+         that we plan to use colibrì". The prompt a correction is woken with
+         says outright *do not start it again and do not widen it*, so without
+         this the only route to an overhaul was a terminal. -->
+    <div id="note-ask">
+      <button id="ask-revise" type="button" class="on">fix what is wrong</button>
+      <button id="ask-rework" type="button">it needs an overhaul</button>
+    </div>
     <textarea id="note-text" rows="7"
       placeholder="What is wrong with it, and what should it say instead."></textarea>
+    <!-- AN OVERHAUL COSTS A PURPOSE. Restructuring, cutting and rewriting with
+         no new purpose named is a rewrite for its own sake, so this sentence is
+         required and is what the turn works to. -->
+    <div id="note-purpose-box" hidden>
+      <p class="muted">It may restructure, cut, reorder and rewrite. Say what the
+        document is <strong>for</strong> now — that sentence outranks the shape
+        it presently has.</p>
+      <textarea id="note-purpose" rows="3"
+        placeholder="What this document is for now, and who reads it."></textarea>
+    </div>
     <p id="note-page" class="muted" hidden></p>
     <!-- INK COUNTS AS SAYING SOMETHING. A ring round a figure is a complaint,
          and a send button that stays dead until somebody types is the board
@@ -74,6 +100,21 @@
     <div id="note-acts">
       <button id="note-cancel" type="button" class="quiet">cancel</button>
       <button id="note-send" type="button" class="primary" disabled>send it</button>
+    </div>
+  </div>
+</div>
+
+<!-- WHAT A ROUND ACTUALLY DID. The turn writes `## What was changed` at the
+     bottom of the feedback file, and that is the answer to *did it do what I
+     asked* -- in a file the iPad cannot open. The rounds under a document are
+     tappable and this is what opens. -->
+<div id="round" hidden>
+  <div id="round-box">
+    <strong id="round-title"></strong>
+    <div id="round-list"></div>
+    <pre id="round-text"></pre>
+    <div id="round-acts">
+      <button id="round-close" type="button" class="quiet">close</button>
     </div>
   </div>
 </div>

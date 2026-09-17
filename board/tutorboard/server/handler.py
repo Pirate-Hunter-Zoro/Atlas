@@ -52,7 +52,7 @@ class Handler(BaseHTTPRequestHandler):
         r"^/(events|board\.json|courses\.json|health|static/|figure/|"
         r"icon-\d+\.png|apple-touch-icon\.png|manifest\.webmanifest|sw\.js|"
         r"slate/(page-|state)|answers/|uploads/|notes/|favicon|"
-        r"library/view/)")
+        r"library/(view/|stamp))")
 
     def log_request(self, code="-", size="-"):
         try:
