@@ -228,7 +228,34 @@
   then $\beta$ is transcendental over $K$.
 \end{problem}
 % ===== SOLUTION 04.8 =====
-% TODO(mferguson): your work goes here.
+% Transcribed from the student's slate, 2026-09-16 (page 19, turn t0054 r5),
+% agreed correct on card 0010. Same steps, same order, nothing added.
+% One substitution, agreed on cards 0008-0009: the page justified
+% "f(beta) is algebraic" by *algebraic closure of K(beta)*, which is the wrong
+% object. The justification typeset here is the chain they gave instead --
+% [K(beta):K] finite, and every element of a finite extension of K is
+% algebraic over K. They agreed it but did not rewrite the page.
+\begin{solution}
+  \textbf{First half.} Suppose there were a non-zero $g \in \polyring{K}{x}$
+  with $g(f(\alpha)) = 0$. Then $\alpha$ is algebraic over $K$, since
+  $g \circ f \in \polyring{K}{x}$ and is non-zero. But $\alpha$ is
+  transcendental over $K$, a contradiction. Hence $f(\alpha)$ is transcendental
+  over $K$.
+
+  \medskip
+  \textbf{Second half.} Suppose $\beta$ were algebraic over $K$. Then
+  $\degree{\adjoin{K}{\beta}}{K}$ is finite, and every element of a finite
+  extension of $K$ is algebraic over $K$. Now
+  $f = c_{n}x^{n} + \dots + c_{1}x + c_{0}$ with every $c_{i} \in K$, and
+  $\adjoin{K}{\beta}$ is a field containing $K$ and $\beta$, so it is closed
+  under multiplication --- each $c_{i}\beta^{i} \in \adjoin{K}{\beta}$ --- and
+  under addition, so the sum is too. Hence
+  \[
+    \alpha = f(\beta) \in \adjoin{K}{\beta},
+  \]
+  and so $\alpha$ is algebraic over $K$. But $\alpha$ is transcendental over
+  $K$, a contradiction. Hence $\beta$ is transcendental over $K$.
+\end{solution}
 % ===== END SOLUTION 04.8 =====
 
 \begin{problem}{04.9}
@@ -236,7 +263,23 @@
   $\QQ$. Is $ab$ transcendental over $\QQ$?
 \end{problem}
 % ===== SOLUTION 04.9 =====
-% TODO(mferguson): your work goes here.
+% The student's answer, agreed correct on card 0003: the counterexample, the
+% naming of x-1, and the closing general remark are theirs.
+% Not theirs: the lemma that 1/pi is transcendental over Q was handed to them
+% on card 0002 and is quoted here, not proved.
+\begin{solution}
+  \textbf{No.} The product of two transcendental numbers need not be
+  transcendental.
+
+  Take $a = \pi$ and $b = 1/\pi$. Both are transcendental over $\QQ$: $\pi$ by
+  Lindemann's theorem, and $1/\pi$ by the reversal argument quoted above. Their
+  product is $ab = 1$, which is a root of $x - 1$, a non-zero polynomial in
+  $\polyring{\QQ}{x}$. So $ab$ is algebraic over $\QQ$.
+
+  \medskip
+  The same thing in general: in any extension $\ext{L}{K}$, both $a$ and $b$
+  can lie outside $K$ while $ab$ lies inside it.
+\end{solution}
 % ===== END SOLUTION 04.9 =====
 
 \begin{problem}{04.10}

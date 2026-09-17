@@ -3123,6 +3123,17 @@ COMMANDS = {
 }
 
 
+def help_for(cmd, fn):
+    """What one command is for, off its own docstring."""
+    said = (fn.__doc__ or "").strip()
+    if not said:
+        print("board %s -- no help is written for this one. `board help` lists "
+              "every command." % cmd)
+        return 0
+    print("board %s\n\n%s" % (cmd, said))
+    return 0
+
+
 def main(argv):
     if not argv or argv[0] in ("-h", "--help", "help"):
         print(__doc__.strip())
@@ -3134,11 +3145,27 @@ def main(argv):
         n = rest.index("--repo")
         root = rest[n + 1]
         rest = rest[:n] + rest[n + 2:]
-    live = Live(find_repo(root))
     fn = COMMANDS.get(cmd)
     if not fn:
         print("unknown command: %s (try: board help)" % cmd, file=sys.stderr)
         return 1
+    # ASKING FOR HELP IS NOT AN ARGUMENT, and this one is worth the four lines.
+    #
+    # `board write --help` reached `cmd_write`, which drops anything that looks
+    # like an option, read an empty body off a terminal and wrote a BLANK CARD
+    # onto the lesson -- pushed to every device, in the transcript, with no undo.
+    # Somebody trying to find out what a command does should not be able to
+    # damage a sitting by asking.
+    #
+    # Only in the first position, which is where anybody types it. Further along
+    # it may be the value of an option, and guessing which is how `--title
+    # --help` becomes a help screen instead of a card.
+    #
+    # Answered BEFORE the repository is found, because "what does this do" is a
+    # question with an answer outside a course.
+    if rest and rest[0] in ("-h", "--help", "help"):
+        return help_for(cmd, fn)
+    live = Live(find_repo(root))
     return fn(live, rest)
 
 

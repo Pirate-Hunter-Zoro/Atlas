@@ -15,6 +15,11 @@
 //   * INK IS A COMPLAINT. A document somebody has drawn on can be sent back with
 //     nothing typed, because asking them to write out the ring they drew round a
 //     figure is the translation this surface exists to remove.
+//   * AND THE INK IS MADE HERE. A page carries `data-ann="doc/<id>/p<n>"` and
+//     `annotate.js` takes it, so the ring is drawn on the document being read
+//     rather than on the board's viewer and then written about on a third
+//     surface. `send` is never set from this page: ink on a document is a
+//     complaint about the document, and it becomes a turn when the note goes.
 
 const fs = require('fs');
 const path = require('path');
@@ -84,7 +89,13 @@ window.fetch = (u, opts) => {
     return Promise.resolve({ json: () => Promise.resolve({
       ok: true, n: 2, truncated: false,
       pages: ['/paper/abc123-1.png', '/paper/abc123-2.png'],
+      /* Marks already on this document, sent WITH the pages: this page holds
+         no live payload to read them out of, because it opens no sitting. */
+      ink: { 'doc/docs-stage1-pipeline-walkthrough/p2': [[[0.1, 0.1], [0.3, 0.4]]] },
     }) });
+  }
+  if (/annotate\/save/.test(url)) {
+    return Promise.resolve({ json: () => Promise.resolve({ ok: true }) });
   }
   if (/library\/feedback/.test(url)) {
     return Promise.resolve({ json: () => Promise.resolve({
@@ -95,6 +106,21 @@ window.fetch = (u, opts) => {
   return new Promise(() => {});
 };
 window.addEventListener('error', (e) => fail('uncaught: ' + e.message));
+
+// The pen is the board's own, unchanged, so it is loaded the way the page loads
+// it. jsdom has no canvas, and everything `annotate.js` does with one is drawing
+// -- which is not what is being asserted here.
+window.HTMLCanvasElement.prototype.getContext = () =>
+  new Proxy({}, { get: () => () => {}, set: () => true });
+window.HTMLCanvasElement.prototype.toDataURL = () => 'data:image/png;base64,';
+window.Element.prototype.setPointerCapture = function () {};
+window.Element.prototype.releasePointerCapture = function () {};
+window.requestAnimationFrame = (fn) => setTimeout(fn, 0);
+
+for (const f of ['ink-clip.js', 'annotate.js']) {
+  try { window.eval(fs.readFileSync(path.join(WEB, f), 'utf8')); }
+  catch (e) { fail(f + ': ' + e.message); }
+}
 
 try { window.eval(fs.readFileSync(path.join(WEB, 'library.js'), 'utf8')); }
 catch (e) { fail('library.js: ' + e.message); }
@@ -158,6 +184,61 @@ const named = (title) => rows().filter(
   doc.querySelectorAll('#reader-pages .lib-page img').length === 2
     ? ok('and the pages are drawn as pictures, the way every other document is')
     : fail('the pages did not appear');
+
+  // 5b. THE PEN, ON THE PAGE BEING READ. Every page is an anchor in the §2.1
+  //     grammar, the marks already on the document are put back, and nothing
+  //     from here is ever sent as a turn.
+  const pages = Array.prototype.slice.call(
+    doc.querySelectorAll('#reader-pages .lib-page'));
+  pages.map((p) => p.dataset.ann).join('|')
+    === 'doc/docs-stage1-pipeline-walkthrough/p1|doc/docs-stage1-pipeline-walkthrough/p2'
+    ? ok('every page carries the address a mark on it would be anchored to')
+    : fail('the pages are anchored to: ' + pages.map((p) => p.dataset.ann).join('|'));
+  window.Annotate.marked().join('|') === 'doc/docs-stage1-pipeline-walkthrough/p2'
+    ? ok('and the marks already on the document came back with its pages')
+    : fail('restored marks: ' + window.Annotate.marked().join('|'));
+  pages.every((p) => p.querySelector('canvas.ann-layer'))
+    ? ok('and each one has a layer to take the ink')
+    : fail('a page has no ink layer');
+
+  const pen = doc.getElementById('reader-pen');
+  !window.Annotate.isOn()
+    ? ok('the pen is off until it is asked for, so a long document still scrolls')
+    : fail('the page opened in annotate mode');
+  tap(pen);
+  window.Annotate.isOn() && /done marking/.test(pen.textContent)
+    ? ok('one tap turns it on, and the button says which state it is in')
+    : fail('the pen did not come on');
+
+  sent.length = 0;
+  window.Annotate.setPen('#e0b45c', 2);
+  window.Annotate.clear('doc/docs-stage1-pipeline-walkthrough/p1');
+  await sleep(1200);
+  const saves = sent.filter((r) => /annotate\/save/.test(r.url));
+  saves.length
+    ? ok('ink reaches disk on its own, shortly after the pen lifts')
+    : fail('nothing was saved: ' + JSON.stringify(sent.map((r) => r.url)));
+  saves.every((r) => JSON.parse(r.opts.body || '{}').send === false)
+    ? ok('and never as a turn -- the complaint goes when the note goes')
+    : fail('the page sent ink at the tutor: ' + saves.map((r) => r.opts.body).join(' '));
+  saves.every((r) => /^doc\//.test(JSON.parse(r.opts.body || '{}').card))
+    ? ok('anchored to the page of the document, never to a card in the lesson')
+    : fail('a mark was anchored to: '
+           + saves.map((r) => JSON.parse(r.opts.body || '{}').card).join(' '));
+
+  tap(pen);
+  !window.Annotate.isOn()
+    ? ok('and a second tap gives the document back to the reader')
+    : fail('the pen would not turn off');
+
+  // Saving asks for the list again, so the row's mark count is right a second
+  // after a ring is drawn -- and the record `say` reads must be the NEW one.
+  // Left stale, a page you have just drawn on refuses to send the ink.
+  await sleep(20);
+  const reread = sent.filter((r) => /library\.json/.test(r.url));
+  reread.length >= 1
+    ? ok('saving ink asks for the list again, so the row says how much is on it')
+    : fail('the row would go on saying there is no ink on the document');
 
   // 6. Saying what is wrong: the id, the words, and the page they were on.
   tap(doc.getElementById('reader-say'));

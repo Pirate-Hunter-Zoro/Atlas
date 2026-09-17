@@ -91,13 +91,29 @@ body { font-family: var(--ui); color: var(--ink); }
 }
 #reader-bar strong { font-size: .95rem; }
 #reader-bar button:last-child { margin-left: auto; }
+/* The pen, lit while it is on, so there is no doubt about whether the next
+   touch will scroll the document or draw on it. */
+#reader-pen.on {
+  background: var(--note); border-color: var(--note); color: #fff;
+}
+#reader-pen:disabled { opacity: .45; cursor: default; }
+/* While the pen is on, a page is a surface to draw on and not a picture to
+   drag. Without this the stroke starts a native image drag, the browser owns
+   the gesture from that moment, and the pointer stream stops. */
+body.annotating .lib-page img {
+  -webkit-user-select: none; user-select: none;
+  -webkit-user-drag: none; -webkit-touch-callout: none;
+}
 #reader-pages {
   flex: 1; overflow: auto;
   padding: 1rem; display: flex; flex-direction: column; align-items: center;
   gap: 1rem;
   -webkit-overflow-scrolling: touch;
 }
-.lib-page { margin: 0; max-width: 54rem; width: 100%; }
+/* `position: relative` is the whole of what the ink needs: `canvas.ann-layer`
+   is absolutely positioned and would otherwise hang off `#reader-pages` and
+   land on page one whichever page was written on. */
+.lib-page { margin: 0; max-width: 54rem; width: 100%; position: relative; }
 .lib-page img {
   display: block; width: 100%; height: auto;
   border: 1px solid var(--rule); border-radius: .2rem;

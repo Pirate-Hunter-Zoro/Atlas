@@ -8,11 +8,15 @@ models. A model that starts writing better prose cannot make these tests pass, a
 model that starts writing worse prose cannot make them fail.
 """
 
+import shutil                                                       # noqa: E402
 import support                                                      # noqa: F401
+import tempfile                                                     # noqa: E402
 import unittest                                                     # noqa: E402
+from pathlib import Path                                            # noqa: E402
 
 from paperwriter import config, paths, states                       # noqa: E402
 from paperwriter.infra import journal, storage                      # noqa: E402
+from paperwriter.stages import delivery                             # noqa: E402
 
 
 class PipelineTests(unittest.TestCase):
@@ -267,6 +271,127 @@ class GateRejectionTests(unittest.TestCase):
             self.assertIn("coverage", record.get("error", ""))
         finally:
             evidence.propose_evidence = good
+
+
+class LandingTests(unittest.TestCase):
+    """The second copy, in the workspace that asked for the paper.
+
+    `PAPER_OUT_DIR` is one directory for one harness and one harness serves every
+    workspace, so a paper that stops there is a paper nobody can find from the
+    workspace it was written for — and every document route the board offers is
+    waiting on files that are not in it."""
+
+    @classmethod
+    def setUpClass(cls):
+        support.stub_model_seams()
+
+    def setUp(self):
+        support.wipe_state()
+        self.workspace = Path(tempfile.mkdtemp(prefix="paperwriter-test-land-"))
+        self.addCleanup(shutil.rmtree, self.workspace, ignore_errors=True)
+
+    def _run(self, landing, project_id="landed-paper"):
+        prompt = support.PROMPT.replace(
+            "## Scope\n\n1 paper.\n",
+            f"## Scope\n\n1 paper.\n\n## Delivery\n\nlanding: {landing}\n")
+        self.assertIn("## Delivery", prompt)
+        support.drop(project_id, prompt=prompt)
+        return support.run_engine(project_id), project_id
+
+    def _record(self, pid):
+        records = journal.load_records()
+        return records[journal.paper_key(pid, 1)]
+
+    def test_the_manuscript_lands_in_the_workspace_that_asked(self):
+        landing = self.workspace / "manuscripts" / "fixture-paper"
+        status, _pid = self._run(landing)
+        self.assertEqual(status, states.PROJECT_COMPLETE)
+        self.assertTrue((landing / "manuscript.md").is_file())
+
+    def test_nothing_is_appended_to_the_landing(self):
+        """The line names the paper's own directory, and naming it is the asking
+        side's business -- which is what lets a revision land over the document it
+        corrects rather than beside it under a slug of a drifted title."""
+        landing = self.workspace / "manuscripts" / "fixture-paper"
+        self._run(landing)
+        landed = list(landing.rglob("manuscript.md"))
+        self.assertEqual([p.parent for p in landed], [landing], landed)
+
+    def test_the_out_dir_copy_is_still_there(self):
+        """A second copy, not a move. The harness keeps its own subtree."""
+        _status, pid = self._run(self.workspace / "manuscripts" / "p")
+        self.assertEqual(len(list((config.OUT_DIR / pid).rglob("manuscript.md"))), 1)
+
+    def test_every_artifact_lands_not_only_the_manuscript(self):
+        landing = self.workspace / "manuscripts" / "p"
+        self._run(landing)
+        names = {p.name for p in landing.rglob("*") if p.is_file()}
+        self.assertIn("manuscript.md", names)
+        self.assertIn("report.md", names)
+
+    def test_an_artifact_keeps_the_subtree_it_had(self):
+        """`parts/manuscript/04-methods.md` arrives as that, not as a flat file
+        beside three others of the same name from three other documents."""
+        landing = self.workspace / "manuscripts" / "p"
+        self._run(landing)
+        parts = list((landing / "parts").rglob("*.md"))
+        self.assertTrue(parts, sorted(str(p) for p in landing.rglob("*")))
+
+    def test_what_landed_is_byte_identical(self):
+        landing = self.workspace / "manuscripts" / "p"
+        _status, pid = self._run(landing)
+        self.assertEqual((landing / "manuscript.md").read_bytes(),
+                         paths.manuscript_path(pid, 1).read_bytes())
+
+    def test_the_landing_is_recorded_on_the_paper(self):
+        landing = self.workspace / "manuscripts" / "p"
+        _status, pid = self._run(landing)
+        self.assertIn(str(landing), self._record(pid)["landed"])
+
+    def test_a_job_naming_no_landing_still_completes(self):
+        """Absent is the ordinary case for a job dropped by hand, not a defect."""
+        support.drop("plain-paper")
+        status = support.run_engine("plain-paper")
+        self.assertEqual(status, states.PROJECT_COMPLETE)
+        record = journal.load_records()[journal.paper_key("plain-paper", 1)]
+        self.assertIn("no landing", record["landed"])
+
+    def test_a_relative_landing_is_refused_and_said_so(self):
+        """The harness is another repository and cannot resolve a relative path
+        against a root nobody named. Refused loudly rather than guessed at."""
+        status, pid = self._run("manuscripts", project_id="relative-paper")
+        self.assertEqual(status, states.PROJECT_COMPLETE)
+        self.assertIn("not an absolute path", self._record(pid)["landed"])
+
+    def test_a_landing_that_cannot_be_written_leaves_the_paper_delivered(self):
+        """The paper is already safe under OUT_DIR by the time this is attempted, so
+        a directory somebody has since moved must not be the reason a finished paper's
+        status stays unfinished. Same rule as a missing pandoc and a failed push."""
+        blocked = self.workspace / "not-a-directory"
+        blocked.write_text("a file sitting where the landing should be\n",
+                           encoding="utf-8")
+        status, pid = self._run(blocked, project_id="blocked-paper")
+        self.assertEqual(status, states.PROJECT_COMPLETE)
+        record = self._record(pid)
+        self.assertIn("could not be written", record["landed"])
+        self.assertTrue(record["delivered_paths"])
+        self.assertEqual(
+            len(list((config.OUT_DIR / "blocked-paper").rglob("manuscript.md"))), 1)
+
+    def test_re_delivery_into_the_landing_is_a_verified_no_op(self):
+        """`deliver_one` is content-addressed, so a paper delivered twice copies
+        nothing twice and the file an author has open does not change under them."""
+        landing = self.workspace / "manuscripts" / "p"
+        _status, pid = self._run(landing)
+        landed = landing / "manuscript.md"
+        before = landed.stat().st_mtime_ns
+        rec = journal.load_records()[journal.project_key(pid)]
+        rec = {"project_id": pid, "prompt_text": rec.get("prompt_text") or ""}
+        paths_out, note = delivery.deliver(
+            rec, 1, list(paths.documents(pid, 1)), paper_name="Fixture Paper")
+        self.assertTrue(paths_out)
+        self.assertIn(str(landing), note)
+        self.assertEqual(landed.stat().st_mtime_ns, before)
 
 
 if __name__ == "__main__":

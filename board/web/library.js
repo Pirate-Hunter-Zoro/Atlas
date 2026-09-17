@@ -24,6 +24,13 @@
         each, so the send button is live with an empty textarea and says so.
         Asking somebody to type out a ring they have already drawn round a
         figure is the translation this whole surface exists to avoid.
+     5. AND THE RING IS DRAWN HERE. The pen is on the page being read, not on
+        a second surface: each page carries `data-ann="doc/<id>/p<n>"`, which
+        is the anchor `annotate.js` has taken since the board's own viewer
+        first drew a document, and the strokes go to `/annotate/save` the same
+        way a mark on a card does. `send` is never set from this page -- ink
+        made here is a complaint about a document, and it becomes a turn when
+        the note goes, not the moment the pen lifts.
    ========================================================================== */
 
 var els = {
@@ -35,6 +42,7 @@ var els = {
   readerName: document.getElementById("reader-name"),
   readerSub: document.getElementById("reader-sub"),
   readerPages: document.getElementById("reader-pages"),
+  readerPen: document.getElementById("reader-pen"),
   readerSay: document.getElementById("reader-say"),
   readerClose: document.getElementById("reader-close"),
   note: document.getElementById("note"),
@@ -68,6 +76,8 @@ if (window.matchMedia) {
 var docs = [];
 var openDoc = null;          /* the document being read */
 var openPages = 0;           /* how many pages it turned out to have */
+var noteFor = null;          /* the document a note is being written about */
+var notePage = 0;
 
 function load() {
   fetch("/library.json", { credentials: "same-origin" })
@@ -84,6 +94,18 @@ function load() {
 
 function paint(got) {
   docs = got.documents || [];
+  /* THE OPEN DOCUMENT IS A RECORD, AND THIS IS A NEW ONE OF IT. The reader
+     stays open across a reload -- ink saved while drawing asks for the list
+     again, so the row's mark count is right a second later -- and the record
+     `say` reads to decide whether an empty note can be sent is whichever one
+     was captured when the document was tapped. Leaving it stale is a page you
+     have just drawn on refusing to send the ink. */
+  if (openDoc) {
+    docs.forEach(function (d) { if (d.id === openDoc.id) openDoc = d; });
+  }
+  if (noteFor) {
+    docs.forEach(function (d) { if (d.id === noteFor.id) noteFor = d; });
+  }
   els.where.textContent = got.workspace || "this workspace";
   els.count.textContent = docs.length
     ? docs.length + (docs.length === 1 ? " document" : " documents")
@@ -215,16 +237,34 @@ function read(doc) {
         var fig = document.createElement("figure");
         fig.className = "lib-page";
         fig.setAttribute("data-page", String(i + 1));
+        /* THE ANCHOR, and it is the tail of a §2.1 address. Ink is stored in
+           fractions of this box rather than in page pixels, so it is in the
+           same place on the page after a rotation or a zoom -- the trick
+           `annotate.js` already plays on cards, one level in. */
+        fig.dataset.ann = "doc/" + doc.id + "/p" + (i + 1);
         var img = document.createElement("img");
         img.src = url;
         img.alt = "page " + (i + 1);
-        img.loading = "lazy";
+        img.loading = i < 2 ? "eager" : "lazy";
         fig.appendChild(img);
         var n = document.createElement("figcaption");
         n.textContent = i + 1;
         fig.appendChild(n);
         els.readerPages.appendChild(fig);
+        if (window.Annotate) {
+          window.Annotate.attach(fig);
+          /* A picture has no height until it has decoded, and a layer sized
+             against a zero-height box covers nothing. */
+          img.addEventListener("load", function () {
+            window.Annotate.redrawAll();
+          });
+        }
       });
+      /* Marks made on this document before, put back. They came with the
+         pages: this page holds no live payload to read them out of, because
+         it opens no sitting. */
+      if (window.Annotate) window.Annotate.load(got.ink || {});
+      paintPen();
     })
     .catch(function () {
       els.readerSub.textContent = "The board is not answering.";
@@ -232,9 +272,89 @@ function read(doc) {
 }
 
 function closeReader() {
+  /* Whatever is owed goes now. A page closed with ink that never reached disk
+     is ink somebody drew and the board silently dropped. */
+  savePen();
+  if (window.Annotate) {
+    window.Annotate.setOn(false);
+    /* The store outlives the document, and the next one opened has its own
+       page 1. Keeping last document's ink keyed against it would draw one
+       paper's marks over another's. */
+    window.Annotate.forget();
+  }
   openDoc = null;
   openPages = 0;
   els.reader.hidden = true;
+  paintPen();
+}
+
+/* ------------------------------------------------------------- the pen */
+/* ON THE PAGE, NOT ON A SECOND SURFACE. The layer is inert until this is on,
+   so scrolling a long document behaves exactly as it did before. */
+function paintPen() {
+  var on = !!(window.Annotate && window.Annotate.isOn());
+  els.readerPen.disabled = !window.Annotate || !openPages;
+  els.readerPen.classList.toggle("on", on);
+  els.readerPen.textContent = on ? "✎ done marking" : "✎ mark it up";
+}
+
+els.readerPen.onclick = function () {
+  if (!window.Annotate) return;
+  var next = !window.Annotate.isOn();
+  window.Annotate.setOn(next);
+  if (!next) savePen();
+  paintPen();
+};
+
+/* Saved shortly after the pen lifts, never mid-stroke: serialising a
+   well-marked page is real main-thread time, and it lands by construction in
+   the middle of the next stroke. The board's own autosave holds the same rule
+   for the same reason. */
+var penTimer = null;
+
+function savePen() {
+  if (!window.Annotate) return Promise.resolve([]);
+  var ids = window.Annotate.unsaved();
+  if (!ids.length) return Promise.resolve([]);
+  return Promise.all(ids.map(function (id) {
+    /* `send` is NEVER set from here. Ink on a document is a complaint about
+       the document, and it becomes a turn when the note goes -- the feedback
+       route reads the marks where it reads the textarea. Sending on every
+       stroke would wake a tutor per ring drawn. */
+    var body = window.Annotate.payload(id, false);
+    return fetch("/annotate/save", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "same-origin",
+      body: JSON.stringify(body)
+    }).then(function () { window.Annotate.clean(id); });
+  })).then(function (done) {
+    /* The row carries how many pages are marked, and the note dialog decides
+       whether the send button is live off the same number. Both are worth
+       being right about a second after a ring is drawn. */
+    if (done.length) load();
+    return done;
+  });
+}
+
+function queuePenSave() {
+  if (penTimer) clearTimeout(penTimer);
+  penTimer = setTimeout(function () {
+    penTimer = null;
+    /* Not under a moving nib. Deferred, not dropped: the hand lifts and the
+       next tick takes it. */
+    if (window.Annotate.busy()) { queuePenSave(); return; }
+    savePen();
+  }, 900);
+}
+
+if (window.Annotate) {
+  window.Annotate.onChange(function () {
+    queuePenSave();
+    paintPen();
+  });
+  /* A closing tab must not take the last stroke with it. */
+  window.addEventListener("pagehide", function () { savePen(); });
 }
 
 els.readerClose.onclick = closeReader;
@@ -259,9 +379,6 @@ function pageInView() {
 }
 
 /* ---------------------------------------------------- saying what is wrong */
-var noteFor = null;
-var notePage = 0;
-
 function say(doc, page) {
   if (!doc) return;
   noteFor = doc;
@@ -350,6 +467,7 @@ document.addEventListener("keydown", function (ev) {
   else if (!els.reader.hidden) closeReader();
 });
 
+paintPen();
 load();
 /* A document is rebuilt by a job, a compile, or the revision this page just
    asked for, and this page is left open on a desk. Not a poll: it is looked at

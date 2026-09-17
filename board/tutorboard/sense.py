@@ -108,8 +108,49 @@ METHOD_SENSE = (
     "statement, list every definition, symbol and named result the problem uses, "
     "one line each, including ones from checks they skipped. They are reading on "
     "a tablet and must never have to scroll back up the lesson to find out what "
-    "they are being asked to prove. One question per turn, then stop and wait. "
+    "they are being asked to prove. "
+    "THEN ASK IT AGAIN. After that list, close the card by restating the "
+    "question -- the whole ask, not a pointer to it -- so the LAST thing on the "
+    "card is what they are being asked to do. The definitions sit between the "
+    "statement and the board they write on, so a card that asks once at the top "
+    "sends them scrolling back up past every definition to remember the "
+    "question. Twice on one card is not repetition; it is the question being "
+    "where the pen is. "
+    "One question per turn, then stop and wait. "
     "The only thing that counts is exercises answered. "
+)
+
+
+# THE WRITE-UP HAPPENS IN THE TURN THAT AGREES THE ANSWER.
+#
+# `live/TEACHING.md` has said so since it was written -- "once an answer is
+# agreed correct, not before, transcribe it into that file, in the same turn" --
+# and in a headless session that document is a file the tutor may or may not
+# open, while THIS string is the whole prompt. So the rule was in the place
+# nobody reads on a turn that is going well, and what came back was a sitting
+# that worked five problems and compiled nothing.
+#
+# Reported plainly: "the math tutor hasn't been writing up and compiling the
+# solutions as we've been working through problems -- that should be automatic
+# problem by problem as we finish each one correctly."
+#
+# Not on the two sittings that hand nothing in. A review and a walkthrough each
+# say, in their own words, that the lesson is the record.
+WRITEUP_SENSE = (
+    "THE WRITE-UP IS PART OF THE TURN THAT AGREES AN ANSWER, not part of the end "
+    "of the sitting. The moment one problem is agreed correct -- not before, and "
+    "before you pose the next one -- do all four of these in that same turn: "
+    "`board hw use <chNN>` if this sitting is not bound to a file yet "
+    "(`board hw list` shows what there is, `board hw new <name>` lays one down "
+    "where there is none); transcribe the STATEMENT into its problem environment "
+    "and THEIR argument into the solution region beneath it, in the sheet's own "
+    "order rather than the order they answered in; `board hw file <label>` to "
+    "put their handwriting beside it; and `board hw build` to compile it. "
+    "COMPILING IS YOURS, not theirs -- if it fails, put the LaTeX error it "
+    "printed on the board rather than the word 'failed'. Never write a solution "
+    "they have not produced, and never leave the write-up for the end: a sitting "
+    "is abandoned far more often than it is finished tidily, so an exercise "
+    "agreed at half past is typeset by twenty-five to. "
 )
 
 
@@ -772,6 +813,11 @@ def _session_sense(repo):
     # pointer to the method as well as the pointer to the place.
     how = (METHOD_SENSE if kind == "homework"
            else METHOD_SENSE + where_sense(book, repo.root))
+    # Every sitting that reaches here hands something in, so every one of them
+    # has a document to fill. The two that do not -- a review and a walkthrough
+    # -- returned above, each saying in its own words that the lesson is the
+    # record.
+    how += WRITEUP_SENSE
     how += doing
     how += reading_sense(repo)
     how += results_sense(repo)

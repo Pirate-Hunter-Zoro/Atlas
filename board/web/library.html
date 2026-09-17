@@ -45,6 +45,10 @@
   <div id="reader-bar">
     <strong id="reader-name"></strong>
     <span id="reader-sub" class="muted"></span>
+    <!-- THE PEN, ON THE PAGE ITSELF. A ring round a figure at 200% zoom is a
+         complaint already located, and the alternative was to draw it on the
+         board's own viewer and then write the note on a different surface. -->
+    <button id="reader-pen" type="button" title="draw on the page">✎ mark it up</button>
     <button id="reader-say" type="button">say what is wrong</button>
     <button id="reader-close" type="button" title="back to the library">✕</button>
   </div>
@@ -74,6 +78,12 @@
   </div>
 </div>
 
+<!-- The ink, and the clipboard it shares with the lesson's own pen. Both are
+     the board's, unchanged: a page of a document carries `data-ann` and
+     `annotate.js` has taken that as an anchor since the viewer first drew one.
+     Not deferred -- `library.js` asks for `window.Annotate` as it draws. -->
+<script src="/static/ink-clip.js"></script>
+<script src="/static/annotate.js"></script>
 <script src="/static/library.js"></script>
 </body>
 </html>

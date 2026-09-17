@@ -270,3 +270,36 @@ def _path_value(raw):
     are stripped because a person writing a path in markdown reaches for them; the
     characters inside are left exactly as they were typed."""
     return str(raw or "").strip().strip("`\"'").strip()
+
+
+# WHERE THE PAPER GOES WHEN IT IS FINISHED, in the workspace that asked for it.
+# One `key: value` line inside `## Delivery`, read the same way `## Revision` is.
+_LANDING_FIELD_RE = re.compile(
+    r"^\s*landing\s*:\s*(.+?)\s*$", re.IGNORECASE | re.MULTILINE)
+
+
+def landing(prompt_text):
+    """The directory the asking workspace wants a copy delivered into, or "".
+
+    NOT A SETTING. `PAPER_OUT_DIR` is one directory for one harness, and one
+    harness serves every workspace that drops a job, so the out-directory cannot
+    be each asking workspace's own. The job is the only place that knows which
+    workspace asked, so the job is where this is said.
+
+    ABSOLUTE, for the reason `## Revision` carries `workspace:`: the factory is
+    another repository with its own root and cannot resolve a relative path
+    against one nobody named. A relative value is returned as it was written and
+    refused by `stages/delivery`, which records why — a landing silently dropped
+    here is a paper nobody can find and no error anywhere.
+
+    Optional, and its absence is not a defect: a job dropped by hand delivers
+    into `config.OUT_DIR` and always did.
+    """
+    body = section_matching(sections(prompt_text or ""), "delivery", "landing")
+    if not body:
+        return ""
+    for match in _LANDING_FIELD_RE.finditer(_COMMENT_RE.sub(" ", body)):
+        value = _path_value(match.group(1))
+        if value:                               # the first line wins, like every
+            return value                        # other parser in this module
+    return ""

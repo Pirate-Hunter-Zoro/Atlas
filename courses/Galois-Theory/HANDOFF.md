@@ -1,33 +1,34 @@
 <!-- chapter: New direction — Let’s prioritize the remaining book problems except the one… -->
 PLAN.md at the root has the order of what is open; the README points at it.
 
-**Closed in Chapter 4, never re-teach:** 4.1, 4.4, 4.5, 4.6, 4.9, and the first
-half of 4.8. **4.2 is out** — they skipped it and asked for it to stay skipped.
+**Closed in Chapter 4, never re-teach:** 4.1, 4.4, 4.5, 4.6, 4.9, and 4.8's
+first half. **4.2 is out** — they skipped it and asked for it to stay skipped.
 
-**4.8 second half, all but written.** Show β transcendental given α
-transcendental, f non-constant, f(β) = α. They own the skeleton: assume β
-algebraic, reach "α algebraic over K", contradict. This session they supplied
-the link that was missing — c₂β², c₁β and c₀ all lie in K(β), so α = f(β) ∈
-K(β). Credit that; it took three cards to get there. Their stated reason was
-closure under addition alone, and card 0007 adds the one line that closure under
-multiplication is what put c₂β² in.
-
-**The old error looks dead.** For three revisions they finished by composing
-with h, which needs α to be a root of something built from h, and h's root is β;
-on the last of those they patched it by writing "f(α) = β", the hypothesis
-reversed. It has not reappeared. Do not re-litigate it unless it comes back on
+**4.8 second half is structurally done.** Assume beta algebraic, get f(beta)
+algebraic, so alpha algebraic, contradiction. They own the membership step:
+c2*beta^2, c1*beta and c0 all lie in K(beta), so alpha = f(beta) is in K(beta).
+The old error — composing with h, or reversing the hypothesis as f(alpha)=beta —
+has not reappeared in two revisions. Do not re-litigate it unless it returns on
 paper.
 
-**Next.** Card 0007 restates 4.8's second half in full and asks for the whole
-proof, photographed; grade that. The only fragile joint left is β algebraic ⇒
-[K(β):K] finite ⇒ every element of K(β), including α, is algebraic. Then 4.10,
-4.7, 4.11, 4.3, then the worksheet "Field Extensions and the Ring F[x]", whose
-Problem 6 is half-open.
+**The one defect was a name.** They justified "f(beta) is algebraic" by
+*algebraic closure of K(beta)*, a much larger field. They mean every element of
+K(beta) is algebraic OVER K, and the engine they skipped is [K(beta):K] finite.
+
+**Where they stopped.** Card 0008 set the drill: K=Q, beta=sqrt2, gamma =
+1+sqrt2; express 1, gamma, gamma^2 in the basis and find the dependence. They
+did the easy part — gamma has coordinates (1,1) — then asked two questions
+instead of finishing. Card 0009 answered both: yes, beta algebraic makes the
+degree finite, and no, "elements are k or k*beta" is a degree-2 accident, not
+the general shape (basis 1, beta, ..., beta^(n-1) from the least-degree h).
+
+**Next.** Card 0009 re-poses gamma^2 and the dependence; the answer is gamma^2 -
+2*gamma - 1 = 0. Grade that — last fragile joint in 4.8 — then 4.10, 4.7, 4.11,
+4.3, then the worksheet "Field Extensions and the Ring F[x]", whose Problem 6 is
+half-open.
 
 **How this student works.** They argue back when they are right, and have been
-right here once. Their handwritten α and β are nearly identical — read glyphs
-slowly before correcting a line. When they abandon a sub-step by asking for the
-next question, that means give me the whole exercise. Photographs sometimes
-arrive as undecodable HEIC.
-
-`board write --help` does not print help; it creates a blank card.
+right once. They ask a real conceptual question mid-drill instead of finishing
+it; answer it and re-pose the drill in the same card. Their handwritten alpha
+and beta are nearly identical — read glyphs slowly before correcting a line.
+Asking for the next question means give me the whole exercise.
