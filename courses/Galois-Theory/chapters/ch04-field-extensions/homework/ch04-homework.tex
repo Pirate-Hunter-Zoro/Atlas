@@ -217,7 +217,59 @@
   the rationals.
 \end{problem}
 % ===== SOLUTION 04.7 =====
-% TODO(mferguson): your work goes here.
+% Both halves. The student's answer, agreed correct over cards 0029, 0030,
+% 0033 and 0034: the tuple count for degree exactly n, K[x] as a countable
+% union of those, the set R_f, its finiteness, L as the union of the R_f, and
+% the contradiction closing the second half are all theirs.
+% Two repairs, both told to them:
+%   - card 0030: the zero polynomial has no degree, so K[x] is {0} together
+%     with the union, not the union alone;
+%   - card 0033: the page indexed the union of the R_f over all of K[x].
+%     f = 0 gives R_0 = L, which is not finite, so the index set here is the
+%     non-zero polynomials. The covering step is where L : K algebraic is used.
+% Facts quoted, not proved here: n-tuples from a countable set are countable;
+% a countable union of countable sets is countable; a non-zero polynomial of
+% degree n has at most n roots; Q is countable and R is not.
+\begin{solution}
+  \textbf{First half: $K$ countable implies $\polyring{K}{x}$ countable.} Fix
+  $n$. A polynomial of degree exactly $n$ is a list of coefficients
+  $k_{0}, k_{1}, \dots, k_{n}$ drawn from $K$ with $k_{n} \neq 0$, so the
+  polynomials of degree exactly $n$ form a set of $(n+1)$-tuples drawn from
+  $K$, and the set of $n$-tuples drawn from a countable set is countable. The
+  zero polynomial has no degree, so
+  \[
+    \polyring{K}{x}
+      = \set{0} \cup \bigcup_{n \geq 0}
+        \setst{f \in \polyring{K}{x}}{\deg f = n},
+  \]
+  a countable union of countable sets together with one extra element. Hence
+  $\polyring{K}{x}$ is countable.
+
+  \medskip
+  \textbf{First half: $L$ countable.} For each non-zero
+  $f \in \polyring{K}{x}$, denote
+  \[
+    R_{f} = \setst{\ell \in L}{f(\ell) = 0}.
+  \]
+  Each $R_{f}$ is finite, since a non-zero polynomial of degree $n$ has at most
+  $n$ roots in any field. Further
+  \[
+    L = \bigcup_{\substack{f \in \polyring{K}{x} \\ f \neq 0}} R_{f},
+  \]
+  because $\ext{L}{K}$ is algebraic, so every $\ell \in L$ is a root of some
+  non-zero $f \in \polyring{K}{x}$ and therefore lies in that $R_{f}$. This is
+  a countable union of finite sets --- the index set
+  $\polyring{K}{x} \setminus \set{0}$ is countable, and finite sets are
+  countable --- and is hence countable.
+
+  \medskip
+  \textbf{Second half: a transcendental real exists.} Suppose not. Then every
+  real number is algebraic over $\QQ$, that is, $\ext{\RR}{\QQ}$ is algebraic.
+  Since $\QQ$ is countable, the first half applies with $K = \QQ$ and
+  $L = \RR$, and gives that $\RR$ is countable. But $\RR$ is not countable.
+  So the supposition is false, and there is a real number transcendental over
+  $\QQ$.
+\end{solution}
 % ===== END SOLUTION 04.7 =====
 
 \begin{problem}{04.8}
