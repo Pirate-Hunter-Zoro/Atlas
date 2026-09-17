@@ -909,13 +909,18 @@ def doing_now(root, signal=""):
     and not the clock. A doing turn on a teaching turn's timeout is a turn killed
     at fifteen minutes with eight files changed and nothing committed.
 
-    AND ONE TURN ANSWERS IT WITHOUT THE SITTING. A step handed over -- `POST
+    AND TWO TURNS ANSWER IT WITHOUT THE SITTING. A step handed over -- `POST
     /handover` -- is a doing turn inside a coaching sitting, and the sitting is
     left saying `coach` on purpose, because the next card is a coach card again.
-    So the state says `teach` and is right about the evening; only the signal
-    this turn was woken with says what THIS turn does.
+    A ship is not part of the sitting at all. So the state says `teach` and is
+    right about the evening; only the signal this turn was woken with says what
+    THIS turn does.
     """
-    if signal == "handover":
+    if signal in ("handover", "ship"):
+        # A step handed over writes code. A ship reads a diff, judges it and
+        # runs a push against a remote over a tailnet -- neither is a card, and
+        # a doing turn on a teaching turn's clock is a turn killed with the work
+        # half done.
         return True
     try:
         with open(os.path.join(root, "live", "state.json"), "r", encoding="utf-8") as fh:
@@ -1096,6 +1101,47 @@ HEADLESS_REVISE_PROMPT = (
 )
 
 
+# A SHIP IS A TURN, AND IT IS NOT PART OF THE LESSON EITHER.
+#
+# A mission was set going in this workspace from a board somewhere else and told
+# to ship itself when it was done. It is done, and this turn is the ship.
+#
+# WHY IT IS A DIFFERENT ASSISTANT FROM THE ONE THAT DID THE WORK, and the owner
+# answered this before it was built: the local model decodes at three tokens a
+# second and it is the one assistant allowed to read the fenced directory, so it
+# is the wrong thing to push its own diff. This turn is a second pair of eyes
+# that could not have read what it is checking -- which is also why the machine
+# check in `board push` is not the whole of it. See `tutorboard/leaving.py`.
+#
+# It runs FRESH and writes no card, for the same reasons a revision does.
+HEADLESS_SHIP_PROMPT = (
+    "You are running headless, and THIS TURN IS NOT PART OF THE LESSON. Nobody "
+    "is waiting at a board for a card.\n\n"
+    "%(inbox)s\n\n"
+    "Do this, and nothing else:\n"
+    "1. Read what is uncommitted in this repository: `git status` and then "
+    "`git diff` over what it names. You are looking at work another assistant "
+    "did, so read it rather than trusting it.\n"
+    "2. Judge whether it is the mission's work and whether it is safe to make "
+    "public. This repository is pushed to a remote anybody can read. The one "
+    "thing that must never go is session content -- a transcript line, a "
+    "quoted span, an example taken from real audio -- wherever it has been "
+    "pasted, including a test fixture or a docstring. If you find any, STOP: "
+    "do not push, and say so in your last line so the next turn and the person "
+    "can read it.\n"
+    "3. If it is clean, run `board push \"<a one-line message saying what the "
+    "mission did>\"`. That commits and pushes the whole repository; it is the "
+    "only push in this tool and it makes its own machine check before it goes. "
+    "If it REFUSES, do not work around it and do not pass `--anyway`: the "
+    "refusal names a file, and saying so is the answer.\n\n"
+    "**Write no card.** Do not run `board write`, do not run `board open`, do "
+    "not touch `live/state.json`, `live/cards/` or `HANDOFF.md`, and do not run "
+    "`board wait`. Do not read `AI_INSTRUCTIONS.md`, `live/TEACHING.md` or the "
+    "cards: none of them is about this. End the turn when the push has "
+    "happened, or when you have said why it must not."
+)
+
+
 def turn_plan(spec, carried, recycle, signal=""):
     """Which recipe and which prompt this turn gets, and whether it is fresh.
 
@@ -1112,12 +1158,18 @@ def turn_plan(spec, carried, recycle, signal=""):
 
     A REVISION IS ALWAYS FRESH, whatever is there to resume. It is not part of
     the lesson -- see `HEADLESS_REVISE_PROMPT` -- and resuming one into a lesson
-    drags the lesson into the document and the document back into the lesson.
+    drags the lesson into the document and the document back into the lesson. A
+    SHIP is the same: it reads a diff and pushes it, and a lesson resumed into
+    that is a tutor that thinks the evening was about git.
     """
     recipe = spec.get("headless")
     first = spec.get("headless_first") or recipe
     if signal == "revise":
         return first, HEADLESS_REVISE_PROMPT, True
+    # A ship is the same shape: its own session, nothing of the lesson in it,
+    # and nothing of it left in the lesson afterwards.
+    if signal == "ship":
+        return first, HEADLESS_SHIP_PROMPT, True
     fresh = carried == 0 or bool(recycle) and carried >= recycle
     return (first if fresh else recipe,
             HEADLESS_FIRST_PROMPT if fresh else HEADLESS_RESUME_PROMPT,
@@ -1128,14 +1180,14 @@ def carry_after(signal, fresh, carried):
     """How many turns the agent's session carries once this turn has finished.
 
     Ordinarily: one if it started a new session, one more if it resumed. The
-    exception is a revision, and it is the reason this is a function rather than
-    an expression. A revision runs FRESH, so the agent's current conversation is
+    exceptions are a revision and a ship, and they are the reason this is a
+    function rather than an expression. A revision runs FRESH, so the agent's current conversation is
     now about a document -- and leaving the count at one would make the next turn
     of the LESSON resume into it, which is exactly the drag the revision was made
     fresh to avoid. Zero, so the next lesson turn starts its own session and
     reads the lesson back with `board recap`.
     """
-    if signal == "revise":
+    if signal in ("revise", "ship"):
         return 0
     return 1 if fresh else carried + 1
 
@@ -3968,13 +4020,34 @@ def cmd_serve(cfg, args):
             print("what is running on the node now goes when its job does.")
             print("start it again with: tutor serve")
             return 0
-        # A restart has to wait for the queue to actually be empty of the old
-        # chain, or the guard below refuses the new one for being a second.
-        for _ in range(30):
+        # A restart waits for the queue to be empty of the old chain, or the
+        # guard below refuses the new generation for being a second one -- and
+        # says nothing about why, which is how `serve.sh restart` came back
+        # having cancelled a chain and started nothing.
+        #
+        # Thirty seconds was not enough and could not be: a cancelled generation
+        # goes to COMPLETING while its tutors write their handoffs, which is a
+        # model turn each. Four minutes, out loud, and then said plainly rather
+        # than left to the guard.
+        waited = False
+        for n in range(240):
             rows = supervise.serve_jobs()
             if rows is not None and not rows:
                 break
+            if n == 2:
+                waited = True
+                print("waiting for the old generation to finish its handoff...")
             time.sleep(1.0)
+        else:
+            print("the old chain is still in the queue after four minutes, so "
+                  "nothing new was submitted.", file=sys.stderr)
+            print("squeue -u $USER -n %s   to see what it is doing"
+                  % supervise.JOB_NAME, file=sys.stderr)
+            print("tutor serve            to start one once it has gone",
+                  file=sys.stderr)
+            return 1
+        if waited:
+            print("it has gone.")
 
     # --- starting it -------------------------------------------------------
     if machine.slurm_nodes() is None:
