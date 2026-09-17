@@ -1,0 +1,1 @@
+I guess I don’t understand what it means to be a polynomial in gamma. K(gamma) is the smallest field that 
