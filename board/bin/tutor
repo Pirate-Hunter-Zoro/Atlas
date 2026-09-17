@@ -24,6 +24,7 @@ tutor -- start a tutoring session.
     tutor where                 what is up, on this machine and on the tailnet
     tutor restart [--tutors]    restart every board here (and its tutor) on current code
     tutor watch                 keep the boards and tutors here up, and repair what dies
+    tutor down [course]         stop serving here -- the boards, the tutors, the link
     tutor serve                 serve from a Slurm job that renews its own allocation
     tutor serve status          which generation is up, where, and what it repaired
     tutor serve stop            end that chain
@@ -3037,6 +3038,19 @@ def cmd_resume(cfg, args):
     if revived:
         say("restarted a board that had died: %s" % ", ".join(revived))
 
+    # THE HOME NODE, ASKED BEFORE THIS MACHINE STARTS ANYTHING.
+    #
+    # A login hook runs on every interactive shell, including every shell on the
+    # `salloc` you keep for coach coding -- so without this, every new terminal
+    # there drags the lesson off the serving node and the two of them take turns
+    # owning the address. The chain's node is where the board lives; `--force` is
+    # still a person insisting, and the serving node's own loop will take it back.
+    home = supervise.serving_node()
+    if home and home != host and not force:
+        say("the board lives on %s, which is the serving job's node; nothing to "
+            "do here (tutor serve status)" % home)
+        return 0
+
     course = pick(found, rest[0]) if rest else last_board(cfg)
     if not course:
         say("no board has ever run in %s; start one with: tutor" % cfg["courses_dir"])
@@ -3380,7 +3394,7 @@ def last_line(out):
     return said[-1] if said else "no reason given"
 
 
-def watch_once(cfg, host, memo, say):
+def watch_once(cfg, host, memo, say, claim=False):
     """One pass over every workspace, repairing what is down. Returns what it did.
 
     `memo` is the loop's memory, keyed by workspace: how many health probes have
@@ -3405,6 +3419,10 @@ def watch_once(cfg, host, memo, say):
     """
     did = []
     held = machine.slurm_nodes()
+    # One ask per node per pass, and the answer is remembered: `take_from` is a
+    # whole-machine errand, so asking it again for the second workspace on the
+    # same node would stop what the first one just started.
+    asked = {}
     for c in courses(cfg):
         root, name = c["root"], c["dir"]
         mem = memo.setdefault(name, {"misses": 0, "board_tries": 0, "board_at": 0.0,
@@ -3418,7 +3436,14 @@ def watch_once(cfg, host, memo, say):
         # all, or a controller not answering) counts as still yours: the wrong
         # move here is to take a live board off another machine.
         theirs_live = None if held is None else (rec.get("node") in held)
-        if theirs and theirs_live is False:
+        # `claim` IS THE SERVING NODE'S STANDING ORDER, and it is the one thing
+        # that overrides "leave a live node alone". The chain's node is home: the
+        # board lives there, the address is there, and an `salloc` is for coach
+        # coding and holds no lesson. Without it, a board that died on a node you
+        # still hold is repaired by nobody -- the only watch loop is over here,
+        # and it was told to keep its hands off. That is exactly how a white
+        # screen outlived a watchdog on 17 September.
+        if theirs and (claim or theirs_live is False):
             verdict = "adopt"
         else:
             pid_ok = processes.board_is_running(rec.get("pid"), root)
@@ -3426,6 +3451,11 @@ def watch_once(cfg, host, memo, say):
             mem["misses"] = 0 if answers else mem["misses"] + 1
             verdict = supervise.board_verdict(rec, host, pid_ok, answers, mem["misses"])
         if verdict in ("revive", "hung", "adopt") and now >= mem["board_at"]:
+            if (verdict == "adopt" and theirs_live
+                    and not take_from(rec["node"], say, asked)):
+                mem["board_tries"] += 1
+                mem["board_at"] = now + supervise.next_try(mem["board_tries"])
+                continue
             if verdict == "hung":
                 # Wedged rather than gone: the pid has to be taken out before a
                 # start, or the port is still held and the new one lands
@@ -3458,12 +3488,21 @@ def watch_once(cfg, host, memo, say):
         st = agent_record(root) or {}
         theirs = st.get("host") and st["host"] != host
         theirs_live = None if held is None else (st.get("host") in held)
-        if theirs and theirs_live is False and supervise.left_behind(st):
+        if theirs and (claim or theirs_live is False) and supervise.left_behind(st):
+            # `left_behind` is the same question either way: was this tutor
+            # serving, or was it told to go. A node asked to let go writes the
+            # handover flag on its way out, which is what makes a claim carry the
+            # lesson instead of ending it.
             tverdict = "adopt"
         else:
             tverdict = supervise.tutor_verdict(
                 st, host, processes.pid_alive(st.get("pid")))
         if tverdict in ("revive", "adopt") and now >= mem["tutor_at"]:
+            if (tverdict == "adopt" and theirs_live
+                    and not take_from(st["host"], say, asked)):
+                mem["tutor_tries"] += 1
+                mem["tutor_at"] = now + supervise.next_try(mem["tutor_tries"])
+                continue
             # Whatever configuration says now, not what the dead record named:
             # the same rule `cmd_restart` follows, and for the same reason.
             agent_name = resolve_agent(cfg, c) or st.get("agent")
@@ -3576,8 +3615,114 @@ def ensure_successor(cfg, job, say):
     return new
 
 
-def previously_serving(cfg, host):
-    """The workspaces the generation before this one had boards up in.
+def cmd_down(cfg, args):
+    """Take this machine out of serving. The other half of `tutor resume`.
+
+        tutor down              every board and tutor here, and the tailnet link
+        tutor down galois       one workspace, and nothing else
+
+    There was no way to say this, and it is what a machine handing the board over
+    has to be able to say. Two boards serving one `live/` directory off a shared
+    home is worse than a board on the wrong machine: both write cards, both
+    answer the same inbox line, and the student pays for two turns of the same
+    lesson. So before the serving node picks a workspace up, the node that has it
+    is asked -- over ssh, the same route `ensure_agent_away` uses -- to let go.
+
+    The tutor is stopped with a wait, because that stop IS the handoff turn and
+    the point of taking it over is to carry the lesson, not to drop it.
+    """
+    named = [a for a in args if not a.startswith("-")]
+    host = this_host()
+    found = courses(cfg)
+    if named:
+        want = [pick(found, named[0])]
+    else:
+        want = [c for c in found
+                if (board_record(c["root"]) or {}).get("node") == host
+                or (agent_record(c["root"]) or {}).get("host") == host]
+    if not want or want == [None]:
+        print("nothing here to stop")
+        return 0
+    for c in want:
+        st = agent_record(c["root"]) or {}
+        if st.get("host") == host and st.get("state") not in (None, "stopped"):
+            # The record says it is a handover rather than somebody leaving, so
+            # whoever takes it over knows to pick it back up. `agent_state` merges,
+            # so the daemon's own exit record does not erase this.
+            agent_state(os.path.join(c["root"], "live"),
+                        handover=time.strftime("%Y-%m-%d %H:%M:%S"))
+            code, msg = agent_stop(c, wait=True)
+            print("  %s" % (msg or "").strip())
+        code, out = board(c["root"], "stop")
+        print("  %s: %s" % (c["dir"], last_line(out)))
+    if not named:
+        # The link is a property of the MACHINE, not of a workspace, and it is
+        # the thing that must not be held by a node that has stopped serving:
+        # the state directory is shared, so a claim left behind makes the next
+        # node refuse to bring the link up at all.
+        code, out = board(want[0]["root"], "vpn", "down")
+        print("  %s" % last_line(out))
+    return 0
+
+
+def take_from(node, say, asked=None):
+    """Ask another of your nodes to stop serving. True if it did, or has.
+
+    MACHINE-WIDE, not one workspace, and that is the whole reason this is not a
+    loop over courses: the TAILNET LINK belongs to the machine. `board vpn up` on
+    a new node refuses while the claim in the shared state directory names a node
+    Slurm still says is yours -- so a claim that took the boards one at a time
+    would land them on a node with no link and no address, which is a white
+    screen with every process healthy. `tutor down` with no workspace named stops
+    every board and tutor there AND lets the link go.
+
+    ssh first, and then Slurm, which is the same two routes `hop_to_allocation`
+    uses and for the same reason: ssh between compute nodes here is refused for
+    want of a key, and a step in the allocation that HOLDS the node needs no
+    credential of its own. A step is the right shape for this particular errand
+    because the errand is to STOP things -- nothing has to outlive the step, so
+    the cgroup emptying when it ends costs nothing.
+
+    Where neither route gets in, this returns False and the caller starts
+    NOTHING, because the failure being avoided is two live boards writing one
+    `live/` directory rather than one board on the wrong machine.
+    """
+    if asked is not None and node in asked:
+        return asked[node] if isinstance(asked, dict) else True
+
+    def answer(ok, lines):
+        for line in [l.strip() for l in (lines or "").splitlines() if l.strip()]:
+            say("%s: %s" % (node, line))
+        if isinstance(asked, dict):
+            asked[node] = ok
+        elif asked is not None:
+            asked.add(node)
+        return ok
+
+    code, out = ssh_tool(node, ["down"], timeout=240)
+    if code != 255:
+        return answer(True, out)
+
+    job = job_holding(node)
+    if not job:
+        # Nothing of yours holds that node any more, so there is nobody to ask
+        # and nothing left running there to ask about.
+        return answer(True, "")
+    step = ["srun", "--overlap", "--jobid", job, "--nodes=1", "--ntasks=1",
+            "--nodelist", node] + [sys.executable, os.path.realpath(__file__), "down"]
+    try:
+        p = subprocess.run(step, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                           stdin=subprocess.DEVNULL, timeout=300)
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        return answer(False, "could not be asked to let go: %s" % exc)
+    said = p.stdout.decode("utf-8", "replace")
+    if p.returncode != 0:
+        return answer(False, "would not let go: %s" % (last_line(said)))
+    return answer(True, said)
+
+
+def previously_serving(cfg, host, only_dead=True):
+    """The workspaces that had boards up on some other node than this one.
 
     Read off `live/.board.json` naming a node Slurm no longer gives you, which
     is the only evidence there is: nothing records a generation's set of boards,
@@ -3594,9 +3739,39 @@ def previously_serving(cfg, host):
     out = []
     for c in courses(cfg):
         on = (board_record(c["root"]) or {}).get("node")
-        if on and on != host and on not in held:
-            out.append(c)
+        if not on or on == host:
+            continue
+        # `only_dead` is the login's question -- which lessons did the machine
+        # that went have up. A serving generation asks the other one: which
+        # lessons are anywhere else at all, because it is about to ask those
+        # nodes to let go and their records will be gone a second later.
+        if only_dead and on in held:
+            continue
+        out.append(c)
     return out
+
+
+def claim_elsewhere(cfg, host, say):
+    """Ask every other node of yours to stop serving. Returns the nodes asked.
+
+    BEFORE ANYTHING IS STARTED HERE, and the order is the whole point. `board
+    vpn up` refuses to bring the link up while the claim in the shared state
+    directory names a node Slurm still says is yours -- so a board started
+    before the ask comes up on loopback with no tailnet name, and nothing
+    afterwards goes back to check. Every process healthy, and a white screen.
+    """
+    held = machine.slurm_nodes()
+    nodes = set()
+    for c in courses(cfg):
+        for n in ((board_record(c["root"]) or {}).get("node"),
+                  (agent_record(c["root"]) or {}).get("host")):
+            if n and n != host and (held is None or n in held):
+                nodes.add(n)
+    asked = {}
+    for n in sorted(nodes):
+        say("asking %s to stop serving, so this node can" % n)
+        take_from(n, say, asked)
+    return [n for n, ok in asked.items() if ok]
 
 
 def hand_over(cfg, host, say, deadline=240):
@@ -3825,17 +4000,21 @@ def serve_inside(cfg, args):
     # that say which lessons were up when that machine went -- and it is right to
     # delete them. So they are read first: a handover that brings back only the
     # one course somebody last chose is a handover that loses the others.
-    previous = previously_serving(cfg, host)
+    previous = previously_serving(cfg, host, only_dead=False)
+    claim_elsewhere(cfg, host, say)
 
     tool_sync(cfg, quiet=True)          # may re-exec; see `tool_reexec`
-    # NOT `--force`, and that is the difference between a serving job and a
-    # thief. `--force` means "take the board off a machine that is still alive",
-    # and the machine that is still alive is usually an `salloc` of your own with
-    # somebody mid-proof on it. The plain resume leaves that where it is and says
-    # so; when that allocation ends, the watch loop below sees a record naming a
-    # node Slurm no longer gives you and moves the lesson here, which is the same
-    # decision made at the moment it is actually true.
-    code = cmd_resume(cfg, [])
+    # `--force`, AND THAT IS A DECISION THAT WAS MADE THE OTHER WAY FIRST.
+    #
+    # The polite version left a board alone on any node still allocated to you,
+    # so that an `salloc` with somebody mid-proof on it was never robbed. What
+    # that actually bought was a lesson on a machine no watch loop was allowed
+    # to touch: the board died on compute301 while the only watchdog was over
+    # here under orders to keep its hands off, and the iPad went white with a
+    # healthy chain running. One home node, and it is this one -- an `salloc` is
+    # for coach coding and holds no lesson. `claim_elsewhere` asks the other node
+    # to let go first, so the lesson is carried rather than duplicated.
+    code = cmd_resume(cfg, ["--force"])
     say("resume returned %d" % code)
     for c in previous:
         if processes.board_is_running((board_record(c["root"]) or {}).get("pid"),
@@ -3850,7 +4029,9 @@ def serve_inside(cfg, args):
     while not going["why"]:
         checks += 1
         try:
-            did = watch_once(cfg, host, memo, say)
+            # `claim`: this node is home, so a workspace serving anywhere else is
+            # brought here rather than left to a machine nothing is watching.
+            did = watch_once(cfg, host, memo, say, claim=True)
         except Exception as exc:                             # noqa: BLE001
             did = []
             say("the watch pass failed and the loop is carrying on: %r" % (exc,))
@@ -4033,6 +4214,9 @@ def main(argv):
 
     if args and args[0] == "watch":
         return cmd_watch(cfg, argv[argv.index("watch") + 1:])
+
+    if args and args[0] == "down":
+        return cmd_down(cfg, argv[argv.index("down") + 1:])
 
     if args and args[0] == "pull":
         # What the daily timer runs. `resume` does this too, on login; this is

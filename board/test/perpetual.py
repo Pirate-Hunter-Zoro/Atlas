@@ -273,6 +273,120 @@ try:
     supervise.answering = lambda port, timeout=3.0: True
 
     # =======================================================================
+    # One home node, and everything else lets go of it
+    # =======================================================================
+    # THE FAILURE THIS IS FOR, in the words it was reported in: "The tutor is
+    # still crashed... white screen on the iPad." A healthy chain was running on
+    # compute306 and the Galois board had died on compute301 -- an `salloc` node,
+    # still allocated, therefore out of bounds to the only watch loop there was.
+    # Nothing was watching the machine the lesson was actually on.
+    make_workspace("OnSalloc", board={"node": HOST + "b", "pid": 501, "port": 9005},
+                   agent={"host": HOST + "b", "pid": 502, "state": "listening",
+                          "agent": "claude", "last_seen": now})
+    asked = []
+
+    def fake_ssh(target, tail, timeout=300):
+        asked.append((target, tuple(tail)))
+        return 0, "  Galois Theory is wrapping up\n  OnSalloc: board stopped"
+
+    # ssh between compute nodes here is refused for want of a key -- measured, and
+    # the reason `take_from` has a second route at all. Nothing in this suite may
+    # reach a real node either way.
+    tutor.job_holding = lambda node: None
+
+    tutor.ssh_tool = fake_ssh
+    calls["board"], calls["agent"], calls["link"] = [], [], []
+    memo = {}
+    tutor.watch_once(cfg, HOST, memo, lambda line: None, claim=True)
+    check("the serving node brings a board home from a node that is still one of "
+          "your allocations, because a lesson on a machine nothing is watching is "
+          "how a white screen outlives a watchdog",
+          ("OnSalloc", "start") in calls["board"])
+    check("and it asks that node to let go FIRST -- two boards on one live/ "
+          "directory both write cards and both answer the same inbox line",
+          (HOST + "b", ("down",)) in asked)
+    check("the tutor comes with it",
+          ("OnSalloc", "claude") in calls["agent"])
+
+    check("the ask is machine-wide and not per workspace, because the tailnet "
+          "link belongs to the machine and a new node cannot bring one up while "
+          "the old claim stands",
+          len([a for a in asked if a[0] == HOST + "b"]) == 1)
+
+    # Where NEITHER route gets in -- no ssh key, and the step into the allocation
+    # holding that node refused -- the honest answer is to start nothing here.
+    # One board on the wrong machine beats two boards on one lesson.
+    tutor.ssh_tool = lambda target, tail, timeout=300: (255, "")
+    tutor.job_holding = lambda node: "2073999"
+
+    class Refused:
+        returncode = 1
+        stdout = b"srun: error: Unable to create step\n"
+
+    real_run = tutor.subprocess.run
+    tutor.subprocess.run = lambda *a, **kw: Refused()
+    calls["board"], calls["agent"] = [], []
+    memo = {}
+    try:
+        tutor.watch_once(cfg, HOST, memo, lambda line: None, claim=True)
+    finally:
+        tutor.subprocess.run = real_run
+        tutor.job_holding = lambda node: None
+    check("a node reachable by neither route keeps its board, and nothing is "
+          "started here",
+          ("OnSalloc", "start") not in calls["board"]
+          and ("OnSalloc", "claude") not in calls["agent"])
+
+    # A node no allocation of yours holds any more needs no asking at all: there
+    # is nobody there to ask, and nothing left running to ask about.
+    calls["board"], calls["agent"] = [], []
+    memo = {}
+    tutor.watch_once(cfg, HOST, memo, lambda line: None, claim=True)
+    check("and one no allocation of yours holds is simply taken over, ssh or no "
+          "ssh", ("OnSalloc", "start") in calls["board"])
+
+    # And an ordinary watch loop -- one inside an `salloc`, say -- never claims
+    # anything from anywhere. Only the serving generation is home.
+    tutor.ssh_tool = fake_ssh
+    calls["board"], calls["agent"], asked[:] = [], [], []
+    memo = {}
+    tutor.watch_once(cfg, HOST, memo, lambda line: None)
+    check("a watch loop that is not the serving one claims nothing from a live "
+          "node, and asks nobody for anything",
+          ("OnSalloc", "start") not in calls["board"] and not asked)
+    shutil.rmtree(os.path.join(tmp, "OnSalloc"), ignore_errors=True)
+
+    # --- and the other side of the same rule --------------------------------
+    src_tutor = open(os.path.join(ROOT, "bin", "tutor"), encoding="utf-8").read()
+    check("a login on any other node asks where home is before it starts "
+          "anything, or every new terminal on an salloc drags the lesson back",
+          "home = supervise.serving_node()" in src_tutor
+          and 'if home and home != host and not force:' in src_tutor)
+    check("`tutor down` exists to be the other half of `tutor resume`, and it "
+          "waits for the handoff rather than dropping the lesson",
+          "def cmd_down(" in src_tutor and "agent_stop(c, wait=True)" in src_tutor)
+    check("it marks the stop as a handover, so whoever takes the workspace over "
+          "knows to pick the tutor back up",
+          src_tutor.index("def cmd_down(") < src_tutor.index("handover=time.strftime")
+          < src_tutor.index("agent_stop(c, wait=True)"))
+    check("and it lets go of the tailnet link only when no single workspace was "
+          "named, because the link belongs to the machine",
+          'if not named:' in src_tutor and '"vpn", "down"' in src_tutor)
+    check("a generation asks the other nodes to let go BEFORE it starts anything "
+          "here, or a board comes up with no tailnet link and nothing goes back "
+          "to check -- every process healthy, and a white screen",
+          src_tutor.index("claim_elsewhere(cfg, host, say)")
+          < src_tutor.index("tool_sync(cfg, quiet=True)")
+          < src_tutor.index('cmd_resume(cfg, ["--force"])'))
+    check("and it captures what was serving elsewhere first, since the ask is "
+          "about to delete the records that say so",
+          "previously_serving(cfg, host, only_dead=False)" in src_tutor)
+    check("the serving generation takes the boards rather than leaving them, and "
+          "says why in the code that does it",
+          'cmd_resume(cfg, ["--force"])' in src_tutor
+          and "claim=True" in src_tutor)
+
+    # =======================================================================
     # Which boards the machine that just went was serving
     # =======================================================================
     machine.slurm_nodes = lambda: {HOST}
