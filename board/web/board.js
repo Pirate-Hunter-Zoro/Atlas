@@ -8016,6 +8016,9 @@ function makeWriter(then) {
              the page: the working visibly jumps and the zoom you were writing at
              is thrown away, every single time Send is pressed. */
           if (res && res.turn && res.rev) loadedTurn = res.turn + ":r" + res.rev;
+          /* Ink was the half they answered on, so ink is the half the next
+             question opens on. The twin of the line in `say`. */
+          setAnswerKind("write");
           toastSent();
           revealSentSettling();
         },
@@ -8157,9 +8160,18 @@ function toastSent() {
 
 /* ------------------------------------------------------------------ input */
 /* --------------------------------------- one answer panel, two surfaces */
-/* The student writes on the slate or types, whichever they used last. A typed
-   draft is kept per question the way the slate keeps a page per question, so
-   flipping between the two does not lose either half. */
+/* The student writes on the slate or types, whichever they ANSWERED with last.
+   A typed draft is kept per question the way the slate keeps a page per
+   question, so flipping between the two does not lose either half.
+
+   THE INK CARRIES OVER FROM QUESTION TO QUESTION AND THE TYPING DOES NOT, AND
+   THE ASYMMETRY IS THE POINT. `carryOver` brings the previous question's page of
+   ink onto a blank sheet, because a proof being fixed a line at a time is worked
+   on that way. There is no typed twin of that control and there must not be one:
+   "there's no way I'm going to type the same thing again." A typed box that
+   opens with anything in it opens with something the person typed against THAT
+   question -- their own unsent draft, or the answer they are correcting -- and
+   nothing else. */
 
 var ANSWER_KIND = "answer-kind";
 var textDrafts = {};            /* question id -> typed draft */
@@ -8167,15 +8179,54 @@ var textDraftsSeeded = false;
 var lastTextQuestion = null;
 var textSaveTimer = null;
 
-function answerKind() {
-  try {
-    if (localStorage.getItem(ANSWER_KIND) === "type") return "type";
-  } catch (e) {}
-  return "write";
+/* WHICH SITTING A REMEMBERED HALF BELONGS TO.
+
+   The remembered half is a fact about an evening, not about a browser. `opened`
+   is rewritten every time a sitting starts and `course` names the workspace, so
+   the two together name this sitting and no other. A half remembered anywhere
+   else reads as belonging to no sitting at all, which is what lets the aim
+   answer the first question of this one -- see `answerKind`. */
+function sittingTag() {
+  var st = (lastLive && lastLive.state) || {};
+  return (st.course || "") + " @ " + (st.opened || "");
 }
 
+/* THE HALF A QUESTION WITH NO HISTORY OF ITS OWN OPENS ON.
+
+   Asked for in these words: "the default that shows up should be whatever last
+   one I used was. If I wrote last, a board should show up. If I typed last, a
+   typing thing should show up." So what is remembered is the half an answer was
+   SENT on, recorded on both send paths -- `say` for the words, the writer's
+   `onSend` for the ink -- and by a tab press as well, because a tap is a
+   statement.
+
+   AND THE FIRST QUESTION OF A SITTING HAS NO LAST, so the sitting's own aim
+   answers it: "If the AI mode is math teacher or code coaching, then it should
+   be the board... If the AI mode is vibe coding, then it should be the
+   keyboard." `doingTurn` is that split already and is the board's one answer to
+   it, so there is no second table here mapping aims onto surfaces. A half
+   remembered in another sitting does not outrank it: there is no last half here,
+   and this evening's aim is a better answer than a tap made in another
+   workspace. */
+function answerKind() {
+  try {
+    var saved = JSON.parse(localStorage.getItem(ANSWER_KIND) || "null");
+    if (saved && saved.sitting === sittingTag()
+        && (saved.kind === "type" || saved.kind === "write")) {
+      return saved.kind;
+    }
+  } catch (e) {}
+  return doingTurn((lastLive && lastLive.state) || {}) ? "type" : "write";
+}
+
+/* Stamped with the sitting it was answered in. An untagged value parses as
+   nothing and is ignored, which is the honest reading of one: nothing can say
+   which evening it came from. */
 function setAnswerKind(kind) {
-  try { localStorage.setItem(ANSWER_KIND, kind); } catch (e) {}
+  try {
+    localStorage.setItem(ANSWER_KIND,
+                         JSON.stringify({ kind: kind, sitting: sittingTag() }));
+  } catch (e) {}
 }
 
 function seedTextDrafts(data) {
@@ -8292,7 +8343,13 @@ function paintPanel() {
 /* The typed answer already sent against this question, brought back for
    correction -- the typed counterpart of the slate restoring its page of ink.
    Guarded like the ink: the turn just sent is not loaded back over the empty
-   box, and newer local typing wins. */
+   box, and newer local typing wins.
+
+   THIS IS NOT THE TYPING CARRYING OVER. What it loads was typed against the
+   question now open, and the box is where a correction to it is made. The box
+   stops being that place when the sent answer is rendered as a block above it
+   and a tap on the block is what loads it back for fixing -- and then this
+   restore moves out of the panel and into that tap. Until then it stays. */
 var loadedTextTurn = null;
 
 /* Which typed answer the box is CORRECTING -- as opposed to which one it last
@@ -8331,6 +8388,10 @@ function autosize() {
 function say(signal) {
   var text = els.saybox.value.trim();
   if (!text && !signal) return;
+  /* THE HALF AN ANSWER WAS SENT ON IS THE HALF THE NEXT QUESTION OPENS ON.
+     A signal is a tap on a button rather than an answer given on a surface, so
+     it says nothing about which half to offer next. */
+  if (!signal) setAnswerKind("type");
   saySending();
   els.saybox.value = "";
   if (answering.question) { textDrafts[answering.question] = ""; }
