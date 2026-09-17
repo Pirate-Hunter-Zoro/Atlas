@@ -252,6 +252,51 @@ await sleep(40);
   ? ok('but the next thing typed is a new answer, and is kept')
   : fail('a second answer overwrote the first: ' + JSON.stringify(sendOf()));
 
+// ------------------------- and the two halves of the panel behave the same way
+//
+// "my typed response doesn't get saved on the appearance unlike previously
+// writing boards." Going back to a question answered in ink gives the page of
+// ink back; going back to one answered by typing did not give the words back.
+// The restore existed — `restoreTextAnswer` is written, named and commented as
+// exactly this — so the defect was in WHEN it runs. Two gates: it was asked only
+// while the type half happened to be showing, and it refused any box that was
+// not empty, including one holding another question's words.
+
+// A third question, answered by typing, reached with a box that is NOT empty:
+// the box still holds the sentence typed into it for 0009 a moment ago.
+const third = { id: '0011', kind: 'question', title: 'Exercise 4.12',
+                body: 'and the fixed field', mtime: t0 + 700 };
+say.value = 'still typing about the tower law';
+say.dispatchEvent(new window.Event('input'));
+es.onmessage({ data: frame([question, later, third],
+                           [{ id: 't0057', rev: 1, kind: 'text', answers: '0009',
+                              t: t0 + 560, text: 'my first go' },
+                            { id: 't0060', rev: 1, kind: 'text', answers: '0011',
+                              t: t0 + 760, text: 'the fixed field is Q' }]) });
+for (let i = 0; i < 60 && doc.getElementById('writer').hidden; i++) await sleep(50);
+await sleep(60);
+doc.getElementById('tab-type').click();
+await sleep(40);
+
+say.value === 'the fixed field is Q'
+  ? ok('a box holding another question\'s words is no reason to refuse this one '
+       + 'its answer back')
+  : fail('the answer to the question now open did not come back: "'
+         + say.value + '"');
+
+// And unsent typing of their own, on THIS question, still wins: that is what
+// the guard is for, and it is the draft that says so rather than the box.
+say.value = 'wait, it is Q(i)';
+say.dispatchEvent(new window.Event('input'));
+doc.getElementById('tab-write').click();
+await sleep(40);
+doc.getElementById('tab-type').click();
+await sleep(40);
+say.value === 'wait, it is Q(i)'
+  ? ok('and typing they have not sent yet is never written over by the restore')
+  : fail('unsent typing was replaced by the answer already sent: "'
+         + say.value + '"');
+
 console.log(errors.length
   ? errors.length + ' FAILURES'
   : 'the answer is theirs, coloured and kept');

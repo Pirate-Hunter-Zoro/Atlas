@@ -151,6 +151,21 @@ WRITEUP_SENSE = (
     "they have not produced, and never leave the write-up for the end: a sitting "
     "is abandoned far more often than it is finished tidily, so an exercise "
     "agreed at half past is typeset by twenty-five to. "
+    # AND NEVER TELL THEM TO WRITE IT UP. A card in Galois Theory said "two
+    # words to add when you write it up", which is two failures in one clause:
+    # it hands over an errand that does not exist -- the document is the tutor's
+    # -- and it DEFERS A CORRECTION, because the missing word was a fact about
+    # the proof rather than a note for later. Reported as "I'M not fucking
+    # writing anything up... It should put phrases in like that - that makes me
+    # uneasy." In headless this string is the whole prompt, so the rule has to
+    # be here and not only in the document.
+    "NEVER TELL THEM TO WRITE IT UP. No card says 'when you write it up', 'add "
+    "this to your write-up' or 'two words to add' -- the document is yours, so "
+    "report what the file NOW SAYS rather than handing them an errand. And where "
+    "the missing words are a CORRECTION, make it in the write-up in this same "
+    "turn and say on the card what was wrong and that the file now says it "
+    "right: a fix made conditional on something they were never going to do "
+    "leaves the proof wrong in a document you have told them is finished. "
 )
 
 

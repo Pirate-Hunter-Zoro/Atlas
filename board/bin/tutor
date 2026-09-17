@@ -140,6 +140,56 @@ DEFAULT_CONFIG = {
         },
         "aider":  {"cmd": ["aider"], "prompt": "none"},
         "cursor": {"cmd": ["cursor-agent"], "prompt": "none"},
+        # THE LOCAL MODEL, and it is a command recipe like any other -- nothing
+        # in this file knows what a model is, which is exactly why a second one
+        # is a sixth row rather than a feature. `coli-code` puts a coding client
+        # in a directory against GLM-5.2 int4 served on a compute node by
+        # `coli-up`; see projects/libr-local-llm/README.md §4c.
+        #
+        # It exists for one job: it is the only assistant allowed to read `phi`,
+        # because it runs on our own hardware and nothing leaves the node.
+        #
+        # `--continue` on the resumed turn is not a nicety here, it is the whole
+        # cost argument, and it is much stronger than it is for a hosted model.
+        # The client's preamble is 15,900 tokens and prefill runs at a few tokens
+        # a second, so a fresh session is two to three HOURS before the first
+        # word while a continued one reuses the KV prefix. `--yes` because a
+        # headless turn has nobody to approve a tool call.
+        "colibri": {
+            "cmd": ["coli-code"], "prompt": "argv",
+            "headless_first": ["coli-code", "--yes", "{prompt}"],
+            "headless": ["coli-code", "--yes", "--continue", "{prompt}"],
+            # AND ITS OWN CEILING. Both numbers below were chosen against a
+            # hosted model that answers in seconds; this one spends hours in
+            # prefill before it emits a token, so every turn would be killed and
+            # the board would paint it as a turn that FAILED rather than one that
+            # was interrupted. Four hours, taken as a floor by `turn_timeout`.
+            "timeout": 14400,
+            # ONE SITTING AT A TIME, MACHINE-WIDE, AND THE STRING IS THE REASON.
+            # The server runs a single KV slot, so a second sitting anywhere on
+            # this machine evicts the first one's prefix and the first then
+            # re-pays its preamble: hours of work destroyed by a tap that looked
+            # harmless. A refusal that names the workspace already holding it,
+            # not a queue. The engine supports 16 slots and `COLI_KV_SLOTS` is
+            # wired through the serve job; the day somebody measures what a slot
+            # costs at a 131072 window, this line comes out and nothing else
+            # changes.
+            "exclusive": "the server runs one KV slot, so a second sitting "
+                         "evicts the first one's prefix and costs it the whole "
+                         "preamble again",
+            # AND ITS CARDS MUST NOT BE COMMITTED. This is the only assistant
+            # allowed to read `phi`, which is the entire reason it exists -- and
+            # a card is how every turn reports. `research/PSYCH-ASR/.gitignore`
+            # excludes `live/*` with `live/map.json` the single exception, so a
+            # card there is never tracked; `courses/Galois-Theory/live/cards/` is
+            # in the pushed history. Same feature, two workspaces, and in one of
+            # them it pushes the local model's output to a remote where nothing
+            # can audit what it quoted. So the rule is about the ASSISTANT and is
+            # the same everywhere: refuse where the card would be tracked, and
+            # name the one line that changes it.
+            "private": "it is the only assistant allowed to read `phi`, so its "
+                       "cards must not reach a remote",
+        },
     },
     # Which assistant a given machine prefers, keyed by its short hostname. A
     # laptop and a cluster node do not have the same tools installed and should
@@ -529,22 +579,48 @@ def read_costs(root):
 
 
 def resolve_agent(cfg, course, override=None, interactive=False, say=None):
-    """Which assistant tutors this course, on this machine.
+    """Which assistant tutors this course, on this machine, in this sitting.
 
     Most specific wins, and every layer is configuration rather than code:
 
       1. --agent on the command line          -- this once
-      2. "agent" in the course's tutorboard.json -- this course, everywhere
-      3. "hosts" in the config, by hostname   -- this machine, every course
-      4. default_agent                        -- everything else
+      2. "agent" in the sitting's state.json  -- this evening's work
+      3. "agent" in the course's tutorboard.json -- this course, everywhere
+      4. "hosts" in the config, by hostname   -- this machine, every course
+      5. default_agent                        -- everything else
+
+    THE SITTING IS THE LAYER THAT WAS MISSING, and the one the iPad can reach.
+    Without it, choosing the local model for one evening's work meant editing a
+    file that is a statement about the workspace for ever -- and none of the four
+    layers around it can be touched from a tablet. It sits above the workspace
+    for the same reason a sitting stance and a sitting aim do: a choice made for
+    an evening is not a decision about what the repository is.
+
+    An assistant is chosen as a sitting OPENS and not mid-way, which is the one
+    thing that makes this cheap. The aim can change in place because it changes
+    what the next card is; the agent decides WHO WRITES IT, and the conversation
+    the outgoing one was holding does not transfer -- on colibri that is the
+    whole 15,900-token preamble, paid again, in hours. So there is no `/agent`
+    the way there is a `/aim`: `_mark` writes it with the sitting, and the
+    sitting that does not name one clears it.
 
     Which model an assistant runs is not a layer here and never should be: an
     agent entry is a command recipe, so a second model is a second entry whose
     `cmd` carries the flag. Nothing in this file knows what a model is.
     """
     say = say or (lambda m: print(m, file=sys.stderr))
+    mine = config.sitting_agent((course or {}).get("root"))
+    # The sitting's own answer is DROPPED when this machine has no such agent,
+    # where every other layer refuses. It is the one layer written from a
+    # browser, and a name that resolves to nothing leaves the course with no
+    # tutor at all -- which is a worse answer to a misspelling than the
+    # workspace's own.
+    if mine and mine not in cfg["agents"]:
+        say("this sitting asks for '%s', which is not an assistant here; "
+            "falling back" % mine)
+        mine = None
     picked = None
-    for pick in (override, (course or {}).get("agent"),
+    for pick in (override, mine, (course or {}).get("agent"),
                  (cfg.get("hosts") or {}).get(this_host()),
                  cfg.get("default_agent")):
         if pick and pick in cfg["agents"]:
@@ -837,12 +913,29 @@ def doing_now(root):
         return False
 
 
-def turn_timeout(cfg, root):
-    """How long this turn gets, by what kind of turn it is."""
+def turn_timeout(cfg, root, spec=None):
+    """How long this turn gets, by what kind of turn it is AND which agent runs it.
+
+    The two numbers in the configuration are about the SITTING: a teaching turn
+    writes a card and stops, a turn that was asked to write the code stages
+    models and runs a suite. Both were measured against a hosted model that
+    starts answering in seconds.
+
+    An agent may be slower than either by an order of magnitude, and one is: a
+    colibri turn spends two to three hours in prefill before it emits its first
+    token, so every one of its turns died at the cap and was painted as a turn
+    that FAILED rather than one that was interrupted. A `timeout` on the recipe
+    is taken as a FLOOR, so the existing numbers stay exactly as they are for
+    every other agent and the slow one carries its own.
+    """
     plain = int(cfg.get("headless_timeout", 900) or 900)
-    if not doing_now(root):
-        return plain
-    return max(plain, int(cfg.get("doing_timeout", 3600) or 3600))
+    if doing_now(root):
+        plain = max(plain, int(cfg.get("doing_timeout", 3600) or 3600))
+    try:
+        floor = int((spec or {}).get("timeout") or 0)
+    except (TypeError, ValueError):
+        floor = 0
+    return max(plain, floor)
 
 
 def handoff_clause(root):
@@ -1559,6 +1652,49 @@ def agent_live(root):
     return st if processes.agent_is_attached(st, this_host()) else None
 
 
+def agent_held_elsewhere(cfg, course, agent_name):
+    """Which OTHER workspace already has this agent listening, or None.
+
+    Asked only of an agent whose recipe says it is `exclusive`, and asked across
+    the whole MACHINE rather than this process: what is being protected is a
+    server with one slot in it, and the sitting that would evict it may be on
+    another node. The home directory is shared, so the record of a tutor over
+    there is readable from here -- which is exactly what has to be found -- and
+    the heartbeat is the only honest test of it, never the pid, because a pid
+    written on one node names a process table this one cannot read.
+    """
+    for c in courses(cfg):
+        if paths.same_dir(c["root"], course["root"]):
+            continue
+        rec = agent_record(c["root"])
+        if not rec or rec.get("agent") != agent_name:
+            continue
+        if rec.get("host") == this_host():
+            if agent_live(c["root"]):
+                return c["dir"]
+        elif processes.agent_attached_away(rec, rec.get("host")):
+            return c["dir"]
+    return None
+
+
+def cards_are_tracked(root):
+    """Would a card written in this workspace be committed?
+
+    `git check-ignore` rather than a list of workspaces: the answer is a property
+    of the repository and it is written down in the one place that decides it.
+    Exit 0 means ignored, 1 means it would be tracked, and anything else means
+    there is no git here to ask -- which is not a reason to refuse anybody.
+    """
+    probe = os.path.join(root, "live", "cards", "0001-probe.md")
+    try:
+        p = subprocess.run(["git", "check-ignore", "-q", probe], cwd=root,
+                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                           timeout=15)
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+    return p.returncode == 1
+
+
 def agent_start(cfg, course, agent_name, session=None):
     """Put an assistant in this course's repository, detached.
 
@@ -1586,6 +1722,22 @@ def agent_start(cfg, course, agent_name, session=None):
     if gone:
         return 1, ("'%s' needs `%s`, which is not on the path here; "
                    "try: tutor --agents" % (agent_name, gone))
+    # REFUSED BY NAME, BEFORE `waking` IS WRITTEN. Both of these are properties
+    # of the recipe rather than of this file: the strings on the entry are the
+    # reasons, so the day either stops being true the line comes out of the
+    # table and nothing here has to be edited.
+    if spec.get("exclusive"):
+        held = agent_held_elsewhere(cfg, course, agent_name)
+        if held:
+            return 1, ("'%s' is already working in %s, and it runs one sitting "
+                       "at a time on this machine: %s. Stop that one first: "
+                       "tutor agent stop %s"
+                       % (agent_name, held, spec["exclusive"], held))
+    if spec.get("private") and cards_are_tracked(root):
+        return 1, ("'%s' will not open in %s, because a card written there is "
+                   "committed and %s. Add `live/*` to that workspace's "
+                   ".gitignore, or choose a workspace whose live/ is already "
+                   "ignored." % (agent_name, course["dir"], spec["private"]))
 
     os.makedirs(live_dir, exist_ok=True)
     # SAY THAT A TUTOR IS COMING, BEFORE ANYTHING SLOW HAPPENS.
@@ -1912,7 +2064,7 @@ def headless(cfg, course, agent_name, session):
         mark = os.path.getsize(logpath) if os.path.exists(logpath) else 0
         try:
             p = subprocess.run(cmd, cwd=root, stdout=log, stderr=subprocess.STDOUT,
-                               timeout=turn_timeout(cfg, root))
+                               timeout=turn_timeout(cfg, root, spec))
             err = None if p.returncode == 0 else "exit %d" % p.returncode
             # A resume that finds nothing to resume is not a broken turn; it is a
             # first turn wearing the wrong recipe. Try it once as one.
@@ -1925,7 +2077,7 @@ def headless(cfg, course, agent_name, session):
                 cmd = with_usage(spec, [a.replace("{prompt}", HEADLESS_FIRST_PROMPT % fill)
                                         for a in first])
                 p = subprocess.run(cmd, cwd=root, stdout=log, stderr=subprocess.STDOUT,
-                                   timeout=turn_timeout(cfg, root))
+                                   timeout=turn_timeout(cfg, root, spec))
                 err = None if p.returncode == 0 else "exit %d" % p.returncode
                 fresh = True
         except subprocess.TimeoutExpired:
@@ -3172,6 +3324,29 @@ def main(argv):
             print()
             return 0
         elif a == "--agents":
+            # AS JSON, FOR THE BOARD, and out of this one table rather than a
+            # second list somewhere the browser can read. The board offers the
+            # choice of assistant for a sitting being opened, so it has to know
+            # which ones this machine actually has -- and the registry is here,
+            # because an agent entry is a command recipe. Asked once per board
+            # process and cached; see `tutorboard/assistants.py`.
+            if "--json" in argv:
+                print(json.dumps({
+                    "default": cfg["default_agent"],
+                    "agents": [
+                        {"name": n,
+                         "cmd": " ".join(spec.get("cmd", [])),
+                         "missing": missing_command(spec.get("cmd")),
+                         # Why this one may refuse to open, in the recipe's own
+                         # words, so the board can say it before the tap rather
+                         # than after.
+                         "exclusive": spec.get("exclusive") or None,
+                         "private": spec.get("private") or None,
+                         "headless": bool(spec.get("headless")
+                                          or spec.get("headless_first"))}
+                        for n, spec in sorted(cfg["agents"].items())],
+                }))
+                return 0
             print("config: %s" % CONFIG)
             print("machine: %s (%s)" % (this_host(), machine.machine_shape()))
             print()

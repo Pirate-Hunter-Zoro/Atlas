@@ -3157,6 +3157,68 @@ wrapper.
   agent must supply itself — an agent that cannot look at an image cannot review handwritten
   work, and should ask for a typed answer in the board's text box instead.
 
+### Which one, and who decides
+
+`tutor --agents` is the table. An entry is a **command recipe** — `cmd` for an interactive
+session, `headless_first` to open a headless one, `headless` to continue it, `{prompt}`
+substituted — so a second model is a second entry whose `cmd` carries the flag. Nothing in
+`bin/tutor` knows what a model is.
+
+Five layers resolve it, most specific first, and every one is configuration rather than code:
+
+| | where | what it is a statement about |
+| --- | --- | --- |
+| 1 | `--agent` on the command line | this once |
+| 2 | `agent` in the sitting's `state.json` | this evening's work |
+| 3 | `agent` in the workspace's `tutorboard.json` | this workspace, for ever |
+| 4 | `hosts` in the config, by hostname | this machine, every workspace |
+| 5 | `default_agent` | everything else |
+
+**Layer 2 is the one a tablet can reach**, and it is chosen as a sitting OPENS rather than changed
+in place — the *who:* row in the sitting chooser, held like a stance and sent with `/session`. An
+aim can change mid-sitting because it changes what the next card is; an assistant changes who
+writes it, and the conversation the outgoing one was holding does not transfer. A name at layer 2
+that this machine has not got falls back with a line saying so, where the layers below it refuse:
+it is the one layer written from a browser, and a misspelling must not leave a course with no
+tutor at all.
+
+`⇥ put an assistant to work elsewhere` in the bar menu is the same choice aimed at a workspace you
+are **not** looking at: pick one, say what to do, and go back to what you were doing. The list is
+`machines.workspaces`, which is a directory walk rather than a registry. The task lands as a turn
+of theirs in that workspace's inbox — which is what `board wait` watches — and the start is
+`tutor agent start <workspace> --agent <name>`, layer 1, for that daemon only. What comes back
+comes back through the newsbar, hours later, on whichever board is open then.
+
+### The local model
+
+`colibri` is the sixth row and it serves GLM-5.2 int4 from a compute node in this repository; see
+`projects/libr-local-llm/README.md` §4c. Three things about it are unlike every other row, and all
+three are properties of the recipe:
+
+- **`timeout: 14400`.** The client's preamble is 15,900 tokens and prefill runs at a few tokens a
+  second, so a first turn is two to three HOURS before it emits a token. `turn_timeout` takes the
+  recipe's number as a floor, so the two numbers about the sitting are unchanged for everybody
+  else. Nothing paints a long turn as dead: the daemon's 30-second beat thread keeps the indicator
+  green for the whole of it.
+- **`exclusive`.** The server runs one KV slot, so a second colibri sitting anywhere on this
+  machine evicts the first one's prefix and the first re-pays its whole preamble. Refused by name,
+  saying which workspace is holding it. `COLI_KV_SLOTS` is wired through the serve job and the
+  engine supports 16; measure what a slot costs at a 131072 window and this becomes a queue.
+- **`private`.** It is the only assistant allowed to read `phi`, which is the entire reason it
+  exists — so it refuses to open where a card of its own would be committed. `git check-ignore`
+  decides, per workspace, and the refusal names the one line that changes it. `research/PSYCH-ASR`
+  excludes `live/*`; `courses/Galois-Theory/live/cards/` is in the pushed history.
+
+The server is a Slurm job and starting one is not something a request can wait for — an
+allocation, a 429 GB load and a warm-up generation is seven or eight minutes on a good day and can
+pend indefinitely behind a 950 GB ask. So the *who:* row says which of four states it is in and
+offers to start one: **nothing running**, **queued** (Slurm's own reason), **loading**, **warm**.
+`squeue` is the source of truth and nothing writes a state file; the answer is cached for fifteen
+seconds, the way `machines.held_nodes` caches its own. The difference between loading and warm
+cannot be got from Slurm — the gateway binds its port before it loads anything, so a TCP probe
+says nothing — so the job's own two lines are read instead: `API listening on`, then
+`COLIBRI-SERVE READY` once it has completed a real generation.
+
 ## Layout
 
 ```
@@ -3558,6 +3620,14 @@ python3 test/choice.py   that the address opens the course a person chose
 python3 test/limit.py    that an allowance running out is reported rather than hidden
 python3 test/tokens.py   what a turn is allowed to read, what it must not run, and that
                          what it cost is measured rather than argued about
+python3 test/colibri.py  that the local model is a recipe and not a feature: the sitting
+                         resolves it, its clock is hours rather than minutes, `squeue`
+                         answers which of four states its server is in, and the two
+                         refusals fire -- one sitting at a time, and never where a card
+                         of its own would be committed
+node test/who.js         that who writes this sitting is a choice on the glass, held
+                         until the sitting opens, and that a workspace you are not
+                         looking at can be handed a job
 
 bash test/all.sh         all of the above, in order, and Paper-Writer's 516 tests
                          where it is checked out. The two real-DOM suites need

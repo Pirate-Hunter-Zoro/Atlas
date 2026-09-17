@@ -533,6 +533,7 @@ def cmd_open(live, args):
     over = []
     stance = None
     aim = None
+    agent = None
     node = None
     makes = None
     rest = []
@@ -567,6 +568,22 @@ def cmd_open(live, args):
             if aim is None:
                 print("  --aim is not one of: %s; ignored"
                       % ", ".join(config.AIMS), file=sys.stderr)
+            skip_next = True
+        elif a == "--agent":
+            # WHICH ASSISTANT THIS SITTING WANTS, written with the sitting and
+            # not afterwards. It has to land here rather than be patched on once
+            # `open` has returned, because a chapter change replaces the tutor on
+            # its own thread the moment it is opened -- so a choice written after
+            # that is a choice the incoming daemon never saw.
+            #
+            # Only the shape of the name is checked; the registry is in
+            # `bin/tutor` because an agent entry is a command recipe, and
+            # `resolve_agent` drops one this machine has not got rather than
+            # leaving the course with no tutor at all.
+            agent = config.clean_agent(args[i + 1] if i + 1 < len(args) else "")
+            if agent is None:
+                print("  --agent takes an assistant's name; ignored",
+                      file=sys.stderr)
             skip_next = True
         elif a == "--node":
             # Which box of the map this sitting is about. Checked against what
@@ -646,6 +663,10 @@ def cmd_open(live, args):
                    # cleared by opening the next one, the way a sitting stance
                    # is: they belong to the sitting, not to the repository.
                    node=node, aim=aim, makes=makes,
+                   # And which assistant, under the same rule: a choice made for
+                   # an evening's work is not a statement about the repository,
+                   # so it is cleared by opening a sitting that does not name one.
+                   agent=agent,
                    review=[u["name"] for u in chosen] if session == "review" else None,
                    walk=[u["name"] for u in chosen] if session == "walk" else None,
                    # A sitting stance is cleared by opening the next sitting,
@@ -680,6 +701,8 @@ def cmd_open(live, args):
               % ("deck" if makes == "slides" else "paper"))
     if aim:
         print("  aim: %s" % aim)
+    if agent:
+        print("  assistant: %s  (this sitting only)" % agent)
     if session == "homework":
         print("  you write the mathematics; the write-up and the compile are mine")
         # Bind the sitting to a problem set now, so nothing later has to guess.

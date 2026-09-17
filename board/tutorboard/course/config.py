@@ -14,6 +14,7 @@ never be the reason a board behaves differently from its neighbour.
 
 import json
 import os
+import re
 
 from .. import atlas
 
@@ -221,6 +222,47 @@ AIM_STANCE = {
     "trace": "teach",
     "drill": "teach",
 }
+
+
+# ---------------------------------------------------------------------------
+# WHICH ASSISTANT, and why only the shape of the name is checked here
+# ---------------------------------------------------------------------------
+#
+# The registry is in `bin/tutor` and belongs there: an agent entry is a command
+# recipe, so a second model is a second entry whose `cmd` carries the flag, and
+# this file has no business knowing what commands a machine has. What a request
+# can be checked against here is that it is a NAME -- something safe to write
+# into `state.json` and match against the registry later.
+#
+# An unknown one is DROPPED by `resolve_agent` rather than refused, which is the
+# rule a misspelled stance already follows and for a sharper reason: a sitting is
+# being opened, and leaving a course with no tutor at all over a word from a
+# browser is worse than ignoring the word.
+AGENT_RE = re.compile(r"^[a-z][a-z0-9_.-]{0,31}$")
+
+
+def clean_agent(agent):
+    """An assistant name from a request, or None if it is not one. Never raises."""
+    agent = str(agent or "").strip().lower()
+    return agent if AGENT_RE.match(agent) else None
+
+
+def sitting_agent(root):
+    """Which assistant THIS SITTING asked for, off its own `state.json`, or None.
+
+    Read here so that the launcher and the server ask one function. It sits
+    beside `node` and `aim` under the rule `_mark` states: a box chosen for an
+    evening's work is not a statement about what the repository is, and neither
+    is an assistant. `tutorboard.json` is the layer that IS such a statement.
+    """
+    if not root:
+        return None
+    try:
+        with open(os.path.join(root, "live", "state.json"), "r",
+                  encoding="utf-8") as fh:
+            return clean_agent((json.load(fh) or {}).get("agent"))
+    except (OSError, ValueError, AttributeError):
+        return None
 
 
 def family_aim(root, base=None):
