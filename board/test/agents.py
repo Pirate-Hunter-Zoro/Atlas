@@ -498,6 +498,11 @@ tutor.agent_start = lambda cfg, c, name, session=None: (started.append(c["dir"])
 tutor.ssh_tool = lambda target, tail, timeout=300: (
     sshed.append((target, list(tail))) or (0, "claude starting in Fake-Course\n"))
 tutor.machine.slurm_nodes = lambda: {host, "othernode"}
+# Nothing is serving in this world. A running chain makes its node home and a
+# login elsewhere leaves the boards alone, which is a question about the real
+# queue -- and what is in the real queue is not allowed to decide what a suite
+# asserts. `test/perpetual.py` owns that rule.
+tutor.supervise.serving_node = lambda rows=None: None
 
 
 def away_agent(**kw):

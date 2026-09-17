@@ -173,6 +173,57 @@ built on.
   a board marks itself seen — a badge still up after the answer was read is a badge nobody trusts
   again. `test/elsewhere.py` and `test/notify.js` are the suites.
 
+### A mission, and closing the iPad does not end it
+
+A **mission** is a job set going in a workspace nobody is looking at — `⇥ put an assistant to work
+elsewhere`, below. The daemon it starts is detached, so a closed lid never ended one; what did not
+exist was any record that it had been sent, so nothing anywhere could say it was still running, and
+a turn that failed said so only in the busy strip of the board nobody was looking at.
+
+**A mission is a file in the workspace it is about**, `live/missions/<turn>.json`, beside
+`agent.json` and `push.json`. Not in the browser and not in the dispatching board's process: the
+point is that it is there on another device, on another node, tomorrow. Every board reads every
+workspace's, off the shared filesystem, the way `news.py` does. One file per mission and the turn
+that carries the task is its name — a single `missions.json` would be a read-modify-write, and two
+boards dispatching into the same workspace would lose one of them.
+
+**Three states, because they are the three somebody does something different about.** `running` —
+leave it. `done` — go and read it. `failed` — send it again, or send it somewhere else. A failure
+carries its reason on the row: *nothing is attached to that workspace any more* and *the allocation
+colibrì runs in ended* are the same word and two different next moves.
+
+- **The state is derived, then frozen.** Derived because nothing is alive to write it: a mission
+  ends by a card being written, by the daemon dying, or by the allocation under it going, and in
+  two of those there is no process left to record anything. So the ending is read off the newest
+  card and off `agent.json`. Frozen because that evidence expires — a mission that failed at nine
+  and any later card at eleven would read as `done` to anything looking after eleven — so the
+  first reader to derive a terminal state writes it into the record, and every reader after that
+  reads the ending rather than deriving it again.
+- **A card newer than the mission is what `done` means**, which is `news.py`'s own rule: a card is
+  the answer. Compared against the newest card *at dispatch* as well as against the dispatch time,
+  so a clock a second out between two nodes cannot report a mission done the instant it starts.
+- **Nothing attached is not a failure for the first five minutes.** `agent start` forks and
+  returns, and the daemon writes `waking` before a `git pull` and a tailnet coming back;
+  `processes.WAKING_GRACE` is the same window for the same reason.
+- **Colibrì has a ceiling and it is stamped at dispatch.** A colibrì turn runs inside the serve
+  job's allocation — `coli-code` steps into it with `srun --overlap` — so the mission cannot
+  outlive that job's walltime. `colibri.status()["left"]` is Slurm's own `%L`, and a mission still
+  running past it has failed for a reason worth printing. `coli-up -t` is the only lever.
+- **It comes off the list when it is looked at**, and looking means going there: the board serving
+  that workspace stamps its own finished missions on `POST /seen`, which is the far end of the row.
+  This workspace and no other — there is exactly one root a board may write into. A *running*
+  mission survives a look, because it is still running and that is the fact being reported.
+- **Where it appears.** Above the answers in the board's strip, and above them on the front door,
+  because a thing that has not finished comes before one that has. A running or failed mission also
+  marks its box on the atlas, bottom right, so the top-right answer badge and this can both be on
+  one box — a mission that landed a card is both.
+- **`ship` is carried and not yet honoured.** The field is written at dispatch because the record
+  is written once; the switch that sets it and the diff check that lets a hosted turn push a local
+  model's work are HANDOFF item 2.
+
+`tutorboard/missions.py` is the whole of it, `GET /missions` is the surface for anything that polls
+rather than subscribes, and `test/elsewhere.py` and `test/notify.js` are the suites.
+
 ### What a link in here can name
 
 `web/address.js` is the grammar and nothing else: it parses, it spells, it touches no DOM and makes
@@ -1107,6 +1158,7 @@ tutor serve                  start the chain: one job, seven days, and a success
 tutor serve status           which generation is up, where, and what it has repaired
 tutor serve stop             end it -- the flag, then the cancel
 tutor watch                  the repair loop by itself, worth running inside an `salloc`
+tutor down [workspace]       stop serving here: the boards, the tutors, and the link
 
 bash board/scripts/serve.sh  the same, with nothing on the PATH and from any directory
 ```
@@ -1144,13 +1196,36 @@ to do is the load-bearing half:
 
 - nothing without a record. `board stop` and `tutor headless --stop` remove theirs, and that is a
   person saying no;
-- nothing on a node Slurm still says is yours, because the pid in that record cannot be read from
-  here;
+- nothing on another node, **unless it is the serving generation doing the asking** — see the home
+  node below;
 - nothing a restart is already doing — `tutor restart --tutors` writes `restarting` first, exactly
   so a bounce can be told from a death;
 - nothing off a record that has gone stale. `live/agent.json` is never swept, so one saying
   `listening` on a node that died two days ago reads just like one from a node that died a minute
   ago; an hour is the window.
+
+**The serving node is home, and every other machine leaves the board alone.** This was built the
+polite way first — a board on any node still allocated to you was left where it was, so an
+`salloc` with somebody mid-proof on it was never robbed. What that bought was a lesson on a
+machine no watch loop was allowed to touch: the board died on the `salloc` node while the only
+watchdog was on the serving node under orders to keep its hands off, and the iPad went white with
+a healthy chain running. So:
+
+- a generation **asks every other node of yours to stop serving before it starts anything** —
+  `tutor down`, which stops that machine's boards and tutors, waits for each handoff turn, and
+  **lets go of the tailnet link**. The link is machine-wide: `board vpn up` refuses while the claim
+  in the shared state directory names a node you still hold, so a board started before the ask
+  comes up with no address and nothing goes back to check. That ordering is asserted in the suite.
+- it gets there by **ssh, then by a Slurm step** in the allocation that holds the node — ssh
+  between these compute nodes is refused for want of a key (measured), and a step needs no
+  credential. The errand is to *stop* things, so nothing has to outlive the step.
+- reachable by neither route, **it starts nothing**: one board on the wrong machine beats two
+  boards writing one `live/` directory, both answering the same inbox line.
+- `tutor resume` on any other node **starts nothing while a generation is running** — otherwise
+  every new terminal on your `salloc` drags the lesson back and the two nodes take turns owning
+  the one address the iPad has. `--force` is still a person insisting.
+
+An `salloc` is therefore for coach coding and holds no lesson.
 
 **A handover is not a stop, and it is one field.** The walltime's own stop leaves the same record a
 person's `tutor agent stop` leaves, so `hand_over` writes `handover` into it first and the next
@@ -3279,8 +3354,9 @@ tutor at all.
 are **not** looking at: pick one, say what to do, and go back to what you were doing. The list is
 `machines.workspaces`, which is a directory walk rather than a registry. The task lands as a turn
 of theirs in that workspace's inbox — which is what `board wait` watches — and the start is
-`tutor agent start <workspace> --agent <name>`, layer 1, for that daemon only. What comes back
-comes back through the newsbar, hours later, on whichever board is open then.
+`tutor agent start <workspace> --agent <name>`, layer 1, for that daemon only. The dispatch is
+recorded as a mission in that workspace, so the strip says it is still going and says how it ended;
+what comes back comes back hours later, on whichever board is open then.
 
 ### A workspace that holds a fence
 
@@ -3350,6 +3426,10 @@ tutorboard/        the board itself, organised by what a thing is about:
   news.py          an answer that landed in a workspace nobody was looking at:
                    the newest card against `live/.seen.json`, workspace by
                    workspace, off the shared filesystem
+  missions.py      the same sentence in the present tense: a job set going in a
+                   workspace nobody is looking at, recorded in the workspace it
+                   is about, its ending derived off the newest card and
+                   `agent.json` and then frozen into the record
   net/             reaching them: tailscale, socks, boards, egress
   course/          a course on disk: repo, config, document, homework, review,
                    plan (what a project says it is doing next, which is a book

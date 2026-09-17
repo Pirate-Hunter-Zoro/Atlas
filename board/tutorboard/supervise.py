@@ -311,6 +311,23 @@ def serve_jobs(user=None):
     return rows
 
 
+def serving_node(rows=None):
+    """The node the running generation is on, or None if nothing is serving.
+
+    THE HOME NODE. Once a chain is up, that node is where the boards live and
+    every other machine leaves them alone -- which is the difference between one
+    board answering and two of them writing cards into the same `live/`
+    directory off the same shared home. A login on any other node asks this
+    before it starts anything, and the serving generation asks it of itself and
+    gets its own name back.
+    """
+    rows = serve_jobs() if rows is None else rows
+    for r in rows or []:
+        if r["state"] == "RUNNING" and (r.get("node") or "").strip():
+            return r["node"].split(",")[0].split(".")[0].lower()
+    return None
+
+
 def successor_of(job_id, rows):
     """The queued generation waiting on this one, if it is there.
 
