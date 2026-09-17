@@ -100,7 +100,7 @@ ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,39}$")
 # `state`, `card`, `ws` -- and writing those back would turn a reading into a
 # fact.
 FIELDS = ("id", "task", "agent", "at", "ship", "from", "host", "card_at",
-          "ceiling", "ended", "ended_at", "reason", "looked")
+          "ceiling", "ended", "ended_at", "reason", "looked", "shipped")
 
 
 def _dir(root):
@@ -165,6 +165,10 @@ def dispatch(root, task, turn, agent="", ship=False, frm="", ceiling=0.0,
         "ended_at": 0.0,
         "reason": "",
         "looked": 0.0,
+        # When the ship was handed to a tutor, which is not when it landed: the
+        # push itself is reported in `push.json`, which the board already
+        # paints. This field is the CLAIM -- see `claim_ship`.
+        "shipped": 0.0,
     }
     write(root, rec)
     return rec
@@ -352,6 +356,74 @@ def looked(root, now=None):
         if write(root, rec):
             hit += 1
     return hit
+
+
+# ---------------------------------------------------------------------------
+# A mission that was told to ship itself
+# ---------------------------------------------------------------------------
+# The switch is set at dispatch and the work is done by somebody else entirely:
+# when a mission finishes, the workspace's ORDINARY tutor is woken with the
+# mission's own report and pushes it. The owner answered why before it was
+# built -- the local model decodes at three tokens a second and it is the one
+# assistant allowed to read the fenced directory, so it is the wrong thing to
+# push its own diff. What is here is the half that belongs to the record: which
+# missions are owed a ship, and taking one exactly once.
+
+
+def due(now=None):
+    """Every mission that ended `done`, was told to ship, and has not been.
+
+    `done` only. A mission that FAILED may well have left changes in the working
+    tree, and pushing those is the opposite of what a person who set a mission
+    going would want from the word "failed" -- they have to look first. Nothing
+    is lost by refusing: the changes are still there and `board push` is a tap.
+    """
+    now = float(now or time.time())
+    out = []
+    for w in atlas.workspaces():
+        try:
+            got = of(w["root"], now)
+        except Exception:                                    # noqa: BLE001
+            continue
+        for rec in got:
+            if rec["state"] != "done" or not rec.get("ship"):
+                continue
+            if rec.get("shipped"):
+                continue
+            out.append((w, rec))
+    return out
+
+
+def claim_ship(root, rec, now=None):
+    """Take this mission's ship, once, across every board on this machine.
+
+    AN EXCLUSIVE CREATE, and it is not belt-and-braces. Every board reads every
+    workspace's missions, so two boards -- or two generations of the serving
+    chain overlapping by a second -- would both see the same finished mission
+    and both wake a turn to push the same diff. `O_EXCL` is the one thing here
+    that is atomic on a shared filesystem; the field in the record is written
+    after it and is what a person reads.
+    """
+    now = float(now or time.time())
+    mid = str(rec.get("id") or "")
+    if not ID_RE.match(mid):
+        return False
+    flag = os.path.join(_dir(root), mid + ".shipping")
+    try:
+        os.makedirs(_dir(root), exist_ok=True)
+        fd = os.open(flag, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o644)
+    except OSError:
+        return False
+    try:
+        os.write(fd, ("%f\n" % now).encode("utf-8"))
+    except OSError:
+        pass
+    finally:
+        os.close(fd)
+    out = dict(rec)
+    out["shipped"] = now
+    write(root, out)
+    return True
 
 
 def listing(here, now=None):

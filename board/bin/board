@@ -92,9 +92,9 @@ import time
 
 TOOL = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 sys.path.insert(0, TOOL)
-from tutorboard import (atlas, brief, carry, direction, handoff, limits,
-                        machine, manuscript, meeting, paths, plain, ports,
-                        processes, reasoning, sense, tex, worktree)
+from tutorboard import (atlas, brief, carry, direction, handoff, leaving,
+                        limits, machine, manuscript, meeting, paths, plain,
+                        ports, processes, reasoning, sense, tex, worktree)
 from tutorboard.net import egress, tailscale
 from tutorboard.course import config, document, homework, paper, review, walk
 # `map` is a builtin; the module keeps the name the board calls the thing and
@@ -1445,6 +1445,29 @@ def cmd_push(live, args):
                        "iso": time.strftime("%Y-%m-%d %H:%M:%S"),
                        "detail": detail}, fh, indent=2)
         return 1
+
+    # AND NOTHING THAT REACHES FOR SESSION CONTENT, WHICH IS THE CHECK GIT
+    # CANNOT MAKE. A `.gitignore` keeps the fenced directory out of the index,
+    # so a diff cannot carry a phi FILE. It can carry phi CONTENT -- a fixture
+    # cut out of a transcript, an example hard-coded from one -- written by the
+    # one assistant allowed to read that directory and pushed by a turn that is
+    # not. `ai-config/policy/phi.py` is the lab's own rule and this is the first
+    # thing that calls it. See `tutorboard/leaving.py` for what it does and does
+    # not catch.
+    #
+    # `--anyway` is the override and it is deliberately a keyboard act: a tap
+    # that waves a PHI fence through from a tablet is the thing the fence is
+    # for. From the iPad the way past this is to tell the tutor, which is a
+    # person deciding and an assistant acting.
+    if "--anyway" not in args:
+        phi = leaving.reason(live.root)
+        if phi:
+            print(phi, file=sys.stderr)
+            with open(live.path("push.json"), "w", encoding="utf-8") as fh:
+                json.dump({"ok": False, "at": time.time(),
+                           "iso": time.strftime("%Y-%m-%d %H:%M:%S"),
+                           "detail": phi}, fh, indent=2)
+            return 1
 
     # The write-up is part of the work, so it is part of the commit.
     #

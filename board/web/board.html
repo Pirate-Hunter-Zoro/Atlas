@@ -292,6 +292,17 @@
     <div id="elsewhere-fence" class="elsewhere-fence" hidden></div>
     <textarea id="elsewhere-task" rows="3"
               placeholder="what should it do there?"></textarea>
+    <!-- SHIP IT WHEN IT IS DONE. Asked for as "when I put anything on a
+         mission, I should have the option to tell it to ship its changes once
+         it is done". The push is not done by the assistant that did the work:
+         the local model is the only one that may read the fenced directory, so
+         the workspace's ordinary tutor reads the diff and pushes it. The label
+         says so, because "ship it" otherwise reads as "and nobody looks". -->
+    <label id="elsewhere-ship-row" class="elsewhere-ship">
+      <input type="checkbox" id="elsewhere-ship">
+      <span>ship it when it is done</span>
+    </label>
+    <div id="elsewhere-ship-note" class="elsewhere-ship-note muted" hidden></div>
     <div id="elsewhere-said" class="elsewhere-said"></div>
     <button id="elsewhere-go" type="button" class="primary" disabled>start it</button>
     <p class="elsewhere-note muted">You stay here, and closing the iPad does not

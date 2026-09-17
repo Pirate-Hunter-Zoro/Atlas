@@ -462,6 +462,139 @@ try:
               "guessed from a default",
               colibri.time_left("2:03:04") == 7384
               and colibri.time_left("UNLIMITED") is None)
+
+        # ------------------------------------------------------------------
+        # A MISSION CAN BE TOLD TO SHIP ITSELF, AND SOMEBODY ELSE PUSHES IT
+        # ------------------------------------------------------------------
+        # "when I put anything on a mission, I should have the option to tell it
+        #  to ship its changes once it is done - I don't know if colibri is
+        #  capable of doing that, but the tutor certainly should be once colibri
+        #  is done."
+        #
+        # The switch is set at dispatch and carried in the record. What is
+        # guarded here is what happens when the mission ends: a turn is woken in
+        # a workspace nobody is looking at, and it is NOT the assistant that did
+        # the work -- the local model is the only one that may read the fenced
+        # directory, so its own diff is the one thing it must not push.
+        import tutorboard.assistants as _assist                # noqa: E402
+
+        # Recording again: the launcher is what a ship drives, and which
+        # commands it drives is half of what is being checked here.
+        _spawn.tutor_cli = lambda args, timeout=30: (
+            ran.append(list(args)) or (0, "started"))
+
+        REGISTRY = {"default": "claude", "agents": [
+            {"name": "claude", "headless": True, "missing": None,
+             "private": None, "exclusive": None},
+            {"name": "colibri", "headless": True, "missing": None,
+             "private": "it is the only assistant allowed to read `phi`",
+             "exclusive": "one KV slot"},
+            {"name": "aider", "headless": False, "missing": "aider",
+             "private": None, "exclusive": None},
+        ]}
+        _assist._CACHE["was"] = REGISTRY
+        _assist._CACHE["at"] = time.time()
+
+        check("the assistant that pushes is one that could not have read the "
+              "fenced content it is checking the diff for",
+              _spawn.shipper() == "claude")
+
+        # A mission that FAILED is not shipped. Its changes may well be in the
+        # tree and pushing them is the opposite of what "failed" means to the
+        # person who set it going.
+        _spawn._SHIPS["at"] = 0.0
+        missions.forget()
+        check("a mission that failed is never shipped, whatever its switch said",
+              [m for _, m in missions.due() if m["id"] == one] == [])
+
+        # And one that finished. The daemon over there is the LOCAL model,
+        # listening, which is what a colibri mission leaves behind.
+        write(os.path.join(trd, "live", "agent.json"), json.dumps(
+            {"agent": "colibri", "state": "listening", "pid": os.getpid(),
+             "turns": 1, "last_seen": time.time(),
+             "host": machine.node_name(), "mode": "headless"}))
+        missions.dispatch(trd, task="repair the diarization on the pilot",
+                          turn="t0404", agent="colibri", ship=True)
+        card(trd, "0009", "repaired", "Two arms agree now.", time.time() + 3)
+        missions.forget()
+        check("a finished mission that was told to ship itself is owed one",
+              [m["id"] for _, m in missions.due()] == ["t0404"])
+
+        ran[:] = []
+        _spawn._SHIPS["at"] = 0.0
+        handed = _spawn.ship_missions()
+        check("and it is handed over exactly once, to a hosted tutor rather "
+              "than to the assistant that did the work",
+              [h["mission"] for h in handed] == ["t0404"]
+              and handed[0]["agent"] == "claude")
+        check("the local model listening there is stopped first, because a "
+              "start will not swap one assistant for another",
+              ["agent", "stop", "TRD-EHR", "--wait"] in ran)
+        check("and the hosted one is started in its place, named for that "
+              "daemon only",
+              ["agent", "start", "TRD-EHR", "--agent", "claude"] in ran)
+        with open(_repo.Repo(trd).messages_path, encoding="utf-8") as fh:
+            lines = [json.loads(l) for l in fh if l.strip()]
+        check("the turn it is woken with is a [ship] line in that workspace's "
+              "inbox, which is what `board wait` watches",
+              lines and lines[-1]["signal"] == "ship"
+              and lines[-1]["text"].startswith("[ship]"))
+        check("and it names what the mission was asked to do, and who did it",
+              "repair the diarization on the pilot" in lines[-1]["text"]
+              and "colibri" in lines[-1]["text"])
+        check("and nothing of it is written into the lesson's transcript, "
+              "because a ship is not part of a lesson",
+              not any(t.get("signal") == "ship"
+                      for t in turns.load_turns(_repo.Repo(trd))))
+
+        # ONCE, ACROSS EVERY BOARD ON THE MACHINE. Every board reads every
+        # workspace's missions, so without a claim two of them wake two turns to
+        # push the same diff.
+        ran[:] = []
+        _spawn._SHIPS["at"] = 0.0
+        missions.forget()
+        check("a second board sweeping the same finished mission hands over "
+              "nothing, because the ship was already claimed",
+              _spawn.ship_missions() == [] and ran == [])
+        check("and the record says so, so a person can read that it went",
+              [m.get("shipped", 0) > 0 for m in missions.stored(trd)
+               if m["id"] == "t0404"] == [True])
+
+        # A DAEMON MID-TURN IS DOING SOMETHING SOMEBODY ASKED FOR. The ship
+        # waits for the next pass rather than killing it.
+        write(os.path.join(trd, "live", "agent.json"), json.dumps(
+            {"agent": "colibri", "state": "working", "pid": os.getpid(),
+             "turns": 2, "turn_started": time.time(),
+             "last_seen": time.time(),
+             "host": machine.node_name(), "mode": "headless"}))
+        missions.dispatch(trd, task="and the second pass", turn="t0505",
+                          agent="colibri", ship=True)
+        card(trd, "0010", "second", "The second pass is in.", time.time() + 4)
+        ran[:] = []
+        _spawn._SHIPS["at"] = 0.0
+        missions.forget()
+        check("a mission whose workspace is mid-turn is left for the next pass "
+              "rather than having its daemon killed under it",
+              _spawn.ship_missions() == []
+              and not any(a[:2] == ["agent", "stop"] for a in ran))
+
+        # AND AN ORDINARY TUTOR ALREADY THERE IS THE RIGHT KIND OF ASSISTANT.
+        # The rule is not "the default one": it is that whoever pushes could not
+        # have read the fenced content, and evicting a daemon to prove that is
+        # a restart for nothing.
+        write(os.path.join(trd, "live", "agent.json"), json.dumps(
+            {"agent": "codex", "state": "listening", "pid": os.getpid(),
+             "turns": 1, "last_seen": time.time(),
+             "host": machine.node_name(), "mode": "headless"}))
+        ran[:] = []
+        _spawn._SHIPS["at"] = 0.0
+        missions.forget()
+        handed = _spawn.ship_missions()
+        check("a tutor already listening there that may not read the fence "
+              "ships it where it stands",
+              [h["agent"] for h in handed] == ["codex"]
+              and not any(a[:2] == ["agent", "stop"] for a in ran))
+        _assist.forget()
     finally:
         _spawn.tutor_cli = real_tutor_cli
     httpd.shutdown()

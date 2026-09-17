@@ -331,6 +331,20 @@ body { background: var(--paper); min-height: 100vh; min-height: 100dvh; }
   font-size: .76rem; color: var(--bad);
 }
 
+.mission-ship {
+  flex: none; font-size: .66rem; letter-spacing: .05em;
+  color: var(--ink-2);
+}
+
+/* The one switch on the dispatcher, and the sentence under it that says who
+   actually pushes. A checkbox the width of a thumb: this is tapped on glass. */
+.elsewhere-ship {
+  display: flex; align-items: center; gap: .5rem;
+  margin-top: .6rem; font-size: .9rem; cursor: pointer;
+}
+.elsewhere-ship input { width: 1.1rem; height: 1.1rem; }
+.elsewhere-ship-note { margin-top: .3rem; font-size: .78rem; }
+
 .hwbar { background: color-mix(in srgb, var(--ask) 10%, var(--paper)); font-size: .82rem; }
 #hw-set { font-weight: 700; letter-spacing: .04em; }
 #hw-count { min-width: 0; }

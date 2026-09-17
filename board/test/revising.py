@@ -16,6 +16,12 @@ So: a `[revise]` line runs fresh, writes no card, leaves `state.json` alone, and
 puts its report beside the document. What is guarded here is each of those, plus
 the one that only shows up a turn later -- that the lesson does not then resume
 into the revision's session.
+
+A SHIP IS THE SAME TURN WITH A DIFFERENT JOB, and it is guarded here for that
+reason: a mission told to ship itself wakes a `[ship]` line, which runs fresh,
+writes no card and pushes what another assistant wrote. Everything about the
+shape is the revision's; what is different is that the assistant running it is
+never the one that did the work.
 """
 
 import importlib.machinery
@@ -95,6 +101,58 @@ check("and to leave its report beside the document, in the feedback file",
 check("it is not sent to read the contract or the cards, none of which is about "
       "this document",
       "Do not read" in said and "TEACHING.md" in said)
+
+# ---------------------------------------------------------------------------
+# AND THE OTHER TURN OF THE SAME SHAPE: A MISSION SHIPPING ITSELF
+# ---------------------------------------------------------------------------
+# "when I put anything on a mission, I should have the option to tell it to ship
+#  its changes once it is done."
+#
+# A ship is a revision's twin. It is not part of the lesson, it runs fresh, it
+# writes no card, and the lesson must not resume into it -- a tutor whose next
+# card resumes a session about a git diff thinks the evening was about git. What
+# it does differently is who runs it: never the assistant that did the work.
+check("a ship line is read as the signal it carries",
+      tutorcli.turn_signal("[2026-09-17 21:40:02] [ship] a mission finished")
+      == "ship")
+for carried in (0, 1, 7, 40):
+    use, template, fresh = tutorcli.turn_plan(SPEC, carried, 12, "ship")
+    check("a ship runs fresh with %d turn(s) there to resume" % carried,
+          fresh is True and use == SPEC["headless_first"]
+          and template is tutorcli.HEADLESS_SHIP_PROMPT)
+check("and the lesson does not resume into the ship's session either",
+      tutorcli.carry_after("ship", True, 6) == 0)
+
+shipped = tutorcli.HEADLESS_SHIP_PROMPT
+check("a ship is told this turn is not part of the lesson",
+      "NOT PART OF THE LESSON" in shipped)
+check("and to write no card", "Write no card" in shipped)
+for name in ("board write", "board open", "live/state.json", "live/cards/",
+             "HANDOFF.md", "board wait"):
+    check("and a ship is not to touch %s" % name, name in shipped)
+check("it is told to READ the diff rather than trust it, because it is another "
+      "assistant's work",
+      "git diff" in shipped and "rather than trusting it" in shipped)
+check("and that session content in it is the one thing that stops the push",
+      "session content" in shipped and "STOP" in shipped)
+check("and that the refusal underneath it is not to be worked around",
+      "--anyway" in shipped and "do not work around it" in shipped)
+check("and it pushes with the one push there is",
+      "board push" in shipped)
+
+# A DOING TURN'S CLOCK. A ship reads a diff, judges it and pushes over a tailnet;
+# a teaching turn's fifteen minutes is a turn killed with the work half done.
+CFG = {"headless_timeout": 900, "doing_timeout": 3600}
+check("a ship gets a doing turn's time, whatever the sitting says",
+      tutorcli.turn_timeout(CFG, tempfile.mkdtemp(), None, "ship") == 3600)
+
+said = sense.ship_sense("colibri", "reproduce the corrected transcript")
+check("the line a ship is woken with names what the mission was asked to do",
+      "reproduce the corrected transcript" in said)
+check("and who did the work, which is the whole reason it is not them pushing",
+      "colibri" in said and "not the assistant that made them" in said)
+check("and says the lesson on the board is somebody else's",
+      "NOT PART OF THE LESSON" in said and "live/cards/" in said)
 
 line = sense.revise_sense("writeups/serve/serve.tex",
                           "writeups/serve/feedback/2026-09-16-v1.md")
@@ -259,4 +317,5 @@ print()
 if fails:
     print("%d FAILURES" % len(fails))
     sys.exit(1)
-print("a revision changes the document and leaves the lesson exactly where it was")
+print("a revision changes the document and a ship pushes one, and neither is "
+      "part of the lesson")

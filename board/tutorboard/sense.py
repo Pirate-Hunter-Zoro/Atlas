@@ -777,6 +777,33 @@ def revise_sense(document_rel, feedback_rel):
     return REVISE_SENSE % (document_rel, feedback_rel)
 
 
+# WHAT A SHIP TURN IS WOKEN WITH, and it names the mission rather than the diff.
+#
+# A mission was set going in this workspace from a board somewhere else, told to
+# ship itself when it was done, and it is done. The turn's own instructions are
+# in `bin/tutor` (`HEADLESS_SHIP_PROMPT`); this is what it is being asked about.
+#
+# IT SAYS WHO DID THE WORK, because that is the whole reason this is a different
+# assistant from the one that did it. The local model is the only one allowed to
+# read the fenced directory, so it is the wrong thing to push its own diff: this
+# turn is a second pair of eyes that could not have read what it is checking.
+SHIP_SENSE = (
+    "A mission finished in this workspace and was told to ship itself. It was "
+    "run by `%s`, and what it was asked to do was:\n\n%s\n\n"
+    "The changes are sitting uncommitted in this repository. You are not the "
+    "assistant that made them, and that is deliberate. "
+    "THIS IS NOT PART OF THE LESSON: there may be a sitting open on this board "
+    "that belongs to somebody else's evening. Write no card, do not open or "
+    "archive a sitting, and leave live/state.json, live/cards/ and HANDOFF.md "
+    "exactly as you found them."
+)
+
+
+def ship_sense(agent, task):
+    """The inbox line for a mission that has been told to ship itself."""
+    return SHIP_SENSE % (agent or "an assistant", (task or "").strip())
+
+
 def session_sense(repo, doing=None):
     """What this sitting is, wrapped in the two rules that hold for all of them.
 
