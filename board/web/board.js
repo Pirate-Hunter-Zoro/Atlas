@@ -655,6 +655,30 @@ var freshNodes = [];
    It also threw away work: re-inserting a subtree forces style, layout and paint
    for the whole lesson, and re-inserting a canvas costs a fresh compositor
    layer. Moving only what actually moved is both correct and most of the fix. */
+
+/* WHERE A CARD AT THE END OF THE LESSON GOES: ABOVE THE WRITING SURFACE, NEVER
+   BELOW IT.
+
+   This is the whole of a fault that was reported four times and patched three
+   times in the wrong place. A new card was APPENDED -- past the surface, which
+   has no key and is the last child of a lesson with a board open on it -- so the
+   tutor's reply typed itself out UNDERNEATH a full-height writing board, off the
+   bottom of the glass, where nobody could see a character of it. Then the hold
+   let go, the surface moved down to its proper place, and the finished card was
+   revealed in one jump.
+
+   From the chair that is exactly "the next board appeared under my answer and
+   then the whole response showed up at once between the boards" -- and every fix
+   before this one went looking at WHEN THE SURFACE MOVES, because that is what
+   the sentence sounds like. The surface was never the problem. A reply belongs
+   above the board you would answer it on, in the order the transcript is read,
+   and then it types where somebody is looking and nothing has to move at all. */
+function tailAnchor(host) {
+  var n = host.lastChild, anchor = null;
+  while (n && !(n.dataset && n.dataset.key)) { anchor = n; n = n.previousSibling; }
+  return anchor;
+}
+
 function reconcile(host, wanted) {
   var have = Object.create(null);
   var i, node, key;
@@ -678,15 +702,18 @@ function reconcile(host, wanted) {
     while (cursor && !(cursor.dataset && cursor.dataset.key)) {
       cursor = cursor.nextSibling;
     }
+    /* Past the last keyed node there may be nothing but the surface, and a card
+       goes in front of it rather than after it -- see `tailAnchor`. */
+    var at = cursor || tailAnchor(host);
     if (kept) {
       delete have[key];
       if (kept === cursor) {
         cursor = cursor.nextSibling;      /* already in place: leave it alone */
         continue;
       }
-      host.insertBefore(kept, cursor);
+      host.insertBefore(kept, at);
     } else if (node) {
-      host.insertBefore(node, cursor);
+      host.insertBefore(node, at);
       freshNodes.push(node);
     }
   }

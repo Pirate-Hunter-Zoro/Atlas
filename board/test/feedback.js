@@ -934,22 +934,27 @@ const farDown = Object.assign({}, withNew, {
     ? ok('a new question opens a surface')
     : fail('the new question has no writing surface at all');
 
-  // AND IT WAITS WHERE IT IS UNTIL THE QUESTION HAS FINISHED BEING WRITTEN.
+  // AND THE CARD IS ABOVE IT WHILE IT IS WRITTEN, SO THE SURFACE NEVER MOVES.
   //
   // Asked for from the device: "I want the next board to not show up until all
-  // of the tutor response has been written." It is HELD, not hidden -- hiding it
-  // takes the tool bar off the bottom of the screen and puts it back a few
-  // seconds later, which is a bigger movement than the one being removed.
+  // of the tutor response has been written." That used to be read as a question
+  // about WHEN THE SURFACE MOVES, and the surface was held in place while the
+  // card typed BELOW it -- off the bottom of the glass, under a full-height
+  // board, revealed in one jump when the surface finally came down. A card lands
+  // above the surface now, from the frame it arrives, so there is nothing left
+  // for the surface to do.
   const posedCard = doc.querySelector('[data-card="0054"]');
-  posedCard && posedCard.nextElementSibling !== els.writer
-    ? ok('and it stays where the reader last saw it while the card is typed')
-    : fail('the surface came down under a card that is still being written, so '
-           + 'the answer fills in between the two boards');
+  posedCard && posedCard.nextElementSibling === els.writer
+    ? ok('and the card is above it from the first frame, typing where the reader '
+         + 'is looking')
+    : fail('the card is not above the surface, so it types out under a board and '
+           + 'is revealed all at once when the board moves');
 
   await sleep(900);                  // past TYPE_MIN: the card is finished
   const under = doc.querySelector('[data-card="0054"]');
   under && under.nextElementSibling === els.writer
-    ? ok('and it is the LIVE one, under the question just asked')
+    ? ok('and the last character changes nothing: it is still the LIVE surface, '
+         + 'under the question just asked')
     : fail('the live surface stayed parked on the earlier question, so the new '
            + 'one was posed with nowhere to answer it');
   doc.querySelector('[data-board="0051"]')

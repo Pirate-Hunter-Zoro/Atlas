@@ -316,12 +316,11 @@ await sleep(2800);            // past TYPE_MIN and past this card's own time
     : fail('the card was painted whole for a device with Reduce Motion on, which '
            + 'is the report arriving for the third time');
 
-  at2('writer') < at2('0003') && at2('0003') !== -1
-    ? ok('AND THE SURFACE HAS NOT COME DOWN under the new question on that '
-         + 'frame, because the hold is taken on the frame the reply lands and '
-         + 'not on the first animation frame after it')
-    : fail('the next board arrived in the same breath as the answer, which is '
-           + 'the reported glitch: the hold was the animation');
+  at2('0002') !== -1 && at2('0002') < at2('writer')
+    ? ok('AND THE REPLY IS ABOVE THE SURFACE on that frame, so it types where '
+         + 'somebody is looking rather than under an open board')
+    : fail('the reply landed below the writing surface, which is where it types '
+           + 'out unseen and is revealed in one jump when the surface moves');
 
   /* AND IT LETS GO. Asserted on the receipt rather than on the geometry: where
      the surface finally lands is the ordinary placement rule -- the end of the

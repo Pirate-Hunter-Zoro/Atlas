@@ -1829,20 +1829,21 @@ async function sendingFlow() {
   else fail('the receipt let go on the frame the record arrived: "'
             + doc.getElementById('sent-text').textContent + '"');
 
-  /* HELD, AND ONLY AS FAR AS THE CARD THAT IS ARRIVING. The receipt for the
-     answer just sent is a turn and is never typed, so it takes its proper place
-     above the surface on this very frame; the feedback is still being written,
-     so the surface stays above THAT. */
-  if (String(order()) === String(['card:0001', 'turn:t0001', 'WRITER', 'card:0002']))
-    ok('the surface is held above the reply that is still arriving, with the '
-       + 'receipt already in its place above it');
+  /* IN ORDER, ON THE FRAME THE REPLY LANDS. The receipt for the answer just sent
+     is a turn and is never typed; the feedback is above the surface while it is
+     still being written, because a card typing BELOW an open board is a card
+     nobody sees. Nothing here moves afterwards -- that is the point of it. */
+  const settled = String(['card:0001', 'turn:t0001', 'card:0002', 'WRITER']);
+  if (String(order()) === settled)
+    ok('the reply takes its place above the surface while it is still arriving, '
+       + 'with the receipt above it');
   else fail('the writing block is in the wrong place while the reply types: '
             + order());
 
   await sleep(TYPED * 4);          /* the feedback is a longer card */
-  if (String(order()) === String(['card:0001', 'turn:t0001', 'card:0002', 'WRITER']))
-    ok('and comes down under the feedback once the last character has landed, '
-       + 'which is where a correction is made');
+  if (String(order()) === settled)
+    ok('and the last character moves nothing: the surface is where it was, under '
+       + 'the feedback, which is where a correction is made');
   else fail('the writing block is in the wrong place: ' + order());
 }
 
