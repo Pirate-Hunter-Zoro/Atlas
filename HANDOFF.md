@@ -39,7 +39,7 @@ section.
 **`projects/libr-local-llm` has its own handoff and it is still the live one.**
 The five pieces it asked for against the board are shipped and are under
 *Settled* below; what is left in that file is the diarization job itself, which
-is item 6 here.
+is item 7 here.
 
 ---
 
@@ -59,8 +59,10 @@ somebody to a keyboard.
 order: a mission cannot be told to ship itself before it is a record, and it
 cannot be a record before the board knows which workspaces are fenced. Items 1
 and 5 are independent of that and of each other; item 1 is the smallest, so start
-there. Item 6 is the acceptance test of 2, 3 and 4 and is also the job all of it
-exists for. Item 7 is not a build.
+there. Item 6 is where a lesson turns into a document, and item 5 is how that
+document is then corrected, so they are worth reading together. Item 7 is the
+acceptance test of 2, 3 and 4 and is also the job all of it exists for. Item 8 is
+not a build.
 
 ---
 
@@ -330,7 +332,102 @@ started.
 tablet. It is two taps from the board — `▤ library · papers & decks` in the bar
 menu — and no person has read a real document on it. That is item 7.
 
-### 6. Put colibrì on the diarization repair, which is what all of the above is for
+### 6. Any sitting can be asked to write up what it covered, at any moment
+
+**The want, and it was asked as a question:** *"let's say I open up libr-local-llm
+and I want to learn how colibrì works. Can I have a tutoring session where I'm
+walked through simple lessons to understand this and how we utilize the cluster
+hardware, and at any point can I have a presentation or paper written up going
+through the things we talked about in that tutoring session? Can I do that in ANY
+tutoring session?"*
+
+**The lesson half mostly answers yes.** `libr-local-llm` is a workspace the walk
+finds, `library` offers `DESIGN.md`, `FLEET-BUILD.md`, `P0-STATUS.md` and the
+fleet-walkthrough deck, and the `paper` and `slides` aims, the `make` method and
+`writeups/<slug>/` all exist. **The write-up half answers no, and it is refused
+in writing.** Four things, and the first is the one that matters.
+
+**(a) `MAKE_SENSE` refuses it outright, and it is one rule doing two jobs.** The
+text is *"AND ITS SCOPE IS THE BOX, NOT THE EVENING … not about everything that
+came up while you were looking at it"*, and `config.AIM_MEANS["paper"]` says *"It
+is not a write-up of this sitting."* Both were written against a real failure: a
+tutor that has just spent three hours teaching, asked to write it up, writes up
+the three hours — first person, *"as we saw above"*, the hand-check narrated
+instead of the concept explained.
+
+That failure is about **content** and the rule against it is right. What got
+banned alongside it is **scope**, and scope is exactly what was asked for. Those
+are two different sentences welded into one refusal — the same shape as the
+condition that set `awaitingReply` and popped the transcript. Split them:
+
+- **Content is always the subject.** No first person, no *"we covered"*, no *"the
+  student then"*, no reference to the sitting, its cards or its questions. A
+  concept taught by hand-checking three examples is explained and its examples
+  shown; the hand-check is not narrated. **Unchanged.**
+- **Scope may be the box, the chapter, OR THE EVENING.** When it is the evening
+  the scope is *the concepts the cards covered* — the topic list, off `board
+  recap` — and each is explained from scratch for somebody who was not in the
+  room. Not the order it was taught in, not the questions, not the answers. *"A
+  deck about the four things this sitting covered"* is a legitimate ask and there
+  is currently no way to phrase it that the rule does not refuse.
+
+**(b) Asking for a document is an AIM CHANGE, so it is refused wherever changing
+the aim is refused.** `paintAim` hides the whole `for:` row when
+`sittingKind` is `review` or `walk`, and `WRITEUP_SENSE` is deliberately withheld
+from both. So in the two sittings where a write-up is worth the most — you have
+just traced `coli-code` line by line, or just been drilled cold over a scope —
+there is no way to ask for one at all. That is the answer to *"in ANY tutoring
+session?"* and it is no.
+
+*Want.* **A write-up is not an aim.** An aim says what the sitting is FOR; a
+write-up is a product you can ask any sitting for without changing what it is
+for. So it is its own act — `POST /writeup`, carrying `paper` or `slides` and
+optionally what it is about, defaulting to what this sitting has covered — which
+changes no aim, archives nothing, replaces no tutor, and is therefore available
+in a review and a walkthrough like everything else.
+
+*Decide: where the sections land.* A `make` sitting puts them on the board a
+section at a time, because there the document IS the evening; that stays exactly
+as it is. A write-up asked for **alongside** a lesson must not push the lesson
+off the glass — so it lands in the library, the board says it is being written
+and says when it is there, and correcting it is item 5's loop. Take that
+deliberately rather than by streaming sections into a transcript somebody is
+mid-proof in.
+
+**(c) The default style fights the ask, in this workspace above all.**
+`libr-local-llm` declares only a name, so `aim_for` falls through to its family's
+default in `atlas.json`, which is `build` — and `stance_for` is therefore `do`. A
+plain lecture opened there is a DOING turn: the tutor writes code and reports.
+Being taught costs a tap on `teach` in the `for:` row first, which is one tap and
+is the wrong way round for a workspace somebody arrives at wanting to understand
+it. Decide whether a family default should apply to a sitting nobody chose a
+style for, or only to one opened from the map.
+
+**(d) The thing most worth walking through is not offered.** `walk._walkable`
+keys on the file EXTENSION and `walk.SOURCE` lists twenty-one of them, none of
+which is *none*. `bin/coli-code`, `bin/coli-up`, `bin/coli-ask` and `bin/coli`
+are extensionless bash scripts with a shebang, and they are the entire surface of
+colibrì — so a walkthrough of that workspace offers six files and not one of them
+is the one you would ask for. A shebang is as good a declaration as a suffix and
+is what `file(1)` would use.
+
+*And the map is undrawn.* `projects/libr-local-llm/live/` is empty, so there is
+no `map.json`: no picture of the project, and no box to tap to open a sitting
+about the engine or the gateway. The plan's five steps are all build tasks — *WEB
+ACCESS FOR THE CODING AGENT*, *THE VLLM PATH* — so the contents drawer offers
+engineering work rather than lessons. `board map` is what draws one and
+`map._unclaimed` gives it its document boxes; nothing needs building, it needs
+doing once.
+
+**Check.** `test/teaching.py` owns the three-places-agree rule and is where the
+split content/scope wording is asserted — including, explicitly, that the
+anti-narration half is still refused in all three places. `test/aiming.py` owns a
+route that changes a sitting without losing it and is the model for `/writeup`;
+assert it works in a review and a walkthrough, where the aim row does not appear.
+`test/walk.py` owns what is offered: assert that a `#!` script with no suffix is
+walkable and that a README still is not.
+
+### 7. Put colibrì on the diarization repair, which is what all of the above is for
 
 It is now the acceptance test of items 2, 3 and 4 as well as the job that has
 been waiting since before any of this existed. **The ask, the scoring and the
@@ -355,7 +452,7 @@ Three things about running it that are the board's rather than that file's:
 `research/PSYCH-ASR/HANDOFF.md` holds the *teaching* thread on the same code; it
 is a different conversation and the two do not merge.
 
-### 7. And the three things no test can hold
+### 8. And the three things no test can hold
 
 None of these is a build. Each is an evening in front of the thing.
 
@@ -370,8 +467,10 @@ None of these is a build. Each is an evening in front of the thing.
 - **One document, all the way round** — item 5 is the build; this is the evening.
   Open a `paper` sitting on a box, let it write into `writeups/<slug>/`, compile
   it, open `/library`, read it on the glass, draw on it, and say something is
-  wrong with it. Four things no suite reaches: **the explainer rule against a
-  model**, **the revision turn against a model**, **ink a person actually drew** —
+  wrong with it. Four things no suite reaches: **the content/scope split against a
+  model** — item 6 lets the evening be the scope, and whether a tutor holding
+  that still refuses to narrate the evening is the whole of whether the split
+  worked; **the revision turn against a model**; **ink a person actually drew** —
   the marks route is tested with fixture strokes, which is not a ring round a
   figure at 200% zoom on an iPad, and that page's pen has never met a stylus —
   and **whether the reader is any good**, which is the one word in the question
