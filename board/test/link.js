@@ -68,8 +68,13 @@ window.scrollTo = () => {};
 // are `test/feedback.js`'s subject and neither of which this file asserts
 // anything about. It is synchronous throughout, so a card mid-animation would
 // only ever be caught half-written. Asking for reduced motion is the honest way
-// to opt out: `typeOut` then finishes the card before it returns, which is
-// exactly what somebody with that preference set sees.
+// to opt out of the ANIMATION: `typeOut` then finishes the card before it
+// returns, which is exactly what somebody with that preference set sees.
+//
+// It does NOT opt out of the HOLD, and it must not. The two are different things,
+// and treating them as one is what let the next board land on top of an answer
+// for everybody who has Reduce Motion on. So on the one frame a reply lands, the
+// surface below is still held where it was -- see the `!ms` branch of `typeOut`.
 window.matchMedia = (q) => ({
   matches: /prefers-reduced-motion/.test(String(q)),
   media: String(q), onchange: null,
@@ -809,6 +814,85 @@ if (es && window.Annotate) {
              + 'finger can still scroll it')
         : fail('hovering the pencil latches the scroll shut, which is it shut '
                + 'for as long as the pencil is in your hand');
+
+      // AND THE WINDOW IS THE NUMBER IT SAYS IT IS.
+      //
+      // The release was a `setInterval` at 500 ms whose phase came from the
+      // FIRST sample of a sequence, so it had nothing to do with when the nib
+      // lifted: the first tick at or after 700 ms was the one that let go, which
+      // put the real window anywhere in 700-1200 ms. Reported as annotating,
+      // going to scroll, and "suddenly scrolling didn't work... it paused for a
+      // second. I was like, wait what? Why isn't this working?"
+      //
+      // Read out of the source, because what is wrong with a poll is the poll:
+      // a jsdom clock cannot tell 700 from 1200 without waiting out both.
+      {
+        const ann = fs.readFileSync(path.join(WEB, 'annotate.js'), 'utf8');
+        const latchSrc = ann.slice(ann.indexOf('var PEN_MODE'),
+                                   ann.indexOf('function onControl'));
+        !/setInterval\(/.test(latchSrc)
+          ? ok('the latch is not released by a poll, so its window is not the '
+               + 'window plus however long until the next tick')
+          : fail('the pen latch still polls, so a 700 ms window lasts up to 1200');
+        /setTimeout\(penRelease, left\)/.test(latchSrc)
+          ? ok('and is armed for exactly what is left of it')
+          : fail('nothing in the latch waits out the remainder exactly');
+        /if \(drawing\)/.test(latchSrc) && /PEN_STEP/.test(latchSrc)
+          ? ok('and a release that fires while the nib is still down asks again '
+               + 'rather than forgetting — a latch left closed is the lesson '
+               + 'refusing to scroll for ever')
+          : fail('the release can drop its own timer with the nib down, which '
+                 + 'latches the scroll shut permanently');
+      }
+
+      // AND A DELIBERATE SCROLL DOES NOT WAIT OUT THE CLOCK.
+      //
+      // The window is for the next stroke of the same word, which arrives as a
+      // nib within a fraction of a second. It is not for somebody who has
+      // finished writing and gone to move the page, and with the nib up there is
+      // nothing left for a pan to be stolen from.
+      {
+        ink('pointerdown', 120, 60, 0.5);
+        ink('pointermove', 150, 60, 0.5);
+        ink('pointerup', 150, 60, 0.5);
+        doc.body.classList.contains('pen-writing')
+          ? ok('the latch is closed the moment a stroke ends, as it should be')
+          : fail('a stroke that just ended left the latch open');
+
+        // A palm resting beside a lifted nib does not MOVE, so it is still a palm.
+        const rest = new window.Event('touchstart', { bubbles: true, cancelable: true });
+        rest.changedTouches = [{ touchType: 'direct', clientX: 40, clientY: 90 }];
+        doc.dispatchEvent(rest);
+        doc.body.classList.contains('pen-writing')
+          ? ok('and a finger that lands and stays put does not open it — that is '
+               + 'a palm, and it is what the latch is for')
+          : fail('a resting contact opens the latch, so the next stroke can be '
+                 + 'taken for a pan');
+
+        // One that drags is a scroll, and it gets one immediately. The probe is
+        // armed by the `touchstart` above -- PASSIVELY, because the non-passive
+        // `touchmove` exists only while a stroke is drawn and that rule is what
+        // keeps scrolling smooth. See `armMove` in annotate.js.
+        const drag = new window.Event('touchmove', { bubbles: true, cancelable: true });
+        drag.changedTouches = [{ touchType: 'direct', clientX: 40, clientY: 200 }];
+        doc.dispatchEvent(drag);
+        !doc.body.classList.contains('pen-writing')
+          ? ok('but one that DRAGS opens it at once, so scrolling never waits '
+               + 'out a window it is not the subject of')
+          : fail('a finger dragging with the nib up still has to wait for the '
+                 + 'latch, which is the reported glitch');
+
+        // And a pencil dragging is the next stroke, not a scroll.
+        ink('pointerdown', 120, 60, 0.5);
+        const nib = new window.Event('touchmove', { bubbles: true, cancelable: true });
+        nib.changedTouches = [{ touchType: 'stylus', clientX: 130, clientY: 64 }];
+        doc.dispatchEvent(nib);
+        doc.body.classList.contains('pen-writing')
+          ? ok('and a stylus dragging does not open it, because that is the '
+               + 'stroke the latch exists for')
+          : fail('the pen opens its own latch');
+        ink('pointerup', 130, 64, 0.5);
+      }
 
       // And a lift the layer never sees -- the nib leaving past its edge, the
       // browser taking the gesture, the app going to the background -- must not
@@ -1624,15 +1708,30 @@ if (es) {
   if (flow.querySelector('.mine[data-answers="0001"]'))
     ok('once answered, what was handed in takes its place in the transcript');
   else fail('the sent answer never reappears');
-  if (receipt.hidden) ok('and the receipt stands down');
-  else fail('the receipt is still claiming to be waiting');
+  /* THE RECEIPT DOES NOT STAND DOWN UNTIL THE REPLY IS ON THE GLASS, and this
+     is the frame it lands on. It used to go the instant the card's RECORD
+     arrived, which is what put the next board over a pulsing strip with the
+     answer still to come. It now says `arriving` for the length of the settle;
+     `test/typed.js` owns both ends of that. */
+  if (!receipt.hidden && /arriving/.test(doc.getElementById('sent-text').textContent))
+    ok('and the receipt says the answer is ARRIVING, rather than standing down '
+       + 'before a word of it is on the glass');
+  else fail('the receipt let go on the frame the record arrived: "'
+            + doc.getElementById('sent-text').textContent + '"');
 
   var order5 = Array.prototype.map.call(flow.children, function (n) {
     return n === writer ? 'WRITER'
          : (n.dataset && n.dataset.key ? n.dataset.key.split(':').slice(0, 2).join(':') : '?');
   });
-  if (String(order5) === String(['card:0001', 'turn:t0001', 'card:0002', 'WRITER']))
-    ok('and the surface to correct it on is below the feedback, not above it');
+  /* HELD, BECAUSE THIS IS THE FRAME THE REPLY LANDS ON. The surface comes down
+     once the reply has been read -- a quarter of a second here, up to four
+     seconds with the animation on, and either way `test/typed.js`'s subject.
+     What this file asserts is that the transcript is in ORDER: the answer takes
+     its place above the feedback, and the surface is in that column rather than
+     lost out of it. */
+  if (String(order5) === String(['card:0001', 'WRITER', 'turn:t0001', 'card:0002']))
+    ok('and the surface is held while the reply is arriving, with the transcript '
+       + 'in order underneath it');
   else fail('the writing block is in the wrong place: ' + order5);
 }
 

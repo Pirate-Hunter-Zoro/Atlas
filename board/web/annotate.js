@@ -1102,22 +1102,94 @@ var penAt = 0;
    a deliberate scroll, which does not. The slate's own palm window is half a
    second, for the same reason and with the same arithmetic behind it. */
 var PEN_MODE = 700;
+/* What the release waits when it fires while the nib is STILL DOWN. It is a
+   re-arm and not a window, so it is small and bounded: the thing being waited
+   for is the lift, which has no clock of its own. */
+var PEN_STEP = 120;
 var penTimer = null;
 
 function penMode(on) {
   document.body.classList.toggle("pen-writing", !!on);
 }
 
+/* THE RELEASE IS EXACT, AND THE WINDOW IS THE NUMBER ABOVE.
+
+   This was a `setInterval` at 500 ms, and its phase was set by the FIRST sample
+   of a sequence -- so it had nothing to do with when the nib actually lifted.
+   The first tick at or after `PEN_MODE` is the one that let go, which put the
+   real window anywhere between 700 and 1200 ms, uniformly, averaging 950. A
+   window nobody can predict is worse than a longer one that is the same every
+   time, because the second can be learned and the first reads as a fault.
+
+   Reported as: annotating, going to scroll, *"suddenly scrolling didn't work…
+   it paused for a second. I was like, wait what? Why isn't this working?"*
+
+   One timer, armed for exactly what is left. `penSeen` only moves `penAt`
+   forward and never re-arms, so a stroke of a thousand samples costs one
+   timeout rather than a `clearTimeout` and a `setTimeout` each. */
+function penRelease() {
+  penTimer = null;
+  /* Still down. Ask again rather than forgetting: nothing else re-arms this, and
+     a latch left closed is the lesson refusing to scroll for ever -- which is
+     the whole defect, permanently, instead of for a second. */
+  if (drawing) {
+    penTimer = setTimeout(penRelease, PEN_STEP);
+    return;
+  }
+  var left = PEN_MODE - (Date.now() - penAt);
+  if (left > 0) {
+    penTimer = setTimeout(penRelease, left);
+    return;
+  }
+  penMode(false);
+}
+
 function penSeen() {
   penAt = Date.now();
   penMode(true);
-  if (penTimer) return;
-  penTimer = setInterval(function () {
-    if (drawing || Date.now() - penAt < PEN_MODE) return;
-    clearInterval(penTimer);
-    penTimer = null;
-    penMode(false);
-  }, 500);
+  if (!penTimer) penTimer = setTimeout(penRelease, PEN_MODE);
+}
+
+/* AND A DELIBERATE SCROLL DOES NOT WAIT OUT THE CLOCK.
+
+   The window exists for the NEXT STROKE OF THE SAME WORD, which follows within a
+   fraction of a second and arrives as a nib. It does not exist to refuse
+   somebody who has finished writing and gone to move the page -- and with the
+   nib up there is nothing left for a pan to be stolen from.
+
+   So a contact that is MOVING, with no stroke in progress and no stylus in it,
+   opens the latch at once. Moving is the whole of the test and it is what makes
+   this safe: a palm resting beside a lifted nib does not move, so it is still a
+   palm, and the one gesture this gives up is the flick that opened the latch. */
+function penLet() {
+  if (penTimer) { clearTimeout(penTimer); penTimer = null; }
+  penMode(false);
+}
+
+/* THE PROBE THAT ASKS WHETHER THAT CONTACT MOVED, AND IT IS PASSIVE.
+
+   It cannot be folded into `onTouchMove`, and that is not a style choice: the
+   non-passive `touchmove` exists ONLY while a stroke is being drawn, because a
+   non-passive one is a promise to ask the main thread before the page may scroll
+   a pixel -- which is two separate reports of janky scrolling. See `armMove`.
+   With the nib up there must be nothing non-passive in the way.
+
+   A passive listener makes no such promise and the compositor keeps the gesture,
+   so this costs the scroll nothing. `once` is what retires it: one contact, one
+   answer, and the next `touchstart` arms a fresh one. */
+function penProbe(ev) {
+  if (!stylus(ev)) penLet();
+}
+
+function penWatch() {
+  try {
+    document.addEventListener("touchmove", penProbe,
+                              { passive: true, once: true });
+  } catch (e) {
+    /* No options object: a listener that stays is still passive by default for
+       `touchmove` in every engine this runs on, and it only ever opens a latch. */
+    document.addEventListener("touchmove", penProbe, false);
+  }
 }
 
 /* A CONTROL IS NOT A PLACE TO DRAW, AND THE PEN HAS TO BE ABLE TO PRESS ONE.
@@ -1145,6 +1217,9 @@ function onControl(ev) {
 function onTouchStart(ev) {
   if (!on) return;
   if (onControl(ev)) return;
+  /* A contact landing with the latch closed and the nib UP is either a palm or
+     somebody going to scroll, and only moving tells them apart. Ask. */
+  if (penTimer && !drawing && !stylus(ev)) penWatch();
   if ((drawing || stylus(ev)) && ev.cancelable) ev.preventDefault();
 }
 
@@ -1629,7 +1704,7 @@ window.Annotate = {
     document.body.classList.toggle("annotating", on);
     armTouch(on);
     if (!on) {
-      penMode(false);
+      penLet();
       dropPick();
     }
   },
