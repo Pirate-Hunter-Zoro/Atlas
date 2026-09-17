@@ -7,9 +7,24 @@ been run is the job it exists for.**
 GLM-5.2 int4 to a coding agent in any directory. README §4c is the architecture and is the file to
 read before touching any of it; `P0-STATUS.md` findings 16–20 are the measurements.
 
-**One thing is left, and it is the whole point: put colibrì on the diarization repair.** It is
-below, in the owner's own words, with the scoring already decided. Everything under *Settled* is
-machinery that now exists to make it one tap.
+**One thing is left in this file, and it is the whole point: put colibrì on the diarization
+repair.** It is below, in the owner's own words, with the scoring already decided. Everything under
+*Settled* is machinery that now exists to make it one tap.
+
+**Three things the BOARD still owes this job, and they are `../../HANDOFF.md` items 2, 3 and 4.** A
+mission dispatched from the iPad is not yet a record that outlives the iPad, nothing says whether
+one is still running, and nothing can be told to ship its changes when it finishes. Two facts from
+this project decide how that gets built, so they are written here rather than left to be
+rediscovered:
+
+- **A colibrì turn runs inside the SERVE JOB'S allocation.** `coli-code` steps into it with `srun
+  --overlap` rather than ssh, because the endpoint is loopback-only on the serving node. So a
+  mission's ceiling is the serve job's walltime — 8 h by default, 9 h on `c3_short` — and `coli-up
+  -t` is the only lever. A mission longer than that cannot finish, whatever the board records.
+- **Shipping is not this model's job.** It decodes at 3.2–4.4 tok/s and it is the one assistant
+  that may read `phi`. The ship belongs to a hosted follow-up turn, which is also a second pair of
+  eyes on a local model's diff — and that turn can only be trusted with it once `names_phi` is
+  actually run over the diff, which nothing in this repository does today.
 
 ---
 

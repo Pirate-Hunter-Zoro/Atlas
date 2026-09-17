@@ -1,14 +1,19 @@
-# HANDOFF — everything is one tap away, and nothing has been tapped
+# HANDOFF — the iPad is where the work is directed from
 
-**The loop is closed everywhere a machine can check it, and nowhere a model or a
-person can.** A document can be written up, listed, read on the glass, marked
-up, complained about in words or in ink, and revised by whichever machinery made
-it. A student's own answer carries its verdict and every attempt they typed is
-kept. The local model can be chosen for a sitting, started from the glass,
-watched through four states, and put to work on a workspace nobody is looking at.
-**None of it has been done once by a person with a real document, a real evening
-or a real transcript in front of them, and the one job all of it was built for
-has not been run.**
+**The aim is one sentence and it is a test: the only reason to open the laptop is
+to type code a card told you to type.** Everything else — choosing what a sitting
+is for, choosing who writes it, starting the local model, putting a workspace to
+work, reading a document, marking it up, complaining about it — is a tap.
+
+**Most of the pieces are in and none of them has been used in anger.** A document
+can be written up, listed, read on the glass, marked up, complained about in
+words or in ink, and revised by whichever machinery made it. A student's own
+answer carries its verdict and every attempt they typed is kept. The local model
+can be chosen for a sitting, started from the glass, watched through four states,
+and handed a job in a workspace nobody is looking at.
+
+**What is left is what still sends somebody to a keyboard**, and that is the next
+section.
 
 `board/README.md` is the architecture. This file says what is left.
 
@@ -19,9 +24,9 @@ has not been run.**
 - `bash board/test/all.sh` — 78 suites, about twelve minutes. Green before and
   after.
   The last of them is Paper-Writer's own, run where it is checked out, so the
-  factory's 516 tests are now part of the board's habit rather than a second one
-  nobody has.
-- `cd projects/Paper-Writer && python3 -m unittest discover -s tests` — 516 tests,
+  factory's tests are part of the board's habit rather than a second one nobody
+  has.
+- `cd projects/Paper-Writer && python3 -m unittest discover -s tests` — 517 tests,
   about twenty seconds. Still worth running alone while working in there.
 - Bump `VERSION` in `board/web/sw.js` whenever a shell file changes. The library
   page is three of them.
@@ -34,91 +39,249 @@ has not been run.**
 **`projects/libr-local-llm` has its own handoff and it is still the live one.**
 The five pieces it asked for against the board are shipped and are under
 *Settled* below; what is left in that file is the diarization job itself, which
-is item 2 here.
+is item 5 here.
+
+---
+
+## The goal, and it is a test rather than a direction
+
+**In the owner's words:** *"When Atlas really gets at a working phase, I should
+be able to just work from the iPad, and the ONLY time I should have to hop on the
+laptop to code something is if I'm being coach-coded by the tutor, whose
+instructions I'd still be reading on the iPad."*
+
+That is checkable, so check it that way: **an evening in which the laptop is
+opened for any reason other than typing code a card told you to type is an
+evening this failed.** Everything in this section is a thing that still sends
+somebody to a keyboard.
+
+**Items 2, 3 and 4 are one piece of work** — a *mission* — and they land in that
+order: a mission cannot be told to ship itself before it is a record, and it
+cannot be a record before the board knows which workspaces are fenced. Item 1 is
+independent and is the smallest, so start there. Item 5 is the acceptance test of
+2, 3 and 4 and is also the job all of it exists for. Item 6 is not a build.
 
 ---
 
 ## What to do next
 
-**1. Look at a sitting with the colours on and say whether they help.** The
-verdict down the student's own answer and the labelled run of typed answers are
-both in, both covered by `board/test/mine.js`, and neither has been seen by a
-person teaching. Two things to watch for, because a test cannot: whether green
-on the answer and a tick on the card a finger's width apart is the same thing
-said twice, and whether *answer 2 of 3* is useful or is a number on a bubble
-that did not need one. Both are one line to remove if they are noise —
-`.mine[data-verdict]` in `board/web/board.css`, and the `nth` clause in
-`render`.
+### 1. Coach coding needs a "you do this step" tap
 
-**2. Put colibrì on the diarization repair.** Everything it needs now exists —
-the agent is a row in the table, the sitting can choose it, the server says
-which of four states it is in and offers to start one, and a workspace nobody is
-looking at can be handed a job — and the job itself has never been run. From any
-board: **⇥ put an assistant to work elsewhere**, pick `PSYCH-ASR`, pick
-`colibri`, and give it the ask. It is written out in full in
-`projects/libr-local-llm/HANDOFF.md`, in the owner's own words, with the scoring
-already decided:
+**The want:** *"in coach coding mode, I still want to be able to have a 'fuck
+this, you do this step' option."*
 
-```
-python3 -m psych_asr.cli.apply_corrections --dry-run --anonymise
-```
+**Now.** `coach` is an aim and its sentence is in `config.AIM_MEANS`: name the
+calls, the arguments and the order in English, one step per card, and let them
+type it. There is no way out of one step of it. The only escape is `POST /aim`,
+which changes **the whole sitting** to `build` — so the way to get one step
+written for you is to stop being coached, and the next card and every card after
+it is written the new way.
 
-Counts, spreadsheet rows and seconds, naming the participant nowhere. Before:
-`unplaced_rows` is `[16, 32]`, `within_2s` is 68 of 74, stray marks at zero. A
-reconstruction is better if those move the right way — which is what makes a
-rule colibrì proposes checkable by somebody not cleared for the data it was
-tested on.
+**Want.** One tap, on the step's own card, that hands over **that step** and
+leaves the sitting coaching. The next card is a coach card again.
 
-**Start it before you stop for the day.** The first turn is hours rather than
-minutes: the client's preamble is 15,900 tokens and prefill at that size is two
-to three hours. After it the KV prefix carries the preamble, so the thing not to
-do is kill it at ninety minutes and start again — that is the whole cost, paid
-twice. Leave the server up between tasks. Nothing will kill the turn: the
-`colibri` recipe carries a four-hour `timeout` that `turn_timeout` takes as a
-floor, and the daemon's beat thread keeps the indicator green for the whole of it.
+**Where, and the shape exists three times over.** A signal on a turn: `[begin]`,
+`[aim]` and `[direction]` are all a tap that becomes a line in the inbox, which
+in a headless turn IS the prompt. So `POST /handover` carrying the card id,
+`sense.SIGNAL_SENSE["handover"]` saying what the tap meant, and a turn woken on
+it. `_aim` in `routes/lesson.py` is the worked example of a control that changes
+nothing about the sitting, and `board/test/aiming.py` is its suite.
 
-**`PSYCH-ASR` is the workspace it will open in, and it is the only kind that
-will.** A colibrì sitting refuses where a card of its own would be committed;
-that workspace ignores `live/*`, and a course does not.
+**The detail that will be missed.** `doing_now(root)` answers "is this a turn
+that writes code" from the SITTING's aim, and `turn_timeout` reads it — so a
+handover turn inside a coaching sitting gets a teaching turn's fifteen minutes
+for work that stages files and runs a suite. The signal has to reach that
+decision, not only the prompt.
 
-Colibrì is the only assistant that may read `phi`, and that is the entire reason
-it exists. `research/PSYCH-ASR/HANDOFF.md` holds the *teaching* thread on the
-same code; it is a different conversation and the two do not merge.
+**Decide before writing.** Whether a handed-over step is written up as a coach
+card afterwards. It must not be: a card explaining how it did the step is a
+lecture nobody asked for, and the person's next act is the NEXT step. One short
+report — what changed, what it ran, what came back — and then the next coach
+card. Put that in `TEACHING.md` beside *A doing turn: the work first, then one
+short card*, which already says the shape.
 
-**3. Take one document all the way round, and what is left of it is the half a
-machine cannot check.** Open a `paper` sitting on a box — PSYCH-ASR's correction
-algorithm is the obvious one — let it write into `writeups/<slug>/`, compile it,
-open `/library`, read it on the glass, draw on it, and say something is wrong
-with it. Every seam under
-that is covered end to end (`test/library.py`, `test/revising.py`,
-`test/writing_up.py`, and `tests/test_pipeline.py` and `tests/test_revision.py`
-in the factory). What is not:
+**Check.** `board/test/aiming.py` owns this kind of route. Assert the sitting's
+aim is unchanged, the lesson is not archived, no tutor is replaced, the inbox
+line carries `[handover]` and the card it is about, and that the turn is given a
+doing turn's clock.
 
-- **The explainer rule against a model.** "A make sitting writes about the
-  subject, never about the sitting" is a refusal in `sense.MAKE_SENSE`,
-  `config.AIM_MEANS` and `TEACHING.md`, and `test/teaching.py` checks only that
-  the three agree with each other. Whether a tutor that has just spent three
-  hours teaching obeys it is unknown.
-- **The revision turn against a model**, both kinds: the board's own `[revise]`
-  turn, and the factory's editorial sweep reading somebody's actual complaint at
-  the top of its brief.
-- **Ink that a person actually drew.** The marks route is tested with fixture
-  strokes, which is not the same as a ring round a figure at 200% zoom on an
-  iPad — and the library's own pen has never met a stylus.
-- **The two teaching rules that were asked for out loud**, both of them
-  instructions rather than mechanisms: the question restated under the
-  definition list so it is the last thing above the board, and the write-up
-  compiled problem by problem rather than at the end. `test/teaching.py` holds
-  the three places each is written down; no test can hold whether a tutor does
-  it, and the next sitting is the only way to find out.
-- **And a third, of the same kind and newer: no card tells the student to write
-  anything up.** The act was already governed and the card still said *"two
-  words to add when you write it up"*. The rule is now in `TEACHING.md` twice —
-  as its own section under the write-up, and as a sentence-level rule beside
-  *Say it plainly* — and in `sense.WRITEUP_SENSE`, which in a headless turn is
-  the whole prompt. A phrasing rule cannot honestly be unit-tested against a
-  real card, so what `test/teaching.py` asserts is that it reaches the course,
-  and **the first card of the next sitting is the real check.**
+### 2. The board must know which workspaces hold a fence, and say so before the tap
+
+**The want:** *"if I'm in PSYCH-ASR on the iPad, we should know that there is a
+phi folder that I can't let claude or any outsourced AI model see."*
+
+**Now.** The fence is real and it is per-PATH. `ai-config/policy/phi.py` answers
+`names_phi(text)` and `bash_is_blocked(command)`; the per-assistant adapters in
+`ai-config/adapters/` translate a tool call into one of those two; and
+`tutorboard/fenced.py` is the list of directory names nothing in the board may
+point at, read by `course/reading.py` and `manuscript.py`. All of that holds.
+
+**What is missing is per-WORKSPACE and it is a question about what a person can
+see.** Nothing anywhere says *this workspace holds fenced content, and one
+assistant on this machine may read it*. So the `who:` row offers `claude` and
+`colibri` side by side in PSYCH-ASR exactly as it does in Galois-Theory, and the
+only thing standing between a tap and a hosted model reaching for session
+content is a hook the person cannot see.
+
+**Want.** A workspace says whether it holds a fence, and the chooser says which
+assistant may read it. `fenced.NEVER` is the list and the answer is a directory
+walk one level deep, which is what `machines.workspaces` already does.
+
+**Decide, and do not take the easy half.** Refusing a hosted assistant outright
+in a fenced workspace is the wrong answer and must not be written: the teaching
+thread on that same code is a hosted conversation today and works, because the
+fence stops it reading `phi` rather than stopping it existing. What is owed is
+**visibility plus a default**: the row says the workspace is fenced and names the
+one assistant that may read it, the mission dispatcher defaults to that one
+there, and a hosted pick carries a line saying what it will not be able to open.
+The protection stays where it is.
+
+**Check.** `board/test/colibri.py` owns the registry half; the fence half
+belongs beside `test/plan.py`'s fenced-document case, which already asserts that
+a document inside a fenced directory is offered nowhere.
+
+### 3. A mission is a thing, and closing the iPad does not end it
+
+**The want:** *"when I put colibri or anything on a mission, just because I close
+the iPad doesn't mean that should end. Next time I open the iPad and access the
+board, that mission should still be going or notify me somewhere if it's done."*
+
+**Now.** `POST /elsewhere` writes the task into another workspace's inbox and
+starts a daemon there. The daemon is detached — `setsid`, stdin on DEVNULL — so a
+closed lid genuinely does not touch it. What does not exist is any RECORD that a
+mission was dispatched, so:
+
+- Nothing says a mission is **still running**. `news.elsewhere` reports a card
+  newer than the last time anybody looked at that workspace, which is the right
+  answer for a finished turn and says nothing at all about one in flight.
+- Nothing says a mission **failed**. A failed turn is reported in the busy strip
+  of that workspace's own board, which is precisely the board nobody is looking
+  at. It is invisible until you go there.
+- Nothing survives the two ways a mission really dies. The daemon belongs to the
+  allocation that started it, so an allocation ending takes it with it — the rule
+  already settled for the board — and **a colibrì turn runs inside the SERVE
+  job's allocation**, because `coli-code` steps into it with `srun --overlap`. So
+  a colibrì mission's ceiling is the serve job's walltime, 8 h by default and 9 h
+  on `c3_short`. A mission longer than that cannot finish, and `coli-up -t` is
+  the only lever.
+
+**Want.** A mission is a record in the workspace it is about, and every board can
+read every workspace's. It carries what was asked, which assistant, when it was
+dispatched, whether it is to ship itself, and how it ended. Three states a person
+can act on: **running**, **done**, **failed**.
+
+**Where.** Under `live/`, per workspace, beside the records already there —
+`agent.json`, `push.json`, `state.json` — because that is the directory a board
+already reads and no repository tracks. `news.elsewhere` is the walk to copy and
+the surface to widen: the newsbar is already *"work that came back while you were
+elsewhere"* and a mission in flight is the same sentence in the present tense.
+
+**The one thing not to do.** Do not put the mission list in the browser's memory
+or in this board's process. The whole point is that it is there when you come
+back on another device, on another node, tomorrow.
+
+**Check.** A new suite, or `test/elsewhere.py`, which already owns both halves of
+this sentence. Assert: a dispatched mission is on disk and readable from a board
+serving a different workspace; a mission whose daemon has gone reads as failed
+rather than as running; and a mission that has landed a card reads as done and
+comes off the list when it is looked at.
+
+### 4. A mission can be told to ship itself, and the diff is checked before it goes
+
+**The want:** *"when I put anything on a mission, I should have the option to tell
+it to ship its changes once it is done - I don't know if colibri is capable of
+doing that, but the tutor certainly should be once colibri is done."*
+
+**Now.** `board push` exists, commits and pushes, does not end the session, and
+is written to run unattended — *"the tutor may push on its own"*. What is missing
+is the instruction, the guarantee, and one check that is not in the repository at
+all.
+
+**Want.** A switch on the dispatcher, carried in the mission record, and honoured
+when the mission finishes.
+
+**Whose job the ship is, and the owner has already answered it.** Not the local
+model's: it decodes at three tokens a second and it is the one assistant that can
+read `phi`. So when a colibrì mission finishes, the workspace's ORDINARY tutor is
+woken with the mission's own report and ships it — a hosted turn, a second pair
+of eyes on a local model's work, and a turn that cannot read the session data
+itself. The signal mechanism is the same one items 1 and 3 use.
+
+**AND THE CHECK THAT DOES NOT EXIST YET, which is the sharp end of this.**
+`research/PSYCH-ASR/.gitignore` keeps `/phi/` out of git and `test/tracked.py`
+audits it, so a diff cannot contain a phi FILE. A diff can absolutely contain phi
+CONTENT: a test fixture, a hard-coded example, a docstring quoting a transcript —
+written by the one assistant that was allowed to read it, pushed by a turn that
+was not. `ai-config/policy/phi.py` already answers exactly this question and
+nothing calls it: **`names_phi` is not invoked anywhere in this repository.**
+
+So `board push` runs the diff past `names_phi` in a workspace that holds a fence,
+and refuses by name when it matches. A machine check with no model's judgement in
+it, which is what lets the hosted turn ship at all. `worktree.busy_reason` is the
+shape: say what is in the way, change nothing, and write it where the board can
+read it.
+
+**Decide.** Whether the refusal is per-workspace or everywhere. Everywhere is
+cheaper to reason about and costs a regex over a diff; per-workspace is faster and
+is one more thing that can be wrong. Take it deliberately.
+
+**Check.** `test/tracked.py` is the suite that already exists to stop PHI reaching
+a remote, and this is the same failure one step earlier. A fixture diff carrying a
+transcript line must be refused, and the refusal must name the file.
+
+### 5. Put colibrì on the diarization repair, which is what all of the above is for
+
+It is now the acceptance test of items 2, 3 and 4 as well as the job that has
+been waiting since before any of this existed. **The ask, the scoring and the
+numbers to beat are in `projects/libr-local-llm/HANDOFF.md`**, in the owner's own
+words; they are not repeated here, because a number in two files is a number
+that goes stale in one of them.
+
+Three things about running it that are the board's rather than that file's:
+
+- **Start it before you stop for the day.** The first turn is hours rather than
+  minutes — a 15,900-token preamble at a few tokens a second of prefill — and
+  after it the KV prefix carries the preamble. The thing not to do is kill it at
+  ninety minutes and start again; that is the whole cost, paid twice.
+- **Nothing on the board will kill the turn.** The `colibri` recipe carries a
+  four-hour `timeout` that `turn_timeout` takes as a floor, and the daemon's beat
+  thread keeps the indicator green throughout. What WILL kill it is the serve
+  job's walltime — item 3's last paragraph.
+- **`PSYCH-ASR` is the only kind of workspace it will open in**, because a colibrì
+  sitting refuses where a card of its own would be committed and that workspace
+  ignores `live/*` while a course does not.
+
+`research/PSYCH-ASR/HANDOFF.md` holds the *teaching* thread on the same code; it
+is a different conversation and the two do not merge.
+
+### 6. And the three things no test can hold
+
+None of these is a build. Each is an evening in front of the thing.
+
+- **The colours, in a real sitting.** The verdict down the student's own answer
+  and the labelled run of typed answers are both in and both covered by
+  `board/test/mine.js`. Two things to watch for, because a test cannot: whether
+  green on the answer and a tick on the card a finger's width apart is the same
+  thing said twice, and whether *answer 2 of 3* is useful or is a number on a
+  bubble that did not need one. Both are one line to remove —
+  `.mine[data-verdict]` in `board/web/board.css`, and the `nth` clause in
+  `render`.
+- **One document, all the way round.** Open a `paper` sitting on a box, let it
+  write into `writeups/<slug>/`, compile it, open `/library`, read it on the
+  glass, draw on it, and say something is wrong with it. Every seam under that is
+  covered end to end (`test/library.py`, `test/revising.py`, `test/writing_up.py`,
+  and the factory's `tests/test_pipeline.py` and `tests/test_revision.py`). What
+  is not: the explainer rule against a model, the revision turn against a model,
+  and ink that a person actually drew — the marks route is tested with fixture
+  strokes, which is not a ring round a figure at 200% zoom on an iPad, and the
+  library's own pen has never met a stylus.
+- **The three teaching rules that were asked for out loud**, all of them
+  instructions rather than mechanisms: the question restated under the definition
+  list so it is the last thing above the board, the write-up compiled problem by
+  problem rather than at the end, and no card telling the student to write
+  anything up. `test/teaching.py` holds the places each is written down, and
+  asserts only that they reach the course. **The first card of the next sitting is
+  the real check.**
 
 ---
 
