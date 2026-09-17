@@ -50,9 +50,9 @@ An item is not done because its code runs. It is done when the suite is green,
 the rule is written where the next turn will read it, and the item is out of this
 file.
 
-**Two of them are not builds and do not come out this way.** Item 9's last part
+**Two of them are not builds and do not come out this way.** Item 8's last part
 is a standing rule — it lands in `TEACHING.md` and `sense.py` and then it is a
-*Settled* entry like anything else. Item 11 is a list of evenings in front of the
+*Settled* entry like anything else. Item 10 is a list of evenings in front of the
 thing, and only the person holding the iPad can strike those.
 
 ---
@@ -77,7 +77,7 @@ thing, and only the person holding the iPad can strike those.
 **`projects/libr-local-llm` has its own handoff and it is still the live one.**
 The five pieces it asked for against the board are shipped and are under
 *Settled* below; what is left in that file is the diarization job itself, which
-is item 12 here.
+is item 11 here.
 
 ---
 
@@ -93,65 +93,24 @@ opened for any reason other than typing code a card told you to type is an
 evening this failed.** Everything in this section is a thing that still sends
 somebody to a keyboard.
 
-**Items 2, 3 and 4 are one piece of work** — a *mission* — and they land in that
+**Items 1, 2 and 3 are one piece of work** — a *mission* — and they land in that
 order: a mission cannot be told to ship itself before it is a record, and it
-cannot be a record before the board knows which workspaces are fenced. Items 1
-and 5 are independent of that and of each other; item 1 is the smallest, so start
-there. Item 6 is where a lesson turns into a document, and item 5 is how that
-document is then corrected, so they are worth reading together. Item 7 is the
-answer box and is independent of everything. Item 8 is the meeting deck, which
-reuses item 5's reader and deliberately does NOT reuse its feedback route. Item 9
-is the map, and the last part of it is a standing rule rather than a task. Item 10
-is item 9's other half and must land after it, because the refactor renames the
-boxes its TODOs are attached to. Item 11 is the verdict a person can feel, and it
-settles a question item 13 has been holding open. Item 12 is the acceptance test
-of 2, 3 and 4 and is also the job all of it exists for. Item 13 is not a build.
+cannot be a record before the board knows which workspaces are fenced. Item 4 is
+independent of all three, and is where a document is corrected; item 5 is where
+a lesson turns into one, so those two are worth reading together. Item 6 is the
+answer box and is independent of everything. Item 7 is the meeting deck, which
+reuses item 4's reader and deliberately does NOT reuse its feedback route. Item 8
+is the map, and the last part of it is a standing rule rather than a task. Item 9
+is item 8's other half and must land after it, because the refactor renames the
+boxes its TODOs are attached to. Item 10 is the verdict a person can feel, and it
+settles a question item 12 has been holding open. Item 11 is the acceptance test
+of 1, 2 and 3 and is also the job all of it exists for. Item 12 is not a build.
 
 ---
 
 ## What to do next
 
-### 1. Coach coding needs a "you do this step" tap
-
-**The want:** *"in coach coding mode, I still want to be able to have a 'fuck
-this, you do this step' option."*
-
-**Now.** `coach` is an aim and its sentence is in `config.AIM_MEANS`: name the
-calls, the arguments and the order in English, one step per card, and let them
-type it. There is no way out of one step of it. The only escape is `POST /aim`,
-which changes **the whole sitting** to `build` — so the way to get one step
-written for you is to stop being coached, and the next card and every card after
-it is written the new way.
-
-**Want.** One tap, on the step's own card, that hands over **that step** and
-leaves the sitting coaching. The next card is a coach card again.
-
-**Where, and the shape exists three times over.** A signal on a turn: `[begin]`,
-`[aim]` and `[direction]` are all a tap that becomes a line in the inbox, which
-in a headless turn IS the prompt. So `POST /handover` carrying the card id,
-`sense.SIGNAL_SENSE["handover"]` saying what the tap meant, and a turn woken on
-it. `_aim` in `routes/lesson.py` is the worked example of a control that changes
-nothing about the sitting, and `board/test/aiming.py` is its suite.
-
-**The detail that will be missed.** `doing_now(root)` answers "is this a turn
-that writes code" from the SITTING's aim, and `turn_timeout` reads it — so a
-handover turn inside a coaching sitting gets a teaching turn's fifteen minutes
-for work that stages files and runs a suite. The signal has to reach that
-decision, not only the prompt.
-
-**Decide before writing.** Whether a handed-over step is written up as a coach
-card afterwards. It must not be: a card explaining how it did the step is a
-lecture nobody asked for, and the person's next act is the NEXT step. One short
-report — what changed, what it ran, what came back — and then the next coach
-card. Put that in `TEACHING.md` beside *A doing turn: the work first, then one
-short card*, which already says the shape.
-
-**Check.** `board/test/aiming.py` owns this kind of route. Assert the sitting's
-aim is unchanged, the lesson is not archived, no tutor is replaced, the inbox
-line carries `[handover]` and the card it is about, and that the turn is given a
-doing turn's clock.
-
-### 2. The board must know which workspaces hold a fence, and say so before the tap
+### 1. The board must know which workspaces hold a fence, and say so before the tap
 
 **The want:** *"if I'm in PSYCH-ASR on the iPad, we should know that there is a
 phi folder that I can't let claude or any outsourced AI model see."*
@@ -186,7 +145,7 @@ The protection stays where it is.
 belongs beside `test/plan.py`'s fenced-document case, which already asserts that
 a document inside a fenced directory is offered nowhere.
 
-### 3. A mission is a thing, and closing the iPad does not end it
+### 2. A mission is a thing, and closing the iPad does not end it
 
 **The want:** *"when I put colibri or anything on a mission, just because I close
 the iPad doesn't mean that should end. Next time I open the iPad and access the
@@ -232,7 +191,7 @@ serving a different workspace; a mission whose daemon has gone reads as failed
 rather than as running; and a mission that has landed a card reads as done and
 comes off the list when it is looked at.
 
-### 4. A mission can be told to ship itself, and the diff is checked before it goes
+### 3. A mission can be told to ship itself, and the diff is checked before it goes
 
 **The want:** *"when I put anything on a mission, I should have the option to tell
 it to ship its changes once it is done - I don't know if colibri is capable of
@@ -251,7 +210,8 @@ model's: it decodes at three tokens a second and it is the one assistant that ca
 read `phi`. So when a colibrì mission finishes, the workspace's ORDINARY tutor is
 woken with the mission's own report and ships it — a hosted turn, a second pair
 of eyes on a local model's work, and a turn that cannot read the session data
-itself. The signal mechanism is the same one items 1 and 3 use.
+itself. The signal mechanism is the same one item 2 uses, and the one `/handover`
+already runs on.
 
 **AND THE CHECK THAT DOES NOT EXIST YET, which is the sharp end of this.**
 `research/PSYCH-ASR/.gitignore` keeps `/phi/` out of git and `test/tracked.py`
@@ -275,7 +235,7 @@ is one more thing that can be wrong. Take it deliberately.
 a remote, and this is the same failure one step earlier. A fixture diff carrying a
 transcript line must be refused, and the refusal must name the file.
 
-### 5. A document is corrected, or overhauled, without leaving the page it is on
+### 4. A document is corrected, or overhauled, without leaving the page it is on
 
 **The want, and it was asked as a question:** *"let's say I'm working in
 PSYCH-ASR, and want to view the presentation on stage2. That presentation needs
@@ -373,9 +333,9 @@ started.
 
 **And the half no test reaches:** whether that reader is in fact *slick* on a
 tablet. It is two taps from the board — `▤ library · papers & decks` in the bar
-menu — and no person has read a real document on it. That is item 7.
+menu — and no person has read a real document on it. That is item 6.
 
-### 6. Any sitting can be asked for a paper OR a deck of what it covered, at any moment
+### 5. Any sitting can be asked for a paper OR a deck of what it covered, at any moment
 
 **The want, and it was asked as a question:** *"let's say I open up libr-local-llm
 and I want to learn how colibrì works. Can I have a tutoring session where I'm
@@ -457,7 +417,7 @@ sections on the board one at a time, because there the document IS the evening;
 that stays exactly as it is, for a paper and for a deck. One asked for
 **alongside** a lesson must not push the lesson off the glass — so it lands in
 the library, the board says it is being written and says when it is there, and
-correcting it is item 5's loop. Take that deliberately rather than by streaming
+correcting it is item 4's loop. Take that deliberately rather than by streaming
 sections, or slides, into a transcript somebody is mid-proof in.
 
 **(c) The default style fights the ask, in this workspace above all.**
@@ -495,7 +455,7 @@ a walkthrough, where the aim row does not appear. `test/walk.py` owns what is
 offered: assert that a `#!` script with no suffix is walkable and that a README
 still is not.
 
-### 7. The answer box renders as it is typed, and what was sent stays where it was typed
+### 6. The answer box renders as it is typed, and what was sent stays where it was typed
 
 **The want, in two messages:** *"when I'm typing a response to a tutor, I want to
 be able to type latex commands in the typing box — like \gamma, etc. — and have
@@ -628,7 +588,7 @@ because the renderer parks math and code before any markdown parsing and
 restores it afterwards, and every change to it needs a case proving that still
 holds.
 
-### 8. The meeting deck: one at a time, annotated for DIRECTION rather than for correction
+### 7. The meeting deck: one at a time, annotated for DIRECTION rather than for correction
 
 **The want.** *"I have generally two — sometimes three — meetings per week to talk
 about my research… We should somehow be keeping track of our most recent updates
@@ -766,7 +726,7 @@ trap — a mark on a meeting deck produces a direction PROPOSAL on that workspac
 board and does **not** write a feedback file, does not archive anything, and does
 not replace any assistant.
 
-### 9. Three doors, then a family, then a diagram that explains the project
+### 8. Three doors, then a family, then a diagram that explains the project
 
 **The complaint, and it is about all three levels at once.** *"It's just an ugly
 grid of projects in an inner box that has wacky zooming. On the homescreen, I want
@@ -896,9 +856,9 @@ three surfaces, that the top two are not planes, and that `atlas.json`'s blurbs
 reach the glass. `test/walk.py` owns what is walkable, and gains vendor. And
 `test/teaching.py` for the standing rule, in the two places it has to agree.
 
-### 10. A sitting belongs to ONE component, and leaving it is a new sitting
+### 9. A sitting belongs to ONE component, and leaving it is a new sitting
 
-**The want, and it is item 9's other half.** *"When a tutoring session is
+**The want, and it is item 8's other half.** *"When a tutoring session is
 launched, that should happen from tapping on the particular component of that
 project/course/research-project map. There should be TODOs present, each
 corresponding with some component. The tutoring session should be AWARE of what
@@ -963,7 +923,7 @@ retrieval component"* is an instruction to a person holding a tablet, which is t
 same defect as *"two words to add when you write it up."* Every place already has
 an ADDRESS (§2.1) and the board already renders one as something you can open, so
 the card names the box by its address and the tap opens the sitting there. With
-item 9's diagram, the boundary it is pointing at is also visible.
+item 8's diagram, the boundary it is pointing at is also visible.
 
 *Decide: what happens when that box has no TODO.* The want says *"which should
 hopefully have a TODO associated with it"* — hopefully is doing a lot of work
@@ -975,8 +935,8 @@ first card asks. **Proposing it is better and is barely more work**, because the
 discovery is the valuable part and it is lost otherwise.
 
 **(c) And the refactor will move every box, which is the ordering constraint.**
-Item 9 rewrites what a component IS — from a directory to a thing in a diagram —
-and the TODOs are attached by path. So: item 9 first, then this. Doing them the
+Item 8 rewrites what a component IS — from a directory to a thing in a diagram —
+and the TODOs are attached by path. So: item 8 first, then this. Doing them the
 other way round means attaching the plan to boxes that are about to be renamed.
 
 **Check.** `test/map.py` owns *"the map is of the content, and none of it is
@@ -988,7 +948,7 @@ pretending to a focus it has not got. `test/teaching.py` for the rule itself, in
 both places it has to agree. And the hand-off card's address is `test/address.js`'s
 subject: assert the box it names opens.
 
-### 11. A verdict you can feel: dopamine for right, playful frustration for wrong
+### 10. A verdict you can feel: dopamine for right, playful frustration for wrong
 
 **The want.** *"dopamine for the user when they answer correctly, and playful
 frustration when they answer incorrectly. When we're in the context of the user
@@ -1022,7 +982,7 @@ holding the working. **It is not painted on the card.** The card takes its band
 from its own KIND instead — so for the not-right-or-wrong reply the answer says
 amber and the card says `--ink-3`, which is grey.
 
-*And this answers a question that has been sitting open.* Item 13 asks whether
+*And this answers a question that has been sitting open.* Item 12 asks whether
 green on the answer and a tick on the card a finger's width apart is the same
 thing said twice. The want above settles it: **the response carries the band.**
 The answer keeps a quieter version of it, and one of the two is the moment while
@@ -1088,9 +1048,9 @@ grey, and that a `lesson` card which is not replying to anything stays plain.
 `prefers-reduced-motion` on; assert there that the colour and the mark are both
 still on the glass with every animation refused.
 
-### 12. Put colibrì on the diarization repair, which is what all of the above is for
+### 11. Put colibrì on the diarization repair, which is what all of the above is for
 
-It is now the acceptance test of items 2, 3 and 4 as well as the job that has
+It is now the acceptance test of items 1, 2 and 3 as well as the job that has
 been waiting since before any of this existed. **The ask, the scoring and the
 numbers to beat are in `projects/libr-local-llm/HANDOFF.md`**, in the owner's own
 words; they are not repeated here, because a number in two files is a number
@@ -1105,7 +1065,7 @@ Three things about running it that are the board's rather than that file's:
 - **Nothing on the board will kill the turn.** The `colibri` recipe carries a
   four-hour `timeout` that `turn_timeout` takes as a floor, and the daemon's beat
   thread keeps the indicator green throughout. What WILL kill it is the serve
-  job's walltime — item 3's last paragraph.
+  job's walltime — item 2's last paragraph.
 - **`PSYCH-ASR` is the only kind of workspace it will open in**, because a colibrì
   sitting refuses where a card of its own would be committed and that workspace
   ignores `live/*` while a course does not.
@@ -1113,7 +1073,7 @@ Three things about running it that are the board's rather than that file's:
 `research/PSYCH-ASR/HANDOFF.md` holds the *teaching* thread on the same code; it
 is a different conversation and the two do not merge.
 
-### 13. And the three things no test can hold
+### 12. And the three things no test can hold
 
 None of these is a build. Each is an evening in front of the thing.
 
@@ -1123,18 +1083,18 @@ None of these is a build. Each is an evening in front of the thing.
   *answer 2 of 3* is useful or is a number on a bubble that did not need one —
   the `nth` clause in `render`, and one line to remove. (The other question this
   bullet used to ask — whether green on the answer and a mark on the card is the
-  same thing said twice — is answered in item 11: the response carries the band.)
-- **One document, all the way round** — item 5 is the build; this is the evening.
+  same thing said twice — is answered in item 10: the response carries the band.)
+- **One document, all the way round** — item 4 is the build; this is the evening.
   Open a `paper` sitting on a box, let it write into `writeups/<slug>/`, compile
   it, open `/library`, read it on the glass, draw on it, and say something is
   wrong with it. Four things no suite reaches: **the content/scope split against a
-  model** — item 6 lets the evening be the scope, and whether a tutor holding
+  model** — item 5 lets the evening be the scope, and whether a tutor holding
   that still refuses to narrate the evening is the whole of whether the split
   worked; **the revision turn against a model**; **ink a person actually drew** —
   the marks route is tested with fixture strokes, which is not a ring round a
   figure at 200% zoom on an iPad, and that page's pen has never met a stylus —
   and **whether the reader is any good**, which is the one word in the question
-  item 5 came from that no amount of code answers: *slick*.
+  item 4 came from that no amount of code answers: *slick*.
 - **The three teaching rules that were asked for out loud**, all of them
   instructions rather than mechanisms: the question restated under the definition
   list so it is the last thing above the board, the write-up compiled problem by
@@ -1177,6 +1137,29 @@ as the answer.
 
 ## Settled, so nobody re-derives it
 
+- **One step of a coaching sitting can be handed over, and the sitting stays a
+  coaching one.** `coach` names the calls and lets them type it, and the only
+  way out of one step of that was `POST /aim`, which changes the WHOLE sitting
+  to `build` — so the way to get one step written for you was to stop being
+  coached. A coach card now carries a tap at its foot and `POST /handover` takes
+  the card's id: `state.json` is untouched, nothing is archived, no tutor is
+  replaced. **Offered on the newest card only**, because that is the step and
+  the ones above it have already been typed — and the offer is part of the
+  card's render key, or a node kept because nothing else about it moved keeps a
+  button the sitting no longer offers. Refused where the stance already resolves
+  to `do`: there is nothing being withheld, so the tap means nothing and waking
+  a turn costs real money, which is where a second tap on the aim it already has
+  stops too. The turn carries the card in `card` and not in `answers`, because
+  `answers` means *the student answered that card* and gives it a writing
+  surface of its own. **The signal reaches the clock, not only the prompt:**
+  `doing_now` takes it, so a handed-over step runs on a doing turn's hour rather
+  than a teaching turn's fifteen minutes, and `sense.session_sense(repo,
+  doing=True)` gives it the doing turn's order. **The card that comes back is a
+  short report with the NEXT step posed under it, never a coach card about the
+  step just done** — a card explaining how it was done is a lecture nobody asked
+  for, and their next act is the next step; the rule is in `TEACHING.md` beside
+  *A doing turn* and in `sense.HANDOVER_SENSE`, which is the one a headless turn
+  actually reads. `board/test/aiming.py`, `board/test/handover.js`.
 - **Which assistant tutors a sitting is the sitting's to say, and it is the only
   layer a tablet can reach.** `resolve_agent` had four — a flag on a command
   line, a line in the workspace's `tutorboard.json`, a hostname, a default — and
