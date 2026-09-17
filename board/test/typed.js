@@ -217,6 +217,156 @@ await sleep(2800);            // past TYPE_MIN and past this card's own time
     : fail('the lesson typed itself out again on a heartbeat');
 }
 
+// ------------------------- AND WITH REDUCE MOTION ON, WHICH IS WHERE IT BROKE
+//
+// Reported after all of the above was shipped and believed: "the next board
+// showed up over the yellow pulsing 'working on response' indicator, and then
+// the AI response just all showed up at once between the boards."
+//
+// The hold and the animation are two different things and one branch treated
+// them as one. With `prefers-reduced-motion: reduce` the card is painted whole
+// -- which is right, the pacing is a flourish and they asked for less movement
+// -- and that branch returned WITHOUT TAKING A HOLD. So the surface came down
+// beside a card that had appeared in the same breath.
+//
+// And no suite saw it, because jsdom has no `matchMedia`: every test in this
+// repository runs with the animation on. This one asks for it off, in its own
+// window, which is the only honest way to assert the branch.
+{
+  const dom2 = new JSDOM(fs.readFileSync(path.join(WEB, 'board.html'), 'utf8'), {
+    runScripts: 'outside-only', pretendToBeVisual: true,
+    url: 'https://board.test/board',
+  });
+  const w2 = dom2.window;
+  const d2 = w2.document;
+  w2.HTMLCanvasElement.prototype.getContext = () =>
+    new Proxy({}, { get: () => () => {}, set: () => true });
+  w2.HTMLCanvasElement.prototype.toDataURL = () => 'data:image/png;base64,';
+  Object.defineProperty(w2.HTMLElement.prototype, 'clientWidth', { get: () => 900 });
+  Object.defineProperty(w2.HTMLElement.prototype, 'clientHeight', { get: () => 500 });
+  w2.HTMLElement.prototype.getBoundingClientRect = function () {
+    return { left: 0, top: 0, width: 900, height: 120, right: 900, bottom: 120, x: 0, y: 0 };
+  };
+  w2.Element.prototype.scrollIntoView = function () {};
+  w2.Element.prototype.setPointerCapture = function () {};
+  w2.Element.prototype.releasePointerCapture = function () {};
+  /* THE WHOLE POINT OF THIS WINDOW. */
+  w2.matchMedia = (q) => ({ matches: /prefers-reduced-motion/.test(String(q)),
+    media: String(q), addListener() {}, removeListener() {},
+    addEventListener() {}, removeEventListener() {} });
+  w2.fetch = (u) => (/slate\/state/.test(String(u))
+    ? Promise.resolve({ json: () => Promise.resolve({ pages: [] }) })
+    : new Promise(() => {}));
+  w2.renderMathInElement = () => {};
+  w2.requestAnimationFrame = (fn) => setTimeout(fn, 0);
+  w2.scrollTo = function () {};
+  w2.EventSource = function () { w2.__es = this; this.readyState = 1;
+    this.close = function () {}; this.addEventListener = function () {}; };
+  for (const f of ['typeface.js', 'macros.js', 'gauge.js', 'plane-core.js',
+                   'slate-core.js', 'annotate.js', 'board.js']) {
+    w2.eval(fs.readFileSync(path.join(WEB, f), 'utf8'));
+  }
+  const es2 = w2.__es;
+  const u0 = Date.now() / 1000 - 600;
+  const asked = { id: '0001', kind: 'question', title: 'Exercise 1',
+                  body: 'show it', mtime: u0 };
+  const sent = { id: 't0001', rev: 1, kind: 'ink', answers: '0001', t: u0 + 60,
+                 page: 1, strokes: 67, png: '/answers/t0001-r1.png',
+                 ink: '/answers/t0001-r1.json' };
+  const f2 = (cards) => JSON.stringify({
+    state: { course: 'Galois Theory', session: 'lecture' },
+    cards: cards, turns: [sent], history: 0,
+    agent: { agent: 'claude', state: 'working', turns: 2, turn_started: u0 } });
+
+  es2.onmessage({ data: f2([asked]) });
+  await sleep(80);
+  /* Where the surface sits, as an INDEX among the lesson's children. Not its
+     previous sibling: the dormant board carrying the ink just sent legitimately
+     appears above it on this very frame, so identity with what was there before
+     is the wrong question. What is being asked is whether the surface has come
+     down past the new question. */
+  const at2 = (sel) => {
+     const kids = d2.getElementById('cards').children;
+     for (let i = 0; i < kids.length; i++) {
+       if (sel === 'writer' ? kids[i].id === 'writer'
+                            : kids[i].dataset.card === sel) return i;
+     }
+     return -1;
+  };
+
+  /* The reply and the next question in one payload, which is what a teaching
+     turn sends. */
+  const reply = { id: '0002', kind: 'note', body: 'a word about it '.repeat(30),
+                  mtime: u0 + 120 };
+  const nextQ = { id: '0003', kind: 'question', title: 'Exercise 2',
+                  body: 'and now this', mtime: u0 + 121 };
+  es2.onmessage({ data: f2([asked, reply, nextQ]) });
+  await sleep(5);           /* the frame the records land on, before any rAF */
+
+  d2.querySelector('[data-card="0002"] .body')
+  && !/tw-soon/.test(d2.querySelector('[data-card="0002"] .body').innerHTML)
+    ? ok('with Reduce Motion on the card is painted whole and at once, which is '
+         + 'what was asked for — the pacing is the flourish, not the hold')
+    : fail('the card is being animated for somebody who asked for less movement');
+
+  at2('writer') < at2('0003') && at2('0003') !== -1
+    ? ok('AND THE SURFACE HAS NOT COME DOWN under the new question on that '
+         + 'frame, because the hold is taken whether or not there is an '
+         + 'animation to wait for')
+    : fail('the next board arrived in the same breath as the answer, which is '
+           + 'the reported glitch: the hold was the animation');
+
+  /* AND IT LETS GO. Asserted on the receipt rather than on the geometry: where
+     the surface finally lands is the ordinary placement rule -- the end of the
+     run it belongs to, which depends on which board page is live -- and that is
+     `test/link.js`'s subject. What is this file's subject is that the hold is a
+     hold and not a state: it is taken, and then it is over. */
+  !d2.getElementById('sent').hidden
+  && /arriving/.test(d2.getElementById('sent-text').textContent)
+    ? ok('and the receipt says the answer is ARRIVING while it is held, which is '
+         + 'the pulse staying up until there is something to read')
+    : fail('nothing says the answer is on its way: "'
+           + d2.getElementById('sent-text').textContent + '"');
+  await sleep(500);
+  d2.getElementById('sent').hidden
+    ? ok('and lets go a moment later, so nothing is held for longer than the '
+         + 'order requires')
+    : fail('the receipt is still up after the answer landed: "'
+           + d2.getElementById('sent-text').textContent + '"');
+}
+
+// ------------------------------------------- and a slug is not a title
+//
+// `board write` derives a card's filename from its title, so a tutor passing the
+// slug where the title goes gets it drawn across the top of the card. Reported
+// as `LESSON not-for-every-i-for-one-i-and-that-is-the-whole-fix` — "What an
+// eyesore." It stays in the front matter, where it names the file; it is not
+// drawn as a sentence somebody wrote for a reader.
+{
+  const slugged = { id: '0009', kind: 'lesson',
+                    title: 'not-for-every-i-for-one-i-and-that-is-the-whole-fix',
+                    body: 'The fix is one index.', mtime: t0 - 10 };
+  const titled = { id: '0010', kind: 'lesson', title: 'Well-ordering, in one line',
+                   body: 'Every non-empty subset has a least element.', mtime: t0 - 9 };
+  es.onmessage({ data: frame([slugged, titled, report, question],
+                             { agent: 'claude', state: 'listening', turns: 4 }) });
+  await sleep(80);
+  const sl = nodeFor('0009');
+  sl && !sl.querySelector('.card-title')
+    ? ok('a slug is not drawn as a title')
+    : fail('the filename is on the glass: "'
+           + (sl && sl.querySelector('.card-title').textContent) + '"');
+  sl && !sl.querySelector('.card-head')
+    ? ok('and a lesson card whose only title was a slug loses the whole head '
+         + 'with it, kind label and all')
+    : fail('the head is still there with nothing in it worth reading');
+  const ti = nodeFor('0010');
+  ti && ti.querySelector('.card-title')
+     && /Well-ordering/.test(ti.querySelector('.card-title').textContent)
+    ? ok('while a title a person wrote is drawn, hyphen and all')
+    : fail('a real title was mistaken for a slug and thrown away');
+}
+
 console.log(errors.length ? '\n' + errors.length + ' FAILURES'
   : '\nevery response is typed, and the next board waits for it');
 process.exit(errors.length ? 1 : 0);

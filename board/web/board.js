@@ -496,6 +496,28 @@ function typeset(root) {
   } catch (e) { /* a bad formula must never blank the board */ }
 }
 
+/* A SLUG IS NOT A TITLE, AND ON THE GLASS IT IS THE FILENAME SHOWING THROUGH.
+
+   `board write` derives a card's filename from its title, so a tutor that
+   passes the slug where the title goes gets the slug drawn across the top of the
+   card -- reported as `LESSON not-for-every-i-for-one-i-and-that-is-the-whole-fix`
+   and, accurately, "What an eyesore."
+
+   It is not deleted: it stays in the front matter and it still names the file,
+   which is where it earns its keep. It is simply not a sentence written for a
+   reader, so it is not drawn as one -- and for a `lesson` card, whose head
+   exists only to carry a title, that takes the whole head away with it.
+
+   The test is narrow on purpose. No whitespace, all lower case, and three or
+   more parts joined by hyphens or underscores: that is a file stem. `Well-ordering`
+   has a capital and two parts and is a title; so is `mean-square`. */
+function cardTitle(c) {
+  var said = ((c && c.title) || "").trim();
+  if (!said || /\s/.test(said)) return said;
+  if (said !== said.toLowerCase()) return said;
+  return said.split(/[-_]+/).length >= 3 ? "" : said;
+}
+
 /* ------------------------------------------------------------------ render */
 var KIND_LABEL = {
   lesson: "lesson",
@@ -595,6 +617,8 @@ function reconcile(host, wanted) {
 }
 
 function render(data) {
+  /* Any settle still running belongs to a card this payload supersedes. */
+  settleEnd(false);
   /* A live frame that arrives while a past lesson is open is kept, not shown.
      Being yanked out of what you are reading because the tutor wrote something
      is worse than finding it when you come back. */
@@ -873,8 +897,20 @@ function render(data) {
      Held only against a card. Anything of THEIRS arriving on top -- a signal
      tap, which is a turn and is never a receipt -- means the answer the receipt
      was about is no longer the newest thing they did. */
+  /* A REPLY IS LANDING ON THIS FRAME -- something of theirs was outstanding when
+     the last one was drawn, and it is not any more. That has to be remembered
+     ACROSS payloads, because the card that answers a send arrives in the very
+     payload that clears the send: asking `replyArriving()` here would ask
+     whether anything is typing, and nothing is -- `typeOut` does not run until a
+     hundred lines below this. */
+  /* A reply is a CARD. Anything of theirs arriving on top -- a signal tap, which
+     is a turn and is never a receipt -- means the answer the receipt was about
+     is no longer the newest thing they did, and nothing is landing. */
+  replyLanding = !awaitingReply && !!wasAwaiting && !(lastItem && lastItem.turn);
   if (awaitingReply) heldReply = awaitingReply;
+  else if (replyLanding) heldReply = wasAwaiting;
   else if (!replyArriving() || (lastItem && lastItem.turn)) heldReply = null;
+  wasAwaiting = awaitingReply;
 
   /* Where the reader is, before the lesson is rebuilt around them. Put back at
      the foot of this function unless something down there has a better idea
@@ -983,14 +1019,15 @@ function render(data) {
       node.dataset.kind = c.kind;
       node.dataset.card = c.id;      /* what an annotation is anchored to */
       var head = "";
-      if (c.kind !== "lesson" || c.title) {
+      var shown = cardTitle(c);
+      if (c.kind !== "lesson" || shown) {
         head = '<div class="card-head">' +
                '<span class="kind">' + (KIND_LABEL[c.kind] || c.kind) + "</span>" +
-               (c.title ? '<span class="card-title"></span>' : "") +
+               (shown ? '<span class="card-title"></span>' : "") +
                '<span class="card-num">' + c.id + "</span></div>";
       }
       node.innerHTML = head + '<div class="body"></div>';
-      if (c.title) node.querySelector(".card-title").textContent = c.title;
+      if (shown) node.querySelector(".card-title").textContent = shown;
       node.querySelector(".body").innerHTML = renderMarkdown(c.body || "");
     } else {
       var m = item.turn;
@@ -2497,6 +2534,29 @@ var TYPE_ATOMIC = ".katex, .katex-display, pre, table, svg, img, figure";
 var typingNow = 0;
 var typingUntil = 0;
 var TYPE_STALL = 2500;     /* silence, not elapsed time, is what releases a hold */
+/* And how long a card that is NOT animated holds the surface anyway. Short
+   enough that nobody waits, long enough that the answer and the next board are
+   two events rather than one. See the `!ms` branch of `typeOut`. */
+var TYPE_SETTLE = 250;
+var settleTimer = null;
+
+/* AND A HOLD NEVER SURVIVES INTO THE NEXT PAYLOAD.
+
+   The settle is held against ONE arriving card. A payload drawn while it is
+   still running is a newer picture of the lesson, and holding the surface out of
+   place against a card that has already been superseded is a hold that has
+   outlived its reason -- which is how a surface ends up parked somewhere nobody
+   asked for and stays there. So `render` drops it on the way in.
+
+   `again` is false from there, because the render that is dropping it is about
+   to place the surface itself; calling back into `render` would be a loop. */
+function settleEnd(again) {
+  if (!settleTimer) return;
+  clearTimeout(settleTimer);
+  settleTimer = null;
+  if (typingNow > 0) typingNow--;
+  if (again && !typingNow && lastLive) render(lastLive);
+}
 
 function typingCards() { return typingNow > 0 && Date.now() < typingUntil; }
 
@@ -2641,11 +2701,45 @@ function typeOut(card) {
     body.classList.remove("typing");
   };
 
-  /* NOTHING TYPED IS NOTHING HELD, AND IT HAPPENS NOW.
-     With the preference set there is no animation to wait for, so the card is
-     whole before this function returns and the writing surface is never held
-     back by it -- not for one frame. */
+  /* THE HOLD IS NOT THE ANIMATION, AND CONFLATING THEM COST THE WHOLE FEATURE.
+
+     This used to say "nothing typed is nothing held, and it happens now", and
+     return without taking a hold at all. Somebody who asks for less movement
+     gets the card whole and immediately -- that part is right, and the pacing is
+     a flourish. What they must not ALSO get is the next board arriving on top of
+     the answer, because that is not a flourish: it is the whole of "no next
+     board showing up until the AI response has been COMPLETELY rendered".
+
+     So with Reduce Motion on, the hold was never taken, `replyArriving()` was
+     false on the one frame that matters, and the surface came down beside a card
+     that had appeared in the same breath. Reported as the next board landing over
+     the pulsing strip and "then the AI response just all showed up at once
+     between the boards" -- and NO SUITE EVER SAW IT, because jsdom has no
+     `matchMedia`, so every test in this repository runs with the animation on.
+
+     `TYPE_SETTLE` is the hold, and it is not an animation: nothing moves during
+     it and nothing is faded. It is the gap that makes "the answer, and then the
+     board" legible instead of simultaneous, which is the thing that was asked
+     for. Reduce Motion is about movement, not about latency, and a quarter of a
+     second in which the page is perfectly still is neither. One animation frame
+     was tried and is not enough -- it lands inside the same tick, so the two
+     arrive together and the complaint stands. */
   if (!ms) {
+    /* ONLY FOR A CARD THAT IS ANSWERING A SEND. A question arriving on a cold
+       board is answering nothing and nobody is waiting on it, so holding its
+       surface shut buys a beat of nothing; the hold is for the case the
+       complaint was about, which is a reply landing on work just handed in. */
+    /* ONE SETTLE PER FRAME, NOT PER CARD. A reply and the next question arrive
+       in the same payload and both are fresh, so both come through here -- and
+       with a hold each and one timer to release them, the second overwrote the
+       first and left a hold nothing could ever give back. The surface then
+       stayed where it was and the receipt went on saying `arriving` until the
+       watchdog expired. The settle is a property of the frame the reply landed
+       on, so `settleTimer` is both the timer and the flag. */
+    if (replyLanding && !settleTimer) {
+      holdTyping();
+      settleTimer = setTimeout(function () { settleEnd(true); }, TYPE_SETTLE);
+    }
     units.forEach(function (u) { typeShow(u, u.n); });
     done();
     return;
@@ -5764,6 +5858,11 @@ var awaitingReply = null;  /* an answer sent and not yet replied to */
    payload, so `awaitingReply` is already null, and the thing the person is
    waiting for is still arriving. See `replyArriving`. */
 var heldReply = null;
+/* What was outstanding when the LAST payload was drawn, and whether a reply is
+   landing on this one. Both are read by `typeOut`, which is the only thing that
+   can tell a card that answers a send from a card that merely arrived. */
+var wasAwaiting = null;
+var replyLanding = false;
 var working = false;       /* and is it in the middle of a turn right now */
 var sentAt = 0;            /* when begin was last tapped, so its label survives a frame */
 
