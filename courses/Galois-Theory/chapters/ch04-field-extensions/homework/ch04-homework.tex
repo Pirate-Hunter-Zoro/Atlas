@@ -408,7 +408,43 @@
   from Theorem 4.8.
 \end{problem}
 % ===== SOLUTION 04.11 =====
-% TODO(mferguson): your work goes here.
+% Transcribed from the student's slate, 2026-09-17 (pages 27-29, turns leading
+% to cards 0035, 0036 and 0037). Theirs: the choice of L = K(t) and of tau, the
+% answer No, the contradiction hypothesis, the parity observation, and the
+% closing line that all the coefficients are forced to zero and g = 0 is
+% impossible.
+% One wording change: the page said every instance of t in f(t^2) "is of the
+% form t^2" and every instance in t g(t^2) "is of the form t^3". That is even
+% powers and odd powers respectively, and it is written that way here, as on
+% card 0036.
+% Supplied on card 0036 and then used by them: transcendence is what licenses
+% comparing coefficients power by power, since no non-zero polynomial over K
+% kills t.
+% Not covered by what they wrote, and not yet put to them: the sentence tying
+% this back to Theorem 4.8 -- that tau is a K-homomorphism of L into itself
+% which is not onto, and that L : K here is not algebraic.
+\begin{solution}
+  Let $L = \adjoin{K}{t}$ with $t$ transcendental over $K$, and let
+  $\tau : L \to L$ be given by
+  \[
+    \tau\!\left(\frac{f(t)}{g(t)}\right) = \frac{f(t^{2})}{g(t^{2})} \in L,
+    \qquad f, g \in \polyring{K}{x}, \ g \neq 0.
+  \]
+
+  Is $t \in \tau(L)$, the image of $L$ under $\tau$? No. Suppose it were. Then
+  \[
+    t = \frac{f(t^{2})}{g(t^{2})},
+    \qquad\text{so}\qquad
+    f(t^{2}) = t\,g(t^{2}).
+  \]
+
+  Every non-zero term of $f(t^{2})$ carries an even power of $t$. Similarly,
+  every term of $t\,g(t^{2})$ carries an odd power of $t$. Since $t$ is
+  transcendental over $K$, two polynomial expressions in $t$ are equal only
+  when their coefficients agree power by power. No even power on the left can
+  be matched by an odd power on the right, so all those coefficients must be
+  zero --- a contradiction, since $g \neq 0$ in $\polyring{K}{x}$.
+\end{solution}
 % ===== END SOLUTION 04.11 =====
 
 \end{document}
