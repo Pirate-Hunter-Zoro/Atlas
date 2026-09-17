@@ -77,7 +77,7 @@ thing, and only the person holding the iPad can strike those.
 **`projects/libr-local-llm` has its own handoff and it is still the live one.**
 The five pieces it asked for against the board are shipped and are under
 *Settled* below; what is left in that file is the diarization job itself, which
-is item 10 here.
+is item 11 here.
 
 ---
 
@@ -102,8 +102,9 @@ document is then corrected, so they are worth reading together. Item 7 is the
 answer box and is independent of everything. Item 8 is the meeting deck, which
 reuses item 5's reader and deliberately does NOT reuse its feedback route. Item 9
 is the map, and the last part of it is a standing rule rather than a task. Item 10
-is the acceptance test of 2, 3 and 4 and is also the job all of it exists for.
-Item 11 is not a build.
+is the verdict a person can feel, and it settles a question item 12 has been
+holding open. Item 11 is the acceptance test of 2, 3 and 4 and is also the job all
+of it exists for. Item 12 is not a build.
 
 ---
 
@@ -894,7 +895,107 @@ three surfaces, that the top two are not planes, and that `atlas.json`'s blurbs
 reach the glass. `test/walk.py` owns what is walkable, and gains vendor. And
 `test/teaching.py` for the standing rule, in the two places it has to agree.
 
-### 10. Put colibrì on the diarization repair, which is what all of the above is for
+### 10. A verdict you can feel: dopamine for right, playful frustration for wrong
+
+**The want.** *"dopamine for the user when they answer correctly, and playful
+frustration when they answer incorrectly. When we're in the context of the user
+providing an answer, and it's a right or wrong, then the response should be
+highlighted with a green (correct) or red (incorrect) band… If the user asks a
+question, or we're not really in a 'right or wrong' scenario, then the response
+should be highlighted with a yellow kind of band. I don't care exactly how you do
+this; just make sure it's visually appealing."*
+
+**More of this exists than it looks, and it is worth reading before adding
+anything.** `board.css` already gives every card kind one `--accent` and derives
+the rest from it: `correct` is `--good`, `wrong` is `--bad`, `question` is
+`--ask`. Each of those gets a 3 mm left band, a `--wash` panel tinted from its own
+accent — and the panel costs **no height**, deliberately, because ink is anchored
+as a fraction of the card it was drawn on and a card that grows by a padding moves
+marks made weeks ago onto the wrong line. A verdict card **arrives lit**: the
+`verdict` keyframe lands it at `--flash` and settles it to `--wash` over a second
+and a half. The label is a chip carrying a ✓, a ✕ or a ?, as TEXT rather than an
+icon, and the tick has a `pop` — described in the stylesheet as *"the one flourish
+that is purely a reward"*.
+
+So the green and the red are there. **Three things are missing, and the first is
+the one that makes the yellow case wrong today.**
+
+**(a) THE TWO HALVES DISAGREE, AND ONLY IN THE YELLOW CASE.** `verdictOf` already
+computes exactly the right thing — for each question, what its NEWEST reply says
+about the answer: `correct`, `wrong`, or `open`, where open is the amber default
+*because most replies in a doing sitting and most in a walkthrough are neither
+right nor wrong*. It is painted on the student's own answer and on the board
+holding the working. **It is not painted on the card.** The card takes its band
+from its own KIND instead — so for the not-right-or-wrong reply the answer says
+amber and the card says `--ink-3`, which is grey.
+
+*And this answers a question that has been sitting open.* Item 12 asks whether
+green on the answer and a tick on the card a finger's width apart is the same
+thing said twice. The want above settles it: **the response carries the band.**
+The answer keeps a quieter version of it, and one of the two is the moment while
+the other is a label. Decide which way round, but decide it once.
+
+**(b) THE BAND IS KEYED ON A CARD'S KIND AND THE QUESTION IS ABOUT AN ANSWER.**
+`REPLY_KIND` is `{wrong, correct, review, note}` — `lesson` is not in it. A
+`lesson` card is the commonest reply in a doing sitting and in a coaching one, so
+in exactly the sittings where *"we're not really in a right-or-wrong scenario"* is
+the normal case, there is no band at all.
+
+*And the fix is NOT to tint every lesson card.* The stylesheet's own objection is
+right and must survive: *"`lesson` and `recap` get no panel. They are the reading,
+and a page tinted end to end says nothing at all."* A transcript that is yellow
+from top to bottom has said nothing. The band belongs to a card that is a **reply
+to work that was handed in**, which is a question `verdictOf` already answers — so
+paint the card from the VERDICT rather than from the kind, and let a lesson card
+that is teaching rather than replying stay plain.
+
+**(c) THE FEELING IS NOT DESIGNED, ONLY COLOURED.** One `pop` on a tick is what
+exists. The ask is emotional and the two halves are not symmetrical.
+
+*Dopamine:* it can be bigger than it is. The card already arrives lit; the tick
+already pops. What is missing is that a correct answer is the end of a piece of
+work and nothing marks the *streak*, the problem being finished, or the write-up
+landing because of it.
+
+*Playful frustration, and the word playful is load-bearing:* **wrong is the
+normal state of learning.** This person will be wrong many times an evening, on
+purpose, and a board that punishes it teaches them to stop answering — which is
+the only outcome here that cannot be undone by the next card. So: no shake, no
+buzz, no red that fills the glass. One beat of character, then the card reads like
+any other card, and the way forward is the thing left on screen.
+
+**Decisions to take before writing, and the first is not negotiable.**
+
+- **REDUCE MOTION, AND THIS SESSION PAID FOR THE LESSON.** A flourish is pure
+  animation and somebody with that preference set must get none of it. What they
+  must still get is the COLOUR and the MARK, because those are the meaning. And
+  **nothing about the lesson's behaviour may depend on the flourish**: conflating
+  the animation with the behaviour is exactly what let the next board land on top
+  of an answer for everybody who has Reduce Motion on — see *The hold is not the
+  animation* under *Settled*. Build the feeling on top of a page that is already
+  correct without it, and test it with the preference both ways. jsdom has no
+  `matchMedia`, so a suite that does not set it tests only one of the two.
+- **Colour is never the only signal.** The ✓ / ✕ / ? chips carry it as text: they
+  inherit the colour, they scale with the type, they survive a card being folded
+  to its heading, and they work for somebody who cannot tell the green from the
+  red. Keep them, keep them as text, and do not replace them with icons.
+- **Tokens, not new colours.** `--good`, `--bad`, `--ask`, with `--wash` and
+  `--flash` mixed from the kind's own accent so light and dark both follow. A new
+  colour means adding it to BOTH blocks at the top of `board.css`, or half the
+  board changes theme and the rest does not.
+- **Do not say one thing five times.** Green on the answer, green on the board,
+  green on the card, a tick, and a flash is five. Pick the surface that carries
+  the moment and let the others be quiet.
+
+**Check.** `test/mine.js` owns the verdict on the student's own answer and is where
+the card half goes beside it — assert that a reply painted `correct` on the answer
+is painted `correct` on the card, that the open case is the amber token and not
+grey, and that a `lesson` card which is not replying to anything stays plain.
+`test/typed.js` is the suite that now runs a second window with
+`prefers-reduced-motion` on; assert there that the colour and the mark are both
+still on the glass with every animation refused.
+
+### 11. Put colibrì on the diarization repair, which is what all of the above is for
 
 It is now the acceptance test of items 2, 3 and 4 as well as the job that has
 been waiting since before any of this existed. **The ask, the scoring and the
@@ -919,18 +1020,17 @@ Three things about running it that are the board's rather than that file's:
 `research/PSYCH-ASR/HANDOFF.md` holds the *teaching* thread on the same code; it
 is a different conversation and the two do not merge.
 
-### 11. And the three things no test can hold
+### 12. And the three things no test can hold
 
 None of these is a build. Each is an evening in front of the thing.
 
 - **The colours, in a real sitting.** The verdict down the student's own answer
   and the labelled run of typed answers are both in and both covered by
-  `board/test/mine.js`. Two things to watch for, because a test cannot: whether
-  green on the answer and a tick on the card a finger's width apart is the same
-  thing said twice, and whether *answer 2 of 3* is useful or is a number on a
-  bubble that did not need one. Both are one line to remove —
-  `.mine[data-verdict]` in `board/web/board.css`, and the `nth` clause in
-  `render`.
+  `board/test/mine.js`. One thing to watch for, because a test cannot: whether
+  *answer 2 of 3* is useful or is a number on a bubble that did not need one —
+  the `nth` clause in `render`, and one line to remove. (The other question this
+  bullet used to ask — whether green on the answer and a mark on the card is the
+  same thing said twice — is answered in item 10: the response carries the band.)
 - **One document, all the way round** — item 5 is the build; this is the evening.
   Open a `paper` sitting on a box, let it write into `writeups/<slug>/`, compile
   it, open `/library`, read it on the glass, draw on it, and say something is
