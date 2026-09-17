@@ -11,7 +11,8 @@ of that has been done once by a person with a real document in front of them.**
 
 ## Before anything
 
-- `bash board/test/all.sh` — 75 suites, about twelve minutes. Green before and after.
+- `bash board/test/all.sh` — 75 suites, about twelve minutes. Green before and
+  after.
   The last of them is Paper-Writer's own, run where it is checked out, so the
   factory's 516 tests are now part of the board's habit rather than a second one
   nobody has.
@@ -202,8 +203,8 @@ as the answer.
   and `stages/delivery` places a second copy of every artifact there, appending
   nothing, and keeps its own under `OUT_DIR`. The line names the PAPER'S OWN
   directory, which is what lets a revision land over the document it corrects
-  rather than beside it under a slug of a title that has drifted. Not a setting: one
-  harness serves every workspace, so `PAPER_OUT_DIR` cannot be each asking
+  rather than beside it under a slug of a title that has drifted. Not a setting:
+  one harness serves every workspace, so `PAPER_OUT_DIR` cannot be each asking
   workspace's own. Absolute, because the factory cannot resolve a relative path
   against a root nobody named. It never raises — a landing that is relative or
   unwritable is recorded and the paper stays DELIVERED, the rule a missing
