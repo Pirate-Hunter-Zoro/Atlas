@@ -41,7 +41,7 @@ sys.path.insert(0, ROOT)
 
 from tutorboard import atlas, machines, news
 from tutorboard.course import repo as course_repo
-from tutorboard.lesson import notes, state
+from tutorboard.lesson import notes, state, turns
 from tutorboard.server import handler, hub, tikz
 
 fails = []
@@ -243,6 +243,82 @@ try:
     ask("/seen", "POST")
     check("and reading clears the list without waiting on the cache",
           ask("/news")["news"] == [])
+
+    # ------------------------------------------------------------------
+    # and the OTHER half of the same sentence: putting one to work over there
+    # ------------------------------------------------------------------
+    # "I want to be able to go into a different section of a project, or a
+    # different fucking project completely, and put other agents to work on
+    # other things while the first one is working." The notification above is
+    # how it comes back. This is how it goes out, from the board you happen to
+    # have open, without leaving it.
+    from tutorboard.server import spawn as _spawn            # noqa: E402
+    from tutorboard.course import repo as _repo              # noqa: E402
+
+    ran = []
+    real_tutor_cli = _spawn.tutor_cli
+    _spawn.tutor_cli = lambda args, timeout=30: (
+        ran.append(list(args)) or (0, "colibri starting in PSYCH-ASR"))
+
+    def send(body):
+        req = urllib.request.Request(
+            BASE + "/elsewhere", method="POST",
+            data=json.dumps(body).encode("utf-8"),
+            headers={"Content-Type": "application/json"})
+        try:
+            with urllib.request.urlopen(req, timeout=20) as r:
+                return r.status, json.loads(r.read().decode("utf-8"))
+        except urllib.error.HTTPError as exc:
+            return exc.code, json.loads(exc.read().decode("utf-8"))
+
+    try:
+        status, body = send({"repo": "PSYCH-ASR", "agent": "colibri",
+                             "task": "reproduce the corrected transcript"})
+        check("a board can put an assistant to work in another workspace",
+              status == 200 and body.get("ok") is True)
+        check("and it is `tutor agent start` there, naming the assistant for "
+              "this once rather than writing it into that sitting",
+              ran and ran[-1][:3] == ["agent", "start", "PSYCH-ASR"]
+              and ran[-1][-2:] == ["--agent", "colibri"])
+        over = _repo.Repo(psych)
+        said = turns.load_turns(over)
+        check("the task is a turn of THEIRS over there, because they asked for it",
+              said and said[-1]["text"] == "reproduce the corrected transcript"
+              and said[-1]["from"] == "student")
+        with open(over.messages_path, encoding="utf-8") as fh:
+            lines = [json.loads(l) for l in fh if l.strip()]
+        check("and it is in that workspace's inbox, which is what `board wait` "
+              "watches and what a headless turn is woken with",
+              lines and lines[-1]["text"] == "reproduce the corrected transcript"
+              and lines[-1]["read"] is False)
+        check("and nothing landed in the workspace the board is serving",
+              not os.path.exists(here.messages_path)
+              or not open(here.messages_path, encoding="utf-8").read().strip())
+
+        status, body = send({"repo": "PSYCH-ASR", "task": ""})
+        check("a start with nothing to do is refused rather than woken",
+              status == 400 and "what to do" in (body.get("error") or ""))
+        status, body = send({"repo": "../../etc", "task": "anything"})
+        check("and a workspace this machine has not got is refused by name, "
+              "never built into a path",
+              status == 404)
+
+        # A refusal from the launcher is an answer and has to reach the glass:
+        # one colibri sitting at a time, machine-wide.
+        _spawn.tutor_cli = lambda args, timeout=30: (
+            1, "'colibri' is already working in TRD-EHR, and it runs one "
+               "sitting at a time on this machine")
+        before = len(turns.load_turns(_repo.Repo(psych)))
+        status, body = send({"repo": "PSYCH-ASR", "agent": "colibri",
+                             "task": "and another one"})
+        check("and when the launcher refuses, the reason comes back with the "
+              "workspace already holding it in it",
+              body.get("ok") is False and "TRD-EHR" in (body.get("error") or ""))
+        check("and the refused job is NOT left in that workspace's transcript "
+              "with nothing that will ever read it",
+              len(turns.load_turns(_repo.Repo(psych))) == before)
+    finally:
+        _spawn.tutor_cli = real_tutor_cli
     httpd.shutdown()
 
 finally:

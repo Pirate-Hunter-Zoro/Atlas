@@ -7,7 +7,7 @@ import os
 import threading
 import time
 
-from .. import direction, news
+from .. import assistants, colibri, direction, news
 from ..course import config, homework
 from ..lesson import archive, cards, git, notes, slate, state, turns, uploads
 
@@ -88,6 +88,18 @@ class Hub:
             # a reload. See `notes.waiting`.
             "waiting": notes.waiting(self.repo),
             "history": len(archive.list_archive(self.repo)),
+            # WHO CAN BE ASKED TO TUTOR THIS SITTING, and what the local model's
+            # server is doing right now. Both are here rather than behind a
+            # request of their own because the chooser is drawn from the payload
+            # like everything else on the page, and because the second one has a
+            # state that CHANGES while nobody taps anything -- a job pending for
+            # ten minutes and then loading for eight.
+            #
+            # Neither costs a poll. `assistants.listing` shells out once per
+            # board process and `colibri.status` caches its `squeue` for fifteen
+            # seconds, which is the rule `machines.held_nodes` already follows.
+            "assistants": assistants.listing(),
+            "colibri": colibri.status(),
         }
         # Only in a homework sitting, and read from the .tex itself rather than
         # from a record the board keeps: the file is the truth, the assistant

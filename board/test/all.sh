@@ -35,7 +35,7 @@ if ! node -e "require('jsdom')" >/dev/null 2>&1; then
   echo
 fi
 
-SUITES="markdown macros hidden chrome theme pages modes typeface export shot interactive plane adopt chain sheets answer mine feedback typed hanging panic steering sizing staying link hub review walk clip map address marks notify library"
+SUITES="markdown macros hidden chrome theme pages modes typeface export shot interactive plane adopt chain sheets answer mine feedback typed hanging panic steering sizing staying link hub review walk who clip map address marks notify library"
 fails=0
 skipped=0
 
@@ -169,6 +169,15 @@ fi
 
 printf '%-12s ' "plainly"
 if out="$(python3 test/plainly.py 2>&1)"; then
+  printf '%s\n' "$out" | tail -1
+else
+  fails=$((fails + 1))
+  echo "FAILED"
+  printf '%s\n' "$out" | grep '^FAIL' | sed 's/^/             /'
+fi
+
+printf '%-12s ' "colibri"
+if out="$(python3 test/colibri.py 2>&1)"; then
   printf '%s\n' "$out" | tail -1
 else
   fails=$((fails + 1))

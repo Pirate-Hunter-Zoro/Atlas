@@ -124,6 +124,22 @@ for phrase, why in [
     ("Never label a question", "a question is answered, not graded"),
     ("do not know how to start", "and not knowing where to start is a real answer"),
     ("has not produced", "no solution is invented for the student"),
+    # THE WRITE-UP IS THE TUTOR'S, AND SO IS THE SENTENCE ABOUT IT. The act was
+    # already governed -- a whole section says every sitting produces a compiled
+    # document and the tutor transcribes it -- and the card still said "two words
+    # to add when you write it up". Nothing forbade addressing the student as the
+    # person who would write something, so an errand that does not exist was
+    # handed over. The worse half is in the same clause: the missing word was
+    # `non-zero`, which is a fact about the proof, so the fix was deferred onto
+    # somebody who was never going to make it.
+    ("never tells them to write anything up",
+     "no card hands the write-up back to the student"),
+    ("when you write it up",
+     "and the phrase that did it is quoted, so it is recognisable"),
+    ("made in the write-up, in the\nsame turn",
+     "a correction belonging in the document is made there, that turn"),
+    ("Never tell them to write, typeset, transcribe or add to anything",
+     "and the sentence-level half sits with the other sentence-level rules"),
     # A concept that has only been read is not one the student can use, and the
     # exercise is a bad place to discover that. Found the hard way: a card taught
     # cosets, the index and normality, then went straight to the exercise.
@@ -305,6 +321,17 @@ if serveapp:
         ("COMPILING IS YOURS", "and compiling is the tutor's job, not theirs"),
         ("never leave the write-up for the end",
          "and it is never left to the end of the sitting"),
+        # A phrasing rule cannot honestly be unit-tested against a real card,
+        # and a test that pretended to would be a test of nothing. What is
+        # checkable is that the rule reaches the turn: in headless this string
+        # IS the prompt, and the document beside it is a file the tutor may or
+        # may not open.
+        ("NEVER TELL THEM TO WRITE IT UP",
+         "and the student is never told to write it up"),
+        ("what the file NOW SAYS",
+         "the card reports the document rather than handing over an errand"),
+        ("make it in the write-up in this same turn",
+         "and a correction that belongs there is made there, in that turn"),
     ]:
         check("the headless prompt " + why, phrase in serveapp.WRITEUP_SENSE)
     check("every sitting that hands something in is told to write it up",

@@ -76,8 +76,18 @@ var els = {
   kindReview: document.getElementById("kind-review"),
   kindWalk: document.getElementById("kind-walk"),
   kindStance: document.getElementById("kind-stance"),
+  kindWho: document.getElementById("kind-who"),
+  kindWhoWays: document.getElementById("kind-who-ways"),
+  kindWhoNote: document.getElementById("kind-who-note"),
+  kindWhoUp: document.getElementById("kind-who-up"),
   kindAim: document.getElementById("kind-aim"),
   kindAimWays: document.getElementById("kind-aim-ways"),
+  elsewhere: document.getElementById("elsewhere"),
+  elsewhereList: document.getElementById("elsewhere-list"),
+  elsewhereWho: document.getElementById("elsewhere-who"),
+  elsewhereTask: document.getElementById("elsewhere-task"),
+  elsewhereSaid: document.getElementById("elsewhere-said"),
+  elsewhereGo: document.getElementById("elsewhere-go"),
   stanceTeach: document.getElementById("stance-teach"),
   stanceDo: document.getElementById("stance-do"),
   kindCancel: document.getElementById("kind-cancel"),
@@ -831,18 +841,40 @@ function render(data) {
     return (a.pos - b.pos) || (a.sub - b.sub) || (a.t - b.t);
   });
 
-  /* An answer that has been sent and not yet answered is not rendered into the
-     transcript: the ink is still on the writing surface directly below, and
-     showing a frozen copy of it immediately above that surface is the same thing
-     twice. It appears in its proper place the moment the tutor replies, which is
-     when it stops being "what I am looking at" and becomes "what was handed in".
-   */
+  /* TWO QUESTIONS, AND ONLY THE SECOND OF THEM IS ABOUT THE KIND OF ANSWER.
+     They shared one condition, which is why a typed answer raised no receipt
+     and no pulse at all: "I also don't see the yellow pulsing tutor working
+     signal whenever I elect to type a response instead of writing one." What
+     was seen instead was the brief `saySending` strip, which expires, and then
+     silence for the whole turn.
+
+     IS AN ANSWER OUTSTANDING -- and it is, whether it was typed or written. A
+     signal is not one: a tap on "begin" or on an aim is in the transcript
+     because they did it, and "sent at 20:14" is a sentence about work handed in.
+
+     IS IT RENDERED INTO THE TRANSCRIPT -- and a page of ink that has been sent
+     and not yet answered is not, because the same ink is still on the writing
+     surface directly below and a frozen copy of it immediately above is the
+     same thing twice. It takes its proper place the moment the tutor replies,
+     which is when it stops being "what I am looking at" and becomes "what was
+     handed in". That argument is about ink and holds for ink only: a typed
+     answer is duplicated nowhere, so it stays. */
   awaitingReply = null;
   var lastItem = items[items.length - 1];
-  if (lastItem && lastItem.turn && lastItem.turn.kind !== "text") {
+  if (lastItem && lastItem.turn && !lastItem.turn.signal) {
     awaitingReply = lastItem.turn;
-    items.pop();
+    if (lastItem.turn.kind !== "text") items.pop();
   }
+  /* AND IT IS STILL OUTSTANDING WHILE THE REPLY IS ARRIVING -- see
+     `replyArriving`. `awaitingReply` goes the instant a card's RECORD lands,
+     which is before a word of it is on the glass, so this is what the receipt
+     keeps talking about for the rest of the type-out.
+
+     Held only against a card. Anything of THEIRS arriving on top -- a signal
+     tap, which is a turn and is never a receipt -- means the answer the receipt
+     was about is no longer the newest thing they did. */
+  if (awaitingReply) heldReply = awaitingReply;
+  else if (!replyArriving() || (lastItem && lastItem.turn)) heldReply = null;
 
   /* Where the reader is, before the lesson is rebuilt around them. Put back at
      the foot of this function unless something down there has a better idea
@@ -1085,6 +1117,14 @@ function render(data) {
   var started = (data.cards || []).length > 0;
   els.empty.hidden = started || linkDead;
 
+  /* WHO CAN BE ASKED, AND WHAT THE LOCAL MODEL'S SERVER IS DOING. Both off the
+     payload: the registry is in `bin/tutor` because an agent entry is a command
+     recipe, and the server's state is `squeue`, which the browser cannot ask.
+     `assistants` stays null when nothing could say -- which is not the same as
+     an empty list, and is why the chooser is not drawn rather than drawn empty. */
+  if (data.assistants !== undefined) assistants = data.assistants;
+  if (data.colibri !== undefined) colibriNow = data.colibri;
+
   papers = data.papers || {};
   renderPapers();                /* a build that lands while it is open shows */
   paintSession(state, data.push, data.agent, data.export,
@@ -1241,7 +1281,7 @@ function render(data) {
      now, and a request made by hand outranks an animation. `workingOn` and
      `reopenedFor` are what a tap sets; with either of them the surface moves. */
   placeWriter(owed && !data.archived, qNode, live,
-              typingCards() && !workingOn && reopenedFor === null);
+              replyArriving() && !workingOn && reopenedFor === null);
   /* The boards do not come and go with the answer panel.
 
      They used to: the whole set was torn down the moment nothing was owed, which
@@ -2436,20 +2476,69 @@ var TYPE_ATOM = 10;        /* what a formula or a figure costs, in characters */
    is the meaning. */
 var TYPE_ATOMIC = ".katex, .katex-display, pre, table, svg, img, figure";
 
-/* Whether anything is being typed at this moment. The writing surface reads it:
-   see `placeWriter`.
+/* Whether anything is being typed at this moment. The writing surface and the
+   receipt above it both read it: see `replyArriving`.
 
    A COUNT AND A DEADLINE, BECAUSE A HELD SURFACE THAT NEVER COMES BACK IS WORSE
    THAN NO HOLD AT ALL. `requestAnimationFrame` does not run in a backgrounded
    tab, so a card that arrives while the app is in the background stops
    mid-sentence -- and a counter alone would keep the writing surface parked
-   until somebody came back and watched it finish. The deadline is what the card
-   asked for plus a second, so the hold lets go on its own whatever happens to
-   the animation. */
+   until somebody came back and watched it finish.
+
+   THE DEADLINE IS A WATCHDOG AND NOT A BUDGET, which is the whole of the
+   difference: it measures SILENCE rather than elapsed time. A budget cannot be
+   set, because the card that runs longer in wall-clock than its own animation
+   asked for is precisely the longest one -- KaTeX measuring, a figure decoding,
+   and a tablet's main thread putting real milliseconds between frames -- so any
+   budget lets go in the middle of the card it is most needed for. Every frame
+   that lands pushes the deadline out again instead: a card making progress holds
+   for however long it takes, and a tab that has stopped animating lets go
+   `TYPE_STALL` after its last frame. */
 var typingNow = 0;
 var typingUntil = 0;
+var TYPE_STALL = 2500;     /* silence, not elapsed time, is what releases a hold */
 
 function typingCards() { return typingNow > 0 && Date.now() < typingUntil; }
+
+/* One hold on the page, taken and given back in pairs. */
+function holdTyping() {
+  typingNow++;
+  keepTyping();
+}
+
+/* Still going. Called on every frame the animation actually gets. */
+function keepTyping() {
+  typingUntil = Math.max(typingUntil, Date.now() + TYPE_STALL);
+}
+
+function releaseTyping() {
+  if (typingNow > 0) typingNow--;
+  /* And now the writing surface may come down under it, and the receipt above
+     it may stop talking. `placeWriter` and `paintSent` held for exactly this
+     long; one more render is what moves them. */
+  if (!typingNow && lastLive) render(lastLive);
+}
+
+/* THE ONE QUESTION BOTH SURFACES ASK: HAS THE REPLY ACTUALLY LANDED.
+
+   A reply has landed when its node is in the document, its mathematics is
+   typeset and the type-out has finished -- not when its RECORD arrived in a
+   payload. Two surfaces answer that question and they used to answer it
+   differently. The writing surface asked `typingCards()` and held. The busy
+   receipt asked whether a CARD EXISTED, and let go the instant one did.
+
+   So the pulse stopped, the next board came down, and the answer filled in
+   afterwards. Reported from the iPad: "the response appeared how I wanted it to,
+   but before it did, the second board showed up right underneath the last
+   board, and I was left hanging." The specification is in the same words: no
+   next board until the whole response is rendered, and the pulse visible at all
+   times until it is.
+
+   A picture inside the card needs no second mechanism: `img` is in
+   `TYPE_ATOMIC`, so a figure's box is laid out and its contents are invisible
+   until its own characters come due, which gives it the whole animation to
+   decode in. */
+function replyArriving() { return typingCards(); }
 
 /* The card's content in the order it is read: runs of text, and atoms. */
 function typeUnits(root) {
@@ -2562,16 +2651,12 @@ function typeOut(card) {
     return;
   }
 
-  typingNow++;
-  typingUntil = Math.max(typingUntil, Date.now() + ms + 1000);
+  holdTyping();
   body.classList.add("typing");
 
   var finish = function () {
     done();
-    typingNow--;
-    /* And now the writing surface may come down under it. `placeWriter` held it
-       where it was for exactly this long; one more render is what moves it. */
-    if (!typingNow && lastLive) render(lastLive);
+    releaseTyping();
   };
 
   /* THE CLOCK IS READ HERE, NOT TAKEN FROM THE CALLBACK.
@@ -2584,6 +2669,9 @@ function typeOut(card) {
   var step = function () {
     var now = Date.now();
     if (t0 === null) t0 = now;
+    /* A FRAME IS PROOF OF LIFE. Nothing else here can tell a card that is
+       taking its time from a tab that stopped animating. */
+    keepTyping();
     var want = ms ? Math.min(total, Math.ceil((now - t0) * rate)) : total;
     while (at < units.length && units[at].start < want) {
       var u = units[at];
@@ -3316,6 +3404,9 @@ function paintKindChooser() {
   /* AND WHAT THE SITTING IS FOR, which is the other question and the one that
      could not be answered at all once a sitting was open. */
   paintAim();
+  /* AND WHO WRITES IT, which is a third question and is answered for the
+     sitting being OPENED rather than the one that is. */
+  paintWho();
   els.kindSets.innerHTML = "";
   if (!knownSets.length) {
     var none = document.createElement("span");
@@ -3347,10 +3438,118 @@ function setSitting(kind, name, chapter) {
          being opened, so opening one without choosing a stance is how the
          repository's own answer comes back -- and it has to be said rather than
          omitted, or the last sitting's choice would outlive it. */
-      stance: takeStance()
+      stance: takeStance(),
+      /* And the same for the assistant, for the same reason and with the same
+         shape: chosen for the sitting being opened, cleared by opening one that
+         does not name it. */
+      agent: takeAgent()
     })
   }).catch(function () { /* the payload will say what actually happened */ });
 }
+
+
+/* ------------------------------------------------ who writes it, this sitting */
+/* CHOSEN AS A SITTING OPENS, AND THAT IS THE DECISION RATHER THAN THE EASIER
+   ROUTE. The aim beside it changes in place, because it changes what the next
+   card is. An assistant changes WHO WRITES IT, and the conversation the
+   outgoing one was holding does not transfer -- which on the local model is a
+   15,900-token preamble re-paid at a few tokens a second, in hours. So this is
+   held like a stance and travels with the next sitting.
+
+   It is offered at all because none of the four layers that used to resolve it
+   can be reached from a tablet: `--agent` on a command line, a line in the
+   workspace's `tutorboard.json` that is a statement about it for ever, a
+   hostname, and a machine default. */
+var agentPick = null;       /* what they tapped, for the sitting about to open */
+var assistants = null;      /* what this machine has; null means it could not say */
+var colibriNow = null;      /* and what the local model's server is doing */
+
+function takeAgent() {
+  var chosen = agentPick;
+  agentPick = null;
+  return chosen;
+}
+
+function paintWho() {
+  /* Nothing to choose between, or nobody could say what there is: no row. A
+     chooser offering one name is furniture. */
+  var have = (assistants && assistants.agents || []).filter(function (a) {
+    return a.headless && !a.missing;
+  });
+  var reading = sittingKind === "review" || sittingKind === "walk";
+  els.kindWho.hidden = reading || have.length < 2;
+  if (els.kindWho.hidden) return;
+
+  var now = agentPick || currentAgent || (assistants && assistants["default"]);
+  var host = els.kindWhoWays;
+  host.innerHTML = "";
+  have.forEach(function (a) {
+    var b = document.createElement("button");
+    b.type = "button";
+    b.textContent = a.name;
+    /* Its own reason for refusing, before the tap rather than after it: one
+       sitting at a time, and cards that must not be committed. Both come off
+       the recipe, so the button says whatever the table says. */
+    b.title = a.exclusive ? ("one sitting at a time — " + a.exclusive) : a.cmd;
+    if (a.name === now) {
+      b.className = "on" + (a.exclusive ? " local" : "");
+    }
+    /* A local model with no server is still the right thing to tap -- the tap
+       is what starts one -- so it is dimmed rather than disabled. */
+    if (a.exclusive && colibriNow && colibriNow.state !== "warm") {
+      b.classList.add("away");
+    }
+    b.onclick = function () {
+      agentPick = a.name;
+      paintWho();
+    };
+    host.appendChild(b);
+  });
+
+  /* AND WHAT THE LOCAL MODEL'S SERVER IS DOING, which is the half no button can
+     express. Four states off `squeue`: nothing submitted, queued behind an
+     allocation, loading 429 GB off the filer, warm. Only while it is the one
+     picked -- a sentence about a Slurm job is noise over a hosted assistant. */
+  var local = have.filter(function (a) { return a.exclusive; })[0];
+  var picked = local && now === local.name;
+  if (!picked || !colibriNow) {
+    els.kindWhoNote.textContent = "";
+    els.kindWhoUp.hidden = true;
+    return;
+  }
+  els.kindWhoNote.textContent =
+      colibriNow.state === "warm" ? "the server is " + colibriNow.detail
+    : colibriNow.state === "queued" ? "the server is queued — " + colibriNow.detail
+    : colibriNow.state === "loading" ? "the server is coming up — " + colibriNow.detail
+    : colibriNow.detail + ". Starting one takes seven or eight minutes, and the "
+      + "first turn is hours of prefill — start it before you stop for the day.";
+  els.kindWhoUp.hidden = colibriNow.state !== "off";
+}
+
+/* The tap that starts it, and it returns at once: an allocation, a 429 GB load
+   and a warm-up generation cannot be reported by the request that asked for
+   them. The payload says what happened next. */
+els.kindWhoUp.onclick = function () {
+  els.kindWhoUp.hidden = true;
+  els.kindWhoNote.textContent = "submitting the job\u2026";
+  fetch("/colibri", { method: "POST" })
+    .then(function (r) { return r.json(); })
+    .then(function (got) {
+      if (got && got.colibri) colibriNow = got.colibri;
+      paintWho();
+      /* ONE VOICE, AND IT IS THE STATE. The reply carries a receipt for the
+         tap, and the state that comes back with it is strictly better -- a job
+         number and Slurm's own reason beat "submitting". The receipt is kept
+         only for the answer no state can express: this machine has not got
+         `coli-up` at all. */
+      if (got && got.started === false && got.detail && !colibriNow) {
+        els.kindWhoNote.textContent = got.detail;
+      }
+    })
+    .catch(function () { /* the payload will say what actually happened */ });
+};
+
+var currentAgent = null;    /* what the sitting says, if it says anything */
 
 /* The pick, and then there is no pick. It belongs to the sitting being opened
    and must not survive it: leaving it set would make the next tap on `lecture`
@@ -3515,6 +3714,9 @@ function paintReview(state, info, walk) {
      places deciding a precedence is one of them being wrong. */
   currentAim = state.aim || null;
   aimNow = state.aim_now || "";
+  /* And who this sitting asked for, which is the fifth layer of a resolution
+     the other four of which no tablet can reach. */
+  currentAgent = state.agent || null;
   var live = walking ? walkInfo : reviewInfo;
   var scope = (live && live.scope) || [];
   els.rvbar.hidden = !on;
@@ -5533,13 +5735,20 @@ document.addEventListener("click", function (e) {
 /* What happened to the thing I just sent. Silence after sending is what makes a
    person tap Send again, or wonder whether the pen even worked. */
 function paintSent() {
-  if (!awaitingReply) { els.sent.hidden = true; return; }
+  /* ONE MORE STATE, CHOSEN RATHER THAN LEFT ALONE. "the tutor is reading it"
+     stops being true the moment the card starts typing, and the strip is then on
+     screen for the whole of the type-out -- which is the few seconds somebody is
+     actually watching it. So the arrival gets its own words. */
+  var owed = awaitingReply || (replyArriving() ? heldReply : null);
+  if (!owed) { els.sent.hidden = true; return; }
   els.sent.hidden = false;
-  var when = timeLabel(awaitingReply.t);
-  var state = attached ? (working ? "working" : "waiting") : "none";
+  var when = timeLabel(owed.t);
+  var state = !awaitingReply ? "arriving"
+            : attached ? (working ? "working" : "waiting") : "none";
   els.sent.dataset.state = state;
   els.sentText.textContent =
-      state === "working" ? "sent at " + when + " — the tutor is reading it"
+      state === "arriving" ? "sent at " + when + " — the answer is arriving"
+    : state === "working" ? "sent at " + when + " — the tutor is reading it"
     : state === "waiting" ? "sent at " + when + " — waiting for the tutor"
     : "sent at " + when + " — no tutor is attached to read it yet";
 }
@@ -5550,6 +5759,11 @@ var linkDead = false;
 var everGotData = false;
 var attached = false;      /* is there a tutor on the other end at all */
 var awaitingReply = null;  /* an answer sent and not yet replied to */
+/* The same answer, kept while its reply is on its way onto the glass. The
+   receipt cannot read it off the transcript any more: the card is in the
+   payload, so `awaitingReply` is already null, and the thing the person is
+   waiting for is still arriving. See `replyArriving`. */
+var heldReply = null;
 var working = false;       /* and is it in the middle of a turn right now */
 var sentAt = 0;            /* when begin was last tapped, so its label survives a frame */
 
@@ -7453,7 +7667,21 @@ function paintPanel() {
   document.getElementById("drawbar").hidden = !(open && !typing);
   els.tabWrite.classList.toggle("on", !typing);
   els.tabType.classList.toggle("on", typing);
-  if (typing) { restoreTextDraft(); restoreTextAnswer(); }
+  /* THE BOX BELONGS TO THE QUESTION, NOT TO WHICHEVER TAB IS SHOWING.
+     Both of these were asked only when the type half happened to be up, so a
+     question that opened on the slate left the previous question's words in the
+     box -- and `restoreTextAnswer` refuses a box that is not empty. Asking them
+     whenever the panel is open is what makes the two halves behave the same:
+     the ink comes back on the slate, the words come back in the box, and
+     neither depends on which tab you were last on. Reported as "my typed
+     response doesn't get saved on the appearance unlike previously writing
+     boards."
+
+     The height is measured only where it can be: `scrollHeight` on a hidden
+     textarea is zero, and a box sized while it was hidden stays collapsed when
+     the tab brings it out. */
+  if (open) { restoreTextDraft(); restoreTextAnswer(); }
+  if (typing) autosize();
   else if (writer) requestAnimationFrame(writer.relayout);
 }
 
@@ -7476,7 +7704,15 @@ function restoreTextAnswer() {
   if (!t || t.kind !== "text" || t.signal || !t.text) return;
   var id = t.id + ":r" + (t.rev || 1);
   if (id === loadedTextTurn) return;
-  if (els.saybox.value.trim()) return;
+  /* NEWER TYPING OF THEIR OWN WINS -- AND THE BOX CANNOT SAY WHOSE IT IS.
+     This asked whether the box was empty, which is wrong by exactly the margin
+     that made it fail: a box still holding words typed against ANOTHER question
+     is not a reason to refuse this one its answer. Measured twice in
+     `test/mine.js`, and both times the box held a value from an earlier
+     question. `textDrafts` is the narrower and right question -- what the person
+     typed and did not send, kept per question -- which is the same correction
+     `correctingTurn` is on the send side. */
+  if ((textDrafts[answering.question] || "").trim()) return;
   loadedTextTurn = id;
   correctingTurn = t.id;
   els.saybox.value = t.text;
@@ -7815,6 +8051,152 @@ document.getElementById("btn-papers").onclick = openPapers;
    nothing on the library page can change it. */
 document.getElementById("btn-library").onclick = function () {
   window.location.href = "/library";
+};
+
+
+/* --------------------------------------- putting one to work somewhere else */
+/* THE OTHER HALF OF THE SENTENCE THE NEWSBAR ANSWERS. Asked for in these words:
+   *"I want to be able to go into a different section of a project, or a
+   different fucking project completely, and put other agents to work on other
+   things while the first one is working."* The bar at the top of the page is how
+   it comes back, hours later, on whichever board is open then. This is how it
+   goes out, from the board you happen to have in front of you, without leaving
+   the lesson you are in the middle of.
+
+   A PANEL RATHER THAN A PAGE, deliberately, and the opposite choice to the
+   library's: nothing here touches this workspace. It hands another one a job and
+   closes, and the lesson behind it is exactly where it was.
+
+   The list is every workspace this machine has -- `/atlas.json`, which is a
+   directory walk rather than a registry, so a host with half the tree checked
+   out offers half of it and no list anywhere has to be edited. */
+var elsewhereList = null;       /* the workspaces, once asked for */
+var elsewherePick = null;       /* which one, by its bare directory name */
+var elsewhereAgent = null;      /* and who, or nothing for whatever is there */
+
+function openElsewhere() {
+  els.elsewhere.hidden = false;
+  els.elsewhereSaid.textContent = "";
+  els.elsewhereSaid.classList.remove("bad");
+  paintElsewhere();
+  if (elsewhereList) return;
+  fetch("/atlas.json").then(function (r) { return r.json(); })
+    .then(function (got) {
+      elsewhereList = (got && got.workspaces) || (got && got.courses) || [];
+      paintElsewhere();
+    })
+    .catch(function () {
+      els.elsewhereSaid.textContent = "could not read what this machine has";
+      els.elsewhereSaid.classList.add("bad");
+    });
+}
+
+function paintElsewhere() {
+  var host = els.elsewhereList;
+  host.textContent = "";
+  if (!elsewhereList) {
+    var wait = document.createElement("div");
+    wait.className = "group";
+    wait.textContent = "reading the tree\u2026";
+    host.appendChild(wait);
+  } else {
+    var family = "";
+    elsewhereList.forEach(function (w) {
+      /* Not the one you are looking at. Handing this board a job is what the
+         box you are already in is for. */
+      if (w.current) return;
+      if ((w.family_name || w.family || "") !== family) {
+        family = w.family_name || w.family || "";
+        var head = document.createElement("div");
+        head.className = "group";
+        head.textContent = family || "workspaces";
+        host.appendChild(head);
+      }
+      var b = document.createElement("button");
+      b.type = "button";
+      if (w.repo === elsewherePick) b.className = "on";
+      var name = document.createElement("span");
+      name.textContent = w.course || w.repo;
+      var where = document.createElement("span");
+      where.className = "where";
+      /* What is already happening there, because handing a job to a workspace
+         mid-lesson is a different thing from handing one to an idle box. */
+      where.textContent = w.chapter || "";
+      b.appendChild(name);
+      b.appendChild(where);
+      b.onclick = function () { elsewherePick = w.repo; paintElsewhere(); };
+      host.appendChild(b);
+    });
+  }
+
+  /* And who. Empty means "whatever is listening there, or whatever that
+     workspace resolves to" -- which is the honest default, because a workspace
+     may already have a tutor and a start against one is a no-op that says so. */
+  var who = els.elsewhereWho;
+  who.textContent = "";
+  var have = (assistants && assistants.agents || []).filter(function (a) {
+    return a.headless && !a.missing;
+  });
+  if (have.length > 1) {
+    var lead = document.createElement("span");
+    lead.textContent = "who:";
+    who.appendChild(lead);
+    [null].concat(have).forEach(function (a) {
+      var b = document.createElement("button");
+      b.type = "button";
+      b.textContent = a ? a.name : "whatever is there";
+      if ((a && a.name) === elsewhereAgent) b.className = "on";
+      if (a && a.exclusive) {
+        b.title = "one sitting at a time — " + a.exclusive;
+      }
+      b.onclick = function () {
+        elsewhereAgent = a ? a.name : null;
+        paintElsewhere();
+      };
+      who.appendChild(b);
+    });
+  }
+  els.elsewhereGo.disabled = !elsewherePick || !els.elsewhereTask.value.trim();
+}
+
+els.elsewhereTask.addEventListener("input", function () {
+  els.elsewhereGo.disabled = !elsewherePick || !els.elsewhereTask.value.trim();
+});
+
+els.elsewhereGo.onclick = function () {
+  if (!elsewherePick || !els.elsewhereTask.value.trim()) return;
+  els.elsewhereGo.disabled = true;
+  els.elsewhereSaid.classList.remove("bad");
+  els.elsewhereSaid.textContent = "starting it\u2026";
+  fetch("/elsewhere", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ repo: elsewherePick, agent: elsewhereAgent,
+                           task: els.elsewhereTask.value.trim() })
+  }).then(function (r) { return r.json(); }).then(function (got) {
+    /* A REFUSAL IS AN ANSWER AND IT GOES ON THE GLASS. One colibri sitting at a
+       time machine-wide, and cards that must not be committed: both are refused
+       by name, both name the workspace or the line that changes it, and neither
+       is any use in a log. */
+    if (!got || got.ok === false) {
+      els.elsewhereSaid.textContent = (got && got.error)
+        || "that could not be started";
+      els.elsewhereSaid.classList.add("bad");
+      els.elsewhereGo.disabled = false;
+      return;
+    }
+    els.elsewhereTask.value = "";
+    els.elsewhere.hidden = true;
+  }).catch(function () {
+    els.elsewhereSaid.textContent = "the board did not answer";
+    els.elsewhereSaid.classList.add("bad");
+    els.elsewhereGo.disabled = false;
+  });
+};
+
+document.getElementById("btn-work-elsewhere").onclick = openElsewhere;
+document.getElementById("elsewhere-close").onclick = function () {
+  els.elsewhere.hidden = true;
 };
 /* Escape leaves the document, the way it leaves the picture viewer. A panel
    that covers the whole glass needs more than one way out of it. */

@@ -131,3 +131,51 @@ def wake_tutor(repo):
     threading.Thread(target=tutor_cli, args=(["agent", "start", course],),
                      kwargs={"timeout": 60}, daemon=True).start()
     return True
+
+
+# ---------------------------------------------------------------------------
+# the local model's server, which takes minutes rather than seconds
+# ---------------------------------------------------------------------------
+# `coli-code` exits 1 with "No colibri server is running. Start one: coli-up",
+# which is the right message in a terminal and a dead end on an iPad. Starting
+# one is not something a request can wait for: `coli-up` waits for an
+# allocation, waits out a 429 GB load and then warms the model with a real
+# generation -- seven to eight minutes on a good day, and it can pend
+# indefinitely behind a 950 GB ask.
+#
+# So this is `wake_tutor` against `coli-up`, for the reason written above that
+# function: nothing that takes as long as a start can be reported by the request
+# that triggered it. What the board paints while it happens comes from
+# `colibri.status`, off `squeue`, and not from anything written here.
+
+
+def wake_colibri(timeout=1800):
+    """Submit the local model's server and return at once. Never blocks.
+
+    Returns (started, what to say). A second tap does nothing and says why:
+    `coli-up` itself refuses when a job is already submitted, and this refuses
+    before it gets there so the answer comes back inside the request.
+    """
+    from .. import colibri
+
+    now = colibri.status(fresh=True)
+    if now["state"] != "off":
+        return False, "already %s" % now["detail"]
+    cmd = colibri.up_command()
+    if not cmd:
+        return False, ("`coli-up` is not on the path here; see "
+                       "projects/libr-local-llm/README.md §3")
+    colibri.submitted()
+
+    def run():
+        try:
+            subprocess.run([cmd], cwd=paths.TOOL, stdin=_NO_STDIN,
+                           stdout=subprocess.DEVNULL,
+                           stderr=subprocess.DEVNULL, timeout=timeout)
+        except (OSError, subprocess.TimeoutExpired):
+            pass
+        colibri.forget()
+
+    threading.Thread(target=run, daemon=True).start()
+    return True, ("starting the server — seven or eight minutes, longer if the "
+                  "partition is full")

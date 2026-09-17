@@ -54,13 +54,21 @@ def get(h, repo, path):
     return NOT_MINE
 
 
-def _mark(st, node, aim):
-    """Which box of the map this sitting is about, and what it is for.
+def _mark(st, node, aim, agent=None):
+    """Which box of the map this sitting is about, what it is for, and WHO writes it.
 
-    Both belong to the SITTING and not to the repository, so both are cleared by
-    opening one that does not name them -- the same rule a sitting stance
-    follows, and for the same reason: a box chosen for an evening's work is not
-    a statement about what the repository is.
+    All three belong to the SITTING and not to the repository, so all three are
+    cleared by opening one that does not name them -- the same rule a sitting
+    stance follows, and for the same reason: a box chosen for an evening's work
+    is not a statement about what the repository is.
+
+    The assistant is here rather than behind a control of its own, and that is
+    the decision rather than the shortcut. An aim can change in place -- `POST
+    /aim` -- because it changes what the next card is. An agent changes WHO
+    WRITES IT, and the conversation the outgoing one was holding does not
+    transfer: on the local model that is a 15,900-token preamble paid again, in
+    hours rather than pennies. So it is chosen as a sitting opens, which is both
+    the cheaper answer and the honest one about what a sitting is.
     """
     if node:
         st["node"] = node["id"]
@@ -70,6 +78,10 @@ def _mark(st, node, aim):
         st["aim"] = aim
     else:
         st.pop("aim", None)
+    if agent:
+        st["agent"] = agent
+    else:
+        st.pop("agent", None)
 
 
 def _begin(h, repo):
@@ -317,6 +329,11 @@ def post(h, repo, path):
         # chapter of anything and would fail the check below, and asking the
         # browser to send a label it invented is the same hole in a nicer coat.
         aim = config.clean_aim(payload.get("aim"))
+        # WHICH ASSISTANT, for this sitting only. Only the shape of the name is
+        # checked here: the registry is in `bin/tutor`, because an agent entry is
+        # a command recipe, and `resolve_agent` drops a name this machine has not
+        # got rather than leaving the course with no tutor over a spelling.
+        agent = config.clean_agent(payload.get("agent"))
         # Whether the request also means "and get on with it". Sent by the map's
         # own sheet, where choosing a way to work IS the instruction; not by the
         # contents drawer, where opening a chapter is still a place to go rather
@@ -375,7 +392,7 @@ def post(h, repo, path):
             st = repo.state()
             st["session"] = kind
             st["review"] = names
-            _mark(st, node, aim)
+            _mark(st, node, aim, agent)
             st.pop("hw", None)
             with open(repo.state_path, "w", encoding="utf-8") as fh:
                 json.dump(st, fh, indent=2)
@@ -415,7 +432,7 @@ def post(h, repo, path):
             st = repo.state()
             st["session"] = kind
             st["walk"] = names
-            _mark(st, node, aim)
+            _mark(st, node, aim, agent)
             st.pop("hw", None)
             st.pop("review", None)
             with open(repo.state_path, "w", encoding="utf-8") as fh:
@@ -447,6 +464,8 @@ def post(h, repo, path):
                 args += ["--node", node["id"]]
             if aim:
                 args += ["--aim", aim]
+            if agent:
+                args += ["--agent", agent]
             spawn.board_cli(repo.root, args)
             st = repo.state()
             st["session"] = kind
@@ -454,7 +473,7 @@ def post(h, repo, path):
             st.pop("hw", None)
             st.pop("review", None)
             st.pop("walk", None)
-            _mark(st, node, aim)
+            _mark(st, node, aim, agent)
             with open(repo.state_path, "w", encoding="utf-8") as fh:
                 json.dump(st, fh, indent=2)
             if start:
@@ -491,6 +510,13 @@ def post(h, repo, path):
                 args += ["--node", node["id"]]
             if aim:
                 args += ["--aim", aim]
+            # BEFORE `fresh_tutor` BELOW, WHICH IS WHY IT GOES THROUGH `open`
+            # RATHER THAN WAITING FOR `_mark`. A chapter change replaces the
+            # assistant on its own thread the moment the sitting is open, so a
+            # choice written after that call is a choice the incoming daemon
+            # never read.
+            if agent:
+                args += ["--agent", agent]
             if stance:
                 args += ["--stance", stance]
             spawn.board_cli(repo.root, args)
@@ -516,7 +542,7 @@ def post(h, repo, path):
         st.pop("review", None)
         st.pop("walk", None)
         st.pop("makes", None)
-        _mark(st, node, aim)
+        _mark(st, node, aim, agent)
         # A stance chosen on the board belongs to the sitting being opened, so
         # it is written when one is named and cleared when one is not -- which
         # is how tapping `lecture` gets the repository's own answer back
@@ -536,8 +562,14 @@ def post(h, repo, path):
             if chosen:
                 if not chapter and st.get("hw") != chosen["rel"]:
                     course = st.get("course") or config.read_config(repo.root)["name"] or ""
-                    spawn.board_cli(repo.root, ["open", course, chosen["name"],
-                                          "--homework", "--set", chosen["name"]])
+                    # `--agent` goes through `open`, because this call REPLACES
+                    # the state `_mark` has just written: it re-reads from disk
+                    # below, so anything patched on above it is lost here.
+                    args = ["open", course, chosen["name"],
+                            "--homework", "--set", chosen["name"]]
+                    if agent:
+                        args += ["--agent", agent]
+                    spawn.board_cli(repo.root, args)
                     st = repo.state()
                     st["session"] = kind
                 st["hw"] = chosen["rel"]

@@ -458,6 +458,97 @@ await sleep(40);
     : fail('"' + says() + '"');
 }
 
+// ------------------------- the receipt: typed and written are owed the same thing
+//
+// Two reports, one surface. "I also don't see the yellow pulsing tutor working
+// signal whenever I elect to type a response instead of writing one" — the
+// receipt was raised only for ink, because one condition set `awaitingReply`
+// AND decided whether the turn was rendered into the transcript, and only the
+// second of those is about the kind. And: "the response appeared how I wanted
+// it to, but before it did, the second board showed up right underneath the
+// last board, and I was left hanging" — the receipt let go when the card's
+// RECORD arrived, which is before a word of it is on the glass.
+{
+  const sent = () => doc.getElementById('sent');
+  const receipt = () => doc.getElementById('sent-text').textContent;
+  const writer = () => doc.getElementById('writer');
+
+  const asked = { id: '0001', kind: 'question', title: 'Exercise 3.8',
+                  body: 'assemble the sum', mtime: t0 - 600 };
+  const pending = (turns, cards) => JSON.stringify({
+    state: { course: 'Galois Theory', session: 'lecture' },
+    cards: cards || [asked], turns: turns, history: 0,
+    agent: { agent: 'claude', state: 'working', turns: 2,
+             turn_started: t0 - 20 },
+  });
+  const typedAnswer = { id: 't0080', rev: 1, kind: 'text', answers: '0001',
+                        t: t0 - 30, text: 'q is non-zero' };
+
+  es.onmessage({ data: pending([typedAnswer]) });
+  await sleep(60);
+  !sent().hidden
+    ? ok('a TYPED answer sent and not yet replied to raises the receipt, the '
+         + 'same as a page of ink does')
+    : fail('a typed answer is handed in and the board says nothing about it');
+  /reading it/.test(receipt())
+    ? ok('and it says the tutor has it: "' + receipt() + '"')
+    : fail('the receipt says: "' + receipt() + '"');
+  sent().dataset.state === 'working'
+    ? ok('in the state that pulses, which is the signal that was missing')
+    : fail('the receipt is not painted as outstanding: ' + sent().dataset.state);
+
+  // AND IT IS STILL IN THE TRANSCRIPT. The pop is an argument about ink — the
+  // same page is on the surface below — and a typed answer is duplicated
+  // nowhere.
+  doc.querySelector('.mine[data-turn="t0080"]')
+    ? ok('and the words themselves stay on the page, because nothing else is '
+         + 'showing them')
+    : fail('the typed answer was popped out of the transcript with the ink');
+
+  // A signal is not an answer: a tap on "begin" is in the transcript because
+  // they did it, and "sent at 20:14" is a sentence about work handed in.
+  es.onmessage({ data: pending([{ id: 't0081', rev: 1, kind: 'text',
+                                  answers: null, t: t0 - 10, signal: 'begin',
+                                  text: '' }]) });
+  await sleep(60);
+  sent().hidden
+    ? ok('a tap that is a signal rather than an answer raises no receipt')
+    : fail('a begin signal is being reported as work handed in: "'
+           + receipt() + '"');
+
+  // --------------------------------- the reply arrives, and is still arriving
+  es.onmessage({ data: pending([typedAnswer]) });
+  await sleep(60);
+  const before = writer().hidden;
+  // The card's record lands. Nothing of it is on the glass yet.
+  es.onmessage({ data: pending([typedAnswer],
+                               [asked, { id: '0002', kind: 'note',
+                                         body: 'yes, and say why it is non-zero',
+                                         mtime: t0 - 1 }]) });
+  await sleep(10);
+  !sent().hidden
+    ? ok('on the frame a card arrives and begins typing, the receipt is still up')
+    : fail('the pulse stopped while the answer was still being painted');
+  /arriving/.test(receipt())
+    ? ok('and says the answer is arriving, which is what is true then: "'
+         + receipt() + '"')
+    : fail('the receipt still claims the tutor is reading it: "' + receipt() + '"');
+  sent().dataset.state === 'arriving'
+    ? ok('in a state of its own, so it goes on pulsing')
+    : fail('the arrival is not painted: ' + sent().dataset.state);
+  writer().hidden === before || writer().hidden
+    ? ok('and the writing surface has not come down under a half-written card')
+    : fail('the next board arrived before the answer did');
+
+  // And when the type-out ends, both change. `typeOut` renders again on its own
+  // when the last character lands.
+  for (let i = 0; i < 80 && !sent().hidden; i++) await sleep(50);
+  sent().hidden
+    ? ok('and the receipt goes the moment the answer is whole on the glass')
+    : fail('the receipt is still up over a card that finished typing: "'
+           + receipt() + '"');
+}
+
 // ------------------------------------------------------------ and silence
 // Nothing waiting, nothing working: there is genuinely nothing to say, and
 // saying something anyway is furniture.

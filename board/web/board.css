@@ -1268,7 +1268,7 @@ body.mapping #redirect, body.papering #redirect {
    picker. #contents used to carry a comment saying it borrowed this and an
    empty rule that borrowed nothing, so it laid out in the flow of the page
    under the lesson rather than over it. An ID selector is not inheritance. */
-#scratch, #contents, #review, #papers {
+#scratch, #contents, #review, #papers, #elsewhere {
   position: fixed; top: 0; right: 0; bottom: 0; z-index: 60;
   width: min(24rem, 92vw);
   background: var(--paper); border-left: 1px solid var(--rule);
@@ -1611,6 +1611,35 @@ body.papering .annbar { z-index: 96; }
    it is the one mistake the next card cannot undo. */
 #stance-do.on { background: var(--ask); border-color: var(--ask); color: var(--paper); }
 
+/* WHICH ASSISTANT WRITES IT, on its own line under the aim, because the answer
+   carries a sentence with it: a server that is queued behind a 950 GB ask, or
+   loading 429 GB off the filer, is a state nobody can guess from a button. */
+.kind-who {
+  display: flex; align-items: center; gap: .3rem; flex-wrap: wrap;
+  flex-basis: 100%;
+  padding-top: .5rem; margin-top: .1rem;
+  border-top: 1px solid var(--rule);
+}
+.kind-who-lead {
+  font-family: var(--ui); font-size: .68rem; color: var(--ink-3);
+  letter-spacing: .04em;
+}
+#kind-who-ways { display: inline-flex; gap: .3rem; flex-wrap: wrap; }
+#kind-who-ways button.on {
+  background: var(--ink-3); border-color: var(--ink-3); color: #fff; font-weight: 600;
+}
+/* The local model marked as the one that is not free to start: it holds a
+   compute node and one KV slot, and the difference matters before the tap. */
+#kind-who-ways button.on.local {
+  background: var(--ask); border-color: var(--ask); color: var(--paper);
+}
+#kind-who-ways button.away { opacity: .55; }
+.kind-who-note {
+  flex-basis: 100%;
+  font-family: var(--ui); font-size: .66rem; line-height: 1.35;
+  color: var(--ink-3);
+}
+
 /* WHAT THIS SITTING IS FOR, and it is the row that does not wait. The buttons
    above it choose the sitting to OPEN; these five change the one that is open,
    so they get a whole line of their own and a sentence saying so -- a control
@@ -1694,6 +1723,50 @@ body.papering .annbar { z-index: 96; }
 /* A list of things to tick, sized for a thumb rather than a mouse: a review is
    chosen on a tablet, with a pen in the other hand. */
 #review-list { flex: 1; overflow-y: auto; padding: .5rem; }
+
+/* ---------- putting one to work somewhere else ---------- */
+/* The same drawer as the three above it, because it is the same shape of
+   question: a list to pick from, and a foot that acts on the pick. */
+#elsewhere-list { flex: 1; overflow-y: auto; padding: .5rem;
+                  overscroll-behavior: contain; touch-action: pan-y; }
+#elsewhere-list button {
+  display: flex; align-items: baseline; gap: .5rem; width: 100%;
+  padding: .5rem .6rem; margin-bottom: .2rem; text-align: left;
+  font: inherit; cursor: pointer; border-radius: .4rem;
+  border: 1px solid transparent; background: none; color: var(--ink);
+}
+#elsewhere-list button.on {
+  border-color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent);
+  font-weight: 600;
+}
+#elsewhere-list .group {
+  font-family: var(--ui); font-size: .66rem; font-weight: 700;
+  letter-spacing: .12em; text-transform: uppercase; color: var(--ink-3);
+  margin: .9rem .3rem .35rem;
+}
+#elsewhere-list .where { color: var(--ink-3); font-size: .7rem; }
+#elsewhere-task {
+  display: block; width: 100%; margin: .5rem 0 .4rem;
+  font: inherit; padding: .5rem .6rem; border-radius: .4rem;
+  border: 1px solid var(--rule); background: var(--paper); color: var(--ink);
+  resize: vertical;
+}
+#elsewhere-go { display: block; width: 100%; font: 600 .82rem var(--ui);
+                cursor: pointer; padding: .55rem .8rem; border-radius: .45rem;
+                border: 1px solid var(--accent);
+                background: var(--accent); color: var(--paper); }
+#elsewhere-go[disabled] { opacity: .45; cursor: default; }
+.elsewhere-who { font-family: var(--ui); font-size: .7rem; color: var(--ink-3);
+                 display: flex; gap: .3rem; flex-wrap: wrap; align-items: center; }
+.elsewhere-who button { font: inherit; cursor: pointer; padding: .2rem .45rem;
+                        border-radius: .3rem; border: 1px solid var(--rule);
+                        background: none; color: var(--ink-2); }
+.elsewhere-who button.on { background: var(--ink-3); border-color: var(--ink-3);
+                           color: #fff; font-weight: 600; }
+.elsewhere-said { font-family: var(--ui); font-size: .7rem; color: var(--ink-2);
+                  min-height: 1rem; }
+.elsewhere-said.bad { color: var(--bad); }
+.elsewhere-note { font-size: .66rem; line-height: 1.35; }
 #review-list .group {
   font-family: var(--ui); font-size: .66rem; font-weight: 700;
   letter-spacing: .12em; text-transform: uppercase; color: var(--ink-3);
@@ -1828,7 +1901,11 @@ body.papering .annbar { z-index: 96; }
   font-family: var(--ui); font-size: .78rem; color: #b9bcc4;
 }
 #sent-mark { color: #7fc79a; font-weight: 700; flex: none; }
-.sent[data-state="working"] #sent-mark {
+/* Amber and pulsing for the whole time the answer is outstanding, and the
+   answer is outstanding until it is ON THE GLASS -- `arriving` is the type-out,
+   which is the few seconds somebody is actually watching this. */
+.sent[data-state="working"] #sent-mark,
+.sent[data-state="arriving"] #sent-mark {
   color: var(--ask);
   animation: pulse 1.1s ease-in-out infinite;
 }

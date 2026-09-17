@@ -238,8 +238,36 @@
        feedback written from it must not touch the lesson somebody else is
        mid-proof in. -->
   <button id="btn-library" title="every paper and deck in this workspace, and feedback on one">▤  library · papers &amp; decks</button>
+  <!-- AND PUT ONE TO WORK SOMEWHERE ELSE, without leaving this lesson. Asked
+       for in these words: "I want to be able to go into a different section of a
+       project, or a different fucking project completely, and put other agents
+       to work on other things while the first one is working." The newsbar at
+       the top is the other half of the same sentence — how it comes back. -->
+  <button id="btn-work-elsewhere" title="hand another workspace a job while this one runs">⇥  put an assistant to work elsewhere</button>
   <button id="btn-reload" title="reload the app">↻  reload the app</button>
 </div>
+
+<!-- A WORKSPACE, A TASK, AND NOTHING ELSE. The list is every workspace this
+     machine has, which is a directory walk rather than a registry, so a host
+     with half the tree checked out offers half of it and no list anywhere has to
+     be edited. What comes back comes back through the newsbar, hours later, on
+     whichever board is open then. -->
+<aside id="elsewhere" hidden>
+  <div class="scratch-head">
+    <strong>Put an assistant to work elsewhere</strong>
+    <span class="head-acts"><button id="elsewhere-close" type="button">✕</button></span>
+  </div>
+  <div id="elsewhere-list"></div>
+  <div class="scratch-foot">
+    <div id="elsewhere-who" class="elsewhere-who"></div>
+    <textarea id="elsewhere-task" rows="3"
+              placeholder="what should it do there?"></textarea>
+    <div id="elsewhere-said" class="elsewhere-said"></div>
+    <button id="elsewhere-go" type="button" class="primary" disabled>start it</button>
+    <p class="elsewhere-note muted">You stay here. When a card lands over there,
+      the bar at the top of whichever board you are on says so.</p>
+  </div>
+</aside>
 
 <!-- The drawing tools, along the bottom, where the hand holding the pen is. -->
 <div id="drawbar" hidden></div>
@@ -380,6 +408,22 @@
     <span class="kind-aim-note">Changes this sitting at once — nothing is filed
       away. Tracing code and being set problems are chosen over something, so
       those start a new sitting from ◈ map.</span>
+  </span>
+  <!-- WHICH ASSISTANT, and it is chosen as a sitting OPENS rather than changed
+       in place. That is the difference between this row and the one above it:
+       an aim changes what the next card is, and an assistant changes who writes
+       it — the conversation the outgoing one was holding does not transfer, and
+       on the local model that is a 15,900-token preamble paid again, in hours.
+       So it is held like a stance and goes with the next sitting.
+
+       It is here at all because none of the four layers that used to resolve it
+       could be reached from a tablet: a flag on a command line, a file that is a
+       statement about the workspace for ever, a hostname, and a default. -->
+  <span id="kind-who" class="kind-who" hidden>
+    <span class="kind-who-lead">who:</span>
+    <span id="kind-who-ways"></span>
+    <span id="kind-who-note" class="kind-who-note"></span>
+    <button id="kind-who-up" type="button" hidden>start the server</button>
   </span>
 </div>
 

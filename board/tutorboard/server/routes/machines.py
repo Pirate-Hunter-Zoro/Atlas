@@ -6,6 +6,7 @@ request is matched against what this server already discovered.
 
 import json
 import os
+import time
 
 from . import NOT_MINE
 from ...net import tailscale
@@ -13,10 +14,14 @@ from ... import limits
 from ... import choice
 from .. import spawn
 from ... import atlas
+from ... import colibri
 from ... import machines
 from ... import meeting
 from ... import news
+from ...course import config
+from ...course.repo import Repo
 from ...lesson import state
+from ...lesson import turns
 
 
 def get(h, repo, path):
@@ -132,6 +137,105 @@ def post(h, repo, path):
         # long period, and the page shows a name and a link rather than prose.
         rec.pop("markdown", None)
         return h.send_json(rec)
+
+    if path == "/colibri":
+        # START THE LOCAL MODEL'S SERVER, AND SAY SO AT ONCE.
+        #
+        # `coli-code` exits with "No colibri server is running. Start one:
+        # coli-up", which is the right message in a terminal and a dead end on an
+        # iPad. It cannot be done inside this request either -- an allocation, a
+        # 429 GB load and a warm-up generation is seven or eight minutes on a
+        # good day and can pend indefinitely -- so this returns the state and
+        # lets the payload carry the rest. See `spawn.wake_colibri`.
+        started, said = spawn.wake_colibri()
+        h.server.hub.worker.dirty.set()
+        return h.send_json({"ok": True, "started": started, "detail": said,
+                            "colibri": colibri.status(fresh=True)})
+
+    if path == "/elsewhere":
+        # PUT AN ASSISTANT TO WORK IN A WORKSPACE YOU ARE NOT LOOKING AT.
+        #
+        # Asked for almost word for word: *"I want to be able to go into a
+        # different section of a project, or a different project completely, and
+        # put other agents to work on other things while the first one is
+        # working."* Three of the four pieces already existed --
+        # `machines.workspaces` is the list, `tutor agent start` is the start,
+        # and `news.elsewhere` is how you are told it landed -- so this is the
+        # seam between them.
+        #
+        # THE ASSISTANT IS NAMED ON THE COMMAND LINE AND NOT WRITTEN INTO THAT
+        # SITTING. Layer 1 of `resolve_agent` is "this once", which is exactly
+        # what this is; writing it into the other workspace's `state.json` would
+        # be changing a sitting nobody is watching, and an agent change does not
+        # carry the conversation the old one was holding. If something is already
+        # listening there the start is a no-op and says so, and the task goes to
+        # whoever is there -- which is the honest answer and is in the reply.
+        try:
+            payload = json.loads(h.read_body().decode("utf-8") or "{}")
+        except Exception:                                    # noqa: BLE001
+            return h.send_json({"ok": False, "error": "bad json"}, status=400)
+        task = (payload.get("task") or "").strip()
+        if not task:
+            return h.send_json({"ok": False, "error": "say what to do"},
+                               status=400)
+        agent = config.clean_agent(payload.get("agent"))
+        want = payload.get("repo") or ""
+        # Only a workspace this server already discovered, and the ROOT comes off
+        # the match rather than being rebuilt out of the name -- the same rule
+        # `/switch` follows, and for the same reason: the same name can sit under
+        # two families.
+        match = None
+        for c in machines.workspaces(repo):
+            if want in (c["repo"], c["id"]):
+                match = c
+                break
+        if not match:
+            return h.send_json({"ok": False, "error": "unknown workspace"},
+                               status=404)
+
+        # THE START IS ASKED FIRST, AND THE TASK IS WRITTEN ONLY IF IT IS
+        # ALLOWED. The other way round leaves a refused job sitting in another
+        # workspace's transcript with nothing that will ever read it -- and there
+        # are two refusals here that fire routinely: one colibri sitting at a
+        # time machine-wide, and cards that must not be committed. `/say` writes
+        # before it wakes, correctly, because there the work already exists and
+        # must not be lost; here the request is what creates it.
+        #
+        # Nothing is missed by writing second. `agent_start` forks and returns,
+        # so the daemon is not up yet -- and when it is, `board wait` blocks
+        # until something lands rather than reading the inbox once.
+        args = ["agent", "start", match["repo"]]
+        if agent:
+            args += ["--agent", agent]
+        code, out = spawn.tutor_cli(args, timeout=60)
+        said = out.strip()[-300:]
+        if code != 0:
+            # A refusal is an answer and has to reach the glass. Both of them
+            # name what to do about it -- which workspace is holding the one
+            # slot, or the one line that stops a card being tracked.
+            return h.send_json({"ok": False, "repo": match["repo"],
+                                "agent": agent, "error": said}, status=409)
+
+        # The task goes in as a turn of theirs, because that is what it is: they
+        # asked for it, and a transcript over there that opens with the answer
+        # reads as an assistant that decided to do this on its own. One
+        # implementation of "a student said something" -- the same
+        # `turns.write_turn` and the same inbox line `/say` writes -- against a
+        # Repo for the root that came back from the walk.
+        target = Repo(match["root"])
+        tid = turns.next_turn_id(target)
+        record = {
+            "id": tid, "rev": turns.turn_revision(target, tid), "kind": "text",
+            "answers": None,
+            "t": time.time(),
+            "iso": time.strftime("%Y-%m-%d %H:%M:%S"),
+            "from": "student", "text": task, "signal": None, "read": False,
+        }
+        turns.write_turn(target, record)
+        with open(target.messages_path, "a", encoding="utf-8") as fh:
+            fh.write(json.dumps(record) + "\n")
+        return h.send_json({"ok": True, "repo": match["repo"],
+                            "agent": agent, "turn": tid, "detail": said})
 
     if path == "/switch":
         try:
