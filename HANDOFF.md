@@ -758,16 +758,16 @@ is a different conversation and the two do not merge.
 
 None of these is a build. Each is an evening in front of the thing.
 
-- **A response typing out, in a real sitting.** The build is Settled: a card
-  types out on every device, whatever its Reduce Motion setting says; the surface
-  is held by a list of the cards still arriving rather than by a class the
-  animation sets; and a stall finishes the card whole and keeps the settle, so
-  the order survives the pacing being lost. `board/test/seam.js` drives the whole flow and asserts
-  it. What a suite cannot say is whether it READS as one event or two: send a
-  written answer, watch the reply arrive, and watch where the next board comes
-  down. If it is wrong again, **☰ → what just happened** before anything else —
-  its head names the shell the glass is running, so *the fix is wrong* and *the
-  fix never reached this iPad* can finally be told apart.
+- **A response typing out, in a real sitting.** The build is Settled, and the
+  trace has already caught this wrong once, which is the reason to trust the
+  reading rather than the sentence: a card lands above the surface and types
+  where the reader is looking, nothing moves, and a stall keeps the order it
+  cannot keep the pacing. `board/test/seam.js` asserts all of it. What a suite
+  cannot say is whether it READS as one event: send a written answer and watch
+  the reply arrive. If it is wrong again, **☰ → what just happened** before a
+  line of code — its head names the shell on the glass, and the `type`/`typed`
+  pair says whether the card was animated at all. A first reload after a ship
+  still runs the old shell; the second gets the new one.
 - **The colours, in a real sitting.** The verdict down the student's own answer
   and the labelled run of typed answers are both in and both covered by
   `board/test/mine.js`. One thing to watch for, because a test cannot: whether
@@ -829,9 +829,27 @@ as the answer.
 
 ## Settled, so nobody re-derives it
 
-- **Every card types out, character by character, and the writing surface never
-  comes down past a card that is still arriving.** Three rules hold it up, and
-  each of them replaced something that looked reasonable.
+- **A card lands ABOVE the writing surface, so a response types out where the
+  reader is looking and nothing on the page moves.** `tailAnchor` in `board.js`:
+  a node at the end of the lesson goes in front of the surface, never appended
+  after it. The surface has no key, so a reconcile that appends puts the reply
+  UNDER a full-height open board — it types out off the bottom of the glass, and
+  the jump at the end is the surface taking its proper place, revealing a
+  finished card in one go.
+  **That was reported four times and patched three times in the wrong half.**
+  "The next board appeared under my answer and then the whole response showed up
+  at once between the boards" sounds like a question about when the surface
+  moves, and every fix before this one answered that question. The board's own
+  trace settled it in six lines: `type card=0037 ms=4200`, then `typed
+  asked=4200 took=4256 stalled=0`, with `hold=1` throughout. The card typed.
+  Nobody saw it. **Read the trace before touching this code.** `test/seam.js`
+  asserts what follows — the surface is never MOVED at all between a reply
+  landing and its last character — in three windows, and `test/chain.js`,
+  `test/feedback.js`, `test/link.js` and `test/typed.js` each assert that a card
+  is above the surface while it types.
+- **Every card types out, character by character, and a surface that is not open
+  yet waits for the last character.** Three rules hold that up, and each of them
+  replaced something that looked reasonable.
   **Reduce Motion does not govern this animation.** `typeOut` does not consult
   `prefers-reduced-motion` at all: an explicit request about one animation —
   asked for three times, in these words, *"show up character by character"* —
@@ -840,10 +858,11 @@ as the answer.
   here, because what gets reported is the answer arriving all at once and a
   faster dump is still a dump.
   **The hold is a list of nodes, not a class on a body.** `typingHeld` is taken
-  and given back with the hold itself and `placeWriter` comes down as far as the
-  first card in it. `.body.typing` is set by the ANIMATION, so every path that
-  holds without animating left that lookup nothing to find; a marker that can
-  drift from the thing it marks will.
+  and given back with the hold itself. `.body.typing` is set by the ANIMATION, so
+  every path that holds without animating left that lookup nothing to find; a
+  marker that can drift from the thing it marks will. What reads the hold is
+  `writerHeldShut`, the receipt, and how far a surface moved up by hand may come
+  back down.
   **A stall loses the pacing and never the order.** `keepTyping` says whether the
   frame it was handed arrived after the watchdog deadline, and a card told that
   is finished WHOLE and hands its hold to a 250ms settle rather than giving it
