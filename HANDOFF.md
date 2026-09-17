@@ -77,7 +77,7 @@ thing, and only the person holding the iPad can strike those.
 **`projects/libr-local-llm` has its own handoff and it is still the live one.**
 The five pieces it asked for against the board are shipped and are under
 *Settled* below; what is left in that file is the diarization job itself, which
-is item 11 here.
+is item 12 here.
 
 ---
 
@@ -102,9 +102,10 @@ document is then corrected, so they are worth reading together. Item 7 is the
 answer box and is independent of everything. Item 8 is the meeting deck, which
 reuses item 5's reader and deliberately does NOT reuse its feedback route. Item 9
 is the map, and the last part of it is a standing rule rather than a task. Item 10
-is the verdict a person can feel, and it settles a question item 12 has been
-holding open. Item 11 is the acceptance test of 2, 3 and 4 and is also the job all
-of it exists for. Item 12 is not a build.
+is item 9's other half and must land after it, because the refactor renames the
+boxes its TODOs are attached to. Item 11 is the verdict a person can feel, and it
+settles a question item 13 has been holding open. Item 12 is the acceptance test
+of 2, 3 and 4 and is also the job all of it exists for. Item 13 is not a build.
 
 ---
 
@@ -895,7 +896,99 @@ three surfaces, that the top two are not planes, and that `atlas.json`'s blurbs
 reach the glass. `test/walk.py` owns what is walkable, and gains vendor. And
 `test/teaching.py` for the standing rule, in the two places it has to agree.
 
-### 10. A verdict you can feel: dopamine for right, playful frustration for wrong
+### 10. A sitting belongs to ONE component, and leaving it is a new sitting
+
+**The want, and it is item 9's other half.** *"When a tutoring session is
+launched, that should happen from tapping on the particular component of that
+project/course/research-project map. There should be TODOs present, each
+corresponding with some component. The tutoring session should be AWARE of what
+component it is active in, which isn't to say it can't know or talk about other
+components, but for maximal organization, the session should be focused ON that
+component. If a task starts turning into needing to go into a separate component,
+the tutor should direct the user to get to a good stopping/saving point, and go
+back to the map and open up a tutoring session in that component, which should
+hopefully have a TODO associated with it."*
+
+**The awareness already exists, and it is better than it looks.** `sense.node_sense`
+hands a sitting its box rather than making it hunt: the box's name, its
+one-line purpose, the files it is made of, the steps of the plan that name it, and
+any document about it — *"all of that is on disk already, and a tutor that has to
+go and find it pays for the search on every cold turn, in money and in latency,
+before a word is taught."* It already ends with the focus rule in so many words:
+**"Read those before your first card; do not survey the rest of the repository for
+an agenda of your own."**
+
+**The TODOs already hang off components.** `map._attach` puts each step of the
+plan on the box it NAMES, and the match is *the path existing* rather than the
+words looking similar, because *"a chip on the wrong box is worse than a chip in
+the tray."* Anything it cannot place comes back rather than being dropped.
+`plan._collect` reads `STEP` markers and `- [ ]` lines together in file order,
+`MAX_STEPS` is 24, and `/session` already accepts a `node` and a `step`, looks both
+up against what discovery found, and builds the sitting's label out of what came
+back rather than out of anything a browser sent.
+
+**So three things are missing, and the middle one is the whole of the ask.**
+
+**(a) The map tap is one door among several, and the ask is that it is THE door.**
+`config.aim_for`'s own note records the consequence: *"A SITTING NOBODY OPENED FROM
+THE MAP HAD NO STYLE AT ALL. `tutor galois`, `board open`, a chapter tapped in the
+contents drawer and a board resumed after a reboot all left `aim` unset."* The same
+is true of the box: those routes leave `node` unset, so the sitting has no
+component, and `node_sense` returns the empty string — no focus rule, no files, no
+steps, nothing.
+
+*Decide, and do not answer it the same way everywhere.* A course is chapters and a
+project is components, and a lecture on Chapter 4 of Galois Theory has no
+"component" to be scoped to. So this is a property of the WORKSPACE's shape, not a
+rule for the whole board: where a workspace has a drawn map, a sitting without a
+box is the exception and the board should say so; where it has a syllabus, the
+chapter is already the scope and nothing changes. `map.py` knows which a
+workspace is.
+
+**(b) NOTHING TELLS A TUTOR WHAT TO DO WHEN THE WORK LEAVES ITS COMPONENT, and
+that is the new rule.** The existing line is about not WANDERING — not choosing an
+agenda outside the box. It says nothing about the honest case: the work genuinely
+leads into another component, and the right answer is to stop rather than to
+follow it.
+
+*Want.* One rule, in `TEACHING.md` and in `sense.node_sense` so a headless turn
+has it: **a component boundary is a stopping point.** When the next step of the
+work is in another box, the turn does not follow it. It gets what is in hand to a
+saving point, writes up what was agreed, says which box the work continues in, and
+stops.
+
+*And the hand-off must be a TAP, not an errand.* This is the failure this session
+has already paid for twice — a card that says *"go back to the map and open the
+retrieval component"* is an instruction to a person holding a tablet, which is the
+same defect as *"two words to add when you write it up."* Every place already has
+an ADDRESS (§2.1) and the board already renders one as something you can open, so
+the card names the box by its address and the tap opens the sitting there. With
+item 9's diagram, the boundary it is pointing at is also visible.
+
+*Decide: what happens when that box has no TODO.* The want says *"which should
+hopefully have a TODO associated with it"* — hopefully is doing a lot of work
+there. `map._attach` already returns the steps it could not place, so the board
+knows which boxes have none. Either the hand-off card proposes the TODO it is
+handing over (the turn has just discovered it, so it is the one thing in the system
+that knows what it should say), or the box is opened with nothing in it and the
+first card asks. **Proposing it is better and is barely more work**, because the
+discovery is the valuable part and it is lost otherwise.
+
+**(c) And the refactor will move every box, which is the ordering constraint.**
+Item 9 rewrites what a component IS — from a directory to a thing in a diagram —
+and the TODOs are attached by path. So: item 9 first, then this. Doing them the
+other way round means attaching the plan to boxes that are about to be renamed.
+
+**Check.** `test/map.py` owns *"the map is of the content, and none of it is
+invented"* and already guards the step-to-box attachment; extend it to assert a
+box with no steps is KNOWN to have none rather than silently empty. `test/aiming.py`
+owns what a sitting is told and is where the boundary rule's delivery goes — assert
+`node_sense` carries it, and that a sitting with no box says so rather than
+pretending to a focus it has not got. `test/teaching.py` for the rule itself, in
+both places it has to agree. And the hand-off card's address is `test/address.js`'s
+subject: assert the box it names opens.
+
+### 11. A verdict you can feel: dopamine for right, playful frustration for wrong
 
 **The want.** *"dopamine for the user when they answer correctly, and playful
 frustration when they answer incorrectly. When we're in the context of the user
@@ -929,7 +1022,7 @@ holding the working. **It is not painted on the card.** The card takes its band
 from its own KIND instead — so for the not-right-or-wrong reply the answer says
 amber and the card says `--ink-3`, which is grey.
 
-*And this answers a question that has been sitting open.* Item 12 asks whether
+*And this answers a question that has been sitting open.* Item 13 asks whether
 green on the answer and a tick on the card a finger's width apart is the same
 thing said twice. The want above settles it: **the response carries the band.**
 The answer keeps a quieter version of it, and one of the two is the moment while
@@ -995,7 +1088,7 @@ grey, and that a `lesson` card which is not replying to anything stays plain.
 `prefers-reduced-motion` on; assert there that the colour and the mark are both
 still on the glass with every animation refused.
 
-### 11. Put colibrì on the diarization repair, which is what all of the above is for
+### 12. Put colibrì on the diarization repair, which is what all of the above is for
 
 It is now the acceptance test of items 2, 3 and 4 as well as the job that has
 been waiting since before any of this existed. **The ask, the scoring and the
@@ -1020,7 +1113,7 @@ Three things about running it that are the board's rather than that file's:
 `research/PSYCH-ASR/HANDOFF.md` holds the *teaching* thread on the same code; it
 is a different conversation and the two do not merge.
 
-### 12. And the three things no test can hold
+### 13. And the three things no test can hold
 
 None of these is a build. Each is an evening in front of the thing.
 
@@ -1030,7 +1123,7 @@ None of these is a build. Each is an evening in front of the thing.
   *answer 2 of 3* is useful or is a number on a bubble that did not need one —
   the `nth` clause in `render`, and one line to remove. (The other question this
   bullet used to ask — whether green on the answer and a mark on the card is the
-  same thing said twice — is answered in item 10: the response carries the band.)
+  same thing said twice — is answered in item 11: the response carries the band.)
 - **One document, all the way round** — item 5 is the build; this is the evening.
   Open a `paper` sitting on a box, let it write into `writeups/<slug>/`, compile
   it, open `/library`, read it on the glass, draw on it, and say something is
