@@ -144,6 +144,7 @@ var els = {
   newsBar: document.getElementById("newsbar"),
   newsLead: document.getElementById("news-lead"),
   newsList: document.getElementById("news-list"),
+  missionList: document.getElementById("mission-list"),
   newsHide: document.getElementById("news-hide"),
   typebox: document.getElementById("typebox"),
   saybox: document.getElementById("saybox"),
@@ -7446,6 +7447,117 @@ function newsAgo(when) {
   return longAgo(ms) + " ago";
 }
 
+/* A MISSION IS THIS STRIP IN THE PRESENT TENSE.
+
+   "when I put colibri or anything on a mission, just because I close the iPad
+    doesn't mean that should end. Next time I open the iPad and access the board,
+    that mission should still be going or notify me somewhere if it's done."
+
+   The row above is a turn that FINISHED behind you. A mission is one that has
+   not: set going in a workspace nobody is looking at, surviving the lid because
+   the daemon is detached, and until this with nothing anywhere saying it was
+   alive. The server holds the record -- see `tutorboard/missions.py` -- and this
+   is the surface. Above the answers, because a thing that has not finished is
+   the one a person wants to know about first.
+
+   IT SAYS WHICH OF THREE, because they are the three somebody does something
+   different about: still going (leave it), done (go and read it), failed (send
+   it again, or send it somewhere else). A failed one carries the reason on the
+   row rather than in a tooltip: "nothing is attached to that workspace any
+   more" and "the allocation colibri runs in ended" are the same word `failed`
+   and two completely different next moves. */
+var missionMuted = Object.create(null);
+var missionShown = "";
+
+var MISSION_WORD = { running: "still going", done: "done", failed: "failed" };
+
+function missionKey(m) {
+  return (m.ws || "") + "/" + (m.id || "") + "@" + (m.state || "");
+}
+
+function missionsShowing(data) {
+  var out = [];
+  ((data && data.missions) || []).forEach(function (m) {
+    if (!missionMuted[missionKey(m)]) out.push(m);
+  });
+  return out.slice(0, 3);
+}
+
+function paintMissions(show) {
+  var sig = show.map(missionKey).join("~");
+  if (sig === missionShown) return;
+  missionShown = sig;
+  els.missionList.textContent = "";
+  show.forEach(function (m) {
+    /* A ROW ABOUT SOMEWHERE ELSE IS A LINK, for the reason the answers are: it
+       is a place, it goes through the front door, and it can be held down. A
+       mission in the workspace already open is not a place to go, so it is not
+       pretending to be one. */
+    var row = document.createElement(m.here ? "div" : "a");
+    row.className = "news-row mission-row";
+    row.dataset.ws = m.ws || "";
+    row.dataset.state = m.state || "";
+    if (!m.here) row.href = newsHref({ id: m.ws });
+    var pill = document.createElement("span");
+    pill.className = "mission-state";
+    pill.textContent = MISSION_WORD[m.state] || m.state || "";
+    var where = document.createElement("span");
+    where.className = "news-where";
+    where.textContent = m.course || m.repo || m.ws || "";
+    var what = document.createElement("span");
+    what.className = "news-what";
+    /* What it was put on, in the words it was asked in. A mission with no task
+       cannot happen -- the dispatcher refuses one -- so there is no fallback
+       here to invent. */
+    what.textContent = (m.agent ? m.agent + ": " : "") + (m.task || "");
+    var when = document.createElement("span");
+    when.className = "news-when";
+    when.textContent = newsAgo(m.at);
+    row.appendChild(pill);
+    row.appendChild(where);
+    row.appendChild(what);
+    row.appendChild(when);
+    if (!m.here) {
+      var go = document.createElement("span");
+      go.className = "news-go";
+      go.textContent = "\u2192";
+      row.appendChild(go);
+    }
+    if (m.state === "failed" && m.reason) {
+      var why = document.createElement("span");
+      why.className = "mission-why";
+      why.textContent = m.reason;
+      row.appendChild(why);
+    }
+    els.missionList.appendChild(row);
+  });
+}
+
+/* The one line at the top of the strip, over both lists. Built out of what is
+   actually in them: a lead that says "an answer is waiting" over three rows
+   about missions is furniture that lies. */
+function newsLeadFor(answers, jobs) {
+  var parts = [];
+  var going = 0;
+  jobs.forEach(function (m) { if (m.state === "running") going++; });
+  var ended = jobs.length - going;
+  if (going) {
+    parts.push(going === 1 ? "a mission is still going"
+                           : going + " missions are still going");
+  }
+  if (ended) {
+    parts.push(ended === 1 ? "a mission has ended"
+                           : ended + " missions have ended");
+  }
+  if (answers.length) {
+    parts.push(answers.length === 1
+      ? "an answer is waiting in another workspace"
+      : answers.length + " answers are waiting elsewhere");
+  }
+  var said = parts.join(" \u00b7 ");
+  return said.charAt(0).toUpperCase() + said.slice(1);
+}
+
 function paintNews(data) {
   if (!els.newsBar) return;
   var items = (data && data.news) || [];
@@ -7456,17 +7568,19 @@ function paintNews(data) {
   /* Three at a time. A fourth is a list, and a list in the chrome is a page
      somebody has to scroll past to reach their own lesson. */
   show = show.slice(0, 3);
-  if (!show.length) {
+  var jobs = els.missionList ? missionsShowing(data) : [];
+  if (!show.length && !jobs.length) {
     els.newsBar.hidden = true;
     els.newsList.textContent = "";
+    if (els.missionList) els.missionList.textContent = "";
     newsShown = "";
+    missionShown = "";
     return;
   }
   var sig = show.map(newsKey).join("~");
   els.newsBar.hidden = false;
-  els.newsLead.textContent = show.length === 1
-    ? "An answer is waiting in another workspace"
-    : show.length + " answers are waiting elsewhere";
+  els.newsLead.textContent = newsLeadFor(show, jobs);
+  if (els.missionList) paintMissions(jobs);
   /* Rebuilt only when the list has actually changed. This is painted on every
      payload, which is several times a second while a turn runs, and replacing
      the rows under a thumb is a tap that lands on nothing. */
@@ -7508,8 +7622,15 @@ if (els.newsHide) {
     ((lastLive && lastLive.news) || []).forEach(function (n) {
       newsMuted[newsKey(n)] = true;
     });
+    /* And the missions, by state as well as by name: waving away "still going"
+       is not waving away the same mission having FAILED, which is the thing
+       that has to be able to come back. */
+    ((lastLive && lastLive.missions) || []).forEach(function (m) {
+      missionMuted[missionKey(m)] = true;
+    });
     els.newsBar.hidden = true;
     newsShown = "";
+    missionShown = "";
   };
 }
 

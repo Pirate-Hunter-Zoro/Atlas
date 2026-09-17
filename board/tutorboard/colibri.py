@@ -93,10 +93,51 @@ def _run(args, timeout=10):
     return p.stdout.decode("utf-8", "replace")
 
 
+def time_left(said):
+    """Slurm's `%L` as seconds, or None where it does not mean a number.
+
+    `UNLIMITED`, `INVALID` and a blank are all None, which is "nothing here
+    limits it" rather than zero -- and the difference matters, because a mission
+    is failed by a ceiling that has passed and a zero is a ceiling that passed
+    the instant it was written. The spellings are Slurm's own: `d-hh:mm:ss`,
+    `hh:mm:ss`, `mm:ss`.
+    """
+    said = (said or "").strip()
+    if not said or not said[0].isdigit():
+        return None
+    days = 0
+    if "-" in said:
+        first, said = said.split("-", 1)
+        try:
+            days = int(first)
+        except ValueError:
+            return None
+    parts = said.split(":")
+    if len(parts) > 3:
+        return None
+    try:
+        nums = [int(p) for p in parts]
+    except ValueError:
+        return None
+    secs = 0
+    for n in nums:                      # mm:ss, hh:mm:ss -- rightmost is seconds
+        secs = secs * 60 + n
+    if len(nums) == 1:
+        secs *= 60                      # a bare number is minutes
+    return days * 86400 + secs
+
+
 def _job():
-    """The serve job as Slurm sees it: id, state, node, reason. Or None."""
+    """The serve job as Slurm sees it: id, state, node, reason, time left. Or None.
+
+    THE TIME LEFT IS WHY THIS ASKS FOR MORE THAN IT PAINTS. A colibrì turn runs
+    inside this allocation -- `coli-code` steps into it with `srun --overlap` --
+    so a job set going on the local model cannot outlive the walltime here, and
+    nothing anywhere used to say what that was. `missions.py` stamps it on a
+    mission at dispatch.
+    """
     out = _run(["squeue", "-u", os.environ.get("USER", ""), "-n", JOB_NAME,
-                "-h", "-o", "%i|%T|%N|%r"])
+                "-h", "-o", "%i|%T|%N|%r|%L"])
     if not out:
         return None
     for line in out.splitlines():
@@ -105,7 +146,8 @@ def _job():
             continue
         job = {"id": parts[0].strip(), "state": parts[1].strip().upper(),
                "node": (parts[2].strip() if len(parts) > 2 else ""),
-               "reason": (parts[3].strip() if len(parts) > 3 else "")}
+               "reason": (parts[3].strip() if len(parts) > 3 else ""),
+               "left": time_left(parts[4] if len(parts) > 4 else "")}
         # A RUNNING job wins over a pending one: the queue can hold both while
         # one is being replaced, and the one that can answer is the answer.
         if job["state"] == "RUNNING":
@@ -141,26 +183,31 @@ def _read():
             # reports "nothing is running" back to the person who just tapped it
             # -- which is how a second tap happens.
             return {"state": "queued", "job": None, "node": "",
-                    "detail": "submitting the job"}
+                    "left": None, "detail": "submitting the job"}
         return {"state": "off", "job": None, "node": "",
-                "detail": "no server is running"}
+                "left": None, "detail": "no server is running"}
     if job["state"] != "RUNNING":
         return {"state": "queued", "job": job["id"], "node": "",
+                "left": job["left"],
                 # Slurm's own word for why, not a guess. A 950 GB ask can pend
                 # indefinitely behind a nearly-full node and the reason is the
                 # only thing that says so.
                 "detail": job["reason"] or "waiting for an allocation"}
     if _tail("colibri_serve_out.txt", READY):
         return {"state": "warm", "job": job["id"], "node": job["node"],
+                "left": job["left"],
                 "detail": "warm on %s" % (job["node"] or "a compute node")}
     if _tail("colibri_serve_err.txt", LISTENING):
         return {"state": "loading", "job": job["id"], "node": job["node"],
+                "left": job["left"],
                 "detail": "listening, still warming — the first generation "
                           "runs at about a fifth of the steady rate"}
     if _tail("colibri_serve_out.txt", FAILED):
         return {"state": "off", "job": job["id"], "node": job["node"],
+                "left": job["left"],
                 "detail": "the job is running but the engine failed to load"}
     return {"state": "loading", "job": job["id"], "node": job["node"],
+            "left": job["left"],
             "detail": "reading 429 GB off the filer"}
 
 

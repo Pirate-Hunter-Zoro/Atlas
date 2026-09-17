@@ -17,6 +17,7 @@ from ... import atlas
 from ... import colibri
 from ... import machines
 from ... import meeting
+from ... import missions
 from ... import news
 from ...course import config
 from ...course.repo import Repo
@@ -67,6 +68,15 @@ def get(h, repo, path):
         # the stream -- the front door polls, it does not subscribe.
         return h.send_json({"news": news.waiting(repo)})
 
+    if path == "/missions":
+        # WHAT IS STILL RUNNING SOMEWHERE NOBODY IS LOOKING, and how the ones
+        # that stopped ended. `/news` above is the past tense of the same
+        # sentence and this is the present one; they are separate routes because
+        # a card that landed and a job still going are different things to do
+        # about it. Read off disk in every workspace on the machine, so a board
+        # that has only just started answers as well as the one that dispatched.
+        return h.send_json({"missions": missions.waiting(repo)})
+
     if path == "/health":
         # `dir` so a caller can confirm it reached the course it meant --
         # ports are derived from names and derivation is not proof, and the
@@ -108,10 +118,17 @@ def post(h, repo, path):
     # the filesystem, and there is exactly one root this server may write into.
     if path == "/seen":
         news.mark_seen(repo.root)
+        # AND A MISSION THAT ENDED IN THIS WORKSPACE HAS NOW BEEN LOOKED AT.
+        # Looking means coming here, which is exactly what has happened: the row
+        # in the strip is the way back and this is the far end of it. Only the
+        # ones that ENDED -- a running mission stays on the list after a look,
+        # because it is still running and that is the fact being reported.
+        missions.looked(repo.root)
         # The next payload has to be able to say the badge has gone; without
         # this it says the old answer for up to `news.TTL`, and a notification
         # that survives being read is one nobody trusts again.
         news.forget()
+        missions.forget()
         h.server.hub.worker.dirty.set()
         return h.send_json({"ok": True})
 
@@ -234,8 +251,37 @@ def post(h, repo, path):
         turns.write_turn(target, record)
         with open(target.messages_path, "a", encoding="utf-8") as fh:
             fh.write(json.dumps(record) + "\n")
+
+        # AND THE MISSION IS A RECORD, IN THE WORKSPACE IT IS ABOUT.
+        #
+        # Asked for in these words: *"just because I close the iPad doesn't mean
+        # that should end. Next time I open the iPad and access the board, that
+        # mission should still be going or notify me somewhere if it's done."*
+        # The daemon already survived the lid; nothing said it had. Written LAST,
+        # after the start was allowed and the task is on disk, because a record
+        # of a mission that was refused is a row about work nobody is doing.
+        #
+        # `ship` is carried and not yet honoured -- see HANDOFF item 2, which is
+        # where a mission gets told to push its own diff and where the check that
+        # lets it is built. The field is here because the record is written once
+        # and read by that turn later.
+        ceiling = 0.0
+        if agent == "colibri":
+            # THE ONE ASSISTANT WITH A CEILING. A colibrì turn runs inside the
+            # serve job's allocation, so the mission cannot outlive that job's
+            # walltime -- and until this nothing anywhere said what it was.
+            left = (colibri.status() or {}).get("left")
+            if left:
+                ceiling = time.time() + float(left)
+        rec = missions.dispatch(match["root"], task=task, turn=tid,
+                                agent=agent, ship=bool(payload.get("ship")),
+                                frm=atlas.identify(repo.root), ceiling=ceiling)
+        missions.forget()
+        h.server.hub.worker.dirty.set()
         return h.send_json({"ok": True, "repo": match["repo"],
-                            "agent": agent, "turn": tid, "detail": said})
+                            "agent": agent, "turn": tid, "detail": said,
+                            "mission": rec["id"], "ship": rec["ship"],
+                            "ceiling": rec["ceiling"]})
 
     if path == "/switch":
         try:

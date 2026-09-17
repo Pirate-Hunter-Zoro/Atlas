@@ -162,13 +162,18 @@
      that workspace and a tap goes through the front door, which is the one thing
      that can move the single https name from one board to another. In the chrome
      rather than over the lesson, because this is news about somewhere else and
-     must never be in front of the proof somebody is reading. -->
+     must never be in front of the proof somebody is reading.
+
+     Two lists, and the order is deliberate: a mission still running is above an
+     answer that has landed, because the first is a thing that has not finished
+     and the second is one that has. -->
 <div id="newsbar" class="newsbar" hidden>
   <div class="newsbar-lead">
     <span class="news-dot"></span>
     <span id="news-lead">An answer is waiting</span>
     <button id="news-hide" type="button" class="quiet" title="not now">✕</button>
   </div>
+  <div id="mission-list"></div>
   <div id="news-list"></div>
 </div>
 
@@ -289,8 +294,9 @@
               placeholder="what should it do there?"></textarea>
     <div id="elsewhere-said" class="elsewhere-said"></div>
     <button id="elsewhere-go" type="button" class="primary" disabled>start it</button>
-    <p class="elsewhere-note muted">You stay here. When a card lands over there,
-      the bar at the top of whichever board you are on says so.</p>
+    <p class="elsewhere-note muted">You stay here, and closing the iPad does not
+      end it. The bar at the top of whichever board you are on says it is still
+      going, and says so again when it is done or has failed.</p>
   </div>
 </aside>
 

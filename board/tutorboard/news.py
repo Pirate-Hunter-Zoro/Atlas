@@ -173,7 +173,7 @@ def elsewhere(here, now=None):
             "repo": w["dir"],
             "family": w["family"],
             "family_name": w["family_name"],
-            "course": _course_name(root) or w["dir"],
+            "course": course_name(root) or w["dir"],
             "chapter": _chapter(root),
             "card": which,
             "title": _title(root, which),
@@ -192,7 +192,13 @@ def _state(root):
         return {}
 
 
-def _course_name(root):
+def course_name(root):
+    """What that workspace calls the thing it is teaching. "" if it says nothing.
+
+    Public because `missions.py` labels the same rows with the same name, and
+    two readings of one `state.json` is how a strip and a panel come to call the
+    same workspace two things.
+    """
     return (_state(root).get("course") or "").strip()
 
 

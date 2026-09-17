@@ -14,7 +14,7 @@ import os
 import subprocess
 import time
 
-from . import atlas, choice, fenced, machine, news, paths, ports
+from . import atlas, choice, fenced, machine, missions, news, paths, ports
 from .course import config
 from .lesson import cards
 
@@ -259,6 +259,31 @@ def _mark_news(cards, repo):
         c["news_title"] = (hit or {}).get("title") or ""
 
 
+def _mark_missions(cards, repo):
+    """Hang `mission` on each card: the newest one in that workspace, or None.
+
+    The newest is the whole of it. A card on the front door has room for one
+    line and the strip on the board carries the list; what this field answers is
+    "is anything going on in there", which is what a person scanning eleven
+    boxes is asking. Never raises, for the same reason `_mark_news` does not.
+    """
+    try:
+        running = missions.waiting(repo)
+    except Exception:                                # noqa: BLE001
+        running = []
+    first = {}
+    for m in running:
+        first.setdefault(m.get("ws"), m)
+    for c in cards:
+        hit = first.get(c.get("id"))
+        c["mission"] = None if not hit else {
+            "id": hit.get("id"), "state": hit.get("state"),
+            "task": hit.get("task") or "", "agent": hit.get("agent") or "",
+            "at": hit.get("at") or 0, "ship": bool(hit.get("ship")),
+            "reason": hit.get("reason") or "",
+        }
+
+
 def atlas_payload(repo):
     """Everything the front door draws, in family order.
 
@@ -275,6 +300,7 @@ def atlas_payload(repo):
         for c in _ATLAS["value"]["workspaces"]:
             c["current"] = paths.same_dir(c["root"], repo.root)
         _mark_news(_ATLAS["value"]["workspaces"], repo)
+        _mark_missions(_ATLAS["value"]["workspaces"], repo)
         return _ATLAS["value"]
 
     from .course import plan as course_plan          # circular at module scope
@@ -361,6 +387,10 @@ def atlas_payload(repo):
     # saying an answer is waiting, half a minute after it was read, is a badge
     # that teaches somebody to ignore badges.
     _mark_news(cards, repo)
+    # AND WHAT IS STILL RUNNING IN EACH. Outside the cache for the same reason:
+    # a mission that finished half a minute ago and still says `running` is the
+    # one field on this page somebody would act on immediately.
+    _mark_missions(cards, repo)
 
     out = {"families": [dict(f) for f in atlas.families()], "workspaces": cards}
     for f in out["families"]:

@@ -50,9 +50,9 @@ An item is not done because its code runs. It is done when the suite is green,
 the rule is written where the next turn will read it, and the item is out of this
 file.
 
-**Two of them are not builds and do not come out this way.** Item 8's last part
+**Two of them are not builds and do not come out this way.** Item 7's last part
 is a standing rule — it lands in `TEACHING.md` and `sense.py` and then it is a
-*Settled* entry like anything else. Item 10 is a list of evenings in front of the
+*Settled* entry like anything else. Item 9 is a list of evenings in front of the
 thing, and only the person holding the iPad can strike those.
 
 ---
@@ -90,7 +90,7 @@ when that session ships.
 **`projects/libr-local-llm` has its own handoff and it is still the live one.**
 The five pieces it asked for against the board are shipped and are under
 *Settled* below; what is left in that file is the diarization job itself, which
-is item 11 here.
+is item 10 here.
 
 ---
 
@@ -106,94 +106,48 @@ opened for any reason other than typing code a card told you to type is an
 evening this failed.** Everything in this section is a thing that still sends
 somebody to a keyboard.
 
-**Items 1 and 2 are one piece of work** — a *mission* — and they land in that
-order: a mission cannot be told to ship itself before it is a record. Item 3 is
-independent of both, and is where a document is corrected; item 4 is where a
-lesson turns into one, so those two are worth reading together. Items 5 and 6
-are both the answer panel and are independent of everything: 5 is which half of
-it opens and what is in the box, 6 is what the box renders, and 5 is first
-because it is the small one and is a complaint from a live sitting. Item 7 is
-the meeting deck, which reuses item 3's reader and deliberately does NOT reuse
-its feedback route. Item 8 is the map, and the last part of it is a standing
-rule rather than a task. Item 9 is item 8's other half and must land after it,
-because the refactor renames the boxes its TODOs are attached to. Item 10 is the
-verdict a person can feel, and it settles a question item 12 has been holding
-open. Item 11 is the acceptance test of 1 and 2 and is also the job all of it
-exists for. Item 12 is not a build.
+**Item 1 is the second half of a mission** — the record it hangs on is Settled
+below, and what is left is telling one to ship its own work and checking the diff
+before it goes. Item 2 is independent of it, and is where a document is
+corrected; item 3 is where a lesson turns into one, so those two are worth
+reading together. Items 4 and 5 are both the answer panel and are independent of
+everything: 4 is which half of it opens and what is in the box, 5 is what the box
+renders, and 4 is first because it is the small one and is a complaint from a
+live sitting. Item 6 is the meeting deck, which reuses item 2's reader and
+deliberately does NOT reuse its feedback route. Item 7 is the map, and the last
+part of it is a standing rule rather than a task. Item 8 is item 7's other half
+and must land after it, because the refactor renames the boxes its TODOs are
+attached to. Item 9 is the verdict a person can feel, and it settles a question
+item 11 has been holding open. Item 10 is the acceptance test of item 1 and is
+also the job all of it exists for. Item 11 is not a build.
 
 ---
 
 ## What to do next
 
-### 1. A mission is a thing, and closing the iPad does not end it
-
-**The want:** *"when I put colibri or anything on a mission, just because I close
-the iPad doesn't mean that should end. Next time I open the iPad and access the
-board, that mission should still be going or notify me somewhere if it's done."*
-
-**Now.** `POST /elsewhere` writes the task into another workspace's inbox and
-starts a daemon there. The daemon is detached — `setsid`, stdin on DEVNULL — so a
-closed lid genuinely does not touch it. What does not exist is any RECORD that a
-mission was dispatched, so:
-
-- Nothing says a mission is **still running**. `news.elsewhere` reports a card
-  newer than the last time anybody looked at that workspace, which is the right
-  answer for a finished turn and says nothing at all about one in flight.
-- Nothing says a mission **failed**. A failed turn is reported in the busy strip
-  of that workspace's own board, which is precisely the board nobody is looking
-  at. It is invisible until you go there.
-- Nothing survives a mission dying, and the two ways it dies differ. The machine
-  under a board-side daemon is renewed — the serving chain holds the next one in
-  the queue, and the generation that lands adopts a daemon its predecessor left
-  behind — so the process comes back, and nothing tells it what it was put on,
-  which is what the record below is for. Colibrì has no such cover: **a colibrì
-  turn runs inside the SERVE job's allocation**, because `coli-code` steps into
-  it with `srun --overlap`, so a colibrì mission's ceiling is that job's
-  walltime, 8 h by default and 9 h on `c3_short`. A mission longer than that
-  cannot finish, and `coli-up -t` is the only lever.
-
-**Want.** A mission is a record in the workspace it is about, and every board can
-read every workspace's. It carries what was asked, which assistant, when it was
-dispatched, whether it is to ship itself, and how it ended. Three states a person
-can act on: **running**, **done**, **failed**.
-
-**Where.** Under `live/`, per workspace, beside the records already there —
-`agent.json`, `push.json`, `state.json` — because that is the directory a board
-already reads and no repository tracks. `news.elsewhere` is the walk to copy and
-the surface to widen: the newsbar is already *"work that came back while you were
-elsewhere"* and a mission in flight is the same sentence in the present tense.
-
-**The one thing not to do.** Do not put the mission list in the browser's memory
-or in this board's process. The whole point is that it is there when you come
-back on another device, on another node, tomorrow.
-
-**Check.** A new suite, or `test/elsewhere.py`, which already owns both halves of
-this sentence. Assert: a dispatched mission is on disk and readable from a board
-serving a different workspace; a mission whose daemon has gone reads as failed
-rather than as running; and a mission that has landed a card reads as done and
-comes off the list when it is looked at.
-
-### 2. A mission can be told to ship itself, and the diff is checked before it goes
+### 1. A mission can be told to ship itself, and the diff is checked before it goes
 
 **The want:** *"when I put anything on a mission, I should have the option to tell
 it to ship its changes once it is done - I don't know if colibri is capable of
 doing that, but the tutor certainly should be once colibri is done."*
 
 **Now.** `board push` exists, commits and pushes, does not end the session, and
-is written to run unattended — *"the tutor may push on its own"*. What is missing
-is the instruction, the guarantee, and one check that is not in the repository at
-all.
+is written to run unattended — *"the tutor may push on its own"*. The mission
+record exists and already carries a `ship` field, written at dispatch and honoured
+by nothing. What is missing is the switch that sets it, the turn that acts on it,
+and one check that is not in the repository at all.
 
-**Want.** A switch on the dispatcher, carried in the mission record, and honoured
-when the mission finishes.
+**Want.** A switch on the dispatcher — `⇥ put an assistant to work elsewhere` has
+no control for it, and `POST /elsewhere` already takes `ship` in its body — and a
+turn that honours the field when the mission finishes.
 
 **Whose job the ship is, and the owner has already answered it.** Not the local
 model's: it decodes at three tokens a second and it is the one assistant that can
 read `phi`. So when a colibrì mission finishes, the workspace's ORDINARY tutor is
 woken with the mission's own report and ships it — a hosted turn, a second pair
 of eyes on a local model's work, and a turn that cannot read the session data
-itself. The signal mechanism is the same one item 1 uses, and the one `/handover`
-already runs on.
+itself. The signal mechanism is the inbox line the mission record is written
+beside, and the one `/handover` already runs on.
 
 **AND THE CHECK THAT DOES NOT EXIST YET, which is the sharp end of this.**
 `research/PSYCH-ASR/.gitignore` keeps `/phi/` out of git and `test/tracked.py`
@@ -220,7 +174,7 @@ and none of the risk.
 a remote, and this is the same failure one step earlier. A fixture diff carrying a
 transcript line must be refused, and the refusal must name the file.
 
-### 3. A document is corrected, or overhauled, without leaving the page it is on
+### 2. A document is corrected, or overhauled, without leaving the page it is on
 
 **The want, and it was asked as a question:** *"let's say I'm working in
 PSYCH-ASR, and want to view the presentation on stage2. That presentation needs
@@ -318,9 +272,9 @@ started.
 
 **And the half no test reaches:** whether that reader is in fact *slick* on a
 tablet. It is two taps from the board — `▤ library · papers & decks` in the bar
-menu — and no person has read a real document on it. That is item 6.
+menu — and no person has read a real document on it. That is item 5.
 
-### 4. Any sitting can be asked for a paper OR a deck of what it covered, at any moment
+### 3. Any sitting can be asked for a paper OR a deck of what it covered, at any moment
 
 **The want, and it was asked as a question:** *"let's say I open up libr-local-llm
 and I want to learn how colibrì works. Can I have a tutoring session where I'm
@@ -402,7 +356,7 @@ sections on the board one at a time, because there the document IS the evening;
 that stays exactly as it is, for a paper and for a deck. One asked for
 **alongside** a lesson must not push the lesson off the glass — so it lands in
 the library, the board says it is being written and says when it is there, and
-correcting it is item 3's loop. Take that deliberately rather than by streaming
+correcting it is item 2's loop. Take that deliberately rather than by streaming
 sections, or slides, into a transcript somebody is mid-proof in.
 
 **(c) The default style fights the ask, in this workspace above all.**
@@ -440,7 +394,7 @@ a walkthrough, where the aim row does not appear. `test/walk.py` owns what is
 offered: assert that a `#!` script with no suffix is walkable and that a README
 still is not.
 
-### 5. The answer panel opens on the half you used last, and a typed box is never pre-filled
+### 4. The answer panel opens on the half you used last, and a typed box is never pre-filled
 
 **The want, in their words:** *"the spot for the next user response defaults to
 the 'typed' response, even if the last response that I gave was a board-written
@@ -497,7 +451,7 @@ twin.** Three things can put text in `#saybox` and they are not equal:
   survives a reload. **Keep it.** That is not carrying over; that is not losing
   work.
 - `restoreTextAnswer` loads the question's last SENT typed answer back into the
-  box and sets `correctingTurn`. **This is the one to move.** Item 6 wants that
+  box and sets `correctingTurn`. **This is the one to move.** Item 5 wants that
   answer visible as a rendered block above the box rather than as raw source
   inside it, and a tap on that block is what loads it back for correction. Until
   6 lands, the box is still where a correction is made — so this is a decision
@@ -515,7 +469,7 @@ sitting with `stance_now: "do"` opens on the box and one with `"teach"` opens on
 the board, whatever localStorage holds; a tab press still wins on the question it
 was pressed on; and a question with no draft of its own opens with an empty box.
 
-### 6. The answer box renders as it is typed, and what was sent stays where it was typed
+### 5. The answer box renders as it is typed, and what was sent stays where it was typed
 
 **The want, in two messages:** *"when I'm typing a response to a tutor, I want to
 be able to type latex commands in the typing box — like \gamma, etc. — and have
@@ -598,10 +552,10 @@ mathematics and prose rather than as source, and the box under it is empty and
 ready for the next thing. A second answer pushes the first up, the way a second
 page of ink gets a second board.
 
-*And item 5(c) is waiting on exactly this.* The box is pre-filled with the last
+*And item 4(c) is waiting on exactly this.* The box is pre-filled with the last
 sent answer today because the box is the only place a correction can be made.
 Moving the answer to a block above it is what lets the box be empty, which is the
-rule item 5 states and cannot finish on its own.
+rule item 4 states and cannot finish on its own.
 
 *And this is the same build as (a), not a second one.* One rendered block above
 the box: a **preview** of what is being typed before the send, and the **record**
@@ -653,7 +607,7 @@ because the renderer parks math and code before any markdown parsing and
 restores it afterwards, and every change to it needs a case proving that still
 holds.
 
-### 7. The meeting deck: one at a time, annotated for DIRECTION rather than for correction
+### 6. The meeting deck: one at a time, annotated for DIRECTION rather than for correction
 
 **The want.** *"I have generally two — sometimes three — meetings per week to talk
 about my research… We should somehow be keeping track of our most recent updates
@@ -791,7 +745,7 @@ trap — a mark on a meeting deck produces a direction PROPOSAL on that workspac
 board and does **not** write a feedback file, does not archive anything, and does
 not replace any assistant.
 
-### 8. Three doors, then a family, then a diagram that explains the project
+### 7. Three doors, then a family, then a diagram that explains the project
 
 **The complaint, and it is about all three levels at once.** *"It's just an ugly
 grid of projects in an inner box that has wacky zooming. On the homescreen, I want
@@ -921,9 +875,9 @@ three surfaces, that the top two are not planes, and that `atlas.json`'s blurbs
 reach the glass. `test/walk.py` owns what is walkable, and gains vendor. And
 `test/teaching.py` for the standing rule, in the two places it has to agree.
 
-### 9. A sitting belongs to ONE component, and leaving it is a new sitting
+### 8. A sitting belongs to ONE component, and leaving it is a new sitting
 
-**The want, and it is item 8's other half.** *"When a tutoring session is
+**The want, and it is item 7's other half.** *"When a tutoring session is
 launched, that should happen from tapping on the particular component of that
 project/course/research-project map. There should be TODOs present, each
 corresponding with some component. The tutoring session should be AWARE of what
@@ -988,7 +942,7 @@ retrieval component"* is an instruction to a person holding a tablet, which is t
 same defect as *"two words to add when you write it up."* Every place already has
 an ADDRESS (§2.1) and the board already renders one as something you can open, so
 the card names the box by its address and the tap opens the sitting there. With
-item 8's diagram, the boundary it is pointing at is also visible.
+item 7's diagram, the boundary it is pointing at is also visible.
 
 *Decide: what happens when that box has no TODO.* The want says *"which should
 hopefully have a TODO associated with it"* — hopefully is doing a lot of work
@@ -1000,8 +954,8 @@ first card asks. **Proposing it is better and is barely more work**, because the
 discovery is the valuable part and it is lost otherwise.
 
 **(c) And the refactor will move every box, which is the ordering constraint.**
-Item 8 rewrites what a component IS — from a directory to a thing in a diagram —
-and the TODOs are attached by path. So: item 8 first, then this. Doing them the
+Item 7 rewrites what a component IS — from a directory to a thing in a diagram —
+and the TODOs are attached by path. So: item 7 first, then this. Doing them the
 other way round means attaching the plan to boxes that are about to be renamed.
 
 **Check.** `test/map.py` owns *"the map is of the content, and none of it is
@@ -1013,7 +967,7 @@ pretending to a focus it has not got. `test/teaching.py` for the rule itself, in
 both places it has to agree. And the hand-off card's address is `test/address.js`'s
 subject: assert the box it names opens.
 
-### 10. A verdict you can feel: dopamine for right, playful frustration for wrong
+### 9. A verdict you can feel: dopamine for right, playful frustration for wrong
 
 **The want.** *"dopamine for the user when they answer correctly, and playful
 frustration when they answer incorrectly. When we're in the context of the user
@@ -1047,7 +1001,7 @@ holding the working. **It is not painted on the card.** The card takes its band
 from its own KIND instead — so for the not-right-or-wrong reply the answer says
 amber and the card says `--ink-3`, which is grey.
 
-*And this answers a question that has been sitting open.* Item 12 asks whether
+*And this answers a question that has been sitting open.* Item 11 asks whether
 green on the answer and a tick on the card a finger's width apart is the same
 thing said twice. The want above settles it: **the response carries the band.**
 The answer keeps a quieter version of it, and one of the two is the moment while
@@ -1113,9 +1067,9 @@ grey, and that a `lesson` card which is not replying to anything stays plain.
 `prefers-reduced-motion` on; assert there that the colour and the mark are both
 still on the glass with every animation refused.
 
-### 11. Put colibrì on the diarization repair, which is what all of the above is for
+### 10. Put colibrì on the diarization repair, which is what all of the above is for
 
-It is now the acceptance test of items 1 and 2 as well as the job that has
+It is now the acceptance test of item 1 as well as the job that has
 been waiting since before any of this existed. **The ask, the scoring and the
 numbers to beat are in `projects/libr-local-llm/HANDOFF.md`**, in the owner's own
 words; they are not repeated here, because a number in two files is a number
@@ -1130,7 +1084,8 @@ Three things about running it that are the board's rather than that file's:
 - **Nothing on the board will kill the turn.** The `colibri` recipe carries a
   four-hour `timeout` that `turn_timeout` takes as a floor, and the daemon's beat
   thread keeps the indicator green throughout. What WILL kill it is the serve
-  job's walltime — item 1's last paragraph.
+  job's walltime, which a colibrì mission's record now carries as a ceiling and
+  says out loud when it passes.
 - **`PSYCH-ASR` is the only kind of workspace it will open in**, because a colibrì
   sitting refuses where a card of its own would be committed and that workspace
   ignores `live/*` while a course does not.
@@ -1138,7 +1093,7 @@ Three things about running it that are the board's rather than that file's:
 `research/PSYCH-ASR/HANDOFF.md` holds the *teaching* thread on the same code; it
 is a different conversation and the two do not merge.
 
-### 12. And the three things no test can hold
+### 11. And the three things no test can hold
 
 None of these is a build. Each is an evening in front of the thing.
 
@@ -1148,18 +1103,18 @@ None of these is a build. Each is an evening in front of the thing.
   *answer 2 of 3* is useful or is a number on a bubble that did not need one —
   the `nth` clause in `render`, and one line to remove. (The other question this
   bullet used to ask — whether green on the answer and a mark on the card is the
-  same thing said twice — is answered in item 10: the response carries the band.)
-- **One document, all the way round** — item 3 is the build; this is the evening.
+  same thing said twice — is answered in item 9: the response carries the band.)
+- **One document, all the way round** — item 2 is the build; this is the evening.
   Open a `paper` sitting on a box, let it write into `writeups/<slug>/`, compile
   it, open `/library`, read it on the glass, draw on it, and say something is
   wrong with it. Four things no suite reaches: **the content/scope split against a
-  model** — item 4 lets the evening be the scope, and whether a tutor holding
+  model** — item 3 lets the evening be the scope, and whether a tutor holding
   that still refuses to narrate the evening is the whole of whether the split
   worked; **the revision turn against a model**; **ink a person actually drew** —
   the marks route is tested with fixture strokes, which is not a ring round a
   figure at 200% zoom on an iPad, and that page's pen has never met a stylus —
   and **whether the reader is any good**, which is the one word in the question
-  item 3 came from that no amount of code answers: *slick*.
+  item 2 came from that no amount of code answers: *slick*.
 - **The three teaching rules that were asked for out loud**, all of them
   instructions rather than mechanisms: the question restated under the definition
   list so it is the last thing above the board, the write-up compiled problem by
@@ -1201,6 +1156,46 @@ as the answer.
 ---
 
 ## Settled, so nobody re-derives it
+
+- **A mission is a record in the workspace it is about, and closing the iPad
+  never touched it.** The daemon `POST /elsewhere` starts is detached, so a
+  closed lid was never what ended one; what did not exist was any record that
+  one had been sent, so nothing could say a mission was still running and a
+  failed turn said so only in the busy strip of the board nobody was looking at.
+  `live/missions/<turn>.json` is that record — one file per mission, named for
+  the turn that carries the task, in the workspace the mission is about, read by
+  every board off the shared filesystem the way `news.py` reads cards. A single
+  `missions.json` would be a read-modify-write and two boards dispatching into
+  one workspace would lose one of them. **The state is derived and then frozen,
+  and both halves are load-bearing.** Derived, because nothing is alive to write
+  it: a mission ends by a card being written, by the daemon dying, or by the
+  allocation under it going, and in two of those three there is no process left
+  to record anything — so the ending is read off the newest card and off
+  `agent.json`. Frozen, because that evidence expires: a mission that failed at
+  nine and any later card at eleven reads as `done` to anything looking after
+  eleven, so the first reader to derive a terminal state writes it into the
+  record and every reader after that reads the ending. **Three states and no
+  more** — `running`, `done`, `failed` — because they are the three a person
+  does something different about, and a failure carries its reason on the row:
+  *nothing is attached to that workspace any more* and *the allocation colibrì
+  runs in ended* are the same word and two different next moves. `done` is a
+  card newer than the mission, which is `news.py`'s rule, compared against the
+  newest card at dispatch as well as the dispatch time so a clock a second out
+  between two nodes cannot report a mission done the instant it starts; nothing
+  attached is not a failure for the first `processes.WAKING_GRACE`, because
+  `agent start` forks and the daemon writes `waking` before a `git pull` and a
+  tailnet coming back. **Colibrì's ceiling is stamped at dispatch**, off Slurm's
+  own `%L` in `colibri.status()["left"]`, because a colibrì turn runs inside the
+  serve job's allocation and cannot outlive its walltime — `coli-up -t` is the
+  only lever, and a mission past the ceiling says that rather than nothing. **It
+  comes off the list when it is looked at**, and looking means going there: the
+  board serving that workspace stamps its own finished missions on `POST /seen`,
+  this workspace and no other, and a running one survives a look because it is
+  still running. On the glass it is above the answers in the board's strip and
+  above them on the front door — a thing that has not finished comes before one
+  that has — and a running or failed mission marks its atlas box bottom right,
+  so the answer badge and this can sit on one box. `ship` is written and
+  honoured by nothing; that is item 1.
 
 - **The allocation renews itself, and a loop inside it puts back what dies.**
   Two failures had no answer here. A process died — `serve.py` on an exception,

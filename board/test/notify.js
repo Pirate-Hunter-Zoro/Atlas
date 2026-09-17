@@ -96,14 +96,17 @@ const es = window.__es;
 if (!es) { console.log('FAIL board.js never opened a stream'); process.exit(1); }
 
 const bar = () => doc.getElementById('newsbar');
-const rows = () => Array.from(doc.querySelectorAll('.news-row'));
+/* Scoped to the list they are in, both of them: the strip carries two lists now
+   -- answers that landed and missions still running -- and a mission row wears
+   the answer row's own classes because it is the same row with a state on it. */
+const rows = () => Array.from(doc.querySelectorAll('#news-list .news-row'));
 
-const frame = (news) => JSON.stringify({
+const frame = (news, missions) => JSON.stringify({
   state: { course: 'Galois Theory', session: 'lecture' },
   cards: [{ id: '0001', kind: 'lesson', title: '', body: 'A field is a ring.',
             mtime: t0 - 600 }],
   turns: [], agent: { agent: 'claude', state: 'listening', turns: 2 },
-  waiting: null, history: 0, news: news || [],
+  waiting: null, history: 0, news: news || [], missions: missions || [],
 });
 
 // Nothing elsewhere: nothing to say, and saying something anyway is furniture.
@@ -202,6 +205,81 @@ await sleep(60);
     : fail('dismissing one answer silenced the workspace');
 }
 
+/* ---------------------------------------- AND WHAT HAS NOT FINISHED YET
+//
+// "when I put colibri or anything on a mission, just because I close the iPad
+//  doesn't mean that should end. Next time I open the iPad and access the board,
+//  that mission should still be going or notify me somewhere if it's done."
+//
+// The rows above are turns that finished. A mission is one that has not, and the
+// difference is what somebody does next: still going means leave it, done means
+// go and read it, failed means send it again. So the row says which, and a
+// failure says WHY -- "nothing is attached to that workspace any more" and "the
+// allocation ended" are the same state word and two different next moves. */
+{
+  const jobs = () => Array.from(doc.querySelectorAll('.mission-row'));
+  const mission = (over) => Object.assign({
+    id: 't0007', ws: 'research/PSYCH-ASR', repo: 'PSYCH-ASR',
+    course: 'PSYCH-ASR', agent: 'colibri', at: t0 - 7200, state: 'running',
+    ship: true, reason: '', here: false, task: 'grade the four typists',
+  }, over || {});
+
+  es.onmessage({ data: frame([], [mission()]) });
+  await sleep(60);
+  !bar().hidden && jobs().length === 1
+    ? ok('a mission set going before the lid closed is still on the strip')
+    : fail('nothing says the mission is still running');
+  /still going/.test(jobs()[0].textContent)
+    ? ok('and says it has not finished, which is the state to leave alone')
+    : fail('the row does not say what state it is in: "' + jobs()[0].textContent + '"');
+  /grade the four typists/.test(jobs()[0].textContent)
+    ? ok('and what it was put on, in the words it was asked in')
+    : fail('the row does not say what the mission is');
+  jobs()[0].getAttribute('href') === '/#/w/research/PSYCH-ASR'
+    ? ok('and the row is the way back to it, like every other row here')
+    : fail('the row points at "' + jobs()[0].getAttribute('href') + '"');
+  /still going/.test(doc.getElementById('news-lead').textContent)
+    ? ok('and the lead over the strip is about what is in it')
+    : fail('the lead says "' + doc.getElementById('news-lead').textContent + '"');
+
+  // A FAILURE IS A DIFFERENT NEXT MOVE, so it says which one.
+  es.onmessage({ data: frame([], [mission({
+    state: 'failed',
+    reason: 'the allocation colibri runs in ended before the mission did' })]) });
+  await sleep(60);
+  jobs().length && /failed/.test(jobs()[0].textContent)
+    ? ok('a mission that stopped without finishing says so')
+    : fail('a failed mission reads as running');
+  /allocation/.test(jobs()[0].textContent)
+    ? ok('and says why, because two failures have two different answers')
+    : fail('the row gives a state word and no reason');
+
+  // A mission in the workspace already open is not a place to go.
+  es.onmessage({ data: frame([], [mission({ here: true })]) });
+  await sleep(60);
+  jobs().length && jobs()[0].tagName !== 'A'
+    ? ok('and one in the workspace already open does not pretend to be a link')
+    : fail('a mission here offers a way to where somebody already is');
+
+  // AND IT CAN BE PUT AWAY, but a state change is a new fact.
+  es.onmessage({ data: frame([], [mission()]) });
+  await sleep(60);
+  doc.getElementById('news-hide').dispatchEvent(new window.Event('click'));
+  es.onmessage({ data: frame([], [mission()]) });
+  await sleep(60);
+  bar().hidden
+    ? ok('a mission can be waved away for as long as it stays as it was')
+    : fail('a dismissed mission came straight back');
+  es.onmessage({ data: frame([], [mission({ state: 'failed',
+                                            reason: 'nothing is attached' })]) });
+  await sleep(60);
+  !bar().hidden && /failed/.test((jobs()[0] || {}).textContent || '')
+    ? ok('and comes back the moment it ends, which is a different fact')
+    : fail('waving away a running mission silenced its failure');
+  doc.getElementById('news-hide').dispatchEvent(new window.Event('click'));
+  await sleep(10);
+}
+
 /* --------------------------------------------------------- the front door */
 {
   const dom = new JSDOM(fs.readFileSync(path.join(WEB, 'home.html'), 'utf8'), {
@@ -239,14 +317,36 @@ await sleep(60);
         family_name: 'Research', course: 'TRD-EHR', chapter: '',
         root: '/x/research/TRD-EHR', current: true, cards: 2, open: 1,
         next: 'the packet', kind: 'project', touched: t0 - 60,
-        news: false, news_at: 0, news_title: '' },
+        news: false, news_at: 0, news_title: '',
+        // A MISSION IN THE WORKSPACE SOMEBODY IS IN IS STILL A MISSION. It was
+        // set going hours ago and the board does not open by itself, so "still
+        // going" about the box you are about to enter is the thing to know
+        // before entering it -- which is where this panel parts company with
+        // the answers above it.
+        mission: { id: 't0009', state: 'running', agent: 'colibri',
+                   task: 'decode the pilot session', at: t0 - 7200,
+                   ship: true, reason: '' } },
     ],
   };
   w.__atlas(payload);
   await sleep(40);
 
+  const mpanel = d.getElementById('missions');
+  const mrows = Array.from(d.querySelectorAll('#missions-list .mission-row'));
+  mpanel && !mpanel.hidden && mrows.length === 1
+    ? ok('the front door says a mission is still going, which is what somebody '
+         + 'coming back to the app is asking')
+    : fail('the front door is silent about a mission in flight');
+  mrows.length && /still going/.test(mrows[0].textContent)
+               && /decode the pilot/.test(mrows[0].textContent)
+    ? ok('and what it is, and that it has not finished')
+    : fail('the mission row says nothing useful');
+  d.querySelector('.card-mission')
+    ? ok('and the box it is running in is marked on the map of everything')
+    : fail('nothing on the atlas marks the workspace with work in it');
+
   const panel = d.getElementById('answers');
-  const list = Array.from(d.querySelectorAll('.answer-row'));
+  const list = Array.from(d.querySelectorAll('#answers-list .answer-row'));
   panel && !panel.hidden && list.length === 1
     ? ok('the front door says an answer came back while you were away')
     : fail('the front door is silent about a finished turn');
