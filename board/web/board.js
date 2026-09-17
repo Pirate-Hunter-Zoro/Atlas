@@ -82,6 +82,7 @@ var els = {
   kindWhoUp: document.getElementById("kind-who-up"),
   kindAim: document.getElementById("kind-aim"),
   kindAimWays: document.getElementById("kind-aim-ways"),
+  trace: document.getElementById("trace"),
   elsewhere: document.getElementById("elsewhere"),
   elsewhereList: document.getElementById("elsewhere-list"),
   elsewhereWho: document.getElementById("elsewhere-who"),
@@ -518,6 +519,36 @@ function cardTitle(c) {
   return said.split(/[-_]+/).length >= 3 ? "" : said;
 }
 
+/* ------------------------------------------------- what the board just did */
+/* A RENDERING FAULT IS OVER BEFORE ANYBODY CAN DESCRIBE IT.
+
+   Two have now been diagnosed from a sentence -- "the next board showed up over
+   the yellow pulsing indicator, and then the AI response just all showed up at
+   once between the boards" -- and one of those diagnoses was WRONG, because
+   nothing anywhere could say whether the card typed, whether the hold was taken,
+   or whether it let go early. Each wrong guess costs somebody an evening and
+   then another report in the same words.
+
+   So the board keeps its own last few hundred moves and `☰ → what just
+   happened` reads them back on the device, with a copy button, because the
+   person who can see the fault is not the person who can read the source.
+
+   WHAT IT COSTS, since this runs in every sitting for ever: one small object
+   pushed onto a bounded array. Nothing is formatted, nothing touches the DOM and
+   nothing is measured until the panel is opened. The uninteresting renders --
+   a heartbeat, an uncommitted count changing -- are not recorded at all, or the
+   four-a-second poll would bury the twenty lines that matter. */
+var TRACE_MAX = 300;
+var traceLog = [];
+var traceFrom = 0;
+
+function trace(what, of) {
+  var now = Date.now();
+  if (!traceFrom) traceFrom = now;
+  traceLog.push({ at: now - traceFrom, what: what, of: of || null });
+  if (traceLog.length > TRACE_MAX) traceLog.shift();
+}
+
 /* ------------------------------------------------------------------ render */
 var KIND_LABEL = {
   lesson: "lesson",
@@ -915,6 +946,13 @@ function render(data) {
   /* Where the reader is, before the lesson is rebuilt around them. Put back at
      the foot of this function unless something down there has a better idea
      about where the page should be. */
+  /* Recorded per payload, because whether the reply had landed on THIS one is
+     the fact every hold decision downstream turns on. */
+  if (replyLanding) {
+    trace("reply", { cards: (data.cards || []).length,
+                     owed: awaitingReply ? 1 : 0,
+                     agent: (data.agent && data.agent.state) || "-" });
+  }
   var place = firstPaint ? null : anchorNow();
   /* What is on screen already, by key. A payload arrives for all sorts of
      reasons that have nothing to do with the lesson -- the tutor's heartbeat
@@ -1142,6 +1180,11 @@ function render(data) {
 
      Nothing else here depends on the order: the cards are in the document by
      now, which is all either pass needs. */
+  if (freshCards.length) {
+    trace("fresh", { cards: freshCards.map(function (c) {
+      return (c.dataset && c.dataset.card) || "?"; }).join(","),
+      first: firstPaint ? 1 : 0 });
+  }
   if (!firstPaint) freshCards.forEach(typeOut);
   freshCards.length = 0;
 
@@ -2568,7 +2611,18 @@ function holdTyping() {
 
 /* Still going. Called on every frame the animation actually gets. */
 function keepTyping() {
-  typingUntil = Math.max(typingUntil, Date.now() + TYPE_STALL);
+  var now = Date.now();
+  /* AND THE WATCHDOG HAD ALREADY LET GO, which is the one thing here that
+     nobody can report and nobody can see. A frame arriving AFTER the deadline
+     means the main thread was away for longer than `TYPE_STALL`, so the hold
+     was released while this card was still half painted -- the surface came
+     down, the next board arrived, and the rest of the card appeared in one go
+     when the thread came back. That is the reported glitch exactly, and it is
+     indistinguishable from every other cause without this line. */
+  if (typingNow > 0 && typingUntil && now > typingUntil) {
+    trace("stall", { late: now - typingUntil, held: typingNow });
+  }
+  typingUntil = now + TYPE_STALL;
 }
 
 function releaseTyping() {
@@ -2666,12 +2720,17 @@ function typeUndress(u) {
 }
 
 function typeOut(card) {
-  if (!card || card._typed) return;
+  var which = (card && card.dataset && card.dataset.card) || "?";
+  if (!card || card._typed) { trace("skip", { card: which, why: "already typed" }); return; }
   card._typed = true;
   var body = card.querySelector(".body");
-  if (!body) return;
+  if (!body) { trace("skip", { card: which, why: "no body" }); return; }
   var units = typeUnits(body);
-  if (!units.length) return;
+  /* NOTHING TO TYPE IS NOTHING HELD, and that is a real way for a card to
+     arrive whole with the surface free to move under it -- a body that is one
+     atomic block, or an empty one. Recorded rather than silent, because from the
+     outside it looks exactly like the animation being off. */
+  if (!units.length) { trace("skip", { card: which, why: "no units" }); return; }
 
   var total = 0;
   units.forEach(function (u) {
@@ -2680,7 +2739,11 @@ function typeOut(card) {
     u.at = 0;
     total += u.n;
   });
-  if (!total) { units.forEach(typeUndress); return; }
+  if (!total) {
+    units.forEach(typeUndress);
+    trace("skip", { card: which, why: "nothing to paint" });
+    return;
+  }
 
   /* Somebody who has asked for less movement gets the card, whole, now. The
      pacing is a flourish and they have said they do not want flourishes. */
@@ -2742,14 +2805,22 @@ function typeOut(card) {
     }
     units.forEach(function (u) { typeShow(u, u.n); });
     done();
+    trace("whole", { card: which, why: "reduced motion",
+                     held: !!settleTimer });
     return;
   }
 
   holdTyping();
   body.classList.add("typing");
+  var began = Date.now();
+  trace("type", { card: which, ms: ms, units: units.length, chars: total });
 
   var finish = function () {
     done();
+    /* How long it ACTUALLY took beside what it asked for. The two being far
+       apart is a stalled main thread, which is the difference between a card
+       that typed and a card that appeared. */
+    trace("typed", { card: which, asked: ms, took: Date.now() - began });
     releaseTyping();
   };
 
@@ -5940,7 +6011,7 @@ function renderOrHold(data) {
     render(data);
     return;
   }
-  if (!heldPayload) heldSince = Date.now();
+  if (!heldPayload) { heldSince = Date.now(); trace("hold", { why: "nib down" }); }
   heldPayload = data;
   /* Polled rather than hung off pointerup, because a stroke does not always end
      with one: a nib lifted past the edge of the glass, a gesture the browser
@@ -7382,6 +7453,9 @@ document.addEventListener("visibilitychange", function () {
    the lesson -- rather than because nothing is owed. `paintBoards` needs the
    difference; see its call. */
 var writerHeldShut = false;
+/* What the hold was last time the surface was placed, so the trace records the
+   change rather than the state four times a second. */
+var traceHeld = false;
 
 function placeWriter(owed, questionNode, live, hold) {
   /* A BOARD THAT IS NOT OPEN YET DOES NOT OPEN WHILE A CARD IS STILL TYPING.
@@ -7403,6 +7477,17 @@ function placeWriter(owed, questionNode, live, hold) {
      opens it. */
   writerHeldShut = !!(hold && owed && els.writer.hidden);
   if (writerHeldShut) owed = false;
+  /* Only when something about it CHANGED. This runs on every payload and most
+     of them place the surface exactly where it already was. */
+  var was = els.writer.hidden;
+  if (was !== !owed || hold !== traceHeld) {
+    trace("writer", { owed: owed ? 1 : 0, hold: hold ? 1 : 0,
+                      shut: writerHeldShut ? 1 : 0,
+                      at: (questionNode && questionNode.dataset
+                           && questionNode.dataset.card) || "-",
+                      typing: typingNow });
+  }
+  traceHeld = !!hold;
   els.writer.hidden = !owed;
   /* The surface's re-centre exists while the surface does, and not otherwise:
      a button offering to find writing on a board that is not on screen is a
@@ -8311,6 +8396,79 @@ document.getElementById("btn-papers-close").onclick = function () {
 document.getElementById("btn-export").onclick = function () { doExport("lesson"); };
 document.getElementById("btn-export-all").onclick = function () { doExport("all"); };
 document.getElementById("btn-export-hw").onclick = doExportHomework;
+/* WHAT JUST HAPPENED, read on the device that saw it. Built only when it is
+   opened: the whole design of the buffer is that it costs nothing until then. */
+function paintTrace() {
+  var host = document.getElementById("trace-list");
+  host.textContent = "";
+  if (!traceLog.length) {
+    var none = document.createElement("div");
+    none.className = "tr-of";
+    none.textContent = "nothing recorded yet.";
+    host.appendChild(none);
+  }
+  traceLog.forEach(function (e) {
+    var row = document.createElement("div");
+    row.className = "tr";
+    row.dataset.what = e.what;
+    var at = document.createElement("span");
+    at.className = "tr-at";
+    at.textContent = e.at;
+    var what = document.createElement("span");
+    what.className = "tr-what";
+    what.textContent = e.what;
+    var of = document.createElement("span");
+    of.className = "tr-of";
+    of.textContent = e.of ? traceSay(e.of) : "";
+    row.appendChild(at);
+    row.appendChild(what);
+    row.appendChild(of);
+    host.appendChild(row);
+  });
+  host.scrollTop = host.scrollHeight;
+  /* THE ONE LINE THAT SAYS WHETHER ANYTHING IS WRONG, so the panel answers the
+     question before it is read line by line. A stall is the hold letting go
+     while a card was still painting; a skip is a card that never held at all. */
+  var stalls = traceLog.filter(function (e) { return e.what === "stall"; }).length;
+  var skips = traceLog.filter(function (e) { return e.what === "skip"; }).length;
+  document.getElementById("trace-said").textContent =
+      stalls ? stalls + " stall(s): the hold let go while a card was still being "
+                      + "painted, so the next board came down early."
+    : skips ? skips + " card(s) took no hold at all — they arrived whole."
+    : traceLog.length + " moves, and nothing in them looks wrong.";
+}
+
+function traceSay(of) {
+  var out = [];
+  Object.keys(of).forEach(function (k) { out.push(k + "=" + of[k]); });
+  return out.join(" ");
+}
+
+document.getElementById("btn-trace").onclick = function () {
+  paintTrace();
+  els.trace.hidden = false;
+};
+document.getElementById("trace-close").onclick = function () {
+  els.trace.hidden = true;
+};
+/* Copied as text, because the person who can see the fault is not the person
+   who can read the source, and reading three hundred lines aloud is not a bug
+   report. */
+document.getElementById("trace-copy").onclick = function (e) {
+  var text = traceLog.map(function (x) {
+    return x.at + "\t" + x.what + "\t" + (x.of ? traceSay(x.of) : "");
+  }).join("\n");
+  var said = e.currentTarget;
+  var back = function (word) {
+    said.textContent = word;
+    setTimeout(function () { said.textContent = "copy"; }, 1200);
+  };
+  try {
+    navigator.clipboard.writeText(text).then(function () { back("copied"); },
+                                            function () { back("select it"); });
+  } catch (err) { back("select it"); }
+};
+
 document.getElementById("btn-reload").onclick = function () { location.reload(); };
 /* Nothing live has ever arrived, so the shell itself may be a cached one --
    reload rather than merely re-open the stream. */
