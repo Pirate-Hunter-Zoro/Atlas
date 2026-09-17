@@ -61,6 +61,7 @@ bash board/install.sh          once, per machine
 tutor                          pick a workspace; it starts the board and the tutor
 tutor galois                   go straight there
 tutor where                    what is running, on this machine and the tailnet
+tutor serve                    hold a machine under the board for as long as you want one
 ```
 
 Opening the app lands on the **atlas**: one picture of every workspace, what is next in each, and
