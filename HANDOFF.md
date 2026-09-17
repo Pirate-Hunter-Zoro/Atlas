@@ -152,7 +152,11 @@ as the answer.
   written on one node names a process table this one cannot read. Three missed
   wake-ups is the window. Over ssh only and not the hop's Slurm fallback: a step
   holds itself open for the life of what it starts, and one sleeping step per
-  login is too much for a repair usually not needed. `board/test/agents.py`.
+  login is too much for a repair usually not needed. And `tutor where` names a
+  tutor on another node instead of calling it `stale`, which it did because it
+  asked whether that pid was alive HERE -- about a daemon listening perfectly
+  well over there, on the machine the question is typed on.
+  `board/test/agents.py`.
 - **The verdict is painted on the student's own answer, and amber is the
   default.** The newest reply in a question's run decides it — `correct` is
   green, `wrong` is red, and every other reply to working is amber, because most
