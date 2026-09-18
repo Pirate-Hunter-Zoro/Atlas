@@ -429,6 +429,10 @@ def cmd_start(live, args):
         print("port %d was busy; this board is on %d"
               % (default_port(live.root), port))
 
+    # Whatever this repository left running before now, which is nothing the
+    # record still names. See `drop_strays`.
+    drop_strays(live)
+
     log = open(live.path("board.log"), "ab")
     cmd = [sys.executable, SERVE, "--root", live.root, "--port", str(port)]
     if lan:
@@ -2599,6 +2603,122 @@ def port_answers(port):
             pass
 
 
+def recorded_ports():
+    """Every port a board on THIS node currently claims as its own.
+
+    A board writes its port into its own repository's `live/.board.json` when it
+    starts, and the NEXT board in that repository overwrites it. So a board left
+    behind by an allocation that ended keeps running, keeps answering, and is
+    named by no record anywhere: invisible to every tool that reads records, and
+    still holding whatever it was holding.
+
+    That is not hypothetical. A Galois Theory board from an ended generation went
+    on answering on 9098 while the live one served 9195, and because it ANSWERED
+    it kept `https://compute-node…/` -- the one address the iPad is installed
+    against -- for an hour and three quarters. The tutor was up, the board was
+    up, the serving chain was on generation 3 and reporting itself healthy, and
+    the reply the tutor had written was on a board nothing was pointing at.
+    Reported in the only words it needs: "The tutor in Galois Theory is also not
+    responding... If claude is working, and the tutoring server is up, how could
+    we ever be left hanging?"
+
+    So ANSWERING IS NOT OWNING. A port owns the address when a live record names
+    it; a port that answers and no record names is a leftover, and a leftover has
+    no claim on anything.
+
+    Returns None where the question cannot be answered at all, which is not the
+    same as an empty set -- see below.
+    """
+    here, ports = this_node(), set()
+    try:
+        every = atlas.workspaces()
+    except Exception:
+        # None, and not an empty set. This runs inside `board start`, and a
+        # repository layout it cannot read is a reason to leave the address
+        # alone rather than to fail a launch -- but an empty set would say
+        # "nobody has a record", which reads as "take it from whoever is there".
+        # None says "cannot tell", and the caller then believes answering, which
+        # is the rule this replaced and the cautious one to fall back to.
+        return None
+    for ws in every:
+        try:
+            with open(os.path.join(ws["root"], "live", ".board.json"),
+                      "r", encoding="utf-8") as fh:
+                rec = json.load(fh)
+        except (OSError, ValueError):
+            continue
+        if not isinstance(rec, dict) or not rec.get("port"):
+            continue
+        if rec.get("node") and rec["node"] != here:
+            continue
+        if not processes.board_is_running(rec.get("pid"), rec.get("root") or ws["root"]):
+            continue
+        try:
+            ports.add(int(rec["port"]))
+        except (TypeError, ValueError):
+            continue
+    return ports
+
+
+def boards_serving(root):
+    """(pid, port) for every board process serving THIS repository on this node.
+
+    There should be exactly one and the record should name it. A second is the
+    leftover described in `recorded_ports`, and the moment to be rid of it is the
+    moment a new board for the same repository starts -- which is precisely when
+    it became a leftover.
+
+    `ps` rather than `/proc`, because this runs on a Mac as well.
+    """
+    found = []
+    try:
+        out = subprocess.run(["ps", "-eo", "pid=,args="], stdout=subprocess.PIPE,
+                             stderr=subprocess.DEVNULL, timeout=10).stdout
+        out = out.decode("utf-8", "replace")
+    except (OSError, subprocess.SubprocessError):
+        return found
+    for line in out.splitlines():
+        line = line.strip()
+        if "serve.py" not in line or "--root" not in line:
+            continue
+        parts = line.split()
+        if not parts or not parts[0].isdigit():
+            continue
+        pid, at, port = int(parts[0]), None, None
+        for n, word in enumerate(parts):
+            if word == "--root" and n + 1 < len(parts):
+                at = parts[n + 1]
+            elif word == "--port" and n + 1 < len(parts) and parts[n + 1].isdigit():
+                port = int(parts[n + 1])
+        if pid != os.getpid() and at and paths.same_dir(at, root):
+            found.append((pid, port))
+    return found
+
+
+def drop_strays(live):
+    """Stop any board for this repository that the record does not name.
+
+    Called as a new one starts. Only this repository's, only on this node, and
+    only ones the record has already let go of: a board the record DOES name is
+    handled by `cmd_start`'s own "already up" branch above, which is a different
+    answer and the right one.
+    """
+    info = live.info() or {}
+    keep = info.get("pid") if processes.board_is_running(info.get("pid"), live.root) else None
+    for pid, port in boards_serving(live.root):
+        if keep and pid == keep:
+            continue
+        try:
+            os.killpg(os.getpgid(pid), signal.SIGTERM)
+        except OSError:
+            try:
+                os.kill(pid, signal.SIGTERM)
+            except OSError:
+                continue
+        print("stopped a board this repository had left behind (pid %d%s)"
+              % (pid, ", port %d" % port if port else ""))
+
+
 def serve_target(port):
     """Where the tailnet HTTPS name should point: at the board on this machine.
 
@@ -2640,7 +2760,14 @@ def ts_repoint(port, force=False):
     # ANY https name that is proxying to a board which is up owns the address.
     # Asking only about the first one found was the same mistake as reading a
     # TCP forward for a proxy: two names, and the answer depended on order.
-    held = [p for p in served_ports(out) if p != port and port_answers(p)]
+    #
+    # AND "UP" MEANS RECORDED, NOT MERELY ANSWERING. A board an ended generation
+    # left behind answers exactly like a live one and is named by no record, so
+    # on the answering test alone it held the address against every board that
+    # came after it -- for as long as the process lived. See `recorded_ports`.
+    mine = recorded_ports()
+    held = [p for p in served_ports(out)
+            if p != port and port_answers(p) and (mine is None or p in mine)]
     if not force and held:
         return
     code, _ = ts("serve", "--bg", "--https=443", target, timeout=40)

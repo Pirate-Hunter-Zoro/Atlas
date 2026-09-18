@@ -27,7 +27,18 @@ harmless on its own:
      nothing. A deploy handed the address to whichever course the loop reached
      last.
 
-None of the three is visible from the outside, and any one of them alone
+  4. And the guard against 1-3 read "is anything answering on that port" as
+     "is that board somebody's lesson". A board an ended generation left behind
+     answers exactly like a live one, so it held the address against every board
+     that came after it -- for as long as the process lived. Measured: a Galois
+     Theory board from a dead generation kept `https://compute-node…/` on 9098
+     for an hour and three quarters while the live one served 9195. The tutor
+     was up, the board was up, the chain was on generation 3 and reporting
+     itself healthy, and the reply the tutor had written was on a board nothing
+     pointed at. "If claude is working, and the tutoring server is up, how could
+     we ever be left hanging?"
+
+None of the four is visible from the outside, and any one of them alone
 reproduces the whole failure. So they are checked here, together, by what the
 code does rather than by what it says it does.
 """
@@ -119,8 +130,11 @@ brd.ts = fake_ts
 brd.ts_daemon_running = lambda: True
 brd.ts_info = lambda: ("100.0.0.1", "compute-node.tail0c6c62.ts.net")
 
-# 9098 answers -- it is somebody's lesson -- so 9171 coming up must not take it.
+# 9098 answers AND a live record names it -- it is somebody's lesson -- so 9171
+# coming up must not take it. Both halves are stubbed because both are the test:
+# answering alone is what let a leftover hold the address.
 brd.port_answers = lambda p: p == 9098
+brd.recorded_ports = lambda: {9098}
 calls[:] = []
 brd.ts_repoint(9171)
 check("a board coming up does not take a name that points at a live board",
@@ -129,17 +143,45 @@ check("a board coming up does not take a name that points at a live board",
 # Nothing answers on the port the name points at: the course whose board that
 # was has gone, and leaving the address pointing at a corpse helps nobody.
 brd.port_answers = lambda p: False
+brd.recorded_ports = lambda: set()
 calls[:] = []
 brd.ts_repoint(9171)
 check("but it does take one that points at nothing at all",
       any("--bg" in a for a in calls))
 
+# AND THE ONE THAT COST AN EVENING: a board that answers and that NO RECORD
+# NAMES. Its repository's record was overwritten by the board that replaced it,
+# so it is invisible to everything that reads records -- and on the answering
+# test alone it outranked the live board for as long as its process survived.
+# Answering is not owning.
+brd.port_answers = lambda p: p == 9098
+brd.recorded_ports = lambda: {9171}
+calls[:] = []
+brd.ts_repoint(9171)
+check("a board left behind by an ended generation does not hold the address, "
+      "however healthily it answers",
+      any("--bg" in a for a in calls))
+
+# AND "CANNOT TELL" IS NOT "NOBODY HAS ONE". Where the repository layout cannot
+# be read at all, `recorded_ports` answers None and the guard falls back to the
+# rule it replaced -- believe answering, leave the name alone. An empty set here
+# would read as "no record names anything", which takes the address from whoever
+# is holding it, in exactly the case where least is known.
+brd.port_answers = lambda p: p == 9098
+brd.recorded_ports = lambda: None
+calls[:] = []
+brd.ts_repoint(9171)
+check("and where nothing can be read, it leaves the address where it is",
+      not any("--bg" in a for a in calls))
+
 # And forced, when a person says which course they mean.
 brd.port_answers = lambda p: p == 9098
+brd.recorded_ports = lambda: {9098}
 calls[:] = []
 brd.ts_repoint(9171, force=True)
 check("and a forced claim takes it whatever is holding it",
       any("--bg" in a for a in calls))
+
 
 # ---------------------------------------------------------------------------
 # 3. What each caller is entitled to. `--if-free` asks; a bare serve forces; and
@@ -157,6 +199,22 @@ check("the launcher's own claim asks first",
       '"vpn", "serve", "--if-free"' in link_body)
 check("and never forces it, which is what moved somebody mid-proof",
       '"vpn", "serve")' not in link_body)
+
+# AND THE LEFTOVER IS NOT MERELY OUTRANKED, IT IS STOPPED. The moment a
+# repository's next board starts is the moment the previous one became a
+# leftover, and `.board.json` holds one pid -- so a second live board for one
+# repository is unreachable by every command that works from the record, while
+# still holding a port, a socket and, on the answering test, the address.
+start = board_src[board_src.index("def cmd_start("):]
+start = start[:start.index("\ndef ", 1)]
+check("a new board clears what its own repository left behind, before it starts",
+      start.find("drop_strays(live)") != -1
+      and start.find("drop_strays(live)") < start.find("subprocess.Popen"))
+check("and it only ever stops this repository's own, on this node",
+      "paths.same_dir(at, root)" in board_src)
+check("answering is not owning, and the guard says which it means",
+      "recorded_ports()" in board_src
+      and "p in mine" in board_src)
 
 # ---------------------------------------------------------------------------
 # 4. A deploy restarts every board, so it must remember who had the name BEFORE

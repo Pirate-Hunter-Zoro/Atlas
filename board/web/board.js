@@ -564,6 +564,17 @@ function trace(what, of) {
   if (traceLog.length > TRACE_MAX) traceLog.shift();
 }
 
+/* AND THE INK LAYER WRITES INTO THE SAME LOG, BECAUSE ITS FAULTS ARE THE ONES
+   THIS EXISTS FOR.
+
+   `annotate.js` is a module of its own and had nowhere to record anything, so
+   the one thing it can get badly wrong -- a stroke whose lift never arrived,
+   which refuses every scroll on the page until the mode is toggled -- arrived as
+   a sentence about scrolling with nothing underneath it. See `STROKE_QUIET`
+   there. Exposed rather than passed in: that file is loaded first, so it asks
+   for this at the moment it has something to say. */
+window.BoardTrace = trace;
+
 /* AND WHICH CODE IT CAME FROM, WHICH IS THE OTHER HALF OF "IT DIDN'T WORK".
 
    `board.js` is in `sw.js`'s `SHELL`, so an installed app serves its cached copy
