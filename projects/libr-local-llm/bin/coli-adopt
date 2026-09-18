@@ -1,0 +1,87 @@
+#!/bin/bash
+# Give a running generation that has no chain watcher one of its own.
+#
+#   coli-adopt              # the generation serving now
+#   coli-adopt 2073311      # a particular one
+#   coli-adopt --force      # adopt one that looks like it already has a watcher
+#
+# WHAT THIS IS FOR, AND IT IS NOT AN EVERYDAY COMMAND. Every generation submitted
+# by `coli-up` watches its own walltime and hands over before it ends. A server
+# submitted with `--once`, or one whose watcher died with its node, or one
+# submitted before the chain existed, does not -- it just stops, and there is an
+# hour of cold pin behind that. This puts the same watcher beside it as a job of
+# its own: same loop, same lead, same handover, same stop flag. It holds one CPU
+# and 2 GB until the handover, and then it is gone.
+set -euo pipefail
+
+_self="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd -P)"
+. "$(dirname "$_self")/scripts/colibri-env.sh"
+
+FORCE=""
+JOB=""
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --force) FORCE=1; shift ;;
+        -h|--help) awk 'NR>1 && /^#/ { sub(/^# ?/, ""); print; next } NR>1 { exit }' "$0"; exit 0 ;;
+        *) JOB="$1"; shift ;;
+    esac
+done
+
+[ -n "$JOB" ] || JOB="$(coli_serving_job)"
+if [ -z "$JOB" ]; then
+    echo "No colibri server is running, so there is nothing to adopt." >&2
+    echo "'coli-up' starts a chain, which needs none of this." >&2
+    exit 1
+fi
+
+NODE="$(squeue -j "$JOB" -h -o '%N' 2>/dev/null || true)"
+STATE="$(squeue -j "$JOB" -h -o '%T' 2>/dev/null || true)"
+if [ "$STATE" != "RUNNING" ] || [ -z "$NODE" ]; then
+    echo "Job ${JOB} is '${STATE:-not in the queue}', and a watcher needs a node to" >&2
+    echo "exclude. Wait for it to start, then adopt it." >&2
+    exit 1
+fi
+
+# A GENERATION THAT PRINTS `LOADED` CAME OFF THE CHAINED SBATCH AND IS ALREADY
+# WATCHING ITSELF. Two watchers on one generation queue two successors, which is
+# two 800 GB jobs nobody asked for -- so this is the check rather than a note.
+if [ -z "$FORCE" ] && grep -q 'COLIBRI-SERVE LOADED' "$(coli_log_out "$JOB")" 2>/dev/null; then
+    echo "Job ${JOB} already watches its own walltime -- its log carries the" >&2
+    echo "chain's own sentinel. Two watchers queue two successors. --force if" >&2
+    echo "you are sure its watcher is gone." >&2
+    exit 1
+fi
+
+if squeue -u "$USER" -n colibri_adopt -h -o '%i' 2>/dev/null | grep -q .; then
+    echo "A colibri_adopt job is already queued or running. One is enough." >&2
+    exit 1
+fi
+
+# The watcher has to outlive the generation it is watching, and c3_short caps at
+# nine hours. Round up and add one, because the handover happens at the end.
+LEFT="$(coli_seconds_left "$JOB")"
+HOURS=$(( ( ${LEFT:-3600} + 3599 ) / 3600 + 1 ))
+[ "$HOURS" -gt 9 ] && HOURS=9
+
+coli_clear_stopped
+mkdir -p "$COLI_LOG_DIR" "$COLI_STATE_DIR"
+
+WATCH_ID="$(
+    for v in $(env | grep -oE '^SLURM_[A-Z_0-9]+' || true); do unset "$v"; done
+    sbatch --parsable \
+           --job-name=colibri_adopt \
+           --partition=c3_short \
+           --chdir="$LLM_REPO" \
+           --ntasks=1 --cpus-per-task=1 --mem=2G \
+           --time="${HOURS}:00:00" \
+           --output="$COLI_LOG_DIR/colibri_adopt-%j.txt" \
+           --export="ALL,LLM_REPO=${LLM_REPO},COLI_ADOPT_JOB=${JOB},COLI_ADOPT_NODE=${NODE}" \
+           "$LLM_REPO/slurm_jobs/colibri_adopt.sbatch"
+)"
+[ -n "$WATCH_ID" ] || { echo "sbatch refused the watcher; nothing is queued." >&2; exit 1; }
+
+echo "Watching ${COLI_JOB_NAME} job ${JOB} on ${NODE} from job ${WATCH_ID} (${HOURS} h)."
+echo "  With ${COLI_CHAIN_LEAD_MIN} min left it queues a generation off ${NODE}, waits for that"
+echo "  one to finish pinning, and only then cancels ${JOB}. Nothing goes down."
+echo "  Log: ${COLI_LOG_DIR}/colibri_adopt-${WATCH_ID}.txt"
+echo "  Call it off with 'coli-down', which stops the chain and both jobs."

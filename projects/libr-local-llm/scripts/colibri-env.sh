@@ -283,3 +283,89 @@ coli_successor_job() {
     done
     return 0
 }
+
+# ------------------------------------------------------- the handover, once
+#
+# ONE PLACE, TWO CALLERS. Every generation runs this against itself in the
+# background, and `coli-adopt` runs it as a job of its own against a generation
+# that has none -- a server submitted with `--once`, or one whose watcher died
+# with a node. The loop is the same either way because the job and the node it
+# is watching are arguments rather than its own.
+#
+#     coli_chain_watch <job id> <node>
+#
+# It returns when the generation it is watching has been cancelled in favour of
+# a successor, or when the chain has been stopped.
+coli_chain_watch() {
+    local JOB="$1" NODE="$2" LEAD SUCCESSOR FELL_BACK LEFT NEW SLOG STATE
+    LEAD=$(( COLI_CHAIN_LEAD_MIN * 60 ))
+    SUCCESSOR=""
+    FELL_BACK=""
+    while :; do
+        if coli_chain_stopped; then
+            echo "CHAIN stopped: coli-down was called, so nothing is being queued"
+            return 0
+        fi
+
+        # A successor that has left the queue -- refused, cancelled, a node that
+        # went -- is not a successor. Asked of Slurm rather than remembered,
+        # because the memory cannot know.
+        if [ -n "$SUCCESSOR" ] && ! coli_jobs | awk -v s="$SUCCESSOR" '$1 == s { f = 1 } END { exit !f }'; then
+            echo "CHAIN successor=${SUCCESSOR} is no longer in the queue; queueing another"
+            SUCCESSOR=""
+            FELL_BACK=""
+        fi
+
+        if [ -z "$SUCCESSOR" ]; then
+            LEFT="$(coli_seconds_left "$JOB")"
+            if [ -n "$LEFT" ] && [ "$LEFT" -le "$LEAD" ]; then
+                NEW="$(coli_submit --exclude="$NODE")"
+                if [ -n "$NEW" ]; then
+                    SUCCESSOR="$NEW"
+                    echo "CHAIN successor=${SUCCESSOR} queued off ${NODE} with ${LEFT}s left at=$(date -Is)"
+                else
+                    echo "CHAIN could not queue a successor; trying again in ${COLI_CHAIN_EVERY}s"
+                fi
+            fi
+            sleep "$COLI_CHAIN_EVERY"
+            continue
+        fi
+
+        SLOG="$(coli_log_out "$SUCCESSOR")"
+        if grep -q 'COLIBRI-SERVE LOADED' "$SLOG" 2>/dev/null; then
+            echo "CHAIN successor=${SUCCESSOR} is loaded; giving ${NODE} back at=$(date -Is)"
+            scancel "$JOB"
+            return 0
+        fi
+        if grep -q 'COLIBRI-SERVE FAILED' "$SLOG" 2>/dev/null; then
+            echo "CHAIN successor=${SUCCESSOR} failed to load; cancelling it and queueing another"
+            scancel "$SUCCESSOR"
+            SUCCESSOR=""
+            FELL_BACK=""
+            continue
+        fi
+
+        # THE ONE CASE THAT GETS THE CHEAP HOP BACK. If every other node is full,
+        # the successor pends on (Resources) and this generation dies with the
+        # model still on the filer. Twenty minutes out, drop the exclusion and
+        # re-queue: the successor then takes THIS node the moment this job ends,
+        # and the pin it pays is against a page cache that still holds the
+        # checkpoint -- 9064 MB/s measured against 422 cold. It is a gap rather
+        # than a handover, and it is minutes rather than an hour.
+        if [ -z "$FELL_BACK" ]; then
+            LEFT="$(coli_seconds_left "$JOB")"
+            STATE="$(coli_jobs | awk -v s="$SUCCESSOR" '$1 == s { print $2 }')"
+            if [ -n "$LEFT" ] && [ "$LEFT" -le 1200 ] && [ "$STATE" = "PENDING" ]; then
+                echo "CHAIN successor=${SUCCESSOR} is still pending with ${LEFT}s left here:"
+                echo "CHAIN re-queueing it without the node exclusion so it can take ${NODE} itself"
+                scancel "$SUCCESSOR"
+                NEW="$(coli_submit)"
+                SUCCESSOR="${NEW:-}"
+                FELL_BACK=1
+                continue
+            fi
+        fi
+
+        sleep "$COLI_CHAIN_WATCH_EVERY"
+    done
+}
