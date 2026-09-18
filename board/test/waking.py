@@ -442,6 +442,47 @@ check("the daemon writes exactly one exit record", len(exit_line) == 1)
 check("and it does not claim to know whether a restart was asked for",
       bool(exit_line) and "restarting" not in exit_line[0])
 
+# AND A RESTART DOES NOT WALK AWAY FROM A RESTART IT STARTED.
+#
+# The foreground waits ninety seconds for the wrap-up turn to write HANDOFF.md
+# and the record to clear. A handoff turn is a model call and routinely outruns
+# that — 97 seconds, measured, in the sitting this whole flag was written for.
+# The branch that gave up returned with `restarting: True` on the record and
+# NOTHING pending, so the board said "claude is restarting" until somebody else
+# noticed. Somebody else was the watchdog above, at the grace — which is the
+# right backstop and is not a plan: it only exists where a watch loop runs, so a
+# hand restart in an `salloc` left the tutor down with no clock anywhere, and
+# where it does run the person watching still waits out the grace.
+#
+# Reported: "Suddenly it says 'claude is restarting' - and I don't foresee that
+# finishing... what the hell happened?"
+gave_up = src[src.index("        if not gone:"):]
+gave_up = gave_up[:gave_up.index("\n        code, msg = agent_start(")]
+check("the branch that gives up waiting arranges the finish itself",
+      "handed_off(" in gave_up)
+check("and it is a DETACHED process, because the restart is a CLI that exits "
+      "and a thread goes with it",
+      "def handed_off(" in src and "start_new_session=True" in src
+      or ("def handed_off(" in src and "os.setsid" in src))
+finish = src[src.index("def finish_restart("):]
+finish = finish[:finish.index("\ndef ", 1)]
+check("the waiter starts the replacement the moment the turn ends, rather than "
+      "at a fixed grace",
+      "if not agent_live(" in finish and "agent_start(" in finish)
+check("and it waits far past anything measured before handing back to the "
+      "watchdog, rather than giving up at the number that caused this",
+      "FINISH_WAIT" in finish and int(
+          src.split("FINISH_WAIT = ")[1].split("\n")[0]) >= 600)
+# The watchdog is left exactly as it is, so for a while BOTH may decide to start
+# this tutor. That is not a race, and the reason is one property of `agent_start`
+# rather than any coordination between them: it refuses when one is already
+# there. If that ever stops being true, two daemons answer one inbox.
+starter = src[src.index("def agent_start("):]
+starter = starter[:starter.index("\ndef ", 1)]
+check("and a second start is refused rather than spawning a second daemon, "
+      "which is the whole of why the waiter and the watchdog cannot collide",
+      "already listening in" in starter and "already waking up in" in starter)
+
 print()
 print(("%d FAILURES" % len(fails)) if fails
       else "a tutor says when it is waking, and silence is never the answer")

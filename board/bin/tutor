@@ -1974,6 +1974,35 @@ def agent_start(cfg, course, agent_name, session=None):
     return 0, "%s starting in %s" % (agent_name, course["dir"])
 
 
+def handed_off(cfg, course, agent_name):
+    """Spawn the detached waiter that completes a restart the foreground gave up
+    on, and say in one clause what was arranged. See `finish_restart`.
+
+    Detached, not a thread: `cmd_restart` is a CLI that exits, and a thread goes
+    with it. Output to the course's own `agent.log`, because that is where the
+    next person looking at this tutor will already be.
+    """
+    live_dir = os.path.join(course["root"], "live")
+    cmd = [sys.executable, os.path.realpath(__file__), "finish-restart",
+           course["dir"]]
+    if agent_name:
+        cmd += ["--agent", agent_name]
+    try:
+        out = open(os.path.join(live_dir, "agent.log"), "a", buffering=1)
+    except OSError:
+        out = subprocess.DEVNULL
+    kw = {"cwd": course["root"], "stdout": out, "stderr": subprocess.STDOUT,
+          "stdin": subprocess.DEVNULL}
+    if hasattr(os, "setsid"):
+        kw["preexec_fn"] = os.setsid
+    try:
+        subprocess.Popen(cmd, **kw)
+    except OSError as exc:
+        return ("nothing is waiting for it -- %s -- so the watchdog is what "
+                "brings it back" % exc)
+    return "it comes back on its own the moment that turn ends"
+
+
 def agent_stop(course, wait=False):
     """Ask the daemon to finish. It writes the handoff on its way out.
 
@@ -2448,6 +2477,65 @@ def headless(cfg, course, agent_name, session):
 RESTART_WAIT = 20
 
 
+# How long a detached waiter will sit on a wrap-up turn before giving up on it.
+# The turn is a model call writing HANDOFF.md, and `agent_stop` allows it to take
+# minutes; twenty is far past anything measured and is a bound rather than an
+# expectation. What it must not be is ninety seconds, which is the number the
+# foreground gives up at -- see `finish_restart`.
+FINISH_WAIT = 1200
+
+
+def finish_restart(cfg, args):
+    """Wait out a wrap-up turn this machine already signalled, then start the
+    replacement. Spawned detached by `cmd_restart`; nobody types this.
+
+    A RESTART MUST NOT WALK AWAY FROM A RESTART IT STARTED. The foreground waits
+    ninety seconds for the daemon's record to clear, and a handoff turn is a
+    model call that routinely outruns that -- 97 seconds, measured. The branch
+    that gave up wrote nothing further and returned, leaving `restarting: True`
+    on the record with NOTHING pending: the board reads that flag and says
+    "claude is restarting", truthfully, for as long as it takes somebody else to
+    notice.
+
+    Somebody else was `tutor watch`, at `REATTACH_GRACE` — 180 seconds. That is
+    the right backstop and it is not a plan. It only exists where a watch loop is
+    running, so a hand `tutor restart --tutors` in an `salloc`, or a ship on a
+    machine the serving chain is not under, left the tutor down with the flag on
+    and no clock anywhere. And where it does exist, the person holding the iPad
+    still watches a lesson say "restarting" for three minutes. Reported in those
+    words: "Suddenly it says 'claude is restarting' - and I don't foresee that
+    finishing... what the hell happened?"
+
+    So the operation finishes itself, as soon as the turn it is waiting for
+    actually ends rather than at a fixed grace. The watchdog stays exactly as it
+    is: two things that may both start a tutor is not a race, because
+    `agent_start` answers "already listening" and changes nothing.
+    """
+    plain = [a for a in args if not a.startswith("-")]
+    found = courses(cfg)
+    course = pick(found, plain[0]) if plain else None
+    if not course:
+        return 1
+    # The record is the least reliable of the three by the time this runs -- the
+    # whole job is to wait for it to disappear -- so configuration is the
+    # fallback, which is the same answer `cmd_restart` resolves and the one that
+    # should be running here anyway.
+    name = (_flag(args, "--agent")
+            or (agent_live(course["root"]) or {}).get("agent")
+            or resolve_agent(cfg, course))
+    for _ in range(FINISH_WAIT):
+        if not agent_live(course["root"]):
+            code, msg = agent_start(cfg, course, name)
+            return 0 if code == 0 else 1
+        time.sleep(1.0)
+    # Still wrapping up after twenty minutes. Leave the flag: it is true, and
+    # the watchdog is the right owner of a case this far outside the measured
+    # range. Saying so where a person will find it is the whole of what is left.
+    print("finish-restart: %s was still wrapping up after %d s; leaving the "
+          "restart flag for the watchdog" % (course["dir"], FINISH_WAIT))
+    return 1
+
+
 def cmd_restart(cfg, args):
     """Restart every long-lived process on this machine, on the current code.
 
@@ -2605,8 +2693,14 @@ def cmd_restart(cfg, args):
             # watchdog picks the tutor back up from once `REATTACH_GRACE` is out.
             # Telling somebody to run it again was the only instruction while
             # the daemon's own exit erased the flag -- and nobody ever does.
-            held.append("%s (still writing its handoff; the watchdog brings it "
-                        "back in a few minutes, or run this again)" % c["dir"])
+            # AND THIS BRANCH NOW FINISHES ITSELF. See `finish_restart`: a
+            # detached waiter sits on the wrap-up turn and starts the
+            # replacement the moment it ends, so recovery does not depend on a
+            # watch loop existing, and does not wait out a fixed grace where it
+            # does. The watchdog stays as the backstop it was.
+            waiting = handed_off(cfg, c, name)
+            held.append("%s (still writing its handoff; %s)"
+                        % (c["dir"], waiting))
             continue
         code, msg = agent_start(cfg, c, name)
         if code != 0:
@@ -4492,6 +4586,10 @@ def main(argv):
 
     if args and args[0] in ("restart", "restart-boards"):
         return cmd_restart(cfg, args[1:])
+
+    # Spawned by `cmd_restart`, never typed. See `finish_restart`.
+    if args and args[0] == "finish-restart":
+        return finish_restart(cfg, args[1:])
 
     if args and args[0] == "where":
         return cmd_where(cfg, args[1:])

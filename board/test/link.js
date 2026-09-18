@@ -1923,6 +1923,59 @@ async function reopenFlow() {
 //
 // So the floor is silence, not another event. This waits it out on a real clock,
 // because a constant read out of the source cannot say whether anything arms it.
+// THE INK LAYER SAYS WHAT IT DID, IN THE LOG EVERYTHING ELSE WRITES TO.
+//
+// Scrolling while annotating has been reported three times and diagnosed twice,
+// and the second diagnosis was wrong -- because `☰ → what just happened` carried
+// every card and every animation and nothing at all about this layer. A report
+// that arrives as "I couldn't scroll when I started annotating" was then
+// answered by reading the source and guessing, which is how the wrong half gets
+// patched. The next one arrives with the answer in it.
+function traceFlow() {
+  if (!window.Annotate || !layer) return;
+  var seen = [];
+  var real = window.BoardTrace;
+  window.BoardTrace = function (what, of) { seen.push(what); };
+  try {
+    window.Annotate.setOn(false);
+    window.Annotate.setOn(true);
+    seen.indexOf('ink-mode') !== -1
+      ? ok('entering and leaving annotate mode is recorded, with what it cost')
+      : fail('nothing records the mode changing, so "it did not work when I '
+             + 'started annotating" has no line to read');
+
+    seen.length = 0;
+    ink('pointerdown', 100, 60, 0.5);
+    ink('pointermove', 130, 60, 0.5);
+    seen.indexOf('ink-begin') !== -1
+      ? ok('and a stroke starting is recorded, with which card and which pointer')
+      : fail('a stroke leaves no line, so a stroke that never ended cannot be '
+             + 'told from one that never began');
+
+    seen.length = 0;
+    var swipe = new window.Event('touchmove', { bubbles: true, cancelable: true });
+    swipe.changedTouches = [{ touchType: 'direct', clientX: 40, clientY: 200 }];
+    doc.dispatchEvent(swipe);
+    var st = new window.Event('touchstart', { bubbles: true, cancelable: true });
+    st.changedTouches = [{ touchType: 'direct', clientX: 40, clientY: 90 }];
+    doc.dispatchEvent(st);
+    seen.indexOf('ink-hold') !== -1
+      ? ok('and a refused gesture says so — which is the whole sentence "I could '
+           + 'not scroll", written down at the moment it is true')
+      : fail('a refusal leaves no line, so the CSS latch and this listener '
+             + 'cannot be told apart from the outside');
+
+    seen.length = 0;
+    ink('pointerup', 130, 60, 0.5);
+    seen.indexOf('ink-end') !== -1
+      ? ok('and a stroke ending is recorded, so the pair can be matched up')
+      : fail('a stroke ending leaves no line');
+  } finally {
+    window.BoardTrace = real;
+    window.Annotate.clear('0003');
+  }
+}
+
 async function strokeFloorFlow() {
   if (!window.Annotate || !layer) return;
   window.Annotate.setOn(true);
@@ -1976,6 +2029,7 @@ async function strokeFloorFlow() {
 // The return offer is on a short timer, so it is checked after the fact.
 if (es) {
   (async function () {
+    traceFlow();
     await strokeFloorFlow();
     await sendingFlow();
     await reopenFlow();

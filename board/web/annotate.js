@@ -1054,6 +1054,21 @@ document.addEventListener("dragstart", noSelect, true);
    purpose: a nib held motionless mid-word sends nothing, and cutting somebody's
    stroke in two is a real cost where a latch nobody can clear is the whole
    reported fault. */
+/* WHAT THIS LAYER IS DOING, IN THE LOG EVERYTHING ELSE ON THE PAGE WRITES TO.
+
+   Scrolling while annotating has been reported three times and diagnosed twice,
+   and the second diagnosis was wrong -- because `☰ → what just happened` carries
+   every card and every animation and said NOTHING about the ink layer. A report
+   that arrives as "I couldn't scroll when I started annotating" is then answered
+   by reading the source and guessing, which is how the wrong half gets patched.
+
+   So the layer says what it did. `board.js` owns the log and is loaded after
+   this file, so it is asked for at the moment rather than held. */
+function say(what, of) {
+  try { if (window.BoardTrace) window.BoardTrace(what, of || null); }
+  catch (e) { /* a record is never worth an exception */ }
+}
+
 var STROKE_QUIET = 4000;
 var quietTimer = null;
 var quietAt = 0;
@@ -1075,12 +1090,7 @@ function strokeQuiet() {
      scrolling and nothing in it can name a stroke. `board.js` owns the log and
      is loaded after this file, so it is asked for at the moment rather than
      held. */
-  try {
-    if (window.BoardTrace) {
-      window.BoardTrace("ink-drop", { card: drawing.id, pid: drawing.pid,
-                                      quiet: STROKE_QUIET });
-    }
-  } catch (e) { /* not fatal: a dropped stroke matters more than its record */ }
+  say("ink-drop", { card: drawing.id, pid: drawing.pid, quiet: STROKE_QUIET });
   end(null);
 }
 
@@ -1173,8 +1183,13 @@ var PEN_MODE = 700;
 var PEN_STEP = 120;
 var penTimer = null;
 
-function penMode(on) {
-  document.body.classList.toggle("pen-writing", !!on);
+/* The CSS latch: with it on, every ink layer refuses a one-finger pan. That is
+   half of "I cannot scroll" and the other half is `onTouchStart`, so the two are
+   recorded separately and each says which it is. */
+function penMode(want) {
+  var had = document.body.classList.contains("pen-writing");
+  document.body.classList.toggle("pen-writing", !!want);
+  if (!!want !== had) say("ink-latch", { on: want ? 1 : 0 });
 }
 
 /* THE RELEASE IS EXACT, AND THE WINDOW IS THE NUMBER ABOVE.
@@ -1285,12 +1300,25 @@ function onTouchStart(ev) {
   /* A contact landing with the latch closed and the nib UP is either a palm or
      somebody going to scroll, and only moving tells them apart. Ask. */
   if (penTimer && !drawing && !stylus(ev)) penWatch();
-  if ((drawing || stylus(ev)) && ev.cancelable) ev.preventDefault();
+  /* EVERY REFUSAL IS RECORDED, AND SO IS EVERY ONE THAT WAS NOT MADE.
+     "I couldn't scroll" is a sentence about this line and about the CSS latch,
+     and nothing could previously tell those two apart from the outside. */
+  var why = drawing ? "drawing" : (stylus(ev) ? "stylus" : "");
+  if (why && ev.cancelable) {
+    ev.preventDefault();
+    say("ink-hold", { at: "touchstart", why: why });
+  } else if (why) {
+    say("ink-late", { at: "touchstart", why: why });
+  }
 }
 
 function onTouchMove(ev) {
   if (!on || !drawing) return;
-  if (ev.cancelable) ev.preventDefault();
+  if (ev.cancelable) { ev.preventDefault(); return; }
+  /* Not cancelable means the browser has already decided this gesture is a
+     scroll and is not asking. Worth seeing: it is the one shape in which a
+     stroke and a pan are both happening. */
+  say("ink-late", { at: "touchmove" });
 }
 
 /* WHEN THESE TWO LISTENERS EXIST AT ALL IS THE WHOLE OF WHETHER THE LESSON
@@ -1456,6 +1484,7 @@ function begin(ev, card) {
      See `armTouch`. */
   armMove(true);
   strokeHeard();
+  say("ink-begin", { card: id, pid: ev.pointerId, how: ev.pointerType });
   ev.preventDefault();
 }
 
@@ -1573,6 +1602,7 @@ function end(ev) {
   window.removeEventListener("scroll", follow, true);
   armMove(false);
   strokeOver();
+  say("ink-end", { card: d.id, pid: d.pid });
   var id = d.id;
   var cv = d.canvas;
 
@@ -1770,7 +1800,22 @@ window.Annotate = {
   },
   setOn: function (v) {
     on = !!v;
+    /* HOW LONG THE MODE ITSELF COSTS, because that is the remaining candidate
+       for "the first gesture after I tapped the pencil did nothing".
+       `body.annotating` restyles every card in the lesson -- a box-shadow and a
+       radius each -- and `armTouch` installs a NON-PASSIVE `touchstart` on the
+       document in the same breath. A non-passive touchstart is a promise that
+       the main thread will be consulted before any gesture may scroll, so the
+       cost of that restyle is paid by whoever touches the glass next. Measured
+       here rather than reasoned about: the number goes in the log. */
+    var t0 = Date.now();
     document.body.classList.toggle("annotating", on);
+    var layers = document.querySelectorAll("canvas." + LAYER).length;
+    /* Read a geometry to force the style and layout this class change owes,
+       so the number below is the real cost and not a promise to pay it later
+       during somebody's first swipe. */
+    try { void document.body.offsetHeight; } catch (e) { /* not fatal */ }
+    say("ink-mode", { on: on ? 1 : 0, layers: layers, ms: Date.now() - t0 });
     armTouch(on);
     if (!on) {
       /* AND LEAVING THE MODE FINISHES WHAT IS IN HAND.

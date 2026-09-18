@@ -1,8 +1,11 @@
 """The cards on the board, which are files.
 
-A card appears the instant its file exists, so everything here is about
-reading them back cheaply: what is on the board, in order, with the TikZ in
-them handed off to be drawn.
+A card appears the instant its file has something IN it, so everything here is
+about reading them back cheaply: what is on the board, in order, with the TikZ
+in them handed off to be drawn.
+
+It used to be "the instant its file exists", and the difference cost an evening.
+See `has_body`.
 """
 
 import hashlib
@@ -15,6 +18,12 @@ from .. import reasoning
 
 POLL_SECONDS = 0.25
 CARD_RE = re.compile(r"^(\d{4})[-_.](.*)\.(md|markdown|tex)$")
+
+# Names a writer leaves while it is writing. `board write` writes to one of these
+# and renames, which is atomic within a directory -- so a card is whole or absent
+# and never both. The pattern is here as well because a crash between the two
+# steps leaves the part file behind, and a part file is not a card.
+PART_RE = re.compile(r"^\.")
 
 # ---------------------------------------------------------------------------
 # card parsing
@@ -72,6 +81,32 @@ def extract_tikz(body, jobs, repo):
 _CARD_CACHE = {}
 
 
+def has_body(body):
+    """Is there anything on this card to read.
+
+    A CARD WITH NO BODY IS A FILE SOMEBODY IS STILL WRITING, NOT A CARD.
+
+    `open(path, "w")` truncates before it writes, and this poll runs four times
+    a second over a shared network filesystem -- so a poll can land between the
+    truncate and the content and see a card with nothing in it. On the glass that
+    is worse than a blank card: there is nothing to type, so the type-out skips
+    it, so no hold is taken, so the writing surface comes down and the next board
+    appears BEFORE the response. Then the real body lands and types, underneath a
+    board that is already there.
+
+    Measured in a Galois sitting: card 0041 on the glass empty at 10:38:38, its
+    real body typed at 10:39:14. Reported as "I just submitted a written response
+    and the next board showed up before the tutor response showed up" -- on a
+    board whose own trace showed both cards typing perfectly, because they did.
+
+    `board write` renames into place now, so this should never fire for a card
+    this tool wrote. It stays because it is not the only writer: an INTERACTIVE
+    tutor writes the file itself -- the brief tells it to -- and a plain shell
+    redirect truncates exactly the same way.
+    """
+    return bool((body or "").strip())
+
+
 def load_cards(repo, jobs):
     cards = []
     try:
@@ -80,6 +115,8 @@ def load_cards(repo, jobs):
         names = []
     seen = set()
     for name in names:
+        if PART_RE.match(name):
+            continue
         m = CARD_RE.match(name)
         if not m:
             continue
@@ -105,6 +142,12 @@ def load_cards(repo, jobs):
         except OSError:
             continue
         meta, rawbody = parse_front_matter(raw)
+        # Not cached either: the stamp it would be cached under is `(mtime,
+        # size)` read through this filer's attribute cache, so an empty parse
+        # pinned there outlives the write that caused it by however long those
+        # attributes take to refresh. That is where the 36 seconds came from.
+        if not has_body(rawbody):
+            continue
         # Whoever wrote this file. `board write` refuses a card that is the
         # model deliberating, but an interactive tutor writes the file itself --
         # the brief tells it to -- and that door has no gate on it.

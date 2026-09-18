@@ -423,6 +423,47 @@ await flow('reduce motion', { reduceMotion: true });
            + (openAt - wholeAt) + 'ms apart), which reads as one event');
 }
 
+// AND THE WATCHDOG DOES NOT REPORT A STALL THAT DID NOT HAPPEN.
+//
+// `holdTyping` bumps `typingNow` and then called `keepTyping()`, which answers
+// one question -- had the deadline already passed -- against a `typingUntil`
+// left behind by the PREVIOUS card. So the test passed its own guard on the
+// line above, and the deadline it compared to was as old as the gap between one
+// card and the next: a card arriving six minutes after the last one traced a
+// `stall` before painting a character.
+//
+// That is the diagnostic telling the exact lie the diagnostic exists to
+// prevent, and it was read as one: `stall late=358559 held=1` arrived attached
+// to a real report, beside that same card's truthful `typed … stalled=0` four
+// seconds later. Read out of the source, because a jsdom clock cannot be left
+// idle for six minutes to prove it.
+{
+  const src = fs.readFileSync(path.join(WEB, 'board.js'), 'utf8');
+  let hold = src.slice(src.indexOf('function holdTyping('));
+  hold = hold.slice(0, hold.indexOf('\n}') + 2);
+  !/keepTyping\(\)/.test(hold)
+    ? ok('stall: taking a hold ARMS the watchdog rather than asking it whether '
+         + 'the last card overran')
+    : fail('stall: holdTyping still asks keepTyping, so the gap between two '
+           + 'cards is traced as a stall in the second one');
+  /typingUntil = /.test(hold)
+    ? ok('stall: and it sets the deadline it is going to be measured against')
+    : fail('stall: holdTyping leaves the deadline wherever the last card left it');
+  // Call sites only. The block comments above both of these explain at length
+  // why there is exactly one caller, and this file is written in prose — so the
+  // comments go before anything is counted, and the definition names itself.
+  const bare = src.replace(/\/\*[\s\S]*?\*\//g, '')
+                  .split('\n').filter((l) => !l.trim().startsWith('//'))
+                  .join('\n');
+  const calls = bare.split('\n').filter((l) =>
+    /keepTyping\(\)/.test(l) && !/function keepTyping/.test(l));
+  calls.length === 1
+    ? ok('stall: and the only thing that asks is a frame of the animation, '
+         + 'which is the one place the question means anything')
+    : fail('stall: keepTyping is called from ' + calls.length + ' places; it '
+           + 'answers about frames and nothing else can use it');
+}
+
 console.log(errors.length ? '\n' + errors.length + ' FAILURES'
   : '\nthe answer is sent, the reply types above the next board, and a stall '
     + 'loses the pacing and not the order');
