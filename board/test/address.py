@@ -100,13 +100,21 @@ else:
 calls = []
 
 
-def install(status, held_alive):
-    """Stand in for the tailscale daemon: what the name points at, and whether
-    the board it points at is still answering."""
+def install(status, held_alive, held_recorded=True):
+    """Stand in for the tailscale daemon: what the name points at, whether the
+    board it points at is still answering, and whether any live record names it.
+
+    THE THIRD ARGUMENT IS NOT A DETAIL. A board an ended generation left behind
+    answers exactly like a live one, and its repository's one record was
+    overwritten by the board that replaced it -- so on the answering test alone
+    it held the address against everything that came after it. Answering is not
+    owning; see `recorded_ports` in `bin/board`.
+    """
     calls[:] = []
     board.ts_daemon_running = lambda *a, **k: True
     board.ts_info = lambda *a, **k: ("100.0.0.1", "board.tail0c6c62.ts.net")
     board.port_answers = lambda p: held_alive
+    board.recorded_ports = lambda: ({8787} if held_recorded else set())
     # serve_target branches on machine shape, which reads the real config. A test
     # must not depend on whatever that file happens to say, so pin it: these
     # cases are about a machine that points the name at its own board.
@@ -162,6 +170,22 @@ if calls:
     fail("the board already holding the address re-pointed it at itself")
 else:
     ok("and re-pointing at where it already points does nothing at all")
+
+# AND THE ONE THAT COST AN EVENING. A board left behind by an ended generation
+# answers perfectly and is named by no record: its repository holds one
+# `.board.json` and the board that replaced it overwrote it. So it is invisible
+# to everything that works from records, and it held the one address the iPad is
+# installed against for an hour and three quarters while the live board served
+# another port -- with the tutor up, the chain three generations deep, and every
+# status command green.
+install(held, held_alive=True, held_recorded=False)
+board.ts_repoint(8812)
+if calls:
+    ok("a board left behind by an ended generation does not hold the address, "
+       "however healthily it answers")
+else:
+    fail("a leftover board keeps the address for as long as its process lives, "
+         "which is the whole of being left hanging with nothing looking wrong")
 
 # A board has to be REACHABLE from the other machine, or none of the above can
 # happen at all.

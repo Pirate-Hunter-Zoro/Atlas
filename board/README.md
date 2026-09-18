@@ -2050,6 +2050,17 @@ machines. Which board it opens is therefore a decision this machine makes, and i
   would otherwise leave the address wherever the alphabet finished — which once dropped somebody
   halfway through a Galois proof into a different lesson. What takes a name is a tap, an explicit
   `board vpn serve`, or the name pointing at nothing.
+- **and ANSWERING IS NOT OWNING.** A port holds the address when a live record names it —
+  `recorded_ports()`, every `live/.board.json` on this node whose pid is still serving its own
+  repository. A board an ended generation left behind answers exactly like a live one and is named
+  by no record at all, because the board that replaced it overwrote the one record its repository
+  has. On the answering test alone that leftover outranked every board that came after it, for as
+  long as its process survived: the tutor was up, the board was up, the serving chain was three
+  generations deep and reporting itself healthy, and the card the tutor had written sat on a board
+  nothing was pointing at. **A leftover has no claim on anything**, and a new board for the same
+  repository stops it — `drop_strays`, before `Popen`, this repository's own and on this node only,
+  because the moment a repository's next board starts is the moment the previous one became a
+  leftover. `test/serving.py` holds both halves.
 
 **Two names, and they are not the same name.** The *tailnet* name is the service — the one origin
 the iPad app is installed against. The *machine* name is who wrote a record — `compute301`.
@@ -3809,6 +3820,27 @@ annotating is the whole time. A stroke in progress is the whole of the test.
 Nothing is lost by it: the case the latch exists for is the *next* stroke of the
 same word, and that arrives inside the 700 ms window the previous stroke already
 opened. `test/link.js` drives a hover and fails if the scroll closes.
+
+**AND A STROKE THAT NEVER ENDS REFUSES EVERY SCROLL ON THE PAGE.** The
+non-passive `touchmove` listener is on the *document* and exists only while a
+stroke is being drawn — that is what keeps scrolling smooth — so *a stroke is in
+progress* is the whole of what cancels a pan, everywhere, not just over a card.
+A lift that goes missing therefore latches the lesson shut for the rest of the
+sitting. Every rescue for a missing lift is filtered by `pointerId` — the window
+`pointerup`/`pointercancel` pair, `blur`, the next `begin` — and `mine` is right
+to refuse a foreign one, because a second contact must not end the pen's stroke.
+So the floor is **silence**: `STROKE_QUIET`, a mark every sample moves forward,
+ends a stroke nothing has been heard from and keeps its ink — one timer per
+stroke rather than one per sample, the shape `penSeen` already uses, because a
+pencil reports at 240 Hz. It is four seconds on
+purpose — a nib held motionless mid-word sends nothing, and cutting a stroke in
+two is a real cost where a latch nobody can clear is the whole fault. **Leaving
+the mode also finishes what is in hand**, which it did not: `setOn(false)` dropped
+the latch and disarmed both listeners and left the stroke open, so 'done' looked
+like a fix and half of one is what made this visible exactly once per sitting.
+`window.BoardTrace` is how the layer says so — `☰ → what just happened` carries
+an `ink-drop` line, because this arrives as a sentence about scrolling and
+nothing in it can name a stroke.
 
 ### What the slate can do
 

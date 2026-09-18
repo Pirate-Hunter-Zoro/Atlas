@@ -1028,6 +1028,71 @@ function dropSelection() {
 document.addEventListener("selectstart", noSelect, true);
 document.addEventListener("dragstart", noSelect, true);
 
+/* AND THE LAST WORD OF ALL BELONGS TO A CLOCK, BECAUSE `drawing` IS WHAT
+   REFUSES EVERY SCROLL ON THE PAGE.
+
+   A stroke in progress is the whole of the test in `onTouchMove`, and that
+   listener is on the DOCUMENT -- so a stroke that never ends refuses the scroll
+   everywhere, for the rest of the sitting, with nothing on the glass saying why.
+   Reported from the iPad: *"When I annotated for the first time in a session
+   just now, I couldn't scroll at all. Then I selected 'done' to stop annotating,
+   and I could scroll. Then I started annotating again, and I could scroll."*
+   That is this defect exactly, and the toggle is what cleared it: `armTouch`
+   takes the refusal off on the way out and `begin` finishes the stale stroke on
+   the next pen-down, so it can only ever be seen once.
+
+   Every OTHER way a lift goes missing is already caught -- the window pair
+   below, `blur`, `begin` finishing what it finds -- and the one they share is
+   that each is filtered by `pointerId`. A lift delivered under an id that is not
+   this stroke's is rescued by none of them, and `mine` is right to refuse it: a
+   second contact must not end the pen's stroke. So the floor is not another
+   event. It is silence.
+
+   MEASURED IN SECONDS AND PUSHED FORWARD BY EVERY SAMPLE, so a stroke being
+   drawn never meets it. What it catches is a stroke nothing has been heard from
+   at all, which is not a hand on the glass however it got there. It is long on
+   purpose: a nib held motionless mid-word sends nothing, and cutting somebody's
+   stroke in two is a real cost where a latch nobody can clear is the whole
+   reported fault. */
+var STROKE_QUIET = 4000;
+var quietTimer = null;
+var quietAt = 0;
+
+/* ONE TIMER PER STROKE, NOT ONE PER SAMPLE. An Apple Pencil reports at 240 Hz,
+   and re-arming on every sample would be a `clearTimeout` and a `setTimeout`
+   each -- the churn `penSeen` avoids for the same reason, in the same shape.
+   `strokeHeard` only moves the mark forward; the timer that fires early asks
+   again for exactly what is left. */
+function strokeQuiet() {
+  quietTimer = null;
+  if (!drawing) return;
+  var left = STROKE_QUIET - (Date.now() - quietAt);
+  if (left > 0) {
+    quietTimer = setTimeout(strokeQuiet, left);
+    return;
+  }
+  /* Recorded, because the report this exists for arrives as a sentence about
+     scrolling and nothing in it can name a stroke. `board.js` owns the log and
+     is loaded after this file, so it is asked for at the moment rather than
+     held. */
+  try {
+    if (window.BoardTrace) {
+      window.BoardTrace("ink-drop", { card: drawing.id, pid: drawing.pid,
+                                      quiet: STROKE_QUIET });
+    }
+  } catch (e) { /* not fatal: a dropped stroke matters more than its record */ }
+  end(null);
+}
+
+function strokeHeard() {
+  quietAt = Date.now();
+  if (!quietTimer) quietTimer = setTimeout(strokeQuiet, STROKE_QUIET);
+}
+
+function strokeOver() {
+  if (quietTimer) { clearTimeout(quietTimer); quietTimer = null; }
+}
+
 /* The last word on whether a stroke is over belongs to the WINDOW, not to the
    canvas. A nib lifted past the edge of the layer, a gesture the browser took
    for itself, an app sent to the background mid-word: none of those deliver a
@@ -1390,6 +1455,7 @@ function begin(ev, card) {
      that is the difference between a lesson that scrolls and one that stutters.
      See `armTouch`. */
   armMove(true);
+  strokeHeard();
   ev.preventDefault();
 }
 
@@ -1447,6 +1513,8 @@ function move(ev) {
   if (ev && ev.pointerType !== "touch" && on && d) penSeen();
   if (!on || !d) return;
   if (!mine(ev, d)) return;
+  /* The nib has been heard from, so the floor moves. See `STROKE_QUIET`. */
+  strokeHeard();
   if (d.loop) {
     var xy = at(ev, d);
     d.loop.push(xy);
@@ -1504,6 +1572,7 @@ function end(ev) {
   if (!mine(ev, d)) return;
   window.removeEventListener("scroll", follow, true);
   armMove(false);
+  strokeOver();
   var id = d.id;
   var cv = d.canvas;
 
@@ -1704,6 +1773,12 @@ window.Annotate = {
     document.body.classList.toggle("annotating", on);
     armTouch(on);
     if (!on) {
+      /* AND LEAVING THE MODE FINISHES WHAT IS IN HAND.
+         This dropped the latch and disarmed both listeners and left `drawing`
+         standing, so 'done' looked like it had cleared the refusal while the
+         stroke it belonged to was still open -- and `onTouchStart` went on
+         cancelling a gesture before it began. Half a stop is not a stop. */
+      if (drawing) end(null);
       penLet();
       dropPick();
     }

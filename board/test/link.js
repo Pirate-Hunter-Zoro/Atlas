@@ -927,6 +927,23 @@ if (es && window.Annotate) {
         : fail('the interrupted stroke was dropped: a letter written and then '
                + 'taken away');
       ink('pointerup', 320, 180, 0.5);
+
+      // AND LEAVING THE MODE FINISHES WHAT IS IN HAND.
+      //
+      // `setOn(false)` dropped the pen latch and disarmed both touch listeners
+      // and left `drawing` standing. So 'done' looked like it had cleared the
+      // refusal -- the non-passive `touchmove` goes with `armTouch` -- while the
+      // stroke it belonged to was still open, and `onTouchStart` went on
+      // cancelling a gesture before it began. Half a stop is not a stop.
+      ink('pointerdown', 120, 140, 0.5);
+      ink('pointermove', 150, 140, 0.5);
+      window.Annotate.setOn(false);
+      !window.Annotate.busy()
+        ? ok('leaving annotate mode finishes the stroke in hand, rather than '
+             + 'leaving it open behind a mode that is off')
+        : fail('done left a stroke open: the next gesture is still refused, and '
+               + 'nothing on the glass says why');
+      window.Annotate.setOn(true);
       window.Annotate.clear('0003');
     }
 
@@ -1888,9 +1905,78 @@ async function reopenFlow() {
   else fail('nothing closes the surface once the work is agreed');
 }
 
+// A STROKE NOTHING HAS BEEN HEARD FROM IS OVER, AND THE SCROLL COMES BACK
+// WITHOUT ANYBODY TOGGLING THE MODE.
+//
+// `drawing` is the whole of the test in `onTouchMove`, and that listener is on
+// the DOCUMENT -- so a stroke that never ends refuses every scroll on the page
+// for the rest of the sitting. Every other way a lift goes missing is caught by
+// something filtered on `pointerId`: the window pair, `blur`, the next
+// `begin`. A lift delivered under an id that is not this stroke's is rescued by
+// none of them, and `mine` is right to refuse it -- a second contact must not
+// end the pen's stroke.
+//
+// Reported from the iPad: "When I annotated for the first time in a session just
+// now, I couldn't scroll at all. Then I selected 'done' to stop annotating, and
+// I could scroll. Then I started annotating again, and I could scroll." The
+// toggle is what cleared it, which is why it can only ever be seen once.
+//
+// So the floor is silence, not another event. This waits it out on a real clock,
+// because a constant read out of the source cannot say whether anything arms it.
+async function strokeFloorFlow() {
+  if (!window.Annotate || !layer) return;
+  window.Annotate.setOn(true);
+  window.Annotate.setTool('pen');
+  window.Annotate.clear('0003');
+
+  var kept = window.Annotate.payload('0003').strokes.length;
+  ink('pointerdown', 100, 60, 0.5);
+  ink('pointermove', 140, 60, 0.5);
+  ink('pointermove', 180, 60, 0.5);
+  // The lift arrives under somebody else's finger. Nothing this stroke owns
+  // ever hears about it.
+  var stray = new window.Event('pointerup', { bubbles: true, cancelable: true });
+  Object.assign(stray, { pointerId: 404, pointerType: 'touch', clientX: 180,
+                         clientY: 60, isPrimary: false });
+  window.dispatchEvent(stray);
+
+  var swipe = function () {
+    var ev = new window.Event('touchmove', { bubbles: true, cancelable: true });
+    ev.changedTouches = [{ touchType: 'direct', clientX: 40, clientY: 200 }];
+    doc.dispatchEvent(ev);
+    return ev.defaultPrevented;
+  };
+  swipe()
+    ? ok('a stroke still open refuses the scroll, which is what it is for')
+    : fail('an open stroke does not refuse the scroll at all, so the refusal '
+           + 'this is about is not the one being tested');
+
+  var ann = fs.readFileSync(path.join(WEB, 'annotate.js'), 'utf8');
+  var quiet = /var STROKE_QUIET = (\d+)/.exec(ann);
+  quiet
+    ? ok('the floor under an open stroke is a number the source states (' + quiet[1] + 'ms)')
+    : fail('nothing in annotate.js puts a floor under an open stroke');
+  await sleep(Number(quiet ? quiet[1] : 4000) + 400);
+
+  !window.Annotate.busy()
+    ? ok('and a stroke nothing has been heard from is over, without the mode '
+         + 'being toggled to clear it')
+    : fail('an open stroke stays open for ever: the lesson cannot be scrolled '
+           + 'again this sitting');
+  !swipe()
+    ? ok('so the scroll comes back on its own')
+    : fail('the scroll is still refused after the floor, which is the reported '
+           + 'fault surviving its own fix');
+  window.Annotate.payload('0003').strokes.length === kept + 1
+    ? ok('and what had been written is kept, not thrown away with the stroke')
+    : fail('the floor dropped the ink it closed');
+  window.Annotate.clear('0003');
+}
+
 // The return offer is on a short timer, so it is checked after the fact.
 if (es) {
   (async function () {
+    await strokeFloorFlow();
     await sendingFlow();
     await reopenFlow();
     await sleep(900);
