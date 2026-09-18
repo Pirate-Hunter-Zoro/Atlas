@@ -53,16 +53,16 @@ An item is not done because its code runs. It is done when the suite is green,
 the rule is written where the next turn will read it, and the item is out of this
 file.
 
-**Two of them are not builds and do not come out this way.** Item 2's last part
+**Two of them are not builds and do not come out this way.** Item 1's last part
 is a standing rule — it lands in `TEACHING.md` and `sense.py` and then it is a
-*Settled* entry like anything else. Item 6 is a list of evenings in front of the
+*Settled* entry like anything else. Item 5 is a list of evenings in front of the
 thing, and only the person holding the iPad can strike those.
 
 ---
 
 ## Before anything
 
-- `bash board/test/all.sh` — 83 suites, about twelve minutes. Green before and
+- `bash board/test/all.sh` — 84 suites, about twelve minutes. Green before and
   after.
   The last of them is Paper-Writer's own, run where it is checked out, so the
   factory's tests are part of the board's habit rather than a second one nobody
@@ -93,7 +93,7 @@ when that session ships.
 **`projects/libr-local-llm` has its own handoff and it is still the live one.**
 The five pieces it asked for against the board are shipped and are under
 *Settled* below; what is left in that file is the diarization job itself, which
-is item 5 here.
+is item 4 here.
 
 ---
 
@@ -112,160 +112,24 @@ somebody to a keyboard.
 **A mission is finished work, and so is a document asked for from any sitting
 at all, corrected or overhauled without leaving the page it is on, and so is
 which half of the answer panel a question opens on, and so is a response that
-types out with the next board waiting for the last character of it — and so is
-the whole of that panel now: what the box renders while it is being typed in,
-and where a sent answer stays once it is sent. All of that is Settled below.**
-Item 1 is the meeting deck, which reuses the library's reader and deliberately
-does NOT reuse its feedback route. Item 2 is the map, and the last part of it is
-a standing rule rather than a task. Item 3 is item 2's other half and must land
-after it, because the refactor renames the boxes its TODOs are attached to.
-Item 4 is the verdict a person can feel, and it settles a question item 6 has
-been holding open. Item 5 is the acceptance test of the mission and is also the
-job all of it exists for. Item 6 is not a build.
+types out with the next board waiting for the last character of it, and so is
+the whole of that panel: what the box renders while it is being typed in, and
+where a sent answer stays once it is sent — and so is the meeting deck now,
+chosen project by project, read and marked up on the glass, with a mark on a
+project's frame becoming that project's next direction. All of that is Settled
+below.**
+Item 1 is the map, and the last part of it is a standing rule rather than a
+task. Item 2 is item 1's other half and must land after it, because the
+refactor renames the boxes its TODOs are attached to. Item 3 is the verdict a
+person can feel, and it settles a question item 5 has been holding open. Item 4
+is the acceptance test of the mission and is also the job all of it exists for.
+Item 5 is not a build.
 
 ---
 
 ## What to do next
 
-### 1. The meeting deck: one at a time, annotated for DIRECTION rather than for correction
-
-**The want.** *"I have generally two — sometimes three — meetings per week to talk
-about my research… We should somehow be keeping track of our most recent updates
-in ALL courses/projects, and I want to be able to select which projects meeting
-notes are generated for. From that list, I'll select the meeting notes I care
-about, I want a presentation like the ones made for PSYCH-ASR created and rendered
-for me, which I want to be able to give feedback on in the same way we talked
-about giving feedback on presentations earlier. I want to be able to annotate
-these presentations, but NOT to give feedback on them in terms of the
-presentation — they're just for a meeting to communicate what I've been working
-on. My mentors, seeing this presentation, will give me suggestions on new
-directions to take — THAT'S what these annotations will serve as — the agent
-should use them to decide which new directions we will take after the meeting's
-feedback. We're also not gonna save every presentation pertaining to meeting
-notes — this is a one-off communication tool. BUT what we will do is save each
-most recent one… if I elect to make a new one, then that new one REPLACES the old
-one. So we only save one at a time."*
-
-**Five stages. Two and a half exist. The two decisions in it matter more than the
-code, and one of them is a trap.**
-
-**Stage 1 — what landed in every workspace. EXISTS, and it is the expensive
-half.** `meeting.gather(base, ws, since_ts)` already does, per workspace,
-`landed` / `touched` / `closed` / `meaning` / `blocked` / `nextup`: commits by
-their own subjects, plan steps that closed, boxes of the written map named the way
-the person named them, and what is blocked. `resolve_since` takes a date, a span,
-a weekday, or *since the last lot*. **Nothing here needs building.**
-
-And read the charter at the top of `meeting.py` before touching any of it, because
-everything below depends on it: *"Nothing here is generated prose. Every sentence
-is assembled from something already written down by a person… A meeting note whose
-sentences were invented is a meeting note that has to be checked before it can be
-used, which is worse than no note."*
-
-**Stage 2 — choosing which projects. EXISTS ONE LAYER DOWN AND CANNOT BE
-REACHED.** `meeting.build(base, since_ts, human, want=None, …)` already filters
-`atlas.workspaces(base)` by `want`, matching on `id` or `dir`, and refuses with
-*"none of those are workspaces in this repository"*. **`POST /notes` never passes
-it**, and the front door's sheet asks only *how far back*. So the capability is
-written, tested by nothing, and invisible. This is the smallest gap in the item:
-one field on the request, and a list of workspaces on that sheet with what each
-one has to report since the chosen date — which is `gather`'s own output, so the
-list can say *three commits, one step closed* beside each name rather than
-offering bare names to tick.
-
-**Stage 3 — a PRESENTATION, not a document. MISSING.** `document.TEX_HEAD` is
-`\documentclass[11pt]{article}`, and there is no Beamer path anywhere in
-`course/document.py`. The decks this is being compared to —
-`research/PSYCH-ASR/docs/stage2_reference_walkthrough.tex` and its `stage1`
-sibling — are hand-written Beamer, which is why they have `.nav` and `.snm`
-beside them.
-
-*Decide, and this is the first of the two decisions.* **Assembled, not
-generated.** A Beamer head in `document.py` and a frame per workspace, built out
-of exactly what `gather` returns — no model call, nothing invented. The
-alternative is asking a tutor to write the deck, and it must be refused for the
-reason `meeting.py` already gives in capitals: a slide you are going to stand
-behind in front of mentors is the last place for a sentence nobody wrote. What a
-model would add is polish; what it would cost is the one property that makes the
-deck usable without checking it. If the assembled deck reads badly, the fix is the
-renderer, not a model.
-
-**Stage 4 — reading and annotating it on the glass. MISSING, and the reason is
-structural.** `library.documents(root)` walks ONE workspace, and `meetings/` is at
-the REPOSITORY root — deliberately, because *"a note about five workspaces filed
-under one of them is misfiled"*. So the meeting deck is in no workspace's library:
-there is no page-image reader for it, no `data-ann="doc/<id>/p<n>"` anchor, no pen
-and no ink store. What exists is `GET /meeting/<name>`, which hands the PDF to the
-browser's own viewer — where a stylus does nothing.
-
-*Want.* The same reader, the same pen, the same page addresses, over a document
-that belongs to the repository rather than to a workspace. `library.pages` is
-already only *"how the file was found"* away from generic — it calls
-`paper.pages_of(repo, target, filename, "library", width)`, and the tag argument
-is there precisely so a second caller can have its own cache namespace. So this is
-a second finder in front of machinery that is already shared, not a second reader.
-
-*And note what has never happened:* `meetings/` does not exist in this repository.
-The three stages that DO exist have never produced a note, so stage 1's output has
-never been read by anybody.
-
-**Stage 5 — the marks are DIRECTION, and this is the trap. DO NOT WIRE THEM TO
-`/library/feedback`.** Everything about stage 4 makes that the obvious next line
-of code, and it is wrong: that route writes a feedback file and dispatches a
-`[revise]` turn, which would spend a turn *fixing the slides* — polishing a
-throwaway communication tool while throwing away what the marks actually said. The
-owner's sentence is the specification and it is unambiguous: *"NOT to give
-feedback on them in terms of the presentation… My mentors will give me suggestions
-on new directions to take — THAT'S what these annotations will serve as."*
-
-*Want.* A mark on a slide is **input to what that workspace does next**. The slide
-is already about one workspace — stage 3 builds a frame per workspace — so the
-routing is already in the geometry: ink on the TRD-EHR frame is direction input
-for TRD-EHR. `writing.ann_doc_page` is the one place a page key is taken apart and
-is what turns `doc/<id>/p7` back into a page number.
-
-*Decide, and this is the second decision: proposed, not applied.* `direction.write`
-and `POST /direction` already exist per workspace and already do the right four
-things — write it at the root, open a new sitting which ARCHIVES the lesson, forget
-the last turn's note, and REPLACE the assistant. Two of those are destructive, and
-doing them unattended to five workspaces because somebody drew on five slides is
-the worst outcome available here. So: one turn per marked workspace, woken with the
-marks and the frame they were on, whose job is to **propose** the new direction on
-that workspace's board and stop. The person taps it. That also puts the proposal
-where `news.elsewhere` will tell them it landed.
-
-**One at a time, and the replacement rule.** `document.next_version(out_dir, stem)`
-returns `-v1, -v2, -v3` and the stem is `meeting-<date>`, so today's notes
-accumulate and every day starts a new series. The want is exactly one. So the deck
-is a FIXED path — one stem, overwritten — and the sheet offers two things: **read
-the one from before**, which is what you want in the ten minutes before the
-meeting, and **make a new one**, which replaces it.
-
-*And the history comes free, which is worth knowing before somebody builds a
-retention scheme.* `meetings/` is tracked — not ignored — so one overwritten path
-means nothing accumulates in the tree while `git log` keeps every past deck
-anyway. That is the cheap version of *"we're not gonna save every presentation"*
-and it is recoverable, which a delete is not.
-
-*One thing to check rather than assume:* the marks are keyed to `doc/<id>/pN`, and
-the new deck replaces the old at the same path with different pages. Ink drawn on
-last week's slide 4 must not reappear over this week's slide 4. Clear the ink when
-the deck is replaced — this is the one document in the system where old marks have
-no meaning at all, because the marks were consumed into a direction the moment
-they were sent.
-
-**Check.** `test/meeting.py` exists and owns *"a meeting note is assembled from
-what somebody wrote, and every claim carries its address"* — extend it rather than
-starting a suite. Assert: `want` reaches `build` from the route and an unknown name
-is refused by name; the deck compiles as Beamer with one frame per chosen
-workspace; every line on a frame traces to a commit subject, a plan step or a box
-name, and none of it is invented; making a new one leaves exactly one deck on disk;
-the ink store for it is empty after a replacement; and — the one that guards the
-trap — a mark on a meeting deck produces a direction PROPOSAL on that workspace's
-board and does **not** write a feedback file, does not archive anything, and does
-not replace any assistant.
-
-### 2. Three doors, then a family, then a diagram that explains the project
+### 1. Three doors, then a family, then a diagram that explains the project
 
 **The complaint, and it is about all three levels at once.** *"It's just an ugly
 grid of projects in an inner box that has wacky zooming. On the homescreen, I want
@@ -395,9 +259,9 @@ three surfaces, that the top two are not planes, and that `atlas.json`'s blurbs
 reach the glass. `test/walk.py` owns what is walkable, and gains vendor. And
 `test/teaching.py` for the standing rule, in the two places it has to agree.
 
-### 3. A sitting belongs to ONE component, and leaving it is a new sitting
+### 2. A sitting belongs to ONE component, and leaving it is a new sitting
 
-**The want, and it is item 2's other half.** *"When a tutoring session is
+**The want, and it is item 1's other half.** *"When a tutoring session is
 launched, that should happen from tapping on the particular component of that
 project/course/research-project map. There should be TODOs present, each
 corresponding with some component. The tutoring session should be AWARE of what
@@ -462,7 +326,7 @@ retrieval component"* is an instruction to a person holding a tablet, which is t
 same defect as *"two words to add when you write it up."* Every place already has
 an ADDRESS (§2.1) and the board already renders one as something you can open, so
 the card names the box by its address and the tap opens the sitting there. With
-item 2's diagram, the boundary it is pointing at is also visible.
+item 1's diagram, the boundary it is pointing at is also visible.
 
 *Decide: what happens when that box has no TODO.* The want says *"which should
 hopefully have a TODO associated with it"* — hopefully is doing a lot of work
@@ -474,8 +338,8 @@ first card asks. **Proposing it is better and is barely more work**, because the
 discovery is the valuable part and it is lost otherwise.
 
 **(c) And the refactor will move every box, which is the ordering constraint.**
-Item 2 rewrites what a component IS — from a directory to a thing in a diagram —
-and the TODOs are attached by path. So: item 2 first, then this. Doing them the
+Item 1 rewrites what a component IS — from a directory to a thing in a diagram —
+and the TODOs are attached by path. So: item 1 first, then this. Doing them the
 other way round means attaching the plan to boxes that are about to be renamed.
 
 **Check.** `test/map.py` owns *"the map is of the content, and none of it is
@@ -487,7 +351,7 @@ pretending to a focus it has not got. `test/teaching.py` for the rule itself, in
 both places it has to agree. And the hand-off card's address is `test/address.js`'s
 subject: assert the box it names opens.
 
-### 4. A verdict you can feel: dopamine for right, playful frustration for wrong
+### 3. A verdict you can feel: dopamine for right, playful frustration for wrong
 
 **The want.** *"dopamine for the user when they answer correctly, and playful
 frustration when they answer incorrectly. When we're in the context of the user
@@ -521,7 +385,7 @@ holding the working. **It is not painted on the card.** The card takes its band
 from its own KIND instead — so for the not-right-or-wrong reply the answer says
 amber and the card says `--ink-3`, which is grey.
 
-*And this answers a question that has been sitting open.* Item 6 asks whether
+*And this answers a question that has been sitting open.* Item 5 asks whether
 green on the answer and a tick on the card a finger's width apart is the same
 thing said twice. The want above settles it: **the response carries the band.**
 The answer keeps a quieter version of it, and one of the two is the moment while
@@ -587,7 +451,7 @@ grey, and that a `lesson` card which is not replying to anything stays plain.
 `prefers-reduced-motion` on; assert there that the colour and the mark are both
 still on the glass with every animation refused.
 
-### 5. Put colibrì on the diarization repair, which is what all of the above is for
+### 4. Put colibrì on the diarization repair, which is what all of the above is for
 
 It is now the acceptance test of a mission — the record and the ship both — as
 well as the job that has been waiting since before any of this existed. **The
@@ -614,7 +478,7 @@ Three things about running it that are the board's rather than that file's:
 `research/PSYCH-ASR/HANDOFF.md` holds the *teaching* thread on the same code; it
 is a different conversation and the two do not merge.
 
-### 6. And the five things no test can hold
+### 5. And the five things no test can hold
 
 None of these is a build. Each is an evening in front of the thing.
 
@@ -643,7 +507,7 @@ None of these is a build. Each is an evening in front of the thing.
   *answer 2 of 3* is useful or is a number on a bubble that did not need one —
   the `nth` clause in `render`, and one line to remove. (The other question this
   bullet used to ask — whether green on the answer and a mark on the card is the
-  same thing said twice — is answered in item 4: the response carries the band.)
+  same thing said twice — is answered in item 3: the response carries the band.)
 - **One document, all the way round** — the build is Settled; this is the evening.
   Open a `paper` sitting on a box, let it write into `writeups/<slug>/`, compile
   it, open `/library`, read it on the glass, draw on it, and say something is
@@ -697,6 +561,55 @@ as the answer.
 ---
 
 ## Settled, so nobody re-derives it
+
+- **The meeting deck: one of it, chosen project by project, and a mark on a
+  frame is that project's next DIRECTION.** `meetings/meeting.pdf`, a Beamer
+  frame per workspace that moved, read at `/meeting` and marked up there.
+  **Assembled, not generated** — every line is a commit subject, a plan step or
+  the name somebody gave a box, because a slide you are going to stand behind
+  in front of your mentors is the last place for a sentence nobody wrote. A
+  model would buy polish at the price of the one property that makes it usable
+  without checking, and if it reads badly the fix is `meeting.frames`.
+  **ONE DECK, AT ONE PATH, OVERWRITTEN.** No `-v1, -v2, -v3`: this is a one-off
+  communication tool. `meetings/` is tracked, so nothing accumulates in the tree
+  and `git log` holds every deck there has ever been — recoverable, which a
+  delete is not. `--print` therefore writes NOTHING: with one path, assembling
+  the source without building the PDF would leave a `.tex` and a `.pdf` beside
+  each other that are not the same deck.
+  **One frame is exactly one page, and that is load-bearing.** `[shrink]` scales
+  a frame that would overflow rather than spilling it, because the page a mark
+  is on is how the mark finds its workspace. `meeting.page_map` is written to
+  `meetings/meeting.json` at build time; page 1 is the title and belongs to
+  nobody, and a mark there is refused by name rather than attached to whichever
+  project is first.
+  **Which projects is asked with what each one HAS.** `POST /notes/what` returns
+  `gather`'s own counts per workspace and the sheet draws them with the ones
+  that moved already ticked; `POST /notes` carries `want` to `meeting.build`,
+  which filters on it and refuses an unknown name by name. Bare names to tick
+  are a guess; "three commits, one step closed" is the answer.
+  **The reader is the library's, over a document that belongs to the
+  repository.** `paper.pages_of(..., "meeting")` — the same rasteriser, cache
+  and `/paper/<name>.png` addresses, in its own cache namespace, which is what
+  the `tag` argument was for. Pages carry `data-ann="doc/meeting/p<n>"` and the
+  caption names the project that frame is about before anybody draws on it.
+  **THE MARKS MUST NOT GO TO `/library/feedback`.** That route files a complaint
+  about the document and wakes a `[revise]` turn — it would spend a turn
+  polishing a throwaway deck while throwing away the only thing the marks said.
+  `tutorboard/proposals.py` routes them by geometry instead: ink on the TRD-EHR
+  frame is direction input for TRD-EHR. One turn per marked workspace, in that
+  workspace, handed the picture at `meetings/marks/p<n>.png` — beside the deck,
+  because a path into the serving board's `live/annotations/` means nothing
+  from where the turn reads it.
+  **Proposed, never applied.** `POST /direction` writes the direction at the
+  root, archives the lesson, forgets the last turn's note and replaces the
+  assistant; doing that unattended to five workspaces because somebody drew on
+  five slides is the worst outcome available. The turn writes ONE card saying
+  what it would change and stops, the person taps ⟳ rethink, and
+  `news.elsewhere` is what says the card landed.
+  **And the ink goes with the deck it was drawn on.** The one document here
+  where an old mark means nothing: it was consumed into a direction the moment
+  it was sent, and the replacement has a different project on page 4.
+  `test/meeting.py` holds the server half and `test/deck.js` the page.
 
 - **The typed half renders as it is typed, and keeps what it sent where it was
   typed.** One block above the box — `#said` — doing two jobs that are one job:

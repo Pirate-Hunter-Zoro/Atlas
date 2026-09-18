@@ -45,6 +45,14 @@ build/
 *.fdb_latexmk
 *.synctex.gz
 
+# ---- the picture of what somebody drew on a meeting slide ----
+# `meetings/meeting.tex`, its PDF and its page map are tracked: the deck is the
+# document. `meetings/marks/` is not -- it is the rendered ink, copied out of
+# the serving board's own `live/annotations/` (which IS tracked) so that the
+# turn woken by it has a path it can open, and it is cleared whenever the deck
+# is replaced. A buffer between one machine's board and one machine's turn.
+meetings/marks/
+
 # ---- other people's published papers ----
 # The citation libraries hold PDFs whose copyright belongs to their authors.
 # The INDEXES are tracked -- README.md, CITATION_MAP.md, the role-grouped
