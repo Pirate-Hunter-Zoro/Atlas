@@ -51,6 +51,35 @@ esac
 [ -d "$WORKDIR" ] || { echo "coli-code: no such directory: $WORKDIR" >&2; exit 2; }
 WORKDIR="$(cd "$WORKDIR" && pwd -P)"
 
+# ONLY THE GUARDED FRONT END GOES BEHIND THE FENCE.
+#
+# The egress guard below is a `PreToolUse` hook, which is a thing the claude
+# front end has and the other one does not. Both get a shell either way, so in
+# a fenced directory the unguarded one is a session that can read PHI and run
+# curl -- which is the exfiltration event the whole arrangement exists to
+# prevent. Outside the fence it is a coding agent like any other and is fine.
+#
+# The question "is this directory fenced" is the lab's, not this script's:
+# `generic.py --path` answers it with the same policy every other guard reads.
+#
+# Fail closed. A missing adapter is not an answer of "not fenced": it is no
+# answer, and the whole point of `generic.py` refusing an empty question is
+# that a guard which quietly stops being consulted is worse than none.
+if [ "$AGENT" != claude ]; then
+    _asks="$ATLAS_ROOT/ai-config/adapters/generic.py"
+    if [ ! -r "$_asks" ]; then
+        echo "coli-code: cannot tell whether ${WORKDIR} is behind the PHI fence --" >&2
+        echo "there is no policy at $_asks. Refusing the unguarded front end." >&2
+        exit 1
+    fi
+    if ! python3 "$_asks" --path "$WORKDIR/" >/dev/null 2>&1; then
+        echo "coli-code: ${AGENT} has no pre-tool hook, so it cannot carry the" >&2
+        echo "egress guard, and ${WORKDIR} is behind the PHI fence. Use the" >&2
+        echo "default front end here: coli-code -d ${WORKDIR}" >&2
+        exit 2
+    fi
+fi
+
 # Find the server. Ask Slurm rather than reading a state file: a state file goes
 # stale the moment a job ends, squeue never does. Under a chain there can be two
 # generations running at once for an hour, so this asks which one can ANSWER
@@ -127,6 +156,46 @@ if [ "$AGENT" = claude ]; then
 { "hasCompletedOnboarding": true, "theme": "dark", "autoUpdates": false }
 SEED
     fi
+
+    # ------------------------------------------------------- THE OTHER HALF
+    #
+    # The read fence comes off so this model can do its job. What replaces it
+    # is a fence in the other direction: nothing it reads may leave the node.
+    #
+    # THE ROUTE IS NOT THE CONTROL. These compute nodes resolve DNS and reach
+    # arbitrary hosts over HTTPS -- measured on the serving node, not assumed --
+    # so "a local model cannot exfiltrate" is false as a statement about the
+    # wiring and has to be made true as a guard. And a deny list over the web
+    # tools alone would be decoration, because a coding agent has a shell and
+    # the shell has curl. `policy/egress.py` judges the shell too.
+    #
+    # A HOOK, NOT A PERMISSION. `--yes` is `--dangerously-skip-permissions`, and
+    # the unattended session that carries it is exactly the one that needs this.
+    # PreToolUse runs whatever the permission mode says; a deny rule is a
+    # question, and this repository's own argument about questions is that they
+    # are answered by whoever is in a hurry.
+    EGRESS_HOOK="$ATLAS_ROOT/ai-config/adapters/claude_code_egress.py"
+    if [ ! -r "$EGRESS_HOOK" ]; then
+        echo "coli-code: no egress guard at $EGRESS_HOOK" >&2
+        echo "This session reads PHI on the strength of that guard existing, so" >&2
+        echo "it does not start without it. Check out ai-config/ and try again." >&2
+        exit 1
+    fi
+    cat > "$SESSION_DIR/settings.json" <<JSON
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": ".*",
+        "hooks": [
+          { "type": "command", "command": "python3 $EGRESS_HOOK", "timeout": 10 }
+        ]
+      }
+    ]
+  },
+  "permissions": { "deny": ["WebFetch", "WebSearch"] }
+}
+JSON
     if [ -n "$INSTRUCTIONS" ] && [ -r "$HOME/.claude/CLAUDE.md" ]; then
         cp -L "$HOME/.claude/CLAUDE.md" "$SESSION_DIR/CLAUDE.md"
         echo "Carrying CLAUDE.md into the preamble ($(wc -c <"$SESSION_DIR/CLAUDE.md") bytes)." >&2
@@ -157,10 +226,12 @@ SEED
         # surfaces as a refused request rather than a compaction. Tell it the
         # real number; it says so itself in the warning it prints.
         "CLAUDE_CODE_MAX_CONTEXT_TOKENS=${COLI_CTX:-131072}"
-        # Every one of these is a call to a host this node cannot reach and
-        # would not be told about: telemetry, the changelog, the updater, and
-        # the small-model calls that title a conversation. Off, or the client
-        # spends its time timing out.
+        # Every one of these is a call to a host nobody asked to be called:
+        # telemetry, the changelog, the updater, and the small-model calls that
+        # title a conversation. They are off because a session reading PHI
+        # should be talking to the gateway and to nothing else -- and the node
+        # CAN reach them, which is the reason to say so rather than rely on a
+        # timeout.
         "DISABLE_NON_ESSENTIAL_MODEL_CALLS=1"
         "DISABLE_TELEMETRY=1"
         "DISABLE_ERROR_REPORTING=1"
@@ -168,6 +239,14 @@ SEED
         "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1"
     )
     CLI=(claude)
+    # The belt over the hook's braces. `--strict-mcp-config` means no MCP
+    # server is picked up from anywhere, whatever a config file elsewhere says,
+    # and the two named tools are the ones whose entire job is a network call.
+    # Neither of these is the control -- the hook is, because these are
+    # settings and the hook runs under the bypass flag below.
+    # Comma-separated on purpose: the space-separated spelling is variadic and
+    # swallows whatever positional follows it.
+    CLI+=(--strict-mcp-config --disallowedTools WebFetch,WebSearch)
     [ -n "$YES" ] && CLI+=(--dangerously-skip-permissions)
     # The session store is already per-agent under $COLI_SESSION_ROOT and
     # CLAUDE_CONFIG_DIR points at it, so there is nothing to wire here: the

