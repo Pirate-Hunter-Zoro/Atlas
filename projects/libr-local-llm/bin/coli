@@ -27,8 +27,9 @@ coli is the engine launcher and is not what you run here. The commands are:
     coli-up                       start the server and wait until it is warm
     coli-code [-d dir] [msg]      a coding agent in any directory
     coli-ask "question"           one question, no agent -- much faster
-    coli-down                     stop the server
+    coli-down                     stop the chain
     coli-build                    rebuild the engine after a clone
+    coli-adopt [job]              put a chain watcher beside a server that has none
 
 README section 4c is the architecture. The raw launcher, if you really want it:
 

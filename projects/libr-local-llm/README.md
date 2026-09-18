@@ -543,6 +543,7 @@ cannot leave the building; use §4a for everything else.
 | `coli-code [-d dir] [-a claude\|opencode] [--yes] [message…]` | Opens a coding agent in any directory, pointed at the served model. No message → the TUI; a message → one shot. |
 | `coli-ask [-f file] [-n tokens] [--think] "question"` | One question, no agent, no tools, no preamble. |
 | `coli-down` | Ends the chain: writes the stop flag, **then** cancels every generation. It holds most of a node — run it. |
+| `coli-adopt [job] [--force]` | Puts a chain watcher beside a running generation that has none — one submitted with `--once`, or one whose watcher died with its node. One CPU and 2 GB until the handover. Not an everyday command. |
 | `coli` | Not the engine launcher — a signpost that prints the five above and says which generation is serving, how many minutes it has left, and whether one is queued behind it. `coli --raw` reaches the real launcher. |
 
 They find the job through `squeue` and step onto its node with `srun --overlap`, exactly as the
@@ -613,6 +614,12 @@ less than an hour of them.
 during a handover two of them are running and one fixed pair would have the successor judged by the
 incumbent's `COLIBRI-SERVE READY`. `coli`, `coli-code`, `coli-ask` and the board all resolve the
 names from the job id.
+
+**A generation with no watcher can be given one.** `coli-adopt` submits the same loop as a one-CPU
+job of its own, against a generation named on the command line — the case that matters is a server
+that was already running when the chain was built, or one submitted with `--once` that you have
+changed your mind about. It refuses a generation whose log already carries `COLIBRI-SERVE LOADED`,
+because that one watches itself and two watchers queue two successors.
 
 **Ending it takes the flag and the cancel, in that order.** `scancel` on a generation is how you
 *replace* a server — the chain reads it as a node failure and does exactly what it was built to do.

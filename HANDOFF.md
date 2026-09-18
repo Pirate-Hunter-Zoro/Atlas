@@ -355,9 +355,17 @@ as the answer.
   then sweeps the queue twice — a generation can queue its successor in the gap —
   and a generation that starts while the flag is there stands down without
   serving. `coli-up` clears it, because asking for a server is asking for the
-  chain back. `board/test/colibri.py` holds both halves of this; the cluster half
-  is an evening rather than a suite: bring it up, `scancel` the incumbent by hand,
-  and time the successor's pin.
+  chain back.
+  **The handover loop is written once**, as `coli_chain_watch` in
+  `scripts/colibri-env.sh`, because there are two callers: every generation runs
+  it against itself in the background, and `coli-adopt` runs it as a one-CPU job
+  of its own against a generation that has none — one submitted with `--once`,
+  one whose watcher died with a node, or one already running when this was built.
+  It refuses a generation whose log carries `COLIBRI-SERVE LOADED`, because that
+  one watches itself and two watchers queue two successors.
+  `board/test/colibri.py` holds both halves of this; the cluster half is an
+  evening rather than a suite: bring it up, `scancel` the incumbent by hand, and
+  time the successor's pin.
 - **950 GB IS NOT AN ALLOCATION THIS PARTITION OFFERS, AND THE DEFAULT WAS ONE.**
   `sbatch` refuses anything above roughly 900 GB outright — *Requested node
   configuration is not available*, at submission, at every CPU count, measured
