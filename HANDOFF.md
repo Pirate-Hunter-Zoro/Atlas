@@ -10,9 +10,10 @@ can be asked for from any sitting at all — about a box, a chapter or the eveni
 that has just been taught — written up, listed, read on the glass, marked up,
 complained about in words or in ink, corrected or overhauled by whichever
 machinery made it, and re-drawn in front of you where you were reading it, with
-what each round changed readable on the glass. A student's own answer carries its
-verdict and every attempt they typed is kept. The local model can be chosen for a
-sitting, started from the glass, watched through four states, and handed a job in
+what each round changed readable on the glass. The response itself carries the
+verdict as a band — green, red, or the amber of a reply that is neither — with a
+run of right answers saying how many, and every attempt they typed is kept. The
+local model can be chosen for a sitting, started from the glass, watched through four states, and handed a job in
 a workspace nobody is looking at. The front door is four doors rather than a
 pinchable grid, and behind a workspace the map opens to the module and to the
 class or function inside it — with the arrows rolled up to whatever depth is
@@ -60,7 +61,7 @@ An item is not done because its code runs. It is done when the suite is green,
 the rule is written where the next turn will read it, and the item is out of this
 file.
 
-**One of them is not a build and does not come out this way.** Item 3 is a list
+**One of them is not a build and does not come out this way.** Item 2 is a list
 of evenings in front of the thing, and only the person holding the iPad can
 strike those.
 
@@ -99,7 +100,7 @@ when that session ships.
 **`projects/libr-local-llm` has its own handoff and it is still the live one.**
 The five pieces it asked for against the board are shipped and are under
 *Settled* below; what is left in that file is the diarization job itself, which
-is item 2 here.
+is item 1 here.
 
 ---
 
@@ -129,116 +130,18 @@ and so is somebody else's repository, read on that same map and traced from it
 in the workspace that is reading it, with nothing handed in to it — and so, now,
 is a sitting BELONGING to a box on that map: one that has none says so and asks,
 and one that has one stops at the boundary and hands the work on as a tap rather
-than an errand. All of that is Settled below.**
-Item 1 is the verdict a person can feel, and it settles a question item 3 has
-been holding open. Item 2 is the acceptance test of the mission and is also the
-job all of it exists for. Item 3 is not a build.
+than an errand — and so, now, is the VERDICT: the response itself carries the
+band, amber included, a run of right answers says how many, and the colour and
+the mark both survive somebody who has asked for less movement. All of that is
+Settled below.**
+Item 1 is the acceptance test of the mission and is also the job all of it
+exists for. Item 2 is not a build.
 
 ---
 
 ## What to do next
 
-### 1. A verdict you can feel: dopamine for right, playful frustration for wrong
-
-**The want.** *"dopamine for the user when they answer correctly, and playful
-frustration when they answer incorrectly. When we're in the context of the user
-providing an answer, and it's a right or wrong, then the response should be
-highlighted with a green (correct) or red (incorrect) band… If the user asks a
-question, or we're not really in a 'right or wrong' scenario, then the response
-should be highlighted with a yellow kind of band. I don't care exactly how you do
-this; just make sure it's visually appealing."*
-
-**More of this exists than it looks, and it is worth reading before adding
-anything.** `board.css` already gives every card kind one `--accent` and derives
-the rest from it: `correct` is `--good`, `wrong` is `--bad`, `question` is
-`--ask`. Each of those gets a 3 mm left band, a `--wash` panel tinted from its own
-accent — and the panel costs **no height**, deliberately, because ink is anchored
-as a fraction of the card it was drawn on and a card that grows by a padding moves
-marks made weeks ago onto the wrong line. A verdict card **arrives lit**: the
-`verdict` keyframe lands it at `--flash` and settles it to `--wash` over a second
-and a half. The label is a chip carrying a ✓, a ✕ or a ?, as TEXT rather than an
-icon, and the tick has a `pop` — described in the stylesheet as *"the one flourish
-that is purely a reward"*.
-
-So the green and the red are there. **Three things are missing, and the first is
-the one that makes the yellow case wrong today.**
-
-**(a) THE TWO HALVES DISAGREE, AND ONLY IN THE YELLOW CASE.** `verdictOf` already
-computes exactly the right thing — for each question, what its NEWEST reply says
-about the answer: `correct`, `wrong`, or `open`, where open is the amber default
-*because most replies in a doing sitting and most in a walkthrough are neither
-right nor wrong*. It is painted on the student's own answer and on the board
-holding the working. **It is not painted on the card.** The card takes its band
-from its own KIND instead — so for the not-right-or-wrong reply the answer says
-amber and the card says `--ink-3`, which is grey.
-
-*And this answers a question that has been sitting open.* Item 3 asks whether
-green on the answer and a tick on the card a finger's width apart is the same
-thing said twice. The want above settles it: **the response carries the band.**
-The answer keeps a quieter version of it, and one of the two is the moment while
-the other is a label. Decide which way round, but decide it once.
-
-**(b) THE BAND IS KEYED ON A CARD'S KIND AND THE QUESTION IS ABOUT AN ANSWER.**
-`REPLY_KIND` is `{wrong, correct, review, note}` — `lesson` is not in it. A
-`lesson` card is the commonest reply in a doing sitting and in a coaching one, so
-in exactly the sittings where *"we're not really in a right-or-wrong scenario"* is
-the normal case, there is no band at all.
-
-*And the fix is NOT to tint every lesson card.* The stylesheet's own objection is
-right and must survive: *"`lesson` and `recap` get no panel. They are the reading,
-and a page tinted end to end says nothing at all."* A transcript that is yellow
-from top to bottom has said nothing. The band belongs to a card that is a **reply
-to work that was handed in**, which is a question `verdictOf` already answers — so
-paint the card from the VERDICT rather than from the kind, and let a lesson card
-that is teaching rather than replying stay plain.
-
-**(c) THE FEELING IS NOT DESIGNED, ONLY COLOURED.** One `pop` on a tick is what
-exists. The ask is emotional and the two halves are not symmetrical.
-
-*Dopamine:* it can be bigger than it is. The card already arrives lit; the tick
-already pops. What is missing is that a correct answer is the end of a piece of
-work and nothing marks the *streak*, the problem being finished, or the write-up
-landing because of it.
-
-*Playful frustration, and the word playful is load-bearing:* **wrong is the
-normal state of learning.** This person will be wrong many times an evening, on
-purpose, and a board that punishes it teaches them to stop answering — which is
-the only outcome here that cannot be undone by the next card. So: no shake, no
-buzz, no red that fills the glass. One beat of character, then the card reads like
-any other card, and the way forward is the thing left on screen.
-
-**Decisions to take before writing, and the first is not negotiable.**
-
-- **REDUCE MOTION, AND THIS SESSION PAID FOR THE LESSON.** A flourish is pure
-  animation and somebody with that preference set must get none of it. What they
-  must still get is the COLOUR and the MARK, because those are the meaning. And
-  **nothing about the lesson's behaviour may depend on the flourish**: conflating
-  the animation with the behaviour is exactly what let the next board land on top
-  of an answer for everybody who has Reduce Motion on — see *The hold is not the
-  animation* under *Settled*. Build the feeling on top of a page that is already
-  correct without it, and test it with the preference both ways. jsdom has no
-  `matchMedia`, so a suite that does not set it tests only one of the two.
-- **Colour is never the only signal.** The ✓ / ✕ / ? chips carry it as text: they
-  inherit the colour, they scale with the type, they survive a card being folded
-  to its heading, and they work for somebody who cannot tell the green from the
-  red. Keep them, keep them as text, and do not replace them with icons.
-- **Tokens, not new colours.** `--good`, `--bad`, `--ask`, with `--wash` and
-  `--flash` mixed from the kind's own accent so light and dark both follow. A new
-  colour means adding it to BOTH blocks at the top of `board.css`, or half the
-  board changes theme and the rest does not.
-- **Do not say one thing five times.** Green on the answer, green on the board,
-  green on the card, a tick, and a flash is five. Pick the surface that carries
-  the moment and let the others be quiet.
-
-**Check.** `test/mine.js` owns the verdict on the student's own answer and is where
-the card half goes beside it — assert that a reply painted `correct` on the answer
-is painted `correct` on the card, that the open case is the amber token and not
-grey, and that a `lesson` card which is not replying to anything stays plain.
-`test/typed.js` is the suite that now runs a second window with
-`prefers-reduced-motion` on; assert there that the colour and the mark are both
-still on the glass with every animation refused.
-
-### 2. Put colibrì on the diarization repair, which is what all of the above is for
+### 1. Put colibrì on the diarization repair, which is what all of the above is for
 
 It is now the acceptance test of a mission — the record and the ship both — as
 well as the job that has been waiting since before any of this existed. **The
@@ -265,7 +168,7 @@ Three things about running it that are the board's rather than that file's:
 `research/PSYCH-ASR/HANDOFF.md` holds the *teaching* thread on the same code; it
 is a different conversation and the two do not merge.
 
-### 3. And the five things no test can hold
+### 2. And the five things no test can hold
 
 None of these is a build. Each is an evening in front of the thing.
 
@@ -288,13 +191,22 @@ None of these is a build. Each is an evening in front of the thing.
   line of code — its head names the shell on the glass, and the `type`/`typed`
   pair says whether the card was animated at all. A first reload after a ship
   still runs the old shell; the second gets the new one.
-- **The colours, in a real sitting.** The verdict down the student's own answer
-  and the labelled run of typed answers are both in and both covered by
-  `board/test/mine.js`. One thing to watch for, because a test cannot: whether
-  *answer 2 of 3* is useful or is a number on a bubble that did not need one —
-  the `nth` clause in `render`, and one line to remove. (The other question this
-  bullet used to ask — whether green on the answer and a mark on the card is the
-  same thing said twice — is answered in item 1: the response carries the band.)
+- **The verdict, in a real sitting, and this is the one that is a FEELING rather
+  than a fact.** The band is on the response, amber included; the answer and its
+  board are quieter; a run of right answers says how many; and `test/mine.js`,
+  `test/typed.js` and `test/theme.js` cover every one of those as a fact. Four
+  things no suite can say, and all four are about an evening of being wrong on
+  purpose. Whether *playful frustration* is what the cross dropping into place
+  actually reads as, or whether it reads as nothing at all — it is one beat by
+  design, and the design could be too quiet as easily as too loud. Whether the
+  streak chip is a reward or a scoreboard: **the failure mode is that it starts
+  to matter**, and somebody who does not want to break a run of four stops
+  answering until they are sure, which is the exact outcome the reset rule was
+  written to avoid. Whether amber on a doing sitting's every reply reads as
+  information or as wallpaper — a build evening is amber almost end to end, which
+  is honest and may still be too much. And whether *answer 2 of 3* is useful or
+  is a number on a bubble that did not need one: the `nth` clause in `render`,
+  and one line to remove.
 - **One document, all the way round** — the build is Settled; this is the evening.
   Open a `paper` sitting on a box, let it write into `writeups/<slug>/`, compile
   it, open `/library`, read it on the glass, draw on it, and say something is
@@ -349,6 +261,68 @@ as the answer.
 
 ## Settled, so nobody re-derives it
 
+- **ONLY THE ASKER MAY SAY WHY A DAEMON WAS STOPPED.** `restarting` and
+  `handover` are written BEFORE the signal, by whoever is asking; the daemon's
+  own exit merges `state: stopped` over the top and touches neither, because a
+  daemon receiving a SIGTERM cannot tell a bounce from a person leaving. It used
+  to write `restarting: False` — and that turned every restart nobody finished
+  into a record identical to `tutor agent stop`, which the watch loop obeys for
+  ever. **Measured in Galois Theory:** a ship's `tutor restart --tutors` wrote
+  the flag and signalled, the handoff turn took 97 seconds against the 90 it is
+  given, so the restart printed *still writing its handoff* and returned without
+  starting anything; the daemon exited through that line, wiped the flag, and
+  three generations of the serving chain revived that course's BOARD and refused
+  its TUTOR. Fifteen hours of a board serving perfectly with nothing reading it,
+  with `turn_signal` still naming an answer that had been handed in. From the
+  iPad: *"it says the tutor is down, though the app is working."* `mark_waking`
+  is what clears the flag and it is written by both halves of a start, so the
+  flag lives exactly as long as the restart is unfinished — and **a restart
+  nobody finished is now one the watch loop finishes** after `REATTACH_GRACE`.
+  `test/waking.py` holds both halves: an abandoned bounce is revived, and a
+  person's own stop is still never touched. `supervise.py` is READ by that test
+  and not changed — the contract is between the record the daemon leaves and the
+  watchdog that reads it.
+- **THE RESPONSE CARRIES THE BAND, and which card is a reply is a question about
+  the transcript rather than about its kind.** The verdict was computed once and
+  painted on the student's own answer and on the board holding the working; the
+  CARD took its band from its own KIND, so a reply that was neither right nor
+  wrong painted the answer amber and the card grey, a finger's width apart. It is
+  painted from the verdict now (`cardVerdict` in `board.js`,
+  `.card[data-verdict]` in the stylesheet, and the verdict rules sit AFTER the
+  kind rules on purpose — same specificity, later wins). **A reply is the first
+  card written after an answer**, nothing else in the question's run between the
+  two: `correct` and `wrong` say so themselves and carry their verdict wherever
+  they fall, and every other kind is amber only where it is answering something.
+  That is what makes the amber case exist at all — `REPLY_KIND` has no `lesson`
+  in it and `lesson` is the commonest reply in a sitting that DOES the work —
+  while keeping a `lesson` card teaching Chapter 5, and a `recap` anywhere,
+  plain. **A page tinted end to end says nothing**, which is the objection the
+  rule had to survive rather than the rule to overturn. The answer and its board
+  keep the colour at 2 mm mixed back toward the rule: the card is the moment, the
+  other two are a label, and green on the answer, green on the board, green on
+  the card, a tick and a flash is one thing said five times.
+- **A run of right answers says how many, and a wrong answer is the only thing
+  that resets it.** From the second one the card carries a green chip — *3 in a
+  row* — beside the tick, on the card where it happened, so scrolling back up the
+  evening shows where a run started and where it broke (`streakAt`, in the same
+  walk). Not reset by an aside, not by a question, not by an evening's teaching
+  in between: **wrong is the normal state of learning**, this person will be
+  wrong many times an evening on purpose, and a counter that also punished
+  thinking out loud teaches somebody to stop answering — the one outcome here the
+  next card cannot undo. For the same reason the red half is one beat and over:
+  the cross drops into place, and then the card reads like any other card.
+- **The flourish sits on top of a page that is already correct without it.**
+  With `prefers-reduced-motion` set the stylesheet refuses the flash, the pop,
+  the drop and the streak chip's entrance and **takes away nothing else** — every
+  band, every chip, the tick, the cross, the question mark and the count stay,
+  because those are the meaning and the movement is not. **Nothing in `board.js`
+  consults the preference for any of it**, which is the standing lesson: the last
+  time an animation and a behaviour shared a branch, the next board landed on top
+  of an answer for everybody with the preference set — see *Every card types out*
+  below. `test/typed.js` runs the second window that
+  reports `reduce`, asserts the colour and the mark are both still on the glass,
+  and asserts the reduced-motion block in `board.css` contains nothing but
+  `animation: none`.
 - **The front door is THREE LEVELS, and only the last of them is a plane.** The
   door is the families — large tappable things, each with the sentence
   `atlas.json` already carried for it and a line saying how many, how many live,
