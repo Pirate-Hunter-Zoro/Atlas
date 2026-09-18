@@ -63,6 +63,12 @@ const FORMS = [
   ['#/w/research/PSYCH-ASR/code/psych_asr/evaluate/grade.py::grade', 'code',
    { path: 'psych_asr/evaluate/grade.py', symbol: 'grade' }],
   ['#/w/courses/Probability/hw/ch07/4.1', 'hw', { set: 'ch07', problem: '4.1' }],
+  // A VENDOR TREE IS A SURFACE OF THE WORKSPACE THAT READS IT. There is no
+  // board in somebody else's repository, so the address names the workspace the
+  // sitting would be held in and the tree it is held over -- which is also what
+  // lets the front door route it: move the board, then draw the tree.
+  ['#/w/research/PSYCH-ASR/tree/vendor/colibri', 'tree',
+   { tree: 'vendor/colibri' }],
   ['#/w/courses/Probability/slate/0012', 'slate', { page: 12 }],
   // A workspace directory with spaces in its name is a real one -- `To Turn In`
   // -- and it is percent-encoded, never split.
@@ -118,6 +124,9 @@ const BAD = [
   '#/w/courses/Probability/code/a.py::1bad',
   '#/w/courses/Probability/hw/ch07',           // a set alone is not a form
   '#/w/courses/Probability/slate/12',
+  '#/w/courses/Probability/tree/vendor',          // a tree is family and name
+  '#/w/courses/Probability/tree/vendor/colibri/bin',
+  '#/w/courses/Probability/tree/../../etc',
   '#/w/courses/Probability/nope/x',
 ];
 let badOk = true;
@@ -236,6 +245,19 @@ window.scrollTo = () => {};
 window.scrollBy = () => {};
 window.addEventListener('error', (e) => fail('uncaught: ' + e.message));
 
+// What the board is handed for a tree: the shape `map.inside` answers in, with
+// the tree named on it so a scope taken off a box is spelt `@vendor/colibri/…`.
+const TREE = {
+  ok: true, of: '', name: 'colibri', depth: 'tree', kind: 'tree', up: '',
+  tree: 'vendor/colibri', exact: true, total: 1, capped: false,
+  why: 'colibri is pulled and not written here: read it and trace it, and '
+     + 'change nothing in it.',
+  nodes: [{ id: 'bin', name: 'bin', also: 'bin', kind: 'part', does: 'The driver commands.',
+            status: 'unknown', files: ['bin/coli-up'], dir: 'bin', steps: [],
+            doc: '', slide: null, note: '', inside: 1 }],
+  edges: [],
+};
+
 const json = (v) => Promise.resolve({ json: () => Promise.resolve(v), ok: true });
 let asked = [];
 window.fetch = (u) => {
@@ -247,6 +269,13 @@ window.fetch = (u) => {
   if (url === '/archive/' + SITTING) return json(PAST);
   if (url.indexOf('/archive/') === 0) return json({ ok: false, error: 'no such session' });
   if (url.indexOf('/view/') === 0) return json(VIEW);
+  // A VENDOR TREE'S PICTURE. Fetched on the tap, like the inside of a box, and
+  // answered under the tree's own name because a box id from somebody else's
+  // repository means nothing to this workspace's discovery.
+  if (url === '/map/tree/vendor/colibri') return json(TREE);
+  if (url.indexOf('/map/tree/') === 0) {
+    return json({ ok: false, error: 'no such tree' });
+  }
   return new Promise(() => {});          // everything else never answers
 };
 
@@ -411,6 +440,31 @@ const said = () => (el('pushed').hidden ? '' : el('pushed-text').textContent);
   if (/not in that sitting/.test(said())) {
     ok('a card that is not in that sitting is a miss');
   } else fail('a missing card in a sitting was not reported: ' + said());
+
+  // -- a vendor tree, which is the one surface that is not in this workspace.
+  // Somebody tracing colibrì is doing it FOR this workspace: the address names
+  // the workspace, the board is already serving it, and all that is left is to
+  // draw the foreign picture on the map surface this page already has.
+  at(W + '/tree/vendor/colibri');
+  await tick(5);
+  if (!el('map').hidden && /colibri/.test(el('map-title').textContent)) {
+    ok('a tree address draws that tree on this board\'s map');
+  } else fail('a tree address did not draw the tree: ' + el('map-title').textContent);
+  if (/pulled and not written/.test(el('map-why').textContent)) {
+    ok('and the picture says the rule, where somebody is looking at it');
+  } else fail('the tree picture did not say whose it is: ' + el('map-why').textContent);
+  const crumbs = [...el('map-crumb').querySelectorAll('.crumb')]
+    .map((b) => b.textContent);
+  if (crumbs[0] === 'Galois Theory' && crumbs[crumbs.length - 1] === 'colibri') {
+    ok('and the way back out of it is the workspace, which is where the '
+       + 'sitting would be held');
+  } else fail('the crumb does not lead back to the workspace: ' + crumbs.join('|'));
+
+  at(W + '/tree/vendor/nothing');
+  await tick(5);
+  if (/no vendor\/nothing in this repository/.test(said())) {
+    ok('a tree this repository does not pull is a miss, not an empty picture');
+  } else fail('a missing tree was not reported: ' + said());
 
   // -- and left. Going back to the workspace takes down whatever was up.
   at(W + '/doc/stage2-deck');

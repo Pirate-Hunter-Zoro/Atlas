@@ -495,6 +495,179 @@ try:
               % (made_up,), atlas.find_tree(made_up) is None)
     check("and a workspace is not reachable through the tree door either",
           atlas.find("vendor/colibri") is None)
+
+    # -----------------------------------------------------------------------
+    # AND THE SITTING ITSELF, WHICH IS THE HALF THAT WAS MISSING
+    # -----------------------------------------------------------------------
+    # *"A `trace` sitting over `vendor/colibri` is exactly the right shape and
+    # it is currently impossible."* It was impossible because a walkthrough's
+    # scope is resolved against the root of the workspace the board is SERVING,
+    # and no vendor tree is under one of those.
+    #
+    # The expensive answer was to let a sitting be held over a foreign root, at
+    # which point `Repo.root` stops being the single answer to "where are we".
+    # This is the other one: the sitting is held in the workspace that is
+    # READING the tree, and the tree is named IN THE SCOPE. So what has to be
+    # true is one thing said three ways -- the scope reaches out, the sitting
+    # does not, and the tree is never written to.
+    ws = os.path.join(home, "research", "PSYCH-ASR")
+
+    chosen, unknown = walk.resolve_any(
+        ws, ["psych_asr/grade.py", "@vendor/colibri/bin/coli-up::warm"])
+    check("a scope can name this workspace's own source and a vendor tree's "
+          "in one list, which is what a trace held here over somebody else's "
+          "code actually is",
+          not unknown and [u["name"] for u in chosen]
+          == ["psych_asr/grade.py", "@vendor/colibri/bin/coli-up::warm"])
+    check("and the foreign one says which repository it is in, so whatever "
+          "opens the file knows where to look",
+          chosen[1]["tree"] == "vendor/colibri"
+          and chosen[1]["root"] == trees["vendor/colibri"]["root"]
+          and chosen[1]["path"] == "bin/coli-up"
+          and not chosen[0].get("tree"))
+    check("while the workspace's own resolver is untouched and still refuses "
+          "a marked name, because one root is all it answers for",
+          walk.resolve(ws, ["@vendor/colibri/bin/coli-up"])[1]
+          == ["@vendor/colibri/bin/coli-up"])
+
+    # A NAME FROM A REQUEST IS LOOKED UP, NEVER CONSTRUCTED -- on both halves of
+    # it. The marker is not a licence to reach anywhere: the tree is found in
+    # what `atlas.trees()` listed, and the rest is found in what that tree's own
+    # walk listed.
+    for made_up in ("@vendor/nothing/x.py", "@vendor/colibri/nope.py",
+                    "@vendor/colibri/bin/coli-up::missing",
+                    "@vendor/colibri/README.md", "@vendor/colibri",
+                    "@research/PSYCH-ASR/psych_asr/grade.py",
+                    "@vendor/../../etc/passwd", "@"):
+        check("a scope that matches nothing is refused by name: %r" % (made_up,),
+              walk.resolve_any(ws, [made_up])[1] == [made_up])
+
+    st = {"walk": ["@vendor/colibri/bin/coli-up::warm"]}
+    check("the scope is re-resolved on the way out, the way a local one is",
+          [u["name"] for u in walk.scope(ws, st)]
+          == ["@vendor/colibri/bin/coli-up::warm"])
+    check("and the badge says whose code it is -- a label reading warm alone "
+          "would not",
+          walk.sitting_label(walk.scope(ws, st)) == "Walkthrough — colibri/warm")
+
+    # WHAT THE TUTOR IS TOLD, and the one thing it could get badly wrong.
+    walk_repo = course_repo.Repo(ws)
+    live_st = walk_repo.state()
+    live_st.update({"session": "walk",
+                    "walk": ["@vendor/colibri/bin/coli-up::warm"]})
+    json.dump(live_st, open(walk_repo.state_path, "w"))
+    line = sense.session_sense(walk_repo)
+    check("the tutor is told this is somebody else's code",
+          "NOT THIS REPOSITORY'S CODE" in line and "vendor/colibri" in line)
+    check("and that a defect found in it is not work to be done",
+          "change nothing in it" in line and "not to be" not in line
+          and "do not write a patch" in line)
+    check("and which workspace the sitting belongs to, because that is where "
+          "the cards are filed",
+          "The sitting is PSYCH-ASR's" in line)
+    live_st["walk"] = ["psych_asr/grade.py"]
+    json.dump(live_st, open(walk_repo.state_path, "w"))
+    check("and a sitting over this repository's own source is told none of it",
+          "NOT THIS REPOSITORY'S CODE" not in sense.session_sense(walk_repo))
+
+    # THE TREE IS NEVER WRITTEN TO. Not by opening the sitting, not by drawing
+    # it, not by anything: it is somebody else's repository at a commit.
+    def _shape_of(root):
+        out = []
+        for here, dirs, files in os.walk(root):
+            for name in sorted(files):
+                path = os.path.join(here, name)
+                out.append((os.path.relpath(path, root),
+                            os.path.getsize(path), os.stat(path).st_mtime))
+        return sorted(out)
+
+    tree_root = trees["vendor/colibri"]["root"]
+    before = _shape_of(tree_root)
+
+    # --- through the real handler -------------------------------------------
+    worker = tikz.TikzWorker(walk_repo)
+    worker.start()
+    board = hub.Hub(walk_repo, worker)
+    board.payload = json.dumps(board.build())
+    sock = socket.socket()
+    sock.bind(("127.0.0.1", 0))
+    port = sock.getsockname()[1]
+    sock.close()
+    httpd = ThreadingHTTPServer(("127.0.0.1", port), handler.Handler)
+    httpd.daemon_threads = True
+    httpd.repo = walk_repo
+    httpd.hub = board
+    threading.Thread(target=httpd.serve_forever, daemon=True).start()
+    BASE = "http://127.0.0.1:%d" % port
+
+    def post(path, body):
+        req = urllib.request.Request(BASE + path, method="POST",
+                                     data=json.dumps(body).encode("utf-8"),
+                                     headers={"Content-Type": "application/json"})
+        try:
+            with urllib.request.urlopen(req, timeout=30) as r:
+                return r.status, json.loads(r.read().decode("utf-8"))
+        except urllib.error.HTTPError as exc:
+            return exc.code, json.loads(exc.read().decode("utf-8"))
+
+    def get(path):
+        try:
+            with urllib.request.urlopen(BASE + path, timeout=30) as r:
+                return r.status, json.loads(r.read().decode("utf-8"))
+        except urllib.error.HTTPError as exc:
+            return exc.code, json.loads(exc.read().decode("utf-8"))
+
+    try:
+        status, body = post("/session", {
+            "session": "walk", "over": ["@vendor/colibri/bin/coli-up::warm"]})
+        check("a trace over a vendor tree opens, which is the whole of this item",
+              status == 200 and body.get("ok"))
+        opened = walk_repo.state()
+        check("and it is a sitting in the workspace that is reading the tree, "
+              "not a board in somebody else's repository",
+              opened.get("session") == "walk"
+              and opened.get("walk") == ["@vendor/colibri/bin/coli-up::warm"]
+              and not os.path.isdir(os.path.join(tree_root, "live")))
+        check("the sitting's own files are this workspace's",
+              os.path.isdir(os.path.join(ws, "live", "cards")))
+        status, body = post("/session", {
+            "session": "walk", "over": ["@vendor/nothing/x.py"]})
+        check("a tree this repository does not pull is refused by name",
+              status == 400 and body.get("unknown") == ["@vendor/nothing/x.py"])
+
+        # THE DIAGRAM OF A TREE NEEDS A SURFACE, and it is the board's own map
+        # rather than a second renderer: `map.inside` already answers with a
+        # picture that is not the workspace's, and a foreign repository is
+        # exactly that shape.
+        status, drawn = get("/map/tree/vendor/colibri")
+        check("a tree has a picture, on the surface that already draws one",
+              status == 200 and drawn.get("ok")
+              and sorted(n["name"] for n in drawn["nodes"]) == ["bin", "src"])
+        check("and the picture says whose it is, so a scope taken off it is "
+              "spelt with the tree in it",
+              drawn.get("tree") == "vendor/colibri"
+              and drawn.get("depth") == "tree")
+        check("and says the rule where somebody is looking at it",
+              "pulled and not written here" in (drawn.get("why") or ""))
+        check("nothing on it is working, next or done: none of it is work this "
+              "side has taken on",
+              all(n["status"] == "unknown" for n in drawn["nodes"])
+              and not [n for n in drawn["nodes"] if n["steps"]])
+        status, deeper = get("/map/tree/vendor/colibri/inside/bin")
+        check("a box of it opens the way a box of this repository does",
+              status == 200 and deeper.get("tree") == "vendor/colibri"
+              and [n["name"] for n in deeper["nodes"]] == ["coli-up"])
+        for missed in ("/map/tree/vendor/nothing",
+                       "/map/tree/research/PSYCH-ASR",
+                       "/map/tree/vendor/colibri/inside/nowhere"):
+            check("a name that matches nothing is a 404 rather than a picture: "
+                  "%s" % missed, get(missed)[0] == 404)
+    finally:
+        httpd.shutdown()
+
+    check("and after all of it the tree is byte for byte what it was: it is "
+          "read, drawn and traced, and never written to",
+          _shape_of(tree_root) == before)
 finally:
     if was is None:
         os.environ.pop("TUTORBOARD_COURSES", None)

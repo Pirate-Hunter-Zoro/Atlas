@@ -15,6 +15,7 @@ from ...course import plan
 from ...course import homework
 from .. import multipart
 from .. import spawn
+from ... import atlas
 from ... import carry
 from ... import direction
 from ... import sense
@@ -72,6 +73,43 @@ def get(h, repo, path):
                                 "error": "there is nothing inside that"},
                                status=404)
         found["ok"] = True
+        return h.send_json(found)
+
+    if path.startswith("/map/tree/"):
+        # A VENDOR TREE'S PICTURE, WHICH IS NOT THIS WORKSPACE'S.
+        #
+        # `/map/inside/` goes one level DOWN the serving workspace's map. This
+        # goes SIDEWAYS, into a repository nobody hands work in to, and it is
+        # fetched on a tap for the same reason: the payload is rebuilt four
+        # times a second and a second repository's whole source is not going on
+        # it for a picture nobody has asked to see.
+        #
+        #     /map/tree/<family>/<name>                 the tree's own picture
+        #     /map/tree/<family>/<name>/inside/<id>     one box of it, opened
+        #
+        # The tree is looked up in what `atlas.trees()` found and is never
+        # constructed into a path -- the same rule as `map.find` above, and
+        # `find_tree` refuses a workspace as flatly as it refuses a name nobody
+        # has. A miss is a 404 and the picture already on the glass is untouched.
+        rest = path[len("/map/tree/"):].strip("/")
+        want, _, node_id = rest.partition("/inside/")
+        tree = atlas.find_tree(want)
+        if not tree:
+            return h.send_json({"ok": False, "error": "no such tree"},
+                               status=404)
+        if node_id:
+            found = mapping.inside(tree["root"], node_id)
+        else:
+            found = mapping.of_tree(tree["root"], tree["dir"], tree["id"])
+        if not found:
+            return h.send_json({"ok": False,
+                                "error": "there is nothing inside that"},
+                               status=404)
+        found["ok"] = True
+        # ON EVERY LEVEL OF IT, not only the first. A box two deep in a foreign
+        # picture is still foreign, and the scope its tap produces is spelt with
+        # the tree in it or it names a path this workspace has not got.
+        found["tree"] = tree["id"]
         return h.send_json(found)
 
     return NOT_MINE
@@ -531,7 +569,7 @@ def post(h, repo, path):
             over = payload.get("over")
             if not isinstance(over, list):
                 over = [over] if over else []
-            chosen, unknown = walk.resolve(repo.root, [str(x) for x in over])
+            chosen, unknown = walk.resolve_any(repo.root, [str(x) for x in over])
             if unknown:
                 return h.send_json({"ok": False, "error": "no such file",
                                        "unknown": unknown[:8]}, status=400)

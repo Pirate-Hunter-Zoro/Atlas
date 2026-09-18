@@ -592,7 +592,7 @@ def walk_sense(repo, st):
 
     named = ", ".join(u["label"] for u in chosen)
     one = len(chosen) == 1
-    return (WALK_SENSE +
+    return (WALK_SENSE + _elsewhere_sense(repo, chosen) +
             "THIS WALKTHROUGH IS OVER %s: %s. Read %s before your first card. "
             "The scope is theirs and is not yours to widen: everything else in "
             "this repository is off the table for this sitting, however relevant "
@@ -603,6 +603,37 @@ def walk_sense(repo, st):
             "first step is."
             % ("one file" if one else "%d files" % len(chosen), named,
                "it" if one else "all of them"))
+
+
+def _elsewhere_sense(repo, chosen):
+    """The rule for tracing a repository that is not this one, or "".
+
+    A scope spelt `@vendor/colibri/...` is somebody else's source, pulled at a
+    commit and never written here. The sitting is still THIS workspace's -- its
+    cards, its marks and its transcript are filed here -- and the one thing a
+    turn could get badly wrong is to treat what it finds as work: a defect in
+    colibrì is not a task, and a patch to it is a change to a submodule nobody
+    on this side maintains.
+
+    Said only when the scope actually reaches out of the workspace, because a
+    rule about somebody else's code on a sitting that has none is one more
+    paragraph a cold turn pays for and cannot act on.
+    """
+    trees = []
+    for u in chosen:
+        if u.get("tree") and u["tree"] not in trees:
+            trees.append(u["tree"])
+    if not trees:
+        return ""
+    here = os.path.basename(repo.root.rstrip(os.sep))
+    return ("SOME OF THIS IS NOT THIS REPOSITORY'S CODE. Everything marked `@` "
+            "in the scope below is in %s, which %s pulled and not written here. "
+            "Read it, trace it, and change nothing in it: do not propose an "
+            "edit, do not write a patch, and do not turn a weakness you find "
+            "there into work to be done. The sitting is %s's -- that is where "
+            "the cards are filed and where anything that comes out of this "
+            "belongs. "
+            % (" and ".join(trees), "is" if len(trees) == 1 else "are", here))
 
 
 def skip_sense(repo):

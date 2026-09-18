@@ -626,7 +626,7 @@ def cmd_open(live, args):
             # bare dash on the board where the chapter line goes.
             chapter = review.sitting_label(chosen, review.kind(live.root) or "chapters")
     if session == "walk":
-        chosen, unknown = walk.resolve(live.root, over)
+        chosen, unknown = walk.resolve_any(live.root, over)
         for name in unknown:
             print("  no file or definition called %r in this repository, ignored: %s"
                   % (name, name), file=sys.stderr)
@@ -1105,8 +1105,10 @@ def cmd_walk(live, args):
             print("  a path (psych_asr/evaluate/grade.py), a module "
                   "(psych_asr.evaluate.grade), or a definition inside one "
                   "(psych_asr.evaluate.grade.grade)", file=sys.stderr)
+            print("  a vendor tree is named with the tree in front of it: "
+                  "@vendor/colibri/bin/coli-up", file=sys.stderr)
             return 1
-        chosen, unknown = walk.resolve(live.root, rest)
+        chosen, unknown = walk.resolve_any(live.root, rest)
         for name in unknown:
             print("no file or definition called %r in this repository" % name,
                   file=sys.stderr)

@@ -173,6 +173,37 @@ A submodule nobody has pulled is an empty directory, and an empty directory is n
 `tutorboard.json` sitting inside somebody else's repository does not make it a workspace either:
 the family decides, not a file in the tree.
 
+**A trace over a tree is a sitting in the workspace that is READING it.** That is the decision,
+and the alternative was expensive: a sitting held over a foreign root means `Repo.root` stops
+being the single answer to *where are we*, and `scope`, `sense`, the card writer and the archive
+all start having to say WHICH root. Somebody tracing colibri is doing it *for* PSYCH-ASR, so the
+sitting, the cards, the marks and the transcript are PSYCH-ASR's, and the tree is only its scope.
+
+- **The tree is named in the scope**, spelt `@vendor/colibri/bin/coli-up::warm` — the marker, the
+  tree as `atlas.trees` names it, then exactly what a name in that repository would be. `walk`
+  keeps two resolvers: `resolve` answers for one root and goes on doing only that,
+  `resolve_elsewhere` looks the tree up through `atlas.find_tree` and then asks `resolve` against
+  that tree's own root, and `resolve_any` is the single entry point everything uses — the board,
+  the command line, and the re-resolution `scope` does on the way out.
+- **The tutor is told whose code it is.** `sense._elsewhere_sense` fires only when the scope
+  actually reaches out: read it, trace it, change nothing in it, and a weakness found in it is not
+  work to be done. The sitting's workspace is named, because that is where anything coming out of
+  it belongs.
+- **The picture is one level SIDEWAYS, and not a second renderer.** `GET /map/tree/<family>/<name>`
+  answers with `map.of_tree`, which is `map.status` in the shape `map.inside` already answers in —
+  so `board.js`'s `mapDeep` holds it and `paintMap` draws it. `…/inside/<id>` opens a box of it,
+  and `mapTree` on the client is what makes every tap inside a foreign picture ask the tree's route
+  rather than this workspace's: the two have boxes of the same name, and answering the wrong one
+  draws somewhere else with nothing on the glass saying so.
+- **Nothing on a tree's picture is working, next or done**, because none of it is work this side
+  has taken on, and the one way to work offered on a foreign box is a trace. The rule is written on
+  the picture where somebody is looking at it, not only in the prompt of a sitting they have not
+  opened yet.
+- **The front door is the door.** A tree's sheet offers *Trace it*, addressed at the workspace the
+  board is already serving; where it is serving none, the sheet says so rather than offering a
+  button that cannot work. `test/walk.py` asserts the tree is byte for byte unchanged after all of
+  it.
+
 ### Work that came back while you were somewhere else### Work that came back while you were somewhere else
 
 Set a turn going in PSYCH-ASR, go and do something in Galois-Theory, and until now the only way
@@ -355,6 +386,7 @@ is how a green suite gets read as covering something it never touched.
 #/w/…/archive/<sitting>/<nnnn>             one card in a finished sitting
 #/w/…/doc/<ident>[/p<n>]                   a document, optionally one page
 #/w/…/code/<path>[::<symbol>]              a walk unit
+#/w/…/tree/<family>/<name>                 a vendor tree, drawn and read here
 #/w/…/hw/<set>/<problem>                   one problem of a problem set
 #/w/…/slate/<nnnn>                         one page of handwriting
 ```
