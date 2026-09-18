@@ -2,33 +2,31 @@
 PLAN.md at the root has the order of what is open; the README points at it.
 
 **Closed in Chapter 4, never re-teach:** 4.1, 4.4, 4.5, 4.6, 4.7, 4.8, 4.9,
-4.10, 4.11. 4.2 is out -- they skipped it and asked for it to stay skipped.
-Only 4.3 is left. ch04-homework.tex is 8 of 11 written up, builds clean at 4
-pages, handwriting filed, every line of it theirs. One debt: 4.5 is closed in
-teaching but its solution region is empty -- their answer is slate page 11,
-answers t0050-r1..r15.
+4.10, 4.11. 4.2 is out -- they asked for it to stay skipped. Only 4.3 is left.
+ch04-homework.tex is 8 of 11 written up, builds clean at 4 pages, handwriting
+filed, every line theirs. Do not chase the 04.5 EMPTY flag: archived t0050-r15
+is their counterexample (K=Q, L=Q(2^1/3), alpha=2^1/6), already in the tex as
+the remark.
 
-**Solid, do not explain again:** degree as vector-space dimension, the tower
-law, minimal polynomials and their degree, bases, countability of K[x], and
-transcendence as the licence to compare coefficients power by power.
+**Solid, do not explain again:** degree as vector-space dimension, the tower law,
+minimal polynomials and their degree, bases, countability of K[x], transcendence
+as licence to compare coefficients, the column convention for the matrix of a
+linear map, and the concrete case of 4.3 -- K=Q, alpha=root 2, T_alpha =
+[[0,2],[1,0]], squared to 2I, chi = x^2 - 2 = m, checked by feeding the vector 1.
 
-**4.11 closed this session.** L = K(t), tau substituting t^2 for t, t not in
-the image. They had the parity split -- even powers left, odd right -- with
-one bad clause welded on: "both polynomials are non-zero since t is
-transcendental." Two errors. Transcendence does not make a polynomial
-non-zero, and non-zero is no contradiction, since two non-zero things can be
-equal. Card 0036 replaced that clause with coefficient matching, and r29
-answered: all those coefficients must be zero, a contradiction since g is not
-0. Correct, and they picked the right one of the two zeros -- g, not f.
+**4.3 is one sentence from closed.** Open card 0044 asks it: chi - m has degree
+below n and kills alpha, so minimality of m forces chi - m = 0, hence chi = m.
+Unanswered; the session ended there. Then transcribe 4.3, `board hw file` r36,
+`board hw build`. Then the worksheet "Field Extensions and the Ring F[x]",
+Problem 6, half-open.
 
-**Next: 4.3, posed in full on card 0037, unanswered.** The open ask is small:
-the 2x2 matrix of multiplication by root 2 in the basis (1, root 2) of
-Q(root 2). Then its characteristic polynomial is x^2 - 2, then the general
-argument in dimension n. After that, the worksheet "Field Extensions and the
-Ring F[x]", Problem 6 half-open.
+**What blocked them was the degree, not divisibility.** r36 asks two questions
+instead of answering: "how to prove in general?" and "what degree is chi?". They
+had never connected the size of the matrix to the degree of the extension, so
+chi had no degree in their head and m = chi had nothing to compare. Card 0044
+supplies it: deg chi = n because T_alpha acts on an n-dimensional space.
 
-**How this student works.** They are never stuck on a fact, only on assembly,
-and do not recognise their own lines as a finished proof. Read the LAST line
-before grading, and the side bubbles -- the real question lives there. A
-revision is often appended rather than recopied, so a new page can be two
-lines that only parse on top of the previous one.
+**How this student works.** Never stuck on a fact, only on assembly. A revision
+is appended, never recopied, so a page can be two lines that only parse on top of
+the one before. Read the LAST line and the side bubbles first: "Don't know how to
+proceed" is the real question, and it names a missing object, not a missing step.
