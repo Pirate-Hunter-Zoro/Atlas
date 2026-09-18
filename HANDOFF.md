@@ -16,7 +16,9 @@ sitting, started from the glass, watched through four states, and handed a job i
 a workspace nobody is looking at. The front door is four doors rather than a
 pinchable grid, and behind a workspace the map opens to the module and to the
 class or function inside it — with the arrows rolled up to whatever depth is
-showing, and a box a pattern found rather than a parser saying so.
+showing, and a box a pattern found rather than a parser saying so. A vendor tree
+is drawn on that same surface and traced from it, in the workspace that is
+reading it.
 
 **What is left is what still sends somebody to a keyboard**, and that is the next
 section.
@@ -56,10 +58,10 @@ An item is not done because its code runs. It is done when the suite is green,
 the rule is written where the next turn will read it, and the item is out of this
 file.
 
-**Two of them are not builds and do not come out this way.** Item 1's last part
-is a standing rule — it lands in `TEACHING.md` and `sense.py` and then it is a
-*Settled* entry like anything else. Item 5 is a list of evenings in front of the
-thing, and only the person holding the iPad can strike those.
+**Two of them are not builds and do not come out this way.** Item 1's middle
+part is a standing rule — it lands in `TEACHING.md` and `sense.py` and then it is
+a *Settled* entry like anything else. Item 4 is a list of evenings in front of
+the thing, and only the person holding the iPad can strike those.
 
 ---
 
@@ -96,7 +98,7 @@ when that session ships.
 **`projects/libr-local-llm` has its own handoff and it is still the live one.**
 The five pieces it asked for against the board are shipped and are under
 *Settled* below; what is left in that file is the diarization job itself, which
-is item 4 here.
+is item 3 here.
 
 ---
 
@@ -121,58 +123,20 @@ where a sent answer stays once it is sent — and so is the meeting deck, chosen
 project by project, read and marked up on the glass, with a mark on a project's
 frame becoming that project's next direction — and so, now, is the front door:
 four doors rather than a pinchable grid, a family behind each of them, and a
-project map that opens to the module and to the class or function inside it. All
-of that is Settled below.**
-Item 1 is the half of the vendor work that needs a decision about what a
-sitting's root IS, and it is not blocking anything. Item 2 is the one that
-matters most: the map is drawn now, so a sitting can finally belong to a box on
-it. Item 3 is the verdict a person can feel, and it settles a question item 5
-has been holding open. Item 4 is the acceptance test of the mission and is also
-the job all of it exists for. Item 5 is not a build.
+project map that opens to the module and to the class or function inside it —
+and so is somebody else's repository, read on that same map and traced from it
+in the workspace that is reading it, with nothing handed in to it. All of that
+is Settled below.**
+Item 1 is the one that matters most: the map is drawn now, so a sitting can
+finally belong to a box on it. Item 2 is the verdict a person can feel, and it
+settles a question item 4 has been holding open. Item 3 is the acceptance test of
+the mission and is also the job all of it exists for. Item 4 is not a build.
 
 ---
 
 ## What to do next
 
-### 1. A sitting held over a vendor tree
-
-**What landed and what did not.** A vendor tree is discovered, walkable and
-diagrammable: `atlas.trees()` lists them, `atlas.find_tree()` looks one up,
-`walk.units` and `map.shape` take a vendor root and answer, the front door draws
-them under the Vendor door with the commit each is pinned at, and `atlas.json`'s
-own prose now makes the two claims separately — *not handed in to* and *still
-read*. See the *Settled* entry.
-
-**What is missing is the sitting.** *"A `trace` sitting over `vendor/colibri` is
-exactly the right shape and it is currently impossible"*, and it still is. A
-walkthrough's scope is resolved by `walk.resolve(repo.root, names)` against the
-root of the workspace the board is SERVING, and `vendor/colibri` is not under
-any of them. So the tree's sheet on the front door says what it is and offers
-nothing to open.
-
-*Decide the one thing that matters, and it is not a path.* Either a sitting may
-be held over a root that is not the serving workspace's — in which case
-`Repo.root` stops being the single answer to "where are we", and `scope`,
-`sense`, the card writer and the archive all have to say WHICH root, which is
-the expensive version — or a trace over a tree is a sitting in the workspace
-that is READING it, with the tree named as scope and resolved through a second,
-explicitly-vendor resolver. The second keeps one root per sitting and is almost
-certainly right: somebody tracing colibrì is doing it *for* PSYCH-ASR, and the
-cards belong in PSYCH-ASR.
-
-*Then the diagram of a tree needs a surface.* The board's map is the serving
-workspace's, and `/map/inside/<id>` is scoped to `repo.root` the same way. A
-route that answers for a tree (`atlas.find_tree`, then `map.status`) is small;
-what is NOT decided is whether the board's map surface draws it with the boxes
-inert, or whether the front door grows a third level of its own. Do not add a
-second map renderer either way — `board.js`'s `paintMap` is the only one and
-`mapDeep` is already the shape a foreign picture would take.
-
-**Check.** `test/walk.py` owns what is walkable and already has the vendor half;
-what it gains is that a trace over a tree opens, that it is a sitting in a real
-workspace, and that nothing about the tree is written to.
-
-### 2. A sitting belongs to ONE component, and leaving it is a new sitting
+### 1. A sitting belongs to ONE component, and leaving it is a new sitting
 
 **The want, and the map it needs now exists.** *"When a tutoring session is
 launched, that should happen from tapping on the particular component of that
@@ -203,7 +167,7 @@ the tray."* Anything it cannot place comes back rather than being dropped.
 up against what discovery found, and builds the sitting's label out of what came
 back rather than out of anything a browser sent.
 
-**So three things are missing, and the middle one is the whole of the ask.**
+**So two things are missing, and the second one is the whole of the ask.**
 
 **(a) The map tap is one door among several, and the ask is that it is THE door.**
 `config.aim_for`'s own note records the consequence: *"A SITTING NOBODY OPENED FROM
@@ -239,7 +203,7 @@ retrieval component"* is an instruction to a person holding a tablet, which is t
 same defect as *"two words to add when you write it up."* Every place already has
 an ADDRESS (§2.1) and the board already renders one as something you can open, so
 the card names the box by its address and the tap opens the sitting there. With
-item 1's diagram, the boundary it is pointing at is also visible.
+the map's own diagram, the boundary it is pointing at is also visible.
 
 *Decide: what happens when that box has no TODO.* The want says *"which should
 hopefully have a TODO associated with it"* — hopefully is doing a lot of work
@@ -250,11 +214,6 @@ that knows what it should say), or the box is opened with nothing in it and the
 first card asks. **Proposing it is better and is barely more work**, because the
 discovery is the valuable part and it is lost otherwise.
 
-**(c) And the refactor will move every box, which is the ordering constraint.**
-Item 1 rewrites what a component IS — from a directory to a thing in a diagram —
-and the TODOs are attached by path. So: item 1 first, then this. Doing them the
-other way round means attaching the plan to boxes that are about to be renamed.
-
 **Check.** `test/map.py` owns *"the map is of the content, and none of it is
 invented"* and already guards the step-to-box attachment; extend it to assert a
 box with no steps is KNOWN to have none rather than silently empty. `test/aiming.py`
@@ -264,7 +223,7 @@ pretending to a focus it has not got. `test/teaching.py` for the rule itself, in
 both places it has to agree. And the hand-off card's address is `test/address.js`'s
 subject: assert the box it names opens.
 
-### 3. A verdict you can feel: dopamine for right, playful frustration for wrong
+### 2. A verdict you can feel: dopamine for right, playful frustration for wrong
 
 **The want.** *"dopamine for the user when they answer correctly, and playful
 frustration when they answer incorrectly. When we're in the context of the user
@@ -298,7 +257,7 @@ holding the working. **It is not painted on the card.** The card takes its band
 from its own KIND instead — so for the not-right-or-wrong reply the answer says
 amber and the card says `--ink-3`, which is grey.
 
-*And this answers a question that has been sitting open.* Item 5 asks whether
+*And this answers a question that has been sitting open.* Item 4 asks whether
 green on the answer and a tick on the card a finger's width apart is the same
 thing said twice. The want above settles it: **the response carries the band.**
 The answer keeps a quieter version of it, and one of the two is the moment while
@@ -364,7 +323,7 @@ grey, and that a `lesson` card which is not replying to anything stays plain.
 `prefers-reduced-motion` on; assert there that the colour and the mark are both
 still on the glass with every animation refused.
 
-### 4. Put colibrì on the diarization repair, which is what all of the above is for
+### 3. Put colibrì on the diarization repair, which is what all of the above is for
 
 It is now the acceptance test of a mission — the record and the ship both — as
 well as the job that has been waiting since before any of this existed. **The
@@ -391,7 +350,7 @@ Three things about running it that are the board's rather than that file's:
 `research/PSYCH-ASR/HANDOFF.md` holds the *teaching* thread on the same code; it
 is a different conversation and the two do not merge.
 
-### 5. And the five things no test can hold
+### 4. And the five things no test can hold
 
 None of these is a build. Each is an evening in front of the thing.
 
@@ -420,7 +379,7 @@ None of these is a build. Each is an evening in front of the thing.
   *answer 2 of 3* is useful or is a number on a bubble that did not need one —
   the `nth` clause in `render`, and one line to remove. (The other question this
   bullet used to ask — whether green on the answer and a mark on the card is the
-  same thing said twice — is answered in item 3: the response carries the band.)
+  same thing said twice — is answered in item 2: the response carries the band.)
 - **One document, all the way round** — the build is Settled; this is the evening.
   Open a `paper` sitting on a box, let it write into `writeups/<slug>/`, compile
   it, open `/library`, read it on the glass, draw on it, and say something is
@@ -537,7 +496,37 @@ as the answer.
   else's repository does not make one either, because the family decides.
   **Widening the walk is not widening what counts as a workspace.** The prose in
   `atlas.json` makes both claims separately so the next reader cannot merge
-  them. What is still missing is the sitting itself — item 1.
+  them.
+- **A TRACE OVER A TREE IS A SITTING IN THE WORKSPACE THAT IS READING IT.** Not
+  a sitting held over a foreign root: that would end `Repo.root` as the single
+  answer to *where are we* and make `scope`, `sense`, the card writer and the
+  archive each say WHICH root. Somebody tracing colibrì is doing it FOR
+  PSYCH-ASR, so the cards, the marks and the transcript are PSYCH-ASR's and the
+  tree is only the scope. **The tree is named IN the scope** —
+  `@vendor/colibri/bin/coli-up::warm`, the marker, the tree as `atlas.trees`
+  spells it, then exactly what a name in that repository would be. Two
+  resolvers, deliberately: `walk.resolve` still answers for one root and only
+  that, `walk.resolve_elsewhere` goes through `atlas.find_tree` and then asks
+  `resolve` against the tree's own root, and `walk.resolve_any` is the single
+  entry point the board, the command line and the re-resolution all use. A name
+  from a request is looked up on both halves — the tree in what `trees()`
+  found, the path in what that tree's own walk found — and a miss is a miss.
+  `sense._elsewhere_sense` tells the turn whose code it is and says the one
+  thing it could get badly wrong: **a weakness found in a pulled repository is
+  not work to be done.**
+- **A tree's picture is one level SIDEWAYS, and there is still one renderer.**
+  `map.of_tree` is `map.status` in the shape `map.inside` already answers in, so
+  `mapDeep` holds it and `paintMap` draws it; `GET /map/tree/<family>/<name>`
+  and `…/inside/<id>` are the surface, on the tap and never on a payload.
+  `mapTree` on the client is what makes every tap inside a foreign picture ask
+  the tree's route — the workspace and the tree have boxes of the same name, and
+  answering the wrong one draws somewhere else with nothing on the glass saying
+  so. **Nothing on it is working, next or done**, because none of it is work
+  this side has taken on, and the one way to work offered on a foreign box is a
+  trace. The front door's tree sheet offers *Trace it*, addressed at the
+  workspace the board is already serving; where it is serving none, the sheet
+  says so rather than offering a button that cannot work. `test/walk.py` asserts
+  the tree is byte for byte unchanged after the whole of it.
 - **A new thing goes in a module named for the one job it does, and if that
   means moving something first, move it first.** A standing rule rather than a
   task, because every workspace has a map whose boxes are its modules and whose
