@@ -2855,10 +2855,24 @@ function typingCards() { return typingNow > 0 && Date.now() < typingUntil; }
 
 /* One hold on the page, taken and given back in pairs, and the card it is for.
    The node is what `placeWriter` looks for; see `typingHeld`. */
+/* AND TAKING A HOLD ARMS THE WATCHDOG RATHER THAN ASKING IT ANYTHING.
+
+   This called `keepTyping()`, which increments nothing and answers one
+   question -- *had the deadline already passed* -- against a `typingUntil` left
+   behind by the LAST card. `typingNow` is bumped on the line above, so the test
+   passes its own guard, and the deadline it compares to is as old as the gap
+   between one card and the next. A card arriving six minutes after the previous
+   one therefore traced a `stall` before it had painted a single character.
+
+   That is a diagnostic telling the exact lie the diagnostic exists to prevent.
+   `board/README.md` says to read the trace before touching this code, and it
+   was read: `stall late=358559 held=1` on the frame a card began, beside that
+   same card's truthful `typed … stalled=0` four seconds later. The gap between
+   two cards is not a stall in either of them. */
 function holdTyping(node) {
   typingNow++;
   if (node && typingHeld.indexOf(node) === -1) typingHeld.push(node);
-  keepTyping();
+  typingUntil = Date.now() + TYPE_STALL;
 }
 
 /* Still going. Called on every frame the animation actually gets, and it

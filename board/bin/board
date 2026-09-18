@@ -979,8 +979,40 @@ def cmd_write(live, args):
     if title:
         head += "title: %s\n" % title
     head += "---\n"
-    with open(path, "w", encoding="utf-8") as fh:
-        fh.write(head + body.rstrip() + "\n")
+    # A CARD IS NEVER HALF ON THE BOARD.
+    #
+    # `open(path, "w")` TRUNCATES before it writes, so between those two moments
+    # the file exists and is empty -- and `load_cards` polls this directory four
+    # times a second. A poll that lands in that window puts a card on the glass
+    # with no body: nothing to type, so `typeOut` skips it, so no hold is taken,
+    # so the writing surface comes straight down and the NEXT BOARD APPEARS
+    # BEFORE THE RESPONSE. On this filer it is worse than a race, because the
+    # empty parse is then cached against `(mtime, size)` read through NFS
+    # attribute caching and survives until those attributes refresh.
+    #
+    # Measured in a Galois sitting: card 0041 rendered empty at 10:38:38 and its
+    # real body typed 36 seconds later. Reported as "I just submitted a written
+    # response and the next board showed up before the tutor response showed
+    # up", against a board whose own trace shows both cards typing correctly --
+    # because they did. The fault was upstream of the animation entirely.
+    #
+    # `os.replace` is atomic on POSIX within one directory, so a reader sees the
+    # card whole or does not see it at all. Same directory, because a rename
+    # across filesystems is a copy and is not atomic.
+    tmp = os.path.join(os.path.dirname(path),
+                       ".%s.%d.part" % (os.path.basename(path), os.getpid()))
+    try:
+        with open(tmp, "w", encoding="utf-8") as fh:
+            fh.write(head + body.rstrip() + "\n")
+            fh.flush()
+            os.fsync(fh.fileno())
+        os.replace(tmp, path)
+    except OSError:
+        try:
+            os.remove(tmp)
+        except OSError:
+            pass
+        raise
     print(path)
     return 0
 

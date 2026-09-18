@@ -1153,6 +1153,31 @@ frame the reply lands; deciding first and typing afterwards means nothing is typ
 one frame that matters, and the hold does nothing. A tap on an earlier board overrides it — a
 request made by hand outranks an animation.
 
+**A CARD IS WHOLE OR IT IS NOT ON THE BOARD.** `open(path, "w")` truncates
+before it writes, and the poll that builds the payload runs four times a second
+over a shared network filesystem — so a poll landing between those two moments
+sees a card that exists and has nothing in it. On the glass that is worse than a
+blank card: there is nothing to type, so `typeOut` skips it, so **no hold is
+taken**, so the writing surface comes down and the next board appears before the
+response. Then the real body lands and types underneath a board already there.
+Measured: card 0041 empty at 10:38:38, its 1,817 characters typed at 10:39:14 —
+thirty-six seconds, because the empty parse is cached against `(mtime, size)`
+read through NFS attribute caching. Reported as *"the next board showed up before
+the tutor response showed up - I thought we fixed this?"*, against a trace
+showing both cards typing perfectly, **because they did**. So `board write`
+renames a finished file into place (`os.replace`, same directory, atomic), and
+`has_body` keeps a bodyless card off the board whoever wrote it — an interactive
+tutor writes its own files and a shell redirect truncates the same way.
+`test/whole.py`.
+
+**And the watchdog does not report a stall that did not happen.** `holdTyping`
+bumped `typingNow` and then asked `keepTyping()` — which tests a `typingUntil`
+left behind by the *previous* card, so a card arriving minutes after the last
+one traced `stall` before painting a character. It arms the deadline now instead,
+and `keepTyping` is called from exactly one place: a frame of the animation,
+which is the only place its question means anything. The trace is what this code
+is diagnosed from; a trace that lies is worse than no trace.
+
 **The hold is a list of the cards still arriving, not a class on a body.** `typingHeld` in
 `board.js` is taken and given back with the hold itself. A marker that the *animation* sets is
 lost by every path that holds without animating, and there is always one of those. What reads it:
@@ -1579,13 +1604,21 @@ it.** `restarting` and `handover` are both written *before* the signal, by whoev
 the same reason: a daemon receiving a SIGTERM cannot tell a bounce from a person leaving, so its
 exit record merges `state: stopped` over the top and touches neither field. What clears
 `restarting` is `mark_waking`, written by both halves of a start — so the flag lives exactly as
-long as the restart it describes is unfinished, and **a restart nobody finished is one the watch
-loop finishes** once `REATTACH_GRACE` is out. That is what makes the one branch of `tutor restart
---tutors` that gives up safe: a handoff turn is a model call and routinely outruns the ninety
-seconds it is given, and the flag left on the record is the instruction to pick the tutor back up.
-Without it an abandoned bounce is indistinguishable from *a person said no*, which the watch loop
-obeys for ever — while still reviving that course's **board** every generation, which is a page
-that serves perfectly with nothing reading it. `test/waking.py` holds both halves of the contract.
+long as the restart it describes is unfinished. Without it an abandoned bounce is
+indistinguishable from *a person said no*, which the watch loop obeys for ever — while still
+reviving that course's **board** every generation, which is a page that serves perfectly with
+nothing reading it.
+
+**And a restart finishes the restart it started.** A handoff turn is a model call and routinely
+outruns the ninety seconds the foreground gives it — 97 seconds, measured — so `tutor restart
+--tutors` has a branch that gives up. That branch now spawns `tutor finish-restart`, detached,
+which waits for the wrap-up turn to actually end and starts the replacement then. **The watch loop
+is the backstop and not the plan**: it only exists where one is running, so a hand restart in an
+`salloc` used to leave the tutor down with the flag on and no clock anywhere, and where it does run
+the person holding the iPad still watched a lesson say *claude is restarting* until
+`REATTACH_GRACE` was out. Both may now decide to start the same tutor, and that is not a race —
+`agent_start` refuses when one is already there, which is the single property holding it up.
+`test/waking.py` holds every half of this.
 
 The chain cannot watch itself all the way down: a generation that fell over in its first second
 never reached the line that queues its successor. So the loop re-checks its successor every five
@@ -3838,6 +3871,24 @@ two is a real cost where a latch nobody can clear is the whole fault. **Leaving
 the mode also finishes what is in hand**, which it did not: `setOn(false)` dropped
 the latch and disarmed both listeners and left the stroke open, so 'done' looked
 like a fix and half of one is what made this visible exactly once per sitting.
+**AND THE LAYER SAYS WHAT IT DID.** Scrolling while annotating has been reported
+three times and diagnosed twice, and the second diagnosis was wrong — because
+`☰ → what just happened` carried every card and every animation and **nothing at
+all about the ink layer**, so a report that arrives as *"I couldn't scroll when I
+started annotating"* was answered by reading the source and guessing. Six lines
+now: `ink-mode` (entering or leaving, how many layers, and how many milliseconds
+the restyle cost — `body.annotating` restyles every card in the lesson and
+`armTouch` installs a **non-passive** `touchstart` in the same breath, which is a
+promise that the main thread will be consulted before any gesture may scroll, so
+that restyle is paid for by whoever touches the glass next); `ink-begin` and
+`ink-end` with the card and the pointer, so a stroke that never ended can be told
+from one that never began; `ink-hold` every time a gesture is refused, which is
+the sentence *I could not scroll* written down at the moment it is true;
+`ink-late` where the browser had already decided and did not ask; and `ink-latch`
+when the CSS half goes on or off, because the latch and the listener are two
+different ways to refuse the same pan and nothing could previously tell them
+apart from outside. `test/link.js` asserts each one reaches the log.
+
 `window.BoardTrace` is how the layer says so — `☰ → what just happened` carries
 an `ink-drop` line, because this arrives as a sentence about scrolling and
 nothing in it can name a stroke.
