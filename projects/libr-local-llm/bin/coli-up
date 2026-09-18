@@ -2,7 +2,7 @@
 # Bring GLM-5.2 up on a compute node behind an HTTP gateway, and wait until it is
 # actually warm. Run from anywhere, including the login node.
 #
-#   coli-up                  # 88 CPUs, 950 GB, 9 h, and it renews itself
+#   coli-up                  # 80 CPUs, 800 GB, 9 h, and it renews itself
 #   coli-up -t 4             # 4-hour walltime
 #   coli-up -c 60 -M 600     # smaller ask, schedules sooner, slower expert tail
 #   coli-up --no-warm        # return as soon as it listens, do not warm first
@@ -110,7 +110,7 @@ done
 
 if [ "$ALLOCATED" -ne 1 ]; then
     echo "Job ${JOB_ID} is still ${STATE} after 20 minutes (reason: ${LAST_REASON})." >&2
-    echo "A 950 GB ask needs a nearly empty node; 'coli-up -M 600' schedules sooner." >&2
+    echo "An 800 GB ask needs a nearly empty node; 'coli-up -M 600' schedules sooner." >&2
     echo "It remains queued. Watch it with squeue, or drop it with 'coli-down'." >&2
     exit 1
 fi

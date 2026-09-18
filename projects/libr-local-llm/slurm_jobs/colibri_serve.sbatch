@@ -20,8 +20,8 @@
 #
 # --cpus-per-task, --mem and --time come from coli-up on the command line, where
 # they override these directives. The defaults are in scripts/colibri-env.sh.
-#SBATCH --cpus-per-task=88
-#SBATCH --mem=950G
+#SBATCH --cpus-per-task=80
+#SBATCH --mem=800G
 #SBATCH --time=0-08:00:00
 
 set -uo pipefail
@@ -216,7 +216,7 @@ WARM
 # itself and give its node back. There is no window in which nothing is serving,
 # which is the whole of the ask.
 #
-# `--exclude` OF THIS NODE, AND IT IS NOT A PREFERENCE. Two 950 GB jobs do not
+# `--exclude` OF THIS NODE, AND IT IS NOT A PREFERENCE. Two 800 GB jobs do not
 # fit on a 1 TB box, so an overlapping successor is somewhere else by arithmetic;
 # naming it makes the scheduler say so at submission instead of pending. The
 # price is a cold pin every hop -- 68 minutes -- where a same-node successor

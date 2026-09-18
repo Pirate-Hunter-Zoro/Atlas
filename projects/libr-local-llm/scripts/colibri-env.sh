@@ -53,14 +53,19 @@ export COLI_PORT="${COLI_PORT:-8000}"
 # the VRAM hot tier stays at 45.7 GB, projected residency stays at 100%.
 export COLI_CTX="${COLI_CTX:-131072}"
 
-# Default allocation. 88 CPUs rather than the 92 partition cap: MaxCPUsPerNode is
+# Default allocation. 80 CPUs, well under the 92 partition cap: MaxCPUsPerNode is
 # a PARTITION-wide cap, so one co-tenant holding 2 CPUs makes a 92-CPU request
 # pend forever on "(Resources)" while every GPU on the node sits idle.
-export COLI_CPUS="${COLI_CPUS:-88}"
-# 950 GB holds all 429 GB of experts warm in page cache. Lower it to schedule
-# sooner: the engine mmaps the checkpoint and faults expert slabs in during
-# generation, so less memory is not a failure, it is a slower tail.
-export COLI_MEM_GB="${COLI_MEM_GB:-950}"
+export COLI_CPUS="${COLI_CPUS:-80}"
+# 800 GB, AND 950 IS NOT A CHOICE THIS PARTITION OFFERS. `sbatch --test-only`
+# refuses anything above roughly 900 GB outright -- "Requested node configuration
+# is not available", at submission, at every CPU count, measured across c3_short
+# on 2026-09-18 -- so a default of 950 is a `coli-up` that cannot run and a chain
+# whose successor is refused the moment it is needed. 800 GB is what the served
+# job runs on: it pins the whole 406.7 GB plan and reports full residency. Lower
+# it to schedule sooner; the engine mmaps the checkpoint and faults expert slabs
+# in during generation, so less memory is not a failure, it is a slower tail.
+export COLI_MEM_GB="${COLI_MEM_GB:-800}"
 # 9 hours is the c3_short cap and the chain takes all of it. Every hop pays a
 # cold pin on a new node (see the handover below), so the number of hops per day
 # is the number to minimise and a shorter walltime buys nothing.
@@ -77,7 +82,7 @@ export COLI_HOURS="${COLI_HOURS:-9}"
 # THE SUCCESSOR CANNOT LAND ON THE INCUMBENT'S NODE, and that is the price of the
 # overlap. A warm page cache makes a second pin on the same node 21x faster
 # (9064 MB/s against 422 MB/s cold, measured on compute300 on 2026-09-18 across a
-# job teardown), but two 950 GB jobs do not fit on a 1 TB box, so an overlapping
+# job teardown), but two 800 GB jobs do not fit on a 1 TB box, so an overlapping
 # successor is always somewhere else and always cold. Availability was chosen over
 # the cheap hop deliberately.
 export COLI_CHAIN="${COLI_CHAIN:-1}"

@@ -539,11 +539,11 @@ cannot leave the building; use §4a for everything else.
 | Command | Does |
 | --- | --- |
 | `coli-build [clean]` | Compiles the engine with `ARCH=native CUDA=1 CUDA_ARCH=sm_86`. |
-| `coli-up [-t hours] [-c cpus] [-M gb]` | Submits the serve job, waits for the engine to load, then **warms it with one real generation** and only then reports success. |
+| `coli-up [-t hours] [-c cpus] [-M gb] [--once]` | Starts the **chain**, waits for the engine to load, then **warms it with one real generation** and only then reports success. `--once` submits a single generation that ends at its walltime. |
 | `coli-code [-d dir] [-a claude\|opencode] [--yes] [message…]` | Opens a coding agent in any directory, pointed at the served model. No message → the TUI; a message → one shot. |
 | `coli-ask [-f file] [-n tokens] [--think] "question"` | One question, no agent, no tools, no preamble. |
-| `coli-down` | Cancels the server. It holds most of a node — run it. |
-| `coli` | Not the engine launcher — a signpost that prints the five above and says whether a server is up. `coli --raw` reaches the real launcher. |
+| `coli-down` | Ends the chain: writes the stop flag, **then** cancels every generation. It holds most of a node — run it. |
+| `coli` | Not the engine launcher — a signpost that prints the five above and says which generation is serving, how many minutes it has left, and whether one is queued behind it. `coli --raw` reaches the real launcher. |
 
 They find the job through `squeue` and step onto its node with `srun --overlap`, exactly as the
 `ollama-*` trio does, and for the same reason: the endpoint is loopback on the serving node and
@@ -564,6 +564,60 @@ own first request for the warm. The request is lodged in the accept queue while 
 loading, costing nothing, and `COLIBRI-SERVE READY` carries the prompt-token count, the completion
 count and the seconds — not a rate, because that clock is mostly the load and a tok/s computed from
 it would look like a benchmark and not be one. `--no-warm` skips the wait and says what it skipped.
+
+### The chain: the server is always up, and it moves node rather than going away
+
+`c3_short` caps a job at nine hours and `c3` is refused on measurement — a `c3_short` job at
+`PriorityTier=20` `SIGSTOP`s a `c3` job on the same node, four seconds after submission, with no
+error anywhere the client can see (P0-STATUS test 10). So the server has to hop, and a hop costs
+**68 minutes** of pinning 406.7 GB off the filer. The chain is what makes that invisible.
+
+Two hours before its walltime ends (`COLI_CHAIN_LEAD_MIN`), the running generation submits the next
+one with `--exclude` of its own node. That one pins its 406.7 GB while this one goes on answering,
+and prints `COLIBRI-SERVE LOADED`. **Only then** does the incumbent cancel itself and give its node
+back. Nothing is down at any point, and the generation that was replaced leaves early rather than
+running out its walltime — so the chain hops roughly every seven hours, not every nine.
+
+Three things follow from that and none of them is obvious:
+
+- **The successor cannot land on the incumbent's node**, because two 800 GB jobs do not fit on a
+  1 TB box. So every hop pays a cold pin. A same-node successor would re-read its checkpoint out of
+  page cache at **9064 MB/s against 422 MB/s cold** — page cache survives the teardown of the job
+  that filled it, measured on compute300 on 2026-09-18 — but that route needs a gap in service, and
+  availability was chosen over the cheap hop deliberately.
+- **The one case that gets the cheap hop back** is the partition being full. If the successor is
+  still `PENDING` twenty minutes before the incumbent dies, it is cancelled and re-queued *without*
+  the exclusion, so it takes the incumbent's node the moment that job ends and pins against a page
+  cache that still holds the checkpoint. That is a gap of minutes rather than an hour, and with
+  `c3_short` as busy as it usually is it is the ordinary path rather than the exception.
+- **The warm-up waits for the incumbent to go, and one file is why.** KV persistence is per
+  checkpoint — `<model>/.coli_kv`, opened `r+b` and written at offsets each process computes from
+  its own record count — so two live servers interleave their writes into one file and neither
+  reading survives it. The engine *reads* that file at startup, which is harmless, so the load
+  overlaps freely; only the first write has to wait, and a warm-up is a real write. What it costs is
+  the turns the incumbent completed while the successor was loading: they are not in the prefix the
+  successor read, so the first turn after a handover re-prefills them.
+
+Not `--dependency=afterany`, which is what the board's own self-cloning chain uses. A dependency
+means the successor starts when this job *stops*, and a load that begins at the handover is an hour
+with no server. The board's generations cost nothing to start and colibrì's cost 68 minutes; that
+one number is the whole difference between the two designs.
+
+**A generation's walltime is a ceiling on the client, not on the chain.** `coli-code` steps into the
+serve job's allocation with `srun --overlap`, so the client is a *step* of that generation and dies
+with it. The chain replaces the server, not the session. `coli-code -c` continues where it left off
+and the on-disk KV makes that continuation cheap; `coli-code` prints the minutes left when there is
+less than an hour of them.
+
+**Every generation writes its own pair of logs**, `colibri_serve_{out,err}-<jobid>.txt`, because
+during a handover two of them are running and one fixed pair would have the successor judged by the
+incumbent's `COLIBRI-SERVE READY`. `coli`, `coli-code`, `coli-ask` and the board all resolve the
+names from the job id.
+
+**Ending it takes the flag and the cancel, in that order.** `scancel` on a generation is how you
+*replace* a server — the chain reads it as a node failure and does exactly what it was built to do.
+`coli-down` writes `slurm_jobs/state/chain-stopped` first, then sweeps the queue twice, and a
+generation that starts while that flag is there stands down without serving. `coli-up` clears it.
 
 ### What the serve job does differently from `t34567_colibri.sbatch`
 
