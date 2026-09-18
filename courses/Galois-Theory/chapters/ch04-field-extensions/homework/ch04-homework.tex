@@ -99,7 +99,59 @@
   minimal polynomial of $\alpha$ over $K$.
 \end{problem}
 % ===== SOLUTION 04.3 =====
-% TODO(mferguson): your work goes here.
+% Transcribed from the student's slate, 2026-09-17/18 (answers t0054-r30
+% through r38, cards 0037-0046). Typeset exactly as written: same steps, same
+% order, nothing added.
+% Not covered by what they wrote, and flagged to them on cards 0044 and 0046:
+%   - chi(alpha) = 0 is checked in the concrete case (feeding the vector 1 to
+%     T_alpha^2 - 2I) but not proved in general; the page asks "how to prove in
+%     general?" and does not answer it. Cayley-Hamilton, or the direct argument
+%     that chi(T_alpha) = 0 and T_alpha acts as multiplication by alpha, is the
+%     missing step.
+%   - deg chi = n is used in the final paragraph; it came from card 0044, not
+%     from the page.
+\begin{solution}
+  \textbf{The concrete case: $K = \QQ$, $\alpha = \sqrt{2}$, $n = 2$.} In the
+  basis $1, \alpha$ of $\adjoin{\QQ}{\sqrt{2}}$ over $\QQ$,
+  \[
+    T_{\alpha}(1) = \sqrt{2}, \qquad T_{\alpha}(T_{\alpha}(1)) = 2,
+    \qquad\text{so}\qquad
+    T_{\alpha} = \begin{pmatrix} 0 & 2 \\ 1 & 0 \end{pmatrix}.
+  \]
+  Then $\chi(x) = \det(xI - T_{\alpha}) = x^{2} - 2$, and
+  \[
+    \begin{pmatrix} 0 & 2 \\ 1 & 0 \end{pmatrix}
+    \begin{pmatrix} 0 & 2 \\ 1 & 0 \end{pmatrix}
+    = \begin{pmatrix} 2 & 0 \\ 0 & 2 \end{pmatrix},
+    \qquad\text{so}\qquad
+    T_{\alpha}^{2} - 2I = 0 .
+  \]
+  Feeding that zero matrix the coordinate vector of $1$ gives
+  $0 \cdot 1 + 0 \cdot \sqrt{2} = 0$ in $\adjoin{\QQ}{\sqrt{2}}$, so
+  $\chi(\alpha) = 0$.
+
+  \medskip
+  \textbf{A second case: $\alpha = 2^{1/3}$, $n = 3$.} Here
+  $1 \mapsto \alpha$, $\alpha \mapsto \alpha^{2}$, $\alpha^{2} \mapsto 2$, and
+  \[
+    \det(xI - T_{\alpha})
+      = \begin{vmatrix} x & 0 & -2 \\ -1 & x & 0 \\ 0 & -1 & x \end{vmatrix}
+      = x(x^{2} - 0) - 2(1)
+      = x^{3} - 2,
+  \]
+  of degree $3$, with $\alpha = 2^{1/3}$ as a root.
+
+  \medskip
+  \textbf{The general argument.} Write $\chi(x) = \det(xI - T_{\alpha})$ and
+  $m = \minpoly{\alpha}{K}$, and put $n = \degree{\adjoin{K}{\alpha}}{K}$. Then
+  $\chi(\alpha) = 0$ and $m(\alpha) = 0$, so
+  \[
+    (\chi - m)(\alpha) = 0 .
+  \]
+  Both $\chi$ and $m$ are monic of degree $n$, so $\chi - m$ has degree
+  $< n$. It must therefore be zero, since $m$ is the minimum-degree non-zero
+  polynomial that zeros out $\alpha$. So $\chi = m$.
+\end{solution}
 % ===== END SOLUTION 04.3 =====
 
 \begin{problem}{04.4}
