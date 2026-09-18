@@ -287,6 +287,10 @@ colibrì runs in ended* are the same word and two different next moves.
   job's allocation — `coli-code` steps into it with `srun --overlap` — so the mission cannot
   outlive that job's walltime. `colibri.status()["left"]` is Slurm's own `%L`, and a mission still
   running past it has failed for a reason worth printing. `coli-up -t` is the only lever.
+  **The chain does not widen it and must not be read as widening it.** A chain replaces the
+  *server*; the client is a step of one generation and dies with it, so `left` means this hop and
+  a mission that crosses a hop has genuinely failed. A record saying a mission is still running
+  while its client is dead is the exact false fact `missions.holder` was added to stop.
 - **It comes off the list when it is looked at**, and looking means going there: the board serving
   that workspace stamps its own finished missions on `POST /seen`, which is the far end of the row.
   This workspace and no other — there is exactly one root a board may write into. A *running*
@@ -4134,14 +4138,26 @@ three are properties of the recipe:
   excludes `live/*`; `courses/Galois-Theory/live/cards/` is in the pushed history.
 
 The server is a Slurm job and starting one is not something a request can wait for — an
-allocation, a 429 GB load and a warm-up generation is seven or eight minutes on a good day and can
-pend indefinitely behind a 950 GB ask. So the *who:* row says which of four states it is in and
+allocation, a 429 GB load and a warm-up generation is over an hour on a cold node and can pend
+indefinitely behind an 800 GB ask. So the *who:* row says which of four states it is in and
 offers to start one: **nothing running**, **queued** (Slurm's own reason), **loading**, **warm**.
 `squeue` is the source of truth and nothing writes a state file; the answer is cached for fifteen
 seconds, the way `machines.held_nodes` caches its own. The difference between loading and warm
 cannot be got from Slurm — the gateway binds its port before it loads anything, so a TCP probe
-says nothing — so the job's own two lines are read instead: `API listening on`, then
+says nothing — so the job's own lines are read instead: `API listening on`, then
 `COLIBRI-SERVE READY` once it has completed a real generation.
+
+**FOUR STATES AND ONE FACT, AND THE FACT IS THE CHAIN.** `coli-up` starts a chain rather than a
+job: two hours before its walltime a generation submits the next one, which pins 406.7 GB on
+another node while this one goes on answering, and only once it says `COLIBRI-SERVE LOADED` does
+the incumbent give its node back. So `squeue` lists TWO generations for an hour at a time. The one
+reported is the one that can ANSWER — warm beats loading, and between two warm ones the one with
+more walltime left, because that is the one not about to hand over — and the other becomes a
+clause on the end of the sentence, which is what makes *the server goes away in twenty minutes*
+sayable. Each generation writes its own `colibri_serve_{out,err}-<jobid>.txt`, because one fixed
+pair would judge a successor by the incumbent's `COLIBRI-SERVE READY`. The chain is not a fifth
+state and the start control is unchanged: under a chain there is always a job, so the control is
+simply never offered. `projects/libr-local-llm/README.md` §4c is the design.
 
 ## Layout
 
