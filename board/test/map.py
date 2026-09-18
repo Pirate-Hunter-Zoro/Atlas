@@ -187,6 +187,28 @@ try:
           len(steps[0]["summary"]) <= plan.SUMMARY + 1
           and "grade.py" in mapping._step_text(steps[0], {}))
 
+    # --- A BOX WITH NO STEP ON IT IS KNOWN TO HAVE NONE ---------------------
+    # Not silently empty, and the difference is what a hand-off spends. When a
+    # sitting hands the work to another box, the card PROPOSES the step for it
+    # if that box has not got one -- and it can only do that if "nothing is
+    # planned here" is a fact the map states rather than the absence of one.
+    check("every box says what work is on it, so none of them is silent about it",
+          all(isinstance(n.get("steps"), list) for n in m["nodes"]))
+    check("and a box nothing names says it has none rather than saying nothing",
+          seen["artifacts"]["steps"] == []
+          and any(n["steps"] for n in m["nodes"]))
+    check("while the step that named nothing is in the tray, so no step is lost "
+          "by any box being empty",
+          len(m["loose"]) + sum(len(set(x["label"] for x in n["steps"]))
+                                for n in m["nodes"]) >= m["steps"])
+
+    # --- A COURSE IS CHAPTERS AND A PROJECT IS COMPONENTS -------------------
+    # Which of the two a workspace is decides whether a sitting without a box is
+    # an exception worth saying out loud. A chapter of a book already IS a
+    # scope; a repository made of parts has one only if somebody tapped it.
+    check("a repository made of code is a workspace where a box is the scope",
+          mapping.scoped(proj) is True)
+
     # --- a box carrying the first step is where the work goes next -----------
     check("the box carrying step 1 is where the work goes next",
           any(n["status"] == "next" for n in m["nodes"]))
@@ -361,6 +383,8 @@ try:
     fresh()
     check("a book course with a task list still draws its chapters",
           mapping.status(book, {}, [])["nodes"][0]["kind"] == "chapter")
+    check("and a book course is NOT a workspace where a box is the scope: the "
+          "chapter already is one", mapping.scoped(book) is False)
 
     fresh()
     m = mapping.status(book, {"chapter": "Ch 2 — Rings"},
@@ -381,12 +405,16 @@ try:
     m = mapping.status(flat, {}, [])
     check("a repository with neither draws its own top-level parts",
           m and sorted(n["name"] for n in m["nodes"]) == ["notes/", "puzzles/"])
+    check("and its top-level pieces are components, so a sitting in it belongs "
+          "to one", mapping.scoped(flat) is True)
 
     # --- a repository with nothing in it is not an empty plane ---------------
     os.makedirs(bare, exist_ok=True)
     fresh()
     check("a repository with nothing in it returns no map rather than an empty one",
           mapping.status(bare, {}, []) is None)
+    check("and nothing claims a box is its scope when it has no boxes",
+          mapping.scoped(bare) is False)
 
     # --- a name from a browser is looked up, never constructed ---------------
     fresh()

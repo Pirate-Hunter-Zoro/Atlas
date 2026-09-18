@@ -54,7 +54,7 @@ import re
 import subprocess
 import time
 
-from . import atlas, paths
+from . import atlas, paths, spell
 from .course import document, plan
 from .course import map as course_map
 
@@ -316,42 +316,11 @@ def closed(base, rel, root, since_ts):
 # ---------------------------------------------------------------------------
 # what it means, and where to look
 # ---------------------------------------------------------------------------
-def _address(ws_id, surface=None, **rest):
-    """One address, in the §2.1 grammar, spelled the way `address.js` spells it.
-
-    THERE IS ONE GRAMMAR AND THIS OBEYS IT. A second speller is a second set of
-    links that resolve slightly differently, and the whole point of the grammar
-    is that a note written in March opens in September or says plainly that it
-    cannot.
-    """
-    fam, _, name = ws_id.partition("/")
-    if not fam or not name:
-        return ""
-    bits = ["#/w/" + _enc(fam) + "/" + _enc(name)]
-    if surface == "node":
-        bits.append("/node/" + rest["node"])
-    elif surface == "code":
-        segs = [_enc(s) for s in str(rest["path"]).split("/")]
-        tail = "/".join(segs)
-        if rest.get("symbol"):
-            tail += "::" + rest["symbol"]
-        bits.append("/code/" + tail)
-    return "".join(bits)
-
-
-_SAFE = re.compile(r"^[A-Za-z0-9._~-]$")
-
-
-def _enc(s):
-    """Percent-encoding, the same subset `encodeURIComponent` leaves alone."""
-    out = []
-    for ch in str(s):
-        if _SAFE.match(ch):
-            out.append(ch)
-        else:
-            for b in ch.encode("utf-8"):
-                out.append("%%%02X" % b)
-    return "".join(out)
+# ONE SPELLER, AND IT IS NOT HERE. `spell.py` holds the §2.1 grammar's Python
+# half; this module was where it was first needed and is no longer where it
+# lives, because a card handing work over to another box spells one too and two
+# copies of a grammar is two sets of links that resolve slightly differently.
+_address = spell.spell
 
 
 def meaning(root, ws_id, changed):

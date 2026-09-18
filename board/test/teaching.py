@@ -512,6 +512,54 @@ check("the rule names the four words that mean nobody decided",
 check("a doing turn is pointed at the section rather than handed a paraphrase "
       "of it", "where a new thing goes" in _DOING
       and "## where a new thing goes" in _METHOD)
+# ---------------------------------------------------------------------------
+# A COMPONENT BOUNDARY IS A STOPPING POINT -- in both places, again
+# ---------------------------------------------------------------------------
+# The same two-places problem as *one module, one job*, and for the same reason:
+# a tutor with the document open reads `TEACHING.md`, and a headless turn reads
+# `node_sense` and nothing else. This rule is about what to do when the work
+# LEAVES the box -- which is the honest case the old focus line said nothing
+# about. It only said not to WANDER: not to pick an agenda outside the box. The
+# case it left open is the work genuinely leading into another component, where
+# the right answer is to stop rather than to follow it.
+_BOUNDARY = _flat(sense_mod.BOUNDARY_SENSE)
+BOUNDARY = (
+    ("a component boundary is a stopping point", "the rule itself"),
+    ("do not follow it",
+     "and that the work leading out of the box is not a reason to leave it"),
+    ("saving point",
+     "what happens instead: what is in hand gets to a saving point"),
+    ("which box the work continues in", "and the turn says where it continues"),
+    ("a tap, not an errand",
+     "the hand-off is a link they open, not an instruction to a person"),
+    ("markdown link", "so the box is named as one"),
+    ("propose the step",
+     "and a box with nothing planned on it gets the step proposed"),
+)
+for _phrase, _why in BOUNDARY:
+    check("TEACHING.md says " + _why, _phrase in _METHOD)
+    check("and a turn woken in a box is told the same: " + _why,
+          _phrase in _BOUNDARY)
+
+# AND THE OTHER HALF: a sitting that has NO box, where a box is what a sitting
+# is. `map.scoped` decides where that applies, so neither document may state it
+# as a rule for the whole board -- a chapter of a book already IS a scope.
+_NOBOX = _flat(sense_mod.NO_NODE_SENSE + sense_mod.NO_NODE_ASK)
+for _phrase, _why in (
+        ("no part of the map", "a sitting with no box says so"),
+        ("do not pick a part of the repository",
+         "and does not choose one for itself"),
+        ("first card asks which box", "it asks, in its first card"),
+        ("markdown links to the addresses", "and asks it as taps"),
+):
+    check("TEACHING.md says " + _why, _phrase in _METHOD)
+    check("and a turn woken without one is told the same: " + _why,
+          _phrase in _NOBOX)
+check("neither document makes it a rule for a book course, which has chapters "
+      "rather than components",
+      "the chapter already is the scope" in _METHOD
+      and "rather than as the chapters of a book" in _NOBOX)
+
 check("every briefing carries the rule about how a card reads",
       "ANSWER in the first sentence" in sense_mod.PLAIN_SENSE
       and "One idea per sentence" in sense_mod.PLAIN_SENSE)

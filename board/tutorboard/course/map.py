@@ -1559,6 +1559,28 @@ def status(root, state=None, archived=None):
     }
 
 
+def scoped(root):
+    """Is a sitting in this workspace ABOUT a box, or about a chapter?
+
+    A COURSE IS CHAPTERS AND A PROJECT IS COMPONENTS, and the difference is not
+    a preference about how to work -- it is what the workspace is. A lecture on
+    Chapter 4 of Galois Theory has no component to be scoped to: the chapter IS
+    the scope, and asking which box it belongs to is a question with no answer.
+    A sitting in a repository made of parts does have one, and a sitting that
+    has not got it is working on whatever it happened to read first.
+
+    So the rule is a property of the SHAPE rather than of the whole board, and
+    the shape is already decided here. A `part` is a piece of the repository
+    somebody can work IN; a `chapter`, a `set` and a `doc` are things to work
+    FROM. One `part` on the picture makes this a workspace where a box is the
+    scope -- including a hand-drawn map, whose author chose the word.
+    """
+    found = shape(root)
+    if not found:
+        return False
+    return any(n.get("kind") == "part" for n in found["nodes"])
+
+
 def find(root, node_id, state=None, archived=None):
     """One box, by the id a browser sent -- or None.
 
