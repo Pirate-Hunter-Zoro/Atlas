@@ -69,7 +69,7 @@ strike those.
 
 ## Before anything
 
-- `bash board/test/all.sh` — 84 suites, about twelve minutes. Green before and
+- `bash board/test/all.sh` — 86 suites, about twelve minutes. Green before and
   after.
   The last of them is Paper-Writer's own, run where it is checked out, so the
   factory's tests are part of the board's habit rather than a second one nobody
@@ -271,6 +271,57 @@ as the answer.
 
 ## Settled, so nobody re-derives it
 
+- **A CARD IS WHOLE OR IT IS NOT ON THE BOARD, AND THE FOURTH REPORT OF "THE
+  NEXT BOARD CAME FIRST" WAS NOT ABOUT THE ANIMATION AT ALL.** `open(path, "w")`
+  truncates before it writes; the poll that builds the payload runs four times a
+  second over a shared network filesystem. A poll landing between those two
+  moments puts a card on the glass with NOTHING IN IT — and an empty card is
+  worse than a blank one, because there is nothing to type, so `typeOut` skips
+  it, so **no hold is taken**, so the writing surface comes down and the next
+  board arrives before the response. Then the real body lands and types
+  underneath a board that is already there. **Measured, from the trace the
+  report carried:** `fresh cards=0041` then `skip card=0041 why=no units` at
+  10:38:38, `fresh cards=0041` again then `type … units=122 chars=1817` at
+  10:39:14. Thirty-six seconds for a write that takes microseconds, because the
+  empty parse is cached against `(mtime, size)` read through NFS attribute
+  caching. **The trace is what settled it and it is why the animation was not
+  touched:** both cards carry `typed … stalled=0`. They typed. The board was
+  handed something that was not a card. So `board write` renames a finished file
+  into place — `os.replace`, same directory, atomic — and `cards.has_body` keeps
+  a bodyless card off the board whoever wrote the file, because an interactive
+  tutor writes its own and a shell redirect truncates identically. A `.`-prefixed
+  part file is not a card either. `test/whole.py` drives a real write and asserts
+  the truncate is gone from `cmd_write`.
+  **And the trace itself was lying in the same report.** `holdTyping` bumped
+  `typingNow` and then asked `keepTyping()`, which tests a `typingUntil` left
+  behind by the PREVIOUS card — so a card arriving minutes after the last one
+  traced `stall late=358559 held=1` before painting a character, beside its own
+  truthful `stalled=0`. It arms the deadline now rather than asking about it, and
+  `keepTyping` has exactly one caller: a frame of the animation, the only place
+  its question means anything. `test/seam.js` counts the callers. **A diagnostic
+  that lies costs more than no diagnostic**, and this one lied on the one class
+  of fault it was built for.
+- **A RESTART FINISHES THE RESTART IT STARTED, AND THE WATCHDOG IS THE BACKSTOP
+  RATHER THAN THE PLAN.** `tutor restart --tutors` signals the daemon, waits 90
+  seconds for the wrap-up turn to write `HANDOFF.md`, and gives up — a handoff
+  turn is a model call and routinely outruns that, 97 seconds measured. The
+  branch that gave up returned with `restarting: True` on the record and NOTHING
+  pending, so the board said *claude is restarting*, truthfully, until somebody
+  else noticed. Somebody else was `tutor watch` at `REATTACH_GRACE`, 180
+  seconds. **That is a backstop and it was being used as a plan**: it exists
+  only where a watch loop runs, so a hand restart in an `salloc` left the tutor
+  down with no clock anywhere, and where it does run the person holding the iPad
+  watches a lesson say *restarting* for three minutes. Reported, minutes after a
+  ship: *"Suddenly it says 'claude is restarting' - and I don't foresee that
+  finishing... what the hell happened?"* — and it was a ship from this session
+  that caused it. Now that branch spawns `tutor finish-restart`, detached
+  (`handed_off`), which waits for the record to clear and starts the replacement
+  the moment the turn ends rather than at a fixed grace. Detached and not a
+  thread, because the restart is a CLI that exits. **`supervise.py` is
+  untouched** — it belongs to the serving-chain session, and the two may both
+  decide to start one tutor without racing for one reason only: `agent_start`
+  refuses where one is already there. If that stops being true, two daemons
+  answer one inbox. `test/waking.py` asserts every half, including that one.
 - **ANSWERING IS NOT OWNING, AND THAT IS HOW A HEALTHY MACHINE LEAVES SOMEBODY
   HANGING.** A board writes its port into its own repository's `.board.json`,
   and the next board in that repository OVERWRITES it — so a board an ended
@@ -322,6 +373,19 @@ as the answer.
   because this arrives as a sentence about scrolling and nothing in it can name a
   stroke. `test/link.js` drives a lift under a foreign pointer and waits the
   floor out on a real clock.
+  **AND THE THIRD REPORT OF THIS IS STILL OPEN, ON PURPOSE.** *"Scrolling while
+  annotating works now, but when I STARTED annotating a few seconds ago, it did
+  not."* The trace carried `hold why=nib down` twice and **no `ink-drop`**, so
+  the stuck-stroke path above is not what happened — and nothing else in the log
+  said anything about this layer, which is how the previous diagnosis came to be
+  wrong. **Do not guess a fourth time.** The layer is instrumented now
+  (`ink-mode`, `ink-begin`, `ink-end`, `ink-hold`, `ink-late`, `ink-latch`) and
+  the next occurrence names its own cause: `ink-hold` means this listener
+  refused the pan, `ink-latch on=1` means the CSS did, and a large `ink-mode ms=`
+  means neither did — it is the restyle `body.annotating` costs across every card
+  in the lesson, paid by the first gesture because `armTouch` installs a
+  non-passive `touchstart` in the same breath. That last one is the standing
+  suspicion and it is a suspicion, not a finding.
 - **ONLY THE ASKER MAY SAY WHY A DAEMON WAS STOPPED.** `restarting` and
   `handover` are written BEFORE the signal, by whoever is asking; the daemon's
   own exit merges `state: stopped` over the top and touches neither, because a
