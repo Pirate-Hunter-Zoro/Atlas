@@ -19,6 +19,57 @@
 % One problem/solution pair per thing worked, in the order it was assigned or
 % chosen. A region stays empty until the answer in it is agreed correct.
 
+\begin{problem}{3}
+  \emph{Degrees.} Let $K/F$ be a finite extension of degree $n$.
+
+  \begin{enumerate}
+    \item[(a)] Show that for any $\alpha \in K$, the degree of $m_{\alpha,F}$
+      divides $n$.
+    \item[(b)] Show that if $n$ is prime, there are no fields strictly between
+      $F$ and $K$.
+    \item[(c)] Show that $\sqrt{2} \notin \mathbb{Q}(\sqrt[3]{2})$.
+  \end{enumerate}
+\end{problem}
+
+% ===== SOLUTION 3(a) =====
+% Transcribed from the student's slate, 2026-09-18 (page t0054-r51, card 0061),
+% with the case they worked first on t0054-r50 (card 0060) as the special case.
+% Same three steps, same order, nothing added to the route.
+% One reason-correction, made here rather than left to the student: the page
+% says [F(alpha):F] "must divide [K:F] by the tower law". The tower law gives an
+% equation, not a divisibility; the quotient is [K:F(alpha)], which is a
+% positive integer. The write-up states the equation and names the quotient.
+% The page also uses m_{alpha,F} without saying why it exists, so the existence
+% line from the finiteness of [K:F] is stated first.
+\begin{solution}
+  \textbf{(a)} Let $[K:F] = n$ and let $\alpha \in K$.
+
+  Since $\degree{K}{F} = n$ is finite, the $n+1$ elements
+  $1, \alpha, \dots, \alpha^{n}$ cannot be linearly independent over $F$, so
+  $\alpha$ is algebraic over $F$ and $m_{\alpha,F}$ exists.
+
+  Consider $\degree{F(\alpha)}{F}$. Since $\alpha \in K$ and $F \subseteq K$, we
+  have $F \subseteq F(\alpha) \subseteq K$, so the tower law gives
+  \[
+    n = \degree{K}{F}
+      = \degree{K}{F(\alpha)}\,\degree{F(\alpha)}{F} .
+  \]
+  Here $\degree{K}{F(\alpha)}$ is a positive integer, so it is a witness $q$
+  with $n = q \cdot \degree{F(\alpha)}{F}$; that is,
+  $\degree{F(\alpha)}{F}$ divides $n$.
+
+  Finally $\deg m_{\alpha,F} = \degree{F(\alpha)}{F}$, so $\deg m_{\alpha,F}$
+  divides $n$.
+
+  \medskip
+  \textbf{The special case first worked.} With $F = \mathbb{Q}$,
+  $K = \mathbb{Q}(\sqrt[4]{2})$ and $\alpha = \sqrt{2}$, take
+  $M = \mathbb{Q}(\sqrt{2})$: then $\degree{M}{\mathbb{Q}} = 2$ divides
+  $4 = \degree{\mathbb{Q}(\sqrt[4]{2})}{\mathbb{Q}}$. Nothing in that argument
+  used $\sqrt[4]{2}$ or the number $4$, which is why $F(\alpha)$ in place of
+  $M$ runs in general.
+\end{solution}
+
 \begin{problem}{6}
   Let $K = \mathbb{Q}(\sqrt{2},\sqrt{3})$ and $\gamma = \sqrt{2} + \sqrt{3}$.
 
