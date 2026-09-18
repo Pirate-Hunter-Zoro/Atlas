@@ -239,6 +239,19 @@ def _listening(rec):
     return processes.agent_is_attached(rec, node)
 
 
+def holder(root):
+    """Which assistant is listening in that workspace right now, or "".
+
+    The public half of the two private helpers above, and it exists for the
+    moment BEFORE a mission rather than after one: a dispatch names an
+    assistant, `agent start` is a no-op where something is already attached,
+    and without this the record would name whoever was asked for while the
+    work went to whoever was there.
+    """
+    rec = _agent(root)
+    return str(rec.get("agent") or "") if _listening(rec) else ""
+
+
 def _stamp(value):
     try:
         return float(value or 0)

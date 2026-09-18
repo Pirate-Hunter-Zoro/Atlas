@@ -283,9 +283,9 @@ def post(h, repo, path):
         # SITTING. Layer 1 of `resolve_agent` is "this once", which is exactly
         # what this is; writing it into the other workspace's `state.json` would
         # be changing a sitting nobody is watching, and an agent change does not
-        # carry the conversation the old one was holding. If something is already
-        # listening there the start is a no-op and says so, and the task goes to
-        # whoever is there -- which is the honest answer and is in the reply.
+        # carry the conversation the old one was holding. Naming an assistant
+        # where a DIFFERENT one is already listening is refused rather than
+        # handed over quietly -- the third refusal below.
         try:
             payload = json.loads(h.read_body().decode("utf-8") or "{}")
         except Exception:                                    # noqa: BLE001
@@ -331,6 +331,35 @@ def post(h, repo, path):
             # slot, or the one line that stops a card being tracked.
             return h.send_json({"ok": False, "repo": match["repo"],
                                 "agent": agent, "error": said}, status=409)
+
+        # AND A THIRD REFUSAL, WHICH IS THE ONE `agent start` CANNOT MAKE.
+        #
+        # `agent_start` returns 0 and "claude already listening in PSYCH-ASR"
+        # where something is attached -- correctly, because a start that found
+        # its work already done did not fail. But the assistant was NAMED here,
+        # and a no-op start means the task goes to whoever is there while the
+        # record says who was asked for. Two things then read as facts and are
+        # not: a mission stamped `colibri`, and a ceiling read off a serve job
+        # the assistant doing the work is not running in.
+        #
+        # Worse in the one case this route exists for. colibrì is the only
+        # assistant allowed to read the fenced directory, and the reason to
+        # choose it is that the job cannot go to anybody else -- so handing that
+        # task to a hosted tutor silently is the failure the fence is for.
+        #
+        # Refused in the grammar of the other two: name who is holding it and
+        # the one command that frees it. Naming nobody is still "whoever is
+        # there", which is what the ask means when it names nobody.
+        holds = missions.holder(match["root"])
+        if agent and holds and holds != agent:
+            return h.send_json(
+                {"ok": False, "repo": match["repo"], "agent": agent,
+                 "error": ("'%s' is already listening in %s, and a start "
+                           "where one is attached is a no-op -- the task would "
+                           "go to '%s' under a record saying '%s'. Stop that "
+                           "one first: tutor agent stop %s"
+                           % (holds, match["repo"], holds, agent,
+                              match["repo"]))}, status=409)
 
         # The task goes in as a turn of theirs, because that is what it is: they
         # asked for it, and a transcript over there that opens with the answer

@@ -322,6 +322,38 @@ try:
               [m for m in missions.stored(psych)
                if m["task"] == "and another one"] == [])
 
+        # AND THE REFUSAL `agent start` CANNOT MAKE: SOMEBODY ELSE IS ALREADY
+        # THERE. A start where one is attached succeeds and does nothing, so
+        # the task would be worked by whoever is listening under a record
+        # naming whoever was asked for -- and for colibrì that is the fenced
+        # directory's job going to an assistant that may not read it.
+        _spawn.tutor_cli = lambda args, timeout=30: (
+            0, "claude already listening in PSYCH-ASR")
+        write(os.path.join(psych, "live", "agent.json"), json.dumps(
+            {"agent": "claude", "state": "listening", "pid": os.getpid(),
+             "host": machine.node_name(), "last_seen": time.time()}))
+        before = len(turns.load_turns(_repo.Repo(psych)))
+        status, body = send({"repo": "PSYCH-ASR", "agent": "colibri",
+                             "task": "read the fenced directory"})
+        check("a mission naming an assistant is refused where a DIFFERENT one "
+              "is already listening, rather than handed to whoever is there",
+              status == 409 and body.get("ok") is False
+              and "claude" in (body.get("error") or ""))
+        check("and the refusal names the command that frees the workspace, the "
+              "way the other two name what to do about themselves",
+              "tutor agent stop PSYCH-ASR" in (body.get("error") or ""))
+        check("and it wrote neither the task nor a record, because a mission "
+              "stamped with an assistant that is not doing it is a false fact",
+              len(turns.load_turns(_repo.Repo(psych))) == before
+              and [m for m in missions.stored(psych)
+                   if m["task"] == "read the fenced directory"] == [])
+        status, body = send({"repo": "PSYCH-ASR",
+                             "task": "whoever is there will do"})
+        check("naming nobody is still whoever is there, which is what a "
+              "dispatch that names nobody asks for",
+              status == 200 and body.get("ok") is True)
+        os.remove(os.path.join(psych, "live", "agent.json"))
+
         # ------------------------------------------------------------------
         # A MISSION IS A THING, AND CLOSING THE IPAD DOES NOT END IT
         # ------------------------------------------------------------------
