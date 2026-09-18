@@ -19,7 +19,9 @@ from ... import machines
 from ... import meeting
 from ... import missions
 from ... import news
+from ... import proposals
 from ...course import config
+from ...course import paper
 from ...course.repo import Repo
 from ...lesson import state
 from ...lesson import turns
@@ -47,21 +49,57 @@ def get(h, repo, path):
         # field for one of them and breaks the other.
         return h.send_json(machines.atlas_payload(repo))
 
-    if path.startswith("/meeting/"):
-        # A note this board wrote, served back. The NAME is matched against what
-        # is actually in `meetings/`, never joined onto a path: the same rule as
-        # every other name that arrives from a browser.
+    # THE DECK, AND THERE IS EXACTLY ONE OF IT. No name arrives from the
+    # browser at all -- `meeting.STEM` is a constant, and the three routes
+    # below are the whole of what can be asked about it. That is not a saving
+    # in code; it is the reason no name from a request can reach the
+    # filesystem here.
+    if path == "/meeting/deck.json":
         base = atlas.root() or repo.root
-        want = path[len("/meeting/"):].strip("/")
-        out_dir = os.path.join(base, meeting.OUT_DIR)
-        try:
-            names = os.listdir(out_dir)
-        except OSError:
-            names = []
-        for n in names:
-            if n == want + ".pdf":
-                return h.send_file(os.path.join(out_dir, n))
-        return h.send_json({"ok": False, "error": "no such notes"}, status=404)
+        rec = meeting.deck(base)
+        if not rec:
+            return h.send_json({"ok": False,
+                                "detail": "No deck has been made yet."})
+        return h.send_json({
+            "ok": True, "since": rec.get("since") or "",
+            "at": rec.get("at") or 0, "built": bool(rec.get("has_pdf")),
+            "workspaces": rec.get("workspaces") or [],
+            "names": rec.get("names") or {},
+            "pages": rec.get("pages") or {},
+            "marked": sorted(meeting.ink_keys(repo)),
+        })
+
+    if path == "/meeting/view":
+        # THE SAME RASTERISER, THE SAME CACHE, THE SAME PAGE ADDRESSES the
+        # library's reader uses. `paper.pages_of`'s `tag` argument is there
+        # precisely so a second finder can have its own cache namespace, so
+        # this is a second way of finding a file in front of machinery that is
+        # already shared -- not a second reader.
+        base = atlas.root() or repo.root
+        rec = meeting.deck(base)
+        if not rec or not rec.get("has_pdf"):
+            return h.send_json({
+                "ok": False, "why": "none",
+                "detail": ("There is no deck to read. Make one from the front "
+                           "door." if not rec else
+                           "The deck is written but LaTeX would not typeset "
+                           "it, so there are no pages to draw.")})
+        out = paper.pages_of(repo, rec["pdf"], meeting.STEM + ".pdf", "meeting")
+        if out.get("ok"):
+            # The marks come WITH the pages: this page holds no live payload to
+            # read them out of, because it opens no sitting.
+            out["ink"] = meeting.ink_keys(repo)
+            out["pages_of"] = rec.get("pages") or {}
+            out["names"] = rec.get("names") or {}
+            out["since"] = rec.get("since") or ""
+        return h.send_json(out)
+
+    if path == "/meeting/pdf":
+        base = atlas.root() or repo.root
+        rec = meeting.deck(base)
+        if not rec or not rec.get("has_pdf"):
+            return h.send_json({"ok": False, "error": "no deck"}, status=404)
+        return h.send_file(rec["pdf"])
 
     if path == "/news":
         # The same list the board payload carries, for a surface that is not on
@@ -132,11 +170,46 @@ def post(h, repo, path):
         h.server.hub.worker.dirty.set()
         return h.send_json({"ok": True})
 
+    if path == "/notes/what":
+        # WHICH PROJECTS, WITH WHAT EACH ONE HAS TO REPORT. Asked for in these
+        # words: *"I want to be able to select which projects meeting notes are
+        # generated for."*
+        #
+        # THE LIST SAYS WHAT EACH ONE HAS, not just its name. Ticking bare names
+        # ten minutes before a meeting is guessing; "three commits, one step
+        # closed" is the answer to the question somebody is actually asking.
+        # It is `gather`'s own output rather than a second count, so the list
+        # cannot disagree with the deck it produces.
+        try:
+            payload = json.loads(h.read_body().decode("utf-8") or "{}")
+        except Exception:                                    # noqa: BLE001
+            return h.send_json({"ok": False, "detail": "bad json"}, status=400)
+        base = atlas.root() or repo.root
+        when, said = meeting.resolve_since(payload.get("since") or "", base)
+        if when is None:
+            return h.send_json({"ok": False, "detail": said}, status=400)
+        out = []
+        for ws in atlas.workspaces(base):
+            try:
+                block = meeting.gather(base, ws, when)
+            except Exception:                                # noqa: BLE001
+                block = None
+            out.append({
+                "id": ws["id"], "family": ws["family"],
+                "name": (block or {}).get("name") or ws["dir"],
+                "moved": bool(block),
+                "commits": len((block or {}).get("commits") or []),
+                "closed": len((block or {}).get("closed") or []),
+                "files": (block or {}).get("files") or 0,
+            })
+        return h.send_json({"ok": True, "since": said, "workspaces": out})
+
     if path == "/notes":
-        # MEETING NOTES, FROM THE FRONT DOOR, because that is what is open when
-        # somebody remembers they have one in ten minutes. The work is the same
-        # `meeting.build` the command line runs -- one builder, so the note the
-        # button makes and the note the terminal makes are the same document.
+        # THE MEETING DECK, FROM THE FRONT DOOR, because that is what is open
+        # when somebody remembers they have one in ten minutes. The work is the
+        # same `meeting.build` the command line runs -- one builder, so the deck
+        # the button makes and the deck the terminal makes are the same
+        # document.
         try:
             payload = json.loads(h.read_body().decode("utf-8"))
         except Exception:                                    # noqa: BLE001
@@ -145,8 +218,17 @@ def post(h, repo, path):
         when, said = meeting.resolve_since(payload.get("since") or "", base)
         if when is None:
             return h.send_json({"ok": False, "detail": said}, status=400)
+        # WHICH WORKSPACES, and only ones that are strings. `build` matches them
+        # against what the walk found and refuses by name when none of them are
+        # workspaces here; nothing from this list reaches a path.
+        want = [str(w) for w in (payload.get("want") or []) if str(w).strip()]
         try:
-            rec = meeting.build(base, when, said, here=repo.root)
+            # `repo` so the last deck's ink goes with the last deck. This is the
+            # one document in the system where old marks have no meaning at all:
+            # they were consumed into a direction the moment they were sent, and
+            # the new deck has a different workspace on page 4.
+            rec = meeting.build(base, when, said, want=want or None,
+                                here=repo.root, repo=repo)
         except Exception as exc:                             # noqa: BLE001
             return h.send_json({"ok": False,
                                 "detail": str(exc)[-300:]}, status=500)
@@ -154,6 +236,23 @@ def post(h, repo, path):
         # long period, and the page shows a name and a link rather than prose.
         rec.pop("markdown", None)
         return h.send_json(rec)
+
+    if path == "/meeting/direction":
+        # THE MARKS ARE DIRECTION, AND THIS IS THE ONE ROUTE THAT SAYS SO.
+        #
+        # Not `/library/feedback`, which is the obvious next line of code and is
+        # wrong: that writes a feedback file and wakes a `[revise]` turn, which
+        # would spend a turn polishing a throwaway deck while throwing away what
+        # the marks actually said. See `tutorboard/proposals.py` -- the routing
+        # is the geometry, and what lands is a PROPOSAL rather than a direction.
+        try:
+            got = proposals.send(repo, atlas.root() or repo.root)
+        except Exception as exc:                             # noqa: BLE001
+            return h.send_json({"ok": False, "sent": [], "skipped": [],
+                                "detail": str(exc)[-300:]}, status=500)
+        if got.get("ok"):
+            h.server.hub.worker.dirty.set()
+        return h.send_json(got, status=200 if got.get("ok") else 400)
 
     if path == "/colibri":
         # START THE LOCAL MODEL'S SERVER, AND SAY SO AT ONCE.
@@ -261,10 +360,11 @@ def post(h, repo, path):
         # after the start was allowed and the task is on disk, because a record
         # of a mission that was refused is a row about work nobody is doing.
         #
-        # `ship` is carried and not yet honoured -- see HANDOFF item 2, which is
-        # where a mission gets told to push its own diff and where the check that
-        # lets it is built. The field is here because the record is written once
-        # and read by that turn later.
+        # `ship` is carried here and honoured when the mission ENDS -- see
+        # `missions.py` -- because the record is written once and read by that
+        # turn later. `done` only: a mission that failed may well have left
+        # changes in the tree, and pushing those is the opposite of what the
+        # switch means to whoever set it going.
         ceiling = 0.0
         if agent == "colibri":
             # THE ONE ASSISTANT WITH A CEILING. A colibrì turn runs inside the

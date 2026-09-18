@@ -169,6 +169,29 @@ window.fetch = (url, opts) => {
     asked.push(String(url));
     return Promise.resolve({ json: () => Promise.resolve(serving) });
   }
+  // The meeting deck's three routes. `/notes/what` is what each workspace has
+  // to report since the chosen period, `/notes` builds the deck, and
+  // `/meeting/deck.json` is the one from before.
+  if (url === '/notes/what') {
+    posted.push({ to: url, body: JSON.parse(opts.body) });
+    return Promise.resolve({ json: () => Promise.resolve({
+      ok: true, since: 'last week', workspaces: [
+        { id: 'research/PSYCH-ASR', name: 'PSYCH-ASR', moved: true,
+          commits: 3, closed: 1, files: 7 },
+        { id: 'courses/Galois-Theory', name: 'Galois-Theory', moved: false,
+          commits: 0, closed: 0, files: 0 },
+      ] }) });
+  }
+  if (url === '/notes') {
+    posted.push({ to: url, body: JSON.parse(opts.body) });
+    return Promise.resolve({ json: () => Promise.resolve({
+      ok: true, name: 'meeting', workspaces: ['research/PSYCH-ASR'],
+      tex: 'meetings/meeting.tex', pdf: 'meetings/meeting.pdf' }) });
+  }
+  if (url === '/meeting/deck.json') {
+    return Promise.resolve({ json: () => Promise.resolve(
+      { ok: true, built: false }) });
+  }
   return Promise.resolve({
     json: () => Promise.resolve(
       url === '/atlas.json' ? payload
@@ -291,6 +314,71 @@ setTimeout(() => {
     check('dragging the plane does not open whatever the finger started on',
           posted.length === before);
 
+    // ---- the meeting deck: two questions, in this order ------------------
+    // "I want to be able to select which projects meeting notes are generated
+    //  for. From that list, I'll select the meeting notes I care about."
+    // The period is asked first because the second question cannot be asked
+    // without it -- what each project HAS to report is measured from a date.
+    doc.getElementById('atlas-notes').onclick();
+    const which = doc.getElementById('notes-which');
+    check('the deck asks how far back first, and nothing else',
+          doc.getElementById('notes-since').hidden === false
+          && which.hidden === true);
+
+    posted.length = 0;
+    doc.querySelector('#notes-since button[data-since="7d"]').click();
+    setTimeout(() => {
+      check('choosing a period asks what each project has to report',
+            posted.length === 1 && posted[0].to === '/notes/what'
+            && posted[0].body.since === '7d');
+      check('and then the list of projects is what is on the sheet',
+            which.hidden === false
+            && doc.getElementById('notes-since').hidden === true);
+
+      const rows = doc.querySelectorAll('#notes-list button');
+      check('every project is offered, whether or not it moved',
+            rows.length === 2);
+      check('and each row says what it has, not just its name -- ticking bare '
+            + 'names ten minutes before a meeting is guessing',
+            /3 commits/.test(rows[0].textContent)
+            && /nothing since/.test(rows[1].textContent));
+      check('the ones that moved are chosen already, because that is what the '
+            + 'deck covers when nobody says anything',
+            rows[0].getAttribute('aria-pressed') === 'true'
+            && rows[1].getAttribute('aria-pressed') === 'false');
+
+      // WHICH PROJECTS REACHES THE BUILDER. `meeting.build` filters
+      // `atlas.workspaces` by `want`, and this is the seam that carries the
+      // ticks to it -- the half that is easy to leave unwired, because the
+      // deck is perfectly buildable without it.
+      rows[1].click();
+      posted.length = 0;
+      doc.getElementById('notes-make').onclick();
+      setTimeout(() => {
+        check('making the deck carries the projects that were ticked',
+              posted.length === 1 && posted[0].to === '/notes'
+              && posted[0].body.want.length === 2
+              && posted[0].body.want.indexOf('courses/Galois-Theory') !== -1);
+        check('and the period goes with them',
+              posted[0].body.since === '7d');
+        check('the deck can then be read, on the page that can be marked up',
+              doc.getElementById('notes-read').hidden === false
+              && doc.getElementById('notes-read').getAttribute('href')
+                 === '/meeting');
+        check('and the sheet says it replaced the one before it, because there '
+              + 'is only ever one',
+              /replaced the one before it/
+                .test(doc.getElementById('notes-said').textContent));
+        rest();
+      }, 20);
+    }, 20);
+    return;
+  }, 60);
+}, 80);
+
+function rest() {
+  {
+    const doc = window.document;
     // ---- a board on an older tool serves no atlas ------------------------
     // Draw nothing and say so. The door above still works, which is the half
     // that matters, and a front door that throws is a blank screen.
@@ -302,5 +390,5 @@ setTimeout(() => {
     console.log(errors.length ? '\n' + errors.length + ' FAILURES'
                               : '\none picture of everything, and it is the way in');
     process.exit(errors.length ? 1 : 0);
-  }, 60);
-}, 80);
+  }
+}

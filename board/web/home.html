@@ -139,24 +139,54 @@
      decision to open something deserves the whole of what is known. It is also
      the answer to reading a card on a phone: the picture can be small as long
      as a tap makes it large. -->
-<!-- HOW FAR BACK, and nothing else. The period is the only thing a person
-     genuinely has to say; which workspaces is answered by "the ones that
-     moved", which is what the note does anyway. Four buttons rather than a date
-     field: a date picker on a tablet, ten minutes before a meeting, is the
-     wrong shape of question. -->
+<!-- TWO QUESTIONS, IN THIS ORDER, because the second one cannot be asked until
+     the first is answered. How far back is a period; which projects is a list
+     of what each one HAS to report since that period, which is the only form
+     of the question anybody can answer ten minutes before a meeting.
+
+     Buttons rather than a date field: a date picker on a tablet is the wrong
+     shape of question. Ticks rather than bare names: "three commits, one step
+     closed" beside a project is the answer; its name alone is a guess. -->
 <div id="notes" class="sheet" hidden>
   <div class="sheet-box" role="dialog" aria-modal="true" aria-labelledby="notes-title">
-    <p class="eyebrow">notes for a meeting</p>
+    <p class="eyebrow">the meeting deck</p>
     <h3 id="notes-title">How far back?</h3>
-    <p class="sheet-line" id="notes-line">What landed, what it meant, what is
-      blocked — with a link on every claim.</p>
+    <p class="sheet-line" id="notes-line">One slide per project: what landed,
+      what it meant, what is blocked. Nothing on it is invented.</p>
     <div id="notes-since" class="notes-since">
-      <button type="button" data-since="last">since the last notes</button>
+      <button type="button" data-since="last">since the last deck</button>
       <button type="button" data-since="monday">since Monday</button>
       <button type="button" data-since="7d">the last week</button>
       <button type="button" data-since="30d">the last month</button>
     </div>
+
+    <!-- WHICH PROJECTS. Asked second and only once the period is known, with
+         what each one has to report beside it. The ones that moved are ticked
+         already, because that is what the deck would cover if nobody said
+         anything — so the list is a chance to narrow it, not a form. -->
+    <div id="notes-which" hidden>
+      <p class="sheet-line" id="notes-which-line"></p>
+      <div id="notes-list" class="notes-which"></div>
+      <div class="sheet-actions">
+        <button id="notes-make" class="action primary" type="button">
+          <span class="action-name">Make the deck</span>
+          <span class="action-sub" id="notes-make-sub"></span>
+        </button>
+        <button id="notes-back" class="action" type="button">
+          <span class="action-name">Back</span>
+          <span class="action-sub">a different period</span>
+        </button>
+      </div>
+    </div>
+
     <p class="sheet-line" id="notes-said" hidden></p>
+    <!-- THE ONE FROM BEFORE, which is what you want in the ten minutes before
+         the meeting rather than a new one. There is only ever one: making a
+         new deck REPLACES it. -->
+    <a id="notes-read" class="action primary" href="/meeting" hidden>
+      <span class="action-name">Read the deck</span>
+      <span class="action-sub" id="notes-read-sub"></span>
+    </a>
     <button class="sheet-open" id="notes-close" type="button">close</button>
   </div>
 </div>

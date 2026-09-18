@@ -229,3 +229,25 @@ body.annotating .lib-page img {
 #note-acts { display: flex; gap: .5rem; justify-content: flex-end; }
 .note-said { font-size: .8rem; color: var(--ink-2); line-height: 1.45; margin: 0; }
 .note-said.bad { color: var(--bad); }
+
+/* ---------- the meeting deck ---------- */
+/* The deck's reader IS this reader -- `meeting.html` loads this sheet and
+   reuses `#reader`, `.lib-page` and the pen. What is here is only the two
+   things that page has and the library does not: a way back on the reader's
+   own bar, because `#reader` is fixed to the whole viewport and a header above
+   it would be a header nothing can reach; and a send button that has to look
+   like the consequential one it is. */
+#reader-bar a {
+  color: var(--ink-2); text-decoration: none;
+  font-size: .82rem; padding: .3rem .5rem; border-radius: .35rem;
+  border: 1px solid var(--rule);
+}
+#reader-bar a:hover { background: var(--paper); color: var(--ink); }
+#deck-send {
+  background: var(--note); border-color: var(--note); color: #fff;
+  font-weight: 600;
+}
+#deck-send:disabled {
+  background: transparent; color: var(--ink-2);
+  border-color: var(--rule); font-weight: 400; opacity: .55; cursor: default;
+}

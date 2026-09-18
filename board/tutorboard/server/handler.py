@@ -176,6 +176,13 @@ class Handler(BaseHTTPRequestHandler):
         # lesson somebody else is mid-proof in. `/slate` is the precedent.
         if path in ("/library", "/library/"):
             return self.send_file(os.path.join(WEB, "library.html"))
+        # THE MEETING DECK, and it is a page of its own for the same reason the
+        # library is: it belongs to the REPOSITORY rather than to the workspace
+        # this board serves, and nothing on it may touch the sitting. Only the
+        # bare path -- `/meeting/view`, `/meeting/deck.json` and `/meeting/pdf`
+        # are data and are answered by `routes.machines` below.
+        if path in ("/meeting", "/meeting/"):
+            return self.send_file(os.path.join(WEB, "meeting.html"))
         if re.match(r"^/slate/page-\d+\.png$", path):
             return self.send_file(os.path.join(repo.slate, os.path.basename(path)))
 

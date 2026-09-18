@@ -10,13 +10,14 @@
    network -- a cached lesson is a stale lesson, which is worse than none.
    ========================================================================== */
 
-var VERSION = "board-shell-v138";
+var VERSION = "board-shell-v139";
 
 var SHELL = [
   "/",
   "/board",
   "/slate",
   "/library",
+  "/meeting",
   "/static/home.css",
   "/static/home.js",
   "/static/gauge.js",
@@ -28,6 +29,7 @@ var SHELL = [
   "/static/board.js",
   "/static/library.css",
   "/static/library.js",
+  "/static/meeting.js",
   "/static/shot.js",
   "/static/macros.js",
   "/static/slate.css",
@@ -79,7 +81,13 @@ var RUNTIME = /\/static\/(katex\/fonts|fonts)\//;
    old address every time the pipeline runs. A cached one is last week's result
    wearing this week's label, which is the one failure a figure on a board must
    not have: it is being looked at to decide something. */
-var LIVE = /^\/(events|board\.json|courses\.json|hosts\.json|health|switch|chose|start|say|aim|upload|slate\/(save|state)|figure\/|result\/|uploads\/|slate\/page-|download\/|view\/|paper\/|doc\/|library\.json|library\/)/;
+/* AND THE DECK'S OWN DATA, which is the same mistake again. There is one
+   deck at one path and it is REPLACED rather than versioned, so
+   `/meeting/view`, `/meeting/deck.json` and `/meeting/pdf` are all stable
+   addresses whose contents change under them -- a cached one is last week's
+   meeting wearing this week's name, in front of this week's mentors. The
+   page `/meeting` itself is shell and is cached; its contents are not. */
+var LIVE = /^\/(events|board\.json|courses\.json|hosts\.json|health|switch|chose|start|say|aim|upload|slate\/(save|state)|figure\/|result\/|uploads\/|slate\/page-|download\/|view\/|paper\/|doc\/|library\.json|library\/|meeting\/)/;
 
 self.addEventListener("install", function (e) {
   e.waitUntil(

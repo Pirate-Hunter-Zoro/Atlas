@@ -1,8 +1,24 @@
-"""Meeting notes: what landed, what it means, what is next, what is blocked.
+"""The meeting deck: what landed, what it means, what is next, what is blocked.
 
     "have functionality to produce 'meeting notes' for me with in-built links
      that will take me to those results/code/sections of my board writing to
      explain those notes."
+
+    "I want a presentation like the ones made for PSYCH-ASR created and
+     rendered for me... We're also not gonna save every presentation pertaining
+     to meeting notes -- this is a one-off communication tool. BUT what we will
+     do is save each most recent one."
+
+A BEAMER FRAME PER WORKSPACE, at `meetings/meeting.pdf`, and there is exactly
+one of it: making a new one REPLACES the one before. `meetings/` is tracked, so
+nothing accumulates in the tree and `git log` holds every deck there has ever
+been -- which is recoverable, and a delete is not.
+
+ONE FRAME IS EXACTLY ONE PAGE, and that is load-bearing rather than
+typographic. The page a mark is on is how that mark finds its workspace --
+`page_map` below, and `proposals.py` on the other end of it -- so a frame that
+quietly spilled onto a second page would route somebody's mentor's suggestion
+into the wrong project.
 
 This is the first thing in the system that SPENDS what the last two pieces of
 work built, and it does not work without either of them.
@@ -18,12 +34,14 @@ work built, and it does not work without either of them.
 **Nothing here is generated prose.** Every sentence is assembled from something
 already written down by a person: a commit subject they wrote, a plan step they
 typed, a box they named. This module summarises and links; it does not describe.
-A meeting note whose sentences were invented is a meeting note that has to be
-checked before it can be used, which is worse than no note.
+A slide you are going to stand behind in front of your mentors is the last place
+for a sentence nobody wrote, and a model asked to write the deck would buy
+polish at the price of the one property that makes it usable without checking.
+If a frame reads badly, the fix is `frames` below.
 
 Two rules about what comes out, and they are the ones from the handoff:
 
-  SHORT. A meeting note nobody can read in a lift is not a meeting note.
+  SHORT. A frame nobody can read across a room is not a frame.
   ONE-READ. One idea per sentence, the conclusion first, names and numbers
   rather than adjectives.
 
@@ -40,13 +58,15 @@ from . import atlas, paths
 from .course import document, plan
 from .course import map as course_map
 
-# Where the notes go. At the REPOSITORY root, not in a workspace: a note about
-# five workspaces filed under one of them is misfiled, and the person looking
-# for "the notes from the meeting on the 14th" is not looking inside a course.
+# Where the deck goes. At the REPOSITORY root, not in a workspace: a document
+# about five workspaces filed under one of them is misfiled, and it is also
+# what keeps the deck out of every workspace's own library.
 OUT_DIR = "meetings"
 
-# How many commits are LISTED before they are counted instead. A meeting note is
-# not a changelog; past this, what matters is that there were forty of them.
+# How many commits the PROSE form lists before it counts them instead --
+# `render`, which is what `board notes --print` gives and what the deck is
+# built alongside. A summary is not a changelog; past this, what matters is
+# that there were forty of them. The frames have their own, smaller, numbers.
 MAX_LISTED = 6
 
 # How many next-steps and blocked boxes are worth saying out loud.
@@ -55,6 +75,47 @@ MAX_BLOCKED = 4
 
 # A commit subject longer than this is a paragraph somebody put on one line.
 SUBJECT = 100
+
+# ---------------------------------------------------------------------------
+# THE DECK: ONE OF THEM, AT A FIXED PATH
+# ---------------------------------------------------------------------------
+# Asked for in these words: *"we're also not gonna save every presentation
+# pertaining to meeting notes -- this is a one-off communication tool. BUT what
+# we will do is save each most recent one... if I elect to make a new one, then
+# that new one REPLACES the old one."*
+#
+# So there is no `-v1, -v2, -v3` here and no date in the name: one stem, written
+# over. `meetings/` is TRACKED rather than ignored, which is what makes that
+# safe -- nothing accumulates in the tree, and `git log` still holds every deck
+# there has ever been. That is the cheap version of "we are not going to save
+# every presentation", and it is recoverable, which a delete is not.
+STEM = "meeting"
+
+# What was on each frame, beside the frames. The reader needs to know WHICH
+# WORKSPACE a page is about, because a mark on a page is direction input for
+# that workspace and for no other -- and the routing is in the geometry rather
+# than in anything a person types.
+RECORD = STEM + ".json"
+
+# What a mark on a slide of it is keyed under. The same grammar every marked
+# page in this system uses -- `doc/<ident>/p<n>`, `writing.ANN_DOC` -- so the
+# pen, the store and the picture of the page are the ones that already exist.
+# It is a constant rather than derived from the filename because there is
+# exactly one deck: a second ident would be a second document.
+ANN_IDENT = STEM
+
+# HOW MUCH GOES ON ONE FRAME, and these are smaller than the note's numbers on
+# purpose. A slide is read across a room in the thirty seconds somebody spends
+# looking at it before you start talking; the note is read sitting down. Six
+# commits is a readable paragraph and an unreadable slide.
+DECK_COMMITS = 4
+DECK_CLOSED = 3
+DECK_MEANING = 3
+DECK_BLOCKED = 2
+
+# And a subject is clipped shorter for a frame than for a page, for the same
+# reason. Beamer's column is about 80 characters wide at this size.
+DECK_SUBJECT = 78
 
 WEEKDAYS = ("monday", "tuesday", "wednesday", "thursday", "friday",
             "saturday", "sunday")
@@ -76,9 +137,9 @@ def resolve_since(spec, root=None):
     if spec == "last":
         when = _last_notes(root)
         if not when:
-            return None, ("there are no earlier notes to measure from. Give a "
-                          "date or a span for the first set.")
-        return when, "the last set of notes"
+            return None, ("there is no earlier deck to measure from. Give a "
+                          "date or a span for the first one.")
+        return when, "the last deck"
 
     m = re.match(r"^(\d{4})-(\d{2})-(\d{2})$", spec)
     if m:
@@ -124,7 +185,7 @@ def resolve_since(spec, root=None):
 
 
 def _last_notes(root):
-    """When the newest set of notes was written, or 0."""
+    """When the deck was last written, or 0."""
     base = root or atlas.root()
     if not base:
         return 0
@@ -373,7 +434,10 @@ def gather(base, ws, since_ts):
     files = touched(base, rel, since_ts)
     block = {
         "id": ws["id"],
-        "name": ws.get("course") or ws.get("repo") or ws["id"],
+        # WHAT THEY CALL IT. The qualified id is the address and is the last
+        # resort here: `research/PSYCH-ASR` is a path, and a frame title in
+        # front of mentors wants the name of the project.
+        "name": ws.get("course") or ws.get("repo") or ws.get("dir") or ws["id"],
         "link": _address(ws["id"]),
         "commits": commits,
         "closed": closed(base, rel, root, since_ts),
@@ -548,12 +612,215 @@ def render(blocks, human, base_url, whole):
     return "\n".join(out).rstrip() + "\n"
 
 
-def build(base, since_ts, human, want=None, make_pdf=True, here=None):
-    """Gather, render, typeset, track. The record the board paints.
+# ---------------------------------------------------------------------------
+# the deck
+# ---------------------------------------------------------------------------
+# A PRESENTATION, NOT A DOCUMENT, and the difference is the frame. A note is
+# read sitting down and its unit is the paragraph; this is stood in front of
+# mentors and its unit is a slide, which is a hard limit on how much may be on
+# it. `render` above is the same blocks as prose and is what `--print` gives.
+#
+# ASSEMBLED, NOT GENERATED, and that is the decision in this whole item. A model
+# asked to write the deck would produce better sentences, and the price is the
+# one property that makes it usable without checking: every line here is a
+# commit subject somebody wrote, a plan step they typed, or a box they named.
+# A slide you are going to stand behind in front of your mentors is the last
+# place in this repository for a sentence nobody wrote. If the deck reads badly
+# the fix is this function, not a turn.
+#
+# ONE FRAME PER WORKSPACE AND EXACTLY ONE PAGE PER FRAME. `shrink` is what
+# guarantees the second half: it scales a frame that would overflow instead of
+# letting beamer spill it onto a page nobody planned. That matters far beyond
+# typography -- the page a mark is on is how the mark finds its workspace, and a
+# frame that quietly became two pages would route somebody's mentor's suggestion
+# into the wrong project.
+def frames(blocks, human, base_url, whole):
+    """The deck's body, as LaTeX. One title frame, then one frame per block."""
+    out = []
+    moved = sum(len(b["commits"]) for b in blocks)
+    subtitle = ("%s across %s, since %s."
+                % (_plural(moved, "commit"), _plural(len(blocks), "workspace"),
+                   human)) if blocks else ("Nothing landed in %s." % human)
 
-    Same pipeline as every other document in this system: markdown into
-    `document.md_to_tex`, a numbered `-vN` rather than a timestamp, and staged
-    rather than committed, because a commit is a decision a person makes.
+    out.append("\\begin{frame}[plain]")
+    out.append("  \\titlepage")
+    out.append("  \\begin{center}\\small %s\\end{center}"
+               % document.inline_tex(subtitle))
+    out.append("\\end{frame}")
+    out.append("")
+
+    if not blocks:
+        # ONE FRAME SAYING SO, rather than a deck of empty headings. Standing in
+        # front of a slide that says nothing happened is a shorter meeting than
+        # standing in front of eleven that each say it separately.
+        out.append("\\begin{frame}{Nothing to report}")
+        out.append("  %s" % document.inline_tex(
+            "%d workspace%s were looked at and none of them moved in %s."
+            % (whole, "" if whole == 1 else "s", human)))
+        out.append("\\end{frame}")
+        out.append("")
+        return "\n".join(out) + "\n"
+
+    def link(text, addr):
+        """A real link, or the address as text. NEVER SOMETHING THAT LOOKS LIKE
+        A LINK AND IS NOT -- `render` states the rule and this obeys the same
+        one, because a deck is opened on a laptop in the meeting as often as it
+        is projected."""
+        if not addr or not base_url:
+            return text
+        return "[%s](%s%s)" % (text, base_url, addr)
+
+    for b in blocks:
+        out.append("\\begin{frame}[shrink=25]{%s}{%s}"
+                   % (document.inline_tex(link(b["name"], b["link"])),
+                      document.inline_tex(_subtitle_of(b, human))))
+        out.append("  \\begin{itemize}\\small")
+
+        for c in b["commits"][:DECK_COMMITS]:
+            out.append("    \\item %s \\textcolor{gray}{\\tiny(%s)}"
+                       % (document.inline_tex(_clip(c["subject"], DECK_SUBJECT)),
+                          document.inline_tex(_when(c["at"]))))
+        if len(b["commits"]) > DECK_COMMITS:
+            out.append("    \\item \\textcolor{gray}{\\ldots and %d more.}"
+                       % (len(b["commits"]) - DECK_COMMITS))
+
+        for t in b["closed"][:DECK_CLOSED]:
+            out.append("    \\item \\textbf{Closed.} %s"
+                       % document.inline_tex(_clip(t, DECK_SUBJECT)))
+
+        # WHAT IT MEANS, in their own names for their own work. This is the
+        # section the written map exists for and the one a mentor can act on:
+        # "psych\_asr/asr/align.py changed" is a fact about a filename.
+        for n in b["meaning"][:DECK_MEANING]:
+            said = (" --- " + _clip(n["does"], DECK_SUBJECT)) if n["does"] else ""
+            out.append("    \\item \\textbf{%s}%s"
+                       % (document.inline_tex(link(n["name"], n["link"])),
+                          document.inline_tex(said)))
+
+        if b["next"]:
+            out.append("    \\item \\textbf{Next.} %s"
+                       % document.inline_tex(
+                           _clip(b["next"][0].rstrip("."), DECK_SUBJECT) + "."))
+
+        for n in b["blocked"][:DECK_BLOCKED]:
+            out.append("    \\item \\textbf{Blocked.} %s waits on %s."
+                       % (document.inline_tex(link(n["name"], n["link"])),
+                          document.inline_tex(" and ".join(n["on"]))))
+
+        out.append("  \\end{itemize}")
+        out.append("\\end{frame}")
+        out.append("")
+
+    return "\n".join(out) + "\n"
+
+
+def _subtitle_of(b, human):
+    """The one line under a frame's title: how much moved, and since when."""
+    bits = []
+    if b["commits"]:
+        bits.append(_plural(len(b["commits"]), "commit"))
+    if b["files"]:
+        bits.append(_plural(b["files"], "file") + " touched")
+    if b["closed"]:
+        bits.append(_plural(len(b["closed"]), "step") + " closed")
+    return ", ".join(bits) + (" since %s" % human if bits else human)
+
+
+def page_map(blocks):
+    """`{page: workspace id}` -- which frame is about which workspace.
+
+    THE ROUTING IS IN THE GEOMETRY. A mark on a slide is direction input for the
+    workspace that slide is about, and this is the only thing that knows which
+    that is. Page 1 is the title and belongs to nobody, which is why it is not
+    in here rather than being mapped to the first workspace.
+    """
+    return dict((str(i + 2), b["id"]) for i, b in enumerate(blocks))
+
+
+def deck(base):
+    """The one deck, as it stands, or None if none has been made.
+
+    `pages` is what `page_map` wrote at build time, `since` is what it was made
+    for, and `at` is when. Read off disk rather than recomputed: the deck on the
+    glass is the one that was built, and rebuilding the map from a fresh `gather`
+    would describe a deck that is not there.
+    """
+    out_dir = os.path.join(base, OUT_DIR)
+    try:
+        with open(os.path.join(out_dir, RECORD), "r", encoding="utf-8") as fh:
+            rec = json.load(fh)
+    except (OSError, ValueError):
+        return None
+    if not isinstance(rec, dict):
+        return None
+    rec["pdf"] = os.path.join(out_dir, STEM + ".pdf")
+    rec["tex"] = os.path.join(out_dir, STEM + ".tex")
+    rec["has_pdf"] = os.path.isfile(rec["pdf"])
+    return rec
+
+
+def ink_keys(repo):
+    """Every annotation key on this deck that has strokes under it.
+
+    The store is the board's own -- one record per key under `live/annotations`
+    -- and the keys are `doc/meeting/p<n>`, so the pen, the picture and the
+    coordinates are all the ones that already exist.
+    """
+    from .lesson import notes as lesson_notes          # local: avoids a cycle
+    from .server.routes import writing                 # local: avoids a cycle
+
+    out = {}
+    for key, strokes in lesson_notes.load_notes(repo).items():
+        found = writing.ann_doc_page(key)
+        if found and strokes and found[0] == ANN_IDENT:
+            out[key] = strokes
+    return out
+
+
+def clear_ink(repo):
+    """Throw away every mark on the deck. Returns how many keys went.
+
+    THE ONE DOCUMENT IN THIS SYSTEM WHERE OLD MARKS HAVE NO MEANING AT ALL. Ink
+    on a paper is a complaint about that paper and survives a revision of it;
+    ink on a slide is a direction somebody suggested in a meeting, and the
+    moment it was sent it was consumed into that direction. The deck is
+    overwritten at a fixed path with different pages on it, so a mark left on
+    page 4 would reappear over next week's page 4, over a different workspace,
+    as a suggestion nobody made.
+    """
+    from .server.routes import writing                 # local: avoids a cycle
+
+    gone = 0
+    for key in ink_keys(repo):
+        stem = os.path.join(repo.notes, writing.ann_file(key))
+        for ext in (".json", ".png"):
+            try:
+                os.remove(stem + ext)
+            except OSError:
+                continue
+            if ext == ".json":
+                gone += 1
+    return gone
+
+
+def build(base, since_ts, human, want=None, make_pdf=True, here=None,
+          repo=None, write=True):
+    """Gather, assemble, typeset, track. One deck, at one path, overwritten.
+
+    `want` is which workspaces to look at -- their `id` or their bare directory
+    -- and nothing else is looked at when it is given. Without it, every
+    workspace in the repository is gathered and the ones that did not move are
+    left out, which is what the front door does when nobody ticks anything.
+
+    `repo` is the board that is serving, and the only thing it is for is the
+    ink: the marks on the deck live in that board's annotation store, and a new
+    deck at the same path with different pages on it must not inherit them.
+
+    `write=False` ASSEMBLES AND TOUCHES NOTHING, which is what `--print` wants.
+    There is one deck at one path now, so a run that wrote the source without
+    building the PDF would leave a `.tex` and a `.pdf` beside each other that
+    are not the same deck -- and would throw away the marks on the one that is
+    still on the glass, for a command that was only asked to show its text.
     """
     every = atlas.workspaces(base)
     if want:
@@ -573,8 +840,17 @@ def build(base, since_ts, human, want=None, make_pdf=True, here=None):
         if one:
             blocks.append(one)
 
-    body = render(blocks, human, board_url(base, here), len(every))
-    title = "Meeting notes — " + time.strftime("%d %B %Y")
+    base_url = board_url(base, here)
+    body = render(blocks, human, base_url, len(every))
+    title = "Where the work is"
+
+    if not write:
+        return {"ok": True, "name": STEM,
+                "workspaces": [b["id"] for b in blocks],
+                "names": dict((b["id"], b["name"]) for b in blocks),
+                "pages": page_map(blocks), "since": human, "at": time.time(),
+                "markdown": body, "tex": "", "pdf": None, "detail": "",
+                "wrote": False}
 
     out_dir = os.path.join(base, OUT_DIR)
     try:
@@ -582,28 +858,46 @@ def build(base, since_ts, human, want=None, make_pdf=True, here=None):
     except OSError as exc:
         return {"ok": False, "detail": "could not make %s: %s" % (out_dir, exc)}
 
-    stem = "meeting-" + time.strftime("%Y-%m-%d")
-    version = document.next_version(out_dir, stem)
-    name = "%s-v%d" % (stem, version)
-    tex_path = os.path.join(out_dir, name + ".tex")
-
+    tex_path = os.path.join(out_dir, STEM + ".tex")
+    pdf_path = os.path.join(out_dir, STEM + ".pdf")
+    # THE OLD PDF GOES BEFORE THE NEW SOURCE LANDS. One deck at one path means
+    # a compile that fails would otherwise leave LAST week's rendering beside
+    # THIS week's page map -- and the page map is how a mark finds its
+    # workspace, so the reader would hand somebody a slide about one project
+    # and route their marks on it to another.
+    try:
+        os.remove(pdf_path)
+    except OSError:
+        pass
     with open(tex_path, "w", encoding="utf-8") as fh:
-        fh.write(document.TEX_HEAD % {
+        fh.write(document.BEAMER_HEAD % {
             "title": document.inline_tex(title),
             "author": document.inline_tex(_author(base)),
-            "date": time.strftime("%B %d, %Y"),
-            "macros": "",
+            "date": time.strftime("%d %B %Y"),
         })
-        # `md_to_tex` hands back one string, not a list of lines. Joining a
-        # string joins its CHARACTERS, which produced a 40-page document one
-        # letter per line and compiled perfectly well.
-        fh.write(document.md_to_tex(body))
+        fh.write(frames(blocks, human, base_url, len(every)))
         fh.write("\n\\end{document}\n")
 
-    rec = {"ok": True, "name": name, "version": version,
+    pages = page_map(blocks)
+    rec = {"ok": True, "name": STEM,
            "workspaces": [b["id"] for b in blocks],
+           "names": dict((b["id"], b["name"]) for b in blocks),
+           "pages": pages,
+           "since": human, "at": time.time(),
            "markdown": body,
            "tex": os.path.relpath(tex_path, base), "pdf": None, "detail": ""}
+
+    # THE OLD MARKS GO BEFORE THE NEW DECK IS ANNOUNCED, not after. They are
+    # cleared even when LaTeX then refuses the deck: the .tex on disk is already
+    # the new one, so the pages the old ink was drawn on are gone either way.
+    if repo is not None:
+        rec["cleared"] = clear_ink(repo)
+    # AND THE PICTURES OF THOSE MARKS, which sit beside the deck rather than in
+    # the board that served it. Local import: `proposals` is what reads this
+    # deck's marks, so it imports this module.
+    from . import proposals                          # local: avoids a cycle
+    rec["pictures"] = proposals.forget_pictures(base)
+
     if make_pdf:
         ok, res = document.compile_pdf(base, tex_path)
         if ok:
@@ -611,8 +905,23 @@ def build(base, since_ts, human, want=None, make_pdf=True, here=None):
         else:
             rec["ok"] = False
             rec["detail"] = res
+
+    # THE PAGE MAP IS WRITTEN WHATEVER LaTeX SAID, because the .tex is the deck
+    # and the record describes it. It is written LAST so that a reader that
+    # finds a record finds a deck beside it.
+    try:
+        with open(os.path.join(out_dir, RECORD), "w", encoding="utf-8") as fh:
+            json.dump({"name": STEM, "workspaces": rec["workspaces"],
+                       "names": rec["names"], "pages": pages,
+                       "since": human, "at": rec["at"],
+                       "built": bool(rec["pdf"])}, fh)
+    except OSError as exc:
+        rec["ok"] = False
+        rec["detail"] = (rec["detail"] + " ") if rec["detail"] else ""
+        rec["detail"] += "the page map could not be written: %s" % exc
+
     rec["tracked"] = document.track(
-        base, [tex_path, os.path.join(out_dir, name + ".pdf")])
+        base, [tex_path, pdf_path, os.path.join(out_dir, RECORD)])
     return rec
 
 
