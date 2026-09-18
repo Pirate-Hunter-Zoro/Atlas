@@ -168,7 +168,9 @@ this part: the dispatch is refused here as PHI handling, correctly, because
 what it does is point an assistant at a fenced directory, and the iPad is a
 person deciding rather than an assistant acting. **Check the server is still up
 first** — `coli` says, in one line, and now also says how many minutes that
-generation has left and whether one is queued behind it. The server itself no
+generation has left and whether one is queued behind it. Nothing is holding the
+dispatch any more: the A/B that owned `.coli_usage` is finished — see MTP under
+Settled. The server itself no
 longer goes away at a walltime (see THE CHAIN under Settled); a mission still
 dies at the hop, so start one with a full generation ahead of it rather than
 twenty minutes.
@@ -261,60 +263,9 @@ None of these is a build. Each is an evening in front of the thing.
 
 ## Still open from the harness
 
-- **`MTP`: the job is written and it has not been run.** Speculation is OFF on
-  the served configuration and the log's `[MTP] active` line does not say
-  otherwise — `active` is about the checkpoint, `draft=0` is about the run.
-  `MTP=1` is read nowhere that matters; `COLI_CUDA_MTP=1` is the lever and it
-  faces one gate rather than two — the planner's `DRAFT=0` is for the *compute*
-  class and this box plans *mixed*, verified by calling `_auto_tune` directly
-  across all four — and **depth 1 is the thing to test**, which no P0 run
-  tried. The derivation is
-  `projects/libr-local-llm/P0-STATUS.md` **finding 21**; the A/B is
-  `projects/libr-local-llm/slurm_jobs/p0/t21_mtp_depth1.sbatch`, one job on one
-  node, mirroring the served configuration rather than a convenient one, and it
-  records the resolved draft depth and the acceptance rate beside tok/s because
-  two arms that both ran `draft=0` would otherwise look like a result.
-
-  **IT IS RUNNING AND NOBODY IS WAITING AT A KEYBOARD FOR IT.** Job **2073575**
-  on compute303, submitted 2026-09-18 15:09, expected to finish about 16:10 —
-  seven runs at roughly 8.5 minutes each, which is the 427 GB re-pin every run
-  pays and not the decode. **Do not submit a second one**; read the first one's
-  answer. There is nothing to watch: if the job is gone from `squeue`, it is
-  done, and if the box was rebooted under it, `sacct -j 2073575` says so.
-
-  **The answer is three greps against one file**, and the file is outside the
-  repository because the per-configuration logs carry generated text:
-
-      /media/studies/ehr_study/analysis/mferguson/fleet-p0/t21_mtp_2073575/timeline.txt
-
-  `RESULT tag=… tps=…` is the rate, the `[MTP] … (draft=N)` line is whether
-  speculation was on at all, and the `speculation:` line is tokens per forward
-  and acceptance. **Read the draft depth before reading the rates.** Six measured
-  runs, `r1..r3` × on/off, ordered ABBAAB; `warmup_discard` is not a measurement.
-  Already on disk and already worth having: the warm-up ran `draft=0` at 3.68
-  tok/s with acceptance 0/0, and `r1_mtp_on` came up `draft=1`, which is the
-  first time speculation has been on under CUDA on this box.
-
-  **Then write the result into `P0-STATUS.md` finding 21 and take this item out
-  of the file.** If MTP wins, `colibri_serve.sbatch` gains one export beside its
-  `CUDA_DENSE=0` and §10's tuning table changes again; if it loses, §3.3's
-  conclusion finally has a measurement under it instead of a misreading. Either
-  way the item is done and comes out.
-
-  **One scheduling rule while it runs, and it is about a file rather than the
-  GPU**: do not dispatch item 1's mission to the server until this job is gone.
-  `coli_ab.sh` restores `<model>/.coli_usage` byte-for-byte before every
-  configuration — it has to, that protocol is why the numbers mean anything —
-  and that same file is the live routing history the serving generation appends
-  to between turns. An idle server loses nothing by it. A working one loses what
-  it learned. The job header says this too.
-
-**KV slots came off this list rather than being done.** A slot costs 23.9 GB at
-131072, it fits only by eating the whole pin margin, a second one turns
-speculation off machine-wide, and colibrì's own full-residency run has two
-sessions at 3.16 tok/s each against 4.84 for one. `exclusive` stays in the
-`colibri` recipe and is now the answer rather than a placeholder — P0-STATUS
-**finding 22**.
+**Nothing.** Both levers it held are measured and both answers are under
+*Settled*: speculation costs 10 % and is off, and one KV slot is the answer
+rather than a placeholder.
 
 ---
 
@@ -334,6 +285,58 @@ as the answer.
 ---
 
 ## Settled, so nobody re-derives it
+
+- **ONE KV SLOT, AND `exclusive` IS THE ANSWER RATHER THAN A PLACEHOLDER.** A
+  slot costs 23.9 GB at a 131072 window and fits only by eating the whole pin
+  margin, so the second one drops roughly 17 GB of experts off 100 % residency
+  and onto the filer. A second slot also turns speculation off machine-wide, and
+  colibrì's own full-residency run has two sessions at 3.16 tok/s each against
+  4.84 for one. `exclusive` stays in the `colibri` recipe — P0-STATUS
+  **finding 22**.
+
+- **MTP: SPECULATION COSTS 10 % ON THIS BOX, SO THE SERVED CONFIGURATION DOES
+  NOT TURN IT ON.** Job 2073575 on compute303, six measured runs ABBAAB, the
+  first time speculation has been on under CUDA here: **3.23 tok/s at `draft=1`
+  against 3.58 at `draft=0`, and the slowest off-run beats the fastest on-run.**
+  Acceptance was 62–77 % and it did not convert — the run that saved the most
+  forwards (78 tokens in 44) was the slowest of the three. The drafting works;
+  the per-forward cost of it exceeds what the saved forwards are worth on a box
+  whose bottleneck `coli plan` already names as the CPU expert tail. So
+  `colibri_serve.sbatch` gains nothing and stays as it is, and §3.3's conclusion
+  has an A/B under it rather than a misreading. The numbers, the table and why
+  the question needed asking at all are `projects/libr-local-llm/P0-STATUS.md`
+  **finding 21**; the per-configuration logs stay outside the repository because
+  they carry generated text.
+
+- **A LEVEL YOU CAN ONLY ENTER IS A TRAP, AND THE FRONT DOOR HAD ONE.** The
+  control back out of a family existed from the day the doors landed and nobody
+  found it: a `.72rem` pill in the corner of the atlas head, the same weight and
+  colour as `notes`, worded *all of it* — and the head scrolled away with the
+  page, so by the time anybody was reading the cards there was nothing on the
+  glass that led back. The only route out was to open a workspace and let the
+  reload land on the doors. **Three things carry it now and a fourth makes it
+  unnecessary.** `#atlas-up` is first in the head, 44px tall, and says
+  *Everything*, which is the word on the heading it returns to — a control that
+  names itself instead of its destination is one nobody connects to the place
+  they are trying to reach. `.atlas-head` is `position: sticky`, so it is on the
+  glass at the bottom of the longest family. Opening a family pushes a history
+  entry, so the back gesture and Escape both come out; **the entry carries no
+  url**, because the hash on that page belongs to `address.js` and a family
+  spelled into it is two grammars in one address. And `closeFamily` paints
+  first and calls `history.back()` second — `back()` answers when the browser
+  feels like it and a tap has to land now.
+  **The fourth is a flat read over the top of both levels.** A hierarchy answers
+  *what is in Courses* and cannot answer *where is the thing called colibri*,
+  because at the door no workspace is drawn and inside a family every other
+  family's is hidden. `#atlas-q` filters every workspace and every tree from
+  every family at once — the name on the card, the repository directory, the
+  chapter, the written title, the next step — and each hit carries the family it
+  came out of. It is a level of its own drawn over whichever of the other two
+  was showing, so clearing the field puts back the family you were standing in
+  rather than dropping you at the door. Its face is `1rem` exactly: iOS zooms the
+  whole page when a field it focuses computes below 16px, and the page's own
+  magnification is the one way left to be lost on that screen.
+  `board/test/hub.js` holds all of it; `board/README.md` has the rule.
 
 - **EGRESS: A LOCAL MODEL READS PHI BECAUSE A GUARD STOPS IT SENDING ANY,
   NOT BECAUSE THE NODE CANNOT REACH ANYTHING.** These compute nodes resolve DNS

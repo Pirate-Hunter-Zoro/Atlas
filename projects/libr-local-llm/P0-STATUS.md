@@ -33,7 +33,7 @@ design" below.
 | 4b | OpenMP thread sweep *(added)* | **PASS** — the allocation's count wins, not the physical one |
 | 5 | `CUDA_DENSE` A/B | **PASS on re-run** — it is not a lever |
 | 6 | one A40 vs four | **PASS** — four cards are worth 0.9 % |
-| 7 | `XEXP` / NUMA / MTP / `DRAFT` | **PARTIAL** — interleave wins; the MTP arm never tested what it named, see finding 21 |
+| 7 | `XEXP` / NUMA / MTP / `DRAFT` | **PASS** — interleave wins; speculation at depth 1 costs 9.7 %, see finding 21 |
 | 8 | vLLM TP shapes | not started — needs the large helper (73.1 GB) downloaded |
 | 8b, 9 | tier 1 under 1–8 concurrent users | **PASS** — see above |
 | 10 | `c3` preemption | **CONFIRMED in 4 s** |
@@ -144,8 +144,10 @@ points. `coli tune`'s candidate set is thread counts and CUDA stream shapes only
 memory placement, so it retained a baseline that was 14 % off the best available configuration.
 
 **Run `coli tune` once for the profile, then do the NUMA A/B by hand.** And in the same sweep:
-`XEXP=1` costs 12 % and should be dropped from §10's starting configuration, `DRAFT=2` costs 11 %
-and `DRAFT=4` costs 19 %, confirming §3.3's argument that speculation fails on this workload.
+`XEXP=1` costs 12 % and should be dropped from §10's starting configuration, and `DRAFT=2` costs
+11 % against `DRAFT=4`'s 19 %. Those two are depth 2 and depth 4 measured against depth **1**, not
+against speculation off, so they say nothing about whether to speculate at all — finding 21 is the
+A/B that does, and it says depth 1 costs 9.7 % against off.
 
 ### 12. Four A40s are worth 0.9 %, and §2.2's correction of colibrì was the error
 
@@ -403,9 +405,51 @@ are not starting from an unlearned router, which is one more reason §10's snaps
 the harness at `fleet-p0/coli_ab.sh` saves it, sleeps 35 s for VRAM to drain, restores it
 byte-for-byte, then measures.
 
-### 21. Speculation is OFF on the served configuration, and `[MTP] active` does not mean it is on
+### 21. Speculation costs 10 % on the served configuration, and it is a measurement now
 
-(Added 2026-09-18. Read out of the engine source and the serve job's own log; no GPU hour spent.)
+(Added 2026-09-18. Derivation read out of the engine source; the A/B is job 2073575 on compute303,
+one node, 51 minutes.)
+
+**THE ANSWER FIRST: turning speculation on makes this box slower, and the margin does not overlap.**
+Six measured runs, `r1..r3` × on/off, ordered ABBAAB, the warm-up discarded:
+
+| arm | `draft` | tok/s | tokens/forward | MTP acceptance |
+|---|---:|---:|---:|---:|
+| `r1_mtp_on` | 1 | 3.21 | 1.25 | 62 % (15/24) |
+| `r2_mtp_on` | 1 | 3.36 | 1.23 | 67 % (16/24) |
+| `r3_mtp_on` | 1 | 3.13 | 1.77 | 77 % (34/44) |
+| `r1_mtp_off` | 0 | 3.53 | 1.00 | — |
+| `r2_mtp_off` | 0 | 3.52 | 1.00 | — |
+| `r3_mtp_off` | 0 | 3.69 | 1.00 | — |
+
+**3.23 tok/s on against 3.58 off — 9.7 % slower — and the slowest off-run beats the fastest on-run.**
+The arms really did differ in the thing they name: every on-run resolved `draft=1` and every off-run
+`draft=0`, which is the first time speculation has been on under CUDA on this box.
+
+**Acceptance is good and it does not convert.** 62–77 % accepted, and at depth 1 that is roughly the
+~85 % the engine's own sweep predicts. The drafting saves real forwards — `r3_mtp_on` produced 78
+tokens in 44 forwards where an off-run needs one each — **and `r3_mtp_on` is the slowest run in the
+table.** So the loss is not acceptance failing; it is the per-forward cost of drafting and verifying
+exceeding what the saved forwards are worth, on a box whose bottleneck `coli plan` already names:
+`limit  CPU expert tail and GPU compute`. A forward that is dominated by a CPU expert tail does not
+get cheaper by being predicted.
+
+**So `colibri_serve.sbatch` gains nothing and stays as it is** — `CUDA_DENSE=0`, no
+`COLI_CUDA_MTP`. The engine's CUDA default of `draft=0` is the right answer here, arrived at for the
+wrong reason: upstream #163 blocks it over FP accumulation divergence on cold CPU experts, and this
+box has none, but at 100 % residency the measurement goes the same way anyway.
+
+**§3.3 finally has a measurement under it rather than a misreading.** Its conclusion — speculation
+fails on this workload — is now supported by an A/B that isolates the variable, and the two numbers
+that used to be cited for it (§11's `DRAFT=2` at −11 % and `DRAFT=4` at −19 %) still do not support
+it, because both are depth 2 and 4 measured against depth **1**, not against speculation off.
+
+The rest of this finding is why the question needed asking at all, and it stays because every
+sentence of it is a trap somebody re-reading a log will fall into again.
+
+---
+
+(Read out of the engine source and the serve job's own log; no GPU hour spent.)
 
 The runbook said the engine turns native speculative decoding on by itself and that what P0 measured
 was setting `MTP=1` on top of that. **Both halves are wrong**, and the line that misled everybody is
@@ -461,13 +505,14 @@ compute-bound with the variable unset gives `DRAFT=0`, with it set to `1` gives 
 to `0` gives `DRAFT=0` again. So one export clears every gate there is, on any plan class, and the
 arms differ in that one variable.
 
-**The A/B is written and is `slurm_jobs/p0/t21_mtp_depth1.sbatch`.** One job on one node under §10's
-snapshot protocol, mirroring the served configuration rather than a convenient one — `--gpu auto
---auto-tier --ctx 131072`, `CUDA_DENSE=0`, 80 CPUs, 800 GB, `numactl --interleave=all`, which is
-what `colibri_serve.sbatch` runs. A discarded warm-up run first, because the first pin on a node
-reads 424.5 GB off the filer at 422 MB/s and a cold run decodes at 0.64 tok/s against a warm 2.88.
-Then six runs ordered ABBAAB rather than ABABAB, so drift over the job does not land on one arm.
-**The depth to test is 1**, which no P0 run tried.
+**The A/B that answered it is `slurm_jobs/p0/t21_mtp_depth1.sbatch`**, kept because the shape is
+the reusable part. One job on one node under §10's snapshot protocol, mirroring the served
+configuration rather than a convenient one — `--gpu auto --auto-tier --ctx 131072`, `CUDA_DENSE=0`,
+80 CPUs, 800 GB, `numactl --interleave=all`, which is what `colibri_serve.sbatch` runs. A discarded
+warm-up first, because the first pin on a node reads 424.5 GB off the filer at 422 MB/s and a cold
+run decodes at 0.64 tok/s against a warm 2.88. Then six runs ordered ABBAAB rather than ABABAB, so
+drift over the job does not land on one arm. **Each run costs about 8.5 minutes and the 427 GB
+re-pin is nearly all of it**, not the decode.
 
 **It records the draft depth and the acceptance rate, not just tok/s**, and that is the correction
 this finding is made of: a tok/s difference between two arms that both ran `draft=0` would be noise
@@ -476,9 +521,14 @@ read as a result. `[MTP] … (draft=N)` says what the engine resolved and the `s
 job also refuses to start if `COLI_CUDA_MTP` or `DRAFT` is set in the submitting environment, which
 would put the lever in both arms.
 
-It is worth the hour because the engine's CUDA default is written for a host where "the cold subset
-always exists on a single 16 GB card" — and this box plans 100 % expert residency with 45.4 GB of
-hot experts in VRAM, which is the one condition under which that divergence mostly does not arise.
+**Its per-configuration logs stay outside this repository**, because they carry generated text:
+`/media/studies/ehr_study/analysis/mferguson/fleet-p0/t21_mtp_<jobid>/`, with `timeline.txt` the
+three-line-per-arm summary the table above is read from.
+
+**It restores `<model>/.coli_usage` byte-for-byte before every configuration**, which is the whole
+reason the numbers compare — and that same file is the live routing history a serving generation
+appends to between turns. **So do not run this against a working server.** An idle one loses
+nothing; a working one loses what it learned.
 
 ### 22. A KV slot costs 23.9 GB at a 131072 window, and the refusal stays anyway
 
@@ -504,9 +554,11 @@ is 7.1 GB of pin headroom, not 23.9, so a second slot drops `max_pin` below what
 pin and roughly 17 GB of experts stop being resident — off 100 %, onto the filer, at 0.64 tok/s a
 token for whatever faults.
 
-**And a second slot turns speculation off machine-wide**, if finding 21's A/B ever turns it on:
-`mux_will_disable_mtp` is `SERVE && SERVE_BATCH && KV_SLOTS>1`, because drafting is not ragged-safe
-across slots. (FLEET-BUILD §3.3 states this the wrong way round — it says `KV_SLOTS=1` and MTP are
+**And a second slot turns speculation off machine-wide**, which costs nothing here and is worth
+knowing anyway: `mux_will_disable_mtp` is `SERVE && SERVE_BATCH && KV_SLOTS>1`, because drafting is
+not ragged-safe across slots. Finding 21 measured speculation at depth 1 as 9.7 % SLOWER than off on
+this box, so this clause takes away a thing we do not want — but it is the reason a future
+checkpoint whose drafting does pay would be silently un-paid for by a second slot. (FLEET-BUILD §3.3 states this the wrong way round — it says `KV_SLOTS=1` and MTP are
 *mutually exclusive*, when `KV_SLOTS=1` is the case that KEEPS MTP. Its next sentence gets it right.)
 
 **And the throughput half was already measured, by colibrì, under full residency**: aggregate
