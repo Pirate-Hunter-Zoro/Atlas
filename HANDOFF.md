@@ -264,10 +264,11 @@ None of these is a build. Each is an evening in front of the thing.
 - **`MTP`: the job is written and it has not been run.** Speculation is OFF on
   the served configuration and the log's `[MTP] active` line does not say
   otherwise — `active` is about the checkpoint, `draft=0` is about the run.
-  `MTP=1` is read nowhere that matters; `COLI_CUDA_MTP=1` is the lever, it
-  clears both layers with one export (the planner has an explicit exception for
-  it, verified by calling `_auto_tune` directly), and **depth 1 is the thing to
-  test**, which no P0 run tried. The derivation is
+  `MTP=1` is read nowhere that matters; `COLI_CUDA_MTP=1` is the lever and it
+  faces one gate rather than two — the planner's `DRAFT=0` is for the *compute*
+  class and this box plans *mixed*, verified by calling `_auto_tune` directly
+  across all four — and **depth 1 is the thing to test**, which no P0 run
+  tried. The derivation is
   `projects/libr-local-llm/P0-STATUS.md` **finding 21**; the A/B is
   `projects/libr-local-llm/slurm_jobs/p0/t21_mtp_depth1.sbatch`, one job on one
   node, mirroring the served configuration rather than a convenient one, and it

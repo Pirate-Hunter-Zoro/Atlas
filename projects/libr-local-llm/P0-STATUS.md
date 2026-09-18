@@ -420,15 +420,21 @@ was setting `MTP=1` on top of that. **Both halves are wrong**, and the line that
 is the half that says whether anything is drafted**, and at 0 nothing is: `g_spec_live = (g_draft>0)`
 and every drafting branch is gated on the same test.
 
-Two independent layers both hold it at 0 on the configuration the serve job runs:
+**One thing holds it at 0 on the configuration the serve job runs, and it is the engine's own CUDA
+default.** `g_draft` is `-1` when `DRAFT` is unset, and the auto resolution is `g_draft =
+(m.has_mtp && (!g_cuda_enabled || cuda_mtp)) ? 1 : 0`. We pass `--gpu auto`, so CUDA is enabled and
+the answer is 0 unless `COLI_CUDA_MTP=1` is exported. The reason is named upstream (#163): cold
+experts run on the CPU, where the S==1 fused-pair kernel and the S>=2 IDOT kernel diverge in FP
+accumulation order, and draft acceptance collapses.
 
-- **The engine's own CUDA default.** `g_draft` is `-1` when `DRAFT` is unset, and the auto
-  resolution is `g_draft = (m.has_mtp && (!g_cuda_enabled || cuda_mtp)) ? 1 : 0`. We pass `--gpu
-  auto`, so CUDA is enabled and the answer is 0 unless `COLI_CUDA_MTP=1` is exported. The reason is
-  named upstream (#163): cold experts run on the CPU, where the S==1 fused-pair kernel and the S>=2
-  IDOT kernel diverge in FP accumulation order, and draft acceptance collapses.
-- **`--auto-tier`.** `resource_plan._auto_tune` exports `DRAFT=0` for a compute-bound plan, which
-  `coli plan` says this is in one line — `limit  CPU expert tail and GPU compute`.
+**`--auto-tier` is NOT a second layer, and the line that says it is was a misreading of the plan.**
+`resource_plan._auto_tune` does export `DRAFT=0` — but only for `bottleneck_class == "compute"`, and
+this plan is not that. `limit  CPU expert tail and GPU compute` is the **mixed** class, set at
+`resource_plan.py:1024` whenever there are warm experts and a planning GPU, which describes every
+plan this box makes: 371.7 GB warm, one A40. Mixed reaches no `DRAFT` branch at all. Verified by
+calling `_auto_tune` directly across all four classes, no GPU hour: only `compute` returns a
+`DRAFT`, and `mixed`, `disk` at full residency and `memory` return none. The practical consequence
+is that the lever is cleaner than it looked — `COLI_CUDA_MTP=1` flips the one gate that is live.
 
 **`MTP=1` is not a lever and never was.** `MTP` is read in exactly one place, `colibri.c:2406`, and
 only `MTP=0` does anything — it strips the head. So the `t7_mtp` configuration in the P0 campaign
@@ -447,13 +453,13 @@ that "speculation fails on this workload" does not follow from those two numbers
 perfectly confounded with CUDA across the whole campaign, because the engine ties them together.
 Every `draft=1` run is CPU-only and every `draft=0` run has the card.
 
-**The two layers are not two locks, and that matters for how the A/B is built.** The planner's
-DRAFT=0 is written with an explicit exception for exactly this variable: `_auto_tune` returns no
-`DRAFT` at all when `COLI_CUDA_MTP=1` is in the environment, and its own comment says why — an
-exported `DRAFT=0` preempted the engine's auto path and made the opt-in silently inert. Verified by
-calling it directly, no GPU hour: compute-bound with the variable unset gives `DRAFT=0`, with it set
-to `1` gives nothing, with it set to `0` gives `DRAFT=0` again. So `COLI_CUDA_MTP=1` clears both
-layers with one export, and the arms differ in that one variable.
+**And the planner could not block the lever even on a plan that did reach that branch.** Its
+`DRAFT=0` carries an explicit exception for this one variable: `_auto_tune` returns no `DRAFT` when
+`COLI_CUDA_MTP=1` is in the environment, and its own comment says why — an exported `DRAFT=0`
+preempted the engine's auto path and made the opt-in silently inert. Verified the same way:
+compute-bound with the variable unset gives `DRAFT=0`, with it set to `1` gives nothing, with it set
+to `0` gives `DRAFT=0` again. So one export clears every gate there is, on any plan class, and the
+arms differ in that one variable.
 
 **The A/B is written and is `slurm_jobs/p0/t21_mtp_depth1.sbatch`.** One job on one node under §10's
 snapshot protocol, mirroring the served configuration rather than a convenient one — `--gpu auto
