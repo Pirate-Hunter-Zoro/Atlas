@@ -447,9 +447,29 @@ that "speculation fails on this workload" does not follow from those two numbers
 perfectly confounded with CUDA across the whole campaign, because the engine ties them together.
 Every `draft=1` run is CPU-only and every `draft=0` run has the card.
 
-**The A/B that is actually open**, and it is one job on one node under §10's snapshot protocol:
-`coli run --gpu 0 --auto-tier --ctx 131072` with `CUDA_DENSE=0` and `COLI_CUDA_MTP=1` against the
-same thing with it unset, alternated three times. **The depth to test is 1**, which no P0 run tried.
+**The two layers are not two locks, and that matters for how the A/B is built.** The planner's
+DRAFT=0 is written with an explicit exception for exactly this variable: `_auto_tune` returns no
+`DRAFT` at all when `COLI_CUDA_MTP=1` is in the environment, and its own comment says why — an
+exported `DRAFT=0` preempted the engine's auto path and made the opt-in silently inert. Verified by
+calling it directly, no GPU hour: compute-bound with the variable unset gives `DRAFT=0`, with it set
+to `1` gives nothing, with it set to `0` gives `DRAFT=0` again. So `COLI_CUDA_MTP=1` clears both
+layers with one export, and the arms differ in that one variable.
+
+**The A/B is written and is `slurm_jobs/p0/t21_mtp_depth1.sbatch`.** One job on one node under §10's
+snapshot protocol, mirroring the served configuration rather than a convenient one — `--gpu auto
+--auto-tier --ctx 131072`, `CUDA_DENSE=0`, 80 CPUs, 800 GB, `numactl --interleave=all`, which is
+what `colibri_serve.sbatch` runs. A discarded warm-up run first, because the first pin on a node
+reads 424.5 GB off the filer at 422 MB/s and a cold run decodes at 0.64 tok/s against a warm 2.88.
+Then six runs ordered ABBAAB rather than ABABAB, so drift over the job does not land on one arm.
+**The depth to test is 1**, which no P0 run tried.
+
+**It records the draft depth and the acceptance rate, not just tok/s**, and that is the correction
+this finding is made of: a tok/s difference between two arms that both ran `draft=0` would be noise
+read as a result. `[MTP] … (draft=N)` says what the engine resolved and the `speculation:` line at
+`colibri.c:8205` says what happened — tokens per forward, and MTP acceptance as a percentage. The
+job also refuses to start if `COLI_CUDA_MTP` or `DRAFT` is set in the submitting environment, which
+would put the lever in both arms.
+
 It is worth the hour because the engine's CUDA default is written for a host where "the cold subset
 always exists on a single 16 GB card" — and this box plans 100 % expert residency with 45.4 GB of
 hot experts in VRAM, which is the one condition under which that divergence mostly does not arise.

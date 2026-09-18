@@ -261,15 +261,29 @@ None of these is a build. Each is an evening in front of the thing.
 
 ## Still open from the harness
 
-- **`MTP`, and the question has changed.** Speculation is OFF on the served
-  configuration and the log's `[MTP] active` line does not say otherwise —
-  `active` is about the checkpoint, `draft=0` is about the run, and two layers
-  hold it at zero. `MTP=1` is read nowhere that matters; `COLI_CUDA_MTP=1` is
-  the lever and **depth 1 is the thing to test**, which no P0 run tried. One job
-  on one node. The derivation and the exact A/B are
-  `projects/libr-local-llm/P0-STATUS.md` **finding 21**; the reason it is worth
-  an hour is that the engine's CUDA default is written for a host whose cold
-  expert subset always exists, and this box plans 100 % residency.
+- **`MTP`: the job is written and it has not been run.** Speculation is OFF on
+  the served configuration and the log's `[MTP] active` line does not say
+  otherwise — `active` is about the checkpoint, `draft=0` is about the run.
+  `MTP=1` is read nowhere that matters; `COLI_CUDA_MTP=1` is the lever, it
+  clears both layers with one export (the planner has an explicit exception for
+  it, verified by calling `_auto_tune` directly), and **depth 1 is the thing to
+  test**, which no P0 run tried. The derivation is
+  `projects/libr-local-llm/P0-STATUS.md` **finding 21**; the A/B is
+  `projects/libr-local-llm/slurm_jobs/p0/t21_mtp_depth1.sbatch`, one job on one
+  node, mirroring the served configuration rather than a convenient one, and it
+  records the resolved draft depth and the acceptance rate beside tok/s because
+  two arms that both ran `draft=0` would otherwise look like a result.
+
+  **What is left is the submission, and it is one line**: from
+  `projects/libr-local-llm`, `sbatch slurm_jobs/p0/t21_mtp_depth1.sbatch`.
+  It is not submitted here because §0.1 of `FLEET-BUILD.md` pre-authorises P0's
+  queue-touching jobs but stops at one that would sit on a node for hours during
+  working time, and this is one — roughly 40 to 90 minutes once it starts,
+  mostly the first pin. `--nodelist=compute303` is chosen from the queue as it
+  stood on 2026-09-18 and is the one line to re-check before submitting: it
+  wants a node with 80 spare CPUs and 800 GB, and there is no point taking one
+  the serving chain is about to hop onto. `--begin=` moves it out of working
+  time if that is easier than waiting.
 
 **KV slots came off this list rather than being done.** A slot costs 23.9 GB at
 131072, it fits only by eating the whole pin margin, a second one turns

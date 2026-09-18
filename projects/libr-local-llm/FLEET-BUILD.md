@@ -838,10 +838,15 @@ Three entries of the previous revision are **deleted on measurement**, not defer
 | was | measured | now |
 |---|---|---|
 | `XEXP=1` (measure) | **−12 %** | drop it |
-| `DRAFT` measured | `DRAFT=2` −11 %, `DRAFT=4` −19 % | leave it at 1; §3.3 was right |
+| `DRAFT` measured | `DRAFT=2` −11 %, `DRAFT=4` −19 % | **not what it looks like — `P0-STATUS.md` finding 21.** Both ran CPU-only, where the engine's auto path already gives depth 1, so those are depth 2 and 4 *against depth 1*, not against off. And what the serve job actually runs is **depth 0**: `--gpu` enables CUDA, the CUDA default refuses MTP, and `--auto-tier` exports `DRAFT=0` on top. Depth 1 under CUDA is unmeasured; `slurm_jobs/p0/t21_mtp_depth1.sbatch` is the A/B |
 | `CUDA_DENSE=1` | needs `COLI_CUDA=1` or it exits at once; with both set, ≈ no effect | not a lever |
 
 `COLI_CUDA_PIPE` is on by default and should stay — forcing it off costs 8 %.
+
+**Speculation is OFF on the served configuration, and §0.3's decision 5 says it ships on.** The
+decision is not being re-litigated — it says these levers ship on *unless a measurement says
+otherwise*, and no measurement ever said otherwise here. Two defaults turned it off without anybody
+choosing that: see finding 21. `COLI_CUDA_MTP=1` is the only export that clears both.
 
 ---
 
