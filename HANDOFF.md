@@ -92,7 +92,11 @@ below and in `board/README.md`; what is in flight is in neither, so reading the
 code is fine and editing any of those six is how two sessions produce one
 conflict. `board/bin/tutor` will move under you either way: pull before you
 start, and keep whatever your item needs in there small enough to rebase.
-Everything else in the tree is yours. **The chain is stopped on purpose** while
+Everything else in the tree is yours. **And that session is owed one line**: the
+address block in `watch_once` tests `supervise.answering(port)`, which cannot
+tell a serving board from a leftover that is merely alive — see *ANSWERING IS NOT
+OWNING* under Settled, where the condition it wants is written out. The half in
+`bin/board` is shipped. **The chain is stopped on purpose** while
 that session works — `serve-stopped` is in the state directory, `tutor serve
 status` says so, and nothing but `tutor serve` clears it. This block comes out
 when that session ships.
@@ -231,16 +235,22 @@ None of these is a build. Each is an evening in front of the thing.
 
 ## Still open from the harness
 
-- **KV slots.** `projects/libr-local-llm` serves GLM-5.2 int4 with one slot. One
-  slot means one conversation's prefix cache; a second client evicts the first
-  and pays the whole preamble again. That is why a colibrì sitting is refused
-  machine-wide while another holds one. The engine supports 16 and
-  `COLI_KV_SLOTS` is wired through; nobody has measured what a slot costs at a
-  131072 window. Measure it and the refusal becomes a queue — one line out of
-  the `colibri` recipe in `board/bin/tutor`, and nothing else changes.
-- **`MTP`.** The engine turns native speculative decoding on by itself, and what
-  P0 measured as a loss was setting `MTP=1` on top of that. One A/B on a warm
-  server, worth doing before anybody quotes a tok/s figure again.
+- **`MTP`, and the question has changed.** Speculation is OFF on the served
+  configuration and the log's `[MTP] active` line does not say otherwise —
+  `active` is about the checkpoint, `draft=0` is about the run, and two layers
+  hold it at zero. `MTP=1` is read nowhere that matters; `COLI_CUDA_MTP=1` is
+  the lever and **depth 1 is the thing to test**, which no P0 run tried. One job
+  on one node. The derivation and the exact A/B are
+  `projects/libr-local-llm/P0-STATUS.md` **finding 21**; the reason it is worth
+  an hour is that the engine's CUDA default is written for a host whose cold
+  expert subset always exists, and this box plans 100 % residency.
+
+**KV slots came off this list rather than being done.** A slot costs 23.9 GB at
+131072, it fits only by eating the whole pin margin, a second one turns
+speculation off machine-wide, and colibrì's own full-residency run has two
+sessions at 3.16 tok/s each against 4.84 for one. `exclusive` stays in the
+`colibri` recipe and is now the answer rather than a placeholder — P0-STATUS
+**finding 22**.
 
 ---
 
@@ -261,6 +271,57 @@ as the answer.
 
 ## Settled, so nobody re-derives it
 
+- **ANSWERING IS NOT OWNING, AND THAT IS HOW A HEALTHY MACHINE LEAVES SOMEBODY
+  HANGING.** A board writes its port into its own repository's `.board.json`,
+  and the next board in that repository OVERWRITES it — so a board an ended
+  generation left behind keeps running, keeps answering, and is named by no
+  record anywhere. `ts_repoint` refused to move the HTTPS name off it, correctly
+  by its own rule, because the rule was *a name pointing at a board that is up
+  and answering is that board's*. **Measured:** a Galois Theory board from a dead
+  generation held `https://compute-node…/` on 9098 for an hour and three
+  quarters while the live one served 9195. `tutor serve status` said generation
+  3, watched, last check 12 seconds ago; `tutor agent status` said claude
+  listening; the tutor's card 0038 was written at 09:53 and sat on a board
+  nothing was pointing at. From the iPad: *"If claude is working, and the
+  tutoring server is up, how could we ever be left hanging?"* — like this, and
+  every layer was green while it happened. A port owns the address when a LIVE
+  RECORD names it (`recorded_ports`), and a leftover is stopped rather than
+  merely outranked: `drop_strays` runs before `Popen` in `cmd_start`, this
+  repository's own and on this node only, because the moment a repository's next
+  board starts is the moment the previous one became a leftover.
+  `test/serving.py` is the fourth thing in its own list of how this goes wrong.
+  **One line is left and it is not in this session's half.** `watch_once`'s
+  address block in `bin/tutor` asks `supervise.answering(port)`, which is the
+  same test that failed here — so the watch loop would still never call the
+  repair. It belongs to the session working on the serving chain: the condition
+  wants *and the port is one a live record on this node names*, beside the
+  `answering` call it already makes. Until then the repair happens at the next
+  board start, which is where this fault actually occurred.
+- **A STROKE THAT NEVER ENDS REFUSES EVERY SCROLL ON THE PAGE, so silence has to
+  end it.** The non-passive `touchmove` is on the DOCUMENT and exists only while
+  a stroke is drawn — that is what keeps scrolling smooth — so *a stroke is in
+  progress* cancels a pan everywhere, not just over a card. Every rescue for a
+  lift that goes missing is filtered by `pointerId` (the window
+  `pointerup`/`pointercancel` pair, `blur`, the next `begin`), and `mine` is
+  right to refuse a foreign one, because a second contact must not end the pen's
+  stroke. So the floor is not another event: `STROKE_QUIET`, a mark every
+  sample moves forward, ends a stroke nothing has been heard from and KEEPS its
+  ink. One timer per stroke rather than one per sample, the shape `penSeen`
+  already uses and for the same reason: a pencil reports at 240 Hz.
+  Four seconds on purpose — a nib held motionless mid-word sends nothing, and
+  cutting a stroke in two is a real cost where a latch nobody can clear is the
+  whole fault. **And leaving the mode finishes what is in hand**, which it did
+  not: `setOn(false)` dropped the latch and disarmed both listeners and left the
+  stroke open. That is why this was visible exactly once per sitting — 'done'
+  took the refusal off, and the next pen-down cleared the stale stroke, so it
+  could never be reproduced after the first time. Reported in those words: *"When
+  I annotated for the first time in a session just now, I couldn't scroll at all.
+  Then I selected 'done' to stop annotating, and I could scroll. Then I started
+  annotating again, and I could scroll."* `window.BoardTrace` is how the layer
+  reaches the log at all — `☰ → what just happened` carries an `ink-drop` line,
+  because this arrives as a sentence about scrolling and nothing in it can name a
+  stroke. `test/link.js` drives a lift under a foreign pointer and waits the
+  floor out on a real clock.
 - **ONLY THE ASKER MAY SAY WHY A DAEMON WAS STOPPED.** `restarting` and
   `handover` are written BEFORE the signal, by whoever is asking; the daemon's
   own exit merges `state: stopped` over the top and touches neither, because a
