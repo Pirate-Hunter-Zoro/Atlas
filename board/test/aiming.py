@@ -235,6 +235,140 @@ check("and is told the document is about the subject rather than the sitting",
       "NEVER A NARRATION OF THIS SITTING" in said)
 
 # ---------------------------------------------------------------------------
+# A SITTING BELONGS TO ONE COMPONENT, AND A SITTING WITH NO COMPONENT SAYS SO
+# ---------------------------------------------------------------------------
+# The map tap is meant to be THE door and it is one door among several: `tutor
+# galois`, `board open`, a chapter tapped in the contents drawer and a board
+# resumed after a reboot all leave `node` unset. `node_sense` used to answer
+# that with the empty string, so those sittings had no scope AND nothing said
+# one was missing -- and a turn with no scope picks one.
+#
+# The answer is not the same everywhere, which is the whole decision here. A
+# course is chapters and a project is components: a lecture on Chapter 4 of
+# Galois Theory has no box to be scoped to, and asking it which one it is about
+# is a question with no answer. `map.scoped` is the thing that knows.
+from tutorboard.course import map as mapping                  # noqa: E402
+
+made = os.path.join(fake, "projects", "Parts")
+os.makedirs(os.path.join(made, "live"), exist_ok=True)
+with open(os.path.join(made, "tutorboard.json"), "w", encoding="utf-8") as fh:
+    json.dump({"name": "Parts"}, fh)
+PAD = "\n".join("# %d" % i for i in range(60)) + "\n"
+for where, text in (
+        (("typist", "run.py"), '"""Turns the waveform into words."""\n'),
+        (("grader", "score.py"), '"""Scores a transcript against the reference."""\n'),
+        (("grid", "sweep.py"), '"""Runs the parameter sweep."""\n')):
+    os.makedirs(os.path.join(made, where[0]), exist_ok=True)
+    with open(os.path.join(made, *where), "w", encoding="utf-8") as fh:
+        fh.write(text + PAD)
+with open(os.path.join(made, "PLAN.md"), "w", encoding="utf-8") as fh:
+    fh.write("# Plan\n\n  STEP 1. Repair the typist.\n    It drops the last word."
+             " Lives in typist/run.py.\n")
+mapping._cache.clear()
+parts = mapping.status(made, {})
+BOXES = dict((n["name"].rstrip("/"), n) for n in (parts or {"nodes": []})["nodes"])
+check("the fixture is a workspace made of components",
+      mapping.scoped(made) and set(["typist", "grader", "grid"]).issubset(BOXES))
+
+sitting(made, session="lecture")
+said = sense.node_sense(course_repo.Repo(made), {"session": "lecture"})
+check("a sitting in a component workspace that nobody opened from the map says "
+      "it has no box, rather than silently having none",
+      "ABOUT NO PART OF THE MAP" in said and "THE EXCEPTION" in said)
+check("and is told not to pick one for itself",
+      "DO NOT PICK A PART OF THE REPOSITORY TO WORK ON" in said)
+check("and asks which box in its first card",
+      "first card asks which box" in said)
+check("and is handed the address of every box, so the answer is a tap",
+      all("#/w/projects/Parts/node/" + b["id"] in said for b in BOXES.values()))
+
+# THE SAME QUESTION, ASKED OF A BOOK, HAS NO ANSWER -- so it is not asked.
+sitting(course, session="lecture")
+check("a book course is not asked which component it is about",
+      sense.node_sense(course_repo.Repo(course), {"session": "lecture"}) == "")
+
+# The three sittings a box is not the scope of. Each is held over a scope the
+# person already chose -- a review's chapters, a walkthrough's units, a make
+# sitting's evening -- so asking which box is a question they have answered.
+for _kind, _aim, _why in (
+        ("review", "", "a review is held over the chapters it was opened on"),
+        ("walk", "", "a walkthrough is held over the units it was opened on"),
+        ("make", "", "a make sitting's scope may be the whole evening"),
+        ("lecture", "paper", "and so may a document asked for mid-sitting"),
+        ("lecture", "trace", "an aim held over a scope has one already")):
+    _st = {"session": _kind}
+    if _aim:
+        _st["aim"] = _aim
+    check("no box is demanded of it: " + _why,
+          sense.node_sense(course_repo.Repo(made), _st) == "")
+
+# --- and the sitting that HAS a box is told where the boundary is ------------
+typist = BOXES["typist"]
+said = sense.node_sense(course_repo.Repo(made),
+                        {"session": "lecture", "node": typist["id"]})
+check("a sitting opened on a box is still handed the box",
+      typist["name"] in said and "Turns the waveform into words" in said)
+check("and is told a component boundary is a stopping point",
+      "A COMPONENT BOUNDARY IS A STOPPING POINT" in said
+      and "DO NOT FOLLOW IT" in said)
+check("and what to do instead of following the work out of the box",
+      "saving point" in said and "which box the work continues in" in said)
+check("and that reading another part is not the thing being forbidden",
+      "not wandering" in said)
+check("the hand-off is a tap rather than an errand",
+      "A TAP, NOT AN ERRAND" in said and "markdown link" in said)
+check("so the OTHER boxes arrive with the address that opens a sitting in each",
+      "#/w/projects/Parts/node/" + BOXES["grader"]["id"] in said
+      and "#/w/projects/Parts/node/" + BOXES["grid"]["id"] in said)
+check("and the box it is already in is not offered as somewhere to hand over to",
+      said.count("#/w/projects/Parts/node/" + typist["id"]) == 0)
+check("each of them says whether any work is planned there, because the box "
+      "with none is the one whose step has to be PROPOSED",
+      "no step of the plan names it" in said and "PROPOSE THE STEP" in said)
+
+# THE BOX IS STILL DESCRIBED TO A SITTING IT DOES NOT SCOPE. A walkthrough
+# opened over a box wants to know what the box is; it is held over its own units
+# and a boundary it is not working inside is a rule about nothing.
+said = sense.node_sense(course_repo.Repo(made),
+                        {"session": "walk", "node": typist["id"]})
+check("a walkthrough over a box is still handed the box",
+      "Turns the waveform into words" in said)
+check("but is not told to stop at a boundary it is not working inside",
+      "STOPPING POINT" not in said and "#/w/" not in said)
+
+# A WORKSPACE WITH NO ADDRESS PROMISES NO LINKS. A directory sitting in no
+# family cannot be reached by an address at all, and a line pointing at a list
+# of them that is not there is worse than the plain question.
+odd = os.path.join(fake, "loose-Parts")
+os.makedirs(os.path.join(odd, "typist"), exist_ok=True)
+with open(os.path.join(odd, "tutorboard.json"), "w", encoding="utf-8") as fh:
+    json.dump({"name": "Loose"}, fh)
+with open(os.path.join(odd, "typist", "run.py"), "w", encoding="utf-8") as fh:
+    fh.write('"""Turns the waveform into words."""\n' + PAD)
+mapping._cache.clear()
+said = sense.node_sense(course_repo.Repo(odd), {"session": "lecture"})
+check("a workspace with no address still says the sitting has no box",
+      "ABOUT NO PART OF THE MAP" in said)
+check("but does not promise addresses it has not got",
+      "#/w/" not in said and "addresses below" not in said)
+
+# --- AND THE SITTING'S BRIEFING CARRIES IT, not only `node_sense` ------------
+# The two returns a project actually lands on had no `node_sense` on them at
+# all: a sitting with no chapter label fell through to the last line of
+# `session_sense`, which is exactly the sitting this item is about.
+sitting(made, session="lecture")
+brief = sense.session_sense(course_repo.Repo(made))
+check("a project's unlabelled sitting carries the missing-box paragraph in the "
+      "line a headless turn is woken with",
+      "ABOUT NO PART OF THE MAP" in brief)
+sitting(made, session="lecture", node=typist["id"], chapter=typist["name"])
+brief = sense.session_sense(course_repo.Repo(made))
+check("and a sitting opened on a box carries the boundary rule in it",
+      "A COMPONENT BOUNDARY IS A STOPPING POINT" in brief)
+sitting(made, session="lecture")
+mapping._cache.clear()
+
+# ---------------------------------------------------------------------------
 # the route, over real HTTP
 # ---------------------------------------------------------------------------
 tmp = tempfile.mkdtemp(prefix="tutor-aiming-")

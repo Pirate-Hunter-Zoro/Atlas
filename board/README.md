@@ -403,10 +403,13 @@ Three rules, and where each one lives:
    through and grey for an address whose target has gone, red and wavy for text that is not an
    address at all, ordinary for one that still resolves. Rendered links to an address carry no
    `target="_blank"` — a second tab is a second board.
-3. **One resolver, one speller.** `Address.format` is the only thing anywhere that builds an
-   address and it refuses to spell anything its own parser would reject. `spell()` on the board
-   fills in this workspace. The grammar is strict for the same reason: a card is four digits, never
-   one and never seven.
+3. **One resolver, one speller per side.** `Address.format` is the only thing on the board that
+   builds an address and it refuses to spell anything its own parser would reject; `spell()` fills
+   in this workspace. `tutorboard/spell.py` is the same speller for the Python side — a meeting
+   frame pointing at a box, a card handing the work over to another one — and it is a module of its
+   own so that there is one of it rather than one per caller. `spell.here` takes a workspace root
+   and answers "" for a directory in no family, which has no address at all. The grammar is strict
+   for the same reason: a card is four digits, never one and never seven.
 
 **How the board knows which workspace it is**: `/health`'s `id`, fetched once at load. Until that
 answers, `mapLand` does not land — an address naming another workspace cannot be told from one
@@ -573,8 +576,9 @@ invented has to be verified before it can be used, which is worse than none.
   looks clickable is the same failure the grammar exists to prevent, one layer out.
 - **Any running board is a valid base.** Each one serves the same front door and the front door
   switches, so the first reachable board is a door to all of them.
-- **One speller.** `meeting._address` produces exactly what `Address.format` produces, character
-  for character, and the suites check it both ways.
+- **One speller.** `tutorboard/spell.py` produces exactly what `Address.format` produces,
+  character for character, and the suites check it both ways. The deck is one of its callers; a
+  hand-off card naming another box is the other.
 
 Two bugs in the document pipeline surfaced here, both waiting for the first document to contain a
 link. `#` is a macro parameter character, and `inline_tex` escaped `#`, `%`, `&` and `_` *after*
@@ -2599,6 +2603,43 @@ stance of `teach` is a contradiction, so `config.AIM_STANCE` answers who writes
 the code and `config.stance_for` resolves it in one place: the sitting's own
 stance, then its aim, then `tutorboard.json`, then the family's default. The
 browser sends neither on its own authority.
+
+#### A sitting belongs to ONE box, and leaving it is a new sitting
+
+Asked for as *"the session should be focused ON that component… if a task starts turning into
+needing to go into a separate component, the tutor should direct the user to get to a good
+stopping/saving point, and go back to the map and open up a tutoring session in that component."*
+
+**Whether a box is what a sitting is scoped by is a property of the workspace, not a rule for the
+board.** `map.scoped` answers it: a `part` on the picture means work here belongs to a box; a
+`chapter` and a `set` mean the chapter already *is* the scope, and asking a lecture on Chapter 4
+of Galois Theory which component it is about is a question with no answer.
+
+**So in a workspace made of components, a sitting with no box says so.** The map tap is meant to
+be the door and it is one door among several — `tutor galois`, `board open`, a chapter tapped in
+the contents drawer, a board resumed after a reboot. `sense.node_sense` used to answer those with
+the empty string, so the sitting had no scope *and* nothing said one was missing, which is how a
+turn with no scope picks one. Now it says the sitting is about no part of the map, refuses to
+choose one, and asks in its first card — as the addresses of every box, so the answer is a thumb.
+
+**And a component boundary is a stopping point**, in `TEACHING.md` and in `node_sense` because in
+a headless turn that line is the whole prompt. The old focus rule was about not *wandering*; this
+is the honest case it left open — the work genuinely leads into another box, and the right answer
+is to stop. The turn gets what is in hand to a saving point, writes up what was agreed, says which
+box the work continues in, and stops. Reading another part of the repository is not what is
+forbidden; working in one is.
+
+**The hand-off is a TAP, not an errand.** A card that says *"go back to the map and open the
+retrieval component"* is an instruction to somebody holding a tablet, which is the same defect as
+asking them to type up the notes. Every box has an address (§2.1) and a card renders one as
+something you open with a thumb, so `node_sense` hands the turn the address of every other box on
+the map — beside whether any of the plan sits on it, because **a box with no step gets the step
+proposed in the same card.** The turn has just found out what the work there is, which makes it
+the only thing in the system that knows what it should say, and the discovery is lost otherwise.
+
+The paragraph goes to the sittings a box actually scopes. A review, a walkthrough and a make
+sitting are each held over a scope the person already chose, so they are still *told what the box
+is* and are not told to stop at a boundary they are not working inside.
 
 #### The aim can be changed without losing the lesson
 

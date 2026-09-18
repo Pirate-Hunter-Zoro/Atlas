@@ -73,6 +73,13 @@ const FORMS = [
   // A workspace directory with spaces in its name is a real one -- `To Turn In`
   // -- and it is percent-encoded, never split.
   ['#/w/courses/To%20Turn%20In', 'workspace', { workspace: 'To Turn In' }],
+  // A HAND-OFF CARD'S ADDRESS, spelled by `tutorboard/spell.py` on the other
+  // side of the wall: a component boundary is a stopping point, and the card
+  // that says so names the next box as a link rather than as an errand. The
+  // workspace name is percent-encoded there by the same rule as here, so the
+  // form that has to parse is this one and not the pretty one.
+  ['#/w/courses/To%20Turn%20In/node/grader', 'node',
+   { workspace: 'To Turn In', node: 'grader' }],
 ];
 
 let formsOk = true;
@@ -191,6 +198,9 @@ const BODY = [
   'And [a card that has gone](#/w/courses/Galois-Theory/card/0099).',
   'And [not an address at all](#/w/courses/Galois-Theory/card/99).',
   'And [somewhere else](#/w/research/PSYCH-ASR/node/typist).',
+  // The hand-off itself: the work has left this box, so the card names the box
+  // it continues in. Written the way `node_sense` hands the address over.
+  'The grader is where this continues: [the grader](#/w/courses/Galois-Theory/node/grader).',
 ].join('\n\n');
 
 const LIVE = {
@@ -202,7 +212,11 @@ const LIVE = {
   push: null, agent: null, history: 1,
   map: { nodes: [{ id: 'typist', name: 'the typist', kind: 'part',
                    status: 'working', does: 'Turns the waveform into words.',
-                   files: ['psych_asr/asr.py'], dir: 'psych_asr', steps: [] }],
+                   files: ['psych_asr/asr.py'], dir: 'psych_asr', steps: [] },
+                 { id: 'grader', name: 'the grader', kind: 'part',
+                   status: 'unknown', does: 'Scores a transcript.',
+                   files: ['psych_asr/grade.py'], dir: 'psych_asr/grade',
+                   steps: [] }],
          edges: [], loose: [] },
   reading: { documents: [{ id: 'stage2-deck', name: 'The Stage 2 deck' }] },
   walk: { units: [{ name: 'psych_asr/asr.py', label: 'psych_asr/asr.py',
@@ -360,6 +374,23 @@ const said = () => (el('pushed').hidden ? '' : el('pushed-text').textContent);
   if (at(W + '/node/nowhere') === 'gone' && /not on this map/.test(said())) {
     ok('a node that is not on the map is a miss, said plainly');
   } else fail('a missing node was not reported: ' + said());
+
+  // -- THE HAND-OFF LANDS. A component boundary is a stopping point, and the
+  //    card that stops names the box the work continues in. What makes that a
+  //    tap rather than an errand is only this: the address in the card resolves
+  //    and opens that box. `tutorboard/spell.py` spells it and `test/aiming.py`
+  //    asserts the string it hands the turn; this is the other end of it.
+  const hand = Array.from(card.querySelectorAll('a'))
+    .find((a) => /node\/grader/.test(a.getAttribute('href') || ''));
+  if (hand && !hand.classList.contains('dead') && !hand.classList.contains('bad')) {
+    ok('a hand-off to another box reads as a live link where it is written');
+  } else fail('the hand-off link was not marked live');
+  at(W + '/node/grader');
+  if (!el('map').hidden && !el('work').hidden
+      && /grader/.test(el('work-title').textContent)) {
+    ok('and the box it names opens, which is what makes it a tap');
+  } else fail('the hand-off address did not open the box: '
+              + el('work-title').textContent);
 
   at(W + '/doc/stage2-deck');
   await tick();
