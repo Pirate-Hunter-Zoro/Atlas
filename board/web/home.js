@@ -65,6 +65,9 @@ var els = {
   atlasUp: document.getElementById("atlas-up"),
   doors: document.getElementById("doors"),
   cards: document.getElementById("cards"),
+  found: document.getElementById("found"),
+  atlasQ: document.getElementById("atlas-q"),
+  atlasQClear: document.getElementById("atlas-q-clear"),
   panic: document.getElementById("panic"),
   sheet: document.getElementById("sheet"),
   sheetFamily: document.getElementById("sheet-family"),
@@ -334,12 +337,17 @@ function paintDoors() {
    already on the plane; what has changed is that the browser wraps the text
    instead of `gauge.js` measuring it, which is why a SHOUTED plan step can no
    longer run out of its box. */
-function aCard(c, fam) {
+function aCard(c, fam, withFamily) {
   var b = aEl("button", "ws-card");
   b.type = "button";
   if (c.current) b.classList.add("here");
   var news = !!c.news && !c.current;
   if (news) b.classList.add("news");
+
+  /* WHERE IT CAME FROM, in the flat read only. Behind a door the family is the
+     heading above the grid and repeating it on every card is furniture; in a
+     list drawn from all six it is the one thing the card is missing. */
+  if (withFamily) b.appendChild(aEl("span", "ws-family", fam.name || fam.id || ""));
 
   var top = aEl("div", "ws-top");
   top.appendChild(aEl("strong", "ws-name", c.course || c.repo || c.name));
@@ -384,36 +392,142 @@ function paintFamily() {
   return mine.length;
 }
 
-function openFamily(id) {
+/* ------------------------------------------------------------ the levels */
+/* GOING IN IS A TAP AND COMING BACK OUT HAS TO BE ONE TOO, and for most of this
+   page's life it was not: the control was a small pill in the corner of the
+   head, worded "all of it", and the head scrolled away with the page -- so
+   somebody reading a family's cards had nothing on the glass that led back to
+   the doors, and the only route out was to open a workspace and let the reload
+   land on them.
+
+   Three things carry it now. The button is first in the head, thumb-sized and
+   named after where it goes; the head is sticky, so it is reachable from the
+   bottom of the longest family; and going IN pushes a history entry, so the
+   back gesture and the laptop's Escape key both come out.
+
+   THE HISTORY ENTRY CARRIES NO URL OF ITS OWN, and that is deliberate: the hash
+   on this page belongs to `address.js` and naming a family in it would put two
+   grammars in one address. `pushState` with no url pushes an entry and leaves
+   the address exactly as it was. */
+var atlasPushed = false;   /* this page owns the entry the open family sits on */
+
+function showFamily(id, scroll) {
   atlasFamily = id || "";
   paintLevels();
+  if (!scroll) return;
   /* The head of the section, so the first card is where the eye already is. A
      family opened from a door two screens down would otherwise land with the
-     cards below the fold. */
+     cards below the fold -- and coming back out from the bottom of a long list
+     would leave the doors above the top of the window. */
   try { els.atlasWrap.scrollIntoView({ block: "start", behavior: "smooth" }); }
   catch (e) { /* an older browser scrolls or it does not; neither is fatal */ }
 }
 
+function openFamily(id) {
+  showFamily(id, true);
+  try {
+    history.pushState({ atlasFam: id }, "");
+    atlasPushed = true;
+  } catch (e) { /* no history is a page that still works, one tap at a time */ }
+}
+
 function closeFamily() {
-  atlasFamily = "";
+  /* PAINTED FIRST, ADDRESSED SECOND. `history.back()` answers when the browser
+     feels like it and the tap has to land now; the popstate that follows asks
+     for the level this already painted, so it is a repaint of the same thing. */
+  showFamily("", true);
+  if (atlasPushed) {
+    atlasPushed = false;
+    try { history.back(); return; } catch (e) { /* then just leave the entry */ }
+  }
+  try { history.replaceState(null, ""); } catch (e) {}
+}
+
+/* The back gesture, and the browser's own button where there is one. A popped
+   entry that names a family is that family; anything else is the doors. */
+window.addEventListener("popstate", function (ev) {
+  var st = (ev && ev.state) || null;
+  var fam = st && st.atlasFam && aFamily(st.atlasFam) ? st.atlasFam : "";
+  atlasPushed = !!fam;
+  showFamily(fam, false);
+});
+
+/* ------------------------------------------------------------- flat read */
+/* WHAT THE HIERARCHY CANNOT ANSWER. Two levels answer "what is in Courses";
+   they cannot answer "where is the thing called colibri", because at the door
+   no workspace is drawn at all and inside a family every other family's is
+   hidden. This is the same payload read flat, and a match carries the family it
+   came out of so the answer includes the way back to it. */
+function atlasQuery() {
+  return ((els.atlasQ && els.atlasQ.value) || "").trim().toLowerCase();
+}
+
+/* Everything one card could be called. The id and the repo are in here on
+   purpose: a directory name is what somebody types when the pretty name has
+   gone out of their head, and it is the name the rest of the board uses. */
+function aHay(c, fam) {
+  return [c.course, c.repo, c.name, c.id, c.chapter, c.drawn, c.next,
+          fam.name, fam.id].filter(Boolean).join("  ").toLowerCase();
+}
+
+function aMatches(q) {
+  var out = [];
+  ((atlas && atlas.families) || []).forEach(function (fam) {
+    aIn(fam).forEach(function (c) {
+      if (aHay(c, fam).indexOf(q) >= 0) out.push({ c: c, fam: fam });
+    });
+  });
+  /* The one you are in first, then anything with an answer waiting, then by
+     when it was last touched. A list of matches is still a list of places to
+     go, and the order is the same one the rest of the page uses. */
+  out.sort(function (a, b) {
+    var w = function (m) { return (m.c.current ? 2 : 0) + (m.c.news ? 1 : 0); };
+    return (w(b) - w(a)) || ((b.c.touched || 0) - (a.c.touched || 0));
+  });
+  return out;
+}
+
+function paintFound(q) {
+  var host = els.found;
+  host.innerHTML = "";
+  var hits = aMatches(q);
+  hits.forEach(function (m) { host.appendChild(aCard(m.c, m.fam, true)); });
+  return hits.length;
+}
+
+function clearFind() {
+  if (els.atlasQ) els.atlasQ.value = "";
   paintLevels();
 }
 
 /* WHICH LEVEL IS ON THE GLASS. One function, because two things deciding which
-   of two surfaces is showing is two states that drift apart. */
+   of three surfaces is showing is two states that drift apart. */
 function paintLevels() {
+  var q = atlasQuery();
   var fam = atlasFamily ? aFamily(atlasFamily) : null;
   if (!fam) atlasFamily = "";
   var doors = paintDoors();
   var here = fam ? paintFamily() : 0;
-  els.doors.hidden = !!fam;
-  els.cards.hidden = !fam;
-  els.atlasUp.hidden = !fam;
-  els.atlasWhat.textContent = fam ? (fam.name || fam.id) : "Everything";
-  els.atlasBlurb.textContent = fam ? (fam.blurb || "") : "";
-  els.atlasBlurb.hidden = !(fam && fam.blurb);
+  var hits = q ? paintFound(q) : 0;
+  /* A QUERY IS A LEVEL OF ITS OWN and it is drawn over whichever of the other
+     two was showing. It does not close the family: clearing the field puts you
+     back where you were typing, which is what a filter means. */
+  els.doors.hidden = !!fam || !!q;
+  els.cards.hidden = !fam || !!q;
+  els.found.hidden = !q;
+  els.atlasUp.hidden = !fam || !!q;
+  if (els.atlasQClear) els.atlasQClear.hidden = !q;
+  els.atlasWhat.textContent = q ? (hits + (hits === 1 ? " match" : " matches"))
+                                : fam ? (fam.name || fam.id) : "Everything";
+  els.atlasBlurb.textContent = q
+    ? "everywhere, not just " + (fam ? (fam.name || fam.id) : "one family")
+    : (fam ? (fam.blurb || "") : "");
+  els.atlasBlurb.hidden = !(q || (fam && fam.blurb));
   els.atlasWrap.hidden = false;
-  if (!doors && !here) {
+  if (q && !hits) {
+    els.atlasEmpty.hidden = false;
+    els.atlasEmpty.textContent = "Nothing here is called that.";
+  } else if (!q && !doors && !here) {
     els.atlasEmpty.hidden = false;
     els.atlasEmpty.textContent = "Nothing to draw yet.";
   } else if (!atlasSaid) {
@@ -601,6 +715,25 @@ function paintAtlas(payload) {
 }
 
 els.atlasUp.onclick = closeFamily;
+
+/* The field repaints on every keystroke. There is no request behind it -- the
+   atlas is already in memory -- so there is nothing to debounce and a delay
+   would only be a list that lags the thumb. */
+if (els.atlasQ) {
+  els.atlasQ.addEventListener("input", function () {
+    try { paintLevels(); } catch (e) { /* never a blank front door */ }
+  });
+  /* Enter on a single match opens it: the whole point of typing a name is that
+     you already know which one you mean. */
+  els.atlasQ.addEventListener("keydown", function (ev) {
+    if (ev.key !== "Enter") return;
+    var q = atlasQuery();
+    if (!q) return;
+    var hits = aMatches(q);
+    if (hits.length === 1) { ev.preventDefault(); openSheet(hits[0].c, hits[0].fam); }
+  });
+}
+if (els.atlasQClear) els.atlasQClear.onclick = clearFind;
 
 /* THE WAY BACK, and there is one of them now rather than two.
 
@@ -1040,10 +1173,16 @@ function addrRoute() {
 }
 
 window.addEventListener("hashchange", addrRoute);
+/* ESCAPE UNWINDS ONE THING AT A TIME, outermost first: the sheet over the
+   level, the deck over the level, then the query, then the family. Closing two
+   surfaces on one key is how somebody ends up two screens from where they
+   were and cannot say which tap did it. */
 document.addEventListener("keydown", function (ev) {
   if (ev.key !== "Escape") return;
   if (!els.sheet.hidden) closeSheet();
   else if (els.notes && !els.notes.hidden) closeNotes();
+  else if (atlasQuery()) clearFind();
+  else if (atlasFamily) closeFamily();
 });
 
 /* `addr`, when there is one, is where to go once the board has moved: the

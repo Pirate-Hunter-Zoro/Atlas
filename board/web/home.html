@@ -92,6 +92,16 @@
        which is the one thing here whose shape genuinely needs a plane. -->
   <section id="atlas-wrap">
     <div class="atlas-head">
+      <!-- THE WAY BACK OUT OF A FAMILY, and it is the first thing in the row.
+           It names where it goes -- Everything, the word on the heading it
+           returns to -- because a control that says something else is a control
+           nobody connects to the place they are trying to reach. The head is
+           sticky, so it is still on the glass at the bottom of a long family. -->
+      <button id="atlas-up" class="atlas-back" type="button" hidden
+              title="back to everything">
+        <span class="atlas-back-chev" aria-hidden="true">&lsaquo;</span>
+        <span>Everything</span>
+      </button>
       <h2 id="atlas-what">Everything</h2>
       <div class="atlas-tools">
         <!-- NOTES FOR A MEETING, from the front door, because the front door is
@@ -100,11 +110,22 @@
              map's bare diamond -- so this says what it makes. -->
         <button id="atlas-notes" type="button"
                 title="meeting notes across everything">notes</button>
-        <button id="atlas-up" type="button" hidden
-                title="back to all of it">all of it</button>
       </div>
     </div>
     <p id="atlas-blurb" class="atlas-blurb" hidden></p>
+    <!-- ACROSS ALL OF IT, WITHOUT KNOWING WHICH DOOR IT IS BEHIND.
+         The two levels are a hierarchy and a hierarchy answers one question:
+         what is in this family. It cannot answer the other one -- where is the
+         thing called colibri -- because at the door no workspace is on the
+         glass and inside a family every other family's is hidden. This is the
+         flat read of the same payload: type and every match from every family
+         is a card, with the family it belongs to written on it. -->
+    <div class="atlas-find">
+      <input id="atlas-q" type="search" autocomplete="off"
+             autocorrect="off" autocapitalize="none" spellcheck="false"
+             placeholder="find a course, project or tree">
+      <button id="atlas-q-clear" type="button" hidden title="clear">clear</button>
+    </div>
     <!-- LEVEL ONE: the doors. `atlas.json` already carries the families in the
          order they should be drawn, with a sentence each. -->
     <div id="doors" class="doors"></div>
@@ -112,6 +133,9 @@
          how much is outstanding. HTML in a grid, so the browser wraps the text
          and a shouted plan step cannot run out of a box. -->
     <div id="cards" class="cards" hidden></div>
+    <!-- THE FLAT LEVEL: every family at once, filtered. Same grid, same cards,
+         because a match is the same thing it was behind its door. -->
+    <div id="found" class="cards" hidden></div>
     <p id="atlas-empty" class="hint" hidden>Nothing to draw yet.</p>
   </section>
 

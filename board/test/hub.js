@@ -271,8 +271,39 @@ setTimeout(() => {
         doc.getElementById('atlas-what').textContent === 'Research'
         && doc.getElementById('atlas-blurb').textContent
            === 'The projects that become papers.');
-  check('and there is a way back to all of it',
-        doc.getElementById('atlas-up').hidden === false);
+
+  // THE WAY BACK, AND IT IS WHAT THIS PAGE SHIPPED WITHOUT.
+  //
+  //     "whenever I enter something like 'Projects' (or 'Research', 'Vendor',
+  //      etc.), I can't get back to the 'EVERYTHING' section without actually
+  //      tapping on a specific project or course"
+  //
+  // The control existed the whole time. It was a .72rem pill in the corner of
+  // the head, the same weight and colour as `notes`, worded "all of it" -- and
+  // the head scrolled away with the page, so by the time anybody was reading
+  // the cards there was nothing on the glass that led back. Opening a workspace
+  // and letting the reload land on the doors was the only route out, which is
+  // the sentence above. Four things fix it and all four are asserted.
+  const up = doc.getElementById('atlas-up');
+  check('there is a way back to Everything, and it says so rather than '
+        + 'describing itself',
+        up.hidden === false && /Everything/.test(up.textContent));
+  check('and it is a thumb rather than a pill in the corner',
+        /\.atlas-back \{[^}]*min-height: 2\.75rem/.test(css));
+  check('and it comes before the heading rather than among the tools',
+        html.indexOf('id="atlas-up"') < html.indexOf('id="atlas-what"')
+        && html.indexOf('id="atlas-up"') < html.indexOf('id="atlas-notes"'));
+  check('and the head sticks, so the way out of a long family is reachable '
+        + 'from the bottom of it rather than the top',
+        /\.atlas-head \{[^}]*position: sticky/.test(css));
+
+  // GOING IN PUSHES A HISTORY ENTRY, so the back gesture comes out. The entry
+  // carries NO url: the hash on this page belongs to `address.js`, and a family
+  // spelled into it would be two grammars in one address.
+  check('opening a family pushes an entry, so the back gesture is a way out too',
+        !!(window.history.state && window.history.state.atlasFam === 'research'));
+  check('and it does not spell the family into the address, which belongs to '
+        + 'the grammar', window.location.hash === '');
 
   let cards = [...doc.querySelectorAll('#cards .ws-card')];
   check('every workspace in that family is a card, and only that family\'s',
@@ -327,6 +358,11 @@ setTimeout(() => {
   // nothing in it is the person's to be GRADED on. The ask was about TRACING.
   // The two are split, and this is the half that reaches the glass.
   doc.getElementById('atlas-up').onclick();
+  check('tapping it puts the doors back, with nothing opened to get there',
+        doc.getElementById('doors').hidden === false
+        && doc.getElementById('cards').hidden === true
+        && doc.getElementById('atlas-up').hidden === true
+        && doc.getElementById('atlas-what').textContent === 'Everything');
   const vendor = [...doc.querySelectorAll('#doors .door')]
     .filter((b) => b.querySelector('.door-name').textContent === 'Vendor')[0];
   check('vendor is a door like any other, which it was not before',
@@ -394,6 +430,83 @@ setTimeout(() => {
         !!doc.querySelector('.action.primary[href="/board"]'));
   check('and the writing surface is one tap away too',
         !!doc.querySelector('.action[href="/slate"]'));
+
+  // ---- the back gesture and the key, which are the other two ways out ---
+  // A standalone app on an iPad has no back button, but it has the swipe, and
+  // a laptop has Escape. Both land on the same function the button does.
+  const research = [...doc.querySelectorAll('#doors .door')]
+    .filter((b) => b.querySelector('.door-name').textContent === 'Research')[0];
+  research.dispatchEvent(new window.Event('click'));
+  window.dispatchEvent(new window.PopStateEvent('popstate', { state: null }));
+  check('the back gesture comes out of a family rather than out of the app',
+        doc.getElementById('doors').hidden === false
+        && doc.getElementById('cards').hidden === true);
+  research.dispatchEvent(new window.Event('click'));
+  doc.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Escape' }));
+  check('and Escape does the same, for the half of the work on a laptop',
+        doc.getElementById('doors').hidden === false);
+
+  // ---- ACROSS ALL OF IT -------------------------------------------------
+  // The two levels are a hierarchy, and a hierarchy answers one question: what
+  // is in this family. It cannot answer the other one -- where is the thing
+  // called colibri -- because at the door no workspace is drawn at all and
+  // inside a family every other family's is hidden. This is the flat read.
+  const q = doc.getElementById('atlas-q');
+  const setQ = (v) => { q.value = v; q.dispatchEvent(new window.Event('input')); };
+
+  setQ('colibri');
+  let found = [...doc.querySelectorAll('#found .ws-card')];
+  check('typing a name finds it whatever door it is behind',
+        found.map((c) => c.querySelector('.ws-name').textContent).join('|')
+        === 'colibri|colibri-build');
+  check('and each match says which family it came out of, because a flat list '
+        + 'without that is a name with nowhere to go back to',
+        found[0].querySelector('.ws-family').textContent === 'Vendor');
+  check('the levels get out of the way while it is filtered',
+        doc.getElementById('doors').hidden === true
+        && doc.getElementById('cards').hidden === true
+        && doc.getElementById('found').hidden === false);
+  check('and the head counts rather than naming a family, because the answer '
+        + 'came from all of them',
+        doc.getElementById('atlas-what').textContent === '2 matches');
+
+  check('and the field is a thumb, at the face size iOS refuses to zoom -- '
+        + 'magnification is the one way left to be lost on this page',
+        /\.atlas-find input \{[^}]*font-size: 1rem/.test(css)
+        && /\.atlas-find input \{[^}]*min-height: 2\.75rem/.test(css));
+
+  // IT REACHES ACROSS WHILE A FAMILY IS OPEN, which is the half a filter over
+  // the current level would not do: the whole point is the thing you cannot see
+  // from where you are standing.
+  doc.getElementById('atlas-q-clear').onclick();
+  [...doc.querySelectorAll('#doors .door')]
+    .filter((b) => b.querySelector('.door-name').textContent === 'Vendor')[0]
+    .dispatchEvent(new window.Event('click'));
+  setQ('galois');
+  found = [...doc.querySelectorAll('#found .ws-card')];
+  check('and it reaches out of the family you are standing in, which is the '
+        + 'whole of what the hierarchy cannot do',
+        found.length === 1
+        && found[0].querySelector('.ws-name').textContent === 'Galois Theory'
+        && found[0].querySelector('.ws-family').textContent === 'Courses');
+
+  // A DIRECTORY NAME IS WHAT SOMEBODY TYPES when the pretty name has gone.
+  setQ('TRD');
+  check('a repository name finds it as well as the name on the card',
+        doc.querySelectorAll('#found .ws-card').length === 1);
+
+  setQ('nothing is called this');
+  check('a miss is said rather than drawn as an empty grid',
+        doc.getElementById('atlas-empty').hidden === false
+        && /Nothing here is called that/
+             .test(doc.getElementById('atlas-empty').textContent));
+
+  doc.getElementById('atlas-q-clear').onclick();
+  check('and clearing it puts back the level that was under it, rather than '
+        + 'dropping you at the door',
+        doc.getElementById('found').hidden === true
+        && doc.getElementById('cards').hidden === false
+        && doc.getElementById('atlas-what').textContent === 'Vendor');
 
   // ---- the meeting deck: two questions, in this order ------------------
   doc.getElementById('atlas-up').onclick();
