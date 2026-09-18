@@ -13,7 +13,10 @@ machinery made it, and re-drawn in front of you where you were reading it, with
 what each round changed readable on the glass. A student's own answer carries its
 verdict and every attempt they typed is kept. The local model can be chosen for a
 sitting, started from the glass, watched through four states, and handed a job in
-a workspace nobody is looking at.
+a workspace nobody is looking at. The front door is four doors rather than a
+pinchable grid, and behind a workspace the map opens to the module and to the
+class or function inside it — with the arrows rolled up to whatever depth is
+showing, and a box a pattern found rather than a parser saying so.
 
 **What is left is what still sends somebody to a keyboard**, and that is the next
 section.
@@ -114,154 +117,64 @@ at all, corrected or overhauled without leaving the page it is on, and so is
 which half of the answer panel a question opens on, and so is a response that
 types out with the next board waiting for the last character of it, and so is
 the whole of that panel: what the box renders while it is being typed in, and
-where a sent answer stays once it is sent — and so is the meeting deck now,
-chosen project by project, read and marked up on the glass, with a mark on a
-project's frame becoming that project's next direction. All of that is Settled
-below.**
-Item 1 is the map, and the last part of it is a standing rule rather than a
-task. Item 2 is item 1's other half and must land after it, because the
-refactor renames the boxes its TODOs are attached to. Item 3 is the verdict a
-person can feel, and it settles a question item 5 has been holding open. Item 4
-is the acceptance test of the mission and is also the job all of it exists for.
-Item 5 is not a build.
+where a sent answer stays once it is sent — and so is the meeting deck, chosen
+project by project, read and marked up on the glass, with a mark on a project's
+frame becoming that project's next direction — and so, now, is the front door:
+four doors rather than a pinchable grid, a family behind each of them, and a
+project map that opens to the module and to the class or function inside it. All
+of that is Settled below.**
+Item 1 is the half of the vendor work that needs a decision about what a
+sitting's root IS, and it is not blocking anything. Item 2 is the one that
+matters most: the map is drawn now, so a sitting can finally belong to a box on
+it. Item 3 is the verdict a person can feel, and it settles a question item 5
+has been holding open. Item 4 is the acceptance test of the mission and is also
+the job all of it exists for. Item 5 is not a build.
 
 ---
 
 ## What to do next
 
-### 1. Three doors, then a family, then a diagram that explains the project
+### 1. A sitting held over a vendor tree
 
-**The complaint, and it is about all three levels at once.** *"It's just an ugly
-grid of projects in an inner box that has wacky zooming. On the homescreen, I want
-a nice 'Research' option, 'Courses' option, and 'Projects' option, and honestly
-something pertaining to vendor/ as well, because who knows when we'll want to
-explore external tools in the same way we're exploring everything else with
-tutoring sessions. That's the best way to dive into how Colibri works. When I
-select one of those four options, I want to see all available
-projects/courses/research projects/vendor tools portrayed in again a visually
-pleasing way, and then we can go into an individual project map."*
+**What landed and what did not.** A vendor tree is discovered, walkable and
+diagrammable: `atlas.trees()` lists them, `atlas.find_tree()` looks one up,
+`walk.units` and `map.shape` take a vendor root and answer, the front door draws
+them under the Vendor door with the commit each is pinned at, and `atlas.json`'s
+own prose now makes the two claims separately — *not handed in to* and *still
+read*. See the *Settled* entry.
 
-**(a) The front door draws a list as though it were a diagram, and that is the
-whole of the complaint.** `home.js` builds ONE SVG plane — a region per family, a
-card per workspace, `A_FAM_TOP`, `A_FAM_GAP`, `A_EDGE` — and hands it to
-`plane-core.js` to be panned and pinched, with a `fit` button because it cannot be
-seen at once. Six families and a dozen workspaces is **a list of six**. A list is
-not a diagram, and drawing it on a plane is what produces the wacky zooming: the
-gesture layer is solving a problem the content does not have.
+**What is missing is the sitting.** *"A `trace` sitting over `vendor/colibri` is
+exactly the right shape and it is currently impossible"*, and it still is. A
+walkthrough's scope is resolved by `walk.resolve(repo.root, names)` against the
+root of the workspace the board is SERVING, and `vendor/colibri` is not under
+any of them. So the tree's sheet on the front door says what it is and offers
+nothing to open.
 
-*Want.* Three levels, and only the last of them is a plane.
+*Decide the one thing that matters, and it is not a path.* Either a sitting may
+be held over a root that is not the serving workspace's — in which case
+`Repo.root` stops being the single answer to "where are we", and `scope`,
+`sense`, the card writer and the archive all have to say WHICH root, which is
+the expensive version — or a trace over a tree is a sitting in the workspace
+that is READING it, with the tree named as scope and resolved through a second,
+explicitly-vendor resolver. The second keeps one root per sitting and is almost
+certainly right: somebody tracing colibrì is doing it *for* PSYCH-ASR, and the
+cards belong in PSYCH-ASR.
 
-1. **The door:** the families, as large tappable things. `atlas.json` already
-   carries them in the order they should be drawn, with a `name` and a one-sentence
-   `blurb` each — *"Graduate coursework, taught chapter by chapter."*, *"The
-   projects that become papers."* Those sentences exist and the front door does
-   not use them as anything but a heading. No plane, no pinch, no fit button.
-2. **The family:** its workspaces, each with what it is and what is happening in
-   it. `machines.atlas_payload` already computes per workspace what is next, how
-   many cards, which chapter, whether a board is up and on which node — all of it
-   is in the payload today and gets drawn as a small card in a grid. No plane here
-   either.
-3. **The project map:** a diagram, which is the one thing here that genuinely
-   needs a plane. `plane-core.js` stays, and it finally has content whose shape
-   justifies it.
+*Then the diagram of a tree needs a surface.* The board's map is the serving
+workspace's, and `/map/inside/<id>` is scoped to `repo.root` the same way. A
+route that answers for a tree (`atlas.find_tree`, then `map.status`) is small;
+what is NOT decided is whether the board's map surface draws it with the boxes
+inert, or whether the front door grows a third level of its own. Do not add a
+second map renderer either way — `board.js`'s `paintMap` is the only one and
+`mapDeep` is already the shape a foreign picture would take.
 
-**(b) `vendor/` becomes explorable, and that changes a rule that is written
-down.** `atlas.json` says today: *"vendor — somebody else's repositories, tracked
-by pointer. Discovery skips the family entirely — nothing in it is the person's to
-be graded on."* The reason given is about GRADING, and the ask is about TRACING:
-*"who knows when we'll want to explore external tools in the same way… That's the
-best way to dive into how Colibri works."* Those are different claims and the rule
-conflates them, the same way `MAKE_SENSE` conflated content with scope.
-
-*Want.* A vendor tree is walkable and diagrammable and is **never** a workspace
-you hand work in to: no cards, no write-up, no homework, no push. A `trace`
-sitting over `vendor/colibri` is exactly the right shape and it is currently
-impossible. Split the rule in `atlas.json`'s own prose so the next reader does not
-re-merge it, and remember that `atlas.workspaces()` skipping the family is what
-several things depend on — widen the walk, do not widen what counts as a
-workspace.
-
-**(c) The project map is a package diagram and the ask is a class diagram. More of
-it exists than it looks.** `map._from_code(root)` already derives nodes and
-weighted edges from the source: on `research/PSYCH-ASR` it returns **13 nodes and
-19 edges** right now, with real arrows — `psych-asr-cli → psych-asr-artifacts`
-carrying 25 imports, `→ psych-asr-transcript` carrying 10. `_module_paths` reads
-what a file imports, `_owner` decides which box owns the target, `_edges`
-deduplicates and counts, and `_rollup` groups. The skeleton is there and it works.
-
-What is missing is **granularity**. The nodes are DIRECTORIES. IntelliJ's diagram
-is worth what it is worth because its nodes are the *things* — the classes — and
-its arrows are uses and inheritance. *"Just looking at it should communicate
-everything one needs to know to understand how the project works, and when we work
-on a TODO, it's obvious what moving parts we'll be affecting."*
-
-*The primitive for the nodes already exists in another file.*
-`walk.DEFINITION` is a per-language pattern for *"is there a thing called X
-defined here"*, anchored at the start of a line, for Python, Go, JS/TS, Lean, sh,
-R and Rust. That is the definition-finder a symbol-level diagram needs, and it is
-already written and already used to check a walkthrough's symbol before it reaches
-a prompt.
-
-*Decide: how far without a parser, and the answer is not the same in every
-language.* A regex is honest about definitions and a liar about calls. **For
-Python — which is most of this repository — use `ast`.** It is standard library,
-which is this codebase's own rule in every module, and it gives classes,
-functions, decorators, base classes and call sites exactly rather than
-approximately. For everything else keep `walk.DEFINITION`, draw the coarser
-diagram, and **say on the diagram that it is coarser** rather than letting
-somebody trust a Lean box as much as a Python one.
-
-*And decide the levels, because `MAX_NODES = 44` is about to be the binding
-constraint.* A symbol-level diagram of a real project is hundreds of boxes, and
-400 boxes on a plane is the ugly grid again with more effort. Three depths —
-package, module, symbol — expanding on a tap, with the arrows rolled up to
-whatever depth is showing. `_rollup` already does exactly that kind of grouping
-for files.
-
-*What must NOT be lost.* The written map is judgement and the derived one is not.
-`live/map.json` carries *the typist*, *the stopwatch*, *the name-tagger* — names
-*"which is judgement no file in this repository contains and which no amount of
-reading the tree recovers"*, and `meeting.py` spends those names in every note it
-writes. The derived diagram is a second layer UNDER the hand-drawn one, not a
-replacement: the boxes keep their human names, and the structure appears inside
-and between them. `map._unclaimed` is where the two are already reconciled.
-
-**(d) And the code has to deserve the diagram. This is a standing rule, not a
-task.** *"Not only do I want the project/course/research-project level maps to be
-rendered in this way, but we need to make the code behave so that it can be
-rendered that way too. Basically, all code ever produced, be it by vibe-coding or
-coach-coding, must keep this desire for organization and scalability in mind. No
-piece-of-shit code even though we can get away with it in Python."*
-
-A diagram is a mirror. A module that does six unrelated things draws as one box
-with eleven arrows into it and teaches nobody anything — and the failure is the
-module, not the renderer. So the rule belongs where every turn is bound by it,
-which is `TEACHING.md` beside *A doing turn: the work first, then one short card*
-and in `sense.DOING_SENSE`, which in a headless turn is the whole prompt. In one
-sentence: **a new thing goes in a module named for the one job it does, and if
-that means moving something first, move it first.**
-
-*And the refactor is real work with a real order.* The owner's own reading is
-*"courses are pretty organized, and we've tried our best in the research projects
-and other projects like Algo-Solutions and Lean-Theorem-Proving, but still, we
-need to LOCK IN."* **Draw the diagram before refactoring anything.** The diagram is
-the instrument: the box with too many arrows into it is the next refactor, and
-guessing which module is untidy before you can see the graph is how the wrong one
-gets rewritten. Take them one workspace at a time, and take the one the diagram
-makes look worst.
-
-**Check.** `test/map.py` owns *"the map is of the content, and none of it is
-invented"*, which is the property that must survive all of this: assert every
-derived node and every arrow traces to a real definition or a real import, that a
-symbol `ast` cannot find is not drawn, and that the hand-written names still win
-over derived ones. `test/hub.js` owns the front door — assert the three levels are
-three surfaces, that the top two are not planes, and that `atlas.json`'s blurbs
-reach the glass. `test/walk.py` owns what is walkable, and gains vendor. And
-`test/teaching.py` for the standing rule, in the two places it has to agree.
+**Check.** `test/walk.py` owns what is walkable and already has the vendor half;
+what it gains is that a trace over a tree opens, that it is a sitting in a real
+workspace, and that nothing about the tree is written to.
 
 ### 2. A sitting belongs to ONE component, and leaving it is a new sitting
 
-**The want, and it is item 1's other half.** *"When a tutoring session is
+**The want, and the map it needs now exists.** *"When a tutoring session is
 launched, that should happen from tapping on the particular component of that
 project/course/research-project map. There should be TODOs present, each
 corresponding with some component. The tutoring session should be AWARE of what
@@ -562,6 +475,83 @@ as the answer.
 
 ## Settled, so nobody re-derives it
 
+- **The front door is THREE LEVELS, and only the last of them is a plane.** The
+  door is the families — large tappable things, each with the sentence
+  `atlas.json` already carried for it and a line saying how many, how many live,
+  how many have an answer waiting, how many still have something going. Behind
+  one is its workspaces, as cards. Behind a card is the project map, on the
+  board. **Six families and a dozen workspaces is a list of six**, and drawing a
+  list on a pannable pinchable plane is what produced the wacky zooming: the
+  gesture layer was solving a problem the content did not have, on a page that
+  could be pinched over the top of it. So the top two levels are HTML in a grid
+  — no pan, no pinch, no fit, no second re-centre, and neither `plane-core.js`
+  nor `gauge.js` loaded by `home.html` at all. **The browser wraps the text**,
+  which is why a SHOUTED plan step can no longer run out of a card; how many go
+  across is a media query, which is the old constant's promise kept by the thing
+  whose job it is. `test/hub.js` asserts the three levels are three surfaces and
+  that the top two are not planes.
+- **The project map opens to the module, and to the class or function inside
+  it.** A directory is not a moving part. Every box with files in it carries a
+  second tap at its top right; it redraws the plane as the inside of that box
+  with a crumb back up — `PSYCH-ASR › evaluate › grade.py`. **An expansion is a
+  new picture, not a bigger one**: splicing twelve modules into a forty-box
+  diagram is the ugly grid again with more effort. An arrow that LEAVES is
+  rolled up to the sibling it lands in, drawn as a dashed wall keeping its own
+  name and tappable to step sideways; at symbol depth a use points at the FILE
+  it came from, never at the box the symbol is already inside. `map.inside` is
+  the derivation and `GET /map/inside/<id>` the surface — **on the tap and never
+  on a payload**, because the payload is rebuilt four times a second and this
+  parses files whole. The id is looked up in what discovery found; a miss is a
+  404 and the picture already on the glass is untouched. A poll arriving while
+  somebody is two boxes deep leaves them there.
+- **Python is parsed, everything else is grepped, and the picture says which.**
+  `course/symbols.py` answers one question — what does this file define and what
+  does each definition use. Python through `ast` (standard library, like every
+  module here): classes, functions, decorators, base classes and the names a
+  body really mentions. Everything else through `walk.DEFINITION`, the same
+  line-anchored patterns that already check a walkthrough's symbol. **A regex is
+  honest about definitions and a liar about calls**, so a grepped file reports
+  its boxes, draws no arrows at all, and reports `exact: false` — which reaches
+  the foot of the map as *trust it less than a Python box*, and is said on a
+  module box BEFORE anybody taps it. Caps that say they are caps:
+  `MAX_INSIDE = 40`, `symbols.MAX_SYMBOLS = 40`.
+- **The written map is not replaced by the derived one; the derived one lives
+  UNDER it.** `inside` works off the files a box claims rather than off a
+  directory, so a box a person drew and named keeps its name and opening *the
+  typist* shows `typists.py`, `transcribe.py` and `run_asr.py` with their real
+  arrows out to *the stopwatch*. And **a symbol box opens a walkthrough over
+  that symbol** — `psych_asr/asr/typists.py::run`, spelt the way `walk.label`
+  spells it. A module or symbol id is never sent as `node`: `map.find` resolves
+  the repository's own parts and has no box by that name, so the scope is what
+  says what the sitting is about. It is the only way to work offered on a
+  derived box, because a function is not a directory to be examined on.
+- **Tracing is not grading, and that is two rules rather than one sentence.**
+  `atlas.json` skipped the vendor family and the reason written down was that
+  nothing in it is the person's to be GRADED on, which made reading how colibrì
+  works impossible for a reason about homework. Now: `atlas.workspaces()` skips
+  the family — no cards, no write-up, no homework, no push, no board of its own
+  — and `atlas.trees()` lists it, shaped exactly like a workspace record, with
+  `atlas.find_tree()` to look one up and refuse anything else. `walk.units` and
+  `map.shape` take a root and neither asks whose it is. An unpulled submodule is
+  an empty directory and is not a tree; a `tutorboard.json` inside somebody
+  else's repository does not make one either, because the family decides.
+  **Widening the walk is not widening what counts as a workspace.** The prose in
+  `atlas.json` makes both claims separately so the next reader cannot merge
+  them. What is still missing is the sitting itself — item 1.
+- **A new thing goes in a module named for the one job it does, and if that
+  means moving something first, move it first.** A standing rule rather than a
+  task, because every workspace has a map whose boxes are its modules and whose
+  arrows are drawn from what they import: a module that does six unrelated
+  things draws as one box with eleven arrows into it and teaches nobody
+  anything. **The picture is a mirror, and the failure is the module rather than
+  the renderer.** `helpers`, `utils`, `common` and `misc` are four spellings of
+  *nobody decided*. Written in `TEACHING.md` under *Where a new thing goes* and
+  in `sense.DOING_SENSE`, which in a headless turn IS the prompt;
+  `test/teaching.py` holds the two in step with the whitespace flattened,
+  because both documents wrap their prose. **Draw the diagram before refactoring
+  anything** — the box with too many arrows into it is the next refactor, and
+  guessing which module is untidy before you can see the graph is how the wrong
+  one gets rewritten.
 - **The meeting deck: one of it, chosen project by project, and a mark on a
   frame is that project's next DIRECTION.** `meetings/meeting.pdf`, a Beamer
   frame per workspace that moved, read at `/meeting` and marked up there.
