@@ -257,73 +257,116 @@ main { max-width: 46rem; }
 }
 .atlas-tools button:hover { background: var(--paper-2); color: var(--ink); }
 
-/* A PLANE, not a box. `touch-action: none` because the gesture is decided in
-   JavaScript -- see plane-core.js -- and the browser scrolling underneath a
-   pinch is the surface fighting the hand. `overflow: hidden` so the body never
-   scrolls sideways however far the plane is panned. */
-.atlas-plane {
-  position: relative;
-  height: min(62vh, 30rem);
+.atlas-blurb {
+  font-family: var(--ui); font-size: .82rem; color: var(--ink-3);
+  margin: -.2rem 0 .8rem;
+}
+
+/* ---------- LEVEL ONE: the doors ----------
+   The families, as large tappable things. Three across on a tablet, one on a
+   phone, and the number is a MEDIA QUERY rather than a constant in JavaScript:
+   the old plane computed "three across, always" itself so the picture would lay
+   out identically on every device, which is the right promise kept by the wrong
+   thing. A grid keeps it and the browser wraps the text. */
+.doors {
+  display: grid; gap: .7rem;
+  grid-template-columns: 1fr;
+}
+@media (min-width: 34rem) { .doors { grid-template-columns: 1fr 1fr; } }
+@media (min-width: 52rem) { .doors { grid-template-columns: 1fr 1fr 1fr; } }
+
+.door {
+  display: flex; flex-direction: column; gap: .3rem;
+  text-align: left; align-items: flex-start;
+  padding: 1rem 1.1rem 1.05rem;
+  min-height: 7.5rem;
+  border: 1px solid var(--rule); border-radius: .8rem;
+  background: var(--paper); color: var(--ink);
+  font: inherit; cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: border-color .15s, background .15s, transform .08s;
+}
+.door:hover { background: var(--paper-2); border-color: var(--ink-3); }
+.door:active { transform: scale(.995); }
+.door-name { font: 650 1.15rem/1.15 var(--ui); }
+.door-blurb {
+  font-family: var(--ui); font-size: .82rem; line-height: 1.35;
+  color: var(--ink-2); flex: 1 1 auto;
+}
+.door-line {
+  font-family: var(--ui); font-size: .74rem; color: var(--ink-3);
+}
+/* The family holding the workspace the board is in. It is the one the door
+   opens, so it has to be findable before the first tap rather than after it. */
+.door.here { border-color: var(--accent); border-width: 2px; padding: calc(1rem - 1px) calc(1.1rem - 1px); }
+.door.here .door-name { color: var(--accent); }
+.door-tag {
+  font: 700 .64rem/1 var(--ui); letter-spacing: .1em; text-transform: uppercase;
+  color: var(--accent);
+}
+/* Somebody else's repositories. Dashed, the same way a document is dashed on
+   the map, because the difference has to be visible before the label is read:
+   nothing in here is handed work. */
+.door.vendor { border-style: dashed; }
+
+/* ---------- LEVEL TWO: one family's workspaces ---------- */
+.cards {
+  display: grid; gap: .7rem;
+  grid-template-columns: 1fr;
+}
+@media (min-width: 34rem) { .cards { grid-template-columns: 1fr 1fr; } }
+@media (min-width: 52rem) { .cards { grid-template-columns: 1fr 1fr 1fr; } }
+
+.ws-card {
+  display: flex; flex-direction: column; gap: .25rem;
+  text-align: left; align-items: stretch;
+  padding: .85rem .95rem .9rem;
   border: 1px solid var(--rule); border-radius: .7rem;
-  background: var(--paper-2);
+  background: var(--paper); color: var(--ink);
+  font: inherit; cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: border-color .15s, background .15s;
+}
+.ws-card:hover { background: var(--paper-2); border-color: var(--ink-3); }
+.ws-top { display: flex; align-items: center; gap: .4rem; }
+.ws-name {
+  font: 650 1rem/1.2 var(--ui); min-width: 0; flex: 1 1 auto;
+  overflow-wrap: anywhere;
+}
+.ws-tag {
+  font: 700 .62rem/1 var(--ui); letter-spacing: .12em; color: var(--ink-3);
+  margin-top: .3rem;
+}
+.ws-tag.here { color: var(--accent); letter-spacing: .1em; text-transform: uppercase; }
+.ws-next {
+  font-family: var(--ui); font-size: .8rem; line-height: 1.35;
+  color: var(--ink-2);
+  /* A SHOUTED PLAN STEP IS WRAPPED BY THE BROWSER, and that is the whole
+     reason this level stopped being a plane. The old card measured its text
+     through `gauge.js` and clipped to two lines; a line of capitals is half
+     again wider than characters times a constant, and that is how the labels
+     came to run out of their boxes. Three lines and an ellipsis, decided by
+     the thing that actually knows how wide the glass is. */
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3;
   overflow: hidden;
-  touch-action: none;
-  -webkit-user-select: none; user-select: none;
-  cursor: grab;
 }
-.atlas-plane:active { cursor: grabbing; }
-.atlas-plane > svg { position: absolute; inset: 0; width: 100%; height: 100%; }
-
-/* The drawn things. Fills are set here rather than on the elements so the
-   whole picture changes theme with the page and nothing has to repaint. */
-.atlas-plane .fam-label {
-  font-family: var(--ui); font-size: 13px; font-weight: 700;
-  letter-spacing: .12em; text-transform: uppercase;
-  fill: var(--ink-3);
+.ws-meta {
+  font-family: var(--ui); font-size: .72rem; color: var(--ink-3);
+  margin-top: .3rem; display: flex; align-items: center; gap: .3rem;
+  overflow-wrap: anywhere;
 }
-.atlas-plane .fam-blurb { font-family: var(--ui); font-size: 12px; fill: var(--ink-3); }
-.atlas-plane .fam-rule { stroke: var(--rule); stroke-width: 1; }
-
-.atlas-plane .card-box {
-  fill: var(--paper); stroke: var(--rule); stroke-width: 1;
-}
-.atlas-plane .card-hit { fill: transparent; cursor: pointer; }
-.atlas-plane .card-name {
-  font-family: var(--ui); font-size: 16px; font-weight: 650; fill: var(--ink);
-}
-.atlas-plane .card-next { font-family: var(--ui); font-size: 12.5px; fill: var(--ink-2); }
-.atlas-plane .card-tag {
-  font-family: var(--ui); font-size: 9.5px; font-weight: 700;
-  letter-spacing: .12em; fill: var(--ink-3);
-}
-.atlas-plane .card-meta { font-family: var(--ui); font-size: 11.5px; fill: var(--ink-3); }
-
-/* The workspace the board is in right now. It is the one the door opens, so it
-   is the one that has to be findable at a glance from anywhere on the plane. */
-.atlas-plane .card-box.here { stroke: var(--accent); stroke-width: 2.5; }
-.atlas-plane .card-name.here { fill: var(--accent); }
-
-/* A board that is up somewhere. Green is the same green as the connection dot,
-   which is the only other place on this page that means "answering". */
-.atlas-plane .card-live { fill: var(--live); }
-/* An answer nobody has read, on the card it landed in. A ring rather than a
-   dot, because the card may already carry the live dot and two filled circles
-   the same size read as one thing repeated. */
-.atlas-plane .card-news {
-  fill: var(--live); stroke: var(--paper); stroke-width: 2;
-}
-.atlas-plane .card-box.news { stroke: var(--live); stroke-width: 2; }
-/* SOMETHING IS STILL WORKING IN THIS BOX, or stopped without finishing. Bottom
-   right, so a box can carry this and the answer badge at once -- a mission that
-   landed a card is both. Hollow for running, filled for failed: the one you act
-   on is the one that is solid. */
-.atlas-plane .card-mission.running {
-  fill: none; stroke: var(--live); stroke-width: 2;
-}
-.atlas-plane .card-mission.failed {
-  fill: var(--accent); stroke: var(--paper); stroke-width: 2;
-}
-.atlas-plane .card-open { fill: var(--ask); }
+.ws-card.here { border-color: var(--accent); border-width: 2px;
+                padding: calc(.85rem - 1px) calc(.95rem - 1px) calc(.9rem - 1px); }
+.ws-card.here .ws-name { color: var(--accent); }
+/* An answer nobody has read, on the card it landed in. */
+.ws-card.news { border-color: var(--live); }
+.ws-dot { flex: none; width: .55rem; height: .55rem; border-radius: 50%; }
+.ws-dot.news { background: var(--live); }
+.ws-dot.live { background: var(--live); }
+/* SOMETHING IS STILL WORKING IN THERE, or stopped without finishing. Hollow for
+   running, filled for failed: the one you act on is the one that is solid. */
+.ws-dot.mission.running { border: 2px solid var(--live); }
+.ws-dot.mission.failed { background: var(--accent); }
 
 /* ---------- the sheet ---------- */
 .sheet {
@@ -392,9 +435,10 @@ main { max-width: 46rem; }
    and the transform does the work, including a counter-scale so a button is the
    same size under a thumb however far the page has been zoomed in.
 
-   `fit` in the atlas head does the same job as the second of these and lives in
-   the page chrome, which pinching pans off the glass. This cannot be. */
-#panic, #atlasback {
+   There used to be two of these, because the atlas was a plane and could be
+   panned into empty space on top of the page's own magnification. It is not a
+   plane any more, so there is one way to be lost and one button for it. */
+#panic {
   position: fixed; left: 0; top: 0; z-index: 62;
   transform-origin: 0 0;
   display: flex; align-items: center; gap: .35rem;
@@ -413,26 +457,18 @@ main { max-width: 46rem; }
   -webkit-tap-highlight-color: transparent;
   transition: box-shadow .18s, filter .18s;
 }
-#panic svg, #atlasback svg { width: .95rem; height: .95rem; display: block; flex: none; }
-/* The quieter of the pair: the first is the way out of a zoom there is no other
-   way out of, this is a convenience. Same shape, less shout, so the one that
-   matters most stays the one the eye finds. */
-#atlasback {
-  background: color-mix(in srgb, var(--accent) 22%, var(--paper));
-  color: var(--ink);
-  border-color: color-mix(in srgb, var(--accent) 45%, var(--rule));
-}
-#panic:hover, #atlasback:hover { filter: brightness(1.1); }
+#panic svg { width: .95rem; height: .95rem; display: block; flex: none; }
+#panic:hover { filter: brightness(1.1); }
 /* Held down: it has become a thing being moved, and must look like one before
    the finger travels, or the first drag reads as a tap that did nothing. */
-#panic.holding, #atlasback.holding {
+#panic.holding {
   cursor: grabbing;
   box-shadow: 0 0 0 5px color-mix(in srgb, var(--accent) 32%, transparent),
               0 4px 14px rgba(0,0,0,.3);
 }
 /* Tapped: acknowledge it, because what the tap does is a change of scale and
    not a change of content, which is easy to miss on a page you were lost in. */
-#panic.hit, #atlasback.hit { filter: brightness(1.25); }
+#panic.hit { filter: brightness(1.25); }
 /* Over the sheets, which cover the whole glass: a sheet has its own close and
    the stack must not sit under one. */
 #panic { z-index: 63; }

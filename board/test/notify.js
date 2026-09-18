@@ -362,8 +362,10 @@ await sleep(60);
   w.scrollTo = function () {};
   w.fetch = () => new Promise(() => {});
   w.addEventListener('error', (e) => fail('home: uncaught: ' + e.message));
-  for (const f of ['typeface.js', 'address.js', 'gauge.js', 'recentre.js',
-                   'plane-core.js', 'home.js']) {
+  // The front door draws no plane and measures no text any more -- six
+  // families is a list of six -- so neither `gauge.js` nor `plane-core.js` is
+  // loaded by it or by this.
+  for (const f of ['typeface.js', 'address.js', 'recentre.js', 'home.js']) {
     let src = fs.readFileSync(path.join(WEB, f), 'utf8');
     if (f === 'home.js') src = src.replace('})();', 'window.__atlas = paintAtlas;\n})();');
     try { w.eval(src); } catch (e) { fail('home: ' + f + ': ' + e.message); }
@@ -405,7 +407,20 @@ await sleep(60);
                && /decode the pilot/.test(mrows[0].textContent)
     ? ok('and what it is, and that it has not finished')
     : fail('the mission row says nothing useful');
-  d.querySelector('.card-mission')
+  // ON THE CARD, WHICH IS ONE LEVEL DOWN. The front door is the FAMILIES now,
+  // and the workspaces are behind whichever one you tap -- so the mark lives on
+  // the card, and the count of what is waiting lives on the door above it. Both
+  // halves matter: the door is what somebody coming back to the app sees first.
+  const door = Array.from(d.querySelectorAll('#doors .door'))[0];
+  door && /an answer waiting/.test(door.textContent)
+       && /one still going/.test(door.textContent)
+    ? ok('the door into the family says an answer is waiting and something is '
+         + 'still going, before any of it is tapped')
+    : fail('the door says nothing about what is waiting inside it');
+  if (door) door.dispatchEvent(new w.Event('click'));
+  await sleep(10);
+
+  d.querySelector('.ws-dot.mission')
     ? ok('and the box it is running in is marked on the map of everything')
     : fail('nothing on the atlas marks the workspace with work in it');
 
@@ -422,13 +437,13 @@ await sleep(60);
     : fail('the row says nothing about the card');
 
   // And on the picture itself, because the atlas is what the front door IS.
-  d.querySelector('.card-news')
+  d.querySelector('.ws-dot.news')
     ? ok('and the workspace is badged on the map of everything')
     : fail('nothing on the atlas marks the workspace that answered');
 
   // NEVER ABOUT THE ONE YOU ARE IN. A badge on the card you are standing in is
   // furniture: the lesson is one tap away and you are about to read it anyway.
-  d.querySelectorAll('.card-news').length === 1
+  d.querySelectorAll('.ws-dot.news').length === 1
     ? ok('and only that one — the workspace you are in is never badged')
     : fail('the current workspace was badged as unread');
 }

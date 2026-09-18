@@ -46,6 +46,76 @@ const posts = [];
 // What the sheet asked the plan for, kept apart from the sittings it opens:
 // reading a step is not opening one, and `pick` below wants the sitting.
 const planAsks = [];
+const insideAsks = [];
+// What `map.inside` answers with, keyed by the id that was asked for. `evaluate`
+// is two Python files with a real import between them; `slurm_jobs` is a shell
+// script, which nothing here parses -- so it reports its definitions, draws no
+// arrows, and says `exact` is false.
+const insides = {
+  evaluate: {
+    ok: true, of: 'evaluate', name: 'evaluate', depth: 'module', up: '',
+    exact: true, total: 2, capped: false,
+    why: 'The files in evaluate, and what they import.',
+    nodes: [
+      { id: 'in-grade-py', name: 'grade.py', also: 'psych_asr/evaluate',
+        kind: 'module', does: 'Grade a candidate.', status: 'unknown',
+        files: ['psych_asr/evaluate/grade.py'], dir: 'psych_asr/evaluate',
+        steps: [], doc: '', slide: null, note: '', exact: true, inside: 1 },
+      { id: 'in-score-py', name: 'score.py', also: 'psych_asr/evaluate',
+        kind: 'module', does: 'The score.', status: 'unknown',
+        files: ['psych_asr/evaluate/score.py'], dir: 'psych_asr/evaluate',
+        steps: [], doc: '', slide: null, note: '', exact: true, inside: 1 },
+      { id: 'artifacts', name: 'artifacts', also: 'psych_asr/artifacts',
+        kind: 'part', does: 'The Stage 1 filename convention.',
+        status: 'unknown', files: [], dir: '', steps: [], doc: '',
+        slide: null, note: '', outside: true },
+    ],
+    edges: [{ from: 'in-grade-py', to: 'in-score-py', weight: 2, label: '' },
+            { from: 'in-grade-py', to: 'artifacts', weight: 5, label: '' }],
+  },
+  'in-grade-py': {
+    ok: true, of: 'in-grade-py', name: 'grade.py', depth: 'symbol',
+    up: 'evaluate', exact: true, total: 2, capped: false,
+    why: 'What grade.py defines, and what each definition uses.',
+    nodes: [
+      { id: 'at-grade-finding', name: 'Finding', also: 'class', kind: 'symbol',
+        does: 'One disagreement.', status: 'unknown',
+        files: ['psych_asr/evaluate/grade.py'], dir: 'psych_asr/evaluate',
+        steps: [], doc: '', slide: null, note: '', symbol: 'Finding',
+        exact: true, line: 4 },
+      { id: 'at-grade-grade', name: 'grade', also: 'function', kind: 'symbol',
+        does: 'Grade a candidate against the reference.', status: 'unknown',
+        files: ['psych_asr/evaluate/grade.py'], dir: 'psych_asr/evaluate',
+        steps: [], doc: '', slide: null, note: '', symbol: 'grade',
+        exact: true, line: 9 },
+    ],
+    edges: [{ from: 'at-grade-grade', to: 'at-grade-finding', weight: 1,
+              label: '' }],
+  },
+  apart: {
+    ok: true, of: 'apart', name: 'slurm_jobs', depth: 'module', up: '',
+    exact: true, total: 1, capped: false, why: 'The files in slurm_jobs.',
+    nodes: [
+      { id: 'in-run-sh', name: 'run.sh', also: 'slurm_jobs', kind: 'module',
+        does: '', status: 'unknown', files: ['slurm_jobs/run.sh'],
+        dir: 'slurm_jobs', steps: [], doc: '', slide: null, note: '',
+        exact: false, inside: 1 },
+    ],
+    edges: [],
+  },
+  'in-run-sh': {
+    ok: true, of: 'in-run-sh', name: 'run.sh', depth: 'symbol', up: 'apart',
+    exact: false, total: 1, capped: false,
+    why: 'found by pattern rather than parsed, so its arrows are not drawn',
+    nodes: [
+      { id: 'at-run-stage', name: 'stage', also: 'function', kind: 'symbol',
+        does: 'Stage the model.', status: 'unknown',
+        files: ['slurm_jobs/run.sh'], dir: 'slurm_jobs', steps: [], doc: '',
+        slide: null, note: '', symbol: 'stage', exact: false, line: 12 },
+    ],
+    edges: [],
+  },
+};
 // The whole of one step, as the server would read it back off the plan. Longer
 // than the 240-character blurb on the chip, which is the entire point of it.
 const WHOLE = 'STEP 2. THE STOPWATCH — AND THE REFERENCE RTTM IT UNBLOCKS.\n'
@@ -97,6 +167,18 @@ function board(W, H, face) {
   window.fetch = (u, opts) => {
     if (/slate\/state/.test(String(u))) {
       return Promise.resolve({ json: () => Promise.resolve({ pages: [] }) });
+    }
+    // ONE LEVEL DOWN THE MAP. Derived on the tap rather than carried on the
+    // payload, because the payload is polled four times a second and this
+    // parses files whole.
+    const deep = /^\/map\/inside\/(.+)$/.exec(String(u));
+    if (deep) {
+      insideAsks.push(decodeURIComponent(deep[1]));
+      const answer = insides[decodeURIComponent(deep[1])];
+      return Promise.resolve({
+        json: () => Promise.resolve(answer
+          || { ok: false, error: 'there is nothing inside that' }),
+      });
     }
     if (/\/plan\/step$/.test(String(u))) {
       planAsks.push({ url: String(u), body: JSON.parse(opts.body) });
@@ -158,17 +240,23 @@ function board(W, H, face) {
     'window.__render = render;\nwindow.__openMap = openMap;\n'
     + 'window.__closeMap = closeMap;\nwindow.__mapView = function () { return mapView; };\n'
     + 'window.__openWork = openWork;\nwindow.__wrap = mapWrap;\n'
-    + 'window.__width = mapWidth;\n})();');
+    + 'window.__width = mapWidth;\nwindow.__mapDig = mapDig;\n'
+    + 'window.__mapOut = mapOut;\nwindow.__takeWork = takeWork;\n})();');
   try { window.eval(src); }
   catch (e) { fail('board.js: ' + e.message); }
   return window;
 }
 
 function node(over) {
-  return Object.assign({
+  const out = Object.assign({
     id: 'x', name: 'x', also: '', kind: 'part', does: '', status: 'unknown',
     files: [], dir: '', steps: [], doc: '', slide: null, note: '',
   }, over);
+  // WHETHER THERE IS ANYTHING UNDER THIS BOX, said on the box rather than
+  // discovered by tapping it and getting nothing. `map.status` computes it the
+  // same way, off the files the box carries.
+  if (out.inside === undefined) out.inside = (out.files || []).length;
+  return out;
 }
 
 // A project: four parts, a real dependency chain, a cycle, a document, and the
@@ -832,6 +920,196 @@ const at = (doc, id) => {
     w.Gauge.faceReady()
       ? ok('and the gauge knows its answers are now in the right face')
       : fail('the gauge still believes it is measuring a fallback');
+  }
+
+  // ---- THREE DEPTHS: THE PACKAGE, THE MODULE, THE SYMBOL ----------------
+  //
+  // The boxes on the picture above are DIRECTORIES, and a directory is not a
+  // moving part. *"Just looking at it should communicate everything one needs
+  // to know to understand how the project works, and when we work on a TODO,
+  // it's obvious what moving parts we'll be affecting."* So a box opens into
+  // its files and a file opens into what it defines.
+  //
+  // AN EXPANSION IS A NEW PICTURE, NOT A BIGGER ONE. Splicing a package's
+  // twelve modules into a forty-box diagram is the ugly grid the whole
+  // complaint started with. What this guards is that the new picture arrives,
+  // that there is a way back out of it, and that a picture found by pattern
+  // rather than parsed says so -- because a Lean box nobody may trust as far
+  // as a Python one must not look identical to it.
+  {
+    const w = board(980, 620);
+    const doc = w.document;
+    w.__render(payload());
+    w.__openMap('tapped');
+    await sleep(15);
+    insideAsks.length = 0;
+
+    const digs = Array.from(doc.querySelectorAll('#map-sheet .dig'))
+      .map((g) => g.getAttribute('data-dig'));
+    digs.includes('evaluate') && digs.includes('artifacts')
+      ? ok('a box with files in it offers to be opened')
+      : fail('nothing on the picture says a box has anything under it: '
+             + JSON.stringify(digs));
+    !digs.includes('doc-deck')
+      ? ok('and a document does not, because there is nothing under a document')
+      : fail('a document was offered an inside it does not have');
+
+    // The box's own tap still means "work on this". One target cannot mean
+    // both, which is why the inside has a control of its own.
+    const box = doc.querySelector('#map-sheet .node[data-id="evaluate"]');
+    box.dispatchEvent(new w.Event('click'));
+    await sleep(5);
+    !doc.getElementById('work').hidden && !insideAsks.length
+      ? ok('and the box itself still opens the sheet that asks how to work on it')
+      : fail('tapping the box went somewhere new; the two taps are one target '
+             + 'again');
+    doc.getElementById('work-close').onclick();
+
+    doc.querySelector('#map-sheet .dig[data-dig="evaluate"]')
+       .dispatchEvent(new w.Event('click'));
+    await sleep(20);
+    insideAsks.join('|') === 'evaluate'
+      ? ok('looking inside asks the server for that one box, by the id '
+           + 'discovery gave it')
+      : fail('the inside was not asked for: ' + JSON.stringify(insideAsks));
+
+    let names = Array.from(doc.querySelectorAll('#map-sheet .node .name'))
+      .map((n) => n.textContent);
+    names.includes('grade.py') && names.includes('score.py')
+      ? ok('and the picture becomes the files in it')
+      : fail('the files did not replace the picture: ' + JSON.stringify(names));
+    names.includes('artifacts')
+      ? ok('with an arrow that LEAVES drawn to the sibling it lands in, rolled '
+           + 'up to the depth showing')
+      : fail('an arrow out of the box went nowhere');
+    doc.querySelector('#map-sheet .node.outside')
+      ? ok('and that sibling marked as elsewhere rather than as part of what '
+           + 'is being read')
+      : fail('the wall is drawn as though it were inside the box');
+    doc.getElementById('map-loose').hidden === true
+      ? ok('and the plan\'s unplaced steps are not shown under a picture they '
+           + 'are not about')
+      : fail('the tray of loose steps is still under a diagram of one package');
+
+    // THE WAY BACK. A crumb read off the payload rather than remembered from
+    // the taps: a trail kept as history is wrong after a sideways step, a
+    // reload, or a second tap that landed out of order.
+    let crumbs = Array.from(doc.querySelectorAll('#map-crumb .crumb'))
+      .map((b) => b.textContent);
+    crumbs.join(' › ') === 'PSYCH-ASR › evaluate'
+      ? ok('the crumb says where you are, and the repository is the way out')
+      : fail('the crumb reads ' + JSON.stringify(crumbs));
+    doc.querySelector('#map-crumb .crumb.here').textContent === 'evaluate'
+      ? ok('and the last of it is where you are rather than a link to it')
+      : fail('the crumb offers a link to the picture already on the glass');
+
+    // ---- and one more depth: the symbols -------------------------------
+    doc.querySelector('#map-sheet .dig[data-dig="in-grade-py"]')
+       .dispatchEvent(new w.Event('click'));
+    await sleep(20);
+    names = Array.from(doc.querySelectorAll('#map-sheet .node .name'))
+      .map((n) => n.textContent);
+    names.join('|') === 'Finding|grade'
+      ? ok('a file opens into what it defines, which is the depth the ask was '
+           + 'about')
+      : fail('the definitions are not the picture: ' + JSON.stringify(names));
+    Array.from(doc.querySelectorAll('#map-sheet .node .also'))
+      .map((n) => n.textContent).join('|') === 'class|function'
+      ? ok('and each one says whether it is a class or a function')
+      : fail('a definition does not say which of the two it is');
+    doc.querySelectorAll('#map-sheet path.edge').length === 1
+      ? ok('and an arrow between two of them is one really using the other')
+      : fail('the uses are not drawn');
+    crumbs = Array.from(doc.querySelectorAll('#map-crumb .crumb'))
+      .map((b) => b.textContent);
+    crumbs.join(' › ') === 'PSYCH-ASR › evaluate › grade.py'
+      ? ok('and the crumb is three deep, with the box above it a way back')
+      : fail('the crumb reads ' + JSON.stringify(crumbs));
+    !doc.querySelector('#map-sheet .dig')
+      ? ok('a symbol is the leaf: there is nothing under a function to open')
+      : fail('a function was offered an inside');
+
+    // A SYMBOL OPENS A WALKTHROUGH OVER THAT SYMBOL, which is the whole payoff
+    // of a diagram whose nodes are the things. `map.find` has no box by this
+    // id, so the id must NOT be sent -- the scope is what says what this is
+    // about, and it is spelt the way `walk.label` spells it.
+    posts.length = 0;
+    doc.querySelector('#map-sheet .node[data-id="at-grade-grade"]')
+       .dispatchEvent(new w.Event('click'));
+    await sleep(5);
+    const ways = Array.from(doc.querySelectorAll('#work-list .work-way strong'))
+      .map((n) => n.textContent);
+    ways.join('|') === 'Walk me through the code'
+      ? ok('and the one way to work on a definition is to be walked through it')
+      : fail('a function was offered ' + JSON.stringify(ways));
+    doc.querySelector('#work-list .work-way').dispatchEvent(new w.Event('click'));
+    await sleep(10);
+    const sent = posts.filter((p) => /\/session$/.test(p.url))[0];
+    sent && sent.body.node === null
+         && JSON.stringify(sent.body.over)
+            === JSON.stringify(['psych_asr/evaluate/grade.py::grade'])
+      ? ok('over exactly that function, and with no box id, because the server '
+           + 'has no box by that name')
+      : fail('the walkthrough was asked for as '
+             + JSON.stringify(sent && sent.body));
+
+    // ---- back out, and the payload cannot drag you there ---------------
+    w.__openMap('tapped');
+    await sleep(5);
+    w.__mapOut();
+    await sleep(10);
+    doc.getElementById('map-crumb').hidden === true
+    && Array.from(doc.querySelectorAll('#map-sheet .node .name'))
+         .map((n) => n.textContent).includes('evaluate')
+      ? ok('and the way out puts the repository\'s own picture back')
+      : fail('there is no way back to the top');
+
+    // A POLL MUST NOT DRAG SOMEBODY BACK UP. The payload arrives four times a
+    // second while a person is two boxes deep, and it is the top-level picture
+    // every time.
+    doc.querySelector('#map-sheet .dig[data-dig="evaluate"]')
+       .dispatchEvent(new w.Event('click'));
+    await sleep(20);
+    w.__render(payload());
+    await sleep(15);
+    Array.from(doc.querySelectorAll('#map-sheet .node .name'))
+      .map((n) => n.textContent).includes('grade.py')
+      ? ok('a payload arriving while somebody is inside a box leaves them there')
+      : fail('the poll dragged the picture back to the top');
+
+    // ---- a picture found by pattern says so ----------------------------
+    w.__mapOut();
+    await sleep(10);
+    doc.querySelector('#map-sheet .dig[data-dig="apart"]')
+       .dispatchEvent(new w.Event('click'));
+    await sleep(20);
+    doc.querySelector('#map-sheet .dig[data-dig="in-run-sh"]')
+       .dispatchEvent(new w.Event('click'));
+    await sleep(20);
+    /pattern rather than parsed/.test(doc.getElementById('map-why').textContent)
+    && /trust it less/.test(doc.getElementById('map-why').textContent)
+      ? ok('a picture a pattern found rather than a parser says so on the '
+           + 'picture, because it may not be trusted as far as the one above it')
+      : fail('a grepped diagram looks identical to a parsed one: '
+             + doc.getElementById('map-why').textContent);
+    !doc.querySelectorAll('#map-sheet path.edge').length
+      ? ok('and draws no arrows at all, because a pattern is a liar about calls')
+      : fail('arrows were drawn from a pattern');
+
+    // ---- an id that is nothing is said, not thrown ----------------------
+    w.__mapOut();
+    await sleep(10);
+    w.__mapDig('nothing-of-the-sort');
+    await sleep(20);
+    /nothing inside that/.test(doc.getElementById('map-crumb').textContent)
+      ? ok('an id that is neither a box nor a module of one is said rather '
+           + 'than leaving the tap looking broken')
+      : fail('a miss said nothing: '
+             + doc.getElementById('map-crumb').textContent);
+    Array.from(doc.querySelectorAll('#map-sheet .node .name'))
+      .map((n) => n.textContent).includes('evaluate')
+      ? ok('and the picture that was there is untouched')
+      : fail('a miss took the picture away');
   }
 
   console.log(errors.length ? '\n' + errors.length + ' FAILURES'

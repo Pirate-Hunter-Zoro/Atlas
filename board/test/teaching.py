@@ -474,6 +474,44 @@ check("a plan handed back instead of the work is named as the failure",
       "Never hand back a plan" in sense_mod.DOING_SENSE)
 check("and a question is not how a doing turn ends by default",
       "not how a doing turn ends" in sense_mod.DOING_SENSE)
+
+# ---------------------------------------------------------------------------
+# ONE MODULE, ONE JOB -- and it has to say the same thing in both places
+# ---------------------------------------------------------------------------
+# A standing rule about the code a doing turn writes, not a task. The reason it
+# is guarded here is that it is written down TWICE: in `TEACHING.md`, which the
+# tutor reads, and in `DOING_SENSE`, which in a headless turn IS the whole
+# prompt and is the only one of the two a wakened turn is guaranteed to see. A
+# rule fixed in one and left in the other is the failure this file exists for.
+# Both documents wrap their prose, so a sentence in either one has newlines
+# through it. Compared with the whitespace flattened and the case dropped: what
+# has to agree is the RULE, not how a paragraph happened to be filled.
+def _flat(said):
+    return " ".join(str(said or "").lower().split())
+
+
+_METHOD, _DOING = _flat(text), _flat(sense_mod.DOING_SENSE)
+ONE_JOB = (
+    ("a new thing goes in a module named for the one job it does",
+     "the rule itself, in one sentence"),
+    ("move it first",
+     "and moving what is in the way is part of it rather than a later tidy-up"),
+    ("mirror",
+     "the reason: the diagram is drawn from the code, so it reflects it"),
+    ("the failure is the module",
+     "and an unreadable box is the module's fault, not the renderer's"),
+    ("getting away with it is not the test",
+     "and that Python letting you get away with it settles nothing"),
+)
+for _phrase, _why in ONE_JOB:
+    check("TEACHING.md says " + _why, _phrase in _METHOD)
+    check("and a doing turn is told the same: " + _why, _phrase in _DOING)
+check("the rule names the four words that mean nobody decided",
+      all(w in _METHOD and w in _DOING
+          for w in ("helpers", "utils", "common", "misc")))
+check("a doing turn is pointed at the section rather than handed a paraphrase "
+      "of it", "where a new thing goes" in _DOING
+      and "## where a new thing goes" in _METHOD)
 check("every briefing carries the rule about how a card reads",
       "ANSWER in the first sentence" in sense_mod.PLAIN_SENSE
       and "One idea per sentence" in sense_mod.PLAIN_SENSE)

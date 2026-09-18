@@ -199,6 +199,143 @@ try:
     check("the box this sitting is about is the one being worked on",
           by_name(m2)["asr"]["status"] == "working")
 
+    # --- three depths: the package, the module, the symbol -------------------
+    # The boxes above are DIRECTORIES, and a directory is not a moving part.
+    # *"Just looking at it should communicate everything one needs to know to
+    # understand how the project works, and when we work on a TODO, it's obvious
+    # what moving parts we'll be affecting."* So a box opens into its files and a
+    # file opens into what it defines.
+    #
+    # What has to hold one depth down is exactly what holds at the top: every
+    # box traces to something on disk and every arrow to a real import or a real
+    # use. And one thing that is new -- Python is PARSED and everything else is
+    # GREPPED, so a picture that was grepped has to say so rather than looking
+    # identical to one `ast` read.
+    fresh()
+    m = mapping.status(proj, {}, [])
+    seen = by_name(m)
+    check("a box says how much is inside it, so the tap is offered before it "
+          "is taken", seen["evaluate"]["inside"] == 1
+          and seen["artifacts"]["inside"] == 2)
+
+    ins = mapping.inside(proj, seen["artifacts"]["id"])
+    mods = dict((n["name"], n) for n in ins["nodes"] if not n.get("outside"))
+    check("a box opens into the files in it, not into its subdirectories",
+          ins["depth"] == "module" and sorted(mods) == ["back.py", "naming.py"])
+    check("and a module says what it is in its own words where it has any",
+          mods["naming.py"]["does"])
+    check("a module box says whether its own inside will be parsed or grepped, "
+          "before anybody taps it", mods["naming.py"]["exact"] is True)
+    # AN ARROW THAT LEAVES IS ROLLED UP TO THE BOX IT LANDS IN. `back.py`
+    # imports `evaluate`, which is not in the box being opened, so the sibling
+    # is drawn as a wall keeping its own name rather than the arrow going
+    # nowhere.
+    walls = [n for n in ins["nodes"] if n.get("outside")]
+    by = dict((n["id"], n) for n in ins["nodes"])
+    leaves = set((by[e["from"]]["name"], by[e["to"]]["name"]) for e in ins["edges"])
+    check("an arrow that leaves the box is drawn to the sibling it lands in, "
+          "rolled up to the depth showing",
+          [n["name"] for n in walls] == ["evaluate"]
+          and ("back.py", "evaluate") in leaves)
+    check("and the sibling is marked as elsewhere rather than drawn as part of "
+          "what is being read", walls[0]["outside"] is True)
+
+    # An arrow BETWEEN two files of the same box, which is the fact the
+    # directory-level picture cannot show at all.
+    write(os.path.join(proj, "psych_asr", "evaluate", "labels.py"),
+          '"""What a label is."""\n\ndef tidy(x):\n    return x\n' + PAD)
+    write(os.path.join(proj, "psych_asr", "evaluate", "grade.py"),
+          "from ..artifacts.naming import stem\nfrom .labels import tidy\n\n"
+          "class Finding:\n    \"\"\"One disagreement.\"\"\"\n    pass\n\n"
+          "def grade(a, b):\n    \"\"\"Grade a candidate against the reference.\"\"\"\n"
+          "    return Finding, tidy(stem(a))\n" + PAD)
+    fresh()
+    m = mapping.status(proj, {}, [])
+    seen = by_name(m)
+    ins = mapping.inside(proj, seen["evaluate"]["id"])
+    by = dict((n["id"], n) for n in ins["nodes"])
+    pairs = set((by[e["from"]]["name"], by[e["to"]]["name"]) for e in ins["edges"])
+    check("one file importing another in the same box is an arrow the "
+          "directory-level picture could not show",
+          ("grade.py", "labels.py") in pairs)
+
+    # --- the symbols, which is the depth the ask was actually about ----------
+    mods = dict((n["name"], n) for n in ins["nodes"] if not n.get("outside"))
+    sym = mapping.inside(proj, mods["grade.py"]["id"])
+    kinds = dict((n["name"], n) for n in sym["nodes"] if not n.get("outside"))
+    check("a module opens into what it defines: the classes and the functions",
+          sym["depth"] == "symbol" and sorted(kinds) == ["Finding", "grade"])
+    check("and a definition says which of the two it is",
+          kinds["Finding"]["also"] == "class"
+          and kinds["grade"]["also"] == "function")
+    check("and what it is for, off its own docstring, which is a sentence "
+          "somebody already wrote about their own code",
+          kinds["grade"]["does"].startswith("Grade a candidate"))
+    check("a symbol carries the file and the name a walkthrough is held over",
+          kinds["grade"]["files"] == [os.path.join("psych_asr", "evaluate",
+                                                   "grade.py")]
+          and kinds["grade"]["symbol"] == "grade")
+    by = dict((n["id"], n) for n in sym["nodes"])
+    uses = set((by[e["from"]]["name"], by[e["to"]]["name"]) for e in sym["edges"])
+    check("an arrow between two definitions is one really using the other",
+          ("grade", "Finding") in uses)
+    # ROLLED UP TO THE FILE IT CAME FROM, not to the box that holds it. `grade`
+    # using `tidy` from `labels.py` next door is a fact about `labels.py`;
+    # rolling it up to `evaluate` would draw an arrow from a symbol to the box
+    # the symbol is already inside, which says nothing at all.
+    check("and a use of something imported points at the file it came from",
+          ("grade", "naming.py") in uses and ("grade", "labels.py") in uses)
+    check("never at the box the symbol is already inside",
+          ("grade", "evaluate") not in uses)
+    check("and that file is a wall rather than part of what is being read, so "
+          "it can be stepped into sideways",
+          all(n.get("outside") for n in sym["nodes"]
+              if n["name"].endswith(".py")))
+    check("Python is parsed rather than grepped, and the picture says so",
+          sym["exact"] is True)
+    check("the way back up is on the answer, not remembered from the taps",
+          sym["up"] == seen["evaluate"]["id"])
+
+    # A LANGUAGE NOBODY CAN PARSE HERE. A line-anchored pattern is honest about
+    # definitions and a liar about calls, so it reports the boxes, draws no
+    # arrows, and says `exact` is false -- which is what stops a Lean box being
+    # trusted as far as a Python one.
+    write(os.path.join(proj, "proofs", "basic.lean"),
+          "-- The group of order two.\ntheorem two_group : True := trivial\n"
+          "def flip (x : Bool) : Bool := not x\n"
+          + "\n".join("-- filler line to clear the size floor" for _ in range(14)))
+    fresh()
+    m = mapping.status(proj, {}, [])
+    lean = by_name(m)["proofs"]
+    ins = mapping.inside(proj, lean["id"])
+    mods = dict((n["name"], n) for n in ins["nodes"] if not n.get("outside"))
+    check("a file in a language nothing here parses says so before it is tapped",
+          mods["basic.lean"]["exact"] is False)
+    sym = mapping.inside(proj, mods["basic.lean"]["id"])
+    check("and it still shows what it defines, found by pattern",
+          sorted(n["name"] for n in sym["nodes"]) == ["flip", "two_group"])
+    check("with the comment its author wrote above it, where there is one",
+          [n for n in sym["nodes"]
+           if n["name"] == "two_group"][0]["does"] == "The group of order two.")
+    check("but no arrows at all, because a pattern is a liar about calls",
+          sym["edges"] == [] and sym["exact"] is False)
+    check("and the picture carries the reason, so nobody has to guess why it "
+          "is emptier", "pattern" in sym["why"])
+
+    # --- an id from a browser is looked up one depth down too ---------------
+    for made_up in ("../../etc/passwd", "in-nothing", "at-made-up", "", None,
+                    "psych_asr/evaluate"):
+        check("an id that is neither a box nor a module of one resolves to "
+              "nothing: %r" % (made_up,), mapping.inside(proj, made_up) is None)
+    check("and a symbol is the leaf: there is nothing under a function",
+          mapping.inside(proj, kinds["grade"]["id"]) is None)
+
+    # THE WRITTEN MAP IS NOT REPLACED BY ANY OF THIS. A box a person drew and
+    # named keeps its name, and the structure appears INSIDE it -- which is the
+    # whole reason the derived layer is allowed to exist under the hand-drawn
+    # one.
+    fresh()
+
     # --- a book course, and the one that also has a task list ----------------
     write(os.path.join(book, "chapters.tsv"),
           "1\t1\t20\tgroups\tGroups, fields and vector spaces\n"

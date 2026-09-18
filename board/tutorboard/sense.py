@@ -234,7 +234,18 @@ DOING_SENSE = (
     "question is not how a doing turn ends by default.\n"
     "Never hand back a plan of what you would do as though it were the work. If "
     "the job is genuinely too big for one turn, do the FIRST PART OF IT and "
-    "report that, rather than describing all of it and doing none. "
+    "report that, rather than describing all of it and doing none.\n"
+    "AND WHERE THE NEW THING GOES: a new thing goes in a module named for the "
+    "one job it does, and if that means moving something first, move it first. "
+    "This workspace has a map, and the boxes on it are its own modules with the "
+    "arrows drawn from what they import -- so a module that does six unrelated "
+    "things draws as one box with eleven arrows into it and teaches nobody "
+    "anything. The picture is a mirror, and the failure is the module rather "
+    "than the renderer. `helpers`, `utils`, `common` and `misc` are four "
+    "spellings of nobody decided. Python will let you append anything to any "
+    "file and it will run; getting away with it is not the test, and the test "
+    "is what the box looks like on the map. live/TEACHING.md says the same "
+    "under `Where a new thing goes`. "
 )
 
 

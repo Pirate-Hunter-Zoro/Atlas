@@ -35,7 +35,7 @@ import os
 import re
 import time
 
-from . import homework, plan, reading, review, syllabus, walk
+from . import homework, plan, reading, review, symbols, syllabus, walk
 # `paths` as `toolpaths`, because this package already has a module by that name
 # in spirit -- `course/plan.py` defines a public `paths(root)` and had to do
 # exactly this. Same trap, same answer: the module keeps its name and the import
@@ -58,6 +58,14 @@ MAX_NODES = 44
 
 # Files carried by one box, for the sitting a tap opens.
 MAX_FILES = 40
+
+# How many boxes ONE LEVEL DOWN may be drawn at once. `MAX_NODES` is the cap on
+# the picture and this is the cap on an expansion, and the second is the one
+# that binds: a symbol-level diagram of a real project is hundreds of boxes, and
+# four hundred boxes on a plane is the ugly grid again with more effort. Same
+# answer as `MAX_NODES` gives at the top level -- draw the level, say it was
+# capped, and never silently truncate.
+MAX_INSIDE = 40
 
 # How many files in one directory are read to find its imports, and how much of
 # each. THE PAYLOAD IS REBUILT FOUR TIMES A SECOND, and this is the only
@@ -523,6 +531,273 @@ def _plan_steps(root):
         return plan.steps(root)
     except Exception:                                        # noqa: BLE001
         return []
+
+
+# ---------------------------------------------------------------------------
+# three depths: the package, the module, the symbol
+# ---------------------------------------------------------------------------
+# The top-level picture draws DIRECTORIES, and a directory is not a moving part.
+# *"Just looking at it should communicate everything one needs to know to
+# understand how the project works, and when we work on a TODO, it's obvious
+# what moving parts we'll be affecting."* The things that move are the modules
+# and, inside them, the classes and functions.
+#
+# EXPANDING IS A NEW PICTURE, NOT A BIGGER ONE. Splicing a package's twelve
+# modules into a diagram that already has forty boxes on it produces the grid
+# the whole complaint was about; opening the package as its own picture, with a
+# way back up, keeps every depth legible. So this returns one level: the boxes
+# inside one box, the arrows among them, and the arrows that LEAVE rolled up to
+# the sibling box they land in -- which is what "the arrows rolled up to
+# whatever depth is showing" means when the depth showing is one box's inside.
+#
+# IT IS DERIVED ON A TAP AND NEVER ON A PAYLOAD. The board payload is rebuilt
+# four times a second and `_from_code` already reads the head of every source
+# file in the repository for it. Parsing them whole on that clock is not
+# affordable and is not needed: nobody is looking inside a box until they ask.
+#
+# `symbols.py` owns the other half -- what one file defines and what each
+# definition uses -- because reading a file's definitions is a different job
+# from drawing a repository, and `ast` belongs with the first one.
+def _module_id(taken, rel):
+    return _unique(taken, _slug("in-" + rel, "module"))
+
+
+def _symbol_id(taken, rel, name):
+    return _unique(taken, _slug("at-" + rel + "-" + name, "symbol"))
+
+
+def _children(built):
+    """Every module box the whole picture could open into, by its id.
+
+    Built the same way every time it is asked -- boxes in the order `status`
+    returned them, files in the order the box carries them -- so the id a
+    browser was handed is the id this finds. Nothing is remembered between
+    calls and nothing is constructed from a request.
+    """
+    taken, out = set(), {}
+    for node in built["nodes"]:
+        for rel in node.get("files") or []:
+            out[_module_id(taken, rel)] = (node, rel)
+    return out
+
+
+def _file_index(built):
+    """Every file on the picture, mapped to the box that owns it."""
+    out = {}
+    for node in built["nodes"]:
+        for rel in node.get("files") or []:
+            out[rel.replace("\\", "/")] = node
+    return out
+
+
+def _lands_in(target, files, by_file, dirs):
+    """Which box an imported path lands in: a file here, a file there, or a box.
+
+    Returns (rel, node) where `rel` is a file in `files` -- an arrow that stays
+    inside the box being opened -- or (None, node) for one that leaves it, or
+    (None, None) for a path this repository does not have. An import that
+    resolves to nothing is not an arrow; that rule is the whole reason the top
+    level is trustworthy and it does not change one depth down.
+    """
+    p = str(target or "").strip("/").replace("\\", "/")
+    if not p:
+        return (None, None)
+    for cand in [p] + [p + ext for ext in (".py", ".go", ".js", ".mjs", ".ts",
+                                           ".rs", ".sh", ".lean")]:
+        if cand in files:
+            return (cand, None)
+        hit = by_file.get(cand)
+        if hit is not None:
+            return (None, hit)
+    return (None, dirs.get(p))
+
+
+def _import_path(rel, where):
+    """The repository path a Python import names, from the file that makes it.
+
+    The same arithmetic `_module_paths` does for a whole file, asked about one
+    import: one leading dot is this file's own directory, two is the parent.
+    """
+    where = str(where or "")
+    if not where:
+        return ""
+    if where.startswith("."):
+        dots = len(where) - len(where.lstrip("."))
+        up = os.path.dirname(rel)
+        for _ in range(dots - 1):
+            up = os.path.dirname(up)
+        mod = where.lstrip(".")
+        return os.path.join(up, *mod.split(".")) if mod else up
+    return os.path.join(*where.split("."))
+
+
+def _outside(nodes, seen, node):
+    """A sibling box, drawn once, as the thing an arrow leaves towards.
+
+    It keeps its own name -- which for a written map is the name a PERSON gave
+    it, *the typist* rather than `psych_asr/asr` -- and is marked so the drawing
+    can show it as a wall rather than as part of what is being read.
+    """
+    if node["id"] in seen:
+        return node["id"]
+    seen.add(node["id"])
+    nodes.append(_node(node["id"], node["name"], node["kind"],
+                       also=node.get("also") or "", does=node.get("does") or "",
+                       status=node.get("status") or "unknown", outside=True))
+    return node["id"]
+
+
+def _modules(root, node, built):
+    """One box opened: the files in it, and what they import."""
+    files = [f.replace("\\", "/") for f in (node.get("files") or [])]
+    shown = files[:MAX_INSIDE]
+    by_file = _file_index(built)
+    dirs = {}
+    for other in built["nodes"]:
+        if other.get("dir"):
+            dirs[other["dir"].replace("\\", "/")] = other
+
+    taken = set()
+    for other in built["nodes"]:
+        taken.add(other["id"])
+    ids, nodes, read = {}, [], {}
+    for rel in shown:
+        text = ""
+        try:
+            with open(os.path.join(root, rel), "r", encoding="utf-8",
+                      errors="replace") as fh:
+                text = fh.read(HEAD_BYTES)
+        except OSError:
+            text = ""
+        read[rel] = text
+        nid = _module_id(taken, rel)
+        ids[rel] = nid
+        nodes.append(_node(
+            nid, os.path.basename(rel), "module",
+            also=os.path.dirname(rel), dir=os.path.dirname(rel), files=[rel],
+            does=_doc_of(rel, text) or _count(len(text.splitlines()), "line"),
+            # WHETHER THIS ONE WOULD BE PARSED OR ONLY GREPPED, said before
+            # anybody taps it. A box whose inside will be approximate has to
+            # say so rather than look identical to one that will not.
+            exact=symbols.exact(root, rel)))
+
+    seen, found = set(), {}
+    for rel in shown:
+        for target in _module_paths(rel, read[rel]):
+            here, there = _lands_in(target, set(shown), by_file, dirs)
+            if here and here != rel:
+                found[(ids[rel], ids[here])] = found.get((ids[rel], ids[here]), 0) + 1
+            elif there is not None and there["id"] != node["id"]:
+                to = _outside(nodes, seen, there)
+                found[(ids[rel], to)] = found.get((ids[rel], to), 0) + 1
+
+    return {
+        "of": node["id"], "name": node["name"], "depth": "module",
+        "kind": node["kind"], "up": "",
+        "nodes": nodes,
+        "edges": [{"from": a, "to": b, "weight": n, "label": ""}
+                  for (a, b), n in sorted(found.items())],
+        "exact": True,
+        "total": len(files), "capped": len(files) > MAX_INSIDE,
+        "why": "The files in %s, and what they import." % (node["name"],),
+    }
+
+
+def _symbol_map(root, rel, node, built, nid):
+    """One module opened: what it defines, and what each definition uses."""
+    said = symbols.of(root, rel)
+    by_file = _file_index(built)
+    dirs = {}
+    for other in built["nodes"]:
+        if other.get("dir"):
+            dirs[other["dir"].replace("\\", "/")] = other
+
+    taken = set(other["id"] for other in built["nodes"])
+    nodes, ids = [], {}
+    for d in said["defines"]:
+        nid = _symbol_id(taken, rel, d["name"])
+        ids[d["name"]] = nid
+        nodes.append(_node(nid, d["name"], "symbol", also=d["kind"],
+                           dir=os.path.dirname(rel), files=[rel],
+                           does=d["does"], line=d["line"],
+                           symbol=d["name"], exact=said["exact"]))
+
+    # WHAT A USE OF SOMETHING IMPORTED POINTS AT, and it is the FILE where the
+    # file is known rather than the box that holds it. `grade` using `tidy` from
+    # `labels.py` next door is a fact about `labels.py`; rolling it up to
+    # `evaluate` would draw an arrow from a symbol to the box the symbol is
+    # already inside, which says nothing. The box is the fallback for an import
+    # this repository owns but cannot pin to one file.
+    walls = {}
+    seen, found = set(), {}
+    for d in said["defines"]:
+        mine = ids[d["name"]]
+        for used in list(d.get("bases") or []) + list(d.get("uses") or []):
+            if used in ids and ids[used] != mine:
+                found[(mine, ids[used])] = found.get((mine, ids[used]), 0) + 1
+                continue
+            where = (said.get("imports") or {}).get(used)
+            if not where:
+                continue
+            there_rel, there = _lands_in(_import_path(rel, where[0]),
+                                         set(by_file), by_file, dirs)
+            to = ""
+            if there_rel and there_rel != rel:
+                if there_rel not in walls:
+                    walls[there_rel] = _unique(
+                        taken, _slug("in-" + there_rel, "module"))
+                    nodes.append(_node(walls[there_rel],
+                                       os.path.basename(there_rel), "module",
+                                       also=os.path.dirname(there_rel),
+                                       dir=os.path.dirname(there_rel),
+                                       files=[there_rel], outside=True))
+                to = walls[there_rel]
+            elif there is not None and not there_rel:
+                to = _outside(nodes, seen, there)
+            if to:
+                found[(mine, to)] = found.get((mine, to), 0) + 1
+
+    return {
+        "of": nid, "name": os.path.basename(rel),
+        "depth": "symbol", "kind": "module", "up": node["id"],
+        "nodes": nodes,
+        "edges": [{"from": a, "to": b, "weight": n, "label": ""}
+                  for (a, b), n in sorted(found.items())],
+        # THE ONE FIELD A READER HAS TO BE TOLD. A Lean box found by a
+        # line-anchored pattern must not be trusted as far as a Python box read
+        # by `ast`, and the only way it cannot be is if the picture says so.
+        "exact": said["exact"],
+        "total": len(said["defines"]), "capped": bool(said.get("capped")),
+        "why": said.get("why") or ("What %s defines, and what each definition "
+                                   "uses." % (os.path.basename(rel),)),
+    }
+
+
+def inside(root, node_id, state=None, archived=None):
+    """The picture one level below one box, or None.
+
+    Two depths answer here, and which one is decided by what the id IS rather
+    than by anything the caller says: a box on the top-level picture opens into
+    its modules, and a module opens into its symbols. An id that is neither is
+    a miss, and a miss is a miss -- the same rule as `find`, `walk.resolve` and
+    `reading.find`.
+    """
+    built = status(root, state, archived)
+    if not built:
+        return None
+    want = str(node_id or "").strip()
+    if not want:
+        return None
+    for node in built["nodes"]:
+        if node["id"] == want:
+            if not (node.get("files") or []):
+                return None
+            return _modules(root, node, built)
+    hit = _children(built).get(want)
+    if not hit:
+        return None
+    node, rel = hit
+    return _symbol_map(root, rel, node, built, want)
 
 
 def _from_chapters(root):
@@ -1215,6 +1490,12 @@ def status(root, state=None, archived=None):
         node["status"] = _stamp(node, state, filed)
         if node["status"] not in STATUSES:
             node["status"] = "unknown"
+        # WHETHER THERE IS ANYTHING UNDER THIS BOX, said on the box rather than
+        # discovered by tapping it and getting nothing. A chapter and a
+        # document have no inside; a part does, and so does a hand-drawn box
+        # that claims real files -- which is how the derived structure appears
+        # INSIDE a name a person chose rather than replacing it.
+        node["inside"] = len(node.get("files") or [])
         nodes.append(node)
     # Every step there is, counted once. A step that names two parts sits on
     # two boxes -- that is the truth about it -- and counting it twice in the

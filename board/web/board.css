@@ -2194,6 +2194,50 @@ body.papering .annbar { z-index: 96; }
   text-anchor: middle; pointer-events: none;
 }
 
+/* WHERE YOU ARE IN THE THREE DEPTHS. A row of names, each one a way back to
+   the picture it names, and the last of them is where you are. */
+.map-crumb {
+  flex: none; display: flex; align-items: center; gap: .3rem;
+  padding: .4rem max(.9rem, env(safe-area-inset-left));
+  overflow-x: auto; overscroll-behavior-x: contain;
+  border-bottom: 1px solid var(--rule); background: var(--paper);
+  font-size: .78rem; white-space: nowrap;
+}
+.map-crumb .crumb {
+  flex: none; border: 0; background: none; color: var(--note);
+  font: inherit; cursor: pointer; padding: .1rem .15rem;
+  text-decoration: underline; text-underline-offset: .15em;
+}
+.map-crumb .crumb.here {
+  color: var(--ink); font-weight: 650; text-decoration: none; cursor: default;
+}
+.map-crumb .crumb-sep { flex: none; color: var(--ink-3); }
+.map-crumb .crumb-said { flex: none; color: var(--ink-3); margin-left: .4rem; }
+
+/* A BOX ONE LEVEL DOWN. A module is a file and a symbol is a class or a
+   function; both are drawn lighter than a part, because the part is the thing
+   the repository is organised into and these are what it is made of. */
+.map-sheet .node.module rect.box { fill: var(--paper-2); }
+.map-sheet .node.symbol rect.box { fill: var(--paper-2); stroke-dasharray: none; }
+/* AND A BOX THAT IS NOT PART OF WHAT YOU ARE READING. A sibling an arrow
+   leaves towards, drawn as a wall: it keeps its own name -- which on a
+   hand-drawn map is the name a PERSON gave it -- and says it is elsewhere. */
+.map-sheet .node.outside rect.box {
+  fill: var(--paper-2); stroke-dasharray: 4 3; opacity: .85;
+}
+.map-sheet .node.outside .name { fill: var(--ink-2); }
+
+/* LOOK INSIDE THIS ONE. Its own tap, at the top right, because the box itself
+   already has one -- a part opens a sitting and this opens the level below it,
+   and one target cannot mean both. */
+.map-sheet .dig { cursor: pointer; }
+.map-sheet .dig circle { fill: var(--paper); stroke: var(--rule); stroke-width: 1.2; }
+.map-sheet .dig polygon { fill: var(--ink-2); }
+.map-sheet .dig:hover circle { stroke: var(--note); }
+.map-sheet .dig:hover polygon { fill: var(--note); }
+.map-sheet .dig:focus { outline: none; }
+.map-sheet .dig:focus circle { stroke: var(--note); stroke-width: 2; }
+
 /* The steps nothing could place, in a tray under the bar. */
 .map-loose {
   flex: none; display: flex; align-items: center; gap: .4rem;

@@ -405,6 +405,106 @@ finally:
     shutil.rmtree(tmp, ignore_errors=True)
     shutil.rmtree(proj, ignore_errors=True)
 
+# ---------------------------------------------------------------------------
+# A VENDOR TREE IS WALKABLE, AND IS STILL NOT A WORKSPACE
+# ---------------------------------------------------------------------------
+# `atlas.json` made one claim out of two: the vendor family was skipped, and the
+# reason given was that nothing in it is the person's to be GRADED on. The ask
+# was about TRACING -- *"who knows when we'll want to explore external tools in
+# the same way... That's the best way to dive into how Colibri works"* -- and
+# under the merged rule that was impossible for a reason about homework.
+#
+# So there are two lists, and what is guarded here is that they stay two. The
+# failure to catch is either direction: a tree that cannot be read, or a tree
+# that something eventually offers a sitting in.
+from tutorboard import atlas                                # noqa: E402
+from tutorboard.course import map as mapping                 # noqa: E402
+
+home = tempfile.mkdtemp(prefix="tutor-walk-atlas-")
+was = os.environ.get("TUTORBOARD_COURSES")
+try:
+    with open(os.path.join(home, "atlas.json"), "w", encoding="utf-8") as fh:
+        json.dump({"families": [
+            {"id": "research", "name": "Research", "blurb": "Papers."},
+            {"id": "vendor", "name": "Vendor", "blurb": "Pulled, not written.",
+             "vendor": True},
+        ]}, fh)
+    write(home, "research/PSYCH-ASR/tutorboard.json", '{"name": "PSYCH-ASR"}')
+    write(home, "research/PSYCH-ASR/psych_asr/grade.py",
+          "def grade(a, b):\n" + BODY + "\n")
+    # Somebody else's repository, at a commit. No `tutorboard.json`, no `live/`,
+    # nothing that has ever said it wants to be taught in.
+    write(home, "vendor/colibri/src/engine.c",
+          "int warm(void) {\n" + BODY + "\n}\n")
+    write(home, "vendor/colibri/bin/coli-up",
+          "#!/usr/bin/env bash\nwarm() {\n" + BODY + "\n}\n")
+    write(home, "vendor/colibri/README.md", "# colibri\n" + BODY)
+    # AND THE TRAP IN THE OTHER DIRECTION. A vendor tree carrying the marker
+    # that makes a directory a workspace is still not one: the family decides,
+    # and a file inside somebody else's repository is not this side's promise.
+    write(home, "vendor/pretender/tutorboard.json", '{"name": "Pretender"}')
+    write(home, "vendor/pretender/thing.py", "def thing():\n" + BODY + "\n")
+    os.makedirs(os.path.join(home, "vendor", "unpulled"), exist_ok=True)
+
+    os.environ["TUTORBOARD_COURSES"] = home
+    atlas.forget()
+    walk._cache.clear()
+    mapping._cache.clear()
+
+    ids = [w["id"] for w in atlas.workspaces()]
+    trees = {t["id"]: t for t in atlas.trees()}
+    check("a vendor tree is not a workspace, and the family is still skipped",
+          ids == ["research/PSYCH-ASR"])
+    check("and a marker file inside somebody else's repository does not make "
+          "one -- the family decides, not a file in the tree",
+          "vendor/pretender" not in ids)
+    check("but the trees are listed, which is the half that was missing",
+          sorted(trees) == ["vendor/colibri", "vendor/pretender"])
+    check("a submodule nobody has pulled is an empty directory, not a tree",
+          "vendor/unpulled" not in trees)
+    check("and a tree comes back shaped like a workspace, so a caller that "
+          "wants a name and a root does not care which list it came from",
+          set(["id", "family", "family_name", "dir", "root"])
+          <= set(trees["vendor/colibri"]))
+
+    # WALKABLE. The same walk, over a root nobody is graded on.
+    names = [u["name"] for u in walk.units(trees["vendor/colibri"]["root"])]
+    check("a vendor tree's source is walkable: tracing is not grading",
+          "src/engine.c" in names and "bin/coli-up" in names)
+    check("and its prose is refused there for the same reason it is anywhere",
+          "README.md" not in names)
+    chosen, unknown = walk.resolve(trees["vendor/colibri"]["root"],
+                                   ["bin/coli-up::warm"])
+    check("and a symbol inside it is carried once the file really defines it",
+          [u["name"] for u in chosen] == ["bin/coli-up::warm"] and not unknown)
+
+    # DIAGRAMMABLE. `map.shape` takes a root and does not ask whose it is.
+    drawn = mapping.shape(trees["vendor/colibri"]["root"])
+    check("and a vendor tree has a diagram, which is what it is there for",
+          drawn and sorted(n["name"] for n in drawn["nodes"]) == ["bin", "src"])
+
+    # A NAME FROM A REQUEST IS LOOKED UP, NEVER CONSTRUCTED. Same rule as
+    # `atlas.find`, `walk.resolve` and `reading.find`: a miss is a miss.
+    check("a tree is found by the name discovery gave it",
+          (atlas.find_tree("vendor/colibri") or {})["id"] == "vendor/colibri")
+    check("and by its bare directory name, which is how everything else is spelt",
+          (atlas.find_tree("colibri") or {})["id"] == "vendor/colibri")
+    for made_up in ("../../etc/passwd", "vendor", "vendor/nothing", "", None,
+                    "research/PSYCH-ASR"):
+        check("a tree name that matches nothing resolves to nothing: %r"
+              % (made_up,), atlas.find_tree(made_up) is None)
+    check("and a workspace is not reachable through the tree door either",
+          atlas.find("vendor/colibri") is None)
+finally:
+    if was is None:
+        os.environ.pop("TUTORBOARD_COURSES", None)
+    else:
+        os.environ["TUTORBOARD_COURSES"] = was
+    atlas.forget()
+    walk._cache.clear()
+    mapping._cache.clear()
+    shutil.rmtree(home, ignore_errors=True)
+
 print()
 if fails:
     print("%d check(s) failed" % len(fails))
