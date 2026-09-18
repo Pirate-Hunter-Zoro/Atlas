@@ -100,6 +100,27 @@ the last of them is a plane.**
    genuinely needs a plane, and `plane-core.js` draws it; see *The map — the front door of a
    course*.
 
+**GOING IN IS A TAP AND COMING BACK OUT IS THREE WAYS, because a level you can only enter is a
+trap.** `#atlas-up` is first in the head, 44px tall, and named after where it goes — *Everything*,
+the word on the heading it returns to. `.atlas-head` is `position: sticky`, so it is on the glass
+at the bottom of the longest family rather than scrolled off above the first card. And opening a
+family calls `history.pushState`, so the back gesture and Escape both come out. **The pushed entry
+carries no url**: the hash on this page belongs to `address.js`, and a family spelled into it would
+be two grammars in one address. `closeFamily` paints first and calls `history.back()` second —
+`back()` answers when the browser feels like it and a tap has to land now; the `popstate` that
+follows repaints the level that is already showing.
+
+**AND THERE IS A FLAT READ OVER THE TOP OF BOTH, because the hierarchy cannot answer the other
+question.** Two levels answer *what is in Courses*; nothing answers *where is the thing called
+colibri*, because at the door no workspace is drawn and inside a family every other family's is
+hidden. `#atlas-q` filters every workspace and every tree from every family at once — matching the
+name on the card, the repository directory, the chapter, the written title and the next step — and
+each hit carries the family it came out of. It is a level of its own drawn over whichever of the
+other two was showing: clearing the field puts back the family you were standing in, not the door.
+The input is `2.75rem` tall and its face is `1rem` exactly, which is the iOS floor: a field that
+computes below 16px zooms the whole page when it takes focus, and the page's own magnification is
+the one remaining way to be lost on this screen.
+
 **Neither of the first two is a plane, and that is the whole design.** Six families and a dozen
 workspaces is a list of six; a list is not a diagram, and drawing one on a pannable, pinchable
 plane means the gesture layer is solving a problem the content does not have — on a page that can
