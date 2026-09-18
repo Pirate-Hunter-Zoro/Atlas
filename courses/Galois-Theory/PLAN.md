@@ -18,8 +18,9 @@ on slate page 11, answers `t0050-r1..r15`, and the write-up owes it.
 "Field Extensions and the Ring $F[x]$", six problems, sent as photographs and
 read. Order: **6**, then **3(a)** and **3(c)**, then **1**, **5**, **2**, **4**.
 Part 3(b) is exercise 4.6, already proved, so it is not re-posed. Problem 6 is
-open and re-posed in full on card 0046; the live sub-question is to square
-$\gamma = \sqrt2 + \sqrt3$ and say which of $1, \sqrt2, \sqrt3, \sqrt6$ appear.
+closed --- all three parts agreed, transcribed and built. **3(a)** is open and
+posed in full on card 0055: $K/F$ finite of degree $n$, show $\deg m_{\alpha,F}$
+divides $n$ for every $\alpha \in K$.
 
 ## Write-up
 

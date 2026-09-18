@@ -11,8 +11,12 @@
 #SBATCH --partition=c3_short
 #SBATCH --ntasks=1
 #SBATCH --gres=gpu:1
-#SBATCH -o slurm_jobs/logs/colibri_serve_out.txt
-#SBATCH -e slurm_jobs/logs/colibri_serve_err.txt
+# PER JOB. Two generations of the chain overlap for the whole of a successor's
+# load, and one pair of files would have both of them writing it -- with the
+# incumbent's `COLIBRI-SERVE READY` sitting in the file the successor is being
+# judged by. `coli-up` and the board resolve these names from the job id.
+#SBATCH -o slurm_jobs/logs/colibri_serve_out-%j.txt
+#SBATCH -e slurm_jobs/logs/colibri_serve_err-%j.txt
 #
 # --cpus-per-task, --mem and --time come from coli-up on the command line, where
 # they override these directives. The defaults are in scripts/colibri-env.sh.
@@ -51,6 +55,29 @@ if [ -n "${COLI_DEBUG:-}" ] && [ "${COLI_DEBUG}" != "0" ]; then
 fi
 export COLI_DEBUG=0
 
+# ------------------------------------------------------- who this generation is
+MY_JOB="${SLURM_JOB_ID:-0}"
+MY_NODE="${SLURMD_NODENAME:-$(hostname -s)}"
+OUT_LOG="$(coli_log_out "$MY_JOB")"
+ERR_LOG="$(coli_log_err "$MY_JOB")"
+mkdir -p "$COLI_LOG_DIR" "$COLI_STATE_DIR"
+
+# Every generation of the chain that is running and is not this one. There is at
+# most one, and it is the one this generation is replacing.
+coli_elders() {
+    coli_jobs | awk -v me="$MY_JOB" '$2 == "RUNNING" && $1 != me { print $1 }'
+}
+
+# A GENERATION THAT STARTS AFTER SOMEBODY SAID STOP DOES NOT SERVE. `coli-down`
+# writes the flag and then cancels, and a successor submitted in the gap between
+# those two is a server that comes back an hour after it was told to go. The flag
+# is cleared by `coli-up` and by nothing else.
+if coli_chain_stopped; then
+    echo "colibri_serve: the chain was stopped ($(cat "$COLI_STOP_FILE" 2>/dev/null))."
+    echo "               This generation is standing down. 'coli-up' starts it again."
+    exit 0
+fi
+
 coli_load_modules || exit 1
 
 # colibri sizes its thread pool from the MACHINE (96 logical CPUs here), prints a
@@ -85,10 +112,18 @@ nvidia-smi --query-gpu=index,name,memory.total,memory.free --format=csv,noheader
 free -g | head -2
 
 # Refuse a port somebody else already holds, rather than letting the bind error
-# scroll past under a two-minute model load.
+# scroll past under a two-minute model load -- but RETRY FIRST, and that is the
+# chain's doing. A generation can land on a node whose previous tenant is still
+# being torn down, and a hand submission's correct refusal is a successor's
+# spurious death. Sixty seconds, then refuse.
+for _ in $(seq 1 30); do
+    (exec 3<>"/dev/tcp/127.0.0.1/${COLI_PORT}") 2>/dev/null || break
+    sleep 2
+done
 if (exec 3<>"/dev/tcp/127.0.0.1/${COLI_PORT}") 2>/dev/null; then
-    echo "colibri_serve: something is already listening on 127.0.0.1:${COLI_PORT}" >&2
-    echo "               on $(hostname). Pick another with COLI_PORT." >&2
+    echo "colibri_serve: something is still listening on 127.0.0.1:${COLI_PORT}" >&2
+    echo "               on ${MY_NODE} after a minute of waiting. Pick another" >&2
+    echo "               port with COLI_PORT, or find what holds that one." >&2
     exit 1
 fi
 
@@ -109,16 +144,40 @@ fi
 # the first generation itself. WARMING means the request is lodged; READY means
 # the model has answered one. The prompt is nine words of nothing and the reply is
 # counted, never echoed.
+#
+# THREE SENTINELS NOW, NOT TWO, AND THE NEW ONE IS THE HANDOVER'S WHOLE SIGNAL.
+# LOADED means the engine is up and this generation can answer -- it is what the
+# generation being replaced waits for before it gives its node back. READY still
+# means a real generation has come back, and under a chain it comes LATER than
+# LOADED on purpose: see the hold below.
 (
     for _ in $(seq 1 3600); do
-        (exec 3<>"/dev/tcp/127.0.0.1/${COLI_PORT}") 2>/dev/null && break
+        grep -q 'API listening on' "$ERR_LOG" 2>/dev/null && break
         sleep 2
     done
-    if ! (exec 3<>"/dev/tcp/127.0.0.1/${COLI_PORT}") 2>/dev/null; then
-        echo "COLIBRI-SERVE FAILED reason=never-bound"
+    if ! grep -q 'API listening on' "$ERR_LOG" 2>/dev/null; then
+        echo "COLIBRI-SERVE FAILED reason=never-listened"
         exit 0
     fi
-    echo "COLIBRI-SERVE WARMING host=$(hostname) port=${COLI_PORT} at=$(date -Is)"
+    echo "COLIBRI-SERVE LOADED host=${MY_NODE} port=${COLI_PORT} at=$(date -Is)"
+
+    # THE WARM-UP WAITS FOR THE GENERATION IT IS REPLACING, AND THE REASON IS ONE
+    # FILE. KV persistence is per CHECKPOINT -- `<model>/.coli_kv`, opened `r+b`
+    # and written at absolute offsets computed from each process's own record
+    # count -- so two live servers on the same model interleave their writes into
+    # one file and neither reading survives it. A warm-up is a real generation and
+    # therefore a real write. The engine READS that file at startup, which is
+    # harmless, so the 68-minute load overlaps freely; only the first write has to
+    # wait. What the wait costs is the turns the incumbent completed while this
+    # one was loading: they are not in the prefix this generation read, so the
+    # first turn after a handover re-prefills them.
+    HELD=""
+    while [ -n "$(coli_elders)" ]; do
+        [ -z "$HELD" ] && echo "COLIBRI-SERVE HOLDING for=$(coli_elders | tr '\n' ' ')"
+        HELD=1
+        sleep 15
+    done
+    echo "COLIBRI-SERVE WARMING host=${MY_NODE} port=${COLI_PORT} at=$(date -Is)"
     python3 - "$COLI_PORT" "$COLI_MODEL_ID" <<'WARM'
 import json, sys, time, urllib.request
 port, model_id = sys.argv[1], sys.argv[2]
@@ -145,6 +204,103 @@ u = out.get("usage") or {}
 print("COLIBRI-SERVE READY prompt_tok=%s completion_tok=%s seconds_incl_load=%.1f"
       % (u.get("prompt_tokens", "?"), u.get("completion_tokens", "?"), dt), flush=True)
 WARM
+) &
+
+# ------------------------------------------------------------------- the chain
+#
+# THE SERVER IS ALWAYS UP AND IT MOVES NODE RATHER THAN GOING AWAY.
+#
+# `COLI_CHAIN_LEAD_MIN` before this generation's walltime ends it submits the
+# next one, which the scheduler puts wherever there is room; that one pins its
+# 406.7 GB and says `COLIBRI-SERVE LOADED`; and only then does this one cancel
+# itself and give its node back. There is no window in which nothing is serving,
+# which is the whole of the ask.
+#
+# `--exclude` OF THIS NODE, AND IT IS NOT A PREFERENCE. Two 950 GB jobs do not
+# fit on a 1 TB box, so an overlapping successor is somewhere else by arithmetic;
+# naming it makes the scheduler say so at submission instead of pending. The
+# price is a cold pin every hop -- 68 minutes -- where a same-node successor
+# would re-read its checkpoint out of page cache at 21x that. Availability was
+# chosen over the cheap hop deliberately, and the one case that gets the cheap
+# hop back is the fallback below.
+#
+# Not `--dependency=afterany`, which is what the board's own chain uses: a
+# dependency means the successor starts when this job STOPS, and a load that
+# begins at the handover is an hour with no server. The board's generations cost
+# nothing to start and colibri's cost 68 minutes; that one number is the whole
+# difference between the two designs.
+(
+    [ "${COLI_CHAIN:-1}" = "1" ] || exit 0
+    LEAD=$(( COLI_CHAIN_LEAD_MIN * 60 ))
+    SUCCESSOR=""
+    FELL_BACK=""
+    while :; do
+        if coli_chain_stopped; then
+            echo "CHAIN stopped: coli-down was called, so nothing is being queued"
+            exit 0
+        fi
+
+        # A successor that has left the queue -- refused, cancelled, a node that
+        # went -- is not a successor. Asked of Slurm rather than remembered,
+        # because the memory cannot know.
+        if [ -n "$SUCCESSOR" ] && ! coli_jobs | awk -v s="$SUCCESSOR" '$1 == s { f = 1 } END { exit !f }'; then
+            echo "CHAIN successor=${SUCCESSOR} is no longer in the queue; queueing another"
+            SUCCESSOR=""
+            FELL_BACK=""
+        fi
+
+        if [ -z "$SUCCESSOR" ]; then
+            LEFT="$(coli_seconds_left "$MY_JOB")"
+            if [ -n "$LEFT" ] && [ "$LEFT" -le "$LEAD" ]; then
+                NEW="$(coli_submit --exclude="$MY_NODE")"
+                if [ -n "$NEW" ]; then
+                    SUCCESSOR="$NEW"
+                    echo "CHAIN successor=${SUCCESSOR} queued off ${MY_NODE} with ${LEFT}s left at=$(date -Is)"
+                else
+                    echo "CHAIN could not queue a successor; trying again in ${COLI_CHAIN_EVERY}s"
+                fi
+            fi
+            sleep "$COLI_CHAIN_EVERY"
+            continue
+        fi
+
+        SLOG="$(coli_log_out "$SUCCESSOR")"
+        if grep -q 'COLIBRI-SERVE LOADED' "$SLOG" 2>/dev/null; then
+            echo "CHAIN successor=${SUCCESSOR} is loaded; giving ${MY_NODE} back at=$(date -Is)"
+            scancel "$MY_JOB"
+            exit 0
+        fi
+        if grep -q 'COLIBRI-SERVE FAILED' "$SLOG" 2>/dev/null; then
+            echo "CHAIN successor=${SUCCESSOR} failed to load; cancelling it and queueing another"
+            scancel "$SUCCESSOR"
+            SUCCESSOR=""
+            FELL_BACK=""
+            continue
+        fi
+
+        # THE ONE CASE THAT GETS THE CHEAP HOP BACK. If every other node is full,
+        # the successor pends on (Resources) and this generation dies with the
+        # model still on the filer. Twenty minutes out, drop the exclusion and
+        # re-queue: the successor then takes THIS node the moment this job ends,
+        # and the pin it pays is against a page cache that still holds the
+        # checkpoint -- 9064 MB/s measured against 422 cold. It is a gap rather
+        # than a handover, and it is minutes rather than an hour.
+        if [ -z "$FELL_BACK" ]; then
+            LEFT="$(coli_seconds_left "$MY_JOB")"
+            STATE="$(coli_jobs | awk -v s="$SUCCESSOR" '$1 == s { print $2 }')"
+            if [ -n "$LEFT" ] && [ "$LEFT" -le 1200 ] && [ "$STATE" = "PENDING" ]; then
+                echo "CHAIN successor=${SUCCESSOR} is still pending with ${LEFT}s left here:"
+                echo "CHAIN re-queueing it without the node exclusion so it can take ${MY_NODE} itself"
+                scancel "$SUCCESSOR"
+                NEW="$(coli_submit)"
+                SUCCESSOR="${NEW:-}"
+                FELL_BACK=1
+                continue
+            fi
+        fi
+
+        sleep "$COLI_CHAIN_WATCH_EVERY"
+    done
 ) &
 
 # numactl --interleave=all, which is worth 14% and which `coli tune` cannot find:

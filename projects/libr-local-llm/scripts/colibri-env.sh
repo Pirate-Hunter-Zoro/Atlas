@@ -61,7 +61,44 @@ export COLI_CPUS="${COLI_CPUS:-88}"
 # sooner: the engine mmaps the checkpoint and faults expert slabs in during
 # generation, so less memory is not a failure, it is a slower tail.
 export COLI_MEM_GB="${COLI_MEM_GB:-950}"
-export COLI_HOURS="${COLI_HOURS:-8}"
+# 9 hours is the c3_short cap and the chain takes all of it. Every hop pays a
+# cold pin on a new node (see the handover below), so the number of hops per day
+# is the number to minimise and a shorter walltime buys nothing.
+export COLI_HOURS="${COLI_HOURS:-9}"
+
+# ---------------------------------------------------------------------- the chain
+#
+# THE SERVER IS ALWAYS UP, AND IT MOVES NODE RATHER THAN GOING AWAY. A generation
+# lasts one walltime. `COLI_CHAIN_LEAD_MIN` before its own end it submits the next
+# one, which lands on whichever node the scheduler has room on, pins 406.7 GB, and
+# says so; only THEN does the incumbent cancel itself and give its node back. So
+# there is no window in which nothing is serving, which is the whole ask.
+#
+# THE SUCCESSOR CANNOT LAND ON THE INCUMBENT'S NODE, and that is the price of the
+# overlap. A warm page cache makes a second pin on the same node 21x faster
+# (9064 MB/s against 422 MB/s cold, measured on compute300 on 2026-09-18 across a
+# job teardown), but two 950 GB jobs do not fit on a 1 TB box, so an overlapping
+# successor is always somewhere else and always cold. Availability was chosen over
+# the cheap hop deliberately.
+export COLI_CHAIN="${COLI_CHAIN:-1}"
+
+# Two hours: a cold pin is 68 minutes measured, and the rest is queue wait and
+# margin. Too short and the incumbent's walltime ends with the successor still
+# reading off the filer, which is the one gap this exists to prevent.
+export COLI_CHAIN_LEAD_MIN="${COLI_CHAIN_LEAD_MIN:-120}"
+
+# How often a generation re-checks its own chain. A submission can be refused --
+# a queue limit, a controller restart mid-sbatch -- and a chain that has quietly
+# stopped being one is the failure nobody sees until the server goes away.
+export COLI_CHAIN_EVERY="${COLI_CHAIN_EVERY:-300}"
+# ...and how often it looks while a successor is actually loading, which is the
+# window where seconds of staleness cost a gap in service.
+export COLI_CHAIN_WATCH_EVERY="${COLI_CHAIN_WATCH_EVERY:-30}"
+
+# Where the flag that ends a chain lives. Outside `slurm_jobs/logs`, which is
+# declared counts-only, and outside git. Nothing else may spell this path.
+export COLI_STATE_DIR="${COLI_STATE_DIR:-$LLM_REPO/slurm_jobs/state}"
+export COLI_STOP_FILE="${COLI_STOP_FILE:-$COLI_STATE_DIR/chain-stopped}"
 
 # ----------------------------------------------------- where the transcript goes
 #
@@ -131,3 +168,113 @@ coli_require() {
 # session text straight into the one directory the fence exempts. The serve job
 # refuses to start when it is set; see slurm_jobs/colibri_serve.sbatch.
 export COLI_LOG_DIR="${COLI_LOG_DIR:-$LLM_REPO/slurm_jobs/logs}"
+
+# --------------------------------------------------------- one generation's log
+#
+# PER JOB, AND THAT IS THE CHAIN'S DOING. Two generations overlap for the whole
+# of a successor's load, and a single pair of files would have both of them
+# writing it -- with the incumbent's `COLIBRI-SERVE READY` still in the file the
+# successor is being judged by, which reads as a warm server that has not
+# finished pinning. The fixed names are still answered for a job submitted by an
+# older copy of these scripts, so a board does not go blind on one.
+coli_log_out() { printf '%s/colibri_serve_out-%s.txt\n' "$COLI_LOG_DIR" "$1"; }
+coli_log_err() { printf '%s/colibri_serve_err-%s.txt\n' "$COLI_LOG_DIR" "$1"; }
+
+# ------------------------------------------------------------------- the queue
+# Every generation Slurm knows about, newest last: `id state node reason left`.
+# `|| true` on both: every caller runs under `set -e` or `pipefail` or both, and
+# a controller that is briefly unreachable must read as "ask again" rather than
+# kill the script that asked.
+coli_jobs() {
+    squeue -u "$USER" -n "$COLI_JOB_NAME" -h -o '%i %T %N %r %L' 2>/dev/null || true
+}
+
+# Seconds of walltime left on a job, or empty where Slurm does not say a number.
+# The spellings are Slurm's own: `d-hh:mm:ss`, `hh:mm:ss`, `mm:ss`, and a bare
+# number is minutes. UNLIMITED and INVALID are not numbers and are not zero.
+coli_seconds_left() {
+    { squeue -j "$1" -h -o '%L' 2>/dev/null || true; } | awk '
+        { s=$1
+          if (s !~ /^[0-9]/) exit
+          d = 0
+          if (index(s, "-")) { d = substr(s, 1, index(s, "-") - 1) + 0
+                               s = substr(s, index(s, "-") + 1) }
+          n = split(s, p, ":")
+          if (n > 3) exit
+          t = 0
+          for (i = 1; i <= n; i++) t = t * 60 + p[i]
+          if (n == 1) t *= 60
+          printf "%d\n", d * 86400 + t }'
+}
+
+# ------------------------------------------------------- the end of a chain
+# The only thing that ends one is something that meant to. `coli-down` writes
+# this and then cancels; `coli-up` clears it, because asking for a server is
+# asking for the chain back.
+coli_chain_stopped() { [ -e "$COLI_STOP_FILE" ]; }
+coli_mark_stopped() {
+    mkdir -p "$COLI_STATE_DIR"
+    printf '%s %s\n' "$(date -Is)" "${1:-}" > "$COLI_STOP_FILE"
+}
+coli_clear_stopped() { rm -f "$COLI_STOP_FILE"; }
+
+# ------------------------------------------------------------ submit one of them
+#
+# THE ONE PLACE A GENERATION IS SUBMITTED, because there are now two callers --
+# `coli-up` for the first and the running generation for every one after it --
+# and a successor submitted with different resources is a chain that quietly
+# degrades. Extra sbatch arguments (a `--exclude`) come first; the job id is
+# printed on success and nothing on failure.
+#
+# The SLURM_* scrub is load-bearing in BOTH callers. sbatch inherits the
+# submitting environment's SLURM_* and those OVERRIDE the #SBATCH directives, so
+# a successor submitted from inside a running generation would otherwise inherit
+# that generation's job id, node list and step context.
+coli_submit() {
+    (
+        for v in $(env | grep -oE '^SLURM_[A-Z_0-9]+' || true); do unset "$v"; done
+        sbatch --parsable \
+               --chdir="$LLM_REPO" \
+               --job-name="$COLI_JOB_NAME" \
+               --cpus-per-task="$COLI_CPUS" \
+               --mem="${COLI_MEM_GB}G" \
+               --time="${COLI_HOURS}:00:00" \
+               --output="$(coli_log_out %j)" \
+               --error="$(coli_log_err %j)" \
+               --export="ALL,LLM_REPO=${LLM_REPO},COLI_PORT=${COLI_PORT},COLI_MODEL=${COLI_MODEL},COLI_MODEL_ID=${COLI_MODEL_ID},COLI_CHAIN=${COLI_CHAIN}" \
+               "$@" \
+               "$LLM_REPO/slurm_jobs/colibri_serve.sbatch"
+    )
+}
+
+# ------------------------------------------------- which generation to talk to
+#
+# A CHAIN MEANS TWO SERVERS ARE RUNNING FOR AN HOUR AT A TIME, and `head -1` of
+# `squeue` picks between them by luck. The one to use is the one that can answer:
+# WARM beats loading, and between two warm ones the one with more walltime left
+# is the one that is not about to hand over. A first server that has not warmed
+# yet is still better than nothing, so it is the fallback rather than a refusal.
+coli_serving_job() {
+    local job secs best="" best_left=-1 warm="" warm_left=-1
+    for job in $(coli_jobs | awk '$2 == "RUNNING" { print $1 }'); do
+        secs="$(coli_seconds_left "$job")"
+        [ -n "$secs" ] || secs=0
+        if grep -q 'COLIBRI-SERVE READY' "$(coli_log_out "$job")" 2>/dev/null; then
+            if [ "$secs" -gt "$warm_left" ]; then warm_left="$secs"; warm="$job"; fi
+        fi
+        if [ "$secs" -gt "$best_left" ]; then best_left="$secs"; best="$job"; fi
+    done
+    printf '%s' "${warm:-$best}"
+}
+
+# The generation that is loading behind the one serving, if there is one -- which
+# is what makes "this server goes away in twenty minutes" a thing anybody can say.
+coli_successor_job() {
+    local serving="$1" job
+    for job in $(coli_jobs | awk '{ print $1 }'); do
+        [ "$job" = "$serving" ] && continue
+        printf '%s' "$job"
+        return 0
+    done
+    return 0
+}

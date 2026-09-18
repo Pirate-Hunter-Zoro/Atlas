@@ -36,10 +36,28 @@ README section 4c is the architecture. The raw launcher, if you really want it:
 
 BANNER
 
-JOB_ID="$(squeue -u "$USER" -n "$COLI_JOB_NAME" -t RUNNING -h -o '%i' 2>/dev/null | head -1)"
+# ONE LINE, AND THEN ONE MORE IF THERE IS A SUCCESSOR. This is what gets asked
+# before a mission is dispatched -- is the server up, and how long has it got --
+# so it answers both without being asked twice.
+JOB_ID="$(coli_serving_job)"
 if [ -n "$JOB_ID" ]; then
-    printf 'A server is up: job %s on %s.\n' "$JOB_ID" "$(squeue -j "$JOB_ID" -h -o '%N')" >&2
+    LEFT="$(coli_seconds_left "$JOB_ID")"
+    printf 'A server is up: job %s on %s, %s min left.\n' \
+           "$JOB_ID" "$(squeue -j "$JOB_ID" -h -o '%N')" "$(( ${LEFT:-0} / 60 ))" >&2
+    NEXT="$(coli_successor_job "$JOB_ID")"
+    if [ -n "$NEXT" ]; then
+        printf 'The next generation is %s (%s); this one goes when that one has loaded.\n' \
+               "$NEXT" "$(coli_jobs | awk -v n="$NEXT" '$1 == n { print tolower($2) }')" >&2
+    fi
+elif coli_chain_stopped; then
+    printf 'No server is running, and the chain is stopped. Start it: coli-up\n' >&2
 else
-    printf 'No server is running.\n' >&2
+    QUEUED="$(coli_jobs | awk 'NR == 1 { print $1 }')"
+    if [ -n "$QUEUED" ]; then
+        printf 'No server is up yet: job %s is queued (%s).\n' \
+               "$QUEUED" "$(squeue -j "$QUEUED" -h -o '%r' 2>/dev/null)" >&2
+    else
+        printf 'No server is running.\n' >&2
+    fi
 fi
 exit 2

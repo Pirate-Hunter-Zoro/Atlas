@@ -38,7 +38,9 @@ PROMPT="$*"
 [ -n "$PROMPT" ] || { echo "coli-ask: nothing to ask." >&2; exit 2; }
 [ -z "$CTXFILE" ] || [ -r "$CTXFILE" ] || { echo "coli-ask: cannot read $CTXFILE" >&2; exit 2; }
 
-JOB_ID="$(squeue -u "$USER" -n "$COLI_JOB_NAME" -t RUNNING -h -o '%i' | head -1)"
+# The generation that can ANSWER, not whichever Slurm listed first: a chain runs
+# two of them at once while a successor loads.
+JOB_ID="$(coli_serving_job)"
 [ -n "$JOB_ID" ] || { echo "No colibri server is running. Start one: coli-up" >&2; exit 1; }
 
 # The request is built on THIS side and handed over as a file, so nothing that
