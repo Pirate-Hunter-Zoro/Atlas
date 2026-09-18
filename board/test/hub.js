@@ -351,7 +351,42 @@ setTimeout(() => {
   check('and says so in words rather than leaving it to be discovered',
         /pulled, not written/.test(doc.getElementById('sheet-meta').textContent)
         && /never handed work/.test(doc.getElementById('sheet-meta').textContent));
+  // WITHOUT THE GRAMMAR THERE IS NO BUTTON. A trace over a tree is reached by
+  // address and nothing else, so an older cached shell gets no offer rather
+  // than a hand-built hash -- two spellings of a place is the one thing
+  // `address.js` exists to prevent.
+  check('and until the grammar is loaded it offers no trace either, rather '
+        + 'than building an address of its own',
+        doc.getElementById('sheet-trace').hidden === true);
   doc.getElementById('sheet-close').onclick();
+
+  // ---- and the one thing that CAN be done with somebody else's code ------
+  // A trace over a tree is a sitting in the workspace that is READING it: there
+  // is no board in a pulled repository and the cards belong where the work is.
+  // So the offer is an address into the workspace the board is already serving.
+  //
+  // The grammar is loaded HERE rather than at the top of this file on purpose:
+  // with it in the window, opening a workspace routes through the hash and
+  // lands a turn of the event loop later, which would make every count above a
+  // race. Nothing below opens a workspace.
+  try { window.eval(fs.readFileSync(path.join(WEB, 'address.js'), 'utf8')); }
+  catch (e) { fail('address.js: ' + e.message); }
+  cards[0].dispatchEvent(new window.Event('click'));
+  const trace = doc.getElementById('sheet-trace');
+  check('a tree can be traced, which is the only thing that can be done with '
+        + 'somebody else\'s repository',
+        trace.hidden === false);
+  check('and the sheet says where the sitting will be held, because it is not '
+        + 'held in the tree',
+        /Galois Theory/.test(doc.getElementById('sheet-trace-sub').textContent)
+        && /nothing is written to it/
+             .test(doc.getElementById('sheet-trace-sub').textContent));
+  trace.onclick();
+  check('and tapping it goes through the address, the way every other link on '
+        + 'this page does',
+        window.location.hash
+        === '#/w/courses/Galois-Theory/tree/vendor/colibri');
+  window.location.hash = '';
 
   // ---- it is still a door ----------------------------------------------
   check('the way back into the lesson is a plain link, not something that '

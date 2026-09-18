@@ -78,6 +78,8 @@ var els = {
   sheetClose: document.getElementById("sheet-close"),
   sheetLibrary: document.getElementById("sheet-library"),
   sheetLibrarySub: document.getElementById("sheet-library-sub"),
+  sheetTrace: document.getElementById("sheet-trace"),
+  sheetTraceSub: document.getElementById("sheet-trace-sub"),
   where: document.getElementById("where"),
   notes: document.getElementById("notes"),
   notesSince: document.getElementById("notes-since"),
@@ -615,6 +617,7 @@ if (els.panic && window.Recentre) {
 /* ---------------------------------------------------------- the sheet */
 var sheetFor = null;
 var sheetTree = false;
+var sheetTraceAt = "";      /* the address Trace it goes to, or "" */
 
 function openSheet(c, fam) {
   sheetFor = c;
@@ -626,6 +629,8 @@ function openSheet(c, fam) {
      discover it by tapping. */
   var tree = !!fam.vendor;
   sheetTree = tree;
+  sheetTraceAt = "";
+  if (els.sheetTrace) els.sheetTrace.hidden = true;
   els.sheetFamily.textContent = fam.name || fam.id || "";
   els.sheetName.textContent = c.course || c.repo || c.name;
   els.sheetOpen.hidden = tree;
@@ -636,6 +641,25 @@ function openSheet(c, fam) {
     els.sheetNext.hidden = true;
     els.sheetMeta.textContent = aTreeMeta(c)
       + "  ·  pulled, not written: read and drawn, never handed work";
+    /* AND THE ONE THING THAT CAN BE DONE WITH IT. A trace over a tree is a
+       sitting in the workspace that is READING it -- there is no board in
+       somebody else's repository, and the cards belong where the work is. So
+       this is an address into the workspace the board is already serving, and
+       where it is serving none of them there is nowhere to hold the sitting and
+       the sheet says that instead of offering a button that cannot work. */
+    var reading = aReading();
+    sheetTraceAt = aTreeAddr(reading, c);
+    if (els.sheetTrace) {
+      els.sheetTrace.hidden = !sheetTraceAt;
+      els.sheetTraceSub.textContent = sheetTraceAt
+        ? "drawn in " + (reading.course || reading.repo)
+          + ", where the board is — nothing is written to it"
+        : "";
+    }
+    if (!sheetTraceAt) {
+      els.sheetMeta.textContent += "  ·  open a workspace first: a trace over "
+                                 + "it is a sitting in the one reading it";
+    }
     els.sheet.hidden = false;
     return;
   }
@@ -665,10 +689,33 @@ function openSheet(c, fam) {
   els.sheet.hidden = false;
 }
 
+/* WHICH WORKSPACE IS READING, and it is the one the board is serving. A tree
+   is not a workspace and has no board of its own, so the sitting a trace opens
+   has to be held somewhere -- and "where the board already is" is the only
+   answer that needs no second question asked of somebody holding a tablet. */
+function aReading() {
+  var found = null;
+  ((atlas && atlas.workspaces) || []).forEach(function (c) {
+    if (c.current) found = c;
+  });
+  return found;
+}
+
+/* The address of a tree, read in a workspace. Through the grammar like every
+   other link on this page: an older cached shell with no `address.js` gets no
+   button rather than a hand-built hash, because two spellings of a place is
+   the one thing that file exists to prevent. */
+function aTreeAddr(reading, tree) {
+  if (!reading || !tree || !window.Address) return "";
+  return window.Address.format({ ws: reading.id, surface: "tree",
+                                 tree: tree.id });
+}
+
 function closeSheet() {
   els.sheet.hidden = true;
   sheetFor = null;
   sheetTree = false;
+  sheetTraceAt = "";
 }
 
 els.sheetClose.onclick = closeSheet;
@@ -715,6 +762,20 @@ els.sheetLibrary.onclick = function () {
   if (c.current) { location.href = "/library"; return; }
   switchTo(c.repo, "", "/library");
 };
+
+/* THROUGH THE ADDRESS, the same way a workspace is opened. The board is already
+   serving the workspace this names -- that is how the address was built -- so
+   `addrRoute` sends it straight to the board, which draws the tree. */
+if (els.sheetTrace) {
+  els.sheetTrace.onclick = function () {
+    var at = sheetTraceAt;
+    closeSheet();
+    if (!at) return;
+    addrDone = "";
+    if (window.location.hash === at) addrRoute();
+    else window.location.hash = at;
+  };
+}
 
 /* ------------------------------------------------------- the meeting deck */
 /* "I have generally two — sometimes three — meetings per week to talk about my

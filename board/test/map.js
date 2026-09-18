@@ -47,6 +47,7 @@ const posts = [];
 // reading a step is not opening one, and `pick` below wants the sitting.
 const planAsks = [];
 const insideAsks = [];
+const treeAsks = [];
 // What `map.inside` answers with, keyed by the id that was asked for. `evaluate`
 // is two Python files with a real import between them; `slurm_jobs` is a shell
 // script, which nothing here parses -- so it reports its definitions, draws no
@@ -116,6 +117,40 @@ const insides = {
     edges: [],
   },
 };
+// A vendor tree: its own top-level picture, and one box of it opened. The ids
+// are deliberately ones this workspace's map also has -- `evaluate` is a box of
+// PSYCH-ASR's — because the failure to catch is a tap in a foreign picture being
+// answered out of the local one.
+const trees = {
+  'vendor/colibri': {
+    ok: true, of: '', name: 'colibri', depth: 'tree', kind: 'tree', up: '',
+    tree: 'vendor/colibri', exact: true, total: 2, capped: false,
+    why: 'colibri is pulled and not written here: read it and trace it, and '
+       + 'change nothing in it.',
+    nodes: [
+      { id: 'bin', name: 'bin', also: 'bin', kind: 'part',
+        does: 'The driver commands.', status: 'unknown', files: ['bin/coli-up'],
+        dir: 'bin', steps: [], doc: '', slide: null, note: '', inside: 1 },
+      { id: 'evaluate', name: 'src', also: 'src', kind: 'part',
+        does: 'The engine.', status: 'unknown', files: ['src/engine.c'],
+        dir: 'src', steps: [], doc: '', slide: null, note: '', inside: 1 },
+    ],
+    edges: [],
+  },
+  'vendor/colibri/inside/bin': {
+    ok: true, of: 'bin', name: 'bin', depth: 'module', up: '',
+    tree: 'vendor/colibri', exact: false, total: 1, capped: false,
+    why: 'The files in bin.',
+    nodes: [
+      { id: 'in-coli-up', name: 'coli-up', also: 'bin', kind: 'module',
+        does: 'Warm the server.', status: 'unknown', files: ['bin/coli-up'],
+        dir: 'bin', steps: [], doc: '', slide: null, note: '', exact: false,
+        inside: 1 },
+    ],
+    edges: [],
+  },
+};
+
 // The whole of one step, as the server would read it back off the plan. Longer
 // than the 240-character blurb on the chip, which is the entire point of it.
 const WHOLE = 'STEP 2. THE STOPWATCH — AND THE REFERENCE RTTM IT UNBLOCKS.\n'
@@ -180,6 +215,17 @@ function board(W, H, face) {
           || { ok: false, error: 'there is nothing inside that' }),
       });
     }
+    // A VENDOR TREE, DRAWN ON THIS BOARD. It is not this workspace's picture
+    // and there is no board in somebody else's repository, so it arrives in
+    // the shape `map.inside` answers in and is asked for under its own name.
+    const foreign = /^\/map\/tree\/([^?]+)$/.exec(String(u));
+    if (foreign) {
+      treeAsks.push(decodeURIComponent(foreign[1]));
+      const answer = trees[decodeURIComponent(foreign[1])];
+      return Promise.resolve({
+        json: () => Promise.resolve(answer || { ok: false, error: 'no such tree' }),
+      });
+    }
     if (/\/plan\/step$/.test(String(u))) {
       planAsks.push({ url: String(u), body: JSON.parse(opts.body) });
       return Promise.resolve({
@@ -241,7 +287,8 @@ function board(W, H, face) {
     + 'window.__closeMap = closeMap;\nwindow.__mapView = function () { return mapView; };\n'
     + 'window.__openWork = openWork;\nwindow.__wrap = mapWrap;\n'
     + 'window.__width = mapWidth;\nwindow.__mapDig = mapDig;\n'
-    + 'window.__mapOut = mapOut;\nwindow.__takeWork = takeWork;\n})();');
+    + 'window.__mapOut = mapOut;\nwindow.__takeWork = takeWork;\n'
+    + 'window.__mapTreeOpen = mapTreeOpen;\n})();');
   try { window.eval(src); }
   catch (e) { fail('board.js: ' + e.message); }
   return window;
@@ -1110,6 +1157,100 @@ const at = (doc, id) => {
       .map((n) => n.textContent).includes('evaluate')
       ? ok('and the picture that was there is untouched')
       : fail('a miss took the picture away');
+  }
+
+  // ---- one level SIDEWAYS: a vendor tree, drawn on this board -----------
+  // `atlas.trees()` is read and drawn and is never handed work, so there is no
+  // board to switch to -- the picture goes on the one map surface this page
+  // has, and a trace taken off it is a sitting in THIS workspace with the tree
+  // named in the scope. What has to hold is that every tap made while it is up
+  // knows which repository it is in.
+  {
+    const w = board(980, 620);
+    const doc = w.document;
+    w.__render(payload());
+    w.__openMap('tapped');
+    await sleep(15);
+    treeAsks.length = 0;
+    insideAsks.length = 0;
+    w.__mapTreeOpen('vendor/colibri');
+    await sleep(20);
+    treeAsks.join('|') === 'vendor/colibri'
+      ? ok('a tree is fetched by name, on the tap')
+      : fail('the tree was asked for as ' + JSON.stringify(treeAsks));
+    Array.from(doc.querySelectorAll('#map-sheet .node .name'))
+      .map((n) => n.textContent).sort().join('|') === 'bin|src'
+      ? ok('and its boxes are drawn by the renderer this page already has')
+      : fail('the tree was not drawn: '
+             + Array.from(doc.querySelectorAll('#map-sheet .node .name'))
+                 .map((n) => n.textContent).join('|'));
+    /pulled and not written/.test(doc.getElementById('map-why').textContent)
+      ? ok('with the rule on the picture, where somebody is looking at it')
+      : fail('the tree picture did not say whose it is: '
+             + doc.getElementById('map-why').textContent);
+    const crumb = Array.from(doc.querySelectorAll('#map-crumb .crumb'))
+      .map((b) => b.textContent);
+    crumb[0] === 'PSYCH-ASR' && crumb[crumb.length - 1] === 'colibri'
+      ? ok('and the way out of it is the workspace, which is where a sitting '
+           + 'over it would be held')
+      : fail('the crumb does not lead back to the workspace: ' + crumb.join('|'));
+
+    // A BOX OF A TREE IS ASKED FOR UNDER THE TREE. The foreign picture carries
+    // a box called `evaluate`, and so does this workspace's own map -- asking
+    // the local route for it would open a picture of somewhere else entirely
+    // and nothing on the glass would say so.
+    insideAsks.length = 0;
+    treeAsks.length = 0;
+    doc.querySelector('#map-sheet .dig[data-dig="bin"]')
+       .dispatchEvent(new w.Event('click'));
+    await sleep(20);
+    !insideAsks.length && treeAsks.join('|') === 'vendor/colibri/inside/bin'
+      ? ok('a box of a tree is opened under the tree, never down this '
+           + 'workspace\'s own route')
+      : fail('a foreign box was looked up locally: '
+             + JSON.stringify(insideAsks) + ' / ' + JSON.stringify(treeAsks));
+    Array.from(doc.querySelectorAll('#map-sheet .node .name'))
+      .map((n) => n.textContent).join('|') === 'coli-up'
+      ? ok('and what is in it is drawn the way the inside of a local box is')
+      : fail('the inside of a foreign box was not drawn');
+    Array.from(doc.querySelectorAll('#map-crumb .crumb')).map((b) => b.textContent)
+      .join('|') === 'PSYCH-ASR|colibri|bin'
+      ? ok('with the tree still in the crumb, so two steps back is still the '
+           + 'workspace')
+      : fail('the crumb lost the tree: '
+             + Array.from(doc.querySelectorAll('#map-crumb .crumb'))
+                 .map((b) => b.textContent).join('|'));
+
+    treeAsks.length = 0;
+    w.__mapTreeOpen('vendor/colibri');
+    await sleep(20);
+    posts.length = 0;
+    doc.querySelector('#map-sheet .node[data-id="bin"]')
+       .dispatchEvent(new w.Event('click'));
+    await sleep(5);
+    const foreignWays = Array.from(
+      doc.querySelectorAll('#work-list .work-way strong')).map((n) => n.textContent);
+    foreignWays.join('|') === 'Walk me through the code'
+      ? ok('and the one thing offered on it is a trace: nothing is handed in '
+           + 'to somebody else\'s repository, so there is nothing else honest')
+      : fail('a vendor box was offered ' + JSON.stringify(foreignWays));
+    doc.querySelector('#work-list .work-way').dispatchEvent(new w.Event('click'));
+    await sleep(10);
+    const traced = posts.filter((p) => /\/session$/.test(p.url))[0];
+    traced && traced.body.node === null
+           && JSON.stringify(traced.body.over)
+              === JSON.stringify(['@vendor/colibri/bin/coli-up'])
+      ? ok('over the tree and the file together, and with no box id, because '
+           + 'this workspace has no box by that name')
+      : fail('the trace was asked for as ' + JSON.stringify(traced && traced.body));
+
+    w.__mapOut();
+    await sleep(10);
+    doc.getElementById('map-crumb').hidden === true
+    && Array.from(doc.querySelectorAll('#map-sheet .node .name'))
+         .map((n) => n.textContent).includes('evaluate')
+      ? ok('and the way out puts this workspace\'s own picture back')
+      : fail('there is no way back out of a tree');
   }
 
   console.log(errors.length ? '\n' + errors.length + ' FAILURES'
