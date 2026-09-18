@@ -384,6 +384,64 @@ else:
     check("a pull that took nothing away does nothing",
           ns["keep_pulled_files"](work, gg, said2.append, theirs) == [])
 
+# ---------------------------------------------------------------------------
+# AN ABANDONED BOUNCE IS NOT A PERSON SAYING NO
+# ---------------------------------------------------------------------------
+#
+# The third face of the same defect, and the one that cost fifteen hours rather
+# than a minute. From the iPad: "I'm in Galois Theory and it says the tutor is
+# down, though the app is working."
+#
+# `restarting` is the field that says somebody asked for this daemon BACK. Only
+# the asker can write it -- `tutor restart --tutors`, before it signals -- and
+# the daemon receiving a SIGTERM cannot tell a bounce from a person leaving. So
+# the daemon's exit record must not touch it. It used to write `restarting:
+# False`, which turned every restart nobody finished into a record identical to
+# `tutor agent stop`, and `tutor_verdict` reads that as "a person said no" and
+# never revives it. Measured: a handoff turn took 97 seconds, `cmd_restart`
+# gives it 90, so it returned without starting anything -- and three generations
+# of the serving chain then revived that course's board and refused its tutor.
+#
+# `supervise.tutor_verdict` is read here, not changed: this asserts the contract
+# between the record the daemon leaves and the watchdog that reads it.
+from tutorboard import supervise                                # noqa: E402
+
+HOST = "compute304"
+NOW = 1000000.0
+GRACE = 180
+
+# What the daemon's own exit leaves, after a bounce asked for it. The asker
+# wrote `restarting` and a `stopped_at`; the exit merges `state: stopped` over
+# the top and says nothing about why.
+bounced = {"host": HOST, "pid": 4321, "state": "stopped", "restarting": True,
+           "stopped_at": NOW - 5}
+check("a bounce that has just signalled reads as reattaching, not as a death",
+      supervise.tutor_verdict(bounced, HOST, False, now=NOW) == "reattaching")
+
+abandoned = dict(bounced, stopped_at=NOW - (GRACE + 60))
+check("and a bounce nobody finished is REVIVED once the grace is out, which is "
+      "the whole reason the flag is written before the signal",
+      supervise.tutor_verdict(abandoned, HOST, False, now=NOW) == "revive")
+
+# And the other half of the contract, which must not have moved: a person who
+# says stop is obeyed, for ever. Reviving that is the watchdog arguing with its
+# owner.
+asked = {"host": HOST, "pid": 4321, "state": "stopped", "restarting": False,
+         "stopped_at": NOW - (GRACE + 60)}
+check("while a person's own stop is still obeyed and never revived",
+      supervise.tutor_verdict(asked, HOST, False, now=NOW) == "stopped")
+
+# AND THE DAEMON'S EXIT LEAVES THE FLAG ALONE. The two halves above can only
+# stay true if nothing on the way out overwrites the asker's note, and that line
+# lives in `bin/tutor`, which has no `.py` on the end and cannot be imported.
+# Read as source, because a drift here is silent and costs a whole evening.
+src = open(TUTOR, encoding="utf-8").read()
+exit_line = [l for l in src.splitlines()
+             if 'agent_state(live, state="stopped"' in l]
+check("the daemon writes exactly one exit record", len(exit_line) == 1)
+check("and it does not claim to know whether a restart was asked for",
+      bool(exit_line) and "restarting" not in exit_line[0])
+
 print()
 print(("%d FAILURES" % len(fails)) if fails
       else "a tutor says when it is waking, and silence is never the answer")

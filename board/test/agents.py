@@ -446,8 +446,19 @@ check("a restart says on disk that it is a restart",
       'agent_state(c["root"] + "/live", restarting=True' in tool_src)
 check("and a clean stop keeps the record rather than deleting it, so the board "
       "can tell 'stopped' from 'never had one'",
-      'agent_state(live, state="stopped", restarting=False' in tool_src
+      'agent_state(live, state="stopped"' in tool_src
       and "os.remove(os.path.join(live, \"agent.json\"))" not in tool_src)
+# AND THE EXIT DOES NOT SAY WHY, BECAUSE IT DOES NOT KNOW WHY. `restarting` is
+# written by the asker, before the signal; a daemon receiving a SIGTERM cannot
+# tell a bounce from a person leaving. Writing `restarting: False` on the way out
+# made every restart nobody finished identical to `tutor agent stop`, which the
+# watch loop obeys for ever -- measured as fifteen hours of a Galois Theory board
+# serving perfectly with nothing reading it. `test/waking.py` holds the other end
+# of that contract.
+check("and it does not overwrite the flag that says a restart asked for it",
+      'restarting' not in
+      [l for l in tool_src.splitlines()
+       if 'agent_state(live, state="stopped"' in l][0])
 check("a record left by a restart in flight reads as reattaching",
       _state._reattaching({"restarting": True, "stopped_at": _time.time()}))
 check("and one left by a restart that never finished does not, for ever",

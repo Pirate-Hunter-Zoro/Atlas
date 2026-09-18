@@ -100,6 +100,7 @@ const frame = (cards, turns) => JSON.stringify({
 
 const mineFor = (id) => doc.querySelector('.mine[data-turn="' + id + '"]');
 const boardFor = (qid) => doc.querySelector('.board[data-board="' + qid + '"]');
+const cardFor = (id) => doc.querySelector('.card[data-card="' + id + '"]');
 
 (async () => {
 
@@ -109,34 +110,106 @@ await sleep(60);
 
 // The newest unanswered answer stands on the writing surface rather than in the
 // transcript, so the one asserted here is the one with a reply under it. Give
-// it a reply of every kind in turn.
+// it a reply of every kind in turn, and read BOTH halves back: what the reply
+// says on the student's own answer, and what it says on the card itself.
+//
+// THE TWO HALVES USED TO DISAGREE, AND ONLY IN THE AMBER CASE. The answer took
+// the verdict; the card took its band from its own KIND. So a reply that was
+// neither right nor wrong painted the answer amber and the card grey, a finger's
+// width apart. "If the user asks a question, or we're not really in a 'right or
+// wrong' scenario, then the response should be highlighted with a yellow kind of
+// band" -- so the card is painted from the verdict now, and these read as pairs.
 const withCard = async (kind) => {
   const card = { id: '0002', kind: kind, body: 'a word about it', mtime: t0 + 120 };
   es.onmessage({ data: frame([question, card], [ink]) });
   await sleep(60);
   const n = mineFor('t0054');
-  return n ? (n.dataset.verdict || '') : '(the answer is not on the page)';
+  const c = cardFor('0002');
+  return { answer: n ? (n.dataset.verdict || '') : '(the answer is not on the page)',
+           card: c ? (c.dataset.verdict || '') : '(the card is not on the page)' };
+};
+const agree = async (kind, want, what) => {
+  const got = await withCard(kind);
+  got.answer === want && got.card === want
+    ? ok(what)
+    : fail('a ' + kind + ' card: the answer says "' + got.answer + '" and the '
+           + 'card says "' + got.card + '", wanted "' + want + '" on both');
 };
 
-(await withCard('correct')) === 'correct'
-  ? ok('a correct card paints the answer that earned it green')
-  : fail('a correct card left the answer unpainted');
+await agree('correct', 'correct',
+  'a correct card paints the answer that earned it green — and paints itself');
+await agree('wrong', 'wrong',
+  'and a wrong card paints both of them red');
+await agree('note', 'open',
+  'and an aside — neither right nor wrong — paints both amber, which is the '
+  + 'half the card used to get wrong: it went grey, from its kind');
+await agree('review', 'open',
+  'as does a review, which is the same kind of reply');
 
-(await withCard('wrong')) === 'wrong'
-  ? ok('and a wrong card paints it red')
-  : fail('a wrong card left the answer unpainted');
+// AND A LESSON CARD REPLYING TO WORK THAT WAS HANDED IN IS A REPLY. It is the
+// commonest one in a sitting that DOES the work — the student sends "it runs
+// now", the turn reports what it found — and `REPLY_KIND` does not contain
+// `lesson`, so in exactly the sittings where "we're not really in a
+// right-or-wrong scenario" is the normal case there was no band at all.
+await agree('lesson', 'open',
+  'and a lesson card answering what was just sent is the reply, so it carries '
+  + 'the amber band — the case a kind-keyed rule could not see');
 
-(await withCard('note')) === 'open'
-  ? ok('and an aside — neither right nor wrong — paints it amber')
-  : fail('a note did not paint the answer amber');
+// BUT NOT A LESSON CARD THAT IS TEACHING. A page tinted end to end says nothing
+// at all, so the band belongs to the card that replied and not to everything
+// downstream of an answer: 0003 is separated from the ink by the card that
+// already answered it.
+{
+  es.onmessage({ data: frame(
+    [question,
+     { id: '0002', kind: 'note', body: 'why is q non-zero?', mtime: t0 + 120 },
+     { id: '0003', kind: 'lesson', body: 'now, Chapter 5', mtime: t0 + 180 }],
+    [ink]) });
+  await sleep(60);
+  const reply = cardFor('0002');
+  const teaching = cardFor('0003');
+  reply && reply.dataset.verdict === 'open'
+  && teaching && !teaching.dataset.verdict
+    ? ok('and the lesson card AFTER the one that replied is teaching, and stays '
+         + 'plain — the reply is the first card after the answer, not every card '
+         + 'that follows one')
+    : fail('the band ran on past the reply: 0002 "'
+           + (reply && reply.dataset.verdict) + '", 0003 "'
+           + (teaching && teaching.dataset.verdict) + '"');
+}
 
-(await withCard('review')) === 'open'
-  ? ok('as does a review, which is the same kind of reply')
-  : fail('a review did not paint the answer amber');
+// And a lesson card with nothing handed in above it at all.
+{
+  const unanswered = { id: '0005', kind: 'question', title: 'Exercise 4.20',
+                       body: 'and this one', mtime: t0 + 240 };
+  es.onmessage({ data: frame(
+    [question,
+     { id: '0002', kind: 'note', body: 'why is q non-zero?', mtime: t0 + 120 },
+     unanswered,
+     { id: '0006', kind: 'lesson', body: 'some more reading', mtime: t0 + 300 }],
+    [ink]) });
+  await sleep(60);
+  const c = cardFor('0006');
+  c && !c.dataset.verdict
+    ? ok('and teaching under a question nobody has answered yet is not a verdict '
+         + 'on anything')
+    : fail('a lesson card was read as a verdict with no answer above it: "'
+           + (c && c.dataset.verdict) + '"');
+}
 
-(await withCard('lesson')) === ''
-  ? ok('teaching that stands on its own is not a verdict on anything')
-  : fail('a lesson card was read as a verdict');
+// And a recap never is, wherever it falls: it is the reading of what already
+// happened, and a recap that went amber because an answer preceded it is a page
+// tinted for nothing.
+{
+  es.onmessage({ data: frame(
+    [question, { id: '0002', kind: 'recap', body: 'where we are', mtime: t0 + 120 }],
+    [ink]) });
+  await sleep(60);
+  const c = cardFor('0002');
+  c && !c.dataset.verdict
+    ? ok('and a recap is never a reply, however it falls')
+    : fail('a recap took a verdict: "' + (c && c.dataset.verdict) + '"');
+}
 
 // The board carrying the same working says the same thing. It is what a person
 // scrolls back to; the one-line receipt above it is not.
@@ -147,6 +220,73 @@ if (!bd) {
   (await withCard('wrong')) && bd.dataset.verdict === 'wrong'
     ? ok('and the board that holds the working is painted with it')
     : fail('the board was left unpainted: "' + bd.dataset.verdict + '"');
+}
+
+// ------------------------------------------- AMBER IS A TOKEN, NOT A GREY
+//
+// The band is `--ask` and the verdict outranks the kind, and both of those are
+// in the stylesheet rather than in the page, because the card's colour is one
+// custom property and jsdom resolves neither `var()` nor `color-mix()`. What is
+// checkable here is that the rules exist and that they are in the order that
+// makes the verdict win: same specificity, so the later one does.
+{
+  const sheet = fs.readFileSync(path.join(WEB, 'board.css'), 'utf8');
+  const amber = sheet.indexOf('.card[data-verdict="open"]');
+  const green = sheet.indexOf('.card[data-verdict="correct"]');
+  const red = sheet.indexOf('.card[data-verdict="wrong"]');
+  const kind = sheet.lastIndexOf('.card[data-kind="note"]     { --accent:');
+  amber !== -1 && /\.card\[data-verdict="open"\]\s*{\s*--accent: var\(--ask\)/.test(sheet)
+    ? ok('the open case is the amber token and not a grey')
+    : fail('no rule paints an open verdict from --ask');
+  green !== -1 && red !== -1 && kind !== -1 && amber > kind && green > kind && red > kind
+    ? ok('and the verdict rules come after the kind rules, so the verdict wins')
+    : fail('the kind still outranks the verdict in board.css');
+  /\.card\[data-verdict\] \.body/.test(sheet)
+    ? ok('and the band itself is keyed on the verdict')
+    : fail('the panel is still keyed on the kind alone');
+}
+
+// --------------------------------- AND HOW MANY RIGHT IN A ROW, WHICH IS THE
+// reward the colour was standing in for. "Dopamine for the user when they answer
+// correctly": one right answer is a tick, and four in a row is a piece of work
+// going well. The chip exists from the second one and a wrong answer resets it.
+{
+  const q = (n, t) => ({ id: n, kind: 'question', title: 'Ex ' + n, body: 'go',
+                         mtime: t });
+  const ans = (n, qid, t) => ({ id: n, rev: 1, kind: 'text', answers: qid, t: t,
+                                text: 'my answer' });
+  const yes = (n, t) => ({ id: n, kind: 'correct', body: 'that is it', mtime: t });
+  es.onmessage({ data: frame(
+    [q('0101', t0), yes('0102', t0 + 20),
+     q('0103', t0 + 30), yes('0104', t0 + 50),
+     q('0105', t0 + 60), yes('0106', t0 + 80),
+     q('0107', t0 + 90), { id: '0108', kind: 'wrong', body: 'no', mtime: t0 + 110 },
+     q('0109', t0 + 120), yes('0110', t0 + 140)],
+    [ans('t0101', '0101', t0 + 10), ans('t0103', '0103', t0 + 40),
+     ans('t0105', '0105', t0 + 70), ans('t0107', '0107', t0 + 100),
+     ans('t0109', '0109', t0 + 130)]) });
+  await sleep(60);
+  const runOf = (id) => {
+    const c = cardFor(id);
+    return c ? (c.dataset.streak || '') : '(not on the page)';
+  };
+  const chip = (id) => {
+    const c = cardFor(id);
+    const n = c && c.querySelector('.streak');
+    return n ? n.textContent : '';
+  };
+  runOf('0102') === '' && runOf('0104') === '2' && runOf('0106') === '3'
+    ? ok('one right answer is a tick; the second says two in a row and the third '
+         + 'says three')
+    : fail('the run is miscounted: ' + runOf('0102') + ' ' + runOf('0104') + ' '
+           + runOf('0106'));
+  chip('0106') === '3 in a row'
+    ? ok('and it says so in words, on the card where it happened')
+    : fail('the streak chip is not on the card: "' + chip('0106') + '"');
+  runOf('0110') === '' && runOf('0108') === ''
+    ? ok('and a wrong answer resets it — the next right one starts again at one')
+    : fail('the run survived a wrong answer: 0108 "' + runOf('0108') + '", 0110 "'
+           + runOf('0110') + '"');
 }
 
 // ------------------------------------------------------- waiting is not amber

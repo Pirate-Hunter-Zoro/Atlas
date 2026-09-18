@@ -130,12 +130,46 @@ const board = fs.readFileSync(path.join(WEB, 'board.css'), 'utf8');
       : ok('and it costs no height, so ink stays on the words it was drawn over');
   }
 
-  const marks = ['correct', 'wrong', 'question'].every((kind) =>
-    decl('.card[data-kind="' + kind + '"] .kind::before').includes('content'));
+  // KEYED ON THE VERDICT, NOT ON THE KIND -- which is the half the card used to
+  // get wrong. The kind is what the tutor called the card; the verdict is what
+  // it says about work that was handed in, and those agree only for `correct`
+  // and `wrong`. `question` keeps its own mark because being asked something is
+  // a property of the card rather than a verdict on anything.
+  const marks = ['correct', 'wrong', 'open'].every((v) =>
+    decl('.card[data-verdict="' + v + '"] .kind::before').includes('content'))
+    && decl('.card[data-kind="question"] .kind::before').includes('content');
   marks
     ? ok('and each verdict chip carries its own mark')
     : fail('a verdict is colour alone, which is nothing to somebody who cannot '
            + 'tell the two of them apart');
+
+  // AND THE AMBER CASE IS PAINTED FROM THE VERDICT, so the card and the answer
+  // a finger's width below it say the same thing. Asked for as "if the user asks
+  // a question, or we're not really in a 'right or wrong' scenario, then the
+  // response should be highlighted with a yellow kind of band" -- and the card
+  // took its band from its kind, so a reply that was neither right nor wrong
+  // went grey while the answer went amber.
+  const verdicts = { correct: '--good', wrong: '--bad', open: '--ask' };
+  for (const v of Object.keys(verdicts)) {
+    const d = decl('.card[data-verdict="' + v + '"]');
+    d.includes('--accent') && d.includes(verdicts[v])
+      ? ok('a card the transcript says is ' + v + ' carries ' + verdicts[v])
+      : fail('a ' + v + ' verdict no longer paints the card');
+  }
+  const washed = all.find(([sel, body]) =>
+    /\.card\[data-verdict\]\s+\.body/.test(sel) && paintsBackground(body));
+  washed
+    ? ok('and a card carrying any verdict is washed in it, which is what makes '
+         + 'the amber case exist at all')
+    : fail('only the named kinds are washed, so a lesson card replying to work '
+           + 'that was handed in still has no band');
+
+  // HOW MANY RIGHT IN A ROW, AS TEXT. The run is the reward; an entrance is not.
+  const streak = decl('.card[data-streak] .streak');
+  streak && streak.includes('--good')
+    ? ok('and a run of right answers is a chip in the same green, which survives '
+         + 'everything an animation does not')
+    : fail('nothing marks a streak, so a correct answer is one tick and no more');
 
   // `.card` is declared in several places; the wash may live in any of them.
   const light = all.some(([sel, body]) =>
