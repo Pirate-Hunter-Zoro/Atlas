@@ -373,19 +373,37 @@ as the answer.
   because this arrives as a sentence about scrolling and nothing in it can name a
   stroke. `test/link.js` drives a lift under a foreign pointer and waits the
   floor out on a real clock.
-  **AND THE THIRD REPORT OF THIS IS STILL OPEN, ON PURPOSE.** *"Scrolling while
-  annotating works now, but when I STARTED annotating a few seconds ago, it did
-  not."* The trace carried `hold why=nib down` twice and **no `ink-drop`**, so
-  the stuck-stroke path above is not what happened — and nothing else in the log
-  said anything about this layer, which is how the previous diagnosis came to be
-  wrong. **Do not guess a fourth time.** The layer is instrumented now
-  (`ink-mode`, `ink-begin`, `ink-end`, `ink-hold`, `ink-late`, `ink-latch`) and
-  the next occurrence names its own cause: `ink-hold` means this listener
-  refused the pan, `ink-latch on=1` means the CSS did, and a large `ink-mode ms=`
-  means neither did — it is the restyle `body.annotating` costs across every card
-  in the lesson, paid by the first gesture because `armTouch` installs a
-  non-passive `touchstart` in the same breath. That last one is the standing
-  suspicion and it is a suspicion, not a finding.
+- **THE PEN LATCH IS ABOUT A PAGE THAT IS MOVING, AND ITS WINDOW RUNS FROM THE
+  LAST SCROLL.** Nib down shuts it; with the page standing still it opens on the
+  LIFT, and only a page that has scrolled inside `PEN_MODE` holds it shut. The
+  latch exists so a stroke is not re-read as a pan, and a stroke can only be
+  re-read as a pan during a fling — `preventDefault` on `touchstart` is refused
+  then and honoured at every other moment, and `onTouchStart` already makes it
+  for a stylus. Measured from the last SAMPLE instead, it ate the first swipe
+  after every mark: `touch-action` is read when a gesture STARTS, so `penLet`
+  opening the latch on that finger's first `touchmove` was always too late for
+  the gesture that opened it — the source called that the one gesture it gives
+  up, and it is the gesture somebody swipes. That is the fourth report of
+  *"Scrolling while annotating works now, but when I STARTED annotating a few
+  seconds ago, it did not"*, and the first one settled off a trace rather than a
+  guess: `ink-end` at 522591 and `ink-latch on=0` at 522941, which the 700 ms
+  timer could not have done before 523291, and only `penLet` opens it early.
+  `penLift` is why the lift asks at all — `penSeen` arms one timer per stroke
+  and never re-arms it, so a two-tenths-of-a-second tick used to leave the latch
+  shut for half a second after the nib had gone. `test/link.js`, `latchFlow`.
+  **And the layer says which thing refused a pan**, because that diagnosis was
+  arithmetic across three timestamps: `ink-latch` carries `why` (`quiet` for the
+  window, `moved` for a finger that dragged, `off` for leaving the mode), and
+  `ink-pan` is a finger landing against a shut latch — the one refusal that is
+  made in CSS and so leaves no event of its own. With `ink-mode`, `ink-begin`,
+  `ink-end`, `ink-hold` and `ink-late` that is the whole vocabulary.
+  **Two things this trace also closed.** The standing suspicion — that the cost
+  was `body.annotating` restyling every card, paid by the first gesture — is
+  dead: `ink-mode ms=35` across 42 layers. And an `ink-late at=touchmove`
+  following an `ink-hold at=touchstart` is not a page that moved; it is one
+  non-cancelable first move per stroke, because `armMove` installs the
+  non-passive `touchmove` inside `begin` and the compositor learns about it a
+  move later. Read the pair, not the line.
 - **ONLY THE ASKER MAY SAY WHY A DAEMON WAS STOPPED.** `restarting` and
   `handover` are written BEFORE the signal, by whoever is asking; the daemon's
   own exit merges `state: stopped` over the top and touches neither, because a
