@@ -8,15 +8,19 @@
 # are depth 2 and 4 against depth 1 rather than against off. Depth 1 under CUDA
 # is the configuration nothing on disk has ever tried.
 #
-# The lever is COLI_CUDA_MTP=1 and it reaches the engine through TWO gates, which
-# is why the arms are exactly this and not something simpler:
-#   - resource_plan._auto_tune exports DRAFT=0 for a compute-bound plan -- which
-#     `coli plan` says this is -- UNLESS COLI_CUDA_MTP=1 is in the environment,
-#     in which case it leaves DRAFT alone deliberately (its own comment says so).
-#   - the engine then resolves DRAFT=-1 as `has_mtp && (!cuda || cuda_mtp) ? 1:0`
-#     at colibri.c:11173. Depth 1, not 3: the sweep in that comment has depth 1
-#     at ~85% acceptance against ~44-62% at 2-3.
-# So ONE variable moves between the arms. Nothing else in this file differs.
+# The lever is COLI_CUDA_MTP=1 and it reaches ONE gate, not two. The engine
+# resolves an unset DRAFT as `has_mtp && (!cuda || cuda_mtp) ? 1 : 0` at
+# colibri.c:11173, so --gpu is what turns speculation off and this variable is
+# what turns it back on. Depth 1, not 3: the sweep in that comment has depth 1 at
+# ~85% acceptance against ~44-62% at 2-3.
+#
+# The planner is NOT a second gate on this box, whatever finding 21 said first.
+# resource_plan._auto_tune exports DRAFT=0 only for bottleneck_class "compute",
+# and `limit  CPU expert tail and GPU compute` is the MIXED class -- warm experts
+# plus a planning GPU, resource_plan.py:1024 -- which reaches no DRAFT branch at
+# all. It would not block the lever even if it did: it has an explicit exception
+# for this variable. So ONE variable moves between the arms, and nothing else in
+# this file differs.
 #
 # The arms mirror the SERVED configuration, because that is the configuration the
 # question is about: --gpu auto --auto-tier --ctx 131072, CUDA_DENSE=0, 80 CPUs,
