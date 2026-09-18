@@ -53,9 +53,9 @@ An item is not done because its code runs. It is done when the suite is green,
 the rule is written where the next turn will read it, and the item is out of this
 file.
 
-**Two of them are not builds and do not come out this way.** Item 3's last part
+**Two of them are not builds and do not come out this way.** Item 2's last part
 is a standing rule — it lands in `TEACHING.md` and `sense.py` and then it is a
-*Settled* entry like anything else. Item 7 is a list of evenings in front of the
+*Settled* entry like anything else. Item 6 is a list of evenings in front of the
 thing, and only the person holding the iPad can strike those.
 
 ---
@@ -93,7 +93,7 @@ when that session ships.
 **`projects/libr-local-llm` has its own handoff and it is still the live one.**
 The five pieces it asked for against the board are shipped and are under
 *Settled* below; what is left in that file is the diarization job itself, which
-is item 6 here.
+is item 5 here.
 
 ---
 
@@ -112,162 +112,22 @@ somebody to a keyboard.
 **A mission is finished work, and so is a document asked for from any sitting
 at all, corrected or overhauled without leaving the page it is on, and so is
 which half of the answer panel a question opens on, and so is a response that
-types out with the next board waiting for the last character of it. All of that
-is Settled below.** Item 1 is first because it is the other half of the answer
-panel, which is the surface every sitting ends on — what the box renders while
-it is being typed in, and where a sent answer stays. Item 2 is the meeting deck,
-which reuses the library's reader and deliberately does NOT reuse its feedback
-route. Item 3 is the map, and the last part of it is a standing rule rather than
-a task. Item 4 is item 3's other half and must land after it, because the
-refactor renames the boxes its TODOs are attached to. Item 5 is the verdict a
-person can feel, and it settles a question item 7 has been holding open. Item 6
-is the acceptance test of the mission and is also the job all of it exists for.
-Item 7 is not a build.
+types out with the next board waiting for the last character of it — and so is
+the whole of that panel now: what the box renders while it is being typed in,
+and where a sent answer stays once it is sent. All of that is Settled below.**
+Item 1 is the meeting deck, which reuses the library's reader and deliberately
+does NOT reuse its feedback route. Item 2 is the map, and the last part of it is
+a standing rule rather than a task. Item 3 is item 2's other half and must land
+after it, because the refactor renames the boxes its TODOs are attached to.
+Item 4 is the verdict a person can feel, and it settles a question item 6 has
+been holding open. Item 5 is the acceptance test of the mission and is also the
+job all of it exists for. Item 6 is not a build.
 
 ---
 
 ## What to do next
 
-### 1. The answer box renders as it is typed, and what was sent stays where it was typed
-
-**The want, in two messages:** *"when I'm typing a response to a tutor, I want to
-be able to type latex commands in the typing box — like \gamma, etc. — and have
-that render as I type it. And then when I send it, have it stay rendered that way.
-I still like how everything else is rendered dyslexic friendly."*
-
-*"The typed prompt also disappears after I send it, unlike the written board when
-I send that. I don't want the typed prompt disappearing — I want it rendering just
-like you said."*
-
-**The second message is the frame for the whole item, and the comparison in it is
-exact.** Sent ink stays where it was made: `paintBoards` draws a board per
-attempt with the ink still on it, down the page, and the live surface stays open
-underneath — *"I want the actual writing board containing my response"* is why.
-Sent typing leaves **nothing** where it was made: `say()` empties the box, and
-the answer becomes an entry in the transcript instead. One half of the panel
-keeps what you handed in and the other half clears it, and the person is looking
-at the half that clears.
-
-**Half of this already works, and it is worth knowing which half before building
-anything.** Measured by driving the real page: a typed answer goes through
-`renderMarkdown`, which parks `$\gamma^2 = 2$` into a `span.math-raw`, and
-`reconcile` pushes **every** newly inserted node into `freshNodes` — a card or a
-turn, no distinction — which `typeset` then walks with `$`, `$$`, `\(` and `\[`
-and 64 macros out of `macros.js`. So **a sent answer containing `$\gamma^2 = 2$`
-already comes back typeset in the transcript, today.** Nothing needs building for
-the "stay rendered" half.
-
-**Three things do not work, and the last is a decision rather than a build.**
-
-**(a) Nothing renders while you type, and nothing ever can in that box.**
-`#saybox` is a `<textarea>`. A textarea holds characters and no markup, by
-definition, so there is no version of this that renders inside it.
-
-*Want.* A preview under the box that renders on a debounce and says, in advance,
-exactly what the transcript will show.
-
-*And do not reach for the clever option.* Replacing the textarea with a
-`contenteditable` renders in place and costs everything that textarea carries:
-iOS autocorrect and its undo stack, selection behaviour under a thumb, the
-`input` handler that drives `saveTextDraft` and `correctingTurn`, `autosize`, the
-⌘-Enter send — and `test/mine.js` and `test/typed.js` both drive that element
-directly. A preview loses none of it.
-
-*One renderer, or the preview lies.* `renderMarkdown` then `typeset`, the same
-pair a card goes through, on the same debounce the draft save already uses. Two
-renderers would differ on exactly the input somebody is squinting at.
-
-*Only when there is something to show.* A preview that is always there doubles
-the height of the answer panel for everybody who never types a formula. It
-appears when the text contains a delimiter or a backslash command, and not
-otherwise.
-
-*And the face stays where it is, which is the half that was asked to be left
-alone.* The reading face is `body.dataset.face` — OpenDyslexic by default — and
-KaTeX ships its own fonts, so prose is dyslexic-friendly and mathematics is not
-touched, by construction rather than by a rule. The preview inherits that for
-free. **Do not give it a font of its own**, and `test/typeface.js` is the suite
-that already asserts the reading face reaches prose and never the maths.
-
-**(b) The sent answer does not stay where it was typed.** `say()` runs
-`els.saybox.value = ""`, so the words leave the place the person is looking at.
-They come back only on a *reopen* of that question, through `restoreTextAnswer`,
-and they come back as raw source in a textarea rather than as the mathematics
-they were written as.
-
-*What was checked, so nobody hunts for a phantom.* Nothing deletes a typed answer
-from the transcript. The `items.pop()` in `render` is ink-only, `paintSuperseded`
-touches `[data-card]` and never a `.mine` node, and every attempt is kept and
-labelled *answer 2 of 3* — and that entry is already rendered through
-`renderMarkdown` and KaTeX, and already sits directly above the writing surface.
-The disappearance to fix is the BOX, not the transcript. (The other half of the
-same old report — *"it disappears once the tutor response comes in"* — was the
-`answering.latest` overwrite, and that is fixed and shipped; an iPad still
-serving a shell older than `board-shell-v126` will go on showing it.)
-
-*Want.* **The typed half keeps what it sent, in place, rendered — the way the
-slate keeps its ink.** After a send, the block above the box holds the answer as
-mathematics and prose rather than as source, and the box under it is empty and
-ready for the next thing. A second answer pushes the first up, the way a second
-page of ink gets a second board.
-
-*And the panel's other half has been waiting on exactly this.* The box is
-pre-filled with the last sent answer today because the box is the only place a
-correction can be made, so `restoreTextAnswer` stays where it is until there is
-somewhere else to put the answer. Moving it to a block above the box is what
-lets the box open empty every time.
-
-*And this is the same build as (a), not a second one.* One rendered block above
-the box: a **preview** of what is being typed before the send, and the **record**
-of what was sent after it. That is what makes the two halves of the panel finally
-symmetrical — box and rendered block against slate and board — and it is why
-these are one item.
-
-*Decide: what a tap on it does.* The slate's answer is that going back to an
-earlier board hands the ink back on a surface that can take another line, and
-`restoreTextAnswer` is the typed counterpart already written. So a tap on the
-rendered block should load it back into the box for correction — which sets
-`correctingTurn`, which is what makes the send a revision of that answer rather
-than a new one. Wire it to the function that exists rather than to a new one.
-
-**(c) A bare `\gamma` renders nowhere, and never will without a decision.**
-Verified in the same run: `$\gamma^2 = 2$` is typeset and the `\gamma` beside it
-with no delimiters stays literal. On an iPad keyboard a `$` is a hunt, so this is
-the whole of why it feels like the feature is missing.
-
-Three ways, and one of them must not be written:
-
-- **Auto-wrap anything that looks like TeX.** *Refused.* `\d+` in a regex,
-  `C:\temp`, and a shell escape are all backslash commands to a pattern and none
-  of them is mathematics — and this board is used in code workspaces, where that
-  is what a person is most likely to be typing.
-- **Make the `$` cost a thumb rather than a keyboard hunt.** A one-tap `$…$` on
-  the answer panel that wraps the selection or drops a pair and puts the caret
-  between them. Cheap, obvious, and nothing can misread it.
-- **Say what is wrong rather than doing nothing.** A backslash command sitting
-  outside any delimiter is almost certainly a mistake, and the preview is exactly
-  where to say so: *"`\gamma` will not render — wrap it in `$…$`"*. That is the
-  board's own rule, the same one `board write` follows when it refuses a card
-  over 450 words instead of trimming it silently.
-
-Take the second and the third. They compose, they are each one control, and
-neither of them can be wrong about what somebody meant.
-
-**Check.** `test/typed.js` owns the answer panel and `test/mine.js` owns what
-happens to an answer after it is sent. Assert: with `$\gamma$` in the box the
-block holds a `.katex`; with plain prose there is no block at all; what it shows
-before the send is what the transcript shows after it, because it is the same
-renderer; **the words are still on the glass on the frame after the send, and
-still rendered**; a tap on them loads them back into the box and the next send
-revises that answer rather than starting a new one; the prose carries
-`body.dataset.face` and the `.katex` does not; and a bare `\gamma` raises the
-hint rather than silently rendering nothing. `test/markdown.js` and `test/macros.js` own the renderer and
-the macro list either side of it — `test/markdown.js` matters more than it looks,
-because the renderer parks math and code before any markdown parsing and
-restores it afterwards, and every change to it needs a case proving that still
-holds.
-
-### 2. The meeting deck: one at a time, annotated for DIRECTION rather than for correction
+### 1. The meeting deck: one at a time, annotated for DIRECTION rather than for correction
 
 **The want.** *"I have generally two — sometimes three — meetings per week to talk
 about my research… We should somehow be keeping track of our most recent updates
@@ -405,7 +265,7 @@ trap — a mark on a meeting deck produces a direction PROPOSAL on that workspac
 board and does **not** write a feedback file, does not archive anything, and does
 not replace any assistant.
 
-### 3. Three doors, then a family, then a diagram that explains the project
+### 2. Three doors, then a family, then a diagram that explains the project
 
 **The complaint, and it is about all three levels at once.** *"It's just an ugly
 grid of projects in an inner box that has wacky zooming. On the homescreen, I want
@@ -535,9 +395,9 @@ three surfaces, that the top two are not planes, and that `atlas.json`'s blurbs
 reach the glass. `test/walk.py` owns what is walkable, and gains vendor. And
 `test/teaching.py` for the standing rule, in the two places it has to agree.
 
-### 4. A sitting belongs to ONE component, and leaving it is a new sitting
+### 3. A sitting belongs to ONE component, and leaving it is a new sitting
 
-**The want, and it is item 3's other half.** *"When a tutoring session is
+**The want, and it is item 2's other half.** *"When a tutoring session is
 launched, that should happen from tapping on the particular component of that
 project/course/research-project map. There should be TODOs present, each
 corresponding with some component. The tutoring session should be AWARE of what
@@ -602,7 +462,7 @@ retrieval component"* is an instruction to a person holding a tablet, which is t
 same defect as *"two words to add when you write it up."* Every place already has
 an ADDRESS (§2.1) and the board already renders one as something you can open, so
 the card names the box by its address and the tap opens the sitting there. With
-item 3's diagram, the boundary it is pointing at is also visible.
+item 2's diagram, the boundary it is pointing at is also visible.
 
 *Decide: what happens when that box has no TODO.* The want says *"which should
 hopefully have a TODO associated with it"* — hopefully is doing a lot of work
@@ -614,8 +474,8 @@ first card asks. **Proposing it is better and is barely more work**, because the
 discovery is the valuable part and it is lost otherwise.
 
 **(c) And the refactor will move every box, which is the ordering constraint.**
-Item 3 rewrites what a component IS — from a directory to a thing in a diagram —
-and the TODOs are attached by path. So: item 3 first, then this. Doing them the
+Item 2 rewrites what a component IS — from a directory to a thing in a diagram —
+and the TODOs are attached by path. So: item 2 first, then this. Doing them the
 other way round means attaching the plan to boxes that are about to be renamed.
 
 **Check.** `test/map.py` owns *"the map is of the content, and none of it is
@@ -627,7 +487,7 @@ pretending to a focus it has not got. `test/teaching.py` for the rule itself, in
 both places it has to agree. And the hand-off card's address is `test/address.js`'s
 subject: assert the box it names opens.
 
-### 5. A verdict you can feel: dopamine for right, playful frustration for wrong
+### 4. A verdict you can feel: dopamine for right, playful frustration for wrong
 
 **The want.** *"dopamine for the user when they answer correctly, and playful
 frustration when they answer incorrectly. When we're in the context of the user
@@ -661,7 +521,7 @@ holding the working. **It is not painted on the card.** The card takes its band
 from its own KIND instead — so for the not-right-or-wrong reply the answer says
 amber and the card says `--ink-3`, which is grey.
 
-*And this answers a question that has been sitting open.* Item 7 asks whether
+*And this answers a question that has been sitting open.* Item 6 asks whether
 green on the answer and a tick on the card a finger's width apart is the same
 thing said twice. The want above settles it: **the response carries the band.**
 The answer keeps a quieter version of it, and one of the two is the moment while
@@ -727,7 +587,7 @@ grey, and that a `lesson` card which is not replying to anything stays plain.
 `prefers-reduced-motion` on; assert there that the colour and the mark are both
 still on the glass with every animation refused.
 
-### 6. Put colibrì on the diarization repair, which is what all of the above is for
+### 5. Put colibrì on the diarization repair, which is what all of the above is for
 
 It is now the acceptance test of a mission — the record and the ship both — as
 well as the job that has been waiting since before any of this existed. **The
@@ -754,10 +614,19 @@ Three things about running it that are the board's rather than that file's:
 `research/PSYCH-ASR/HANDOFF.md` holds the *teaching* thread on the same code; it
 is a different conversation and the two do not merge.
 
-### 7. And the four things no test can hold
+### 6. And the five things no test can hold
 
 None of these is a build. Each is an evening in front of the thing.
 
+- **The typed half of the panel, in a real sitting.** The build is Settled: a
+  formula renders above the box as it is typed, what was sent stays there
+  rendered, a tap on it corrects that answer, and a `$` is one tap. Three things
+  a suite cannot say. Whether the block arriving under your thumb reads as a help
+  or as a jump — the panel changes height the moment a dollar is typed. Whether
+  the hint nags in a code workspace, where a backslash is usually a path and the
+  block will say so every time. And whether the tap to correct is findable
+  without being told, which is the only part of this nobody can be walked
+  through.
 - **A response typing out, in a real sitting.** The build is Settled, and the
   trace has already caught this wrong once, which is the reason to trust the
   reading rather than the sentence: a card lands above the surface and types
@@ -774,7 +643,7 @@ None of these is a build. Each is an evening in front of the thing.
   *answer 2 of 3* is useful or is a number on a bubble that did not need one —
   the `nth` clause in `render`, and one line to remove. (The other question this
   bullet used to ask — whether green on the answer and a mark on the card is the
-  same thing said twice — is answered in item 5: the response carries the band.)
+  same thing said twice — is answered in item 4: the response carries the band.)
 - **One document, all the way round** — the build is Settled; this is the evening.
   Open a `paper` sitting on a box, let it write into `writeups/<slug>/`, compile
   it, open `/library`, read it on the glass, draw on it, and say something is
@@ -829,6 +698,48 @@ as the answer.
 
 ## Settled, so nobody re-derives it
 
+- **The typed half renders as it is typed, and keeps what it sent where it was
+  typed.** One block above the box — `#said` — doing two jobs that are one job:
+  before a send it PREVIEWS what the transcript will show, after a send it is the
+  RECORD of what was sent, and the box under it opens empty for the next thing.
+  Box and block against slate and board is what makes the two halves of the
+  answer panel symmetrical; sent ink always stayed where it was made and sent
+  words used to leave nothing behind at all.
+  **Nothing renders inside the box and nothing can.** `#saybox` is a textarea,
+  which holds characters and no markup by definition. A `contenteditable` renders
+  in place and costs iOS autocorrect, its undo stack, selection under a thumb,
+  `autosize`, the draft save and the ⌘-Enter send. Do not reach for it.
+  **One renderer, or the block lies.** `renderMarkdown` then `typeset`, the pair
+  a card goes through, and `test/mine.js` asserts that what the block shows and
+  what the transcript shows are character for character the same string. The
+  preview's debounce is 160ms and is deliberately NOT the draft save's 800ms: a
+  save nobody sees can wait, and a preview most of a second behind the keystroke
+  reads as broken rather than as considered.
+  **It opens only when there is something to show** — a dollar, a TeX delimiter
+  or a backslash command in the box, or an answer already sent on this question.
+  A block that is always there doubles the height of the panel for everybody who
+  never types a formula.
+  **A tap on it is how a typed answer is corrected.** `correctSaid` hands the
+  words back to the box and sets `correctingTurn`, so the next send revises that
+  answer rather than landing beside it, and that is the ONLY place the restore
+  runs. While it ran on every paint of the panel the box could never open empty.
+  **`saidNow` is kept locally as well as read off the payload**, because the box
+  empties on the tap and the turn comes back a round trip later: a block that
+  waited for the payload would leave the answer nowhere on the page for exactly
+  the moment somebody is looking at it.
+  **A bare `\gamma` is NAMED, not fixed.** One tap on `$…$` wraps the selection
+  or drops a pair with the caret between them, and a backslash command sitting
+  outside any delimiter raises *\gamma will not render — wrap it in $…$*.
+  Auto-wrapping anything that looks like TeX was refused: `\d+`, `C:\temp` and a
+  shell escape are all backslash commands to a pattern and none of them is
+  mathematics, and this board is used in code workspaces. The hint asks
+  `protect` — the renderer's own first pass — what counts as code, so a regex
+  inside backticks raises nothing.
+  **The block declares no font of its own.** The prose inherits the reading face
+  from the body and KaTeX brings the one it ships, so the words are
+  dyslexic-friendly and the mathematics is untouched by construction rather than
+  by a rule. `test/typed.js` owns the panel and loads the REAL KaTeX to do it —
+  a stub cannot tell a block that was typeset from one handed to nothing.
 - **A card lands ABOVE the writing surface, so a response types out where the
   reader is looking and nothing on the page moves.** `tailAnchor` in `board.js`:
   a node at the end of the lesson goes in front of the surface, never appended
@@ -901,9 +812,9 @@ as the answer.
   does:** `carryOver` has no typed twin and must not be given one — *"there's no
   way I'm going to type the same thing again."* A new box opens empty apart from
   an unsent draft typed against that question, which is kept per question and
-  survives a reload. `restoreTextAnswer` still loads a SENT typed answer back
-  into the box on the question it belongs to, because the box is the only place
-  a correction can be made until item 1 puts the answer in a block above it.
+  survives a reload. A SENT typed answer comes back rendered in the block ABOVE
+  the box rather than into it, and a tap on the block is what hands it back for
+  correction — which is what lets the box open empty on every question.
   `test/half.js` is the suite.
 - **A document is corrected, or overhauled, without leaving the page it is on.**
   Three things used to answer *no* to that and each was a missing piece rather
