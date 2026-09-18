@@ -61,7 +61,7 @@ An item is not done because its code runs. It is done when the suite is green,
 the rule is written where the next turn will read it, and the item is out of this
 file.
 
-**One of them is not a build and does not come out this way.** Item 2 is a list
+**One of them is not a build and does not come out this way.** Item 3 is a list
 of evenings in front of the thing, and only the person holding the iPad can
 strike those.
 
@@ -139,7 +139,7 @@ band, amber included, a run of right answers says how many, and the colour and
 the mark both survive somebody who has asked for less movement. All of that is
 Settled below.**
 Item 1 is the acceptance test of the mission and is also the job all of it
-exists for. Item 2 is not a build.
+exists for. Item 3 is not a build.
 
 ---
 
@@ -153,6 +153,20 @@ ask, the scoring and the numbers to beat are in
 `projects/libr-local-llm/HANDOFF.md`**, in the owner's own
 words; they are not repeated here, because a number in two files is a number
 that goes stale in one of them.
+
+**Everything in front of the dispatch is done, and the dispatch is one tap.**
+The server is warm, `PSYCH-ASR` has nothing attached to it, and the baseline
+reproduces exactly as that file records it — rows 16 and 32 unplaced, 68 of 74
+within 2s, marks 0 → 0, confirmed on 2026-09-18 with
+`apply_corrections --dry-run --anonymise`, which is stdlib-only and sub-second
+and can be run by anybody. So: **⇥ put an assistant to work elsewhere** →
+`PSYCH-ASR` → `colibri`, with the ship switch on, and the ask is the two
+sections of that file named above. A session working from a keyboard cannot do
+this part: the dispatch is refused here as PHI handling, correctly, because
+what it does is point an assistant at a fenced directory, and the iPad is a
+person deciding rather than an assistant acting. **Check the server is still up
+first** — `coli` says, in one line — because a cold one is over an hour and the
+walltime of the one that is up is the mission's ceiling.
 
 Three things about running it that are the board's rather than that file's:
 
@@ -172,7 +186,150 @@ Three things about running it that are the board's rather than that file's:
 `research/PSYCH-ASR/HANDOFF.md` holds the *teaching* thread on the same code; it
 is a different conversation and the two do not merge.
 
-### 2. And the five things no test can hold
+**One thing about that workspace's own contract, which nobody has reconciled.**
+`research/PSYCH-ASR/AI_INSTRUCTIONS.md`, *The exception: a model whose inference
+runs on this hardware*, admits a local model inside the fence only if **all
+three** of its clauses hold, and clause 2 is *no tool-calling surface at all* —
+"which is why the clinical path is a plain Python client rather than a coding
+agent." `coli-code` is a coding agent. What makes it sound in fact is that the
+fresh config directory carries no MCP server, no plugin and no web tool, and the
+compute nodes have no outbound route — so the exfiltration clause 2 names cannot
+happen — but the file does not say that, and a session that reads it before
+running item 1 will read the mission as a violation of the contract it is
+working under. Either that clause gets the sentence that distinguishes *tools
+that can reach a network* from *tools that can reach a filesystem*, or this
+paragraph is wrong and the mission is. It is the owner's call, not a session's.
+
+### 2. A colibrì server that is always up, the way the board's allocation is
+
+**Asked for in these words:** *"Is there any way we could have colibri
+perpetually always loaded? In the same way we perpetually have the tutor always
+going with self-cloning slurm jobs with dependencies on their spawner?"*
+
+**Yes, and the machinery to copy is three files, but the reason to build it is
+not the one it looks like.** The board's chain exists so that an *allocation*
+survives; a generation of it costs 2 CPUs and 8 GB and restarting one is free.
+colibrì's chain would exist so that a *load* survives, and that is a different
+problem: a cold start is **68 minutes**, of which 65 is pinning 406.7 GB off the
+filer at about 104 MB/s — measured on compute301 on 2026-09-18, the box at load
+83 throughout, `[PIN] … -> pinning` at 11:43:31 and `API listening on` at
+12:48:57. Every design decision below follows from that one number.
+
+**What to copy, by name.** All four are the board's and all four transfer:
+
+- `board/slurm/tutor-serve.sbatch` — the generation script. Its one load-bearing
+  rule is the order: **the successor is queued first**, before the code is caught
+  up and before anything else that can fail, so a generation that dies in its
+  first second still leaves a machine queued behind it.
+- `serve_inside` in `board/bin/tutor` — the body of a generation, and the
+  numbered comment at the top of it is the spec.
+- `ensure_successor` in the same file, with `supervise.successor_of` — idempotent,
+  and it asks **Slurm** rather than a file, because a file cannot know that a
+  submission was refused. It matches on the dependency string `%E` reads
+  (`afterany:<id>(unfulfilled)`), which is what stops a requeued generation
+  submitting a second successor.
+- `supervise.submit`, `supervise.STOP` (`<state>/serve-stopped`), `stopped()`,
+  `mark_stopped()`, `clear_stopped()`, `chain_record()`, `note_generation()` —
+  the sbatch line and the only thing that ends a chain: something that meant to.
+  `afterany` and never `afterok`, because a generation that crashed is when the
+  next one is most needed.
+
+**Five things are different about colibrì, and each one changes the build.**
+
+1. **MEASURE THIS BEFORE WRITING ANYTHING, BECAUSE IT DECIDES WHETHER THE ITEM
+   IS WORTH BUILDING.** A hop pays those 68 minutes again unless the successor
+   lands on the node whose page cache already holds the checkpoint. So the
+   successor is submitted with `--nodelist=$SLURMD_NODENAME` rather than left to
+   the scheduler — and the question nobody has answered is whether that helps at
+   all, because cgroup v2 uncharges a dying job's page cache and may reclaim it
+   with the cgroup. **The experiment is two runs and twenty minutes of
+   attention:** `coli-up`, wait for `API listening on`, `coli-down`, then
+   `coli-up` again immediately on the same node, and read the gap between the
+   `[PIN] … -> pinning` line and `API listening on` in
+   `slurm_jobs/logs/colibri_serve_err.txt` for each. If the second is minutes,
+   build the item. If it is an hour again, **the chain buys only "a server
+   exists" and the honest answer to the ask is no** — write that in this file and
+   take the item out. Do not build it on the assumption; the whole value is in
+   that one measurement.
+   And pin the fallback in: a `--nodelist` successor pends forever if that node
+   goes down, so after N minutes of `(Resources)` the generation submits a
+   second successor with no nodelist and takes the cold pin.
+2. **THE CONVERSATION ALREADY SURVIVES A HOP, AND NOBODY HAS TO BUILD IT.**
+   `vendor/colibri-build/c/kv_persist.h` is on-disk KV persistence:
+   `<checkpoint>/.coli_kv` is append-only, one record per position, written at
+   the end of every turn with `nrec` last so a crash mid-append leaves a
+   coherent file, and `serve_ctx_init` loads it at startup. It is **on by
+   default** (`KVSAVE=0` disables it) and the file is there —
+   866 MB in `models/colibri/glm52_i4/`, last written 2026-09-16. Slot 0 is
+   `.coli_kv` and slot N is `.coli_kv.N`. So the 15,900-token preamble is not
+   re-prefilled after a hop, which is the difference between a chain that is
+   worth having and one that only moves the cost around. What it does not carry
+   is the turn in flight at the hop, and it is discarded wholesale if the KV
+   format tier changes — the magic is checked and the file rewritten.
+3. **A MISSION STILL DIES AT THE HOP, AND THAT IS TO BE DECIDED RATHER THAN
+   DISCOVERED.** `coli-code` steps into the serve job's allocation with `srun
+   --overlap`, so the client is a *step of that job*: when the generation ends,
+   the agent ends with it, mid-turn. A chain replaces the server, not the
+   client. Two routes, and the second is the default until somebody chooses the
+   first: teach the mission machinery to restart the client after a hop —
+   `coli-code -c` continues the session and the `.coli_kv` above makes the
+   continuation cheap — or leave `colibri.status()["left"]` meaning the current
+   hop, which is what `missions.py` already stamps as the ceiling, and let a
+   mission that crosses a hop read as failed. **Do not quietly widen `left` to
+   the chain.** A record saying a mission is still running while its client is
+   dead is exactly the false fact `missions.holder` was added to stop.
+4. **THE COST IS SOMEBODY ELSE'S NODE, AND THERE IS NO "ONE LONG JOB" ANSWER.**
+   80 CPUs and 800 GB of a six-node partition, held indefinitely, against the
+   board's 2 and 8 GB. `c3` has the 7-day walltime that would make a chain
+   unnecessary and it is refused on measurement rather than taste: `c3_short`
+   sits at `PriorityTier=20` against `c3`'s `10` with `PreemptMode=SUSPEND`, so
+   a `c3_short` job `SIGSTOP`s a server in `c3` on the same node — four seconds
+   after submission, measured, with `Reason=None` and `PreemptTime=None`
+   throughout and the client left waiting on a frozen generation with no error
+   (`projects/libr-local-llm/P0-STATUS.md`, test 10). So the chain is `c3_short`
+   and it hops every nine hours.
+   Which makes an idle rule part of this build rather than a nicety: **the chain
+   should stand down when nothing has asked colibrì anything for N hours**, and
+   the signal needs nothing new — the gateway writes one access line per request
+   with `COLI_DEBUG` unset, so the mtime of the last one is the answer. N is the
+   owner's number and *never stand down* is a legitimate answer.
+5. **A COLIBRÌ GENERATION NEEDS ALMOST NONE OF `serve_inside`.** There are no
+   boards to repair and no lessons to carry, so the body is: queue the successor,
+   load, warm, then sleep until the walltime, re-checking the chain every
+   `SUCCESSOR_EVERY` (300 s) because a submission can be refused and a chain
+   that has quietly stopped being one is the failure nobody sees for a week. It
+   needs no `--signal` handover either — the KV is flushed per turn and there is
+   nothing else in memory worth saving — though a `B:USR1@300` that logs *this
+   generation is going in five minutes* is what would let the glass say so.
+
+**Where the code goes, and two traps that will otherwise cost a day.**
+
+- `projects/libr-local-llm/slurm_jobs/colibri_serve.sbatch` gets the successor
+  submission — **after** the `COLI_DEBUG` refusal, which is enforcement and must
+  stay unskippable, and before `coli_load_modules`. The script `exec`s the
+  server as the batch shell, so there is no loop to put it in later.
+- `scripts/colibri-env.sh` derives every path and default once and is where the
+  stop-file path and the chain's job name belong. Nothing else may spell them.
+- **`coli-up` becomes a liar the moment a chain exists.** It refuses to submit
+  when any `colibri_serve` job is `RUNNING,PENDING`, which under a chain is
+  always — so its message has to become *the chain is up, connect with
+  `coli-code`* rather than *use `coli-down` first*.
+- **`coli-down` on a chained server looks like it did nothing.** Cancelling the
+  incumbent is what starts the successor. So it has to write the stop file and
+  then cancel, which is what `tutor serve stop` means by "the flag AND the
+  cancel", and it must cancel the queued generation too.
+- **The successor's port probe must retry rather than refuse.** The sbatch exits
+  1 when something already holds `COLI_PORT`, which is right for a hand
+  submission and wrong for a successor landing on the incumbent's node while the
+  old process is still being killed. Sixty seconds of retry, then refuse.
+- `board/tutorboard/colibri.py` reads `squeue` and the log's two sentinels and
+  has four states; a chain adds one fact worth painting — *a successor is
+  queued*, which is what makes "the server goes away in twenty minutes" sayable.
+  `board/test/colibri.py` is the suite. The cluster half of it is an evening, not
+  a suite: bring the chain up, `scancel` the incumbent by hand, and time the
+  successor's pin.
+
+### 3. And the five things no test can hold
 
 None of these is a build. Each is an evening in front of the thing.
 
@@ -911,6 +1068,19 @@ as the answer.
   that has — and a running or failed mission marks its atlas box bottom right,
   so the answer badge and this can sit on one box. `ship` is written and
   honoured when it finishes, which is the entry below.
+  **And a mission names the assistant that is actually doing it.** `agent start`
+  returns 0 where one is already attached — correctly, because a start that
+  found its work already done did not fail — so a dispatch naming `colibri`
+  into a workspace a hosted tutor is listening in wrote the task to that tutor
+  and stamped the record `colibri`, with a ceiling read off a serve job the
+  worker was not running in. Two things that read as facts and were not, and in
+  the one case this route exists for it is the fenced directory's job handed
+  quietly to an assistant that may not read it. `missions.holder` is who is
+  attached over there right now, and `/elsewhere` refuses when an assistant was
+  named and a different one holds the workspace — in the grammar of the other
+  two refusals, which is who is holding it and the one command that frees it.
+  **Naming nobody is still whoever is there**, because that is what a dispatch
+  that names nobody asks for. `test/elsewhere.py`.
 
 - **The allocation renews itself, and a loop inside it puts back what dies.**
   Two failures had no answer here. A process died — `serve.py` on an exception,

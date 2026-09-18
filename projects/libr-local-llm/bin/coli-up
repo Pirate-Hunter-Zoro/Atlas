@@ -114,8 +114,13 @@ case "$ALLOC" in
     *) echo "Job ${JOB_ID} has no GPU reservation: ${ALLOC}" >&2; exit 1 ;;
 esac
 
-# The cold load reads 429 GB off the filer. It took 101 s on a cold page cache
-# and 48 s warm, so a long wait here is the disk, not a hang.
+# The cold load reads the pin off the filer, and on a node whose page cache
+# holds none of it that is OVER AN HOUR rather than minutes: 406.7 GB took 65
+# minutes on compute301 on 2026-09-18, about 104 MB/s, with the box at load 83
+# throughout and 68 minutes from submission to the warm-up's own answer.
+# A wait here is the disk, not a hang, and the budget below is sized for the
+# slow case because the alternative is a driver that declares a healthy server
+# dead and sends somebody to read a log that says nothing is wrong.
 #
 # Watch the gateway's OWN line, not the port. The port is bound before the model
 # is loaded -- the HTTP server is constructed first on purpose, so a bad argument
@@ -123,7 +128,7 @@ esac
 # instantly and says nothing about whether anything can generate.
 echo -n "Loading 429 GB"
 LISTENING=""
-for _ in $(seq 1 900); do
+for _ in $(seq 1 3600); do
     if grep -q 'API listening on' "$ERR_LOG" 2>/dev/null; then LISTENING=1; break; fi
     if grep -q 'COLIBRI-SERVE FAILED' "$OUT_LOG" 2>/dev/null; then
         echo; grep 'COLIBRI-SERVE FAILED' "$OUT_LOG" >&2; exit 1
@@ -137,8 +142,10 @@ done
 echo
 
 if [ -z "$LISTENING" ]; then
-    echo "Job ${JOB_ID} is running on ${NODE} but the engine never loaded." >&2
-    echo "Check ${ERR_LOG}" >&2
+    echo "Job ${JOB_ID} has been loading on ${NODE} for two hours, which is past" >&2
+    echo "even a cold pin. The job is still running and this wait is not: the" >&2
+    echo "last line of ${ERR_LOG} says which stage it is in, and a [PIN] line" >&2
+    echo "with nothing after it is a filer read that has not finished." >&2
     exit 1
 fi
 
