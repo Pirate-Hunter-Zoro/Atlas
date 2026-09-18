@@ -33,7 +33,7 @@ design" below.
 | 4b | OpenMP thread sweep *(added)* | **PASS** — the allocation's count wins, not the physical one |
 | 5 | `CUDA_DENSE` A/B | **PASS on re-run** — it is not a lever |
 | 6 | one A40 vs four | **PASS** — four cards are worth 0.9 % |
-| 7 | `XEXP` / NUMA / MTP / `DRAFT` | **PASS** — interleave wins, everything else loses |
+| 7 | `XEXP` / NUMA / MTP / `DRAFT` | **PARTIAL** — interleave wins; the MTP arm never tested what it named, see finding 21 |
 | 8 | vLLM TP shapes | not started — needs the large helper (73.1 GB) downloaded |
 | 8b, 9 | tier 1 under 1–8 concurrent users | **PASS** — see above |
 | 10 | `c3` preemption | **CONFIRMED in 4 s** |
@@ -275,9 +275,8 @@ rather than starting an engine per task.
 
 Two consequences for anything built on this. **A drive that resets the conversation resets the
 bill** — a fresh session per task is right advice for tier 1 and expensive advice here. And **a
-second concurrent client evicts the first client's prefix**, because the server runs one KV slot;
-the engine supports 16 and `COLI_KV_SLOTS` is wired through, but nobody has measured what a slot
-costs at a 131072 window.
+second concurrent client evicts the first client's prefix**, because the server runs one KV slot.
+What a second slot costs, and why it stays at one, is finding 22.
 
 **The coding agent's preamble, priced exactly.** Claude Code's first request was captured against a
 stub endpoint that answers instantly, rather than discovered by waiting for the real one:
@@ -404,6 +403,95 @@ are not starting from an unlearned router, which is one more reason §10's snaps
 the harness at `fleet-p0/coli_ab.sh` saves it, sleeps 35 s for VRAM to drain, restores it
 byte-for-byte, then measures.
 
+### 21. Speculation is OFF on the served configuration, and `[MTP] active` does not mean it is on
+
+(Added 2026-09-18. Read out of the engine source and the serve job's own log; no GPU hour spent.)
+
+The runbook said the engine turns native speculative decoding on by itself and that what P0 measured
+was setting `MTP=1` on top of that. **Both halves are wrong**, and the line that misled everybody is
+`colibri.c:11198`:
+
+```
+[MTP] active: native speculative decoding (draft=0)
+```
+
+`active` is chosen by `m.has_mtp` — whether the CHECKPOINT carries an MTP head. Ours is the
+`-with-int8-mtp` container, so that word is printed on every start whatever happens next. **`draft=`
+is the half that says whether anything is drafted**, and at 0 nothing is: `g_spec_live = (g_draft>0)`
+and every drafting branch is gated on the same test.
+
+Two independent layers both hold it at 0 on the configuration the serve job runs:
+
+- **The engine's own CUDA default.** `g_draft` is `-1` when `DRAFT` is unset, and the auto
+  resolution is `g_draft = (m.has_mtp && (!g_cuda_enabled || cuda_mtp)) ? 1 : 0`. We pass `--gpu
+  auto`, so CUDA is enabled and the answer is 0 unless `COLI_CUDA_MTP=1` is exported. The reason is
+  named upstream (#163): cold experts run on the CPU, where the S==1 fused-pair kernel and the S>=2
+  IDOT kernel diverge in FP accumulation order, and draft acceptance collapses.
+- **`--auto-tier`.** `resource_plan._auto_tune` exports `DRAFT=0` for a compute-bound plan, which
+  `coli plan` says this is in one line — `limit  CPU expert tail and GPU compute`.
+
+**`MTP=1` is not a lever and never was.** `MTP` is read in exactly one place, `colibri.c:2406`, and
+only `MTP=0` does anything — it strips the head. So the `t7_mtp` configuration in the P0 campaign
+measured the baseline a second time: 2.72 tok/s against `t7_base`'s 2.88, which is run-to-run spread.
+
+**And `DRAFT=2`/`DRAFT=4` were measured against speculation ON, not off.** `coli_ab.sh` runs `coli
+run` with no `--gpu`, so `g_cuda_enabled` is false and the auto path gives `draft=1`. Every
+`[MTP]` banner in the campaign's logs confirms the split: 25 runs at `draft=1` (every CPU-only
+configuration), 12 at `draft=0` (every one with CUDA on), one each at 2 and 4. So P0's −11 % and
+−19 % are **depth 2 and depth 4 against depth 1**, which is what the engine's own sweep already
+predicts — the comment at `colibri.c:11169` reports ~85 % acceptance at depth 1 against ~44–62 % at
+2–3, and calls depth 1 the fastest MTP setting in every configuration it measured. §3.3's conclusion
+that "speculation fails on this workload" does not follow from those two numbers.
+
+**Nothing on disk isolates MTP, and that is structural rather than an oversight**: the variable is
+perfectly confounded with CUDA across the whole campaign, because the engine ties them together.
+Every `draft=1` run is CPU-only and every `draft=0` run has the card.
+
+**The A/B that is actually open**, and it is one job on one node under §10's snapshot protocol:
+`coli run --gpu 0 --auto-tier --ctx 131072` with `CUDA_DENSE=0` and `COLI_CUDA_MTP=1` against the
+same thing with it unset, alternated three times. **The depth to test is 1**, which no P0 run tried.
+It is worth the hour because the engine's CUDA default is written for a host where "the cold subset
+always exists on a single 16 GB card" — and this box plans 100 % expert residency with 45.4 GB of
+hot experts in VRAM, which is the one condition under which that divergence mostly does not arise.
+
+### 22. A KV slot costs 23.9 GB at a 131072 window, and the refusal stays anyway
+
+(Added 2026-09-18. Computed from the planner's own geometry for this checkpoint, cross-checked
+against a real serve job's log; no GPU hour spent.)
+
+`resource_plan.build_plan` prices slots linearly — `kv_bytes = (context_state_bytes +
+fixed_state_bytes) * kv_slots` — and for `glm` at this checkpoint:
+
+| context | per-slot KV | runtime reservation at 1 slot | at 2 |
+|---:|---:|---:|---:|
+| 4,096 | 0.75 GB | 7.3 GB | 8.1 GB |
+| 32,768 | 5.96 GB | 15.8 GB | 21.8 GB |
+| 65,536 | 11.93 GB | 25.6 GB | 37.6 GB |
+| **131,072** | **23.86 GB** | **45.0 GB** | **68.9 GB** |
+
+The 45.0 GB column reproduces finding 17's measured `coli plan` figures exactly, which is what makes
+the second column trustworthy.
+
+**It fits, and it comes straight out of expert residency.** From the serve job's own log at 950 GB:
+`[PIN] … max_pin 431.6 GB -> pinning 424.5 GB` and `[RAM_GB=905.3] … projected peak 856.6 GB`. There
+is 7.1 GB of pin headroom, not 23.9, so a second slot drops `max_pin` below what the plan wants to
+pin and roughly 17 GB of experts stop being resident — off 100 %, onto the filer, at 0.64 tok/s a
+token for whatever faults.
+
+**And a second slot turns speculation off machine-wide**, if finding 21's A/B ever turns it on:
+`mux_will_disable_mtp` is `SERVE && SERVE_BATCH && KV_SLOTS>1`, because drafting is not ragged-safe
+across slots. (FLEET-BUILD §3.3 states this the wrong way round — it says `KV_SLOTS=1` and MTP are
+*mutually exclusive*, when `KV_SLOTS=1` is the case that KEEPS MTP. Its next sentence gets it right.)
+
+**And the throughput half was already measured, by colibrì, under full residency**: aggregate
+saturates at ~8.3 tok/s by four sessions — *below* that host's own single-stream baseline — while
+per-session falls 4.84 → 3.16 → 2.04 → 1.04 at 1/2/4/8. The union arithmetic in §3.3 says why, and
+it is a property of top-8-of-256 routing rather than of that host.
+
+**So the machine-wide refusal in the `colibri` recipe stays**, and now for a written reason. Two
+sittings at once would each run slower than one, both would lose the pin margin, and both would lose
+speculation. `exclusive` is not a placeholder waiting on a measurement any more; it is the answer.
+
 ---
 
 ## The next three things, in order
@@ -420,5 +508,5 @@ byte-for-byte, then measures.
    A second, larger vLLM helper may be solving a problem P0 just dissolved.
 
 **One cleanup for the user, not urgent:** `rm -rf ~/.local/lib/python3.12` recovers 8.7 GB of the
-accidental pip install described in finding 7, on a home share that is 86 % full. Nothing depends on
-it. Leave `~/.local/bin` alone.
+accidental pip install described in finding 7. Nothing depends on it. Leave `~/.local/bin` alone.
+The share is at 57 % as of 2026-09-18, so this is tidiness rather than pressure.

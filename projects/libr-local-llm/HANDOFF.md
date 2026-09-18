@@ -5,17 +5,16 @@ been run is the job it exists for.**
 
 `coli-up`, `coli-code`, `coli-ask`, `coli-down` and `coli-build` exist, are on `PATH`, and serve
 GLM-5.2 int4 to a coding agent in any directory. README §4c is the architecture and is the file to
-read before touching any of it; `P0-STATUS.md` findings 16–20 are the measurements.
+read before touching any of it; `P0-STATUS.md` findings 16–22 are the measurements.
 
 **One thing is left in this file, and it is the whole point: put colibrì on the diarization
 repair.** It is below, in the owner's own words, with the scoring already decided. Everything under
 *Settled* is machinery that now exists to make it one tap.
 
-**Three things the BOARD still owes this job, and they are `../../HANDOFF.md` items 2, 3 and 4.** A
-mission dispatched from the iPad is not yet a record that outlives the iPad, nothing says whether
-one is still running, and nothing can be told to ship its changes when it finishes. Two facts from
-this project decide how that gets built, so they are written here rather than left to be
-rediscovered:
+**The board owes this job nothing further** — a mission dispatched from the iPad is a record that
+outlives it, says whether it is still running, and can be told to ship when it finishes; all of it
+is under *Settled* in `../../HANDOFF.md`. Two facts from this project decided how that got built,
+and they still govern running it:
 
 - **A colibrì turn runs inside the SERVE JOB'S allocation.** `coli-code` steps into it with `srun
   --overlap` rather than ssh, because the endpoint is loopback-only on the serving node. So a
@@ -32,7 +31,7 @@ rediscovered:
 
 - `README.md` §4c — what exists and why each flag is there. Traps 27–32 are the failures already
   paid for, and every one of them cost a run.
-- `P0-STATUS.md` findings 16–20 — the measured rates. **Finding 20 governs the whole design**,
+- `P0-STATUS.md` findings 16–22 — the measured rates. **Finding 20 governs the whole design**,
   because it is the reason none of this can be request-shaped.
 - `../../board/README.md`, *Any agent, not just one* — the five layers that resolve which
   assistant tutors a sitting, and the three things about the `colibri` row that are unlike the
@@ -90,25 +89,22 @@ expensive.
 
 ---
 
-## Decisions still to take, before writing rather than during
+## One decision still to take, before writing rather than during
 
-**`MTP`.** The engine turns native speculative decoding on by itself, and what P0 measured as a
-loss was setting `MTP=1` explicitly on top of that. Which of the two states it measured is not
-recoverable from the result. One A/B on a warm server, in one job on one node.
-`fleet-p0/prefill_probe.py` is the instrument. **Do not quote a tier-2 tok/s figure again until it
-is settled.**
-
-**KV slots.** One today, and the machine-wide refusal is written against that. The engine supports
-16 and `COLI_KV_SLOTS` is wired through the serve job, but nobody has measured what a slot costs at
-a 131072 window. If it is cheap, the refusal becomes a queue and two sittings can run at once —
-one line comes out of the `colibri` recipe in `board/bin/tutor` and nothing else changes. Measure
-before designing for it.
+**`MTP`, and the question is not the one this file used to ask.** Speculation is OFF on the served
+configuration — twice over, by the engine's CUDA default and by `--auto-tier` — and the log line
+`[MTP] active … (draft=0)` says `active` about the CHECKPOINT rather than about the run. `MTP=1` is
+not a lever; `COLI_CUDA_MTP=1` is, and the depth to test is **1**, which no P0 run tried. The full
+derivation, what P0's `DRAFT=2`/`DRAFT=4` numbers actually compared, and the exact A/B are
+**P0-STATUS finding 21**. One job on one node under §10's snapshot protocol; `fleet-p0/coli_ab.sh`
+is the harness. **Do not quote a tier-2 tok/s figure again until it is settled.**
 
 ## One thing left over
 
-`rm -rf ~/.local/lib/python3.12` recovers **8.7 GB** on a home share that is 86 % full. It is an
-accidental pip install and nothing depends on it; the sandbox refused the recursive delete.
-`~/.local/lib/python3.{9,11,13}` and `~/.local/bin` are unrelated — leave them.
+`rm -rf ~/.local/lib/python3.12` recovers **8.7 GB**. It is an accidental pip install and nothing
+depends on it; the sandbox refused the recursive delete. `~/.local/lib/python3.{9,11,13}` and
+`~/.local/bin` are unrelated — leave them. The share is at 57 % as of 2026-09-18, so it is tidiness
+rather than pressure.
 
 ---
 
@@ -159,6 +155,15 @@ single exception, so a card there is never tracked; `courses/Galois-Theory/live/
 pushed history. Same feature, two workspaces, and in one of them it would push the local model's
 output to a remote where nothing can audit what it quoted. `git check-ignore` decides, per
 workspace, at the moment of starting.
+
+**A KV SLOT COSTS 23.9 GB AT A 131072 WINDOW, AND THE REFUSAL STAYS.** This file asked for the
+measurement so that `exclusive` could come out of the `colibri` recipe and two sittings could run at
+once. The measurement is in — **P0-STATUS finding 22** — and it says the opposite. A second slot
+fits in RAM but takes the whole pin margin, so roughly 17 GB of experts stop being resident; it
+turns speculation off machine-wide, because drafting is not ragged-safe across slots; and colibrì's
+own full-residency run already shows two sessions at 3.16 tok/s each against 4.84 for one, with
+aggregate saturating *below* the single-stream ceiling by four. **`exclusive` is not a placeholder
+waiting on a number any more. It is the answer**, and the line stays in.
 
 **And the four board defects reported from that Galois sitting are fixed.** The write-up phrasing
 rule, the pulse that stopped before the answer arrived, the typed answer that raised no pulse at

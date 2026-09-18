@@ -310,8 +310,8 @@ loss around 85 % expert hit"* is this arithmetic biting.
 > your way to a fast frontier model here.** Multi-user speed has to come from a *different model*,
 > not a different setting.
 
-There is one exception worth keeping: **`KV_SLOTS=1` and MTP speculation are mutually exclusive in
-the engine** — *"MTP/n-gram speculation is not ragged-safe across KV slots, so multi-slot serve
+There is one exception worth keeping: **MULTI-SLOT serve and MTP speculation are mutually exclusive
+in the engine, so `KV_SLOTS=1` is the case that KEEPS speculation** — *"MTP/n-gram speculation is not ragged-safe across KV slots, so multi-slot serve
 keeps one scheduler owning every forward (`g_draft=0`)"*. Since we are not batching tier 2 anyway,
 run it at `KV_SLOTS=1` and take the speculation. Grammar-forced drafts stay safe at any slot count.
 

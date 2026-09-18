@@ -584,11 +584,15 @@ because it never served:
 - **`numactl --interleave=all`.** `coli tune`'s candidate set is thread counts and CUDA stream
   shapes; it cannot propose memory placement, so it cannot find this and does not know it is
   missing. `coli doctor` recommends `COLI_NUMA=1` instead, and that is measurably behind.
-- **`XEXP`, `DRAFT` and `CUDA_DENSE` all unset**, each a measured loss. `MTP` is left alone
-  rather than set either way: the engine turns native speculative decoding on by itself at
-  `draft=1` and says so in the log, and what P0 measured was setting it explicitly on top of
-  that. Which of the two states it measured is not recoverable from the result, so the job
-  takes the engine's default and the question stays open in `P0-STATUS.md`.
+- **`XEXP` and `CUDA_DENSE` unset**, each a measured loss. **`DRAFT` unset means speculation is
+  OFF here, and the log's `[MTP] active` line does not say otherwise.** `active` is chosen by
+  whether the CHECKPOINT carries an MTP head — ours is the `-with-int8-mtp` container, so it is
+  printed always — and `draft=` is the half that says whether anything is drafted. Under CUDA the
+  engine resolves the auto depth to 0 unless `COLI_CUDA_MTP=1` is in the environment, and
+  `--auto-tier` exports `DRAFT=0` again on a compute-bound plan. So this job serves with
+  speculation off, deliberately at both layers, and `MTP=1` is not the lever that changes it:
+  `MTP` is read in one place and only `MTP=0` does anything, which strips the head. The open
+  question and the A/B that answers it are P0-STATUS finding 21.
 - **`PYTHONNOUSERSITE=1`**, because `os.access` lies on this filer and pip installs 8.7 GB into
   `~/.local` that then shadows the environment at import time.
 - **`TMPDIR` on the studies share.** `/tmp` is a node-local RAM tmpfs, so `coli`'s serve pidfile
