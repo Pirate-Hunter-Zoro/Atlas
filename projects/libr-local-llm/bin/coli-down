@@ -1,21 +1,45 @@
 #!/bin/bash
-# Cancel the colibri server job. It holds most of a 1 TB node -- do not leave it
-# up after you are done.
+# End the colibri chain. It holds most of a 1 TB node -- do not leave it up after
+# you are done.
 #
 #   coli-down
+#
+# THE FLAG AND THE CANCEL, IN THAT ORDER, AND THE ORDER IS THE WHOLE OF IT. A
+# running generation submits its own successor, so cancelling one on its own is
+# how you replace a server rather than stop it: the chain reads the cancel as a
+# node failure and does exactly what it was built to do. The flag is what says
+# somebody meant it.
 set -euo pipefail
 
 _self="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd -P)"
 . "$(dirname "$_self")/scripts/colibri-env.sh"
 
-FOUND=0
-# -n matches the job name exactly.
-for JOB_ID in $(squeue -u "$USER" -n "$COLI_JOB_NAME" -t RUNNING,PENDING -h -o '%i'); do
-    NODE="$(squeue -j "$JOB_ID" -h -o '%N')"
-    scancel "$JOB_ID"
-    echo "Cancelled ${COLI_JOB_NAME} job ${JOB_ID} (${NODE:-unallocated})"
-    FOUND=1
-done
+coli_mark_stopped "coli-down"
 
-[ "$FOUND" -eq 0 ] && echo "No colibri server jobs to cancel."
+sweep() {
+    local found=0 job node
+    for job in $(coli_jobs | awk '{ print $1 }'); do
+        node="$(squeue -j "$job" -h -o '%N' 2>/dev/null || true)"
+        scancel "$job" 2>/dev/null || true
+        echo "Cancelled ${COLI_JOB_NAME} job ${job} (${node:-unallocated})"
+        found=1
+    done
+    return $(( 1 - found ))
+}
+
+FOUND=0
+sweep && FOUND=1
+
+# A SECOND SWEEP, BECAUSE A GENERATION CAN QUEUE ITS SUCCESSOR IN THE GAP. The
+# first sweep reads the queue and then cancels, and a chain watcher submitting in
+# between leaves a successor nothing has cancelled -- which is a server that comes
+# back an hour after somebody asked for it to go. The flag above means the new
+# generation will stand down on its own, but only after it has pinned 406 GB.
+sleep 2
+sweep && FOUND=1
+
+if [ "$FOUND" -eq 0 ]; then
+    echo "No colibri server jobs to cancel."
+fi
+echo "The chain is stopped. 'coli-up' starts it again."
 exit 0

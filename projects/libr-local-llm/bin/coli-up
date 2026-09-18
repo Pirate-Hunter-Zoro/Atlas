@@ -2,10 +2,17 @@
 # Bring GLM-5.2 up on a compute node behind an HTTP gateway, and wait until it is
 # actually warm. Run from anywhere, including the login node.
 #
-#   coli-up                  # 88 CPUs, 950 GB, 8 h
+#   coli-up                  # 88 CPUs, 950 GB, 9 h, and it renews itself
 #   coli-up -t 4             # 4-hour walltime
 #   coli-up -c 60 -M 600     # smaller ask, schedules sooner, slower expert tail
 #   coli-up --no-warm        # return as soon as it listens, do not warm first
+#   coli-up --once           # one generation and no chain: it ends at its walltime
+#
+# BY DEFAULT THIS STARTS A CHAIN RATHER THAN A JOB. Two hours before its walltime
+# the running generation submits the next one, waits for it to finish pinning
+# 406.7 GB on another node, and only then gives its own node back -- so the server
+# is up from here until `coli-down`, and it changes node roughly every seven hours
+# without a gap. `--once` is the old behaviour.
 #
 # Exits 0 only when the model has answered a request. "Listening" is not "ready"
 # on this engine and the difference is a factor of four -- see below.
@@ -22,6 +29,7 @@ while [ $# -gt 0 ]; do
         -M|--mem)   COLI_MEM_GB="$2"; shift 2 ;;
         -p|--port)  COLI_PORT="$2"; shift 2 ;;
         --no-warm)  WARM=""; shift ;;
+        --once)     COLI_CHAIN=0; shift ;;
         -h|--help)   awk 'NR>1 && /^#/ { sub(/^# ?/, ""); print; next } NR>1 { exit }' "$0"; exit 0 ;;
         *) echo "coli-up: unknown argument '$1'" >&2; exit 2 ;;
     esac
@@ -45,38 +53,41 @@ if [ "$COLI_CPUS" -gt 92 ] 2>/dev/null; then
     exit 2
 fi
 
-OUT_LOG="$COLI_LOG_DIR/colibri_serve_out.txt"
-ERR_LOG="$COLI_LOG_DIR/colibri_serve_err.txt"
-
-EXISTING="$(squeue -u "$USER" -n "$COLI_JOB_NAME" -t RUNNING,PENDING -h -o '%i' | head -1)"
+# THE REFUSAL HAD TO CHANGE THE MOMENT A CHAIN EXISTED. Under a chain there is
+# ALWAYS a generation submitted -- that is what a chain is -- so "use coli-down
+# first" would be the answer to every invocation for ever, and it is advice to
+# tear down the thing the person is asking for.
+EXISTING="$(coli_jobs | awk '$2 == "RUNNING" { print $1; exit }')"
+[ -n "$EXISTING" ] || EXISTING="$(coli_jobs | awk 'NR == 1 { print $1 }')"
 if [ -n "$EXISTING" ]; then
-    echo "A ${COLI_JOB_NAME} job is already submitted: ${EXISTING}" >&2
-    echo "Use 'coli-down' first if you want a fresh one, or 'coli-code' to connect." >&2
+    if coli_chain_stopped; then
+        echo "The chain was stopped and job ${EXISTING} is still winding down." >&2
+        echo "Wait for it to go, then run coli-up again." >&2
+    else
+        echo "The server is already up as job ${EXISTING} on $(squeue -j "$EXISTING" -h -o '%N' 2>/dev/null)." >&2
+        echo "It renews itself, so there is nothing to start. Connect with:" >&2
+        echo "    coli-code" >&2
+        echo "Take it down -- and end the chain -- with 'coli-down'." >&2
+    fi
     exit 1
 fi
 
-# Truncate both. The readiness check greps these files for sentinels, and a hit
-# left over from the last job would report a warm server that is not up yet.
-mkdir -p "$COLI_LOG_DIR"
-: > "$OUT_LOG"
-: > "$ERR_LOG"
+# Asking for a server is asking for the chain back.
+coli_clear_stopped
+mkdir -p "$COLI_LOG_DIR" "$COLI_STATE_DIR"
 
-# The SLURM_* scrub matters when this is run from inside another allocation -- a
-# VSCode remote session on a compute node, an interactive srun. sbatch inherits
-# the outer job's SLURM_* variables and they OVERRIDE the #SBATCH directives in
-# the file, so the server would come up with the wrong partition, memory or GPU
-# count and say nothing about it.
-JOB_ID="$(
-    for v in $(env | grep -oE '^SLURM_[A-Z_0-9]+' || true); do unset "$v"; done
-    sbatch --parsable \
-           --chdir="$LLM_REPO" \
-           --cpus-per-task="$COLI_CPUS" \
-           --mem="${COLI_MEM_GB}G" \
-           --time="${COLI_HOURS}:00:00" \
-           --export="ALL,LLM_REPO=${LLM_REPO},COLI_PORT=${COLI_PORT},COLI_MODEL=${COLI_MODEL},COLI_MODEL_ID=${COLI_MODEL_ID}" \
-           "$LLM_REPO/slurm_jobs/colibri_serve.sbatch"
-)"
-echo "Submitted ${COLI_JOB_NAME} as job ${JOB_ID}  (${COLI_CPUS} cpu, ${COLI_MEM_GB} GB, ${COLI_HOURS} h)"
+JOB_ID="$(coli_submit)"
+if [ -z "$JOB_ID" ]; then
+    echo "sbatch refused the submission; nothing is queued." >&2
+    exit 1
+fi
+OUT_LOG="$(coli_log_out "$JOB_ID")"
+ERR_LOG="$(coli_log_err "$JOB_ID")"
+if [ "${COLI_CHAIN:-1}" = "1" ]; then
+    echo "Submitted ${COLI_JOB_NAME} as job ${JOB_ID}  (${COLI_CPUS} cpu, ${COLI_MEM_GB} GB, ${COLI_HOURS} h, renewing)"
+else
+    echo "Submitted ${COLI_JOB_NAME} as job ${JOB_ID}  (${COLI_CPUS} cpu, ${COLI_MEM_GB} GB, ${COLI_HOURS} h, one generation)"
+fi
 
 echo "Waiting for allocation (Ctrl-C is safe -- the job stays queued)"
 ALLOCATED=0
@@ -180,6 +191,11 @@ fi
 echo "Server warm:  job ${JOB_ID}  node ${NODE}  ${ALLOC}"
 echo "  ${READY#COLIBRI-SERVE READY }"
 echo "Endpoint:     127.0.0.1:${COLI_PORT} (loopback on ${NODE} only)"
+if [ "${COLI_CHAIN:-1}" = "1" ]; then
+    echo "Renewing:     the next generation is submitted ${COLI_CHAIN_LEAD_MIN} min before this one"
+    echo "              ends, and this one gives ${NODE} back only once that one has"
+    echo "              finished loading. 'coli' says where it is; 'coli-down' ends it."
+fi
 echo "Connect:      coli-code            # Claude Code, in the current directory"
 echo "              coli-code -a opencode"
 echo "              coli-ask 'question'  # one-shot, no agent preamble"

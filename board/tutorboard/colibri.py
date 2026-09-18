@@ -19,6 +19,15 @@ file goes stale the moment a job ends and `squeue` never does -- the same choice
 per poll and the board polls four times a second, so the answer is cached for
 `TTL` seconds; `machines.held_nodes` is the pattern, not the function.
 
+FOUR STATES AND ONE FACT. The fact is the chain: a generation two hours from its
+walltime submits the next one, which loads 406.7 GB on another node while this one
+goes on answering, and only once that one says `COLIBRI-SERVE LOADED` does this one
+give its node back. So `squeue` lists TWO generations for an hour at a time, and
+the one to report is the one that can ANSWER -- warm beats loading, and between two
+warm ones the one with more walltime left is the one that is not about to hand
+over. The other is reported as a clause on the end of the sentence, because "this
+server goes away in twenty minutes" is not sayable without it.
+
 THE DIFFERENCE BETWEEN `loading` AND `warm` IS WORTH PAINTING and cannot be got
 from Slurm. The gateway binds its port before it loads anything -- deliberately,
 so a bad argument fails in milliseconds rather than after 429 GB -- so a TCP
@@ -43,6 +52,7 @@ from . import atlas
 JOB_NAME = os.environ.get("COLI_JOB_NAME") or "colibri_serve"
 WORKSPACE = "libr-local-llm"
 LISTENING = "API listening on"
+LOADED = "COLIBRI-SERVE LOADED"
 READY = "COLIBRI-SERVE READY"
 FAILED = "COLIBRI-SERVE FAILED"
 
@@ -127,88 +137,140 @@ def time_left(said):
     return days * 86400 + secs
 
 
-def _job():
-    """The serve job as Slurm sees it: id, state, node, reason, time left. Or None.
+def _jobs():
+    """Every generation of the chain Slurm knows about: id, state, node, reason, left.
 
     THE TIME LEFT IS WHY THIS ASKS FOR MORE THAN IT PAINTS. A colibrì turn runs
     inside this allocation -- `coli-code` steps into it with `srun --overlap` --
     so a job set going on the local model cannot outlive the walltime here, and
     nothing anywhere used to say what that was. `missions.py` stamps it on a
-    mission at dispatch.
+    mission at dispatch, and under a chain it is the ceiling of THIS generation
+    rather than of the chain: the server comes back on another node, the client
+    does not.
     """
     out = _run(["squeue", "-u", os.environ.get("USER", ""), "-n", JOB_NAME,
                 "-h", "-o", "%i|%T|%N|%r|%L"])
     if not out:
-        return None
+        return []
+    rows = []
     for line in out.splitlines():
         parts = line.strip().split("|")
         if len(parts) < 2 or not parts[0]:
             continue
-        job = {"id": parts[0].strip(), "state": parts[1].strip().upper(),
-               "node": (parts[2].strip() if len(parts) > 2 else ""),
-               "reason": (parts[3].strip() if len(parts) > 3 else ""),
-               "left": time_left(parts[4] if len(parts) > 4 else "")}
-        # A RUNNING job wins over a pending one: the queue can hold both while
-        # one is being replaced, and the one that can answer is the answer.
-        if job["state"] == "RUNNING":
-            return job
-        if job["state"] in ("PENDING", "CONFIGURING"):
-            return job
-    return None
+        rows.append({"id": parts[0].strip(), "state": parts[1].strip().upper(),
+                     "node": (parts[2].strip() if len(parts) > 2 else ""),
+                     "reason": (parts[3].strip() if len(parts) > 3 else ""),
+                     "left": time_left(parts[4] if len(parts) > 4 else "")})
+    return rows
 
 
-def _tail(name, needle, limit=200000):
+def _serving(rows):
+    """Which generation to report, and which one is queued behind it.
+
+    Warm beats loading; between two warm ones, more walltime left wins, because
+    that is the one that is not handing over. A generation that has not warmed is
+    still better than nothing and is the fallback rather than a refusal.
+    """
+    running = [r for r in rows if r["state"] == "RUNNING"]
+    warm = [r for r in running if _tail(_out(r["id"]), READY)]
+    pick = None
+    if warm or running:
+        pick = max(warm or running, key=lambda r: r["left"] or 0)
+    elif rows:
+        pick = rows[0]
+    other = [r for r in rows if pick is None or r["id"] != pick["id"]]
+    return pick, (other[0] if other else None)
+
+
+def _out(job):
+    """The names this generation's stdout could be under, best first.
+
+    PER JOB, BECAUSE A CHAIN RUNS TWO OF THEM AT ONCE. One pair of files would
+    have an overlapping successor judged by the incumbent's `COLIBRI-SERVE READY`
+    -- a server reported warm while it is still reading off the filer. The fixed
+    name is still answered second, so a job submitted by an older copy of
+    `colibri_serve.sbatch` does not make the board go blind.
+    """
+    return ["colibri_serve_out-%s.txt" % job, "colibri_serve_out.txt"]
+
+
+def _err(job):
+    return ["colibri_serve_err-%s.txt" % job, "colibri_serve_err.txt"]
+
+
+def _tail(names, needle, limit=200000):
     """Is this sentinel in that log. The tail only: these files grow all day."""
     where = log_dir()
     if not where:
         return False
-    path = os.path.join(where, name)
-    try:
-        size = os.path.getsize(path)
-        with open(path, "r", encoding="utf-8", errors="replace") as fh:
-            if size > limit:
-                fh.seek(size - limit)
-            return needle in fh.read()
-    except OSError:
-        return False
+    for name in ([names] if isinstance(names, str) else names):
+        path = os.path.join(where, name)
+        try:
+            size = os.path.getsize(path)
+            with open(path, "r", encoding="utf-8", errors="replace") as fh:
+                if size > limit:
+                    fh.seek(size - limit)
+                return needle in fh.read()
+        except OSError:
+            continue
+    return False
+
+
+def _next_clause(nxt):
+    """What the generation behind this one is doing, as a clause or nothing.
+
+    This is the whole of what a chain adds to the glass, and it is what makes
+    "the server goes away in twenty minutes" sayable at all.
+    """
+    if not nxt:
+        return ""
+    if nxt["state"] != "RUNNING":
+        return "; the next generation is queued"
+    if _tail(_out(nxt["id"]), LOADED):
+        return "; the next generation is loaded on %s and takes over in a moment" \
+               % (nxt["node"] or "another node")
+    return "; the next generation is loading on %s" % (nxt["node"] or "another node")
 
 
 def _read():
-    """The state, uncached. Four states, and a sentence for each."""
-    job = _job()
+    """The state, uncached. Four states, a sentence for each, and the chain."""
+    rows = _jobs()
+    job, nxt = _serving(rows)
     if not job:
         if time.time() - _ASKED["at"] <= SUBMIT_GRACE:
             # ASKED FOR AND NOT YET IN THE QUEUE. `sbatch` takes about a second
             # and the board polls four times a second, so without this a tap
             # reports "nothing is running" back to the person who just tapped it
             # -- which is how a second tap happens.
-            return {"state": "queued", "job": None, "node": "",
+            return {"state": "queued", "job": None, "node": "", "next": None,
                     "left": None, "detail": "submitting the job"}
-        return {"state": "off", "job": None, "node": "",
+        return {"state": "off", "job": None, "node": "", "next": None,
                 "left": None, "detail": "no server is running"}
+    tail = _next_clause(nxt)
+    said = {"job": job["id"], "node": job["node"], "left": job["left"],
+            "next": (nxt["id"] if nxt else None)}
     if job["state"] != "RUNNING":
-        return {"state": "queued", "job": job["id"], "node": "",
-                "left": job["left"],
-                # Slurm's own word for why, not a guess. A 950 GB ask can pend
-                # indefinitely behind a nearly-full node and the reason is the
-                # only thing that says so.
-                "detail": job["reason"] or "waiting for an allocation"}
-    if _tail("colibri_serve_out.txt", READY):
-        return {"state": "warm", "job": job["id"], "node": job["node"],
-                "left": job["left"],
-                "detail": "warm on %s" % (job["node"] or "a compute node")}
-    if _tail("colibri_serve_err.txt", LISTENING):
-        return {"state": "loading", "job": job["id"], "node": job["node"],
-                "left": job["left"],
-                "detail": "listening, still warming — the first generation "
-                          "runs at about a fifth of the steady rate"}
-    if _tail("colibri_serve_out.txt", FAILED):
-        return {"state": "off", "job": job["id"], "node": job["node"],
-                "left": job["left"],
-                "detail": "the job is running but the engine failed to load"}
-    return {"state": "loading", "job": job["id"], "node": job["node"],
-            "left": job["left"],
-            "detail": "reading 429 GB off the filer"}
+        said.update(state="queued", node="",
+                    # Slurm's own word for why, not a guess. A 950 GB ask can pend
+                    # indefinitely behind a nearly-full node and the reason is the
+                    # only thing that says so.
+                    detail=(job["reason"] or "waiting for an allocation") + tail)
+        return said
+    if _tail(_out(job["id"]), READY):
+        said.update(state="warm",
+                    detail="warm on %s" % (job["node"] or "a compute node") + tail)
+        return said
+    if _tail(_err(job["id"]), LISTENING):
+        said.update(state="loading",
+                    detail="listening, still warming — the first generation "
+                           "runs at about a fifth of the steady rate" + tail)
+        return said
+    if _tail(_out(job["id"]), FAILED):
+        said.update(state="off",
+                    detail="the job is running but the engine failed to load" + tail)
+        return said
+    said.update(state="loading", detail="reading 429 GB off the filer" + tail)
+    return said
 
 
 def status(fresh=False):

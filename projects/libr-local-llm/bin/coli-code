@@ -52,10 +52,12 @@ esac
 WORKDIR="$(cd "$WORKDIR" && pwd -P)"
 
 # Find the server. Ask Slurm rather than reading a state file: a state file goes
-# stale the moment a job ends, squeue never does.
-JOB_ID="$(squeue -u "$USER" -n "$COLI_JOB_NAME" -t RUNNING -h -o '%i' | head -1)"
+# stale the moment a job ends, squeue never does. Under a chain there can be two
+# generations running at once for an hour, so this asks which one can ANSWER
+# rather than taking whichever Slurm listed first.
+JOB_ID="$(coli_serving_job)"
 if [ -z "$JOB_ID" ]; then
-    PENDING="$(squeue -u "$USER" -n "$COLI_JOB_NAME" -t PENDING -h -o '%i' | head -1)"
+    PENDING="$(coli_jobs | awk '$2 != "RUNNING" { print $1; exit }')"
     if [ -n "$PENDING" ]; then
         echo "The server is queued as job ${PENDING} and has not started yet." >&2
         echo "Reason: $(squeue -j "$PENDING" -h -o '%r')" >&2
@@ -67,6 +69,18 @@ if [ -z "$JOB_ID" ]; then
 fi
 NODE="$(squeue -j "$JOB_ID" -h -o '%N')"
 echo "Using ${COLI_JOB_NAME} job ${JOB_ID} on ${NODE}" >&2
+
+# THE WALLTIME IS A CEILING ON THE TURN, AND UNDER A CHAIN IT IS A CEILING ON
+# THIS CLIENT ONLY. `srun --overlap` makes this a STEP of that generation, so the
+# client dies when the generation does -- the chain replaces the server, not the
+# session. `coli-code -c` continues where it left off and the on-disk KV makes
+# the continuation cheap, which is why the number is worth printing.
+LEFT="$(coli_seconds_left "$JOB_ID")"
+if [ -n "$LEFT" ] && [ "$LEFT" -lt 3600 ]; then
+    echo "That generation has $(( LEFT / 60 )) min of walltime left. This client is a step" >&2
+    echo "of it and ends with it; the chain brings the server back on another node." >&2
+    echo "Pick it up again with 'coli-code -c'." >&2
+fi
 
 # --------------------------------------------------------------- the transcript
 #

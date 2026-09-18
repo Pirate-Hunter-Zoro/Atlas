@@ -243,8 +243,133 @@ colibri.forget()
 started, said = spawn.wake_colibri()
 check("and does nothing at all against a warm one", started is False)
 
+# ---------------------------------------------------------------------------
+# 3b. the chain, which is what makes the server always up
+#
+# A generation two hours from its walltime submits the next one; that one pins
+# 406.7 GB on another node while this one goes on answering; and only once it
+# says LOADED does this one give its node back. So squeue lists TWO generations
+# for an hour at a time and the board has to say which is which.
+# ---------------------------------------------------------------------------
+def gen(job, out="", err=""):
+    """One generation's pair of logs, under the names the chain writes."""
+    with open(os.path.join(logs, "colibri_serve_out-%s.txt" % job), "w") as fh:
+        fh.write(out)
+    with open(os.path.join(logs, "colibri_serve_err-%s.txt" % job), "w") as fh:
+        fh.write(err)
+
+
+# The fixed names are left saying FAILED on purpose: nothing below may read them.
+with open(OUT, "w", encoding="utf-8") as fh:
+    fh.write("COLIBRI-SERVE FAILED from a job that ended days ago\n")
+with open(ERR, "w", encoding="utf-8") as fh:
+    fh.write("nothing\n")
+
+gen("5001", out="COLIBRI-SERVE READY\n", err="API listening on 127.0.0.1:8000\n")
+QUEUE["lines"] = "5001|RUNNING|compute301|None|8:00:00"
+now = state()
+check("a generation is judged by ITS OWN log, not by a pair of fixed names a "
+      "dead job left behind",
+      now["state"] == "warm" and now["job"] == "5001")
+
+# The hour of overlap: one warm, one still reading off the filer.
+gen("5002")
+QUEUE["lines"] = ("5001|RUNNING|compute301|None|1:30:00\n"
+                  "5002|RUNNING|compute305|None|8:55:00")
+now = state()
+check("with two generations running, the one that can ANSWER is the one reported",
+      now["state"] == "warm" and now["job"] == "5001")
+check("and the other is named as the one behind it", now["next"] == "5002")
+check("which is the fact the chain adds and the only one worth painting: the "
+      "server is going somewhere",
+      "next generation is loading on compute305" in now["detail"])
+
+gen("5002", out="COLIBRI-SERVE LOADED host=compute305 port=8000\n")
+now = state()
+check("a successor that has finished pinning says so, because that is the moment "
+      "the incumbent gives its node back",
+      "loaded on compute305" in now["detail"] and "moment" in now["detail"])
+
+# Both warm, which is the second the handover has not quite happened in.
+gen("5002", out="COLIBRI-SERVE LOADED\nCOLIBRI-SERVE READY\n")
+now = state()
+check("between two warm generations the one with more walltime left wins, "
+      "because that is the one that is not about to hand over",
+      now["job"] == "5002" and now["next"] == "5001")
+
+# A queued successor is a different sentence from a loading one.
+QUEUE["lines"] = ("5001|RUNNING|compute301|None|1:30:00\n"
+                  "5003|PENDING||Resources|9:00:00")
+now = state()
+check("a successor Slurm has not run yet reads as queued, not as loading",
+      now["job"] == "5001" and "next generation is queued" in now["detail"])
+
+check("and nothing about the four states moved: the chain is a clause, not a "
+      "fifth state",
+      now["state"] == "warm")
+
 del os.environ["COLI_LOG_DIR"]
 shutil.rmtree(logs, ignore_errors=True)
+
+# ---------------------------------------------------------------------------
+# 3c. the chain's own half, which is four shell files and no cluster
+#
+# The board can only report what the job writes, so the rules that make the
+# handover gapless live over there. These are the four that cannot be read off
+# `squeue` afterwards and would cost a day each to rediscover.
+# ---------------------------------------------------------------------------
+LLM = os.path.join(os.path.dirname(ROOT), "projects", "libr-local-llm")
+SBATCH = os.path.join(LLM, "slurm_jobs", "colibri_serve.sbatch")
+if not os.path.isfile(SBATCH):
+    print("note libr-local-llm is not checked out here; skipping the chain's half")
+else:
+    job = open(SBATCH, encoding="utf-8").read()
+    env = open(os.path.join(LLM, "scripts", "colibri-env.sh"), encoding="utf-8").read()
+
+    def code(text):
+        """The file with its comments taken out.
+
+        These two files argue with themselves in prose -- the sbatch says at
+        length why it is NOT `--dependency=afterany`, which is the board's own
+        chain -- so a check for a flag has to read what runs rather than what is
+        written about it.
+        """
+        return "\n".join(l for l in text.splitlines()
+                          if not l.lstrip().startswith("#"))
+    up = open(os.path.join(LLM, "bin", "coli-up"), encoding="utf-8").read()
+    down = open(os.path.join(LLM, "bin", "coli-down"), encoding="utf-8").read()
+
+    check("a successor OVERLAPS its incumbent rather than following it: there is "
+          "no dependency anywhere in the chain, because a load that begins at the "
+          "handover is an hour with no server",
+          "--dependency" not in code(job) and "--dependency" not in code(env))
+    check("and it is told to land somewhere else, because two 950 GB jobs do not "
+          "fit on a 1 TB box",
+          '--exclude="$MY_NODE"' in job)
+    check("the incumbent gives its node back only once the successor has LOADED, "
+          "which is the whole of what makes the handover gapless",
+          "COLIBRI-SERVE LOADED" in job and 'scancel "$MY_JOB"' in job)
+    check("the successor holds its WARM-UP until the incumbent has gone, because "
+          "a warm-up is a real write and .coli_kv is one file per checkpoint",
+          "coli_elders" in job and "HOLDING" in job)
+    check("the fence still comes first and is still unskippable",
+          job.index("COLI_DEBUG") < job.index("coli_load_modules"))
+    check("every generation writes its own pair of logs",
+          "colibri_serve_out-%j.txt" in job and "colibri_serve_out.txt" not in job)
+    check("a generation is submitted in exactly one place, so a successor cannot "
+          "quietly get different resources from the first one",
+          "sbatch --parsable" in env and "sbatch --parsable" not in up)
+    check("`coli-down` writes the flag BEFORE it cancels, because cancelling a "
+          "generation on its own is how you replace a server rather than stop one",
+          down.index("coli_mark_stopped") < down.index("scancel"))
+    check("and a generation that starts after that flag stands down rather than "
+          "serving", "coli_chain_stopped" in job)
+    check("`coli-up` no longer tells somebody to tear the chain down to start it",
+          "coli-down' first" not in up)
+    for name in ("slurm_jobs/colibri_serve.sbatch", "scripts/colibri-env.sh",
+                 "bin/coli-up", "bin/coli-down", "bin/coli", "bin/coli-ask"):
+        check("%s is syntactically sound" % name,
+              subprocess.run(["bash", "-n", os.path.join(LLM, name)]).returncode == 0)
 
 # ---------------------------------------------------------------------------
 # 4. the fifth layer, which is the sitting
