@@ -2026,11 +2026,100 @@ async function strokeFloorFlow() {
   window.Annotate.clear('0003');
 }
 
+// THE LATCH GIVES BACK THE FIRST SWIPE, AND THE FIRST SWIPE IS THE ONE A PERSON
+// NOTICES.
+//
+// Fourth report of the same sentence, and the first one with a trace under it:
+// `ink-end` at 522591, `ink-latch on=0` at 522941. The window is 700 ms and the
+// nib had been heard from throughout the stroke, so the timer could not have
+// opened it before 523291 -- only `penLet` opens it early, and only a contact
+// that is not a stylus and has MOVED calls `penLet`. So a finger swiped 350 ms
+// after the mark, the layer was still carrying `touch-action: pinch-zoom`, and
+// `touch-action` is read when a gesture STARTS: opening the latch on that
+// finger's first `touchmove` was already too late for the gesture that opened
+// it. The source called that the one gesture this gives up. It is the gesture
+// somebody swipes.
+//
+// The window was measured from the wrong event. The latch is for a stroke that
+// could be re-read as a pan, and that can only happen while the page is MOVING.
+// So: nib down closes it, and with the page still it opens on the lift.
+async function latchFlow() {
+  if (!window.Annotate || !layer) return;
+  const ann = fs.readFileSync(path.join(WEB, 'annotate.js'), 'utf8');
+  const win = Number((/var PEN_MODE = (\d+)/.exec(ann) || [])[1] || 700);
+
+  window.Annotate.setOn(false);
+  window.Annotate.setOn(true);           // a fresh scroll clock
+  window.Annotate.setTool('pen');
+  window.Annotate.clear('0003');
+
+  const latched = () => doc.body.classList.contains('pen-writing');
+  const stroke = () => {
+    ink('pointerdown', 120, 60, 0.5);
+    ink('pointermove', 150, 60, 0.5);
+    ink('pointerup', 150, 60, 0.5);
+  };
+
+  // Nothing has scrolled in this sitting.
+  stroke();
+  latched()
+    ? ok('the latch is still shut at the lift, so nothing opens it mid-word')
+    : fail('the latch opens before the stroke is even finished');
+  await sleep(40);
+  !latched()
+    ? ok('and with the page standing still it opens on the lift — the swipe '
+         + 'after a mark gets its scroll on the FIRST try, not the second')
+    : fail('a finger that swipes straight after a mark is still refused, which '
+           + 'is "I could not scroll when I started annotating", again');
+
+  // And the case the latch exists for: a page that is moving. A stroke landing
+  // on a fling is re-read as a pan and marks nothing, reported as "I wrote down
+  // the first letter and it stopped writing."
+  doc.dispatchEvent(new window.Event('scroll'));
+  stroke();
+  await sleep(40);
+  latched()
+    ? ok('but a page that is still moving holds it shut, so the next stroke of '
+         + 'the same word cannot be taken for a pan')
+    : fail('the latch no longer covers a stroke begun on a moving page, which '
+           + 'is the defect it was built for coming back');
+
+  // A PAN THE CSS EATS LEAVES A LINE, because the trace above had to be read
+  // out of the arithmetic between three timestamps and nothing else.
+  var seen = [];
+  var real = window.BoardTrace;
+  window.BoardTrace = function (what, of) { seen.push({ what: what, of: of }); };
+  try {
+    const finger = new window.Event('touchstart', { bubbles: true, cancelable: true });
+    finger.changedTouches = [{ touchType: 'direct', clientX: 40, clientY: 90 }];
+    doc.dispatchEvent(finger);
+    seen.some((e) => e.what === 'ink-pan')
+      ? ok('and a finger landing against a shut latch says so, rather than the '
+           + 'CSS refusing it in silence')
+      : fail('the pan the latch eats is still invisible, so the fifth report of '
+             + 'this arrives with nothing under it either');
+
+    await sleep(win + 150);
+    !latched()
+      ? ok('and the window still expires on its own once the page is quiet')
+      : fail('the latch never reopens, which is the lesson refusing to scroll '
+             + 'for the rest of the sitting');
+    seen.some((e) => e.what === 'ink-latch' && e.of && e.of.why)
+      ? ok('and every latch line names what opened it — quiet, moved, or off')
+      : fail('the latch still opens anonymously, which is what made the last '
+             + 'report a piece of arithmetic instead of a reading');
+  } finally {
+    window.BoardTrace = real;
+    window.Annotate.clear('0003');
+  }
+}
+
 // The return offer is on a short timer, so it is checked after the fact.
 if (es) {
   (async function () {
     traceFlow();
     await strokeFloorFlow();
+    await latchFlow();
     await sendingFlow();
     await reopenFlow();
     await sleep(900);

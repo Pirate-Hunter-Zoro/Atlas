@@ -1165,17 +1165,16 @@ function stylus(ev) {
    Note what this does NOT do: it does not decide anything by where the hand
    landed. The hand still decides. It only stops one hand's own gesture from
    being re-read as the other's. */
-var penAt = 0;
-/* How long that lasts after the nib was last heard from.
+/* How long the latch outlives a page that is still moving.
 
-   It was a second and a half, and a second and a half is a long time to be
-   unable to scroll the lesson you are annotating: the latch also refuses a
-   one-finger pan, so somebody who writes a line and then goes to move the page
-   got nothing back for a second and a half and reported the page as
-   "unresponsive at times". The case it exists for is the NEXT stroke of the same
-   word, which follows within a fraction of a second; the case it must not eat is
-   a deliberate scroll, which does not. The slate's own palm window is half a
-   second, for the same reason and with the same arithmetic behind it. */
+   It was a second and a half after the last SAMPLE, and a second and a half is
+   a long time to be unable to scroll the lesson you are annotating: the latch
+   also refuses a one-finger pan, so somebody who writes a line and then goes to
+   move the page got nothing back and reported the page as "unresponsive at
+   times". Shortening it did not close that, because the window was measured
+   from the wrong event -- see `penRelease`. It now runs from the last scroll,
+   and it is the time a fling needs to settle. The slate's own palm window is
+   half a second, for the same reason and with the same arithmetic behind it. */
 var PEN_MODE = 700;
 /* What the release waits when it fires while the nib is STILL DOWN. It is a
    re-arm and not a window, so it is small and bounded: the thing being waited
@@ -1185,11 +1184,45 @@ var penTimer = null;
 
 /* The CSS latch: with it on, every ink layer refuses a one-finger pan. That is
    half of "I cannot scroll" and the other half is `onTouchStart`, so the two are
-   recorded separately and each says which it is. */
-function penMode(want) {
+   recorded separately and each says which it is.
+
+   AND IT SAYS WHICH THING OPENED IT, because the two openers have different
+   meanings and the third report of this defect was read out of the arithmetic
+   between three timestamps rather than off a line. `quiet` is the window
+   expiring, `moved` is a finger that dragged, `off` is leaving the mode. A
+   `moved` is the interesting one: it means a pan arrived while the latch was
+   shut, and a pan that arrives while the latch is shut is a pan the CSS ate. */
+function penMode(want, why) {
   var had = document.body.classList.contains("pen-writing");
   document.body.classList.toggle("pen-writing", !!want);
-  if (!!want !== had) say("ink-latch", { on: want ? 1 : 0 });
+  if (!!want !== had) say("ink-latch", { on: want ? 1 : 0, why: why || "" });
+}
+
+/* WHETHER THE PAGE IS ACTUALLY MOVING, WHICH IS THE ONLY THING THE LATCH IS FOR.
+
+   Passive and on the document in capture, so it hears the lesson's own scroller
+   as well as the window's and costs the gesture nothing. It assigns a number;
+   there is no other work behind it. */
+var scrollAt = 0;
+
+function penScroll() { scrollAt = Date.now(); }
+
+var scrollArmed = false;
+
+function armScroll(want) {
+  if (!!want === scrollArmed) return;
+  scrollArmed = !!want;
+  if (want) {
+    scrollAt = 0;
+    try {
+      document.addEventListener("scroll", penScroll,
+                                { passive: true, capture: true });
+    } catch (e) { document.addEventListener("scroll", penScroll, true); }
+  } else {
+    document.removeEventListener("scroll", penScroll,
+                                 { passive: true, capture: true });
+    document.removeEventListener("scroll", penScroll, true);
+  }
 }
 
 /* THE RELEASE IS EXACT, AND THE WINDOW IS THE NUMBER ABOVE.
@@ -1204,9 +1237,9 @@ function penMode(want) {
    Reported as: annotating, going to scroll, *"suddenly scrolling didn't work…
    it paused for a second. I was like, wait what? Why isn't this working?"*
 
-   One timer, armed for exactly what is left. `penSeen` only moves `penAt`
-   forward and never re-arms, so a stroke of a thousand samples costs one
-   timeout rather than a `clearTimeout` and a `setTimeout` each. */
+   One timer, armed for exactly what is left. `penSeen` never re-arms, so a
+   stroke of a thousand samples costs one timeout rather than a `clearTimeout`
+   and a `setTimeout` each; the lift asks again, once, through `penLift`. */
 function penRelease() {
   penTimer = null;
   /* Still down. Ask again rather than forgetting: nothing else re-arms this, and
@@ -1216,34 +1249,71 @@ function penRelease() {
     penTimer = setTimeout(penRelease, PEN_STEP);
     return;
   }
-  var left = PEN_MODE - (Date.now() - penAt);
-  if (left > 0) {
+  /* THE WINDOW RUNS FROM THE LAST SCROLL, NOT FROM THE LAST SAMPLE.
+
+     It ran from the last sample, and that is the fourth report of "I could not
+     scroll when I started annotating" -- the first one with a trace under it.
+     A mark was drawn, the nib lifted, a finger landed 350 ms later and swiped,
+     and it did nothing: `touch-action: pinch-zoom` was still on every layer,
+     and `touch-action` is read when a gesture STARTS, so `penLet` opening the
+     latch on that finger's first `touchmove` was already too late for the very
+     gesture that opened it. The source said so and called it the one gesture
+     this gives up; it is the gesture a person notices.
+
+     So the window is asked the question it was always about. The latch exists
+     for a stroke that could be re-read as a pan, and a stroke can only be
+     re-read as a pan while the page is MOVING -- `preventDefault` on
+     `touchstart` is refused during a fling and honoured at every other moment,
+     and `onTouchStart` already makes it for a stylus. With the page still,
+     there is nothing for the CSS to add and a finger gets its scroll on the
+     first try. With the page moving, the window is exactly what it was.
+
+     `scrollAt` is 0 until something scrolls, so a sitting that has not moved
+     opens the latch on the lift. */
+  var left = PEN_MODE - (Date.now() - scrollAt);
+  if (scrollAt && left > 0) {
     penTimer = setTimeout(penRelease, left);
     return;
   }
-  penMode(false);
+  penMode(false, "quiet");
 }
 
 function penSeen() {
-  penAt = Date.now();
-  penMode(true);
+  penMode(true, "nib");
   if (!penTimer) penTimer = setTimeout(penRelease, PEN_MODE);
 }
 
-/* AND A DELIBERATE SCROLL DOES NOT WAIT OUT THE CLOCK.
+/* AND THE LIFT IS WHAT THE LATCH IS WAITING FOR, SO THE LIFT HAS TO ASK.
 
-   The window exists for the NEXT STROKE OF THE SAME WORD, which follows within a
-   fraction of a second and arrives as a nib. It does not exist to refuse
-   somebody who has finished writing and gone to move the page -- and with the
-   nib up there is nothing left for a pan to be stolen from.
+   `penSeen` arms one timer per stroke and never re-arms it -- a pencil reports
+   at 240 Hz -- so the timer standing at the lift was armed for `PEN_MODE` after
+   the FIRST sample, and a two-tenths-of-a-second tick left the latch shut for
+   half a second after the nib had gone. Nothing else re-arms it, which is why
+   it has to be asked here. Zero rather than now: `end` has several exits and
+   `drawing` is cleared on all of them, so the question is asked once this one
+   has returned. */
+function penLift() {
+  if (penTimer) clearTimeout(penTimer);
+  penTimer = setTimeout(penRelease, 0);
+}
 
-   So a contact that is MOVING, with no stroke in progress and no stylus in it,
+/* AND A DELIBERATE SCROLL DOES NOT WAIT OUT THE CLOCK. THIS IS THE BELT.
+
+   A contact that is MOVING, with no stroke in progress and no stylus in it,
    opens the latch at once. Moving is the whole of the test and it is what makes
-   this safe: a palm resting beside a lifted nib does not move, so it is still a
-   palm, and the one gesture this gives up is the flick that opened the latch. */
-function penLet() {
+   it safe: a palm resting beside a lifted nib does not move, so it is still a
+   palm.
+
+   It CANNOT be the whole answer, and that is what the fourth report of this
+   settled: `touch-action` is read when a gesture starts, so the gesture that
+   opens the latch here has already been refused and gets nothing back. It was
+   the only answer while the window ran from the last sample, and the window
+   now runs from the last scroll -- so by the time this fires the latch is
+   already open in every case but one, a page that is genuinely still moving.
+   That one it opens early, and that one gesture is the price. */
+function penLet(why) {
   if (penTimer) { clearTimeout(penTimer); penTimer = null; }
-  penMode(false);
+  penMode(false, why || "moved");
 }
 
 /* THE PROBE THAT ASKS WHETHER THAT CONTACT MOVED, AND IT IS PASSIVE.
@@ -1258,7 +1328,11 @@ function penLet() {
    so this costs the scroll nothing. `once` is what retires it: one contact, one
    answer, and the next `touchstart` arms a fresh one. */
 function penProbe(ev) {
-  if (!stylus(ev)) penLet();
+  /* A STROKE MAY HAVE BEGUN SINCE THIS WAS ARMED. `onTouchStart` checks the nib
+     is up before arming it; the answer arrives a gesture later, and a second
+     contact moving beside a nib that is now DOWN is a palm rather than a scroll.
+     Opening the latch there is the latch failing at the one moment it is for. */
+  if (!drawing && !stylus(ev)) penLet("moved");
 }
 
 function penWatch() {
@@ -1309,6 +1383,16 @@ function onTouchStart(ev) {
     say("ink-hold", { at: "touchstart", why: why });
   } else if (why) {
     say("ink-late", { at: "touchstart", why: why });
+  } else if (document.body.classList.contains("pen-writing")) {
+    /* AND THE PAN THE CSS IS ABOUT TO EAT LEAVES A LINE OF ITS OWN.
+
+       This listener refuses nothing here -- the contact is a finger and the nib
+       is up -- and the latch on the layer refuses it silently, because a
+       `touch-action` is not an event. So the third report of "I could not
+       scroll" had to be read out of the gap between an `ink-end` and an
+       `ink-latch on=0` that came 350 ms before the window said it could. This
+       is that finger, written down where it lands. */
+    say("ink-pan", { at: "touchstart", latch: 1 });
   }
 }
 
@@ -1537,8 +1621,9 @@ function move(ev) {
 
      `d` is the test, because it is exactly "a stroke is in progress". The case
      the latch exists for is the NEXT stroke of the same word, and that one is
-     already covered: `penAt` was last set during the previous stroke, a
-     fraction of a second earlier, and the window is 700 ms. */
+     covered by the page itself: if the previous stroke was re-read as a pan the
+     page is still moving, and `penRelease` holds the latch shut for 700 ms
+     after the last scroll. */
   if (ev && ev.pointerType !== "touch" && on && d) penSeen();
   if (!on || !d) return;
   if (!mine(ev, d)) return;
@@ -1602,6 +1687,7 @@ function end(ev) {
   window.removeEventListener("scroll", follow, true);
   armMove(false);
   strokeOver();
+  penLift();
   say("ink-end", { card: d.id, pid: d.pid });
   var id = d.id;
   var cv = d.canvas;
@@ -1817,6 +1903,7 @@ window.Annotate = {
     try { void document.body.offsetHeight; } catch (e) { /* not fatal */ }
     say("ink-mode", { on: on ? 1 : 0, layers: layers, ms: Date.now() - t0 });
     armTouch(on);
+    armScroll(on);
     if (!on) {
       /* AND LEAVING THE MODE FINISHES WHAT IS IN HAND.
          This dropped the latch and disarmed both listeners and left `drawing`
@@ -1824,7 +1911,7 @@ window.Annotate = {
          stroke it belonged to was still open -- and `onTouchStart` went on
          cancelling a gesture before it began. Half a stop is not a stop. */
       if (drawing) end(null);
-      penLet();
+      penLet("off");
       dropPick();
     }
   },

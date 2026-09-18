@@ -3850,9 +3850,22 @@ Pencil hovers — within about a centimetre of the glass it reports `pointermove
 with nothing touching anything — so a latch refreshed on every pen move is a
 latch held open for as long as the pencil is in somebody's hand, which while
 annotating is the whole time. A stroke in progress is the whole of the test.
-Nothing is lost by it: the case the latch exists for is the *next* stroke of the
-same word, and that arrives inside the 700 ms window the previous stroke already
-opened. `test/link.js` drives a hover and fails if the scroll closes.
+`test/link.js` drives a hover and fails if the scroll closes.
+
+**AND IT IS ABOUT A PAGE THAT IS MOVING, SO ITS WINDOW RUNS FROM THE LAST
+SCROLL.** Nib down shuts it; with the page standing still it opens on the *lift*;
+only a page that has scrolled inside 700 ms holds it shut. A stroke can only be
+re-read as a pan during a fling — `preventDefault` on `touchstart` is refused
+then and honoured at every other moment, and `onTouchStart` already makes it for
+a stylus — so with the page still there is nothing for the CSS to add. Measured
+from the last *sample* instead, the latch ate the first swipe after every mark:
+`touch-action` is read when a gesture STARTS, so opening the latch on that
+finger's first `touchmove` is already too late for the gesture that opened it.
+That is the fourth report of *"I could not scroll when I started annotating"* and
+the first one settled off a trace. `penLift` is why the lift asks at all: `penSeen`
+arms one timer per stroke and never re-arms it, so a short stroke used to leave
+the latch shut for the rest of a window that began before it. `latchFlow` in
+`test/link.js`.
 
 **AND A STROKE THAT NEVER ENDS REFUSES EVERY SCROLL ON THE PAGE.** The
 non-passive `touchmove` listener is on the *document* and exists only while a
@@ -3884,10 +3897,19 @@ that restyle is paid for by whoever touches the glass next); `ink-begin` and
 `ink-end` with the card and the pointer, so a stroke that never ended can be told
 from one that never began; `ink-hold` every time a gesture is refused, which is
 the sentence *I could not scroll* written down at the moment it is true;
-`ink-late` where the browser had already decided and did not ask; and `ink-latch`
-when the CSS half goes on or off, because the latch and the listener are two
-different ways to refuse the same pan and nothing could previously tell them
-apart from outside. `test/link.js` asserts each one reaches the log.
+`ink-late` where the browser had already decided and did not ask; `ink-latch`
+when the CSS half goes on or off, **with `why`** — `quiet` for the window
+expiring, `moved` for a finger that dragged it open, `off` for leaving the mode;
+and `ink-pan`, a finger landing against a shut latch, which is the one refusal
+made in CSS and so the one that leaves no event of its own. The last two are
+there because the fourth report was diagnosed by arithmetic across three
+timestamps rather than read off a line. `test/link.js` asserts each one reaches
+the log.
+
+**Read `ink-late at=touchmove` as a pair, not a line.** Following an
+`ink-hold at=touchstart` it is not a page that moved: it is one non-cancelable
+first move per stroke, because `armMove` installs the non-passive `touchmove`
+inside `begin` and the compositor learns about it a move later.
 
 `window.BoardTrace` is how the layer says so — `☰ → what just happened` carries
 an `ink-drop` line, because this arrives as a sentence about scrolling and
