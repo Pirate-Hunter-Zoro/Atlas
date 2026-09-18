@@ -57,3 +57,7 @@ live/*
 *.toc
 *.fls
 *.fdb_latexmk
+
+# ---- chain state ----
+# The stop flag and anything else the running chain writes. Runtime, not config.
+slurm_jobs/state/
