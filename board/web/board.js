@@ -153,6 +153,11 @@ var els = {
   newsHide: document.getElementById("news-hide"),
   typebox: document.getElementById("typebox"),
   saybox: document.getElementById("saybox"),
+  said: document.getElementById("said"),
+  saidLabel: document.getElementById("said-label"),
+  saidText: document.getElementById("said-text"),
+  saidHint: document.getElementById("said-hint"),
+  sayMath: document.getElementById("say-math"),
   sendType: document.getElementById("send-type"),
   tabWrite: document.getElementById("tab-write"),
   tabType: document.getElementById("tab-type"),
@@ -8363,7 +8368,8 @@ function restoreTextDraft() {
   if (lastTextQuestion === answering.question) return;
   if (lastTextQuestion !== null) flushTextDraft();
   lastTextQuestion = answering.question;
-  loadedTextTurn = null;    /* a different question is a different answer */
+  /* A different question is a different answer, so nothing typed into this box
+     is a correction to anything until the block above it is tapped. */
   correctingTurn = null;
   els.saybox.value = textDrafts[answering.question] || "";
   autosize();
@@ -8419,61 +8425,180 @@ function paintPanel() {
   els.tabWrite.classList.toggle("on", !typing);
   els.tabType.classList.toggle("on", typing);
   /* THE BOX BELONGS TO THE QUESTION, NOT TO WHICHEVER TAB IS SHOWING.
-     Both of these were asked only when the type half happened to be up, so a
-     question that opened on the slate left the previous question's words in the
-     box -- and `restoreTextAnswer` refuses a box that is not empty. Asking them
-     whenever the panel is open is what makes the two halves behave the same:
-     the ink comes back on the slate, the words come back in the box, and
-     neither depends on which tab you were last on. Reported as "my typed
-     response doesn't get saved on the appearance unlike previously writing
-     boards."
+     The draft is asked for whenever the panel is open rather than only when the
+     type half happens to be up: a question that opened on the slate used to
+     leave the previous question's words in the box. The ink comes back on the
+     slate, unsent words come back in the box, and neither depends on which tab
+     you were last on.
 
-     The height is measured only where it can be: `scrollHeight` on a hidden
-     textarea is zero, and a box sized while it was hidden stays collapsed when
-     the tab brings it out. */
-  if (open) { restoreTextDraft(); restoreTextAnswer(); }
-  if (typing) autosize();
+     WHAT WAS SENT COMES BACK ABOVE THE BOX AND NOT INTO IT. The box opens empty
+     on every question -- it holds what has not been sent yet, and nothing else.
+     See `paintSay`.
+
+     The typesetting happens only on the half that is showing, and the height is
+     measured only where it can be: KaTeX cannot measure what is `display:none`,
+     and `scrollHeight` on a hidden textarea is zero, so a box sized while it
+     was hidden stays collapsed when the tab brings it out. */
+  if (open) restoreTextDraft();
+  syncSaid();
+  if (typing) { paintSay(); autosize(); }
   else if (writer) requestAnimationFrame(writer.relayout);
 }
 
-/* The typed answer already sent against this question, brought back for
-   correction -- the typed counterpart of the slate restoring its page of ink.
-   Guarded like the ink: the turn just sent is not loaded back over the empty
-   box, and newer local typing wins.
-
-   THIS IS NOT THE TYPING CARRYING OVER. What it loads was typed against the
-   question now open, and the box is where a correction to it is made. The box
-   stops being that place when the sent answer is rendered as a block above it
-   and a tap on the block is what loads it back for fixing -- and then this
-   restore moves out of the panel and into that tap. Until then it stays. */
-var loadedTextTurn = null;
-
-/* Which typed answer the box is CORRECTING -- as opposed to which one it last
-   sent, which is what `loadedTextTurn` remembers so that a send is not
-   immediately loaded back over the empty box it left. Two different questions,
-   and answering the second with the first is what made every typed answer
-   overwrite the one before it. Set here and nowhere else: the box is correcting
-   an answer exactly when an answer was put into it. */
+/* Which typed answer the box is CORRECTING, as opposed to answering afresh.
+   Every typed answer used to overwrite the one before it because the send asked
+   `answering.latest` -- the newest turn on the question, of any kind -- and a
+   question stays open for an evening. Set in exactly two places: the tap on the
+   block above the box, and nowhere else that puts words into the box. Anything
+   typed into an empty box is a new answer, and new answers are kept. */
 var correctingTurn = null;
 
-function restoreTextAnswer() {
+/* ------------------------------------------ the rendered block above the box */
+/* THE TYPED HALF KEEPS WHAT IT SENT, IN PLACE, RENDERED.
+   "The typed prompt also disappears after I send it, unlike the written board
+   when I send that." The comparison is exact and it is the whole item: sent ink
+   stays where it was made -- `paintBoards` draws a board per attempt with the
+   ink still on it -- and `say()` emptied the box, so one half of this panel kept
+   what you handed in and the other cleared it.
+
+   ONE BLOCK, TWO JOBS. Above the box, it is a PREVIEW of what the transcript
+   will show while you type, and the RECORD of what was sent once you have sent
+   it. One renderer for both, and the same one a card goes through: two
+   renderers would differ on exactly the input somebody is squinting at.
+
+   THE BOX ITSELF CANNOT RENDER AND NEVER WILL. `#saybox` is a textarea, which
+   holds characters and no markup by definition. A `contenteditable` would render
+   in place and cost iOS autocorrect, its undo stack, selection under a thumb,
+   `autosize`, the draft save and the ⌘-Enter send. A block above it costs none
+   of that. */
+
+/* Text that is trying to be mathematics: a dollar, a TeX delimiter, or a
+   backslash command. Any of those and the block opens; prose with none of them
+   leaves this panel exactly the height it was. */
+var TEX_LIKE = /\$|\\\(|\\\[|\\[A-Za-z]/;
+
+/* A backslash command with no delimiter around it, which renders as NOTHING.
+   `$` is a hunt on an iPad keyboard, so `\gamma` on its own is the likeliest
+   thing to be typed and the likeliest thing to come back blank.
+
+   Asked of `protect`, the renderer's own first pass, rather than of a second
+   pattern: it parks math, inline code and fences in a store and hands back what
+   is left, so a command inside `$...$` is already gone from what is scanned and
+   a regex inside backticks is too.
+
+   It is a HINT and not a fix, which is the decision here. Wrapping anything
+   that looks like TeX was refused outright: `\d+`, `C:\temp` and a shell escape
+   are all backslash commands to a pattern and none of them is mathematics, and
+   this board is used in code workspaces where that is what a person is most
+   likely to be typing. Saying so costs a line of amber and cannot be wrong
+   about what anybody meant. */
+function bareCommand(src) {
+  var store = [];
+  var left = protect(String(src || "").replace(/\r\n/g, "\n"), store);
+  var m = /\\([A-Za-z]+)/.exec(left);
+  return m ? m[0] : null;
+}
+
+/* The newest typed answer to the question now open, kept here as well as read
+   off the payload: the block has to hold the words on the frame AFTER the send,
+   and the payload that carries the turn back is a round trip away. */
+var saidNow = null;
+
+function syncSaid() {
   var t = answering.latest;
-  if (!t || t.kind !== "text" || t.signal || !t.text) return;
-  var id = t.id + ":r" + (t.rev || 1);
-  if (id === loadedTextTurn) return;
-  /* NEWER TYPING OF THEIR OWN WINS -- AND THE BOX CANNOT SAY WHOSE IT IS.
-     This asked whether the box was empty, which is wrong by exactly the margin
-     that made it fail: a box still holding words typed against ANOTHER question
-     is not a reason to refuse this one its answer. Measured twice in
-     `test/mine.js`, and both times the box held a value from an earlier
-     question. `textDrafts` is the narrower and right question -- what the person
-     typed and did not send, kept per question -- which is the same correction
-     `correctingTurn` is on the send side. */
-  if ((textDrafts[answering.question] || "").trim()) return;
-  loadedTextTurn = id;
-  correctingTurn = t.id;
-  els.saybox.value = t.text;
+  if (t && t.kind === "text" && !t.signal && t.text) {
+    saidNow = { question: answering.question, text: t.text, turn: t.id };
+    return;
+  }
+  if (!saidNow || saidNow.question !== answering.question) saidNow = null;
+}
+
+/* Not the draft save's 800ms, which is the one thing here that is deliberately
+   NOT shared with it. A save nobody sees can wait; a preview that arrives most
+   of a second after the keystroke reads as broken rather than as considered. */
+var SAY_SHOW_MS = 160;
+var sayShowTimer = null;
+
+function laterPaintSay() {
+  clearTimeout(sayShowTimer);
+  sayShowTimer = setTimeout(paintSay, SAY_SHOW_MS);
+}
+
+function paintSay() {
+  clearTimeout(sayShowTimer);
+  sayShowTimer = null;
+  var typed = els.saybox.value;
+  if (TEX_LIKE.test(typed)) {
+    var bare = bareCommand(typed);
+    els.said.dataset.state = "preview";
+    els.said.removeAttribute("tabindex");
+    els.saidLabel.textContent = "as it will read";
+    els.saidText.innerHTML = renderMarkdown(typed);
+    typeset(els.saidText);
+    els.saidHint.hidden = !bare;
+    if (bare) els.saidHint.textContent = bare + " will not render — wrap it in $…$";
+    els.said.hidden = false;
+    return;
+  }
+  if (saidNow && saidNow.question === answering.question && saidNow.text) {
+    els.said.dataset.state = "sent";
+    els.said.setAttribute("tabindex", "0");
+    els.saidLabel.textContent = "sent · tap to correct";
+    els.saidText.innerHTML = renderMarkdown(saidNow.text);
+    typeset(els.saidText);
+    els.saidHint.hidden = true;
+    els.said.hidden = false;
+    return;
+  }
+  els.said.hidden = true;
+  els.said.dataset.state = "";
+  els.saidText.innerHTML = "";
+  els.saidHint.hidden = true;
+}
+
+/* THE TAP ON THE BLOCK, which is the typed counterpart of going back to a board
+   and adding a line to the ink already on it. It hands the sent answer back to
+   the box and says what the box is now for -- correcting THAT answer, in its
+   place, rather than answering beside it.
+
+   This is where the restore lives now. It used to run on every paint of the
+   panel, which is what kept the box pre-filled and meant it could never open
+   empty; a tap is somebody asking, so it has no guards. */
+function correctSaid() {
+  if (els.said.dataset.state !== "sent" || !saidNow || !saidNow.text) return;
+  correctingTurn = saidNow.turn || null;
+  els.saybox.value = saidNow.text;
   autosize();
+  saveTextDraft();
+  paintSay();
+  els.saybox.focus();
+}
+
+els.said.addEventListener("click", correctSaid);
+els.said.addEventListener("keydown", function (e) {
+  if (e.key === "Enter" || e.key === " ") { e.preventDefault(); correctSaid(); }
+});
+
+/* A `$` COSTS A THUMB RATHER THAN A KEYBOARD HUNT.
+   The other two ways of getting mathematics out of an iPad keyboard were both
+   refused: wrapping anything that looks like TeX misreads a regex and a Windows
+   path as formulae, and this board is used in code workspaces. One tap wraps
+   what is selected, or drops a pair with the caret between them, and it cannot
+   be wrong about what anybody meant. */
+function wrapMath() {
+  var box = els.saybox;
+  var a = box.selectionStart, b = box.selectionEnd;
+  if (typeof a !== "number") { a = box.value.length; b = a; }
+  var chosen = box.value.slice(a, b);
+  box.value = box.value.slice(0, a) + "$" + chosen + "$" + box.value.slice(b);
+  box.focus();
+  /* Between the pair when there was nothing to wrap; past the closing dollar
+     when there was, because the wrapping is the whole edit in that case. */
+  var caret = chosen ? b + 2 : a + 1;
+  try { box.setSelectionRange(caret, caret); } catch (e) {}
+  autosize();
+  saveTextDraft();
+  paintSay();
 }
 
 function autosize() {
@@ -8492,6 +8617,15 @@ function say(signal) {
   els.saybox.value = "";
   if (answering.question) { textDrafts[answering.question] = ""; }
   autosize();
+  /* THE WORDS STAY WHERE THEY WERE TYPED, ON THIS FRAME. Not when the payload
+     comes back with the turn on it -- that is a round trip, and what the box
+     does in the meantime is the whole of the report. A signal is a tap on a
+     button rather than an answer, so it leaves nothing behind. The turn id
+     arrives below and is what makes a later tap a revision. */
+  if (!signal) {
+    saidNow = { question: answering.question, text: text, turn: null };
+    paintSay();
+  }
   /* A CORRECTION REVISES; A SECOND ANSWER IS A SECOND ANSWER.
 
      This asked `answering.latest` -- the newest turn on this question, of any
@@ -8517,7 +8651,9 @@ function say(signal) {
     body: JSON.stringify({ text: text, signal: signal || null,
                            answers: answering.question, turn: revise })
   }).then(function (r) { return r.json(); }).then(function (data) {
-    if (data && data.turn) loadedTextTurn = data.turn + ":r" + (data.rev || 1);
+    /* Which turn the block is now showing, so that a tap on it corrects the
+       answer that is actually on the glass rather than starting a second one. */
+    if (data && data.turn && saidNow && !saidNow.turn) saidNow.turn = data.turn;
     /* The box is empty again, so it is correcting nothing. Without this the
        NEXT thing typed into it would be sent as a revision of what was just
        sent, which is the defect wearing a different coat. */
@@ -8541,11 +8677,14 @@ function sendTyped() {
 
 els.sendType.onclick = sendTyped;
 
+els.sayMath.onclick = wrapMath;
+
 els.saybox.addEventListener("input", function () {
   /* Cleared by hand is starting over, not correcting what was in it. */
   if (!els.saybox.value.trim()) correctingTurn = null;
   autosize();
   saveTextDraft();
+  laterPaintSay();
 });
 els.saybox.addEventListener("keydown", function (e) {
   if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {

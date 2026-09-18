@@ -1040,8 +1040,54 @@ body.tools-out { padding-bottom: 5.5rem; }
 #writer-head .tab.on { background: #2c2f37; color: #e9e7e2; border-color: #3a3e47; }
 
 /* The typed half. Same dark paper as the writer it sits in, so it reads as one
-   block whether the page is light or dark. */
-#typebox { display: flex; gap: .5rem; align-items: flex-end; padding: .7rem .9rem; }
+   block whether the page is light or dark.
+
+   A column now, because the rendered block stands above the row rather than
+   beside it: the box, and directly over it what the box is going to look like.
+   The row keeps the flex the box and its buttons were written against. */
+#typebox { display: flex; flex-direction: column; gap: .5rem; padding: .7rem .9rem; }
+#sayrow { display: flex; gap: .5rem; align-items: flex-end; }
+
+/* WHAT WAS TYPED, RENDERED, ABOVE THE BOX IT WAS TYPED IN.
+
+   Preview before a send and record after it. Sized by its contents and gone
+   entirely when there is nothing to show -- a block that is always there
+   doubles the height of this panel for everybody who never types a formula.
+
+   No font-family anywhere in here, deliberately. The prose inherits the reading
+   face from the body and KaTeX declares its own on `.katex`, which is what
+   keeps the words dyslexic-friendly and the mathematics correct. See
+   typeface.css, and `test/typeface.js` which asserts it. */
+#said {
+  border: 1px solid #2c2f37; border-radius: .45rem;
+  background: #101114; color: #e9e7e2;
+  padding: .45rem .7rem .55rem;
+  font-size: .92rem;
+}
+#said[data-state="sent"] { cursor: pointer; border-color: #3a3e47; }
+#said[data-state="sent"]:hover { border-color: #e0827c; }
+#said-label {
+  display: block; font-family: var(--ui); font-size: .66rem;
+  letter-spacing: .06em; text-transform: uppercase; color: #8b8f98;
+  margin-bottom: .2rem;
+}
+#said-text > :first-child { margin-top: 0; }
+#said-text > :last-child { margin-bottom: 0; }
+/* A backslash command with no delimiter round it renders as nothing at all, and
+   nothing is the one thing the board must never quietly do. Same rule as `board
+   write` refusing a card over 450 words instead of trimming it silently. */
+#said-hint {
+  margin-top: .35rem; font-family: var(--ui); font-size: .72rem;
+  color: #e0a35c;
+}
+/* The `$…$` key. Not the send button, whose colour means the thing that sends.
+   Two ids, because `#typebox button` below is the more specific of the two
+   otherwise and would paint this one coral whatever the order in the file. */
+#typebox #say-math {
+  border-color: #3a3e47; background: transparent; color: #b9bcc4;
+  font-weight: 400; padding: .55rem .6rem;
+}
+#typebox #say-math:hover { background: #2c2f37; color: #e9e7e2; }
 #typebox textarea {
   flex: 1 1 auto; min-width: 0;
   font: inherit; font-family: var(--ui); font-size: .92rem; line-height: 1.4;

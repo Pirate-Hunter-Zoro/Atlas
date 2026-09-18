@@ -852,8 +852,32 @@
   <!-- The typed half of the same panel. Saved as it is typed, so flipping to the
        pen and back does not lose the sentence. -->
   <div id="typebox" hidden>
-    <textarea id="saybox" rows="3" placeholder="type your answer"></textarea>
-    <button id="send-type" type="button">send</button>
+    <!-- ONE RENDERED BLOCK, TWO JOBS, AND THEY ARE THE SAME JOB.
+         Before a send it is a preview of what the transcript will show; after
+         one it is the answer that was sent, still where it was typed. That is
+         what makes the two halves of this panel symmetrical -- box and block
+         against slate and board -- because sent ink stays on a board of its own
+         and sent words used to leave nothing behind at all.
+         A textarea holds characters and no markup, so nothing can render inside
+         the box; this sits above it and renders through `renderMarkdown` and
+         KaTeX, the same pair a card goes through. It has no font of its own: the
+         prose inherits the reading face from the body and KaTeX brings its own,
+         so mathematics is untouched by construction rather than by a rule. -->
+    <div id="said" hidden>
+      <span id="said-label"></span>
+      <div id="said-text"></div>
+      <div id="said-hint" hidden></div>
+    </div>
+    <div id="sayrow">
+      <textarea id="saybox" rows="3" placeholder="type your answer"></textarea>
+      <!-- On an iPad keyboard a `$` is a hunt through a second layout, which is
+           the whole of why typed mathematics felt unavailable. One tap wraps the
+           selection or drops a pair with the caret between them. Nothing here
+           guesses what is mathematics: a backslash command is `\d+` in a regex
+           and a path on Windows as often as it is a formula. -->
+      <button id="say-math" type="button" title="wrap in $…$">$…$</button>
+      <button id="send-type" type="button">send</button>
+    </div>
   </div>
   <!-- Sending into silence is the thing that makes a person wonder whether it
        arrived. This sits under the surface they sent from and says it did. -->

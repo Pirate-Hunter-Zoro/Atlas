@@ -363,7 +363,12 @@ else
 //
 // A screenshot with a live Send button in it is a picture of a control that does
 // nothing, in a document somebody is emailing to their professor.
-const MUST_GO = ['.board-send', '.board-carry', '.to-board', '#skip'];
+// `#said-label` is the one that is not a button: it reads "sent · tap to
+// correct", which in a PDF somebody is emailing to their professor is a
+// picture of an instruction that does nothing. The words under it are theirs
+// and stay.
+const MUST_GO = ['.board-send', '.board-carry', '.to-board', '#skip',
+                 '#said-label'];
 for (const sel of MUST_GO) {
   Shot.FURNITURE.indexOf(sel) !== -1
     ? ok(`${sel} is stripped, because it is a control and not the lesson`)

@@ -92,5 +92,22 @@ check('multiline paragraph joins', 'one\ntwo', ['<p>one two</p>']);
 check('adjacent inline math', '$a$ and $b$', ['$a$', '$b$']);
 check('starred command not italic', 'use $x^*y^*z$ here', ['$x^*y^*z$'], ['<em>']);
 
+// AND WHAT THE FIRST PASS PARKS, because the answer panel's hint rests on it.
+// `bareCommand` in board.js complains about a backslash command that will render
+// as nothing, and the only thing it is allowed to complain about is what
+// `protect` hands BACK -- so a command inside `$...$` or inside backticks has to
+// be gone from that, or a regex in a code workspace gets called broken
+// mathematics every time somebody types one.
+{
+  const store = [];
+  const left = window.__test.protect(
+    'so $\\gamma^2 = 2$ and the pattern `\\d+` but \\omega on its own', store);
+  const bare = /\\([A-Za-z]+)/.exec(left);
+  bare && bare[1] === 'omega'
+    ? console.log('ok   protect parks math and code, so only a bare command is '
+                  + 'left to complain about')
+    : (fails++, console.log('FAIL the first pass left ' + JSON.stringify(left)));
+}
+
 console.log(fails ? '\n' + fails + ' FAILURES' : '\nall markdown checks passed');
 process.exit(fails ? 1 : 0);
