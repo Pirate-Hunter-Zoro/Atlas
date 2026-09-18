@@ -275,16 +275,39 @@ None of these is a build. Each is an evening in front of the thing.
   records the resolved draft depth and the acceptance rate beside tok/s because
   two arms that both ran `draft=0` would otherwise look like a result.
 
-  **What is left is the submission, and it is one line**: from
-  `projects/libr-local-llm`, `sbatch slurm_jobs/p0/t21_mtp_depth1.sbatch`.
-  It is not submitted here because §0.1 of `FLEET-BUILD.md` pre-authorises P0's
-  queue-touching jobs but stops at one that would sit on a node for hours during
-  working time, and this is one — roughly 40 to 90 minutes once it starts,
-  mostly the first pin. `--nodelist=compute303` is chosen from the queue as it
-  stood on 2026-09-18 and is the one line to re-check before submitting: it
-  wants a node with 80 spare CPUs and 800 GB, and there is no point taking one
-  the serving chain is about to hop onto. `--begin=` moves it out of working
-  time if that is easier than waiting.
+  **IT IS RUNNING AND NOBODY IS WAITING AT A KEYBOARD FOR IT.** Job **2073575**
+  on compute303, submitted 2026-09-18 15:09, expected to finish about 16:10 —
+  seven runs at roughly 8.5 minutes each, which is the 427 GB re-pin every run
+  pays and not the decode. **Do not submit a second one**; read the first one's
+  answer. There is nothing to watch: if the job is gone from `squeue`, it is
+  done, and if the box was rebooted under it, `sacct -j 2073575` says so.
+
+  **The answer is three greps against one file**, and the file is outside the
+  repository because the per-configuration logs carry generated text:
+
+      /media/studies/ehr_study/analysis/mferguson/fleet-p0/t21_mtp_2073575/timeline.txt
+
+  `RESULT tag=… tps=…` is the rate, the `[MTP] … (draft=N)` line is whether
+  speculation was on at all, and the `speculation:` line is tokens per forward
+  and acceptance. **Read the draft depth before reading the rates.** Six measured
+  runs, `r1..r3` × on/off, ordered ABBAAB; `warmup_discard` is not a measurement.
+  Already on disk and already worth having: the warm-up ran `draft=0` at 3.68
+  tok/s with acceptance 0/0, and `r1_mtp_on` came up `draft=1`, which is the
+  first time speculation has been on under CUDA on this box.
+
+  **Then write the result into `P0-STATUS.md` finding 21 and take this item out
+  of the file.** If MTP wins, `colibri_serve.sbatch` gains one export beside its
+  `CUDA_DENSE=0` and §10's tuning table changes again; if it loses, §3.3's
+  conclusion finally has a measurement under it instead of a misreading. Either
+  way the item is done and comes out.
+
+  **One scheduling rule while it runs, and it is about a file rather than the
+  GPU**: do not dispatch item 1's mission to the server until this job is gone.
+  `coli_ab.sh` restores `<model>/.coli_usage` byte-for-byte before every
+  configuration — it has to, that protocol is why the numbers mean anything —
+  and that same file is the live routing history the serving generation appends
+  to between turns. An idle server loses nothing by it. A working one loses what
+  it learned. The job header says this too.
 
 **KV slots came off this list rather than being done.** A slot costs 23.9 GB at
 131072, it fits only by eating the whole pin margin, a second one turns
