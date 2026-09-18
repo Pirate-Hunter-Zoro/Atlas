@@ -392,10 +392,15 @@ which model *wins* and, separately, which model can *ship*.
 
 ### Staging model weights (offline)
 
-Because compute nodes have no internet, every model is downloaded **once on the login
-node** into a `models/` directory on study storage and thereafter loaded by absolute
-path with `HF_HUB_OFFLINE=1`. The Hugging Face CLI (`hf`) ships inside the `asr_env`
-conda environment.
+Every model is downloaded **once on the login node** into a `models/` directory on study
+storage and thereafter loaded by absolute path with `HF_HUB_OFFLINE=1`. The Hugging Face
+CLI (`hf`) ships inside the `asr_env` conda environment.
+
+**Not because the compute nodes are offline — they are not.** They resolve DNS and reach
+`huggingface.co`, so a job with the variable unset silently re-downloads instead of
+failing, and a bake-off arm can end up weighed against a checkpoint that moved under it.
+Staging pins the weights to a path and a revision; `HF_HUB_OFFLINE=1` is what turns a
+quiet re-download into an error you can see.
 
 **Diarization model — `pyannote/speaker-diarization-community-1`.** WhisperX 3.8.6
 defaults its diarizer to this model, and pyannote.audio 4.0.7's `SpeakerDiarization`
@@ -652,7 +657,7 @@ find its cache; having the files on study storage is necessary but not sufficien
 three, plus `PYTHONNOUSERSITE`, are exported by `activate_env` in
 `slurm_jobs/lib/job_env.sh`, which every job sources — before that helper existed, four
 jobs exported three variables and two exported two, which is the kind of difference nobody
-notices until a job hangs on a node with no internet.
+notices until an arm quietly re-downloads its own weights mid-bake-off.
 
 **Importing `psych_asr.config` exports `TORCH_HOME` and `NLTK_DATA` as well**, with
 `setdefault`, so an explicit export still wins. The job scripts cover the jobs and nothing

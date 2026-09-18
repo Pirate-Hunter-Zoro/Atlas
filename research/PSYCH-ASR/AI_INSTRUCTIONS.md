@@ -111,11 +111,26 @@ You are inside the fence only if **all three** hold:
    Nothing you read crosses the network to reach you and nothing you emit crosses it to
    leave. A model that happens to be open-weight but is being served to you over somebody
    else's API is **outside** — the licence is irrelevant, the network path is what counts.
-2. **You have no tool-calling surface at all.** No web fetch, no search, no shell that can
-   open a socket, no MCP server, no subagent with any of those. A tool-enabled model
-   placing a session fragment into a search query is an exfiltration event under this
-   constraint, not a bug, and it is why the clinical path is a plain Python client rather
-   than a coding agent.
+2. **Nothing you read can leave this node, and that is a control rather than a hope.** A
+   tool-enabled model placing a session fragment into a search query is an exfiltration
+   event under this constraint, not a bug. But the thing that makes it impossible is a
+   guard in front of the tool call, **not** the absence of tools and **not** the network:
+   these compute nodes resolve DNS and reach arbitrary hosts over HTTPS, so any argument
+   that begins "the node has no route" is false and has been measured to be false.
+
+   So a local model may hold tools that reach only this filesystem — a shell, an editor, a
+   test runner — provided a `PreToolUse` guard refuses everything that sends bytes off the
+   host: web fetch and search, `curl`/`wget`/`ssh`/`scp`/`rsync`, package installs, `git
+   push` and `git fetch`, a raw socket, an MCP server. That policy is
+   `ai-config/policy/egress.py`; loopback is allowed, because that is where a local
+   inference gateway answers. A shell is the reason the guard cannot stop at the tool
+   catalog: whatever tools a client ships with, the cheap way to move a file is `curl`.
+
+   `coli-code` is inside the fence on that basis and installs the guard itself, refusing to
+   start without it. A front end with no hook system cannot carry it and is refused in a
+   fenced directory — see `adapters/generic.py` on why "we can wrap the shell" is half an
+   answer. The clinical path stays a plain Python client for its own reasons; it is no
+   longer the only admissible shape.
 3. **You were pointed at the data deliberately**, by the user or by a pipeline stage in this
    repository that is supposed to read it. Wandering into `data/` because it was there does
    not qualify.

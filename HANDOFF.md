@@ -193,19 +193,10 @@ Three things about running it that are the board's rather than that file's:
 `research/PSYCH-ASR/HANDOFF.md` holds the *teaching* thread on the same code; it
 is a different conversation and the two do not merge.
 
-**One thing about that workspace's own contract, which nobody has reconciled.**
-`research/PSYCH-ASR/AI_INSTRUCTIONS.md`, *The exception: a model whose inference
-runs on this hardware*, admits a local model inside the fence only if **all
-three** of its clauses hold, and clause 2 is *no tool-calling surface at all* —
-"which is why the clinical path is a plain Python client rather than a coding
-agent." `coli-code` is a coding agent. What makes it sound in fact is that the
-fresh config directory carries no MCP server, no plugin and no web tool, and the
-compute nodes have no outbound route — so the exfiltration clause 2 names cannot
-happen — but the file does not say that, and a session that reads it before
-running item 1 will read the mission as a violation of the contract it is
-working under. Either that clause gets the sentence that distinguishes *tools
-that can reach a network* from *tools that can reach a filesystem*, or this
-paragraph is wrong and the mission is. It is the owner's call, not a session's.
+**The contract clause that blocked this is reconciled, and the reason it took a
+build is that the old justification was false.** See EGRESS under Settled. The
+short of it: the mission is admissible now because a guard refuses everything
+that could carry PHI off the node, not because the node cannot reach anything.
 
 ### 2. And the five things no test can hold
 
@@ -305,6 +296,29 @@ as the answer.
 ---
 
 ## Settled, so nobody re-derives it
+
+- **EGRESS: A LOCAL MODEL READS PHI BECAUSE A GUARD STOPS IT SENDING ANY,
+  NOT BECAUSE THE NODE CANNOT REACH ANYTHING.** These compute nodes resolve DNS
+  and reach arbitrary hosts over HTTPS — checked on the serving node, not
+  argued. So any sentence anywhere that reasons from *the node has no outbound
+  route* is a hole rather than a mitigation, and the two that existed have been
+  rewritten. `ai-config/policy/egress.py` is the control: web fetch and search,
+  `curl`/`wget`/`ssh`/`scp`/`rsync`, package installs, `git push`/`fetch`, a
+  `/dev/tcp/` redirection, an interpreter importing a socket library, and any
+  MCP server are refused; loopback is allowed, because that is where the
+  gateway answers. It is the mirror of `phi.py` and it is written the same way
+  — no vendor, no tool protocol, a test that asserts so.
+  **It judges the shell, and that is the whole point.** A deny list over the
+  two web tools is decoration when the agent has `curl`. **And it is a
+  `PreToolUse` hook rather than a permission**, because the session that needs
+  it most is the unattended one running under `--dangerously-skip-permissions`,
+  and a hook runs whatever the permission mode says.
+  `coli-code` installs it into the local model's own config directory and
+  **refuses to start without it**; the front end with no hook system is refused
+  outright in a fenced directory, since it cannot carry the guard and still
+  gets a shell. Clause 2 of *The exception* in
+  `research/PSYCH-ASR/AI_INSTRUCTIONS.md` now says all of this, so item 1's
+  dispatch is no longer a session reading its own contract as a violation.
 
 - **THE CHAIN: COLIBRÌ IS ALWAYS UP, AND IT MOVES NODE RATHER THAN GOING AWAY.**
   `coli-up` starts a chain. Two hours before its walltime a generation submits

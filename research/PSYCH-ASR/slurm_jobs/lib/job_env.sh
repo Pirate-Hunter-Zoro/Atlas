@@ -14,7 +14,8 @@
 # Six .sbatch files used to carry their own copy of the module load, the conda
 # activation, the four exports and the input guard. Four of them exported three
 # variables and two exported two, which is the kind of difference nobody sees
-# until a job hangs on a node with no internet. There is one copy now.
+# until an arm quietly re-downloads its own weights mid-bake-off. There is one
+# copy now.
 # ---------------------------------------------------------------------------
 
 # ---------------------------------------------------------------------------
