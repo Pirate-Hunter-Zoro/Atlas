@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Board">
+<title>Meeting deck</title>
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<link rel="icon" href="/icon-192.png">
+<link rel="stylesheet" href="/static/typeface.css">
+<!-- The board's own sheet and the library's, unchanged. The reader here is the
+     library's reader over a document that belongs to the repository rather
+     than to a workspace, so it is the same bar, the same page boxes and the
+     same pen -- a second set of either is a second thing to keep in step. -->
+<link rel="stylesheet" href="/static/board.css">
+<link rel="stylesheet" href="/static/library.css">
+<script src="/static/typeface.js" defer></script>
+</head>
+<body>
+
+<!-- ONE DECK, AND IT BELONGS TO THE REPOSITORY. `meetings/` is at the root on
+     purpose: a note about five workspaces filed under one of them is misfiled.
+     So the way back from here is the front door and not a workspace, and the
+     bar is the reader's own -- `#reader` is fixed to the whole viewport, and a
+     second bar above it would be a header nothing can reach. -->
+<div id="reader">
+  <div id="reader-bar">
+    <a id="deck-back" href="/" title="back to everything">‹ all of it</a>
+    <strong id="reader-name">Meeting deck</strong>
+    <span id="reader-sub" class="muted"></span>
+    <span id="deck-count" class="muted"></span>
+    <!-- THE PEN, ON THE SLIDE ITSELF. A mark here is not a complaint about the
+         slide: the deck is a throwaway communication tool, and what somebody's
+         mentor draws on a frame is a suggested new direction for the project
+         that frame is about. -->
+    <button id="reader-pen" type="button" title="draw on the slide">✎ mark it up</button>
+    <button id="deck-send" type="button" title="send the marks as direction" disabled>
+      send as direction</button>
+    <a id="deck-pdf" href="/meeting/pdf" target="_blank" rel="noopener"
+       title="the deck itself">⤓ the file</a>
+    <button id="reader-close" type="button" title="back to the front door">✕</button>
+  </div>
+  <!-- NOTHING THE READER CAN BE WAITING ON IS SILENT. Which workspaces are
+       marked, what sending them will do, and what happened when it was done. -->
+  <p id="reader-said" class="reader-said" hidden></p>
+  <div id="reader-pages"></div>
+</div>
+
+<!-- WHAT IS ABOUT TO HAPPEN, BEFORE IT HAPPENS. Sending wakes a turn in every
+     marked workspace, and somebody who taps it not knowing that is somebody
+     who will not tap it a second time. It says, by name, that nothing is
+     applied: each workspace writes a card proposing a direction and stops. -->
+<div id="note" hidden>
+  <div id="note-box">
+    <strong id="deck-ask-title">Send these marks as direction</strong>
+    <p id="deck-ask-list" class="muted"></p>
+    <p class="muted">Each of those workspaces gets one turn that reads your
+      marks and writes <strong>one card proposing</strong> a new direction.
+      Nothing is applied: no plan is rewritten, no sitting is archived, no
+      assistant is replaced. You take it or leave it on that board.</p>
+    <p id="deck-ask-said" class="note-said" hidden></p>
+    <div id="note-acts">
+      <button id="deck-ask-cancel" type="button" class="quiet">cancel</button>
+      <button id="deck-ask-go" type="button" class="primary">send them</button>
+    </div>
+  </div>
+</div>
+
+<!-- The ink, and the clipboard it shares with the lesson's own pen. Both are
+     the board's, unchanged: a page carries `data-ann` and `annotate.js` has
+     taken that as an anchor since the viewer first drew one. -->
+<script src="/static/ink-clip.js"></script>
+<script src="/static/annotate.js"></script>
+<script src="/static/meeting.js"></script>
+</body>
+</html>

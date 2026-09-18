@@ -83,6 +83,15 @@ var els = {
   notesSaid: document.getElementById("notes-said"),
   notesClose: document.getElementById("notes-close"),
   notesBtn: document.getElementById("atlas-notes"),
+  notesWhich: document.getElementById("notes-which"),
+  notesWhichLine: document.getElementById("notes-which-line"),
+  notesList: document.getElementById("notes-list"),
+  notesMake: document.getElementById("notes-make"),
+  notesMakeSub: document.getElementById("notes-make-sub"),
+  notesBack: document.getElementById("notes-back"),
+  notesRead: document.getElementById("notes-read"),
+  notesReadSub: document.getElementById("notes-read-sub"),
+  notesTitle: document.getElementById("notes-title"),
   busy: document.getElementById("busy"),
   busyText: document.getElementById("busy-text"),
   busySub: document.getElementById("busy-sub")
@@ -793,29 +802,60 @@ els.sheetLibrary.onclick = function () {
   switchTo(c.repo, "", "/library");
 };
 
-/* ------------------------------------------------------ notes for a meeting */
-/* "have functionality to produce 'meeting notes' for me with in-built links
-    that will take me to those results/code/sections of my board writing to
-    explain those notes."
+/* ------------------------------------------------------- the meeting deck */
+/* "I have generally two — sometimes three — meetings per week to talk about my
+    research… I want to be able to select which projects meeting notes are
+    generated for… I want a presentation like the ones made for PSYCH-ASR
+    created and rendered for me."
 
-   The front door is what is open when somebody remembers they have a meeting in
-   ten minutes, so it is where this lives. One question is asked -- how far back
-   -- because it is the only one whose answer the person actually has. WHICH
-   workspaces is not asked: the answer is "the ones that moved", and that is
-   what the note does anyway.
+   The front door is what is open when somebody remembers they have a meeting
+   in ten minutes, so it is where this lives. TWO QUESTIONS, in this order:
+   how far back, and then which projects — with what each one HAS to report
+   since that date beside it, because ticking bare names is guessing.
 
-   A build is LaTeX and can take a few seconds, so the button says what it is
-   doing and the panel stays open until there is something to say. Nothing a
-   reader can be waiting on may be silent. */
+   ONE DECK. Making a new one REPLACES the one before it, which is what was
+   asked for: this is a one-off communication tool and the only one worth
+   keeping is the most recent. Nothing is lost by that — `meetings/` is
+   tracked, so `git log` holds every deck there has ever been while the tree
+   holds one.
+
+   A build is LaTeX and takes a few seconds, so the button says what it is
+   doing. Nothing a reader can be waiting on may be silent. */
+var notesSince = "";       /* the period they chose */
+var notesWant = {};        /* workspace id -> ticked */
+
 function openNotes() {
   els.notesSaid.hidden = true;
-  Array.prototype.forEach.call(
-    els.notesSince.querySelectorAll("button"),
-    function (b) { b.disabled = false; });
+  els.notesWhich.hidden = true;
+  els.notesSince.hidden = false;
+  els.notesTitle.textContent = "How far back?";
+  notesSince = "";
+  notesWant = {};
+  sinceButtons(false);
+  /* THE ONE FROM BEFORE, offered first, because that is what you want in the
+     ten minutes before the meeting. */
+  els.notesRead.hidden = true;
+  fetch("/meeting/deck.json", { credentials: "same-origin" })
+    .then(function (r) { return r.json(); })
+    .then(function (rec) {
+      if (!rec || !rec.ok || !rec.built) return;
+      els.notesRead.hidden = false;
+      var n = (rec.workspaces || []).length;
+      els.notesReadSub.textContent = n + (n === 1 ? " project" : " projects")
+        + (rec.since ? ", " + rec.since : "")
+        + ((rec.marked || []).length ? " · marked up" : "");
+    })
+    .catch(function () { /* no deck to offer is not an error worth painting */ });
   els.notes.hidden = false;
 }
 
 function closeNotes() { els.notes.hidden = true; }
+
+function sinceButtons(off) {
+  Array.prototype.forEach.call(
+    els.notesSince.querySelectorAll("button"),
+    function (b) { b.disabled = !!off; });
+}
 
 function notesSay(text, bad) {
   els.notesSaid.hidden = false;
@@ -823,55 +863,141 @@ function notesSay(text, bad) {
   els.notesSaid.textContent = text;
 }
 
-function makeNotes(since) {
+/* WHICH PROJECTS, WITH WHAT EACH ONE HAS. `/notes/what` is `gather`'s own
+   output per workspace — the same counts the deck itself is assembled from, so
+   the list cannot disagree with the deck it produces. */
+function askWhich(since) {
+  notesSince = since;
+  sinceButtons(true);
+  notesSay("looking at what has landed…");
+  fetch("/notes/what", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "same-origin",
+    body: JSON.stringify({ since: since })
+  }).then(function (r) { return r.json(); }).then(function (got) {
+    sinceButtons(false);
+    if (!got || !got.ok) {
+      notesSay((got && got.detail) || "that period could not be read", true);
+      return;
+    }
+    els.notesSaid.hidden = true;
+    els.notesRead.hidden = true;
+    els.notesSince.hidden = true;
+    els.notesWhich.hidden = false;
+    els.notesTitle.textContent = "Which projects?";
+    els.notesWhichLine.textContent = "Since " + got.since
+      + ". The ones that moved are already chosen.";
+    paintWhich(got.workspaces || []);
+  }).catch(function (e) {
+    sinceButtons(false);
+    notesSay(e.message || "the board did not answer", true);
+  });
+}
+
+function paintWhich(list) {
+  notesWant = {};
+  els.notesList.innerHTML = "";
+  list.forEach(function (w) {
+    /* TICKED WHERE IT MOVED. That is what the deck covers when nobody says
+       anything, so the default state of the list is the default behaviour. */
+    notesWant[w.id] = !!w.moved;
+    var b = document.createElement("button");
+    b.type = "button";
+    b.setAttribute("data-id", w.id);
+    b.setAttribute("data-moved", w.moved ? "1" : "0");
+    var tick = document.createElement("span");
+    tick.className = "tick";
+    var name = document.createElement("span");
+    name.textContent = w.name;
+    var what = document.createElement("span");
+    what.className = "what";
+    what.textContent = whatOf(w);
+    b.appendChild(tick);
+    b.appendChild(name);
+    b.appendChild(what);
+    b.onclick = function () {
+      notesWant[w.id] = !notesWant[w.id];
+      paintTicks();
+    };
+    els.notesList.appendChild(b);
+  });
+  paintTicks();
+}
+
+function whatOf(w) {
+  if (!w.moved) return "nothing since";
+  var bits = [];
+  if (w.commits) bits.push(w.commits + (w.commits === 1 ? " commit" : " commits"));
+  if (w.closed) bits.push(w.closed + (w.closed === 1 ? " step" : " steps") + " closed");
+  if (!bits.length && w.files) bits.push(w.files + " files");
+  return bits.join(", ");
+}
+
+function paintTicks() {
+  var n = 0;
   Array.prototype.forEach.call(
-    els.notesSince.querySelectorAll("button"),
-    function (b) { b.disabled = true; });
-  notesSay("writing them… LaTeX takes a moment.");
+    els.notesList.querySelectorAll("button"), function (b) {
+      var on = !!notesWant[b.getAttribute("data-id")];
+      b.setAttribute("aria-pressed", on ? "true" : "false");
+      b.querySelector(".tick").textContent = on ? "✓" : "·";
+      if (on) n += 1;
+    });
+  els.notesMake.disabled = !n;
+  els.notesMakeSub.textContent = n
+    ? n + (n === 1 ? " slide" : " slides") + ", replacing the last deck"
+    : "choose at least one";
+}
+
+function makeDeck() {
+  var want = Object.keys(notesWant).filter(function (id) { return notesWant[id]; });
+  if (!want.length) return;
+  els.notesMake.disabled = true;
+  notesSay("writing it… LaTeX takes a moment.");
   fetch("/notes", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ since: since })
+    credentials: "same-origin",
+    body: JSON.stringify({ since: notesSince, want: want })
   }).then(function (r) { return r.json(); }).then(function (rec) {
     rec = rec || {};
+    els.notesMake.disabled = false;
     if (!rec.ok && !rec.name) {
-      notesSay(rec.detail || "the notes could not be written", true);
-      Array.prototype.forEach.call(
-        els.notesSince.querySelectorAll("button"),
-        function (b) { b.disabled = false; });
+      notesSay(rec.detail || "the deck could not be written", true);
       return;
     }
     var covered = (rec.workspaces || []).length;
-    /* THE NOTE IS WRITTEN EVEN WHEN LaTeX IS NOT HAPPY. Saying only "failed"
-       sends somebody off to write it again by hand, when the markdown and the
-       .tex are both sitting there. */
+    /* THE DECK IS WRITTEN EVEN WHEN LaTeX IS NOT HAPPY. Saying only "failed"
+       sends somebody off to write it again by hand, when the .tex is sitting
+       there. */
     if (!rec.ok) {
-      notesSay(rec.name + " is written, but LaTeX would not typeset it. "
-               + "The text of it is in " + rec.tex + ".", true);
+      notesSay("It is written, but LaTeX would not typeset it. The source is "
+               + "in " + rec.tex + ".", true);
       return;
     }
-    notesSay(rec.name + " — " + covered
-             + (covered === 1 ? " workspace" : " workspaces")
-             + ". It is in meetings/, and staged for the next save.");
-    if (rec.pdf) {
-      var a = document.createElement("a");
-      a.className = "action primary";
-      a.href = "/meeting/" + encodeURIComponent(rec.name);
-      a.target = "_blank";
-      a.rel = "noopener";
-      a.innerHTML = '<span class="action-name">Read it</span>';
-      els.notesSaid.insertAdjacentElement("afterend", a);
-    }
+    notesSay(covered + (covered === 1 ? " slide" : " slides")
+             + ". It is in meetings/, it replaced the one before it, and it is "
+             + "staged for the next save.");
+    els.notesRead.hidden = false;
+    els.notesReadSub.textContent = covered
+      + (covered === 1 ? " project" : " projects") + ", " + notesSince;
   }).catch(function (e) {
+    els.notesMake.disabled = false;
     notesSay(e.message || "the board did not answer", true);
-    Array.prototype.forEach.call(
-      els.notesSince.querySelectorAll("button"),
-      function (b) { b.disabled = false; });
   });
 }
 
 if (els.notesBtn) els.notesBtn.onclick = openNotes;
 if (els.notesClose) els.notesClose.onclick = closeNotes;
+if (els.notesMake) els.notesMake.onclick = makeDeck;
+if (els.notesBack) {
+  els.notesBack.onclick = function () {
+    els.notesWhich.hidden = true;
+    els.notesSince.hidden = false;
+    els.notesSaid.hidden = true;
+    els.notesTitle.textContent = "How far back?";
+  };
+}
 if (els.notes) {
   els.notes.addEventListener("click", function (ev) {
     if (ev.target === els.notes) closeNotes();
@@ -880,7 +1006,7 @@ if (els.notes) {
 if (els.notesSince) {
   els.notesSince.addEventListener("click", function (ev) {
     var b = ev.target.closest ? ev.target.closest("button[data-since]") : null;
-    if (b && !b.disabled) makeNotes(b.getAttribute("data-since"));
+    if (b && !b.disabled) askWhich(b.getAttribute("data-since"));
   });
 }
 

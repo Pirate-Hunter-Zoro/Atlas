@@ -43,9 +43,11 @@ The assistant runs these. The student never does.
                                        outranks the plan, the map and the
                                        handoff. `board brief` already has it
     board direction < what.md          replace it -- their sentence, not yours
-    board notes --meeting --since 7d   meeting notes across the repository: what
-                                       landed, what it meant, what is blocked —
-                                       every claim carrying a link to the thing
+    board notes --meeting --since 7d   THE meeting deck: one Beamer slide per
+                                       workspace saying what landed, what it
+                                       meant and what is blocked, every claim
+                                       carrying a link. One of them, at
+                                       meetings/meeting.pdf, replaced each time
     board make --paper ["title"]       assemble a manuscript job out of this
                                        workspace and drop it in Paper-Writer's
                                        inbox. --status, --delivered, --dry-run
@@ -1885,30 +1887,35 @@ def cmd_aim(live, args):
 
 
 def cmd_notes(live, args):
-    """Meeting notes across the repository: what landed, and what it meant.
+    """The meeting deck: one slide per workspace, in the words it was written in.
 
         board notes --meeting --since 7d
         board notes --meeting --since 2026-09-01 --workspace research/PSYCH-ASR
-        board notes --meeting --since last          (since the last set)
-        board notes --meeting --since monday --print   (markdown, no PDF)
+        board notes --meeting --since last          (since the last deck)
+        board notes --meeting --since monday --print   (the text of it, no PDF)
 
-    A note per workspace that moved, with **what landed** (commits, summarised,
-    plus the plan steps that came off), **what it means** in the words of that
-    workspace's own written map, **what is next**, and **what is blocked and on
-    what**. Every claim carries an address in the §2.1 grammar, so a note read in
-    September opens the thing it is about or says plainly that it has moved.
+    A FRAME per workspace that moved, with **what landed** (commits,
+    summarised, plus the plan steps that came off), **what it means** in the
+    words of that workspace's own written map, **what is next**, and **what is
+    blocked and on what**. Every claim carries an address in the §2.1 grammar,
+    so a deck read in September opens the thing it is about or says plainly
+    that it has moved.
 
     NOTHING IN IT IS GENERATED PROSE. Every sentence is assembled out of
     something a person already wrote down: a commit subject, a plan step, the
-    name they gave a box. A meeting note whose sentences were invented has to be
-    checked before it can be used, which is worse than having none.
+    name they gave a box. A slide you are going to stand behind in front of
+    your mentors is the last place for a sentence nobody wrote, and a model
+    would buy polish at the price of the one property that makes the deck
+    usable without checking it.
 
-    A workspace with nothing to say is LEFT OUT rather than written up as "no
-    activity" -- eleven headings with nothing under ten of them is the shape of a
-    report nobody reads, and it buries the one that moved.
+    A workspace with nothing to say is LEFT OUT rather than given an empty
+    frame -- eleven slides with nothing on ten of them is a deck nobody sits
+    through, and it buries the one that moved. `--workspace`, repeated, says
+    which to look at and nothing else is looked at.
 
-    The document goes to `meetings/` at the repository root, numbered v1/v2/v3
-    rather than stamped with the time, staged rather than committed.
+    ONE DECK, AT `meetings/meeting.pdf`, and making a new one REPLACES it.
+    Nothing accumulates in the tree and `git log` still holds every deck there
+    has ever been. Staged rather than committed.
     """
     if "--meeting" not in args:
         print("board notes: say what kind. `board notes --meeting --since 7d`.\n"
@@ -1933,14 +1940,23 @@ def cmd_notes(live, args):
         if a == "--workspace" and i + 1 < len(args):
             want.append(args[i + 1])
 
+    # `--print` ASSEMBLES AND WRITES NOTHING. There is one deck at one path, so
+    # a run that wrote the source without building the PDF would leave a `.tex`
+    # and a `.pdf` beside each other that are not the same deck.
+    #
+    # `repo=live` so the marks on the deck this one REPLACES go with it. The
+    # ink is a suggested direction that was consumed the moment it was sent,
+    # and the new deck has a different workspace on page 4.
+    only_text = "--print" in args
     rec = meeting.build(base, when, human, want=want or None,
-                        make_pdf="--print" not in args, here=live.root)
+                        make_pdf=not only_text, here=live.root,
+                        repo=live, write=not only_text)
     if not rec.get("ok") and not rec.get("name"):
         print("board notes: %s" % rec.get("detail", "nothing was written"),
               file=sys.stderr)
         return 1
 
-    if "--print" in args:
+    if only_text:
         sys.stdout.write(rec["markdown"])
         return 0
 

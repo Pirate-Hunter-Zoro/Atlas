@@ -405,22 +405,77 @@ marked `done` while step 3 of the plan still names `grade_arms`. It is left as i
 silenced, because that is what the check is for and a map edited to quiet a checker is a map nobody
 should believe.
 
-### Meeting notes
+### The meeting deck
 
 `tutorboard/meeting.py`, `board notes --meeting --since <spec>`, and a **notes** button on the
-atlas beside **fit**. `test/meeting.py` is the suite, 30 checks. This is the first thing that
-spends both the grammar and the written map, and it does not work without either.
+atlas beside **fit**. `test/meeting.py` is the suite. This is the first thing that spends both the
+grammar and the written map, and it does not work without either.
 
 ```
 board notes --meeting --since 7d
 board notes --meeting --since 2026-09-01 --workspace research/PSYCH-ASR
-board notes --meeting --since last                 since the last set of notes
-board notes --meeting --since monday --print       markdown, no PDF
+board notes --meeting --since last                 since the last deck
+board notes --meeting --since monday --print       the text of it; writes nothing
 ```
 
-Per workspace that **moved**: what landed (commits, summarised past six, plus the plan steps that
-came off), what it means in the written map's own words, what is next, what is blocked and on what.
-Every claim carries its address.
+A **Beamer frame per workspace that moved**: what landed (commits, summarised past four on a
+frame, plus the plan steps that came off), what it means in the written map's own words, what is
+next, what is blocked and on what. Every claim carries its address. `document.BEAMER_HEAD` is the
+class, themed the way the hand-written decks in `research/PSYCH-ASR/docs/` are themed.
+
+**Assembled, not generated, and this is the decision the whole feature turns on.** A model asked
+to write the deck produces better sentences and costs the one property that makes it usable
+without checking: a slide you are going to stand behind in front of your mentors is the last place
+for a sentence nobody wrote. If the deck reads badly the fix is `meeting.frames`, not a turn.
+
+**One deck, at `meetings/meeting.pdf`, replaced each time.** No `-v1, -v2, -v3`: this is a one-off
+communication tool and the only one worth keeping is the most recent. `meetings/` is tracked, so
+nothing accumulates in the tree and `git log` still holds every deck there has ever been — the
+cheap version of *"we're not gonna save every presentation"*, and recoverable, which a delete is
+not.
+
+**One frame is exactly one page, and that is load-bearing rather than typographic.** `[shrink]`
+scales a frame that would overflow instead of spilling it, because the page a mark is on is how
+the mark finds its workspace — a frame that quietly became two pages would route a mentor's
+suggestion into the wrong project. `meeting.page_map` is written beside the deck as
+`meetings/meeting.json` at build time; page 1 is the title and belongs to nobody.
+
+**Which projects, with what each one has to report.** `POST /notes/what` takes the period and
+returns `gather`'s own counts per workspace — three commits, one step closed — and the sheet
+draws them as a list with the ones that moved already ticked. `POST /notes` carries `want` to
+`meeting.build`, which filters `atlas.workspaces` by it and refuses an unknown name by name.
+
+**Reading it, and marking it up.** `/meeting` is a page of its own — `web/meeting.html`,
+`web/meeting.js`, the library's own reader over a document that belongs to the repository rather
+than to a workspace. `GET /meeting/view` hands back pages through `paper.pages_of(..., "meeting")`
+— the same rasteriser, cache and `/paper/<name>.png` addresses the library uses, with its own
+cache namespace, which is what the `tag` argument was there for. Each page carries
+`data-ann="doc/meeting/p<n>"` and the caption under it names the project that frame is about,
+before anybody draws.
+
+**A mark on a slide is DIRECTION, and it must not go to `/library/feedback`.** That route files a
+complaint about the document and wakes a `[revise]` turn — it would spend a turn polishing a
+throwaway deck while throwing away the only thing the marks said. Asked in these words: *"NOT to
+give feedback on them in terms of the presentation… My mentors will give me suggestions on new
+directions to take — THAT'S what these annotations will serve as."*
+
+`tutorboard/proposals.py` is the routing, and it is the geometry: ink on the TRD-EHR frame is
+direction input for TRD-EHR, because that is whose frame it is. `POST /meeting/direction` writes
+one turn per marked workspace, in that workspace, with the picture of the ink copied to
+`meetings/marks/p<n>.png` — beside the deck, because a path into the serving board's
+`live/annotations/` means nothing from where the turn reads it.
+
+**Proposed, never applied.** `direction.write` and `POST /direction` write the direction at the
+root, open a new sitting which archives the lesson, forget the last turn's note and replace the
+assistant. Two of those are destructive, and doing them unattended to five workspaces because
+somebody drew on five slides is the worst outcome available. So the turn is told to write **one
+card** saying what it would change and stop — `sense.direction_mark_sense` — and the person taps
+⟳ rethink if they agree. `news.elsewhere` is what tells them the card landed.
+
+**And the ink goes with the deck it was drawn on.** This is the one document in the system where
+an old mark has no meaning at all: it was consumed into a direction the moment it was sent, and
+the replacement deck has a different project on page 4. `meeting.clear_ink` and
+`proposals.forget_pictures` run on every build.
 
 **Nothing in a note is generated prose.** Every sentence is assembled from something a person
 already wrote: a commit subject, a plan step, the name they gave a box. A note whose sentences were
@@ -730,6 +785,7 @@ order and the earlier ones did not know the later ones were coming.
 | **The answer panel** (`/board`) | the student | one block under the question — write on the slate, or type, with a toggle |
 | **The drop zone** | the student | a file that was not written on the slate |
 | **The library** (`/library`) | the student | every paper and deck this workspace has written; a word about what is wrong with one, or an overhaul of it, and the corrected pages re-drawn where you were reading |
+| **The meeting deck** (`/meeting`) | the student | the one deck, read on the glass and marked up on it; a mark on a project's frame is that project's new direction, proposed on its own board |
 
 The library is the one that touches nothing else: it writes no card, opens no
 sitting and changes no `state.json`, so reading a document or correcting one
@@ -3806,6 +3862,16 @@ transcripts/       <lesson>-v1.pdf, -v2.pdf … written by `board export`
 writeups/<slug>/   a document a make sitting produced: <slug>.tex, <slug>.pdf,
                    figures/, and feedback/<date>-vN.md — one directory per
                    document, drawn by the library page
+```
+
+and one directory at the REPOSITORY root, because what is in it is about every workspace and a
+document about five of them filed under one of them is misfiled:
+
+```
+meetings/          meeting.tex, meeting.pdf — THE deck, one of it, overwritten
+                   meeting.json  which frame is about which workspace
+                   marks/p<n>.png  the picture of what somebody drew on a slide,
+                   handed to the turn that reads it as a suggested direction
 ```
 
 ---

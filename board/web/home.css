@@ -436,3 +436,27 @@ main { max-width: 46rem; }
 /* Over the sheets, which cover the whole glass: a sheet has its own close and
    the stack must not sit under one. */
 #panic { z-index: 63; }
+
+/* ---------- which projects the deck is about ----------
+   The second half of the same question. A row per workspace with what it has
+   to report since the chosen period beside it, ticked where it moved — which
+   is what the deck covers when nobody says anything, so the list narrows a
+   decision rather than asking for one from nothing. */
+.notes-which { display: grid; gap: .3rem; margin-top: .7rem;
+  max-height: 46vh; overflow: auto; }
+.notes-which button {
+  font: inherit; font-family: var(--ui); font-size: .9rem;
+  display: flex; align-items: baseline; gap: .5rem;
+  padding: .55rem .7rem; text-align: left; cursor: pointer;
+  color: var(--ink); background: var(--paper);
+  border: 1px solid var(--rule); border-radius: .45rem;
+}
+.notes-which button[aria-pressed="true"] {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 9%, transparent);
+}
+/* A project that did not move is still tappable — somebody may want a slide
+   saying so — but it does not look like one of the answers. */
+.notes-which button[data-moved="0"] { opacity: .62; }
+.notes-which .tick { width: 1.1rem; flex: 0 0 auto; }
+.notes-which .what { margin-left: auto; font-size: .76rem; color: var(--ink-3); }
