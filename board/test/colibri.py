@@ -343,12 +343,16 @@ else:
           "no dependency anywhere in the chain, because a load that begins at the "
           "handover is an hour with no server",
           "--dependency" not in code(job) and "--dependency" not in code(env))
-    check("and it is told to land somewhere else, because two 950 GB jobs do not "
+    check("and it is told to land somewhere else, because two 800 GB jobs do not "
           "fit on a 1 TB box",
-          '--exclude="$MY_NODE"' in job)
+          '--exclude="$NODE"' in env)
     check("the incumbent gives its node back only once the successor has LOADED, "
           "which is the whole of what makes the handover gapless",
-          "COLIBRI-SERVE LOADED" in job and 'scancel "$MY_JOB"' in job)
+          "COLIBRI-SERVE LOADED" in env and 'scancel "$JOB"' in env)
+    check("and the handover is written ONCE, because `coli-adopt` runs the same "
+          "loop as a job of its own against a generation that has none",
+          "coli_chain_watch" in env and "coli_chain_watch" in job
+          and os.path.isfile(os.path.join(LLM, "bin", "coli-adopt")))
     check("the successor holds its WARM-UP until the incumbent has gone, because "
           "a warm-up is a real write and .coli_kv is one file per checkpoint",
           "coli_elders" in job and "HOLDING" in job)
@@ -366,8 +370,15 @@ else:
           "serving", "coli_chain_stopped" in job)
     check("`coli-up` no longer tells somebody to tear the chain down to start it",
           "coli-down' first" not in up)
+    adopt = open(os.path.join(LLM, "bin", "coli-adopt"), encoding="utf-8").read()
+    check("and it refuses a generation that already watches itself, because two "
+          "watchers queue two successors and that is two 800 GB jobs nobody asked "
+          "for",
+          "COLIBRI-SERVE LOADED" in adopt and "--force" in adopt)
+
     for name in ("slurm_jobs/colibri_serve.sbatch", "scripts/colibri-env.sh",
-                 "bin/coli-up", "bin/coli-down", "bin/coli", "bin/coli-ask"):
+                 "bin/coli-up", "bin/coli-down", "bin/coli", "bin/coli-ask",
+                 "bin/coli-adopt"):
         check("%s is syntactically sound" % name,
               subprocess.run(["bash", "-n", os.path.join(LLM, name)]).returncode == 0)
 
