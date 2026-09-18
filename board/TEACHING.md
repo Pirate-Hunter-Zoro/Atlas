@@ -486,6 +486,36 @@ submitted is worse than no card.
 
 ---
 
+## Where a new thing goes: one module, one job
+
+**A new thing goes in a module named for the one job it does, and if that means
+moving something first, move it first.**
+
+This is not tidiness. Every workspace here has a map, and the boxes on it are
+the repository's own modules with the arrows drawn from what they import. So a
+module that does six unrelated things draws as one box with eleven arrows into
+it, and the diagram of that repository teaches nobody anything. **The picture is
+a mirror, and the failure is the module rather than the renderer.**
+
+Which makes it a rule about code a doing turn writes, every time:
+
+- A new job gets its own file, named for the job — not appended to whichever
+  module happened to be open. One module, one job.
+- Where the new thing belongs beside something that is currently in the wrong
+  place, **move that first**, as its own step, and say in the report that you
+  moved it.
+- `helpers`, `utils`, `common` and `misc` are four spellings of *nobody
+  decided*. A module named for what it does can be found by somebody who has
+  never read it; a module named for where things went cannot.
+- A module that has grown a second job has to be split before it gets a third.
+  The map is the instrument: the box with too many arrows into it is the next
+  thing to take apart.
+
+Python will let you append anything to any file and it will run. Getting away
+with it is not the test. **The test is what the box looks like on the map.**
+
+---
+
 ## A step handed over: do it, report it, then carry on coaching
 
 In a coaching sitting they type the code and you name the calls. **One step can

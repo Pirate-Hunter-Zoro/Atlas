@@ -52,6 +52,28 @@ def get(h, repo, path):
 
     if path == "/archive":
         return h.send_json({"sessions": archive.list_archive(repo)})
+
+    if path.startswith("/map/inside/"):
+        # ONE LEVEL DOWN THE MAP, ON A TAP AND NEVER ON THE PAYLOAD.
+        #
+        # The payload is rebuilt four times a second and already reads the head
+        # of every source file in the repository for the top-level picture.
+        # This parses files whole, which is affordable exactly because nobody
+        # is looking inside a box until they ask.
+        #
+        # The id comes off the PATH the way an archived session's name does, and
+        # it is looked up in what discovery found rather than turned into a
+        # place: `map.inside` returns None for anything that is not a box or a
+        # module of one, and a miss is a 404.
+        want = path[len("/map/inside/"):].strip("/")
+        found = mapping.inside(repo.root, want, repo.state())
+        if not found:
+            return h.send_json({"ok": False,
+                                "error": "there is nothing inside that"},
+                               status=404)
+        found["ok"] = True
+        return h.send_json(found)
+
     return NOT_MINE
 
 

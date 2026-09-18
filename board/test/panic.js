@@ -554,25 +554,29 @@ const press = (type, x, y) => btn.dispatchEvent(
              + 'session puts it back with the others');
   }
 
-  // 9. THE SAME TWO ZOOMS EXIST ON THE FRONT DOOR, which had neither way back.
-  //    The atlas is a plane drawn by the same measuring and moved by the same
-  //    gestures as the map, on a page that pinches like any other.
+  // 9. THE FRONT DOOR HAS ONE WAY TO BE LOST, and it needs the one button.
+  //    There were two: the page's own magnification, and an atlas that was a
+  //    plane with a pan of its own. The atlas is two levels of HTML now -- six
+  //    families is a list of six and a list is not a diagram -- so the plane is
+  //    gone and so is the button that put it back. The page still pinches like
+  //    any other, which is what this half is for.
   {
     const home = fs.readFileSync(path.join(WEB, 'home.html'), 'utf8');
     /id="panic"/.test(home)
       ? ok('the front door has the page re-centre too')
       : fail('a pinched front door has no way back');
-    /id="atlasback"/.test(home)
-      ? ok('and one for the atlas plane itself')
-      : fail('an atlas panned into empty space has no way back');
+    !/id="atlasback"/.test(home)
+      ? ok('and no second one, because there is no plane on it to pan')
+      : fail('the front door still carries a way back to a plane it does not '
+             + 'have');
     /static\/recentre\.js/.test(home)
       ? ok('and it is the same machinery, not a second copy of it')
       : fail('the front door spells the stack its own way');
     const hcss = fs.readFileSync(path.join(WEB, 'home.css'), 'utf8');
-    /#panic,\s*#atlasback\s*\{[^}]*position:\s*fixed/.test(hcss)
-      ? ok('and they are placed against the visible window, as on the board')
-      : fail('the front door lays them out by CSS alone, so a pinch takes them '
-             + 'off the glass at the moment they are wanted');
+    /#panic\s*\{[^}]*position:\s*fixed/.test(hcss)
+      ? ok('and it is placed against the visible window, as on the board')
+      : fail('the front door lays it out by CSS alone, so a pinch takes it '
+             + 'off the glass at the moment it is wanted');
   }
 
   console.log(errors.length ? '\n' + errors.length + ' FAILURES'

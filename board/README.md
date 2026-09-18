@@ -82,16 +82,45 @@ page loads fine — extend those two when something is wrong on a device.
 
 ## The atlas, addresses, and the four things that spend them
 
-### The atlas — the front door
+### The atlas — the front door, in three levels
 
-`web/home.html` + `home.js` + `home.css`, and `test/hub.js` is its suite. One plane, a region per
-family, a card per workspace carrying its name, what is next in it, how much is outstanding,
-whether a board is live and on which node, and when it was last committed to. Tapping a card opens
-a sheet; opening from the sheet moves the board through `/switch`.
+`web/home.html` + `home.js` + `home.css`, and `test/hub.js` is its suite. **Three levels, and only
+the last of them is a plane.**
+
+1. **The door** — the families, as large tappable things, each with the one-sentence `blurb`
+   `atlas.json` carries for it and a line saying what is true inside it right now: how many, how
+   many live, how many have an answer waiting, how many still have something going. The family
+   holding the workspace the board is in is marked, so the way back into the lesson is visible
+   before the first tap.
+2. **The family** — its workspaces, as cards in a CSS grid, each carrying its name, what is next in
+   it, how much is outstanding, whether a board is live and on which node, and when it was last
+   committed to. Tapping a card opens the sheet; opening from the sheet moves the board through
+   `/switch`.
+3. **The project map** — a diagram, on the board. That is the one thing in this system whose shape
+   genuinely needs a plane, and `plane-core.js` draws it; see *The map — the front door of a
+   course*.
+
+**Neither of the first two is a plane, and that is the whole design.** Six families and a dozen
+workspaces is a list of six; a list is not a diagram, and drawing one on a pannable, pinchable
+plane means the gesture layer is solving a problem the content does not have — on a page that can
+be pinched over the top of it, which is two ways to be lost. So there is no pan, no pinch, no fit
+button, no second re-centre, no `plane-core.js` and no `gauge.js` on this page at all. **The
+browser wraps the text**, which is why a SHOUTED plan step cannot run out of a card: the clamp that
+keeps it to three lines is CSS. How many go across is a media query — one, two, then three — which
+is the old constant's promise (the same tree lays out the same way everywhere) kept by the thing
+whose job it is.
 
 - **`/atlas.json`** is the payload — `machines.atlas_payload()`, cached 30 seconds because it is a
-  `plan.steps` read and a `git log` per workspace. The `current` flag is recomputed on every call
-  even from cache, because it is what the door opens and it moves the instant a board is switched.
+  `plan.steps` read and a `git log` per workspace. The `current` flag, the unread answers and the
+  running missions are recomputed on every call even from cache: `current` is what the door opens
+  and it moves the instant a board is switched, and a badge that is half a minute stale teaches
+  somebody to ignore badges.
+- **A vendor family has no workspaces and is not empty.** Its contents are `payload["trees"]`, a
+  second list, because a vendor tree is read and drawn and is never something work is handed in to.
+  A tree's card says the commit it is pinned at and how much source is in it (with a `+` where
+  `walk.MAX_UNITS` capped the count, because "250 source files" when it means "at least 250" is a
+  number somebody would quote), and its sheet offers no board to move and no library. See *Vendor
+  trees* below.
 - **"What is next" has two answers and neither is a fallback for the other.** A course that follows
   a book is planned by `chapters.tsv`, so what is next is the chapter after the one it is in. A
   project is planned by a task list, so it is the first open step. Asking only about steps left
@@ -102,32 +131,49 @@ a sheet; opening from the sheet moves the board through `/switch`.
   all — so the words come off `state.aim`, and with none they claim nothing beyond "working
   on it". `mode` is NOT available to branch on and must not be resurrected: `read_config`
   drops it deliberately, because a subject is not a setting.
-- **THE FACE IS A WEB FONT, SO THE FIRST MEASUREMENT IS OF THE WRONG ONE.** `measureText`
-  answers in whatever the canvas can resolve at that moment, and OpenDyslexic is declared
-  `font-display: swap` — so on a cold load the wrap is computed against a much narrower
-  fallback and the labels are then painted in the real face and run out of their boxes.
-  `gauge.js` throws its cache away when `document.fonts` settles and calls whoever registered
-  with `Gauge.onFace`; the map and the atlas each clear their signature and redraw. Neither
-  waits on the font to draw the first time — a picture that arrives late is worse than one
-  that is briefly wrong.
 - **A PAYLOAD IS HELD WHILE A NIB IS DOWN.** A repaint is a few hundred milliseconds of main
   thread and the main thread is what turns pen samples into ink, so a payload landing
   mid-stroke is felt as the surface going dead. `renderOrHold` in `board.js` keeps the newest
   payload — they are whole pictures, so an older one holds nothing new — and draws it when the
   hand lifts, asking `writer.inking()` (the nib, not `busy()`'s multi-second tail). The hold
   has a **700 ms ceiling**: a stroke that never ends must not stop the lesson.
-- **`gauge.js`** is the measuring, shared with the board's map. It was extracted from `board.js`
-  for this: two surfaces measuring text two slightly different ways is two spellings of one answer.
-- **The layout reads no width of the glass.** Three cards across, a constant. What adapts is the
-  *view*: below 640px the plane opens framed on the card you are in rather than on the whole
-  picture, because a 300-unit card fitted to a 390-unit phone is unreadable. The sheet is the other
-  half of that answer.
 - **`paintAtlas` is wrapped and cannot throw**, the same way `paintMap` is. A front door that
-  throws is a blank screen in place of the app.
+  throws is a blank screen in place of the app. What it says when it cannot draw is kept in
+  `atlasSaid`, so the poll twenty seconds later does not wipe the sentence off the screen.
 - A board on an older tool serves no `/atlas.json`; the page says so and the door above it still
   works.
+- **`gauge.js` is still the board's.** It measures text into SVG boxes for the project map, where
+  the face being a web font means the first measurement is of a narrower fallback: `measureText`
+  answers in whatever the canvas can resolve, OpenDyslexic is `font-display: swap`, so a cold
+  load lays a map out for a face it is not painted in. `gauge.js` throws its cache away when
+  `document.fonts` settles and calls whoever registered with `Gauge.onFace`. The front door no
+  longer needs any of it.
 
-### Work that came back while you were somewhere else
+### Vendor trees: read and drawn, never handed work
+
+`atlas.json` used to make one claim out of two. The vendor family was skipped, and the reason
+written down was that **nothing in it is the person's to be graded on** — so reading how colibrì
+works was impossible for a reason about homework. *"Who knows when we'll want to explore external
+tools in the same way we're exploring everything else with tutoring sessions. That's the best way
+to dive into how Colibri works."*
+
+**Grading and tracing are different claims, and they are two rules now.** The prose in `atlas.json`
+says both, separately, so the next reader cannot merge them back:
+
+- **Not handed in to.** `atlas.workspaces()` skips the family, and that skip is what makes a vendor
+  tree not a workspace: no cards, no write-up, no homework, no push, no board of its own. Several
+  callers depend on it and it did not change.
+- **Still read.** `atlas.trees()` lists them — every non-empty directory under a `vendor` family,
+  shaped exactly like a `workspaces()` record so a caller that wants a name and a root does not
+  care which list it came from. `atlas.find_tree()` looks one up by `vendor/name` or by bare
+  directory name, and a miss is a miss. `course/walk.units` and `course/map.shape` take a root and
+  neither asks whose it is, so a tree is walkable and diagrammable as it stands.
+
+A submodule nobody has pulled is an empty directory, and an empty directory is not a tree. A
+`tutorboard.json` sitting inside somebody else's repository does not make it a workspace either:
+the family decides, not a file in the tree.
+
+### Work that came back while you were somewhere else### Work that came back while you were somewhere else
 
 Set a turn going in PSYCH-ASR, go and do something in Galois-Theory, and until now the only way
 to find out whether the first one had finished was to switch back and look — which is the one
@@ -159,7 +205,8 @@ built on.
   day one is silent and everything after it is exact.
 - **Where it appears.** On the board, a strip in `#chrome` — under the bar, with the other things
   that are true and are not what you are doing, never over the lesson and never over the board you
-  are writing on. On the front door, a row under the hero and a badge on the card in the atlas.
+  are writing on. On the front door, a row under the hero, a count on the family's door, and a
+  badge on the card behind it.
   Three rows at most on the board, four on the door: a fourth is a list, and a list in the chrome
   is a page to scroll past to reach your own lesson.
 - **The row is a link**, spelled with the address grammar — `/#/w/<family>/<workspace>` — so it
@@ -215,8 +262,8 @@ colibrì runs in ended* are the same word and two different next moves.
   mission survives a look, because it is still running and that is the fact being reported.
 - **Where it appears.** Above the answers in the board's strip, and above them on the front door,
   because a thing that has not finished comes before one that has. A running or failed mission also
-  marks its box on the atlas, bottom right, so the top-right answer badge and this can both be on
-  one box — a mission that landed a card is both.
+  marks its card in the family, beside the answer badge, so one card can carry both — a mission
+  that landed a card is both — and the door above it counts how many.
 `tutorboard/missions.py` is the whole of it, `GET /missions` is the surface for anything that polls
 rather than subscribes, and `test/elsewhere.py` and `test/notify.js` are the suites.
 
@@ -408,7 +455,7 @@ should believe.
 ### The meeting deck
 
 `tutorboard/meeting.py`, `board notes --meeting --since <spec>`, and a **notes** button on the
-atlas beside **fit**. `test/meeting.py` is the suite. This is the first thing that spends both the
+atlas head. `test/meeting.py` is the suite. This is the first thing that spends both the
 grammar and the written map, and it does not work without either.
 
 ```
@@ -675,7 +722,28 @@ is wrong even when every suite is green.
 
 - **A list is not a diagram.** The boxes are the content; the work is drawn ON them. Never draw
   the plan's steps in a column.
-- **Estimated text overflows.** Measure with a canvas. Cache it. `gauge.js`.
+- **AND A DIAGRAM IS NOT A LIST.** The other direction cost as much: the front door drew six
+  families and a dozen workspaces as one SVG plane, panned and pinched, with a fit button because
+  it could not be seen at once. Six families is a list of six. **A plane is for content whose shape
+  needs one** — the project map, and nothing else on the front door. Where the content is a list,
+  it is HTML in a grid and the browser lays the text out.
+- **A NEW THING GOES IN A MODULE NAMED FOR THE ONE JOB IT DOES, and if that means moving
+  something first, move it first.** Every workspace has a map whose boxes are its modules and
+  whose arrows are drawn from what they import, so a module that does six unrelated things draws
+  as one box with eleven arrows into it and the diagram teaches nobody anything. **The picture is
+  a mirror, and the failure is the module rather than the renderer.** `helpers`, `utils`, `common`
+  and `misc` are four spellings of *nobody decided*. This binds every turn, not just a human one:
+  it is written in `TEACHING.md` under *Where a new thing goes* and in `sense.DOING_SENSE`, which
+  in a headless turn IS the prompt, and `test/teaching.py` holds the two in step. **Draw the
+  diagram before refactoring anything** — the box with too many arrows into it is the next
+  refactor, and guessing which module is untidy before you can see the graph is how the wrong one
+  gets rewritten.
+- **Tracing is not grading.** `vendor/` is not a place work is handed in to; that says nothing
+  about whether it can be read. Two rules, written separately in `atlas.json`'s own prose:
+  `atlas.workspaces()` skips the family, `atlas.trees()` lists it. Widening the walk is not
+  widening what counts as a workspace.
+- **Estimated text overflows.** Measure with a canvas. Cache it. `gauge.js` — on the board's map,
+  which is the one surface that still draws text into SVG boxes it sized itself.
 - **A rule that is right for one kind of turn can be exactly wrong for the other.** Before making
   any rule about the order of a turn, ask which kind of turn it is for. The fix is always to scope
   the rule, never to weaken it.
@@ -700,12 +768,12 @@ is wrong even when every suite is green.
 - **Every colour is a token**, defined in *both* blocks at the top of the stylesheet.
   `test/hub.js` checks that for the front door.
 - **Gestures**: read `plane-core.js` first. A gesture is decided by which contacts are LIVE; two
-  fingers are never the pen. And **a pan must not also be a tap** — dragging the atlas with a
-  a finger that starts on a card and drags the plane must not open that card when it lifts.
+  fingers are never the pen. And **a pan must not also be a tap** — on the map, a finger that
+  starts on a box and drags the plane must not open that box when it lifts.
 - **The floating buttons are `recentre.js`, shared with the front door.** `#panic` puts the
   PAGE's magnification back; beside it are the re-centres for the planes that have a pan and zoom
   the page knows nothing about — `#findink` (**my ink**) for the writing surface, `#mapback` for
-  the map, `#atlasback` on the front door — and `#redirect` (**rethink**), the only one that
+  the map — and `#redirect` (**rethink**), the only one that
   changes what the work IS. All of them are placed against the VISUAL viewport, because
   `position: fixed` pins to the layout one and a pinch moves the other. **Each is its own widget**
   — its own place, remembered under its own `board.panic.<id>` — so a press and hold picks up
@@ -2373,6 +2441,88 @@ A box's own colour is only what the board knows: the sitting open now is
 any other step is *later*, a chapter with a lesson filed against it is *done*,
 and everything else says *unknown*. Git recency is deliberately absent — touched
 is not progressed.
+
+### Three depths: the package, the module, the symbol
+
+The boxes above are **directories**, and a directory is not a moving part.
+*"Just looking at it should communicate everything one needs to know to
+understand how the project works, and when we work on a TODO, it's obvious what
+moving parts we'll be affecting."* The things that move are the modules and,
+inside them, the classes and the functions — which is what an IntelliJ diagram
+is worth its keep for.
+
+So **every box with files in it has a second tap**, at its top right, and it
+opens the level below:
+
+| depth | the boxes | the arrows |
+|---|---|---|
+| package | a directory of source | every import from one into another |
+| module | the files in one box | every import between two of them |
+| symbol | what one file defines | every use of one definition by another |
+
+**An expansion is a new picture, not a bigger one.** Splicing a package's twelve
+modules into a diagram that already has forty boxes on it is the ugly grid the
+front door was rejected for, with more effort. So opening a box redraws the
+plane as the inside of that box, with a crumb — `PSYCH-ASR › evaluate ›
+grade.py` — that is the way back up. **The crumb is read off the answer, never
+remembered from the taps**: a trail kept as history is wrong after a sideways
+step, a reload, or a second tap that lands out of order.
+
+**An arrow that leaves is rolled up to the box it lands in.** Inside `evaluate`,
+`grade.py`'s import of the naming convention is drawn to a wall marked
+`artifacts` — dashed, keeping its own name, tappable to step sideways into it. At
+symbol depth a use points at the **file** it came from rather than the box:
+`grade` using `tidy` from `labels.py` next door is a fact about `labels.py`, and
+rolling it up to `evaluate` would draw an arrow from a symbol to the box the
+symbol is already inside, which says nothing.
+
+**It is derived on the tap and never on a payload.** `map.inside(root, node_id)`
+does the work and `GET /map/inside/<id>` serves it. The board payload is rebuilt
+four times a second and already reads the head of every source file for the
+top-level picture; this parses them whole, which is affordable exactly because
+nobody is looking inside a box until they ask. The id comes off the path the way
+an archived session's name does and is **looked up in what discovery found** —
+`map.inside` returns `None` for anything that is not a box or a module of one,
+and that is a 404.
+
+**Python is parsed. Everything else is grepped, and the picture says so.**
+`tutorboard/course/symbols.py` owns the one question "what does this file define
+and what does each definition use":
+
+- **Python, with `ast`** — standard library, which is this codebase's rule in
+  every module, and most of this repository. Classes, functions, decorators,
+  base classes and the names a body actually mentions, exactly. A class box says
+  how many methods it has rather than unfolding into a fourth depth.
+- **Everything else, with `walk.DEFINITION`** — the per-language pattern that
+  already checks a walkthrough's symbol before it reaches a prompt, anchored at
+  the start of a line. A regex is honest about definitions and a **liar about
+  calls**, so a grepped file reports its definitions, draws **no arrows at all**,
+  and reports `exact: false`. That reaches the foot of the map as *"found by
+  pattern rather than parsed… trust it less than a Python box"*, because a Lean
+  box nobody may trust as far as a Python one must not look identical to it. A
+  module box says which it will be **before** anybody taps it.
+
+**The written map is not replaced by any of this.** `live/map.json` carries *the
+typist*, *the stopwatch*, *the name-tagger* — judgement no file in the repository
+contains — and `meeting.py` spends those names in every note it writes. The
+derived structure is a layer **under** the hand-drawn one: a box a person drew
+and named keeps its name, and `inside` works off the files that box claims, so
+opening *the typist* shows `typists.py`, `transcribe.py` and `run_asr.py` with
+their real arrows out to *the stopwatch*.
+
+**A symbol box opens a walkthrough over that symbol.** That is the payoff of a
+diagram whose nodes are the things: tapping `run` opens a walkthrough of `run`
+and not of the file it lives in. A module or a symbol is **not** a box the server
+knows — `map.find` resolves the repository's own parts — so its id is never sent
+as `node`; what goes over the wire is the scope, spelt the way `walk.label`
+spells it (`psych_asr/asr/typists.py::run`) and re-resolved on arrival. It is the
+one way to work that is offered on a derived box: a function is not a directory
+to be examined on, and the tutor cannot be told to write a paper "about" a box
+the server has no record of.
+
+Caps, and both say they are caps rather than truncating quietly: `MAX_NODES = 44`
+for the picture, `MAX_INSIDE = 40` for one expansion, `symbols.MAX_SYMBOLS = 40`
+for one file.
 
 ### Tapping something, and the seven ways to work on it
 

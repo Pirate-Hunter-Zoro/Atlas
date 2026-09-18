@@ -172,6 +172,7 @@ var els = {
   mapPlane: document.getElementById("map-plane"),
   mapSheet: document.getElementById("map-sheet"),
   mapLoose: document.getElementById("map-loose"),
+  mapCrumb: document.getElementById("map-crumb"),
   mapWhy: document.getElementById("map-why"),
   work: document.getElementById("work"),
   workTitle: document.getElementById("work-title"),
@@ -4347,10 +4348,38 @@ var MAP_STACK_AT = 640;
 var MAP_RANKS_ACROSS = 6;
 
 var mapInfo = null;          /* the payload's map block, as it arrived */
+/* ONE LEVEL DOWN, WHEN SOMEBODY HAS ASKED FOR IT.
+
+   The payload's picture draws DIRECTORIES, and a directory is not a moving
+   part. *"Just looking at it should communicate everything one needs to know to
+   understand how the project works, and when we work on a TODO, it's obvious
+   what moving parts we'll be affecting."* The things that move are the modules
+   and, inside them, the classes and the functions -- so a box opens into its
+   files and a file opens into what it defines.
+
+   AN EXPANSION IS A NEW PICTURE, NOT A BIGGER ONE. Splicing a package's twelve
+   modules into a diagram that already has forty boxes on it produces the grid
+   the complaint started with; opening the box as its own picture, with a way
+   back up, keeps every depth legible. `map.inside` on the server returns one
+   level, with the arrows that LEAVE rolled up to the sibling box they land in.
+
+   AND IT IS FETCHED ON THE TAP. The payload is polled four times a second and
+   already reads the head of every source file for the top-level picture; this
+   parses them whole, which is affordable exactly because nobody is looking
+   inside a box until they ask. */
+var mapDeep = null;          /* the inside picture on the glass, or null */
+var mapTrail = [];           /* how the crumb reads: the boxes above this one */
+var mapDeepIn = "";          /* the course it was fetched in; see paintMapNow */
+var mapAsking = "";          /* the id in flight, so a second tap wins */
 var mapDrawn = "";           /* the signature of what is on the plane now */
 var mapBox = { x0: 0, y0: 0, x1: 0, y1: 0 };
 var mapHere = "";            /* the box last opened -- where you are */
 var mapView = { k: 1, fit: 1, ox: 0, oy: 0, held: false };
+
+/* THE PICTURE THAT IS ACTUALLY ON THE GLASS. Every reader of the map goes
+   through this rather than at `mapInfo`, because the payload keeps arriving
+   while somebody is three boxes deep and must not drag them back to the top. */
+function mapShown() { return mapDeep || mapInfo; }
 
 function mapEl(tag, attrs) { return window.Gauge.el(tag, attrs); }
 
@@ -4694,7 +4723,11 @@ function mapDraw(info) {
     var n = p.node;
     var g = mapEl("g", {
       "class": "node " + (n.kind || "part") + " " + (n.status || "unknown")
-               + (n.id === mapHere ? " here" : "") + (p.apart ? " apart" : ""),
+               + (n.id === mapHere ? " here" : "") + (p.apart ? " apart" : "")
+               /* A SIBLING AN ARROW LEAVES TOWARDS, on a picture of one box's
+                  inside. It is a wall rather than part of what is being read,
+                  and it has to look like one. */
+               + (n.outside ? " outside" : ""),
       "data-id": n.id, tabindex: "0", role: "button",
       "aria-label": n.name + ", " + (n.status || "unknown")
     });
@@ -4752,9 +4785,35 @@ function mapDraw(info) {
       });
       g.appendChild(chip);
     });
-    g.addEventListener("click", function () { openWork(n.id, ""); });
+    /* LOOK INSIDE THIS ONE. Its own tap, at the top right, because the box
+       already has one and a single target cannot mean both "work on this" and
+       "show me what is in it". A symbol is a leaf and gets none. */
+    var opens = mapOpens(n);
+    if (opens) {
+      var ox = p.x + p.w - 16, oy = p.y + 16;
+      var dig = mapEl("g", { "class": "dig", "data-dig": n.id, tabindex: "0",
+                             role: "button",
+                             "aria-label": "look inside " + n.name
+                                           + ": " + opens });
+      dig.appendChild(mapEl("circle", { cx: ox, cy: oy, r: 10 }));
+      dig.appendChild(mapEl("polygon", {
+        points: [(ox - 2.6) + "," + (oy - 4.6), (ox - 2.6) + "," + (oy + 4.6),
+                 (ox + 4.2) + "," + oy].join(" ") }));
+      dig.addEventListener("click", function (ev) {
+        ev.stopPropagation();
+        mapDig(n.id);
+      });
+      dig.addEventListener("keydown", function (ev) {
+        if (ev.key !== "Enter" && ev.key !== " ") return;
+        ev.preventDefault();
+        ev.stopPropagation();
+        mapDig(n.id);
+      });
+      g.appendChild(dig);
+    }
+    g.addEventListener("click", function () { mapTap(n); });
     g.addEventListener("keydown", function (e) {
-      if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openWork(n.id, ""); }
+      if (e.key === "Enter" || e.key === " ") { e.preventDefault(); mapTap(n); }
     });
     svg.appendChild(g);
   });
@@ -4764,6 +4823,148 @@ function mapDraw(info) {
   els.mapSheet.style.height = out.box.y1 + "px";
   els.mapSheet.appendChild(svg);
   return out.placed.length;
+}
+
+/* ------------------------------------------------- one level down, on a tap */
+/* CAN THIS BOX BE OPENED, AND INTO WHAT.
+
+   A part with more than one file in it opens into those files. A file opens
+   into what it defines. A symbol is the leaf -- there is nothing under a
+   function that is still a box. And an OUTSIDE box, which is a sibling an
+   arrow leaves towards, opens into its own files: that is the sideways reading
+   of a diagram, and it is the one somebody following a dependency wants. */
+function mapOpens(n) {
+  if (!n) return "";
+  if (n.kind === "symbol") return "";
+  if (n.kind === "module") return "what it defines";
+  if (n.outside) return "what is in it";
+  /* A box with ONE file in it still opens: the file is the way to its symbols,
+     which is the depth somebody is actually heading for. */
+  return (n.inside || 0) > 0
+    ? n.inside + (n.inside === 1 ? " file" : " files")
+    : "";
+}
+
+/* A TAP ON THE BOX ITSELF, and what it means depends on the depth.
+
+   At the top it is unchanged: a part is a thing to work on, and the sheet asks
+   how. A module or a symbol is a SCOPE rather than a part -- the server does
+   not have a box by that id -- so the sheet is opened with the one way to work
+   that a scope supports, which is to be walked through. An outside box is a
+   wall, and tapping a wall means "take me there". */
+function mapTap(n) {
+  if (!n) return;
+  if (n.outside) return mapDig(n.id);
+  openWork(n.id, "");
+}
+
+/* THE WAY BACK IS DERIVED FROM THE PAYLOAD, never remembered from the taps.
+
+   A trail kept as history is a trail that is wrong after a sideways step, a
+   reload, or a second tap that landed out of order. `map.inside` says which
+   depth it is and, for a symbol picture, which box is above it -- so the crumb
+   is read off the answer rather than off what somebody did to get it. */
+function mapWhereAbove(up) {
+  var found = null;
+  ((mapInfo && mapInfo.nodes) || []).forEach(function (n) {
+    if (n.id === up) found = n;
+  });
+  return found;
+}
+
+function mapDig(id) {
+  if (!id || mapAsking === id) return;
+  mapAsking = id;
+  mapCrumbSay("opening…");
+  fetch("/map/inside/" + encodeURIComponent(id))
+    .then(function (r) { return r.json().catch(function () { return {}; }); })
+    .then(function (got) {
+      if (mapAsking !== id) return;              /* a later tap won */
+      mapAsking = "";
+      if (!got || got.ok === false || !(got.nodes || []).length) {
+        mapCrumbSay((got && got.error) || "there is nothing inside that");
+        return;
+      }
+      var trail = [];
+      if (got.depth === "symbol") {
+        var above = mapWhereAbove(got.up);
+        if (above) trail.push({ id: above.id, name: above.name });
+      }
+      trail.push({ id: got.of, name: got.name });
+      mapTrail = trail;
+      mapDeep = got;
+      mapDeepIn = mapCourse();
+      els.work.hidden = true;
+      mapHere = "";
+      mapDrawn = "";
+      paintMap(mapInfo, (lastLive && lastLive.state) || {});
+      mapFit();
+    })
+    .catch(function () {
+      mapAsking = "";
+      mapCrumbSay("that could not be opened");
+    });
+}
+
+/* Back to the repository's own picture, which is the one the payload carries. */
+function mapOut() {
+  mapDeep = null;
+  mapTrail = [];
+  mapAsking = "";
+  els.work.hidden = true;
+  mapHere = "";
+  mapDrawn = "";
+  paintMap(mapInfo, (lastLive && lastLive.state) || {});
+  mapFit();
+}
+
+function mapCrumbSay(text) {
+  var host = els.mapCrumb;
+  if (!host) return;
+  var said = host.querySelector(".crumb-said");
+  if (!text) {
+    if (said && said.parentNode) said.parentNode.removeChild(said);
+    return;
+  }
+  if (!mapDeep && host.hidden) {
+    /* Nothing is open yet and the row is hidden, so a message about a tap in
+       flight has nowhere to sit. Show the row with the top of the trail on it. */
+    paintCrumb();
+  }
+  host.hidden = false;
+  if (!said) {
+    said = document.createElement("span");
+    said.className = "crumb-said";
+    host.appendChild(said);
+  }
+  said.textContent = text;
+}
+
+function paintCrumb() {
+  var host = els.mapCrumb;
+  if (!host) return;
+  host.innerHTML = "";
+  if (!mapDeep) { host.hidden = true; return; }
+  host.hidden = false;
+  var top = document.createElement("button");
+  top.type = "button";
+  top.className = "crumb";
+  top.textContent = mapCourse() || "the repository";
+  top.onclick = mapOut;
+  host.appendChild(top);
+  mapTrail.forEach(function (bit, i) {
+    var sep = document.createElement("span");
+    sep.className = "crumb-sep";
+    sep.textContent = "›";
+    host.appendChild(sep);
+    var b = document.createElement("button");
+    b.type = "button";
+    var last = i === mapTrail.length - 1;
+    b.className = "crumb" + (last ? " here" : "");
+    b.textContent = bit.name;
+    if (!last) b.onclick = function () { mapDig(bit.id); };
+    host.appendChild(b);
+  });
 }
 
 /* What the payload says, painted. The plane is NOT moved: a map that jumps back
@@ -4799,30 +5000,65 @@ if (window.Gauge && window.Gauge.onFace) {
 
 function paintMapNow(info, state) {
   mapInfo = info || null;
-  var can = !!(mapInfo && (mapInfo.nodes || []).length);
+  /* THE INSIDE OF A BOX BELONGS TO THE WORKSPACE IT WAS FETCHED IN. Switching
+     course leaves the crumb pointing at a box that is not on this map, and the
+     boxes under it would be a picture of somewhere else. */
+  var here = (state && state.course) || "";
+  if (mapDeep && mapDeepIn !== here) { mapDeep = null; mapTrail = []; }
+
+  var show = mapShown();
+  var can = !!(show && (show.nodes || []).length);
   if (els.mapCount) {
     els.mapCount.textContent = can
-      ? (mapInfo.nodes.length + (mapInfo.nodes.length === 1 ? " part" : " parts")
-         + (mapInfo.steps ? " · " + mapInfo.steps
-            + (mapInfo.steps === 1 ? " step" : " steps") : ""))
+      ? (show.nodes.length + " " + mapUnit(show, show.nodes.length)
+         + (show.steps ? " · " + show.steps
+            + (show.steps === 1 ? " step" : " steps") : "")
+         + (show.capped ? " · of " + show.total : ""))
       : "";
   }
   if (els.mapTitle) {
-    els.mapTitle.textContent = (state && state.course) || "the map";
+    els.mapTitle.textContent = mapDeep ? mapDeep.name : (here || "the map");
   }
-  if (els.mapWhy) els.mapWhy.textContent = (mapInfo && mapInfo.why) || "";
+  if (els.mapWhy) els.mapWhy.textContent = mapWhySay(show);
   mapControls(can);
   paintLoose();
+  paintCrumb();
   if (!can) { mapDrawn = ""; return; }
 
   var wide = (els.mapPlane.clientWidth || 0) >= MAP_STACK_AT;
-  var sign = JSON.stringify(mapInfo) + "|" + (wide ? "wide" : "stacked");
+  var sign = JSON.stringify(show) + "|" + (wide ? "wide" : "stacked");
   if (sign === mapDrawn) return;
-  mapDraw(mapInfo);
+  mapDraw(show);
   mapDrawn = sign;
   if (!mapView.held) mapFit();
   else mapClamp();
   mapPaint();
+}
+
+/* What the boxes on THIS picture are, so the count is not always "parts". */
+function mapUnit(show, n) {
+  var one = show && show.depth === "module" ? "file"
+          : show && show.depth === "symbol" ? "definition" : "part";
+  return n === 1 ? one : one + "s";
+}
+
+/* WHY THIS PICTURE SAYS WHAT IT SAYS, and whether it may be trusted as far as
+   the one above it. A Lean box found by a line-anchored pattern must not look
+   identical to a Python box `ast` read, and the only place that can be said is
+   on the picture itself. */
+function mapWhySay(show) {
+  if (!show) return "";
+  var said = show.why || "";
+  if (show.exact === false) {
+    said += (said ? "  " : "")
+          + "Found by pattern rather than parsed, so its arrows are not drawn "
+          + "— trust it less than a Python box.";
+  }
+  if (show.capped) {
+    said += (said ? "  " : "") + "Showing " + (show.nodes || []).length
+          + " of " + show.total + ".";
+  }
+  return said;
 }
 
 /* THE STEPS THIS COULD NOT PLACE, and they are not dropped.
@@ -4836,7 +5072,10 @@ function paintMapNow(info, state) {
 function paintLoose() {
   var host = els.mapLoose;
   if (!host) return;
-  var loose = (mapInfo && mapInfo.loose) || [];
+  /* Only on the repository's own picture. The plan's steps are about the
+     repository, and a tray of them under a diagram of one function is a row of
+     chips about somewhere else. */
+  var loose = (!mapDeep && mapInfo && mapInfo.loose) || [];
   host.innerHTML = "";
   host.hidden = !loose.length;
   if (!loose.length) return;
@@ -5125,10 +5364,28 @@ var WORK = [
 
 function workOn(id) {
   var found = null;
-  ((mapInfo && mapInfo.nodes) || []).forEach(function (n) {
+  var show = mapShown();
+  ((show && show.nodes) || []).forEach(function (n) {
     if (n.id === id) found = n;
   });
   return found;
+}
+
+/* IS THIS BOX ONE THE SERVER KNOWS? `map.find` resolves the repository's own
+   parts; a module box and a symbol box are derived when somebody taps to look
+   inside and are not in that list, so sending one of their ids as `node` would
+   be refused. What they have instead is a SCOPE, which is the only thing a
+   walkthrough needs. */
+function mapDerived(node) {
+  return !!node && (node.kind === "module" || node.kind === "symbol");
+}
+
+/* What a walkthrough over this box covers, spelt the way `walk.label` spells
+   it: the file, and the thing inside it where there is one. */
+function mapScope(node) {
+  var rel = ((node && node.files) || [])[0] || "";
+  if (!rel) return "";
+  return rel + (node.symbol ? "::" + node.symbol : "");
 }
 
 /* THE STEP, IN FULL, AND IT IS FETCHED ON THE TAP.
@@ -5242,6 +5499,11 @@ function openWork(id, step) {
     if (way.needs === "files" && !files.length) return;
     if (way.needs === "doc" && !doc) return;
     if (way.needs === "part" && !(node && node.dir)) return;
+    /* A DERIVED BOX IS A SCOPE, NOT A PART. A function is something to be
+       walked through; it is not a directory to be examined on, and the tutor
+       cannot be told to write a paper "about" a box the server has no record
+       of. So one way to work, and it is the right one. */
+    if (mapDerived(node) && way.aim !== "trace") return;
     var b = document.createElement("button");
     b.type = "button";
     b.className = "work-way";
@@ -5267,10 +5529,14 @@ function takeWork(way, node, chip) {
      the wire is the box's id and the step's label, and the server looks both up
      in what discovery found before either reaches a filesystem or a prompt. The
      sitting's own label is built there too, for the same reason. */
+  var derived = mapDerived(node);
   var body = {
     session: way.session,
     aim: way.aim,
-    node: (node && node.id) || null,
+    /* NOT THE ID OF A DERIVED BOX. `map.find` resolves the repository's own
+       parts and would refuse a module or a symbol id, which is correct: the
+       scope below is what says which machinery this is about. */
+    node: (node && !derived && node.id) || null,
     step: (chip && chip.label) || null,
     /* NO STANCE. The aim answers it -- `build` with a stance of `teach` is a
        contradiction -- and `config.AIM_STANCE` is where that answer lives. The
@@ -5283,7 +5549,13 @@ function takeWork(way, node, chip) {
        which is the worst way to find out: "do I ask the tutor to begin?" */
     begin: true
   };
-  if (way.session === "walk") body.over = (node && node.files) || [];
+  if (way.session === "walk") {
+    /* A SYMBOL BOX CARRIES THE ONE THING ITS WALKTHROUGH SHOULD COVER, which
+       is the whole payoff of a diagram whose nodes are the things: tapping
+       `run` opens a walkthrough of `run` and not of the file it lives in.
+       Spelt the way `walk.label` spells it, and re-resolved on the server. */
+    body.over = derived ? [mapScope(node)] : ((node && node.files) || []);
+  }
   if (way.session === "review") body.over = [node.dir + "/"];
   fetch("/session", {
     method: "POST",

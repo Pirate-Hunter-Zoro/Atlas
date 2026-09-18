@@ -13,8 +13,9 @@ there is now exactly one right answer to "where is the repository root" and it
 is worth having exactly one place that knows it.
 
 **Nothing is registered.** `atlas.json` names and orders the families, says
-which of them are somebody else's work, and gives each a default style for a
-sitting nobody chose one for (`aim`; `course/config.aim_for` resolves it). It does NOT list the workspaces: a
+which of them are somebody else's work -- which decides whether work can be
+handed in to them, not whether they can be read; `trees` is the other half --
+and gives each a default style for a sitting nobody chose one for (`aim`; `course/config.aim_for` resolves it). It does NOT list the workspaces: a
 second-level directory holding `tutorboard.json`, `AI_INSTRUCTIONS.md` or
 `live/` IS one, found by looking. A file that has to be edited when a directory
 is made is the registry this system refuses to have -- and the thing that makes
@@ -150,10 +151,13 @@ def workspaces(base=None):
     spells and what `chosen.json` records), `family`, `dir` (the bare directory
     name, which is what a port is derived from) and `root`.
 
-    Vendor families are skipped outright: `vendor/colibri` is somebody else's
-    repository, pulled and not written, and nothing in it is the person's to be
-    taught or graded on. A `tool` family is skipped too -- the board is what
-    does the offering, not one of the things offered.
+    Vendor families are skipped outright, and that is a claim about HANDING
+    WORK IN rather than about reading: `vendor/colibri` is somebody else's
+    repository, pulled and not written, so nothing in it is the person's to be
+    taught or graded on and no board serves it. It is still source, and `trees`
+    is where it is listed for walking through and drawing. A `tool` family is
+    skipped too -- the board is what does the offering, not one of the things
+    offered.
     """
     out = []
     for fam in families(base):
@@ -177,6 +181,80 @@ def workspaces(base=None):
                 "root": here,
             })
     return out
+
+
+# ---------------------------------------------------------------------------
+# the other list: source that is read and never handed in to
+# ---------------------------------------------------------------------------
+def trees(base=None):
+    """Every vendor tree -- somebody else's repository, read but never taught in.
+
+    A SECOND LIST rather than a flag on `workspaces`, and that is the whole
+    decision. `atlas.json`'s prose used to make one claim out of two: the
+    family was skipped *because* nothing in it is the person's to be graded on.
+    Grading and tracing are different claims, and conflating them made reading
+    how colibrì works impossible for a reason that was about homework.
+
+    So they are split. A vendor tree is NOT a workspace -- nothing is handed in
+    to it, no board serves it, no card, write-up, homework or push belongs to
+    it, and `workspaces` still skips the family outright, which is what several
+    callers depend on. It IS source, and source can be walked through and
+    drawn: `course/walk.units` and `course/map.shape` take a root and neither
+    of them asks whether anybody is graded on it.
+
+    The shape of a record is the shape `workspaces` returns, so a caller that
+    only wants a name and a root does not care which list it came from.
+    """
+    out = []
+    for fam in families(base):
+        if not fam["vendor"]:
+            continue
+        try:
+            names = sorted(os.listdir(fam["dir"]))
+        except OSError:
+            continue
+        for name in names:
+            if name.startswith("."):
+                continue
+            here = os.path.join(fam["dir"], name)
+            if not os.path.isdir(here):
+                continue
+            try:
+                # A submodule nobody has pulled is an empty directory, and an
+                # empty directory drawn as a tree is a card with nothing behind
+                # it.
+                if not os.listdir(here):
+                    continue
+            except OSError:
+                continue
+            out.append({
+                "id": ("%s/%s" % (fam["id"], name)) if fam["id"] else name,
+                "family": fam["id"],
+                "family_name": fam["name"],
+                "dir": name,
+                "root": here,
+            })
+    return out
+
+
+def find_tree(ident, base=None):
+    """One vendor tree, by `vendor/name` or by bare directory name -- or None.
+
+    The same rule as `find` and for the same reason: a name arriving from a
+    request is looked up in what discovery found and is never constructed into
+    a path. A miss is a miss.
+    """
+    if not ident:
+        return None
+    ident = str(ident).strip().strip("/")
+    here = trees(base)
+    for t in here:
+        if t["id"] == ident:
+            return t
+    for t in here:
+        if t["dir"] == ident or paths.same_dir(t["root"], ident):
+            return t
+    return None
 
 
 def find(ident, base=None):

@@ -1,23 +1,32 @@
-// The front door, and the ATLAS drawn on it.
+// THE FRONT DOOR, AND IT IS THREE LEVELS RATHER THAN A PLANE.
 //
-// This page used to end in two lists -- "Other courses" and "Earlier" -- and a
-// list is not a map. The objection that killed the first version of the
-// per-workspace map applies word for word to a column of names:
+// This page used to end in ONE SVG plane -- a region per family, a card per
+// workspace -- panned and pinched, with a `fit` button because it could not be
+// seen at once. That was rejected in these terms:
 //
-//     "I don't want just a list of all the TODOs. I want a map of the CONTENT."
+//     "It's just an ugly grid of projects in an inner box that has wacky
+//      zooming. On the homescreen, I want a nice 'Research' option, 'Courses'
+//      option, and 'Projects' option, and honestly something pertaining to
+//      vendor/ as well... When I select one of those four options, I want to
+//      see all available projects/courses/research projects/vendor tools
+//      portrayed in again a visually pleasing way, and then we can go into an
+//      individual project map."
 //
-// So it is drawn, and every failure this file guards is one the drawn version
-// can have and the list could not:
+// Six families and a dozen workspaces is a list of six, and drawing a list on a
+// plane is what produced the wacky zooming: the gesture layer was solving a
+// problem the content did not have. So what this file guards is:
 //
-//   * THE TEXT MUST FIT ITS CARD. Measured through `gauge.js`, never estimated.
-//     A line of capitals -- which is how these plans are written -- is half
-//     again wider than characters times a constant, and that is exactly how the
-//     first map's labels came to run out of their boxes.
-//   * THE LAYOUT MUST NOT DEPEND ON THE GLASS. The same repository has to lay
-//     out identically on a phone and on an iPad, or it is not a picture anybody
-//     can learn.
-//   * A PAN MUST NOT ALSO BE A TAP. Dragging the plane with a finger that
-//     started on a card used to open that card when it was lifted.
+//   * THREE LEVELS, AND THE TOP TWO ARE NOT PLANES. The door is the families,
+//     the family is its workspaces, and the project map -- which is the one
+//     thing here whose shape needs a plane -- is on the board. No pan, no
+//     pinch, no fit, and no measuring on either of the two here.
+//   * THE SENTENCES IN `atlas.json` REACH THE GLASS. They existed all along and
+//     the drawn version used them as nothing but a heading.
+//   * A SHOUTED PLAN STEP STILL FITS. It used to be measured through `gauge.js`
+//     and clipped; the browser wraps it now, which is why this level stopped
+//     being a plane, and a regression here is a label out of its box again.
+//   * A VENDOR TREE IS DRAWN AND IS NOT A WORKSPACE. Read and diagrammed, never
+//     handed work: no board to move, no library, nothing to open.
 //   * IT MUST STILL BE A DOOR. Whatever else the atlas is, it is the thing that
 //     gets somebody back into the lesson they were in twenty seconds ago.
 //   * AND NOTHING IN THE PAINT MAY THROW. A front door that throws is a blank
@@ -44,13 +53,31 @@ const check = (m, cond) => (cond ? ok(m) : fail(m));
 
 const css = fs.readFileSync(path.join(WEB, 'home.css'), 'utf8');
 const js = fs.readFileSync(path.join(WEB, 'home.js'), 'utf8');
+const html = fs.readFileSync(path.join(WEB, 'home.html'), 'utf8');
 
-// ---- the plane, as a surface ----------------------------------------------
-const planeBlock = (css.match(/\.atlas-plane \{[^}]*\}/) || [''])[0];
-check('the plane decides its own gestures, so the browser does not scroll under a pinch',
-      /touch-action:\s*none/.test(planeBlock));
-check('and it never lets the body scroll sideways however far it is panned',
-      /overflow:\s*hidden/.test(planeBlock));
+// ---- neither of the two levels here is a plane ----------------------------
+// Asserted against the source, because a jsdom window has one size and could
+// never catch this by rendering. A plane is three things -- a surface that owns
+// its own gestures, the code that reads them, and the scripts that provide them
+// -- and all three had to go, or the next change puts one of them back.
+check('the front door loads no gesture layer at all',
+      !/plane-core\.js/.test(html));
+check('and no text measurer, because the browser wraps the text now',
+      !/gauge\.js/.test(html) && !/Gauge\./.test(js));
+check('no surface on the front door takes the browser\'s touches away',
+      !/touch-action:\s*none/.test(css.replace(/#panic \{[^}]*\}/g, '')));
+check('nothing here pans, pinches or wheels',
+      !/pointerdown|pointermove|zoomAbout|Plane\./.test(js));
+check('and there is no fit button, because there is nothing to fit',
+      !/atlas-fit/.test(html) && !/atlasback/.test(html));
+
+// The number of things across is the browser's business. The old plane worked
+// it out itself so the picture would lay out identically on every device, which
+// is the right promise kept by the wrong thing.
+check('how many go across is a media query, not a constant in JavaScript',
+      /@media \(min-width: [\d.]+rem\) \{ \.doors/.test(css)
+      && /@media \(min-width: [\d.]+rem\) \{ \.cards/.test(css)
+      && !/A_ACROSS/.test(js));
 
 // Every colour a token, defined in BOTH blocks. A colour named in one is half
 // the page changing theme and the other half not.
@@ -67,19 +94,6 @@ const missing = [...used].filter((n) => light.includes('--' + n + ':')
 check('every colour the atlas uses is defined in the dark palette too',
       missing.length === 0);
 
-// ---- the layout is not a function of the viewport -------------------------
-// Asserted against the source, because a jsdom window has one size and could
-// never catch this by rendering twice.
-const layout = js.slice(js.indexOf('function aLayout('), js.indexOf('function aAgo('));
-check('the layout reads no width of the glass',
-      !/clientWidth|innerWidth|getBoundingClientRect|matchMedia/.test(layout));
-check('and the number of cards across is a constant, not a calculation',
-      /var A_ACROSS = \d+;/.test(js));
-check('a long family wraps into bands rather than running off sideways',
-      /i \+= A_ACROSS/.test(layout));
-check('and the text is measured rather than estimated',
-      /Gauge\.wrap/.test(js) && !/length \* [\d.]+ *\/\/ *width/.test(js));
-
 // ---- drive the real page --------------------------------------------------
 // A switch that lands ends in `location.href = "/"`, and jsdom has nowhere to
 // navigate to -- it reports that as a jsdomError on the virtual console, which
@@ -94,7 +108,7 @@ try {
   });
 } catch (e) { virtualConsole = undefined; }
 
-const dom = new JSDOM(fs.readFileSync(path.join(WEB, 'home.html'), 'utf8'), {
+const dom = new JSDOM(html, {
   runScripts: 'outside-only', pretendToBeVisual: true, url: 'https://board.test/',
   virtualConsole: virtualConsole,
 });
@@ -102,8 +116,7 @@ const { window } = dom;
 window.matchMedia = () => ({ matches: false, addEventListener() {}, addListener() {} });
 window.fetch = () => new Promise(() => {});
 
-// jsdom lays nothing out, so every element is zero by zero and the plane would
-// decline to frame anything. Give it a size, the way a real one has.
+// jsdom lays nothing out, so every element is zero by zero.
 Object.defineProperty(window.HTMLElement.prototype, 'clientWidth',
                       { configurable: true, get() { return 900; } });
 Object.defineProperty(window.HTMLElement.prototype, 'clientHeight',
@@ -113,22 +126,34 @@ window.HTMLElement.prototype.getBoundingClientRect = function () {
 };
 window.HTMLElement.prototype.setPointerCapture = function () {};
 
-for (const f of ['typeface.js', 'gauge.js', 'plane-core.js']) {
+// `address.js` is deliberately NOT loaded. With a grammar in the window,
+// opening a workspace goes through the hash and lands one turn of the event
+// loop later, which is correct behaviour and makes every count below a race.
+// The grammar has `test/address.js`; what is guarded here is that the button
+// reaches `/switch` at all, which is the half that matters when a cached older
+// shell has no grammar to route through.
+for (const f of ['typeface.js', 'recentre.js']) {
   try { window.eval(fs.readFileSync(path.join(WEB, f), 'utf8')); }
   catch (e) { fail(f + ': ' + e.message); }
 }
 try { window.eval(js); }
 catch (e) { fail('home.js threw on load: ' + e.message); }
 
-// The payload the real `/atlas.json` serves. Two families, five workspaces, and
-// deliberately awkward content: a SHOUTED plan step, a workspace with no plan
-// at all, one that is live on another node, and the one the board is in.
+// The payload the real `/atlas.json` serves. Four families -- one of them the
+// board's own, which has nothing under it, and one of them vendor, which has
+// TREES rather than workspaces -- and deliberately awkward content: a SHOUTED
+// plan step, a workspace with no plan at all, one live on another node, and the
+// one the board is in.
 const LOUD = 'THE TYPIST BAKE-OFF — VARY THE ASR MODEL AND GRADE EACH CANDIDATE';
 const payload = {
   families: [
-    { id: 'courses', name: 'Courses', blurb: 'Graduate coursework.' },
-    { id: 'research', name: 'Research', blurb: 'The projects that become papers.' },
-    { id: 'vendor', name: 'Vendor', blurb: 'Not mine.', vendor: true },
+    { id: 'courses', name: 'Courses',
+      blurb: 'Graduate coursework, taught chapter by chapter.' },
+    { id: 'research', name: 'Research',
+      blurb: 'The projects that become papers.' },
+    { id: 'board', name: 'The board', blurb: 'What does the offering.', tool: true },
+    { id: 'vendor', name: 'Vendor',
+      blurb: 'Pulled, not written. Tracked by pointer at a commit.', vendor: true },
   ],
   workspaces: [
     { id: 'courses/Galois-Theory', family: 'courses', repo: 'Galois-Theory',
@@ -149,15 +174,21 @@ const payload = {
     { id: 'research/PSYCH-ASR', family: 'research', repo: 'PSYCH-ASR',
       course: 'PSYCH-ASR', chapter: '', cards: 12, running: false,
       current: false, kind: 'project', open: 7, next: LOUD, next_label: '1. ' + LOUD,
-      touched: 1789398000, stance: 'do' },
+      touched: 1789398000, stance: 'do', news: true, news_at: 1789398000 },
     { id: 'research/TRD-EHR', family: 'research', repo: 'TRD-EHR',
       course: 'TRD-EHR', chapter: '', cards: 0, running: false,
       current: false, kind: 'project', open: 0, next: '', touched: 0 },
   ],
+  trees: [
+    { id: 'vendor/colibri', family: 'vendor', repo: 'colibri', name: 'colibri',
+      files: 250, capped: true, at: 'a8f2ca6', touched: 1789475941 },
+    { id: 'vendor/colibri-build', family: 'vendor', repo: 'colibri-build',
+      name: 'colibri-build', files: 118, capped: false, at: 'fd93c41',
+      touched: 1788716809 },
+  ],
 };
 
 const posted = [];
-const asked = [];
 let answer = { ok: true, address: true };
 let serving = { dir: 'Probability' };
 window.fetch = (url, opts) => {
@@ -166,7 +197,6 @@ window.fetch = (url, opts) => {
     return Promise.resolve({ json: () => Promise.resolve(answer) });
   }
   if (/^\/health/.test(String(url))) {
-    asked.push(String(url));
     return Promise.resolve({ json: () => Promise.resolve(serving) });
   }
   // The meeting deck's three routes. `/notes/what` is what each workspace has
@@ -204,191 +234,195 @@ window.fetch = (url, opts) => {
 window.dispatchEvent(new window.Event('focus'));
 setTimeout(() => {
   const doc = window.document;
-  const svg = doc.getElementById('atlas-svg');
-  const cards = svg.querySelectorAll('.card-box');
-  const hits = svg.querySelectorAll('.card-hit');
 
-  check('every workspace is drawn as a card', cards.length === 5);
-  check('and every card is tappable over the whole of itself, so a tap never '
-        + 'lands between two words and does nothing',
-        hits.length === 5);
+  // ---- LEVEL ONE: the door ----------------------------------------------
+  const doors = [...doc.querySelectorAll('#doors .door')];
+  const names = doors.map((b) => b.querySelector('.door-name').textContent);
+  check('the door is the families, drawn in the order atlas.json gives them',
+        names.join('|') === 'Courses|Research|Vendor');
+  check('and a family with nothing in it is not a door -- the board is what '
+        + 'does the offering, not one of the things offered',
+        !names.includes('The board'));
 
-  // A family with nothing in it is not a heading over empty space.
-  const labels = [...svg.querySelectorAll('.fam-label')].map((n) => n.textContent);
-  check('the families are drawn in the order atlas.json gives them',
-        labels[0] === 'Courses' && labels[1] === 'Research');
-  check('and a family with no workspaces is not drawn at all -- vendor is '
-        + "somebody else's work and discovery skips it",
-        !labels.includes('Vendor'));
+  // THE SENTENCES THAT WERE ALREADY IN `atlas.json`. They existed and the drawn
+  // version used them as nothing but a heading.
+  const blurbs = doors.map((b) => (b.querySelector('.door-blurb') || {}).textContent);
+  check('each door says what the family is, in the sentence atlas.json carries',
+        blurbs[0] === 'Graduate coursework, taught chapter by chapter.'
+        && blurbs[1] === 'The projects that become papers.');
+  check('and what is true inside it right now, in names and numbers',
+        /3 courses/.test(doors[0].querySelector('.door-line').textContent)
+        && /1 live/.test(doors[0].querySelector('.door-line').textContent)
+        && /an answer waiting/.test(doors[1].querySelector('.door-line').textContent));
+  check('the family holding the workspace the board is in is marked, and only '
+        + 'that one, so the way back is visible before the first tap',
+        doors.filter((b) => b.classList.contains('here')).length === 1
+        && doors[0].classList.contains('here'));
+  check('nothing below the door is showing until one is tapped',
+        doc.getElementById('cards').hidden === true
+        && doc.getElementById('atlas-up').hidden === true);
 
-  // The layout: three across, then a band below.
-  const xs = [...cards].map((n) => +n.getAttribute('x'));
-  const ys = [...cards].map((n) => +n.getAttribute('y'));
-  check('three cards across, and the fourth starts a new band',
-        new Set(xs.slice(0, 3)).size === 3 && ys[0] === ys[1] && ys[1] === ys[2]);
-  check('and no card is drawn off the left edge of the plane',
-        Math.min(...xs) >= 0);
+  // ---- LEVEL TWO: one family --------------------------------------------
+  doors[1].dispatchEvent(new window.Event('click'));
+  check('tapping a door shows that family and hides the others',
+        doc.getElementById('doors').hidden === true
+        && doc.getElementById('cards').hidden === false);
+  check('and the head says which family you are in, with its own sentence',
+        doc.getElementById('atlas-what').textContent === 'Research'
+        && doc.getElementById('atlas-blurb').textContent
+           === 'The projects that become papers.');
+  check('and there is a way back to all of it',
+        doc.getElementById('atlas-up').hidden === false);
 
-  // Every card says the three things a card exists to say.
-  const text = svg.textContent;
-  check('a card says what is next in it', /Tests for irreducibility/.test(text));
-  check('and how much is outstanding',
-        /16 chapters left/.test(text) && /7 open/.test(text));
+  let cards = [...doc.querySelectorAll('#cards .ws-card')];
+  check('every workspace in that family is a card, and only that family\'s',
+        cards.map((c) => c.querySelector('.ws-name').textContent).join('|')
+        === 'PSYCH-ASR|TRD-EHR');
+
+  const text = doc.getElementById('cards').textContent;
+  check('a card says what is next in it', /TYPIST BAKE-OFF/.test(text));
+  check('and how much is outstanding', /7 open/.test(text) && /12 cards/.test(text));
   check('and when it was last touched, not merely that it was',
-        /ago|just now|never/.test(text));
-  check('a workspace with a board up says which machine is holding it',
-        /live on compute305/.test(text));
+        /ago|just now/.test(text));
   check('and a workspace nobody has opened says "never" rather than nothing',
         /never/.test(text));
+  check('an answer nobody has read is marked on the card it landed in',
+        cards[0].classList.contains('news')
+        && !!cards[0].querySelector('.ws-dot.news'));
 
-  // The current workspace is the one the door opens, so it has to be findable
-  // from anywhere on the plane.
-  const here = svg.querySelectorAll('.card-box.here');
-  check('the workspace the board is in is marked, and only that one',
-        here.length === 1);
+  // THE SHOUTED STEP. It used to be measured through `gauge.js` and clipped to
+  // two lines, and a line of capitals is half again wider than characters times
+  // a constant -- which is exactly how the labels came to run out of their
+  // boxes. The browser wraps it now, so the whole of it is on the card and the
+  // clamp that keeps it to three lines is CSS.
+  const loud = cards[0].querySelector('.ws-next').textContent;
+  check('a SHOUTED plan step reaches the card whole rather than being measured '
+        + 'and cut', loud === LOUD);
+  check('and it is the browser that decides how many lines of it fit',
+        /-webkit-line-clamp: 3/.test(css)
+        && /\.ws-next \{[^}]*overflow: hidden/.test(css));
 
-  // THE MEASURED TEXT. A shouted line is the case the estimate got wrong.
-  const nexts = [...svg.querySelectorAll('.card-next')].map((n) => n.textContent);
-  const loud = nexts.filter((t) => /TYPIST|BAKE|GRADE|CANDIDATE/.test(t));
-  check('a SHOUTED plan step is wrapped rather than allowed to run out of its card',
-        loud.length >= 1);
-  const over = loud.filter((t) => window.Gauge.width(t, 12.5, 400) > 300 - 32);
-  check('and every line of it measures inside the card it is drawn in',
-        over.length === 0);
-  check('and what did not fit ends in an ellipsis rather than being silently cut',
-        loud.length < 2 || /…/.test(loud[loud.length - 1]) || loud.length <= 2);
+  // ---- the sheet, which is how a card is read on a phone -----------------
+  const sheet = doc.getElementById('sheet');
+  check('nothing is open before a card is tapped', sheet.hidden === true);
+  cards[0].dispatchEvent(new window.Event('click'));
+  check('tapping a card opens the sheet', sheet.hidden === false);
+  check('and the sheet says which family it is in',
+        doc.getElementById('sheet-family').textContent === 'Research');
+  check('and gives the step in full, not the truncation the card had room for',
+        doc.getElementById('sheet-next-text').textContent.indexOf('1. ') === 0);
+  check('and says what opening it will do, because it moves the board',
+        /address does not change/.test(doc.getElementById('sheet-open-sub').textContent));
 
-  // ---- the same tree lays out the same way twice --------------------------
-  const first = [...cards].map((n) => n.getAttribute('x') + ',' + n.getAttribute('y'))
-                          .join(' ');
-  window.dispatchEvent(new window.Event('focus'));
+  doc.getElementById('sheet-open').onclick();
+  check('opening from the sheet asks the server to move the board',
+        posted.length === 1 && posted[0].repo === 'PSYCH-ASR');
+  check('and the sheet closes rather than sitting over the overlay',
+        sheet.hidden === true);
+  check('the overlay asks nothing: no buttons at all',
+        !doc.querySelector('#busy button'));
+
+  // ---- a vendor tree is drawn, and is not a workspace -------------------
+  // `atlas.json` made one claim out of two: the family was skipped because
+  // nothing in it is the person's to be GRADED on. The ask was about TRACING.
+  // The two are split, and this is the half that reaches the glass.
+  doc.getElementById('atlas-up').onclick();
+  const vendor = [...doc.querySelectorAll('#doors .door')]
+    .filter((b) => b.querySelector('.door-name').textContent === 'Vendor')[0];
+  check('vendor is a door like any other, which it was not before',
+        !!vendor && /2 trees/.test(vendor.querySelector('.door-line').textContent));
+  vendor.dispatchEvent(new window.Event('click'));
+  cards = [...doc.querySelectorAll('#cards .ws-card')];
+  check('and its trees are drawn',
+        cards.map((c) => c.querySelector('.ws-name').textContent).join('|')
+        === 'colibri|colibri-build');
+  const tree = cards[0].querySelector('.ws-meta').textContent;
+  check('a tree says the commit it is at and how much source is in it, which '
+        + 'is all that is true about something pulled rather than written',
+        /at a8f2ca6/.test(tree) && /250\+ source files/.test(tree));
+  check('and a cap is said rather than quoted as a count',
+        /250\+/.test(tree)
+        && /118 source files/.test(cards[1].querySelector('.ws-meta').textContent));
+  cards[0].dispatchEvent(new window.Event('click'));
+  check('its sheet offers no board to move and no library, because nothing is '
+        + 'handed in to somebody else\'s repository',
+        doc.getElementById('sheet-open').hidden === true
+        && doc.getElementById('sheet-library').hidden === true);
+  check('and says so in words rather than leaving it to be discovered',
+        /pulled, not written/.test(doc.getElementById('sheet-meta').textContent)
+        && /never handed work/.test(doc.getElementById('sheet-meta').textContent));
+  doc.getElementById('sheet-close').onclick();
+
+  // ---- it is still a door ----------------------------------------------
+  check('the way back into the lesson is a plain link, not something that '
+        + 'needs a level to have painted',
+        !!doc.querySelector('.action.primary[href="/board"]'));
+  check('and the writing surface is one tap away too',
+        !!doc.querySelector('.action[href="/slate"]'));
+
+  // ---- the meeting deck: two questions, in this order ------------------
+  doc.getElementById('atlas-up').onclick();
+  doc.getElementById('atlas-notes').onclick();
+  const which = doc.getElementById('notes-which');
+  check('the deck asks how far back first, and nothing else',
+        doc.getElementById('notes-since').hidden === false
+        && which.hidden === true);
+
+  posted.length = 0;
+  doc.querySelector('#notes-since button[data-since="7d"]').click();
   setTimeout(() => {
-    const again = [...doc.querySelectorAll('#atlas-svg .card-box')]
-      .map((n) => n.getAttribute('x') + ',' + n.getAttribute('y')).join(' ');
-    check('the same tree lays out identically on a second paint', first === again);
+    check('choosing a period asks what each project has to report',
+          posted.length === 1 && posted[0].to === '/notes/what'
+          && posted[0].body.since === '7d');
+    check('and then the list of projects is what is on the sheet',
+          which.hidden === false
+          && doc.getElementById('notes-since').hidden === true);
 
-    // ---- the sheet, which is how a card is read on a phone ---------------
-    const sheet = doc.getElementById('sheet');
-    check('nothing is open before anything is tapped', sheet.hidden === true);
+    const rows = doc.querySelectorAll('#notes-list button');
+    check('every project is offered, whether or not it moved', rows.length === 2);
+    check('and each row says what it has, not just its name -- ticking bare '
+          + 'names ten minutes before a meeting is guessing',
+          /3 commits/.test(rows[0].textContent)
+          && /nothing since/.test(rows[1].textContent));
+    check('the ones that moved are chosen already, because that is what the '
+          + 'deck covers when nobody says anything',
+          rows[0].getAttribute('aria-pressed') === 'true'
+          && rows[1].getAttribute('aria-pressed') === 'false');
 
-    const psych = [...doc.querySelectorAll('#atlas-svg .card-hit')][3];
-    psych.dispatchEvent(new window.Event('click'));
-    check('tapping a card opens the sheet', sheet.hidden === false);
-    check('and the sheet says which family it is in',
-          doc.getElementById('sheet-family').textContent === 'Research');
-    check('and gives the step in full, not the truncation the card had room for',
-          doc.getElementById('sheet-next-text').textContent.indexOf('1. ') === 0);
-    check('and says what opening it will do, because it moves the board',
-          /address does not change/.test(doc.getElementById('sheet-open-sub').textContent));
-
-    // Opening it is the switch, and it carries the workspace and nothing else.
-    doc.getElementById('sheet-open').onclick();
-    check('opening from the sheet asks the server to move the board',
-          posted.length === 1 && posted[0].repo === 'PSYCH-ASR');
-    check('and the sheet closes rather than sitting over the overlay',
-          sheet.hidden === true);
-    check('the overlay asks nothing: no buttons at all',
-          !doc.querySelector('#busy button'));
-
-    // ---- it is still a door ----------------------------------------------
-    check('the way back into the lesson is a plain link, not something that '
-          + 'needs the plane to have painted',
-          !!doc.querySelector('.action.primary[href="/board"]'));
-    check('and the writing surface is one tap away too',
-          !!doc.querySelector('.action[href="/slate"]'));
-
-    // ---- a pan is not a tap ----------------------------------------------
-    const plane = doc.getElementById('atlas-plane');
-    const down = new window.Event('pointerdown');
-    down.pointerId = 1; down.clientX = 100; down.clientY = 100;
-    plane.dispatchEvent(down);
-    const move = new window.Event('pointermove');
-    move.pointerId = 1; move.clientX = 260; move.clientY = 140;
-    plane.dispatchEvent(move);
-    const before = posted.length;
-    const tap = new window.Event('click', { bubbles: true, cancelable: true });
-    doc.querySelectorAll('#atlas-svg .card-hit')[1].dispatchEvent(tap);
-    const up = new window.Event('pointerup');
-    up.pointerId = 1;
-    plane.dispatchEvent(up);
-    check('dragging the plane does not open whatever the finger started on',
-          posted.length === before);
-
-    // ---- the meeting deck: two questions, in this order ------------------
-    // "I want to be able to select which projects meeting notes are generated
-    //  for. From that list, I'll select the meeting notes I care about."
-    // The period is asked first because the second question cannot be asked
-    // without it -- what each project HAS to report is measured from a date.
-    doc.getElementById('atlas-notes').onclick();
-    const which = doc.getElementById('notes-which');
-    check('the deck asks how far back first, and nothing else',
-          doc.getElementById('notes-since').hidden === false
-          && which.hidden === true);
-
+    rows[1].click();
     posted.length = 0;
-    doc.querySelector('#notes-since button[data-since="7d"]').click();
+    doc.getElementById('notes-make').onclick();
     setTimeout(() => {
-      check('choosing a period asks what each project has to report',
-            posted.length === 1 && posted[0].to === '/notes/what'
-            && posted[0].body.since === '7d');
-      check('and then the list of projects is what is on the sheet',
-            which.hidden === false
-            && doc.getElementById('notes-since').hidden === true);
-
-      const rows = doc.querySelectorAll('#notes-list button');
-      check('every project is offered, whether or not it moved',
-            rows.length === 2);
-      check('and each row says what it has, not just its name -- ticking bare '
-            + 'names ten minutes before a meeting is guessing',
-            /3 commits/.test(rows[0].textContent)
-            && /nothing since/.test(rows[1].textContent));
-      check('the ones that moved are chosen already, because that is what the '
-            + 'deck covers when nobody says anything',
-            rows[0].getAttribute('aria-pressed') === 'true'
-            && rows[1].getAttribute('aria-pressed') === 'false');
-
-      // WHICH PROJECTS REACHES THE BUILDER. `meeting.build` filters
-      // `atlas.workspaces` by `want`, and this is the seam that carries the
-      // ticks to it -- the half that is easy to leave unwired, because the
-      // deck is perfectly buildable without it.
-      rows[1].click();
-      posted.length = 0;
-      doc.getElementById('notes-make').onclick();
-      setTimeout(() => {
-        check('making the deck carries the projects that were ticked',
-              posted.length === 1 && posted[0].to === '/notes'
-              && posted[0].body.want.length === 2
-              && posted[0].body.want.indexOf('courses/Galois-Theory') !== -1);
-        check('and the period goes with them',
-              posted[0].body.since === '7d');
-        check('the deck can then be read, on the page that can be marked up',
-              doc.getElementById('notes-read').hidden === false
-              && doc.getElementById('notes-read').getAttribute('href')
-                 === '/meeting');
-        check('and the sheet says it replaced the one before it, because there '
-              + 'is only ever one',
-              /replaced the one before it/
-                .test(doc.getElementById('notes-said').textContent));
-        rest();
-      }, 20);
+      check('making the deck carries the projects that were ticked',
+            posted.length === 1 && posted[0].to === '/notes'
+            && posted[0].body.want.length === 2
+            && posted[0].body.want.indexOf('courses/Galois-Theory') !== -1);
+      check('and the period goes with them', posted[0].body.since === '7d');
+      check('the deck can then be read, on the page that can be marked up',
+            doc.getElementById('notes-read').hidden === false
+            && doc.getElementById('notes-read').getAttribute('href')
+               === '/meeting');
+      check('and the sheet says it replaced the one before it, because there '
+            + 'is only ever one',
+            /replaced the one before it/
+              .test(doc.getElementById('notes-said').textContent));
+      rest();
     }, 20);
-    return;
-  }, 60);
+  }, 20);
 }, 80);
 
 function rest() {
-  {
-    const doc = window.document;
-    // ---- a board on an older tool serves no atlas ------------------------
-    // Draw nothing and say so. The door above still works, which is the half
-    // that matters, and a front door that throws is a blank screen.
-    check('a missing atlas payload is said rather than thrown',
-          /older version of the tool/.test(js));
-    check('and the paint is wrapped, so one bad workspace cannot blank the page',
-          /function paintAtlas\(payload\) \{[\s\S]{0,400}try \{/.test(js));
+  // ---- a board on an older tool serves no atlas ------------------------
+  // Draw nothing and say so. The door above still works, which is the half
+  // that matters, and a front door that throws is a blank screen.
+  check('a missing atlas payload is said rather than thrown',
+        /older version of the tool/.test(js));
+  check('and the paint is wrapped, so one bad workspace cannot blank the page',
+        /function paintAtlas\(payload\) \{[\s\S]{0,600}try \{/.test(js));
+  check('and what it said survives the next poll rather than being wiped by it',
+        /atlasSaid/.test(js));
 
-    console.log(errors.length ? '\n' + errors.length + ' FAILURES'
-                              : '\none picture of everything, and it is the way in');
-    process.exit(errors.length ? 1 : 0);
-  }
+  console.log(errors.length ? '\n' + errors.length + ' FAILURES'
+                            : '\nthree levels, and the top two are not planes');
+  process.exit(errors.length ? 1 : 0);
 }

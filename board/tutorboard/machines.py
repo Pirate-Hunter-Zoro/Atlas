@@ -285,13 +285,66 @@ def _mark_missions(cards, repo):
         }
 
 
+def _pinned(root):
+    """The commit a vendor tree is sitting at, short -- or "".
+
+    The one honest fact about a tree that is pulled rather than written: it is
+    somebody else's repository at one commit, and which commit is the only
+    thing about it this side chose.
+    """
+    try:
+        p = subprocess.run(["git", "--no-optional-locks", "rev-parse",
+                            "--short", "HEAD"],
+                           cwd=root, stdout=subprocess.PIPE,
+                           stderr=subprocess.DEVNULL, timeout=10)
+        if p.returncode == 0:
+            return p.stdout.decode("utf-8", "replace").strip()
+    except (OSError, subprocess.TimeoutExpired):
+        pass
+    return ""
+
+
+def _trees():
+    """A card each for the vendor trees: read, drawn, never handed work.
+
+    A SEPARATE LIST from `workspaces` in the payload, exactly as it is in
+    `atlas`. A tree on the same list as a workspace is a tree something
+    eventually offers a sitting in, and the whole point of the split is that
+    nothing can do that by accident.
+
+    What a card says is what can be measured without reading the tree's mind:
+    the commit it is pinned at, how much source there is in it, and when it
+    last moved. No plan, no next step, no cards outstanding -- none of those
+    exist for something nobody hands work in to.
+    """
+    from .course import walk                          # circular at module scope
+    out = []
+    for t in atlas.trees():
+        root = t["root"]
+        try:
+            files = len(walk.units(root))
+        except Exception:                            # noqa: BLE001
+            files = 0
+        out.append({
+            "id": t["id"], "family": t["family"], "repo": t["dir"],
+            "name": t["dir"], "files": files, "at": _pinned(root),
+            # `walk.units` stops at `MAX_UNITS`, and colibrì is past it. A card
+            # that says "250 source files" when it means "at least 250" is a
+            # number somebody would quote.
+            "capped": files >= walk.MAX_UNITS,
+            "touched": _last_touched(root),
+        })
+    return out
+
+
 def atlas_payload(repo):
     """Everything the front door draws, in family order.
 
     `families` carries the regions and their order, straight out of
-    `atlas.json`; `workspaces` carries a card each. Vendor families are in the
-    families list -- the front door may want to say that `vendor/` exists -- and
-    have no workspaces under them, because discovery skips them.
+    `atlas.json`; `workspaces` carries a card each. A VENDOR FAMILY HAS NO
+    WORKSPACES AND IS NOT EMPTY: its contents are in `trees`, which is a second
+    list for the same reason `atlas.trees` is a second function -- a tree is
+    read and drawn and is never a thing work is handed in to.
     """
     now = time.time()
     if _ATLAS["value"] is not None and now - _ATLAS["at"] < ATLAS_TTL:
@@ -393,7 +446,8 @@ def atlas_payload(repo):
     # one field on this page somebody would act on immediately.
     _mark_missions(cards, repo)
 
-    out = {"families": [dict(f) for f in atlas.families()], "workspaces": cards}
+    out = {"families": [dict(f) for f in atlas.families()], "workspaces": cards,
+           "trees": _trees()}
     for f in out["families"]:
         f.pop("dir", None)               # a filesystem path is not the page's
     _ATLAS["at"] = now

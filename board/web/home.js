@@ -59,12 +59,13 @@ var els = {
   missionsLead: document.getElementById("missions-lead"),
   missionsList: document.getElementById("missions-list"),
   atlasWrap: document.getElementById("atlas-wrap"),
-  atlasPlane: document.getElementById("atlas-plane"),
-  atlasSvg: document.getElementById("atlas-svg"),
   atlasEmpty: document.getElementById("atlas-empty"),
-  atlasFit: document.getElementById("atlas-fit"),
+  atlasWhat: document.getElementById("atlas-what"),
+  atlasBlurb: document.getElementById("atlas-blurb"),
+  atlasUp: document.getElementById("atlas-up"),
+  doors: document.getElementById("doors"),
+  cards: document.getElementById("cards"),
   panic: document.getElementById("panic"),
-  atlasBack: document.getElementById("atlasback"),
   sheet: document.getElementById("sheet"),
   sheetFamily: document.getElementById("sheet-family"),
   sheetName: document.getElementById("sheet-name"),
@@ -164,94 +165,54 @@ function paintBoard(d) {
     : "the slate";
 }
 
-/* ------------------------------------------------------------- the atlas */
-/* GEOMETRY. Every number here is a constant, and that is the point: the same
-   repository has to lay out identically on every device, or it is not a picture
-   anybody can learn. Nothing below reads the width of the glass. */
-var A_W = 300;              /* a card */
-var A_GAP = 22;
-var A_PAD = 16;             /* inside a card */
-var A_ACROSS = 3;           /* cards per row, wrapping into bands below it */
-var A_FAM_TOP = 46;         /* the family heading above its first row */
-var A_FAM_GAP = 40;         /* between one family and the next */
-var A_EDGE = 24;            /* around the whole plane */
-var A_NAME = 16, A_NEXT = 12.5, A_META = 11.5, A_TAG = 9.5;
-var A_NAME_LINES = 2, A_NEXT_LINES = 2;
-var A_MIN_H = 118;
+/* ============================================================== the atlas
+   THREE LEVELS, AND ONLY THE LAST OF THEM IS A PLANE.
 
-/* Below this the plane opens framed on the card you are IN rather than on the
-   whole picture. The layout does not change -- only which part of it is in
-   front of you when the page arrives. */
-var A_NARROW = 640;
+       "It's just an ugly grid of projects in an inner box that has wacky
+        zooming. On the homescreen, I want a nice 'Research' option, 'Courses'
+        option, and 'Projects' option, and honestly something pertaining to
+        vendor/ as well... When I select one of those four options, I want to
+        see all available projects/courses/research projects/vendor tools
+        portrayed in again a visually pleasing way, and then we can go into an
+        individual project map."
+
+   This page used to build ONE SVG plane -- a region per family, a card per
+   workspace -- and hand it to `plane-core.js` to be panned and pinched, with a
+   `fit` button because it could not be seen at once. Six families and a dozen
+   workspaces is A LIST OF SIX. A list is not a diagram, and drawing it on a
+   plane is what produced the wacky zooming: the gesture layer was solving a
+   problem the content did not have, and the page it sat on could be pinched
+   over the top of it, which is two ways to be lost.
+
+   So:
+
+     1. THE DOOR -- the families, as large tappable things. `atlas.json`
+        already carries them in the order they should be drawn with a sentence
+        each, and those sentences are what a door says.
+     2. THE FAMILY -- its workspaces, each with what it is and what is
+        happening in it. Every field was already in the payload and was being
+        drawn as a small card on a plane.
+     3. THE PROJECT MAP -- a diagram, which is the one thing here that
+        genuinely needs a plane. It lives on the board, `plane-core.js` still
+        draws it, and it finally has content whose shape justifies it.
+
+   NEITHER OF THE TWO LEVELS HERE IS A PLANE. No pan, no pinch, no fit, and no
+   measuring: these are HTML elements in a CSS grid, so the browser lays the
+   text out and a label cannot run out of a box it was not measured for. The
+   constant that used to matter -- three across, always, never from the width of
+   the glass -- is a media query now, which is the same promise kept by the
+   thing whose job it is.
+
+   ONE RULE SURVIVES UNCHANGED AND IT IS THE IMPORTANT ONE: nothing in the
+   paint may throw. A front door that throws is a blank screen where the app
+   used to be, and this one is the way back into a lesson. */
 
 var atlas = null;                    /* the payload, as it arrived */
-var atlasCards = [];                 /* laid out, with their boxes */
-var atlasBox = { x0: 0, y0: 0, x1: 0, y1: 0 };
-var atlasView = { k: 1, fit: 1, ox: 0, oy: 0, held: false };
-var atlasHand = null;
-var atlasDrawn = "";                 /* the signature of what is on the plane */
-var A_LO = 0.35, A_HI = 2.2;
-
-function aWrap(text, size, weight, room, lines) {
-  return window.Gauge.wrap(text, size, weight, room, lines);
-}
-
-/* What a card is made of, and therefore how tall it is. Measured before
-   anything is positioned, because the height of a row is the tallest card in
-   it and that cannot be known by looking at one. */
-function aShape(c) {
-  var room = A_W - A_PAD * 2;
-  var name = aWrap(c.course || c.repo, A_NAME, 650, room, A_NAME_LINES);
-  var next = c.next ? aWrap(c.next, A_NEXT, 400, room, A_NEXT_LINES) : [];
-  var h = A_PAD
-        + name.length * 21
-        + (next.length ? 16 + next.length * 17 : 6)
-        + 22                                   /* the meta line */
-        + A_PAD;
-  return { name: name, next: next, h: Math.max(A_MIN_H, h) };
-}
-
-/* Where every card goes. Families in the order `atlas.json` gives them, cards
-   alphabetical inside one, three across, wrapping into bands. */
-function aLayout(payload) {
-  var fams = (payload && payload.families) || [];
-  var all = (payload && payload.workspaces) || [];
-  var out = [], marks = [];
-  var y = A_EDGE;
-  var widest = A_EDGE + A_W;
-
-  fams.forEach(function (fam) {
-    var mine = all.filter(function (c) { return c.family === fam.id; });
-    /* A family with nothing in it is not drawn. `vendor` and `board` have no
-       workspaces by construction -- discovery skips them -- and a heading over
-       empty space reads as something missing rather than as something absent
-       on purpose. */
-    if (!mine.length) return;
-
-    marks.push({ fam: fam, x: A_EDGE, y: y });
-    var top = y + A_FAM_TOP;
-
-    for (var i = 0; i < mine.length; i += A_ACROSS) {
-      var row = mine.slice(i, i + A_ACROSS);
-      var tall = 0;
-      row.forEach(function (c) {
-        c._shape = aShape(c);
-        if (c._shape.h > tall) tall = c._shape.h;
-      });
-      row.forEach(function (c, k) {
-        var x = A_EDGE + k * (A_W + A_GAP);
-        c._x = x; c._y = top; c._w = A_W; c._h = tall;
-        out.push(c);
-        if (x + A_W > widest) widest = x + A_W;
-      });
-      top += tall + A_GAP;
-    }
-    y = top - A_GAP + A_FAM_GAP;
-  });
-
-  atlasBox = { x0: 0, y0: 0, x1: widest + A_EDGE, y1: Math.max(y, A_EDGE) + A_EDGE };
-  return { cards: out, marks: marks };
-}
+var atlasFamily = "";                /* the family being read, or "" for the door */
+/* A sentence the atlas is showing INSTEAD of a level -- an address that no
+   longer resolves, a board too old to serve a payload. Kept in a variable so a
+   poll twenty seconds later does not wipe it off the screen. */
+var atlasSaid = "";
 
 function aAgo(t) {
   if (!t) return "never";
@@ -274,10 +235,194 @@ function aMeta(c) {
   return bits.join("  ·  ");
 }
 
-function aText(x, y, cls, text) {
-  var t = window.Gauge.el("text", { x: x, y: y, class: cls });
-  t.textContent = text;
-  return t;
+/* And the same line for a vendor tree, which has none of those things. Nothing
+   is outstanding in somebody else's repository, and no cards are written
+   against it -- what it has is a commit and some source. */
+function aTreeMeta(t) {
+  var bits = [];
+  if (t.at) bits.push("at " + t.at);
+  if (t.files) {
+    bits.push(t.files + (t.capped ? "+" : "")
+              + (t.files === 1 ? " source file" : " source files"));
+  }
+  bits.push(aAgo(t.touched));
+  return bits.join("  ·  ");
+}
+
+/* What is in one family, whichever list it comes from. A vendor family holds
+   TREES and every other family holds WORKSPACES, and the two are separate
+   lists on purpose: `atlas.trees()` is read and drawn and is never something
+   work is handed in to. This is the one place that has to know both. */
+function aIn(fam) {
+  if (!atlas) return [];
+  if (fam.vendor) {
+    return (atlas.trees || []).filter(function (t) { return t.family === fam.id; });
+  }
+  return (atlas.workspaces || []).filter(function (c) { return c.family === fam.id; });
+}
+
+function aFamily(id) {
+  var found = null;
+  ((atlas && atlas.families) || []).forEach(function (f) {
+    if (f.id === id) found = f;
+  });
+  return found;
+}
+
+function aEl(tag, cls, text) {
+  var el = document.createElement(tag);
+  if (cls) el.className = cls;
+  if (text !== undefined && text !== null) el.textContent = text;
+  return el;
+}
+
+/* ------------------------------------------------------------ level one */
+/* WHAT A DOOR SAYS. Its name and the sentence `atlas.json` already carries for
+   it -- "Graduate coursework, taught chapter by chapter.", "The projects that
+   become papers." -- and then what is true inside it right now. The sentences
+   existed and the old front door used them as nothing but a heading. */
+function aDoorLine(fam, mine) {
+  var bits = [];
+  var word = fam.vendor ? "tree" : fam.id === "courses" ? "course"
+           : fam.id === "practice" ? "set" : "project";
+  bits.push(mine.length + " " + word + (mine.length === 1 ? "" : "s"));
+  var live = mine.filter(function (c) { return c.running; }).length;
+  if (live) bits.push(live + " live");
+  var news = mine.filter(function (c) { return c.news; }).length;
+  if (news) bits.push(news === 1 ? "an answer waiting" : news + " answers waiting");
+  var going = mine.filter(function (c) {
+    return c.mission && c.mission.state === "running";
+  }).length;
+  if (going) bits.push(going === 1 ? "one still going" : going + " still going");
+  return bits.join("  ·  ");
+}
+
+function paintDoors() {
+  var host = els.doors;
+  host.innerHTML = "";
+  var drawn = 0;
+  ((atlas && atlas.families) || []).forEach(function (fam) {
+    var mine = aIn(fam);
+    /* A FAMILY WITH NOTHING IN IT IS NOT A DOOR. `board` is the tool doing the
+       offering rather than one of the things offered, and a heading over empty
+       space reads as something missing rather than as something absent on
+       purpose. */
+    if (!mine.length) return;
+    drawn += 1;
+    var b = aEl("button", "door" + (fam.vendor ? " vendor" : ""));
+    b.type = "button";
+    b.appendChild(aEl("span", "door-name", fam.name || fam.id));
+    if (fam.blurb) b.appendChild(aEl("span", "door-blurb", fam.blurb));
+    b.appendChild(aEl("span", "door-line", aDoorLine(fam, mine)));
+    /* WHERE YOU ARE, on the door rather than only on the card behind it: the
+       one thing somebody wants from the front door is the way back into the
+       lesson they were in, and that has to be visible before the first tap. */
+    if (mine.some(function (c) { return c.current; })) {
+      b.classList.add("here");
+      b.appendChild(aEl("span", "door-tag", "you are in here"));
+    }
+    b.onclick = function () { openFamily(fam.id); };
+    host.appendChild(b);
+  });
+  return drawn;
+}
+
+/* ------------------------------------------------------------ level two */
+/* A CARD, IN HTML. Every field it carries was already in the payload and was
+   already on the plane; what has changed is that the browser wraps the text
+   instead of `gauge.js` measuring it, which is why a SHOUTED plan step can no
+   longer run out of its box. */
+function aCard(c, fam) {
+  var b = aEl("button", "ws-card");
+  b.type = "button";
+  if (c.current) b.classList.add("here");
+  var news = !!c.news && !c.current;
+  if (news) b.classList.add("news");
+
+  var top = aEl("div", "ws-top");
+  top.appendChild(aEl("strong", "ws-name", c.course || c.repo || c.name));
+  if (news) top.appendChild(aEl("span", "ws-dot news", ""));
+  var job = c.mission && c.mission.state;
+  if (job === "running" || job === "failed") {
+    top.appendChild(aEl("span", "ws-dot mission " + job, ""));
+  }
+  b.appendChild(top);
+
+  if (c.current) b.appendChild(aEl("span", "ws-tag here", "you are here"));
+
+  if (c.next) {
+    var lead = aEl("span", "ws-tag", c.kind === "book" ? "NEXT CHAPTER" : "NEXT");
+    b.appendChild(lead);
+    b.appendChild(aEl("span", "ws-next", c.next));
+  }
+
+  if (fam.vendor) {
+    b.appendChild(aEl("span", "ws-meta", aTreeMeta(c)));
+  } else if (c.running) {
+    var live = aEl("span", "ws-meta live");
+    live.appendChild(aEl("span", "ws-dot live", ""));
+    live.appendChild(aEl("span", "", (c.node ? "live on " + c.node + "  ·  "
+                                             : "live  ·  ") + aMeta(c)));
+    b.appendChild(live);
+  } else {
+    b.appendChild(aEl("span", "ws-meta", aMeta(c)));
+  }
+
+  b.onclick = function () { openSheet(c, fam); };
+  return b;
+}
+
+function paintFamily() {
+  var fam = aFamily(atlasFamily);
+  var host = els.cards;
+  host.innerHTML = "";
+  if (!fam) return 0;
+  var mine = aIn(fam);
+  mine.forEach(function (c) { host.appendChild(aCard(c, fam)); });
+  return mine.length;
+}
+
+function openFamily(id) {
+  atlasFamily = id || "";
+  paintLevels();
+  /* The head of the section, so the first card is where the eye already is. A
+     family opened from a door two screens down would otherwise land with the
+     cards below the fold. */
+  try { els.atlasWrap.scrollIntoView({ block: "start", behavior: "smooth" }); }
+  catch (e) { /* an older browser scrolls or it does not; neither is fatal */ }
+}
+
+function closeFamily() {
+  atlasFamily = "";
+  paintLevels();
+}
+
+/* WHICH LEVEL IS ON THE GLASS. One function, because two things deciding which
+   of two surfaces is showing is two states that drift apart. */
+function paintLevels() {
+  var fam = atlasFamily ? aFamily(atlasFamily) : null;
+  if (!fam) atlasFamily = "";
+  var doors = paintDoors();
+  var here = fam ? paintFamily() : 0;
+  els.doors.hidden = !!fam;
+  els.cards.hidden = !fam;
+  els.atlasUp.hidden = !fam;
+  els.atlasWhat.textContent = fam ? (fam.name || fam.id) : "Everything";
+  els.atlasBlurb.textContent = fam ? (fam.blurb || "") : "";
+  els.atlasBlurb.hidden = !(fam && fam.blurb);
+  els.atlasWrap.hidden = false;
+  if (!doors && !here) {
+    els.atlasEmpty.hidden = false;
+    els.atlasEmpty.textContent = "Nothing to draw yet.";
+  } else if (!atlasSaid) {
+    els.atlasEmpty.hidden = true;
+  }
+}
+
+function atlasSay(text) {
+  atlasSaid = text || "";
+  els.atlasEmpty.hidden = !atlasSaid;
+  if (atlasSaid) els.atlasEmpty.textContent = atlasSaid;
 }
 
 /* ------------------------------------------ an answer waiting somewhere else
@@ -435,297 +580,65 @@ function paintMissions(payload) {
   });
 }
 
+
 function paintAtlas(payload) {
   /* Outside the try below and before it: a picture that could not be drawn is
      not a reason to lose the one row that says work has come back. */
   try { paintAnswers(payload); } catch (e) { /* not the way back; the row is */ }
   try { paintMissions(payload); } catch (e) { /* likewise */ }
   /* NOTHING IN HERE MAY THROW. A front door that throws is a blank screen
-     where the app used to be, and this one is the way back into a lesson. The
-     same wrapping `paintMap` has, for the same reason. */
+     where the app used to be, and this one is the way back into a lesson. */
   try {
-    paintAtlasNow(payload);
+    atlas = payload || { families: [], workspaces: [], trees: [] };
+    paintLevels();
   } catch (e) {
     try {
-      els.atlasEmpty.hidden = false;
-      els.atlasEmpty.textContent = "the atlas could not be drawn; the door above "
-                                 + "still works";
+      atlasSay("the atlas could not be drawn; the door above still works");
     } catch (e2) { /* then there is nothing left to say it with */ }
   }
 }
 
-/* And drawn again when the reading face arrives. Every card here is sized by
-   measuring its own text, and a measurement taken before the web font loaded is
-   a measurement of a narrower fallback -- so the first atlas of a cold load is
-   laid out for a face it is not painted in. `gauge.js` says when. */
-if (window.Gauge && window.Gauge.onFace) {
-  window.Gauge.onFace(function () {
-    if (!atlas) return;
-    atlasDrawn = "";
-    paintAtlas(atlas);
-  });
-}
+els.atlasUp.onclick = closeFamily;
 
-function paintAtlasNow(payload) {
-  atlas = payload || { families: [], workspaces: [] };
-  var laid = aLayout(atlas);
-  atlasCards = laid.cards;
+/* THE WAY BACK, and there is one of them now rather than two.
 
-  els.atlasEmpty.hidden = !!atlasCards.length;
-  els.atlasWrap.hidden = false;
-
-  /* Repaint only when the picture has actually changed. The page polls every
-     twenty seconds and an SVG rebuilt under a finger is a pan that stutters. */
-  var sig = atlasCards.map(function (c) {
-    return [c.id, c.course, c.next, c.open, c.cards, c.running, c.node,
-            Math.round((c.touched || 0) / 60), c.current,
-            /* An unread answer is part of the picture, so it is part of the
-               signature: without it the badge appears only when something else
-               about the card happens to change. */
-            c.news ? Math.round(c.news_at || 0) : 0].join("|");
-  }).join("~");
-  if (sig === atlasDrawn) return;
-  atlasDrawn = sig;
-
-  var svg = els.atlasSvg;
-  while (svg.firstChild) svg.removeChild(svg.firstChild);
-  var g = window.Gauge.el("g", { id: "atlas-g" });
-  svg.appendChild(g);
-
-  laid.marks.forEach(function (m) {
-    g.appendChild(aText(m.x, m.y + 13, "fam-label", m.fam.name || m.fam.id));
-    if (m.fam.blurb) {
-      g.appendChild(aText(m.x, m.y + 31, "fam-blurb", m.fam.blurb));
-    }
-    g.appendChild(window.Gauge.el("line", {
-      x1: m.x, y1: m.y + 38, x2: atlasBox.x1 - A_EDGE, y2: m.y + 38,
-      class: "fam-rule"
-    }));
-  });
-
-  atlasCards.forEach(function (c) {
-    var here = !!c.current;
-    /* An answer landed in this one and nobody has read it. Never on the card
-       you are standing in: the lesson is on the other side of one tap, and a
-       badge about where you already are is furniture. */
-    var news = !!c.news && !here;
-    g.appendChild(window.Gauge.el("rect", {
-      x: c._x, y: c._y, width: c._w, height: c._h, rx: 10,
-      class: "card-box" + (here ? " here" : "") + (news ? " news" : "")
-    }));
-    if (news) {
-      g.appendChild(window.Gauge.el("circle", {
-        cx: c._x + c._w - 13, cy: c._y + 13, r: 5.5, class: "card-news"
-      }));
-    }
-    /* AND WHETHER SOMETHING IS STILL WORKING IN THERE. Bottom right, because
-       the top right is the answer badge and a box can carry both: a mission
-       that landed a card is a mission that is done AND an answer nobody has
-       read. `done` gets no mark of its own for that reason -- the badge above
-       already says it. */
-    var job = c.mission && c.mission.state;
-    if (job === "running" || job === "failed") {
-      g.appendChild(window.Gauge.el("circle", {
-        cx: c._x + c._w - 13, cy: c._y + c._h - 13, r: 5,
-        class: "card-mission " + job
-      }));
-    }
-
-    var tx = c._x + A_PAD;
-    var ty = c._y + A_PAD + 14;
-    c._shape.name.forEach(function (line) {
-      g.appendChild(aText(tx, ty, "card-name" + (here ? " here" : ""), line));
-      ty += 21;
-    });
-
-    if (c._shape.next.length) {
-      ty += 12;
-      g.appendChild(aText(tx, ty, "card-tag", c.kind === "book" ? "NEXT CHAPTER" : "NEXT"));
-      ty += 14;
-      c._shape.next.forEach(function (line) {
-        g.appendChild(aText(tx, ty, "card-next", line));
-        ty += 17;
-      });
-    }
-
-    /* A board that is up, drawn as a dot rather than written as a word: it is
-       the one thing on a card somebody looks for rather than reads. */
-    var my = c._y + c._h - A_PAD - 2;
-    if (c.running) {
-      g.appendChild(window.Gauge.el("circle", {
-        cx: tx + 4, cy: my - 4, r: 4, class: "card-live"
-      }));
-      g.appendChild(aText(tx + 14, my, "card-meta",
-                          (c.node ? "live on " + c.node + "  ·  " : "live  ·  ") + aMeta(c)));
-    } else {
-      g.appendChild(aText(tx, my, "card-meta", aMeta(c)));
-    }
-
-    /* The whole card is the target, over the top of everything, so a tap never
-       lands between two words and does nothing. */
-    var hit = window.Gauge.el("rect", {
-      x: c._x, y: c._y, width: c._w, height: c._h, rx: 10, class: "card-hit"
-    });
-    hit.addEventListener("click", function () { openSheet(c); });
-    g.appendChild(hit);
-  });
-
-  if (!atlasView.held) atlasFrame();
-  atlasApply();
-}
-
-/* ---------------------------------------------------------- the plane */
-function atlasSize() {
-  return { w: els.atlasPlane.clientWidth || 1, h: els.atlasPlane.clientHeight || 1 };
-}
-
-function atlasRoom() {
-  var s = atlasSize();
-  return window.Plane.room(atlasBox, s.w, s.h, atlasView.k, 0.35);
-}
-
-function atlasApply() {
-  var s = atlasSize();
-  window.Plane.clamp(atlasView, atlasRoom(), s.w, s.h);
-  var g = document.getElementById("atlas-g");
-  if (g) {
-    g.setAttribute("transform", "translate(" + atlasView.ox + "," + atlasView.oy
-                                + ") scale(" + atlasView.k + ")");
-  }
-}
-
-/* Frame the whole plane -- or, on a narrow screen, the card you are IN.
-   The layout is the same picture either way; this only decides which part of
-   it the page opens on, because a 300-unit card fitted to a 390-unit phone is
-   a picture nobody can read. */
-function atlasFrame(force) {
-  var s = atlasSize();
-  if (!s.w || !s.h) return;
-  var mine = null;
-  for (var i = 0; i < atlasCards.length; i++) {
-    if (atlasCards[i].current) { mine = atlasCards[i]; break; }
-  }
-  if (!force && mine && s.w < A_NARROW) {
-    window.Plane.frame(atlasView,
-      { x0: mine._x, y0: mine._y, x1: mine._x + mine._w, y1: mine._y + mine._h },
-      s.w, s.h, 18, A_LO, A_HI);
-  } else {
-    window.Plane.frame(atlasView, atlasBox, s.w, s.h, 12, A_LO, A_HI);
-  }
-  atlasView.fit = atlasView.k;
-  atlasView.held = false;
-  atlasApply();
-}
-
-els.atlasFit.onclick = function () { atlasFrame(true); };
-
-/* THE WAY BACK, and there are two of them because there are two ways to be lost.
-
-   `recentre.js` owns the stack -- where it sits against the VISUAL viewport, how
-   it is dragged, and what putting the page's own magnification back means. What
-   is here is the second button: the atlas is a plane, a plane can be panned into
-   empty space, and the `fit` control that answers that is in the page chrome,
-   which a pinch takes off the glass. The board has had this pair for the lesson
-   and the writing surface; the front door had neither. */
+   `recentre.js` owns the button: where it sits against the VISUAL viewport,
+   how it is dragged, and what putting the page's own magnification back means.
+   The atlas used to be a plane, which could be panned into empty space on top
+   of that, and the control answering the first was page chrome a pinch took
+   off the glass. Neither level here is a plane, so there is one way to be lost
+   and one button for it. */
 if (els.panic && window.Recentre) {
-  window.Recentre.mount({
-    key: "board.panic",
-    buttons: [
-      { el: els.panic },
-      { el: els.atlasBack, onTap: function (el) {
-          atlasFrame(true);
-          window.Recentre.flash(el);
-        } },
-    ],
-  });
+  window.Recentre.mount({ key: "board.panic", buttons: [{ el: els.panic }] });
 }
-
-/* The gestures. `plane-core.js` owns what a gesture IS -- which contacts are
-   live, which two a pinch is between, when a refusal expires -- so this is only
-   the bookkeeping of moving one surface. Read that file before changing a line
-   of it. */
-var atlasDrag = null;
-
-els.atlasPlane.addEventListener("pointerdown", function (ev) {
-  if (!window.Plane) return;
-  if (!atlasHand) atlasHand = window.Plane.contacts({});
-  atlasHand.note(ev.pointerId, ev.clientX, ev.clientY);
-  try { els.atlasPlane.setPointerCapture(ev.pointerId); } catch (e) { /* not fatal */ }
-  var live = atlasHand.live();
-  if (live.length >= 2) {
-    atlasDrag = null;
-    atlasHand.begin(atlasView.k);
-  } else {
-    atlasDrag = { x: ev.clientX, y: ev.clientY, ox: atlasView.ox, oy: atlasView.oy,
-                  moved: false };
-  }
-});
-
-els.atlasPlane.addEventListener("pointermove", function (ev) {
-  if (!atlasHand) return;
-  atlasHand.note(ev.pointerId, ev.clientX, ev.clientY);
-  var spread = atlasHand.spread();
-  if (spread) {
-    var r = els.atlasPlane.getBoundingClientRect();
-    window.Plane.zoomAbout(atlasView, spread.k, spread.cx - r.left, spread.cy - r.top,
-                           A_LO, A_HI);
-    atlasApply();
-    return;
-  }
-  if (atlasDrag && atlasHand.live().length === 1) {
-    var dx = ev.clientX - atlasDrag.x, dy = ev.clientY - atlasDrag.y;
-    if (Math.abs(dx) > 3 || Math.abs(dy) > 3) atlasDrag.moved = true;
-    atlasView.ox = atlasDrag.ox + dx;
-    atlasView.oy = atlasDrag.oy + dy;
-    atlasView.held = true;
-    atlasApply();
-  }
-});
-
-function atlasRelease(ev) {
-  if (!atlasHand) return;
-  atlasHand.forget(ev.pointerId);
-  if (!atlasHand.live().length) atlasDrag = null;
-}
-els.atlasPlane.addEventListener("pointerup", atlasRelease);
-els.atlasPlane.addEventListener("pointercancel", atlasRelease);
-window.addEventListener("pointerup", atlasRelease);
-
-/* A pan must not also be a tap. Without this, dragging the plane with a finger
-   that started on a card opened that card when it was lifted. */
-els.atlasPlane.addEventListener("click", function (ev) {
-  if (atlasDrag && atlasDrag.moved) {
-    ev.stopPropagation();
-    ev.preventDefault();
-  }
-}, true);
-
-els.atlasPlane.addEventListener("wheel", function (ev) {
-  if (!window.Plane) return;
-  ev.preventDefault();
-  var r = els.atlasPlane.getBoundingClientRect();
-  var k = atlasView.k * (ev.deltaY < 0 ? 1.12 : 1 / 1.12);
-  window.Plane.zoomAbout(atlasView, k, ev.clientX - r.left, ev.clientY - r.top,
-                         A_LO, A_HI);
-  atlasApply();
-}, { passive: false });
-
-window.addEventListener("resize", function () {
-  if (!atlasView.held) atlasFrame();
-  else atlasApply();
-});
 
 /* ---------------------------------------------------------- the sheet */
 var sheetFor = null;
+var sheetTree = false;
 
-function openSheet(c) {
+function openSheet(c, fam) {
   sheetFor = c;
-  var fam = "";
-  (atlas.families || []).forEach(function (f) {
-    if (f.id === c.family) fam = f.name || f.id;
-  });
-  els.sheetFamily.textContent = fam;
-  els.sheetName.textContent = c.course || c.repo;
+  fam = fam || aFamily(c.family) || {};
+  /* A VENDOR TREE IS NOT A WORKSPACE, and the sheet is where that stops being
+     an abstraction. There is no board to move, nothing to write up and nothing
+     to hand in -- so the two buttons that do those things are not offered, and
+     the sheet says plainly what this one is instead of leaving somebody to
+     discover it by tapping. */
+  var tree = !!fam.vendor;
+  sheetTree = tree;
+  els.sheetFamily.textContent = fam.name || fam.id || "";
+  els.sheetName.textContent = c.course || c.repo || c.name;
+  els.sheetOpen.hidden = tree;
+  els.sheetLibrary.hidden = tree;
+  if (tree) {
+    els.sheetWhere.textContent = c.id;
+    els.sheetNextText.textContent = "";
+    els.sheetNext.hidden = true;
+    els.sheetMeta.textContent = aTreeMeta(c)
+      + "  ·  pulled, not written: read and drawn, never handed work";
+    els.sheet.hidden = false;
+    return;
+  }
   els.sheetWhere.textContent = c.id + (c.chapter ? "  ·  " + c.chapter : "");
   /* WHAT THE PERSON CALLS THIS WHOLE WORKSPACE, where they have drawn it. The
      one field the written map lends the front door, and it belongs on the sheet
@@ -755,6 +668,7 @@ function openSheet(c) {
 function closeSheet() {
   els.sheet.hidden = true;
   sheetFor = null;
+  sheetTree = false;
 }
 
 els.sheetClose.onclick = closeSheet;
@@ -1041,14 +955,14 @@ function addrRoute() {
   if (a.text === addrDone) return;
   addrDone = a.text;
 
+  atlasSay("");
   var mine = null;
   (atlas.workspaces || []).forEach(function (c) { if (c.id === a.ws) mine = c; });
   if (!mine) {
     /* A MISS IS A MISS. Said on the atlas, where the person is looking, and the
        door above it still works. */
-    els.atlasEmpty.hidden = false;
-    els.atlasEmpty.textContent = "there is no " + a.ws + " in this repository "
-                               + "any more — everything that is here is below";
+    atlasSay("there is no " + a.ws + " in this repository any more — "
+             + "everything that is here is below");
     return;
   }
 
@@ -1167,9 +1081,8 @@ function refresh() {
        than throw: the door above still works, which is the half that matters. */
     if (all[1]) paintAtlas(all[1]);
     else {
-      els.atlasEmpty.hidden = false;
-      els.atlasEmpty.textContent = "this board is on an older version of the tool "
-                                 + "and has no atlas to draw";
+      atlasSay("this board is on an older version of the tool and has no "
+               + "atlas to draw");
     }
     var w = (all[2] || {}).where;
     els.where.textContent = w || "";
