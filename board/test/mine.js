@@ -205,12 +205,19 @@ seq.indexOf('t0055') > seq.indexOf('0001')
   ? ok('and they read in the order the evening happened in')
   : fail('the page reads out of order: ' + seq.join(' '));
 
-// ------------------------------- a correction revises; a second answer does not
-// The panel opens on the question, on its type half, because that is what the
-// last answer was given with.
-// A question of its own, so the panel arrives at it the way it arrives at a
-// new question in a lesson: the box empties on the way in and the answer to
-// THIS question is what comes back into it.
+// ------------- WHAT WAS SENT STAYS WHERE IT WAS TYPED, AND A TAP CORRECTS IT
+//
+// "The typed prompt also disappears after I send it, unlike the written board
+// when I send that." Sent ink stays where it was made -- a board per attempt,
+// down the page, with the ink still on it -- and a sent sentence left the box
+// empty and nothing else behind. So the typed half now keeps its answer in a
+// rendered block directly above the box, which is what makes the two halves of
+// this panel symmetrical, and the box goes back to holding only what has not
+// been sent.
+//
+// The box used to open pre-filled with the sent answer, because the box was the
+// only place a correction could be made. It is not any more, and that is the
+// whole reason the restore moved out of the panel's paint and into the tap.
 const later = { id: '0009', kind: 'question', title: 'Exercise 4.11',
                 body: 'and the tower law', mtime: t0 + 500 };
 es.onmessage({ data: frame([question, later],
@@ -224,6 +231,8 @@ doc.getElementById('tab-type').click();
 await sleep(40);
 
 const say = doc.getElementById('saybox');
+const said = doc.getElementById('said');
+const saidText = doc.getElementById('said-text');
 const sendOf = () => {
   for (let i = posted.length - 1; i >= 0; i--) {
     if (/\/say$/.test(posted[i].url)) return posted[i].body;
@@ -231,36 +240,86 @@ const sendOf = () => {
   return null;
 };
 
-// Reopened for correction: the words come back, and sending them revises the
-// answer they came from rather than landing beside it.
+say.value === ''
+  ? ok('the box opens empty on a question already answered by typing — it holds '
+       + 'what has not been sent yet, and nothing else')
+  : fail('the box opened pre-filled: "' + say.value + '"');
+!said.hidden && /my first go/.test(saidText.textContent)
+  ? ok('and the answer that WAS sent is above it, rendered, where it was typed')
+  : fail('the sent answer is nowhere on the typed half: "'
+         + saidText.textContent + '"');
+said.dataset.state === 'sent'
+  ? ok('and it says which of its two jobs it is doing, so the tap is offered')
+  : fail('the block is not in its sent state: "' + said.dataset.state + '"');
+
+// A tap hands it back to the box, and the box is then correcting THAT answer
+// rather than answering beside it -- the typed counterpart of going back to a
+// board and adding a line to the ink on it.
+said.click();
+await sleep(40);
 say.value === 'my first go'
-  ? ok('reopening a question you typed an answer to puts the words back')
-  : fail('the typed answer did not come back: "' + say.value + '"');
-say.dispatchEvent(new window.Event('input'));
+  ? ok('a tap on it loads it back into the box for correction')
+  : fail('the tap did not hand the answer back: "' + say.value + '"');
 doc.getElementById('send-type').click();
+
+// ON THE FRAME AFTER THE SEND, with no payload back yet. That is the half of
+// the report a round trip cannot cover: the box empties immediately, so if the
+// block waited for the turn to come back there would be a moment -- the moment
+// somebody is looking -- with the answer nowhere on the page.
+!said.hidden && /my first go/.test(saidText.textContent) && say.value === ''
+  ? ok('and the send empties the box and leaves the words above it on the same '
+       + 'frame, rendered, with no round trip in between')
+  : fail('the words left the glass on the send: box "' + say.value + '", block "'
+         + saidText.textContent + '"');
+
 await sleep(40);
 (sendOf() || {}).turn === 't0057'
   ? ok('and correcting it revises that answer, in its place')
   : fail('a correction started a new answer: ' + JSON.stringify(sendOf()));
 
-// Then a genuinely new answer, typed into the box the send emptied.
-say.value = 'and here is the next thing I thought';
+// Then a genuinely new answer, typed into the box the send emptied. With
+// mathematics in it, because the next assertion is about the renderer.
+const NEXT = 'so $\\gamma^2 = 2$ and the degree is 2';
+say.value = NEXT;
 say.dispatchEvent(new window.Event('input'));
 doc.getElementById('send-type').click();
+const shownOnSend = saidText.innerHTML;
 await sleep(40);
 (sendOf() || {}).turn === null
   ? ok('but the next thing typed is a new answer, and is kept')
   : fail('a second answer overwrote the first: ' + JSON.stringify(sendOf()));
 
+// ONE RENDERER, OR THE BLOCK LIES. What it shows before and after the send is
+// what the transcript shows once the turn comes back, because it is the same
+// pair of calls -- `renderMarkdown` then `typeset`. Two renderers would differ
+// on exactly the input somebody is squinting at.
+es.onmessage({ data: frame([question, later],
+                           [{ id: 't0057', rev: 1, kind: 'text', answers: '0009',
+                              t: t0 + 560, text: 'my first go' },
+                            { id: 't0061', rev: 1, kind: 'text', answers: '0009',
+                              t: t0 + 600, text: NEXT }]) });
+await sleep(60);
+{
+  const entry = mineFor('t0061');
+  const inTranscript = entry && entry.querySelector('.text').innerHTML;
+  inTranscript && inTranscript === shownOnSend
+    ? ok('and what the block showed is character for character what the '
+         + 'transcript shows, because one renderer made both')
+    : fail('the block and the transcript disagree:\n   block      ' + shownOnSend
+           + '\n   transcript ' + inTranscript);
+  /\bmath-raw\b/.test(shownOnSend)
+    ? ok('with the mathematics parked for KaTeX rather than escaped as prose')
+    : fail('the block did not park the formula: ' + shownOnSend);
+}
+
 // ------------------------- and the two halves of the panel behave the same way
 //
 // "my typed response doesn't get saved on the appearance unlike previously
 // writing boards." Going back to a question answered in ink gives the page of
-// ink back; going back to one answered by typing did not give the words back.
-// The restore existed — `restoreTextAnswer` is written, named and commented as
-// exactly this — so the defect was in WHEN it runs. Two gates: it was asked only
-// while the type half happened to be showing, and it refused any box that was
-// not empty, including one holding another question's words.
+// ink back; going back to one answered by typing has to give the words back too,
+// and it no longer matters what happens to be in the box when you arrive --
+// which is what used to gate it. The words come back ABOVE the box, and the box
+// arrives empty, as it does on any other question.
 
 // A third question, answered by typing, reached with a box that is NOT empty:
 // the box still holds the sentence typed into it for 0009 a moment ago.
@@ -278,11 +337,16 @@ await sleep(60);
 doc.getElementById('tab-type').click();
 await sleep(40);
 
-say.value === 'the fixed field is Q'
+/my first go/.test(saidText.textContent) === false
+&& /the fixed field is Q/.test(saidText.textContent)
   ? ok('a box holding another question\'s words is no reason to refuse this one '
-       + 'its answer back')
-  : fail('the answer to the question now open did not come back: "'
-         + say.value + '"');
+       + 'its answer back — and the answer shown is this question\'s, not the '
+       + 'one before it')
+  : fail('the answer to the question now open is not above the box: "'
+         + saidText.textContent + '"');
+say.value === ''
+  ? ok('with the box itself empty, on this question as on every other')
+  : fail('the box arrived holding something: "' + say.value + '"');
 
 // And unsent typing of their own, on THIS question, still wins: that is what
 // the guard is for, and it is the draft that says so rather than the box.

@@ -860,6 +860,48 @@ Everything typed into an empty box is a new answer, kept in the order it was giv
 feedback it was replying to, and labelled *answer 2 of 3* the way a second board says *attempt 2
 of 3*.
 
+### The typed half renders as you type, and keeps what it sent
+
+**A rendered block sits above the box, and it does two jobs that are one job.** Before a send it
+is a **preview**: type `$\gamma^2 = 2$` and the formula appears above the box, typeset, saying in
+advance exactly what the transcript will show. After a send it is the **record**: the words stay
+where they were typed, rendered, and the box under them opens empty for the next thing. That is
+what makes the two halves of the panel symmetrical — box and block against slate and board —
+because sent ink has always stayed where it was made and sent words used to leave nothing behind.
+
+**Nothing renders inside the box, and nothing can.** `#saybox` is a textarea, which holds
+characters and no markup by definition. A `contenteditable` would render in place and cost iOS
+autocorrect, its undo stack, selection under a thumb, `autosize`, the draft save and the ⌘-Enter
+send; a block above it costs none of that.
+
+**One renderer, or the block lies.** `renderMarkdown` then `typeset`, the same pair a card goes
+through — `test/mine.js` asserts that what the block shows and what the transcript shows are
+character for character the same string.
+
+**The block appears only when there is something to show**: a dollar, a TeX delimiter, or a
+backslash command in the box, or an answer already sent on this question. Prose with none of
+those leaves the panel exactly the height it was.
+
+**A tap on the block is how a typed answer is corrected.** It hands the words back to the box and
+sets `correctingTurn`, so the next send is a revision of that answer rather than a second one.
+This is the only place the restore runs: while it ran on every paint of the panel the box could
+never open empty, which is what it does now on every question.
+
+**Two things make a `$` cheap, and a third was refused.** A one-tap `$…$` on the panel wraps the
+selection or drops a pair with the caret between them, because on an iPad keyboard a `$` is a hunt
+through a second layout. And a backslash command sitting outside any delimiter — which renders as
+nothing at all — is **named in the block**: *\gamma will not render — wrap it in $…$*. What is
+refused is wrapping anything that looks like TeX: `\d+` in a regex, `C:\temp` and a shell escape
+are all backslash commands to a pattern and none of them is mathematics, and this board is used in
+code workspaces. The hint asks `protect`, the renderer's own first pass, what counts as code, so a
+regex inside backticks raises nothing.
+
+**The block declares no font of its own, deliberately.** Its prose inherits the reading face from
+the body and KaTeX brings the one it ships, so the words are dyslexic-friendly and the mathematics
+is untouched by construction rather than by a rule. `test/typed.js` owns the panel — with the real
+KaTeX loaded, because a stub cannot tell a block that was typeset from a block that was handed to
+nothing — and `test/mine.js` owns what happens to an answer after it is sent.
+
 ### A card is typed out, and nothing moves while it is
 
 A card arrives whole — it is a file — so this is a reveal of something already in hand rather
@@ -2099,8 +2141,9 @@ paths rather than by the tab last pressed, and stamped with the sitting it was s
 half remembered in another workspace does not follow you here. The first question of a sitting
 has no last half, so its aim decides: `doingTurn` opens the box where the sitting does the work
 and the board where it teaches. An old question remembers its own answer: a board you wrote on
-reopens with the ink still on it, and a typed answer reopens with the text in the box, both
-editable and re-sendable as a revision of that same response rather than a new one. Ink carries
+reopens with the ink still on it, and a typed answer reopens rendered in the block above the box —
+a tap on it puts the words back in the box, and the send that follows revises that same response
+rather than starting a new one. Ink carries
 over from one question to the next on request (`carryOver`); typing never does, and a new box
 opens empty apart from an unsent draft typed against that question. `test/half.js` is the
 suite.

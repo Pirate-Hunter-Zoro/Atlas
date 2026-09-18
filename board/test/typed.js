@@ -470,8 +470,172 @@ await sleep(2800);            // past TYPE_MIN and past this card's own time
            + doc.getElementById('trace-said').textContent + '"');
 }
 
+// ------- AND THE ANSWER BOX RENDERS WHAT IS BEING TYPED INTO IT, AS IT IS TYPED
+//
+//   "when I'm typing a response to a tutor, I want to be able to type latex
+//    commands in the typing box -- like \gamma, etc. -- and have that render as
+//    I type it. And then when I send it, have it stay rendered that way. I still
+//    like how everything else is rendered dyslexic friendly."
+//
+// Nothing renders INSIDE the box and nothing can: `#saybox` is a textarea, which
+// holds characters and no markup by definition. So a block above it renders what
+// the box holds, through `renderMarkdown` and then KaTeX -- the same pair a card
+// goes through -- and says in advance exactly what the transcript will show.
+// `test/mine.js` owns the other half of that block, which is what it holds after
+// a send.
+//
+// A WINDOW OF ITS OWN, WITH THE REAL KATEX IN IT. Every other suite here stubs
+// `renderMathInElement` away, and a stub cannot tell the difference between a
+// block that was typeset and a block that was handed to nothing. KaTeX runs
+// under jsdom as long as the document is not in quirks mode, and `board.html`
+// has a doctype.
+{
+  const dom3 = new JSDOM(fs.readFileSync(path.join(WEB, 'board.html'), 'utf8'), {
+    runScripts: 'outside-only', pretendToBeVisual: true,
+    url: 'https://board.test/board',
+  });
+  const w3 = dom3.window;
+  const d3 = w3.document;
+  w3.HTMLCanvasElement.prototype.getContext = () =>
+    new Proxy({}, { get: () => () => {}, set: () => true });
+  w3.HTMLCanvasElement.prototype.toDataURL = () => 'data:image/png;base64,';
+  Object.defineProperty(w3.HTMLElement.prototype, 'clientWidth', { get: () => 900 });
+  Object.defineProperty(w3.HTMLElement.prototype, 'clientHeight', { get: () => 500 });
+  w3.HTMLElement.prototype.getBoundingClientRect = function () {
+    return { left: 0, top: 0, width: 900, height: 120, right: 900, bottom: 120, x: 0, y: 0 };
+  };
+  w3.Element.prototype.scrollIntoView = function () {};
+  w3.Element.prototype.setPointerCapture = function () {};
+  w3.Element.prototype.releasePointerCapture = function () {};
+  w3.fetch = (u) => (/slate\/state/.test(String(u))
+    ? Promise.resolve({ json: () => Promise.resolve({ pages: [] }) })
+    : Promise.resolve({ json: () => Promise.resolve({ ok: true }) }));
+  w3.requestAnimationFrame = (fn) => setTimeout(fn, 0);
+  w3.scrollTo = function () {};
+  w3.EventSource = function () { w3.__es = this; this.readyState = 1;
+    this.close = function () {}; this.addEventListener = function () {}; };
+  /* THE REAL ONE, in the order the page loads them: KaTeX, then the auto-render
+     extension that walks a node looking for delimiters. */
+  w3.eval(fs.readFileSync(path.join(WEB, 'katex', 'katex.min.js'), 'utf8'));
+  w3.eval(fs.readFileSync(path.join(WEB, 'katex', 'auto-render.min.js'), 'utf8'));
+  typeof w3.renderMathInElement === 'function'
+    ? ok('KaTeX and its auto-render extension load, so what follows is typeset '
+         + 'by the thing that typesets the lesson')
+    : fail('KaTeX did not load — the assertions below would prove nothing');
+  for (const f of ['typeface.js', 'macros.js', 'gauge.js', 'plane-core.js',
+                   'slate-core.js', 'annotate.js', 'board.js']) {
+    w3.eval(fs.readFileSync(path.join(WEB, f), 'utf8'));
+  }
+  const es3 = w3.__es;
+  const v0 = Date.now() / 1000 - 600;
+  const asked = { id: '0001', kind: 'question', title: 'Exercise 4.10',
+                  body: 'show gamma is algebraic', mtime: v0 };
+  es3.onmessage({ data: JSON.stringify({
+    state: { course: 'Galois Theory', session: 'lecture' },
+    cards: [asked], turns: [], history: 0,
+    agent: { agent: 'claude', state: 'listening', turns: 1 } }) });
+  for (let i = 0; i < 60 && d3.getElementById('writer').hidden; i++) await sleep(50);
+  d3.getElementById('tab-type').click();
+  await sleep(40);
+
+  const box = d3.getElementById('saybox');
+  const said = d3.getElementById('said');
+  const saidText = d3.getElementById('said-text');
+  const saidHint = d3.getElementById('said-hint');
+  const typeInto = async (text) => {
+    box.value = text;
+    box.dispatchEvent(new w3.Event('input'));
+    await sleep(260);            /* past the preview's own debounce */
+  };
+
+  await typeInto('the degree is six and that is the whole of it');
+  said.hidden
+    ? ok('prose on its own opens no block at all — a preview that is always '
+         + 'there doubles the height of this panel for everybody who never '
+         + 'types a formula')
+    : fail('a block appeared for prose with no mathematics in it');
+
+  await typeInto('so $\\gamma^2 = 2$ and the degree is 2');
+  !said.hidden && saidText.querySelector('.katex')
+    ? ok('and a formula renders as it is typed, by KaTeX, above the box')
+    : fail('the formula did not typeset: ' + saidText.innerHTML.slice(0, 200));
+  /γ/.test(saidText.textContent)
+    ? ok('with the gamma on the glass as a gamma')
+    : fail('the rendered block has no gamma in it: "' + saidText.textContent + '"');
+  saidHint.hidden
+    ? ok('and nothing is complained about, because there is nothing wrong with it')
+    : fail('a well-formed formula raised a hint: "' + saidHint.textContent + '"');
+  /the degree is 2/.test(saidText.textContent)
+    ? ok('and the prose around it is still prose')
+    : fail('the words either side of the formula are gone');
+
+  // A BARE COMMAND RENDERS NOWHERE, AND SAYING SO IS THE WHOLE OF THE FIX.
+  // On an iPad keyboard a `$` is a hunt through a second layout, so `\gamma`
+  // with no delimiters is the likeliest thing to be typed -- and it comes back
+  // blank. Wrapping anything that looks like TeX was refused: `\d+` in a regex
+  // and a path on Windows are backslash commands to a pattern and neither is
+  // mathematics, and this board is used in code workspaces.
+  await typeInto('so \\gamma is algebraic over Q');
+  !said.hidden && !saidHint.hidden && /gamma/.test(saidHint.textContent)
+    ? ok('a backslash command outside any delimiter is named, and told to be '
+         + 'wrapped, rather than silently rendering nothing')
+    : fail('a bare command raised nothing: hidden=' + saidHint.hidden
+           + ' "' + saidHint.textContent + '"');
+  /\$…\$/.test(saidHint.textContent)
+    ? ok('and the hint says what to wrap it in')
+    : fail('the hint does not say what to do: "' + saidHint.textContent + '"');
+
+  await typeInto('the pattern is `\\d+` and nothing else');
+  saidHint.hidden
+    ? ok('while a command inside backticks raises nothing, because the hint asks '
+         + "the renderer's own first pass what counts as code")
+    : fail('a regex in code was called broken mathematics: "'
+           + saidHint.textContent + '"');
+
+  // AND THE `$` COSTS A THUMB RATHER THAN A KEYBOARD HUNT.
+  await typeInto('');
+  d3.getElementById('say-math').click();
+  box.value === '$$' && box.selectionStart === 1 && box.selectionEnd === 1
+    ? ok('one tap drops a pair of dollars with the caret between them')
+    : fail('the pair did not land: "' + box.value + '" caret '
+           + box.selectionStart);
+  await typeInto('gamma is 2');
+  box.setSelectionRange(0, 5);
+  d3.getElementById('say-math').click();
+  box.value === '$gamma$ is 2' && box.selectionStart === 7
+    ? ok('and on a selection it wraps what is selected and steps past it')
+    : fail('the selection was not wrapped: "' + box.value + '" caret '
+           + box.selectionStart);
+  await sleep(40);
+  saidText.querySelector('.katex')
+    ? ok('and the block renders what the tap produced, with no keystroke in '
+         + 'between')
+    : fail('the wrap did not reach the block: ' + saidText.innerHTML.slice(0, 120));
+
+  // THE READING FACE STAYS WHERE IT IS, which is the half that was asked to be
+  // left alone: "I still like how everything else is rendered dyslexic
+  // friendly." The block declares no family of its own, so its prose inherits
+  // the body's and KaTeX keeps the one it ships -- by construction rather than
+  // by a rule. `test/typeface.js` owns the tokens either side of this.
+  d3.body.dataset.face
+    ? ok('the reading face is on the body, which the block inherits: '
+         + d3.body.dataset.face)
+    : fail('no reading face is set at all');
+  {
+    const sheet = fs.readFileSync(path.join(WEB, 'board.css'), 'utf8');
+    const owns = [...sheet.matchAll(/([^{}]+)\{([^}]*)\}/g)]
+      .filter(([, sel, body]) => /#said(?![-\w])|#said-text/.test(sel)
+                                 && /font-family/.test(body))
+      .map(([, sel]) => sel.trim());
+    owns.length === 0
+      ? ok('and the block gives itself no font, so the prose is dyslexic-'
+           + 'friendly and the mathematics is untouched')
+      : fail('the block declares a family of its own: ' + owns.join(' | '));
+  }
+}
+
 console.log(errors.length ? '\n' + errors.length + ' FAILURES'
-  : '\nevery response is typed, and the next board waits for it');
+  : '\nevery response is typed, and the box renders what is typed into it');
 process.exit(errors.length ? 1 : 0);
 
 })();
