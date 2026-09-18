@@ -994,22 +994,49 @@ The moment the tutor replies, that changes: your answer takes its proper place u
 question, the receipt stands down, and **the writing surface moves below the feedback** — so
 correcting your work happens under the criticism of it rather than scrolled off above it.
 
-### The verdict is down your own answer, and every answer is kept
+### The verdict is a band down the response, and every answer is kept
 
-**The colour is on the thing you are looking at, which is your own words.** Green got it right,
-red did not, **amber is everything else** — a reply that answers rather than marks, which is most
-of a build sitting and most of a walkthrough. The judgement is the tutor's existing one: the
-newest reply in a question's run decides it, `correct` and `wrong` are the two verdicts and every
-other reply to working is amber. It is a rule for every kind of sitting, not for mathematics.
+**Green got it right, red did not, amber is everything else** — a reply that answers rather than
+marks, which is most of a build sitting and most of a walkthrough. It is a rule for every kind of
+sitting, not for mathematics: a step that worked, a step that did not, and a question put back to
+you are the three moods of a build as much as of a proof.
+
+**The response carries the band, and the answer and its board are the quiet half.** The card is
+the moment — it is what arrives and it is where the eye goes — so it takes the 3 mm rule, the
+wash, and the flash it lands in. The receipt in the transcript and the board holding the working
+take the same colour at 2 mm and mixed back toward the rule: findable when you scroll to it an
+hour later, not competing for the moment it landed in. Green on the answer, green on the board,
+green on the card, a tick and a flash is one thing said five times.
+
+**Which card is a reply is a question about the transcript, not about its kind.** A reply is the
+first card written after an answer, with nothing else in the question's run between the two.
+`correct` and `wrong` say so themselves and carry their verdict wherever they fall; every other
+kind is amber only where it is answering something. That is what makes the amber case exist at
+all — `lesson` is the commonest reply in a sitting that does the work, and a rule keyed on the
+kind cannot see it — while keeping a `lesson` card that is teaching, and a `recap` anywhere,
+plain. A page tinted end to end says nothing.
 
 A question whose reply has not arrived is painted **nothing at all**. Waiting is a different state
-from *neither right nor wrong*, and the pulsing strip is what says so. The colour lands on the
-answer the moment the reply does — the verdict is part of the turn's identity on the page, so a
-node already on screen picks it up rather than keeping the colour it was born with.
+from *neither right nor wrong*, and the pulsing strip is what says so. The colour lands the moment
+the reply does: the verdict is part of a card's and a turn's identity on the page, so a node
+already on screen picks it up rather than keeping the colour it was born with.
 
-Both halves of an answer carry it: the receipt in the transcript, and the board holding the
-working further down, which is what a person actually scrolls back to. `verdictOf` in `board.js`,
-`.mine[data-verdict]` and `.board[data-verdict]` in the stylesheet, `test/mine.js`.
+**A run of right answers says how many.** From the second one, the card carries a green chip —
+*3 in a row* — beside the tick, on the card where it happened, so scrolling back up the evening
+shows where a run started and where it broke. A wrong answer resets it and nothing else does: not
+an aside, not a question, not an evening's teaching in between.
+
+**The colour and the mark are the meaning; the movement is not.** The chips are text — ✓, ✕, ? —
+so they inherit the colour, scale with the type, survive a card folded to its heading, and work
+for somebody who cannot tell the green from the red. With `prefers-reduced-motion` set the
+stylesheet refuses the flash, the tick's pop, the cross's drop and the streak chip's entrance, and
+takes away nothing else. **Nothing in `board.js` consults the preference for this**: the flourish
+sits on top of a page that is already correct without it.
+
+`cardVerdict`, `verdictOf` and `streakAt` in `board.js`; `.card[data-verdict]`,
+`.card[data-streak]`, `.mine[data-verdict]` and `.board[data-verdict]` in the stylesheet;
+`test/mine.js` for both halves and the run, `test/typed.js` for the window that asks for the
+animation off, `test/theme.js` for what the tokens are.
 
 **And a typed answer is kept, the way a written one is.** Ink keeps every attempt — a board
 apiece, down the page — and typing used to keep one: a send revised the newest turn on the
@@ -1546,6 +1573,19 @@ An `salloc` is therefore for coach coding and holds no lesson.
 person's `tutor agent stop` leaves, so `hand_over` writes `handover` into it first and the next
 generation picks up only those — on whichever node it lands, including the same one, which on a
 single-node partition is the common case.
+
+**Only the asker may say why a daemon was stopped, and the daemon's own exit says nothing about
+it.** `restarting` and `handover` are both written *before* the signal, by whoever is asking, for
+the same reason: a daemon receiving a SIGTERM cannot tell a bounce from a person leaving, so its
+exit record merges `state: stopped` over the top and touches neither field. What clears
+`restarting` is `mark_waking`, written by both halves of a start — so the flag lives exactly as
+long as the restart it describes is unfinished, and **a restart nobody finished is one the watch
+loop finishes** once `REATTACH_GRACE` is out. That is what makes the one branch of `tutor restart
+--tutors` that gives up safe: a handoff turn is a model call and routinely outruns the ninety
+seconds it is given, and the flag left on the record is the instruction to pick the tutor back up.
+Without it an abandoned bounce is indistinguishable from *a person said no*, which the watch loop
+obeys for ever — while still reviving that course's **board** every generation, which is a page
+that serves perfectly with nothing reading it. `test/waking.py` holds both halves of the contract.
 
 The chain cannot watch itself all the way down: a generation that fell over in its first second
 never reached the line that queues its successor. So the loop re-checks its successor every five

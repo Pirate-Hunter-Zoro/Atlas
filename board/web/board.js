@@ -631,6 +631,23 @@ var REPLY_KIND = { wrong: 1, correct: 1, review: 1, note: 1 };
    -- see where `verdictOf` is built. */
 var VERDICT_OF = { correct: "correct", wrong: "wrong" };
 
+/* AND THE KIND IS NOT WHAT DECIDES WHETHER A CARD IS REPLYING AT ALL.
+
+   `REPLY_KIND` is the folding rule and it is right for folding. It is the wrong
+   question for a band, because `lesson` is not in it and a `lesson` card is the
+   commonest reply in a sitting that DOES the work: the student sends "it runs
+   now", the turn reports what it found and teaches the next thing, and that card
+   is the response to what was handed in. Keyed on the kind there was no band on
+   it at all -- so in exactly the sittings where "we're not really in a
+   right-or-wrong scenario" is the normal case, nothing was said.
+
+   The question a band turns on is whether the card is a REPLY TO WORK THAT WAS
+   HANDED IN, and that is answered by the transcript rather than by the kind: see
+   `cardVerdict`. `recap` is the one kind that is never a reply however it falls
+   -- it is the reading of what has already happened, and a recap that went amber
+   because an answer happened to precede it is a page tinted for nothing. */
+var NEVER_REPLY = { recap: 1 };
+
 /* The verdict on each question, by card id, as of the last render. Read by
    `paintBoards`, which runs after the transcript is built and paints the same
    answer's board with the same colour. */
@@ -949,13 +966,73 @@ function render(data) {
      card and asks at the foot of it has asked a question, and the student's own
      answer against that card is what settles it. The folding runs above split
      on the kind alone and are left exactly as they were. */
+  /* AND THE SAME WALK PAINTS THE CARD, BECAUSE THE TWO HALVES USED TO
+     DISAGREE -- AND ONLY IN THE AMBER CASE.
+
+     "If the user asks a question, or we're not really in a 'right or wrong'
+     scenario, then the response should be highlighted with a yellow kind of
+     band." The verdict was computed here and painted on the student's own
+     answer and on the board holding the working. The CARD took its band from
+     its own KIND instead, so for a reply that is neither right nor wrong the
+     answer said amber and the card said grey -- two surfaces a finger's width
+     apart, disagreeing about the one thing on the glass worth knowing from
+     across a desk.
+
+     THE RESPONSE CARRIES THE BAND and the other two are quiet. That is the way
+     round it is, and it is decided once: the card is the moment -- it is what
+     arrives, it is what is read, and it is what the request is about -- while
+     the answer and its board are a label on work already handed in, so they
+     keep a thinner rule in the same colour. See `.mine[data-verdict]` and
+     `.board[data-verdict]` in `board.css`.
+
+     WHICH CARD IS A REPLY IS A QUESTION ABOUT THE TRANSCRIPT, NOT ABOUT THE
+     KIND. It is the first card written after the answer -- nothing else in the
+     run between the two. A `correct` or a `wrong` says so itself and carries its
+     verdict wherever it falls; everything else is amber only where it is
+     answering something. That is what keeps a `lesson` card teaching Chapter 5
+     plain while the `lesson` card that reported on the code you just sent is
+     painted: the first is separated from the answer by the card that already
+     replied to it, the second is not.
+
+     A page tinted end to end says nothing at all, which is the objection this
+     rule has to survive and does. */
+  var answeredAt = Object.create(null);
+  (data.turns || []).forEach(function (t) {
+    if (t.signal || !t.answers) return;
+    (answeredAt[t.answers] = answeredAt[t.answers] || []).push(t.t0 || t.t);
+  });
+
   var verdictOf = Object.create(null);
+  /* Per CARD, and read where the card is built. */
+  var cardVerdict = Object.create(null);
+  /* And how many right in a row this one is, which is the reward -- see
+     `streakAt` where the head is assembled. */
+  var streakAt = Object.create(null);
   var verdictFor = null;
+  var sinceCard = -Infinity;      /* the last card in this question's run */
+  var streak = 0;
   ordered.forEach(function (c) {
-    if (isQuestion[c.id]) { verdictFor = c.id; return; }
-    if (verdictFor && REPLY_KIND[c.kind]) {
-      verdictOf[verdictFor] = VERDICT_OF[c.kind] || "open";
-    }
+    if (isQuestion[c.id]) { verdictFor = c.id; sinceCard = c.mtime; return; }
+    var replying = !NEVER_REPLY[c.kind] && verdictFor !== null
+      && typeof c.mtime === "number"
+      && (answeredAt[verdictFor] || []).some(function (t) {
+        return t > sinceCard && t <= c.mtime;
+      });
+    sinceCard = c.mtime;
+    var says = VERDICT_OF[c.kind] || (replying ? "open" : "");
+    if (!says) return;
+    cardVerdict[c.id] = says;
+    /* NOTHING MARKED THE RUN, AND THE RUN IS THE REWARD. A card arriving lit
+       and a tick that pops are one right answer said twice; what a correct
+       answer actually is, is the end of a piece of work, and four of them in a
+       row is the thing worth saying out loud. Reset by a wrong answer and by
+       nothing else -- not by an aside, not by a question, not by an evening's
+       teaching in between -- because wrong is the normal state of learning and
+       a counter that also punished thinking out loud would teach somebody to
+       stop answering. */
+    if (says === "correct") streakAt[c.id] = ++streak;
+    else if (says === "wrong") streak = 0;
+    if (verdictFor && (replying || REPLY_KIND[c.kind])) verdictOf[verdictFor] = says;
   });
   lastVerdicts = verdictOf;
 
@@ -1148,7 +1225,16 @@ function render(data) {
        moved would keep a button the sitting no longer offers -- or go on
        lacking one it now does. */
     var offer = !!item.card && coaching && item.card.id === thisStep;
-    var wantKey = stamp + (item.card ? (offer ? ":h" : "")
+    /* The card's own verdict and its place in a run, in its key for the reason
+       the turn's verdict is in its: both are written by something that arrives
+       after the card did -- the answer that makes it a reply, the next right
+       answer that makes it one of four -- and a node kept because its key had
+       not moved would keep the band and the count it was born with. */
+    var band = item.card ? (cardVerdict[item.card.id] || "") : "";
+    var run = item.card ? (streakAt[item.card.id] || 0) : 0;
+    var wantKey = stamp + (item.card
+      ? (offer ? ":h" : "") + (band ? ":v" + band : "")
+        + (run > 1 ? ":s" + run : "")
       : (onBoard ? ":b" : "") + (says ? ":v" + says : "")
         + (nth ? ":n" + nth + "/" + oneOf.length : ""));
     if (onScreen[wantKey]) {
@@ -1163,11 +1249,21 @@ function render(data) {
       node.className = "card" + (fresh ? " fresh" : "");
       node.dataset.kind = c.kind;
       node.dataset.card = c.id;      /* what an annotation is anchored to */
+      if (band) node.dataset.verdict = band;
+      if (run > 1) node.dataset.streak = run;
       var head = "";
       var shown = cardTitle(c);
-      if (c.kind !== "lesson" || shown) {
+      /* AND A CARD CARRYING A VERDICT ALWAYS HAS A HEAD, because the head is
+         where the mark is. A titleless `lesson` card had no head at all, so a
+         lesson card that is a reply would have had the colour and nothing else
+         -- and colour is never the only signal here: the tick, the cross and
+         the question mark are TEXT, they scale with the type, they survive the
+         card being folded to its heading, and they are the whole of what this
+         says to somebody who cannot tell the green from the red. */
+      if (c.kind !== "lesson" || shown || band) {
         head = '<div class="card-head">' +
                '<span class="kind">' + (KIND_LABEL[c.kind] || c.kind) + "</span>" +
+               (run > 1 ? '<span class="streak">' + run + ' in a row</span>' : "") +
                (shown ? '<span class="card-title"></span>' : "") +
                '<span class="card-num">' + c.id + "</span></div>";
       }

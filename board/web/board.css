@@ -577,6 +577,23 @@ body.annotating #btn-annotate { background: var(--ask); color: #fff; border-colo
 .card[data-kind="note"]     { --accent: var(--ink-3); }
 .card[data-kind="recap"]    { --accent: var(--ink-2); }
 
+/* AND THE VERDICT OUTRANKS THE KIND, WHICH IS THE WHOLE OF THE FIX.
+
+   The kind is what the tutor called the card. The verdict is what the card says
+   about work that was handed in, and those are the same thing only for `correct`
+   and `wrong`. For everything else the kind was answering a different question
+   and answering it wrong: a `note` replying to an answer went grey, a `review`
+   went the blue of an aside, and a `lesson` reporting on the code you had just
+   sent went the house accent -- while the student's own answer, a finger's width
+   below, said amber. `data-verdict` is set only where the card is REPLYING (see
+   `cardVerdict` in board.js), so a note that is an aside and a lesson that is
+   teaching keep their own colour and their own silence.
+
+   After the kinds on purpose: same specificity, and the later rule wins. */
+.card[data-verdict="correct"] { --accent: var(--good); }
+.card[data-verdict="wrong"]   { --accent: var(--bad); }
+.card[data-verdict="open"]    { --accent: var(--ask); }
+
 .card {
   --wash:  color-mix(in srgb, var(--accent)  8%, var(--paper));
   --flash: color-mix(in srgb, var(--accent) 30%, var(--paper));
@@ -602,7 +619,8 @@ body[data-mode="auto"].sys-dark .card {
 .card[data-kind="correct"] .body,
 .card[data-kind="wrong"] .body,
 .card[data-kind="review"] .body,
-.card[data-kind="note"] .body {
+.card[data-kind="note"] .body,
+.card[data-verdict] .body {
   border-left: 3px solid var(--accent);
   padding-left: 1rem;
   margin-left: -1rem;
@@ -615,8 +633,7 @@ body[data-mode="auto"].sys-dark .card {
    wash over a second and a half, so the colour is an event and then a label.
    Only the three that are a verdict or a question: an aside that pulsed would
    be an aside demanding the room. */
-.card.fresh[data-kind="correct"] .body,
-.card.fresh[data-kind="wrong"] .body,
+.card.fresh[data-verdict] .body,
 .card.fresh[data-kind="question"] .body {
   animation: verdict 1.5s ease-out both;
 }
@@ -629,31 +646,78 @@ body[data-mode="auto"].sys-dark .card {
    a tick, a cross, a question mark. Text, not an icon font and not a picture --
    it inherits the colour, it scales with the type, and it is still there when a
    card is folded to its heading, which is often the only thing on screen. */
-.card[data-kind="correct"] .kind,
-.card[data-kind="wrong"] .kind,
+.card[data-verdict] .kind,
 .card[data-kind="question"] .kind {
   background: color-mix(in srgb, var(--accent) 16%, transparent);
   border-radius: .3rem;
   padding: .14rem .42rem;
 }
-.card[data-kind="correct"] .kind::before  { content: "\2713\00a0"; }
-.card[data-kind="wrong"] .kind::before    { content: "\2715\00a0"; }
-.card[data-kind="question"] .kind::before { content: "?\00a0"; }
+.card[data-verdict="correct"] .kind::before { content: "\2713\00a0"; }
+.card[data-verdict="wrong"] .kind::before   { content: "\2715\00a0"; }
+.card[data-verdict="open"] .kind::before    { content: "?\00a0"; }
+.card[data-kind="question"] .kind::before   { content: "?\00a0"; }
 
-/* The one flourish that is purely a reward: the tick pops in. It is small, it
-   happens once, and it is the difference between a colour and a moment. */
-.card.fresh[data-kind="correct"] .kind { animation: pop .55s ease-out both; }
+/* HOW MANY RIGHT IN A ROW, WHICH IS THE REWARD THE COLOUR WAS STANDING IN FOR.
+
+   One right answer is a tick. Four in a row is a piece of work going well, and
+   that is the thing worth a flourish -- so the chip only exists from the second
+   one, it says the number in words next to the tick, and it is on the card where
+   it happened rather than in a counter somewhere: scrolling back up the evening
+   shows where the run started and where it broke. Green, from the same token as
+   the tick, because it is the same news said larger. */
+.card[data-streak] .streak {
+  font-family: var(--ui);
+  font-size: .62rem; font-weight: 700;
+  letter-spacing: .07em; text-transform: uppercase;
+  color: var(--good); flex: none;
+  border: 1px solid color-mix(in srgb, var(--good) 40%, var(--rule));
+  background: color-mix(in srgb, var(--good) 14%, transparent);
+  border-radius: .3rem;
+  padding: .14rem .42rem;
+}
+
+/* THE TWO FLOURISHES, AND THEY ARE NOT SYMMETRICAL.
+
+   The tick pops in: small, once, the difference between a colour and a moment,
+   and the streak chip lands a beat behind it so the run reads as the bigger of
+   the two pieces of news.
+
+   The cross SETTLES -- one short drop and it is over. No shake, no buzz, no red
+   filling the glass, because wrong is the normal state of learning: this person
+   will be wrong many times in an evening, on purpose, and a board that punishes
+   it teaches them to stop answering, which is the only outcome here that the
+   next card cannot undo. One beat of character, then the card reads like any
+   other card and the way forward is the thing left on screen. */
+.card.fresh[data-verdict="correct"] .kind { animation: pop .55s ease-out both; }
+.card.fresh[data-streak] .streak { animation: pop .6s .18s ease-out both; }
+.card.fresh[data-verdict="wrong"] .kind { animation: settle .5s ease-out both; }
 @keyframes pop {
   0%   { transform: scale(.72); opacity: 0; }
   55%  { transform: scale(1.14); opacity: 1; }
   100% { transform: scale(1); opacity: 1; }
 }
+@keyframes settle {
+  0%   { transform: translateY(-.28rem); opacity: 0; }
+  70%  { transform: translateY(.06rem); opacity: 1; }
+  100% { transform: translateY(0); opacity: 1; }
+}
 
+/* AND THE COLOUR AND THE MARK SURVIVE REDUCE MOTION, BECAUSE THEY ARE THE
+   MEANING AND THE MOVEMENT IS NOT.
+
+   Refused here: the flash, the pop, the drop and the streak chip's entrance.
+   Kept: every band, every chip, the tick, the cross, the question mark and the
+   count -- somebody who has asked for less movement is asking for less movement,
+   not for less of the answer. Nothing in board.js consults this, which is the
+   other half of the lesson: the last time an animation and a behaviour were
+   conflated, the next board landed on top of an answer for everybody with the
+   preference set. */
 @media (prefers-reduced-motion: reduce) {
-  .card.fresh[data-kind="correct"] .body,
-  .card.fresh[data-kind="wrong"] .body,
+  .card.fresh[data-verdict] .body,
   .card.fresh[data-kind="question"] .body,
-  .card.fresh[data-kind="correct"] .kind { animation: none; }
+  .card.fresh[data-verdict="correct"] .kind,
+  .card.fresh[data-verdict="wrong"] .kind,
+  .card.fresh[data-streak] .streak { animation: none; }
 }
 
 /* ---------- prose ---------- */
@@ -820,14 +884,19 @@ body[data-mode="auto"].sys-dark .figure img { filter: invert(1) hue-rotate(180de
    A turn with no reply yet has no rule at all. Waiting is not a verdict, and
    the pulsing strip is what says so.
 
-   A line, not a wash. The card that carries the verdict is already tinted end
-   to end, and tinting the answer to match would say the same thing twice in the
-   same colour a finger's width apart. */
+   A LINE, AND A QUIETER ONE THAN THE CARD'S. Green on the answer, green on the
+   board, green on the card, a tick and a flash is one thing said five times, and
+   a surface that says everything at once says nothing. The card is the moment --
+   it is what arrives, and it is what the eye goes to -- so it keeps the full 3 mm
+   band, the wash and the flash. The answer and its board are a LABEL on work
+   already handed in, so they keep the colour at 2 mm and mixed back toward the
+   rule: findable when you scroll to it an hour later, and not competing with the
+   card for the moment it lands in. */
 .mine[data-verdict="correct"] { --verdict: var(--good); }
 .mine[data-verdict="wrong"]   { --verdict: var(--bad); }
 .mine[data-verdict="open"]    { --verdict: var(--ask); }
 .mine[data-verdict] {
-  border-left: 3px solid var(--verdict);
+  border-left: 2px solid color-mix(in srgb, var(--verdict) 62%, var(--rule));
   border-radius: .2rem .7rem .7rem .2rem;
 }
 .mine .when {
@@ -1132,12 +1201,15 @@ body.tools-out { padding-bottom: 5.5rem; }
    person scrolls back to rather than the one-line receipt in the transcript.
    `--verdict` and not `--accent`: the send button on this board is painted from
    `--accent`, and a Send that turns green because the last answer was right is
-   a button saying something about the next one. */
+   a button saying something about the next one.
+
+   Quiet, at the same weight as the answer's and for the same reason: the card is
+   the moment, these two are the label. */
 .board[data-verdict="correct"] { --verdict: var(--good); }
 .board[data-verdict="wrong"]   { --verdict: var(--bad); }
 .board[data-verdict="open"]    { --verdict: var(--ask); }
 .board[data-verdict] {
-  border-left: 3px solid var(--verdict);
+  border-left: 2px solid color-mix(in srgb, var(--verdict) 62%, var(--rule));
   padding-left: .45rem;
 }
 .board-send {

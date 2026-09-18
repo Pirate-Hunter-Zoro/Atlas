@@ -340,6 +340,74 @@ await sleep(2800);            // past TYPE_MIN and past this card's own time
          + 'order requires')
     : fail('the receipt is still up after the answer landed: "'
            + d2.getElementById('sent-text').textContent + '"');
+
+  /* AND THE VERDICT IS STILL ON THE GLASS WITH EVERY ANIMATION REFUSED.
+     "Dopamine for the user when they answer correctly, and playful frustration
+     when they answer incorrectly" is a colour and a mark, and the flourish is
+     only the moment those arrive in. Somebody with Reduce Motion set is asking
+     for less movement, not for less of the answer -- so the band, the tick, the
+     cross, the question mark and the count all survive it, and this window is
+     the only honest place to say so: jsdom has no `matchMedia`, so every other
+     suite in this repository runs with the animation on.
+
+     The reply already on the glass is 0002, a `note` answering the ink that was
+     sent -- which is the amber case, the one the card used to get wrong. */
+  const bandOf = (id) => {
+    const n = d2.querySelector('.card[data-card="' + id + '"]');
+    return n ? (n.dataset.verdict || '') : '(not on the page)';
+  };
+  const markOf = (id) => {
+    const n = d2.querySelector('.card[data-card="' + id + '"] .kind');
+    return n ? n.textContent : '';
+  };
+  bandOf('0002') === 'open' && markOf('0002') === 'aside'
+    ? ok('with Reduce Motion ON the amber band and the chip that carries its '
+         + 'mark are both on the card')
+    : fail('the verdict went with the animation: band "' + bandOf('0002')
+           + '", chip "' + markOf('0002') + '"');
+
+  /* And the green half, twice over, so the streak chip is asserted here too --
+     it is the biggest of the flourishes and the one most likely to be built as
+     an animation and nothing else. */
+  {
+    const q2 = { id: '0005', kind: 'question', title: 'Exercise 3',
+                 body: 'and this', mtime: u0 + 200 };
+    const yes1 = { id: '0004', kind: 'correct', body: 'that is it',
+                   mtime: u0 + 190 };
+    const yes2 = { id: '0006', kind: 'correct', body: 'and that', mtime: u0 + 260 };
+    const sent2 = { id: 't0002', rev: 1, kind: 'text', answers: '0005',
+                    t: u0 + 240, text: 'the second one' };
+    es2.onmessage({ data: JSON.stringify({
+      state: { course: 'Galois Theory', session: 'lecture' },
+      cards: [asked, yes1, q2, yes2], turns: [sent, sent2], history: 0,
+      agent: { agent: 'claude', state: 'listening', turns: 3 } }) });
+    await sleep(80);
+    bandOf('0004') === 'correct' && markOf('0004') === 'correct'
+      ? ok('and the green band and the tick are there with the movement refused')
+      : fail('the correct card lost its meaning with its animation: "'
+             + bandOf('0004') + '" / "' + markOf('0004') + '"');
+    const run = d2.querySelector('.card[data-card="0006"] .streak');
+    run && run.textContent === '2 in a row'
+      ? ok('and the run still says how many, in words, because the count is the '
+           + 'reward and not the entrance it makes')
+      : fail('the streak chip is only an animation: "'
+             + (run && run.textContent) + '"');
+  }
+
+  /* And what the stylesheet actually refuses, which is the other half: only
+     animations. A rule in that block touching a colour, a border or a
+     `::before` would be the same conflation that once landed the next board on
+     top of an answer for everybody with the preference set. */
+  {
+    const sheet = fs.readFileSync(path.join(WEB, 'board.css'), 'utf8');
+    const at = sheet.indexOf('@media (prefers-reduced-motion: reduce) {',
+                             sheet.indexOf('.card.fresh[data-verdict="wrong"] .kind'));
+    const block = at === -1 ? '' : sheet.slice(at, sheet.indexOf('}', sheet.indexOf('{', at + 40)) + 1);
+    block && /animation: none/.test(block)
+    && !/(--accent|border|content|background|color:)/.test(block)
+      ? ok('and the stylesheet refuses animations there and nothing else')
+      : fail('the reduced-motion block takes away more than movement:\n' + block);
+  }
 }
 
 // ------------------------------------------- and a slug is not a title

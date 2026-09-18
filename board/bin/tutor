@@ -2408,7 +2408,33 @@ def headless(cfg, course, agent_name, session):
     # never had one -- and the two want different things from the person reading
     # it. `state: stopped` reads on the board as "tutor stopped, nothing is
     # reading the board", which is the truth and is actionable.
-    agent_state(live, state="stopped", restarting=False, stopped_at=time.time())
+    #
+    # AND IT DOES NOT SAY WHY, BECAUSE IT DOES NOT KNOW WHY.
+    #
+    # This wrote `restarting: False`, and `restarting` is the one field that
+    # says whether somebody asked for this daemon back. It is written by the
+    # ASKER -- `tutor restart --tutors`, before it signals -- precisely so that
+    # a bounce can be told from a death, and the daemon receiving the signal
+    # cannot tell the two apart. Erasing it on the way out turned every abandoned
+    # bounce into a record identical to a person's `tutor agent stop`, which
+    # `supervise.tutor_verdict` reads as "a person said no" and never revives.
+    #
+    # Measured, in Galois Theory: a ship's restart wrote the flag and signalled;
+    # the handoff turn took 97 seconds and the restart gives it 90, so it printed
+    # "still writing its handoff; run this again in a minute" and returned
+    # WITHOUT starting anything. The daemon then exited through this line, wiped
+    # the flag, and three generations of the serving chain revived that course's
+    # BOARD and refused its TUTOR -- fifteen hours of a board that served
+    # perfectly with nothing reading it, and a `turn_signal` still naming an
+    # answer that had been handed in. From the iPad: the app works and the tutor
+    # is down.
+    #
+    # Nothing clears the flag here because nothing here has earned the right to.
+    # `mark_waking` clears it, and it is written by both halves of a start, so
+    # the flag lives exactly as long as the restart it describes is unfinished --
+    # and a restart nobody finished is one the watchdog now finishes, after
+    # `REATTACH_GRACE`.
+    agent_state(live, state="stopped", stopped_at=time.time())
     print("stopped after %d turn(s)" % turns)
     return 0
 
@@ -2571,8 +2597,16 @@ def cmd_restart(cfg, args):
             # `agent_start` answers "already listening" here and answers it with
             # a success code, which is how this came to report a restart it had
             # not performed. Say what actually happened.
-            held.append("%s (still writing its handoff; run this again in a"
-                        " minute)" % c["dir"])
+            #
+            # AND WHAT HAPPENS NEXT, because this is the one branch that leaves a
+            # restart half-done. A handoff turn is a model call and routinely
+            # outruns the ninety seconds above; the `restarting` flag written
+            # before the signal stays on the record, and that is what the
+            # watchdog picks the tutor back up from once `REATTACH_GRACE` is out.
+            # Telling somebody to run it again was the only instruction while
+            # the daemon's own exit erased the flag -- and nobody ever does.
+            held.append("%s (still writing its handoff; the watchdog brings it "
+                        "back in a few minutes, or run this again)" % c["dir"])
             continue
         code, msg = agent_start(cfg, c, name)
         if code != 0:
