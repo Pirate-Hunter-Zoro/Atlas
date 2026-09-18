@@ -27,6 +27,20 @@
 # 800 GB, numactl --interleave=all. Every one of those is what colibri_serve.sbatch
 # runs, and a lever measured on a different configuration answers about that one.
 #
+# DO NOT RUN THIS WHILE A MISSION IS ATTACHED TO THE SERVER, and the reason is
+# one file rather than the GPU. `coli_ab.sh`'s snapshot protocol restores
+# `<model>/.coli_usage` byte-for-byte before every configuration -- it has to,
+# because an identical configuration measured 5.46 then 2.56 tok/s without it --
+# and that file is the LIVE routing history the serving generation appends to and
+# re-pins from between turns. Restoring it under a working server rolls back what
+# that server learned while this job was running. An idle server loses nothing,
+# which is why this is a scheduling rule and not a refusal.
+#
+# `.coli_kv` is the other shared file and this job does not touch it: the `run`
+# path calls no `kv_disk_append`, whose four callers are all in the chat and serve
+# machinery. So the interleaved-writes hazard that makes a chain handover wait for
+# its elder does not apply here.
+#
 #SBATCH --job-name=p0t21mtp
 #SBATCH --partition=c3_short
 # compute303 because it is the node with room -- 10 of 96 CPUs and 108 GB held by
