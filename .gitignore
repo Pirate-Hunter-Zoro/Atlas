@@ -78,6 +78,20 @@ Thumbs.db
 **/.claude/settings.local.json
 **/.claude/settings.local.json.bak
 **/.claude/state/
+**/.claude/scheduled_tasks.lock
+
+# A vendor's SETTINGS are allowed above and nothing else is. A workflow, a
+# subagent, a slash command or a skill is LOGIC written against one provider's
+# API, and `ai-config/README.md` is the standing rule for those: what the
+# assistant is told and what it is forbidden to read are written once in files
+# that name no vendor, with a thin adapter per assistant. A job worth keeping
+# is kept as a specification any assistant can execute -- `board/tools/` -- and
+# the adapter is regenerated from it, because regenerating it costs minutes and
+# a committed one goes stale in a provider's next release.
+**/.claude/workflows/
+**/.claude/agents/
+**/.claude/commands/
+**/.claude/skills/
 
 # ---- other people's BOOKS, and every excerpt cut out of one ----
 # A course keeps its set text on disk and reads it; a public repository does not
