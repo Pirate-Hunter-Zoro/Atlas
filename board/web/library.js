@@ -48,6 +48,7 @@
    ========================================================================== */
 
 var els = {
+  back: document.getElementById("lib-back"),
   where: document.getElementById("lib-where"),
   count: document.getElementById("lib-count"),
   list: document.getElementById("lib-list"),
@@ -79,6 +80,35 @@ var els = {
   roundText: document.getElementById("round-text"),
   roundClose: document.getElementById("round-close")
 };
+
+/* THE WAY BACK GOES WHERE YOU CAME FROM.
+
+   This page is reached from two places and used to lead back to one of them.
+   The board's own row into it is a lesson stepping sideways, so `/board` is
+   right there. The FRONT DOOR's *Papers & decks* is not: reading a document
+   nobody is teaching from has nothing to do with the lesson -- that is the
+   whole reason the button exists -- and landing somebody in a sitting they did
+   not open, to get back to the door they tapped from, is the front door's own
+   trapped-level defect wearing a different page.
+
+   So the caller says where it came from and this says so in the label. One
+   query parameter, not a stored flag: it survives a reload, a share and a
+   cached shell, and there is no second copy of it to go stale. */
+var CAME_FROM = { home: { href: "/", text: "\u2039 Everything",
+                          title: "back to everything" } };
+
+(function backWhereYouCameFrom() {
+  var el = els.back;
+  if (!el) return;
+  var from = "";
+  try { from = new URLSearchParams(location.search).get("from") || ""; }
+  catch (e) { from = ""; }
+  var want = CAME_FROM[from];
+  if (!want) return;
+  el.href = want.href;
+  el.textContent = want.text;
+  el.title = want.title;
+})();
 
 /* The board's own theme, read the way the board reads it: one choice, made
    once, that follows the person from surface to surface. */
