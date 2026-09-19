@@ -270,108 +270,21 @@ def install_teaching(live):
     return dest
 
 
-# What an unattended tutor has to be allowed to do. Narrow on purpose: write into
-# its own course, drive this tool, typeset what it has written, and read a PDF.
-# Nothing here grants a network, a package manager, or a shell in general.
-TUTOR_GRANTS = [
-    "Bash(board:*)", "Bash(board *)",
-    "Bash(pdftotext:*)", "Bash(pdftotext *)",
-    "Bash(pdfinfo:*)", "Bash(pdfinfo *)",
-    # Typesetting the write-up. A homework sitting is producing a document and
-    # the document is the point of the evening, so the tutor that wrote the
-    # LaTeX has to be able to compile it -- through `board hw build`, through
-    # the course's own build script, or by driving the compiler directly when
-    # it is chasing an error. Withhold any one of those and the tutor reaches
-    # the end of the sheet, writes the last solution, and hands back a `.tex`
-    # nobody on an iPad can turn into a PDF.
-    "Bash(scripts/build.sh:*)", "Bash(scripts/build.sh *)",
-    "Bash(./scripts/build.sh:*)", "Bash(./scripts/build.sh *)",
-    "Bash(bash scripts/build.sh *)", "Bash(bash ./scripts/build.sh *)",
-    "Bash(pdflatex:*)", "Bash(pdflatex *)",
-    "Bash(xelatex:*)", "Bash(xelatex *)",
-    "Bash(lualatex:*)", "Bash(lualatex *)",
-    "Bash(latex:*)", "Bash(latex *)",
-    "Bash(latexmk:*)", "Bash(latexmk *)",
-    "Bash(bibtex:*)", "Bash(bibtex *)",
-    "Bash(biber:*)", "Bash(biber *)",
-    "Bash(makeindex:*)", "Bash(makeindex *)",
-    "Bash(dvisvgm:*)", "Bash(dvisvgm *)",
-]
-
-TUTOR_PERMISSIONS = {
-    "permissions": {
-        # File edits are the whole job -- a tutor that cannot write a card cannot
-        # teach. Everything else still has to be listed.
-        "defaultMode": "acceptEdits",
-        "allow": list(TUTOR_GRANTS),
-    }
-}
-
-
-def install_permissions(live):
-    """Let a headless tutor actually write, if this course has not said otherwise.
-
-    A daemon has nobody to approve anything: a tool that needs permission simply
-    fails, silently as far as the board is concerned. That is not theoretical --
-    a first homework turn read the assignment, composed the whole opening card,
-    and ended having written nothing, because the course had no permissions file
-    and every write was refused.
-
-    Created when absent, and topped up when present. It used to be created and
-    never touched again, which is a rule with no way to expire -- the second
-    failure was the same shape as the first, a whole evening's homework written
-    up and then not compiled, because the file laid down weeks earlier predated
-    the grant that would have allowed it and nothing was ever going to add it.
-    A course that has built up its own list keeps every line of it: this only
-    ever appends the grants that are missing, never removes or rewrites one, so
-    an owner's edits and their ordering survive.
-    """
-    d = os.path.join(live.root, ".claude")
-    path = os.path.join(d, "settings.local.json")
-    try:
-        os.makedirs(d, exist_ok=True)
-    except OSError:
-        return None
-
-    if not os.path.exists(path):
-        try:
-            with open(path, "w", encoding="utf-8") as fh:
-                json.dump(TUTOR_PERMISSIONS, fh, indent=2)
-                fh.write("\n")
-        except OSError:
-            return None
-        return path
-
-    # Top up. A malformed file is left alone rather than overwritten -- it is
-    # the owner's, and losing their list to repair ours is the worse trade.
-    try:
-        with open(path, "r", encoding="utf-8") as fh:
-            doc = json.load(fh)
-        if not isinstance(doc, dict):
-            return None
-    except (OSError, ValueError):
-        return None
-
-    perms = doc.setdefault("permissions", {})
-    if not isinstance(perms, dict):
-        return None
-    allow = perms.setdefault("allow", [])
-    if not isinstance(allow, list):
-        return None
-
-    missing = [g for g in TUTOR_GRANTS if g not in allow]
-    if not missing:
-        return None
-    allow.extend(missing)
-    try:
-        with open(path, "w", encoding="utf-8") as fh:
-            json.dump(doc, fh, indent=2)
-            fh.write("\n")
-    except OSError:
-        return None
-    return path
-
-
+# WHAT AN UNATTENDED TUTOR MAY DO IS NOT SET HERE, and it used to be.
+#
+# `install_permissions` wrote each course its own `.claude/settings.local.json`
+# -- a daemon has nobody to approve a tool call, so a tool that needs
+# permission simply fails, silently as far as the board is concerned, and a
+# first homework turn once composed a whole opening card and ended having
+# written nothing. The grants were right; their HOME was wrong. They named one
+# vendor's file, in one vendor's directory, written into every course this tool
+# touched, so the board was the thing putting a provider's config into nine
+# repositories.
+#
+# They are `ai-config/workspaces/tutors.allow` now, folded into that
+# assistant's own settings by its installer, and no workspace carries a config
+# directory at all. Adding a grant is a line in that file and
+# `bash ai-config/scripts/install.sh`.
 def cmd_start(live, args):
     info = live.info()
     if info and alive(info):
@@ -404,10 +317,6 @@ def cmd_start(live, args):
               "(pinned, so the network cannot change it)" % machine.pin_node_name())
 
     install_teaching(live)
-    granted = install_permissions(live)
-    if granted:
-        print("updated %s so a headless tutor can write cards and typeset them here"
-              % os.path.relpath(granted, live.root))
 
     port, port_error = free_port(live.root)
     lan = False

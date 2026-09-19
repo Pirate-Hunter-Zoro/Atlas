@@ -894,9 +894,10 @@ is wrong even when every suite is green.
   pushed itself. There is one copy of it now and `lesson/git.py` calls it for every workspace — so
   for about an hour every save committed the repository the *tool* was in. The working directory
   decides, the caller sets it, and `test/beside.py` asserts the tool's HEAD did not move.
-- **AN IGNORE PATTERN WITH A SLASH IN IT IS ANCHORED TO ITS OWN DIRECTORY.**
-  `.claude/settings.local.json` at the root matched exactly one file and silently missed the nine
-  inside the workspaces, which are the only ones that exist. `**/` on purpose.
+- **AN IGNORE PATTERN WITH A SLASH IN IT IS ANCHORED TO ITS OWN DIRECTORY.** A rule for an
+  assistant's config directory written at the root matched exactly one directory and silently
+  missed the nine inside the workspaces, which were the only ones that existed. `**/` on purpose,
+  and the rule is now the directory whole rather than the files under it.
 - **A HOOK THAT SILENTLY STOPS MATCHING IS WORSE THAN NO HOOK.** A fence written against a path
   keeps refusing that path after the data moves, and waves the same content through at its new
   address. `block-phi.py` fences `phi/` **whole**, by the directory name rather than by what is
@@ -1972,11 +1973,13 @@ Headless there is nobody at a terminal, so nothing can be approved while a turn 
 refused tool is not an error.** The agent apologises into a log nobody opens and exits 0, so a
 turn can read the assignment, compose the whole opening card, and end having written nothing.
 
-That is settled in exactly one place: `board start` writes the course its own
-`.claude/settings.local.json` (`TUTOR_PERMISSIONS` in `bin/board`) — `acceptEdits` for the files a
-tutor writes, plus `board`, `pdftotext` and `pdfinfo`. It is only ever created, never edited, so a
-course that has built up its own list keeps it, and it is a committed file the course's owner can
-read and change.
+That is settled in exactly one place and it is outside this repository:
+`ai-config/workspaces/tutors.allow`, which names no vendor, listing what a daemon has to be able
+to run — the board's own command, the two PDF readers, and the LaTeX toolchain that turns a
+written-up sheet into something readable on an iPad. `bash ai-config/scripts/install.sh` folds it
+into whichever assistants are installed. **This tool writes no assistant's config file**, which is
+why no workspace here carries one; `test/agents.py` asserts that absence, because nothing fails
+loudly when a writer creeps back in — it just starts leaving directories behind again.
 
 It deliberately does **not** also appear as a flag on the agent's command. One policy written in two
 places is one policy that drifts the first time either moves, and of the two the committed file is
@@ -2391,8 +2394,8 @@ reads; there is nothing to write in either, so a repository that wants its code
 written does not get it written into one of those.
 
 **A tutor with a `do` stance needs the access to match.** Editing files is
-granted by the course's own `.claude/settings.local.json`; anything else it has
-to run — `sbatch`, `squeue`, `git commit` — belongs in that file's allow list,
+granted by `ai-config/workspaces/tutors.allow`; anything else it has
+to run — `sbatch`, `squeue`, `git commit` — belongs in that file too,
 and a companion repository the README points at (a planning repo, a task list)
 has to be named in `additionalDirectories` or the file tools will refuse to open
 it. A tutor that may write the code but not submit it can only ever report that

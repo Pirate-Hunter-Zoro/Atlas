@@ -95,82 +95,29 @@ for kind in ("headless_first", "headless"):
 check("a resumed turn is still a resumed turn",
       "--continue" in claude["headless"] and "--continue" not in claude["headless_first"])
 
-# The one place it does live, and what it has to cover.
+# WHERE A HEADLESS TUTOR'S PERMISSIONS LIVE, and the assertion is that this
+# tool does not write them.
+#
+# The board used to write each course its own `.claude/settings.local.json`,
+# because a daemon has nobody to approve a tool call and a refused write is
+# silent. The grants were right; their home was wrong -- this tool was putting
+# one vendor's config file into every repository it touched. They are
+# `ai-config/workspaces/tutors.allow` now, folded into that assistant's own
+# settings by its installer.
+#
+# So what is checked here is the absence, and the grants themselves are
+# `ai-config`'s to test. An absence needs a test more than a presence does:
+# nothing fails loudly when a writer creeps back in, it just starts leaving
+# directories behind again.
 board_src = open(os.path.join(ROOT, "bin", "board"), encoding="utf-8").read()
-check("the board is what grants a headless tutor its permissions",
-      "TUTOR_PERMISSIONS" in board_src and "def install_permissions(" in board_src)
-check("and starting a board is when the course gets them",
-      "install_permissions(live)" in board_src)
-check("the grant lets it write the card, which is the whole job",
-      '"defaultMode": "acceptEdits"' in board_src)
-check("and run the board's own command",
-      '"Bash(board *)"' in board_src)
-# A homework sitting is producing a document, and the document is the point of
-# the evening. A tutor that can write the LaTeX and not compile it reaches the
-# last solution and hands back a `.tex`, which is not what was asked for.
-check("and compile what it has written up",
-      '"Bash(pdflatex *)"' in board_src and '"Bash(latexmk *)"' in board_src
-      and '"Bash(bash scripts/build.sh *)"' in board_src)
-
-# The permissions file is written once and then lives for months, so what a
-# course was granted the week it was created is not what a tutor needs today.
-# This was found the hard way twice: the second time, a whole evening's homework
-# was written up and then could not be typeset, because the file predated the
-# grant that would have allowed it and nothing was ever going to add it.
-boardmod = importlib.machinery.SourceFileLoader("boardcli", os.path.join(ROOT, "bin", "board"))
-bspec = importlib.util.spec_from_loader("boardcli", boardmod)
-boardcli = importlib.util.module_from_spec(bspec)
-boardmod.exec_module(boardcli)
-
-
-class _Live:
-    def __init__(self, root):
-        self.root = root
-
-
-perm_tmp = tempfile.mkdtemp(prefix="tutor-perm-")
-try:
-    fresh = os.path.join(perm_tmp, "fresh")
-    os.makedirs(fresh)
-    wrote = boardcli.install_permissions(_Live(fresh))
-    doc = json.load(open(os.path.join(fresh, ".claude", "settings.local.json"),
-                         encoding="utf-8"))
-    check("a course with no permissions file gets one", bool(wrote))
-    check("and it carries every grant a tutor needs",
-          all(g in doc["permissions"]["allow"] for g in boardcli.TUTOR_GRANTS))
-
-    # A course that predates a grant: the old six-line file, plus a line of the
-    # owner's own that must survive.
-    old = os.path.join(perm_tmp, "old")
-    os.makedirs(os.path.join(old, ".claude"))
-    old_path = os.path.join(old, ".claude", "settings.local.json")
-    with open(old_path, "w", encoding="utf-8") as fh:
-        json.dump({"permissions": {"defaultMode": "acceptEdits",
-                                   "allow": ["Bash(board *)", "Bash(make homework *)"]}}, fh)
-    check("an out-of-date file is topped up rather than left to rot",
-          bool(boardcli.install_permissions(_Live(old))))
-    doc = json.load(open(old_path, encoding="utf-8"))
-    check("the missing grants arrive",
-          all(g in doc["permissions"]["allow"] for g in boardcli.TUTOR_GRANTS))
-    check("and the course's own line is still there",
-          "Bash(make homework *)" in doc["permissions"]["allow"])
-    check("and nothing is duplicated",
-          doc["permissions"]["allow"].count("Bash(board *)") == 1)
-    check("a file that is already current is left alone entirely",
-          boardcli.install_permissions(_Live(old)) is None)
-
-    # The owner's file is theirs. Repairing ours by throwing theirs away is the
-    # worse trade, so a file we cannot parse is not a file we rewrite.
-    broken = os.path.join(perm_tmp, "broken")
-    os.makedirs(os.path.join(broken, ".claude"))
-    broken_path = os.path.join(broken, ".claude", "settings.local.json")
-    with open(broken_path, "w", encoding="utf-8") as fh:
-        fh.write("{ not json at all")
-    check("a malformed settings file is left exactly as the owner left it",
-          boardcli.install_permissions(_Live(broken)) is None
-          and open(broken_path, encoding="utf-8").read() == "{ not json at all")
-finally:
-    shutil.rmtree(perm_tmp, ignore_errors=True)
+check("the board does not write any assistant's settings file",
+      "install_permissions" not in board_src.replace(
+          "# `install_permissions` wrote each course its own", ""))
+check("and names no vendor's config directory as something it creates",
+      'os.path.join(live.root, ".claude")' not in board_src)
+check("and the note says where the grants went, so the next person adding one "
+      "does not re-add the writer",
+      "ai-config/workspaces/tutors.allow" in board_src)
 
 # Every agent is a command, and no two machines have the same commands. A
 # missing one used to start a daemon that showed as listening and then failed

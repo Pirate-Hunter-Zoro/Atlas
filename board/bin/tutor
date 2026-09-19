@@ -84,12 +84,12 @@ DEFAULT_CONFIG = {
         # the slate PNG itself rather than through a transcription model, writes
         # the card, and edits the course's own .tex when a homework sitting needs
         #
-        # What it is allowed to do headless is NOT set here. `board start` writes
-        # the course its own `.claude/settings.local.json` -- see
-        # `TUTOR_PERMISSIONS` in bin/board -- because that file is committed,
-        # readable by the course's owner and adjustable per course. Repeating the
-        # same grant as a flag on this command would be a second source of truth
-        # for one policy, and the two would drift the first time either moved.
+        # What it is allowed to do headless is NOT set here, and is not set by
+        # this tool at all any more. It is `ai-config/workspaces/tutors.allow`,
+        # folded into the assistant's own settings by that repository's
+        # installer. Repeating a grant as a flag on this command would be a
+        # second source of truth for one policy, and the two would drift the
+        # first time either moved.
         "claude": {
             "cmd": ["claude"], "prompt": "argv",
             # `headless_first` opens the session; `headless` continues it, so the
