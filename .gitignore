@@ -75,10 +75,13 @@ Thumbs.db
 # What used to be tracked was three `settings.json` permission allowlists --
 # which commands may run unattended in a workspace. That is a fact about the
 # workspace and worth keeping; the JSON schema around it is one provider's and
-# is not. Both now live in `ai-config`: the lists in `workspaces/*.allow`,
+# is not. Both live in `ai-config` now: the lists in `workspaces/*.allow`,
 # naming no vendor, and the schema in a renderer the assistant's own descriptor
-# points at. `install.sh` writes the result into each workspace, so the file
-# below this line is GENERATED and belongs to whichever assistant is installed.
+# points at. `install.sh` folds them into that assistant's USER-LEVEL settings,
+# outside this tree entirely, so nothing installs anything here at all. The
+# rule below is therefore absolute rather than a filter: no directory named for
+# an assistant belongs in this repository, and one appearing is this machine's
+# own state rather than anything the repository needs.
 #
 # The same rule covers a workflow, a subagent, a slash command and a skill,
 # which are logic written against one provider's API and go stale at its next
