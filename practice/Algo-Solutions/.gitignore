@@ -21,7 +21,8 @@ live/*
 !.githooks/
 !.githooks/**
 
-# so must the board's permission settings — .claude/ above keeps the
-# machine-local settings.local.json out, this lets the shared one in.
-!.claude/
-!.claude/settings.json
+# The assistant's config directory stays ignored, all of it. The permission
+# allowlist that used to be let back in here is `ai-config/workspaces/
+# algo-solutions.allow` now, and `install.sh` renders it back into place —
+# so the file below this directory is generated and belongs to whichever
+# assistant is installed, not to this workspace.
