@@ -262,7 +262,69 @@ None of these is a build. Each is an evening in front of the thing.
   asserts only that they reach the course. **The first card of the next sitting is
   the real check.**
 
-### 3. Three things the audit found that are not prose — A KEYBOARD
+### 3. The way in is a menu, and it should be a door — A KEYBOARD
+
+**In the owner's words, opening Homework 3 from the map:** *"These are tutoring
+styles that if you recall I don't want to be selecting when I open up a lesson;
+I want to just change tutoring styles to anything any time... The ability to
+write a paper or a slide deck should just be an option on the homescreen, and
+from there I want to be able to specify which projects/course, and which
+sections/results."*
+
+**Read what already exists before touching any of it, because most of this is
+built and the fault is where it is reached from, not what it does.** `POST /aim`
+changes the open sitting's style in place, with the transcript, the cards and the
+tutor left where they are — that is the `for:` row in the sitting-kind panel,
+opened from **⊞** in the bar, and `test/aiming.py` holds it. `POST /writeup`
+asks any sitting at all for a paper or a deck, changing no aim and archiving
+nothing, and its two controls are in that same panel and are **never hidden**.
+Neither of those is the problem and neither should be rebuilt.
+
+**The problem is `openWork` in `web/board.js`.** A tap on a box or a plan chip
+opens a sheet of eight ways to work and there is no ninth that just opens the
+lesson, so a style is something you get past to start rather than something you
+change while working — which is the opposite of what both the row and the panel
+above were built to mean. Every button on that sheet calls `takeWork`, and every
+`takeWork` opens a sitting with an aim already chosen.
+
+**And `WORK` contradicts the rule written twenty lines under it.** `paper` and
+`slides` sit in that table as aims carrying `session: "make"`, while the comment
+over `docWays` says in as many words that a paper or a deck is a PRODUCT and not
+an aim, and that is why they are not two more buttons in the aim row. Both
+statements are in `board.js` and only one of them can be right.
+
+**What to build, and the third is the only part that is new machinery.**
+
+1. **A tap on a box opens the sitting.** The sheet stops being the gate. What
+   happens to the seven ways is the decision to take deliberately and it is not
+   obvious: `trace` and `drill` genuinely ARE chosen over a scope — the `for:`
+   row leaves both out for that reason and says so — so they cannot simply move
+   into a row that changes the open sitting. The likely shape is that a tap
+   opens a lecture on that box and the sheet becomes a smaller thing reached
+   from inside it, but weigh that against just making the first way the default
+   and the rest a secondary tap.
+2. **`paper` and `slides` come out of the map sheet.** They are `POST /writeup`
+   and they already work from anywhere; leaving them in `WORK` as `make` aims is
+   the second source of truth the `docWays` comment refuses.
+3. **A document is commissioned from the front door.** This does not exist in
+   any form. The home screen has the **meeting deck** — one deck across every
+   workspace, assembled from what moved, replacing the last one — which is a
+   different thing and is not what is wanted here. What is wanted is: ask for a
+   paper or a deck at the door, choose the workspace, then choose what it is
+   over. `POST /writeup` takes `makes` and a free-text `about` and needs a repo,
+   so the repo comes from the workspace pick and `about` from the scope pick;
+   the scope list is the one `homework.sets` and the chapter discovery already
+   produce for the contents drawer, and for a research workspace the results
+   and documents `course/library.py` already groups. Nothing new has to be
+   discovered — what is missing is a page that asks the two questions and posts
+   the answer.
+
+**What to assert.** `test/aiming.py` and `test/library.js` already hold the two
+halves that work. What wants a test is that a tap on a box opens a sitting
+without asking, and that the front door can commission a document against a
+workspace it names.
+
+### 4. Three things the audit found that are not prose — A KEYBOARD
 
 The documentation half is done and is under *Settled*. These are what it turned
 up underneath, and none of them is fixed by editing a sentence.
