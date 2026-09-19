@@ -104,7 +104,8 @@ when that session ships.
 **`projects/libr-local-llm` has its own handoff and it is still the live one.**
 The five pieces it asked for against the board are shipped and are under
 *Settled* below; what is left in that file is the diarization job itself, which
-is item 1 here.
+is item 1 here, and one `rm -rf` of an accidental 9.3 GB pip tree that every
+sandbox on this machine refuses, so it is the owner's own shell or nothing.
 
 ---
 

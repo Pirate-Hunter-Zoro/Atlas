@@ -22,8 +22,16 @@ and they still govern running it:
   -t` is the only lever. A mission longer than that cannot finish, whatever the board records.
 - **Shipping is not this model's job.** It decodes at 3.2–4.4 tok/s and it is the one assistant
   that may read `phi`. The ship belongs to a hosted follow-up turn, which is also a second pair of
-  eyes on a local model's diff — and that turn can only be trusted with it once `names_phi` is
-  actually run over the diff, which nothing in this repository does today.
+  eyes on a local model's diff — a turn that could not have read the session content it is
+  checking for. **The machine half of that check is wired**: `names_phi` in
+  `ai-config/policy/phi.py` is loaded, not copied, by `board/tutorboard/leaving.py`, and both
+  `board push` and the board's save button call it before anything leaves the machine. It reads
+  the added lines of each changed file that lives inside a fenced workspace, and refuses naming
+  the file. It is a regex — it catches a diff reaching for session content or carrying a piece of
+  one with its shape still on it, and a bare sentence of dialogue with no path or extension around
+  it is not catchable that way. That last part is what the hosted turn's judgement is for.
+  `board push --anyway` is the override and is deliberately a keyboard act; the save button has
+  none.
 
 ---
 
@@ -89,26 +97,31 @@ expensive.
 
 ---
 
-## One decision still to take, before writing rather than during
+## One thing left over, and it needs the owner's own shell
 
-**`MTP`, and the question is not the one this file used to ask.** Speculation is OFF on the served
-configuration — twice over, by the engine's CUDA default and by `--auto-tier` — and the log line
-`[MTP] active … (draft=0)` says `active` about the CHECKPOINT rather than about the run. `MTP=1` is
-not a lever; `COLI_CUDA_MTP=1` is, and the depth to test is **1**, which no P0 run tried. The full
-derivation, what P0's `DRAFT=2`/`DRAFT=4` numbers actually compared, and the exact A/B are
-**P0-STATUS finding 21**. One job on one node under §10's snapshot protocol; `fleet-p0/coli_ab.sh`
-is the harness. **Do not quote a tier-2 tok/s figure again until it is settled.**
-
-## One thing left over
-
-`rm -rf ~/.local/lib/python3.12` recovers **8.7 GB**. It is an accidental pip install and nothing
-depends on it; the sandbox refused the recursive delete. `~/.local/lib/python3.{9,11,13}` and
-`~/.local/bin` are unrelated — leave them. The share is at 57 % as of 2026-09-18, so it is tidiness
+`rm -rf ~/.local/lib/python3.12` recovers **9.3 GB**, and an assistant cannot run it: every
+sandbox here refuses a recursive delete of that size. It is an accidental pip install, and the
+reason it is provably dead is that **there is no `python3.12` interpreter on this machine at all**
+— `python3` is 3.9 and the only other one under `/usr/bin` is 3.11, so nothing can import from
+that tree. `~/.local/lib/python3.{9,11,13}` and `~/.local/bin` are unrelated — leave them.
+`~/.local/bin` in particular holds TeX. The share is at 56 % as of 2026-09-18, so this is tidiness
 rather than pressure.
 
 ---
 
 ## Settled, so nobody re-derives it
+
+**`MTP` IS MEASURED AND THE SERVED CONFIGURATION DOES NOT TURN IT ON.** `COLI_CUDA_MTP=1` is the
+lever — `MTP=1` never was, and `[MTP] active … (draft=0)` says `active` about the checkpoint
+rather than about the run — and depth 1 is the only depth worth the question. Job 2073575 on
+compute303, six runs ABBAAB, the first time speculation has been on under CUDA on this box:
+**3.23 tok/s at `draft=1` against 3.58 at `draft=0`**, and the slowest off-run beats the fastest
+on-run. Acceptance ran 62–77 % and did not convert — the run that saved the most forwards, 78
+tokens in 44, was the slowest of the three. The drafting works; the per-forward cost of it exceeds
+what the saved forwards are worth on a box whose bottleneck `coli plan` already names as the CPU
+expert tail. So `colibri_serve.sbatch` stays as it is, and a tier-2 tok/s figure is quotable
+again. **P0-STATUS finding 21** holds the table and the derivation; the per-configuration logs
+stay outside the repository because they carry generated text.
 
 **`coli-code -c/--continue` continues the session already open**, passed through as `--continue`
 to Claude Code and `-c` to opencode's `run`. The session store is already per-agent under
