@@ -110,6 +110,23 @@ be two grammars in one address. `closeFamily` paints first and calls `history.ba
 `back()` answers when the browser feels like it and a tap has to land now; the `popstate` that
 follows repaints the level that is already showing.
 
+**EVERY WAY BACK TO THIS PAGE SAYS THE SAME WORD, AND IT IS THE WORD ON THE HEADING IT LANDS ON.**
+*Everything* — on `#atlas-up`, on the deck's `#deck-back`, and on the library's `#lib-back` when the
+front door is where it was opened from. A control named after itself rather than its destination is
+one nobody connects to the place they are trying to reach, which is how the old *all of it* went
+unfound for its whole life. The board's `#btn-home` is the one exception and stays a bare glyph:
+that bar carries the course, the chapter, the sitting badge and three controls, and `test/link.js`
+holds the line at seven.
+
+**AND THE LIBRARY LEADS BACK WHERE IT WAS OPENED FROM.** `#lib-back` is `/board` by default, which
+is right for the board's own row into it — a lesson stepping sideways. It is wrong for the front
+door's *Papers & decks*, because reading a document nobody is teaching from has nothing to do with
+the lesson and that is the whole reason the button exists; landing somebody in a sitting they never
+opened, to get back to the door they tapped from, is the trapped level on a different page. The
+caller says so with `?from=home` — **a query parameter and not a stored flag**, because it survives
+a reload, a share and a cached shell, and there is no second copy of it to go stale. `sw.js` matches
+its offline fallback with `ignoreSearch`, so the query does not miss the cached page.
+
 **AND THERE IS A FLAT READ OVER THE TOP OF BOTH, because the hierarchy cannot answer the other
 question.** Two levels answer *what is in Courses*; nothing answers *where is the thing called
 colibri*, because at the door no workspace is drawn and inside a family every other family's is

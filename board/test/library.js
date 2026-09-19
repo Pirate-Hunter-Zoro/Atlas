@@ -530,6 +530,37 @@ const named = (title) => rows().filter(
     ? ok('the board and the map are both one tap away')
     : fail('there is no way back to the lesson');
 
+  // 8b. AND IT GOES WHERE YOU CAME FROM.
+  // The board's own row into this page is a lesson stepping sideways, so
+  // `/board` is right. The FRONT DOOR's "Papers & decks" is not: reading a
+  // document nobody is teaching from has nothing to do with the lesson, which
+  // is the whole reason that button exists, and dropping somebody into a
+  // sitting they never opened in order to get back to the door they tapped
+  // from is the trapped-level defect on a different page. The caller says
+  // where it came from; this says so in the label.
+  const came = new JSDOM(fs.readFileSync(path.join(WEB, 'library.html'), 'utf8'), {
+    runScripts: 'outside-only', pretendToBeVisual: true,
+    url: 'https://board.test/library?from=home',
+  });
+  came.window.fetch = () => new Promise(() => {});
+  came.window.HTMLCanvasElement.prototype.getContext = () =>
+    new Proxy({}, { get: () => () => {}, set: () => true });
+  try { came.window.eval(fs.readFileSync(path.join(WEB, 'library.js'), 'utf8')); }
+  catch (e) { fail('library.js under ?from=home: ' + e.message); }
+  const cameBack = came.window.document.getElementById('lib-back');
+  cameBack.getAttribute('href') === '/'
+    && /Everything/.test(cameBack.textContent)
+    ? ok('reached from the front door, the way back is the front door, and it '
+         + 'says Everything rather than naming a lesson nobody opened')
+    : fail('the library still sends the front door into a lesson: '
+           + cameBack.getAttribute('href') + ' / ' + cameBack.textContent);
+
+  const home = fs.readFileSync(path.join(WEB, 'home.js'), 'utf8');
+  /\/library\?from=home/.test(home)
+    ? ok('and the front door is what says so, on both routes in -- the one it '
+         + 'is already serving and the one it has to switch to')
+    : fail('home.js opens the library without saying where from');
+
   doc.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Escape' }));
   doc.getElementById('note').hidden
     ? ok('escape closes the note without sending it')

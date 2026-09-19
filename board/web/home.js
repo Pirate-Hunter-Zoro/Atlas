@@ -892,8 +892,12 @@ els.sheetLibrary.onclick = function () {
   var c = sheetFor;
   closeSheet();
   if (!c) return;
-  if (c.current) { location.href = "/library"; return; }
-  switchTo(c.repo, "", "/library");
+  /* WHERE THIS CAME FROM, carried into the page, so its way back leads here
+     rather than into a lesson nobody opened. The library's own default is
+     `/board`, which is right when a lesson stepped sideways into it and wrong
+     for every tap made from this sheet. */
+  if (c.current) { location.href = "/library?from=home"; return; }
+  switchTo(c.repo, "", "/library?from=home");
 };
 
 /* THROUGH THE ADDRESS, the same way a workspace is opened. The board is already

@@ -195,10 +195,15 @@ catch (e) { fail('meeting.js: ' + e.message); }
          + 'direction')
     : fail('meeting.js reaches somewhere it must not');
 
-  // 9. The way back, because this is a full-screen surface.
-  doc.getElementById('deck-back').getAttribute('href') === '/'
-    ? ok('the front door is one tap away')
-    : fail('there is no way back');
+  // 9. The way back, because this is a full-screen surface -- and it is named
+  // after where it goes. Every way back to the front door in this app says the
+  // same word, and the word is the one on the heading it lands on.
+  const back = doc.getElementById('deck-back');
+  back.getAttribute('href') === '/' && /Everything/.test(back.textContent)
+    ? ok('the front door is one tap away, and the tap says Everything, which '
+         + 'is the heading it lands on')
+    : fail('there is no way back, or it is named after something else: '
+           + back.getAttribute('href') + ' / ' + back.textContent);
 
   console.log(errors.length ? '\n' + errors.length + ' FAILURES'
                             : '\na mark on a meeting slide is that project\'s '
