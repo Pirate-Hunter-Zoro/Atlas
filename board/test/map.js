@@ -333,6 +333,12 @@ function makeMap() {
       node({ id: 'doc-deck', name: 'Stage 2 walkthrough', also: 'document',
              kind: 'doc', doc: 'stage2-deck',
              does: 'Written about how this works.' }),
+      // A PROBLEM SET, which is the one box whose tap is a different KIND of
+      // sitting rather than a differently scoped one. It carries the set by
+      // the name the course gave it -- the derived map takes that from
+      // `homework.sets` and a written map declares it.
+      node({ id: 'hw-one', name: 'hw01', also: 'problem set', kind: 'set',
+             hw: 'hw01' }),
     ],
     edges: [
       { from: 'cli', to: 'evaluate', weight: 3, label: '' },
@@ -390,9 +396,9 @@ const at = (doc, id) => {
       : fail('the default landing is not the map');
 
     const boxes = doc.querySelectorAll('#map-sheet .node');
-    boxes.length === 5
-      ? ok('every part of the repository is a box (5)')
-      : fail('the map drew ' + boxes.length + ' boxes, not 5');
+    boxes.length === 6
+      ? ok('every part of the repository is a box (6)')
+      : fail('the map drew ' + boxes.length + ' boxes, not 6');
 
     // THE DEFECT THIS FILE EXISTS FOR. Every line of text must fit inside the
     // box it is drawn in, measured in the same face at the same size.
@@ -608,6 +614,22 @@ const at = (doc, id) => {
     p && p.body.step === '9. BUY A BIGGER DESK' && !p.body.node
       ? ok('a step nothing could place still opens a sitting of its own')
       : fail('the loose chip posted ' + JSON.stringify(p && p.body));
+
+    // A PROBLEM SET IS A HOMEWORK SITTING, which is the one thing that box has
+    // ever meant. It is the only tap that changes the KIND of sitting rather
+    // than what it is scoped to, and the set goes over by the name discovery
+    // gave it -- the server looks that up in what the course actually has.
+    w.__openMap('tapped');
+    await sleep(15);
+    posts.length = 0;
+    doc.querySelector('#map-sheet .node[data-id="hw-one"]')
+      .dispatchEvent(new w.Event('click', { bubbles: true }));
+    await sleep(10);
+    p = posts.filter((x) => /\/session$/.test(x.url))[0];
+    p && p.body.session === 'homework' && p.body.hw === 'hw01'
+      && p.body.begin === true && !('aim' in p.body)
+      ? ok('a tap on a problem set opens a homework sitting on that set')
+      : fail('the set box posted ' + JSON.stringify(p && p.body));
 
     // A DOCUMENT IS READ. There is no sitting to open about a box that is a
     // write-up and nothing else, so the tap is the reading.
@@ -1011,7 +1033,7 @@ const at = (doc, id) => {
       ? ok('once the reading face arrives, every label fits the box it is in')
       : fail('the map kept the measurements it took before the font loaded: '
              + JSON.stringify(over.slice(0, 3)));
-    doc.querySelectorAll('#map-sheet .node').length === 5
+    doc.querySelectorAll('#map-sheet .node').length === 6
       ? ok('and the map is still the same map, redrawn rather than rebuilt from a payload')
       : fail('the redraw lost the picture');
     before > 0

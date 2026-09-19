@@ -617,6 +617,38 @@ try:
                                   "doc": "docs/stage2_reference_walkthrough.pdf"}]})
     check("a `doc` written as a path is refused, loudly, rather than blanked",
           clean is None and any("doc" in p for p in problems))
+
+    # A WRITTEN `set` BOX CAN SAY WHICH SET IT IS, because a tap on one opens a
+    # HOMEWORK sitting and the box is the only thing that can name the set. The
+    # derived map fills this in from `homework.sets`; without it here, a course
+    # whose owner drew their own map got a lecture and lost the set it was
+    # bound to.
+    clean, problems = mapping.validate(
+        {"version": 1, "nodes": [{"id": "ps", "name": "Problem set 1",
+                                  "kind": "set", "hw": "hw01"}]})
+    check("a written `set` box carries the set it is",
+          clean is not None and clean["nodes"][0]["hw"] == "hw01")
+
+    # AND ONLY A `set` BOX. `hw` on a part is somebody meaning something else,
+    # and a box that quietly opens the wrong kind of sitting is worse than one
+    # that is refused while it is being written.
+    clean, problems = mapping.validate(
+        {"version": 1, "nodes": [{"id": "a", "name": "x", "hw": "hw01"}]})
+    check("and `hw` on anything but a set is refused rather than ignored",
+          clean is None and any("`hw`" in p for p in problems))
+
+    # A SET THIS COURSE HAS NOT GOT is blanked on the read, the way a `doc`
+    # that does not resolve is: the box stays and the tap that would have been
+    # refused goes. This project has no `homework/` at all, so every name is
+    # that name.
+    drawn["nodes"].append({"id": "ps1", "name": "Problem set 1",
+                           "kind": "set", "hw": "hw01"})
+    mapping.write_written(proj, drawn)
+    fresh()
+    check("a written set naming a set the course has not got loses the name",
+          by_id(mapping.status(proj))["ps1"]["hw"] == "")
+    drawn["nodes"].pop()
+
     drawn["nodes"][0].pop("doc", None)
     mapping.write_written(proj, drawn)
     fresh()

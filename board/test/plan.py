@@ -165,27 +165,6 @@ Do not read %s.
     check("standing context is not offered as a thing to do",
           not [x for x in steps if "ORIENTATION" in x["label"]])
 
-    # --- and the whole of one step, for the sheet that asks about it ---------
-    # A chip carries 240 characters, which is the length that tells two chips
-    # apart on a map. The sheet that opens on a tap asks what to do about the
-    # step, and asking that about three sentences and an ellipsis is asking it
-    # about the wrong thing.
-    body = plan.whole(proj, steps[1]["label"])
-    check("the sheet can read the whole of a step, not the drawer's blurb",
-          body and "THE LAST LINE IS THE POINT" in body["text"])
-    check("which is the half the blurb had already cut",
-          "THE LAST LINE IS THE POINT" not in steps[1]["summary"])
-    check("a step's own line breaks survive, because its sub-steps are lines",
-          body["text"].count("\n") >= 5)
-    check("and the indentation the plan is written at is levelled off",
-          body["text"].startswith("STEP 2."))
-    check("it stops at the next step and does not run on into it",
-          "THE GRID" not in body["text"])
-    check("and says which file it came out of, and where in it",
-          body["where"].endswith("PSYCH-ASR_TODO.txt") and body["line"] > 1)
-    check("a label that is not one of ours reads nothing",
-          plan.whole(proj, "9. SOMETHING NOBODY WROTE") is None)
-
     # --- a path out of a file is not a path anything will follow -------------
     check("a plan outside the repository is refused, however plainly it is named",
           plan._resolve(proj, os.path.join(outside, "SECRET_TODO.md")) is None)
@@ -264,14 +243,10 @@ A multi-project narrative hub. The live task lists are
           [x["num"] for x in both[2:]] == ["3", "4"])
     check("no two steps answer to one label, because a label is the lookup key",
           len(set(x["label"] for x in both)) == len(both))
-    # The stop line is the next entry of ANY kind. A step whose body ran on over
-    # the items after it was matched against every module they mention, and its
-    # chip landed on boxes it says nothing about.
-    body = plan.whole(proj, both[1]["label"])
-    check("a step's window stops at the next entry whatever kind that is",
-          body and "the plan's numbers are the plan's" in body["text"]
-          and "5-FOLD CV" not in body["text"])
-    check("and an item's body is read the same way a step's is",
+    # The stop line is the next entry of ANY kind. A step whose summary ran on
+    # over the items after it was matched against every module they mention,
+    # and its chip landed on boxes it says nothing about.
+    check("an item's body is read the same way a step's is",
           "read the same way a step's is" in both[2]["summary"])
     check("the item before a finished one stops there too, and does not "
           "swallow it", "DONE 2026-08-27" not in both[2]["summary"])

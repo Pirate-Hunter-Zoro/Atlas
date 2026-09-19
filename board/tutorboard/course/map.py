@@ -465,6 +465,7 @@ def _node(nid, name, kind, **rest):
         "id": nid, "name": name, "also": "", "kind": kind, "lane": "",
         "does": "", "status": "unknown", "files": [], "dir": "",
         "steps": [], "doc": "", "slide": None, "note": "", "chapter": "",
+        "hw": "",
     }
     node.update(rest)
     return node
@@ -1063,6 +1064,18 @@ def validate(raw):
                             % (where, one.get("dir")))
             d = ""
 
+        # WHICH PROBLEM SET THIS BOX IS, and it is the same idea as `doc` one
+        # kind along: a tap on a `set` box opens a HOMEWORK sitting, and the
+        # only thing that can say which set is the box. The derived map fills
+        # this in from `homework.sets`; a written one has to be able to say it
+        # too, or a course whose owner drew its own map gets a lecture titled
+        # "Problem set 1" and loses the set it was bound to.
+        hw = _text(one.get("hw"), MAX_NAME)
+        if hw and kind != "set":
+            problems.append("%s: `hw` names a problem set, so the box carrying "
+                            "it is a `set`. This one is a `%s`." % (where, kind))
+            hw = ""
+
         doc = str(one.get("doc") or "").strip()
         if doc and not DOC_RE.match(doc):
             problems.append("%s: `doc` %r is not a document id. It is the short "
@@ -1089,7 +1102,7 @@ def validate(raw):
             "id": nid, "name": name, "also": _text(one.get("also"), MAX_ALSO),
             "kind": kind, "status": status_in, "does": does[:DOES],
             "files": clean_files[:MAX_FILES], "dir": d,
-            "doc": doc,
+            "doc": doc, "hw": hw,
             "slide": slide, "blockedBy": [b for b in blocked if b],
             "note": _text(one.get("note"), DOES),
             "chapter": _text(one.get("chapter"), MAX_NAME),
@@ -1193,6 +1206,14 @@ def _here(root, rel):
     return os.path.exists(target)
 
 
+def _set_names(root):
+    """What `hw` on a written box is allowed to say: the names the course has."""
+    try:
+        return set(x["name"] for x in homework.sets(root))
+    except Exception:                                        # noqa: BLE001
+        return set()
+
+
 def _resolve_written(root, clean):
     """The written map, checked against the tree, every time it is read.
 
@@ -1217,6 +1238,12 @@ def _resolve_written(root, clean):
             if not found:
                 node["doc"] = ""
                 node["slide"] = None
+        if node["hw"] and node["hw"] not in _set_names(root):
+            # A SET THAT IS NOT IN THE COURSE ANY MORE. Blanked rather than
+            # dropped: the box is still a box, and what it loses is the tap
+            # that would have opened a sitting on a set the browser would then
+            # be refused for. The same answer `doc` gets, for the same reason.
+            node["hw"] = ""
         nodes.append(node)
 
     alive = set(n["id"] for n in nodes)
