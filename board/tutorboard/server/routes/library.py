@@ -7,8 +7,9 @@ deck. What a note does is land beside the document it is about and wake a turn
 that is not the lesson's.
 
     GET  /library.json              everything `course/library.py` found
-    POST /writeup                   a paper or a deck asked for from the sitting
-                                    on the board, landing here rather than on it
+    POST /writeup                   a paper or a deck, asked for from a sitting
+                                    on this board or commissioned from the front
+                                    door against any workspace on the machine
     POST /writeup/seen              one finished ask waved off the board's strip
     GET  /library/stamp             one hash of where every document is and
                                     when it last changed, cheap enough to ask
@@ -25,7 +26,9 @@ AN ID, NEVER A PATH. What arrives from the browser is compared against what
 discovery found -- `library.find` -- and a miss is a miss. `reading.find` is the
 rule and `/result/` is the worked example. A NOTE'S NAME is the same rule one
 level down: matched against the names `library.notes` found beside that
-document, never joined onto a directory.
+document, never joined onto a directory. A WORKSPACE and a SCOPE KEY on
+`/writeup` are the same rule again: `machines.workspaces` and `scopes.find` are
+the lists, and the root comes off the match.
 
 AND FEEDBACK IS NEVER JUST FILED. A note nothing acts on is a note the person
 believes is in force, which is the same defect `/direction` was built to avoid.
@@ -42,14 +45,16 @@ git is the only undo an overhaul has.
 """
 
 import json
+import os
 import time
 from urllib.parse import unquote
 
 from . import NOT_MINE
 from .. import spawn
-from ... import leaving, manuscript, sense, writeups
+from ... import atlas, leaving, machines, manuscript, scopes, sense, writeups
 from ...course import config
 from ...course import library
+from ...course.repo import Repo
 from ...lesson import turns
 
 
@@ -179,6 +184,23 @@ def _writeup(h, repo):
     already opens a make sitting scoped to that box; the ask with no route at all
     was *"write up the four things we just covered"*, so that is the default and
     `sense.writeup_sense` says how to read the lesson back for it.
+
+    AND IT CAN BE COMMISSIONED FROM THE FRONT DOOR, AGAINST A WORKSPACE NOBODY
+    IS LOOKING AT. Asked for in these words: *"the ability to write a paper or a
+    slide deck should just be an option on the homescreen, and from there I want
+    to be able to specify which projects/course, and which sections/results."*
+    So `repo` names the workspace and `scope` names what it is over -- a key
+    from `POST /writeup/scopes`, resolved through `tutorboard/scopes.py` against
+    the TARGET's root and never joined onto a path. A scope beats a free-text
+    `about`, because one of them was picked off a list of what is really there
+    and the other was typed.
+
+    THE DOCUMENT THEN LANDS IN THAT WORKSPACE'S LIBRARY, WHICH IS NOT THE BOARD
+    THAT COMMISSIONED IT. Nothing on this board changes and nothing appears in
+    its library: the record, the inbox line and the finished document are all
+    written over there, and the way back to them is that workspace's own
+    library page. The reply says which workspace it went to for exactly that
+    reason -- an ask whose product appears somewhere else has to say where.
     """
     try:
         payload = json.loads(h.read_body().decode("utf-8") or "{}")
@@ -190,14 +212,75 @@ def _writeup(h, repo):
         # tapping -- there are two controls for exactly that reason -- so a
         # request that does not say has gone wrong somewhere worth hearing about.
         return h.send_json({"ok": False, "error": "paper or slides"}, status=400)
+
+    # WHICH WORKSPACE THE DOCUMENT IS FOR, and it is this one unless the request
+    # says otherwise. `/elsewhere` and `/switch` resolve a name the same way:
+    # matched against what the walk already found, with the ROOT taken off the
+    # match rather than rebuilt out of the name, because the same name can sit
+    # under two families.
+    #
+    # THE BOARD'S OWN WORKSPACE ANSWERS TO ITS OWN NAME WHETHER OR NOT THE WALK
+    # CAN SEE IT, and it is answered for FIRST. A board serves exactly one root,
+    # it was handed the `Repo` for it, and building a second object for the
+    # directory it is already sitting in is two objects that can disagree about
+    # one lesson.
+    want = str(payload.get("repo") or "").strip()
+    match = None
+    if want and want not in (os.path.basename(os.path.realpath(repo.root)),
+                             atlas.identify(repo.root)):
+        for c in machines.workspaces(repo):
+            if want in (c["repo"], c["id"]):
+                match = c
+                break
+        if not match:
+            return h.send_json({"ok": False, "error": "unknown workspace"},
+                               status=404)
+    target = Repo(match["root"]) if match else repo
+    where_dir = match["repo"] if match else os.path.basename(
+        os.path.realpath(repo.root))
+    where_name = ((match["course"] or match["repo"]) if match
+                  else (config.read_config(repo.root)["name"] or where_dir))
+
     about = str(payload.get("about") or "").strip()[:writeups.ABOUT_CHARS]
+    key = str(payload.get("scope") or "").strip()
+    if key:
+        # A KEY, LOOKED UP IN THE TARGET'S OWN LIST. Resolved against the
+        # workspace the document is FOR, not against this one: the chapters on
+        # offer are that course's chapters, and a key resolved here would answer
+        # with the wrong sentence or with none. Nothing is written before this
+        # answers -- a scope nobody recognises is a document about the wrong
+        # thing, which is worse than a refusal.
+        found = scopes.find(target.root, key)
+        if not found:
+            return h.send_json({"ok": False, "error": "no such scope"},
+                               status=400)
+        # AND IT BEATS FREE TEXT. One of the two was picked off a list of what
+        # that workspace really has and the other was typed; where both arrived,
+        # the request has two minds and the list is the one to trust.
+        about = found["about"]
+
+    if match:
+        # THE START IS ASKED FIRST, AND NOTHING IS WRITTEN UNTIL IT IS ALLOWED.
+        # `/elsewhere`'s order, deliberately and for its reason: the other way
+        # round leaves a document asked for in another workspace's inbox with
+        # nothing that will ever read it, and the refusals there fire routinely
+        # -- one colibri sitting at a time machine-wide, and cards that must not
+        # be committed. The serving workspace keeps the opposite order below,
+        # also unchanged: there the board is already up and `wake_tutor` is a
+        # start only if nothing is reading.
+        code, out = spawn.tutor_cli(["agent", "start", match["repo"]],
+                                    timeout=60)
+        said = out.strip()[-300:]
+        if code != 0:
+            return h.send_json({"ok": False, "repo": match["repo"],
+                                "error": said}, status=409)
 
     # An id from the same series the lesson's turns use, so nothing in the inbox
     # has to be told apart by shape. NOT written into `live/turns.jsonl`; see
     # above.
-    wid = turns.next_turn_id(repo)
-    rec = writeups.ask(repo.root, wid, makes, about,
-                       agent=config.sitting_agent(repo.root) or "")
+    wid = turns.next_turn_id(target)
+    rec = writeups.ask(target.root, wid, makes, about,
+                       agent=config.sitting_agent(target.root) or "")
     line = "[writeup] " + sense.writeup_sense(makes, about)
     record = {
         "id": wid, "rev": 0, "kind": "text", "answers": None,
@@ -206,23 +289,30 @@ def _writeup(h, repo):
         "from": "student", "text": line, "signal": "writeup", "read": False,
     }
     try:
-        with open(repo.messages_path, "a", encoding="utf-8") as fh:
+        with open(target.messages_path, "a", encoding="utf-8") as fh:
             fh.write(json.dumps(record) + "\n")
     except OSError as exc:
         return h.send_json({"ok": False,
                             "error": "nothing could be asked: %s" % exc},
                            status=500)
-    # A request that sits in an inbox beside a board with no tutor on it is a tap
-    # that did nothing for ever -- the same reason `/say` and `_revise` wake one.
-    if spawn.wake_tutor(repo):
-        h.note("nothing was reading the board; starting a tutor to write it")
+    if not match:
+        # A request that sits in an inbox beside a board with no tutor on it is a
+        # tap that did nothing for ever -- the same reason `/say` and `_revise`
+        # wake one. The other workspace already had its start asked for above.
+        if spawn.wake_tutor(repo):
+            h.note("nothing was reading the board; starting a tutor to write it")
     h.server.hub.worker.dirty.set()
     return h.send_json({"ok": True, "id": wid, "makes": makes,
                         "about": rec.get("about") or "", "state": "writing",
-                        "detail": ("It is being written now and will appear in "
-                                   "the library. That turn is not part of the "
-                                   "lesson: it writes no card and leaves the "
-                                   "sitting on the board alone.")})
+                        "repo": where_dir, "where": where_name,
+                        "detail": (("It is being written in %s and will appear "
+                                    "in THAT workspace's library rather than "
+                                    "this one. Nothing on this board changes."
+                                    % where_name) if match else
+                                   ("It is being written now and will appear in "
+                                    "the library. That turn is not part of the "
+                                    "lesson: it writes no card and leaves the "
+                                    "sitting on the board alone."))})
 
 
 def rework_refused(repo, doc):

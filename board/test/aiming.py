@@ -629,6 +629,117 @@ try:
           status == 200 and body.get("ok") is True
           and not board.build().get("writeups"))
 
+    # ------------------------------------------- and commissioned from the door
+    # A PAPER OR A DECK, ASKED FOR ABOUT A WORKSPACE NOBODY IS LOOKING AT.
+    #
+    # **The want, in the owner's words:** *"the ability to write a paper or a
+    # slide deck should just be an option on the homescreen, and from there I
+    # want to be able to specify which projects/course, and which
+    # sections/results."*
+    #
+    # The front door has no sitting behind it, so the second half of that
+    # sentence cannot come from a board. It comes from what discovery already
+    # found in the workspace being named -- `POST /writeup/scopes` -- and the
+    # key that comes back is resolved against that same list.
+    fields = workspace("courses", "Fields", {"name": "Fields"})
+    with open(os.path.join(fields, "chapters.tsv"), "w", encoding="utf-8") as fh:
+        fh.write("1\t1\t20\tch01-groups\tGroups\n"
+                 "2\t21\t44\tch02-rings\tRings\n")
+    os.makedirs(os.path.join(fields, "homework", "hw01"), exist_ok=True)
+    with open(os.path.join(fields, "homework", "hw01", "hw01.tex"), "w",
+              encoding="utf-8") as fh:
+        fh.write("\\begin{problem}{1}\\end{problem}\n")
+
+    status, body = post("/writeup/scopes", {"repo": "Fields"})
+    keys = [s["key"] for s in (body.get("scopes") or [])]
+    check("the front door can ask what a document in another workspace could "
+          "be about", status == 200 and body.get("ok") is True
+          and body.get("repo") == "Fields" and body.get("id") == "courses/Fields")
+    check("a course offers its own chapters, by the names the course gives them",
+          "chapter:ch01-groups" in keys and "chapter:ch02-rings" in keys
+          and any(s["label"] == "Ch 1 — Groups"
+                  for s in body["scopes"]))
+    check("and its problem sets", "set:hw01" in keys)
+    check("THE WHOLE WORKSPACE IS LAST, because it is the widest scope",
+          keys[-1] == "workspace")
+    check("every row says what the button reads and what is under it",
+          all(s.get("key") and s.get("label") and s.get("what")
+              for s in body["scopes"]))
+    # The sentence the assistant is given is not the browser's to hold: a page
+    # that has it is a page that can edit it, and then the key is decoration.
+    check("but not the sentence the assistant is handed",
+          all("about" not in s for s in body["scopes"]))
+
+    status, body = post("/writeup/scopes", {"repo": "Nowhere-At-All"})
+    check("a workspace this machine has not got is a miss, not a path",
+          status == 404 and (body.get("error") or "") == "unknown workspace")
+
+    # `tutor agent start` over there, which is what `/elsewhere` does and is
+    # what has to be ASKED FOR before anything is written.
+    ran = []
+    real_tutor_cli = spawn.tutor_cli
+    spawn.tutor_cli = lambda args, timeout=30: (
+        ran.append(list(args)) or (0, "claude starting in Fields"))
+    over = course_repo.Repo(fields)
+    try:
+        status, body = post("/writeup", {"makes": "paper", "repo": "Nope"})
+        check("and so is a workspace named on the ask itself",
+              status == 404 and (body.get("error") or "") == "unknown workspace")
+
+        status, body = post("/writeup", {"makes": "paper", "repo": "Fields",
+                                         "scope": "chapter:ch99-invented"})
+        check("a scope key that workspace does not offer is refused by name",
+              status == 400 and (body.get("error") or "") == "no such scope")
+        check("and NOTHING was written for it -- no record, no inbox line, no "
+              "start asked for",
+              not ran and not os.path.exists(over.messages_path)
+              and not writeups.waiting(over))
+
+        status, body = post("/writeup", {"makes": "slides", "repo": "Fields",
+                                         "scope": "chapter:ch02-rings",
+                                         "about": "whatever I typed instead"})
+        check("a deck can be commissioned against a workspace this board is "
+              "not serving", status == 200 and body.get("ok") is True)
+        check("the reply says WHERE it went, because that is not where it was "
+              "asked from",
+              body.get("repo") == "Fields" and body.get("where") == "Fields"
+              and "Fields" in (body.get("detail") or ""))
+        check("the start over there is asked for the way `/elsewhere` asks",
+              ran and ran[-1] == ["agent", "start", "Fields"])
+
+        with open(over.messages_path, encoding="utf-8") as fh:
+            lines = [json.loads(l) for l in fh if l.strip()]
+        line = lines[-1].get("text", "") if lines else ""
+        check("the inbox line is in THAT workspace, which is what a headless "
+              "turn there is woken with",
+              line.startswith("[writeup]") and lines[-1].get("read") is False)
+        check("and the scope it was picked from is what the turn is told it is "
+              "about", "Ch 2 — Rings" in line and "as this course covers it" in line)
+        check("A SCOPE PICKED OFF THE LIST BEATS FREE TEXT SOMEBODY TYPED",
+              "whatever I typed instead" not in line)
+        writeups.forget()
+        check("the record is over there too, so that board says it is being "
+              "written", (writeups.waiting(over) or [{}])[0].get("makes")
+              == "slides")
+        check("AND NOTHING LANDED IN THE WORKSPACE THIS BOARD IS SERVING",
+              not [l for l in open(repo.messages_path, encoding="utf-8")
+                   if "Ch 2 — Rings" in l])
+
+        # The board's own workspace answers to its own name, whether or not the
+        # walk can see it -- this one is a temporary directory in no family.
+        here_before = len(open(repo.messages_path, encoding="utf-8").readlines())
+        status, body = post("/writeup", {"makes": "paper",
+                                         "repo": os.path.basename(tmp)})
+        check("naming the workspace the board already serves is the ask it "
+              "always was", status == 200 and body.get("ok") is True
+              and body.get("repo") == os.path.basename(tmp))
+        check("and it lands here rather than anywhere else",
+              len(open(repo.messages_path, encoding="utf-8").readlines())
+              == here_before + 1)
+    finally:
+        spawn.tutor_cli = real_tutor_cli
+    writeups.forget()
+
     # THE TWO SITTINGS THE AIM ROW IS WITHHELD FROM, which is the whole point.
     for kind, extra in (("review", {"review": ["Ch 1"]}),
                         ("walk", {"walk": ["a.py"]})):

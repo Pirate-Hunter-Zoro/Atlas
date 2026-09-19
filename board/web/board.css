@@ -2310,6 +2310,19 @@ body.papering .annbar { z-index: 96; }
 .map-sheet .dig:focus { outline: none; }
 .map-sheet .dig:focus circle { stroke: var(--note); stroke-width: 2; }
 
+/* AND THE OTHER WAYS TO WORK ON IT, at the bottom right, opposite the one that
+   goes down a level. Three dots rather than an arrow: an arrow at the other
+   corner of the same box would read as a second way down, and this is a sheet
+   rather than a depth. */
+.map-sheet .ways { cursor: pointer; }
+.map-sheet .ways circle { fill: var(--paper); stroke: var(--rule); stroke-width: 1.2; }
+.map-sheet .ways circle.dot { fill: var(--ink-2); stroke: none; }
+.map-sheet .ways:hover circle { stroke: var(--note); }
+.map-sheet .ways:hover circle.dot { fill: var(--note); stroke: none; }
+.map-sheet .ways:focus { outline: none; }
+.map-sheet .ways:focus circle { stroke: var(--note); stroke-width: 2; }
+.map-sheet .ways:focus circle.dot { stroke: none; }
+
 /* The steps nothing could place, in a tray under the bar. */
 .map-loose {
   flex: none; display: flex; align-items: center; gap: .4rem;
@@ -2378,19 +2391,6 @@ body.papering .annbar { z-index: 96; }
   margin: .35rem 0 0; font-size: .74rem; font-weight: 600;
   color: var(--bad); grid-column: 1 / -1;
 }
-/* THE STEP, AS THE PLAN WROTE IT. Pre-wrapped, because these plans put their
-   sub-steps on their own lines and a paragraph is what the blurb already is.
-   Bounded to two fifths of the panel with a scroller of its own: the ways to
-   work are what the sheet is for and a long step must not push them off it. */
-#work-text {
-  flex: none; max-height: 40%; overflow-y: auto;
-  overscroll-behavior: contain; touch-action: pan-y;
-  margin: 0; padding: .5rem .7rem;
-  border-bottom: 1px solid var(--rule); background: var(--paper-2);
-  font: inherit; font-size: .74rem; line-height: 1.4; color: var(--ink-2);
-  white-space: pre-wrap; overflow-wrap: anywhere;
-}
-
 /* The list between the head and the foot is the part that scrolls. Being inside
    a fixed panel does not make an element a scroller: it needs the room that is
    left AND permission to scroll inside it, and the entries that fall off the

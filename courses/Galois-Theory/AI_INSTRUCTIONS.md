@@ -430,8 +430,8 @@ proceed.
 ## 13. The live board — mathematics is displayed, not dumped in the terminal
 
 The user reads mathematics on a **live typeset board**: a local page that renders proper LaTeX and
-updates the instant you write to it. The tool lives at `~/Tutor-Board` and is on the path as
-`board`. It is the display for this repository's tutoring. Section 9's Unicode rule governs what
+updates the instant you write to it. The tool lives at `board/` in the root of Atlas and is on the
+path as `board`. It is the display for this repository's tutoring. Section 9's Unicode rule governs what
 is left in the terminal; it does not govern the board, where you write real LaTeX.
 
 ### Start of session — do this first, without being asked

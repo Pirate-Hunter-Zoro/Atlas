@@ -414,8 +414,8 @@ def _steps_in(target, say_which):
 def _distinct(found):
     """One label, one step -- because `label` is what a step is looked up BY.
 
-    `/session` files a sitting under it and `/plan/step` reads a step back out
-    of the plan by it, so two steps answering to one label is one of them
+    `/session` files a sitting under it and `whole` reads a step back out of the
+    plan by it, so two steps answering to one label is one of them
     unreachable. A numbered `STEP 3.` and a checklist item somebody wrote as
     `- [ ] 3. …` are the way it happens.
 
@@ -519,9 +519,8 @@ def whole(root, label):
     """Every line the plan wrote about ONE step, as it wrote them.
 
     `steps` trims a step to 240 characters, which is the right length for a chip
-    and the wrong one for the sheet that opens when somebody taps it: that sheet
-    asks what to do about this step, and it was asking about three sentences and
-    an ellipsis. The body is where the plan says what the work actually is.
+    on the map and the wrong one for anything that has to say what the work
+    actually is. The body is where the plan says that.
 
     Read back off disk between the step's own line and the next step's, the same
     window `map._step_text` matches modules over, and with the indentation the

@@ -110,6 +110,16 @@
              map's bare diamond -- so this says what it makes. -->
         <button id="atlas-notes" type="button"
                 title="meeting notes across everything">notes</button>
+        <!-- A PAPER OR A DECK, COMMISSIONED FROM THE FRONT DOOR. "The ability
+             to write a paper or a slide deck should just be an option on the
+             homescreen, and from there I want to be able to specify which
+             projects/course, and which sections/results." It is here because
+             a document is not a lesson: asking for one used to cost a sitting
+             in the workspace it is about, and the workspace it is about is
+             usually not the one the board is serving. Labelled rather than
+             drawn, for the reason `notes` is. -->
+        <button id="atlas-doc" type="button"
+                title="a paper or a slide deck, in any workspace">paper or deck</button>
       </div>
     </div>
     <p id="atlas-blurb" class="atlas-blurb" hidden></p>
@@ -213,6 +223,67 @@
       <span class="action-sub" id="notes-read-sub"></span>
     </a>
     <button class="sheet-open" id="notes-close" type="button">close</button>
+  </div>
+</div>
+
+<!-- THREE QUESTIONS AND NOTHING ELSE: which product, which workspace, what it
+     is over. Each one replaces the last inside this one sheet, and Back walks
+     them in reverse, because a document commissioned from the front door is
+     three decisions and a wizard of three screens is two screens too many.
+
+     A PRODUCT IS NOT AN AIM. `paper` and `slides` used to sit in the row of
+     ways a sitting can be run, which made asking for a document a change to
+     what the sitting was FOR. They are asked for here instead, of any
+     workspace, without opening a sitting in it at all.
+
+     THE ASK IS WRITTEN WHERE THE WORK IS. The document is produced by whatever
+     assistant is working in that workspace and lands in ITS library, so this
+     sheet says which workspace it went to rather than implying anything will
+     appear on this board. -->
+<div id="doc" class="sheet" hidden>
+  <div class="sheet-box" role="dialog" aria-modal="true" aria-labelledby="doc-title">
+    <p class="eyebrow">a paper or a deck</p>
+    <h3 id="doc-title">Which one?</h3>
+    <p class="sheet-line" id="doc-line">Written where the work is, by whoever is
+      working there. It lands in that workspace's library.</p>
+
+    <!-- TWO BUTTONS, NOT A QUESTION AND THEN A CHOICE. Which of the two is
+         known at the moment of tapping; the board's own row makes the same
+         decision for the same reason. -->
+    <div id="doc-makes" class="doc-picks">
+      <button type="button" data-makes="paper">a paper</button>
+      <button type="button" data-makes="slides">a slide deck</button>
+    </div>
+
+    <!-- WHICH WORKSPACE, out of the payload this page already polls. No fetch:
+         the atlas is in memory, and a second source for the same list is a
+         second list to go stale. A vendor tree is not offered -- nothing is
+         handed in to somebody else's repository. -->
+    <div id="doc-where" class="doc-picks doc-scroll" hidden></div>
+
+    <!-- WHAT IT IS OVER, asked of the workspace itself, because only it knows
+         what it has: its sections, its results, the evening just taught. The
+         order they come back in is theirs and is kept. -->
+    <div id="doc-scopes" class="doc-picks doc-scroll" hidden></div>
+
+    <p class="sheet-line" id="doc-said" hidden></p>
+    <!-- THE ONE TAP THAT GETS TO IT, and it is the journey the sheet's
+         "Papers & decks" makes: the library is served by whichever board is
+         answering at this address, so a workspace that is not the one being
+         served is switched to first. -->
+    <button id="doc-read" class="action primary" type="button" hidden>
+      <span class="action-name">Papers &amp; decks</span>
+      <span class="action-sub" id="doc-read-sub"></span>
+    </button>
+    <div class="sheet-actions">
+      <button id="doc-back" class="action" type="button" hidden>
+        <span class="action-name">Back</span>
+        <span class="action-sub" id="doc-back-sub"></span>
+      </button>
+      <button id="doc-close" class="action" type="button">
+        <span class="action-name">Not now</span>
+      </button>
+    </div>
   </div>
 </div>
 

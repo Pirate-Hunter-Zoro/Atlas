@@ -14,7 +14,7 @@ D. J. H. Garling, *A Course in Galois Theory* (Cambridge University Press).
 HANDOFF.md          what the last session left for the next one — read first
 PLAN.md             the order of work: which exercises are open, and in which order
 DIRECTION.md        what this workspace is for, in the student's own words. Outranks the plan
-textbook/           the full scanned text (tracked — private repo)
+textbook/           the set text, read from disk and never tracked — see Git below
 chapters.tsv        chapter table — numbers, titles, page ranges. Single source of truth.
 latex/
   coursemacros.sty  shared preamble and Garling-flavoured macros
@@ -23,11 +23,13 @@ scripts/
   split-textbook.sh cut the full text into per-chapter excerpts
   scaffold.sh       create a chapter's folders and .tex files from the templates
 chapters/chNN-slug/
-  reading/chNN.pdf  this chapter's excerpt, cut by `make split` (tracked)
+  reading/chNN.pdf  this chapter's excerpt, cut by `make split` — derived, not tracked
   notes/            chNN-notes.tex
-  homework/         chNN-homework.tex
-  handwritten/      iPad exports — the work as originally written
+  homework/         chNN-homework.tex, and handwritten/ beside it — the ink for each
+                    answer, filed under the .tex it belongs to
   build/            compiler output
+homework/slug/      a write-up belonging to no chapter — the worksheet — laid out the
+                    same way: slug.tex, handwritten/, build/
 ```
 
 ## The rhythm
@@ -58,10 +60,17 @@ Every place your work belongs is fenced like this, and no assistant writes insid
 % ===== END SOLUTION 4.7 =====
 ```
 
+**One `problem` environment per lettered part, and every opener matched by a closer with the
+same label.** `board hw status` pairs the markers to say what is written up and what is next, so
+a part folded into its parent's statement is invisible to it and an unmatched opener swallows
+every region below it.
+
 ## Build
 
-Handled by the assistant. For reference, the entry points are `make split`, `make scaffold`,
-`make chapter CH=07`, `make all`, and `make clean`.
+Handled by the assistant. `make split`, `make scaffold`, `make chapter CH=07`, `make all` and
+`make clean` cover the chapters. A worksheet is not a chapter and `make` does not reach it:
+`board hw list` names every set, `board hw use <name>` pins the sitting to one, and
+`board hw build` compiles it.
 
 ## Chapters
 
@@ -113,15 +122,18 @@ too.
 With the board on the iPad and the slate for your working, a whole session can happen without
 touching the keyboard.
 
-You never run a board command. The tool is `~/Tutor-Board`; its README explains the rest.
+You never run a board command. The tool is `board/` at the root of Atlas, on the path as
+`board`; `board/README.md` explains the rest.
 
 ## Git
 
-The remote is `origin`, at
-[Pirate-Hunter-Zoro/Galois-Theory](https://github.com/Pirate-Hunter-Zoro/Galois-Theory), tracked
-by `main`. Nothing here is committed or pushed automatically.
+This course is a directory in [Pirate-Hunter-Zoro/Atlas](https://github.com/Pirate-Hunter-Zoro/Atlas),
+tracked by `main`, and it is not its own clone. Nothing here is committed or pushed
+automatically; `scripts/save-and-push.sh` is what the board's save button runs.
 
-**The repository is private, and what is tracked depends on it staying that way.** The textbook
-and its excerpts are tracked only for that reason; if it is ever made public, ignore `textbook/`
-and `chapters/*/reading/*.pdf` *first* — and purge them from history rather than merely deleting
-them, since a file stays reachable in past commits until it is actually removed.
+**That repository is PUBLIC.** Garling's text and the excerpts cut from it are somebody else's
+copyright, so they live on disk and out of git: the root `.gitignore` refuses `**/textbook/*.pdf`
+and `**/chapters/*/reading/ch*.pdf`, and `board/test/tracked.py` fails the suite if one is ever
+added anyway. What is tracked is everything written *about* the reading — the notes, the
+homework, the typeset answers, `chapters.tsv`. `make split` regenerates the excerpts from the
+book in one command, so nothing is lost by their absence.

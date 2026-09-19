@@ -222,19 +222,34 @@
   in $K$.
 \end{problem}
 
-\begin{remark}
-  As printed, 4.5 is false. The tower $K = \QQ$, $L = \QQ(2^{1/3})$,
-  $\alpha = 2^{1/6}$ has $\degree{\adjoin{L}{\alpha}}{L} = 2$ and
-  $\degree{L}{K} = 3$, which are coprime, while the minimal polynomial of
-  $\alpha$ over $L$ is $x^{2} - 2^{1/3}$, whose constant term is not rational.
-  The repaired hypothesis is that
-  $\degree{\adjoin{K}{\alpha}}{K}$ and $\degree{L}{K}$ are relatively prime.
-  Established in the sitting of 2026-09-15, card 0016.
-\end{remark}
 % ===== SOLUTION 04.5 =====
-% TODO(mferguson): your work goes here.
-% In progress as of 2026-09-15 (slate page 11, answers t0050-r1..r15).
+% The student's own counterexample, built on slate page 11 (archived answers
+% t0050-r1..r15) and agreed on card 0016. It is the answer to the exercise as
+% printed, so it belongs in the region rather than beside it: `board hw status`
+% reads the region, and an answer parked in a remark leaves 04.5 flagged EMPTY
+% for every session after the one that closed it.
+% One reason-correction, agreed on card 0016 and made here rather than left to
+% the student: their polynomial was 2^{1/3}x^2 - 2^{2/3}, which has the right
+% roots but is not monic, and monic is part of the definition. The write-up
+% divides through.
+\begin{solution}
+  As printed, 4.5 is false. Take the tower $K = \QQ$, $L = \QQ(2^{1/3})$,
+  $\alpha = 2^{1/6}$. Then $\degree{\adjoin{L}{\alpha}}{L} = 2$ and
+  $\degree{L}{K} = 3$ are relatively prime, while the minimal polynomial of
+  $\alpha$ over $L$ is $x^{2} - 2^{1/3}$, whose constant term is not rational.
+  So the hypothesis holds and the conclusion fails.
+\end{solution}
 % ===== END SOLUTION 04.5 =====
+
+\begin{remark}
+  The hypothesis is what is wrong. It should compare $\degree{\adjoin{K}{\alpha}}{K}$
+  with $\degree{L}{K}$, not $\degree{\adjoin{L}{\alpha}}{L}$ with
+  $\degree{L}{K}$: in the tower above those are $6$ and $3$, which share a
+  factor, so the repaired statement never asks about this example. The repaired
+  exercise was posed on card 0016 and the student chose to skip it; the four
+  lines that close it are on card 0017, in the sitting of 2026-09-15, and are
+  not their work.
+\end{remark}
 
 \begin{problem}{04.6}
   Suppose that $\degree{L}{K}$ is a prime number. Show that $\ext{L}{K}$ is

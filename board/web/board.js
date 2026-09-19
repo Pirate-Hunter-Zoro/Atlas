@@ -178,7 +178,6 @@ var els = {
   workTitle: document.getElementById("work-title"),
   workSub: document.getElementById("work-sub"),
   workList: document.getElementById("work-list"),
-  workText: document.getElementById("work-text"),
   workClose: document.getElementById("work-close")
 };
 
@@ -4086,11 +4085,11 @@ var currentStance = null;
    aim of the sitting that is open, changed in place, with the transcript, the
    cards and the tutor all left exactly where they are.
 
-   THE FIVE ARE THE FIVE `WORK` ALREADY NAMES, and the labels are the strings
-   that table already carries -- one set of words for the map's sheet and for
-   this, or the two drift. The two aims with a `needs` are left out on purpose:
-   each is held over a scope, and choosing one is choosing what it is over,
-   which is a tap on a box and a new sitting.
+   THE STYLES ARE THE STYLES `WORK` ALREADY NAMES, and the labels are the
+   strings that table already carries -- one set of words for the map and for
+   this, or the two drift. A way with a `needs` is left out on purpose: it is
+   held over a scope, and choosing one is choosing what it is over, which is a
+   tap on a box and a new sitting.
 
    THE TAP IS THE INSTRUCTION, so it is sent at once rather than held like a
    stance pick -- `/aim` writes it, puts it in the transcript and wakes a turn.
@@ -4099,9 +4098,7 @@ var currentAim = null;            /* what the sitting says, if it says anything 
 var aimNow = "";                  /* what it is running under, workspace or family */
 
 function aimWays() {
-  return WORK.filter(function (way) {
-    return way.aim !== "show" && !way.needs;
-  });
+  return WORK.filter(function (way) { return !way.needs; });
 }
 
 function paintAim() {
@@ -4141,14 +4138,17 @@ function paintAim() {
    deck's slides arriving in a transcript somebody is mid-proof in is the
    interruption the library page exists to avoid.
 
-   THE WORDS ARE `WORK`'s, filtered to the two products, the way `aimWays`
-   filters it — one set of words for the map's sheet and for this, or the two
-   drift. And there are TWO buttons rather than one because which of the two is
-   known at the moment of tapping; a second question after the tap is the
-   ceremony this tool exists to remove. */
-function docWays() {
-  return WORK.filter(function (way) { return !!way.makes; });
-}
+   A TABLE OF ITS OWN, because a product is not a way of working: `WORK` is
+   what a tap on the map offers and nothing in it makes a document. Two entries
+   rather than one because which of the two is known at the moment of tapping,
+   and a second question after the tap is the ceremony this tool exists to
+   remove. */
+var DOCS = [
+  { makes: "paper", label: "Write it up as a paper",
+    sub: "A document rather than an answer, kept in writeups/." },
+  { makes: "slides", label: "Build me a deck about it",
+    sub: "Slides you can then read on the board." }
+];
 
 function paintDoc() {
   if (!els.kindDoc) return;
@@ -4156,7 +4156,7 @@ function paintDoc() {
      exactly the sittings the aim row leaves out. */
   var host = els.kindDocWays;
   host.innerHTML = "";
-  docWays().forEach(function (way) {
+  DOCS.forEach(function (way) {
     var b = document.createElement("button");
     b.type = "button";
     b.textContent = way.label;
@@ -4910,13 +4910,13 @@ function mapDraw(info) {
       chip.appendChild(t);
       chip.addEventListener("click", function (ev) {
         ev.stopPropagation();
-        openWork(n.id, step.label);
+        takeWork(n, step);
       });
       chip.addEventListener("keydown", function (ev) {
         if (ev.key !== "Enter" && ev.key !== " ") return;
         ev.preventDefault();
         ev.stopPropagation();
-        openWork(n.id, step.label);
+        takeWork(n, step);
       });
       g.appendChild(chip);
     });
@@ -4945,6 +4945,36 @@ function mapDraw(info) {
         mapDig(n.id);
       });
       g.appendChild(dig);
+    }
+    /* THE OTHER WAYS TO WORK ON THIS ONE, at the bottom right, opposite the one
+       that goes down a level. The tap on the box is the sitting; this is the
+       sheet holding the ways that are chosen over a scope -- a walkthrough, a
+       drill, a document to be shown -- and it is drawn only where there is one
+       of them to offer or a line saying what the box is waiting on. A box whose
+       tap IS its one way gets none: a derived box, a box of somebody else's
+       tree, and a document. Three dots rather than a second arrow, because an
+       arrow here would read as another way down. */
+    if (mapMore(n)) {
+      var wx = p.x + p.w - 16, wy = p.y + p.h - 16;
+      var more = mapEl("g", { "class": "ways", "data-ways": n.id, tabindex: "0",
+                              role: "button",
+                              "aria-label": "other ways to work on " + n.name });
+      more.appendChild(mapEl("circle", { cx: wx, cy: wy, r: 10 }));
+      [-4, 0, 4].forEach(function (dx) {
+        more.appendChild(mapEl("circle", { "class": "dot", cx: wx + dx, cy: wy,
+                                           r: 1.5 }));
+      });
+      more.addEventListener("click", function (ev) {
+        ev.stopPropagation();
+        openWork(n.id, "");
+      });
+      more.addEventListener("keydown", function (ev) {
+        if (ev.key !== "Enter" && ev.key !== " ") return;
+        ev.preventDefault();
+        ev.stopPropagation();
+        openWork(n.id, "");
+      });
+      g.appendChild(more);
     }
     g.addEventListener("click", function () { mapTap(n); });
     g.addEventListener("keydown", function (e) {
@@ -4980,17 +5010,40 @@ function mapOpens(n) {
     : "";
 }
 
-/* A TAP ON THE BOX ITSELF, and what it means depends on the depth.
+/* HAS THIS BOX ANYTHING LEFT TO ASK ABOUT? The answer decides whether the
+   control at its bottom right is drawn at all, and it is `workWays` that gives
+   it, so the control and the sheet behind it cannot disagree.
 
-   At the top it is unchanged: a part is a thing to work on, and the sheet asks
-   how. A module or a symbol is a SCOPE rather than a part -- the server does
-   not have a box by that id -- so the sheet is opened with the one way to work
-   that a scope supports, which is to be walked through. An outside box is a
-   wall, and tapping a wall means "take me there". */
+   A wall, a derived box, a box of a vendor tree and a document are all boxes
+   whose tap is their one honest way to work, so none of them gets one. What is
+   left is an ordinary part, which has a control when it can be traced, drilled
+   or read -- or when the map says what it is waiting on, which is worth a tap
+   of its own. */
+function mapMore(n) {
+  if (!n || n.outside || mapTree || mapDerived(n) || mapDoc(n)) return false;
+  return !!workWays(n).length || !!((n.blockedBy || []).length);
+}
+
+/* A TAP ON THE BOX ITSELF OPENS ITS SITTING. Which sitting depends on what the
+   box is, and `takeWork` holds that whole rule -- including the wall, which is
+   a sibling an arrow leaves towards and means "take me there" rather than
+   "work on this". */
 function mapTap(n) {
   if (!n) return;
-  if (n.outside) return mapDig(n.id);
-  openWork(n.id, "");
+  takeWork(n, null);
+}
+
+/* WHERE YOU ARE ON THE PICTURE, which is one box and is remembered. It is the
+   mark on the glass, the box a course reopens at, and what the bar spells while
+   the map is up -- one function, because three ideas of "here" is two of them
+   wrong. */
+function mapMark(id) {
+  mapHere = id || "";
+  var boxes = els.mapSheet.querySelectorAll(".node");
+  for (var i = 0; i < boxes.length; i++) {
+    boxes[i].classList.toggle("here", boxes[i].getAttribute("data-id") === mapHere);
+  }
+  mapRemember();
 }
 
 /* THE WAY BACK IS DERIVED FROM THE PAYLOAD, never remembered from the taps.
@@ -5316,7 +5369,7 @@ function paintLoose() {
     b.innerHTML = '<span class="n"></span><span class="t"></span>';
     b.querySelector(".n").textContent = step.num;
     b.querySelector(".t").textContent = step.title;
-    b.onclick = function () { openWork("", step.label); };
+    b.onclick = function () { takeWork(null, step); };
     host.appendChild(b);
   });
 }
@@ -5542,21 +5595,25 @@ mapButtons().forEach(function (b) {
 
 
 /* --------------------------------------------------------- ways to work */
-/* WHAT A TAP ON THE MAP OFFERS, and it is the whole point of the map.
+/* ONE RULE SORTS THIS TABLE, and it is `needs`.
 
-   A box is a part of the repository and a chip is a step of the plan, and
-   tapping either asks the same question: what do you want to do about this.
-   Every answer opens a sitting already pointed at that part, so nothing has to
-   be typed and the tutor is not left to guess what the sitting is about.
+   A way with a `needs` is CHOSEN OVER SOMETHING -- a walkthrough over files, a
+   drill over a part, a document to be shown -- so it cannot be a standing
+   preference and it is offered on the MAP, where the something is a box you can
+   point at. A way with no `needs` is a STYLE: teaching, building, coaching are
+   how any sitting is run, they belong in the `for:` row and they are changed in
+   place, at any moment, without opening anything. And a paper or a deck is
+   neither: it is a PRODUCT, and products are `DOCS`.
 
-   The six are the person's own words made imperative, and they are NOT named
-   after the sitting kinds underneath -- nobody taps "lecture, stance do". Only
-   what the thing can actually support is offered: there is no walkthrough of a
-   box with no files in it, and no "show me the slides" where there is no deck.
+   That is why a tap on a box does not ask. The style is already set, so the
+   only question left is what to do over this one thing, and for most boxes
+   there is one honest answer -- open the sitting. The ways below are what is
+   left after that.
 
-   `aim` is what makes this more than a relabelled chooser. It rides in
-   `state.json` and into the line the tutor is woken with, so a sitting opened
-   as "tell me what to write" is a sitting the tutor knows is that. */
+   The words are the person's own made imperative, and they are NOT named after
+   the sitting kinds underneath -- nobody taps "lecture, stance do". `aim` rides
+   in `state.json` and into the line the tutor is woken with, so a sitting
+   opened as "walk me through it" is one the tutor knows is that. */
 var workNode = "";
 var workStep = "";
 
@@ -5580,12 +5637,6 @@ var WORK = [
   { aim: "drill", label: "Set me problems on it",
     sub: "Asked cold, over this part of the repository.",
     session: "review", needs: "part" },
-  { aim: "paper", label: "Write it up as a paper",
-    sub: "A document rather than an answer, kept in writeups/.",
-    session: "make", makes: "paper", does: true },
-  { aim: "slides", label: "Build me a deck about it",
-    sub: "Slides you can then read on the board.",
-    session: "make", makes: "slides", does: true },
   { aim: "show", label: "Show me the document",
     sub: "On the glass, a page at a time.",
     session: "", needs: "doc" }
@@ -5617,56 +5668,41 @@ function mapScope(node) {
   return mapWhose(rel + (node.symbol ? "::" + node.symbol : ""));
 }
 
-/* THE STEP, IN FULL, AND IT IS FETCHED ON THE TAP.
+/* WHAT IS LEFT TO ASK ABOUT THIS BOX, and it is only ever the ways held over a
+   scope. A style is changed in the `for:` row and a product is `DOCS`, so what
+   the sheet can honestly offer is a walkthrough, a drill and a document to be
+   shown -- each of them where the box can support it.
 
-   The chip carries a 240-character blurb, which is what a chip on the map wants
-   and is not what this sheet wants: a person tapping a step is about to choose
-   how to work on it, and the choice was being made against three sentences and
-   an ellipsis.
-
-   Fetched rather than carried, because the payload is polled four times a
-   second and a plan's twelve whole steps is tens of kilobytes of it, on every
-   poll, for a panel that is open for as long as it takes to tap one of seven
-   buttons.
-
-   A second tap while the first is in flight is the ordinary case — somebody
-   opens the wrong chip and opens the right one — so the answer is dropped
-   unless it is still the step being asked about. And a request that fails falls
-   back to the blurb rather than to an empty box: the blurb is already here and
-   nothing is gained by hiding it because the network did not answer. */
-var stepWanted = "";
-
-function showStep(chip) {
-  var box = els.workText;
-  if (!box) return;
-  stepWanted = (chip && chip.label) || "";
-  box.textContent = "";
-  box.hidden = true;
-  if (!stepWanted) return;
-  var asked = stepWanted;
-  var blurb = (chip && chip.summary) || "";
-  box.textContent = "reading the plan…";
-  box.hidden = false;
-
-  function settle(text) {
-    if (asked !== stepWanted) return;
-    box.textContent = text;
-    box.hidden = !text;
-    box.scrollTop = 0;
-  }
-  fetch("/plan/step", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ step: asked })
-  }).then(function (r) {
-    return r.json().catch(function () { return {}; });
-  }).then(function (got) {
-    settle((got && got.ok !== false && got.text) ? got.text : blurb);
-  }).catch(function () {
-    settle(blurb);
+   One function rather than a filter written out twice, because the sheet paints
+   these and the control that OPENS the sheet is drawn only where there is at
+   least one of them: a box offering a control that opens an empty panel is the
+   dead tap this whole change exists to remove. */
+function workWays(node) {
+  var files = (node && node.files) || [];
+  var doc = (node && node.doc) || "";
+  return WORK.filter(function (way) {
+    if (!way.needs) return false;
+    if (way.needs === "files" && !files.length) return false;
+    if (way.needs === "doc" && !doc) return false;
+    if (way.needs === "part" && !(node && node.dir)) return false;
+    /* A DERIVED BOX IS A SCOPE, NOT A PART. A function is something to be
+       walked through; it is not a directory to be examined on, and the tutor
+       cannot be told to write about a box the server has no record of. */
+    if (mapDerived(node) && way.aim !== "trace") return false;
+    /* AND A BOX IN SOMEBODY ELSE'S REPOSITORY IS READ, NEVER WORKED ON. There
+       is no plan to take a step from and nothing is handed in to a vendor tree.
+       Tracing is the one honest thing to do with it, which is the whole reason
+       the tree is drawn at all. */
+    if (mapTree && way.aim !== "trace") return false;
+    return true;
   });
 }
 
+/* THE OTHER WAYS, and that is the whole of this sheet. A tap on a box opens its
+   sitting; this opens behind the small control at the bottom right of it, for
+   the person who wants the walkthrough rather than the lesson -- and for the
+   line saying what the box is waiting on, which is worth reading before either.
+   A refusal lands here too, because this is where the question was asked. */
 function openWork(id, step) {
   /* Last time's "waiting on" line goes before this time's is worked out. The
      sheet's list is rebuilt from scratch every open; this line is not in the
@@ -5676,11 +5712,7 @@ function openWork(id, step) {
   var node = workOn(id);
   workNode = node ? node.id : "";
   workStep = step || "";
-  mapHere = workNode;
-  var boxes = els.mapSheet.querySelectorAll(".node");
-  for (var i = 0; i < boxes.length; i++) {
-    boxes[i].classList.toggle("here", boxes[i].getAttribute("data-id") === workNode);
-  }
+  mapMark(workNode);
 
   var chip = null;
   if (workStep) {
@@ -5694,7 +5726,6 @@ function openWork(id, step) {
   else if (node && node.also) sub.push(node.also);
   if (node && node.does && !chip) sub.push(node.does);
   els.workSub.textContent = sub.join(" — ");
-  showStep(chip);
 
   /* WHAT THIS ONE IS WAITING ON, and it is the field nothing could set until a
      map could be written by hand. Discovery can see that a directory exists and
@@ -5722,37 +5753,90 @@ function openWork(id, step) {
 
   var host = els.workList;
   host.innerHTML = "";
-  var files = (node && node.files) || [];
-  var doc = (node && node.doc) || "";
-  WORK.forEach(function (way) {
-    if (way.needs === "files" && !files.length) return;
-    if (way.needs === "doc" && !doc) return;
-    if (way.needs === "part" && !(node && node.dir)) return;
-    /* A DERIVED BOX IS A SCOPE, NOT A PART. A function is something to be
-       walked through; it is not a directory to be examined on, and the tutor
-       cannot be told to write a paper "about" a box the server has no record
-       of. So one way to work, and it is the right one. */
-    if (mapDerived(node) && way.aim !== "trace") return;
-    /* AND A BOX IN SOMEBODY ELSE'S REPOSITORY IS READ, NEVER WORKED ON. There
-       is no plan to take a step from, nothing is handed in to a vendor tree,
-       and a paper or a deck "about" it would be written into a workspace it is
-       not part of. Tracing is the one honest thing to do with it, which is the
-       whole reason the tree is drawn at all. */
-    if (mapTree && way.aim !== "trace") return;
+  workWays(node).forEach(function (way) {
     var b = document.createElement("button");
     b.type = "button";
     b.className = "work-way";
     b.innerHTML = '<strong></strong><span></span>';
     b.querySelector("strong").textContent = way.label;
     b.querySelector("span").textContent = way.sub;
-    b.onclick = function () { takeWork(way, node, chip); };
+    b.onclick = function () { takeWay(way, node, chip); };
     host.appendChild(b);
   });
-  mapRemember();
   els.work.hidden = false;
 }
 
-function takeWork(way, node, chip) {
+/* IS THIS BOX A DOCUMENT AND NOTHING ELSE? A box the map drew for a write-up
+   carries the document and no code at all, so there is one thing to do with it
+   and reading it is that thing. A hand-drawn box that names a document AND real
+   files is a part of the repository that happens to have one, and it is worked
+   on like any other part. */
+function mapDoc(node) {
+  return !!node && node.kind === "doc" && !!node.doc
+         && !((node.files || []).length) && !node.dir;
+}
+
+/* THE TAP OPENS THE SITTING. It keeps the name `takeWork` and loses the `way`,
+   because taking the work on a box is the whole of what a tap means: the style
+   the sitting runs in is already set in the `for:` row, a document is
+   commissioned from the front door, and what is left has one answer per kind of
+   box. Asked for as: *"I don't want to be selecting when I open up a lesson; I
+   want to just change tutoring styles to anything any time."*
+
+   So no `aim` and no `makes` go over the wire. What the box IS decides which
+   sitting opens, and there is exactly one per kind of box.
+
+   A NAME FROM THE BROWSER IS NEVER CONSTRUCTED INTO ANYTHING. What goes over
+   the wire is the box's id and the step's label, and the server looks both up
+   in what discovery found before either reaches a filesystem or a prompt. The
+   sitting's own label is built there too, for the same reason. */
+function takeWork(node, chip) {
+  els.work.hidden = true;
+  /* A sibling an arrow leaves towards is a wall, and tapping a wall means take
+     me there rather than work on it. */
+  if (node && node.outside) return mapDig(node.id);
+  /* WHERE YOU ARE, before the sitting is asked for. The box tapped is the box
+     the map comes back to, and it is what the bar spells while the picture is
+     still up -- so a refusal, or a slow answer, leaves somebody looking at the
+     box they chose rather than at nothing in particular. */
+  mapMark((node && node.id) || "");
+  if (mapDoc(node)) {
+    closeMap();
+    openDoc(node.doc, node.name);
+    return;
+  }
+  var derived = mapDerived(node);
+  var body;
+  if (derived || (mapTree && node)) {
+    /* A SCOPE RATHER THAN A PART, and a walkthrough is what a scope supports.
+       A SYMBOL BOX CARRIES THE ONE THING ITS WALKTHROUGH SHOULD COVER, which is
+       the whole payoff of a diagram whose nodes are the things: tapping `run`
+       opens a walkthrough of `run` and not of the file it lives in. Spelt the
+       way `walk.label` spells it, and re-resolved on the server.
+
+       NO BOX ID EITHER WAY. `map.find` resolves this repository's own parts and
+       would refuse a module, a symbol or a box of somebody else's tree -- which
+       is correct: the scope is what says what this is about. */
+    body = { session: "walk", node: null,
+             over: derived ? [mapScope(node)]
+                           : ((node && node.files) || []).map(mapWhose),
+             begin: true };
+  } else if (node && node.hw) {
+    /* A PROBLEM SET IS A HOMEWORK SITTING, which is the one thing that box has
+       ever meant. The set is sent by the name discovery gave it and looked up
+       in what the course actually has. */
+    body = { session: "homework", hw: node.hw, begin: true };
+  } else {
+    body = { session: "lecture", node: (node && node.id) || null,
+             step: (chip && chip.label) || null, begin: true };
+  }
+  workSend(body, node, chip);
+}
+
+/* A WAY CHOSEN OVER SOMETHING, from the sheet. This is the other half of the
+   tap: `takeWork` opens what the box already is, and this opens what somebody
+   asked for instead -- and only the ways `workWays` offers reach it. */
+function takeWay(way, node, chip) {
   els.work.hidden = true;
   if (way.aim === "show") {
     var name = node ? node.name : "document";
@@ -5760,27 +5844,19 @@ function takeWork(way, node, chip) {
     openDoc(node.doc, name);
     return;
   }
-  /* A NAME FROM THE BROWSER IS NEVER CONSTRUCTED INTO ANYTHING. What goes over
-     the wire is the box's id and the step's label, and the server looks both up
-     in what discovery found before either reaches a filesystem or a prompt. The
-     sitting's own label is built there too, for the same reason. */
   var derived = mapDerived(node);
   var body = {
     session: way.session,
     aim: way.aim,
-    /* NOT THE ID OF A DERIVED BOX. `map.find` resolves the repository's own
-       parts and would refuse a module or a symbol id, which is correct: the
-       scope below is what says which machinery this is about. */
-    /* NOR THE ID OF A FOREIGN ONE. A box of a vendor tree is not a part of
-       this workspace's map, and `map.find` would refuse it -- correctly: the
-       sitting is held here and the tree is only its scope. */
+    /* NOT THE ID OF A DERIVED BOX, NOR OF A FOREIGN ONE, for the reason
+       `takeWork` gives: `map.find` knows this repository's own parts and
+       nothing else, and the scope is what says which machinery this is about. */
     node: (node && !derived && !mapTree && node.id) || null,
     step: (chip && chip.label) || null,
     /* NO STANCE. The aim answers it -- `build` with a stance of `teach` is a
        contradiction -- and `config.AIM_STANCE` is where that answer lives. The
        browser was sending both, which made it the thing deciding, on its own
        authority, something the repository and its family had already said. */
-    makes: way.makes || null,
     /* AND GET ON WITH IT. Choosing a way to work is the instruction; a second
        tap on "ask the tutor to begin", on the lesson behind the map they were
        just looking at, is the ceremony this replaces. Asked as a question,
@@ -5788,15 +5864,20 @@ function takeWork(way, node, chip) {
     begin: true
   };
   if (way.session === "walk") {
-    /* A SYMBOL BOX CARRIES THE ONE THING ITS WALKTHROUGH SHOULD COVER, which
-       is the whole payoff of a diagram whose nodes are the things: tapping
-       `run` opens a walkthrough of `run` and not of the file it lives in.
-       Spelt the way `walk.label` spells it, and re-resolved on the server. */
     body.over = derived
       ? [mapScope(node)]
       : ((node && node.files) || []).map(mapWhose);
   }
   if (way.session === "review") body.over = [node.dir + "/"];
+  workSend(body, node, chip);
+}
+
+/* ONE POST, AND ONE PLACE A REFUSAL LANDS. The board asks for a sitting and the
+   server is the only thing that can say no -- a box that has moved, a scope
+   that resolves to nothing -- so the reason goes where the question was asked:
+   the sheet, opened for this box with the refusal in its sub line. A tap that
+   silently does nothing is the failure this replaces. */
+function workSend(body, node, chip) {
   fetch("/session", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -5805,6 +5886,7 @@ function takeWork(way, node, chip) {
     return r.json().catch(function () { return {}; });
   }).then(function (got) {
     if (got && got.ok === false) {
+      openWork((node && node.id) || "", (chip && chip.label) || "");
       els.workSub.textContent = "That could not be opened: "
         + (got.error || "the board refused it") + ".";
       els.work.hidden = false;
@@ -6168,7 +6250,7 @@ function addrGo(a) {
     if (!box) return addrDead(a, "that box is not on this map any more");
     if (mapDeep) mapOut();
     if (!openMap()) return addrDead(a, "this workspace has no map to open");
-    openWork(box.id, "");
+    takeWork(box, null);
     return addrArrived(a);
   }
 

@@ -98,6 +98,19 @@ var els = {
   notesRead: document.getElementById("notes-read"),
   notesReadSub: document.getElementById("notes-read-sub"),
   notesTitle: document.getElementById("notes-title"),
+  doc: document.getElementById("doc"),
+  docBtn: document.getElementById("atlas-doc"),
+  docTitle: document.getElementById("doc-title"),
+  docLine: document.getElementById("doc-line"),
+  docMakes: document.getElementById("doc-makes"),
+  docWhere: document.getElementById("doc-where"),
+  docScopes: document.getElementById("doc-scopes"),
+  docSaid: document.getElementById("doc-said"),
+  docRead: document.getElementById("doc-read"),
+  docReadSub: document.getElementById("doc-read-sub"),
+  docBack: document.getElementById("doc-back"),
+  docBackSub: document.getElementById("doc-back-sub"),
+  docClose: document.getElementById("doc-close"),
   busy: document.getElementById("busy"),
   busyText: document.getElementById("busy-text"),
   busySub: document.getElementById("busy-sub")
@@ -887,10 +900,12 @@ els.sheetOpen.onclick = function () {
 /* The library of a workspace, from the front door. It is served by whichever
    board is answering at this address, so a workspace that is not the one being
    served has to be switched to first -- which is the same journey Open this
-   makes, ending on a different page. */
-els.sheetLibrary.onclick = function () {
-  var c = sheetFor;
-  closeSheet();
+   makes, ending on a different page.
+
+   ONE ROUTE TO A LIBRARY, for the reason `openWorkspace` is one route into a
+   workspace: the sheet offers this and so does a commissioned document, and two
+   spellings of the same journey is one of them rotting. */
+function openLibrary(c) {
   if (!c) return;
   /* WHERE THIS CAME FROM, carried into the page, so its way back leads here
      rather than into a lesson nobody opened. The library's own default is
@@ -898,6 +913,12 @@ els.sheetLibrary.onclick = function () {
      for every tap made from this sheet. */
   if (c.current) { location.href = "/library?from=home"; return; }
   switchTo(c.repo, "", "/library?from=home");
+}
+
+els.sheetLibrary.onclick = function () {
+  var c = sheetFor;
+  closeSheet();
+  openLibrary(c);
 };
 
 /* THROUGH THE ADDRESS, the same way a workspace is opened. The board is already
@@ -1123,6 +1144,256 @@ if (els.notesSince) {
 }
 
 
+/* --------------------------------------------- a paper or a deck, at the door */
+/* "The ability to write a paper or a slide deck should just be an option on the
+    homescreen, and from there I want to be able to specify which
+    projects/course, and which sections/results."
+
+   A PRODUCT IS NOT AN AIM, and this is where that stops being a slogan. Asking
+   for a document used to mean being in a sitting in the workspace it is about,
+   and the workspace it is about is usually not the one the board is serving --
+   so the ask cost a switch, a sitting and a change to what that sitting was
+   for, to produce something that never touches the lesson.
+
+   THREE QUESTIONS, each replacing the last in one sheet: which product, which
+   workspace, what it is over. They are in that order because each one narrows
+   the next -- only the workspace knows what it has to write up -- and Back
+   walks them in reverse.
+
+   THE ASK IS WRITTEN WHERE THE WORK IS. `POST /writeup` with a `repo` puts it
+   in that workspace's inbox, where its own assistant picks it up; the document
+   lands in ITS library. Nothing appears on this board, and the sheet says so
+   rather than leaving somebody watching for it here. */
+var docProduct = "";      /* "paper" or "slides" */
+var docAt = 1;            /* which of the three questions is on the glass */
+var docWs = null;         /* the workspace it is being asked of */
+var docRepo = "";         /* the bare directory that workspace lives in */
+var docCalled = "";       /* what to call that workspace in a sentence */
+
+function closeDoc() { els.doc.hidden = true; }
+
+function docSay(text, bad) {
+  els.docSaid.hidden = false;
+  els.docSaid.className = "sheet-line" + (bad ? " bad" : "");
+  els.docSaid.textContent = text;
+}
+
+function docButtons(host, off) {
+  Array.prototype.forEach.call(host.querySelectorAll("button"),
+    function (b) { b.disabled = !!off; });
+}
+
+/* WHICH QUESTION IS BEING ASKED, and only ever one of them. The title carries
+   it: a sheet whose heading never changes is three screens wearing one. */
+function docStep(n) {
+  docAt = n;
+  els.docMakes.hidden = n !== 1;
+  els.docWhere.hidden = n !== 2;
+  els.docScopes.hidden = n !== 3;
+  els.docBack.hidden = n === 1;
+  els.docSaid.hidden = true;
+  els.docRead.hidden = true;
+  if (n === 1) {
+    els.docTitle.textContent = "Which one?";
+    els.docLine.textContent = "Written where the work is, by whoever is working "
+      + "there. It lands in that workspace's library.";
+    return;
+  }
+  var word = docProduct === "slides" ? "deck" : "paper";
+  if (n === 2) {
+    els.docTitle.textContent = "Which workspace?";
+    els.docLine.textContent = "The " + word + " is written in the workspace it "
+      + "is about, not here.";
+    els.docBackSub.textContent = "a paper or a deck";
+    return;
+  }
+  els.docTitle.textContent = "What is it over?";
+  els.docLine.textContent = "One " + word + ", about one part of " + docCalled + ".";
+  els.docBackSub.textContent = "a different workspace";
+}
+
+function openDoc() {
+  docProduct = "";
+  docWs = null;
+  docRepo = "";
+  docCalled = "";
+  docButtons(els.docMakes, false);
+  docStep(1);
+  els.doc.hidden = false;
+}
+
+/* WHICH WORKSPACE, OUT OF THE PAYLOAD THIS PAGE ALREADY POLLS. The atlas is in
+   memory by the time anything here is tappable, so there is no request behind
+   this list -- and a second source for it is a second list to go stale.
+
+   A VENDOR TREE IS NOT OFFERED. Trees are a separate list for exactly this
+   reason, and the family is asked as well, because a list that is right only
+   because of how the payload happens to be shaped is right by accident. */
+function paintDocWhere() {
+  var host = els.docWhere;
+  host.innerHTML = "";
+  var drawn = 0;
+  ((atlas && atlas.workspaces) || []).forEach(function (c) {
+    var fam = aFamily(c.family) || {};
+    if (fam.vendor) return;
+    var b = document.createElement("button");
+    b.type = "button";
+    b.setAttribute("data-id", c.id);
+    var name = document.createElement("span");
+    name.textContent = c.course || c.repo || c.id;
+    var sub = document.createElement("span");
+    sub.className = "doc-sub";
+    sub.textContent = (fam.name || c.family || "")
+      + (c.current ? "  ·  where the board is" : "");
+    b.appendChild(name);
+    b.appendChild(sub);
+    b.onclick = function () { docAskScopes(c); };
+    host.appendChild(b);
+    drawn += 1;
+  });
+  if (!drawn) {
+    docSay("nothing is drawn yet to write one about", true);
+  }
+  return drawn;
+}
+
+/* WHAT IT IS OVER, ASKED OF THE WORKSPACE ITSELF. Only it knows what it has --
+   its sections, its results, the evening just taught -- so the keys come from
+   there and the order they arrive in is theirs. The wait says which workspace
+   is being asked, and so does the failure: "it could not be read" beside three
+   workspaces is a sentence about none of them. */
+function docAskScopes(c) {
+  docWs = c;
+  docRepo = c.repo || "";
+  docCalled = c.course || c.repo || c.id;
+  els.docScopes.innerHTML = "";
+  docStep(3);
+  docSay("reading what " + docCalled + " has to write up…");
+  fetch("/writeup/scopes", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "same-origin",
+    body: JSON.stringify({ repo: c.id })
+  }).then(function (r) { return r.json(); }).then(function (got) {
+    got = got || {};
+    if (!got.ok) {
+      docSay(got.error || (docCalled + " could not say what it has to write "
+                           + "up"), true);
+      return;
+    }
+    /* WHAT THE SERVER CALLS IT, from here on. The ask names the workspace the
+       same way the answer did, rather than the page deriving a second spelling
+       out of the atlas. */
+    docRepo = got.repo || docRepo;
+    docCalled = got.name || docCalled;
+    els.docSaid.hidden = true;
+    paintDocScopes(got.scopes || []);
+  }).catch(function (e) {
+    docSay(e.message || (docCalled + " did not answer"), true);
+  });
+}
+
+function paintDocScopes(list) {
+  var host = els.docScopes;
+  host.innerHTML = "";
+  if (!list.length) {
+    docSay(docCalled + " has nothing to be written up yet", true);
+    return;
+  }
+  list.forEach(function (sc) {
+    var b = document.createElement("button");
+    b.type = "button";
+    b.setAttribute("data-scope", sc.key);
+    var name = document.createElement("span");
+    name.textContent = sc.label;
+    b.appendChild(name);
+    if (sc.what) {
+      var sub = document.createElement("span");
+      sub.className = "doc-sub";
+      sub.textContent = sc.what;
+      b.appendChild(sub);
+    }
+    b.onclick = function () { docAsk(sc.key); };
+    host.appendChild(b);
+  });
+}
+
+/* THE ASK ITSELF, and it carries the three answers and nothing else. The scope
+   is a key the workspace handed out a moment ago; the server turns it back into
+   the sentence the document is written to, because the page inventing that
+   sentence is the page deciding what the scope means. */
+function docAsk(scope) {
+  docButtons(els.docScopes, true);
+  docSay("asking " + docCalled + "…");
+  fetch("/writeup", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "same-origin",
+    body: JSON.stringify({ makes: docProduct, repo: docRepo, scope: scope })
+  }).then(function (r) { return r.json(); }).then(function (rec) {
+    rec = rec || {};
+    docButtons(els.docScopes, false);
+    /* A REFUSAL IS PAINTED, NOT SWALLOWED. An assistant already busy in that
+       workspace answers 409 with a sentence about what it is doing, and that is
+       something a person can act on -- come back, or ask somewhere else. */
+    if (!rec.ok) {
+      docSay(rec.error || rec.detail || "it could not be asked for", true);
+      return;
+    }
+    var where = rec.where || docCalled;
+    var word = docProduct === "slides" ? "The deck" : "The paper";
+    docSay(docWs && docWs.current
+      ? word + " is being written in " + where + ". It appears in its library "
+        + "rather than on the board."
+      : word + " is being written in " + where + ". It appears in that "
+        + "workspace's library, not on this board.");
+    els.docRead.hidden = false;
+    els.docReadSub.textContent = docWs && docWs.current
+      ? "everything written up in " + where
+      : "moves the board, then opens its library";
+  }).catch(function (e) {
+    docButtons(els.docScopes, false);
+    docSay(e.message || "the board did not answer", true);
+  });
+}
+
+if (els.docBtn) els.docBtn.onclick = openDoc;
+if (els.docClose) els.docClose.onclick = closeDoc;
+if (els.docRead) {
+  els.docRead.onclick = function () {
+    var c = docWs;
+    closeDoc();
+    openLibrary(c);
+  };
+}
+if (els.docMakes) {
+  els.docMakes.addEventListener("click", function (ev) {
+    var b = ev.target.closest ? ev.target.closest("button[data-makes]") : null;
+    if (!b || b.disabled) return;
+    docProduct = b.getAttribute("data-makes");
+    /* The step first, then the list: `docStep` clears what was said, and an
+       empty atlas has something to say. */
+    docStep(2);
+    paintDocWhere();
+  });
+}
+/* BACK WALKS THEM IN REVERSE, one question at a time, the way the deck's does.
+   A Back that returns to the first question from the third is a Back nobody can
+   predict. */
+if (els.docBack) {
+  els.docBack.onclick = function () {
+    if (docAt === 3) { docStep(2); return; }
+    docProduct = "";
+    docStep(1);
+  };
+}
+if (els.doc) {
+  els.doc.addEventListener("click", function (ev) {
+    if (ev.target === els.doc) closeDoc();
+  });
+}
+
+
 /* ------------------------------------------------------------ the address */
 /* THE FRONT DOOR IS THE ONLY THING THAT CAN MOVE THE ONE ADDRESS between two
    workspaces, so it is where every cross-workspace link lands. A board handed
@@ -1178,12 +1449,13 @@ function addrRoute() {
 
 window.addEventListener("hashchange", addrRoute);
 /* ESCAPE UNWINDS ONE THING AT A TIME, outermost first: the sheet over the
-   level, the deck over the level, then the query, then the family. Closing two
-   surfaces on one key is how somebody ends up two screens from where they
-   were and cannot say which tap did it. */
+   level, the document over the level, the deck, then the query, then the
+   family. Closing two surfaces on one key is how somebody ends up two screens
+   from where they were and cannot say which tap did it. */
 document.addEventListener("keydown", function (ev) {
   if (ev.key !== "Escape") return;
   if (!els.sheet.hidden) closeSheet();
+  else if (els.doc && !els.doc.hidden) closeDoc();
   else if (els.notes && !els.notes.hidden) closeNotes();
   else if (atlasQuery()) clearFind();
   else if (atlasFamily) closeFamily();

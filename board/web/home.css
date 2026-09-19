@@ -556,3 +556,31 @@ main { max-width: 46rem; }
 .notes-which button[data-moved="0"] { opacity: .62; }
 .notes-which .tick { width: 1.1rem; flex: 0 0 auto; }
 .notes-which .what { margin-left: auto; font-size: .76rem; color: var(--ink-3); }
+
+/* ---------- a paper or a deck, asked for at the door ----------
+   The same shape of choice the deck's period buttons are, three times over:
+   one tap per answer, no field to fill in and nothing to confirm. The rows
+   carry a name and, under it, what that answer means -- a family, or what a
+   scope covers -- because a bare key is something to guess at.
+
+   No colour of its own. `--accent` marks the row under the thumb exactly as it
+   marks a ticked project, and a token invented here would have to be declared
+   in both palette blocks or it is invisible in one theme. */
+.doc-picks { display: grid; gap: .5rem; margin-top: 1.1rem; }
+.doc-picks button {
+  font: inherit; font-family: var(--ui); font-size: .92rem;
+  display: flex; flex-direction: column; gap: .18rem;
+  padding: .7rem .9rem; text-align: left; cursor: pointer;
+  color: var(--ink); background: var(--paper);
+  border: 1px solid var(--rule); border-radius: .5rem;
+}
+.doc-picks button:hover:not(:disabled) {
+  border-color: var(--accent); background: var(--paper-2);
+}
+/* The ask is a request to another workspace and takes a moment. The buttons go
+   quiet for the whole of it, because a second tap is a second document. */
+.doc-picks button:disabled { opacity: .45; cursor: default; }
+.doc-picks .doc-sub { font-size: .76rem; color: var(--ink-3); }
+/* A dozen workspaces is longer than the sheet, and the way out of the sheet is
+   under them. */
+.doc-scroll { max-height: 46vh; overflow: auto; }

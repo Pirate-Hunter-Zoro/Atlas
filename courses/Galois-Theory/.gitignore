@@ -1,6 +1,7 @@
-# Kept deliberately minimal: this matches the ignore set used in
-# Research-Journey. Nothing else is ignored — build products, compiled PDFs,
-# editor state and course material are all tracked.
+# Kept deliberately minimal. Atlas's root .gitignore decides most of what this
+# workspace carries — it is the one that refuses the set text, the chapter
+# excerpts cut from it, and anything a command regenerates — and this file adds
+# only the live board's allowlist on top of it.
 
 __pycache__
 node_modules/

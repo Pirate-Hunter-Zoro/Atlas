@@ -43,9 +43,10 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const store = {};
 let storeThrows = false;
 const posts = [];
-// What the sheet asked the plan for, kept apart from the sittings it opens:
-// reading a step is not opening one, and `pick` below wants the sitting.
-const planAsks = [];
+// What the board is told when it asks for a sitting. Empty means yes; set it to
+// a reason and `/session` refuses, which is the one thing that puts the sheet
+// in front of somebody who only tapped a box.
+let refuse = '';
 const insideAsks = [];
 const treeAsks = [];
 // What `map.inside` answers with, keyed by the id that was asked for. `evaluate`
@@ -151,12 +152,6 @@ const trees = {
   },
 };
 
-// The whole of one step, as the server would read it back off the plan. Longer
-// than the 240-character blurb on the chip, which is the entire point of it.
-const WHOLE = 'STEP 2. THE STOPWATCH — AND THE REFERENCE RTTM IT UNBLOCKS.\n'
-            + '  Re-align the corrected words to the waveform.\n'
-            + '  2b. THE LAST LINE IS THE POINT, and nothing above it says so.';
-
 function board(W, H, face) {
   const dom = new JSDOM(fs.readFileSync(path.join(WEB, 'board.html'), 'utf8'), {
     runScripts: 'outside-only', pretendToBeVisual: true,
@@ -226,15 +221,11 @@ function board(W, H, face) {
         json: () => Promise.resolve(answer || { ok: false, error: 'no such tree' }),
       });
     }
-    if (/\/plan\/step$/.test(String(u))) {
-      planAsks.push({ url: String(u), body: JSON.parse(opts.body) });
-      return Promise.resolve({
-        json: () => Promise.resolve({ ok: true, text: WHOLE }),
-      });
-    }
     if (opts && opts.body) {
       posts.push({ url: String(u), body: JSON.parse(opts.body) });
-      return Promise.resolve({ json: () => Promise.resolve({ ok: true }) });
+      const said = refuse && /\/session$/.test(String(u))
+        ? { ok: false, error: refuse } : { ok: true };
+      return Promise.resolve({ json: () => Promise.resolve(said) });
     }
     return new Promise(() => {});
   };
@@ -547,55 +538,151 @@ const at = (doc, id) => {
     w.close();
   }
 
-  // ------------------------------------------------------ the ways to work
+  // ------------------------------------------------- what a tap on a box does
+  //
+  // IT OPENS THE SITTING. The style a sitting is run in -- teaching, building,
+  // coaching -- is set in the `for:` row and changed there at any moment, so a
+  // panel asking for it at the moment of opening was asking a question whose
+  // answer was already given: *"these are tutoring styles that I don't want to
+  // be selecting when I open up a lesson."* What is left for a box is one
+  // sitting, and the tap is it.
   {
     const w = board();
     const doc = w.document;
     w.__render(payload());
     await sleep(15);
 
+    posts.length = 0;
     doc.querySelector('#map-sheet .node[data-id="evaluate"]')
       .dispatchEvent(new w.Event('click', { bubbles: true }));
-    await sleep(5);
-    const sheet = doc.getElementById('work');
-    !sheet.hidden ? ok('tapping a box asks what you want to do about it')
-                  : fail('a tap on a box opened nothing');
-    doc.getElementById('work-title').textContent === 'evaluate'
-      ? ok('and the sheet is about the box that was tapped')
-      : fail('the sheet named ' + doc.getElementById('work-title').textContent);
+    await sleep(10);
+    const sat = posts.filter((x) => /\/session$/.test(x.url))[0];
+    sat && sat.body.session === 'lecture' && sat.body.node === 'evaluate'
+      ? ok('a tap on a box opens the sitting for that box')
+      : fail('a tap posted ' + JSON.stringify(sat && sat.body));
+    sat && !('aim' in sat.body) && !('makes' in sat.body)
+      ? ok('and names neither a style nor a product, because a tap chooses neither')
+      : fail('the tap carried one of them: ' + JSON.stringify(sat && sat.body));
+    // AND SENDS NO STANCE. Who writes the code is the workspace's answer --
+    // `config.AIM_STANCE` -- and a browser sending one is the browser deciding,
+    // on its own authority, something the repository and its family have said.
+    sat && sat.body.stance === undefined
+      ? ok('and sends no stance beside it')
+      : fail('the browser sent a stance of its own: ' + JSON.stringify(sat.body));
+    // THE TAP IS THE INSTRUCTION. Landing on the lesson behind the map and
+    // having to find a second button saying "ask the tutor to begin" is the
+    // ceremony this replaces, and it was found as a question rather than as a
+    // complaint: "do I ask the tutor to begin?"
+    sat && sat.body.begin === true
+      ? ok('and asks the tutor to start, without a second tap')
+      : fail('the sitting opens but nothing starts it');
+    doc.getElementById('work').hidden
+      ? ok('and no sheet is put in the way of it')
+      : fail('the tap still asks a question first');
+    doc.getElementById('map').hidden
+      ? ok('and the map is left for the lesson the tap opened')
+      : fail('the map stayed up over the sitting it opened');
 
-    const ways = [];
-    doc.querySelectorAll('#work-list .work-way').forEach((b) =>
-      ways.push(b.querySelector('strong').textContent));
-    const wanted = ['Teach me how this works', 'Write the code for me',
-                    'Tell me what to write, I\'ll code it', 'Walk me through the code',
-                    'Set me problems on it', 'Write it up as a paper',
-                    'Build me a deck about it'];
-    wanted.every((x) => ways.indexOf(x) >= 0)
-      ? ok('every way of working on it is offered: ' + ways.length)
-      : fail('missing a way to work: ' + JSON.stringify(ways));
-    ways.indexOf('Show me the document') < 0
-      ? ok('and nothing is offered that this box cannot support')
-      : fail('offered to show a document for a box that has none');
+    // A CHIP IS A SITTING TOO, carrying the step as well as the box, so the
+    // tutor is told which piece of work it is and not merely which part.
+    w.__openMap('tapped');
+    await sleep(15);
+    posts.length = 0;
+    doc.querySelector('#map-sheet .chip[data-step="2. THE STOPWATCH"]')
+      .dispatchEvent(new w.Event('click', { bubbles: true }));
+    await sleep(10);
+    let p = posts.filter((x) => /\/session$/.test(x.url))[0];
+    p && p.body.step === '2. THE STOPWATCH' && p.body.node === 'evaluate'
+      && p.body.session === 'lecture' && !('aim' in p.body)
+      ? ok('tapping a numbered step opens a sitting on that step of that box')
+      : fail('the chip posted ' + JSON.stringify(p && p.body));
 
-    // Only what it can support: a box with no files has no walkthrough, and the
-    // document box has a document.
+    // A step in the tray has no box, and still opens.
+    w.__openMap('tapped');
+    await sleep(15);
+    posts.length = 0;
+    doc.querySelector('#map-loose .loose-chip')
+      .dispatchEvent(new w.Event('click', { bubbles: true }));
+    await sleep(10);
+    p = posts.filter((x) => /\/session$/.test(x.url))[0];
+    p && p.body.step === '9. BUY A BIGGER DESK' && !p.body.node
+      ? ok('a step nothing could place still opens a sitting of its own')
+      : fail('the loose chip posted ' + JSON.stringify(p && p.body));
+
+    // A DOCUMENT IS READ. There is no sitting to open about a box that is a
+    // write-up and nothing else, so the tap is the reading.
+    w.__openMap('tapped');
+    await sleep(15);
+    posts.length = 0;
     doc.querySelector('#map-sheet .node[data-id="doc-deck"]')
       .dispatchEvent(new w.Event('click', { bubbles: true }));
-    await sleep(5);
-    const docWays = [];
-    doc.querySelectorAll('#work-list .work-way').forEach((b) =>
-      docWays.push(b.querySelector('strong').textContent));
-    docWays.indexOf('Show me the document') >= 0
-      && docWays.indexOf('Walk me through the code') < 0
-      ? ok('a document offers to be shown, and not to be traced as code')
-      : fail('the document sheet offered: ' + JSON.stringify(docWays));
+    await sleep(10);
+    !posts.filter((x) => /\/session$/.test(x.url)).length
+      ? ok('a tap on a document opens no sitting at all')
+      : fail('a document box asked for a sitting: '
+             + JSON.stringify(posts.map((x) => x.url)));
+    !doc.getElementById('paper').hidden && doc.getElementById('work').hidden
+      ? ok('and puts the document on the glass instead')
+      : fail('the document was not opened');
 
-    // Each option posts the sitting it says it does. The box's id and the
-    // step's label go over the wire; the server looks both up.
-    const pick = async (id, step, label) => {
+    w.close();
+  }
+
+  // ------------------------------------------------------- the other ways
+  //
+  // What the sheet holds is the ways that are CHOSEN OVER SOMETHING: a
+  // walkthrough over files, a drill over a part, a document to be shown. A
+  // style is never in it -- that row is elsewhere and changes in place -- and
+  // neither is a paper or a deck, which are commissioned from the front door.
+  {
+    const w = board();
+    const doc = w.document;
+    w.__render(payload());
+    await sleep(15);
+
+    const ways = Array.from(doc.querySelectorAll('#map-sheet .ways'))
+      .map((g) => g.getAttribute('data-ways'));
+    ways.includes('evaluate') && ways.includes('artifacts')
+      ? ok('a box with more than one way to work on it carries a control for them')
+      : fail('nothing on the picture opens the other ways: ' + JSON.stringify(ways));
+    !ways.includes('doc-deck')
+      ? ok('and a document does not, because its tap is its one way')
+      : fail('a document was given a sheet it has nothing to put in');
+    {
+      const box = at(doc, 'evaluate');
+      const g = doc.querySelector('#map-sheet .ways[data-ways="evaluate"] circle');
+      const cx = +g.getAttribute('cx'), cy = +g.getAttribute('cy');
+      const dig = doc.querySelector('#map-sheet .dig[data-dig="evaluate"] circle');
+      cx > box.x + box.w / 2 && cy > box.y + box.h / 2
+        && +dig.getAttribute('cy') < cy
+        ? ok('drawn at the bottom right, opposite the one that goes down a level')
+        : fail('the two controls are not at opposite corners');
+    }
+
+    doc.querySelector('#map-sheet .ways[data-ways="evaluate"]')
+      .dispatchEvent(new w.Event('click', { bubbles: true }));
+    await sleep(5);
+    !doc.getElementById('work').hidden
+      ? ok('tapping it asks what else you want to do about that box')
+      : fail('the control opened nothing');
+    doc.getElementById('work-title').textContent === 'evaluate'
+      ? ok('and the sheet is about the box it was tapped on')
+      : fail('the sheet named ' + doc.getElementById('work-title').textContent);
+    const offered = Array.from(
+      doc.querySelectorAll('#work-list .work-way strong')).map((n) => n.textContent);
+    offered.join('|') === 'Walk me through the code|Set me problems on it'
+      ? ok('offering only the ways held over a scope, and only the ones this box has')
+      : fail('the sheet offered ' + JSON.stringify(offered));
+    !offered.some((x) => /Teach me|Write the code|Tell me what to write/.test(x))
+      ? ok('and never a style, which is changed in the lesson rather than chosen here')
+      : fail('a style is still being chosen at the moment of opening');
+    !offered.some((x) => /paper|deck/i.test(x))
+      ? ok('and never a paper or a deck, which are asked for from the front door')
+      : fail('a product is still offered as a way of working');
+
+    const pick = async (id, label) => {
       posts.length = 0;
-      w.__openWork(id, step || '');
+      w.__openWork(id, '');
       await sleep(5);
       let hit = null;
       doc.querySelectorAll('#work-list .work-way').forEach((b) => {
@@ -604,104 +691,66 @@ const at = (doc, id) => {
       if (!hit) return null;
       hit.dispatchEvent(new w.Event('click', { bubbles: true }));
       await sleep(10);
-      return posts[0] || null;
+      return posts.filter((x) => /\/session$/.test(x.url))[0] || null;
     };
 
-    let p = await pick('evaluate', '', 'Write the code for me');
-    p && p.body.session === 'lecture'
-      && p.body.aim === 'build' && p.body.node === 'evaluate'
-      ? ok('“write the code for me” opens a lecture the tutor writes in')
-      : fail('wrong body: ' + JSON.stringify(p && p.body));
-    // AND SENDS NO STANCE. `build` with a stance of `teach` is a contradiction,
-    // so the aim already answers who writes the code -- `config.AIM_STANCE` --
-    // and a browser sending both is the browser deciding it, on its own
-    // authority, over what the repository and its family have already said.
-    p && p.body.stance === undefined
-      ? ok('and does not send a stance beside it; the aim answers that')
-      : fail('the browser sent a stance of its own: ' + JSON.stringify(p && p.body));
-    // THE TAP IS THE INSTRUCTION. Landing on the lesson behind the map and
-    // having to find a second button saying "ask the tutor to begin" is the
-    // ceremony this replaces, and it was found as a question rather than as a
-    // complaint: "do I ask the tutor to begin?"
-    p && p.body.begin === true
-      ? ok('and asks the tutor to start, without a second tap')
-      : fail('the sitting opens but nothing starts it');
-
-    p = await pick('evaluate', '', 'Tell me what to write, I\'ll code it');
-    p && p.body.aim === 'coach' && p.body.session === 'lecture'
-      && p.body.stance === undefined
-      ? ok('“tell me what to write” is the same sitting with a different job')
-      : fail('wrong body: ' + JSON.stringify(p && p.body));
-
-    p = await pick('evaluate', '', 'Walk me through the code');
-    p && p.body.session === 'walk'
+    let p = await pick('evaluate', 'Walk me through the code');
+    p && p.body.session === 'walk' && p.body.aim === 'trace'
       && p.body.over.join(',') === 'psych_asr/evaluate/grade.py,psych_asr/evaluate/score.py'
       ? ok('“walk me through it” opens a walkthrough over that box\'s own files')
       : fail('wrong body: ' + JSON.stringify(p && p.body));
-
-    p = await pick('evaluate', '', 'Set me problems on it');
+    p = await pick('evaluate', 'Set me problems on it');
     p && p.body.session === 'review' && p.body.aim === 'drill'
+      && p.body.over.join(',') === 'psych_asr/evaluate/'
       ? ok('“set me problems” opens a review scoped to that part')
       : fail('wrong body: ' + JSON.stringify(p && p.body));
+    p = await pick('doc-deck', 'Show me the document');
+    p === null && !doc.getElementById('paper').hidden
+      ? ok('and a document box, asked from the sheet, is read rather than posted')
+      : fail('showing a document asked the server for a sitting');
 
-    p = await pick('evaluate', '', 'Write it up as a paper');
-    p && p.body.session === 'make' && p.body.makes === 'paper'
-      ? ok('“write it up” opens a sitting whose product is a document')
-      : fail('wrong body: ' + JSON.stringify(p && p.body));
-
-    p = await pick('evaluate', '', 'Build me a deck about it');
-    p && p.body.session === 'make' && p.body.makes === 'slides'
-      ? ok('and “build me a deck” asks for slides instead')
-      : fail('wrong body: ' + JSON.stringify(p && p.body));
-
-    // A CHIP IS A SITTING. Tapping one carries the step as well as the box, so
-    // the tutor is told which piece of work it is, not merely which part.
-    posts.length = 0;
-    doc.querySelector('#map-sheet .chip[data-step="2. THE STOPWATCH"]')
+    // WHAT THIS BOX IS WAITING ON is the other thing the sheet says, and it is
+    // the reason a box with no way left can still carry the control.
+    w.__render(payload({ map: (() => {
+      const m = makeMap();
+      m.nodes.forEach((n) => { if (n.id === 'cli') n.blockedBy = ['evaluate']; });
+      return m;
+    })() }));
+    await sleep(15);
+    doc.querySelector('#map-sheet .ways[data-ways="cli"]')
       .dispatchEvent(new w.Event('click', { bubbles: true }));
     await sleep(5);
-    const title = doc.getElementById('work-title').textContent;
-    title === 'THE STOPWATCH'
-      ? ok('tapping a numbered step asks the same question about that step')
-      : fail('the chip sheet is headed ' + JSON.stringify(title));
+    /waiting on evaluate/.test(doc.querySelector('#work .work-blocked').textContent)
+      ? ok('and says what the box is waiting on, by the name anybody calls it')
+      : fail('the sheet does not say what is blocking the box');
 
-    // AND THE QUESTION IS ASKED ABOUT THE WHOLE STEP. The chip carries 240
-    // characters, which is the length that tells two chips apart on the map;
-    // choosing how to work on a step against three sentences and an ellipsis
-    // is choosing against the wrong thing. Reported as "the text just bleeds
-    // over and is unreadable ... I need to be able to see the full text".
-    await sleep(10);
-    const said = doc.getElementById('work-text');
-    !said.hidden && said.textContent.indexOf('THE LAST LINE IS THE POINT') >= 0
-      ? ok('and shows the whole of what the plan says about it')
-      : fail('the sheet showed ' + JSON.stringify(said.textContent.slice(0, 60)));
-    const asked = planAsks[planAsks.length - 1];
-    asked && asked.body.step === '2. THE STOPWATCH'
-      ? ok('asked for by the step\'s own label, which the server looks up')
-      : fail('asked for as ' + JSON.stringify(asked && asked.body));
-    // A BOX IS NOT A STEP. There is no plan text to show for one, and a panel
-    // left holding the last step somebody tapped is a panel telling them the
-    // wrong thing about the box they are looking at now.
-    w.__openWork('evaluate', '');
-    await sleep(10);
-    doc.getElementById('work-text').hidden
-      ? ok('and a box, which is not a step, is asked about on its own terms')
-      : fail('the box sheet kept a step\'s text');
-    p = await pick('evaluate', '2. THE STOPWATCH', 'Teach me how this works');
-    p && p.body.step === '2. THE STOPWATCH' && p.body.node === 'evaluate'
-      ? ok('and opens a sitting carrying both the step and the part it is on')
-      : fail('wrong body: ' + JSON.stringify(p && p.body));
+    w.close();
+  }
 
-    // A step in the tray has no box, and still opens.
-    posts.length = 0;
-    doc.querySelector('#map-loose .loose-chip')
+  // ------------------------------------------------------- a refused tap
+  //
+  // The server is the only thing that can say no -- a box that has moved, a
+  // scope that resolves to nothing -- and a tap that silently does nothing is
+  // the worst answer available. The reason goes where the question was asked.
+  {
+    delete store['board.where.PSYCH-ASR'];
+    const w = board();
+    const doc = w.document;
+    w.__render(payload());
+    await sleep(15);
+    refuse = 'no such part of the map';
+    doc.querySelector('#map-sheet .node[data-id="evaluate"]')
       .dispatchEvent(new w.Event('click', { bubbles: true }));
-    await sleep(5);
-    p = await pick('', '9. BUY A BIGGER DESK', 'Teach me how this works');
-    p && p.body.step === '9. BUY A BIGGER DESK' && !p.body.node
-      ? ok('a step nothing could place still opens a sitting of its own')
-      : fail('wrong body: ' + JSON.stringify(p && p.body));
-
+    await sleep(10);
+    !doc.getElementById('work').hidden
+    && /no such part of the map/.test(doc.getElementById('work-sub').textContent)
+      ? ok('a tap the board refuses says why, on the box it was refused about')
+      : fail('a refusal left the tap looking broken: '
+             + doc.getElementById('work-sub').textContent);
+    !doc.getElementById('map').hidden
+      ? ok('and the map is still there, with the ways left to try on it')
+      : fail('a refusal took the picture away');
+    refuse = '';
     w.close();
   }
 
@@ -764,7 +813,11 @@ const at = (doc, id) => {
     touch('pointerdown', 1, 400, 300);
     touch('pointermove', 1, 330, 250);           /* they panned somewhere */
     touch('pointerup', 1, 330, 250);
-    doc.querySelector('#map-sheet .node[data-id="artifacts"]')
+    /* The control rather than the box: a tap on the box opens its sitting and
+       leaves the map, which is a person going somewhere else. Opening a box's
+       other ways is a person still reading the picture, and that is the state
+       this remembers. */
+    doc.querySelector('#map-sheet .ways[data-ways="artifacts"]')
       .dispatchEvent(new w.Event('click', { bubbles: true }));
     await sleep(450);                            /* the plane is remembered once it settles */
     w.close();
@@ -1001,16 +1054,18 @@ const at = (doc, id) => {
       ? ok('and a document does not, because there is nothing under a document')
       : fail('a document was offered an inside it does not have');
 
-    // The box's own tap still means "work on this". One target cannot mean
-    // both, which is why the inside has a control of its own.
+    // The box's own tap means "work in this", and the inside has a control of
+    // its own because one target cannot mean both.
+    posts.length = 0;
     const box = doc.querySelector('#map-sheet .node[data-id="evaluate"]');
     box.dispatchEvent(new w.Event('click'));
-    await sleep(5);
-    !doc.getElementById('work').hidden && !insideAsks.length
-      ? ok('and the box itself still opens the sheet that asks how to work on it')
+    await sleep(10);
+    posts.filter((x) => /\/session$/.test(x.url)).length && !insideAsks.length
+      ? ok('and the box itself still opens the sitting, not the level below it')
       : fail('tapping the box went somewhere new; the two taps are one target '
              + 'again');
-    doc.getElementById('work-close').onclick();
+    w.__openMap('tapped');
+    await sleep(15);
 
     doc.querySelector('#map-sheet .dig[data-dig="evaluate"]')
        .dispatchEvent(new w.Event('click'));
@@ -1077,22 +1132,21 @@ const at = (doc, id) => {
       : fail('a function was offered an inside');
 
     // A SYMBOL OPENS A WALKTHROUGH OVER THAT SYMBOL, which is the whole payoff
-    // of a diagram whose nodes are the things. `map.find` has no box by this
-    // id, so the id must NOT be sent -- the scope is what says what this is
-    // about, and it is spelt the way `walk.label` spells it.
+    // of a diagram whose nodes are the things -- and it opens it on the tap,
+    // because a walkthrough is the one thing a definition supports and a sheet
+    // offering one option is a question with one answer. `map.find` has no box
+    // by this id, so the id must NOT be sent: the scope is what says what this
+    // is about, and it is spelt the way `walk.label` spells it.
     posts.length = 0;
     doc.querySelector('#map-sheet .node[data-id="at-grade-grade"]')
        .dispatchEvent(new w.Event('click'));
-    await sleep(5);
-    const ways = Array.from(doc.querySelectorAll('#work-list .work-way strong'))
-      .map((n) => n.textContent);
-    ways.join('|') === 'Walk me through the code'
-      ? ok('and the one way to work on a definition is to be walked through it')
-      : fail('a function was offered ' + JSON.stringify(ways));
-    doc.querySelector('#work-list .work-way').dispatchEvent(new w.Event('click'));
     await sleep(10);
+    doc.getElementById('work').hidden && !doc.querySelector('#map-sheet .ways')
+      ? ok('and a definition is never asked how: the tap is its one way')
+      : fail('a function was offered a sheet');
     const sent = posts.filter((p) => /\/session$/.test(p.url))[0];
-    sent && sent.body.node === null
+    sent && sent.body.session === 'walk' && sent.body.node === null
+         && !('aim' in sent.body)
          && JSON.stringify(sent.body.over)
             === JSON.stringify(['psych_asr/evaluate/grade.py::grade'])
       ? ok('over exactly that function, and with no box id, because the server '
@@ -1227,17 +1281,15 @@ const at = (doc, id) => {
     posts.length = 0;
     doc.querySelector('#map-sheet .node[data-id="bin"]')
        .dispatchEvent(new w.Event('click'));
-    await sleep(5);
-    const foreignWays = Array.from(
-      doc.querySelectorAll('#work-list .work-way strong')).map((n) => n.textContent);
-    foreignWays.join('|') === 'Walk me through the code'
-      ? ok('and the one thing offered on it is a trace: nothing is handed in '
-           + 'to somebody else\'s repository, so there is nothing else honest')
-      : fail('a vendor box was offered ' + JSON.stringify(foreignWays));
-    doc.querySelector('#work-list .work-way').dispatchEvent(new w.Event('click'));
     await sleep(10);
+    doc.getElementById('work').hidden && !doc.querySelector('#map-sheet .ways')
+      ? ok('and the one thing a tap on it can mean is a trace: nothing is '
+           + 'handed in to somebody else\'s repository, so there is nothing '
+           + 'else honest to ask')
+      : fail('a vendor box was offered a sheet');
     const traced = posts.filter((p) => /\/session$/.test(p.url))[0];
-    traced && traced.body.node === null
+    traced && traced.body.session === 'walk' && traced.body.node === null
+           && !('aim' in traced.body)
            && JSON.stringify(traced.body.over)
               === JSON.stringify(['@vendor/colibri/bin/coli-up'])
       ? ok('over the tree and the file together, and with no box id, because '

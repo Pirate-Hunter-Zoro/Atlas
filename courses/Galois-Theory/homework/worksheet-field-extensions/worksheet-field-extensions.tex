@@ -5,6 +5,14 @@
 %    The assistant transcribes each question or topic faithfully and emits an
 %    empty, marked solution region beneath it. The student does the
 %    mathematics; the assistant typesets what they agreed was right.
+%
+%  ONE `problem` ENVIRONMENT PER LETTERED PART, each with its own matched
+%  SOLUTION / END SOLUTION pair. `board hw status` reads those markers to say
+%  what is written up and what is next, and it pairs them by label: a part
+%  folded into its parent's statement is a part the board cannot see, and an
+%  unmatched opener swallows every region below it. A sheet that states 3 and 6
+%  as single problems reported this one as "3, 6 still to write up" with all of
+%  6 already typeset underneath.
 % ===========================================================================
 \documentclass[11pt]{article}
 \usepackage{coursemacros}
@@ -16,19 +24,12 @@
 \begin{document}
 \maketitle
 
-% One problem/solution pair per thing worked, in the order it was assigned or
-% chosen. A region stays empty until the answer in it is agreed correct.
+% One problem/solution pair per thing worked, in the sheet's own order. A
+% region stays empty until the answer in it is agreed correct.
 
-\begin{problem}{3}
-  \emph{Degrees.} Let $K/F$ be a finite extension of degree $n$.
-
-  \begin{enumerate}
-    \item[(a)] Show that for any $\alpha \in K$, the degree of $m_{\alpha,F}$
-      divides $n$.
-    \item[(b)] Show that if $n$ is prime, there are no fields strictly between
-      $F$ and $K$.
-    \item[(c)] Show that $\sqrt{2} \notin \mathbb{Q}(\sqrt[3]{2})$.
-  \end{enumerate}
+\begin{problem}{3(a)}
+  \emph{Degrees.} Let $K/F$ be a finite extension of degree $n$. Show that for
+  any $\alpha \in K$, the degree of $m_{\alpha,F}$ divides $n$.
 \end{problem}
 
 % ===== SOLUTION 3(a) =====
@@ -42,7 +43,7 @@
 % The page also uses m_{alpha,F} without saying why it exists, so the existence
 % line from the finiteness of [K:F] is stated first.
 \begin{solution}
-  \textbf{(a)} Let $[K:F] = n$ and let $\alpha \in K$.
+  Let $[K:F] = n$ and let $\alpha \in K$.
 
   Since $\degree{K}{F} = n$ is finite, the $n+1$ elements
   $1, \alpha, \dots, \alpha^{n}$ cannot be linearly independent over $F$, so
@@ -69,16 +70,63 @@
   used $\sqrt[4]{2}$ or the number $4$, which is why $F(\alpha)$ in place of
   $M$ runs in general.
 \end{solution}
+% ===== END SOLUTION 3(a) =====
 
-\begin{problem}{6}
+\begin{problem}{3(b)}
+  Let $K/F$ be a finite extension of degree $n$. Show that if $n$ is prime,
+  there are no fields strictly between $F$ and $K$.
+\end{problem}
+
+% ===== SOLUTION 3(b) =====
+% Not re-posed, and not owed: this part is Garling's exercise 4.6, which the
+% student proved on 2026-09-15. The region carries the pointer rather than a
+% copy, so the argument has one home and cannot drift between two.
+\begin{solution}
+  This is Garling's exercise 4.6. It was proved on 2026-09-15 and is written up
+  under Problem 04.6 in
+  \texttt{chapters/ch04-field-extensions/homework/ch04-homework.tex}.
+\end{solution}
+% ===== END SOLUTION 3(b) =====
+
+\begin{problem}{3(c)}
+  Show that $\sqrt{2} \notin \mathbb{Q}(\sqrt[3]{2})$.
+\end{problem}
+
+% ===== SOLUTION 3(c) =====
+% Transcribed from the student's slate, 2026-09-19 (page t0054-r54, card 0064).
+% Same three steps in the same order: the degree of the minimal polynomial of
+% sqrt(2), the degree of the extension, then 3(a) and 2 does not divide 3.
+% Two reason-corrections, made here rather than left to the student:
+%   - the page writes the minimal polynomial over the TOP field,
+%     m_{alpha, Q(cbrt 2)}. 3(a) takes it over the bottom field, so the
+%     write-up says m_{alpha, Q}. Over the top field every degree is 1 and the
+%     divisibility is vacuous.
+%   - the page gives deg m_{sqrt2,Q} = 2 from "the polynomial is x^2-2". Monic
+%     with sqrt(2) as a root only bounds the degree above by 2; degree 1 is
+%     ruled out by the irrationality of sqrt(2). That was agreed on card 0063
+%     and is stated here.
+\begin{solution}
+  First, $\deg m_{\sqrt{2},\mathbb{Q}} = 2$. The polynomial is $x^{2} - 2$: it
+  is monic, has $\sqrt{2}$ as a root and lies in $\mathbb{Q}[x]$, so
+  $\deg m_{\sqrt{2},\mathbb{Q}} \leq 2$. Degree $1$ would make $\sqrt{2}$ a root
+  of some $x - c$ with $c \in \mathbb{Q}$, that is $\sqrt{2} \in \mathbb{Q}$,
+  and $\sqrt{2}$ is irrational. So the degree is exactly $2$.
+
+  Further, $\degree{\mathbb{Q}(\sqrt[3]{2})}{\mathbb{Q}} = 3$, since
+  $x^{3} - 2$ is irreducible over $\mathbb{Q}$.
+
+  So by 3(a), applied to $K = \mathbb{Q}(\sqrt[3]{2})$ and $F = \mathbb{Q}$ with
+  $n = 3$: for every $\alpha \in \mathbb{Q}(\sqrt[3]{2})$,
+  $\deg m_{\alpha,\mathbb{Q}}$ divides $3$.
+
+  So $\sqrt{2}$ cannot be in $\mathbb{Q}(\sqrt[3]{2})$, because
+  $2 \nmid 3$.
+\end{solution}
+% ===== END SOLUTION 3(c) =====
+
+\begin{problem}{6(a)}
   Let $K = \mathbb{Q}(\sqrt{2},\sqrt{3})$ and $\gamma = \sqrt{2} + \sqrt{3}$.
-
-  \begin{enumerate}
-    \item[(a)] Show that $\degree{K}{\mathbb{Q}} = 4$.
-    \item[(b)] Show that $K = \mathbb{Q}(\gamma)$, and compute
-      $m_{\gamma,\mathbb{Q}}$.
-    \item[(c)] Find three proper intermediate fields.
-  \end{enumerate}
+  Show that $\degree{K}{\mathbb{Q}} = 4$.
 \end{problem}
 
 % ===== SOLUTION 6(a) =====
@@ -92,7 +140,7 @@
 %   - the page flags each branch with "since b in Q" / "since a in Q"; the
 %     contradictions are the irrationality of sqrt(6) and of sqrt(3).
 \begin{solution}
-  \textbf{(a)} First, $\sqrt{3} \notin \mathbb{Q}(\sqrt{2})$.
+  First, $\sqrt{3} \notin \mathbb{Q}(\sqrt{2})$.
 
   Suppose $\sqrt{3} = a + b\sqrt{2}$ with $a, b \in \mathbb{Q}$. Squaring,
   \[
@@ -131,6 +179,12 @@
       = 2 \cdot 2 = 4 .
   \]
 \end{solution}
+% ===== END SOLUTION 6(a) =====
+
+\begin{problem}{6(b)}
+  With $K$ and $\gamma$ as above, show that $K = \mathbb{Q}(\gamma)$, and
+  compute $m_{\gamma,\mathbb{Q}}$.
+\end{problem}
 
 % ===== SOLUTION 6(b) =====
 % Transcribed from the student's slate, 2026-09-18 (pages t0054-r43, t0054-r44,
@@ -142,7 +196,7 @@
 % reason is the degree count the student then gave on r46, and that is what the
 % write-up says.
 \begin{solution}
-  \textbf{(b)} $(\sqrt{2}+\sqrt{3})(\sqrt{3}-\sqrt{2}) = 3 - 2 = 1$, so
+  $(\sqrt{2}+\sqrt{3})(\sqrt{3}-\sqrt{2}) = 3 - 2 = 1$, so
   $\sqrt{3}-\sqrt{2} = \gamma^{-1}$, and hence
   $\sqrt{3}-\sqrt{2} \in \mathbb{Q}(\gamma)$.
 
@@ -171,13 +225,18 @@
   monic polynomial which is $m_{\gamma,\mathbb{Q}}$: any lower degree cannot have
   $\gamma$ as a root.
 \end{solution}
+% ===== END SOLUTION 6(b) =====
+
+\begin{problem}{6(c)}
+  With $K$ and $\gamma$ as above, find three proper intermediate fields.
+\end{problem}
 
 % ===== SOLUTION 6(c) =====
 % Transcribed from the student's slate, 2026-09-18 (page t0054-r47, card 0055).
 % Typeset exactly as written: the three fields and, beside each, the elements of
 % K it omits. Nothing added beyond naming what the page marks with arrows.
 \begin{solution}
-  \textbf{(c)} $\degree{\mathbb{Q}(\gamma)}{\mathbb{Q}} = 4$, since
+  $\degree{\mathbb{Q}(\gamma)}{\mathbb{Q}} = 4$, since
   $\mathbb{Q}(\gamma) = \mathbb{Q}(\sqrt{2},\sqrt{3})$.
 
   Intermediate fields of $\mathbb{Q}(\sqrt{2},\sqrt{3}) : \mathbb{Q}$:
@@ -195,5 +254,6 @@
   named beside it. Those omissions also make the three fields distinct from one
   another.
 \end{solution}
+% ===== END SOLUTION 6(c) =====
 
 \end{document}

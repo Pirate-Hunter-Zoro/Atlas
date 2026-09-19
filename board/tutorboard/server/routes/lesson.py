@@ -431,33 +431,6 @@ def post(h, repo, path):
         h.server.hub.worker.dirty.set()
         return h.send_json({"ok": True})
 
-    if path == "/plan/step":
-        # WHAT THE PLAN ACTUALLY SAYS ABOUT ONE STEP. The sheet that opens on a
-        # tap carried the 240-character blurb, which is the length that tells two
-        # chips apart and not the length that says what the work is -- so the
-        # question "what do you want to do about this" was being asked about
-        # three sentences and an ellipsis.
-        #
-        # Fetched on the tap rather than carried in the payload: the payload is
-        # polled four times a second and twelve whole steps of a plan is tens of
-        # kilobytes of it, for a panel that is open for as long as it takes to
-        # choose. A POST because a label is a sentence with an em-dash and a
-        # middle dot in it, and the route modules are handed a path with its
-        # query already cut off.
-        #
-        # The label is looked up in what the plan says, exactly as `/session`
-        # looks it up, and a miss is a miss -- nothing here builds a path out of
-        # a name that came from a browser.
-        try:
-            payload = json.loads(h.read_body().decode("utf-8") or "{}")
-        except Exception:
-            return h.send_json({"ok": False, "error": "bad json"}, status=400)
-        got = plan.whole(repo.root, str(payload.get("step") or "").strip())
-        if not got:
-            return h.send_json({"ok": False, "error": "no such step"}, status=404)
-        got["ok"] = True
-        return h.send_json(got)
-
     if path == "/session":
         # Which kind of sitting this is, chosen from the board. It was a
         # terminal-only decision, which meant a student who wanted help with

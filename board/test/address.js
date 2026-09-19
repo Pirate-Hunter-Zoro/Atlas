@@ -274,9 +274,15 @@ const TREE = {
 
 const json = (v) => Promise.resolve({ json: () => Promise.resolve(v), ok: true });
 let asked = [];
-window.fetch = (u) => {
+// What the board asked FOR, as well as where: a tap on a box opens a sitting,
+// and which sitting is in the body rather than in the path.
+const posted = [];
+window.fetch = (u, opts) => {
   const url = String(u);
   asked.push(url);
+  if (opts && opts.body) {
+    try { posted.push({ url: url, body: JSON.parse(opts.body) }); } catch (e) {}
+  }
   if (/slate\/state/.test(url)) return json({ pages: [] });
   if (url.indexOf('/health') === 0) return json(HEALTH);
   if (url === '/archive') return json({ sessions: [{ id: SITTING, cards: 1, turns: 0 }] });
@@ -365,11 +371,17 @@ const said = () => (el('pushed').hidden ? '' : el('pushed-text').textContent);
   if (!el('map').hidden) ok('the workspace address opens the map');
   else fail('the workspace address did not open the map');
 
+  // A NODE ADDRESS OPENS THAT BOX'S SITTING, which is what an address to a box
+  // is for: the map is drawn, the box is marked as where you are, and the
+  // sitting is asked for in one go. No sheet asks which one first.
+  posted.length = 0;
   at(W + '/node/typist');
-  if (!el('map').hidden && !el('work').hidden
-      && /typist/.test(el('work-title').textContent)) {
-    ok('a node address selects that box and opens its sheet');
-  } else fail('a node address did not open the box: ' + el('work-title').textContent);
+  await tick();
+  const went = posted.filter((p) => p.url === '/session').pop();
+  if (went && went.body.node === 'typist' && went.body.begin === true
+      && el('work').hidden) {
+    ok('a node address opens that box\'s sitting');
+  } else fail('a node address did not open the box: ' + JSON.stringify(went));
 
   if (at(W + '/node/nowhere') === 'gone' && /not on this map/.test(said())) {
     ok('a node that is not on the map is a miss, said plainly');
@@ -385,12 +397,14 @@ const said = () => (el('pushed').hidden ? '' : el('pushed-text').textContent);
   if (hand && !hand.classList.contains('dead') && !hand.classList.contains('bad')) {
     ok('a hand-off to another box reads as a live link where it is written');
   } else fail('the hand-off link was not marked live');
+  posted.length = 0;
   at(W + '/node/grader');
-  if (!el('map').hidden && !el('work').hidden
-      && /grader/.test(el('work-title').textContent)) {
+  await tick();
+  const handed = posted.filter((p) => p.url === '/session').pop();
+  if (handed && handed.body.node === 'grader' && handed.body.begin === true) {
     ok('and the box it names opens, which is what makes it a tap');
   } else fail('the hand-off address did not open the box: '
-              + el('work-title').textContent);
+              + JSON.stringify(handed));
 
   at(W + '/doc/stage2-deck');
   await tick();
