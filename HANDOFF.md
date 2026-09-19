@@ -355,9 +355,18 @@ as the answer.
   parts, result directories and documents and walks nothing the board's pages
   have not walked already. `POST /writeup` takes a `repo` and a `scope` key,
   both looked up in what discovery found; for another workspace it asks for the
-  start FIRST and writes second, which is `/elsewhere`'s order and its reason.
-  **The document lands in THAT workspace's library, not on the board that asked**,
-  and the reply says so. `test/map.js`, `test/address.js`, `test/door.js` and
+  start FIRST and writes second, which is `/elsewhere`'s order and its reason,
+  and it builds no `Repo` for the target until the ask is allowed, because
+  constructing one writes `live/` into a workspace a refusal never touched.
+  **The workspace is named `family/name` on the wire**, never the bare
+  directory: a workspace is discovered rather than registered, two families can
+  hold the same name, and both routes take the first walk hit for a bare one.
+  **A picker that stops says how much it is not offering** — forty rows a group
+  and the count of what was left off, because a list that ends at a cap in
+  silence reads as all there is. **The document lands in THAT workspace's
+  library, not on the board that asked**, and the reply says so — and the way
+  back is read off the reply rather than off the card that was tapped three
+  questions earlier. `test/map.js`, `test/address.js`, `test/door.js` and
   `test/aiming.py`.
 
 - **A DOCUMENT IS AUDITED AGAINST THE CODE IT DESCRIBES, AND THE CLASS THAT
