@@ -67,31 +67,30 @@ Thumbs.db
 .*.swp
 .vscode/
 
-# ---- per-machine assistant state ----
-# `.claude/settings.json` is a workspace's committed permission policy and is
-# tracked by the workspace that owns it; `settings.local.json` is this machine's
-# and is not.
+# ---- one vendor's config directory, none of which is this repository's ----
+# NOTHING under an assistant's own directory is tracked here, and the test is
+# that deleting every one of them costs `bash ai-config/scripts/install.sh` and
+# nothing else.
+#
+# What used to be tracked was three `settings.json` permission allowlists --
+# which commands may run unattended in a workspace. That is a fact about the
+# workspace and worth keeping; the JSON schema around it is one provider's and
+# is not. Both now live in `ai-config`: the lists in `workspaces/*.allow`,
+# naming no vendor, and the schema in a renderer the assistant's own descriptor
+# points at. `install.sh` writes the result into each workspace, so the file
+# below this line is GENERATED and belongs to whichever assistant is installed.
+#
+# The same rule covers a workflow, a subagent, a slash command and a skill,
+# which are logic written against one provider's API and go stale at its next
+# release. A job worth keeping is kept as a specification any assistant can
+# execute -- `board/tools/docs-audit.md` is the pattern -- and the harness is
+# regenerated from it.
+#
 # `**/` on purpose: a pattern with a slash in it is anchored to the directory
-# its .gitignore sits in, so `.claude/settings.local.json` written HERE matches
-# only the one at the repository root and silently misses the nine inside the
-# workspaces -- which are the only ones that actually exist.
-**/.claude/settings.local.json
-**/.claude/settings.local.json.bak
-**/.claude/state/
-**/.claude/scheduled_tasks.lock
-
-# A vendor's SETTINGS are allowed above and nothing else is. A workflow, a
-# subagent, a slash command or a skill is LOGIC written against one provider's
-# API, and `ai-config/README.md` is the standing rule for those: what the
-# assistant is told and what it is forbidden to read are written once in files
-# that name no vendor, with a thin adapter per assistant. A job worth keeping
-# is kept as a specification any assistant can execute -- `board/tools/` -- and
-# the adapter is regenerated from it, because regenerating it costs minutes and
-# a committed one goes stale in a provider's next release.
-**/.claude/workflows/
-**/.claude/agents/
-**/.claude/commands/
-**/.claude/skills/
+# its .gitignore sits in, so `.claude/` written HERE would match only the one
+# at the repository root and silently miss the nine inside the workspaces --
+# which are the only ones that actually exist.
+**/.claude/
 
 # ---- other people's BOOKS, and every excerpt cut out of one ----
 # A course keeps its set text on disk and reads it; a public repository does not
