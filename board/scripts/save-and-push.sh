@@ -106,9 +106,47 @@ fi
 # INDEX, all of it, so a commit meant to carry one directory would also carry
 # whatever somebody had staged in a terminal a moment earlier. The same rule
 # `tutorboard/worktree.py` states for the transcript beat, and the same reason.
+#
+# AND `--only` ALONE IS WRONG, which is the defect this block is a response to.
+# It takes each named path's content FROM THE WORKING TREE rather than from the
+# index, so a staged REMOVAL of a file that is still on disk is discarded
+# without a word. That is exactly the shape of untracking a generated file --
+# `git rm --cached` leaves it where the tool that reads it looks -- and on 19
+# September three permission allowlists were untracked, the ignore rule
+# committed, the run reported success, and all three were still tracked
+# afterwards. Nothing said so; the ignore rule made it look done.
+#
+# So `--only` is used only when it is actually needed. If nothing outside the
+# pathspec is staged -- the ordinary case for an unattended save -- a plain
+# commit of the index is both isolated and correct. When something outside IS
+# staged, `--only` still runs, and any removal it is about to drop is NAMED
+# rather than lost.
 COMMIT=(commit -m "$MSG")
 if [ ${#PATHS[@]} -gt 0 ]; then
-  COMMIT=(commit --only -m "$MSG" -- "${PATHS[@]}")
+  all_staged="$(git diff --cached --name-only HEAD 2>/dev/null | sort -u)"
+  in_paths="$(git diff --cached --name-only HEAD -- "${PATHS[@]}" 2>/dev/null | sort -u)"
+
+  if [ "$all_staged" != "$in_paths" ]; then
+    COMMIT=(commit --only -m "$MSG" -- "${PATHS[@]}")
+
+    # A staged removal whose file is still on disk is the one `--only` eats.
+    kept=""
+    while IFS= read -r f; do
+      [ -n "$f" ] || continue
+      [ -e "$f" ] && kept="$kept $f"
+    done <<EOF
+$(git diff --cached --name-only --diff-filter=D HEAD -- "${PATHS[@]}" 2>/dev/null)
+EOF
+
+    if [ -n "$kept" ]; then
+      echo "NOT UNTRACKED:$kept"
+      echo "  staged for removal, still on disk, and something outside the"
+      echo "  pathspec is staged -- so this commit must use --only, which takes"
+      echo "  those paths from the working tree and would drop the removal."
+      echo "  Nothing has been lost. Commit the removal by itself: stage only it"
+      echo "  and run 'git commit' with no pathspec."
+    fi
+  fi
 fi
 
 if git diff --cached --quiet; then

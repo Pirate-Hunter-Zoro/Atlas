@@ -426,6 +426,88 @@ try:
           "commits called 'lesson complete' is not what this produces",
           isinstance(rec.get("workspace"), str))
 
+    # --- UNTRACKING A FILE THAT STAYS ON DISK ------------------------------
+    #
+    # `git rm --cached` is how a file stops being tracked while staying where
+    # the tool that reads it looks, and it is how a generated file is moved out
+    # of a repository. `git commit --only -- <paths>` takes those paths from
+    # the WORKING TREE, so it discards that removal without a word: the commit
+    # lands, the run reports success, and the file is still tracked.
+    #
+    # Measured on 19 September. Three permission allowlists were untracked and
+    # the ignore rule committed in the same run; the rule made it look done and
+    # all three were still in the tree. An ignore rule cannot untrack anything,
+    # so nothing downstream noticed either.
+    untracking = make_repo(work, "untracking")
+    shutil.copytree(os.path.join(ROOT, "scripts"),
+                    os.path.join(untracking, "scripts"))
+    git(untracking, "add", "-A")
+    git(untracking, "commit", "-qm", "scripts")
+
+    gen = os.path.join(untracking, "src", "generated.json")
+    open(gen, "w").write("{}\n")
+    git(untracking, "add", "-A")
+    git(untracking, "commit", "-qm", "a generated file, tracked for now")
+
+    open(os.path.join(untracking, ".gitignore"), "w").write("src/generated.json\n")
+    git(untracking, "rm", "-q", "--cached", "src/generated.json")
+
+    p = subprocess.run(["bash", os.path.join(untracking, "scripts",
+                                             "save-and-push.sh"),
+                        "stop tracking the generated file",
+                        "--", ".gitignore", "src"],
+                       capture_output=True, text=True, cwd=untracking)
+    tracked = git(untracking, "ls-files", "src/generated.json")[1].strip()
+    check("a save that untracks a file still on disk actually untracks it",
+          p.returncode == 0 and tracked == "")
+    check("and the file is left where it was, which is the whole point of "
+          "--cached",
+          os.path.isfile(gen))
+    check("and the ignore rule went with it in the same commit",
+          git(untracking, "show", "--stat", "--format=", "HEAD")[1]
+          .count(".gitignore") == 1)
+
+    # The protection `--only` was written for is still there: something staged
+    # outside the pathspec must not be swept in by the fallback.
+    open(os.path.join(untracking, "src", "app.py"), "w").write("y = 2\n")
+    open(os.path.join(untracking, "README.md"), "w").write("staged elsewhere\n")
+    git(untracking, "add", "README.md")
+    p = subprocess.run(["bash", os.path.join(untracking, "scripts",
+                                             "save-and-push.sh"),
+                        "only the source", "--", "src"],
+                       capture_output=True, text=True, cwd=untracking)
+    touched = git(untracking, "show", "--name-only", "--format=", "HEAD")[1]
+    check("and a save with unrelated staged work still commits only its "
+          "pathspec", "README.md" not in touched and "src/app.py" in touched)
+
+    # And in that case the removal it cannot carry is NAMED, never dropped in
+    # silence -- the failure above was silent, which is what made it expensive.
+    #
+    # The file has to be IGNORED as well as removed, and that is not a detail
+    # of the test: `git add -A -- src` re-adds a path that is merely removed
+    # from the index, correctly, because "save everything here" includes it.
+    # Untracking a file that nothing ignores is not a state that survives the
+    # next save either way.
+    open(os.path.join(untracking, "src", "second.json"), "w").write("{}\n")
+    git(untracking, "add", "-A")
+    git(untracking, "commit", "-qm", "another generated file")
+    open(os.path.join(untracking, ".gitignore"), "a").write("src/second.json\n")
+    git(untracking, "add", ".gitignore")
+    git(untracking, "commit", "-qm", "ignore it")
+    git(untracking, "rm", "-q", "--cached", "src/second.json")
+    open(os.path.join(untracking, "README.md"), "w").write("staged again\n")
+    git(untracking, "add", "README.md")
+    p = subprocess.run(["bash", os.path.join(untracking, "scripts",
+                                             "save-and-push.sh"),
+                        "with a removal it cannot carry", "--", "src"],
+                       capture_output=True, text=True, cwd=untracking)
+    said = p.stdout + p.stderr
+    check("a removal --only would drop is named rather than lost",
+          "NOT UNTRACKED" in said and "src/second.json" in said)
+    check("and it says nothing has been lost, because nothing has",
+          "nothing has been lost" in said.lower()
+          and os.path.isfile(os.path.join(untracking, "src", "second.json")))
+
     # The badge is the other half: an ordinary `git status` takes the lock to
     # write back the index it refreshed, every eight seconds, in a repository
     # whose slate pages are being rewritten under it. It must neither create a
