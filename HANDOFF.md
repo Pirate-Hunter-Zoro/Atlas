@@ -280,14 +280,20 @@ repository's whole method is that a document is what the next turn reads
 instead of re-deriving, so a document that lies costs more than one that is
 missing: a missing one sends somebody to the code.
 
-**What exists.** `.claude/workflows/stale-docs-audit.js`, written and not yet
-run. Invoke it as `Workflow({name: 'stale-docs-audit'})`. Five readers, one per
-surface — `board/README.md`, this file's *Settled* section, the
-`libr-local-llm` documents, the four workspaces' `README`/`AI_INSTRUCTIONS`,
-and `Paper-Writer` — then every candidate finding goes to a second agent whose
-only job is to prove the document was right. The script's head says why each
-of those two halves is shaped the way it is; read it rather than re-deriving
-it.
+**What exists.** `board/tools/docs-audit.md` — the job written down and not yet
+run. It is a SPECIFICATION and it names no assistant: five surfaces
+(`board/README.md`, this file's *Settled* section, the `libr-local-llm`
+documents, the four workspaces' `README`/`AI_INSTRUCTIONS`, and
+`Paper-Writer`), what counts as a finding, and a second reader over every
+candidate whose only job is to prove the document was right. Read it rather
+than re-deriving it.
+
+**Write your own harness from it and do not commit the harness.** Whatever you
+orchestrate with, the spec is the input and the fan-out is ten minutes of
+transcription. `.gitignore` refuses `**/.claude/workflows/` and its siblings
+for the reason `ai-config/README.md` gives: a provider's orchestration API is
+the one part of this that will be spelled differently in a year, and the
+decomposition is the part worth keeping.
 
 **The decisions, and they are the expensive part.**
 
