@@ -2836,7 +2836,22 @@ looked up in what discovery found and never joined onto a path.
 the board that commissioned it, and the reply says so. The start is asked for
 first and the inbox line written second — `/elsewhere`'s order, for its reason:
 a document asked for in another workspace's inbox with nothing that will ever
-read it is worse than a refusal.
+read it is worse than a refusal. Nothing at all is built for the target until
+the ask is allowed, `Repo` included: constructing one calls `ensure_dirs`, and
+a refused request that leaves `live/` behind in a workspace it never wrote in
+is the same defect one directory deeper.
+
+**The workspace is named `family/name` on the wire**, never the bare directory.
+A workspace is discovered rather than registered — making one is
+`mkdir courses/Topology` — so two families can hold the same name, and every
+route that resolves one takes the first walk hit. The qualified name is the
+only spelling that cannot mean two places.
+
+**And the picker says what it is not offering.** Forty rows per group is the
+stop; where a group is longer, the count of what was left off comes back with
+the list and the sheet paints it. A list that ends at a cap in silence reads as
+everything there is, and the scope nobody can find is then the one they do not
+know to look for.
 
 **It lands in the library, not on the glass.** A make sitting puts its sections
 on the board one at a time, because there the document *is* the evening. One

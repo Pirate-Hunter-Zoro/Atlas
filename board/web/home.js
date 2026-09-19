@@ -1167,8 +1167,17 @@ if (els.notesSince) {
 var docProduct = "";      /* "paper" or "slides" */
 var docAt = 1;            /* which of the three questions is on the glass */
 var docWs = null;         /* the workspace it is being asked of */
-var docRepo = "";         /* the bare directory that workspace lives in */
+var docRepo = "";         /* how the server spells that workspace */
 var docCalled = "";       /* what to call that workspace in a sentence */
+/* WHICH WORKSPACE THE PAGE IS WAITING ON, so a reply for one it has stopped
+   asking about cannot repaint the list. Opening the wrong workspace and then
+   the right one is the ordinary case -- it is two taps -- and the two answers
+   come back in whatever order the disk gives them, which for a course with a
+   plan and forty documents is not the order they were asked in. Without this
+   the heading names one workspace and the ask goes to another. */
+var docWanted = "";
+/* AND WHERE IT ACTUALLY LANDED, out of the reply rather than out of the tap. */
+var docLanded = null;
 
 function closeDoc() { els.doc.hidden = true; }
 
@@ -1187,6 +1196,9 @@ function docButtons(host, off) {
    it: a sheet whose heading never changes is three screens wearing one. */
 function docStep(n) {
   docAt = n;
+  /* LEAVING THE THIRD QUESTION STOPS WAITING ON ITS ANSWER. Back, or a second
+     workspace, and whatever was in flight for the first one is nobody's. */
+  if (n !== 3) docWanted = "";
   els.docMakes.hidden = n !== 1;
   els.docWhere.hidden = n !== 2;
   els.docScopes.hidden = n !== 3;
@@ -1215,6 +1227,7 @@ function docStep(n) {
 function openDoc() {
   docProduct = "";
   docWs = null;
+  docLanded = null;
   docRepo = "";
   docCalled = "";
   docButtons(els.docMakes, false);
@@ -1264,8 +1277,15 @@ function paintDocWhere() {
    workspaces is a sentence about none of them. */
 function docAskScopes(c) {
   docWs = c;
-  docRepo = c.repo || "";
+  /* THE QUALIFIED NAME, NOT THE BARE DIRECTORY, and it is the same name in both
+     requests. A workspace is discovered rather than registered -- making one is
+     `mkdir courses/Topology` -- so two families can hold the same directory
+     name, and both routes take the first walk hit for a bare one. `family/name`
+     is the spelling that cannot mean two places. */
+  docRepo = c.id || c.repo || "";
   docCalled = c.course || c.repo || c.id;
+  docWanted = docRepo;
+  var asked = docRepo;
   els.docScopes.innerHTML = "";
   docStep(3);
   docSay("reading what " + docCalled + " has to write up…");
@@ -1273,32 +1293,42 @@ function docAskScopes(c) {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     credentials: "same-origin",
-    body: JSON.stringify({ repo: c.id })
+    body: JSON.stringify({ repo: asked })
   }).then(function (r) { return r.json(); }).then(function (got) {
+    /* A REPLY FOR A WORKSPACE NOBODY IS ASKING ABOUT ANY MORE IS DROPPED. */
+    if (asked !== docWanted) return;
     got = got || {};
     if (!got.ok) {
       docSay(got.error || (docCalled + " could not say what it has to write "
                            + "up"), true);
       return;
     }
-    /* WHAT THE SERVER CALLS IT, from here on. The ask names the workspace the
-       same way the answer did, rather than the page deriving a second spelling
-       out of the atlas. */
-    docRepo = got.repo || docRepo;
+    /* WHAT THE SERVER CALLS IT, from here on -- its display name, and its own
+       id where it gave one. The bare `repo` it also answers with is the
+       ambiguous spelling and is deliberately not taken. */
+    docRepo = got.id || docRepo;
     docCalled = got.name || docCalled;
     els.docSaid.hidden = true;
-    paintDocScopes(got.scopes || []);
+    paintDocScopes(got.scopes || [], got.more || 0);
   }).catch(function (e) {
+    if (asked !== docWanted) return;
     docSay(e.message || (docCalled + " did not answer"), true);
   });
 }
 
-function paintDocScopes(list) {
+function paintDocScopes(list, more) {
   var host = els.docScopes;
   host.innerHTML = "";
   if (!list.length) {
     docSay(docCalled + " has nothing to be written up yet", true);
     return;
+  }
+  /* WHAT THE LIST STOPS SHORT OF, said rather than left to be assumed. A picker
+     that ends at a cap and says nothing reads as everything there is, and the
+     scope somebody cannot find is then the one they do not know to look for. */
+  if (more) {
+    docSay(more + (more === 1 ? " more is" : " more are")
+           + " not offered here — open " + docCalled + " and ask there.");
   }
   list.forEach(function (sc) {
     var b = document.createElement("button");
@@ -1322,6 +1352,17 @@ function paintDocScopes(list) {
    is a key the workspace handed out a moment ago; the server turns it back into
    the sentence the document is written to, because the page inventing that
    sentence is the page deciding what the scope means. */
+/* THE CARD FOR THE WORKSPACE THE SERVER ANSWERED ABOUT, looked up by the same
+   qualified name the ask carried. The card tapped three questions ago is not
+   the authority on where the document went: the answer is. */
+function docCardFor(id) {
+  var found = null;
+  ((atlas && atlas.workspaces) || []).forEach(function (c) {
+    if (c.id === id || c.repo === id) found = found || c;
+  });
+  return found;
+}
+
 function docAsk(scope) {
   docButtons(els.docScopes, true);
   docSay("asking " + docCalled + "…");
@@ -1340,15 +1381,21 @@ function docAsk(scope) {
       docSay(rec.error || rec.detail || "it could not be asked for", true);
       return;
     }
+    /* WHERE IT WENT IS THE REPLY'S TO SAY, and the way back is read off the
+       same answer. The card tapped two questions ago cannot be trusted for
+       either: it is what was ASKED, and the workspace that was written in is
+       what came BACK. */
+    docLanded = docCardFor(rec.repo || docRepo) || docWs;
     var where = rec.where || docCalled;
+    var here = !!(docLanded && docLanded.current);
     var word = docProduct === "slides" ? "The deck" : "The paper";
-    docSay(docWs && docWs.current
+    docSay(here
       ? word + " is being written in " + where + ". It appears in its library "
         + "rather than on the board."
       : word + " is being written in " + where + ". It appears in that "
         + "workspace's library, not on this board.");
     els.docRead.hidden = false;
-    els.docReadSub.textContent = docWs && docWs.current
+    els.docReadSub.textContent = here
       ? "everything written up in " + where
       : "moves the board, then opens its library";
   }).catch(function (e) {
@@ -1361,7 +1408,7 @@ if (els.docBtn) els.docBtn.onclick = openDoc;
 if (els.docClose) els.docClose.onclick = closeDoc;
 if (els.docRead) {
   els.docRead.onclick = function () {
-    var c = docWs;
+    var c = docLanded || docWs;
     closeDoc();
     openLibrary(c);
   };

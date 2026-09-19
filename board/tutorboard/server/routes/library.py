@@ -235,7 +235,14 @@ def _writeup(h, repo):
         if not match:
             return h.send_json({"ok": False, "error": "unknown workspace"},
                                status=404)
-    target = Repo(match["root"]) if match else repo
+    # THE ROOT NOW, THE `Repo` ONLY ONCE THE ASK IS ALLOWED. Constructing one
+    # is not a read: `Repo.__init__` calls `ensure_dirs`, which makes `live/`
+    # and its eight subdirectories, and it does that because a long-lived board
+    # has to put back what git removed under it. Here it would mean a REFUSED
+    # request -- an unknown scope, an assistant already busy -- leaving a live
+    # directory behind in a workspace that was never written in, which is the
+    # opposite of what the two comments below promise.
+    root = match["root"] if match else repo.root
     where_dir = match["repo"] if match else os.path.basename(
         os.path.realpath(repo.root))
     where_name = ((match["course"] or match["repo"]) if match
@@ -250,14 +257,17 @@ def _writeup(h, repo):
         # with the wrong sentence or with none. Nothing is written before this
         # answers -- a scope nobody recognises is a document about the wrong
         # thing, which is worse than a refusal.
-        found = scopes.find(target.root, key)
+        found = scopes.find(root, key)
         if not found:
             return h.send_json({"ok": False, "error": "no such scope"},
                                status=400)
         # AND IT BEATS FREE TEXT. One of the two was picked off a list of what
         # that workspace really has and the other was typed; where both arrived,
-        # the request has two minds and the list is the one to trust.
-        about = found["about"]
+        # the request has two minds and the list is the one to trust. Clamped
+        # like the typed one: the record stores `about[:ABOUT_CHARS]` either
+        # way, and a sentence that goes to the assistant whole while the record
+        # and the strip carry it cut is one ask described two ways.
+        about = found["about"][:writeups.ABOUT_CHARS]
 
     if match:
         # THE START IS ASKED FIRST, AND NOTHING IS WRITTEN UNTIL IT IS ALLOWED.
@@ -274,6 +284,9 @@ def _writeup(h, repo):
         if code != 0:
             return h.send_json({"ok": False, "repo": match["repo"],
                                 "error": said}, status=409)
+
+    # NOW it is allowed, so now there is a workspace to write in.
+    target = Repo(root) if match else repo
 
     # An id from the same series the lesson's turns use, so nothing in the inbox
     # has to be told apart by shape. NOT written into `live/turns.jsonl`; see

@@ -680,7 +680,11 @@ try:
     real_tutor_cli = spawn.tutor_cli
     spawn.tutor_cli = lambda args, timeout=30: (
         ran.append(list(args)) or (0, "claude starting in Fields"))
-    over = course_repo.Repo(fields)
+    # WHAT IS IN THAT WORKSPACE BEFORE ANY OF THIS, and no `Repo` is built for
+    # it here: constructing one makes `live/` and its eight subdirectories, so
+    # a test that builds one first cannot see the route doing the same thing on
+    # a request it refused. The refusal must leave the directory as it found it.
+    before = sorted(os.listdir(fields))
     try:
         status, body = post("/writeup", {"makes": "paper", "repo": "Nope"})
         check("and so is a workspace named on the ask itself",
@@ -691,9 +695,7 @@ try:
         check("a scope key that workspace does not offer is refused by name",
               status == 400 and (body.get("error") or "") == "no such scope")
         check("and NOTHING was written for it -- no record, no inbox line, no "
-              "start asked for",
-              not ran and not os.path.exists(over.messages_path)
-              and not writeups.waiting(over))
+              "start asked for", not ran and sorted(os.listdir(fields)) == before)
 
         status, body = post("/writeup", {"makes": "slides", "repo": "Fields",
                                          "scope": "chapter:ch02-rings",
@@ -704,6 +706,7 @@ try:
               "asked from",
               body.get("repo") == "Fields" and body.get("where") == "Fields"
               and "Fields" in (body.get("detail") or ""))
+        over = course_repo.Repo(fields)
         check("the start over there is asked for the way `/elsewhere` asks",
               ran and ran[-1] == ["agent", "start", "Fields"])
 

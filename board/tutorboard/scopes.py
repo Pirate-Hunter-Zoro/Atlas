@@ -41,13 +41,19 @@ from .course import review
 from .course import syllabus
 
 
-# How many rows any one group is ever given. This is read on a tablet, in a
-# strip under two product buttons: past a dozen the picker is a list somebody
-# scrolls, and the workspaces this runs against have sixty chapters between
-# them. The tree's own caps -- `review.MAX_UNITS`, `results.MAX_FIGURES`,
-# `library.MAX_DOCS` -- are the caps on WALKING, and they are far above this one
-# on purpose. This is the cap on OFFERING.
-MOST = 12
+# How many rows any one group is ever given, and it is a stop rather than a
+# taste. A dozen was the taste and it was wrong: Galois Theory has twenty
+# chapters, so its second half -- the primitive element theorem, solvability,
+# the whole point of the course -- could not be asked for from the door at all,
+# which is the one thing this feature exists to do. The strip scrolls; a list
+# somebody scrolls past is a smaller failure than a chapter nobody can name.
+#
+# It is still a stop, because a workspace with four hundred figures is a picker
+# nobody can use, and what it drops it SAYS: `scopes()` carries the count and
+# the sheet paints it. The tree's own caps -- `review.MAX_UNITS`,
+# `results.MAX_FIGURES`, `library.MAX_DOCS` -- are the caps on WALKING and are
+# above this one on purpose. This is the cap on OFFERING.
+MOST = 40
 
 # How much of a name becomes a key. Long enough that two chapters of a real
 # course never collide; short enough that a key is a key rather than a sentence.
@@ -66,20 +72,33 @@ def _key(kind, said, taken):
     because a key is what the record of an ask is resolved from. So it is
     derived from the name of the thing and never from a position -- a counter
     handed out by walking a directory names a different chapter the moment a
-    fifth one lands. A collision is dropped by the caller rather than aliased,
-    the way `library._ident` drops one: a key that names two scopes is a
-    document written about the wrong one.
+    fifth one lands.
+
+    AND THE TRUNCATION IS WHAT MAKES TWO THINGS ONE, so the collision is settled
+    after it rather than before. Two contrast directories under one long results
+    path -- `..._pipeline/bupropion_vs_ssri` and `..._pipeline/bupropion_vs_snri`
+    -- are the same 48 characters, and a key that is dropped for colliding is a
+    scope with no way to ask for it at all. They are suffixed instead, the way
+    `map._unique` suffixes a box id: the second one answers to `-2`, and both
+    are on the list. `taken` is the caller's set of what it has already minted.
     """
     slug = _SLUG.sub("-", str(said or "").lower()).strip("-")[:KEY_CHARS]
     got = "%s:%s" % (kind, slug) if slug else kind
-    return got if got not in taken else ""
+    if got not in taken:
+        return got
+    for n in range(2, 40):
+        more = "%s-%d" % (got, n)
+        if more not in taken:
+            return more
+    return ""
 
 
 def _chapters(root):
     """A course's chapters, in the order the course puts them in."""
     out = []
     taken = set()
-    for c in syllabus.chapters(root)[:MOST]:
+    every = syllabus.chapters(root)
+    for c in every[:MOST]:
         label = syllabus.label(c)
         if not label:
             continue
@@ -99,14 +118,15 @@ def _chapters(root):
                       "order anybody was taught it in, and not anybody's "
                       "answers." % label),
         })
-    return out
+    return out, max(0, len(every) - MOST)
 
 
 def _sets(root):
     """A course's problem sets. The set is the subject, never the answers."""
     out = []
     taken = set()
-    for s in homework.sets(root)[:MOST]:
+    every = homework.sets(root)
+    for s in every[:MOST]:
         key = _key("set", s["name"], taken)
         if not key:
             continue
@@ -122,7 +142,7 @@ def _sets(root):
                       "nothing about who answered what."
                       % (s["name"], s["rel"])),
         })
-    return out
+    return out, max(0, len(every) - MOST)
 
 
 def _parts(root):
@@ -135,9 +155,8 @@ def _parts(root):
     """
     out = []
     taken = set()
-    for u in review.units(root):
-        if u.get("kind") != "part":
-            continue
+    every = [u for u in review.units(root) if u.get("kind") == "part"]
+    for u in every:
         key = _key("part", u["name"], taken)
         if not key:
             continue
@@ -154,7 +173,7 @@ def _parts(root):
         })
         if len(out) >= MOST:
             break
-    return out
+    return out, max(0, len(every) - MOST)
 
 
 def _results(root):
@@ -193,14 +212,15 @@ def _results(root):
                       "so put them in the document."
                       % (where or "this workspace's results directory", n)),
         })
-    return out
+    return out, max(0, len(order) - MOST)
 
 
 def _documents(root):
     """What has already been written here. A paper about a paper is a real ask."""
     out = []
     taken = set()
-    for doc in library.documents(root)[:MOST]:
+    every = library.documents(root)
+    for doc in every[:MOST]:
         key = _key("doc", doc["id"], taken)
         if not key:
             continue
@@ -217,7 +237,7 @@ def _documents(root):
                       "itself exactly as you found it."
                       % (doc["title"], doc["rel"])),
         })
-    return out
+    return out, max(0, len(every) - MOST)
 
 
 def _whole(root):
@@ -254,17 +274,31 @@ def scopes(root):
     Never raises. A workspace whose walk fails somewhere still offers the one
     scope it cannot fail to have.
     """
-    out = []
+    out, _more = offered(root)
+    return out
+
+
+def offered(root):
+    """The scopes, and how many rows the stop above kept off the list.
+
+    TWO VALUES BECAUSE A SILENT CAP IS A LIE. A workspace with more chapters
+    than `MOST` gets a picker that is complete as far as it goes and says
+    nothing about the rest, which reads as *this is all there is*. The count
+    goes back with the list and the sheet paints it in a line.
+    """
+    out, more = [], 0
     for group in (_chapters, _sets, _parts, _results, _documents):
         try:
-            out.extend(group(root))
+            rows, dropped = group(root)
         except Exception:                                    # noqa: BLE001
             # A group that cannot be read is a group that is not offered. The
             # alternative is a front door that answers 500 because one
             # workspace on the machine has an unreadable directory in it.
             continue
+        out.extend(rows)
+        more += dropped
     out.append(_whole(root))
-    return out
+    return out, more
 
 
 def find(root, key):

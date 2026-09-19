@@ -303,11 +303,16 @@ def post(h, repo, path):
         # at which point the key is decoration and the front door is a text box
         # wearing buttons. What comes back is a key, and `POST /writeup`
         # resolves it against this same list.
+        offered, more = scopes.offered(match["root"])
         return h.send_json({
             "ok": True, "repo": match["repo"], "id": match["id"],
             "name": match["course"] or match["repo"],
+            # AND WHAT IS NOT ON THE LIST. A picker that stops at a cap and says
+            # nothing reads as *this is all there is*, and the one thing that
+            # cannot be asked for is then the one nobody knows to ask about.
+            "more": more,
             "scopes": [{"key": s["key"], "label": s["label"], "what": s["what"]}
-                       for s in scopes.scopes(match["root"])]})
+                       for s in offered]})
 
     if path == "/elsewhere":
         # PUT AN ASSISTANT TO WORK IN A WORKSPACE YOU ARE NOT LOOKING AT.

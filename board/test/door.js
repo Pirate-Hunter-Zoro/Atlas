@@ -137,6 +137,13 @@ const payload = {
       course: 'PSYCH-ASR', chapter: '', cards: 12, running: false,
       current: false, kind: 'project', open: 7, next: 'the bake-off',
       next_label: '1. the bake-off', touched: 1789398000, stance: 'do' },
+    // A VENDOR FAMILY'S WORKSPACE, in the list paintDocWhere actually reads.
+    // Putting colibri only in `trees` made the check below pass whatever the
+    // filter did: nothing on this page draws from that list.
+    { id: 'vendor/colibri', family: 'vendor', repo: 'colibri',
+      course: 'colibri', chapter: '', cards: 0, running: false,
+      current: false, kind: 'project', open: 0, next: '', next_label: '',
+      touched: 1789475941 },
   ],
   trees: [
     { id: 'vendor/colibri', family: 'vendor', repo: 'colibri', name: 'colibri',
@@ -157,13 +164,21 @@ const posted = [];
 let writeupAnswer = { ok: true, id: '0007', makes: 'slides', about: 'the results',
                       state: 'asked', detail: '', repo: 'PSYCH-ASR',
                       where: 'PSYCH-ASR' };
+// HOW SLOWLY EACH WORKSPACE ANSWERS, so the two replies can be made to land in
+// the order the disk gives them rather than the order they were asked in. A
+// course with a plan and forty documents is genuinely slower than a project.
+const scopeDelay = {};
+let scopeAnswer = (id) => ({
+  ok: true, repo: id.split('/').pop(), id: id,
+  name: id.split('/').pop(), scopes: SCOPES });
 window.fetch = (url, opts) => {
   const body = opts && opts.body ? JSON.parse(opts.body) : null;
   if (url === '/writeup/scopes') {
     posted.push({ to: url, body });
-    return Promise.resolve({ json: () => Promise.resolve({
-      ok: true, repo: 'PSYCH-ASR', id: 'research/PSYCH-ASR',
-      name: 'PSYCH-ASR', scopes: SCOPES }) });
+    const answer = scopeAnswer(body.repo);
+    const wait = scopeDelay[body.repo] || 0;
+    return new Promise((go) => setTimeout(
+      () => go({ json: () => Promise.resolve(answer) }), wait));
   }
   if (url === '/writeup') {
     posted.push({ to: url, body });
@@ -284,9 +299,13 @@ function ask() {
   check('which product, which workspace, which scope',
         posted[0].body.makes === 'slides'
         && posted[0].body.scope === 'results');
-  check('and the workspace is named the way the workspace named itself, rather '
-        + 'than spelled a second way by this page',
-        posted[0].body.repo === 'PSYCH-ASR');
+  // THE QUALIFIED NAME, NOT THE BARE DIRECTORY. A workspace is discovered
+  // rather than registered, so two families can hold the same directory name
+  // and both routes take the first walk hit for a bare one. The fixture's card
+  // and its reply spell it differently on purpose: `family/name` is the
+  // spelling the ask must carry, and it is the one the scopes reply gave.
+  check('and the workspace is named the one way that cannot mean two places',
+        posted[0].body.repo === 'research/PSYCH-ASR');
   check('nothing is written about what the scope MEANS -- that sentence is the '
         + 'server\'s', posted[0].body.about === undefined);
   setTimeout(landed, 20);
@@ -328,8 +347,57 @@ function landed() {
             && el('doc-read').hidden === true);
       check('the scopes are tappable again, because the ask can be made twice',
             rowsOf('doc-scopes').every((b) => b.disabled === false));
-      rest();
+      race();
     }, 20);
+  }, 20);
+}
+
+// ---- two workspaces asked, and the slow one cannot repaint the fast one ----
+//
+// Opening the wrong workspace and then the right one is two taps and is the
+// ordinary case. The replies come back in whatever order the disk gives them,
+// so without a token the late one repaints the list and the ask goes to a
+// workspace whose name is nowhere on the glass.
+function race() {
+  el('doc-close').click();
+  el('atlas-doc').click();
+  rowsOf('doc-makes')[0].click();
+  scopeDelay['courses/Galois-Theory'] = 60;
+  scopeAnswer = (id) => (id === 'courses/Galois-Theory'
+    ? { ok: true, repo: 'Galois-Theory', id: 'courses/Galois-Theory',
+        name: 'Galois Theory',
+        scopes: [{ key: 'ch04', label: 'Ch 04', what: 'a chapter' }] }
+    : { ok: true, repo: 'PSYCH-ASR', id: 'research/PSYCH-ASR',
+        name: 'PSYCH-ASR', scopes: SCOPES });
+  rowsOf('doc-where')[0].click();          // the slow one
+  el('doc-back').click();
+  rowsOf('doc-where')[1].click();          // the one actually wanted
+  setTimeout(() => {
+    check('the workspace that was abandoned cannot repaint the list it left',
+          rowsOf('doc-scopes').map((b) => b.getAttribute('data-scope'))
+            .join('|') === 'evening|results|ch3');
+    posted.length = 0;
+    rowsOf('doc-scopes')[0].click();
+    check('and the ask goes to the workspace whose scopes are on the glass',
+          posted.length === 1 && posted[0].body.repo === 'research/PSYCH-ASR');
+    scopeDelay['courses/Galois-Theory'] = 0;
+    setTimeout(capped, 20);
+  }, 120);
+}
+
+// ---- and a list that stops short says so ----------------------------------
+function capped() {
+  el('doc-close').click();
+  scopeAnswer = () => ({ ok: true, repo: 'PSYCH-ASR', id: 'research/PSYCH-ASR',
+                         name: 'PSYCH-ASR', scopes: SCOPES, more: 8 });
+  el('atlas-doc').click();
+  rowsOf('doc-makes')[0].click();
+  rowsOf('doc-where')[1].click();
+  setTimeout(() => {
+    check('a picker that stops at a cap says how much it is not offering',
+          /8 more are not offered/.test(el('doc-said').textContent));
+    check('and still offers what it has', rowsOf('doc-scopes').length === 3);
+    rest();
   }, 20);
 }
 
