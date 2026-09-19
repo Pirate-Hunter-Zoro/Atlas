@@ -18,8 +18,8 @@ and they still govern running it:
 
 - **A colibrì turn runs inside the SERVE JOB'S allocation.** `coli-code` steps into it with `srun
   --overlap` rather than ssh, because the endpoint is loopback-only on the serving node. So a
-  mission's ceiling is the serve job's walltime — 8 h by default, 9 h on `c3_short` — and `coli-up
-  -t` is the only lever. A mission longer than that cannot finish, whatever the board records.
+  mission's ceiling is the serve job's walltime — 9 h, which is both the `c3_short` cap and the
+  default — and `coli-up -t` is the only lever, downward only. A mission longer than that cannot finish, whatever the board records.
 - **Shipping is not this model's job.** It decodes at 3.2–4.4 tok/s and it is the one assistant
   that may read `phi`. The ship belongs to a hosted follow-up turn, which is also a second pair of
   eyes on a local model's diff — a turn that could not have read the session content it is

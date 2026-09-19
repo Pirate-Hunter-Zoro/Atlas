@@ -675,7 +675,7 @@ has to come first.
 
 ## Running Stage 1
 
-**Input convention: `data/inbox/` holds exactly one `.wav`.** The Stage 1 job takes no
+**Input convention: `phi/inbox/` holds exactly one `.wav`.** The Stage 1 job takes no
 arguments — it globs the inbox, counts the matches, and aborts with its own message if
 the count is anything other than one, so a mistake surfaces as a one-line error instead
 of a Python traceback (two files silently became a two-line path before the guard
@@ -737,7 +737,7 @@ have a third person present.
 
 **Output:** one pair per session per arm — `<stem>.<arm>.diarized.json` (the machine
 artifact, described next) and `<stem>.<arm>.transcript.txt` (the human reading copy, see
-**Readable transcript** below), both under `data/stage1/`. The un-armed
+**Readable transcript** below), both under `phi/stage1/`. The un-armed
 `<stem>.diarized.json` beside them is the pre-split fixture the regression gate scores
 against; nothing that still runs writes that name.
 
@@ -793,7 +793,7 @@ instead of five. A stub is a promise; deleting it is how you stop making one.
 The `.diarized.json` is the machine artifact; nobody can read indented JSON with a
 `words` list on every segment against playing audio. `psych_asr/transcript/render.py`
 renders the same content as a play script and writes
-`data/stage1/<stem>.<arm>.transcript.txt`. `psych_asr.cli.join_speakers` calls it as its
+`phi/stage1/<stem>.<arm>.transcript.txt`. `psych_asr.cli.join_speakers` calls it as its
 final step (CPU only, sub-second, no models), so the 1c job emits both files for every arm.
 It also runs standalone — give it a `.diarized.json` path and optionally `--outdir` (default: beside
 the input) — which is how to re-render after any change to the format without paying for
@@ -828,7 +828,7 @@ into the neighbouring turn — a cluster of `UNKNOWN` blocks is itself the diagn
 diarization under-covered the audio, and hiding them would hide that. `UNKNOWN` always
 sorts last in the summary table; it is a diagnostic, not a person.
 
-The `.txt` is session content and therefore PHI. It is written under `data/stage1/`,
+The `.txt` is session content and therefore PHI. It is written under `phi/stage1/`,
 which `.gitignore` excludes wholesale — do not write it anywhere else.
 
 > **`DiarizationPipeline` is not exported at package level.** WhisperX 3.8.6's
@@ -862,7 +862,7 @@ for reproducibility (a small speed cost, nothing else).
 
 ## Running the diarization bake-off
 
-Same input convention as Stage 1: `data/inbox/` holds exactly one `.wav`, and every job
+Same input convention as Stage 1: `phi/inbox/` holds exactly one `.wav`, and every job
 globs it and guards on the count. Submit **from the repo root** — all paths are relative to
 the submit directory.
 
@@ -1166,15 +1166,15 @@ against the baseline arm's readable transcript and logged one spreadsheet row pe
 `psych_asr.cli.apply_corrections` reads that sheet and rebuilds the transcript from it:
 
 ```bash
-python -m psych_asr.cli.apply_corrections            # writes into data/stage2/
+python -m psych_asr.cli.apply_corrections            # writes into phi/stage2/
 python -m psych_asr.cli.apply_corrections --dry-run  # the same report, writes nothing
 ```
 
 CPU only, sub-second, no models — it runs on the login node and needs no Slurm job. It
 reads the baseline `<stem>.<arm>.diarized.json`, the `<stem>.<arm>.transcript.txt` beside
-it, and the one `*Error Log*.csv` in `data/stage1/`. It writes three files to
-**`data/stage2/`**, and that directory is a separate one on purpose: the arm-discovery
-globs in `artifacts/naming.py` match `<stem>.*` inside `data/stage1/`, so a corrected
+it, and the one `*Error Log*.csv` in `phi/stage1/`. It writes three files to
+**`phi/stage2/`**, and that directory is a separate one on purpose: the arm-discovery
+globs in `artifacts/naming.py` match `<stem>.*` inside `phi/stage1/`, so a corrected
 reference stored there would enrol itself as a fifth arm in the bake-off it exists to
 judge.
 
@@ -1334,7 +1334,7 @@ annotator produced by hand* — the six error labels, and the split between "the
 wrong" and "the words were wrong" — with nobody listening to anything.
 
 ```bash
-python -m psych_asr.cli.grade_arms                  # every arm found, into data/stage2/
+python -m psych_asr.cli.grade_arms                  # every arm found, into phi/stage2/
 python -m psych_asr.cli.grade_arms --arm community-1  # one cell
 python -m psych_asr.cli.grade_arms --dry-run        # the report, writes nothing
 python -m psych_asr.cli.grade_arms --details        # also the PHI-bearing spans
@@ -1647,11 +1647,11 @@ window — the preceding patient turn plus the therapist turn under judgment —
 isolated string.
 
 **Serving.** The inference stack itself is not part of this repo. It lives in the sibling
-`libr-local-llm` (`~/libr-local-llm`), which is shared infrastructure for this project and
+`libr-local-llm` (`~/Atlas/projects/libr-local-llm`), which is shared infrastructure for this project and
 `TRD-EHR` both — Ollama installed user-local and served on Slurm GPU nodes, with the vLLM
 path for this stage still to be built. Its README carries the bootstrap sequence,
 environment variables, and the traps already paid for; the remaining task list is
-`~/libr-local-llm/planning/LOCAL-LLM_TODO.txt`. **Whatever drives this stage must have no
+`~/Atlas/projects/libr-local-llm/planning/LOCAL-LLM_TODO.txt`. **Whatever drives this stage must have no
 tool-calling surface** — no web fetch, no search, nothing that can put a fragment of a
 session into an outbound request. That is a hard requirement of the on-prem constraint at
 the top of this README, not a preference, and it is why the clinical path is a plain Python
@@ -1845,7 +1845,7 @@ default and once at a shorter `chunk_size`, and score both against the same turn
 │   ├── stage1c_join_and_grade.sbatch     # NO GPU — the typist bake-off's last two steps
 │   └── gpu_smoke.sbatch                  # GPU/ctranslate2 sanity job
 ├── tests/                 # pytest over SYNTHETIC transcripts and turn tables — no PHI
-└── data/                  # raw + derived data — GITIGNORED (PHI)
+└── phi/                   # raw + derived data — GITIGNORED (PHI)
     ├── inbox/                 # exactly one .wav — the file Stage 1 will process
     ├── stage1/                # Stage 1 output, one set per arm (see the artifact table above)
     │                          #   + the QC error log export the annotator produced
@@ -1896,8 +1896,8 @@ and it runs without the cluster. Run it from the repo root:
 python -m pytest tests -q
 ```
 
-108 tests in `asr_env`; the ones that need `whisperx` skip themselves elsewhere, so the same
-suite runs in torch-free `diar_eval_env` (104 pass there, `test_join.py` skipping as a
+139 tests in `asr_env`; the ones that need `whisperx` skip themselves elsewhere, so the same
+suite runs in torch-free `diar_eval_env` (135 pass there, `test_join.py` skipping as a
 module) and covers the scorer's pure logic.
 `test_corrections.py` is the largest single file in it, and every case in it is one of the
 silent failures in *Five things the sheet does that a careful reader would get wrong* above,
@@ -1992,14 +1992,14 @@ because that is what a paper cites.
   with **The data fence**, which binds any assistant working here whether or not anything
   stops it. Underneath that, a `PreToolUse` guard (`~/.claude/hooks/block-phi.py`)
   refuses every read of the raw audio, the diarization and ASR output shapes, anything under
-  `data/` (`stage2/` included, by the same directory rule that covers `stage1/`), and any
+  `phi/` (`stage2/` included, by the same directory rule that covers `stage1/`), and any
   invocation of `psych_asr.cli.compare_arms` — which prints disputed
   transcript spans to stdout, so running it counts as a read. Left open on purpose, because
   refusing more would make the assistant useless on the bake-off: `*.arm_scores.json`
   (metrics, no text), `slurm_jobs/logs/**` (counts and durations), every pipeline entry
   point and every job that runs one, and `ls`/`find`/`stat` against the artifacts.
   Filenames and sizes are not content. The Stage 2 correction report is written to stdout
-  as well as to `data/stage2/`, for the same reason: the numbers about a session are not the
+  as well as to `phi/stage2/`, for the same reason: the numbers about a session are not the
   session, and a pass nobody can audit is a pass nobody should trust.
 - **The fence turns on where inference runs, not on which model it is.** A hosted assistant
   reading a transcript has transmitted a therapy session to a third party. A model whose
@@ -2008,7 +2008,7 @@ because that is what a paper cites.
   the diarizers disagree. The full three-part test is in `AI_INSTRUCTIONS.md`. An
   open-weight model served over somebody else's API is outside it; the licence is irrelevant
   and the network path is what counts.
-- Raw and derived data live under `data/` (gitignored) or on study storage — never in the
+- Raw and derived data live under `phi/` (gitignored) or on study storage — never in the
   tracked tree.
 
 ## The live board
@@ -2032,4 +2032,5 @@ too.
 With the board on the iPad and the slate for your working, a whole session can happen without
 touching the keyboard.
 
-You never run a board command. The tool is `~/Tutor-Board`; its README explains the rest.
+You never run a board command. The tool is `board/` at the root of Atlas, on the path as `board`; `board/README.md` explains the
+rest.

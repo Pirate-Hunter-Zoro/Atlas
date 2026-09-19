@@ -421,8 +421,8 @@ proceed.
 ## 13. The live board — mathematics is displayed, not dumped in the terminal
 
 The user reads mathematics on a **live typeset board**: a local page that renders proper LaTeX and
-updates the instant you write to it. The tool lives at `~/Tutor-Board` and is on the path as
-`board`. It is the display for this repository's tutoring. Section 9's Unicode rule governs what
+updates the instant you write to it. The tool lives at `board/` in the root of Atlas and is on
+the path as `board`. It is the display for this repository's tutoring. Section 9's Unicode rule governs what
 is left in the terminal; it does not govern the board, where you write real LaTeX.
 
 ### Start of session — do this first, without being asked
@@ -572,8 +572,9 @@ on, the user is asking to be watched while they work, and you should be waiting 
 than sitting idle.
 
 Review what you read under section 6, exactly as you would a dropped PDF. When a page is worth
-keeping, copy it into the right chapter's `handwritten/` folder — `live/` is scratch space and is
-not tracked.
+keeping, copy it into the right chapter's `handwritten/` folder — the whole `live/` transcript is
+committed, but `handwritten/` is where the permanent record belongs and where the chapters look
+for it.
 
 ### Waiting instead of being typed at
 
@@ -662,8 +663,11 @@ Two rules about the commit, and neither is negotiable:
 - **You never make the user transcribe what they already wrote.** Open the PNG.
 - **The user never runs a board command.** Starting, stopping, exporting, and diagnosing it are
   yours, exactly like compiling under section 8.
-- **`live/` is scratch space and is not tracked.** The permanent artefacts are the chapter `.tex`
-  files, the `handwritten/` PDFs, and anything you deliberately export.
+- **`live/` is scratch space, but the lesson transcript in it is tracked.** Cards, slate,
+  answers, archive, inbox, text, `state.json` and `turns.jsonl` are committed, so a lecture is
+  the same whichever machine it is picked up on; only the runtime state is ignored. The
+  permanent artefacts are still the chapter `.tex` files, the `handwritten/` PDFs, and anything
+  you deliberately export.
 - **The board does not relax section 7.** Solution regions in `.tex` files stay empty in normal
   mode, and a card is not a loophole for writing the user's solution.
 - **The board does not relax section 5.** One concept, one question, then stop and wait. A live

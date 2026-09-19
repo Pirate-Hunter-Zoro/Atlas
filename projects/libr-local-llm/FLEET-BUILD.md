@@ -22,7 +22,7 @@ are corrected in §2; pass three's single point of failure is corrected in §4.1
    **everything must die to `scancel -u $USER`**, and the P1-shaping decisions are already made in
    favour of performance. Do not re-ask them.
 3. **Read [`P0-STATUS.md`](P0-STATUS.md) before touching P0, and before trusting §9 or §11 here.**
-   Nine of the twelve tests passed on 2026-09-09 and **twelve findings there contradict this file.**
+   Every test but 8 and 12 has finished and **twenty-two findings there contradict this file.**
    The one that matters most: **tier 1 on a single A40 serves six concurrent users at 51 tok/s each
    with a 0.2-second first token, while tier 2 on a whole 1 TB node manages 3.2–4.4 tok/s for one.** The
    rest are operational and will cost you a day each if you meet them cold — `--exclusive` is refused
@@ -95,7 +95,7 @@ are now settled.
 | 2 | which model shape for the standard helper? | **a sparse MoE, ≤36 GB at int4, with ≤10B active parameters** | §0.4 — this is the single highest-leverage performance decision available and it is not a close call |
 | 3 | tensor parallelism on compute306 | **the minimum that fits, never more.** TP=2 before TP=4; independent single-card replicas before either | NVLink is inactive, so every all-reduce crosses PCIe. Extra cards past what the weights need are a tax, not a speed-up |
 | 4 | partition | **`c3_short` on compute300–305, `c3_accel` on compute306, never `c3`** | `c3` is preemptible and a suspended server hangs the client with no error — **observed 2026-09-09, and it takes four seconds** (§14). Earlier revisions said "`c3_short` for everything"; that is impossible, because `c3_accel` is the only partition containing compute306. It is safe anyway: partition-priority preemption needs a higher-tier partition on the same node and there is none (`P0-STATUS.md`) |
-| 5 | colibrì settings | `CUDA_DENSE=1`, `XEXP=1`, speculation on at `KV_SLOTS=1`, `URING`/`PILOT*` **off** | §10. Each is a measured lever; `XEXP` and speculation are still A/B'd in P0, but they ship **on** unless a measurement says otherwise |
+| 5 | colibrì settings | `CUDA_DENSE=0`, `XEXP` unset, speculation **off** (no `COLI_CUDA_MTP`), `URING`/`PILOT*` **off** | §10. The measurement said otherwise on all three: `CUDA_DENSE=1` exits at once without `COLI_CUDA=1` and then measures 2.56 against 2.67, `XEXP=1` costs 12 %, and depth-1 speculation costs 9.7 % — `P0-STATUS.md` findings 15, 11 and 21, and `colibri_serve.sbatch` runs none of them |
 | 6 | `reserve_free_nodes` | **stays at 1** | it costs one card of ten and it is the only reason a colleague never waits on us at all. Performance for us is not worth being the group that gets emailed |
 
 ### 0.4 The one decision that matters most for speed: sparse, not dense
@@ -313,7 +313,8 @@ loss around 85 % expert hit"* is this arithmetic biting.
 There is one exception worth keeping: **MULTI-SLOT serve and MTP speculation are mutually exclusive
 in the engine, so `KV_SLOTS=1` is the case that KEEPS speculation** — *"MTP/n-gram speculation is not ragged-safe across KV slots, so multi-slot serve
 keeps one scheduler owning every forward (`g_draft=0`)"*. Since we are not batching tier 2 anyway,
-run it at `KV_SLOTS=1` and take the speculation. Grammar-forced drafts stay safe at any slot count.
+run it at `KV_SLOTS=1` — and leave the speculation off, because `P0-STATUS.md` finding 21 measures
+depth 1 under CUDA at 9.7 % slower than the engine's `draft=0` default on this box. Grammar-forced drafts stay safe at any slot count.
 
 ### 3.4 The other half: what raises the 122 ms
 
@@ -646,9 +647,12 @@ releases in seconds.** §4.3 is the ladder; the size of the claim is not the thi
 - **compute306 is used, not camped on.** A multi-user service on the only node that can hold the
   model is the intended use of that hardware. Hold it with a real walltime, publish the status,
   release it when idle.
-- **The specialist costs about 31 minutes to restart** (429 GB at a measured 230 MB/s), so it yields
-  reluctantly and its idle timeout is **180 minutes**, not 30. A 31-minute asset released over a
-  lunch break is the thrashing `DESIGN.md` §10 warns about.
+- **The specialist costs about 9 minutes to restart** — 429 GB pinned cold at a measured 422 MB/s,
+  and the chain's successor went from job start to serving in 9m11s on 2026-09-19. The 180-minute
+  idle timeout here and §8's 45-minute readiness timeout are both still sized against the
+  superseded 31-minute projection, which came from an ollama `gpt-oss:120b` load rather than from
+  this checkpoint. It still yields reluctantly: an asset released over a lunch break is the
+  thrashing `DESIGN.md` §10 warns about.
 - The yield predicate is unchanged and the **`BeginTime` filter is still the load-bearing part** —
   every pending job on this cluster on 2026-09-09 was `BeginTime`, not `Resources`.
 - **Fair-share is the real cost and it scales with the pool.** The specialist alone bills ~92 CPUs;
@@ -838,15 +842,16 @@ Three entries of the previous revision are **deleted on measurement**, not defer
 | was | measured | now |
 |---|---|---|
 | `XEXP=1` (measure) | **−12 %** | drop it |
-| `DRAFT` measured | `DRAFT=2` −11 %, `DRAFT=4` −19 % | **not what it looks like — `P0-STATUS.md` finding 21.** Both ran CPU-only, where the engine's auto path already gives depth 1, so those are depth 2 and 4 *against depth 1*, not against off. And what the serve job actually runs is **depth 0**: `--gpu` enables CUDA, the CUDA default refuses MTP, and `--auto-tier` exports `DRAFT=0` on top. Depth 1 under CUDA is unmeasured; `slurm_jobs/p0/t21_mtp_depth1.sbatch` is the A/B |
+| `DRAFT` measured | `DRAFT=2` −11 %, `DRAFT=4` −19 % | **not what it looks like — `P0-STATUS.md` finding 21.** Both ran CPU-only, where the engine's auto path already gives depth 1, so those are depth 2 and 4 *against depth 1*, not against off. And what the serve job actually runs is **depth 0**: `--gpu` enables CUDA, the CUDA default refuses MTP, and `--auto-tier` exports `DRAFT=0` on top. Depth 1 under CUDA is measured — `slurm_jobs/p0/t21_mtp_depth1.sbatch`, job 2073575, six runs ABBAAB: **3.23 tok/s on against 3.58 off, 9.7 % slower with no overlap** (`P0-STATUS.md` finding 21) — so depth 0 stays |
 | `CUDA_DENSE=1` | needs `COLI_CUDA=1` or it exits at once; with both set, ≈ no effect | not a lever |
 
 `COLI_CUDA_PIPE` is on by default and should stay — forcing it off costs 8 %.
 
-**Speculation is OFF on the served configuration, and §0.3's decision 5 says it ships on.** The
-decision is not being re-litigated — it says these levers ship on *unless a measurement says
-otherwise*, and no measurement ever said otherwise here. Two defaults turned it off without anybody
-choosing that: see finding 21. `COLI_CUDA_MTP=1` is the only export that clears both.
+**Speculation is OFF on the served configuration, and a measurement is why.** Two defaults turned
+it off before anybody chose that — `--gpu` enables CUDA, whose default refuses MTP, and
+`--auto-tier` exports `DRAFT=0` on top — and `COLI_CUDA_MTP=1` is the only export that clears
+both. Finding 21 then ran the A/B that §0.3's decision 5 asks for: depth 1 under CUDA is 9.7 %
+behind depth 0, so it stays off and `COLI_CUDA_MTP` is not exported.
 
 ---
 
@@ -972,7 +977,7 @@ is better evidence than any public leaderboard because it is the actual job.
 
 | # | task family | where the ground truth comes from | grading |
 |---|---|---|---|
-| C1 | **explain a real pipeline stage** | `~/PSYCH-ASR/docs/stage1_pipeline_walkthrough` — a walkthrough the user already wrote and verified | keyed |
+| C1 | **explain a real pipeline stage** | `research/PSYCH-ASR/docs/stage1_pipeline_walkthrough.tex` — a walkthrough the user already wrote and verified | keyed |
 | C2 | **locate** — "where is X configured, and why is it that value?" | the repos; the answer is a file and a line | **objective** |
 | C3 | **find a real bug** — take a fix from git history, revert it, ask what is wrong | every entry in `README.md` §7 is a bug somebody actually hit, with a known cause and a known fix | **objective** |
 | C4 | **spec to code** — delete an existing small function, hand over its docstring, compare | the function and its tests already exist | **objective** — does the test pass |

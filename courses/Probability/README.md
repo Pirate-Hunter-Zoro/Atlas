@@ -15,7 +15,7 @@ lecture modules.
 ## Layout
 
 ```
-textbook/           the full text (tracked — private repo)
+textbook/           the full text (ignored — kept on disk, never committed)
 chapters.tsv        chapter table — numbers, titles, page ranges. Single source of truth.
 latex/
   coursemacros.sty  shared preamble, probability macros
@@ -25,7 +25,7 @@ scripts/
   scaffold.sh       create chapter / homework folders and .tex files
   build.sh          compile one .tex
 chapters/chNN-slug/
-  reading/chNN.pdf  this chapter's excerpt, cut by `make split` (tracked)
+  reading/chNN.pdf  this chapter's excerpt, cut by `make split` (ignored — regenerate it)
   lectures/         the professor's module slides for this chapter
   notes/            chNN-notes.tex
   handwritten/      iPad exports — the work as originally written
@@ -112,16 +112,16 @@ it sees each page as you pause. Photos and PDFs dropped anywhere on the board wo
 With the board on the iPad and the slate for your working, a whole session can happen without
 touching the keyboard.
 
-You never run a board command. The tool is `~/Tutor-Board`; its README explains the rest.
+You never run a board command. The tool is `board/` at the root of Atlas, on the path as
+`board`; `board/README.md` explains the rest.
 
 ## Git
 
-The remote is `origin`, at
-[Pirate-Hunter-Zoro/Probability](https://github.com/Pirate-Hunter-Zoro/Probability), tracked by
-`main`. Nothing is committed or pushed automatically.
+This course is a directory in [Pirate-Hunter-Zoro/Atlas](https://github.com/Pirate-Hunter-Zoro/Atlas),
+tracked by `main`, and it is not its own clone. Nothing is committed or pushed automatically.
 
-**The repository is private, and what is tracked depends on it staying that way.** Instructor
-material — textbook, excerpts, lecture slides, assignment sheets — is tracked only for that
-reason. If it is ever made public, ignore all of it *first* — and purge it from history rather
-than merely deleting it, since a file stays reachable in past commits until it is actually
-removed.
+**Atlas is public, so nothing here is private.** The textbook and its per-chapter excerpts are
+ignored and live on disk only. The professor's module slides under `chapters/*/lectures/` and the
+assignment sheets under `homework/*/assignment/` are still tracked, which means they are
+published — ignoring them now is half the job, because a file stays reachable in past commits
+until history is rewritten.

@@ -99,10 +99,10 @@ Everything else in the tree is yours. **And that session is owed one line**: the
 address block in `watch_once` tests `supervise.answering(port)`, which cannot
 tell a serving board from a leftover that is merely alive — see *ANSWERING IS NOT
 OWNING* under Settled, where the condition it wants is written out. The half in
-`bin/board` is shipped. **The chain is stopped on purpose** while
-that session works — `serve-stopped` is in the state directory, `tutor serve
-status` says so, and nothing but `tutor serve` clears it. This block comes out
-when that session ships.
+`bin/board` is shipped. **The chain is running** while that session
+works — `tutor serve status` names the live generation and the successor queued
+behind it, and stopping, restarting or resubmitting it is that session's call
+rather than yours. This block comes out when that session ships.
 
 **`projects/libr-local-llm` has its own handoff and it is still the live one.**
 The five pieces it asked for against the board are shipped and are under
@@ -262,68 +262,41 @@ None of these is a build. Each is an evening in front of the thing.
   asserts only that they reach the course. **The first card of the next sitting is
   the real check.**
 
-### 3. Audit every document against the code it describes — A KEYBOARD, AND A FLEET
+### 3. Three things the audit found that are not prose — A KEYBOARD
 
-**This is the item a session typing at a keyboard takes.** Items 1 and 2 are
-the iPad's; this one is not, and it is the only one here that wants more than
-one context.
+The documentation half is done and is under *Settled*. These are what it turned
+up underneath, and none of them is fixed by editing a sentence.
 
-**Why it exists.** Three false sentences were found by hand in one file on 18
-September, and one of them —
-`projects/libr-local-llm/HANDOFF.md` saying nothing ran `names_phi` over a
-shipped diff — was the sentence that would have made somebody hold item 1's
-ship switch off. They were found by accident, while reading that file for
-something else. **Nothing in the tree looks for them.** `test/tracked.py`
-audits what git carries and `test/teaching.py` audits where a rule is written
-down; neither asks whether a sentence about the code is still TRUE. This
-repository's whole method is that a document is what the next turn reads
-instead of re-deriving, so a document that lies costs more than one that is
-missing: a missing one sends somebody to the code.
+- **Thirty-one instructor PDFs are tracked in a public repository.** The
+  professor's module slides under `courses/Probability/chapters/*/lectures/` and
+  the assignment sheets under `homework/*/assignment/`. The README said the
+  repository was private and that they were tracked *for that reason*, so the
+  sentence that would have caught this was the one telling everybody not to
+  worry; it now says what is true. Ignoring them is half the job — **the
+  decision that needs the owner is whether to rewrite history**, because a file
+  stays reachable in past commits until it is actually removed, and rewriting
+  the history of a public repository is not a thing to do unasked.
+  `test/tracked.py` refuses *other authors' papers* and did not catch these, so
+  the second question is whether its rule should name a course's lecture slides
+  too.
 
-**What exists.** `board/tools/docs-audit.md` — the job written down and not yet
-run. It is a SPECIFICATION and it names no assistant: five surfaces
-(`board/README.md`, this file's *Settled* section, the `libr-local-llm`
-documents, the four workspaces' `README`/`AI_INSTRUCTIONS`, and
-`Paper-Writer`), what counts as a finding, and a second reader over every
-candidate whose only job is to prove the document was right. Read it rather
-than re-deriving it.
+- **`board push` and the save button run different scripts.** `lesson/git.py`
+  runs the tool's `board/scripts/save-and-push.sh`; `bin/board`'s `cmd_push`
+  runs `os.path.join(live.root, "scripts", "save-and-push.sh")` — the
+  workspace's own tracked copy. Eight of those are still in the tree at four
+  different sizes, so the two doors take different code, and the one the
+  terminal uses is the older one. The board's copy is the one that learned about
+  pathspecs and staged removals; the workspace copies did not. Either
+  `cmd_push` points at the tool's copy and the eight come out of the tree, or
+  they are genuinely wanted and the README stops calling it one script.
 
-**Write your own harness from it and do not commit the harness.** Whatever you
-orchestrate with, the spec is the input and the fan-out is ten minutes of
-transcription. `.gitignore` refuses `**/.claude/workflows/` and its siblings
-for the reason `ai-config/README.md` gives: a provider's orchestration API is
-the one part of this that will be spelled differently in a year, and the
-decomposition is the part worth keeping.
-
-**The decisions, and they are the expensive part.**
-
-- **The fleet does not edit, and this is not timidity.** The documents are in
-  the owner's voice, and five agents rewriting prose in parallel produce five
-  registers and a merge conflict. The fleet returns facts; one turn applies
-  them afterwards in one register. The script says this at the top and the
-  prompts repeat it — if you loosen it, you are choosing a different failure.
-- **A finding is a falsehood of fact, never a matter of wording.** A model
-  asked to find stale documentation will find stale documentation, and most of
-  what comes back untreated is prose it would have phrased differently. That is
-  what the refutation pass is for, and why its instruction is to default to
-  *refuted* when unsure. Do not relax that default to raise the count.
-- **The known drifts are named in the prompts on purpose.** Two are already
-  corrected in some files and may survive in others: MTP being an open question
-  when it is measured, and `~/.local/lib/python3.12` being something to delete
-  when it is already gone. Naming them is not cheating — it is the difference
-  between an auditor that finds the tail of a known drift and one that
-  rediscovers its head.
-- **`courses/Galois-Theory` may have a live session in it.** Read-only there,
-  always.
-
-**What to assert.** Whatever the audit confirms, write the correction into the
-document — and then, for any finding whose class a test could have caught, ask
-whether it should have. A rule that only a fleet can check is a rule that gets
-checked when somebody remembers to run a fleet.
-
-**What comes out of this file when it lands:** this item, replaced by one
-*Settled* line saying what the audit found and what now keeps it from
-recurring.
+- **Six findings stand unapplied in `courses/Galois-Theory`.** Its `README.md`
+  and `AI_INSTRUCTIONS.md` both describe `live/` as untracked when 1189 of its
+  files are committed, and both describe `"mode": "math"` as meaning the board
+  has no text box, when the board drops the key on read and `#saybox` is right
+  there. A live session had those two files open when the audit ran, so they
+  were left alone. Apply them when that session has shipped; the wording is the
+  same as the corrections already made in `courses/Probability`.
 
 ---
 
@@ -351,6 +324,44 @@ as the answer.
 ---
 
 ## Settled, so nobody re-derives it
+
+- **A DOCUMENT IS AUDITED AGAINST THE CODE IT DESCRIBES, AND THE CLASS THAT
+  PRODUCED MOST OF THE LIES IS NOW A SUITE.** Nineteen readers over the five
+  surfaces in `board/tools/docs-audit.md`, one refuter per candidate defaulting
+  to *the document was right*: **132 candidates, 115 survived**, spread over
+  nineteen documents. The shape of them is the finding. **A quarter were one
+  class** — a document naming the home-directory clone a workspace lived in
+  before this tree became one repository, or the directory a package was called
+  before it was renamed. The rest were numbers with two homes — one command's
+  suite count had three different values in three documents, Paper-Writer's test
+  count two, `atlas.json`'s own family count two — and *not built yet* about
+  something built months ago: three of TRD-EHR's four *Planned* bullets name
+  functions that are in `core.py`, and `DESIGN.md` still opened *Nothing in this
+  document is built* over an engine that has been serving since September.
+  **`board/test/truthful.py` keeps the two halves a machine can keep**: no
+  document names a retired address unless the sentence is saying it is retired,
+  and every count of the suites, of Paper-Writer's tests and of the families is
+  re-derived and compared. It found seven more the fleet never saw, because the
+  `practice/` workspaces and the root `README.md` are not among the five
+  surfaces. **A third check was written and deleted, and the reason is the rule**:
+  *every source file a document names exists* fired three times and all three
+  sentences were true — `board/README.md` naming a course's `scripts/build.sh`,
+  PSYCH-ASR naming a job script in the paragraph that says it was deleted. An
+  auditor that reports true sentences as false is one somebody silences rather
+  than reads, so that class stays a reader's job and `truthful.py` says so in
+  place of the check.
+  **Two of the findings were not about prose.** `lesson/git.py` runs the tool's
+  `save-and-push.sh` while `bin/board`'s `push` runs the *workspace's* own
+  tracked copy — eight of those are still in the tree, and they are not the same
+  file, so the save button and `board push` take different code. And
+  `courses/Probability` still tracks 31 instructor PDFs — the professor's module
+  slides and the assignment sheets — in a repository that is public; the README
+  said the repository was private and that they were tracked *for that reason*,
+  which is the sentence that would have kept somebody from looking.
+  **`courses/Galois-Theory` was read and not written.** Six findings stand in
+  its `README.md` and `AI_INSTRUCTIONS.md` — `live/` described as untracked when
+  1189 of its files are committed, and `"mode": "math"` described as removing a
+  text box that exists — and a live session has those two files open.
 
 - **ONE KV SLOT, AND `exclusive` IS THE ANSWER RATHER THAN A PLACEHOLDER.** A
   slot costs 23.9 GB at a 131072 window and fits only by eating the whole pin
@@ -1181,7 +1192,8 @@ as the answer.
   refusal stands exactly as it was written and this does not contradict it: the
   supervisor it refused OUTLIVES the machine and comes back to a machine that is
   not there, and this one IS the machine — it ends when the allocation does, and
-  the thing that brings the board back is the job queued seven days earlier.
+  the thing that brings the board back is the successor queued nine hours
+  earlier, at the start of this generation.
   **Ending it is a flag BEFORE a cancel**, which is not belt-and-braces:
   cancelling the running generation is precisely what its successor's dependency
   is waiting for, so a chain cancelled one job at a time comes straight back,
@@ -1189,10 +1201,13 @@ as the answer.
   the state directory is checked before any submission and on every pass of the
   loop, and `tutor serve stop` writes it and then cancels the whole job name at
   once. **The partition is the one setting in here with a wrong answer**: `c3` is
-  PreemptMode SUSPEND under higher-tier partitions, so a seven-day board there is
+  PreemptMode SUSPEND under higher-tier partitions, so a board there is
   SIGSTOPped by the first busy afternoon — alive, holding its port, answering
-  nothing, and undiagnosable. `c3_accel`'s node is in no higher-tier partition,
-  and two CPUs of ninety-six for a week is a rounding error. It is
+  nothing, and undiagnosable. `c3_accel` is no escape either: measured from
+  inside a job on compute306, its node has no route to Tailscale's control plane
+  at all, so a tutor can teach from there and the iPad cannot reach it. That
+  leaves `c3_short`, nine hours, top tier and preempted by nothing — a ceiling
+  which is exactly what a self-renewing chain makes irrelevant. It is
   `serve_partition`, `serve_time`, `serve_cpus` and `serve_mem` in the config,
   because the day the cluster is rearranged this has to be answerable without a
   commit. **A handover is not a stop, and the difference is one field**: the
@@ -1336,9 +1351,9 @@ as the answer.
   transcript because they did it, and *"sent at 20:14"* is a sentence about work
   handed in.
 - **The box belongs to the question, not to whichever tab is showing.**
-  `restoreTextAnswer` and `restoreTextDraft` were asked only while the type half
+  `restoreTextDraft` was asked only while the type half
   was up, so a question that opened on the slate left the previous question's
-  words in the box — and the restore refused any box that was not empty. Both are
+  words in the box — and the restore refused any box that was not empty. It is
   now asked whenever the panel is open, and the refusal asks the narrower and
   right question: does `textDrafts` hold typing of their own, on THIS question,
   that has not been sent. That is the same correction `correctingTurn` is on the
@@ -1542,12 +1557,12 @@ as the answer.
   which document and which page, deliberately, so the shell rule was caching the
   very page a revision changes.
 - **`mode` is gone and is not coming back.** `config.read_config` reads and drops
-  it; four `tutorboard.json` files still carry one and it means nothing.
+  it; six `tutorboard.json` files still carry one and it means nothing.
 - **And the six changes before these.** `scripts/tool.sh` holds `tool_prefix` and
   `tool_root`, and both scripts read them. `tutorboard/fenced.py` is the one
   fence list and `reading.py` reads it. `plan._collect` takes `STEP` and `- [ ]`
   together in file order, `_distinct` settles the label collisions, and
   `MAX_STEPS` is 24. `course/results.py` and `/result/` put a figure on the
-  glass. `map._unclaimed` gives a written map its document boxes.
+  glass. `map._loose_docs` gives a written map its document boxes, eight at most.
   `paper1-trd-prediction` has its PDFs and `reading.py` finds them with no board
   change at all.

@@ -44,7 +44,7 @@ the board finds it; nothing needs telling.
 
 Two levels, and they mean something. A **family** is a kind of work. A **workspace** is one
 course or one project — the board treats those identically, which is why there is one word for
-both. `atlas.json` names and orders the five families and says which hold somebody else's work.
+both. `atlas.json` names and orders the six families and says which hold somebody else's work.
 That is all it does.
 
 ---
@@ -170,8 +170,8 @@ And the rest of it, in the order it bites:
 - **Bump `VERSION` in `board/web/sw.js`** when any shell file changed (`board.html`, `board.js`,
   `board.css`, `plane-core.js`, `gauge.js`, `home.html`, `home.js`, anything new in the cache
   list), or the installed app serves its cached copy and the work is invisible.
-- **Run `bash board/test/all.sh` before every ship.** 71 suites. Keep them green.
-- **`board/test/tracked.py` is the one that cannot be fixed afterwards.** It runs first and refuses
+- **Run `bash board/test/all.sh` before every ship.** 86 suites. Keep them green.
+- **`board/test/tracked.py` is the one that cannot be fixed afterwards.** It runs early and refuses
   PHI, 25-megabyte files, model dumps, other authors' papers and books, and machine-local config,
   anywhere in the repository. This is public, and git remembers.
 - **The lesson must stay reachable.** Somebody is mid-proof on a tablet while the tool changes

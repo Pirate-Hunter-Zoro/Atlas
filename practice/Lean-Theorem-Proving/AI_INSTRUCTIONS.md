@@ -383,8 +383,8 @@ completed normally, unless the requested content itself contains code, commands,
 
 When a session turns into teaching — walking through a paper, deriving something, explaining an
 algorithm — the user reads the mathematics on a **live typeset board**: a local page that renders
-proper LaTeX and updates the instant you write to it. The tool lives at `~/Tutor-Board` and is on
-the path as `board`. Section 7's Unicode rule governs what is left in the terminal; it
+proper LaTeX and updates the instant you write to it. The tool lives at `board/` in the Atlas root and
+is on the path as `board`. Section 7's Unicode rule governs what is left in the terminal; it
 does not govern the board, where you write real LaTeX.
 
 ### Start of a teaching session — do this first, without being asked
@@ -470,7 +470,7 @@ mathematics, not a whole-paper dump.
 Inside the card:
 
 - Mathematics in ordinary LaTeX, `$…$` inline and `$$…$$` displayed. The macro vocabulary is in
-  `~/Tutor-Board/web/macros.js`.
+  the board's `web/macros.js`.
 - Markdown headings, lists, tables, bold, and blockquotes all render. Tables are the right tool
   for step-by-step values and comparisons.
 - Diagrams that LaTeX must draw — trees, lattices, commutative diagrams, tikz pictures — go in a

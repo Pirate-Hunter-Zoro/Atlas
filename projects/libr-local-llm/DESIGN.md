@@ -1,6 +1,8 @@
 # The fleet — design for a good-citizen, multi-engine local inference service
 
-**Status: design only. Nothing in this document is built.** It is the plan for the next phase of
+**Status: partly built. M0 (vLLM installed) and M2 (the colibri placement measurement) are
+done, and their durable facts are in `README.md` §4c and `P0-STATUS.md`; M1 and M3–M5 are still
+design only.** It is the plan for the next phase of
 this repo, written before the code so the arguments survive the implementation. `README.md`
 documents what *exists*; this file documents what is *intended*, and the two must not be confused.
 When a piece of the fleet is built and verified, its durable facts graduate into `README.md` and
@@ -70,8 +72,8 @@ altruism; they are self-defence.
 | engine | best at | worst at | status |
 |---|---|---|---|
 | **ollama** | one user, instant model switching, auto load/evict, zero ceremony | throughput, batch work, models over ~46 GB per card | live (`README.md` §4) |
-| **vLLM** | many concurrent requests, batch corpora, schema-guided decoding, prefix caching | anything that does not fit in VRAM; CPU offload exists and is bad | not installed |
-| **colibrì** | models that do not fit in VRAM at all — a 744B MoE on this hardware | concurrency; it serves exactly one generation at a time | not installed |
+| **vLLM** | many concurrent requests, batch corpora, schema-guided decoding, prefix caching | anything that does not fit in VRAM; CPU offload exists and is bad | installed, not yet serving (`README.md` §2) |
+| **colibrì** | models that do not fit in VRAM at all — a 744B MoE on this hardware | concurrency; it serves exactly one generation at a time | live (`README.md` §4c) |
 
 The three are complementary and not interchangeable, and the fleet's value is precisely that a
 caller does not have to know which is which. Nothing here blends models together — there is no
@@ -578,7 +580,7 @@ finding until a controlled run says so, and negative results are worth recording
 
 | hypothesis | evidence so far | measurement needed |
 |---|---|---|
-| colibrì on one A40 is within ~40% of colibrì on four | another host's controlled A/B showing the VRAM split immaterial and the RAM budget decisive | our own paired run, same model, same context, profile snapshotted and restored between conditions |
+| colibrì on one A40 is within ~40% of colibrì on four | **settled** — our own alternated paired run on compute306, all four cards warm: 4.31 tok/s on one against 4.35 on four, so four cards are worth 0.9 % (`P0-STATUS.md` test 6 and finding 12, `slurm_jobs/p0/t6_gpu_scaling.sbatch`) | none owed; §4.1's projected 35–40 % cost was wrong in our favour, and the single-GPU placement is decided on our own numbers |
 | atomic rename on the studies share is a safe claim primitive | it is the standard technique; this NFS mount is untested | a deliberate race: many workers, one queue, verify exactly-once claiming and reclaim-after-death |
 | vLLM replicas beat tensor parallelism on this PCIe-only host | no NVLink is confirmed; the throughput claim is not | four replicas versus one four-way shard, same model, same batch, aggregate tokens compared |
 | yielding on pending-queue evidence actually helps the other job | none. This is the fleet's central claim and it is currently an assumption | instrument every yield: did the triggering job start, and how long after |

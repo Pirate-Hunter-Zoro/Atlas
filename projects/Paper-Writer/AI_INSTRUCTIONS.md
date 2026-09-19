@@ -188,7 +188,7 @@ compensate by giving the user a chore.
 python3 -m unittest discover -s tests
 ```
 
-Two hundred-odd tests, standard library only, no network, and it takes about four
+Five hundred-odd tests, standard library only, no network, and it takes about twenty
 seconds. Every one of them redirects state into a temp directory and asserts the
 redirect at import, so the suite cannot touch a real path.
 
@@ -239,7 +239,8 @@ in. Do not add a `Co-Authored-By` line naming a model, and do not work around th
 ## 9. The live board
 
 When a session turns into teaching, the user reads on a **live typeset board** rather
-than in the terminal. The tool lives at `~/Tutor-Board` and is on the path as `board`.
+than in the terminal. The tool is `board/` in Atlas, two levels up from this
+workspace, and is on the path as `board`.
 
 **At the start of a teaching session, without being asked:**
 

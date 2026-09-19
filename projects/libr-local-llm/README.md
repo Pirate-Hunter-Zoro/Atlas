@@ -2,7 +2,8 @@
 
 Local LLM inference on LIBR compute — **no admin rights, no data leaving the cluster.**
 
-> **This repo is public** (`github.com/Pirate-Hunter-Zoro/libr-local-llm`). That is defensible
+> **This directory sits in a public repo** (`github.com/Pirate-Hunter-Zoro/Atlas`) — it is not a
+> repository of its own. That is defensible
 > because it holds serving configuration only — no PHI, no data, no credentials — but it is a
 > standing constraint on every future commit, not a one-time decision. Nothing sensitive goes in
 > here. Ever.
@@ -172,8 +173,8 @@ Nothing here required admin rights.
 | Pre-existing HF models | `/media/studies/ehr_study/analysis/mferguson/models/` | whisper, pyannote, embedders, and `google_medgemma-27b-text-it` (safetensors, for vllm) |
 | Fleet standard helper | `…/models/vllm/Qwen3-Coder-30B-A3B-Instruct-AWQ-4bit` | 18.1 GB. `cyankiwi/…`, compressed-tensors int4 at **group size 32**, 30B total / **3.3B active**, 128 experts top-8, 262144 native context. Staged 2026-09-09 in 167 s |
 | Fleet specialist | `…/models/colibri/glm52_i4` | **429 GB**, 149 files. `mastouri/GLM-5.2-colibri-int4-g64-with-int8-mtp` — the group-scaled container with the int8 MTP head, which is the one colibrì's own docs require |
-| colibrì upstream checkout | `~/colibri` | ~89 MB. Read-only clone of `github.com/JustVugg/colibri`, kept current by a daily user timer (§2.1). Never build in it — the timer expects a clean tree |
-| colibrì build | `~/colibri-build` | A second clone, pinned at the commit that was measured. Built 2026-09-09 with `make -C c glm CUDA=1 CUDA_ARCH=sm_86 CUDA_HOME=$EBROOTCUDA ARCH=native` under `CUDA/13.1.0` + `GCC/13.3.0`; 44 s. `ARCH=native` is load-bearing and verified — it defines `__AVX512VNNI__`, which selects the faster int4 kernel. Both AVX-512 selftests pass |
+| colibrì upstream checkout | `vendor/colibri` | ~89 MB. A submodule of Atlas tracking `github.com/JustVugg/colibri`, moved forward by a daily user timer (§2.1). Never build in it — the pull commits nothing when the tree is dirty |
+| colibrì build | `vendor/colibri-build` | A second submodule, pinned at the commit that was measured, built from its `c` subdirectory. Built 2026-09-09 with `make -C c glm CUDA=1 CUDA_ARCH=sm_86 CUDA_HOME=$EBROOTCUDA ARCH=native` under `CUDA/13.1.0` + `GCC/13.3.0`; 44 s. `ARCH=native` is load-bearing and verified — it defines `__AVX512VNNI__`, which selects the faster int4 kernel. Both AVX-512 selftests pass |
 | vLLM | conda env `/media/studies/ehr_study/analysis/mferguson/venvs/vllm_env` | v0.29.0, torch 2.13.0+cu130, python 3.12. Selects the **Marlin** WNA16 MoE backend on these sm_86 cards |
 | Hugging Face downloader | venv `/media/studies/ehr_study/analysis/mferguson/venvs/hfdl` | `huggingface_hub` 1.8.0, for the `hf download` command only |
 | P0 job files, harness, logs, results | `/media/studies/ehr_study/analysis/mferguson/fleet-p0` | Deliberately outside this repo: it is public, and job logs are not architecture |
@@ -201,8 +202,10 @@ dependency and works.
 
 ### 2.1 Keeping the colibrì checkout current
 
-(Added 2026-08-30.) `~/colibri` is a plain clone of the upstream engine, tracking `main`. It is
-fast-forwarded **once a day, automatically**. This is unrelated to any tutoring or serving process
+(Added 2026-08-30.) The upstream engine is `vendor/colibri`, a submodule of Atlas tracking `main`,
+so moving it forward is two operations — fast-forward the submodule, then commit the bumped
+pointer in the superproject — which is why `colibri-pull` calls `tutor pull` rather than git. It
+runs **once a day, automatically**. This is unrelated to any tutoring or serving process
 and shares nothing with them: its own script, its own log, its own timer.
 
 | Piece | Path |
@@ -357,7 +360,7 @@ Three Slurm jobs. Submit **from the repo root** — the log paths are relative.
 | --- | --- | --- | --- | --- |
 | `slurm_jobs/ollama_serve.sbatch` | `c3_short` | 1 | 4 | daily driver (qwen3-coder, medgemma) |
 | `slurm_jobs/ollama_serve_accel.sbatch` | `c3_accel` | 4 | 8 | `gpt-oss:120b` only |
-| `slurm_jobs/colibri_serve.sbatch` | `c3_short` | 1 | 88 | GLM-5.2 int4 for work that cannot leave the building (§4c) |
+| `slurm_jobs/colibri_serve.sbatch` | `c3_short` | 1 | 80 | GLM-5.2 int4 for work that cannot leave the building (§4c) |
 
 The rest of this section is about the two ollama jobs. The colibrì one is a different animal —
 88 CPUs and most of a terabyte to answer one user — and has §4c to itself.
@@ -638,7 +641,7 @@ because it never served:
   prompt (trap 31).
 - **One GPU.** Four are worth 0.9 % on this model; the other three cards are each worth far more as
   tier-1 throughput to somebody else. `c3_short` on compute300–305, never `c3`, never compute306.
-- **88 CPUs, not 92.** `MaxCPUsPerNode` is a *partition*-wide cap, so one co-tenant holding two CPUs
+- **80 CPUs, not 92.** `MaxCPUsPerNode` is a *partition*-wide cap, so one co-tenant holding two CPUs
   makes a 92-CPU request pend on `(Resources)` forever beside an idle GPU.
 - **`OMP_NUM_THREADS` from `SLURM_CPUS_PER_TASK`, allowed to exceed the physical core count.** The
   engine self-tunes down to 48 on this box and is wrong to.
@@ -661,8 +664,10 @@ because it never served:
 - **`TMPDIR` on the studies share.** `/tmp` is a node-local RAM tmpfs, so `coli`'s serve pidfile
   written on one node is simply absent from the next.
 
-Lower `-M` to schedule sooner. 950 GB holds every expert warm in page cache; less memory is not a
-failure, it is a slower tail, because the engine streams what will not fit.
+Lower `-M` to schedule sooner. 800 GB is the default and about the ceiling this partition will
+actually grant — `sbatch` refuses anything above roughly 900 GB outright — and it holds the whole
+406.7 GB plan warm in page cache; less memory is not a failure, it is a slower tail, because the
+engine streams what will not fit.
 
 ### Where the transcript goes, and why it is not in this repo
 
@@ -1020,11 +1025,11 @@ Do not re-learn these.
     are synthesised from an NFSv4 ACL and are not to be trusted, which is traps 25 and 28 — but the
     consequence is that git records a new script as 644 however it looks on disk, `git status` says
     nothing, and the failure appears only in somebody else's checkout as a bare *Permission denied*
-    from a command on `PATH`. `git update-index --chmod=+x <path>` sets it in the index directly
-    — **and then `save-and-push.sh` throws it away**, because that script commits with
-    `git commit --only -- <paths>`, which re-reads those paths from the working tree, where
-    there is no mode to read. Set the bit, check `git diff --cached --summary` shows the mode
-    changes and nothing else, then commit the index with a plain `git commit`.
+    from a command on `PATH`. `git update-index --chmod=+x <path>` sets it in the index directly,
+    and this project's `scripts/save-and-push.sh` carries it — that script stages with
+    `git add -A` and commits the index with a plain `git commit`, so neither step re-reads the
+    disk bit. Set the bit and check `git diff --cached --summary` shows the mode changes and
+    nothing else before saving.
     **The `ollama-*` three are still 644** and have been since August; they work here because this
     clone's on-disk bits are fine, and they will not work in the next one.
 
@@ -1133,4 +1138,5 @@ too.
 With the board on the iPad and the slate for your working, a whole session can happen without
 touching the keyboard.
 
-You never run a board command. The tool is `~/Tutor-Board`; its README explains the rest.
+You never run a board command. The tool is `board/` in Atlas, two levels up from this workspace;
+its README explains the rest.

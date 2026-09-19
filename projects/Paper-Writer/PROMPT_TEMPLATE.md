@@ -21,7 +21,7 @@ TRD-EHR primary analysis
 <!-- Point PAPER_SOURCE_DIRS at the directories the gathering stage may read. Set it in
      the environment or in the service file, colon-separated:
 
-       PAPER_SOURCE_DIRS=~/TRD-EHR/results:~/Research-Journey/paper1/references
+       PAPER_SOURCE_DIRS=~/Atlas/research/TRD-EHR/results:~/Atlas/research/PSYCH-ASR/docs
 
      Those trees are read-only ground truth. Nothing here ever writes into them. -->
 

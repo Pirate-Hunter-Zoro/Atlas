@@ -316,8 +316,8 @@ completed normally, unless the requested content itself contains code, commands,
 
 When a session turns into teaching — walking through a paper, deriving something, explaining an
 algorithm — the user reads the mathematics on a **live typeset board**: a local page that renders
-proper LaTeX and updates the instant you write to it. The tool lives at `~/Tutor-Board` and is on
-the path as `board`. Section 7's Unicode rule governs what is left in the terminal; it
+proper LaTeX and updates the instant you write to it. The tool lives in `board/` at the root of the Atlas
+checkout this workspace sits inside, and is on the path as `board`. Section 7's Unicode rule governs what is left in the terminal; it
 does not govern the board, where you write real LaTeX.
 
 ### Start of a teaching session — do this first, without being asked
@@ -403,7 +403,7 @@ mathematics, not a whole-paper dump.
 Inside the card:
 
 - Mathematics in ordinary LaTeX, `$…$` inline and `$$…$$` displayed. The macro vocabulary is in
-  `~/Tutor-Board/web/macros.js`.
+  the board's `web/macros.js`.
 - Markdown headings, lists, tables, bold, and blockquotes all render. Tables are the right tool
   for step-by-step values and comparisons.
 - Diagrams that LaTeX must draw — trees, lattices, commutative diagrams, tikz pictures — go in a
@@ -427,9 +427,10 @@ Filing a session archives the whole of it — your cards, every turn, and the fr
 into `live/archive/`. `board history` lists past sessions, and the user can read any of them back
 on the board itself, with their own working still in it. Nothing is lost by walking away.
 
-A session here ends at the **commit**. `board push` archives the session and starts the next one,
-because a commit is what "we got this working" means and it is the natural unit of code work. Do
-not invent a different boundary.
+A session here ends at the **commit**, because a commit is what "we got this working" means and
+it is the natural unit of code work. `board push` saves the work and does not end the sitting, in
+any repository: file it with `board archive` and start the next one with `board open`. Do not
+invent a different boundary.
 
 ### No session ends without a handoff
 
@@ -544,8 +545,9 @@ Two rules about the commit, and neither is negotiable:
 - **You never make the user transcribe what they already wrote.** Open the PNG.
 - **The user never runs a board command.** Starting, stopping, exporting, and diagnosing it are
   yours, exactly like verification under section 5.
-- **`live/` is scratch space and is not tracked.** Anything that matters gets exported or written
-  into the repository proper.
+- **`live/` is scratch space and is not tracked, with one exception.** `live/map.json` — the
+  written map of the boxes this project is made of — is tracked and travels with a clone.
+  Anything else that matters gets exported or written into the repository proper.
 - **The board does not relax section 3.** A card is a place for mathematics and prose, not a place
   to slip the user code they were supposed to write themselves.
 - **The board does not relax section 6.** One concept, one question, then stop and wait. A
@@ -618,8 +620,9 @@ your job, not theirs.
 the current state, what is blocking, and the ordered steps. Read it, say what the next step is in
 one or two sentences, and start it. `README.md` carries the architecture.
 
-**The sibling projects keep the same file in the same place.** `~/TRD-EHR/planning/TRD-EHR_TODO.txt`,
-`~/PSYCH-ASR/planning/PSYCH-ASR_TODO.txt`, `~/Atlas/projects/libr-local-llm/planning/LOCAL-LLM_TODO.txt`. When the
+**The sibling projects keep the same file in the same place.** `~/Atlas/research/TRD-EHR/planning/TRD-EHR_TODO.txt`,
+`~/Atlas/research/PSYCH-ASR/planning/PSYCH-ASR_TODO.txt`,
+`~/Atlas/projects/libr-local-llm/planning/LOCAL-LLM_TODO.txt`. When the
 user does not name a project, say what each one's next step is in a line, and note which are
 blocked. As of this writing that answer has a shape worth knowing: the paper waits on its senior author, PSYCH-ASR waits on a recording and a human-made reference, and `libr-local-llm` waits on nobody — so it is where work goes while the other two are stalled.
 

@@ -450,8 +450,8 @@ completed normally, unless the requested content itself contains code, commands,
 
 When a session turns into teaching — walking through a paper, deriving something, explaining an
 algorithm — the user reads the mathematics on a **live typeset board**: a local page that renders
-proper LaTeX and updates the instant you write to it. The tool lives at `~/Tutor-Board` and is on
-the path as `board`. Section 7's Unicode rule governs what is left in the terminal; it
+proper LaTeX and updates the instant you write to it. The tool lives at `board/` in the Atlas root and
+is on the path as `board`. Section 7's Unicode rule governs what is left in the terminal; it
 does not govern the board, where you write real LaTeX.
 
 ### Start of a teaching session — do this first, without being asked
@@ -537,7 +537,7 @@ mathematics, not a whole-paper dump.
 Inside the card:
 
 - Mathematics in ordinary LaTeX, `$…$` inline and `$$…$$` displayed. The macro vocabulary is in
-  `~/Tutor-Board/web/macros.js`.
+  the board's `web/macros.js`.
 - Markdown headings, lists, tables, bold, and blockquotes all render. Tables are the right tool
   for step-by-step values and comparisons.
 - Diagrams that LaTeX must draw — trees, lattices, commutative diagrams, tikz pictures — go in a
@@ -752,8 +752,9 @@ your job, not theirs.
 the current state, what is blocking, and the ordered steps. Read it, say what the next step is in
 one or two sentences, and start it. `README.md` carries the architecture.
 
-**The sibling projects keep the same file in the same place.** `~/TRD-EHR/planning/TRD-EHR_TODO.txt`,
-`~/PSYCH-ASR/planning/PSYCH-ASR_TODO.txt`, `~/libr-local-llm/planning/LOCAL-LLM_TODO.txt`. When the
+**The sibling projects keep the same file in the same place.** `~/Atlas/research/TRD-EHR/planning/TRD-EHR_TODO.txt`,
+`~/Atlas/research/PSYCH-ASR/planning/PSYCH-ASR_TODO.txt`,
+`~/Atlas/projects/libr-local-llm/planning/LOCAL-LLM_TODO.txt`. When the
 user does not name a project, say what each one's next step is in a line, and note which are
 blocked. As of this writing that answer has a shape worth knowing: the paper waits on its senior author, PSYCH-ASR waits on a recording and a human-made reference, and `libr-local-llm` waits on nobody — so it is where work goes while the other two are stalled.
 

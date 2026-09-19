@@ -923,7 +923,7 @@ argument parser is.
 The script is fine to call directly, and takes the same arguments:
 
 ```bash
-scripts/rebuild-docs.sh ~/Research-Journey            # or a paper, or one file
+scripts/rebuild-docs.sh ~/Atlas/research/PSYCH-ASR/docs   # or a paper, or one file
 ```
 
 With no path it walks the repository you are standing in. Failing that it falls back to
@@ -1038,16 +1038,20 @@ whatever its alt text says.
 
 **One-off setup**
 
+Paper-Writer is a workspace inside Atlas rather than a repository of its own, so
+clone Atlas and work in `projects/Paper-Writer`. The commit hook is Atlas's.
+
 ```bash
-git clone https://github.com/Pirate-Hunter-Zoro/Paper-Writer
-cd Paper-Writer
+git clone https://github.com/Pirate-Hunter-Zoro/Atlas
+cd Atlas
 git config core.hooksPath .githooks        # strips assistant attribution from commits
+cd projects/Paper-Writer
 cp service/paperwriter.env{,.local}        # optional: keep your machine's config apart
 $EDITOR service/paperwriter.env            # set PAPER_SOURCE_DIRS and PAPER_OUT_DIR
 
 # and, for the `rebuild` command, one guarded block in ~/.bashrc:
-#   if [ -r "$HOME/Paper-Writer/config/rebuild-alias.sh" ]; then
-#       . "$HOME/Paper-Writer/config/rebuild-alias.sh"
+#   if [ -r "$HOME/Atlas/projects/Paper-Writer/config/rebuild-alias.sh" ]; then
+#       . "$HOME/Atlas/projects/Paper-Writer/config/rebuild-alias.sh"
 #   fi
 ```
 

@@ -1,7 +1,7 @@
 # P0-STATUS.md — where the measurement campaign actually is
 
 **Live record of `FLEET-BUILD.md` §9. Read this before running anything in P0.**
-Last written 2026-09-09 22:5x. **The campaign is complete except for tests 8 and 12.**
+Last written 2026-09-18; every finding after 15 carries the date it was added. **The campaign is complete except for tests 8 and 12.**
 
 Working directory for everything P0: **`/media/studies/ehr_study/analysis/mferguson/fleet-p0`**
 (not this repo — the repo is public and job logs are not architecture). Its `RESULTS.md` is the
@@ -378,8 +378,8 @@ finished.
 
 | what | where |
 |---|---|
-| colibrì binary, `ARCH=native CUDA=1 CUDA_ARCH=sm_86` | `~/colibri-build/c/colibri` (clone of `~/colibri` at `fd93c41`) |
-| colibrì launcher | `~/colibri-build/c/coli` — **needs Python ≥ 3.10** |
+| colibrì binary, `ARCH=native CUDA=1 CUDA_ARCH=sm_86` | `vendor/colibri-build/c/colibri` in the Atlas checkout — a submodule pinned at `fd93c41`, beside `vendor/colibri` |
+| colibrì launcher | `vendor/colibri-build/c/coli` — **needs Python ≥ 3.10** |
 | vLLM 0.29.0, torch 2.13.0+cu130 | conda env `…/mferguson/venvs/vllm_env`, python 3.12 |
 | Hugging Face downloader | venv `…/mferguson/venvs/hfdl`, `hf` 1.8.0 |
 | standard helper weights | `…/mferguson/models/vllm/Qwen3-Coder-30B-A3B-Instruct-AWQ-4bit` |
@@ -392,9 +392,10 @@ finished.
 an unexpected keyword argument 'slots'` with no hint about versions. Load
 `Python/3.12.3-GCCcore-13.3.0` in every job that drives colibrì.
 
-**`~/colibri-build` is a separate clone on purpose.** `~/colibri` is the read-only checkout the daily
-`colibri-pull` timer fast-forwards (`README.md` §2.1); building in it would leave objects in a tree
-the timer expects clean.
+**`vendor/colibri-build` is a separate submodule on purpose.** `vendor/colibri` is the checkout the
+daily `colibri-pull` timer moves forward through `tutor pull`, which fast-forwards the submodule and
+commits the bumped pointer in the superproject; building in it would leave objects in a tree that
+pull expects clean.
 
 Modules the build needs: `CUDA/13.1.0`, `GCC/13.3.0`. `ARCH=native` is load-bearing and verified —
 it defines `__AVX512VNNI__`, which is the 67.8 → 89.5 GB/s int4 kernel.
@@ -557,8 +558,8 @@ token for whatever faults.
 knowing anyway: `mux_will_disable_mtp` is `SERVE && SERVE_BATCH && KV_SLOTS>1`, because drafting is
 not ragged-safe across slots. Finding 21 measured speculation at depth 1 as 9.7 % SLOWER than off on
 this box, so this clause takes away a thing we do not want — but it is the reason a future
-checkpoint whose drafting does pay would be silently un-paid for by a second slot. (FLEET-BUILD §3.3 states this the wrong way round — it says `KV_SLOTS=1` and MTP are
-*mutually exclusive*, when `KV_SLOTS=1` is the case that KEEPS MTP. Its next sentence gets it right.)
+checkpoint whose drafting does pay would be silently un-paid for by a second slot. (FLEET-BUILD §3.3 says the same thing: multi-slot serve and MTP are
+mutually exclusive in the engine, so `KV_SLOTS=1` is the case that keeps speculation.)
 
 **And the throughput half was already measured, by colibrì, under full residency**: aggregate
 saturates at ~8.3 tok/s by four sessions — *below* that host's own single-stream baseline — while
