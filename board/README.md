@@ -48,8 +48,8 @@ must be openable and teachable at every point.
   `board.css`, `plane-core.js`, `gauge.js`, `home.html`, `home.js`, `library.html`,
   `library.js`, `library.css`, anything added to the cache list), or the installed app
   serves its cached copy and the work is invisible.
-- **`bash test/all.sh` before every ship.** 83 suites, all green. `test/tracked.py` runs
-  first and refuses PHI, 25-megabyte files, model dumps, other authors' papers and
+- **`bash test/all.sh` before every ship.** 86 suites, all green. `test/tracked.py` runs
+  early — after the browser suites, before everything else — and refuses PHI, 25-megabyte files, model dumps, other authors' papers and
   machine-local config anywhere in the repository — this is public, and git remembers.
   The last of them is **Paper-Writer's own**, run where it is checked out and skipped
   loudly where it is not: the two repositories hold one seam between them and only this
@@ -524,9 +524,9 @@ the one thing resolution cannot see: a box marked `done` with an open plan step 
 PSYCH-ASR's is written by hand from its README and its plan: *the typist*, *the stopwatch*, *the
 name-tagger*, *the joiner*, *the corrections*, *the grader*, *the grid*, *the scorer* — eight
 boxes, seven labelled arrows, the grid blocked on the stopwatch and the scorer on the grid.
-`board map --check` reports exactly one thing about it and the report is correct: the grader is
-marked `done` while step 3 of the plan still names `grade_arms`. It is left as it is rather than
-silenced, because that is what the check is for and a map edited to quiet a checker is a map nobody
+`board map --check` reports nothing about it: every file, document and arrow on it is still there,
+and no box marked `done` has an open plan step sitting on it. A finding is left as it is rather
+than silenced, because that is what the check is for and a map edited to quiet a checker is a map nobody
 should believe.
 
 ### The meeting deck
@@ -700,7 +700,7 @@ nothing else about what a document is.
 ["title"]`, `test/writing_up.py`. Paper-Writer admits a job by finding a filled-in
 `PROMPT_TEMPLATE.md` in a drop folder once the file has stopped changing. That is a contract made
 of a directory and a file format — the loosest coupling two programs can have — and it is why this
-module is 300 lines rather than a second copy of somebody else's engine.
+module is under 700 lines rather than a second copy of somebody else's engine.
 
 ```
 board make --paper ["title"]   assemble a job from this workspace and drop it
@@ -831,7 +831,7 @@ is wrong even when every suite is green.
   happens, not until a timer says so.
 - **`board open` is the only thing that opens a sitting.** Writing `state.json` directly skips the
   archive and the handoff parking, and loses the lesson being left.
-- **Nothing is registered.** `live/map.json` and `atlas.json`'s five family names are the only
+- **Nothing is registered.** `live/map.json` and `atlas.json`'s six family names are the only
   exceptions in the whole system, and both are re-resolved against the tree on every read.
 - **A path out of a file is untrusted**, including out of a README. `paths.within` is the one
   containment test, and widening the bound to the whole repository did not stop it being a bound.
@@ -891,9 +891,11 @@ is wrong even when every suite is green.
   somebody would be about to.
 - **A SCRIPT THAT DERIVES ITS REPOSITORY FROM ITS OWN LOCATION IS WRONG NOW.**
   `save-and-push.sh` did, which was right while the tool was its own clone and the script only ever
-  pushed itself. There is one copy of it now and `lesson/git.py` calls it for every workspace — so
+  pushed itself. `lesson/git.py` calls the tool's copy for every workspace — so
   for about an hour every save committed the repository the *tool* was in. The working directory
-  decides, the caller sets it, and `test/beside.py` asserts the tool's HEAD did not move.
+  decides, the caller sets it, and `test/beside.py` asserts the tool's HEAD did not move. Eight
+  workspace copies are still tracked and still derive their root from their own location, and
+  `board push` from a terminal still runs the one beside the sitting rather than this one.
 - **AN IGNORE PATTERN WITH A SLASH IN IT IS ANCHORED TO ITS OWN DIRECTORY.** A rule for an
   assistant's config directory written at the root matched exactly one directory and silently
   missed the nine inside the workspaces, which were the only ones that existed. `**/` on purpose,
@@ -901,8 +903,8 @@ is wrong even when every suite is green.
 - **A HOOK THAT SILENTLY STOPS MATCHING IS WORSE THAN NO HOOK.** A fence written against a path
   keeps refusing that path after the data moves, and waves the same content through at its new
   address. `block-phi.py` fences `phi/` **whole**, by the directory name rather than by what is
-  under it, and `hooks/test-block-phi.py` drives the real hook through its real entry point: nine
-  things it must refuse, nine it must allow.
+  under it, and `ai-config/adapters/test_claude_code.py` drives the real hook through its real entry point:
+  nine things it must refuse, nine it must allow.
 - **A FALLBACK THAT IS RIGHT FOR THE MACHINE CAN BE WRONG FOR EVERY EXPLICIT CALLER.** A saved
   `courses_dir` can only be wrong after the move, so `courses(cfg)` was made to ignore it and use
   `atlas.root()`. But every test builds a config naming a temporary tree, and ignoring the key
@@ -1388,28 +1390,16 @@ One script does the whole of it, in the shared home, where every node you are ev
 it:
 
 ```
-git clone https://github.com/<you>/Tutor-Board ~/Tutor-Board
-cd ~/Tutor-Board && bash bootstrap.sh
+git clone --recurse-submodules https://github.com/Pirate-Hunter-Zoro/Atlas.git ~/Atlas
+bash ~/Atlas/board/bootstrap.sh
 ```
 
-It installs `tutor` and `board`, clones the course repositories, turns on the commit-attribution
-hook in each clone, names this machine on the tailnet, and prints what is left to do. No `sudo`,
-nothing system-wide.
+It installs `tutor` and `board`, fills in the vendored submodules under `vendor/`, names this
+machine on the tailnet, and prints what is left to do. No `sudo`, nothing system-wide.
 
-The list of repositories is **not** in this repository, which is public. It lives at
-`~/.config/tutor-board/courses.txt`, one entry per line:
-
-```
-https://github.com/you/Galois-Theory.git
-https://github.com/you/odd-remote-name.git   Nice-Directory-Name
-```
-
-The second field is only needed when the directory you want differs from the repository name. To
-produce the list on a machine that already has everything:
-
-```
-for d in ~/*/; do git -C "$d" remote get-url origin 2>/dev/null; done
-```
+There is no list of repositories to keep anywhere. There is one repository, the courses arrive
+inside it, and a workspace is any second-level directory holding `tutorboard.json`,
+`AI_INSTRUCTIONS.md` or `live/` — discovered, never registered.
 
 ### One identity, whichever node you were given
 
@@ -1554,7 +1544,7 @@ that renews itself.
 ### The allocation renews itself, and the board repairs itself
 
 ```
-tutor serve                  start the chain: one job, seven days, and a successor already queued
+tutor serve                  start the chain: one job, nine hours, and a successor already queued
 tutor serve status           which generation is up, where, and what it has repaired
 tutor serve stop             end it -- the flag, then the cancel
 tutor watch                  the repair loop by itself, worth running inside an `salloc`
@@ -1930,8 +1920,9 @@ The tailnet identity is one machine that moves, so `board.<tailnet>.ts.net` poin
 host currently holds it, and `board vpn up` refuses to start a second daemon against the same
 state. That is the right behaviour for one machine at a time.
 
-If you want two machines live at once, give them separate identities — a different `--hostname`
-and a different `TS_DIR` on the second — and install the board on the iPad from each address. Two
+If you want two machines live at once, give them separate identities — a different `--hostname`,
+and `BOARD_STATE_DIR` set to a path of its own on the second so the two are not sharing one
+tailnet state directory — and install the board on the iPad from each address. Two
 apps, two icons, no ambiguity about which is which. An address only ever opens a board on the
 machine that holds it: `tailscale serve` will not proxy to a remote backend, and answers every
 request with a 502 if you ask it to.
@@ -1942,16 +1933,12 @@ request with a 502 if you ask it to.
 
 ```json
 {
-  "courses_dir": "~",
+  "courses_dir": "/home/you/Atlas",
   "default_agent": "claude",
   "agents": {
     "claude":   { "cmd": ["claude"],   "prompt": "argv",
-                  "headless_first": ["claude", "-p", "{prompt}",
-                                     "--permission-mode", "acceptEdits",
-                                     "--allowedTools", "Bash(board *)"],
-                  "headless":       ["claude", "-p", "{prompt}", "--continue",
-                                     "--permission-mode", "acceptEdits",
-                                     "--allowedTools", "Bash(board *)"] },
+                  "headless_first": ["claude", "-p", "{prompt}"],
+                  "headless":       ["claude", "-p", "{prompt}", "--continue"] },
     "opencode": { "cmd": ["opencode"], "prompt": "argv" },
     "aider":    { "cmd": ["aider"],    "prompt": "none" }
   }
@@ -1988,11 +1975,12 @@ the half anybody can actually see. `test/agents.py` holds both halves of that.
 ### Which one, for this course, on this machine
 
 A laptop and a cluster node do not have the same tools installed, and a course may want a
-particular assistant regardless of where it runs. Four layers settle it, most specific first:
+particular assistant regardless of where it runs. Five layers settle it, most specific first:
 
 | Layer | Where it is written | Scope |
 |---|---|---|
 | `--agent opencode` | the command line | this once |
+| `"agent": "opencode"` | the sitting's own `live/state.json` | this evening's work — the only layer the iPad can reach |
 | `"agent": "opencode"` | the course's `tutorboard.json` | this course, on every machine |
 | `"hosts": { "desk": "deepseek" }` | the config, by short hostname | this machine, every course |
 | `"default_agent"` | the config | everything else |
@@ -2293,9 +2281,9 @@ changing any of it.
 
 ### Why there is no registry
 
-Courses are whatever directories are sitting beside the tool. Adding one means making a directory;
-there is no list to update and nothing that can go stale. `courses_dir` moves the search if your
-repositories live somewhere else.
+Courses are whatever directories sit inside the families `atlas.json` names, so adding one is
+`mkdir courses/Topology`; there is no list to update and nothing that can go stale. `courses_dir`
+moves the search if your repository lives somewhere else.
 
 ## Which subjects the app offers
 
@@ -2306,9 +2294,10 @@ repository cloned into the shared home offers every subject; a laptop with four 
 offers four.
 
 There is no list to edit and nothing that can disagree with reality, and nothing to pick between:
-the hub offers this machine's courses because this machine is the one serving the address. To put a
-subset on another machine, clone a subset — `~/.config/tutor-board/courses.txt` is what
-`bootstrap.sh` reads, and it is per-machine and not in this repository.
+the hub offers this machine's courses because this machine is the one serving the address. There is no subset to clone: a machine gets the
+whole repository in one `git clone --recurse-submodules`, and `bootstrap.sh` clones nothing but
+the vendored submodules. Offering less means pointing `courses_dir` at a directory holding fewer
+courses.
 
 **A course that is not running is still offered**, because opening it is what starts it. What the
 hub must never do is claim one is running when it is not. A board that dies with its allocation
@@ -2320,8 +2309,9 @@ nothing is listening. The record is checked against the nodes Slurm says are sti
 
 ## Courses, and the one board
 
-Nothing is registered and nothing is configured centrally. **Any directory beside this one is a
-course** if it holds a `tutorboard.json`, an `AI_INSTRUCTIONS.md`, or a `live/` folder. The hub
+Nothing is registered and nothing is configured centrally. **Any second-level directory — one
+sitting inside a family `atlas.json` names — is a course** if it holds a `tutorboard.json`, an
+`AI_INSTRUCTIONS.md`, or a `live/` folder. The hub
 lists what it finds each time you open it; adding a course means making a directory.
 
 A course says what it is in `tutorboard.json` at its root, and there is very little to say:
@@ -2968,7 +2958,8 @@ row is a row that overlaps itself on a tablet.)*
 Nothing here is registered. Chapters come from the course's own `chapters.tsv` or its
 `chapters/chNN-*/` directories, problem sets from the two layouts described below — the same
 discovery everything else uses, so there is no index to maintain and nothing that can go
-stale. Galois Theory offers 20 chapters and 20 sets; Probability offers 11 and 3.
+stale. Galois Theory offers 20 chapters and 21 sets — the 20 chapter sets and a loose worksheet under
+`homework/`; Probability offers 11 and 3.
 
 **Opening one files the lesson you are in** — cards, turns and answers together — so what you
 leave stays readable under **◷** rather than being written over by what comes next. Jumping
@@ -3072,10 +3063,10 @@ conventionally named file at the root. A path that resolves anywhere else is ref
 read.
 
 That last rule is what makes it work here without a single line of configuration: PSYCH-ASR's
-README names `~/Research-Journey/planning/PSYCH-ASR_TODO.txt`, TRD-EHR's names its own, and
-libr-local-llm's names `LOCAL-LLM_TODO.txt` by filename alone — which is found by looking one
-level into each sibling, because a narrative hub beside the code is the arrangement these
-repositories actually use.
+README names `planning/PSYCH-ASR_TODO.txt` and TRD-EHR's names `planning/TRD-EHR_TODO.txt`, each
+a path inside its own workspace, and a README that names a plan by filename alone is answered by
+two listings — every family under the root, then every workspace inside one — because a plan
+lives beside the code it plans.
 
 **Steps are read, never invented and never re-ordered.** A plan that says to start at its fourth
 item starts at its fourth item. Three shapes are understood — `STEP 1.` / `PHASE 2.` numbering,
@@ -3340,7 +3331,7 @@ walkthrough reads. A real bug the tutor notices is one sentence at the end of a 
 separate sitting.
 
 **The exercise is a hand trace, and the format is not invented here.**
-`Research-Journey/psych-asr-feasibility/stage2_reference_walkthrough` is this done by hand, at
+`research/PSYCH-ASR/docs/stage2_reference_walkthrough` is this done by hand, at
 33 slides, and its own README entry says to read it first if you want the state of the project
 in half an hour. What made it work is what the sitting now requires: one invented instance
 carried the whole way through, plain names before identifiers — *the typist*, *the stopwatch*,
@@ -3427,9 +3418,11 @@ hub shows the last result too.
 
 `board push "message"` does it from the terminal without asking.
 
-**⤓ save commits and pushes.** It runs the repository's `scripts/save-and-push.sh` — the same
-script, the same commit, the same push as the offer you get on the way out and as `board push`
-from a terminal. There is one path to a commit and three doors onto it.
+**⤓ save commits and pushes.** It runs the tool's own `board/scripts/save-and-push.sh` from the
+repository root — the same script, the same commit, the same push as the offer you get on the way
+out. `board push` from a terminal still runs the workspace's own tracked
+`scripts/save-and-push.sh`, which is a second and older copy: two doors onto one path to a commit,
+and a third onto another.
 
 **You can save without the tutor, at any point.** `⤓ save` in the title bar raises the
 same offer, worded as what it is — *Save this work? … The lesson stays open.* Sessions end
@@ -3588,8 +3581,10 @@ goes quiet for twenty seconds is a button somebody presses twice.
 
 ## Setting up a course repository
 
-The minimum is nothing at all: make a directory next to this one and run `board start` inside it.
-Everything below is optional, and each item buys something specific.
+The minimum is one marker: make the directory inside a family — `mkdir courses/Real-Analysis` —
+and put an `AI_INSTRUCTIONS.md` or a `tutorboard.json` in it. A directory with neither is not a
+course, and `board start` inside it walks up to the Atlas root and serves that instead. Everything
+else below is optional, and each item buys something specific.
 
 1. **`tutorboard.json`** — declare the name rather than having the directory's used.
    One command: `board init "Real Analysis"`. There is nothing else to declare unless the
@@ -3625,9 +3620,12 @@ Everything below is optional, and each item buys something specific.
    !live/answers/
    !live/archive/
    !live/inbox/
+   !live/text/
    !live/state.json
    !live/turns.jsonl
    ```
+
+   `!live/text/` is there because the per-question typed drafts are transcript too.
 
 6. **`scripts/save-and-push.sh`** — the end-of-session push. Copy it from any repository here;
    it is self-contained and takes an optional commit message.
@@ -4230,7 +4228,7 @@ tutorboard/        the board itself, organised by what a thing is about:
                    path a push would commit, checked against the repository's
                    own PHI policy where it sits in a workspace that holds a
                    fence
-  net/             reaching them: tailscale, socks, boards, egress
+  net/             reaching them: tailscale, egress
   course/          a course on disk: repo, config, document, homework, review,
                    plan (what a project says it is doing next, which is a book
                    course's chapter table in the form a project has one),
@@ -4256,7 +4254,9 @@ web/               the hub   — home.html, home.css, home.js
 test/              node test/markdown.js and node test/macros.js
 ```
 
-Per course repository, all of it ignored by git:
+Per course repository — the lesson transcript (`cards/`, `slate/`, `answers/`, `archive/`,
+`inbox/`, `text/`, `state.json`, `turns.jsonl`) tracked so a lecture is the same whichever
+machine picks it up, and everything else here ignored as per-machine runtime state:
 
 ```
 live/
@@ -4328,8 +4328,8 @@ name, the port, and the tailnet name. What it is checking for:
 ## 1. The tool itself
 
 ```
-git clone https://github.com/<you>/Tutor-Board ~/Tutor-Board
-cd ~/Tutor-Board && bash install.sh
+git clone --recurse-submodules https://github.com/Pirate-Hunter-Zoro/Atlas.git ~/Atlas
+bash ~/Atlas/board/install.sh
 ```
 
 That puts two commands on your path: `tutor`, which starts a session, and `board`, which the
@@ -4344,7 +4344,9 @@ path while the web assets stay next to the script.
 
 A "course" is just a directory with a `live/` folder in it. `board` finds the enclosing repository
 by walking up for a `.git` or an `AI_INSTRUCTIONS.md`, so running it anywhere inside a project is
-enough. There is nothing to register and no configuration file.
+enough. There is nothing to register, and the one file a repository may write — `tutorboard.json`,
+from `board init` — is optional: without it the name comes from the directory and the stance is
+`teach`.
 
 ## 2. Vendoring KaTeX
 
@@ -4471,9 +4473,10 @@ The icon is rendered by TeX — `web/icon.tex` draws a chalk ∑ on slate with T
 a PDF, and `pdftoppm -scale-to N` rasterises 180, 192, and 512 pixel versions. Full bleed, no
 rounded corners, because iOS applies its own mask.
 
-Three files have to be served from the site root, which `serve.py` does explicitly:
-`/manifest.webmanifest`, `/sw.js` (a service worker's scope is its own directory), and
-`/apple-touch-icon.png` (where iOS looks).
+Three files have to be served from the site root: `/manifest.webmanifest` and `/sw.js` (a service
+worker's scope is its own directory), routed in `tutorboard/server/routes/pages.py`, and
+`/apple-touch-icon.png` (where iOS looks), routed beside the other root pages in
+`tutorboard/server/handler.py`.
 
 The service worker caches the shell — HTML, CSS, JS, icons, KaTeX fonts — and **nothing live**.
 The SSE stream, the board payload, uploads, slate saves, and compiled figures go to the network
@@ -4525,8 +4528,9 @@ What the code does to keep that honest:
   `.html` or `.svg` file would put chosen script on the board's own origin.
 - **Request bodies are capped** at 64 MB, and slate page numbers, upload names, figure hashes and
   static paths are all validated or sanitised rather than trusted.
-- **`/switch` only accepts a directory the server already discovered** as a sibling of the current
-  one. Paths from the request never reach the filesystem.
+- **`/switch` only accepts a workspace the server already discovered** by walking the
+  repository's families, and the root comes off that match. Paths from the request never reach
+  the filesystem.
 
 What it does **not** do, and you should assume it never will:
 
@@ -4567,13 +4571,17 @@ To actually reload, in rough order of effort:
 3. Delete the home-screen icon and Add to Home Screen again — this also drops the service worker's
    cache.
 
-The app now also asks the service worker for an update every time it returns to the foreground,
-and reloads itself when a new worker takes over, so a fix usually lands on its own a moment after
-you swipe back in. The `controllerchange` reload is guarded on there having been a controller
-already, or the very first visit would reload itself.
+The app also asks the service worker for an update every time it returns to the foreground, but a
+new worker is never taken while you are looking at the page: the board offers it in a strip with
+**load it now**, and both pages take it on their own the moment the app is put down with no ink
+owed — so the fix is already there the next time you pick it up. The `controllerchange` handler is
+guarded on there having been a controller already, or the very first visit would reload itself.
 
-Nothing is cached by the browser except the KaTeX fonts — HTML, CSS, JS, and `sw.js` all go out
-`no-store` — and the service worker is network-first for the shell. Bump `VERSION` in `sw.js`
+Nothing is cached by the browser except what sits under `/static/katex/` and `/static/fonts/` —
+the KaTeX CSS and JS as well as its faces — along with the app icons and compiled figures, all of
+them `public, max-age=86400`, while HTML, the app's own CSS and JS, and `sw.js` go out
+`no-store`, and the service worker is network-first for the shell. A re-vendored KaTeX therefore
+survives a force-quit for a day. Bump `VERSION` in `sw.js`
 whenever a shell file changes, so the old cache is evicted rather than merged. There is never a
 need to revisit the original link.
 
@@ -4634,7 +4642,7 @@ node test/who.js         that who writes this sitting is a choice on the glass, 
                          until the sitting opens, and that a workspace you are not
                          looking at can be handed a job
 
-bash test/all.sh         all of the above, in order, and Paper-Writer's 516 tests
+bash test/all.sh         all of the above, in order, and Paper-Writer's 517 tests
                          where it is checked out. The two real-DOM suites need
                          jsdom; this fetches it on first run and carries on
                          without it if there is no network. A setup step someone

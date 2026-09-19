@@ -77,6 +77,19 @@ else
   printf '%s\n' "$out" | grep '^FAIL' | sed 's/^/             /'
 fi
 
+# And beside it, the other thing a document can be wrong about: not what git
+# carries, but whether a sentence about the code is still true. It runs here
+# because both audit the repository rather than the board, and a stale address
+# in a briefing is read by an assistant before anybody notices.
+printf '%-12s ' "truthful"
+if out="$(python3 test/truthful.py 2>&1)"; then
+  printf '%s\n' "$out" | tail -1
+else
+  fails=$((fails + 1))
+  echo "FAILED"
+  printf '%s\n' "$out" | grep -A6 '^FAIL' | sed 's/^/             /'
+fi
+
 printf '%-12s ' "choice"
 if out="$(python3 test/choice.py 2>&1)"; then
   printf '%s\n' "$out" | tail -1
