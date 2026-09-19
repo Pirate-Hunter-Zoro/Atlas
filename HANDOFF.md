@@ -35,10 +35,13 @@ section.
 **ONE ITEM PER SESSION, AND THE ITEM COMES OUT OF THIS FILE WHEN IT IS DONE.**
 Nobody has to ask for that. *"Look at HANDOFF"* means all of it:
 
-1. **Take the lowest-numbered item under *What to do next* that is a build.** It
-   is the lowest-numbered one on purpose — the numbering carries the order things
-   have to land in, and each item says what it depends on where that matters. If
-   the owner names a different one, that wins.
+1. **Take the lowest-numbered item under *What to do next* that is a build YOU
+   CAN DO.** It is the lowest-numbered one on purpose — the numbering carries the
+   order things have to land in, and each item says what it depends on where that
+   matters. If the owner names a different one, that wins. **Each item's heading
+   says whose hands it needs**, because the order is not the same as the
+   assignment: item 1 is a build and it is the iPad's, so a session typing at a
+   keyboard reads it, confirms nothing has rotted under it, and moves down.
 2. **Read that item whole before touching anything.** Each one says what already
    exists (measured, not assumed), what is missing, where it goes, the decisions
    to take deliberately, and what to assert. The decisions are the expensive part:
@@ -104,8 +107,7 @@ when that session ships.
 **`projects/libr-local-llm` has its own handoff and it is still the live one.**
 The five pieces it asked for against the board are shipped and are under
 *Settled* below; what is left in that file is the diarization job itself, which
-is item 1 here, and one `rm -rf` of an accidental 9.3 GB pip tree that every
-sandbox on this machine refuses, so it is the owner's own shell or nothing.
+is item 1 here, and nothing else.
 
 ---
 
@@ -148,7 +150,7 @@ exists for. Item 2 is not a build.
 
 ## What to do next
 
-### 1. Put colibrì on the diarization repair, which is what all of the above is for
+### 1. Put colibrì on the diarization repair, which is what all of the above is for — THE IPAD'S
 
 It is now the acceptance test of a mission — the record and the ship both — as
 well as the job that has been waiting since before any of this existed. **The
@@ -201,7 +203,7 @@ build is that the old justification was false.** See EGRESS under Settled. The
 short of it: the mission is admissible now because a guard refuses everything
 that could carry PHI off the node, not because the node cannot reach anything.
 
-### 2. And the five things no test can hold
+### 2. And the five things no test can hold — THE IPAD'S
 
 None of these is a build. Each is an evening in front of the thing.
 
@@ -259,6 +261,63 @@ None of these is a build. Each is an evening in front of the thing.
   anything up. `test/teaching.py` holds the places each is written down, and
   asserts only that they reach the course. **The first card of the next sitting is
   the real check.**
+
+### 3. Audit every document against the code it describes — A KEYBOARD, AND A FLEET
+
+**This is the item a session typing at a keyboard takes.** Items 1 and 2 are
+the iPad's; this one is not, and it is the only one here that wants more than
+one context.
+
+**Why it exists.** Three false sentences were found by hand in one file on 18
+September, and one of them —
+`projects/libr-local-llm/HANDOFF.md` saying nothing ran `names_phi` over a
+shipped diff — was the sentence that would have made somebody hold item 1's
+ship switch off. They were found by accident, while reading that file for
+something else. **Nothing in the tree looks for them.** `test/tracked.py`
+audits what git carries and `test/teaching.py` audits where a rule is written
+down; neither asks whether a sentence about the code is still TRUE. This
+repository's whole method is that a document is what the next turn reads
+instead of re-deriving, so a document that lies costs more than one that is
+missing: a missing one sends somebody to the code.
+
+**What exists.** `.claude/workflows/stale-docs-audit.js`, written and not yet
+run. Invoke it as `Workflow({name: 'stale-docs-audit'})`. Five readers, one per
+surface — `board/README.md`, this file's *Settled* section, the
+`libr-local-llm` documents, the four workspaces' `README`/`AI_INSTRUCTIONS`,
+and `Paper-Writer` — then every candidate finding goes to a second agent whose
+only job is to prove the document was right. The script's head says why each
+of those two halves is shaped the way it is; read it rather than re-deriving
+it.
+
+**The decisions, and they are the expensive part.**
+
+- **The fleet does not edit, and this is not timidity.** The documents are in
+  the owner's voice, and five agents rewriting prose in parallel produce five
+  registers and a merge conflict. The fleet returns facts; one turn applies
+  them afterwards in one register. The script says this at the top and the
+  prompts repeat it — if you loosen it, you are choosing a different failure.
+- **A finding is a falsehood of fact, never a matter of wording.** A model
+  asked to find stale documentation will find stale documentation, and most of
+  what comes back untreated is prose it would have phrased differently. That is
+  what the refutation pass is for, and why its instruction is to default to
+  *refuted* when unsure. Do not relax that default to raise the count.
+- **The known drifts are named in the prompts on purpose.** Two are already
+  corrected in some files and may survive in others: MTP being an open question
+  when it is measured, and `~/.local/lib/python3.12` being something to delete
+  when it is already gone. Naming them is not cheating — it is the difference
+  between an auditor that finds the tail of a known drift and one that
+  rediscovers its head.
+- **`courses/Galois-Theory` may have a live session in it.** Read-only there,
+  always.
+
+**What to assert.** Whatever the audit confirms, write the correction into the
+document — and then, for any finding whose class a test could have caught, ask
+whether it should have. A rule that only a fleet can check is a rule that gets
+checked when somebody remembers to run a fleet.
+
+**What comes out of this file when it lands:** this item, replaced by one
+*Settled* line saying what the audit found and what now keeps it from
+recurring.
 
 ---
 

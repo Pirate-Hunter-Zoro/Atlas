@@ -95,10 +95,9 @@ flips `site.ENABLE_USER_SITE` to False, which pip checks *ahead* of the writabil
 also stops `~/.local` shadowing the environment at run time. **Set it in every install script and
 every job script that activates an environment on this filer.**
 
-There are still 8.7 GB of the accidental install at `~/.local/lib/python3.12` and home is 86 % full.
-Nothing depends on it — `~/.local/lib/python3.{9,11,13}` are unrelated and older, and the whole
-`python3.12` tree is from the accident. **`rm -rf ~/.local/lib/python3.12` is safe and yours to
-run**; leave `~/.local/bin` alone, it holds TeX and other tools that predate this.
+The accident cost 9.3 GB under `~/.local/lib/python3.12` and that tree is gone; the share sits at
+49 %. `~/.local/lib/python3.{9,11,13}` are unrelated and older, and `~/.local/bin` holds TeX and
+other tools that predate this — leave all of them.
 
 ### 8. There is no `/usr/local/cuda`, and vLLM's default sampler needs one
 
@@ -585,6 +584,7 @@ speculation. `exclusive` is not a placeholder waiting on a measurement any more;
    escalate to; tier 1 measured well over 10× faster than tier 2, and four cards buy 0.9 % on the big model.
    A second, larger vLLM helper may be solving a problem P0 just dissolved.
 
-**One cleanup for the user, not urgent:** `rm -rf ~/.local/lib/python3.12` recovers 8.7 GB of the
-accidental pip install described in finding 7. Nothing depends on it. Leave `~/.local/bin` alone.
-The share is at 57 % as of 2026-09-18, so this is tidiness rather than pressure.
+**The cleanup finding 7 asked for is done:** the 9.3 GB accidental pip tree at
+`~/.local/lib/python3.12` is deleted and the share is at 49 %. `PYTHONNOUSERSITE=1` is what keeps
+it from coming back, and it belongs in every install script and every job script that activates
+an environment on this filer.

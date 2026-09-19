@@ -97,18 +97,6 @@ expensive.
 
 ---
 
-## One thing left over, and it needs the owner's own shell
-
-`rm -rf ~/.local/lib/python3.12` recovers **9.3 GB**, and an assistant cannot run it: every
-sandbox here refuses a recursive delete of that size. It is an accidental pip install, and the
-reason it is provably dead is that **there is no `python3.12` interpreter on this machine at all**
-— `python3` is 3.9 and the only other one under `/usr/bin` is 3.11, so nothing can import from
-that tree. `~/.local/lib/python3.{9,11,13}` and `~/.local/bin` are unrelated — leave them.
-`~/.local/bin` in particular holds TeX. The share is at 56 % as of 2026-09-18, so this is tidiness
-rather than pressure.
-
----
-
 ## Settled, so nobody re-derives it
 
 **`MTP` IS MEASURED AND THE SERVED CONFIGURATION DOES NOT TURN IT ON.** `COLI_CUDA_MTP=1` is the
