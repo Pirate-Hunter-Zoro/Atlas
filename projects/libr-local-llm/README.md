@@ -652,8 +652,10 @@ because it never served:
   engine resolves the auto depth to 0 unless `COLI_CUDA_MTP=1` is in the environment, and
   `--auto-tier` exports `DRAFT=0` again on a compute-bound plan. So this job serves with
   speculation off, deliberately at both layers, and `MTP=1` is not the lever that changes it:
-  `MTP` is read in one place and only `MTP=0` does anything, which strips the head. The open
-  question and the A/B that answers it are P0-STATUS finding 21.
+  `MTP` is read in one place and only `MTP=0` does anything, which strips the head. **Off is the
+  measured answer and not merely the default**: at depth 1 speculation costs 9.7 % here — 3.23
+  tok/s against 3.58, with acceptance at 62–77 % that does not convert — so turning it on is a
+  loss on a box whose bottleneck is the CPU expert tail. P0-STATUS finding 21 has the A/B.
 - **`PYTHONNOUSERSITE=1`**, because `os.access` lies on this filer and pip installs 8.7 GB into
   `~/.local` that then shadows the environment at import time.
 - **`TMPDIR` on the studies share.** `/tmp` is a node-local RAM tmpfs, so `coli`'s serve pidfile
