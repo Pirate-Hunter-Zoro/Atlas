@@ -336,7 +336,19 @@ as the answer.
   rather than dropping you at the door. Its face is `1rem` exactly: iOS zooms the
   whole page when a field it focuses computes below 16px, and the page's own
   magnification is the one way left to be lost on that screen.
-  `board/test/hub.js` holds all of it; `board/README.md` has the rule.
+  **And the rule generalised, because the front door was not the only page with
+  it.** Every way back to the front door says *Everything* — `#atlas-up`, the
+  deck's `#deck-back`, and the library's `#lib-back` when that is where it was
+  opened from. The board's `#btn-home` stays a bare glyph and is the one
+  exception: that bar is at seven controls and `test/link.js` holds the line.
+  **And the library leads back where it was opened from.** `#lib-back` is
+  `/board` by default, which is right for the board's own row into it and wrong
+  for the front door's *Papers & decks* — reading a document nobody is teaching
+  from has nothing to do with the lesson, which is the whole reason that button
+  exists. `?from=home` carries it: a query parameter rather than a stored flag,
+  so it survives a reload and a cached shell and has no second copy to go stale.
+  `board/test/hub.js`, `test/library.js` and `test/deck.js` hold all of it;
+  `board/README.md` has the rule.
 
 - **EGRESS: A LOCAL MODEL READS PHI BECAUSE A GUARD STOPS IT SENDING ANY,
   NOT BECAUSE THE NODE CANNOT REACH ANYTHING.** These compute nodes resolve DNS
