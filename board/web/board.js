@@ -5623,10 +5623,10 @@ var WORK = [
     session: "lecture" },
   { aim: "build", label: "Write the code for me",
     sub: "The tutor does the work and reports what it changed.",
-    /* `does` is a PAINT HINT and is never sent: the three aims whose product is
-       a change are marked the way a doing stance is, because that is the state
-       in which the tutor writes what the person would otherwise have written.
-       Who actually writes the code is `config.AIM_STANCE`, on the server. */
+    /* `does` is a PAINT HINT and is never sent: the aim whose product is a
+       change is marked the way a doing stance is, because that is the state in
+       which the tutor writes what the person would otherwise have written. Who
+       actually writes the code is `config.AIM_STANCE`, on the server. */
     session: "lecture", does: true },
   { aim: "coach", label: "Tell me what to write, I'll code it",
     sub: "One step at a time, in English. You type it.",
@@ -5896,6 +5896,7 @@ function workSend(body, node, chip) {
        map is the point of having tapped, and what is behind it is the lesson
        with the request already on it. */
     closeMap();
+    addrSpent();
   }).catch(function () {
     /* The payload will say what actually happened; the board is not the place
        to guess at a network. */
@@ -6163,6 +6164,29 @@ function addrArrived(a) {
   try { window.sessionStorage.removeItem(BOUNCED); } catch (e) {}
   markAddresses();
   return "ok";
+}
+
+/* AN ADDRESS TO A BOX IS SPENT THE MOMENT IT OPENS THE SITTING, and the bar has
+   to say so. A tap on a box asks for a sitting and `/session` files the one that
+   was open to do it -- so a bar still naming the box is a request that fires
+   again on the next load, and this board reloads itself: a ship restarts it, and
+   the app reopens on whatever hash it was left with. That is an evening filed
+   away by a reload nobody asked anything of.
+
+   `addrShow` cannot do it, and that is not an oversight there: its rule is never
+   to downgrade a bar naming a card, a page or a box to the bare workspace,
+   because overwriting one takes a followed link off the glass. This is the one
+   case where the address is genuinely finished -- the board is in the lesson the
+   box opened, not on the box. */
+function addrSpent() {
+  var now = addrParse(window.location.hash || "");
+  if (!now || now.ws !== boardId || now.surface !== "node") return;
+  var want = spell({ surface: "workspace" });
+  if (!want || want === window.location.hash) return;
+  try {
+    window.history.replaceState({}, "", window.location.pathname
+                                        + (window.location.search || "") + want);
+  } catch (e) { /* a browser that refuses keeps the bar it had */ }
 }
 
 /* Everything over the lesson goes, because an address is somebody saying where

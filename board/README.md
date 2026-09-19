@@ -48,7 +48,7 @@ must be openable and teachable at every point.
   `board.css`, `plane-core.js`, `gauge.js`, `home.html`, `home.js`, `library.html`,
   `library.js`, `library.css`, anything added to the cache list), or the installed app
   serves its cached copy and the work is invisible.
-- **`bash test/all.sh` before every ship.** 86 suites, all green. `test/tracked.py` runs
+- **`bash test/all.sh` before every ship.** 87 suites, all green. `test/tracked.py` runs
   early — after the browser suites, before everything else — and refuses PHI, 25-megabyte files, model dumps, other authors' papers and
   machine-local config anywhere in the repository — this is public, and git remembers.
   The last of them is **Paper-Writer's own**, run where it is checked out and skipped
@@ -511,10 +511,10 @@ the one thing resolution cannot see: a box marked `done` with an open plan step 
 - **Edge labels are painted**, on a plate in the gutter between two ranks, which is empty by
   construction. A derived map never carries one: an import is not a thing that flows, and the
   arrow's thickness already says how much of one it is.
-- **`blockedBy` is painted on the work sheet, not on the box.** A box is eleven characters wide at
-  the zoom people read the map at, and a list is not a diagram — but the sheet is what opens
-  when somebody taps a box intending to work on it, which is the exact moment "you cannot, yet,
-  and here is why" is worth a line.
+- **`blockedBy` is painted on the ways sheet, not on the box.** A box is eleven characters wide at
+  the zoom people read the map at, and a list is not a diagram. It is behind the second tap
+  rather than the first, and it is one of the two reasons that control is drawn at all: a box
+  waiting on another has something to say before anybody opens a sitting on it.
 - **The briefing says which kind of map it is**, in `brief.map_sense`, and how stale. A turn that
   cannot tell a drawn map from a directory listing will read `psych_asr/asr` back to the person as
   though it were how they think about their own work.
@@ -2679,24 +2679,40 @@ Caps, and both say they are caps rather than truncating quietly: `MAX_NODES = 44
 for the picture, `MAX_INSIDE = 40` for one expansion, `symbols.MAX_SYMBOLS = 40`
 for one file.
 
-### Tapping something, and the seven ways to work on it
+### Tapping something opens the sitting, and what the box IS decides which one
 
-Tapping a box asks *what do you want to do about this*; tapping a chip asks the
-same about that step. Every answer opens a sitting **already pointed at that
-part**, so nothing is typed and the tutor is not left to guess:
+A tap on a box is a door rather than a menu. Nothing is asked first, and the
+sitting opens **already pointed at that part**, so nothing is typed and the
+tutor is not left to guess. Asked for in these words: *"these are tutoring
+styles that I don't want to be selecting when I open up a lesson; I want to just
+change tutoring styles to anything any time."*
 
-| | opens |
+| tapping | opens |
 |---|---|
-| **Teach me how this works** | a lecture, worked through properly |
-| **Write the code for me** | a lecture the tutor writes in, and reports |
-| **Tell me what to write, I'll code it** | the same sitting, one step per card, in English |
-| **Walk me through the code** | a walkthrough over that box's own files |
-| **Set me problems on it** | a review scoped to that part |
-| **Write it up as a paper** · **Build me a deck about it** | a **make** sitting — see below |
-| **Show me the document** | the page viewer, where the box is a document |
+| a part | a lecture on that part |
+| a step chip | the same lecture, with that step named |
+| a chapter | a lecture on that chapter |
+| a problem set | a homework sitting on that set |
+| a module or a function | a walkthrough over exactly that scope |
+| a box of a vendor tree | a walkthrough over it, held in this workspace |
+| a document | the page viewer |
+| a wall — a sibling an arrow leaves towards | that sibling's own picture |
 
-Only what the thing can support is offered: no walkthrough of a box with no
-files, no "show me the document" where there is no deck.
+**No `aim` goes over the wire**, which is the point: the style the sitting runs
+in is the `for:` row's to say, changed in place at any moment, and a tap that
+carried one would be choosing it again at the door.
+
+**What is left is chosen over a scope, and that is a second tap** — the small
+control at the bottom right of the box, opposite the one that goes down a level.
+It offers a walkthrough, a drill and a document to be shown, each only where the
+box supports it, and it carries the `blockedBy` line. A box whose tap IS its one
+honest way — a module, a function, a vendor box, a document — gets no control at
+all, and neither does one with nothing to say.
+
+**An address to a box does the same thing and is then spent.** A hand-off card
+naming the next box is a tap that opens the sitting there; the bar stops naming
+the box the moment it does, because a board that reloads on a bar still naming
+one would file the evening away again.
 
 What goes over the wire is the **box's id and the step's label**, and the server
 looks both up in what discovery found before either reaches a filesystem or a
@@ -2710,12 +2726,19 @@ section at a time and read on the glass rather than pasted into a card.
 `TEACHING.md` holds the rules. Asked for as *"have you write up papers or
 presentations, and SHOW me these on the iPad."*
 
-And the sitting carries an **aim** — which of the seven was tapped — into
-`state.json` and into the line the tutor is woken with, along with the box's
-purpose, its files, its steps and its document. A tutor woken into "tell me what
-to write" knows that is what it is; one woken into "write it for me" knows it is
-that. A single `stance` cannot tell those two apart, and they are not the same
-evening.
+And the sitting carries an **aim** into `state.json` and into the line the tutor
+is woken with, along with the box's purpose, its files, its steps and its
+document — tapped in the `for:` row, or inherited from the workspace and its
+family. A tutor woken into "tell me what to write" knows that is what it is; one
+woken into "write it for me" knows it is that. A single `stance` cannot tell
+those two apart, and they are not the same evening.
+
+**One rule sorts `WORK`, and it is `needs`.** A way with a `needs` is chosen
+over something — a walkthrough over files, a drill over a part, a document to be
+shown — so it is offered on the map, where the something is a box you can point
+at. A way with no `needs` is a style, and styles are the `for:` row. A paper and
+a deck are in neither: they are products, they live in `DOCS`, and they are
+`POST /writeup`.
 
 **A stance is derived from the aim, never sent beside it.** `build` with a
 stance of `teach` is a contradiction, so `config.AIM_STANCE` answers who writes
@@ -2767,14 +2790,15 @@ used to cost the evening it was said in: the aim reached `state.json` only
 through `POST /session`, and every path through that calls `board open`, which
 archives the lesson.
 
-The sitting-kind chooser carries the five aims that need no scope — **teach**,
-**build**, **coach**, **paper**, **slides** — and a tap on one changes the
-sitting that is open. `POST /aim` writes it, puts the tap in the transcript,
-wakes a turn, and does nothing else: no archive, no new tutor, every card still
-on the board. `board aim <name>` is the same thing from a terminal, minus the
-waking. **trace** and **drill** are not offered, because each is held over a
-scope — a list of files, a part of the repository — and choosing one is choosing
-what it is over, which is a tap on the map and a new sitting.
+The sitting-kind chooser carries the three styles — **teach**, **build**,
+**coach** — and a tap on one changes the sitting that is open. `POST /aim`
+writes it, puts the tap in the transcript, wakes a turn, and does nothing else:
+no archive, no new tutor, every card still on the board. `board aim <name>` is
+the same thing from a terminal, minus the waking. **trace** and **drill** are
+not offered, because each is held over a scope — a list of files, a part of the
+repository — and choosing one is choosing what it is over, which is a tap on the
+map and a new sitting. **paper** and **slides** are not offered either: they are
+products, and `POST /writeup` is how a sitting asks for one.
 
 The waking is the half no file can do: a turn is a headless call, and only a
 *fresh* one re-reads `sense.session_sense`, so writing a new aim into
@@ -2794,8 +2818,25 @@ in the two sittings where a write-up is worth the most there was no route at all
 paper or a deck is something any sitting can be asked for. So it is its own act:
 **`POST /writeup`** carries `paper` or `slides` and optionally what it is about,
 changes no aim, archives nothing, replaces no tutor, and is available everywhere.
-Two controls in the sitting-kind panel, drawn from `WORK`'s own words filtered to
-the two products, and that row is never hidden.
+Two controls in the sitting-kind panel, their words their own in `DOCS` because
+nothing on the map makes a document, and that row is never hidden.
+
+**And it is asked for at the front door too, against a workspace nobody is
+looking at.** Asked for as *"the ability to write a paper or a slide deck should
+just be an option on the homescreen, and from there I want to be able to specify
+which projects/course, and which sections/results."* Three questions in one
+sheet — which product, which workspace, what it is over — and only the third
+costs a request: `POST /writeup/scopes` answers with that workspace's own
+chapters, problem sets, parts, result directories and documents, from
+`tutorboard/scopes.py`, which walks nothing the board's own pages have not
+walked already. The ask is `POST /writeup` with a `repo` and a `scope` key, both
+looked up in what discovery found and never joined onto a path.
+
+**It lands in the library of the workspace it was written for**, which is not
+the board that commissioned it, and the reply says so. The start is asked for
+first and the inbox line written second — `/elsewhere`'s order, for its reason:
+a document asked for in another workspace's inbox with nothing that will ever
+read it is worse than a refusal.
 
 **It lands in the library, not on the glass.** A make sitting puts its sections
 on the board one at a time, because there the document *is* the evening. One

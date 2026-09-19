@@ -292,6 +292,10 @@ window.fetch = (u, opts) => {
   // A VENDOR TREE'S PICTURE. Fetched on the tap, like the inside of a box, and
   // answered under the tree's own name because a box id from somebody else's
   // repository means nothing to this workspace's discovery.
+  // THE SITTING A TAP ASKS FOR, answered rather than left hanging: what the
+  // board does once it is open -- leaving the map, and spending the address
+  // that opened it -- is half of what a node address means.
+  if (url === '/session') return json({ ok: true, session: 'lecture' });
   if (url === '/map/tree/vendor/colibri') return json(TREE);
   if (url.indexOf('/map/tree/') === 0) {
     return json({ ok: false, error: 'no such tree' });
@@ -382,6 +386,14 @@ const said = () => (el('pushed').hidden ? '' : el('pushed-text').textContent);
       && el('work').hidden) {
     ok('a node address opens that box\'s sitting');
   } else fail('a node address did not open the box: ' + JSON.stringify(went));
+
+  // AND IT IS SPENT. Opening a sitting files the one that was open, so a bar
+  // still naming the box is an evening filed away by the next reload -- and
+  // this board reloads itself when it is shipped. Once the sitting is open the
+  // board is in the lesson, and the bar says the workspace.
+  if (!/\/node\//.test(window.location.hash)) {
+    ok('and the bar stops naming the box, so a reload cannot ask twice');
+  } else fail('the bar still names the box: ' + window.location.hash);
 
   if (at(W + '/node/nowhere') === 'gone' && /not on this map/.test(said())) {
     ok('a node that is not on the map is a miss, said plainly');

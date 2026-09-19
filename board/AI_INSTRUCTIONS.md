@@ -33,6 +33,17 @@ opened it. The same rule applies to a course repository — its lesson transcrip
 same one taught there. The headless tutor pushes that transcript on a beat and the
 session start pulls it; do not re-commit a card another session already wrote.
 
+**And never `git stash` in this tree.** The working tree is shared: a live
+lesson's board writes its transcript into it on a beat, a course's own save
+sweeps everything uncommitted into that lesson's commit and pushes it, and other
+sessions have work in flight in directories you are not looking at. A stash
+takes all of that away at once, and `git stash pop` is not the way back — a
+headless commit landing in the same second makes the pop a merge, and a binary
+page of handwriting has no merge. The thing a stash is usually reached for —
+*did this test already fail before my change?* — is `git stash` nowhere near as
+often as it is `git worktree add` on a scratch directory, or simply reading the
+last green run.
+
 **Then check the machine you are standing on.** The one iPad address belongs to the machine holding
 the tailnet name, and a node whose name was changed in the admin console still has the old one in
 its local state. Prompt the person rather than assuming it is right.
