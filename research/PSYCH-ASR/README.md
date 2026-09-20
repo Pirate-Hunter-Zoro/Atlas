@@ -1827,8 +1827,7 @@ default and once at a shorter `chunk_size`, and score both against the same turn
 ├── scripts/               # shell only; everything Python lives in the package
 │   ├── setup_envs.sh          # builds all four conda prefix envs, each smoke-checked
 │   ├── standardize.sh         # Stage 0: one recording in -> 16 kHz mono WAV beside it
-│   ├── stage_models.sh        # login-node staging of every offline model asset
-│   └── save-and-push.sh       # commit + push, invoked by the board's push button
+│   └── stage_models.sh        # login-node staging of every offline model asset
 ├── slurm_jobs/            # .sbatch job scripts; logs/ gitignored
 │   ├── lib/job_env.sh                    # activate_env / report_gpu / sole_wav / session_stem
 │   ├── run_bakeoff.sh                    # submits the whole 1a -> 1b×N -> 1c chain

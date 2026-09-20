@@ -345,16 +345,61 @@ try:
     with open(os.path.join(scripts, "build.sh"), "w", encoding="utf-8") as fh:
         fh.write('#!/usr/bin/env bash\necho "pretending to compile $1"\n'
                  'printf %%s "%%PDF-1.4" > "${1%%.tex}.pdf"\n')
-    # And a push that does not touch the network.
-    with open(os.path.join(scripts, "save-and-push.sh"), "w", encoding="utf-8") as fh:
-        fh.write('#!/usr/bin/env bash\necho "pushed: $1"\n')
+
+    # A real throwaway repository with NO origin, because there is one
+    # save-and-push.sh and it is the tool's: a workspace has no copy of its own
+    # for a test to stub out. With no `origin` the script commits and says so,
+    # which is every part of a push this suite is about and none of the network.
+    def sh(*args):
+        subprocess.run(list(args), cwd=prob, stdout=subprocess.DEVNULL,
+                       stderr=subprocess.DEVNULL, check=True)
+
+    sh("git", "init", "-q", "-b", "main", ".")
+    sh("git", "config", "user.email", "t@t")
+    sh("git", "config", "user.name", "t")
+    sh("git", "add", "-A")
+    sh("git", "commit", "-qm", "the course as it stands")
 
     check("a set with no PDF at all is out of date", not os.path.exists(pdf))
     code, out = run(prob, "push", "an agreed exercise")
     check("pushing compiles the write-up first",
           code == 0 and "compiling" in out and os.path.exists(pdf))
     check("and says which set it built", "hw05" in out)
-    check("and then actually pushes", "pushed:" in out)
+    check("and then actually commits", "committed" in out)
+
+    # THE SCRIPT IS THE TOOL'S, and this is the assertion that says so. `board
+    # push` reaching for a `scripts/save-and-push.sh` beside the sitting is two
+    # doors onto two different files, and the terminal's was the older one.
+    # Asserted on the path the code resolves rather than on any sentence about
+    # it: the repository holds exactly one copy and it is under the tool.
+    src = open(os.path.join(ROOT, "bin", "board"), encoding="utf-8").read()
+    push_body = src[src.index("def cmd_push("):src.index("def cmd_slate(")]
+    resolved = [ln for ln in push_body.splitlines()
+                if "save-and-push.sh" in ln and "os.path.join" in ln]
+    check("bin/board resolves save-and-push.sh under the tool and nowhere else",
+          len(resolved) == 1 and "TOOL" in resolved[0]
+          and "live.root" not in resolved[0])
+    check("and the tool's copy is the one that is actually there",
+          os.path.isfile(os.path.join(ROOT, "scripts", "save-and-push.sh"))
+          and not os.path.exists(os.path.join(prob, "scripts", "save-and-push.sh")))
+
+    # AND THE SUBJECT LEADS WITH THE WORKSPACE, which is the other half of one
+    # door. The commit carries the whole repository, so a history of subjects
+    # reading "lesson complete" says nothing about which afternoon each one was.
+    # `test/beside.py` holds the same assertion for the save button.
+    subject = subprocess.run(["git", "log", "-1", "--format=%s"], cwd=prob,
+                             stdout=subprocess.PIPE).stdout.decode().strip()
+    check("and the commit subject leads with the workspace, the same as the "
+          "save button's",
+          subject == "byset: an agreed exercise")
+
+    # AND `push.json` IS THE SAME RECORD EITHER DOOR WROTE. The board draws the
+    # last outcome off this file and cannot tell which door made the commit, so
+    # a field the save button writes and the terminal does not is a board that
+    # says less about a terminal push than about a tap.
+    rec = json.load(open(os.path.join(prob, "live", "push.json"), encoding="utf-8"))
+    check("and push.json names the workspace, the same field the save button "
+          "writes", rec.get("workspace") == "byset")
 
     # A second push with nothing changed must not rebuild: an ordinary save in
     # the middle of a lesson should cost nothing.
@@ -378,7 +423,7 @@ try:
         fh.write("\n%% broken\n")
     code, out = run(prob, "push", "with a broken write-up")
     check("a build that fails still pushes the source, which is the record",
-          code == 0 and "pushed:" in out)
+          code == 0 and "committed" in out)
     check("and says so loudly rather than shipping a stale PDF in silence",
           "BUILD FAILED" in out)
 

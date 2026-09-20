@@ -23,8 +23,8 @@ reading it. And a sitting belongs to a box on that map: one opened without a box
 says so and asks for one, and one working in a box stops at the boundary and
 hands the work to the next box as an address you tap.
 
-**What is left is what still sends somebody to a keyboard**, and that is the next
-section.
+**What is left is two things, and both of them are the iPad's** — one dispatch
+and a list of evenings. Nothing left here is a keyboard's.
 
 `board/README.md` is the architecture. This file says what is left.
 
@@ -39,9 +39,12 @@ Nobody has to ask for that. *"Look at HANDOFF"* means all of it:
    CAN DO.** It is the lowest-numbered one on purpose — the numbering carries the
    order things have to land in, and each item says what it depends on where that
    matters. If the owner names a different one, that wins. **Each item's heading
-   says whose hands it needs**, because the order is not the same as the
-   assignment: item 1 is a build and it is the iPad's, so a session typing at a
-   keyboard reads it, confirms nothing has rotted under it, and moves down.
+   says whose hands it needs**, and both of the two say the iPad's: item 1 is a
+   build that only the person holding it can dispatch, item 2 is a list of
+   evenings. **So there is nothing here for a session typing at a keyboard to
+   build.** Such a session reads both, confirms nothing has rotted under them,
+   and says so rather than inventing work — and if the owner names something
+   else, that is the item.
 2. **Read that item whole before touching anything.** Each one says what already
    exists (measured, not assumed), what is missing, where it goes, the decisions
    to take deliberately, and what to assert. The decisions are the expensive part:
@@ -265,42 +268,6 @@ None of these is a build. Each is an evening in front of the thing.
   asserts only that they reach the course. **The first card of the next sitting is
   the real check.**
 
-### 3. Three things the audit found that are not prose — A KEYBOARD
-
-The documentation half is done and is under *Settled*. These are what it turned
-up underneath, and none of them is fixed by editing a sentence.
-
-- **Thirty-one instructor PDFs are tracked in a public repository.** The
-  professor's module slides under `courses/Probability/chapters/*/lectures/` and
-  the assignment sheets under `homework/*/assignment/`. The README said the
-  repository was private and that they were tracked *for that reason*, so the
-  sentence that would have caught this was the one telling everybody not to
-  worry; it now says what is true. Ignoring them is half the job — **the
-  decision that needs the owner is whether to rewrite history**, because a file
-  stays reachable in past commits until it is actually removed, and rewriting
-  the history of a public repository is not a thing to do unasked.
-  `test/tracked.py` refuses *other authors' papers* and did not catch these, so
-  the second question is whether its rule should name a course's lecture slides
-  too.
-
-- **`board push` and the save button run different scripts.** `lesson/git.py`
-  runs the tool's `board/scripts/save-and-push.sh`; `bin/board`'s `cmd_push`
-  runs `os.path.join(live.root, "scripts", "save-and-push.sh")` — the
-  workspace's own tracked copy. Eight of those are still in the tree at four
-  different sizes, so the two doors take different code, and the one the
-  terminal uses is the older one. The board's copy is the one that learned about
-  pathspecs and staged removals; the workspace copies did not. Either
-  `cmd_push` points at the tool's copy and the eight come out of the tree, or
-  they are genuinely wanted and the README stops calling it one script.
-
-- **Six findings stand unapplied in `courses/Galois-Theory`.** Its `README.md`
-  and `AI_INSTRUCTIONS.md` both describe `live/` as untracked when 1189 of its
-  files are committed, and both describe `"mode": "math"` as meaning the board
-  has no text box, when the board drops the key on read and `#saybox` is right
-  there. A live session had those two files open when the audit ran, so they
-  were left alone. Apply them when that session has shipped; the wording is the
-  same as the corrections already made in `courses/Probability`.
-
 ---
 
 ## Still open from the harness
@@ -327,6 +294,54 @@ as the answer.
 ---
 
 ## Settled, so nobody re-derives it
+
+- **A WORKSPACE CONTRACT DESCRIBES THE BOARD THAT IS THERE, AND THE BOARD IS THE
+  SAME ONE EVERYWHERE.** `tutorboard.json` declares a `name` and, where the
+  repository has answered for itself, a `stance`. **It does not declare a
+  subject.** No key in it chooses a layout, a vocabulary or a shape of lesson,
+  so a contract saying *this repository is in code mode* is describing a switch
+  that does not exist — and an assistant obeys it, which is how four of them
+  came to promise three docked signal buttons that are not on the page. Every
+  repository answers through the one panel: **✎ write** and **⌨ type**, under
+  the question, whichever was used last opening next. `live/` is scratch space
+  and the lesson transcript inside it is tracked, by an allowlist in each
+  workspace's own `.gitignore`. `board export` compiles by default and
+  `--no-build` stops at the `.tex`. **`test/truthful.py` holds the mechanical
+  half in both directions**: a key the board drops on read is refused in a
+  config and refused as a JSON spelling in prose, because the same dead setting
+  lands in the file and in the sentence about the file.
+
+- **OTHER PEOPLE'S SLIDES AND SHEETS ARE ON DISK AND OUT OF GIT, IN EVERY
+  COURSE.** Four lines in the root `.gitignore` do it: `/courses/**/lectures/*`
+  and `/courses/**/assignment/*`, each with a `.gitkeep` negation under it. The
+  leading slash anchors the pattern at the repository root and `**` reaches a
+  course at whatever depth it keeps a unit, so a second course gets the rule
+  without writing it again. **`*` excludes the FILES, not the directory**, which
+  is what lets git keep descending and lets the `.gitkeep` come back — a clone
+  arrives with the directories held open and nothing in them, and the owner
+  drops the slides back on disk. `test/tracked.py` refuses the same set from the
+  index, scoped to `courses/` and exempting `.gitkeep`, with **no extension
+  filter** so the two guards refuse the identical set and a `.docx` sheet cannot
+  fall between them. `textbook/` is held open by a `.gitkeep` too.
+
+- **ONE `save-and-push.sh`, AND IT IS THE TOOL'S.** `board/scripts/save-and-push.sh`
+  is the only copy in the tree and a workspace has none of its own. Both doors run
+  it — `lesson/git.py` for the ⤓ save button, `cmd_push` for `board push` — and
+  both hand it the toplevel `git rev-parse --show-toplevel` answers as the working
+  directory, because the script takes its repository from `pwd` rather than from
+  where it is installed. **One repository holds every workspace, so either door
+  commits the whole tree**, and both NAME the other workspaces that had
+  uncommitted work in them before the commit runs rather than leaving it to be
+  discovered, and both lead the commit subject with the workspace so one history
+  of many can be read back. The script fetches and merges its upstream first,
+  so a second machine committing the same repository — a compute node compiling
+  the same document — cannot wedge every later push as a non-fast-forward. A
+  conflict outside `build/` stops by hand, and a merge that cannot be completed
+  is abandoned rather than left standing, because `MERGE_HEAD` in the tree is
+  every later save refused from an iPad. `test/homework.py` asserts the path
+  `cmd_push` resolves is under `TOOL` and that its commit leads with the
+  workspace, and `test/tracked.py` refuses a second copy anywhere in the index —
+  a copy nothing runs is a copy somebody reads.
 
 - **A TAP ON A BOX OPENS THE SITTING, AND A DOCUMENT IS COMMISSIONED AT THE
   DOOR.** The map asked *what do you want to do about this* and offered eight
@@ -394,18 +409,14 @@ as the answer.
   auditor that reports true sentences as false is one somebody silences rather
   than reads, so that class stays a reader's job and `truthful.py` says so in
   place of the check.
-  **Two of the findings were not about prose.** `lesson/git.py` runs the tool's
-  `save-and-push.sh` while `bin/board`'s `push` runs the *workspace's* own
-  tracked copy — eight of those are still in the tree, and they are not the same
-  file, so the save button and `board push` take different code. And
-  `courses/Probability` still tracks 31 instructor PDFs — the professor's module
-  slides and the assignment sheets — in a repository that is public; the README
-  said the repository was private and that they were tracked *for that reason*,
-  which is the sentence that would have kept somebody from looking.
-  **`courses/Galois-Theory` was read and not written.** Six findings stand in
-  its `README.md` and `AI_INSTRUCTIONS.md` — `live/` described as untracked when
-  1189 of its files are committed, and `"mode": "math"` described as removing a
-  text box that exists — and a live session has those two files open.
+  **Three of the findings were not about prose, and each is its own rule in this
+  list.** The professor's module slides and the assignment sheets sat in a public
+  repository under a README sentence saying the repository was private and that
+  they were tracked *for that reason* — the sentence that would have kept
+  somebody from looking. The save button and `board push` ran two different
+  copies of the push script, and the terminal's was the older one. And a contract
+  describing a setting the board does not read is a contract an assistant obeys:
+  four of them promised three docked signal buttons that are not on the page.
 
 - **ONE KV SLOT, AND `exclusive` IS THE ANSWER RATHER THAN A PLACEHOLDER.** A
   slot costs 23.9 GB at a 131072 window and fits only by eating the whole pin

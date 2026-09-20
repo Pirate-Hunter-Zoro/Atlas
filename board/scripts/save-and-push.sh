@@ -18,6 +18,10 @@
 # part-way through in a course. That distinction did not exist while the tool
 # was its own clone, and it is the whole reason this option is here.
 #
+# It fetches and merges the remote before pushing, so a second machine
+# committing the same repository -- a compute node compiling the same document
+# -- cannot wedge every later push as a non-fast-forward.
+#
 # The commit is authored by whoever `git config user.name` says, and carries no
 # trailers, no co-authors, and no attribution to any assistant. The work is the
 # repository owner's; the history should say so and nothing else.
@@ -165,7 +169,72 @@ if ! git remote get-url origin >/dev/null 2>&1; then
 fi
 
 branch="$(git rev-parse --abbrev-ref HEAD)"
+
+# Integrate the remote before pushing.
+#
+# Without this the script pushes blind, and the first time any other machine
+# commits -- a compute node compiling the same document, say -- every push from
+# this clone is rejected as a non-fast-forward, for ever, and re-tapping the
+# button cannot clear it.
+#
+# A merge, never a rebase: nothing already committed here is rewritten.
 if git rev-parse --abbrev-ref '@{upstream}' >/dev/null 2>&1; then
+  # Git's own words, not a guess at them. "could not reach origin" is one
+  # reason a fetch fails and it is not the common one -- a branch deleted on the
+  # remote, a credential that has expired, a repository renamed -- and a save
+  # that invents the reason sends whoever reads it to look at the network.
+  if ! fetched="$(git fetch origin "$branch" 2>&1)"; then
+    echo "could not fetch origin/$branch, so nothing was pushed:"
+    printf '%s\n' "$fetched" | tail -5
+    exit 1
+  fi
+
+  behind="$(git rev-list --count 'HEAD..@{upstream}' 2>/dev/null || echo 0)"
+  if [ "${behind:-0}" != "0" ] && [ -n "$(git status --porcelain)" ]; then
+    # A merge refuses to overwrite uncommitted work and is right to. This is the
+    # pathspec case -- `ship.sh` commits `board/` while a course is part-way
+    # through an afternoon -- so say why the remote is not coming in rather than
+    # reporting a merge that never started.
+    echo "origin/$branch is ahead and this tree has uncommitted work outside the"
+    echo "  commit, so it was not merged in; the push may be rejected. Save the"
+    echo "  rest, then push again."
+  elif [ "${behind:-0}" != "0" ]; then
+    if ! git merge --no-edit '@{upstream}'; then
+      # Generated output is allowed to be resolved automatically: two machines
+      # compiling one source produce two different PDFs of the same document,
+      # and that is not a disagreement about anyone's work. Everything else is,
+      # so it stops here rather than a script picking a winner.
+      # `(^|/)build/` rather than `/build/`: a path git prints is relative to
+      # the repository root, so a top-level `build/` has no slash in front of it
+      # and would read as somebody's work.
+      conflicts="$(git diff --name-only --diff-filter=U)"
+      real="$(printf '%s\n' "$conflicts" | grep -Ev '(^|/)build/' || true)"
+      if [ -n "$real" ]; then
+        git merge --abort
+        echo "merge conflicts outside build output; resolve by hand:"
+        printf '%s\n' "$real"
+        exit 1
+      fi
+      printf '%s\n' "$conflicts" | while IFS= read -r f; do
+        [ -n "$f" ] && git checkout --ours -- "$f" && git add -- "$f"
+      done
+      # ABANDON THE MERGE RATHER THAN LEAVE IT STANDING. A conflict `--ours`
+      # cannot take -- a file deleted on one side and edited on the other -- goes
+      # no further, and a repository left with MERGE_HEAD in it is one where
+      # `worktree.busy_reason` refuses every later save. That is the board's only
+      # door closed from an iPad, by the thing that was meant to keep it open.
+      if ! git commit --no-edit; then
+        git merge --abort
+        echo "the merge could not be completed, so it was abandoned and nothing"
+        echo "  was pushed. The commit above is safe here. Merge by hand."
+        exit 1
+      fi
+      echo "merged origin/$branch; kept this machine's build output"
+    else
+      echo "merged origin/$branch"
+    fi
+  fi
+
   out="$(git push 2>&1)"
 else
   out="$(git push -u origin "$branch" 2>&1)"

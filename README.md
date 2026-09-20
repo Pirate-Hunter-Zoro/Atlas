@@ -100,6 +100,7 @@ it.** None of the three is trusted alone:
 | Therapy session audio (308 MB) | `research/PSYCH-ASR/phi/` | Identifiable PHI; the filenames carry participant IDs |
 | Job results and model dumps (1.5 GB) | `research/TRD-EHR/results/` | Regenerable, and seven files over GitHub's 50 MB warning |
 | Other authors' published papers | on disk, beside their citation library | Their copyright. The library **indexes** are tracked, so a clone arrives with the bibliography described but not carried |
+| A set textbook, a professor's lecture slides, an assignment sheet | on disk, in the course's own `textbook/`, `lectures/` and `assignment/` | Their copyright. What the owner wrote about them — the notes, the typeset solutions — is tracked, and a `.gitkeep` holds each directory open |
 | The assistant configuration | `ai-config/`, its own private repository | Its settings name real paths on lab storage, and the PHI guard describes what it is guarding |
 
 **The directory is called `phi` because the fence matches that name, and nothing in the tree
@@ -118,7 +119,7 @@ tracked, the rest ignored), which is what makes a lecture the same lesson on whi
 picks it up. Nothing in the root file may shadow one of those: git will not descend into a
 directory ignored higher up, so a rule for `live/` at the root makes every deeper `!live/cards/`
 unreachable. The root `.gitignore` holds two categories: files a command regenerates, and other
-people's papers and books.
+people's work — papers, books, lecture slides and assignment sheets.
 
 Galois-Theory's tracked `live/archive` is 114 MB of lesson transcript and Probability's tracked
 `live/` is another 20 MB. It is all small files and it is the transcript, so it is right that it

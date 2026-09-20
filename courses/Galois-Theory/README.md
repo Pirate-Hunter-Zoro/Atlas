@@ -111,13 +111,13 @@ On the iPad, open it once in Safari and use Share → **Add to Home Screen**. Af
 app with its own icon, no browser chrome, and a long-press shortcut straight to the slate.
 
 Everything the assistant teaches appears there as typeset mathematics the moment it is written:
-real LaTeX, real subgroup lattices and commutative diagrams, no refresh and no compile step. You
-answer by hand — this course is in **math mode**, so there is no text box and never will be. The ✎
-button opens a slate you write on with the Apple Pencil, and it opens itself whenever a question is
-owed. Tap send and the assistant opens the page and reads
-your handwriting — no exporting, no airdropping, no retyping a proof you already wrote. Turn on
-*live* and it sees each page as you pause. Photos and PDFs dropped anywhere on the board work
-too.
+real LaTeX, real subgroup lattices and commutative diagrams, no refresh and no compile step. The
+answer panel opens itself under the question and has two surfaces. **✎ write** is a slate you
+write on with the Apple Pencil; **⌨ type** is a box for when words are quicker, with a `$…$`
+button so mathematics does not cost a keyboard hunt. Whichever you used last is the one that opens
+next time. Tap send and the assistant opens the page and reads your handwriting — no exporting, no
+airdropping, no retyping a proof you already wrote. Turn on *live* and it sees each page as you
+pause. Photos and PDFs dropped anywhere on the board work too.
 
 With the board on the iPad and the slate for your working, a whole session can happen without
 touching the keyboard.
@@ -129,11 +129,14 @@ You never run a board command. The tool is `board/` at the root of Atlas, on the
 
 This course is a directory in [Pirate-Hunter-Zoro/Atlas](https://github.com/Pirate-Hunter-Zoro/Atlas),
 tracked by `main`, and it is not its own clone. Nothing here is committed or pushed
-automatically; `scripts/save-and-push.sh` is what the board's save button runs.
+automatically. The board's **⤓ save**, the offer `board finish` raises, and `board push` from a
+terminal all run `board/scripts/save-and-push.sh` from the root of Atlas, so the commit
+is of the whole repository.
 
 **That repository is PUBLIC.** Garling's text and the excerpts cut from it are somebody else's
 copyright, so they live on disk and out of git: the root `.gitignore` refuses `**/textbook/*.pdf`
 and `**/chapters/*/reading/ch*.pdf`, and `board/test/tracked.py` fails the suite if one is ever
 added anyway. What is tracked is everything written *about* the reading — the notes, the
-homework, the typeset answers, `chapters.tsv`. `make split` regenerates the excerpts from the
+homework, the typeset answers, `chapters.tsv`, and the lesson transcript under `live/`, so a
+lecture is the same whichever machine picks it up. `make split` regenerates the excerpts from the
 book in one command, so nothing is lost by their absence.

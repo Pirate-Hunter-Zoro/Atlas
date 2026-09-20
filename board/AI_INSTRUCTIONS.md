@@ -544,8 +544,8 @@ tutorboard/
   not let its prompt inherit the lecture's "pick a manageable few" or the homework's write-up.
   `review.py`, `test/review.py` and `test/review.js` hold it.
 - **A board is a process, and processes hold old code.** `serve.py` is read once, at start, so a
-  change to this repository reaches a course only when its board restarts — while the pages,
-  served from disk, already look new. `scripts/save-and-push.sh` runs `tutor restart` after a
+  change to the tool reaches a course only when its board restarts — while the pages,
+  served from disk, already look new. `board/scripts/save-and-push.sh` runs `tutor restart` after a
   successful push for exactly that reason. Restart only boards answering on this node; a record
   on the shared home may be another machine's.
 - **A course is navigable from the board.** Chapters and problem sets are discovered, listed

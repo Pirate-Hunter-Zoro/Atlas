@@ -95,18 +95,33 @@ Thumbs.db
 # which are the only ones that actually exist.
 **/.claude/
 
-# ---- other people's BOOKS, and every excerpt cut out of one ----
-# A course keeps its set text on disk and reads it; a public repository does not
-# redistribute it. `scripts/split-textbook.sh` says of its own output "they are
-# derived artifacts and git-ignored" -- which was the intent from the start and
-# was never actually enforced, so forty chapter excerpts and three whole
-# textbooks were tracked. The excerpts regenerate from the book in one command.
+# ---- other people's BOOKS, SLIDES AND SHEETS ----
+# A course keeps its set text, its professor's slides and its assignment sheets
+# on disk and reads them; a public repository does not redistribute any of it.
+# The book's per-chapter excerpts regenerate from the book in one command --
+# `scripts/split-textbook.sh` says of its own output "they are derived artifacts
+# and git-ignored". The slides and the sheets do not regenerate: a fresh clone
+# arrives without them and the owner drops them back on disk.
 #
-# What IS tracked is everything the person wrote about the reading: the notes,
-# the homework, the typeset transcripts, chapters.tsv. That is the work.
+# What IS tracked is everything the person wrote about the reading and about the
+# lectures: the notes, the homework solutions, the typeset transcripts,
+# chapters.tsv. That is the work.
+#
+# The four `lectures/` and `assignment/` lines below are anchored with a
+# leading slash -- the pattern is read from the repository root -- and use `**`
+# so they reach a course at whatever depth it keeps a unit. They reach every
+# course and only courses, so a second course gets the rule without writing it
+# again and `research/` is left alone. `*` excludes the FILES inside, not the
+# directory, so git still descends and the `.gitkeep` holding each empty
+# directory open comes back. `textbook/` is held open by a `.gitkeep` too,
+# which the `*.pdf` rule above does not touch.
 **/textbook/*.pdf
 **/chapters/*/reading/ch*.pdf
 **/chapters/*/reading/ch*.txt
+/courses/**/lectures/*
+!/courses/**/lectures/.gitkeep
+/courses/**/assignment/*
+!/courses/**/assignment/.gitkeep
 
 # ---- the assistant configuration, which is its own private repository ----
 # `ai-config/` lives INSIDE this tree and is tracked by its own git, not by

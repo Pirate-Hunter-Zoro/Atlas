@@ -233,8 +233,8 @@ Confirm before anything hard to reverse. Branch before committing if you are on 
 default branch. Commit or push only when asked.
 
 Commits carry **no assistant attribution**. `.githooks/commit-msg` strips the trailer
-and `scripts/save-and-push.sh` enables the hook path on any clone that has not opted
-in. Do not add a `Co-Authored-By` line naming a model, and do not work around the hook.
+and `board/scripts/save-and-push.sh` enables the hook path on any clone that has not
+opted in. Do not add a `Co-Authored-By` line naming a model, and do not work around the hook.
 
 ## 9. The live board
 

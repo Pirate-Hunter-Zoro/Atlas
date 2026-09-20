@@ -371,8 +371,12 @@ check("and says so when the restart changed the tutor",
 
 push_src = open(os.path.join(ROOT, "scripts", "save-and-push.sh"), encoding="utf-8").read()
 check("pushing the tool restarts the boards it drives", "tutor restart" in push_src)
+# Asserted on the TEST the script makes, not on a sentence near it: a commit in
+# a repository the tool does not live in cannot have changed the tool, whatever
+# it touched, and `ROOT` is the repository the caller was standing in.
 check("but a course pushing its own work does not",
-      'Tutor-Board' in push_src and 'show-toplevel' in push_src)
+      '[ "$TOOL_ROOT" = "$ROOT" ]' in push_src
+      and 'ROOT="$(git rev-parse --show-toplevel' in push_src)
 check("and a failure to restart does not fail the push",
       "|| echo" in push_src)
 

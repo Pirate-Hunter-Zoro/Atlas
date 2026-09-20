@@ -1,6 +1,11 @@
 # Kept deliberately minimal: this matches the ignore set used in
-# Research-Journey. Nothing else is ignored — build products, compiled PDFs,
-# editor state and course material are all tracked.
+# Research-Journey. Build products, compiled PDFs, editor state and the work
+# written in here are tracked.
+#
+# What is NOT tracked is what somebody else wrote — the textbook, its chapter
+# excerpts, the professor's module slides and the assignment sheets. Those
+# rules live in the ROOT .gitignore, with the other categories of other
+# people's work, so a second course gets them without writing them again.
 
 __pycache__
 node_modules/

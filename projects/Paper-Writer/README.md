@@ -1423,7 +1423,7 @@ course and teach the work on a live typeset board rather than in a terminal. `li
 that board's scratch space and is never tracked.
 
 Commits carry no assistant attribution. `.githooks/commit-msg` strips the trailer, and
-`scripts/save-and-push.sh` enables the hook path on any clone that has not opted in, so
+`board/scripts/save-and-push.sh` enables the hook path on any clone that has not opted in, so
 it holds from the first commit rather than from the first time somebody remembers.
 
 ---
@@ -1450,7 +1450,8 @@ paperwriter/
   daemons/   the two entry points. Thin: a lock, a loop, a call into engine/.
 prompts/     the committed base prompts. Load-bearing non-code artifacts.
 service/     systemd units, the launcher, and the deployed configuration.
-scripts/     what a person runs by hand: rebuild the .docx of a tree, commit and push.
+scripts/     what a person runs by hand: rebuild the .docx of a tree. Committing is
+             `board/scripts/save-and-push.sh`, which is the tool's and the only copy.
 config/      shell profile fragments, sourced not run. `rebuild` lives here.
 tests/       200+ tests, standard library only, no network.
 ```

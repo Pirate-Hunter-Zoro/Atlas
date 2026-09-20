@@ -1026,7 +1026,7 @@ Do not re-learn these.
     consequence is that git records a new script as 644 however it looks on disk, `git status` says
     nothing, and the failure appears only in somebody else's checkout as a bare *Permission denied*
     from a command on `PATH`. `git update-index --chmod=+x <path>` sets it in the index directly,
-    and this project's `scripts/save-and-push.sh` carries it — that script stages with
+    and the tool's `board/scripts/save-and-push.sh` carries it — that script stages with
     `git add -A` and commits the index with a plain `git commit`, so neither step re-reads the
     disk bit. Set the bit and check `git diff --cached --summary` shows the mode changes and
     nothing else before saving.

@@ -84,6 +84,19 @@ def other_peoples_work(rel):
     if "reading" in parts and os.path.basename(rel).lower().startswith("ch"):
         if rel.lower().endswith((".pdf", ".txt")):
             return "an excerpt cut out of a set textbook"
+    # A course's own instructor documents, which are the same thing one step
+    # along: the professor's module slides and the assignment sheet as
+    # distributed. EVERY course, not the one this was found in -- a new course
+    # that commits its professor's deck goes red on the first run. The
+    # `.gitkeep` holding an empty directory open is the one file in there this
+    # repository wrote, so it is the one exemption. No extension filter on
+    # purpose: this and `/courses/**/lectures/*` in the root `.gitignore` then
+    # refuse the identical set, and a .docx sheet cannot fall between them.
+    if parts[0] == "courses" and parts[-1] != ".gitkeep":
+        if "lectures" in parts:
+            return "a professor's lecture slide deck"
+        if "assignment" in parts:
+            return "an assignment sheet as it was distributed"
     return None
 
 
@@ -179,6 +192,23 @@ for rel in files:
              "repository must not publish. Track a .env.example with the keys "
              "and no values instead." % rel)
 
+    # ---- one save-and-push.sh, and it is the tool's ----------------------
+    #
+    # Not a secrecy rule; a one-copy rule, and it is here because this is the
+    # file that reads every tracked path. Both doors onto a commit -- the ⤓
+    # save button through `lesson/git.py` and `board push` through `cmd_push`
+    # -- resolve the script under the tool, so a second copy beside a sitting
+    # is not a fallback, it is a file nothing runs and everybody reads. One
+    # repository holds every workspace and the script takes its repository
+    # from the working directory, so a workspace needs none of its own.
+    if base == "save-and-push.sh" and low != "board/scripts/save-and-push.sh":
+        fail("%s is a second copy of save-and-push.sh. There is one, "
+             "`board/scripts/save-and-push.sh`, and both `lesson/git.py` and "
+             "`cmd_push` resolve it under the tool -- so this one is never "
+             "run and is read as though it were. The script takes its "
+             "repository from the working directory; a workspace needs no "
+             "copy." % rel)
+
 
 # ---- the two directories that live inside the tree and must stay invisible -
 #
@@ -265,6 +295,30 @@ def put(path, text):
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, "w", encoding="utf-8") as fh:
         fh.write(text)
+
+
+# ---- the instructor rule covers EVERY course, and only the `.gitkeep` escapes -
+#
+# The scan above is over the files that are tracked TODAY, so it goes green the
+# moment the decks are out of the index and stays green if somebody narrows the
+# rule to the one course the decks were found in. These four paths are the two
+# properties the rule is for: a course nobody has made yet is covered, and the
+# placeholder holding an empty directory open is not a lecture.
+_INSTRUCTOR = (
+    ("courses/Galois-Theory/chapters/ch01-groups/lectures/Deck.pdf", True),
+    ("courses/A-Course-Nobody-Has-Made-Yet/homework/hw01/assignment/sheet.docx", True),
+    ("courses/Probability/chapters/ch01-introduction/lectures/.gitkeep", False),
+    ("research/TRD-EHR/notes/lectures.md", False))
+_wrong = [p for p, refused in _INSTRUCTOR
+          if bool(other_peoples_work(p)) is not refused]
+if _wrong:
+    fail("the instructor-document rule is the wrong shape: %s. It refuses a "
+         "professor's slides and sheets under EVERY course, exempts the "
+         "`.gitkeep`, and reaches nothing outside `courses/`."
+         % ", ".join(_wrong))
+else:
+    ok("a professor's slides and sheets are refused in any course, and the "
+       "`.gitkeep` holding the directory open is not")
 
 
 FENCE = "phi"

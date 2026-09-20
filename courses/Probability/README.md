@@ -26,12 +26,12 @@ scripts/
   build.sh          compile one .tex
 chapters/chNN-slug/
   reading/chNN.pdf  this chapter's excerpt, cut by `make split` (ignored — regenerate it)
-  lectures/         the professor's module slides for this chapter
+  lectures/         the professor's module slides for this chapter (ignored — on disk only)
   notes/            chNN-notes.tex
   handwritten/      iPad exports — the work as originally written
   build/            compiler output
 homework/hwNN/
-  assignment/       the assignment sheet as distributed
+  assignment/       the assignment sheet as distributed (ignored — on disk only)
   hwNN.tex          the typeset solutions
   handwritten/      iPad exports
   build/
@@ -88,7 +88,9 @@ Handled by the assistant. Entry points: `make split`, `make scaffold`, `make sca
 | 10 | Brownian Motion and Stationary Processes | 649–684 |
 | 11 | Simulation | 685–752 |
 
-Lecture modules exist so far for chapters 1–4; homework sets 1–3 are in `homework/`.
+On this machine the lecture modules cover chapters 1–4 and homework sets 1–3 sit in
+`homework/`. Both are on disk and out of git, so a clone arrives with the directories empty
+and the slides and sheets have to be dropped back in.
 
 ## The live board
 
@@ -101,13 +103,15 @@ On the iPad, open it once in Safari and use Share → **Add to Home Screen**. Af
 app with its own icon, no browser chrome, and a long-press shortcut straight to the slate.
 
 Everything the assistant teaches appears there as typeset mathematics the moment it is written:
-real LaTeX, real diagrams, no refresh and no compile step. This course runs the board in **math
-mode**, so you answer by hand rather than by typing: the ✎ button opens a slate you write on with
-the Apple Pencil, and every question card carries an answer block with a **skip this one** button
-that means *move on*. Tap send and the assistant opens the page and reads your handwriting — no
-exporting, no airdropping, no retyping a proof you already wrote. You can also write directly on
-a card the assistant wrote and send those marks as a question about that line. Turn on *live* and
-it sees each page as you pause. Photos and PDFs dropped anywhere on the board work too.
+real LaTeX, real diagrams, no refresh and no compile step. The answer panel opens itself under the
+question and has two surfaces. **✎ write** is a slate you write on with the Apple Pencil;
+**⌨ type** is a box for when words are quicker, with a `$…$` button so mathematics does not cost
+a keyboard hunt. Whichever you used last is the one that opens next time, and every question card
+carries an answer block with a **skip this one** button that means *move on*. Tap send and the
+assistant opens the page and reads your handwriting — no exporting, no airdropping, no retyping a
+proof you already wrote. You can also write directly on a card the assistant wrote and send those
+marks as a question about that line. Turn on *live* and it sees each page as you pause. Photos
+and PDFs dropped anywhere on the board work too.
 
 With the board on the iPad and the slate for your working, a whole session can happen without
 touching the keyboard.
@@ -118,10 +122,14 @@ You never run a board command. The tool is `board/` at the root of Atlas, on the
 ## Git
 
 This course is a directory in [Pirate-Hunter-Zoro/Atlas](https://github.com/Pirate-Hunter-Zoro/Atlas),
-tracked by `main`, and it is not its own clone. Nothing is committed or pushed automatically.
+tracked by `main`, and it is not its own clone. Nothing is committed or pushed automatically. The
+board's **⤓ save**, the offer `board finish` raises, and `board push` from a terminal all run
+`board/scripts/save-and-push.sh` from the root of Atlas, so the commit is of the whole repository.
 
-**Atlas is public, so nothing here is private.** The textbook and its per-chapter excerpts are
-ignored and live on disk only. The professor's module slides under `chapters/*/lectures/` and the
-assignment sheets under `homework/*/assignment/` are still tracked, which means they are
-published — ignoring them now is half the job, because a file stays reachable in past commits
-until history is rewritten.
+**Atlas is public, so nothing here is private.** Four things are on disk and out of the
+repository, because somebody else wrote them: the textbook, its per-chapter excerpts, the
+professor's module slides under `chapters/*/lectures/`, and the assignment sheets under
+`homework/*/assignment/`. A fresh clone gets none of the four. It gets the directories, held
+open by a `.gitkeep`, and it gets everything written ABOUT them — the notes, the typeset
+solutions, `chapters.tsv`, the lesson transcripts. `board/test/tracked.py` refuses any of the
+four that reaches the index, so the rule is a test rather than a sentence.

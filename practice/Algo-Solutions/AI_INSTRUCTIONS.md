@@ -364,16 +364,17 @@ session** — it prints what is unread and the path of anything sent, and marks 
 Both halves of the conversation live on the board, in order: your card, then what the user sent
 back, directly under the card it answers.
 
-A **turn** is one contribution from the user, and in a code course it is almost always a signal
-rather than a page of writing:
+A **turn** is one contribution from the user, sent from the answer panel — written on the slate or
+typed. Here it is usually a sentence rather than a page of working, and what it says decides what
+you do:
 
-| What they tap | What it means | What you do |
-|---|---|---|
-| **Ready to check** | the work is done, in the editor, on their machine | read the files, review, say what is wrong or that it is right |
-| **I need help** | stuck, with a sentence saying how | find the break; do not write the fix for them |
-| **I'm confused** | the explanation did not land | re-teach the same step from a different angle, not the next step |
+| What comes back | What you do |
+|---|---|
+| the work is done, in the editor, on their machine | read the files, review, say what is wrong or that it is right |
+| stuck, and the sentence says how | find the break; do not write the fix for them |
+| the explanation did not land | re-teach the same step from a different angle, not the next step |
 
-Turns are versioned, so a signal sent again after your feedback supersedes the previous one in
+Turns are versioned, so an answer sent again after your feedback supersedes the previous one in
 place. Every revision stays on disk in `live/turns.jsonl`, which is append-only.
 
 **The code itself never comes to the board and you never send code to it.** They write it in their
@@ -485,28 +486,32 @@ This repository's contract is model-agnostic and so is the board. The whole inte
 line and a directory of files: `board start`, write markdown into `live/cards/`, `board inbox`,
 `board wait`. There is no SDK and nothing tool-specific.
 
-If you are an assistant that cannot look at an image, say so plainly and ask the user to type the
-answer into the board's text box instead. Do not pretend to have read a page you cannot see, and
-do not make the user transcribe their own proof to work around it.
+If you are an assistant that cannot look at an image, say so plainly and hand the session to one
+that can. Do not pretend to have read a page you cannot see. For work not written yet, the
+panel's **⌨ type** half is the way round it; do not make the user retype a page they have
+already written out by hand.
 
-### This repository is in **code mode**
+### The subject here is code, and the board is where it is explained
 
-`tutorboard.json` declares `"mode": "code"`, which changes what the board is for here.
+`tutorboard.json` declares a name, and a `stance` where the repository has answered for itself.
+It does not declare a subject: every repository is taught the one way, and one whose subject is
+code says so by having code in it rather than by turning off half the board. What follows is how
+that plays out here.
 
 - **The board carries the instruction.** Write the explanation, the plan, the trade-off, the
   diagram, the table of what-calls-what — as cards, the same as any other course.
-- **There are three buttons, not a chat box.** *Ready to check*, *I need help*, *I'm confused* —
-  the last two open a keyboard for one sentence. That is deliberately the whole vocabulary: a
-  free-text box invites conversation, and the conversation belongs in the terminal where the user
-  already is. Read them with `board inbox` like anything else.
+- **The answer panel is how they reply, here as everywhere.** **✎ write** for a sketch,
+  **⌨ type** for a sentence, and `board inbox` reads either. There is no second vocabulary
+  for a code repository and no docked signal buttons; a tap meaning *look at what I changed*
+  leaves you guessing at what and why, and a sentence does not.
 - **The code itself lives in the repository, not on the board.** The user writes it in their
   editor; you read the files. A card is for explaining, never for handing over an implementation
-  the normal-mode rule says they should write themselves.
+  section 3's no-code rule says they should write themselves.
 - **The slate is still there** for sketching a data flow or a shape, and the user may send a page
   at any time. Read it the same way.
 
-Everything else in this contract is unchanged. In particular the no-code rule of section 3 still
-governs: a card is not a loophole, and the override phrase is still required for code.
+The rest of this contract applies here as written. In particular the no-code rule of section 3
+still governs: a card is not a loophole, and the override phrase is still required for code.
 
 ### Finish every session by offering the push
 
@@ -520,9 +525,11 @@ board finish
 ```
 
 That raises a prompt **on the board**, where the user actually is, asking whether to save and push.
-Tapping **Push** runs the repository's `scripts/save-and-push.sh`: `git add -A`, a commit, and a
-push. The result appears on the board either way — a green line naming the branch, or a red one
-carrying the actual error. A failed push must never be silent.
+Tapping **Push** runs the tool's `board/scripts/save-and-push.sh`, which is the only copy there
+is: `git add -A`, a commit, an integrating merge of the remote, and a push. One repository holds
+every workspace, so the commit is of the whole tree and the board names whatever else had
+uncommitted work in it. The result appears on the board either way — a green line naming the
+branch, or a red one carrying the actual error. A failed push must never be silent.
 
 `board push "message"` does the same from the terminal, without asking, when that is what is
 wanted.

@@ -240,11 +240,13 @@ nothing.
 
 ## 6. Reviewing the user's handwritten work
 
-The user writes mathematics by hand on an iPad and drops the exported PDF into the chapter's
-`handwritten/` folder. Reviewing it is one of your core jobs.
+The user writes mathematics by hand on an iPad, and their pages reach you through the board: they
+tap *send* and you open the PNG (section 13). A PDF they exported into the chapter's
+`handwritten/` folder is read the same way. Reviewing this work is one of your core jobs.
 
-- Read the PDF. If the tooling cannot extract text from handwriting, render the pages to images
-  and read them visually. Do not guess at the content and do not ask the user to retype it.
+- Read the page. A PNG is read as it stands; if the tooling cannot extract text from a handwritten
+  PDF, render its pages to images and read them visually. Do not guess at the content and do not
+  ask the user to retype it.
 - Check the mathematics for correctness first: is each step valid, is each hypothesis actually
   available, is the conclusion the one that was asked for.
 - Check the *shape* of the argument second: is it a proof or a plausibility story, are the
@@ -276,27 +278,25 @@ For a chapter's notes file or homework file you produce, in full:
 
 ### The write-up is yours, not the user's
 
-**This reverses the earlier rule.** The user does the mathematics; you do the typing. Once a piece
-of work has been written by hand, reviewed under section 6, and agreed correct, transcribing it
-into LaTeX is clerical, and making the user retype their own argument taught them nothing and cost
-them an evening.
+**The user does the mathematics; you do the typing.** Once a piece of work has been written by
+hand, reviewed under section 6, and agreed correct, transcribing it into LaTeX is clerical, and
+making the user retype their own argument teaches them nothing and costs them an evening.
 
 So, in a homework session:
 
 - The user writes the solution by hand on the slate and sends it.
-- You review it. If it is wrong, it goes back — that part is unchanged, and it is the part that
-  matters.
+- You review it. If it is wrong, it goes back unrepaired. That is the part that matters.
 - Once you both agree it is right, **you transcribe it into the solution region**, faithfully.
   You are typesetting their argument, not improving it: same steps, same order, same reasoning.
   If a step is wrong you do not quietly fix it in the transcription — you say so and it goes back.
 - When the assignment is complete you compile it and report.
 
-What has *not* changed: you do not invent a solution the user has not produced. An empty region
-stays empty until they have written the mathematics for it. The override phrase is still what
-turns "solve this for me" into something you act on.
+You do not invent a solution the user has not produced. An empty region stays empty until they
+have written the mathematics for it. The override phrase is what turns "solve this for me"
+into something you act on.
 
-You do not write the contents of a solution region before the user has done the work. Mark each one exactly
-like this, and leave it empty:
+You do not write the contents of a solution region before the user has done the work. Mark each
+one exactly like this, and leave it empty:
 
 ```
 % ===== SOLUTION 4.7 =====
@@ -370,20 +370,23 @@ The exact directory layout is in `README.md` and the chapter table is `chapters.
 that matters here:
 
 - `chapters/chNN-slug/` — one Ross chapter. `reading/` holds the textbook excerpt, `lectures/`
-  holds the professor's module slides for that chapter, `notes/` holds the write-up.
+  holds the professor's module slides for that chapter, `notes/` holds the write-up. The
+  excerpt and the slides are on disk and out of git; the write-up is the tracked half.
 - `homework/hwNN/` — one assignment. `assignment/` holds the sheet as distributed, `hwNN.tex`
-  holds the typeset solutions. Homework is numbered by assignment, not by chapter, because the
-  assignments cut across chapters.
+  holds the typeset solutions. The sheet is on disk and out of git; the solutions are tracked,
+  so read the sheet off disk and never assume a clone has one. Homework is numbered by
+  assignment, not by chapter, because the assignments cut across chapters.
 - Every unit has `handwritten/` for iPad exports and a `build/` for compiler output.
 
 Working rhythm, in order:
 
 1. The user reads the chapter and the lecture modules. You teach under section 5, one concept
    at a time.
-2. The user works problems by hand on the iPad and drops the PDF in the relevant `handwritten/`.
-3. You review that PDF under section 6.
+2. The user works problems by hand on the slate and sends them. A page they exported as a PDF
+   instead arrives in the relevant `handwritten/` and is read the same way.
+3. You review the page under section 6.
 4. Once the mathematics is settled, you generate or update the `.tex` scaffold under section 7.
-5. The user types the solutions into the marked regions.
+5. You transcribe each agreed answer into its solution region under section 7.
 6. You compile and report under section 8.
 
 Never skip step 3 to get to step 4 faster.
@@ -422,8 +425,8 @@ proceed.
 
 The user reads mathematics on a **live typeset board**: a local page that renders proper LaTeX and
 updates the instant you write to it. The tool lives at `board/` in the root of Atlas and is on
-the path as `board`. It is the display for this repository's tutoring. Section 9's Unicode rule governs what
-is left in the terminal; it does not govern the board, where you write real LaTeX.
+the path as `board`. It is the display for this repository's tutoring. Section 9's Unicode rule
+governs what is left in the terminal; it does not govern the board, where you write real LaTeX.
 
 ### Start of session — do this first, without being asked
 
@@ -523,8 +526,9 @@ folder so the permanent record stays where the repository expects it.
 
 ### End of session
 
-`board export --build` turns the whole lesson into a typeset `.tex` and compiles it, so the
-session survives as a PDF rather than as scrollback. Offer it when a lesson finishes.
+`board export` turns the whole lesson into a typeset `.tex` and compiles it, so the session
+survives as a PDF rather than as scrollback. Building is the default, and `--no-build` writes the
+`.tex` and stops. Offer it when a lesson finishes.
 
 Filing a session archives the whole of it — your cards, every turn, and the frozen answers —
 into `live/archive/`. `board history` lists past sessions, and the user can read any of them back
@@ -592,16 +596,18 @@ This repository's contract is model-agnostic and so is the board. The whole inte
 line and a directory of files: `board start`, write markdown into `live/cards/`, `board inbox`,
 `board wait`. There is no SDK and nothing tool-specific.
 
-If you are an assistant that cannot look at an image, say so plainly and ask the user to type the
-answer into the board's text box instead. Do not pretend to have read a page you cannot see, and
-do not make the user transcribe their own proof to work around it.
+If you are an assistant that cannot look at an image, say so plainly and hand the session to one
+that can. Do not pretend to have read a page you cannot see. For work not written yet, the
+panel's **⌨ type** half is the way round it; do not make the user transcribe a proof they have
+already written out by hand.
 
-### This repository is in **math mode**
+### Answering is by hand first, and the panel has two surfaces
 
-`tutorboard.json` declares `"mode": "math"`, which means **the board has no text box, and never
-will**. The user answers by writing on the slate and tapping *Send*; their ink lands in the lesson
-under the question, and you read the PNG. Do not ask them to type mathematics, and do not ask them
-to reply in the terminal — the whole arrangement exists so they do not have to.
+The answer panel carries **✎ write** and **⌨ type**, and this is a mathematics course: expect the
+slate. The user writes, taps *Send*, their ink lands in the lesson under the question, and you
+open the PNG. Do not ask them to reply in the terminal — the whole arrangement exists so they do
+not have to. A typed line arrives the same way and is read the same way; take it when they send
+it, and do not ask them to retype a proof they already wrote.
 
 The writing panel opens itself when a question is owed and stays open through the corrections, so
 never tell the user to find it, open it, or go anywhere to write.
@@ -643,9 +649,11 @@ board finish
 ```
 
 That raises a prompt **on the board**, where the user actually is, asking whether to save and push.
-Tapping **Push** runs the repository's `scripts/save-and-push.sh`: `git add -A`, a commit, an
-integrating merge of the remote, and a push. The result appears on the board either way — a green line naming the branch, or a red one
-carrying the actual error. A failed push must never be silent.
+Tapping **Push** runs the tool's `board/scripts/save-and-push.sh`, which is the only copy there
+is: `git add -A`, a commit, an integrating merge of the remote, and a push. One repository holds
+every workspace, so the commit is of the whole tree and the board names whatever else had
+uncommitted work in it. The result appears on the board either way — a green line naming
+the branch, or a red one carrying the actual error. A failed push must never be silent.
 
 `board push "message"` does the same from the terminal, without asking, when that is what is
 wanted.

@@ -43,7 +43,7 @@ must be openable and teachable at every point.
 - **Ship, do not merely commit.** `bash scripts/ship.sh "message"` commits `board/`, pushes,
   and restarts every board. A board is a long-lived process that read `serve.py` when it
   started, so a commit alone changes nothing for somebody holding an iPad. Changes outside
-  `board/` need `bash scripts/save-and-push.sh "message" -- <paths>`.
+  `board/` need `bash board/scripts/save-and-push.sh "message" -- <paths>`.
 - **Bump `VERSION` in `web/sw.js`** when any shell file changes (`board.html`, `board.js`,
   `board.css`, `plane-core.js`, `gauge.js`, `home.html`, `home.js`, `library.html`,
   `library.js`, `library.css`, anything added to the cache list), or the installed app
@@ -889,13 +889,11 @@ is wrong even when every suite is green.
   identifiable PHI while four documents go on promising a guard that has stopped matching.
   `.gitignore`, the README, `AI_INSTRUCTIONS.md` and `job_env.sh` each say DO NOT RENAME IT where
   somebody would be about to.
-- **A SCRIPT THAT DERIVES ITS REPOSITORY FROM ITS OWN LOCATION IS WRONG NOW.**
-  `save-and-push.sh` did, which was right while the tool was its own clone and the script only ever
-  pushed itself. `lesson/git.py` calls the tool's copy for every workspace — so
-  for about an hour every save committed the repository the *tool* was in. The working directory
-  decides, the caller sets it, and `test/beside.py` asserts the tool's HEAD did not move. Eight
-  workspace copies are still tracked and still derive their root from their own location, and
-  `board push` from a terminal still runs the one beside the sitting rather than this one.
+- **A SCRIPT THAT DERIVES ITS REPOSITORY FROM ITS OWN LOCATION IS WRONG.**
+  `board/scripts/save-and-push.sh` is the only copy and `lesson/git.py` and `bin/board`'s `push`
+  both run it, for every workspace — so a location-derived root would commit the repository the
+  *tool* is in whatever the caller meant. The working directory decides, the caller sets it, and
+  `test/beside.py` asserts the tool's HEAD did not move.
 - **AN IGNORE PATTERN WITH A SLASH IN IT IS ANCHORED TO ITS OWN DIRECTORY.** A rule for an
   assistant's config directory written at the root matched exactly one directory and silently
   missed the nine inside the workspaces, which were the only ones that existed. `**/` on purpose,
@@ -3467,18 +3465,20 @@ board finish
 ```
 
 raises a prompt **on the board** — not in a terminal, because the person answering is holding an
-iPad — asking whether to save and push. Tapping **Push** runs the repository's
-`scripts/save-and-push.sh`, and the outcome appears on the board either way: a green line naming
-the branch, or a red one carrying the actual error text. A failed push is never silent, and the
-hub shows the last result too.
+iPad — asking whether to save and push. Tapping **Push** runs the tool's
+`board/scripts/save-and-push.sh`, and the outcome appears on the board either way: a green line
+naming the branch, or a red one carrying the actual error text. A failed push is never silent, and
+the hub shows the last result too.
 
 `board push "message"` does it from the terminal without asking.
 
-**⤓ save commits and pushes.** It runs the tool's own `board/scripts/save-and-push.sh` from the
-repository root — the same script, the same commit, the same push as the offer you get on the way
-out. `board push` from a terminal still runs the workspace's own tracked
-`scripts/save-and-push.sh`, which is a second and older copy: two doors onto one path to a commit,
-and a third onto another.
+**⤓ save commits and pushes.** It runs `board/scripts/save-and-push.sh` from the repository
+root — the same script, the same commit, the same push as the offer you get on the way out. There
+is one copy of that script and it is the tool's; `board push` from a terminal runs it too. Two
+doors onto one path to a commit, and the working directory is what tells the script which
+repository to commit. One repository holds every workspace, so that commit carries the whole tree:
+both doors name the other workspaces that had uncommitted work in them rather than sweeping them up
+in silence, and both lead the commit subject with the workspace the save was made in.
 
 **You can save without the tutor, at any point.** `⤓ save` in the title bar raises the
 same offer, worded as what it is — *Save this work? … The lesson stays open.* Sessions end
@@ -3683,12 +3683,19 @@ else below is optional, and each item buys something specific.
 
    `!live/text/` is there because the per-question typed drafts are transcript too.
 
-6. **`scripts/save-and-push.sh`** — the end-of-session push. Copy it from any repository here;
-   it is self-contained and takes an optional commit message.
-
-7. **Somewhere for finished work** — a `handwritten/` folder, a `notes/` directory, whatever fits.
+6. **Somewhere for finished work** — a `handwritten/` folder, a `notes/` directory, whatever fits.
    The board hands the assistant a path to each slate page; where it should be filed afterwards is
    the repository's business, and `AI_INSTRUCTIONS.md` is where you say so.
+
+**Nothing about pushing.** `board/scripts/save-and-push.sh` is the only copy and it takes its
+repository from the working directory, so a new workspace needs no push script of its own — `⤓
+save` and `board push` both reach the same one.
+
+**And nothing about other people's slides.** `/courses/**/lectures/*` and
+`/courses/**/assignment/*` in the root `.gitignore` reach a course the moment it exists, and
+`test/tracked.py` refuses either from the index for every course rather than the one they were
+found in. So the professor's decks and the assignment sheets go on disk, a `.gitkeep` holds each
+directory open, and there is no per-course rule to write.
 
 ### Shipping a change
 
@@ -3709,12 +3716,13 @@ attribution to any assistant.
 
 ### Changing the tool restarts the boards
 
-A board is a long-lived process that read `serve.py` when it started, so a change to this
-repository does not reach a course until its board comes back. The pages are served from disk
+A board is a long-lived process that read `serve.py` when it started, so a change to the tool
+does not reach a course until its board comes back. The pages are served from disk
 and look new while the endpoints behind them are still the old ones — a difference that is
 invisible from the outside and costs an evening to find. It cost one here.
 
-So this repository's `scripts/save-and-push.sh` runs `tutor restart` after a successful push:
+So `board/scripts/save-and-push.sh` runs `tutor restart` after a push whose commit touched
+`board/`:
 
 ```
 tutor restart              restart every board running on this machine

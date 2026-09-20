@@ -167,6 +167,47 @@ check("every document that counts the families counts %d of them" % families,
       not miscount, "\n".join(miscount))
 
 
+# ---- 3. A setting a document describes and the code does not read ----------
+#
+# `mode` is the case this is written from and it is the shape of the class: a
+# key sat in seven `tutorboard.json` files and in seven contracts saying what
+# the board did about it, and `read_config` pops it and reads nothing. A
+# document describing a switch that does nothing is worse than one describing
+# nothing, because an assistant obeys it -- four of those contracts told one to
+# expect three signal buttons that are not on the page.
+#
+# Both halves are checked: the key is not in a config, and no document writes
+# it as a setting. A sentence that NAMES the key while saying it is dropped is
+# fine and is what `board/AI_INSTRUCTIONS.md` carries -- the pattern here is the
+# JSON spelling, which is a document asserting the file contains it.
+DEAD_KEYS = ("mode",)
+
+carried = []
+configs = subprocess.run(
+    ["git", "-C", ROOT, "ls-files", "*tutorboard.json"],
+    capture_output=True, text=True, check=True).stdout.split("\n")
+for rel in configs:
+    if not rel or "/live/" in rel:
+        continue
+    try:
+        with open(os.path.join(ROOT, rel), encoding="utf-8") as fh:
+            said = json.load(fh)
+    except (OSError, ValueError):
+        continue
+    for key in DEAD_KEYS:
+        if isinstance(said, dict) and key in said:
+            carried.append("%s carries `%s`" % (rel, key))
+
+for rel, text in tracked_markdown():
+    for n, line in enumerate(text.split("\n"), 1):
+        for key in DEAD_KEYS:
+            if re.search(r'"%s"\s*:\s*"' % key, line):
+                carried.append("%s:%d writes `%s` as a setting" % (rel, n, key))
+
+check("no config and no document carries a key the board drops on read",
+      not carried, "\n".join(carried))
+
+
 # ---- What is deliberately NOT checked here ---------------------------------
 #
 # Whether every source file a document names exists. It was written, it fired
