@@ -758,25 +758,11 @@ fusion analysis). Recorded here because the surrounding notes reference it:
 - ALL FIGURES WERE RENUMBERED to open the Figure 2 slot — old 2-11 are
   now 3-12, across manuscript.md, supplement.md, tripod_ai_checklist.md.
 
-- [ ] WATCH ITEM, not yet a task: two sign/label bugs were found and fixed
-      while regenerating the feature-importance panels. Both are worth
-      knowing about because either could silently corrupt a future figure.
-      (a) In feature_importance_summary.json, "importance" and "sign" are
-          NOT redundant and must never be multiplied together.
-          "importance" is the raw model attribution — a SIGNED coefficient
-          for logistic regression, an UNSIGNED impurity/gain score for the
-          tree models — while "sign" comes separately from the univariate
-          Spearman correlation with the risk score. Multiplying them flips
-          every genuinely negative logistic predictor to positive and
-          colours it as risk-raising. This was caught only because the
-          flipped panel disagreed with the manuscript's named negatives
-          (missing smoking status, hyperlipidemia, longer pre-anchor
-          history, male sex). The correct panels now match that sentence.
-      (b) plot_feature_importance's title expression relied on operator
-          precedence in a way that silently dropped the model name from
-          the "direction unspecified" branch. Fixed by naming the
-          conditional before use.
-      Nothing outstanding on either; recorded so they are not reintroduced.
+- [x] The two sign/label bugs in the feature-importance panels are now
+      guarded rather than remembered: tests/test_feature_importance_direction.py
+      holds five assertions, each made to fail against the reintroduced bug
+      before it was left green. What they pin down, and why, is in that
+      file's module docstring. Do not re-describe it here.
 
 STANDING CONTEXT — three items that were open on 2026-08-20 are now
 CLOSED, all without needing KLF (she is on maternity leave). Recorded here
