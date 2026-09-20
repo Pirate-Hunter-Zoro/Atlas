@@ -311,10 +311,216 @@ check("which is the rule it already has for a document rebuilt at one name",
 check("and the shell version was bumped, or the app serves its cached copy",
       'VERSION = "board-shell-v' in sw)
 
+
+# ---------------------------------------------------------------------------
+# 6. BROWSING THEM -- the other half, and the one somebody asked for
+# ---------------------------------------------------------------------------
+# The drawer above puts ONE figure in a card. The ask was the other question:
+#
+#     "I want to be able to see the figures and results from this task --
+#     there's no easy way for me to browse through results and figures in this
+#     interface."
+#
+# A mission's card had just ended by naming what it wrote -- a figure and four
+# tables, under a directory -- and the only way to look at any of it was a
+# terminal. So the library page grew a second list, and this is what it must
+# and must not do. Same walk, same allowlist, same fence, same ids: what is new
+# is the tables, the grouping, and reading a table back for a page that cannot
+# open a file.
+print("\n-- everything this workspace produced, browsable, and still fenced --")
+
+
+def text(path, said):
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "w", encoding="utf-8") as fh:
+        fh.write(said)
+
+
+# The mission's own shape: a figure and four tables in one directory, written
+# after everything else in the tree.
+SWEEP = os.path.join(WS, "results", "neighbor_count_sweep")
+write(os.path.join(SWEEP, "neighbor_count_sweep.png"), BIG)
+text(os.path.join(SWEEP, "sweep_curve.csv"),
+     "alpha,n_neighbors,roc_auc\n"
+     + "".join("1.0,%d,0.%03d\n" % (k, k) for k in range(1, 501)))
+text(os.path.join(SWEEP, "sweep_intervals.csv"), "k,lo,hi\n40,0.61,0.66\n")
+text(os.path.join(SWEEP, "sweep_summary.json"),
+     '{"n_anchors": 8516, "best_k": 40}')
+text(os.path.join(SWEEP, "what_it_found.md"), "# what the sweep found\n\nk=40.\n")
+# And a table inside the fence, which must be as refused as the picture was.
+text(os.path.join(WS, "results", "phi", "turn_table.csv"), "patient,turn\n1,hi\n")
+
+results.forget()
+made = results.browse(repo)
+rows = [r for g in made["groups"] for r in g["figures"] + g["tables"]]
+wheres = [g["where"] for g in made["groups"]]
+sweep = [g for g in made["groups"] if g["where"] == "neighbor_count_sweep"]
+
+# ---- found by walking, and declared nowhere ----
+check("a directory nobody registered is on the list because it is on disk",
+      bool(sweep))
+check("and there is no list anywhere in the workspace naming it -- the only "
+      "file that could have declared it does not",
+      "neighbor_count_sweep" not in open(
+          os.path.join(WS, "tutorboard.json"), encoding="utf-8").read())
+check("the figure the card names is in it, under the filename the card used",
+      bool(sweep) and "neighbor_count_sweep.png" in
+      [f["file"] for f in sweep[0]["figures"]])
+check("and so are its four tables, which are a separate list from the figures",
+      bool(sweep) and sorted(t["file"] for t in sweep[0]["tables"]) == [
+          "sweep_curve.csv", "sweep_intervals.csv", "sweep_summary.json",
+          "what_it_found.md"])
+check("the directory that changed last is the first group, because that is "
+      "the result somebody has come to look at",
+      wheres and wheres[0] == "neighbor_count_sweep")
+check("and a row never carries the path, because the board addresses one by id",
+      rows and all("rel" not in r for r in rows))
+check("a table says what it is on disk rather than what anybody assumed",
+      sorted(set(t["format"] for g in made["groups"] for t in g["tables"]))
+      == ["csv", "json", "md"])
+
+# ---- THE FENCE, BY NAME, ON BOTH KINDS ----
+check("A FENCED DIRECTORY IS IN NO GROUP ON THE BROWSE LIST",
+      not [w for w in wheres if "phi" in w.split("/")])
+check("and neither its picture nor its table is a row anywhere on it",
+      not [r for r in rows if r["file"] in ("turn_table.png",
+                                            "turn_table.csv")])
+check("the fenced table cannot be read back by the id it would have had",
+      results.table(WS, results.ident("results/phi/turn_table.csv"))
+      .get("ok") is not True)
+check("nor by the route, which answers 404 rather than an empty table",
+      get(PORT, "/library/table/"
+          + results.ident("results/phi/turn_table.csv"))[0] == 404)
+check("and the refusal is the one list, matched on the NAME at any depth",
+      fenced.refused("results/phi/turn_table.csv")
+      and "phi" in fenced.NEVER)
+
+# ---- a picture, over the route the drawer already uses ----
+shot = sweep[0]["figures"][0] if sweep and sweep[0]["figures"] else {}
+status, heads, body = get(PORT, "/result/" + (shot.get("id") or "x"))
+check("tapping the figure on the browse list serves the picture",
+      status == 200 and body.startswith(b"\x89PNG")
+      and heads.get("Content-Type") == "image/png")
+
+# A FIGURE PAST THE DRAWER'S TWO DOZEN IS STILL ON THE PAGE, so the route has
+# to resolve it. `MAX_FIGURES` is a cap on what a CARD is offered; a page that
+# lists four hundred and 404s three hundred and seventy-six of them is worse
+# than one that lists none.
+for i in range(results.MAX_IN_GROUP + 10):
+    write(os.path.join(WS, "results", "lots", "plot_%02d.png" % i), png_bytes())
+results.forget()
+flood = results.browse(repo)
+drawer = set(f["id"] for f in results.figures(WS))
+listed = [r for g in flood["groups"] for r in g["figures"]]
+past = [f for f in listed if f["id"] not in drawer]
+check("the browse list is not capped at the drawer's two dozen",
+      len(listed) > results.MAX_FIGURES and bool(past))
+check("and a figure past that cap is served rather than 404ed",
+      get(PORT, "/result/" + past[0]["id"])[0] == 200)
+check("a group still says how many rows it is not showing, because a silent "
+      "cap reads as *this is all there is*",
+      any(g["more"] for g in flood["groups"] if g["where"] == "lots"))
+shutil.rmtree(os.path.join(WS, "results", "lots"))
+results.forget()
+
+# ---- a table, read back rather than downloaded ----
+by_file = {}
+for g in results.browse(repo)["groups"]:
+    for t in g["tables"]:
+        by_file[t["file"]] = t
+check("every table written into the sweep directory is addressable",
+      set(by_file) >= {"sweep_curve.csv", "sweep_summary.json",
+                       "what_it_found.md"})
+# A missing one is a FAILED check above and an unreadable id below, rather than
+# a traceback: a suite that dies at the first hole stops saying what else broke.
+by_file.setdefault("sweep_curve.csv", {"id": "-"})
+by_file.setdefault("sweep_summary.json", {"id": "-"})
+by_file.setdefault("what_it_found.md", {"id": "-"})
+
+def read_back(which):
+    """One table over the route, as the page would get it."""
+    status, _h, body = get(PORT, "/library/table/" + by_file[which]["id"])
+    try:
+        return status, json.loads(body.decode("utf-8"))
+    except ValueError:
+        return status, {}
+
+
+status, sheet = read_back("sweep_curve.csv")
+check("a CSV comes back as columns and rows rather than as a download",
+      status == 200 and sheet.get("shape") == "rows"
+      and sheet.get("columns") == ["alpha", "n_neighbors", "roc_auc"])
+check("bounded, and it says how much of the file it is showing",
+      len(sheet.get("rows") or []) == results.MAX_ROWS
+      and sheet.get("more") == 500 - results.MAX_ROWS)
+check("a JSON one comes back as text, because it is not rows",
+      read_back("sweep_summary.json")[1].get("shape") == "text")
+check("and it is the numbers that are in the file",
+      "8516" in (read_back("sweep_summary.json")[1].get("text") or ""))
+check("a markdown one comes back as what it says",
+      "what the sweep found" in
+      (read_back("what_it_found.md")[1].get("text") or ""))
+
+check("a figure id is not a table, and the table route says so",
+      get(PORT, "/library/table/" + shot["id"])[0] == 404)
+check("and a table id is not a figure, so the picture route refuses it too",
+      get(PORT, "/result/" + by_file["sweep_curve.csv"]["id"])[0] == 404)
+for evil in ("/library/table/../../../../etc/passwd",
+             "/library/table/..%2f..%2fetc%2fpasswd",
+             "/library/table/results/summary.csv",
+             "/library/table/",
+             "/library/table/nothing-by-that-name"):
+    check("refused: %s" % evil, get(PORT, evil)[0] == 404)
+
+# ---- the whole payload, over the route the page fetches ----
+status, _h, body = get(PORT, "/library/results.json")
+try:
+    page = json.loads(body.decode("utf-8"))
+except ValueError:
+    page = {}
+check("the library page's own fetch answers with the groups",
+      status == 200 and page.get("ok") is True and bool(page.get("groups")))
+check("and says which directories it looked in, so *nothing here* is checkable",
+      sorted(page.get("looked") or []) == ["figures", "results", "tables"])
+
+# ---- AND AN EMPTY ONE EXPLAINS ITSELF ----
+check("a workspace with no results says why rather than drawing an empty box",
+      results.browse(type("R", (), {"root": empty})()).get("why", "")
+      .startswith("This workspace has no results directory"))
+check("and names where a job would have to write for one to appear",
+      "results/" in results.browse(type("R", (), {"root": empty})())["why"])
+
+# A workspace whose output is session content -- PSYCH-ASR's own shape, a
+# top-level `phi/` and no results directory. The empty page must NAME the fence
+# rather than reading as a workspace that has never run anything.
+sealed = os.path.join(TMP, "PSYCH-ASR")
+write(os.path.join(sealed, "phi", "stage1", "turn_table.png"), BIG)
+text(os.path.join(sealed, "phi", "stage1", "turns.csv"), "patient,turn\n1,hi\n")
+fenced.forget()
+results.forget()
+shut = results.browse(type("R", (), {"root": sealed})())
+check("a workspace that holds a fence has it NAMED on the page, so an empty "
+      "list cannot pass for a workspace with nothing in it",
+      not shut["groups"] and shut["fenced"] == ["phi"]
+      and "`phi/`" in shut["why"])
+check("and nothing inside it is listed, whichever kind of file it is",
+      not [r for g in shut["groups"] for r in g["figures"] + g["tables"]]
+      and not results.index(sealed))
+check("nor readable by the id it would have had, either kind",
+      results.find(sealed, results.ident("phi/stage1/turn_table.png"))[0] is None
+      and results.table(sealed, results.ident("phi/stage1/turns.csv"))
+      .get("ok") is not True)
+
+check("the service worker sends the table route to the network too, because a "
+      "job rewrites a result under the name it already had",
+      bool(live) and re.match(live.group(1), "/library/table/anything")
+      and re.match(live.group(1), "/library/results.json"))
+
 shutil.rmtree(TMP, ignore_errors=True)
 
 print()
 if fails:
     print("%d check(s) failed" % len(fails))
     sys.exit(1)
-print("a figure goes on the glass, and the tree stays where it is")
+print("a figure goes on the glass, every result is browsable, and the tree "
+      "stays where it is")

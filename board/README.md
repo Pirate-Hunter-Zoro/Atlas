@@ -21,7 +21,7 @@ for](#the-machine-this-is-written-for).
 
 **Contents** — [What it is not](#what-it-is-not) · [The surfaces](#the-surfaces) ·
 [Commands](#commands) · [Writing a card](#writing-a-card) · [The slate](#the-slate--writing-by-hand)
-· [The library](#the-library--every-paper-and-deck-a-workspace-has) ·
+· [The library](#the-library--everything-a-workspace-has-written-and-everything-it-has-produced) ·
 [Getting work back](#getting-work-back) ·
 [Exporting it](#exporting-the-whole-conversation) · [Any agent](#any-agent-not-just-one) ·
 [Layout](#layout) · [The machine](#the-machine-this-is-written-for) ·
@@ -120,7 +120,7 @@ holds the line at seven.
 
 **AND THE LIBRARY LEADS BACK WHERE IT WAS OPENED FROM.** `#lib-back` is `/board` by default, which
 is right for the board's own row into it — a lesson stepping sideways. It is wrong for the front
-door's *Papers & decks*, because reading a document nobody is teaching from has nothing to do with
+door's *Papers, decks & results*, because reading a document nobody is teaching from has nothing to do with
 the lesson and that is the whole reason the button exists; landing somebody in a sitting they never
 opened, to get back to the door they tapped from, is the trapped level on a different page. The
 caller says so with `?from=home` — **a query parameter and not a stored flag**, because it survives
@@ -3181,12 +3181,13 @@ the question goes under it, one slide per card, never a slide instead of a quest
 page the tutor has not opened and read itself. A slide is an object to work on. A card with a
 picture and no question is the word dump in a new medium.
 
-### The library — every paper and deck a workspace has
+### The library — everything a workspace has written, and everything it has produced
 
 Asked for as *"view all papers and presentations related to a project very
 easily"*, and the point of it is that it costs no sitting: `/library` is a page
-of its own, reachable from the ⋯ menu on the board and from **Papers & decks** on
-a workspace's sheet on the atlas front door.
+of its own, reachable from the ⋯ menu on the board and from **Papers, decks &
+results** on a workspace's sheet on the atlas front door. Two lists on it: the documents,
+below, and **what it has produced** — the figures and tables a job wrote.
 
 **A document is a stem in a directory, in however many formats it has.**
 `manuscript.md` + `.pdf` + `.docx` is one document; `stage1_pipeline_walkthrough.tex`
@@ -3357,6 +3358,47 @@ session, its report goes at the bottom of the feedback file, and
 `live/cards/`, `live/state.json` and the archive are left exactly as they were —
 somebody mid-proof on an iPad is not interrupted by somebody correcting a deck.
 That is what makes the library a separate interface rather than a sitting.
+
+#### What it has produced — figures and tables, on the same page
+
+A mission ends by naming what it wrote — *figure `neighbor_count_sweep.png` and
+four tables are in `RESULTS_DIR/neighbor_count_sweep/`* — and the second half of
+`/library` is where those are looked at. One page, because *everything this
+workspace has made* is one question, and because this is the page the front door
+and the ⋯ menu already open.
+
+`course/results.py` is the whole of it, and it is the module the board's figure
+drawer already uses: one walk, one allowlist (`fenced.RESULT_DIRS`), one fence
+(`fenced.NEVER`, matched on the directory **name** at any depth), one id.
+Nothing is registered — a directory a job wrote this morning is on the list
+because it is on disk.
+
+**The directory is the group**, closed until it is opened, newest first. TRD-EHR
+holds **98 result directories, 628 figures and 233 tables**; that is headings
+somebody scrolls and rows nobody could. `_where` is the reason: a pipeline
+writes `propensity_by_arm.png` once per contrast under the same name, so the
+directory is what tells three of them apart.
+
+**A row is the filename, not a prettied version of it.** The drawer prettifies,
+because there a figure is being *chosen*; here the reader arrived holding a
+string a card gave them, and the search box matches that string.
+
+| | |
+|---|---|
+| **a figure** | `GET /result/<id>` — the drawer's own route, `<img>` straight onto the glass, never cached by the service worker because the next job rewrites it at the same name |
+| **a table** | `GET /library/table/<id>` — read on the board and sent as rows. A CSV handed to a browser is a file an iPad puts where nobody finds it. What a table is on disk is what these pipelines write: `.csv`, `.json`, `.md`, `.txt` |
+| **an id, never a path** | `results.index` is the lookup and a miss is a miss. `find` resolves against the whole walk rather than the drawer's `MAX_FIGURES` — that cap is on what a *card* is offered, and a page that lists four hundred and 404s most of them is worse than one that lists none |
+
+**Bounded, and it says what it dropped.** `MAX_GROUPS` directories,
+`MAX_IN_GROUP` rows inside one, `MAX_ROWS` rows of a CSV — each reported beside
+the list, because a silent cap reads as *this is all there is*. A 2.9 MB,
+hundred-thousand-row `sweep_curve.csv` is streamed to the cap, never loaded, and
+the page says *300 rows of 101,889*.
+
+**An empty list explains itself, and a fence is named.** Where it looked, and
+what it refused: `research/PSYCH-ASR` has no results directory *and* holds
+`phi/`, and the page says both — a workspace whose output is session content
+must not be able to pass for a workspace that has never run anything.
 
 ### A walkthrough — code that is already there
 

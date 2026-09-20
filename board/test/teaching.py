@@ -601,6 +601,39 @@ check("every briefing carries the rule about how a card reads",
       "ANSWER in the first sentence" in sense_mod.PLAIN_SENSE
       and "One idea per sentence" in sense_mod.PLAIN_SENSE)
 
+# ---------------------------------------------------------------------------
+# THE GLASS TYPESETS, AND `sum_i` IS NOT AVOIDING TeX -- IT IS SHIPPING ITS
+# UGLY HALF
+# ---------------------------------------------------------------------------
+# `web/board.js` hands every card to KaTeX on `$...$` and `$$...$$`, whatever
+# the card's kind and whatever the sitting, so nothing about a doing turn's
+# report is different from a lesson's here. The only thing between a rendered
+# formula and ASCII arithmetic on the glass is whether the turn was told -- and
+# it was not, which is what came back off a card in TRD-EHR: *"it should have
+# rendered some things in LaTeX ... I just see some ugly latex-esque coded math
+# things when it gets into the weighting."*
+#
+# Two places, for the same reason as *one module, one job*: `TEACHING.md` is
+# what a tutor with the document open reads, and `PLAIN_SENSE` is the whole of
+# what a woken turn holds. The delimiters are checked against `board.js` rather
+# than quoted, because a rule naming a delimiter the renderer does not honour is
+# worse than no rule.
+_PLAIN_FLAT = _flat(sense_mod.PLAIN_SENSE)
+for _phrase, _why in (
+        ("mathematics in a card is tex, not ascii",
+         "the rule itself, in one sentence"),
+        ("$$", "and names the displayed delimiter"),
+        ("sum_i", "and the ASCII sum that was reported"),
+        ("as the letter `x`", "and the product written as a letter"),
+        ("greek letter spelled out", "and the Greek letter written as a word"),
+):
+    check("every briefing says " + _why, _phrase in _PLAIN_FLAT)
+    check("and TEACHING.md says the same: " + _why, _phrase in _METHOD)
+_BOARD_JS = open(os.path.join(ROOT, "web", "board.js"), encoding="utf-8").read()
+check("and those are the delimiters board.js actually gives KaTeX",
+      '{ left: "$$", right: "$$", display: true }' in _BOARD_JS
+      and '{ left: "$", right: "$", display: false }' in _BOARD_JS)
+
 # A DOING TURN IS NOT GIVEN A TEACHING TURN'S CLOCK.
 #
 # One timeout, 900 seconds, for every turn. A teaching turn writes a card in

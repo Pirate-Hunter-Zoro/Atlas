@@ -78,7 +78,18 @@ var els = {
   roundTitle: document.getElementById("round-title"),
   roundList: document.getElementById("round-list"),
   roundText: document.getElementById("round-text"),
-  roundClose: document.getElementById("round-close")
+  roundClose: document.getElementById("round-close"),
+  res: document.getElementById("res"),
+  resCount: document.getElementById("res-count"),
+  resFenced: document.getElementById("res-fenced"),
+  resFind: document.getElementById("res-find"),
+  resNone: document.getElementById("res-none"),
+  resList: document.getElementById("res-list"),
+  shown: document.getElementById("shown"),
+  shownName: document.getElementById("shown-name"),
+  shownSub: document.getElementById("shown-sub"),
+  shownBody: document.getElementById("shown-body"),
+  shownClose: document.getElementById("shown-close")
 };
 
 /* THE WAY BACK GOES WHERE YOU CAME FROM.
@@ -831,15 +842,297 @@ els.noteSend.onclick = function () {
   });
 };
 
+/* ==========================================================================
+   WHAT THIS WORKSPACE HAS PRODUCED
+   ==========================================================================
+   A mission's card ends by naming what it wrote -- "figure
+   `neighbor_count_sweep.png` and four tables are in ..." -- and there was
+   nowhere to look at any of it. `course/results.py` already knew where every
+   one of them was: the board's drawer puts a figure in a card, and what was
+   missing was the list.
+
+   Three things this keeps, and none of them is new:
+
+     1. AN ID, NEVER A PATH, the same as everything else on this page. A figure
+        is `/result/<id>` -- the route the drawer already uses -- and a table is
+        `/library/table/<id>`. Nothing here builds a path and nothing here has
+        ever seen one: the server drops `rel` before it sends a row.
+     2. THE DIRECTORY IS THE GROUP, closed until it is opened. Sixty-eight
+        directories and six hundred figures is not a list; sixty-eight headings
+        is. The newest is open on arrival, because the result somebody has come
+        to look at is the one that just landed.
+     3. A TABLE IS READ, NOT DOWNLOADED. A CSV handed to an iPad is a file
+        nobody can find again. The server reads the head of it and sends rows.
+   ========================================================================== */
+var groups = [];
+var openGroup = null;        /* the directory whose rows are drawn */
+var findWords = "";
+
+function loadResults() {
+  fetch("/library/results.json", { credentials: "same-origin" })
+    .then(function (r) { return r.json(); })
+    .then(function (got) { paintResults(got || {}); })
+    .catch(function () {
+      /* Silent rather than shouting: the documents half of this page has its
+         own way of saying the board is not answering, and two copies of that
+         sentence on one screen is one fault reported twice. */
+      els.res.hidden = true;
+    });
+}
+
+function paintResults(got) {
+  groups = got.groups || [];
+  els.res.hidden = false;
+  if (openGroup === null && groups.length) openGroup = groups[0].where;
+  var figs = got.figures || 0;
+  var tabs = got.tables || 0;
+  els.resCount.textContent = groups.length
+    ? [groups.length + (groups.length === 1 ? " directory" : " directories"),
+       figs + (figs === 1 ? " figure" : " figures"),
+       tabs + (tabs === 1 ? " table" : " tables"),
+       /* A CAP THAT SAYS NOTHING READS AS "this is all there is", which is
+          `scopes.offered`'s reason for carrying its count and is this one. */
+       got.more ? got.more + " more directories are not listed" : ""
+      ].filter(Boolean).join("  ·  ")
+    : "";
+  els.resFind.hidden = !groups.length;
+  /* THE FENCE IS SAID OUT LOUD EVEN WHERE THERE IS A LIST. A page that quietly
+     leaves a directory out is a page somebody scrolls looking for what they
+     know is on disk. `tutorboard/fenced.py` is the one list, and this is it
+     said where the missing rows would have been. */
+  var sealed = got.fenced || [];
+  els.resFenced.hidden = !sealed.length;
+  els.resFenced.textContent = sealed.length
+    ? (sealed.length === 1 ? "The directory " : "The directories ")
+        + sealed.map(function (n) { return n + "/"; }).join(", ") + " "
+        + (sealed.length === 1 ? "is" : "are")
+        + " session content. Nothing on this board looks inside, so nothing in "
+        + (sealed.length === 1 ? "it" : "them") + " is listed here."
+    : "";
+  els.resNone.hidden = !!groups.length;
+  if (!groups.length) {
+    /* WHY IT IS EMPTY, in the server's own words. The two reasons are
+       different enough to matter: a course has no results directory, and a
+       workspace whose output is session content has one nothing may look
+       inside. An empty box explains neither. */
+    els.resNone.textContent = got.why
+      || "Nothing in this workspace has produced a figure or a table yet.";
+  }
+  drawGroups();
+}
+
+/* MATCHED ON THE FILENAME AS THE CARD WROTE IT, and on the directory. A card
+   says `neighbor_count_sweep.png`; typing that has to land on the row. */
+function hit(rec) {
+  if (!findWords) return true;
+  return (rec.file + " " + rec.name + " " + rec.where)
+    .toLowerCase().indexOf(findWords) >= 0;
+}
+
+function drawGroups() {
+  els.resList.innerHTML = "";
+  var shownAny = 0;
+  groups.forEach(function (g) {
+    var figs = (g.figures || []).filter(hit);
+    var tabs = (g.tables || []).filter(hit);
+    if (!figs.length && !tabs.length) return;
+    shownAny += 1;
+    var box = document.createElement("div");
+    box.className = "res-group";
+
+    var head = document.createElement("button");
+    head.type = "button";
+    head.className = "res-dir";
+    head.dataset.where = g.where;
+    /* Open where the search put it: a filter that hides the matches inside a
+       closed heading is a search that says "found it" and shows nothing. */
+    var open = findWords ? true : (openGroup === g.where);
+    head.setAttribute("aria-expanded", open ? "true" : "false");
+    head.textContent = g.where;
+    var tail = document.createElement("span");
+    tail.className = "res-dir-sub";
+    tail.textContent = [
+      figs.length + (figs.length === 1 ? " figure" : " figures"),
+      tabs.length ? tabs.length + (tabs.length === 1 ? " table" : " tables") : "",
+      g.iso || "",
+      g.more ? g.more + " more not listed" : ""
+    ].filter(Boolean).join("  ·  ");
+    head.appendChild(tail);
+    head.addEventListener("click", function () {
+      openGroup = (openGroup === g.where) ? "" : g.where;
+      drawGroups();
+    });
+    box.appendChild(head);
+
+    if (open) {
+      var rows = document.createElement("div");
+      rows.className = "res-rows";
+      figs.concat(tabs).forEach(function (rec) {
+        rows.appendChild(resultRow(rec));
+      });
+      box.appendChild(rows);
+    }
+    els.resList.appendChild(box);
+  });
+  if (!shownAny && groups.length) {
+    var said = document.createElement("p");
+    said.className = "lib-none";
+    said.textContent = "Nothing here is called “" + findWords + "”.";
+    els.resList.appendChild(said);
+  }
+}
+
+function resultRow(rec) {
+  var b = document.createElement("button");
+  b.type = "button";
+  b.className = "res-row res-" + rec.kind;
+  b.dataset.id = rec.id;
+  var name = document.createElement("span");
+  name.className = "res-name";
+  /* THE FILENAME, NOT THE PRETTIED ONE. `_pretty` is right for a drawer, where
+     a figure is being chosen; here the reader arrived holding a filename a
+     card gave them, and a row that has quietly renamed it is a row they scroll
+     straight past. */
+  name.textContent = rec.file;
+  b.appendChild(name);
+  var meta = document.createElement("span");
+  meta.className = "res-meta";
+  meta.textContent = [rec.kind === "figure" ? "figure" : rec.format,
+                      size(rec.size), rec.iso].filter(Boolean).join("  ·  ");
+  b.appendChild(meta);
+  b.addEventListener("click", function () { show(rec); });
+  return b;
+}
+
+function size(n) {
+  if (!n) return "";
+  if (n < 1000) return n + " B";
+  if (n < 1000000) return Math.round(n / 1000) + " kB";
+  return (n / 1000000).toFixed(1) + " MB";
+}
+
+/* ------------------------------------------------- one result, on the glass */
+function show(rec) {
+  els.shown.hidden = false;
+  els.shownName.textContent = rec.file;
+  els.shownSub.textContent = rec.where;
+  els.shownBody.innerHTML = "";
+  els.shownBody.scrollTop = 0;
+  if (rec.kind === "figure") {
+    var img = document.createElement("img");
+    img.className = "res-figure";
+    img.alt = rec.name;
+    /* `/result/<id>`, which is the route the board's own drawer uses and which
+       `sw.js` sends to the network always -- the next job rewrites a figure at
+       the same name, so a cached one is last week's result under this week's
+       label. */
+    img.src = "/result/" + encodeURIComponent(rec.id);
+    img.onerror = function () {
+      els.shownBody.innerHTML = "";
+      els.shownBody.appendChild(saidLine(
+        "That figure is not there any more. A job rewrites this directory, so "
+          + "reload the page to see what is in it now."));
+    };
+    els.shownBody.appendChild(img);
+    return;
+  }
+  els.shownBody.appendChild(saidLine("Reading it…"));
+  fetch("/library/table/" + encodeURIComponent(rec.id),
+        { credentials: "same-origin" })
+    .then(function (r) { return r.json(); })
+    .then(function (got) { drawTable(rec, got || {}); })
+    .catch(function () {
+      els.shownBody.innerHTML = "";
+      els.shownBody.appendChild(saidLine("The board is not answering."));
+    });
+}
+
+function saidLine(text) {
+  var p = document.createElement("p");
+  p.className = "res-said";
+  p.textContent = text;
+  return p;
+}
+
+function drawTable(rec, got) {
+  els.shownBody.innerHTML = "";
+  if (!got.ok) {
+    els.shownBody.appendChild(saidLine(got.detail || "That is not readable."));
+    return;
+  }
+  if (got.shape === "rows") {
+    var t = document.createElement("table");
+    t.className = "res-table";
+    if ((got.columns || []).length) {
+      var thead = document.createElement("thead");
+      var hr = document.createElement("tr");
+      got.columns.forEach(function (c) {
+        var th = document.createElement("th");
+        th.textContent = c;
+        hr.appendChild(th);
+      });
+      thead.appendChild(hr);
+      t.appendChild(thead);
+    }
+    var body = document.createElement("tbody");
+    (got.rows || []).forEach(function (row) {
+      var tr = document.createElement("tr");
+      row.forEach(function (c) {
+        var td = document.createElement("td");
+        td.textContent = c;
+        tr.appendChild(td);
+      });
+      body.appendChild(tr);
+    });
+    t.appendChild(body);
+    /* HOW MUCH OF IT THIS IS. `sweep_curve.csv` is a hundred thousand rows and
+       three hundred of them are on the glass; a page that shows the head and
+       says nothing has shown somebody a different table. */
+    if (got.more) {
+      els.shownBody.appendChild(saidLine(
+        (got.rows || []).length + " rows of "
+          + (got.capped ? "at least " : "")
+          + ((got.rows || []).length + got.more) + "."));
+    }
+    els.shownBody.appendChild(t);
+    return;
+  }
+  if (got.why === "big") {
+    els.shownBody.appendChild(saidLine(got.detail || "That is too big to show."));
+    return;
+  }
+  if (got.more) {
+    els.shownBody.appendChild(saidLine("The first part of it; it is "
+      + size(got.size) + " altogether."));
+  }
+  var pre = document.createElement("pre");
+  pre.className = "res-text";
+  pre.textContent = got.text || "";
+  els.shownBody.appendChild(pre);
+}
+
+function closeShown() {
+  els.shown.hidden = true;
+  els.shownBody.innerHTML = "";
+}
+
+els.shownClose.onclick = closeShown;
+els.resFind.addEventListener("input", function () {
+  findWords = (els.resFind.value || "").trim().toLowerCase();
+  drawGroups();
+});
+
 document.addEventListener("keydown", function (ev) {
   if (ev.key !== "Escape") return;
-  if (!els.round.hidden) els.roundClose.onclick();
+  if (!els.shown.hidden) closeShown();
+  else if (!els.round.hidden) els.roundClose.onclick();
   else if (!els.note.hidden) els.noteCancel.onclick();
   else if (!els.reader.hidden) closeReader();
 });
 
 paintPen();
 load();
+loadResults();
 poll();
 /* A document is rebuilt by a job, a compile, or the revision this page just
    asked for. While the page is in front of somebody the stamp poll is what
@@ -852,5 +1145,8 @@ document.addEventListener("visibilitychange", function () {
     return;
   }
   load();
+  /* The results too: a job that finished while the lid was shut is exactly the
+     thing somebody comes back to this page to look at. */
+  loadResults();
   poll();
 });

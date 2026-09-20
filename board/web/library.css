@@ -251,3 +251,104 @@ body.annotating .lib-page img {
   background: transparent; color: var(--ink-2);
   border-color: var(--rule); font-weight: 400; opacity: .55; cursor: default;
 }
+
+/* ---------- what this workspace has produced ---------- */
+/* Under the documents, on the same page, because "everything this workspace
+   has made" is one question. The directory is the group and is CLOSED until it
+   is opened: sixty-eight directories and six hundred figures is not a list. */
+#res { margin-top: 2.6rem; }
+#res h2 {
+  font-size: .66rem; font-weight: 700; letter-spacing: .12em;
+  text-transform: uppercase; color: var(--ink-3);
+  margin: 0 .2rem .3rem; padding-top: 1.4rem;
+  border-top: 1px solid var(--rule);
+}
+#res-count { margin: 0 .2rem .7rem; }
+#res-find {
+  font: inherit; font-size: .88rem; width: 100%; box-sizing: border-box;
+  padding: .45rem .6rem; margin-bottom: .8rem;
+  border: 1px solid var(--rule); border-radius: .4rem;
+  background: var(--paper-2); color: var(--ink);
+}
+#res-find::placeholder { color: var(--ink-3); }
+
+.res-group { margin-bottom: .4rem; }
+.res-dir {
+  font: inherit; font-size: .88rem; font-weight: 600;
+  display: flex; flex-direction: column; gap: .15rem;
+  width: 100%; text-align: left; cursor: pointer;
+  padding: .55rem .7rem; border-radius: .45rem;
+  border: 1px solid var(--rule); background: var(--paper-2); color: var(--ink);
+  /* A long results path is the whole of what tells two directories apart, so
+     it wraps rather than being cut off at the edge of an iPad. */
+  overflow-wrap: anywhere;
+}
+.res-dir[aria-expanded="true"] { border-color: var(--ink-3); }
+.res-dir::before { content: "\25b8  "; color: var(--ink-3); }
+.res-dir[aria-expanded="true"]::before { content: "\25be  "; }
+.res-dir-sub { font-size: .72rem; font-weight: 400; color: var(--ink-3); }
+
+.res-rows {
+  display: flex; flex-direction: column; gap: .25rem;
+  padding: .4rem 0 .6rem .8rem;
+}
+.res-row {
+  font: inherit; display: flex; flex-direction: column; gap: .1rem;
+  text-align: left; cursor: pointer;
+  padding: .4rem .6rem; border-radius: .35rem;
+  border: 1px solid transparent; background: none; color: var(--ink);
+  overflow-wrap: anywhere;
+}
+.res-row:hover { background: var(--paper-2); border-color: var(--rule); }
+/* A figure and a table are opened the same way and read differently, so the
+   row says which one it is before it is tapped. */
+.res-row.res-figure .res-name::before { content: "\25a3  "; color: var(--note); }
+.res-row.res-table .res-name::before { content: "\2263  "; color: var(--ink-3); }
+.res-name { font-size: .86rem; }
+.res-meta { font-size: .72rem; color: var(--ink-3); }
+
+/* ---------- one result, on the glass ---------- */
+/* Its own overlay rather than `#reader`: that one draws the pages of a PDF and
+   anchors every stroke to `doc/<id>/p<n>`, and a PNG out of a pipeline has no
+   page to anchor to. */
+#shown {
+  position: fixed; inset: 0; z-index: 45;
+  display: flex; flex-direction: column;
+  background: var(--paper);
+}
+#shown-bar {
+  display: flex; align-items: center; gap: .6rem; flex-wrap: wrap;
+  padding: .6rem 1rem;
+  border-bottom: 1px solid var(--rule); background: var(--paper-2);
+}
+#shown-bar strong { font-size: .95rem; overflow-wrap: anywhere; }
+#shown-bar button {
+  font: inherit; font-size: .82rem; cursor: pointer; margin-left: auto;
+  padding: .35rem .7rem; border-radius: .4rem;
+  border: 1px solid var(--rule); background: var(--paper); color: var(--ink);
+}
+#shown-body { flex: 1; overflow: auto; padding: 1rem; }
+/* WIDE ENOUGH TO READ AND NO WIDER. A plot is legible at its own size on a
+   desktop and has to shrink to the glass on an iPad, and a figure blown up
+   past its pixels is a blurry one. */
+.res-figure {
+  display: block; max-width: 100%; height: auto; margin: 0 auto;
+  background: #fff; border-radius: .3rem;
+}
+.res-said { font-size: .8rem; color: var(--ink-2); margin: 0 0 .7rem; }
+.res-table {
+  border-collapse: collapse; font-size: .78rem;
+  font-variant-numeric: tabular-nums;
+}
+.res-table th, .res-table td {
+  border: 1px solid var(--rule); padding: .25rem .5rem;
+  text-align: left; white-space: nowrap;
+}
+.res-table th {
+  position: sticky; top: 0; background: var(--paper-2);
+  font-weight: 600; color: var(--ink-2);
+}
+.res-text {
+  font-size: .78rem; line-height: 1.45; margin: 0;
+  white-space: pre-wrap; overflow-wrap: anywhere; color: var(--ink);
+}

@@ -423,6 +423,10 @@ them through, a paper, a deck: the rule is the same and it is not negotiable.
 - **No headings in a card under 300 words. No closing paragraph.** The last
   useful sentence ends the card.
 - **If they would have to read a sentence twice, it is the wrong sentence.**
+- **Mathematics in a card is TeX, not ASCII.** The board typesets `$…$` inline
+  and `$$…$$` displayed, so a Greek letter spelled out as a word, a sum written
+  `sum_i`, or a product written as the letter `x` reaches the glass as ugly
+  source. Write the formula and let it render.
 - **Never tell them to write, typeset, transcribe or add to anything.** The
   write-up is yours, and a card that says *"when you write it up"* hands over an
   errand that does not exist. Say what the document now says. The rule and the

@@ -35,7 +35,43 @@
 <main id="library">
   <p id="lib-none" class="lib-none" hidden></p>
   <div id="lib-list"></div>
+
+  <!-- WHAT THIS WORKSPACE HAS PRODUCED, under what it has written. A mission
+       ends by naming what it wrote -- "figure `neighbor_count_sweep.png` and
+       four tables are in ..." -- and until this was here the only way to look
+       at one was a terminal, which is the thing this board exists so that
+       nobody has to open. The directory is the group, for the reason
+       `results._where` gives: a pipeline writes one filename once per
+       contrast, so the directory is what tells three of them apart. -->
+  <section id="res" hidden>
+    <h2 id="res-head">What it has produced</h2>
+    <p id="res-count" class="muted"></p>
+    <!-- THE FENCE, SAID WHERE THE MISSING ROWS WOULD HAVE BEEN. A page that
+         quietly leaves a directory out is a page somebody scrolls looking for
+         what they know is on disk. -->
+    <p id="res-fenced" class="lib-none" hidden></p>
+    <!-- THE CARD NAMES THE FILE, so the file's own name is what this matches
+         on. Somebody reading "neighbor_count_sweep.png" types that, and the
+         one directory it is in is what is left. -->
+    <input id="res-find" type="search" autocomplete="off"
+           placeholder="the name of a figure, a table, or the directory">
+    <p id="res-none" class="lib-none" hidden></p>
+    <div id="res-list"></div>
+  </section>
 </main>
+
+<!-- ONE RESULT, ON THE GLASS. Not `#reader`: that draws the PAGES of a PDF,
+     carries the pen and anchors every stroke to `doc/<id>/p<n>`, and a PNG out
+     of somebody's pipeline has no page to anchor to. A figure is an image and a
+     table is numbers, and both are read rather than marked up. -->
+<div id="shown" hidden>
+  <div id="shown-bar">
+    <strong id="shown-name"></strong>
+    <span id="shown-sub" class="muted"></span>
+    <button id="shown-close" type="button" title="back to the list">✕</button>
+  </div>
+  <div id="shown-body"></div>
+</div>
 
 <!-- One document, read on the glass. The pages are PNGs drawn by the machine
      that holds the PDF, for every reason `course/paper.py` gives: iOS renders a

@@ -82,6 +82,67 @@ const LIBRARY = {
   ],
 };
 
+/* WHAT THE WORKSPACE HAS PRODUCED, which is the other half of this page and the
+   half somebody asked for: "there's no easy way for me to browse through
+   results and figures in this interface." A mission's card ends by naming a
+   figure and four tables; this is what the page is handed so it can draw them.
+
+   The shape is `course/results.py`'s, and the two things to notice are what is
+   NOT in it: no `rel`, because the board addresses a result by id, and a
+   `fenced` list, because a directory left out silently is one somebody scrolls
+   looking for. */
+const RESULTS = {
+  ok: true, workspace: 'research/TRD-EHR',
+  figures: 3, tables: 2, more: 1,
+  looked: ['results', 'figures'], fenced: ['phi'],
+  groups: [
+    {
+      where: 'Qwen-Qwen3-Embedding-8B/google_medgemma/neighbor_count_sweep',
+      at: 1789000000, iso: '2026-09-20', more: 0,
+      figures: [{ id: 'neighbor-count-sweep-2041a7cc', kind: 'figure',
+                  name: 'neighbor count sweep', file: 'neighbor_count_sweep.png',
+                  where: 'Qwen-Qwen3-Embedding-8B/google_medgemma/neighbor_count_sweep',
+                  format: 'png', size: 262283, iso: '2026-09-20' }],
+      tables: [
+        { id: 'sweep-curve-3a65abff', kind: 'table', name: 'sweep curve',
+          file: 'sweep_curve.csv', format: 'csv', size: 2907254,
+          where: 'Qwen-Qwen3-Embedding-8B/google_medgemma/neighbor_count_sweep',
+          iso: '2026-09-20' },
+        { id: 'sweep-summary-83097fc3', kind: 'table', name: 'sweep summary',
+          file: 'sweep_summary.json', format: 'json', size: 2056,
+          where: 'Qwen-Qwen3-Embedding-8B/google_medgemma/neighbor_count_sweep',
+          iso: '2026-09-20' },
+      ],
+    },
+    {
+      where: 'counterfactual_pipeline/bupropion_vs_ssri',
+      at: 1788000000, iso: '2026-09-14', more: 11,
+      figures: [
+        { id: 'propensity-by-arm-11111111', kind: 'figure', name: 'propensity by arm',
+          file: 'propensity_by_arm.png', format: 'png', size: 90000,
+          where: 'counterfactual_pipeline/bupropion_vs_ssri', iso: '2026-09-14' },
+        { id: 'love-plot-22222222', kind: 'figure', name: 'love plot',
+          file: 'love_plot.png', format: 'png', size: 70000,
+          where: 'counterfactual_pipeline/bupropion_vs_ssri', iso: '2026-09-14' },
+      ],
+      tables: [],
+    },
+  ],
+};
+
+const TABLE_ROWS = {
+  ok: true, id: 'sweep-curve-3a65abff', shape: 'rows', format: 'csv',
+  file: 'sweep_curve.csv', size: 2907254, capped: false, more: 101889,
+  columns: ['alpha', 'n_neighbors', 'roc_auc'],
+  rows: [['1.0', '1', '0.5163'], ['1.0', '2', '0.5309']],
+};
+
+const TABLE_TEXT = {
+  ok: true, id: 'sweep-summary-83097fc3', shape: 'text', format: 'json',
+  file: 'sweep_summary.json', size: 2056, more: 0,
+  text: '{\n  "n_anchors": 8516,\n  "best_k": 40\n}',
+};
+
 /* WHERE EVERY DOCUMENT IS AND WHEN IT LAST CHANGED -- stats only, which is what
    lets the page ask it every few seconds. Mutated below to stand for a deck
    that has just been rebuilt on disk by the turn the note woke. */
@@ -122,6 +183,13 @@ window.fetch = (u, opts) => {
   }
   if (/library\/stamp/.test(url)) {
     return Promise.resolve({ json: () => Promise.resolve(STAMP) });
+  }
+  if (/library\/results\.json/.test(url)) {
+    return Promise.resolve({ json: () => Promise.resolve(RESULTS) });
+  }
+  if (/library\/table\//.test(url)) {
+    return Promise.resolve({ json: () => Promise.resolve(
+      /sweep-summary/.test(url) ? TABLE_TEXT : TABLE_ROWS) });
   }
   if (/library\/note\//.test(url)) {
     return Promise.resolve({ json: () => Promise.resolve({
@@ -565,6 +633,122 @@ const named = (title) => rows().filter(
   doc.getElementById('note').hidden
     ? ok('escape closes the note without sending it')
     : fail('escape left the panel open');
+
+  // 9. WHAT THE WORKSPACE HAS PRODUCED, on the same page as what it has
+  //    written. The ask, in the owner's words: "there's no easy way for me to
+  //    browse through results and figures in this interface." A mission's card
+  //    had just ended by naming a figure and four tables, and the only way to
+  //    look at any of it was a terminal.
+  const dirs = () => Array.prototype.slice.call(doc.querySelectorAll('.res-dir'));
+  const resRows = () => Array.prototype.slice.call(doc.querySelectorAll('.res-row'));
+
+  !doc.getElementById('res').hidden
+    ? ok('the results section is drawn beside the documents, on one page')
+    : fail('the results section never appeared');
+  dirs().length === 2
+    ? ok('the directory is the group, because a pipeline writes one filename '
+         + 'once per contrast and the directory is what tells them apart')
+    : fail(dirs().length + ' groups for two directories');
+  const openness = () => dirs().map((d) => d.getAttribute('aria-expanded'));
+  openness().join(',') === 'true,false'
+    ? ok('the one that changed last is open and the rest are closed, because '
+         + 'six hundred figures is not a list')
+    : fail('the groups open on arrival are: ' + openness().join(','));
+  /3 figures/.test(doc.getElementById('res-count').textContent)
+    && /1 more director/.test(doc.getElementById('res-count').textContent)
+    ? ok('and it says how many there are and how many it is not showing, '
+         + 'because a silent cap reads as this is all there is')
+    : fail('the count says: ' + doc.getElementById('res-count').textContent);
+  const sealedLine = doc.getElementById('res-fenced');
+  !sealedLine.hidden && /phi\/ is session content/.test(sealedLine.textContent)
+    ? ok('a fenced directory is NAMED where its rows would have been, so a '
+         + 'page cannot quietly leave one out')
+    : fail('nothing visible on the page says the fence is there');
+
+  // THE CARD NAMES THE FILE. Somebody reading "neighbor_count_sweep.png" has
+  // to find the row by that string, so the row is that string -- not the
+  // prettied name the drawer uses when a figure is being chosen.
+  const byFile = (f) => resRows().filter(
+    (r) => r.querySelector('.res-name').textContent === f)[0];
+  byFile('neighbor_count_sweep.png')
+    ? ok('a row is the filename the card named, not a prettied version of it')
+    : fail('the figure the card names is not findable by its name: '
+           + resRows().map((r) => r.textContent).join('|'));
+  /11 more not listed/.test(dirs().map((d) => d.textContent).join('|'))
+    ? ok('and a group says what it is holding back as well')
+    : fail('no group says what it is holding back');
+
+  // A FIGURE, OVER THE ROUTE THE DRAWER ALREADY USES. An id, never a path.
+  tap(byFile('neighbor_count_sweep.png') || doc.createElement('button'));
+  await sleep(10);
+  const shot = doc.querySelector('#shown .res-figure');
+  shot && shot.getAttribute('src') === '/result/neighbor-count-sweep-2041a7cc'
+    ? ok('tapping a figure puts it on the glass, addressed by its id')
+    : fail('the figure is at: ' + (shot && shot.getAttribute('src')));
+  !/neighbor_count_sweep\.png/.test(shot ? shot.getAttribute('src') : '')
+    ? ok('and never by a path, which is the rule the whole page keeps')
+    : fail('the page sent a path for a figure');
+  doc.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Escape' }));
+  doc.getElementById('shown').hidden
+    ? ok('escape closes it, the way it closes everything else here')
+    : fail('escape left the figure open');
+
+  // A TABLE IS READ, NOT DOWNLOADED. A CSV handed to an iPad is a file nobody
+  // finds again.
+  tap(byFile('sweep_curve.csv') || doc.createElement('button'));
+  await sleep(10);
+  const heads2 = Array.prototype.map.call(
+    doc.querySelectorAll('#shown .res-table th'), (t) => t.textContent);
+  heads2.join(',') === 'alpha,n_neighbors,roc_auc'
+    ? ok('tapping a CSV draws it as a table rather than downloading a file')
+    : fail('the table headings are: ' + heads2.join(','));
+  doc.querySelectorAll('#shown .res-table tbody tr').length === 2
+    ? ok('with the rows the board read')
+    : fail('the rows did not land');
+  const said = doc.querySelector('#shown .res-said');
+  said && /2 rows of 101891/.test(said.textContent)
+    ? ok('and says how much of a hundred-thousand-row file this is, because a '
+         + 'head shown silently is a different table')
+    : fail('it says: ' + (said ? said.textContent : 'nothing at all'));
+
+  tap(doc.getElementById('shown-close'));
+  tap(byFile('sweep_summary.json') || doc.createElement('button'));
+  await sleep(10);
+  /8516/.test((doc.querySelector('#shown .res-text') || {}).textContent || '')
+    ? ok('and a JSON one is drawn as what it says, because it is not rows')
+    : fail('the JSON table did not draw');
+  tap(doc.getElementById('shown-close'));
+
+  // FINDING ONE BY THE NAME A CARD GAVE. The highest-value single thing here:
+  // a card says `neighbor_count_sweep.png` and typing that has to land on it.
+  const find = doc.getElementById('res-find');
+  find.value = 'neighbor_count_sweep.png';
+  find.dispatchEvent(new window.Event('input', { bubbles: true }));
+  resRows().length === 1 && byFile('neighbor_count_sweep.png')
+    ? ok('typing the filename from a card leaves exactly that row')
+    : fail(resRows().length + ' rows match the filename in a card');
+
+  // AND IT OPENS THE DIRECTORY THE MATCH IS IN. Asked of a figure in a group
+  // that was CLOSED, because a filter that only ever finds things inside the
+  // one open heading has not been asked the question.
+  find.value = 'love_plot.png';
+  find.dispatchEvent(new window.Event('input', { bubbles: true }));
+  openness().join(',') === 'true'
+    && resRows().length === 1 && byFile('love_plot.png')
+    ? ok('a match inside a closed directory opens it, because a search that '
+         + 'says found it and shows nothing has found nothing')
+    : fail('the closed group did not open for its match: '
+           + dirs().length + ' groups, ' + resRows().length + ' rows');
+  find.value = 'nothing called this';
+  find.dispatchEvent(new window.Event('input', { bubbles: true }));
+  /Nothing here is called/.test(doc.getElementById('res-list').textContent)
+    ? ok('and a search with no match says so rather than emptying the page')
+    : fail('an empty search result says nothing');
+
+  // AND THE ONE THING IT MUST NOT DO, which is this page's whole premise.
+  !sent.filter((r) => /\/(say|session|aim|start)\b/.test(r.url)).length
+    ? ok('and none of it touches the lesson')
+    : fail('the results list reached into a sitting');
 
   console.log(errors.length ? '\n' + errors.length + ' FAILURES'
                             : '\nthe library draws what a workspace wrote, and takes a word about one');

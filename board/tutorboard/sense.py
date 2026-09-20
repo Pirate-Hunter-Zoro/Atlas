@@ -94,6 +94,15 @@ PLAIN_SENSE = (
     "in the same sentence, in a few plain words. No headings in a card under "
     "300 words, and no closing paragraph -- the last useful sentence ends it. "
     "If they would have to read a sentence twice, it is the wrong sentence.\n"
+    # THE GLASS TYPESETS. `board.js` hands every card to KaTeX with `$...$` and
+    # `$$...$$` as its delimiters, and has since the board was written -- so a
+    # turn that writes `sum_i w_i x trd_i` in prose has not avoided TeX, it has
+    # shipped the ugly half of it. Reported off a doing turn's card in TRD-EHR:
+    # "it should have rendered some things in LaTeX ... I just see some ugly
+    # latex-esque coded math things when it gets into the weighting."
+    "MATHEMATICS IN A CARD IS TeX, NOT ASCII. The board typesets `$...$` and "
+    "`$$...$$`. A Greek letter spelled out, a sum written `sum_i`, a product "
+    "written as the letter `x`: it reaches the glass as ugly source.\n"
     # Two of the rules above are a door rather than a request, for the reason
     # HANDOFF.md reached eleven times its cap while a prompt asked nicely: see
     # `tutorboard/plain.py`. A turn is told the numbers here so it writes the

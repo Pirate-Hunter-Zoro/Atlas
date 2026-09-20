@@ -1,4 +1,11 @@
-"""results.py -- the figures a pipeline made, so one can go on the glass.
+"""results.py -- what a pipeline produced, on the glass and on a page.
+
+TWO QUESTIONS, ONE WALK. `figures`/`find`/`status` answer *which figure goes in
+this card*: the newest two dozen, pictures only, flat. `produced`/`browse`/
+`table` answer *show me what this workspace has made*: every result directory as
+a group, the tables beside the figures, and a table read back as rows for a page
+that cannot open a file. The allowlist, the fence, the depth, the stop and the
+id are shared, because two walks of one tree are two answers that will disagree.
 
 `reading.py` finds the documents a project was WRITTEN with: a deck, a
 walkthrough, a paper. This is the other thing a working project has, and it had
@@ -29,8 +36,10 @@ workspace keeps output; `fenced.NEVER` is what nothing may look inside. The
 second is checked on top of the first, which is what makes adding a name to the
 allowlist safe.
 
-**Bounded.** TRD-EHR's results tree holds 676 PNGs. A drawer is not a file
-manager and a payload is not a directory listing.
+**Bounded, at every surface, and each one says what it dropped.** TRD-EHR's
+results tree holds 628 figures and 233 tables across 98 directories. A drawer is
+not a file manager, a payload is not a directory listing, and a cap that says
+nothing reads as *this is all there is*.
 
 **Not cached by the service worker.** A figure is rebuilt at the SAME name by
 the next job, so a cached one served under that name is last week's result
@@ -40,12 +49,14 @@ the same reason it does `/download/`, `/view/` and `/paper/`.
 Standard library only, like everything else.
 """
 
+import csv
 import hashlib
+import json
 import os
 import re
 import time
 
-from .. import fenced
+from .. import atlas, fenced
 
 # Where to look, and nowhere else. The allowlist, in the order a person would
 # look in them.
@@ -147,8 +158,14 @@ def ident(rel):
     return "%s-%s" % (out, stamp) if out else "figure-%s" % stamp
 
 
-def _walk(root):
+def _walk(root, suffixes=SUFFIXES, min_bytes=MIN_BYTES):
     """Every figure under this workspace's result directories. Bounded, twice.
+
+    `suffixes` and `min_bytes` are arguments because the browse surface below
+    wants the same tree with the tables in it, and ONE WALK IS THE POINT: the
+    allowlist, the fence and the stop are decided here and nowhere else. A
+    second copy of this loop for a second kind of file is the drift
+    `fenced.py`'s own docstring is about.
 
     The allowlist decides which trees are walked at all, `fenced.refused`
     decides which directories inside them are descended into, and `MAX_SEEN`
@@ -174,7 +191,7 @@ def _walk(root):
                 seen += 1
                 if seen > MAX_SEEN:
                     return found
-                if f.startswith(".") or not f.lower().endswith(SUFFIXES):
+                if f.startswith(".") or not f.lower().endswith(suffixes):
                     continue
                 path = os.path.join(here, f)
                 rel = os.path.relpath(path, root)
@@ -184,7 +201,7 @@ def _walk(root):
                     st = os.stat(path)
                 except OSError:
                     continue
-                if st.st_size < MIN_BYTES:
+                if st.st_size < min_bytes:
                     continue
                 found.append((rel.replace(os.sep, "/"), st.st_mtime, st.st_size))
     return found
@@ -242,24 +259,32 @@ def find(root, ident_wanted):
     actually offers, the path is the one discovery already found, and the fence
     is asked once more before the file is opened -- because this is the function
     that turns a name from a browser into bytes.
+
+    AGAINST THE INDEX RATHER THAN THE DRAWER'S TWO DOZEN. `MAX_FIGURES` is a cap
+    on what is OFFERED to a drawer; the library's results page offers hundreds
+    out of the same walk, and a route that resolved only the drawer's slice
+    would serve the newest 24 and 404 the rest of a page it is painting.
     """
+    return _bytes_of(root, ident_wanted, "figure")
+
+
+def _bytes_of(root, ident_wanted, kind):
     wanted = str(ident_wanted or "").strip().lower()
     if not wanted:
         return None, None
     root = os.path.realpath(root)
-    for fig in figures(root):
-        if fig["id"] != wanted:
-            continue
-        if fenced.refused(fig["rel"]):
-            return None, None
-        target = os.path.realpath(os.path.join(root, fig["rel"]))
-        if not target.startswith(root + os.sep) or not os.path.isfile(target):
-            return None, None
-        label = fig["name"]
-        if fig["where"]:
-            label = "%s — %s" % (label, fig["where"])
-        return target, label
-    return None, None
+    rec = index(root).get(wanted)
+    if not rec or rec["kind"] != kind:
+        return None, None
+    if fenced.refused(rec["rel"]):
+        return None, None
+    target = os.path.realpath(os.path.join(root, rec["rel"]))
+    if not target.startswith(root + os.sep) or not os.path.isfile(target):
+        return None, None
+    label = rec["name"]
+    if rec["where"]:
+        label = "%s — %s" % (label, rec["where"])
+    return target, label
 
 
 def status(repo):
@@ -282,3 +307,342 @@ def status(repo):
             if fig["at"] else ""
         out.append(one)
     return {"figures": out}
+
+
+# ---------------------------------------------------------------------------
+# BROWSING THEM -- a different question from putting one in a card
+# ---------------------------------------------------------------------------
+# The drawer above answers *which figure goes on the glass in this card*, and
+# its numbers are that question's: the newest two dozen, pictures only, in one
+# flat list. This answers *show me what this workspace has produced*, and every
+# one of those numbers is wrong for it.
+#
+#     "figure `neighbor_count_sweep.png` and four tables are in
+#     `RESULTS_DIR/neighbor_count_sweep/`, mirrored into `results/`."
+#
+# That is a finished mission's card. The figure is named, the tables are named,
+# and the only way to look at any of it was a terminal -- which is the one thing
+# this board exists so that nobody has to open.
+#
+# THREE THINGS DIFFER FROM THE DRAWER, AND NOTHING ELSE DOES. The allowlist, the
+# fence, the depth, the stop on the walk and the id are `_walk` and `ident`
+# above, unchanged and shared.
+#
+# **The tables come too.** Four of the five artifacts that mission wrote are
+# tables, and a surface that shows the picture and hides the numbers has shown
+# the smaller half. What a table is on disk is what these pipelines really write
+# -- `sweep_curve.csv`, `sweep_summary.json` -- rather than a format anybody
+# chose.
+#
+# **The DIRECTORY is the group.** `scopes._results` already groups this way and
+# says why: a pipeline writes `propensity_by_arm.png` once per contrast under
+# the same name every time, so the directory is what tells three of them apart
+# and is what somebody means when they say *this result*. Sixty-eight groups
+# read; six hundred rows do not.
+#
+# **It is capped where it is read, and it SAYS what it dropped.** A silent cap
+# reads as *this is all there is*, which is `scopes.offered`'s reason for
+# carrying its own count and is the same reason here.
+
+# What a table is, in the order a person would look in them. Read, never
+# executed and never parsed as anything but text: `.json` is loaded to be
+# re-printed and nothing acts on what is in it.
+TABLES = (".csv", ".json", ".md", ".txt")
+
+# An empty file is not a table. One byte, because a table's floor is *it has
+# something in it* -- `MIN_BYTES` above is a judgement about a PNG that turned
+# out to be an empty axis, and there is no equivalent for a CSV.
+MIN_TABLE_BYTES = 1
+
+# How many result directories are offered, and how many rows inside one.
+# TRD-EHR's tree holds 68 directories and 628 figures, so the first of these is
+# above what really exists and the second is well below it: a directory of
+# thirty ROC curves is a list somebody scrolls, and a page that tried to draw
+# six hundred pictures at once is a page an iPad gives up on.
+MAX_GROUPS = 120
+MAX_IN_GROUP = 60
+
+# What a table is read back as. Rows first, because `sweep_curve.csv` is 2.9 MB
+# and a hundred thousand rows -- read to the cap and stopped, never loaded.
+MAX_ROWS = 300
+MAX_COLS = 40
+MAX_CELL = 200
+
+# How far past the cap the count goes before it gives up and says *at least*.
+# A stream costs one row of memory whatever the file is, but it still costs the
+# read: a million rows is a fifth of a second and a billion is not.
+MAX_SCAN = 200000
+
+# And a floor under the file itself, for the kinds that have to be read whole
+# before anything can be said about them. A JSON document is `json.load`ed; a
+# markdown one is shown as it stands.
+MAX_TEXT_BYTES = 2000000
+MAX_TEXT_CHARS = 200000
+
+_made = {}
+
+
+def _record(rel, at, size):
+    """One result, as a row: what it is, what it is called, where it came from."""
+    ext = os.path.splitext(rel)[1].lower()
+    pic = ext in SUFFIXES
+    return {
+        "id": ident(rel),
+        "name": _pretty(rel),
+        "where": _where(rel),
+        "rel": rel,
+        "at": at,
+        "size": size,
+        "kind": "figure" if pic else "table",
+        "format": ext.lstrip("."),
+        "iso": time.strftime("%Y-%m-%d", time.localtime(at)) if at else "",
+        # The filename as it stands, because the CARD NAMES IT. A mission that
+        # ends "figure `neighbor_count_sweep.png` is in ..." has told the reader
+        # a string, and the row they are looking for is the one that string is
+        # in -- `_pretty` has already taken the underscores and the suffix out.
+        "file": os.path.basename(rel),
+    }
+
+
+def _produced(root):
+    """Every result here, indexed by id and grouped by directory.
+
+    `(index, payload)`. The index is everything the walk found, which is what
+    `find` resolves an id against; the payload is what a page is offered, which
+    is capped. They are built together because they are one walk, and a second
+    walk to answer the same question twice is how two answers start disagreeing
+    about which figures exist.
+    """
+    rows = sorted(_walk(root, SUFFIXES + TABLES, MIN_TABLE_BYTES),
+                  key=lambda r: (-r[1], r[0]))
+    index, groups, order = {}, {}, []
+    figs = tabs = 0
+    for rel, at, size in rows:
+        pic = os.path.splitext(rel)[1].lower() in SUFFIXES
+        # The size floor is per KIND, which is why the walk was given the lower
+        # of the two: a 300-byte PNG is a plot that failed, and a 300-byte CSV
+        # is three rows of numbers.
+        if pic and size < MIN_BYTES:
+            continue
+        rec = _record(rel, at, size)
+        if rec["id"] in index:
+            # One id naming two files, which takes a sha1 collision in eight hex
+            # characters. Dropped rather than aliased, for `_figures`' reason.
+            continue
+        index[rec["id"]] = rec
+        where = rec["where"]
+        if where not in groups:
+            groups[where] = []
+            order.append(where)
+        groups[where].append(rec)
+        figs += 1 if pic else 0
+        tabs += 0 if pic else 1
+
+    out, dropped = [], 0
+    for where in order[:MAX_GROUPS]:
+        rows_here = groups[where]
+        # Newest first is right for the GROUPS -- the result somebody is asking
+        # about is the one that just landed. Inside one, it is wrong: a job
+        # writes its whole directory in the same few seconds, so mtime order
+        # there is arbitrary and a name is not.
+        kept = sorted(rows_here, key=lambda r: (r["kind"] != "figure",
+                                                r["name"]))[:MAX_IN_GROUP]
+        out.append({
+            "where": where or "results",
+            "at": max(r["at"] for r in rows_here),
+            "iso": max(rows_here, key=lambda r: r["at"])["iso"],
+            "figures": [_said(r) for r in kept if r["kind"] == "figure"],
+            "tables": [_said(r) for r in kept if r["kind"] == "table"],
+            "more": max(0, len(rows_here) - len(kept)),
+        })
+    dropped = max(0, len(order) - MAX_GROUPS)
+    return index, {"groups": out, "more": dropped,
+                   "figures": figs, "tables": tabs}
+
+
+def _said(rec):
+    """One row, as the page is allowed to see it -- never with the path in it.
+
+    `status` drops `rel` for the drawer's rows and this is the same rule: the
+    board addresses a result by its id, so a page that was handed a path has
+    been handed a thing it must never send back.
+    """
+    one = dict(rec)
+    one.pop("rel", None)
+    return one
+
+
+def _both(root):
+    key = os.path.realpath(root)
+    hit = _made.get(key)
+    if hit and time.time() - hit[0] < CACHE_SECONDS:
+        return hit[1]
+    try:
+        got = _produced(key)
+    except OSError:
+        got = ({}, {"groups": [], "more": 0, "figures": 0, "tables": 0})
+    _made[key] = (time.time(), got)
+    return got
+
+
+def index(root):
+    """Every result this workspace has, by id. Remembered for `CACHE_SECONDS`."""
+    return _both(root)[0]
+
+
+def produced(root):
+    """What the library's results page draws: groups, and what was left off."""
+    return _both(root)[1]
+
+
+def forget():
+    """Drop both caches. For a test, and for a job that has just written one."""
+    _cache.clear()
+    _made.clear()
+
+
+def browse(repo):
+    """The results page's whole payload, or a sentence saying there are none.
+
+    A WORKSPACE WITH NO RESULTS SAYS SO. An empty list painted as an empty box
+    is a page that looks broken, and the two reasons it can be empty are
+    different enough to be worth telling apart: a course has no results
+    directory at all, and a research workspace whose output is fenced has one
+    that nothing may look inside.
+    """
+    root = repo.root
+    try:
+        got = produced(root)
+    except Exception:                                        # noqa: BLE001
+        got = {"groups": [], "more": 0, "figures": 0, "tables": 0}
+    out = dict(got)
+    out["ok"] = True
+    out["workspace"] = atlas.identify(root)
+    # WHERE IT LOOKED, SAID OUT LOUD. "Nothing here" is only useful beside the
+    # list of places that were looked in, and the allowlist is that list.
+    out["looked"] = [n for n in LOOK_IN
+                     if os.path.isdir(os.path.join(root, n))]
+    # AND WHAT IT REFUSED TO LOOK IN, BY NAME. A workspace holding session
+    # content must not be able to look like a workspace holding nothing.
+    out["fenced"] = list(fenced.holds(root))
+    if not out["groups"]:
+        out["why"] = _nothing(out)
+    return out
+
+
+def _nothing(out):
+    """Why this workspace's results page is empty.
+
+    WHERE IT LOOKED FIRST, AND WHAT IT REFUSED SECOND, because they are
+    different facts and a page that gives only one of them is misleading either
+    way round. "No results directory" said about a workspace holding a fenced
+    one reads as *there is nothing here*; the fence said on its own reads as
+    *that is the only reason*, which is wrong for a workspace that also simply
+    has not run anything yet.
+    """
+    if not out["looked"]:
+        said = ("This workspace has no results directory. A job that writes "
+                "one into %s appears here, with no registration of any kind."
+                % ", ".join("`%s/`" % n for n in LOOK_IN))
+    else:
+        said = ("There is a %s directory here, and nothing in it yet that this "
+                "board can show: a figure has to be a %s of at least %d bytes, "
+                "and a table one of %s."
+                % (", ".join("`%s/`" % n for n in out["looked"]),
+                   " or ".join(SUFFIXES), MIN_BYTES, " or ".join(TABLES)))
+    if out["fenced"]:
+        said += (" %s also holds %s. Nothing on this board looks inside it -- "
+                 "it is session content, and the refusal is by name in "
+                 "`tutorboard/fenced.py` -- so nothing in there is listed here "
+                 "or anywhere else."
+                 % (out["workspace"],
+                    ", ".join("`%s/`" % n for n in out["fenced"])))
+    return said
+
+
+# ---------------------------------------------------------------------------
+# reading one table back, for a page that cannot open a file
+# ---------------------------------------------------------------------------
+# A FIGURE IS BYTES AND A TABLE IS NOT. `/result/<id>` hands a PNG straight to
+# an `<img>` and there is nothing to decide. A CSV handed to a browser the same
+# way is a download an iPad puts somewhere nobody can find, so the numbers are
+# read HERE, to the cap, and sent as rows the page draws.
+#
+# READ TO THE CAP RATHER THAN LOADED. `sweep_curve.csv` is 2.9 MB and a hundred
+# thousand rows. `csv.reader` over an open handle stops where it is told to; a
+# `read()` first does not.
+def table(root, ident_wanted):
+    """One table, read back as rows or as text.
+
+    An id, never a path -- `_bytes_of` is the same lookup `/result/` uses, with
+    the kind it will answer for changed. A miss is a miss.
+    """
+    target, label = _bytes_of(root, ident_wanted, "table")
+    if not target:
+        return {"ok": False, "why": "none",
+                "detail": "This workspace has no result by that name."}
+    rec = index(os.path.realpath(root)).get(
+        str(ident_wanted or "").strip().lower()) or {}
+    out = {"ok": True, "id": rec.get("id") or "", "label": label,
+           "name": rec.get("name") or "", "where": rec.get("where") or "",
+           "file": rec.get("file") or "", "format": rec.get("format") or "",
+           "size": rec.get("size") or 0, "iso": rec.get("iso") or ""}
+    try:
+        if out["format"] == "csv":
+            out.update(_rows(target))
+        else:
+            out.update(_text(target))
+    except (OSError, UnicodeError, ValueError) as exc:
+        return {"ok": False, "why": "unreadable",
+                "detail": "%s could not be read: %s" % (out["file"], exc)}
+    return out
+
+
+def _rows(path):
+    """The head of a CSV, as columns and rows. Nothing is loaded whole.
+
+    `csv.reader` over an open handle is a stream, so the memory is one row
+    whatever the file is. The BOUND is on how far it reads: the rest of the file
+    is counted rather than kept, because "300 of 101,889 rows" is the sentence
+    that stops somebody wondering what they are looking at -- and the count
+    stops at `MAX_SCAN`, past which the page says *at least*.
+    """
+    columns, rows, more, capped = [], [], 0, False
+    with open(path, "r", encoding="utf-8", errors="replace", newline="") as fh:
+        for n, row in enumerate(csv.reader(fh)):
+            if n == 0:
+                columns = [str(c)[:MAX_CELL] for c in row[:MAX_COLS]]
+                continue
+            if len(rows) >= MAX_ROWS:
+                more += 1
+                if more >= MAX_SCAN:
+                    capped = True
+                    break
+                continue
+            rows.append([str(c)[:MAX_CELL] for c in row[:MAX_COLS]])
+    return {"shape": "rows", "columns": columns, "rows": rows,
+            "more": more, "capped": capped}
+
+
+def _text(path):
+    """A JSON, markdown or plain-text table, as text. Bounded twice."""
+    size = os.path.getsize(path)
+    if size > MAX_TEXT_BYTES:
+        return {"shape": "text", "text": "", "more": 0,
+                "why": "big",
+                "detail": ("This file is %.1f MB, which is too much to put on "
+                           "a page. It is at the path the row shows."
+                           % (size / 1000000.0))}
+    with open(path, "r", encoding="utf-8", errors="replace") as fh:
+        said = fh.read(MAX_TEXT_CHARS + 1)
+    more = max(0, len(said) - MAX_TEXT_CHARS)
+    said = said[:MAX_TEXT_CHARS]
+    if path.lower().endswith(".json") and not more:
+        # Re-printed rather than reformatted: a pipeline's JSON is already
+        # indented, and one that is not is unreadable as one line. Nothing acts
+        # on what is in it -- this is `json.dumps` of what `json.loads` read.
+        try:
+            said = json.dumps(json.loads(said), indent=2, sort_keys=False)
+        except ValueError:
+            pass
+    return {"shape": "text", "text": said, "more": more}

@@ -7,6 +7,11 @@ deck. What a note does is land beside the document it is about and wake a turn
 that is not the lesson's.
 
     GET  /library.json              everything `course/library.py` found
+    GET  /library/results.json      everything this workspace PRODUCED, grouped
+                                    by the directory it came out of -- or a
+                                    sentence saying why there is nothing
+    GET  /library/table/<id>        one table, read back as rows or as text,
+                                    because a page cannot open a file
     POST /writeup                   a paper or a deck, asked for from a sitting
                                     on this board or commissioned from the front
                                     door against any workspace on the machine
@@ -29,6 +34,16 @@ level down: matched against the names `library.notes` found beside that
 document, never joined onto a directory. A WORKSPACE and a SCOPE KEY on
 `/writeup` are the same rule again: `machines.workspaces` and `scopes.find` are
 the lists, and the root comes off the match.
+
+A DOCUMENT IS NOT THE ONLY THING A WORKSPACE MAKES, which is why the results
+are on this page rather than on a second one. A mission ends by naming what it
+wrote -- *figure `neighbor_count_sweep.png` and four tables* -- and until there
+was somewhere to look at those, the only way to read a finished result was a
+terminal. `course/results.py` already knew where every one of them is: the
+drawer puts a figure in a card, and what was missing was the list. One page,
+because "everything this workspace has produced" is one question, and because
+this is the page somebody already knows how to reach -- the front door offers it
+per workspace and the board's ⋯ menu opens it.
 
 AND FEEDBACK IS NEVER JUST FILED. A note nothing acts on is a note the person
 believes is in force, which is the same defect `/direction` was built to avoid.
@@ -54,6 +69,7 @@ from .. import spawn
 from ... import atlas, leaving, machines, manuscript, scopes, sense, writeups
 from ...course import config
 from ...course import library
+from ...course import results
 from ...course.repo import Repo
 from ...lesson import turns
 
@@ -74,6 +90,27 @@ def get(h, repo, path):
             # answering", which points a reader at the network for a fault that
             # is a walk of a directory.
             return h.send_json({"ok": False, "error": str(exc)})
+
+    # WHAT THIS WORKSPACE HAS PRODUCED. Its own fetch rather than a field on
+    # `/library.json`, because they are two walks of two different trees: the
+    # documents walk reads titles out of sources and runs `pdfinfo` per PDF, and
+    # this one walks the result directories. The page draws whichever arrives
+    # first, and a workspace with no results still gets its documents.
+    if path == "/library/results.json":
+        try:
+            return h.send_json(results.browse(repo))
+        except Exception as exc:                             # noqa: BLE001
+            # The same reason `/library/stamp` catches: a 500 here paints "the
+            # board is not answering" over a fault that is a directory walk.
+            return h.send_json({"ok": False, "error": str(exc)})
+
+    # ONE TABLE, READ HERE RATHER THAN DOWNLOADED. A CSV handed to a browser is
+    # a file an iPad puts somewhere nobody can find. An id, never a path --
+    # `results.table` does the same lookup `/result/` does, with the kind it
+    # will answer for changed, and a miss is a miss.
+    if path.startswith("/library/table/"):
+        got = results.table(repo.root, unquote(path[len("/library/table/"):]))
+        return h.send_json(got, status=200 if got.get("ok") else 404)
 
     if path.startswith("/library/view/"):
         # The same rasteriser, the same cache and the same `/paper/<name>.png`
