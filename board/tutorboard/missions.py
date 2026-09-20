@@ -239,6 +239,24 @@ def _listening(rec):
     return processes.agent_is_attached(rec, node)
 
 
+def _working(rec):
+    """Is that assistant in the middle of a turn right now?
+
+    The question a card cannot answer. A doing turn writes ONE sentence saying
+    what it is about to do, does the work, and writes the report over the top of
+    it -- so the first card of a mission lands seconds after the dispatch and
+    hours before the answer. Read as an ending it says `done, go and read it`
+    over an assistant that has not started, and `looked` then takes the row off
+    the list while the work is still running.
+
+    `working` is the record's own word for mid-turn, and it is the one
+    `tutor restart` holds a tutor back by. The process has to be attached as
+    well: a record left saying `working` by a daemon that died is a turn nobody
+    is taking, and the ending belongs to whichever rule catches that.
+    """
+    return bool(rec) and rec.get("state") == "working" and _listening(rec)
+
+
 def holder(root):
     """Which assistant is listening in that workspace right now, or "".
 
@@ -287,7 +305,10 @@ def judge(root, rec, now=None, card=None, said=None):
         out["ended_at"] = failed_at
         out["reason"] = str(st.get("last_error") or "")[-300:]
         return out
-    if landed:
+    # A CARD ENDS A MISSION ONLY WHERE THE TURN THAT WROTE IT IS OVER. The
+    # first card is the sentence a doing turn writes BEFORE the work, so a card
+    # alone says the assistant started rather than finished.
+    if landed and not _working(st):
         out["state"] = "done"
         out["ended_at"] = when
         out["card"] = which

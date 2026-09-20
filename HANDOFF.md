@@ -319,6 +319,20 @@ as the answer.
 
 ## Settled, so nobody re-derives it
 
+- **A CARD ENDS A MISSION ONLY WHERE THE TURN THAT WROTE IT IS OVER.** A doing
+  turn writes one sentence saying what it is about to do, does the work, and
+  writes the report over the top of it — so the first card of a mission lands
+  seconds after the dispatch and hours before the answer. Read as an ending it
+  says *done, go and read it* over an assistant that has not started, and
+  `looked` then takes the row off the list while the work is still running.
+  `judge` asks `_working` as well as the card: `working` is the record's own
+  word for mid-turn and it is the one `tutor restart` holds a tutor back by.
+  **The process has to be attached as well as the word written**, because a
+  record left saying `working` by a daemon that died is a turn nobody is
+  taking, and there the card IS the ending it looks like. `test/elsewhere.py`
+  holds all three, and the look is the assertion rather than the list, because
+  a done mission nobody has looked at is on the list either way.
+
 - **EVERY TURN WHOSE PRODUCT IS A CHANGE IS TOLD TO FIX THE RULE RATHER THAN ITS
   OUTPUT, AND EVERY SITTING IS ASKED FOR THE MEASURE THE WORK ALREADY HAS.** Two
   blocks in `sense.py`. **`RULE_SENSE`** (117 words): where a wrong thing was

@@ -823,6 +823,62 @@ try:
         check("and says which card, so the row can point AT the answer",
               judged and judged[0]["card"] == "0017")
 
+        # AND A CARD WRITTEN MID-TURN IS NOT AN ENDING. A doing turn writes one
+        # sentence before the work and the report over the top of it, so the
+        # first card lands seconds in. Read as an ending it reports `done` over
+        # an assistant that has hours left, and `looked` then takes the row off
+        # the list while the work is still running.
+        status, body = send({"repo": "PSYCH-ASR", "agent": "colibri",
+                             "task": "repair the diarization"})
+        three = body.get("mission")
+        busy = json.dumps({"agent": "colibri", "state": "working",
+                           "pid": os.getpid(), "turns": 1,
+                           "last_seen": time.time(),
+                           "host": machine.node_name(), "mode": "headless"})
+        write(os.path.join(psych, "live", "agent.json"), busy)
+        card(psych, "0018", "starting", "Reading the error log.",
+             time.time() + 1, title="what I am about to do")
+        missions.forget()
+        judged = [m for m in missions.listing(galois) if m["id"] == three]
+        check("a card written while the assistant is mid-turn leaves the "
+              "mission running, because the first card of a doing turn is "
+              "written before the work",
+              judged and judged[0]["state"] == "running")
+        # A LOOK IS WHAT FILES A FINISHED MISSION AWAY, so the look is the
+        # assertion: going to the workspace mid-turn must not take the row.
+        missions.looked(psych)
+        missions.forget()
+        check("and a look at that workspace does not file it away, because "
+              "filing is for work that is over",
+              three in [m["id"] for m in missions.listing(galois)])
+
+        # AND IT ENDS WHEN THE TURN DOES, off the same card.
+        write(os.path.join(psych, "live", "agent.json"), alive)
+        missions.forget()
+        judged = [m for m in missions.listing(galois) if m["id"] == three]
+        check("and the same card ends it once the turn is over",
+              judged and judged[0]["state"] == "done"
+              and judged[0]["card"] == "0018")
+
+        # AND A RECORD LEFT SAYING `working` BY A DEAD DAEMON IS NOT A TURN.
+        # Nobody is taking it, so the card is the ending it looks like.
+        status, body = send({"repo": "PSYCH-ASR", "agent": "colibri",
+                             "task": "and the arms after it"})
+        four = body.get("mission")
+        dead = json.dumps({"agent": "colibri", "state": "working",
+                           "pid": 999999, "turns": 1,
+                           "last_seen": time.time(),
+                           "host": machine.node_name(), "mode": "headless"})
+        write(os.path.join(psych, "live", "agent.json"), dead)
+        card(psych, "0019", "gone", "Half an answer.", time.time() + 2)
+        missions.forget()
+        judged = [m for m in missions.listing(galois) if m["id"] == four]
+        check("a card counts as the ending where the record says working and "
+              "nothing is attached, because that turn is nobody's",
+              judged and judged[0]["state"] == "done")
+        write(os.path.join(psych, "live", "agent.json"), alive)
+        missions.forget()
+
         # AND COMES OFF THE LIST WHEN IT IS LOOKED AT -- which means going there,
         # and the board serving that workspace is what stamps it.
         check("a finished mission comes off the list when somebody looks at "
