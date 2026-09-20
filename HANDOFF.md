@@ -150,7 +150,8 @@ a menu of eight, the style is changed while working instead of chosen at the
 door, and a paper or a deck is asked for at the front door against any
 workspace on the machine. All of that is Settled below.**
 Item 1 is the acceptance test of the mission and is also the job all of it
-exists for. Item 2 is not a build.
+exists for. Item 2 needs the account holder rather than a build. Item 3 is not a
+build at all.
 
 ---
 
@@ -209,7 +210,30 @@ build is that the old justification was false.** See EGRESS under Settled. The
 short of it: the mission is admissible now because a guard refuses everything
 that could carry PHI off the node, not because the node cannot reach anything.
 
-### 2. And the five things no test can hold — THE IPAD'S
+### 2. Ask GitHub to collect the instructor slides, which the rewrite did not reach — A KEYBOARD
+
+**The seventeen decks and sheets are out of every commit here and off `main`, and
+GitHub still serves all seventeen at the pre-rewrite SHA.** A raw fetch of
+`Prob.Homework1.2026.pdf` at `1205290d` returns 200 and 53,045 bytes. That is
+GitHub holding objects no branch reaches until it collects them, which it does
+on request and not on a push, so the force-push moved the branch and reached
+nothing that is already on their disks.
+
+Two ways to finish it, and both need the account holder:
+
+- **Ask GitHub Support to run garbage collection on `Pirate-Hunter-Zoro/Atlas`**,
+  naming the repository and saying the objects are unreferenced after a history
+  rewrite. This is the documented route and it keeps the stars, the clone URL
+  and every commit SHA the rest of this file cites.
+- **Delete the repository and push it again from this clone.** Immediate and
+  certain, and it throws away whatever GitHub holds that the local clone does
+  not — the issue list, the fork graph, the URL's history.
+
+Until one of those lands, treat the decks as published. Nothing else is
+outstanding: `.gitignore` refuses them, `test/tracked.py` refuses them for every
+course, and the files are on disk where the board reads them.
+
+### 3. And the five things no test can hold — THE IPAD'S
 
 None of these is a build. Each is an evening in front of the thing.
 
