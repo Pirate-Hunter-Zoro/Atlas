@@ -1,3 +1,4 @@
 {"id": "t0042", "rev": 1, "kind": "text", "answers": null, "t": 1789926957.9884963, "iso": "2026-09-20 12:55:57", "from": "student", "text": "", "signal": "begin", "read": false}
 {"id": "t0043", "rev": 1, "kind": "text", "answers": null, "t": 1789926958.1121142, "iso": "2026-09-20 12:55:58", "from": "student", "text": "", "signal": "begin", "read": false}
 {"id": "t0044", "rev": 1, "kind": "ink", "answers": "0001", "t": 1789927409.176976, "iso": "2026-09-20 13:03:29", "from": "student", "page": 2, "strokes": 169, "png": "/answers/t0044-r1.png", "ink": "/answers/t0044-r1.json", "read": false}
+{"id": "t0045", "rev": 1, "kind": "ink", "answers": "0002", "t": 1789927738.387822, "iso": "2026-09-20 13:08:58", "from": "student", "page": 41, "strokes": 104, "png": "/answers/t0045-r1.png", "ink": "/answers/t0045-r1.json", "read": false}
