@@ -396,7 +396,7 @@ Interfaces for the neural networks.
 
 ### 8. Tests (`tests/`)
 
-Unit tests for the data loading layer, run via `pytest`.
+Unit tests, run via `pytest`: the data loading layer, and the sign/direction guards on the feature-importance panels in `test_feature_importance_direction.py`.
 
 * **`conftest.py`**: Provides a `MockPatientBuilder` fixture---a fluent builder that constructs synthetic patient JSON dicts with chainable methods (`add_active_med`, `add_diagnosis`, `add_procedure`, `add_explicit_encounter`). Encounters are auto-created when a diagnosis or procedure is added at a date with no existing encounter.
 
