@@ -24,10 +24,143 @@
 % ---------------------------------------------------------------------------
 
 \begin{problem}{1}
-  \todo{statement not yet transcribed}
+  (Edition 11, Chapter 3.) If $X$ and $Y$ are both discrete, show that
+  \[
+    \sum_{x} p_{X \mid Y}(x \mid y) = 1
+  \]
+  for all $y$ such that $p_Y(y) > 0$.
 \end{problem}
 % ===== SOLUTION 1 =====
-% TODO(mferguson): your work goes here.
+Fix a value $y$ with $p_Y(y) > 0$. By the chain rule, $p(x,y) = p_X(x)\,p_{Y \mid X}(y \mid x)$,
+which holds for every joint pmf and assumes nothing about independence. Hence
+\[
+  \sum_{x} p_{X \mid Y}(x \mid y)
+    = \sum_{x} \frac{p_X(x)\,p_{Y \mid X}(y \mid x)}{p_Y(y)}
+    = \frac{1}{p_Y(y)} \sum_{x} p_X(x)\,p_{Y \mid X}(y \mid x),
+\]
+where $1/p_Y(y)$ comes out of the sum because $y$ is held fixed and the sum runs over $x$ alone.
+The remaining sum is the joint pmf marginalised over $x$, which is $p_Y(y)$:
+\[
+  \sum_{x} p_X(x)\,p_{Y \mid X}(y \mid x) = \sum_{x} p(x,y) = p_Y(y).
+\]
+Therefore
+\[
+  \sum_{x} p_{X \mid Y}(x \mid y) = \frac{p_Y(y)}{p_Y(y)} = 1. \qedsymbol
+\]
 % ===== END SOLUTION 1 =====
+
+\begin{problem}{7}
+  (Edition 11, Chapter 3.) Suppose $p(x,y,z)$, the joint probability mass
+  function of the random variables $X$, $Y$ and $Z$, is given by
+  \[
+    \begin{array}{ll}
+      p(1,1,1) = \tfrac{1}{8},  & p(2,1,1) = \tfrac{1}{4},\\[2pt]
+      p(1,1,2) = \tfrac{1}{8},  & p(2,1,2) = \tfrac{3}{16},\\[2pt]
+      p(1,2,1) = \tfrac{1}{16}, & p(2,2,1) = 0,\\[2pt]
+      p(1,2,2) = 0,             & p(2,2,2) = \tfrac{1}{4}.
+    \end{array}
+  \]
+  What is $\EEc{X}{Y = 2}$? What is $\EEc{X}{Y = 2, Z = 1}$?
+\end{problem}
+% ===== SOLUTION 7 =====
+% TODO(mferguson): your work goes here.
+% ===== END SOLUTION 7 =====
+
+\begin{problem}{9 or 10}
+  (Edition 11, Chapter 3. The sheet assigns either one of these.)
+
+  \textbf{9.} Show in the discrete case that if $X$ and $Y$ are independent, then
+  \[
+    \EEc{X}{Y = y} = \EE{X} \qquad \text{for all } y.
+  \]
+
+  \textbf{10.} Suppose $X$ and $Y$ are independent continuous random variables.
+  Show that
+  \[
+    \EEc{X}{Y = y} = \EE{X} \qquad \text{for all } y.
+  \]
+\end{problem}
+% ===== SOLUTION 9 or 10 =====
+% TODO(mferguson): your work goes here.
+% ===== END SOLUTION 9 or 10 =====
+
+\begin{problem}{12}
+  (Edition 11, Chapter 3.) The joint density of $X$ and $Y$ is given by
+  \[
+    f(x,y) = \frac{e^{-x/y} e^{-y}}{y}, \qquad 0 < x < \infty,\ \ 0 < y < \infty.
+  \]
+  Show $\EEc{X}{Y = y} = y$.
+\end{problem}
+% ===== SOLUTION 12 =====
+% TODO(mferguson): your work goes here.
+% ===== END SOLUTION 12 =====
+
+\begin{problem}{22}
+  (Edition 11, Chapter 3.) Suppose that independent trials, each of which is
+  equally likely to have any of $m$ possible outcomes, are performed until the
+  same outcome occurs $k$ consecutive times. If $N$ denotes the number of
+  trials, show that
+  \[
+    \EE{N} = \frac{m^{k} - 1}{m - 1}.
+  \]
+\end{problem}
+% ===== SOLUTION 22 =====
+% TODO(mferguson): your work goes here.
+% ===== END SOLUTION 22 =====
+
+\begin{problem}{31}
+  (Edition 11, Chapter 3.) Each element in a sequence of binary data is either
+  $1$ with probability $p$ or $0$ with probability $1 - p$. A maximal
+  subsequence of consecutive values having identical outcomes is called a
+  \emph{run}. For instance, if the outcome sequence is $1,1,0,1,1,1,0$, the
+  first run is of length $2$, the second is of length $1$, and the third is of
+  length $3$.
+  \begin{enumerate}
+    \item[(a)] Find the expected length of the first run.
+    \item[(b)] Find the expected length of the second run.
+  \end{enumerate}
+\end{problem}
+% ===== SOLUTION 31 =====
+% TODO(mferguson): your work goes here.
+% ===== END SOLUTION 31 =====
+
+\begin{problem}{37}
+  (Edition 11, Chapter 3.) A manuscript is sent to a typing firm consisting of
+  typists $A$, $B$ and $C$. If it is typed by $A$, then the number of errors
+  made is a Poisson random variable with mean $2.6$; if typed by $B$, then the
+  number of errors is a Poisson random variable with mean $3$; and if typed by
+  $C$, then it is a Poisson random variable with mean $3.4$. Let $X$ denote the
+  number of errors in the typed manuscript. Assume that each typist is equally
+  likely to do the work.
+  \begin{enumerate}
+    \item[(a)] Find $\EE{X}$.
+    \item[(b)] Find $\Var(X)$.
+  \end{enumerate}
+\end{problem}
+% ===== SOLUTION 37 =====
+% TODO(mferguson): your work goes here.
+% ===== END SOLUTION 37 =====
+
+\begin{problem}{40}
+  (Edition 11, Chapter 3.) A prisoner is trapped in a cell containing three
+  doors. The first door leads to a tunnel that returns him to his cell after two
+  days of travel. The second leads to a tunnel that returns him to his cell
+  after three days of travel. The third door leads immediately to freedom.
+  \begin{enumerate}
+    \item[(a)] Assuming that the prisoner will always select doors $1$, $2$ and
+      $3$ with probabilities $0.5$, $0.3$, $0.2$, what is the expected number of
+      days until he reaches freedom?
+    \item[(b)] Assuming that the prisoner is always equally likely to choose
+      among those doors that he has not used, what is the expected number of days
+      until he reaches freedom? (In this version, for instance, if the prisoner
+      initially tries door $1$, then when he returns to the cell, he will now
+      select only from doors $2$ and $3$.)
+    \item[(c)] For parts (a) and (b) find the variance of the number of days
+      until the prisoner reaches freedom.
+  \end{enumerate}
+\end{problem}
+% ===== SOLUTION 40 =====
+% TODO(mferguson): your work goes here.
+% ===== END SOLUTION 40 =====
 
 \end{document}
