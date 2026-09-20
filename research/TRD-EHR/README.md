@@ -372,6 +372,53 @@ numbers, so a run that could overwrite one would make the comparison unfalsifiab
     over cores with joblib; every unit re-seeds from `SEED`, so results do not depend on
     how the work was split.
 
+### 5d. Importance-Weighted KNN & Neighborhood-Size Sweep (`scripts/pipeline/predictions`)
+
+A second neighbor arm that runs beside 5a rather than replacing it: nothing in
+`retriever.py`, `weighting_strategy.py` or `trd_prediction_computation.py` changes, and
+`WeightingStrategy` gains no member, so the published Uniform/Cosine/LLM/Combined numbers
+are untouched.
+
+* **`importance_weighted_knn.py`**:
+  * The metric. Reads `logistic_regression_EMBEDDED.joblib` from `RESULTS_DIR/trained_models`
+    and turns it into a diagonal metric: `w_d = |beta_d| / sum|beta|` over the 4096 embedding
+    dimensions, applied in the standardized space the coefficients were fitted in.
+  * `sim(x,y) = sum_d w_d z_d(x) z_d(y) / sqrt(<x,x>_w <y,y>_w)` — a weighted cosine.
+    `to_weighted_space` scales each standardized dimension by `sqrt(w_d)` and L2-normalizes,
+    so the whole anchor-by-pool similarity matrix is one matmul and the scale of `w` cancels.
+  * The same number ranks candidates *and*, clamped at zero and raised to `alpha`, is the
+    weight in `sum_i w_i * trd_flag_i / sum_i w_i`.
+  * The candidate pool is rebuilt here rather than taken from `Retriever`, which L2-normalizes
+    its matrix in place; standardizing needs the raw vectors. `candidate_pool_ids` imposes the
+    same two conditions `Retriever` does (embedded, has a narrative, not an anchor), so the
+    two arms search an identical pool and their AUCs are comparable.
+  * The metric is **supervised**: `beta` is fitted on the pool patients. Anchors are the held-out
+    test split, so no anchor label reaches its own score, but this is a supervised metric being
+    compared against an unsupervised one.
+
+* **`neighbor_count_sweep.py`**:
+  * Scores every `k` from 1 to the entire pool, not just `NUM_NEIGHBOR_PATIENTS`. Sorting each
+    anchor's candidates once and taking running sums of the weights and the weighted flags gives
+    the risk at every `k` from one division; the sort is shared across all alphas.
+  * `roc_auc_by_column` computes the AUC of thousands of score columns at once from the rank
+    identity (mean rank of the positives, shifted and scaled), with average ranks for the heavy
+    ties at small `k`. Verified against `sklearn.metrics.roc_auc_score` in
+    `tests/test_neighbor_count_sweep.py`.
+  * `DEFAULT_ALPHAS = (1.0, 2.0, 5.0)`: the similarity used directly as the weight, and
+    `WEIGHTING_EXPONENT`'s published 5.0, with 2.0 between them.
+  * Bootstrap intervals at `N_INTERVAL_POINTS` log-spaced `k` plus each curve's best `k`, drawn
+    from `bootstrap_sample_indices` so they are the same `SEED`-seeded resamples every other
+    interval in the repository uses. Intervals at all thirty-four thousand `k` would be a grey
+    rectangle.
+  * **Output**, all under `RESULTS_DIR/neighbor_count_sweep/`: `neighbor_count_sweep.png`
+    (AUC against `k`, log x, one line per alpha, error bars at the selected `k`, reference lines
+    for the published cosine KNN and the embedded logistic regression), `sweep_curve.csv`
+    (alpha, k, AUC — every k), `sweep_intervals.csv`, `sweep_summary.json` (best k and its CI per
+    alpha), `best_k_predictions_alpha{a}.csv` (per-anchor risk at the winning k), and
+    `dimension_importance.json`.
+  * Submit with `slurm_jobs/quick_runs/neighbor_count_sweep.sbatch`. CPU only, no vLLM server.
+    `--max-anchors` / `--max-pool` cap both sides for a smoke run.
+
 ### 6. Models (`scripts/models`)
 
 Interfaces for the neural networks.
