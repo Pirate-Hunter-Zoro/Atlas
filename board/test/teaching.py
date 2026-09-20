@@ -513,6 +513,43 @@ check("a doing turn is pointed at the section rather than handed a paraphrase "
       "of it", "where a new thing goes" in _DOING
       and "## where a new thing goes" in _METHOD)
 # ---------------------------------------------------------------------------
+# FIX THE RULE, NEVER ITS OUTPUT -- in both places, for the same reason
+# ---------------------------------------------------------------------------
+# The same two-places problem as *one module, one job*. `TEACHING.md` is what a
+# person and a tutor with it open read; `RULE_SENSE` rides in the briefing and
+# is the only one of the two a woken turn is guaranteed to see. The measure
+# rule is one section down in the document and `MEASURE_SENSE` in the preamble,
+# and both are guarded here so neither can be fixed alone.
+_RULE_FLAT = _flat(sense_mod.RULE_SENSE)
+_MEASURE_FLAT = _flat(sense_mod.MEASURE_SENSE)
+for _phrase, _why, _block in (
+        ("fix the module that produces it and run it again",
+         "the rule itself, in one sentence", _RULE_FLAT),
+        ("nobody can reproduce it",
+         "and why a hand-edited file is not a smaller version of it",
+         _RULE_FLAT),
+        ("however close to right you could get the file by hand",
+         "with no loophole for an artifact that would have been nearly right",
+         _RULE_FLAT),
+        ("never over an input you are scored against",
+         "where the change goes, and the one place it must not",
+         _RULE_FLAT),
+        ("say so on the card and name what stops you",
+         "and a rule that cannot be written is said rather than faked",
+         _RULE_FLAT),
+        ("run it before and after, and say what it said",
+         "the measure is run rather than quoted", _MEASURE_FLAT),
+        ("an invented number is worse than a hole",
+         "and a gap is named rather than filled in", _MEASURE_FLAT),
+):
+    check("TEACHING.md says " + _why, _phrase in _METHOD)
+    check("and a turn whose product is a change is told the same: " + _why,
+          _phrase in _block)
+check("and the document keeps the two sections README names",
+      "### fix the rule, never its output" in _METHOD
+      and "### name the measure the work already has" in _METHOD)
+
+# ---------------------------------------------------------------------------
 # A COMPONENT BOUNDARY IS A STOPPING POINT -- in both places, again
 # ---------------------------------------------------------------------------
 # The same two-places problem as *one module, one job*, and for the same reason:
@@ -638,6 +675,125 @@ try:
         check("and a turn that is %s is not" % why, "DOING TURN" not in said)
         check("...but is still told how to write (%s)" % why,
               "ANSWER in the first sentence" in said)
+
+    # -----------------------------------------------------------------------
+    # FIX THE RULE, NOT ITS OUTPUT -- on every turn whose product is a change
+    # -----------------------------------------------------------------------
+    # The rule is worth nothing on the one path it misses, because the path it
+    # misses is the one where a hand-written artifact looks like the whole job.
+    # So it is asserted where it is COMPOSED -- the five functions that build a
+    # doing turn's line -- and then end to end on the whole string a woken turn
+    # actually holds.
+    #
+    # COUNTED RATHER THAN LOOKED FOR. Twice is its own failure: these blocks
+    # ride in a preamble a colibrì mission prefills at a couple of tokens a
+    # second, and there are four places that could each reasonably say it.
+    import io as _io
+    import contextlib as _ctx
+
+    _RULE = sense_mod.RULE_SENSE
+    _MEASURE = sense_mod.MEASURE_SENSE
+    check("the rule names the module rather than the file it wrote",
+          "fix the module that produces it" in _RULE
+          and "next run wipes it" in _RULE)
+    check("and says where the change goes instead",
+          "WRITE WHERE THE CODE ALREADY WRITES" in _RULE
+          and "scored against" in _RULE)
+    check("a rule that cannot be written is said so rather than faked",
+          "say so on the card and name what stops you" in _RULE)
+    check("every briefing asks for the measure the work already has",
+          "NAME THE MEASURE THIS WORK ALREADY HAS" in _MEASURE
+          and "before and after" in _MEASURE)
+    check("and asks for it to be RUN rather than quoted off the plan",
+          "RUN IT before and after" in _MEASURE)
+    check("and only where the work has one, so a chapter of group theory is "
+          "not asked to score itself",
+          "where it has one" in _MEASURE)
+    check("and refuses an invented number in its place",
+          "invented number is worse than a hole" in _MEASURE)
+
+    state(stance="do")
+    _do = sense_mod.session_sense(repo)
+    check("a doing turn is told to fix the rule rather than its output",
+          _RULE in _do)
+    check("and is told once, not twice", _do.count(_RULE) == 1)
+    check("and it is asked for the measure too", _MEASURE in _do)
+
+    state(aim="teach")
+    _teach = sense_mod.session_sense(repo)
+    check("a teaching turn is asked for the measure",
+          _MEASURE in _teach and _teach.count(_MEASURE) == 1)
+    check("and is not handed a rule about code it is not writing",
+          _RULE not in _teach)
+
+    # The four turns that never run `board brief`: their inbox line is the whole
+    # of what they read, so the rule has to be in the line.
+    for _line, _why in (
+            (sense_mod.ship_sense("colibri", "repair the transcript"), "a ship"),
+            (sense_mod.writeup_sense("paper", "the serve harness"), "a write-up"),
+            (sense_mod.revise_sense("writeups/a/a.tex", "live/feedback/a.md"),
+             "a revision"),
+            (sense_mod.rework_sense("writeups/a/a.tex", "live/feedback/a.md",
+                                    "for the meeting"), "an overhaul"),
+            (sense_mod.handover_sense("0004")
+             + sense_mod.session_sense(repo, doing=True), "a handed-over step")):
+        check("%s is told the same, once" % _why, _line.count(_RULE) == 1)
+        check("and is asked for the measure, once (%s)" % _why,
+              _line.count(_MEASURE) == 1)
+
+    # AND A MISSION, which is the turn this whole rule was written for: the task
+    # arrives as a plain sentence of the student's and `board brief` is the only
+    # thing the daemon reads. This workspace teaches, the way the one the
+    # motivating mission went to teaches.
+    state(session="lecture")
+    import json as _mj
+    import time as _mt
+
+    def _brief():
+        out = _io.StringIO()
+        with _ctx.redirect_stdout(out):
+            boardcli.cmd_brief(boardcli.Live(root), [])
+        return out.getvalue()
+
+    _cold = _brief()
+    check("a teaching workspace with no mission in it is briefed as a lesson",
+          _RULE not in _cold and _MEASURE in _cold)
+    os.makedirs(os.path.join(root, "live", "missions"), exist_ok=True)
+    with open(os.path.join(root, "live", "missions", "0007.json"), "w",
+              encoding="utf-8") as fh:
+        _mj.dump({"id": "0007", "task": "repair the transcript", "agent": "colibri",
+                  "at": _mt.time(), "ship": False, "host": "", "card_at": 0.0,
+                  "ceiling": 0.0, "ended": "", "ended_at": 0.0, "reason": "",
+                  "looked": 0.0, "shipped": 0.0}, fh)
+    check("a live mission is what `missions.running` reports",
+          boardcli.missions.running(root))
+    _sent = _brief()
+    check("and the same workspace briefs a mission as a doing turn",
+          "DOING TURN" in _sent and _RULE in _sent)
+    check("told once, not once per way of asking", _sent.count(_RULE) == 1)
+    check("and the measure is still asked for exactly once",
+          _sent.count(_MEASURE) == 1)
+    # AND ONCE ACROSS THE WHOLE OF WHAT THE DAEMON HOLDS, which is the inbox
+    # line plus the brief the first prompt sends it for. A block said twice is
+    # paid for twice, and there are four places that could each reasonably say
+    # it. `test/elsewhere.py` holds the other half of this -- that the line
+    # `/elsewhere` writes is their words and carries no rules of its own.
+    _woken = (tutorcli.HEADLESS_FIRST_PROMPT
+              % {"inbox": "repair the transcript", "handoff": ""}) + _sent
+    check("and once across everything a woken mission holds, the inbox line "
+          "and the brief together", _woken.count(_RULE) == 1
+          and _woken.count(_MEASURE) == 1
+          and _woken.count(sense_mod.DOING_SENSE) == 1)
+    with open(os.path.join(root, "live", "missions", "0007.json"), "w",
+              encoding="utf-8") as fh:
+        _mj.dump({"id": "0007", "task": "repair the transcript", "agent": "colibri",
+                  "at": _mt.time(), "ship": False, "host": "", "card_at": 0.0,
+                  "ceiling": 0.0, "ended": "done", "ended_at": _mt.time(),
+                  "reason": "", "looked": 0.0, "shipped": 0.0}, fh)
+    check("a mission that has ended leaves the workspace teaching again",
+          _RULE not in _brief())
+    shutil.rmtree(os.path.join(root, "live", "missions"), ignore_errors=True)
+    state(session="lecture")
 
     # And the mechanism the shape depends on: one card, opened with a sentence
     # and finished with the report, keeping its place in the transcript.

@@ -351,6 +351,36 @@ def of(root, now=None, freeze=True):
     return out
 
 
+def running(root, now=None):
+    """Is a mission live in this workspace right now?
+
+    `board brief` asks, because a mission is a change somebody asked for and the
+    turn working it is a doing turn -- whatever standing stance the workspace
+    teaches under. The task arrives in the inbox as a plain sentence of theirs,
+    so without this a mission into a workspace that teaches is briefed as a
+    lesson and writes a card instead of the change.
+
+    A pure read, unlike `of`: nothing is frozen and nothing is pruned. A
+    briefing is not the right place to decide a mission has ended, and the
+    board's own poll decides it four times a second anyway. The walk for the
+    newest card is skipped entirely where no record is open, which is every
+    workspace almost all of the time.
+    """
+    now = float(now or time.time())
+    open_recs = [r for r in stored(root) if not r.get("ended")]
+    if not open_recs:
+        return False
+    try:
+        card = news.newest_card(root)
+    except OSError:
+        card = (0.0, "")
+    said = _agent(root)
+    for rec in open_recs:
+        if judge(root, rec, now, card=card, said=said).get("state") == "running":
+            return True
+    return False
+
+
 def looked(root, now=None):
     """Somebody is looking at this workspace, so its finished missions come off.
 

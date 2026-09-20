@@ -319,6 +319,45 @@ as the answer.
 
 ## Settled, so nobody re-derives it
 
+- **EVERY TURN WHOSE PRODUCT IS A CHANGE IS TOLD TO FIX THE RULE RATHER THAN ITS
+  OUTPUT, AND EVERY SITTING IS ASKED FOR THE MEASURE THE WORK ALREADY HAS.** Two
+  blocks in `sense.py`. **`RULE_SENSE`** (117 words): where a wrong thing was
+  produced by code, the code is what is wrong — fix the module and run it again,
+  because a hand-edited artifact cannot be reproduced, cannot be reviewed by
+  anybody without the inputs, and is wiped by the next run, and that holds
+  however close to right the file could have been got by hand. Its other half is
+  where the change goes: **write where the code already writes, never over an
+  input you are scored against**, because overwriting the input makes the measure
+  agree with you for free. A rule that cannot be written is said on the card with
+  what stops you named. **`MEASURE_SENSE`** (46 words): name the measure the work
+  already has *where it has one*, RUN it before and after rather than quoting the
+  plan — the plan's number is the number *before* — and name a gap rather than
+  inventing one. **Wired in one mechanism per turn, and counted rather than
+  looked for.** `session_sense` carries the measure on every branch and the rule
+  on the doing branch, which is every sitting, every inbox line `routes/lesson.py`
+  writes, and `board brief`. The four turns that never run `board brief` carry
+  both in their own line: `ship_sense`, `writeup_sense`, `revise_sense`,
+  `rework_sense`. **A MISSION IS BRIEFED AS A DOING TURN WHATEVER THE WORKSPACE
+  TEACHES UNDER** — `/elsewhere` writes the task as a plain sentence of the
+  student's, so `cmd_brief` asks `missions.running(root)` and passes `doing=True`
+  to `brief.briefing`. Only ever `True` or `None`; `False` would take the order
+  away from a workspace that declares `do`. `missions.running` is a pure read —
+  no freeze, no prune, and no walk for the newest card where no record is open —
+  and the dispatch writes the mission record **before** the inbox line, because
+  that line is the waking. **The dispatch says none of this in the line itself.**
+  A rule stated in the line as well as the brief is paid for twice, and 497
+  doubled words is five minutes of colibrì prefill. Measured, in words of the
+  whole briefing: a teaching sitting +46 (~58 tokens, 1.5% of it), a doing
+  sitting +163 (~208), a mission into a workspace that teaches +542 against its
+  lesson brief (~698 tokens) — 380 of those words `DOING_SENSE`, which is the
+  rest of what a mission was missing. `test/teaching.py` holds the wording, the
+  count of exactly one on every path including the whole string a woken mission
+  holds, and the two places the rules are written down in step;
+  `test/elsewhere.py` holds the other half of that — the dispatched line is their
+  words and carries no rules — and the record's order against the waking;
+  `test/tokens.py` holds the measure reaching a real `board brief` and the size
+  budget, 7,299 bytes against a 9,541 ceiling.
+
 - **A DISPATCH THAT NAMES AN ASSISTANT TAKES THE WORKSPACE, AND TAKES IT WITHOUT
   A TERMINAL.** `⇥ put an assistant to work elsewhere` reads `missions.holder`
   before the start, and where a DIFFERENT assistant is attached it runs

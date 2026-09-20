@@ -226,12 +226,17 @@ def beside_sense(repo):
     return "\n".join(out)
 
 
-def briefing(repo, sense, chapter=None):
+def briefing(repo, sense, chapter=None, doing=None):
     """The whole cold briefing as one string.
 
     `sense` is `tutorboard.sense`, passed in rather than imported, because it
     reaches into the course package for the syllabus and the homework sheet and
     this module is imported by things that have already paid for that.
+
+    `doing` goes straight to `sense.session_sense` and is for the one thing this
+    module cannot see: a mission is a change asked for from another board, so
+    the turn working it is a doing turn even where the workspace's standing
+    answer is to teach. `None` leaves the sitting to answer.
     """
     root = repo.root
     st = repo.state()
@@ -291,7 +296,7 @@ def briefing(repo, sense, chapter=None):
         out.append(said)
 
     out.append("\n--- the method, and what this sitting is ---\n"
-               + sense.session_sense(repo))
+               + sense.session_sense(repo, doing=doing))
 
     rules = contract_rules(root)
     if rules:

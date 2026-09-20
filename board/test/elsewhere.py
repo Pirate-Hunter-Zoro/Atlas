@@ -292,6 +292,12 @@ try:
               "watches and what a headless turn is woken with",
               lines and lines[-1]["text"] == "reproduce the corrected transcript"
               and lines[-1]["read"] is False)
+        # AND THE LINE IS THEIR WORDS AND NOTHING ELSE. What kind of turn this
+        # is comes out of `board brief`, in one place: a rule stated in the line
+        # as well would reach a do-stance workspace twice.
+        check("and it carries no standing rules of its own, because the "
+              "briefing is where a turn is told what kind it is",
+              "THIS IS A DOING TURN" not in lines[-1]["text"])
         check("and nothing landed in the workspace the board is serving",
               not os.path.exists(here.messages_path)
               or not open(here.messages_path, encoding="utf-8").read().strip())
@@ -524,6 +530,39 @@ try:
               and not any(a[:2] == ["agent", "stop"] for a in ran))
 
         # ------------------------------------------------------------------
+        # AND THE PANEL CAN SEE ALL OF THAT COMING
+        # ------------------------------------------------------------------
+        # Every rule above decides whether a tap waits seconds or five minutes,
+        # and the browser had none of the facts they are decided from. So the
+        # atlas row carries the holder, and a panel that knows one is there can
+        # say "stopping claude, then starting colibri" instead of "starting
+        # it", which is the line that reads as a hang.
+        #
+        # ASKED FOR RATHER THAN SENT. It is an `agent.json` per workspace off a
+        # shared filer and the front door polls this same route every 20
+        # seconds without drawing it.
+        attach()
+        rows = {c["repo"]: c for c in ask("/atlas.json?holders=1")["workspaces"]}
+        check("the atlas row says which assistant is listening in that "
+              "workspace, so a dispatch panel knows before the tap what the "
+              "tap will stop",
+              rows["PSYCH-ASR"].get("holder") == "claude")
+        check("and a workspace with nothing attached says so, rather than "
+              "leaving the field off and reading as unknown",
+              rows["TRD-EHR"].get("holder") == ""
+              and rows["Galois-Theory"].get("holder") == "")
+        plain = {c["repo"]: c for c in ask("/atlas.json")["workspaces"]}
+        check("while the front door, which polls this every twenty seconds and "
+              "draws none of it, is not charged a read per workspace for it",
+              all("holder" not in c for c in plain.values()))
+        os.remove(agent_json)
+        rows = {c["repo"]: c for c in ask("/atlas.json?holders=1")["workspaces"]}
+        check("and the answer is read rather than remembered, because the "
+              "atlas payload is cached for half a minute and a name somebody "
+              "taps on may not be half a minute old",
+              rows["PSYCH-ASR"].get("holder") == "")
+
+        # ------------------------------------------------------------------
         # WHAT A SWAP MUST NOT THROW AWAY
         # ------------------------------------------------------------------
         # The dispatch aims at a workspace nobody is looking at, so a stop there
@@ -698,6 +737,26 @@ try:
         check("and which workspace it was sent from, which is the one field "
               "nobody can reconstruct a day later",
               rec.get("from") == "courses/Galois-Theory")
+        # AND THE BRIEF THE DAEMON READS IS A DOING TURN'S. The task goes into
+        # the inbox as a plain sentence of the student's, so `board brief` is
+        # the whole of what a mission reads -- and PSYCH-ASR teaches. This is
+        # the question that briefing asks; `test/teaching.py` has the text it
+        # gets back for it.
+        check("and a live mission is what `board brief` asks about, so a "
+              "workspace that teaches briefs one as a doing turn",
+              missions.running(psych))
+        # AND THE RECORD IS ON DISK BEFORE THE WAKING. The inbox line is what
+        # `board wait` is watching, so a record written after it is a record a
+        # fast daemon reaches `board brief` without -- briefed as a lesson,
+        # silently. Read off the source because the window is a race and a
+        # passing run proves nothing about the order.
+        _route = open(os.path.join(ROOT, "tutorboard", "server", "routes",
+                                   "machines.py"), encoding="utf-8").read()
+        _dispatched = _route.find("rec = missions.dispatch(")
+        _woken = _route.find("target.messages_path", _dispatched)
+        check("and the mission record is written before the inbox line that "
+              "wakes the daemon that reads it",
+              0 < _dispatched < _woken)
 
         # READABLE FROM A BOARD SERVING SOMEWHERE ELSE, which is the whole point:
         # this server is Galois-Theory and the mission is in PSYCH-ASR.

@@ -7,6 +7,7 @@ request is matched against what this server already discovered.
 import json
 import os
 import time
+import urllib.parse
 
 from . import NOT_MINE
 from ...net import tailscale
@@ -138,7 +139,16 @@ def get(h, repo, path):
         # `/courses.json` stays exactly as it was -- the board's own switcher
         # reads it, and a payload two surfaces share is a payload that grows a
         # field for one of them and breaks the other.
-        return h.send_json(machines.atlas_payload(repo))
+        #
+        # `holders=1` IS THE ONE FIELD THAT IS ASKED FOR RATHER THAN SENT.
+        # Which assistant is attached in each workspace is an `agent.json` per
+        # workspace off a shared filer -- 37 ms against 0.4 ms for the whole
+        # cached payload -- and the front door polls this route every 20
+        # seconds while drawing none of it. The dispatch panel draws it and
+        # asks for it; see `machines._mark_holder`.
+        want = urllib.parse.parse_qs(urllib.parse.urlparse(h.path or "").query)
+        return h.send_json(machines.atlas_payload(
+            repo, holders=want.get("holders", [""])[0] == "1"))
 
     # THE DECK, AND THERE IS EXACTLY ONE OF IT. No name arrives from the
     # browser at all -- `meeting.STEM` is a constant, and the three routes
@@ -583,17 +593,17 @@ def post(h, repo, path):
             "from": "student", "text": task, "signal": None, "read": False,
         }
         turns.write_turn(target, record)
-        with open(target.messages_path, "a", encoding="utf-8") as fh:
-            fh.write(json.dumps(record) + "\n")
 
         # AND THE MISSION IS A RECORD, IN THE WORKSPACE IT IS ABOUT.
         #
         # Asked for in these words: *"just because I close the iPad doesn't mean
         # that should end. Next time I open the iPad and access the board, that
         # mission should still be going or notify me somewhere if it's done."*
-        # The daemon already survived the lid; nothing said it had. Written LAST,
+        # The daemon already survived the lid; nothing said it had. Written
         # after the start was allowed and the task is on disk, because a record
-        # of a mission that was refused is a row about work nobody is doing.
+        # of a mission that was refused is a row about work nobody is doing --
+        # and BEFORE the inbox line, because that line is what wakes the daemon
+        # and `board brief` reads this record to know the turn is a doing one.
         #
         # `ship` is carried here and honoured when the mission ENDS -- see
         # `missions.py` -- because the record is written once and read by that
@@ -611,6 +621,12 @@ def post(h, repo, path):
         rec = missions.dispatch(match["root"], task=task, turn=tid,
                                 agent=agent, ship=bool(payload.get("ship")),
                                 frm=atlas.identify(repo.root), ceiling=ceiling)
+        # AND NOW THE INBOX LINE, WHICH IS THE WAKING. `board wait` polls this
+        # file four times a second, so everything the woken turn reads about
+        # itself is on disk before it lands. The line is their words and
+        # nothing else: what kind of turn this is comes out of `board brief`.
+        with open(target.messages_path, "a", encoding="utf-8") as fh:
+            fh.write(json.dumps(record) + "\n")
         missions.forget()
         h.server.hub.worker.dirty.set()
         # WHAT IT DID, IN ONE SENTENCE, ON THE GLASS. A swap that happens

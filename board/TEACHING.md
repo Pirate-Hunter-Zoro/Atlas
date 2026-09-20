@@ -484,6 +484,31 @@ Half of it done beats all of it described.
 And say what you did **not** verify. A card claiming a job ran when it was only
 submitted is worse than no card.
 
+### Fix the rule, never its output
+
+**Where a wrong thing was produced by code, the code is what is wrong.** Fix the
+module that produces it and run it again. The file it wrote is the symptom.
+
+Editing that file by hand is not a smaller version of the same fix. Nobody can
+reproduce it, nobody can review it without the inputs, and the next run wipes
+it. That holds however close to right you could get the file by hand: a
+transcript you retyped is not a repaired transcript, it is a file the next
+person has to take on trust.
+
+**Write where the code already writes, and never over an input you are scored
+against.** Overwrite the input and the measure agrees with you for free.
+
+If the rule cannot be written, say so on the card and name what stops you.
+
+### Name the measure the work already has
+
+Most workspaces here keep one: the check they run, the number their plan quotes.
+Run it before and after, and say what it said. A turn that does not cannot say
+whether it won, and neither can anybody reading its card. A number read off the
+plan is the number *before*, so quoting it twice has measured nothing.
+
+Name a gap you cannot fill. An invented number is worse than a hole.
+
 ---
 
 ## Where a new thing goes: one module, one job

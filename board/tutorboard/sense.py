@@ -106,6 +106,27 @@ PLAIN_SENSE = (
 ) % (plain.CARD_WORDS, plain.PARAGRAPH_WORDS)
 
 
+# THE WORK IS ALREADY SCORED, and a turn that does not look cannot say whether
+# it won -- nor can anybody reading its card. Most workspaces here keep a
+# measure: the check they run, the number their plan quotes.
+#
+# In every briefing rather than in one kind of sitting, for `PLAIN_SENSE`'s
+# reason: a lesson invents a number as readily as a change does.
+#
+# SCOPED, because plenty of sittings have no check to run. A chapter of group
+# theory is scored by nothing, and a rule with no referent is answered anyway --
+# a sentence of the card spent saying there is no measure.
+#
+# The verb is RUN. A number read off the plan is the number BEFORE, so a turn
+# that quotes it twice has measured nothing.
+MEASURE_SENSE = (
+    "NAME THE MEASURE THIS WORK ALREADY HAS, where it has one -- the check the "
+    "workspace runs, the number the plan quotes. RUN IT before and after, and "
+    "say what it said. Name a gap you cannot fill; an invented number is worse "
+    "than a hole. "
+)
+
+
 METHOD_SENSE = (
     "Follow live/TEACHING.md, and the rule it all follows from: THE LESSON IS "
     "EXERCISES, not explanation. Never write a card that teaches for four "
@@ -246,6 +267,28 @@ DOING_SENSE = (
     "file and it will run; getting away with it is not the test, and the test "
     "is what the box looks like on the map. live/TEACHING.md says the same "
     "under `Where a new thing goes`. "
+)
+
+
+# WHAT A DOING TURN IS ALLOWED TO CHANGE, and it is the code rather than what
+# the code printed. A wrong artifact is a wrong rule with a file under it, so
+# the file is a symptom and hand-editing it treats the symptom: nobody can
+# reproduce the edit, nobody without the inputs can review it, and the next run
+# of the module puts the old answer back.
+#
+# Carried by every turn whose product is a change -- the code written for them,
+# a paper, a deck, a revision, a ship, a mission -- because each of them can be
+# finished by hand and each of them is worthless when it is.
+RULE_SENSE = (
+    "AND FIX THE RULE, NEVER ITS OUTPUT. Where a wrong thing was produced by "
+    "code, the code is what is wrong: fix the module that produces it and run "
+    "it again. Editing the output by hand is not a smaller version of the same "
+    "fix -- nobody can reproduce it, nobody can review it without the inputs, "
+    "and the next run wipes it. That holds however close to right you could get "
+    "the file by hand. If the rule cannot be written, say so on the card and "
+    "name what stops you. AND WRITE WHERE THE CODE ALREADY WRITES, never over "
+    "an input you are scored against: overwrite it and the measure agrees with "
+    "you for free. "
 )
 
 
@@ -982,7 +1025,8 @@ REVISE_SENSE = (
 
 def revise_sense(document_rel, feedback_rel):
     """The inbox line for one round of feedback on one document."""
-    return REVISE_SENSE % (document_rel, feedback_rel)
+    return (REVISE_SENSE % (document_rel, feedback_rel)
+            + MEASURE_SENSE + RULE_SENSE)
 
 
 # WHAT A REWORK TURN IS WOKEN WITH, and the difference from a revision is one
@@ -1014,7 +1058,8 @@ REWORK_SENSE = (
 
 def rework_sense(document_rel, feedback_rel, purpose):
     """The inbox line for an overhaul of one document."""
-    return REWORK_SENSE % (document_rel, feedback_rel, (purpose or "").strip())
+    return (REWORK_SENSE % (document_rel, feedback_rel, (purpose or "").strip())
+            + MEASURE_SENSE + RULE_SENSE)
 
 
 # WHAT A SHIP TURN IS WOKEN WITH, and it names the mission rather than the diff.
@@ -1041,7 +1086,8 @@ SHIP_SENSE = (
 
 def ship_sense(agent, task):
     """The inbox line for a mission that has been told to ship itself."""
-    return SHIP_SENSE % (agent or "an assistant", (task or "").strip())
+    return (SHIP_SENSE % (agent or "an assistant", (task or "").strip())
+            + MEASURE_SENSE + RULE_SENSE)
 
 
 # WHAT A TURN WOKEN BY A MARK ON A MEETING SLIDE IS TOLD, and the whole of it
@@ -1176,7 +1222,8 @@ def writeup_sense(makes, about=""):
     said = (about or "").strip()
     return (WRITEUP_ASK_SENSE
             % {"what": ("a DECK of slides" if makes == "slides" else "a PAPER"),
-               "about": said or WRITEUP_EVENING}) + MAKE_SENSE
+               "about": said or WRITEUP_EVENING}
+            + MAKE_SENSE + MEASURE_SENSE + RULE_SENSE)
 
 
 def session_sense(repo, doing=None):
@@ -1190,13 +1237,17 @@ def session_sense(repo, doing=None):
 
     Everything between them is `_session_sense`, which is the sitting itself.
 
-    `doing` is answered from the sitting unless a CALLER knows better, and one
-    does: a step handed over is a doing turn inside a coaching sitting, and the
-    sitting is unchanged on purpose. Asking the state would say `teach`, which
-    is right about the sitting and wrong about this turn.
+    `doing` is answered from the sitting unless a CALLER knows better, and two
+    do. A step handed over is a doing turn inside a coaching sitting, and the
+    sitting is unchanged on purpose. A mission is a change somebody asked a
+    workspace for from another board, and it is a doing turn whatever that
+    workspace teaches under -- `board brief` passes it. Asking the state would
+    say `teach` in both, which is right about the sitting and wrong about the
+    turn. Pass `True` or nothing: `False` would take the order away from a
+    workspace whose standing answer is to write the code.
     """
     st = repo.state()
-    said = PLAIN_SENSE + _session_sense(repo)
+    said = PLAIN_SENSE + MEASURE_SENSE + _session_sense(repo)
     # A turn whose product is a CHANGE rather than a card: the code written for
     # them, a paper, a deck. Whether it says so through the sitting's aim, the
     # kind of sitting, or the stance -- all three mean the same thing about the
@@ -1207,7 +1258,7 @@ def session_sense(repo, doing=None):
                  or (aim and config.AIM_STANCE.get(aim) == "do")
                  or (st.get("session") in (None, "", "lecture")
                      and config.stance_for(repo.root, st) == "do"))
-    return said + (DOING_SENSE if doing else "")
+    return said + (DOING_SENSE + RULE_SENSE if doing else "")
 
 
 def _session_sense(repo):

@@ -57,25 +57,39 @@ window.Element.prototype.releasePointerCapture = function () {};
 
 const posted = [];
 let elsewhereAnswer = null;
+let elsewhereDelay = 0;          // how long the server holds the dispatch
+let holdersAsked = false;        // and whether the panel asked for the holders
 window.fetch = (u, opt) => {
   posted.push({ url: String(u), body: opt && opt.body ? JSON.parse(opt.body) : null });
   if (/slate\/state/.test(String(u))) {
     return Promise.resolve({ json: () => Promise.resolve({ pages: [] }) });
   }
-  if (/\/atlas\.json$/.test(String(u))) {
+  if (/\/atlas\.json(\?|$)/.test(String(u))) {
+    // `holder` rides on the row for the fence's reason: the workspace is
+    // picked before the assistant is, and it is what decides whether the tap
+    // buys a start of seconds or a stop, a handoff and a start of minutes.
+    // Asked for rather than sent — the front door polls this same route.
+    holdersAsked = /holders=1/.test(String(u));
     return Promise.resolve({ json: () => Promise.resolve({ workspaces: [
       { repo: 'PSYCH-ASR', id: 'research/PSYCH-ASR', family_name: 'Research',
-        course: 'PSYCH-ASR', chapter: 'cli', current: true },
+        course: 'PSYCH-ASR', chapter: 'cli', current: true, holder: '' },
       { repo: 'TRD-EHR', id: 'research/TRD-EHR', family_name: 'Research',
         course: 'TRD-EHR', chapter: 'the grid', current: false,
-        fenced: ['phi'] },
+        fenced: ['phi'], holder: 'claude' },
       { repo: 'Galois-Theory', id: 'courses/Galois-Theory', family_name: 'Courses',
-        course: 'Galois Theory', chapter: 'Ch 04', current: false, fenced: [] },
+        course: 'Galois Theory', chapter: 'Ch 04', current: false, fenced: [],
+        holder: '' },
     ] }) });
   }
   if (/\/elsewhere$/.test(String(u))) {
-    return Promise.resolve({ json: () => Promise.resolve(
-      elsewhereAnswer || { ok: true, repo: 'TRD-EHR', turn: 't0007' }) });
+    const answer = elsewhereAnswer || { ok: true, repo: 'TRD-EHR', turn: 't0007' };
+    const reply = { json: () => Promise.resolve(answer) };
+    // A REAL SWAP HOLDS THIS REQUEST FOR MINUTES, so one case here holds it
+    // long enough for the glass to have to say something while it waits.
+    if (elsewhereDelay) {
+      return new Promise((r) => setTimeout(() => r(reply), elsewhereDelay));
+    }
+    return Promise.resolve(reply);
   }
   if (/\/colibri$/.test(String(u))) {
     return Promise.resolve({ json: () => Promise.resolve({
@@ -602,6 +616,115 @@ panel.hidden
   ? ok('and a dispatch that stopped nobody has nothing to read, so the '
        + 'panel gets out of the way')
   : fail('a dispatch that displaced nobody left the panel up');
+
+/* ------------------------------------- and a five-minute wait is not a hang
+//
+// "Fix that interim line problem so it doesn't feel like a hang."
+//
+// A dispatch that names a different assistant than the one listening stops
+// that one first, and the stop is a model call — the outgoing daemon writes
+// its handoff on the way out. 180 s for the stop, 60 for the start, 60 more
+// for a put-back, and the request is held for all of it. One line that never
+// moves for five minutes is read as a dead app on a tablet, and the next move
+// is a second tap or a closed panel, which are the two wrong ones. */
+{
+  doc.getElementById('btn-work-elsewhere').click();
+  await sleep(80);
+  holdersAsked
+    ? ok('the panel asks the atlas who is listening in each workspace, which '
+         + 'the front door polling the same route does not')
+    : fail('the panel took the atlas without asking for the holders');
+  /claude listening/.test(rows()[0])
+    ? ok('and the row says it BEFORE the tap, next to the fence and for its '
+         + 'reason: ' + rows()[0])
+    : fail('the row says nothing about who is attached: ' + rows()[0]);
+  /listening/.test(rows()[1])
+    ? fail('a workspace with nobody in it claims a holder: ' + rows()[1])
+    : ok('while a workspace with nobody in it says nothing: ' + rows()[1]);
+
+  // TRD-EHR holds a fence, so `colibri` is already chosen — and `claude` is
+  // listening there, so this tap is a stop and a start.
+  doc.getElementById('elsewhere-list').querySelectorAll('button')[0].click();
+  await sleep(40);
+  task.value = 'the one that has to put somebody out first';
+  task.dispatchEvent(new window.Event('input'));
+  await sleep(40);
+  elsewhereDelay = 1400;
+  elsewhereAnswer = { ok: true, repo: 'TRD-EHR', turn: 't0011',
+    stopped: 'claude',
+    detail: "'claude' was stopped in TRD-EHR and 'colibri' has it now." };
+  go().click();
+  const first = said();
+  /stopping claude/.test(first) && /starting colibri/.test(first)
+    && /TRD-EHR/.test(first)
+    ? ok('the tap names who is being stopped and who is starting: "' + first + '"')
+    : fail('a stop-and-start was announced as a start: "' + first + '"');
+  /handoff/.test(first) && /model call/.test(first)
+    ? ok('and why it takes minutes rather than seconds, because somebody who '
+         + 'knows the wait is expected does not tap again')
+    : fail('the wait is not explained: "' + first + '"');
+
+  await sleep(1150);
+  const later = said();
+  later !== first && /\ds$/.test(later)
+    ? ok('and the line moves while the request is held: "' + later + '"')
+    : fail('the line was static for the whole wait: "' + later + '"');
+
+  await sleep(500);
+  /colibri.*has it now/.test(said())
+    ? ok('and the answer replaces the clock when it lands')
+    : fail('the answer never landed: "' + said() + '"');
+  const settled = said();
+  await sleep(1200);
+  said() === settled
+    ? ok('and the clock stops, rather than painting over what happened')
+    : fail('the clock kept running over the answer: "' + said() + '"');
+
+  // AND A DISPATCH THAT PUTS NOBODY OUT SAYS THE ORDINARY THING. Naming the
+  // assistant already there stops nothing — a warm prefix costs hours — so
+  // there is no stop to wait for and nothing to explain.
+  elsewhereDelay = 0;
+  elsewhereAnswer = { ok: true, repo: 'TRD-EHR', turn: 't0012' };
+  doc.getElementById('btn-work-elsewhere').click();
+  await sleep(80);
+  doc.getElementById('elsewhere-list').querySelectorAll('button')[0].click();
+  await sleep(40);
+  doc.getElementById('elsewhere-who').querySelectorAll('button')[1].click();
+  await sleep(40);
+  task.value = 'and one that puts nobody out';
+  task.dispatchEvent(new window.Event('input'));
+  await sleep(40);
+  go().click();
+  const plain = said();
+  /^starting it/.test(plain) && !/stopping/.test(plain)
+    ? ok('naming the assistant already there reads the ordinary line: "'
+         + plain + '"')
+    : fail('a start that stops nobody was announced as a swap: "' + plain + '"');
+  await sleep(60);
+
+  // And so does one into a workspace with nothing attached at all — NAMING
+  // somebody, because a dispatch that names nobody displaces nobody whatever
+  // is listening, and a check that passes on that is not checking this.
+  doc.getElementById('btn-work-elsewhere').click();
+  await sleep(80);
+  doc.getElementById('elsewhere-list').querySelectorAll('button')[1].click();
+  await sleep(40);
+  doc.getElementById('elsewhere-who').querySelectorAll('button')[1].click();
+  await sleep(40);
+  whoOn() === 'claude'
+    ? ok('and a named assistant over an empty workspace is still named')
+    : fail('the pick did not take: "' + whoOn() + '"');
+  task.value = 'and one into an empty box';
+  task.dispatchEvent(new window.Event('input'));
+  await sleep(40);
+  go().click();
+  const empty = said();
+  /^starting it/.test(empty) && !/stopping/.test(empty)
+    ? ok('and so does one into a workspace with nothing attached: "'
+         + empty + '"')
+    : fail('an empty workspace was announced as a swap: "' + empty + '"');
+  await sleep(60);
+}
 
 console.log(errors.length ? '\n' + errors.length + ' FAILURES'
   : '\nwho writes this sitting is a choice, and the server says which of four states it is in');

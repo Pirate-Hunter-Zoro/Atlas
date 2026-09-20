@@ -9633,11 +9633,61 @@ function elsewhereFenced() {
   return (hit && hit.fenced) || [];
 }
 
+/* AND WHO IS ALREADY LISTENING IN IT, which is the other thing this panel
+   could not see. Naming a DIFFERENT assistant stops that one first, and the
+   stop is a model call -- the daemon on its way out writes its handoff -- so
+   the tap buys a wait of minutes rather than of seconds. Which of the two it
+   is, is decided by a fact the row carries. */
+function elsewhereHolder() {
+  var hit = (elsewhereList || []).filter(function (w) {
+    return w.repo === elsewherePick;
+  })[0];
+  return (hit && hit.holder) || "";
+}
+
+/* Whether this tap will put somebody out. Naming nobody is "whoever is there"
+   and displaces nobody; the same assistant already there is left alone. Both
+   rules are the server's, and this says the same thing on the glass. */
+function elsewhereSwaps() {
+  var held = elsewhereHolder();
+  return !!(elsewhereAgent && held && held !== elsewhereAgent);
+}
+
+/* THE WAIT IS UP TO FIVE MINUTES AND THE GLASS MUST NOT GO STILL FOR IT.
+   A stop waits 180 s, a start 60, a put-back 60 more, and the request is held
+   for all of it -- correctly, because the server is threaded and the answer is
+   worth waiting for. A line that does not move for that long reads as a hang,
+   and the next thing a person does is tap again or close the panel, which are
+   the two wrong moves while a real stop-and-start is in flight. So the seconds
+   are counted out loud. */
+var elsewhereTick = null;
+
+function elsewhereWaiting(lead, why) {
+  elsewhereWaited();
+  var from = Date.now();
+  var paint = function () {
+    var n = Math.round((Date.now() - from) / 1000);
+    var line = lead + (why ? " \u2014 " + why : "");
+    /* AND WHERE THE ANSWER COMES OUT, once the wait is long enough that
+       somebody would go looking for it somewhere else. */
+    if (n >= 20) line += " \u2014 leave this open; what happened lands here";
+    els.elsewhereSaid.textContent = line + (n ? "  " + n + "s" : "");
+  };
+  paint();
+  elsewhereTick = setInterval(paint, 1000);
+}
+
+function elsewhereWaited() {
+  if (elsewhereTick) clearInterval(elsewhereTick);
+  elsewhereTick = null;
+}
+
 function openElsewhere() {
   els.elsewhere.hidden = false;
   /* A pick belongs to the mission being dispatched, not to the panel: the
      default is the fence's and the last box aimed at may have held none. */
   elsewhereChose = false;
+  elsewhereWaited();
   els.elsewhereSaid.textContent = "";
   els.elsewhereSaid.classList.remove("bad");
   /* And the switch, for the same reason the assistant is: it is a decision about
@@ -9645,8 +9695,13 @@ function openElsewhere() {
      ticked from last time is the one mistake this panel must not make. */
   if (els.elsewhereShip) els.elsewhereShip.checked = false;
   paintElsewhere();
-  if (elsewhereList) return;
-  fetch("/atlas.json").then(function (r) { return r.json(); })
+  /* EVERY OPEN, WITH THE HOLDERS ON IT, AND THE LAST LIST DRAWN MEANWHILE.
+     Which assistant is attached where is the fact the next tap acts on, and it
+     changes whenever one is started or stopped anywhere -- a list read once
+     when the page loaded is hours old by the evening. `holders=1` is asked for
+     rather than sent because the front door polls the same route every 20
+     seconds and draws none of it. */
+  fetch("/atlas.json?holders=1").then(function (r) { return r.json(); })
     .then(function (got) {
       elsewhereList = (got && got.workspaces) || (got && got.courses) || [];
       paintElsewhere();
@@ -9690,6 +9745,16 @@ function paintElsewhere() {
       where.textContent = w.chapter || "";
       b.appendChild(name);
       b.appendChild(where);
+      /* AND WHO IS LISTENING IN IT, ON THE ROW, for the fence's reason: the
+         workspace is chosen before the assistant is, and this is the fact that
+         decides what the second choice COSTS. Naming a different one stops
+         this one, and the stop is a model call. */
+      if (w.holder) {
+        var holds = document.createElement("span");
+        holds.className = "holds";
+        holds.textContent = w.holder + " listening";
+        b.appendChild(holds);
+      }
       /* And whether it holds a fence, ON THE ROW, because the choice of
          workspace is made before the choice of assistant and this is what
          makes that second choice matter. */
@@ -9776,7 +9841,22 @@ els.elsewhereGo.onclick = function () {
   if (!elsewherePick || !els.elsewhereTask.value.trim()) return;
   els.elsewhereGo.disabled = true;
   els.elsewhereSaid.classList.remove("bad");
-  els.elsewhereSaid.textContent = "starting it\u2026";
+  /* WHAT THE TAP IS DOING, NOT WHAT THE SHORTEST VERSION OF IT WOULD DO. A
+     dispatch into an empty workspace is a start and takes seconds. One that
+     names a different assistant than the one listening there is a stop, a
+     handoff written by a model, and then a start -- and the request is held
+     for the whole of it. The same line over both is what makes the long one
+     read as a hang. */
+  var held = elsewhereHolder();
+  elsewhereWaiting(
+    elsewhereSwaps()
+      ? "stopping " + held + " in " + elsewherePick + ", then starting "
+        + elsewhereAgent + "\u2026"
+      : "starting it\u2026",
+    elsewhereSwaps()
+      ? held + " writes its handoff on the way out, which is a model call, so "
+        + "this takes minutes rather than seconds"
+      : "");
   fetch("/elsewhere", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -9784,6 +9864,7 @@ els.elsewhereGo.onclick = function () {
                            ship: !!(els.elsewhereShip && els.elsewhereShip.checked),
                            task: els.elsewhereTask.value.trim() })
   }).then(function (r) { return r.json(); }).then(function (got) {
+    elsewhereWaited();
     /* A REFUSAL IS AN ANSWER AND IT GOES ON THE GLASS. One colibri sitting at a
        time machine-wide, and cards that must not be committed: both are refused
        by name, both name the workspace or the line that changes it, and neither
@@ -9810,6 +9891,7 @@ els.elsewhereGo.onclick = function () {
     }
     els.elsewhere.hidden = true;
   }).catch(function () {
+    elsewhereWaited();
     els.elsewhereSaid.textContent = "the board did not answer";
     els.elsewhereSaid.classList.add("bad");
     els.elsewhereGo.disabled = false;
@@ -9818,6 +9900,7 @@ els.elsewhereGo.onclick = function () {
 
 document.getElementById("btn-work-elsewhere").onclick = openElsewhere;
 document.getElementById("elsewhere-close").onclick = function () {
+  elsewhereWaited();
   els.elsewhere.hidden = true;
 };
 /* Escape leaves the document, the way it leaves the picture viewer. A panel

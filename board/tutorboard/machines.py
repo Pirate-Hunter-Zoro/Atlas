@@ -285,6 +285,39 @@ def _mark_missions(cards, repo):
         }
 
 
+def _mark_holder(cards, ask):
+    """Hang `holder` on each card: the assistant listening in it, or "".
+
+    WHAT A DISPATCH WILL DISPLACE, SAID BEFORE THE TAP RATHER THAN AFTER IT.
+    `⇥ put an assistant to work elsewhere` stops whoever is there when it is
+    given a different name, and that stop is a model call -- the outgoing
+    daemon writes its handoff on the way out, and the request is held for the
+    whole of it. A panel that cannot see the holder cannot say which of those
+    two waits a tap just bought, so it says the short one and reads as a hang.
+    Same reason `fenced` rides here: a chooser must be able to say what a
+    choice costs while there is still a choice.
+
+    ASKED FOR RATHER THAN ALWAYS. This is an `agent.json` per workspace off a
+    shared filer -- 37 ms for eight of them against 0.4 ms for the rest of a
+    cached payload -- and the front door polls the same route every 20 seconds
+    while drawing none of it. So the dispatch panel asks and the door does not.
+
+    OUTSIDE THE ATLAS CACHE, for `_mark_news`'s reason: a name half a minute
+    old is a name somebody taps on. Never raises.
+    """
+    for c in cards:
+        if not ask:
+            # NOT ASKED FOR IS NOT "NOBODY IS THERE", and the rows are the
+            # cached objects themselves -- a name left by a caller that did ask
+            # would be read by one that did not as a fact it never requested.
+            c.pop("holder", None)
+            continue
+        try:
+            c["holder"] = missions.holder(c["root"])
+        except Exception:                            # noqa: BLE001
+            c["holder"] = ""
+
+
 def _pinned(root):
     """The commit a vendor tree is sitting at, short -- or "".
 
@@ -337,7 +370,7 @@ def _trees():
     return out
 
 
-def atlas_payload(repo):
+def atlas_payload(repo, holders=False):
     """Everything the front door draws, in family order.
 
     `families` carries the regions and their order, straight out of
@@ -355,6 +388,7 @@ def atlas_payload(repo):
             c["current"] = paths.same_dir(c["root"], repo.root)
         _mark_news(_ATLAS["value"]["workspaces"], repo)
         _mark_missions(_ATLAS["value"]["workspaces"], repo)
+        _mark_holder(_ATLAS["value"]["workspaces"], holders)
         return _ATLAS["value"]
 
     from .course import plan as course_plan          # circular at module scope
@@ -445,6 +479,9 @@ def atlas_payload(repo):
     # a mission that finished half a minute ago and still says `running` is the
     # one field on this page somebody would act on immediately.
     _mark_missions(cards, repo)
+    # AND WHO IS ATTACHED IN EACH, which a dispatch displaces. Outside the
+    # cache for the same reason again; see `_mark_holder`.
+    _mark_holder(cards, holders)
 
     out = {"families": [dict(f) for f in atlas.families()], "workspaces": cards,
            "trees": _trees()}

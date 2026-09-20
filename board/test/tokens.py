@@ -321,6 +321,8 @@ try:
     check("it says what this sitting is", "Test Course" in out and "Ch 1 - Groups" in out)
     check("it carries the method rather than a pointer to it",
           "THE LESSON IS EXERCISES" in out)
+    check("and the measure the work already has, which every sitting is asked for",
+          "NAME THE MEASURE THIS WORK ALREADY HAS" in out)
     check("it carries this course's rules that do not bend",
           "never make the user transcribe" in out)
     check("and stops at the end of them",

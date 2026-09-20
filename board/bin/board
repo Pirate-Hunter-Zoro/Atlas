@@ -95,8 +95,9 @@ import time
 TOOL = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 sys.path.insert(0, TOOL)
 from tutorboard import (atlas, brief, carry, direction, handoff, leaving,
-                        limits, machine, manuscript, meeting, paths, plain,
-                        ports, processes, reasoning, sense, tex, worktree)
+                        limits, machine, manuscript, meeting, missions, paths,
+                        plain, ports, processes, reasoning, sense, tex,
+                        worktree)
 from tutorboard.net import egress, tailscale
 from tutorboard.course import config, document, homework, paper, review, walk
 # `map` is a builtin; the module keeps the name the board calls the thing and
@@ -1720,8 +1721,17 @@ def cmd_brief(live, args):
     Pair it with `board recap`, which is the other half: this is the standing
     rules, that is the lesson so far. Two calls, and a turn needs nothing else
     before it can teach.
+
+    AND A MISSION IS BRIEFED AS A DOING TURN. `/elsewhere` writes the task into
+    the target's inbox as a sentence of the student's and nothing else, so this
+    briefing is the whole of what a mission reads -- and a workspace whose
+    standing stance is to teach would brief a change somebody asked for as a
+    lesson. `missions.running` is that question, asked here because this is the
+    only place that knows it is answering a cold turn. Only ever `True`: a
+    workspace that says `do` in `tutorboard.json` keeps saying it.
     """
-    sys.stdout.write(brief.briefing(live, sense))
+    doing = True if missions.running(live.root) else None
+    sys.stdout.write(brief.briefing(live, sense, doing=doing))
     return 0
 
 

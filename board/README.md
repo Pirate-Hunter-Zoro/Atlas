@@ -329,6 +329,13 @@ colibrì runs in ended* are the same word and two different next moves.
   *server*; the client is a step of one generation and dies with it, so `left` means this hop and
   a mission that crosses a hop has genuinely failed. A record saying a mission is still running
   while its client is dead is the exact false fact `missions.holder` was added to stop.
+- **A mission is briefed as a doing turn, whatever the workspace teaches under.** The task arrives
+  as a plain sentence of the student's, so `board brief` is the whole of what the daemon reads —
+  and a workspace whose standing stance is `teach` would brief a change somebody asked for as a
+  lesson. `cmd_brief` asks `missions.running`, which is a pure read: no freeze, no prune, and no
+  walk for the newest card where no record is open. Only ever `True`, never `False` — a workspace
+  that says `do` in `tutorboard.json` keeps saying it. The record is written *before* the inbox
+  line for this, because the inbox line is what wakes the daemon.
 - **It comes off the list when it is looked at**, and looking means going there: the board serving
   that workspace stamps its own finished missions on `POST /seen`, which is the far end of the row.
   This workspace and no other — there is exactly one root a board may write into. A *running*
@@ -816,6 +823,20 @@ is wrong even when every suite is green.
   diagram before refactoring anything** — the box with too many arrows into it is the next
   refactor, and guessing which module is untidy before you can see the graph is how the wrong one
   gets rewritten.
+- **FIX THE RULE, NEVER ITS OUTPUT.** Where a wrong thing was produced by code, the code is what
+  is wrong: fix the module that produces it and run it again. A hand-edited artifact cannot be
+  reproduced, cannot be reviewed by anybody without the inputs, and is wiped by the next run — and
+  that holds however close to right the file could have been got by hand. It binds every turn whose
+  product is a change, so it is written in `TEACHING.md` under *Fix the rule, never its output* and
+  in `sense.RULE_SENSE`, which in a headless turn IS the prompt; `test/teaching.py` holds the two
+  in step. Its other half: **write where the code already writes, never over an input you are
+  scored against**, because overwriting the input makes the measure agree with you for free.
+- **Name the measure the work already has.** Most of these workspaces keep one — the check they
+  run, the number their plan quotes. `sense.MEASURE_SENSE` is in every briefing, teaching and
+  doing alike, and in the inbox line of the four turns that never read one — a ship, a write-up,
+  a revision, an overhaul. It asks for the measure to be RUN before and after rather than quoted
+  off the plan, because the number on the plan is the number *before*. A named gap beats an
+  invented number, and a write-up quoting a figure it invented is the worst version of that.
 - **Tracing is not grading.** `vendor/` is not a place work is handed in to; that says nothing
   about whether it can be read. Two rules, written separately in `atlas.json`'s own prose:
   `atlas.workspaces()` skips the family, `atlas.trees()` lists it. Widening the walk is not
@@ -4197,8 +4218,9 @@ are **not** looking at: pick one, say what to do, and go back to what you were d
 `machines.workspaces`, which is a directory walk rather than a registry. The task lands as a turn
 of theirs in that workspace's inbox — which is what `board wait` watches — and the start is
 `tutor agent start <workspace> --respawn --agent <name>`, layer 1, for that daemon only. The
-dispatch is recorded as a mission in that workspace, so the strip says it is still going and says
-how it ended; what comes back comes back hours later, on whichever board is open then.
+dispatch is recorded as a mission in that workspace — before the inbox line, because that line is
+the waking and `board brief` reads the record to know the turn is a doing one — so the strip says
+it is still going and says how it ended; what comes back comes back hours later, on whichever board is open then.
 
 **Naming an assistant where a different one is listening stops that one first.** `agent start` is a
 no-op against a live daemon, so without the stop the task would go to whoever is there under a
@@ -4225,8 +4247,16 @@ because a marker equal to it was written by `news.elsewhere` starting the notifi
 than by a browser.
 
 A swap holds the request while it waits — 180 s for the stop, 60 for the start, 60 more for a
-put-back — and the panel reads *starting it…* for all of it. That is survivable only because the
-server is a `ThreadingHTTPServer` and the service worker passes a POST straight through.
+put-back — so **the panel says which of the two waits a tap bought and counts the seconds out
+loud**. `machines._mark_holder` hangs `holder` on each atlas row, so the row names what is
+listening there and the tap reads *stopping claude in PSYCH-ASR, then starting colibri* with the
+reason under it: the outgoing daemon writes its handoff, which is a model call. A dispatch that
+displaces nobody still reads *starting it…*. The field is **asked for rather than sent** —
+`/atlas.json?holders=1` — because it is an `agent.json` per workspace off a shared filer, 37 ms
+against 0.4 ms for the rest of a cached payload, and the front door polls the same route every 20
+seconds while drawing none of it; the panel re-reads it on every open, because a list read once at
+page load is hours old by the evening. Holding the request for minutes is survivable only because
+the server is a `ThreadingHTTPServer` and the service worker passes a POST straight through.
 `test/elsewhere.py` holds the server half and `test/who.js` the panel.
 
 **`--respawn` on every start into a workspace nobody is looking at** — this route,

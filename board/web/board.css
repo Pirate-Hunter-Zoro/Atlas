@@ -1969,6 +1969,15 @@ body.papering .annbar { z-index: 96; }
   margin: .9rem .3rem .35rem;
 }
 #elsewhere-list .where { color: var(--ink-3); font-size: .7rem; }
+/* WHO IS ATTACHED IN IT. Pushed to the far end with the fence, and to the LEFT
+   of it: a fence is about what an assistant may read there and this is about
+   what a tap costs, and the warning keeps the edge. */
+#elsewhere-list .holds {
+  margin-left: auto;
+  font-family: var(--ui); font-size: .62rem; color: var(--ink-3);
+  white-space: nowrap;
+}
+#elsewhere-list .holds + .fence { margin-left: .45rem; }
 #elsewhere-task {
   display: block; width: 100%; margin: .5rem 0 .4rem;
   font: inherit; padding: .5rem .6rem; border-radius: .4rem;
