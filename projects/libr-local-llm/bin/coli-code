@@ -226,6 +226,27 @@ JSON
         # surfaces as a refused request rather than a compaction. Tell it the
         # real number; it says so itself in the warning it prints.
         "CLAUDE_CODE_MAX_CONTEXT_TOKENS=${COLI_CTX:-131072}"
+        # AND THE CLIENT'S OWN CLOCKS, WHICH ARE SET FOR A HOSTED MODEL.
+        # `API_TIMEOUT_MS` defaults to 600000 -- ten minutes for one request --
+        # against a server that answers a single call in a hundred seconds on a
+        # good one and takes far longer on a long generation. The whole turn
+        # exits 1 on `Request timed out` when a call crosses it, so this is the
+        # ceiling the board's four-hour recipe timeout was never reaching.
+        "API_TIMEOUT_MS=${COLI_API_TIMEOUT_MS:-14400000}"
+        # The body idle watchdog is on for any provider that is not Anthropic's
+        # own, which this gateway is not, and it gives up after five minutes of
+        # quiet. Prefill IS quiet.
+        "API_FORCE_IDLE_TIMEOUT=0"
+        # The two stream watchdogs run whatever the line above says, and the
+        # client clamps both to thirty minutes, so thirty minutes is what there
+        # is to take. A generation that goes longer than that between bytes is
+        # past what this client can be told to wait for.
+        "CLAUDE_STREAM_FIRST_BYTE_TIMEOUT_MS=1800000"
+        "CLAUDE_BYTE_STREAM_IDLE_TIMEOUT_MS=1800000"
+        "CLAUDE_STREAM_IDLE_TIMEOUT_MS=1800000"
+        # A tool call on this node reads a filer and runs a suite. Two minutes
+        # is the default and it is a hosted model's default.
+        "BASH_DEFAULT_TIMEOUT_MS=${COLI_BASH_TIMEOUT_MS:-1800000}"
         # Every one of these is a call to a host nobody asked to be called:
         # telemetry, the changelog, the updater, and the small-model calls that
         # title a conversation. They are off because a session reading PHI
