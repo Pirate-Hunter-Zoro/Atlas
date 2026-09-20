@@ -4196,9 +4196,44 @@ tutor at all.
 are **not** looking at: pick one, say what to do, and go back to what you were doing. The list is
 `machines.workspaces`, which is a directory walk rather than a registry. The task lands as a turn
 of theirs in that workspace's inbox — which is what `board wait` watches — and the start is
-`tutor agent start <workspace> --agent <name>`, layer 1, for that daemon only. The dispatch is
-recorded as a mission in that workspace, so the strip says it is still going and says how it ended;
-what comes back comes back hours later, on whichever board is open then.
+`tutor agent start <workspace> --respawn --agent <name>`, layer 1, for that daemon only. The
+dispatch is recorded as a mission in that workspace, so the strip says it is still going and says
+how it ended; what comes back comes back hours later, on whichever board is open then.
+
+**Naming an assistant where a different one is listening stops that one first.** `agent start` is a
+no-op against a live daemon, so without the stop the task would go to whoever is there under a
+record naming whoever was asked for — and for colibrì that is the fenced directory's job going to
+an assistant that may not read it. The stop is `--wait`, because `missions.holder` names the old
+one until its process is gone; a holder still wrapping up when that wait runs out is refused with
+*ask again in a minute*, and a start refused after the stop puts the old assistant back by name —
+reading the put-back's exit code, because a reply claiming a workspace was restored when it is
+empty is worse than one saying it is empty. The panel says who was stopped and who has it now. Naming **nobody** displaces nobody,
+and the same assistant already there is left alone — a colibrì preamble costs hours to rebuild.
+
+**`swap_blocked` in the route decides what a swap may take**, and refuses for two kinds of reason.
+The stop cannot land: the daemon is attached from another node, and a signal reaches this machine's
+process table only. Or the stop would land and take something claimed: somebody's own interactive
+sitting, a board a second device has open right now, a daemon mid-turn, a mission running there,
+work handed in that nothing has picked up. Each is refused by what it is, never by a command to
+type. An idle listening daemon is neither, and that is the ordinary case — it swaps with no tap
+anywhere else. **Cards do not block**, because every taught workspace has them.
+
+"Nobody is looking" is the dispatcher's assumption and the board checks it: a visible page posts
+`/seen` on a 20-second beat and a hidden one stops, so a marker inside the route's `LOOKING` window
+is another device with that lesson open. It has to be NEWER than that workspace's newest card,
+because a marker equal to it was written by `news.elsewhere` starting the notification clock rather
+than by a browser.
+
+A swap holds the request while it waits — 180 s for the stop, 60 for the start, 60 more for a
+put-back — and the panel reads *starting it…* for all of it. That is survivable only because the
+server is a `ThreadingHTTPServer` and the service worker passes a POST straight through.
+`test/elsewhere.py` holds the server half and `test/who.js` the panel.
+
+**`--respawn` on every start into a workspace nobody is looking at** — this route,
+`spawn.ship_missions` and `/writeup`. A start records the course somebody named, and the one
+address, the next login and every other machine's idea of *the course* follow that record; the
+person is still looking at the board they tapped on. A hub tap records, because a hub tap is a
+person.
 
 ### A workspace that holds a fence
 

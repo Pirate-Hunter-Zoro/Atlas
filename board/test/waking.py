@@ -442,6 +442,40 @@ check("the daemon writes exactly one exit record", len(exit_line) == 1)
 check("and it does not claim to know whether a restart was asked for",
       bool(exit_line) and "restarting" not in exit_line[0])
 
+# AND THE OTHER FLAG THAT SAYS A DAEMON IS OWED: `handover`, which means the
+# machine went rather than a person leaving. `agent_state` MERGES, so a flag
+# nothing clears outlives every later write -- and a record still carrying it
+# while it listens makes the next stop of it read as a machine going away.
+# `tutor agent stop` from the board then leaves a record the watchdog revives,
+# which starts the workspace's configured assistant over whoever was
+# deliberately put there. A start is what answers a handover, so a start is
+# what clears it, and `mark_waking` is the one line every path up goes through.
+import importlib.machinery                                      # noqa: E402
+import importlib.util                                           # noqa: E402
+
+_loader = importlib.machinery.SourceFileLoader("tutorcli_waking", TUTOR)
+_spec = importlib.util.spec_from_loader("tutorcli_waking", _loader)
+tutorcli = importlib.util.module_from_spec(_spec)
+_loader.exec_module(tutorcli)
+
+_live = tempfile.mkdtemp(prefix="handover-")
+with open(os.path.join(_live, "agent.json"), "w", encoding="utf-8") as fh:
+    json.dump({"agent": "claude", "state": "stopped", "pid": 4321,
+               "handover": "2026-09-20 10:00:00", "restarting": True}, fh)
+tutorcli.mark_waking(_live, "colibri")
+# What the daemon then leaves when the board stops it: `state: stopped` merged
+# over whatever is on disk, which is the exact record the watchdog reads.
+tutorcli.agent_state(_live, state="stopped", stopped_at=time.time())
+with open(os.path.join(_live, "agent.json"), encoding="utf-8") as fh:
+    left = json.load(fh)
+check("a start clears the handover flag, so the stop that follows it reads as "
+      "a person's rather than as a machine going away",
+      not left.get("handover"))
+check("and the watchdog leaves that record alone instead of starting the "
+      "configured assistant over the one a dispatch put there",
+      supervise.tutor_verdict(left, left.get("host"),
+                              False) == "stopped")
+
 # AND A RESTART DOES NOT WALK AWAY FROM A RESTART IT STARTED.
 #
 # The foreground waits ninety seconds for the wrap-up turn to write HANDOFF.md

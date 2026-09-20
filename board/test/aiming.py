@@ -707,8 +707,10 @@ try:
               body.get("repo") == "Fields" and body.get("where") == "Fields"
               and "Fields" in (body.get("detail") or ""))
         over = course_repo.Repo(fields)
-        check("the start over there is asked for the way `/elsewhere` asks",
-              ran and ran[-1] == ["agent", "start", "Fields"])
+        check("the start over there is asked for the way `/elsewhere` asks, "
+              "and says a machine asked so the one address stays on the board "
+              "the person is looking at",
+              ran and ran[-1] == ["agent", "start", "Fields", "--respawn"])
 
         with open(over.messages_path, encoding="utf-8") as fh:
             lines = [json.loads(l) for l in fh if l.strip()]

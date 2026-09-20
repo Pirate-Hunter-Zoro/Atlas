@@ -304,6 +304,10 @@ def ship_missions(now=None):
         # Written before the wake, deliberately: the work already exists and the
         # line must not be lost if the start fails. A line sitting in an inbox is
         # picked up by whichever tutor comes up next, which is the recovery.
-        tutor_cli(["agent", "start", w["dir"], "--agent", who], timeout=60)
+        # `--respawn`: a sweep over every workspace on the machine is machinery
+        # deciding, not somebody naming a course, and recording one here moves
+        # the one address to whichever workspace shipped last.
+        tutor_cli(["agent", "start", w["dir"], "--respawn", "--agent", who],
+                  timeout=60)
         handed.append({"ws": w["id"], "mission": rec["id"], "agent": who})
     return handed

@@ -564,6 +564,45 @@ doc.getElementById('elsewhere-said').classList.contains('bad') && !panel.hidden
   ? ok('and it is painted as a refusal, with the panel still open to act on it')
   : fail('a refusal was painted as a success');
 
+// A SWAP IS SAID OUT LOUD. Dispatching a named assistant into a workspace that
+// had a different one stops that one, over there, where nobody is looking --
+// and the person who tapped is the only one in a position to know it happened.
+elsewhereAnswer = { ok: true, repo: 'PSYCH-ASR', turn: 't0009',
+  stopped: 'claude',
+  detail: "'claude' was stopped in PSYCH-ASR and 'colibri' has it now." };
+task.value = 'read the fenced directory';
+task.dispatchEvent(new window.Event('input'));
+await sleep(40);
+go().click();
+await sleep(60);
+/claude.*stopped.*colibri/.test(said()) && !panel.hidden
+  ? ok('a dispatch that put the assistant that was there out says so, and '
+       + 'stays open to say it')
+  : fail('the swap happened silently: "' + said() + '"');
+!doc.getElementById('elsewhere-said').classList.contains('bad')
+  ? ok('and it is not painted as a refusal, because it worked')
+  : fail('a swap that worked was painted as a refusal');
+go().disabled && !task.value
+  ? ok('and the button is off over the empty box it just sent, because one '
+       + 'that is on is a button that lies about what a tap does')
+  : fail('an enabled dispatch button over an empty task box');
+
+// AND AN ORDINARY DISPATCH DISPLACED NOBODY, so there is nothing to read and
+// the panel gets out of the way.
+elsewhereAnswer = { ok: true, repo: 'TRD-EHR', turn: 't0010' };
+doc.getElementById('btn-work-elsewhere').click();
+await sleep(80);
+doc.getElementById('elsewhere-list').querySelectorAll('button')[0].click();
+task.value = 'and one that stops nobody';
+task.dispatchEvent(new window.Event('input'));
+await sleep(40);
+go().click();
+await sleep(60);
+panel.hidden
+  ? ok('and a dispatch that stopped nobody has nothing to read, so the '
+       + 'panel gets out of the way')
+  : fail('a dispatch that displaced nobody left the panel up');
+
 console.log(errors.length ? '\n' + errors.length + ' FAILURES'
   : '\nwho writes this sitting is a choice, and the server says which of four states it is in');
 process.exit(errors.length ? 1 : 0);

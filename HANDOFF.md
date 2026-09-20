@@ -319,6 +319,46 @@ as the answer.
 
 ## Settled, so nobody re-derives it
 
+- **A DISPATCH THAT NAMES AN ASSISTANT TAKES THE WORKSPACE, AND TAKES IT WITHOUT
+  A TERMINAL.** `⇥ put an assistant to work elsewhere` reads `missions.holder`
+  before the start, and where a DIFFERENT assistant is attached it runs
+  `tutor agent stop <workspace> --wait` and then starts the named one. The stop
+  is what makes the start mean anything: `agent_start` answers *already
+  listening* and returns 0 against a live daemon, so without it the task is
+  worked by whoever is there under a record naming whoever was asked for — and
+  for colibrì that is the fenced directory's job going to an assistant that may
+  not read it. **`holder` names the old one until its process is gone**, not
+  until SIGTERM lands, so the wait is `--wait` and the holder is read AGAIN
+  afterwards rather than believed; one still wrapping up when the wait runs out
+  is refused with *ask again in a minute*, because the handoff is a model call
+  and nothing with an iPad waiting on it holds a request open that long. Naming
+  **nobody** is still whoever is there, and the same assistant already attached
+  is left alone — a warm prefix costs hours to rebuild. **`swap_blocked` in
+  `server/routes/machines.py` decides what a swap may take**, for two kinds of
+  reason: the stop cannot land — the daemon is attached from another node and a
+  signal reaches this machine's process table only — or it would land and take
+  something claimed: somebody's own interactive sitting, a board a second device
+  has open inside the route's `LOOKING` window, a daemon mid-turn, a running
+  mission, a handed-in message nothing has picked up. **Cards do not block.**
+  Every taught workspace has them, and a rule that refuses the ordinary case is
+  the feature not landing. Every refusal names what is in the way and none names
+  a command. The stop is the one irreversible thing that precedes the ask, so a
+  start refused after it puts the old assistant back BY NAME and READS the
+  put-back's exit code — a reply claiming a workspace was restored when it is
+  empty is worse than one saying it is empty. **`mark_waking` clears `handover`
+  alongside `restarting`**, because a start is what answers a handover: a record
+  still carrying the flag while it listens makes the next stop read as a machine
+  going away, and `supervise.tutor_verdict` returns `revive`, which puts the
+  workspace's CONFIGURED assistant back over the one a dispatch deliberately
+  placed. **Every start into a workspace nobody is looking at carries
+  `--respawn`** — this route, `spawn.ship_missions` and `/writeup` — because
+  `tutor agent start` records the chosen course and the one address, the next
+  login and every other machine's idea of *the course* follow that record, while
+  the person is still looking at the board they tapped. A hub tap records,
+  because a hub tap is a person. `test/elsewhere.py` holds the server half,
+  `test/who.js` the sentence the panel stays open to say, `test/choice.py` the
+  address and `test/waking.py` the handover flag.
+
 - **A WORKSPACE CONTRACT DESCRIBES THE BOARD THAT IS THERE, AND THE BOARD IS THE
   SAME ONE EVERYWHERE.** `tutorboard.json` declares a `name` and, where the
   repository has answered for itself, a `stance`. **It does not declare a

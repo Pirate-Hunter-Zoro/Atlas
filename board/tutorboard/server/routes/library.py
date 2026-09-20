@@ -278,8 +278,11 @@ def _writeup(h, repo):
         # be committed. The serving workspace keeps the opposite order below,
         # also unchanged: there the board is already up and `wake_tutor` is a
         # start only if nothing is reading.
-        code, out = spawn.tutor_cli(["agent", "start", match["repo"]],
-                                    timeout=60)
+        # `--respawn` for `/elsewhere`'s reason too: a write-up asked for in
+        # another workspace starts a daemon there, and the person is still
+        # looking at this board.
+        code, out = spawn.tutor_cli(["agent", "start", match["repo"],
+                                     "--respawn"], timeout=60)
         said = out.strip()[-300:]
         if code != 0:
             return h.send_json({"ok": False, "repo": match["repo"],

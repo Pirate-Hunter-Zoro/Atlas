@@ -43,6 +43,7 @@ from tutorboard import atlas, colibri, machine, machines, missions, news
 from tutorboard.course import repo as course_repo
 from tutorboard.lesson import notes, state, turns
 from tutorboard.server import handler, hub, tikz
+from tutorboard.server.routes import machines as machines_route
 
 fails = []
 
@@ -322,37 +323,346 @@ try:
               [m for m in missions.stored(psych)
                if m["task"] == "and another one"] == [])
 
-        # AND THE REFUSAL `agent start` CANNOT MAKE: SOMEBODY ELSE IS ALREADY
+        # AND THE THING `agent start` CANNOT DO: SOMEBODY ELSE IS ALREADY
         # THERE. A start where one is attached succeeds and does nothing, so
         # the task would be worked by whoever is listening under a record
         # naming whoever was asked for -- and for colibrì that is the fenced
         # directory's job going to an assistant that may not read it.
-        _spawn.tutor_cli = lambda args, timeout=30: (
-            0, "claude already listening in PSYCH-ASR")
-        write(os.path.join(psych, "live", "agent.json"), json.dumps(
-            {"agent": "claude", "state": "listening", "pid": os.getpid(),
-             "host": machine.node_name(), "last_seen": time.time()}))
+        #
+        # So the one that is there is STOPPED and the named one takes it. The
+        # other remedy is a line to type into a terminal, which is no remedy at
+        # all on the device this board exists for.
+        agent_json = os.path.join(psych, "live", "agent.json")
+
+        def attach(**over):
+            """A headless daemon listening over there, as the board sees one."""
+            rec = {"agent": "claude", "state": "listening", "pid": os.getpid(),
+                   "turns": 1, "mode": "headless",
+                   "host": machine.node_name(), "last_seen": time.time()}
+            rec.update(over)
+            write(agent_json, json.dumps(rec))
+
+        def quiet():
+            """The ordinary idle workspace: nothing unread, nothing running,
+            and no browser on it.
+
+            All three are what the guards below are ABOUT, so every case that is
+            not about one of them starts from a workspace that has none.
+            """
+            open(_repo.Repo(psych).messages_path, "w").close()
+            mdir = os.path.join(psych, "live", "missions")
+            for f in (os.listdir(mdir) if os.path.isdir(mdir) else []):
+                os.remove(os.path.join(mdir, f))
+            missions.forget()
+            news.mark_seen(psych, time.time() - machines_route.LOOKING - 5)
+            news.forget()
+
+        def launcher(lets_go=True, start=0, refuses="colibri"):
+            """`tutor agent stop` as the launcher runs it: the record goes.
+
+            Without this the record stays on disk, `missions.holder` keeps
+            naming the old assistant and no swap can ever be observed.
+
+            `start` is the code a start comes back with and `refuses` is WHOSE
+            start it comes back on, because a dispatch that is refused runs two
+            of them: the one it was asked for, and the put-back of whoever it
+            displaced. `agent_start`'s own refusals are about the assistant
+            being named -- one colibri elsewhere, a tracked card -- so a fixture
+            that fails both cannot tell a put-back that landed from one that
+            did not, and the sentence on the glass is different for each. Empty
+            refuses them all, which is the case where the workspace is left
+            with nothing attached to it.
+            """
+            def run(args, timeout=30):
+                ran.append(list(args))
+                if args[:2] == ["agent", "stop"]:
+                    if not lets_go:
+                        return 0, "claude in PSYCH-ASR is wrapping up"
+                    try:
+                        os.remove(agent_json)
+                    except OSError:
+                        pass
+                    return 0, "claude in PSYCH-ASR is wrapping up"
+                if start and (not refuses or refuses in args):
+                    return start, "'%s' is already working in TRD-EHR" % (
+                        refuses or args[-1])
+                return 0, "colibri starting in PSYCH-ASR"
+            return run
+
+        _spawn.tutor_cli = launcher()
+        attach()
+        quiet()
+        ran[:] = []
         before = len(turns.load_turns(_repo.Repo(psych)))
         status, body = send({"repo": "PSYCH-ASR", "agent": "colibri",
                              "task": "read the fenced directory"})
-        check("a mission naming an assistant is refused where a DIFFERENT one "
-              "is already listening, rather than handed to whoever is there",
-              status == 409 and body.get("ok") is False
-              and "claude" in (body.get("error") or ""))
-        check("and the refusal names the command that frees the workspace, the "
-              "way the other two name what to do about themselves",
-              "tutor agent stop PSYCH-ASR" in (body.get("error") or ""))
-        check("and it wrote neither the task nor a record, because a mission "
-              "stamped with an assistant that is not doing it is a false fact",
+        check("a dispatch naming an assistant where a DIFFERENT one is "
+              "listening stops that one instead of refusing",
+              status == 200 and body.get("ok") is True
+              and ["agent", "stop", "PSYCH-ASR", "--wait"] in ran)
+        check("and the stop comes FIRST and waits, because the holder is named "
+              "until the daemon is gone and a start over a live one is a no-op",
+              [a[1] for a in ran if a[:1] == ["agent"]] == ["stop", "start"])
+        check("and the named assistant is started in its place",
+              ran[-1][:3] == ["agent", "start", "PSYCH-ASR"]
+              and ran[-1][-2:] == ["--agent", "colibri"])
+        check("and nothing anywhere in the answer tells somebody to open a "
+              "terminal, which is the whole of why this stops it itself",
+              "tutor agent stop" not in json.dumps(body))
+        check("and the reply says what it did, naming who was stopped and who "
+              "has the workspace now",
+              body.get("stopped") == "claude"
+              and "claude" in (body.get("detail") or "")
+              and "colibri" in (body.get("detail") or ""))
+        check("and the task and the record are written, because the dispatch "
+              "was allowed",
+              len(turns.load_turns(_repo.Repo(psych))) == before + 1
+              and [m for m in missions.stored(psych)
+                   if m["task"] == "read the fenced directory"])
+
+        # THE START DOES NOT MOVE THE ONE ADDRESS. "You stay here" is what the
+        # panel says, and a start records the course somebody named -- so a
+        # dispatch into a workspace nobody is looking at says a machine asked.
+        check("and the start says a machine asked for it, so the address stays "
+              "on the board that was tapped",
+              "--respawn" in ran[-1])
+
+        # A HOLDER THAT HAS NOT LET GO IS NOT STARTED OVER. The wrap-up is a
+        # model call and takes as long as it takes; the start would be a no-op
+        # and the record a false fact.
+        attach()
+        quiet()
+        _spawn.tutor_cli = launcher(lets_go=False)
+        ran[:] = []
+        before = len(turns.load_turns(_repo.Repo(psych)))
+        status, body = send({"repo": "PSYCH-ASR", "agent": "colibri",
+                             "task": "and this one waits"})
+        check("a holder still wrapping up when the wait runs out is refused "
+              "rather than started over, which would be the no-op back again",
+              status == 409
+              and ["agent", "stop", "PSYCH-ASR", "--wait"] in ran
+              and not any(a[:2] == ["agent", "start"] for a in ran))
+        check("and it says to ask again in a minute rather than what to type",
+              "wrapping up" in (body.get("error") or "")
+              and "again" in (body.get("error") or "")
+              and "tutor agent" not in (body.get("error") or ""))
+        check("and a dispatch that did not start wrote neither the task nor a "
+              "record, because a mission nobody is doing is a false fact",
               len(turns.load_turns(_repo.Repo(psych))) == before
               and [m for m in missions.stored(psych)
-                   if m["task"] == "read the fenced directory"] == [])
+                   if m["task"] == "and this one waits"] == [])
+
+        # WHERE A STOP CANNOT BE UNDONE BY THE START THAT FOLLOWED IT. Neither
+        # of `agent_start`'s own refusals is reachable while something is
+        # attached, so they fire for the first time in a workspace this dispatch
+        # has just emptied -- and one nobody is looking at with no assistant at
+        # all is worse than the refusal that caused it.
+        attach()
+        quiet()
+        _spawn.tutor_cli = launcher(start=1)
+        ran[:] = []
+        before = len(turns.load_turns(_repo.Repo(psych)))
+        status, body = send({"repo": "PSYCH-ASR", "agent": "colibri",
+                             "task": "the one that cannot start"})
+        check("a stop whose start is then refused puts the assistant it "
+              "stopped back, by name",
+              status == 409
+              and ["agent", "start", "PSYCH-ASR", "--respawn",
+                   "--agent", "claude"] in ran)
+        check("and the refusal carries the launcher's reason and says the "
+              "workspace was put back the way it was found",
+              "TRD-EHR" in (body.get("error") or "")
+              and "claude" in (body.get("error") or "")
+              and "again" in (body.get("error") or ""))
+        check("and it wrote nothing, because nothing was started",
+              len(turns.load_turns(_repo.Repo(psych))) == before
+              and [m for m in missions.stored(psych)
+                   if m["task"] == "the one that cannot start"] == [])
+
+        # AND WHERE THE PUT-BACK IS REFUSED TOO, WHICH IS THE SENTENCE THAT
+        # MATTERS MOST. The stop landed, the replacement did not, and the
+        # workspace is empty -- so a reply saying it was put back is a fact the
+        # only person in a position to check it will believe.
+        attach()
+        quiet()
+        _spawn.tutor_cli = launcher(start=1, refuses="")
+        ran[:] = []
+        status, body = send({"repo": "PSYCH-ASR", "agent": "colibri",
+                             "task": "the one nobody can put back"})
+        check("a put-back that is refused as well is said, rather than "
+              "reported as the workspace being the way this found it",
+              status == 409
+              and ["agent", "start", "PSYCH-ASR", "--respawn",
+                   "--agent", "claude"] in ran
+              and "no assistant" in (body.get("error") or "")
+              and "again" not in (body.get("error") or ""))
+
+        # THE SAME ASSISTANT IS LEFT WHERE IT IS. A colibrì preamble is 15,900
+        # tokens and hours of wall clock; stopping one to hand it the next job
+        # throws that away to change nothing.
+        _spawn.tutor_cli = launcher()
+        attach(agent="colibri")
+        quiet()
+        ran[:] = []
+        status, body = send({"repo": "PSYCH-ASR", "agent": "colibri",
+                             "task": "more of the same"})
+        check("dispatching the assistant that is ALREADY there stops nothing, "
+              "because a warm prefix costs hours to rebuild",
+              status == 200 and body.get("stopped") == ""
+              and not any(a[:2] == ["agent", "stop"] for a in ran))
+
+        # AND NAMING NOBODY DISPLACES NOBODY. Only a named assistant is a
+        # decision strong enough to put one out.
+        attach()
+        quiet()
+        ran[:] = []
         status, body = send({"repo": "PSYCH-ASR",
                              "task": "whoever is there will do"})
         check("naming nobody is still whoever is there, which is what a "
               "dispatch that names nobody asks for",
-              status == 200 and body.get("ok") is True)
-        os.remove(os.path.join(psych, "live", "agent.json"))
+              status == 200 and body.get("ok") is True
+              and not any(a[:2] == ["agent", "stop"] for a in ran))
+
+        # ------------------------------------------------------------------
+        # WHAT A SWAP MUST NOT THROW AWAY
+        # ------------------------------------------------------------------
+        # The dispatch aims at a workspace nobody is looking at, so a stop there
+        # goes unwatched. An idle listening daemon costs nothing to replace and
+        # is the ordinary case. A person, a turn, a mission or a handed-in
+        # message is not, and each is refused by what it is rather than by a
+        # command to type.
+        def refused(what, **over):
+            attach(**over)
+            quiet()
+            ran[:] = []
+            st, bd = send({"repo": "PSYCH-ASR", "agent": "colibri",
+                           "task": "take it off " + what})
+            stopped_any = any(a[:2] == ["agent", "stop"] for a in ran)
+            return st, bd, stopped_any
+
+        status, body, killed = refused("a person", mode="interactive")
+        check("somebody's own sitting is never signalled from a board they are "
+              "not sitting at",
+              status == 409 and not killed
+              and "own sitting" in (body.get("error") or ""))
+
+        status, body, killed = refused("a turn", state="working",
+                                       turn_started=time.time())
+        check("a daemon mid-turn is left alone: the turn was asked for by "
+              "somebody and the answer would go to an assistant that has gone",
+              status == 409 and not killed
+              and "working" in (body.get("error") or ""))
+
+        status, body, killed = refused("another machine", host="other-node")
+        check("a daemon attached from another node is not signalled from here, "
+              "because a stop reaches this machine's processes only",
+              status == 409 and not killed
+              and "other-node" in (body.get("error") or ""))
+
+        # NOBODY IS LOOKING IS AN ASSUMPTION, AND THIS BOARD CAN CHECK IT. A
+        # page posts `/seen` on a beat while it is visible, so a fresh marker in
+        # the target is a second device with that lesson open -- and the person
+        # reading it is mid-proof with an assistant they are sending to.
+        attach()
+        quiet()
+        news.mark_seen(psych)
+        news.forget()
+        ran[:] = []
+        status, body = send({"repo": "PSYCH-ASR", "agent": "colibri",
+                             "task": "take it off somebody reading it"})
+        check("a workspace a second device has open right now keeps its "
+              "assistant, because the tap that would take it is somewhere else",
+              status == 409
+              and not any(a[:2] == ["agent", "stop"] for a in ran)
+              and "another device" in (body.get("error") or ""))
+
+        # AND A CLOCK THAT WAS STARTED IS NOT A PERSON. `news.elsewhere` marks a
+        # workspace it has never seen with that workspace's OWN newest card, so
+        # a card written a moment ago would otherwise read as somebody reading
+        # it -- and every swap into a workspace that just answered would stop.
+        attach()
+        quiet()
+        fresh = time.time() - 5
+        card(psych, "0044", "just-landed", "a card from a moment ago",
+             when=fresh)
+        news.mark_seen(psych, fresh)
+        news.forget()
+        missions.forget()
+        ran[:] = []
+        status, body = send({"repo": "PSYCH-ASR", "agent": "colibri",
+                             "task": "and this one goes through"})
+        check("a marker the notification walk wrote to start a clock is not a "
+              "browser, so a workspace that just answered is still swappable",
+              status == 200 and body.get("stopped") == "claude")
+
+        attach()
+        quiet()
+        missions.dispatch(psych, task="hold the grid over there", turn="t0808")
+        missions.forget()
+        ran[:] = []
+        status, body = send({"repo": "PSYCH-ASR", "agent": "colibri",
+                             "task": "take it off a mission"})
+        check("a workspace running somebody else's mission keeps its daemon, "
+              "because stopping it fails that mission under them",
+              status == 409
+              and not any(a[:2] == ["agent", "stop"] for a in ran)
+              and "hold the grid over there" in (body.get("error") or ""))
+
+        attach()
+        quiet()
+        with open(_repo.Repo(psych).messages_path, "a", encoding="utf-8") as fh:
+            fh.write(json.dumps({"id": "m1", "kind": "text", "from": "student",
+                                 "t": time.time(), "text": "what about this",
+                                 "signal": None, "read": False}) + "\n")
+        ran[:] = []
+        status, body = send({"repo": "PSYCH-ASR", "agent": "colibri",
+                             "task": "take it off the inbox"})
+        check("work handed in that no tutor has picked up keeps the tutor it "
+              "was handed to, rather than being answered by a stranger",
+              status == 409
+              and not any(a[:2] == ["agent", "stop"] for a in ran)
+              and "picked up" in (body.get("error") or ""))
+        quiet()
+        os.remove(agent_json)
+
+        # ONE THAT ARRIVES WHILE THE START IS IN FLIGHT. The swap reads the
+        # holder before the start, so everything above this reaches the start
+        # with the workspace empty or already the named assistant's. A daemon
+        # that attaches in between makes the start the no-op the whole route is
+        # about -- the task would be worked by it under a record naming
+        # somebody else -- so the holder is read ONCE MORE after the start, and
+        # a task written before that read is the bug.
+        def arrives(who):
+            """A launcher whose start finds somebody else got there first."""
+            base = launcher()
+
+            def run(args, timeout=30):
+                code, out = base(args, timeout)
+                if args[:2] == ["agent", "start"]:
+                    attach(agent=who)
+                return code, out
+            return run
+
+        _spawn.tutor_cli = arrives("claude")
+        quiet()
+        ran[:] = []
+        before = len(turns.load_turns(_repo.Repo(psych)))
+        status, body = send({"repo": "PSYCH-ASR", "agent": "colibri",
+                             "task": "the one that lost the race"})
+        check("an assistant that attaches while the start is in flight is "
+              "caught by the read after it, rather than being handed the task "
+              "under a record naming the one that was asked for",
+              status == 409 and "claude" in (body.get("error") or "")
+              and "colibri" in (body.get("error") or ""))
+        check("and nothing is written, because the holder is read before the "
+              "task is and not after it",
+              len(turns.load_turns(_repo.Repo(psych))) == before
+              and [m for m in missions.stored(psych)
+                   if m["task"] == "the one that lost the race"] == [])
+        os.remove(agent_json)
+
+        _spawn.tutor_cli = lambda args, timeout=30: (
+            ran.append(list(args)) or (0, "colibri starting in PSYCH-ASR"))
 
         # ------------------------------------------------------------------
         # A MISSION IS A THING, AND CLOSING THE IPAD DOES NOT END IT
@@ -563,8 +873,10 @@ try:
               "start will not swap one assistant for another",
               ["agent", "stop", "TRD-EHR", "--wait"] in ran)
         check("and the hosted one is started in its place, named for that "
-              "daemon only",
-              ["agent", "start", "TRD-EHR", "--agent", "claude"] in ran)
+              "daemon only, and without moving the one address to a workspace "
+              "the sweep happened to finish on",
+              ["agent", "start", "TRD-EHR", "--respawn",
+               "--agent", "claude"] in ran)
         with open(_repo.Repo(trd).messages_path, encoding="utf-8") as fh:
             lines = [json.loads(l) for l in fh if l.strip()]
         check("the turn it is woken with is a [ship] line in that workspace's "

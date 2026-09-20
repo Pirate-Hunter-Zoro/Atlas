@@ -1350,10 +1350,21 @@ def mark_waking(live, agent_name, pid=None):
     daemon that then spends several seconds bringing a link, a board and a
     sitting up before it can listen. Either is enough on its own, which matters
     because a person can start a daemon directly and never go through the other.
+
+    IT CLEARS THE TWO FLAGS THAT SAY A DAEMON IS OWED. `restarting` says a
+    bounce is unfinished and `handover` says the machine went, and both are
+    answered by a daemon arriving -- this one. `agent_state` merges, so a flag
+    nothing clears survives every later write, and a record still carrying
+    `handover` while it listens makes the NEXT stop of it read as a machine
+    going away: `supervise.tutor_verdict` returns `revive` and the watchdog
+    starts the workspace's configured assistant over whoever was deliberately
+    put there. A start is the only thing that has earned the right to clear
+    either, and it is the one place every path up goes through.
     """
     try:
         return agent_state(live, agent=agent_name, pid=pid, state="waking",
                            waking_at=time.time(), restarting=False,
+                           handover=None,
                            last_error=None, failed_at=0, host=this_host())
     except OSError:
         return None
@@ -2087,9 +2098,14 @@ def cmd_agent(cfg, args):
         name = resolve_agent(cfg, course, _flag(args, "--agent"))
         # Somebody named this course -- on the command line, or by tapping it in
         # the hub, which comes through here. That is a decision and it moves the
-        # address; `agent_start` deliberately no longer records one, because its
-        # other callers are timers.
-        remember_course(course)
+        # address; `agent_start` does not record one, because its other callers
+        # are timers. `--respawn` is the same word used there and means the same
+        # thing: a machine asked for this daemon, so it starts one without
+        # moving the address. A dispatch into a workspace nobody is looking at
+        # passes it, because the person is still looking at the board they
+        # tapped on.
+        if "--respawn" not in args:
+            remember_course(course)
         code, msg = agent_start(cfg, course, name)
         print(msg, file=sys.stderr if code else sys.stdout)
         return code

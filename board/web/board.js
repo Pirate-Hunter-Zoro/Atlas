@@ -9796,6 +9796,18 @@ els.elsewhereGo.onclick = function () {
       return;
     }
     els.elsewhereTask.value = "";
+    /* A SWAP IS SAID OUT LOUD AND THE PANEL STAYS UP TO SAY IT. Dispatching a
+       named assistant into a workspace that had a different one stops that one,
+       and the person who tapped is the only one in a position to know it
+       happened. A dispatch that displaced nobody has nothing to read: it
+       clears the box and the panel goes away. */
+    if (got.stopped) {
+      els.elsewhereSaid.textContent = got.detail || "";
+      /* The box was just emptied, so the button stays off until something is
+         typed into it -- an enabled button whose handler returns on the first
+         line is a button that lies about what a tap will do. */
+      return;
+    }
     els.elsewhere.hidden = true;
   }).catch(function () {
     els.elsewhereSaid.textContent = "the board did not answer";

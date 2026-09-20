@@ -170,7 +170,15 @@ with open(os.path.join(cfg_dir, "config.json"), "w", encoding="utf-8") as fh:
     json.dump({"courses_dir": courses_dir}, fh)
 chosen = os.path.join(cfg_dir, "chosen.json")
 
+# `TUTORBOARD_COURSES` is what says "this tree, not this machine's", and the
+# `courses_dir` key above does not say it: `load_config` drops a value from the
+# flat layout, so a launcher started without this walks the REAL repository,
+# finds the real Probability and starts a daemon in a workspace somebody may be
+# being taught in. It also decides nothing -- a start that cannot find the
+# course records no choice either, so every check below would pass on a command
+# that failed outright.
 env = dict(os.environ, XDG_CONFIG_HOME=os.path.join(home, "config"),
+           TUTORBOARD_COURSES=courses_dir,
            BOARD_STATE_DIR=os.path.join(home, "state"))
 
 
@@ -205,10 +213,29 @@ check("and a person naming a course on the command line still records it",
 check("the flag is a flag: the parser knows it, so it is never taken for a course",
       'elif a == "--respawn":' in src_tutor)
 
-# The other half of the rule: the entry points that ARE a person still record.
-i = src_tutor.index('if sub == "start":')
-check("tutor agent start records the course somebody named",
-      "remember_course(course)" in src_tutor[i:i + 1200])
+# The other half of the rule: the entry points that ARE a person still record,
+# and the same word says when one is not. A hub tap comes through `tutor agent
+# start` and is somebody naming a course; a dispatch into a workspace nobody is
+# looking at comes through the same door and must leave the address where the
+# person is.
+def run_agent_start(*extra):
+    subprocess.run([sys.executable, os.path.join(ROOT, "bin", "tutor"), "agent",
+                    "start", "Probability", "--agent", "nosuchagent"] + list(extra),
+                   env=env, cwd=home, stdout=subprocess.DEVNULL,
+                   stderr=subprocess.DEVNULL, timeout=120)
+
+
+with open(chosen, "w", encoding="utf-8") as fh:
+    json.dump({"dir": "Galois-Theory", "root": os.path.join(courses_dir, "Galois-Theory"),
+               "at": 1.0}, fh)
+
+run_agent_start("--respawn")
+check("a start asked for by machinery leaves the address where the person is",
+      recorded() == "Galois-Theory")
+
+run_agent_start()
+check("and tutor agent start records the course somebody named",
+      recorded() == "Probability")
 def source(*parts):
     return open(os.path.join(ROOT, *parts), encoding="utf-8").read()
 
