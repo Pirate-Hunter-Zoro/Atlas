@@ -63,7 +63,40 @@ Therefore
   What is $\EEc{X}{Y = 2}$? What is $\EEc{X}{Y = 2, Z = 1}$?
 \end{problem}
 % ===== SOLUTION 7 =====
-% TODO(mferguson): your work goes here.
+Only the cells with $y = 2$ matter. Boxed in the table:
+\[
+  \begin{array}{ll}
+    p(1,1,1) = \tfrac{1}{8},  & p(2,1,1) = \tfrac{1}{4},\\[2pt]
+    p(1,1,2) = \tfrac{1}{8},  & p(2,1,2) = \tfrac{3}{16},\\[4pt]
+    \boxed{p(1,2,1) = \tfrac{1}{16}}, & \boxed{p(2,2,1) = 0},\\[4pt]
+    \boxed{p(1,2,2) = 0},             & \boxed{p(2,2,2) = \tfrac{1}{4}}.
+  \end{array}
+\]
+Adding them along $x$ gives the two joint entries
+$p_{X,Y}(1,2) = \tfrac{1}{16} + 0 = \tfrac{1}{16}$ and
+$p_{X,Y}(2,2) = 0 + \tfrac{1}{4} = \tfrac{4}{16}$, so
+\[
+  p_Y(2) = \tfrac{1}{16} + \tfrac{4}{16} = \tfrac{5}{16}.
+\]
+Normalising by that total,
+\[
+  p_{X \mid Y}(1 \mid 2) = \frac{1/16}{5/16} = 0.2,
+  \qquad
+  p_{X \mid Y}(2 \mid 2) = \frac{4/16}{5/16} = 0.8,
+\]
+and therefore
+\[
+  \EEc{X}{Y = 2} = 0.2 \cdot 1 + 0.8 \cdot 2 = 1.8.
+\]
+
+Conditioning on $Z = 1$ as well narrows the four boxed cells to two:
+\[
+  \boxed{p(1,2,1) = \tfrac{1}{16}}, \qquad \boxed{p(2,2,1) = 0}.
+\]
+All of the mass sits on $X = 1$, so $X = 1$ is the only possibility and
+\[
+  \EEc{X}{Y = 2,\, Z = 1} = 1.
+\]
 % ===== END SOLUTION 7 =====
 
 \begin{problem}{9 or 10}
@@ -81,7 +114,21 @@ Therefore
   \]
 \end{problem}
 % ===== SOLUTION 9 or 10 =====
-% TODO(mferguson): your work goes here.
+(Problem 9, the discrete case.) Fix a value $y$ with $p_Y(y) > 0$. By the definition of
+conditional expectation,
+\[
+  \EEc{X}{Y = y} = \sum_{x} x\, p_{X \mid Y}(x \mid y).
+\]
+Independence gives $p(x,y) = p_X(x)\,p_Y(y)$ for every pair, so the conditional pmf collapses
+to the marginal, the factor $p_Y(y)$ cancelling:
+\[
+  p_{X \mid Y}(x \mid y) = \frac{p(x,y)}{p_Y(y)} = \frac{p_X(x)\,p_Y(y)}{p_Y(y)} = p_X(x).
+\]
+Substituting that into the sum leaves the definition of $\EE{X}$:
+\[
+  \EEc{X}{Y = y} = \sum_{x} x\, p_X(x) = \EE{X}.
+\]
+This holds for every $y$ with $p_Y(y) > 0$. \qedsymbol
 % ===== END SOLUTION 9 or 10 =====
 
 \begin{problem}{12}
@@ -92,7 +139,35 @@ Therefore
   Show $\EEc{X}{Y = y} = y$.
 \end{problem}
 % ===== SOLUTION 12 =====
-% TODO(mferguson): your work goes here.
+Fix $y > 0$. First the marginal density of $Y$, integrating the joint over all $x$:
+\[
+  f_Y(y) = \int_0^{\infty} \frac{e^{-x/y} e^{-y}}{y}\,dx
+         = \frac{e^{-y}}{y}\Bigl[-y e^{-x/y}\Bigr]_0^{\infty}
+         = \frac{e^{-y}}{y}\bigl[0 - (-y)\bigr]
+         = e^{-y}.
+\]
+The conditional expectation integrates $x$ against the conditional density $f(x,y)/f_Y(y)$,
+with $y$ held fixed so the constants come out of the integral:
+\[
+  \EEc{X}{Y = y}
+    = \int_0^{\infty} \frac{x\, f(x,y)}{f_Y(y)}\,dx
+    = \frac{e^{-y}}{y} \cdot \frac{1}{e^{-y}} \int_0^{\infty} x e^{-x/y}\,dx
+    = \frac{1}{y} \int_0^{\infty} x e^{-x/y}\,dx.
+\]
+Integrate by parts with $u = x$, $du = dx$, $dv = e^{-x/y}\,dx$, $v = -y e^{-x/y}$:
+\[
+  \EEc{X}{Y = y}
+    = \frac{1}{y}\left( \Bigl[-x y e^{-x/y}\Bigr]_0^{\infty}
+        + \int_0^{\infty} y e^{-x/y}\,dx \right)
+    = \frac{1}{y}\left( \lim_{x \to \infty} \frac{-xy}{e^{x/y}}
+        + \Bigl[-y^2 e^{-x/y}\Bigr]_0^{\infty} \right).
+\]
+The boundary term vanishes: by L'H\^opital, $-xy$ differentiates to $-y$ and $e^{x/y}$ to
+$\tfrac{1}{y}e^{x/y}$, so the limit is $\lim_{x \to \infty} -y^2 e^{-x/y} = 0$. The remaining
+bracket is $0 - (-y^2) = y^2$. Therefore
+\[
+  \EEc{X}{Y = y} = \frac{1}{y}\bigl(y^2\bigr) = y. \qedsymbol
+\]
 % ===== END SOLUTION 12 =====
 
 \begin{problem}{22}

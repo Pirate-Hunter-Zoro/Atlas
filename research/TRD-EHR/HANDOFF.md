@@ -1,8 +1,39 @@
 <!-- chapter: predictions -->
-Nothing was taught. This sitting was a doing turn on `predictions` and the student sent only `begin` — twice, in fact; a second `begin` at 11:06:49 archived the first card mid-turn. No student answer exists to build on, and nothing needs re-teaching.
+## Where this got to
 
-What landed. The plan's sign/label watch item is now enforced rather than remembered. `tests/test_feature_importance_direction.py` holds five assertions: a negative logistic coefficient written to `feature_importance_summary.json` and read back by `redraw_feature_importance.py` must reach the plotting helper still negative, so nothing may multiply `importance` by `sign`; the logistic panel colours from the coefficient while the tree panels colour from the Spearman sign; both branches of the panel title keep the model name. Each was made to fail against the reintroduced bug before it was left green. Full suite: 44 passed under the `embedder_pipeline` conda prefix at `/media/studies/ehr_study/analysis/mferguson/venvs/embedder_pipeline`. Committed as a579e2ff. `planning/TRD-EHR_TODO.txt` lost twenty lines of prose for one closed line, and README section 8 no longer claims the tests cover only data loading.
+The predictions arm has a second KNN beside the published one. Importance-weighted
+metric plus a sweep of k from 1 to the whole 34,063-patient pool: committed as
+c267ec57 and now pushed to origin/main. Five new files, nothing in the published
+arm touched, no enum member added, so `knn_results.json` still means what it meant.
 
-The single next thing. Not more work in `predictions` — the plan's two remaining items on this box (7 and 11) are authors' decisions needing Martin Paulus, not tasks. The plan's own Step 1 is integrating his rewritten sections, and that lives in the paper packet, a different box. So the next sitting either raises 7 or 11 with him, or opens where Step 1 actually is. Do not start Step 1 from inside `predictions`.
+Numbers, all measured: ROC AUC 0.625 (95% CI 0.610-0.641) against plain cosine's
+0.594. The curve climbs to roughly k=300 and is flat from there to the whole pool,
+so the inherited k=50 cost more than the metric did. Sharpening is dead -- alpha
+1, 2 and 5 give 0.625, 0.625, 0.624. Full suite re-run this session: 44 passed
+before the new test file, 53 after.
 
-How this works in practice. The pipeline environment is a conda prefix, not a venv and not on `PATH`; invoke its interpreter by full path or nothing imports. `live/` is scratch and gitignored, so cards do not enter commits. `board write` needs a `kind` argument — `lesson` — and `--over` only accepts the absolute path an earlier `board write` printed. The repository's own idiom is that a rule which cannot go red will go stale, so prefer an assertion over a paragraph, and make it fail once before leaving it green.
+## Settled, do not re-teach
+
+The student's own recollection was right and is now confirmed against the fitted
+model: 385 of 4096 coefficients non-zero, top 41 dimensions hold 31% of the
+|beta| mass. The weighted-cosine formula has been named to them in full.
+
+One stale number, code is not wrong: commit c267ec57's message says the top 1%
+carries 30.5%, which is the figure for 40 dimensions. `concentration_summary`
+rounds 40.96 up to 41 and reports 31.08%. No shipped artifact carries 30.5%.
+
+## Teach next
+
+The supervised confound, and only this. Beta is fitted on the pool patients, so
+0.625 is a supervised metric beaten against an unsupervised one; the anchors are
+held out, so nothing leaks, but the comparison is not two retrieval tricks. Until
+beta is fitted inside the training fold alone, every claim resting on that
+0.625-vs-0.594 gap is soft. It is already flagged in the module docstring and the
+README.
+
+## How this student works
+
+They send one long, fully specified request and want the whole of it -- implemented,
+documented, submitted to slurm, results filed -- not one step at a time. They defer
+the maths to you deliberately and then check the numbers you quote against their
+own memory, so quote nothing you have not run.
