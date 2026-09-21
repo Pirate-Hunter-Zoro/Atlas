@@ -210,6 +210,9 @@ def wake_colibri(timeout=1800):
 SHIP_EVERY = 20.0
 _SHIPS = {"at": 0.0}
 
+CARRY_EVERY = 20.0
+_CARRIES = {"at": 0.0}
+
 
 def shipper():
     """Which assistant may push, off the registry. None if this machine has none.
@@ -307,6 +310,101 @@ def ship_missions(now=None):
         # `--respawn`: a sweep over every workspace on the machine is machinery
         # deciding, not somebody naming a course, and recording one here moves
         # the one address to whichever workspace shipped last.
+        tutor_cli(["agent", "start", w["dir"], "--respawn", "--agent", who],
+                  timeout=60)
+        handed.append({"ws": w["id"], "mission": rec["id"], "agent": who})
+    return handed
+
+
+def carry_missions(now=None):
+    """Pick up every mission whose node went away under it.
+
+    The second driver, and there are two because nothing admin-free is one. The
+    first is the mission's own daemon, which re-queues the work itself when
+    `coli-code` exits 75 -- but that daemon lives in the BOARD's allocation and
+    goes with it. This runs in whichever board comes up next, off the record and
+    `agent.json` alone, which in the case that matters is all there is: both
+    allocations ended within the same minute and nothing is running anywhere.
+
+    Called from the hub's poll loop, throttled, beside `ship_missions`. Returns
+    the missions actually picked up, which is what a test reads.
+    """
+    from .. import missions
+    from ..course.repo import Repo
+    from ..lesson import state, turns
+
+    now = float(now or time.time())
+    if now - _CARRIES["at"] < CARRY_EVERY:
+        return []
+    _CARRIES["at"] = now
+
+    handed = []
+    for w, rec in missions.owed(now):
+        root = w["root"]
+        # RECORDED BEFORE ANYTHING CAN REFUSE IT. The board hop is derived from a
+        # record that still says `working`, and the board coming up adopts that
+        # daemon within seconds -- which flips the state and takes the
+        # derivation with it. A pick-up that is derived and then lost is one
+        # nobody makes; written into the record it is owed until it is taken.
+        missions.owe_carry(root, rec, now)
+        # THE TWO-CLIENTS GUARD, SECOND HALF. `owed` judged a moment ago and a
+        # turn may have started since. MID-TURN, not merely attached: an idle
+        # daemon is exactly what an inbox line is for, and a daemon with a client
+        # running is the one thing a second client must not land on.
+        if missions.mid_turn(root, now):
+            continue
+        target = Repo(root)
+        who = rec.get("agent") or "colibri"
+        # AND A WORKSPACE HELD BY ANOTHER ASSISTANT IS TAKEN OFF IT FIRST.
+        # `tutor agent start` will not swap one assistant for another -- a live
+        # record reads as "already listening" and the start is a no-op -- so
+        # without this the `[carry]` line is answered by whoever is sitting
+        # there rather than by the one the mission was dispatched to, which in
+        # a fenced workspace is a different assistant entirely. Same move as
+        # `ship_missions`, and a holder mid-turn is left alone: `mid_turn`
+        # above has already refused this pass.
+        attached = state.load_agent(target) or {}
+        if attached.get("agent") and attached.get("agent") != who:
+            if attached.get("state") != "listening":
+                continue                # waking or reattaching; ask again
+            code, _said = tutor_cli(["agent", "stop", w["dir"], "--wait"],
+                                    timeout=180)
+            if code != 0:
+                continue
+        if not missions.claim_carry(root, rec, now):
+            continue                    # another board took it
+        # The task WHOLE, out of the transcript the dispatch wrote it into. The
+        # record's copy is truncated to `TASK_CHARS` for a two-line strip and is
+        # the fallback rather than the source.
+        task = str(rec.get("task") or "")
+        try:
+            for t in turns.load_turns(target):
+                if t.get("id") == rec.get("id") and t.get("text"):
+                    task = t["text"]
+                    break
+        except OSError:
+            pass
+        # The `[carry] ` tag is not decoration: `board inbox` prints a message
+        # as `[<iso>] <text>` and `tutor.turn_signal` reads the signal back out
+        # of the text, so the tag is how the woken turn learns what it is.
+        record = {
+            "id": turns.next_turn_id(target),
+            "rev": 0, "kind": "text", "answers": None,
+            "t": now, "iso": time.strftime("%Y-%m-%d %H:%M:%S"),
+            "from": "student", "text": "[carry] " + task,
+            "signal": "carry", "read": False,
+        }
+        try:
+            with open(target.messages_path, "a", encoding="utf-8") as fh:
+                fh.write(json.dumps(record) + "\n")
+        except OSError:
+            continue
+        # Written before the wake, for `ship_missions`'s reason: the work
+        # already exists and the line must not be lost if the start fails.
+        # A non-zero is not an error here. Colibri is `exclusive` -- one KV slot
+        # on the machine -- so a refused start is routine, and the line stays in
+        # the inbox for whichever daemon comes up. `carried_at` is stamped, so
+        # the retry is under `CARRY_BACKOFF` rather than on the next pass.
         tutor_cli(["agent", "start", w["dir"], "--respawn", "--agent", who],
                   timeout=60)
         handed.append({"ws": w["id"], "mission": rec["id"], "agent": who})

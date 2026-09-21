@@ -903,16 +903,34 @@ try:
               "its own finished missions off, and nowhere else's",
               [m["id"] for m in missions.listing(galois)] == ["t0101"])
 
-        # THE ONE ASSISTANT WITH A CEILING. A colibri turn runs inside the serve
-        # job's allocation, so the mission cannot outlive that job's walltime --
+        # THE ONE ASSISTANT WITH A CEILING. A colibri TURN runs inside the
+        # serve job's allocation, so it cannot outlive that job's walltime --
         # and an allocation ending leaves no process anywhere to record it.
+        # The MISSION outlives it: the chain brings another generation up and
+        # the pick-up crosses to it, so a passed ceiling with carry budget left
+        # is a hop rather than an ending.
         ceiling = missions.dispatch(trd, task="decode the long one",
                                     turn="t0303", agent="colibri",
                                     ceiling=time.time() - 5)
         missions.forget()
         judged = [m for m in missions.listing(galois) if m["id"] == "t0303"]
-        check("a mission still running past the walltime of the allocation its "
-              "assistant runs in has failed, and says that rather than nothing",
+        check("a mission past its generation's walltime with pick-ups left is "
+              "still running, because the chain brings another generation up",
+              judged and judged[0]["state"] == "running")
+        missions.write(trd, dict(missions.stored(trd)[0],
+                                 carries=missions.CARRY_HOPS))
+        missions.forget()
+        judged = [m for m in missions.listing(galois) if m["id"] == "t0303"]
+        check("and with the pick-ups spent it has failed, and says so rather "
+              "than saying nothing",
+              judged and judged[0]["state"] == "failed"
+              and "picked up six times" in judged[0]["reason"])
+        missions.write(trd, dict(missions.stored(trd)[0], agent="claude",
+                                 ended="", ended_at=0.0, reason=""))
+        missions.forget()
+        judged = [m for m in missions.listing(galois) if m["id"] == "t0303"]
+        check("an assistant with no chain under it is failed by the ceiling "
+              "itself, because nothing is going to bring its allocation back",
               judged and judged[0]["state"] == "failed"
               and "allocation" in judged[0]["reason"])
         check("and the ceiling is read off Slurm's own time-left rather than "

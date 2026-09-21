@@ -48,7 +48,7 @@ must be openable and teachable at every point.
   `board.css`, `plane-core.js`, `gauge.js`, `home.html`, `home.js`, `library.html`,
   `library.js`, `library.css`, anything added to the cache list), or the installed app
   serves its cached copy and the work is invisible.
-- **`bash test/all.sh` before every ship.** 87 suites, all green. `test/tracked.py` runs
+- **`bash test/all.sh` before every ship.** 89 suites, all green. `test/tracked.py` runs
   early — after the browser suites, before everything else — and refuses PHI, 25-megabyte files, model dumps, other authors' papers and
   machine-local config anywhere in the repository — this is public, and git remembers.
   The last of them is **Paper-Writer's own**, run where it is checked out and skipped
@@ -321,14 +321,76 @@ colibrì runs in ended* are the same word and two different next moves.
 - **Nothing attached is not a failure for the first five minutes.** `agent start` forks and
   returns, and the daemon writes `waking` before a `git pull` and a tailnet coming back;
   `processes.WAKING_GRACE` is the same window for the same reason.
-- **Colibrì has a ceiling and it is stamped at dispatch.** A colibrì turn runs inside the serve
-  job's allocation — `coli-code` steps into it with `srun --overlap` — so the mission cannot
-  outlive that job's walltime. `colibri.status()["left"]` is Slurm's own `%L`, and a mission still
-  running past it has failed for a reason worth printing. `coli-up -t` is the only lever.
-  **The chain does not widen it and must not be read as widening it.** A chain replaces the
-  *server*; the client is a step of one generation and dies with it, so `left` means this hop and
-  a mission that crosses a hop has genuinely failed. A record saying a mission is still running
-  while its client is dead is the exact false fact `missions.holder` was added to stop.
+- **Colibrì has a ceiling and it is re-stamped at every turn.** A colibrì turn runs inside the
+  serve job's allocation — `coli-code` steps into it with `srun --overlap` — so the TURN cannot
+  outlive that job's walltime. `colibri.status()["left"]` is Slurm's own `%L`, and it is how long
+  the client answering right now has. `missions.turn_open` writes it at the start of every mission
+  turn, off the generation that turn is about to step into rather than one two hops back.
+  `coli-up -t` is the only lever on it. **A passed ceiling with carry budget left is a hop, not an
+  ending** — freezing a mission at a dead generation's walltime is how somebody is invited to
+  re-dispatch work already running on the successor.
+- **A mission that outlives its node is carried, not failed.** The ceiling bounds the turn; it
+  does not bound the work. `coli-code` asks `squeue` whether the job it stepped into is still
+  `RUNNING` — only `RUNNING`, because a job that has self-cancelled sits there `COMPLETING` — and
+  exits **75** when it is gone. That number is the one signal that tells a hop from a bad answer:
+  the exit code cannot, and `sacct` is unusable on this cluster. The daemon re-queues the same
+  task as a `[carry]` line, `turn_plan` answers it with the `--continue` recipe and `coli-code`
+  resumes the conversation by name, so the pick-up costs seconds of client start rather than a
+  15,900-token preamble. **76 is the other half**: no generation worth stepping into yet, which is
+  a chain gap and neither a hop nor a failure, so the daemon waits `CARRY_BACKOFF` and asks again,
+  counting nothing. The client refuses a generation with less walltime left than the session needs
+  to prefill — an hour cold, half an hour warm — but only where a successor is `RUNNING` or
+  `PENDING`, because with the chain broken trying beats stalling.
+- **`run_turn` kills the process GROUP.** `coli-code` is a shell that runs `srun`, so killing the
+  direct child orphans the step: the client goes on answering and the next turn is a second client
+  on one KV slot. A turn cut at its eight-hour cap is carried like a hop and burns one, which is
+  what bounds a wedged client.
+- **Where the daemon went with the board, the repair is derived from disk.** `missions.carry_verdict`
+  is a pure function of the record, `agent.json` and a clock, and `spawn.carry_missions` runs it
+  out of the hub's poll loop in whichever board comes up next, claiming each hop with `O_EXCL` the
+  way a ship is claimed. That is the case that matters: both allocations end in the same minute
+  and nothing is running anywhere to remember anything. It waits for `missions.mid_turn` to say
+  the workspace is idle, because a second client on one conversation is worse than a late pick-up,
+  and it stops an assistant of another name that is holding the workspace — `tutor agent start`
+  will not swap one for another, so the `[carry]` line would otherwise be answered by whoever is
+  sitting there.
+- **The evidence is `turn_at` in the record, and it has to be.** `agent.json` saying `working` with
+  nothing attached cannot carry that fact across a board hop: the daemon beats every 30 s,
+  `AWAY_SILENCE` is 900 s, and the board coming up adopts the left-behind daemon inside
+  `ADOPT_WINDOW` and writes `waking` over the state within seconds — so that evidence is erased
+  before it ripens, and the mission then reads *done* off the first card a doing turn writes before
+  it starts. Only the daemon writes `turn_at`, `missions.turn_open` sets it before the client
+  starts, and `turn_over` clears it on the two paths where nothing is owed. A stop is not a hop,
+  and the difference is one field: `handover`, the same distinction `supervise.left_behind` draws.
+- **Four numbers bound it, all in the record**, because a backoff a hop resets is not one:
+  `MISSION_LIFE` 18 h of budget, `CARRY_HOPS` 6 pick-ups, `CARRY_BACKOFF` 300 s between them,
+  `STALL_CAP` 2 pick-ups allowed to produce nothing. `missions.thaw` is the one entitlement to
+  clear an ending, and it refuses a mission somebody has already looked at — a record a person has
+  read and acted on must not be resurrected under them.
+- **The backoff holds the WAKE off and says nothing about the work.** A pick-up owed and not yet
+  due reads `soon`, and `judge` treats that exactly as `owed`: a mission read as nothing-owed falls
+  through to the card rule, the card is already down, and the five minutes after every hop would
+  freeze it `done` — which is terminal and which no thaw reaches. `missions.owed` takes only
+  `owed`, so the wake is still one per hop. **A daemon waiting is not a mission nobody is driving**,
+  and from the record the two are identical, so `missions.defer_carry` stamps `carried_at` on
+  every pass of a chain gap — otherwise an hour of ordinary gap spends `CARRY_HOPS` on a mission
+  whose client has not run once. **And the daemon stops where the record stops**: `carry_spent`
+  reads the budget and the ending back off the file before it waits or hops again, so a chain that
+  never comes back is not a turn every five minutes for ever.
+- **Nothing new is launched for any of this.** No sudo, no cron, no new job: a function call inside
+  a loop that already runs, inside the board's own chained job.
+- **What a carry does not cover**, each for its own reason. The board chain stopping, because no
+  admin-free process outlives both allocations — if no board comes up nothing sweeps, and the
+  mission waits for a login to run `tutor resume`. A mission needing more than 18 h including
+  re-prefills, more than 6 pick-ups, or 2 pick-ups that produce nothing. Work the model held in its
+  head rather than writing down, which the carry prompt orders against and cannot enforce. The
+  colibrì chain being down altogether, which nothing here starts — a mission dispatched with no
+  generation running and none queued waits out its budget and fails, and the front door's colibrì
+  tap is the lever. And a pick-up whose conversation cannot be named — a record written
+  before the id was, or a hop out of a chain gap where the id was minted before the client ran —
+  resumes nothing: it fails in seconds and retries as a fresh turn under a new id, which is the
+  safe way round, because *the newest conversation in the store* is somebody else's as often as
+  it is this mission's.
 - **A mission is briefed as a doing turn, whatever the workspace teaches under.** The task arrives
   as a plain sentence of the student's, so `board brief` is the whole of what the daemon reads —
   and a workspace whose standing stance is `teach` would brief a change somebody asked for as a
@@ -345,7 +407,8 @@ colibrì runs in ended* are the same word and two different next moves.
   marks its card in the family, beside the answer badge, so one card can carry both — a mission
   that landed a card is both — and the door above it counts how many.
 `tutorboard/missions.py` is the whole of it, `GET /missions` is the surface for anything that polls
-rather than subscribes, and `test/elsewhere.py` and `test/notify.js` are the suites.
+rather than subscribes, and `test/elsewhere.py`, `test/carry.py`, `test/hopping.py` and
+`test/notify.js` are the suites.
 
 ### A mission can be told to ship itself, and somebody else pushes it
 

@@ -201,6 +201,21 @@ class Hub:
                 spawn.ship_missions()
             except Exception:
                 pass
+
+            # AND A MISSION WHOSE NODE WENT AWAY UNDER IT.
+            #
+            # Here for the same reason as the line above: this loop is the only
+            # thing in the tool that runs without anybody asking it to and
+            # outlives the request that started it. A colibri client is a step of
+            # the serve job's allocation and dies with it, and where the board
+            # went at the same moment there is nothing left anywhere to notice.
+            # Throttled inside `carry_missions`, and each pick-up is claimed with
+            # an exclusive create, so every board running this loop still picks
+            # each mission up exactly once.
+            try:
+                spawn.carry_missions()
+            except Exception:
+                pass
             try:
                 data = self.build()
                 # The digest covers content only; seq is stamped afterwards, or

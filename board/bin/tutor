@@ -52,8 +52,8 @@ import sys
 
 TOOL = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 sys.path.insert(0, TOOL)
-from tutorboard import (atlas, choice, handoff, limits, machine, paths, processes,
-                        supervise, worktree)
+from tutorboard import (atlas, choice, handoff, limits, machine, missions, paths,
+                        processes, supervise, worktree)
 from tutorboard.course import config
 from tutorboard.net import egress, tailscale
 
@@ -169,8 +169,11 @@ DEFAULT_CONFIG = {
             # hosted model that answers in seconds; this one spends hours in
             # prefill before it emits a token, so every turn would be killed and
             # the board would paint it as a turn that FAILED rather than one that
-            # was interrupted. Four hours, taken as a floor by `turn_timeout`.
-            "timeout": 14400,
+            # was interrupted. Eight hours, taken as a floor by `turn_timeout`,
+            # under a nine-hour generation, so the generation's own end is the
+            # cut rather than this number and a turn reaching this one is a
+            # client that is wedged.
+            "timeout": 28800,
             # ONE SITTING AT A TIME, MACHINE-WIDE, AND THE STRING IS THE REASON.
             # The server runs a single KV slot, so a second sitting anywhere on
             # this machine evicts the first one's prefix and the first then
@@ -863,6 +866,9 @@ HANDOFF_PROMPT = (
 import signal
 import threading
 import time
+import uuid
+
+from tutorboard import colibri
 
 # Two prompts, and the difference between them is most of what a headless course
 # costs. The first turn of a daemon's life has nothing in context, so it pays for
@@ -1009,6 +1015,57 @@ TURN_TAIL = (
     "End your turn when the card and the note are written."
 )
 
+# What `coli-code` exits when the generation its step ran in ended under it. The
+# client is the only process that knows which job that was, so it is the only
+# thing that can tell a hop from a bad answer -- and it says so in a number
+# rather than in prose, because prose in a log is not a branch.
+CARRY_EXIT = 75
+
+# And what it exits when there is no generation worth stepping into yet. A chain
+# gap is ordinary -- the successor is a 68-minute cold pin and pends behind a
+# full node -- so a pick-up landing in one must cost neither a hop nor a stall.
+NOTHING_YET_EXIT = 76
+
+
+def reads_as_carry(err):
+    """Did that turn end because its node went, rather than because it failed?"""
+    return err == "exit %d" % CARRY_EXIT
+
+
+def reads_as_wait(err):
+    """Was there nothing to step into, so that nothing has happened at all?"""
+    return err == "exit %d" % NOTHING_YET_EXIT
+
+
+def run_turn(cmd, root, log, timeout, env=None):
+    """Run one turn to completion or to its cap. `(returncode, timed_out)`.
+
+    THE WHOLE PROCESS GROUP, because `coli-code` is a shell that runs `srun`,
+    and killing the shell alone orphans the step: the client goes on answering
+    on the serving node, and the next turn is a second client on one KV slot.
+    `start_new_session` puts the turn in a group of its own so there is a group
+    to signal, and SIGTERM is given fifteen seconds before SIGKILL so a client
+    that can close its transcript does.
+    """
+    p = subprocess.Popen(cmd, cwd=root, stdout=log, stderr=subprocess.STDOUT,
+                         start_new_session=True, env=env)
+    try:
+        return p.wait(timeout), False
+    except subprocess.TimeoutExpired:
+        pass
+    for sig, grace in ((signal.SIGTERM, 15), (signal.SIGKILL, None)):
+        try:
+            os.killpg(os.getpgid(p.pid), sig)
+        except OSError:
+            pass
+        try:
+            p.wait(grace)
+            break
+        except subprocess.TimeoutExpired:
+            continue
+    return p.returncode, True
+
+
 HEADLESS_FIRST_PROMPT = (
     "You are running headless: there is no terminal and nobody will read "
     "stdout. The student is on the board.\n\n"
@@ -1063,6 +1120,37 @@ HEADLESS_RESUME_PROMPT = (
     "than repairing it, one question, then stop. If you have genuinely lost the "
     "thread, `board recap` gives you the whole lesson in one call -- reading the "
     "cards one by one is never the answer.\n\n"
+    + TURN_TAIL
+)
+
+
+# A TURN THAT WAS CUT OFF BY ITS NODE, RESUMED ON THE NEXT ONE.
+#
+# `coli-code` is a step of the colibri serve job's allocation and dies when that
+# generation does. Nothing about the work failed and nothing about the session
+# is gone -- the transcript is on the shared home -- so this turn is told both
+# of those things, and told not to spend a fresh preamble proving it.
+HEADLESS_CARRY_PROMPT = (
+    "Your conversation is resumed. You already hold everything you had read: "
+    "the brief, the contract, the method, the cards, and every tool result you "
+    "had already got back.\n\n"
+    "**The node under you ended. Nothing you did caused this.** The server this "
+    "model runs on moves node every few hours and the client you were speaking "
+    "through is a step of the allocation that went. Your work on disk is "
+    "untouched.\n\n"
+    "Here is the task again:\n\n%(inbox)s\n\n"
+    "**Do not start over, and do not re-read the contract, the method or the "
+    "cards.** Carry on from where you stopped -- redo only the one tool call "
+    "that was in flight when you were cut off. If you have genuinely lost the "
+    "thread, `board brief` and `board recap`, one call each and nothing "
+    "else.\n\n"
+    "**Write files as you finish them rather than holding them.** The next "
+    "interruption takes whatever you are still holding, and there may be "
+    "another one: a generation lasts hours, not days.\n\n"
+    "On this turn the note is about the MISSION rather than about a student's "
+    "answer: where you stopped, and the one thing you are aiming at next. It is "
+    "the fallback if the transcript ever proves unresumable, so write it as "
+    "though the next turn will have nothing else.\n\n"
     + TURN_TAIL
 )
 
@@ -1278,6 +1366,14 @@ def turn_plan(spec, carried, recycle, signal=""):
     # document.
     if signal == "writeup":
         return first, HEADLESS_WRITEUP_PROMPT, True
+    # A CARRY RESUMES, WHATEVER THE COUNT SAYS. `session_turns` is 1, so
+    # `carried` is 0 or 1 and every turn is otherwise fresh -- which makes the
+    # `--continue` recipe unreachable and costs a 15,900-token preamble at a few
+    # tokens a second of prefill on every hop. This is the one place that is
+    # overridden, and the reason is that there IS a session: the turn that just
+    # died opened it.
+    if signal == "carry":
+        return recipe, HEADLESS_CARRY_PROMPT, False
     fresh = carried == 0 or bool(recycle) and carried >= recycle
     return (first if fresh else recipe,
             HEADLESS_FIRST_PROMPT if fresh else HEADLESS_RESUME_PROMPT,
@@ -1325,6 +1421,145 @@ def turn_signal(out):
         m = _SIGNAL_TAG.match(line)
         return m.group(1) if m else ""
     return ""
+
+
+def open_mission(root):
+    """The newest mission record in this workspace that has not ended, or None.
+
+    Which mission the turn that just died was working: a daemon answers one
+    workspace and a workspace runs one mission at a time, so the newest open
+    record is it.
+    """
+    try:
+        for rec in missions.stored(root):
+            if not rec.get("ended"):
+                return rec
+    except Exception:                                        # noqa: BLE001
+        pass
+    return None
+
+
+def mission_turn(root, log=None, renew=False):
+    """Stamp the open colibrì mission with a turn in flight. `(record, env)`.
+
+    Three things at once, all of them about the node going away. `turn_at` is
+    the only evidence of a turn in flight that a board hop cannot overwrite --
+    see `missions.turn_open`. `ceiling` is re-stamped off the generation this
+    turn is about to step into, because the one the dispatch saw may be two
+    hops back and a passed ceiling reads as an ending. `session` is the
+    conversation id the client opens now and resumes after a hop, so a pick-up
+    names the conversation rather than taking whichever is newest in the
+    directory.
+
+    `env` is what the turn runs with, and both are None where there is no
+    colibrì mission -- an ordinary sitting owns none of this.
+
+    `renew` mints a new id, and EVERY TURN THAT IS NOT RESUMING NEEDS ONE: the
+    client refuses `--session-id` for an id that already has a conversation and
+    exits 1, so handing a fresh launch the id the last turn opened kills the
+    turn. A resume that found nothing to resume needs one for the same reason.
+    """
+    rec = open_mission(root)
+    if not rec or rec.get("agent") != "colibri":
+        return None, None
+    sid = ("" if renew else str(rec.get("session") or "")) or str(uuid.uuid4())
+    ceiling = None
+    try:
+        said = colibri.status(fresh=True)
+        left = said.get("left")
+        if (isinstance(left, (int, float))
+                and said.get("state") in ("warm", "loading")):
+            ceiling = time.time() + float(left)
+    except Exception:                                        # noqa: BLE001
+        pass
+    rec = missions.turn_open(root, rec, ceiling=ceiling, session=sid)
+    if log:
+        log.write("-- mission %s in session %s\n" % (rec.get("id"), sid))
+    return rec, dict(os.environ, COLI_SESSION_ID=sid)
+
+
+def carry_line(out):
+    """The same inbox message, tagged as a pick-up rather than a first ask.
+
+    The tag rides in the text because that is where `turn_signal` reads it from,
+    and the stamp stays in front of it because `board inbox` writes the stamp
+    and the daemon is re-queueing something that has already been printed. Every
+    later line -- file paths, a slate -- is kept exactly as it was.
+    """
+    if turn_signal(out) == "carry":
+        return out
+    lines = (out or "").splitlines()
+    for i, line in enumerate(lines):
+        if not line.strip():
+            continue
+        m = re.match(r"^(\[[^\]\n]*\]\s*)(.*)$", line)
+        lines[i] = (m.group(1) + "[carry] " + m.group(2) if m
+                    else "[%s] [carry] %s"
+                    % (time.strftime("%Y-%m-%d %H:%M:%S"), line))
+        return "\n".join(lines)
+    return "[%s] [carry] " % time.strftime("%Y-%m-%d %H:%M:%S")
+
+
+def carry_spent(root, rec):
+    """Is there nothing left to pick this mission up with? The daemon's stop.
+
+    THE STOPPING CONDITION LIVES IN THE RECORD AND IS READ BACK FROM IT, so
+    the daemon and the hub give up on the same mission at the same moment
+    rather than each counting for itself. An ending on the file counts too:
+    once a board has frozen a mission, a daemon still re-queueing it is a turn
+    every five minutes against work nobody is waiting for.
+    """
+    if not rec:
+        return False
+    got = next((r for r in missions.stored(root)
+                if r.get("id") == rec.get("id")), rec)
+    return bool(got.get("ended")) or not missions.has_budget(got)
+
+
+def take_hop(root, log, out, this_signal, ran, why, rec=None):
+    """Own this mission's pick-up and re-queue the work. `(mine, pending)`.
+
+    `mine` is False where there is no colibrì mission in that workspace at
+    all, or where its budget is gone, and the caller falls through to ordinary
+    failure handling -- a sitting that is not a mission has nothing to carry,
+    and a mission out of pick-ups is the failure this turn looks like.
+
+    `rec` IS THE MISSION THE TURN OPENED, AND THE CALLER HAS TO SAY WHICH.
+    Nothing stops a second mission being dispatched into a workspace while the
+    first one's turn is running, and `open_mission` then answers with the
+    newer record -- so the hop is charged to a mission that has not run and
+    the one that was cut off is left owed, which is the same work queued
+    twice. Derived here only where the caller has no record to name.
+
+    THE CLAIM IS WHAT STOPS TWO CLIENTS LANDING ON ONE CONVERSATION. Every
+    board on the machine sweeps every workspace, so this daemon and another
+    board's hub can both decide the same hop is owed. Whoever loses the
+    exclusive create writes no `pending` and falls back to `board wait`, where
+    the winner's `[carry]` line is already sitting.
+    """
+    mrec = rec if rec is not None else open_mission(root)
+    if not mrec or mrec.get("agent") != "colibri":
+        return False, None
+    if carry_spent(root, mrec):
+        log.write("-- %s, and mission %s has no pick-ups left to spend\n"
+                  % (why, mrec.get("id")))
+        return False, None
+    log.write("-- %s; picking the mission up where it stopped\n" % why)
+    sync_transcript(root, log)
+    # Owed first, so a node dying inside this window leaves the repair on disk
+    # for whichever board comes up next.
+    missions.owe_carry(root, mrec)
+    if this_signal == "carry":
+        missions.stalled(root, mrec, ran)
+    # Re-read before claiming: `claim_carry` names its exclusive flag for the
+    # hop number, and `stalled` has just rewritten the file.
+    got = next((r for r in missions.stored(root)
+                if r.get("id") == mrec.get("id")), None)
+    if not got or not missions.claim_carry(root, got):
+        log.write("-- another board has taken this hop; its line is in the "
+                  "inbox and this one waits for it\n")
+        return True, None
+    return True, carry_line(out)
 
 
 def agent_state(live, **kw):
@@ -2297,26 +2532,49 @@ def headless(cfg, course, agent_name, session):
         # Where this turn's own words begin, so that if it fails we can read
         # back what it said rather than guess at why.
         mark = os.path.getsize(logpath) if os.path.exists(logpath) else 0
+        # WHICH MISSION THIS TURN IS, WRITTEN DOWN BEFORE THE CLIENT STARTS.
+        # After `working` and not before it, so no reader ever sees a turn in
+        # flight against a record that still says `listening`. See
+        # `missions.turn_open`: `agent.json` cannot carry this across a board
+        # hop, because the board coming up adopts the daemon and overwrites it.
+        #
+        # AND A FRESH TURN GETS A FRESH CONVERSATION ID. The client refuses
+        # `--session-id` for an id that already has a conversation -- "Session
+        # ID <uuid> is already in use", exit 1 -- and `session_turns` is 1, so
+        # every mission turn that is not a `[carry]` is fresh and would hand
+        # back the id the turn before it opened. `renew` is `fresh` for that
+        # reason: a resume keeps the id, a new session gets a new one.
+        mrec, turn_env = mission_turn(root, log, renew=fresh)
+        started_at = time.time()
+        timed_out = False
+        cap = turn_timeout(cfg, root, spec, this_signal)
         try:
-            p = subprocess.run(cmd, cwd=root, stdout=log, stderr=subprocess.STDOUT,
-                               timeout=turn_timeout(cfg, root, spec, this_signal))
-            err = None if p.returncode == 0 else "exit %d" % p.returncode
+            rc, timed_out = run_turn(cmd, root, log, cap, env=turn_env)
+            err = None if rc == 0 else ("timed out" if timed_out
+                                        else "exit %d" % rc)
             # A resume that finds nothing to resume is not a broken turn; it is a
             # first turn wearing the wrong recipe. Try it once as one.
-            if err and use is not first:
+            # Not where the node went, where there was nothing to step into, or
+            # where the cap cut it: all three keep the session, and retrying
+            # them fresh pays a whole preamble and eats the signal that says
+            # what happened.
+            keeps = timed_out or reads_as_carry(err) or reads_as_wait(err)
+            if err and use is not first and not keeps:
                 # A fresh session holds nothing, so the resume prompt -- which
                 # says "you already have the contract, the method and the lesson"
                 # -- would produce a card written against no contract at all.
                 # Retry as what it actually is: a first turn.
                 log.write("!! resume failed, retrying as a fresh turn\n")
+                # And under a NEW conversation id. The old one may exist but be
+                # unresumable, and `--session-id` on an id that is live is a
+                # collision rather than a fresh session.
+                mrec, turn_env = mission_turn(root, log, renew=True)
                 cmd = with_usage(spec, [a.replace("{prompt}", HEADLESS_FIRST_PROMPT % fill)
                                         for a in first])
-                p = subprocess.run(cmd, cwd=root, stdout=log, stderr=subprocess.STDOUT,
-                                   timeout=turn_timeout(cfg, root, spec, this_signal))
-                err = None if p.returncode == 0 else "exit %d" % p.returncode
+                rc, timed_out = run_turn(cmd, root, log, cap, env=turn_env)
+                err = None if rc == 0 else ("timed out" if timed_out
+                                            else "exit %d" % rc)
                 fresh = True
-        except subprocess.TimeoutExpired:
-            err = "timed out"
         except OSError as exc:
             err = str(exc)
         finally:
@@ -2324,6 +2582,66 @@ def headless(cfg, course, agent_name, session):
 
         if err:
             log.write("!! %s\n" % err)
+            if reads_as_wait(err) and not carry_spent(root, mrec):
+                # NOTHING TO STEP INTO YET, WHICH IS NOT A FAILURE AND NOT A
+                # HOP. A chain gap is ordinary: the successor is a 68-minute
+                # cold pin and pends behind a full node. So no error is
+                # stamped, no hop is counted and no stall is counted -- and the
+                # backoff is not optional, because asking `squeue` in a tight
+                # loop for an hour is the other way to break this.
+                #
+                # AND THE FALLBACK IS TOLD TO LEAVE IT ALONE, BEFORE AND AFTER
+                # THE WAIT. From the record a daemon between attempts looks
+                # exactly like a mission nobody is driving -- `turn_at` set,
+                # `listening` on a node that is fine -- so the hub would claim
+                # a hop every backoff and spend `CARRY_HOPS` inside half an
+                # hour of an ordinary chain gap. See `missions.defer_carry`.
+                #
+                # AND THE WAITING ENDS WHERE THE RECORD'S BUDGET DOES. A chain
+                # that never comes back is not a thing this repairs, and a
+                # daemon asking about it every five minutes for ever, against
+                # a mission the board has already failed, is the shape that
+                # never stops. See `carry_spent`.
+                log.write("-- there is no generation to step into yet; asking "
+                          "again in %d s\n" % int(missions.CARRY_BACKOFF))
+                if mrec:
+                    missions.defer_carry(root, mrec)
+                agent_state(live, state="listening", last_error=None,
+                            failed_at=0, retrying=True)
+                end = time.time() + missions.CARRY_BACKOFF
+                while running["go"] and time.time() < end:
+                    time.sleep(1)
+                if not running["go"]:
+                    break
+                if mrec:
+                    # Again on the way out: the hold expires as the sleep does,
+                    # and the next turn needs the second or two it takes to
+                    # write `working` and re-open the turn.
+                    missions.defer_carry(root, mrec)
+                pending = carry_line(out)
+                continue
+            if reads_as_carry(err) or timed_out:
+                # THE GENERATION ENDED, THE TASK DID NOT FAIL. The client is a
+                # step of the colibri allocation and dies with it; this daemon is
+                # in the BOARD's allocation and is still here. Re-queue the same
+                # work with the resume recipe -- the successor has already
+                # printed COLIBRI-SERVE LOADED, so the next attempt starts
+                # seconds from now.
+                #
+                # A turn cut at its cap is the same move. It burns a hop, which
+                # is what bounds a wedged client, and `run_turn` has already
+                # killed the process group so there is no orphan left answering.
+                mine, pending = take_hop(
+                    root, log, out, this_signal, time.time() - started_at,
+                    "the turn hit its %d h cap" % (cap // 3600) if timed_out
+                    else "the generation that turn ran in ended", rec=mrec)
+                if mine:
+                    # NO FAILURE IS STAMPED. `missions.judge`'s failure rule
+                    # fires off `last_error` within one hub poll, and a mission
+                    # frozen `failed` is never re-derived.
+                    agent_state(live, state="listening", last_error=None,
+                                failed_at=0, retrying=pending is not None)
+                    continue
             # A failed turn has three very different causes wearing one symptom,
             # and they need telling apart. The model refusing, or the agent
             # falling over, is nothing this can fix. The machine being unable to
@@ -2394,9 +2712,16 @@ def headless(cfg, course, agent_name, session):
             # student whose working was handed in and answered by nothing is the
             # one state this tool must never present as normal.
             # In words, not as an exit code. See `failure_reason`.
+            # And the turn is over on this path in the one sense that matters:
+            # nothing is owed. A pick-up repairs a node that went away, not a
+            # model that refused.
+            if mrec:
+                missions.turn_over(root, mrec, time.time() - started_at)
             agent_state(live, state="listening", last_error=failure_reason(said, err),
                         failed_at=time.time(), retrying=pending is not None)
         else:
+            if mrec:
+                missions.turn_over(root, mrec, time.time() - started_at)
             carried = carry_after(this_signal, fresh, carried)
             # What it cost, from the turn's own mouth. Written before anything
             # else here, because this is the whole justification for a turn

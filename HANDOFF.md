@@ -75,7 +75,7 @@ strike those.
 
 ## Before anything
 
-- `bash board/test/all.sh` — 87 suites, about twelve minutes. Green before and
+- `bash board/test/all.sh` — 89 suites, about twelve minutes. Green before and
   after.
   The last of them is Paper-Writer's own, run where it is checked out, so the
   factory's tests are part of the board's habit rather than a second one nobody
@@ -180,24 +180,26 @@ person deciding rather than an assistant acting. **Check the server is still up
 first** — `coli` says, in one line, and now also says how many minutes that
 generation has left and whether one is queued behind it. Nothing is holding the
 dispatch any more: the A/B that owned `.coli_usage` is finished — see MTP under
-Settled. The server itself no
-longer goes away at a walltime (see THE CHAIN under Settled); a mission still
-dies at the hop, so start one with a full generation ahead of it rather than
-twenty minutes.
+Settled. **Dispatch it whenever you like.** The server moves node rather than
+going away (see THE CHAIN under Settled) and the mission crosses the hop with
+it: the client exits 75, the daemon re-queues the same task with `--continue`,
+and where the board hopped in the same minute the next board's hub derives the
+pick-up off the record. Eighteen hours of budget and six pick-ups bound it —
+see A COLIBRÌ MISSION CROSSES THE NODE under Settled.
 
 Three things about running it that are the board's rather than that file's:
 
-- **Start it before you stop for the day.** The first turn is hours rather than
-  minutes — a 15,900-token preamble at a few tokens a second of prefill — and
-  after it the KV prefix carries the preamble. The thing not to do is kill it at
-  ninety minutes and start again; that is the whole cost, paid twice.
-- **Nothing on the board will kill the turn.** The `colibri` recipe carries a
-  four-hour `timeout` that `turn_timeout` takes as a floor, and the daemon's beat
-  thread keeps the indicator green throughout. What WILL kill it is the serve
-  job's walltime, which a colibrì mission's record now carries as a ceiling and
-  says out loud when it passes. The chain does not widen that and must not be
-  read as widening it: it replaces the server, and the client is a step of one
-  generation.
+- **Start it early because it is cheaper, not because it has to finish
+  tonight.** The first turn is hours rather than minutes — a 15,900-token
+  preamble at a few tokens a second of prefill — and after it the KV prefix
+  carries the preamble. The thing not to do is kill it at ninety minutes and
+  start again; that is the whole cost, paid twice.
+- **Nothing on the board will kill the turn.** The `colibri` recipe carries an
+  eight-hour `timeout` that `turn_timeout` takes as a floor, and the daemon's beat
+  thread keeps the indicator green throughout. What kills the TURN is the serve
+  job's walltime, which the record carries as a ceiling and says out loud when
+  it passes — and the turn is not the mission: the work is picked up on the
+  successor rather than ending there.
 - **`PSYCH-ASR` is the only kind of workspace it will open in**, because a colibrì
   sitting refuses where a card of its own would be committed and that workspace
   ignores `live/*` while a course does not.
@@ -318,6 +320,37 @@ as the answer.
 ---
 
 ## Settled, so nobody re-derives it
+
+- **A COLIBRÌ MISSION CROSSES THE NODE THE WAY THE SERVER DOES, AND TWO
+  DRIVERS CARRY IT.** The client is a step of the serve job's allocation and
+  dies with it; the work does not. `coli-code` asks `squeue` whether that job
+  is still `RUNNING` and exits **75** where it is gone, **76** where there is
+  no generation worth stepping into yet. On 75 the mission's own daemon
+  re-queues the task as a `[carry]` line and the next turn resumes the
+  conversation by name — `turn_plan` answers `carry` with the `--continue`
+  recipe whatever the session count says, and the id is in the record rather
+  than left to whichever conversation is newest. On 76 nothing is counted at
+  all: the daemon waits `CARRY_BACKOFF`, stamps `defer_carry` either side of
+  the wait so an ordinary chain gap is not read as a mission nobody is
+  driving, and asks again. **Where the board went in the same minute** the
+  repair is derived from disk instead: `missions.carry_verdict` is a pure
+  function of the record, `agent.json` and a clock, and `spawn.carry_missions`
+  runs it in the hub poll of whichever board comes up next, stopping an
+  assistant of another name that is holding the workspace, because a start
+  will not swap one for another. `turn_at` is the evidence and it lives in
+  the record because `agent.json` cannot hold it — the new board adopts the
+  left-behind daemon and writes `waking` over the state within seconds. **A hop costs one client start and the re-prefill a
+  resumed conversation needs**, minutes against the 15,900-token preamble a
+  fresh one pays, and each hop is claimed with `O_EXCL` so every board on the
+  machine picks a mission up exactly once. **What it refuses**: a stop with no
+  `handover` on it, because a person decided; a mission somebody has already
+  looked at, because a record they have acted on is theirs; more than 18 h of
+  budget, more than 6 pick-ups, or 2 pick-ups that produce nothing; and a
+  generation with less walltime left than the session needs to prefill, where
+  a successor exists to take it. Nothing new runs for any of it — no sudo, no
+  cron, no extra job, a call inside a loop that already turns. `test/carry.py`,
+  `test/hopping.py` and `test/elsewhere.py` hold it; `board/README.md` under
+  *A mission* has the four numbers.
 
 - **A CARD ENDS A MISSION ONLY WHERE THE TURN THAT WROTE IT IS OVER.** A doing
   turn writes one sentence saying what it is about to do, does the work, and
@@ -633,6 +666,8 @@ as the answer.
   the reason is one number: a board generation costs nothing to start and a
   colibrì one costs 68 minutes, so a successor that begins when its incumbent
   ENDS is an hour with no server.
+  **The chain replaces the server and the carry replaces the client** — the entry at the
+  top of this section.
   **The successor cannot land on the incumbent's node** — two 800 GB jobs do not
   fit on a 1 TB box — so every hop pays a cold pin, and that is the deliberate
   price of never being down. A same-node successor would re-read its checkpoint

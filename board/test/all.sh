@@ -207,6 +207,24 @@ else
   printf '%s\n' "$out" | grep '^FAIL' | sed 's/^/             /'
 fi
 
+printf '%-12s ' "carry"
+if out="$(python3 test/carry.py 2>&1)"; then
+  printf '%s\n' "$out" | tail -1
+else
+  fails=$((fails + 1))
+  echo "FAILED"
+  printf '%s\n' "$out" | grep '^FAIL' | sed 's/^/             /'
+fi
+
+printf '%-12s ' "hopping"
+if out="$(python3 test/hopping.py 2>&1)"; then
+  printf '%s\n' "$out" | tail -1
+else
+  fails=$((fails + 1))
+  echo "FAILED"
+  printf '%s\n' "$out" | grep '^FAIL' | sed 's/^/             /'
+fi
+
 printf '%-12s ' "elsewhere"
 if out="$(python3 test/elsewhere.py 2>&1)"; then
   printf '%s\n' "$out" | tail -1

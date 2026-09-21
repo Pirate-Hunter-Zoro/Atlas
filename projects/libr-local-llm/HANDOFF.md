@@ -18,8 +18,10 @@ and they still govern running it:
 
 - **A colibrì turn runs inside the SERVE JOB'S allocation.** `coli-code` steps into it with `srun
   --overlap` rather than ssh, because the endpoint is loopback-only on the serving node. So a
-  mission's ceiling is the serve job's walltime — 9 h, which is both the `c3_short` cap and the
-  default — and `coli-up -t` is the only lever, downward only. A mission longer than that cannot finish, whatever the board records.
+  TURN's ceiling is the serve job's walltime — 9 h, which is both the `c3_short` cap and the
+  default — and `coli-up -t` is the only lever, downward only. **The mission is not the turn**: it
+  is picked up on the generation the chain brings up, so work longer than one allocation finishes
+  across several. *The guarantee, and what it does not cover* below is the whole of it.
 - **Shipping is not this model's job.** It decodes at 3.2–4.4 tok/s and it is the one assistant
   that may read `phi`. The ship belongs to a hosted follow-up turn, which is also a second pair of
   eyes on a local model's diff — a turn that could not have read the session content it is
@@ -89,11 +91,54 @@ From the iPad, from any board: **⇥ put an assistant to work elsewhere** in the
 colibrì sitting refuses to open anywhere its cards would be committed, and says which line
 changes that.
 
-**Start it before you stop for the day.** The first turn is hours rather than minutes: prefill on
-a 15,900-token preamble is two to three hours. After it the KV prefix carries the preamble, so the
-thing not to do is kill it at the ninety-minute mark and start again — that is the whole cost,
-paid twice. Leave the server up between tasks for the same reason; `coli-down` between two jobs is
-expensive.
+**Start it early because it is cheaper, not because it has to finish tonight.** The first turn is
+hours rather than minutes: prefill on a 15,900-token preamble is two to three hours. After it the
+KV prefix carries the preamble, so the thing not to do is kill it at the ninety-minute mark and
+start again — that is the whole cost, paid twice. Leave the server up between tasks for the same
+reason; `coli-down` between two jobs is expensive.
+
+---
+
+## The guarantee, and what it does not cover
+
+**A mission dispatched at any moment, against a generation with any amount of walltime left,
+finishes.** Up to nine hours of work, which is what this job needs and what one allocation holds.
+The turn dies with its generation; the work crosses to the next one.
+
+**How.** `coli-code` is a step of the serve job's allocation, so it dies when that generation
+cancels itself. It asks `squeue` whether the job it stepped into is still `RUNNING` and exits
+**75** where it is gone — that number is the only thing that tells a hop from a bad answer, since
+the exit code cannot and `sacct` is refused on this cluster. The board's daemon re-queues the same
+task as a `[carry]` line and the next turn resumes the same conversation by name on the successor.
+Where the BOARD's own allocation ended in the same minute, the next board's hub derives the
+pick-up from the mission record alone and starts the daemon back up. Two drivers, because nothing
+that runs without admin outlives both allocations.
+
+**What a hop costs.** One client start and the re-prefill a resumed conversation needs — minutes,
+against the two to three hours a fresh session pays. The transcript is on the shared home under
+`$COLI_SESSION_ROOT`, so a node change does not touch it. A conversation the record cannot name is
+the exception: the pick-up runs, fails in seconds and starts a fresh session, which is the safe
+way round — *the newest conversation in the store* is somebody else's as often as it is this
+mission's.
+
+**What a person still does.** Dispatch it whenever it suits; starting early buys the preamble
+being paid once rather than being a condition of finishing. Check the chain is up first — `coli`
+says in one line, and **nothing here starts the server**: a mission dispatched with no generation
+running and none queued waits out its budget and fails. And **write the ask so the work lands on
+disk as it goes**; the carry prompt says so too, but a model holding results in its head loses
+them at the hop and nothing can enforce that from outside.
+
+**What it does not cover.**
+
+- **The board chain stopping.** If no board comes up, nothing sweeps: the mission waits until
+  somebody logs in and runs `tutor resume`.
+- **More than the budget.** 18 h from dispatch including every re-prefill, 6 pick-ups, or 2
+  pick-ups that produce nothing — any of the three fails the mission and says which.
+- **The colibrì chain being down.** Nothing here submits a server job; the front door's colibrì
+  tap is the lever.
+- **A mission somebody has already looked at.** A record read and acted on is never revived under
+  them, even where the reason was a hop.
+- **A turn that wedges.** Eight hours is the cap, and it burns a pick-up.
 
 ---
 
@@ -112,15 +157,20 @@ again. **P0-STATUS finding 21** holds the table and the derivation; the per-conf
 stay outside the repository because they carry generated text.
 
 **`coli-code -c/--continue` continues the session already open**, passed through as `--continue`
-to Claude Code and `-c` to opencode's `run`. The session store is already per-agent under
-`$COLI_SESSION_ROOT` and `CLAUDE_CONFIG_DIR` points at it, so there was nothing else to wire. It
-is not a nicety: a fresh session re-pays the whole preamble, which on this engine is hours.
+to Claude Code and `-c` to opencode's `run`. The session store is per-agent under
+`$COLI_SESSION_ROOT` with `CLAUDE_CONFIG_DIR` pointed at it, so the client finds its own last
+conversation in the directory it was given. It is not a nicety: a fresh session re-pays the whole
+preamble, which on this engine is hours. **A driver that knows which conversation it means says
+so**: `COLI_SESSION_ID`, a uuid, becomes `--session-id` on a new session and `--resume` on a
+continued one, because *most recent in this directory* is not *mine* — a hand-run client between
+a hop and the pick-up is newer. The board mints it into the mission record; a person setting
+nothing gets the old behaviour.
 
 **`colibri` is a row in the agent table and the board learned nothing to accept it.** `cmd` is
 `coli-code`, `headless_first` opens a session, `headless` continues it, `--yes` because a headless
 turn has nobody to approve a tool call. Three fields on the recipe carry everything that is
 unlike the other five, so each of them stops mattering by deleting a line rather than by editing
-this file: `timeout` (four hours, taken as a FLOOR by `turn_timeout`, so a colibrì turn is not
+this file: `timeout` (eight hours, taken as a FLOOR by `turn_timeout`, so a colibrì turn is not
 killed mid-prefill and painted as a failure), `exclusive` (one sitting at a time machine-wide, off
 the heartbeat and never the pid, because a pid written on one node names a process table this one
 cannot read) and `private` (it refuses to open where `git check-ignore` says a card would be

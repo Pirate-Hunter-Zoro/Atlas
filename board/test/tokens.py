@@ -128,6 +128,37 @@ for carried in (1, 5, 40):
     check("with session_turns 1, turn %d is fresh and cold-prompted" % (carried + 1),
           fresh and "--continue" not in use and template is first)
 
+# A TURN PICKED UP AFTER ITS NODE WENT IS RESUMED, WHATEVER THE COUNT SAYS.
+# `session_turns` is 1, so every other turn is fresh and the `--continue` recipe
+# is unreachable -- which on this model is a 15,900-token preamble at a few
+# tokens a second of prefill, paid again on every hop. There IS a session here:
+# the turn that just died opened it and the transcript is on the shared home.
+spec_colibri = {"headless_first": ["coli-code", "--yes", "{prompt}"],
+                "headless": ["coli-code", "--yes", "--continue", "{prompt}"]}
+use, template, fresh = tutor.turn_plan(spec_colibri, 0, 1, "carry")
+check("a carried turn continues the conversation it was cut off in, with "
+      "nothing carried and session_turns 1, which is every other turn fresh",
+      not fresh and "--continue" in use
+      and template is tutor.HEADLESS_CARRY_PROMPT)
+check("and it is told the node went rather than that it failed, because a turn "
+      "told nothing starts over",
+      "Nothing you did caused this" in tutor.HEADLESS_CARRY_PROMPT
+      and "%(inbox)s" in tutor.HEADLESS_CARRY_PROMPT)
+check("and told to write files as it finishes them, because the next "
+      "interruption takes whatever it is still holding",
+      "still holding" in tutor.HEADLESS_CARRY_PROMPT)
+check("and the count goes up, so a second hop resumes what the first one left",
+      tutor.carry_after("carry", False, 0) == 1)
+
+# AND THE TURN GETS EIGHT HOURS, under a nine-hour generation, so the
+# generation's own end is the cut rather than this number. A turn cut at its
+# cap burns a pick-up, which is what bounds a wedged client.
+check("a colibri turn is capped at eight hours, taken as a floor over every "
+      "number a sitting carries",
+      tutor.turn_timeout({"headless_timeout": 900, "doing_timeout": 3600},
+                         "/nonexistent",
+                         tutor.DEFAULT_CONFIG["agents"]["colibri"]) == 28800)
+
 # An agent with no separate opening recipe must still work, and must not be
 # handed a resume prompt on a session it never opened.
 use, template, fresh = tutor.turn_plan({"headless": ["codex", "exec", "{prompt}"]}, 0, 12)

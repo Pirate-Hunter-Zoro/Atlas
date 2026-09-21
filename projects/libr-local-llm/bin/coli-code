@@ -15,6 +15,10 @@
 # KV prefix and starts answering. Anything driving this in turns -- the tutor
 # board's headless daemon, most obviously -- must continue rather than reopen.
 #
+# A step killed with its generation exits 75 here, which is how the board's
+# daemon tells a hop from a bad answer, and 76 where there is no generation
+# worth stepping into yet, which is a wait rather than either.
+#
 # The endpoint is loopback-only on the serving node, so the client has to run
 # there. This steps into the existing allocation with `srun --overlap` rather
 # than ssh: no key, and it lands inside the job with the right devices visible.
@@ -80,6 +84,14 @@ if [ "$AGENT" != claude ]; then
     fi
 fi
 
+# What this exits when the generation its step ran in ended under it. 75 is
+# EX_TEMPFAIL: nothing failed, the machinery went away.
+COLI_CARRIED_AWAY=75
+# EX_TEMPFAIL's neighbour: there is no generation worth stepping into yet, and
+# waiting costs nothing. A driver re-asks under a backoff; a person reads the
+# line above it and goes and has lunch.
+COLI_NOTHING_YET=76
+
 # Find the server. Ask Slurm rather than reading a state file: a state file goes
 # stale the moment a job ends, squeue never does. Under a chain there can be two
 # generations running at once for an hour, so this asks which one can ANSWER
@@ -94,7 +106,7 @@ if [ -z "$JOB_ID" ]; then
         echo "No colibri server is running. Start one:" >&2
         echo "    coli-up" >&2
     fi
-    exit 1
+    exit "$COLI_NOTHING_YET"
 fi
 NODE="$(squeue -j "$JOB_ID" -h -o '%N')"
 echo "Using ${COLI_JOB_NAME} job ${JOB_ID} on ${NODE}" >&2
@@ -105,10 +117,30 @@ echo "Using ${COLI_JOB_NAME} job ${JOB_ID} on ${NODE}" >&2
 # session. `coli-code -c` continues where it left off and the on-disk KV makes
 # the continuation cheap, which is why the number is worth printing.
 LEFT="$(coli_seconds_left "$JOB_ID")"
+
+# A GENERATION WITH MINUTES LEFT IS NOT WORTH STARTING IN. A fresh session pays
+# about ninety minutes of prefill before its first token and a resumed one pays
+# minutes, so the floor is an hour cold and half an hour warm. Only refuse where
+# a SUCCESSOR EXISTS -- with the chain broken there is nothing to wait for, and
+# trying beats stalling. RUNNING or PENDING only: a generation that has
+# self-cancelled sits in the queue as COMPLETING for a minute, and a job that is
+# leaving is not one to wait for.
+FLOOR=3600
+[ -n "$CONTINUE" ] && FLOOR=1800
+if [ -n "$LEFT" ] && [ "$LEFT" -lt "$FLOOR" ]; then
+    NEXT_JOB="$(coli_jobs | awk -v j="$JOB_ID" \
+        '$1 != j && ($2 == "RUNNING" || $2 == "PENDING") { print $1; exit }')"
+    if [ -n "$NEXT_JOB" ]; then
+        echo "Job ${JOB_ID} has $(( LEFT / 60 )) min left and this session needs $(( FLOOR / 60 ))" >&2
+        echo "to prefill. Job ${NEXT_JOB} is the one to step into; exiting ${COLI_NOTHING_YET} rather" >&2
+        echo "than spending the walltime on a preamble that cannot finish." >&2
+        exit "$COLI_NOTHING_YET"
+    fi
+fi
 if [ -n "$LEFT" ] && [ "$LEFT" -lt 3600 ]; then
     echo "That generation has $(( LEFT / 60 )) min of walltime left. This client is a step" >&2
     echo "of it and ends with it; the chain brings the server back on another node." >&2
-    echo "Pick it up again with 'coli-code -c'." >&2
+    echo "It is picked up again with 'coli-code -c' on the generation the chain brings up." >&2
 fi
 
 # --------------------------------------------------------------- the transcript
@@ -269,10 +301,25 @@ JSON
     # swallows whatever positional follows it.
     CLI+=(--strict-mcp-config --disallowedTools WebFetch,WebSearch)
     [ -n "$YES" ] && CLI+=(--dangerously-skip-permissions)
-    # The session store is already per-agent under $COLI_SESSION_ROOT and
-    # CLAUDE_CONFIG_DIR points at it, so there is nothing to wire here: the
-    # client finds its own last conversation in the directory it was given.
-    [ -n "$CONTINUE" ] && CLI+=(--continue)
+    # WHICH CONVERSATION, BY NAME WHERE A DRIVER KNOWS THE NAME. `--continue`
+    # takes the most recent conversation in this directory, and "most recent"
+    # is not "mine": a hand-run client in the same workspace between a hop and
+    # the pick-up is newer, and a turn killed during prefill can leave the
+    # previous mission's conversation as the newest. $COLI_SESSION_ID is a uuid
+    # the driver minted and holds in the mission record, so the resume names
+    # the conversation instead of guessing at it. Matched rather than trusted:
+    # a bad id would be handed to the client as a flag value.
+    #
+    # Without one, the store is per-agent under $COLI_SESSION_ROOT with
+    # CLAUDE_CONFIG_DIR pointed at it, and the client finds its own last
+    # conversation in the directory it was given.
+    if printf '%s' "${COLI_SESSION_ID:-}" \
+       | grep -Eqi '^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$'; then
+        if [ -n "$CONTINUE" ]; then CLI+=(--resume "$COLI_SESSION_ID")
+        else CLI+=(--session-id "$COLI_SESSION_ID"); fi
+    elif [ -n "$CONTINUE" ]; then
+        CLI+=(--continue)
+    fi
     if [ -n "$MESSAGE" ]; then CLI+=(-p "$MESSAGE"); fi
 else
     ENVS=(
@@ -338,9 +385,40 @@ This model decodes at 3.2-4.4 tok/s and prefills at a few tok/s. A short, single
 ask works. An iterative agent session re-pays its growing context every turn.
 BANNER
 
+set +e
 if [ -n "$MESSAGE" ]; then
     srun_on_server --quiet bash -lc "$REMOTE"
 else
     # --pty is what makes the terminal interactive through Slurm.
     srun_on_server --quiet --pty bash -lc "$REMOTE"
 fi
+RC=$?
+set -e
+[ "$RC" -eq 0 ] && exit 0
+
+# WAS THAT A FAILED TASK, OR A GENERATION THAT ENDED UNDER THE STEP?
+# The exit code cannot say: a cancelled step is 128+signum but srun also exits 1
+# on its own job-ended paths, and `sacct` is unusable here -- slurmdbd refuses
+# connections on 6819. Ask Slurm, the way `coli_serving_job` does.
+#
+# A job that has self-cancelled sits in the queue as COMPLETING for a moment, so
+# LISTED IS NOT ENOUGH -- only RUNNING is still there. And an empty `coli_jobs`
+# is also what a controller that is briefly unreachable looks like, so it is
+# asked three times, ten seconds apart, before it is believed.
+#
+# LEAN TOWARDS 75. A false 75 costs one `--continue` against a live server,
+# which just continues the work; a false "the task failed" costs the mission.
+GONE=1
+for _ in 1 2 3; do
+    if coli_jobs | awk -v j="$JOB_ID" '$1 == j && $2 == "RUNNING" { f = 1 } END { exit !f }'; then
+        GONE=0; break
+    fi
+    sleep 10
+done
+if [ "$GONE" -eq 1 ]; then
+    echo "Job ${JOB_ID} is no longer running: the generation this client was a step of" >&2
+    echo "ended under it. Exiting ${COLI_CARRIED_AWAY} so whatever drives this picks the" >&2
+    echo "session up with 'coli-code -c' on the generation the chain brought up." >&2
+    exit "$COLI_CARRIED_AWAY"
+fi
+exit "$RC"
