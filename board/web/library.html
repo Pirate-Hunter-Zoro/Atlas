@@ -28,6 +28,11 @@
 <header id="libbar">
   <a id="lib-back" href="/board" title="back to the lesson">‹ board</a>
   <a id="lib-map" href="/board?map=1" title="the map of this workspace">◈ map</a>
+  <!-- THE WAY TO THE FIGURES, from the top of a page whose first section is
+       forty-five documents. A gallery below a long list is a surface nobody
+       finds; this says how many there are and jumps to them. Drawn only where
+       there are some. -->
+  <a id="lib-figures" href="#res" hidden></a>
   <strong id="lib-where"></strong>
   <span id="lib-count" class="muted"></span>
 </header>
@@ -50,12 +55,39 @@
          quietly leaves a directory out is a page somebody scrolls looking for
          what they know is on disk. -->
     <p id="res-fenced" class="lib-none" hidden></p>
+    <!-- TWO VIEWS OF ONE WALK. The list answers *is the file the card named
+         really there*; the gallery answers *show me the figures*, which is a
+         question no list of six hundred filenames can answer. Which one is
+         showing is remembered, so the second visit opens where the last one
+         was left. -->
+    <div id="res-view">
+      <button id="res-as-grid" type="button" title="every figure, as pictures">▦ gallery</button>
+      <button id="res-as-list" type="button" class="on" title="every figure and table, by name">☰ list</button>
+    </div>
     <!-- THE CARD NAMES THE FILE, so the file's own name is what this matches
          on. Somebody reading "neighbor_count_sweep.png" types that, and the
-         one directory it is in is what is left. -->
+         one directory it is in is what is left. ONE BOX FOR BOTH VIEWS: a
+         second search beside the first is two boxes to keep in step. -->
     <input id="res-find" type="search" autocomplete="off"
            placeholder="the name of a figure, a table, or the directory">
+    <!-- NARROWING A GALLERY OF SIX HUNDRED. Native selects, because ninety-
+         eight directories drawn as a row of chips is a row nobody reaches the
+         end of, and an iPad draws a select as a picker. -->
+    <div id="res-pick" hidden>
+      <select id="gal-dir" aria-label="which directory"></select>
+      <select id="gal-order" aria-label="what order">
+        <option value="newest">newest first</option>
+        <option value="name">by name</option>
+        <option value="dir">by directory</option>
+      </select>
+    </div>
     <p id="res-none" class="lib-none" hidden></p>
+    <p id="res-grid-count" class="muted" hidden></p>
+    <!-- EVERY FIGURE, AS A PICTURE, AND NOT ALL AT ONCE. A tile carries the
+         address of its figure and no `src`: the picture is asked for when the
+         tile comes near the glass, six at a time, so a grid of six hundred
+         costs a screenful. -->
+    <div id="res-grid" hidden></div>
     <div id="res-list"></div>
   </section>
 </main>
@@ -68,7 +100,20 @@
   <div id="shown-bar">
     <strong id="shown-name"></strong>
     <span id="shown-sub" class="muted"></span>
-    <button id="shown-close" type="button" title="back to the list">✕</button>
+    <div id="shown-acts">
+      <!-- STEPPING WITHOUT GOING BACK, because comparing two figures is the
+           whole reason to be in here rather than on the grid, and the zoom is
+           kept across a step so the same corner of the next plot is under the
+           same finger. -->
+      <span id="shown-nav" hidden>
+        <button id="shown-prev" type="button" title="the figure before this one">‹</button>
+        <span id="shown-at" class="muted"></span>
+        <button id="shown-next" type="button" title="the figure after this one">›</button>
+      </span>
+      <!-- The way out of a zoom, for a hand that has lost the figure. -->
+      <button id="shown-fit" type="button" title="the whole figure again" hidden>fit</button>
+      <button id="shown-close" type="button" title="back to the list">✕</button>
+    </div>
   </div>
   <div id="shown-body"></div>
 </div>
@@ -154,6 +199,13 @@
     </div>
   </div>
 </div>
+
+<!-- THE PLANE, for the one thing on this page that is one: a single figure,
+     up close. A pannable pinchable plane under a LIST is what produced the
+     front door's wacky zooming -- the gesture layer solving a problem the
+     content did not have -- and one large image is the case it was written
+     for. -->
+<script src="/static/plane-core.js"></script>
 
 <!-- The ink, and the clipboard it shares with the lesson's own pen. Both are
      the board's, unchanged: a page of a document carries `data-ann` and

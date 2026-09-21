@@ -25,6 +25,7 @@ import socket
 import sys
 import tempfile
 import threading
+import time
 import urllib.error
 import urllib.request
 from http.server import ThreadingHTTPServer
@@ -281,6 +282,47 @@ check("and asks which box in its first card",
       "first card asks which box" in said)
 check("and is handed the address of every box, so the answer is a tap",
       all("#/w/projects/Parts/node/" + b["id"] in said for b in BOXES.values()))
+
+# BUT NOT A MISSION, AND THAT IS THE ONE EXCEPTION TO THE RULE ABOVE.
+#
+# A mission is dispatched into whatever workspace holds the work, and most of
+# them are made of components. The turn arrives with its task in the inbox and
+# was then handed this paragraph as well -- told to do the work, and in the same
+# breath told *your first card asks which box the evening is about*. The
+# question wins, because a question is cheaper than nine hours of work: the
+# mission that prompted this had run five hours in a components workspace with
+# nothing to show.
+#
+# So a mission replaces the sitting rather than wearing it. It has a scope; it
+# does not need a box and must not stop to ask for one.
+_mission = {"id": "t0056", "task": "repair the diarization", "agent": "colibri",
+            "at": time.time()}
+_sent = sense.session_sense(course_repo.Repo(made), doing=True,
+                            mission=_mission)
+check("a MISSION into that same workspace is not asked which box it is about, "
+      "because it arrived with a task and a question is how it spends nine "
+      "hours saying nothing",
+      "DO NOT PICK A PART OF THE REPOSITORY TO WORK ON" not in _sent
+      and "first card asks which box" not in _sent
+      and "ABOUT NO PART OF THE MAP" not in _sent)
+check("and it is told what it is instead, with the task named as the scope",
+      "THIS TURN IS A MISSION" in _sent
+      and "the task is the last thing in the inbox" in _sent)
+check("and it is still a doing turn, so nothing about the order of a change "
+      "is lost by replacing the sitting",
+      "THIS IS A DOING TURN" in _sent and "FIX THE RULE" in _sent)
+check("and an ordinary sitting in that workspace is unchanged, because this is "
+      "an exception and not a repeal",
+      "DO NOT PICK A PART OF THE REPOSITORY TO WORK ON"
+      in sense.session_sense(course_repo.Repo(made)))
+# AND IT COSTS LESS THAN WHAT IT REPLACES. This block rides in a preamble the
+# local model prefills at a few tokens a second, and the sitting it stands in
+# for is most of a thousand words of how to teach an exercise.
+_was = sense.session_sense(course_repo.Repo(made), doing=True)
+check("and it is SHORTER than the sitting it replaces (%d words against %d), "
+      "because a preamble is prefilled at a few tokens a second"
+      % (len(_sent.split()), len(_was.split())),
+      len(_sent.split()) < len(_was.split()))
 
 # THE SAME QUESTION, ASKED OF A BOOK, HAS NO ANSWER -- so it is not asked.
 sitting(course, session="lecture")

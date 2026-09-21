@@ -817,6 +817,94 @@ try:
           "and the brief together", _woken.count(_RULE) == 1
           and _woken.count(_MEASURE) == 1
           and _woken.count(sense_mod.DOING_SENSE) == 1)
+
+    # -----------------------------------------------------------------------
+    # A MISSION IS TOLD IT HAS A JOB, AND NOT TOLD TO ASK FOR ONE
+    # -----------------------------------------------------------------------
+    # The task arrives in the inbox as a plain sentence of the student's, so
+    # this briefing is the whole of what a mission reads -- and it was reading
+    # the SITTING: how to teach an exercise, where the exercises come from, what
+    # to transcribe into a write-up, and which chapter to start at. Every one of
+    # those is a scope the mission already has. `test/aiming.py` holds the
+    # sharpest of them, which is the sitting with no box asking which box the
+    # evening is about.
+    check("a mission is told what it is, in the brief a daemon actually reads",
+          "THIS TURN IS A MISSION" in _sent
+          and "the task is the last thing in the inbox" in _sent)
+    check("and told the task is the whole scope, so it does not go looking for "
+          "a chapter or an agenda of its own",
+          "no box, and no agenda of your own" in _sent)
+    check("and not handed the method for teaching an exercise, which is a "
+          "thousand words of prefill about a turn it is not taking",
+          sense_mod.METHOD_SENSE not in _sent
+          and sense_mod.WRITEUP_SENSE not in _sent)
+
+    # AND IT IS ASKED TO LEAVE A TRAIL, which is the half of the ask that
+    # needed the prompt: "if I click on that box that says 'A Mission is still
+    # going' I can see what has been going on and been accomplished thus far."
+    check("and it is asked for a line per finished thing rather than one report "
+          "at the end, because on this engine the end is hours away",
+          "`board step`" in _sent and "just FINISHED" in _sent
+          and "never what you are about to do" in _sent)
+    check("and told the trail crosses a node hop and not to redo what is on it",
+          "MISSION OUTLIVES THE NODE IT STARTED ON" in _sent
+          and "do not redo what is on it" in _sent)
+
+    # IN BOTH PLACES, like every other rule about the shape of a turn: a tutor
+    # with the document open reads `TEACHING.md`, and a woken mission reads the
+    # briefing and nothing else. `board step` is a command as well as a rule, so
+    # a document that does not name it is a document that leaves the trail to
+    # whoever remembers.
+    for _phrase, _why in (
+            ("a mission is a job set going in a workspace from another board",
+             "what a mission is"),
+            ("already has its scope", "and that its scope arrived with it"),
+            ("do not ask for one", "and that it does not ask for another"),
+            ("`board step`", "and names the command that leaves the trail"),
+            ("what you have just finished",
+             "and says the line is about what is finished"),
+            ("outlives the node it started on",
+             "and that the trail is what crosses a hop")):
+        check("TEACHING.md says " + _why, _phrase in _METHOD)
+    check("and the section is where a doing turn's rules are, because a mission "
+          "is one of those and not a fourth kind of sitting",
+          "### a mission: a doing turn nobody is watching" in _METHOD)
+
+    # AND THE COMMAND IS THERE, because a rule naming one that is not is worse
+    # than no rule. Driven through the CLI, which is what a turn types.
+    def _step(*args, body=""):
+        out = _io.StringIO()
+        old, sys.stdin = sys.stdin, _io.StringIO(body)
+        try:
+            with _ctx.redirect_stdout(out):
+                code = boardcli.cmd_step(boardcli.Live(root), list(args))
+        finally:
+            sys.stdin = old
+        return code, out.getvalue()
+
+    with open(os.path.join(root, "live", "missions", "0007.json"), "w",
+              encoding="utf-8") as fh:
+        _mj.dump({"id": "0007", "task": "repair the transcript", "agent": "colibri",
+                  "at": _mt.time(), "ship": False, "host": "", "card_at": 0.0,
+                  "ceiling": 0.0, "ended": "", "ended_at": 0.0, "reason": "",
+                  "looked": 0.0, "shipped": 0.0}, fh)
+    _code, _said = _step(body="rebuilt the reference: 74 rows, 6 disagree")
+    check("`board step` lands the line on the running mission and says which",
+          _code == 0 and "0007" in _said
+          and [s["said"] for s in boardcli.progress.read(root, "0007")]
+              == ["rebuilt the reference: 74 rows, 6 disagree"])
+    _code, _said = _step("--show")
+    check("and reads the whole trail back, which is what a carried turn does "
+          "before it starts again",
+          _code == 0 and "74 rows" in _said)
+    check("and the brief carries it too, so a turn picked up on a cold node "
+          "does not start the same nine hours over",
+          "74 rows" in _brief())
+    os.remove(os.path.join(root, "live", "missions", "0007.json"))
+    boardcli.progress.drop(root, "0007")
+    _code, _said = _step(body="nobody is waiting on this")
+    check("and a step with no mission running is refused rather than written "
+          "somewhere nothing will ever read it", _code == 1)
     with open(os.path.join(root, "live", "missions", "0007.json"), "w",
               encoding="utf-8") as fh:
         _mj.dump({"id": "0007", "task": "repair the transcript", "agent": "colibri",

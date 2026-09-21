@@ -279,6 +279,48 @@ DOING_SENSE = (
 )
 
 
+# A MISSION HAS A TASK, SO IT NEEDS NOTHING ELSE TO BE ABOUT -- and it must
+# leave a trail rather than one report at the end.
+#
+# THIS REPLACES THE SITTING, IT DOES NOT SIT ON TOP OF IT. A mission is
+# dispatched into whatever workspace holds the work, and most of them teach:
+# `PSYCH-ASR` does, so the turn now running there was handed `METHOD_SENSE`
+# ("the lesson is EXERCISES"), `WRITEUP_SENSE` ("transcribe THEIR argument"),
+# a chapter label to start from, and `NO_NODE_SENSE`, whose last sentence is
+# *your first card asks which box the evening is about*. It had been told to do
+# the work and to ask a question instead, in the same breath, and the question
+# wins because it is cheaper. None of that is about a mission, so a mission
+# reads this instead -- which costs about a thousand words LESS than the
+# sitting it replaces, on a preamble prefilled at a few tokens a second.
+#
+# AND THE TRAIL IS THE OTHER HALF OF THE ASK: *"if I click on that box that
+# says 'A Mission is still going' I can see what has been going on and been
+# accomplished thus far."* `DOING_SENSE` already orders one sentence first and
+# the report last, and on this engine both of them arrive hours in. So the turn
+# is asked for a line per finished thing instead, to a file that survives the
+# node going away -- see `progress.py`.
+MISSION_SENSE = (
+    "THIS TURN IS A MISSION, AND IT ALREADY HAS ITS JOB. Somebody set it going "
+    "from another board, in a workspace nobody is sitting in front of, and the "
+    "task is the last thing in the inbox. That task is the whole scope of the "
+    "turn: you need no chapter, no box, and no agenda of your own. DO NOT ASK "
+    "WHICH PART OF THE REPOSITORY THIS IS ABOUT, and do not stop for an answer "
+    "-- nobody is there to give one, and a question is how a mission spends "
+    "hours saying nothing.\n"
+    "AND LEAVE A TRAIL, BECAUSE A REPORT AT THE END IS NOTHING AT ALL UNTIL "
+    "THEN. `board step` takes one line on stdin, under 25 words, saying what "
+    "you have just FINISHED. It lands on the mission at once and it is what "
+    "somebody tapping the mission reads. Call it straight after your opening "
+    "sentence, and again every time something a person would want to know has "
+    "landed: a file written, a suite run, a number measured, a decision taken. "
+    "What is DONE -- never what you are about to do.\n"
+    "AND A MISSION OUTLIVES THE NODE IT STARTED ON. When the machine under you "
+    "goes away, this same task is picked up again and the trail is the thing "
+    "that crosses over. `board step --show` prints every line of it, yours and "
+    "the board's. Read it before you start and do not redo what is on it. "
+)
+
+
 # WHAT A DOING TURN IS ALLOWED TO CHANGE, and it is the code rather than what
 # the code printed. A wrong artifact is a wrong rule with a file under it, so
 # the file is a symptom and hand-editing it treats the symptom: nobody can
@@ -1235,7 +1277,7 @@ def writeup_sense(makes, about=""):
             + MAKE_SENSE + MEASURE_SENSE + RULE_SENSE)
 
 
-def session_sense(repo, doing=None):
+def session_sense(repo, doing=None, mission=False):
     """What this sitting is, wrapped in the two rules that hold for all of them.
 
     HOW IT READS comes first, because it governs every card this turn writes and
@@ -1254,9 +1296,15 @@ def session_sense(repo, doing=None):
     say `teach` in both, which is right about the sitting and wrong about the
     turn. Pass `True` or nothing: `False` would take the order away from a
     workspace whose standing answer is to write the code.
+
+    `mission` is the STRONGER of the two and only `board brief` knows it: a
+    handed-over step happens inside a sitting somebody is watching, and a
+    mission happens in a workspace nobody is in. It replaces the sitting rather
+    than decorating it -- see `MISSION_SENSE` -- because most of what a sitting
+    says contradicts having been handed a task.
     """
     st = repo.state()
-    said = PLAIN_SENSE + MEASURE_SENSE + _session_sense(repo)
+    said = PLAIN_SENSE + MEASURE_SENSE + _session_sense(repo, mission=mission)
     # A turn whose product is a CHANGE rather than a card: the code written for
     # them, a paper, a deck. Whether it says so through the sitting's aim, the
     # kind of sitting, or the stance -- all three mean the same thing about the
@@ -1270,7 +1318,7 @@ def session_sense(repo, doing=None):
     return said + (DOING_SENSE + RULE_SENSE if doing else "")
 
 
-def _session_sense(repo):
+def _session_sense(repo, mission=False):
     """What this sitting is, in a sentence an assistant can act on.
 
     `board open` takes a label -- "Ch 1 -- groups, fields and vector spaces" --
@@ -1288,7 +1336,13 @@ def _session_sense(repo):
     the repository otherwise. That is not a second mode either: every word about
     the shape of a turn is unchanged, and what moved is only which of two
     answers a repository with both kinds of work in it is giving today.
+
+    A MISSION IS ANSWERED BEFORE ANY OF THAT AND WHATEVER THE SITTING IS. The
+    sitting is about a scope somebody chose on the way in; a mission arrived
+    with its own, and every branch below would hand it a second one.
     """
+    if mission:
+        return MISSION_SENSE
     st = repo.state()
     kind = st.get("session") or "lecture"
     chapter = (st.get("chapter") or "").strip()

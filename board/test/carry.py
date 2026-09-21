@@ -39,7 +39,8 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 sys.path.insert(0, ROOT)
 
-from tutorboard import atlas, machine, missions                 # noqa: E402
+from tutorboard import (atlas, brief, machine, missions,     # noqa: E402
+                        progress, sense)
 from tutorboard.course import repo as course_repo               # noqa: E402
 from tutorboard.server import spawn as _spawn                   # noqa: E402
 
@@ -648,6 +649,59 @@ try:
           "backoff costs the pick-up one backoff rather than losing it",
           missions.carry_verdict(missions.stored(gap)[0], gone(),
                                  t + missions.CARRY_BACKOFF + 1) == "owed")
+
+    # -----------------------------------------------------------------------
+    # I. AND WHAT THE LOST TURN ACHIEVED CROSSES OVER WITH THE WORK
+    # -----------------------------------------------------------------------
+    # The hop keeps the task. Until the trail existed it threw away everything
+    # the cut-off turn had done: the conversation may be resumable and where
+    # the node took the client with it there is nothing to resume, so the next
+    # turn started the same nine hours again from the same sentence. A trail is
+    # a file in the workspace for exactly the reason the record is -- both
+    # allocations end in the same minute, and nothing is running anywhere to
+    # remember anything.
+    trail = os.path.join(book, "Galois-Theory")
+    os.makedirs(os.path.join(trail, "live", "missions"))
+    missions.write(trail, rec(id="t0070"))
+    missions.turn_open(trail, missions.stored(trail)[0], now=NOW)
+    progress.add(trail, "t0070", "rebuilt the reference from the error log",
+                 now=NOW + 10)
+    missions.owe_carry(trail, missions.stored(trail)[0], NOW + 20)
+    missions.claim_carry(trail, missions.stored(trail)[0],
+                         NOW + missions.CARRY_BACKOFF + 1)
+    crossed = progress.read(trail, "t0070")
+    check("a pick-up keeps what the cut-off turn reported, because the trail "
+          "is a file in the workspace and not something a dead client was "
+          "holding",
+          any(s["said"] == "rebuilt the reference from the error log"
+              and s["who"] == "agent" for s in crossed))
+    check("and the hop writes itself onto the trail, because half an hour with "
+          "nothing new on it reads as a wedged mission and is the machinery "
+          "working",
+          any(s["who"] == "board" and "picked up" in s["said"]
+              and "1 of %d" % missions.CARRY_HOPS in s["said"]
+              for s in crossed))
+    check("and a turn opening says so too, so the gap between a dispatch and "
+          "the first word of a model that prefills for hours is not a silence",
+          [s["said"] for s in crossed if s["who"] == "board"][0].startswith(
+              "a turn started on"))
+    # AND THE CARRIED TURN READS IT. A resumed conversation has it already; a
+    # cold one after the node went has nothing else that says the first four
+    # hours happened, and `board brief` is the whole of what it reads.
+    briefed = brief.briefing(course_repo.Repo(trail), sense,
+                             mission=missions.stored(trail)[0])
+    check("and the briefing the carried turn reads carries the trail, which is "
+          "the only thing that says the hours before it happened",
+          "rebuilt the reference from the error log" in briefed
+          and "Do not do any of that again" in briefed)
+    # AND THE TRAIL DIES WITH THE RECORD. A `.steps` file with no `.json`
+    # beside it is what turns `live/missions/` back into a log.
+    old = dict(missions.stored(trail)[0])
+    old.update(ended="done", ended_at=NOW - missions.KEEP - 60)
+    missions.write(trail, old)
+    missions.of(trail, NOW)
+    check("and an ended mission pruned off disk takes its trail with it",
+          not os.path.exists(progress.steps_path(trail, "t0070")))
 finally:
     shutil.rmtree(book, ignore_errors=True)
 

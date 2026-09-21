@@ -21,6 +21,7 @@ from ... import machines
 from ... import meeting
 from ... import missions
 from ... import news
+from ... import progress
 from ... import proposals
 from ... import scopes
 from ...course import config
@@ -215,6 +216,43 @@ def get(h, repo, path):
         # about it. Read off disk in every workspace on the machine, so a board
         # that has only just started answers as well as the one that dispatched.
         return h.send_json({"missions": missions.waiting(repo)})
+
+    if path == "/mission":
+        # ONE MISSION, TAPPED. Asked for in these words: *"if I click on that
+        # box that says 'A Mission is still going' I can see what has been going
+        # on and been accomplished thus far."*
+        #
+        # `/missions` above is the list and it is pushed four times a second, so
+        # nothing expensive may ride on it. This is a TAP: two `git` calls and a
+        # directory walk, once, for the one mission somebody is looking at.
+        #
+        # NEITHER NAME REACHES THE FILESYSTEM. The workspace is matched against
+        # what this server already discovered and the root comes off the match
+        # -- the rule `/switch` and `/elsewhere` follow -- and the mission id is
+        # matched against `missions.ID_RE`, which is a turn id and nothing else.
+        want = urllib.parse.parse_qs(urllib.parse.urlparse(h.path or "").query)
+        ws = (want.get("ws", [""])[0] or "").strip()
+        mid = (want.get("id", [""])[0] or "").strip()
+        match = None
+        for c in machines.workspaces(repo):
+            if ws in (c["repo"], c["id"]):
+                match = c
+                break
+        if not match or not missions.ID_RE.match(mid):
+            return h.send_json({"ok": False, "detail": "unknown mission"},
+                               status=404)
+        rec = next((m for m in missions.of(match["root"])
+                    if str(m.get("id")) == mid), None)
+        if not rec:
+            return h.send_json({"ok": False, "detail": "unknown mission"},
+                               status=404)
+        out = progress.of(match["root"], rec,
+                          working=missions.mid_turn(match["root"]))
+        out["ok"] = True
+        out["ws"] = match["id"]
+        out["repo"] = match["repo"]
+        out["course"] = news.course_name(match["root"]) or match["repo"]
+        return h.send_json(out)
 
     if path == "/health":
         # `dir` so a caller can confirm it reached the course it meant --

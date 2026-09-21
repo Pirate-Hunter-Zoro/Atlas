@@ -282,6 +282,12 @@ def _mark_missions(cards, repo):
             "at": hit.get("at") or 0, "ship": bool(hit.get("ship")),
             "shipped": hit.get("shipped") or 0,
             "reason": hit.get("reason") or "",
+            # The last thing it said it finished, and how many it has said. A
+            # card on the front door has room for one line, and after the first
+            # hour this is the more useful one: "still going" is a state,
+            # "measured the baseline: 68 of 74" is progress.
+            "step": hit.get("step") or "",
+            "steps": hit.get("steps") or 0,
         }
 
 

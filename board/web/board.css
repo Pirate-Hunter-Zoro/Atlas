@@ -347,6 +347,66 @@ body { background: var(--paper); min-height: 100vh; min-height: 100dvh; }
   color: var(--ink-2);
 }
 
+/* WHAT IT HAS BEEN DOING. "Still going" is a state somebody is told to leave
+   alone, and after the first hour it is not something anybody can act on. The
+   last reported step sits on a line of its own under the task -- it is a
+   sentence, not a label, so it does not compete for the width -- and the
+   control beside the task opens the whole trail.
+
+   Quiet, because this is still the chrome. Nothing in here may read as louder
+   than the lesson under it. */
+.mission-step {
+  flex-basis: 100%; margin-top: .2rem;
+  font-size: .78rem; color: var(--ink);
+}
+.mprog-more {
+  flex: none; font-size: .66rem; letter-spacing: .05em; cursor: pointer;
+  padding: .1rem .3rem; border-radius: .25rem;
+  border: 1px dashed var(--rule); color: var(--ink-2);
+}
+.mprog-lead { cursor: pointer; text-decoration: underline dotted; }
+.mprog {
+  margin-top: .35rem;
+  padding: .5rem .6rem;
+  border-radius: .4rem;
+  border: 1px solid var(--rule);
+  background: var(--paper);
+  font-size: .82rem;
+}
+.mprog-head { display: flex; align-items: baseline; gap: .5rem; }
+.mprog-who {
+  font-weight: 700; font-size: .7rem;
+  text-transform: uppercase; letter-spacing: .07em;
+}
+.mprog-close { margin-left: auto; flex: none; }
+.mprog p { margin: .3rem 0 0; }
+.mprog-facts { color: var(--ink-2); font-size: .76rem; }
+.mprog-task { color: var(--ink-2); }
+.mprog-quiet { color: var(--ink-2); font-style: italic; }
+.mprog-made { color: var(--ink); font-size: .76rem; }
+.mprog-why { color: var(--bad); }
+.mprog-ship { color: var(--ink-2); font-size: .76rem; }
+/* The trail reads top to bottom in the order it happened, which is the order a
+   person reconstructs an evening in. The board's own lines -- dispatched, a
+   turn started, picked up after the node went away -- are dimmed, because the
+   machinery working must not read as the assistant's report. */
+.mprog-steps {
+  list-style: none; margin: .4rem 0 0; padding: 0;
+  display: grid; gap: .2rem;
+}
+.mprog-step { display: flex; gap: .5rem; align-items: baseline; }
+.mprog-step.machine { color: var(--ink-2); font-style: italic; }
+.mprog-when {
+  flex: none; font-variant-numeric: tabular-nums;
+  font-size: .72rem; color: var(--ink-2);
+}
+.mprog-said { min-width: 0; }
+.mprog-names {
+  list-style: none; margin: .3rem 0 0; padding: 0;
+  display: grid; gap: .1rem;
+  font-size: .76rem; color: var(--ink-2);
+}
+
 /* The one switch on the dispatcher, and the sentence under it that says who
    actually pushes. A checkbox the width of a thumb: this is tapped on glass. */
 .elsewhere-ship {

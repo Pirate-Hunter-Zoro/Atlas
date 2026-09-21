@@ -175,9 +175,15 @@ const { window } = dom;
 const doc = window.document;
 
 const sent = [];
+/* EVERYTHING THE PAGE HAS EVER ASKED FOR, and nothing empties it. `sent` is
+   cleared between checks so one of them can see a single request in isolation,
+   which makes it the wrong list for *this was never asked for at all*: the
+   first fetch of the page is gone from it by the second section. */
+const everSent = [];
 window.fetch = (u, opts) => {
   const url = String(u);
   sent.push({ url: url, opts: opts || {} });
+  everSent.push(url);
   if (/library\.json/.test(url)) {
     return Promise.resolve({ json: () => Promise.resolve(LIBRARY) });
   }
@@ -229,14 +235,31 @@ window.Element.prototype.setPointerCapture = function () {};
 window.Element.prototype.releasePointerCapture = function () {};
 window.requestAnimationFrame = (fn) => setTimeout(fn, 0);
 
-for (const f of ['ink-clip.js', 'annotate.js']) {
+/* THE SCRIPTS THE PAGE ITSELF LOADS, in the order it loads them, read out of
+   its own markup rather than listed here. A hand-kept list is how a suite ends
+   up green against a page that is missing a file -- the pen was loaded by both
+   for months, and the plane the figure viewer needs would have been loaded by
+   only one of them. `library.js` is evaluated below, after the fixtures are in
+   place; `typeface.js` is deferred and only picks a reading face. */
+const LIB_HTML = fs.readFileSync(path.join(WEB, 'library.html'), 'utf8');
+const LIB_SCRIPTS = (LIB_HTML.match(/src="\/static\/[\w.-]+"/g) || [])
+  .map((m) => /static\/([\w.-]+)/.exec(m)[1])
+  .filter((f) => f !== 'library.js' && f !== 'typeface.js');
+LIB_SCRIPTS.includes('plane-core.js')
+  ? ok('the page loads the board\'s own plane, which is what makes one figure '
+       + 'pinchable without a second gesture layer written for it')
+  : fail('library.html loads no plane: ' + LIB_SCRIPTS.join(', '));
+for (const f of LIB_SCRIPTS) {
   try { window.eval(fs.readFileSync(path.join(WEB, f), 'utf8')); }
   catch (e) { fail(f + ': ' + e.message); }
 }
 
 /* A tablet picked up again would arrive with a turn already recorded as in
-   flight -- the page keeps that where a reload finds it. Nothing is, here. */
+   flight -- the page keeps that where a reload finds it. Nothing is, here. And
+   the results view is remembered the same way, so it is cleared for the same
+   reason: the list is what a first visit opens on. */
 try { window.localStorage.removeItem('library.flight'); } catch (e) {}
+try { window.localStorage.removeItem('library.results.view'); } catch (e) {}
 
 try { window.eval(fs.readFileSync(path.join(WEB, 'library.js'), 'utf8')); }
 catch (e) { fail('library.js: ' + e.message); }
@@ -749,6 +772,435 @@ const named = (title) => rows().filter(
   !sent.filter((r) => /\/(say|session|aim|start)\b/.test(r.url)).length
     ? ok('and none of it touches the lesson')
     : fail('the results list reached into a sitting');
+
+  // 10. EVERY FIGURE, AS PICTURES, AND ONE OF THEM UP CLOSE. The ask: "an
+  //     option to view all figures and nice UI to select which ones to view up
+  //     close." A list of six hundred filenames answers neither half --
+  //     `propensity_by_arm.png` under sixty-eight directories is sixty-eight
+  //     rows that say nothing about which one is the plot being looked for.
+  //
+  //     What must hold, and each of them is a way a grid of six hundred
+  //     pictures becomes a page an iPad gives up on:
+  //
+  //       * IT DOES NOT FETCH THEM ALL. A tile carries the address and no
+  //         `src`; the picture is asked for when the tile comes near the glass,
+  //         six at a time, and a heavy one waits to be tapped.
+  //       * THE FENCE IS SAID WHERE THE PICTURES WOULD HAVE BEEN. A gallery is
+  //         the worst surface for a directory quietly left out.
+  //       * AN ID, NEVER A PATH, and the id the TILE carries is the id the
+  //         VIEWER asks for -- two surfaces addressing one figure.
+  //       * AND IT ZOOMS AND STEPS, because comparing two plots up close is the
+  //         reason to open one at all.
+  console.log('');
+
+  /* THE OBSERVER, STOOD IN FOR. jsdom has none, which is the whole reason this
+     can be asserted precisely: nothing is near the glass until this says so,
+     so a tile with a `src` is a tile that was fetched on purpose. */
+  let seen = [];
+  let ioOpts = null;
+  window.IntersectionObserver = function (cb, opts) {
+    ioOpts = opts;
+    this.observe = (el) => { seen.push({ el: el, cb: cb }); };
+    this.unobserve = (el) => {
+      const i = seen.findIndex((s) => s.el === el);
+      if (i >= 0) seen.splice(i, 1);
+    };
+    this.disconnect = () => { seen = []; };
+  };
+  /* Scrolling: the first `n` tiles the observer is holding come into view. */
+  const scrollBy = (n) => {
+    const batch = seen.slice(0, n);
+    batch.forEach((s) => s.cb([{ target: s.el, isIntersecting: true }]));
+  };
+  /* A picture arriving. jsdom fetches nothing, so the event is the only part of
+     a load there is -- and it is the part the queue is waiting on. */
+  const landed = (img) => img.dispatchEvent(new window.Event('load'));
+  const thumbs = () => Array.prototype.slice.call(
+    doc.querySelectorAll('#res-grid .res-thumb'));
+  const tiles = () => Array.prototype.slice.call(
+    doc.querySelectorAll('#res-grid .res-tile'));
+  const fetched = () => thumbs().filter((i) => i.getAttribute('src'));
+
+  /* A WORKSPACE THE SIZE OF THE ONE THIS IS FOR -- forty figures over three
+     directories, one of them too heavy to spend on a thumbnail. The shape is
+     `course/results.py`'s, sent down the same route, so this is the payload the
+     page really gets and not a second idea of one. */
+  const GAL = { ok: true, workspace: 'research/TRD-EHR', tables: 0, more: 0,
+                looked: ['results'], fenced: [], figures: 0, groups: [] };
+  [['sweep/alpha', 14, 1789000000], ['sweep/beta', 20, 1788000000],
+   ['cohort', 6, 1787000000]].forEach(([where, n, at]) => {
+    const figs = [];
+    for (let i = 0; i < n; i++) {
+      figs.push({
+        id: where.replace(/\W+/g, '-') + '-plot-' + i + '-abcd000' + (i % 10),
+        kind: 'figure', name: 'plot ' + i, file: 'plot_' + i + '.png',
+        where: where, format: 'png', at: at - i,
+        /* One that must not be spent on a thumbnail, and the rest well under. */
+        size: (where === 'cohort' && i === 0) ? 900000 : 50000 + i,
+        iso: '2026-09-20',
+      });
+    }
+    GAL.figures += n;
+    GAL.groups.push({ where: where, at: at, iso: '2026-09-20', more: 0,
+                      figures: figs, tables: [] });
+  });
+  const HEAVY = GAL.groups[2].figures[0];
+
+  /* The search above was left holding a string that matches nothing. */
+  find.value = '';
+  find.dispatchEvent(new window.Event('input', { bubbles: true }));
+  window.paintResults(GAL);
+  await sleep(10);
+
+  // --- an option, and it is remembered -----------------------------------
+  const jump = doc.getElementById('lib-figures');
+  !jump.hidden && /40 figures/.test(jump.textContent)
+      && jump.getAttribute('href') === '#res'
+    ? ok('the bar at the top says how many figures there are and goes to them, '
+         + 'because a gallery under forty-five documents is a surface nobody '
+         + 'scrolls far enough to find')
+    : fail('the bar does not offer the figures: ' + jump.textContent);
+
+  const asGrid = doc.getElementById('res-as-grid');
+  const asList = doc.getElementById('res-as-list');
+  !doc.getElementById('res-view').hidden && asGrid && asList
+    ? ok('the produced section offers two views of one walk, not one')
+    : fail('there is no way to ask for the gallery');
+  !doc.getElementById('res-grid').hidden === false && !doc.getElementById('res-list').hidden
+    ? ok('and the list is what a first visit opens on')
+    : fail('the gallery is showing before it was asked for');
+
+  tap(asGrid);
+  await sleep(10);
+  !doc.getElementById('res-grid').hidden && doc.getElementById('res-list').hidden
+    ? ok('tapping gallery puts the grid where the list was')
+    : fail('the grid did not replace the list');
+  window.localStorage.getItem('library.results.view') === 'grid'
+    ? ok('and the choice is remembered, so the second visit opens on it')
+    : fail('the view is not remembered: '
+           + window.localStorage.getItem('library.results.view'));
+
+  // --- EVERY figure, from every directory, in one grid --------------------
+  tiles().length === 40
+    ? ok('every figure in the workspace is a tile, across every directory -- '
+         + 'which is what "all figures" means and what the grouped list is not')
+    : fail(tiles().length + ' tiles for forty figures');
+  new Set(tiles().map((t) => t.querySelector('.res-tile-meta').textContent
+    .split('  ·  ')[0])).size === 3
+    ? ok('and each says which directory it came out of, because a pipeline '
+         + 'writes one filename once per contrast')
+    : fail('the tiles do not say where they came from');
+
+  // --- AND IT FETCHES NONE OF THEM YET -----------------------------------
+  // The single highest-value assertion here. Six hundred figures is 46 MB in
+  // TRD-EHR, and a grid that asked for them on paint is a page that never
+  // finishes on a tablet.
+  fetched().length === 0 && thumbs().every((i) => i.dataset.src)
+    ? ok('THE GRID ASKS FOR NO PICTURE AT ALL until one comes near the glass, '
+         + 'and every tile is holding its own address to ask with')
+    : fail(fetched().length + ' of forty pictures were fetched on paint');
+  seen.length === 40 && /px$/.test((ioOpts || {}).rootMargin || '')
+    ? ok('all forty are watched, with a margin so a picture is there before it '
+         + 'is looked at rather than arriving under the eye')
+    : fail('watched: ' + seen.length + ', margin: ' + JSON.stringify(ioOpts));
+
+  scrollBy(40);
+  await sleep(5);
+  fetched().length === window.GRID_AT_ONCE
+    ? ok('and scrolling the whole grid past the glass still has only '
+         + window.GRID_AT_ONCE + ' in flight, because a thumb flicked down six '
+         + 'hundred tiles must not open six hundred connections')
+    : fail(fetched().length + ' in flight at once, not ' + window.GRID_AT_ONCE);
+  const wasFlying = fetched().length;
+  landed(fetched()[0]);
+  await sleep(5);
+  fetched().length === wasFlying + 1
+    ? ok('one landing admits the next, so the queue drains rather than stalls')
+    : fail('a landed picture admitted ' + (fetched().length - wasFlying));
+
+  // Drain the rest the way scrolling would.
+  for (let pass = 0; pass < 60; pass++) {
+    const flying = fetched().filter((i) => !i.dataset.done);
+    if (!flying.length) break;
+    flying.forEach((i) => { i.dataset.done = '1'; landed(i); });
+    await sleep(2);
+  }
+  fetched().length === 39
+    ? ok('and every tile that came near the glass ends up with its picture')
+    : fail(fetched().length + ' of thirty-nine light ones were fetched');
+
+  // --- a heavy one is not spent on a thumbnail ---------------------------
+  const heavyTile = tiles().filter((t) => t.dataset.id === HEAVY.id)[0];
+  const heavyImg = heavyTile && heavyTile.querySelector('.res-thumb');
+  heavyImg && !heavyImg.getAttribute('src')
+    ? ok('a figure too big to spend on a thumbnail is NOT fetched by scrolling '
+         + 'past it, which is the one tile in forty that would cost a megabyte')
+    : fail('the heavy figure was fetched as a thumbnail');
+  /900 kB/.test(heavyTile ? heavyTile.textContent : '')
+    ? ok('and its tile says how big it is rather than sitting there blank')
+    : fail('the heavy tile says: ' + (heavyTile ? heavyTile.textContent : ''));
+
+  // --- AN ID, NEVER A PATH, and the tile's id is the viewer's id ---------
+  fetched().every((i) => /^\/result\/[a-z0-9-]+$/.test(i.getAttribute('src')))
+    ? ok('every picture is asked for as /result/<id> and nothing else -- no '
+         + 'path from this page ever reaches a filesystem')
+    : fail('a thumbnail was asked for as: '
+           + fetched().map((i) => i.getAttribute('src')).filter(
+               (u) => !/^\/result\/[a-z0-9-]+$/.test(u)).join(','));
+
+  const first = GAL.groups[0].figures[0];        // newest of the newest group
+  const firstTile = tiles()[0];
+  firstTile.dataset.id === first.id
+    ? ok('newest first, so the figure a job just wrote is the first tile')
+    : fail('the first tile is ' + firstTile.dataset.id + ', not ' + first.id);
+  tap(firstTile);
+  await sleep(10);
+  const upClose = doc.querySelector('#shown .res-figure');
+  upClose && upClose.getAttribute('src') === '/result/' + firstTile.dataset.id
+    ? ok('THE ID THE TILE CARRIES IS THE ID THE VIEWER ASKS FOR, so the picture '
+         + 'that opens is the picture that was tapped')
+    : fail('the tile holds ' + firstTile.dataset.id + ' and the viewer asked '
+           + 'for ' + (upClose && upClose.getAttribute('src')));
+
+  // --- UP CLOSE: a plane, and it is the board's own ----------------------
+  const wrap = doc.querySelector('#shown .res-plane');
+  wrap && window.Plane && typeof window.Plane.contacts === 'function'
+    ? ok('one figure is a plane, and it is plane-core.js rather than a second '
+         + 'gesture layer -- every rule in that file was paid for on an iPad')
+    : fail('the figure is not on the board\'s own plane');
+  /touch-action:\s*none/.test(
+    fs.readFileSync(path.join(WEB, 'library.css'), 'utf8')
+      .split('.res-plane {')[1] || '')
+    ? ok('and the browser gets no share of the gesture, because a pinch the '
+         + 'page is also acting on is a pinch doing two things at once')
+    : fail('the plane leaves the browser a share of the gesture');
+
+  const touch = (el, type, pts) => {
+    const ev = new window.Event(type, { bubbles: true, cancelable: true });
+    const list = pts.map((p) => ({ identifier: p.id, clientX: p.x, clientY: p.y }));
+    ev.touches = list;
+    ev.changedTouches = list;
+    el.dispatchEvent(ev);
+  };
+  const scaleOf = () => {
+    const m = /scale\(([\d.]+)\)/.exec(upClose.style.transform || '');
+    return m ? Number(m[1]) : null;
+  };
+  scaleOf() === 1
+    ? ok('it opens at the whole figure')
+    : fail('it opens at ' + scaleOf());
+  touch(wrap, 'touchstart', [{ id: 1, x: 100, y: 100 }, { id: 2, x: 200, y: 100 }]);
+  touch(wrap, 'touchmove', [{ id: 1, x: 50, y: 100 }, { id: 2, x: 350, y: 100 }]);
+  scaleOf() === 3
+    ? ok('TWO FINGERS SPREAD THREEFOLD ZOOM IT THREEFOLD, which is the whole '
+         + 'reason to open one figure rather than look at the grid')
+    : fail('a threefold pinch gave ' + scaleOf());
+  /300%/.test(doc.getElementById('shown-fit').textContent)
+    ? ok('and it says how far in it is, on the button that undoes it')
+    : fail('the fit button says: ' + doc.getElementById('shown-fit').textContent);
+  touch(wrap, 'touchend', [{ id: 1, x: 50, y: 100 }, { id: 2, x: 350, y: 100 }]);
+
+  // --- STEPPING WITHOUT GOING BACK, AND AT THE ZOOM ALREADY SET ----------
+  const nav = doc.getElementById('shown-nav');
+  !nav.hidden && /^1 of 40$/.test(doc.getElementById('shown-at').textContent)
+    ? ok('the viewer says which of the forty this is')
+    : fail('it says: ' + doc.getElementById('shown-at').textContent);
+  doc.getElementById('shown-prev').disabled
+    && !doc.getElementById('shown-next').disabled
+    ? ok('and there is nothing before the first one')
+    : fail('the stepper offers a figure before the first');
+  tap(doc.getElementById('shown-next'));
+  await sleep(5);
+  const second = doc.querySelector('#shown .res-figure');
+  second.getAttribute('src') === '/result/' + GAL.groups[0].figures[1].id
+    ? ok('next goes to the next figure in the order showing, without going '
+         + 'back to the grid -- comparing two is why anyone is in here')
+    : fail('next went to ' + second.getAttribute('src'));
+  /scale\(3\)/.test(second.style.transform || '')
+    ? ok('AND IT ARRIVES AT THE ZOOM ALREADY SET, so the same corner of the '
+         + 'next plot is under the same finger')
+    : fail('the step threw the zoom away: ' + second.style.transform);
+  /^2 of 40$/.test(doc.getElementById('shown-at').textContent)
+    ? ok('and the count moves with it')
+    : fail('the count says: ' + doc.getElementById('shown-at').textContent);
+  doc.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'ArrowLeft' }));
+  await sleep(5);
+  doc.querySelector('#shown .res-figure').getAttribute('src')
+    === '/result/' + GAL.groups[0].figures[0].id
+    ? ok('the arrow keys step it too, for the same page read on a laptop')
+    : fail('ArrowLeft did not step back');
+  tap(doc.getElementById('shown-fit'));
+  await sleep(5);
+  /scale\(1\)/.test(doc.querySelector('#shown .res-figure').style.transform || '')
+    ? ok('and fit is the way out of a zoom, for a hand that has lost the figure')
+    : fail('fit did not undo the zoom');
+
+  tap(doc.getElementById('shown-close'));
+  doc.getElementById('shown').hidden && doc.getElementById('shown-nav').hidden
+    ? ok('closing it puts the stepper away with it')
+    : fail('the viewer did not close');
+
+  // --- CHOOSING WHICH TO LOOK AT -----------------------------------------
+  const pick = doc.getElementById('gal-dir');
+  pick.options.length === 4
+    ? ok('the directories are a chooser: every one that has figures in it, and '
+         + 'every directory as the first choice')
+    : fail(pick.options.length + ' choices for three directories and an all');
+  /every directory/.test(pick.options[0].textContent)
+    && /40 figures/.test(pick.options[0].textContent)
+    ? ok('and the first says how many there are altogether')
+    : fail('the first choice says: ' + pick.options[0].textContent);
+  pick.value = 'cohort';
+  pick.dispatchEvent(new window.Event('change', { bubbles: true }));
+  await sleep(5);
+  tiles().length === 6
+    ? ok('picking one leaves only its figures')
+    : fail(tiles().length + ' tiles for the six in cohort');
+  /6 of 40 figures/.test(doc.getElementById('res-grid-count').textContent)
+    ? ok('and says it is showing six of forty, because a filter that says '
+         + 'nothing reads as this is all there is')
+    : fail('the count says: '
+           + doc.getElementById('res-grid-count').textContent);
+  tap(tiles()[0]);
+  await sleep(5);
+  /of 6$/.test(doc.getElementById('shown-at').textContent)
+    ? ok('and the stepper walks what the filter left, not all forty')
+    : fail('the stepper says: ' + doc.getElementById('shown-at').textContent);
+  tap(doc.getElementById('shown-close'));
+
+  pick.value = '';
+  pick.dispatchEvent(new window.Event('change', { bubbles: true }));
+  await sleep(5);
+  const order = doc.getElementById('gal-order');
+  order.value = 'name';
+  order.dispatchEvent(new window.Event('change', { bubbles: true }));
+  await sleep(5);
+  const names = tiles().map((t) => t.querySelector('.res-tile-name').textContent);
+  names.join(',') === names.slice().sort().join(',')
+    ? ok('and the order can be the filename instead of the clock')
+    : fail('by name gave: ' + names.slice(0, 6).join(','));
+  order.value = 'newest';
+  order.dispatchEvent(new window.Event('change', { bubbles: true }));
+  await sleep(5);
+
+  // THE SAME SEARCH BOX, because "which of these am I looking for" is one
+  // question and a second box beside the first is two to keep in step.
+  find.value = 'plot_3.png';
+  find.dispatchEvent(new window.Event('input', { bubbles: true }));
+  await sleep(5);
+  tiles().length === 3 && tiles().every(
+    (t) => t.querySelector('.res-tile-name').textContent === 'plot_3.png')
+    ? ok('the list\'s own search narrows the gallery, one box for both views')
+    : fail(tiles().length + ' tiles match a filename in three directories');
+  find.value = 'nothing called this';
+  find.dispatchEvent(new window.Event('input', { bubbles: true }));
+  await sleep(5);
+  !tiles().length && !doc.getElementById('res-grid').hidden
+    && /No figure here is called/.test(doc.getElementById('res-grid').textContent)
+    ? ok('and a search with no match says so where the pictures would have been')
+    : fail('an empty gallery says: '
+           + doc.getElementById('res-grid').textContent.slice(0, 80));
+  find.value = '';
+  find.dispatchEvent(new window.Event('input', { bubbles: true }));
+  await sleep(5);
+
+  // --- A FENCED WORKSPACE IS REFUSED BY NAME, IN THE GALLERY TOO ---------
+  // The worst possible outcome of this whole change is a grid of thumbnails
+  // out of `research/PSYCH-ASR/phi/`. This is that workspace's real payload
+  // shape -- no result directory, a top-level fence, and the server's own
+  // sentence -- and the gallery has to carry the refusal where the pictures
+  // would have been rather than drawing an empty grid.
+  const SEALED = {
+    ok: true, workspace: 'research/PSYCH-ASR', figures: 0, tables: 0, more: 0,
+    looked: [], fenced: ['phi'], groups: [],
+    why: 'This workspace has no results directory. A job that writes one into '
+      + '`results/`, `figures/`, `tables/`, `artifacts/`, `analysis/` appears '
+      + 'here, with no registration of any kind. research/PSYCH-ASR also holds '
+      + '`phi/`. Nothing on this board looks inside it -- it is session '
+      + 'content, and the refusal is by name in `tutorboard/fenced.py` -- so '
+      + 'nothing in there is listed here or anywhere else.',
+  };
+  window.paintResults(SEALED);
+  await sleep(10);
+  !doc.getElementById('res-grid').hidden && !tiles().length
+    ? ok('a fenced workspace draws NO TILE AT ALL in the gallery')
+    : fail(tiles().length + ' tiles for a workspace nothing may look inside');
+  /* Read off a grid that is actually on the glass: a sentence inside a hidden
+     element is a refusal nobody sees, which is the defect, not the fix. */
+  const sealedSaid = doc.getElementById('res-grid').hidden
+    ? '' : doc.getElementById('res-grid').textContent;
+  /`phi\/`/.test(sealedSaid) && /fenced\.py/.test(sealedSaid)
+    ? ok('AND THE GALLERY NAMES THE FENCE where the pictures would have been -- '
+         + 'the directory by name and the file the rule lives in, so a grid '
+         + 'cannot pass for a workspace that has produced nothing')
+    : fail('the empty gallery says: ' + sealedSaid.slice(0, 200));
+  doc.getElementById('res-pick').hidden
+      && doc.getElementById('res-grid-count').hidden
+      && !doc.getElementById('res-view').hidden
+    ? ok('and the chooser and the count are put away rather than offering to '
+         + 'sort nothing, while the way into the gallery stays -- that is how '
+         + 'the reason gets read at all')
+    : fail('an empty gallery still offers a chooser, or hides the way in');
+  !doc.getElementById('res-fenced').hidden
+    && /phi\/ is session content/.test(
+         doc.getElementById('res-fenced').textContent)
+    ? ok('and the line above it says the same thing, which is the list\'s rule '
+         + 'kept on the second surface')
+    : fail('the fence line is not on the page in gallery view');
+  !everSent.filter((u) => /phi/.test(u)).length
+    ? ok('and nothing the page has asked for, from its first fetch onwards, '
+         + 'has ever named it')
+    : fail('the page reached into the fence: '
+           + everSent.filter((u) => /phi/.test(u)).join(','));
+
+  // --- AND A WORKSPACE WITH TABLES AND NO FIGURES SAYS SO ----------------
+  window.paintResults({
+    ok: true, workspace: 'x', figures: 0, tables: 2, more: 0,
+    looked: ['results'], fenced: [], groups: [{
+      where: 'sweep', at: 1789000000, iso: '2026-09-20', more: 0, figures: [],
+      tables: [{ id: 'sweep-curve-1', kind: 'table', name: 'sweep curve',
+                 file: 'sweep_curve.csv', format: 'csv', size: 900,
+                 where: 'sweep', iso: '2026-09-20' }],
+    }],
+  });
+  await sleep(10);
+  !tiles().length && !doc.getElementById('res-grid').hidden
+    && /tables but no figures/.test(doc.getElementById('res-grid').textContent)
+    ? ok('a workspace that has produced tables and no figures says so rather '
+         + 'than drawing an empty box')
+    : fail('a figureless gallery says: '
+           + doc.getElementById('res-grid').textContent.slice(0, 120));
+  doc.getElementById('lib-figures').hidden
+    ? ok('and the bar offers no way to figures a workspace does not have')
+    : fail('the bar offers figures where there are none: '
+           + doc.getElementById('lib-figures').textContent);
+
+  // --- AND A QUEUE SLOT IS NEVER HELD FOR EVER --------------------------
+  // `plane-core.js`'s own rule, which this page now shares: every refusal
+  // expires. A picture that fires neither `load` nor `error` holds one of six
+  // slots, and six of those is a grid that has stopped loading with nothing on
+  // the glass saying why.
+  window.paintResults(GAL);
+  await sleep(10);
+  window.GRID_WAIT = 5;
+  scrollBy(40);
+  await sleep(80);
+  fetched().length > window.GRID_AT_ONCE
+    ? ok('a picture that answers neither way gives its slot up on a clock, so '
+         + 'the grid cannot stop loading with nothing saying why')
+    : fail('the queue stalled at ' + fetched().length + ' for ever');
+  const stalled = tiles().filter(
+    (t) => /not answering/.test(t.textContent))[0];
+  stalled
+    ? ok('and the tile says so where its picture would have been')
+    : fail('a stalled tile says nothing');
+  window.GRID_WAIT = 20000;
+
+  // --- AND THE GALLERY TOUCHES THE LESSON AS LITTLE AS THE LIST DOES -----
+  !everSent.filter((u) => /\/(say|session|aim|start)\b/.test(u)).length
+    ? ok('and nothing the gallery has ever asked for touches the lesson')
+    : fail('the gallery reached into a sitting: '
+           + everSent.filter((u) => /\/(say|session|aim|start)\b/.test(u)).join(','));
 
   console.log(errors.length ? '\n' + errors.length + ' FAILURES'
                             : '\nthe library draws what a workspace wrote, and takes a word about one');

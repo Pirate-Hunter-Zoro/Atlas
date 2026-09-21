@@ -10,7 +10,7 @@
    network -- a cached lesson is a stale lesson, which is worse than none.
    ========================================================================== */
 
-var VERSION = "board-shell-v152";
+var VERSION = "board-shell-v153";
 
 var SHELL = [
   "/",
@@ -23,6 +23,7 @@ var SHELL = [
   "/static/gauge.js",
   "/static/recentre.js",
   "/static/address.js",
+  "/static/mission.js",
   "/static/typeface.css",
   "/static/typeface.js",
   "/static/board.css",
@@ -87,7 +88,11 @@ var RUNTIME = /\/static\/(katex\/fonts|fonts)\//;
    addresses whose contents change under them -- a cached one is last week's
    meeting wearing this week's name, in front of this week's mentors. The
    page `/meeting` itself is shell and is cached; its contents are not. */
-var LIVE = /^\/(events|board\.json|courses\.json|hosts\.json|health|switch|chose|start|say|aim|upload|slate\/(save|state)|figure\/|result\/|uploads\/|slate\/page-|download\/|view\/|paper\/|doc\/|library\.json|library\/|meeting\/)/;
+/* AND A MISSION'S PROGRESS, for the same reason. `/mission` and `/missions` are
+   stable addresses whose contents change under them every few minutes -- what a
+   job has done since you last looked is the whole point of asking -- and a
+   cached one says the mission has been idle for an hour when it has not. */
+var LIVE = /^\/(events|board\.json|courses\.json|hosts\.json|health|switch|chose|start|say|aim|upload|mission|slate\/(save|state)|figure\/|result\/|uploads\/|slate\/page-|download\/|view\/|paper\/|doc\/|library\.json|library\/|meeting\/)/;
 
 self.addEventListener("install", function (e) {
   e.waitUntil(

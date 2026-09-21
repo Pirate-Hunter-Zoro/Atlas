@@ -62,8 +62,17 @@
          the board's strip puts it there -- a thing that has not finished comes
          before one that has. -->
     <div id="missions" class="answers missions" hidden>
-      <p class="answers-lead"><span class="news-dot"></span><span id="missions-lead">A mission is still going</span></p>
+      <!-- THE LEAD IS THE TAP: "if I click on that box that says 'A Mission is
+           still going' I can see what has been going on and been accomplished
+           thus far." The rows under it stay the way BACK into the workspace --
+           one surface per next move -- and each carries its own control, so a
+           second mission is reachable without the lead having to pick one. -->
+      <button type="button" id="missions-open" class="answers-lead mprog-lead">
+        <span class="news-dot"></span><span id="missions-lead">A mission is still going</span>
+        <span class="mprog-more">what it has done</span>
+      </button>
       <div id="missions-list"></div>
+      <div id="mission-progress" class="mprog" hidden></div>
     </div>
 
     <div class="actions">
@@ -345,6 +354,7 @@
 
 <script src="/static/address.js"></script>
 <script src="/static/recentre.js"></script>
+<script src="/static/mission.js"></script>
 <script src="/static/home.js"></script>
 </body>
 </html>

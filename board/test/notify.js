@@ -43,6 +43,34 @@ const ok = (m) => console.log('ok   ' + m);
 const fail = (m) => { errors.push(m); console.log('FAIL ' + m); };
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+/* WHAT `/mission` COMES BACK WITH. A mission that has reported nothing is the
+   case the panel exists for -- one had run five hours with no card, no file and
+   no progress anywhere -- so this default says exactly that: no steps, no
+   cards, no commits, and every fact the record holds on its own. */
+let missionAnswer = {
+  ok: true, id: 't0007', ws: 'research/PSYCH-ASR', repo: 'PSYCH-ASR',
+  course: 'PSYCH-ASR', agent: 'colibri', state: 'running',
+  task: 'grade the four typists', at: 0, elapsed: 5 * 3600 + 29 * 60,
+  turns: 2, carries: 1, stalls: 0, working: true, host: 'compute301',
+  left: 4 * 3600, budget: 12 * 3600, session: 'fc26', ship: true, shipped: 0,
+  steps: [], cards: [], card_count: 0, commits: [], files: [], dirty: 0,
+  withheld: 0, fenced: ['phi'],
+};
+
+/* ABOUT THE MISSION THAT WAS ASKED FOR. The panel is keyed on the id the tap
+   named, so a stub answering about a different one would let a panel that
+   re-keys itself off the payload pass -- which is exactly the fault that
+   stopped a second tap closing it. */
+function answerFor(u) {
+  const m = /[?&]id=([^&]*)/.exec(String(u));
+  const w = /[?&]ws=([^&]*)/.exec(String(u));
+  return Object.assign({}, missionAnswer, {
+    id: m ? decodeURIComponent(m[1]) : missionAnswer.id,
+    ws: w ? decodeURIComponent(w[1]) : missionAnswer.ws,
+  });
+}
+
 const t0 = Date.now() / 1000;
 
 /* ------------------------------------------------------------- the board */
@@ -66,9 +94,15 @@ function boardDom() {
   window.asked = [];
   window.fetch = (u, opts) => {
     window.asked.push({ url: String(u), how: (opts && opts.method) || 'GET' });
-    return /slate\/state/.test(String(u))
-      ? Promise.resolve({ json: () => Promise.resolve({ pages: [] }) })
-      : new Promise(() => {});
+    if (/slate\/state/.test(String(u))) {
+      return Promise.resolve({ json: () => Promise.resolve({ pages: [] }) });
+    }
+    /* The progress panel is a TAP, so the answer comes from here rather than
+       from the payload. `missionAnswer` is what the server would say. */
+    if (/^\/mission\?/.test(String(u))) {
+      return Promise.resolve({ json: () => Promise.resolve(answerFor(u)) });
+    }
+    return new Promise(() => {});
   };
   window.renderMathInElement = () => {};
   window.requestAnimationFrame = (fn) => setTimeout(fn, 0);
@@ -81,7 +115,8 @@ function boardDom() {
     this.addEventListener = function () {};
   };
   for (const f of ['typeface.js', 'macros.js', 'gauge.js', 'plane-core.js',
-                   'slate-core.js', 'annotate.js', 'address.js', 'board.js']) {
+                   'slate-core.js', 'annotate.js', 'address.js',
+                   'mission.js', 'board.js']) {
     try { window.eval(fs.readFileSync(path.join(WEB, f), 'utf8')); }
     catch (e) { fail(f + ': ' + e.message); }
   }
@@ -243,6 +278,135 @@ await sleep(60);
     ? ok('and the lead over the strip is about what is in it')
     : fail('the lead says "' + doc.getElementById('news-lead').textContent + '"');
 
+  /* ------------------------------ AND WHAT IT HAS BEEN DOING
+  //
+  // "Whenever an agent is dispatched in some way, make it so that if I click on
+  //  that box that says 'A Mission is still going' I can see what has been
+  //  going on and been accomplished thus far."
+  //
+  // Three words are what somebody DOES about a mission; after the first hour
+  // they are not what somebody wants to know. One had run five hours, taken a
+  // pick-up, and put nothing anywhere -- because a doing turn's report lands at
+  // the end and this model prefills for hours. So the row carries the last
+  // thing the turn said it finished, and the whole of it is one tap further. */
+  es.onmessage({ data: frame([], [mission({
+    steps: 3, step: 'rebuilt the reference: 74 rows, 6 disagree' })]) });
+  await sleep(60);
+  /rebuilt the reference/.test(jobs()[0].textContent)
+    ? ok('the row says the last thing the turn reported finishing, which is the '
+         + 'one line that says the work is moving')
+    : fail('the row gives a state and no progress: "' + jobs()[0].textContent + '"');
+  /3 steps/.test(jobs()[0].textContent)
+    ? ok('and offers the rest of the trail, saying how much of it there is')
+    : fail('nothing on the row offers what else it has done');
+
+  // A NEW STEP IS A NEW ROW. The list is rebuilt only when it has changed, and
+  // keying that on the STATE alone would hold the first progress line for the
+  // whole of a five-hour mission.
+  es.onmessage({ data: frame([], [mission({
+    steps: 4, step: 'scored it: 71 of 74 within 2s' })]) });
+  await sleep(60);
+  /71 of 74/.test(jobs()[0].textContent)
+    ? ok('and the next step replaces it, because a row rebuilt only on a change '
+         + 'of state would freeze the first line for five hours')
+    : fail('the row still shows the previous step');
+
+  // AND THE PANEL, WHICH IS THE OTHER HALF: everything the record knows about a
+  // mission that has reported nothing at all.
+  {
+    const panel = () => doc.getElementById('mission-progress');
+    const more = jobs()[0].querySelector('.mprog-more')
+      || jobs()[0].appendChild(doc.createElement('span'));
+    jobs()[0].querySelector('.mprog-more')
+      ? ok('the tap that opens it is a control of its own, so the row itself is '
+           + 'still the way back into that workspace')
+      : fail('nothing on the row opens what it has done');
+    more.dispatchEvent(new window.Event('click'));
+    await sleep(60);
+    window.asked.some((r) => /^\/mission\?ws=research%2FPSYCH-ASR&id=t0007$/.test(r.url))
+      ? ok('and it asks the server for that one mission, by workspace and by id')
+      : fail('nothing asked the server what the mission has done');
+    const said = panel().textContent;
+    !panel().hidden && /5h 29m in/.test(said)
+      ? ok('and the panel says how long it has been going, which is true of a '
+           + 'mission that has written nothing')
+      : fail('the panel does not say how long: "' + said + '"');
+    /turn 2 of it/.test(said) && /picked up once/.test(said)
+      ? ok('and which turn it is on, and that a node went away under it')
+      : fail('the panel says nothing about the turns: "' + said + '"');
+    /a turn is running right now/.test(said) && /compute301/.test(said)
+      ? ok('and whether a client is running right now, and on which node -- the '
+           + 'two facts no card can answer')
+      : fail('the panel cannot say whether anything is running');
+    /4h left on that allocation/.test(said) && /12h of budget left/.test(said)
+      ? ok('and how long that node has, against how much of the mission budget '
+           + 'is left, which are two different clocks')
+      : fail('the panel says nothing about either ceiling: "' + said + '"');
+    /Nothing reported yet/.test(said)
+      ? ok('and where the assistant has reported nothing it SAYS so, rather '
+           + 'than showing a blank that reads as broken')
+      : fail('a mission that has reported nothing draws an empty panel');
+
+    // AND WHEN IT HAS REPORTED, the trail is there -- with the board's own
+    // lines marked as the board's, because the machinery working must not read
+    // as the assistant's report.
+    missionAnswer = Object.assign({}, missionAnswer, {
+      steps: [
+        { at: t0 - 19000, who: 'board', said: 'dispatched to colibri from courses/Probability' },
+        { at: t0 - 18000, who: 'board', said: 'a turn started on compute300' },
+        { at: t0 - 9000, who: 'agent', said: 'rebuilt the reference: 74 rows, 6 disagree' },
+        { at: t0 - 400, who: 'board', said: 'picked up where it stopped -- the node it was on went away (pick-up 1 of 6)' },
+      ],
+      cards: [{ id: '0057', at: t0 - 8000, title: 'the reference is rebuilt' }],
+      card_count: 1,
+      commits: [{ at: t0 - 7000, subject: 'Rebuild the reference transcript' }],
+      files: ['psych_asr/repair.py'], dirty: 1, withheld: 2,
+    });
+    more.dispatchEvent(new window.Event('click'));   // shut it
+    more.dispatchEvent(new window.Event('click'));   // and ask again
+    await sleep(60);
+    const told = panel().textContent;
+    /rebuilt the reference: 74 rows/.test(told) && /picked up where it stopped/.test(told)
+      ? ok('a mission that has reported shows what it reported, and the hop it '
+           + 'crossed, in the order they happened')
+      : fail('the trail is not on the panel: "' + told + '"');
+    Array.from(panel().querySelectorAll('.mprog-step.machine')).length === 3
+      ? ok("and the board's own lines are marked as the board's, because the "
+           + "machinery working is not the assistant's report")
+      : fail('nothing separates what the board wrote from what the turn said');
+    /1 card/.test(told) && /1 commit/.test(told) && /1 file/.test(told)
+      ? ok('and what it has MADE, which is the half of "accomplished" that no '
+           + 'prompt can lie about')
+      : fail('the panel does not say what landed: "' + told + '"');
+    /the reference is rebuilt/.test(told) && /Rebuild the reference transcript/.test(told)
+      ? ok('by name, so there is something to go and read')
+      : fail('the panel counts without naming');
+    /2 more under phi, not named here/.test(told)
+      ? ok('and a path under the fence is COUNTED and never named, said out '
+           + 'loud -- a name silently missing is one somebody scrolls for')
+      : fail('the fence is either leaking names or hiding the count: "' + told + '"');
+
+    // THE LEAD IS A TAP TOO, because that is the sentence the ask points at and
+    // it is on this strip as well as on the front door.
+    const lead = doc.getElementById('news-lead');
+    window.MissionPanel.hide(panel());
+    lead.classList.contains('mprog-lead') && typeof lead.onclick === 'function'
+      ? ok('and the line that says a mission is still going is itself the tap, '
+           + 'which is the sentence the ask names')
+      : fail('"a mission is still going" cannot be tapped');
+    lead.dispatchEvent(new window.Event('click'));
+    await sleep(60);
+    !panel().hidden && /rebuilt the reference/.test(panel().textContent)
+      ? ok('and it opens the newest one')
+      : fail('tapping the lead showed nothing');
+    const shut = panel().querySelector('.mprog-close');
+    if (shut) shut.dispatchEvent(new window.Event('click'));
+    shut && panel().hidden
+      ? ok('and it can be shut again without leaving the lesson')
+      : fail('the panel cannot be closed');
+    missionAnswer = Object.assign({}, missionAnswer, { steps: [] });
+  }
+
   // A FAILURE IS A DIFFERENT NEXT MOVE, so it says which one.
   es.onmessage({ data: frame([], [mission({
     state: 'failed',
@@ -360,12 +524,19 @@ await sleep(60);
   };
   w.requestAnimationFrame = (fn) => setTimeout(fn, 0);
   w.scrollTo = function () {};
-  w.fetch = () => new Promise(() => {});
+  w.asked = [];
+  w.fetch = (u) => {
+    w.asked.push(String(u));
+    return /^\/mission\?/.test(String(u))
+      ? Promise.resolve({ json: () => Promise.resolve(answerFor(u)) })
+      : new Promise(() => {});
+  };
   w.addEventListener('error', (e) => fail('home: uncaught: ' + e.message));
   // The front door draws no plane and measures no text any more -- six
   // families is a list of six -- so neither `gauge.js` nor `plane-core.js` is
   // loaded by it or by this.
-  for (const f of ['typeface.js', 'address.js', 'recentre.js', 'home.js']) {
+  for (const f of ['typeface.js', 'address.js', 'recentre.js', 'mission.js',
+                   'home.js']) {
     let src = fs.readFileSync(path.join(WEB, f), 'utf8');
     if (f === 'home.js') src = src.replace('})();', 'window.__atlas = paintAtlas;\n})();');
     try { w.eval(src); } catch (e) { fail('home: ' + f + ': ' + e.message); }
@@ -391,7 +562,11 @@ await sleep(60);
         // the answers above it.
         mission: { id: 't0009', state: 'running', agent: 'colibri',
                    task: 'decode the pilot session', at: t0 - 7200,
-                   ship: true, reason: '' } },
+                   ship: true, reason: '',
+                   // AND WHAT IT HAS DONE, on the card. "Still going" is the
+                   // state to leave alone; this is the line that says the work
+                   // is moving, and it is on the surface somebody comes back to.
+                   steps: 3, step: 'rebuilt the reference: 74 rows' } },
     ],
   };
   w.__atlas(payload);
@@ -407,6 +582,60 @@ await sleep(60);
                && /decode the pilot/.test(mrows[0].textContent)
     ? ok('and what it is, and that it has not finished')
     : fail('the mission row says nothing useful');
+  mrows.length && /rebuilt the reference/.test(mrows[0].textContent)
+    ? ok('and the last thing it reported finishing, because after the first '
+         + 'hour "still going" is not something anybody can act on')
+    : fail('the front-door row says nothing about progress');
+
+  /* AND THE BOX ITSELF IS THE TAP, which is the ask in the owner's own words:
+     "if I click on that box that says 'A Mission is still going' I can see what
+      has been going on and been accomplished thus far."
+
+     The rows under it stay the way BACK into the workspace -- one surface per
+     next move -- so the disclosure is the lead and a control on each row. */
+  {
+    /* A control that is not there would take the rest of this block down with
+       it, and a crash is a worse report than a failure: the point of these is
+       to say WHICH of them broke. */
+    const open = d.getElementById('missions-open')
+      || d.body.appendChild(d.createElement('span'));
+    const panel = d.getElementById('mission-progress')
+      || d.body.appendChild(d.createElement('div'));
+    open.tagName === 'BUTTON'
+      ? ok('the line that says a mission is still going is a button, which is '
+           + 'the thing the ask points at')
+      : fail('"A mission is still going" cannot be clicked');
+    /a mission is still going/i.test(open.textContent)
+      ? ok('and it still says that, so the tap is on the sentence rather than '
+           + 'beside it')
+      : fail('the lead no longer says what it said: "' + open.textContent + '"');
+    open.dispatchEvent(new w.Event('click'));
+    await sleep(60);
+    w.asked.some((u) => /^\/mission\?ws=research%2FTRD-EHR&id=t0009$/.test(u))
+      ? ok('and it asks the server for that one mission, by workspace and by id')
+      : fail('tapping the box asked the server nothing');
+    !panel.hidden && /5h 29m in/.test(panel.textContent)
+      ? ok('and what comes back is how long it has been going, which is true '
+           + 'even of a mission that has written nothing at all')
+      : fail('the panel says nothing: "' + panel.textContent + '"');
+    /Nothing reported yet/.test(panel.textContent)
+      ? ok('and says plainly that the assistant has reported nothing, rather '
+           + 'than drawing a blank that reads as broken')
+      : fail('a mission with no report draws an empty panel');
+    // A SECOND TAP SHUTS IT. It is a disclosure on the front door, and the
+    // front door is a page somebody is passing through.
+    open.dispatchEvent(new w.Event('click'));
+    await sleep(20);
+    panel.hidden
+      ? ok('and a second tap puts it away')
+      : fail('the panel cannot be closed from the same control');
+    // AND THE ROW ITSELF STILL OPENS THE WORKSPACE, which is what it was for.
+    const chip = mrows[0].querySelector('.mprog-more');
+    chip
+      ? ok('while each row carries its own control, so a second mission is not '
+           + 'behind the first')
+      : fail('a row cannot open its own progress');
+  }
   // ON THE CARD, WHICH IS ONE LEVEL DOWN. The front door is the FAMILIES now,
   // and the workspaces are behind whichever one you tap -- so the mark lives on
   // the card, and the count of what is waiting lives on the door above it. Both

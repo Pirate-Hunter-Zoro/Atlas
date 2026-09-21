@@ -170,6 +170,70 @@ main {
   font-size: .78rem; color: var(--accent);
 }
 
+/* WHAT IT HAS BEEN DOING, which is what the box is now a tap for: "if I click
+   on that box that says 'A Mission is still going' I can see what has been
+   going on and been accomplished thus far."
+
+   The lead is a button now, so it is reset to the paragraph it replaced -- the
+   only difference a reader should see is that it can be pressed. */
+.mprog-lead {
+  width: 100%; border: 0; background: transparent; padding: 0;
+  cursor: pointer; text-align: left;
+}
+.mprog-more {
+  flex: none; font-family: var(--ui); font-size: .66rem; letter-spacing: .05em;
+  cursor: pointer; margin-left: auto;
+  padding: .1rem .3rem; border-radius: .25rem;
+  border: 1px dashed var(--rule); color: var(--ink-2);
+}
+.mission-step {
+  flex-basis: 100%; margin-top: .2rem;
+  font-size: .8rem; color: var(--ink);
+}
+.mprog {
+  margin-top: .5rem;
+  padding: .55rem .7rem;
+  border-radius: .4rem;
+  border: 1px solid var(--rule);
+  background: var(--paper);
+  font-size: .85rem;
+}
+.mprog-head { display: flex; align-items: baseline; gap: .5rem; }
+.mprog-who {
+  font-family: var(--ui); font-weight: 700; font-size: .7rem;
+  text-transform: uppercase; letter-spacing: .1em;
+}
+.mprog-close {
+  margin-left: auto; flex: none; font: inherit; cursor: pointer;
+  border: 0; background: transparent; color: var(--ink-2);
+}
+.mprog p { margin: .3rem 0 0; }
+.mprog-facts { color: var(--ink-2); font-size: .78rem; }
+.mprog-task { color: var(--ink-2); }
+.mprog-quiet { color: var(--ink-2); font-style: italic; }
+.mprog-made { color: var(--ink); font-size: .78rem; }
+.mprog-why { color: var(--accent); }
+.mprog-ship { color: var(--ink-2); font-size: .78rem; }
+/* The board's own lines -- dispatched, a turn started, picked up after the node
+   went away -- are dimmed, because the machinery working must not read as the
+   assistant's report. */
+.mprog-steps {
+  list-style: none; margin: .4rem 0 0; padding: 0;
+  display: grid; gap: .2rem;
+}
+.mprog-step { display: flex; gap: .5rem; align-items: baseline; }
+.mprog-step.machine { color: var(--ink-2); font-style: italic; }
+.mprog-when {
+  flex: none; font-variant-numeric: tabular-nums;
+  font-size: .74rem; color: var(--ink-2);
+}
+.mprog-said { min-width: 0; }
+.mprog-names {
+  list-style: none; margin: .3rem 0 0; padding: 0;
+  display: grid; gap: .1rem;
+  font-size: .78rem; color: var(--ink-2);
+}
+
 /* ---------- the two big doors ---------- */
 .actions { display: grid; gap: .7rem; margin-top: 1.6rem; }
 @media (min-width: 30rem) { .actions { grid-template-columns: 1.4fr 1fr; } }

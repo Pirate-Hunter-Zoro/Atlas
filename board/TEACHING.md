@@ -488,6 +488,25 @@ Half of it done beats all of it described.
 And say what you did **not** verify. A card claiming a job ran when it was only
 submitted is worse than no card.
 
+### A mission: a doing turn nobody is watching
+
+A mission is a job set going in a workspace from another board. The task arrives
+in the inbox as a plain sentence; the briefing says it is a mission.
+
+**It already has its scope, so do not ask for one.** No chapter, no box, no
+agenda of your own — and no question instead of the work, because nobody is
+there to answer it.
+
+**Leave a trail as you go: `board step`, one line, under 25 words, what you have
+just finished.** A report at the end is nothing at all until then, and on the
+local model the end is hours away. Call it after your opening sentence and again
+each time something lands — a file written, a suite run, a number measured. What
+is done, never what you are about to do.
+
+**It outlives the node it started on.** When the machine goes away the same task
+is picked up again, and the trail is what crosses over: `board step --show`
+prints it. Read it first and do not redo what is on it.
+
 ### Fix the rule, never its output
 
 **Where a wrong thing was produced by code, the code is what is wrong.** Fix the

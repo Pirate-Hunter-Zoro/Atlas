@@ -149,6 +149,7 @@ var els = {
   newsLead: document.getElementById("news-lead"),
   newsList: document.getElementById("news-list"),
   missionList: document.getElementById("mission-list"),
+  missionProgress: document.getElementById("mission-progress"),
   writeupList: document.getElementById("writeup-list"),
   newsHide: document.getElementById("news-hide"),
   typebox: document.getElementById("typebox"),
@@ -8282,13 +8283,36 @@ var missionShown = "";
 var MISSION_WORD = { running: "still going", done: "done", failed: "failed" };
 
 function missionKey(m) {
+  /* The step count is part of the key, not just the state: a list rebuilt only
+     when the state changes would hold the first progress line for the whole of
+     a five-hour mission. Muting is keyed on state alone -- see `missionMute` --
+     because waving a row away must not un-wave itself on the next step. */
+  return (m.ws || "") + "/" + (m.id || "") + "@" + (m.state || "")
+         + "#" + (m.steps || 0);
+}
+
+function missionMute(m) {
   return (m.ws || "") + "/" + (m.id || "") + "@" + (m.state || "");
+}
+
+/* WHAT IT HAS BEEN DOING, one tap off the row. `mission.js` draws it; this is
+   the way in, and it is a control of its own rather than the row, because the
+   row is the way back into that workspace and a disclosure that stole that tap
+   would be a notification with no door. */
+function missionProgress(m) {
+  var host = els.missionProgress;
+  if (!host || !window.MissionPanel) return;
+  if (window.MissionPanel.shown(host) === m.id) {
+    window.MissionPanel.hide(host);
+    return;
+  }
+  window.MissionPanel.show(host, m);
 }
 
 function missionsShowing(data) {
   var out = [];
   ((data && data.missions) || []).forEach(function (m) {
-    if (!missionMuted[missionKey(m)]) out.push(m);
+    if (!missionMuted[missionMute(m)]) out.push(m);
   });
   return out.slice(0, 3);
 }
@@ -8343,6 +8367,28 @@ function paintMissions(show) {
       go.className = "news-go";
       go.textContent = "\u2192";
       row.appendChild(go);
+    }
+    /* WHAT IT HAS DONE, and it is two things on the row rather than one. The
+       last step it reported is the line that says the work is moving; the
+       control beside it opens the whole trail and every fact the record holds.
+       A mission that has reported nothing still has the second one, which is
+       the case the panel exists for. */
+    var more = document.createElement("span");
+    more.className = "mprog-more";
+    more.textContent = m.steps
+      ? m.steps + " step" + (m.steps === 1 ? "" : "s")
+      : "what it has done";
+    more.onclick = function (ev) {
+      ev.preventDefault();
+      ev.stopPropagation();
+      missionProgress(m);
+    };
+    row.appendChild(more);
+    if (m.step) {
+      var did = document.createElement("span");
+      did.className = "mission-step";
+      did.textContent = m.step;
+      row.appendChild(did);
     }
     if (m.state === "failed" && m.reason) {
       var why = document.createElement("span");
@@ -8497,6 +8543,7 @@ function paintNews(data) {
     els.newsList.textContent = "";
     if (els.missionList) els.missionList.textContent = "";
     if (els.writeupList) els.writeupList.textContent = "";
+    if (window.MissionPanel) window.MissionPanel.hide(els.missionProgress);
     newsShown = "";
     missionShown = "";
     writeupShown = "";
@@ -8505,6 +8552,13 @@ function paintNews(data) {
   var sig = show.map(newsKey).join("~");
   els.newsBar.hidden = false;
   els.newsLead.textContent = newsLeadFor(show, jobs, papers);
+  /* THE LEAD IS A TAP WHERE IT SAYS A MISSION IS STILL GOING, because that is
+     the sentence the ask points at and it is on this strip as well as on the
+     front door. The newest mission, which is the only one when there is one. */
+  els.newsLead.classList.toggle("mprog-lead", jobs.length > 0);
+  els.newsLead.onclick = jobs.length
+    ? function () { missionProgress(jobs[0]); }
+    : null;
   if (els.writeupList) paintWriteups(papers);
   if (els.missionList) paintMissions(jobs);
   /* Rebuilt only when the list has actually changed. This is painted on every
@@ -8552,7 +8606,7 @@ if (els.newsHide) {
        is not waving away the same mission having FAILED, which is the thing
        that has to be able to come back. */
     ((lastLive && lastLive.missions) || []).forEach(function (m) {
-      missionMuted[missionKey(m)] = true;
+      missionMuted[missionMute(m)] = true;
     });
     /* A DOCUMENT BEING WRITTEN HERE IS NOT MUTED, and that is deliberate: it
        comes back on the next payload. This is a gesture about news from
@@ -8561,6 +8615,7 @@ if (els.newsHide) {
        which tells the server — `writeupSeen` — because the fact is about the
        document rather than about this page. */
     els.newsBar.hidden = true;
+    if (window.MissionPanel) window.MissionPanel.hide(els.missionProgress);
     newsShown = "";
     missionShown = "";
     writeupShown = "";

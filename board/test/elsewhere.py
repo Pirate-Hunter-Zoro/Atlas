@@ -28,6 +28,7 @@ import json
 import os
 import re
 import socket
+import subprocess
 import sys
 import tempfile
 import threading
@@ -39,7 +40,8 @@ from http.server import ThreadingHTTPServer
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 
-from tutorboard import atlas, colibri, machine, machines, missions, news
+from tutorboard import (atlas, colibri, fenced, machine, machines, missions,
+                        news, progress)
 from tutorboard.course import repo as course_repo
 from tutorboard.lesson import notes, state, turns
 from tutorboard.server import handler, hub, tikz
@@ -225,6 +227,23 @@ try:
                                      data=b"" if method == "POST" else None)
         with urllib.request.urlopen(req, timeout=20) as r:
             return json.loads(r.read().decode("utf-8"))
+
+    def ask_json(path):
+        """`(status, payload)` for a GET, refusals included.
+
+        A 404 is the answer to "is that a workspace this machine has" and to
+        "is that a turn id", and a route that is not there answers the same
+        way -- so all three have to be readable as a status rather than
+        raising past the check that is about them.
+        """
+        try:
+            with urllib.request.urlopen(BASE + path, timeout=20) as r:
+                return r.status, json.loads(r.read().decode("utf-8"))
+        except urllib.error.HTTPError as exc:
+            try:
+                return exc.code, json.loads(exc.read().decode("utf-8"))
+            except ValueError:
+                return exc.code, {}
 
     check("and a surface that polls rather than subscribes can ask for it",
           [n["id"] for n in ask("/news")["news"]] == ["research/PSYCH-ASR"])
@@ -770,6 +789,135 @@ try:
         check("and that it is not in the workspace being read, so the row can "
               "carry a way back to it",
               mine and mine[0]["here"] is False)
+
+        # ------------------------------------------------------------------
+        # WHAT IT HAS BEEN DOING, WHICH IS NOT THE SAME QUESTION AS WHETHER
+        # ------------------------------------------------------------------
+        # "Whenever an agent is dispatched in some way, make it so that if I
+        # click on that box that says 'A Mission is still going' I can see what
+        # has been going on and been accomplished thus far."
+        #
+        # The three states above are what somebody DOES about a mission. After
+        # the first hour they are not what somebody wants to know: one mission
+        # ran five hours, took a pick-up, and had put nothing anywhere at all,
+        # because a doing turn's report lands at the END and this model prefills
+        # for hours. So there are two halves, and the first one has to be true
+        # of a mission that has said nothing.
+        first = progress.read(psych, one)
+        check("a mission has a trail from second zero, and the machinery writes "
+              "the first line rather than waiting for a model that prefills for "
+              "hours",
+              len(first) == 1 and first[0]["who"] == "board"
+              and "dispatched" in first[0]["said"]
+              and "colibri" in first[0]["said"])
+        said = progress.of(psych, mine[0], working=False)
+        check("and the facts a person wants are derived from the record, so a "
+              "mission that has reported nothing still says how long it has "
+              "been going, which turn it is on and how much budget is left",
+              said["elapsed"] >= 0 and said["turns"] == 1
+              and said["carries"] == 0 and said["stalls"] == 0
+              and said["budget"] > 0 and said["agent"] == "colibri")
+        check("and which node it is on, which is the thing a colibri mission "
+              "lives and dies by",
+              said["host"] == machine.node_name())
+        check("and whether a client is actually running right now, which is the "
+              "one fact no card can answer",
+              said["working"] is False
+              and progress.of(psych, mine[0], working=True)["working"] is True)
+
+        # AND THE ASSISTANT'S OWN HALF: a line per finished thing, not one
+        # report at the end.
+        progress.add(psych, one, "read the error log: 74 rows, 6 disagree")
+        progress.forget()
+        trail = progress.read(psych, one)
+        check("and a turn can report a finished thing as it goes, which lands "
+              "at once instead of at the end of a nine-hour turn",
+              len(trail) == 2 and trail[-1]["who"] == "agent"
+              and "74 rows" in trail[-1]["said"])
+        check("the newest of those rides on the ROW, because 'still going' is a "
+              "state and 'read the error log' is progress",
+              [m for m in missions.listing(galois) if m["id"] == one][0]["step"]
+              == "read the error log: 74 rows, 6 disagree")
+        check("and so does the count, so the row can offer the rest",
+              [m for m in missions.listing(galois) if m["id"] == one][0]["steps"]
+              == 2)
+        # AND THE FRONT DOOR'S CARD CARRIES IT TOO, because that is the surface
+        # that is open when somebody comes back to the app.
+        missions.forget()
+        machines._ATLAS["value"] = None
+        _cards = {c["id"]: c for c in machines.atlas_payload(here)["workspaces"]}
+        check("and the card on the front door says the same, because that is "
+              "what is open when somebody comes back to the app",
+              (_cards["research/PSYCH-ASR"]["mission"] or {}).get("step")
+              == "read the error log: 74 rows, 6 disagree")
+
+        # AND IT IS ONE TAP, WHICH IS WHAT THE ASK SAYS. `/missions` is the list
+        # and is pushed four times a second; this is the panel, and it is asked
+        # for once, by a thumb.
+        _st, panel = ask_json("/mission?ws=research%%2FPSYCH-ASR&id=%s" % one)
+        check("a running mission can be asked what it has done, over HTTP, from "
+              "a board serving a different workspace",
+              panel.get("ok") is True and panel["id"] == one
+              and panel["ws"] == "research/PSYCH-ASR")
+        check("and the answer carries the trail and the derived facts together, "
+              "because either half alone is half a panel",
+              len(panel.get("steps") or []) == 2
+              and panel.get("turns") == 1
+              and str(panel.get("task") or "").startswith(
+                  "grade the four typists"))
+        # NEITHER NAME REACHES THE FILESYSTEM. A workspace is matched against
+        # what the server already discovered and a mission id is matched against
+        # `missions.ID_RE` -- the same rule `/elsewhere` follows.
+        check("a workspace this machine has not got is refused by name rather "
+              "than built into a path",
+              ask_json("/mission?ws=../../etc&id=%s" % one)[0] == 404)
+        check("and so is a mission id that is not a turn id",
+              ask_json("/mission?ws=research%2FPSYCH-ASR&id=../../passwd")[0]
+              == 404)
+        check("and a turn-shaped id no mission has is refused rather than "
+              "answered with an empty panel",
+              ask_json("/mission?ws=research%2FPSYCH-ASR&id=t9999")[0] == 404)
+
+        # AND A NAME UNDER A FENCE IS COUNTED, NEVER LISTED. `research/PSYCH-ASR`
+        # keeps 308 MB of identifiable therapy audio under `phi/`, and its own
+        # `.gitignore` says why this matters here: *filenames themselves contain
+        # participant IDs*. So a list of what a mission touched is content even
+        # though nothing was opened to build it.
+        subprocess.run(["git", "init", "-q", base], check=False,
+                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        subprocess.run(["git", "-c", "user.email=t@t", "-c", "user.name=t",
+                        "commit", "-q", "--allow-empty", "-m", "start"],
+                       cwd=base, check=False,
+                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        write(os.path.join(psych, "phi", "community-1", "turns.csv"), "id,at\n")
+        write(os.path.join(psych, "psych_asr", "repair.py"), "x = 1\n")
+        fenced.forget()
+        changed = progress.changes_since(psych, 0)
+        check("the fence holds for the progress panel too: a path under it is "
+              "counted and never named",
+              changed["withheld"] == 1
+              and not any(fenced.refused(f) for f in changed["files"]))
+        check("and the work that is not fenced is named, so the panel is not "
+              "silent about a mission that changed something",
+              any("psych_asr" in f for f in changed["files"]))
+        # AND A FILE THAT WAS ALREADY DIRTY IS NOT THE MISSION'S. `git status`
+        # has no clock, so without the mtime the panel credits a mission with
+        # whatever somebody was editing in their own editor -- the same lie
+        # `brief.beside_sense` exists to stop, pointing the other way.
+        old = os.path.join(psych, "psych_asr", "repair.py")
+        os.utime(old, (time.time() - 86400, time.time() - 86400))
+        check("and a file somebody was already editing when the mission "
+              "started is not credited to it, because `git status` has no clock",
+              not any("psych_asr" in f for f in
+                      progress.changes_since(psych, time.time() - 60)["files"])
+              and any("psych_asr" in f
+                      for f in progress.changes_since(psych, 0)["files"]))
+        check("and the trail itself is under live/, which every workspace's "
+              ".gitignore excludes wholesale -- test/tracked.py holds the "
+              "other end of that",
+              os.path.relpath(progress.steps_path(psych, one),
+                              psych).startswith("live" + os.sep))
+        progress.forget()
 
         # A MISSION WHOSE DAEMON HAS GONE IS FAILED, NOT RUNNING. A failed turn
         # is reported in the busy strip of the board nobody is looking at.

@@ -88,7 +88,7 @@ import os
 import re
 import time
 
-from . import atlas, machine, news, paths, processes
+from . import atlas, machine, news, paths, processes, progress
 
 
 MISSIONS = "missions"
@@ -239,6 +239,15 @@ def dispatch(root, task, turn, agent="", ship=False, frm="", ceiling=0.0,
         "session": "",
     }
     write(root, rec)
+    # AND THE TRAIL STARTS AT SECOND ZERO. `progress.py` holds the other half
+    # of "is it still running" -- what has it been doing -- and the first line
+    # on it is written by the machinery rather than waited for: a model that
+    # prefills for hours has said nothing for hours, and a panel with one true
+    # line on it is the difference between "still going" and a blank.
+    progress.add(root, rec["id"],
+                 "dispatched to %s%s" % (agent or "whoever is listening",
+                                         " from " + frm if frm else ""),
+                 who="board", now=now)
     return rec
 
 
@@ -593,6 +602,9 @@ def of(root, now=None, freeze=True):
                 os.remove(_path(root, str(got.get("id"))))
             except OSError:
                 pass
+            # The trail goes with the record it is about. A `.steps` file with
+            # no `.json` beside it is a directory that is a log again.
+            progress.drop(root, str(got.get("id")))
             continue
         if freeze and got["state"] == "running" and rec.get("ended"):
             # THE THAW, ACTING. `judge` cleared the ending because the mission
@@ -612,6 +624,31 @@ def of(root, now=None, freeze=True):
     return out
 
 
+def live_mission(root, now=None):
+    """The mission running in this workspace right now, or None.
+
+    `running`'s own walk, handing back the record rather than a yes. A turn
+    has to be told it is on a mission -- see `sense.MISSION_SENSE` -- and a
+    briefing that only knows THAT one is running cannot say which, so the
+    trail the turn is meant to read and append to would have no name.
+
+    A pure read, like `running`: nothing is frozen and nothing is pruned.
+    """
+    now = float(now or time.time())
+    open_recs = [r for r in stored(root) if not r.get("ended")]
+    if not open_recs:
+        return None
+    try:
+        card = news.newest_card(root)
+    except OSError:
+        card = (0.0, "")
+    said = _agent(root)
+    for rec in open_recs:
+        if judge(root, rec, now, card=card, said=said).get("state") == "running":
+            return rec
+    return None
+
+
 def running(root, now=None):
     """Is a mission live in this workspace right now?
 
@@ -626,20 +663,11 @@ def running(root, now=None):
     board's own poll decides it four times a second anyway. The walk for the
     newest card is skipped entirely where no record is open, which is every
     workspace almost all of the time.
+
+    `live_mission` is the same question with the record on the answer, and this
+    is one word over it rather than a second copy of the walk.
     """
-    now = float(now or time.time())
-    open_recs = [r for r in stored(root) if not r.get("ended")]
-    if not open_recs:
-        return False
-    try:
-        card = news.newest_card(root)
-    except OSError:
-        card = (0.0, "")
-    said = _agent(root)
-    for rec in open_recs:
-        if judge(root, rec, now, card=card, said=said).get("state") == "running":
-            return True
-    return False
+    return live_mission(root, now) is not None
 
 
 def looked(root, now=None):
@@ -818,6 +846,13 @@ def claim_carry(root, rec, now=None):
     out["carried_at"] = now
     out["carry"] = 0.0
     write(root, out)
+    # A HOP IS ON THE TRAIL, because it is the one thing that explains a gap.
+    # Half an hour with nothing new on the panel reads as a wedged mission; the
+    # same half hour with "picked up after the node went away" on it reads as
+    # the machinery working, which is what it is.
+    progress.add(root, mid, "picked up where it stopped -- the node it was on "
+                 "went away (pick-up %d of %d)" % (hop, CARRY_HOPS),
+                 who="board", now=now)
     return True
 
 
@@ -856,6 +891,13 @@ def turn_open(root, rec, ceiling=None, session="", now=None):
     if session:
         out["session"] = str(session)
     write(root, out)
+    # ON THE TRAIL TOO, because "a client is running" is the fact a person
+    # waiting on a slow model most wants and could not get. It is written here
+    # rather than in the daemon so that every path that opens a turn says so
+    # exactly once, and so `board/bin/tutor` owns none of this.
+    progress.add(root, str(out.get("id") or ""),
+                 "a turn started on %s" % (machine.node_name() or "this node"),
+                 who="board", now=now)
     return out
 
 
@@ -941,6 +983,15 @@ def listing(here, now=None):
             got["family_name"] = w["family_name"]
             got["course"] = news.course_name(root) or w["dir"]
             got["here"] = paths.same_dir(root, here)
+            # AND THE LAST THING IT SAID IT FINISHED, on the row itself. "Still
+            # going" is the state a person is told to leave alone, and a row
+            # that says only that is a row nobody can act on after the first
+            # hour. The whole trail is behind a tap -- `progress.of` -- because
+            # this payload is pushed four times a second and a panel is not.
+            trail = progress.read(root, str(got.get("id")))
+            got["steps"] = len(trail)
+            got["step"] = trail[-1]["said"] if trail else ""
+            got["step_at"] = trail[-1]["at"] if trail else 0.0
             out.append(got)
     out.sort(key=lambda x: -_stamp(x.get("at")))
     return out

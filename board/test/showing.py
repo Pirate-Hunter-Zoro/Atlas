@@ -483,6 +483,75 @@ check("the library page's own fetch answers with the groups",
 check("and says which directories it looked in, so *nothing here* is checkable",
       sorted(page.get("looked") or []) == ["figures", "results", "tables"])
 
+
+# ---- A GALLERY IS ALL OF THEM AT ONCE, AND IT GENERATES NOTHING ----
+# The browse list above is filenames. The other half of the ask was the
+# pictures -- "an option to view all figures and nice UI to select which ones
+# to view up close" -- which means every id in this payload is one a grid of
+# thumbnails will ask for, not just the handful somebody taps.
+#
+# TWO THINGS THAT FOLLOW, AND BOTH ARE NUMBERS RATHER THAN PROMISES. Every id
+# the payload hands out has to resolve, because a grid that 404s a tile is a
+# hole nobody can tell from a figure that has gone. And nothing is generated to
+# draw them: there is no thumbnail, so there is no cache, so there is nothing
+# in a gitignored results tree for `tracked.py` to ever find. Asserted by
+# listing the tree before and after every figure in the payload has been
+# served.
+print("\n-- every figure at once, and nothing written to draw them --")
+
+
+def visible_files():
+    """Every file under this workspace that git could see.
+
+    `live/` is left out and only that: the board's own working directory is
+    written to by the hub on its own schedule, and it is the one part of a
+    workspace that is not what a job produced.
+    """
+    out = set()
+    for here, dirs, files in os.walk(WS):
+        dirs[:] = [d for d in dirs if d not in (".git", "live")]
+        for f in files:
+            out.add(os.path.relpath(os.path.join(here, f), WS))
+    return out
+
+
+# MORE THAN THE DRAWER'S TWO DOZEN, because that is the whole difference. The
+# drawer offers `MAX_FIGURES`; a gallery draws every figure the payload names,
+# and a route resolving only the drawer's slice would serve the newest 24 and
+# 404 the rest of a grid it is painting -- which is the case `find`'s own
+# docstring is about and the one a gallery meets on its first screen.
+# A LITERAL RATHER THAN `MAX_FIGURES + n`, because the whole point is a payload
+# bigger than the drawer's cap: a fixture derived from that cap grows with it,
+# and then raising the cap silently makes the comparison below true again.
+# Raise this if `MAX_FIGURES` is ever raised past it -- that is a fixture to fix,
+# not an assertion to soften.
+PAST_A_DRAWER = 34
+for i in range(PAST_A_DRAWER):
+    write(os.path.join(WS, "results", "gallery", "panel_%02d.png" % i),
+          png_bytes())
+before = visible_files()
+results.forget()
+shelf = results.browse(repo)
+shots = [f for g in shelf["groups"] for f in g["figures"]]
+drawer = set(f["id"] for f in results.figures(WS))
+served = set(get(PORT, "/result/" + f["id"])[0] for f in shots)
+check("a gallery is offered more figures than a drawer's cap, so the two are "
+      "not the same question asked twice",
+      len(shots) > results.MAX_FIGURES
+      and len(drawer) == results.MAX_FIGURES)
+check("and EVERY ONE of them is served by the id its own row carries -- a grid "
+      "asks for all of them at once, and one that 404s is a hole nobody can "
+      "tell from a figure a job has deleted",
+      bool(shots) and served == {200})
+check("and each row says how many bytes it is, which is what lets a grid "
+      "refuse to spend a megabyte on a thumbnail nobody stopped at",
+      bool(shots) and all(f["size"] > 0 for f in shots))
+check("DRAWING EVERY FIGURE WRITES NOTHING. There is no thumbnail, so there is "
+      "no cache, so there is nothing in a gitignored tree to leak into git",
+      visible_files() == before)
+shutil.rmtree(os.path.join(WS, "results", "gallery"))
+results.forget()
+
 # ---- AND AN EMPTY ONE EXPLAINS ITSELF ----
 check("a workspace with no results says why rather than drawing an empty box",
       results.browse(type("R", (), {"root": empty})()).get("why", "")

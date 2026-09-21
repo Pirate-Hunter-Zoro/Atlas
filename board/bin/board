@@ -27,6 +27,16 @@ The assistant runs these. The student never does.
     board note < note.md               <=120 words for the next turn: what you read
                                        in their answer and what you are aiming at
     board note --show|--clear          read it, or forget it
+    board step "ran the suite: 89 green"
+                                       one line for a MISSION, saying what you
+                                       have just finished. It lands at once and
+                                       is what somebody tapping the mission
+                                       reads; a report at the end is nothing at
+                                       all until then. What is done, not what
+                                       you are about to do
+    board step --show                  the whole trail, including the board's own
+                                       lines: dispatched, a turn started, picked
+                                       up after the node went away
     board handoff < handoff.md         write HANDOFF.md at session end, <=350 words,
                                        stamped with its chapter. The only writer.
     board handoff --show|--check       read it, or say how long it is
@@ -96,8 +106,8 @@ TOOL = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 sys.path.insert(0, TOOL)
 from tutorboard import (atlas, brief, carry, direction, handoff, leaving,
                         limits, machine, manuscript, meeting, missions, paths,
-                        plain, ports, processes, reasoning, sense, tex,
-                        worktree)
+                        plain, ports, processes, progress, reasoning, sense,
+                        tex, worktree)
 from tutorboard.net import egress, tailscale
 from tutorboard.course import config, document, homework, paper, review, walk
 # `map` is a builtin; the module keeps the name the board calls the thing and
@@ -1729,9 +1739,15 @@ def cmd_brief(live, args):
     lesson. `missions.running` is that question, asked here because this is the
     only place that knows it is answering a cold turn. Only ever `True`: a
     workspace that says `do` in `tutorboard.json` keeps saying it.
+
+    AND THE RECORD IS CARRIED, NOT JUST THE ANSWER. A mission replaces the
+    sitting in the briefing rather than decorating it -- see
+    `sense.MISSION_SENSE` -- and the trail it is told to read is named for the
+    mission, so the briefing needs to know which one is running.
     """
-    doing = True if missions.running(live.root) else None
-    sys.stdout.write(brief.briefing(live, sense, doing=doing))
+    rec = missions.live_mission(live.root)
+    sys.stdout.write(brief.briefing(live, sense,
+                                    doing=True if rec else None, mission=rec))
     return 0
 
 
@@ -1774,6 +1790,82 @@ def cmd_note(live, args):
         print("note cleared")
         return 0
     print("%s (%d words)" % (carry.note_path(live.root), n))
+    return 0
+
+
+def cmd_step(live, args):
+    """One line saying what this mission has just FINISHED. Body on stdin.
+
+        board step < line           add it
+        board step "ran the suite"  or as an argument
+        board step --show           print the whole trail
+
+    THE ASK: *"Whenever an agent is dispatched in some way, make it so that if
+    I click on that box that says 'A Mission is still going' I can see what has
+    been going on and been accomplished thus far."*
+
+    A doing turn writes one sentence, does the work, and writes the report over
+    the top of it. On a local model that prefills for hours, BOTH of those
+    arrive hours in -- one mission ran five hours, took a pick-up, and had put
+    nothing anywhere. This is the line in between, and there is one per finished
+    thing rather than one per turn.
+
+    What is DONE, never what is about to be. A trail of intentions is a plan,
+    and a plan on the glass reads as work that happened.
+
+    It lands on every mission in this workspace that has not ended, which is
+    one of them: a workspace runs a mission at a time. Where there is no
+    mission this refuses and says so, because a step written nowhere is worse
+    than a command that is not there.
+
+    `--show` prints the trail with times, the board's own lines marked. It is
+    what a turn picked up after a node hop reads to find out what the four
+    hours before it achieved -- and `board brief` already carries it, so the
+    flag is for looking rather than for a turn's first move.
+    """
+    open_now = progress.open_ids(missions.stored(live.root))
+    if "--show" in args:
+        if not open_now:
+            print("no mission is running in this workspace")
+            return 0
+        for mid in open_now:
+            trail = progress.read(live.root, mid)
+            print("-- mission %s: %d step(s)" % (mid, len(trail)))
+            for one in trail:
+                print("   %s  %s%s"
+                      % (time.strftime("%H:%M", time.localtime(one["at"])),
+                         "" if one["who"] == "agent" else "[board] ",
+                         one["said"]))
+        return 0
+    said = " ".join(a for a in args if not a.startswith("-")).strip()
+    if not said:
+        said = sys.stdin.read().strip()
+    if not said:
+        print("board step: say what you finished, on stdin or as an argument",
+              file=sys.stderr)
+        return 1
+    if not open_now:
+        print("board step: no mission is running in this workspace, so there "
+              "is nobody waiting on a progress line. Write a card instead.",
+              file=sys.stderr)
+        return 1
+    # TRUNCATED RATHER THAN REFUSED, which is the opposite of `board note` and
+    # is the right way round for this one. A note is read at the start of every
+    # turn for ever, so length there is paid over and over and the cap is a
+    # door. A step is read once by a person watching, and a refused step is a
+    # step that never happened -- which is the defect this command exists for.
+    hit = 0
+    for mid in open_now:
+        if progress.add(live.root, mid, said):
+            hit += 1
+    if not hit:
+        print("board step: the trail could not be written", file=sys.stderr)
+        return 1
+    n = len(progress.read(live.root, open_now[0]))
+    print("step %d on mission %s%s"
+          % (n, open_now[0],
+             " (cut to %d characters)" % progress.STEP_CHARS
+             if len(said) > progress.STEP_CHARS else ""))
     return 0
 
 
@@ -3368,6 +3460,7 @@ COMMANDS = {
     "walk": cmd_walk,
     "egress": cmd_egress, "limit": cmd_limit,
     "brief": cmd_brief, "note": cmd_note, "handoff": cmd_handoff,
+    "step": cmd_step,
     "map": cmd_map, "notes": cmd_notes, "make": cmd_make,
     "direction": cmd_direction, "aim": cmd_aim,
 }

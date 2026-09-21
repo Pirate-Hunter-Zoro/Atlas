@@ -262,6 +262,46 @@ for held, what in (
              % (held, len(listed), listed[0].strip()[:80], what, held))
 
 
+# ---- A MISSION'S PROGRESS TRAIL IS WORDS ABOUT FENCED WORK ----------------
+#
+# `progress.py` writes one file per mission under `live/missions/`, and what
+# goes in it is the assistant's own sentences about what it just finished --
+# written, in the one workspace that has a fence, by the one assistant allowed
+# to read that fence. So it is exactly the kind of thing that must never become
+# a tracked file, and it is not kept out by being small or by nobody thinking
+# about it: `live/*` in every workspace excludes it.
+#
+# THAT IS NOT OBVIOUS AND IS WHY IT IS ASSERTED. A course lets some of `live/`
+# back in -- `!live/cards/`, `!live/state.json`, `!live/turns.jsonl` -- so the
+# question "is a path under `live/` ignored" has a different answer in each
+# workspace and none of them is "yes, by construction".
+#
+# GIT IS ASKED, and asked about a path that does not exist: `check-ignore`
+# answers off the rules rather than off the filesystem, so this writes nothing
+# into a workspace and can be run while a mission is going. Reading the ignore
+# file and believing it is the mistake this whole file exists to avoid.
+_TRAIL = os.path.join("live", "missions", "t0000.steps")
+for _ws in sorted(os.listdir(HERE)) if HERE else []:
+    _fam = os.path.join(HERE, _ws)
+    if _ws.startswith(".") or not os.path.isdir(_fam):
+        continue
+    for _name in sorted(os.listdir(_fam)):
+        _root = os.path.join(_fam, _name)
+        if not os.path.isdir(os.path.join(_root, "live")):
+            continue
+        _rel = os.path.join(_ws, _name, _TRAIL)
+        checked += 1
+        if subprocess.run(["git", "check-ignore", "-q", _rel], cwd=HERE,
+                          stdout=subprocess.DEVNULL,
+                          stderr=subprocess.DEVNULL).returncode != 0:
+            fail("GIT CAN SEE %s. That file is a mission's progress trail -- "
+                 "the assistant's own sentences about work it did, written in "
+                 "a workspace that may hold session content -- and one commit "
+                 "from anywhere puts it in a public repository. `live/*` is "
+                 "what keeps it out; something has let a path under `live/` "
+                 "back in without narrowing it." % _rel)
+
+
 # ---------------------------------------------------------------------------
 # AND THE SAME FAILURE ONE STEP EARLIER: SESSION CONTENT IN A DIFF
 # ---------------------------------------------------------------------------

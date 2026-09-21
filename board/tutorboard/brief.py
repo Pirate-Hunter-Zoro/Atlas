@@ -23,7 +23,7 @@ import os
 import re
 import time
 
-from . import carry, direction, handoff
+from . import carry, direction, handoff, progress
 from .course import config
 from .course import homework
 from .course import map as course_map
@@ -226,7 +226,7 @@ def beside_sense(repo):
     return "\n".join(out)
 
 
-def briefing(repo, sense, chapter=None, doing=None):
+def briefing(repo, sense, chapter=None, doing=None, mission=False):
     """The whole cold briefing as one string.
 
     `sense` is `tutorboard.sense`, passed in rather than imported, because it
@@ -237,6 +237,12 @@ def briefing(repo, sense, chapter=None, doing=None):
     module cannot see: a mission is a change asked for from another board, so
     the turn working it is a doing turn even where the workspace's standing
     answer is to teach. `None` leaves the sitting to answer.
+
+    `mission` is the mission record this turn is working, or None. It says
+    WHICH kind of doing turn, and it replaces the sitting rather than adding to
+    it: a workspace that teaches briefs a mission as a lesson, and a lesson
+    asks a question instead of doing the work. The record is passed rather than
+    a flag because the trail below is named for it.
     """
     root = repo.root
     st = repo.state()
@@ -296,7 +302,7 @@ def briefing(repo, sense, chapter=None, doing=None):
         out.append(said)
 
     out.append("\n--- the method, and what this sitting is ---\n"
-               + sense.session_sense(repo, doing=doing))
+               + sense.session_sense(repo, doing=doing, mission=mission))
 
     rules = contract_rules(root)
     if rules:
@@ -336,6 +342,26 @@ def briefing(repo, sense, chapter=None, doing=None):
     beside = beside_sense(repo)
     if beside:
         out.append(beside)
+
+    # WHAT THIS MISSION HAS ALREADY DONE, which is how progress crosses a node
+    # hop. A pick-up resumes the same conversation where it can and starts a
+    # cold one where the node took the client with it -- and in the cold case
+    # this section is the only thing that says the first four hours happened.
+    # It is `progress.py`'s file rather than a second store, so the lines a
+    # person reads on the panel and the lines the next turn reads are the same
+    # lines.
+    if mission:
+        trail = progress.read(root, str(mission.get("id") or ""))
+        if trail:
+            out.append("\n--- what this mission has done so far (%d step%s) ---"
+                       % (len(trail), "" if len(trail) == 1 else "s"))
+            for one in trail:
+                out.append("  %s  %s%s"
+                           % (time.strftime("%H:%M", time.localtime(one["at"])),
+                              "" if one["who"] == "agent" else "[board] ",
+                              one["said"]))
+            out.append("Do not do any of that again. Carry on from the last "
+                       "line, and `board step` the next thing you finish.")
 
     note = carry.read_note(root)
     if note:

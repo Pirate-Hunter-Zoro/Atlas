@@ -57,7 +57,9 @@ var els = {
   answersList: document.getElementById("answers-list"),
   missions: document.getElementById("missions"),
   missionsLead: document.getElementById("missions-lead"),
+  missionsOpen: document.getElementById("missions-open"),
   missionsList: document.getElementById("missions-list"),
+  missionProgress: document.getElementById("mission-progress"),
   atlasWrap: document.getElementById("atlas-wrap"),
   atlasEmpty: document.getElementById("atlas-empty"),
   atlasWhat: document.getElementById("atlas-what"),
@@ -644,6 +646,35 @@ function paintAnswers(payload) {
 var MISSION_WORD = { running: "still going", done: "done", failed: "failed" };
 var missionsShown = "";
 
+/* WHAT IT HAS BEEN DOING, WHICH IS THE OTHER HALF OF THE SAME ASK.
+
+   "Whenever an agent is dispatched in some way, make it so that if I click on
+    that box that says 'A Mission is still going' I can see what has been going
+    on and been accomplished thus far."
+
+   `mission.js` draws it and fetches it; this is the two ways in. The panel
+   lead opens the newest, because that is the box the ask points at, and each
+   row carries its own control so a second mission is not behind a first.
+   Tapping the row itself still opens the workspace -- that is the way back,
+   and it is not being replaced by a disclosure. */
+function missionProgress(g) {
+  var host = els.missionProgress;
+  if (!host || !window.MissionPanel) return;
+  if (window.MissionPanel.shown(host) === g.m.id) {
+    window.MissionPanel.hide(host);
+    return;
+  }
+  window.MissionPanel.show(host, {
+    ws: g.ws.id, id: g.m.id, agent: g.m.agent,
+    course: g.ws.course || g.ws.repo || g.ws.id,
+    task: g.m.task, state: g.m.state, reason: g.m.reason, ship: g.m.ship,
+  });
+}
+
+/* What the lead's tap is about. Held rather than re-derived so the handler is
+   bound once, on a control that is in the page from the start. */
+var missionFirst = null;
+
 function paintMissions(payload) {
   if (!els.missions) return;
   var going = [];
@@ -654,14 +685,19 @@ function paintMissions(payload) {
   });
   going.sort(function (a, b) { return (b.m.at || 0) - (a.m.at || 0); });
   going = going.slice(0, 4);
+  missionFirst = going[0] || null;
   if (!going.length) {
     els.missions.hidden = true;
     els.missionsList.textContent = "";
+    if (window.MissionPanel) window.MissionPanel.hide(els.missionProgress);
     missionsShown = "";
     return;
   }
+  /* The newest step is part of the signature, because it is part of the row: a
+     list rebuilt only on a change of STATE would hold the first progress line
+     for the whole of a five-hour mission. */
   var sig = going.map(function (g) {
-    return g.ws.id + "/" + g.m.id + "@" + g.m.state;
+    return g.ws.id + "/" + g.m.id + "@" + g.m.state + "#" + (g.m.steps || 0);
   }).join("~");
   var live = going.filter(function (g) { return g.m.state === "running"; }).length;
   els.missions.hidden = false;
@@ -695,17 +731,49 @@ function paintMissions(payload) {
     row.appendChild(where);
     row.appendChild(what);
     row.appendChild(when);
+    /* THE LAST THING IT SAID IT FINISHED, on the row. "Still going" is a state
+       to leave alone and after the first hour it is not enough to act on; this
+       is the one line that says the work is moving. */
+    if (g.m.step) {
+      var did = document.createElement("span");
+      did.className = "mission-step";
+      did.textContent = g.m.step;
+      row.appendChild(did);
+    }
     if (g.m.state === "failed" && g.m.reason) {
       var why = document.createElement("span");
       why.className = "mission-why";
       why.textContent = g.m.reason;
       row.appendChild(why);
     }
+    /* AND THE WHOLE OF IT IS ONE TAP FURTHER, on a control of its own rather
+       than on the row: the row is the way back into the workspace and a
+       disclosure that stole that tap would be a notification with no door. */
+    var more = document.createElement("span");
+    more.className = "mprog-more";
+    more.textContent = g.m.steps
+      ? g.m.steps + " step" + (g.m.steps === 1 ? "" : "s")
+      : "what it has done";
+    more.addEventListener("click", function (ev) {
+      ev.preventDefault();
+      ev.stopPropagation();
+      missionProgress(g);
+    });
+    row.appendChild(more);
     /* THE SAME DOOR EVERYTHING ELSE ON THIS PAGE OPENS. A mission that failed
        is one somebody has to go and look at, and a row that says so and cannot
        take them there is half a notification. */
     row.addEventListener("click", function () { openWorkspace(g.ws); });
     els.missionsList.appendChild(row);
+  });
+}
+
+/* THE BOX ITSELF, WHICH IS WHAT THE ASK NAMES. Bound once, on a control that is
+   in the page from the start, and it opens the newest mission -- which is the
+   only one when there is one, and the one somebody means when there are two. */
+if (els.missionsOpen) {
+  els.missionsOpen.addEventListener("click", function () {
+    if (missionFirst) missionProgress(missionFirst);
   });
 }
 

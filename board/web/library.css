@@ -323,11 +323,26 @@ body.annotating .lib-page img {
 }
 #shown-bar strong { font-size: .95rem; overflow-wrap: anywhere; }
 #shown-bar button {
-  font: inherit; font-size: .82rem; cursor: pointer; margin-left: auto;
+  font: inherit; font-size: .82rem; cursor: pointer;
   padding: .35rem .7rem; border-radius: .4rem;
   border: 1px solid var(--rule); background: var(--paper); color: var(--ink);
 }
+/* The controls are a group at the right-hand end, so hiding the stepper -- a
+   table has nothing to step to -- leaves the close where it already was. */
+#shown-acts {
+  margin-left: auto; display: flex; align-items: center; gap: .4rem;
+}
+#shown-nav { display: flex; align-items: center; gap: .3rem; }
+#shown-nav button { padding: .35rem .6rem; }
+#shown-nav button:disabled { opacity: .35; cursor: default; }
+#shown-at { font-variant-numeric: tabular-nums; }
 #shown-body { flex: 1; overflow: auto; padding: 1rem; }
+/* A FIGURE IS A PLANE AND A TABLE IS NOT. The plane owns the whole of the
+   space under the bar and scrolls nothing: what a finger does in there is
+   handled, and a scroll container underneath would take half of every drag. */
+#shown.on-figure #shown-body {
+  overflow: hidden; padding: 0; display: flex; min-height: 0;
+}
 /* WIDE ENOUGH TO READ AND NO WIDER. A plot is legible at its own size on a
    desktop and has to shrink to the glass on an iPad, and a figure blown up
    past its pixels is a blurry one. */
@@ -351,4 +366,107 @@ body.annotating .lib-page img {
 .res-text {
   font-size: .78rem; line-height: 1.45; margin: 0;
   white-space: pre-wrap; overflow-wrap: anywhere; color: var(--ink);
+}
+
+/* ---------- every figure, as pictures ---------- */
+/* THE BROWSING HALF. The list above says whether the file a card named is
+   really there; this says what the work looks like, which is the question six
+   hundred filenames cannot answer.
+
+   A TILE HAS NO PICTURE IN IT UNTIL IT COMES NEAR THE GLASS. The frame is
+   sized by the grid rather than by the image, so six hundred tiles lay out
+   once and nothing reflows as the pictures arrive -- and the aspect is fixed
+   because a plot is landscape and a forest of them at their own proportions is
+   a ragged wall. */
+#res-view { display: flex; gap: .4rem; margin: 0 .2rem .7rem; }
+#res-view button {
+  font: inherit; font-size: .8rem; cursor: pointer;
+  padding: .3rem .7rem; border-radius: .4rem;
+  border: 1px solid var(--rule); background: var(--paper-2); color: var(--ink-2);
+}
+#res-view button.on {
+  background: var(--paper); color: var(--ink); font-weight: 600;
+  border-color: var(--note);
+}
+
+#res-pick { display: flex; gap: .4rem; margin-bottom: .8rem; flex-wrap: wrap; }
+#res-pick select {
+  font: inherit; font-size: .82rem; flex: 1 1 12rem; min-width: 0;
+  padding: .4rem .5rem; border-radius: .4rem;
+  border: 1px solid var(--rule); background: var(--paper-2); color: var(--ink);
+}
+
+#res-grid-count { margin: 0 .2rem .6rem; }
+/* WIDER THAN THE READING COLUMN, because a gallery is the one thing on this
+   page that is not read left to right. The page is 46rem so a paragraph is
+   legible; a grid in that column is four tiles across on an iPad held
+   sideways, and the glass has room for nine. Centred out of the column rather
+   than by widening it, so the documents above keep the width that suits them. */
+#res-grid {
+  display: grid; gap: .6rem;
+  grid-template-columns: repeat(auto-fill, minmax(8.5rem, 1fr));
+  width: min(78rem, calc(100vw - 2rem));
+  margin-left: calc(50% - min(39rem, 50vw - 1rem));
+}
+/* A sentence where the pictures would have been -- a fenced workspace, a
+   directory of tables, a search that matched nothing. It spans the grid so it
+   reads as a sentence rather than as the first tile. */
+#res-grid .res-said { grid-column: 1 / -1; margin: 0; }
+
+.res-tile {
+  font: inherit; display: flex; flex-direction: column; gap: .2rem;
+  text-align: left; cursor: pointer; padding: 0;
+  border: 1px solid var(--rule); border-radius: .45rem;
+  background: var(--paper-2); color: var(--ink);
+  overflow: hidden;
+}
+.res-tile:hover { border-color: var(--ink-3); }
+.res-tile-frame {
+  display: block; position: relative;
+  aspect-ratio: 4 / 3; background: #fff;
+  border-bottom: 1px solid var(--rule);
+}
+.res-thumb {
+  position: absolute; inset: 0;
+  width: 100%; height: 100%; object-fit: contain;
+  /* Nothing is drawn until the tile's own picture has arrived, so a tile that
+     has not been asked for yet is an empty frame rather than a broken one. */
+  background: #fff;
+}
+/* WHAT A TILE SAYS BEFORE ITS PICTURE LANDS, and what a heavy one says
+   instead of ever having one. The frame is the same size either way. */
+.res-tile-wait {
+  position: absolute; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  padding: .4rem; text-align: center;
+  font-size: .66rem; line-height: 1.35; color: var(--ink-3);
+}
+.res-tile-name {
+  font-size: .72rem; line-height: 1.3; padding: .35rem .45rem 0;
+  overflow-wrap: anywhere;
+}
+.res-tile-meta {
+  font-size: .64rem; color: var(--ink-3); padding: 0 .45rem .4rem;
+}
+
+/* ---------- one figure, up close ---------- */
+/* THE ONE PLANE ON THIS PAGE. `touch-action: none` and nothing else: every
+   contact in here is handled by `plane-core.js`'s own bookkeeping, and leaving
+   the browser a share of the gesture is how a pinch ends up doing two things
+   at once. */
+.res-plane {
+  /* A flex child with its own `min-height: 0`, rather than `height: 100%` of a
+     parent whose height comes from a flex line -- the percentage resolves in
+     the browsers that agree and collapses in the ones that do not. */
+  flex: 1 1 auto; min-width: 0; min-height: 0;
+  position: relative; overflow: hidden;
+  touch-action: none; background: var(--paper-2);
+  -webkit-user-select: none; user-select: none;
+}
+.res-plane .res-figure {
+  position: absolute; top: 0; left: 0;
+  transform-origin: 0 0; will-change: transform;
+  max-width: none; max-height: none; width: auto; height: auto;
+  margin: 0; border-radius: 0;
+  -webkit-user-drag: none; -webkit-touch-callout: none;
 }
