@@ -48,7 +48,7 @@ must be openable and teachable at every point.
   `board.css`, `plane-core.js`, `gauge.js`, `home.html`, `home.js`, `library.html`,
   `library.js`, `library.css`, anything added to the cache list), or the installed app
   serves its cached copy and the work is invisible.
-- **`bash test/all.sh` before every ship.** 89 suites, all green. `test/tracked.py` runs
+- **`bash test/all.sh` before every ship.** 91 suites, all green. `test/tracked.py` runs
   early — after the browser suites, before everything else — and refuses PHI, 25-megabyte files, model dumps, other authors' papers and
   machine-local config anywhere in the repository — this is public, and git remembers.
   The last of them is **Paper-Writer's own**, run where it is checked out and skipped
@@ -3083,6 +3083,81 @@ which is `teach` unless the workspace says otherwise. A **teaching** default
 still applies — it takes nothing away, and it is what gives a bare `tutor galois`
 its style. Tap an aim, or write one in `tutorboard.json`, and nothing changes.
 
+### The document drawer — everything compiled, under the box it belongs to
+
+**Documents are reached from the map, two ways into one drawer.** Every box
+carries a count of the documents under it — `▤ 7`, a plate right-aligned on its
+chips — and tapping that plate opens the drawer scoped to that box. **▤** on the
+map bar opens the same drawer over the whole workspace, grouped by box, with
+whatever is placed nowhere under *Unfiled* at the end. A row reads **read it
+here** through the viewer the board already owns, and **save a copy** through
+the share sheet, which is `/view/shelf/<sid>` and `/download/shelf/<sid>`. A
+document with no compiled PDF is greyed and offers neither.
+
+**The drawer is HTML.** The map is a diagram of what the repository IS, and
+[a diagram is not a list](#the-standing-rules): a shelf of files is a list, so it
+is `#shelf`, a fixed drawer over the map with a way back to it, and no document
+is ever a node on the plane.
+
+**Which box a document belongs to is DERIVED from its path, on every read.**
+`course/shelf.py` takes `library.documents` as the inventory and adds the one
+thing the library does not know. Three rules, in this order:
+
+| | |
+|---|---|
+| **a set** | the document IS that set's compiled write-up, or sits inside the set's own directory — `homework.sets` says where that is |
+| **a chapter** | the path starts `chapters/chNN-…`, and NN matches the number on a chapter the syllabus lists |
+| **a part** | the path starts with the box's own directory, longest prefix winning |
+
+Nothing is registered, and that is the whole of why it stays true: a document
+that moves belongs to a different box on the next read, and one that is deleted
+stops existing rather than leaving an index entry pointing at nothing. Matching
+none of the three is UNFILED, which is an answer rather than a failure — in a
+workspace of code it is every document, because `docs/` and `writeups/` are not
+source boxes. **A chapter is joined on the number the syllabus record carries,
+never on a node id rebuilt from the directory name**: `ch0*(\d+)` on `ch04`
+gives `4`, the node is `ch-04`, and a rebuilt id is how a box loses its edges.
+
+**A source and the PDF it compiles into are one document.** A course keeps
+`chapters/ch04-field-extensions/homework/ch04-homework.tex` and the build puts
+the PDF one level up and across in `build/` — and `build` is in
+`reading.IGNORE`, which is shared with every code workspace and does not move,
+so the walk never reaches it. `library._walk` pairs them instead: a stem with no
+PDF of its own asks `homework.compiled_pdf`, the one chain that knows where a
+build lands — beside the source, then `build/` beside it, then the nearest
+`chNN`/`hwNN` unit's `build/` — and what comes back is inserted as that stem's
+`.pdf`. So a compiled chapter is listed as built, on the map and in the library
+both, and only something nobody compiles, a `PLAN.md`, is without one. Taking
+`build/` out of `IGNORE` is the answer that looks simpler and is wrong: the walk
+groups by directory and stem, so every document arrives twice, and `build`
+sorting before `handwritten` renumbers the ids ink is anchored on.
+
+**The counts ride the payload; the list is fetched on a tap.** Each map node
+carries `docs`, an integer, and that is all the payload carries — it is rebuilt
+four times a second, and sixty documents on it four times a second is a walk of
+a repository paid for by nobody looking. `GET /shelf.json` is the list, asked
+for when the drawer opens and held against no change signal, because a stale
+shelf is a *read it here* that draws last week's pages.
+
+**A document is named by its `sid`, and the dedupe is by SORTED PATH.**
+`reading.ident` slugs the filename, which is what makes one legible —
+`ch04-homework`, `ch04-notes`, `a-course-in-galois-theory` — and the client
+names that and never a path. Where two files in different directories share a
+name, the suffix goes on the one whose path sorts later, never on whichever the
+walk reached second: ink is anchored on `doc/<sid>/p<n>`, so an id that
+renumbers when a directory is added hangs last week's marks on a different
+document. It is the same anchor `/view/doc/<id>` uses, so a document reachable
+both ways keeps one set of marks.
+
+**And a course shelves work somebody else wrote.** `reading.NOT_OURS` hides a
+directory called `reading` — right for a card, because it keeps a reference
+library of other people's papers off the glass — and it also hides the textbook
+splits a course keeps one per chapter. Three globs of the shelf's own put those
+back: `chapters/*/reading/*.pdf`, `chapters/*/lectures/*.pdf` and
+`homework/*/assignment/*.pdf`. They are shaped like a course on purpose, so a
+repository of Python gains nothing from them; what they find is tagged `theirs`
+and says so on its row. The shared lists themselves are not touched.
+
 ### The map is a plane
 
 One finger pans it, two pinch it, **⤢ fit** shows the whole thing. The gesture
@@ -3303,7 +3378,10 @@ registered and nothing had to move: the title comes out of the source
 too (`\documentclass[…]{beamer}` is a deck), and *stale* is arithmetic — the
 source's modification time against the PDF's. `course/library.py` is the whole
 of it, and it reads the same fence `reading.py` does, so nothing out of `phi/`
-and nothing out of somebody else's `references/` is ever in the list.
+and nothing out of somebody else's `references/` is ever in the list. A source
+whose build lands in `build/` is listed with that PDF — [the pairing is
+`_paired_pdf`'s](#the-document-drawer--everything-compiled-under-the-box-it-belongs-to),
+and the same list under the map's boxes is the shelf.
 
 It is **not** `reading.py`. That module answers "what can go on the glass in a
 card", is capped at 24 documents and walks three deep, and those are the right
@@ -3698,7 +3776,8 @@ board export --all               # every lesson in the course, as one
 ```
 
 and, on the iPad, **⋯ → export this lesson** and **⋯ → export the whole course (typeset)**.
-Reading one, or getting back to one made a fortnight ago, is **⋯ → documents · view or save**.
+Reading one, or getting back to one made a fortnight ago, is the map's [document
+drawer](#the-document-drawer--everything-compiled-under-the-box-it-belongs-to).
 
 **`export this lesson`, from the device, is a photograph of the lesson.** Asked for in those
 words — *"I want it as if it were a screenshot of the entire iPad screen scrolled down over the
@@ -3744,18 +3823,18 @@ showing an empty one. The pages are cached against the PDF's own modification ti
 open of a long document takes a few seconds and every one after it is instant, and a rebuilt
 document is drawn again rather than served stale.
 
-**And both documents are reachable at every moment, from ⋯ → documents · view or save.** This is
-the fix rather than the flourish. A control that lives only in the banner of the build that made
-it has a life of about one second — the next payload replaces that banner — after which a tap does
-nothing at all, the URL behind it cleared along with the banner.
+**And both are reachable at every moment, from the map's [document
+drawer](#the-document-drawer--everything-compiled-under-the-box-it-belongs-to)** — under the
+chapter or the set they are about, beside every other document the workspace has compiled. A
+control that lives only in the banner of the build that made it has a life of about one second:
+the next payload replaces that banner, and the URL behind the tap is cleared with it.
 
 A document is a **file**, not an event. So whether one exists is a question the payload answers on
-every change, off the disk (`papers` in `board.json`, four `stat` calls), and the panel lists both
-— name, when, how big — with **read it here** and **save a copy** on each, and an offer to *make*
-the one that is not there so the panel is never a dead end. A write-up compiled ten days ago is as
-reachable as one compiled ten seconds ago.
+every change, off the disk (`papers` in `board.json`, four `stat` calls), and the banner's own
+**read it here** and **save a copy** are the same two the drawer puts on every row. A write-up
+compiled ten days ago is as reachable as one compiled ten seconds ago.
 
-Three other things came out of the same report.
+Three rules go with it.
 
 - **The write-up's record now comes off disk.** `board hw build`'s outcome reaches the banner from
   `live/hw.json` by way of the payload, in its own argument rather than in the one that belongs to
@@ -4513,6 +4592,9 @@ tutorboard/        the board itself, organised by what a thing is about:
                    library (everything the workspace HAS written, grouped into
                    documents by stem and directory, where feedback on one goes,
                    and the stamp that says whether any of it has moved),
+                   shelf (the same inventory placed under the boxes of the map,
+                   by three rules read off each path, and named by a slug ink
+                   can be anchored on),
                    walk (what a walkthrough can be held over: a file, or one
                    definition inside one), syllabus, screenshot, paper (the two
                    documents: resolving one, naming it, and rendering its pages
@@ -4904,6 +4986,12 @@ python3 test/paper.py    that both documents can be READ on the board and SAVED 
                          no renderer degrading rather than showing an empty panel; and,
                          by reading the client, that the write-up's record reaches the
                          banner from the payload rather than being invented for one frame
+python3 test/shelf.py    that every document is under the box its source lives in, that a
+                         source is listed with the PDF its build wrote, and that no id
+                         moves when a file is added beside it
+node test/shelf.js       that the count on a box opens that box's documents, the one on
+                         the map bar opens all of them, and a document read from either
+                         keeps the marks drawn on it
 python3 test/teaching.py that the teaching method reaches every course
 python3 test/choice.py   that the address opens the course a person chose
 python3 test/limit.py    that an allowance running out is reported rather than hidden

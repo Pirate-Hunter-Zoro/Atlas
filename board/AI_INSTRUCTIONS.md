@@ -459,11 +459,13 @@ tutorboard/
 - **A document lives in the repository AND can leave on the device.** Both PDFs -- the lesson
   export and the written-up problem set -- are built into the course repo and tracked in git; that
   is the archival copy and it is not negotiable. `routes/taking.py` is the other half, and its rule
-  is that **the client never names a path**: it names a kind, and the route resolves it through
-  `live/export.json` or `live/hw.json`. Never add a path or filename parameter to it -- that is a
-  directory traversal waiting to be written, and there are two documents. The resolved path is
-  checked anyway (inside the repo, ends in `.pdf`, exists), because a record is on disk and disk is
-  editable. `test/document.py` holds the refusals.
+  is that **the client never names a path**: it names a KIND or an ID, and the route resolves it
+  -- the lesson and the write-up through `live/export.json` and `live/hw.json`, every other
+  document through a `sid` looked up in `shelf.documents`. Never add a path or filename parameter
+  to any of them; that is a directory traversal waiting to be written. A `sid` is shape-guarded
+  (`^[a-z0-9-]{1,40}$`) before it is looked up, and every resolved path is checked anyway (inside
+  the repo, ends in `.pdf`, exists), because a record is on disk and disk is editable.
+  `test/document.py` and `test/shelf.py` hold the refusals.
 - **A CARD ARRIVING NEVER MOVES THE READER.** It grows into view. The reader is stationary and the
   text grows downward past them, which is what every chat page on the web does and what was asked
   for in those words. The layout grants it for nothing: the student's working keeps its place in the
@@ -587,6 +589,20 @@ tutorboard/
   and never a build record. And the reading half is PNG pages drawn by this machine, never an
   `<iframe>` and never a navigation of the board's own window — iOS gives a framed PDF one
   unscrollable page, and a PDF navigated to in a home-screen app is a board with no way back.
+- **EVERY OTHER DOCUMENT IS FOUND, NEVER DECLARED, AND IS REACHED FROM THE MAP.** `course/shelf.py`
+  places `library.documents` under the boxes of the map by three rules read off each path — the
+  set it belongs to, the chapter number the syllabus lists, the part whose directory is its
+  prefix — and `#shelf` is the one drawer both ways in open. Four refusals hold that shape.
+  **No registry**: not an index file, not a sidecar, not a key in `tutorboard.json`; the join is
+  re-derived on every read, so a document that moves is under a different box and one that is
+  deleted leaves nothing behind. **No document on the plane**: a shelf is a list and the map is a
+  diagram, so the drawer is HTML over the map and never a node in the graph. **No second walk**:
+  the inventory is `library.documents`, and a kind of document nothing finds is a rule inside
+  that walk rather than another walk beside it. **No list on the payload**: the payload carries a
+  per-box count, and it is rebuilt four times a second, so the list is fetched when the drawer
+  opens. And a document is named by a `sid` slugged off its filename and deduped over paths
+  SORTED, never over walk order, because ink is anchored on `doc/<sid>/p<n>` and an id that
+  renumbers hangs old marks on a new document.
 - **The theme has to reach the whole window.** The viewport's background comes from `<html>` and
   only falls through to `<body>` when `<html>` paints none of its own — and the dark palette is
   defined on `body[data-mode="dark"]`, so an `<html>` painting `var(--paper)` resolves it from

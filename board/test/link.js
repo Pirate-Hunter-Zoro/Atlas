@@ -55,9 +55,16 @@ window.Element.prototype.scrollIntoView = function () {};
 // blank sheet that stands in until it comes. A promise that never settles
 // models a board that never finds out; these tests mean a board with
 // nothing saved, which is a different thing and has to say so.
-window.fetch = (u) => (/slate\/state/.test(String(u))
-  ? Promise.resolve({ json: () => Promise.resolve({ pages: [] }) })
-  : new Promise(() => {}));
+// WHAT WAS ASKED FOR IS KEPT, because one of the checks below is that tapping
+// a control went and asked the server rather than drawing something it already
+// had. Nothing here answers: the shelf's own answers are `test/shelf.js`'s.
+window.__asked = [];
+window.fetch = (u) => {
+  window.__asked.push(String(u));
+  return /slate\/state/.test(String(u))
+    ? Promise.resolve({ json: () => Promise.resolve({ pages: [] }) })
+    : new Promise(() => {});
+};
 window.renderMathInElement = () => {};
 window.requestAnimationFrame = (fn) => setTimeout(fn, 0);
 window.scrollTo = () => {};
@@ -1376,45 +1383,63 @@ if (es) {
   es.onmessage({ data: JSON.stringify(hwPayload()) });
 
   // ------------------------------------------------------------------------
-  // AND BOTH DOCUMENTS ARE REACHABLE WHEN NO BANNER IS UP AT ALL.
+  // AND A DOCUMENT IS REACHABLE WHEN NO BANNER IS UP AT ALL.
   //
   // The other half of the same report, and no amount of fixing the banner would
-  // have covered it: a document made ten days ago is still a document, and
-  // until the panel existed there was no control on the page that could reach
-  // one. The banner is dismissed here, exactly as somebody would dismiss it.
+  // have covered it: a document made ten days ago is still a document, and the
+  // banner of the build that made it is gone by the next payload. The banner is
+  // dismissed here, exactly as somebody would dismiss it.
+  //
+  // THE PANEL THAT USED TO ANSWER THIS IS GONE, and that is the assertion
+  // rather than the deletion. The \u22ef menu carried a documents panel listing
+  // exactly two -- the last lesson exported and the last write-up compiled, off
+  // the payload's `papers`. That is a record of the last thing BUILT and not an
+  // inventory: a course with forty compiled PDFs had thirty-eight of them
+  // reachable from nothing. The way back is now the MAP -- a count on the box
+  // whose source the document came out of, and a control on the map bar for all
+  // of them. What the drawer then DRAWS is `test/shelf.js`, which has a server
+  // to answer it; what is checked here is that the old way is gone, cannot come
+  // back unnoticed, and has a way that works in its place.
   doc.getElementById('pushed-close').onclick();
-  var papersBtn = doc.getElementById('btn-papers');
-  papersBtn ? ok('the menu carries a way back to a document')
-            : fail('a document is reachable only from the banner that made it');
-  if (papersBtn) {
-    papersBtn.onclick();
-    var panel = doc.getElementById('papers');
-    !panel.hidden
-      ? ok('and it opens with the banner gone')
-      : fail('the documents panel does not open');
-    var rows = panel.querySelectorAll('.paper-row');
-    rows.length === 2
-      ? ok('listing both documents, the lesson and the write-up')
-      : fail('the panel lists ' + rows.length + ' documents rather than two');
-    var labels = Array.prototype.map.call(
-      panel.querySelectorAll('.paper-acts button'),
-      function (b) { return b.textContent; });
-    labels.indexOf('read it here') !== -1 && labels.indexOf('save a copy') !== -1
-      ? ok('each with both ways to have it: read it here, save a copy')
-      : fail('the panel offers ' + JSON.stringify(labels));
+  !doc.getElementById('btn-papers') && !doc.getElementById('papers')
+    ? ok('the two-document panel is gone from the menu')
+    : fail('the \u22ef menu still carries the panel that listed the last two builds');
+  {
+    const src = fs.readFileSync(path.join(WEB, 'board.js'), 'utf8');
+    !/function openPapers\s*\(/.test(src) && !/function renderPapers\s*\(/.test(src)
+      ? ok('and nothing in the board still draws it')
+      : fail('openPapers/renderPapers are still in board.js, so the panel can '
+             + 'come back without anybody deciding to bring it back');
+  }
 
-    // And it is never a dead end: the document that has not been made yet
-    // offers to make it, rather than saying nothing about itself.
-    es.onmessage({ data: JSON.stringify(hwPayload({ papers: { lesson: lessonDoc } })) });
-    var offers = Array.prototype.map.call(
-      panel.querySelectorAll('.paper-acts button'),
-      function (b) { return b.textContent; });
-    offers.indexOf('compile it now') !== -1
-      ? ok('and a write-up that has never compiled offers to compile')
-      : fail('a missing document is a dead end: ' + JSON.stringify(offers));
-    doc.getElementById('btn-papers-close').onclick();
-    panel.hidden ? ok('and the panel closes')
-                 : fail('the documents panel cannot be closed');
+  // The map bar's control, which is the way to ALL of them. It is hidden until
+  // a payload says some box holds one -- a control that opens an empty list
+  // teaches somebody not to tap it -- and this suite renders no map, so what is
+  // asked of it is the wiring rather than the visibility.
+  const mapDocs = doc.getElementById('map-docs');
+  const shelf = doc.getElementById('shelf');
+  mapDocs && shelf
+    ? ok('the map bar carries a way to every document in the workspace')
+    : fail('a document is reachable only from the banner that made it');
+  if (mapDocs && shelf) {
+    const before = window.__asked.length;
+    mapDocs.onclick();
+    !shelf.hidden
+      ? ok('and it opens with the banner gone')
+      : fail('the documents drawer does not open');
+    window.__asked.slice(before).some((u) => /^\/shelf\.json/.test(u))
+      ? ok('asking the server on the tap, because the list is not on the payload')
+      : fail('the drawer opened without asking: ' + JSON.stringify(
+               window.__asked.slice(before)));
+    // The payload is rebuilt four times a second. A list of forty documents on
+    // it is the one thing the map's own rule forbids, so the box carries the
+    // COUNT and the drawer fetches the list.
+    !/"docs"\s*:\s*\[/.test(JSON.stringify(hwPayload()))
+      ? ok('and the payload carries no list of documents for it to have used')
+      : fail('the payload is carrying the document list');
+    doc.getElementById('btn-shelf-close').onclick();
+    shelf.hidden ? ok('and the drawer closes')
+                 : fail('the documents drawer cannot be closed');
     es.onmessage({ data: JSON.stringify(hwPayload()) });
   }
 

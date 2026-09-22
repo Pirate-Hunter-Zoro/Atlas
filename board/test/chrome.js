@@ -267,9 +267,16 @@ decl(draw, 'top') === null
       return m ? +m[1] : null;
     };
     const mine = zOf('.barmenu');
+    // NAMED AS THE STYLESHEET NAMES THEM. `block()` matches the selector
+    // literally, so a rule whose selector list has gained a name answers null
+    // here and the entry drops silently out of the comparison -- a check that
+    // has stopped running, which is worse than one that fails. `#shelf` and
+    // `#steer` are their own entries as well as being in that list, because
+    // both override it to 98 and 98 is the storey under the menu.
     const others = ['#drawbar', '.annbar', '.notesend', '.jump', '.sendwhat',
-                    '#history', '#panic, #findink', '#scratch, #contents, #review, #papers',
-                    '.drop', '#viewer', '#paper']
+                    '#history', '#panic, #findink',
+                    '#scratch, #contents, #review, #shelf, #elsewhere, #trace',
+                    '#shelf', '#steer', '.drop', '#viewer', '#paper']
       .map((sel) => ({ sel, z: zOf(sel) }))
       .filter((r) => r.z !== null);
     const over = others.filter((r) => r.z >= mine);
@@ -299,7 +306,7 @@ decl(draw, 'top') === null
 // where the problem sets are. Reported as "the bar showing the contents and the
 // Problem Sets is not scrollable, so I can't reach the problem sets."
 [['#scratch-list', 'the scratch drawer'],
- ['#papers-list', 'the documents drawer'],
+ ['#shelf-list', 'the documents drawer'],
  ['#history-list', 'past lessons'],
  ['#review-list', 'the review picker'],
  ['#contents-list', 'the contents']].forEach(([sel, what]) => {

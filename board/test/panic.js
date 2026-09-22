@@ -454,7 +454,7 @@ const press = (type, x, y) => btn.dispatchEvent(
     // reaches 92% of the width of a phone.
     [['#contents', 'the contents drawer'],
      ['#review', 'the scope picker'],
-     ['#papers', 'the documents drawer'],
+     ['#shelf', 'the documents drawer'],
      ['#scratch', 'the scratch drawer']].forEach(([sel, what]) => {
       inside(sel)
         ? ok('from ' + what)
