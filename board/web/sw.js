@@ -10,7 +10,7 @@
    network -- a cached lesson is a stale lesson, which is worse than none.
    ========================================================================== */
 
-var VERSION = "board-shell-v153";
+var VERSION = "board-shell-v154";
 
 var SHELL = [
   "/",
@@ -92,7 +92,7 @@ var RUNTIME = /\/static\/(katex\/fonts|fonts)\//;
    stable addresses whose contents change under them every few minutes -- what a
    job has done since you last looked is the whole point of asking -- and a
    cached one says the mission has been idle for an hour when it has not. */
-var LIVE = /^\/(events|board\.json|courses\.json|hosts\.json|health|switch|chose|start|say|aim|upload|mission|slate\/(save|state)|figure\/|result\/|uploads\/|slate\/page-|download\/|view\/|paper\/|doc\/|library\.json|library\/|meeting\/)/;
+var LIVE = /^\/(events|board\.json|courses\.json|hosts\.json|health|switch|chose|start|say|aim|upload|mission|slate\/(save|state)|figure\/|result\/|uploads\/|slate\/page-|download\/|view\/|paper\/|doc\/|library\.json|library\/|shelf\.json|meeting\/)/;
 
 self.addEventListener("install", function (e) {
   e.waitUntil(

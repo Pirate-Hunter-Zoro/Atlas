@@ -1,2 +1,2 @@
-<!-- set: 2026-09-22 14:59 -->
-For chapter 5, we are going to do problems 5.4, 5.6, 5.7, 5.8, and 5.10
+<!-- set: 2026-09-22 15:07 -->
+We are skipping chapter 6. Instead of it, we will work on the attached worksheet I just uploaded

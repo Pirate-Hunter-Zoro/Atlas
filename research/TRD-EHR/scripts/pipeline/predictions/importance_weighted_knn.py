@@ -138,6 +138,33 @@ def to_weighted_space(vectors: np.ndarray, scaler, weights: np.ndarray) -> np.nd
     return (scaled / norms).astype(np.float32)
 
 
+def to_plain_space(vectors: np.ndarray) -> np.ndarray:
+    """L2-normalise raw embeddings, so a dot product is the plain cosine similarity.
+
+    The published cosine arm's own space, reproduced here so the two metrics can be swept
+    over the same k on the same axes. `Retriever.__init__` divides its matrix by its row
+    norms and does nothing else, so plain cosine is this and only this: no standardiser,
+    no dimension weights, every one of the 4096 dimensions counting equally.
+
+    Sweeping it matters because the published numbers change two things at once. Plain
+    cosine is on record at k = 50 and the importance-weighted metric peaks near k = 300,
+    so the gap between them is a gap in the metric AND a gap in the neighbourhood size,
+    and neither arm alone says which.
+
+    Args:
+        vectors (np.ndarray): Raw embeddings, shape (n_patients, n_dimensions).
+
+    Returns:
+        np.ndarray: float32 array of the same shape with unit rows. A row that is already
+            all zeros is left alone, matching to_weighted_space, so its similarity to
+            everyone is zero rather than undefined.
+    """
+    raw = vectors.astype(np.float64)
+    norms = np.linalg.norm(raw, axis=1, keepdims=True)
+    norms[norms == 0] = 1.0
+    return (raw / norms).astype(np.float32)
+
+
 def load_raw_embeddings(patient_ids: list[str]) -> np.ndarray:
     """Fetch raw, un-normalised embeddings for the given patients, in the given order.
 

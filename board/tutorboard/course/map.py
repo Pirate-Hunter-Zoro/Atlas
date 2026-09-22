@@ -466,6 +466,11 @@ def _node(nid, name, kind, **rest):
         "does": "", "status": "unknown", "files": [], "dir": "",
         "steps": [], "doc": "", "slide": None, "note": "", "chapter": "",
         "hw": "",
+        # HOW MANY DOCUMENTS ARE UNDER THIS BOX, and never which ones. The
+        # count is what a badge on the box needs and it is four bytes; the list
+        # is fetched on a tap, from `/shelf.json`, because this payload is
+        # rebuilt four times a second. `course/shelf.py` derives both.
+        "docs": 0,
     }
     node.update(rest)
     return node
@@ -1534,6 +1539,23 @@ def _filed(archived):
     return out
 
 
+def _doc_counts(root):
+    """How many documents sit under each box, or nothing at all.
+
+    IMPORTED HERE AND GUARDED, for two reasons. `course/shelf.py` reads this
+    module -- it is the map's own order the drawer groups by -- so importing it
+    at the top would be a cycle. And a walk that raises must not take the
+    picture down with it: a map with no badges on it is still a map, and a
+    payload that 500s is a board that paints "not answering" over a directory
+    listing that went wrong.
+    """
+    try:
+        from . import shelf                                  # local: a cycle
+        return shelf.counts(root)
+    except Exception:                                        # noqa: BLE001
+        return {}
+
+
 def status(root, state=None, archived=None):
     """The map block the board paints, or None for a repository with nothing in it.
 
@@ -1545,10 +1567,14 @@ def status(root, state=None, archived=None):
     if not found:
         return None
     filed = _filed(archived)
+    counted = _doc_counts(root)
     nodes = []
     for node in found["nodes"]:
         node = dict(node)
         node["status"] = _stamp(node, state, filed)
+        # WHAT IS IN THE DRAWER UNDER THIS BOX. A number, so the badge can be
+        # drawn without a second request, and never the list.
+        node["docs"] = counted.get(node["id"], 0)
         if node["status"] not in STATUSES:
             node["status"] = "unknown"
         # WHETHER THERE IS ANYTHING UNDER THIS BOX, said on the box rather than

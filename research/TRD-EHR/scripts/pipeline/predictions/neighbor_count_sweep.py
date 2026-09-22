@@ -1,12 +1,18 @@
-"""Sweep the neighbourhood size of the importance-weighted KNN and plot ROC against it.
+"""Sweep the neighbourhood size of both retrieval metrics and plot ROC against it.
 
 NUM_NEIGHBOR_PATIENTS is fixed at 50 for the published arms and has never been chosen,
-only inherited. Under the importance-weighted metric the whole similarity matrix is one
-matmul, so every k from a single neighbour to the entire pool can be scored at once: sort
-each anchor's candidates by similarity, take running sums of the weights and of the
-weighted TRD flags, and the risk score at every k falls out of one division. The output
-is a curve of held-out ROC AUC against k, with bootstrapped intervals at a readable
-handful of k values rather than at all of them.
+only inherited. Under either metric the whole similarity matrix is one matmul, so every k
+from a single neighbour to the entire pool can be scored at once: sort each anchor's
+candidates by similarity, take running sums of the weights and of the weighted TRD flags,
+and the risk score at every k falls out of one division. The output is a curve of held-out
+ROC AUC against k, with bootstrapped intervals at a readable handful of k values rather
+than at all of them.
+
+TWO METRICS, ON ONE AXIS, BECAUSE THE PUBLISHED NUMBERS CHANGE TWO THINGS AT ONCE. Plain
+cosine is on record at k = 50 and the importance-weighted metric peaks near k = 300, so
+the difference between them is a difference of metric AND of neighbourhood size. Sweeping
+plain cosine over the same k separates the two, and it carries no supervised component at
+all: its space is the raw embedding, L2-normalised, with no classifier anywhere in it.
 
 Run it with -m scripts.pipeline.predictions.neighbor_count_sweep; everything lands in
 RESULTS_DIR/neighbor_count_sweep.
@@ -32,6 +38,7 @@ from scripts.pipeline.predictions.importance_weighted_knn import (
     load_dimension_weights,
     load_raw_embeddings,
     neighbour_weights,
+    to_plain_space,
     to_weighted_space,
 )
 from scripts.shared.plots import FIGURE_DPI, N_BOOTSTRAP, bootstrap_sample_indices
@@ -55,6 +62,42 @@ N_INTERVAL_POINTS = 16
 # published cosine arm uses, kept so that arm and this one differ only in the metric;
 # 2.0 sits between them.
 DEFAULT_ALPHAS = (1.0, 2.0, 5.0)
+
+# The two spaces a neighbour can be found in. `weighted` is the importance-weighted metric
+# this module was written for; `plain` is the published arm's own cosine, swept over the
+# same k so the metric and the neighbourhood size stop being one number. Order matters
+# only for the figure's legend and for which arm keeps the unsuffixed filenames.
+METRICS = ('weighted', 'plain')
+
+# Which metric owns the unsuffixed outputs and the top-level `by_alpha` block, so a reader
+# who knew this file before plain cosine was added finds the same numbers under the same
+# names. Everything is also under `by_metric`.
+PRIMARY_METRIC = 'weighted'
+
+
+def to_metric_space(metric: str, vectors: np.ndarray, scaler, weights: np.ndarray) -> np.ndarray:
+    """Put raw embeddings into whichever space this metric measures in.
+
+    Args:
+        metric (str): One of METRICS.
+        vectors (np.ndarray): Raw embeddings, shape (n_patients, n_dimensions).
+        scaler: The fitted StandardScaler from load_dimension_weights. Unused by `plain`.
+        weights (np.ndarray): The dimension weights. Unused by `plain`.
+
+    Returns:
+        np.ndarray: float32 rows of unit length under that metric, so a dot product is the
+            similarity.
+    """
+    if metric == 'weighted':
+        return to_weighted_space(vectors, scaler, weights)
+    if metric == 'plain':
+        return to_plain_space(vectors)
+    raise ValueError(f"Unknown metric {metric!r}; expected one of {METRICS}.")
+
+
+def metric_suffix(metric: str) -> str:
+    """The filename tail for a metric's own outputs. Empty for the primary one."""
+    return '' if metric == PRIMARY_METRIC else f"_{metric}"
 
 
 def roc_auc_by_column(y_true: np.ndarray, scores: np.ndarray, column_block: int = 2048) -> np.ndarray:
@@ -205,12 +248,18 @@ def published_reference_lines() -> dict[str, float]:
     return references
 
 
+# How each metric is drawn. The colour carries the alpha and the line style carries the
+# metric, so the reader compares two metrics at one k by looking down a vertical line.
+METRIC_STYLES = {'weighted': ('-', "importance-weighted"), 'plain': ('--', "plain cosine")}
+
+
 def plot_sweep(curves: pd.DataFrame, intervals: pd.DataFrame, save_path: Path) -> Path:
-    """Draw ROC AUC against neighbourhood size, one line per alpha, bars at selected k.
+    """Draw ROC AUC against neighbourhood size, one line per metric and alpha.
 
     Args:
-        curves (pd.DataFrame): Columns alpha, n_neighbors, roc_auc -- every k.
-        intervals (pd.DataFrame): Columns alpha, n_neighbors, roc_auc, ci_low, ci_high.
+        curves (pd.DataFrame): Columns metric, alpha, n_neighbors, roc_auc -- every k.
+        intervals (pd.DataFrame): Columns metric, alpha, n_neighbors, roc_auc, ci_low,
+            ci_high.
         save_path (Path): Destination PNG.
 
     Returns:
@@ -219,22 +268,31 @@ def plot_sweep(curves: pd.DataFrame, intervals: pd.DataFrame, save_path: Path) -
     figure, axis = plt.subplots(figsize=(13.0, 6.0))
     colours = plt.rcParams['axes.prop_cycle'].by_key()['color']
     alphas = sorted(curves['alpha'].unique())
-    for index, alpha in enumerate(alphas):
-        colour = colours[index % len(colours)]
-        curve = curves[curves['alpha'] == alpha].sort_values('n_neighbors')
-        axis.plot(curve['n_neighbors'], curve['roc_auc'], color=colour, linewidth=1.8,
-                  label=f"importance-weighted, alpha={alpha:g}")
-        bars = intervals[intervals['alpha'] == alpha].sort_values('n_neighbors')
-        # Nudge the bars off each other on the log axis so two alphas at the same k stay
-        # separately readable; the line itself is drawn unshifted.
-        offset = 1.0 + 0.06 * (index - (len(alphas) - 1) / 2)
-        axis.errorbar(bars['n_neighbors'] * offset, bars['roc_auc'],
-                      yerr=[bars['roc_auc'] - bars['ci_low'], bars['ci_high'] - bars['roc_auc']],
-                      fmt='o', markersize=4, capsize=3, elinewidth=1.2, color=colour, alpha=0.85)
-        best = curve.loc[curve['roc_auc'].idxmax()]
-        axis.plot([best['n_neighbors']], [best['roc_auc']], marker='*', markersize=16,
-                  color=colour, linestyle='none',
-                  label=f"best k={int(best['n_neighbors'])}, AUC={best['roc_auc']:.3f}")
+    metrics = [m for m in METRICS if m in set(curves['metric'])]
+    for metric_index, metric in enumerate(metrics):
+        style, metric_label = METRIC_STYLES[metric]
+        for index, alpha in enumerate(alphas):
+            colour = colours[index % len(colours)]
+            selected = (curves['metric'] == metric) & (curves['alpha'] == alpha)
+            curve = curves[selected].sort_values('n_neighbors')
+            if curve.empty:
+                continue
+            axis.plot(curve['n_neighbors'], curve['roc_auc'], color=colour, linestyle=style,
+                      linewidth=1.8, label=f"{metric_label}, alpha={alpha:g}")
+            bars = intervals[(intervals['metric'] == metric)
+                             & (intervals['alpha'] == alpha)].sort_values('n_neighbors')
+            # Nudge the bars off each other on the log axis so two curves at the same k
+            # stay separately readable; the line itself is drawn unshifted.
+            slot = metric_index * len(alphas) + index
+            offset = 1.0 + 0.06 * (slot - (len(alphas) * len(metrics) - 1) / 2)
+            axis.errorbar(bars['n_neighbors'] * offset, bars['roc_auc'],
+                          yerr=[bars['roc_auc'] - bars['ci_low'], bars['ci_high'] - bars['roc_auc']],
+                          fmt='o', markersize=4, capsize=3, elinewidth=1.2, color=colour, alpha=0.85)
+            best = curve.loc[curve['roc_auc'].idxmax()]
+            axis.plot([best['n_neighbors']], [best['roc_auc']], marker='*', markersize=16,
+                      color=colour, linestyle='none',
+                      label=f"{metric_label} best k={int(best['n_neighbors'])}, "
+                            f"AUC={best['roc_auc']:.3f}")
     reference_styles = ['--', ':']
     for index, (label, value) in enumerate(published_reference_lines().items()):
         axis.axhline(value, color='0.35', linestyle=reference_styles[index % len(reference_styles)],
@@ -243,28 +301,41 @@ def plot_sweep(curves: pd.DataFrame, intervals: pd.DataFrame, save_path: Path) -
     axis.set_xscale('log')
     axis.set_xlabel("Number of nearest neighbours, k")
     axis.set_ylabel("Held-out ROC AUC")
-    axis.set_title("TRD risk from importance-weighted neighbours, by neighbourhood size")
+    axis.set_title("TRD risk from retrieved neighbours, by metric and neighbourhood size")
     axis.grid(alpha=0.3, which='both')
-    axis.legend(loc='center left', bbox_to_anchor=(1.01, 0.5), frameon=False, fontsize=11)
+    axis.legend(loc='center left', bbox_to_anchor=(1.01, 0.5), frameon=False, fontsize=9)
     figure.tight_layout()
     figure.savefig(save_path, dpi=FIGURE_DPI)
     plt.close(figure)
     return save_path
 
 
-def run_sweep(alphas: tuple[float, ...], max_anchors: int = 0, max_pool: int = 0) -> dict:
-    """Score every neighbourhood size, write the tables and the figure, return the summary.
+def run_sweep(alphas: tuple[float, ...], max_anchors: int = 0, max_pool: int = 0,
+              metrics: tuple[str, ...] = METRICS) -> dict:
+    """Score every neighbourhood size under every metric, write the tables and the figure.
+
+    Metrics are swept one after another rather than together: each one holds an
+    n_anchors x n_pool float32 risk matrix per alpha, so running them concurrently would
+    multiply the peak by the number of metrics for no gain. The anchors, the pool and the
+    labels are the same patients in the same order throughout, so the two curves are
+    comparable at every k by construction.
 
     Args:
         alphas (tuple[float, ...]): Sharpening exponents to sweep.
         max_anchors (int, optional): Keep only this many anchors, for a smoke run.
             Defaults to 0, meaning all of them.
         max_pool (int, optional): Keep only this many candidates. Defaults to 0, all.
+        metrics (tuple[str, ...], optional): Which spaces to sweep. Defaults to METRICS.
 
     Returns:
         dict: The summary written to sweep_summary.json.
     """
-    os.makedirs(SWEEP_DIR, exist_ok=True)
+    # A CAPPED RUN NEVER WRITES OVER THE REAL ONE. --max-anchors and --max-pool exist to
+    # prove the wiring on a laptop-sized slice, and the summary they produce is the same
+    # filename as the six-hour job's. Sending it to its own directory is the difference
+    # between a smoke run and losing the result nobody has re-run since.
+    out_dir = SWEEP_DIR / 'smoke' if (max_anchors or max_pool) else SWEEP_DIR
+    os.makedirs(out_dir, exist_ok=True)
     test_ids = create_train_test_split()[1]
     anchor_ids = sorted(test_ids)
     pool_ids = candidate_pool_ids(exclude_ids=test_ids)
@@ -275,13 +346,16 @@ def run_sweep(alphas: tuple[float, ...], max_anchors: int = 0, max_pool: int = 0
 
     weights, scaler = load_dimension_weights()
     concentration = concentration_summary(weights)
-    (SWEEP_DIR / 'dimension_importance.json').write_text(json.dumps(concentration, indent=4))
+    (out_dir / 'dimension_importance.json').write_text(json.dumps(concentration, indent=4))
     print(f"Dimension weights: {concentration['n_nonzero_dimensions']} of "
           f"{concentration['n_dimensions']} dimensions non-zero", flush=True)
 
-    anchors = to_weighted_space(load_raw_embeddings(anchor_ids), scaler, weights)
-    pool = to_weighted_space(load_raw_embeddings(pool_ids), scaler, weights)
-    print(f"Anchors {anchors.shape}, candidate pool {pool.shape}", flush=True)
+    # Read once and keep the raw rows: both metrics start from the same embeddings and
+    # differ only in what they do to them, so re-reading the table per metric would be
+    # two minutes of sqlite to produce identical bytes.
+    raw_anchors = load_raw_embeddings(anchor_ids)
+    raw_pool = load_raw_embeddings(pool_ids)
+    print(f"Anchors {raw_anchors.shape}, candidate pool {raw_pool.shape}", flush=True)
 
     trd_ids = load_trd_set()
     anchor_labels = np.array([1 if pid in trd_ids else 0 for pid in anchor_ids])
@@ -296,47 +370,66 @@ def run_sweep(alphas: tuple[float, ...], max_anchors: int = 0, max_pool: int = 0
         'anchor_trd_prevalence': float(anchor_labels.mean()),
         'pool_trd_prevalence': prevalence,
         'dimension_importance': concentration,
-        'by_alpha': {},
+        'metrics': list(metrics),
+        'by_metric': {},
     }
-    print(f"Sweeping alphas {list(alphas)} over k = 1 .. {len(pool_ids)}...", flush=True)
-    risks, n_undefined = risk_by_neighbour_count(anchors, pool, pool_labels, alphas, prevalence)
-    for alpha in alphas:
-        auc = roc_auc_by_column(anchor_labels, risks[alpha])
-        curve_frames.append(pd.DataFrame({
-            'alpha': alpha,
-            'n_neighbors': np.arange(1, len(pool_ids) + 1),
-            'roc_auc': auc,
-        }))
-        best_index = int(np.nanargmax(auc))
-        best_k = best_index + 1
-        interval = bootstrap_intervals(anchor_labels, risks[alpha],
-                                       interval_neighbour_counts(len(pool_ids), [best_k]))
-        interval.insert(0, 'alpha', alpha)
-        interval_frames.append(interval)
-        best_row = interval[interval['n_neighbors'] == best_k].iloc[0]
-        summary['by_alpha'][f"{alpha:g}"] = {
-            'best_n_neighbors': best_k,
-            'best_roc_auc': float(auc[best_index]),
-            'best_roc_auc_ci_low': float(best_row['ci_low']),
-            'best_roc_auc_ci_high': float(best_row['ci_high']),
-            'roc_auc_at_all_neighbors': float(auc[-1]),
-            'n_undefined_risk_entries': n_undefined[alpha],
-        }
-        pd.DataFrame({
-            'anchor_patient_id': anchor_ids,
-            'true_label': anchor_labels,
-            'predicted_risk': risks[alpha][:, best_index],
-        }).to_csv(SWEEP_DIR / f"best_k_predictions_alpha{alpha:g}.csv", index=False)
-        print(f"  alpha={alpha:g}: best k={best_k}, AUC={auc[best_index]:.4f} "
-              f"[{best_row['ci_low']:.4f}, {best_row['ci_high']:.4f}]", flush=True)
-    del risks
+    for metric in metrics:
+        anchors = to_metric_space(metric, raw_anchors, scaler, weights)
+        pool = to_metric_space(metric, raw_pool, scaler, weights)
+        suffix = metric_suffix(metric)
+        per_alpha = {}
+        print(f"[{metric}] sweeping alphas {list(alphas)} over k = 1 .. {len(pool_ids)}...",
+              flush=True)
+        risks, n_undefined = risk_by_neighbour_count(anchors, pool, pool_labels, alphas, prevalence)
+        for alpha in alphas:
+            auc = roc_auc_by_column(anchor_labels, risks[alpha])
+            curve_frames.append(pd.DataFrame({
+                'metric': metric,
+                'alpha': alpha,
+                'n_neighbors': np.arange(1, len(pool_ids) + 1),
+                'roc_auc': auc,
+            }))
+            best_index = int(np.nanargmax(auc))
+            best_k = best_index + 1
+            interval = bootstrap_intervals(anchor_labels, risks[alpha],
+                                           interval_neighbour_counts(len(pool_ids), [best_k]))
+            interval.insert(0, 'metric', metric)
+            interval.insert(1, 'alpha', alpha)
+            interval_frames.append(interval)
+            best_row = interval[interval['n_neighbors'] == best_k].iloc[0]
+            # The best k is the largest of thirty-four thousand held-out AUCs, so it is
+            # selected ON the anchors and is optimistic by however much the curve is
+            # peaked. `roc_auc_at_all_neighbors` is the same curve read at a k nobody
+            # chose, and is the number to quote when that matters.
+            per_alpha[f"{alpha:g}"] = {
+                'best_n_neighbors': best_k,
+                'best_roc_auc': float(auc[best_index]),
+                'best_roc_auc_ci_low': float(best_row['ci_low']),
+                'best_roc_auc_ci_high': float(best_row['ci_high']),
+                'roc_auc_at_all_neighbors': float(auc[-1]),
+                'n_undefined_risk_entries': n_undefined[alpha],
+            }
+            pd.DataFrame({
+                'anchor_patient_id': anchor_ids,
+                'true_label': anchor_labels,
+                'predicted_risk': risks[alpha][:, best_index],
+            }).to_csv(out_dir / f"best_k_predictions_alpha{alpha:g}{suffix}.csv", index=False)
+            print(f"  [{metric}] alpha={alpha:g}: best k={best_k}, AUC={auc[best_index]:.4f} "
+                  f"[{best_row['ci_low']:.4f}, {best_row['ci_high']:.4f}], "
+                  f"AUC at k=pool {auc[-1]:.4f}", flush=True)
+        summary['by_metric'][metric] = per_alpha
+        del risks, anchors, pool
+
+    # The primary metric also sits at the top level under the name it had before plain
+    # cosine joined it, so nothing that already reads this file has to learn a new path.
+    summary['by_alpha'] = summary['by_metric'].get(PRIMARY_METRIC, {})
 
     curves = pd.concat(curve_frames, ignore_index=True)
     intervals = pd.concat(interval_frames, ignore_index=True)
-    curves.to_csv(SWEEP_DIR / 'sweep_curve.csv', index=False)
-    intervals.to_csv(SWEEP_DIR / 'sweep_intervals.csv', index=False)
-    (SWEEP_DIR / 'sweep_summary.json').write_text(json.dumps(summary, indent=4))
-    figure_path = plot_sweep(curves, intervals, SWEEP_DIR / 'neighbor_count_sweep.png')
+    curves.to_csv(out_dir / 'sweep_curve.csv', index=False)
+    intervals.to_csv(out_dir / 'sweep_intervals.csv', index=False)
+    (out_dir / 'sweep_summary.json').write_text(json.dumps(summary, indent=4))
+    figure_path = plot_sweep(curves, intervals, out_dir / 'neighbor_count_sweep.png')
     print(f"Wrote {figure_path}", flush=True)
     return summary
 
@@ -349,8 +442,12 @@ def main():
                         help="Smoke-run cap on the number of anchors; 0 uses the whole test split.")
     parser.add_argument('--max-pool', type=int, default=0,
                         help="Smoke-run cap on the candidate pool; 0 uses every non-anchor patient.")
+    parser.add_argument('--metrics', nargs='+', default=list(METRICS), choices=list(METRICS),
+                        help="Which similarity spaces to sweep. Both, by default, because the "
+                             "point of the second one is the comparison with the first.")
     arguments = parser.parse_args()
-    run_sweep(tuple(arguments.alphas), arguments.max_anchors, arguments.max_pool)
+    run_sweep(tuple(arguments.alphas), arguments.max_anchors, arguments.max_pool,
+              tuple(arguments.metrics))
 
 
 if __name__ == '__main__':

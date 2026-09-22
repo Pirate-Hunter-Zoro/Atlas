@@ -7,6 +7,9 @@ deck. What a note does is land beside the document it is about and wake a turn
 that is not the lesson's.
 
     GET  /library.json              everything `course/library.py` found
+    GET  /shelf.json                the same inventory GROUPED BY THE BOX ON
+                                    THE MAP each document belongs to, which is
+                                    what the map's own drawer opens
     GET  /library/results.json      everything this workspace PRODUCED, grouped
                                     by the directory it came out of -- or a
                                     sentence saying why there is nothing
@@ -70,6 +73,7 @@ from ... import atlas, leaving, machines, manuscript, scopes, sense, writeups
 from ...course import config
 from ...course import library
 from ...course import results
+from ...course import shelf
 from ...course.repo import Repo
 from ...lesson import turns
 
@@ -77,6 +81,19 @@ from ...lesson import turns
 def get(h, repo, path):
     if path == "/library.json":
         return h.send_json(library.status(repo))
+
+    # EVERY DOCUMENT, UNDER THE BOX IT BELONGS TO. The same inventory the page
+    # above draws, ordered the way the map orders its boxes, because it is read
+    # beside the picture. Fetched on a tap and never on the payload: the map's
+    # payload carries the COUNT per box, which is four bytes, and this is the
+    # list.
+    if path == "/shelf.json":
+        try:
+            return h.send_json(shelf.grouped(repo))
+        except Exception as exc:                             # noqa: BLE001
+            # The same reason `/library/stamp` catches: a 500 here paints "the
+            # board is not answering" over a fault that is a directory walk.
+            return h.send_json({"ok": False, "error": str(exc)})
 
     # HAS ANYTHING MOVED. Asked every few seconds while the page is in front of
     # somebody, so it is stats and nothing else -- no titles read out of

@@ -24,12 +24,27 @@ rounds 40.96 up to 41 and reports 31.08%. No shipped artifact carries 30.5%.
 
 ## Teach next
 
-The supervised confound, and only this. Beta is fitted on the pool patients, so
-0.625 is a supervised metric beaten against an unsupervised one; the anchors are
-held out, so nothing leaks, but the comparison is not two retrieval tricks. Until
-beta is fitted inside the training fold alone, every claim resting on that
-0.625-vs-0.594 gap is soft. It is already flagged in the module docstring and the
-README.
+What the 0.625-vs-0.594 gap is made of, because two things move between those
+numbers and neither of them is a validity problem.
+
+**Beta is not a confound.** It is fitted on the 34,063 pool patients, the 8,516
+anchors are held out, and a supervised predictor fitted on train and scored on
+test is the ordinary arrangement rather than a leak. An overfitted beta would
+LOWER the held-out AUC, not raise it. The module docstring has this right and
+claims only that the metric is supervised. Nothing needs re-fitting.
+
+**What does move.** 0.594 is plain cosine at k=50 and 0.625 is the weighted
+metric at k=295, so the metric and the neighbourhood size change together and
+neither number separates them. The sweep runs both metrics over the same k --
+`--metrics`, plain cosine being the raw embedding L2-normalised with no
+classifier in it -- and the plain curve is the control that says how much of the
+gap was only k.
+
+**And one real optimism, small.** A best k is the largest of 34,063 held-out
+AUCs, so it is selected on the anchors. The curve is flat from k=261 to the whole
+pool, which is why it costs little here, and `roc_auc_at_all_neighbors` is the
+same curve read at a k nobody chose: 0.6237. Quote that where the selection
+matters.
 
 ## How this student works
 

@@ -131,8 +131,10 @@ var els = {
   pushedText: document.getElementById("pushed-text"),
   pushedGet: document.getElementById("pushed-get"),
   pushedView: document.getElementById("pushed-view"),
-  papersPanel: document.getElementById("papers"),
-  papersList: document.getElementById("papers-list"),
+  shelf: document.getElementById("shelf"),
+  shelfTitle: document.getElementById("shelf-title"),
+  shelfList: document.getElementById("shelf-list"),
+  shelfFoot: document.getElementById("shelf-foot"),
   paper: document.getElementById("paper"),
   paperName: document.getElementById("paper-name"),
   paperSub: document.getElementById("paper-sub"),
@@ -168,6 +170,7 @@ var els = {
   map: document.getElementById("map"),
   mapTitle: document.getElementById("map-title"),
   mapCount: document.getElementById("map-count"),
+  mapDocs: document.getElementById("map-docs"),
   mapFit: document.getElementById("map-fit"),
   mapClose: document.getElementById("map-close"),
   mapPlane: document.getElementById("map-plane"),
@@ -1431,8 +1434,13 @@ function render(data) {
      flag, so the row can say what a hosted pick will not be able to open. */
   if (data.fenced !== undefined) fencedHere = data.fenced || [];
 
+  /* WHICH OF THE BOARD'S OWN TWO DOCUMENTS EXIST -- the exported lesson and the
+     compiled write-up. It is what the banner's two buttons are enabled from,
+     and nothing else: a list of two is not an inventory, and the inventory is
+     the map's shelf. A shelf document is added to this table by name when the
+     drawer draws its row, so `warmPaper`, `inHand` and `saveCopy` work over
+     both without knowing the difference. */
   papers = data.papers || {};
-  renderPapers();                /* a build that lands while it is open shows */
   paintSession(state, data.push, data.agent, data.export,
                (data.hw && data.hw.build) || null);
   paintHomework(data.hw);
@@ -2069,16 +2077,21 @@ function paintBanner(push, exported, hwBuilt) {
 
    THREE THINGS DECIDE THE CONTROLS, AND ONLY ONE OF THEM IS AN EVENT.
 
-     - `papers`, off the payload, says which documents exist. A file, checked on
-       disk on every payload. This is what the buttons are enabled from.
+     - `papers`, the table below, says which documents exist and when each was
+       written. The board's own two arrive on the payload; a document off the
+       shelf is added by name when the drawer draws its row. This is what
+       enables a button and what invalidates a warm copy.
      - the banner's record says which document the banner is ABOUT.
-     - the ⋯ menu's `documents` panel needs neither, and is why a document is
-       reachable ten days after it was made rather than for the one second the
-       banner that announced it stayed on screen.
+     - the map's shelf needs neither, and is why a document is reachable ten
+       days after it was made rather than for the one second the banner that
+       announced it stayed on screen.
    ====================================================================== */
 
-/* Which documents exist right now, keyed by kind -- `lesson`, `homework`. Off
-   the payload (`papers`), so it survives every repaint and every reload. */
+/* Which documents exist right now, keyed by kind. `lesson` and `homework` come
+   off the payload, so they survive every repaint and every reload;
+   `shelf/<sid>` is put here by the shelf drawer from the record `/shelf.json`
+   gave it, which is what lets read and save work over a document the board did
+   not build. */
 var papers = {};
 
 /* One fetched document per kind, kept against the moment the PDF was written so
@@ -2093,10 +2106,36 @@ var papers = {};
    at it rather than after they have pressed. */
 var warm = Object.create(null);
 
+/* WHERE A DOCUMENT IS, SAID ONCE.
+
+   A kind names a document to the server and is never a path -- and the kind is
+   also the tail of the route, which is why there is one rule here rather than
+   three places that each glue a string together. Four families answer to the
+   same two routes: `lesson` and `homework`, the two the board itself builds;
+   `doc/<id>`, a document this course points at; and `shelf/<sid>`, a document
+   the workspace has written and the map's shelf found. Everything below --
+   warming, sharing, saving, the last-resort open -- works over all four
+   because only these two lines know the difference. */
 function paperUrl(kind) { return "/download/" + kind; }
+function paperViewUrl(kind) { return "/view/" + kind; }
+
+/* THE NAME THE INK IS ANCHORED UNDER, and it is the same one however the
+   document was reached. A shelf document and a `doc/` document can be the same
+   PDF found two ways, and a mark made on page three has to come back on page
+   three both times -- so the family is stripped and the anchor is
+   `doc/<ident>/p<n>` for every one of them. */
+function paperIdent(kind) {
+  if (kind.indexOf("doc/") === 0) return kind.slice(4);
+  if (kind.indexOf("shelf/") === 0) return kind.slice(6);
+  return kind;
+}
 
 function paperTitle(kind) {
-  return kind === "homework" ? "the written-up homework" : "this lesson";
+  if (kind === "homework") return "the written-up homework";
+  if (kind === "lesson") return "this lesson";
+  /* A document the board did not build has no name of its own until `/view`
+     answers with one, and "this lesson" would be a lie in the meantime. */
+  return "this document";
 }
 
 function warmPaper(kind) {
@@ -2172,8 +2211,8 @@ function global_matches(query) {
 }
 
 /* ------------------------------------------------------- taking a copy away */
-/* `btn` is whichever control was tapped -- the banner's, the documents panel's,
-   or the one in the viewer's own bar. All three do the same thing to the same
+/* `btn` is whichever control was tapped -- the banner's, a shelf row's, or the
+   one in the viewer's own bar. All three do the same thing to the same
    document, and none of them may navigate this window. */
 function saveCopy(kind, btn) {
   if (!kind || !papers[kind]) return;
@@ -2272,75 +2311,207 @@ function saveBlob(got, kind, done) {
   done("saved");
 }
 
-/* ------------------------------------------------- the documents, at any time */
-/* The three export buttons MAKE a document. This is how you get back to one,
-   and it is the answer to the half of the report that no amount of fixing the
-   banner would have covered: a document made ten days ago is still a document,
-   and until this existed there was no control on the page that could reach it.
-   It also offers to make the one that is not there, so the panel is never a
-   dead end. */
-function openPapers() {
-  els.papersPanel.hidden = false;
-  renderPapers();
-  /* Fetched now, for the same reason the banner fetches when its button
-     appears: Safari will not raise the share sheet for a `navigator.share`
-     called after a fetch resolves, because by then the tap's activation is
-     gone. Opening this panel is somebody about to save one of two documents,
-     which is the right moment to spend the wait. */
-  ["lesson", "homework"].forEach(function (kind) { warmPaper(kind); });
+/* ============================================================ THE SHELF ====
+   EVERY DOCUMENT THE WORKSPACE HAS, REACHED FROM THE PICTURE OF IT.
+
+   What was here before was a list of two: the exported lesson and the compiled
+   write-up, off `papers`. That is the last thing built, not an inventory -- a
+   course with forty compiled PDFs in it had thirty-eight of them reachable from
+   nothing on this page, and the report was somebody who could not find their
+   own homework.
+
+   So the index is the MAP, because the map is already the picture of where the
+   work is and a document belongs where its source lives. Two ways in, one
+   drawer: a count on a box opens that box's documents, and the control on the
+   map bar opens all of them, grouped by box, with whatever belongs to no box
+   last.
+
+   NOTHING IS REGISTERED. Which box a document belongs to is worked out from
+   where the file sits, every time `/shelf.json` is asked -- there is no index
+   file, no sidecar and nothing to fall out of date.
+
+   AND THE DRAWER IS HTML. A diagram is not a list: documents do not become
+   boxes on the plane, because forty more boxes on a forty-box picture is the
+   grid the map was drawn to replace. */
+
+/* WHICH BOX THE DRAWER IS SHOWING, or null for the whole workspace. */
+var shelfNode = null;
+
+/* THE LAST ANSWER, KEPT FOR AS LONG AS THE DRAWER IS OPEN AND NO LONGER.
+   Refetched on every open. A document is a file on a disk that a compile can
+   replace between two taps, and the payload -- which arrives four times a
+   second -- deliberately does not carry the list: it carries the COUNTS, and
+   the list is one level down, on a tap. A stale shelf is a `read` that draws
+   last week's pages, so the simpler thing is also the correct one. */
+var shelfGot = null;
+
+function openShelf(nodeId) {
+  shelfNode = nodeId || null;
+  els.shelf.hidden = false;
+  els.shelfTitle.textContent = "Documents";
+  els.shelfFoot.textContent = "";
+  els.shelfList.textContent = "";
+  var waiting = document.createElement("div");
+  waiting.className = "none";
+  waiting.textContent = "looking…";
+  els.shelfList.appendChild(waiting);
+
+  var mine = shelfNode;
+  fetch("/shelf.json", { credentials: "same-origin" })
+    .then(function (r) { return r.json(); })
+    .then(function (got) {
+      if (els.shelf.hidden || shelfNode !== mine) return;
+      shelfGot = got && got.ok ? got : null;
+      renderShelf();
+    })
+    .catch(function () {
+      if (els.shelf.hidden || shelfNode !== mine) return;
+      shelfGot = null;
+      renderShelf();
+    });
 }
 
-function renderPapers() {
-  if (els.papersPanel.hidden) return;
-  els.papersList.innerHTML = "";
-  ["lesson", "homework"].forEach(function (kind) {
-    var have = papers[kind];
-    var row = document.createElement("div");
-    row.className = "paper-row";
-    var head = document.createElement("strong");
-    /* Which lesson document this is, because there are two and they are not the
-       same document: the photograph of the glass, and the whole course typeset.
-       Both are written under one numbered series in `transcripts/`, so the
-       filename alone does not say which was made last. */
-    head.textContent = kind === "homework" ? "The written-up homework"
-      : have && have.scope === "all" ? "The whole course, typeset"
-      : "This lesson";
-    row.appendChild(head);
+function shelfGroups() {
+  return (shelfGot && shelfGot.groups) || [];
+}
 
-    var sub = document.createElement("span");
-    sub.className = "name";
-    if (have) {
-      sub.textContent = [have.name, have.iso, kb(have.size)]
-        .filter(Boolean).join(" · ");
-    } else {
-      sub.textContent = kind === "homework"
-        ? "not compiled yet — the write-up has no PDF on disk"
-        : "not exported yet — nothing has been made of this lesson";
-    }
-    row.appendChild(sub);
+function renderShelf() {
+  if (els.shelf.hidden) return;
+  var groups = shelfGroups();
+  var one = null;
+  if (shelfNode) {
+    groups.forEach(function (g) { if (g.node === shelfNode) one = g; });
+  }
 
-    var acts = document.createElement("div");
-    acts.className = "paper-acts";
-    if (have) {
-      acts.appendChild(act("read it here", "pushed-get quiet", function () {
-        els.papersPanel.hidden = true;
-        openPaper(kind);
-      }));
-      acts.appendChild(act("save a copy", "pushed-get", function (e) {
-        saveCopy(kind, e.currentTarget);
-      }));
-    } else {
-      acts.appendChild(act(kind === "homework" ? "compile it now"
-                                              : "export it now",
-                           "pushed-get", function () {
-        els.papersPanel.hidden = true;
-        if (kind === "homework") doExportHomework();
-        else doExport("lesson");
-      }));
-    }
-    row.appendChild(acts);
-    els.papersList.appendChild(row);
+  els.shelfTitle.textContent = shelfNode
+    ? ((one && one.box) || mapNodeName(shelfNode) || "Documents")
+    : "Every document in " + ((shelfGot && shelfGot.workspace) || "this workspace");
+
+  els.shelfList.textContent = "";
+  els.shelfFoot.textContent = "";
+
+  if (!shelfGot) {
+    var bad = document.createElement("div");
+    bad.className = "none";
+    bad.textContent = "The board could not say what documents there are.";
+    els.shelfList.appendChild(bad);
+    return;
+  }
+
+  var show = shelfNode ? (one ? [one] : []) : groups;
+  var drawn = 0;
+  show.forEach(function (g) {
+    /* The group's own heading, and it is drawn even for a single box: the name
+       of the box is the answer to "which of these is mine". */
+    var head = document.createElement("div");
+    head.className = "group";
+    head.textContent = g.box || "Unfiled";
+    els.shelfList.appendChild(head);
+    (g.docs || []).forEach(function (doc) {
+      els.shelfList.appendChild(shelfRow(doc));
+      drawn++;
+    });
   });
+
+  if (!drawn) {
+    var none = document.createElement("div");
+    none.className = "none";
+    none.textContent = shelfNode
+      ? "Nothing has been written under this one yet."
+      : "This workspace has written no documents yet.";
+    els.shelfList.appendChild(none);
+  }
+
+  if (shelfNode) {
+    /* ONE QUIET LINE OUT OF ONE BOX AND INTO ALL OF THEM. Somebody who tapped a
+       badge asked about that box; this is the afterthought, not the offer. */
+    var all = document.createElement("button");
+    all.type = "button";
+    all.textContent = "every document in this workspace ("
+                      + (shelfGot.total || 0) + ")";
+    all.addEventListener("click", function () { openShelf(null); });
+    els.shelfFoot.appendChild(all);
+  } else {
+    els.shelfFoot.textContent = (shelfGot.total || 0)
+      + (shelfGot.total === 1 ? " document" : " documents")
+      + " — read one here, or save a copy to Files.";
+  }
+}
+
+/* ONE ROW. The title, then the muted line that says how much of it there is and
+   when, then the two things that can be done with it. */
+function shelfRow(doc) {
+  var row = document.createElement("div");
+  row.className = "shelf-row" + (doc.pdf ? "" : " unbuilt");
+
+  var head = document.createElement("strong");
+  head.textContent = doc.title || doc.sid;
+  row.appendChild(head);
+
+  var sub = document.createElement("span");
+  sub.className = "name";
+  /* SOMEBODY ELSE'S MATERIAL, AND A PDF OLDER THAN ITS SOURCE. Both are facts
+     about whether to trust what opens, so they are said before the numbers
+     rather than after them. */
+  if (doc.theirs) sub.appendChild(shelfFlag("theirs", false));
+  if (doc.stale) sub.appendChild(shelfFlag("source is newer", true));
+  var said = document.createElement("span");
+  said.textContent = [doc.pages ? doc.pages + " pp" : "", doc.iso || "", doc.kind || ""]
+    .filter(Boolean).join(" · ");
+  sub.appendChild(said);
+  row.appendChild(sub);
+
+  if (!doc.pdf) {
+    var no = document.createElement("span");
+    no.className = "name";
+    no.textContent = "no PDF built";
+    row.appendChild(no);
+    return row;
+  }
+
+  /* THE DOCUMENT GOES INTO `papers` UNDER ITS OWN KIND, and that is the whole
+     of what makes read and save work over it. `warmPaper`, `inHand`,
+     `offerDocument` and `saveCopy` all ask this table whether a document exists
+     and when it was written; a shelf document answers the same way the lesson
+     does. `at` is the record's own -- the moment the PDF was written -- so a
+     rebuild invalidates the warm copy exactly as it does for a lesson. */
+  var kind = "shelf/" + doc.sid;
+  papers[kind] = { name: shelfName(doc), at: doc.at, size: doc.size };
+
+  var acts = document.createElement("div");
+  acts.className = "shelf-acts";
+  acts.appendChild(act("read it here", "pushed-get quiet", function () {
+    els.shelf.hidden = true;
+    openPaper(kind, doc.title || doc.sid);
+  }));
+  acts.appendChild(act("save a copy", "pushed-get", function (e) {
+    saveCopy(kind, e.currentTarget);
+  }));
+  row.appendChild(acts);
+  return row;
+}
+
+function shelfFlag(text, bad) {
+  var f = document.createElement("span");
+  f.className = "flag" + (bad ? " stale" : "");
+  f.textContent = text;
+  return f;
+}
+
+/* A FALLBACK NAME ONLY. The server names the file in the Content-Disposition
+   and `nameFrom` prefers that, because it is the side that knows the course. */
+function shelfName(doc) {
+  return (doc.sid || "document") + ".pdf";
+}
+
+/* What the map calls a box, for the drawer's head before the answer lands. */
+function mapNodeName(id) {
+  var show = mapShown();
+  var found = "";
+  ((show && show.nodes) || []).forEach(function (n) {
+    if (n.id === id) found = n.name;
+  });
+  return found;
 }
 
 function act(label, cls, fn) {
@@ -2369,8 +2540,11 @@ var paperOpen = null;
 /* A DOCUMENT THIS COURSE POINTS AT, rather than one it built. `openPaper` takes
    `doc/<id>` as its kind and everything below works unchanged, because the
    route, the rasteriser, the cache and the page URLs are the same ones -- what
-   differs is only how the file was found. A deck has no build record, so there
-   is no `save a copy` for it and the button hides itself. */
+   differs is only how the file was found. Whether `save a copy` is offered is
+   one question and one question only: is this kind in `papers`. A deck opened
+   through `doc/` is not, so its button hides itself; a document opened off the
+   shelf is, because the drawer put it there from the record `/shelf.json`
+   gave it. */
 function openDoc(id, name, then) { openPaper("doc/" + id, name, then); }
 
 /* `then` is handed what `/view` answered, once the pages are on screen. An
@@ -2382,18 +2556,25 @@ function openPaper(kind, label, then) {
   els.paper.hidden = false;
   document.body.classList.add("papering");
   var have = papers[kind];
-  els.paperName.textContent = (have && have.name) || label || paperTitle(kind);
+  /* The caller's label first. A shelf row knows the document by the title the
+     workspace gave it; `have.name` is the filename the PDF will be SAVED
+     under, which is the right thing in a Files app and the wrong thing in a
+     title bar. */
+  els.paperName.textContent = label || (have && have.name) || paperTitle(kind);
   els.paperSub.textContent = "";
   els.paperGet.hidden = !have;
   els.paperGet.textContent = "save a copy";
   els.paperGet.disabled = false;
-  if (have) warmPaper(kind);          /* in hand before the tap; see openPapers */
+  /* In hand before the tap: Safari will not raise the share sheet for a
+     `navigator.share` called after a fetch has resolved, so the wait is spent
+     while the pages are being drawn rather than after `save a copy`. */
+  if (have) warmPaper(kind);
   paperSay("<strong>Drawing the pages…</strong>"
            + "A long document takes a few seconds the first time. "
            + "After that it opens straight away.");
   els.paperPages.scrollTop = 0;
 
-  fetch("/view/" + kind, { credentials: "same-origin" })
+  fetch(paperViewUrl(kind), { credentials: "same-origin" })
     .then(function (r) { return r.json(); })
     .then(function (got) {
       if (paperOpen !== kind) return;          /* closed, or another opened */
@@ -2402,7 +2583,9 @@ function openPaper(kind, label, then) {
         if (then) then(null);
         return;
       }
-      els.paperName.textContent = got.name || label || paperTitle(kind);
+      /* Same order as before the fetch: the caller's label wins. `got.name` is
+         the name the PDF SAVES under, which belongs in a Files app. */
+      els.paperName.textContent = label || got.name || paperTitle(kind);
       els.paperSub.textContent = got.n + (got.n === 1 ? " page" : " pages")
         + (got.truncated ? " (the first " + got.n + " only)" : "");
       els.paperPages.innerHTML = "";
@@ -2419,7 +2602,7 @@ function openPaper(kind, label, then) {
            sent to the tutor names a place the tutor can open. */
         var box = document.createElement("div");
         box.className = "paper-page";
-        var ident = kind.indexOf("doc/") === 0 ? kind.slice(4) : kind;
+        var ident = paperIdent(kind);
         box.dataset.ann = "doc/" + ident + "/p" + (i + 1);
 
         var img = document.createElement("img");
@@ -2471,9 +2654,9 @@ function openPaper(kind, label, then) {
    Safari, which has its own PDF reader and a way back. */
 function paperFailed(kind, got) {
   var lead = got.why === "none"
-    ? (kind.indexOf("doc/") === 0 ? "That document is no longer where it was."
-       : kind === "homework" ? "The write-up has not been compiled yet."
-                             : "This lesson has not been exported yet.")
+    ? (kind === "homework" ? "The write-up has not been compiled yet."
+       : kind === "lesson" ? "This lesson has not been exported yet."
+                           : "That document is no longer where it was.")
     : got.why === "no-renderer"
       ? "This machine cannot draw the pages."
       : "The pages could not be drawn.";
@@ -2484,7 +2667,10 @@ function paperFailed(kind, got) {
               /* A renderer's own output is a log, and a log reads as one. */
               : '<span class="detail">' + escapeHtml(why) + "</span>"));
   var box = els.paperPages.querySelector(".paper-say");
-  if (got.why === "none") {
+  /* The offer to MAKE it only exists for the two the board builds. A shelf
+     document that has gone is a file somebody moved, and there is no button on
+     this page that can put it back. */
+  if (got.why === "none" && (kind === "homework" || kind === "lesson")) {
     box.appendChild(act(kind === "homework" ? "compile it now" : "export it now",
                         "pushed-get", function () {
       closePaper();
@@ -2493,6 +2679,7 @@ function paperFailed(kind, got) {
     }));
     return;
   }
+  if (got.why === "none") return;
   if (papers[kind]) {
     box.appendChild(act("save a copy", "pushed-get", function (e) {
       saveCopy(kind, e.currentTarget);
@@ -4537,18 +4724,64 @@ function mapWrap(text, size, weight, room, maxLines) {
   return window.Gauge.wrap(text, size, weight, room, maxLines);
 }
 
+/* HOW MANY DOCUMENTS THIS BOX HOLDS, as the plate reads. Off the payload, which
+   carries a COUNT per box and never the list -- the payload is rebuilt four
+   times a second and a list of forty documents on it forty times a minute is
+   the one thing the map's own rule forbids. The list is one level down, on a
+   tap. */
+function mapDocsLabel(n) { return "▤ " + (n.docs || 0); }
+function mapDocsWide(n) { return Math.round(mapWidth(mapDocsLabel(n), 11, 600)) + 14; }
+
+/* WHERE THE STEP CHIPS AND THE DOCUMENT PLATE SIT ALONG THE BOTTOM OF A BOX.
+
+   Both corners of a box are already taken -- the arrow down a level at the top
+   right, the other-ways dots at the bottom right -- so the plate goes at the
+   right end of the row the chips are in. When there are enough chips that they
+   would reach it, THE PLATE WINS: the chips wrap onto a row above and the box
+   grows to hold them. A step chip pushed under the plate is a step nobody can
+   tap; a taller box is a taller box.
+
+   Computed here rather than in `mapDraw` because the height is decided in
+   `mapShape` and the two have to agree about the number of rows. The answer
+   rides on the shape and `mapDraw` reads it back.
+
+   Everything is relative to the box's left edge; every box is `MAP_W` wide. */
+function mapChipPlan(node) {
+  var chips = (node.steps || []).length;
+  var plate = (node.docs || 0) > 0 ? mapDocsWide(node) : 0;
+  var left = MAP_PAD + MAP_MARK;
+  /* The dots at the bottom right are drawn at `p.w - 16` with a radius of 10,
+     so nothing of ours may pass `p.w - 30`. Without them the box's own padding
+     is the edge. */
+  var right = MAP_W - (mapMore(node) ? 30 : MAP_PAD);
+  var step = MAP_CHIP_R * 2 + MAP_CHIP_GAP;
+  var at = [], row = 0, col = 0, i;
+  for (i = 0; i < chips; i++) {
+    var edge = right - (row === 0 && plate ? plate + MAP_CHIP_GAP : 0);
+    /* Never wrap the first chip of a row: a box too narrow for one chip is a
+       box that would wrap for ever. */
+    if (col > 0 && left + col * step + MAP_CHIP_R * 2 > edge) { row++; col = 0; }
+    at.push({ row: row, col: col });
+    col++;
+  }
+  var rows = Math.max(chips ? row + 1 : 0, plate ? 1 : 0);
+  return { at: at, rows: rows, plate: plate, left: left, right: right, step: step };
+}
+
 function mapShape(node) {
   var room = MAP_W - MAP_PAD * 2 - MAP_MARK;
   var name = mapWrap(node.name, MAP_NAME, 650, room, MAP_NAME_LINES);
   var also = node.also ? mapWrap(node.also, MAP_ALSO, 400, room, 1) : [];
   var does = node.does ? mapWrap(node.does, MAP_DOES, 400, room, MAP_DOES_LINES) : [];
-  var chips = (node.steps || []).length;
+  var chips = mapChipPlan(node);
   var h = MAP_PAD + name.length * 19
         + (also.length ? 15 : 0)
         + (does.length ? 5 + does.length * 16 : 0)
-        + (chips ? 8 + MAP_CHIP_R * 2 : 0)
+        + (chips.rows ? 8 + chips.rows * MAP_CHIP_R * 2
+                          + (chips.rows - 1) * MAP_CHIP_GAP : 0)
         + MAP_PAD;
-  return { name: name, also: also, does: does, h: Math.max(60, h) };
+  return { name: name, also: also, does: does, chips: chips,
+           h: Math.max(60, h) };
 }
 
 /* ---------------------------------------------------------- the layout */
@@ -4897,10 +5130,16 @@ function mapDraw(info) {
     /* THE WORK, ON THE THING IT IS ABOUT. A numbered chip per step of the plan
        that names this part, in the plan's order, coloured by how soon. Its own
        tap, because a step is a sitting and the box is a different sitting. */
+    var plan = p.shape.chips;
+    /* The middle of the bottom row of chips, and every row above it. */
+    var chipRow = function (r) {
+      return p.y + p.h - MAP_PAD - MAP_CHIP_R + 2
+             - (plan.rows - 1 - r) * (MAP_CHIP_R * 2 + MAP_CHIP_GAP);
+    };
     (n.steps || []).forEach(function (step, i) {
-      var cx = p.x + MAP_PAD + MAP_MARK + MAP_CHIP_R
-             + i * (MAP_CHIP_R * 2 + MAP_CHIP_GAP);
-      var cy = p.y + p.h - MAP_PAD - MAP_CHIP_R + 2;
+      var seat = plan.at[i] || { row: 0, col: i };
+      var cx = p.x + plan.left + MAP_CHIP_R + seat.col * plan.step;
+      var cy = chipRow(seat.row);
       var chip = mapEl("g", { "class": "chip " + mapWhen(step.order),
                               "data-step": step.label, tabindex: "0",
                               role: "button",
@@ -4921,6 +5160,41 @@ function mapDraw(info) {
       });
       g.appendChild(chip);
     });
+    /* WHAT THIS BOX HAS WRITTEN, at the right end of the row of steps. Drawn
+       only where there is something to open: a plate reading zero is a plate
+       that teaches somebody not to look at plates.
+
+       Its own tap, and the tap stops here -- the box opens a sitting and this
+       opens a drawer, and one target cannot mean both. The documents are HTML
+       in that drawer rather than more boxes out here, because a diagram is not
+       a list and forty PDFs spliced into this picture is the grid the map
+       replaced. */
+    if ((n.docs || 0) > 0) {
+      var many = n.docs + (n.docs === 1 ? " document" : " documents");
+      var pw = plan.plate;
+      var px = p.x + plan.right - pw;
+      var py = chipRow(0) - MAP_CHIP_R;
+      var plate = mapEl("g", { "class": "docs", "data-docs": n.id,
+                               tabindex: "0", role: "button",
+                               "aria-label": many + " in " + n.name });
+      plate.appendChild(mapEl("rect", { x: px, y: py, width: pw,
+                                        height: MAP_CHIP_R * 2, rx: 7 }));
+      var pt = mapEl("text", { x: px + pw / 2, y: py + MAP_CHIP_R + 4,
+                               "text-anchor": "middle" });
+      pt.textContent = mapDocsLabel(n);
+      plate.appendChild(pt);
+      plate.addEventListener("click", function (ev) {
+        ev.stopPropagation();
+        openShelf(n.id);
+      });
+      plate.addEventListener("keydown", function (ev) {
+        if (ev.key !== "Enter" && ev.key !== " ") return;
+        ev.preventDefault();
+        ev.stopPropagation();
+        openShelf(n.id);
+      });
+      g.appendChild(plate);
+    }
     /* LOOK INSIDE THIS ONE. Its own tap, at the top right, because the box
        already has one and a single target cannot mean both "work on this" and
        "show me what is in it". A symbol is a leaf and gets none. */
@@ -5291,6 +5565,20 @@ function paintMapNow(info, state) {
   if (els.mapTitle) {
     els.mapTitle.textContent = mapDeep ? mapDeep.name : (here || "the map");
   }
+  /* EVERY DOCUMENT IN THE WORKSPACE, from the bar of the picture of it.
+
+     The number is the sum of what the boxes carry, because the sum of what the
+     boxes carry is what the payload knows -- per-box counts, four times a
+     second. Whatever belongs to no box is not in it, and asking `/shelf.json`
+     for the true total on every payload would be a fetch a second for a number
+     nobody is reading. So the bar says how many are ON the picture and the
+     drawer's own head says the true total the moment it has asked. */
+  if (els.mapDocs) {
+    var inBoxes = 0;
+    ((show && show.nodes) || []).forEach(function (n) { inBoxes += (n.docs || 0); });
+    els.mapDocs.hidden = !inBoxes;
+    els.mapDocs.textContent = "▤ " + inBoxes + " in boxes";
+  }
   if (els.mapWhy) els.mapWhy.textContent = mapWhySay(show);
   mapControls(can);
   paintLoose();
@@ -5581,11 +5869,12 @@ function closeMap() {
 
 els.mapClose.onclick = function () { closeMap(); };
 els.mapFit.onclick = function () { mapWhole(); };
+if (els.mapDocs) els.mapDocs.onclick = function () { openShelf(null); };
 mapButtons().forEach(function (b) {
   b.onclick = function () {
     /* Whatever is over the lesson goes with it. A drawer left open behind the
        map is a drawer sitting on top of the lesson when the map closes. */
-    [els.contents, els.review, els.scratch, els.papersPanel,
+    [els.contents, els.review, els.scratch, els.shelf,
      document.getElementById("history"), els.kind, els.steer].forEach(function (panel) {
       if (panel) panel.hidden = true;
     });
@@ -6193,7 +6482,7 @@ function addrSpent() {
 /* Everything over the lesson goes, because an address is somebody saying where
    they want to be and a drawer left open is a drawer sitting on top of it. */
 function addrShut() {
-  [els.contents, els.review, els.scratch, els.papersPanel,
+  [els.contents, els.review, els.scratch, els.shelf,
    document.getElementById("history"), els.kind, els.work,
    els.steer].forEach(function (p) {
     if (p) p.hidden = true;
@@ -9648,7 +9937,6 @@ if (els.keepwhat) {
 
 els.paperGet.onclick = function (e) { saveCopy(paperOpen, e.currentTarget); };
 document.getElementById("paper-close").onclick = closePaper;
-document.getElementById("btn-papers").onclick = openPapers;
 /* A PAGE, so it is a navigation rather than a panel -- and a plain one, the way
    the slate is: the lesson is files and is still here when you come back, and
    nothing on the library page can change it. */
@@ -9964,10 +10252,10 @@ document.addEventListener("keydown", function (e) {
   if (e.key !== "Escape") return;
   if (els.map && !els.map.hidden) closeMap();
   else if (els.paper && !els.paper.hidden) closePaper();
-  else if (els.papersPanel && !els.papersPanel.hidden) els.papersPanel.hidden = true;
+  else if (els.shelf && !els.shelf.hidden) els.shelf.hidden = true;
 });
-document.getElementById("btn-papers-close").onclick = function () {
-  els.papersPanel.hidden = true;
+document.getElementById("btn-shelf-close").onclick = function () {
+  els.shelf.hidden = true;
 };
 document.getElementById("btn-export").onclick = function () { doExport("lesson"); };
 document.getElementById("btn-export-all").onclick = function () { doExport("all"); };

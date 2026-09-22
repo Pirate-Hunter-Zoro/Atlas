@@ -14,6 +14,11 @@ finished-looking curve, so each gets an assertion rather than a comment.
 (c) The running-sum risk must equal the direct weighted average at every k, and the
     weights must be the similarity itself -- clamped, then sharpened -- not some
     rescaling of it.
+
+(d) Plain cosine is the control the weighted metric is read against, so it must be the
+    PUBLISHED arm's space and nothing else: the raw embedding, L2-normalised, with no
+    standardiser and no dimension weights anywhere in it. A control that quietly
+    inherited either would make the metric look like it does nothing.
 """
 
 import sys
@@ -31,11 +36,16 @@ sys.path.append(str(Path(__file__).parent.parent))
 from scripts.pipeline.predictions.importance_weighted_knn import (
     concentration_summary,
     neighbour_weights,
+    to_plain_space,
     to_weighted_space,
 )
 from scripts.pipeline.predictions.neighbor_count_sweep import (
+    METRICS,
+    PRIMARY_METRIC,
+    metric_suffix,
     risk_by_neighbour_count,
     roc_auc_by_column,
+    to_metric_space,
 )
 
 
@@ -156,3 +166,65 @@ def test_concentration_summary_reports_a_sparse_metric_as_sparse():
     assert summary['n_dimensions'] == 100
     assert summary['n_nonzero_dimensions'] == 5
     assert summary['share_of_importance_by_top_fraction_of_dimensions']['top_5.00%']['share'] == pytest.approx(1.0)
+
+
+def test_plain_space_rows_are_unit_length():
+    """Plain cosine is a cosine only if the rows are normalised, same as the weighted one."""
+    rng = np.random.default_rng(10)
+    rows = to_plain_space(rng.normal(size=(5, 7)))
+    assert np.allclose(np.linalg.norm(rows, axis=1), 1.0, atol=1e-6)
+
+
+def test_plain_space_leaves_a_zero_vector_at_the_origin():
+    """An all-zero embedding must come back zero rather than as a divide-by-zero."""
+    rows = to_plain_space(np.array([[0.0, 0.0, 0.0], [1.0, 2.0, 2.0]]))
+    assert np.all(rows[0] == 0.0)
+    assert np.isfinite(rows).all()
+    assert rows[1] == pytest.approx(np.array([1.0, 2.0, 2.0]) / 3.0, abs=1e-6)
+
+
+def test_plain_space_ignores_the_scaler_and_the_dimension_weights():
+    """The control must not inherit the metric it is a control for.
+
+    to_metric_space is handed the scaler and the weights whichever metric is asked for,
+    because the caller does not branch. If `plain` ever consulted either of them, the
+    comparison in the sweep would be two versions of the same arm.
+    """
+    rng = np.random.default_rng(11)
+    vectors = rng.normal(size=(6, 4))
+    sparse_weights = np.array([1.0, 0.0, 0.0, 0.0])
+    even_weights = np.full(4, 0.25)
+
+    one = to_metric_space('plain', vectors, IdentityScaler(4, mean=0.0, scale=1.0), sparse_weights)
+    two = to_metric_space('plain', vectors, IdentityScaler(4, mean=17.0, scale=9.0), even_weights)
+    assert np.allclose(one, two, atol=1e-7)
+    assert np.allclose(one, to_plain_space(vectors), atol=1e-7)
+
+
+def test_plain_and_weighted_spaces_disagree_when_the_metric_is_sparse():
+    """The two arms must actually be two arms on a metric that drops most dimensions."""
+    rng = np.random.default_rng(12)
+    vectors = rng.normal(size=(8, 5))
+    weights = np.array([1.0, 0.0, 0.0, 0.0, 0.0])
+    weighted = to_metric_space('weighted', vectors, IdentityScaler(5), weights)
+    plain = to_metric_space('plain', vectors, IdentityScaler(5), weights)
+    assert not np.allclose(weighted @ weighted.T, plain @ plain.T, atol=1e-3)
+
+
+def test_every_metric_has_a_space_and_an_unknown_one_is_refused():
+    """A typo in --metrics must stop the run rather than silently sweep one arm twice."""
+    rng = np.random.default_rng(13)
+    vectors = rng.normal(size=(4, 3))
+    for metric in METRICS:
+        rows = to_metric_space(metric, vectors, IdentityScaler(3), np.full(3, 1 / 3))
+        assert rows.shape == vectors.shape
+    with pytest.raises(ValueError):
+        to_metric_space('cosine', vectors, IdentityScaler(3), np.full(3, 1 / 3))
+
+
+def test_only_the_primary_metric_keeps_the_unsuffixed_filenames():
+    """Two arms writing best_k_predictions_alpha1.csv would leave one of them on disk."""
+    assert metric_suffix(PRIMARY_METRIC) == ''
+    tails = {metric_suffix(m) for m in METRICS}
+    assert len(tails) == len(METRICS)
+    assert all(tail.startswith('_') for tail in tails if tail)

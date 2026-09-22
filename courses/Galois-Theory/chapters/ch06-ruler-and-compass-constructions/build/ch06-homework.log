@@ -1,10 +1,10 @@
-This is pdfTeX, Version 3.141592653-2.6-1.40.29 (TeX Live 2026) (preloaded format=pdflatex 2026.4.28)  24 AUG 2026 16:16
+This is pdfTeX, Version 3.141592653-2.6-1.40.29 (TeX Live 2026) (preloaded format=pdflatex 2026.4.28)  22 SEP 2026 15:09
 entering extended mode
  restricted \write18 enabled.
  file:line:error style messages enabled.
  %&-line parsing enabled.
-**/mnt/dell_storage/homefolders/librad.laureateinstitute.org/mferguson/Galois-Theory/chapters/ch06-ruler-and-compass-constructions/homework/ch06-homework.tex
-(/mnt/dell_storage/homefolders/librad.laureateinstitute.org/mferguson/Galois-Theory/chapters/ch06-ruler-and-compass-constructions/homework/ch06-homework.tex
+**/mnt/dell_storage/homefolders/librad.laureateinstitute.org/mferguson/Atlas/courses/Galois-Theory/chapters/ch06-ruler-and-compass-constructions/homework/ch06-homework.tex
+(/mnt/dell_storage/homefolders/librad.laureateinstitute.org/mferguson/Atlas/courses/Galois-Theory/chapters/ch06-ruler-and-compass-constructions/homework/ch06-homework.tex
 LaTeX2e <2025-11-01>
 L3 programming layer <2026-03-20>
 (/mnt/dell_storage/homefolders/librad.laureateinstitute.org/mferguson/.TinyTeX/texmf-dist/tex/latex/base/article.cls
@@ -23,7 +23,7 @@ File: size11.clo 2025/01/22 v1.4n Standard LaTeX file (size option)
 \abovecaptionskip=\skip49
 \belowcaptionskip=\skip50
 \bibindent=\dimen150
-) (/mnt/dell_storage/homefolders/librad.laureateinstitute.org/mferguson/Galois-Theory/latex/coursemacros.sty
+) (/mnt/dell_storage/homefolders/librad.laureateinstitute.org/mferguson/Atlas/courses/Galois-Theory/latex/coursemacros.sty
 Package: coursemacros 2026/08/24 Galois theory coursework macros
  (/mnt/dell_storage/homefolders/librad.laureateinstitute.org/mferguson/.TinyTeX/texmf-dist/tex/latex/amsmath/amsmath.sty
 Package: amsmath 2025/07/09 v2.17z AMS math features
@@ -546,7 +546,7 @@ Package uniquecounter Info: New unique counter `rerunfilecheck' on input line 28
 ) (/mnt/dell_storage/homefolders/librad.laureateinstitute.org/mferguson/.TinyTeX/texmf-dist/tex/latex/l3backend/l3backend-pdftex.def
 File: l3backend-pdftex.def 2026-02-18 L3 backend support: PDF output (pdfTeX)
 \l__color_backend_stack_int=\count340
-) (/mnt/dell_storage/homefolders/librad.laureateinstitute.org/mferguson/Galois-Theory/chapters/ch06-ruler-and-compass-constructions/build/ch06-homework.aux)
+) (/mnt/dell_storage/homefolders/librad.laureateinstitute.org/mferguson/Atlas/courses/Galois-Theory/chapters/ch06-ruler-and-compass-constructions/build/ch06-homework.aux)
 \openout1 = `ch06-homework.aux'.
 
 LaTeX Font Info:    Checking defaults for OML/cmm/m/it on input line 18.
@@ -628,7 +628,7 @@ Package epstopdf-base Info: Redefining graphics rule for `.eps' on input line 48
 File: epstopdf-sys.cfg 2010/07/13 v1.3 Configuration of (r)epstopdf for TeX Live
 ))
 Package hyperref Info: Link coloring ON on input line 18.
- (/mnt/dell_storage/homefolders/librad.laureateinstitute.org/mferguson/Galois-Theory/chapters/ch06-ruler-and-compass-constructions/build/ch06-homework.out) (/mnt/dell_storage/homefolders/librad.laureateinstitute.org/mferguson/Galois-Theory/chapters/ch06-ruler-and-compass-constructions/build/ch06-homework.out)
+ (/mnt/dell_storage/homefolders/librad.laureateinstitute.org/mferguson/Atlas/courses/Galois-Theory/chapters/ch06-ruler-and-compass-constructions/build/ch06-homework.out) (/mnt/dell_storage/homefolders/librad.laureateinstitute.org/mferguson/Atlas/courses/Galois-Theory/chapters/ch06-ruler-and-compass-constructions/build/ch06-homework.out)
 \@outlinefile=\write4
 \openout4 = `ch06-homework.out'.
 
@@ -647,7 +647,7 @@ File: mt-msb.cfg 2005/06/01 v1.0 microtype config. file: AMS symbols (b) (RS)
 LaTeX Font Info:    Trying to load font information for U+stmry on input line 20.
  (/mnt/dell_storage/homefolders/librad.laureateinstitute.org/mferguson/.TinyTeX/texmf-dist/tex/latex/stmaryrd/Ustmry.fd) [1
 
-{/mnt/dell_storage/homefolders/librad.laureateinstitute.org/mferguson/.TinyTeX/texmf-var/fonts/map/pdftex/updmap/pdftex.map}] (/mnt/dell_storage/homefolders/librad.laureateinstitute.org/mferguson/Galois-Theory/chapters/ch06-ruler-and-compass-constructions/build/ch06-homework.aux)
+{/mnt/dell_storage/homefolders/librad.laureateinstitute.org/mferguson/.TinyTeX/texmf-var/fonts/map/pdftex/updmap/pdftex.map}] (/mnt/dell_storage/homefolders/librad.laureateinstitute.org/mferguson/Atlas/courses/Galois-Theory/chapters/ch06-ruler-and-compass-constructions/build/ch06-homework.aux)
  ***********
 LaTeX2e <2025-11-01>
 L3 programming layer <2026-03-20>
@@ -656,18 +656,18 @@ Package rerunfilecheck Info: File `ch06-homework.out' has not changed.
 (rerunfilecheck)             Checksum: D41D8CD98F00B204E9800998ECF8427E;0.
  ) 
 Here is how much of TeX's memory you used:
- 25026 strings out of 469339
- 489810 string characters out of 5466426
- 896656 words of memory out of 5000000
- 53424 multiletter control sequences out of 15000+600000
- 635674 words of font info for 82 fonts, out of 8000000 for 9000
+ 25047 strings out of 469339
+ 490327 string characters out of 5466426
+ 900656 words of memory out of 5000000
+ 53434 multiletter control sequences out of 15000+600000
+ 637122 words of font info for 93 fonts, out of 8000000 for 9000
  14 hyphenation exceptions out of 8191
- 99i,6n,111p,1148b,462s stack positions out of 10000i,1000n,20000p,200000b,200000s
-</mnt/dell_storage/homefolders/librad.laureateinstitute.org/mferguson/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmbx10.pfb></mnt/dell_storage/homefolders/librad.laureateinstitute.org/mferguson/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmbxti10.pfb></mnt/dell_storage/homefolders/librad.laureateinstitute.org/mferguson/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmr10.pfb></mnt/dell_storage/homefolders/librad.laureateinstitute.org/mferguson/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmr12.pfb></mnt/dell_storage/homefolders/librad.laureateinstitute.org/mferguson/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmr17.pfb>
-Output written on /mnt/dell_storage/homefolders/librad.laureateinstitute.org/mferguson/Galois-Theory/chapters/ch06-ruler-and-compass-constructions/build/ch06-homework.pdf (1 page, 56506 bytes).
+ 99i,6n,111p,1162b,462s stack positions out of 10000i,1000n,20000p,200000b,200000s
+</mnt/dell_storage/homefolders/librad.laureateinstitute.org/mferguson/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmbx10.pfb></mnt/dell_storage/homefolders/librad.laureateinstitute.org/mferguson/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmmi10.pfb></mnt/dell_storage/homefolders/librad.laureateinstitute.org/mferguson/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmmi8.pfb></mnt/dell_storage/homefolders/librad.laureateinstitute.org/mferguson/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmr10.pfb></mnt/dell_storage/homefolders/librad.laureateinstitute.org/mferguson/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmr12.pfb></mnt/dell_storage/homefolders/librad.laureateinstitute.org/mferguson/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmr17.pfb></mnt/dell_storage/homefolders/librad.laureateinstitute.org/mferguson/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmr8.pfb></mnt/dell_storage/homefolders/librad.laureateinstitute.org/mferguson/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmsy10.pfb></mnt/dell_storage/homefolders/librad.laureateinstitute.org/mferguson/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmti10.pfb></mnt/dell_storage/homefolders/librad.laureateinstitute.org/mferguson/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/symbols/msbm10.pfb>
+Output written on /mnt/dell_storage/homefolders/librad.laureateinstitute.org/mferguson/Atlas/courses/Galois-Theory/chapters/ch06-ruler-and-compass-constructions/build/ch06-homework.pdf (1 page, 104497 bytes).
 PDF statistics:
- 41 PDF objects out of 1000 (max. 8388607)
- 27 compressed objects within 1 object stream
+ 66 PDF objects out of 1000 (max. 8388607)
+ 42 compressed objects within 1 object stream
  2 named destinations out of 1000 (max. 500000)
- 16397 words of extra memory for PDF output out of 17280 (max. 10000000)
+ 14349 words of extra memory for PDF output out of 14400 (max. 10000000)
 

@@ -235,15 +235,6 @@
        to compile the thing an evening was actually spent writing was a terminal,
        which is the one thing this page exists to abolish. -->
   <button id="btn-export-hw" title="compile the problem set you are writing up, and keep it in the repository">⇩  export the written-up homework</button>
-  <!-- AND A WAY BACK TO A DOCUMENT THAT ALREADY EXISTS.
-       The three buttons above MAKE a document. Reaching one used to be possible
-       only in the banner of the build that made it, and that banner is replaced
-       by the next payload -- so a write-up somebody had just compiled became
-       unreachable about a second after it appeared. Reported as "it compiles the
-       homework, but it's not letting me view the compiled .pdf or save it
-       anywhere locally on the iPad." This is here at every moment, whether the
-       document was made ten seconds or ten days ago. -->
-  <button id="btn-papers" title="read either PDF here, or save a copy to Files">▤  documents · view or save</button>
   <!-- AND EVERY DOCUMENT THIS WORKSPACE HAS WRITTEN, which is a different list
        from the two above. Those are the two the BOARD makes -- the exported
        lesson and the compiled write-up. This is the papers and the decks
@@ -693,23 +684,6 @@
   <button id="reading-back" type="button">back to the lesson</button>
 </div>
 
-<!-- The two documents this board can produce, and both ways to have one.
-     A document is a file, not an event: whether it exists is a question with an
-     answer at every moment, and the payload answers it (`papers`). So this
-     panel is reachable whenever somebody wants it, and it offers to make the
-     one that is not there rather than saying nothing about it. -->
-<aside id="papers" hidden>
-  <div class="scratch-head">
-    <strong>Documents</strong>
-    <span class="head-acts"><button class="to-map" type="button" title="the map of this course">◈ map</button><button id="btn-papers-close">✕</button></span>
-  </div>
-  <div id="papers-list"></div>
-  <div class="scratch-foot muted">Both are kept in the repository and staged for
-    the next save. <strong>Read it here</strong> draws the pages on the board;
-    <strong>save a copy</strong> hands the PDF to iOS, so it can go to Files,
-    iCloud, a phone, or an email — and Cancel comes straight back to the lesson.</div>
-</aside>
-
 <!-- A PDF, read on the board.
      NOT an iframe and NOT a navigation, and both of those are the point. iOS
      renders a PDF in a frame as one unscrollable page, and navigating to one in
@@ -759,6 +733,16 @@
   <div class="map-bar">
     <strong id="map-title">the map</strong>
     <span id="map-count" class="muted"></span>
+    <!-- EVERY DOCUMENT IN THIS WORKSPACE, from the picture of it.
+         A badge on a box opens that box's drawer; this opens the whole
+         shelf, grouped the way the map groups its boxes, with whatever
+         belongs to no box last. Hidden when the workspace has written
+         nothing: a control that opens an empty list is a control that
+         teaches somebody not to tap it. The number here is the sum of
+         what the boxes carry; the drawer's own head says the true total
+         once it has asked. -->
+    <button id="map-docs" type="button" hidden
+            title="every document in this workspace">▤ documents</button>
     <button id="map-fit" type="button" title="fit the whole map on the glass">⤢ fit</button>
     <button id="map-close" type="button" title="back to the lesson">✕</button>
   </div>
@@ -826,6 +810,25 @@
     <span class="muted">It goes to the tutor with the lesson. You can also drop
       one anywhere on this page, or write on the <a href="/slate">slate</a>.</span>
   </div>
+</aside>
+
+<!-- EVERY DOCUMENT THE WORKSPACE HAS, REACHED FROM THE PICTURE OF IT.
+     A document belongs where its source lives, so the box on the map is the
+     index: a count on the box, a tap, and the documents that box holds. The
+     drawer is HTML in a list rather than more boxes on the plane, because a
+     diagram is not a list and forty compiled PDFs spliced into a forty-box
+     picture is the grid the map exists to replace.
+
+     Nothing is registered. Which box a document belongs to is worked out from
+     where the file sits, on every read -- `/shelf.json` answers that question
+     and this draws the answer. -->
+<aside id="shelf" hidden>
+  <div class="scratch-head">
+    <strong id="shelf-title">Documents</strong>
+    <span class="head-acts"><button class="to-map" type="button" title="the map of this course">◈ map</button><button id="btn-shelf-close">✕</button></span>
+  </div>
+  <div id="shelf-list"></div>
+  <div class="scratch-foot muted" id="shelf-foot"></div>
 </aside>
 
 <!-- Maths: answering means writing, and the writing happens here, under the

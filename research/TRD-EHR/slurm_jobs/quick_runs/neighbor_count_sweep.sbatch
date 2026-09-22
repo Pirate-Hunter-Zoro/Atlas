@@ -8,10 +8,12 @@
 #SBATCH -o slurm_jobs/quick_runs/logs/neighbor_count_sweep_out.txt
 #SBATCH -e slurm_jobs/quick_runs/logs/neighbor_count_sweep_err.txt
 
-# Importance-weighted KNN, swept over every neighbourhood size from 1 to the whole
-# candidate pool. No GPU and no vLLM server: the metric is read off the already-fitted
-# logistic regression, so this is one BLAS matmul and a lot of sorting. The memory
-# request is what holds the three per-alpha risk matrices, each n_anchors x n_pool.
+# Both retrieval metrics, swept over every neighbourhood size from 1 to the whole
+# candidate pool. No GPU and no vLLM server: the importance-weighted metric is read off
+# the already-fitted logistic regression and plain cosine needs nothing at all, so this is
+# two BLAS matmuls and a lot of sorting. The memory request is what holds the three
+# per-alpha risk matrices, each n_anchors x n_pool; the metrics run one after another and
+# free theirs between, so a second metric costs time and not memory.
 #
 # Requires a fitted logistic_regression_EMBEDDED.joblib in RESULTS_DIR/trained_models,
 # which scripts.pipeline.predictions.classical_ml writes.
