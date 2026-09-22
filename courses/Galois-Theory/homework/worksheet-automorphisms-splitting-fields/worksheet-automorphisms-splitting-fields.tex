@@ -1,22 +1,203 @@
 % ===========================================================================
-%  Worksheet Automorphisms Splitting Fields
+%  Worksheet --- Automorphisms, Irreducibility and Splitting Fields
+%  Problems 7--12: a tour through the roots of unity.
 %
 %  THE WRITE-UP, and it is the assistant's to type.
 %    The assistant transcribes each question or topic faithfully and emits an
 %    empty, marked solution region beneath it. The student does the
 %    mathematics; the assistant typesets what they agreed was right.
+%
+%  ONE `problem` ENVIRONMENT PER LETTERED PART, each with its own matched
+%  SOLUTION / END SOLUTION pair. `board hw status` reads those markers to say
+%  what is written up and what is next, and it pairs them by label.
+%
+%  Problems 7, 8, 9 and 10 are the four chosen for this sitting. Problems 11
+%  and 12 are the finite-field pair and are not stated here; they get their own
+%  sheet when they are worked.
 % ===========================================================================
 \documentclass[11pt]{article}
 \usepackage{coursemacros}
 
-\title{Worksheet Automorphisms Splitting Fields}
-\author{}
+\title{Worksheet --- Automorphisms, Irreducibility and Splitting Fields}
+\author{Mikey Ferguson}
 \date{\today}
 
 \begin{document}
 \maketitle
 
-% One problem/solution pair per thing worked, in the order it was assigned or
-% chosen. A region stays empty until the answer in it is agreed correct.
+\noindent
+Throughout, $\zeta_n = e^{2\pi i/n}$, and $\operatorname{Aut}(K/F)$ denotes the
+group of automorphisms of $K$ that fix $F$ pointwise.
+
+% One problem/solution pair per thing worked, in the sheet's own order. A
+% region stays empty until the answer in it is agreed correct.
+
+\begin{problem}{7(a)}
+  \emph{Automorphisms move roots to roots.} Let $K/F$ be an extension and let
+  $\sigma \in \operatorname{Aut}(K/F)$. Show that if $f \in F[x]$ and
+  $f(\alpha) = 0$ for some $\alpha \in K$, then $f(\sigma(\alpha)) = 0$.
+\end{problem}
+
+% ===== SOLUTION 7(a) =====
+\begin{solution}
+\end{solution}
+% ===== END SOLUTION 7(a) =====
+
+\begin{problem}{7(b)}
+  Let $K/F$ be an extension and let $\sigma \in \operatorname{Aut}(K/F)$. Show
+  that if $K = F(\alpha_1, \dots, \alpha_r)$, then $\sigma$ is determined by
+  $\sigma(\alpha_1), \dots, \sigma(\alpha_r)$.
+\end{problem}
+
+% ===== SOLUTION 7(b) =====
+\begin{solution}
+\end{solution}
+% ===== END SOLUTION 7(b) =====
+
+\begin{problem}{7(c)}
+  Let $K = \mathbb{Q}(\zeta_n)$. Show that every
+  $\sigma \in \operatorname{Aut}(K/\mathbb{Q})$ satisfies
+  $\sigma(\zeta_n) = \zeta_n^{\,k}$ for some $k$ with $\gcd(k,n) = 1$, and that
+  $\sigma \mapsto k \bmod n$ is an injective group homomorphism
+  \[
+    \operatorname{Aut}(K/\mathbb{Q}) \hookrightarrow (\mathbb{Z}/n\mathbb{Z})^{\times} .
+  \]
+  In particular $\lvert \operatorname{Aut}(K/\mathbb{Q}) \rvert \leq \varphi(n)$.
+\end{problem}
+
+% ===== SOLUTION 7(c) =====
+\begin{solution}
+\end{solution}
+% ===== END SOLUTION 7(c) =====
+
+\begin{problem}{8(a)}
+  \emph{Conjugate roots and the cyclotomic polynomial $\Phi_p$.} Let
+  $p \in F[x]$ be irreducible, with roots $\alpha$ and $\beta$ in (possibly
+  different) extensions of $F$. Show there is a unique isomorphism
+  $F(\alpha) \to F(\beta)$ fixing $F$ and sending $\alpha \mapsto \beta$.
+\end{problem}
+
+% ===== SOLUTION 8(a) =====
+\begin{solution}
+\end{solution}
+% ===== END SOLUTION 8(a) =====
+
+\begin{problem}{8(b)}
+  Let $p$ be prime and
+  $\Phi_p(x) = x^{p-1} + x^{p-2} + \cdots + x + 1$. Show that $\Phi_p$ is
+  irreducible over $\mathbb{Q}$.
+\end{problem}
+
+% ===== SOLUTION 8(b) =====
+\begin{solution}
+\end{solution}
+% ===== END SOLUTION 8(b) =====
+
+\begin{problem}{8(c)}
+  Deduce that $[\mathbb{Q}(\zeta_p) : \mathbb{Q}] = p - 1$ and that the
+  injection of Problem 7(c) is an isomorphism:
+  \[
+    \operatorname{Aut}(\mathbb{Q}(\zeta_p)/\mathbb{Q})
+      \cong (\mathbb{Z}/p\mathbb{Z})^{\times} .
+  \]
+\end{problem}
+
+% ===== SOLUTION 8(c) =====
+\begin{solution}
+\end{solution}
+% ===== END SOLUTION 8(c) =====
+
+\begin{problem}{9(a)}
+  \emph{The eighth roots of unity and $x^4 + 1$.} Let $\zeta = \zeta_8$ and
+  $K = \mathbb{Q}(\zeta)$. Show that $\zeta$ is a root of $x^4 + 1$, that
+  $x^4 + 1$ is irreducible over $\mathbb{Q}$, and hence that
+  $[K : \mathbb{Q}] = 4$.
+\end{problem}
+
+% ===== SOLUTION 9(a) =====
+\begin{solution}
+\end{solution}
+% ===== END SOLUTION 9(a) =====
+
+\begin{problem}{9(b)}
+  With $\zeta = \zeta_8$ and $K = \mathbb{Q}(\zeta)$, show that $x^4 + 1$
+  factors into quadratics over each of $\mathbb{Q}(\sqrt{2})$, $\mathbb{Q}(i)$
+  and $\mathbb{Q}(\sqrt{-2})$.
+\end{problem}
+
+% ===== SOLUTION 9(b) =====
+\begin{solution}
+\end{solution}
+% ===== END SOLUTION 9(b) =====
+
+\begin{problem}{9(c)}
+  With $\zeta = \zeta_8$ and $K = \mathbb{Q}(\zeta)$, show that
+  $K = \mathbb{Q}(i, \sqrt{2})$.
+\end{problem}
+
+% ===== SOLUTION 9(c) =====
+\begin{solution}
+\end{solution}
+% ===== END SOLUTION 9(c) =====
+
+\begin{problem}{9(d)}
+  With $\zeta = \zeta_8$ and $K = \mathbb{Q}(\zeta)$: for $k \in \{3,5,7\}$,
+  show there is an automorphism $\sigma_k$ of $K$ with
+  $\sigma_k(\zeta) = \zeta^{k}$, that each $\sigma_k$ has order $2$, and that
+  the subfields of $K$ fixed by $\sigma_5$, $\sigma_7$ and $\sigma_3$ are
+  $\mathbb{Q}(i)$, $\mathbb{Q}(\sqrt{2})$ and $\mathbb{Q}(\sqrt{-2})$
+  respectively.
+\end{problem}
+
+% ===== SOLUTION 9(d) =====
+\begin{solution}
+\end{solution}
+% ===== END SOLUTION 9(d) =====
+
+\begin{problem}{10(a)}
+  \emph{A first splitting field: $x^3 - 2$.} Let $\omega = \zeta_3$. Show that
+  the complex roots of $x^3 - 2$ are $\sqrt[3]{2}$, $\omega\sqrt[3]{2}$ and
+  $\omega^2\sqrt[3]{2}$, and conclude that its splitting field over
+  $\mathbb{Q}$ is $E = \mathbb{Q}(\sqrt[3]{2}, \omega)$.
+\end{problem}
+
+% ===== SOLUTION 10(a) =====
+\begin{solution}
+\end{solution}
+% ===== END SOLUTION 10(a) =====
+
+\begin{problem}{10(b)}
+  With $\omega = \zeta_3$ and $E = \mathbb{Q}(\sqrt[3]{2}, \omega)$, show that
+  $[E : \mathbb{Q}] = 6$. In particular, $\mathbb{Q}(\sqrt[3]{2})$ contains a
+  root of $x^3 - 2$ but is not its splitting field.
+\end{problem}
+
+% ===== SOLUTION 10(b) =====
+\begin{solution}
+\end{solution}
+% ===== END SOLUTION 10(b) =====
+
+\begin{problem}{10(c)}
+  More generally, let $a \in \mathbb{Q}^{\times}$ and let $\alpha$ be any
+  complex root of $x^n - a$. Show that the splitting field of $x^n - a$ over
+  $\mathbb{Q}$ is $\mathbb{Q}(\alpha, \zeta_n)$.
+\end{problem}
+
+% ===== SOLUTION 10(c) =====
+\begin{solution}
+\end{solution}
+% ===== END SOLUTION 10(c) =====
+
+\begin{problem}{10(d)}
+  With $E = \mathbb{Q}(\sqrt[3]{2}, \zeta_3)$, show that every
+  $\sigma \in \operatorname{Aut}(E/\mathbb{Q})$ permutes the three roots of
+  $x^3 - 2$ and is determined by that permutation. Conclude that
+  $\operatorname{Aut}(E/\mathbb{Q})$ is isomorphic to a subgroup of $S_3$.
+\end{problem}
+
+% ===== SOLUTION 10(d) =====
+\begin{solution}
+\end{solution}
+% ===== END SOLUTION 10(d) =====
 
 \end{document}
