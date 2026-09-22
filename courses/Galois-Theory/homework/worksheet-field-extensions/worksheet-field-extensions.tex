@@ -91,6 +91,67 @@
 \end{solution}
 % ===== END SOLUTION 1(a) =====
 
+\begin{problem}{1(b)}
+  \emph{Quotients of $F[x]$.} Let $F$ be a field and let $f \in F[x]$ be
+  nonconstant of degree $n$. Set $A = F[x]/(f)$. Show that if $A$ is an
+  integral domain, then $A$ is a field.
+\end{problem}
+
+% ===== SOLUTION 1(b) =====
+% Transcribed from the student's slate, 2026-09-22 (page t0054-r69, cards
+% 0075-0078). Their route: fix a non-zero class, multiply by it, injective from
+% the domain hypothesis, surjective from rank-nullity, then feed 1bar.
+% Two additions, both citations the argument spends and the page leaves
+% unnamed rather than steps the student did not take:
+%   - The page says "finite dimensional space"; which dimension is 1(a), so
+%     $\dim_F A = n$ is cited where rank-nullity is invoked.
+%   - Rank-nullity needs $T$ linear, so $T$ is stated as $F$-linear and the
+%     one-line check is given.
+% One clause on the page is dropped as doing no work: "if g1bar, g2bar != 0,
+% both sides are not 0". The subtraction covers every case. The page's opening
+% lines h = gf + r, r != 0, r = sum c_i x^i are the abandoned attempt to build
+% the inverse by hand and are not part of this proof.
+\begin{solution}
+  Assume $A$ is an integral domain. Then $A$ is a commutative ring with
+  $\overline{1} \neq \overline{0}$, so it remains to produce an inverse for each
+  non-zero element.
+
+  Fix $\overline{h} \in A$ with $\overline{h} \neq \overline{0}$, and define
+  \[
+    T \colon A \longrightarrow A, \qquad
+    T(\overline{g}) = \overline{h}\,\overline{g} .
+  \]
+  This is $F$-linear: multiplication in $A$ is distributive and $F$ sits in $A$
+  as the classes of the constants, so
+  $T(\overline{g_1} + \overline{g_2}) = T(\overline{g_1}) + T(\overline{g_2})$
+  and $T(c\overline{g}) = cT(\overline{g})$ for $c \in F$.
+
+  \textbf{$T$ is injective.} Suppose
+  $\overline{h}\,\overline{g_1} = \overline{h}\,\overline{g_2}$. Subtracting,
+  \[
+    \overline{h}\,(\overline{g_1} - \overline{g_2}) = \overline{0} .
+  \]
+  Since $A$ is an integral domain and $\overline{h} \neq \overline{0}$, this
+  forces $\overline{g_1} - \overline{g_2} = \overline{0}$, that is
+  $\overline{g_1} = \overline{g_2}$.
+
+  \textbf{$T$ is surjective.} By 1(a), $\dim_F A = n < \infty$, and $T$ is an
+  $F$-linear map from $A$ to itself. An $F$-linear endomorphism of a
+  finite-dimensional $F$-vector space is injective if and only if it is
+  surjective, so $T$ is surjective.
+
+  \textbf{The inverse.} Apply surjectivity to $\overline{1} \in A$: there is
+  $\overline{g} \in A$ with
+  \[
+    T(\overline{g}) = \overline{h}\,\overline{g} = \overline{1} ,
+  \]
+  and injectivity makes this $\overline{g}$ unique. So $\overline{g} =
+  \overline{h}^{\,-1}$, and every non-zero element of $A$ is invertible.
+
+  Hence $A$ is a field.
+\end{solution}
+% ===== END SOLUTION 1(b) =====
+
 \begin{problem}{3(a)}
   \emph{Degrees.} Let $K/F$ be a finite extension of degree $n$. Show that for
   any $\alpha \in K$, the degree of $m_{\alpha,F}$ divides $n$.
