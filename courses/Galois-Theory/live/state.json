@@ -1,7 +1,7 @@
 {
   "course": "Galois Theory",
-  "chapter": "Ch 06 \u2014 Ruler-and-compass constructions",
+  "chapter": "New direction \u2014 We are skipping chapter 6.",
   "session": "lecture",
-  "opened": "2026-09-22 15:06",
-  "node": "ch-06"
+  "opened": "2026-09-22 15:07",
+  "hw": "chapters/ch06-ruler-and-compass-constructions/homework/ch06-homework.tex"
 }
