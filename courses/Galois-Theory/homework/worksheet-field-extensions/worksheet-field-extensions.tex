@@ -27,6 +27,70 @@
 % One problem/solution pair per thing worked, in the sheet's own order. A
 % region stays empty until the answer in it is agreed correct.
 
+\begin{problem}{1(a)}
+  \emph{Quotients of $F[x]$.} Let $F$ be a field and let $f \in F[x]$ be
+  nonconstant of degree $n$. Set $A = F[x]/(f)$. Show that
+  $\dim_F A = n$.
+\end{problem}
+
+% ===== SOLUTION 1(a) =====
+% Transcribed from the student's slate, 2026-09-22 (pages t0054-r58 to r64,
+% cards 0069-0074). Spanning by division with remainder, independence by
+% comparing degrees: their route, their order, nothing added.
+% Three reason-corrections, made here rather than left to the student:
+%   - The page states division with remainder as "deg r < deg f" and adds
+%     "(or r = 0)" beside it; the zero case is part of the statement, so it is
+%     stated inside it.
+%   - The independence half says "by assumption h != 0", but the stated
+%     assumption was hbar = 0bar, which says nothing about h. The hypothesis
+%     actually used is the contradiction hypothesis, so it is declared first:
+%     suppose some c_i is non-zero.
+%   - The page writes "hbar = fbar or h in (f)". Only the second is usable,
+%     since fbar is always 0bar; the write-up keeps that one.
+% The zero polynomial is written $0$ in $F[x]$; the page's $0_{k[x]}$ names a
+% field $k$ that does not occur in this problem.
+\begin{solution}
+  Write $\overline{g} = g + (f)$ for the class of $g \in F[x]$ in $A$.
+
+  \textbf{The classes $\overline{1}, \overline{x}, \dots, \overline{x^{n-1}}$
+  span $A$ over $F$.} Let $\overline{g} \in A$. By division with remainder in
+  $F[x]$ there are $q, r \in F[x]$ with
+  \[
+    g = qf + r, \qquad \text{where } r = 0 \text{ or } \deg r < \deg f = n .
+  \]
+  Passing to classes and using $\overline{f} = \overline{0}$,
+  \[
+    \overline{g} = \overline{q}\,\overline{f} + \overline{r} = \overline{r} .
+  \]
+  Since $r = 0$ or $\deg r < n$, we may write $r = \sum_{i=0}^{n-1} c_i x^i$
+  with $c_0, \dots, c_{n-1} \in F$, and therefore
+  \[
+    \overline{g} = \overline{r} = \sum_{i=0}^{n-1} c_i \overline{x^i} .
+  \]
+  So every element of $A$ is an $F$-combination of the $n$ classes
+  $\overline{1}, \overline{x}, \dots, \overline{x^{n-1}}$.
+
+  \textbf{They are linearly independent over $F$.} Suppose
+  $c_0, \dots, c_{n-1} \in F$ satisfy
+  $\sum_{i=0}^{n-1} c_i \overline{x^i} = \overline{0}$, and set
+  $h = \sum_{i=0}^{n-1} c_i x^i \in F[x]$, so that $\overline{h} = \overline{0}$.
+  Suppose, for a contradiction, that some $c_i$ is non-zero. Then $h \neq 0$ and
+  $\deg h \leq n-1$.
+
+  From $\overline{h} = \overline{0}$ we get $h \in (f)$, so there is some
+  $g \in F[x]$ with $gf = h$. Since $h \neq 0$, also $g \neq 0$. Degrees add for
+  non-zero polynomials over a field, so
+  \[
+    \deg h = \deg g + \deg f = \deg g + n \geq n ,
+  \]
+  which contradicts $\deg h \leq n-1$. Hence every $c_i = 0$.
+
+  The $n$ classes $\overline{1}, \overline{x}, \dots, \overline{x^{n-1}}$ span
+  $A$ and are linearly independent over $F$, so they are a basis and
+  $\dim_F A = n$.
+\end{solution}
+% ===== END SOLUTION 1(a) =====
+
 \begin{problem}{3(a)}
   \emph{Degrees.} Let $K/F$ be a finite extension of degree $n$. Show that for
   any $\alpha \in K$, the degree of $m_{\alpha,F}$ divides $n$.
