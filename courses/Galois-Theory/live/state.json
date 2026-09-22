@@ -1,7 +1,8 @@
 {
   "course": "Galois Theory",
-  "chapter": "New direction \u2014 Let\u2019s prioritize the remaining book problems except the one\u2026",
+  "chapter": "Ch 04 \u2014 Field extensions",
   "session": "lecture",
-  "opened": "2026-09-15 15:17",
+  "opened": "2026-09-22 14:02",
+  "node": "ch-04",
   "hw": "homework/worksheet-field-extensions/worksheet-field-extensions.tex"
 }
