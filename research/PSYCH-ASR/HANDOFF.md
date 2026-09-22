@@ -1,18 +1,25 @@
-<!-- chapter: 7. R3 — THE TWO REFERENCE-FREE MEASUREMENTS -->
-Nothing was taught. The session opened with `begin`, no box had been tapped, and the student left without answering. Card 0001 is still open.
+<!-- chapter: 1. STAGE 1 — THE DIARIZATION GRID -->
+The work in front of this project is expanding the Stage 1 diarization pipeline into a grid
+search. Stage 1 runs end to end: 1a-i transcribe, 1a-ii align, 1b one job per arm, 1c join
+and render, with the regression gate closing the 1c job. A grid cell is a typist, a
+stopwatch and a name-tagger, and the arm name carries all three in the filename, so the
+grid needs no new artifact convention — see *The arm name is what makes the model grid
+free* in `psych_asr/artifacts/naming.py`.
 
-Where they got to: nowhere on step 7 of `planning/PSYCH-ASR_TODO.txt`. Card 0001 is the scope question — the eight boxes as links — with R3's agenda under it. Treat that card as read, not as answered.
+### The reference transcript, and why it is not in here
 
-Nothing was got wrong and nothing was got right; there is no answer of theirs in this session. But do not rebuild the agenda from the plan. Card 0001 already states five exercises, and re-posing them in a different order costs the student the thread:
+The reference is a **human-adjudicated artifact**. colibrì produced it from the community-1
+baseline transcript and the annotator's QC error log; the annotator reviewed the result and
+approved it. It is the reference because she says it is.
 
-1. Which perturbations are answer-preserving — a sub-second time shift and a small gain change are different invariances, and the shift must be undone before scoring.
-2. Define the self-consistency number so it is not read as an error rate.
-3. What scoring a shifted run without un-shifting it reports — exercise 1's trap as a number.
-4. Define consensus over the other four arms, then construct the case where it agrees and is wrong; it must never be reported as DER.
-5. Arm C's roughly 190 s of extra covered speech: what consensus would have to show for that reading to strengthen, and what would falsify it.
+It lives under `phi/`, which is outside git and inside the PHI fence. Every downstream
+number therefore rests on a file git cannot see and no assistant working here can read.
+Nothing in `psych_asr/` builds it, reads it, or reproduces it.
 
-The single next thing: exercise 1, as soon as a box is tapped. Exercises 2 and 3 both rest on knowing which perturbation preserves the answer, and it is the one place a wrong assumption yields a plausible number rather than an error. Hand it as three candidate perturbations, one of which is not answer-preserving, and let them pick.
+**How an arm is measured against it is an open decision**, and it waits on the reference
+being validated. It may not turn out to be code.
 
-On how this student works, one thing, and it comes from the previous turn's note rather than from anything here: when asked for a decision they answer plainly and have usually already acted on it. Ask for the decision. Do not offer them a cautious alternative they did not request.
+### Where to pick up
 
-No check was run and no artifact changed this session. `live/NEXT.md` carries the same reading in shorter form.
+`planning/PSYCH-ASR_TODO.txt` is the live task list and the answer to "what do we do next".
+`README.md` is the pipeline architecture. Read the TODO first.

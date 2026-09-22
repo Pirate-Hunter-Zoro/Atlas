@@ -1,4 +1,4 @@
-"""PSYCH-ASR pipeline package: ASR, diarization, the join, and the bake-off scorers.
+"""PSYCH-ASR pipeline package: ASR, diarization, the join, and the regression gate.
 
 DELIBERATELY EMPTY OF IMPORTS, AND EVERY SUBPACKAGE'S __init__.py IS TOO.
 

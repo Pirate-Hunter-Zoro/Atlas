@@ -6,9 +6,9 @@ whisperx.assign_word_speakers reads exactly three columns off the diarization Da
 start, end, speaker -- and ignores everything else. Any diarizer that can emit those three
 fields substitutes in with no change to the join.
 
-RTTM is the carrier because it is simultaneously the standard diarization interchange
-format AND what DER scorers consume, so the file the bake-off scores and the file the join
-reads are the same artifact. No second serialization to keep in sync.
+RTTM is the carrier because it is the standard diarization interchange format, so an arm
+writes one artifact and the join reads that same artifact. No second serialization to keep
+in sync.
 
 STDLIB ONLY AT MODULE SCOPE. This module is imported from all four conda envs, whose torch
 and numpy pins are mutually incompatible; pandas is imported inside the one function that

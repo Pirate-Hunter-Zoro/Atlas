@@ -1,8 +1,8 @@
 """Collapsing segments into conversational turns.
 
-STDLIB ONLY, and it is the piece three other modules need: the renderer groups turns to
-read as dialogue, the regression gate counts them, and the scorer finds backchannels among
-them. One implementation, so those three cannot drift apart.
+STDLIB ONLY, and it is the piece two other modules need: the renderer groups turns to
+read as dialogue and the regression gate counts them. One implementation, so the two
+cannot drift apart.
 """
 
 # assign_word_speakers sets "speaker" only where a transcript span overlaps a diarized

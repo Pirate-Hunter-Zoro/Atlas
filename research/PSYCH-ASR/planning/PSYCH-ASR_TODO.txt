@@ -33,323 +33,126 @@ The user should never have to remember the plan. When they ask what is next, the
 answer is here, and it is the first unfinished step below. Read it, say what the
 step is, and start it.
 
-STATE AS OF 2026-09-09. The DIARIZER bake-off is built and has run on the first
-pilot session. It cannot be decided there: every arm agrees with every other on
-99.3-99.7% of words and overlap is 0.5-1.5% of covered speech, which is the
-regime where an overlap-aware diarizer has nothing to show.
+STAGE 1 HAS THREE SWAPPABLE MODELS, NOT ONE, AND THAT IS THE SHAPE OF THE WORK:
 
-WHAT CHANGED ON 2026-09-09, AND IT REFRAMES EVERYTHING BELOW. Stage 1 has THREE
-swappable models, not one, and only one of them has ever been tested:
-
-    transcribe  "the typist"     faster-whisper large-v3     ONE candidate, never compared
-    align       "the stopwatch"  wav2vec2 base, LibriSpeech  ONE candidate, never compared
-    diarize     "the name-tagger" five arms                  compared; undecided
+    transcribe  "the typist"      faster-whisper large-v3     4 candidates staged
+    align       "the stopwatch"   wav2vec2 base, LibriSpeech  1 candidate, never compared
+    diarize     "the name-tagger" five arms                   compared; undecided
 
 The argument that built the diarization bake-off applies WORD FOR WORD to the
-other two, and nobody had noticed. We ran one transcriber for one reason —
-whisperx bundles it. That is a DEFAULT, NOT A DECISION. Same for the aligner,
-which is additionally the SMALL model trained on READ AUDIOBOOKS (ls960) and is
-the least examined component in the pipeline.
+other two. We ran one transcriber for one reason — whisperx bundles it. That is a
+DEFAULT, NOT A DECISION. Same for the aligner, which is additionally the SMALL
+model trained on READ AUDIOBOOKS (ls960) and the least examined component here.
 
-The corrected reference built from Madison's 117-row error log is the first
-object in this project that can tell a transcript it is wrong. That is what makes
-steps 2 and 3 possible now, and they were not possible before.
+THE REFERENCE TRANSCRIPT IS A HUMAN ARTIFACT. colibri produced it from the
+community-1 baseline and the annotator's QC error log; the annotator approved it.
+It lives under phi/, outside git and inside the fence. Nothing in psych_asr/
+builds it, reads it or reproduces it, and HOW AN ARM IS MEASURED AGAINST IT IS AN
+OPEN DECISION that waits on the reference being validated. It may not be code.
+Do not build a grader, a scorer or an arm-comparison metric until that is settled.
 
-WHAT CHANGED ON 2026-09-11, AND IT REMOVES A BLOCKER FROM STEP 4. The grader now
-exists: psych_asr.evaluate.grade plus psych_asr.cli.grade_arms take any arm's
-transcript and produce MADISON'S OWN BREAKDOWN of it — the six error labels and
-her Add Turn? split — computed from the corrected reference with nobody
-listening. Stdlib only, a second or two per arm, and its output is numbers-only
-so it crosses the fence. See README.md, "Grading an arm against the reference".
-Two consequences for the plan below:
-  * THE GRID IS A CUBE, NOT A TABLE. Three swappable boxes means three axes:
-    4 typists x 2 stopwatches x 5 name-taggers = 40 CELLS, from 13 jobs (8 runs
-    of 1a, 5 of 1b). The grid step said "typist x name-tagger" and that was two of the
-    three boxes the section above declares swappable.
-  * FIVE OF THE SIX LABELS CANNOT MOVE ALONG TWO OF THE AXES. The words come
-    from the typist; the times from the stopwatch timing those words; who-spoke
-    from the name-tagger, which reads no words. So Omission, Insertion,
-    Substitution, Proper Noun and Punctuation are a property of the TYPIST ALONE
-    and are identical across a whole row of the cube. Only Speaker Attribution
-    moves along the other two. One word-level measurement per row, one
-    attribution measurement per cell — which is what makes 40 cells affordable.
-
-WHAT CHANGED ON 2026-09-16. Madison read a corrected transcript, reported two
-defects in it, and both are repaired: her notation no longer comes through as
-speech, and an interjection is placed where it was heard rather than at the end
-of whatever turn hosts it. The reference and all nine arms' error profiles were
-rebuilt from the fixed code. What a later reader needs is the rules that came out
-of it, not the story.
-
-DECISIONS LOCKED — THE CELL GRAMMAR, AND WHERE AN UTTERANCE GOES.
-  * A TEXT CELL IS A SEQUENCE OF UNITS, not a string. A unit is an optionally
-    quoted run of speech followed by at most one bracketed role;
-    error_log.parse_units is the parser, and Correction carries ai_units and
-    actual_units beside the first-unit shortcuts ai_text/actual_text. Two units
-    in one cell are two people speaking, and become two edits with two speakers.
-  * EVERY DOUBLE QUOTE COMES OUT, paired or not, wherever it sits
-    (error_log.strip_quotes). NO other punctuation is touched: a trailing comma
-    is the entire content of a Punctuation row.
-  * A BRACKET NAMING A ROLE SETS THE SPEAKER AND CLOSES THE UNIT. A bracket
-    naming anything else -- (laughs), (inaudible) -- is CUT and does NOT close
-    it, so its unit leaves with no role of its own and INHERITS THE SPEAKER OF
-    THE TURN IT LANDS IN. The user's call, made on the board: nothing inside a
-    bracket is worth keeping, and an edit with no speaker is not an edit.
-    "Interviewer" is a role name for the therapist side and was missing from
-    ROLE_ALIASES, which is why those cells survived into the transcript whole.
-  * THE LOGGED TIMESTAMP PICKS THE OFFSET INSIDE THE HOST TURN, FENCED BY THE
-    LINE COLUMN: the line says which words were on screen, the clock says where
-    among them, and the clock may not leave the line (corrections.offset_for_time
-    and corrections.insertion_point). The times are the aligner's word times,
-    carried into the turn table by group_into_turns(keep_word_times=True) as a
-    "clock" of (character offset, second) anchors; _interpolate is piecewise
-    between them and degrades to the old straight line for a turn with none.
-  * INSERTIONS ON ONE HOST ARE ORDERED BY POSITION, THEN BY LOGGED TIME, never by
-    spreadsheet row. An insertion point falling inside a span an earlier row
-    already moved or rewrote is pushed to the end of that span, or the two pieces
-    overlap in time.
-  * THE PASS MEASURES ITS OWN PLACEMENT AND PRINTS IT: report["placement_lag"]
-    beside report["placement_lag_under_the_previous_rule"], and stray_marks
-    before and after. On the pilot sheet the 74 placed utterances went from 22
-    within two seconds of their logged time to 68, median 3.24 s -> 0.44 s. That
-    is agreement between the Line column and the Timestamp column and NOT an
-    independent check, because the rows are now placed by that clock.
-
-WHAT THE REPAIR LEFT ON THE TABLE (2026-09-16). Both belong to step 5, which is
-where the scorer is calibrated, and neither is a code defect.
-  * FOUR ROWS WHOSE LINE AND TIMESTAMP DISAGREE by more than ten seconds -- sheet
-    rows 41, 50, 53 and 75, named by the pass in
-    report["rows_landing_over_10s_from_their_logged_time"]. Each was placed
-    inside the turn its Line column named, and the annotator's own clock says
-    that turn is elsewhere in the session. One of the two columns is wrong on
-    those rows and the code cannot tell which.
-  * THE PUNCTUATION LABEL IS NOT CALIBRATED: her sheet holds 1 punctuation row
-    and the grader finds 25 of them on the arm she annotated. No other label is
-    out by more than a few.
-
-THE FENCE IS UNCHANGED BY THIS. The assistant reads no transcript text, no cell
-of the error log, and no corrected output. It reads and writes the CODE; the code
-runs locally and reads the data. Every check below is a count, a duration or a
-distribution.
+THE FENCE IS UNCHANGED BY ANY OF THIS. The assistant reads no transcript text, no
+cell of the error log, and no reference output. It reads and writes the CODE; the
+code runs locally and reads the data. Every check below is a count, a duration or
+a distribution.
 
 >>> NEXT ACTION (start here in a fresh session) <<<
-  STEP 2. THE TYPIST BAKE-OFF — VARY THE ASR MODEL. (Added 2026-09-09.)
-    The user's call, and it is first. Grade each candidate's words against the
-    corrected reference; report WER and, separately, the counts that matter here
-    (missed backchannels, invented text on silence).
-    CANDIDATES, cheapest first:
-      - faster-whisper large-v3            the incumbent, for the baseline number
-      - faster-whisper large-v3-turbo      drop-in, same asr_env, same call path.
-                                           Measures what the fast decoder costs.
-      - NVIDIA Parakeet                    NO NEW ENV: nemo_env already exists for
-                                           the Sortformer arms. Different design —
-                                           no free-running LM, so it invents less.
-      - NVIDIA Canary                      same nemo_env.
-    VERIFY BEFORE STAGING EITHER NVIDIA MODEL: exact checkpoint name, whether the
-    installed nemo_toolkit version loads it, and the WEIGHT LICENCE. Two of five
-    diarizer arms are already non-commercial; do not add a third blind. Stage
-    weights on the login node per OFFLINE COMPUTE NODES.
-    THE SEAM THIS NEEDS, and it does not exist yet: whisperx currently does
-    transcribe+align in one entry point (psych_asr.cli.run_asr). A non-whisper
-    transcriber has to emit the SAME <stem>.aligned.json contract so 1c and the
-    scorer do not care which typist ran — the RTTM seam of 1b, done again for 1a.
-    Cut that seam FIRST; it is the whole reason the diarizer swap was cheap.
-
-    ACTIVE-BUILD LEDGER (opened 2026-09-13). Delete this whole block when this step
-    lands; the durable parts graduate into REFERENCE CONVENTIONS.
-    (DONE: the seam is cut. Stage 1a is now TWO jobs with a file between them.
-      - psych_asr/asr/typists.py — the registry, STDLIB-ONLY AT IMPORT so --typist
-        is checkable before a GPU is allocated. Four entries, each naming its env.
-        check_segment_contract() is the seam's only guarantee.
-      - psych_asr/asr/align.py — align_segments(segments, language, audio,
-        stopwatch) is pass 2 alone; the stopwatch is a torchaudio BUNDLE NAME and
-        therefore an axis. transcribe_and_align is now a composition of the two
-        halves and is kept only because the regression gate compares it byte for
-        byte.
-      - psych_asr/cli/transcribe.py -> <stem>.<typist>.asr.json
-      - psych_asr/cli/align_words.py -> <stem>.<typist>+<stopwatch>.aligned.json
-      - slurm_jobs/stage1a_transcribe.sbatch takes the typist and PICKS THE ENV
-        FROM IT; stage1a_align.sbatch is always asr_env.
-      - warm_align_cache takes --stopwatch, so the large bundle can be staged.
-      - tests/test_typists.py + four cases in test_naming.py. 122 tests pass.)
-    TRAPS ALREADY PAID FOR:
-      1. whisperx and NeMo cannot be imported into one process. That is WHY the
-         seam is a file and not a function argument. cli/transcribe.py imports
-         whisperx inside an if, so it still starts under nemo_env.
-      2. find_sole_stem() globs *.aligned.json and a dotted arm is
-         indistinguishable from a dotted stem. Once the grid runs it finds eight
-         and raises. Every grid-aware caller must pass --stem.
-      3. A typist's OWN word times are discarded. Keeping them would confound the
-         typist axis with the stopwatch axis, which is the one thing the cube
-         exists to separate.
-      4. whisperx.load_align_model(model_name=...) routes a name through
-         torchaudio.pipelines.__all__. Both bundle names verified present in
-         asr_env on 2026-09-13.
-      5. ASRModel.restore_from takes a .nemo FILE, never the directory that
-         `hf download --local-dir` produces. config.py names the DIRECTORY --
-         that is what staging makes and what the README documents -- and
-         typists.resolve_nemo_checkpoint does the last hop at load time.
-      6. Systran publishes no CTranslate2 build of large-v3-turbo. The staged
-         weights are deepdml/faster-whisper-large-v3-turbo-ct2, MIT, same six
-         files as the large-v3 directory, so one loader takes both.
-    (DONE 2026-09-13: all four typists are staged and all four have RUN.
-      - LICENCES READ. large-v3 and large-v3-turbo MIT; parakeet-tdt-0.6b-v2 and
-        canary-1b-flash both CC-BY-4.0. NONE is non-commercial, so the typist
-        axis adds no restriction the diarizer arms did not already carry.
-      - scripts/stage_models.sh stages all three new ones; README carries the
-        licence table under "Typist bake-off -- candidate models".
-      - THE NEMO CALL PATH RUNS. nemo_toolkit 2.7.3, one A40; restore_from plus
-        transcribe(timestamps=True), and hypothesis.timestamp["segment"] is the
-        live attribute name that segments_from_nemo reshapes.
-      - Smoke run on a 7.4 s PUBLIC LibriSpeech clip, not session data: parakeet
-        2 segments / 6.3 s covered, canary 1 / 6.8, large-v3-turbo 1 / 7.4, all
-        three correct English. 125 tests pass.)
-    (DONE 2026-09-13: THE BAKE-OFF HAS RUN ON THE PILOT SESSION AND HAS ITS
-      FIRST NUMBER. slurm_jobs/run_typist_bakeoff.sh submits the nine jobs --
-      transcribe and align per typist, then one CPU job that joins every
-      typist's words onto ONE name-tagger's RTTM and grades the lot. The
-      stopwatch (wav2vec2-base) and the name-tagger (community-1) are held
-      fixed, so the word columns move with the typist alone.
-
-      The pilot session, graded against the corrected reference:
-          cell                                   WER    speaker
-          large-v3+wav2vec2-base+community-1     1.4%     2.5%
-          large-v3-turbo+wav2vec2-base+comm-1    3.9%     2.4%
-          parakeet+wav2vec2-base+community-1     5.8%     1.4%
-          canary+wav2vec2-base+community-1     100.5%    28.6%
-      The large-v3 row reproduces the incumbent community-1 row EXACTLY (1.4%,
-      2.5%), which is the split path's regression check passing on real audio.
-      THE INCUMBENT WINS ON WORDS and it is not close. PARAKEET HAS THE BEST
-      SPEAKER COLUMN of any cell in the grid, 1.4% against 2.4-2.5% everywhere
-      else -- it emits 452 segments where whisperx's VAD emits 121, and the
-      finer segments give the Stage 1c join better boundaries to hang speaker
-      labels on. That is a result about the SEGMENTATION, not about the words,
-      and it is the most interesting thing the run produced.
-
-      THREE BUGS PAID FOR, all fixed in 5b6e060:
-        7. Both NVIDIA typists OOM on a 50-minute file -- full self-attention
-           is quadratic and asks for 86 GiB. typists.enable_long_audio switches
-           the encoder to a sliding window (rel_pos_local_attn, 256 frames each
-           side) and sets the subsampling chunking factor to 1. A NeMo typist
-           in this bake-off is therefore the published checkpoint WITH LOCAL
-           ATTENTION, which is a caveat on its row and is in the README.
-        8. join_speakers named a cell with its own arm twice: stem_from_aligned
-           strips the suffix and nothing else, so an armed aligned transcript
-           returns "<stem>.<typist>+<stopwatch>". It takes --stem now.
-        9. grade_arms died one line before the grid table when the correction
-           report carried a None count. A missing count prints as a dash.)
-
-    STILL OPEN ON THE BAKE-OFF:
-      a. CANARY IS NOT MEASURED. It transcribed the first 17.8 seconds of a
-         3038-second session and stopped: canary-1b-flash is an attention
-         encoder-decoder trained on short segments, and a wider attention
-         window does not help an autoregressive decoder that has run out of
-         output length. It needs CHUNKED inference -- fixed windows through
-         transcribe(), with each window's segment times offset back onto the
-         recording's clock -- not another encoder setting. Its 100.5% row in
-         the grid is the honest reading of a transcript covering 0.6% of the
-         audio, and it must not be reported as canary's word error rate.
-         DECIDE FIRST: is canary worth the chunking work at all, given parakeet
-         already covers the NVIDIA design at 5.8% and the incumbent is at 1.4%?
-      b. THE SEAM HAS NO DURATION CHECK. check_segment_contract validated
-         canary's one-segment output as well-formed, because it does not know
-         how long the audio was. A typist covering 0.6% of the recording should
-         fail the job, not write a file. One argument -- the audio duration --
-         and one comparison against the last segment end.
-      c. compare_arms refuses once typist cells exist: require_identical_words
-         is true only when Stage 1a ran once. stage1c_join.sbatch reports the
-         failure rather than dying on it, but the cross-arm diff now needs an
-         arm filter to stay useful.
-      d. Awaiting the user, and now only in principle: does a non-commercial
-         typist still enter the bake-off as a measurement, or is it dropped?
-         No candidate currently forces the question.
-
-  STEP 3. THE STOPWATCH — AND THE REFERENCE RTTM IT UNBLOCKS. (Added 2026-09-09.)
-    Two jobs, and the first is worth more than the second.
-    2a. RE-ALIGN MADISON'S CORRECTED WORDS TO THE WAVEFORM. Take the corrected
-        turn text out of <stem>.corrected.turns.json, run the aligner over the
-        original audio with those words as the script, and write a reference RTTM
-        with MEASURED word times. This is the single highest-value job on the
-        list. Today the corrected reference has interpolated spans and
-        zero-duration inserted turns, and is explicitly NOT scoreable for timing
-        (see corrections.py, _rebuild_turn). After 2a it is — which unblocks the
-        DER half of the diarizer bake-off against a real reference rather than
-        against consensus.
-    2b. THEN vary the aligner. Current: torchaudio wav2vec2 base ls960 — the
-        SMALL model trained on 960h of people READING BOOKS ALOUD. Therapy audio
-        is spontaneous, disfluent and overlapped. Candidates: the LARGE wav2vec2
-        bundle, and a bundle actually built for forced alignment rather than
-        borrowed from a recognizer. Grade two aligners against each other on the
-        same corrected words: where do the boundaries disagree, and by how much.
-    NOTE: 2a is a prerequisite for trusting ANY timing number, including every
-    DER in the diarizer bake-off. It is not optional polish.
-
-  STEP 4. THE GRID, WHICH IS A CUBE. (Added 2026-09-09, corrected 2026-09-11.)
-    Once steps 2 and 3 have candidates that run, sweep typist x stopwatch x
-    name-tagger against the corrected reference: 4 x 2 x 5 = 40 CELLS. The
-    earlier version of this step swept two axes and left the stopwatch out of
-    the grid that exists because nobody had noticed it was a variable.
+  STEP 1. THE GRID, WHICH IS A CUBE. (Added 2026-09-21.)
+    Sweep typist x stopwatch x name-tagger: 4 x 2 x 5 = 40 CELLS.
     IT IS CHEAPER THAN IT LOOKS: the name-tagger never reads a word, so its
     output depends on neither of the other two. Eight runs of 1a (each
     typist x stopwatch pair) plus five of 1b is 13 JOBS, not 40; the cells are
     assembled from the pieces afterwards. Do not write a nested loop that reruns
     diarization per typist.
-    THE GRADING IS ALREADY BUILT: psych_asr.cli.grade_arms --arm <cell>, and a
-    cell's arm name may carry all three components ("large-v3+wav2vec2+pyannote")
-    because every artifact name is parsed by exact suffix rather than by
-    splitting on ".". Nothing in the naming, the join or the grader needs to know
-    that an arm is now a triple.
+    THE NAMING ALREADY CARRIES A TRIPLE. A cell's arm name may be
+    "large-v3+wav2vec2-base+community-1" because every artifact name is parsed by
+    exact suffix rather than by splitting on "." — see artifacts/naming.py. The
+    join and the renderer need no change to handle one.
+    WHAT EXISTS: slurm_jobs/run_typist_bakeoff.sh submits one axis of this (four
+    typists at a fixed stopwatch and name-tagger) and ends in
+    slurm_jobs/stage1c_join_cells.sbatch, which joins every cell that landed.
+    WHAT IS MISSING: the stopwatch axis. stage1a_align.sbatch takes a stopwatch
+    argument already; the driver holds it fixed. Widening it to two stopwatches
+    doubles the 1a jobs and nothing else.
+    --stem IS NOT OPTIONAL ONCE THE GRID RUNS. find_sole_stem() globs
+    *.aligned.json and a dotted arm is indistinguishable from a dotted stem, so
+    discovery finds eight and stops. Every grid-aware caller passes --stem.
 
-  STEP 5. R1 — CALIBRATE THE SCORER, BEFORE ANY DER IS BELIEVED.
-    Assistant-side, CPU, fixed seed, and it touches NO session data: the turn
-    table is synthetic, generated from a random alternating two-speaker process.
-    Inject one controlled corruption at a time at a known magnitude — boundary
-    jitter, a speaker swap over a known window, deletions and insertions of known
-    duration, a global time shift — and check that score_arms.py recovers each
-    quantity in the expected component at the expected size, and that the 0.25s
-    collar absorbs sub-collar jitter while collar 0 does not.
-    WHY FIRST: score_arms.py's only verification today is scoring the baseline
-    against itself. That proves the identity case and says nothing about whether
-    the decomposition puts each error in the right bucket. Every number the
-    bake-off is decided on comes out of this instrument, and the instrument is
-    unvalidated. Full statement of the route is under GROUND TRUTH WITHOUT
-    READING THE DATA.
+  STEP 2. TWO HOLES IN THE 1a SEAM, BOTH FOUND BY THE TYPIST RUN.
+    a. CANARY DOES NOT COVER THE SESSION. It transcribed the first 17.8 seconds
+       of a 3038-second session and stopped: canary-1b-flash is an attention
+       encoder-decoder trained on short segments, and a wider attention window
+       does not help an autoregressive decoder that has run out of output length.
+       It needs CHUNKED inference — fixed windows through transcribe(), with each
+       window's segment times offset back onto the recording's clock — not
+       another encoder setting.
+       DECIDE FIRST: is canary worth the chunking work at all, given parakeet
+       already covers the NVIDIA design?
+    b. THE SEAM HAS NO DURATION CHECK. check_segment_contract validated canary's
+       one-segment output as well-formed, because it does not know how long the
+       audio was. A typist covering 0.6% of the recording should fail the job,
+       not write a file. One argument — the audio duration — and one comparison
+       against the last segment end.
 
-  STEP 6. WIDEN THE RETURN CHANNEL, IN THIS ORDER, AND THE ORDER IS NOT
-    NEGOTIABLE.
-      2a. Split the arm-diff writer. <stem>.arm_comparison.json stays exactly as
-          it is and stays blocked; a new <stem>.arm_diff_summary.json carries
-          numbers only — counts, durations, talk-time split, pairwise agreement,
-          one record per disagreement region with no words in it.
-      2b. The human eyeballs that output ONCE.
-      2c. Only then does libr-local-llm teach the guard the summary shape and
-          update PERMISSIONS.md. Cross-listed in LOCAL-LLM_TODO.txt.
-    A shape allowed by pattern that later grows a text field is how a fence stops
-    working silently, and nothing would announce it.
+  STEP 3. THE REFERENCE RTTM, AND THE STOPWATCH AXIS IT UNBLOCKS.
+    3a. RE-ALIGN THE REFERENCE'S WORDS TO THE WAVEFORM. Take the reference
+        transcript's turn text, run the aligner over the original audio with
+        those words as the script, and write a reference RTTM with MEASURED word
+        times. The reference carries words and turn structure and NOT word
+        timings, so no timing number can be checked against it today.
+        THE ASSISTANT BUILDS THE WRITER AND THE VALIDATOR; it does not read the
+        reference. The job reads it, locally, and prints counts.
+    3b. THEN vary the aligner. Current: torchaudio wav2vec2 base ls960 — the
+        SMALL model trained on 960h of people READING BOOKS ALOUD. Therapy audio
+        is spontaneous, disfluent and overlapped. Candidates: the LARGE wav2vec2
+        bundle, and a bundle actually built for forced alignment rather than
+        borrowed from a recognizer. Compare two aligners on the same words: where
+        do the boundaries disagree, and by how much.
+    3a IS A PREREQUISITE FOR TRUSTING ANY TIMING NUMBER. It is not optional
+    polish, and it does not depend on the open measurement decision above —
+    alignment produces times, it does not grade anything.
 
-  STEP 7. R3 — THE TWO REFERENCE-FREE MEASUREMENTS. Self-consistency under a
-    perturbation that must not change the answer, and the consensus
-    pseudo-reference. Both are assistant-ownable end to end, turn tables in and
-    numbers out. R3 already sharpened the arm C anomaly without any reference.
+DURABLE FACTS FROM THE TYPIST RUN (2026-09-13), WHICH STAND ON THEIR OWN:
+  - All four typists ran on the pilot session. Licences: large-v3 and
+    large-v3-turbo MIT; parakeet-tdt-0.6b-v2 and canary-1b-flash CC-BY-4.0. NONE
+    is non-commercial, so the typist axis adds no restriction the diarizer arms
+    did not already carry.
+  - PARAKEET SEGMENTS MUCH FINER THAN WHISPERX: 452 segments against whisperx's
+    121 on the same audio. That is a property of the segmentation, not of the
+    words, and finer segments give the Stage 1c join better boundaries to hang
+    speaker labels on. It is the most interesting thing the run produced and it
+    needs no reference to observe.
+  - BOTH NVIDIA TYPISTS OOM ON A 50-MINUTE FILE — full self-attention is
+    quadratic and asks for 86 GiB. typists.enable_long_audio switches the encoder
+    to a sliding window (rel_pos_local_attn, 256 frames each side) and sets the
+    subsampling chunking factor to 1. A NeMo typist here is therefore the
+    published checkpoint WITH LOCAL ATTENTION, which is a caveat on its row.
 
-  STEP 8. R2 — THE SYNTHETIC OVERLAP SWEEP. Build it only after the user settles
-    four things, each of which changes what the curve means: which source speech,
-    what the overlap grid is, whether the mix is additive at fixed SNR or
-    convolved with a room impulse response first, and whether the synthetic
-    turn-length distribution is fitted to session 1 or chosen independently. Ask;
-    do not pick.
+TRAPS ALREADY PAID FOR ON THE 1a SEAM — do not re-learn these:
+  1. whisperx and NeMo cannot be imported into one process. That is WHY the seam
+     is a file and not a function argument. cli/transcribe.py imports whisperx
+     inside an if, so it still starts under nemo_env.
+  2. A typist's OWN word times are discarded. Keeping them would confound the
+     typist axis with the stopwatch axis, which is the one thing the cube exists
+     to separate.
+  3. whisperx.load_align_model(model_name=...) routes a name through
+     torchaudio.pipelines.__all__. Both bundle names verified present in asr_env.
+  4. ASRModel.restore_from takes a .nemo FILE, never the directory that
+     `hf download --local-dir` produces. config.py names the DIRECTORY — that is
+     what staging makes and what the README documents — and
+     typists.resolve_nemo_checkpoint does the last hop at load time.
+  5. Systran publishes no CTranslate2 build of large-v3-turbo. The staged weights
+     are deepdml/faster-whisper-large-v3-turbo-ct2, MIT, same six files as the
+     large-v3 directory, so one loader takes both.
+  6. join_speakers names a cell with its own arm twice unless --stem is passed:
+     stem_from_aligned strips the suffix and nothing else, so an armed aligned
+     transcript returns "<stem>.<typist>+<stopwatch>".
 
 BLOCKED ON OTHER PEOPLE, AND NOT ON US:
   - The overlap-stress recording. It is the instrument that decides the bake-off,
     and it belongs to a collaborator.
-  - The reference RTTM, its UEM, and the hand-corrected stratified subset. These
-    require someone listening to the audio. The assistant builds the writer and
-    the validator; it does not produce the reference.
-
-ONE THING TO CHECK RATHER THAN TRUST: the STAGE 1 ADDENDUM still lists turn-table
-persistence as open, but scripts/rttm_io.py exists and every arm writes
-<stem>.<arm>.rttm, which is what score_arms.py consumes. Re-read that item
-against the code before treating it as a blocker; part of it has been overtaken.
+  - The reference RTTM's UEM, and any further hand-corrected subset. These
+    require someone listening to the audio.
 
 ================================================================
 ORIENTATION
@@ -555,9 +358,9 @@ DECISIONS LOCKED
     * nemo_env (NEW) - nemo_toolkit[asr] for both Sortformer checkpoints. Drags hydra,
       lightning, omegaconf and its own transformers pin against the locked 4.55.4.
     * diar_eval_env (NEW) - pyannote.metrics ONLY, CPU, NO torch. Separate ON PURPOSE:
-      the scorer must be one implementation at one collar across every arm or the
-      bake-off measures the scorer. Folding it into asr_env also risks bumping
-      pyannote.core underneath the locked pins.
+      whatever measures the arms must be one implementation applied identically to all of
+      them, or the bake-off measures the measurement. Folding it into asr_env also risks
+      bumping pyannote.core underneath the locked pins.
   Stage 3c's vLLM env (DECISIONS LOCKED above) is a fifth by the same rule.
 - RTTM IS THE DIARIZATION INTERCHANGE FORMAT (Added 2026-08-17.) VERIFIED from the
   installed whisperx/diarize.py: assign_word_speakers reads EXACTLY three columns off the
@@ -626,53 +429,47 @@ FRAMING: the entire project lives or dies on whether mono diarization can
 separate therapist from patient on OUR recordings. Do everything below, then do
 THE FIRST CHECK THAT MATTERS, before touching any feature/modeling work.
 
-LATER, NOT NEXT (demoted 2026-09-09 -- the single ">>> NEXT ACTION" marker now lives in
-WHAT WE DO NEXT at the top of this file, and it is the typist bake-off. This block stays
-because it is fully specified and should not be re-derived; do it after the bake-off and the stopwatch):
-*** HOW CLOSE DID EACH ARM GET TO THE CORRECTED RECORDING? *** The reference now exists. The human annotated the WHOLE of session
-1 against the baseline arm's transcript -- 117 logged errors, not a stratified subset -- and
-psych_asr.cli.apply_corrections turns that spreadsheet into data/stage2/, applying 115 of
-the 117 rows. See README.md, "Stage 2 -- The corrected reference", for what the sheet
-encodes, the four edits the six error labels become, and the five ways a careful reader gets
-that sheet wrong. The corrected reference is 215 turns where the baseline arm had 89, and it
-says who spoke: SPEAKER_00 is the THERAPIST, by 49 votes to 3, read off the log rather than
-guessed.
+LATER, NOT NEXT (the single ">>> NEXT ACTION" marker lives in WHAT WE DO NEXT at the top of
+this file, and it is the grid. This block stays because it is fully specified and should not
+be re-derived; do it after the grid and the stopwatch):
+*** HOW CLOSE DID EACH ARM GET TO THE REFERENCE? *** The reference exists: the human
+annotated the WHOLE of session 1 against the baseline arm's transcript -- 117 logged errors,
+not a stratified subset -- and colibri produced the corrected transcript from that baseline
+and that log, which the annotator approved. See README.md, "The reference transcript".
+It says who spoke: SPEAKER_00 is the THERAPIST, by 49 votes to 3, read off the log rather
+than guessed.
 
-THE TEXT HALF OF THIS IS BUILT (2026-09-11): psych_asr.cli.grade_arms grades every arm
-against the reference in Madison's own six labels plus her Add Turn? split, reports a WER
-and a separate attribution rate over the words both sides agree on, and writes
-numbers-only profiles per arm plus one combined table. It reads NO timestamp, on purpose.
-The remainder below is what it deliberately does not do, and both items are about TIME:
+HOW AN ARM IS MEASURED AGAINST IT IS THE OPEN DECISION, and it blocks this whole block. Do
+not start here until the user settles it. Two constraints on whatever gets chosen, both
+already paid for:
   [ ] TALK-TIME SPLIT against the reference's 78.6/21.4 therapist/participant share. Each
-      arm already writes it into its transcript header. NOT in the grader and it should
-      stay out: the reference's own share is computed from interpolated spans and
-      zero-duration inserted turns, so comparing an arm's measured share against it would
-      report the interpolation. Do this one AFTER the reference RTTM, or do it against the
-      reference's WORD share, which is honest and is a different number.
-  [ ] BACKCHANNEL RECOVERY IN TIME. 53 of the reference's turns are utterances the
-      baseline arm missed ENTIRELY -- mostly two-word backchannels -- and each carries the
-      annotator's own observed timestamp in logged_at. The grader answers the TEXT version
-      of this already (its "missed a whole turn" count). What is left is the timing
-      version: does each arm have a turn BOUNDARY near those 53 moments, and is it
-      attributed to the right person? That needs logged_at, which is an observation rather
-      than a measurement, so state its resolution wherever the number is reported.
+      arm already writes its own share into its transcript header. The reference's share is
+      computed over turns without measured word times, so comparing an arm's measured share
+      against it would report the interpolation rather than the arm. Do this AFTER the
+      reference RTTM, or do it against the reference's WORD share, which is honest and is a
+      different number.
+  [ ] BACKCHANNEL RECOVERY IN TIME. 53 of the reference's turns are utterances the baseline
+      arm missed ENTIRELY -- mostly two-word backchannels -- and the error log carries the
+      annotator's own observed timestamp for each. The timing question is: does each arm
+      have a turn BOUNDARY near those 53 moments, and is it attributed to the right person?
+      That needs the logged time, which is an observation rather than a measurement, so
+      state its resolution wherever the number is reported.
 
-THEN, AND ONLY THEN, THE REFERENCE RTTM. Turning the corrected reference into something
-scoreable as DER means re-aligning the corrected WORDS to the waveform -- a Stage 1a job
-over Stage 2 text -- and then the UEM writer and the reference validator already listed
-under R4 below. Do not shortcut it by spreading the reference's interpolated spans out
-until they look like measurements; an inserted turn has zero duration on purpose, because
-how long a backchannel lasted is not in the spreadsheet.
+THEN, AND ONLY THEN, THE REFERENCE RTTM. Turning the reference into something scoreable as
+DER means re-aligning its WORDS to the waveform -- a Stage 1a job over Stage 2 text -- plus
+the UEM writer and the reference validator. Do not shortcut it by spreading spans out until
+they look like measurements; the reference carries no word timings, and an invented duration
+is not a measurement.
 
->>> THREE ROWS FOR THE ANNOTATOR TO REPAIR, and they are the only rows not applied. The
-correction report names them and it is readable from outside the fence:
-  [ ] Rows 16 and 32: the machine's words at the logged line could not be found, so nothing
-      was replaced. Either the line number or the AI Transcript cell is off by enough that
-      no match exists. Two rows out of 117.
+>>> THREE ROWS FOR THE ANNOTATOR TO REPAIR:
+  [ ] Rows 16 and 32: the machine's words at the logged line could not be found. Either the
+      line number or the AI Transcript cell is off by enough that no match exists. Two rows
+      out of 117.
   [ ] Row 62: content in the Meaning Changed and Severity columns and nothing else -- no
       Session ID, no Error, no line, no text. Half-filled, and unappliable as it stands.
-  (Row 101 needs nothing: it describes the removal side of a misattribution whose
-  attribution row had already moved the words, and the report says so.)
+  [ ] FOUR ROWS WHOSE LINE AND TIMESTAMP DISAGREE by more than ten seconds -- sheet rows 41,
+      50, 53 and 75. One of the two columns is wrong on those rows and no code can tell
+      which.
 
 TEACHING IS DONE (2026-08-12) — the conceptual walkthrough of Stage 1 now lives in
 docs/stage1_pipeline_walkthrough.pdf (source .tex beside
@@ -682,23 +479,7 @@ basis of a spectrogram, mel banding and the log, the encoder's stride-2 convolut
 self-attention, the autoregressive decoder, CTC forced alignment, what diarization actually
 clusters, and (Step 6, added 2026-08-12) the readable render — segment-to-turn grouping,
 why UNKNOWN is printed rather than merged, and the talk-time header as a collapse detector.
-STAGE 2 DECK REWRITTEN 2026-09-09, TWICE, AND THE SECOND SHAPE IS THE ONE THAT
-WORKED. 22 slides. Part 1 the pipeline with all three boxes marked swappable;
-Part 2 the error log and what its columns mean; Part 3 THE ALGORITHM AS SIX
-WORKED EXAMPLES; Part 4 the planned grid.
-
-WHAT THE USER REJECTED, so nobody rebuilds it: (a) any "we used to think X, now
-we think Y" framing -- the deck is present tense only, it does not narrate past
-mistakes; (b) a step-by-step prose walkthrough of the correction algorithm, which
-ran to 15 slides and taught nothing; (c) abstract slides about spreadsheet traps
-and locator ranking. WHAT WORKED: one slide per error kind, each showing the
-literal spreadsheet ROW, the turns BEFORE, and the turns AFTER. The user's words:
-"The only way to understand the algorithm is through examples." Follow that.
-Also: define a word before using it -- "turn" was load-bearing and undefined
-through eight slides, and that is what broke comprehension.
-
-The stage 1 deck was written against run_whisperx.py, which was RETIRED 2026-09-09; the five calls
-it walks through are unchanged and now run as psych_asr.cli.run_asr,
+The stage 1 deck's five calls run as psych_asr.cli.run_asr,
 psych_asr.cli.diarize_pyannote and psych_asr.cli.join_speakers.
 DO NOT re-teach this from scratch — point at the deck. The user's own
 words for the sticking points, worth respecting if the topic returns: the window-vs-hop
@@ -741,7 +522,7 @@ STAGE 1 IS BUILT AND HAS RUN CLEAN ON A FULL SESSION. Do not rebuild any of it.
   .diarized.json with an optional --outdir — that is how to re-render after a format change
   WITHOUT paying for another GPU job. Missing "speaker" renders as UNKNOWN (trap 5), sorted
   last in the table. render_with_line_index returns the same text plus what each line refers
-  to, which is what Stage 2's correction pass resolves the error log's Line column through.
+  to, which is how a line number in the error log resolves to a turn and a character span.
 - README.md's "Running Stage 1" + "Readable transcript" sections document the flags, all
   four passes, both output schemas, and the reasoning. The conceptual walkthrough deck
   covers the render as Step 6.
@@ -873,10 +654,10 @@ SIMULTANEOUS speech is the real test of whether mono diarization holds up.
     recording lands before the arms are scored, score them on it. Session 1 would show the
     challengers at their least distinguishable and could talk us out of a real improvement.
 
-TURN-RESOLUTION PARAMETERS — INVESTIGATION DONE, EXPERIMENT NOT (Added 2026-08-17.) This
-answers the loose note that used to sit at the top of the retired run_whisperx.py ("parameter to
-decrease time of a cut between interchanges if there is a lot of interrupting"). The note
-is deleted; the answer lives here and in README.md's "Turn-resolution knobs" subsection.
+TURN-RESOLUTION PARAMETERS — INVESTIGATION DONE, EXPERIMENT NOT (Added 2026-08-17.) The
+question was whether there is "a parameter to decrease time of a cut between interchanges
+if there is a lot of interrupting". The answer lives here and in README.md's
+"Turn-resolution knobs" subsection.
 There IS such a parameter on each side of the pipeline, they live in different libraries,
 and the instinct points at the WRONG side:
   * DIARIZATION SIDE — segmentation.min_duration_off, ALREADY MAXED OUT. It is pyannote
@@ -965,37 +746,21 @@ so this is a real comparison and not a refactor artifact.
    OVERLAP-STRESS RECORDING IS THE INSTRUMENT. Getting that audio is now the highest-value
    action in this whole section.
 
-ONE ANOMALY WORTH CHASING WHEN THE REFERENCE EXISTS: sortformer-streaming (arm C) covers
-2551s of speech against 2362-2381s for every other arm — roughly 190s more. Scored against
-the baseline as a stand-in it shows up as FALSE ALARM (222s at collar 0, versus 84-100s for
-the other arms), not better recall. That is suggestive, NOT a finding: the baseline is not
-ground truth. It is the first thing to check in the DER decomposition, because arm C is the
-only arm whose licence permits shipping, so whether its extra coverage is recall or noise
-matters more than it would for any other arm.
-    (Updated 2026-09-04.) The consensus pseudo-reference under GROUND TRUTH WITHOUT READING
-    THE DATA (route R3) sharpens this one WITHOUT waiting for the reference: scored against
-    the majority vote of the other three arms rather than against the baseline alone, "extra
-    coverage is false alarm" is a stronger reading. Still not proof, and still never DER.
+ONE ANOMALY WORTH CHASING WHEN THE REFERENCE RTTM EXISTS: sortformer-streaming (arm C)
+covers 2551s of speech against 2362-2381s for every other arm — roughly 190s more. Whether
+that extra coverage is recall or noise is not decidable from the arms alone, and arm C is
+the only arm whose licence permits shipping, so it matters more than it would for any other
+arm. Coverage in seconds is an observation; do not report it as DER.
 
-[ ] GET THE REFERENCE RTTM. Everything below is blocked on it and nothing else is.
-    (Updated 2026-09-04.) "Everything below" is now narrower than it was: three of the four
-    routes in GROUND TRUTH WITHOUT READING THE DATA run with no reference at all, and R1 —
-    calibrating the scorer against injected errors of known size — should run FIRST
-    regardless, because this item's own verification claim below is weaker than it reads.
-    scripts/score_arms.py is written and its plumbing is verified (baseline vs itself gives
-    0.00% DER, 0.0% ratio error, 18/18 backchannels), so scoring is one command once the
-    hand-corrected subset exists. That check proves the IDENTITY case only; it says nothing
-    about whether the decomposition attributes each error kind correctly. It already reports DER at collar 0.25s AND 0s, overlap
-    INCLUDED, decomposed into missed speech / false alarm / speaker confusion, PLUS the two
-    therapy-specific measures (talk-time ratio error, backchannel attribution accuracy).
-[ ] BUILD A UEM ALONGSIDE THE REFERENCE. Without one pyannote.metrics approximates the
+[ ] GET THE REFERENCE RTTM. It is step 3a of the plan at the top of this file: re-align the
+    reference transcript's words to the waveform so the reference carries MEASURED times.
+    The reference itself already exists as a human artifact; what is missing is timing.
+[ ] BUILD A UEM ALONGSIDE THE REFERENCE RTTM. Without one, any scorer approximates the
     evaluation region as the union of reference and hypothesis extents, which scores an arm
-    over audio the reference never annotated. score_arms.py warns rather than hiding it, and
-    takes --uem. A DER reported without a UEM is not a number anyone should quote.
-    The writer and the validator for both are assistant-side work listed under route R4.
-[ ] SPLIT THE ARM-DIFF WRITER so a content-free summary crosses the PHI fence. Full item
-    under GROUND TRUTH WITHOUT READING THE DATA; noted here because it is what lets the
-    assistant help with this section at all.
+    over audio the reference never annotated. A DER reported without a UEM is not a number
+    anyone should quote.
+    The writer and the validator for both are assistant-side work: the job reads the
+    reference, the assistant reads the counts.
 
 TWO OPEN QUESTIONS TO SETTLE BEFORE TRUSTING ANY ARM:
   1. CAN THE END-TO-END MODELS BE PINNED TO 2 SPEAKERS? ANSWERED FOR DIARIZEN 2026-08-23,
@@ -1026,177 +791,37 @@ TWO OPEN QUESTIONS TO SETTLE BEFORE TRUSTING ANY ARM:
 ================================================================
 GROUND TRUTH WITHOUT READING THE DATA
 ================================================================
-(Added 2026-09-04. This section absorbs the two loose lines that were sitting in
-PSYCH-ASR/todo.txt — "some way to compare the different diarization models (think about a
-good way to do this)" and "reconstruct true file with errors to use as a ground metric,
-and measure models' differences from that". That file is deleted; this is where they live
-now.)
+(Added 2026-09-04. Rewritten 2026-09-21.)
 
-THE CONSTRAINT THAT SHAPES ALL OF IT. The assistant cannot read this project's session
-artifacts, and that is ENFORCED rather than promised: ~/.claude/hooks/block-phi.py
-is a PreToolUse hook refusing the diarization and ASR output shapes, everything under
-PSYCH-ASR/data/, and any run of compare_arms.py — which prints disputed transcript spans
-to stdout, so running it is a read even though no file is opened. Documented in
-libr-local-llm/PERMISSIONS.md section 2. What stays open, deliberately: *.arm_scores.json,
-slurm_jobs/logs/** (counts and durations, never content), every pipeline script and every
-sbatch that runs one, and ls/find/stat against the artifacts.
-=> THIS IS A DESIGN INPUT, NOT AN OBSTACLE, AND IT IS THE ORGANIZING IDEA OF THE WHOLE
-   SECTION. Every measurement below is arranged so the thing that crosses back to the
-   assistant is a NUMBER, and the thing that requires reading content is done by the human
-   or by nobody at all. Where a route cannot be arranged that way it is marked human-only,
-   and the assistant builds the instrument instead of running it.
+THE REFERENCE TRANSCRIPT EXISTS AND IS A HUMAN ARTIFACT. colibri produced it from
+the community-1 baseline and the annotator's QC error log; the annotator reviewed
+and approved it. It lives under phi/, outside git and inside the fence. It is the
+reference because she says it is — not because a pass reproduced it, and nothing
+in psych_asr/ builds it or reads it.
 
-THE RETURN CHANNEL IS TOO NARROW RIGHT NOW, AND WIDENING IT CORRECTLY IS THE FIRST TASK.
-[ ] EVERY BLOCKED ARTIFACT NEEDS A CONTENT-FREE SIBLING. compare_arms.py writes one file
-    that embeds verbatim disputed text with plus/minus 25 words of context, so the guard
-    blocks it whole — which means the assistant cannot see even the region COUNT, the
-    region duration distribution, or which arm PAIR drives the disagreement, none of which
-    is content. Split the writer. Keep <stem>.arm_comparison.json exactly as it is
-    (blocked, and it should stay blocked), and add <stem>.arm_diff_summary.json carrying
-    numbers only: per-arm label and unlabeled-word counts, talk-time split, the pairwise
-    agreement matrix, and one record per disagreement region with region index, start,
-    end, duration, word count, and each arm's label for it. NO WORDS, NO CONTEXT STRINGS,
-    NO SPEAKER-ATTRIBUTED TEXT OF ANY LENGTH.
-    Adopt the same rule for everything built below: the full artifact and the summary are
-    two files, and only the summary is designed to be read from outside the fence.
-[ ] TEACH THE GUARD THE SUMMARY SHAPE once the writer exists — a *.summary.json naming
-    convention is easier to reason about at a glance than an enumerated list, which is the
-    point of a fence. Cross-listed in LOCAL-LLM_TODO.txt, since the hook lives in that
-    repo. DO NOT WIDEN THE GUARD BEFORE THE WRITER EXISTS and the human has eyeballed its
-    output once: a shape allowed by pattern that later grows a text field is exactly how a
-    fence quietly stops working, and nothing would announce it.
+WHAT IT CARRIES: the words and the turn structure. WHAT IT DOES NOT CARRY: word
+timings. It is not a reference RTTM and must not be scored as though it were. Step
+3a of the plan at the top of this file is what turns it into one.
 
-FOUR ROUTES TO A GROUND METRIC. They cost different amounts and answer different
-questions. ONLY THE LAST ONE SCORES THE ARMS. The first three are still worth doing,
-because two of them run TODAY against no audio at all and one of them validates the
-instrument every other number depends on.
+THE OPEN DECISION, AND IT IS THE ONE THAT BLOCKS EVERY NUMBER: HOW AN ARM IS
+MEASURED AGAINST THE REFERENCE IS NOT SETTLED. It waits on the reference being
+validated, and the answer may be a second colibri pass rather than code. Until the
+user settles it:
+  - Do NOT build a grader, a scorer, or an arm-comparison metric.
+  - Do NOT quote a WER, a DER or an agreement percentage as a result.
+  - DO build the things that produce inputs rather than verdicts: the aligner pass
+    that gives the reference measured times, the UEM writer, the grid that
+    produces cells to measure.
 
-R1 - CALIBRATE THE SCORER BY INJECTING KNOWN ERRORS.
-     This is the literal reading of the todo line "reconstruct true file with errors to use
-     as a ground metric". score_arms.py's only verification today is scoring the baseline
-     arm against ITSELF: 0.00% DER at both collars, 0.0% ratio error, 18/18 backchannels.
-     That proves the identity case and nothing else. It does not show that the
-     decomposition puts boundary error in the right bucket, that a swap is attributed to
-     speaker confusion rather than to missed speech plus false alarm, or that the collar
-     behaves the way this file and README.md both claim it does.
-     THE INSTRUMENT: take a turn table, treat it as the reference, and derive hypotheses
-     from it by applying ONE controlled corruption at a time at a KNOWN magnitude —
-     boundary jitter of plus/minus N ms on every turn edge; a speaker swap across a window
-     of known duration; deletion of turns totalling a known number of seconds; insertion of
-     false-alarm turns of known duration; a global time shift. Then check that score_arms.py
-     recovers each injected quantity in the expected COMPONENT and at the expected SIZE,
-     and that collar 0.25s absorbs jitter below the collar while collar 0s does not.
-     IT DOES NOT NEED A REAL TURN TABLE AT ALL, AND SHOULD NOT USE ONE. A synthetic
-     two-speaker turn table generated from a random alternating process is an identical
-     instrument test and touches no session data. Build it that way and the entire route
-     runs outside the fence, reproducibly, with a fixed seed, on a laptop's worth of CPU.
-     WHAT IT ESTABLISHES: that the number the bake-off will be decided on measures what it
-     says it measures. WHAT IT DOES NOT ESTABLISH: anything whatsoever about the arms.
+THE FENCE SHAPES HOW THE ASSISTANT HELPS, AND THE RULE IS SHORT: every artifact
+that carries session content needs a numbers-only sibling. The content file stays
+blocked; the sibling carries counts, durations and label names with no words in
+it. A shape allowed by pattern that later grows a text field is how a fence stops
+working silently, so a new summary shape is eyeballed by the human ONCE before
+libr-local-llm's guard is taught to allow it. Cross-listed in LOCAL-LLM_TODO.txt.
 
-R2 - SYNTHETIC OVERLAP, WITH GROUND TRUTH BY CONSTRUCTION.
-     The bake-off is stuck because session 1 carries 0.5-1.5% overlap and every arm agrees
-     with every other on 99.3-99.7% of words, and the recording that would separate them
-     belongs to a collaborator and has not arrived. A controlled two-speaker mixture
-     supplies the missing axis without waiting on anyone: take two NON-PHI speakers (a
-     public read-speech corpus, or synthesized speech), lay them on a timeline with a KNOWN
-     turn structure, and mix at a swept overlap fraction — 0%, 5%, 10%, 20%, 30%. The
-     reference is written by the mixer rather than by a human, so DER is exact and free at
-     every point on the sweep, and the sweep can be as long as convenient.
-     WHAT IT ESTABLISHES: each arm's DER as a FUNCTION of overlap, which is precisely the
-     claim the three challengers exist to make and precisely the claim session 1 cannot
-     test. It also answers open question 2 of the bake-off section — whether an end-to-end
-     model survives a long file — at any duration, and it exercises arm B's window stitcher
-     against a seam whose truth is known, which is the only way to separate ITS seam error
-     from Sortformer's model error.
-     WHAT IT DOES NOT ESTABLISH, AND THIS HAS TO BE STATED EVERY TIME THE NUMBER IS QUOTED:
-     it is not therapy audio. One room, one microphone, real reverberation, backchannel
-     prosody, disfluency, and the register of a clinical conversation are not reproduced by
-     mixing read speech. Treat it as a SCREEN and a FALSIFIER — an arm that fails on clean
-     synthetic overlap will not do better on the real recording — never as the headline.
-     DECISIONS THE USER OWNS HERE, EACH WITH A DEFENSIBLE ALTERNATIVE: which source speech;
-     what the overlap grid is; whether the mix is additive at a fixed SNR or convolved with
-     a room impulse response first; and whether the synthetic turn-length distribution is
-     fitted to session 1's or chosen independently. Every one of them changes what the
-     curve means.
-
-R3 - REFERENCE-FREE, AND IT SETTLES ONE STANDING QUESTION CHEAPLY.
-     Two measurements need no ground truth at all, and both are assistant-ownable end to
-     end: turn tables in, numbers out, nothing rendered.
-     [ ] SELF-CONSISTENCY UNDER PERTURBATION. Re-run each arm on the same audio under a
-         perturbation that MUST NOT change the answer — a sub-second time shift, a small
-         gain change, a different seed where one exists — and score each arm against its
-         own first run with the same DER machinery. An arm that disagrees with ITSELF is
-         unreliable regardless of where the truth lies, and the number is comparable across
-         arms without anybody knowing the truth. Cheap: five arms, one extra 1b pass each.
-     [ ] CONSENSUS AS A STATED-BIAS PSEUDO-REFERENCE. Score each arm against the majority
-         vote of the OTHER arms. This is NOT accuracy — four arms can agree and all be
-         wrong, and the warning under ADJUDICATING THE ARMS applies here verbatim — but it
-         identifies the OUTLIER without a human, which is exactly the standing arm C
-         question: its roughly 190s of extra covered speech scored as false alarm against
-         the BASELINE alone, and the baseline is not truth either. Against the consensus of
-         three other arms that reading is stronger. It is still not proof, and it must
-         never be reported as DER.
-
-R4 - THE HAND-CORRECTED REFERENCE. STILL THE ONLY THING THAT SCORES THE ARMS.
-     *** THE LISTENING HAPPENED (2026-09-09), AND IT WAS NOT A SUBSET. *** The human
-     annotated the whole of session 1 against the baseline arm's transcript in a
-     spreadsheet -- 117 rows, six error types, with an Add Turn? flag that carries the turn
-     structure -- and psych_asr.cli.apply_corrections turns that sheet into the corrected
-     reference in data/stage2/. That closes the correction-workspace item below and it
-     MOOTS the stratified-sampling estimand decision for this session: nothing was sampled,
-     so nothing has to be weighted back together.
-     WHAT THE REFERENCE DOES NOT HAVE, AND WHY THE REST OF THIS ITEM SURVIVES: word
-     timings. A corrected turn's span is the host turn's own, split proportionally to
-     character offset; an inserted turn has zero duration. It is the corrected words and
-     the corrected turn sequence, which is enough to compare attribution and turn structure
-     and is NOT enough for DER. The reference RTTM needs the corrected words re-aligned to
-     the waveform first.
-     THE ASSISTANT BUILDS, WITHOUT READING ANYTHING:
-     [x] THE CORRECTION WORKSPACE. Done, and it is a spreadsheet the human already knows
-         how to use plus a reader for it. The pass never renders a word to the assistant:
-         its report is counts, locator tallies and spreadsheet row numbers.
-     [ ] THE RE-ALIGNMENT PASS that gives the reference real word timings -- Stage 1a's
-         forced aligner run over Stage 2's corrected text rather than Whisper's. This is
-         now the thing standing between the reference and a DER, and it is a GPU job.
-     [ ] THE UEM WRITER. Already a standing item in the bake-off section and it belongs
-         here: the corrected subset defines the evaluation region, and pyannote.metrics
-         without a UEM approximates that region as the union of reference and hypothesis
-         extents, scoring each arm over audio the reference never annotated. The UEM falls
-         out mechanically from which spans were corrected — it is bookkeeping, not judgement.
-     [ ] A REFERENCE VALIDATOR that runs before anything is scored: no overlapping turns
-         within a single speaker, no zero or negative durations, no turn past the end of
-         the audio, labels drawn from a closed set, and total annotated duration matching
-         the UEM. A malformed reference yields a DER that is WRONG rather than an ERROR,
-         which is the worst failure mode available anywhere in this project.
-     [ ] THE SUMMARY REPORT for the corrected subset — spans corrected, total corrected
-         duration, per-speaker turn counts and durations, and how far the correction moved
-         each arm. Numbers only, so the assistant can sanity-check the reference it is
-         about to score against without ever seeing it.
-     THE USER DECIDES THESE, AND THEY ARE NOT DETAILS. The first two are settled for
-     session 1 (the whole session was annotated) and re-open the moment a second session is
-     corrected as a subset instead:
-     * WHICH SPANS GET CORRECTED. Correcting only the 57 arm-disagreement regions measures
-       where the arms DIFFER, not where they are all WRONG, and biases every DER downward
-       in a way no amount of scoring discipline recovers afterwards. A defensible frame has
-       at least three strata — the disagreement regions; unanimous-but-low-confidence spans
-       (avg_logprob, and no_speech_prob once it is retained); and a uniform random spine
-       that is conditioned on NO model's output — but the strata, their sampling rates and
-       the total minute budget are an estimand decision.
-     * HOW THE STRATA ARE WEIGHTED BACK TOGETHER. If they are sampled at different rates
-       then the session-level DER is a weighted estimate and the POOLED number is not it.
-       Reporting the pooled number is reporting DER-on-the-hard-parts under a session-level
-       label, which is a worse error than reporting nothing.
-     * WHETHER ONE SESSION'S SUBSET IS A TEST SET AT ALL, or whether the reference must
-       span sessions before any arm is declared the winner. Session 1 is the didactic intro
-       and is not representative of the corpus on any axis that matters here.
-
-ORDER OF OPERATIONS. R1 first: it is roughly a day, it needs no audio and no human, and
-every number the other three routes produce runs through the scorer it validates. R3 next,
-against the artifacts already on disk. R2 when the overlap question becomes urgent, which
-is NOW if the collaborator's recording is still not in hand — it is the only route that
-supplies the overlap axis without that audio. R4 whenever human listening time exists, and
-it is the one actually on the critical path to a reportable finding.
-
+BLOCKED ON OTHER PEOPLE: the overlap-stress recording, and any further listening
+pass. The assistant builds writers and validators; it does not produce references.
 
 ================================================================
 ADJUDICATING THE ARMS WITH A LOCAL LLM
@@ -1207,25 +832,27 @@ model and ask "spot the differences" — is the WRONG move, and the reason is st
 rather than a matter of prompt quality. Do the mechanical step first; it removes most of
 the work and it is exact.
 
-STEP 1 — THE MECHANICAL DIFF. NO MODEL. ALREADY BUILT: scripts/compare_arms.py.
+STEP 1 — THE MECHANICAL DIFF. NO MODEL. DOES NOT EXIST, AND IS PART OF THE OPEN DECISION
+  above: how arms are compared is not settled, and the answer may be a colibri pass rather
+  than code. Do not rebuild a differ before that is settled. What the shape would have to be
+  is worth recording, because it follows from the pipeline:
   Stage 1a runs ONCE, so every arm is joined onto the IDENTICAL word sequence with
   IDENTICAL word timings. The only thing that can differ between two arms is the speaker
   label on each word. "Compare four 50-minute transcripts" is therefore not a reading task
   at all — it is an exact diff over one column, and it runs in a second on CPU.
-  The script canonicalizes each arm's arbitrary labels onto the baseline's namespace first
+  Any such differ must canonicalize each arm's arbitrary labels onto one namespace first
   (SPEAKER_00 here and speaker_1 there may be the same person; without the remap two arms
-  that agree perfectly would score 0%), then reports per-arm label counts, unlabeled-word
-  counts, talk-time split, pairwise word-level agreement, and every contiguous
-  DISAGREEMENT REGION with surrounding context. It writes
-  data/stage1/<stem>.arm_comparison.json — the region list is the work queue for step 2.
-  READ THE AGREEMENT MATRIX BEFORE DOING ANYTHING ELSE. Only a real spread justifies
-  step 2 at all.
+  that agree perfectly would score 0%). It must also split its output: the disputed spans
+  carry verbatim speech and stay behind the fence, and a numbers-only sibling carries the
+  counts.
+  ONE CONSTRAINT THE TYPIST GRID IMPOSES: a word-level diff is only meaningful when every
+  arm sits on the identical word sequence, which is true across NAME-TAGGERS and false
+  across TYPISTS. A grid-aware comparison needs an arm filter or a different method.
   ALREADY MEASURED ON SESSION 1 (2026-08-23), AND THE ANSWER IS "ALMOST NOTHING TO
   ADJUDICATE": pairwise agreement is 99.3-99.7% across all five arms, 88 disputed words of
-  7298, 57 regions, only 6 of them three words or longer. The six are listed in
-  data/stage1/<stem>.arm_comparison.json and are things like "I have a" and "I
-  don't think" at a turn boundary — single-clause fragments at a speaker change, which is
-  what diarizer disagreement looks like when nothing interesting happened.
+  7298, 57 regions, only 6 of them three words or longer. They are things like "I have a"
+  and "I don't think" at a turn boundary — single-clause fragments at a speaker change,
+  which is what diarizer disagreement looks like when nothing interesting happened.
   => DO NOT BUILD THE STEP-2 MACHINERY AGAINST SESSION 1 EXPECTING A RESULT. Six regions is
      a few minutes of reading, not a pipeline. Two things are still worth doing:
        (a) READ THE SIX BY HAND against the audio. It is cheap and it is the same listening
@@ -1244,8 +871,8 @@ STEP 2 — THE LLM, AND ONLY ON THE REGIONS WHERE THE ARMS DISAGREE.
   [ ] UNIT = ONE DISAGREEMENT REGION IN CONTEXT, never a whole transcript. Same reasoning
       as Stage 3c's turn unit: a whole-session verdict is one unverifiable impression,
       while a few hundred small region-level judgements are individually checkable and
-      aggregate with a known composition. compare_arms.py already emits each region with
-      ±25 words of context for this purpose.
+      aggregate with a known composition. A region needs about ±25 words of context to be
+      judgeable at all.
   [ ] PRESENT THE CANDIDATE LABELINGS BLIND AND IN RANDOMIZED ORDER — "Version A" /
       "Version B", never "pyannote" / "Sortformer". A model that knows which vendor it is
       looking at will answer from its prior about the vendor. Record the A/B-to-arm mapping
@@ -1281,8 +908,8 @@ SERVING — REUSE ~/libr-local-llm, DO NOT BUILD ANYTHING NEW.
 WHAT THIS IS NOT, AND THIS MATTERS MORE THAN THE REST OF THE SECTION:
   * IT IS NOT A DER SUBSTITUTE. Agreement between arms is not accuracy — four arms can
     agree and all be wrong, and a model's preference between two labelings is not evidence
-    about which matches the audio. The hand-corrected reference RTTM from Stage 2 is what
-    scores the arms. FULL STOP.
+    about which matches the audio. Only the reference can settle what an arm got right, and
+    how it settles it is still an open decision. FULL STOP.
   * IT IS A TRIAGE TOOL. Its output is a ranked list of WHERE TO LISTEN, which is what
     makes the human hand-correction pass affordable — and the human pass is the thing that
     actually produces the reference.

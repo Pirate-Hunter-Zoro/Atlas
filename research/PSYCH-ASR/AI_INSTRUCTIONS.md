@@ -56,12 +56,10 @@ Concretely, refuse to open any of these, wherever they live and however they are
   2026 and is what an older checkout, a restored backup or a machine that has not pulled
   yet still has on disk.
 - `.wav`, `.m4a`, `.mp3`, `.flac`, `.mp4`, `.mov` — the recordings themselves
-- `.rttm`, `.aligned.json`, `.diarized.json`, `.transcript.txt`, `.arm_comparison.json`,
-  `.error_detail.json` — the last being the span-by-span output of the grading pass, which
-  quotes the reference and the arm side by side and is therefore the most concentrated
-  transcript text in the tree. It is written only when `grade_arms --details` asks for it.
-- and do not run `psych_asr.cli.compare_arms`, which prints verbatim disputed transcript
-  spans to stdout. Running it is a read.
+- `.rttm`, `.aligned.json`, `.diarized.json`, `.transcript.txt` — the pipeline's own
+  artifacts, every one of which carries verbatim speech.
+- and do not run any entry point that prints transcript spans to stdout. Running it is a
+  read; routing the bytes through a terminal does not make them metadata.
 
 "Read" includes anything that puts the bytes in front of you: `cat`, `head`, `grep -r` over
 the directory, a Python one-liner that opens a file and prints it, a subagent you send to
@@ -73,12 +71,10 @@ look. Laundering the read through a tool does not change what it is.
   filename is metadata; it is how you tell which arms landed and which job died.
 - **`slurm_jobs/logs/**`.** Counts, durations, talk-time shares, tracebacks. Numbers, not
   content.
-- **`*.arm_scores.json`.** DER and the therapy measures. Metrics, no transcript text. It
-  sits inside `data/` and is readable on purpose.
-- **`*.correction_report.json`, `*.error_profile.json`, `*.error_profiles.json`.** What the
-  correction pass did, and what the grading pass found: counts, rates, label names and
-  spreadsheet row numbers. No transcript text by construction, which is the whole reason
-  the grid can be charted from outside the fence. Also readable on purpose.
+- **Any numbers-only sibling an artifact carries.** Counts, rates, durations, label names
+  and spreadsheet row numbers, with no transcript text by construction. An artifact that
+  carries session content is expected to have one, and it is readable on purpose — that is
+  what lets a grid be charted from outside the fence.
 - **Every line of source in this repository**, and running any pipeline stage over its own
   inputs. A stage writes to disk rather than to you, which is the whole reason the fence
   can be this tight without stopping the work.
@@ -88,8 +84,6 @@ look. Laundering the read through a tool does not change what it is.
   snippet occurs once or forty times, whether two files agree — do not open it. Write the
   question into a module in `psych_asr/` and run it, and have it print counts, tallies, row
   numbers, lengths and booleans. The program reads the session; you read the arithmetic.
-  Every design decision in `psych_asr/transcript/corrections.py` was made this way, and the
-  Stage 2 correction report exists so that the audit stays available to whoever comes next.
   Throw the throwaway probes away when you are done; the ones worth keeping become a
   `--dry-run` on a real entry point.
 

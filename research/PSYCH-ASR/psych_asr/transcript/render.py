@@ -128,27 +128,6 @@ def render(transcript, stem):
     return text, summary
 
 
-def render_turns(turns, stem, summary):
-    """IN: a turn list + stem + an already-computed summary   OUT: the same text format.
-
-    The Stage 2 corrected transcript is a TURN LIST that no longer has segments behind it
-    -- correcting the words rebuilds the turns and there is nothing left to re-derive them
-    from -- so it renders through here instead of through `render`. One formatter, so the
-    corrected reference and the arm transcripts cannot come to look different.
-    """
-    lines = format_summary(stem, summary)
-    lines.append("")
-    for turn in turns:
-        lines.append(f"[{format_timestamp(turn['start'])}] {turn['speaker']}")
-        lines.extend(textwrap.wrap(
-            turn["text"],
-            width=WRAP_WIDTH,
-            initial_indent=DIALOGUE_INDENT,
-            subsequent_indent=DIALOGUE_INDENT,
-        ))
-        lines.append("")
-    return "\n".join(lines) + "\n"
-
 
 def write_readable_transcript(transcript, output_path, stem):
     """Render and write the .txt. Returns the summary dict so callers can print it.

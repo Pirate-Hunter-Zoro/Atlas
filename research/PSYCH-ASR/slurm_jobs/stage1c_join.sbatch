@@ -9,7 +9,7 @@
 #SBATCH -e slurm_jobs/logs/stage1c_join_err.txt
 
 # Stage 1c: join every arm's RTTM onto the shared aligned transcript, render each, then
-# run the regression gate and the cross-arm diff.
+# run the regression gate.
 #
 # NO GPU. This step loads no models -- it is a timestamp join and a text render, seconds of
 # CPU per arm -- so it asks for no --gres and runs on c3_short rather than occupying the
@@ -80,23 +80,6 @@ if [[ -n "${FIXTURE}" && -n "${CANDIDATE}" ]]; then
 else
     echo ""
     echo "Regression check SKIPPED: fixture='${FIXTURE}' candidate='${CANDIDATE}'"
-fi
-
-# The word-level diff across every arm that landed. Cheap, exact, and the thing to read
-# before anyone opens a transcript: because Stage 1a ran once, the arms differ ONLY in the
-# speaker label on each word, so this is a diff over one column rather than a reading task.
-# Needs two arms to mean anything, so it is skipped rather than failed when only one landed.
-if [[ "${JOINED}" -ge 2 ]]; then
-    echo ""
-    # --stem for the same reason the aligned path is now an argument: discovery by glob
-    # stops being unambiguous the moment a second cell exists. The diff itself still
-    # requires every arm to sit on the IDENTICAL word sequence, so once typist cells are
-    # present it refuses -- which is why the failure is reported and not fatal.
-    python -m psych_asr.cli.compare_arms --stem "${STEM}" \
-        || echo "Arm comparison failed (the per-arm transcripts are still valid)."
-else
-    echo ""
-    echo "Arm comparison SKIPPED: only ${JOINED} arm(s) joined; a diff needs at least two."
 fi
 
 if [[ "${FAILED}" -ne 0 ]]; then

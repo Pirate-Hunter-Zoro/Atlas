@@ -12,8 +12,7 @@ OUT: data/stage1/<stem>.<typist>+<stopwatch>.aligned.json -- segments, word_segm
 
 THE ARM NAME IS HALF A GRID CELL. "large-v3+wav2vec2-base" says who typed and who timed;
 Stage 1b appends the name-tagger. Nothing downstream parses the string -- every artifact
-name is read by exact suffix -- so a two-part arm needs no change to the join, the
-comparison or the grader.
+name is read by exact suffix -- so a two-part arm needs no change to the join.
 """
 
 from argparse import ArgumentParser

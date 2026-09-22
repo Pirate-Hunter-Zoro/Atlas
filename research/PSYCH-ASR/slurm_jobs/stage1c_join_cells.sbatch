@@ -1,30 +1,29 @@
 #!/bin/bash
-#SBATCH --job-name=stage1c_join_and_grade
+#SBATCH --job-name=stage1c_join_cells
 #SBATCH --partition=c3_short
 #SBATCH --time=0-00:30:00
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=32G
-#SBATCH -o slurm_jobs/logs/stage1c_join_and_grade_out.txt
-#SBATCH -e slurm_jobs/logs/stage1c_join_and_grade_err.txt
+#SBATCH -o slurm_jobs/logs/stage1c_join_cells_out.txt
+#SBATCH -e slurm_jobs/logs/stage1c_join_cells_err.txt
 
-# The typist bake-off's last two steps, in one CPU job: join every typist's aligned
-# transcript onto ONE name-tagger's turn table, then grade every cell that exists.
+# The typist grid's join step: join every typist's aligned transcript onto ONE
+# name-tagger's turn table, one output artifact per grid cell.
 #
-#     sbatch slurm_jobs/stage1c_join_and_grade.sbatch                        # community-1
-#     sbatch slurm_jobs/stage1c_join_and_grade.sbatch sortformer wav2vec2-base
+#     sbatch slurm_jobs/stage1c_join_cells.sbatch                        # community-1
+#     sbatch slurm_jobs/stage1c_join_cells.sbatch sortformer wav2vec2-base
 #
-# WHY ONE NAME-TAGGER AND NOT FIVE. Five of the six error labels -- Omission, Insertion,
-# Substitution, Proper Noun, Punctuation -- are a property of the TYPIST alone: the words
-# come from the typist and the name-tagger reads no words. Varying the diarizer here would
-# reproduce the same word-level numbers four more times. The name-tagger is held at the
-# incumbent so the WER column moves with exactly one thing.
+# WHY ONE NAME-TAGGER AND NOT FIVE. The words in a cell come from the TYPIST alone; the
+# name-tagger reads no words and only labels them. Varying the diarizer here reproduces the
+# same word sequence four more times, so the name-tagger is held at the incumbent and the
+# typist is the one thing that moves.
 #
 # WHY THE CELL NAME IS A TRIPLE. join_speakers derives the arm from the RTTM's filename,
 # which names the name-tagger only. --arm is passed explicitly so the output is
-# "<typist>+<stopwatch>+<name-tagger>" and the grid table says which cell each row is.
+# "<typist>+<stopwatch>+<name-tagger>" and the filename says which cell it is.
 #
-# NO GPU: a timestamp join and a stdlib grader, seconds per cell.
+# NO GPU: a timestamp join, seconds per cell.
 #
 # Submit FROM THE REPO ROOT.
 
@@ -50,11 +49,11 @@ echo "Session    : ${STEM}"
 echo "Name-tagger: ${NAME_TAGGER} (held fixed; only the typist varies)"
 echo "Stopwatch  : ${STOPWATCH}"
 
-# A cell joined before --stem was passed to join_speakers is named with its own arm TWICE:
-# "<stem>.<typist>+<stopwatch>.<typist>+<stopwatch>+<name-tagger>.diarized.json". The
-# grader discovers by glob, so one left behind enrols itself as a duplicate row in the grid
-# table. The pattern below matches only that shape -- a correct cell has no dot after the
-# stopwatch -- so nothing else in the directory can be caught by it.
+# A cell joined without --stem is named with its own arm TWICE:
+# "<stem>.<typist>+<stopwatch>.<typist>+<stopwatch>+<name-tagger>.diarized.json". Arm
+# discovery is by glob, so one left behind enrols itself as an extra arm. The pattern below
+# matches only that shape -- a correct cell has no dot after the stopwatch -- so nothing
+# else in the directory can be caught by it.
 for STALE in "${STAGE1_DIR}"/${STEM}.*+${STOPWATCH}.*.diarized.json \
              "${STAGE1_DIR}"/${STEM}.*+${STOPWATCH}.*.transcript.txt; do
     [[ -e "${STALE}" ]] || continue
@@ -84,14 +83,9 @@ done
 echo ""
 echo "Joined ${JOINED} cell(s); ${FAILED} failed."
 if [[ "${JOINED}" -eq 0 ]]; then
-    echo "Nothing to grade: no ${STEM}.*+${STOPWATCH}.aligned.json in ${STAGE1_DIR}." >&2
+    echo "No ${STEM}.*+${STOPWATCH}.aligned.json in ${STAGE1_DIR}; Stage 1a has not run." >&2
     exit 1
 fi
-
-# --stem is not optional once the grid runs: find_sole_stem() globs *.aligned.json and a
-# dotted arm is indistinguishable from a dotted stem, so discovery finds several and stops.
-echo ""
-python -m psych_asr.cli.grade_arms --stem "${STEM}"
 
 if [[ "${FAILED}" -ne 0 ]]; then
     exit 1

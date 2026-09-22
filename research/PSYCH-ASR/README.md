@@ -19,7 +19,7 @@ support a grant application (R21, possibly R01) for processing the full set of s
 > or derived feature ever leaves the node or is sent to an external API. See
 > [Privacy & Data Handling](#privacy--data-handling).
 > **Companion documentation — read this first.** This README documents the *pipeline
-> architecture*. The two slide decks are in `docs/`; the live task list is
+> architecture*. The slide deck is in `docs/`; the live task list is
 > `planning/PSYCH-ASR_TODO.txt` and is the answer to "what do we do next".
 >
 > **Conceptual walkthrough of Stage 1.** A slide deck explaining what Stage 1 actually does
@@ -28,88 +28,9 @@ support a grant application (R21, possibly R01) for processing the full set of s
 > three models, and the traps worth knowing (loose Whisper timestamps, why alignment must
 > precede diarization, unlabelled words) — lives at
 > `docs/stage1_pipeline_walkthrough.pdf`, built from the
-> `.tex` beside it. Read it before modifying Stage 1. It was written against the single-job
-> script that has since been retired; the five calls it walks through are unchanged and now
-> run as `psych_asr.cli.run_asr`, `psych_asr.cli.diarize_pyannote` and
+> `.tex` beside it. Read it before modifying Stage 1. The five calls it walks through run as
+> `psych_asr.cli.run_asr`, `psych_asr.cli.diarize_pyannote` and
 > `psych_asr.cli.join_speakers`.
->
-> **Everything after that deck has its own.** `stage2_reference_walkthrough.pdf`, in the same
-> directory, is the sequel — *Did the Computer Hear It Right?* — and it is written in
-> deliberately plain language: nothing is named before it is used, and the three Stage 1
-> models are "the typist", "the stopwatch" and "the name-tagger" throughout. Rewritten
-> 2026-09-09 to 22 slides, and to 25 on 2026-09-10: the pipeline with **all three** boxes
-> marked swappable rather than one; what a human annotator recorded in her 117-row error
-> log, how often each of the six error labels occurs (a bar chart — 69 Omission, 32 Speaker
-> Attribution, 9 Insertion, 5 Substitution, 1 Proper Noun, 1 Punctuation), the **three
-> shapes** every row takes on invented two-line exchanges (*turn added*, *turn moved*,
-> *words only*), and the single column (`Add Turn?`) that splits the same 117 rows 75/42
-> into *the turns were wrong* versus *the words were wrong*; **the correction algorithm as
-> six worked examples**, each showing the literal spreadsheet row, the turns before and the
-> turns after; and the model grid now planned. Counts only, no session content.
->
-> **The grid slide is three-dimensional**, because sweeping two of the three boxes the slide
-> before it declares swappable is not the experiment it claims: a cube, drawn as two slabs at
-> different depths: 4 typists × 2 stopwatches × 5 name-taggers, 40 cells from 13 jobs. The
-> slide after it is the one that makes 40 cells affordable and is worth reading before the
-> code: the words come from the typist, the times from the stopwatch timing those words,
-> who-spoke from the name-tagger which reads no words — so **five of the six error labels
-> are a property of the typist alone** and only *Speaker Attribution* moves along the other
-> two axes. Part 5 then teaches `psych_asr.evaluate.grade`: why grading against the answer
-> key rather than the audio turns fifty minutes of listening into two seconds, the
-> three-pass order (line the words up blind, read the cluster names off what matched, then
-> classify), one worked pass emitting four findings on invented lines, the single rule that
-> reproduces her `Add Turn?` column, the frequency chart redrawn two cells at a time, and
-> the three things a computed grade cannot say. The two-cell chart carries **invented
-> numbers and says so twice**; what is not invented is its shape — five bars identical and
-> one moving is a consequence of the pipeline, not a guess.
->
-> **The shapes are taught before they are counted, and that order is deliberate.** The
-> *turn added* / *turn moved* / *words only* slide comes immediately **before** the
-> `Add Turn?` table, because the table's rows cannot be read until "add or move a turn"
-> means something concrete. Its first two examples share an identical right-hand column on
-> purpose: what was really said is the same, and only the machine's version differs, which
-> is the entire difference between adding a turn and moving one. Its invented lines are
-> also length-tuned so the welded turn stays on **one** line — wrapped, it reads as two
-> turns and teaches the opposite of the intended point.
->
-> **The deck now states the `Line` column's resolution limit, which is a property of the
-> reference itself.** `Line` names one *wrapped* line of the rendered transcript
-> (`render.py`, `WRAP_WIDTH = 96`), not a whole turn, and `line_lookup` resolves it to that
-> line's character span inside its turn. For a **pure omission** — `is_pure_omission`, i.e.
-> `AI Transcript` is `None` — there is no snippet to search for, so the words are placed at
-> the **end of the logged line's words**. Of the 117 rows, **58 are placed by line number
-> alone** and 57 by line-plus-snippet. The cost: if the missing words belonged mid-line
-> they land at the line's end — right turn, right speaker, right words, wrong position.
-> That leaves every turn-level metric untouched, which is why it was acceptable, and it is
-> now the fourth row of the "It cannot grade" table plus its own worked slide on invented
-> lines. Do not let an edit quietly re-imply that `Line` points at a turn.
->
-> **Example 2 is the one example drawn in the file's own numbered layout**, gutter and all,
-> with a caret on the exact insertion point — the other five compress a turn to a single
-> line, which is what made the anchor invisible. Its box also says in as many words that
-> the position inside the line is *assumed*. The annotator never edited the transcript:
-> the line numbers are the machine's, and `apply_corrections` re-renders the baseline and
-> refuses to trust the `Line` column unless the text reproduces byte for byte.
->
-> **Both omission conventions exist in the pilot sheet, and the code handles both.** 52 of
-> the 69 Omission rows log `None` and are placed by line; 17 log the surrounding phrase and
-> are located by finding the machine's own words, which is the more precise row. The
-> `search_texts` docstring is the authority on why the annotator's column is *not* searched
-> for the other five error types.
->
-> **The two breakdowns are cut on different axes, and the deck says so.** The bar chart
-> counts every row once under its `Error` label; the 75/42 table counts every row once
-> under `Add Turn?`. They are not nested — the 27 misattributions that move a turn are the
-> ticked *subset* of the 32 Speaker Attribution rows, the other 5 being pure relabels, and
-> the 42 "words only" row draws on all six labels (22 Omission, 8 Insertion, 5 Speaker
-> Attribution, 5 Substitution, 1 Proper Noun, 1 Punctuation) rather than being a seventh
-> category of its own.
->
-> **Two things about its form are deliberate and should survive edits.** It is written in the
-> present tense and never narrates what the project once believed. And the algorithm is taught
-> *only* by example: prose walkthroughs of the same material run to fifteen slides and do not
-> land. **It is the fastest way to see where the project actually stands**,
-> and the right thing to hand anyone who has not been in the code.
 >
 > **Division of labour between the two files.** The TODO tracks **only what is left**.
 > Finished work is never annotated there as "DONE" — its entry is deleted, and whatever
@@ -152,7 +73,7 @@ graph LR
     B --> D[Stage 1: Diarization<br/>pyannote]
     C --> E[Word transcript<br/>timestamps + confidence]
     D --> F[Speaker turn table<br/>start / end / speaker]
-    E --> G(Stage 2: Merge + role assignment<br/>+ human QC + WER/DER)
+    E --> G(Stage 2: Merge + role assignment<br/>+ human adjudication)
     F --> G
     G --> H[Speaker-labeled transcript<br/>therapist vs patient]
     H --> I1(Stage 3a: Structural)
@@ -176,8 +97,8 @@ one pass.
 
 **Stage 2 — Human-in-the-loop QC.** Map anonymous `SPEAKER_00/01` labels to
 therapist/patient (machine-proposed from lexical cues, human-confirmed), flag and correct
-mid-session speaker swaps, and hand-correct a *stratified subset* to estimate word error
-rate (WER) and diarization error rate (DER).
+mid-session speaker swaps, and adjudicate a corrected reference transcript against the
+audio. The reference is a human artifact; see *The reference transcript* below.
 
 **Stage 3 — Feature extraction**, deliberately split into three lanes that fail
 independently, ordered by how much they depend on the transcript being right:
@@ -194,7 +115,7 @@ independently, ordered by how much they depend on the transcript being right:
   validation, agenda-setting), patient behaviors (affect, approach/avoidance,
   hopelessness, self-efficacy), dyadic process, and content themes, coded turn by turn by
   a locally served LLM. This lane is the one that actually depends on words being correct,
-  and therefore the one whose reliability Stage 2's WER estimate governs.
+  and therefore the one the reference transcript exists to keep honest.
 
 **Stage 4 — Feasibility modeling.** Do features separate responders from non-responders
 beyond baseline severity and early symptom change?
@@ -253,11 +174,11 @@ own import smoke-check.
 | `asr_env` | 3.11 / 2.8.0+cu128 | whisperx 3.8.6, pyannote.audio 4.0.7 — ASR, alignment, the community-1 baseline diarizer, and the speaker join | Pin set is **locked** to whisperx's `~=` chain |
 | `diarizen_env` | 3.10 / 2.1.1+cu121 | DiariZen (MIT code) and its vendored pyannote-audio fork (reports itself as pyannote.audio 3.1.1) | torch 2.1.1 vs 2.8.0 is a hard conflict — unresolvable in one env |
 | `nemo_env` | 3.11 / 2.13.0+cu130 | `nemo_toolkit[asr]` 2.7.3, for both Sortformer checkpoints | Drags hydra, lightning, omegaconf and its own `transformers` pin against the locked 4.55.4 |
-| `diar_eval_env` | 3.11 / **none** | `pyannote.metrics` 3.2.1 only, CPU | Deliberately torch-free. The scorer must be *one* implementation at *one* collar across every arm, or the comparison measures the scorer instead of the models |
+| `diar_eval_env` | 3.11 / **none** | `pyannote.metrics` 3.2.1 only, CPU | Deliberately torch-free. Whatever measures the arms must be *one* implementation applied identically to all of them, or the comparison measures the measurement instead of the models |
 
-`diar_eval_env` is the one that looks like over-engineering and is not. Folding the scorer
-into `asr_env` risks bumping `pyannote.core` underneath the locked pin set, and it quietly
-couples "how we measure" to "what we measure with."
+`diar_eval_env` is the one that looks like over-engineering and is not. Folding
+`pyannote.metrics` into `asr_env` risks bumping `pyannote.core` underneath the locked pin
+set, and it quietly couples "how we measure" to "what we measure with."
 
 **DiariZen is a source install, not a package.** It is not on PyPI, and it vendors its own
 `pyannote-audio` fork *in-tree* rather than depending on the released one — the upstream
@@ -302,13 +223,13 @@ which re-export anything; see **Package layout** below.
 which diarizer is a property of the file, not of a note somewhere — and 1c derives the arm
 from the RTTM's own name, so adding a fifth arm needs no change to the join.
 
-RTTM is chosen because it is simultaneously the standard diarization interchange format
-*and* what DER scorers consume. The hypothesis file the bake-off scores and the file the
-join reads are the same artifact — no second serialization to keep in sync.
+RTTM is chosen because it is the standard diarization interchange format, and what DER
+scorers consume if the arms are eventually scored that way. An arm writes one artifact and
+the join reads that same artifact — no second serialization to keep in sync.
 
 **The methodological reason for the split, which matters more than the compute saving.**
 Stage 1 currently costs ~3 minutes on one A40, so re-running ASR per diarizer is affordable.
-It is still wrong: Whisper's output would then differ across arms, and a DER comparison would
+It is still wrong: Whisper's output would then differ across arms, and any comparison would
 be confounded by transcript differences. Running 1a **once** and fanning every diarizer off
 the identical aligned transcript and identical word timings is what makes the arms
 comparable at all.
@@ -492,9 +413,9 @@ bash slurm_jobs/run_typist_bakeoff.sh --typist parakeet --stopwatch wav2vec2-lar
 ```
 
 Nine jobs: one 1a-i transcribe and one 1a-ii align per typist, then one CPU job that joins
-every typist's words onto **one** name-tagger's turn table and grades the lot. Each align
-depends on its own transcribe with `afterok`; the grading job depends on all four with
-`afterany`, so one typist crashing still grades the others and shows up as a missing row.
+every typist's words onto **one** name-tagger's turn table. Each align depends on its own
+transcribe with `afterok`; the join job depends on all four with `afterany`, so one typist
+crashing still joins the others and shows up as a missing cell.
 
 **The stopwatch and the name-tagger are held fixed**, which is the whole point — every
 difference in the word columns is then the typist and nothing else. Holding the name-tagger
@@ -502,13 +423,12 @@ costs nothing, because five of the six error labels never move along that axis a
 
 **Each job gets its own log**, overridden on the `sbatch` command line: the two Stage 1a
 `.sbatch` files name a fixed log path, which is right for one typist and destroys three of
-four logs for a bake-off. The answer is the grid table at the end of
-`slurm_jobs/logs/stage1c_join_and_grade_out.txt`.
+four logs for a bake-off. The join log is
+`slurm_jobs/logs/stage1c_join_cells_out.txt`.
 
-`slurm_jobs/stage1c_join_and_grade.sbatch` names the cell explicitly with `--arm`, so a row
-reads `<typist>+<stopwatch>+<name-tagger>` rather than just the diarizer the RTTM filename
-knows about. It also passes `--stem` to the grader, which is not optional once more than one
-aligned transcript exists — `find_sole_stem()` finds several and stops rather than guessing.
+`slurm_jobs/stage1c_join_cells.sbatch` names the cell explicitly with `--arm`, so a cell's
+artifacts read `<typist>+<stopwatch>+<name-tagger>` rather than just the diarizer the RTTM
+filename knows about.
 
 ### Diarization bake-off — candidate models
 
@@ -570,19 +490,7 @@ here, on this audio, under one collar setting chosen and stated once.
   arbitrary length by construction, which may turn out to be arm C's decisive advantage
   independent of accuracy.
 
-### Scoring protocol
-
-One scorer, one collar, every arm — run from `diar_eval_env`.
-
-- **Reference:** the hand-corrected RTTM from Stage 2's stratified subset. That subset is
-  already planned for WER/DER estimation; it is the bake-off's test set, not extra work.
-- **Report DER at both collar 0.25 s and collar 0 s, overlap included**, and say which is
-  which. Overlap-excluded scoring would discard exactly the regime under test.
-- **Decompose DER** into missed speech, false alarm, and speaker confusion. Published
-  benchmarking finds missed speech dominates, and the decomposition says which knob to turn.
-- **Two therapy-specific measures alongside DER**, because DER is a duration-weighted average
-  and can look acceptable while failing where it matters: error in the therapist/patient
-  talk-time ratio, and backchannel attribution accuracy.
+### Staging the bake-off's model assets
 
 **ASR model — `Systran/faster-whisper-large-v3`.** Staged into
 `models/faster-whisper-large-v3` and loaded by absolute path. `scripts/stage_models.sh`
@@ -655,9 +563,9 @@ synthesizes a `PunktTokenizer` from them when that name is requested. The absenc
 `HF_HUB_OFFLINE=1`, `TORCH_HOME`, and `NLTK_DATA`. Each library reads its own variable to
 find its cache; having the files on study storage is necessary but not sufficient. All
 three, plus `PYTHONNOUSERSITE`, are exported by `activate_env` in
-`slurm_jobs/lib/job_env.sh`, which every job sources — before that helper existed, four
-jobs exported three variables and two exported two, which is the kind of difference nobody
-notices until an arm quietly re-downloads its own weights mid-bake-off.
+`slurm_jobs/lib/job_env.sh`, which every job sources. One helper rather than a copy per
+job, because a job that exports two of the three is the kind of difference nobody notices
+until an arm quietly re-downloads its own weights mid-bake-off.
 
 **Importing `psych_asr.config` exports `TORCH_HOME` and `NLTK_DATA` as well**, with
 `setdefault`, so an explicit export still wins. The job scripts cover the jobs and nothing
@@ -780,9 +688,8 @@ A fourth case hides from a naive count entirely: a segment that fails alignment 
 duration) is appended with an empty `words` list, so its words never exist to be counted as
 missing. Segment count and word count are both silently short.
 
-**The diagnostic that would separate these was never built, and is no longer planned**
-(2026-09-09). `psych_asr.cli.audit_speakers` existed as a complete argument parser over an
-unimplemented body; it is deleted. What settles it is a number: the baseline arm leaves
+**No diagnostic separates these three, and none is planned.** What settles it is a
+number: the baseline arm leaves
 **5 of 7,298 words** unlabeled on the full session. However those five split across the
 three causes, they are a rounding error on every feature downstream, and the causes stay
 written down above for whoever needs them if a later session comes back with hundreds
@@ -895,9 +802,8 @@ how to re-run one arm without paying for the rest.
 
 **Adding a sixth arm is two edits and nothing else**: a `.sbatch` cloned from an existing
 one, and its name appended to the `ARM_JOBS` array at the top of `run_bakeoff.sh`. Stage 1c
-walks whatever RTTMs exist and takes each arm's name from the RTTM's own filename, the join
-and the renderer are shared by every arm, and `compare_arms` discovers arms by glob — so
-none of them knows how many there are.
+walks whatever RTTMs exist and takes each arm's name from the RTTM's own filename, and the
+join and the renderer are shared by every arm — so none of them knows how many there are.
 
 ### Artifacts, and which model produced which
 
@@ -908,11 +814,10 @@ none of them knows how many there are.
 | `<stem>.community-1.exclusive.rttm` | 1b baseline | the same diarization with per-frame speaker count clamped to 1 |
 | `<stem>.<arm>.diarized.json` | 1c | the machine artifact, one per arm |
 | `<stem>.<arm>.transcript.txt` | 1c | the readable transcript, one per arm |
-| `<stem>.arm_comparison.json` | `compare_arms.py` | the word-level diff between arms |
 
-**The turn table is no longer thrown away** — it is the RTTM, and it is the same file the
-DER scorer will consume. That closes the first of the three items under *What Stage 1
-currently throws away* below, for the bake-off path. The baseline arm additionally persists
+**The turn table is kept** — it is the RTTM, the standard interchange format, so an arm's
+turns survive as a file rather than living only inside the join. That closes the first of
+the three items under *What Stage 1 currently throws away* below, for the bake-off path. The baseline arm additionally persists
 `exclusive_speaker_diarization`, which is what makes overlapping speech recoverable as a set
 difference rather than reconstructed from turn intersections.
 
@@ -1026,81 +931,19 @@ Three things this run *does* establish, none of which needed the reference RTTM:
 records it initializing with *no exporters configured*, so nothing is collected or
 transmitted. Confirm that line is still present in the log if NeMo is ever upgraded.
 
-### Comparing the arms — do the mechanical diff first
-
-`psych_asr.cli.compare_arms` (CPU, `asr_env`, no models) exploits the fact the split was built
-for: because 1a ran once, every arm sits on the **identical word sequence with identical word
-timings**, so the only thing that can differ between two arms is the speaker label on each
-word. Comparing four 50-minute transcripts is therefore not a reading task — it is an exact
-diff over one column.
-
-It canonicalizes each arm's arbitrary labels onto the baseline's namespace before comparing
-(`SPEAKER_00` here and `speaker_1` there may be the same person; without the remap two arms
-that agree perfectly would score 0%), then reports per-arm label and unlabeled-word counts,
-talk-time split, pairwise word-level agreement, and every contiguous disagreement region with
-surrounding context — written to `<stem>.arm_comparison.json` as the work queue for whatever
-adjudicates them.
-
-Agreement between arms is **not accuracy**: four arms can agree and all be wrong. What this
-produces is the map of *where* they disagree, which is what makes the human listening pass
-affordable. The hand-corrected reference RTTM from Stage 2 is what actually scores the arms.
-
-### Scoring the arms — `psych_asr.cli.score_arms`
-
-Run from `diar_eval_env`. **It cannot produce a real number until the reference exists**: the
-hand-corrected RTTM from Stage 2's stratified subset, which is the bake-off's test set and is
-not extra work — the same subset already planned for WER/DER, used twice rather than built
-twice. Its plumbing is verified end to end (scoring the baseline arm against itself returns
-0.00% DER at both collars, 0.0% ratio error and 18/18 backchannels, which is the check that
-the implementation is not lying).
-
-Four measures per arm:
-
-- **DER at collar 0.25 s and collar 0 s, overlap included**, decomposed into missed speech,
-  false alarm and speaker confusion. Both collars, always, because the same system looks far
-  worse without one — on this audio the two differ by roughly a factor of two — and because
-  the decomposition is what says which knob to turn: a false-alarm problem and a confusion
-  problem call for opposite fixes.
-- **Talk-time ratio error.** DER is a duration-weighted average and can look acceptable while
-  failing exactly where this project cares. Talk-time share is the first Stage 3a feature and
-  an input to role assignment, so an arm with good DER and a bad ratio is useless here.
-- **Backchannel attribution accuracy.** Therapist backchannels over patient speech are
-  constant in this corpus, they are the overlap the challengers exist to model, and they are
-  short enough to vanish inside a duration-weighted average. **One arm's transcript defines
-  the backchannel spans for every arm** (`--backchannel-source`, default `community-1`) — the
-  spans need the words, which an RTTM does not carry, and letting each arm nominate its own
-  would change the denominator per arm and make the percentages incomparable.
-
-**Pass `--uem` once the hand-corrected subset defines its boundaries.** Without one,
-`pyannote.metrics` approximates the evaluation region as the union of reference and
-hypothesis extents, which scores an arm over stretches the reference never annotated. The
-script warns loudly rather than letting that pass silently.
-
 ### Getting a reference when the assistant cannot read the session
 
 The assistant working on this repository is fenced out of every session artifact by a
 `PreToolUse` hook — see *Privacy & Data Handling* below for what it refuses and what it
-deliberately leaves open. That is a design input for the bake-off rather than an obstacle to
-it, and it has one architectural consequence worth stating here: **every artifact that
-carries session content needs a numbers-only sibling.** `compare_arms.py` currently writes a
-single file that embeds verbatim disputed spans with surrounding context, so the guard blocks
-it whole — and with it the region count, the region durations, and the per-arm labels, none
-of which is content. The writer should split: the full artifact stays exactly as it is and
-stays blocked, and a summary sibling carries counts, durations, the agreement matrix and one
-record per disagreement region with no words in it. The same rule applies to anything built
-for the reference pass.
+deliberately leaves open. That fence is a design input rather than an obstacle, and it has
+one architectural consequence worth stating here: **every artifact that carries session
+content needs a numbers-only sibling.** Region counts, durations and per-arm labels are not
+content, and an artifact that embeds them alongside verbatim spans is blocked whole and
+takes the counts down with it. Anything written against the reference splits: the
+content-carrying file stays blocked, and a summary sibling carries the counts.
 
-Four routes to a ground metric are planned, and only one of them scores the arms. In order of
-when they can run: calibrating this scorer against **injected errors of known size** (no
-audio, no reference, and it should happen first, because scoring an arm against itself proves
-only the identity case); a **synthetic two-speaker mixture** with the reference written by the
-mixer, swept across overlap fraction, which supplies the axis session 1 cannot test without
-waiting on the collaborator's recording; **reference-free stability** — each arm scored
-against its own re-run under a perturbation that must not change the answer, and against the
-consensus of the other arms; and the **hand-corrected reference**, which remains the only
-thing that decides the bake-off. The full plan, including which sampling decisions stay with
-the human and why, is `planning/PSYCH-ASR_TODO.txt`, section *Ground truth
-without reading the data*.
+The reference itself is not something this repository computes — see *The reference
+transcript* under Stage 2.
 
 ---
 
@@ -1159,287 +1002,72 @@ is not.
 
 ## Stage 2 — QC, role assignment, and error metrics
 
-### The corrected reference — applying the QC error log
+### The reference transcript
 
-**This exists now and it is the first Stage 2 artifact.** A human listened to session 1
-against the baseline arm's readable transcript and logged one spreadsheet row per error.
-`psych_asr.cli.apply_corrections` reads that sheet and rebuilds the transcript from it:
+**The reference is a human-adjudicated artifact, not a computed one.** A human listened to
+session 1 against the baseline arm's readable transcript and logged one spreadsheet row per
+error; colibrì produced the corrected transcript from that baseline and that error log, and
+the annotator approved the result. It is the reference because she says it is.
 
-```bash
-python -m psych_asr.cli.apply_corrections            # writes into phi/stage2/
-python -m psych_asr.cli.apply_corrections --dry-run  # the same report, writes nothing
-```
+**It lives under `phi/`, which is outside git.** Every number derived from it therefore
+rests on a file git cannot see and the assistant cannot read. Nothing in `psych_asr/` builds
+it, reads it, or reproduces it.
 
-CPU only, sub-second, no models — it runs on the login node and needs no Slurm job. It
-reads the baseline `<stem>.<arm>.diarized.json`, the `<stem>.<arm>.transcript.txt` beside
-it, and the one `*Error Log*.csv` in `phi/stage1/`. It writes three files to
-**`phi/stage2/`**, and that directory is a separate one on purpose: the arm-discovery
-globs in `artifacts/naming.py` match `<stem>.*` inside `phi/stage1/`, so a corrected
-reference stored there would enrol itself as a fifth arm in the bake-off it exists to
-judge.
+It is stored apart from the Stage 1 artifacts on purpose: the arm-discovery globs in
+`artifacts/naming.py` match `<stem>.*` inside the Stage 1 directory, so a reference sitting
+beside the arms would enrol itself as an extra arm in the bake-off it exists to judge.
 
-| Artifact | Contents |
-| --- | --- |
-| `<stem>.corrected.transcript.txt` | the reference, in the same play-script format as every arm transcript (PHI) |
-| `<stem>.corrected.turns.json` | one record per corrected turn: speaker, span, text, and the provenance of both (PHI) |
-| `<stem>.correction_report.json` | counts, locator tallies and spreadsheet row numbers — **no transcript text** |
+**It carries words and turn structure, not word timings.** It is the reference for what was
+said and who said it. It is *not* a reference RTTM and must not be scored as though it were.
+Getting one means re-aligning the corrected words to the waveform — a Stage 1a job over
+Stage 2 text, not something to fake by spreading interpolated spans out until they look like
+measurements.
 
-The report is deliberately the numbers-only sibling that *Getting a reference when the
-assistant cannot read the session* above says every content-carrying artifact needs. It is
-how anyone — including an assistant fenced out of the session — judges whether the pass ran
-well, and it is printed to stdout as well as written, so a job log carries it too.
+**How an arm is measured against it is an open decision.** It waits on the reference being
+validated, and it may not turn out to be code.
 
-#### What the six error labels become
+### What the error log says about the diarizer
 
-Four edits, and the sixth column of the sheet decides between them. `Add Turn?` is the
-load-bearing one, because it is what separates *the words were wrong* from *the turn
-structure was wrong*:
+One number in the log is about the diarizer rather than about any correction pass: **75 of
+the 117 rows change turn structure.** That is read straight off the annotator's `Add Turn?`
+column — 47 utterances the machine never heard at all, 27 it welded into the wrong speaker's
+turn, one it invented. The remaining 42 are words only. Two thirds of a fifty-minute
+listening pass is therefore a verdict on speaker attribution, which is what makes this sheet
+a reference for the arm comparison rather than only a WER input.
 
-| Edit | Fired by |
-| --- | --- |
-| **replace** the words in a span | Substitution, Proper Noun, Punctuation, Insertion, and the Omissions logged with their surrounding phrase |
-| **insert** a new turn at a point | Omission where the machine transcribed nothing and `Add Turn?` is TRUE |
-| **extract** a span into a turn of its own, splitting its host | Speaker Attribution with `Add Turn?` TRUE |
-| **relabel** the whole host turn | Speaker Attribution with `Add Turn?` FALSE |
+The six error labels fall out 69 Omission, 32 Speaker Attribution, 9 Insertion, 5
+Substitution, 1 Proper Noun, 1 Punctuation. The two breakdowns are cut on different axes and
+are not nested: the bar chart counts every row once under its `Error` label, the 75/42 split
+counts every row once under `Add Turn?`.
 
-**A `str.replace` loop over the sheet cannot do this, and fails silently three ways.**
-Ignoring the `Line` column makes a missing two-word backchannel replace *every* occurrence in
-fifty minutes of speech. It cannot represent the 51 rows that say the machine wrote nothing —
-there is no snippet to replace, only a place where a turn belongs. And it cannot represent the
-32 speaker-attribution rows even in principle: those do not change the words, they change who
-said them, which means cutting
-one turn into three, and a string replacement has no concept of a turn.
+### The role mapping, read off the sheet
 
-#### Five things the sheet does that a careful reader would get wrong
-
-Each of these was found by a run that looked like it had succeeded.
-
-1. **`None` is a value, not a blank.** The AI Transcript column says the literal word
-   "None" on the 50 rows where the machine transcribed nothing — and "None" is in pandas'
-   default NA list. Read with `pandas.read_csv`, "the annotator recorded that nothing was
-   transcribed" and "the annotator left the cell empty" become the same `NaN`, and
-   afterwards nothing can tell a pure omission from an unfilled row. The reader is
-   `csv`-based and decides what counts as blank in one visible place.
-2. **The table does not end at the first blank Session ID.** 116 padding rows of bare
-   commas sit below the data, and ending the read there looked right. But the sheet has one
-   *interior* row where the annotator filled in a severity judgement and nothing else — no
-   Session ID, no Error. Stopping at it read **59 of 117 rows** and printed a clean,
-   complete-looking report on half the log. The table now ends where every meaningful cell
-   is blank, a row with content but no Error is reported as incomplete rather than skipped,
-   and a blank Session ID mid-table is treated as the fill-down the export dropped.
-3. **Both text columns end in a speaker role on an attribution row.** The convention is
-   `<utterance> <Role>` — the machine's answer in the AI column, the true answer in the
-   Actual column — so the two cells differ in that last word and agree on every word before
-   it. Matched raw, **none** of the 32 attribution rows appears anywhere in the transcript,
-   because no line of dialogue ends in the word *Therapist*; the longest run of each snippet
-   that does appear is every token but the last. Split the role off and 25 of the 32 are
-   found verbatim and can be *moved* rather than copied. The AI column's role is worth more
-   than a tidier match — see the role assignment below.
-4. **Never search the annotator's column for an omission.** For five of the six error
-   types the text that is on the page is the *machine's*; the annotator's words are, by
-   definition of an omission or a substitution, what the machine did not write. Searching
-   for them anyway matched a missing "mm hmm" against one of the hundred elsewhere in the
-   session, and 34 rows reported a coincidence as evidence. Only a speaker-attribution row
-   is searched the other way round, because there the machine heard the words correctly and
-   only filed them under the wrong person.
-5. **A misattribution is logged twice.** Once as the attribution row that moves the words
-   to the right speaker, and once as an insertion row that takes them out of where they
-   were — and moving them *is* taking them out. Applying both deletes the words twice. The
-   earlier row in sheet order wins and the later is reported as *already accounted for*,
-   which is neither an application nor a failure. Conversely, two attribution rows about two
-   separate `yeah`s inside one turn are two utterances, and the machine only ever
-   transcribed one of them: the second must not collide with the first, and must not go
-   hunting for the same word in a neighbouring turn either. It falls through to its line
-   number and is inserted.
-
-#### The guard that makes the line numbers safe
-
-The `Line` column counts lines in a **rendered** `.txt`, and this pass edits the turn
-structure underneath that render. So it re-renders the JSON and refuses to run unless the
-result reproduces the file on disk. A difference confined to the summary block is reported
-and tolerated — it is a fixed number of lines whatever it says inside them, so it shifts
-nothing — but a difference in the dialogue, or a different total line count, is fatal. If
-the two have drifted, line 348 no longer names the sentence the annotator meant, and every
-correction placed by line number would land on the wrong sentence while looking perfectly
-successful.
-
-`render.py` grew `render_with_line_index`, which returns the same text plus one entry per
-line saying what that line refers to: which turn, and which characters of that turn's text.
-Nothing else can translate between the annotator's coordinate system and the pipeline's.
-
-#### Session 1, applied
-
-117 corrections read, plus one incomplete row named in the report and 115 padding rows
-ignored. **114 applied**, one already accounted for by an earlier row, and **two the pass
-refused to place** — the machine's words at those line numbers could not be found, so
-nothing was replaced, and the report names the rows so the sheet can be fixed rather than
-the transcript guessed at. 57 rows were placed by line *and* snippet agreeing, 58 by line
-number alone — chiefly the 51 rows that have no snippet to match — and one by timestamp.
-
-The edits: 35 replacements, 53 inserted turns, 21 extractions, 5 relabels. **89 turns
-became 215** and 7,298 words became 7,388. Speech occupies 48:59 of the 50:39 span.
-
-**The one number in the report that is about the diarizer rather than about the pass:
-`rows_changing_turn_structure` — 75 of the 117.** Every other count says how well the
-correction pass ran. That one is read straight off the annotator's `Add Turn?` column, and it
-says how well the *diarizer* ran: 75 rows assert that the machine did not merely mistype but
-structurally missed something — 47 utterances it never heard at all, 27 it welded into the
-wrong speaker's turn, one it invented. The remaining 42 are words only. Two thirds of a
-50-minute listening pass is therefore a verdict on speaker attribution, which is what makes
-this sheet the reference for the arm comparison rather than only a WER input.
-
-**The role mapping is read off the sheet, not guessed.** Every attribution row's AI column
+**The mapping is stated in the log, not guessed.** Every speaker-attribution row's AI column
 names the role the *diarizer* assigned those words to, written down by someone who was
-looking at it, and the host turn's machine label is right there — so the mapping is stated,
-not inferred. Rows that correct words inside a turn without creating a boundary vote too, as
-the annotator accepting the diarizer's speaker at that point. `SPEAKER_00` → therapist by
-**49 votes to 3**, `SPEAKER_01` → participant by 16 to 0.
+looking at it, and the host turn's machine label is beside it. `SPEAKER_00` → therapist by
+**49 votes to 3**; `SPEAKER_01` → participant by **16 to 0**.
 
 One category of row must *not* vote, and it is the subtle one: a row with `Add Turn?` TRUE
 and no role of its own. Those are utterances the machine missed entirely, so the turn they
 are inserted into is usually the *other* person's, and the host label and the logged role
-are deliberately different. Counting them as agreement took the `SPEAKER_00` vote from
+are deliberately different. Counting them as agreement takes the `SPEAKER_00` vote from
 decisive to 20–17.
 
-**And the mapping inverts the talk-time heuristic exactly as this README predicted it
-would.** In the corrected reference the *therapist* holds **78.6%** of the talk time across
-108 turns, against the participant's 21.4% across 107. Session 1 is the didactic intro. An
-independent lexical check agrees with the vote and not with talk time: the therapist-mapped
-cluster asks 3.4× as many questions per sentence and uses *you/your* 1.7× as often as
-*I/my*, while the participant-mapped cluster uses *I/my* 3.3× as often as *you* and has a
-median turn of 5 words against 43.
-
-#### What this artifact is not
-
-**It does not carry word timings, and it must not be scored as though it did.** A corrected
-turn's span is the host turn's own, split proportionally to character offset where a turn was
-cut in two; an inserted turn has zero duration, because how long a backchannel lasted is not
-in the spreadsheet. Every turn records which of those it is in a `time_source` field, and the
-annotator's own observed time is kept beside the span as `logged_at` and never written into
-`start`, where it puts turns out of order and makes the talk-time table sum to 107% of the
-session.
-
-So this is the corrected **words and turn sequence**, and it is already the reference for
-comparing the arms on attribution and turn structure. It is *not* yet a reference RTTM.
-Getting one means re-aligning the corrected words to the waveform, which is a Stage 1a job
-over Stage 2 text and is the next thing after the arm comparison — not something to fake
-here by spreading interpolated spans out until they look like measurements.
-
-### Grading an arm against the reference — the annotator's categories, computed
-
-**One human listening pass produced one cell of the model grid.** It cost fifty minutes and
-117 typed rows, and the grid has 40 cells. `psych_asr.evaluate.grade` is the other half of
-the correction pass: it takes any arm's transcript and produces the *same breakdown the
-annotator produced by hand* — the six error labels, and the split between "the turns were
-wrong" and "the words were wrong" — with nobody listening to anything.
-
-```bash
-python -m psych_asr.cli.grade_arms                  # every arm found, into phi/stage2/
-python -m psych_asr.cli.grade_arms --arm community-1  # one cell
-python -m psych_asr.cli.grade_arms --dry-run        # the report, writes nothing
-python -m psych_asr.cli.grade_arms --details        # also the PHI-bearing spans
-```
-
-Stdlib only, CPU, a second or two per arm — so it runs on the login node in whichever env
-happens to be active, which is deliberate: a scorer that needed `diar_eval_env` would make
-grading a queued job rather than something to run while looking at a transcript.
-
-| Artifact | Contents |
-| --- | --- |
-| `<stem>.<arm>.error_profile.json` | one arm's profile: counts, rates, label names — **no transcript text** |
-| `<stem>.error_profiles.json` | every graded arm in one table, same guarantee — this is what a grid figure is drawn from |
-| `<stem>.<arm>.error_detail.json` | `--details` only. Every classified difference with both sides' words. **PHI twice over**, and on the read-guard's refusal list |
-
-#### Every word is asked two questions, and they are counted separately
-
-A word error rate answers one of them, and the pilot log says two thirds of what went
-wrong was *who said it*. A single percentage cannot distinguish an arm that mistyped forty
-words from an arm that filed forty **correct** words under the wrong person, and those two
-failures break different Stage 3 lanes — 3c and 3a respectively.
-
-- **What was said** — did this reference word appear at all, and as itself. Reported as a
-  WER plus the matched / substituted / omitted / invented word counts.
-- **Who said it** — of the words that *did* appear, is each one under the right person.
-  Reported over the words both sides agree on, so a bad typist can neither flatter nor
-  punish a name-tagger.
-
-#### Three passes, and the order is not the obvious one
-
-A diarizer has no idea who anyone is, so `SPEAKER_00` is nobody until something says so —
-but working that out needs the two word streams already lined up, and lining them up must
-not be influenced by the labels or the grade starts assuming its own answer. Hence:
-
-1. Line the two word streams up **on the words alone**, labels ignored.
-2. Read the label mapping off **the words that matched** — the only place the two naming
-   schemes can be compared at all. An unlabeled candidate word votes for nothing.
-3. Classify every difference, labels now meaningful.
-
-The six labels then fall out of the alignment almost mechanically: a reference run with no
-counterpart is an **Omission**, a candidate run with none is an **Insertion**, a differing
-span is a **Substitution** — or a **Proper Noun** when the reference span holds a word
-capitalized *mid-sentence*, which is the only evidence available that a word is a name.
-Among the words that *matched*, a raw spelling difference that survives normalization is a
-**Punctuation** row (case alone is not: moving a turn boundary re-capitalizes whatever now
-starts the turn, and counting that would report a dozen punctuation errors for one
-relocated turn), and a run under the wrong person is **Speaker Attribution**.
-
-#### The `Add Turn?` column is the only judgement in it
-
-The annotator's most load-bearing column is not in the text — it is a question about the
-text, and one rule answers it in both directions: **is the whole turn involved, or only
-part of one?**
-
-| | Every word of the turn | Only some of its words |
-| --- | --- | --- |
-| **Words missing** | the machine never heard this turn — *a turn appears* (ticked) | it heard the turn and mistyped it — *words only* |
-| **Wrong speaker** | the boundary is right and only the name is wrong — *words only* | fixing it cuts the machine's turn open — *turn moved* (ticked) |
-| **Words invented** | *a turn disappears* (ticked) | *words only* |
-
-Those are the four rows of the annotator's own split — 47 missed outright, 27 welded into
-the other speaker's turn, 1 invented, 42 words-only — reproduced as a computation. The
-pure-relabel case landing in *words only* is not an approximation: five of her 32 Speaker
-Attribution rows are exactly that, and they sit in her 42.
-
-#### Two things about it that are not negotiable
-
-**It never reads a timestamp.** The reference's word times are interpolated and its
-inserted turns have zero duration (*What this artifact is not*, above), so a grade that
-used them would be grading the interpolation. Words and speaker labels only, which is
-exactly the part of the reference that is trustworthy today. Timing is DER's job, against a
-reference RTTM that does not exist yet.
-
-**The alignment is `difflib.SequenceMatcher` with `autojunk=False`, and that flag is not a
-tuning choice.** The default treats any element appearing in more than 1% of a sequence
-longer than 200 as junk not worth matching on; in fifty minutes of speech *the*, *you* and
-*i* all clear 1% easily, so the default silently refuses to align on the most common words
-in the language and the output is confetti. The alignment is longest-common-subsequence
-rather than minimum-edit-distance, which is what makes it run in seconds on 7,300 words
-with no numpy — it can put a difference boundary a word either side of where a Levenshtein
-alignment would, and never changes what matched.
-
-#### What it cannot produce, and the check that comes free
-
-Three things in the sheet are out of reach, and no amount of work here changes that:
-**Severity** and **Meaning Changed** are judgements about the session rather than
-properties of the text; **one row per error** is a person deciding that one thing happened,
-where this emits one finding per contiguous difference, so adjacent slips may split or
-merge; and **anything in seconds** needs the reference RTTM. So the computed profile is the
-same *kind* of number as hers, not the identical number — compare the profiles, do not
-check them off against each other.
-
-The calibration that *is* free: **grade the arm the log was annotated against.** The
-reference is that arm plus her 117 corrections, so grading it re-derives her sheet from the
-other direction, and `grade_arms` prints the two tallies side by side whenever
-`<stem>.correction_report.json` is on disk. A classifier that disagrees with her about what
-an omission *is* shows up there, before any other cell is believed.
+**Session 1 inverts the talk-time heuristic.** In the reference the *therapist* holds
+**78.6%** of the talk time across 108 turns, against the participant's 21.4% across 107 —
+session 1 is the didactic intro. An independent lexical check agrees with the vote and not
+with talk time: the therapist-mapped cluster asks 3.4× as many questions per sentence and
+uses *you/your* 1.7× as often as *I/my*, while the participant-mapped cluster uses *I/my*
+3.3× as often as *you* and has a median turn of 5 words against 43. Do not map roles by
+talk time.
 
 ### Proposing therapist vs patient
 
 **For any session with an error log, the question above is already answered** — the log
-states the diarizer's own attribution on every speaker-attribution row, and
-`apply_corrections` reads the mapping straight off it with its vote counts as evidence. What
-follows is for the sessions that have no log, which is the point: the pilot has to measure
-whether the mapping can be proposed *without* one.
+states the diarizer's own attribution on every speaker-attribution row, so the mapping is
+read off the sheet rather than inferred. What follows is for the sessions that have no log,
+which is the point: the pilot has to measure whether the mapping can be proposed *without*
+one.
 
 
 Diarization labels are anonymous by construction, so every session needs
@@ -1516,8 +1144,8 @@ of rare tokens vanishes.
 
 ### Mid-session swaps and error rates
 
-Unchanged in intent: flag and correct speaker swaps, then hand-correct a stratified subset
-to estimate WER and DER. The stratification should be driven by the confidence channels
+Flag and correct speaker swaps, then hand-correct a stratified subset to estimate WER and
+DER. The stratification should be driven by the confidence channels
 above — sample deliberately across the `avg_logprob` range and (once retained) across
 `no_speech_prob`, rather than uniformly at random, so the estimate covers the bad audio
 instead of averaging it away.
@@ -1795,12 +1423,10 @@ default and once at a shorter `chunk_size`, and score both against the same turn
 │   ├── artifacts/             # on-disk shapes. STDLIB ONLY — all four envs import these
 │   │   ├── rttm_io.py             # RTTM read/write + turn-table diagnostics
 │   │   ├── naming.py              # <stem>.<arm>.<kind>, parsed and built in one place
-│   │   ├── error_log.py           # Stage 2: the QC spreadsheet export, parsed
 │   │   └── transcripts.py         # load/save, relink_word_segments, tolerant readers
 │   ├── transcript/            # turn grouping, the talk-time table, the readable render
 │   │   ├── turns.py               # collapse consecutive same-speaker segments
 │   │   ├── summary.py             # talk-time shares + the header every job prints
-│   │   ├── corrections.py         # Stage 2: the error log -> a corrected turn list
 │   │   └── render.py              # .diarized.json -> the play-script .txt (+ line index)
 │   ├── asr/                   # Stage 1a, split in two so the typist can be varied
 │   │   ├── typists.py             # the typist registry + the seam's contract (stdlib)
@@ -1810,20 +1436,14 @@ default and once at a shorter `chunk_size`, and score both against the same turn
 │   │   ├── diarizen_arm.py        # arm A; the AHC pin and the sentinel-cluster warning
 │   │   ├── sortformer_arm.py      # arms B and C; .nemo restore, streaming preset
 │   │   └── windowing.py           # arm B's window stitcher (numpy/scipy, no model)
-│   ├── evaluate/              # comparing arms without a reference, and scoring with one
-│   │   ├── labels.py              # aligning arbitrary speaker names across systems
-│   │   ├── compare.py             # the word-level cross-arm diff
-│   │   ├── grade.py               # Stage 2: an arm vs the reference, in her six labels
-│   │   ├── regression.py          # the 1a/1b/1c behaviour-preservation gate
-│   │   └── score.py               # DER + the two therapy measures (diar_eval_env)
+│   ├── evaluate/              # the behaviour-preservation gate
+│   │   └── regression.py          # the 1a/1b/1c behaviour-preservation gate
 │   └── cli/                   # one module per job step; argparse and printing only
 │       ├── transcribe.py          ├── align_words.py      # Stage 1a, split in two
-│       ├── run_asr.py             ├── join_speakers.py    ├── score_arms.py
-│       ├── diarize_pyannote.py    ├── render_transcript.py├── gpu_smoke.py
-│       ├── diarize_diarizen.py    ├── compare_arms.py     ├── warm_align_cache.py
-│       ├── diarize_sortformer.py  ├── check_split_regression.py
-│       ├── apply_corrections.py   # Stage 2: the error log -> the corrected reference
-│       └── grade_arms.py          # Stage 2: every arm -> its error profile
+│       ├── run_asr.py             ├── join_speakers.py    ├── gpu_smoke.py
+│       ├── diarize_pyannote.py    ├── render_transcript.py├── warm_align_cache.py
+│       ├── diarize_diarizen.py    ├── check_split_regression.py
+│       └── diarize_sortformer.py
 ├── scripts/               # shell only; everything Python lives in the package
 │   ├── setup_envs.sh          # builds all four conda prefix envs, each smoke-checked
 │   ├── standardize.sh         # Stage 0: one recording in -> 16 kHz mono WAV beside it
@@ -1831,7 +1451,7 @@ default and once at a shorter `chunk_size`, and score both against the same turn
 ├── slurm_jobs/            # .sbatch job scripts; logs/ gitignored
 │   ├── lib/job_env.sh                    # activate_env / report_gpu / sole_wav / session_stem
 │   ├── run_bakeoff.sh                    # submits the whole 1a -> 1b×N -> 1c chain
-│   ├── run_typist_bakeoff.sh             # submits 1a-i×N -> 1a-ii×N -> join + grade
+│   ├── run_typist_bakeoff.sh             # submits 1a-i×N -> 1a-ii×N -> 1c join
 │   ├── stage1a_asr.sbatch                # 1 GPU
 │   ├── stage1a_transcribe.sbatch         # 1 GPU, env follows the typist
 │   ├── stage1a_align.sbatch              # 1 GPU, always asr_env
@@ -1840,16 +1460,15 @@ default and once at a shorter `chunk_size`, and score both against the same turn
 │   ├── stage1b_diarizen_free.sbatch      # 1 GPU, diarizen_env, shipped config
 │   ├── stage1b_sortformer.sbatch         # 1 GPU, nemo_env, offline + windowed
 │   ├── stage1b_sortformer_streaming.sbatch  # 1 GPU, nemo_env
-│   ├── stage1c_join.sbatch               # NO GPU — join, render, gate, cross-arm diff
-│   ├── stage1c_join_and_grade.sbatch     # NO GPU — the typist bake-off's last two steps
+│   ├── stage1c_join.sbatch               # NO GPU — join, render, regression gate
+│   ├── stage1c_join_cells.sbatch         # NO GPU — one join per typist-grid cell
 │   └── gpu_smoke.sbatch                  # GPU/ctranslate2 sanity job
 ├── tests/                 # pytest over SYNTHETIC transcripts and turn tables — no PHI
 └── phi/                   # raw + derived data — GITIGNORED (PHI)
     ├── inbox/                 # exactly one .wav — the file Stage 1 will process
     ├── stage1/                # Stage 1 output, one set per arm (see the artifact table above)
     │                          #   + the QC error log export the annotator produced
-    └── stage2/                # the corrected reference, its numbers-only report, and
-                               #   one error profile per graded cell of the model grid
+    └── stage2/                # the human-adjudicated reference transcript
 ```
 
 ### Package layout — the two rules that shape it
@@ -1873,12 +1492,11 @@ The layers, from the bottom:
 
 | Layer | Imports | Runs in |
 | --- | --- | --- |
-| `config`, `artifacts/*`, `transcript/*`, `evaluate/compare`, `evaluate/grade`, `evaluate/regression`, `evaluate/labels` | standard library only | all four envs |
+| `config`, `artifacts/*`, `transcript/*`, `evaluate/regression` | standard library only | all four envs |
 | `diarize/windowing` | numpy, scipy | any env with numpy |
 | `asr/align`, `join`, `diarize/pyannote_arm` | whisperx, pyannote.audio | `asr_env` |
 | `diarize/diarizen_arm` | DiariZen + its vendored fork | `diarizen_env` |
 | `diarize/sortformer_arm` | NeMo | `nemo_env` |
-| `evaluate/score` | pyannote.metrics, no torch | `diar_eval_env` |
 | `cli/*` | whichever of the above its step needs | per step |
 
 Every `cli` module is argument parsing, path handling and printing, and nothing else. The
@@ -1895,20 +1513,9 @@ and it runs without the cluster. Run it from the repo root:
 python -m pytest tests -q
 ```
 
-139 tests in `asr_env`; the ones that need `whisperx` skip themselves elsewhere, so the same
-suite runs in torch-free `diar_eval_env` (135 pass there, `test_join.py` skipping as a
-module) and covers the scorer's pure logic.
-`test_corrections.py` is the largest single file in it, and every case in it is one of the
-silent failures in *Five things the sheet does that a careful reader would get wrong* above,
-written down so it cannot come back.
-
-`test_grade.py` is organized by the decision each case pins down rather than by function,
-because the six labels are near-mechanical and every piece of judgement in the grading pass
-is in the other column — did this difference change the turn structure, or only the words.
-Its candidate side always goes through `group_into_turns`, the same call Stage 1c uses, so a
-fixture cannot accidentally assert on a turn arrangement a real transcript could not
-produce. Two of its cases exist only to hold the mapping honest: a perfect transcript with
-the cluster numbers swapped must score zero, and an unlabeled word must vote for no role.
+69 tests in `asr_env`; the ones that need `whisperx` skip themselves elsewhere, so the same
+suite runs in torch-free `diar_eval_env` (65 pass there, `test_join.py` skipping as a
+module).
 
 What it deliberately does **not** cover is anything that needs a model. Whisper's decode,
 pyannote's clustering, DiariZen's VBx and Sortformer's forward pass are exercised only by
@@ -1972,9 +1579,9 @@ paths are **absolute**, and that is the other half of it: a path resolved agains
 directory means a job launched from the wrong place writes session content somewhere nobody is
 looking for it.
 
-The tracked tree carries the numbers *about* the sessions — `*.arm_scores.json`, the job
-logs, the figures — and never the sessions themselves. That is the part that matters,
-because that is what a paper cites.
+The tracked tree carries the numbers *about* the sessions — the job logs, the figures —
+and never the sessions themselves. That is the part that matters, because that is what a
+paper cites.
 
 ### The rest of it
 
@@ -1990,16 +1597,14 @@ because that is what a paper cites.
 - **The rule is written down, and separately it is enforced.** `AI_INSTRUCTIONS.md` opens
   with **The data fence**, which binds any assistant working here whether or not anything
   stops it. Underneath that, a `PreToolUse` guard (`~/.claude/hooks/block-phi.py`)
-  refuses every read of the raw audio, the diarization and ASR output shapes, anything under
-  `phi/` (`stage2/` included, by the same directory rule that covers `stage1/`), and any
-  invocation of `psych_asr.cli.compare_arms` — which prints disputed
-  transcript spans to stdout, so running it counts as a read. Left open on purpose, because
-  refusing more would make the assistant useless on the bake-off: `*.arm_scores.json`
-  (metrics, no text), `slurm_jobs/logs/**` (counts and durations), every pipeline entry
-  point and every job that runs one, and `ls`/`find`/`stat` against the artifacts.
-  Filenames and sizes are not content. The Stage 2 correction report is written to stdout
-  as well as to `phi/stage2/`, for the same reason: the numbers about a session are not the
-  session, and a pass nobody can audit is a pass nobody should trust.
+  refuses every read of the raw audio, the diarization and ASR output shapes, and anything
+  under `phi/` (`stage2/` included, by the same directory rule that covers `stage1/`). A
+  command that prints transcript spans to stdout counts as a read and is refused on the same
+  grounds. Left open on purpose, because refusing more would make the assistant useless on
+  the bake-off: `slurm_jobs/logs/**` (counts and durations), every pipeline entry point and
+  every job that runs one, and `ls`/`find`/`stat` against the artifacts. Filenames and sizes
+  are not content: the numbers about a session are not the session, and a pass nobody can
+  audit is a pass nobody should trust.
 - **The fence turns on where inference runs, not on which model it is.** A hosted assistant
   reading a transcript has transmitted a therapy session to a third party. A model whose
   weights execute on LIBR compute, with no tool-calling surface, is inside the fence, and

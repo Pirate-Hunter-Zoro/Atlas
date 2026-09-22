@@ -4,7 +4,7 @@
 #
 #     large-v3        1a-i transcribe (asr_env)  --> 1a-ii align (asr_env) --+
 #     large-v3-turbo  1a-i transcribe (asr_env)  --> 1a-ii align (asr_env) --+
-#     parakeet        1a-i transcribe (nemo_env) --> 1a-ii align (asr_env) --+--> join + grade
+#     parakeet        1a-i transcribe (nemo_env) --> 1a-ii align (asr_env) --+--> 1c join
 #     canary          1a-i transcribe (nemo_env) --> 1a-ii align (asr_env) --+     (CPU)
 #
 #     ./slurm_jobs/run_typist_bakeoff.sh
@@ -17,10 +17,9 @@
 # this one rather than from a nested loop.
 #
 # THE DEPENDENCY KINDS ARE NOT INTERCHANGEABLE. Each align depends on its own transcribe
-# with afterok -- there are no words to time if the typist crashed. The join-and-grade job
-# depends on every align with AFTERANY, so one typist failing still grades the others; a
-# dead typist then shows up as a missing row in the grid table, which is a result rather
-# than a silent gap.
+# with afterok -- there are no words to time if the typist crashed. The join job depends on
+# every align with AFTERANY, so one typist failing still joins the others; a dead typist
+# then shows up as a missing cell artifact, which is a result rather than a silent gap.
 #
 # EACH JOB GETS ITS OWN LOG. The two 1a .sbatch files name a fixed log path, which is
 # correct when one typist runs and destroys three of four logs when the bake-off does --
@@ -117,11 +116,12 @@ for TYPIST in "${TYPISTS[@]}"; do
 done
 
 DEPENDENCY=$(IFS=:; echo "${ALIGN_JOBS[*]}")
-GRADE_JOB=$(sbatch --parsable --dependency=afterany:"${DEPENDENCY}" \
-    slurm_jobs/stage1c_join_and_grade.sbatch "${NAME_TAGGER}" "${STOPWATCH}")
-printf '%-34s: %s\n' "1c join + Stage 2 grade" "${GRADE_JOB}"
+JOIN_JOB=$(sbatch --parsable --dependency=afterany:"${DEPENDENCY}" \
+    slurm_jobs/stage1c_join_cells.sbatch "${NAME_TAGGER}" "${STOPWATCH}")
+printf '%-34s: %s\n' "1c join cells" "${JOIN_JOB}"
 
 echo ""
 echo "Watch with: squeue -u \$USER"
-echo "The bake-off's answer is the grid table at the end of"
-echo "slurm_jobs/logs/stage1c_join_and_grade_out.txt -- one row per cell, WER first."
+echo "Each cell's artifacts land in data/stage1, named"
+echo "<stem>.<typist>+<stopwatch>+<name-tagger>. The join log is"
+echo "slurm_jobs/logs/stage1c_join_cells_out.txt."

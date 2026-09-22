@@ -84,7 +84,7 @@ def check_segment_contract(segments):
     later. A typist that returns segments out of time order, or with an end before its
     start, would still serialize fine and would still align -- it would simply re-time the
     words against the wrong stretch of audio and produce a transcript that reads plausibly
-    and is wrong by minutes. The grader has no way to see that; this does.
+    and is wrong by minutes. Nothing downstream can see that; this does.
 
     Empty text is allowed through: a VAD chunk with nothing in it is a real thing a typist
     can say, and dropping it silently would change the segment count the log reports.
