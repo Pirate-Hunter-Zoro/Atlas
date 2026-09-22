@@ -33,12 +33,27 @@ test is the ordinary arrangement rather than a leak. An overfitted beta would
 LOWER the held-out AUC, not raise it. The module docstring has this right and
 claims only that the metric is supervised. Nothing needs re-fitting.
 
-**What does move.** 0.594 is plain cosine at k=50 and 0.625 is the weighted
-metric at k=295, so the metric and the neighbourhood size change together and
-neither number separates them. The sweep runs both metrics over the same k --
-`--metrics`, plain cosine being the raw embedding L2-normalised with no
-classifier in it -- and the plain curve is the control that says how much of the
-gap was only k.
+**What moved was k, and it is measured.** The sweep now runs both metrics over
+the same k (`--metrics`; plain cosine is the raw embedding L2-normalised, no
+classifier in it), and it reproduces the published arm exactly at its own
+setting: plain cosine, alpha 5, k=50 gives 0.5939, which is `NEAREST_COSINE` in
+`knn_results.json` to four decimals.
+
+| | plain cosine | importance-weighted |
+| --- | --- | --- |
+| k = 50 | 0.5939 | 0.6038 |
+| own best k | 0.6180 (k=757) | 0.6248 (k=295) |
+
+So of the 0.031 between the published 0.594 and the weighted 0.625, roughly
+0.024 is neighbourhood size and 0.007 is the metric. Paired over the 8,516
+anchors, each arm at its own best k, the metric is worth **+0.0068 (95% CI
+-0.0006 to +0.0141)** and the interval crosses zero.
+
+**The supervised metric buys nothing, so nothing rests on defending it.** k=50
+was the whole story. That result is unsupervised end to end and is the one to
+write up: the inherited neighbourhood size cost more than the metric ever
+returned. Sharpening stays dead in both arms -- alpha 1, 2 and 5 agree to three
+decimals.
 
 **And one real optimism, small.** A best k is the largest of 34,063 held-out
 AUCs, so it is selected on the anchors. The curve is flat from k=261 to the whole
