@@ -75,7 +75,7 @@ strike those.
 
 ## Before anything
 
-- `bash board/test/all.sh` — 89 suites, about twelve minutes. Green before and
+- `bash board/test/all.sh` — 91 suites, about twelve minutes. Green before and
   after.
   The last of them is Paper-Writer's own, run where it is checked out, so the
   factory's tests are part of the board's habit rather than a second one nobody
@@ -494,6 +494,30 @@ as the answer.
   back is read off the reply rather than off the card that was tapped three
   questions earlier. `test/map.js`, `test/address.js`, `test/door.js` and
   `test/aiming.py`.
+
+- **EVERY DOCUMENT A WORKSPACE HAS IS REACHED FROM THE MAP, AND WHICH BOX IT
+  IS UNDER IS DERIVED FROM ITS PATH.** Two ways into one drawer: a count on
+  each box opens that box's documents, — on the map bar opens all of them
+  grouped by box with *Unfiled* last. The drawer is HTML over the plane and no
+  document is ever a node on it, because a diagram is not a list.
+  `course/shelf.py` places `library.documents` by three rules read off each
+  path — the set whose directory holds it or whose write-up it is, the chapter
+  whose number the syllabus lists, the part whose directory is its prefix —
+  joining on the number the syllabus record carries rather than on a node id
+  rebuilt from a directory name. **Nothing is registered**: no index file, no
+  sidecar, no key in `tutorboard.json`, so a document that moves is under a
+  different box on the next read. **A source is one document with the PDF its
+  build wrote**: `build` stays in `reading.IGNORE`, which code workspaces
+  share, and `library._paired_pdf` asks `homework.compiled_pdf` for the stem
+  instead, so a course keeping sources in `homework/` and PDFs in `build/`
+  lists them as built in the library as well as on the map. **The payload
+  carries a per-box count and never the list** — it is rebuilt four times a
+  second — and `GET /shelf.json` is fetched when the drawer opens. **A document
+  is named by a `sid`**, a slug of its filename deduped over paths sorted
+  rather than walk order, shape-guarded at the route and never a path from the
+  client; ink anchors on `doc/<sid>/p<n>`, the same key `/view/doc/<id>` uses,
+  so one document reached two ways keeps one set of marks. `test/shelf.py`,
+  `test/shelf.js`, `test/document.py` and `test/library.py`.
 
 - **A DOCUMENT IS AUDITED AGAINST THE CODE IT DESCRIBES, AND THE CLASS THAT
   PRODUCED MOST OF THE LIES IS NOW A SUITE.** Nineteen readers over the five
