@@ -31,8 +31,12 @@ Every clause of that was true, and there were three separate faults behind it.
 
 So: whether a document exists is a question the payload answers off the files
 (`papers`), the pages are drawn to PNG by the machine that holds the PDF and
-read in a panel the board owns, and both documents are reachable from the ⋯ menu
-whether they were made ten seconds or ten days ago.
+read in a panel the board owns, and a document is reachable whether it was made
+ten seconds or ten days ago -- from the MAP, off a count on the box its source
+lives in, which is `test/shelf.py` and `test/shelf.js`. What is checked here is
+that the two-document panel that used to be the only way back is gone and has
+not grown back: it listed the last thing BUILT rather than an inventory, and a
+course with forty compiled PDFs had thirty-eight of them reachable from nothing.
 
 The rasterising half only runs where this machine has a page renderer; the rest
 is checked either way, because "no renderer here" is a real machine (a Mac
@@ -348,8 +352,22 @@ check("and the banner offers reading as well as keeping",
       'id="pushed-view"' in html and "openPaper(bannerKind)" in js)
 
 # 3. Reachable at any moment, not only in the banner of the build that made it.
-check("the menu carries a documents panel", 'id="btn-papers"' in html
-      and "function openPapers()" in js)
+#
+#    AND NOT FROM A PANEL OF TWO. The ⋯ menu's documents panel offered exactly
+#    the lesson and the write-up, off the payload's `papers` -- the last thing
+#    built, which is not an inventory. It is gone, and the way back to a
+#    document is the map: a count on the box, a tap, `/shelf.json`. Asserted as
+#    an ABSENCE rather than deleted, because a deletion that can silently come
+#    back is a deletion that will.
+check("the two-document panel is gone from the menu",
+      'id="btn-papers"' not in html and 'id="papers"' not in html
+      and 'id="papers-list"' not in html)
+check("and nothing in the board still draws it",
+      "function openPapers(" not in js and "function renderPapers(" not in js
+      and "renderPapers()" not in js)
+check("the way back to a document is the map: a count on a box, and a drawer",
+      'id="shelf"' in html and 'id="map-docs"' in html
+      and "function openShelf(" in js)
 check("which offers to make the one that is not there, so it is never a dead end",
       "compile it now" in js and "export it now" in js)
 

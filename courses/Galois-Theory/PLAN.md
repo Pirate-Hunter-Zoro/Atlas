@@ -1,34 +1,41 @@
 # Plan
 
-Chapter 6, *Ruler-and-compass constructions*. Four book exercises: **6.2, 6.5,
-6.6, 6.7**. Nothing else in Chapter 6 is assigned. 6.1 and 6.3 are drawing
-recipes with no field theory in them; 6.4 follows from 6.2 in two lines. None
-of the three is taught or transcribed.
+The worksheet *Automorphisms, Irreducibility and Splitting Fields*, problems
+7--12, uploaded 2026-09-22 as
+`live/inbox/uploads/20260922-150639-01-Open-folder-Galois-Theory-2.png`
+(problems 7--9) and `-00-Open-folder-Galois-Theory.png` (problems 10--12).
+Chapter 6 is skipped; `DIRECTION.md` is the authority for that.
+
+Four of the six are in scope: **7, 8, 9, 10**. Problems 11 (finite subgroups of
+$K^\times$ are cyclic) and 12 (finite fields as splitting fields) are the
+finite-field pair, need none of the four, and get their own sheet when worked.
 
 ## Order of work
 
-Taught in this order, which is not the book's. The write-up is in the book's
-order regardless.
+Book order, which is also the dependency order.
 
-1. **6.5** --- $(2^{1/3},0)$ is not constructible. Theorem 6.1 applied
-   directly: $x^{3}-2$ is Eisenstein at $2$, so $[\mathbb{Q}(2^{1/3}):\mathbb{Q}]=3$,
-   which is not a power of $2$. The warm-up, and the whole method in one page.
-2. **6.6** --- no regular nonagon, no regular heptagon. (a) is the trisection
-   argument of Section 6.2 reused: the nonagon gives $\cos(\pi/9)$, of degree
-   $3$. (b) needs the degree of $\cos(2\pi/7)$, which is $3$ as well.
-3. **6.2** --- given $(\ell,0)$ constructible, construct $(\sqrt{\ell},0)$ and
-   $(\ell^{2},0)$. The converse direction: the semicircle-and-altitude picture
-   for the square root, similar triangles for the square.
-4. **6.7** --- $[\mathbb{Q}(x,y):\mathbb{Q}]=2$ forces $(x,y)$ constructible,
-   then the induction up a tower of quadratic steps. Last, and it runs on 6.2.
+1. **7** --- an automorphism sends a root of $f \in F[x]$ to a root of $f$;
+   $\sigma$ is determined by its values on generators; hence
+   $\operatorname{Aut}(\mathbb{Q}(\zeta_n)/\mathbb{Q})$ injects into
+   $(\mathbb{Z}/n\mathbb{Z})^\times$ and has order at most $\varphi(n)$.
+2. **8** --- conjugate roots give a unique isomorphism $F(\alpha) \to F(\beta)$;
+   $\Phi_p$ is irreducible over $\mathbb{Q}$; the injection of 7(c) is onto for
+   $n = p$.
+3. **9** --- the whole machine on $x^4+1$ and $\zeta_8$: degree 4, the three
+   quadratic factorisations, $K = \mathbb{Q}(i,\sqrt2)$, and the three
+   order-2 automorphisms with their fixed fields.
+4. **10** --- the splitting field of $x^3-2$ is $\mathbb{Q}(\sqrt[3]{2},\zeta_3)$
+   of degree 6, the general $x^n - a$, and $\operatorname{Aut}(E/\mathbb{Q})$
+   inside $S_3$.
 
 ## Write-up
 
 One file:
-`chapters/ch06-ruler-and-compass-constructions/homework/ch06-homework.tex`.
-`board hw use ch06` pins a sitting to it. All four statements are transcribed
-with empty solution regions, labelled `06.2`, `06.5`, `06.6`, `06.7` in book
-order; the file builds to 1 page with 0 warnings.
+`homework/worksheet-automorphisms-splitting-fields/worksheet-automorphisms-splitting-fields.tex`.
+`board hw use worksheet-automorphisms-splitting-fields` pins a sitting to it.
+All fourteen lettered parts of 7--10 are transcribed with empty solution
+regions, labelled `7(a)` through `10(d)` in the sheet's order; the file builds
+to 2 pages with 0 warnings.
 
 A solution region is filled in the same turn the answer is agreed, not at the
 end of the sitting. The student's own argument goes in, in their steps.
@@ -39,5 +46,7 @@ or the report is wrong.
 
 ## What is closed
 
-Chapter 5 is not this chapter's business. The field-extensions worksheet under
-`homework/worksheet-field-extensions/` is a separate set and is not in scope.
+Chapter 6 is out of scope. `chapters/ch06-ruler-and-compass-constructions/`
+holds four transcribed statements with empty regions and is left as it stands.
+The earlier sheet under `homework/worksheet-field-extensions/` (problems 1--6,
+which this one references) is a separate set and is not in scope.
