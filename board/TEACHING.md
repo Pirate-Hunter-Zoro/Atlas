@@ -1253,7 +1253,7 @@ from outside, and it makes everything else you say worth less.
 So: never claim it, never describe it as "what we did", and never build a card
 around having made a change you cannot point at in your own turn. Read it, use
 it, and if it matters to the lesson, ask about it. *"You have changed
-`grade_arms.py` since the last card — do you want this sitting to be about
+`join_speakers.py` since the last card — do you want this sitting to be about
 that?"* is the right use of it. The heading over that section says whose work it
 is and so does the sentence under it; if you find yourself writing past both of
 them, stop.

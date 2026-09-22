@@ -432,6 +432,9 @@ print()
 # already attached, so it reported "no tutors were attached" and moved on. The
 # lesson sat on the iPad with nothing listening to it.
 
+import contextlib                                            # noqa: E402
+import io as _io                                             # noqa: E402
+
 away = tempfile.mkdtemp(prefix="tutor-away-")
 away_root = os.path.join(away, "Fake-Course")
 away_live = os.path.join(away_root, "live")
@@ -521,6 +524,26 @@ try:
     check("and starts one when the record names a process that is gone",
           tutor.cmd_agent(AWAY_CFG, ["ensure", "Fake-Course"]) == 0
           and started == ["Fake-Course"])
+
+    # WHICH ASSISTANT THIS WORKSPACE RUNS WHEN NOBODY NAMES ONE, asked rather
+    # than worked out a second time. A mission that STARTS an assistant gives
+    # it back when it ends and an assistant a person chose stays, so the board
+    # has to know which name the configuration would have produced -- and
+    # `resolve_agent` is the one place those five layers live.
+    out = _io.StringIO()
+    with contextlib.redirect_stdout(out):
+        code = tutor.cmd_agent(AWAY_CFG, ["which", "Fake-Course"])
+    check("the launcher will say which assistant a workspace runs, and say "
+          "nothing else, because the board reads this rather than a person",
+          code == 0 and out.getvalue() == "claude\n")
+
+    out = _io.StringIO()
+    with contextlib.redirect_stdout(out):
+        code = tutor.cmd_agent(dict(AWAY_CFG, default_agent="nonesuch"),
+                               ["which", "Fake-Course"])
+    check("and an empty line where the configuration resolves to nothing, "
+          "rather than a name nothing can run",
+          code == 0 and out.getvalue() == "\n")
 finally:
     for k, v in real.items():
         setattr(tutor, k, v)
@@ -532,8 +555,6 @@ finally:
 # And `tutor where` is where a person asks. It read the pid against THIS
 # machine's process table, so a daemon listening perfectly well on the node the
 # board is on came back as `stale` -- on the machine they type the question on.
-import contextlib                                            # noqa: E402
-import io as _io                                             # noqa: E402
 
 seen = tempfile.mkdtemp(prefix="tutor-where-")
 seen_live = os.path.join(seen, "Away-Course", "live")

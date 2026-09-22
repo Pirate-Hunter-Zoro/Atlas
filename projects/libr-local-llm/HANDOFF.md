@@ -63,19 +63,21 @@ below existed, and running it is also the only real test of that machinery.
 The agent can read `phi` — that is the entire reason this exists, and it is why `coli-code` gives
 the client a fresh config directory with no PHI hook in it.
 
-## How it is scored, without anybody rereading the session
+## What came of it, and what is still open
 
-A number, not a judgement:
+**The reference exists and it is a human-adjudicated artifact.** colibri built it from the
+community-1 baseline and the annotator's error log, across ten hours and two node hops, and
+the annotator approved it. It is the reference because she says it is. It lives under `phi/`,
+outside git and inside the fence.
 
-```
-python3 -m psych_asr.cli.apply_corrections --dry-run --anonymise
-```
+**Nothing in `psych_asr/` builds it, reads it or reproduces it.** The correction algorithm,
+the error-log reader, the grader and the scorers are deleted. A placement rule that could not
+place two of 117 rows was doing a job that turned out to be judgement rather than code, and
+the judgement is the annotator's.
 
-Counts, spreadsheet row numbers and seconds, naming the participant nowhere. **Before:
-`unplaced_rows` is `[16, 32]`, `within_2s` is 68 of 74, stray marks are at zero.** A reconstruction
-is better if those move the right way. That is what makes a rule colibrì proposes checkable by
-somebody not cleared for what it was tested on — including whichever hosted assistant reviews the
-algorithm afterwards.
+**So there is no number here any more.** A run is not scored by this file; it is adjudicated
+by a person. **How an arm is measured against that reference is an open decision** and it may
+not turn out to be code -- asking colibri again is a live option.
 
 `research/PSYCH-ASR/HANDOFF.md` holds the teaching thread on the same code and is a different
 conversation; do not merge them.

@@ -157,62 +157,7 @@ build at all.
 
 ## What to do next
 
-### 1. Put colibrì on the diarization repair, which is what all of the above is for — THE IPAD'S
-
-It is now the acceptance test of a mission — the record and the ship both — as
-well as the job that has been waiting since before any of this existed. **The
-ask, the scoring and the numbers to beat are in
-`projects/libr-local-llm/HANDOFF.md`**, in the owner's own
-words; they are not repeated here, because a number in two files is a number
-that goes stale in one of them.
-
-**Everything in front of the dispatch is done, and the dispatch is one tap.**
-The server is warm, `PSYCH-ASR` has nothing attached to it, and the baseline
-reproduces exactly as that file records it — rows 16 and 32 unplaced, 68 of 74
-within 2s, marks 0 → 0, confirmed on 2026-09-18 with
-`apply_corrections --dry-run --anonymise`, which is stdlib-only and sub-second
-and can be run by anybody. So: **⇥ put an assistant to work elsewhere** →
-`PSYCH-ASR` → `colibri`, with the ship switch on, and the ask is the two
-sections of that file named above. A session working from a keyboard cannot do
-this part: the dispatch is refused here as PHI handling, correctly, because
-what it does is point an assistant at a fenced directory, and the iPad is a
-person deciding rather than an assistant acting. **Check the server is still up
-first** — `coli` says, in one line, and now also says how many minutes that
-generation has left and whether one is queued behind it. Nothing is holding the
-dispatch any more: the A/B that owned `.coli_usage` is finished — see MTP under
-Settled. **Dispatch it whenever you like.** The server moves node rather than
-going away (see THE CHAIN under Settled) and the mission crosses the hop with
-it: the client exits 75, the daemon re-queues the same task with `--continue`,
-and where the board hopped in the same minute the next board's hub derives the
-pick-up off the record. Eighteen hours of budget and six pick-ups bound it —
-see A COLIBRÌ MISSION CROSSES THE NODE under Settled.
-
-Three things about running it that are the board's rather than that file's:
-
-- **Start it early because it is cheaper, not because it has to finish
-  tonight.** The first turn is hours rather than minutes — a 15,900-token
-  preamble at a few tokens a second of prefill — and after it the KV prefix
-  carries the preamble. The thing not to do is kill it at ninety minutes and
-  start again; that is the whole cost, paid twice.
-- **Nothing on the board will kill the turn.** The `colibri` recipe carries an
-  eight-hour `timeout` that `turn_timeout` takes as a floor, and the daemon's beat
-  thread keeps the indicator green throughout. What kills the TURN is the serve
-  job's walltime, which the record carries as a ceiling and says out loud when
-  it passes — and the turn is not the mission: the work is picked up on the
-  successor rather than ending there.
-- **`PSYCH-ASR` is the only kind of workspace it will open in**, because a colibrì
-  sitting refuses where a card of its own would be committed and that workspace
-  ignores `live/*` while a course does not.
-
-`research/PSYCH-ASR/HANDOFF.md` holds the *teaching* thread on the same code; it
-is a different conversation and the two do not merge.
-
-**The contract clause that blocked this is reconciled, and the reason it took a
-build is that the old justification was false.** See EGRESS under Settled. The
-short of it: the mission is admissible now because a guard refuses everything
-that could carry PHI off the node, not because the node cannot reach anything.
-
-### 2. Ask GitHub to collect the instructor slides, which the rewrite did not reach — A KEYBOARD
+### 1. Ask GitHub to collect the instructor slides, which the rewrite did not reach — A KEYBOARD
 
 **The seventeen decks and sheets are out of every commit here and off `main`, and
 GitHub still serves all seventeen at the pre-rewrite SHA.** A raw fetch of
@@ -235,7 +180,7 @@ Until one of those lands, treat the decks as published. Nothing else is
 outstanding: `.gitignore` refuses them, `test/tracked.py` refuses them for every
 course, and the files are on disk where the board reads them.
 
-### 3. And the five things no test can hold — THE IPAD'S
+### 2. And the five things no test can hold — THE IPAD'S
 
 None of these is a build. Each is an evening in front of the thing.
 
@@ -320,6 +265,22 @@ as the answer.
 ---
 
 ## Settled, so nobody re-derives it
+
+- **THE DIARIZATION REFERENCE IS A HUMAN-ADJUDICATED ARTIFACT, AND NOTHING IN
+  THE TREE BUILDS IT.** colibrì made it from the community-1 baseline and the
+  annotator's error log across ten hours and two node hops; the annotator
+  approved it. It is the reference because she says it is. It lives under
+  `phi/`, outside git and inside the fence, so **every downstream number rests
+  on a file git cannot see and no assistant working here can read** —
+  `research/PSYCH-ASR/HANDOFF.md` carries the provenance because nothing else
+  can. The correction algorithm, the error-log reader, the grader, the DER
+  scorer and the reference-free arm comparison are all gone, with their decks
+  and their tests: a placement rule that could not place two of 117 rows was
+  doing a job that turned out to be judgement rather than code. **How an arm is
+  measured against that reference is an open decision and waits on nothing but
+  the owner** — it may not turn out to be code either. What survives is the
+  Stage 1 pipeline, the renderer `join_speakers` needs, and the split-regression
+  gate.
 
 - **A COLIBRÌ MISSION CROSSES THE NODE THE WAY THE SERVER DOES, AND TWO
   DRIVERS CARRY IT.** The client is a step of the serve job's allocation and

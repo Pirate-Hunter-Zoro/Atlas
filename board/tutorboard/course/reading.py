@@ -5,7 +5,7 @@ the compiled write-up. Both are events -- something was built, and here it is.
 
 This is the other kind, and it is the one a project has: **a document that was
 written months ago and explains how the thing works.** PSYCH-ASR's
-`stage2_reference_walkthrough` is 33 slides on exactly the machinery its owner
+`stage1_pipeline_walkthrough` is a deck on exactly the machinery its owner
 says he cannot follow, its own README says to read it first if you want the state
 of the project in half an hour, and there was no way to put a page of it on the
 board. So it was read on a laptop, in a PDF viewer, beside a lesson on an iPad --
@@ -56,7 +56,7 @@ MIN_BYTES = 20000
 MAX_DOCS = 24
 
 # How deep to look. A deck lives in a project directory one or two levels down
-# -- `psych-asr-feasibility/stage2_reference_walkthrough.pdf` -- and nothing
+# -- `research/PSYCH-ASR/docs/stage1_pipeline_walkthrough.pdf` -- and nothing
 # worth showing is buried five deep.
 MAX_DEPTH = 3
 
@@ -74,8 +74,8 @@ NOT_OURS = ("references", "reference", "library", "papers", "reading",
 def _pretty(path):
     """What to call a document in a drawer.
 
-    The filename, unpunctuated. `stage2_reference_walkthrough.pdf` becomes
-    `stage2 reference walkthrough`, which is what its author calls it out loud
+    The filename, unpunctuated. `stage1_pipeline_walkthrough.pdf` becomes
+    `stage1 pipeline walkthrough`, which is what its author calls it out loud
     and is the only name anybody would recognise it by.
     """
     stem = os.path.splitext(os.path.basename(path))[0]

@@ -2280,7 +2280,7 @@ def agent_stop(course, wait=False):
 
 
 def cmd_agent(cfg, args):
-    """tutor agent status|start|ensure|stop [course]
+    """tutor agent status|start|ensure|stop|which [course]
 
     The board drives this when a course is opened or left. Each course keeps its
     own assistant: they are cheap while idle, and one that survives being left
@@ -2308,6 +2308,19 @@ def cmd_agent(cfg, args):
         code, msg = agent_stop(course, wait="--wait" in args)
         print(msg, file=sys.stderr if code else sys.stdout)
         return code
+
+    if sub == "which":
+        # WHICH ASSISTANT THIS WORKSPACE RUNS WHEN NOBODY NAMES ONE.
+        #
+        # `resolve_agent` is the one place the precedence lives, and a dispatch
+        # has to know the answer: an assistant it STARTS for a mission is the
+        # mission's and is given back when the mission ends, while the
+        # workspace's own stays. A second copy of five layers in the server is
+        # a second copy that drifts. Nothing but the name on stdout, and an
+        # empty line where the configuration resolves to nothing, because the
+        # board reads this rather than a person.
+        print(resolve_agent(cfg, course, say=lambda m: None) or "")
+        return 0
 
     if sub == "ensure":
         # `start` that says nothing when there was nothing to do. This is what

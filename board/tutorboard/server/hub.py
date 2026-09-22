@@ -216,6 +216,20 @@ class Hub:
                 spawn.carry_missions()
             except Exception:
                 pass
+
+            # AND A MISSION THAT BROUGHT ITS OWN ASSISTANT AND HAS ENDED.
+            #
+            # Here for the reason the two lines above are, and AFTER them: a
+            # release must not empty a workspace between a ship being owed and
+            # the turn that pushes it being woken. Throttled inside
+            # `release_missions`, and each release is claimed with an exclusive
+            # create, so every board running this loop gives each assistant
+            # back exactly once.
+            try:
+                spawn.release_missions()
+            except Exception:
+                pass
+
             try:
                 data = self.build()
                 # The digest covers content only; seq is stamped afterwards, or

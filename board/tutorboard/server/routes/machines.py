@@ -518,6 +518,10 @@ def post(h, repo, path):
         # stopping colibrì to hand colibrì a job throws away a warm prefix that
         # costs hours to rebuild.
         holds = missions.holder(match["root"])
+        # WHAT WAS THERE BEFORE THIS TAP, kept, because it is what decides
+        # whether the assistant this dispatch ends up with is the MISSION'S or
+        # somebody's. See the `brought` note further down.
+        was_holding = holds
         stopped = ""
         if agent and holds and holds != agent:
             keep = swap_blocked(match, holds)
@@ -656,9 +660,24 @@ def post(h, repo, path):
             left = (colibri.status() or {}).get("left")
             if left:
                 ceiling = time.time() + float(left)
+        # AND WHETHER THIS DISPATCH BROUGHT THE ASSISTANT WITH IT, which is the
+        # one fact about it that cannot be worked out afterwards: an assistant
+        # started FOR a mission is released when the mission ends, an assistant
+        # a person chose stays, and after the fact both are the same name in
+        # the same `agent.json`.
+        #
+        # Named, and not already there. Those two together are the whole of it.
+        # A mission that named nobody took whoever was listening and has
+        # nothing to give back; a mission that named the assistant already
+        # sitting there did not put it there, and somebody else's choice is not
+        # this mission's to undo. Whether the name is ALSO the one the
+        # workspace runs by default is asked at the release, off
+        # `resolve_agent`, because that is the moment the answer has to be true.
+        brought = agent if agent and was_holding != agent else ""
         rec = missions.dispatch(match["root"], task=task, turn=tid,
                                 agent=agent, ship=bool(payload.get("ship")),
-                                frm=atlas.identify(repo.root), ceiling=ceiling)
+                                frm=atlas.identify(repo.root), ceiling=ceiling,
+                                brought=brought)
         # AND NOW THE INBOX LINE, WHICH IS THE WAKING. `board wait` polls this
         # file four times a second, so everything the woken turn reads about
         # itself is on disk before it lands. The line is their words and

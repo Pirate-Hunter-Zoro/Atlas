@@ -437,6 +437,16 @@ try:
           "one that answers the line",
           "t0056" in [h["mission"] for h in woke]
           and stops and starts and stops[0] < starts[0])
+    # AND THE PICK-UP IS WHAT PUT THAT ASSISTANT THERE, recorded, because a
+    # release reads it: an assistant started FOR a mission is given back when
+    # the mission ends, and the node the dispatch's one was on has gone. The
+    # record said the mission brought nobody -- it took whoever was listening
+    # -- and this hop is the moment that stops being true.
+    check("a pick-up records that it brought the assistant, so the workspace "
+          "is given back when the mission ends rather than left holding one "
+          "nobody asked for",
+          [m.get("brought") for m in missions.stored(psych)
+           if m["id"] == "t0056"] == ["colibri"])
 
     # WHICH MISSION THE DEAD TURN WAS ON. A daemon answers one workspace and a
     # workspace runs one mission at a time, so the newest OPEN record is it --

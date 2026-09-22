@@ -1219,6 +1219,274 @@ try:
               "ships it where it stands",
               [h["agent"] for h in handed] == ["codex"]
               and not any(a[:2] == ["agent", "stop"] for a in ran))
+
+        # ------------------------------------------------------------------
+        # AND A MISSION GIVES THE WORKSPACE BACK WHEN IT ENDS
+        # ------------------------------------------------------------------
+        #     "Make missions release the workspace."
+        #
+        # A colibri mission ran ten hours in a fenced workspace, shipped, and
+        # was marked done -- and colibri stayed on as that workspace's tutor.
+        # The board's allocation hopped, the watchdog brought the tutor back,
+        # and with no mission open the workspace fell into an ordinary sitting:
+        # two hours of a shared node spent writing a lecture nobody asked for,
+        # and the warm KV prefix that makes the NEXT mission affordable evicted
+        # to pay for it.
+        #
+        # AN ASSISTANT STARTED FOR A MISSION BELONGS TO THE MISSION. AN
+        # ASSISTANT A PERSON CHOSE STAYS. Both are the same name in the same
+        # `agent.json` afterwards, so `brought` is written when one is started
+        # and everything here reads it rather than deriving it.
+        from tutorboard import supervise as _sup              # noqa: E402
+        import importlib.machinery                            # noqa: E402
+        import importlib.util                                 # noqa: E402
+
+        _ld = importlib.machinery.SourceFileLoader(
+            "tutor", os.path.join(ROOT, "bin", "tutor"))
+        _tutor = importlib.util.module_from_spec(
+            importlib.util.spec_from_loader("tutor", _ld))
+        _ld.exec_module(_tutor)
+
+        # Off the missions every check above left on disk: a release sweep
+        # walks every workspace on the machine, and what is guarded here is one
+        # workspace at a time.
+        for _r in (psych, trd, galois):
+            _d = os.path.join(_r, "live", "missions")
+            for _n in (os.listdir(_d) if os.path.isdir(_d) else []):
+                os.remove(os.path.join(_d, _n))
+
+        held = os.path.join(base, "research", "HELD")
+        write(os.path.join(held, "tutorboard.json"),
+              json.dumps({"name": "HELD"}))
+        os.makedirs(os.path.join(held, "live", "cards"), exist_ok=True)
+        atlas.forget()
+        machines._ATLAS["value"] = None
+
+        def attach(who, **kw):
+            rec = {"agent": who, "state": "listening", "pid": os.getpid(),
+                   "turns": 1, "last_seen": time.time(),
+                   "host": machine.node_name(), "mode": "headless"}
+            rec.update(kw)
+            write(os.path.join(held, "live", "agent.json"), json.dumps(rec))
+            return rec
+
+        def detach():
+            """What `agent_stop` leaves behind, written by the line that writes
+            it: the daemon's own last act, merged over the record it was
+            listening under. Not a record shaped like one by hand -- the whole
+            claim being made is about what `bin/tutor` actually leaves."""
+            return _tutor.agent_state(os.path.join(held, "live"),
+                                      state="stopped", stopped_at=time.time())
+
+        attached = [""]
+        left = {}
+
+        def launcher(configured="claude"):
+            def run(args, timeout=30):
+                ran.append(list(args))
+                if args[:2] == ["agent", "which"]:
+                    return 0, configured + "\n"
+                if args[:2] == ["agent", "stop"]:
+                    left["rec"] = detach()
+                    attached[0] = ""
+                    return 0, "wrapping up"
+                if args[:2] == ["agent", "start"]:
+                    who = (args[args.index("--agent") + 1]
+                           if "--agent" in args else configured)
+                    attached[0] = who
+                    attach(who, state="waking", waking_at=time.time())
+                    return 0, "%s starting" % who
+                return 0, ""
+            return run
+
+        def sweep(now=None):
+            ran[:] = []
+            left.clear()
+            _spawn._RELEASES["at"] = 0.0
+            return _spawn.release_missions(now)
+
+        def ended(mid, **kw):
+            """One mission in HELD, frozen `done`, with the record it needs."""
+            for name in os.listdir(os.path.join(held, "live", "missions")) \
+                    if os.path.isdir(os.path.join(held, "live", "missions")) \
+                    else []:
+                os.remove(os.path.join(held, "live", "missions", name))
+            rec = {"id": mid, "task": "repair the diarization", "agent": "colibri",
+                   "at": time.time() - 600, "ship": False, "from": "", "host": "",
+                   "card_at": 0.0, "ceiling": 0.0, "ended": "done",
+                   "ended_at": time.time() - 60, "reason": "", "looked": 0.0,
+                   "shipped": 0.0, "brought": "colibri", "released": 0.0}
+            rec.update(kw)
+            missions.write(held, rec)
+            # And an inbox nothing is owed out of. A line handed in and not
+            # picked up is its own refusal -- checked below, once, rather than
+            # accidentally in every case after it.
+            open(_repo.Repo(held).messages_path, "w").close()
+            return rec
+
+        # THE DISPATCH IS WHERE `brought` IS DECIDED, and it is decided on what
+        # the dispatch actually did rather than on what it asked for.
+        _spawn.tutor_cli = launcher()
+        attached[0] = ""
+        try:
+            os.remove(os.path.join(held, "live", "agent.json"))
+        except OSError:
+            pass
+        status, body = send({"repo": "HELD", "agent": "colibri",
+                             "task": "repair the diarization"})
+        first = body.get("mission")
+        check("a dispatch that starts an assistant in an empty workspace "
+              "records that the mission brought it",
+              status == 200
+              and [m["brought"] for m in missions.stored(held)
+                   if m["id"] == first] == ["colibri"])
+
+        status, body = send({"repo": "HELD", "agent": "colibri",
+                             "task": "and the second pass"})
+        second = body.get("mission")
+        check("and a dispatch that names the assistant already listening "
+              "brought nothing, because somebody else's choice is not this "
+              "mission's to undo",
+              status == 200
+              and [m["brought"] for m in missions.stored(held)
+                   if m["id"] == second] == [""])
+
+        # A LINE HANDED IN THAT NOTHING HAS PICKED UP. The two dispatches above
+        # each left one, which is by construction work no assistant has taken:
+        # a release now would empty the workspace under it.
+        missions.write(held, dict(missions.stored(held)[0], ended="done",
+                                  ended_at=time.time() - 60,
+                                  brought="colibri", released=0.0))
+        attach("colibri")
+        attached[0] = "colibri"
+        check("a line handed in to that workspace and not picked up holds the "
+              "release, because a new assistant there would answer work meant "
+              "for the one being let go",
+              sweep() == []
+              and not any(a[:2] == ["agent", "stop"] for a in ran))
+
+        # THE RELEASE ITSELF. The mission has ended, the assistant it brought
+        # is still sitting there, and nobody is in that workspace.
+        attach("colibri")
+        attached[0] = "colibri"
+        rec = ended("t0800")
+        got = sweep()
+        check("a mission that ended gives back the assistant it brought",
+              [g["mission"] for g in got] == ["t0800"]
+              and ["agent", "stop", "HELD", "--wait"] in ran)
+        check("and what it leaves attached is the workspace's own assistant, "
+              "named by the configuration rather than by the sweep",
+              ["agent", "start", "HELD", "--respawn"] in ran
+              and "--agent" not in [a for r in ran for a in r]
+              and got[0]["back"] == "claude")
+        check("and the record the stop left behind is one the watchdog reads "
+              "as a person saying no, so nothing revives what was let go",
+              _sup.tutor_verdict(left["rec"], machine.node_name(),
+                                 False) == "stopped")
+        check("and the release is stamped, so a person can read that it went",
+              [m["released"] > 0 for m in missions.stored(held)
+               if m["id"] == "t0800"] == [True])
+
+        # ONCE, ACROSS EVERY BOARD ON THE MACHINE.
+        attach("colibri")
+        attached[0] = "colibri"
+        check("a second board sweeping the same ended mission releases "
+              "nothing, because the release was already claimed",
+              sweep() == [] and ran == [])
+
+        # AND THE ASSISTANT THE WORKSPACE IS CONFIGURED FOR IS NOT RELEASED.
+        # Stopping it to start the same one again throws away a warm prefix to
+        # prove a point.
+        _spawn.tutor_cli = launcher(configured="colibri")
+        ended("t0801")
+        attach("colibri")
+        attached[0] = "colibri"
+        check("an assistant the workspace runs when nobody names one is left "
+              "exactly where it is",
+              sweep() == []
+              and not any(a[:2] == ["agent", "stop"] for a in ran))
+        check("and it is not asked about again, because that answer does not "
+              "change while the mission stays ended",
+              [m["released"] > 0 for m in missions.stored(held)
+               if m["id"] == "t0801"] == [True])
+
+        _spawn.tutor_cli = launcher()
+        # AND ONE SOMEBODY SWAPPED IN BY HAND IS THEIRS.
+        ended("t0802")
+        attach("codex")
+        attached[0] = "codex"
+        check("an assistant somebody put there while the mission ran survives "
+              "the mission ending, because it is not the mission's to give back",
+              sweep() == []
+              and not any(a[:2] == ["agent", "stop"] for a in ran))
+
+        # A TURN IN FLIGHT IS SOMEBODY'S. The same line `swap_blocked` draws
+        # for a dispatch, and the same one `ship_missions` draws.
+        ended("t0803")
+        attach("colibri", state="working", turn_started=time.time())
+        attached[0] = "colibri"
+        check("a workspace mid-turn keeps its assistant, because that turn was "
+              "asked for by somebody",
+              sweep() == []
+              and not any(a[:2] == ["agent", "stop"] for a in ran))
+        check("and nothing is claimed either, so the release happens on a "
+              "later pass rather than being spent on a refusal",
+              [m["released"] for m in missions.stored(held)
+               if m["id"] == "t0803"] == [0.0])
+
+        # SOMEBODY'S OWN SITTING IS NOT A DAEMON.
+        ended("t0804")
+        attach("colibri", mode="interactive")
+        attached[0] = "colibri"
+        check("a sitting somebody is typing in is never closed under them",
+              sweep() == []
+              and not any(a[:2] == ["agent", "stop"] for a in ran))
+
+        # A SECOND MISSION STILL OPEN IN THE SAME WORKSPACE.
+        ended("t0805")
+        missions.write(held, {"id": "t0806", "task": "and the next one",
+                              "agent": "colibri", "at": time.time(),
+                              "ship": False, "ended": "", "ended_at": 0.0,
+                              "reason": "", "looked": 0.0, "shipped": 0.0,
+                              "card_at": time.time(), "ceiling": 0.0,
+                              "brought": "", "released": 0.0})
+        attach("colibri")
+        attached[0] = "colibri"
+        check("a second mission still open in that workspace holds the "
+              "release, because stopping its assistant would fail it",
+              sweep() == []
+              and not any(a[:2] == ["agent", "stop"] for a in ran))
+
+        # AND A SHIP THAT HAS NOT BEEN HANDED TO ANYBODY YET.
+        ended("t0807", ship=True)
+        attach("colibri")
+        attached[0] = "colibri"
+        check("a mission owed a ship keeps its assistant until the push has "
+              "been handed over, so the workspace is not emptied under it",
+              sweep() == []
+              and not any(a[:2] == ["agent", "stop"] for a in ran))
+        ended("t0807", ship=True, shipped=time.time())
+        attach("colibri")
+        attached[0] = "colibri"
+        check("and once the ship is claimed the release goes ahead",
+              [g["mission"] for g in sweep()] == ["t0807"]
+              and ["agent", "stop", "HELD", "--wait"] in ran)
+
+        # A MISSION THAT FAILED LEFT AN ASSISTANT ATTACHED JUST AS SURELY.
+        ended("t0808", ended="failed", reason="exit 1", ship=True)
+        attach("colibri")
+        attached[0] = "colibri"
+        check("a mission that failed releases too, and does not wait for a "
+              "ship that is never coming",
+              [g["mission"] for g in sweep()] == ["t0808"])
+
+        # AND A MISSION THAT BROUGHT NOBODY NEVER COMES UP AT ALL.
+        ended("t0809", brought="")
+        attach("colibri")
+        attached[0] = "colibri"
+        check("a mission that took whoever was listening has nothing to give "
+              "back and is not on the list",
+              [m["id"] for _, m in missions.releasable()] == [])
         _assist.forget()
     finally:
         _spawn.tutor_cli = real_tutor_cli

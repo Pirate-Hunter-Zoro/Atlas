@@ -446,6 +446,48 @@ for. The switch says so on the glass, because *ship it* otherwise reads as *and 
 - **The mission's job ends when the ship is handed over.** What the push then did is `push.json`,
   which the board already paints. One surface per fact.
 
+### And a mission gives the workspace back when it ends
+
+**The want:** *"Make missions release the workspace."*
+
+**An assistant started FOR a mission belongs to the mission and is released when the mission ends.
+An assistant a person chose stays.** Both are the same name in the same `agent.json` afterwards, so
+the difference is carried in the record: `brought` is written by whatever started it — the dispatch,
+or a pick-up after a hop — and is `""` where the mission took whoever was already listening.
+
+What it costs to leave one attached: a colibrì mission ran ten hours in a fenced workspace, shipped,
+and was marked done, and colibrì stayed on as that workspace's tutor. The board's allocation hopped,
+the watchdog brought the tutor back, and with no mission open the workspace fell into an ordinary
+sitting — two hours of a shared node spent on a lecture nobody asked for, and the warm KV prefix that
+makes the *next* mission affordable evicted to pay for it.
+
+`spawn.release_missions` is the sweep, beside `ship_missions` and `carry_missions` in the hub's poll
+loop and after both.
+
+- **What a release leaves is the workspace's own assistant**, not an empty workspace: one with
+  nothing attached does not answer a message anybody hands in to it, and `spawn.wake_tutor` reaches
+  only the workspace the board it runs in is serving. The start names nobody, so `resolve_agent`
+  answers — `tutor agent which` is how the board asks, because five layers of precedence copied into
+  the server is a second copy that drifts.
+- **The stop is a stop rather than a handover**, which is what makes it hold. `agent_stop` leaves
+  `state: stopped` with no `handover`, and `supervise.tutor_verdict` reads that as a person saying
+  no and never revives it.
+- **Refused for every reason a dispatch may not swap the assistant**, through the same
+  `swap_blocked`: somebody looking at that board, a turn in flight, somebody's own sitting, another
+  mission still open, a line handed in that nothing has picked up. A refusal claims nothing, so the
+  release happens on a later pass instead of being spent.
+- **And refused before a ship has gone.** `done` and owed a ship and not yet claimed is a workspace
+  about to be looked for; emptying it under that is the ship landing nowhere.
+- **Only an assistant the mission brought.** Whoever is *actually* attached has to be that name —
+  one somebody swapped in by hand while the mission ran is theirs — and it must not be the one the
+  workspace runs by default, because stopping that to start it again throws away a warm prefix to
+  prove a point. Both of those close the record so no board asks again.
+- **Once, across every board on the machine**, claimed with an `O_EXCL` create the way a ship is,
+  and claimed *before* the stop rather than after: two boards both deciding on a ship write an inbox
+  line twice, two both deciding on a release signal a daemon the first already replaced.
+- **Either ending.** A mission that failed left an assistant attached just as surely as one that
+  finished, and waiting for a ship that is never coming would hold it for the week the record lives.
+
 ### What leaves this machine, and the check git cannot make
 
 `board push` and the save button both run what they are about to commit past
@@ -2106,6 +2148,7 @@ tutor agent status           which courses have one attached
 tutor agent start galois     attach one there, leaving the others listening
 tutor agent ensure galois    the same, silent when one is already listening
 tutor agent stop galois      ask it to write its handoff and go
+tutor agent which galois     print which assistant that workspace runs by default
 ```
 
 `ensure` is what another machine asks over ssh on every login — see *Arriving on a new node* —
@@ -2441,7 +2484,7 @@ is not a request to have the Python written.
 made these repositories unusable.** One word in `tutorboard.json` can only answer
 for the whole of it, and a project does not have one answer. PSYCH-ASR is the
 case that broke it: the plumbing around a grid search is drudgery its owner has
-written fifty times and wants written for him, and `transcript/corrections.py` in
+written fifty times and wants written for him, and `transcript/render.py` in
 the next directory is the thing he actually needs to understand. Both answers,
 one repository, one word to say them in — so the work went to a terminal, and
 once it was there the teaching went with it and the board saw neither.
@@ -2700,8 +2743,8 @@ opens the level below:
 **An expansion is a new picture, not a bigger one.** Splicing a package's twelve
 modules into a diagram that already has forty boxes on it is the ugly grid the
 front door was rejected for, with more effort. So opening a box redraws the
-plane as the inside of that box, with a crumb — `PSYCH-ASR › evaluate ›
-grade.py` — that is the way back up. **The crumb is read off the answer, never
+plane as the inside of that box, with a crumb — `PSYCH-ASR › transcript ›
+render.py` — that is the way back up. **The crumb is read off the answer, never
 remembered from the taps**: a trail kept as history is wrong after a sideways
 step, a reload, or a second tap that lands out of order.
 
@@ -3476,16 +3519,16 @@ explained.
 A walkthrough is the sitting for it. It is held over a **file, or one definition inside one**:
 
 ```
-board walk list psych_asr/evaluate          every file it could be held over
-board open "PSYCH-ASR" --walk --over psych_asr.evaluate.grade.grade
-board walk over psych_asr.transcript.corrections   change it, without reopening
+board walk list psych_asr/transcript        every file it could be held over
+board open "PSYCH-ASR" --walk --over psych_asr.transcript.render.render
+board walk over psych_asr.transcript.turns  change it, without reopening
 board walk                                  what it covers now
 ```
 
 Names are matched the way the language names things: a path
-(`psych_asr/evaluate/grade.py`), a module (`psych_asr.evaluate.grade`), a definition inside one
-(`psych_asr.evaluate.grade.grade`), or a bare filename where the repository has only one of
-them. **A definition is checked against the file before it is carried anywhere** — a walkthrough
+(`psych_asr/transcript/render.py`), a module (`psych_asr.transcript.render`), a definition
+inside one (`psych_asr.transcript.render.render`), or a bare filename where the repository
+has only one of them. **A definition is checked against the file before it is carried anywhere** — a walkthrough
 announced over a function that is not there sends the tutor looking, and it finds something else
 and teaches that. A name that matches nothing is refused and named; an ambiguous one resolves to
 nothing rather than to whichever was walked first.
@@ -3511,9 +3554,8 @@ walkthrough reads. A real bug the tutor notices is one sentence at the end of a 
 separate sitting.
 
 **The exercise is a hand trace, and the format is not invented here.**
-`research/PSYCH-ASR/docs/stage2_reference_walkthrough` is this done by hand, at
-33 slides, and its own README entry says to read it first if you want the state of the project
-in half an hour. What made it work is what the sitting now requires: one invented instance
+`research/PSYCH-ASR/docs/stage1_pipeline_walkthrough` is this done by hand, and its own
+README entry says to read it before touching Stage 1. What made it work is what the sitting now requires: one invented instance
 carried the whole way through, plain names before identifiers — *the typist*, *the stopwatch*,
 *the name-tagger* — the algorithm shown as worked passes over that one instance, and the summary
 last. The difference is that the student does the passes instead of reading them, one card at a
@@ -3897,9 +3939,9 @@ board hw file 7.2                # file a sent page into the set's handwritten/
 board review list                # everything this repository can be reviewed over
 board review over ch01 ch07      # what a test review covers
 board walk list [dir]            # every file a walkthrough could be held over
-board walk over psych_asr.evaluate.grade.grade
+board walk over psych_asr.transcript.render.render
                                  # what this walkthrough covers
-board open "PSYCH-ASR" --walk --over psych_asr.transcript.corrections
+board open "PSYCH-ASR" --walk --over psych_asr.transcript.turns
 board open "PSYCH-ASR" "the grid sweep" --stance do   # this sitting only
 board vpn up|status|serve|down   # the Tailscale link
 board doctor                     # is this machine equipped, and who teaches on it

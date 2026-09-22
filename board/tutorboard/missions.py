@@ -152,6 +152,11 @@ ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,39}$")
 # fact.
 FIELDS = ("id", "task", "agent", "at", "ship", "from", "host", "card_at",
           "ceiling", "ended", "ended_at", "reason", "looked", "shipped",
+          # Which assistant this mission BROUGHT, and when it was given back.
+          # `agent` is who was asked for; `brought` is whether that assistant
+          # is the mission's to release. See "a mission that brought its own
+          # assistant" below.
+          "brought", "released",
           # The carry. `carry` is one owed and not yet taken, `carries` how many
           # have been, `carried_at` when the last was claimed, `stalls` how many
           # produced nothing, and `life` the moment the budget runs out.
@@ -198,12 +203,14 @@ def write(root, rec):
 
 
 def dispatch(root, task, turn, agent="", ship=False, frm="", ceiling=0.0,
-             now=None):
+             brought="", now=None):
     """Record that a mission has just been sent into this workspace.
 
     `turn` is the turn the task was written as, and is the mission's name.
     `ceiling` is when the machinery under it stops existing, or 0 where nothing
-    limits it. `card_at` is what the workspace's newest card was at dispatch, so
+    limits it. `brought` is the assistant this dispatch STARTED for the
+    mission, and "" where it took whoever was already listening -- the one fact
+    a release cannot derive afterwards. `card_at` is what the workspace's newest card was at dispatch, so
     "a card has landed since" is a comparison rather than a guess -- without it
     a clock a second out between two nodes reports a mission done the instant it
     starts.
@@ -230,6 +237,8 @@ def dispatch(root, task, turn, agent="", ship=False, frm="", ceiling=0.0,
         # push itself is reported in `push.json`, which the board already
         # paints. This field is the CLAIM -- see `claim_ship`.
         "shipped": 0.0,
+        "brought": brought or "",
+        "released": 0.0,
         "carry": 0.0,
         "carries": 0,
         "carried_at": 0.0,
@@ -754,6 +763,102 @@ def claim_ship(root, rec, now=None):
         os.close(fd)
     out = dict(rec)
     out["shipped"] = now
+    write(root, out)
+    return True
+
+
+# ---------------------------------------------------------------------------
+# A mission that brought its own assistant
+# ---------------------------------------------------------------------------
+# AN ASSISTANT STARTED FOR A MISSION BELONGS TO THE MISSION. AN ASSISTANT A
+# PERSON CHOSE STAYS. Both are the same name in the same `agent.json`, so the
+# difference cannot be derived after the fact -- the dispatch writes which it
+# was, into `brought`, and every rule here reads it rather than guessing.
+#
+# `brought` is the assistant a dispatch or a pick-up STARTED for the mission,
+# and "" where it took whoever was already listening. Whether that name is also
+# the one the workspace runs by default is asked at the release, off
+# `resolve_agent`, because that is the moment the answer has to be true.
+#
+# What it costs to leave one attached, measured. A colibri mission ran ten
+# hours, shipped and was marked done, and colibri stayed as the workspace's
+# tutor. The board's allocation hopped, the watchdog brought the tutor back,
+# and with no mission open the workspace fell into an ordinary sitting: two
+# hours of a shared node spent on a lecture nobody asked for, and the warm KV
+# prefix that makes the NEXT mission affordable evicted to pay for it.
+#
+# The shape is the ship's, one field at a time, and for the ship's reason: every
+# board on the machine reads every workspace's missions, so the release is
+# claimed with an exclusive create and happens exactly once.
+
+
+def releasable(now=None):
+    """Every ended mission that brought an assistant and has not given it back.
+
+    Ended EITHER WAY. A mission that failed left an assistant attached just as
+    surely as one that finished, and the lecture this repairs is what a
+    workspace does with a spare one -- which is the same whichever way the work
+    went. `due` is the ship's twin of this and is `done` only, because pushing
+    the changes of a mission somebody has to look at first is a different
+    question entirely.
+    """
+    now = float(now or time.time())
+    out = []
+    for w in atlas.workspaces():
+        try:
+            got = of(w["root"], now)
+        except Exception:                                    # noqa: BLE001
+            continue
+        for rec in got:
+            if rec["state"] == "running" or not rec.get("brought"):
+                continue
+            if rec.get("released"):
+                continue
+            out.append((w, rec))
+    return out
+
+
+def brought_by(root, rec, who, now=None):
+    """Record that this mission's assistant was started FOR it, by a pick-up.
+
+    The dispatch's `brought` is about the dispatch, and a pick-up hours later
+    is a second time an assistant is put into that workspace for this mission:
+    the node the first one was on has gone, and whatever was listening went
+    with it. `carry_missions` is the caller, and it stamps only after its claim
+    -- so the field says what actually happened rather than what was intended.
+    """
+    out = _current(root, rec)
+    out["brought"] = str(who or "")
+    return write(root, out)
+
+
+def claim_release(root, rec, now=None):
+    """Take this mission's release, once, across every board on this machine.
+
+    `claim_ship`'s twin, exclusive for its reason, and CLAIMED BEFORE THE STOP
+    rather than after it -- which is the one place the two differ. A ship that
+    two boards both decide on writes an inbox line twice; a release that two
+    boards both decide on signals a daemon that the first one has already put
+    a replacement in front of.
+    """
+    now = float(now or time.time())
+    mid = str(rec.get("id") or "")
+    if not ID_RE.match(mid):
+        return False
+    flag = os.path.join(_dir(root), mid + ".releasing")
+    try:
+        os.makedirs(_dir(root), exist_ok=True)
+        fd = os.open(flag, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o644)
+    except OSError:
+        return False
+    try:
+        os.write(fd, ("%f\n" % now).encode("utf-8"))
+    except OSError:
+        pass
+    finally:
+        os.close(fd)
+    out = _current(root, rec)
+    out["released"] = now
     write(root, out)
     return True
 

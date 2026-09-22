@@ -609,7 +609,7 @@ def review_sense(repo, st):
 # prevent, in a place that had no rule against it.
 #
 # So the exercise is a HAND TRACE. The format is not invented here either: the
-# owner of these repositories wrote `stage2_reference_walkthrough` by hand for
+# owner of these repositories wrote `stage1_pipeline_walkthrough` by hand for
 # exactly this purpose -- plain names before identifiers, one invented example
 # carried the whole way through, the algorithm shown as worked passes over it --
 # and describes it as the plainest document in the repository. This is that, one

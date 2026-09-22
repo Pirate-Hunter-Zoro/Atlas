@@ -83,6 +83,22 @@ def tutor_cli(args, timeout=30):
         return 1, str(exc)
 
 
+def configured_agent(where):
+    """Which assistant that workspace runs when nobody names one, or "".
+
+    ASKED, NOT WORKED OUT HERE. `resolve_agent` in `bin/tutor` is the one place
+    the five layers live -- this once, this sitting, this workspace, this
+    machine, the default -- and a copy of them in the server is a copy that
+    drifts the first time either moves. `where` is the workspace directory the
+    launcher already matches names against.
+    """
+    code, out = tutor_cli(["agent", "which", where], timeout=30)
+    if code != 0:
+        return ""
+    lines = [l.strip() for l in (out or "").splitlines() if l.strip()]
+    return lines[-1] if lines else ""
+
+
 # ---------------------------------------------------------------------------
 # work handed in with nobody to read it
 # ---------------------------------------------------------------------------
@@ -212,6 +228,9 @@ _SHIPS = {"at": 0.0}
 
 CARRY_EVERY = 20.0
 _CARRIES = {"at": 0.0}
+
+RELEASE_EVERY = 20.0
+_RELEASES = {"at": 0.0}
 
 
 def shipper():
@@ -373,6 +392,12 @@ def carry_missions(now=None):
                 continue
         if not missions.claim_carry(root, rec, now):
             continue                    # another board took it
+        # AND THIS PICK-UP IS WHAT PUT THAT ASSISTANT THERE, recorded, because
+        # the node the dispatch's one was on has gone and whatever was
+        # listening went with it. A mission that brought nobody at the dispatch
+        # brings one here, and it is released when the mission ends like any
+        # other -- see `release_missions`.
+        missions.brought_by(root, rec, who, now)
         # The task WHOLE, out of the transcript the dispatch wrote it into. The
         # record's copy is truncated to `TASK_CHARS` for a two-line strip and is
         # the fallback rather than the source.
@@ -409,3 +434,107 @@ def carry_missions(now=None):
                   timeout=60)
         handed.append({"ws": w["id"], "mission": rec["id"], "agent": who})
     return handed
+
+
+# ---------------------------------------------------------------------------
+# a mission that brought its own assistant, and has ended
+# ---------------------------------------------------------------------------
+#     "Make missions release the workspace."
+#
+# AN ASSISTANT STARTED FOR A MISSION IS RELEASED WHEN THE MISSION ENDS. One
+# that a person chose stays. `brought` on the record carries which it was,
+# written by whatever started it -- the dispatch, or a pick-up after a hop --
+# because afterwards both are the same name in the same `agent.json`.
+#
+# WHAT A RELEASE LEAVES IS THE WORKSPACE'S OWN ASSISTANT, not an empty
+# workspace. A workspace with nothing attached does not answer a message
+# anybody hands in to it -- `spawn.wake_tutor` covers only the workspace the
+# board it runs in is serving, and a release happens in one nobody is looking
+# at. The start names NOBODY, so `resolve_agent` answers, which is the same
+# one implementation `watch_once` uses when it puts a tutor back after a hop.
+#
+# AND THE STOP IS A STOP RATHER THAN A HANDOVER, which is what makes it hold:
+# `agent_stop` leaves `state: stopped` with no `handover`, and
+# `supervise.tutor_verdict` reads that as a person saying no and never revives
+# it. A release the watchdog undoes five seconds later is not a release.
+
+
+def release_missions(now=None):
+    """Give back the assistant every ended mission brought with it.
+
+    Called from the hub's poll loop beside `ship_missions`, throttled, and
+    AFTER it: a release must not land between a ship being owed and the turn
+    that pushes it being woken. Returns the workspaces actually released,
+    which is what a test reads.
+    """
+    from .. import missions
+    from ..lesson import state
+    from ..course.repo import Repo
+    # The guards live where the dispatch's own swap consults them, and there is
+    # one copy of them. Imported here rather than at the top of the file
+    # because that module imports this one.
+    from .routes.machines import swap_blocked
+
+    now = float(now or time.time())
+    if now - _RELEASES["at"] < RELEASE_EVERY:
+        return []
+    _RELEASES["at"] = now
+
+    gave = []
+    for w, rec in missions.releasable(now):
+        root = w["root"]
+        mine = str(rec.get("brought") or "")
+        # WHOEVER IS ACTUALLY ATTACHED, not whoever was asked for. An assistant
+        # somebody swapped in by hand while the mission ran is theirs; the ship
+        # may have swapped one in too. Either way this mission has nothing left
+        # to give back, and the record is stamped so no board asks again.
+        if missions.holder(root) != mine:
+            missions.claim_release(root, rec, now)
+            continue
+        if (rec.get("ship") and rec["state"] == "done"
+                and not rec.get("shipped")):
+            # The push has not been handed to anybody yet. Stopping the daemon
+            # now empties the workspace under a ship that is about to look for
+            # one; `ship_missions` runs first in the same loop and this is one
+            # pass behind it.
+            #
+            # `done` ONLY, which is the same line `missions.due` draws. A
+            # mission that failed is never shipped however its switch was set,
+            # so waiting for a ship that is not coming would hold its assistant
+            # for the week the record lives.
+            continue
+        keep = swap_blocked({"root": root, "repo": w["dir"]}, mine)
+        if keep:
+            # Somebody is in that workspace, a turn is in flight, another
+            # mission is open, or a line handed in has not been picked up.
+            # Every one of those is a reason a dispatch may not swap the
+            # assistant either, and a release is the same act.
+            continue
+        if configured_agent(w["dir"]) == mine:
+            # IT IS THE WORKSPACE'S OWN ASSISTANT AFTER ALL. Asked here rather
+            # than at the dispatch, and asked last, because this is the moment
+            # the answer has to be true and because it is a subprocess: a
+            # release held off for an hour by an open mission must not pay for
+            # one every twenty seconds. Stopping it to start the same one again
+            # would throw away a warm prefix to prove a point.
+            missions.claim_release(root, rec, now)
+            continue
+        if not missions.claim_release(root, rec, now):
+            continue                    # another board took it
+        code, _said = tutor_cli(["agent", "stop", w["dir"], "--wait"],
+                                timeout=180)
+        # `--respawn`, and no `--agent`: a sweep over every workspace on the
+        # machine is machinery deciding rather than somebody naming a course,
+        # and the assistant that belongs here is the one the configuration
+        # names. `agent start` is a no-op against a daemon that is still
+        # wrapping up, and the watchdog is what brings the workspace back if
+        # this one comes too early -- the record it would read says `stopped`,
+        # so nothing revives the assistant that was just let go.
+        back = ""
+        if code == 0:
+            tutor_cli(["agent", "start", w["dir"], "--respawn"], timeout=60)
+            back = state.load_agent(Repo(root)) or {}
+            back = str(back.get("agent") or "")
+        gave.append({"ws": w["id"], "mission": rec["id"], "agent": mine,
+                     "back": back})
+    return gave
