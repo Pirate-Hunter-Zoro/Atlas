@@ -129,15 +129,54 @@ def _theirs(rel):
             or (head == "homework" and folder == "assignment"))
 
 
+# A textbook chapter split is named after the file it was cut into, and `ch04`
+# is not a title. The chapter it belongs to is already the group it sits in, so
+# what the row has to say is what KIND of thing it is.
+_READING_STEM = re.compile(r"^ch0*(\d+)$", re.I)
+
+
+def _says_the_same(one, two):
+    """Whether two labels name the same thing, allowing for how each spells it.
+
+    `Ch 04 homework` and `Chapter 04 Homework --- Field extensions` are one
+    label written twice, and printing both on a row tells the reader nothing
+    they did not have. Compared on letters and digits only, with the one
+    abbreviation this course actually alternates between spelled out.
+    """
+    def flat(s):
+        s = (s or "").lower().replace("chapter", "ch")
+        return re.sub(r"[^a-z0-9]+", "", s)
+    a, b = flat(one), flat(two)
+    return bool(a) and (a in b or b in a)
+
+
+def _titled(title, rel, kind):
+    """The title as a row should carry it.
+
+    LaTeX spells an em-dash with three hyphens and the library passes that
+    through, which is right for a source file and wrong on glass. A textbook
+    split gets called what it is, because its own filename says only its number
+    and the reader is looking at the chapter's group already.
+    """
+    title = (title or "").replace("---", "—").replace("--", "–").strip()
+    if kind == "reading":
+        stem = os.path.splitext(os.path.basename(rel))[0]
+        found = _READING_STEM.match(stem)
+        if found:
+            return "Textbook, chapter %d" % int(found.group(1))
+    return title
+
+
 def _from_library(rec):
     """One library record, as a shelf record. The inventory is not re-walked."""
     rel = rec.get("rel") or ""
     theirs = _theirs(rel)
+    kind = _kind(rel, rec.get("stem") or "", rec.get("kind") or "", theirs)
     return {
         "rel": rel,
         "source": rec.get("source") or "",
-        "title": rec.get("title") or reading._pretty(rel),
-        "kind": _kind(rel, rec.get("stem") or "", rec.get("kind") or "", theirs),
+        "title": _titled(rec.get("title") or reading._pretty(rel), rel, kind),
+        "kind": kind,
         "pages": rec.get("pages") or 0,
         "at": rec.get("at") or 0,
         "size": rec.get("size") or 0,
@@ -168,7 +207,7 @@ def _given(root, already):
             out.append({
                 "rel": rel,
                 "source": "",
-                "title": reading._pretty(path),
+                "title": _titled(reading._pretty(path), rel, "reading"),
                 "kind": "reading",
                 "pages": library._pages(path),
                 "at": at,
@@ -207,13 +246,13 @@ def _sids(root, recs):
 # the join: which box, derived from the path
 # ---------------------------------------------------------------------------
 def _sets(root):
-    """`[(rel prefix, compiled pdf rel, set name)]` for every set in the course."""
+    """`[(rel prefix, compiled pdf rel, set name, chapter number or None)]`."""
     out = []
     for s in homework.sets(root):
         built = homework.compiled_pdf(root, s["tex"])
         out.append((_rel(root, s["dir"]) + "/",
                     _rel(root, built) if built else "",
-                    s["name"]))
+                    s["name"], s.get("chapter")))
     return out
 
 
@@ -255,10 +294,17 @@ def _place(root, recs, nodes):
                    if n.get("dir")), key=lambda d: -len(d[0]))
 
     for rec in recs:
-        rel, nid = rec["rel"], ""
-        for prefix, built, name in sets:
+        rel, nid, under = rec["rel"], "", ""
+        for prefix, built, name, chapter in sets:
             if name in by_set and (rel == built or rel.startswith(prefix)):
                 nid = by_set[name]
+                # A SET ROLLS UP TO ITS CHAPTER. The set box keeps the document
+                # -- tapping `Ch 04 homework` shows the homework and nothing
+                # else -- and the chapter it is for shows it too, because
+                # somebody looking for "the chapter 4 sets" is looking for the
+                # book problems and the worksheet and does not care that one of
+                # them is filed outside `chapters/`.
+                under = by_num.get(chapter, "") if chapter else ""
                 if rel == built:
                     rec["kind"] = "homework"
                 break
@@ -273,6 +319,11 @@ def _place(root, recs, nodes):
                     break
         rec["node"] = nid
         rec["box"] = label.get(nid, "") if nid else "Unfiled"
+        # Where the whole-workspace list files it, which is the chapter when
+        # there is one and the box itself otherwise. Never the box's own id
+        # when they are the same, so a group is never its own parent.
+        rec["under"] = under if under and under != nid else ""
+        rec["under_box"] = label.get(rec["under"], "") if rec["under"] else ""
 
 
 # ---------------------------------------------------------------------------
@@ -336,8 +387,13 @@ def counts(root):
     """
     out = {}
     for rec in documents(root):
-        if rec["node"]:
-            out[rec["node"]] = out.get(rec["node"], 0) + 1
+        # BOTH BOXES, DELIBERATELY. A worksheet is one document and it is
+        # reachable from two places; a badge says what that box opens, so the
+        # chapter's badge counts it and the set's badge counts it. `total` in
+        # `grouped` stays the number of distinct documents.
+        for box in (rec["node"], rec.get("under")):
+            if box:
+                out[box] = out.get(box, 0) + 1
     return out
 
 
@@ -379,14 +435,22 @@ def grouped(repo):
                 "total": 0, "groups": []}
     groups, seen = [], {}
     for rec in found:
-        key = rec["node"]
+        # The chapter where the document has one, so the whole-workspace list
+        # reads chapter by chapter; the set keeps its name on the row.
+        key = rec.get("under") or rec["node"]
+        name = rec.get("under_box") or rec["box"]
         if key not in seen:
-            seen[key] = {"node": key, "box": rec["box"], "docs": []}
+            seen[key] = {"node": key, "box": name, "docs": []}
             groups.append(seen[key])
-        seen[key]["docs"].append(
-            dict((k, rec[k]) for k in
-                 ("sid", "title", "kind", "pages", "at", "iso", "size",
-                  "pdf", "stale", "theirs", "rel")))
+        row = dict((k, rec[k]) for k in
+                   ("sid", "title", "kind", "pages", "at", "iso", "size",
+                    "pdf", "stale", "theirs", "rel"))
+        # Which set it came from, when that is not the group it is filed under
+        # AND says something the title does not. A worksheet whose set is named
+        # after the worksheet would otherwise print its own name twice.
+        came = rec["box"] if rec.get("under") else ""
+        row["set"] = "" if _says_the_same(came, row["title"]) else came
+        seen[key]["docs"].append(row)
     # `_documents` already sorts the unfiled after every box; this is the
     # promise said out loud rather than left to a sort key.
     groups.sort(key=lambda g: 1 if not g["node"] else 0)

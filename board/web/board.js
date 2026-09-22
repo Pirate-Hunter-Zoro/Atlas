@@ -2456,7 +2456,12 @@ function shelfRow(doc) {
   if (doc.theirs) sub.appendChild(shelfFlag("theirs", false));
   if (doc.stale) sub.appendChild(shelfFlag("source is newer", true));
   var said = document.createElement("span");
-  said.textContent = [doc.pages ? doc.pages + " pp" : "", doc.iso || "", doc.kind || ""]
+  /* WHICH SET IT CAME FROM, when the group it is filed under is not that set.
+     A chapter's group holds the book problems and any worksheet written for
+     that chapter, and the two are different pieces of work -- the server sends
+     `set` only when saying so tells the reader something the title does not. */
+  said.textContent = [doc.pages ? doc.pages + " pp" : "", doc.iso || "",
+                      doc.kind || "", doc.set || ""]
     .filter(Boolean).join(" · ");
   sub.appendChild(said);
   row.appendChild(sub);

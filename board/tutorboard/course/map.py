@@ -867,18 +867,35 @@ def _from_chapters(root):
             edges.append({"from": last, "to": nid, "weight": 1, "label": ""})
         last = nid
 
+    # Which chapter node carries which number, off the syllabus record each one
+    # was made from. NOT a regex over the id it produced: `ch0*(\d+)` on `ch04`
+    # gives `4`, `_slug` makes `ch-4`, and the node is `ch-04` wherever
+    # `chapters.tsv` kept the leading zero -- so ten of this course's twenty-one
+    # sets lost the edge to their chapter and the two-digit ones kept it by
+    # accident. An integer compared against the record cannot fail that way.
+    by_num = {}
+    for c in chapters[:MAX_NODES]:
+        full = syllabus.label(c)
+        try:
+            num = int(str(c.get("num") or "").strip())
+        except ValueError:
+            continue
+        for n in nodes:
+            if n.get("kind") == "chapter" and n.get("chapter") == full:
+                by_num.setdefault(num, n["id"])
+                break
+
     for x in homework.sets(root)[: max(0, MAX_NODES - len(nodes))]:
         nid = _unique(taken, _slug("hw-" + x["name"], "set"))
-        node = _node(nid, x["name"], "set", also="problem set", hw=x["name"])
-        nodes.append(node)
-        # A set belongs beside the chapter it is for, where the course numbers
-        # them that way -- `ch07` beside chapter 7 -- and beside nothing where
-        # it does not.
-        m = re.match(r"ch0*(\d+)", x["name"])
-        if m:
-            want = _slug("ch-" + m.group(1), "")
-            if any(n["id"] == want for n in nodes):
-                edges.append({"from": want, "to": nid, "weight": 1, "label": ""})
+        nodes.append(_node(nid, x.get("title") or x["name"], "set",
+                           also="problem set", hw=x["name"]))
+        # A set belongs beside the chapter it is for. `homework.sets` decides
+        # which that is -- off the course's own numbering, off a declaration in
+        # the source, or off a slug that matches exactly one chapter -- so a
+        # worksheet kept outside `chapters/` is drawn against its chapter too.
+        want = by_num.get(x.get("chapter"))
+        if want:
+            edges.append({"from": want, "to": nid, "weight": 1, "label": ""})
     return {"title": "", "nodes": nodes, "edges": edges, "loose": [],
             "why": "Drawn from this course's own chapter table."}
 

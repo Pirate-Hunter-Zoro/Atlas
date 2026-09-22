@@ -128,6 +128,28 @@ def book(root):
     write(os.path.join(ch4, "notes", "worksheet.tex"), "\\title{A worksheet}\n")
     write(os.path.join(root, "docs", "worksheet.tex"), "\\title{Another}\n")
 
+    # WORKSHEETS OUTSIDE `chapters/`, which is the whole reason a set has to be
+    # able to say which chapter it is for. Three routes and three outcomes.
+    #   `fields` is chapter 4's own slug in chapters.tsv -> placed by the slug.
+    ws1 = os.path.join(root, "homework", "worksheet-fields")
+    write(os.path.join(ws1, "worksheet-fields.tex"),
+          "%  Worksheet --- Field Extensions and the Ring F[x]\n"
+          "\\title{Worksheet --- Field Extensions and the Ring F[x]}\n")
+    pdf(os.path.join(ws1, "build", "worksheet-fields.pdf"))
+    #   names two chapters' slugs and therefore neither -- a wrong chapter is
+    #   worse than none, so this one stays on its own box.
+    ws2 = os.path.join(root, "homework", "worksheet-fields-galois")
+    write(os.path.join(ws2, "worksheet-fields-galois.tex"),
+          "%  Worksheet --- Both At Once\n"
+          "\\title{Worksheet --- Both At Once}\n")
+    pdf(os.path.join(ws2, "build", "worksheet-fields-galois.pdf"))
+    #   says so itself, which is the escape hatch for a slug that says nothing.
+    ws3 = os.path.join(root, "homework", "extra-problems")
+    write(os.path.join(ws3, "extra-problems.tex"),
+          "%  Extra Problems\n% chapter: 5\n"
+          "\\title{Extra Problems}\n")
+    pdf(os.path.join(ws3, "build", "extra-problems.pdf"))
+
     # In no box: the plan, and the book itself.
     write(os.path.join(root, "docs", "plan-of-attack.tex"), "\\title{The plan}\n")
     pdf(os.path.join(root, "textbook", "a-course-in-galois-theory.pdf"))
@@ -263,18 +285,63 @@ try:
     check("and a row carries exactly what the drawer reads and no path to a "
           "route", all(set(d) == set(["sid", "title", "kind", "pages", "at",
                                       "iso", "size", "pdf", "stale", "theirs",
-                                      "rel"]) for d in every))
+                                      "rel", "set"]) for d in every))
 
-    check("counts() keys are all real boxes, and they sum to what the groups "
-          "hold",
-          set(shelf.counts(course)) <= set(nodes)
-          and sum(shelf.counts(course).values())
-          == sum(len(g["docs"]) for g in grouped["groups"] if g["node"]))
+    tally = shelf.counts(course)
+    want = {}
+    for rec in shelf.documents(course):
+        # A badge says what its box opens, and a set's write-up opens from the
+        # set AND from the chapter it was written for -- so it is counted on
+        # both. `total` is the distinct count and is checked above.
+        for box in (rec["node"], rec["under"]):
+            if box:
+                want[box] = want.get(box, 0) + 1
+    check("counts() keys are all real boxes, and every document is counted on "
+          "every box that opens it",
+          set(tally) <= set(nodes) and tally == want)
     check("and the map payload carries the count on the box, never the list",
-          nodes["hw-hw01"]["docs"] == 2 and nodes["ch-04"]["docs"] == 3
+          nodes["hw-hw01"]["docs"] == 2 and nodes["ch-04"]["docs"] == 5
           and all(isinstance(n["docs"], int) for n in nodes.values())
-          and shelf.counts(course)
-          == dict((i, n["docs"]) for i, n in nodes.items() if n["docs"]))
+          and tally == dict((i, n["docs"]) for i, n in nodes.items() if n["docs"]))
+
+    # ---------------------------------------------------------------- 3b
+    # A SET IS FOUND UNDER THE CHAPTER IT IS FOR, wherever it is filed. The
+    # complaint this answers is "there are two chapter 4 sets I need, one from a
+    # worksheet and one from book problems" -- one of which lives outside
+    # `chapters/` entirely and so can be joined by nothing in its path.
+    drawn = mapping.status(course, {}, [])
+    edges = set((e["from"], e["to"]) for e in drawn.get("edges", []))
+    under = dict((g["node"], [d["title"] for d in g["docs"]])
+                 for g in grouped["groups"])
+    ch4 = under.get("ch-04", [])
+    check("a chapter's group holds the book problems AND the worksheet written "
+          "for that chapter, though only one of them is filed under it",
+          any(x == "Chapter 4 homework" for x in ch4)
+          and any(x.startswith("Worksheet") and "Field Extensions" in x
+                  for x in ch4))
+    check("and each keeps its own box, so a badge opens that set and no other",
+          shelf.counts(course).get("hw-ch04") == 1
+          and shelf.counts(course).get("hw-worksheet-fields") == 1)
+    check("a slug naming two chapters places the set under neither, because a "
+          "wrong chapter is worse than none",
+          any(g["node"] == "hw-worksheet-fields-galois"
+              for g in grouped["groups"])
+          and not any(x.startswith("Worksheet") and "Both At Once" in x
+                      for g in grouped["groups"] if g["node"] == "ch-04"
+                      for x in [d["title"] for d in g["docs"]]))
+    check("and a set that declares its chapter in its own source is placed by "
+          "the declaration",
+          any(x.startswith("Extra Problems") for x in under.get("ch-05", [])))
+    check("a set named after its chapter is called after the number rather "
+          "than after the chapter's whole title",
+          any(n["name"] == "Ch 04 homework"
+              for n in drawn["nodes"] if n["kind"] == "set"))
+    check("and the edge from a chapter to its set survives a leading zero on "
+          "either side, which an id rebuilt by regex does not",
+          ("ch-04", "hw-ch04") in edges and ("ch-05", "hw-ch005") in edges)
+    check("a worksheet filed outside chapters/ is drawn against its chapter "
+          "too",
+          ("ch-04", "hw-worksheet-fields") in edges)
 
     # ---------------------------------------------------------------- 4
     # SOMEBODY ELSE'S MATERIAL, by three globs shaped like a course.

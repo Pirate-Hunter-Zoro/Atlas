@@ -54,8 +54,152 @@ def _name_for(root, tex):
     return os.path.splitext(os.path.basename(tex))[0]
 
 
+# WHAT A SET IS CALLED, AND WHICH CHAPTER IT IS FOR.
+#
+# `ch04` and `worksheet-field-extensions` are directory names, and a directory
+# name is not a title. A person looking for "the two chapter 4 sets" is looking
+# for the book problems and the worksheet, and on a map labelled with slugs only
+# one of those two says chapter 4 anywhere.
+#
+# Both answers are derived, because a course that has to maintain a registry of
+# its own worksheets has been given a chore rather than a tool:
+#
+#   THE TITLE comes off the source, which already carries one. A template writes
+#   `% Worksheet --- Field Extensions and the Ring F[x]` into the banner and the
+#   scaffolder writes `\section*{...}`; either is what its author calls it out
+#   loud. A set named after its chapter is called after the chapter instead,
+#   because "Ch 04 homework" is what that is.
+#
+#   THE CHAPTER comes off the name where the course numbers its sets that way,
+#   off a declaration where the author wrote one, and off the slug otherwise:
+#   `worksheet-field-extensions` minus its prefix is `field-extensions`, which
+#   is chapter 4's own slug in `chapters.tsv`. A slug matching two chapters
+#   matches neither -- `worksheet-automorphisms-splitting-fields` names two, and
+#   a wrong chapter is worse than none.
+#
+# The declaration is the escape hatch and it is one line in the `.tex`, because
+# the alternative for a set whose slug says nothing is that nothing can ever
+# place it. It is read from a comment so it reaches no built document.
+CHAPTER_DECLARED = re.compile(r"^\s*%+\s*chapter:\s*(\d+)\s*$", re.M)
+
+# The set name a course numbers by chapter: `ch04`, `ch7`, `chapter-12`.
+CHAPTER_NAMED = re.compile(r"^(?:ch|chapter)[-_]?0*(\d+)$", re.I)
+
+# What a worksheet's directory is called before the part that names its topic.
+SET_PREFIXES = ("worksheet-", "worksheet_", "hw-", "homework-", "set-", "ps-")
+
+# A title in the source. The banner comment first, because both of this course's
+# templates put it there and it is the line an author edits; then the headings a
+# built document would show.
+_TITLE_LINES = (
+    re.compile(r"^\s*%+\s{2,}(?P<t>[A-Z][^\n]{3,90}?)\s*$", re.M),
+    re.compile(r"\\section\*?\{(?P<t>[^}]{3,90})\}"),
+    re.compile(r"\\title\s*\{(?P<t>[^}]{3,90})\}"),
+)
+
+
+def _read(tex, limit=40000):
+    try:
+        with open(tex, "r", encoding="utf-8", errors="replace") as fh:
+            return fh.read(limit)
+    except OSError:
+        return ""
+
+
+# A due date is not a title, and a scaffolder that wrote the name twice did not
+# mean it as one. Both of these appear verbatim in this machine's courses.
+_DUE = re.compile(r"\s*[.;,]?\s*Due\b[^.]*\.?\s*$", re.I)
+_SAID_TWICE = re.compile(r"^(?P<one>.{3,40}?)\s+[—–-]+\s+(?P=one)\s*$")
+
+# How long a title may be before a drawer row stops being readable. Cut on a
+# word, because a title chopped mid-word reads as a rendering fault.
+TITLE_MAX = 70
+
+
+def _tidy(title):
+    """A source's title line, as a person would want it on a map."""
+    title = re.sub(r"\s+", " ", title or "").strip(" -=")
+    # LaTeX spells its dashes with hyphens; the glass does not have to.
+    title = title.replace("---", "—").replace("--", "–")
+    title = _DUE.sub("", title).strip(" .,;—–-")
+    said = _SAID_TWICE.match(title)
+    if said:
+        title = said.group("one").strip()
+    if len(title) > TITLE_MAX:
+        cut = title[:TITLE_MAX].rsplit(" ", 1)[0]
+        title = (cut or title[:TITLE_MAX]).rstrip(" ,;:—–-") + "…"
+    return title
+
+
+def _title_in(text):
+    """The title the source states, or `""`."""
+    for pattern in _TITLE_LINES:
+        found = pattern.search(text or "")
+        if found:
+            title = _tidy(found.group("t"))
+            # A banner rule of dashes matches the shape of a title and is not
+            # one; so does a row of equals signs closing the block.
+            if title and not set(title) <= set("-=_–— "):
+                return title
+    return ""
+
+
+def _chapter_for(root, name, tex, text):
+    """Which chapter this set is for, as an int, or `None`.
+
+    Three routes, in order of how much they know: the course's own numbering,
+    the author's declaration, then the slug. The slug route refuses an ambiguous
+    match rather than guessing between two chapters.
+    """
+    found = CHAPTER_NAMED.match(name or "")
+    if found:
+        return int(found.group(1))
+    found = CHAPTER_DECLARED.search(text or "")
+    if found:
+        return int(found.group(1))
+
+    slug = (name or "").lower()
+    for prefix in SET_PREFIXES:
+        if slug.startswith(prefix):
+            slug = slug[len(prefix):]
+            break
+    else:
+        return None
+    if not slug:
+        return None
+    from . import syllabus
+    hits = []
+    for c in syllabus.chapters(root):
+        try:
+            num = int(str(c.get("num") or "").strip())
+        except ValueError:
+            continue
+        if str(c.get("slug") or "").strip().lower() == slug:
+            hits.append(num)
+    return hits[0] if len(hits) == 1 else None
+
+
+def title_for(root, name, tex):
+    """What to call this set on a map or in a list of documents.
+
+    A set the course numbers by chapter is called after the number and nothing
+    else: the chapter box beside it already carries the chapter's own title, and
+    repeating it makes two long labels that differ by one word. Everything else
+    is called what its source calls it.
+    """
+    found = CHAPTER_NAMED.match(name or "")
+    if found:
+        return "Ch %02d homework" % int(found.group(1))
+    return _title_in(_read(tex)) or name
+
+
 def sets(root):
-    """Every problem set in this repository, newest last."""
+    """Every problem set in this repository, newest last.
+
+    Each carries `title` and `chapter` beside the identity fields: what a person
+    calls it, and which chapter it belongs under, both derived from the source
+    rather than recorded anywhere.
+    """
     found = {}
     for pattern in LAYOUTS:
         for tex in glob.glob(os.path.join(root, pattern)):
@@ -65,11 +209,15 @@ def sets(root):
             # A chapter's notes file is not its homework.
             if parts[0] == "chapters" and "homework" not in parts:
                 continue
-            found[os.path.abspath(tex)] = {
-                "name": _name_for(root, tex),
-                "tex": os.path.abspath(tex),
+            name = _name_for(root, tex)
+            full = os.path.abspath(tex)
+            found[full] = {
+                "name": name,
+                "title": title_for(root, name, full),
+                "chapter": _chapter_for(root, name, full, _read(full)),
+                "tex": full,
                 "rel": os.path.relpath(tex, root),
-                "dir": os.path.dirname(os.path.abspath(tex)),
+                "dir": os.path.dirname(full),
             }
     return sorted(found.values(), key=lambda s: s["name"])
 
