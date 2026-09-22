@@ -110,7 +110,7 @@ Internal. Not submitted, and not written for the journal.
 | `MP_review_latest.md` | the record of the most recent senior-author round: the email, the nine comments, the tracked changes — and beneath them the verbal follow-up of 2026-09-04, which is staged and not applied |
 | `round_2026-09-02_brief.md` | that round in five minutes — what was asked, what was done, what is left. Start here |
 | `round_2026-09-02.md` | the same round item by item, with the reasoning, the word counts, the verification tables, and the arguments that exist nowhere else |
-| `feedback/` | the documents he supplied: the tracked-changes manuscript, his replacement Methods and Discussion, the covering email |
+| `feedback/` | what the senior author supplied, **one directory per round, named for the date he sent it**. `2026-09-02/` is the tracked-changes manuscript, his replacement Methods and Discussion, and the covering email. `2026-09-21/` is his own rewrite of the manuscript and the supplement — no tracked changes in either, so the difference from the packet is a diff and not a mark-up |
 
 When the brief and the long account disagree, the long one is right.
 

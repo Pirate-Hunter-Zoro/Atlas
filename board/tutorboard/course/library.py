@@ -37,7 +37,7 @@ import re
 import subprocess
 import time
 
-from . import paper, reading
+from . import homework, paper, reading
 from .. import atlas, fenced, manuscript
 
 # What a document can be written in, and what it can be built into. A stem with
@@ -180,6 +180,33 @@ def _pages(path):
 # ---------------------------------------------------------------------------
 # finding them
 # ---------------------------------------------------------------------------
+def _paired_pdf(root, rel, stem):
+    """The compiled PDF for this stem, wherever the build actually put it, or "".
+
+    THE SOURCE AND THE THING IT BUILDS INTO ARE ONE DOCUMENT, and in a course
+    they are not in the same directory. `chapters/ch04-field-extensions/
+    homework/ch04-homework.tex` compiles to `chapters/ch04-field-extensions/
+    build/ch04-homework.pdf` -- one level up and across -- and `build` is in
+    `reading.IGNORE`, so this walk never reaches it. Forty compiled PDFs in one
+    course were visible to nothing.
+
+    The chain is `homework.compiled_pdf`'s and is not copied here: beside the
+    source, then `build/` beside it, then the nearest `chNN`/`hwNN` unit
+    directory's `build/`, matching the SOURCE'S OWN basename. One chain, so a
+    course whose `scripts/build.sh` changes where it writes changes one file.
+
+    Taking `build/` out of `IGNORE` instead is the answer that looks simpler and
+    is wrong: the walk then groups by `(directory, stem)`, so every document
+    arrives twice -- once as its source and once as its PDF -- and `build`
+    sorting before `handwritten` renumbers ids that ink is anchored on.
+    """
+    here = root if rel in (".", "") else os.path.join(root, rel)
+    found = homework.compiled_pdf(root, os.path.join(here, stem + ".tex"))
+    if not found or fenced.refused(found):
+        return ""
+    return found
+
+
 def _walk(root):
     """Every stem in this workspace that has a document's formats beside it.
 
@@ -215,6 +242,16 @@ def _walk(root):
                 found[key] = {}
                 order.append(key)
             found[key][ext.lower()] = path
+    # The build output the walk cannot see, joined back onto the source it came
+    # from. Asked once per stem that has no PDF beside it, and it is three
+    # `isfile` calls -- everything downstream reads it as though the walk had
+    # found it there, because as far as the document is concerned it did.
+    for (rel, stem), formats in found.items():
+        if ".pdf" in formats:
+            continue
+        built = _paired_pdf(root, rel, stem)
+        if built:
+            formats[".pdf"] = built
     return [(k, found[k]) for k in order]
 
 
@@ -406,6 +443,13 @@ def path_of(root, doc, ext=".pdf"):
         return ""
     here = os.path.join(root, *([] if not doc["dir"] else doc["dir"].split("/")))
     target = os.path.join(here, doc["stem"] + ext)
+    if ext == ".pdf" and not os.path.isfile(target):
+        # A compiled PDF is routinely NOT beside its source -- `_paired_pdf` is
+        # what found it and `rel` is where. Still the document's own record
+        # rather than anything that arrived, and still fenced below.
+        rel = doc.get("rel") or ""
+        if rel.lower().endswith(".pdf"):
+            target = os.path.join(root, *rel.split("/"))
     if fenced.refused(target) or not os.path.isfile(target):
         return ""
     return target

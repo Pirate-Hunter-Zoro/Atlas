@@ -1,2 +1,2 @@
-<!-- set: 2026-09-15 15:17 -->
-Let’s prioritize the remaining book problems except the one we skipped, and then move on to the worksheet problems
+<!-- set: 2026-09-22 14:59 -->
+For chapter 5, we are going to do problems 5.4, 5.6, 5.7, 5.8, and 5.10
