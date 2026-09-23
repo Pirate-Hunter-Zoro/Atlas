@@ -699,6 +699,24 @@ tutorboard/
   automatic choice does not get to cross a fence. Where nobody can take the turn it fails where that
   is visible and names the hour the allowance returns, exactly as one tutor always did.
   `board limit` says when; `test/limit.py` and `test/agents.py` hold it.
+- **THE BOARD TYPESETS TWICE, AND BOTH ENGINES TAKE THE COURSE'S OWN VOCABULARY FIRST.** KaTeX in
+  the browser renders the prose; real LaTeX renders a tikz fence and the write-up. Each course has
+  its own `latex/coursemacros.sty`, and it wins on both sides -- the generated `board-macros.tex` is
+  all `\providecommand`, and the hub payload carries the parsed `.sty` for KaTeX to lay over
+  `web/macros.js`. **A macro the course defines and the board does not must never reach the glass**:
+  raw source is the visible half of that failure, and the invisible half is worse -- a name the
+  board knows at a DIFFERENT ARITY renders with the argument silently dropped, which is a card that
+  looks typeset and says something else. `test/vocabulary.py` checks every course in the tree, not
+  the one that was reported.
+- **A DEADLINE ENFORCED BY THE THING THAT MIGHT HANG IS NOT A DEADLINE. The parent bounds the
+  child.** Every long wait in here is on a shared filer, and an NFS call can block in the kernel
+  uninterruptibly -- state `D`, where no further line of that process runs until the filer answers.
+  A timeout checked between polls is exactly what such a call skips: measured at 71 minutes against
+  a `--timeout 300`, with the daemon alive, writing no heartbeat, taking no turn, and unable to be
+  restarted because it was itself inside an unbounded `communicate()`. So a caller that needs a real
+  bound sets one -- `WAIT_CEILING` in `bin/tutor` -- and kills with **SIGKILL** rather than SIGTERM,
+  because a wedged process woken by a catchable signal runs on and the next thing `cmd_wait` does is
+  mark the student's message read into a pipe nobody holds. `test/wedged.py` holds it.
 - **A fault the person at the board cannot see must have a command that shows it.** The board up, a
   tutor attached, an empty log and nothing arriving is a state in which everything is fine and looks
   fine. `board doctor` says whether this machine can teach and whether the tutor it names is even

@@ -2381,6 +2381,17 @@ def cmd_wait(live, args):
     waiting for a second tap on a board that is already asking. Marking read is
     what consumes a message, so unread is the whole test and a baseline can only
     lose one.
+
+    **`--timeout` IS BEST EFFORT AND CANNOT BE MADE OTHERWISE HERE. Whoever
+    needs a real bound puts it on the parent.** The deadline is checked between
+    polls, and a poll is an `open()` on a filer: an NFS open can block in the
+    kernel uninterruptibly, in state `D`, where no further line of this process
+    runs until the filer answers. The loop below is then never reached again and
+    the number on the command line means nothing -- measured at 71 minutes
+    against a `--timeout 300`. Do not try to repair that in here; a deadline
+    enforced by the thing that might hang is not a deadline. `WAIT_CEILING` in
+    `bin/tutor` is where the daemon bounds it, and any other caller wanting one
+    does the same.
     """
     timeout = 900.0
     if "--timeout" in args:

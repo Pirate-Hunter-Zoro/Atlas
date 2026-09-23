@@ -48,7 +48,7 @@ must be openable and teachable at every point.
   `board.css`, `plane-core.js`, `gauge.js`, `home.html`, `home.js`, `library.html`,
   `library.js`, `library.css`, anything added to the cache list), or the installed app
   serves its cached copy and the work is invisible.
-- **`bash test/all.sh` before every ship.** 94 suites, all green. `test/tracked.py` runs
+- **`bash test/all.sh` before every ship.** 96 suites, all green. `test/tracked.py` runs
   early — after the browser suites, before everything else — and refuses PHI, 25-megabyte files, model dumps, other authors' papers and
   machine-local config anywhere in the repository — this is public, and git remembers.
   The last of them is **Paper-Writer's own**, run where it is checked out and skipped
@@ -3986,10 +3986,15 @@ else below is optional, and each item buys something specific.
    repository wants the work *done* rather than set, which is `"stance": "do"` and is written by
    hand.
 
-2. **`latex/coursemacros.sty`** *(maths)* — your own macros. They are loaded ahead of the board's
-   own vocabulary in every compiled diagram and in every exported lesson, so notation you already
-   use in your `.tex` files works unchanged on the board. Without it you still get the shared set
-   in `web/macros.js` — `\QQ`, `\degree{L}{K}`, `\Gal`, `\PP`, `\EE` and the rest.
+2. **`latex/coursemacros.sty`** *(maths)* — your own macros, and they win. The board typesets
+   twice, and this file goes in front of the board's own vocabulary on **both** sides: ahead of
+   the generated `\providecommand` set in every compiled diagram and every exported lesson, and
+   laid over `web/macros.js` for the KaTeX that draws a card on the glass, which the hub payload
+   carries per workspace. So notation you already use in your `.tex` files renders on the board
+   unchanged, at your arity rather than at anybody else's — a name the board happens to know with
+   a different number of arguments is you being right about your own notation, not a clash.
+   Without the file you still get the shared set in `web/macros.js` — `\QQ`, `\degree{L}{K}`,
+   `\Gal`, `\PP`, `\EE` and the rest. `test/vocabulary.py` checks every course in the tree.
 
 3. **`scripts/build.sh`** *(optional)* — how this repository compiles a `.tex` file, called with
    one argument, the path to it. `board hw build` uses it, so a homework write-up comes out

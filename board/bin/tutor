@@ -1402,6 +1402,58 @@ def reads_as_wait(err):
     return err == "exit %d" % NOTHING_YET_EXIT
 
 
+# HOW LONG THE DAEMON WAITS FOR A MESSAGE, AND HOW LONG IT WAITS FOR THE THING
+# THAT IS WAITING. Two numbers, and the second one exists because the first is a
+# promise `board wait` cannot always keep.
+#
+# `cmd_wait` polls a file every quarter second and checks its own deadline
+# between polls. A poll is an `open()` on a filer, and an NFS open can block in
+# the kernel UNINTERRUPTIBLY -- state `D`, where no Python of that process runs
+# again until the filer answers. Its deadline is therefore never reached, and
+# nothing inside that command can fix it: a timeout enforced by the thing that
+# might hang is not a timeout.
+#
+# Measured on 23 September 2026, in Probability: one waiter stuck 71 minutes in
+# `nfs_set_open_stateid_locked` with `--timeout 300` on its command line. The
+# daemon was healthy, its process alive, and it wrote no heartbeat and took no
+# turn for the whole of it -- so the board said the tutor had not picked the
+# message up, which was true and unactionable. A restart could not clear it
+# either: the daemon was inside `communicate()` with no bound, so the signal was
+# accepted and nothing acted on it.
+#
+# So the PARENT bounds the child. `WAIT_CEILING` is a margin over the deadline
+# the child was given rather than a number of its own: past it, the child is not
+# coming back, and a fresh one costs nothing. Both stay well inside
+# `processes.AWAY_SILENCE`, which is what decides whether a board calls this
+# daemon dead.
+WAIT_TIMEOUT = 300
+WAIT_CEILING = 420
+
+
+def drop_waiter(p, log=None):
+    """SIGKILL a `board wait` that is not coming back. Never blocks.
+
+    SIGKILL RATHER THAN SIGTERM, and that is the safety property rather than
+    impatience. A wedged waiter is inside a syscall; a signal to it is queued
+    and delivered when the filer answers, which may be an hour later. On SIGTERM
+    it would then run Python again -- and the next thing `cmd_wait` does on
+    finding a message is `cmd_inbox`, which MARKS IT READ and prints it down a
+    pipe nobody is holding any more. That is the student's message consumed and
+    lost. SIGKILL cannot be caught, so no further line of that process runs.
+
+    The group, because `start_new_session` put it in one, for the reason
+    `run_turn` does it. And it is not waited on: reaping a process in
+    uninterruptible sleep is the same hang one level up.
+    """
+    try:
+        os.killpg(os.getpgid(p.pid), signal.SIGKILL)
+    except OSError:
+        pass
+    if log:
+        log.write("!! the wait for a message did not come back in %d s and has "
+                  "been killed; asking again\n" % WAIT_CEILING)
+
+
 def run_turn(cmd, root, log, timeout, env=None):
     """Run one turn to completion or to its cap. `(returncode, timed_out)`.
 
@@ -2865,12 +2917,14 @@ def headless(cfg, course, agent_name, session):
         running["go"] = False
         # Kill the blocking `board wait` too, or shutting down takes as long as
         # its timeout -- five minutes of a course that has already been left.
+        #
+        # THE WHOLE GROUP, AND SIGKILL. A waiter stuck on the filer cannot act
+        # on a polite signal, and a restart that walks away leaving one behind
+        # is a daemon nobody can replace: the record says a bounce is in flight,
+        # the old process holds the workspace, and the new one never starts.
         w = running["waiter"]
         if w and w.poll() is None:
-            try:
-                w.terminate()
-            except OSError:
-                pass
+            drop_waiter(w)
     signal.signal(signal.SIGTERM, bye)
     signal.signal(signal.SIGINT, bye)
 
@@ -2911,10 +2965,18 @@ def headless(cfg, course, agent_name, session):
             # turn that just finished at the moment this starts, so the daemon
             # cannot be told apart from its own turn by state alone.
             running["waiter"] = subprocess.Popen(
-                [sys.executable, BOARD, "wait", "--timeout", "300", "--force"],
-                cwd=root, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-            raw = running["waiter"].communicate()[0]
-            code = running["waiter"].returncode
+                [sys.executable, BOARD, "wait",
+                 "--timeout", str(WAIT_TIMEOUT), "--force"],
+                cwd=root, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                start_new_session=True)
+            try:
+                raw = running["waiter"].communicate(timeout=WAIT_CEILING)[0]
+                code = running["waiter"].returncode
+            except subprocess.TimeoutExpired:
+                # It is past its own deadline and did not enforce it, so it is
+                # wedged rather than slow. See `drop_waiter`.
+                drop_waiter(running["waiter"], log)
+                raw, code = b"", 2
             out = raw.decode("utf-8", "replace")
             running["waiter"] = None
             if not running["go"]:

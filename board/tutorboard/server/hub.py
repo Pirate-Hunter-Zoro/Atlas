@@ -7,6 +7,7 @@ import os
 import threading
 import time
 
+from .. import coursemacros
 from .. import assistants, colibri, direction, fenced, missions, news, writeups
 from . import spawn
 from ..course import config, homework
@@ -108,6 +109,16 @@ class Hub:
             # here rather than a second list. The names, so the row can say
             # what a hosted pick will not be able to open. See `fenced.holds`.
             "fenced": list(fenced.holds(self.repo.root)),
+            # THE MACROS THIS COURSE WRITES IN. The board typesets twice and
+            # only one of the two engines was being told: LaTeX loads the
+            # course's own `latex/coursemacros.sty` and then the board's
+            # `\providecommand` gap-filler, so the course wins there; KaTeX had
+            # `web/macros.js` and nothing else, so a macro the course defines and
+            # the board does not reached the glass as source -- or, worse, at the
+            # board's arity with the argument silently dropped. Same rule on both
+            # sides now: the course's definition wins. See
+            # `tutorboard/coursemacros.py`.
+            "macros": coursemacros.for_workspace(self.repo.root),
         }
         # Only in a homework sitting, and read from the .tex itself rather than
         # from a record the board keeps: the file is the truth, the assistant

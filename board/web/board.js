@@ -496,6 +496,30 @@ function renderList(lines, start, store) {
 }
 
 /* ------------------------------------------------------------------ KaTeX */
+
+/* What the payload last said this course writes in, merged over the board's own
+   table and rebuilt only when it changes -- `typeset` runs on every card and
+   this must not be a fresh object each time. */
+var boardMacros = null;
+var courseMacrosRaw = null;
+
+function setCourseMacros(got) {
+  var next = JSON.stringify(got || {});
+  if (next === courseMacrosRaw) return;
+  courseMacrosRaw = next;
+  boardMacros = null;
+}
+
+function courseMacros() {
+  if (boardMacros) return boardMacros;
+  boardMacros = {};
+  var base = window.BOARD_MACROS || {};
+  for (var k in base) if (base.hasOwnProperty(k)) boardMacros[k] = base[k];
+  var mine = courseMacrosRaw ? JSON.parse(courseMacrosRaw) : {};
+  for (var j in mine) if (mine.hasOwnProperty(j)) boardMacros[j] = mine[j];
+  return boardMacros;
+}
+
 function typeset(root) {
   if (!window.renderMathInElement) return;
   try {
@@ -506,7 +530,13 @@ function typeset(root) {
         { left: "\\(", right: "\\)", display: false },
         { left: "$", right: "$", display: false }
       ],
-      macros: window.BOARD_MACROS || {},
+      /* The board's vocabulary, with THIS COURSE'S OWN over the top. A course
+         defines what it writes in and the board fills the gaps -- the same rule
+         the TeX side has always had through `\providecommand`, which is the
+         point: the two engines render the same source the same way. A course
+         that redefines a board macro at a different arity is not a clash to
+         resolve here, it is the course being right about its own notation. */
+      macros: courseMacros(),
       throwOnError: false,
       errorColor: "#9a2020",
       strict: false,
@@ -1433,6 +1463,12 @@ function render(data) {
      because the browser cannot look at a disk -- and the names rather than a
      flag, so the row can say what a hosted pick will not be able to open. */
   if (data.fenced !== undefined) fencedHere = data.fenced || [];
+  /* AND WHAT THIS COURSE WRITES IN. Before anything is typeset below, because a
+     card rendered against the wrong vocabulary is the defect this carries:
+     `\E[...]` drawn as its own source, and `\EE{X}` drawn at the board's arity
+     as a bare E with the brackets gone. Both engines take the course's own
+     definition first now. See `tutorboard/coursemacros.py`. */
+  if (data.macros !== undefined) setCourseMacros(data.macros);
 
   /* WHICH OF THE BOARD'S OWN TWO DOCUMENTS EXIST -- the exported lesson and the
      compiled write-up. It is what the banner's two buttons are enabled from,
