@@ -362,6 +362,54 @@ the harmonic series, which diverges. So $\E[N] = \infty$.
   \]
 \end{problem}
 % ===== SOLUTION 76 =====
+Write $\bar{X}_{n} = \dfrac{X_{1} + X_{2} + \cdots + X_{n}}{n}$ for the sample mean.
+Chebyshev's inequality says that for a random variable $Y$ with finite mean and variance
+and any $k > 0$,
+\[
+  \PR{\,\left| Y - \EE{Y} \right| \ge k\,} \le \frac{\Var(Y)}{k^{2}} ,
+\]
+so the two things needed before it can be applied to $\bar{X}_{n}$ are $\EE{\bar{X}_{n}}$
+and $\Var(\bar{X}_{n})$.
+
+The mean is $\mu$. By linearity of expectation,
+\[
+  \EE{\bar{X}_{n}}
+    = \frac{1}{n}\,\EE{X_{1} + \cdots + X_{n}}
+    = \frac{1}{n}\left( \EE{X_{1}} + \cdots + \EE{X_{n}} \right)
+    = \frac{n\mu}{n}
+    = \mu ,
+\]
+so the quantity inside the absolute value in the statement is exactly
+$\bar{X}_{n} - \EE{\bar{X}_{n}}$, which is the form Chebyshev requires.
+
+The variance shrinks like $1/n$. The constant $1/n$ leaves a variance squared, and because
+the $X_{i}$ are independent the variance of the sum is the sum of the variances:
+\[
+  \Var(\bar{X}_{n})
+    = \frac{1}{n^{2}} \sum_{i=1}^{n} \Var(X_{i})
+    = \frac{n\sigma^{2}}{n^{2}}
+    = \frac{\sigma^{2}}{n} .
+\]
+
+Now fix $\varepsilon > 0$ and apply Chebyshev to $Y = \bar{X}_{n}$ with $k = \varepsilon$.
+The event in the problem is the strict one, $\left| \bar{X}_{n} - \mu \right| >
+\varepsilon$, and it is contained in the non-strict event $\left| \bar{X}_{n} - \mu \right|
+\ge \varepsilon$ that Chebyshev bounds, so the bound applies to it as well:
+\[
+  \PR{\,\left| \bar{X}_{n} - \mu \right| > \varepsilon\,}
+    \le \PR{\,\left| \bar{X}_{n} - \mu \right| \ge \varepsilon\,}
+    \le \frac{\Var(\bar{X}_{n})}{\varepsilon^{2}}
+    = \frac{\sigma^{2}}{n\varepsilon^{2}} .
+\]
+With $\sigma^{2}$ and $\varepsilon$ both fixed, the right-hand side is a constant divided
+by $n$, so it tends to $0$ as $n \to \infty$ whatever the value of $\varepsilon$. A
+probability is non-negative, so the left-hand side is squeezed to $0$ as well:
+\[
+  \PR{\,\left| \frac{X_{1} + X_{2} + \cdots + X_{n}}{n} - \mu \right| > \varepsilon\,}
+    \longrightarrow 0
+  \qquad \text{as } n \to \infty ,
+\]
+which is the weak law of large numbers.
 % ===== END SOLUTION 76 =====
 
 \begin{problem}{86}

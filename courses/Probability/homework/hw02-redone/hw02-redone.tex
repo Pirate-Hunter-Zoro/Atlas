@@ -1,0 +1,230 @@
+% ===========================================================================
+%  Hw02 Redone
+%
+%  THE WRITE-UP, and it is the assistant's to type.
+%    The assistant transcribes each question or topic faithfully and emits an
+%    empty, marked solution region beneath it. The student does the
+%    mathematics; the assistant typesets what they agreed was right.
+% ===========================================================================
+\documentclass[11pt]{article}
+\usepackage{coursemacros}
+
+\title{Homework 02 --- Problems 61 and 76, Redone}
+\author{Mikey Ferguson}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+% The two problems the eleventh edition replaced, redone. The statements below
+% are the eleventh edition's, read off textbook/ProbTextbook.pdf. The tenth
+% edition's versions of these same two numbers are in
+% homework/hw02/superseded-edition-10.tex and are not what was assigned.
+% ---------------------------------------------------------------------------
+
+\begin{problem}{61}
+  (Edition 11, Chapter 2.) Let $X_1, X_2, \ldots$ be a sequence of independent,
+  identically distributed continuous random variables. We say that a
+  \emph{record} occurs at time $n$ if $X_n > \max(X_1, \ldots, X_{n-1})$ ---
+  that is, if $X_n$ is larger than each of $X_1, \ldots, X_{n-1}$. Show that
+  \begin{enumerate}
+    \item $P\{\text{a record occurs at time } n\} = 1/n$;
+    \item $\E[\text{number of records by time } n] = \sum_{i=1}^{n} 1/i$;
+    \item $\Var(\text{number of records by time } n) = \sum_{i=1}^{n} (i-1)/i^2$;
+    \item letting $N = \min\{n : n > 1 \text{ and a record occurs at time } n\}$,
+          $\E[N] = \infty$.
+  \end{enumerate}
+  \emph{Hint for (b) and (c): represent the number of records as a sum of
+  indicator variables.}
+\end{problem}
+% ===== SOLUTION 61 =====
+\paragraph{(a) $P\{\text{a record occurs at time } n\} = 1/n$.}
+The $X_i$ are continuous, so $P\{X_i = X_j\} = 0$ for $i \neq j$ and with
+probability $1$ the $n$ values are distinct and can be ranked. Because
+$X_1, \ldots, X_n$ are independent and identically distributed, relabelling
+them leaves the joint distribution unchanged, so each of the $n!$ orderings of
+$X_1, \ldots, X_n$ from smallest to largest carries the same probability
+$1/n!$.
+
+A record at time $n$ says exactly one thing about the ordering: $X_n$ is larger
+than every other value, so it sits last. Fixing $X_n$ in the last place leaves
+the remaining $n-1$ values to arrange freely, which happens in $(n-1)!$ ways.
+Hence
+\[
+  P\{X_n > \max(X_1, \ldots, X_{n-1})\}
+    = \frac{(n-1)!}{n!}
+    = \frac{1}{n}.
+\]
+
+\paragraph{Check at $n = 2$, by integration.}
+With common density $f$ and distribution function $F$,
+\begin{align*}
+  P\{X_2 > X_1\}
+    &= \int_{-\infty}^{\infty}\!\int_{-\infty}^{x_2} f(x_1)f(x_2)\,dx_1\,dx_2
+     = \int_{-\infty}^{\infty} f(x_2)F(x_2)\,dx_2 .
+\end{align*}
+Integrating by parts with $u = F(x_2)$ and $dv = f(x_2)\,dx_2$,
+\[
+  \int_{-\infty}^{\infty} f(x_2)F(x_2)\,dx_2
+    = \Big[F(x_2)^{2}\Big]_{-\infty}^{\infty}
+      - \int_{-\infty}^{\infty} f(x_2)F(x_2)\,dx_2 ,
+\]
+so twice the integral equals $F(\infty)^{2} - F(-\infty)^{2} = 1 - 0 = 1$, and
+\[
+  \int_{-\infty}^{\infty} f(x_2)F(x_2)\,dx_2
+    = \left[\frac{F(x_2)^{2}}{2}\right]_{-\infty}^{\infty}
+    = \frac{1}{2},
+\]
+which is $1/n$ at $n = 2$. The counting argument above proves every $n$
+directly, so no induction is needed.
+\paragraph{(b) $\E[\text{number of records by time } n] = \sum_{i=1}^{n} 1/i$.}
+Let
+\[
+  I_i =
+  \begin{cases}
+    1 & \text{if a record occurs at time } i,\\
+    0 & \text{otherwise,}
+  \end{cases}
+\]
+so that $I_i$ is a random variable taking the values $0$ and $1$, and the number of
+records by time $n$ is the sum $N = \sum_{i=1}^{n} I_i$. Each record contributes exactly
+$1$ to that sum and each non-record contributes $0$, so the sum counts them.
+\begin{align*}
+  \E[\text{number of records by time } n]
+    &= \EE{\sum_{i=1}^{n} I_i}\\
+    &= \sum_{i=1}^{n} \EE{I_i}\\
+    &= \sum_{i=1}^{n} \left(\frac{1}{i}\cdot 1 + \frac{i-1}{i}\cdot 0\right)\\
+    &= \sum_{i=1}^{n} \frac{1}{i} .
+\end{align*}
+The second line is linearity of expectation, proved in Problem 2. The third evaluates
+$\EE{I_i}$ directly from the definition of expectation: $I_i$ takes the value $1$ with
+probability $1/i$ by part (a), and the value $0$ with the remaining probability
+$(i-1)/i$.
+
+\paragraph{(c) $\Var(\text{number of records by time } n) = \sum_{i=1}^{n} (i-1)/i^2$.}
+Keep the indicators $I_i$ and the identity $N = \sum_{i=1}^{n} I_i$ from part (b).
+\begin{align*}
+  \Var(N)
+    &= \Var\!\left(\sum_{i=1}^{n} I_i\right)\\
+    &= \sum_{i=1}^{n} \Var(I_i)\\
+    &= \sum_{i=1}^{n} \left(\EE{I_i^2} - \EE{I_i}^2\right)\\
+    &= \sum_{i=1}^{n}
+       \left(1^2\cdot\frac{1}{i} + 0^2\cdot\frac{i-1}{i}
+             - \left(1\cdot\frac{1}{i} + 0\cdot\frac{i-1}{i}\right)^{2}\right)\\
+    &= \sum_{i=1}^{n} \left(\frac{1}{i} - \frac{1}{i^2}\right)
+     = \sum_{i=1}^{n} \frac{i-1}{i^2} .
+\end{align*}
+The third line is the definition of variance. The fourth evaluates both moments
+from the distribution of $I_i$, which takes the value $1$ with probability $1/i$
+by part (a) and the value $0$ with probability $(i-1)/i$; squaring a $0/1$
+variable leaves it unchanged, so $\EE{I_i^2} = \EE{I_i} = 1/i$.
+
+The second line is additivity of variance over a sum. It is not linearity, and it
+is not free: in general $\Var(X + Y) = \Var(X) + \Var(Y) + 2\Cov(X,Y)$, so dropping
+the cross terms requires $\Cov(I_i, I_j) = 0$ for every $i \neq j$. The indicators
+are in fact independent, which gives that. Fix $k$ and condition on the relative
+ranking of $X_1, \ldots, X_{k-1}$, which is what determines $I_1, \ldots, I_{k-1}$.
+All $k!$ orderings of $X_1, \ldots, X_k$ are equally likely, and each ranking of
+the first $k-1$ values is refined by exactly $k$ of them, one for each slot
+$X_k$ can occupy among the $k$. So $X_k$ is the largest of the $k$ with
+probability $1/k$ whatever the earlier ranking was:
+$$P\{I_k = 1 \mid I_1 = \varepsilon_1, \ldots, I_{k-1} = \varepsilon_{k-1}\}
+  = \frac{1}{k} = P\{I_k = 1\}$$
+for every choice of $\varepsilon_1, \ldots, \varepsilon_{k-1}$ in $\{0,1\}$ that
+can occur. Applying this at $k = n, n-1, \ldots, 2$ factors the joint
+distribution, so $I_1, \ldots, I_n$ are independent and every covariance
+vanishes. For $n = 3$ this is visible directly in the six orderings:
+$P\{I_2 = 1\} = 1/2$, $P\{I_3 = 1\} = 1/3$, and $P\{I_2 = 1, I_3 = 1\} = 1/6$,
+which is the product.
+\paragraph{(d) $N = \min\{n : n > 1 \text{ and a record occurs at time } n\}$ has
+$\E[N] = \infty$.}
+$N$ takes values in $\{2, 3, \ldots\}$, since time $1$ is a record by convention and
+$N$ is the first record time after it. So
+\[
+  \E[N] = \sum_{i=2}^{\infty} i\, P\{N = i\} .
+\]
+Fix $i \ge 2$ and count orderings of $X_1, \ldots, X_i$, of which all $i!$ are equally
+likely. The event $\{N = i\}$ says two things: no record occurred at any of the times
+$2, \ldots, i-1$, which means nothing among $X_2, \ldots, X_{i-1}$ ever overtook $X_1$,
+so $X_1$ is the largest of $X_1, \ldots, X_{i-1}$; and a record occurred at time $i$,
+so $X_i$ is the largest of all $i$. Those two constraints pin the last two places in the
+ordering --- $X_i$ largest, $X_1$ next --- and leave the remaining $i-2$ values to be
+arranged freely, in $(i-2)!$ ways. Hence
+\[
+  P\{N = i\} = \frac{(i-2)!}{i!} .
+\]
+Substituting, and using $i! = i\,(i-1)!$ to cancel the leading $i$,
+\[
+  \E[N]
+    = \sum_{i=2}^{\infty} i\,\frac{(i-2)!}{i!}
+    = \sum_{i=2}^{\infty} \frac{(i-2)!}{(i-1)!}
+    = \sum_{i=2}^{\infty} \frac{1}{i-1}
+    = \sum_{m=1}^{\infty} \frac{1}{m} ,
+\]
+the harmonic series, which diverges. So $\E[N] = \infty$.
+
+% ===== END SOLUTION 61 =====
+
+\begin{problem}{76}
+  (Edition 11, Chapter 2.) Use Chebyshev's inequality to prove the weak law of
+  large numbers. Namely, if $X_1, X_2, \ldots$ are independent and identically
+  distributed with mean $\mu$ and variance $\sigma^2$, then for any
+  $\varepsilon > 0$,
+  \[
+    P\left\{ \left| \frac{X_1 + X_2 + \cdots + X_n}{n} - \mu \right|
+             > \varepsilon \right\} \to 0
+    \qquad \text{as } n \to \infty .
+  \]
+\end{problem}
+% ===== SOLUTION 76 =====
+Write $\bar{X}_{n} = \dfrac{X_{1} + X_{2} + \cdots + X_{n}}{n}$ for the sample mean.
+Chebyshev's inequality says that for a random variable $Y$ with finite mean and variance
+and any $k > 0$,
+\[
+  \PR{\,\left| Y - \EE{Y} \right| \ge k\,} \le \frac{\Var(Y)}{k^{2}} ,
+\]
+so the two things needed before it can be applied to $\bar{X}_{n}$ are $\EE{\bar{X}_{n}}$
+and $\Var(\bar{X}_{n})$.
+
+The mean is $\mu$. By linearity of expectation,
+\[
+  \EE{\bar{X}_{n}}
+    = \frac{1}{n}\,\EE{X_{1} + \cdots + X_{n}}
+    = \frac{1}{n}\left( \EE{X_{1}} + \cdots + \EE{X_{n}} \right)
+    = \frac{n\mu}{n}
+    = \mu ,
+\]
+so the quantity inside the absolute value in the statement is exactly
+$\bar{X}_{n} - \EE{\bar{X}_{n}}$, which is the form Chebyshev requires.
+
+The variance shrinks like $1/n$. The constant $1/n$ leaves a variance squared, and because
+the $X_{i}$ are independent the variance of the sum is the sum of the variances:
+\[
+  \Var(\bar{X}_{n})
+    = \frac{1}{n^{2}} \sum_{i=1}^{n} \Var(X_{i})
+    = \frac{n\sigma^{2}}{n^{2}}
+    = \frac{\sigma^{2}}{n} .
+\]
+
+Now fix $\varepsilon > 0$ and apply Chebyshev to $Y = \bar{X}_{n}$ with $k = \varepsilon$.
+The event in the problem is the strict one, $\left| \bar{X}_{n} - \mu \right| >
+\varepsilon$, and it is contained in the non-strict event $\left| \bar{X}_{n} - \mu \right|
+\ge \varepsilon$ that Chebyshev bounds, so the bound applies to it as well:
+\[
+  \PR{\,\left| \bar{X}_{n} - \mu \right| > \varepsilon\,}
+    \le \PR{\,\left| \bar{X}_{n} - \mu \right| \ge \varepsilon\,}
+    \le \frac{\Var(\bar{X}_{n})}{\varepsilon^{2}}
+    = \frac{\sigma^{2}}{n\varepsilon^{2}} .
+\]
+With $\sigma^{2}$ and $\varepsilon$ both fixed, the right-hand side is a constant divided
+by $n$, so it tends to $0$ as $n \to \infty$ whatever the value of $\varepsilon$. A
+probability is non-negative, so the left-hand side is squeezed to $0$ as well:
+\[
+  \PR{\,\left| \frac{X_{1} + X_{2} + \cdots + X_{n}}{n} - \mu \right| > \varepsilon\,}
+    \longrightarrow 0
+  \qquad \text{as } n \to \infty ,
+\]
+which is the weak law of large numbers.
+% ===== END SOLUTION 76 =====
+
+\end{document}
