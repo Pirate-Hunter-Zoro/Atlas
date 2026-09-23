@@ -23,14 +23,14 @@ reading it. And a sitting belongs to a box on that map: one opened without a box
 says so and asks for one, and one working in a box stops at the boundary and
 hands the work to the next box as an address you tap.
 
-**What is left is one build and two things only the iPad can do.** The build is
-the provider layer: this board drives whichever assistant a recipe names, and
-the recipes can now carry an endpoint, a key and a model — so a sitting runs on
-Claude, on Codex or on DeepSeek, switches between them from the front door
-mid-evening, and swaps itself when an allowance runs out, losing nothing,
-because a turn is already cold and reads the lesson back off disk. Eight items,
-each a keyboard's. Behind them the two that are not builds: one dispatch that
-only the account holder can make, and a list of evenings.
+**And a sitting runs on whichever provider you tap.** Claude, Codex or DeepSeek,
+switched from the front door mid-evening, swapping itself when an allowance runs
+out and losing nothing — because a turn is already cold and reads the lesson back
+off disk. A provider is a recipe plus a key and nothing else, so a fourth is one
+entry in a config file and one line in a key file.
+
+**What is left is not a build.** One dispatch only the account holder can make,
+and a list of evenings in front of the thing.
 
 `board/README.md` is the architecture. This file says what is left.
 
@@ -45,17 +45,13 @@ Nobody has to ask for that. *"Look at HANDOFF"* means all of it:
    CAN DO.** It is the lowest-numbered one on purpose — the numbering carries the
    order things have to land in, and each item says what it depends on where that
    matters. If the owner names a different one, that wins. **Each item's heading
-   says whose hands it needs.** Items 1 to 8 are a keyboard's and are one build
-   cut into eight — read the paragraph above item 1 before taking any of them,
-   because they share one design and taking one against a different idea of the
-   shape is how two of them end up incompatible. Items 9 and 10 are not a
-   keyboard's: 9 needs the account holder, 10 is a list of evenings in front of
-   the thing.
-2. **Read that item whole before touching anything.** Each one says what already
+   says whose hands it needs**, and neither of the two left is a keyboard's:
+   1 needs the account holder, 2 is a list of evenings in front of the thing.
+2. **Read that item whole before touching anything.** An item says what already
    exists (measured, not assumed), what is missing, where it goes, the decisions
    to take deliberately, and what to assert. The decisions are the expensive part:
-   several items name a route that is *wrong* to reuse and say why, and taking
-   the obvious next line of code instead is how the work gets undone.
+   where an item names a route that is *wrong* to reuse, taking the obvious next
+   line of code instead is how the work gets undone.
 3. **Build it, test it, ship it.** `bash board/test/all.sh` green before and
    after, `VERSION` in `board/web/sw.js` bumped if a shell file changed, and
    `ship.sh` / `save-and-push.sh` per the split below.
@@ -73,15 +69,14 @@ An item is not done because its code runs. It is done when the suite is green,
 the rule is written where the next turn will read it, and the item is out of this
 file.
 
-**One of them is not a build and does not come out this way.** Item 2 is a list
-of evenings in front of the thing, and only the person holding the iPad can
-strike those.
+**Item 2 does not come out this way.** It is a list of evenings in front of the
+thing, and only the person holding the iPad can strike those.
 
 ---
 
 ## Before anything
 
-- `bash board/test/all.sh` — 91 suites, about twelve minutes. Green before and
+- `bash board/test/all.sh` — 94 suites, about twelve minutes. Green before and
   after.
   The last of them is Paper-Writer's own, run where it is checked out, so the
   factory's tests are part of the board's habit rather than a second one nobody
@@ -97,11 +92,10 @@ strike those.
 - Commits carry no assistant trailers. `.githooks/commit-msg` strips them.
 - **PROVIDER KEYS GO IN `~/.config/tutor-board/keys.env`, ONE `NAME=value` A
   LINE.** `DEEPSEEK_API_KEY` is there. Outside the tree, beside the
-  `config.json` the launcher already reads, and never in this repository: the
-  root `.gitignore` refuses the shapes a key file gets given. Item 1 builds the
-  reader. **If the item you are taking needs a key the file has not got, say so
-  first, in one line, naming this path** — the owner can put it there in ten
-  seconds and cannot guess where.
+  `config.json` the launcher already reads, and never in this repository.
+  **If what you are doing needs a key the file has not got, say so first, in one
+  line, naming this path** — the owner can put it there in ten seconds and
+  cannot guess where.
 
 **A session of its own is live on the serving chain, so leave it alone.**
 `tutor serve`, `tutor watch`, `tutorboard/supervise.py`,
@@ -123,7 +117,7 @@ rather than yours. This block comes out when that session ships.
 **`projects/libr-local-llm` has its own handoff and it is still the live one.**
 The five pieces it asked for against the board are shipped and are under
 *Settled* below; what is left in that file is the diarization job itself, which
-is item 1 here, and nothing else.
+is that file's to carry and is not an item here.
 
 ---
 
@@ -161,363 +155,20 @@ node, with the next machine pinned and answering before the last one is given
 back — and so, now, is THE WAY IN: a tap on a box opens the sitting rather than
 a menu of eight, the style is changed while working instead of chosen at the
 door, and a paper or a deck is asked for at the front door against any
-workspace on the machine. All of that is Settled below.**
-**And the thing that still sends somebody to a keyboard is running out of
-allowance.** An evening ends when the provider says no more, and the tool's
-answer today is to go on failing until it comes back — which is a laptop, an
-account page and somebody editing a config file. Items 1 to 8 are that: three
-providers behind one tap, and a swap between them that costs the lesson nothing.
-Item 9 needs the account holder rather than a build. Item 10 is not a build at
-all.
+workspace on the machine — and so, now, is RUNNING OUT OF ALLOWANCE, which was
+the last thing on this list that sent somebody to a laptop and an account page:
+three providers behind one tap on the front door, a swap between them that costs
+the lesson nothing, and a fourth costing one entry in a config file and one line
+in a key file. All of that is Settled below.**
+
+**Nothing left here is a build.** Item 1 needs the account holder; item 2 is a
+list of evenings in front of the thing.
 
 ---
 
 ## What to do next
 
-**A PROVIDER IS A RECIPE PLUS A KEY, AND THAT IS THE WHOLE OF IT.** Items 1 to 8
-are one build cut into eight, and they share one shape: the registry in
-`bin/tutor` already says an agent entry is a command recipe and that *nothing in
-this file knows what a model is*. That rule is not being relaxed — it is being
-finished. A recipe gains two fields, `env` and `needs_key`; a key store outside
-the tree holds the secrets; and after that a new provider is **one entry in
-`DEFAULT_CONFIG["agents"]` and one line in a key file**, with a newer model one
-string inside that entry. Three providers are wanted now — `claude`, `codex`,
-`deepseek` — and a fourth must cost an afternoon, not a refactor.
-
-### 1. THE KEY STORE, AND `env` ON A RECIPE — A KEYBOARD
-
-**Nothing in this tool can hand a turn a credential today, and that is the only
-reason a hosted provider other than the two we are logged into cannot be run.**
-Measured: `run_turn` (`board/bin/tutor:1040`) takes `env=None`, and the only
-caller that passes anything is `mission_turn` (`bin/tutor:1442`), which returns
-`(None, None)` for every sitting that is not a colibrì mission and otherwise
-`dict(os.environ, COLI_SESSION_ID=sid)`. So an ordinary turn inherits the
-daemon's environment and nothing else. A recipe cannot say *run this one against
-that endpoint with that key*.
-
-**Build two things, and they are useless apart.**
-
-**`tutorboard/keys.py` — the store.** One file, machine-local, never in the
-tree: `~/.config/tutor-board/keys.env`, beside the `config.json` that
-`CONFIG_DIR` already derives (`bin/tutor:61`). `KEY=value` a line, `#` comments,
-no shell. It is machine-local for the same reason `cost.jsonl` is: the account
-that pays for it belongs to this machine. Expose `keys.have(name)` and
-`keys.get(name)`, both cheap and both cached with the same reasoning
-`assistants.TTL` carries.
-
-**DO NOT REFUSE A GROUP-READABLE KEY FILE, WHICH IS THE OBVIOUS RULE AND IS
-WRONG HERE.** Measured on this machine: the home directory is NFSv4
-(`dc1strisl01:/ifs/.../homefolders`) and the server enforces the mode through
-its own ACLs. `chmod 600` on the key file reports success and `stat` comes back
-`770`, owner `mferguson:domain users`; `setfacl` is ignored and there is no
-`nfs4_setfacl` and no root. So a refusal on mode would refuse every file in
-this home, including `~/.claude/.credentials.json`, which has been sitting at
-the same permissions for as long as this board has run. **Say it once and carry
-on**: the key is as protected as everything else on this filer, which is group
-`domain users`, and tightening it is a storage request rather than a line of
-Python.
-
-**`env` and `needs_key` on a recipe.** `env` is a dict of environment variables
-merged over `os.environ` for that turn, with `{KEY}` substituted from the store.
-`needs_key` names the one key the store must hold. Merge them in the daemon at
-the point `turn_env` is computed, so a colibrì mission's `COLI_SESSION_ID` and a
-provider's routing land in the same dict rather than in two places that fight.
-`with_usage` is where `usage_args` and `extra_args` already go; **the env is not
-that** — it must not reach argv, because argv is in `ps` output and
-`ai-config/policy/credentials.txt` exists precisely because secrets on a command
-line get found later.
-
-**And a recipe with no key is MISSING, in the same word the browser already
-understands.** `--agents --json` (`bin/tutor:4878`) reports `missing` for an
-executable not on the path; add `unkeyed` beside it, true when `needs_key` names
-a key the store has not got. `paintWho` in `web/board.js` filters on
-`a.headless && !a.missing` — it must filter `unkeyed` too, or the button is
-drawn, tapped, and the turn dies in a log file with the thing the person holding
-the iPad can least act on. Better: draw it dimmed with a title saying which key
-is missing and where the file is. That sentence is the whole of the setup
-instructions for a provider, and it belongs on the glass.
-
-**Assert:** a recipe whose `needs_key` is absent from the store reports
-`unkeyed` and is not offered; a key file at mode 0644 is refused and the key
-reads as absent; `env` reaches the subprocess and never reaches argv;
-`{KEY}` substitution with a key present produces the value and with it absent
-produces `unkeyed` rather than the literal braces. `board/test/agents.py` is
-where this goes. Add a `keys.env` line to `test/tracked.py`'s refusals so a copy
-of it inside the tree fails the suite before it is committed, not after.
-
-### 2. THE DEEPSEEK RECIPE, WHICH IS THE CLAUDE BINARY POINTED SOMEWHERE ELSE — A KEYBOARD
-
-**Depends on item 1.** DeepSeek serves an Anthropic-format `/messages` endpoint
-at `https://api.deepseek.com/anthropic`, so the agent that runs it is the
-`claude` executable already installed here, with three environment variables.
-That is worth spelling out because it is the reason this is cheap: **every part
-of the tool that knows how to drive Claude Code goes on working unchanged** —
-`headless_first` / `headless`, the `--continue` resume, the `--output-format
-json` accounting in `read_turn_usage`, the timeouts, and the
-`ai-config` pre-tool hook, which fences PHI by intercepting the binary's tool
-calls and therefore fences this provider too, for free. Codex and the others
-have no such hook; this one inherits the fence that already exists.
-
-A seventh entry in `DEFAULT_CONFIG["agents"]`, named `deepseek`, copying the
-`claude` recipe and adding:
-
-- `needs_key`: `DEEPSEEK_API_KEY`.
-- `env`: `ANTHROPIC_BASE_URL` = `https://api.deepseek.com/anthropic`,
-  `ANTHROPIC_AUTH_TOKEN` = `{DEEPSEEK_API_KEY}`, and **the model pinned twice** —
-  `ANTHROPIC_MODEL` and `ANTHROPIC_SMALL_FAST_MODEL`, both `deepseek-flash`.
-
-**PIN THE MODEL OR LOSE THE HANDWRITING, AND THIS IS THE ONE DECISION IN THE
-ITEM.** Unpinned, the endpoint maps by name: a model id starting `claude-opus`
-lands on `deepseek-v4-pro`, which is text-only and **substitutes a placeholder
-for an image block rather than failing** — so a tutor handed a slate PNG answers
-confidently about nothing, and no exit code says so. `claude-sonnet` and
-`claude-haiku` map to `deepseek-flash`. This machine's Claude Code settings say
-`opus[1m]`, which is exactly the name that lands on the wrong model. Pinning
-both variables is what makes that unreachable.
-
-**Why `deepseek-flash` and not the pro** — verified 22 September 2026, and
-verify it again before pinning, because this is the field that goes stale and it
-is a one-string change when it does: `deepseek-flash` serves DeepSeek-V4.1-Flash
-(released 10 September 2026), takes image input natively, carries a 1M-token
-context, and is **cheaper and better than `deepseek-v4-pro`**, which is the
-older text-only model. $0.30 / $1.20 per million tokens at peak and half that
-off-peak, against a cache read near nothing; peak is 01:00–04:00 and 06:00–10:00
-UTC on weekdays. Set against the measured Galois numbers under *Settled* — 74k
-to 176k of context a turn, $2.24 to $4.49 a turn — that is roughly two orders of
-magnitude, which is the whole argument for the item.
-
-**What it is NOT, so nobody builds it twice.** Not an entry driven through
-`opencode`: that is a second agent's config file, a second credential store and
-a second thing to keep in step, for a provider the binary we already run can
-reach directly. Not a `deepseek.sh` descriptor in `ai-config`: the descriptor
-layer keys on the *assistant* and its filenames, and the assistant here is
-Claude Code — a second descriptor for the same binary is two installers writing
-the same symlink.
-
-**Assert:** the recipe's env reaches the turn with the model pinned in both
-variables; `unkeyed` where the key is absent; and one live turn against a real
-key that writes a card. `board/test/agents.py` can hold the first two as facts;
-the third is an evening and belongs in item 10.
-
-### 3. `board see` — THE VISION PATH THE BRIEFS ALREADY PROMISE AND NOTHING IMPLEMENTS — A KEYBOARD
-
-**`describe_image` does not exist.** Grep the tree: the string appears in
-`bin/tutor` twice — the `BRIEF` at line 796 and `HEADLESS_FIRST_PROMPT` at
-1092 — and in four generated `live/BRIEF.md` files that are copies of it. Every
-tutor on this board has been told, on every first turn, that if its model cannot
-see images it may *"call the `describe_image` tool on the file path and read the
-OCR it returns"*. There is no such tool. A model that cannot see images has been
-told to do something impossible, and the only reason nothing has broken is that
-the default agent can see images.
-
-**Build it as a board command, not a tool protocol.** `board see <path>` prints
-a description of an image or a PDF page to stdout. A board subcommand, because
-that is the one interface every agent in the registry already has — `board
-brief`, `board recap`, `board write` — and it therefore needs no MCP, no adapter
-and no per-vendor plumbing. It is also the honest fallback for the local model,
-which is the assistant that most needs it and the one no hosted vision route may
-ever be handed a fenced file from.
-
-**Where it sends the image is a recipe field, not a constant.** A `vision` key
-naming the model and the endpoint to use, resolved the same way everything else
-is: the running agent's own recipe first, then a `vision_agent` at the top of
-the config for the case where the agent running the sitting has no eyes. For
-DeepSeek that is `deepseek-flash` on `https://api.deepseek.com/v1/chat/completions`
-with the key from item 1 — the OpenAI-format endpoint rather than the Anthropic
-one, because this is a single request rather than an agent loop. Standard
-library only: `urllib.request`, a base64 data URL, no dependency.
-
-**AND IT REFUSES A FENCED PATH BEFORE IT READS A BYTE.** This command sends a
-file to a hosted provider, so it is exactly the thing `ai-config/policy/phi.py`
-exists to stop, and a board subcommand does not go through an assistant's
-pre-tool hook. Check the path against `tutorboard/fenced.py` first and refuse by
-name, with the reason. Get this wrong and the tool grows a documented route for
-sending PHI to a third party.
-
-Then **change the two prompts** to name `board see` instead of `describe_image`,
-and regenerate the briefs.
-
-**Assert:** a fenced path is refused and nothing leaves the machine — that one
-first, and with a test that fails loudly; an unkeyed machine says so rather than
-tracebacking; a PNG returns non-empty text. `board/test/shot.py` is the nearest
-neighbour.
-
-### 4. A LIMIT BELONGS TO AN AGENT, NOT TO A MACHINE, AND IT FAILS OVER — A KEYBOARD
-
-**Depends on items 1 and 2.** The comment at `bin/tutor:2407` already promises
-this and the code does not do it: *"The assistant this machine is configured to
-use, kept apart from the one it is using: an allowance that runs out swaps the
-second for something cheaper, and when it comes back the first is what we climb
-home to."* `wanted = agent_name` is set and, apart from one equality test at
-line 2747, never diverges. The limit branch (`bin/tutor:2670`) writes the record,
-pushes the transcript, logs *"turns will go on failing until the allowance
-returns"* — and stands still. **That was the right answer when there was one
-tutor. There are three.**
-
-Two halves.
-
-**`tutorboard/limits.py` learns which agent.** `mark_limited` already takes an
-`agent` and writes it; `limit_record` and `limited_until` ignore it. Make the
-record a map of agent to expiry, keyed under the node it was hit on as it is
-now. `limited_until(agent)`; a bare call means *any*, for the surfaces that
-still want the machine-level answer (`/health`, `board limit`,
-`routes/machines.py:280`). Migrate an old single-record file by reading it as
-one entry — a board coming up against a record from the version before must not
-crash and must not demote every agent.
-
-**The daemon climbs down, and climbs home.** On a limit: choose the next agent
-that is installed, keyed, not itself limited, and not `private` — the fence
-flag, which must never be crossed into by an automatic choice — and take the
-next turn as that agent, saying so in the log and in `agent_state` so the board
-can paint it. The order is a `fallback` list in the config, defaulting to what
-`--agents` reports in the order it reports it, because a list nobody has set
-should still do something sensible. When `wanted`'s allowance returns — the
-expiry passes, or a turn against it succeeds — climb back.
-
-**What makes this safe is already true and is the reason the item is small:**
-`session_turns` is 1 (`bin/tutor:267`), so `turn_plan` hands back
-`headless_first` for every ordinary turn and every turn is already cold. A turn
-reconstructs the evening from `board brief` and `board recap`, off disk, off the
-transcript that `beat_transcript` has been pushing every 90 seconds. **So a
-provider swap between turns loses nothing at all** — there is no conversation to
-transfer, which is precisely why this can be automatic. The exception is the one
-place a session IS carried: a `[carry]` turn resumes a colibrì conversation by
-id. Never swap under a carry; `turn_plan`'s `carry` branch is the test.
-
-**Assert:** a turn whose output matches a limit pattern marks that agent only;
-the next turn runs as the fallback and the board says which; a second agent
-hitting its own limit falls through to the third; all three limited behaves
-exactly as today does; a carry is never swapped. `board/test/limit.py` and
-`board/test/agents.py`.
-
-**And one config line:** DeepSeek answers an exhausted balance with *Insufficient
-Balance* and HTTP 402, which none of `DEFAULT_USAGE_LIMIT_SAYS` matches. Add it.
-The list is configuration for exactly this reason.
-
-### 5. THE ASSISTANT IS RE-RESOLVED EVERY TURN — A KEYBOARD
-
-**`resolve_agent`'s docstring says an assistant is chosen as a sitting OPENS and
-not mid-way, and gives the reason: "the conversation the outgoing one was
-holding does not transfer — on colibri that is the whole 15,900-token preamble,
-paid again, in hours."** That reason is true of colibrì and **false of every
-hosted agent in the table**, for the same measured fact item 4 rests on:
-`session_turns` is 1, so a hosted turn holds no conversation worth protecting.
-The rule is right for one recipe and is being applied to all of them.
-
-Today `cmd_headless` resolves the agent once and binds `spec` and `recipe` above
-the loop (`bin/tutor:2373`); `first` is recomputed each turn from that same
-`spec`, so the recipe is fixed for the life of the daemon whatever the config
-says afterwards. **Move the resolution inside the loop**, at the top of each
-turn: re-read the config, re-read the sitting's `state.json`, re-run
-`resolve_agent`, and where the answer has changed, re-bind the recipe and say so
-in the log and in `agent_state`. Where it has not changed — which is nearly
-always — nothing happens and nothing is paid.
-
-**Guard it with the one case that must not move.** Do not swap while `carried >
-0`, i.e. where the agent's own session is genuinely holding something; do not
-swap under a `[carry]`; and do not swap into a `private` recipe or out of one
-mid-mission. Write the reason next to the guard, not in a commit message.
-
-Then **delete the paragraph in `resolve_agent` that says this cannot be done**
-and write what is true now: an assistant is re-resolved per turn, the sitting
-layer is what the iPad writes, and the only recipe that cannot be left mid-way
-is one carrying a session.
-
-**Assert:** writing a different `agent` into the sitting's `state.json` while a
-daemon is listening changes who takes the next turn and does not disturb the one
-in flight; a carry is immune; the lesson is unbroken across the swap — the card
-after the swap is written against the same `board recap`. `board/test/agents.py`
-and `board/test/carry.py`.
-
-### 6. THE FRONT DOOR SWITCHES PROVIDER — A KEYBOARD
-
-**Depends on item 5**, which is what makes the switch mean something while a
-sitting is running rather than at the next one.
-
-**Most of this is already there.** `tutorboard/server/hub.py:102` puts
-`assistants.listing()` into the payload the front door already polls, so
-`web/home.js` is handed the whole table — every name, `missing`, `exclusive`,
-`private`, and after item 1 `unkeyed` — on every poll and at no cost. The board
-page draws a chooser off exactly that payload in `paintWho`
-(`web/board.js:4142`), including the fence line and the local model's four
-server states. What is missing is a surface on the front door and somewhere for
-the answer to land.
-
-**The surface:** a row on the atlas — beside `#where`, which is already the
-machine's own line — naming the assistant this machine is on and offering the
-others. Read the existing `paintWho` and take its rules rather than inventing
-new ones: a single installed agent is not a choice and draws nothing; a missing
-or unkeyed one is dimmed with the reason in its title; `private` is never the
-machine default because it is the fenced reader and its cards must not be
-pushed. **Do not copy `paintWho`'s body** — lift the shared part into something
-both pages call, or the two go out of step the first time a recipe grows a flag,
-which is the failure the registry comment in `bin/tutor` is already about.
-
-**Where the answer lands:** `default_agent` in
-`~/.config/tutor-board/config.json`, through a new hub route. It is the machine
-layer in `resolve_agent`'s precedence, which is the right one — a sitting that
-has named its own assistant keeps it, and that is not a bug. Write the file
-atomically the way `limits.mark_limited` does, and call `assistants.forget()`
-after, or the 900-second cache means the tap appears to do nothing for a quarter
-of an hour.
-
-**Assert:** the route writes `default_agent` and nothing else in the file; an
-unknown or unkeyed name is refused; the cache is dropped so the next poll shows
-it; a `private` recipe cannot be set as the machine default. `board/test/hub.js`
-and `board/test/who.js`.
-
-### 7. WHAT A TURN COST, PER PROVIDER — A KEYBOARD
-
-`read_turn_usage` (`bin/tutor:493`) opens with `if kind != "claude-json":
-return {}`. Everything else costs nothing and appears in no total, so `board
-cost` after item 2 will report a DeepSeek evening as free and a Codex evening as
-free, and the measurement that justifies every decision in this file will
-quietly stop covering two thirds of the table.
-
-**Make `usage` a dispatch rather than an equality test** — a dict of kind to
-parser, so a provider is a parser added beside the others. `deepseek` runs the
-Claude Code binary, so it emits the same result object and `claude-json` parses
-it unchanged; what it will NOT emit correctly is `total_cost_usd`, because the
-prices in that binary are Anthropic's. So:
-
-- Keep the token counts from the JSON — they are the model's own report and are
-  right.
-- **Compute the dollars here**, from a price table in the recipe: input, cached
-  input and output per million. That is where a price change is one number, and
-  it is where a provider whose pricing has a peak and an off-peak window can be
-  said honestly. DeepSeek's off-peak rate is half, on a clock in UTC — decide
-  deliberately whether to encode the window or to record the rate that applied
-  and let `board cost` sum what was actually charged. **Recording what applied is
-  the better answer**: a table of windows goes stale silently, a recorded rate
-  cannot.
-- `cost.jsonl` already carries `agent` per line (`record_cost`), so totals per
-  provider need no new field. `board cost` should print them split by agent,
-  because the reason to have three is to see which one the evening went on.
-
-**Assert:** a DeepSeek result object parses to the right token counts and a
-dollar figure computed from the table rather than from the JSON; an agent with
-no price table records tokens and no dollars rather than a wrong number; `board
-cost` splits by agent. `board/test/tokens.py`.
-
-### 8. CODEX IS HALF A RECIPE — A KEYBOARD
-
-Independent of the rest, and small. The entry is
-`{"cmd": ["codex"], "prompt": "argv", "headless": ["codex", "exec", "{prompt}"]}`
-— no `headless_first`, so `turn_plan` falls back to `headless` for a first turn
-and there is no resume path at all; no `usage`, so every Codex turn is free in
-`cost.jsonl`; no `env`, so after item 1 there is nowhere to pin its model.
-
-Bring it up to the shape the other two have: a first-turn and a resume recipe
-(`codex exec resume --last` is the current spelling — **check it against the
-installed binary's own `--help` rather than against this sentence**), a `usage`
-kind and parser if it can be made to report, and `env` for the model. Where it
-genuinely cannot report a cost, say `usage: none` in the recipe and one line
-saying why, so the gap is a decision on the page rather than an omission.
-
-**Assert:** a first Codex turn uses the first-turn recipe and a second resumes;
-`--agents --json` reports it correctly. `board/test/agents.py`.
-
-### 9. Ask GitHub to collect the instructor slides, which the rewrite did not reach — A KEYBOARD
+### 1. Ask GitHub to collect the instructor slides, which the rewrite did not reach — THE ACCOUNT HOLDER'S
 
 **The seventeen decks and sheets are out of every commit here and off `main`, and
 GitHub still serves all seventeen at the pre-rewrite SHA.** A raw fetch of
@@ -540,7 +191,7 @@ Until one of those lands, treat the decks as published. Nothing else is
 outstanding: `.gitignore` refuses them, `test/tracked.py` refuses them for every
 course, and the files are on disk where the board reads them.
 
-### 10. And the six things no test can hold — THE IPAD'S
+### 2. And the six things no test can hold — THE IPAD'S
 
 None of these is a build. Each is an evening in front of the thing.
 
@@ -598,18 +249,24 @@ None of these is a build. Each is an evening in front of the thing.
   anything up. `test/teaching.py` holds the places each is written down, and
   asserts only that they reach the course. **The first card of the next sitting is
   the real check.**
-- **A whole evening on DeepSeek, and a switch in the middle of one.** Items 1 to
-  8 make the swap a fact; whether it is a *seam* is the evening. Open a sitting
-  on `deepseek`, teach a real chapter, and read the cards as teaching rather
-  than as output — a model an order of magnitude cheaper is only cheaper if the
-  lesson is the same lesson. Hand it the slate and see whether it reads the
-  handwriting, which is the one capability the whole board rests on and the one
-  the endpoint's own documentation is least clear about. Then switch provider
-  from the front door mid-chapter and watch the next card: it should carry on
-  the thread with nothing said about the change, because the turn reconstructs
-  the evening off disk. If it opens by re-introducing itself, or asks what you
-  were working on, the brief is not carrying what it claims to and that is a
-  finding about `board brief`, not about the provider.
+- **A whole evening on DeepSeek, and a switch in the middle of one.** The swap
+  is a fact and the suite holds it; whether it is a *seam* is the evening. It is
+  also the only place the PROVIDER is tested rather than this side of the wire:
+  every request the suite makes goes to a socket on this machine, so what a real
+  endpoint says back is unknown. Open a sitting on `deepseek`, teach a real
+  chapter, and read the cards as teaching rather than as output — a model an
+  order of magnitude cheaper is only cheaper if the lesson is the same lesson.
+  Hand it the slate and see whether it reads the handwriting, which is the one
+  capability the whole board rests on and the one the endpoint's own
+  documentation is least clear about. Then switch provider from the front door
+  mid-chapter and watch the next card: it should carry on the thread with
+  nothing said about the change, because the turn reconstructs the evening off
+  disk. If it opens by re-introducing itself, or asks what you were working on,
+  the brief is not carrying what it claims to and that is a finding about
+  `board brief`, not about the provider.
+  **And `board see` against that endpoint.** Its refusals are tested and so is
+  the shape of its request; what comes back is not. Point it at a slate page and
+  read the answer against the page.
 
 ---
 
@@ -638,17 +295,103 @@ as the answer.
 
 ## Settled, so nobody re-derives it
 
-- **THE DEEPSEEK KEY IS ON THIS MACHINE AND THE TREE IS GUARDED AGAINST THE
-  NEXT ONE.** `~/.config/tutor-board/keys.env` holds `DEEPSEEK_API_KEY`, beside
-  the `config.json` the launcher already reads; nothing reads the file yet,
-  which is item 1. The key arrived as `Atlas/deepseek-api-key`, untracked and
-  never committed — `git log` over that path is empty — and is gone from the
-  tree. **A credential dropped in the repository root is a thing that happens**,
-  because that is where the terminal already is and this repository is public,
-  so the root `.gitignore` now refuses `*-api-key`, `*_api_key`, `*.key`,
-  `keys.env` and `.env`, unanchored, and no tracked file matched any of them.
-  That is a pattern rather than a question put to git, which is the weaker of
-  the two guards this tree uses — item 1 adds the question.
+- **A PROVIDER IS A RECIPE PLUS A KEY, AND A FOURTH COSTS ONE ENTRY AND ONE
+  LINE.** `needs_key` names the one key a recipe cannot run without; `env` is
+  environment merged over the turn's, with `{NAME}` filled from
+  `~/.config/tutor-board/keys.env` — `NAME=value` a line, machine-local, outside
+  the tree. **`env` never reaches argv**, because argv is in `ps` output;
+  `usage_args` and `extra_args` are for flags, which are public. A recipe whose
+  key is absent is `unkeyed`, the same word the browser already has for an
+  executable that is not installed: drawn dimmed on both choosers with the key
+  and the file in its title, refused by the daemon, and never fallen into by an
+  automatic swap. `tutorboard/keys.py` is the store and `test/keys.py` is the
+  contract.
+  **The mode rule is the narrow one and the obvious one is wrong here.**
+  World-readable is refused; group-readable is not. This home is NFSv4 and the
+  server enforces the mode through its own ACLs — `chmod 600` reports success
+  and `stat` comes back `770` — so a refusal on the group bit would refuse every
+  file in the home, `~/.claude/.credentials.json` included. Tightening it is a
+  storage request rather than a line of Python.
+  **And the tree is guarded twice.** The root `.gitignore` refuses `*-api-key`,
+  `*_api_key`, `*.key`, `keys.env` and `.env`, unanchored; `test/tracked.py` puts
+  the same question to GIT ITSELF on every run of the suite, which is the guard
+  that survives somebody editing the ignore file.
+
+- **DEEPSEEK IS THE CLAUDE BINARY POINTED SOMEWHERE ELSE, AND THAT IS WHY IT IS
+  CHEAP.** It serves an Anthropic-format `/messages` endpoint, so `cmd` is
+  `claude` and the whole tool drives it unchanged — the `--continue` resume, the
+  `--output-format json` accounting, the timeouts, and the `ai-config` pre-tool
+  hook, which fences PHI by intercepting the binary's tool calls and therefore
+  fences this provider for free. Codex has no such hook.
+  **The model is pinned twice and that is the one decision in the entry.**
+  Unpinned, the endpoint maps by NAME: an id starting `claude-opus` lands on the
+  older text-only model, which substitutes a placeholder for an image block
+  rather than failing — a tutor handed a slate PNG answers confidently about
+  nothing and no exit code says so. `ANTHROPIC_MODEL` and
+  `ANTHROPIC_SMALL_FAST_MODEL` both say `deepseek-flash`, which takes image
+  input natively, carries a 1M-token context and is cheaper than the pro.
+  Verified 23 September 2026: $0.30/$1.20 per million at peak, half off-peak,
+  peak 01:00–04:00 and 06:00–10:00 UTC on weekdays. **This is the field that
+  goes stale** and it is a one-string change when it does.
+
+- **A LIMIT BELONGS TO AN AGENT, NOT TO A MACHINE, AND THE NEXT TURN CLIMBS
+  DOWN.** `limited.json` is a map of agent to expiry under the node it was hit
+  on; a record from the single-tutor version migrates to one entry under the
+  name it carries and demotes nobody else. On a limit the daemon takes the next
+  turn as the next recipe that is installed, keyed, unlimited and **not
+  `private`** — the fence flag, which no automatic choice may cross — in the
+  config's `fallback` order, defaulting to what `--agents` reports. **The lesson
+  loses nothing** because `session_turns` is 1: every ordinary turn is already
+  cold and reads the evening back off `board brief` and `board recap`. Where
+  nobody can take it, it fails where that is visible, exactly as one tutor
+  always did. A turn going through on an agent clears that agent's limit.
+  DeepSeek's *Insufficient Balance* is in `DEFAULT_USAGE_LIMIT_SAYS`.
+
+- **THE ASSISTANT IS RE-RESOLVED EVERY TURN**, by `for_this_turn` at the top of
+  the loop: the config and the sitting's `state.json` are re-read and
+  `resolve_agent` asked again, so a tap on the front door lands on the next card
+  rather than the next evening. Where the answer has not moved — nearly always —
+  nothing happens and nothing is paid. **Three things do not move**: a session
+  genuinely carrying turns, a `[carry]` resuming a conversation by id, and
+  anything into or out of a `private` recipe.
+
+- **THE FRONT DOOR SETS `default_agent`**, through `/default-agent`, which writes
+  that one field atomically and drops `assistants.forget()` after — without which
+  the 900-second cache makes the tap appear to do nothing for a quarter of an
+  hour. It refuses an unknown name, an uninstalled one, an unkeyed one and a
+  `private` one, each with the reason on the glass. **The chooser's rules are
+  `web/who.js` and both surfaces call them**; a second copy goes out of step the
+  first time a recipe grows a flag, which is exactly how a provider is added.
+
+- **WHAT A TURN COST IS A DISPATCH, AND THE DOLLARS COME OFF THE RECIPE.**
+  `usage` names a parser — `claude-json`, `codex-jsonl` — so a provider is a
+  parser added beside the others. A provider driven through somebody else's
+  binary reports its TOKEN COUNTS right and its PRICE wrong, because the prices
+  in that binary are its vendor's: the counts are kept and the money is computed
+  from a `prices` block. **What is recorded is the rate that applied**, not the
+  window it came from — a table of windows in the reader goes stale silently and
+  a recorded rate cannot. No price table means tokens and no dollar figure, which
+  is honest rather than wrong. `board cost` splits by agent.
+
+- **CODEX IS A WHOLE RECIPE**: `codex exec` first, `codex exec resume --last`
+  after, `--json` for the accounting, whose `token_count` event carries the
+  session's RUNNING TOTAL — so the parser takes the last one rather than summing,
+  and the cached half is not counted twice. **Its model is deliberately not
+  pinned**, which is the opposite of the deepseek decision one entry up and for a
+  reason: there is no name-mapping to fall through, so unset means
+  `~/.codex/config.toml`, which is the machine owner's own choice.
+
+- **`board see <path>` IS THE VISION PATH, AND IT REFUSES A FENCE FIRST.** A
+  board subcommand rather than a tool protocol, because that is the one interface
+  every agent in the registry already has. Where the image goes is a `vision`
+  block on a recipe — endpoint, model, `needs_key` — resolved through the running
+  agent first and `vision_agent` second. **The fence rule it uses is the
+  workspace-relative one** (`fenced.refused_in`): a fence is a top-level
+  directory of the workspace that holds it, and `phi` is refused at any depth.
+  The any-depth rule refuses too much here — the slate pages this exists to read
+  land in the board's own `live/inbox/`, so it would have refused the one kind of
+  file the command is for. Every brief now names `board see`; nothing names
+  `describe_image`, which never existed.
   **And the audit could not have seen this key.** `ai-config`'s
   `policy/credentials.txt` had `openai-style api key` as `sk-[A-Za-z0-9]{40,}`;
   a DeepSeek key is `sk-` and 32 hex, 35 characters, so the scanner would have
@@ -1027,8 +770,9 @@ as the answer.
   **refuses to start without it**; the front end with no hook system is refused
   outright in a fenced directory, since it cannot carry the guard and still
   gets a shell. Clause 2 of *The exception* in
-  `research/PSYCH-ASR/AI_INSTRUCTIONS.md` now says all of this, so item 1's
-  dispatch is no longer a session reading its own contract as a violation.
+  `research/PSYCH-ASR/AI_INSTRUCTIONS.md` says all of this, so dispatching the
+  local model into that tree is no longer a session reading its own contract as
+  a violation.
 
 - **THE CHAIN: COLIBRÌ IS ALWAYS UP, AND IT MOVES NODE RATHER THAN GOING AWAY.**
   `coli-up` starts a chain. Two hours before its walltime a generation submits

@@ -136,3 +136,22 @@ Thumbs.db
 # place, and Atlas's own README names it as a thing that exists and is
 # deliberately elsewhere.
 /ai-config/
+
+# ---- a credential dropped in the tree, which is a thing that happens ----
+# A key belongs in `~/.config/tutor-board/keys.env`, machine-local and outside
+# this repository -- HANDOFF.md's *Before anything* says so. It still gets
+# dropped here first, because that is where the terminal already is, and this
+# repository is public. So the shapes a key file is given are refused by name,
+# unanchored, so a drop at any depth is caught rather than only one at the root.
+# No tracked file matched any of these when they were written.
+#
+# THIS IS THE FIRST OF TWO GUARDS AND IT IS THE WEAKER ONE. A pattern is right
+# until somebody adds a file with `git add -f` or edits this list. The other is
+# the rule that makes the PHI arrangement safe: `board/test/tracked.py` asks GIT
+# ITSELF what it can see, on every run of the suite, and refuses these same
+# shapes there.
+*-api-key
+*_api_key
+*.key
+keys.env
+.env

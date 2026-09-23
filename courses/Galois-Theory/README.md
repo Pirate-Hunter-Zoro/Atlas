@@ -28,7 +28,7 @@ chapters/chNN-slug/
   homework/         chNN-homework.tex, and handwritten/ beside it — the ink for each
                     answer, filed under the .tex it belongs to
   build/            compiler output
-homework/slug/      a write-up belonging to no chapter — the worksheet — laid out the
+homework/slug/      a write-up belonging to no chapter — a worksheet — laid out the
                     same way: slug.tex, handwritten/, build/
 ```
 
