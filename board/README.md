@@ -5006,7 +5006,7 @@ node test/who.js         that who writes this sitting is a choice on the glass, 
                          until the sitting opens, and that a workspace you are not
                          looking at can be handed a job
 
-bash test/all.sh         all of the above, in order, and Paper-Writer's 517 tests
+bash test/all.sh         all of the above, in order, and Paper-Writer's 593 tests
                          where it is checked out. The two real-DOM suites need
                          jsdom; this fetches it on first run and carries on
                          without it if there is no network. A setup step someone
