@@ -1,10 +1,10 @@
-This is pdfTeX, Version 3.141592653-2.6-1.40.29 (TeX Live 2026) (preloaded format=pdflatex 2026.4.28)  12 SEP 2026 16:40
+This is pdfTeX, Version 3.141592653-2.6-1.40.29 (TeX Live 2026) (preloaded format=pdflatex 2026.4.28)  22 SEP 2026 20:55
 entering extended mode
  restricted \write18 enabled.
  file:line:error style messages enabled.
  %&-line parsing enabled.
-**/mnt/dell_storage/homefolders/librad.laureateinstitute.org/mferguson/Probability/homework/hw02/hw02.tex
-(/mnt/dell_storage/homefolders/librad.laureateinstitute.org/mferguson/Probability/homework/hw02/hw02.tex
+**/mnt/dell_storage/homefolders/librad.laureateinstitute.org/mferguson/Atlas/courses/Probability/homework/hw02/hw02.tex
+(/mnt/dell_storage/homefolders/librad.laureateinstitute.org/mferguson/Atlas/courses/Probability/homework/hw02/hw02.tex
 LaTeX2e <2025-11-01>
 L3 programming layer <2026-03-20>
 (/mnt/dell_storage/homefolders/librad.laureateinstitute.org/mferguson/.TinyTeX/texmf-dist/tex/latex/base/article.cls
@@ -23,7 +23,7 @@ File: size11.clo 2025/01/22 v1.4n Standard LaTeX file (size option)
 \abovecaptionskip=\skip49
 \belowcaptionskip=\skip50
 \bibindent=\dimen150
-) (/mnt/dell_storage/homefolders/librad.laureateinstitute.org/mferguson/Probability/latex/coursemacros.sty
+) (/mnt/dell_storage/homefolders/librad.laureateinstitute.org/mferguson/Atlas/courses/Probability/latex/coursemacros.sty
 Package: coursemacros 2026/08/24 probability coursework macros
  (/mnt/dell_storage/homefolders/librad.laureateinstitute.org/mferguson/.TinyTeX/texmf-dist/tex/latex/amsmath/amsmath.sty
 Package: amsmath 2025/07/09 v2.17z AMS math features
@@ -580,7 +580,7 @@ Package uniquecounter Info: New unique counter `rerunfilecheck' on input line 28
 ) (/mnt/dell_storage/homefolders/librad.laureateinstitute.org/mferguson/.TinyTeX/texmf-dist/tex/latex/l3backend/l3backend-pdftex.def
 File: l3backend-pdftex.def 2026-02-18 L3 backend support: PDF output (pdfTeX)
 \l__color_backend_stack_int=\count344
-) (/mnt/dell_storage/homefolders/librad.laureateinstitute.org/mferguson/Probability/homework/hw02/build/hw02.aux)
+) (/mnt/dell_storage/homefolders/librad.laureateinstitute.org/mferguson/Atlas/courses/Probability/homework/hw02/build/hw02.aux)
 \openout1 = `hw02.aux'.
 
 LaTeX Font Info:    Checking defaults for OML/cmm/m/it on input line 18.
@@ -662,7 +662,7 @@ Package epstopdf-base Info: Redefining graphics rule for `.eps' on input line 48
 File: epstopdf-sys.cfg 2010/07/13 v1.3 Configuration of (r)epstopdf for TeX Live
 ))
 Package hyperref Info: Link coloring ON on input line 18.
- (/mnt/dell_storage/homefolders/librad.laureateinstitute.org/mferguson/Probability/homework/hw02/build/hw02.out) (/mnt/dell_storage/homefolders/librad.laureateinstitute.org/mferguson/Probability/homework/hw02/build/hw02.out)
+ (/mnt/dell_storage/homefolders/librad.laureateinstitute.org/mferguson/Atlas/courses/Probability/homework/hw02/build/hw02.out) (/mnt/dell_storage/homefolders/librad.laureateinstitute.org/mferguson/Atlas/courses/Probability/homework/hw02/build/hw02.out)
 \@outlinefile=\write4
 \openout4 = `hw02.out'.
 
@@ -684,7 +684,7 @@ Overfull \hbox (37.24542pt too wide) in paragraph at lines 54--56
 
 [1
 
-{/mnt/dell_storage/homefolders/librad.laureateinstitute.org/mferguson/.TinyTeX/texmf-var/fonts/map/pdftex/updmap/pdftex.map}] [2] [3] [4] [5] [6] (/mnt/dell_storage/homefolders/librad.laureateinstitute.org/mferguson/Probability/homework/hw02/build/hw02.aux)
+{/mnt/dell_storage/homefolders/librad.laureateinstitute.org/mferguson/.TinyTeX/texmf-var/fonts/map/pdftex/updmap/pdftex.map}] [2] [3] [4] [5] (/mnt/dell_storage/homefolders/librad.laureateinstitute.org/mferguson/Atlas/courses/Probability/homework/hw02/build/hw02.aux)
  ***********
 LaTeX2e <2025-11-01>
 L3 programming layer <2026-03-20>
@@ -693,18 +693,18 @@ Package rerunfilecheck Info: File `hw02.out' has not changed.
 (rerunfilecheck)             Checksum: D41D8CD98F00B204E9800998ECF8427E;0.
  ) 
 Here is how much of TeX's memory you used:
- 24988 strings out of 469339
- 490506 string characters out of 5466426
+ 24967 strings out of 469339
+ 490518 string characters out of 5466426
  929073 words of memory out of 5000000
- 53324 multiletter control sequences out of 15000+600000
- 638167 words of font info for 111 fonts, out of 8000000 for 9000
+ 53319 multiletter control sequences out of 15000+600000
+ 638140 words of font info for 105 fonts, out of 8000000 for 9000
  14 hyphenation exceptions out of 8191
- 99i,13n,108p,1096b,503s stack positions out of 10000i,1000n,20000p,200000b,200000s
-</mnt/dell_storage/homefolders/librad.laureateinstitute.org/mferguson/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmbx10.pfb></mnt/dell_storage/homefolders/librad.laureateinstitute.org/mferguson/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmex10.pfb></mnt/dell_storage/homefolders/librad.laureateinstitute.org/mferguson/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmmi10.pfb></mnt/dell_storage/homefolders/librad.laureateinstitute.org/mferguson/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmmi8.pfb></mnt/dell_storage/homefolders/librad.laureateinstitute.org/mferguson/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmr10.pfb></mnt/dell_storage/homefolders/librad.laureateinstitute.org/mferguson/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmr12.pfb></mnt/dell_storage/homefolders/librad.laureateinstitute.org/mferguson/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmr17.pfb></mnt/dell_storage/homefolders/librad.laureateinstitute.org/mferguson/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmr6.pfb></mnt/dell_storage/homefolders/librad.laureateinstitute.org/mferguson/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmr8.pfb></mnt/dell_storage/homefolders/librad.laureateinstitute.org/mferguson/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmsy10.pfb></mnt/dell_storage/homefolders/librad.laureateinstitute.org/mferguson/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmsy8.pfb></mnt/dell_storage/homefolders/librad.laureateinstitute.org/mferguson/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmti10.pfb></mnt/dell_storage/homefolders/librad.laureateinstitute.org/mferguson/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/symbols/msam10.pfb></mnt/dell_storage/homefolders/librad.laureateinstitute.org/mferguson/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/symbols/msbm10.pfb>
-Output written on /mnt/dell_storage/homefolders/librad.laureateinstitute.org/mferguson/Probability/homework/hw02/build/hw02.pdf (6 pages, 184047 bytes).
+ 99i,13n,108p,1110b,507s stack positions out of 10000i,1000n,20000p,200000b,200000s
+</mnt/dell_storage/homefolders/librad.laureateinstitute.org/mferguson/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmbx10.pfb></mnt/dell_storage/homefolders/librad.laureateinstitute.org/mferguson/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmex10.pfb></mnt/dell_storage/homefolders/librad.laureateinstitute.org/mferguson/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmmi10.pfb></mnt/dell_storage/homefolders/librad.laureateinstitute.org/mferguson/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmmi8.pfb></mnt/dell_storage/homefolders/librad.laureateinstitute.org/mferguson/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmr10.pfb></mnt/dell_storage/homefolders/librad.laureateinstitute.org/mferguson/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmr12.pfb></mnt/dell_storage/homefolders/librad.laureateinstitute.org/mferguson/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmr17.pfb></mnt/dell_storage/homefolders/librad.laureateinstitute.org/mferguson/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmr6.pfb></mnt/dell_storage/homefolders/librad.laureateinstitute.org/mferguson/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmr8.pfb></mnt/dell_storage/homefolders/librad.laureateinstitute.org/mferguson/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmsy10.pfb></mnt/dell_storage/homefolders/librad.laureateinstitute.org/mferguson/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmsy8.pfb></mnt/dell_storage/homefolders/librad.laureateinstitute.org/mferguson/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/cm/cmti10.pfb></mnt/dell_storage/homefolders/librad.laureateinstitute.org/mferguson/.TinyTeX/texmf-dist/fonts/type1/public/amsfonts/symbols/msbm10.pfb>
+Output written on /mnt/dell_storage/homefolders/librad.laureateinstitute.org/mferguson/Atlas/courses/Probability/homework/hw02/build/hw02.pdf (5 pages, 169093 bytes).
 PDF statistics:
- 126 PDF objects out of 1000 (max. 8388607)
- 89 compressed objects within 1 object stream
- 23 named destinations out of 1000 (max. 500000)
- 18445 words of extra memory for PDF output out of 20736 (max. 10000000)
+ 111 PDF objects out of 1000 (max. 8388607)
+ 77 compressed objects within 1 object stream
+ 17 named destinations out of 1000 (max. 500000)
+ 20493 words of extra memory for PDF output out of 20736 (max. 10000000)
 

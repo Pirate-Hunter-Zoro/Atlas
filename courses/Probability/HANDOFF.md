@@ -12,3 +12,21 @@ Between them they own: the chain rule for a joint pmf; marginalising to rebuild 
 **Next: Problem 31**, posed on card 0014, unanswered. Expected length of the first and second runs in a Bernoulli(p) sequence. Open ask is a p=1/3 warm-up: P(L₁=3) and E[L₁] given a leading 1. It targets the two ideas the problem needs — a run's length given its symbol is geometric, and the second run's symbol is forced opposite, which is why E[L₂]=2 with no p in it.
 
 **How this student works.** They skip the warm-up and send a full proof instead, five times now. Do not chase the skipped sub-question; mark what arrived. They sometimes write "where did I mess up?" when nothing is wrong; answer that first and say plainly when the answer is nowhere.
+
+## The textbook changed under the course, on 22 September 2026
+
+`textbook/ProbTextbook.pdf` is Ross, eleventh edition, 769 pages, and it replaced the
+tenth. `chapters.tsv` is re-indexed against it — offset 8, so printed page 1 is PDF page
+9 — and all eleven `chapters/chNN-*/reading/chNN.pdf` excerpts are re-cut from it.
+
+**What this costs, and it has already cost it once.** Exercise numbers differ between the
+editions. Homework 2's 61 and 76 were transcribed from the tenth and worked in full before
+anyone noticed; the eleventh's 61 is about records in a sequence of iid continuous
+variables and its 76 is Chebyshev to the weak law. The tenth-edition work is complete and
+kept in `homework/hw02/superseded-edition-10.tex`, with its scans under
+`homework/hw02/handwritten/superseded-edition-10/`. `hw02.tex` now carries the eleventh's
+statements with empty solution regions.
+
+Check any exercise number against `textbook/ProbTextbook.pdf` before teaching it. The
+assignment sheet in each set's `assignment/` directory is the authority over any number
+written down anywhere else.

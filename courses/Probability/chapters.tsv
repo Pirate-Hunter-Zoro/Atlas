@@ -4,17 +4,29 @@
 # Columns (TAB separated):
 #   num  first_pdf_page  last_pdf_page  slug  title
 #
-# Page numbers are PDF page indices into textbook/Introduction to Probability
-# Models.pdf (NOT the book's printed page numbers; the offset is 18 — printed
-# page 1 is PDF page 19). Ross, 10th edition.
-01	19	38	introduction-to-probability-theory	Introduction to Probability Theory
-02	39	114	random-variables	Random Variables
-03	115	208	conditional-probability-and-conditional-expectation	Conditional Probability and Conditional Expectation
-04	209	308	markov-chains	Markov Chains
-05	309	388	exponential-distribution-and-poisson-process	The Exponential Distribution and the Poisson Process
-06	389	438	continuous-time-markov-chains	Continuous-Time Markov Chains
-07	439	514	renewal-theory	Renewal Theory and Its Applications
-08	515	596	queueing-theory	Queueing Theory
-09	597	648	reliability-theory	Reliability Theory
-10	649	684	brownian-motion-and-stationary-processes	Brownian Motion and Stationary Processes
-11	685	752	simulation	Simulation
+# Page numbers are PDF page indices into textbook/ProbTextbook.pdf, which is
+# Ross, ELEVENTH edition, 769 pages. They are not the book's printed page
+# numbers; the offset is 8, so printed page 1 is PDF page 9.
+#
+# THE EDITION IS THE THING TO CHECK BEFORE TRUSTING AN EXERCISE NUMBER. The
+# course ran on the tenth edition until 22 September 2026 and its exercises are
+# numbered differently -- that is how homework 2 came to be set on the wrong two
+# problems. An exercise number copied from a tenth-edition assignment sheet is
+# not the same exercise here, and the sheet in each set's assignment/ directory
+# is the authority over any number written down elsewhere.
+#
+# Boundaries were read off the running headers: an odd page carries its
+# chapter's title, and a chapter's opening page carries the title wrapped over
+# two or three lines with no page number. Each chapter ends the page before the
+# next one opens; chapter 11 ends where Solutions to Starred Exercises begins.
+01	9	27	introduction-to-probability-theory	Introduction to Probability Theory
+02	28	98	random-variables	Random Variables
+03	99	187	conditional-probability-and-conditional-expectation	Conditional Probability and Conditional Expectation
+04	188	281	markov-chains	Markov Chains
+05	282	361	exponential-distribution-and-poisson-process	The Exponential Distribution and the Poisson Process
+06	362	412	continuous-time-markov-chains	Continuous-Time Markov Chains
+07	413	483	renewal-theory	Renewal Theory and Its Applications
+08	484	561	queueing-theory	Queueing Theory
+09	562	609	reliability-theory	Reliability Theory
+10	610	647	brownian-motion-and-stationary-processes	Brownian Motion and Stationary Processes
+11	648	709	simulation	Simulation

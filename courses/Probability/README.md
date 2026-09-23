@@ -1,8 +1,14 @@
 # Probability — coursework
 
 Reading, notes, and assigned homework for a graduate probability course following
-Sheldon M. Ross, *Introduction to Probability Models* (10th edition), plus the professor's
-lecture modules.
+Sheldon M. Ross, *Introduction to Probability Models* (**eleventh** edition), plus the
+professor's lecture modules.
+
+**The edition is load-bearing and the assignment sheets say so.** Homework 2 reads "from
+the text, Edition 11" and asks anybody holding the tenth to say so, because the exercises
+are numbered differently between them — 61 and 76 were worked from the tenth before the
+mismatch was found. `chapters.tsv` indexes `textbook/ProbTextbook.pdf`, which is the
+eleventh, 769 pages, offset 8. An exercise number is only meaningful against that file.
 
 > **AI assistants: read [`AI_INSTRUCTIONS.md`](./AI_INSTRUCTIONS.md) in full before doing
 > anything.** It is the operating contract for this repository and it is model-agnostic —
