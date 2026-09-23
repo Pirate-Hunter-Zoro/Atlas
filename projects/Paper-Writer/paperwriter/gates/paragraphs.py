@@ -30,8 +30,11 @@ turns out to be most of the failures:
     the compact findings a Conclusions section is made of. Whether two sentences are
     enough is a question about the section, and the OUTLINE answers it by naming a
     topic sentence for every planned paragraph.
-  * **It runs past nine sentences.** That is two claims, and the reader is being asked
-    to work out where one ended.
+  * **It runs past nine sentences, or past a hundred and twenty words.** Either one
+    is two claims, and the reader is being asked to work out where one ended. The two
+    catch different failures and neither subsumes the other: nine short sentences is
+    two claims as surely as five long ones, and a 155-word block of five is what a
+    paragraph that grew by accretion looks like.
   * **It ends on a citation or a bare number.** The last sentence should say what the
     paragraph means, not cite one more source.
   * **It ends on a signpost.** "The full encoding rules are described in Supplement
@@ -46,6 +49,26 @@ Discussion; a bulleted list is a paragraph to the parser and has no topic senten
 design. Gating on any single defect would produce a gate that fires on every section
 and is therefore ignored.
 
+**And the share needs a denominator.** Under `PARAGRAPH_DEFECT_MIN_PARAGRAPHS` the
+ratio is arithmetic rather than measurement — "1 of 1 paragraphs are mis-shaped
+(100%)" on a twenty-word back-matter section is a blocking finding about nothing. The
+defects are still reported; the section-level verdict is withheld.
+
+**Two things this gate checks that are not paragraph shape**, and both are about
+POSITION rather than about the paragraph they sit in, which is why they are section
+reasons and not defects diluted in the share:
+
+  * **A section may not open on a roadmap.** A first paragraph whose subject is the
+    document rather than its content — "the results are reported in the order of the
+    two objectives", "this section describes..." — spends the first thing a reader
+    reads on what the table of contents already told them. It is one paragraph of
+    twenty-four in the section where it was found, invisible under any share ceiling,
+    and the first thing on the page.
+  * **A Results paragraph's opening sentence carries its figure.** When the claim IS
+    a number, the claim and the number belong in the same sentence. This one advises
+    rather than blocks: a short report whose findings are qualitative is legitimate
+    and scores badly here.
+
 Pure arithmetic and pattern matching. No model.
 """
 
@@ -53,7 +76,7 @@ import re
 from dataclasses import dataclass, field
 
 from .. import config
-from . import prose
+from . import numbers, prose
 
 # A citation marker in any of the three styles a manuscript here uses: a numbered
 # marker, an author-year parenthetical, or a pandoc-style @key.
@@ -154,6 +177,10 @@ def _delays_the_claim(sentence):
     return phrase if len(head.split()) >= 6 else ""
 
 
+# The one defect kind that is reported and never counted toward the section's share.
+LONG_IN_WORDS = "too long (words)"
+
+
 @dataclass
 class ParagraphDefect:
     index: int                # 1-based position in the section
@@ -170,6 +197,8 @@ class ParagraphReport:
     share: float = 0.0
     passed: bool = True
     reasons: list = field(default_factory=list)
+    advisories: list = field(default_factory=list)   # reported, never blocking
+    results_topic_share: float = None                # None when not measured
 
     def brief(self):
         return (f"{self.total} paragraphs, {len(self.defects)} shape defect(s) "
@@ -178,8 +207,17 @@ class ParagraphReport:
 
 # A figure or table caption, or a panel label. Written `***Table S3.** ...*` or
 # `**(A) Nearest retrieval**`, both of which the parser sees as a paragraph.
+#
+# The third form carries no emphasis at all: `Table 1. Cohort characteristics.` is
+# what `pandoc -f docx` writes, because Word holds the caption's styling outside the
+# text. Requiring emphasis missed every caption in a returned manuscript and measured
+# seven of them as one-sentence paragraphs. The label, its number and the stop that
+# follows are what make it a caption; the punctuation after the number is what keeps
+# the pattern off "Table 2 gives every selected characteristic", which is prose.
 _CAPTION_RE = re.compile(r"^\s*(?:\*{2,3}\s*(?:Table|Figure|Fig\.?|Panel)\b"
-                         r"|\*\*\([A-Za-z0-9]+\))", re.IGNORECASE)
+                         r"|\*\*\([A-Za-z0-9]+\)"
+                         r"|(?:Table|Figure|Fig\.|Panel)\s*S?\d+\s*[.:])",
+                         re.IGNORECASE)
 
 
 def _is_caption(paragraph):
@@ -228,6 +266,87 @@ def _introduces_a_list(paragraph):
     return paragraph.rstrip().endswith(":")
 
 
+# A first paragraph whose subject is the document rather than its content.
+#
+# Two families, and they are matched differently because they fail differently.
+#
+# The first names the document's own organization, and it is a defect wherever in the
+# opening paragraph it appears: "the results are reported in the order of the two
+# objectives", "the remainder of this section". The reader has the headings.
+#
+# The second is a self-reference verb, and it is only a defect at the START of the
+# first sentence and only outside the sections whose job is to say what the paper
+# does. "Here we report" as the close of an Introduction is the standard purpose
+# statement of a scientific paper, not a roadmap, and refusing it would be the gate
+# fighting the one place the construction belongs.
+_ROADMAP_ORG_RE = re.compile(
+    r"(?:are|is)\s+(?:reported|presented|organi[sz]ed|described|given|set\s+out)"
+    r"\s+in\s+the\s+order"
+    r"|is\s+organi[sz]ed\s+as\s+follows"
+    r"|in\s+what\s+follows"
+    r"|the\s+(?:remainder|rest)\s+of\s+(?:this|the)\s+"
+    r"(?:section|paper|manuscript|supplement|appendix)"
+    r"|comes?\s+first,\s+then"
+    r"|the\s+following\s+(?:section|subsection|paragraph)s?\b",
+    re.IGNORECASE)
+
+_ROADMAP_SELF_RE = re.compile(
+    r"^\s*(?:This\s+(?:section|subsection|supplement|appendix)\s+"
+    r"(?:describes|reports|presents|summari[sz]es|covers|details|provides|"
+    r"contains|documents|lists)"
+    r"|Here\s+we\s+(?:describe|report|present|summari[sz]e|list|document))",
+    re.IGNORECASE)
+
+# Where a purpose statement is the section's job rather than a roadmap.
+_PURPOSE_SECTIONS = ("abstract", "introduction", "background")
+
+
+def _opens_on_a_roadmap(paragraph, section_name=""):
+    """The roadmap phrase a section's first paragraph opens on, or "".
+
+    Only the first paragraph of a section is asked. A sentence in the middle of a
+    Methods section saying where the fuller specification lives is a signpost, which
+    is a different rule and a milder one."""
+    match = _ROADMAP_ORG_RE.search(paragraph)
+    if match:
+        return " ".join(match.group(0).split())
+    if prose.section_matches(section_name, _PURPOSE_SECTIONS):
+        return ""
+    sents = prose.sentences(paragraph)
+    match = _ROADMAP_SELF_RE.match(sents[0]) if sents else None
+    return " ".join(match.group(0).split()) if match else ""
+
+
+# The manuscript's Results section, by its own heading. A supplement section that
+# happens to be called "Results" is not it, which is why the caller says which
+# document this is.
+_RESULTS_HEADINGS = ("results", "findings")
+
+
+def _results_topic_share(blocks, body):
+    """(share, checked, openers-without-a-figure) for a Results section, or None.
+
+    None when the section is too short to measure or is not reporting figures at all.
+    A Results section that names its predictors rather than measuring them reports in
+    words and is correct; the density guard is what keeps the rule off it."""
+    firsts = []
+    for _, paragraph in blocks:
+        sents = prose.sentences(paragraph)
+        if sents:
+            firsts.append(sents[0])
+    if len(firsts) < config.RESULTS_TOPIC_MIN_PARAGRAPHS:
+        return None
+    stripped = prose.strip_structure(body)
+    words = prose.word_count(stripped)
+    if not words:
+        return None
+    density = 100.0 * len(numbers.extract(stripped)) / words
+    if density < config.RESULTS_TOPIC_DENSITY_MIN:
+        return None
+    bare = [s for s in firsts if not numbers.extract(s)]
+    return (len(firsts) - len(bare)) / len(firsts), len(firsts), bare
+
+
 def _check_one(index, paragraph, signposts_count=True):
     """Every shape defect in one paragraph.
 
@@ -254,6 +373,14 @@ def _check_one(index, paragraph, signposts_count=True):
             f"paragraph {index} runs {len(sents)} sentences against a ceiling of "
             f"{config.PARAGRAPH_MAX_SENTENCES}. It is carrying two claims. Find where "
             f"the second one starts and break there.",
+            first))
+    elif prose.word_count(paragraph) > config.PARAGRAPH_MAX_WORDS:
+        out.append(ParagraphDefect(
+            index, LONG_IN_WORDS,
+            f"paragraph {index} runs {prose.word_count(paragraph)} words against a "
+            f"ceiling of {config.PARAGRAPH_MAX_WORDS}. Its sentence count is inside "
+            f"the band, so this is a paragraph that grew rather than one that welded: "
+            f"find the second claim and break there.",
             first))
 
     if _opens_on_citation(first):
@@ -304,15 +431,21 @@ def _check_one(index, paragraph, signposts_count=True):
     return out
 
 
-def check(text, section_name=""):
+def check(text, section_name="", manuscript=True):
     """Gate a section's paragraph shape. Returns a ParagraphReport.
 
     `section_name` exempts the sections where the rules do not apply: an abstract is
     one structured block, a declarations section is a list, and references are not
     prose at all. It also turns OFF the closing-signpost rule in a methods section,
     where a pointer at the fuller specification is what the paragraph concludes on
-    rather than a substitute for its conclusion."""
-    if section_name and section_name.strip().lower() in config.PARAGRAPH_EXEMPT_SECTIONS:
+    rather than a substitute for its conclusion.
+
+    `manuscript` says whether this section belongs to the manuscript rather than to a
+    supplement, a checklist or a cover letter. Only the Results topic-sentence rule
+    reads it, and only because a supplement section called "Results" is not the
+    manuscript's Results: measured across a published supplement, half its sections
+    open without a number and are right to."""
+    if prose.section_matches(section_name, config.PARAGRAPH_EXEMPT_SECTIONS):
         return ParagraphReport(total=0, checked=0, passed=True)
 
     name = (section_name or "").strip().lower()
@@ -331,16 +464,51 @@ def check(text, section_name=""):
     checked = len(checkable)
     # One paragraph can carry two defects; the share is of paragraphs, not of defects,
     # because that is the question — how much of this section is mis-shaped.
-    bad = len({d.index for d in defects})
+    #
+    # EXCEPT THE WORD CEILING, which is reported and does not count. It is a length
+    # rule wearing a shape rule's clothes, and unlike every other defect here it did
+    # not survive a negative control: Komorowski's published Nature Medicine methods
+    # supplement runs 10% of its paragraphs past 120 words with a maximum of 204, which
+    # would consume two-thirds of the share allowance before a single real shape defect
+    # was counted. See the note above SENTENCE_MID_WORDS in config.py.
+    bad = len({d.index for d in defects if d.kind != LONG_IN_WORDS})
     share = 0.0 if not checked else bad / checked
 
-    reasons = []
-    if checked and share > config.PARAGRAPH_DEFECT_SHARE_MAX:
+    reasons, advisories = [], []
+    if (checked >= config.PARAGRAPH_DEFECT_MIN_PARAGRAPHS
+            and share > config.PARAGRAPH_DEFECT_SHARE_MAX):
         kinds = sorted({d.kind for d in defects})
         reasons.append(
             f"{bad} of {checked} paragraphs are mis-shaped ({share:.0%}); the ceiling "
             f"is {config.PARAGRAPH_DEFECT_SHARE_MAX:.0%}. What is wrong: "
             f"{', '.join(kinds)}.")
 
+    if checkable:
+        phrase = _opens_on_a_roadmap(checkable[0][1], section_name)
+        if phrase:
+            reasons.append(
+                f"the section opens on a roadmap: \"{phrase}\". The heading has "
+                f"already said what the section is about, so the first thing a reader "
+                f"reads is the table of contents a second time. Open on the first "
+                f"thing this section has to report.")
+
+    topic_share = None
+    if manuscript and prose.section_matches(section_name, _RESULTS_HEADINGS):
+        measured = _results_topic_share(checkable, text)
+        if measured is not None:
+            topic_share, n_first, bare = measured
+            if topic_share < config.RESULTS_TOPIC_FIGURE_SHARE_MIN:
+                advisories.append(
+                    f"{topic_share:.0%} of this section's paragraphs open on a "
+                    f"sentence carrying a reported figure, against a floor of "
+                    f"{config.RESULTS_TOPIC_FIGURE_SHARE_MIN:.0%} over {n_first} "
+                    f"paragraphs. When the claim IS a number, the claim and the "
+                    f"number go in the same sentence; a bare claim followed by its "
+                    f"figure is two sentences doing one sentence's work. The first "
+                    f"is \"{bare[0][:70]}...\"")
+
     return ParagraphReport(total=len(blocks), checked=checked, defects=defects,
-                           share=round(share, 4), passed=not reasons, reasons=reasons)
+                           share=round(share, 4), passed=not reasons, reasons=reasons,
+                           advisories=advisories,
+                           results_topic_share=(None if topic_share is None
+                                                else round(topic_share, 4)))

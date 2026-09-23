@@ -55,9 +55,15 @@ _PHASE_KEYWORDS = (
     ("discussion", ("discussion", "interpretation", "limitation", "implication",
                     "comparison with prior")),
     ("conclusion", ("conclusion",)),
+    # Back matter is listed as the venue names each piece, because a manuscript
+    # written to a journal's own form carries nine separate headings here rather than
+    # one Declarations block — and a section this list does not recognise is a
+    # section that draws the word floor meant for prose that argues.
     ("back", ("declaration", "reference", "acknowledg", "appendix", "supplement",
               "multimedia", "abbreviation", "funding", "ethics",
-              "conflict", "availability")),
+              "conflict", "competing interest", "availability", "data sharing",
+              "registration", "contribution", "corresponding author", "orcid",
+              "keywords", "contents")),
 )
 
 _PHASE_ORDER = {"front": 0, "intro": 1, "methods": 2, "results": 3,

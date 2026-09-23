@@ -244,7 +244,8 @@ def run_gates(prose, section, memory, references=None):
     cites = citations.check(prose, references if references is not None
                             else memory.references)
     words = length.check(read.words, budget=section.get("words"),
-                         absolute=0 if section.get("delivered") else None)
+                         absolute=0 if section.get("delivered") else None,
+                         section_name=heading)
 
     failures = []
     if not nums.passed:
@@ -276,8 +277,10 @@ def run_gates(prose, section, memory, references=None):
         "sentence_mean": sent.mean,
         "sentence_stdev": sent.stdev,
         "long_share": sent.long_share,
+        "mid_share": sent.mid_share,
         "paragraphs": para.total,
         "paragraph_defects": len(para.defects),
+        "results_topic_share": para.results_topic_share,
         "numbers_checked": nums.checked,
         "numbers_unsupported": len(nums.unsupported),
         "terminology_defects": len(terms.defects),

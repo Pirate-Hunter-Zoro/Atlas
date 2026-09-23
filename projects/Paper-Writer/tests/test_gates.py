@@ -189,11 +189,15 @@ class SentenceGateTests(unittest.TestCase):
                 "- psychiatric comorbidity;\n- health-care utilisation.\n")
         self.assertEqual(sentences.score(text).semicolons_per_kword, 0.0)
 
-    def test_semicolons_are_rationed(self):
+    def test_semicolons_are_rationed_and_the_ration_only_advises(self):
+        """The count is reported. It does not fail the section: a published
+        manuscript this project measures itself against runs three times the ceiling
+        in ordinary clause-joining prose, and no shared ceiling exists to retune to.
+        The defect the ration was aiming at is caught by the mid band."""
         text = " ".join(["The model did better; the gap was small."] * 6)
         report = sentences.score(text)
-        self.assertFalse(report.passed)
-        self.assertTrue(any("semicolon" in r for r in report.reasons))
+        self.assertTrue(any("semicolon" in a for a in report.advisories))
+        self.assertFalse(any("semicolon" in r for r in report.reasons))
 
     def test_a_caption_semicolon_is_a_label_not_a_weld(self):
         """"(held-out test set; primary Qwen3-Embedding-8B encoder)" and "(A) history
@@ -1549,9 +1553,10 @@ class LengthGateTests(unittest.TestCase):
         for words in (620, 1000, 1140):
             self.assertTrue(length.check(words, budget=1000).passed, words)
 
-    def test_with_no_budget_only_the_absolute_floor_applies(self):
-        self.assertTrue(length.check(100_000).passed)
+    def test_with_no_budget_the_floor_and_the_absolute_ceiling_apply(self):
+        self.assertTrue(length.check(1_000).passed)
         self.assertFalse(length.check(10).passed)
+        self.assertFalse(length.check(100_000).passed)
 
 
 class ResultsDensityTests(unittest.TestCase):
@@ -1816,22 +1821,28 @@ class VenueGateTests(unittest.TestCase):
     GOOD = (
         "# Title page\n\n**Title.** A Study\n\n"
         "# Abstract\n\n"
-        "**Background.** " + "word " * 40 + "\n\n"
-        "**Objective.** " + "word " * 30 + "\n\n"
-        "**Methods.** " + "word " * 40 + "\n\n"
-        "**Results.** " + "word " * 30 + "\n\n"
-        "**Conclusions.** " + "word " * 20 + "\n\n"
+        # Sentences rather than a run of tokens: the gate reads the abstract's
+        # shape now, and a 40-word block with no full stop in it is a 40-word
+        # sentence.
+        "**Background.** " + "Word word word word. " * 10 + "\n\n"
+        "**Objective.** " + "Word word word word. " * 7 + "\n\n"
+        "**Methods.** " + "Word word word word. " * 8 + "\n\n"
+        "**Results.** " + "Word word word word. " * 9 + "\n\n"
+        "**Conclusions.** " + "Word word word word. " * 5 + "\n\n"
         "**Keywords.** one; two; three; four; five; six\n\n"
         "# Introduction\n\nThe question is open. Nobody has answered it.\n\n"
         "# Methods\n\nThe cohort was assembled from records. Nothing was refit.\n\n"
         "# Results\n\nThe model discriminated modestly. Calibration was adequate.\n\n"
         "# Discussion\n\nThe finding is a null. It bounds one comparison only.\n\n"
-        "# Declarations\n\n**Funding.** None.\n\n"
-        "**Conflicts of interest.** None declared.\n\n"
-        "**Ethics and data handling.** Secondary analysis.\n\n"
-        "**Authors' contributions.** MF did the work.\n\n"
-        "**Data availability.** On request.\n\n"
-        "**Abbreviations.** TRD: treatment-resistant depression.\n\n"
+        "# Ethical Considerations\n\nSecondary analysis of existing records.\n\n"
+        "# Acknowledgments\n\nNone.\n\n"
+        "# Funding\n\nNone.\n\n"
+        "# Conflicts of Interest\n\nNone declared.\n\n"
+        "# Data Availability\n\nOn request.\n\n"
+        "# Authors' Contributions\n\nMF did the work.\n\n"
+        "# Protocol and Registration\n\nNot registered.\n\n"
+        "# Abbreviations\n\nTRD: treatment-resistant depression.\n\n"
+        "# Multimedia Appendix 1\n\nThe supplement.\n\n"
         "# References\n\n1. Someone. A paper. Journal. 2024.\n"
     )
 
@@ -1870,8 +1881,8 @@ class VenueGateTests(unittest.TestCase):
         self.assertFalse(venue.check(self.GOOD, "").passed)
 
     def test_an_over_length_abstract_is_refused(self):
-        text = self.GOOD.replace("**Methods.** " + "word " * 40,
-                                 "**Methods.** " + "word " * 400)
+        text = self.GOOD.replace("**Methods.** " + "Word word word word. " * 8,
+                                 "**Methods.** " + "Word word word word. " * 100)
         report = venue.check(text, "JMIR")
         self.assertFalse(report.passed)
         self.assertTrue(any("against this venue's ceiling" in e
@@ -1890,10 +1901,10 @@ class VenueGateTests(unittest.TestCase):
         self.assertTrue(any("no `Objective` heading" in e for e in report.errors))
 
     def test_a_missing_mandatory_section_is_refused(self):
-        report = venue.check(self.GOOD.replace("**Abbreviations.**", "**Notes.**"),
+        report = venue.check(self.GOOD.replace("# Abbreviations", "# Notes"),
                              "JMIR")
         self.assertFalse(report.passed)
-        self.assertTrue(any("`Abbreviations` section" in e for e in report.errors))
+        self.assertTrue(any("`Abbreviations` heading" in e for e in report.errors))
 
     def test_a_url_in_the_body_is_refused(self):
         """The commonest way to break this is a Methods section naming its own code
@@ -2655,6 +2666,831 @@ class BuildResourceDirTests(unittest.TestCase):
         path = building._resource_path(Path("/paper/manuscript.md"),
                                        (Path("/journey/paper1"),))
         self.assertEqual(path.split(os.pathsep), ["/paper", "/journey/paper1"])
+
+
+class PandocTableTests(unittest.TestCase):
+    """A table is not prose whichever of the three ways it is written. Pipe-ruled is
+    what this project's builder emits; dash-ruled and raw HTML are what
+    `pandoc -f docx` emits, and `-f docx` is how a reviewer's revision comes back."""
+
+    def test_a_dash_ruled_simple_table_is_not_prose(self):
+        text = ("The cohort is described below. Nothing was refit.\n\n"
+                "  Group      Patients   Rate\n"
+                "  --------- ---------- ------\n"
+                "  Positive        7455  17.5%\n"
+                "  Negative       35124  82.5%\n\n"
+                "The split is the frozen one. Both halves inherit the frame.\n")
+        self.assertEqual(len(prose.paragraphs(text)), 2)
+        self.assertNotIn("Positive", prose.strip_structure(text))
+
+    def test_a_raw_html_table_is_not_prose(self):
+        """Pandoc falls back to literal `<table>` for a merged cell. One unblanked
+        block measured as a single 293-word paragraph and carried a correct section
+        over every length rule in this project."""
+        text = ("The characteristics follow. They are unremarkable.\n\n"
+                "<table>\n<thead>\n<tr>\n<th>Group</th>\n<th>N</th>\n</tr>\n"
+                "</thead>\n<tbody>\n<tr>\n<td>Positive</td>\n<td>7455</td>\n"
+                "</tr>\n</tbody>\n</table>\n\n"
+                "Discrimination was modest. Calibration was adequate.\n")
+        self.assertEqual(len(prose.paragraphs(text)), 2)
+        self.assertNotIn("Positive", prose.strip_structure(text))
+
+    def test_a_thematic_break_is_not_a_table_ruler(self):
+        """A ruler is two or more runs of hyphens. One run is a horizontal rule, and
+        blanking the paragraphs around it would delete prose."""
+        text = "The claim holds.\n\n---\n\nAnd the next one follows from it."
+        self.assertIn("claim holds", prose.strip_structure(text))
+        self.assertIn("next one follows", prose.strip_structure(text))
+
+    def test_an_unemphasised_caption_is_still_a_caption(self):
+        """Word holds a caption's styling outside its text, so pandoc writes
+        `Table 1. ...` with no emphasis. Requiring emphasis measured seven captions
+        in a returned manuscript as one-sentence paragraphs."""
+        self.assertTrue(paragraphs._is_caption(
+            "Table 1. Selected cohort characteristics by TRD proxy status."))
+        self.assertTrue(paragraphs._is_caption("Figure 2. Discrimination by encoder."))
+
+    def test_a_cross_reference_in_prose_is_not_a_caption(self):
+        """The stop after the number is what separates them; both read "Table 2" on
+        the page."""
+        self.assertFalse(paragraphs._is_caption(
+            "Table 2 gives every selected characteristic and its standardized "
+            "difference."))
+
+
+class SectionPrefixMatchTests(unittest.TestCase):
+    """An exemption keyed on equality exempts nothing, because a heading carries what
+    the venue calls the section rather than what the list calls it."""
+
+    def test_a_numbered_appendix_heading_matches_its_tag(self):
+        self.assertTrue(prose.section_matches("Multimedia Appendix 1",
+                                              ("multimedia appendix",)))
+
+    def test_an_unrelated_heading_does_not(self):
+        self.assertFalse(prose.section_matches("Methods", ("multimedia appendix",)))
+
+    def test_venue_named_back_matter_is_exempt_from_paragraph_shape(self):
+        """A manuscript that writes its back matter the way the venue asks carries
+        nine short headings. Without the exemption every one of them draws findings
+        from gates that have no business reading them."""
+        for heading in ("Conflicts of Interest", "Data Availability",
+                        "Authors' Contributions", "Multimedia Appendix 1"):
+            self.assertEqual(paragraphs.check("None declared.", heading).checked, 0,
+                             heading)
+
+
+class ParagraphWordCeilingTests(unittest.TestCase):
+    """A paragraph's sentence count and its word count are different failures. Nine
+    short sentences is two claims; so is one 155-word block of five long ones, and
+    the sentence ceiling has never fired on either manuscript measured here."""
+
+    SHORT = ("The embedding did not beat the feature vector. "
+             "Embedded logistic regression reached 0.657 and XGBoost reached 0.649. "
+             "The paired interval crosses zero.")
+
+    def _paragraph(self, words):
+        """One paragraph of about `words` words, in five sentences — inside the
+        sentence-count band, so the only rule left is the word ceiling."""
+        each = words // 5
+        return " ".join(["Word " + " ".join(["word"] * (each - 1)) + "."] * 5)
+
+    def test_a_paragraph_inside_the_ceiling_passes(self):
+        report = paragraphs.check(self._paragraph(config.PARAGRAPH_MAX_WORDS - 10),
+                                  "Results")
+        self.assertEqual([d.kind for d in report.defects], [])
+
+    def test_a_paragraph_over_the_ceiling_is_reported_but_not_counted(self):
+        """It is a length rule wearing a shape rule's clothes.
+
+        Komorowski's published Nature Medicine methods supplement runs 10% of its
+        paragraphs past this ceiling, with a maximum of 204 words. Counting those
+        toward the shape share spends two thirds of the allowance before a real
+        defect is found, so the defect is reported and the share ignores it."""
+        report = paragraphs.check(self._paragraph(config.PARAGRAPH_MAX_WORDS + 20),
+                                  "Results")
+        self.assertIn(paragraphs.LONG_IN_WORDS, {d.kind for d in report.defects})
+        self.assertIn("grew rather than one that welded",
+                      report.defects[0].detail)
+        self.assertEqual(0.0, report.share)
+
+    def test_the_ceiling_is_120_words(self):
+        """The lowest cap a published rewrite clears completely in both its
+        documents: its longest paragraphs are 113 and 111 words. The draft it
+        replaced runs 15 of 87 manuscript paragraphs over it, topping out at 155."""
+        self.assertEqual(config.PARAGRAPH_MAX_WORDS, 120)
+
+    def test_the_short_paragraph_the_ceiling_must_not_touch(self):
+        self.assertTrue(paragraphs.check(self.SHORT, "Results").passed)
+
+
+class ParagraphShareDenominatorTests(unittest.TestCase):
+    """A share needs a denominator. "1 of 1 paragraphs are mis-shaped (100%)" on a
+    twenty-word back-matter section is a blocking finding about nothing, and every
+    defect kind added to this gate makes the arithmetic worse."""
+
+    ONE_BAD = "However, the estimate moved. It moved by 0.004."
+
+    def test_one_paragraph_does_not_block_a_section(self):
+        report = paragraphs.check(self.ONE_BAD, "Validity checks")
+        self.assertTrue(report.passed)
+        self.assertTrue(report.defects)      # still reported, just not a verdict
+
+    def test_the_same_defect_blocks_once_there_is_a_denominator(self):
+        good = ("The split is the frozen one. Nothing was refit to produce it.\n\n"
+                "Discrimination was modest. It held across encoders.\n\n"
+                "Calibration was adequate. The intercept was near zero.\n\n"
+                "Retrieval lost to the fitted model. The gap was 0.02.\n\n")
+        report = paragraphs.check(good + self.ONE_BAD, "Validity checks")
+        self.assertFalse(report.passed)
+        self.assertIn("5 paragraphs are mis-shaped", report.reasons[0])
+
+    def test_the_floor_is_five_paragraphs(self):
+        self.assertEqual(config.PARAGRAPH_DEFECT_MIN_PARAGRAPHS, 5)
+
+
+class RoadmapOpenerTests(unittest.TestCase):
+    """A section that opens by describing its own running order spends the first
+    thing a reader reads on what the table of contents already told them. It is one
+    paragraph of twenty-four in the section where it was found — invisible under any
+    share ceiling, and the first thing on the page — so it is a section reason."""
+
+    def test_a_section_opening_on_its_own_running_order_is_refused(self):
+        text = ("The results are reported in the order of the two objectives. "
+                "Participant flow and cohort composition come first, then "
+                "discrimination.\n\n"
+                "Of 501,718 patients, 42,579 met eligibility criteria. "
+                "7,455 (17.5%) met the proxy definition.")
+        report = paragraphs.check(text, "Results")
+        self.assertFalse(report.passed)
+        self.assertIn("opens on a roadmap", report.reasons[0])
+
+    def test_a_section_describing_itself_is_refused(self):
+        text = ("This section reports the within-subgroup prevalence of the "
+                "outcome. The strata are the ones named in the Methods.")
+        report = paragraphs.check(text, "S9 Subgroup outcome prevalence")
+        self.assertFalse(report.passed)
+        self.assertIn("opens on a roadmap", report.reasons[0])
+
+    def test_here_we_report_is_an_introduction_s_purpose_statement(self):
+        """The standard close of an Introduction, and not a roadmap. Refusing it
+        would be the gate fighting the one place the construction belongs."""
+        text = ("Here we report a comparison of two representations on one cohort. "
+                "Neither was tuned after the split was frozen.")
+        self.assertTrue(paragraphs.check(text, "Introduction").passed)
+
+    def test_a_section_opening_on_a_measurement_passes(self):
+        text = ("Of 501,718 patients in the extract, 42,579 met eligibility "
+                "criteria and 7,455 (17.5%) met the TRD proxy definition. "
+                "Median age was 55 years.")
+        self.assertTrue(paragraphs.check(text, "Results").passed)
+
+    def test_a_roadmap_phrase_further_down_is_not_this_defect(self):
+        """Only the first paragraph is asked. A pointer in the middle of a Methods
+        section is a signpost, which is a different rule and a milder one."""
+        text = ("The cohort was assembled from records. Nothing was refit.\n\n"
+                "The remainder of this section gives the encoder settings. "
+                "They are unchanged from the protocol.")
+        self.assertTrue(paragraphs.check(text, "Methods").passed)
+
+
+class ResultsTopicSentenceTests(unittest.TestCase):
+    """When a Results paragraph's claim IS a number, the claim and the number belong
+    in the same sentence. It advises: a short report whose findings are qualitative
+    scores badly here and is legitimate."""
+
+    BARE = ("The embedding did not outperform the feature vector.\n"
+            "Embedded logistic regression achieved 0.657 (0.643 to 0.672) and "
+            "XGBoost led the feature-vector models at 0.649 (0.634 to 0.664).\n\n"
+            "Retrieval lost to the fitted model.\n"
+            "Nearest retrieval reached 0.612 against 0.649 for XGBoost, a gap of "
+            "0.037 (0.021 to 0.052).\n\n"
+            "Calibration was adequate on both arms.\n"
+            "The Brier score was 0.131 on the embedded arm and 0.129 on the "
+            "feature-vector arm, with intercepts of 0.02 and 0.01.")
+
+    CARRIED = ("Embedded logistic regression had the highest ROC AUC, 0.657 "
+               "(95% CI 0.643 to 0.672), followed by feature-vector XGBoost at "
+               "0.649 (95% CI 0.634 to 0.664). Their paired difference was 0.008 "
+               "(95% CI -0.003 to 0.019).\n\n"
+               "Nearest retrieval reached 0.612, below the 0.649 of the fitted "
+               "model. The gap was 0.037 (0.021 to 0.052).\n\n"
+               "Brier scores were 0.131 and 0.129 across the two arms. Calibration "
+               "intercepts were 0.02 and 0.01.")
+
+    def test_a_bare_claim_opener_is_reported(self):
+        report = paragraphs.check(self.BARE, "Results")
+        self.assertTrue(report.advisories)
+        self.assertIn("carrying a reported figure", report.advisories[0])
+
+    def test_it_advises_and_does_not_block(self):
+        self.assertTrue(paragraphs.check(self.BARE, "Results").passed)
+
+    def test_an_opener_that_carries_its_figure_passes(self):
+        report = paragraphs.check(self.CARRIED, "Results")
+        self.assertEqual(report.advisories, [])
+        self.assertGreaterEqual(report.results_topic_share,
+                                config.RESULTS_TOPIC_FIGURE_SHARE_MIN)
+
+    def test_the_floor_is_half(self):
+        """Not 0.8. A published supplement's own S-sections run 0 to 50% on the same
+        measure, which is why the rule is scoped to the manuscript's Results heading
+        and nowhere else."""
+        self.assertEqual(config.RESULTS_TOPIC_FIGURE_SHARE_MIN, 0.50)
+
+    def test_a_section_that_is_not_reporting_figures_is_skipped(self):
+        """A Results section that names its predictors rather than measuring them
+        reports in words and is correct."""
+        text = ("The model leaned on psychiatric history. Suicidality, insomnia and "
+                "substance use carried most of the weight.\n\n"
+                "Medication burden mattered less. Prior exposure mattered least.\n\n"
+                "Sociodemographic fields contributed little. None of them was "
+                "dropped.")
+        report = paragraphs.check(text, "Results")
+        self.assertIsNone(report.results_topic_share)
+        self.assertEqual(report.advisories, [])
+
+    def test_a_supplement_section_called_results_is_not_swept_in(self):
+        report = paragraphs.check(self.BARE, "Results", manuscript=False)
+        self.assertEqual(report.advisories, [])
+
+
+class MidBandSentenceTests(unittest.TestCase):
+    """The middle of the length distribution, where a heavy text and a readable one
+    actually separate. Above 35 words two manuscripts of one paper are
+    indistinguishable; between 25 and 35 they run three to one."""
+
+    def _document(self, long_share):
+        """A hundred sentences, `long_share` of them past the mid threshold."""
+        long_one = "Word " + " ".join(["word"] * 28) + "."
+        short_one = "The model did better on the held-out split."
+        n_long = int(round(100 * long_share))
+        body = " ".join([long_one] * n_long + [short_one] * (100 - n_long))
+        return [("Results", sentences.score(body))]
+
+    def test_a_document_inside_the_ceiling_passes(self):
+        self.assertTrue(sentences.mid_tail(self._document(0.06)).passed)
+
+    def test_a_document_over_the_ceiling_is_refused(self):
+        report = sentences.mid_tail(self._document(0.19))
+        self.assertFalse(report.passed)
+        self.assertIn("past 25 words", report.reasons[0])
+
+    def test_the_thresholds_are_25_words_and_15_percent(self):
+        """25 is where plain-language and medical-writing guidance converge, and it
+        is the 35-word rule one band down. 15% clears a published manuscript by a
+        factor of two and a half (5.6% and 6.6%) and refuses both documents of the
+        draft it replaced (18.9% and 17.4%)."""
+        self.assertEqual(config.SENTENCE_MID_WORDS, 25)
+        self.assertEqual(config.SENTENCE_MID_SHARE_MAX, 0.15)
+
+    def test_an_exempt_section_contributes_nothing(self):
+        reports = [("Abstract", sentences.score("x " * 60, section_name="Abstract"))]
+        self.assertEqual(sentences.mid_tail(reports).sentences, 0)
+
+    def test_the_worst_section_rides_along_without_being_the_failure(self):
+        light = ("Results", sentences.score(
+            " ".join(["The model did better."] * 40)))
+        heavy = ("Methods", sentences.score(
+            " ".join(["Word " + " ".join(["word"] * 28) + "."] * 6)))
+        report = sentences.mid_tail([light, heavy])
+        self.assertEqual(report.worst_section, "Methods")
+        self.assertTrue(report.passed)
+
+
+class SelfGradingTests(unittest.TestCase):
+    """The paper handing down the verdict a reviewer is there to reach. The sibling
+    of the anticipatory rebuttal: one argues the case for the defence, the other
+    writes the judgment."""
+
+    def test_a_design_graded_by_its_own_paper_is_refused(self):
+        report = sentences.score(
+            "The temporal design is a real strength. Every model was fit on "
+            "records that predate the index prescription.")
+        self.assertFalse(report.passed)
+        self.assertTrue(any("grade the paper's own work" in r
+                            for r in report.reasons), report.reasons)
+
+    def test_telling_the_reader_which_comparison_to_believe_is_refused(self):
+        report = sentences.score(
+            "Both scored the same held-out patients, so the paired comparison is "
+            "the one that counts. The interval crosses zero.")
+        self.assertFalse(report.passed)
+
+    def test_telling_the_reader_to_be_reassured_is_refused(self):
+        report = sentences.score(
+            "Retrieval beat chance on every encoder. That is reassuring for face "
+            "validity and nothing more.")
+        self.assertFalse(report.passed)
+
+    def test_reporting_the_same_design_passes(self):
+        """The rule is the verdict, not the interpretation. A Discussion saying what
+        a result means is doing its job."""
+        report = sentences.score(
+            "Every model was fit on records that predate the index prescription, so "
+            "no feature in either representation can encode the outcome it is asked "
+            "to predict. Nearest retrieval discriminated above chance on all four "
+            "encoders, and lost to the fitted model on every one of them. The "
+            "finding bounds one comparison on one cohort and no more than that.")
+        self.assertTrue(report.passed, report.reasons)
+
+
+class EquivalenceComparativeTests(unittest.TestCase):
+    """Equivalence smuggled in as a comparative. The precondition, the disavowal
+    escape and the severity are the ones already here; the list had a hole."""
+
+    METHODS = ("No equivalence or noninferiority margin was prespecified. "
+               "The comparison is descriptive.")
+
+    def test_neither_is_better_than_the_other_is_an_equivalence_claim(self):
+        text = (self.METHODS + " Neither representation is better than the other. "
+                "The interval runs from -0.003 to 0.019.")
+        hits = sentences.equivalence_overclaim(text)
+        self.assertTrue(hits)
+        self.assertIn("neither representation is better than", hits[0][1])
+
+    def test_matched_but_did_not_exceed_is_an_equivalence_claim(self):
+        text = (self.METHODS + " Embedding matched, but did not exceed, a feature "
+                "vector built from the same fields.")
+        self.assertTrue(sentences.equivalence_overclaim(text))
+
+    def test_a_paper_refusing_the_word_is_not_refused(self):
+        """"These quantities are distinguished because they are not
+        interchangeable" is a published manuscript saying the careful thing."""
+        text = (self.METHODS + " These quantities are distinguished because they "
+                "are not interchangeable.")
+        self.assertEqual(sentences.equivalence_overclaim(text), [])
+
+    def test_a_plain_negative_result_is_not_an_equivalence_claim(self):
+        text = (self.METHODS + " The embedding did not outperform the feature "
+                "vector. The paired difference was 0.008.")
+        self.assertEqual(sentences.equivalence_overclaim(text), [])
+
+    def test_without_the_disclaimer_the_check_stays_silent(self):
+        self.assertEqual(sentences.equivalence_overclaim(
+            "Neither representation is better than the other."), [])
+
+
+class AbsoluteSectionCeilingTests(unittest.TestCase):
+    """A budget is whatever the planner wrote, so a plan that budgets 2,700 words for
+    Results passes at 2,767 and the gate has checked the planner against themselves."""
+
+    def test_a_section_over_the_absolute_ceiling_is_refused_with_no_budget(self):
+        report = length.check(config.SECTION_MAX_WORDS + 1, section_name="Results")
+        self.assertFalse(report.passed)
+        self.assertIn("absolute ceiling", report.reason)
+
+    def test_a_generous_budget_does_not_license_it(self):
+        report = length.check(2_767, budget=2_700, section_name="Results")
+        self.assertFalse(report.passed)
+        self.assertIn("absolute ceiling", report.reason)
+
+    def test_the_repair_is_relocation_and_not_compression(self):
+        report = length.check(2_767, section_name="Results")
+        self.assertIn("Do not compress", report.reason)
+        self.assertIn("supplement", report.reason)
+
+    def test_the_ceiling_is_1800_words_at_top_level_scope(self):
+        """`stages.sweep.sections` splits on H1 and an outline section IS an H1, so
+        this is a whole Methods. A published manuscript's Methods measures 1,133
+        words at that scope; the draft it replaced runs 2,047, 2,496 and 2,767."""
+        self.assertEqual(config.SECTION_MAX_WORDS, 1800)
+        self.assertTrue(length.check(1_133, section_name="Methods").passed)
+
+
+class SectionFloorTests(unittest.TestCase):
+    """The floor does not merely report a short section: `stages.drafting` re-prompts
+    the model for continuation prose until the draft clears it, so a wrong floor is
+    an instruction to pad."""
+
+    def test_the_floor_is_fifty_words(self):
+        """150 refused eight sections of a published manuscript, including a 55-word
+        Conclusions that is the right length at 55 words."""
+        self.assertEqual(config.SECTION_MIN_WORDS, 50)
+        self.assertTrue(length.check(55, section_name="Conclusions").passed)
+
+    def test_a_declaration_has_no_floor(self):
+        for heading in ("Conflicts of Interest", "Data Availability",
+                        "Funding", "Protocol and Registration", "Acknowledgments"):
+            self.assertEqual(length.floor_for(heading), 0, heading)
+            self.assertTrue(length.check(2, section_name=heading).passed, heading)
+
+    def test_a_section_that_argues_keeps_its_floor(self):
+        self.assertEqual(length.floor_for("Results"), config.SECTION_MIN_WORDS)
+        self.assertFalse(length.check(10, section_name="Results").passed)
+
+    def test_an_explicit_absolute_still_wins(self):
+        self.assertEqual(length.floor_for("Results", absolute=0), 0)
+
+
+class ReadingEaseTests(unittest.TestCase):
+    """Reading ease is computed, reported and never gated. It is dominated by
+    syllables per word, and in a clinical paper that is subject matter."""
+
+    DENSE = ("Multimodal representational heterogeneity necessitates methodological "
+             "standardization. Operationalization of comorbidity classification "
+             "presupposes nosological consistency. Discriminative performance "
+             "differentials remain inconclusive.")
+
+    def test_a_low_reading_ease_is_reported_and_not_refused(self):
+        report = readability.score(self.DENSE, section_name="Discussion")
+        self.assertLess(report.flesch_ease, 20.0)
+        self.assertFalse(any("reading ease" in r for r in report.reasons),
+                         report.reasons)
+
+    def test_there_is_no_reading_ease_floor_to_re_tighten(self):
+        self.assertFalse(hasattr(config, "READABILITY_FLESCH_EASE_MIN"))
+
+    def test_the_fk_ceiling_survives_at_eighteen(self):
+        """It catches what the sentence gate does not: long words in long sentences
+        at once. A published manuscript peaks at 17.2 in its Discussion."""
+        self.assertEqual(config.READABILITY_FK_GRADE_MAX, 18.0)
+
+
+class VenueHeadingTests(unittest.TestCase):
+    """A bold lead-in inside a Declarations block is not a section a copyeditor, a
+    submission portal, or a reader scanning for the data-availability statement can
+    find."""
+
+    def _declarations_style(self):
+        text = VenueGateTests.GOOD
+        for heading in ("Ethical Considerations", "Acknowledgments", "Funding",
+                        "Conflicts of Interest", "Data Availability",
+                        "Authors' Contributions"):
+            text = text.replace(f"# {heading}\n", f"**{heading}.**\n")
+        return text
+
+    def test_a_bold_lead_in_does_not_satisfy_a_required_section(self):
+        report = venue.check(self._declarations_style(), "JMIR")
+        self.assertFalse(report.passed)
+        self.assertTrue(any("`Data Availability` heading" in e
+                            for e in report.errors), report.errors)
+
+    def test_an_unbolded_keywords_line_still_counts(self):
+        """The bold markup is this project's builder's, not the venue's. Matching on
+        it turned seven present keywords into zero on a manuscript written in Word."""
+        text = VenueGateTests.GOOD.replace(
+            "**Keywords.** one; two; three; four; five; six",
+            "Keywords: one, two, three, four, five, six")
+        report = venue.check(text, "JMIR")
+        self.assertEqual(report.stats["keywords"], 6)
+        self.assertTrue(report.passed, report.errors)
+
+    def test_an_unsourced_requirement_warns_rather_than_blocks(self):
+        text = VenueGateTests.GOOD.replace("# Protocol and Registration\n", "")
+        report = venue.check(text, "JMIR")
+        self.assertTrue(report.passed, report.errors)
+        self.assertTrue(any("Protocol and Registration" in w
+                            for w in report.warnings))
+
+
+class AbstractShapeTests(unittest.TestCase):
+    """Every prose gate exempts the abstract, so nothing measured the one section a
+    reader meets detached from the paper."""
+
+    def _with_abstract(self, methods, results):
+        return VenueGateTests.GOOD.replace(
+            "**Methods.** " + "Word word word word. " * 8, "**Methods.** " + methods
+        ).replace(
+            "**Results.** " + "Word word word word. " * 9, "**Results.** " + results)
+
+    def test_a_long_abstract_sentence_is_reported_and_does_not_refuse(self):
+        """Measured on two abstracts of one paper, so it says so and stands aside.
+
+        Chekroud 2016 in Lancet Psychiatry opens its Methods label with a 51-word
+        sentence. A ceiling that refuses that is a ceiling calibrated on n=2."""
+        long_one = " ".join(["word"] * 38) + "."
+        report = venue.check(self._with_abstract(long_one, "Short result here."),
+                             "JMIR")
+        self.assertTrue(any("abstract sentence" in w for w in report.warnings),
+                        report.warnings)
+        self.assertFalse(any("abstract sentence" in e for e in report.errors),
+                         report.errors)
+
+    def test_the_abstract_sentence_ceiling_is_35_words(self):
+        """A published rewrite's longest abstract sentence is 32 words; the draft it
+        replaced runs to 38, with three more between 34 and 37."""
+        self.assertEqual(config.ABSTRACT_SENTENCE_MAX_WORDS, 35)
+        report = venue.check(
+            self._with_abstract("Word " + " ".join(["word"] * 31) + ".",
+                                "Short result here now."), "JMIR")
+        self.assertFalse(any("abstract sentence" in e for e in report.errors),
+                         report.errors)
+
+    def test_methods_outrunning_results_warns(self):
+        report = venue.check(
+            self._with_abstract("Word word word word. " * 9,
+                                "Word word word word. " * 4), "JMIR")
+        self.assertTrue(any("on Methods against" in w for w in report.warnings),
+                        report.warnings)
+        self.assertTrue(report.passed, report.errors)
+
+    def test_a_results_heavy_abstract_passes(self):
+        report = venue.check(
+            self._with_abstract("Word word word word. " * 5,
+                                "Word word word word. " * 9), "JMIR")
+        self.assertEqual(report.warnings, [])
+        self.assertLess(report.stats["abstract_methods_results_ratio"],
+                        config.ABSTRACT_METHODS_RESULTS_RATIO_MAX)
+
+    def test_the_ratio_ceiling_is_1_point_2(self):
+        self.assertEqual(config.ABSTRACT_METHODS_RESULTS_RATIO_MAX, 1.2)
+
+
+class PandocCrossrefTests(unittest.TestCase):
+    """A reviewer's revision arrives as `pandoc -f docx` output, so the shapes it
+    writes are the normal case rather than an edge one."""
+
+    SUP = ("# M1 Source Data and Sampling\n\nThe extract is one health system.\n\n"
+           "# S1 Neighbor Prediction\n\nRetrieval lost to the fitted model.\n\n"
+           "Table S1. Expanded cohort characteristics.\n\n"
+           "Figure S1. Discrimination by encoder.\n")
+
+    def test_a_bare_pandoc_caption_defines_a_table(self):
+        report = crossrefs.check("See Table S1 for the rest.", self.SUP)
+        self.assertEqual(report.defined.get("Table S"), [1])
+        self.assertTrue(report.passed, report.reasons)
+
+    def test_a_venue_style_section_heading_defines_a_section(self):
+        report = crossrefs.check("The sampling frame is Supplement M1.", self.SUP)
+        self.assertEqual(report.defined.get("Supplement M"), [1])
+        self.assertTrue(report.passed, report.reasons)
+
+    def test_a_multimedia_appendix_pointer_resolves(self):
+        report = crossrefs.check(
+            "Expanded characteristics are in Multimedia Appendix 1, section S1.",
+            self.SUP)
+        self.assertEqual(report.referenced.get("Supplement S"), [1])
+        self.assertTrue(report.passed, report.reasons)
+
+    def test_a_multimedia_appendix_table_pointer_reaches_the_table_resolver(self):
+        report = crossrefs.check(
+            "The rest appear in Multimedia Appendix 1, Table S1.", self.SUP)
+        self.assertEqual(report.referenced.get("Table S"), [1])
+        self.assertTrue(report.passed, report.reasons)
+
+    def test_a_packet_that_points_at_an_empty_index_is_reported(self):
+        """The worse failure: `passed=True` with `defined={}` on a returned
+        manuscript, which is a gate reporting green after checking nothing."""
+        report = crossrefs.check(
+            "The rest are in Multimedia Appendix 1, Table S15 and Table S16.",
+            "# S1 Something\n\nNo captions at all here.\n", whole_packet=True)
+        self.assertFalse(report.passed)
+        self.assertTrue(any("resolve against nothing" in r for r in report.reasons),
+                        report.reasons)
+
+    def test_a_section_drafted_in_isolation_is_still_not_this_gate_s_business(self):
+        self.assertTrue(crossrefs.check("See Figure 4 for the curve.", "").passed)
+
+
+# A manuscript drawn from the published rewrite this project's newest rules were
+# measured against: its own headings, its own back-matter shape, its own paragraphs,
+# verbatim. Every sentence here was written by somebody else and accepted.
+#
+# It is the sharpest test available and it is free. A rule that refuses this text is
+# a wrong rule, whatever it is defensible as in the abstract, and the two failure
+# modes these checks exist to avoid — encoding one author's tics, and shipping a gate
+# the reference text cannot pass — are both caught here rather than in production.
+REFERENCE_MANUSCRIPT = """# Abstract
+
+**Background:** Electronic health records (EHRs) have been shown to support
+prediction of subsequent antidepressant switching, an imperfect proxy for
+treatment-resistant depression (TRD).
+
+**Objective:** We compared structured feature vectors with pretrained embeddings of
+rule-based patient narratives for predicting a treatment-switching proxy for TRD at
+the index antidepressant prescription.
+
+**Methods:** This retrospective study included 42,579 patients with depression from
+one community health system. The outcome required at least 3 distinct antidepressant
+treatments, including the index agent, within 365 days.
+
+**Results:** The outcome occurred in 7,455 patients (17.5%). Embedded logistic
+regression had the highest ROC AUC, 0.657 (95% CI 0.643 to 0.672), followed by
+feature-vector XGBoost at 0.649 (95% CI 0.634 to 0.664). Their paired difference was
+0.008 (95% CI -0.003 to 0.019). Nearest-neighbor retrieval did not improve on the
+trained classifiers.
+
+**Conclusions:** Narrative embeddings did not demonstrate superior discrimination
+over the strongest structured feature model for this treatment-switching proxy.
+
+Keywords: treatment-resistant depression, electronic health records, prediction,
+embeddings, machine learning, retrieval, proxy outcomes
+
+# Introduction
+
+Electronic health records (EHRs) offer longitudinal information on diagnoses,
+prescribing, and health care use. They rarely establish why a medication was changed
+or whether an adequate trial failed. Consequently, EHR studies often define TRD
+through treatment sequences. These definitions identify observable care trajectories,
+and changes in the rules alter both outcome frequency and cohort composition. A model
+predicting repeated switching therefore requires a more limited interpretation than
+one predicting symptom-confirmed treatment resistance.
+
+General-purpose text encoders provide one way to represent an EHR without training a
+large clinical foundation model. Structured fields can be converted into a patient
+narrative and then encoded as a numerical embedding for prediction. The practical
+question is whether this additional processing improves on a transparent feature
+vector. A narrative created from the same structured records adds no new measurement,
+although the encoding may organize existing information differently.
+
+# Methods
+
+We conducted a retrospective cohort study using a frozen, deidentified Epic EHR
+extract from one community health system. The extract contained 501,718 patients and
+included diagnoses, encounters, medications, procedures, and laboratory data. Patients
+with a problem-list depression flag were retained, together with a random sample
+without that flag. The resulting sample was enriched for depression and does not
+represent health-system prevalence.
+
+Eligible patients met the study's coded depression definition, had no bipolar or
+schizophrenia-spectrum diagnosis, and had an antidepressant index prescription on or
+after a documented depression diagnosis. The depression code set included major
+depressive disorder (MDD), dysthymia, and unspecified depression. The final cohort
+included 42,579 patients, and the eligibility cascade appears in Multimedia Appendix
+1, section M2.
+
+## Ethical Considerations
+
+The study used a deidentified secondary extract and was reviewed under an approved
+protocol. No patient contact occurred and no identifiers were retained.
+
+# Results
+
+Of 501,718 patients in the extract, 42,579 met eligibility criteria and 7,455 (17.5%)
+met the TRD proxy definition. Median age was 55 years (IQR 38 to 70), 72.5% were
+female, and 80.0% were recorded as White. Outcome-positive patients more often had
+coded suicidality, severe depression, anxiety, insomnia, and substance use disorders.
+
+Training and test characteristics were closely balanced, at a maximum absolute
+standardized mean difference of 0.036. Weak negative correlations linked the outcome
+to history length, encounter count, and time from diagnosis to the index
+prescription. These descriptive checks do not exclude effects of observation or care
+access.
+
+Embedded logistic regression had the highest ROC AUC, 0.657 (95% CI 0.643 to 0.672),
+followed by feature-vector XGBoost at 0.649 (95% CI 0.634 to 0.664). Their paired
+difference was 0.008 (95% CI -0.003 to 0.019). This post hoc comparison did not
+demonstrate superior discrimination for embeddings.
+
+Nearest-neighbor retrieval reached a ROC AUC of 0.612 across the four encoders,
+below every trained classifier. Weighting neighbors by distance did not close the
+gap. Retrieval therefore carries signal without competing with a fitted model.
+
+# Discussion
+
+We asked whether pretrained narrative embeddings improve prediction of a
+treatment-switching proxy for TRD beyond structured feature vectors. In this cohort,
+they did not demonstrate superior discrimination over the strongest feature-vector
+model. The leading models achieved ROC AUCs of 0.657 and 0.649, with a paired
+difference of 0.008 (95% CI -0.003 to 0.019). This finding supports structured
+features as a practical benchmark, and it does not establish equivalence or isolate
+the effect of encoding identical information.
+
+The choice of classifier changed the result. Embeddings improved logistic regression
+but reduced discrimination for each tree ensemble, and logistic regression led the
+embedded models across all encoders. This pattern is consistent with regularized
+linear models accommodating distributed embedding information under the tested
+settings. Differences in dimensionality, regularization, and tuning may also
+contribute.
+
+## Limitations
+
+The main limitation is the target. A treatment-switching proxy identifies an
+observable care trajectory rather than a symptom-confirmed failure of adequate
+trials. Patients switch for tolerability, cost, and access, and none of those is
+treatment resistance. The cohort is one community health system, so transportability
+is unestablished.
+
+## Conclusions
+
+Narrative embeddings did not improve discrimination over structured features for
+this proxy. Progress toward clinical use requires better validation of the outcome.
+
+# Acknowledgments
+
+None.
+
+# Funding
+
+No external funding supported this work.
+
+# Conflicts of Interest
+
+None declared.
+
+# Data Availability
+
+The extract cannot be shared under the data use agreement.
+
+# Authors' Contributions
+
+MF designed the study and ran the analysis.
+
+# Protocol and Registration
+
+The study was not registered.
+
+# Abbreviations
+
+EHR: electronic health record. TRD: treatment-resistant depression.
+
+# Multimedia Appendix 1
+
+Supplementary methods and results.
+
+# References
+
+1. Someone. A paper. Journal. 2024.
+"""
+
+
+class ReferenceManuscriptTests(unittest.TestCase):
+    """The acceptance test: the checks added for compression, register and venue fit,
+    run over a manuscript somebody else wrote and a journal accepted.
+
+    Scoped to those checks on purpose. The reference text does carry two defects
+    against rules that predate this work — one stacked hedge and one empty opener in
+    thirteen thousand words — and those are real, they are not grounds to relax a
+    zero-tolerance rule, and they are not what this test is about."""
+
+    def _sections(self):
+        out, name, body = [], "", []
+        for line in REFERENCE_MANUSCRIPT.splitlines():
+            if line.startswith("# "):
+                if name:
+                    out.append((name, "\n".join(body)))
+                name, body = line[2:].strip(), []
+            else:
+                body.append(line)
+        out.append((name, "\n".join(body)))
+        return [(h, b) for h, b in out if prose.sentences(b)]
+
+    def test_no_paragraph_is_over_the_word_ceiling(self):
+        for heading, body in self._sections():
+            for defect in paragraphs.check(body, heading).defects:
+                self.assertNotEqual(defect.kind, "too long",
+                                    f"{heading}: {defect.detail}")
+
+    def test_no_section_opens_on_a_roadmap(self):
+        for heading, body in self._sections():
+            for reason in paragraphs.check(body, heading).reasons:
+                self.assertNotIn("roadmap", reason, heading)
+
+    def test_the_results_openers_carry_their_figures(self):
+        body = dict(self._sections())["Results"]
+        report = paragraphs.check(body, "Results")
+        self.assertEqual(report.advisories, [], report.advisories)
+        self.assertGreaterEqual(report.results_topic_share,
+                                config.RESULTS_TOPIC_FIGURE_SHARE_MIN)
+
+    def test_no_section_blocks_on_paragraph_shape(self):
+        for heading, body in self._sections():
+            report = paragraphs.check(body, heading)
+            self.assertTrue(report.passed, f"{heading}: {report.reasons}")
+
+    def test_the_document_clears_the_mid_band(self):
+        measured = [(h, sentences.score(b, section_name=h))
+                    for h, b in self._sections()]
+        report = sentences.mid_tail(measured)
+        self.assertTrue(report.passed, report.reasons)
+        self.assertLess(report.share, config.SENTENCE_MID_SHARE_MAX)
+
+    def test_no_sentence_grades_the_paper(self):
+        for heading, body in self._sections():
+            self.assertEqual(sentences.score(body, section_name=heading).self_grading,
+                             [], heading)
+
+    def test_no_section_breaks_the_absolute_word_ceiling_or_the_floor(self):
+        for heading, body in self._sections():
+            words = prose.word_count(prose.strip_structure(body))
+            report = length.check(words, section_name=heading)
+            self.assertTrue(report.passed, f"{heading} ({words} words): "
+                                           f"{report.reason}")
+
+    def test_no_section_breaks_the_readability_band(self):
+        for heading, body in self._sections():
+            report = readability.score(body, section_name=heading)
+            self.assertTrue(report.passed, f"{heading}: {report.reasons}")
+
+    def test_the_paper_claims_no_equivalence_it_did_not_test(self):
+        self.assertEqual(sentences.equivalence_overclaim(REFERENCE_MANUSCRIPT), [])
+
+    def test_the_venue_gate_finds_only_what_is_really_wrong(self):
+        """Every required section is a heading in the venue's own wording, the
+        keyword line is unbolded and still counts, and the abstract's shape holds."""
+        report = venue.check(REFERENCE_MANUSCRIPT, "JMIR")
+        self.assertTrue(report.passed, report.errors)
+        self.assertEqual(report.stats["keywords"], 7)
+        self.assertLess(report.stats["abstract_methods_results_ratio"],
+                        config.ABSTRACT_METHODS_RESULTS_RATIO_MAX)
+
+    def test_its_appendix_pointers_resolve(self):
+        supplement = ("# M1 Source Data and Sampling\n\nOne health system.\n\n"
+                      "# M2 Eligibility and Temporal Design\n\nThe cascade.\n")
+        report = crossrefs.check(REFERENCE_MANUSCRIPT, supplement,
+                                 whole_packet=True)
+        self.assertTrue(report.passed, report.reasons)
+        self.assertEqual(report.referenced.get("Supplement M"), [2])
 
 
 class ConfigBandTests(unittest.TestCase):

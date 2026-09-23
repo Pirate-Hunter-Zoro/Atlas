@@ -8,11 +8,19 @@ passes every check in `sentences.py` and is still hard to read.
     reading ease   = 206.835 - 1.015 * (words/sentences) - 84.6 * (syllables/words)
     FK grade level =   0.39  * (words/sentences) + 11.8 * (syllables/words) - 15.59
 
-The band is academic, not general-audience: FK 10-16. Below that a paper reads as a
-press release; above it the reviewer is re-reading sentences. Reading ease is gated
-loosely on purpose — a Methods section full of necessarily long clinical nouns scores
-badly however well it is written, and punishing it for that would teach the writer to
-swap precise words for vague ones.
+The band is academic, not general-audience, and it is the FK grade only: 8 to 18.
+Below that a paper reads as a press release; above it the reviewer is re-reading
+sentences.
+
+**Reading ease is computed, reported, and not gated.** It is the same two inputs the
+FK grade has, weighted so that syllables per word dominate almost completely, and in
+a clinical paper syllables per word is subject matter rather than writing. Measured
+against a published manuscript this project holds itself to, a floor of 20 refused
+its Introduction, its Results and its Discussion — every banded section it has — and
+refused nothing in the longer, looser draft it replaced. A gate that prefers the
+worse text is measuring the wrong thing, and the repair it offers is to swap a
+precise word for a vague one. The number stays in the report so the record shows what
+a section scored.
 
 Syllable counting has no perfect closed form. The standard vowel-group heuristic is
 used: count runs of vowels, drop a silent trailing 'e', floor at one. It is wrong on
@@ -68,7 +76,9 @@ def score(text, section_name=""):
     `config.READABILITY_EXEMPT_SECTIONS`. An exempt section is still MEASURED and the
     numbers are still reported; only the band is not enforced, so the record shows
     what the section scored and the editor is not handed a repair that does not
-    exist."""
+    exist.
+
+    Reading ease is reported and never gated anywhere — see the module docstring."""
     body = prose.strip_structure(text)
     exempt = bool(section_name) and any(
         section_name.strip().lower().startswith(tag)
@@ -109,13 +119,6 @@ def score(text, section_name=""):
             f"sentence length and syllables per word. Split the longest sentences, "
             f"and swap a Latinate word for the plain one wherever the plain one is "
             f"just as precise.")
-    if flesch_ease < config.READABILITY_FLESCH_EASE_MIN:
-        reasons.append(
-            f"reading ease {flesch_ease} < floor "
-            f"{config.READABILITY_FLESCH_EASE_MIN}. The words are long, not just the "
-            f"sentences. Prefer a verb to a nominalization: \"the model did worse\", "
-            f"not \"a decrement in model discrimination was observed\".")
-
     return ReadabilityReport(
         words=n_words, sentences=n_sentences, syllables=n_syllables,
         flesch_ease=flesch_ease, fk_grade=fk_grade,

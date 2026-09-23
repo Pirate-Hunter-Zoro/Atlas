@@ -10,9 +10,21 @@ has not been written concisely; it has dropped a claim. The outline said this se
 carries four claims and this many words of support, and prose that comes in far under
 that is prose where one of the four was asserted in a clause and never supported.
 
-**Both ends are relative to the outline's budget, not to a constant.** A Methods
-section and a Conclusions section have nothing in common except that both were
-planned. The planner sets the number; this gate holds the plan to it.
+**Both ends are relative to the outline's budget, not to a constant** — with one
+exception at each end, and the exceptions are the two failures a budget cannot catch.
+
+*The ceiling has an absolute above it.* A budget is whatever the planner wrote, so a
+plan that budgets 2,700 words for Results passes at 2,767 and the gate has checked
+the planner against themselves. `config.SECTION_MAX_WORDS` is the number no plan may
+license, measured at the scope the sweep splits on, and its repair is not the
+budget's repair: a section that long is one section plus a supplement entry, so the
+quantitative half is RELOCATED and the interpretive half is deleted. Compressing
+sentences produces the same content unreadable.
+
+*The floor does not apply to a section that declares rather than argues.* A
+conflicts-of-interest statement is two words and a data-availability statement is
+thirty-one, both of them the right length, and neither has a claim to have dropped.
+The floor is keyed on the section's IMRaD phase and goes to zero in the back matter.
 
 **On what the failure means, and why the gate says so.** Over-budget and under-budget
 need opposite repairs, and an editor told only "wrong length" will pick the cheap one
@@ -39,7 +51,25 @@ class LengthReport:
     reason: str
 
 
-def check(words, budget=None, absolute=None):
+# Where a section DECLARES rather than argues, so the floor does not apply. Its
+# length is set by what there is to declare and a floor there is an instruction to
+# invent content.
+_DECLARATION_PHASES = ("front", "back")
+
+
+def floor_for(section_name, absolute=None):
+    """The absolute word floor that applies to a section, by its heading.
+
+    Zero in the back matter and the front matter, `config.SECTION_MIN_WORDS`
+    everywhere else. An explicit `absolute` wins over both."""
+    if absolute is not None:
+        return int(absolute)
+    if phase_of(section_name) in _DECLARATION_PHASES:
+        return 0
+    return config.SECTION_MIN_WORDS
+
+
+def check(words, budget=None, absolute=None, section_name=""):
     """Gate a section's word count against its planned budget.
 
     `words` is the count already computed by another gate, so this costs nothing.
@@ -48,14 +78,27 @@ def check(words, budget=None, absolute=None):
 
     `absolute` overrides that floor, and there is exactly one caller that needs to:
     a REVISION imports a section that was delivered rather than planning one, and
-    "this is not a section yet" is false of prose a person has read. A delivered
-    forty-word data-availability statement is the right length, and a gate that tells
-    the editor to grow it to a hundred and fifty is asking for invented content."""
-    absolute = config.SECTION_MIN_WORDS if absolute is None else int(absolute)
+    "this is not a section yet" is false of prose a person has read.
+
+    `section_name` is what makes the floor phase-aware, and it also names the section
+    in the absolute-ceiling reason. Absent, the floor is the ordinary one."""
+    absolute = floor_for(section_name, absolute)
+
+    if words > config.SECTION_MAX_WORDS:
+        return LengthReport(
+            words, budget or 0, absolute, config.SECTION_MAX_WORDS, False,
+            f"the section is {words:,} words against an absolute ceiling of "
+            f"{config.SECTION_MAX_WORDS:,}, whatever it was budgeted. A section is "
+            f"the unit a reader holds before the next heading resets it, and this is "
+            f"two of them. Do not compress: move the quantitative half — a secondary "
+            f"estimate, a sensitivity analysis, a specification — into the supplement "
+            f"under a heading this section can point at, and delete the interpretive "
+            f"half that does not change what a reader would do.")
 
     if not budget or budget <= 0:
         if words >= absolute:
-            return LengthReport(words, 0, absolute, 0, True, "")
+            return LengthReport(words, 0, absolute, config.SECTION_MAX_WORDS,
+                                True, "")
         return LengthReport(
             words, 0, absolute, 0, False,
             f"the section is {words:,} words and the absolute floor is {absolute:,}. "
@@ -64,7 +107,8 @@ def check(words, budget=None, absolute=None):
             f"evidence, its number, and what follows from it. Do not add adjectives.")
 
     floor = max(absolute, int(budget * config.SECTION_UNDER_BUDGET_RATIO))
-    ceiling = int(budget * config.SECTION_OVER_BUDGET_RATIO)
+    ceiling = min(int(budget * config.SECTION_OVER_BUDGET_RATIO),
+                  config.SECTION_MAX_WORDS)
 
     if words > ceiling:
         return LengthReport(

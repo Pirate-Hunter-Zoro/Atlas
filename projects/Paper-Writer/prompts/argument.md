@@ -16,10 +16,18 @@ that gets skipped unless it is asked for by name.
 
 An ordered list of headings, as they will appear in the manuscript. Use the venue's
 conventions and the IMRaD spine: front matter, Introduction, Methods, Results,
-Discussion, Conclusions, Declarations, References. Split Methods and Results into
+Discussion, Conclusions, back matter, References. Split Methods and Results into
 subsections where the paper needs them.
 
-Sections carrying no claims are fine and are expected — a Declarations section is
+**The back matter is one heading per statement, in the venue's own wording** —
+Acknowledgments, Funding, Conflicts of Interest, Data Availability, Authors'
+Contributions, Abbreviations, and whatever else that journal names. Not one
+Declarations block with bold lead-ins inside it: a run-in label is not a section a
+copyeditor, a submission portal, or a reader looking for the data-availability
+statement can find, and the venue gate refuses it. Ethical Considerations goes last
+inside Methods where the venue asks for it there.
+
+Sections carrying no claims are fine and are expected — a funding statement is
 structural. Every section that *does* carry claims should carry at least two; one claim
 is a paragraph, not a section.
 

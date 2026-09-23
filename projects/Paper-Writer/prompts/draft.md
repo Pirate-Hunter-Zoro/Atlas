@@ -40,10 +40,10 @@ one, that sentence failed however correct it is. This is measured — mean sente
 length, the share of sentences past thirty-five words, semicolons and em-dashes per
 thousand words — so write inside the numbers rather than hoping.
 
-- **One idea per sentence.** A semicolon, an em-dashed aside, or a trailing "which"
-  clause is almost always two sentences welded together. Split them. You have a budget
-  of about two semicolons and two dashes per thousand words; spend them where the pause
-  is genuinely the point.
+- **One idea per sentence.** An em-dashed aside or a trailing "which" clause is
+  almost always two sentences welded together. Split them. A semicolon joining two
+  clauses is ordinary published punctuation and is not rationed; what is rationed is
+  the sentence carrying two claims, however the two were joined.
 - **Short by default, varied in length.** Aim for a mean near eighteen to twenty words.
   Put a six-word sentence next to a twenty-five-word one. Every sentence the same
   length is the loudest single tell that nobody thought about the rhythm, and it fails
@@ -119,8 +119,16 @@ always.
   a citation is, and it goes under the claim. The reader who reads only your first and
   last sentences should come away with the argument, because that is how a reviewer
   under time pressure actually reads.
-- **Three to nine sentences.** Under three and there is no structure to check; over
-  nine it is two claims and the reader is being asked to work out where one ended.
+- **Two to nine sentences.** One sentence cannot be a claim plus anything; past nine
+  it is two claims and the reader is being asked to work out where one ended.
+- **When a Results paragraph's claim IS a number, the opening sentence states the
+  claim and the number together.** "The embedding did not outperform the feature
+  vector", followed by the two ROC AUCs, is two sentences doing one sentence's work.
+  "Embedded logistic regression had the highest ROC AUC, 0.657 (95% CI 0.643 to
+  0.672)" is the whole claim. A check can see whether *a* figure sits in that
+  position; *which* figure — the one the paragraph is actually about rather than the
+  nearest to hand — is yours to choose, and choosing it is most of what makes a
+  Results section short.
 - **One paragraph per plan entry, in the plan's order.** Do not merge two, do not split
   one, and do not add a paragraph the plan does not have.
 
@@ -149,6 +157,23 @@ as much as a target: the journal's limit is fixed and the sections share it. If 
 running long, cut a claim — do not compress sentences. Compression is exactly what
 produces prose that has to be read twice, and it is the specific failure this whole
 harness exists to prevent.
+
+**And when a section is over, the first thing cut is what you said about the work, not
+the work.** Quantitative detail — a secondary estimate, a sensitivity analysis, a
+specification — moves to the supplement under a named heading this section can point
+at, and it survives there. Interpretation that does not change what a reader would do
+is deleted and does not reappear anywhere. Traced passage by passage through one
+manuscript's compression by hand: of eleven argumentative passages, nine were deleted
+outright and none was relocated; of eight quantitative passages, six were relocated
+and none was deleted. A ceiling can tell you a section is too long. It cannot tell you
+which half.
+
+**An epigram is not a claim.** A short sentence carrying neither a number nor a
+citation, in a Discussion, is usually a verdict the evidence has not earned — "Two
+things cause that gap", "The second is a variance cost retrieval always pays". It
+reads as confidence and it measures as good prose: it pulls the mean down, it pulls
+the variance up, and every length rule in this harness rewards it. Nothing counts it,
+which is why it is written here. Say what the result was and what would change it.
 
 ## Format
 

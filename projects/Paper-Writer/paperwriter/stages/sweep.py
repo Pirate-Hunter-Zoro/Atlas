@@ -158,22 +158,44 @@ class SweepReport:
                 + [f"advisory {f.line()}" for f in self.advisory()])
 
 
+# The documents whose prose this project wrote and can still edit. A reporting
+# checklist's wording is prescribed by its guideline, a cover letter is one block of
+# prose with no sections in it, and neither is an outline section any editorial loop
+# owns — so a whole-document prose ceiling applied to them is a finding reported on
+# every pass and repaired by nobody.
+_AUTHORED_PROSE = ("manuscript", "supplement")
+
+
+def _is_authored_prose(name):
+    return any(tag in (name or "").lower() for tag in _AUTHORED_PROSE)
+
+
 def _add(out, document, section, gate, severity, detail, anchor=""):
     out.append(Finding(document=document, section=section, gate=gate,
                        severity=severity, detail=str(detail), anchor=anchor))
 
 
-def _section_scope(out, document, heading, body, evidence, lock, references, budget):
-    """Every gate that measures one section, run on one section of a built document."""
+def _section_scope(out, document, heading, body, evidence, lock, references, budget,
+                   manuscript=True):
+    """Every gate that measures one section, run on one section of a built document.
+
+    Returns the SentenceReport, because one measurement — the share of sentences past
+    the mid-band threshold — is only a finding across a whole document and has to be
+    accumulated by the caller."""
     report = sentences.score(body, section_name=heading)
     worst = sentences.worst_offenders(report, count=1)
     for reason in report.reasons:
         _add(out, document, heading, "sentences", "blocking", reason,
              worst[0] if worst else "")
+    for note in report.advisories:
+        _add(out, document, heading, "sentences", "advisory", note,
+             worst[0] if worst else "")
 
-    shape = paragraphs.check(body, section_name=heading)
+    shape = paragraphs.check(body, section_name=heading, manuscript=manuscript)
     for reason in shape.reasons:
         _add(out, document, heading, "paragraphs", "blocking", reason)
+    for note in shape.advisories:
+        _add(out, document, heading, "paragraphs", "advisory", note)
     if shape.passed:
         # Under the share ceiling the individual defects are still worth naming, and
         # they are advisory because the gate has already decided the section holds
@@ -218,17 +240,26 @@ def _section_scope(out, document, heading, body, evidence, lock, references, bud
              f"this section mixes {len(cites.styles)} citation styles "
              f"({', '.join(cites.styles)}).")
 
-    if budget:
-        band = length.check(prose.word_count(prose.strip_structure(body)), budget)
-        if not band.passed and band.reason:
-            _add(out, document, heading, "length", "advisory", band.reason)
+    # Run with or without a budget. Without one the band is only the absolute floor
+    # and the absolute ceiling, and the ceiling is the one that has to run either way:
+    # the budget ceiling is 1.15x whatever the planner wrote, so a plan that budgeted
+    # a 2,700-word Results passes it at 2,767 and nothing has been checked.
+    words = prose.word_count(prose.strip_structure(body))
+    band = length.check(words, budget, section_name=heading)
+    if not band.passed and band.reason:
+        severity = ("blocking" if words > config.SECTION_MAX_WORDS else "advisory")
+        # The ABSOLUTE ceiling is advisory and a budget overrun is not: a budget is a
+        # plan this packet made and can be held to, and the ceiling is a claim about
+        # prose in general that did not survive a negative control. See config.py.
+        if band.ceiling == config.SECTION_MAX_WORDS and band.words > config.SECTION_MAX_WORDS:
+            severity = "advisory"
+        _add(out, document, heading, "length", severity, band.reason)
 
     density = length.density(body, section_name=heading)
     for warning in density.warnings or ():
         _add(out, document, heading, "length", "advisory", warning)
 
-    return not (report.reasons or shape.reasons or read.reasons
-                or figures.unsupported or terms.defects)
+    return report
 
 
 def _packet_scope(out, texts, evidence, lock, references, where):
@@ -245,13 +276,27 @@ def _packet_scope(out, texts, evidence, lock, references, where):
             supplement = text
             break
 
-    pointers = crossrefs.check(manuscript, supplement)
+    pointers = crossrefs.check(manuscript, supplement, whole_packet=True)
     for defect in pointers.defects:
         _add(out, "", "", "crossrefs", "blocking", defect.detail, defect.sentence)
 
     named = procedures.check(*texts.values())
     for defect, reason in zip(named.defects, named.reasons):
         _add(out, "", "", "procedures", "blocking", reason, defect.sentence)
+
+    # Equivalence claimed in a paper that told us, in its own Methods, that it set no
+    # margin. A whole-document check by construction: the licence lives in the Methods
+    # and the claim lives in the Discussion, so no per-section pass can see both. It
+    # runs over the manuscript and the supplement, because a supplement is where a
+    # claim the manuscript hedged gets made plainly.
+    for name, text in texts.items():
+        for sentence, word in sentences.equivalence_overclaim(text):
+            _add(out, name, "", "sentences", "blocking",
+                 f"\"{word}\" claims the two are the SAME, in a paper whose own "
+                 f"Methods say no equivalence or noninferiority margin was "
+                 f"prespecified. An interval that crosses zero is an absence of "
+                 f"evidence for a difference, not evidence of none. Report the "
+                 f"interval and what it excludes.", sentence)
 
     echoes = repetition.check(manuscript)
     for reason in echoes.reasons:
@@ -359,12 +404,26 @@ def run(project_rec, paper_num, log_fn=None):
         # it is exactly the kind of document that goes unread.
         if len(parts) > 1:
             parts = [(h, b) for h, b in parts if h]
+        is_manuscript = name == next(iter(texts), "")
+        measured = []
         for heading, body in parts:
             if not prose.sentences(body):
                 continue          # a heading with a table under it and no prose
             checked += 1
-            _section_scope(findings, name, heading, body, evidence, lock, references,
-                           budgets.get(heading.strip().lower()))
+            measured.append((heading, _section_scope(
+                findings, name, heading, body, evidence, lock, references,
+                budgets.get(heading.strip().lower()), manuscript=is_manuscript)))
+
+        # The mid-band share, which only exists across a whole document — see
+        # `sentences.mid_tail`. Only for the documents somebody can still edit: a
+        # reporting checklist's wording is the guideline's and a cover letter is one
+        # block of prose nobody sections, so a share ceiling there is a finding that
+        # is reported every pass and repaired by nobody.
+        if _is_authored_prose(name):
+            band = sentences.mid_tail(measured)
+            for reason in band.reasons:
+                # Advisory: see the note above SENTENCE_MID_WORDS in config.py.
+                _add(findings, name, "", "sentences", "advisory", reason)
 
     _packet_scope(findings, texts, evidence, lock, references, where)
 

@@ -107,18 +107,21 @@ repetition is deliberate. An instruction is not a mechanism — the draft templa
 | Mean words per sentence, banded 12–22 | The aggregate. Over about 22 a section reads as heavy; under 12 it reads as clipped. |
 | Standard deviation of sentence length, floor 4 | Every sentence the same length is the single loudest tell that a machine wrote the paragraph. The only check here that fires on prose which is individually fine. |
 | Share of sentences past 35 words, ceiling 8% | A few long sentences are legitimate. One in five is a systematic problem, not a few bad lines. |
+| Share of sentences past 25 words, ceiling 15%, **measured across a whole document** | The middle of the distribution, which is where a heavy text and a readable one separate. Two manuscripts of one paper are indistinguishable past 35 words — 1.2% against 0.9% — and run three to one here. Document scope, not section: a published supplement carries a thirteen-sentence section at 23%, so any per-section ceiling tight enough to catch the heavy text refuses the published one. |
 | Hard ceiling of 55 words | No sentence that long is doing one job, whatever the mean says. |
-| Semicolons and em-dashes per 1,000 words, ceiling 2 each | Both are almost always two sentences pretending to be one. Rationed, not banned, and **not counted inside a caption or a parenthesis** — "(held-out test set; primary Qwen3-Embedding-8B encoder)" is a label, and nothing inside a parenthetical can be welding two independent clauses. |
+| Em-dashes per 1,000 words, ceiling 2 | An em-dashed aside is almost always two sentences pretending to be one. Rationed, not banned, and **not counted inside a caption or a parenthesis**, nor across a numeric range or a tight compound. |
+| Semicolons per 1,000 words — **counted, reported, and advisory** | The premise that a semicolon is a full stop that lost its nerve does not survive the best text available to measure against: a published manuscript runs 6.3 clause-joining semicolons per thousand words in its body and 10.1 in its supplement, against zero in the harness draft it replaced, and the ration blocked it in three of five IMRaD sections. There is no shared ceiling to retune to — the published text peaks above 20 in one section. The defect the ration aimed at, a sentence carrying two claims, is caught by the 25-word band above without caring how the two were joined. |
 | Empty openers | "It is worth noting", "Importantly", "Taken together" — a sentence whose only job is to introduce another one. |
 | Stacked hedges | Two qualifications on one claim is a claim the author does not want to be held to. |
 | Mean words per sentence **inside one paragraph**, ceiling 26 | The section average is bought with easy sentences elsewhere. A real Methods section passed at 20.8 while carrying a four-sentence paragraph at 27.2, and a reader does not read the average. |
 | Anticipatory rebuttals | "And not only a limitation", "it might be objected", "far from being a". The paper arguing with a reviewer who has not spoken yet. It is hard to read because it asks you to hold an objection nobody made. |
+| Self-grading | "The temporal design is a real strength", "that is reassuring", "the paired comparison is the one that counts". The paper handing down the verdict a reviewer is there to reach. Sibling of the rebuttal above: one argues the case for the defence, the other writes the judgment. Three instances in one draft's Discussion, none in either document of the published rewrite. What is refused is the grade, not the interpretation — a Discussion saying what a result *means* is doing its job. |
 | A threshold with no value | "Below the conventional events-per-variable threshold." Below what? The number — 10 — was in a supplement the sentence does not point at. Numbers elsewhere in the sentence do not excuse it: those are the measurements, and the bar is what is missing. |
 | A forecast with no source | "That constraint is a property of the tooling and is likely to move." Move which way, by when, on what evidence? A reader can act on "future work should test X" and can only wait for "X will improve". Recommendations pass; predictions about capability do not, unless cited. |
 | The same word twice | "None exceeds 0.012 ROC ROC AUC", three times in one manuscript. A hard wrap hides it from every reader and from no machine. |
 | A hedge stacked behind a full stop | "This is consistent with X. It does not establish X." The first sentence establishes nothing by construction, so the second spends 25 words un-claiming what nobody claimed — the stacked-hedge defect, moved where the per-sentence check cannot see it. |
 | A ratio stated in words, in a sentence with no number | "Roughly a third the width of the marginal ones" is a measurement, and it was wrong: the intervals two sentences above were 0.029 and 0.030 against a paired 0.022. The `numbers` gate looks up numerals and there was no numeral to look up. |
-| Equivalence claimed without an equivalence test | Whole-document. A paper whose Methods say no margin was prespecified, and whose Discussion then calls the result "parity" sixteen times, is arguing with itself in the reader's hands. Silent unless the paper itself supplies the disclaimer, and silent on the sentence that correctly *refuses* the word. |
+| Equivalence claimed without an equivalence test | Whole-document. A paper whose Methods say no margin was prespecified, and whose Discussion then calls the result "parity" sixteen times, is arguing with itself in the reader's hands. Silent unless the paper itself supplies the disclaimer, and silent on the sentence that correctly *refuses* the word. It also catches the claim made as a comparative — "neither representation is better than the other", "matched, but did not exceed" — which asserts equality as plainly as "parity" does while sounding like a careful negative. |
 | Unreported analyses | "Available from the corresponding author", "data not shown", "reported separately". A sentence that describes an analysis and then declines to report it advertises a result nobody can check. Report it or do not mention it — a data- or code-availability statement is different, and is required. |
 | Tallied comparisons with no axis | "Ten of the eleven favour the narrative" asserts eleven comparative judgements and defines none of them. The count reads as evidence, which is why it survives a read that a vague sentence would not. |
 
@@ -131,8 +134,23 @@ that is how a reviewer under time pressure actually reads.
 The gate cannot tell whether a topic sentence is *good*. It catches every structural
 way a paragraph fails to have one, and that turns out to be most of the failures: it
 opens on a citation, on a number, on a connective, or on a subordinate clause that
-delays the claim past a comma; it is one sentence long; it runs past nine; it ends on a
-citation, or on a signpost, rather than on what the paragraph means.
+delays the claim past a comma; it is one sentence long; it runs past nine sentences or
+past 120 words; it ends on a citation, or on a signpost, rather than on what the
+paragraph means.
+
+**The word ceiling and the sentence ceiling are different failures and neither
+subsumes the other.** Nine short sentences is two claims; so is one 155-word block of
+five long ones, and the sentence ceiling has never fired on either manuscript measured
+here — the maxima are eight sentences and seven. 120 words is the lowest cap in a
+100/110/120/130/150 sweep that a published rewrite clears completely in both its
+documents, its longest paragraphs being 113 and 111 words. The draft it replaced runs
+15 of 87 manuscript paragraphs over it.
+
+**A share needs a denominator.** A section blocks when too *many* of its paragraphs
+break shape, and under five checkable paragraphs that ratio is arithmetic rather than
+measurement: "1 of 1 paragraphs are mis-shaped (100%)" is what a twenty-word
+back-matter section reports. The defects are still named; the section-level verdict is
+withheld.
 
 A signpost is a closing citation in different clothes. "The full encoding rules are
 described in Supplement M5 and two example narratives are reproduced in Supplement S5"
@@ -155,6 +173,27 @@ cannot be a claim plus anything. Whether two are enough is a question about the
 section, and the outline answers it by naming a topic sentence for every planned
 paragraph; counting sentences was standing in for that judgement and getting it wrong
 seven times in eight.
+
+### Two positional rules, which are not paragraph shape
+
+**A section may not open on a roadmap.** A first paragraph whose subject is the
+document rather than its content — "the results are reported in the order of the two
+objectives", "this section describes..." — spends the first thing a reader reads on
+what the table of contents already told them. It is a section-level reason rather than
+a defect diluted in the share, because in the section it was found in it is one
+paragraph of twenty-four: 4%, invisible under any ceiling, and the first thing on the
+page. Only the first paragraph is asked, and "Here we report" in an Introduction is
+the standard purpose statement of a scientific paper rather than a roadmap.
+
+**A Results paragraph's opening sentence carries its figure.** When the claim IS a
+number, the claim and the number belong in the same sentence: "The embedding did not
+outperform the feature vector", followed by the two ROC AUCs, is two sentences doing
+one sentence's work. Measured on one manuscript's Results section, a draft puts a
+reported figure in 2 of 24 opening sentences and the published rewrite in 8 of 9. It
+**advises** at a floor of half, and it is scoped to the manuscript's own Results
+heading: a Results section whose findings are qualitative is a legitimate short report
+and scores badly here, and a published supplement's sections run 0 to 50% on the same
+measure.
 
 **The topic sentence is decided at outline time, not at drafting time.** That is the
 load-bearing design decision. Once prose exists, a paragraph with no claim gets
@@ -334,15 +373,15 @@ each returns a verdict a person can check by hand.
 | `numbers` | **A figure in the prose that the analysis never produced.** The most valuable gate here. A bibliographic number is not a finding, so the reference list is not scanned; the abstract is. |
 | `terminology` | A forbidden synonym for a locked term; an undeclared near-variant of one; an abbreviation used before it is expanded, or expanded twice. A locked term now says which second names are *approved* as well as which are banned. |
 | `citations` | A marker that resolves to nothing; a reference nobody cites; a borrowed claim carrying no source; two citation styles in one section; **and a reference list not numbered in order of first appearance.** |
-| `crossrefs` | **A pointer the paper makes to itself that resolves to nothing, a gap in the numbering, and a pointer that names no target at all.** Whole-document, because a pointer is the one defect no per-section gate can see. |
+| `crossrefs` | **A pointer the paper makes to itself that resolves to nothing, a gap in the numbering, a pointer that names no target at all, and a whole kind of pointer with no index behind it.** Whole-document, because a pointer is the one defect no per-section gate can see. It reads captions and headings in both shapes a packet arrives in: this project's own `***Table S3.**` and `# Supplement S3.`, and the bare `Table S3.` and `# S3 ...` that `pandoc -f docx` writes when a revision comes back from Word. |
 | `procedures` | **A named procedure whose defining parameter the paper never states.** Benjamini-Hochberg without its false discovery rate; a bootstrap without its resample count. Both numbers existed in the analysis code and neither reached the paper. Whole-document, because a caption should not restate what the Methods stated. |
 | `repetition` | **One point restated in three sections or more.** Two is a Discussion picking up what the Results said. Three is a paper that does not trust its reader. Front matter and captions exempt. |
 | `polarity` | **Sameness asserted in one place and denied in another, on the same noun.** A Methods section said in bold that both representations were built from the same curated field inventory, and twenty-five lines later that the two do not receive an identical field inventory. Both true, of different senses of one noun, and neither sentence said which. Whole-document and advisory, because the gate cannot see subjects. |
 | `sentences` | The one-read rule, measured at the section and again inside each paragraph. See the table above. |
 | `paragraphs` | Every structural way a paragraph fails to open on its claim, or closes on a citation or a signpost instead of what it means. A standalone label is not a paragraph, and a methods paragraph may close on a pointer. |
-| `readability` | Flesch and Flesch-Kincaid, banded for an academic venue. Measures word length, which sentence statistics do not — so it is measured everywhere and **banded only where the vocabulary is a choice.** |
-| `venue` | The journal's own stated limits, plus four that hold whatever the journal says: **a title too long to read, a short title too long to be a running head, a heading marker swallowed into the middle of a line, and a missing IMRaD section.** A venue that states a character limit wins. Most state none, which meant nothing checked a title at all — one manuscript reached 34 words and 272 characters with every word of it accurate. |
-| `length` | A section outside the band around its planned budget. The ceiling is the half that matters: over the venue's limit is a desk rejection before a reviewer reads a sentence. It also **warns** on a Results section spending too many words per number reported. |
+| `readability` | Flesch-Kincaid grade, banded 8–18 for an academic venue. Measures word length, which sentence statistics do not — so it is measured everywhere and **banded only where the vocabulary is a choice.** Reading ease is computed and reported and **never gated**: it is dominated by syllables per word, which in a clinical paper is subject matter. |
+| `venue` | The journal's own stated limits, plus five that hold whatever the journal says: **a title too long to read, a short title too long to be a running head, a heading marker swallowed into the middle of a line, a missing IMRaD section, and an abstract sentence past 35 words.** Every mandatory section is matched against the manuscript's own **headings**, not against the file: a bold run-in inside a Declarations block is not a section a copyeditor or a submission portal can find. |
+| `length` | A section outside the band around its planned budget, **and outside the absolute band whatever the budget says.** The budget ceiling is 1.15× a number the planner chose, so it checks the planner against themselves; `SECTION_MAX_WORDS` is the one no plan may license. The floor goes to zero in the back matter, where length is set by what there is to declare. It also **warns** on a Results section spending too many words per number reported. |
 
 Everything there is trivially testable, which is the point. `tests/test_gates.py` is
 the largest module in the suite for exactly that reason.
@@ -510,9 +549,14 @@ to 38. An exempt section still records its numbers, because the record should sh
 a section scored; what it does not get is a repair that does not exist.
 
 **Nominalization density.** The contract says *verbs, not nominalizations*, and a
-paragraph that passed every gate was unreadable for exactly that reason. Counting words
-ending in *-tion, -ment, -ance, -ity* flags 44 sentences in this manuscript at four or
-more, and the densest are "Domains included depression characteristics, psychiatric and
+paragraph that passed every gate was unreadable for exactly that reason. It is still
+not a gate, and the strongest evidence is the newest: the published rewrite of one of
+this project's own manuscripts scores **104.0 nominalizations per thousand words
+against the harness draft's 61.4**, and 152.5 against 104.8 per thousand *content*
+words. A density gate would refuse the better paper harder than the worse one. The
+rule stays in `prompts/draft.md`, where a writer reads it, and it must never be
+promoted. Counting words ending in *-tion, -ment, -ance, -ity* flags 44 sentences in
+this manuscript at four or more, and the densest are "Domains included depression characteristics, psychiatric and
 substance-use comorbidity, medical comorbidity, and social determinants of health" and
 "Performance in the held-out test set was characterized using ROC AUC, calibration
 slope and intercept, and precision-recall". Both correct. In a paper whose subject
@@ -527,10 +571,56 @@ instead: a caption restating the index-date definition, and a panel list naming 
 same three proxies the body names. A caption restating the setup is what makes it
 self-contained.
 
-The pattern in both: a measure that is right about prose in general is wrong about
-prose whose subject is the thing being measured. What survives is always the narrower
-check — a threshold with no value, a ratio spelled as a word, a comparison tallied with
-no axis, a ratio of words to figures in the one phase whose job is figures.
+**Hedge density.** The obvious rule — a heavy text hedges more — runs backwards. The
+published rewrite hedges **2.9 times harder per word** than the draft it replaced
+(5.00 against 1.74 per thousand in the manuscript body) while the absolute counts are
+almost identical, 17 against 15, because the revision cut unhedged material and kept
+every hedge. Any density ceiling refuses the better text. The two hedging rules that
+DO ship — the stacked hedge, and the hedge stacked behind a full stop — are
+zero-tolerance and stay that way; the reference text carries one of each in thirteen
+thousand words, and one instance is a defect rather than grounds to relax a rule.
+
+**A section-aware passive-voice ceiling.** Real in the manuscript, where Results runs
+10.5 passives per thousand words against 2.4, and gone the moment it leaves the
+manuscript: at the granularity the sweep runs, the reference text's own supplement
+scores 36.9, 30.6, 30.0, 24.4 and 23.9 in five sections, over any Methods tier loose
+enough to be worth having. Most of the hits on the heavy side are "are reported in
+Supplement S3" and "are given in Table 2", which is the signpost rule's territory
+rather than agent-hiding.
+
+**A gate refusing a manuscript passage that restates the supplement.** Measured as
+5-gram content-word overlap between every manuscript paragraph and every supplement
+paragraph: the draft means 0.016 and peaks at 0.222, the published rewrite means 0.022
+and peaks at 0.184. The usable gap at any threshold is 0.04. The manuscript did not
+get shorter by de-duplicating the supplement; it got shorter by deleting.
+
+The pattern in all of them: a measure that is right about prose in general is wrong
+about prose whose subject is the thing being measured, or runs backwards against the
+best text available. What survives is always the narrower check — a threshold with no
+value, a ratio spelled as a word, a comparison tallied with no axis, a ratio of words
+to figures in the one phase whose job is figures.
+
+### The reading-ease floor, retracted
+
+Flesch reading ease used to carry a floor of 20 in the sections where the vocabulary
+is a choice. It does not, and the retraction is worth recording because the floor
+looked like the most defensible number in the file.
+
+A published rewrite of one of this project's own manuscripts — shorter, tighter and
+more publishable than what the harness produced — scores **6.4 in its Introduction,
+16.4 in its Results and 3.2 in its Discussion**. That is every banded section it has,
+refused. The longer draft it replaced cleared all three. A gate that prefers the worse
+text is measuring the wrong thing, and what it is measuring is syllables per word,
+which in a clinical paper is subject matter.
+
+A floor of zero would not have said this. Reading ease goes negative on real clinical
+prose, so zero enforces nothing while leaving a live reason string for the next
+maintainer to re-tighten. The number is still computed and still carried in every
+report, so the record shows what a section scored.
+
+The Flesch-Kincaid ceiling survives, at 18 rather than 16, because it catches
+something the sentence gate does not: long words in long sentences at once. The same
+reference manuscript peaks at 17.2 in its Discussion.
 
 ### One thing the contract asks for and no gate measures
 
@@ -1375,7 +1465,11 @@ is overridable with a `PAPER_`-prefixed environment variable. The ones worth kno
 | `PAPER_MODEL` | `claude-opus-5` | Every text call. There are no tiers. |
 | `PAPER_SENTENCE_MEAN_MAX` | `22` | Mean words per sentence, ceiling. |
 | `PAPER_SENTENCE_LONG_SHARE_MAX` | `0.08` | Share of sentences allowed past 35 words. |
-| `PAPER_SEMICOLON_RATE_MAX` | `2` | Semicolons per 1,000 words. |
+| `PAPER_SENTENCE_MID_SHARE_MAX` | `0.15` | Share of a whole document's sentences allowed past 25 words. Document scope, not section. |
+| `PAPER_PARAGRAPH_MAX_WORDS` | `120` | Words in one paragraph, whatever its sentence count. |
+| `PAPER_SECTION_MAX_WORDS` | `1800` | Words in one top-level section, whatever the outline budgeted. |
+| `PAPER_SECTION_MIN_WORDS` | `50` | The absolute floor, for a section that argues. Zero in the back matter. It re-prompts the writer, so it is the one number here that manufactures prose. |
+| `PAPER_SEMICOLON_RATE_MAX` | `2` | Semicolons per 1,000 words. Reported, never refused. |
 | `PAPER_NUMBER_TOLERANCE` | `0.005` | How much rounding counts as the same number. |
 | `PAPER_EVIDENCE_COVERAGE_MIN` | `0.85` | How much of the intended argument the evidence must support before drafting starts. |
 | `PAPER_EDIT_MAX_PASSES` | `3` | Editorial passes before the loop asks whether it is still improving. |

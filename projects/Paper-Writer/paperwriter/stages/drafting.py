@@ -28,7 +28,7 @@ to show, which is the padding this project spends its editorial budget deleting.
 """
 
 from .. import config, paths
-from ..gates import prose as prose_gate
+from ..gates import length, prose as prose_gate
 from ..memory import store
 from ..memory.digest import build_section_brief
 from ..models import prompts, text
@@ -137,9 +137,14 @@ def _extend_to_length(drafted, out_path, project_rec, section, memory, ground_tr
     words against a 500-word budget is finished, and asking it for a hundred more is
     asking for filler."""
     budget = int(section.get("words") or 0)
-    floor = max(config.SECTION_MIN_WORDS,
-                int(budget * config.SECTION_UNDER_BUDGET_RATIO)) if budget \
-        else config.SECTION_MIN_WORDS
+    # `length.floor_for` and not `config.SECTION_MIN_WORDS`, because this loop is
+    # where a floor stops being a report and becomes an instruction: it re-prompts
+    # the model for continuation prose until the draft clears the number. A floor
+    # that is wrong about a section pads it. A declarations or conclusions section
+    # has no claim to be short of and gets a floor of zero.
+    absolute = length.floor_for(section.get("heading", ""))
+    floor = max(absolute, int(budget * config.SECTION_UNDER_BUDGET_RATIO)) if budget \
+        else absolute
     if floor <= 0:
         return drafted
 

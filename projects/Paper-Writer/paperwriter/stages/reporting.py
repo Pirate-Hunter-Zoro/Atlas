@@ -125,8 +125,11 @@ def _prose_block(manuscript_text):
              f"| Share over {config.SENTENCE_LONG_WORDS} words | "
              f"{score.long_share:.1%} | ceiling "
              f"{config.SENTENCE_LONG_SHARE_MAX:.0%} |",
+             f"| Share over {config.SENTENCE_MID_WORDS} words | "
+             f"{score.mid_share:.1%} | ceiling "
+             f"{config.SENTENCE_MID_SHARE_MAX:.0%} |",
              f"| Semicolons per 1,000 words | {score.semicolons_per_kword:.2f} | "
-             f"ceiling {config.SEMICOLONS_PER_KWORD_MAX:g} |",
+             f"reported, not gated |",
              f"| Clause-joining dashes per 1,000 words | "
              f"{score.emdashes_per_kword:.2f} | ceiling "
              f"{config.EMDASHES_PER_KWORD_MAX:g} |",
@@ -135,6 +138,11 @@ def _prose_block(manuscript_text):
         lines.append("What is outside its band:")
         lines.append("")
         lines += [f"- {r}" for r in score.reasons]
+        lines.append("")
+    if score.advisories:
+        lines.append("Measured and not refused:")
+        lines.append("")
+        lines += [f"- {a}" for a in score.advisories]
         lines.append("")
     return lines
 

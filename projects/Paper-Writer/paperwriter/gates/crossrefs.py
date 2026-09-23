@@ -34,10 +34,26 @@ A pointer that names its target passes, however awkward. "described in Supplemen
 "Table S9", "the Discussion, *Limitations*" all resolve for a reader. What fails is a
 bare gesture at the paper's own material with no identifier attached.
 
-Numbered items are recognised by their caption, in the form the manuscripts here use:
-`***Table S3.** ...*` or `***Figure 4.** ...*`, and `# Supplement S3.` for a section.
+Numbered items are recognised by their caption or their heading, in either of the two
+forms a packet arrives in. A document this harness built writes `***Table S3.** ...*`
+and `# Supplement S3.`; a document that came back from Word through
+`pandoc -f docx` writes a bare `Table S3.` and `# S3 Calibration`, because Word holds
+a caption's styling outside its text and a heading's label in its own numbering.
 Main-text and supplement numbering are separate sequences and are checked separately,
 because "Table 2" and "Table S2" are two different objects.
+
+**A pointer resolves whatever the venue calls the appendix.** "Supplement S7" and
+"Multimedia Appendix 1, section S7" point at the same section, and the second is the
+form a JMIR manuscript uses throughout.
+
+**A kind with pointers and no definitions is reported once the packet is whole.**
+The resolver gives up quietly when it finds no captions of a kind, on the ground that
+a section drafted in isolation points at figures that are being assembled elsewhere.
+That is right about a fragment and wrong about a finished packet: on a returned
+manuscript whose captions it could not parse, it produced `passed=True` with nothing
+defined and nothing checked — a gate reporting green after scanning an empty index,
+which is worse than any false failure, because a false failure gets read. So the
+caller says which it is holding, and only the packet-scope caller does.
 
 No models, no I/O. Two passes over two strings.
 """
@@ -47,19 +63,43 @@ from dataclasses import dataclass, field
 
 from . import prose
 
-# A caption DEFINES an item. The bold-italic form is what pandoc renders as a caption
-# and what every document in this project uses.
-_DEF_RE = re.compile(r"^\s*\*{2,3}\s*(Table|Figure)\s+(S?)(\d+)\s*\.", re.MULTILINE)
-_SECTION_DEF_RE = re.compile(r"^#{1,2}\s+Supplement\s+(S|M)(\d+)\s*\.", re.MULTILINE)
+# A caption DEFINES an item. The bold-italic form is what this project's own builder
+# writes; the bare form with no emphasis at all is what `pandoc -f docx` writes, and
+# `-f docx` is how a reviewer's revision comes back. The stop after the number is what
+# keeps the bare form off "Table 2 gives every selected characteristic", which is a
+# cross-reference in running prose and not a caption.
+_DEF_RE = re.compile(r"^\s*(?:\*{2,3}\s*)?(Table|Figure)\s+(S?)(\d+)\s*\.",
+                     re.MULTILINE)
+
+# A supplement section heading, in either naming convention: `# Supplement M1.` from
+# this harness, or `# M1 Source Data and Sampling` from a document written to a
+# venue's own appendix style. The label has to be a whole token, which is what stops
+# `# S3 Precision Recall` matching in a heading like `# M13 Performance`.
+_SECTION_DEF_RE = re.compile(
+    r"^#{1,3}\s+(?:Supplement\s+)?(S|M)(\d+)(?:\s*[.:]|\s+[A-Z])", re.MULTILINE)
 
 # A pointer REFERS to one. "Tables 2 and 3" and "Figures S1-S3" both point at more than
 # one item, so the pattern takes the trailing list as well as the first number.
 _REF_RE = re.compile(
     r"(?<![A-Za-z])(Tables?|Figures?|Figs?\.?)\s+(S?)(\d+)"
     r"((?:\s*(?:,|and|to|through|[-–])\s*S?\d+)*)", re.IGNORECASE)
+# A pointer at a supplement section, in either of the two conventions. "Supplement
+# S7" is this harness's; "Multimedia Appendix 1, section S7" is JMIR's, and a
+# manuscript in the venue's own house style uses it in every pointer it makes.
 _SECTION_REF_RE = re.compile(
-    r"(?<![A-Za-z])Supplements?\s+(S|M)(\d+)"
+    r"(?<![A-Za-z])"
+    r"(?:Supplements?\s+"
+    r"|Multimedia\s+Appendix\s+\d+\s*,\s*sections?\s+"
+    r"|Appendix\s+\d+\s*,\s*sections?\s+)"
+    r"(S|M)(\d+)"
     r"((?:\s*(?:,|and|to|through|[-–])\s*[SM]?\d+)*)", re.IGNORECASE)
+
+# The same convention pointing at a TABLE or a FIGURE rather than a section, which
+# has to reach the table resolver instead. "Multimedia Appendix 1, Table S15".
+_APPENDIX_ITEM_REF_RE = re.compile(
+    r"(?<![A-Za-z])(?:Multimedia\s+)?Appendix\s+\d+\s*,\s*"
+    r"(Tables?|Figures?)\s+(S?)(\d+)"
+    r"((?:\s*(?:,|and|to|through|[-–])\s*S?\d+)*)", re.IGNORECASE)
 
 _TRAILING_NUM_RE = re.compile(r"[SM]?(\d+)")
 
@@ -93,6 +133,7 @@ class CrossrefDefect:
 @dataclass
 class CrossrefReport:
     defined: dict = field(default_factory=dict)   # kind -> sorted numbers
+    referenced: dict = field(default_factory=dict)  # kind -> sorted numbers pointed at
     defects: list = field(default_factory=list)
     passed: bool = True
     reasons: list = field(default_factory=list)
@@ -122,11 +163,15 @@ def _expand(first, trailing):
     return sorted(set(out))
 
 
-def check(manuscript, supplement=""):
+def check(manuscript, supplement="", whole_packet=False):
     """Gate the pointers in a manuscript and its supplement. Returns a CrossrefReport.
 
     Both documents are scanned for pointers and both for definitions, because the
-    manuscript points into the supplement constantly and the supplement points back."""
+    manuscript points into the supplement constantly and the supplement points back.
+
+    `whole_packet` says the caller is holding everything that will be delivered. Only
+    then is "this packet points at tables and defines none" a defect rather than a
+    section that has not been assembled yet."""
     man_body = prose.strip_structure(manuscript or "")
     sup_body = prose.strip_structure(supplement or "")
     both = man_body + "\n\n" + sup_body
@@ -147,13 +192,16 @@ def check(manuscript, supplement=""):
         raw, _ = prose.sentence_at(spans, pos)
         return raw
 
-    for match in _REF_RE.finditer(both):
-        word, star, first, trailing = match.groups()
+    referenced = {}
+    item_refs = [(m.start(), m.groups()) for m in _REF_RE.finditer(both)]
+    item_refs += [(m.start(), m.groups()) for m in _APPENDIX_ITEM_REF_RE.finditer(both)]
+    for start, (word, star, first, trailing) in sorted(item_refs):
         kind = "Table" if word.lower().startswith("table") else "Figure"
         key = f"{kind} S" if star else kind
         have = defined.get(key, set())
+        referenced.setdefault(key, set()).update(_expand(int(first), trailing))
         if not have:
-            continue                    # no captions of this kind at all; not our call
+            continue        # reported once below, as a kind with no index at all
         for num in _expand(int(first), trailing):
             if num in have:
                 continue
@@ -163,14 +211,15 @@ def check(manuscript, supplement=""):
                 f"{label} is referred to and never defined. The captions present run "
                 f"{min(have)}-{max(have)}. A pointer to nothing is a reader sent to a "
                 f"page that is not there.",
-                _anchor(match.start())))
+                _anchor(start)))
 
     for match in _SECTION_REF_RE.finditer(both):
         letter, first, trailing = match.groups()
         key = f"Supplement {letter.upper()}"
         have = defined.get(key, set())
+        referenced.setdefault(key, set()).update(_expand(int(first), trailing))
         if not have:
-            continue
+            continue        # reported once below, as a kind with no index at all
         for num in _expand(int(first), trailing):
             if num in have:
                 continue
@@ -191,6 +240,25 @@ def check(manuscript, supplement=""):
             f"there is no target to follow and no gate that can resolve it. Name the "
             f"section, table or figure, or drop the pointer and report the thing here.",
             _anchor(match.start())))
+
+    # A kind that is pointed AT and never defined. This is not an unresolved pointer
+    # — it is the resolver having nothing to resolve against, which used to be a
+    # silent skip and therefore a clean bill of health on a document nothing had
+    # read. A returned manuscript whose captions the parser could not see reported
+    # sixteen appendix pointers as zero defects out of zero definitions.
+    for key in sorted(referenced) if whole_packet else ():
+        if defined.get(key) or not referenced[key]:
+            continue
+        nums = sorted(referenced[key])
+        shown = ", ".join(f"{key} {n}" for n in nums[:4])
+        defects.append(CrossrefDefect(
+            "unindexed", key,
+            f"{len(nums)} pointer(s) aim at {key} items ({shown}) and the packet "
+            f"defines none of that kind, so nothing was resolved rather than "
+            f"everything resolving. Either the items are missing or their captions "
+            f"are not written in a form anything can index — a caption is "
+            f"`**Table S3.** ...` or `Table S3.`, and a supplement heading is "
+            f"`# Supplement S3.` or `# S3 ...`."))
 
     # Contiguity. A gap is what a removed section leaves behind, and it is visible to a
     # reader as a missing page rather than as a broken link.
@@ -217,6 +285,12 @@ def check(manuscript, supplement=""):
             f"{len(unnamed)} pointer(s) name no target: "
             f"{', '.join(sorted({d.label for d in unnamed})[:6])}. A reader is sent "
             f"somewhere and there is nowhere to go.")
+    unindexed = [d for d in defects if d.kind == "unindexed"]
+    if unindexed:
+        reasons.append(
+            f"{len(unindexed)} kind(s) of pointer resolve against nothing: "
+            f"{', '.join(d.label for d in unindexed)}. A gate with an empty index "
+            f"reports a clean packet after checking none of it.")
     gaps = [d for d in defects if d.kind == "gap"]
     if gaps:
         reasons.append(
@@ -225,4 +299,5 @@ def check(manuscript, supplement=""):
 
     return CrossrefReport(
         defined={k: sorted(v) for k, v in defined.items()},
+        referenced={k: sorted(v) for k, v in referenced.items()},
         defects=defects, passed=not reasons, reasons=reasons)

@@ -221,6 +221,22 @@ redirect at import, so the suite cannot touch a real path.
 - **Every threshold in `config.py` carries its reasoning next to it.** Changing a
   number means changing what this harness will publish. Change the comment too, or the
   next reader believes a justification that no longer applies.
+- **A proposed rule is tested against a text that was published, not only against a
+  draft that failed.** `tests/test_gates.py` holds `REFERENCE_MANUSCRIPT`, a manuscript
+  somebody else wrote and a journal accepted, and a rule that refuses it is a wrong rule
+  however defensible it sounds. That check is free, and it has already killed a
+  reading-ease floor, a semicolon ration, a word floor, and four regexes written to the
+  shape of one manuscript's own back matter. Run a candidate before arguing for it.
+- **A gate that reports green after checking nothing is worse than one that fires
+  wrongly.** A false failure gets read. A resolver that finds no definitions of a kind
+  it is asked about says so, rather than returning a clean bill on an empty index.
+- **A share needs a denominator and a per-section threshold needs a section.** Most
+  rules here are a ratio over a section's paragraphs or sentences, and on a twenty-word
+  section that ratio is arithmetic rather than measurement. Before adding one, ask what
+  it reports on a section with three paragraphs in it, and ask whether the scope it
+  needs is the section, the document or the packet. The mid-band sentence share is
+  document-scope for exactly that reason: every per-section form of it refuses a
+  published text.
 
 **Documentation rule.** Comments and docstrings in this repository say *why*, not
 *what*. A comment that restates the line below it is noise; a comment that records the

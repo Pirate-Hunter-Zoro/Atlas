@@ -20,11 +20,26 @@ Seven measurements, and each one names a specific way a sentence stops being rea
     that fires on prose which is individually fine.
   * **the long tail** — the share of sentences past 35 words. A few are legitimate; a
     section where one in five is has a systematic problem, not a few bad lines.
+  * **the mid band** — the share of sentences past 25 words, measured across a whole
+    DOCUMENT rather than a section. Two manuscripts of the same paper are
+    indistinguishable in the tail and separate three-to-one here, which is why the
+    tail rule never saw the difference. See `mid_tail`.
   * **the hard ceiling** — one sentence of 55 words is a defect wherever it appears
     and whatever the mean says.
   * **welds** — semicolons and em-dashes per thousand words, counted outside captions.
     Both are almost always two sentences pretending to be one, except in a caption,
     where a semicolon is a panel label and the convention is the journal's.
+
+    **The semicolon ration is ADVISORY and the em-dash ration blocks, and the split
+    is a retraction.** The premise of the ration — that a semicolon is a full stop
+    that lost its nerve — is contradicted by the best text this project has to
+    measure against. A published manuscript runs 6.3 clause-welding semicolons per
+    thousand words in its body and 10.1 in its supplement, against zero in the
+    harness draft it replaced, and the ration blocked it in three of five IMRaD
+    sections. No shared ceiling exists to retune to: the published text peaks above
+    20 per thousand in one section. So the count is reported and not refused, and the
+    defect the ration was aiming at — a sentence carrying two claims — is caught by
+    the mid band above, which does not care how the two claims were joined.
   * **empty openers** — "It is worth noting", "Importantly", "Taken together". A
     sentence whose only job is to introduce another one.
   * **stacked hedges** — two qualifications on one claim. One hedge is honest; two is
@@ -36,6 +51,11 @@ Seven measurements, and each one names a specific way a sentence stops being rea
   * **anticipatory rebuttals** — "and not only a limitation", "this should not be read
     as". The paper arguing with a reviewer who has not spoken yet. It is hard to read
     because it asks you to hold an objection nobody made.
+  * **self-grading** — "the temporal design is a real strength", "that is reassuring",
+    "the paired comparison is the one that counts". The paper handing down the verdict
+    a reviewer is there to reach. The sibling of the rebuttal above and the same
+    defect from the other side: one argues the case for the defence, the other writes
+    the judgment.
   * **undefined comparisons** — "ten of the eleven favour the narrative". A count of a
     comparison whose dimension is never stated. The number looks precise and the
     sentence says nothing, which is worse than vagueness because it does not read as
@@ -112,6 +132,44 @@ _ANTICIPATORY = (
     "some might argue", "we would argue that", "it could be argued that",
     "while it is true that", "lest it be thought", "this is not to say",
 )
+
+# The paper handing down the verdict a reviewer is there to reach.
+#
+# "The temporal design is a real strength." "That is reassuring for face validity and
+# nothing more." "Both scored the same held-out patients, so the paired comparison is
+# the one that counts." Each sentence is true, and each one grades the paper's own
+# work for the reader instead of reporting it. A paper describes what it did and a
+# reviewer decides whether that was good; a sentence that decides it for them is the
+# first thing struck, and struck by somebody who is not the author.
+#
+# The sibling of `_ANTICIPATORY` and the same test: every phrase here can be deleted
+# with the finding left standing. The list is the VERDICT, not the interpretation — a
+# Discussion saying what a result means is doing its job, and "this is the first study
+# to..." is a claim about the literature rather than a grade. What is refused is the
+# adjective applied to the paper's own design, the reassurance offered on the reader's
+# behalf, and the instruction about which of the paper's own comparisons to believe.
+#
+# Measured across two manuscripts of one paper: three hits in the harness draft, all
+# in its Discussion, and none in either document of the published rewrite.
+_SELF_GRADING = (
+    "is a real strength", "was a real strength", "is a genuine strength",
+    "is a clear strength", "is a major strength", "is a notable strength",
+    "is a real weakness", "is a genuine weakness", "is a clear weakness",
+    "is a real limitation", "is a genuine limitation",
+    "and nothing more", "the one that counts", "the ones that count",
+    "is reassuring", "are reassuring", "is encouraging", "are encouraging",
+    "speaks well of", "is a strength of this",
+)
+_SELF_GRADING_RE = re.compile(
+    r"(?<![a-z])(?:" + "|".join(p.replace(" ", r"\s+") for p in _SELF_GRADING) +
+    r")(?![a-z])", re.IGNORECASE)
+
+
+def _self_grading(sentence):
+    """The verdict this sentence hands the reader, or "" when it reports instead."""
+    match = _SELF_GRADING_RE.search(sentence)
+    return " ".join(match.group(0).split()).lower() if match else ""
+
 
 # A threshold invoked by name and never given a value.
 #
@@ -544,6 +602,25 @@ _EQUIVALENCE_WORDS = (
     "identical performance", "the same performance", "interchangeable",
     "on par with", "on a par with", "noninferior", "non-inferior",
 )
+
+# The same claim made as a COMPARATIVE, which is the form that got past the word list
+# above. "Neither representation is better than the other" asserts equality as
+# plainly as "parity" does, and "matched, but did not exceed" asserts it while
+# sounding like a careful negative. Both sat four sentences from the same paper's own
+# correct refusal — "Absence of an advantage is not equivalence" — in a paper whose
+# Methods say no margin was prespecified.
+#
+# The published rewrite of that paper contains neither construction in 13,680 words,
+# so the widening cannot refuse the better text. It is a hole in a word list rather
+# than a new rule: the precondition, the disavowal escape and the severity are all
+# the ones that were already here.
+_EQUIVALENCE_PHRASE_RE = re.compile(
+    r"(?<![a-z])neither\s+[\w-]+(?:\s+[\w-]+){0,3}?\s+(?:is|was|are|were|"
+    r"performs?|performed|scores?|scored)\s+(?:any\s+)?"
+    r"(?:better|worse|stronger|higher|lower)\s+than"
+    r"|(?<![a-z])matched[^.;:]{0,30}?(?:but|and)\s+did\s+not\s+"
+    r"(?:exceed|beat|outperform|surpass)",
+    re.IGNORECASE)
 # The adverb slips past a word-boundary match: "the models perform EQUIVALENTLY
 # across sexes" is the claim, and "equivalent" with a trailing letter class does not
 # see it. An optional -ly is all it takes and it costs nothing.
@@ -569,10 +646,17 @@ _NO_MARGIN_RE = re.compile(
 # the two representations are equivalent" puts five words between the negation and the
 # word. A false negative leaves one overclaim standing; a false positive tells an
 # author to delete the sentence that correctly refuses the overclaim.
+# The escape has to name every word the list refuses, or the gate refuses the
+# sentence that correctly refuses the word. "These quantities are distinguished
+# because they are not interchangeable" is a published manuscript saying the careful
+# thing, and it was flagged because `interchangeable` was in the claim list and not
+# in this one.
 _DISAVOWAL_RE = re.compile(
     r"(?:not|never|cannot|can\s*not|rather\s+than|no)\b[^.;:]{0,70}?"
-    r"(?:parity|equivalen\w*|noninferior\w*|non-inferior\w*|on\s+a?\s*par\b)"
-    r"|(?:parity|equivalen\w*)[^.;:]{0,40}?(?:was|were|is|are)\s+not",
+    r"(?:parity|equivalen\w*|noninferior\w*|non-inferior\w*|interchangeable"
+    r"|as\s+good\s+as|equally\s+good|on\s+a?\s*par\b)"
+    r"|(?:parity|equivalen\w*|interchangeable)[^.;:]{0,40}?"
+    r"(?:was|were|is|are)\s+not",
     re.IGNORECASE)
 
 
@@ -604,7 +688,8 @@ def equivalence_overclaim(text):
         return []
     out = []
     for sentence in prose.sentences(body):
-        match = _EQUIVALENCE_RE.search(sentence)
+        match = _EQUIVALENCE_RE.search(sentence) or _EQUIVALENCE_PHRASE_RE.search(
+            sentence)
         if not match:
             continue
         if _DISAVOWAL_RE.search(sentence):
@@ -624,6 +709,7 @@ class SentenceReport:
     stdev: float
     longest: int
     long_share: float               # fraction past SENTENCE_LONG_WORDS
+    mid_share: float                # fraction past SENTENCE_MID_WORDS
     semicolons_per_kword: float
     emdashes_per_kword: float
     over_hard_max: list = field(default_factory=list)   # sentences past the ceiling
@@ -633,6 +719,7 @@ class SentenceReport:
     welded: list = field(default_factory=list)          # sentences with ; or —
     dense_paragraphs: list = field(default_factory=list)  # (opening sentence, mean, n)
     anticipatory: list = field(default_factory=list)    # (sentence, phrase)
+    self_grading: list = field(default_factory=list)    # (sentence, phrase)
     undefined_comparisons: list = field(default_factory=list)  # (sentence, verb)
     unreported: list = field(default_factory=list)      # (sentence, phrase)
     wordy_ratios: list = field(default_factory=list)     # (sentence, phrase)
@@ -642,6 +729,9 @@ class SentenceReport:
     vague_thresholds: list = field(default_factory=list)  # (sentence, phrase)
     passed: bool = True
     reasons: list = field(default_factory=list)
+    # Measured, reported, and never a failure. The weld ration lives here; see the
+    # module docstring for why it was demoted.
+    advisories: list = field(default_factory=list)
 
     def brief(self):
         """One line of measurements, for a log."""
@@ -696,11 +786,11 @@ def score(text, section_name=""):
     fail the weld check every time; a title page is one 100-word noun phrase; a
     reference list is neither sentences nor paragraphs. Measuring them produces noise,
     and a gate that fires on every manuscript is a gate somebody switches off."""
-    if section_name and section_name.strip().lower() in config.PARAGRAPH_EXEMPT_SECTIONS:
+    if prose.section_matches(section_name, config.PARAGRAPH_EXEMPT_SECTIONS):
         return SentenceReport(
             words=0, count=0, mean=0.0, median=0.0, stdev=0.0, longest=0,
-            long_share=0.0, semicolons_per_kword=0.0, emdashes_per_kword=0.0,
-            passed=True)
+            long_share=0.0, mid_share=0.0, semicolons_per_kword=0.0,
+            emdashes_per_kword=0.0, passed=True)
     body = prose.strip_structure(text)
     sents = prose.sentences(body)
     n_words = prose.word_count(body)
@@ -708,8 +798,9 @@ def score(text, section_name=""):
     if not sents:
         return SentenceReport(
             words=0, count=0, mean=0.0, median=0.0, stdev=0.0, longest=0,
-            long_share=0.0, semicolons_per_kword=0.0, emdashes_per_kword=0.0,
-            passed=False, reasons=["empty draft: no sentences to measure"])
+            long_share=0.0, mid_share=0.0, semicolons_per_kword=0.0,
+            emdashes_per_kword=0.0, passed=False,
+            reasons=["empty draft: no sentences to measure"])
 
     lengths = [len(s.split()) for s in sents]
     mean = statistics.fmean(lengths)
@@ -721,6 +812,7 @@ def score(text, section_name=""):
     over_hard = [s for s, n in zip(sents, lengths)
                  if n > config.SENTENCE_HARD_MAX_WORDS]
     long_share = len(long_ones) / len(sents)
+    mid_share = sum(1 for n in lengths if n > config.SENTENCE_MID_WORDS) / len(sents)
 
     floor_sents = prose.sentences(_floor_body(body))
     floor_mean = (statistics.fmean(len(s.split()) for s in floor_sents)
@@ -736,6 +828,7 @@ def score(text, section_name=""):
     dense = _dense_paragraphs(text)
     defensive = [(s, phrase) for s in sents
                  if (phrase := next((a for a in _ANTICIPATORY if a in s.lower()), ""))]
+    verdicts = [(s, phrase) for s in sents if (phrase := _self_grading(s))]
     vague = [(s, verb) for s in sents if (verb := _undefined_comparison(s))]
     unreported = [(s, phrase) for s in sents
                   if (phrase := _unreported_analysis(s))]
@@ -752,16 +845,16 @@ def score(text, section_name=""):
     report = SentenceReport(
         words=n_words, count=len(sents), mean=round(mean, 2),
         median=round(median, 1), stdev=round(stdev, 2), longest=longest,
-        long_share=round(long_share, 4),
+        long_share=round(long_share, 4), mid_share=round(mid_share, 4),
         semicolons_per_kword=round(semis, 2), emdashes_per_kword=round(dashes, 2),
         over_hard_max=over_hard, long_sentences=long_ones,
         empty_openers=openers, stacked_hedges=hedged, welded=welded,
-        dense_paragraphs=dense, anticipatory=defensive,
+        dense_paragraphs=dense, anticipatory=defensive, self_grading=verdicts,
         undefined_comparisons=vague, unreported=unreported,
         wordy_ratios=ratios, doubled=doubled, split_hedges=split_hedges,
         forecasts=forecasts, vague_thresholds=thresholds)
 
-    reasons = []
+    reasons, advisories = [], []
     if mean > config.SENTENCE_MEAN_WORDS_MAX:
         reasons.append(
             f"sentences average {mean:.1f} words; the ceiling is "
@@ -788,10 +881,13 @@ def score(text, section_name=""):
             f"{config.SENTENCE_HARD_MAX_WORDS} words. No sentence that long is doing "
             f"one job.")
     if semis > config.SEMICOLONS_PER_KWORD_MAX:
-        reasons.append(
-            f"{semis:.1f} semicolons per 1,000 words; the ceiling is "
-            f"{config.SEMICOLONS_PER_KWORD_MAX:.0f}. A semicolon is almost always a "
-            f"full stop that lost its nerve.")
+        advisories.append(
+            f"{semis:.1f} semicolons per 1,000 words, over a soft ceiling of "
+            f"{config.SEMICOLONS_PER_KWORD_MAX:.0f}. Not refused: a published "
+            f"manuscript this project measures itself against runs three times this "
+            f"rate in ordinary clause-joining prose. Worth a look if a welded "
+            f"sentence here is carrying two claims, which the mid-band measure "
+            f"catches on its own.")
     if dashes > config.EMDASHES_PER_KWORD_MAX:
         reasons.append(
             f"{dashes:.1f} em-dashes per 1,000 words; the ceiling is "
@@ -819,6 +915,13 @@ def score(text, section_name=""):
             f"{len(defensive)} sentence(s) argue with a reviewer who has not spoken "
             f"({', '.join(sorted({p for _, p in defensive})[:3])}). Make the claim "
             f"and let it stand.")
+    if verdicts:
+        reasons.append(
+            f"{len(verdicts)} sentence(s) grade the paper's own work "
+            f"({', '.join(sorted({p for _, p in verdicts})[:3])}). Report the design "
+            f"and the result; whether they are a strength, reassuring, or the "
+            f"comparison that counts is the reviewer's to decide, and a sentence "
+            f"that decides it for them is the first one struck.")
     if unreported:
         phrases = ', '.join(sorted({p for _, p in unreported})[:3])
         reasons.append(
@@ -863,8 +966,65 @@ def score(text, section_name=""):
             f"precision about nothing.")
 
     report.reasons = reasons
+    report.advisories = advisories
     report.passed = not reasons
     return report
+
+
+@dataclass
+class MidTailReport:
+    sentences: int            # sentences measured across the document
+    mid: int                  # of those, past SENTENCE_MID_WORDS
+    share: float
+    worst_section: str = ""   # the section carrying the highest share
+    worst_share: float = 0.0
+    passed: bool = True
+    reasons: list = field(default_factory=list)
+
+    def brief(self):
+        return (f"{self.mid} of {self.sentences} sentences past "
+                f"{config.SENTENCE_MID_WORDS} words ({self.share:.0%})")
+
+
+def mid_tail(reports):
+    """The share of a whole DOCUMENT's sentences past the mid-band threshold.
+
+    `reports` is [(section_name, SentenceReport)] from the per-section pass, so the
+    section exemptions are inherited for free: an exempt section reports no sentences
+    and contributes none.
+
+    **Document scope is measured, not preferred.** A published manuscript's own
+    supplement carries a thirteen-sentence section running 23% past 25 words, so any
+    per-section ceiling tight enough to catch a heavy draft refuses the published
+    text. Across a whole document the two separate by a factor of two and a half.
+
+    The worst section rides along so the editor knows where to open, and it is not
+    itself a failure."""
+    total = sum(r.count for _, r in reports)
+    mid = sum(int(round(r.mid_share * r.count)) for _, r in reports)
+    share = (mid / total) if total else 0.0
+
+    worst_name, worst_share = "", 0.0
+    for name, report in reports:
+        if report.count >= config.PARAGRAPH_DENSITY_MIN_SENTENCES \
+                and report.mid_share > worst_share:
+            worst_name, worst_share = name, report.mid_share
+
+    reasons = []
+    if total and share > config.SENTENCE_MID_SHARE_MAX:
+        where = (f" The worst section is {worst_name!r} at {worst_share:.0%}."
+                 if worst_name else "")
+        reasons.append(
+            f"{share:.0%} of this document's sentences run past "
+            f"{config.SENTENCE_MID_WORDS} words; the ceiling is "
+            f"{config.SENTENCE_MID_SHARE_MAX:.0%}. That is {mid:,} of {total:,}. The "
+            f"tail measure above cannot see this — it is the middle of the "
+            f"distribution, where a sentence is carrying a claim and a qualification "
+            f"rather than two claims.{where}")
+
+    return MidTailReport(sentences=total, mid=mid, share=round(share, 4),
+                         worst_section=worst_name, worst_share=round(worst_share, 4),
+                         passed=not reasons, reasons=reasons)
 
 
 def worst_offenders(report, count=None):
@@ -886,6 +1046,8 @@ def worst_offenders(report, count=None):
     for sentence, _ in report.empty_openers:
         scored[sentence] = scored.get(sentence, 0) + 1
     for sentence, _ in report.anticipatory:
+        scored[sentence] = scored.get(sentence, 0) + 2
+    for sentence, _ in report.self_grading:
         scored[sentence] = scored.get(sentence, 0) + 2
     for sentence, _ in report.undefined_comparisons:
         scored[sentence] = scored.get(sentence, 0) + 2

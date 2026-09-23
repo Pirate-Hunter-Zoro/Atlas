@@ -215,10 +215,35 @@ _DISPLAY_MATH_RE = re.compile(r"^\s*\$\$")
 _QUOTE_RE = re.compile(r"^\s{0,3}>")
 _HTML_COMMENT_RE = re.compile(r"<!--.*?-->", re.DOTALL)
 
+# A table Markdown cannot express, written as raw HTML. `pandoc -f docx` falls back to
+# a literal `<table>` block for any table with a merged cell or a nested paragraph, and
+# `-f docx` is how a reviewer's revision comes back. A table's cells are not sentences:
+# one unblanked block in a returned manuscript measured as a single 293-word
+# "paragraph" and carried a correct section over every length rule in this project.
+#
+# The block is delimited by its own tags rather than by blank lines, because pandoc
+# breaks a long row across lines and puts blank lines inside the block.
+_HTML_BLOCK_OPEN_RE = re.compile(
+    r"^\s*<(?:table|thead|tbody|tfoot|tr|td|th|colgroup|col|figure|div)\b",
+    re.IGNORECASE)
+_HTML_BLOCK_CLOSE_RE = re.compile(r"</(?:table|figure|div)\s*>", re.IGNORECASE)
+
+# A dash-ruled simple table, which is what `pandoc -t markdown` writes by default when
+# nothing forces pipe tables. A pipe table announces itself on every line; a simple
+# table's rows are bare text and only its ruler is distinctive. Two or more runs of
+# hyphens separated by spaces is a ruler and nothing else — a thematic break is one
+# run, and no sentence contains such a line — so the ruler identifies the table and the
+# blank lines around it bound the block.
+_SIMPLE_TABLE_RULE_RE = re.compile(r"^\s*-{2,}(?:\s+-{2,})+\s*$")
+
 
 def strip_structure(text):
     """The prose of a Markdown block: no headings, tables, fences, blockquotes, images,
     display equations, or comments.
+
+    A table counts whichever of the three ways it is written — pipe-ruled, dash-ruled,
+    or raw HTML. The last two are what `pandoc -f docx` produces, which is the shape a
+    reviewer's returned manuscript arrives in.
 
     Everything that measures prose measures this, so a section is judged on the
     sentences a reader actually reads.
@@ -242,16 +267,40 @@ def strip_structure(text):
             if body[i] != "\n":
                 body[i] = " "
 
-    offset, in_fence = 0, False
-    for line in (text or "").splitlines(keepends=True):
+    lines = (text or "").splitlines(keepends=True)
+    drop = [False] * len(lines)
+    in_fence, in_html = False, False
+    for i, line in enumerate(lines):
         bare = line.rstrip("\n")
         fence = bool(_FENCE_RE.match(bare))
-        drop = (fence or in_fence or _HEADING_RE.match(bare)
-                or _TABLE_RE.match(bare) or _QUOTE_RE.match(bare)
-                or _IMAGE_RE.match(bare) or _DISPLAY_MATH_RE.match(bare))
+        if _HTML_BLOCK_OPEN_RE.match(bare):
+            in_html = True
+        drop[i] = bool(fence or in_fence or in_html or _HEADING_RE.match(bare)
+                       or _TABLE_RE.match(bare) or _QUOTE_RE.match(bare)
+                       or _IMAGE_RE.match(bare) or _DISPLAY_MATH_RE.match(bare))
         if fence:
             in_fence = not in_fence
-        if drop:
+        if in_html and _HTML_BLOCK_CLOSE_RE.search(bare):
+            in_html = False
+
+    # A simple table is recognised by its ruler and blanked as a block, because its
+    # rows carry nothing that marks them as table rows.
+    for i, line in enumerate(lines):
+        if not _SIMPLE_TABLE_RULE_RE.match(line.rstrip("\n")):
+            continue
+        lo = i
+        while lo > 0 and lines[lo - 1].strip():
+            lo -= 1
+        hi = i
+        while hi + 1 < len(lines) and lines[hi + 1].strip():
+            hi += 1
+        for j in range(lo, hi + 1):
+            drop[j] = True
+
+    offset = 0
+    for line, blank in zip(lines, drop):
+        bare = line.rstrip("\n")
+        if blank:
             for i in range(offset, offset + len(bare)):
                 body[i] = " "
         offset += len(line)
@@ -292,6 +341,18 @@ def is_list_item(paragraph):
     """Whether a paragraph is really a list entry. Exempt from paragraph shape rules:
     a bullet has no topic sentence and is not supposed to."""
     return _is_list_item(paragraph.strip())
+
+
+def section_matches(section_name, tags):
+    """Whether a heading names one of a set of sections, matched as a lowercased
+    PREFIX.
+
+    Prefix and not equality, because a heading carries what the venue calls it rather
+    than what an exemption list calls it. "Multimedia Appendix 1" is the section, and
+    "multimedia appendix" is the tag; matching for equality exempts nothing and the
+    section then draws paragraph-shape findings on a one-line pointer to a file."""
+    low = (section_name or "").strip().lower()
+    return bool(low) and any(low.startswith(tag) for tag in tags)
 
 
 def anchorable(text, sentence):

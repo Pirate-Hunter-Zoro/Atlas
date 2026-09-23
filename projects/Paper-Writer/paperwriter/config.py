@@ -206,7 +206,48 @@ MODEL_QUOTA_BACKOFF_SEC = int(os.environ.get("PAPER_MODEL_QUOTA_BACKOFF_SEC", "3
 # means the section is padded and will be cut by someone who is not the author.
 #
 # The floor is deliberately loose and the ceiling deliberately tight.
-SECTION_MIN_WORDS = int(os.environ.get("PAPER_SECTION_MIN_WORDS", "150"))
+#
+# **The floor is 50 and it used to be 150, which is the number that matters here,
+# because the floor does not merely report a short section — `stages.drafting`
+# re-prompts the model for continuation prose until the draft clears it.** A wrong
+# floor is therefore an instruction to pad, and 150 was wrong about eight sections of
+# a published manuscript: a 55-word Conclusions, a 67-word Ethical Considerations, a
+# 113-word Implications and Next Steps. Every one of them is the right length for what
+# it has to say. 50 refuses a heading with a stub under it and nothing else, which is
+# the only case the absolute floor can judge without a plan to judge it against.
+#
+# The real floor is the outline's, at `SECTION_UNDER_BUDGET_RATIO` of the budget, and
+# it still applies wherever a section was planned. A section nobody planned has no
+# claim count to be short of.
+#
+# The floor also does not apply to a section that DECLARES rather than argues. A
+# two-word conflicts statement and a thirty-one-word data-availability statement are
+# both the right length whatever the plan says, so `gates/length.py` drops the floor
+# to zero for a back-matter section, keyed on the section's phase.
+SECTION_MIN_WORDS = int(os.environ.get("PAPER_SECTION_MIN_WORDS", "50"))
+
+# The absolute ceiling on one top-level section, independent of any outline budget.
+#
+# Nothing in this project held one. A venue's body limit is a whole-manuscript number
+# and advisory at that; `length.check`'s ceiling is 1.15x whatever the PLANNER wrote,
+# so a plan that budgets 2,700 words for Results passes at 2,767. The result is a
+# Results section three times the length of the Discussion it feeds, which no gate
+# could see.
+#
+# A section is the unit a reader holds before the next heading resets it. Past about
+# 1,800 words it is two sections, or one section plus a supplement entry — and the
+# repair is the second of those, which is why the gate's reason says to relocate the
+# quantitative half rather than to compress sentences.
+#
+# The number is set at the granularity the machinery uses. `stages.sweep.sections`
+# splits on H1, and an outline section IS an H1, so this is a whole Methods or a
+# whole Results — not a subsection. A published manuscript's Methods at this scope
+# runs 1,133 words, so the ceiling leaves roughly 60% of headroom over the longest
+# section of a real, accepted paper while refusing three of five sections of the
+# draft that paper replaced (Results 2,767, Discussion 2,496, Methods 2,047). A
+# tighter cap measured at H2 rejects the accepted paper outright at the scope the
+# sweep actually applies it.
+SECTION_MAX_WORDS = int(os.environ.get("PAPER_SECTION_MAX_WORDS", "1800"))
 
 # --- Titles -------------------------------------------------------------------
 #
@@ -270,12 +311,27 @@ SECTION_UNDER_BUDGET_RATIO = float(
 # that has dropped the precision its claims need, which is a real failure and a rare
 # one, and its own message says as much.
 #
-# Reading ease is gated loosely for the same reason in the other direction: a Methods
-# section full of necessarily polysyllabic clinical nouns scores badly however well it
-# is written, and `gates/sentences.py` measures the thing that actually goes wrong.
+# **Reading ease is measured and reported and never enforced. There is no floor and
+# there must not be one.** The band was defended on the ground that it was wrong about
+# Methods and right about Introduction, Results and Discussion. A published version of
+# one of this project's own manuscripts — rewritten by its senior author, shorter and
+# tighter than what the harness produced — scores 6.4, 16.4 and 3.2 in those three
+# sections against the floor of 20 that used to stand here, and the harness's own
+# longer, worse draft cleared it in all three. A gate that refuses the better paper
+# and passes the worse one is measuring the wrong thing: reading ease is dominated by
+# syllables per word, syllables per word in a clinical paper is subject matter, and
+# `gates/sentences.py` measures the half that is a choice.
+#
+# A floor of zero would not have said this. Reading ease goes negative on real
+# clinical prose, so zero enforces nothing while leaving a live reason string for the
+# next maintainer to re-tighten. The number is computed and carried in the report, so
+# the record still shows what a section scored.
+#
+# The FK ceiling survives, because it catches something the sentence gate does not:
+# long words in long sentences at once. It sits at 18 rather than 16 because the same
+# reference manuscript peaks at 17.2 in its Discussion.
 READABILITY_FK_GRADE_MIN = float(os.environ.get("PAPER_FK_GRADE_MIN", "8.0"))
-READABILITY_FK_GRADE_MAX = float(os.environ.get("PAPER_FK_GRADE_MAX", "16.0"))
-READABILITY_FLESCH_EASE_MIN = float(os.environ.get("PAPER_FLESCH_EASE_MIN", "20.0"))
+READABILITY_FK_GRADE_MAX = float(os.environ.get("PAPER_FK_GRADE_MAX", "18.0"))
 
 # --- The one-read rule, measured ---------------------------------------------
 #
@@ -297,6 +353,52 @@ SENTENCE_MEAN_WORDS_MIN = float(os.environ.get("PAPER_SENTENCE_MEAN_MIN", "12.0"
 # are is not.
 SENTENCE_LONG_WORDS = int(os.environ.get("PAPER_SENTENCE_LONG_WORDS", "35"))
 SENTENCE_LONG_SHARE_MAX = float(os.environ.get("PAPER_SENTENCE_LONG_SHARE_MAX", "0.08"))
+
+# The MIDDLE of the length distribution, which is where a heavy text and a readable
+# one actually separate, and which nothing here measured.
+#
+# Above 35 words two manuscripts of the same paper — the harness's draft and the
+# published rewrite of it — are indistinguishable: 1.2% against 0.9%, both far under
+# the 8% ceiling above, and neither carries a sentence past 45. The whole difference
+# sits between 25 and 35 words, and the draft runs 18.9% of its sentences there
+# against the rewrite's 5.6%. The tail rule cannot see it because there is no tail.
+#
+# 25 is not read off either text. It is the ceiling plain-language and medical-writing
+# guidance converge on, and this is the 35-word rule one band down.
+#
+# **It is enforced at DOCUMENT scope, and that is measured rather than preferred.**
+# The published supplement's own section M3 runs 23% of its thirteen sentences past 25
+# words, so any per-section ceiling tight enough to catch the draft refuses the
+# published text. Across a whole document the two separate cleanly: 18.9% and 17.4%
+# for the draft's manuscript and supplement, 5.6% and 6.6% for the rewrite's. The
+# ceiling clears the rewrite by a factor of two and a half and refuses both of the
+# draft's documents.
+# WHY THESE FOUR ARE ADVISORY AND NOT BLOCKING.
+#
+# They were calibrated on one comparison -- our draft against the senior author's
+# rewrite of it -- with no negative control, and a later pass supplied one. Measured
+# through this project's own splitter, the share of sentences past 25 words is:
+#
+#   the rewrite                    4.8%      Sentence-BERT, EMNLP      15.7%
+#   our draft                     13.1%      BGE, arXiv                16.4%
+#                                            XGBoost, KDD              19.9%
+#                                            TRIPOD+AI, BMJ            25.5%
+#                                            scikit-learn, JMLR        27.3%
+#                                            Qwen3-Embedding, arXiv    41.5%
+#
+# The rewrite is a three-to-five-times outlier against published prose, and our draft
+# already sits at the tight end of normal. A ceiling set to match the rewrite refuses
+# TRIPOD+AI -- the reporting guideline this packet is written to follow -- and the
+# same held for the section, paragraph and abstract ceilings: all four fired on every
+# external paper tested, at two to three times their threshold.
+#
+# So the numbers stay and the block goes. Terseness of that order is a quality of one
+# author's rewrite, not a property of publishable prose, and a gate cannot tell the
+# difference. What a gate CAN say is "this section is long, here is the number" and
+# leave the judgement where it belongs. Raise any of these to blocking only against a
+# corpus of papers nobody here wrote.
+SENTENCE_MID_WORDS = int(os.environ.get("PAPER_SENTENCE_MID_WORDS", "25"))
+SENTENCE_MID_SHARE_MAX = float(os.environ.get("PAPER_SENTENCE_MID_SHARE_MAX", "0.15"))
 
 # The hard ceiling. One sentence of 60 words is a defect wherever it appears.
 SENTENCE_HARD_MAX_WORDS = int(os.environ.get("PAPER_SENTENCE_HARD_MAX", "55"))
@@ -359,11 +461,86 @@ EDIT_LONG_SENTENCES = int(os.environ.get("PAPER_EDIT_LONG_SENTENCES", "15"))
 PARAGRAPH_MIN_SENTENCES = int(os.environ.get("PAPER_PARAGRAPH_MIN_SENTENCES", "2"))
 PARAGRAPH_MAX_SENTENCES = int(os.environ.get("PAPER_PARAGRAPH_MAX_SENTENCES", "9"))
 
+# And a ceiling on the paragraph's WORDS, which is a different failure from its
+# sentence count and is caught by nothing else. Nine short sentences is two claims;
+# so is one 155-word block of five long ones, and the sentence ceiling has never fired
+# on either manuscript this project has measured (maxima 8 and 7).
+#
+# 120 is the lowest cap in a 100/110/120/130/150 sweep that the published rewrite
+# clears completely, in the manuscript and in the supplement both: its longest
+# paragraphs are 113 and 111 words. The draft it replaced runs 15 of 87 manuscript
+# paragraphs over it, topping out at 155. At the register's own ~19 words per
+# sentence, 120 words is six sentences, which is the same claim the sentence ceiling
+# makes and the same one the two-sentence floor makes from below.
+PARAGRAPH_MAX_WORDS = int(os.environ.get("PAPER_PARAGRAPH_MAX_WORDS", "120"))
+
 # What share of a section's paragraphs may break the shape rules before it blocks.
 # Not zero: a one-sentence paragraph is right at the end of a Discussion, and a table
 # caption is a paragraph to the parser.
 PARAGRAPH_DEFECT_SHARE_MAX = float(
     os.environ.get("PAPER_PARAGRAPH_DEFECT_SHARE_MAX", "0.15"))
+
+# Below this many checkable paragraphs a share is not a measurement. "1 of 1
+# paragraphs are mis-shaped (100%)" is what a twenty-word Corresponding Author section
+# reports, and "1 of 3 (33%)" is what a short subsection reports on one defect that
+# would be invisible inside its parent. Neither is a finding, both block, and every
+# defect kind added to this gate makes the arithmetic worse. The individual defects
+# are still reported; only the section-level share is withheld.
+PARAGRAPH_DEFECT_MIN_PARAGRAPHS = int(
+    os.environ.get("PAPER_PARAGRAPH_DEFECT_MIN_PARAGRAPHS", "5"))
+
+# --- The Results topic sentence ----------------------------------------------
+#
+# A Results paragraph whose claim IS a number states the claim and the number in the
+# same sentence. Spending a bare claim sentence first and giving the figure in the
+# next one is two sentences doing one sentence's work, and it is most of what makes a
+# long Results section long.
+#
+# Measured on the manuscript's Results section: the harness's draft puts a reported
+# figure in 2 of 24 opening sentences (8%), the published rewrite in 8 of 9 (89%).
+# The floor is 50% and not 80% because 80% is demonstrably unsafe one document over —
+# the published supplement's own S-sections run 0 to 50% on the same measure, which is
+# why the check is scoped to the manuscript's Results heading and nowhere else.
+#
+# It ADVISES. A Results section whose findings are qualitative is a legitimate short
+# report and scores badly here; the density guard skips most of those and the
+# advisory severity covers the rest.
+RESULTS_TOPIC_FIGURE_SHARE_MIN = float(
+    os.environ.get("PAPER_RESULTS_TOPIC_FIGURE_SHARE_MIN", "0.50"))
+
+# Below this many checkable paragraphs the share is noise, and below this many
+# reported figures per 100 words the section is not reporting figures at all.
+RESULTS_TOPIC_MIN_PARAGRAPHS = int(
+    os.environ.get("PAPER_RESULTS_TOPIC_MIN_PARAGRAPHS", "3"))
+RESULTS_TOPIC_DENSITY_MIN = float(
+    os.environ.get("PAPER_RESULTS_TOPIC_DENSITY_MIN", "4.0"))
+
+# --- The abstract ------------------------------------------------------------
+#
+# Every prose gate exempts the abstract, for good reasons that all concern its shape:
+# it is one structured block, its labels are the venue's, and a keyword line is
+# semicolon-separated by convention. The consequence is that nothing measured the one
+# section a reader meets detached from the paper.
+#
+# Two things are worth measuring there and the rest is not. A hard per-sentence
+# ceiling, because an abstract has no room for the one legitimate long sentence a
+# 5,000-word section can absorb: the published rewrite's longest abstract sentence is
+# 32 words and the draft's is 38, with three more between 34 and 37. And the balance
+# between the Methods label and the Results label, because a structured abstract
+# exists so that a detached reader gets the FINDING — procedure has a whole Methods
+# section and a supplement behind it, and a finding has a hundred words. The draft
+# spends 137 words on Methods against 76 on Results, a ratio of 1.80; the rewrite
+# spends 93 against 110, a ratio of 0.85.
+#
+# What is deliberately NOT measured there, because each one refuses the published
+# abstract: the semicolon ration (two semicolons in 311 words scores 6.4 per thousand),
+# the mean sentence length (real published abstracts run 21 and 24 words against the
+# rewrite's 15.9, so the whole catch would live in a band of one text), and any
+# per-label share ceiling (the rewrite's Results label is 35% of its abstract).
+ABSTRACT_SENTENCE_MAX_WORDS = int(
+    os.environ.get("PAPER_ABSTRACT_SENTENCE_MAX_WORDS", "35"))
+ABSTRACT_METHODS_RESULTS_RATIO_MAX = float(
+    os.environ.get("PAPER_ABSTRACT_METHODS_RESULTS_RATIO_MAX", "1.2"))
 
 # --- The point made over and over ---------------------------------------------
 #
@@ -382,13 +559,31 @@ ECHO_SIMILARITY = float(os.environ.get("PAPER_ECHO_SIMILARITY", "0.45"))
 # same thing.
 ECHO_MIN_CONTENT_WORDS = int(os.environ.get("PAPER_ECHO_MIN_CONTENT_WORDS", "8"))
 
-# Sections whose paragraph-shape rules are relaxed entirely. An abstract is one
-# structured block, a declarations section is a list, and references are not prose.
-# An abbreviations list joined this set on 2026-09-06, when a venue that requires one
-# produced a 92-word "sentence" made of fourteen glossary entries. A definition list is
-# not prose, for the same reason a reference list is not.
-PARAGRAPH_EXEMPT_SECTIONS = ("abstract", "title page", "declarations", "references",
-                             "acknowledgements", "keywords", "abbreviations")
+# Sections whose paragraph-shape and sentence rules are relaxed entirely. An abstract
+# is one structured block, a declarations section is a list, and references are not
+# prose. An abbreviations list is a definition list, and a venue that requires one
+# produced a 92-word "sentence" made of fourteen glossary entries.
+#
+# **Back matter is here as nine separate named sections, not as one `Declarations`
+# block, because that is how a journal wants it written.** `gates/venue.py` requires
+# each mandatory section to exist as its own heading; a manuscript that complies then
+# carries nine short headings, and without this list every one of them draws findings
+# from gates that have no business reading them — a sentence-mean floor on a two-word
+# conflicts statement, a 100% mis-shaped-paragraph share on a one-line data
+# availability statement, a reading-ease band on an author-contributions list. Nine
+# blocking findings, on the part of the manuscript that is correct.
+#
+# **Matched as a heading PREFIX, not for equality.** "Multimedia Appendix 1" is what
+# the venue calls the section and it never equals the tag.
+PARAGRAPH_EXEMPT_SECTIONS = (
+    "abstract", "title page", "declarations", "references", "keywords",
+    "abbreviations", "contents",
+    "acknowledgement", "acknowledgment", "funding", "conflicts of interest",
+    "conflict of interest", "competing interests", "data availability",
+    "data sharing", "author contributions", "authors contributions",
+    "authors' contributions", "protocol and registration", "multimedia appendix",
+    "corresponding author", "author orcids",
+)
 
 # --- The final sweep ---------------------------------------------------------
 #

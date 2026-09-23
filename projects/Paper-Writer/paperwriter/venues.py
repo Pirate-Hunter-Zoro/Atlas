@@ -44,6 +44,7 @@ ANYWHERE, IN_METHODS, IN_DECLARATIONS = "anywhere", "methods", "declarations"
 REQUIRED_KEYS = (
     "name", "source", "checked",
     "abstract_max_words", "abstract_headings",
+    "recommended_sections",
     "keywords_min", "keywords_max",
     "body_max_words", "body_limit_is_hard", "body_limit_consequence",
     "title_max_chars", "references_max", "figures_max", "tables_max",
@@ -92,17 +93,39 @@ JMIR = {
     # in the manuscript that produced this module.
     "urls_in_body_allowed": False,
 
-    # Mandatory sections, as the venue names them. The regexes are what the gate
-    # matches, and they are deliberately loose about British/American spelling and
-    # about "Author" against "Authors'", because refusing a manuscript over an
+    # Mandatory sections, as the venue names them.
+    #
+    # **Each pattern is matched against the manuscript's own HEADINGS, without case.**
+    # It used to be matched against the whole file, and the difference is not
+    # pedantry: a phrase anywhere satisfied it, so a bold run-in lead-in buried inside
+    # one free-form Declarations block counted as a section, and a copyeditor or a
+    # submission portal looking for the heading finds nothing. Matched against
+    # headings, a manuscript written the way the venue asks scores 9 of 9 and one
+    # written as a single Declarations block scores 1 of 9, which is the right
+    # direction.
+    #
+    # The patterns are loose about British/American spelling, about "Author" against
+    # "Authors'", and about punctuation, because refusing a manuscript over an
     # apostrophe is a gate nobody keeps.
     "required_sections": (
-        ("Abbreviations", r"\bAbbreviations?\b", ANYWHERE),
-        ("Conflicts of Interest", r"Conflicts? of [Ii]nterest", ANYWHERE),
-        ("Data Availability", r"Data availability", ANYWHERE),
-        ("Author Contributions", r"Authors?'? contributions", ANYWHERE),
-        ("Funding Statement", r"\*\*Funding\.?\*\*|Funding [Ss]tatement", ANYWHERE),
-        ("Ethical Considerations", r"Ethic(?:s|al)", ANYWHERE),
+        ("Abbreviations", r"^Abbreviations?\b", ANYWHERE),
+        ("Acknowledgments", r"^Acknowledg(?:e?ments?|ement|ment)\b", ANYWHERE),
+        ("Conflicts of Interest",
+         r"^(?:Conflicts? of Interest|Competing Interests?)\b", ANYWHERE),
+        ("Data Availability", r"^Data (?:Availability|Sharing)\b", ANYWHERE),
+        ("Author Contributions", r"^Authors?'? Contributions\b", ANYWHERE),
+        ("Funding Statement", r"^Funding\b", ANYWHERE),
+        ("Ethical Considerations", r"^Ethic(?:s|al)\b", ANYWHERE),
+        ("Multimedia Appendix", r"^Multimedia Appendix\b", ANYWHERE),
+    ),
+
+    # Sections the venue's own instructions list but which this profile cannot source
+    # as MANDATORY for an original paper that is not a trial. A rule nobody can cite
+    # is a rule that will fight a legitimate draft, so it warns and names itself as
+    # unverified. Promote it to `required_sections` after re-reading the instructions
+    # page, or delete it.
+    "recommended_sections": (
+        ("Protocol and Registration", r"^Protocol and Registration\b"),
     ),
 }
 

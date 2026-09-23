@@ -67,3 +67,57 @@ They send one long, fully specified request and want the whole of it -- implemen
 documented, submitted to slurm, results filed -- not one step at a time. They defer
 the maths to you deliberately and then check the numbers you quote against their
 own memory, so quote nothing you have not run.
+
+## The index dates are 2013 to 2025, and both drafts say otherwise
+
+Measured from the pipeline's own definition -- the earliest `MedStartInstant` per
+patient in `post_mdd_ad_index.csv`, which is what `load_patient_data` takes as the
+anchor -- over all 42,579 cohort patients, every one of whom matched:
+
+    earliest index date   2013-09-05
+    latest index date     2025-08-14
+
+    2013     1   2016  1941   2019  4893   2022  5224   2025  1566
+    2014   148   2017  3552   2020  5112   2023  5219
+    2015   194   2018  4077   2021  5612   2024  5040
+
+The packet says "Patient index dates spanned 2016-2024" in Methods and again in
+Limitations, and derives "a nine-year window" from it. The senior author's rewrite says
+2016-2025. All three are wrong: 343 patients sit before 2016 and 1,566 in 2025, and the
+window is twelve years. Fix the two sentences and the derived phrase together.
+
+Paper-Writer's numbers gate cannot catch this. `gates/numbers.py` skips four-digit years
+on purpose -- "2024 is a date, not a finding" -- which is right everywhere except here,
+where the year IS the finding.
+
+## The retrieval slate, settled
+
+Two arms, cosine weighting throughout, and the similarity that ranks is the similarity
+that weights:
+
+  * **importance-weighted cosine KNN** -- the arm.
+  * **plain cosine KNN** -- the baseline, and the published `NEAREST_COSINE`.
+
+Out: uniform weighting, the MedGemma clinical-similarity judge, combined weighting,
+subsampled retrieval. Random and farthest stay as negative controls in the supplement.
+The judge staying in reserve kills the two references the rewrite resurrected and its
+four-weighting Methods sentence.
+
+**Point 2 needs no chosen k.** The maximum of the retrieval curve over every k from 1 to
+the whole 34,063-patient pool, under either metric and any sharpening, is 0.6249 --
+below FEATURE XGBoost at 0.6492 and EMBEDDED logistic regression at 0.6571. Paired over
+the 8,516 anchors, weighted KNN loses by 0.0244 (95% CI -0.0366 to -0.0110) and 0.0323
+(-0.0432 to -0.0212); neither interval crosses zero. Quoting the maximum hands retrieval
+the best k with hindsight and it still loses, which is the conservative direction.
+
+Subgroups are re-run on this slate: 240 contrasts, 60 nominally significant, 24 surviving
+Benjamini-Hochberg -- 19 MDD recurrence, 3 marital status, 1 severity, 1 age band,
+smallest adjusted P = .014. The earlier `reported_set` block also held 240 and was a
+different slate (uniform plus cosine), so none of its adjusted P-values carry over.
+
+## Still to write
+
+Nothing of the manuscript has been drafted against any of the above. The decisions are
+taken and the numbers are measured; the prose is not written. Follow the senior author's
+supplement numbering, which means his S1 -- the similarity judge -- has to go or be
+re-cast, because the slate above cut it from the main text.

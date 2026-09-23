@@ -26,6 +26,16 @@ refuse legitimate manuscripts. It warns, and it says what the consequence is, be
 **An unknown venue fails.** Not silently, and not with a pass. Writing to a journal
 nobody has profiled is ordinary; doing it while being told the manuscript is compliant
 is how the 810-word abstract survived.
+
+**Why the abstract's SHAPE is checked here and nowhere else.** Every prose gate in
+this project exempts the abstract, for good reasons that all concern its form: it is
+one structured block, its labels are the venue's, and its keyword line is
+semicolon-separated by convention. The consequence was that nothing measured the one
+section a reader meets detached from the paper. This gate already parses the abstract
+and splits it on the venue's own labels, so the two measurements that survive
+contact with a real published abstract live here: a hard per-sentence ceiling, and
+the balance between the Methods label and the Results label. See
+`config.ABSTRACT_SENTENCE_MAX_WORDS` for what was tried and refused.
 """
 
 import re
@@ -91,6 +101,23 @@ def body_of(parts):
             continue
         keep.append(body)
     return "\n".join(keep)
+
+
+def abstract_labels(abstract, headings):
+    """The abstract as {label: text}, split on the venue's own structural headings.
+
+    Both punctuations, because a venue's template uses one and a builder the other:
+    `**Methods.**` and `**Methods:**` are the same label."""
+    out, order = {}, list(headings or ())
+    if not order:
+        return out
+    pattern = "|".join(re.escape(h) for h in order)
+    marks = list(re.finditer(rf"\*\*({pattern})\s*[.:]?\*\*[.:]?", abstract or "",
+                             re.IGNORECASE))
+    for i, mark in enumerate(marks):
+        end = marks[i + 1].start() if i + 1 < len(marks) else len(abstract)
+        out[mark.group(1)] = abstract[mark.end():end]
+    return out
 
 
 def _abstract_words(abstract, headings):
@@ -159,9 +186,51 @@ def check(text, venue, profile=None, today=None):
                 f"structured abstract with "
                 f"{', '.join(profile['abstract_headings'])}, in that order.")
 
-    # 2. Keywords.
-    kw = re.search(r"\*\*Keywords\.?\*\*(.*?)(?:\n\n|\Z)", text, re.S)
-    count = len([k for k in kw.group(1).split(";") if k.strip()]) if kw else 0
+    # 1b. The abstract's shape. No other gate reads it; see the module docstring.
+    labelled = abstract_labels(abstract, profile["abstract_headings"])
+    prose_only = "\n\n".join(labelled.values()) if labelled else abstract
+    prose_only = re.sub(r"(?:\*\*Keywords\.?\*\*|(?<![A-Za-z])Keywords\s*[:.]).*",
+                        "", prose_only, flags=re.S | re.IGNORECASE)
+    over = [s for s in prose.sentences(prose_only)
+            if len(s.split()) > config.ABSTRACT_SENTENCE_MAX_WORDS]
+    if over:
+        stats["abstract_longest_sentence"] = max(len(s.split()) for s in over)
+        # A warning rather than an error: calibrated on two abstracts of one paper,
+        # and Chekroud 2016 in Lancet Psychiatry opens its Methods label with 51
+        # words. See the note above ABSTRACT_SENTENCE_MAX_WORDS in config.py.
+        warnings.append(
+            f"{len(over)} abstract sentence(s) run past "
+            f"{config.ABSTRACT_SENTENCE_MAX_WORDS} words, the longest at "
+            f"{stats['abstract_longest_sentence']}. An abstract is read detached from "
+            f"the paper by somebody deciding whether to read further, and it has no "
+            f"room for the one long sentence a 5,000-word section can absorb. The "
+            f"first is \"{over[0][:80]}...\"")
+
+    methods = labelled.get("Methods", "")
+    results = labelled.get("Results", "")
+    if methods.strip() and results.strip():
+        m_words, r_words = len(methods.split()), len(results.split())
+        ratio = m_words / max(r_words, 1)
+        stats["abstract_methods_results_ratio"] = round(ratio, 2)
+        if ratio > config.ABSTRACT_METHODS_RESULTS_RATIO_MAX:
+            warnings.append(
+                f"the abstract spends {m_words} words on Methods against {r_words} on "
+                f"Results, a ratio of {ratio:.2f} against a soft ceiling of "
+                f"{config.ABSTRACT_METHODS_RESULTS_RATIO_MAX}. A structured abstract "
+                f"exists so a detached reader gets the FINDING; procedure has a whole "
+                f"Methods section and a supplement behind it, and a finding has a "
+                f"hundred words. Move the procedural detail down and give the space "
+                f"to the result.")
+
+    # 2. Keywords. The bold run-in is this project's builder's markup, not the
+    #    venue's, so a plain `Keywords:` line counts too — matching on the markup
+    #    turned seven present keywords into zero on a manuscript written in Word.
+    #    Separated by semicolons or by commas, because journals ask for both.
+    kw = re.search(r"(?:\*\*Keywords\.?\*\*|(?<![A-Za-z])Keywords\s*[:.])"
+                   r"(.*?)(?:\n\n|\Z)", text, re.S | re.IGNORECASE)
+    raw = kw.group(1) if kw else ""
+    terms = raw.split(";") if ";" in raw else raw.split(",")
+    count = len([k for k in terms if k.strip()]) if kw else 0
     stats["keywords"] = count
     lo, hi = profile["keywords_min"], profile["keywords_max"]
     if lo is not None and count < lo:
@@ -191,19 +260,37 @@ def check(text, venue, profile=None, today=None):
             errors.append(f"{found} {label} against this venue's limit of {cap}.")
 
     # 5. Required sections, where the venue requires them.
+    #
+    #    Matched against the manuscript's own HEADINGS, without case, and not against
+    #    the file. A phrase anywhere in the text used to satisfy this, so a bold
+    #    run-in lead-in inside one free-form Declarations block counted as a section
+    #    — and a bold run-in is not a section a copyeditor, a submission portal, or a
+    #    reader scanning for the data-availability statement can find. Every one of
+    #    those patterns had been written to the shape of one manuscript's own
+    #    Declarations block rather than to the venue's requirement, which is the
+    #    failure this gate exists to prevent, living inside the gate.
+    headings = [h.strip() for h in parts]
     for label, pattern, where in profile["required_sections"] or ():
-        haystack = text
+        pool = headings
         if where == venues.IN_METHODS:
-            haystack = "\n".join(b for h, b in parts.items()
-                                 if h.strip().lower().startswith("method"))
+            pool = [h for h in headings if h.lower().startswith("method")]
         elif where == venues.IN_DECLARATIONS:
-            haystack = "\n".join(b for h, b in parts.items()
-                                 if h.strip().lower().startswith("declaration"))
-        if not re.search(pattern, haystack):
+            pool = [h for h in headings if h.lower().startswith("declaration")]
+        if not any(re.search(pattern, h, re.IGNORECASE) for h in pool):
             errors.append(
-                f"no `{label}` section" + ("" if where == venues.ANYWHERE
+                f"no `{label}` heading" + ("" if where == venues.ANYWHERE
                                            else f" in the {where}")
-                + f". This venue lists it as mandatory.")
+                + f". This venue lists it as mandatory, and a bold lead-in inside "
+                  f"another section is not a section anybody can find. Give it its "
+                  f"own heading, in the venue's own wording.")
+
+    for label, pattern in profile.get("recommended_sections") or ():
+        if not any(re.search(pattern, h, re.IGNORECASE) for h in headings):
+            warnings.append(
+                f"no `{label}` heading. This venue's instructions list it, and this "
+                f"profile could not verify that it is mandatory for an original "
+                f"paper that is not a trial. Add it or re-read the instructions "
+                f"page before submitting.")
 
     # 6. URLs in the body. The commonest way to break this is a Methods section that
     #    names its own code repository, which reads as good practice and is not what
