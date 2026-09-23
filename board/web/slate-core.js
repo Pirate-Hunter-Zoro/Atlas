@@ -2838,6 +2838,38 @@ function create(opts) {
      on it: the stroke is handed to this so its first sample is not lost. */
   api.sheet = function () { return sheet; };
 
+  /* THE SITTING THIS SLATE BELONGED TO HAS BEEN FILED. Drop every page and open
+     one blank sheet.
+
+     `board archive` renames each `page-NN.json` out of `live/slate/` and into
+     the archive, which is correct and is only half of it: the pages are ALSO
+     here, and the save is debounced, so the next one writes them straight back
+     under their old numbers. Measured in Probability on 23 September 2026 --
+     the sitting was filed at 09:29:06 and `page-02.json`, 479 strokes of the
+     previous problem, was back in `live/slate/` at 09:52. A new board then
+     opened onto a sheet that already had somebody else's working on it, which
+     is the one thing a new board must not do.
+
+     Deliberately NOT a save. What is in hand belongs to the sitting that has
+     just been filed, and writing it back is the defect itself; the archive has
+     the copy that matters. The array is emptied before the blank sheet is cut
+     so `nextPageNo` starts again at 1. */
+  api.reset = function () {
+    pages = [];
+    pages = [blankPage()];
+    current = 0;
+    undoStack = [];
+    redoStack = [];
+    clearSelection();
+    dropInk();
+    for (var k in dirtyPages) delete dirtyPages[k];
+    for (var q in pictureOwed) delete pictureOwed[q];
+    dirty = false;
+    layout();
+    fitPage();
+    invalidateInk();
+    return noOf(current);
+  };
   api.clear = function () {
     var p = page();
     if (!p) return;

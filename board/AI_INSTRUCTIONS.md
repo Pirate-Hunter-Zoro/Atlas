@@ -699,6 +699,17 @@ tutorboard/
   automatic choice does not get to cross a fence. Where nobody can take the turn it fails where that
   is visible and names the hour the allowance returns, exactly as one tutor always did.
   `board limit` says when; `test/limit.py` and `test/agents.py` hold it.
+- **STATE THAT LIVES IN THE BROWSER AS WELL AS ON DISK HAS TO BE FILED IN BOTH PLACES.** `board
+  archive` renames the cards, the slate pages, the answers, the annotations and the typed drafts out
+  of `live/` and into the archive, and that is only half of an archive for anything the page is also
+  holding. The slate keeps its pages in memory and saves on a debounce, so a sitting filed at
+  09:29:06 had 479 strokes of its own work back in `live/slate/` at 09:52 -- and the next board
+  opened onto a sheet that already had somebody else's problem on it. **The epoch is `history`**, the
+  count of archived sittings, which rises exactly when the archive runs; a rise drops the pages and
+  the board-to-page map. Drop rather than save: the archive already has the copy that matters, and
+  writing it back is the defect. The annotations and drafts one bullet up were the same failure in
+  the same directory -- *last night's ink on card 1, drawn over tonight's card 1* -- so when
+  something new is added to `live/`, ask whether the browser holds it too. `test/filed.js`.
 - **THE BOARD TYPESETS TWICE, AND BOTH ENGINES TAKE THE COURSE'S OWN VOCABULARY FIRST.** KaTeX in
   the browser renders the prose; real LaTeX renders a tikz fence and the write-up. Each course has
   its own `latex/coursemacros.sty`, and it wins on both sides -- the generated `board-macros.tex` is

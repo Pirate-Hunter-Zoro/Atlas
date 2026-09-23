@@ -1491,7 +1491,32 @@ function render(data) {
   planInfo = data.plan || null;
   readingInfo = data.reading || null;
   resultsInfo = data.results || null;
-  pastCount = data.history || 0;
+  /* THE SITTING WAS FILED WHILE THIS PAGE WAS OPEN. `history` counts archived
+     sittings and rises by one exactly when `board archive` runs, which makes it
+     the epoch this needs -- no new field, and it is on every live payload.
+
+     TWO GUARDS, AND THE FIRST ONE IS THE WHOLE LESSON OF GETTING THIS WRONG.
+
+     ONLY WHEN THE FIELD IS ACTUALLY THERE. `render` is also called with frames
+     built by hand -- `showSession` passes an archived sitting with no `history`
+     on it at all -- so reading `data.history || 0` turns a missing field into
+     zero, and the next real frame then looks like an archive that has just
+     happened. Shipped that way for a few minutes it made the board unusable:
+     the page under the pen was replaced every couple of frames and the boards
+     were re-dealt whatever sheet came next. A missing field means "this frame
+     does not say", which is not the same as "none".
+
+     AND NEVER OFF AN ARCHIVED FRAME, for the same reason from the other side:
+     that frame is about a different sitting, and nothing it carries is news
+     about this one.
+
+     What goes, goes in both halves. The PAGES, because the archive renamed them
+     away and a debounced save writes them back. And the board-to-page MAP,
+     because every number in it now names a sheet that has moved. */
+  if (typeof data.history === "number" && !data.archived) {
+    if (pastCount !== null && data.history > pastCount) lessonWasFiled();
+    pastCount = data.history;
+  }
   /* Once per load, and only now: where a course opens depends on what its
      documents are, and this is the first payload that says. */
   mapLand();
@@ -6857,7 +6882,11 @@ var contents = { chapters: [], sets: [] };
 var planInfo = null;        /* what this project says it is doing next */
 var readingInfo = null;     /* and what it can be shown */
 var resultsInfo = null;     /* and what its own pipeline produced */
-var pastCount = 0;
+/* How many sittings this course has filed, as of the last frame that said.
+   `null` until one does: "it went up" has no answer before there is a number to
+   compare with, and arriving at a course with nine archived lessons is not nine
+   lessons being filed while you watch. */
+var pastCount = null;
 
 function row(label, sub, current, go) {
   var b = document.createElement("button");
@@ -7398,6 +7427,23 @@ function loadPages() {
       boardPage[k.indexOf("#") === -1 ? slotKey(k, 0) : k] =
         { p: typeof v.p === "number" ? v.p : undefined, a: v.a || null };
     }
+  }
+}
+
+/* The sitting was filed. Everything keyed to it goes with it.
+
+   Called only on a rise in `history` -- see the guards where that is read. The
+   slate's half is `Slate.reset`, which DROPS its pages rather than saving them:
+   they are in the archive already, and writing them back into `live/slate/` is
+   the whole of what this repairs. */
+function lessonWasFiled() {
+  boardPage = {};
+  savePages();
+  loadedTurn = null;
+  reclaimSeen = null;
+  reclaimOwed = null;
+  if (writer && writer.reset) {
+    try { writer.reset(); } catch (e) { /* a blank board beats a broken one */ }
   }
 }
 
