@@ -2307,7 +2307,8 @@ machines. Which board it opens is therefore a decision this machine makes, and i
   up and answering, because `tutor restart` walks every course on the machine one after another and
   would otherwise leave the address wherever the alphabet finished — which once dropped somebody
   halfway through a Galois proof into a different lesson. What takes a name is a tap, an explicit
-  `board vpn serve`, or the name pointing at nothing.
+  `board vpn serve`, the name pointing at nothing, or the watch loop putting it back on the course
+  `chosen.json` names.
 - **and ANSWERING IS NOT OWNING.** A port holds the address when a live record names it —
   `recorded_ports()`, every `live/.board.json` on this node whose pid is still serving its own
   repository. A board an ended generation left behind answers exactly like a live one and is named
@@ -2458,6 +2459,13 @@ So it is recorded, published and checked:
 - **`/health` publishes it**, along with the port that course is genuinely serving on, read from its
   own board record. Only the serving machine can read either of those things, which is why a board
   answers for them rather than anybody guessing.
+- **the watch loop holds the name there**, and what it checks is the chosen course's own port
+  rather than whether anything at all answers. A board nobody chose answers exactly as well as the
+  right one, so the weaker question calls the wrong lesson healthy and leaves the iPad in it: one
+  moment of the chosen board being down — a restart, a few seconds — hands the name to the next
+  course along and nothing asks again. A drifted name is claimed back with the forced `board vpn
+  serve`, because `--if-free` will not take a name off a live board and a standing choice is the one
+  thing entitled to. With nobody having chosen, the loop keeps the address alive and never moves it.
 - **`/health` also says which course this board is**, and nothing is offered the address whose name
   does not match the course that was asked for. Ports are derived from names, and derivation is not
   proof: a hash can put two courses on one number, and a start whose port was busy moves to the next

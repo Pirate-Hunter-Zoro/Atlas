@@ -38,7 +38,7 @@ spec = importlib.util.spec_from_loader("tutor", loader)
 tutor = importlib.util.module_from_spec(spec)
 loader.exec_module(tutor)
 
-from tutorboard import machine, paths, processes, supervise
+from tutorboard import choice, machine, paths, processes, supervise
 
 fails = []
 
@@ -196,12 +196,17 @@ try:
 
     calls = {"board": [], "agent": [], "link": []}
 
+    # The port the HTTPS name is proxying to. A number the tests move about,
+    # because which board the name is on is the whole question the address pass
+    # asks; 9001 is Up's, which is the healthy answer.
+    holding = {"port": "9001"}
+
     def fake_board(root, *args):
-        calls["board"].append((os.path.basename(root), args[0]))
+        calls["board"].append((os.path.basename(root), " ".join(args[:2])))
         if args[0] == "vpn":
             # `vpn holder` answers with the port the HTTPS name is proxying to,
             # and nothing else -- that is the contract the loop reads.
-            return 0, "9001"
+            return 0, holding["port"]
         return 0, "board up (pid 1)"
 
     def fake_agent_start(cfg_, course, name, session=None):
@@ -261,6 +266,65 @@ try:
     check("and a link that will not come up is not retried on the next pass",
           not addr_lines(said))
     tutor.tailscale.daemon_running = lambda: True
+
+    # WHICH COURSE THE ONE ADDRESS IS FOR, which is the other half of keeping it
+    # alive and the half that was wrong. Reported in the words it happened in:
+    # "the address is not pointing at a board that answers, so the link was
+    # brought up for Galois-Theory", while `chosen.json` said Probability and a
+    # person was mid-homework in it. A second live board here, sorting first, is
+    # that Galois-Theory.
+    make_workspace("Alongside", board={"node": HOST, "pid": 601, "port": 9006})
+    alive.add(601)
+
+    def served(dirs):
+        return [c for c in calls["board"] if c == (dirs, "vpn serve")]
+
+    choice.remember_chosen("Up", os.path.join(tmp, "Up"))
+    holding["port"] = "9006"          # the name has ended up on the other board
+    calls["board"], calls["link"] = [], []
+    memo = {}
+    said = tutor.watch_once(cfg, HOST, memo, lambda line: None)
+    check("a board that answers is not the test: the address on a course nobody "
+          "chose is a fault, even though the glass is not white",
+          any("nobody chose" in l for l in said))
+    check("and it is taken back for the chosen course by the forced claim, since "
+          "`link` asks first and another live board never says yes",
+          served("Up") and "Up" not in calls["link"])
+    check("the course somebody chose beats the newest files on disk, which is "
+          "every course a tutor is running in",
+          not served("Alongside"))
+
+    holding["port"] = "9001"          # back on Up, which is the chosen course
+    calls["board"], calls["link"] = [], []
+    memo = {}
+    said = tutor.watch_once(cfg, HOST, memo, lambda line: None)
+    check("with the address on the chosen course's own board, nothing is claimed",
+          not served("Up") and "Up" not in calls["link"]
+          and not addr_lines(said))
+
+    # NOBODY HAS CHOSEN, so the first board here is a guess, and a guess may keep
+    # the address alive but may never move it off a board that is answering --
+    # that is the whole of why `link` asks before it takes.
+    os.remove(paths.CHOSEN)
+    holding["port"] = "9006"
+    calls["board"], calls["link"] = [], []
+    memo = {}
+    said = tutor.watch_once(cfg, HOST, memo, lambda line: None)
+    check("with no choice standing, the alphabet does not get to move the "
+          "address off a board that is answering",
+          not served("Alongside") and not served("Up")
+          and "Alongside" not in calls["link"])
+
+    choice.remember_chosen("Elsewhere", os.path.join(tmp, "Elsewhere"))
+    calls["board"], calls["link"] = [], []
+    memo = {}
+    tutor.watch_once(cfg, HOST, memo, lambda line: None)
+    check("and a choice whose board is on another node is not this node's to "
+          "honour either",
+          not served("Alongside") and not served("Up")
+          and "Alongside" not in calls["link"])
+    os.remove(paths.CHOSEN)
+    holding["port"] = "9001"
 
     check("a tutor that is listening is not restarted",
           ("Up", "claude") not in calls["agent"])

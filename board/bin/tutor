@@ -3707,6 +3707,32 @@ def last_board(cfg):
     return best[1] if best else None
 
 
+def address_course(cfg, here):
+    """Which of the boards up here the one HTTPS name is for. None if none is.
+
+    The person's own word and nothing blended into it, which is why this is not
+    `last_board`. That answers a different question -- which course to pick back
+    up -- and answers it partly from file times, which is right there and wrong
+    here: a tutor writes cards and transcript pushes into its own course every
+    few minutes, so "most recently used" is a vote the busiest course always
+    wins, and the address walks off to it while somebody is reading a different
+    one on the iPad. One device, one URL, no way from it to say which course was
+    meant; so the only thing that may say is `chosen.json`, which is a decision.
+
+    `here` is the boards answering on this node. None means this node has
+    nothing the person asked for -- nobody has ever chosen, or the chosen
+    course's board is somewhere else -- and a caller that carries on anyway is
+    guessing and must behave like it.
+    """
+    best = chosen_course(cfg)
+    if not best:
+        return None
+    for c in here:
+        if paths.same_dir(c["root"], best[1]["root"]):
+            return c
+    return None
+
+
 def board_record(root):
     try:
         with open(os.path.join(root, "live", ".board.json"), "r", encoding="utf-8") as fh:
@@ -4746,13 +4772,19 @@ def watch_once(cfg, host, memo, say, claim=False):
                     (board_record(c["root"]) or {}).get("pid"), c["root"])
                 and (board_record(c["root"]) or {}).get("node") == host]
         if here:
-            # Whichever course the address is FOR: the one somebody chose, if it
-            # is one of the boards up here. `link` takes the name only if it is
-            # pointing at nothing, so this cannot move it off a live board.
-            want = last_board(cfg)
-            if not want or want["dir"] not in [c["dir"] for c in here]:
+            # WHICH COURSE THE ADDRESS IS FOR IS A DECISION. `address_course`
+            # reads the person's, and reads nothing else; with no choice
+            # standing on this node it is None and what follows is the boards
+            # here in the order they were found, which is the alphabet wearing a
+            # disguise. A guess may keep the address alive and may not move it:
+            # everything below that says "and only when the choice is known"
+            # says it for that reason.
+            want = address_course(cfg, here)
+            guess = want is None
+            if guess:
                 want = here[0]
-            why = None
+            mine = (board_record(want["root"]) or {}).get("port")
+            why = forced = None
             if not tailscale.daemon_running():
                 why = "there is no tailnet link on this node"
             else:
@@ -4761,12 +4793,34 @@ def watch_once(cfg, host, memo, say, claim=False):
                 if not (code == 0 and port.isdigit()
                         and supervise.answering(int(port))):
                     why = "the address is not pointing at a board that answers"
+                elif not guess and mine and int(port) != int(mine):
+                    # POINTING AT SOMETHING THAT ANSWERS IS NOT THE TEST. A
+                    # board the person did not ask for answers just as well, and
+                    # the pass that only asks "does anything answer" calls that
+                    # healthy and leaves them in it for ever: one bad moment --
+                    # the chosen board a few seconds down, mid-restart -- hands
+                    # the name to the next course along and nothing ever asks
+                    # again. The name has to be on the chosen board's own port.
+                    why = "the address is pointing at a course nobody chose"
+                    forced = True
             if why:
-                link(want["root"])
+                if forced:
+                    # A name on another course's LIVE board is not free, and
+                    # `link` will not take it: `--if-free` is there so that a
+                    # board coming up cannot drag the iPad out of the lesson
+                    # somebody is reading. A standing choice may, and is the one
+                    # thing that may, so it uses the forced claim -- the same
+                    # command a person types to say which course they mean,
+                    # typed here on their behalf because they already said it.
+                    board(want["root"], "vpn", "serve")
+                    did.append("%s, so the address was pointed back at %s"
+                               % (why, want["dir"]))
+                else:
+                    link(want["root"])
+                    did.append("%s, so the link was brought up for %s"
+                               % (why, want["dir"]))
                 addr["tries"] += 1
                 addr["at"] = now + supervise.next_try(addr["tries"])
-                did.append("%s, so the link was brought up for %s"
-                           % (why, want["dir"]))
                 say(did[-1])
             else:
                 addr["tries"] = 0
