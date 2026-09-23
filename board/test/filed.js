@@ -119,13 +119,14 @@ if (!es) { console.log('FAIL board.js never opened a stream'); process.exit(1); 
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const t0 = 1788400000;
-const KEY = 'board.pages.n:Probability:-';
+const KEY = 'board.pages.n:Probability:-:2026-02-11 19:00';
 const mapping = () => {
   try { return JSON.parse(window.localStorage.getItem(KEY) || '{}'); }
   catch (e) { return {}; }
 };
 const frame = (cards, history) => {
-  const f = { state: { course: 'Probability', session: 'homework' },
+  const f = { state: { course: 'Probability', session: 'homework',
+                       opened: '2026-02-11 19:00' },
               cards: cards, turns: [] };
   if (history !== undefined) f.history = history;
   return JSON.stringify(f);

@@ -189,7 +189,7 @@ function surface(saved, onPages) {
   // A page is named by its NUMBER now, not by where it sits in the array the
   // surface happens to have built -- so the record says page 1, and page 1 is
   // page 1 whatever else is or is not on disk beside it.
-  const KEY = 'board.pages.n:Galois Theory:-';
+  const KEY = 'board.pages.n:Galois Theory:-:2026-02-11 19:00';
   window.localStorage.setItem(KEY, JSON.stringify({ '0001': 1, '0005': 1 }));
 
   for (const f of ['typeface.js', 'macros.js', 'gauge.js', 'plane-core.js', 'slate-core.js', 'annotate.js', 'board.js']) {
@@ -204,7 +204,8 @@ function surface(saved, onPages) {
     const card = (id, kind, title, n) =>
       ({ id, kind, title, body: 'the ' + title + ' body', mtime: t0 + n * 100 });
     es.onmessage({ data: JSON.stringify({
-      state: { course: 'Galois Theory', session: 'lecture', mode: 'math' },
+      state: { course: 'Galois Theory', session: 'lecture', mode: 'math',
+               opened: '2026-02-11 19:00' },
       cards: [card('0001', 'question', 'Exercise 1.1', 1),
               card('0002', 'correct', 'right', 2),
               card('0005', 'question', 'Exercise 1.4', 3)],
@@ -279,7 +280,7 @@ function surface(saved, onPages) {
     : new Promise(() => {}));
 
   // Swapped: 0001 on the page 0005 was sent from, and 0005 on 0001's.
-  const KEY = 'board.pages.n:Galois Theory:-';
+  const KEY = 'board.pages.n:Galois Theory:-:2026-02-11 19:00';
   window.localStorage.setItem(KEY, JSON.stringify({ '0001#0': { p: 4 },
                                                     '0005#0': { p: 2 } }));
 
@@ -295,7 +296,8 @@ function surface(saved, onPages) {
     const card = (id, kind, title, n) =>
       ({ id, kind, title, body: 'the ' + title + ' body', mtime: t0 + n * 100 });
     es.onmessage({ data: JSON.stringify({
-      state: { course: 'Galois Theory', session: 'lecture', mode: 'math' },
+      state: { course: 'Galois Theory', session: 'lecture', mode: 'math',
+               opened: '2026-02-11 19:00' },
       cards: [card('0001', 'question', 'Exercise 1.1', 1),
               card('0005', 'question', 'Exercise 1.4', 3)],
       turns: [{ id: 't0001', rev: 1, kind: 'ink', answers: '0001', t: t0 + 200,

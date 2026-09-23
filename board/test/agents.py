@@ -717,5 +717,55 @@ check("and one that never finished does not claim to be starting for ever",
            "waking_at": now - processes.WAKING_GRACE - 1}, "othernode"))
 
 
+# ------------------------------------------- a turn that wrote nothing says so
+#
+# THE HALF THAT MAKES A BROKEN PROVIDER SPECTACULAR RATHER THAN MERELY BROKEN.
+# A turn fails, no card is written, and the board goes back to `claude
+# listening` with `last_error: null` -- so the student's working is in and the
+# chrome says everything is fine. Two ways that record gets emptied, and both
+# are here.
+
+silent = tempfile.mkdtemp(prefix="tutor-silent-")
+silent_live = os.path.join(silent, "live")
+os.makedirs(silent_live)
+with open(os.path.join(silent_live, "agent.json"), "w", encoding="utf-8") as fh:
+    json.dump({"agent": "deepseek", "state": "listening", "pid": 4321,
+               "last_error": "API Error: Connection dropped (ECONNRESET) (exit 1)",
+               "failed_at": time.time(), "handover": "2026-09-20 10:00:00"}, fh)
+woke = tutor.mark_waking(silent_live, "claude", pid=os.getpid())
+check("a start does not erase the last turn's failure -- a daemon is most often "
+      "restarted BECAUSE the turn fell over, and clearing the reason there "
+      "empties the record at the one moment somebody is reading it",
+      woke.get("last_error", "").startswith("API Error") and woke.get("failed_at"))
+check("and it still answers the flags a start is the answer to",
+      not woke.get("handover") and woke.get("state") == "waking")
+
+# WHAT RETIRES IT IS SOMETHING NEWER, which is the next turn that goes through.
+check("a turn that goes through is what clears it, and the daemon still does that",
+      'agent_state(live, state="listening", last_error=None,\n'
+      '                        failed_at=0, retrying=False)' in tool_src)
+
+# AND THE EXIT CODE IS NOT THE LAST WORD ON WHETHER A TURN WORKED. It is the
+# agent summarising itself; the result object is the agent saying what happened.
+blob = ('{"type":"result","subtype":"success","is_error":true,'
+        '"result":"API Error: Connection dropped (ECONNRESET)",'
+        '"duration_api_ms":0,"total_cost_usd":0}')
+check("an agent that reports its own failure is read as one, whatever it exited",
+      tutor.result_object_error("some output\n" + blob)
+      == "API Error: Connection dropped (ECONNRESET)")
+check("and a turn that went through is not made into a failure by the same read",
+      tutor.result_object_error('{"type":"result","is_error":false,"result":"ok"}')
+      is None)
+check("so the daemon reads what the turn said BEFORE it believes the number, "
+      "and a turn that reported a failure and exited 0 is still a failed turn",
+      "said = turn_output(logpath, mark)\n"
+      "        if not err and result_object_error(said):" in tool_src)
+check("and what the board is told is the turn's own sentence rather than the "
+      "number, which is the same for every cause",
+      tutor.failure_reason(blob, "exit 1")
+      == "API Error: Connection dropped (ECONNRESET) (exit 1)")
+shutil.rmtree(silent, ignore_errors=True)
+
+
 print("%d FAILURES" % len(fails) if fails else "the assistant follows the course")
 sys.exit(1 if fails else 0)

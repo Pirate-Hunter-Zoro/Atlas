@@ -105,11 +105,14 @@ below and in `board/README.md`; what is in flight is in neither, so reading the
 code is fine and editing any of those six is how two sessions produce one
 conflict. `board/bin/tutor` will move under you either way: pull before you
 start, and keep whatever your item needs in there small enough to rebase.
-Everything else in the tree is yours. **And that session is owed one line**: the
-address block in `watch_once` tests `supervise.answering(port)`, which cannot
-tell a serving board from a leftover that is merely alive — see *ANSWERING IS NOT
-OWNING* under Settled, where the condition it wants is written out. The half in
-`bin/board` is shipped. **The chain is running** while that session
+Everything else in the tree is yours. **The address block in `watch_once` and the
+address checks in `test/perpetual.py` sit in that session's files by necessity**:
+the block is the only place the chosen course can be enforced, and that suite is
+the only thing that drives `watch_once`. The block asks which course the name is
+on rather than whether anything at all answers, claims it back only onto a board
+that answers, and reads the exit code of the claim, so a serve the tailnet
+refused does not read as a repair — *ANSWERING IS NOT OWNING* under Settled.
+**The chain is running** while that session
 works — `tutor serve status` names the live generation and the successor queued
 behind it, and stopping, restarting or resubmitting it is that session's call
 rather than yours. This block comes out when that session ships.
@@ -914,13 +917,15 @@ as the answer.
   repository's own and on this node only, because the moment a repository's next
   board starts is the moment the previous one became a leftover.
   `test/serving.py` is the fourth thing in its own list of how this goes wrong.
-  **One line is left and it is not in this session's half.** `watch_once`'s
-  address block in `bin/tutor` asks `supervise.answering(port)`, which is the
-  same test that failed here — so the watch loop would still never call the
-  repair. It belongs to the session working on the serving chain: the condition
-  wants *and the port is one a live record on this node names*, beside the
-  `answering` call it already makes. Until then the repair happens at the next
-  board start, which is where this fault actually occurred.
+  **And the watch loop asks it every pass, not only at the next board start**,
+  which is where this fault actually occurred. `watch_once`'s address block in
+  `bin/tutor` does not stop at `supervise.answering(port)`, which is the test
+  that failed here: what it asks is whether the name is on the CHOSEN course's
+  own recorded port, and a leftover fails that by the same stroke, since a
+  leftover's port is not a recorded one. One test rather than two, on purpose —
+  with nobody having chosen, nothing here is entitled to move the name at all,
+  and a leftover that draws is still an address that draws. `test/perpetual.py`
+  holds both halves.
 - **A STROKE THAT NEVER ENDS REFUSES EVERY SCROLL ON THE PAGE, so silence has to
   end it.** The non-passive `touchmove` is on the DOCUMENT and exists only while
   a stroke is drawn — that is what keeps scrolling smooth — so *a stroke is in

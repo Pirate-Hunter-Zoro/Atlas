@@ -135,11 +135,11 @@ DEFAULT_CONFIG = {
             # costs.
             "extra_args": [],
         },
-        # THE SAME BINARY, POINTED SOMEWHERE ELSE, AND THAT IS THE WHOLE
-        # RECIPE. DeepSeek serves an Anthropic-format `/messages` endpoint, so
-        # the agent that runs it is the `claude` executable already installed
-        # here with four environment variables -- and every part of this tool
-        # that knows how to drive Claude Code goes on working unchanged:
+        # THE SAME BINARY, POINTED SOMEWHERE ELSE, AND FOUR VARIABLES DO IT.
+        # DeepSeek serves an Anthropic-format `/messages` endpoint, so the
+        # agent that runs it is the `claude` executable already installed here
+        # with the environment below -- and every part of this tool that knows
+        # how to drive Claude Code goes on working unchanged:
         # `headless_first` / `headless`, the `--continue` resume, the
         # `--output-format json` accounting in `read_turn_usage`, the timeouts,
         # and the `ai-config` pre-tool hook, which fences PHI by intercepting
@@ -154,6 +154,17 @@ DEFAULT_CONFIG = {
         # that layer keys on the ASSISTANT and its filenames, and the assistant
         # here is Claude Code, so a second descriptor for one binary is two
         # installers writing the same symlink.
+        #
+        # AND THE ONE THING THE VARIABLES CANNOT SUPPLY IS A ROUTE. The
+        # variables are client-side and correct; a turn still only leaves this
+        # machine if the network carries it, and from here the TLS handshake to
+        # `api.deepseek.com` is reset on the ClientHello. The same address under
+        # its CloudFront name completes, so the drop keys on the HOSTNAME, and
+        # no environment variable reaches that -- the ask is a firewall
+        # exception, not a line of Python. What it costs while the name is
+        # filtered: a turn spends about three minutes retrying and dies as
+        # `API Error: Connection dropped (ECONNRESET)`. `egress_probe` is what
+        # makes that one stood-down turn rather than every turn, by name.
         "deepseek": {
             "cmd": ["claude"], "prompt": "argv",
             "headless_first": ["claude", "-p", "{prompt}"],
@@ -171,6 +182,21 @@ DEFAULT_CONFIG = {
             # already failed; see `agent_probe_urls` and
             # `egress.mark_unreachable`.
             "egress_probe": ["https://api.deepseek.com/anthropic/v1/messages"],
+            # `[claude-code:unrecognized_model]` ON STDERR IS COSMETIC, and it
+            # prints on every turn here. The binary emits it for any id outside
+            # Anthropic's own lineup and then dispatches the request anyway --
+            # its one effect is that fast mode is off. It is not a refusal. A
+            # turn that dies after it died of something else, and that something
+            # is named in the `result` field of the JSON result object; see
+            # `result_object_error`.
+            #
+            # `ANTHROPIC_CUSTOM_MODEL_OPTION` and its `_NAME` / `_DESCRIPTION` /
+            # `_SUPPORTED_CAPABILITIES` siblings do not belong here: they add an
+            # entry to the interactive `/model` picker, which a `-p` turn never
+            # opens. `--model` on the command line is the same selection the
+            # variable below already makes. Measured, all three routes put the
+            # identical request on the wire.
+            #
             # PIN THE MODEL OR LOSE THE HANDWRITING. Unpinned, the endpoint maps
             # by NAME: an id starting `claude-opus` lands on `deepseek-v4-pro`,
             # which is text-only and SUBSTITUTES A PLACEHOLDER FOR AN IMAGE
@@ -190,7 +216,10 @@ DEFAULT_CONFIG = {
             # image input natively, carries a 1M-token context, and is cheaper
             # AND better than `deepseek-v4-pro`, which is the older text-only
             # model. This is the field that goes stale, and it is a one-string
-            # change when it does.
+            # change when it does. It cannot be re-checked from this machine --
+            # `GET https://api.deepseek.com/models` dies in the same handshake
+            # as a turn -- so ask the provider what it serves on the first day
+            # the hostname is open.
             #
             # Where `board see` sends an image when the assistant running the
             # sitting has no eyes. The OpenAI-format endpoint rather than the
@@ -2093,12 +2122,20 @@ def mark_waking(live, agent_name, pid=None):
     starts the workspace's configured assistant over whoever was deliberately
     put there. A start is the only thing that has earned the right to clear
     either, and it is the one place every path up goes through.
+
+    IT LEAVES `last_error` AND `failed_at` ALONE, and that is the whole of what
+    the board has to show for a turn that wrote no card. A daemon is most often
+    restarted BECAUSE the last turn fell over, so clearing the reason here erases
+    it at the one moment somebody is looking for it: the iPad then reads
+    `listening`, no error, no card, which is the tutor claiming to be fine about
+    work it never did. What retires a failure is something NEWER -- the next turn
+    that goes through clears it, and `lesson.state._failure` drops it the moment
+    a card is written past it. A start is not newer than anything.
     """
     try:
         return agent_state(live, agent=agent_name, pid=pid, state="waking",
                            waking_at=time.time(), restarting=False,
-                           handover=None,
-                           last_error=None, failed_at=0, host=this_host())
+                           handover=None, host=this_host())
     except OSError:
         return None
 
@@ -2984,9 +3021,11 @@ def headless(cfg, course, agent_name, session):
                           "session": session or "lecture", "urls": urls,
                           "handoff": handoff_clause(root)})
 
+    # `last_error` and `failed_at` are not cleared here either: see
+    # `mark_waking`. Coming up is not evidence that the turn that fell over
+    # before it went well.
     agent_state(live, host=host, agent=agent_name, pid=os.getpid(),
-                started=time.time(), state="listening", turns=0,
-                last_error=None, failed_at=0, waking_at=0)
+                started=time.time(), state="listening", turns=0, waking_at=0)
     print(net.rstrip())
     print("\n%s is listening in %s. Send from the board; nothing here needs a keyboard."
           % (agent_name, course["dir"]))
@@ -3188,6 +3227,17 @@ def headless(cfg, course, agent_name, session):
         finally:
             beating.set()
 
+        # WHAT THE TURN SAID, READ BEFORE THE EXIT CODE IS BELIEVED. An exit
+        # code is the agent summarising itself, and an agent that writes
+        # `is_error` into its own result object and then exits 0 has failed the
+        # turn whatever the number says: no card is written, and a board that
+        # took the number would go back to `listening` with nothing to show and
+        # nothing to say -- the one state this tool must never present as
+        # normal. The words win. See `result_object_error`.
+        said = turn_output(logpath, mark)
+        if not err and result_object_error(said):
+            err = "the agent reported a failure and exited 0"
+
         if err:
             log.write("!! %s\n" % err)
             if reads_as_wait(err) and not carry_spent(root, mrec):
@@ -3261,7 +3311,6 @@ def headless(cfg, course, agent_name, session):
             # itself answers -- the agent said so in its output, and a provider
             # that could say so is a provider we plainly reached, which settles
             # the egress question at the same time and for free.
-            said = turn_output(logpath, mark)
             until = limits.reads_as_usage_limit(said)
             if until:
                 # THIS AGENT, NOT THIS MACHINE. Claude running out says nothing

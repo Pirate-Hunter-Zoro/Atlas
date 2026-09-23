@@ -179,6 +179,49 @@ check("it is not driven through opencode, which would be a second agent's "
       "config file and a second credential store for one binary",
       ds["cmd"] != ["opencode"])
 
+# AND THE ENV IS A CONTRACT WITH A BINARY THIS TREE DOES NOT OWN, so it is
+# pinned here: four names, and the failure of any of them is silent rather than
+# loud. `ANTHROPIC_CUSTOM_MODEL_OPTION` and its `_NAME` / `_DESCRIPTION` /
+# `_SUPPORTED_CAPABILITIES` siblings read as if they belong in this list and do
+# not: they add an entry to the interactive `/model` picker, which a `-p` turn
+# never opens.
+check("the routing is exactly four names, so a variable that does nothing "
+      "cannot drift in beside the ones that do",
+      sorted(ds["env"]) == ["ANTHROPIC_AUTH_TOKEN", "ANTHROPIC_BASE_URL",
+                            "ANTHROPIC_MODEL", "ANTHROPIC_SMALL_FAST_MODEL"])
+check("every variable that selects a model selects the SAME one, and so does "
+      "the eye `board see` lends a sitting",
+      set(v for k, v in ds["env"].items() if "MODEL" in k) == {"deepseek-flash"}
+      and ds["vision"]["model"] == "deepseek-flash")
+check("the credential is named rather than written, so the tree holds no key",
+      ds["env"]["ANTHROPIC_AUTH_TOKEN"] == "{DEEPSEEK_API_KEY}")
+
+# THE ARGV RULE, ASKED OF THE REAL RECIPE rather than of a stand-in, because
+# this is the one that is unrecoverable: `ps` is readable by every account on
+# this machine and a leaked key cannot be un-leaked.
+real_env = tutor.turn_environment(ds, {})
+check("the real recipe spends the key through the environment",
+      real_env["ANTHROPIC_AUTH_TOKEN"] == "sk-abc123"
+      and real_env["ANTHROPIC_MODEL"] == "deepseek-flash")
+real_cmd = tutor.with_usage(ds, [a.replace("{prompt}", "hello")
+                                 for a in ds["headless"]])
+check("and nothing of it reaches the command line",
+      not any("sk-abc123" in a or "DEEPSEEK" in a or "AUTH_TOKEN" in a
+              for a in real_cmd))
+
+# AND THE PRECONDITION NO VARIABLE SUPPLIES: a route to the host. The variables
+# are correct and a turn still dies if the network drops the name, so the recipe
+# names the host it opens and the reasons are beside it rather than in a log.
+check("the recipe names the host its turns open, and it is the host the base "
+      "URL points at rather than a second guess about it",
+      ds["egress_probe"] and all(u.startswith(ds["env"]["ANTHROPIC_BASE_URL"])
+                                 for u in ds["egress_probe"]))
+check("the stderr line this provider prints on every turn is written off where "
+      "the next person reads it, rather than re-diagnosed as a refusal",
+      "ON STDERR IS COSMETIC" in tutor_src)
+check("and the one thing four variables cannot supply is stated with them",
+      "THE VARIABLES CANNOT SUPPLY IS A ROUTE" in tutor_src)
+
 # ---- and the refusals, on the surfaces that draw them ----------------------
 unkeyed_cfg = {"default_agent": "ghost", "agents": {
     "ghost": {"cmd": ["sh"], "headless": ["sh", "-c", "{prompt}"],

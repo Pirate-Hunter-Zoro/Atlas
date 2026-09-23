@@ -7407,9 +7407,27 @@ var PAGES_KEY = "board.pages.n";
 var boardPage = {};
 var pagesLoaded = false;
 
+/* THE MAPPING BELONGS TO A SITTING, NOT TO A CHAPTER.
+
+   Cards are numbered from 0001 within a sitting, so `0002#1` names a different
+   board the moment the next sitting on the same chapter opens -- and under a
+   chapter-wide key yesterday's records come back under today's names. Two
+   things came of that, and both were reported as one. A record for an attempt
+   this sitting has not reached paints a SECOND board above the live one, on a
+   page the surface does not hold, so its picture is empty: "the last board
+   shows up but it's a page I can't write on, and right underneath it a NEW new
+   board". And a record nobody can see owns a page number this sitting is about
+   to mint, so a board is found sharing a sheet the moment it opens and is
+   copied off it again -- pages 68 and 69 of one evening, the same 114 strokes,
+   1.2 s apart.
+
+   `opened` is rewritten every time a sitting starts, so course, chapter and it
+   together name this sitting and no other. `sittingKey` in `render` drops the
+   annotation store at the same boundary for the same reason. */
 function pagesKey() {
   var st = (lastLive && lastLive.state) || {};
-  return PAGES_KEY + ":" + (st.course || "?") + ":" + (st.chapter || "-");
+  return PAGES_KEY + ":" + (st.course || "?") + ":" + (st.chapter || "-")
+       + ":" + (st.opened || "-");
 }
 
 function loadPages() {
@@ -7428,6 +7446,35 @@ function loadPages() {
         { p: typeof v.p === "number" ? v.p : undefined, a: v.a || null };
     }
   }
+  dropOtherSittings();
+}
+
+/* The records of every OTHER sitting on this chapter, thrown away.
+
+   A sitting's mapping is no use to any other sitting -- the card numbers it is
+   keyed by mean something else now -- and a key nothing will ever read again is
+   a key that only costs storage. The chapter's own sittings, and nothing wider:
+   another chapter, or another course, can be open in a second tab, and an entry
+   with no sitting in its name at all -- which is what a mapping written before
+   the key carried one looks like -- belongs to no sitting that can claim it.
+
+   Nothing at all while the sitting cannot be named. A key that cannot say which
+   sitting it is is the key this sitting would be writing to, and a sweep with
+   that in hand empties the board it is sitting on. */
+function dropOtherSittings() {
+  var st = (lastLive && lastLive.state) || {};
+  if (!st.opened) return;
+  var mine = pagesKey();
+  var here = PAGES_KEY + ":" + (st.course || "?") + ":" + (st.chapter || "-");
+  var doomed = [];
+  try {
+    for (var i = 0; i < localStorage.length; i++) {
+      var k = localStorage.key(i);
+      if (!k || k === mine) continue;
+      if (k === here || k.indexOf(here + ":") === 0) doomed.push(k);
+    }
+    doomed.forEach(function (k) { localStorage.removeItem(k); });
+  } catch (e) { /* a full or locked store is not worth losing the lesson over */ }
 }
 
 /* The sitting was filed. Everything keyed to it goes with it.
@@ -7488,15 +7535,38 @@ function prevInkSlot(key) {
 
    A copy, not the same sheet: from here the two go their own ways, which is the
    rule every board on this page follows. Never over ink -- a board with anything
-   on it is somebody's work, and this would replace it. */
+   on it is somebody's work, and this would replace it.
+
+   The copy lands on the page this board is ALREADY HOLDING. A board is dealt a
+   page the moment it opens, so cutting a second one abandons the first: a blank
+   sheet nothing names and nothing can reach again, because `fresh` hands back
+   only the TRAILING blank and the copy is now past it. From the iPad that is
+   "the last board shows up but it's a page I can't write on, and right
+   underneath it a NEW new board", and on disk it is pages 64, 66 and 67 of one
+   evening, cut and never saved.
+
+   The one case that still cuts a sheet is a page this board is SHARING with
+   another board of this sitting. That sheet is not this board's to write over,
+   and a copy is how two boards that reached one page go their own ways -- the
+   same repair `restoreAnswer` makes when it finds the sharing. Every record in
+   the mapping belongs to this sitting, so "another board" means a board that is
+   on the screen; see `pagesKey`.
+
+   And not under a pen that is down. The blankness test in `clone` counts
+   committed strokes, a stroke still being drawn is not one of them, and the fill
+   now replaces what a page holds where it lies. `syncSlots` waits for the same
+   reason, and like it this comes back: the offer is re-rendered, and `writing`
+   expires, so a pen lift the sheet never saw cannot leave the button dead. */
 function carryOver(key) {
   if (!writer || !writer.clone) return;
+  if (writer.writing && writer.writing()) { renderSoon(); return; }
   var rec = boardPage[key];
   if (!rec || (rec.p !== undefined && writer.inkOn(rec.p) > 0)) return;
   var from = prevInkSlot(key);
   var src = pageOf(from);
   if (src === undefined) return;
-  rec.p = writer.clone(src);
+  var onto = pageOwnedByOther(rec.p, key) ? undefined : rec.p;
+  rec.p = writer.clone(src, onto);
   savePages();
   loadedTurn = null;
   if (lastLive) render(lastLive);

@@ -1,32 +1,10 @@
-<!-- chapter: hw03 -->
-Homework 3 (Ross ch. 3): problems 1, 7, 9-or-10, 12, 22, 31, 37, 40. All eight statements are transcribed in `homework/hw03/hw03.tex`.
+<!-- chapter: hw02 -->
+**Where they got to.** Homework 2, problem 61 (records). Part (a) is finished, correct and transcribed into homework/hw02/hw02.tex, with their page filed as handwritten/hw02-p61a-records-counting.png and the document building clean at 5 pages. Part (b) has the right answer -- the harmonic sum -- but not yet a proof, and it is the only thing live. Parts (c) and (d), then 76 and 86, are untouched.
 
-**Done, correct, typeset — do not re-teach.** Problems 1, 7, 9-or-10, 12 and 22. Five of eight, each with their own argument in its SOLUTION region and their page in `handwritten/`. Last build: 4 pages, 0 warnings. (`board hw` misreads the label "9 or 10" as an empty region and reports 3 of 8. It is wrong; the solution is there.)
+**What is wrong, and it is one thing.** They cannot yet see that the object inside the sum has to be random. Their line 1 writes the count as a sum of $\mathbb{E}[\text{record}_i]$: an expectation, hence the constant $1/i$, so the linearity step beneath it is moving $\mathbb{E}$ past nothing. Underneath that is an event being used as a random variable -- "record_i" names a set of outcomes, and they are putting it inside $\mathbb{E}[\cdot]$. No indicator has been defined at any point. Card 0008 is open and asks one thing: for the outcome $X_1=0.4$, $X_2=0.9$, $X_3=0.7$ (so $N=2$), which three numbers must the sum contain, and what rule produces them. Those numbers are $1,1,0$ and the rule is the indicator.
 
-Between them they own: the chain rule for a joint pmf; marginalising to rebuild p_Y(y); conditioning on two variables at once; the continuous case end to end (marginal by integration, conditional as a quotient, expectation against the conditional, integration by parts, L'Hôpital on the boundary term); and now induction with a recursion solved for its own unknown.
+**Do not re-teach.** Part (a) by equally-likely orderings and the $(n-1)!/n!$ count. The $n=2$ integral by parts. Linearity of expectation as a move -- they now perform it unprompted; they just have nothing legitimate to perform it on. Marginalization and covariance from earlier sittings.
 
-**Problem 22, two errors, both fixed.** First the miss branch: the run restarted at 0 rather than at 1, so a failed extension cost nothing. Second, pure algebra — clearing to m(m-1) they wrote m(mⁿ-1) where the cancelling (m-1) belongs, which propagated to a final line holding only at m=2. Each named once; their redo is clean and I checked the recursion independently.
+**The single next thing.** Get $I_i$ out of them via 0008, then the identity $N=\sum I_i$. The moment that lands, 61(b) is agreed: transcribe it, file t0058, build, then go to 61(c).
 
-**The error pattern.** Every mistake is one defective symbol, not confusion: a missing conditioning denominator on Problems 1 and 12, a missing factor here. Name the symbol and stop.
-
-**Next: Problem 31**, posed on card 0014, unanswered. Expected length of the first and second runs in a Bernoulli(p) sequence. Open ask is a p=1/3 warm-up: P(L₁=3) and E[L₁] given a leading 1. It targets the two ideas the problem needs — a run's length given its symbol is geometric, and the second run's symbol is forced opposite, which is why E[L₂]=2 with no p in it.
-
-**How this student works.** They skip the warm-up and send a full proof instead, five times now. Do not chase the skipped sub-question; mark what arrived. They sometimes write "where did I mess up?" when nothing is wrong; answer that first and say plainly when the answer is nowhere.
-
-## The textbook changed under the course, on 22 September 2026
-
-`textbook/ProbTextbook.pdf` is Ross, eleventh edition, 769 pages, and it replaced the
-tenth. `chapters.tsv` is re-indexed against it — offset 8, so printed page 1 is PDF page
-9 — and all eleven `chapters/chNN-*/reading/chNN.pdf` excerpts are re-cut from it.
-
-**What this costs, and it has already cost it once.** Exercise numbers differ between the
-editions. Homework 2's 61 and 76 were transcribed from the tenth and worked in full before
-anyone noticed; the eleventh's 61 is about records in a sequence of iid continuous
-variables and its 76 is Chebyshev to the weak law. The tenth-edition work is complete and
-kept in `homework/hw02/superseded-edition-10.tex`, with its scans under
-`homework/hw02/handwritten/superseded-edition-10/`. `hw02.tex` now carries the eleventh's
-statements with empty solution regions.
-
-Check any exercise number against `textbook/ProbTextbook.pdf` before teaching it. The
-assignment sheet in each set's `assignment/` directory is the authority over any number
-written down anywhere else.
+**How this student works.** Five or six lines, no prose, and their own question written in the margin -- read the whole image, the question is usually last. They skip warm-ups and jump to the answer, and the answer is usually right. The standing weakness is never the arithmetic; it is that the justifying step is real in their head and absent on the page.

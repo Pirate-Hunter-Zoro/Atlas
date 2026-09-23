@@ -121,7 +121,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const t0 = 1788400000;
 const card = (id, kind, title, n) =>
   ({ id, kind, title, body: 'the ' + title + ' body', mtime: t0 + n * 100 });
-const KEY = 'board.pages.n:Galois Theory:-';
+const KEY = 'board.pages.n:Galois Theory:-:2026-02-11 19:00';
 const mapping = () => {
   try { return JSON.parse(window.localStorage.getItem(KEY) || '{}'); }
   catch (e) { return {}; }
@@ -131,7 +131,8 @@ const mapping = () => {
 
 // -------------------------------------------------- the surface itself
 es.onmessage({ data: JSON.stringify({
-  state: { course: 'Galois Theory', session: 'lecture', mode: 'math' },
+  state: { course: 'Galois Theory', session: 'lecture', mode: 'math',
+           opened: '2026-02-11 19:00' },
   cards: [card('0001', 'question', 'Exercise 3.8', 1)],
   // The answer to 3.8 was handed in off page 9 — the SIXTH file on disk.
   turns: [{ id: 't0001', rev: 1, kind: 'ink', answers: '0001', t: t0 + 200,

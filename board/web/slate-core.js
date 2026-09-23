@@ -2533,8 +2533,15 @@ function create(opts) {
      The board asks before it moves the page under somebody -- a board freezing
      and its successor opening is a page switch, and one that arrives mid-word
      takes the rest of the word with it. Nothing about the lesson has to happen
-     in that particular second; the switch waits for the pen to come up. */
-  api.writing = function () { return !!drawing || penDown; };
+     in that particular second; the switch waits for the pen to come up.
+
+     `penDown` only while it is still reporting, for the reason written over
+     `PEN_STALE`: a lift the sheet never saw latches it true for ever, and a
+     caller that takes "yes" for an answer and then waits to be asked again --
+     the carry-over is one tap and no more -- would never act at all. */
+  api.writing = function () {
+    return !!drawing || (penDown && Date.now() - lastPenAt < PEN_STALE);
+  };
   /* Enough of the innards for a test to prove that a stroke actually landed.
      Everything about this component is invisible to assertions otherwise. */
   api.debug = function () {
@@ -2674,17 +2681,31 @@ function create(opts) {
     return noOf(current);
   };
 
-  /* The same page again, as a page of its own, and go to it.
+  /* The same page again, and go to it.
 
      For a question that has been sharing a sheet with another one: it keeps
      what is on it -- the working does not vanish out from under anybody -- and
-     from here the two go their own ways. Marked dirty so the copy reaches disk;
-     a page that exists only in memory is a page that a reload turns back into
-     nothing. */
-  api.clone = function (n) {
+     from here the two go their own ways.
+
+     `onto` names a sheet to copy INTO, and it is honoured only while that sheet
+     is BLANK: a page with anything on it is somebody's work, and filling it
+     would replace a proof. Without a destination every copy cuts a sheet, and a
+     board that was already dealt a page abandons it to take the new one -- a
+     blank that nothing can reach again, because `fresh` hands back only the
+     TRAILING blank and the copy is now past it. The destination is never the
+     source: the source is a page with ink on it, and ink is what a destination
+     is refused for.
+
+     Marked dirty so the copy reaches disk; a page that exists only in memory is
+     a page that a reload turns back into nothing. `invalidateInk` because the
+     strokes under a page number that is already on screen have just changed,
+     and the ink cache is drawn on the belief that they have not. */
+  api.clone = function (n, onto) {
     var src = pages[idxOf(n)];
     if (!src) return noOf(current);
-    var copy = blankPage();
+    var at = onto === undefined ? -1 : idxOf(onto);
+    if (at < 0 || pages[at].strokes.length) at = -1;
+    var copy = at < 0 ? blankPage() : pages[at];
     copy.w = src.w;
     copy.h = src.h;
     copy.strokes = src.strokes.map(function (st) {
@@ -2693,8 +2714,9 @@ function create(opts) {
       c.pts = st.pts.map(function (q) { return q.slice(); });
       return c;
     });
-    pages.push(copy);
-    goTo(pages.length - 1);
+    if (at < 0) { pages.push(copy); at = pages.length - 1; }
+    goTo(at);
+    invalidateInk();
     markDirty();
     return noOf(current);
   };

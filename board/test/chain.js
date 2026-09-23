@@ -82,6 +82,36 @@ window.EventSource = function () {
   this.addEventListener = function () {};
 };
 
+// PREVIOUS SITTINGS ON THIS CHAPTER, STILL IN LOCALSTORAGE.
+//
+// Cards are numbered from 0001 within a sitting, so yesterday's keys are also
+// today's keys, and a mapping keyed by chapter alone hands them straight back.
+// That is the second half of the report, in two parts. A record for an attempt
+// this sitting never reached paints a board above the live one on a page the
+// surface does not hold -- an empty box: "the last board shows up but it's a
+// page I can't write on, and right underneath it a NEW new board". And a record
+// nothing on the screen names can own a page number this sitting is about to
+// use, so a board is found sharing a sheet the moment it opens and is copied off
+// it again: one tap, two boards holding the same strokes. On disk that was pages
+// 68 and 69, the same 114 strokes, 1.2 s apart.
+//
+// Every page number this sitting reaches is seeded as owned, and `0002#1` is the
+// phantom attempt. Both keys are written: the chapter-wide one every browser
+// already has, and a named sitting that is not this one. Seeded before the
+// scripts load, because load is the only time the board reads this -- a stale
+// record is a new session's problem, not a mid-lesson edit.
+const STALE = JSON.stringify({
+  '0001#0': { p: 1, a: '0001' }, '0001#1': { p: 2, a: '0001' },
+  '0002#0': { p: 3, a: '0002' }, '0002#1': { p: 4, a: '0002' },
+  '0009#0': { p: 5, a: '0009' },
+});
+window.localStorage.setItem('board.pages.n:Galois Theory:-', STALE);
+window.localStorage.setItem('board.pages.n:Galois Theory:-:2026-02-10 19:00', STALE);
+// And a sitting on ANOTHER chapter, which is nobody's business here: a second
+// tab can be open on it, and a sweep that took it would empty a board in use.
+window.localStorage.setItem('board.pages.n:Galois Theory:Ch 2:2026-02-10 19:00',
+                            JSON.stringify({ '0001#0': { p: 7, a: '0001' } }));
+
 for (const f of ['typeface.js', 'macros.js', 'gauge.js', 'plane-core.js', 'slate-core.js', 'annotate.js']) {
   try { window.eval(fs.readFileSync(path.join(WEB, f), 'utf8')); }
   catch (e) { fail(f + ': ' + e.message); }
@@ -110,6 +140,30 @@ const boards = () => Array.from(doc.querySelectorAll('[data-board="0001"]'));
 // on it and that the ink is not shared with another page.
 const ink = (n) => ({ c: '#eee', w: 3, pts: [[10 + n, 10 + n], [90 + n, 90 + n]] });
 
+// The record of which sheet each board is on, as a reload of THIS sitting will
+// read it, and every sheet the surface is actually holding. A page no record
+// names is a page nothing can ever open again.
+//
+// The key carries the sitting, so what is read back is only what this sitting
+// wrote: a record from another evening cannot make a stranded page look owned.
+const OPENED = '2026-02-11 19:00';
+const PAGES_KEY = 'board.pages.n:Galois Theory:-:' + OPENED;
+const records = () => {
+  try { return JSON.parse(window.localStorage.getItem(PAGES_KEY) || '{}'); }
+  catch (e) { return {}; }
+};
+const owned = () => Object.keys(records()).map((k) => records()[k].p);
+// Walked to the highest number the surface holds rather than to a fixed ceiling:
+// the real sitting this came from was on page 69, and a check that stops
+// counting reports no orphans instead of failing.
+const pagesHeld = () => {
+  const out = [];
+  for (let n = 1; n <= window.__slate.lastPage(); n++) {
+    if (window.__slate.hasPage(n)) out.push(n);
+  }
+  return out;
+};
+
 // The pen goes back on the glass for each of these, and comes off again: a
 // synthetic pointerdown with no lift leaves the surface believing a hand is on
 // it -- and the board will not move a page under a hand, nor repaint the lesson
@@ -124,7 +178,8 @@ const lift = () => {
 
 // The lesson: one exercise, worked over several attempts.
 const lesson = (cards, turns) => JSON.stringify({
-  state: { course: 'Galois Theory', session: 'lecture', mode: 'math' },
+  state: { course: 'Galois Theory', session: 'lecture', mode: 'math',
+           opened: OPENED },
   cards, turns: turns || [], history: 0,
 });
 const q1 = card('0001', 'question', 'Exercise 1.3', 1);
@@ -144,6 +199,30 @@ slate ? ok('the surface is reachable') : fail('no slate instance was captured');
 boards().length === 0
   ? ok('and it is the live one, so there is no picture of it as well')
   : fail('the live board is also being shown as a photograph of itself');
+
+// ------------------------------- and last night's records are not this sitting's
+//
+// The seeded mapping says question 0001 has two attempts and is on pages 1 and
+// 2, and that a question 0002 nobody here has asked owns two more. None of it
+// is about this evening. Read back, it puts a board on the screen for an attempt
+// that does not exist, on a page the surface does not hold -- which draws as an
+// empty box above the live one.
+Object.keys(records()).length === 1 && records()['0001#0']
+  ? ok('a previous sitting on this chapter leaves no boards in this one')
+  : fail('last night\'s records came back under tonight\'s card numbers: '
+         + Object.keys(records()).sort().join(', '));
+doc.querySelectorAll('[data-slot]').length <= 1
+  ? ok('so the question has one board and not a phantom above it')
+  : fail('a second board was painted for an attempt this sitting never reached');
+!window.localStorage.getItem('board.pages.n:Galois Theory:-')
+  && !window.localStorage.getItem('board.pages.n:Galois Theory:-:2026-02-10 19:00')
+  ? ok('and the sittings this chapter is finished with are dropped, not kept '
+       + 'against a card number that will come round again')
+  : fail('a mapping no sitting will ever read again is still in the store');
+window.localStorage.getItem('board.pages.n:Galois Theory:Ch 2:2026-02-10 19:00')
+  ? ok('while another chapter, which a second tab may be sitting on, is left '
+       + 'alone')
+  : fail('the sweep took a mapping that is not this chapter\'s to take');
 
 // Something is written on it.
 slate.load({ w: 1130, h: 1514, strokes: [ink(1)] });
@@ -311,17 +390,78 @@ await sleep(40);
     : fail('"carry over" with no "from where": ' + carry.textContent);
 
   const before = slate.pages();
-  const ink = slate.inkOn(slate.at());
-  ink === 0
+  const held = slate.at();             // the sheet this board was dealt
+  const already = slate.inkOn(slate.at());
+  already === 0
     ? ok('the new board really is blank until it is asked for')
-    : fail('the follow-up board came up with ' + ink + ' strokes on it already');
+    : fail('the follow-up board came up with ' + already
+           + ' strokes on it already');
+
+  // NOT UNDER A PEN THAT IS DOWN.
+  //
+  // The fill replaces what a page holds where it lies, and `clone` decides the
+  // page is free by counting COMMITTED strokes -- a stroke still being drawn is
+  // not one of them. So the carry waits, and it has to come back: the tap is all
+  // there is, and a pen lift the sheet never saw would otherwise leave the
+  // button dead for the rest of the evening.
+  {
+    const down = new window.Event('pointerdown', { bubbles: true, cancelable: true });
+    Object.assign(down, { pointerId: 91, pointerType: 'pen', pressure: 0.5,
+                          clientX: 200, clientY: 200, isPrimary: true });
+    doc.querySelector('#writer canvas.sl-sheet').dispatchEvent(down);
+    slate.writing()
+      ? ok('a nib on the glass is a hand at work')
+      : fail('the surface does not know the pen is down');
+    carry.onclick();
+    await sleep(40);
+    slate.inkOn(slate.at()) === 0 && slate.pages() === before
+      ? ok('and the carry waits rather than replacing a page mid-word')
+      : fail('the working landed under a pen that was still writing');
+    !doc.getElementById('carry').hidden
+      ? ok('with the offer still standing, so the tap can be made again')
+      : fail('the carry was refused and the offer withdrawn, so there is no way '
+             + 'to ask for it again');
+    lift();
+    // The nib touching down and lifting again leaves a dot behind, which is a
+    // board with something on it and no longer one the offer is made over. Back
+    // to the blank sheet the tap was made on.
+    slate.load({ w: 1130, h: 1514, strokes: [] });
+    await sleep(20);
+  }
 
   carry.onclick();
   await sleep(40);
-  slate.pages() === before + 1
-    ? ok('carrying it over makes a copy rather than reopening the same sheet')
-    : fail('the working was moved, not copied (' + before + ' -> '
-           + slate.pages() + ' pages)');
+  // "A copy, not a move" was read off the page COUNT, and the count does not
+  // grow: the copy lands on the sheet this board was already holding. What that
+  // proxy stood for is the three assertions below it -- the working is under the
+  // pen, the board it came from still has it, and the offer withdraws.
+  //
+  // The count is what the report was made of: "the last board shows up but it's
+  // a page I can't write on, and right underneath it a NEW new board". The sheet
+  // the board opened on was abandoned where it lay, and `fresh` hands back only
+  // the TRAILING blank, so nothing could reach it again.
+  slate.pages() === before
+    ? ok('and the carry cuts no sheet: the working fills the page this board '
+         + 'was already holding')
+    : fail('the carry cut a sheet (' + before + ' -> ' + slate.pages()
+           + ' pages), abandoning the one the board opened on');
+  const stranded = pagesHeld().filter((n) => owned().indexOf(n) === -1);
+  stranded.length === 0
+    ? ok('and every page the surface holds is a board somebody can open')
+    : fail('pages no record names, so nothing reaches them again: '
+           + stranded.join(', '));
+  slate.at() === held
+    ? ok('and the pen stays on the sheet the board was dealt')
+    : fail('the board moved off the page it opened on (' + held + ' -> '
+           + slate.at() + '), leaving it behind');
+  // ONE TAP, ONE COPY. Both numbers this sitting could reach are owned by a
+  // record from another evening in the seed at the top of this file -- the sheet
+  // the board is holding and the one a cut would mint. Neither is read, so
+  // neither collides, and nothing is copied a second time.
+  Object.keys(records()).filter((k) => records()[k].p === slate.at()).length === 1
+    ? ok('and exactly one board names the page the working is on')
+    : fail('two boards name the carried page, so the next render copies it '
+           + 'again: ' + Object.keys(records()).sort().join(', '));
   slate.inkOn(slate.at()) === 2
     ? ok('and the working is under the pen')
     : fail('the carried board is empty (' + slate.inkOn(slate.at()) + ' strokes)');
@@ -332,13 +472,22 @@ await sleep(40);
     ? ok('and the offer goes once there is something on the board')
     : fail('the offer is still standing over somebody\'s working, where taking '
            + 'it would replace it');
+  // A COPY, WHICH IS WHAT "INDEPENDENTLY OF EACH OTHER" MEANS. The count no
+  // longer says so -- the fill cuts no sheet -- and a source left with its ink
+  // would also be satisfied by two boards sharing one stroke list. Writing on
+  // the carried page is the only thing that tells them apart.
+  slate.load({ w: 1130, h: 1514, strokes: [ink(4), ink(5), ink(6)] });
+  await sleep(20);
+  slate.inkOn(3) === 2 && slate.inkOn(slate.at()) === 3
+    ? ok('and writing on the carried working leaves the board it came from '
+         + 'exactly as it was')
+    : fail('the carry aliased the strokes: the two boards are one sheet ('
+           + slate.inkOn(3) + ' and ' + slate.inkOn(slate.at()) + ' strokes)');
 }
 
 // ------------------------------------------------- and the record survives it
 {
-  const KEY = 'board.pages.n:Galois Theory:-';
-  let map = {};
-  try { map = JSON.parse(window.localStorage.getItem(KEY) || '{}'); } catch (e) {}
+  const map = records();
   const mine = Object.keys(map).filter((k) => k.indexOf('0001#') === 0).sort();
   mine.length === 3
     ? ok('all three boards are written down, so a reload finds them again')
@@ -364,8 +513,7 @@ await sleep(40);
 // strokes and page 7 now holds one; another came off page 9 with 279 and page 9
 // holds a different 228. Every frozen answer was correct and distinct the whole
 // time. The boards were pointing at a moving target.
-const mapping = () =>
-  JSON.parse(window.localStorage.getItem('board.pages.n:Galois Theory:-') || '{}');
+const mapping = records;
 
 {
   const q9 = card('0009', 'question', 'Exercise 3.4', 9);

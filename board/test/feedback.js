@@ -120,7 +120,8 @@ const card = (id, kind, title, n) =>
 // The lesson as it stood: one question, one answer sent three times, and one
 // reply to each of those three sends.
 const lesson = {
-  state: { course: 'Galois Theory', session: 'lecture', mode: 'math' },
+  state: { course: 'Galois Theory', session: 'lecture', mode: 'math',
+           opened: '2026-02-11 19:00' },
   cards: [
     card('0001', 'question', 'Exercise 1.3', 1),
     card('0002', 'wrong', 'the Note that line', 2),
@@ -834,7 +835,7 @@ const farDown = Object.assign({}, withNew, {
     // what to watch. A question filed while the count cannot be believed is a
     // question filed against the wrong page, permanently — and it is written to
     // storage, so it outlives the reload that caused it.
-    const KEY = 'board.pages.n:Galois Theory:-';
+    const KEY = 'board.pages.n:Galois Theory:-:2026-02-11 19:00';
     const filedIn = () => {
       try { return JSON.parse(window.localStorage.getItem(KEY) || '{}'); }
       catch (e) { return {}; }
@@ -1013,7 +1014,7 @@ const farDown = Object.assign({}, withNew, {
   es.onmessage({ data: JSON.stringify(two) });
   await sleep(20);
 
-  const KEY2 = 'board.pages.n:Galois Theory:-';
+  const KEY2 = 'board.pages.n:Galois Theory:-:2026-02-11 19:00';
   const filed = () => {
     try { return JSON.parse(window.localStorage.getItem(KEY2) || '{}'); }
     catch (e) { return {}; }
