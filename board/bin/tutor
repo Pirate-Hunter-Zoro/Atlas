@@ -185,10 +185,10 @@ DEFAULT_CONFIG = {
             # `[claude-code:unrecognized_model]` ON STDERR IS COSMETIC, and it
             # prints on every turn here. The binary emits it for any id outside
             # Anthropic's own lineup and then dispatches the request anyway --
-            # its one effect is that fast mode is off. It is not a refusal. A
-            # turn that dies after it died of something else, and that something
-            # is named in the `result` field of the JSON result object; see
-            # `result_object_error`.
+            # its one effect is that fast mode is off. It is not a refusal: a
+            # turn that fails after printing it failed of something else, and
+            # that something is named in the `result` field of the JSON result
+            # object; see `result_object_error`.
             #
             # `ANTHROPIC_CUSTOM_MODEL_OPTION` and its `_NAME` / `_DESCRIPTION` /
             # `_SUPPORTED_CAPABILITIES` siblings do not belong here: they add an
