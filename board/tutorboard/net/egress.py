@@ -64,7 +64,7 @@ def egress_probe_urls():
     return DEFAULT_EGRESS_PROBE
 
 
-def egress_ok(timeout=12):
+def egress_ok(timeout=12, urls=None):
     """Can a turn reach what it needs from here?
 
     ANY http answer counts, including 401 and 405. We are asking whether the
@@ -72,10 +72,17 @@ def egress_ok(timeout=12):
     that gets a 401 has proved the whole path. Only a connection failure, a DNS
     failure or a timeout means the egress is broken, which is exactly the shape a
     bad exit node produces.
+
+    `urls` asks about ONE PROVIDER rather than about the machine, and the two
+    questions have different answers: a filter that drops one provider's
+    hostname leaves every other host on the internet reachable, so the
+    machine-wide probe says yes while the turn that just failed could not open a
+    socket. The recipe names its own endpoint; see `agent_probe_urls` in
+    `bin/tutor`.
     """
     import urllib.error
     import urllib.request
-    for url in egress_probe_urls():
+    for url in (urls if urls is not None else egress_probe_urls()):
         req = urllib.request.Request(url, data=b"{}", method="POST",
                                      headers={"Content-Type": "application/json"})
         try:
@@ -87,6 +94,107 @@ def egress_ok(timeout=12):
             continue
     return False
 
+
+
+# ---------------------------------------------------------------------------
+# A provider this machine cannot reach, and until when
+# ---------------------------------------------------------------------------
+# A blocked hostname is not a broken agent and not a broken machine. The
+# executable is here, the key is here, the allowance is intact, and every other
+# host on the internet answers -- one provider's name is dropped on the wire, so
+# every turn that recipe takes dies the same way and the board has no word for
+# it. That is the failure this records, in the same shape `limits` records an
+# exhausted allowance and for the same reasons: per AGENT, because one blocked
+# provider says nothing about the next; with an EXPIRY, because a filter that
+# was lifted must not demote a recipe for ever; and with the NODE, because the
+# home directory is shared between compute nodes and a block seen on the
+# allocation that ended yesterday is not this machine's news.
+#
+# Only ever written from a turn that has ALREADY failed. Probing a provider
+# before every card would add a round trip to the internet to answer a question
+# whose answer is almost always yes.
+UNREACHABLE_RECORD = os.path.join(paths.STATE_DIR, "unreachable.json")
+
+# How long a block is believed for. One failed turn buys the finding, and one
+# more failed turn is what every expiry costs to rediscover.
+UNREACHABLE_WINDOW = 3600
+
+
+def _unreachable_load():
+    """The record on disk, or {}. Never raises: a lesson does not stop here."""
+    try:
+        with open(UNREACHABLE_RECORD, "r", encoding="utf-8") as fh:
+            rec = json.load(fh) or {}
+    except (OSError, ValueError):
+        return {}
+    if not isinstance(rec, dict) or not isinstance(rec.get("agents"), dict):
+        return {}
+    from .. import machine
+    if rec.get("node") and rec["node"] != machine.node_name():
+        return {}
+    return rec
+
+
+def mark_unreachable(agent, host, until=None, node=None):
+    """Write down that this AGENT's provider does not answer from this machine.
+
+    Merged rather than replaced, for the reason `limits.mark_limited` is: a
+    second provider going dark must not erase the first one's expiry and send
+    the daemon climbing home to something that is still unreachable.
+    """
+    from .. import machine
+    node = node or machine.node_name()
+    rec = _unreachable_load()
+    if rec.get("node") and rec["node"] != node:
+        rec = {}
+    agents = dict(rec.get("agents") or {})
+    agents[str(agent or "")] = {"host": str(host or ""),
+                                "until": float(until or (time.time()
+                                                         + UNREACHABLE_WINDOW))}
+    rec = {"node": node, "at": time.time(), "agents": agents}
+    try:
+        os.makedirs(paths.STATE_DIR, exist_ok=True)
+        tmp = UNREACHABLE_RECORD + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as fh:
+            json.dump(rec, fh, indent=2)
+        os.replace(tmp, UNREACHABLE_RECORD)
+    except OSError:
+        pass
+    return rec
+
+
+def unreachable(agent, now=None):
+    """`{host, until}` while this agent's provider is known not to answer, else None."""
+    got = (_unreachable_load().get("agents") or {}).get(str(agent or ""))
+    if not isinstance(got, dict):
+        return None
+    try:
+        until = float(got.get("until") or 0)
+    except (TypeError, ValueError):
+        return None
+    if until <= (now or time.time()):
+        return None
+    return {"host": got.get("host") or "", "until": until}
+
+
+def clear_unreachable(agent):
+    """A turn that went through is proof the provider answers, whatever this says.
+
+    A measurement beats a record: the expiry above is a guess about when a
+    filter might lift, and a card written through the provider settles it.
+    """
+    rec = _unreachable_load()
+    agents = dict(rec.get("agents") or {})
+    if agents.pop(str(agent or ""), None) is None:
+        return
+    rec["agents"] = agents
+    try:
+        tmp = UNREACHABLE_RECORD + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as fh:
+            json.dump(rec, fh, indent=2)
+        os.replace(tmp, UNREACHABLE_RECORD)
+    except OSError:
+        pass
 
 
 def exit_node(status=None):

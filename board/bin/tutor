@@ -162,6 +162,15 @@ DEFAULT_CONFIG = {
             "usage_args": ["--output-format", "json"],
             "extra_args": [],
             "needs_key": "DEEPSEEK_API_KEY",
+            # THE HOST A TURN ACTUALLY OPENS, so a failure can be attributed to
+            # it. A recipe pointed at a third party talks to a host the
+            # machine-wide `egress_probe` never asks about, and a network that
+            # filters one provider's hostname answers for every other -- so
+            # without this a turn that died in the TLS handshake is reported as
+            # a healthy network and `exit 1`. Asked only of a turn that has
+            # already failed; see `agent_probe_urls` and
+            # `egress.mark_unreachable`.
+            "egress_probe": ["https://api.deepseek.com/anthropic/v1/messages"],
             # PIN THE MODEL OR LOSE THE HANDWRITING. Unpinned, the endpoint maps
             # by NAME: an id starting `claude-opus` lands on `deepseek-v4-pro`,
             # which is text-only and SUBSTITUTES A PLACEHOLDER FOR AN IMAGE
@@ -528,6 +537,32 @@ def missing_command(recipe):
 FAILURE_MARKERS = ("!! ", "error: ", "Error: ")
 
 
+def result_object_error(text):
+    """What an agent's own result object says went wrong, or None.
+
+    Claude Code's `--output-format json` closes a turn with one line carrying
+    `type: result`; on a failure `is_error` is true and `result` holds the
+    sentence. The recipes that drive a third-party provider through that same
+    binary report the same way, so this is the one place a provider-side fault
+    -- a refused model, a reset connection, a rejected key -- says so in words.
+
+    The LAST such line, because a turn retried as a fresh one writes two.
+    """
+    for line in reversed((text or "").splitlines()):
+        line = line.strip()
+        if not line.startswith("{") or '"result"' not in line:
+            continue
+        try:
+            d = json.loads(line)
+        except ValueError:
+            continue
+        if d.get("type") != "result" or not d.get("is_error"):
+            return None
+        got = d.get("result")
+        return got.strip() if isinstance(got, str) and got.strip() else None
+    return None
+
+
 def failure_reason(text, code_note):
     """Why the turn failed, in words, rather than the number it exited with.
 
@@ -543,7 +578,17 @@ def failure_reason(text, code_note):
     fits in the chrome, with the exit code kept on the end for whoever does open
     the log. `code_note` when it said nothing at all, which is a real outcome and
     must not become an empty banner.
+
+    THE AGENT'S OWN VERDICT IS ASKED FOR FIRST, because the marker prefixes miss
+    it entirely: an agent reporting `--output-format json` puts its reason in a
+    `result` field inside one long JSON line that starts with a brace, so the
+    line reads as ordinary output and a turn killed by `API Error: Connection
+    dropped (ECONNRESET)` reaches the board as `exit 1`. That is the same banner
+    every other cause wears, which is the dead end this function exists to end.
     """
+    said = result_object_error(text)
+    if said:
+        return "%s (%s)" % (said[:160], code_note)
     lines = [l.strip() for l in (text or "").splitlines() if l.strip()]
     for line in reversed(lines[-40:]):
         for mark in FAILURE_MARKERS:
@@ -943,12 +988,43 @@ def resolve_agent(cfg, course, override=None, interactive=False, say=None):
     return picked
 
 
+def agent_probe_urls(spec):
+    """The endpoints THIS recipe's turns open, or None for the machine's own.
+
+    A recipe that points the binary somewhere else -- `ANTHROPIC_BASE_URL` at a
+    third party -- talks to a host the machine-wide probe never asks about, and
+    the two questions have different answers when one hostname is filtered and
+    the rest of the internet is not. None means the recipe adds nothing to the
+    default agent's, which is what `egress.egress_probe_urls` already returns.
+    """
+    urls = (spec or {}).get("egress_probe")
+    if isinstance(urls, str):
+        urls = [urls]
+    return [u for u in urls if u] if urls else None
+
+
+def probe_host(urls):
+    """The hostname a probe list is about, for saying which one went dark."""
+    try:
+        from urllib.parse import urlsplit
+        return urlsplit((urls or [""])[0]).hostname or ""
+    except (ValueError, IndexError):
+        return ""
+
+
 def agent_unavailable(cfg, name, now=None):
     """Why this agent cannot take a turn on this machine right now, or None.
 
-    Three reasons and they are all facts rather than opinions: the executable
-    is not here, the key is not here, or the allowance is gone until a time
-    somebody wrote down. In the words the board already uses.
+    Four reasons and they are all facts rather than opinions: the executable is
+    not here, the key is not here, the allowance is gone until a time somebody
+    wrote down, or the provider's own hostname does not answer from this
+    machine. In the words the board already uses.
+
+    The last one is READ here and never measured here. This runs behind
+    `--agents --json`, which the board asks several times a second, and a probe
+    on that path would put a round trip to the internet under every poll. A
+    failed turn does the measuring and writes the finding down; see
+    `egress.mark_unreachable`.
     """
     spec = (cfg.get("agents") or {}).get(name)
     if not spec:
@@ -965,6 +1041,11 @@ def agent_unavailable(cfg, name, now=None):
     if until:
         return ("its allowance is gone until %s"
                 % time.strftime("%H:%M", time.localtime(until)))
+    dark = egress.unreachable(name, now)
+    if dark:
+        return ("%s does not answer from this machine; asking again after %s"
+                % (dark["host"] or "its provider",
+                   time.strftime("%H:%M", time.localtime(dark["until"]))))
     return None
 
 
@@ -3224,14 +3305,45 @@ def headless(cfg, course, agent_name, session):
                               "limit` says when\n")
                 continue
 
-            # Not a limit. On a host routing everything through an exit node the
-            # likeliest remaining cause is that nothing can get out at all,
-            # because commercial VPN egress is exactly what a provider
-            # geo-blocks or challenges. So ask the network, rather than guess.
+            # Not a limit. Ask the network, rather than guess -- and ask about
+            # THIS PROVIDER before asking about the machine, because the two
+            # have different answers and only the narrow one is ever true here.
+            # A filter that drops one hostname leaves the rest of the internet
+            # reachable, so the machine-wide probe reports a healthy network
+            # over a recipe whose every turn dies in the TLS handshake, and the
+            # board says `exit 1` about a fault no tutor can fix.
             #
             # Only when a turn has actually failed. Probing on every turn would
             # add a round trip to the internet to every card the student waits
             # for, to answer a question that is almost always yes.
+            own = agent_probe_urls(spec)
+            if own and not egress.egress_ok(urls=own) and egress.egress_ok():
+                host = probe_host(own)
+                until = time.time() + egress.UNREACHABLE_WINDOW
+                egress.mark_unreachable(agent_name, host, until)
+                log.write("!! '%s' cannot reach %s from here, and everything "
+                          "else on the network answers; standing it down until "
+                          "%s\n" % (agent_name, host,
+                                    time.strftime("%H:%M", time.localtime(until))))
+                agent_state(live, state="listening",
+                            last_error="cannot reach %s" % host,
+                            failed_at=time.time())
+                # The student sent something and got nothing, and the next turn
+                # climbs down exactly as it does for an allowance: `choose_agent`
+                # will not offer this recipe again until the expiry passes, and
+                # a cold turn reads the evening back off disk whoever takes it.
+                pending = out
+                sync_transcript(root, log)
+                nxt, _ = choose_agent(load_config(), agent_name)
+                if nxt != agent_name:
+                    log.write("-- the next turn goes to '%s'\n" % nxt)
+                else:
+                    log.write("!! nothing else here can take it; every turn "
+                              "will fail until %s answers from this machine\n"
+                              % host)
+                if mrec:
+                    missions.turn_over(root, mrec, time.time() - started_at)
+                continue
             if not egress.egress_ok():
                 log.write("!! nothing can get out from here; the turn may not be "
                           "the tutor's fault\n")
@@ -3278,6 +3390,13 @@ def headless(cfg, course, agent_name, session):
                 log.write("-- a turn went through on '%s'; its allowance is "
                           "back\n" % agent_name)
                 limits.clear_limited(agent_name)
+            # And the same argument for a provider that was dark: the expiry is
+            # a guess about when a filter might lift, a card written through it
+            # is a measurement, and the measurement wins.
+            if egress.unreachable(agent_name):
+                log.write("-- a turn went through on '%s'; its provider "
+                          "answers again\n" % agent_name)
+                egress.clear_unreachable(agent_name)
             agent_state(live, state="listening", last_error=None,
                         failed_at=0, retrying=False)
 

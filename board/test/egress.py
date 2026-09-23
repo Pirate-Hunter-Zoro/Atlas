@@ -188,6 +188,34 @@ ok, detail = egress.rotate_exit_node(tries=2, log=None, settle=0)
 check("with no exit node in use, a broken egress is not claimed to be repaired",
       not ok and "no exit node" in detail)
 
+# --- one provider dark, the rest of the internet fine -----------------------
+# The failure this half is about: a filter drops ONE provider's hostname and
+# leaves every other host answering. The machine-wide probe therefore reports a
+# healthy network over a recipe whose every turn dies in the TLS handshake, and
+# the board says `exit 1` about a fault no tutor can fix.
+import time as _time                                           # noqa: E402
+
+egress.mark_unreachable("deepseek", "api.deepseek.com", _time.time() + 3600)
+check("a provider that does not answer is written down, with the host and an expiry",
+      (egress.unreachable("deepseek") or {}).get("host") == "api.deepseek.com")
+check("and it belongs to the agent, not the machine -- one dark provider says "
+      "nothing about the next",
+      egress.unreachable("claude") is None)
+
+egress.clear_unreachable("deepseek")
+check("a turn that goes through clears it: the expiry is a guess, a card is a "
+      "measurement",
+      egress.unreachable("deepseek") is None)
+
+egress.mark_unreachable("deepseek", "api.deepseek.com", _time.time() - 1)
+check("and it expires on its own, so a lifted filter is picked up the same evening",
+      egress.unreachable("deepseek") is None)
+egress.clear_unreachable("deepseek")
+
+check("asking about one provider is a different question from asking about the "
+      "machine, and takes its own urls",
+      "def egress_ok(timeout=12, urls=None):" in lib)
+
 # --- where it is used -------------------------------------------------------
 tutor_src = open(os.path.join(ROOT, "bin", "tutor"), encoding="utf-8").read()
 check("the tutor asks about egress only after a turn has actually failed",
@@ -199,6 +227,21 @@ check("and re-answers the message whose turn was lost, rather than waiting",
       "pending = out" in tutor_src and "out, pending = pending, None" in tutor_src)
 check("and says plainly when it could not repair it",
       "turns will keep " in tutor_src)
+
+check("and asks about the failed turn's OWN provider before the machine's",
+      tutor_src.index("egress.egress_ok(urls=") < tutor_src.index("if not egress.egress_ok():"))
+check("standing a dark provider down is the same climb-down as an exhausted "
+      "allowance: the message is re-answered by whoever can take it",
+      "egress.mark_unreachable(" in tutor_src and
+      "def agent_probe_urls(" in tutor_src)
+check("and `agent_unavailable` reads that finding rather than measuring it, "
+      "since it runs under a poll several times a second",
+      "egress.unreachable(name, now)" in tutor_src)
+check("a turn that goes through clears the mark",
+      "egress.clear_unreachable(agent_name)" in tutor_src)
+check("and the agent's own verdict is what the board reports, not `exit 1`",
+      "def result_object_error(" in tutor_src and
+      "said = result_object_error(text)" in tutor_src)
 
 board_src = open(os.path.join(ROOT, "bin", "board"), encoding="utf-8").read()
 check("there is a command to ask, and to repair, by hand",
