@@ -48,7 +48,7 @@ must be openable and teachable at every point.
   `board.css`, `plane-core.js`, `gauge.js`, `home.html`, `home.js`, `library.html`,
   `library.js`, `library.css`, anything added to the cache list), or the installed app
   serves its cached copy and the work is invisible.
-- **`bash test/all.sh` before every ship.** 91 suites, all green. `test/tracked.py` runs
+- **`bash test/all.sh` before every ship.** 94 suites, all green. `test/tracked.py` runs
   early — after the browser suites, before everything else — and refuses PHI, 25-megabyte files, model dumps, other authors' papers and
   machine-local config anywhere in the repository — this is public, and git remembers.
   The last of them is **Paper-Writer's own**, run where it is checked out and skipped
@@ -1989,6 +1989,22 @@ change, and the only thing that turned a turn into 5.22M tokens. **Cache read** 
 round trips times context: it is what grew without bound while a session was
 resumed for twelve turns, and it is what a turn being its own session holds flat.
 
+**And the reading is a dispatch, not one provider.** `usage` on a recipe names a
+parser — `claude-json`, `codex-jsonl` — so a provider is a parser added beside
+the others, and `tutor cost` splits the evening by agent, because the reason to
+have three is to see which one it went on.
+
+**The dollars are computed from the recipe where it has a price table.** A
+provider driven through somebody else's binary reports its token counts
+correctly — they are the model's own — and the price wrong, because the prices
+compiled into that binary are its vendor's. So the counts come from the parser
+and the money from a `prices` block: input, cached input, cache write and output
+per million, with the provider's own peak window in UTC. **What is recorded is
+the rate that applied**, not the window it was derived from: a table of windows
+in the reader goes stale silently and a recorded rate cannot. A recipe with no
+price table records its tokens and *no* dollar figure, which is the honest answer
+rather than a wrong number.
+
 The flag is appended from the recipe's `usage_args` rather than written into its
 `headless` command, and that is not fussiness. A machine's config file overrides
 `agents` one level deep, and at least one machine here holds a verbatim copy of
@@ -2073,6 +2089,46 @@ request with a 502 if you ask it to.
 `prompt: "none"` launches it bare and prints the one line to paste. Add an entry for anything that
 runs in a terminal — nothing in the launcher knows which assistant it is starting.
 
+#### A provider is a recipe plus a key, and that is the whole of it
+
+Two more fields carry a hosted provider, and after them **a new one is one entry in `agents` and one
+line in a key file**, with a newer model one string inside that entry.
+
+| Field | What it is |
+|---|---|
+| `needs_key` | the name of the one key this recipe cannot run without |
+| `env` | environment variables merged over the turn's own, with `{NAME}` filled from the key store |
+
+**Keys live in `~/.config/tutor-board/keys.env`**, `NAME=value` a line, `#` for a comment, beside
+the `config.json` the launcher already reads and never in this repository — which is public. A
+world-readable file is refused and its keys read as absent; a group-readable one is not, because
+this home is NFSv4 and the server forces `770` on every file in it, `~/.claude/.credentials.json`
+included. The root `.gitignore` refuses the shapes a key file gets given, and `test/tracked.py` puts
+the same question to git itself on every run of the suite, which is the guard that survives somebody
+editing the ignore file.
+
+**`env` never reaches argv.** `usage_args` and `extra_args` are appended to the command because
+flags are public; a key on a command line is in `ps` output for anything on the machine to read.
+
+A recipe whose key is absent is `unkeyed` — the same word the browser already understands for an
+executable that is not installed. It is drawn dimmed on both choosers with the key and the file in
+its title, the daemon refuses to start on it, and an automatic swap never falls into it. A button
+drawn, tapped, and dying in a log file hands the person holding the iPad the one thing they cannot
+act on.
+
+`deepseek` is the worked example and it is cheap for one reason: DeepSeek serves an Anthropic-format
+`/messages` endpoint, so the agent that runs it is **the `claude` executable already installed
+here**, with four environment variables. Every part of this tool that knows how to drive Claude
+Code drives it unchanged — the resume, the `--output-format json` accounting, the timeouts, and the
+`ai-config` pre-tool hook, which fences PHI by intercepting the binary's tool calls and therefore
+fences this provider too, for free.
+
+**The model is pinned twice, and that is the one decision in the entry.** Unpinned, the endpoint maps
+by name: an id starting `claude-opus` lands on the older text-only model, which **substitutes a
+placeholder for an image block rather than failing** — so a tutor handed a slate PNG answers
+confidently about nothing and no exit code says so. `ANTHROPIC_MODEL` and `ANTHROPIC_SMALL_FAST_MODEL`
+both name `deepseek-flash`, which takes image input natively and is the cheaper of the two anyway.
+
 **`claude` is the default**, and it is the only one this has been taught with at length. Claude
 Code arrives with the course repository already in front of it, which is most of a tutor: it reads
 the slate PNG itself rather than through a transcription model, writes the card, and edits the
@@ -2126,9 +2182,20 @@ particular assistant regardless of where it runs. Five layers settle it, most sp
 second model is a second entry whose `cmd` carries the flag — which is why "opencode with DeepSeek"
 and "opencode with something else" are two names in this file and nothing in the code changes.
 
-**And there is no fifth layer for "what if it has nothing left to spend".** There is one tutor, and
-a turn it cannot take is a turn the board reports rather than answering worse — see [when the
-allowance runs out](#when-the-allowance-runs-out).
+**The answer is asked again at the top of every turn**, not once as the sitting opens, so a tap on
+the front door lands on the next card rather than the next evening. That is cheap because
+`session_turns` is 1: a hosted turn holds no conversation worth protecting and reconstructs the
+evening from `board brief` and `board recap`, off disk, whoever takes it. Three things do not move —
+a session genuinely carrying turns, a `[carry]` resuming a conversation by id, and anything into or
+out of a `private` recipe.
+
+**And an allowance that runs out is a climb down rather than a stop**, because a limit belongs to an
+agent rather than to the machine — see [when the allowance runs out](#when-the-allowance-runs-out).
+
+**The front door sets `default_agent`.** A row beside the line that already says which machine this
+is, offering every recipe it can run, writing that one field and nothing else in the config. The
+fenced reader is never offered there: a machine default is a decision about every workspace,
+including the ones whose `live/` is pushed to a public remote.
 
 ### The assistant belongs to the course, not to the terminal
 
@@ -2300,25 +2367,32 @@ theory says them in earnest. What a limit looks like is `usage_limit_says` in th
 patterns, for the same reason `egress_probe` is a list of URLs: the board is not allowed to know
 which assistant is driving it, so the provider is named in one default value and nowhere else.
 
-The record is per **machine**, not per course — an allowance belongs to an account and every board
-here is equally unable to spend one — and it carries an expiry rather than a flag. Claude Code names
-the epoch second the limit lifts and that is believed over any window we could guess; without one it
-is an hour. A limit that has to be cleared by hand is a limit that outlives itself and quietly
-demotes a machine for days.
+The record is per **agent on a machine**: an allowance belongs to an account, so one provider running
+out says nothing about another, and marking the whole machine would take the fallback out along with
+the thing it is falling back from. It carries an expiry rather than a flag. Claude Code names the
+epoch second the limit lifts and that is believed over any window we could guess; without one it is
+an hour. A limit that has to be cleared by hand is a limit that outlives itself and quietly demotes a
+machine for days.
 
 `/health` publishes it, for exactly the reason `/health` publishes the chosen course: only the
 machine that hit the limit can know about it. A board too old to publish the field is not assumed to
 be exhausted — silence is an allowance.
 
-**2. Then stop, and say so.** The tutor pushes the transcript first — the message it has just failed
-to answer is in there, and the beat that would have carried it is the beat there is no time for —
-and then the turn is reported as the failure it is. There is one tutor and it has nothing left to
-spend; a board that says *the allowance is gone until 4pm* is worth more than one that answers the
-question badly with something else.
+**2. Then climb down.** The tutor pushes the transcript first — the message it has just failed to
+answer is in there, and the beat that would have carried it is the beat there is no time for — and
+the next turn goes to the next recipe that is installed, keyed, not itself limited, and not
+`private`. The order is a `fallback` list in the config, defaulting to what `--agents` reports in the
+order it reports it. **The lesson loses nothing**, because a turn is already cold and reads the
+evening back off disk; there is no conversation to transfer, which is precisely what makes this
+automatic.
 
-Coming back up is the same two steps in reverse and nobody types anything. The limit expires, or a
-turn goes through and proves the allowance is back before the clock said it would; the tutor climbs
-out of the fallback at the top of its next turn and `/health` stops saying it is exhausted.
+**3. And where there is nobody to climb down to, stop and say so.** A board that says *the allowance
+is gone until 4pm* is worth more than one that answers the question badly with something else.
+
+Coming back up is those steps in reverse and nobody types anything. The limit expires, or a turn goes
+through on that agent and proves its allowance is back before the clock said it would; the tutor
+climbs home at the top of its next turn, because the question is asked again every turn rather than
+answered once, and `/health` stops saying it is exhausted.
 
 ```
 board limit              has the allowance here run out, and until when
@@ -2625,9 +2699,27 @@ renders an image holding a random token, a random word, and a small definite int
 the path. Ask your assistant to open it and report all three. Then `board eyes --answer` shows
 what was actually in it, so an invented answer is obvious.
 
-If it cannot read them, it cannot tutor from this board — there is no longer a mode that turns the
-handwriting off. Point a different assistant at that course; `tutor --agents` lists what the
-machine can drive, and the choice is per course.
+If it cannot read them, it has one way to read the page anyway:
+
+```
+board see live/inbox/uploads/20260922-150639-00-page.png
+board see sheet.pdf --page 3
+board see --route            # where an image would go, and nothing else
+```
+
+A board subcommand rather than a tool protocol, because that is the one interface every agent in
+the registry already has — so it needs no MCP, no adapter and no per-vendor plumbing, and a new
+provider inherits it by existing. Where the image goes is a `vision` block on a recipe — endpoint,
+model, `needs_key` — resolved through the running agent first and `vision_agent` second.
+
+**It refuses a fenced path before it reads a byte**, because it sends a file to a hosted provider
+and a board command does not go through any assistant's pre-tool hook. The rule it uses is the
+workspace-relative one: a fence is a top-level directory of the workspace that holds it, and `phi`
+is refused wherever it appears. The any-depth rule would have refused every slate page, because the
+board's own uploads land in `live/inbox/`.
+
+A vision route is still a hosted model. For content that may not leave the machine the answer is
+the `private` recipe, which reads it where it sits.
 
 ## The reading face
 
@@ -3997,6 +4089,7 @@ board init "Course"              # name this repository, so the directory is not
 board finish                     # offer the push, on the iPad
 board push "message"             # or just do it
 board eyes                       # can the assistant driving this see images?
+board see <path> [--page N]      # what is in it, in words, when it cannot
 board open "Galois Theory" "Ch 7 — Splitting fields"
 board next lesson splitting-fields   # -> live/cards/0001-splitting-fields.md
 board brief                      # the standing rules, in one call: the method, this

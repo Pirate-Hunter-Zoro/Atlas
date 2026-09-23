@@ -86,6 +86,9 @@ var els = {
   sheetTrace: document.getElementById("sheet-trace"),
   sheetTraceSub: document.getElementById("sheet-trace-sub"),
   where: document.getElementById("where"),
+  who: document.getElementById("who"),
+  whoWays: document.getElementById("who-ways"),
+  whoNote: document.getElementById("who-note"),
   notes: document.getElementById("notes"),
   notesSince: document.getElementById("notes-since"),
   notesSaid: document.getElementById("notes-said"),
@@ -1656,6 +1659,67 @@ els.busy.onclick = function () {
   refresh();
 };
 
+/* -------------------------------------------------- who this machine teaches with
+   The board's chooser picks an assistant for a SITTING; this picks the one a
+   workspace gets when nobody has said otherwise, which is the layer under it in
+   `resolve_agent`'s precedence. Same buttons, same rules: `web/who.js`, shared
+   with `paintWho` on the board so the two cannot go out of step the first time
+   a recipe grows a flag.
+
+   The thing this is for is an evening that has run out. Until now that meant a
+   laptop, an account page and a config file; it is a tap. */
+var whoSaved = null;
+
+function paintWho(assistants) {
+  /* A FIRST RELOAD AFTER A SHIP STILL RUNS THE OLD SHELL, so this page can be
+     one that has `home.js` and has never heard of `who.js`. Draw nothing rather
+     than throw: this runs inside `refresh`, and a throw here would take
+     `addrRoute` down with it -- an address that stops routing, to add a chooser. */
+  if (!window.WhoChoice) return;
+  var have = window.WhoChoice.offerable(assistants);
+  /* One name is not a choice. Two is, and so is one plus a provider that is a
+     single line in a key file away -- which is exactly the case worth drawing,
+     because that line is the whole of the setup. */
+  els.who.hidden = have.length < 2;
+  if (els.who.hidden) return;
+  var now = whoSaved || (assistants && assistants["default"]);
+  window.WhoChoice.draw(els.whoWays, have, now, {
+    say: function (m) { els.whoNote.textContent = m; },
+    pick: function (a) { setDefaultAgent(a.name); }
+  });
+}
+
+function setDefaultAgent(name) {
+  /* Shown at once and corrected by the answer. The write is a file on this
+     machine and comes back in milliseconds, but the payload it changes is on a
+     twenty-second poll, so without this the tap reads as having done nothing. */
+  whoSaved = name;
+  els.whoNote.textContent = "";
+  paintWho(lastAssistants);
+  fetch("/default-agent", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ agent: name })
+  }).then(function (r) { return r.json(); }).then(function (got) {
+    if (got && got.ok) {
+      lastAssistants = got.assistants || lastAssistants;
+      whoSaved = got["default"];
+      els.whoNote.textContent = name + " writes the next card in a workspace "
+                              + "that has not named its own.";
+    } else {
+      whoSaved = null;
+      els.whoNote.textContent = (got && got.detail) || "that did not take.";
+    }
+    paintWho(lastAssistants);
+  }).catch(function () {
+    whoSaved = null;
+    els.whoNote.textContent = "this board could not be reached.";
+    paintWho(lastAssistants);
+  });
+}
+
+var lastAssistants = null;
+
 /* ------------------------------------------------------------------ load */
 function refresh() {
   if (moving) return Promise.resolve();   /* not while the address is in flight */
@@ -1677,6 +1741,13 @@ function refresh() {
     }
     var w = (all[2] || {}).where;
     els.where.textContent = w || "";
+    lastAssistants = (all[0] || {}).assistants || lastAssistants;
+    /* The optimistic answer is held only until the poll agrees with it. Held
+       for ever, a default changed from a terminal would never show here. */
+    if (whoSaved && lastAssistants && lastAssistants["default"] === whoSaved) {
+      whoSaved = null;
+    }
+    paintWho(lastAssistants);
     /* Only now: the atlas is what says which workspaces exist, and an address
        cannot be routed before that is known. */
     addrRoute();

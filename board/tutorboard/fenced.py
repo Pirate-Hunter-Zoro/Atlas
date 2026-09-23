@@ -119,3 +119,51 @@ def holds(root):
 def forget():
     """Drop the cache. For a test, and for a walk that has just made one."""
     _SEEN.clear()
+
+
+# ---------------------------------------------------------------------------
+# Is this PATH inside its workspace's fence
+# ---------------------------------------------------------------------------
+# `refused` matches the name at ANY depth, which is right for the question it
+# answers -- a path about to be handed to a manuscript factory, where the safe
+# reading of an ambiguity is the refusing one. Asked of a file a command has
+# been pointed at, that rule refuses too much, and the case is not hypothetical:
+# every slate page and every upload the student sends lands in the board's own
+# `live/inbox/uploads/`, so `board see` would have refused the one kind of file
+# it exists to read.
+#
+# The two `inbox` directories are different things wearing one name. PSYCH-ASR's
+# is where session content arrives before anybody has decided what it is; a
+# board's is where a photograph from an iPad lands. So the rule is the one
+# `holds` already states and this applies to a path: A FENCE IS A TOP-LEVEL
+# DIRECTORY OF THE WORKSPACE THAT HOLDS IT.
+#
+# `phi` keeps its any-depth refusal, unconditionally, because it is the one name
+# that is never anything else and the cost of being wrong about it is one-way.
+# And a path that is not inside the workspace at all falls back to `refused`,
+# which is the conservative answer for a path nothing here can place.
+ALWAYS = ("phi",)
+
+
+def refused_in(root, path):
+    """Is this path inside `root`'s fence? The reason, or None.
+
+    The reason rather than a boolean, because every caller has to say which
+    directory refused it -- a refusal a person cannot act on is a bug report.
+    """
+    path = os.path.abspath(os.path.expanduser(str(path or "")))
+    parts = [x.lower() for x in path.replace("\\", "/").split("/")]
+    hit = next((x for x in parts if x in ALWAYS), None)
+    if hit:
+        return hit
+    root = os.path.abspath(os.path.expanduser(str(root or "")))
+    try:
+        rel = os.path.relpath(path, root)
+    except ValueError:
+        rel = ".."
+    if rel.startswith(".."):
+        # Not in this workspace. Nothing here can say which of its directories
+        # are top-level, so the any-depth rule answers.
+        return next((x for x in parts if x in NEVER), None)
+    top = rel.replace("\\", "/").split("/")[0].lower()
+    return top if top in NEVER else None

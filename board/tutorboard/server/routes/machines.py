@@ -11,7 +11,9 @@ import urllib.parse
 
 from . import NOT_MINE
 from ...net import tailscale
+from ... import assistants
 from ... import limits
+from ... import paths
 from ... import choice
 from .. import spawn
 from ... import atlas
@@ -392,6 +394,74 @@ def post(h, repo, path):
         if got.get("ok"):
             h.server.hub.worker.dirty.set()
         return h.send_json(got, status=200 if got.get("ok") else 400)
+
+    if path == "/default-agent":
+        # WHICH ASSISTANT THIS MACHINE FALLS BACK TO, SET FROM THE FRONT DOOR.
+        #
+        # The machine layer of `resolve_agent`'s precedence, which is the right
+        # one: a sitting that has named its own assistant keeps it, and that is
+        # not a bug -- the sitting is the more specific answer and the more
+        # specific answer wins everywhere else in this tool.
+        #
+        # THE CHECKS ARE NOT OPTIONAL AND EACH ONE HAS ITS OWN REASON. An
+        # unknown name leaves the machine with no resolvable tutor. An unkeyed
+        # one is a daemon that listens and then fails every turn into a log. And
+        # a `private` recipe must never be the machine default, because it is
+        # the fenced reader and its cards must not be pushed -- a default is a
+        # decision about every workspace, including the ones whose `live/` is
+        # tracked.
+        try:
+            payload = json.loads(h.read_body().decode("utf-8") or "{}")
+        except (ValueError, UnicodeDecodeError):
+            return h.send_json({"ok": False, "detail": "bad request"}, status=400)
+        want = str((payload or {}).get("agent") or "").strip()
+        table = assistants.listing() or {}
+        known = {a.get("name"): a for a in (table.get("agents") or [])}
+        got = known.get(want)
+        if not got:
+            return h.send_json({"ok": False,
+                                "detail": "'%s' is not an assistant on this "
+                                          "machine" % want}, status=400)
+        if got.get("missing"):
+            return h.send_json({"ok": False,
+                                "detail": "`%s` is not installed here"
+                                          % got["missing"]}, status=400)
+        if got.get("unkeyed"):
+            return h.send_json({"ok": False,
+                                "detail": "%s is not in %s"
+                                          % (got["unkeyed"],
+                                             got.get("keys") or "the key file")},
+                               status=400)
+        if got.get("private"):
+            return h.send_json({"ok": False,
+                                "detail": "'%s' is the fenced reader and is "
+                                          "never a machine default -- choose it "
+                                          "for a sitting instead" % want},
+                               status=400)
+        try:
+            with open(paths.CONFIG, "r", encoding="utf-8") as fh:
+                cfg = json.load(fh) or {}
+        except (OSError, ValueError):
+            cfg = {}
+        cfg["default_agent"] = want
+        # Atomically, the way `limits.mark_limited` writes: this file is read by
+        # every `tutor` invocation on the machine and a half-written one takes
+        # the whole tool out.
+        os.makedirs(os.path.dirname(paths.CONFIG), exist_ok=True)
+        tmp = paths.CONFIG + ".tmp"
+        try:
+            with open(tmp, "w", encoding="utf-8") as fh:
+                json.dump(cfg, fh, indent=2)
+                fh.write("\n")
+            os.replace(tmp, paths.CONFIG)
+        except OSError as exc:
+            return h.send_json({"ok": False, "detail": str(exc)}, status=500)
+        # Or the 900-second cache means the tap appears to do nothing for a
+        # quarter of an hour.
+        assistants.forget()
+        h.server.hub.worker.dirty.set()
+        return h.send_json({"ok": True, "default": want,
+                            "assistants": assistants.listing()})
 
     if path == "/colibri":
         # START THE LOCAL MODEL'S SERVER, AND SAY SO AT ONCE.

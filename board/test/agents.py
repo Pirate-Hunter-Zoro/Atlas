@@ -25,7 +25,11 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 
 sys.path.insert(0, ROOT)
-from tutorboard import processes                              # noqa: E402
+# A state directory of our own: the fallback section below writes limit records,
+# and writing the real one would take this machine out of service.
+os.environ.setdefault("BOARD_STATE_DIR", tempfile.mkdtemp(prefix="agents-state-"))
+os.environ.setdefault("BOARD_NO_TAILNET", "1")
+from tutorboard import limits, processes                      # noqa: E402
 
 loader = importlib.machinery.SourceFileLoader("tutor", os.path.join(ROOT, "bin", "tutor"))
 spec = importlib.util.spec_from_loader("tutor", loader)
@@ -127,10 +131,114 @@ check("a command that is not on the path is reported",
 check("one that is, is not", tutor.missing_command(["sh"]) is None)
 check("and a script agent runs under this interpreter, which is always here",
       tutor.missing_command([sys.executable, "anything.py"]) is None)
+# CODEX WAS HALF A RECIPE: no first-turn entry, so `turn_plan` fell back to the
+# resume one for a first turn and there was no resume path at all; and no
+# `usage`, so every Codex turn was free in `cost.jsonl`.
+codex = D["agents"]["codex"]
+check("codex has a first-turn recipe and a resume recipe, and they differ",
+      codex["headless_first"] != codex["headless"])
+check("the resume spelling is the installed binary's own",
+      codex["headless"][:4] == ["codex", "exec", "resume", "--last"])
+check("and it reports what a turn cost", codex["usage"] == "codex-jsonl")
+first, _t, fresh = tutor.turn_plan(codex, 0, 1, "")
+check("so a first turn uses the first-turn recipe",
+      fresh and first == codex["headless_first"])
+again, _t, fresh2 = tutor.turn_plan(codex, 1, 0, "")
+check("and a second resumes", not fresh2 and again == codex["headless"])
+
 check("there is one tutor and it is the one the config names",
       D["default_agent"] == "claude" and "claude" in D["agents"])
 check("and nothing in the table claims to teach for nothing",
       not any("cost" in spec for spec in D["agents"].values()))
+
+# --- WHO TAKES THE TURN WHEN THE ONE WE WANT CANNOT -------------------------
+#
+# The comment in `cmd_headless` promised this and the code stood still: on a
+# limit it wrote the record, logged that turns would go on failing, and did
+# nothing. That was the right answer when there was one tutor. There are three,
+# and an evening ending because a provider said no more is the thing that still
+# sends somebody to a laptop and an account page.
+#
+# What makes an automatic swap safe is measured rather than hoped: `session_turns`
+# is 1, so every ordinary turn is cold and reads the evening back off disk. There
+# is no conversation to transfer.
+limits.LIMIT_RECORD = os.path.join(
+    os.environ["BOARD_STATE_DIR"], "limited.json")
+limits.clear_limited()
+
+SH = {"cmd": ["sh"], "headless": ["sh", "-c", "{prompt}"]}
+THREE = {"default_agent": "one", "agents": {
+    "one": dict(SH), "two": dict(SH), "three": dict(SH),
+    "fenced": dict(SH, private="it reads phi"),
+    "ghost": {"cmd": ["a-command-no-machine-has"],
+              "headless": ["a-command-no-machine-has"]},
+    "unkeyed": dict(SH, needs_key="A-KEY-NO-MACHINE-HAS")}}
+
+check("nothing wrong means nothing moves",
+      tutor.choose_agent(THREE, "one") == ("one", None))
+
+limits.mark_limited(time.time() + 900, agent="one")
+name, why = tutor.choose_agent(THREE, "one")
+check("a limited agent hands the turn to the next one that can take it",
+      name != "one" and name in ("two", "three"))
+check("and the log line says which and why, because the board paints it",
+      "one" in (why or "") and name in (why or ""))
+
+limits.mark_limited(time.time() + 900, agent=name)
+second, _ = tutor.choose_agent(THREE, "one")
+check("a second one hitting its own ceiling falls through to the third",
+      second not in ("one", name))
+
+for n in ("one", "two", "three"):
+    limits.mark_limited(time.time() + 900, agent=n)
+check("all of them limited behaves exactly as one tutor always did: the turn "
+      "goes to the one we wanted and fails where that is visible",
+      tutor.choose_agent(THREE, "one") == ("one", None))
+
+limits.clear_limited()
+limits.mark_limited(time.time() + 900, agent="one")
+check("A FENCED RECIPE IS NEVER FALLEN INTO. It is the only assistant allowed "
+      "to read phi and its cards must not reach a remote, so it is not a "
+      "choice an automatic swap gets to make",
+      tutor.choose_agent(dict(THREE, agents={
+          "one": THREE["agents"]["one"],
+          "fenced": THREE["agents"]["fenced"]}), "one") == ("one", None))
+check("nor is one this machine has not got",
+      tutor.choose_agent(dict(THREE, agents={
+          "one": THREE["agents"]["one"],
+          "ghost": THREE["agents"]["ghost"]}), "one") == ("one", None))
+check("nor one whose key is not here -- that is a daemon that listens and then "
+      "fails every turn into a log",
+      tutor.choose_agent(dict(THREE, agents={
+          "one": THREE["agents"]["one"],
+          "unkeyed": THREE["agents"]["unkeyed"]}), "one") == ("one", None))
+
+ordered = dict(THREE, fallback=["two", "three"])
+check("the order is the config's where it has one",
+      tutor.choose_agent(ordered, "one")[0] == "two")
+check("and where it has none it is what `--agents` reports, in that order -- "
+      "a list nobody has set should still do something sensible",
+      tutor.choose_agent(THREE, "one")[0] == "three")
+
+limits.clear_limited()
+check("and when the allowance comes back we climb home, because the question "
+      "is asked again every turn rather than answered once",
+      tutor.choose_agent(THREE, "one") == ("one", None))
+
+# --- AND IT IS ASKED EVERY TURN ----------------------------------------------
+src = open(os.path.join(ROOT, "bin", "tutor"), encoding="utf-8").read()
+check("the recipe is re-bound inside the loop rather than above it",
+      "cfg, next_agent, next_spec, moved = for_this_turn(" in src)
+check("a carry is immune: it resumes a conversation by id, which is the one "
+      "thing a swap would throw away",
+      'signal == "carry"' in src and "resumes a conversation by id" in src)
+check("and so is a session that is genuinely carrying turns",
+      "this agent's own session is carrying" in src)
+check("the paragraph saying an assistant cannot be changed mid-way is gone, "
+      "because it is no longer true",
+      "chosen as a sitting OPENS and not mid-way" not in src)
+check("and what IS true is written where the next turn will read it",
+      "AN ASSISTANT IS RE-RESOLVED EVERY TURN" in src)
 
 # --- the shared filesystem ---------------------------------------------------
 tmp = tempfile.mkdtemp(prefix="tutor-agents-")

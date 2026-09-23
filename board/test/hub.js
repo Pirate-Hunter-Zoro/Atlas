@@ -132,7 +132,7 @@ window.HTMLElement.prototype.setPointerCapture = function () {};
 // The grammar has `test/address.js`; what is guarded here is that the button
 // reaches `/switch` at all, which is the half that matters when a cached older
 // shell has no grammar to route through.
-for (const f of ['typeface.js', 'recentre.js']) {
+for (const f of ['typeface.js', 'recentre.js', 'who.js']) {
   try { window.eval(fs.readFileSync(path.join(WEB, f), 'utf8')); }
   catch (e) { fail(f + ': ' + e.message); }
 }
@@ -189,9 +189,31 @@ const payload = {
 };
 
 const posted = [];
+// WHO THIS MACHINE TEACHES WITH. Three recipes it can run and one it cannot:
+// `deepseek` is installed but has no key, which is the case the row exists for
+// -- a provider one line in a file away, said on the glass rather than found in
+// a log after the tap.
+const ASSISTANTS = { default: 'claude', agents: [
+  { name: 'claude', cmd: 'claude', missing: null, unkeyed: null,
+    keys: '/home/me/.config/tutor-board/keys.env', private: null,
+    exclusive: null, headless: true },
+  { name: 'codex', cmd: 'codex', missing: null, unkeyed: null,
+    keys: '/home/me/.config/tutor-board/keys.env', private: null,
+    exclusive: null, headless: true },
+  { name: 'deepseek', cmd: 'claude', missing: null, unkeyed: 'DEEPSEEK_API_KEY',
+    keys: '/home/me/.config/tutor-board/keys.env', private: null,
+    exclusive: null, headless: true },
+  { name: 'cursor', cmd: 'cursor-agent', missing: 'cursor-agent',
+    unkeyed: null, keys: '', private: null, exclusive: null, headless: false },
+] };
+let defaultAgentAnswer = { ok: true, default: 'codex', assistants: ASSISTANTS };
 let answer = { ok: true, address: true };
 let serving = { dir: 'Probability' };
 window.fetch = (url, opts) => {
+  if (url === '/default-agent') {
+    posted.push({ to: url, body: JSON.parse(opts.body) });
+    return Promise.resolve({ json: () => Promise.resolve(defaultAgentAnswer) });
+  }
   if (url === '/switch') {
     posted.push(JSON.parse(opts.body));
     return Promise.resolve({ json: () => Promise.resolve(answer) });
@@ -227,13 +249,48 @@ window.fetch = (url, opts) => {
       url === '/atlas.json' ? payload
       : url === '/courses.json' ? { courses: [], where: 'compute303' }
       : { state: { course: 'Galois Theory', chapter: 'Ch 04' },
-          cards: [], messages: [], slate: [] }),
+          cards: [], messages: [], slate: [], assistants: ASSISTANTS }),
   });
 };
 
 window.dispatchEvent(new window.Event('focus'));
 setTimeout(() => {
   const doc = window.document;
+
+  // ---- WHO THIS MACHINE TEACHES WITH -------------------------------------
+  //
+  // The board's chooser picks an assistant for a SITTING; this picks the one a
+  // workspace gets when nobody has said otherwise. It is the layer under it,
+  // and it is the answer to the thing that still sent somebody to a laptop: an
+  // allowance running out mid-evening.
+  const whoRow = doc.getElementById('who');
+  const whoWays = () => [...doc.querySelectorAll('#who-ways button')];
+  check('the front door says which assistant this machine is on, and offers '
+        + 'the others', !whoRow.hidden);
+  check('an assistant this machine has not got is not offered',
+        whoWays().map((b) => b.textContent).join(',') === 'claude,codex,deepseek');
+  check('the one in force is marked',
+        (whoWays().find((b) => b.className.includes('on')) || {}).textContent
+        === 'claude');
+  const dim = whoWays().find((b) => b.textContent === 'deepseek');
+  check('AND ONE WHOSE KEY IS MISSING IS DRAWN DIMMED RATHER THAN HIDDEN. A '
+        + 'provider is a recipe plus a key, so "one line in that file" is the '
+        + 'whole of its setup and belongs on the glass',
+        dim.classList.contains('away'));
+  check('with the key and the file in its title, because nobody can guess '
+        + 'either', /DEEPSEEK_API_KEY/.test(dim.title) && /keys\.env/.test(dim.title));
+  dim.click();
+  check('and tapping it says so rather than sending a switch that would make '
+        + 'a daemon listen and then fail every turn',
+        /DEEPSEEK_API_KEY/.test(doc.getElementById('who-note').textContent)
+        && !posted.some((p) => p.to === '/default-agent'));
+
+  whoWays().find((b) => b.textContent === 'codex').click();
+  check('a tap on one that can run sends it',
+        posted.some((p) => p.to === '/default-agent' && p.body.agent === 'codex'));
+  check('and is shown at once rather than waiting out a twenty-second poll',
+        (whoWays().find((b) => b.className.includes('on')) || {}).textContent
+        === 'codex');
 
   // ---- LEVEL ONE: the door ----------------------------------------------
   const doors = [...doc.querySelectorAll('#doors .door')];
@@ -346,8 +403,9 @@ setTimeout(() => {
         /address does not change/.test(doc.getElementById('sheet-open-sub').textContent));
 
   doc.getElementById('sheet-open').onclick();
+  const switched = posted.filter((p) => p.repo);
   check('opening from the sheet asks the server to move the board',
-        posted.length === 1 && posted[0].repo === 'PSYCH-ASR');
+        switched.length === 1 && switched[0].repo === 'PSYCH-ASR');
   check('and the sheet closes rather than sitting over the overlay',
         sheet.hidden === true);
   check('the overlay asks nothing: no buttons at all',

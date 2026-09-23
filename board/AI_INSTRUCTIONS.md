@@ -685,13 +685,20 @@ tutorboard/
   `tutorboard.json`, then the machine by hostname, then `default_agent`. Switching course on the
   hub moves it. Never tie an assistant's lifetime to a terminal session, and never make the student
   start one.
-- **There is one tutor, and when it has nothing left to spend the board says so.** An allowance
-  that has run out is the strangest kind of broken -- the board answers, the machine is healthy, and
-  no lesson can be taught -- so it is detected from what a failed turn SAID, recorded per machine
-  with an expiry rather than a flag, and published in `/health`. What must never be added back is a
-  second tutor to fall through to: a lesson answered worse, by something else, without the student
-  being told, is a worse outcome than a board that reports the failure and names the hour the
-  allowance returns. `board limit` says when; `test/limit.py` holds it.
+- **An allowance belongs to an AGENT, and when one runs out the next one takes the turn -- visibly.**
+  An allowance that has run out is the strangest kind of broken: the board answers, the machine is
+  healthy, and no lesson can be taught. So it is detected from what a failed turn SAID, recorded per
+  agent on a machine with an expiry rather than a flag, and published in `/health`.
+  **The swap is allowed only because two things are true, and neither may stop being true.** The
+  student is TOLD -- the strip names the assistant writing and carries the reason it changed, which
+  is the whole of the objection to falling through to something else. And the lesson is unbroken:
+  `session_turns` is 1, so every ordinary turn is already cold and reads the evening back off
+  `board brief` and `board recap`. There is no conversation to transfer, which is precisely what
+  makes this automatic rather than a decision somebody should be making.
+  **A `private` recipe is never fallen into**, in either direction. It is the fenced reader, and an
+  automatic choice does not get to cross a fence. Where nobody can take the turn it fails where that
+  is visible and names the hour the allowance returns, exactly as one tutor always did.
+  `board limit` says when; `test/limit.py` and `test/agents.py` hold it.
 - **A fault the person at the board cannot see must have a command that shows it.** The board up, a
   tutor attached, an empty log and nothing arriving is a state in which everything is fine and looks
   fine. `board doctor` says whether this machine can teach and whether the tutor it names is even

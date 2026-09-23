@@ -445,6 +445,10 @@ check("and appending it twice does not repeat it",
       == tutor.with_usage(claude, claude["headless"]))
 check("an agent that reports nothing is simply not accounted for",
       tutor.with_usage({}, ["free", "{prompt}"]) == ["free", "{prompt}"])
+check("and `board cost` splits the evening by who taught it, because the "
+      "reason to have three is to see which one it went on",
+      "by_agent.setdefault" in open(os.path.join(ROOT, "bin", "tutor"),
+                                    encoding="utf-8").read())
 
 fd, logpath = tempfile.mkstemp(prefix="tutor-cost-", suffix=".log")
 try:
@@ -480,6 +484,76 @@ try:
     check("and a log with no report at all is not an error",
           tutor.read_turn_usage(logpath, 0, "claude-json").get("usd") == 0.372
           and tutor.read_turn_usage(logpath, 10 ** 9, "claude-json") == {})
+
+    # ---- WHAT A TURN COST, PER PROVIDER -----------------------------------
+    #
+    # `usage` was an equality test against one string, so every other provider
+    # cost nothing and appeared in no total -- and the measurement that
+    # justifies every decision about how a turn is shaped would have stopped
+    # covering two thirds of the table the moment there were three of them.
+    check("`usage` is a dispatch, so a provider is a parser added beside the "
+          "others rather than a branch in the reader",
+          set(tutor.USAGE_PARSERS) >= {"claude-json", "codex-jsonl"})
+    check("and a kind nobody wrote a parser for costs nothing rather than "
+          "raising", tutor.read_turn_usage(logpath, offset, "no-such-kind") == {})
+
+    # A PROVIDER DRIVEN THROUGH SOMEBODY ELSE'S BINARY REPORTS THE TOKENS RIGHT
+    # AND THE MONEY WRONG. The counts are the model's own; the prices compiled
+    # into that binary are its vendor's. So the counts are kept and the dollars
+    # are recomputed from the recipe's table.
+    DS = tutor.DEFAULT_CONFIG["agents"]["deepseek"]
+    import calendar                                            # noqa: E402
+    peak = calendar.timegm((2026, 9, 23, 2, 0, 0, 0, 0, 0))    # Wednesday 02:00
+    off = calendar.timegm((2026, 9, 23, 12, 0, 0, 0, 0, 0))    # Wednesday 12:00
+    weekend = calendar.timegm((2026, 9, 26, 2, 0, 0, 0, 0, 0))  # Saturday 02:00
+    check("the provider's own peak window is open when it says it is",
+          tutor.at_peak_rate(DS["prices"], peak)
+          and not tutor.at_peak_rate(DS["prices"], off))
+    check("and its weekday rule is honoured, because it has one",
+          not tutor.at_peak_rate(DS["prices"], weekend))
+    check("a table with no windows is charged at peak -- guessing the dear rate "
+          "cannot understate a bill", tutor.at_peak_rate({}, off))
+
+    counts = {"tokens": 100000, "in": 50000, "out": 10000,
+              "cache_write": 0, "cache_read": 40000}
+    dear = tutor.priced(counts, DS, peak)
+    cheap = tutor.priced(counts, DS, off)
+    check("the dollars are computed here rather than believed from the JSON",
+          abs(dear["usd"] - 0.02724) < 1e-6)
+    check("off-peak is charged off-peak", abs(cheap["usd"] - dear["usd"] / 2) < 1e-6)
+    check("AND THE RATE THAT APPLIED IS RECORDED. A table of windows in the "
+          "reader goes stale silently; a recorded rate cannot",
+          dear["rate"]["window"] == "peak" and cheap["rate"]["window"] == "off"
+          and cheap["rate"]["out"] == 0.60)
+    check("the token counts are untouched, because they are the model's own "
+          "report and they are right",
+          dear["tokens"] == 100000 and dear["cache_read"] == 40000)
+    bare = tutor.priced(counts, tutor.DEFAULT_CONFIG["agents"]["codex"])
+    check("and a provider with no price table records the tokens and NO dollar "
+          "figure, which is honest rather than wrong",
+          "usd" not in bare and "rate" not in bare)
+
+    # ---- CODEX'S OWN STREAM ------------------------------------------------
+    #
+    # `--json` carries a `token_count` event whose `total_token_usage` is the
+    # RUNNING TOTAL for the session. Summing them counts every earlier round
+    # trip again, which is the one way to get this wrong that yields a
+    # plausible number.
+    stream = "\n".join(json.dumps({
+        "type": "token_count",
+        "info": {"total_token_usage": {"input_tokens": n * 1000,
+                                       "cached_input_tokens": n * 400,
+                                       "output_tokens": n * 100}},
+    }) for n in (1, 2, 3))
+    got = tutor.read_codex_usage(stream)
+    check("the last running total is the answer, not the sum of them",
+          got["out"] == 300 and got["cache_read"] == 1200)
+    check("and the cached half is not counted twice in the billed total",
+          got["in"] == 3000 - 1200 and got["tokens"] == 3000 + 300)
+    check("round trips are counted, because the stream is where they are",
+          got["requests"] == 3)
+    check("a stream that reported nothing is nothing rather than a crash",
+          tutor.read_codex_usage("some plain output\n") == {})
 finally:
     os.unlink(logpath)
 

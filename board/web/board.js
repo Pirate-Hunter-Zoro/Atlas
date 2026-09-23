@@ -1921,6 +1921,13 @@ function paintSession(state, push, agent, exported, hwBuilt) {
          "tutor stopped - nothing is rea...", which loses the half that matters.
          `#tutorbad` carries the sentence. */
     : "tutor stopped";
+    /* AND IF SOMEBODY ELSE IS WRITING, SAY WHY, NOT JUST WHO. The strip already
+       names the assistant, so a swap changes the name on its own -- but a name
+       that changed silently is a question rather than an answer. `agent_why` is
+       written by the daemon at the moment it climbs down to another provider,
+       and it is the sentence a student is owed: this is the one thing the board
+       does on their behalf without being asked. */
+    els.agent.title = agent.agent_why || "";
   }
   /* The chip is the first thing the bar gives up width on, and squeezed hard it
      is its status dot and nothing else. So the words live somewhere they can
@@ -4142,10 +4149,13 @@ function takeAgent() {
 function paintWho() {
   /* Who this machine can actually offer. One name is not a choice and a chooser
      offering one is furniture, so the buttons need two; the row itself is drawn
-     for a fence as well, which is the case below. */
-  var have = (assistants && assistants.agents || []).filter(function (a) {
-    return a.headless && !a.missing;
-  });
+     for a fence as well, which is the case below.
+
+     The rules are `who.js` and are SHARED with the front door, which draws the
+     same list for the machine default. A second copy of them goes out of step
+     the first time a recipe grows a flag, and a flag on a recipe is how a
+     provider is added. */
+  var have = window.WhoChoice.offerable(assistants);
   var reading = sittingKind === "review" || sittingKind === "walk";
   /* A fence is drawn even where there is nothing to choose between. A box
      holding session content on a machine carrying one assistant is the case
@@ -4156,29 +4166,18 @@ function paintWho() {
 
   var now = agentPick || currentAgent || (assistants && assistants["default"]);
   var host = els.kindWhoWays;
-  host.innerHTML = "";
   els.kindWhoLead.hidden = !choosing;
-  (choosing ? have : []).forEach(function (a) {
-    var b = document.createElement("button");
-    b.type = "button";
-    b.textContent = a.name;
-    /* Its own reason for refusing, before the tap rather than after it: one
-       sitting at a time, and cards that must not be committed. Both come off
-       the recipe, so the button says whatever the table says. */
-    b.title = a.exclusive ? ("one sitting at a time — " + a.exclusive) : a.cmd;
-    if (a.name === now) {
-      b.className = "on" + (a.exclusive ? " local" : "");
-    }
-    /* A local model with no server is still the right thing to tap -- the tap
-       is what starts one -- so it is dimmed rather than disabled. */
-    if (a.exclusive && colibriNow && colibriNow.state !== "warm") {
-      b.classList.add("away");
-    }
-    b.onclick = function () {
-      agentPick = a.name;
-      paintWho();
-    };
-    host.appendChild(b);
+  /* Its own reason for refusing, before the tap rather than after it: one
+     sitting at a time, a key that is not here, and cards that must not be
+     committed. All three come off the recipe, so the button says whatever the
+     table says. A local model with no server is still the right thing to tap --
+     the tap is what starts one -- so it is dimmed rather than disabled. */
+  window.WhoChoice.draw(host, choosing ? have : [], now, {
+    dim: function (a) {
+      return a.exclusive && colibriNow && colibriNow.state !== "warm";
+    },
+    say: function (m) { els.kindWhoNote.textContent = m; },
+    pick: function (a) { agentPick = a.name; paintWho(); }
   });
 
   paintFence(els.kindWhoFence, fencedHere, now);

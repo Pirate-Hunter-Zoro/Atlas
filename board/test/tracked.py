@@ -192,6 +192,26 @@ for rel in files:
              "repository must not publish. Track a .env.example with the keys "
              "and no values instead." % rel)
 
+    # ---- no provider credential, in any of the shapes one gets given -----
+    #
+    # A key dropped in the repository root is a thing that happens, because the
+    # root is where the terminal already is. The root `.gitignore` refuses these
+    # shapes, and a pattern is the weaker of the two guards this tree uses: it
+    # is right until somebody adds a file with `git add -f` or edits the ignore
+    # file. This is the other guard -- the question put to GIT ITSELF, on every
+    # run of the suite, which is what makes the PHI arrangement safe and is what
+    # makes this one safe.
+    #
+    # A key lives in `~/.config/tutor-board/keys.env`, machine-local and outside
+    # the tree, beside the config the launcher already reads. See
+    # `board/tutorboard/keys.py`, which is the only thing that opens it.
+    if base in ("keys.env",) or base.endswith(("-api-key", "_api_key", ".key")):
+        fail("%s is shaped like a provider credential, and this repository is "
+             "PUBLIC -- deleting it afterwards is not a fix, because it was "
+             "public for a while and git remembers. Keys live in "
+             "`~/.config/tutor-board/keys.env`, one NAME=value a line, outside "
+             "the tree. See board/tutorboard/keys.py." % rel)
+
     # ---- one save-and-push.sh, and it is the tool's ----------------------
     #
     # Not a secrecy rule; a one-copy rule, and it is here because this is the

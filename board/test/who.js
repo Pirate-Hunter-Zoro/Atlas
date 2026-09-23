@@ -112,7 +112,7 @@ window.EventSource = function () {
 };
 
 for (const f of ['typeface.js', 'macros.js', 'gauge.js', 'plane-core.js',
-                 'slate-core.js', 'annotate.js', 'board.js']) {
+                 'slate-core.js', 'annotate.js', 'who.js', 'board.js']) {
   try { window.eval(fs.readFileSync(path.join(WEB, f), 'utf8')); }
   catch (e) { fail(f + ': ' + e.message); }
 }

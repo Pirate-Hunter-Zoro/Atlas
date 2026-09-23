@@ -110,6 +110,7 @@ src = src.replace('})();',
 vm.runInContext(fs.readFileSync(path.join(WEB, 'macros.js'), 'utf8'), sandbox);
 vm.runInContext(fs.readFileSync(path.join(WEB, 'plane-core.js'), 'utf8'), sandbox);
 vm.runInContext(fs.readFileSync(path.join(WEB, 'slate-core.js'), 'utf8'), sandbox);
+vm.runInContext(fs.readFileSync(path.join(WEB, 'who.js'), 'utf8'), sandbox);
 vm.runInContext(src, sandbox, { filename: 'board.js' });
 
 const render = sandbox.window.__render;

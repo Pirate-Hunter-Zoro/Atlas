@@ -52,8 +52,8 @@ import sys
 
 TOOL = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 sys.path.insert(0, TOOL)
-from tutorboard import (atlas, choice, handoff, limits, machine, missions, paths,
-                        processes, supervise, worktree)
+from tutorboard import (atlas, choice, handoff, keys, limits, machine, missions,
+                        paths, processes, supervise, worktree)
 from tutorboard.course import config
 from tutorboard.net import egress, tailscale
 
@@ -135,14 +135,115 @@ DEFAULT_CONFIG = {
             # costs.
             "extra_args": [],
         },
+        # THE SAME BINARY, POINTED SOMEWHERE ELSE, AND THAT IS THE WHOLE
+        # RECIPE. DeepSeek serves an Anthropic-format `/messages` endpoint, so
+        # the agent that runs it is the `claude` executable already installed
+        # here with four environment variables -- and every part of this tool
+        # that knows how to drive Claude Code goes on working unchanged:
+        # `headless_first` / `headless`, the `--continue` resume, the
+        # `--output-format json` accounting in `read_turn_usage`, the timeouts,
+        # and the `ai-config` pre-tool hook, which fences PHI by intercepting
+        # the binary's tool calls and therefore fences this provider too, for
+        # free. Codex has no such hook; this one inherits the fence that already
+        # exists.
+        #
+        # What it is NOT, so nobody builds it twice. Not an entry driven through
+        # `opencode`: that is a second agent's config file, a second credential
+        # store and a second thing to keep in step, for a provider the binary we
+        # already run reaches directly. Not a descriptor in `ai-config` either:
+        # that layer keys on the ASSISTANT and its filenames, and the assistant
+        # here is Claude Code, so a second descriptor for one binary is two
+        # installers writing the same symlink.
+        "deepseek": {
+            "cmd": ["claude"], "prompt": "argv",
+            "headless_first": ["claude", "-p", "{prompt}"],
+            "headless": ["claude", "-p", "{prompt}", "--continue"],
+            "usage": "claude-json",
+            "usage_args": ["--output-format", "json"],
+            "extra_args": [],
+            "needs_key": "DEEPSEEK_API_KEY",
+            # PIN THE MODEL OR LOSE THE HANDWRITING. Unpinned, the endpoint maps
+            # by NAME: an id starting `claude-opus` lands on `deepseek-v4-pro`,
+            # which is text-only and SUBSTITUTES A PLACEHOLDER FOR AN IMAGE
+            # BLOCK rather than failing -- so a tutor handed a slate PNG answers
+            # confidently about nothing and no exit code says so. This machine's
+            # Claude Code settings say `opus[1m]`, which is exactly the name
+            # that lands there. Both variables, because the binary picks the
+            # small one for its own cheap calls.
+            "env": {
+                "ANTHROPIC_BASE_URL": "https://api.deepseek.com/anthropic",
+                "ANTHROPIC_AUTH_TOKEN": "{DEEPSEEK_API_KEY}",
+                "ANTHROPIC_MODEL": "deepseek-flash",
+                "ANTHROPIC_SMALL_FAST_MODEL": "deepseek-flash",
+            },
+            # WHY `deepseek-flash` AND NOT THE PRO, verified 23 September 2026.
+            # It serves DeepSeek-V4.1-Flash (released 10 September 2026), takes
+            # image input natively, carries a 1M-token context, and is cheaper
+            # AND better than `deepseek-v4-pro`, which is the older text-only
+            # model. This is the field that goes stale, and it is a one-string
+            # change when it does.
+            #
+            # Where `board see` sends an image when the assistant running the
+            # sitting has no eyes. The OpenAI-format endpoint rather than the
+            # Anthropic one, because that is a single request rather than an
+            # agent loop.
+            "vision": {
+                "endpoint": "https://api.deepseek.com/v1/chat/completions",
+                "model": "deepseek-flash",
+                "needs_key": "DEEPSEEK_API_KEY",
+            },
+            # WHAT A TURN COST, IN DOLLARS, COMPUTED HERE. The binary emits
+            # `total_cost_usd` and it is WRONG for this provider: those are
+            # Anthropic's prices. The token counts in the same object are the
+            # model's own report and are right, so `read_turn_usage` keeps
+            # those and `priced` does the arithmetic off this table. Per
+            # million tokens, and the peak window is DeepSeek's own, in UTC on
+            # weekdays. What is recorded in `cost.jsonl` is the RATE THAT
+            # APPLIED rather than the window -- a table of windows goes stale
+            # silently and a recorded rate cannot.
+            "prices": {
+                "peak": {"in": 0.30, "cache_write": 0.30,
+                         "cache_read": 0.006, "out": 1.20},
+                "off": {"in": 0.15, "cache_write": 0.15,
+                        "cache_read": 0.003, "out": 0.60},
+                "peak_utc": [["01:00", "04:00"], ["06:00", "10:00"]],
+                "peak_weekdays_only": True,
+            },
+        },
         "opencode": {
             "cmd": ["opencode"], "prompt": "argv",
             "headless_first": ["opencode", "run", "{prompt}"],
             "headless": ["opencode", "run", "--continue", "{prompt}"],
         },
+        # HALF A RECIPE UNTIL NOW: no `headless_first`, so `turn_plan` fell back
+        # to `headless` for a first turn and there was no resume path at all,
+        # and no `usage`, so every Codex turn was free in `cost.jsonl`.
+        #
+        # `codex exec resume --last` is the resume spelling, checked against
+        # this machine's installed binary rather than against anybody's memory.
         "codex": {
             "cmd": ["codex"], "prompt": "argv",
-            "headless": ["codex", "exec", "{prompt}"],
+            "headless_first": ["codex", "exec", "{prompt}"],
+            "headless": ["codex", "exec", "resume", "--last", "{prompt}"],
+            # It CAN report, and `--json` is what makes it. The stream carries
+            # a `token_count` event whose `total_token_usage` is the running
+            # total for the session, which is why the parser takes the LAST one
+            # rather than summing -- see `read_codex_usage`.
+            "usage": "codex-jsonl",
+            "usage_args": ["--json"],
+            # AND NO MODEL PINNED, DELIBERATELY, which is the opposite of the
+            # decision taken for deepseek one entry up. There the endpoint maps
+            # an unrecognised name onto a text-only model that quietly discards
+            # images, so leaving it unset loses handwriting. Codex has no such
+            # mapping: unset means `~/.codex/config.toml`, which is this
+            # machine owner's own choice of model, and overriding it from here
+            # would be this file making a teaching decision it does not get to
+            # make. `env` or `-c model=...` is where it goes if that changes.
+            "env": {},
+            # No price table, so a Codex turn records its tokens and NO dollar
+            # figure. That is the honest answer rather than a wrong number: the
+            # rate depends on which model the config names and on whether the
+            # account is on a subscription. `board cost` prints the tokens.
         },
         "aider":  {"cmd": ["aider"], "prompt": "none"},
         "cursor": {"cmd": ["cursor-agent"], "prompt": "none"},
@@ -200,11 +301,27 @@ DEFAULT_CONFIG = {
                        "cards must not reach a remote",
         },
     },
+    # WHO READS AN IMAGE FOR AN ASSISTANT THAT CANNOT SEE ONE.
+    #
+    # `board see <path>` resolves the vision route from the running agent's own
+    # recipe first and falls back to this. It is named rather than guessed
+    # because the registry is the table above and a second one drifts -- and it
+    # is a NAME rather than an endpoint for the same reason: a provider is a
+    # recipe plus a key, and its vision route belongs on the recipe with the
+    # rest of it.
+    "vision_agent": "deepseek",
     # Which assistant a given machine prefers, keyed by its short hostname. A
     # laptop and a cluster node do not have the same tools installed and should
     # not need different configuration files to say so. Empty means every
     # machine falls through to default_agent.
     "hosts": {},
+    # WHO TAKES THE TURN WHEN THE ONE WE WANT HAS NOTHING LEFT TO SPEND, in
+    # order. Null means "whatever `--agents` reports, in the order it reports
+    # it", because a list nobody has set should still do something sensible --
+    # and every candidate is filtered anyway: installed, keyed, not itself
+    # limited, and never `private`, which is the fence flag and must not be
+    # crossed into by a choice nobody made. See `choose_agent`.
+    "fallback": None,
     "headless_timeout": 900,
     # ---------------------------------------------------------------------
     # AND HOW LONG A TURN THAT DOES THE WORK GETS, which is not the same number
@@ -490,22 +607,75 @@ def with_usage(spec, cmd):
     return list(cmd) + extra
 
 
-def read_turn_usage(path, offset, kind):
-    """What the agent said this turn cost, or {} if it did not say.
+def turn_environment(spec, base=None):
+    """What one turn runs with: this process's environment, plus the recipe's.
 
-    `kind` is the recipe's `usage` field, so an agent that reports nothing --
-    codex, anything driven by a script -- costs nothing here and
-    is simply not accounted for. Never raises: this is bookkeeping beside a
-    lesson, and a lesson does not stop because a number could not be parsed.
+    A RECIPE'S `env` IS HOW A PROVIDER IS POINTED SOMEWHERE ELSE, and it is the
+    one part of a turn that must not reach argv. `with_usage` appends flags to
+    the command because flags are public; a key on a command line is in `ps`
+    output for anything on the machine to read, which is the whole reason
+    `ai-config/policy/credentials.txt` exists. So routing goes here.
+
+    `{NAME}` in a value is substituted from `tutorboard/keys.py`. A value naming
+    a key the store has not got is DROPPED rather than passed through with the
+    braces still on it -- see `keys.fill`. The recipe should not have been
+    offered at all in that case, which is what `unkeyed` on `--agents --json`
+    is for; this is the second guard behind it.
+
+    `base` is what the caller already built -- a colibri mission's
+    `COLI_SESSION_ID`, which is the only other thing that sets a turn's
+    environment. Merged here so the two land in one dict rather than in two
+    places that fight. None in and no `env` on the recipe gives None back, so a
+    turn that wants nothing special still inherits the daemon's environment
+    exactly as it did.
     """
-    if kind != "claude-json":
-        return {}
+    extra = (spec or {}).get("env") or {}
+    if not extra:
+        return base
+    env = dict(base if base is not None else os.environ)
+    for name, value in extra.items():
+        filled = keys.fill(value)
+        if filled is not None:
+            env[str(name)] = filled
+    return env
+
+
+def turn_words(path, offset):
+    """What this turn actually printed, from `offset` on. "" if unreadable."""
     try:
         with open(path, "r", encoding="utf-8", errors="replace") as fh:
             fh.seek(max(0, offset))
-            blob = fh.read(4000000)
+            return fh.read(4000000)
     except OSError:
+        return ""
+
+
+def read_turn_usage(path, offset, kind, spec=None):
+    """What the agent said this turn cost, or {} if it did not say.
+
+    `kind` is the recipe's `usage` field and it is a DISPATCH rather than an
+    equality test, which is the difference between a table of three providers
+    and a table of one. An agent whose `usage` names no parser -- `usage: none`,
+    or nothing at all -- costs nothing here and is simply not accounted for.
+    Never raises: this is bookkeeping beside a lesson, and a lesson does not
+    stop because a number could not be parsed.
+
+    `spec` is the recipe, and it is here for the dollars rather than the tokens.
+    A provider driven through somebody else's binary reports the token counts
+    correctly -- they are the model's own -- and the price WRONG, because the
+    prices compiled into that binary are its vendor's. So the counts come from
+    the parser and `priced` recomputes the money off the recipe's own table
+    wherever it has one.
+    """
+    parser = USAGE_PARSERS.get(kind)
+    if not parser:
         return {}
+    got = parser(turn_words(path, offset))
+    return priced(got, spec) if got else got
+
+
+def read_claude_usage(blob):
+    """Claude Code's `--output-format json` result object."""
     # The last line of the turn that is a result object. Not the only line:
     # warnings, and anything the agent printed on its way, share this stream.
     for line in reversed(blob.splitlines()):
@@ -544,6 +714,117 @@ def read_turn_usage(path, offset, kind):
     return {}
 
 
+def read_codex_usage(blob):
+    """Codex's `--json` event stream.
+
+    One event kind carries the numbers: `token_count`, whose `total_token_usage`
+    is the RUNNING TOTAL for the session. So the last one of them is the answer
+    and summing them would count every earlier round trip again -- which is the
+    one way to get this wrong that produces a plausible number.
+
+    Round trips are counted instead, because Codex does not report them and
+    they are the lever a prompt can actually pull: one `token_count` event per
+    trip is what the stream gives.
+    """
+    last, trips = None, 0
+    for line in blob.splitlines():
+        line = line.strip()
+        if not line.startswith("{") or "token_count" not in line:
+            continue
+        try:
+            d = json.loads(line)
+        except ValueError:
+            continue
+        info = d.get("info") or d.get("msg") or d
+        total = (info.get("total_token_usage")
+                 or (info.get("info") or {}).get("total_token_usage"))
+        if isinstance(total, dict):
+            last = total
+            trips += 1
+    if not last:
+        return {}
+    got_in = int(last.get("input_tokens") or 0)
+    cached = int(last.get("cached_input_tokens") or 0)
+    out = int(last.get("output_tokens") or 0)
+    return {
+        # `input_tokens` INCLUDES the cached part in this report, so the two are
+        # separated here to mean what they mean everywhere else in this file --
+        # and the billed total must not add them twice.
+        "tokens": got_in + out,
+        "in": max(0, got_in - cached),
+        "out": out,
+        "cache_write": 0,
+        "cache_read": cached,
+        "requests": trips,
+        "usd": 0.0,
+        "models": [],
+        "session": "",
+    }
+
+
+# Which parser reads which agent's report. A provider is a parser added beside
+# the others; nothing else in this file learns a new name.
+USAGE_PARSERS = {
+    "claude-json": read_claude_usage,
+    "codex-jsonl": read_codex_usage,
+}
+
+
+def at_peak_rate(prices, now=None):
+    """Is the provider's peak window open right now? Peak unless told otherwise.
+
+    The windows are the provider's own, in UTC, as `[["01:00", "04:00"], ...]`,
+    and `peak_weekdays_only` says whether Saturday and Sunday count. Peak is the
+    default answer for a table with no windows on it, because guessing the dear
+    rate cannot understate a bill.
+    """
+    spans = (prices or {}).get("peak_utc")
+    if not spans:
+        return True
+    t = time.gmtime(now if now is not None else time.time())
+    if (prices or {}).get("peak_weekdays_only") and t.tm_wday >= 5:
+        return False
+    mins = t.tm_hour * 60 + t.tm_min
+    for span in spans:
+        try:
+            a, b = [int(x[:2]) * 60 + int(x[3:5]) for x in span]
+        except (ValueError, IndexError, TypeError):
+            continue
+        if a <= mins < b or (b < a and (mins >= a or mins < b)):
+            return True
+    return False
+
+
+def priced(usage, spec, now=None):
+    """The dollars this turn cost, from the RECIPE's price table.
+
+    Three outcomes and they are all deliberate:
+
+      - a recipe with a price table gets a figure computed here, and the RATE
+        THAT APPLIED is recorded beside it. A provider whose price has a peak
+        and an off-peak window can only be said honestly one of two ways, and
+        recording what applied beats encoding the windows in the reader: a
+        table of windows goes stale silently, a recorded rate cannot;
+      - a recipe with none keeps whatever the agent itself said, which for
+        Claude Code against Anthropic is right;
+      - and one with neither records the tokens and NO dollar figure, which is
+        the honest answer rather than a wrong number.
+    """
+    prices = (spec or {}).get("prices")
+    if not prices:
+        return usage
+    peak = at_peak_rate(prices, now)
+    rate = prices.get("peak" if peak else "off") or {}
+    per = lambda n, k: (usage.get(n, 0) / 1000000.0) * float(rate.get(k, 0) or 0)
+    out = dict(usage)
+    out["usd"] = round(per("in", "in") + per("cache_write", "cache_write")
+                       + per("cache_read", "cache_read") + per("out", "out"), 6)
+    out["rate"] = {"window": "peak" if peak else "off",
+                   "in": rate.get("in"), "cache_write": rate.get("cache_write"),
+                   "cache_read": rate.get("cache_read"), "out": rate.get("out")}
+    return out
+
+
 def record_cost(live, log, turn, agent_name, fresh, usage):
     """One line per turn in `live/cost.jsonl`, and one in the log.
 
@@ -564,10 +845,14 @@ def record_cost(live, log, turn, agent_name, fresh, usage):
         pass
     try:
         log.write("-- turn %d: %s tokens over %d round trip(s) "
-                  "(cache read %s, cache written %s, out %s), $%.3f\n"
+                  "(cache read %s, cache written %s, out %s), %s\n"
                   % (turn, thousands(rec.get("tokens", 0)), rec["requests"],
                      thousands(rec["cache_read"]), thousands(rec["cache_write"]),
-                     thousands(rec["out"]), rec["usd"]))
+                     thousands(rec["out"]),
+                     ("$%.3f at the %s rate" % (rec["usd"], rec["rate"]["window"]))
+                     if rec.get("rate") else
+                     ("$%.3f" % rec["usd"]) if rec.get("usd")
+                     else "no price table for this provider"))
     except (OSError, ValueError):
         pass
 
@@ -616,13 +901,19 @@ def resolve_agent(cfg, course, override=None, interactive=False, say=None):
     for the same reason a sitting stance and a sitting aim do: a choice made for
     an evening is not a decision about what the repository is.
 
-    An assistant is chosen as a sitting OPENS and not mid-way, which is the one
-    thing that makes this cheap. The aim can change in place because it changes
-    what the next card is; the agent decides WHO WRITES IT, and the conversation
-    the outgoing one was holding does not transfer -- on colibri that is the
-    whole 15,900-token preamble, paid again, in hours. So there is no `/agent`
-    the way there is a `/aim`: `_mark` writes it with the sitting, and the
-    sitting that does not name one clears it.
+    AN ASSISTANT IS RE-RESOLVED EVERY TURN. This function answers the question
+    and `for_this_turn` asks it again at the top of each turn, so a tap on the
+    front door or a sitting rewritten from the iPad lands on the next card
+    rather than the next sitting. What makes that cheap is that `session_turns`
+    is 1: a hosted turn holds no conversation, and reconstructs the evening from
+    `board brief` and `board recap` off disk whoever takes it.
+
+    The one recipe that cannot be left mid-way is one CARRYING a session -- a
+    colibrì `[carry]`, where the preamble is 15,900 tokens and hours of prefill.
+    That is a guard in `for_this_turn` rather than a rule here.
+
+    The sitting layer is what the iPad writes: `_mark` writes it with the
+    sitting, and a sitting that does not name one clears it.
 
     Which model an assistant runs is not a layer here and never should be: an
     agent entry is a command recipe, so a second model is a second entry whose
@@ -650,6 +941,79 @@ def resolve_agent(cfg, course, override=None, interactive=False, say=None):
             say("no agent called '%s'; try: tutor --agents" % pick)
             return None
     return picked
+
+
+def agent_unavailable(cfg, name, now=None):
+    """Why this agent cannot take a turn on this machine right now, or None.
+
+    Three reasons and they are all facts rather than opinions: the executable
+    is not here, the key is not here, or the allowance is gone until a time
+    somebody wrote down. In the words the board already uses.
+    """
+    spec = (cfg.get("agents") or {}).get(name)
+    if not spec:
+        return "there is no recipe called '%s'" % name
+    if not (spec.get("headless") or spec.get("headless_first")):
+        return "'%s' has no headless recipe" % name
+    gone = missing_command(spec.get("cmd"))
+    if gone:
+        return "`%s` is not on the path here" % gone
+    need = keys.unkeyed(spec)
+    if need:
+        return "%s is not in %s" % (need, keys.store())
+    until = limits.limited_until(name, now)
+    if until:
+        return ("its allowance is gone until %s"
+                % time.strftime("%H:%M", time.localtime(until)))
+    return None
+
+
+def choose_agent(cfg, wanted, now=None):
+    """Who actually takes the next turn. `(name, why)`; `why` is None if nothing moved.
+
+    THE LIMIT BELONGS TO AN AGENT, NOT TO THE MACHINE, AND THIS IS WHERE THAT
+    STOPS BEING A SENTENCE. When the one we want has run out, the next one that
+    is installed, keyed, unlimited and not `private` takes the turn, and the
+    lesson goes on.
+
+    AND THE STUDENT IS TOLD, which is the condition on all of it: `why` comes
+    back so the caller can put it in the log and in `agent_state`, and the strip
+    names the assistant that is writing. A lesson answered by something else
+    without anybody saying so would be worse than a board that reports the
+    failure -- see the standing rule in `AI_INSTRUCTIONS.md`.
+
+    WHAT MAKES IT SAFE IS ALREADY TRUE, and it is the reason this is small:
+    `session_turns` is 1, so every ordinary turn is cold -- it reconstructs the
+    evening from `board brief` and `board recap`, off disk, off the transcript
+    the beat has been pushing every ninety seconds. A provider swap between
+    turns therefore loses NOTHING: there is no conversation to transfer. The one
+    place a session genuinely IS carried is a `[carry]`, and the caller guards
+    that rather than this.
+
+    `private` is never fallen into. It is the fence flag -- the only assistant
+    allowed to read `phi`, whose cards must not reach a remote -- and an
+    automatic choice is exactly the kind of choice that must not cross it.
+    """
+    if wanted and not agent_unavailable(cfg, wanted, now):
+        return wanted, None
+    said = cfg.get("fallback")
+    if not isinstance(said, list) or not said:
+        # What `--agents` reports, in the order it reports it.
+        said = sorted(cfg.get("agents") or {})
+    for name in said:
+        if name == wanted:
+            continue
+        spec = (cfg.get("agents") or {}).get(name) or {}
+        if spec.get("private"):
+            continue
+        if agent_unavailable(cfg, name, now):
+            continue
+        return name, ("'%s' cannot take this turn -- %s; '%s' is taking it"
+                      % (wanted, agent_unavailable(cfg, wanted, now), name))
+    # Nobody else can either, so the turn goes to the one we wanted and fails
+    # where it is visible. Exactly today's behaviour, which is the right answer
+    # when there is no second provider to reach for.
+    return wanted, None
 
 
 def courses(cfg):
@@ -794,8 +1158,9 @@ implemented something, they will say so in a written or typed turn, and that
 turn is your cue to go and look at what actually changed.
 
 **Reading handwriting.** Handwriting is a PNG, a problem sheet is a PDF. If your
-model can see images, open the file directly; if it cannot, call the
-`describe_image` tool on the file path and read the OCR it returns.
+model can see images, open the file directly. If it cannot, run `board see
+<path>` -- it prints what is on the page, and `--page N` picks a page of a PDF.
+It refuses a path inside a fence, because it sends the file to a provider.
 
 **Read `live/TEACHING.md` before your first card.** It is the method every course
 on this board is taught by, and it is not optional. The rule it all follows from:
@@ -1091,7 +1456,7 @@ HEADLESS_FIRST_PROMPT = (
     "run `board inbox` as well; it has been marked read and will tell you "
     "nothing. Open anything the text names: handwriting is a PNG and a problem "
     "sheet a PDF, read however your model sees images -- opening the file "
-    "directly, or calling `describe_image` on the path and reading its OCR.\n\n"
+    "directly, or `board see <path>` where it cannot.\n\n"
     "Then reply by writing ONE new card into live/cards/. Not two. Write that "
     "card FIRST, before any verifying, filing or transcribing: it appears on "
     "their board the instant the file exists, so everything else you do happens "
@@ -1113,8 +1478,8 @@ HEADLESS_RESUME_PROMPT = (
     "They just sent this:\n\n%(inbox)s\n\n"
     "That text is the inbox and carries every file path, so do not run `board "
     "inbox` as well. Open what it names -- handwriting and PDFs, read however "
-    "your model sees images (open directly, or `describe_image` on the path and "
-    "read its OCR) -- and reply by writing ONE new card into live/cards/. Write "
+    "your model sees images (open directly, or `board see <path>` where it "
+    "cannot) -- and reply by writing ONE new card into live/cards/. Write "
     "the card FIRST; nothing else needs reading before it.\n\n"
     "Teach the way you already read: locate the break in a wrong answer rather "
     "than repairing it, one question, then stop. If you have genuinely lost the "
@@ -2369,6 +2734,60 @@ def _flag(args, name):
     return None
 
 
+def for_this_turn(cfg, course, running, carried, signal, log=None):
+    """Who writes the next card. `(cfg, agent_name, spec, why)`.
+
+    THE ASSISTANT IS RE-RESOLVED EVERY TURN. This re-reads the config and the
+    sitting's own `state.json` at the top of each one and asks `resolve_agent`
+    again, so a tap on the front door and a sitting rewritten from the iPad both
+    land on the next card. Where the answer has not changed -- which is nearly
+    always -- nothing happens and nothing is paid.
+
+    What makes that cheap is `session_turns`, which is 1: a hosted turn holds no
+    conversation worth protecting and reconstructs the evening off disk whoever
+    takes it. The exception is colibrì, whose client pays a 15,900-token preamble
+    at a few tokens a second of prefill to open one, and that is the first guard
+    below rather than a rule over all of them.
+
+    THREE GUARDS, AND THEY ARE THE WHOLE OF WHAT MUST NOT MOVE:
+
+      - not while `carried > 0`. That is the one case where the agent's own
+        session genuinely holds something, and swapping throws it away;
+      - not under a `[carry]`, which resumes a colibrì conversation by id --
+        `turn_plan`'s carry branch is the same test;
+      - never into or out of a `private` recipe. It is the fence flag: the only
+        assistant allowed to read `phi`, whose cards must not reach a remote. A
+        swap in is a hosted model in a fenced workspace; a swap out is that
+        workspace's tutor replaced by one that cannot open its files.
+    """
+    cfg = load_config()
+    fresh = dict(course)
+    fresh.update(read_course(course["root"]))
+    fresh["root"] = course["root"]
+    wanted = resolve_agent(cfg, fresh, say=lambda m: log and log.write("-- %s\n" % m))
+    wanted = wanted or running
+    # Then the allowance, which is the other half and belongs to the agent.
+    name, said = choose_agent(cfg, wanted)
+    if name == running:
+        return cfg, running, cfg["agents"].get(running) or {}, None
+    holding = (cfg["agents"].get(running) or {}).get("private")
+    taking = (cfg["agents"].get(name) or {}).get("private")
+    if carried > 0:
+        why = "this agent's own session is carrying %d turn(s)" % carried
+    elif signal == "carry":
+        why = "a carry resumes a conversation by id"
+    elif holding or taking:
+        why = "one of the two is the fenced reader, and that is nobody's automatic choice"
+    else:
+        if log:
+            log.write("-- %s\n" % (said or "the sitting now asks for '%s'" % name))
+        return cfg, name, cfg["agents"].get(name) or {}, (said or
+                "the sitting now asks for '%s'" % name)
+    if log:
+        log.write("-- staying on '%s' rather than '%s': %s\n" % (running, name, why))
+    return cfg, running, cfg["agents"].get(running) or {}, None
+
+
 def headless(cfg, course, agent_name, session):
     spec = cfg["agents"].get(agent_name) or {}
     recipe = spec.get("headless")
@@ -2383,6 +2802,19 @@ def headless(cfg, course, agent_name, session):
               "Install it, or name another in %s -- `tutor --agents` lists what "
               "this machine can actually run."
               % (agent_name, gone, this_host(), CONFIG),
+              file=sys.stderr)
+        return 1
+    # AND THE SAME REFUSAL FOR A KEY, because the failure is the same failure.
+    # A daemon that starts unkeyed shows on the iPad as an assistant listening
+    # and then fails every turn into a log -- which is precisely the shape
+    # `missing_command` exists to prevent, one layer along. The file is named
+    # because nobody can guess it and putting the line in takes ten seconds.
+    need = keys.unkeyed(spec)
+    if need:
+        print("'%s' needs the key %s, which is not in %s.\n"
+              "Put `%s=...` in that file, one NAME=value a line.%s"
+              % (agent_name, need, keys.store(), need,
+                 ("\n" + keys.why_not()) if keys.why_not() else ""),
               file=sys.stderr)
         return 1
 
@@ -2401,10 +2833,11 @@ def headless(cfg, course, agent_name, session):
     logpath = os.path.join(live, "agent.log")
     log = open(logpath, "a", buffering=1)
     host = this_host()
-    # The assistant this machine is configured to use, kept apart from the one
-    # it is using: an allowance that runs out swaps the second for something
-    # cheaper, and when it comes back the first is what we climb home to.
-    wanted = agent_name
+    # WHICH ASSISTANT IS WRITING IS A PER-TURN QUESTION, and it is asked at the
+    # top of each one by `for_this_turn`: the config and the sitting's own
+    # `state.json` are re-read, the allowance is checked, and where the answer
+    # has moved the recipe is re-bound. `agent_name` and `spec` below are this
+    # turn's answer rather than the daemon's, and they change under the loop.
 
     board(root, "start")
     link(root)
@@ -2491,12 +2924,13 @@ def headless(cfg, course, agent_name, session):
                 continue
 
         turns += 1
+        this_signal = turn_signal(out)
         # `turn_started` is the daemon's clock, and the board needs it: its own
         # measure of how long a turn has been going starts when it first SEES
         # the working state, which on a reload or a second device is nowhere
         # near when the turn began.
         agent_state(live, state="working", turns=turns,
-                    turn_started=time.time(), turn_signal=turn_signal(out),
+                    turn_started=time.time(), turn_signal=this_signal,
                     last_error=None, failed_at=0)
         log.write("\n=== %s turn %d ===\n%s\n" % (time.strftime("%H:%M:%S"), turns, out))
 
@@ -2523,8 +2957,24 @@ def headless(cfg, course, agent_name, session):
         # one we have has carried enough turns to be more expensive than
         # starting over. Everything a fresh session needs is on disk: the
         # contract, the method, and `board recap` for the lesson.
+        # WHO WRITES THIS ONE. Asked now rather than when the daemon started,
+        # so a tap on the front door lands on the next card rather than the next
+        # sitting, and so an allowance that ran out is climbed down from and
+        # later climbed back to. See `for_this_turn`.
+        cfg, next_agent, next_spec, moved = for_this_turn(
+            cfg, course, agent_name, carried, this_signal, log)
+        # The config was re-read, so everything taken off it is too.
+        recycle = int(cfg.get("session_turns", 12) or 0)
+        if moved:
+            agent_name, spec = next_agent, next_spec
+            recipe = spec.get("headless")
+        # WHO IS WRITING, AND WHY IF IT CHANGED, BEFORE THE TURN RATHER THAN
+        # AFTER IT. The strip paints both off this record, and `agent_why` is
+        # written on EVERY turn rather than only on a swap: written once it
+        # would outlive the swap it describes, and the board would go on
+        # explaining a climb-down that had long since climbed home.
+        agent_state(live, agent=agent_name, agent_why=moved or None)
         first = spec.get("headless_first") or recipe
-        this_signal = turn_signal(out)
         use, template, fresh = turn_plan(spec, carried, recycle, this_signal)
         if fresh and carried:
             log.write("-- starting a fresh session after %d turn(s); the lesson "
@@ -2558,6 +3008,7 @@ def headless(cfg, course, agent_name, session):
         # back the id the turn before it opened. `renew` is `fresh` for that
         # reason: a resume keeps the id, a new session gets a new one.
         mrec, turn_env = mission_turn(root, log, renew=fresh)
+        turn_env = turn_environment(spec, turn_env)
         started_at = time.time()
         timed_out = False
         cap = turn_timeout(cfg, root, spec, this_signal)
@@ -2582,6 +3033,7 @@ def headless(cfg, course, agent_name, session):
                 # unresumable, and `--session-id` on an id that is live is a
                 # collision rather than a fresh session.
                 mrec, turn_env = mission_turn(root, log, renew=True)
+                turn_env = turn_environment(spec, turn_env)
                 cmd = with_usage(spec, [a.replace("{prompt}", HEADLESS_FIRST_PROMPT % fill)
                                         for a in first])
                 rc, timed_out = run_turn(cmd, root, log, cap, env=turn_env)
@@ -2669,6 +3121,9 @@ def headless(cfg, course, agent_name, session):
             said = turn_output(logpath, mark)
             until = limits.reads_as_usage_limit(said)
             if until:
+                # THIS AGENT, NOT THIS MACHINE. Claude running out says nothing
+                # about DeepSeek, and a machine-wide mark would take the
+                # fallback out along with the thing it is falling back from.
                 limits.mark_limited(until, agent=agent_name)
                 log.write("!! '%s' is out of allowance here until %s\n"
                           % (agent_name,
@@ -2686,14 +3141,25 @@ def headless(cfg, course, agent_name, session):
                 # the beat we have no time for.
                 sync_transcript(root, log)
 
-                # And then nothing, deliberately. There is one tutor, it has
-                # nothing left to spend, and a turn it cannot take is a turn the
-                # board has to report rather than answer badly: the failure is on
-                # the card stream with its reason, `/health` publishes the limit,
-                # and `board limit` says until when. Turns go on failing until
-                # the allowance returns, which is the truth about the evening.
-                log.write("!! no allowance left; turns will fail until it "
-                          "returns -- `board limit` says when\n")
+                # AND THEN THE NEXT TURN CLIMBS DOWN. `for_this_turn` runs at
+                # the top of the loop and `choose_agent` will not offer this one
+                # again until its expiry passes, so the message we just failed
+                # to answer is handed to the next provider that is installed,
+                # keyed and unlimited -- and the lesson loses nothing, because a
+                # turn is cold and reads the evening back off disk.
+                #
+                # Where there is no such provider, `choose_agent` hands the turn
+                # back to this one and it fails where it is visible, which is
+                # exactly what this did before there was a second: the failure is
+                # on the card stream with its reason, `/health` publishes the
+                # limit, and `board limit` says until when.
+                nxt, _ = choose_agent(load_config(), agent_name)
+                if nxt != agent_name:
+                    log.write("-- the next turn goes to '%s'\n" % nxt)
+                else:
+                    log.write("!! nothing else here can take it; turns will "
+                              "fail until the allowance returns -- `board "
+                              "limit` says when\n")
                 continue
 
             # Not a limit. On a host routing everything through an exit node the
@@ -2740,13 +3206,16 @@ def headless(cfg, course, agent_name, session):
             # else here, because this is the whole justification for a turn
             # being its own session and it is worth nothing unmeasured.
             record_cost(live, log, turns, agent_name, fresh,
-                        read_turn_usage(logpath, mark, spec.get("usage")))
-            # A turn that worked on the agent we actually want is proof the
-            # allowance is back, whatever the record still says. The reset time
-            # a provider hands out is a promise, and this is a measurement.
-            if agent_name == wanted and limits.limited_until():
-                log.write("-- a turn went through; the allowance is back\n")
-                limits.clear_limited()
+                        read_turn_usage(logpath, mark, spec.get("usage"), spec))
+            # A turn that went through on this agent is proof of THIS agent's
+            # allowance, whatever the record still says. The reset time a
+            # provider hands out is a promise; this is a measurement. Per agent,
+            # because clearing the lot would un-limit a provider nothing has
+            # heard from since it ran out.
+            if limits.limited_until(agent_name):
+                log.write("-- a turn went through on '%s'; its allowance is "
+                          "back\n" % agent_name)
+                limits.clear_limited(agent_name)
             agent_state(live, state="listening", last_error=None,
                         failed_at=0, retrying=False)
 
@@ -2767,13 +3236,14 @@ def headless(cfg, course, agent_name, session):
         mark = os.path.getsize(logpath) if os.path.exists(logpath) else 0
         try:
             subprocess.run(cmd, cwd=root, stdout=log, stderr=subprocess.STDOUT,
+                           env=turn_environment(spec),
                            timeout=cfg.get("handoff_timeout", 600))
             # The wrap-up is a turn and it is billed like one, so it is counted
             # like one. It used to be the most expensive turn of the session --
             # it re-read the cards, the contract and the old handoff before
             # writing a word -- and nothing would have shown that.
             record_cost(live, log, turns + 1, agent_name, False,
-                        read_turn_usage(logpath, mark, spec.get("usage")))
+                        read_turn_usage(logpath, mark, spec.get("usage"), spec))
             wrote = os.path.isfile(os.path.join(root, "HANDOFF.md"))
             # Say which chapter it is about, now, while this is the only process
             # that knows. The wrap-up is a model call and takes as long as it
@@ -3855,18 +4325,20 @@ def cmd_cost(cfg, args):
         rows = [(c, r) for c, r in rows if r]
         if not rows:
             print("no turn has reported a cost on this machine yet.")
-            print("Turns record one only on a recipe that says how -- "
-                  "`usage: claude-json` on the claude recipe; see `tutor --agents`.")
+            print("Turns record one only on a recipe whose `usage` names a "
+                  "parser -- `claude-json` or `codex-jsonl`; see "
+                  "`tutor --agents`.")
             return 0
-        print("%-22s %6s %8s %11s %10s" %
-              ("course", "turns", "trips/t", "tokens/t", "total"))
+        print("%-22s %6s %8s %11s %10s  %s" %
+              ("course", "turns", "trips/t", "tokens/t", "total", "who"))
         for c, r in sorted(rows, key=lambda x: -sum(t.get("tokens", 0) for t in x[1])):
             n = len(r)
-            print("%-22s %6d %8.1f %11s %9.2f" %
+            print("%-22s %6d %8.1f %11s %9.2f  %s" %
                   (c["dir"][:22], n,
                    sum(t.get("requests", 0) for t in r) / float(n),
                    thousands(sum(t.get("tokens", 0) for t in r) / float(n)),
-                   sum(t.get("usd", 0) for t in r)))
+                   sum(t.get("usd", 0) for t in r),
+                   ", ".join(sorted({t.get("agent") or "?" for t in r}))))
         total = sum(t.get("tokens", 0) for _, r in rows for t in r)
         print("\n%s tokens across %d turn(s) on %s%s"
               % (thousands(total), sum(len(r) for _, r in rows), this_host(),
@@ -3910,6 +4382,19 @@ def cmd_cost(cfg, args):
     fresh = sum(1 for t in rows if t.get("fresh"))
     print("%s — %d turn(s) on %s, %d of them their own session"
           % (course["dir"], n, this_host(), fresh))
+    # SPLIT BY WHO TAUGHT IT, which is the whole reason to have three. A line
+    # per provider, and it is drawn only where there is more than one -- a
+    # single-provider evening already has its totals below.
+    by_agent = {}
+    for t in rows:
+        by_agent.setdefault(t.get("agent") or "?", []).append(t)
+    if len(by_agent) > 1:
+        for name, r in sorted(by_agent.items(),
+                              key=lambda kv: -sum(t.get("tokens", 0) for t in kv[1])):
+            money = sum(t.get("usd", 0) for t in r)
+            print("  %-10s %3d turn(s), %8s tokens, %s"
+                  % (name, len(r), thousands(sum(t.get("tokens", 0) for t in r)),
+                     ("$%.2f" % money) if money else "no price table — tokens only"))
     print("  %s tokens a turn%s, %.1f round trips a turn"
           % (thousands(tokens / float(n)), share(tokens / float(n)),
              sum(t.get("requests", 0) for t in rows) / float(n)))
@@ -4878,15 +5363,38 @@ def main(argv):
             if "--json" in argv:
                 print(json.dumps({
                     "default": cfg["default_agent"],
+                    # Who reads an image for an assistant that cannot. Named
+                    # here rather than guessed at by the caller, because the
+                    # registry is this table and a second one drifts.
+                    "vision_agent": cfg.get("vision_agent") or None,
                     "agents": [
                         {"name": n,
                          "cmd": " ".join(spec.get("cmd", [])),
                          "missing": missing_command(spec.get("cmd")),
+                         # AND THE SECOND WAY A RECIPE CANNOT RUN HERE. An
+                         # executable that is absent is `missing`; a key that is
+                         # absent is this. Both have to reach the browser,
+                         # because a button that is drawn, tapped, and dies in a
+                         # log file hands the person holding the iPad the one
+                         # thing they can least act on. The key's NAME is the
+                         # value, so the dimmed button's title can say which
+                         # line to put in the file.
+                         "unkeyed": keys.unkeyed(spec),
+                         # And where that file is, once, so the whole of the
+                         # setup instructions for a provider is on the glass.
+                         "keys": keys.store(),
                          # Why this one may refuse to open, in the recipe's own
                          # words, so the board can say it before the tap rather
                          # than after.
                          "exclusive": spec.get("exclusive") or None,
                          "private": spec.get("private") or None,
+                         # Where an image goes when the assistant running the
+                         # sitting cannot see one. The whole route, because
+                         # `board see` resolves it out of this rather than out
+                         # of a second copy of the table -- an endpoint and a
+                         # model name are not secrets, and the key is named
+                         # rather than carried. See `tutorboard/seeing.py`.
+                         "vision": spec.get("vision") or None,
                          "headless": bool(spec.get("headless")
                                           or spec.get("headless_first"))}
                         for n, spec in sorted(cfg["agents"].items())],
@@ -4898,10 +5406,15 @@ def main(argv):
             for n, spec in sorted(cfg["agents"].items()):
                 mark = "*" if n == cfg["default_agent"] else " "
                 gone = missing_command(spec.get("cmd"))
+                need = keys.unkeyed(spec)
                 print(" %s %-10s %-28s %s"
                       % (mark, n, " ".join(spec.get("cmd", [])),
-                         "not installed here" if gone else ""))
+                         "not installed here" if gone
+                         else ("needs %s in %s" % (need, keys.store())) if need
+                         else ""))
             print("\n* is the default. Edit the config to add your own.")
+            print("A provider is a recipe plus a key: one entry in `agents` "
+                  "and one line in\n%s." % keys.store())
             return 0
         elif a == "--homework":
             flags["session"] = "homework"

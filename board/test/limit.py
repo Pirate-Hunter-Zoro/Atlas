@@ -7,16 +7,21 @@ the tutor has been told it has no quota left. Treated as an ordinary failed turn
 it is invisible in the worst way -- the board shows a tutor listening, the
 student sends again, and nothing comes back for four hours.
 
-So the tutor says so where it can be read, and then teaches with what is free,
-because a free answer beats a board where nobody is home.
+So the tutor says so where it can be read, and the next turn goes to whoever
+can still take one, because a lesson that carries on beats a board where nobody
+is home.
 
-Two rules underneath, and both are here because getting either wrong is silent:
+Three rules underneath, and each is here because getting it wrong is silent:
 
-  - a limit is a property of the MACHINE, not of a course: an allowance belongs
-    to an account and every board here is equally unable to spend one;
-  - the limit expires by itself, and a turn that goes through clears it. A
-    limit that has to be cleared by hand outlives itself and quietly teaches
-    worse for days.
+  - a limit belongs to an AGENT on a machine, not to a course and not to the
+    machine: an allowance belongs to an account, so one provider running out
+    says nothing about another, and marking the machine would take the fallback
+    out along with the thing it is falling back from;
+  - it expires by itself, and a turn that goes through on an agent clears that
+    agent's. A limit cleared by hand outlives itself and quietly teaches worse
+    for days;
+  - and what a limit LOOKS like is configuration, because the board is not
+    allowed to know which assistant is driving it.
 """
 
 import json
@@ -83,6 +88,9 @@ check("the five-hour form is a limit too",
 check("and so is the API's own word for it",
       limits.reads_as_usage_limit('{"type":"rate_limit_error"}', now))
 
+check("DeepSeek's own word for an exhausted balance is a limit too -- none of "
+      "the phrases written for one provider matched it",
+      limits.reads_as_usage_limit("Insufficient Balance", now))
 check("an ordinary broken turn is not a limit, and must not demote the machine",
       limits.reads_as_usage_limit("Error: ENOENT no such file", now) is None)
 check("nor is a turn that said nothing at all",
@@ -102,6 +110,51 @@ check("with nothing written, the machine has its allowance", limits.limited_unti
 limits.mark_limited(time.time() + 900, agent="claude")
 check("a limit reads back", limits.limited_until() > time.time())
 check("and says which tutor ran out", limits.limit_record().get("agent") == "claude")
+
+# ---- A LIMIT BELONGS TO AN AGENT --------------------------------------------
+#
+# It was recorded per MACHINE, and that was the right answer when there was one
+# tutor. There are three, and an allowance belongs to an account: Claude running
+# out says nothing at all about DeepSeek, and a machine-wide mark would take the
+# fallback out along with the thing it is falling back from.
+limits.clear_limited()
+limits.mark_limited(time.time() + 900, agent="claude")
+check("a limit is that agent's", limits.limited_until("claude") > time.time())
+check("and is not another's", limits.limited_until("deepseek") == 0)
+
+limits.mark_limited(time.time() + 1800, agent="deepseek")
+check("a second one does not erase the first -- a whole-file write would send "
+      "the daemon climbing home to an agent that is still limited",
+      limits.limited_until("claude") > 0 and limits.limited_until("deepseek") > 0)
+check("and the bare question is still answerable, for /health and `board limit`",
+      limits.limited_until() > 0)
+check("with the one that lasts longest, because that is when the machine is "
+      "unconstrained", limits.limit_record().get("agent") == "deepseek")
+
+limits.clear_limited("claude")
+check("clearing one clears one",
+      limits.limited_until("claude") == 0 and limits.limited_until("deepseek") > 0)
+limits.clear_limited()
+check("and clearing nothing in particular clears the lot",
+      limits.limited_until() == 0)
+
+# A RECORD FROM THE VERSION BEFORE MUST NOT CRASH AND MUST NOT DEMOTE EVERY
+# AGENT. The second half is the one that is easy to get wrong.
+with open(limits.LIMIT_RECORD, "w", encoding="utf-8") as fh:
+    json.dump({"until": time.time() + 900, "agent": "claude",
+               "node": "test-node", "at": time.time()}, fh)
+check("an old single-tutor record reads as one entry under the name it carries",
+      limits.limited_until("claude") > 0)
+check("and does not demote the agent it never mentioned",
+      limits.limited_until("deepseek") == 0)
+with open(limits.LIMIT_RECORD, "w", encoding="utf-8") as fh:
+    json.dump({"until": time.time() + 900, "node": "test-node"}, fh)
+check("one that named nobody is still the machine's answer",
+      limits.limited_until() > 0)
+check("and still demotes nobody", limits.limited_until("claude") == 0)
+
+limits.clear_limited()
+limits.mark_limited(time.time() + 900, agent="claude")
 
 limits.mark_limited(time.time() - 60, agent="claude")
 check("a limit that has expired is no limit; it does not need clearing by hand",
@@ -135,11 +188,14 @@ check("the message whose turn was lost is carried, not dropped",
 check("the transcript is pushed before the turn is given up on, so the message "
       "it failed to answer is somewhere a later session can read it",
       "sync_transcript(root, log)" in src)
-check("and then nothing: there is one tutor, and a turn it cannot take is a "
-      "turn the board reports rather than answering badly",
-      "no allowance left; turns will fail until it" in src)
-check("a turn that goes through is what proves the allowance is back",
-      "limits.clear_limited()" in src)
+check("and then the next turn climbs down to whoever can take it, which is "
+      "the whole reason to have three",
+      "nxt, _ = choose_agent(load_config(), agent_name)" in src)
+check("and where there is nobody to climb down to it says so and goes on "
+      "failing where that is visible, which is what one tutor always did",
+      "nothing else here can take it" in src)
+check("a turn that goes through proves THAT agent's allowance, not the "
+      "machine's", "limits.clear_limited(agent_name)" in src)
 check("the handoff is still attempted, because it is the only continuity there "
       "is", "is a session the next one has to reconstruct" in src)
 

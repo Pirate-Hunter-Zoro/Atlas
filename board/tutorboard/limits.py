@@ -39,6 +39,12 @@ DEFAULT_USAGE_LIMIT_SAYS = (
     r"\brate[ _-]?limit(?:_?error)?\b",
     r"\bquota (?:exceeded|exhausted)\b",
     r"\binsufficient[_ ]quota\b",
+    # DeepSeek answers an exhausted balance with this and HTTP 402, which none
+    # of the phrases above matches. It is configuration for exactly this reason:
+    # a provider is a recipe plus a key, and this is the sentence its provider
+    # says when the key has nothing behind it.
+    r"insufficient balance",
+    r"\b402\b[^\n]{0,40}balance",
 )
 
 # How long a limit lasts when the provider did not say. Long enough not to
@@ -114,16 +120,56 @@ def reads_as_usage_limit(text, now=None):
     return None
 
 
-def mark_limited(until, agent=None, node=None):
-    """Write down that this machine's tutor has nothing left to spend.
+def _load():
+    """The record on disk, in the current shape, or {}. Never raises.
 
-    The node name goes in because the home directory is shared between compute
-    nodes: a limit hit on the allocation that ended yesterday is not this
-    machine's news, and a record that outlives its writer would demote a node
-    that never had a turn fail.
+    A SINGLE `{until, agent}` RECORD IS READ AS ONE ENTRY. That is the shape a
+    board of an earlier version leaves behind, and it must neither crash this
+    one nor -- the half that is easy to get wrong -- demote every agent: a
+    machine-wide limit read as applying to all three would take the fallback out
+    along with the thing it is falling back from. So it becomes one entry under
+    the name it carries, and one that names nobody becomes an entry under "",
+    which no agent matches and which `limited_until()` with no argument still
+    reports.
     """
-    rec = {"until": float(until), "agent": agent,
-           "node": node or machine.node_name(), "at": time.time()}
+    try:
+        with open(LIMIT_RECORD, "r", encoding="utf-8") as fh:
+            rec = json.load(fh) or {}
+    except (OSError, ValueError):
+        return {}
+    if not isinstance(rec, dict):
+        return {}
+    if not isinstance(rec.get("agents"), dict):
+        try:
+            until = float(rec.get("until") or 0)
+        except (TypeError, ValueError):
+            return {}
+        rec = {"node": rec.get("node"), "at": rec.get("at"),
+               "agents": {str(rec.get("agent") or ""): until}} if until else {}
+    return rec
+
+
+def mark_limited(until, agent=None, node=None):
+    """Write down that this AGENT has nothing left to spend on this machine.
+
+    Per agent, because there are three of them and an allowance belongs to an
+    account rather than to a machine. The node name still goes in because the
+    home directory is shared between compute nodes: a limit hit on the
+    allocation that ended yesterday is not this machine's news, and a record
+    that outlived its writer would demote a node whose turns have all succeeded.
+
+    Merged rather than replaced. Claude running out is not evidence about
+    DeepSeek, and a second provider hitting its own ceiling must not erase the
+    first one's expiry -- which is exactly what a whole-file write would do, and
+    would send the daemon climbing home to an agent that is still limited.
+    """
+    node = node or machine.node_name()
+    rec = _load()
+    if rec.get("node") and rec["node"] != node:
+        rec = {}                      # somebody else's machine; start our own
+    agents = dict(rec.get("agents") or {})
+    agents[str(agent or "")] = float(until)
+    rec = {"node": node, "at": time.time(), "agents": agents}
     os.makedirs(paths.STATE_DIR, exist_ok=True)
     tmp = LIMIT_RECORD + ".tmp"
     with open(tmp, "w", encoding="utf-8") as fh:
@@ -132,32 +178,79 @@ def mark_limited(until, agent=None, node=None):
     return rec
 
 
-def limit_record(now=None):
-    """The live limit on THIS machine, or {}. Expired and foreign ones are gone."""
-    try:
-        with open(LIMIT_RECORD, "r", encoding="utf-8") as fh:
-            rec = json.load(fh) or {}
-    except (OSError, ValueError):
-        return {}
-    if not isinstance(rec, dict):
+def limited_agents(now=None):
+    """`{agent: until}` for every live limit on THIS machine. Expired ones gone.
+
+    The key is the agent's name, or "" for a record that did not say -- which is
+    what a migrated record from the single-tutor version looks like.
+    """
+    rec = _load()
+    if not rec:
         return {}
     if rec.get("node") and rec["node"] != machine.node_name():
         return {}
-    try:
-        until = float(rec.get("until") or 0)
-    except (TypeError, ValueError):
+    now = now or time.time()
+    out = {}
+    for name, until in (rec.get("agents") or {}).items():
+        try:
+            until = float(until)
+        except (TypeError, ValueError):
+            continue
+        if until > now:
+            out[str(name)] = until
+    return out
+
+
+def limit_record(agent=None, now=None):
+    """The live limit on this machine, or {}.
+
+    Named, it is that agent's own. Bare, it is *any* -- the one that lasts
+    longest, because that is the answer `/health` and `board limit` want: the
+    soonest this machine is unconstrained. The old `until` and `agent` fields
+    are still on it, so every surface reading it reads the same thing it did.
+    """
+    live = limited_agents(now)
+    if not live:
         return {}
-    return rec if until > (now or time.time()) else {}
+    if agent is not None:
+        until = live.get(str(agent))
+        if not until:
+            return {}
+        return {"until": until, "agent": str(agent),
+                "node": machine.node_name(), "agents": live}
+    name, until = max(live.items(), key=lambda kv: kv[1])
+    return {"until": until, "agent": name or None,
+            "node": machine.node_name(), "agents": live}
 
 
-def limited_until(now=None):
-    """When this machine's allowance comes back, or 0 if it never went."""
-    rec = limit_record(now)
+def limited_until(agent=None, now=None):
+    """When this agent's allowance comes back, or 0 if it never went.
+
+    Bare, it is the machine-level answer the surfaces that predate the split
+    still want: `/health`, `board limit`, `routes/machines.py`.
+    """
+    rec = limit_record(agent, now)
     return float(rec.get("until") or 0) if rec else 0.0
 
 
-def clear_limited():
-    """Forget the limit -- because a turn just succeeded, or a person said so."""
+def clear_limited(agent=None):
+    """Forget the limit -- because a turn just succeeded, or a person said so.
+
+    Named, only that agent's. Bare, the lot: a person typing `board limit
+    --clear` means the machine, and a turn going through clears its own.
+    """
+    if agent is not None:
+        live = limited_agents()
+        if str(agent) not in live:
+            return False
+        live.pop(str(agent), None)
+        tmp = LIMIT_RECORD + ".tmp"
+        os.makedirs(paths.STATE_DIR, exist_ok=True)
+        with open(tmp, "w", encoding="utf-8") as fh:
+            json.dump({"node": machine.node_name(), "at": time.time(),
+                       "agents": live}, fh, indent=2)
+        os.replace(tmp, LIMIT_RECORD)
+        return True
     try:
         os.remove(LIMIT_RECORD)
         return True

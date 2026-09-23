@@ -87,6 +87,8 @@ The assistant runs these. The student never does.
     board egress [--repair]            can a turn get out, and through which exit node
     board limit [--clear|--set S]      has the tutor's allowance here run out
     board eyes [--answer]              can the assistant driving this actually see?
+    board see <path> [--page N]        what is in this image or PDF page, in words,
+                                       for an assistant whose model has no eyes
 
 Card kinds: lesson, question, correct, wrong, review, note, recap. (A `review`
 card is you reviewing an answer; a `--review` sitting is the student revising for
@@ -104,10 +106,10 @@ import time
 
 TOOL = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 sys.path.insert(0, TOOL)
-from tutorboard import (atlas, brief, carry, direction, handoff, leaving,
+from tutorboard import (atlas, brief, carry, direction, handoff, keys, leaving,
                         limits, machine, manuscript, meeting, missions, paths,
-                        plain, ports, processes, progress, reasoning, sense,
-                        tex, worktree)
+                        plain, ports, processes, progress, reasoning, seeing,
+                        sense, tex, worktree)
 from tutorboard.net import egress, tailscale
 from tutorboard.course import config, document, homework, paper, review, walk
 # `map` is a builtin; the module keeps the name the board calls the thing and
@@ -3224,6 +3226,75 @@ def cmd_eyes(live, args):
     return 0
 
 
+def state_agent(live):
+    """Who is teaching in this workspace right now, off `live/agent.json`."""
+    try:
+        with open(os.path.join(live.dir, "agent.json"), "r",
+                  encoding="utf-8") as fh:
+            return json.load(fh) or {}
+    except (OSError, ValueError):
+        return {}
+
+
+def cmd_see(live, args):
+    """What is in this image or PDF page, in words.
+
+        board see path/to/page.png
+        board see sheet.pdf --page 3
+        board see page.png --ask "just the numbers in the right-hand column"
+        board see --route            where an image would go, and nothing else
+
+    FOR AN ASSISTANT WHOSE MODEL CANNOT SEE ONE. Every tutor here is told on its
+    first turn to open whatever the student sent -- handwriting is a PNG and a
+    problem sheet a PDF -- and a model without vision cannot. This is what it
+    calls instead. The answer comes back on stdout as text, so it is read the way
+    every other `board` command is read.
+
+    Where the image goes is a `vision` block on a recipe, resolved through the
+    running agent first and `vision_agent` second; `board see --route` says which
+    one answered. See `tutorboard/seeing.py`.
+
+    A PATH INSIDE A FENCE IS REFUSED BEFORE ANYTHING IS OPENED, because this
+    sends a file to a hosted provider and a board command does not go through
+    any assistant's pre-tool hook.
+    """
+    rest = [a for a in args if not a.startswith("--")]
+    page = None
+    if "--page" in args:
+        n = args.index("--page")
+        page = args[n + 1] if n + 1 < len(args) else None
+    prompt = None
+    if "--ask" in args:
+        n = args.index("--ask")
+        prompt = args[n + 1] if n + 1 < len(args) else None
+    for taken in (page, prompt):
+        if taken in rest:
+            rest.remove(taken)
+
+    who = (state_agent(live) or {}).get("agent")
+    if "--route" in args:
+        settings, why = seeing.route(who)
+        if not settings:
+            print(why, file=sys.stderr)
+            return 1
+        print("%s  %s  via the '%s' recipe"
+              % (settings.get("model"), settings.get("endpoint"),
+                 settings.get("agent")))
+        return 0
+    if not rest:
+        print("board see <path> -- an image, or a PDF with --page N",
+              file=sys.stderr)
+        return 1
+    try:
+        said, _settings = seeing.describe(rest[0], page=page, prompt=prompt,
+                                          agent=who, root=live.root)
+    except seeing.Refused as exc:
+        print(str(exc), file=sys.stderr)
+        return 1
+    print(said)
+    return 0
+
+
 def machine_shape():
     """What this machine is for. Platform knowledge, so it lives in boardlib."""
     return machine.machine_shape()
@@ -3437,9 +3508,17 @@ def tutor_health(live):
         pass
     wanted = cfg.get("default_agent") or "(unset)"
     print("teaching: '%s'" % wanted)
-    if wanted != "(unset)" and not shutil.which(
-            ((cfg.get("agents") or {}).get(wanted) or {}).get("cmd", [wanted])[0]):
+    recipe = (cfg.get("agents") or {}).get(wanted) or {}
+    if wanted != "(unset)" and not shutil.which(recipe.get("cmd", [wanted])[0]):
         print("          NOT INSTALLED here — every turn would fail into a log")
+        return False
+    # The second way a recipe cannot run, and it fails identically: a daemon
+    # that listens and then dies every turn in a log nobody opens. Named here
+    # because `board doctor` is what somebody runs while a student is waiting.
+    need = keys.unkeyed(recipe)
+    if need:
+        print("          NEEDS %s in %s — put one `%s=...` line in it"
+              % (need, keys.store(), need))
         return False
     until = limits.limited_until()
     if until:
@@ -3455,6 +3534,7 @@ COMMANDS = {
     "inbox": cmd_inbox, "archive": cmd_archive, "export": cmd_export,
     "doctor": cmd_doctor, "slate": cmd_slate, "wait": cmd_wait,
     "net": cmd_net, "vpn": cmd_vpn, "init": cmd_init, "eyes": cmd_eyes,
+    "see": cmd_see,
     "finish": cmd_finish, "push": cmd_push, "history": cmd_history,
     "hw": cmd_hw, "review": cmd_review, "recap": cmd_recap, "node": cmd_node,
     "walk": cmd_walk,

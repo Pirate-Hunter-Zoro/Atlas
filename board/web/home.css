@@ -267,11 +267,42 @@ h2 {
 }
 .hint { margin: 0 0 .8rem; font-size: .82rem; color: var(--ink-3); }
 
+/* WHO THIS MACHINE TEACHES WITH. The same buttons as the board's own chooser
+   and the same rules behind them -- see web/who.js -- one layer down: this sets
+   the machine default rather than one sitting. */
+.who {
+  display: flex; align-items: center; gap: .4rem; flex-wrap: wrap;
+  margin-top: 3rem; padding-top: 1rem; border-top: 1px solid var(--rule);
+}
+.who-lead {
+  font-family: var(--ui); font-size: .68rem; color: var(--ink-3);
+  letter-spacing: .04em;
+}
+.who-ways { display: inline-flex; gap: .3rem; flex-wrap: wrap; }
+/* 2.75rem, like every other thing on this page a finger has to hit. A chooser
+   nobody can tap on the device it exists for is furniture. */
+.who-ways button {
+  font-family: var(--ui); font-size: .78rem;
+  min-height: 2.75rem; padding: .4rem .8rem; border-radius: .4rem;
+  border: 1px solid var(--rule); background: transparent; color: var(--ink-2);
+}
+.who-ways button.on {
+  background: var(--ink-3); border-color: var(--ink-3); color: #fff; font-weight: 600;
+}
+.who-ways button.away { opacity: .55; }
+.who-note {
+  flex-basis: 100%;
+  font-family: var(--ui); font-size: .66rem; line-height: 1.35; color: var(--ink-3);
+}
+
 .where {
   margin-top: 3rem; padding-top: 1rem; border-top: 1px solid var(--rule);
   font-family: var(--mono);
   font-size: .7rem; color: var(--ink-3); word-break: break-all;
 }
+/* Two rules back to back is one gap, not two -- and only when the row above is
+   actually drawn, which on a machine with one assistant it is not. */
+.who:not([hidden]) + .where { margin-top: 1.4rem; }
 
 /* ---------- switching ---------- */
 .busy {
