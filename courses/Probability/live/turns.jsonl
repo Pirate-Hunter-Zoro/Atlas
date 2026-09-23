@@ -20,3 +20,4 @@
 {"id": "t0069", "rev": 1, "kind": "text", "answers": "0019", "t": 1790200493.943475, "iso": "2026-09-23 16:54:53", "from": "student", "text": "Put these two new problems that we had to redo in their own write up", "signal": null, "read": false}
 {"id": "t0070", "rev": 1, "kind": "ink", "answers": "0019", "t": 1790201830.5562181, "iso": "2026-09-23 17:17:10", "from": "student", "page": 83, "strokes": 253, "png": "/answers/t0070-r1.png", "ink": "/answers/t0070-r1.json", "read": false}
 {"id": "t0070", "rev": 2, "kind": "ink", "answers": "0019", "t": 1790201885.733907, "iso": "2026-09-23 17:18:05", "from": "student", "page": 83, "strokes": 253, "png": "/answers/t0070-r2.png", "ink": "/answers/t0070-r2.json", "read": false}
+{"id": "t0070", "rev": 3, "kind": "ink", "answers": "0019", "t": 1790202056.9962387, "iso": "2026-09-23 17:20:56", "from": "student", "page": 83, "strokes": 253, "png": "/answers/t0070-r3.png", "ink": "/answers/t0070-r3.json", "read": false}
