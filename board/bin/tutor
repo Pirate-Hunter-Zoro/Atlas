@@ -4764,13 +4764,15 @@ def watch_once(cfg, host, memo, say, claim=False):
     # link that failed there was never retried: measured on compute306, where
     # every process was healthy, both boards answered on loopback, and the glass
     # stayed white.
-    addr = memo.setdefault("#address", {"at": 0.0, "tries": 0})
+    addr = memo.setdefault("#address", {"at": 0.0, "tries": 0,
+                                        "waiting": False})
     now = time.time()
     if now >= addr["at"]:
         here = [c for c in courses(cfg)
                 if processes.board_is_running(
                     (board_record(c["root"]) or {}).get("pid"), c["root"])
                 and (board_record(c["root"]) or {}).get("node") == host]
+        stalled = None
         if here:
             # WHICH COURSE THE ADDRESS IS FOR IS A DECISION. `address_course`
             # reads the person's, and reads nothing else; with no choice
@@ -4801,8 +4803,49 @@ def watch_once(cfg, host, memo, say, claim=False):
                     # the chosen board a few seconds down, mid-restart -- hands
                     # the name to the next course along and nothing ever asks
                     # again. The name has to be on the chosen board's own port.
-                    why = "the address is pointing at a course nobody chose"
-                    forced = True
+                    #
+                    # WHICH IS ALSO WHERE ANSWERING IS NOT OWNING LANDS. A board
+                    # an ended generation left behind answers exactly like a
+                    # live one and is named by no record, so "does anything
+                    # answer" calls the name resting on it healthy for as long
+                    # as that process lives -- and a leftover's port is not the
+                    # chosen board's port either, so this is the test that takes
+                    # the name off it. No separate one: a leftover is still an
+                    # address that draws, and with nobody having chosen there is
+                    # nothing here entitled to move it onto something else.
+                    #
+                    # ONLY A CHOICE REACHES THIS BRANCH, and `guess` is what
+                    # keeps it that way: this is the one place that overrides
+                    # the guard against a wandering address, and the alphabet
+                    # is not entitled to it. A record with no port says nothing
+                    # either way and is left alone -- a truncated record read as
+                    # drift is a claim every pass, for ever.
+                    #
+                    # AND A NAME IS WORTH MOVING ONLY ONTO A BOARD THAT CAN DRAW
+                    # SOMETHING. `here` is a pid and a node, which a wedged
+                    # board passes: alive, holding its port, answering nothing.
+                    # Claiming for that is a white screen in exchange for a
+                    # working wrong lesson. The wedged board is the half above's
+                    # to fix -- it stops the pid, starts it again and links it --
+                    # and the name comes back on the pass after that one.
+                    if supervise.answering(int(mine)):
+                        why = "the address is pointing at a course nobody chose"
+                        forced = True
+                    else:
+                        stalled = True
+            # HOLDING STILL IS ALSO A THING TO SAY, once. The name is on a
+            # course nobody chose and the chosen course's board cannot be given
+            # it yet, which is a state a reader of the log has to be able to
+            # see; a line every twenty seconds is not seeing it. The flag marks
+            # the entry, and is cleared wherever the state is not so the next
+            # time is reported too. `tries` is untouched by it: the recheck is
+            # the next pass, not a backoff away, because this clears the moment
+            # the board half finishes.
+            if stalled and not addr["waiting"]:
+                did.append("the address is pointing at a course nobody chose, "
+                           "and %s's own board is not answering yet, so the "
+                           "name is left where it is" % want["dir"])
+                say(did[-1])
             if why:
                 if forced:
                     # A name on another course's LIVE board is not free, and
@@ -4812,9 +4855,20 @@ def watch_once(cfg, host, memo, say, claim=False):
                     # thing that may, so it uses the forced claim -- the same
                     # command a person types to say which course they mean,
                     # typed here on their behalf because they already said it.
-                    board(want["root"], "vpn", "serve")
-                    did.append("%s, so the address was pointed back at %s"
-                               % (why, want["dir"]))
+                    #
+                    # A CLAIM THAT FAILED MUST NOT READ LIKE ONE THAT WORKED.
+                    # `tailscaled` runs on a node that is not logged in, so the
+                    # gate above passes and the serve is still refused -- and
+                    # unlike `link` this path never runs `board vpn up` first.
+                    # The exit code is the only thing that knows.
+                    code, out = board(want["root"], "vpn", "serve")
+                    if code == 0:
+                        did.append("%s, so the address was pointed back at %s"
+                                   % (why, want["dir"]))
+                    else:
+                        did.append("%s -- and the claim for %s would not go "
+                                   "through (%s)"
+                                   % (why, want["dir"], last_line(out)))
                 else:
                     link(want["root"])
                     did.append("%s, so the link was brought up for %s"
@@ -4824,6 +4878,12 @@ def watch_once(cfg, host, memo, say, claim=False):
                 say(did[-1])
             else:
                 addr["tries"] = 0
+        # A pass with no board up here is not the state ending, but it is not
+        # the state either, and the flag has to come off in both: an empty
+        # `here` is what a generation handover looks like, which is exactly when
+        # the address gets stuck, and a flag left set there silences the line on
+        # the way back in.
+        addr["waiting"] = bool(stalled)
     return did
 
 

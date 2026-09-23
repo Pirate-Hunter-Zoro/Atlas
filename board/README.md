@@ -2465,7 +2465,13 @@ So it is recorded, published and checked:
   moment of the chosen board being down — a restart, a few seconds — hands the name to the next
   course along and nothing asks again. A drifted name is claimed back with the forced `board vpn
   serve`, because `--if-free` will not take a name off a live board and a standing choice is the one
-  thing entitled to. With nobody having chosen, the loop keeps the address alive and never moves it.
+  thing entitled to — once that course's own board answers, since a name is worth moving only onto a
+  board that can draw something, and a wedged board is the board half's to fix first. A board an
+  ended generation left behind answers exactly like a live one (*answering is not owning*), and the
+  same test takes the name off it, because a leftover's port is not the chosen board's recorded one.
+  A claim the tailnet refuses reads as a refusal rather than as a repair, and so does holding still:
+  the name staying on a course nobody chose is said once, on the way into that state. With nobody
+  having chosen, the loop keeps the address alive and never moves it.
 - **`/health` also says which course this board is**, and nothing is offered the address whose name
   does not match the course that was asked for. Ports are derived from names, and derivation is not
   proof: a hash can put two courses on one number, and a start whose port was busy moves to the next

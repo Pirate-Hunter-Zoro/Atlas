@@ -200,10 +200,16 @@ try:
     # because which board the name is on is the whole question the address pass
     # asks; 9001 is Up's, which is the healthy answer.
     holding = {"port": "9001"}
+    # And whether the tailnet takes the claim. `tailscaled` runs on a node that
+    # is not logged in, so a refusal is an ordinary answer and the exit code is
+    # the only thing carrying it.
+    refuses = {"serve": False}
 
     def fake_board(root, *args):
         calls["board"].append((os.path.basename(root), " ".join(args[:2])))
         if args[0] == "vpn":
+            if args[1:2] == ("serve",) and refuses["serve"]:
+                return 1, "tailscale: not logged in\n"
             # `vpn holder` answers with the port the HTTPS name is proxying to,
             # and nothing else -- that is the contract the loop reads.
             return 0, holding["port"]
@@ -280,6 +286,16 @@ try:
         return [c for c in calls["board"] if c == (dirs, "vpn serve")]
 
     choice.remember_chosen("Up", os.path.join(tmp, "Up"))
+    # AND THE FILES SAY OTHERWISE, which is the shape the fault arrived in. A
+    # tutor writes cards and transcript pushes into its own course every few
+    # minutes, so `live/` in whatever course is busiest is newer than the choice
+    # within minutes of the choice being made, and a resolver that blends the
+    # two has the busiest course outvote the person. Alongside is that course
+    # here; the checks below are what has to fail if the address ever reads file
+    # times again.
+    newer = time.time() + 600
+    os.utime(os.path.join(tmp, "Alongside", "live", ".board.json"),
+             (newer, newer))
     holding["port"] = "9006"          # the name has ended up on the other board
     calls["board"], calls["link"] = [], []
     memo = {}
@@ -293,6 +309,52 @@ try:
     check("the course somebody chose beats the newest files on disk, which is "
           "every course a tutor is running in",
           not served("Alongside"))
+
+    # A WEDGED CHOSEN BOARD IS NOT WORTH THE NAME. Membership of `here` is a pid
+    # and a node, which a wedged board passes: alive, holding its port,
+    # answering nothing. Claiming for it trades a wrong lesson somebody can read
+    # for a white screen, and the board half of the same pass is already fixing
+    # the board -- so the name waits one pass rather than moving onto nothing.
+    supervise.answering = lambda port, timeout=3.0: int(port) != 9001
+    calls["board"], calls["link"] = [], []
+    memo = {}
+    said = tutor.watch_once(cfg, HOST, memo, lambda line: None)
+    check("the name is not pulled off a board that answers and onto the chosen "
+          "course's own board that does not",
+          not served("Up"))
+    check("and standing still is said out loud, because a watchdog that holds "
+          "the wrong course silently is the first fault wearing the other coat",
+          any("left where it is" in l for l in said))
+    said = tutor.watch_once(cfg, HOST, memo, lambda line: None)
+    check("said on the way in and not once every pass for as long as it lasts",
+          not any("left where it is" in l for l in said))
+    # AND A PASS WITH NO BOARD UP HERE IS NOT THE STATE ENDING. An empty `here`
+    # is what a generation handover looks like, which is the moment the address
+    # is most likely to be stuck; a flag left set across it silences the line on
+    # the way back in, for the rest of the episode.
+    running = processes.board_is_running
+    processes.board_is_running = lambda pid, root: False
+    tutor.watch_once(cfg, HOST, memo, lambda line: None)
+    processes.board_is_running = running
+    said = tutor.watch_once(cfg, HOST, memo, lambda line: None)
+    check("and said again after a pass with nothing up here at all, which is "
+          "the state being left rather than the state ending",
+          any("left where it is" in l for l in said))
+    supervise.answering = lambda port, timeout=3.0: True
+
+    # A CLAIM THE TAILNET REFUSED IS NOT A REPAIR. The gate is `tailscaled`
+    # running, which is true on a node that is not logged in, and the forced
+    # claim never runs `board vpn up` first: the exit code is the only thing
+    # that knows whether the name moved.
+    refuses["serve"] = True
+    calls["board"], calls["link"] = [], []
+    memo = {}
+    said = tutor.watch_once(cfg, HOST, memo, lambda line: None)
+    check("a claim the tailnet refused is reported as refused, not as the "
+          "address being back where it belongs",
+          served("Up") and any("would not go through" in l for l in said)
+          and not any("pointed back at" in l for l in said))
+    refuses["serve"] = False
 
     holding["port"] = "9001"          # back on Up, which is the chosen course
     calls["board"], calls["link"] = [], []
@@ -314,6 +376,33 @@ try:
           "address off a board that is answering",
           not served("Alongside") and not served("Up")
           and "Alongside" not in calls["link"])
+
+    # ANSWERING IS NOT OWNING, and a guess is not the exception to it either. A
+    # board an ended generation left behind answers exactly like a live one and
+    # is named by no record, so the answering test alone calls the name resting
+    # on it healthy for as long as that process lives -- but it still draws, and
+    # the alphabet is no better an answer for a leftover than for a live board.
+    holding["port"] = "9098"
+    calls["board"], calls["link"] = [], []
+    memo = {}
+    said = tutor.watch_once(cfg, HOST, memo, lambda line: None)
+    check("with nobody having chosen, a leftover holding the name is left "
+          "holding it rather than traded for whichever course sorts first",
+          not served("Alongside") and not served("Up")
+          and "Alongside" not in calls["link"])
+
+    # And with a choice standing, the chosen board's own port is what takes the
+    # name off the leftover -- the same test as drift, because a leftover's port
+    # is not the chosen board's port either.
+    choice.remember_chosen("Up", os.path.join(tmp, "Up"))
+    calls["board"], calls["link"] = [], []
+    memo = {}
+    said = tutor.watch_once(cfg, HOST, memo, lambda line: None)
+    check("and a choice standing takes the name off the leftover, onto the "
+          "board a record here actually names",
+          served("Up") and any("nobody chose" in l for l in said))
+    os.remove(paths.CHOSEN)
+    holding["port"] = "9006"
 
     choice.remember_chosen("Elsewhere", os.path.join(tmp, "Elsewhere"))
     calls["board"], calls["link"] = [], []
