@@ -42,7 +42,25 @@
   irreducible in $R[x]$.
 \end{problem}
 % ===== SOLUTION 05.6 =====
-% TODO(mferguson): your work goes here.
+\begin{proof}
+Reduce the coefficients of $f$ modulo $p$. Since $p \mid f_i$ for
+$1 \le i \le n$, we get $\bar f = \bar f_0$, which is of degree zero, as
+$p \nmid f_0$.
+
+Suppose $f = gh$ with $g, h \in R[x]$. Then $\bar f = \bar g\,\bar h$, and since
+$(p)$ is prime, $R/(p)$ is an integral domain, so degrees add and both $\bar g$
+and $\bar h$ must be of degree zero.
+
+\emph{Case 1: $g$ and $h$ both of positive degree.} Write $k = \deg g$ and
+$m = \deg h$, so $f_n = g_k h_m$. Since $\bar g$ and $\bar h$ are constants, the
+leading coefficients vanish mod $p$: $p \mid g_k$ and $p \mid h_m$. Hence
+$p^2 \mid f_n$, a contradiction.
+
+\emph{Case 2: $g$ or $h$ of degree zero.} Without loss of generality
+$\deg h = \deg f$ and $g(x) = c \in R$. Then $f_i = c\,h_i$ for all $i$, so
+$c \mid f_i$ for every $i$. Since the $f_i$ are relatively prime, $c$ must be a
+unit, and so $f$ is irreducible in this case too.
+\end{proof}
 % ===== END SOLUTION 05.6 =====
 
 \begin{problem}{05.7}
