@@ -17,6 +17,7 @@ course they mean.
 import importlib.machinery
 import importlib.util
 import os
+import shutil
 import socket
 import sys
 
@@ -210,6 +211,182 @@ src_board = open(os.path.join(ROOT, "bin", "board"), encoding="utf-8").read()
     "one that points at a port nothing answers on")
 (ok if 'if host == "0.0.0.0"' in src_serve else fail)(
     "but not on the LAN unless somebody asked for that")
+
+
+# ---- and the client stays current, which nothing else here does -----------
+#
+# An unprivileged Tailscale is a tarball somebody unpacked into a home
+# directory. No package manager knows it exists, `tailscale update` refuses a
+# static build, and there is no administrator to notice -- so it sits at the
+# version of the afternoon it was installed while the hosted control plane it
+# talks to moves. `vendor/colibri` has the same problem and gets the same two
+# moments: the login hook, and the daily timer that stands in for a login on a
+# machine left up for a week.
+#
+# Everything below runs against a FAKE install and a FAKE index. The real one
+# is what this machine is on the tailnet with, and a suite that replaces those
+# binaries takes the address down under whoever is holding the iPad.
+import io as _io
+import json as _json
+import tarfile
+import tempfile
+import time as _time
+import urllib.request
+
+from tutorboard.net import tailscale as ts                   # noqa: E402
+
+(ok if ts._is_version("1.102.4") else fail)("a version is digits and dots")
+(ok if not any(ts._is_version(v) for v in
+               ("", "latest", "1", "../../etc/passwd", "1.2.3; rm -rf ~",
+                "1." + "9" * 40))
+ else fail)("and anything that could be a path or a command is not one, "
+            "because it goes into a URL and into a filename")
+
+sand = tempfile.mkdtemp(prefix="tutor-ts-update-")
+ts.TS_OPT = os.path.join(sand, "opt")
+ts.UPDATE_LOCK = os.path.join(sand, "update.lock")
+ts.UPDATE_STAMP = os.path.join(sand, "update.checked")
+os.makedirs(ts.TS_OPT)
+
+asked = []
+real_urlopen = urllib.request.urlopen
+
+
+def tarball(version, prints):
+    """A tarball shaped like the one pkgs.tailscale.com serves."""
+    buf = _io.BytesIO()
+    with tarfile.open(fileobj=buf, mode="w:gz") as tar:
+        for name in ("tailscale", "tailscaled"):
+            body = ("#!/bin/sh\necho %s\n" % prints).encode()
+            info = tarfile.TarInfo("tailscale_%s_amd64/%s" % (version, name))
+            info.size = len(body)
+            info.mode = 0o755
+            tar.addfile(info, _io.BytesIO(body))
+    return buf.getvalue()
+
+
+SERVED = {"version": "9.9.9", "prints": "9.9.9"}
+
+
+def fake_urlopen(url, timeout=None):
+    asked.append(url)
+    if url == ts.PKGS_INDEX:
+        return _io.BytesIO(_json.dumps(
+            {"TarballsVersion": SERVED["version"]}).encode())
+    if url.endswith(".tgz"):
+        return _io.BytesIO(tarball(SERVED["version"], SERVED["prints"]))
+    raise OSError("nothing serves %s" % url)
+
+
+urllib.request.urlopen = fake_urlopen
+
+
+def install(version):
+    for name in ("tailscale", "tailscaled"):
+        path = os.path.join(ts.TS_OPT, name)
+        with open(path, "w", encoding="utf-8") as fh:
+            fh.write("#!/bin/sh\necho %s\n" % version)
+        os.chmod(path, 0o755)
+
+
+def wipe_stamp():
+    if os.path.exists(ts.UPDATE_STAMP):
+        os.remove(ts.UPDATE_STAMP)
+
+
+try:
+    del asked[:]
+    (ok if ts.update_userspace(quiet=True) is None else fail)(
+        "with no install of ours in this home, there is nothing to update")
+    (ok if not asked else fail)(
+        "and the index is not asked about a machine whose tailscale belongs "
+        "to root, because there is no sudo here to use the answer")
+
+    install("1.0.0")
+    (ok if ts.installed_version() == "1.0.0" else fail)(
+        "the installed version is read off the binary that will actually run")
+
+    del asked[:]
+    (ok if ts.update_userspace(quiet=True) is True else fail)(
+        "a newer version is fetched, proved and moved into place")
+    (ok if ts.installed_version() == "9.9.9" else fail)(
+        "and the CLI on the path is the new one")
+
+    # The property that makes this safe to run under a live daemon: the file is
+    # REPLACED rather than written through, so the running tailscaled keeps the
+    # inode it opened and goes on serving the tailnet name at the old version.
+    live = open(os.path.join(ts.TS_OPT, "tailscaled"), "rb")
+    before = os.fstat(live.fileno()).st_ino
+    SERVED["version"] = SERVED["prints"] = "9.9.10"
+    wipe_stamp()
+    ts.update_userspace(quiet=True)
+    after = os.stat(os.path.join(ts.TS_OPT, "tailscaled")).st_ino
+    (ok if before != after and b"9.9.9" in live.read() else fail)(
+        "an update swaps the inode rather than rewriting the file, so a live "
+        "tailscaled keeps the binary it is running and the tailnet name does "
+        "not go down to update it")
+    live.close()
+
+    # The stamp. A login is not a rare event -- four terminals on a node in a
+    # morning is four logins -- and each one asking the internet is three of
+    # them wasted.
+    del asked[:]
+    (ok if ts.update_userspace(quiet=True) is True and not asked else fail)(
+        "a second login the same day asks nothing at all")
+    del asked[:]
+    SERVED["version"] = SERVED["prints"] = "9.9.11"
+    (ok if ts.update_userspace(quiet=True, force=True) is True
+        and ts.installed_version() == "9.9.11" else fail)(
+        "while `tutor pull` forces it, because that IS the daily job")
+
+    # A binary that does not run is not an update. An archive for the wrong
+    # architecture unpacks perfectly and leaves a machine with no Tailscale.
+    wipe_stamp()
+    SERVED["version"] = "9.9.12"
+    SERVED["prints"] = "not-a-version"
+    (ok if ts.update_userspace(quiet=True) is False
+        and ts.installed_version() == "9.9.11" else fail)(
+        "a download that will not run here is refused and the working one is "
+        "left exactly where it was")
+
+    # One shared home, seven compute nodes, and every login runs this.
+    wipe_stamp()
+    SERVED["version"] = SERVED["prints"] = "9.9.13"
+    with open(ts.UPDATE_LOCK, "w", encoding="utf-8") as fh:
+        fh.write("")
+    del asked[:]
+    (ok if ts.update_userspace(quiet=True) is True
+        and ts.installed_version() == "9.9.11" else fail)(
+        "with another node already downloading into the same home directory, "
+        "this one stands aside rather than fetching 76 MB over the top of it")
+    os.utime(ts.UPDATE_LOCK, (_time.time() - ts.LOCK_STALE - 60,) * 2)
+    wipe_stamp()
+    (ok if ts.update_userspace(quiet=True) is True
+        and ts.installed_version() == "9.9.13" else fail)(
+        "and a lock left behind by a node that was killed mid-download goes "
+        "stale, because a lock nothing can clear is a machine that never "
+        "updates again")
+
+    # No index, no news. A node whose egress is down has worse problems and a
+    # login is not where it should hear about them.
+    wipe_stamp()
+    urllib.request.urlopen = lambda url, timeout=None: (_ for _ in ()).throw(
+        OSError("no route"))
+    (ok if ts.update_userspace(quiet=True) is False
+        and ts.installed_version() == "9.9.13" else fail)(
+        "an unreachable index changes nothing and leaves the install alone")
+finally:
+    urllib.request.urlopen = real_urlopen
+    shutil.rmtree(sand, ignore_errors=True)
+
+# And the two moments it happens in, which are `vendor/colibri`'s two moments.
+src_tutor = open(os.path.join(ROOT, "bin", "tutor"), encoding="utf-8").read()
+(ok if "tailscale.update_userspace(quiet=quiet)" in src_tutor else fail)(
+    "a login pulls the tailscale client forward, which is the one moment a "
+    "compute node gets")
+(ok if "tailscale.update_userspace(quiet=quiet, force=True)" in src_tutor else fail)(
+    "and so does `tutor pull`, which is what the daily timer runs on a "
+    "machine that is left up and never has a login")
 
 print("\n%d FAILURES" % len(errors) if errors else "\nthe address stays with the course")
 sys.exit(1 if errors else 0)

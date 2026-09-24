@@ -233,11 +233,247 @@ def tailscale_cli():
 
 def tailscale_download_hint():
     """The right static build to fetch. Every machine here needs its own."""
+    return ("mkdir -p ~/.local/opt/tailscale\n"
+            "curl -L https://pkgs.tailscale.com/stable/tailscale_%s_%s.tgz \\\n"
+            "  | tar xz --strip-components=1 -C ~/.local/opt/tailscale\n"
+            "ln -s ~/.local/opt/tailscale/tailscale{,d} ~/.local/bin/"
+            % (latest_version(timeout=6) or FALLBACK_VERSION, _arch()))
+
+
+# ---------------------------------------------------------------------------
+# Keeping it current, which nothing else on this machine does
+# ---------------------------------------------------------------------------
+# An unprivileged Tailscale is a tarball somebody unpacked into their home
+# directory once. No package manager knows about it, `tailscale update` refuses
+# a static build, and there is no administrator to notice -- so it sits at
+# whatever version the afternoon it was installed happened to serve, while the
+# thing it talks to is a hosted control plane that moves. That is the same
+# problem `vendor/colibri` has and it gets the same answer: the login hook, and
+# the daily timer that stands in for a login on a machine left up for a week.
+TS_OPT = os.environ.get("BOARD_TAILSCALE_DIR") or os.path.join(
+    paths.HOME, ".local", "opt", "tailscale")
+PKGS_INDEX = "https://pkgs.tailscale.com/stable/?mode=json"
+
+# What the installer prints when the index cannot be reached. It is the version
+# this was last known to work on, and it is the one field here that goes stale.
+FALLBACK_VERSION = "1.102.3"
+
+# Every compute node's login runs this against ONE shared home directory, so
+# two of them arriving at the same minute would both download 76 MB into the
+# same place. Stale after half an hour: a node killed mid-download leaves the
+# file behind, and a lock nothing can clear is a machine that never updates
+# again.
+UPDATE_LOCK = os.path.join(TS_DIR, "update.lock")
+LOCK_STALE = 1800
+
+# ASKED AT MOST ONCE A DAY, because a login is not a rare event: a person opens
+# four terminals on a node in a morning and each one runs the login hook. The
+# stamp is written whether or not the index answered, so a node with no egress
+# costs one timeout a day rather than one per terminal.
+UPDATE_STAMP = os.path.join(TS_DIR, "update.checked")
+
+
+def _arch():
     import platform
     machine = platform.machine().lower()
-    arch = {"x86_64": "amd64", "amd64": "amd64",
+    return {"x86_64": "amd64", "amd64": "amd64",
             "aarch64": "arm64", "arm64": "arm64"}.get(machine, "amd64")
-    return ("mkdir -p ~/.local/opt/tailscale\n"
-            "curl -L https://pkgs.tailscale.com/stable/tailscale_1.102.3_%s.tgz \\\n"
-            "  | tar xz --strip-components=1 -C ~/.local/opt/tailscale\n"
-            "ln -s ~/.local/opt/tailscale/tailscale{,d} ~/.local/bin/" % arch)
+
+
+def _is_version(v):
+    """A version string, and nothing that could be a path or a sentence.
+
+    It goes into a URL and into a filename, so it is checked rather than
+    trusted: this is a document on the internet, not a constant.
+    """
+    parts = (v or "").split(".")
+    return (1 < len(parts) < 6 and len(v) < 32
+            and all(p.isdigit() for p in parts))
+
+
+def latest_version(timeout=15):
+    """The version pkgs.tailscale.com is serving today, or None.
+
+    None is a network answer, not an error: the index is unreachable from a
+    node whose egress is down, and that is not a reason to say anything on a
+    login.
+    """
+    import urllib.request
+    try:
+        with urllib.request.urlopen(PKGS_INDEX, timeout=timeout) as fh:
+            got = json.loads(fh.read(1 << 20).decode("utf-8", "replace")) or {}
+    except (OSError, ValueError):
+        return None
+    v = str((got or {}).get("TarballsVersion") or "").strip()
+    return v if _is_version(v) else None
+
+
+def installed_version():
+    """The version of the Tailscale under this home, or None if there is none.
+
+    Asked of the binary rather than of a file we wrote, because the binary is
+    the thing that is actually going to run.
+    """
+    exe = os.path.join(TS_OPT, "tailscale")
+    if not os.path.isfile(exe):
+        return None
+    try:
+        p = subprocess.run([exe, "version"], stdout=subprocess.PIPE,
+                           stderr=subprocess.DEVNULL, timeout=20)
+    except (OSError, subprocess.SubprocessError):
+        return None
+    lines = p.stdout.decode("utf-8", "replace").strip().splitlines()
+    v = lines[0].strip() if lines else ""
+    return v if _is_version(v) else None
+
+
+def _checked_today():
+    try:
+        with open(UPDATE_STAMP, "r", encoding="utf-8") as fh:
+            return fh.read().strip() == time.strftime("%Y-%m-%d")
+    except OSError:
+        return False
+
+
+def _mark_checked():
+    try:
+        os.makedirs(os.path.dirname(UPDATE_STAMP), exist_ok=True)
+        with open(UPDATE_STAMP, "w", encoding="utf-8") as fh:
+            fh.write(time.strftime("%Y-%m-%d") + "\n")
+    except OSError:
+        pass
+
+
+def _take_lock(retry=True):
+    try:
+        os.makedirs(os.path.dirname(UPDATE_LOCK), exist_ok=True)
+        fd = os.open(UPDATE_LOCK, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
+    except FileExistsError:
+        try:
+            stale = time.time() - os.path.getmtime(UPDATE_LOCK) > LOCK_STALE
+        except OSError:
+            return False
+        if not stale or not retry:
+            return False
+        try:
+            os.unlink(UPDATE_LOCK)
+        except OSError:
+            return False
+        return _take_lock(retry=False)
+    except OSError:
+        # Nowhere to write a lock is not a reason to stop: a second download is
+        # cheaper than a machine that never updates.
+        return True
+    os.close(fd)
+    return True
+
+
+def _drop_lock():
+    try:
+        os.unlink(UPDATE_LOCK)
+    except OSError:
+        pass
+
+
+def update_userspace(quiet=False, force=False, timeout=300):
+    """Move the userspace Tailscale in `$HOME` forward, and say so if it moved.
+
+    `None` where there is nothing here of ours to update, `False` where it was
+    tried and could not be done, `True` otherwise -- the shape `pull_vendor` in
+    `bin/tutor` returns, because this is called from the same two places and by
+    the same rules: quiet when there is nothing to do, and never fatal.
+
+    Four decisions, and each one is a thing that would otherwise be wrong:
+
+    * **Only the copy under this home.** A `/usr/bin/tailscale` belongs to root,
+      there is no sudo on these nodes, and a second opinion about a root
+      daemon's binary is worse than an old one.
+    * **THE RUNNING DAEMON IS NOT RESTARTED.** Replacing the file leaves the
+      live `tailscaled` on the inode it opened, so it goes on serving the
+      tailnet name at the old version and the new binary is what the NEXT
+      `board vpn up` starts -- on a compute node, the next allocation.
+      Restarting it here would take the address down under somebody holding an
+      iPad, which is the one thing this tool may not do to repair itself.
+    * **Staged, then moved.** The archive is unpacked into a temporary directory
+      beside the install and each binary is moved in with `os.replace`, which is
+      atomic on one filesystem. A download that dies halfway can then never be
+      the CLI.
+    * **And PROVED before it is moved**, by running it and reading its version
+      back. A tarball for the wrong architecture unpacks perfectly and is a
+      machine with no Tailscale at all.
+    """
+    import shutil as _shutil
+    import tarfile
+    import tempfile
+    import urllib.request
+
+    def say(msg):
+        if not quiet:
+            print("  " + msg)
+
+    if not os.path.isfile(os.path.join(TS_OPT, "tailscaled")):
+        return None                      # not ours, or not here; nothing to do
+
+    if not force and _checked_today():
+        return True
+    _mark_checked()
+
+    have = installed_version()
+    want = latest_version()
+    if not want:
+        return False                     # no index, no news; silent on a login
+    if have == want:
+        return True                      # current, and silent about that too
+
+    if not _take_lock():
+        return True                      # another node has it; not ours to say
+
+    work = None
+    try:
+        work = tempfile.mkdtemp(prefix=".tailscale-update-",
+                                dir=os.path.dirname(TS_OPT))
+        tgz = os.path.join(work, "tailscale.tgz")
+        url = ("https://pkgs.tailscale.com/stable/tailscale_%s_%s.tgz"
+               % (want, _arch()))
+        with urllib.request.urlopen(url, timeout=timeout) as fh:
+            with open(tgz, "wb") as out:
+                _shutil.copyfileobj(fh, out)
+
+        # Two files out of the archive, by basename, so nothing it names can
+        # decide where it lands. The systemd units in there are for a machine
+        # with an administrator.
+        with tarfile.open(tgz) as tar:
+            for member in tar.getmembers():
+                base = os.path.basename(member.name)
+                if member.isfile() and base in ("tailscale", "tailscaled"):
+                    member.name = base
+                    tar.extract(member, work)
+        staged = [os.path.join(work, n) for n in ("tailscale", "tailscaled")]
+        if not all(os.path.isfile(f) for f in staged):
+            say("tailscale %s: the archive did not carry both binaries" % want)
+            return False
+        for f in staged:
+            os.chmod(f, 0o755)
+
+        p = subprocess.run([staged[0], "version"], stdout=subprocess.PIPE,
+                           stderr=subprocess.DEVNULL, timeout=30)
+        got = p.stdout.decode("utf-8", "replace").strip().splitlines()
+        if p.returncode != 0 or not got or got[0].strip() != want:
+            say("tailscale %s: the downloaded binary does not run here; "
+                "leaving %s in place" % (want, have or "what is installed"))
+            return False
+
+        for f in staged:
+            os.replace(f, os.path.join(TS_OPT, os.path.basename(f)))
+    except (OSError, ValueError, tarfile.TarError,
+            subprocess.SubprocessError) as exc:
+        say("tailscale not updated: %s" % exc)
+        return False
+    finally:
+        if work:
+            _shutil.rmtree(work, ignore_errors=True)
+        _drop_lock()
+
+    say("tailscale %s -> %s; the running daemon keeps %s until it is next "
+        "started" % (have or "an unknown version", want, have or "the old one"))
+    return True

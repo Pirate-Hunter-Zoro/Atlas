@@ -5033,12 +5033,42 @@ install possible.
 
 ```
 mkdir -p ~/.local/opt/tailscale
-curl -L https://pkgs.tailscale.com/stable/tailscale_1.102.3_amd64.tgz \
+curl -L https://pkgs.tailscale.com/stable/tailscale_1.102.4_amd64.tgz \
   | tar xz --strip-components=1 -C ~/.local/opt/tailscale
 ln -s ~/.local/opt/tailscale/tailscale{,d} ~/.local/bin/
 ```
 
-Check <https://pkgs.tailscale.com/stable/> for the current version and the right architecture.
+`bash install.sh` prints that same command with the version the index is serving today and the
+architecture of the machine you are on, so neither has to be looked up.
+
+### And it keeps itself current
+
+Nothing else on the machine will. No package manager knows this install exists, `tailscale
+update` refuses a static build, and there is no administrator to notice — so without this it sits
+at the version of the afternoon it was unpacked while the hosted control plane moves on.
+
+`update_userspace` in `net/tailscale.py` fetches the current stable tarball and moves the two
+binaries into place. It runs in `vendor/colibri`'s two moments and for the same reasons: `tutor
+resume`, which is the one moment a compute node gets, and `tutor pull`, which is what the daily
+timer runs on a machine that is left up for a week and never has a login. The index is asked at
+most once a day — four terminals in a morning is four logins — and `tutor pull` forces it, because
+that is itself the daily job.
+
+Four things it will not do:
+
+- **Touch a Tailscale it does not own.** Only the copy under `$HOME`. A `/usr/bin/tailscale`
+  belongs to root, there is no sudo here, and a second opinion about a root daemon's binary is
+  worse than an old one.
+- **Restart the daemon.** The binary is replaced with `os.replace`, so a live `tailscaled` keeps
+  the inode it opened and goes on serving the tailnet name at the old version; the new one is what
+  the next `board vpn up` starts. Taking the address down under somebody holding an iPad is the one
+  thing this may not do to repair itself.
+- **Install something that does not run.** The archive is unpacked into a temporary directory and
+  each binary is run and asked its version before it is moved in — a tarball for the wrong
+  architecture unpacks perfectly and leaves a machine with no Tailscale at all.
+- **Race the other six nodes.** One home directory, seven compute nodes, every login running this:
+  a lock file, stale after half an hour so a node killed mid-download does not stop the next one
+  for ever.
 
 `board vpn up` then starts the daemon with:
 

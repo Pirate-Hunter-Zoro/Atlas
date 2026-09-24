@@ -161,6 +161,10 @@ try:
     tutor.agent_start = lambda cfg, course, name: (
         calls["agent"].append(course["dir"]) or (0, "started"))
     tutor.this_host = lambda: "compute301"
+    # A login also pulls the Tailscale in this home directory forward.
+    # Left real, every case below would ask pkgs.tailscale.com and could
+    # replace the binaries this machine is on the tailnet with, mid-suite.
+    tutor.tailscale.update_userspace = lambda quiet=False, force=False: None
     # What kind of machine this is decides which rule applies, and the real
     # answer depends on whether Slurm answers where the tests are being run.
     # Pin it: everything below is the cluster rule unless it says otherwise.

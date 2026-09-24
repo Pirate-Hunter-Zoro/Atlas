@@ -205,6 +205,12 @@ never mid-merge or mid-rebase, never on a detached HEAD. `scripts/catch-up.sh` d
 on the same guards. A clone without `--recurse-submodules` arrives with an empty `vendor/` and no
 error; `bootstrap.sh` repairs it.
 
+**The unprivileged Tailscale in `$HOME` rides the same two moments**, because it has the same
+problem: no package manager knows it is there and there is no administrator to notice it ageing.
+`update_userspace` in `board/tutorboard/net/tailscale.py` moves it forward on a login and on the
+daily timer, at most one check a day, and never restarts the running daemon —
+`board/README.md` §4 has the four things it refuses to do.
+
 ---
 
 ## The machine this was built for

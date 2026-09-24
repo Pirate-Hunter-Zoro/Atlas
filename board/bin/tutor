@@ -4901,6 +4901,14 @@ def cmd_resume(cfg, args):
     # everything else in this function is here.
     pull_vendor(quiet=quiet)
 
+    # And the OTHER thing here that nobody else updates: the unprivileged
+    # Tailscale unpacked into this home directory. No package manager knows
+    # about it and there is no administrator to notice, so it stays at the
+    # version of the afternoon it was installed while the control plane it
+    # talks to moves on. It is quiet and free when it is already current, and
+    # it never restarts the daemon -- see `update_userspace`.
+    tailscale.update_userspace(quiet=quiet)
+
     # AND THE CHAIN ITSELF, WHICH IS THE ONE THING A LOGIN CAN REPAIR THAT
     # NOTHING ELSE CAN. A generation that fell over in its first second never
     # reached the line that queues its successor, so the self-renewing
@@ -6370,7 +6378,16 @@ def main(argv):
         # What the daily timer runs. `resume` does this too, on login; this is
         # the same routine with nothing else attached, so a timer never starts a
         # board or hops to an allocation.
-        return 0 if pull_vendor(quiet="--quiet" in argv) is not False else 1
+        #
+        # Two things are pulled and they are independent: somebody else's
+        # repository, and the Tailscale in this home directory that no package
+        # manager maintains. Both are attempted whatever the other one did --
+        # an unreachable git remote is not a reason to leave the VPN client a
+        # year behind -- and the exit code is the worse of the two.
+        quiet = "--quiet" in argv
+        moved = [pull_vendor(quiet=quiet),
+                 tailscale.update_userspace(quiet=quiet, force=True)]
+        return 0 if all(m is not False for m in moved) else 1
 
     if args and args[0] == "cost":
         return cmd_cost(cfg, args[1:])
