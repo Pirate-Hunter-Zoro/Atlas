@@ -140,6 +140,15 @@ check("codex has a first-turn recipe and a resume recipe, and they differ",
 check("the resume spelling is the installed binary's own",
       codex["headless"][:4] == ["codex", "exec", "resume", "--last"])
 check("and it reports what a turn cost", codex["usage"] == "codex-jsonl")
+# THE SANDBOX, WHICH IS THE WHOLE OF WHETHER IT CAN TUTOR AT ALL. `codex exec`
+# defaults to read-only and answers the first write with `writing is blocked by
+# read-only sandbox`, so the turn reads the brief, thinks, writes no card and
+# exits 0. Asserted on BOTH recipes: a resumed turn that cannot write is the
+# same silent failure one turn later.
+check("a codex turn may write, or it is a tutor that produces nothing and "
+      "says it succeeded",
+      all("--dangerously-bypass-approvals-and-sandbox" in r
+          for r in (codex["headless_first"], codex["headless"])))
 first, _t, fresh = tutor.turn_plan(codex, 0, 1, "")
 check("so a first turn uses the first-turn recipe",
       fresh and first == codex["headless_first"])
