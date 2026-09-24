@@ -516,7 +516,7 @@ Table S7. Neighbor-prediction ROC AUC for the primary encoder by retrieval schem
 | **Retrieval** | **Similarity** | **Neighbors (k)** | **ROC AUC (95% CI)** |
 | ---------- | -------------------- | ------------------ | ---------------------- |
 | Nearest | Plain cosine | 50 (primary) | 0.594 (0.578--0.610) |
-| Nearest | Importance-weighted | 50 | 0.602 (not computed) |
+| Nearest | Importance-weighted | 50 | 0.602 (0.587--0.619) |
 | Nearest | Plain cosine | best, 757 | 0.618 (0.602--0.634) |
 | Nearest | Importance-weighted | best, 295 | 0.625 (0.610--0.641) |
 | Nearest | Plain cosine | all, 34,063 | 0.608 (0.592--0.624) |

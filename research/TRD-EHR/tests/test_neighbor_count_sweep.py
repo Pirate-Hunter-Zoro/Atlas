@@ -228,3 +228,18 @@ def test_only_the_primary_metric_keeps_the_unsuffixed_filenames():
     tails = {metric_suffix(m) for m in METRICS}
     assert len(tails) == len(METRICS)
     assert all(tail.startswith('_') for tail in tails if tail)
+
+
+def test_risk_at_counts_matches_the_sweep_at_those_k():
+    """An interval added later must be read off the same curve the sweep drew."""
+    from scripts.pipeline.predictions.neighbor_count_sweep import (
+        risk_at_counts, risk_by_neighbour_count)
+    rng = np.random.default_rng(3)
+    anchors = rng.normal(size=(9, 6)); anchors /= np.linalg.norm(anchors, axis=1, keepdims=True)
+    pool = rng.normal(size=(40, 6)); pool /= np.linalg.norm(pool, axis=1, keepdims=True)
+    labels = rng.integers(0, 2, size=40)
+    ks = np.array([1, 5, 17, 40])
+    full, _ = risk_by_neighbour_count(anchors, pool, labels, (1.0, 5.0), 0.2)
+    cut = risk_at_counts(anchors, pool, labels, ks, (1.0, 5.0), 0.2)
+    for alpha in (1.0, 5.0):
+        np.testing.assert_allclose(cut[alpha], full[alpha][:, ks - 1], rtol=1e-5, atol=1e-6)

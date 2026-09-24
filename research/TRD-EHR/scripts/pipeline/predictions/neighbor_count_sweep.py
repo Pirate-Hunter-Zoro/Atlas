@@ -74,6 +74,10 @@ METRICS = ('weighted', 'plain')
 # names. Everything is also under `by_metric`.
 PRIMARY_METRIC = 'weighted'
 
+# The published arm's neighbourhood size. It always gets an error bar, because the
+# supplement's table reads both metrics at it beside their best k.
+PRIMARY_NEIGHBOUR_COUNT = 50
+
 
 def to_metric_space(metric: str, vectors: np.ndarray, scaler, weights: np.ndarray) -> np.ndarray:
     """Put raw embeddings into whichever space this metric measures in.
@@ -211,7 +215,20 @@ def bootstrap_intervals(y_true: np.ndarray, risks: np.ndarray, neighbour_counts:
     Returns:
         pd.DataFrame: One row per k with columns n_neighbors, roc_auc, ci_low, ci_high.
     """
-    columns = risks[:, neighbour_counts - 1]
+    return intervals_of_columns(y_true, risks[:, neighbour_counts - 1], neighbour_counts)
+
+
+def intervals_of_columns(y_true: np.ndarray, columns: np.ndarray, neighbour_counts: np.ndarray) -> pd.DataFrame:
+    """Percentile bootstrap intervals for risk columns already cut at their k values.
+
+    Args:
+        y_true (np.ndarray): Anchor TRD labels, shape (n_anchors,).
+        columns (np.ndarray): Risk at each k, shape (n_anchors, len(neighbour_counts)).
+        neighbour_counts (np.ndarray): The k each column was cut at, 1-based.
+
+    Returns:
+        pd.DataFrame: One row per k with columns n_neighbors, roc_auc, ci_low, ci_high.
+    """
     point = roc_auc_by_column(y_true, columns)
     draws = bootstrap_sample_indices(y_true.size)
     sampled = np.empty((N_BOOTSTRAP, neighbour_counts.size), dtype=np.float64)
@@ -392,7 +409,7 @@ def run_sweep(alphas: tuple[float, ...], max_anchors: int = 0, max_pool: int = 0
             best_index = int(np.nanargmax(auc))
             best_k = best_index + 1
             interval = bootstrap_intervals(anchor_labels, risks[alpha],
-                                           interval_neighbour_counts(len(pool_ids), [best_k]))
+                                           interval_neighbour_counts(len(pool_ids), [best_k, PRIMARY_NEIGHBOUR_COUNT]))
             interval.insert(0, 'metric', metric)
             interval.insert(1, 'alpha', alpha)
             interval_frames.append(interval)
@@ -434,6 +451,93 @@ def run_sweep(alphas: tuple[float, ...], max_anchors: int = 0, max_pool: int = 0
     return summary
 
 
+def risk_at_counts(anchors: np.ndarray, pool: np.ndarray, pool_labels: np.ndarray,
+                   neighbour_counts: np.ndarray, alphas: tuple[float, ...],
+                   fallback_risk: float) -> dict[float, np.ndarray]:
+    """The risk score at a few k, ranked and weighted exactly as risk_by_neighbour_count.
+
+    Args:
+        anchors (np.ndarray): Anchor rows in the metric space, shape (n_anchors, d).
+        pool (np.ndarray): Candidate rows in the same space, shape (n_pool, d).
+        pool_labels (np.ndarray): Candidate TRD labels, shape (n_pool,).
+        neighbour_counts (np.ndarray): Sorted k values, 1-based.
+        alphas (tuple[float, ...]): Sharpening exponents.
+        fallback_risk (float): Risk where every weight in the neighbourhood is zero.
+
+    Returns:
+        dict[float, np.ndarray]: alpha to a risk matrix of shape
+            (n_anchors, len(neighbour_counts)).
+    """
+    ks = np.asarray(neighbour_counts, dtype=int)
+    deepest = int(ks.max())
+    labels_all = pool_labels.astype(np.float64)
+    out = {alpha: np.empty((anchors.shape[0], ks.size)) for alpha in alphas}
+    for start in range(0, anchors.shape[0], ANCHOR_BLOCK):
+        stop = min(start + ANCHOR_BLOCK, anchors.shape[0])
+        similarities = anchors[start:stop] @ pool.T
+        order = np.argsort(-similarities, axis=1, kind='stable')[:, :deepest]
+        nearest = np.take_along_axis(similarities, order, axis=1).astype(np.float64)
+        labels = labels_all[order]
+        for alpha in alphas:
+            w = neighbour_weights(nearest, alpha)
+            numerator = np.cumsum(w * labels, axis=1)[:, ks - 1]
+            denominator = np.cumsum(w, axis=1)[:, ks - 1]
+            risk = np.full(numerator.shape, fallback_risk)
+            np.divide(numerator, denominator, out=risk, where=denominator > 0)
+            out[alpha][start:stop] = risk
+    return out
+
+
+def intervals_at(neighbour_counts: list[int], alphas: tuple[float, ...],
+                 metrics: tuple[str, ...] = METRICS) -> pd.DataFrame:
+    """Add bootstrap intervals at chosen k to sweep_intervals.csv without re-running the sweep.
+
+    The sweep holds a risk matrix for every k and costs hours; an interval at a handful of
+    k needs only the risk at those k. Neighbours are ranked with the same stable sort and
+    weighted with the same neighbour_weights, so a point estimate here equals the sweep's
+    curve at that k, and the draws are the same SEED-seeded resamples.
+
+    Args:
+        neighbour_counts (list[int]): The k values to interval, 1-based.
+        alphas (tuple[float, ...]): Sharpening exponents.
+        metrics (tuple[str, ...], optional): Similarity spaces. Defaults to METRICS.
+
+    Returns:
+        pd.DataFrame: The rows written, with columns metric, alpha, n_neighbors, roc_auc,
+            ci_low, ci_high.
+    """
+    ks = np.asarray(sorted(set(neighbour_counts)), dtype=int)
+    test_ids = create_train_test_split()[1]
+    anchor_ids = sorted(test_ids)
+    pool_ids = candidate_pool_ids(exclude_ids=test_ids)
+    weights, scaler = load_dimension_weights()
+    raw_anchors = load_raw_embeddings(anchor_ids)
+    raw_pool = load_raw_embeddings(pool_ids)
+    trd_ids = load_trd_set()
+    anchor_labels = np.array([1 if pid in trd_ids else 0 for pid in anchor_ids])
+    pool_labels = np.array([1 if pid in trd_ids else 0 for pid in pool_ids], dtype=np.float64)
+    prevalence = float(pool_labels.mean())
+    frames = []
+    for metric in metrics:
+        anchors = to_metric_space(metric, raw_anchors, scaler, weights)
+        pool = to_metric_space(metric, raw_pool, scaler, weights)
+        columns = risk_at_counts(anchors, pool, pool_labels, ks, alphas, prevalence)
+        for alpha in alphas:
+            frame = intervals_of_columns(anchor_labels, columns[alpha], ks)
+            frame.insert(0, 'metric', metric)
+            frame.insert(1, 'alpha', alpha)
+            frames.append(frame)
+    new = pd.concat(frames, ignore_index=True)
+    path = SWEEP_DIR / 'sweep_intervals.csv'
+    old = pd.read_csv(path)
+    key = ['metric', 'alpha', 'n_neighbors']
+    kept = old.merge(new[key], on=key, how='left', indicator=True)
+    kept = kept[kept['_merge'] == 'left_only'].drop(columns='_merge')
+    pd.concat([kept, new], ignore_index=True).sort_values(key).to_csv(path, index=False)
+    print(new.to_string(index=False), flush=True)
+    return new
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--alphas', type=float, nargs='+', default=list(DEFAULT_ALPHAS),
@@ -445,7 +549,13 @@ def main():
     parser.add_argument('--metrics', nargs='+', default=list(METRICS), choices=list(METRICS),
                         help="Which similarity spaces to sweep. Both, by default, because the "
                              "point of the second one is the comparison with the first.")
+    parser.add_argument('--intervals-at', type=int, nargs='+', default=None,
+                        help="Only add bootstrap intervals at these k to sweep_intervals.csv, "
+                             "ranking neighbours exactly as the sweep does; minutes, not hours.")
     arguments = parser.parse_args()
+    if arguments.intervals_at:
+        intervals_at(arguments.intervals_at, tuple(arguments.alphas), tuple(arguments.metrics))
+        return
     run_sweep(tuple(arguments.alphas), arguments.max_anchors, arguments.max_pool,
               tuple(arguments.metrics))
 
