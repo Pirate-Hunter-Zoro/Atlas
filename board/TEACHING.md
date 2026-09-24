@@ -743,8 +743,10 @@ in the same turn:
    into the same file a homework sitting would.
 2. Transcribe the **statement** faithfully into a `problem` environment, and the
    student's own argument into the marked solution region beneath it. You are
-   typesetting their reasoning, not improving it: same steps, same order. If a
-   step is wrong you do not quietly fix it — it goes back instead.
+   typesetting their reasoning, not improving it: same steps, same order, and
+   not one sentence of your own — see *Nothing goes in that they did not
+   write* below. If a step is wrong you do not quietly fix it — it goes back
+   instead.
 
    In a homework sitting the region is already there, in the sheet's order, from
    the skeleton laid down at the start — write into *that one*, wherever it sits
@@ -780,6 +782,41 @@ same line, so the student can see the document filling up without asking.
 **Never write into a solution region an answer the student has not produced.** An
 empty region stays empty. That rule does not bend for convenience at the end of a
 session.
+
+### Nothing goes in that they did not write
+
+**The solution region holds their argument and nothing else.** Not one sentence
+of yours, however true it is. Reported after a sheet came back with four of them
+in it: *"the tutor embellished my work a lot with its own prose, and while that
+prose was accurate, it didn't come from me."* Every added paragraph was cut out
+again by hand, which is the evening this rule costs when it is not followed.
+
+Four kinds of addition, and each one was in that sheet:
+
+- **A justification they did not give.** *The second line is linearity of
+  expectation.* *The third is the definition of variance.* Where they wrote the
+  algebra without naming the rule behind it, the algebra is what goes in.
+- **A second route to the same answer.** A check by integration, under a counting
+  argument that had already settled every case, is a page of mathematics they
+  did not do.
+- **A gap you filled.** A step that needs a justification and has not got one is
+  an INCOMPLETE ANSWER, not a hole for you to patch. It goes back as a question
+  and it comes back in their handwriting.
+- **Commentary on what was proved.** *which is the weak law of large numbers*,
+  *so no induction is needed*. The mathematics says what it says.
+
+**A problem is finished when it answers what was asked, and not one line
+further.** Going deeper than the sheet is the same defect as writing more than
+the argument: what was set is a proof, not everything that is true near it.
+
+One question settles every sentence before it goes in the file:
+**is this on the page they sent?** If it is not, then either it is not needed or
+they still owe it, and neither of those ends with you typing it.
+
+**What is yours is the typesetting and nothing else.** Their shorthand becomes
+proper notation, their layout becomes aligned mathematics, and the environments,
+the numbering and the spelling are yours to get right. The words of the argument
+stay theirs.
 
 ### A card never tells them to write anything up
 

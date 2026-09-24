@@ -124,6 +124,29 @@ for phrase, why in [
     ("Never label a question", "a question is answered, not graded"),
     ("do not know how to start", "and not knowing where to start is a real answer"),
     ("has not produced", "no solution is invented for the student"),
+    # AND IT IS THEIR ARGUMENT, NOT AN IMPROVED ONE. "Typesetting their
+    # reasoning, not improving it" was already written down and was read as a
+    # rule about not CORRECTING the mathematics, so a redone sheet came back
+    # with a check by integration, three lines naming the rules behind the
+    # algebra, and a sentence saying which theorem had just been proved -- all
+    # of it correct, none of it the student's, and all of it cut out by hand.
+    # The rule the owner asked for is the harder one: nothing goes in that did
+    # not come off the page they sent, and a step that is missing its
+    # justification is an unfinished answer rather than a hole to patch.
+    ("Nothing goes in that they did not write",
+     "the write-up carries their argument and nothing added to it"),
+    ("A justification they did not give",
+     "not the rule behind a line they wrote without naming it"),
+    ("A second route to the same answer",
+     "not a second derivation of something already settled"),
+    ("INCOMPLETE ANSWER",
+     "a gap is sent back as a question rather than filled in by the tutor"),
+    ("is this on the page they sent",
+     "and one question decides every sentence before it is typed"),
+    ("not one line\nfurther",
+     "a problem is finished at what the sheet asked and no deeper"),
+    ("The words of the argument\nstay theirs",
+     "while the notation, the environments and the spelling are the tutor's"),
     # THE WRITE-UP IS THE TUTOR'S, AND SO IS THE SENTENCE ABOUT IT. The act was
     # already governed -- a whole section says every sitting produces a compiled
     # document and the tutor transcribes it -- and the card still said "two words

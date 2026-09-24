@@ -228,7 +228,8 @@ SCAFFOLD = r"""%% ==============================================================
 %%  THE WRITE-UP, and it is the assistant's to type.
 %%    The assistant transcribes each question or topic faithfully and emits an
 %%    empty, marked solution region beneath it. The student does the
-%%    mathematics; the assistant typesets what they agreed was right.
+%%    mathematics; the assistant typesets what they agreed was right, and
+%%    nothing that was not on the page the student sent.
 %% ===========================================================================
 \documentclass[11pt]{article}
 %(preamble)s
