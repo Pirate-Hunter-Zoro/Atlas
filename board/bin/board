@@ -106,10 +106,10 @@ import time
 
 TOOL = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 sys.path.insert(0, TOOL)
-from tutorboard import (atlas, brief, carry, direction, handoff, keys, leaving,
-                        limits, machine, manuscript, meeting, missions, paths,
-                        plain, ports, processes, progress, reasoning, seeing,
-                        sense, tex, worktree)
+from tutorboard import (assistants, atlas, brief, carry, direction, handoff,
+                        keys, leaving, limits, machine, manuscript, meeting,
+                        missions, paths, plain, ports, processes, progress,
+                        reasoning, seeing, sense, tex, worktree)
 from tutorboard.net import egress, tailscale
 from tutorboard.course import config, document, homework, paper, review, walk
 # `map` is a builtin; the module keeps the name the board calls the thing and
@@ -3537,6 +3537,30 @@ def tutor_health(live):
     if until:
         print("allowance: run out until %s  (board limit --clear)"
               % time.strftime("%H:%M", time.localtime(until)))
+
+    # A RECIPE THIS MACHINE'S CONFIG IS HOLDING DOWN, which is the failure
+    # nothing could see. `agents` merges one level deep, so a field named in
+    # `config.json` beats the built-in recipe for ever: a fix shipped to the
+    # tool lands on every machine except the one whose config mentions that
+    # field, and the symptom is the tool's own behaviour looking wrong. This
+    # machine's config held a verbatim copy of the whole table from an older
+    # version; its `codex` entry had neither the resume path nor the sandbox
+    # flag, so every resumed Codex turn failed silently while the recipe in the
+    # repository read correctly.
+    #
+    # Asked of the registry rather than worked out here, because the merge is
+    # in `bin/tutor` and a second opinion about it would drift -- the same rule
+    # `tutorboard/assistants.py` is built on. Not fatal: a machine may have a
+    # deliberate override, and this is the line that makes it a decision again
+    # rather than something forgotten.
+    table = assistants.listing() or {}
+    held = [(a.get("name"), a.get("shadowed"))
+            for a in (table.get("agents") or []) if a.get("shadowed")]
+    for name, fields in held:
+        print("recipe:   '%s' -- %s overrides %s"
+              % (name, paths.CONFIG, ", ".join(fields)))
+        print("          The built-in recipe has moved on since that was "
+              "written. Remove it unless this machine needs it.")
     return True
 
 

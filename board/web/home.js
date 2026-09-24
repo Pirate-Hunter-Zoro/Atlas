@@ -1704,8 +1704,17 @@ function setDefaultAgent(name) {
     if (got && got.ok) {
       lastAssistants = got.assistants || lastAssistants;
       whoSaved = got["default"];
-      els.whoNote.textContent = name + " writes the next card in a workspace "
-                              + "that has not named its own.";
+      /* WHAT MOVED, BY NAME. The old sentence described the machine layer
+         accurately and read, to somebody out of allowance, as a tap that had
+         done nothing: the sittings already open are the ones they are switching
+         FOR, and those are exactly what the sentence did not mention. */
+      var moved = (got.moved || []);
+      els.whoNote.textContent = moved.length
+        ? name + " writes the next card, including the "
+          + (moved.length === 1 ? "sitting open in " : "sittings open in ")
+          + moved.join(", ") + "."
+        : name + " writes the next card in a workspace that has not named "
+          + "its own.";
     } else {
       whoSaved = null;
       els.whoNote.textContent = (got && got.detail) || "that did not take.";

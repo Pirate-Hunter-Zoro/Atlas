@@ -170,6 +170,46 @@ check("a turn whose client reads stdin comes straight back rather than "
       _rc == 0 and not _capped)
 os.unlink(_stdin_log.name)
 
+# A RECIPE THIS MACHINE'S CONFIG IS HOLDING DOWN, which until now nothing could
+# see. `agents` merges one level deep, so a field named in `config.json` beats
+# the built-in for ever: this machine's config carried a verbatim copy of the
+# whole table from an older version, and its codex entry had neither the resume
+# path nor the sandbox flag -- so every resumed codex turn failed silently while
+# the recipe in the repository read correctly. The symptom is the tool's own
+# behaviour looking wrong, which is the worst place to start looking.
+_shadow_box = tempfile.mkdtemp(prefix="tutor-shadow-")
+_was_config = tutor.CONFIG
+tutor.CONFIG = os.path.join(_shadow_box, "config.json")
+with open(tutor.CONFIG, "w", encoding="utf-8") as fh:
+    json.dump({"default_agent": "claude", "agents": {
+        # A field that differs: the stale copy, and the one that bit.
+        "codex": {"cmd": ["codex"], "headless": ["codex", "exec", "{prompt}"]},
+        # A field that agrees with the built-in: stale in the same way and
+        # changes nothing today, so naming it would be noise on every run.
+        "claude": {"cmd": ["claude"]},
+        # An agent this machine invented: there is no built-in behind it.
+        "mine": {"cmd": ["mine"], "prompt": "argv"},
+    }}, fh)
+_held = tutor.config_shadows()
+check("a config field that overrides a built-in recipe is named, with the "
+      "field, because that field is frozen at the day somebody wrote it",
+      _held == {"codex": ["headless"]})
+with open(tutor.CONFIG, "w", encoding="utf-8") as fh:
+    json.dump({"agents": {"codex": {"replace": True, "cmd": ["codex"]}}}, fh)
+check("and a recipe replaced outright is named whatever its fields say, "
+      "because replacing turns the rest of it off",
+      "replace" in (tutor.config_shadows().get("codex") or [""])[0])
+with open(tutor.CONFIG, "w", encoding="utf-8") as fh:
+    fh.write("not json at all")
+check("an unreadable config shadows nothing rather than raising, because this "
+      "is read on the way to reporting health", tutor.config_shadows() == {})
+tutor.CONFIG = _was_config
+shutil.rmtree(_shadow_box, ignore_errors=True)
+check("and `board doctor` reports it off the registry rather than working it "
+      "out a second time",
+      'a.get("shadowed")' in open(os.path.join(ROOT, "bin", "board"),
+                                  encoding="utf-8").read())
+
 check("there is one tutor and it is the one the config names",
       D["default_agent"] == "claude" and "claude" in D["agents"])
 check("and nothing in the table claims to teach for nothing",

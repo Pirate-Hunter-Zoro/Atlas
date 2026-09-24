@@ -567,6 +567,53 @@ DEFAULT_CONFIG = {
 }
 
 
+def config_shadows():
+    """Which fields of a BUILT-IN recipe this machine's config is holding down.
+
+    `{agent: [field, ...]}`, empty when the config adds nothing or only adds
+    agents of its own.
+
+    A MERGED FIELD IS FROZEN AT THE DAY SOMEBODY WROTE IT, and nothing says so
+    afterwards. The merge above exists so that a machine can adjust one field of
+    a recipe without losing the rest, which is right -- but the copy it keeps
+    wins for ever, so a fix shipped to the built-in table lands everywhere
+    except the machine whose config mentions that field. Every symptom of that
+    is the tool's own behaviour looking wrong.
+
+    Found the hard way. This machine's config carried a verbatim copy of the
+    whole `agents` table from an older version. Its `codex` entry was
+    `["codex", "exec", "{prompt}"]`, so the resume path and the sandbox flag
+    shipped in the built-in recipe were both overridden by a file nobody had
+    opened in months, and every resumed Codex turn went on failing silently
+    while the recipe in the repository read correctly.
+
+    Only fields that DIFFER are named: a config repeating the built-in value is
+    stale in the same way but changes nothing today, and a warning about it
+    would be noise on every run of `board doctor`. `replace` is reported
+    whatever it says, because it turns the whole recipe off.
+    """
+    try:
+        with open(CONFIG, "r", encoding="utf-8") as fh:
+            user = json.load(fh) or {}
+    except (OSError, ValueError):
+        return {}
+    out = {}
+    for name, spec in (user.get("agents") or {}).items():
+        built = DEFAULT_CONFIG["agents"].get(name)
+        # An agent this machine invented shadows nothing: there is no built-in
+        # recipe behind it to go stale against.
+        if not isinstance(spec, dict) or not isinstance(built, dict):
+            continue
+        if spec.get("replace"):
+            out[name] = ["the whole recipe (replace)"]
+            continue
+        fields = sorted(k for k, v in spec.items()
+                        if k in built and built[k] != v)
+        if fields:
+            out[name] = fields
+    return out
+
+
 def load_config():
     """The defaults above, with this machine's config file laid over them.
 
@@ -6309,6 +6356,7 @@ def main(argv):
             print()
             return 0
         elif a == "--agents":
+            shadows = config_shadows()
             # AS JSON, FOR THE BOARD, and out of this one table rather than a
             # second list somewhere the browser can read. The board offers the
             # choice of assistant for a sitting being opened, so it has to know
@@ -6362,6 +6410,12 @@ def main(argv):
                          # findings rather than measuring them, precisely so it
                          # can sit under a poll.
                          "unavailable": agent_unavailable(cfg, n),
+                         # AND WHICH FIELDS OF IT THIS MACHINE'S CONFIG IS
+                         # HOLDING DOWN. A merged field is frozen at the day
+                         # somebody wrote it, so a fix shipped to the recipe
+                         # lands everywhere except here -- and nothing said so
+                         # until this. See `config_shadows`.
+                         "shadowed": shadows.get(n) or None,
                          "headless": bool(spec.get("headless")
                                           or spec.get("headless_first"))}
                         for n, spec in sorted(cfg["agents"].items())],
@@ -6379,6 +6433,10 @@ def main(argv):
                          "not installed here" if gone
                          else ("needs %s in %s" % (need, keys.store())) if need
                          else ""))
+                if shadows.get(n):
+                    print("   %-10s config overrides: %s  (frozen at whatever "
+                          "the built-in recipe said that day)"
+                          % ("", ", ".join(shadows[n])))
             print("\n* is the default. Edit the config to add your own.")
             print("A provider is a recipe plus a key: one entry in `agents` "
                   "and one line in\n%s." % keys.store())

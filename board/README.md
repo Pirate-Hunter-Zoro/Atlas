@@ -2219,10 +2219,27 @@ out of a `private` recipe.
 **And an allowance that runs out is a climb down rather than a stop**, because a limit belongs to an
 agent rather than to the machine — see [when the allowance runs out](#when-the-allowance-runs-out).
 
-**The front door sets `default_agent`.** A row beside the line that already says which machine this
-is, offering every recipe it can run, writing that one field and nothing else in the config. The
-fenced reader is never offered there: a machine default is a decision about every workspace,
-including the ones whose `live/` is pushed to a public remote.
+**The front door sets `default_agent`, and moves the sittings already open.** A row beside the line
+that already says which machine this is, offering every recipe it can run. Writing the default
+alone is not enough and that is the point of the second half: `default_agent` is the *lowest* layer
+above, every sitting opened from the board names an assistant, and that name outranks it — so the
+tap could not reach the one evening it is always tapped for, the one where the provider it is
+running on has just run out. The route re-points every open sitting on this machine and the front
+door names which ones moved. Nothing is restarted: the next turn asks the table again.
+
+Two are left where they are. A sitting on the `private` recipe, because that is the fenced reader
+and moving it to a hosted provider from a tap about an allowance puts identifiable audio in front
+of a remote. And a workspace with no sitting open, where there is nothing to move and writing an
+agent in would pin an evening nobody has started.
+
+The fenced reader is never offered as the default either: a machine default is a decision about
+every workspace, including the ones whose `live/` is pushed to a public remote.
+
+**A field of a recipe named in `config.json` is frozen at the day it was written.** `agents` merges
+one level deep, so a fix shipped to a built-in recipe lands on every machine except the one whose
+config mentions that field — and the symptom is the tool's own behaviour looking wrong. `board
+doctor` names any recipe the config is holding down, `tutor --agents` marks it, and
+`--agents --json` carries it as `shadowed` so the browser reads the same answer.
 
 ### The assistant belongs to the course, not to the terminal
 

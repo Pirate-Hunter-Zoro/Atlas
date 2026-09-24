@@ -8,9 +8,18 @@ answer to that was a laptop, an account page and somebody editing a config file.
 This is the route behind the tap: it writes `default_agent` into
 `~/.config/tutor-board/config.json` and nothing else in that file.
 
-`default_agent` is the MACHINE layer of `resolve_agent`'s precedence, which is
-the right one. A sitting that has already named its own assistant keeps it, and
-that is not a bug -- the more specific answer wins everywhere else in this tool.
+`default_agent` is the MACHINE layer of `resolve_agent`'s precedence, and it is
+the lowest one -- so writing it is not enough on its own. Every sitting opened
+from the board names an assistant, and that name outranks the default for ever,
+which meant this tap could not reach the one evening it is always tapped for:
+the one where the provider it is running on has just run out. So the route
+writes the file AND re-points every open sitting on this machine, and says
+which ones it moved.
+
+Two are left where they are, and each would be a worse answer than not
+switching: a sitting on the `private` recipe, which is the fenced reader and
+the only assistant allowed in the workspace holding `phi`; and a workspace with
+no sitting open, where there is nothing to move.
 
 Three refusals, and each one prevents a different silent failure:
 
@@ -36,10 +45,15 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 
 os.environ.setdefault("BOARD_STATE_DIR", tempfile.mkdtemp(prefix="provider-state-"))
+# A TREE OF OUR OWN, BEFORE ANYTHING IMPORTS. The route driven below re-points
+# every OPEN SITTING on this machine at the chosen provider, and the real tree
+# is where somebody's evening is. Pointed at an empty directory here and filled
+# in by the cases that want workspaces in it.
+os.environ["TUTORBOARD_COURSES"] = tempfile.mkdtemp(prefix="provider-tree-")
 os.environ.setdefault("BOARD_NODE_NAME", "test-node")
 os.environ.setdefault("BOARD_NO_TAILNET", "1")
 
-from tutorboard import assistants, paths                      # noqa: E402
+from tutorboard import assistants, atlas, paths               # noqa: E402
 from tutorboard.course import repo as course_repo            # noqa: E402
 from tutorboard.server import handler, hub, tikz             # noqa: E402
 
@@ -138,6 +152,65 @@ try:
     status, got = post("/default-agent", {})
     check("a request naming nobody is a refusal rather than a crash",
           status == 400)
+
+    # ---- AND THE SITTINGS ALREADY OPEN --------------------------------------
+    #
+    # `default_agent` is the LOWEST layer of `resolve_agent`'s precedence, and
+    # every sitting opened from the board names an assistant -- so this tap
+    # could not reach the one evening it is always tapped for. Reported from
+    # the iPad: "when I tried to switch to codex on the homescreen, it wouldn't
+    # switch and I was stuck on claude, which I had used up my limit on."
+    tree = os.environ["TUTORBOARD_COURSES"]
+    with open(os.path.join(tree, "atlas.json"), "w", encoding="utf-8") as fh:
+        json.dump({"families": [{"id": "courses", "name": "Courses"}]}, fh)
+
+    def workspace(name, state):
+        root = os.path.join(tree, "courses", name)
+        os.makedirs(os.path.join(root, "live"), exist_ok=True)
+        with open(os.path.join(root, "tutorboard.json"), "w",
+                  encoding="utf-8") as fh:
+            json.dump({"name": name}, fh)
+        with open(os.path.join(root, "live", "state.json"), "w",
+                  encoding="utf-8") as fh:
+            json.dump(state, fh)
+        return root
+
+    stuck = workspace("Stuck", {"session": "lecture", "agent": "claude"})
+    fenced = workspace("Fenced", {"session": "lecture", "agent": "colibri"})
+    unopened = workspace("Unopened", {"agent": "claude"})
+    free = workspace("Free", {"session": "lecture"})
+    atlas.forget()
+
+    def agent_of(root):
+        with open(os.path.join(root, "live", "state.json"), encoding="utf-8") as fh:
+            return (json.load(fh) or {}).get("agent")
+
+    status, got = post("/default-agent", {"agent": "deepseek"})
+    check("the tap moves a sitting that had named an assistant, which is the "
+          "whole of what an evening out of allowance needs",
+          status == 200 and agent_of(stuck) == "deepseek")
+    check("and says which ones it moved, because the sentence that named only "
+          "the machine layer is what read as a tap doing nothing",
+          got.get("moved") == ["Stuck"])
+    check("THE FENCED READER IS LEFT WHERE IT IS. `private` is what says an "
+          "assistant may open the workspace holding `phi`, and moving that "
+          "sitting to a hosted provider from a tap about an allowance puts "
+          "identifiable audio in front of a remote",
+          agent_of(fenced) == "colibri")
+    check("a workspace with no sitting open is not pinned by this: there is "
+          "nothing to move, and writing one in would pin an evening nobody "
+          "has started", agent_of(unopened) == "claude")
+    check("and a sitting that never named one is left alone too -- the "
+          "machine default already reaches it",
+          agent_of(free) is None)
+    check("the file still says the same thing it would have",
+          cfg().get("default_agent") == "deepseek")
+
+    # A second tap on the same provider moves nothing: it is already there, and
+    # a report naming a workspace that did not change is a report nobody trusts.
+    status, got = post("/default-agent", {"agent": "deepseek"})
+    check("tapping the provider a sitting is already on moves nothing",
+          status == 200 and got.get("moved") == [])
 
     src = open(os.path.join(ROOT, "tutorboard", "server", "routes",
                             "machines.py"), encoding="utf-8").read()
