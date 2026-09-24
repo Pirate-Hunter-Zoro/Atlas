@@ -168,11 +168,31 @@ check("it reports what it cost", ds["usage"] == "claude-json")
 check("it names the key it needs", ds["needs_key"] == "DEEPSEEK_API_KEY")
 check("the endpoint is the Anthropic-format one, which is why the binary works",
       ds["env"]["ANTHROPIC_BASE_URL"].endswith("/anthropic"))
-check("AND THE MODEL IS PINNED TWICE. Unpinned, a `claude-opus` name maps to a "
-      "text-only model that substitutes a placeholder for an image rather than "
-      "failing -- a tutor handed a slate PNG would answer about nothing",
-      ds["env"]["ANTHROPIC_MODEL"]
-      == ds["env"]["ANTHROPIC_SMALL_FAST_MODEL"] != "")
+check("AND EVERY MODEL SLOT IS PINNED. Unpinned, a `claude-opus` name maps to a "
+      "text-only model that substitutes `[Unsupported Image]` for an image "
+      "block and answers HTTP 200 -- a tutor handed a slate PNG would answer "
+      "about nothing and no exit code would say so",
+      sorted(k for k in ds["env"] if "MODEL" in k)
+      == ["ANTHROPIC_DEFAULT_HAIKU_MODEL", "ANTHROPIC_DEFAULT_OPUS_MODEL",
+          "ANTHROPIC_DEFAULT_SONNET_MODEL", "ANTHROPIC_MODEL",
+          "ANTHROPIC_SMALL_FAST_MODEL", "CLAUDE_CODE_SUBAGENT_MODEL"])
+check("including the three ALIASES, which are the ones that lose the "
+      "handwriting: the binary resolves `opus`, `sonnet` and `haiku` through "
+      "their own variables, and a slot left unset is a request that goes out "
+      "under a `claude-*` name",
+      all(ds["env"].get("ANTHROPIC_DEFAULT_%s_MODEL" % a)
+          for a in ("OPUS", "SONNET", "HAIKU")))
+check("and the subagent slot, because a Task-tool subagent reading the page is "
+      "the same turn on a different model",
+      bool(ds["env"].get("CLAUDE_CODE_SUBAGENT_MODEL")))
+check("the deprecated small-fast name is kept BESIDE its replacement rather "
+      "than swapped for it, because which one the installed binary reads is "
+      "not a thing this tree gets to assume",
+      ds["env"]["ANTHROPIC_SMALL_FAST_MODEL"]
+      == ds["env"]["ANTHROPIC_DEFAULT_HAIKU_MODEL"])
+check("and the placeholder string is named where somebody debugging a "
+      "confident answer about nothing would look for it",
+      "[Unsupported Image]" in tutor_src)
 check("and the reason is next to the pin",
       "PIN THE MODEL OR LOSE THE HANDWRITING" in tutor_src)
 check("it is not driven through opencode, which would be a second agent's "
@@ -180,15 +200,19 @@ check("it is not driven through opencode, which would be a second agent's "
       ds["cmd"] != ["opencode"])
 
 # AND THE ENV IS A CONTRACT WITH A BINARY THIS TREE DOES NOT OWN, so it is
-# pinned here: four names, and the failure of any of them is silent rather than
+# pinned here: eight names, and the failure of any of them is silent rather than
 # loud. `ANTHROPIC_CUSTOM_MODEL_OPTION` and its `_NAME` / `_DESCRIPTION` /
 # `_SUPPORTED_CAPABILITIES` siblings read as if they belong in this list and do
 # not: they add an entry to the interactive `/model` picker, which a `-p` turn
 # never opens.
-check("the routing is exactly four names, so a variable that does nothing "
-      "cannot drift in beside the ones that do",
+check("the routing is exactly these eight names, so a variable that does "
+      "nothing cannot drift in beside the ones that do",
       sorted(ds["env"]) == ["ANTHROPIC_AUTH_TOKEN", "ANTHROPIC_BASE_URL",
-                            "ANTHROPIC_MODEL", "ANTHROPIC_SMALL_FAST_MODEL"])
+                            "ANTHROPIC_DEFAULT_HAIKU_MODEL",
+                            "ANTHROPIC_DEFAULT_OPUS_MODEL",
+                            "ANTHROPIC_DEFAULT_SONNET_MODEL",
+                            "ANTHROPIC_MODEL", "ANTHROPIC_SMALL_FAST_MODEL",
+                            "CLAUDE_CODE_SUBAGENT_MODEL"])
 # THE THREE PLACES THE MODEL NAME APPEARS ARE ASKED TO AGREE WITH EACH OTHER,
 # and deliberately not compared to a literal. The recipe's own comment calls
 # this "the field that goes stale, and it is a one-string change when it does";
@@ -225,8 +249,20 @@ check("the recipe names the host its turns open, and it is the host the base "
 check("the stderr line this provider prints on every turn is written off where "
       "the next person reads it, rather than re-diagnosed as a refusal",
       "ON STDERR IS COSMETIC" in tutor_src)
-check("and the one thing four variables cannot supply is stated with them",
+check("and the one thing the variables cannot supply is stated with them",
       "THE VARIABLES CANNOT SUPPLY IS A ROUTE" in tutor_src)
+# AND THE CLAIM THE RECIPE MAKES ABOUT ITS OWN MODEL IS A CHECKABLE ONE. The
+# comment used to say the pin "cannot be re-checked from this machine", which
+# was true of the API host and false of the two places the provider publishes
+# the answer -- and a comment that says do not bother looking is a comment
+# nobody looks past.
+check("the recipe says WHERE to re-check the model id, rather than saying it "
+      "cannot be re-checked",
+      "huggingface.co" in tutor_src and "deepseek-recipe" in tutor_src
+      and "cannot be re-checked from this machine" not in tutor_src)
+check("and the vision block says whether its model has eyes, since an answer "
+      "from a blind route is indistinguishable from a transcription",
+      ds["vision"]["sighted"] is True)
 
 # ---- and the refusals, on the surfaces that draw them ----------------------
 unkeyed_cfg = {"default_agent": "ghost", "agents": {

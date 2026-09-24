@@ -1766,6 +1766,23 @@ indistinguishable from *a person said no*, which the watch loop obeys for ever �
 reviving that course's **board** every generation, which is a page that serves perfectly with
 nothing reading it.
 
+**And the exit write only lands where this process is still the one on the record.** `agent_state`
+merges, which is what makes one file safe for several writers adding a field — and is not safe for
+the last write a daemon makes. A bounce hands the workspace over, the successor records its own pid,
+and the process that was replaced then stamps `stopped` on the record of the one that replaced it;
+the watch loop reads `stopped` as *a person said no* and never revives it, so the cost is a board
+serving perfectly with nothing reading it until somebody notices by hand. The exit write asks
+whether `agent.json` still names this pid, and writes nothing where it does not — the successor's
+own `listening` is the truth. The test is deliberately generous: an unreadable record, and a record
+whose pid a start has not filled in yet, are both this process's to write.
+
+**A start clears the clocks the daemon before it left behind.** For the same merging reason,
+`stopped_at`, `turn_started` and `turn_signal` from a process that is gone otherwise sit in the same
+record as this one's `started` and are read as though they were this one's — the board draws how
+long a turn has been running off `turn_started`, so a record carrying 17:40 beside a daemon that
+came up at 20:16 draws a turn two and a half hours old. A start is the one moment that has earned
+the right to clear them, because it is the one moment they are certainly about somebody else.
+
 **And a restart finishes the restart it started.** A handoff turn is a model call and routinely
 outruns the ninety seconds the foreground gives it — 97 seconds, measured — so `tutor restart
 --tutors` has a branch that gives up. That branch now spawns `tutor finish-restart`, detached,
@@ -2118,16 +2135,26 @@ act on.
 
 `deepseek` is the worked example and it is cheap for one reason: DeepSeek serves an Anthropic-format
 `/messages` endpoint, so the agent that runs it is **the `claude` executable already installed
-here**, with four environment variables. Every part of this tool that knows how to drive Claude
+here**, with eight environment variables. Every part of this tool that knows how to drive Claude
 Code drives it unchanged — the resume, the `--output-format json` accounting, the timeouts, and the
 `ai-config` pre-tool hook, which fences PHI by intercepting the binary's tool calls and therefore
 fences this provider too, for free.
 
-**The model is pinned twice, and that is the one decision in the entry.** Unpinned, the endpoint maps
-by name: an id starting `claude-opus` lands on the older text-only model, which **substitutes a
-placeholder for an image block rather than failing** — so a tutor handed a slate PNG answers
-confidently about nothing and no exit code says so. `ANTHROPIC_MODEL` and `ANTHROPIC_SMALL_FAST_MODEL`
-both name `deepseek-flash`, which takes image input natively and is the cheaper of the two anyway.
+**Every slot the binary can choose a model from is pinned, and that is the one decision in the
+entry.** Unpinned, the endpoint maps by name: an id starting `claude-opus` lands on the older
+text-only model, which **substitutes a placeholder for an image block rather than failing** — so a
+tutor handed a slate PNG answers confidently about nothing and no exit code says so. Six slots name
+`deepseek-flash`, which takes image input natively and is the cheaper of the two anyway:
+`ANTHROPIC_MODEL`, the three `ANTHROPIC_DEFAULT_{OPUS,SONNET,HAIKU}_MODEL` aliases the binary
+resolves a named tier through, `CLAUDE_CODE_SUBAGENT_MODEL` for a Task-tool subagent, and
+`ANTHROPIC_SMALL_FAST_MODEL` for its own cheap calls. Six rather than two because any one left unset
+is a route back onto the text-only model, and that route loses handwriting silently.
+
+**And the placeholder is caught on the way back, because pinning cannot be the only guard.** A tutor
+whose model can see is told to open the slate PNG itself, so the image never passes through `board
+see` and never meets `blind_answer` there. The turn's own output is scanned for the same
+placeholders instead, and a turn carrying one fails with *the page never reached the model* rather
+than landing a fluent card about a page nobody read. `board/test/seeing.py`.
 
 **`claude` is the default**, and it is the only one this has been taught with at length. Claude
 Code arrives with the course repository already in front of it, which is most of a tutor: it reads
@@ -2368,6 +2395,18 @@ theory says them in earnest. What a limit looks like is `usage_limit_says` in th
 patterns, for the same reason `egress_probe` is a list of URLs: the board is not allowed to know
 which assistant is driving it, so the provider is named in one default value and nowhere else.
 
+**A per-session allowance and an account-level ceiling do not say the same thing**, and the second
+one cost a teaching evening to learn. Claude Code answers a spent org budget with *you've hit your
+org's monthly spend limit … your session limit resets 8:20pm*: it says neither *usage limit
+reached* nor *limit reached … resets*, the word between *limit* and *resets* is *session*, and the
+first limit in the sentence is a **spend** limit — so every pattern missed it, nothing was recorded,
+and the daemon went on handing turns to a provider that could not spend a token. `spend limit` and
+`limit resets` are both in the list, and **neither captures, deliberately**: that reset is a
+wall-clock time in a named zone rather than the epoch second the first pattern reads, and a group
+around `8:20` would be believed to be an epoch, fail the window test and fall back anyway — by a
+longer route, through an arithmetic that looks like it worked. No group means the default window
+answers directly, which is the same result said honestly.
+
 The record is per **agent on a machine**: an allowance belongs to an account, so one provider running
 out says nothing about another, and marking the whole machine would take the fallback out along with
 the thing it is falling back from. It carries an expiry rather than a flag. Claude Code names the
@@ -2390,6 +2429,11 @@ automatic.
 **3. And where there is nobody to climb down to, stop and say so.** A board that says *the allowance
 is gone until 4pm* is worth more than one that answers the question badly with something else.
 
+**And the record says the daemon is retrying, because it is.** The strip reads that field exactly:
+without it the board says *send again to carry on*, and a student who obeys queues a second copy of
+their work behind a turn this loop was about to take itself. Both climb-downs — the allowance and
+the dark host — re-queue the message and set it.
+
 Coming back up is those steps in reverse and nobody types anything. The limit expires, or a turn goes
 through on that agent and proves its allowance is back before the clock said it would; the tutor
 climbs home at the top of its next turn, because the question is asked again every turn rather than
@@ -2400,9 +2444,98 @@ board limit              has the allowance here run out, and until when
 board limit --clear      it came back early; stop waiting out the guess
 ```
 
-`board doctor` names it too. The handoff is the one turn that must not be skipped and a tutor with
-no allowance cannot write it: it is attempted anyway, and a session that ends without one is a
-session the next has to reconstruct from the cards.
+`board doctor` names it too.
+
+**The handoff turn re-asks who writes it, rather than inheriting whoever just failed.** It is the
+one turn that must not be skipped, and the loop's recipe is rebound only at the top of a turn — so a
+session whose last turn stood its own provider down falls out of the bottom still bound to the dead
+one, and spends the wrap-up on the single recipe that cannot take it. Measured: the log said *the
+next turn goes to `claude`*, and the wrap-up three seconds later ran on DeepSeek's base URL, died
+`ECONNRESET` after 179 seconds, was billed to DeepSeek, and wrote nothing. The name **and** the
+recipe are rebound, because the environment is what actually points the binary. **And where nothing
+on the machine can write one it is skipped rather than attempted**, with the reason in the log:
+three minutes of known-dead retries is worse than no handoff, because the `finish-restart` window
+burns with them and the next daemon waits behind a turn that was never going to answer. A session
+that ends without one is a session the next reconstructs from the cards.
+
+#### When the provider does not answer from this machine at all
+
+An allowance that runs out is the provider working. A hostname this network drops is the provider
+being unreachable, and it looks identical from a lesson: a tutor listening, a student sending, and
+nothing coming back. `api.deepseek.com` is dropped at the TLS ClientHello here — the same address
+answers under its CloudFront name, so the filter keys on the hostname and no client setting reaches
+it. The recipe is correct and stays; what changes is everything around it.
+
+**A recipe with a provider of its own is probed before a turn is spent on it.** Only such a recipe:
+anything driving the machine's default provider is covered by the machine-wide probe the failure
+path already runs, and would pay a round trip for nothing. The probe costs 0.17 s — 0.07 s for the
+reset from a filtered host, 0.10 s for the 401 from one that answers — against a first turn that
+spends about three minutes retrying and writes no card. It is cached for `PROBE_TTL`, skipped for a
+recipe already stood down, and skipped where nothing gets out from here at all, which is not this
+provider's fault.
+
+**The climb-down is then taken as the daemon comes up, not at the top of the first turn**, so the
+board comes up saying who is actually teaching. A student watching a chip that says `deepseek` over
+a hostname this machine cannot open has been told nothing, and the whole of what the swap is worth
+is that somebody is told.
+
+**And the sentence goes on being said for as long as it is true.** `agent_why` is rewritten every
+turn precisely so it cannot outlive the swap it describes — which wiped it on the first turn after
+the daemon came up on the substitute, leaving a student who chose a provider being taught by another
+with the board no longer mentioning it. What settles it is the sitting's own choice against the one
+taking the turn: they differ for exactly as long as the stand-down or the allowance lasts.
+
+**The stand-down is per agent, carries an expiry, and the window doubles each time the same provider
+is found dark again**, to a day. A flat hour is right for a filter that lifts by itself and wrong
+for one that does not: a firewall rule outlives every expiry, so a fixed window costs a dead turn an
+hour for ever, each one a student waiting three minutes for nothing. The strike count is kept past
+the expiry — that is the whole of what makes the second finding cheaper than the first — and only a
+turn that goes through resets it, because that is the only evidence the host answers. A recipe that
+fails the same way twice for a reason the network is innocent of — a renamed model, a rejected key —
+is stood down the same way, with no host on the record.
+
+**And it reaches the glass, which is where it was missing.** Two facts already on disk — an
+allowance that has run out, a hostname that does not answer — now come back from
+`tutor --agents --json` as `unavailable`, in the launcher's own sentence. The chooser draws such a
+provider **offered but dimmed** and says why on the tap, because a stand-down expires and a sitting
+opened now is taught by whoever can take the turn when it arrives; what must not happen is it being
+drawn as though nothing were wrong. The lesson payload carries the stand-down itself beside the
+record it is about — the host, the reason, and when it will be asked again — which until then
+reached nobody: it was in the `!!` lines of `agent.log` and the output of `board agents`, two places
+a person holding an iPad cannot see, and it is the one fact that answers *why is nothing happening*.
+`unavailable` is the only field on a recipe that moves while the board is up and that nobody edits a
+file to change, which is why the assistant table's cache is a minute rather than a quarter of an
+hour — still a subprocess every four hundredth request rather than every one.
+
+**A machine-wide outage keeps the word the board has for it.** `no egress` survives to the record
+instead of being recomputed from the turn's own words as an exit code: the reading face has a case
+for *this machine cannot reach the internet*, and it never once fired, because by the time the board
+read the record the reason had been replaced.
+
+#### A message is owed until something answers it
+
+`board wait` marks an inbox line read before the turn runs, so from the moment a message is taken
+until something answers it, the daemon's own record is the only copy of it anywhere — and a turn is
+minutes long. Measured on 23 September: a turn failed at 17:43:05, the message was re-queued in the
+loop, the daemon was signalled three seconds later, and the student's work went with the process.
+Nothing was answered until the person sent it again two and a half hours later.
+
+So the debt is written into `agent.json` as well as held in the loop, **taken on when the message is
+taken** rather than when a turn fails, and a daemon starts by draining whatever the one before it
+left owed. That covers a signal, a walltime handover, a `tutor restart` and a lost node, which are
+four ways to lose the same thing. Every path out of a turn settles it once, off what the turn left
+behind: `None` where the turn went through, and `None` where it failed for something no retry
+repairs — so nothing can quietly un-owe a message the daemon has promised to answer, and nothing has
+to remember to.
+
+**A failing turn whose result object is long is still a failing turn.** The client's result object
+is the only place a turn says whether it actually failed, and it is longest exactly when the turn
+had a lot to say: a blind seek to the last 20 KB of the log lands in the middle of it, and measured
+on a real turn the tail kept `"result"` and lost the `"is_error"` that comes before it — a failure
+read back as a clean turn. The seek is pulled back to the start of the final line when the cap would
+have cut it. A fragment that arrives with no verdict in it ends the scan rather than being guessed
+at in either direction: guessing failure marks a good turn broken, and guessing success is the
+silence this whole path exists to end.
 
 #### Exit nodes, which are invisible until they are not
 
@@ -2725,6 +2858,48 @@ A board subcommand rather than a tool protocol, because that is the one interfac
 the registry already has — so it needs no MCP, no adapter and no per-vendor plumbing, and a new
 provider inherits it by existing. Where the image goes is a `vision` block on a recipe — endpoint,
 model, `needs_key` — resolved through the running agent first and `vision_agent` second.
+
+**An answer is not believed because it arrived.** The failure this path cannot have is a confident
+paragraph about a page nobody looked at — a text-only model behind the route, a harness that dropped
+the image block, a file-reading tool that was denied — and all three come back exit 0 with fluent
+prose. So every request carries a strip with six digits on it that are in the **image** and nowhere
+in the prompt, and an answer that cannot read them back is refused, with what it did say quoted so
+the cause is findable. That strip is a PNG written here from a glyph table and one `zlib` call — no
+TeX, no poppler, nothing that can be missing on a machine and turn the guard off quietly. `board
+eyes` is the same instrument run by hand for a person; this is it run on every call, for a program.
+
+**And the provider's own words for it are read as well.** DeepSeek's endpoint substitutes
+`[Unsupported Image]` for an image block its text-only model cannot take and answers 200, so that
+string in a reply names the cause, where a missing code only says that whatever answered did not
+look. **The same list is read off the tutor's own turn**, because a tutor whose model can see is
+told to open the PNG itself and never goes through `board see` at all: a turn carrying the
+placeholder fails with *the page never reached the model* rather than writing a fluent card about
+handwriting nobody was shown.
+
+**A command route runs without the sitting's routing variables.** `board see` is run by the tutor's
+own Bash tool, inside a turn whose environment the running recipe wrote — so in a DeepSeek sitting
+`ANTHROPIC_BASE_URL` is inherited and the `claude` route, whose whole premise is *the binary that is
+installed here anyway*, is the provider it is falling back FROM reached through a second door.
+Measured on the same PNG both ways: 14.4 s and a correct transcription with `seeing.ROUTING`
+scrubbed out, 180 s and a timeout with those variables exported. `env` on a `vision` block is
+applied after the scrub, so a route that genuinely wants one of them says so where the command is.
+
+**A stand-down is about a host, not about a name.** Since a command route no longer opens the
+provider's hostname, an agent whose *turns* are stood down still has working eyes on the local
+binary, and skipping it for its name answers *no vision route here can be used* with one sitting on
+the path. An endpoint route is skipped when the stand-down names its own host — and when it names no
+host at all, which is a recipe whose requests are being refused for something the network is
+innocent of, and this route carries the same key to the same provider. A `vision` block can also
+say `sighted: false`, and a route that declares its model blind is never handed a page: an answer
+from it is indistinguishable from a transcription.
+
+**The route is re-asked when an attempt fails**, because the attempt that just failed is what writes
+the evidence the next choice is made on — a refused connection is marked during the ask, and only a
+later resolution reads it. Resolved once and never again, the first `board see` of a DeepSeek
+sitting always failed with *the host could not be reached* and the tutor had no reason to believe a
+second try would differ, so it did not make one. Only ever onto a name that has not been tried: the
+same name back means nothing moved, and the first refusal is the honest answer, with every route's
+words kept in the refusal.
 
 **It refuses a fenced path before it reads a byte**, because it sends a file to a hosted provider
 and a board command does not go through any assistant's pre-tool hook. The rule it uses is the
@@ -5107,6 +5282,12 @@ node test/shelf.js       that the count on a box opens that box's documents, the
 python3 test/teaching.py that the teaching method reaches every course
 python3 test/choice.py   that the address opens the course a person chose
 python3 test/limit.py    that an allowance running out is reported rather than hidden
+python3 test/egress.py   that a provider which cannot answer from here stands aside before a
+                         turn is spent on it, that the reason reaches the glass, and that a
+                         message taken from the inbox is owed until something answers it
+python3 test/seeing.py   that no card is written off a page a model never saw: the code
+                         printed in the image has to come back, and the provider's own
+                         placeholder for a dropped image is read as the failure it is
 python3 test/tokens.py   what a turn is allowed to read, what it must not run, and that
                          what it cost is measured rather than argued about
 python3 test/colibri.py  that the local model is a recipe and not a feature: the sitting

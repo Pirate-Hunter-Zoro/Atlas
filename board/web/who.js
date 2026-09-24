@@ -21,6 +21,11 @@
      exclusive  one sitting at a time, machine-wide, in the recipe's own words
      private    the fenced reader. Never a machine default, because its cards
                 must not be pushed
+     unavailable why it could not take a turn RIGHT NOW, in the launcher's own
+                sentence -- an allowance that has run out, a hostname this
+                machine cannot open. Offered, dimmed, and the tap says so. It is
+                the only one of these that moves while the board is up, which is
+                why `assistants.TTL` is a minute
    ========================================================================== */
 
 (function () {
@@ -36,16 +41,25 @@
     });
   }
 
-  /* And the ones a tap can actually land on. */
+  /* And the ones a tap can actually land on. A provider that is merely
+     unavailable is still one of them: the stand-down expires, the allowance
+     comes back, and a sitting opened now is taught by whoever can take the turn
+     when it arrives. What must not happen is it being drawn as though nothing
+     were wrong. */
   function choosable(assistants) {
     return offerable(assistants).filter(function (a) { return !a.unkeyed; });
   }
 
   /* Why this one cannot be tapped, in words a person can act on, or "". */
   function blocked(a) {
-    if (!a || !a.unkeyed) return "";
-    return "needs " + a.unkeyed + " in " + (a.keys || "the key file")
-         + " — one " + a.unkeyed + "=… line and it is here";
+    if (!a) return "";
+    if (a.unkeyed) {
+      return "needs " + a.unkeyed + " in " + (a.keys || "the key file")
+           + " — one " + a.unkeyed + "=… line and it is here";
+    }
+    /* Not a setup problem and not permanent: the launcher's own sentence,
+       which already names the host and the hour it will be asked again. */
+    return a.unavailable || "";
   }
 
   /* What the button says about itself when it is held. */
@@ -67,7 +81,9 @@
       b.textContent = a.name;
       b.title = title(a);
       if (a.name === now) b.className = "on" + (a.exclusive ? " local" : "");
-      if (a.unkeyed || (opts.dim && opts.dim(a))) b.classList.add("away");
+      if (a.unkeyed || a.unavailable || (opts.dim && opts.dim(a))) {
+        b.classList.add("away");
+      }
       b.onclick = function () {
         if (a.unkeyed) {
           if (opts.say) opts.say(blocked(a));

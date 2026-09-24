@@ -8,18 +8,23 @@ list the browser could read is how the two go out of step the first time either
 moves.
 
 So this asks the launcher: `tutor --agents --json`. Once per board process,
-because the answer changes only when somebody edits a configuration file, and a
-subprocess four times a second is not a thing to do to a poll. `TTL` is long for
-the same reason -- a board that has been up for a day and has just been given a
-new agent picks it up on the next restart, which is when everything else about
-the tool arrives too.
+because the answer changes only when somebody edits a configuration file -- and a
+subprocess four times a second is not a thing to do to a poll.
+
+THE TTL IS A MINUTE RATHER THAN A QUARTER OF AN HOUR, and the reason is that the
+answer stopped being only about configuration. `unavailable` in that payload is
+an allowance that has run out and a provider whose hostname this machine cannot
+open, both of which move while the board is up and neither of which a person
+edits a file to change. Fifteen minutes of a chooser offering a provider that
+went dark fourteen minutes ago is fifteen minutes of a tap that lands nowhere.
+A minute is still a poll every four hundredth request rather than every one.
 """
 
 import json
 import time
 
 
-TTL = 900.0
+TTL = 60.0
 _CACHE = {"at": 0.0, "was": None}
 
 

@@ -47,6 +47,14 @@ def load_agent(repo):
         st["state"] = "reattaching" if _reattaching(st) else "stale"
     # And whatever went wrong last, if it is still news. See `_failure`.
     st["failure"] = _failure(repo, st)
+    # AND WHETHER THE PROVIDER ON THIS RECORD IS STANDING ASIDE, which until now
+    # reached nobody. The expiry is written into `unreachable.json`, read by
+    # `agent_unavailable`, and rendered in two places a person holding an iPad
+    # cannot see: the `!!` lines in `agent.log` and the terminal output of
+    # `board agents`. It is the one fact that answers "why is nothing
+    # happening" -- the host, and when it will be asked again -- so it goes in
+    # the payload beside the record it is about.
+    st["stood_down"] = _stood_down(st.get("agent"))
     # WHAT THE TURN WAS WOKEN FOR belongs to the turn, and the record outlives
     # it: `turn_signal` is written when a turn starts and every path out of a
     # turn would otherwise have to remember to clear it. Cleared HERE, once,
@@ -121,6 +129,22 @@ def _failure(repo, st):
     if _newest(repo) > at + 1:
         return None
     return {"error": st["last_error"], "at": at}
+
+
+def _stood_down(agent):
+    """Why this provider cannot take a turn here and until when, or None.
+
+    `until` is epoch seconds, formatted on the glass rather than here: the board
+    already draws every other clock that way, and a string built in Python is a
+    second place for the format to be decided.
+    """
+    if not agent:
+        return None
+    from ..net import egress
+    got = egress.stood_down(agent)
+    if not got:
+        return None
+    return {"host": got["host"], "why": got["why"], "until": got["until"]}
 
 
 def _newest(repo):

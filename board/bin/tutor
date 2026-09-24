@@ -53,7 +53,7 @@ import sys
 TOOL = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 sys.path.insert(0, TOOL)
 from tutorboard import (atlas, choice, handoff, keys, limits, machine, missions,
-                        paths, processes, supervise, worktree)
+                        paths, processes, seeing, supervise, worktree)
 from tutorboard.course import config
 from tutorboard.net import egress, tailscale
 
@@ -142,9 +142,20 @@ DEFAULT_CONFIG = {
             # command is run in the image's own directory and asked for the file
             # by name, because a headless turn has nobody to approve a read
             # outside its working directory. See `tutorboard/seeing.py`.
+            #
+            # "THE BINARY THAT IS INSTALLED HERE ANYWAY" IS THE PREMISE, AND A
+            # RECIPE CAN BREAK IT. `board see` is run by the tutor's own Bash
+            # tool, inside a turn whose environment the running recipe wrote --
+            # so in a DeepSeek sitting `ANTHROPIC_BASE_URL` is inherited and
+            # this command is not Claude at all. Measured: 14.4 s and a correct
+            # transcription in a clean environment, 180 s and a refusal with
+            # those four variables exported. `seeing.ROUTING` is the scrub that
+            # makes the premise true again, and `env` here is how a recipe
+            # overrides it -- a value of None unsets.
             "vision": {"cmd": ["claude", "-p", "{prompt}"],
                        "model": "whatever this machine's Claude Code settings "
-                                "select"},
+                                "select",
+                       "sighted": True},
         },
         # THE SAME BINARY, POINTED SOMEWHERE ELSE, AND FOUR VARIABLES DO IT.
         # DeepSeek serves an Anthropic-format `/messages` endpoint, so the
@@ -213,35 +224,96 @@ DEFAULT_CONFIG = {
             # PIN THE MODEL OR LOSE THE HANDWRITING. Unpinned, the endpoint maps
             # by NAME: an id starting `claude-opus` lands on `deepseek-v4-pro`,
             # which is text-only and SUBSTITUTES A PLACEHOLDER FOR AN IMAGE
-            # BLOCK rather than failing -- so a tutor handed a slate PNG answers
-            # confidently about nothing and no exit code says so. This machine's
-            # Claude Code settings say `opus[1m]`, which is exactly the name
-            # that lands there. Both variables, because the binary picks the
-            # small one for its own cheap calls.
+            # BLOCK rather than failing. The literal text is
+            # `[Unsupported Image]`, returned with HTTP 200 and a normal result
+            # object, so a tutor handed a slate PNG answers confidently about
+            # nothing and no exit code says so. Measured elsewhere, the same 71 KB JPEG both
+            # times: 403 input tokens on `deepseek-flash` against 102 on
+            # `deepseek-v4-pro`, which is the image not arriving. That string in
+            # a reply is the detector, and `seeing.blind_answer` is where it is
+            # read.
+            #
+            # EVERY SLOT, NOT THE TWO OBVIOUS ONES. This machine's Claude Code
+            # settings say `opus[1m]`, which is exactly the name that lands on
+            # the text-only model -- but the binary does not resolve one id per
+            # turn. It resolves the `opus`, `sonnet` and `haiku` ALIASES through
+            # `ANTHROPIC_DEFAULT_*_MODEL`, spawns a Task-tool subagent on
+            # `CLAUDE_CODE_SUBAGENT_MODEL`, and picks its own cheap calls off
+            # the small one. Any slot left unset is a request that goes out
+            # under a `claude-*` name and comes back from a model that cannot
+            # see, in the middle of a turn that was reading handwriting.
+            # `ANTHROPIC_SMALL_FAST_MODEL` is marked deprecated in the client's
+            # own environment reference and `ANTHROPIC_DEFAULT_HAIKU_MODEL` is
+            # its replacement: both are set, because which one the installed
+            # binary reads is not a thing this file gets to assume.
+            #
+            # AND THE BARE ID RATHER THAN `deepseek-flash[1m]`, WHICH IS THE ONE
+            # OPEN QUESTION HERE. The `[1m]` suffix is how the client selects a
+            # long-context variant of a name it knows, and the model's own window
+            # is a million tokens -- so an unrecognised id may well be sized off
+            # the client's default table instead. Third parties driving this
+            # endpoint write the suffix and report working turns; DeepSeek's own
+            # integration guide writes the bare name. Neither settles it, and it
+            # cannot be settled from here: the only test is a live turn, and the
+            # hostname is filtered. So the bare id, which is the spelling the
+            # provider documents. If the suffix is tried once the firewall
+            # opens and the first turn comes back 400 naming the model, that is
+            # the answer and it goes straight back. The small, haiku and
+            # subagent slots stay bare either way -- those calls are short and
+            # do not want the long-context weighting.
             "env": {
                 "ANTHROPIC_BASE_URL": "https://api.deepseek.com/anthropic",
                 "ANTHROPIC_AUTH_TOKEN": "{DEEPSEEK_API_KEY}",
                 "ANTHROPIC_MODEL": "deepseek-flash",
+                "ANTHROPIC_DEFAULT_OPUS_MODEL": "deepseek-flash",
+                "ANTHROPIC_DEFAULT_SONNET_MODEL": "deepseek-flash",
+                "ANTHROPIC_DEFAULT_HAIKU_MODEL": "deepseek-flash",
+                "CLAUDE_CODE_SUBAGENT_MODEL": "deepseek-flash",
                 "ANTHROPIC_SMALL_FAST_MODEL": "deepseek-flash",
             },
-            # WHY `deepseek-flash` AND NOT THE PRO, verified 23 September 2026.
-            # It serves DeepSeek-V4.1-Flash (released 10 September 2026), takes
-            # image input natively, carries a 1M-token context, and is cheaper
-            # AND better than `deepseek-v4-pro`, which is the older text-only
-            # model. This is the field that goes stale, and it is a one-string
-            # change when it does. It cannot be re-checked from this machine --
-            # `GET https://api.deepseek.com/models` dies in the same handshake
-            # as a turn -- so ask the provider what it serves on the first day
-            # the hostname is open.
+            # WHY `deepseek-flash` AND NOT THE PRO, and THE SAME ID DOES BOTH
+            # JOBS. It serves DeepSeek-V4.1-Flash: a multimodal model that
+            # natively processes images and text, 1M-token context, DocVQA 95.6
+            # -- which is the document-reading benchmark a photograph of a slate
+            # is scored by -- and ahead of `deepseek-v4-pro` on the coding and
+            # mathematics benchmarks as well as cheaper. The API serves exactly
+            # two ids: this one and `deepseek-v4-pro`, which is text-only.
+            # `deepseek-v4-flash` and `deepseek-v4-flash-vision-exp` are
+            # deprecated aliases onto this one. There is no separate eyes model
+            # to reach for: DeepSeek-OCR-2 reads documents better and is
+            # published as open weights, not as an id this endpoint accepts, so
+            # it is a self-hosting project rather than a one-string change here.
+            #
+            # WHAT CAN BE RE-CHECKED FROM HERE, AND WHAT CANNOT, because this is
+            # the field that goes stale and the obvious way to check it is shut.
+            # `api.deepseek.com` and `api-docs.deepseek.com` are both filtered,
+            # so `GET https://api.deepseek.com/models` dies in the same
+            # handshake as a turn. `huggingface.co` and `github.com` are NOT,
+            # and the provider's own answer lives there: the model card at
+            # `deepseek-ai/DeepSeek-V4.1-Flash` carries the `image-text-to-text`
+            # tag and the 1M window, and `github.com/deepseek-ai/deepseek-recipe`
+            # is the protocol adapter this endpoint is built from, with
+            # `deepseek-flash` as the id throughout. Re-check against those two
+            # rather than waiting for the firewall.
             #
             # Where `board see` sends an image when the assistant running the
             # sitting has no eyes. The OpenAI-format endpoint rather than the
             # Anthropic one, because that is a single request rather than an
-            # agent loop.
+            # agent loop. It accepts an `image_url` part whose url is a base64
+            # data URL, in four media types and no others -- jpeg, png, gif,
+            # webp -- which is `seeing.IMAGES` exactly, so a fifth extension
+            # added there is a 400 from here.
             "vision": {
                 "endpoint": "https://api.deepseek.com/v1/chat/completions",
                 "model": "deepseek-flash",
                 "needs_key": "DEEPSEEK_API_KEY",
+                # THE ROUTE SAYS WHETHER ITS MODEL HAS EYES, because the one
+                # failure this path must not have is a confident paragraph about
+                # a page nobody looked at. Declared, then PROVED: `seeing.ask`
+                # puts a code in the image that is nowhere in the prompt and
+                # refuses an answer that does not carry it back. A route that
+                # says `false` is never handed a page at all.
+                "sighted": True,
             },
             # WHAT A TURN COST, IN DOLLARS, COMPUTED HERE. The binary emits
             # `total_cost_usd` and it is WRONG for this provider: those are
@@ -599,13 +671,17 @@ def result_object_error(text):
     The LAST such line, because a turn retried as a fresh one writes two.
 
     AND A RESULT OBJECT TOO LONG TO HAVE SURVIVED WHOLE still says what
-    happened. `turn_output` reads back the last 20 KB of the log, so a turn with
-    many round trips has its final line cut at the FRONT -- it no longer parses
-    and it no longer opens with a brace, which is why neither test is what
-    admits a line here. `is_error`, `result` and `type` are the last fields the
-    client writes, so they are the ones a front cut leaves behind, and they are
-    read off the fragment directly. Without this the exit code is the only thing
-    left to report, which is the dead end this whole path exists to end.
+    happened, which is the second line of defence rather than the first.
+    `turn_output` now pulls its seek back to the start of the final line, so an
+    ordinary long turn arrives here parseable -- but a log rotated under the
+    daemon, or an offset past the line, still hands over a fragment that no
+    longer opens with a brace, which is why neither test is what admits a line
+    here. What is read off a fragment is read directly, and the ORDER matters:
+    measured on a real result line, `"is_error"` sits at byte 932 and `"result"`
+    at 1006, so a front cut loses the verdict before it loses the sentence. A
+    fragment with no verdict in it therefore ends the scan rather than being
+    guessed at in either direction -- guessing failure marks a good turn as
+    broken, and guessing success is the silence this whole path exists to end.
     """
     for line in reversed((text or "").splitlines()):
         line = line.strip()
@@ -675,19 +751,35 @@ def failure_reason(text, code_note):
     return code_note
 
 
-def turn_output(path, offset, cap=20000):
+def turn_output(path, offset, cap=20000, line_cap=400000):
     """What this turn wrote to the log, which is everything it managed to say.
 
     An agent's stdout and stderr both go straight into the log file, so the only
     record of WHY a turn failed is the stretch of that file it has just written.
     The tail of it is enough, and the cap is there because a turn that dumped a
     repository into its output must not be read back into memory whole.
+
+    AND THE LAST LINE IS NEVER CUT, WHATEVER THE CAP SAYS, because it is the one
+    line whose every field is load-bearing: the client's result object, which is
+    where `result_object_error` reads whether the turn actually failed. That
+    object is long exactly when the turn had a lot to say, and a blind seek to
+    `size - cap` lands in the middle of it -- measured on a real turn, the tail
+    kept `"result"` and lost the `"is_error"` that comes before it, so a failure
+    read back as a clean turn. So the seek is pulled back to the start of the
+    final line when the cap would have cut it, bounded by `line_cap` for the
+    same reason the cap exists at all.
     """
     try:
         size = os.path.getsize(path)
-        with open(path, "r", encoding="utf-8", errors="replace") as fh:
-            fh.seek(max(0, offset, size - cap))
-            return fh.read()
+        floor = max(0, offset)
+        with open(path, "rb") as fh:
+            back = max(floor, size - line_cap)
+            fh.seek(back)
+            tail = fh.read()
+            cut = tail.rstrip(b"\n").rfind(b"\n")
+            last = back + cut + 1 if cut >= 0 else back
+            fh.seek(min(max(floor, size - cap), last))
+            return fh.read().decode("utf-8", "replace")
     except OSError:
         return ""
 
@@ -2205,6 +2297,50 @@ def agent_state(live, **kw):
     return st
 
 
+def owed_message(live):
+    """A student message a previous daemon failed on and never answered, or None.
+
+    The other half of `owe` in `headless`. Read once at the top of a daemon's
+    life, because the alternative -- an inbox line the board already marked read
+    -- hands the next daemon a `board wait` that blocks for ever over work that
+    was handed in.
+    """
+    try:
+        with open(os.path.join(live, "agent.json"), "r", encoding="utf-8") as fh:
+            got = (json.load(fh) or {}).get("owed")
+    except (OSError, ValueError):
+        return None
+    return got if isinstance(got, str) and got.strip() else None
+
+
+def record_is_ours(live, pid=None):
+    """Does `agent.json` still name this process as the daemon on it?
+
+    `agent_state` is a read-modify-write on one file that several processes
+    write -- this daemon, the launcher, `tutor restart`, the hub -- and merging
+    is what makes that safe for a field somebody is adding. It is not safe for
+    the LAST write a daemon makes, which is `state: "stopped"`: a bounce hands
+    the workspace over, the successor comes up and records its own pid, and the
+    process that was replaced then stamps `stopped` on the record of the one
+    that replaced it. `supervise.tutor_verdict` reads `stopped` as "a person
+    said no" and never revives it, so the cost is a board that serves perfectly
+    with nothing reading it until somebody notices by hand.
+
+    Only the exit write is guarded, and the test is deliberately generous: an
+    unreadable record, and a record whose pid a start has not filled in yet, are
+    both answered yes. The successor writes its real pid within seconds of
+    forking, which is the window this closes -- the narrow one where two daemons
+    are alive and only one of them owns the file.
+    """
+    pid = os.getpid() if pid is None else pid
+    try:
+        with open(os.path.join(live, "agent.json"), "r", encoding="utf-8") as fh:
+            got = (json.load(fh) or {}).get("pid")
+    except (OSError, ValueError):
+        return True
+    return not got or got == pid
+
+
 def mark_waking(live, agent_name, pid=None):
     """Record that a tutor is on its way up, before anything slow is attempted.
 
@@ -2233,6 +2369,15 @@ def mark_waking(live, agent_name, pid=None):
     its success, and `lesson.state._failure` drops it the moment a card is
     written past it. A start is not newer than anything.
 
+    AND IT CLEARS THE CLOCKS THE DAEMON BEFORE THIS ONE LEFT BEHIND. `agent_state`
+    merges, so `stopped_at`, `turn_started` and `turn_signal` from a process that
+    is gone sit in the same record as this one's `started` and are read as
+    though they were this one's -- the board draws how long a turn has been
+    running off `turn_started`, and a record carrying 17:40:07 beside a daemon
+    that came up at 20:16 draws a turn that has been going for two and a half
+    hours. A start is the one moment that has earned the right to clear them,
+    because it is the one moment they are certainly about somebody else.
+
     AND A FAILURE IS DROPPED WHEN THE AGENT CHANGES, because the strip names the
     agent on the record and would otherwise paint the new one with the old one's
     fault: "claude's last turn failed -- cannot reach api.deepseek.com", about a
@@ -2245,6 +2390,7 @@ def mark_waking(live, agent_name, pid=None):
         return agent_state(live, agent=agent_name, pid=pid, state="waking",
                            waking_at=time.time(), restarting=False,
                            handover=None, host=this_host(),
+                           stopped_at=0, turn_started=0, turn_signal="",
                            **not_this_agents_failure(live, agent_name))
     except OSError:
         return None
@@ -3076,7 +3222,23 @@ def for_this_turn(cfg, course, running, carried, signal, log=None):
     # Then the allowance, which is the other half and belongs to the agent.
     name, said = choose_agent(cfg, wanted)
     if name == running:
-        return cfg, running, cfg["agents"].get(running) or {}, None
+        # AND IT GOES ON SAYING WHY FOR AS LONG AS IT IS TRUE, which is the
+        # difference between a climb-down and a silence. `agent_why` is rewritten
+        # on every turn precisely so it cannot outlive the swap it describes --
+        # so returning None here because nothing MOVED this turn wipes it on the
+        # first turn after the daemon came up on the substitute. Measured on the
+        # shape that started this: the sitting asks for `deepseek`, the daemon
+        # probes it dark and comes up as `claude` with the sentence on the
+        # record, and one turn later the record says `claude` and nothing else.
+        # The student chose a provider, is being taught by another, and the
+        # board has stopped mentioning it.
+        #
+        # What settles it is WANTED rather than RUNNING: the sitting's own
+        # choice against the one taking the turn. They differ for exactly as
+        # long as the stand-down or the allowance lasts, and `choose_agent`'s
+        # sentence already names the host and the hour.
+        return cfg, running, cfg["agents"].get(running) or {}, (
+            said if name != wanted else None)
     holding = (cfg["agents"].get(running) or {}).get("private")
     taking = (cfg["agents"].get(name) or {}).get("private")
     if carried > 0:
@@ -3158,11 +3320,33 @@ def headless(cfg, course, agent_name, session):
                           "session": session or "lecture", "urls": urls,
                           "handoff": handoff_clause(root)})
 
+    # AND WHETHER THE PROVIDER THIS SITTING NAMES ANSWERS FROM HERE AT ALL,
+    # ASKED BEFORE THE PERSON SENDS ANYTHING RATHER THAN AFTER. The probe costs
+    # 0.17 s -- 0.07 s for the reset from a filtered host, 0.10 s for the 401
+    # from one that answers -- and it replaces a first turn that spends about
+    # three minutes retrying and writes no card. Cached in `probe_before_turn`
+    # for `PROBE_TTL`, and skipped entirely for a recipe with no provider of its
+    # own, so an ordinary sitting pays nothing for it.
+    #
+    # The climb-down is then taken HERE rather than at the top of the first
+    # turn, so the board comes up saying who is actually teaching. A student
+    # watching a chip that says `deepseek` over a hostname this machine cannot
+    # open has been told nothing, and the whole of what the swap is worth is
+    # that somebody is told.
+    probe_before_turn(cfg, agent_name, log)
+    took, why_took = choose_agent(cfg, agent_name)
+    if took != agent_name:
+        log.write("-- %s\n" % (why_took or "'%s' is taking this sitting" % took))
+        agent_name = took
+        spec = cfg["agents"].get(took) or {}
+        recipe = spec.get("headless") or spec.get("headless_first")
     # `last_error` and `failed_at` are not cleared here either: see
     # `mark_waking`. Coming up is not evidence that the turn that fell over
     # before it went well.
     agent_state(live, host=host, agent=agent_name, pid=os.getpid(),
-                started=time.time(), state="listening", turns=0, waking_at=0)
+                started=time.time(), state="listening", turns=0, waking_at=0,
+                agent_why=why_took or None,
+                **not_this_agents_failure(live, agent_name))
     print(net.rstrip())
     print("\n%s is listening in %s. Send from the board; nothing here needs a keyboard."
           % (agent_name, course["dir"]))
@@ -3209,7 +3393,29 @@ def headless(cfg, course, agent_name, session):
     # student sent something and got nothing back; `board wait` will not hand it
     # over twice, so it is carried here rather than waiting for them to give up
     # and send again.
-    pending = None
+    # AN OWED MESSAGE LIVES ON DISK, NOT IN THIS PROCESS. `pending` is the
+    # daemon's promise to re-answer a student message whose turn fell over, and
+    # `board wait` has already rewritten `live/inbox/messages.jsonl` with
+    # `read: true` before the turn ran -- so the inbox will not hand it over
+    # again and this variable is the only copy. Measured on 23 September: a turn
+    # failed at 17:43:05, the message was re-queued here, the daemon was
+    # signalled three seconds later, and the student's work went with the
+    # process. `live/cards/` stayed empty, the next daemon's `board wait` found
+    # nothing unread, and nothing was answered until the person sent it again
+    # two and a half hours later.
+    #
+    # So every assignment goes through `owe`, which writes it into `agent.json`
+    # as well, and the loop starts by draining whatever the daemon before it
+    # left owed. That covers a signal, a walltime handover, a `tutor restart`
+    # and a lost node, which are four ways to lose the same thing.
+    def owe(msg):
+        agent_state(live, owed=msg or None)
+        return msg
+
+    pending = owed_message(live)
+    if pending:
+        log.write("-- the daemon before this one owed an answer to a message; "
+                  "it is the first turn\n")
     # THE SAME FAILURE TWICE IS A BROKEN RECIPE, NOT A BAD MINUTE. `(agent,
     # reason, count)` for whatever the last turn failed of, so a provider that
     # answers every turn with the same fault -- a model that has been renamed, a
@@ -3251,6 +3457,17 @@ def headless(cfg, course, agent_name, session):
                 agent_state(live, state="listening")     # timed out; still alive
                 continue
 
+        # A MESSAGE IS OWED FROM THE MOMENT IT IS TAKEN, NOT FROM THE MOMENT A
+        # TURN FAILS. `board wait` has already rewritten `live/inbox/messages.jsonl`
+        # with `read: true`, so from here until something answers it, this record
+        # is the only copy of it anywhere -- and a turn is minutes long. The
+        # failure paths below all re-owe it, which covered a turn that came back;
+        # it did not cover a daemon signalled, a node lost or a walltime handover
+        # WHILE the turn was running, and those land in the same three minutes.
+        # Written here rather than flushed from `bye`, because a signal handler
+        # that has to reach the filer to save a student's work is a promise made
+        # at the worst possible moment.
+        owe(out)
         turns += 1
         this_signal = turn_signal(out)
         # `turn_started` is the daemon's clock, and the board needs it: its own
@@ -3396,6 +3613,28 @@ def headless(cfg, course, agent_name, session):
         if not err and result_object_error(said):
             err = "the agent reported a failure and exited 0"
 
+        # AND THE PAGE THAT NEVER ARRIVED, WHICH EXITS 0 AND READS AS A LESSON.
+        # `board see` refuses an answer carrying one of these -- `blind_answer`
+        # in `tutorboard/seeing.py` -- but a tutor whose model can see is told by
+        # the turn prompt to open the PNG itself, so the slate goes through the
+        # binary's own Read tool and never passes that guard. An endpoint that
+        # cannot take the image block substitutes the placeholder INTO THE
+        # CONVERSATION and answers 200, so the model marks handwriting it was
+        # never shown, confidently, and the exit code agrees with it. That is
+        # the one failure on this board a person cannot catch by reading the
+        # card, because the card is fluent.
+        #
+        # The list is imported rather than repeated: a second copy of a
+        # provider's placeholder wording is a table that goes stale in the file
+        # nobody is looking at. Asked of the whole turn, not of a card, because
+        # the substitution happens wherever the image was handed over.
+        if not err:
+            blind = seeing.blind_answer(said)
+            if blind:
+                err = ("the page never reached the model -- it answered around "
+                       "%s, so anything it said about the handwriting is "
+                       "invented" % blind)
+
         # WHAT IT COST, WHETHER OR NOT IT WORKED. A turn that died on its last
         # round trip is billed for the ones before it, and a failure that is
         # missing from `cost.jsonl` is a provider whose bad evening is invisible
@@ -3443,7 +3682,7 @@ def headless(cfg, course, agent_name, session):
                     # and the next turn needs the second or two it takes to
                     # write `working` and re-open the turn.
                     missions.defer_carry(root, mrec)
-                pending = carry_line(out)
+                pending = owe(carry_line(out))
                 continue
             if reads_as_carry(err) or timed_out:
                 # THE GENERATION ENDED, THE TASK DID NOT FAIL. The client is a
@@ -3460,6 +3699,7 @@ def headless(cfg, course, agent_name, session):
                     root, log, out, this_signal, time.time() - started_at,
                     "the turn hit its %d h cap" % (cap // 3600) if timed_out
                     else "the generation that turn ran in ended", rec=mrec)
+                owe(pending)
                 if mine:
                     # NO FAILURE IS STAMPED. `missions.judge`'s failure rule
                     # fires off `last_error` within one hub poll, and a mission
@@ -3487,12 +3727,18 @@ def headless(cfg, course, agent_name, session):
                 log.write("!! '%s' is out of allowance here until %s\n"
                           % (agent_name,
                              time.strftime("%H:%M", time.localtime(until))))
+                # `retrying`, BECAUSE THE DAEMON IS. The strip reads exactly
+                # this field: without it the board says "send again to carry
+                # on", and a student who obeys queues a second copy of their
+                # work behind a turn this loop was about to take itself. The
+                # message is re-queued four lines down; that is what retrying
+                # means.
                 agent_state(live, state="listening", last_error="out of allowance",
                             failed_at=time.time(), failed_agent=agent_name,
-                            limited=until)
+                            limited=until, retrying=True)
                 # The student sent something and got nothing. Whoever ends up
                 # answering it, it is the same message.
-                pending = out
+                pending = owe(out)
 
                 # Push the lesson before standing aside, rather than waiting
                 # for the next beat. Whoever picks this up reads it out of the
@@ -3542,14 +3788,17 @@ def headless(cfg, course, agent_name, session):
                           "else on the network answers; standing it down until "
                           "%s\n" % (agent_name, host,
                                     time.strftime("%H:%M", time.localtime(until))))
+                # `retrying` for the same reason as the allowance above: the
+                # message is put back below and the next turn answers it.
                 agent_state(live, state="listening",
                             last_error="cannot reach %s" % host,
-                            failed_at=time.time(), failed_agent=agent_name)
+                            failed_at=time.time(), failed_agent=agent_name,
+                            retrying=True)
                 # The student sent something and got nothing, and the next turn
                 # climbs down exactly as it does for an allowance: `choose_agent`
                 # will not offer this recipe again until the expiry passes, and
                 # a cold turn reads the evening back off disk whoever takes it.
-                pending = out
+                pending = owe(out)
                 sync_transcript(root, log)
                 nxt, _ = choose_agent(load_config(), agent_name)
                 if nxt != agent_name:
@@ -3561,7 +3810,15 @@ def headless(cfg, course, agent_name, session):
                 if mrec:
                     missions.turn_over(root, mrec, time.time() - started_at)
                 continue
+            # AND WHETHER IT WAS THE MACHINE, kept, because the sentence below
+            # recomputes the reason from the turn's own words and would write
+            # `exit 1` over the top of it. `failWord` in `board.js` has a case
+            # for this one -- "this machine cannot reach the internet" -- and it
+            # never once fired, because by the time the board read the record
+            # the reason had been replaced by the exit code.
+            dark_machine = False
             if not egress.egress_ok():
+                dark_machine = True
                 log.write("!! nothing can get out from here; the turn may not be "
                           "the tutor's fault\n")
                 agent_state(live, state="listening", last_error="no egress",
@@ -3573,7 +3830,7 @@ def headless(cfg, course, agent_name, session):
                     # The student sent something and got nothing. Put the same
                     # inbox back so the next pass answers it rather than waiting
                     # for them to send again.
-                    pending = out
+                    pending = owe(out)
                 else:
                     log.write("!! egress still broken (%s); turns will keep "
                               "failing until the network is fixed\n" % detail)
@@ -3587,7 +3844,7 @@ def headless(cfg, course, agent_name, session):
             # model that refused.
             if mrec:
                 missions.turn_over(root, mrec, time.time() - started_at)
-            why = failure_reason(said, err)
+            why = "no egress" if dark_machine else failure_reason(said, err)
             # LOUD IS NOT THE SAME AS RECOVERABLE, and this is where the
             # difference is paid. The two causes above both climb down: an
             # exhausted allowance and a dark host each stand the recipe aside
@@ -3610,7 +3867,7 @@ def headless(cfg, course, agent_name, session):
                           "it down until %s\n"
                           % (agent_name, why,
                              time.strftime("%H:%M", time.localtime(until))))
-                pending = out
+                pending = owe(out)
                 sync_transcript(root, log)
                 nxt, _ = choose_agent(load_config(), agent_name)
                 if nxt != agent_name:
@@ -3645,8 +3902,53 @@ def headless(cfg, course, agent_name, session):
             agent_state(live, state="listening", last_error=None,
                         failed_at=0, failed_agent=None, retrying=False)
 
+        # AND THE DEBT IS SETTLED HERE, ONCE, BY WHAT THE TURN LEFT BEHIND.
+        # `pending` is this loop's own answer to "is the same message still
+        # owed": None where the turn went through, and None where it failed for
+        # something no retry repairs -- the model refused, the recipe is wrong --
+        # which is the case the board tells the student to send again for. The
+        # branches that DO re-queue it set `pending` and then `continue` past
+        # this, so nothing here can un-owe a message the daemon has promised to
+        # answer. Every path out of a turn therefore leaves the record saying the
+        # truth about it, rather than every path having to remember to.
+        owe(pending)
+
     # The last turn, and the only one the student never sees.
+    #
+    # WHO WRITES IT IS RE-ASKED HERE, AND IT IS NOT AUTOMATICALLY WHOEVER JUST
+    # FAILED. `agent_name`, `spec` and `recipe` are the LOOP's, rebound only by
+    # `for_this_turn` at the top of a turn -- and a session whose last turn
+    # stood its own provider down never takes another turn, so the loop falls
+    # out of the bottom with the dead recipe still bound. Measured on 23
+    # September: the log said `-- the next turn goes to 'claude'` at 17:43:05,
+    # and the wrap-up three seconds later printed DeepSeek's own
+    # unrecognised-model line, ran on DeepSeek's `ANTHROPIC_BASE_URL`, died
+    # `ECONNRESET` after 179 seconds, was billed to DeepSeek, and wrote nothing.
+    # The one turn that must not be skipped was spent on the one recipe that
+    # could not take it.
+    #
+    # AND IT IS SKIPPED RATHER THAN SPENT WHEN NOTHING HERE CAN WRITE ONE.
+    # Three minutes of known-dead retries is worse than no handoff, because the
+    # `finish_restart` window is burned along with them and the next daemon is
+    # kept waiting behind a turn that was never going to answer.
+    stuck = None
     if turns:
+        cfg = load_config()
+        took, why_took = choose_agent(cfg, agent_name)
+        if took != agent_name:
+            log.write("-- the handoff goes to '%s': %s\n"
+                      % (took, why_took or "it is what can write one here"))
+            agent_name = took
+            spec = cfg["agents"].get(took) or {}
+            recipe = spec.get("headless") or spec.get("headless_first")
+        stuck = agent_unavailable(cfg, agent_name)
+        if stuck:
+            log.write("\n=== %s handoff ===\n!! no handoff was attempted: %s, "
+                      "and nothing else on this machine can write one. "
+                      "HANDOFF.md is whatever the last session left; the "
+                      "transcript is what the next one reads.\n"
+                      % (time.strftime("%H:%M:%S"), stuck))
+    if turns and not stuck:
         agent_state(live, state="wrapping up")
         log.write("\n=== %s handoff ===\n" % time.strftime("%H:%M:%S"))
         # The handoff is the one turn that must not be skipped -- it is the only
@@ -3741,7 +4043,18 @@ def headless(cfg, course, agent_name, session):
     # the flag lives exactly as long as the restart it describes is unfinished --
     # and a restart nobody finished is one the watchdog now finishes, after
     # `REATTACH_GRACE`.
-    agent_state(live, state="stopped", stopped_at=time.time())
+    #
+    # AND IT IS WRITTEN ONLY WHERE THIS PROCESS IS STILL THE ONE ON THE RECORD.
+    # See `record_is_ours`: a bounce that has already brought the successor up
+    # leaves two daemons alive for a moment, and this line landing on the new
+    # one's record retires a tutor that is listening. Nothing is written at all
+    # in that case -- the successor's own `listening` is the truth, and the only
+    # thing this process has left to say about the file is nothing.
+    if record_is_ours(live):
+        agent_state(live, state="stopped", stopped_at=time.time())
+    else:
+        log.write("-- another daemon already holds this record; its state is "
+                  "left alone\n")
     print("stopped after %d turn(s)" % turns)
     return 0
 
@@ -5963,6 +6276,18 @@ def main(argv):
                          # model name are not secrets, and the key is named
                          # rather than carried. See `tutorboard/seeing.py`.
                          "vision": spec.get("vision") or None,
+                         # AND WHETHER IT COULD TAKE A TURN RIGHT NOW, which is
+                         # a different question from whether it is installed and
+                         # keyed. An allowance that has run out and a hostname
+                         # this machine cannot open are both facts already on
+                         # disk, and until they reached here the chooser drew a
+                         # dark provider as a live button: `deepseek` undimmed
+                         # and tappable while its TLS handshake was being reset
+                         # at 57 ms. This is a file read, not a round trip --
+                         # `agent_unavailable` is documented as reading those
+                         # findings rather than measuring them, precisely so it
+                         # can sit under a poll.
+                         "unavailable": agent_unavailable(cfg, n),
                          "headless": bool(spec.get("headless")
                                           or spec.get("headless_first"))}
                         for n, spec in sorted(cfg["agents"].items())],

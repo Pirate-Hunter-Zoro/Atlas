@@ -45,6 +45,26 @@ DEFAULT_USAGE_LIMIT_SAYS = (
     # says when the key has nothing behind it.
     r"insufficient balance",
     r"\b402\b[^\n]{0,40}balance",
+    # AND THE TWO AN ACCOUNT-LEVEL CEILING SAYS, which are not the phrases a
+    # per-session allowance uses and cost a teaching evening to learn. Claude
+    # Code answers a spent org budget with HTTP 429 and the sentence "You've hit
+    # your org's monthly spend limit * run /usage-credits to ask your admin for
+    # a higher limit * your session limit resets 8:20pm (America/Chicago)". It
+    # says neither "usage limit reached" nor "limit reached ... resets" -- the
+    # word between "limit" and "resets" is "session", and the first limit in the
+    # sentence is a SPEND limit -- so every pattern above missed it, nothing was
+    # recorded, and the daemon went on handing turns to a provider that could
+    # not spend a token. A course tutor sat dead on it for an hour looking
+    # exactly like one that was thinking.
+    #
+    # NEITHER PATTERN CAPTURES, DELIBERATELY. The reset is given as a wall-clock
+    # time in a named zone rather than as the epoch second the first pattern
+    # reads, and a group around `8:20` would be believed to be an epoch, fail
+    # the `now < when` window and fall back anyway -- by a longer route, through
+    # an arithmetic that looks like it worked. No group means `limit_window()`
+    # answers directly, which is the same result said honestly.
+    r"\bspend limit\b",
+    r"\blimit resets\b",
 )
 
 # How long a limit lasts when the provider did not say. Long enough not to

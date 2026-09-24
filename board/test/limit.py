@@ -91,8 +91,32 @@ check("and so is the API's own word for it",
 check("DeepSeek's own word for an exhausted balance is a limit too -- none of "
       "the phrases written for one provider matched it",
       limits.reads_as_usage_limit("Insufficient Balance", now))
+# AN ACCOUNT-LEVEL CEILING SAYS NONE OF THE ABOVE, and a teaching evening paid
+# for finding that out. The sentence never says "limit reached"; the word
+# between "limit" and "resets" is "session"; and the first limit in it is a
+# SPEND limit. Every phrase written for a per-session allowance missed it, so
+# nothing was recorded and the daemon went on handing turns to a provider that
+# could not spend a token.
+SPENT = ("You've hit your org's monthly spend limit · run /usage-credits to "
+         "ask your admin for a higher limit · your session limit resets "
+         "8:20pm (America/Chicago)")
+check("a spent org budget is a limit, though it says none of the words the "
+      "per-session phrases were written for",
+      limits.reads_as_usage_limit(SPENT, now))
+check("and it falls back to the ordinary window rather than reading `8:20` as "
+      "an epoch -- the patterns for it capture nothing, deliberately",
+      abs(limits.reads_as_usage_limit(SPENT, now) - (now + limits.limit_window()))
+      < 2)
 check("an ordinary broken turn is not a limit, and must not demote the machine",
       limits.reads_as_usage_limit("Error: ENOENT no such file", now) is None)
+# THE ONE THAT MUST NOT MATCH. A network drop read as a spend limit would stand
+# the fallback down alongside the provider it is meant to fall back to, and
+# leave the board with no tutor at all -- which is the state a filtered hostname
+# and a spent budget already put it in once, for two unrelated reasons.
+check("a provider the network drops is NOT a limit, so the climb-down still "
+      "has somewhere to climb to",
+      limits.reads_as_usage_limit(
+          "API Error: Connection dropped (ECONNRESET)", now) is None)
 check("nor is a turn that said nothing at all",
       limits.reads_as_usage_limit("", now) is None)
 
@@ -186,8 +210,17 @@ check("a limit is asked about before the network is blamed -- the turn itself "
       < src.index("if not egress.egress_ok():"))
 check("the machine is marked, which is what /health then publishes",
       "limits.mark_limited(until, agent=agent_name)" in src)
-check("the message whose turn was lost is carried, not dropped",
-      "pending = out" in src)
+check("the message whose turn was lost is carried, not dropped -- and to "
+      "DISK, because the daemon holding it is the thing most likely to be "
+      "signalled next",
+      "pending = owe(out)" in src and "def owe(msg):" in src
+      and "agent_state(live, owed=msg or None)" in src)
+check("and the daemon that comes up after it drains what was owed, rather than "
+      "blocking for ever on an inbox line `board wait` has already marked read",
+      "pending = owed_message(live)" in src and "def owed_message(live):" in src)
+check("and the board is told the daemon is retrying, so it does not advise "
+      "sending the same work again behind a turn already queued",
+      "limited=until, retrying=True)" in src)
 check("the transcript is pushed before the turn is given up on, so the message "
       "it failed to answer is somewhere a later session can read it",
       "sync_transcript(root, log)" in src)
