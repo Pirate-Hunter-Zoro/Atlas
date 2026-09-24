@@ -5049,8 +5049,10 @@ at the version of the afternoon it was unpacked while the hosted control plane m
 
 `update_userspace` in `net/tailscale.py` fetches the current stable tarball and moves the two
 binaries into place. It runs in `vendor/colibri`'s two moments and for the same reasons: `tutor
-resume`, which is the one moment a compute node gets, and `tutor pull`, which is what the daily
-timer runs on a machine that is left up for a week and never has a login. The index is asked at
+resume`, which is the one moment a compute node gets, and `tutor pull`, which is what
+`tutor-pull.timer` runs daily on a machine that is left up for a week and never has a login.
+`scripts/tutor-pull` is that timer's whole script — a stamp, a log and one call — and
+`install.sh` links it, copies its units and enables it. The index is asked at
 most once a day — four terminals in a morning is four logins — and `tutor pull` forces it, because
 that is itself the daily job.
 

@@ -1,0 +1,64 @@
+#!/usr/bin/env bash
+# ---------------------------------------------------------------------------
+#  tutor-pull -- run `tutor pull` at most once a day, from a timer.
+#
+#      tutor-pull            pull if it has not already run today
+#      tutor-pull --force    pull regardless
+#
+#  `tutor pull` moves the two things this repository depends on and does not
+#  write: `vendor/colibri`, somebody else's repository tracked here by pointer,
+#  and the unprivileged Tailscale unpacked under $HOME that no package manager
+#  knows about. Both also happen on login from `tutor resume`, which is the one
+#  moment a compute node gets; this is the copy for a workstation that is left
+#  up for a week and never has a login.
+#
+#  IT REIMPLEMENTS NOTHING. The submodule fast-forward, the pointer commit and
+#  the three guards that make an unattended commit safe are `pull_vendor` in
+#  `bin/tutor`; the client update and its four refusals are `update_userspace`
+#  in `tutorboard/net/tailscale.py`. This file is a stamp, a log and one call.
+#
+#  Never fatal and never clever: a dirty tree, a detached HEAD, an unreachable
+#  remote or a package index that does not answer is written to the log and
+#  left alone. Merging somebody else's repository is not a decision a timer
+#  gets to make.
+#
+#  A systemd --user timer rather than cron, which pam refuses on this cluster.
+# ---------------------------------------------------------------------------
+set -uo pipefail
+
+STAMP="$HOME/.local/state/tutor-pull.stamp"
+LOG="$HOME/.local/state/tutor-pull.log"
+FORCE=0
+[ "${1:-}" = "--force" ] && FORCE=1
+
+mkdir -p "$(dirname "$LOG")" 2>/dev/null
+say() { printf '%s %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$*" >> "$LOG"; }
+
+today="$(date '+%Y-%m-%d')"
+if [ "$FORCE" -eq 0 ] && [ "$(cat "$STAMP" 2>/dev/null)" = "$today" ]; then
+  exit 0
+fi
+
+# A systemd --user unit gets almost no PATH, so find the tool the way the
+# person's shell would and then the way the installer put it.
+TUTOR="$(command -v tutor 2>/dev/null)"
+[ -x "${TUTOR:-}" ] || TUTOR="$HOME/.local/bin/tutor"
+[ -x "$TUTOR" ] || { say "no tutor on PATH; nothing pulled"; exit 0; }
+
+export GIT_TERMINAL_PROMPT=0 GIT_ASKPASS=/bin/false
+out="$("$TUTOR" pull 2>&1)"
+rc=$?
+
+# `tutor pull` is silent when there was nothing to move, so silence is the
+# common case and worth one line rather than an empty one.
+trimmed="$(printf '%s' "$out" | tr -s ' \n' ' ' | sed 's/^ *//; s/ *$//')"
+if [ -n "$trimmed" ]; then
+  say "$trimmed"
+elif [ "$rc" -eq 0 ]; then
+  say "already current"
+else
+  say "nothing pulled (exit $rc)"
+fi
+
+printf '%s\n' "$today" > "$STAMP"
+exit 0

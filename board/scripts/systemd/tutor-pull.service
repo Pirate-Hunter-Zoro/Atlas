@@ -1,0 +1,6 @@
+[Unit]
+Description=Move vendor/colibri and the userspace Tailscale forward (once a day)
+
+[Service]
+Type=oneshot
+ExecStart=%h/.local/bin/tutor-pull

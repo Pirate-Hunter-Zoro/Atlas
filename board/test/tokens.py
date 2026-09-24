@@ -554,6 +554,45 @@ try:
           got["requests"] == 3)
     check("a stream that reported nothing is nothing rather than a crash",
           tutor.read_codex_usage("some plain output\n") == {})
+
+    # AND THE SHAPE IT HAS NOW, which is not that one. Codex 0.156.1 emits no
+    # `token_count` event at all: the numbers ride on `turn.completed` as a
+    # `usage` object. Read by the old rule that stream matches nothing, so
+    # every Codex turn was free in `cost.jsonl` and missing from every total --
+    # a measurement that reads zero is worse than one that is absent, because
+    # zero adds up. Captured from a real run rather than composed here.
+    now = "\n".join([
+        json.dumps({"type": "thread.started", "thread_id": "01a0d40b"}),
+        json.dumps({"type": "turn.started"}),
+        json.dumps({"type": "item.completed",
+                    "item": {"id": "item_0", "type": "agent_message",
+                             "text": "3"}}),
+        json.dumps({"type": "turn.completed",
+                    "usage": {"input_tokens": 43786,
+                              "cached_input_tokens": 32512,
+                              "cache_write_input_tokens": 0,
+                              "output_tokens": 139,
+                              "reasoning_output_tokens": 0}}),
+    ])
+    got = tutor.read_codex_usage(now)
+    check("the turn's own usage event is read, which is where the numbers are "
+          "now", got["out"] == 139 and got["cache_read"] == 32512)
+    check("and the cached half is still not billed twice",
+          got["in"] == 43786 - 32512 and got["tokens"] == 43786 + 139)
+    check("one `codex exec` is one turn, whatever it did in the middle: that "
+          "run made two shell calls and reported once",
+          got["requests"] == 1)
+    check("and the cache WRITE is carried now, because this shape reports one",
+          tutor.read_codex_usage(json.dumps(
+              {"type": "turn.completed",
+               "usage": {"input_tokens": 10, "cached_input_tokens": 4,
+                         "cache_write_input_tokens": 6, "output_tokens": 2}}
+          ))["cache_write"] == 6)
+    check("two turns in one stream are summed, because each is its own bill",
+          tutor.read_codex_usage("\n".join(
+              json.dumps({"type": "turn.completed",
+                          "usage": {"input_tokens": 100, "output_tokens": 10}})
+              for _ in range(2)))["tokens"] == 220)
 finally:
     os.unlink(logpath)
 

@@ -926,21 +926,43 @@ def read_claude_usage(blob):
 
 
 def read_codex_usage(blob):
-    """Codex's `--json` event stream.
+    """Codex's `--json` event stream, in either of the two shapes it has had.
 
-    One event kind carries the numbers: `token_count`, whose `total_token_usage`
-    is the RUNNING TOTAL for the session. So the last one of them is the answer
-    and summing them would count every earlier round trip again -- which is the
-    one way to get this wrong that produces a plausible number.
+    TWO SHAPES, because the stream belongs to the client and the client moved.
+    Both are read: which one arrives depends on the binary installed on this
+    machine, and nothing here gets to insist on a version.
 
-    Round trips are counted instead, because Codex does not report them and
-    they are the lever a prompt can actually pull: one `token_count` event per
-    trip is what the stream gives.
+    * `turn.completed`, carrying a `usage` object. One per `codex exec`
+      invocation -- measured on 0.156.1 against a run that made two shell
+      calls, which produced three `item.completed` events and exactly one
+      `turn.completed`. SUMMED, because each is its own turn's bill.
+    * `token_count`, carrying `total_token_usage`, which is the RUNNING TOTAL
+      for the session. The LAST of those is the answer, and summing them would
+      count every earlier round trip again -- the one way to get this wrong
+      that produces a plausible number.
+
+    A stream in the first shape read by the second rule reports NOTHING: there
+    is no `token_count` line to match, so every Codex turn was free in
+    `cost.jsonl` and absent from every total.
+
+    Round trips are counted rather than reported, because Codex reports no such
+    number: one event per turn in the new shape, one per trip in the old.
     """
-    last, trips = None, 0
+    fresh, last, trips = [], None, 0
     for line in blob.splitlines():
         line = line.strip()
-        if not line.startswith("{") or "token_count" not in line:
+        if not line.startswith("{"):
+            continue
+        if '"turn.completed"' in line:
+            try:
+                d = json.loads(line)
+            except ValueError:
+                continue
+            got = d.get("usage")
+            if isinstance(got, dict):
+                fresh.append(got)
+            continue
+        if "token_count" not in line:
             continue
         try:
             d = json.loads(line)
@@ -952,11 +974,23 @@ def read_codex_usage(blob):
         if isinstance(total, dict):
             last = total
             trips += 1
-    if not last:
+    # The new shape wins where a stream somehow carries both: a client that
+    # reports `usage` on the turn is reporting THIS turn, and a running total
+    # beside it would be the whole session's.
+    if fresh:
+        def summed(field):
+            return sum(int(u.get(field) or 0) for u in fresh)
+        got_in, cached = summed("input_tokens"), summed("cached_input_tokens")
+        out = summed("output_tokens")
+        written = summed("cache_write_input_tokens")
+        trips = len(fresh)
+    elif last:
+        got_in = int(last.get("input_tokens") or 0)
+        cached = int(last.get("cached_input_tokens") or 0)
+        out = int(last.get("output_tokens") or 0)
+        written = 0
+    else:
         return {}
-    got_in = int(last.get("input_tokens") or 0)
-    cached = int(last.get("cached_input_tokens") or 0)
-    out = int(last.get("output_tokens") or 0)
     return {
         # `input_tokens` INCLUDES the cached part in this report, so the two are
         # separated here to mean what they mean everywhere else in this file --
@@ -964,7 +998,7 @@ def read_codex_usage(blob):
         "tokens": got_in + out,
         "in": max(0, got_in - cached),
         "out": out,
-        "cache_write": 0,
+        "cache_write": written,
         "cache_read": cached,
         "requests": trips,
         "usd": 0.0,
@@ -1766,7 +1800,16 @@ def run_turn(cmd, root, log, timeout, env=None):
     to signal, and SIGTERM is given fifteen seconds before SIGKILL so a client
     that can close its transcript does.
     """
+    # AND NOTHING ON STDIN. A client that reads stdin when it is not a terminal
+    # appends whatever it finds to the prompt and BLOCKS until the far end
+    # closes -- `codex exec` prints "Reading additional input from stdin..." and
+    # waits, which for a `tutor headless` started from a terminal is for ever.
+    # The turn then dies at its cap having said nothing, and on the board that
+    # is indistinguishable from a model thinking for fifteen minutes. The
+    # spawned daemon already passes DEVNULL to itself; this is the same answer
+    # one level down, where it covers every way a turn is started.
     p = subprocess.Popen(cmd, cwd=root, stdout=log, stderr=subprocess.STDOUT,
+                         stdin=subprocess.DEVNULL,
                          start_new_session=True, env=env)
     try:
         return p.wait(timeout), False
@@ -4764,7 +4807,7 @@ def pull_vendor(quiet=False):
 
     A login is not the only moment a workstation gets, and a machine left up for
     a week never has one. So `tutor pull` exposes this same routine, and
-    `colibri-pull.timer` runs it daily -- the same guards, the same commit
+    `tutor-pull.timer` runs it daily -- the same guards, the same commit
     message, one implementation. A timer is safe here only BECAUSE of the third
     rule below: it commits nothing when anything else in the tree is dirty, so
     it cannot sweep up an afternoon it arrived in the middle of.

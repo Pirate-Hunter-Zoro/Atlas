@@ -204,25 +204,26 @@ dependency and works.
 
 ### 2.1 Keeping the colibrì checkout current
 
-(Added 2026-08-30.) The upstream engine is `vendor/colibri`, a submodule of Atlas tracking `main`,
-so moving it forward is two operations — fast-forward the submodule, then commit the bumped
-pointer in the superproject — which is why `colibri-pull` calls `tutor pull` rather than git. It
-runs **once a day, automatically**. This is unrelated to any tutoring or serving process
-and shares nothing with them: its own script, its own log, its own timer.
+The upstream engine is `vendor/colibri`, a submodule of Atlas tracking `main`, so moving it
+forward is two operations — fast-forward the submodule, then commit the bumped pointer in the
+superproject — which is why the timer calls `tutor pull` rather than git. It runs **once a day,
+automatically**, and it shares nothing with any tutoring or serving process: its own script, its
+own log, its own timer.
+
+It is `board/scripts/tutor-pull`, linked into `~/.local/bin` by `board/install.sh`, which also
+copies its units and enables the timer. The same run moves the unprivileged Tailscale client
+forward, which is why the name is no longer colibrì's.
 
 | Piece | Path |
 | --- | --- |
-| The script | `~/.local/bin/colibri-pull` |
-| Log (one line per run) | `~/.local/state/colibri-pull.log` |
-| Once-a-day guard | `~/.local/state/colibri-pull.stamp` |
-| Timer + service units | `~/.config/systemd/user/colibri-pull.{timer,service}` |
-| Tracked copies, for a rebuild | [`config/colibri-pull*`](config/) |
+| The script | `board/scripts/tutor-pull`, linked at `~/.local/bin/tutor-pull` |
+| Log (one line per run) | `~/.local/state/tutor-pull.log` |
+| Once-a-day guard | `~/.local/state/tutor-pull.stamp` |
+| Timer + service units | `board/scripts/systemd/tutor-pull.{timer,service}`, copied into `~/.config/systemd/user/` |
 
-Everything in the table above lives outside this repository, so verbatim copies are tracked
-under [`config/`](config/) — `~/.local/bin` and `~/.config/systemd` are not backed up by
-anything, and a documented timer whose script is gone rebuilds into a dead unit. Same
-arrangement as §2.2, whose own copies live in `Atlas/ai-config`. The copies are
-reference, not the running article: if you edit one, install it and check `diff`.
+The script is linked rather than copied, so editing it in the repository is what runs tomorrow.
+The units are copied, because systemd reads the unit directory at daemon-reload and a link into a
+repository that moves is a timer that silently stops firing.
 
 `colibri-pull` is fast-forward-only and never fatal: a dirty tree or a diverged branch is logged and
 left alone, because merging somebody else's repository is not a decision a timer gets to make.

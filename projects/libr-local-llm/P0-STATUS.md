@@ -393,7 +393,7 @@ an unexpected keyword argument 'slots'` with no hint about versions. Load
 `Python/3.12.3-GCCcore-13.3.0` in every job that drives colibrì.
 
 **`vendor/colibri-build` is a separate submodule on purpose.** `vendor/colibri` is the checkout the
-daily `colibri-pull` timer moves forward through `tutor pull`, which fast-forwards the submodule and
+daily `tutor-pull` timer moves forward through `tutor pull`, which fast-forwards the submodule and
 commits the bumped pointer in the superproject; building in it would leave objects in a tree that
 pull expects clean.
 

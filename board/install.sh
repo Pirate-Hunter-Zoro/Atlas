@@ -48,6 +48,48 @@ case ":$PATH:" in
   *) warn "$BIN is not on your PATH — add it to your shell profile" ;;
 esac
 
+# --- the daily pull --------------------------------------------------------
+# `tutor resume` moves colibri and the Tailscale client forward on login, which
+# is all a compute node needs. A workstation left up for a week never has one,
+# so the same routine gets a timer. A --user timer because pam refuses crontab
+# on this cluster.
+#
+# The wrapper is LINKED, so editing it here is what runs tomorrow. The units are
+# COPIED: systemd reads the unit directory at daemon-reload, and a link into a
+# repository that later moves is a timer that silently stops firing.
+chmod +x "$HERE/scripts/tutor-pull" 2>/dev/null || true
+ln -sf "$HERE/scripts/tutor-pull" "$BIN/tutor-pull"
+if command -v systemctl >/dev/null 2>&1; then
+  UNITS="$HOME/.config/systemd/user"
+  mkdir -p "$UNITS" 2>/dev/null
+  changed=0
+  for unit in "$HERE"/scripts/systemd/*.timer "$HERE"/scripts/systemd/*.service; do
+    [ -f "$unit" ] || continue
+    cmp -s "$unit" "$UNITS/$(basename "$unit")" || {
+      cp "$unit" "$UNITS/$(basename "$unit")" && changed=1
+    }
+  done
+  if [ "$changed" -eq 1 ]; then
+    systemctl --user daemon-reload 2>/dev/null
+    systemctl --user enable --now tutor-pull.timer >/dev/null 2>&1
+  fi
+  if systemctl --user is-enabled tutor-pull.timer >/dev/null 2>&1; then
+    good "tutor-pull.timer (colibri and tailscale, daily)"
+    # THE OLD NAME FOR THIS EXACT JOB. It ran `tutor pull` too, so leaving both
+    # enabled is the same work twice a day under two names, and the one nobody
+    # can find is the one that keeps running.
+    if systemctl --user is-enabled colibri-pull.timer >/dev/null 2>&1; then
+      systemctl --user disable --now colibri-pull.timer >/dev/null 2>&1 \
+        && say "        (disabled colibri-pull.timer, which is this under its old name)"
+    fi
+  else
+    warn "tutor-pull.timer is not enabled; a machine left up will not pull"
+    say  "        systemctl --user enable --now tutor-pull.timer"
+  fi
+else
+  say  "  ----  no systemctl; the daily pull needs a login to happen"
+fi
+
 # --- TeX -------------------------------------------------------------------
 # TinyTeX hides its binaries under an architecture-named directory. Ask Python,
 # which already knows.

@@ -146,6 +146,21 @@ check("so a first turn uses the first-turn recipe",
 again, _t, fresh2 = tutor.turn_plan(codex, 1, 0, "")
 check("and a second resumes", not fresh2 and again == codex["headless"])
 
+# A TURN IS HANDED NOTHING ON STDIN, and the client that made this matter is
+# this one: `codex exec` reads stdin whenever it is not a terminal, appends it
+# to the prompt, and waits for the far end to close. Started from a terminal
+# that is never, so the turn sits there until its cap and says nothing -- which
+# on the board is indistinguishable from a model thinking. `cat` is the
+# faithful stand-in: it returns only when stdin is at end of file.
+_stdin_log = tempfile.NamedTemporaryFile(prefix="tutor-stdin-", delete=False)
+_stdin_log.close()
+with open(_stdin_log.name, "w") as _fh:
+    _rc, _capped = tutor.run_turn(["cat"], tempfile.gettempdir(), _fh, 10)
+check("a turn whose client reads stdin comes straight back rather than "
+      "waiting out its whole timeout on a pipe nobody is typing into",
+      _rc == 0 and not _capped)
+os.unlink(_stdin_log.name)
+
 check("there is one tutor and it is the one the config names",
       D["default_agent"] == "claude" and "claude" in D["agents"])
 check("and nothing in the table claims to teach for nothing",
