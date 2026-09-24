@@ -213,6 +213,11 @@
      hangs it under the bar and caps it against the VISIBLE viewport, which is
      the one measurement that survives a keyboard coming up or a pinch. -->
 <div id="barmenu" class="barmenu" hidden>
+  <!-- A calculator for the arithmetic a proof or a problem set leaves behind.
+       Here and not in the bar: the bar holds six controls and test/link.js
+       holds it there. It floats over the lesson and never covers more than
+       itself; web/calc.js is the panel. -->
+  <button id="btn-calc" title="a calculator that floats over the lesson" aria-pressed="false">±  calculator</button>
   <button id="btn-smaller" title="smaller type">A&minus;  smaller type</button>
   <button id="btn-bigger" title="larger type">A+  larger type</button>
   <button id="btn-face" title="typeface">Aa  reading face</button>
@@ -930,6 +935,10 @@
      photograph ended with a page of blank paper. -->
 <script src="/static/shot.js"></script>
 <script src="/static/who.js"></script>
+<!-- The calculator. Before board.js, which wires its menu entry; math.js itself
+     is fetched by calc.js the first time the panel opens. -->
+<script src="/static/calc-core.js"></script>
+<script src="/static/calc.js"></script>
 <script src="/static/mission.js"></script>
 <script src="/static/board.js"></script>
 </body>

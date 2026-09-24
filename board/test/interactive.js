@@ -62,7 +62,8 @@ window.requestAnimationFrame = (fn) => setTimeout(fn, 0);
 window.scrollTo = () => {};
 window.addEventListener('error', (e) => fail('uncaught: ' + e.message));
 
-for (const f of ['typeface.js', 'macros.js', 'gauge.js', 'plane-core.js', 'slate-core.js']) {
+for (const f of ['typeface.js', 'macros.js', 'gauge.js', 'plane-core.js', 'slate-core.js',
+                 'mathjs/math.js', 'calc-core.js', 'calc.js']) {
   try { window.eval(fs.readFileSync(path.join(WEB, f), 'utf8')); ok('loaded ' + f); }
   catch (e) { fail(f + ': ' + e.message); }
 }
@@ -82,6 +83,52 @@ try {
   });
   ok('rendered a question');
 } catch (e) { fail('render: ' + e.message); }
+
+// The calculator: one tap in the ⋯ menu opens it over the lesson, = evaluates,
+// a bad line is an inline message, and ✕ puts the lesson back as it was.
+try {
+  const d = window.document;
+  const opener = d.getElementById('btn-calc');
+  opener && d.getElementById('barmenu').contains(opener)
+    ? ok('the calculator is one entry in the ⋯ menu')
+    : fail('no calculator entry in the ⋯ menu');
+  opener.click();
+  const calc = d.getElementById('calc');
+  calc && !calc.hidden && opener.getAttribute('aria-pressed') === 'true'
+    ? ok('and tapping it opens the panel, and the entry says so')
+    : fail('the calculator did not open');
+  d.getElementById('cards').querySelector('.card')
+    ? ok('the lesson is still on the page underneath') : fail('opening it removed the lesson');
+  const input = d.getElementById('calc-in');
+  input.value = '10';
+  Array.prototype.find.call(d.querySelectorAll('#calc-keys button'),
+                            (b) => b.textContent === 'nCr').click();
+  input.value += '3';
+  const press = new window.MouseEvent('mousedown', { bubbles: true, cancelable: true });
+  d.getElementById('calc-go').dispatchEvent(press);
+  press.defaultPrevented ? ok('pressing = does not take focus from the input (the iPad keyboard stays up)')
+                         : fail('= takes focus from the input on press');
+  d.getElementById('calc-go').click();
+  /120/.test(d.getElementById('calc-log').textContent) && input.value === ''
+    ? ok('10 nCr 3, typed half on the keypad, evaluates to 120 in the real page')
+    : fail('the panel did not evaluate: log says ' + d.getElementById('calc-log').textContent);
+  input.value = 'normalcdf(1)';
+  input.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+  const err = d.getElementById('calc-err');
+  !err.hidden && /bound/.test(err.textContent) && input.value === 'normalcdf(1)'
+    ? ok('Enter evaluates, and an error is said inline with the line kept to fix')
+    : fail('no inline error: ' + err.textContent);
+  d.querySelector('#calc-log .calc-q').click();
+  input.value === '10 nCr 3' ? ok('tapping a history line puts it back in the input')
+                             : fail('history line not reused: ' + input.value);
+  const kept = JSON.parse(window.localStorage.getItem('board-calc') || '{}');
+  kept.hist && kept.hist.length === 1 && kept.open === true
+    ? ok('history and the open state are kept for a reload')
+    : fail('nothing kept in localStorage: ' + JSON.stringify(kept));
+  d.getElementById('calc-close').click();
+  calc.hidden && opener.getAttribute('aria-pressed') === 'false'
+    ? ok('✕ closes it') : fail('the calculator did not close');
+} catch (e) { fail('calculator: ' + e.message); }
 
 // A payload arrives for reasons that have nothing to do with the lesson: the
 // tutor's heartbeat lands every thirty seconds while it writes, the uncommitted

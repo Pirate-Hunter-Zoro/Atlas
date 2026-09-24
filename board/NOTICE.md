@@ -9,9 +9,17 @@ iPad app has something to cache.
 
 KaTeX is MIT licensed. Its licence is at `web/katex/LICENSE` and applies to those files.
 
-Nothing else in this repository is third-party. The server, the command line, and the pages are
-Python and browser JavaScript with no dependencies: no pip, no npm at run time, no framework, no
-build step. `node` is used only to run the tests.
+Nothing else in this repository is third-party beyond what is listed below. The server, the
+command line, and the pages are Python and browser JavaScript with no dependencies: no pip, no npm
+at run time, no framework, no build step. `node` is used only to run the tests.
+
+## math.js
+
+`web/mathjs/math.js` is the browser bundle of [math.js](https://mathjs.org) 15.2.0, unmodified,
+used by the calculator (`web/calc.js`). It is Apache-2.0 licensed; its licence and notice are at
+`web/mathjs/LICENSE` and `web/mathjs/NOTICE`. The bundle carries complex.js, decimal.js,
+fraction.js, typed-function, seedrandom, tiny-emitter, escape-latex, javascript-natural-sort and
+@babel/runtime helpers, all MIT licensed; their licences are at `web/mathjs/LICENSE-bundled`.
 
 ## OpenDyslexic
 

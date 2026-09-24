@@ -39,6 +39,7 @@ var els = {
   annClear: document.getElementById("ann-clear"),
   annDone: document.getElementById("ann-done"),
   annotate: document.getElementById("btn-annotate"),
+  calc: document.getElementById("btn-calc"),
   sendwhat: document.getElementById("sendwhat"),
   sendNotes: document.getElementById("send-notes"),
   sendCancel: document.getElementById("send-cancel"),
@@ -3871,6 +3872,19 @@ function setAnnotating(next) {
 els.annotate.onclick = function () {
   setAnnotating(!window.Annotate.isOn());
 };
+
+/* The calculator floats over the lesson; calc.js owns the panel and this owns
+   the menu entry, which says whether it is showing. Reopened after a reload if
+   it was open, like the rest of its state. */
+if (els.calc && window.Calc) {
+  var paintCalc = function (on) {
+    els.calc.setAttribute("aria-pressed", on ? "true" : "false");
+    els.calc.textContent = on ? "±  hide the calculator" : "±  calculator";
+  };
+  window.Calc.onChange(paintCalc);
+  els.calc.onclick = function () { window.Calc.toggle(); };
+  if (window.Calc.wasOpen()) window.Calc.open();
+}
 
 /* The tools are only meaningful while the mode is on, and a control that looks
    available but does nothing is worse than one that is plainly disabled. */

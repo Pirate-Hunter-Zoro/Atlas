@@ -48,7 +48,7 @@ must be openable and teachable at every point.
   `board.css`, `plane-core.js`, `gauge.js`, `home.html`, `home.js`, `library.html`,
   `library.js`, `library.css`, anything added to the cache list), or the installed app
   serves its cached copy and the work is invisible.
-- **`bash test/all.sh` before every ship.** 97 suites, all green. `test/tracked.py` runs
+- **`bash test/all.sh` before every ship.** 98 suites, all green. `test/tracked.py` runs
   early — after the browser suites, before everything else — and refuses PHI, 25-megabyte files, model dumps, other authors' papers and
   machine-local config anywhere in the repository — this is public, and git remembers.
   The last of them is **Paper-Writer's own**, run where it is checked out and skipped
@@ -1423,6 +1423,33 @@ What the tutor receives is the ink and the card it sits on, plus roughly where �
 top*, *in the middle*. It wrote that card and reads it back off disk, so it does not need a
 picture of its own words, and nothing has to rasterise typeset mathematics in a browser.
 `test/annotate.py` drives the round trip; `test/link.js` drives the layer in a real DOM.
+
+### The calculator
+
+**± calculator** in the ⋯ menu opens a TI-84 without the graphing, floating over the lesson.
+It lives in the menu because the bar holds six controls and `test/link.js` holds it there. The
+panel covers only itself, so the lesson scrolls and takes a pen behind it. It drags by its head,
+shrinks to its input line with ▁, and closes with ✕ or Escape.
+
+- **The maths is math.js**, vendored in `web/mathjs/`, fetched the first time the panel opens
+  and precached by `sw.js`, so it works offline. `web/calc-core.js` adds the TI names and
+  argument orders on top: the distributions, `fnInt`, `nDeriv`, `solve`, `sum`/`seq` over a
+  variable, `nCr`/`nPr` (also infix, `10 nCr 3`), `log` as base ten with `ln` beside it, and
+  DEG/RAD. `web/calc.js` is the panel.
+- **Tails are computed as tails.** The distributions use Loader's saddle-point densities and
+  continued fractions for the incomplete gamma and beta, never one minus the other side.
+  `test/calc.js` holds 92 reference values from mpmath to 1e-9 relative.
+- **A bound past 1e15 in `fnInt` is infinity**, because a TI user types ±1e99 for it; the
+  finite integral is the fallback only when the infinite one diverges. `solve` passes over a
+  sign change through a pole (tan at π/2) rather than calling it a root.
+- **DEG/RAD is read when a function is called**, not when it was typed, so a function defined
+  in degrees answers in radians after the toggle. Symbolic `derivative` assumes radians.
+- **`std` and `variance` are the sample versions**; `stdp` and `varp` are the population ones.
+- **History, variables, functions, Ans, DEG/RAD, position and open/closed** are kept in
+  localStorage under `board-calc`, so a reload changes nothing. **clear** empties history and
+  variables.
+- **Every error is an answer**, said inline under the input with the line kept to fix;
+  `evaluate` never throws.
 
 ### Declining a prompt
 
@@ -4910,6 +4937,7 @@ tutorboard/        the board itself, organised by what a thing is about:
 web/               the hub   — home.html, home.css, home.js
                    the board — board.html, board.css, board.js, macros.js, vendored KaTeX
                    the ink layer — annotate.js, over the tutor's own cards
+                   the calculator — calc.js (panel), calc-core.js (maths), vendored math.js
                    the slate — slate.html, slate.css, slate.js
                    the library — library.html, library.css, library.js
                    the app   — manifest.webmanifest, sw.js, icon-*.png (icon.tex makes them)
