@@ -1,6 +1,8 @@
 # libr-local-llm
 
 Local LLM inference on LIBR compute — **no admin rights, no data leaving the cluster.**
+One command in `bin/` is the exception and says so on every launch: `ds-code` (§4d) reaches a
+hosted provider, and it refuses to start behind the PHI fence.
 
 > **This directory sits in a public repo** (`github.com/Pirate-Hunter-Zoro/Atlas`) — it is not a
 > repository of its own. That is defensible
@@ -280,7 +282,7 @@ A delimited `# >>> ollama >>>` block in `~/.bashrc` sets these. A backup of the 
 | Variable | Value | Why |
 | --- | --- | --- |
 | `PATH` | **prepend** `$HOME/bin` | reach the ollama binary |
-| `PATH` | **append** `$HOME/Atlas/projects/libr-local-llm/bin` | reach the driver commands — `ollama-*` (§4a) and `coli-*` (§4c). See below — this one has three constraints |
+| `PATH` | **append** `$HOME/Atlas/projects/libr-local-llm/bin` | reach the driver commands — `ollama-*` (§4a), `coli-*` (§4c) and `ds-code` (§4d). See below — this one has three constraints |
 | `OLLAMA_MODELS` | `/media/studies/.../models/ollama` | weights on studies, not the 100 GB home share |
 | `OLLAMA_HOST` | `127.0.0.1:11500` | non-default port avoids collisions on shared nodes; **loopback keeps a PHI-processing endpoint off the cluster network** |
 | `OLLAMA_CONTEXT_LENGTH` | `65536` in `~/.bashrc`, **overridden to `131072` in the accel sbatch** | ollama defaults to a few thousand tokens; an agent silently truncates its own history there. 65536 is the number that has to be safe on *one* 46 GB card, where `medgemma:27b-it-q8_0` is 29.6 GB before any KV cache. The accel profile has four cards and 114 GB of them idle, so it serves `gpt-oss:120b` at the model's full 131072 — see §7.24 for why that is a *quality* setting and not just a capacity one |
@@ -717,6 +719,125 @@ exactly why the transcript goes behind the fence.
 
 ---
 
+## 4d. DeepSeek from a terminal (`ds-code`)
+
+**The one command in this repo that talks to a model outside the building.** `ds-code` puts DeepSeek
+V4.1 Flash behind opencode in whatever directory you are standing in — no Slurm job, no allocation
+to step into, no GPU. The endpoint is `api.deepseek.com`; the client runs where you type the
+command.
+
+```
+ds-code                            # the TUI, in the current directory
+ds-code "explain this repo"        # one-shot, no TUI
+ds-code -d ~/Atlas/projects/x      # ...somewhere else
+ds-code -c "and now the tests"     # continue the last ds-code session here
+ds-code -s ses_abc123 "..."        # resume one session by id
+ds-code -l                         # list this directory's ds-code sessions
+ds-code -m deepseek-v4-pro "..."   # a different model (bare id is fine)
+```
+
+The flags are spelled the way `ollama-code` and `coli-code` spell them — `-d`, `-m`, `-c`, `-s`,
+`-l` — because three commands in one `bin/` that disagree about `--continue` is a defect. `--help`
+prints the block above. It is on `PATH` through the same `~/.bashrc` line as every other command
+here (§3), so a new file in `bin/` needs no install step.
+
+### The two checks it runs before handing over
+
+**A fenced directory is refused.** DeepSeek is a third party and everything in a session's context
+window leaves the building, so before anything else `ds-code` asks
+`ai-config/adapters/generic.py --path` about its working directory — the lab's own policy, the same
+question `coli-code` asks in front of its unguarded front end. A `phi/` directory anywhere is a
+refusal that names `coli-code` as the assistant allowed there. An unreadable adapter is also a
+refusal: no answer is not an answer of "not fenced".
+
+**This is a gate, not a fence, and the distinction is the whole reason `ds-code` is not a
+general-purpose assistant.** It judges the directory the command was launched in. The agent can
+`cd` elsewhere and read through opencode's own built-in file reader, which no wrapper touches —
+`generic.py`'s docstring states that limit, and `ai-config/assistants/opencode.sh` records why a
+stronger control does not exist: opencode has no pre-tool hook, so the lab's `PreToolUse` fence
+cannot be installed in it at all. Do not reach for this command inside `research/PSYCH-ASR`. The
+code there is readable by policy and the session content is not, and a launch-time check is not
+what should be holding that line.
+
+**The host is probed first, because opencode says nothing when it cannot reach it.** `ds-code` runs
+one 6-second `curl` against `https://api.deepseek.com/anthropic/v1/messages` — the same URL the
+tutor board's DeepSeek recipe uses for its `egress_probe`, so one number answers for both tools —
+and treats any HTTP status as open, 401 and 405 included. The question is whether the handshake
+completes. It answers in about 50 ms and exits **69** (`EX_UNAVAILABLE`) with the reason, the node
+name and a pointer to [`docs/deepseek-egress.md`](docs/deepseek-egress.md), which holds the
+measurement, the controls and the firewall exception to ask for.
+
+The check earns its line from what opencode does instead: nothing visible. Measured at
+`--log-level DEBUG` for a full minute against the filtered host — no message, no log line, no
+error, just a cursor, for as long as you leave it.
+
+### The provider configuration, and why the Ollama setup is untouched
+
+`config/opencode-deepseek.json` is a **layered** config reached through `OPENCODE_CONFIG`, read
+where it is tracked rather than installed anywhere. Unlike `config/opencode.json`, which is a copy
+of a live file and can drift, this one is the file that runs.
+
+opencode **merges** its config sources rather than replacing them, and the two halves of that
+behave differently:
+
+- An **array** key replaces. `enabled_providers: ["deepseek"]` hides Ollama for this run only —
+  `opencode models` with nothing exported still lists exactly the three `ollama/` entries, and
+  `ollama-code` never sets `OPENCODE_CONFIG`, so it never sees this file.
+- An **object** key merges. The global `default_agent: "coder"` and its
+  `model: "ollama/qwen3-coder:30b"` survive into the layered config, and with the Ollama provider
+  hidden that agent kills the session in about two seconds with
+  `ProviderModelNotFoundError: Model not found: ollama/qwen3-coder:30b` — **before a single byte
+  goes to the network**, which looks nothing like an egress problem and is the failure most likely
+  to be misdiagnosed as one. So the layered file names its own `default_agent` and its own
+  `agent.deepseek`, and repins `agent.coder` as well.
+
+`OPENCODE_CONFIG` rather than a redirected `XDG_CONFIG_HOME`, which is the other way to layer and is
+wrong here: opencode reads its global instructions from `AGENTS.md` inside the config directory, and
+`~/.config/opencode/AGENTS.md` is the symlink `ai-config/scripts/install.sh` made to
+`INSTRUCTIONS.md`. Move the config home and the lab's operating contract silently stops loading.
+`coli-code` moves it because its transcript must land behind the phi fence; a hosted provider has
+the opposite requirement and wants the contract more, not less.
+
+There is **no `provider` block**. opencode ships DeepSeek in its models.dev catalogue, keyed on
+`DEEPSEEK_API_KEY`, so exporting that variable is the whole of the credential wiring —
+`~/.local/share/opencode/auth.json` stays absent and `opencode providers list` still reports zero
+credentials. `opencode models deepseek --refresh` re-reads the catalogue. The top-level
+`permission` block is default-deny for `webfetch` and `websearch`, for §6's reason: the built-in
+`explore` subagent ships `webfetch: allow` and only a top-level deny closes it.
+
+**Two model ids are served**, and `opencode models` lists both: `deepseek-flash` (V4.1 Flash — image
+input, 1M context, the default) and `deepseek-v4-pro` (text-only). `-m` takes either, bare or
+provider-qualified. `deepseek-v4-flash` and `deepseek-v4-flash-vision-exp` are deprecated aliases
+onto flash and the listing hides them; `-m` still reaches them.
+
+### The key, and the transcript
+
+The key is read from `~/.config/tutor-board/keys.env` through `board/tutorboard/keys.py` — the tutor
+board's own reader, so there is one mode policy and one sentence explaining an empty store rather
+than two. It is captured with command substitution and exported, **never passed on a command line**:
+`argv` is world-readable in `ps`, which is what `ai-config/policy/credentials.txt` exists to catch.
+The file is not sourced either, even though it looks shell-shaped — `keys.py` parses it with no
+shell and no expansion, so a value carrying a dollar sign is a value rather than an execution.
+
+The transcript goes to its own store, `~/.local/share/ds-code/opencode`, by moving `XDG_DATA_HOME`
+and nothing else. opencode scopes sessions per **project directory**, not per model, and the store
+at `~/.local/share/opencode` is shared by every front end — this checkout's root already holds
+Ollama-era sessions. A resumed session also carries its own model choice (§4a), so `ds-code -c`
+against the shared store would resume a `qwen3-coder` conversation and then fail on a provider this
+config has hidden. `-l` answers from the store alone: it runs before the probe and before the key,
+because a host that does not answer is exactly when you want to know what is already there.
+
+### What the `opencode` shell function has to do with this
+
+Nothing, deliberately. The guard in `config/opencode-guard.sh` (§3) is a signpost for the Ollama
+stack and knows nothing about DeepSeek; teaching it a second stack would make a one-job function
+into a router. `ds-code` is a `#!/bin/bash` script, so it does not inherit a shell function in the
+first place, and unlike the `srun`-based siblings it never crosses a `bash -lc` — there is no remote
+node to reach. It opens with `unset -f opencode` anyway, one line, so that stays true however the
+file is invoked.
+
+---
+
 ## 5. Models
 
 | Tag | Size | Role |
@@ -746,7 +867,9 @@ directory will be larger than the sum of listed models.
 ## 6. opencode (the coding assistant)
 
 Config lives at `~/.config/opencode/opencode.json`; a tracked copy is `config/opencode.json`.
-Structure:
+That is the Ollama stack's config and it is the one loaded unless something exports
+`OPENCODE_CONFIG`; `ds-code` does, at `config/opencode-deepseek.json`, and §4d covers how the two
+merge. Structure of this one:
 
 - `enabled_providers: ["ollama"]` — **default-deny provider allowlist.** opencode ships ~8 hosted
   "free" models under an `opencode/` provider (OpenCode Zen). Those are **remote**; selecting one

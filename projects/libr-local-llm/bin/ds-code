@@ -1,0 +1,349 @@
+#!/bin/bash
+# Put DeepSeek to work in a directory, through opencode. A hosted model, so
+# there is no server to start and no allocation to step into.
+#
+#   ds-code                            # the TUI, in the current directory
+#   ds-code "explain this repo"        # one-shot, no TUI
+#   ds-code -d ~/Atlas/projects/x      # ...somewhere else
+#   ds-code -c "and now the tests"     # continue the last ds-code session here
+#   ds-code -s ses_abc123 "..."        # resume one session by id
+#   ds-code -l                         # list this directory's ds-code sessions
+#   ds-code -f page.png "read this"    # attach a page; repeat -f for more
+#   ds-code -m deepseek-v4-pro "..."   # a different model (bare id is fine)
+#
+# `-m deepseek-v4-pro` is TEXT-ONLY. Handed an image it does not fail: the
+# endpoint substitutes `[Unsupported Image]` for the image block and answers
+# 200, so the model writes a fluent paragraph about a page it never saw. Nothing
+# on this path catches that -- the board's own guard lives in `board see` -- so
+# pair `-f` with the default model and read the answer knowing that.
+#
+# Nothing here goes near Slurm. Every other command in this bin/ finds a job and
+# hops onto its node because the endpoint is loopback on that node; DeepSeek's
+# endpoint is on the internet and the client runs right where you typed this.
+#
+# That is also the whole of its danger, and the reason for two checks before it
+# hands over. The model is a third party, so a directory behind the PHI fence is
+# refused; and the host is probed first, because opencode's own failure against
+# a filtered host is a cursor that never comes back.
+set -euo pipefail
+
+# Where the checkout is. `readlink -f` first: invoked through the PATH entry in
+# ~/.bashrc this file is reached by a relative-looking name, and `dirname` of an
+# unresolved $0 answers against wherever the caller happens to be standing --
+# the same trap scripts/colibri-env.sh opens with.
+_self="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd -P)"
+LLM_REPO="$(dirname "$_self")"
+ATLAS_ROOT="$(git -C "$LLM_REPO" rev-parse --show-toplevel 2>/dev/null || true)"
+if [ -z "$ATLAS_ROOT" ]; then
+    echo "ds-code: $LLM_REPO is not inside a git checkout, so the PHI policy in" >&2
+    echo "ai-config/ and the key reader in board/ cannot be found. Refusing." >&2
+    exit 1
+fi
+
+# ~/.bashrc defines an `opencode` SHELL FUNCTION -- the ollama stack's signpost,
+# config/opencode-guard.sh -- which probes OLLAMA_HOST and, finding nothing,
+# prints ollama-up advice that has nothing to do with this command. A function is
+# not exported, so a #!/bin/bash script does not inherit it and nothing below
+# needs a login shell. One line makes that true however this file is invoked.
+unset -f opencode 2>/dev/null || true
+
+MODEL="deepseek/deepseek-flash"
+WORKDIR="$PWD"
+SESSION=""
+CONTINUE=""
+LIST_SESSIONS=""
+# THE PAGE OF HANDWRITING, WHICH IS THE WHOLE REASON THIS COMMAND AND THE TUTOR
+# BOARD ARE THE SAME ERRAND. `opencode run -f <path>` is the attachment, and
+# without it the only way to put a photograph in front of the model from a
+# terminal is to not do it. Repeatable, because a problem sheet is pages.
+ATTACH=()
+# A flag typed with its value left off. Under `set -euo pipefail` that is
+# `$2: unbound variable` and exit 1 -- a bash diagnostic with a line number,
+# at a person who mistyped a flag. Name the flag instead.
+_need() { [ $# -ge 2 ] || { echo "ds-code: $1 needs a value after it." >&2; exit 2; }; }
+while [ $# -gt 0 ]; do
+    case "$1" in
+        -m|--model)    _need "$@"; MODEL="$2"; shift 2 ;;
+        -d|--dir)      _need "$@"; WORKDIR="$2"; shift 2 ;;
+        -s|--session)  _need "$@"; SESSION="$2"; shift 2 ;;
+        -c|--continue) CONTINUE=1; shift ;;
+        -l|--list-sessions) LIST_SESSIONS=1; shift ;;
+        -f|--file)     _need "$@"; ATTACH+=("$2"); shift 2 ;;
+        -h|--help)   awk 'NR>1 && /^#/ { sub(/^# ?/, ""); print; next } NR>1 { exit }' "$0"; exit 0 ;;
+        --)          shift; break ;;
+        # A FLAG THIS SCRIPT DOES NOT KNOW IS AN ERROR, NOT THE FIRST WORD OF THE
+        # QUESTION. Breaking here on anything unmatched swept a mistyped or
+        # passed-through flag into `MESSAGE` and asked the model about it:
+        # `ds-code --print-logs "say OK"` sent the literal question
+        # "--print-logs say OK", with nothing said and exit 0. A leading dash is
+        # never how a sentence starts, so the two cases are safely separable --
+        # and `--` is already the way to ask about one on purpose.
+        -*)          echo "ds-code: unknown flag $1. \`ds-code --help\` lists what there is;" >&2
+                     echo "         put it after \`--\` to make it part of the question." >&2
+                     exit 2 ;;
+        *)           break ;;
+    esac
+done
+MESSAGE="$*"
+
+if [ -n "$SESSION" ] && [ -n "$CONTINUE" ]; then
+    echo "ds-code: -s and -c both choose a session; pass one or the other." >&2
+    exit 2
+fi
+
+# EVERY ARGUMENT SETTLED BEFORE ANYTHING IS PROBED OR READ. A mistyped path is
+# the caller's mistake and costs nothing to find; the egress probe below costs
+# six seconds and the PHI gate runs a python interpreter, so a typo that came
+# back after both of those would read as the network being slow.
+_missing=()
+for _p in ${ATTACH+"${ATTACH[@]}"}; do
+    [ -f "$_p" ] || _missing+=("$_p")
+done
+if [ "${#_missing[@]}" -gt 0 ]; then
+    echo "ds-code: no such file: ${_missing[*]}" >&2
+    exit 2
+fi
+if [ "${#ATTACH[@]}" -gt 0 ] && [ -z "$MESSAGE" ]; then
+    # The TUI takes its files through its own picker, so `-f` has nowhere to go
+    # without a question. Refused rather than dropped: a page sent nowhere looks
+    # exactly like a page that was read.
+    echo "ds-code: -f attaches a file to a question, so it needs one." >&2
+    echo "         In the TUI, attach from inside the session instead." >&2
+    exit 2
+fi
+
+# A bare id is what the catalogue calls the model and what a person types.
+# opencode wants it provider-qualified, so qualify it here rather than making
+# `-m deepseek-v4-pro` a silent "provider deepseek-v4-pro has no models".
+case "$MODEL" in */*) ;; *) MODEL="deepseek/$MODEL" ;; esac
+
+[ -d "$WORKDIR" ] || { echo "ds-code: no such directory: $WORKDIR" >&2; exit 2; }
+WORKDIR="$(cd "$WORKDIR" && pwd -P)"
+
+if ! command -v opencode >/dev/null 2>&1; then
+    echo "ds-code: no opencode on PATH. It is installed under nvm, so a shell" >&2
+    echo "that has not sourced ~/.bashrc does not have it -- README section 2," >&2
+    echo "'Installing opencode'. From a login shell it is there." >&2
+    exit 127
+fi
+
+# ------------------------------------------------------------------ the fence
+#
+# THIS MODEL IS A THIRD PARTY AND THE LAB'S PHI MUST NOT REACH IT.
+#
+# ai-config/assistants/opencode.sh records the reason a stronger control is not
+# available: opencode has no pre-tool hook, `A_HOOK_SRC` is empty on purpose, and
+# install.sh says so on every run. So what there is, is a gate at launch --
+# exactly the one coli-code puts in front of its own unguarded front end, asking
+# the lab's own policy rather than a rule of this script's.
+#
+# IT IS A GATE AND NOT A FENCE, and the difference matters enough to write down:
+# it judges the directory this was started in. The agent can cd elsewhere and
+# read through opencode's own built-in file reader, which no wrapper touches.
+# adapters/generic.py's docstring states that limit outright. Which is why the
+# README says not to reach for this command inside research/PSYCH-ASR at all,
+# rather than trusting the check to hold the line once you are in there.
+#
+# Fail closed. A missing adapter is not an answer of "not fenced": it is no
+# answer, and a guard that quietly stops being consulted is worse than none.
+_asks="$ATLAS_ROOT/ai-config/adapters/generic.py"
+if [ ! -r "$_asks" ]; then
+    echo "ds-code: cannot tell whether ${WORKDIR} is behind the PHI fence --" >&2
+    echo "there is no policy at $_asks. Refusing to send anything to a hosted" >&2
+    echo "provider on a guess. Check out ai-config/ and try again." >&2
+    exit 1
+fi
+if ! python3 "$_asks" --path "$WORKDIR/" >/dev/null 2>&1; then
+    cat >&2 <<EOF
+ds-code: this directory is behind the PHI fence.
+
+    ${WORKDIR}
+
+DeepSeek is hosted, so everything in a session's context window leaves the
+building. There is no DeepSeek route into a fenced directory and there is not
+meant to be. The assistant that may read one runs on our own hardware:
+
+    coli-code -d ${WORKDIR}
+EOF
+    exit 2
+fi
+
+# ------------------------------------------------------------------ the config
+#
+# A LAYERED FILE, READ WHERE IT IS TRACKED. opencode MERGES its config sources
+# rather than replacing them, so ~/.config/opencode/opencode.json -- the ollama
+# stack's, which must keep working -- is still in force underneath this one.
+# What the merge means in practice, measured: an array key REPLACES rather than
+# concatenates, so `enabled_providers: ["deepseek"]` hides ollama for this run
+# only, and `opencode models` with nothing exported still lists exactly the three
+# ollama entries. But an object key merges, so the global `default_agent: coder`
+# and its `ollama/qwen3-coder:30b` survive -- and with the ollama provider hidden
+# that agent kills the session in two seconds with ProviderModelNotFoundError,
+# before a single byte goes to the network, which looks nothing like an egress
+# problem and would be misdiagnosed as one. The layered file therefore names its
+# own `default_agent` and repins `coder` as well.
+#
+# OPENCODE_CONFIG rather than XDG_CONFIG_HOME, which is the other way to layer a
+# config and is wrong here: opencode reads its global instructions from AGENTS.md
+# inside the config directory, and ~/.config/opencode/AGENTS.md is the symlink
+# ai-config/scripts/install.sh made to INSTRUCTIONS.md. Move the config home and
+# the lab's operating contract silently stops loading. coli-code moves it because
+# its transcript must land behind the phi fence; a hosted provider has the
+# opposite requirement and wants the contract more, not less.
+#
+# No `provider` block: opencode ships DeepSeek in its models.dev catalogue keyed
+# on DEEPSEEK_API_KEY, so the variable exported further down is the whole of the
+# credential wiring and nothing is written to ~/.local/share/opencode/auth.json.
+# `opencode models deepseek --refresh` re-reads that catalogue.
+export OPENCODE_CONFIG="$LLM_REPO/config/opencode-deepseek.json"
+
+# ------------------------------------------------------------- the transcript
+#
+# A STORE OF ITS OWN, because -c would otherwise resume somebody else's session.
+# opencode scopes sessions per project DIRECTORY, not per model, and the store at
+# ~/.local/share/opencode is shared by every front end: this checkout's root
+# already holds two ollama-era sessions from September. A resumed session also
+# carries its own model choice -- ollama-code documents that, verified from the
+# TUI footer -- so `ds-code -c` against the shared store would resume a
+# qwen3-coder conversation and then fail on a provider this config has hidden.
+#
+# Only XDG_DATA_HOME moves. XDG_CONFIG_HOME stays where it is, for the AGENTS.md
+# reason above.
+export XDG_DATA_HOME="${DS_SESSION_ROOT:-$HOME/.local/share/ds-code}"
+mkdir -p "$XDG_DATA_HOME"
+# No chmod. This filer serves NFSv4 ACLs and synthesises the POSIX mode bits from
+# them lossily, so a chmod writes back a mode derived from a bad reading and can
+# drop the real ACL. Same reasoning as coli-code's session root.
+
+cd "$WORKDIR"
+
+# ANSWERED BEFORE THE PRE-FLIGHT AND BEFORE THE KEY, deliberately: listing reads
+# the store and nothing else, and a host that does not answer is exactly when you
+# want to know what is already there. It comes after the cd because opencode
+# scopes sessions per project directory.
+if [ -n "$LIST_SESSIONS" ]; then
+    echo "ds-code sessions in ${WORKDIR}:" >&2
+    exec opencode session list
+fi
+
+# ---------------------------------------------------------------- the pre-flight
+#
+# api.deepseek.com is filtered from the c3 nodes: the RST lands on the TLS
+# ClientHello, 14 ms after a 7 ms connect, and the measurement with its controls
+# is in docs/deepseek-egress.md. What makes a pre-flight worth the line is what
+# opencode does about it -- NOTHING VISIBLE. Measured at --log-level DEBUG for a
+# full minute: no message, no log line, no error, just a cursor, for as long as
+# you leave it. The claude binary at least says ECONNRESET after three minutes.
+#
+# The probe costs 50 ms and is the same URL the tutor board's deepseek recipe
+# uses for `egress_probe`, so one number answers for both tools.
+#
+# ANY HTTP STATUS IS OPEN, 401 and 405 included: the question is whether the
+# handshake completes, not whether an unauthenticated POST-shaped GET is liked.
+# So this reads curl's exit code and never `-w '%{http_code}'`, and never
+# `--fail`, which would turn a perfectly good 405 into a refusal.
+PROBE="https://api.deepseek.com/anthropic/v1/messages"
+# AND A SECOND HOST, ASKED ONLY WHEN THE FIRST ONE FAILS. Without it every way a
+# network can break -- unplugged, DNS down, a node with no route at all, a
+# six-second stall on a busy filer -- prints the paragraph below, which asserts
+# three things it did not measure and sends somebody to open a firewall ticket
+# for a cable. `probe_before_turn` in board/bin/tutor already carries exactly
+# this control, in one line: a machine with no egress AT ALL is not the
+# provider's fault. The same question, asked the same way, so the two tools
+# cannot disagree about whose fault tonight is.
+CONTROL="https://api.anthropic.com/v1/messages"
+if ! _reset="$(curl -sS -o /dev/null -m 6 "$PROBE" 2>&1)"; then
+    if ! _elsewhere="$(curl -sS -o /dev/null -m 6 "$CONTROL" 2>&1)"; then
+        cat >&2 <<EOF
+ds-code: nothing answers from this node (${HOSTNAME:-unknown}) -- not DeepSeek,
+and not the control host either.
+
+    api.deepseek.com   ${_reset}
+    api.anthropic.com  ${_elsewhere}
+
+So this is the network rather than the DeepSeek filter, and docs/deepseek-egress.md
+is not the document you want. Check the node has a route out at all before
+reading anything else into it.
+EOF
+        exit 69
+    fi
+    cat >&2 <<EOF
+ds-code: api.deepseek.com does not answer from this node (${HOSTNAME:-unknown}).
+
+    ${_reset}
+
+That is a filter on the hostname rather than an outage or a fault in this
+command, and it was just measured rather than assumed: api.anthropic.com
+answered over the same route, in the same second. The full measurement, the
+controls and the firewall exception to ask for are in
+
+    ${LLM_REPO}/docs/deepseek-egress.md
+
+Nothing configurable reaches a device that resets the connection this early.
+Until the exception lands, ollama-code and coli-code are the working routes.
+EOF
+    # EX_UNAVAILABLE. Not a failure of the request and not a bad argument: the
+    # service is not there. Same reasoning as coli-code's 75 and 76 -- a driver
+    # that reads exit codes can tell "come back later" from "you typed it wrong".
+    exit 69
+fi
+
+# -------------------------------------------------------------- the credential
+#
+# Read, never sourced, and never on a command line. `ps` shows argv to every
+# account on the machine, which is the whole reason the credential shapes in
+# ai-config/policy/credentials.txt are scanned for at all. And keys.env only
+# LOOKS shell-shaped: board/tutorboard/keys.py parses it with no shell and no
+# expansion, so a value carrying a dollar sign or a backtick is a value rather
+# than an execution.
+#
+# Through that reader rather than a second one written here, so there is one
+# answer to "why is the key not being picked up": its mode policy (refuse
+# other-readable, never ask about the group bit, for the NFSv4 reason its
+# docstring measures) and its `why_not()` sentence, which names the file and the
+# chmod. Command substitution keeps the value off argv; the export puts it in
+# /proc/<pid>/environ, which is owner-readable.
+if ! DEEPSEEK_API_KEY="$(PYTHONPATH="$ATLAS_ROOT/board" python3 - <<'PY'
+import sys
+try:
+    from tutorboard import keys
+except Exception as exc:
+    sys.stderr.write("the board's key reader would not load: %s\n" % exc)
+    raise SystemExit(1)
+got = keys.get("DEEPSEEK_API_KEY")
+if not got:
+    sys.stderr.write((keys.why_not() or
+                      "there is no DEEPSEEK_API_KEY line in the key store") + "\n")
+    raise SystemExit(1)
+sys.stdout.write(got)
+PY
+)"; then
+    echo "ds-code: no DeepSeek key, so there is nothing to authenticate with." >&2
+    echo "The line above says why. The store is ~/.config/tutor-board/keys.env," >&2
+    echo "one NAME=value a line, and the board reads the same file." >&2
+    exit 1
+fi
+export DEEPSEEK_API_KEY
+
+OC_ARGS=()
+[ -n "$SESSION" ]  && OC_ARGS+=(--session "$SESSION")
+[ -n "$CONTINUE" ] && OC_ARGS+=(--continue)
+# CHECKED HERE RATHER THAN AT THE FLAG, so a typo in a path is one refusal with
+# every bad path named instead of a model answering about a file that is not
+# there. opencode reads the file itself; this only says it exists.
+for _p in ${ATTACH+"${ATTACH[@]}"}; do OC_ARGS+=(-f "$_p"); done
+
+cat >&2 <<BANNER
+Directory:  ${WORKDIR}
+Model:      ${MODEL}  (hosted, api.deepseek.com)
+Transcript: ${XDG_DATA_HOME}/opencode
+
+Hosted provider: everything in this session's context leaves the building.
+BANNER
+
+if [ -n "$MESSAGE" ]; then
+    # `--` before the message so a prompt beginning with a dash is a prompt.
+    exec opencode run -m "$MODEL" "${OC_ARGS[@]}" -- "$MESSAGE"
+else
+    exec opencode -m "$MODEL" "${OC_ARGS[@]}"
+fi
