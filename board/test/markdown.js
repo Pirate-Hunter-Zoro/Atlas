@@ -79,6 +79,16 @@ check('table with math cells', '| root | value |\n|---|---|\n| $\\alpha$ | $\\om
   ['$\\alpha$', '$\\omega\\sqrt[3]{2}$']);
 check('hr', 'a\n\n---\n\nb', ['<hr>']);
 check('blockquote', '> quoted line', ['<blockquote>', 'quoted line']);
+check('a markdown image is fitted to the card',
+  '![the sweep](/result/abc123)',
+  ['<img class="card-img" alt="the sweep" src="/result/abc123">']);
+{
+  const css = fs.readFileSync(path.replace('board.js', 'board.css'), 'utf8');
+  const rule = /\.card-img\s*{([^}]*)}/.exec(css);
+  rule && /max-width:\s*100%/.test(rule[1]) && /max-height:/.test(rule[1])
+    ? console.log('ok   .card-img caps width and height, so a 2100-px figure fits the glass')
+    : (fails++, console.log('FAIL board.css has no .card-img rule capping both dimensions'));
+}
 check('figure ready', '@@FIGURE:abc123:ready@@', ['<img alt="figure" src="/figure/abc123.svg">']);
 check('figure pending', '@@FIGURE:abc123:pending@@', ['compiling figure']);
 // `>` is left unescaped on purpose so blockquote lines still match; `&lt;script>`

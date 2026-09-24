@@ -309,7 +309,10 @@ function restore(html, store) {
 
 function inline(s) {
   return s
-    .replace(/!\[([^\]]*)\]\(([^)\s]+)\)/g, '<img alt="$1" src="$2">')
+    /* `card-img` is what fits it to the card. A result figure is a 300-dpi PNG
+       two thousand pixels wide, and an <img> with no rule on it is drawn at that
+       size, so a graph put on the board ran off the glass. */
+    .replace(/!\[([^\]]*)\]\(([^)\s]+)\)/g, '<img class="card-img" alt="$1" src="$2">')
     /* AN ADDRESS STAYS IN THIS PAGE. Every other link is the web, and the web
        opens in its own tab so that a tap on a citation is not the lesson
        leaving the glass. An address is the opposite thing: it is this board

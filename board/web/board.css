@@ -855,6 +855,15 @@ body[data-mode="auto"].sys-dark .card {
 /* ---------- figures compiled from TikZ ---------- */
 .figure { margin: 1.3rem 0; text-align: center; }
 .figure img { max-width: 100%; height: auto; }
+
+/* ---------- images written into a card ---------- */
+/* A figure fits the card's width and the screen's height, whichever is tighter,
+   so a whole graph is on the glass at once without zooming. */
+.card-img {
+  display: block; margin: 1.1rem auto;
+  max-width: 100%; max-height: 70vh;
+  width: auto; height: auto; object-fit: contain;
+}
 body[data-mode="dark"] .figure img,
 body[data-mode="auto"].sys-dark .figure img { filter: invert(1) hue-rotate(180deg); }
 .figure.pending, .figure.error {
