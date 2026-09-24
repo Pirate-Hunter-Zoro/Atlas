@@ -2076,12 +2076,21 @@ function paintSession(state, push, agent, exported, hwBuilt) {
   if (!els.agent.title) els.agent.title = els.agent.textContent;
   var kind = state.session || "lecture";
   sittingKind = kind;
+  lastSittingState = state;
   els.session.hidden = false;
   /* "review", not "test review": the badge sits in a bar that is already at
      capacity, and eleven uppercase letters at this letter-spacing pushed the
      chapter label to "Tes…" and the tutor chip to "no". The strip underneath
      carries the full name, so the bar does not have to. */
-  els.session.textContent = kind;
+  /* THE BADGE NAMES THE STYLE TOO, AND SAYS IT OPENS. It is the only way to the
+     style and write-up rows, and a bare kind word ("LECTURE") on an iPad read as
+     a label: nothing on glass hovers, so nothing said it could be tapped, and
+     nothing said which style was running. */
+  /* In a lecture the style IS the news -- "lecture" is the default and says
+     nothing -- so the badge is the style and a caret, no longer than "homework",
+     which is what the bar has room for. The other kinds keep their own word. */
+  var style = kind === "lecture" ? styleWord(state) : "";
+  els.session.textContent = style ? style + " \u25be" : kind;
   els.session.dataset.kind = kind;
   els.session.title = "tap to switch: lecture, homework, test review, walkthrough";
   if (leavingTo) return;              /* a decision is in front of the student */
@@ -4428,10 +4437,25 @@ var currentStance = null;
    stance pick -- `/aim` writes it, puts it in the transcript and wakes a turn.
    See `_aim` in `routes/lesson.py`. */
 var currentAim = null;            /* what the sitting says, if it says anything */
+var lastSittingState = {};        /* the state the badge was last painted from */
 var aimNow = "";                  /* what it is running under, workspace or family */
 
 function aimWays() {
   return WORK.filter(function (way) { return !way.needs; });
+}
+
+/* THE STYLE A SITTING IS RUNNING UNDER, as one word, for the badge and for the
+   `for:` row's mark. The sitting's own aim, then the one the server resolved;
+   where neither names a style, the stance says who writes, which is the style.
+   Empty in the sittings that read rather than write. */
+function styleWord(state) {
+  state = state || {};
+  var kind = state.session || "lecture";
+  if (kind === "review" || kind === "walk") return "";
+  var aim = state.aim || state.aim_now || "";
+  if (aim === "teach" || aim === "build" || aim === "coach") return aim;
+  if (aim) return "";
+  return doingTurn(state) ? "build" : "teach";
 }
 
 function paintAim() {
@@ -4441,7 +4465,9 @@ function paintAim() {
   var reading = sittingKind === "review" || sittingKind === "walk";
   els.kindAim.hidden = reading;
   if (reading) return;
-  var now = currentAim || aimNow || "";
+  /* One button is always marked: with no aim set anywhere the sitting still
+     runs under a style, and a row with nothing lit read as no style at all. */
+  var now = currentAim || aimNow || styleWord(lastSittingState) || "";
   var host = els.kindAimWays;
   host.innerHTML = "";
   aimWays().forEach(function (way) {

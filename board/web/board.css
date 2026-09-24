@@ -1862,9 +1862,19 @@ body.papering .annbar { z-index: 96; }
   font-weight: 650;
 }
 
-/* The sitting badge is a control now, not a label. */
-#session { cursor: pointer; border: 1px solid transparent; font-family: var(--ui); }
-#session:hover { border-color: var(--rule); }
+/* The sitting badge is a control, and it has to LOOK like one on glass, where
+   nothing hovers. `#bar button` outranks `.session` and strips the chip, so the
+   chip is restated here at the specificity that wins, and the kind colours
+   after it. */
+#bar #session {
+  cursor: pointer; font-family: var(--ui);
+  font-size: .62rem; font-weight: 700; letter-spacing: .1em; text-transform: uppercase;
+  padding: .38rem .55rem; border-radius: .35rem;
+  border: 1px solid var(--rule); background: var(--paper-2); color: var(--ink-2);
+}
+#bar #session:hover { border-color: var(--ink-3); color: var(--ink); }
+#bar #session[data-kind="homework"] { color: var(--ask); background: color-mix(in srgb, var(--ask) 14%, transparent); }
+#bar #session[data-kind="review"] { color: var(--note); background: color-mix(in srgb, var(--note) 16%, transparent); }
 #kind-sets { display: inline-flex; gap: .3rem; flex-wrap: wrap; }
 #kind-sets button.on, #kind-lecture.on, #kind-review.on, #kind-walk.on {
   background: var(--note); border-color: var(--note); color: #fff; font-weight: 600;

@@ -149,7 +149,12 @@ function paint(session, scope, units) {
 // tutor can quietly widen.
 paint('lecture', []);
 check('a lecture carries no review strip', registry.rvbar.hidden === true);
-check('and the badge says lecture', registry.session.textContent === 'lecture');
+// A lecture's badge names the style it runs under, since "lecture" is the
+// default and told an iPad user nothing, and stays within the bar's budget.
+check('and a lecture badge names its style, as short as the rest',
+      /^(teach|build|coach) \u25be$/.test(registry.session.textContent)
+      && registry.session.textContent.length <= 'homework'.length
+      && registry.session.dataset.kind === 'lecture');
 check('and a lecture still shows the chapter it is in',
       /Ch 02/.test(registry.chapter.textContent));
 

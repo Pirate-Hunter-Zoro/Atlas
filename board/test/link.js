@@ -1686,13 +1686,33 @@ if (es) {
     state: { course: 'P', session: 'lecture', mode: 'math' },
     cards: [], turns: [], messages: [], uploads: [], slate: [], push: null,
     agent: { agent: 'claude', state: 'listening' }, sets: ['hw01', 'hw02'] }) });
-  if (!badge.hidden && /lecture/.test(badge.textContent))
+  if (!badge.hidden && badge.dataset.kind === 'lecture' && badge.textContent)
     ok('the sitting is named on the board even in a lecture');
   else fail('the sitting badge is hidden, so nothing can be tapped to change it');
 
   badge.onclick();
   if (!chooser2.hidden) ok('and tapping it offers the choice');
   else fail('the badge is not a control');
+
+  // A bare kind word read as a label on an iPad: it has to name the style and
+  // say that it opens, and the chip has to survive `#bar button`.
+  if (badge.textContent === 'teach \u25be')
+    ok('the badge names the style and says it opens: ' + badge.textContent);
+  else fail('the badge does not name the running style: ' + badge.textContent);
+  var aimRow = doc.getElementById('kind-aim-ways');
+  if (aimRow && aimRow.querySelector('button.on'))
+    ok('with no aim set anywhere, the running style is still marked in the for: row');
+  else fail('the for: row marks no style, which reads as none running');
+  if (/#bar #session\s*{[^}]*background:\s*var\(--paper-2\)[^}]*}/.test(css)
+      && /#bar #session\s*{[^}]*border:\s*1px solid var\(--rule\)/.test(css))
+    ok('the badge keeps a chip at a specificity #bar button cannot strip');
+  else fail('#bar button strips the badge to a bare word again');
+  es.onmessage({ data: JSON.stringify({
+    state: { course: 'T', session: 'lecture', mode: 'code', stance_now: 'do' },
+    cards: [], turns: [], messages: [], uploads: [], slate: [], push: null,
+    agent: { agent: 'claude', state: 'listening' } }) });
+  if (/build/.test(badge.textContent)) ok('a doing workspace with no aim reads as build');
+  else fail('a doing workspace with no aim does not say build: ' + badge.textContent);
   var offered = doc.getElementById('kind-sets').textContent;
   if (/hw01/.test(offered) && /hw02/.test(offered))
     ok('offering the sets this course actually has');
