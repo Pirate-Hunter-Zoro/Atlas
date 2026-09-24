@@ -61,13 +61,24 @@ window.Element.prototype.releasePointerCapture = function () {};
 // touched again. A past board is DRAWN from it, so a harness that cannot answer
 // for it cannot see what a past board looks like.
 const frozen = {};
+// A finished lesson, as `/archive` lists it and `/archive/<id>` serves it. Set
+// when the test reaches the one assertion that reads one; until then the list
+// is empty and nothing can be opened.
+let archived = null;
+const reply = (body) => Promise.resolve({ json: () => Promise.resolve(body) });
 window.fetch = (u) => {
   const url = String(u);
   if (/slate\/state/.test(url)) {
-    return Promise.resolve({ json: () => Promise.resolve({ pages: [] }) });
+    return reply({ pages: [] });
+  }
+  if (url === '/archive') {
+    return reply({ sessions: archived ? [archived.row] : [] });
+  }
+  if (archived && url === '/archive/' + encodeURIComponent(archived.row.id)) {
+    return reply(archived.body);
   }
   if (frozen[url]) {
-    return Promise.resolve({ json: () => Promise.resolve(frozen[url]) });
+    return reply(frozen[url]);
   }
   return new Promise(() => {});
 };
@@ -112,6 +123,26 @@ window.localStorage.setItem('board.pages.n:Galois Theory:-:2026-02-10 19:00', ST
 window.localStorage.setItem('board.pages.n:Galois Theory:Ch 2:2026-02-10 19:00',
                             JSON.stringify({ '0001#0': { p: 7, a: '0001' } }));
 
+// AND TWO RECORDS UNDER TONIGHT'S OWN KEY THAT NAME NO BOARD.
+//
+// The sweep cannot reach these and must not: they are this sitting's key, which
+// is where they were written. A past lesson read in this page load puts them
+// there -- it renders through the same code with the archive's card numbers,
+// and those start at 0001 too -- and so does a question card that leaves the
+// payload for a frame.
+//
+// Nothing draws them, because nothing draws a board for a question the lesson
+// does not have. What they do is own a page. 0091#0 owns the sheet the FIRST
+// board opens on and 0092#0 owns the sheet the follow-up board is DEALT, which
+// are the two moments a board asks whether its page is somebody else's. Counted
+// as an owner, a ghost makes a live board copy itself off a perfectly good sheet
+// -- and the sheet is then abandoned, because `fresh` hands back only the
+// TRAILING blank. On disk that is pages 64, 66 and 67 of one evening.
+const OPENED = '2026-02-11 19:00';
+const PAGES_KEY = 'board.pages.n:Galois Theory:-:' + OPENED;
+const DEAD = { '0091#0': { p: 1, a: '0091' }, '0092#0': { p: 4, a: '0092' } };
+window.localStorage.setItem(PAGES_KEY, JSON.stringify(DEAD));
+
 for (const f of ['typeface.js', 'macros.js', 'gauge.js', 'plane-core.js', 'slate-core.js', 'annotate.js']) {
   try { window.eval(fs.readFileSync(path.join(WEB, f), 'utf8')); }
   catch (e) { fail(f + ': ' + e.message); }
@@ -146,13 +177,26 @@ const ink = (n) => ({ c: '#eee', w: 3, pts: [[10 + n, 10 + n], [90 + n, 90 + n]]
 //
 // The key carries the sitting, so what is read back is only what this sitting
 // wrote: a record from another evening cannot make a stranded page look owned.
-const OPENED = '2026-02-11 19:00';
-const PAGES_KEY = 'board.pages.n:Galois Theory:-:' + OPENED;
 const records = () => {
   try { return JSON.parse(window.localStorage.getItem(PAGES_KEY) || '{}'); }
   catch (e) { return {}; }
 };
-const owned = () => Object.keys(records()).map((k) => records()[k].p);
+// The records that are about a board, which is not all of them: a leftover for
+// a question the lesson does not have is drawn by nothing and can be written on
+// by nobody. A page it names is a page nothing reaches, which is exactly what
+// the no-orphans check below is looking for -- so it must not be allowed to
+// answer for one.
+const asked = () => new Set(Array.from(doc.querySelectorAll('[data-card]'))
+                                 .map((c) => c.dataset.card));
+const reachable = () => {
+  const now = asked();
+  return Object.keys(records())
+               .filter((k) => now.has(k.slice(0, k.lastIndexOf('#'))))
+               .map((k) => records()[k].p);
+};
+// Everything in the mapping that is not one of the ghosts seeded at the top of
+// this file, so an assertion about what the sitting itself wrote can say so.
+const alive = () => Object.keys(records()).filter((k) => !DEAD[k]).sort();
 // Walked to the highest number the surface holds rather than to a fixed ceiling:
 // the real sitting this came from was on page 69, and a check that stops
 // counting reports no orphans instead of failing.
@@ -207,10 +251,10 @@ boards().length === 0
 // is about this evening. Read back, it puts a board on the screen for an attempt
 // that does not exist, on a page the surface does not hold -- which draws as an
 // empty box above the live one.
-Object.keys(records()).length === 1 && records()['0001#0']
+alive().length === 1 && records()['0001#0']
   ? ok('a previous sitting on this chapter leaves no boards in this one')
   : fail('last night\'s records came back under tonight\'s card numbers: '
-         + Object.keys(records()).sort().join(', '));
+         + alive().join(', '));
 doc.querySelectorAll('[data-slot]').length <= 1
   ? ok('so the question has one board and not a phantom above it')
   : fail('a second board was painted for an attempt this sitting never reached');
@@ -223,6 +267,22 @@ window.localStorage.getItem('board.pages.n:Galois Theory:Ch 2:2026-02-10 19:00')
   ? ok('while another chapter, which a second tab may be sitting on, is left '
        + 'alone')
   : fail('the sweep took a mapping that is not this chapter\'s to take');
+
+// AND A GHOST DOES NOT COST A SHEET ON A PLAIN RENDER.
+//
+// No carry, no tap, nothing asked for: the board opens on page 1, and 0091#0
+// names page 1 too. Counting that record as another board makes the live board
+// copy itself onto a second sheet to get away from it, on the very next render,
+// and leaves the page it opened on behind -- two boards holding the same
+// strokes, seconds apart, and a sheet nothing can reach. This is the reload
+// path, and it needs nobody to touch anything.
+slate.pages() === 1 && slate.at() === 1
+  && records()['0001#0'] && records()['0001#0'].p === 1
+  ? ok('a record naming no board on the screen does not move the live board off '
+       + 'its page')
+  : fail('the live board was copied away from a ghost (page ' + slate.at()
+         + ' of ' + slate.pages() + ', record on '
+         + ((records()['0001#0'] || {}).p) + ')');
 
 // Something is written on it.
 slate.load({ w: 1130, h: 1514, strokes: [ink(1)] });
@@ -377,8 +437,19 @@ await sleep(40);
   // board after it carries every stroke of the evening. So the offer is made and
   // the person decides.
   const followUp = card('0002', 'question', 'contrapositive or contradiction?', 6);
+  const dealtFrom = slate.pages();
   es.onmessage({ data: lesson(run3.concat([followUp]), sent2) });
   await sleep(40);
+
+  // ONE SHEET FOR ONE BOARD. The sheet a new board is dealt is page 4, and
+  // 0092#0 -- a record for a question this lesson has never asked -- names page
+  // 4 as well. Taking that for another board cuts the new board a second sheet
+  // and abandons the first before anybody has touched anything.
+  slate.pages() === dealtFrom + 1
+    ? ok('a follow-up question is dealt one blank sheet, not one to abandon and '
+         + 'another to write on')
+    : fail('the new board cut itself a second sheet (' + dealtFrom + ' -> '
+           + slate.pages() + ' pages)');
 
   const carry = doc.getElementById('carry');
   !carry.hidden
@@ -445,7 +516,7 @@ await sleep(40);
          + 'was already holding')
     : fail('the carry cut a sheet (' + before + ' -> ' + slate.pages()
            + ' pages), abandoning the one the board opened on');
-  const stranded = pagesHeld().filter((n) => owned().indexOf(n) === -1);
+  const stranded = pagesHeld().filter((n) => reachable().indexOf(n) === -1);
   stranded.length === 0
     ? ok('and every page the surface holds is a board somebody can open')
     : fail('pages no record names, so nothing reaches them again: '
@@ -454,20 +525,41 @@ await sleep(40);
     ? ok('and the pen stays on the sheet the board was dealt')
     : fail('the board moved off the page it opened on (' + held + ' -> '
            + slate.at() + '), leaving it behind');
-  // ONE TAP, ONE COPY. Both numbers this sitting could reach are owned by a
-  // record from another evening in the seed at the top of this file -- the sheet
-  // the board is holding and the one a cut would mint. Neither is read, so
-  // neither collides, and nothing is copied a second time.
-  Object.keys(records()).filter((k) => records()[k].p === slate.at()).length === 1
-    ? ok('and exactly one board names the page the working is on')
-    : fail('two boards name the carried page, so the next render copies it '
-           + 'again: ' + Object.keys(records()).sort().join(', '));
+  // ONE TAP, ONE COPY. A ghost names this sheet as well -- 0092#0, seeded at
+  // the top of this file -- and a ghost is not a board: nothing draws it and
+  // nobody can write on it. What must not be true is that a second BOARD names
+  // the page, because the next render would find the sharing and copy it again.
+  {
+    const now = asked();
+    const sharers = Object.keys(records()).filter((k) =>
+      records()[k].p === slate.at() && now.has(k.slice(0, k.lastIndexOf('#'))));
+    sharers.length === 1
+      ? ok('and exactly one board names the page the working is on')
+      : fail('two boards name the carried page, so the next render copies it '
+             + 'again: ' + sharers.sort().join(', '));
+  }
   slate.inkOn(slate.at()) === 2
     ? ok('and the working is under the pen')
     : fail('the carried board is empty (' + slate.inkOn(slate.at()) + ' strokes)');
   slate.inkOn(3) === 2
     ? ok('while the board it came from is untouched')
     : fail('carrying the working over took it away from where it was');
+  // ONE TAP, ONE BOARD, AND IT IS THE ONE UNDER THE PEN.
+  //
+  // The report, twice and the second time after a fix: "when I carry-over, it
+  // STILL creates an extra board and I can't write on the original new board".
+  // The button in the panel head copied the working and said nothing about
+  // WHERE the writing now goes, so the surface was worked out afresh from the
+  // newest question -- and the board holding the carried writing became a
+  // photograph with a blank board underneath it. The dormant board's own button
+  // always said it; both come through one place now, so they cannot differ.
+  doc.querySelectorAll('[data-board="0002"]').length === 0 && !writer().hidden
+    ? ok('and the board it was carried onto is the live surface, not a picture '
+         + 'with a blank board under it')
+    : fail('the carry left '
+           + doc.querySelectorAll('[data-board="0002"]').length
+           + ' picture(s) of the board it was carried onto, writer '
+           + (writer().hidden ? 'shut' : 'open'));
   doc.getElementById('carry').hidden
     ? ok('and the offer goes once there is something on the board')
     : fail('the offer is still standing over somebody\'s working, where taking '
@@ -483,6 +575,124 @@ await sleep(40);
          + 'exactly as it was')
     : fail('the carry aliased the strokes: the two boards are one sheet ('
            + slate.inkOn(3) + ' and ' + slate.inkOn(slate.at()) + ' strokes)');
+}
+
+
+// -------------------- and the next question does not take the pen off the carry
+//
+// The same report arriving by the other road. The working was put on this board
+// by hand one tap ago and is on no disk anywhere; the tutor then asks the next
+// question. Letting the pin go at that moment puts the surface on the new
+// question's blank board and leaves the carried writing as a photograph above
+// it -- the extra board again, with nobody having done anything wrong.
+//
+// One question's grace, and one only. A pin that never lets go parks the surface
+// several cards above a question that then gets no board at all, which is the
+// worse failure and the reason the rule it bends is there.
+{
+  const followUp = card('0002', 'question', 'contrapositive or contradiction?', 6);
+  const carried = slate.at();
+  const held = slate.inkOn(carried);
+  const q6 = card('0006', 'question', 'Exercise 1.4', 50);
+  es.onmessage({ data: lesson(run3.concat([followUp, q6]), sent2) });
+  await sleep(60);
+
+  slate.at() === carried && slate.inkOn(carried) === held && !writer().hidden
+    ? ok('the next question does not take the pen off working that was carried '
+         + 'over and never handed in')
+    : fail('the surface walked off the carried working (page ' + carried
+           + ' with ' + held + ' strokes -> page ' + slate.at() + ' with '
+           + slate.inkOn(slate.at()) + ')');
+  doc.querySelectorAll('[data-board="0002"]').length === 0
+    ? ok('so it is still a board, and not a photograph of one')
+    : fail('the carried board became a picture the moment the next question '
+           + 'arrived, which is the extra board again');
+  const blank6 = doc.querySelector('[data-slot="0006#0"]');
+  blank6 && /tap to write/.test(blank6.querySelector('.board-hint').textContent)
+    ? ok('while the new question still gets a board of its own, saying it is '
+         + 'blank')
+    : fail('the held pin left the new question with nowhere to answer it, which '
+           + 'is the failure the rule it bends exists to prevent');
+
+  // ------------------------------------- and the dormant board's own button
+  //
+  // The other control, on a board that is not the live one. It always pinned the
+  // surface; the panel's did not, and that difference was the report. Both come
+  // through one place now, so there is nothing left to diverge.
+  const carry6 = blank6 && blank6.querySelector('.board-carry');
+  if (!carry6 || carry6.hidden) {
+    fail('a blank board with working behind it made no offer to carry it over');
+  } else {
+    carry6.onclick(new window.MouseEvent('click', { bubbles: true }));
+    await sleep(60);
+    !writer().hidden && slate.inkOn(slate.at()) === held
+      ? ok('tapping a dormant board\'s carry puts the working under the pen')
+      : fail('the dormant carry left ' + slate.inkOn(slate.at())
+             + ' strokes under a ' + (writer().hidden ? 'shut' : 'open')
+             + ' surface');
+    !doc.querySelector('[data-slot="0006#0"]')
+      ? ok('on that board, which is the live one and not a picture with a blank '
+           + 'board under it')
+      : fail('the board it was carried onto is still a photograph');
+  }
+
+  // The grace belongs to the tap, so the carry just made has one of its own.
+  const q7 = card('0007', 'question', 'Exercise 1.5', 51);
+  es.onmessage({ data: lesson(run3.concat([followUp, q6, q7]), sent2) });
+  await sleep(60);
+  !doc.querySelector('[data-slot="0006#0"]') && !writer().hidden
+    ? ok('and a carry just made has a question of grace of its own')
+    : fail('the board the working had just been carried onto went dormant on '
+           + 'the next question');
+
+  // And the question after that takes the pin, whatever is on the board.
+  const q8 = card('0008', 'question', 'Exercise 1.6', 52);
+  es.onmessage({ data: lesson(run3.concat([followUp, q6, q7, q8]), sent2) });
+  await sleep(60);
+  doc.querySelector('[data-slot="0006#0"]')
+    ? ok('while a second question lets the pin go, so the surface follows the '
+         + 'lesson again')
+    : fail('the pin never lets go, and a surface that never follows the lesson '
+           + 'is the other failure');
+  !doc.querySelector('[data-slot="0008#0"]') && !writer().hidden
+    ? ok('onto the newest question, where an answer is owed')
+    : fail('the surface is not on the newest question');
+}
+
+// ------------------ a question missing from one payload is not one that is over
+//
+// The server skips a card whose body is still being written, so a single frame
+// is not a census of the lesson. A board whose question blinks out for one
+// payload must still be there when it comes back, on the sheet it was on --
+// nothing may take that sheet meanwhile, and nothing may rule the board a
+// leftover on the strength of one silence.
+{
+  const q21 = card('0021', 'question', 'Exercise 2.1', 60);
+  const both = [q1, q21];
+  es.onmessage({ data: lesson(both, sent2) });
+  await sleep(60);
+  const was = (records()['0021#0'] || {}).p;
+  const pagesWas = slate.pages();
+  was !== undefined
+    ? ok('a new question is written down on a sheet of its own')
+    : fail('the new question was never written down');
+
+  es.onmessage({ data: lesson([q1], sent2) });
+  await sleep(60);
+  (records()['0021#0'] || {}).p === was && slate.pages() === pagesWas
+    ? ok('and a payload that does not mention it leaves its record and its '
+         + 'sheet exactly where they were')
+    : fail('one silent frame cost the board its page (' + was + ' -> '
+           + ((records()['0021#0'] || {}).p) + ', ' + pagesWas + ' -> '
+           + slate.pages() + ' pages)');
+
+  es.onmessage({ data: lesson(both, sent2) });
+  await sleep(60);
+  (records()['0021#0'] || {}).p === was && slate.pages() === pagesWas
+    ? ok('and it comes back the same board on the same sheet')
+    : fail('the board came back somewhere else (page '
+           + ((records()['0021#0'] || {}).p) + ' of ' + slate.pages()
+           + ' pages)');
 }
 
 // ------------------------------------------------- and the record survives it
@@ -921,6 +1131,80 @@ const mapping = records;
   doc.querySelector('[data-card="0202"]').nextElementSibling === writer()
     ? ok('and the next board opens under the response, as it always did')
     : fail('there is still no board between one response and the next');
+}
+
+
+// ----------------------------------------------------------------------------
+// AND READING A FINISHED LESSON DOES NOT WRITE THIS ONE'S MAPPING.
+//
+// A past lesson goes through the same renderer, carrying the archive's own card
+// numbers -- which start at 0001, the numbers tonight is using. Left to run, the
+// chain mints a record for every question of the archive this mapping lacks, the
+// repair gives it a page off the archive's turns, and both are saved under the
+// LIVE key. One lesson read is then a handful of records naming boards that are
+// on no screen, owning pages this sitting is about to reach; and the next tap on
+// a real board finds its sheet shared and copies itself off it.
+{
+  // The board this lesson is sitting on, and the page under it. The archive's
+  // turn names that same page -- which is the ordinary case, not a contrivance:
+  // both sittings number their pages from 1, and the live slate is the only
+  // slate there is.
+  const target = '0201#0';
+  const targetPage = (records()[target] || {}).p;
+  archived = {
+    row: { id: 'galois-0209', chapter: 'Galois Theory', session: 'lecture',
+           opened: '2026-02-09 19:00', cards: 1, turns: 1 },
+    body: { state: { course: 'Galois Theory', session: 'lecture',
+                     opened: '2026-02-09 19:00' },
+            cards: [card('0077', 'question', 'last week, part (b)', 1)],
+            turns: [{ id: 't0077', rev: 1, kind: 'ink', answers: '0077',
+                      t: t0 - 900, page: targetPage, strokes: 1,
+                      png: '/answers/t0077-r1.png' }] },
+  };
+  const before = JSON.stringify(records());
+  const pagesBefore = slate.pages();
+
+  doc.getElementById('btn-history').hidden = false;
+  doc.getElementById('btn-history').onclick();
+  await sleep(80);
+  const row = doc.querySelector('#history-list .session-row');
+  if (!row) {
+    fail('the archive list did not open, so no past lesson could be read');
+  } else {
+    row.click();
+    await sleep(100);
+    doc.getElementById('reading-back').onclick();
+    await sleep(100);
+
+    JSON.stringify(records()) === before
+      ? ok('reading a finished lesson leaves this one\'s mapping exactly as it '
+           + 'was')
+      : fail('the archive wrote into the live sitting: ' + before + ' -> '
+             + JSON.stringify(records()));
+
+    // And the sheet the live board is on is still its own. This is what the
+    // pollution actually costs: a record nobody can see owning page 1 makes the
+    // board that is really on page 1 copy itself off it on the next tap.
+    const mine1 = doc.querySelector('[data-slot="' + target + '"]');
+    if (!mine1) {
+      fail('the lesson came back without the board that was on screen');
+    } else {
+      const p1 = (records()[target] || {}).p;
+      const tap = new window.Event('pointerdown', { bubbles: true, cancelable: true });
+      Object.assign(tap, { pointerId: 91, pointerType: 'pen', pressure: 0.5,
+                           clientX: 200, clientY: 200, isPrimary: true });
+      tap.getCoalescedEvents = () => [tap];
+      mine1.dispatchEvent(tap);
+      await sleep(100);
+      slate.pages() === pagesBefore && (records()[target] || {}).p === p1
+        ? ok('and a board tapped afterwards stays on the sheet it was written on')
+        : fail('the board copied itself off its own sheet to get away from a '
+               + 'record the archive left behind (page ' + p1 + ' -> '
+               + ((records()[target] || {}).p) + ', ' + pagesBefore + ' -> '
+               + slate.pages() + ' pages)');
+      lift();
+    }
+  }
 }
 
 console.log(errors.length ? '\n' + errors.length + ' FAILURES'

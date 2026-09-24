@@ -1545,10 +1545,9 @@ function render(data) {
   (data.cards || []).forEach(function (c) {
     if (c.mtime > newestAt) { newestAt = c.mtime; lastNewestCard = c.id; }
   });
-  if (workingOn && workingOnAt !== (newestQ || "")) {
-    workingOn = null;
-    workingOnAt = null;
-  }
+  /* The pin is let go further down, where `qids`, the mapping and the turns are
+     all current -- which is what it takes to tell a board with working on it
+     nobody has handed in from a board with nothing on it. */
   if (reopenedFor !== null && reopenedFor !== (newestQ || "")) reopenedFor = null;
   if (reopenedFor !== null && !data.archived) owed = true;
 
@@ -1573,6 +1572,13 @@ function render(data) {
      to add a line to the proof under it is ordinary work, not an edge case. */
   var qids = ordered.filter(function (c) { return !!isQuestion[c.id]; })
                     .map(function (c) { return c.id; });
+  /* And the running census of what this lesson has asked, which is what tells a
+     board from a leftover record. It only ever grows, and only a live frame with
+     a question in it adds to it -- see `seenQs`. */
+  if (!data.archived && qids.length) {
+    seenAny = true;
+    qids.forEach(function (q) { seenQs[q] = true; });
+  }
 
   /* Where each question's run ends: the last card written before the next
      question was asked. The newest board of a question sits there, because an
@@ -1587,20 +1593,78 @@ function render(data) {
   /* Before anything reads the mapping: bring the chain of boards up to date with
      the transcript, and let the surface -- which may know more about where this
      lesson's working actually is than this browser does -- correct it. */
-  lastTurns = data.turns || [];
-  syncSlots(qids, runEndOf, lastTurns);
-  repairPages();
-  slotOrder = [];
-  qids.forEach(function (q) {
-    slotsOf(q).forEach(function (k) { slotOrder.push(k); });
-  });
+  /* THE MAPPING BELONGS TO THE LIVE SITTING, AND ONLY IT MAY WRITE.
+
+     A past lesson is read through this same function, carrying the archive's own
+     card ids -- which start at 0001, the numbers this sitting is using. Left to
+     run, `syncSlots` mints a record for every question of the archive the live
+     mapping lacks, `repairPages` gives it a page off the archive's turns, and
+     `savePages` writes the lot under the LIVE key. One past lesson read is then
+     a handful of records naming boards that are on no screen, owning pages this
+     sitting is about to reach -- and the next tap on a real board finds its
+     sheet shared and copies itself off it.
+
+     Nothing is drawn from the mapping on an archived frame anyway: `paintBoards`
+     takes every board off the page and returns, and the surface is not built.
+     There is nothing here to bring up to date. */
+  if (!data.archived) {
+    lastTurns = data.turns || [];
+    syncSlots(qids, runEndOf, lastTurns);
+    repairPages();
+    /* And the order boards stand in, which is read off the same mapping and so
+       means nothing on a frame that is not this sitting's. */
+    slotOrder = [];
+    qids.forEach(function (q) {
+      slotsOf(q).forEach(function (k) { slotOrder.push(k); });
+    });
+  }
 
   /* Which BOARD is being written on. Usually the attempt in hand on the newest
      question; whichever they picked, if they went back to an earlier one. A
      board that has scrolled off the top of the transcript is still a board, and
      going back to add a line to the proof on it is ordinary work. */
-  if (workingOn && (!boardPage[workingOn]
-                    || qids.indexOf(slotQ(workingOn)) === -1)) workingOn = null;
+  /* A NEW QUESTION LETS GO OF THE PIN, UNLESS THERE IS WORKING UNDER IT.
+
+     A pin that outlives its question parks the surface several cards above a new
+     question that then gets no board at all, so the ordinary answer is to let
+     go. Working carried onto a board by hand and not yet handed in is the
+     exception, and is the reason the pin was set one tap ago: take the surface
+     off it and the writing is a photograph with a blank surface underneath, which
+     is the report -- "I can't write on the original new board".
+
+     Only a pin a CARRY set, and only while what was carried is still unsent. A
+     pin from an ordinary tap is somebody reading back over the lesson, and the
+     new question outranks that. One question's grace either way, counted by
+     `pinHeld`, because a pin that never lets go is the first failure back
+     again.
+
+     Questions that arrive while a past lesson is open are not counted at all: a
+     live frame is kept and not drawn while `reading`, so it never reaches here,
+     and the grace is spent against whichever question is newest on the way back.
+     So the pin outlives every question asked during the read, and one more after
+     it -- however many that is. One tap on the newest board moves the surface,
+     which is the right way round, because the carried working is on no disk. */
+  if (!data.archived && workingOn && workingOnAt !== (newestQ || "")) {
+    if (pinCarried && !pinHeld && unsentInk(workingOn)) {
+      pinHeld = true;
+      workingOnAt = newestQ || "";
+    } else {
+      workingOn = null;
+      workingOnAt = null;
+      pinHeld = false;
+      pinCarried = false;
+    }
+  }
+  /* An archived frame's `qids` are the ARCHIVE's question ids, so a pinned
+     board's question is missing from them for reasons that have nothing to do
+     with this sitting. Only a live frame may say a board has gone. */
+  if (!data.archived && workingOn
+      && (!boardPage[workingOn]
+          || qids.indexOf(slotQ(workingOn)) === -1)) {
+    workingOn = null;
+    pinCarried = false;
+    pinHeld = false;
+  }
   var liveKey = workingOn || (newestQ ? newestSlot(newestQ) : null);
   var onQ = liveKey ? slotQ(liveKey) : newestQ;
 
@@ -1649,8 +1713,11 @@ function render(data) {
     }
   }
   /* A past lesson is read only: no pen, no box, nothing to send into a session
-     that has already been filed. */
-  liveSlot = liveKey;
+     that has already been filed. So `liveKey` on an archived frame names a board
+     of the ARCHIVE, and writing it down would point the pen -- and `restoreAnswer`
+     with it -- at somebody else's lesson the moment the reader comes back. The
+     live sitting's answer to this stands until a live frame changes it. */
+  if (!data.archived) liveSlot = liveKey;
   /* THE HOLD IS ON THE BOARD FOLLOWING A CARD, NEVER ON A TAP.
      Somebody who touches an earlier board is asking for the surface to go there
      now, and a request made by hand outranks an animation. `workingOn` and
@@ -1992,8 +2059,18 @@ function paintSession(state, push, agent, exported, hwBuilt) {
   }
   /* The chip is the first thing the bar gives up width on, and squeezed hard it
      is its status dot and nothing else. So the words live somewhere they can
-     still be got at rather than only in a chip that may have been trimmed. */
-  els.agent.title = els.agent.textContent;
+     still be got at rather than only in a chip that may have been trimmed.
+
+     AND IT DOES NOT STAMP ON A CLIMB-DOWN THAT WAS ALREADY WRITTEN THERE. This
+     line ran unconditionally five lines after the one above it and won every
+     time, so `agent_why` -- the sentence a student is owed when somebody else
+     is teaching -- reached nobody on any code path. `choose_agent`'s own
+     docstring says "AND THE STUDENT IS TOLD, which is the condition on all of
+     it"; that condition was not met. The real answer is that a title is a hover
+     tooltip on a device with no hover, which is why the sentence is now in the
+     busy strip as well -- see `stalledWord`. This keeps the chip's own words
+     for the case where there is nothing better to say. */
+  if (!els.agent.title) els.agent.title = els.agent.textContent;
   var kind = state.session || "lecture";
   sittingKind = kind;
   els.session.hidden = false;
@@ -7348,6 +7425,17 @@ var lastNewestCard = "";
    boards became reachable enough for anyone to hit it. */
 var workingOn = null;
 var workingOnAt = null;
+/* Whether a CARRY set the pin, and whether it has already been carried across
+   one new question.
+
+   The grace a carry gets belongs to a carry alone: the working was put on that
+   board by hand one tap ago and is on no disk anywhere, so moving the surface
+   off it leaves it as a photograph. An ordinary tap on an old board is somebody
+   reading back, and a new question outranks that. And one question only, either
+   way -- a pin that never lets go parks the surface above a question that then
+   gets no board at all, which is the failure `workingOnAt` exists to prevent. */
+var pinCarried = false;
+var pinHeld = false;
 /* The board the surface is standing in for, as `render` last worked it out.
    `workingOn` is a request; this is the answer to it, and it is what
    `restoreAnswer` puts under the pen. */
@@ -7485,6 +7573,10 @@ function dropOtherSittings() {
    the whole of what this repairs. */
 function lessonWasFiled() {
   boardPage = {};
+  /* And the census of what was asked. The next sitting numbers its cards from
+     0001 again, so every id in it means something else from now on. */
+  seenQs = Object.create(null);
+  seenAny = false;
   savePages();
   loadedTurn = null;
   reclaimSeen = null;
@@ -7509,6 +7601,19 @@ function slotN(key) {
 /* Every board in the lesson, in reading order, as of the last render. What
    "the board before this one" means, which is the whole of the carry-over. */
 var slotOrder = [];
+
+/* Every question this LIVE lesson has asked, over every frame of it so far.
+   What separates a board from a leftover record; see `pageOwnedByOther`.
+
+   It only ever grows. A card whose body is still being written is skipped for
+   that one payload (`load_cards`), and a question missing from one frame is not
+   a question that is over -- so a per-frame census would leave a real board's
+   sheet undefended for exactly the frame in which something else might take it.
+   Counting a leftover as a board costs nothing but the behaviour this already
+   had; the other mistake hands a board's sheet away. Empty until the first live
+   frame carrying a question, and while it is empty every record counts. */
+var seenQs = Object.create(null);
+var seenAny = false;
 
 /* The last board before this one that somebody has actually written on.
 
@@ -7569,6 +7674,37 @@ function carryOver(key) {
   rec.p = writer.clone(src, onto);
   savePages();
   loadedTurn = null;
+}
+
+/* Carrying the working onto a board is asking to WRITE on that board.
+
+   Both controls that offer the carry come through here, so neither can take the
+   working without taking the surface with it. A carry that copies and then lets
+   the surface be worked out again from the newest question leaves the carried
+   writing on a dormant board with a blank one under it, which is the report:
+   "it STILL creates an extra board and I can't write on the original new
+   board". One tap, one board, and it is the one under the pen.
+
+   The pin goes on BEFORE the copy, so the single render this makes is already
+   the pinned one. Set afterwards it takes two renders, and the first of them
+   paints the dormant board with the blank one under it.
+
+   `workingOnAt` is not decoration. The pin is let go whenever it does not match
+   the newest question, and it defaults to null while a question id is a string,
+   so a pin set without it is gone on the very next frame.
+
+   And not under a pen that is down, which is `carryOver`'s own rule: the copy
+   waits, so the ask waits with it, and the offer is still standing to be made
+   again. Pinning anyway would move the live page out from under a hand. */
+function carryHere(key) {
+  if (!key || !boardPage[key]) return;
+  if (writer && writer.writing && writer.writing()) { renderSoon(); return; }
+  workingOn = key;
+  workingOnAt = lastNewestQ;
+  reopenedFor = null;
+  pinCarried = true;
+  pinHeld = false;
+  carryOver(key);
   if (lastLive) render(lastLive);
 }
 
@@ -7614,7 +7750,19 @@ function pageOf(key) {
 function pageOwnedByOther(n, key) {
   if (n === undefined || !n) return false;
   for (var k in boardPage) {
-    if (k !== key && boardPage[k].p === n) return true;
+    if (k === key || boardPage[k].p !== n) continue;
+    /* AND ANOTHER BOARD MEANS A BOARD THIS LESSON HAS.
+
+       A record for a question the lesson has never carried is not a board:
+       nothing draws it and nothing can be written on it. Counting it as an owner
+       makes a live board copy itself off a perfectly good sheet to get away from
+       a ghost, and the sheet is then abandoned, because `fresh` hands back only
+       the TRAILING blank. On disk that is pages 64, 66 and 67 of one evening.
+
+       Ignored rather than deleted. Deleting is the operation that can throw away
+       a record for a board somebody is writing on, and ignoring one for a frame
+       costs nothing. */
+    if (!seenAny || seenQs[slotQ(k)]) return true;
   }
   return false;
 }
@@ -7659,7 +7807,21 @@ function syncSlots(qids, runEndOf, turns) {
          it. There is nothing about this that has to happen in this particular
          second. */
       if (writer.writing && writer.writing()) { renderSoon(); return; }
-      boardPage[slotKey(q, slotN(key) + 1)] = { p: writer.clone(rec.p), a: end };
+      var next = slotKey(q, slotN(key) + 1);
+      boardPage[next] = { p: writer.clone(rec.p), a: end };
+      /* And the surface follows it. Somebody pinned to the attempt just frozen
+         asked to write on this question, and the place to write is the attempt
+         now in hand; leaving the pin on a finished board holds the surface there
+         and paints the live one underneath it as a picture, which is the extra
+         board by another route. */
+      if (workingOn === key) {
+        workingOn = next;
+        workingOnAt = lastNewestQ;
+        /* What was carried has been handed in and answered; the new board's
+           grace is its own, and it has not earned one. */
+        pinCarried = false;
+        pinHeld = false;
+      }
       changed = true;
     } else if (!sent || !rec.a) {
       /* Still the attempt in progress, so it follows the end of the run: the
@@ -7683,6 +7845,17 @@ function sentAnswers() {
     if (!have || (t.t || 0) >= (have.t || 0)) out[t.answers] = t;
   });
   return out;
+}
+
+/* Working nobody has handed in. There is ink on the page this board holds and
+   no answer came off that page, so nothing on disk carries it: take the surface
+   away and the only copy of it left is a photograph. */
+function unsentInk(key) {
+  var rec = key && boardPage[key];
+  if (!rec || rec.p === undefined) return false;
+  if (!writer || !writer.inkOn || writer.inkOn(rec.p) <= 0) return false;
+  var sent = sentAnswers()[slotQ(key)];
+  return !(sent && sent.page === rec.p);
 }
 
 /* Has the page this board points at stopped being the answer that came off it?
@@ -7974,6 +8147,8 @@ function boardSlot(key, qid) {
     workingOn = key;
     workingOnAt = lastNewestQ;
     reopenedFor = null;
+    pinCarried = false;
+    pinHeld = false;
     if (lastLive) render(lastLive);
     if (!writer) return;
     /* Lay the real canvas out now rather than on the next frame: a pen is
@@ -7992,10 +8167,7 @@ function boardSlot(key, qid) {
   slot.querySelector(".board-send").onclick = function () { goLive(null, true); };
   slot.querySelector(".board-carry").onclick = function (ev) {
     ev.stopPropagation();
-    carryOver(key);
-    workingOn = key;                 /* carrying it over is asking to write here */
-    workingOnAt = lastNewestQ;
-    if (lastLive) render(lastLive);
+    carryHere(key);
   };
   return slot;
 }
@@ -8404,18 +8576,38 @@ function stalledWord(st, waiting, unsaved) {
         since: Date.now() - (st.failure.at || 0) * 1000 }
     : null;
 
+  /* A PROVIDER STANDING ASIDE IS A STANDING FACT, NOT AN EVENT, and until now
+     it was written only into a log file and a hover tooltip. It is the sentence
+     that answers "why is nothing happening": which provider went quiet, what it
+     could not reach, when it will be asked again, and who is teaching instead.
+     `agent_why` is the daemon's own words for the swap and already carries the
+     host and the hour; `stood_down` is there for the case where nothing could
+     take the turn, so there was no swap to describe. */
+  var aside = null;
+  if (st && st.agent_why) {
+    aside = { text: st.agent_why, since: 0 };
+  } else if (st && st.stood_down) {
+    aside = { text: who + " is standing aside — "
+                  + (st.stood_down.host
+                     ? st.stood_down.host + " does not answer from this machine"
+                     : st.stood_down.why)
+                  + ", and nothing else here can take the lesson. Asking again at "
+                  + clockWord(st.stood_down.until) + ".",
+              bad: true, since: 0 };
+  }
+
   /* NEWEST FACT WINS. Somebody who sends again after a failure has made the
      send the newer thing that happened, and going on about the old failure over
      the top of it is the board talking about the past. The other way round -- a
      failure since the last unclaimed send -- and the failure is the news. */
-  if (!waiting) return failed;
+  if (!waiting) return failed || aside;
   if (failed && (st.failure.at || 0) >= (waiting.since || 0)) return failed;
   var held = Date.now() - (waiting.since || 0) * 1000;
   /* The first couple of seconds belong to the wire and to the daemon's quarter
      second poll. Announcing a stall there would make every ordinary send flash
      a warning -- but not at the cost of dropping a failure that is still the
      standing fact about this tutor. */
-  if (held < 4000) return failed;
+  if (held < 4000) return failed || aside;
   var many = waiting.count > 1 ? " (" + waiting.count + " things waiting)" : "";
   /* A DIRECTION CHANGE REPLACES THE TUTOR IT WAS SENT TO, so every state below
      is the expected one rather than a stall, and none of the sentences below
@@ -8449,10 +8641,23 @@ function stalledWord(st, waiting, unsaved) {
   return { text: who + " has not picked this up yet" + many + ".", since: held };
 }
 
+/* An epoch second as a wall clock, in the reader's own timezone. The board
+   draws every other time this way; a string formatted in Python would be a
+   second place the format is decided. */
+function clockWord(secs) {
+  if (!secs) return "soon";
+  return new Date(secs * 1000)
+    .toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+}
+
 /* A daemon's error string is for a log. This is for somebody holding an iPad. */
 function failWord(err) {
   var e = String(err || "");
   if (/allowance/i.test(e)) return "its usage allowance has run out here";
+  /* A hostname is a fact about somebody else's server and the person holding
+     the iPad did not choose it and cannot act on it. What they can act on is
+     that this is the provider rather than the lesson, the machine or them. */
+  if (/^cannot reach /i.test(e)) return "its provider does not answer from this machine";
   if (/egress|network/i.test(e)) return "this machine cannot reach the internet";
   if (/timed out/i.test(e)) return "the turn ran too long and was stopped";
   if (/^exit /.test(e)) return "the assistant exited (" + e + ")";
@@ -10510,7 +10715,7 @@ document.getElementById("linkbad-retry").onclick = function () { connect(); };
 /* Declining the prompt is still a turn: it is in the transcript, and it wakes the
    tutor the same way an answer does, because the tutor has to carry on. */
 if (els.carry) {
-  els.carry.onclick = function () { carryOver(liveSlot); };
+  els.carry.onclick = function () { carryHere(liveSlot); };
 }
 els.skip.onclick = function () {
   els.skip.disabled = true;
@@ -10545,6 +10750,11 @@ if (els.reopen) {
     reopenedFor = lastNewestQ || lastNewestCard;
     workingOn = null;
     workingOnAt = null;
+    /* The pin belongs to the board it was set on, and this asks for a different
+       surface. Left standing it would spend a carry's grace on a question the
+       carry has nothing to do with. */
+    pinCarried = false;
+    pinHeld = false;
     els.reopen.hidden = true;
     if (lastLive) render(lastLive);
     /* Straight to it: the button was pressed because there was something to
