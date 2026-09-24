@@ -1074,10 +1074,46 @@ REVISE_SENSE = (
 )
 
 
-def revise_sense(document_rel, feedback_rel):
-    """The inbox line for one round of feedback on one document."""
-    return (REVISE_SENSE % (document_rel, feedback_rel)
+def revise_sense(document_rel, feedback_rel, brief=""):
+    """The inbox line for one round of feedback on one document.
+
+    `brief` is the deck's `_brief.md` where the document is a deck made from
+    sittings, and "" for everything else -- whose line is then exactly what it
+    was. See `DECK_BRIEF_SENSE`.
+    """
+    return (REVISE_SENSE % (document_rel, feedback_rel) + _deck_brief(brief)
             + MEASURE_SENSE + RULE_SENSE)
+
+
+# A DECK MADE FROM SITTINGS IS CORRECTED WITH INK, AND THE INK MAY ASK FOR MORE.
+#
+# `HEADLESS_REVISE_PROMPT` says *do not widen it*, which is right for a paper
+# whose scope somebody chose and wrong for this: the owner ticked what goes in,
+# the tutor planned the slides, and a ring with "add the ROC curve" beside it is
+# the correction. So the turn is told where the deck's scope is written down --
+# the brief the server wrote before the deck existed -- that an addition asked
+# for in ink is the feedback rather than a widening, how to fetch a figure the
+# brief only catalogues, and that a frame stays one page, because a mark finds
+# its slide by page number.
+DECK_BRIEF_SENSE = (
+    " THIS DECK WAS COMPOSED FROM SITTINGS, and what it covers is written down "
+    "in `%s`: read it before changing anything. Ink or a note asking for "
+    "something to be ADDED is the feedback, not a widening -- add it, from the "
+    "sources the brief names; the past sittings' cards and transcripts it "
+    "points at are yours to read for this. A figure its catalog lists and the deck does not "
+    "have yet is fetched with `board deckfig %s <workspace id> <result id>`, "
+    "which copies it into the deck's figures/ and prints the path to "
+    "\\includegraphics; open the image before using it. Something asked to "
+    "come OUT comes out. Keep one page per frame (no allowframebreaks): the next "
+    "round of ink finds its slide by page number. "
+)
+
+
+def _deck_brief(brief):
+    brief = (brief or "").strip()
+    if not brief:
+        return ""
+    return DECK_BRIEF_SENSE % (brief, os.path.dirname(brief) or ".")
 
 
 # WHAT A REWORK TURN IS WOKEN WITH, and the difference from a revision is one
@@ -1107,10 +1143,11 @@ REWORK_SENSE = (
 )
 
 
-def rework_sense(document_rel, feedback_rel, purpose):
-    """The inbox line for an overhaul of one document."""
+def rework_sense(document_rel, feedback_rel, purpose, brief=""):
+    """The inbox line for an overhaul of one document. `brief` as for
+    `revise_sense`."""
     return (REWORK_SENSE % (document_rel, feedback_rel, (purpose or "").strip())
-            + MEASURE_SENSE + RULE_SENSE)
+            + _deck_brief(brief) + MEASURE_SENSE + RULE_SENSE)
 
 
 # WHAT A SHIP TURN IS WOKEN WITH, and it names the mission rather than the diff.
@@ -1275,6 +1312,42 @@ def writeup_sense(makes, about=""):
             % {"what": ("a DECK of slides" if makes == "slides" else "a PAPER"),
                "about": said or WRITEUP_EVENING}
             + MAKE_SENSE + MEASURE_SENSE + RULE_SENSE)
+
+
+# WHAT A DECK FROM SITTINGS IS ABOUT, and it is a file rather than a sentence.
+#
+# Asked for in these words: *"I just want to be able to select from tutoring
+# sessions what we've done over all sessions and get to pick a list of the
+# things I want to include in the presentation. I leave it up to the AI tutor to
+# actually decide what slides are dedicated to which things accomplished."* The
+# picks cross workspaces and dates, so no single sentence holds them: the server
+# writes them into `_brief.md` beside where the deck goes -- the ticked items
+# with their sources, the figures it snapshotted, a catalog of the rest -- and
+# this is the `about` that points at it. `writeup_sense` wraps it in the
+# document method exactly as it wraps a scope.
+#
+# THE FILENAME IS FIXED, and that is the one thing here that is not the tutor's
+# to choose. `MAKE_SENSE` says the slug is a short name the tutor picks; the
+# front door finds this deck by the slug it made, so a better name is a deck
+# nobody can open from the sheet that asked for it.
+SITTINGS_ABOUT = (
+    "THE THINGS LISTED IN `writeups/%(slug)s/_brief.md`, which somebody ticked "
+    "from past sittings -- read that file first, whole. It says what goes in, "
+    "where each thing came from, which figures are already copied into "
+    "`writeups/%(slug)s/figures/` for you, and how to fetch any other. YOU "
+    "PLAN THE SLIDES: an item gets as many as it needs, items that belong "
+    "together share them, and there is no one-slide-per-workspace rule. The "
+    "deck presents the WORK -- what was built, shown, measured or proved, with "
+    "its numbers -- not the conversation that produced it. THE FILE IS "
+    "`writeups/%(slug)s/%(slug)s.tex`, that name exactly and no other: the "
+    "front door finds the deck by it. Build it with `latexmk -pdf -cd "
+    "-interaction=nonstopmode writeups/%(slug)s/%(slug)s.tex`."
+)
+
+
+def sittings_about(slug):
+    """What a deck composed from ticked sittings is about: its brief."""
+    return SITTINGS_ABOUT % {"slug": slug}
 
 
 def session_sense(repo, doing=None, mission=False):

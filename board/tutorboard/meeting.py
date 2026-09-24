@@ -229,17 +229,25 @@ def _clip(text, limit):
     return (cut or text[:limit]).rstrip(" ,;:-—") + "…"
 
 
-def landed(base, rel, since_ts):
+def _until(until_ts):
+    """The upper bound of a period, as `git log` options. None is open-ended."""
+    return [] if until_ts is None else ["--until=@%d" % int(until_ts)]
+
+
+def landed(base, rel, since_ts, until_ts=None):
     """Commits in the period that touched this workspace, newest first.
 
     Scoped by PATHSPEC rather than filtered afterwards, because there is one
     repository now and every workspace's history runs through the same log. A
     note about Galois Theory that lists PSYCH-ASR's afternoon is a note nobody
     can trust about either.
+
+    `until_ts` closes the period, for a caller asking about ONE SITTING rather
+    than about everything since a date -- `sittings.py`, whose window ends when
+    the sitting was filed. The meeting deck leaves it open.
     """
-    raw = _git(base, ["log", "--since=@%d" % int(since_ts),
-                      "--no-merges", "--pretty=%H%x00%at%x00%s",
-                      "--", rel])
+    raw = _git(base, ["log", "--since=@%d" % int(since_ts)] + _until(until_ts)
+               + ["--no-merges", "--pretty=%H%x00%at%x00%s", "--", rel])
     out = []
     for line in raw.splitlines():
         bits = line.split("\0")
@@ -269,7 +277,7 @@ def touched(base, rel, since_ts):
 # ---------------------------------------------------------------------------
 # what closed
 # ---------------------------------------------------------------------------
-def closed(base, rel, root, since_ts):
+def closed(base, rel, root, since_ts, until_ts=None):
     """Plan steps that went away in the period.
 
     A plan here lists what is LEFT -- the convention these projects are written
@@ -290,8 +298,8 @@ def closed(base, rel, root, since_ts):
     if not rels:
         return []
 
-    raw = _git(base, ["log", "--since=@%d" % int(since_ts), "--no-merges",
-                      "-U0", "--pretty=format:", "--"] + rels)
+    raw = _git(base, ["log", "--since=@%d" % int(since_ts)] + _until(until_ts)
+               + ["--no-merges", "-U0", "--pretty=format:", "--"] + rels)
     out, seen = [], set()
     for line in raw.splitlines():
         if not line.startswith("-") or line.startswith("---"):

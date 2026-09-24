@@ -1,0 +1,60 @@
+% ===========================================================================
+%  Retrieval And Subgroups
+%
+%  THE WRITE-UP, and it is the assistant's to type.
+%    The assistant transcribes each question or topic faithfully and emits an
+%    empty, marked solution region beneath it. The student does the
+%    mathematics; the assistant typesets what they agreed was right, and
+%    nothing that was not on the page the student sent.
+% ===========================================================================
+\documentclass[11pt]{article}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage[margin=1in]{geometry}
+%% The two environments everything here is written in. A workspace with its own
+%% `coursemacros.sty` gets that instead, and these match its definitions so a
+%% document reads the same either way.
+\newenvironment{problem}[1]
+  {\par\medskip\noindent\textbf{Problem #1.}\ \itshape}
+  {\par\medskip}
+\newenvironment{solution}
+  {\par\noindent\textbf{Solution.}\ }
+  {\par\medskip}
+\newcommand{\todo}[1]{\textbf{[TODO: #1]}}
+
+\title{Retrieval And Subgroups}
+\author{}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+% One problem/solution pair per thing worked, in the order it was assigned or
+% chosen. A region stays empty until the answer in it is agreed correct.
+
+\begin{problem}{1}
+Benjamini--Hochberg at $q = 0.05$ with $m = 5$ tests. The sorted p-values are
+$p_{(1)},\dots,p_{(5)} = 0.004,\ 0.030,\ 0.045,\ 0.047,\ 0.060$.
+The bar for rank $i$ is $\frac{i}{m}q$. Find the largest $i$ with
+$p_{(i)} \le \frac{i}{m}q$ and reject ranks $1$ to $i$, where ``rejected''
+means the null is rejected and the contrast is called significant.
+Which ranks does BH call significant?
+\end{problem}
+\begin{solution}
+Only the lowest rank is significant.
+
+\begin{center}
+\begin{tabular}{cccc}
+rank $i$ & $p_{(i)}$ & bar $\frac{i}{5}(0.05)$ & $p_{(i)} \le$ bar? \\ \hline
+1 & 0.004 & 0.01 & yes \\
+2 & 0.030 & 0.02 & no \\
+3 & 0.045 & 0.03 & no \\
+4 & 0.047 & 0.04 & no \\
+5 & 0.060 & 0.05 & no
+\end{tabular}
+\end{center}
+
+The largest passing rank is $1$, so BH rejects rank $1$ alone.
+\end{solution}
+
+\end{document}

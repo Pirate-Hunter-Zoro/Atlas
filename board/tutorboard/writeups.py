@@ -263,6 +263,21 @@ def _judge(root, rec, now):
     return "writing"
 
 
+def state(root, wid):
+    """`writing`, `done` or `failed` for one ask, or "" where there is no record.
+
+    `waiting` answers for the strip, which caps and hides; this answers for ONE
+    ask somebody is watching from somewhere else -- the front door's deck from
+    sittings, which knows its ask by id. The same judging, so the same freezing:
+    a record read here and in the strip cannot come to two answers.
+    """
+    rec = read(root, wid)
+    if not rec:
+        return ""
+    now = None if rec.get("ended") else _library_now(root)
+    return _judge(root, rec, now)
+
+
 def seen(root, wid):
     """Mark one finished ask as looked at, so the strip stops saying it.
 
