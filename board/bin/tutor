@@ -175,7 +175,9 @@ DEFAULT_CONFIG = {
         # exception, not a line of Python. What it costs while the name is
         # filtered: a turn spends about three minutes retrying and dies as
         # `API Error: Connection dropped (ECONNRESET)`. `egress_probe` is what
-        # makes that one stood-down turn rather than every turn, by name.
+        # makes that one stood-down turn rather than every turn, by name. The
+        # measurement, the controls that place the device, and the exception to
+        # ask for are in `projects/libr-local-llm/docs/deepseek-egress.md`.
         "deepseek": {
             "cmd": ["claude"], "prompt": "argv",
             "headless_first": ["claude", "-p", "{prompt}"],
