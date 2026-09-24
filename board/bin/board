@@ -3289,7 +3289,9 @@ def cmd_see(live, args):
             print(why, file=sys.stderr)
             return 1
         print("%s  %s  via the '%s' recipe"
-              % (settings.get("model"), settings.get("endpoint"),
+              % (settings.get("model"),
+                 settings.get("endpoint")
+                 or " ".join(settings.get("cmd") or []),
                  settings.get("agent")))
         return 0
     if not rest:

@@ -110,14 +110,26 @@ def egress_ok(timeout=12, urls=None):
 # home directory is shared between compute nodes and a block seen on the
 # allocation that ended yesterday is not this machine's news.
 #
-# Only ever written from a turn that has ALREADY failed. Probing a provider
-# before every card would add a round trip to the internet to answer a question
-# whose answer is almost always yes.
+# Written from a turn that has ALREADY failed, and from the one other moment
+# worth a round trip: a sitting being pointed at a recipe with a provider of its
+# own, which is rare, deliberate, and the moment a dead provider costs a student
+# a three-minute turn that writes nothing. Not before every card -- that would
+# put a round trip to the internet in front of every answer to ask a question
+# whose answer is almost always yes. See `probe_before_turn` in `bin/tutor`.
 UNREACHABLE_RECORD = os.path.join(paths.STATE_DIR, "unreachable.json")
 
 # How long a block is believed for. One failed turn buys the finding, and one
 # more failed turn is what every expiry costs to rediscover.
 UNREACHABLE_WINDOW = 3600
+
+# AND THE WINDOW DOUBLES EACH TIME THE SAME PROVIDER IS FOUND DARK AGAIN, up to
+# this. A fixed hour is right for a filter that lifts by itself and wrong for one
+# that does not: a firewall rule outlives every expiry, so the flat window costs
+# a dead turn an hour for ever, each one a student waiting three minutes for
+# nothing. The strike count is kept past the expiry -- that is the whole of what
+# makes the second finding cheaper than the first -- and only a turn that goes
+# through resets it, because that is the only evidence the host answers.
+UNREACHABLE_MAX = 24 * 3600
 
 
 def _unreachable_load():
@@ -135,8 +147,22 @@ def _unreachable_load():
     return rec
 
 
-def mark_unreachable(agent, host, until=None, node=None):
-    """Write down that this AGENT's provider does not answer from this machine.
+def _strikes(agent):
+    """How many times this provider has already been stood down here.
+
+    Read past the expiry on purpose: the count is what makes each rediscovery
+    cheaper than the last, and an entry whose window has run out is exactly the
+    one about to be written again.
+    """
+    got = (_unreachable_load().get("agents") or {}).get(str(agent or ""))
+    try:
+        return int((got or {}).get("strikes") or 0)
+    except (TypeError, ValueError):
+        return 0
+
+
+def _stand_down(agent, host, why, until=None, node=None):
+    """Write down that this AGENT cannot take a turn here, and until when.
 
     Merged rather than replaced, for the reason `limits.mark_limited` is: a
     second provider going dark must not erase the first one's expiry and send
@@ -147,10 +173,15 @@ def mark_unreachable(agent, host, until=None, node=None):
     rec = _unreachable_load()
     if rec.get("node") and rec["node"] != node:
         rec = {}
+    strikes = _strikes(agent) + 1
+    if until is None:
+        until = time.time() + min(UNREACHABLE_WINDOW * (2 ** (strikes - 1)),
+                                  UNREACHABLE_MAX)
     agents = dict(rec.get("agents") or {})
     agents[str(agent or "")] = {"host": str(host or ""),
-                                "until": float(until or (time.time()
-                                                         + UNREACHABLE_WINDOW))}
+                                "why": str(why or ""),
+                                "strikes": strikes,
+                                "until": float(until)}
     rec = {"node": node, "at": time.time(), "agents": agents}
     try:
         os.makedirs(paths.STATE_DIR, exist_ok=True)
@@ -163,8 +194,30 @@ def mark_unreachable(agent, host, until=None, node=None):
     return rec
 
 
-def unreachable(agent, now=None):
-    """`{host, until}` while this agent's provider is known not to answer, else None."""
+def mark_unreachable(agent, host, until=None, node=None):
+    """Write down that this AGENT's provider does not answer from this machine."""
+    return _stand_down(agent, host, "", until=until, node=node)
+
+
+def mark_failing(agent, why, until=None, node=None):
+    """Write down that this AGENT's turns fail here for a reason that is not the network.
+
+    A renamed model, a rejected key, a provider answering 404 to every request:
+    the host answers, so nothing above notices, and `choose_agent` hands the next
+    turn straight back to a recipe that cannot write a card. Every student
+    message then costs a full failed turn, for ever. This is the same climb-down
+    as a dark host, bought by repeated failure rather than by a probe, and `why`
+    is the provider's own sentence so the board can say what is wrong.
+    """
+    return _stand_down(agent, "", why, until=until, node=node)
+
+
+def stood_down(agent, now=None):
+    """`{host, why, until}` while this agent cannot take a turn here, else None.
+
+    Both kinds of stand-down: `host` is set when the provider's name does not
+    answer, `why` when its turns fail for a reason the network is innocent of.
+    """
     got = (_unreachable_load().get("agents") or {}).get(str(agent or ""))
     if not isinstance(got, dict):
         return None
@@ -174,14 +227,23 @@ def unreachable(agent, now=None):
         return None
     if until <= (now or time.time()):
         return None
-    return {"host": got.get("host") or "", "until": until}
+    return {"host": got.get("host") or "", "why": got.get("why") or "",
+            "until": until}
+
+
+def unreachable(agent, now=None):
+    """`{host, until}` while this agent's provider is known not to answer, else None."""
+    got = stood_down(agent, now)
+    return {"host": got["host"], "until": got["until"]} if got and got["host"] else None
 
 
 def clear_unreachable(agent):
     """A turn that went through is proof the provider answers, whatever this says.
 
     A measurement beats a record: the expiry above is a guess about when a
-    filter might lift, and a card written through the provider settles it.
+    filter might lift, and a card written through the provider settles it. The
+    strike count goes with it, so a provider that comes back starts its next bad
+    evening at one hour rather than at a day.
     """
     rec = _unreachable_load()
     agents = dict(rec.get("agents") or {})

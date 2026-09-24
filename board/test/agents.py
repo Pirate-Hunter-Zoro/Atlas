@@ -728,22 +728,60 @@ check("and one that never finished does not claim to be starting for ever",
 silent = tempfile.mkdtemp(prefix="tutor-silent-")
 silent_live = os.path.join(silent, "live")
 os.makedirs(silent_live)
-with open(os.path.join(silent_live, "agent.json"), "w", encoding="utf-8") as fh:
-    json.dump({"agent": "deepseek", "state": "listening", "pid": 4321,
-               "last_error": "API Error: Connection dropped (ECONNRESET) (exit 1)",
-               "failed_at": time.time(), "handover": "2026-09-20 10:00:00"}, fh)
-woke = tutor.mark_waking(silent_live, "claude", pid=os.getpid())
+def wrote_failure(agent):
+    with open(os.path.join(silent_live, "agent.json"), "w", encoding="utf-8") as fh:
+        json.dump({"agent": agent, "state": "listening", "pid": 4321,
+                   "failed_agent": agent,
+                   "last_error": "API Error: Connection dropped (ECONNRESET) (exit 1)",
+                   "failed_at": time.time(),
+                   "handover": "2026-09-20 10:00:00"}, fh)
+
+
+wrote_failure("deepseek")
+woke = tutor.mark_waking(silent_live, "deepseek", pid=os.getpid())
 check("a start does not erase the last turn's failure -- a daemon is most often "
       "restarted BECAUSE the turn fell over, and clearing the reason there "
       "empties the record at the one moment somebody is reading it",
-      woke.get("last_error", "").startswith("API Error") and woke.get("failed_at"))
+      (woke.get("last_error") or "").startswith("API Error")
+      and woke.get("failed_at"))
 check("and it still answers the flags a start is the answer to",
       not woke.get("handover") and woke.get("state") == "waking")
 
-# WHAT RETIRES IT IS SOMETHING NEWER, which is the next turn that goes through.
+# AND THE FAILURE BELONGS TO THE PROVIDER IT HAPPENED TO. The board reads the
+# agent and the error out of one record and puts them in one sentence, so a
+# failure kept across a swap would read as "claude's last turn failed -- cannot
+# reach api.deepseek.com", about a host claude never opens.
+wrote_failure("deepseek")
+woke = tutor.mark_waking(silent_live, "claude", pid=os.getpid())
+check("a failure does not follow the record onto the next provider: coming up "
+      "as somebody else drops an error that was not theirs",
+      not woke.get("last_error") and not woke.get("failed_at")
+      and not woke.get("failed_agent"))
+wrote_failure("deepseek")
+check("and the same is true of a climb-down between turns, which writes the "
+      "new agent onto the record the same way",
+      tutor.not_this_agents_failure(silent_live, "claude")
+      == {"last_error": None, "failed_at": 0, "failed_agent": None}
+      and tutor.not_this_agents_failure(silent_live, "deepseek") == {})
+
+# WHAT RETIRES IT IS SOMETHING NEWER, AND A TURN STARTING IS NOT THAT. A turn
+# that has begun settles nothing about the failure before it: a daemon killed
+# mid-turn would leave `working`, no error and no card -- the empty record, one
+# state along.
 check("a turn that goes through is what clears it, and the daemon still does that",
       'agent_state(live, state="listening", last_error=None,\n'
-      '                        failed_at=0, retrying=False)' in tool_src)
+      '                        failed_at=0, failed_agent=None, retrying=False)'
+      in tool_src)
+check("and the turn that merely STARTS does not, which is what the docstring "
+      "above says happens",
+      'agent_state(live, state="working", turns=turns,\n'
+      '                    turn_started=time.time(), turn_signal=this_signal)'
+      in tool_src)
+check("what stops the board painting last time's failure over a turn in flight "
+      "is the reader, which does not report one older than the running turn",
+      'if st.get("state") == "working":' in
+      open(os.path.join(ROOT, "tutorboard", "lesson", "state.py"),
+           encoding="utf-8").read())
 
 # AND THE EXIT CODE IS NOT THE LAST WORD ON WHETHER A TURN WORKED. It is the
 # agent summarising itself; the result object is the agent saying what happened.
@@ -764,6 +802,51 @@ check("and what the board is told is the turn's own sentence rather than the "
       "number, which is the same for every cause",
       tutor.failure_reason(blob, "exit 1")
       == "API Error: Connection dropped (ECONNRESET) (exit 1)")
+
+# AND A RESULT OBJECT TOO LONG TO HAVE SURVIVED WHOLE still says what happened.
+# `turn_output` reads back the last 20 KB, so a turn with many round trips has
+# its final line cut at the front -- and the exit code is then the only thing
+# left, which is the dead end all of this exists to end. Cut the way a byte
+# offset cuts: no opening brace, because that is the test the fragment must not
+# have to pass.
+cut = ('rations":[' + "x" * 40 + '}],"is_error":true,'
+       '"result":"API Error: 404 model not found","type":"result",'
+       '"duration_ms":171868}')
+check("a result object cut off at the front is still read for the reason, "
+      "rather than falling back to the number",
+      tutor.result_object_error(cut) == "API Error: 404 model not found")
+check("and a fragment is only answered for where it is a result object, so an "
+      "ordinary log line carrying the word is not mistaken for a verdict",
+      tutor.result_object_error('  ... "result" of the sweep: 3 files\n') is None)
+check("a truncated result object that reports no failure is still the newest "
+      "verdict, and ends the scan rather than letting an older one through",
+      tutor.result_object_error(
+          '{"type":"result","is_error":true,"result":"an older failure"}\n'
+          'ons":1}],"is_error":false,"result":"done","type":"result"}') is None)
+
+# THE WRAP-UP IS A TURN AND IS JUDGED LIKE ONE. The handoff used to be called
+# written whenever HANDOFF.md existed -- and one always does, from the session
+# before -- so a wrap-up that died on the wire logged `handoff written` and then
+# re-stamped LAST session's note with the chapter this one taught.
+check("the handoff believes the turn rather than the directory listing: the "
+      "exit code, the result object and a file newer than the turn",
+      "done = subprocess.run(cmd, cwd=root, stdout=log," in tool_src
+      and "wrote = not failed and os.path.getmtime(landing) > before" in tool_src)
+check("and a wrap-up that failed does not stamp a stale note with this "
+      "session's chapter",
+      "the handoff turn failed (%s); HANDOFF.md is " in tool_src)
+
+# A PROVIDER THAT FAILS THE SAME WAY EVERY TURN IS NOT A LOUD FAILURE, IT IS A
+# PERMANENT ONE. An allowance and a dark host both climb down; a renamed model
+# reaches the board in the provider's own words and then costs a turn per
+# message, for ever.
+check("the same failure twice stands the recipe down and hands the lesson on",
+      "egress.mark_failing(agent_name, why)" in tool_src
+      and "has failed the same way twice" in tool_src)
+check("and a turn that goes through takes the stand-down off again, whichever "
+      "kind it was",
+      "if egress.stood_down(agent_name):" in tool_src
+      and "egress.clear_unreachable(agent_name)" in tool_src)
 shutil.rmtree(silent, ignore_errors=True)
 
 

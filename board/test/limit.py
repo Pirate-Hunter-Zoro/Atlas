@@ -179,8 +179,11 @@ check("and a turn going through clears it", limits.limited_until() == 0)
 
 src = open(os.path.join(ROOT, "bin", "tutor"), encoding="utf-8").read()
 
-check("a limit is asked about before the network is blamed",
-      src.index("reads_as_usage_limit") < src.index("egress.egress_ok()"))
+check("a limit is asked about before the network is blamed -- the turn itself "
+      "answered that one, and a provider that could say so is a provider we "
+      "plainly reached",
+      src.index("reads_as_usage_limit")
+      < src.index("if not egress.egress_ok():"))
 check("the machine is marked, which is what /health then publishes",
       "limits.mark_limited(until, agent=agent_name)" in src)
 check("the message whose turn was lost is carried, not dropped",

@@ -131,6 +131,54 @@ got, why = seeing.route("claude", none)
 check("a machine with no route at all says so rather than tracebacking",
       got is None and "vision" in (why or ""))
 
+# ---- a route through a provider that is stood down is not a route ----------
+# The hostname that drops a tutor's turns drops its vision request, and a failed
+# turn has already written that down. Sending a page at it to find out again is
+# the handwriting fallback failing slowly for a reason already known.
+from tutorboard.net import egress                                # noqa: E402
+egress.mark_unreachable("deepseek", "api.deepseek.com")
+CMD_TABLE = {
+    "default": "claude", "vision_agent": "deepseek",
+    "agents": [
+        {"name": "claude", "vision": {"cmd": ["claude", "-p", "{prompt}"],
+                                      "model": "its own"}},
+        {"name": "colibri", "vision": None},
+        {"name": "deepseek", "vision": {
+            "endpoint": "https://api.deepseek.com/v1/chat/completions",
+            "model": "a-model", "needs_key": "A_KEY"}},
+    ],
+}
+got, why = seeing.route("colibri", CMD_TABLE)
+check("a provider that is stood down is passed over, and the next name on the "
+      "list answers", got and got["agent"] == "claude")
+got, why = seeing.route("colibri", TABLE)
+check("and where that leaves nothing, the refusal names the host that went "
+      "dark rather than sending the page at it",
+      got is None and "api.deepseek.com" in (why or ""))
+egress.clear_unreachable("deepseek")
+got, why = seeing.route("colibri", CMD_TABLE)
+check("with nothing stood down the recipe named in `vision_agent` still wins",
+      got and got["agent"] == "deepseek")
+
+# ---- and a route may be a command rather than an endpoint ------------------
+# A sighted assistant that is already installed needs no second provider, no
+# second key and no model name that goes stale.
+got, why = seeing.route("claude", CMD_TABLE)
+check("a recipe whose eyes are a command is a route like any other",
+      got and got["cmd"][0] == "claude" and not got.get("endpoint"))
+page = put("live/slate/page.png")
+said = seeing.ask({"agent": "stub", "cmd": ["sh", "-c", "echo \"$1\" >&2; echo SAW",
+                                            "sh", "{prompt}"]},
+                  [page], "what is this")
+check("the command's stdout is the answer", said == "SAW")
+try:
+    seeing.ask({"agent": "stub", "cmd": ["sh", "-c", "exit 3"]}, [page], "q")
+    said = ""
+except seeing.Refused as exc:
+    said = str(exc)
+check("and a command that says nothing about the page is a refusal rather than "
+      "an empty description", "exited 3" in said)
+
 # ---- an unkeyed machine says which line to add -----------------------------
 paths.KEYS = os.path.join(box, "no-such-keys.env")
 keys.forget()

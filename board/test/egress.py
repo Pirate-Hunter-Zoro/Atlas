@@ -212,15 +212,61 @@ check("and it expires on its own, so a lifted filter is picked up the same eveni
       egress.unreachable("deepseek") is None)
 egress.clear_unreachable("deepseek")
 
+# --- and the second finding is cheaper than the first -----------------------
+# A flat hour is right for a filter that lifts by itself and wrong for a
+# firewall rule, which outlives every expiry: the window then costs one dead
+# turn an hour for ever, each one a student waiting three minutes for nothing.
+first = egress.mark_unreachable("deepseek", "api.deepseek.com")
+one = egress.unreachable("deepseek")["until"] - _time.time()
+egress.mark_unreachable("deepseek", "api.deepseek.com")
+two = egress.unreachable("deepseek")["until"] - _time.time()
+check("a provider found dark again is stood down for longer, so a permanent "
+      "block is not rediscovered hourly for ever",
+      two > one * 1.9 and two <= egress.UNREACHABLE_MAX)
+check("and the doubling has a ceiling, so a filter lifted overnight is still "
+      "picked up the next day", egress.UNREACHABLE_MAX <= 24 * 3600)
+egress.clear_unreachable("deepseek")
+egress.mark_unreachable("deepseek", "api.deepseek.com")
+back = egress.unreachable("deepseek")["until"] - _time.time()
+check("a turn that goes through resets the count as well as the mark: a "
+      "provider that came back starts its next bad evening at an hour",
+      abs(back - one) < 5)
+egress.clear_unreachable("deepseek")
+
+# --- a recipe that fails for a reason the network is innocent of ------------
+# The provider renames the model the recipe pins. The host answers, so nothing
+# above notices, and every message costs a failed turn for ever.
+egress.mark_failing("deepseek", "API Error: 404 model not found")
+check("a recipe whose turns keep failing is stood down like one that cannot be "
+      "reached, and says which it was",
+      (egress.stood_down("deepseek") or {}).get("why", "").startswith("API Error")
+      and egress.unreachable("deepseek") is None)
+check("and the same clearing answers both, because the same thing settles "
+      "both: a turn that went through",
+      egress.clear_unreachable("deepseek") is None
+      and egress.stood_down("deepseek") is None)
+
 check("asking about one provider is a different question from asking about the "
       "machine, and takes its own urls",
       "def egress_ok(timeout=12, urls=None):" in lib)
 
 # --- where it is used -------------------------------------------------------
 tutor_src = open(os.path.join(ROOT, "bin", "tutor"), encoding="utf-8").read()
-check("the tutor asks about egress only after a turn has actually failed",
+check("the tutor asks whether the MACHINE can get out only after a turn has "
+      "actually failed -- a round trip in front of every card is a round trip "
+      "the student waits for",
       "if err:" in tutor_src and
-      tutor_src.index("if err:") < tutor_src.index("egress.egress_ok()"))
+      tutor_src.index("if err:") < tutor_src.index("if not egress.egress_ok():"))
+check("with one exception, and it is the moment the question is cheap against "
+      "what it saves: a recipe with a provider OF ITS OWN is asked about once "
+      "before a turn is spent on it, since nothing else on the machine has an "
+      "opinion about that host",
+      "def probe_before_turn(" in tutor_src
+      and "probe_before_turn(cfg, wanted, log)" in tutor_src)
+check("and that probe is bounded -- cached, skipped for a recipe already stood "
+      "down, and never run for a recipe that talks to the machine's own provider",
+      "PROBE_TTL" in tutor_src and "if not own or egress.stood_down(name, now):"
+      in tutor_src)
 check("and rotates when it is the network rather than the tutor",
       "egress.rotate_exit_node(" in tutor_src)
 check("and re-answers the message whose turn was lost, rather than waiting",
@@ -236,7 +282,7 @@ check("standing a dark provider down is the same climb-down as an exhausted "
       "def agent_probe_urls(" in tutor_src)
 check("and `agent_unavailable` reads that finding rather than measuring it, "
       "since it runs under a poll several times a second",
-      "egress.unreachable(name, now)" in tutor_src)
+      "egress.stood_down(name, now)" in tutor_src)
 check("a turn that goes through clears the mark",
       "egress.clear_unreachable(agent_name)" in tutor_src)
 check("and the agent's own verdict is what the board reports, not `exit 1`",

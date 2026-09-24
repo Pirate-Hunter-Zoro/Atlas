@@ -171,8 +171,8 @@ check("the endpoint is the Anthropic-format one, which is why the binary works",
 check("AND THE MODEL IS PINNED TWICE. Unpinned, a `claude-opus` name maps to a "
       "text-only model that substitutes a placeholder for an image rather than "
       "failing -- a tutor handed a slate PNG would answer about nothing",
-      ds["env"]["ANTHROPIC_MODEL"] == ds["env"]["ANTHROPIC_SMALL_FAST_MODEL"]
-      == "deepseek-flash")
+      ds["env"]["ANTHROPIC_MODEL"]
+      == ds["env"]["ANTHROPIC_SMALL_FAST_MODEL"] != "")
 check("and the reason is next to the pin",
       "PIN THE MODEL OR LOSE THE HANDWRITING" in tutor_src)
 check("it is not driven through opencode, which would be a second agent's "
@@ -189,10 +189,16 @@ check("the routing is exactly four names, so a variable that does nothing "
       "cannot drift in beside the ones that do",
       sorted(ds["env"]) == ["ANTHROPIC_AUTH_TOKEN", "ANTHROPIC_BASE_URL",
                             "ANTHROPIC_MODEL", "ANTHROPIC_SMALL_FAST_MODEL"])
+# THE THREE PLACES THE MODEL NAME APPEARS ARE ASKED TO AGREE WITH EACH OTHER,
+# and deliberately not compared to a literal. The recipe's own comment calls
+# this "the field that goes stale, and it is a one-string change when it does";
+# a test holding a fourth copy makes it a four-string change and fires on the
+# CORRECT action. What must not drift is the three against each other.
 check("every variable that selects a model selects the SAME one, and so does "
-      "the eye `board see` lends a sitting",
-      set(v for k, v in ds["env"].items() if "MODEL" in k) == {"deepseek-flash"}
-      and ds["vision"]["model"] == "deepseek-flash")
+      "the eye `board see` lends a sitting -- so updating a renamed model stays "
+      "the one-string change the recipe says it is",
+      len(set(v for k, v in ds["env"].items() if "MODEL" in k)
+          | {ds["vision"]["model"]}) == 1)
 check("the credential is named rather than written, so the tree holds no key",
       ds["env"]["ANTHROPIC_AUTH_TOKEN"] == "{DEEPSEEK_API_KEY}")
 

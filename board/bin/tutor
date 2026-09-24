@@ -134,6 +134,17 @@ DEFAULT_CONFIG = {
             # comes first, and a change to it is weighed as a change to what it
             # costs.
             "extra_args": [],
+            # AND THE EYES EVERY OTHER RECIPE BORROWS, WHICH ARE A COMMAND
+            # RATHER THAN AN ENDPOINT. This model can already see, so `board
+            # see` for an assistant that cannot is one more run of the binary
+            # that is installed here anyway: no second endpoint, no second key,
+            # and nothing to keep in step with a provider's model names. The
+            # command is run in the image's own directory and asked for the file
+            # by name, because a headless turn has nobody to approve a read
+            # outside its working directory. See `tutorboard/seeing.py`.
+            "vision": {"cmd": ["claude", "-p", "{prompt}"],
+                       "model": "whatever this machine's Claude Code settings "
+                                "select"},
         },
         # THE SAME BINARY, POINTED SOMEWHERE ELSE, AND FOUR VARIABLES DO IT.
         # DeepSeek serves an Anthropic-format `/messages` endpoint, so the
@@ -347,7 +358,15 @@ DEFAULT_CONFIG = {
     # is a NAME rather than an endpoint for the same reason: a provider is a
     # recipe plus a key, and its vision route belongs on the recipe with the
     # rest of it.
-    "vision_agent": "deepseek",
+    #
+    # THE DEFAULT AGENT'S OWN EYES, because this is the fallback and a fallback
+    # that needs a second provider to be reachable is not one. Reading
+    # handwriting is what this board rests on, so the route that answers when a
+    # recipe has no eyes of its own is the binary that is installed here anyway,
+    # with the key that is already paying for the lesson. A recipe naming its
+    # own `vision` block is still asked first, and a sitting driving DeepSeek
+    # still reads its slates through DeepSeek.
+    "vision_agent": "claude",
     # Which assistant a given machine prefers, keyed by its short hostname. A
     # laptop and a cluster node do not have the same tools installed and should
     # not need different configuration files to say so. Empty means every
@@ -576,19 +595,43 @@ def result_object_error(text):
     -- a refused model, a reset connection, a rejected key -- says so in words.
 
     The LAST such line, because a turn retried as a fresh one writes two.
+
+    AND A RESULT OBJECT TOO LONG TO HAVE SURVIVED WHOLE still says what
+    happened. `turn_output` reads back the last 20 KB of the log, so a turn with
+    many round trips has its final line cut at the FRONT -- it no longer parses
+    and it no longer opens with a brace, which is why neither test is what
+    admits a line here. `is_error`, `result` and `type` are the last fields the
+    client writes, so they are the ones a front cut leaves behind, and they are
+    read off the fragment directly. Without this the exit code is the only thing
+    left to report, which is the dead end this whole path exists to end.
     """
     for line in reversed((text or "").splitlines()):
         line = line.strip()
-        if not line.startswith("{") or '"result"' not in line:
+        if '"result"' not in line:
             continue
-        try:
-            d = json.loads(line)
-        except ValueError:
+        if line.startswith("{"):
+            try:
+                d = json.loads(line)
+            except ValueError:
+                d = None
+            if d is not None:
+                if d.get("type") != "result" or not d.get("is_error"):
+                    return None
+                got = d.get("result")
+                return got.strip() if isinstance(got, str) and got.strip() else None
+        # The tail of a result object, or an ordinary log line that happens to
+        # hold the word: only the first is answered for, and `type` says which
+        # it is. A fragment that reports no failure is still the newest verdict,
+        # so it ends the scan rather than letting an older turn's failure through.
+        if not re.search(r'"type"\s*:\s*"result"', line):
             continue
-        if d.get("type") != "result" or not d.get("is_error"):
+        if not re.search(r'"is_error"\s*:\s*true', line):
             return None
-        got = d.get("result")
-        return got.strip() if isinstance(got, str) and got.strip() else None
+        got = re.search(r'"result"\s*:\s*"((?:[^"\\]|\\.)*)"', line)
+        try:
+            return json.loads('"%s"' % got.group(1)).strip() if got else None
+        except ValueError:
+            return None
     return None
 
 
@@ -1032,6 +1075,54 @@ def agent_probe_urls(spec):
     return [u for u in urls if u] if urls else None
 
 
+# How long one answer about a third-party provider's reachability stands before
+# it is asked again. Long enough that a sitting cannot make the daemon probe
+# once a turn, short enough that a filter lifted at lunchtime is picked up in the
+# afternoon -- and the stand-down record, not this, is what remembers a NO.
+PROBE_TTL = 600
+_PROBED = {}
+
+
+def probe_before_turn(cfg, name, log=None, now=None):
+    """Ask whether this recipe's own provider answers, before a turn is spent on it.
+
+    THE ONE MOMENT A ROUND TRIP IS WORTH IT. A recipe pointed at a third party
+    -- `ANTHROPIC_BASE_URL` somewhere else -- talks to a host nothing else on
+    this machine talks to, so nothing else has an opinion about it, and the first
+    news of a filtered hostname is a student watching three minutes of retries
+    end in no card. That turn is the expensive way to learn something a socket
+    answers in a tenth of a second.
+
+    Only for a recipe that names its OWN endpoints. Everything driving the
+    machine's default provider is covered by the machine-wide probe the failure
+    path already runs, and would pay a round trip here for nothing.
+
+    Cached, and never in front of an answer: the result stands for `PROBE_TTL`,
+    a recipe already stood down is not asked about again, and a machine with no
+    egress at all is not this provider's fault and is left to
+    `egress.rotate_exit_node` on the failure path.
+    """
+    spec = (cfg.get("agents") or {}).get(name) or {}
+    own = agent_probe_urls(spec)
+    now = now or time.time()
+    if not own or egress.stood_down(name, now):
+        return None
+    if now - _PROBED.get(name, 0) < PROBE_TTL:
+        return None
+    _PROBED[name] = now
+    if egress.egress_ok(urls=own, timeout=8) or not egress.egress_ok():
+        return None
+    host = probe_host(own)
+    egress.mark_unreachable(name, host)
+    until = (egress.stood_down(name, now) or {}).get("until", now)
+    if log:
+        log.write("!! '%s' cannot reach %s from here, and everything else on "
+                  "the network answers; standing it down until %s before a turn "
+                  "is spent on it\n"
+                  % (name, host, time.strftime("%H:%M", time.localtime(until))))
+    return host
+
+
 def probe_host(urls):
     """The hostname a probe list is about, for saying which one went dark."""
     try:
@@ -1044,16 +1135,19 @@ def probe_host(urls):
 def agent_unavailable(cfg, name, now=None):
     """Why this agent cannot take a turn on this machine right now, or None.
 
-    Four reasons and they are all facts rather than opinions: the executable is
+    Five reasons and they are all facts rather than opinions: the executable is
     not here, the key is not here, the allowance is gone until a time somebody
-    wrote down, or the provider's own hostname does not answer from this
-    machine. In the words the board already uses.
+    wrote down, the provider's own hostname does not answer from this machine, or
+    its turns fail here for a reason the network is innocent of -- a renamed
+    model, a rejected key. In the words the board already uses.
 
-    The last one is READ here and never measured here. This runs behind
+    The last two are READ here and never measured here. This runs behind
     `--agents --json`, which the board asks several times a second, and a probe
     on that path would put a round trip to the internet under every poll. A
-    failed turn does the measuring and writes the finding down; see
-    `egress.mark_unreachable`.
+    failed turn does the measuring and writes the finding down, and so does the
+    one probe a sitting pays when it is pointed at a recipe with a provider of
+    its own; see `egress.mark_unreachable`, `egress.mark_failing` and
+    `probe_before_turn`.
     """
     spec = (cfg.get("agents") or {}).get(name)
     if not spec:
@@ -1070,10 +1164,14 @@ def agent_unavailable(cfg, name, now=None):
     if until:
         return ("its allowance is gone until %s"
                 % time.strftime("%H:%M", time.localtime(until)))
-    dark = egress.unreachable(name, now)
-    if dark:
+    dark = egress.stood_down(name, now)
+    if dark and dark["host"]:
         return ("%s does not answer from this machine; asking again after %s"
-                % (dark["host"] or "its provider",
+                % (dark["host"],
+                   time.strftime("%H:%M", time.localtime(dark["until"]))))
+    if dark:
+        return ("its turns keep failing here (%s); asking again after %s"
+                % (dark["why"][:120],
                    time.strftime("%H:%M", time.localtime(dark["until"]))))
     return None
 
@@ -2123,21 +2221,54 @@ def mark_waking(live, agent_name, pid=None):
     put there. A start is the only thing that has earned the right to clear
     either, and it is the one place every path up goes through.
 
-    IT LEAVES `last_error` AND `failed_at` ALONE, and that is the whole of what
-    the board has to show for a turn that wrote no card. A daemon is most often
-    restarted BECAUSE the last turn fell over, so clearing the reason here erases
-    it at the one moment somebody is looking for it: the iPad then reads
-    `listening`, no error, no card, which is the tutor claiming to be fine about
-    work it never did. What retires a failure is something NEWER -- the next turn
-    that goes through clears it, and `lesson.state._failure` drops it the moment
-    a card is written past it. A start is not newer than anything.
+    IT LEAVES `last_error` AND `failed_at` ALONE WHERE THE FAILURE BELONGS TO THE
+    AGENT COMING UP, and that is the whole of what the board has to show for a
+    turn that wrote no card. A daemon is most often restarted BECAUSE the last
+    turn fell over, so clearing the reason here erases it at the one moment
+    somebody is looking for it: the iPad then reads `listening`, no error, no
+    card, which is the tutor claiming to be fine about work it never did. What
+    retires a failure is something NEWER -- a turn that GOES THROUGH clears it on
+    its success, and `lesson.state._failure` drops it the moment a card is
+    written past it. A start is not newer than anything.
+
+    AND A FAILURE IS DROPPED WHEN THE AGENT CHANGES, because the strip names the
+    agent on the record and would otherwise paint the new one with the old one's
+    fault: "claude's last turn failed -- cannot reach api.deepseek.com", about a
+    host claude never opens. `failed_agent` is stamped beside the error for
+    exactly this comparison. A provider swap is the common case here -- it is
+    what a climb-down IS -- so the error is kept only where it is still about
+    whoever is about to teach.
     """
     try:
         return agent_state(live, agent=agent_name, pid=pid, state="waking",
                            waking_at=time.time(), restarting=False,
-                           handover=None, host=this_host())
+                           handover=None, host=this_host(),
+                           **not_this_agents_failure(live, agent_name))
     except OSError:
         return None
+
+
+def not_this_agents_failure(live, agent_name):
+    """The fields that drop a failure belonging to somebody else, or `{}`.
+
+    Written wherever the agent ON the record changes -- a start, and a
+    climb-down between turns -- because the board reads the agent and the
+    failure out of the same record and puts them in one sentence. A failure that
+    outlives the provider it happened to is then a sentence about the wrong
+    provider, which is a new way to mislead rather than the honest history the
+    retention is for.
+    """
+    try:
+        with open(os.path.join(live, "agent.json"), "r", encoding="utf-8") as fh:
+            was = json.load(fh) or {}
+    except (OSError, ValueError):
+        return {}
+    if not was.get("last_error"):
+        return {}
+    whose = was.get("failed_agent") or was.get("agent")
+    if whose == agent_name:
+        return {}
+    return {"last_error": None, "failed_at": 0, "failed_agent": None}
 
 
 def headless_stop(cfg, args):
@@ -2936,6 +3067,10 @@ def for_this_turn(cfg, course, running, carried, signal, log=None):
     fresh["root"] = course["root"]
     wanted = resolve_agent(cfg, fresh, say=lambda m: log and log.write("-- %s\n" % m))
     wanted = wanted or running
+    # AND WHETHER THE ONE BEING ASKED FOR CAN BE REACHED AT ALL, before a turn
+    # is spent finding out. Free for a recipe that talks to the machine's own
+    # provider, which is nearly all of them; see `probe_before_turn`.
+    probe_before_turn(cfg, wanted, log)
     # Then the allowance, which is the other half and belongs to the agent.
     name, said = choose_agent(cfg, wanted)
     if name == running:
@@ -3073,6 +3208,15 @@ def headless(cfg, course, agent_name, session):
     # over twice, so it is carried here rather than waiting for them to give up
     # and send again.
     pending = None
+    # THE SAME FAILURE TWICE IS A BROKEN RECIPE, NOT A BAD MINUTE. `(agent,
+    # reason, count)` for whatever the last turn failed of, so a provider that
+    # answers every turn with the same fault -- a model that has been renamed, a
+    # key the provider now rejects -- is stood down and the lesson climbs down to
+    # something that can teach it. Two, because one is a blip and the second
+    # identical one is a pattern; and the reason has to MATCH, so two unrelated
+    # faults do not add up to a verdict. In the process rather than on disk: it
+    # is about this run of turns, and the stand-down it buys is what persists.
+    striking = [None, None, 0]
     recycle = int(cfg.get("session_turns", 12) or 0)
     while running["go"]:
         if pending is not None:
@@ -3111,9 +3255,16 @@ def headless(cfg, course, agent_name, session):
         # measure of how long a turn has been going starts when it first SEES
         # the working state, which on a reload or a second device is nowhere
         # near when the turn began.
+        # AND THE LAST FAILURE STAYS ON THE RECORD WHILE THIS ONE RUNS. Clearing
+        # it here would retire a failure on the strength of a turn STARTING,
+        # which settles nothing: a daemon killed or a node lost mid-turn would
+        # leave `working`, no error and no card -- the empty record, one state
+        # along. A turn that GOES THROUGH clears it, below. What stops the board
+        # painting an old failure over a running turn is
+        # `lesson.state._failure`, which does not report one older than the turn
+        # in flight.
         agent_state(live, state="working", turns=turns,
-                    turn_started=time.time(), turn_signal=this_signal,
-                    last_error=None, failed_at=0)
+                    turn_started=time.time(), turn_signal=this_signal)
         log.write("\n=== %s turn %d ===\n%s\n" % (time.strftime("%H:%M:%S"), turns, out))
 
         # Keep saying so while the turn runs. The heartbeat used to be written
@@ -3155,7 +3306,12 @@ def headless(cfg, course, agent_name, session):
         # written on EVERY turn rather than only on a swap: written once it
         # would outlive the swap it describes, and the board would go on
         # explaining a climb-down that had long since climbed home.
-        agent_state(live, agent=agent_name, agent_why=moved or None)
+        # AND THE LAST FAILURE GOES WITH THE AGENT IT BELONGS TO. The board says
+        # "<agent>'s last turn failed -- <reason>" out of these two fields
+        # together, so a climb-down that left the old provider's reason behind
+        # would blame the new one for it. See `not_this_agents_failure`.
+        agent_state(live, agent=agent_name, agent_why=moved or None,
+                    **not_this_agents_failure(live, agent_name))
         first = spec.get("headless_first") or recipe
         use, template, fresh = turn_plan(spec, carried, recycle, this_signal)
         if fresh and carried:
@@ -3237,6 +3393,15 @@ def headless(cfg, course, agent_name, session):
         said = turn_output(logpath, mark)
         if not err and result_object_error(said):
             err = "the agent reported a failure and exited 0"
+
+        # WHAT IT COST, WHETHER OR NOT IT WORKED. A turn that died on its last
+        # round trip is billed for the ones before it, and a failure that is
+        # missing from `cost.jsonl` is a provider whose bad evening is invisible
+        # in the one place the money is counted. Nothing is written where the
+        # turn said nothing: `read_turn_usage` returns {} and `record_cost`
+        # stops there.
+        record_cost(live, log, turns, agent_name, fresh,
+                    read_turn_usage(logpath, mark, spec.get("usage"), spec))
 
         if err:
             log.write("!! %s\n" % err)
@@ -3321,7 +3486,8 @@ def headless(cfg, course, agent_name, session):
                           % (agent_name,
                              time.strftime("%H:%M", time.localtime(until))))
                 agent_state(live, state="listening", last_error="out of allowance",
-                            failed_at=time.time(), limited=until)
+                            failed_at=time.time(), failed_agent=agent_name,
+                            limited=until)
                 # The student sent something and got nothing. Whoever ends up
                 # answering it, it is the same message.
                 pending = out
@@ -3376,7 +3542,7 @@ def headless(cfg, course, agent_name, session):
                                     time.strftime("%H:%M", time.localtime(until))))
                 agent_state(live, state="listening",
                             last_error="cannot reach %s" % host,
-                            failed_at=time.time())
+                            failed_at=time.time(), failed_agent=agent_name)
                 # The student sent something and got nothing, and the next turn
                 # climbs down exactly as it does for an allowance: `choose_agent`
                 # will not offer this recipe again until the expiry passes, and
@@ -3397,7 +3563,7 @@ def headless(cfg, course, agent_name, session):
                 log.write("!! nothing can get out from here; the turn may not be "
                           "the tutor's fault\n")
                 agent_state(live, state="listening", last_error="no egress",
-                            failed_at=time.time())
+                            failed_at=time.time(), failed_agent=agent_name)
                 fixed, detail = egress.rotate_exit_node(
                     log=lambda m: log.write("   %s\n" % m))
                 if fixed:
@@ -3419,17 +3585,44 @@ def headless(cfg, course, agent_name, session):
             # model that refused.
             if mrec:
                 missions.turn_over(root, mrec, time.time() - started_at)
-            agent_state(live, state="listening", last_error=failure_reason(said, err),
-                        failed_at=time.time(), retrying=pending is not None)
+            why = failure_reason(said, err)
+            # LOUD IS NOT THE SAME AS RECOVERABLE, and this is where the
+            # difference is paid. The two causes above both climb down: an
+            # exhausted allowance and a dark host each stand the recipe aside
+            # and hand the message to whoever can take it. Everything else --
+            # the provider renaming the model the recipe pins, the key being
+            # rejected, the endpoint answering 404 to every request -- reaches
+            # the board in the provider's own words and then happens again on
+            # the next message, and the next, for ever, a wasted turn each time.
+            # So a recipe that fails the same way twice is stood down on the
+            # same terms, and `choose_agent` gives the lesson to something that
+            # can write a card. `board agents` says until when.
+            if striking[0] == agent_name and striking[1] == why:
+                striking[2] += 1
+            else:
+                striking = [agent_name, why, 1]
+            if striking[2] >= 2 and not egress.stood_down(agent_name):
+                egress.mark_failing(agent_name, why)
+                until = (egress.stood_down(agent_name) or {}).get("until", 0)
+                log.write("!! '%s' has failed the same way twice (%s); standing "
+                          "it down until %s\n"
+                          % (agent_name, why,
+                             time.strftime("%H:%M", time.localtime(until))))
+                pending = out
+                sync_transcript(root, log)
+                nxt, _ = choose_agent(load_config(), agent_name)
+                if nxt != agent_name:
+                    log.write("-- the next turn goes to '%s'\n" % nxt)
+                else:
+                    log.write("!! nothing else here can take it; turns will "
+                              "fail until this recipe is repaired\n")
+            agent_state(live, state="listening", last_error=why,
+                        failed_at=time.time(), failed_agent=agent_name,
+                        retrying=pending is not None)
         else:
             if mrec:
                 missions.turn_over(root, mrec, time.time() - started_at)
             carried = carry_after(this_signal, fresh, carried)
-            # What it cost, from the turn's own mouth. Written before anything
-            # else here, because this is the whole justification for a turn
-            # being its own session and it is worth nothing unmeasured.
-            record_cost(live, log, turns, agent_name, fresh,
-                        read_turn_usage(logpath, mark, spec.get("usage"), spec))
             # A turn that went through on this agent is proof of THIS agent's
             # allowance, whatever the record still says. The reset time a
             # provider hands out is a promise; this is a measurement. Per agent,
@@ -3442,12 +3635,13 @@ def headless(cfg, course, agent_name, session):
             # And the same argument for a provider that was dark: the expiry is
             # a guess about when a filter might lift, a card written through it
             # is a measurement, and the measurement wins.
-            if egress.unreachable(agent_name):
-                log.write("-- a turn went through on '%s'; its provider "
-                          "answers again\n" % agent_name)
+            if egress.stood_down(agent_name):
+                log.write("-- a turn went through on '%s'; it is not stood "
+                          "down any more\n" % agent_name)
                 egress.clear_unreachable(agent_name)
+            striking = [None, None, 0]
             agent_state(live, state="listening", last_error=None,
-                        failed_at=0, retrying=False)
+                        failed_at=0, failed_agent=None, retrying=False)
 
     # The last turn, and the only one the student never sees.
     if turns:
@@ -3464,17 +3658,39 @@ def headless(cfg, course, agent_name, session):
         wrap = spec.get("handoff") or recipe
         cmd = with_usage(spec, [a.replace("{prompt}", HANDOFF_PROMPT) for a in wrap])
         mark = os.path.getsize(logpath) if os.path.exists(logpath) else 0
+        landing = os.path.join(root, "HANDOFF.md")
         try:
-            subprocess.run(cmd, cwd=root, stdout=log, stderr=subprocess.STDOUT,
-                           env=turn_environment(spec),
-                           timeout=cfg.get("handoff_timeout", 600))
+            before = os.path.getmtime(landing)
+        except OSError:
+            before = 0
+        try:
+            done = subprocess.run(cmd, cwd=root, stdout=log,
+                                  stderr=subprocess.STDOUT,
+                                  env=turn_environment(spec),
+                                  timeout=cfg.get("handoff_timeout", 600))
             # The wrap-up is a turn and it is billed like one, so it is counted
             # like one. It used to be the most expensive turn of the session --
             # it re-read the cards, the contract and the old handoff before
             # writing a word -- and nothing would have shown that.
             record_cost(live, log, turns + 1, agent_name, False,
                         read_turn_usage(logpath, mark, spec.get("usage"), spec))
-            wrote = os.path.isfile(os.path.join(root, "HANDOFF.md"))
+            # WHETHER THIS TURN WROTE ONE, WHICH IS NOT THE SAME QUESTION AS
+            # WHETHER THE FILE IS THERE. A handoff from a previous session is
+            # always there, so existence proved nothing: a wrap-up that died on
+            # the wire was logged as `handoff written` and then had LAST week's
+            # file re-stamped with the chapter this session taught -- a stale
+            # note claiming to be this evening's, which is the one lie the
+            # handoff must not tell, since it is all the next session gets.
+            # Three facts and all three have to hold: the turn exited 0, it did
+            # not report its own failure, and the file is newer than the turn.
+            said = turn_output(logpath, mark)
+            failed = (done.returncode != 0 and ("exit %d" % done.returncode)) \
+                or (result_object_error(said) and
+                    "the agent reported a failure and exited 0")
+            try:
+                wrote = not failed and os.path.getmtime(landing) > before
+            except OSError:
+                wrote = False
             # Say which chapter it is about, now, while this is the only process
             # that knows. The wrap-up is a model call and takes as long as it
             # takes; by the time anybody reads the file the board may already
@@ -3482,7 +3698,13 @@ def headless(cfg, course, agent_name, session):
             # be read as though it belonged to it.
             if wrote:
                 handoff.stamp_handoff(root, taught_chapter[0])
-            log.write("handoff written\n" if wrote else "!! no HANDOFF.md was written\n")
+                log.write("handoff written\n")
+            elif failed:
+                log.write("!! the handoff turn failed (%s); HANDOFF.md is "
+                          "whatever the last session left, and is left saying "
+                          "so\n" % failure_reason(said, failed))
+            else:
+                log.write("!! no HANDOFF.md was written\n")
         except (subprocess.TimeoutExpired, OSError) as exc:
             log.write("!! handoff failed: %s\n" % exc)
 

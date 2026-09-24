@@ -104,6 +104,17 @@ def _failure(repo, st):
         at = float(st.get("failed_at") or 0)
     except (TypeError, ValueError):
         return None
+    # A TURN IN FLIGHT IS NEWER THAN THE FAILURE BEFORE IT. The record keeps the
+    # reason -- a turn that starts settles nothing, and a daemon that dies
+    # mid-turn must not have erased it -- but a turn that is running is the
+    # newest thing that has happened, and painting last time's failure over it
+    # tells the student their work has already failed when it is being answered.
+    if st.get("state") == "working":
+        try:
+            if float(st.get("turn_started") or 0) >= at:
+                return None
+        except (TypeError, ValueError):
+            pass
     if not at or time.time() - at > FAILURE_FRESH:
         return None
     # Anything newer than the failure means the board has moved on.

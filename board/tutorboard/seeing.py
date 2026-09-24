@@ -10,10 +10,12 @@ fallback for the local model, which is the assistant that most needs it and the
 one no hosted vision route may ever be handed a fenced file from.
 
 WHERE THE IMAGE GOES IS A RECIPE FIELD, NOT A CONSTANT. A `vision` block on an
-agent names the endpoint, the model and the key; the running agent's own recipe
-is asked first, and `vision_agent` at the top of the config answers for the case
-where the agent running the sitting has no eyes. Both come out of
-`tutor --agents --json`, which is the registry, so there is no second table.
+agent names either an endpoint, a model and a key, or a COMMAND to run on the
+file -- a sighted assistant that is already installed needs no second provider
+and no second key. The running agent's own recipe is asked first, and
+`vision_agent` at the top of the config answers for the case where the agent
+running the sitting has no eyes. Both come out of `tutor --agents --json`, which
+is the registry, so there is no second table.
 
 AND IT REFUSES A FENCED PATH BEFORE IT READS A BYTE. This sends a file to a
 hosted provider, which is exactly what `ai-config/policy/phi.py` exists to stop
@@ -86,20 +88,39 @@ def route(agent=None, table=None):
     eyes of its own is still asked FIRST rather than skipped: `board see` is
     also how a person checks the route, and answering from somebody else's
     recipe when this one names its own would be a lie about what happens.
+
+    A ROUTE THROUGH A PROVIDER THAT IS STOOD DOWN IS NOT A ROUTE. The same
+    hostname that drops a tutor's turns drops its vision request, and the
+    stand-down a failed turn already wrote is the evidence -- so the next name
+    on the list answers instead, and where none can, the refusal says which
+    host went dark rather than sending a page at it to find out again.
     """
+    from .net import egress
     table = registry() if table is None else table
     agents = {a.get("name"): a for a in (table.get("agents") or [])}
-    tried = []
+    tried, dark = [], []
     for name in (agent, table.get("vision_agent"), table.get("default")):
         if not name or name in tried:
             continue
         tried.append(name)
         got = (agents.get(name) or {}).get("vision")
-        if got and got.get("endpoint"):
-            return dict(got, agent=name), None
+        if not got or not (got.get("endpoint") or got.get("cmd")):
+            continue
+        stood = egress.stood_down(name)
+        if stood:
+            dark.append("'%s' is stood down (%s)"
+                        % (name, stood["host"] and
+                           "%s does not answer from this machine" % stood["host"]
+                           or stood["why"]))
+            continue
+        return dict(got, agent=name), None
+    if dark:
+        return None, ("every vision route on this machine is stood down: %s. "
+                      "A sighted assistant can open the file itself."
+                      % "; ".join(dark))
     return None, ("no assistant on this machine names a vision route. Put a "
-                  "`vision` block -- endpoint, model, needs_key -- on a recipe "
-                  "in the config, or name one in `vision_agent`.")
+                  "`vision` block -- an endpoint or a command, and a model -- "
+                  "on a recipe in the config, or name one in `vision_agent`.")
 
 
 def _data_url(path):
@@ -153,12 +174,17 @@ def pages(path, page=None, width=PAGE_WIDTH):
 
 
 def ask(settings, images, prompt):
-    """One request, OpenAI chat-completions shape. The text, or raises Refused.
+    """The answer, however this route is spelt. The text, or raises Refused.
 
-    Not an agent loop and not a conversation: one image, one question, one
-    answer. That is why this is the `/v1/chat/completions` endpoint rather than
-    the Anthropic-format one the recipe drives a whole tutor through.
+    Two spellings, because a vision route is a recipe field and recipes are not
+    all endpoints. `cmd` runs a sighted assistant that is already installed and
+    hands it the file; `endpoint` is one HTTP request in the OpenAI
+    chat-completions shape -- not an agent loop and not a conversation, which is
+    why it is `/v1/chat/completions` rather than the Anthropic-format endpoint
+    the same recipe drives a whole tutor through.
     """
+    if settings.get("cmd"):
+        return _ask_command(settings, images, prompt)
     need = settings.get("needs_key")
     key = keys.get(need) if need else None
     if need and not key:
@@ -189,6 +215,15 @@ def ask(settings, images, prompt):
         raise Refused("%s answered %s: %s" % (settings["endpoint"],
                                               exc.code, detail.strip()))
     except (urllib.error.URLError, OSError, ValueError) as exc:
+        # AND THE FINDING IS WRITTEN DOWN, so the next page is not sent at a
+        # host that has just refused a connection. This is the same stand-down a
+        # failed turn writes, on the same record and per agent, which is what
+        # makes `route` able to pass over this recipe and answer from another.
+        from .net import egress
+        from urllib.parse import urlsplit
+        host = urlsplit(settings["endpoint"]).hostname or ""
+        if settings.get("agent") and egress.egress_ok():
+            egress.mark_unreachable(settings["agent"], host)
         raise Refused("%s could not be reached: %s"
                       % (settings["endpoint"], exc))
     try:
@@ -197,6 +232,54 @@ def ask(settings, images, prompt):
         raise Refused("the answer had no text in it: %s"
                       % json.dumps(got)[:400])
     return (said or "").strip()
+
+
+def _ask_command(settings, images, prompt):
+    """A sighted assistant that is already installed, run once on these files.
+
+    WHY A COMMAND IS A VISION ROUTE AT ALL. The models that teach here can see;
+    what a hosted `/chat/completions` route buys is a SECOND provider, a second
+    key and a model name that goes stale, for a job the binary on the path does
+    already. So a recipe may name a command instead of an endpoint, and the
+    fallback route on a machine is then whatever assistant it teaches with.
+
+    RUN IN THE IMAGE'S OWN DIRECTORY, AND THE FILE ASKED FOR BY NAME. A headless
+    turn has nobody to approve reading a path outside its working directory, and
+    a refused read does not fail -- the model answers from the filename and
+    sounds certain, which is the one outcome worse than an error. Every rendered
+    page of a PDF lands in one temporary directory, so one directory always
+    covers them.
+
+    The answer is stdout. `{prompt}` in the command is the question with the
+    filenames in it; nothing is put on the command line that is not already a
+    path on this machine.
+    """
+    box = os.path.dirname(os.path.abspath(images[0])) or "."
+    names = ", ".join(os.path.basename(p) for p in images)
+    said = ("%s\n\nThe image is the file %s in this directory. Read it and "
+            "answer about what is in it. Do not answer from the filename."
+            % (prompt, names) if len(images) == 1 else
+            "%s\n\nThe images are the files %s in this directory, in that "
+            "order. Read them and answer about what is in them. Do not answer "
+            "from the filenames." % (prompt, names))
+    cmd = [a.replace("{prompt}", said) for a in settings["cmd"]]
+    try:
+        done = subprocess.run(cmd, cwd=box, stdin=subprocess.DEVNULL,
+                              stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                              timeout=TIMEOUT)
+    except FileNotFoundError:
+        raise Refused("`%s` is not on the path here, and it is the vision route "
+                      "this machine names" % cmd[0])
+    except subprocess.TimeoutExpired:
+        raise Refused("`%s` did not answer within %d s" % (cmd[0], TIMEOUT))
+    except OSError as exc:
+        raise Refused("`%s` could not be run: %s" % (cmd[0], exc))
+    out = (done.stdout or b"").decode("utf-8", "replace").strip()
+    if done.returncode != 0 or not out:
+        why = (done.stderr or b"").decode("utf-8", "replace").strip()[:400]
+        raise Refused("`%s` exited %d and said nothing about the page%s"
+                      % (cmd[0], done.returncode, (": " + why) if why else ""))
+    return out
 
 
 def describe(path, page=None, prompt=None, agent=None, table=None, root=None):
