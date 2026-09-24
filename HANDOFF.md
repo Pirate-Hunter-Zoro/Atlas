@@ -25,11 +25,15 @@ hands the work to the next box as an address you tap.
 
 **And a sitting runs on whichever provider you tap.** Claude, Codex or DeepSeek,
 switched from the front door mid-evening, swapping itself when an allowance runs
-out and losing nothing — because a turn is already cold and reads the lesson back
-off disk. A provider is a recipe plus a key and nothing else, so a fourth is one
-entry in a config file and one line in a key file.
+out or when a provider's own hostname does not answer from here, and losing
+nothing — because a turn is already cold and reads the lesson back off disk. A
+provider is a recipe plus a key and nothing else, so a fourth is one entry in a
+config file and one line in a key file. **DeepSeek's endpoint is the one that
+cannot be tapped yet**: `api.deepseek.com` is reset at the TLS handshake from
+every compute node, which is item 2 and is a firewall exception rather than a
+setting.
 
-**What is left is not a build.** One dispatch only the account holder can make,
+**What is left is not a build.** Two dispatches only the account holder can make,
 and a list of evenings in front of the thing.
 
 `board/README.md` is the architecture. This file says what is left.
@@ -45,8 +49,8 @@ Nobody has to ask for that. *"Look at HANDOFF"* means all of it:
    CAN DO.** It is the lowest-numbered one on purpose — the numbering carries the
    order things have to land in, and each item says what it depends on where that
    matters. If the owner names a different one, that wins. **Each item's heading
-   says whose hands it needs**, and neither of the two left is a keyboard's:
-   1 needs the account holder, 2 is a list of evenings in front of the thing.
+   says whose hands it needs**, and none of the three left is a keyboard's:
+   1 and 2 need the account holder, 3 is a list of evenings in front of the thing.
 2. **Read that item whole before touching anything.** An item says what already
    exists (measured, not assumed), what is missing, where it goes, the decisions
    to take deliberately, and what to assert. The decisions are the expensive part:
@@ -69,7 +73,7 @@ An item is not done because its code runs. It is done when the suite is green,
 the rule is written where the next turn will read it, and the item is out of this
 file.
 
-**Item 2 does not come out this way.** It is a list of evenings in front of the
+**Item 3 does not come out this way.** It is a list of evenings in front of the
 thing, and only the person holding the iPad can strike those.
 
 ---
@@ -164,8 +168,8 @@ three providers behind one tap on the front door, a swap between them that costs
 the lesson nothing, and a fourth costing one entry in a config file and one line
 in a key file. All of that is Settled below.**
 
-**Nothing left here is a build.** Item 1 needs the account holder; item 2 is a
-list of evenings in front of the thing.
+**Nothing left here is a build.** Items 1 and 2 need the account holder; item 3
+is a list of evenings in front of the thing.
 
 ---
 
@@ -194,7 +198,34 @@ Until one of those lands, treat the decks as published. Nothing else is
 outstanding: `.gitignore` refuses them, `test/tracked.py` refuses them for every
 course, and the files are on disk where the board reads them.
 
-### 2. And the six things no test can hold — THE IPAD'S
+### 2. Ask for a firewall exception on `api.deepseek.com` — THE ACCOUNT HOLDER'S
+
+**One hostname is filtered and no client setting reaches it.**
+`api.deepseek.com` is reset during the TLS ClientHello from every c3 compute
+node, 14 ms after a 7 ms TCP connect, zero bytes read — while
+`www.deepseek.com` on the *same* IP answers 200. The filter keys on the name, so
+a device on the path is reading the SNI, and `api.anthropic.com`,
+`api.openai.com`, `github.com` and four Chinese endpoints all complete TLS from
+the same shell in the same minute. Reproduced on compute300, compute301 and
+compute305: site policy, not a sick node.
+
+**The whole ask, the measurements behind it, the PHI argument and the one-line
+re-test are written up in `projects/libr-local-llm/docs/deepseek-egress.md`** —
+send that, it is the document IT needs. The ask itself is one line: allow
+outbound TCP 443 from compute300–compute306 to `api.deepseek.com`, by hostname
+rather than address, because it is a CloudFront CNAME whose IP rotates and whose
+sibling names are already permitted.
+
+**Nothing on this side is outstanding.** The recipe is client-side correct and
+stays; the board already stands the provider aside before a turn is spent on it
+and teaches the evening as `claude` instead, which is under *Settled*. Two
+things to do in the first sitting after it opens, both one line: the re-test in
+that document, and check the model id — `GET /models` dies in the same handshake
+as a turn, so `deepseek-flash` cannot be verified until the name is open, and
+`deepseek-flash[1m]` against the bare id is the open question in the recipe's
+own comment.
+
+### 3. And the six things no test can hold — THE IPAD'S
 
 None of these is a build. Each is an evening in front of the thing.
 
@@ -252,7 +283,9 @@ None of these is a build. Each is an evening in front of the thing.
   anything up. `test/teaching.py` holds the places each is written down, and
   asserts only that they reach the course. **The first card of the next sitting is
   the real check.**
-- **A whole evening on DeepSeek, and a switch in the middle of one.** The swap
+- **A whole evening on DeepSeek, and a switch in the middle of one. BLOCKED ON
+  ITEM 2**: every turn to that endpoint is reset on the handshake from these
+  nodes, so this evening cannot be had until the exception lands. The swap
   is a fact and the suite holds it; whether it is a *seam* is the evening. It is
   also the only place the PROVIDER is tested rather than this side of the wire:
   every request the suite makes goes to a socket on this machine, so what a real
@@ -326,13 +359,22 @@ as the answer.
   `--output-format json` accounting, the timeouts, and the `ai-config` pre-tool
   hook, which fences PHI by intercepting the binary's tool calls and therefore
   fences this provider for free. Codex has no such hook.
-  **The model is pinned twice and that is the one decision in the entry.**
-  Unpinned, the endpoint maps by NAME: an id starting `claude-opus` lands on the
-  older text-only model, which substitutes a placeholder for an image block
-  rather than failing — a tutor handed a slate PNG answers confidently about
-  nothing and no exit code says so. `ANTHROPIC_MODEL` and
-  `ANTHROPIC_SMALL_FAST_MODEL` both say `deepseek-flash`, which takes image
-  input natively, carries a 1M-token context and is cheaper than the pro.
+  **EVERY SLOT THE BINARY CAN CHOOSE A MODEL FROM IS PINNED, and that is the one
+  decision in the entry.** Unpinned, the endpoint maps by NAME: an id starting
+  `claude-opus` lands on the older text-only model, which substitutes the literal
+  `[Unsupported Image]` for an image block and answers 200 — a tutor handed a
+  slate PNG answers confidently about nothing and no exit code says so. Six
+  variables say `deepseek-flash`: `ANTHROPIC_MODEL`, the three
+  `ANTHROPIC_DEFAULT_{OPUS,SONNET,HAIKU}_MODEL` aliases a named tier resolves
+  through, `CLAUDE_CODE_SUBAGENT_MODEL` for a Task-tool subagent, and
+  `ANTHROPIC_SMALL_FAST_MODEL` for the binary's own cheap calls. Six rather than
+  two because **any one left unset is a route back onto the text-only model**, and
+  that route loses handwriting silently. `deepseek-flash` takes image input
+  natively, carries a 1M-token context, scores DocVQA 95.6 and is cheaper than
+  the pro; the API serves exactly two ids and the other one is text-only.
+  **And the placeholder is caught on the way back, because pinning cannot be the
+  only guard**: the turn's own output is scanned for that string and a turn
+  carrying it fails with *the page never reached the model*.
   Verified 23 September 2026: $0.30/$1.20 per million at peak, half off-peak,
   peak 01:00–04:00 and 06:00–10:00 UTC on weekdays. **This is the field that
   goes stale** and it is a one-string change when it does.
@@ -348,7 +390,65 @@ as the answer.
   cold and reads the evening back off `board brief` and `board recap`. Where
   nobody can take it, it fails where that is visible, exactly as one tutor
   always did. A turn going through on an agent clears that agent's limit.
-  DeepSeek's *Insufficient Balance* is in `DEFAULT_USAGE_LIMIT_SAYS`.
+  DeepSeek's *Insufficient Balance* is in `DEFAULT_USAGE_LIMIT_SAYS`, and so are
+  `spend limit` and `limit resets`, which is what an ACCOUNT-level ceiling says
+  rather than a per-session one — *you've hit your org's monthly spend limit …
+  your session limit resets 8:20pm* matches none of the session phrases, so
+  nothing was recorded and a course tutor sat dead for an hour looking exactly
+  like one that was thinking. **Neither of the two captures, deliberately**: that
+  reset is a wall-clock time in a named zone, and a group around it would be
+  believed to be an epoch second and fall back anyway by a longer route.
+
+- **A PROVIDER THAT CANNOT ANSWER FROM HERE STANDS ASIDE BEFORE A TURN IS SPENT
+  ON IT.** An allowance running out is the provider working; a hostname this
+  network drops is not, and from a lesson the two look identical. A recipe with
+  a provider of its OWN — and only such a recipe, since anything on the
+  machine's default is covered by the machine-wide probe already — is probed as
+  the sitting comes up: 0.17 s against a first turn that spends three minutes
+  retrying and writes no card, cached for `PROBE_TTL`, and skipped where nothing
+  gets out from here at all. **The climb-down is taken then rather than at the
+  top of the first turn**, so the board comes up saying who is actually
+  teaching, and the sentence is re-stated every turn for as long as the
+  sitting's choice and the one taking the turn differ. **The window doubles each
+  time the same provider is found dark again**, to a day: a firewall rule
+  outlives a flat hour, so a fixed window costs a dead turn an hour for ever.
+  Strikes are kept past the expiry and only a turn that goes through resets
+  them. A recipe failing the same way twice for a reason the network is innocent
+  of — a renamed model, a rejected key — is stood down the same way with no host
+  on the record, which is also how `board see` tells a dark endpoint from a
+  working local binary.
+  **AND IT REACHES THE GLASS, WHICH IS WHERE IT WAS MISSING.** `--agents --json`
+  carries `unavailable` in the launcher's own sentence, the chooser draws that
+  provider **offered but dimmed** and says why on the tap — offered, because a
+  stand-down expires and a sitting opened now is taught by whoever can take the
+  turn when it arrives — and the lesson payload carries the host, the reason and
+  when it will be asked again. Until then it was in `agent.log` and
+  `board agents`, two places an iPad cannot see, and it is the one fact that
+  answers *why is nothing happening*. Both climb-downs also write `retrying`,
+  without which the board tells a student to send again and a second copy of
+  their work queues behind a turn the loop was about to take itself. And **the
+  wrap-up re-asks who writes it** rather than inheriting the recipe that just
+  stood itself down, rebinding the recipe and not only the name, and skips it
+  outright where nothing here can write one.
+
+- **A MESSAGE IS OWED FROM THE MOMENT IT IS TAKEN, AND THE DEBT IS ON DISK.**
+  `board wait` marks the inbox line read before the turn runs, so between a
+  message being taken and something answering it the daemon's record is the only
+  copy of it anywhere — and a turn is minutes long. Measured: a turn failed at
+  17:43:05, the message was re-queued in the loop, the daemon was signalled
+  three seconds later, and the student's work went with the process; nothing was
+  answered until they sent it again two and a half hours later. It is now
+  written into `agent.json`, drained by the next daemon as its first turn, and
+  settled once by what each turn left behind — which covers a signal, a walltime
+  handover, a `tutor restart` and a lost node.
+  **And the last write a daemon makes is guarded**, because `agent_state` merges:
+  a bounce brings the successor up, and the process that was replaced then
+  stamped `stopped` on the record of the one that replaced it, which the watch
+  loop reads as *a person said no* and never revives. The exit write asks whether
+  the record still names this pid and writes nothing where it does not. A start
+  clears `stopped_at`, `turn_started` and `turn_signal` for the same merging
+  reason — a dead daemon's clock read as this one's drew a turn two and a half
+  hours old.
 
 - **THE ASSISTANT IS RE-RESOLVED EVERY TURN**, by `for_this_turn` at the top of
   the loop: the config and the sitting's `state.json` are re-read and
@@ -360,8 +460,10 @@ as the answer.
 
 - **THE FRONT DOOR SETS `default_agent`**, through `/default-agent`, which writes
   that one field atomically and drops `assistants.forget()` after — without which
-  the 900-second cache makes the tap appear to do nothing for a quarter of an
-  hour. It refuses an unknown name, an uninstalled one, an unkeyed one and a
+  the cache makes the tap appear to do nothing. **That cache is a minute rather
+  than a quarter of an hour**, because `unavailable` moves while the board is up
+  and nobody edits a file to change it: a stand-down expiring, an allowance
+  coming back. A minute is still a subprocess every four hundredth request. It refuses an unknown name, an uninstalled one, an unkeyed one and a
   `private` one, each with the reason on the glass. **The chooser's rules are
   `web/who.js` and both surfaces call them**; a second copy goes out of step the
   first time a recipe grows a flag, which is exactly how a provider is added.
@@ -388,7 +490,20 @@ as the answer.
   board subcommand rather than a tool protocol, because that is the one interface
   every agent in the registry already has. Where the image goes is a `vision`
   block on a recipe — endpoint, model, `needs_key` — resolved through the running
-  agent first and `vision_agent` second. **The fence rule it uses is the
+  agent first and `vision_agent` second.
+  **AND AN ANSWER IS NOT BELIEVED BECAUSE IT ARRIVED**, which is the failure this
+  path cannot have: a text-only model behind the route, a harness that dropped
+  the image, a file-reading tool that was denied — all three come back exit 0 with
+  fluent prose about a page nobody looked at. Every request carries a strip with
+  six digits on it that are in the IMAGE and nowhere in the prompt, and an answer
+  that cannot read them back is refused with what it did say quoted. The strip is
+  a PNG drawn from a glyph table and one `zlib` call: no TeX, no poppler, nothing
+  that can be missing on a machine and turn the guard off quietly. A `vision`
+  block may declare `sighted: false` and is then never handed a page, and a
+  command route runs with the sitting's routing variables SCRUBBED — inheriting
+  them pointed claude's own eyes at the provider it is the fallback FROM, measured
+  at 14.4 s and a transcription clean against 180 s and a timeout.
+  **The fence rule it uses is the
   workspace-relative one** (`fenced.refused_in`): a fence is a top-level
   directory of the workspace that holds it, and `phi` is refused at any depth.
   The any-depth rule refuses too much here — the slate pages this exists to read
