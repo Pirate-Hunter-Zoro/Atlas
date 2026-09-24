@@ -29,8 +29,9 @@ numbers gate skips four-digit years, so nothing catches this but reading.
 SUBGROUPS are 240 contrasts over the two-arm slate, 24 surviving BH, from
 results/review/subgroups/subgroup_summary.json.
 
-SUPPLEMENT SECTION NUMBERS here are the senior author's and still include his
-S1 (the judge). They move when the supplement is converted and S1 comes out.
+SUPPLEMENT POINTERS follow supplement.md, which is the senior author's
+supplement with his judge section removed: sections S1-S12, Tables S1-S15,
+Figures S1-S15.
 -->
 
 # Title page
@@ -120,7 +121,7 @@ Predictor domains were selected before model fitting or examination of outcome a
 
 For the embedded representation (EMBEDDED), fixed rules converted structured fields into Markdown narratives. No generative model wrote the narratives, preserving traceability to the source fields \[21\]. We evaluated bge-small-en-v1.5, bge-en-icl, Qwen3-Embedding-4B, and Qwen3-Embedding-8B; the last was the primary encoder \[22-25\].
 
-The pipelines differed in information content. Narratives retained vital signs, individual medication names, index dates, sexual orientation, and finer sociodemographic categories; FEATURE included total recorded history length, which the narratives omitted. Missing vital signs were excluded from FEATURE, and no statistical imputation was used in the primary analysis. Missing categorical information was represented explicitly, although some narrative fields retained raw missing-value tokens. Encoding rules, the predictor inventory, example narratives, and the field crosswalk are provided in Multimedia Appendix 1, sections M4--M6, S6, and S11.
+The pipelines differed in information content. Narratives retained vital signs, individual medication names, index dates, sexual orientation, and finer sociodemographic categories; FEATURE included total recorded history length, which the narratives omitted. Missing vital signs were excluded from FEATURE, and no statistical imputation was used in the primary analysis. Missing categorical information was represented explicitly, although some narrative fields retained raw missing-value tokens. Encoding rules, the predictor inventory, example narratives, and the field crosswalk are provided in Multimedia Appendix 1, sections M4--M6, S5, and S10.
 
 ## Model Development and Evaluation
 
@@ -128,7 +129,7 @@ All models used one stratified 80:20 split: 34,063 training patients, including 
 
 We assessed ROC AUC, area under the precision--recall curve (AUPRC), Brier score, and calibration. The supplementary calibration-curve summaries use slopes and intercepts fitted to binned probabilities; the subgroup analyses separately report logistic calibration slopes based on individual predicted probabilities. These quantities are distinguished because they are not interchangeable. All calibration estimates concern this enriched cohort.
 
-Nonparametric bootstrap resampling of test patients provided 95% CIs. Paired resampling estimated differences between representations and between original and perturbed predictions. Classifier-matched contrasts held the learner fixed. The comparison of the best model for each representation was post hoc because the leading models were identified from test performance. No equivalence margin was prespecified; a CI containing zero does not establish equivalence. Sensitivity and specificity at test-selected Youden J thresholds are reported only as descriptive analyses in Multimedia Appendix 1, section S13.
+Nonparametric bootstrap resampling of test patients provided 95% CIs. Paired resampling estimated differences between representations and between original and perturbed predictions. Classifier-matched contrasts held the learner fixed. The comparison of the best model for each representation was post hoc because the leading models were identified from test performance. No equivalence margin was prespecified; a CI containing zero does not establish equivalence. Sensitivity and specificity at test-selected Youden J thresholds are reported only as descriptive analyses in Multimedia Appendix 1, section S12.
 
 ## Supporting Analyses
 
@@ -140,7 +141,7 @@ $$\mathrm{sim}_w(x,y)=\frac{\sum_d w_d\,z_d(x)\,z_d(y)}{\sqrt{\sum_d w_d\,z_d(x)
 
 $$\hat{r}(x)=\frac{\sum_{i\in N_k(x)} s_i^{\alpha}\,y_i}{\sum_{i\in N_k(x)} s_i^{\alpha}},\qquad s_i=\max\{\mathrm{sim}(x,i),0\}\qquad(2)$$
 
-Here $z_d$ is dimension $d$ after standardization, $\beta_d$ is its logistic-regression coefficient, $N_k(x)$ is the set of the $k$ most similar training patients, $y_i$ is a neighbor's outcome, and $\alpha$ is a sharpening exponent. Plain cosine similarity is Equation 1 with raw embeddings and equal weights. The primary analysis used k = 50 and α = 5. A sweep evaluated every k from 1 to all 34,063 training patients, under α = 1, 2, and 5. Random and farthest retrieval served as negative controls. Details appear in Multimedia Appendix 1, sections M10--M12 and S7.
+Here $z_d$ is dimension $d$ after standardization, $\beta_d$ is its logistic-regression coefficient, $N_k(x)$ is the set of the $k$ most similar training patients, $y_i$ is a neighbor's outcome, and $\alpha$ is a sharpening exponent. Plain cosine similarity is Equation 1 with raw embeddings and equal weights. The primary analysis used k = 50 and α = 5. A sweep evaluated every k from 1 to all 34,063 training patients, under α = 1, 2, and 5. Random and farthest retrieval served as negative controls. Details appear in Multimedia Appendix 1, sections M10--M12 and S6.
 
 Additional analyses examined encoder robustness, model dimensionality, record length, and subgroup performance. Subgroup comparisons used held-out predictions without refitting and Benjamini--Hochberg adjustment across 240 contrasts. Full methods and results appear in Multimedia Appendix 1. All random processes were seeded; analyses used Python, scikit-learn, XGBoost, and sentence-transformers \[22,26,27\].
 
@@ -152,9 +153,9 @@ We analyzed deidentified secondary records without direct identifiers. No instit
 
 ## Cohort Characteristics
 
-Of 501,718 patients in the extract, 42,579 met eligibility criteria and 7,455 (17.5%) met the TRD proxy definition. Median age was 55 years (IQR 38--70); 72.5% were female, 80.0% were recorded as White/Caucasian, and 98.9% preferred English. Outcome-positive patients more often had coded suicidality, severe depression, anxiety, insomnia, and substance use disorders (Table 1). Expanded characteristics and subgroup outcome frequencies are in Multimedia Appendix 1, section S12.
+Of 501,718 patients in the extract, 42,579 met eligibility criteria and 7,455 (17.5%) met the TRD proxy definition. Median age was 55 years (IQR 38--70); 72.5% were female, 80.0% were recorded as White/Caucasian, and 98.9% preferred English. Outcome-positive patients more often had coded suicidality, severe depression, anxiety, insomnia, and substance use disorders (Table 1). Expanded characteristics and subgroup outcome frequencies are in Multimedia Appendix 1, section S11.
 
-***Table 1.** Selected cohort characteristics by TRD proxy status. Values are median (IQR) or n (%). SMD is the standardized mean difference between positive and negative groups. MDD: major depressive disorder; PTSD: posttraumatic stress disorder. Expanded characteristics appear in Multimedia Appendix 1, Table S15.*
+***Table 1.** Selected cohort characteristics by TRD proxy status. Values are median (IQR) or n (%). SMD is the standardized mean difference between positive and negative groups. MDD: major depressive disorder; PTSD: posttraumatic stress disorder. Expanded characteristics appear in Multimedia Appendix 1, Table S14.*
 
   --------------------------------------------------------------------------------------------------------------------
   Characteristic                         Overall\               TRD\                   Non-TRD\               SMD
@@ -193,7 +194,7 @@ Of 501,718 patients in the extract, 42,579 met eligibility criteria and 7,455 (1
   Prior antidepressant course ≥42 days   6,276 (14.7%)          1,050 (14.1%)          5,226 (14.9%)          −0.023
   --------------------------------------------------------------------------------------------------------------------
 
-Training and test characteristics were closely balanced (maximum absolute standardized mean difference 0.036). Weak negative correlations linked the outcome to history length, encounter count, and time from depression diagnosis to the index prescription. These descriptive checks do not exclude effects of observation or care access (Multimedia Appendix 1, sections S8--S9).
+Training and test characteristics were closely balanced (maximum absolute standardized mean difference 0.036). Weak negative correlations linked the outcome to history length, encounter count, and time from depression diagnosis to the index prescription. These descriptive checks do not exclude effects of observation or care access (Multimedia Appendix 1, sections S7--S8).
 
 ## Discrimination and Calibration
 
@@ -218,7 +219,7 @@ The direction of the representation difference depended on the classifier. Embed
 
 ***Figure 2.** Discrimination by representation and classifier. A: ROC AUC with bootstrap 95% CIs for all primary models. B: paired differences, EMBEDDED minus FEATURE, with 95% CIs. Diamonds hold the classifier fixed; the star compares embedded logistic regression with feature-vector XGBoost, selected post hoc. An interval crossing zero does not demonstrate superiority or establish equivalence.*
 
-AUPRC was 0.302 for embedded logistic regression and 0.298 for feature-vector XGBoost, compared with the cohort's positive-rate reference of 0.175. Brier scores were 0.137 and 0.138, respectively. Calibration varied by model and method of assessment; the individual-level logistic calibration slope for embedded logistic regression was 0.97. Full calibration summaries, precision--recall curves, and descriptive operating points appear in Multimedia Appendix 1, sections S3--S4, S10, and S13.
+AUPRC was 0.302 for embedded logistic regression and 0.298 for feature-vector XGBoost, compared with the cohort's positive-rate reference of 0.175. Brier scores were 0.137 and 0.138, respectively. Calibration varied by model and method of assessment; the individual-level logistic calibration slope for embedded logistic regression was 0.97. Full calibration summaries, precision--recall curves, and descriptive operating points appear in Multimedia Appendix 1, sections S2--S3, S9, and S12.
 
 ## Clinical Contributions and Encoder Robustness
 
@@ -235,21 +236,21 @@ For the primary encoder, permuting psychiatric history reduced ROC AUC by 0.024-
   Social determinants (SDOH)    −0.000   +0.000   +0.000   +0.001
   Race/ethnicity                −0.000   +0.000   −0.003   −0.000
 
-Logistic regression was the strongest embedded classifier for all 4 encoders, with ROC AUCs ranging from 0.645 to 0.657. Psychiatric history and medication burden remained the largest contributors across encoders: permutation reduced logistic-regression ROC AUC by 0.027--0.030 and 0.022--0.034, respectively (Figure 3). Feature-vector coefficient rankings also emphasized psychiatric burden, including suicidality, severe depression coding, insomnia, and anxiety. Detailed importance, dimensionality, and encoder analyses are in Multimedia Appendix 1, sections S2, S5, and S13.
+Logistic regression was the strongest embedded classifier for all 4 encoders, with ROC AUCs ranging from 0.645 to 0.657. Psychiatric history and medication burden remained the largest contributors across encoders: permutation reduced logistic-regression ROC AUC by 0.027--0.030 and 0.022--0.034, respectively (Figure 3). Feature-vector coefficient rankings also emphasized psychiatric burden, including suicidality, severe depression coding, insomnia, and anxiety. Detailed importance, dimensionality, and encoder analyses are in Multimedia Appendix 1, sections S1, S4, and S12.
 
 ![](../results/cross_embedder_robustness_EMBEDDED.png){width=6in}
 
-***Figure 3.** Encoder robustness for embedded logistic regression. A: ROC AUC with bootstrap 95% CIs. B: change in ROC AUC after permutation of psychiatric history or medication burden, with paired bootstrap 95% CIs. Encoders are bge-small-en-v1.5, bge-en-icl, Qwen3-Embedding-4B, and Qwen3-Embedding-8B. Complete encoder estimates appear in Multimedia Appendix 1, Table S16.*
+***Figure 3.** Encoder robustness for embedded logistic regression. A: ROC AUC with bootstrap 95% CIs. B: change in ROC AUC after permutation of psychiatric history or medication burden, with paired bootstrap 95% CIs. Encoders are bge-small-en-v1.5, bge-en-icl, Qwen3-Embedding-4B, and Qwen3-Embedding-8B. Complete encoder estimates appear in Multimedia Appendix 1, Table S15.*
 
 ## Retrieval and Subgroup Performance
 
-At k = 50, plain cosine retrieval achieved an ROC AUC of 0.594 (95% CI 0.578--0.610). Random retrieval yielded 0.499 and farthest retrieval 0.432. Neighborhood size mattered more than the similarity metric (Figure 4). Discrimination rose with k and was flat from roughly 300 neighbors onward. At its best k, importance-weighted retrieval reached 0.625 (95% CI 0.610--0.641) and plain cosine 0.618 (95% CI 0.602--0.634). The paired difference between the 2 metrics was 0.007 (95% CI −0.001 to 0.014). The best retrieval result over every k and exponent was still lower than feature-vector XGBoost by 0.024 (95% CI 0.012--0.036) and lower than embedded logistic regression by 0.032 (95% CI 0.022--0.043). Because the best k was chosen on test patients, these maxima are optimistic. Using all 34,063 training patients as neighbors, with no k chosen, gave 0.624 (Multimedia Appendix 1, section S7).
+At k = 50, plain cosine retrieval achieved an ROC AUC of 0.594 (95% CI 0.578--0.610). Random retrieval yielded 0.499 and farthest retrieval 0.432. Neighborhood size mattered more than the similarity metric (Figure 4). Discrimination rose with k and was flat from roughly 300 neighbors onward. At its best k, importance-weighted retrieval reached 0.625 (95% CI 0.610--0.641) and plain cosine 0.618 (95% CI 0.602--0.634). The paired difference between the 2 metrics was 0.007 (95% CI −0.001 to 0.014). The best retrieval result over every k and exponent was still lower than feature-vector XGBoost by 0.024 (95% CI 0.012--0.036) and lower than embedded logistic regression by 0.032 (95% CI 0.022--0.043). Because the best k was chosen on test patients, these maxima are optimistic. Using all 34,063 training patients as neighbors, with no k chosen, gave 0.624 (Multimedia Appendix 1, section S6).
 
 ![](../results/Qwen-Qwen3-Embedding-8B/google_medgemma-27b-text-it/neighbor_count_sweep/neighbor_count_sweep_manuscript.png){width=6in}
 
 ***Figure 4.** Retrieval discrimination by neighborhood size. ROC AUC in 8,516 test patients for importance-weighted and plain cosine retrieval at every k from 1 to 34,063, with bootstrap 95% bands. Points mark each metric's best k. The vertical line marks k = 50, the primary analysis. Horizontal lines mark the 2 leading trained classifiers. Curves use α = 1; the maxima under α = 1, 2, and 5 agreed within 0.002.*
 
-Of 240 subgroup contrasts, 24 survived multiplicity adjustment; 19 involved depression recurrence. Discrimination was higher with recurrent coding in all 10 models contrasted and lower with single-episode coding in 9. Performance was lower among never-married patients for 2 embedded classifiers and importance-weighted retrieval, and among patients aged 18--29 for feature-vector XGBoost. Plain cosine retrieval discriminated better in patients with severe coding. Sex contrasts did not show clear differences. White-minus-non-White ROC AUC differences were consistently positive (0.005--0.052), but none survived adjustment. For feature-vector logistic regression, individual-level calibration slopes were 0.98 in White patients and 0.79 in patients with other recorded racial categories. These findings do not establish equitable performance (Multimedia Appendix 1, section S10).
+Of 240 subgroup contrasts, 24 survived multiplicity adjustment; 19 involved depression recurrence. Discrimination was higher with recurrent coding in all 10 models contrasted and lower with single-episode coding in 9. Performance was lower among never-married patients for 2 embedded classifiers and importance-weighted retrieval, and among patients aged 18--29 for feature-vector XGBoost. Plain cosine retrieval discriminated better in patients with severe coding. Sex contrasts did not show clear differences. White-minus-non-White ROC AUC differences were consistently positive (0.005--0.052), but none survived adjustment. For feature-vector logistic regression, individual-level calibration slopes were 0.98 in White patients and 0.79 in patients with other recorded racial categories. These findings do not establish equitable performance (Multimedia Appendix 1, section S9).
 
 # Discussion
 
@@ -332,7 +333,7 @@ Supplementary methods, predictor inventory, supporting analyses, and extended re
 
 2\. Rush AJ, Trivedi MH, Wisniewski SR, Nierenberg AA, Stewart JW, Warden D, et al. Acute and longer-term outcomes in depressed outpatients requiring one or several treatment steps: a STAR\*D report. Am J Psychiatry. 2006;163(11):1905-1917. doi:10.1176/ajp.2006.163.11.1905.
 
-3\. Al-Harbi KS. Treatment-resistant depression: therapeutic trends, challenges, and future directions. Patient Prefer Adherence. 2012;6:369-388. doi:10.2147/PPA.S29716.
+3\. Al-Harbi KS. Treatment-resistant depression: therapeutic trends, challenges, and future directions. Patient Prefer Adherence. 2012;6:369-388. doi:10.2147/PPA.S29715.
 
 4\. Perlis RH. A clinical risk stratification tool for predicting treatment resistance in major depressive disorder. Biol Psychiatry. 2013;74(1):7-14. doi:10.1016/j.biopsych.2012.12.007.
 
@@ -340,7 +341,7 @@ Supplementary methods, predictor inventory, supporting analyses, and extended re
 
 6\. Sheu YH, Magdamo C, Miller M, Das S, Blacker D, Smoller JW. AI-assisted prediction of differential response to antidepressant classes using electronic health records. npj Digit Med. 2023;6:73. doi:10.1038/s41746-023-00817-8.
 
-7\. Chekroud AM, Zotti RJ, Shehzad Z, Gueorguieva R, Johnson MK, Trivedi MH, et al. Cross-trial prediction of treatment outcome in depression: a machine learning approach. Lancet Psychiatry. 2016;3(3):243-250. doi:10.1016/S2215-0366(15)00471-X.
+7\. Chekroud AM, Zotti RJ, Shehzad Z, Gueorguieva R, Johnson MK, Trivedi MH, et al. Cross-trial prediction of treatment outcome in depression: a machine learning approach. Lancet Psychiatry. 2016;3(3):243-250. doi:10.1016/S2214-0366(15)00471-X.
 
 8\. Chekroud AM, Bondar J, Delgadillo J, Doherty G, Wasil A, Fokkema M, et al. The promise of machine learning in predicting treatment outcomes in psychiatry. World Psychiatry. 2021;20(2):154-170. doi:10.1002/wps.20882.
 

@@ -59,9 +59,10 @@ from scripts.pipeline.review.subgroups.core import (
     subgroup_dir,
 )
 
-# The neighbour-weighted arm's headline configuration: nearest retrieval with the
-# LLM-judged weighting, which is the arm the main text reports.
-PRIMARY_KNN_MODEL = "NEAREST_LLM"
+# The retrieval arm's representative: importance-weighted nearest neighbors, the arm
+# the main text reports beside its plain-cosine baseline. It must be one of
+# core.KNN_CONTRAST_MODELS, or the forest plot draws no retrieval points at all.
+PRIMARY_KNN_MODEL = "NEAREST_WEIGHTED"
 ARMS = (ARM_EMBEDDED, ARM_FEATURE, ARM_KNN)
 
 # One representative model per arm for the primary tables and the forest plot. The full
@@ -75,7 +76,7 @@ PRIMARY_BY_ARM = {
 ARM_LABELS = {
     ARM_EMBEDDED: "Embedded (logistic regression)",
     ARM_FEATURE: "Feature vector (logistic regression)",
-    ARM_KNN: "Neighbour-weighted (nearest, LLM)",
+    ARM_KNN: "Nearest neighbors (importance-weighted)",
 }
 
 # Families reported as fairness evidence, against families reported as clinical
@@ -262,13 +263,51 @@ def plot_forest(performance: pd.DataFrame, save_dir):
     ax.set_yticklabels([group_label(k) for k in reversed(keys)], fontsize=7)
     ax.set_xlabel("ROC AUC (95% CI)", fontsize=8)
     ax.set_title("Subgroup discrimination, one representative model per arm", fontsize=9)
-    ax.legend(fontsize=7, loc='lower right')
+    # Below the axes, because inside them it sat on the bottom stratum's intervals.
+    ax.legend(fontsize=7, loc='upper center', bbox_to_anchor=(0.5, -0.07), frameon=False)
     ax.tick_params(axis='x', labelsize=7)
     figure.tight_layout()
     save_path = save_dir / "subgroup_forest.png"
     figure.savefig(save_path, dpi=200, bbox_inches='tight')
     plt.close(figure)
     return save_path
+
+
+def present(performance: pd.DataFrame, contrasts: pd.DataFrame, save_dir):
+    """Write the three Markdown tables and the forest plot from scored frames.
+
+    Args:
+        performance (pd.DataFrame): Concatenated output of score_groups.
+        contrasts (pd.DataFrame): Concatenated output of score_contrasts, with p_bh.
+        save_dir (Path): Where the artifacts go.
+
+    Returns:
+        Path: The written forest plot.
+    """
+    (save_dir / "subgroup_table.md").write_text(
+        performance_table(performance, FAIRNESS_FAMILIES) + "\n")
+    (save_dir / "subgroup_clinical_table.md").write_text(
+        performance_table(performance, CLINICAL_FAMILIES) + "\n")
+    (save_dir / "subgroup_contrast_table.md").write_text(
+        contrast_table(contrasts, FAIRNESS_FAMILIES) + "\n")
+    return plot_forest(performance, save_dir)
+
+
+def replot():
+    """Redraw the tables and the forest plot from the saved CSVs, refitting nothing.
+
+    The bootstrap is the expensive half and does not depend on which model represents
+    an arm, so changing the representative is a presentation change and costs seconds.
+    """
+    save_dir = subgroup_dir()
+    performance = pd.read_csv(save_dir / "subgroup_performance.csv")
+    contrasts = pd.read_csv(save_dir / "subgroup_contrasts.csv")
+    figure_path = present(performance, contrasts, save_dir)
+    summary_path = save_dir / "subgroup_summary.json"
+    summary = json.loads(summary_path.read_text())
+    summary['primary_model_by_arm'] = PRIMARY_BY_ARM
+    summary_path.write_text(json.dumps(summary, indent=4, default=float))
+    print(f"Redrew {figure_path} and the three tables from the saved CSVs", flush=True)
 
 
 def main():
@@ -288,13 +327,7 @@ def main():
 
     performance.to_csv(save_dir / "subgroup_performance.csv", index=False)
     contrasts.to_csv(save_dir / "subgroup_contrasts.csv", index=False)
-    (save_dir / "subgroup_table.md").write_text(
-        performance_table(performance, FAIRNESS_FAMILIES) + "\n")
-    (save_dir / "subgroup_clinical_table.md").write_text(
-        performance_table(performance, CLINICAL_FAMILIES) + "\n")
-    (save_dir / "subgroup_contrast_table.md").write_text(
-        contrast_table(contrasts, FAIRNESS_FAMILIES) + "\n")
-    figure_path = plot_forest(performance, save_dir)
+    figure_path = present(performance, contrasts, save_dir)
 
     nominal = contrasts[contrasts['excludes_zero']]
     surviving = contrasts[contrasts['survives_bh']]
@@ -330,4 +363,5 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    import sys
+    replot() if "--replot" in sys.argv[1:] else main()
