@@ -27,7 +27,10 @@ Artifacts, in ARTIFACTS_DIR/review/subgroups/:
   subgroup_clinical_table.md  the clinical-family table, primary model
   subgroup_contrast_table.md  the contrast table, all four models, fairness families
   subgroup_summary.json       what survives correction, and what is not estimable
-  subgroup_forest.png         primary-model subgroup AUCs with their intervals
+  subgroup_forest.png         primary-model subgroup AUCs with their intervals, fairness families
+  subgroup_forest_clinical.png  the same for the clinical families (MDD severity, recurrence)
+  subgroup_contrasts_forest.png           each contrast's ΔAUC, primary models, fairness families
+  subgroup_contrasts_forest_clinical.png  the same for the clinical families
 """
 
 import json
@@ -219,12 +222,18 @@ def contrast_label(contrast: str) -> str:
     return f"{group_label(left)} − {group_label(right)}"
 
 
-def plot_forest(performance: pd.DataFrame, save_dir):
-    """Primary-model subgroup AUCs with their intervals, fairness families only.
+def plot_forest(performance: pd.DataFrame, save_dir, families=FAIRNESS_FAMILIES,
+                file_name="subgroup_forest.png",
+                title="Subgroup discrimination, one representative model per arm"):
+    """Primary-model subgroup AUCs with their intervals, for one set of families.
 
     Args:
         performance (pd.DataFrame): Concatenated output of score_groups.
         save_dir (Path): Where to write the PNG.
+        families (tuple[str, ...]): Which stratum families get a row; the overall row
+            always comes first.
+        file_name (str): PNG name inside save_dir.
+        title (str): Axes title.
 
     Returns:
         Path: The written figure.
@@ -236,9 +245,10 @@ def plot_forest(performance: pd.DataFrame, save_dir):
     primary['family'] = primary['group'].map(group_family)
     keys = ['overall'] + [
         key for key in primary['group'].unique()
-        if key != 'overall' and group_family(key) in FAIRNESS_FAMILIES
+        if key != 'overall' and group_family(key) in families
     ]
-    figure, ax = plt.subplots(figsize=(6.0, 0.34 * len(keys) + 1.2))
+    rows_height = 0.34 * len(keys)
+    figure, ax = plt.subplots(figsize=(6.0, rows_height + 1.2))
     offsets = {ARM_EMBEDDED: +0.24, ARM_FEATURE: 0.0, ARM_KNN: -0.24}
     colours = {ARM_EMBEDDED: '#1f77b4', ARM_FEATURE: '#d62728', ARM_KNN: '#2ca02c'}
     for representation, offset in offsets.items():
@@ -262,12 +272,79 @@ def plot_forest(performance: pd.DataFrame, save_dir):
     ax.set_yticks(range(len(keys)))
     ax.set_yticklabels([group_label(k) for k in reversed(keys)], fontsize=7)
     ax.set_xlabel("ROC AUC (95% CI)", fontsize=8)
-    ax.set_title("Subgroup discrimination, one representative model per arm", fontsize=9)
-    # Below the axes, because inside them it sat on the bottom stratum's intervals.
-    ax.legend(fontsize=7, loc='upper center', bbox_to_anchor=(0.5, -0.07), frameon=False)
+    ax.set_title(title, fontsize=9)
+    # Below the axes, because inside them it sat on the bottom stratum's intervals. The
+    # drop is a fixed 0.476 inches under the x label, so a short figure keeps it clear too.
+    ax.legend(fontsize=7, loc='upper center', bbox_to_anchor=(0.5, -0.476 / rows_height),
+              frameon=False)
     ax.tick_params(axis='x', labelsize=7)
     figure.tight_layout()
-    save_path = save_dir / "subgroup_forest.png"
+    save_path = save_dir / file_name
+    figure.savefig(save_path, dpi=200, bbox_inches='tight')
+    plt.close(figure)
+    return save_path
+
+
+def plot_contrasts(contrasts: pd.DataFrame, save_dir, families=FAIRNESS_FAMILIES,
+                   file_name="subgroup_contrasts_forest.png",
+                   title="Subgroup contrasts, one representative model per arm"):
+    """The tested quantity itself: each contrast's ΔROC AUC with its interval.
+
+    The AUC forest plot shows each group's own AUC, which is not what BH corrects: the
+    test is a group's AUC minus the rest's, for the same model. A filled marker survived
+    the correction across all contrasts; a hollow one did not.
+
+    Args:
+        contrasts (pd.DataFrame): Output of score_contrasts with BH columns attached.
+        save_dir (Path): Where to write the PNG.
+        families (tuple[str, ...]): Which stratum families get a row.
+        file_name (str): PNG name inside save_dir.
+        title (str): Axes title.
+
+    Returns:
+        Path: The written figure.
+    """
+    is_primary = np.array([
+        row['model'] == PRIMARY_BY_ARM[row['representation']] for _, row in contrasts.iterrows()
+    ])
+    primary = contrasts[is_primary & contrasts['family'].isin(families).to_numpy()]
+    keys = list(dict.fromkeys(primary['contrast']))
+    rows_height = 0.34 * len(keys)
+    figure, ax = plt.subplots(figsize=(6.0, rows_height + 1.2))
+    offsets = {ARM_EMBEDDED: +0.24, ARM_FEATURE: 0.0, ARM_KNN: -0.24}
+    colours = {ARM_EMBEDDED: '#1f77b4', ARM_FEATURE: '#d62728', ARM_KNN: '#2ca02c'}
+    for representation, offset in offsets.items():
+        subset = primary[primary['representation'] == representation]
+        for i, key in enumerate(keys):
+            row = subset[subset['contrast'] == key]
+            if row.empty:
+                continue
+            row = row.iloc[0]
+            colour = colours[representation]
+            ax.errorbar(
+                row['delta_roc'], len(keys) - 1 - i + offset,
+                xerr=[[row['delta_roc'] - row['delta_ci_low']],
+                      [row['delta_ci_high'] - row['delta_roc']]],
+                fmt='o', markersize=4.5, capsize=2.0, linewidth=1.0, color=colour,
+                markerfacecolor=colour if row['survives_bh'] else 'white',
+            )
+    ax.axvline(0.0, color='grey', linewidth=0.8, linestyle=':')
+    ax.set_yticks(range(len(keys)))
+    ax.set_yticklabels([contrast_label(k) for k in reversed(keys)], fontsize=7)
+    ax.set_xlabel("ΔROC AUC, group minus rest (95% CI)\nfilled = significant after BH, hollow = not",
+                  fontsize=8)
+    ax.set_title(title, fontsize=9)
+    # Drawn by hand so the legend shows the arm's colour filled, whichever row came first.
+    handles = [
+        plt.Line2D([], [], color=colours[representation], marker='o', markersize=4.5,
+                   linewidth=1.0, label=ARM_LABELS[representation])
+        for representation in offsets
+    ]
+    ax.legend(handles=handles, fontsize=7, loc='upper center', bbox_to_anchor=(0.5, -0.62 / rows_height),
+              frameon=False)
+    ax.tick_params(axis='x', labelsize=7)
+    figure.tight_layout()
+    save_path = save_dir / file_name
     figure.savefig(save_path, dpi=200, bbox_inches='tight')
     plt.close(figure)
     return save_path
@@ -282,8 +359,14 @@ def present(performance: pd.DataFrame, contrasts: pd.DataFrame, save_dir):
         save_dir (Path): Where the artifacts go.
 
     Returns:
-        Path: The written forest plot.
+        Path: The written fairness-family forest plot.
     """
+    plot_forest(performance, save_dir, CLINICAL_FAMILIES, "subgroup_forest_clinical.png",
+                "Discrimination by MDD severity and recurrence, one model per arm")
+    plot_contrasts(contrasts, save_dir)
+    plot_contrasts(contrasts, save_dir, CLINICAL_FAMILIES,
+                   "subgroup_contrasts_forest_clinical.png",
+                   "Contrasts by MDD severity and recurrence, one model per arm")
     (save_dir / "subgroup_table.md").write_text(
         performance_table(performance, FAIRNESS_FAMILIES) + "\n")
     (save_dir / "subgroup_clinical_table.md").write_text(
@@ -359,7 +442,7 @@ def main():
     print("\n" + json.dumps(
         {k: v for k, v in summary.items() if k not in ('nominally_significant', 'surviving_bh')},
         indent=4), flush=True)
-    print(f"\nWrote {figure_path} and 6 sibling artifacts to {save_dir}", flush=True)
+    print(f"\nWrote {figure_path} and 8 sibling artifacts to {save_dir}", flush=True)
 
 
 if __name__ == "__main__":

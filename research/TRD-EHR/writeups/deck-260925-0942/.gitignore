@@ -1,0 +1,5 @@
+# written by the board: figures can be made from records, and
+# this repository is public. The .tex is tracked.
+figures/
+*.pdf
+_brief.*

@@ -243,25 +243,35 @@ def intervals_of_columns(y_true: np.ndarray, columns: np.ndarray, neighbour_coun
     })
 
 
-def published_reference_lines() -> dict[str, float]:
-    """AUCs already on record for this cohort, to draw the sweep against.
+def published_reference_lines() -> dict[str, tuple[float, float, float]]:
+    """AUCs already on record for this cohort, with their intervals, to draw the sweep against.
+
+    Random retrieval is the floor: the same cosine-weighted vote over k patients drawn at
+    random, so a curve near it has learned nothing from the neighbourhood.
 
     Returns:
-        dict[str, float]: Label to AUC, empty for any file not present.
+        dict[str, tuple[float, float, float]]: Label to (AUC, ci_low, ci_high), empty for
+            any file not present.
     """
+    def on_record(entry: dict) -> tuple[float, float, float]:
+        return (float(entry['roc_score']), float(entry['roc_score_ci_low']),
+                float(entry['roc_score_ci_high']))
+
     references = {}
     results_dir = Path(os.environ['RESULTS_DIR'])
     knn_path = results_dir / 'knn_results.json'
     if knn_path.exists():
         knn = json.loads(knn_path.read_text())
+        k = os.environ.get('NUM_NEIGHBOR_PATIENTS', '?')
         if 'NEAREST_COSINE' in knn:
-            k = os.environ.get('NUM_NEIGHBOR_PATIENTS', '?')
-            references[f"plain cosine KNN, k={k}"] = float(knn['NEAREST_COSINE']['roc_score'])
+            references[f"plain cosine KNN, k={k}"] = on_record(knn['NEAREST_COSINE'])
+        if 'RANDOM_COSINE' in knn:
+            references[f"random-neighbour KNN, k={k}"] = on_record(knn['RANDOM_COSINE'])
     ml_path = results_dir / 'classical_ml_results_EMBEDDED.json'
     if ml_path.exists():
         ml = json.loads(ml_path.read_text())
         if 'logistic_regression' in ml:
-            references['logistic regression on embeddings'] = float(ml['logistic_regression']['roc_score'])
+            references['logistic regression on embeddings'] = on_record(ml['logistic_regression'])
     return references
 
 
@@ -310,10 +320,11 @@ def plot_sweep(curves: pd.DataFrame, intervals: pd.DataFrame, save_path: Path) -
                       color=colour, linestyle='none',
                       label=f"{metric_label} best k={int(best['n_neighbors'])}, "
                             f"AUC={best['roc_auc']:.3f}")
-    reference_styles = ['--', ':']
-    for index, (label, value) in enumerate(published_reference_lines().items()):
+    reference_styles = ['--', '-.', ':']
+    for index, (label, (value, low, high)) in enumerate(published_reference_lines().items()):
+        axis.axhspan(low, high, color='0.35', alpha=0.08, linewidth=0)
         axis.axhline(value, color='0.35', linestyle=reference_styles[index % len(reference_styles)],
-                     linewidth=1.3, label=f"{label} = {value:.3f}")
+                     linewidth=1.3, label=f"{label} = {value:.3f} ({low:.3f}\u2013{high:.3f})")
     axis.axhline(0.5, color='0.7', linewidth=1.0)
     axis.set_xscale('log')
     axis.set_xlabel("Number of nearest neighbours, k")
@@ -552,7 +563,15 @@ def main():
     parser.add_argument('--intervals-at', type=int, nargs='+', default=None,
                         help="Only add bootstrap intervals at these k to sweep_intervals.csv, "
                              "ranking neighbours exactly as the sweep does; minutes, not hours.")
+    parser.add_argument('--redraw', action='store_true',
+                        help="Redraw neighbor_count_sweep.png from the sweep_curve.csv and "
+                             "sweep_intervals.csv already on disk; computes nothing.")
     arguments = parser.parse_args()
+    if arguments.redraw:
+        print(plot_sweep(pd.read_csv(SWEEP_DIR / 'sweep_curve.csv'),
+                         pd.read_csv(SWEEP_DIR / 'sweep_intervals.csv'),
+                         SWEEP_DIR / 'neighbor_count_sweep.png'))
+        return
     if arguments.intervals_at:
         intervals_at(arguments.intervals_at, tuple(arguments.alphas), tuple(arguments.metrics))
         return

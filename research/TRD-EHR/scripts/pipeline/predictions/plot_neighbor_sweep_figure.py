@@ -9,7 +9,8 @@ draws that figure from the sweep's own outputs and refits nothing:
   * one curve per metric at alpha 1, with the bootstrap 95% band from
     sweep_intervals.csv;
   * a vertical line at k = 50, the neighborhood size of the primary retrieval arm;
-  * horizontal lines at the two leading trained classifiers.
+  * horizontal lines at the two leading trained classifiers, each with its own
+    bootstrap 95% band over the same resamples of test patients.
 
 It also writes the paired bootstrap contrasts the Results paragraph quotes, so every
 number there is on disk: the best retrieval predictions against each leading
@@ -119,6 +120,23 @@ def paired_delta(y_true: np.ndarray, a: np.ndarray, b: np.ndarray,
             "ci_low": float(low), "ci_high": float(high)}
 
 
+def auc_interval(y_true: np.ndarray, scores: np.ndarray, sample_indices: np.ndarray) -> tuple:
+    """ROC AUC with a percentile bootstrap 95% CI.
+
+    Args:
+        y_true (np.ndarray): 0/1 labels, shape (n,).
+        scores (np.ndarray): Scores, shape (n,).
+        sample_indices (np.ndarray): Resample indices, shape (n_bootstrap, n).
+
+    Returns:
+        tuple: (auc, ci_low, ci_high).
+    """
+    aucs = [roc_auc_score(y_true[rows], scores[rows]) for rows in sample_indices
+            if y_true[rows].min() != y_true[rows].max()]
+    low, high = np.percentile(aucs, [2.5, 97.5])
+    return roc_auc_score(y_true, scores), float(low), float(high)
+
+
 def draw(curve: pd.DataFrame, intervals: pd.DataFrame, reference_aucs: dict,
          save_path: Path) -> None:
     """Draw the two retrieval curves against the trained classifiers.
@@ -126,7 +144,7 @@ def draw(curve: pd.DataFrame, intervals: pd.DataFrame, reference_aucs: dict,
     Args:
         curve (pd.DataFrame): sweep_curve.csv, every k.
         intervals (pd.DataFrame): sweep_intervals.csv, bootstrap CIs at sampled k.
-        reference_aucs (dict): Reference classifier label to its test ROC AUC.
+        reference_aucs (dict): Reference classifier label to (AUC, ci_low, ci_high).
         save_path (Path): Where the PNG goes.
     """
     plt.rcParams.update({"font.size": 10})
@@ -148,14 +166,15 @@ def draw(curve: pd.DataFrame, intervals: pd.DataFrame, reference_aucs: dict,
                       xytext=(6, 8) if metric == "weighted" else (8, -34),
                       ha="left",
                       fontsize=8.5, color="#333333")
-    for (label, auc), style in zip(reference_aucs.items(), (":", "--")):
+    for (label, (auc, low, high)), style in zip(reference_aucs.items(), (":", "--")):
+        axis.axhspan(low, high, color="#555555", alpha=0.08, linewidth=0)
         axis.axhline(auc, color="#555555", linestyle=style, linewidth=1.2,
-                     label=f"{label}, {auc:.3f}")
+                     label=f"{label}, {auc:.3f} ({low:.3f}\u2013{high:.3f})")
     axis.axvline(PRIMARY_K, color="#999999", linewidth=1)
-    axis.text(PRIMARY_K * 1.08, 0.505, f"k = {PRIMARY_K}", fontsize=8.5, color="#555555")
+    axis.text(PRIMARY_K / 1.08, 0.505, f"k = {PRIMARY_K}", fontsize=8.5, color="#555555", ha="right")
     axis.set_xscale("log")
     axis.set_xlim(1, curve.n_neighbors.max())
-    axis.set_ylim(0.50, 0.67)
+    axis.set_ylim(0.50, 0.68)
     axis.set_xlabel("Number of nearest neighbors, k (log scale)")
     axis.set_ylabel("ROC AUC, 8,516 test patients")
     axis.grid(True, which="major", color="#e6e6e6", linewidth=0.8)
@@ -184,7 +203,8 @@ def main():
         y_true, frame.weighted.to_numpy(), frame.plain.to_numpy(), sample_indices)
     (sweep_dir / DELTAS_NAME).write_text(json.dumps(deltas, indent=2))
 
-    reference_aucs = {label: roc_auc_score(y_true, frame[label]) for label, _, _ in REFERENCES}
+    reference_aucs = {label: auc_interval(y_true, frame[label].to_numpy(), sample_indices)
+                      for label, _, _ in REFERENCES}
     draw(pd.read_csv(sweep_dir / "sweep_curve.csv"),
          pd.read_csv(sweep_dir / "sweep_intervals.csv"),
          reference_aucs, sweep_dir / FIGURE_NAME)
