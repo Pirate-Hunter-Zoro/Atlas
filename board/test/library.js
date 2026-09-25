@@ -218,6 +218,12 @@ window.fetch = (u, opts) => {
   if (/annotate\/save/.test(url)) {
     return Promise.resolve({ json: () => Promise.resolve({ ok: true }) });
   }
+  if (/library\/direction/.test(url)) {
+    return Promise.resolve({ json: () => Promise.resolve({
+      ok: true, turn: 't0099', pages: [2], images: [],
+      detail: 'Your marks on page 2 went as a proposed direction.',
+    }) });
+  }
   if (/library\/feedback/.test(url)) {
     return Promise.resolve({ json: () => Promise.resolve({
       ok: true, rel: 'writeups/serve-harness/feedback/2026-09-16-v1.md',
@@ -702,6 +708,55 @@ const named = (title) => rows().filter(
   !/live\/cards|board\/write|\/session/.test(js)
     ? ok('and nothing in it knows how to write a card')
     : fail('library.js reaches for the lesson');
+
+  // 7b. FIXES BEFORE THE MEETING, DIRECTIONS AFTER IT. One switch on the
+  //     reader bar says what the ink on this document is for, and the note
+  //     panel follows it: a direction never goes near `/library/feedback`.
+  {
+    const mode = doc.getElementById('reader-mode');
+    const sayBtn = doc.getElementById('reader-say');
+    /fixes/.test(mode.textContent) && /say what is wrong/.test(sayBtn.textContent)
+      ? ok('a document opens with its ink as fixes')
+      : fail('the ink mode opened as: ' + mode.textContent);
+    tap(mode);
+    /directions/.test(mode.textContent) && /send as directions/.test(sayBtn.textContent)
+      ? ok('one tap after the meeting makes it directions, and the send says so')
+      : fail('the switch did not take: ' + mode.textContent + ' / ' + sayBtn.textContent);
+    window.localStorage.getItem('library.inkmode:docs-stage1-pipeline-walkthrough')
+      === 'directions'
+      ? ok('and it is remembered for this document')
+      : fail('the ink mode is not remembered');
+    sent.length = 0;
+    tap(sayBtn);
+    !doc.getElementById('ask-direction').hidden
+      && doc.getElementById('ask-revise').hidden
+      && doc.getElementById('ask-rework').hidden
+      && /propose it/.test(doc.getElementById('note-send').textContent)
+      ? ok('the panel offers only a direction, never a fix, in that mode')
+      : fail('the panel in directions mode still offers a fix');
+    const words = doc.getElementById('note-text');
+    words.value = 'Dr. Paulus: try the weighting on the MDD-only cohort. Not confirmed.';
+    words.dispatchEvent(new window.Event('input', { bubbles: true }));
+    tap(doc.getElementById('note-send'));
+    await sleep(60);
+    const dir = sent.filter((r) => /library\/direction/.test(r.url))[0];
+    dir && JSON.parse(dir.opts.body).document === 'docs-stage1-pipeline-walkthrough'
+      && /Paulus/.test(JSON.parse(dir.opts.body).text)
+      ? ok('it goes to /library/direction with their words')
+      : fail('the direction went as: ' + sent.map((r) => r.url).join(' '));
+    !sent.some((r) => /library\/feedback/.test(r.url))
+      ? ok('and no revision is asked for')
+      : fail('a direction was filed as feedback on the document');
+    /proposed direction/.test(doc.getElementById('note-said').textContent)
+      ? ok('and the panel says what happened to it')
+      : fail('nothing said the direction went');
+    doc.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Escape' }));
+    tap(mode);
+    /fixes/.test(mode.textContent)
+      ? ok('and the switch goes back to fixes')
+      : fail('the switch would not go back');
+    sent.length = 0;
+  }
 
   // 8. The two ways out, because a full-screen surface needs them.
   doc.getElementById('lib-back').getAttribute('href') === '/board'

@@ -250,3 +250,96 @@ def send(repo, base=None):
                        "to take or leave."
                        % (len(sent), "" if len(sent) == 1 else "s",
                           "has" if len(sent) == 1 else "have"))}
+
+
+# Where the picture of a document page marked as a direction is kept, under the
+# workspace's own `live/`. Not beside the document: `writeups/` is tracked and
+# this repository is public, and the picture is of a slide whose figures are
+# kept out of it on purpose. Not in `live/annotations/` either, which the
+# library wipes once a revision lands -- and this picture must outlast that
+# until the turn that reads it has run.
+DIRECTIONS = "directions"
+
+
+def from_document(repo, doc, page=0, words=""):
+    """This workspace's own document, marked as a DIRECTION.
+
+    The library's directions mode. The same proposal the meeting deck makes --
+    one `[direction]` turn in this workspace, one card, nothing applied until
+    ⟳ rethink is tapped -- but routed by the reader's choice rather than by
+    which frame the ink is on, because every page of a workspace's own
+    document is about that workspace.
+
+    `page` names one page; without it, EVERY page whose ink has not gone
+    anywhere yet goes. The ink is then marked delivered, so a later fix does
+    not carry a mentor's suggestion into a revision of the slides, and the
+    library wipes it once the document's newest round has landed.
+    Returns `{ok, turn, pages, images, detail}`.
+    """
+    from .course import library                        # local: avoids a cycle
+    from .lesson import notes as lesson_notes          # local: avoids a cycle
+    from .server import spawn                          # local: avoids a cycle
+    from .server.routes import writing                 # local: avoids a cycle
+
+    try:
+        page = int(page or 0)
+    except (TypeError, ValueError):
+        page = 0
+    words = (words or "").strip()
+    marked = library.marks(repo, doc)
+    if page:
+        chosen = [m for m in marked if m["page"] == page]
+    else:
+        sent = lesson_notes.load_notes_sent(repo)
+        chosen = [m for m in marked if not sent.get(m["key"])]
+    if not chosen and not (page and words):
+        return {"ok": False,
+                "error": ("there is nothing marked to send -- draw the "
+                          "direction on a page, or say what it is")}
+    pages = sorted(set(m["page"] for m in chosen)) or [page]
+
+    stamp = time.strftime("%y%m%d-%H%M%S")
+    where = os.path.join(os.path.dirname(repo.notes), DIRECTIONS)
+    images = []
+    for m in chosen:
+        src = os.path.join(repo.notes, writing.ann_file(m["key"]) + ".png")
+        if not os.path.isfile(src):
+            continue
+        try:
+            os.makedirs(where, exist_ok=True)
+            target = os.path.join(where, "%s-p%d-%s.png"
+                                  % (doc["id"], m["page"], stamp))
+            shutil.copyfile(src, target)
+        except OSError:
+            continue
+        images.append((m["page"],
+                       os.path.relpath(target, repo.root).replace(os.sep, "/")))
+
+    line = "[direction] " + sense.doc_direction_sense(
+        doc["rel"], pages, images, words)
+    tid = turns.next_turn_id(repo)
+    record = {
+        "id": tid, "rev": turns.turn_revision(repo, tid), "kind": "text",
+        "answers": None, "t": time.time(),
+        "iso": time.strftime("%Y-%m-%d %H:%M:%S"),
+        # Theirs, and not the `direction` signal -- for the reasons `send`
+        # gives: nothing is archived and nobody is replaced by this turn.
+        "from": "student", "text": line, "signal": None, "read": False,
+    }
+    turns.write_turn(repo, record)
+    try:
+        with open(repo.messages_path, "a", encoding="utf-8") as fh:
+            fh.write(json.dumps(record) + "\n")
+    except OSError as exc:
+        return {"ok": False, "error": "nothing could be asked: %s" % exc}
+
+    _sent(repo, [m["key"] for m in chosen])
+    spawn.wake_tutor(repo)
+    said = ("page %d" % pages[0]) if len(pages) == 1 \
+        else "pages " + ", ".join(str(p) for p in pages)
+    return {"ok": True, "turn": tid, "pages": pages,
+            "images": [img for _, img in images],
+            "detail": ("Your marks on %s went as a proposed direction. The "
+                       "tutor writes one card on this workspace's board saying "
+                       "what it would change; nothing changes until you tap "
+                       "⟳ rethink there." % said)}

@@ -1208,6 +1208,7 @@ DIRECTION_MARK_SENSE = (
     "workspace %(since)s. Their marks on it are here:\n%(images)s\n"
     "OPEN EVERY IMAGE. The marks are the suggestion; the page number alone "
     "says nothing about what they point at.\n\n"
+) + (
     "DO THIS, AND STOP AT THE END OF IT:\n"
     "1. Read the marks, and read what this workspace is actually doing -- the "
     "plan file the briefing names, the map, and DIRECTION.md if there is one.\n"
@@ -1224,6 +1225,43 @@ DIRECTION_MARK_SENSE = (
     "the marks are illegible or say nothing you can act on, the card says that "
     "instead; guessing at a direction is worse than asking."
 )
+
+# The half of that line that says what to do, shared with a page of a
+# workspace's own document marked as a direction (`doc_direction_sense`).
+PROPOSE_ONLY_SENSE = DIRECTION_MARK_SENSE[DIRECTION_MARK_SENSE.index("DO THIS, AND STOP"):]
+
+# A PAGE OF THIS WORKSPACE'S OWN DOCUMENT, MARKED AS A DIRECTION. The library's
+# third ask. The ink is not about the document -- the reader said so by choosing
+# this ask over "fix what is wrong" -- and it is usually a mentor's suggestion,
+# sometimes one not yet confirmed with them.
+DOC_DIRECTION_SENSE = (
+    "THEY MARKED A PAGE OF A DOCUMENT IN THIS WORKSPACE AS A SUGGESTED NEW "
+    "DIRECTION, not as a complaint about the document. The document is "
+    "`%(doc)s`, page %(pages)s. Do not revise the document; nothing "
+    "about it is yours to fix in this turn.\n\n"
+    "Their marks on it:\n%(image)s\n"
+    "OPEN EVERY IMAGE. The marks are the suggestion; the page number alone says "
+    "nothing about what they point at.\n\n"
+    "What they typed with it: %(words)s\n\n"
+    "It usually comes from a mentor, and may be one they have not yet confirmed "
+    "with that mentor -- so the one thing you need from them (step 2) is worded "
+    "as a question they could put to the mentor. Marks on several pages may be "
+    "several suggestions: if they pull in different directions, the card says "
+    "so and proposes the one you would take first.\n\n"
+)
+
+
+def doc_direction_sense(doc_rel, pages, images, words=""):
+    """The inbox line for pages of a document marked as a direction.
+
+    `images` is `[(page, repository-relative picture)]`.
+    """
+    shown = "\n".join("  - page %s: `%s`" % (p, img) for p, img in images) \
+        or "  - (no picture was saved of the marks)"
+    said = (words or "").strip() or "(nothing -- the marks are all of it)"
+    return DOC_DIRECTION_SENSE % {
+        "doc": doc_rel, "pages": ", ".join(str(p) for p in pages) or "?",
+        "image": shown, "words": said} + PROPOSE_ONLY_SENSE
 
 
 def direction_mark_sense(deck_rel, pages, images, since=""):

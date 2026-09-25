@@ -130,6 +130,12 @@
          complaint already located, and the alternative was to draw it on the
          board's own viewer and then write the note on a different surface. -->
     <button id="reader-pen" type="button" title="draw on the page">✎ mark it up</button>
+    <!-- WHAT THE INK IS FOR. Before a meeting every mark is a fix to the
+         document; after it, every mark is a mentor's suggested direction.
+         One switch, remembered per document, decides which -- so the pen
+         never has to be told twice. -->
+    <button id="reader-mode" type="button"
+            title="what your marks on this document are for">ink: fixes</button>
     <button id="reader-say" type="button">say what is wrong</button>
     <button id="reader-close" type="button" title="back to the library">✕</button>
   </div>
@@ -159,6 +165,12 @@
     <div id="note-ask">
       <button id="ask-revise" type="button" class="on">fix what is wrong</button>
       <button id="ask-rework" type="button">it needs an overhaul</button>
+      <!-- NOT ABOUT THE DOCUMENT AT ALL. In directions mode (`#reader-mode`)
+           this is the only ask: the marks are a new direction for the work,
+           usually a mentor's, and go as a proposal the tutor answers with one
+           card, never as a fix. -->
+      <button id="ask-direction" type="button" hidden
+              title="the marks are a new direction for the work, not a fix">a new direction</button>
     </div>
     <textarea id="note-text" rows="7"
       placeholder="What is wrong with it, and what should it say instead."></textarea>

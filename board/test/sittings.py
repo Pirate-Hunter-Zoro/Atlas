@@ -869,6 +869,48 @@ again = library.write_note(repo, odoc["id"], "")
 check("a document with no brief beside it sends its ink every round, as before",
       again.get("ok") and again.get("marks") == 1)
 
+# AFTER THE MEETING: THE INK IS A DIRECTION. `/library/direction` writes one
+# proposal turn in this workspace and never a revision.
+library.forget()
+with open(repo.messages_path, encoding="utf-8") as fh:
+    before = sum(1 for l in fh if l.strip())
+status, said = post("/library/direction", {"document": fdoc["id"], "text": ""})
+check("with nothing marked and nothing said, a direction is refused",
+      status == 400 and not said.get("ok"))
+ink("doc/%s/p9" % fdoc["id"])
+library.forget()
+status, said = post("/library/direction",
+                    {"document": fdoc["id"],
+                     "text": "Dr. Paulus's idea, not confirmed yet."})
+with open(repo.messages_path, encoding="utf-8") as fh:
+    lines = [json.loads(l) for l in fh if l.strip()]
+last = lines[-1]["text"]
+check("marks sent as a direction wake ONE proposal turn",
+      status == 200 and said.get("ok") and len(lines) == before + 1
+      and last.startswith("[direction] ") and not last.startswith("[revise]"))
+check("which is told it proposes and does not apply, names the page, and "
+      "carries their words",
+      "YOU ARE PROPOSING, NOT APPLYING" in last and "page 9" in last
+      and "not confirmed yet" in last and "Do not revise the document" in last)
+check("with a picture of the marks copied under live/, beside nothing tracked",
+      said.get("images") and said["images"][0].startswith("live/directions/")
+      and os.path.isfile(os.path.join(repo.root, said["images"][0])))
+check("and the ink is recorded as delivered, so a later fix does not carry it",
+      lesson_notes.load_notes_sent(repo).get("doc/%s/p9" % fdoc["id"]))
+
+# A RE-SAVE THAT ONLY ATTACHES A PICTURE keeps ink delivered; a changed page
+# does not.
+p9 = "doc/%s/p9" % fdoc["id"]
+same = json.load(open(os.path.join(repo.notes, writing_route.ann_file(p9) + ".json")))
+post("/annotate/save", {"card": p9, "strokes": same["strokes"], "send": False,
+                        "png": ""})
+check("re-saving the same strokes leaves them delivered",
+      lesson_notes.load_notes_sent(repo).get(p9))
+post("/annotate/save", {"card": p9, "strokes": same["strokes"] + same["strokes"],
+                        "send": False, "png": ""})
+check("while drawing on the page again puts it back in the next round",
+      not lesson_notes.load_notes_sent(repo).get(p9))
+
 httpd.shutdown()
 print()
 if fails:

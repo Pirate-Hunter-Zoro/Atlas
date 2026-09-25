@@ -201,6 +201,23 @@ def post(h, repo, path):
             library.hand_over(repo, keys)
         return h.send_json(rec)
 
+    # A PAGE MARKED AS A DIRECTION, not as a complaint: the note panel's third
+    # ask. It never goes near `_revise` -- see `proposals.from_document`.
+    if path == "/library/direction":
+        try:
+            payload = json.loads(h.read_body().decode("utf-8") or "{}")
+        except Exception:
+            return h.send_json({"ok": False, "error": "bad json"}, status=400)
+        doc = library.find(repo.root, str(payload.get("document") or "").strip())
+        if not doc:
+            return h.send_json({"ok": False, "error": "no such document"},
+                               status=404)
+        from ... import proposals                      # local: avoids a cycle
+        rec = proposals.from_document(repo, doc, payload.get("page"),
+                                      payload.get("text") or "")
+        h.server.hub.worker.dirty.set()
+        return h.send_json(rec, status=200 if rec.get("ok") else 400)
+
     if path == "/writeup":
         return _writeup(h, repo)
 

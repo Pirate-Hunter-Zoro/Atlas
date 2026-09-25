@@ -148,6 +148,18 @@ def post(h, repo, path):
         # A plain save only ever arrives for a card that just changed, so
         # "not a send" is exactly the right moment to clear the flag.
         sent = bool(payload.get("send"))
+        # UNLESS NOTHING CHANGED. The library re-saves a page only to attach
+        # its picture before a note goes, with the very strokes already on
+        # disk; clearing the flag there would send ink a round already
+        # delivered a second time.
+        if not sent:
+            try:
+                with open(os.path.join(repo.notes, stem + ".json"), "r",
+                          encoding="utf-8") as fh:
+                    was = json.load(fh)
+                sent = bool(was.get("sent")) and was.get("strokes") == strokes
+            except (OSError, ValueError):
+                sent = False
         with open(os.path.join(repo.notes, stem + ".json"), "w", encoding="utf-8") as fh:
             json.dump({"card": card, "strokes": strokes, "sent": sent}, fh)
         h.note("annotate %s: %d strokes, %s"

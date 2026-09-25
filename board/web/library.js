@@ -59,6 +59,7 @@ var els = {
   readerPages: document.getElementById("reader-pages"),
   readerPen: document.getElementById("reader-pen"),
   readerSay: document.getElementById("reader-say"),
+  readerMode: document.getElementById("reader-mode"),
   readerClose: document.getElementById("reader-close"),
   readerSaid: document.getElementById("reader-said"),
   note: document.getElementById("note"),
@@ -72,6 +73,7 @@ var els = {
   noteSend: document.getElementById("note-send"),
   askRevise: document.getElementById("ask-revise"),
   askRework: document.getElementById("ask-rework"),
+  askDirection: document.getElementById("ask-direction"),
   purposeBox: document.getElementById("note-purpose-box"),
   purpose: document.getElementById("note-purpose"),
   round: document.getElementById("round"),
@@ -158,7 +160,7 @@ var openPages = 0;           /* how many pages it turned out to have */
 var drawnPages = 0;          /* how many it had when the ink on it was drawn */
 var noteFor = null;          /* the document a note is being written about */
 var notePage = 0;
-var noteAsk = "revise";      /* which of the two asks the panel is on */
+var noteAsk = "revise";      /* which of the three asks the panel is on */
 
 /* HOW OFTEN THE CHEAP QUESTION IS ASKED, and only while the page is visible.
    The stamp is a walk and a stat per document with no `pdfinfo` in it, so this
@@ -480,6 +482,7 @@ function act(label, cls, fn) {
 /* ------------------------------------------------------- reading one */
 function read(doc) {
   openDoc = doc;
+  paintMode();
   openPages = 0;
   drawnPages = 0;
   els.reader.hidden = false;
@@ -766,6 +769,39 @@ function pageInView() {
   return best;
 }
 
+/* ----------------------------------------------- what the ink is for */
+/* FIXES OR DIRECTIONS, per document, remembered on this device. Before a
+   meeting every mark on a deck is a correction; after it, every mark is a
+   mentor's suggestion -- and a suggestion sent as a correction spends a turn
+   polishing slides while throwing the suggestion away. */
+var MODE_KEY = "library.inkmode:";
+
+function modeOf(doc) {
+  if (!doc) return "fixes";
+  try { return localStorage.getItem(MODE_KEY + doc.id) === "directions" ? "directions" : "fixes"; }
+  catch (e) { return "fixes"; }
+}
+
+function paintMode() {
+  if (!els.readerMode) return;
+  var m = modeOf(openDoc);
+  els.readerMode.textContent = m === "directions" ? "ink: directions" : "ink: fixes";
+  els.readerMode.classList.toggle("directions", m === "directions");
+  els.readerMode.title = m === "directions"
+    ? "your marks are mentors' suggested directions — tap to make them fixes again"
+    : "your marks are fixes to this document — tap after the meeting to make them directions";
+  els.readerSay.textContent = m === "directions" ? "send as directions" : "say what is wrong";
+}
+
+if (els.readerMode) {
+  els.readerMode.onclick = function () {
+    if (!openDoc) return;
+    var next = modeOf(openDoc) === "directions" ? "fixes" : "directions";
+    try { localStorage.setItem(MODE_KEY + openDoc.id, next); } catch (e) {}
+    paintMode();
+  };
+}
+
 /* ---------------------------------------------------- saying what is wrong */
 function say(doc, page) {
   if (!doc) return;
@@ -778,13 +814,6 @@ function say(doc, page) {
   els.noteSaid.hidden = true;
   els.notePage.hidden = !notePage;
   if (notePage) els.notePage.textContent = "about page " + notePage;
-  var ink = inkWaiting(doc);
-  els.noteMarks.hidden = !ink;
-  if (ink) {
-    els.noteMarks.textContent = "Your marks on " + ink
-      + (ink === 1 ? " page" : " pages")
-      + " go with this. Send it with nothing typed and the ink is the feedback.";
-  }
   /* A document the board did not write is corrected by the factory that did,
      and an overhaul does not come back through here -- so the ask is not
      offered rather than offered and refused. `rework_refused` is the rule; this
@@ -793,7 +822,11 @@ function say(doc, page) {
   els.askRework.title = els.askRework.disabled
     ? "the manuscript factory wrote this one, and an overhaul is asked for there"
     : "restructure, cut and rewrite it to a new purpose";
-  setAsk("revise");
+  var dir = modeOf(doc) === "directions";
+  els.askRevise.hidden = dir;
+  els.askRework.hidden = dir;
+  if (els.askDirection) els.askDirection.hidden = !dir;
+  setAsk(dir ? "direction" : "revise");
   els.note.hidden = false;
   els.noteText.focus();
 }
@@ -804,20 +837,53 @@ function say(doc, page) {
    claims; an overhaul may restructure, cut, reorder and rewrite, and costs a
    sentence saying what the document is for now. */
 function setAsk(which) {
-  noteAsk = which === "rework" ? "rework" : "revise";
+  noteAsk = which === "rework" || which === "direction" ? which : "revise";
   els.askRevise.classList.toggle("on", noteAsk === "revise");
   els.askRework.classList.toggle("on", noteAsk === "rework");
+  if (els.askDirection) els.askDirection.classList.toggle("on", noteAsk === "direction");
   els.purposeBox.hidden = noteAsk !== "rework";
   els.noteText.placeholder = noteAsk === "rework"
     ? "Anything else about it — what to keep, what to drop. Optional."
+    : noteAsk === "direction"
+    ? "Where it came from and anything the marks do not say — "
+      + "e.g. Dr. Paulus's suggestion, not confirmed yet. Optional."
     : "What is wrong with it, and what should it say instead.";
-  els.noteSend.textContent = noteAsk === "rework" ? "overhaul it" : "send it";
+  els.noteSend.textContent = noteAsk === "rework" ? "overhaul it"
+    : noteAsk === "direction" ? "propose it" : "send it";
+  paintMarksLine();
   paintSend();
   if (noteAsk === "rework") els.purpose.focus();
 }
 
 els.askRevise.onclick = function () { setAsk("revise"); };
 els.askRework.onclick = function () { setAsk("rework"); };
+if (els.askDirection) els.askDirection.onclick = function () { setAsk("direction"); };
+
+/* WHAT GOES, SAID FOR THE ASK THE PANEL IS ON. A direction is ONE page -- the
+   one being read -- and only that page's ink goes; the rest stays for a fix. */
+function paintMarksLine() {
+  if (noteAsk === "direction") {
+    var n = inkWaiting(noteFor);
+    els.noteMarks.hidden = false;
+    els.noteMarks.textContent = n
+      ? "Your marks on " + n + (n === 1 ? " page go" : " pages go")
+        + " to the tutor as proposed directions, not fixes. It writes one card "
+        + "saying what it would change; nothing changes until you tap "
+        + "⟳ rethink on the board."
+      : "Nothing is marked yet. Draw the direction on the page, or say it here "
+        + "and it goes as a direction from page " + (notePage || 1) + ".";
+    return;
+  }
+  var ink = inkWaiting(noteFor);
+  els.noteMarks.hidden = !ink;
+  if (ink) {
+    els.noteMarks.textContent = "Your marks on " + ink
+      + (ink === 1 ? " page" : " pages")
+      + " go with this. Send it with nothing typed and the ink is the feedback.";
+  }
+}
+
+
 
 /* Live as soon as there is either half of a complaint. The marks are already
    on disk, so nothing has to be collected here -- the server reads them where
@@ -836,6 +902,8 @@ function paintSend() {
   var ink = inkWaiting(noteFor);
   els.noteSend.disabled = noteAsk === "rework"
     ? els.purpose.value.trim().length < PURPOSE_LEAST
+    : noteAsk === "direction"
+    ? !els.noteText.value.trim() && !ink
     : !els.noteText.value.trim() && !ink;
 }
 
@@ -887,11 +955,58 @@ function showRound(doc, note, button) {
 
 els.roundClose.onclick = function () { els.round.hidden = true; };
 
+/* A PAGE AS A DIRECTION. Its picture first, for the same reason a fix sends
+   pictures first; then `/library/direction`, which writes one proposal turn and
+   never a revision. */
+function sendDirection(said) {
+  if (!noteFor) return;
+  /* Every page whose ink has gone nowhere yet; a page is named only when there
+     is no ink at all and the words are the direction. */
+  var forDoc = noteFor.id;
+  var page = inkWaiting(noteFor) ? 0 : (notePage || 1);
+  var was = els.noteSend.textContent;
+  els.noteSend.disabled = true;
+  els.noteSend.textContent = "proposing…";
+  savePen().then(function () { return savePictures(forDoc); },
+                 function () { return savePictures(forDoc); })
+  .then(function () {
+    return fetch("/library/direction", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "same-origin",
+      body: JSON.stringify({ document: forDoc, page: page, text: said })
+    });
+  }).then(function (r) {
+    return r.json().catch(function () { return {}; });
+  }).then(function (got) {
+    els.noteSaid.hidden = false;
+    if (!got || !got.ok) {
+      els.noteSaid.className = "note-said bad";
+      els.noteSaid.textContent = ((got && got.error) || "the board refused it") + ".";
+      els.noteSend.disabled = false;
+      els.noteSend.textContent = was;
+      return;
+    }
+    els.noteSaid.className = "note-said";
+    els.noteSaid.textContent = got.detail || "Sent as a proposed direction.";
+    els.noteSend.textContent = "proposed";
+    els.noteText.value = "";
+    load();
+  }).catch(function () {
+    els.noteSaid.hidden = false;
+    els.noteSaid.className = "note-said bad";
+    els.noteSaid.textContent = "The board is not answering.";
+    els.noteSend.disabled = false;
+    els.noteSend.textContent = was;
+  });
+}
+
 els.noteSend.onclick = function () {
   var said = els.noteText.value.trim();
   var aim = els.purpose.value.trim();
   var ink = (noteFor && noteFor.marks && noteFor.marks.pages) || 0;
   if (!noteFor) return;
+  if (noteAsk === "direction") { sendDirection(said); return; }
   if (noteAsk === "rework" ? aim.length < PURPOSE_LEAST : (!said && !ink)) return;
   var asked = noteAsk;
   var was = els.noteSend.textContent;
