@@ -2015,6 +2015,20 @@ window.Annotate = {
     Array.prototype.forEach.call(allNodes(), function (c) { draw(c); });
     onChange();
   },
+  /* Let go of one key's ink without saving anything: the server has already
+     thrown it away, and this device's copy is the only thing still showing it.
+     `clear` is the wrong tool -- it marks the key dirty, and the autosave would
+     write an empty record back. */
+  drop: function (id) {
+    if (!(id in store)) return false;
+    if (pick && pick.id === id) pick = null;
+    delete store[id];
+    delete dirty[id];
+    delete handed[id];
+    var node = nodeFor(id);
+    if (node) draw(node);
+    return true;
+  },
   loadSent: function (map) {
     if (!map) return;
     Object.keys(map).forEach(function (id) {

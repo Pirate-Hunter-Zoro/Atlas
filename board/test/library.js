@@ -160,6 +160,9 @@ let STAMP = {
    revision: an overhaul that reflows the document, after which the ink on page
    7 is about something that may no longer be on page 7. */
 let VIEW_PAGES = 2;
+// The ink the server hands back with the pages; emptied once a round has
+// landed and the server has wiped what it delivered.
+let VIEW_INK = { 'doc/docs-stage1-pipeline-walkthrough/p2': [[[0.1, 0.1], [0.3, 0.4]]] };
 
 /* What a turn wrote at the bottom of the feedback file, which is the answer to
    *did it do what I asked*. */
@@ -209,7 +212,7 @@ window.fetch = (u, opts) => {
               '/paper/abc123-3.png'].slice(0, VIEW_PAGES),
       /* Marks already on this document, sent WITH the pages: this page holds
          no live payload to read them out of, because it opens no sitting. */
-      ink: { 'doc/docs-stage1-pipeline-walkthrough/p2': [[[0.1, 0.1], [0.3, 0.4]]] },
+      ink: VIEW_INK,
     }) });
   }
   if (/annotate\/save/.test(url)) {
@@ -571,6 +574,23 @@ const named = (title) => rows().filter(
     ? ok('with the page saying out loud which version they were drawn on')
     : fail('nothing says the ink is older than the document: '
            + doc.getElementById('reader-said').textContent);
+
+  // 6e3. SPENT INK LEAVES THE GLASS. Once the round lands the server deletes
+  //      the marks it delivered, and `Annotate.load` never takes a mark away --
+  //      so the reader drops any saved mark the server no longer hands back.
+  VIEW_INK = {};
+  STAMP = {
+    ok: true, stamp: 'all-2c',
+    documents: Object.assign({}, STAMP.documents,
+                             { 'docs-stage1-pipeline-walkthrough': 'a4' }),
+  };
+  await sleep(300);
+  !window.Annotate.marked().some((id) => /^doc\/docs-stage1-pipeline-walkthrough\//.test(id))
+    ? ok('ink the server wiped after a landed round is gone from the glass too')
+    : fail('wiped ink is still on the reader: ' + window.Annotate.marked().join(','));
+  !window.Annotate.unsaved().length
+    ? ok('and dropping it saves nothing back, so it cannot come back to life')
+    : fail('dropping wiped ink marked it unsaved: ' + window.Annotate.unsaved().join(','));
 
   // 6f. A DOCUMENT NOBODY TOUCHED IS NOT RE-DRAWN. A 33-page deck redrawn
   //     because a different document was built is the same defect the other way.

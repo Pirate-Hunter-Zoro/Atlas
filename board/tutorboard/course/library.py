@@ -472,6 +472,10 @@ def pages(repo, ident_wanted, width=paper.PAGE_WIDTH):
                            "to draw." % doc["title"])}
     out = paper.pages_of(repo, target, doc["stem"] + ".pdf", "library", width)
     if out.get("ok"):
+        try:
+            wipe_delivered(repo, doc)
+        except Exception:                                    # noqa: BLE001
+            pass
         out["ink"] = ink(repo, doc)
     return out
 
@@ -765,6 +769,40 @@ def carried(repo, doc, found, sent=None):
     return [m for m in found if not sent.get(m["key"])]
 
 
+def wipe_delivered(repo, doc, sent=None):
+    """Delete the ink a landed round delivered. Returns the keys that went.
+
+    A mark is spent once the revision it asked for came back: left on the
+    page, it sits over a slide that has already been changed, and on a deck
+    whose slides renumber it sits over the wrong one. So once the newest round
+    has landed (`last_round_landed`, and there must BE a round), every mark on
+    this document that a note carried (`sent`) goes, picture and all. Ink
+    drawn since is `sent: false` -- `/annotate/save` writes that on every
+    change -- and stays for the next round. A round that has not landed keeps
+    everything, so a retry is still a tap.
+    """
+    if not notes(repo.root, doc) or not last_round_landed(repo.root, doc):
+        return []
+    from ..lesson import notes as lesson_notes        # local: avoids a cycle
+    from ..server.routes import writing               # local: avoids a cycle
+
+    sent = lesson_notes.load_notes_sent(repo) if sent is None else sent
+    wanted = set(mark_idents(repo.root, doc))
+    gone = []
+    for key, was_sent in sent.items():
+        found = writing.ann_doc_page(key)
+        if not was_sent or not found or found[0] not in wanted:
+            continue
+        stem = os.path.join(repo.notes, writing.ann_file(key))
+        for ext in (".json", ".png"):
+            try:
+                os.remove(stem + ext)
+            except OSError:
+                continue
+        gone.append(key)
+    return gone
+
+
 def _handed_over(repo, found):
     """Record that these marks have gone to somebody, next to the marks.
 
@@ -930,6 +968,7 @@ def status(repo):
     except Exception:                                        # noqa: BLE001
         index = {}
     from ..lesson import notes as lesson_notes        # local: avoids a cycle
+    from ..server.routes import writing               # local: avoids a cycle
     try:
         sent = lesson_notes.load_notes_sent(repo)
     except Exception:                                        # noqa: BLE001
@@ -937,6 +976,17 @@ def status(repo):
     for doc in found:
         doc["iso"] = (time.strftime("%Y-%m-%d", time.localtime(doc["at"]))
                       if doc["at"] else "")
+        # SPENT INK GOES FIRST, so the counts below are of what is still on
+        # the page. `index` and `sent` were read before it, so they are pruned
+        # of what went rather than read again.
+        try:
+            for key in wipe_delivered(repo, doc, sent):
+                sent.pop(key, None)
+                got = writing.ann_doc_page(key)
+                if got and got[0] in index:
+                    index[got[0]].pop(got[1], None)
+        except Exception:                                    # noqa: BLE001
+            pass
         # HOW MUCH INK IS ON IT, because the page has to be able to say that
         # marks will go with the note -- somebody who drew on three pages and
         # then found an empty textarea refusing to send has been told their

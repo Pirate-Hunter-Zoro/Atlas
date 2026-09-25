@@ -577,6 +577,21 @@ function draw(doc, place) {
          pages: this page holds no live payload to read them out of, because
          it opens no sitting. KEPT ACROSS A RE-DRAW for the same reason -- the
          keys are `doc/<id>/p<n>` and are the document's, not this drawing's. */
+      /* SPENT INK GOES FROM THE GLASS TOO. Once a revision lands the server
+         deletes the marks it delivered (`library.wipe_delivered`), but `load`
+         never takes a mark away -- this device's copy wins -- so a saved mark
+         the server no longer has is dropped here. Unsaved ink is still being
+         drawn and is never touched. */
+      if (window.Annotate && window.Annotate.drop) {
+        var have = got.ink || {};
+        var owed = window.Annotate.unsaved();
+        var mine = "doc/" + doc.id + "/";
+        window.Annotate.marked().forEach(function (id) {
+          if (id.indexOf(mine) === 0 && !(id in have) && owed.indexOf(id) < 0) {
+            window.Annotate.drop(id);
+          }
+        });
+      }
       if (window.Annotate) window.Annotate.load(got.ink || {});
       /* HOW MANY PAGES THE INK WAS DRAWN ON. Taken the first time this document
          is drawn with marks on it, so a later re-draw can say out loud that the

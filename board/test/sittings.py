@@ -807,8 +807,18 @@ with open(first["path"], "a", encoding="utf-8") as fh:
 ink("doc/%s/p3" % fdoc["id"])            # slide 3 drawn on again
 library.forget()
 st = [d for d in library.status(repo)["documents"] if d["id"] == fdoc["id"]][0]
-check("the library counts only the slide drawn on since as waiting",
-      st["marks"]["pages"] == 2 and st["marks"]["waiting"] == 1)
+check("once the round lands, the slide whose ink it delivered is wiped, "
+      "and the slide drawn on since is all that is on the deck",
+      st["marks"]["pages"] == 1 and st["marks"]["waiting"] == 1)
+p2 = os.path.join(repo.notes, writing_route.ann_file("doc/%s/p2" % fdoc["id"]))
+p3 = os.path.join(repo.notes, writing_route.ann_file("doc/%s/p3" % fdoc["id"]))
+check("its record and its picture are gone from the drawer",
+      not os.path.exists(p2 + ".json") and not os.path.exists(p2 + ".png"))
+check("while ink drawn after the round is kept for the next one",
+      os.path.exists(p3 + ".json"))
+view = library.ink(repo, fdoc)
+check("and the reader is handed only the ink that is left",
+      list(view) == ["doc/%s/p3" % fdoc["id"]])
 second = library.write_note(repo, fdoc["id"], "")
 text = open(second["path"], encoding="utf-8").read()
 check("a second round leaves out a slide whose ink already went, and carries "
@@ -823,11 +833,11 @@ os.utime(os.path.join(fields, "writeups", fslug, fslug + ".pdf"),
          (time.time() - 3600, time.time() - 3600))
 library.forget()
 st = [d for d in library.status(repo)["documents"] if d["id"] == fdoc["id"]][0]
-check("after a round that did not land, every marked slide is waiting again",
-      st["marks"]["waiting"] == 2)
+check("after a round that did not land, its ink is kept and waiting again",
+      st["marks"]["waiting"] == 1 and os.path.exists(p3 + ".json"))
 third = library.write_note(repo, fdoc["id"], "")
 check("and the retry carries all of it rather than being refused",
-      third.get("ok") and third.get("marks") == 2)
+      third.get("ok") and third.get("marks") == 1)
 check("a PDF rebuilt after the note counts as the round coming back",
       (os.utime(os.path.join(fields, "writeups", fslug, fslug + ".pdf"), None)
        or True) and library.last_round_landed(fields, fdoc))
