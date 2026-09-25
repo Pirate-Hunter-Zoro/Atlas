@@ -788,7 +788,7 @@ are the suites.
   `board deckfig`, which takes only workspaces the brief lists and accepts a word from a file
   name where the id is not in the catalog. The catalog lists figures the ticked items mention
   first.
-- **Reading and ink.** The pen in both readers (library and `/meeting`) brings `web/annbar.js`: the board's annotation bar (pen, erase, select, copy/cut/paste/delete, undo, redo, clear) plus the slate's three nibs and any-colour well; its *done* is the pen switched off, and the page keeps its own save. "Read the deck" opens the library at `?doc=<id>`. Ink plus "say what is
+- **Reading and ink.** The pen in both readers (library and `/meeting`) brings `web/annbar.js`: the board's annotation bar (pen, erase, select, copy/cut/paste/delete, undo, redo, clear) plus the slate's three nibs and any-colour well; its *done* is the pen switched off, and the page keeps its own save. `web/viewpin.js` pins the reader bar and that tool bar to the visual viewport while the page is pinch-zoomed, because `position: fixed` follows the layout viewport and a zoomed slide otherwise hides every way to finish or send. "Read the deck" opens the library at `?doc=<id>`. Ink plus "say what is
   wrong" is an ordinary library revision, redrawn in place; `_revise` adds
   `sense.DECK_BRIEF_SENSE` when `_brief.md` sits beside the document. It never goes through
   `proposals.py`: the meeting deck's ink is direction, and this deck's ink is a revision.

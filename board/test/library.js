@@ -378,6 +378,27 @@ const named = (title) => rows().filter(
       ? ok('Select is the loop')
       : fail('Select left the tool at ' + window.Annotate.tool());
     window.Annotate.setTool('pen');
+
+    // Pinched in on a slide: both bars come onto the visible part of the glass.
+    const top = doc.getElementById('reader-bar');
+    window.visualViewport = { scale: 2, offsetLeft: 300, offsetTop: 200,
+                              width: 500, height: 350,
+                              addEventListener() {} };
+    window.ViewPin.update();
+    await sleep(40);
+    top.style.position === 'fixed' && top.style.top === '200px'
+      && top.style.left === '300px' && /scale\(0\.5\)/.test(top.style.transform)
+      && /scale\(0\.5\)/.test(bar.style.transform) && bar.style.top !== ''
+      ? ok('zoomed in, the reader bar and the tool bar are pinned to what is visible')
+      : fail('zoomed in, the bars stayed where the page put them: top '
+             + top.style.cssText + ' | tools ' + bar.style.cssText);
+    window.visualViewport.scale = 1;
+    window.ViewPin.update();
+    await sleep(40);
+    top.style.position === '' && bar.style.transform === ''
+      ? ok('and at no zoom the page places them as it always did')
+      : fail('the pin outlived the zoom: ' + top.style.cssText);
+    delete window.visualViewport;
   }
 
   sent.length = 0;

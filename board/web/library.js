@@ -622,6 +622,7 @@ function paintPen() {
   els.readerPen.classList.toggle("on", on);
   els.readerPen.textContent = on ? "✎ done marking" : "✎ mark it up";
   if (annBar) annBar.show(on);
+  if (window.ViewPin) window.ViewPin.update();
 }
 
 els.readerPen.onclick = function () {
@@ -640,6 +641,15 @@ function setPen(next) {
 var annBar = window.AnnBar && window.Annotate
   ? window.AnnBar.mount({ onDone: function () { setPen(false); } })
   : null;
+
+/* AND BOTH BARS STAY ON THE GLASS WHILE A SLIDE IS PINCHED -- see `viewpin.js`.
+   Zoomed in, they used to pan off with the page, and with them every way to
+   finish marking or send it. */
+if (window.ViewPin) {
+  window.ViewPin.pin(document.getElementById("reader-bar"),
+                     { edge: "top", spacer: document.getElementById("reader"), z: "5" });
+  if (annBar) window.ViewPin.pin(annBar.node, { edge: "bottom" });
+}
 
 /* Saved shortly after the pen lifts, never mid-stroke: serialising a
    well-marked page is real main-thread time, and it lands by construction in

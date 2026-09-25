@@ -89,7 +89,7 @@ window.Element.prototype.setPointerCapture = function () {};
 window.Element.prototype.releasePointerCapture = function () {};
 window.requestAnimationFrame = (fn) => setTimeout(fn, 0);
 
-for (const f of ['ink-clip.js', 'annotate.js', 'annbar.js']) {
+for (const f of ['ink-clip.js', 'annotate.js', 'annbar.js', 'viewpin.js']) {
   try { window.eval(fs.readFileSync(path.join(WEB, f), 'utf8')); }
   catch (e) { fail(f + ': ' + e.message); }
 }
