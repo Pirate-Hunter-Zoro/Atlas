@@ -1103,7 +1103,9 @@ DECK_BRIEF_SENSE = (
     "points at are yours to read for this. A figure its catalog lists and the deck does not "
     "have yet is fetched with `board deckfig %s <workspace id> <result id>`, "
     "which copies it into the deck's figures/ and prints the path to "
-    "\\includegraphics; open the image before using it. Something asked to "
+    "\\includegraphics; one the catalog does not list is found by giving a "
+    "word from its file name in place of the id. Open the image before using "
+    "it. Something asked to "
     "come OUT comes out. Keep one page per frame (no allowframebreaks): the next "
     "round of ink finds its slide by page number. "
 )

@@ -245,6 +245,8 @@ function paint(got) {
     return;
   }
 
+  openWanted();
+
   /* GROUPED BY DIRECTORY, because the directory is the group: four stems in
      `paper1-trd-prediction/` are one piece of work, and a flat list of fifty
      rows says nothing about which those four are. */
@@ -258,6 +260,28 @@ function paint(got) {
       els.list.appendChild(head);
     }
     els.list.appendChild(row(doc));
+  });
+}
+
+/* THE DOCUMENT THE CALLER CAME FOR, opened once. The front door's deck from
+   sittings lands here with `?doc=<id>`, because "Read the deck" that drops
+   somebody on a list of forty documents has made them find it. An id the list
+   does not have is a miss and opens nothing; asked once, so a reload of the
+   list does not reopen a reader somebody has closed. */
+var docAsked = null;
+
+function openWanted() {
+  if (docAsked === null) {
+    try { docAsked = new URLSearchParams(location.search).get("doc") || ""; }
+    catch (e) { docAsked = ""; }
+  }
+  if (!docAsked) return;
+  var want = docAsked;
+  docs.forEach(function (d) {
+    if (d.id === want && d.pdf && docAsked) {
+      docAsked = "";
+      read(d);
+    }
   });
 }
 
@@ -691,7 +715,7 @@ function say(doc, page) {
   els.noteSaid.hidden = true;
   els.notePage.hidden = !notePage;
   if (notePage) els.notePage.textContent = "about page " + notePage;
-  var ink = (doc.marks && doc.marks.pages) || 0;
+  var ink = inkWaiting(doc);
   els.noteMarks.hidden = !ink;
   if (ink) {
     els.noteMarks.textContent = "Your marks on " + ink
@@ -736,8 +760,17 @@ els.askRework.onclick = function () { setAsk("rework"); };
    on disk, so nothing has to be collected here -- the server reads them where
    it reads the text. An overhaul is live on its PURPOSE instead: the words are
    optional there and the sentence saying what the document is for is not. */
+/* HOW MANY MARKED PAGES A NOTE WOULD CARRY. Ink an earlier round delivered is
+   still drawn but does not go again -- `library.unsent` -- so the panel counts
+   the pages still waiting where the server says, and every marked page where
+   an older one does not. */
+function inkWaiting(doc) {
+  var m = (doc && doc.marks) || {};
+  return (typeof m.waiting === "number" ? m.waiting : m.pages) || 0;
+}
+
 function paintSend() {
-  var ink = (noteFor && noteFor.marks && noteFor.marks.pages) || 0;
+  var ink = inkWaiting(noteFor);
   els.noteSend.disabled = noteAsk === "rework"
     ? els.purpose.value.trim().length < PURPOSE_LEAST
     : !els.noteText.value.trim() && !ink;

@@ -158,6 +158,12 @@ for rel, text in tracked_markdown():
         m = re.search(r"\b(\w+)\s+famil(?:y|ies)\b", line, re.I)
         if not m:
             continue
+        # A SUBJECT'S OWN FAMILIES are not the atlas's: TRD-EHR's handoff says
+        # "24 subgroup levels across 8 families", which is statistics. Only a
+        # line about subgroups is let off; every other count is still audited,
+        # in every file.
+        if re.search(r"\bsubgroups?\b", line, re.I):
+            continue
         word = m.group(1).lower()
         said = WORDS.get(word, int(word) if word.isdigit() else None)
         if said is not None and said != families:

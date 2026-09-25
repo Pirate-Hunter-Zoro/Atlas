@@ -129,6 +129,14 @@
              drawn, for the reason `notes` is. -->
         <button id="atlas-doc" type="button"
                 title="a paper or a slide deck, in any workspace">paper or deck</button>
+        <!-- A DECK OUT OF WHAT PAST SITTINGS DID, in any workspace and from any
+             date. "I just want to be able to select from tutoring sessions what
+             we've done over all sessions and get to pick a list of the things I
+             want to include in the presentation." Not the meeting deck: no
+             one-slide-per-project rule, and ink on it is a correction rather
+             than a direction. Labelled, for the reason `notes` is. -->
+        <button id="atlas-sittings" type="button"
+                title="a slide deck from things done in past sittings, any workspace">slides from sittings</button>
       </div>
     </div>
     <p id="atlas-blurb" class="atlas-blurb" hidden></p>
@@ -301,6 +309,62 @@
       </button>
       <button id="doc-close" class="action" type="button">
         <span class="action-name">Not now</span>
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- SLIDES FROM SITTINGS: three steps in one sheet, and Back walks them in
+     reverse. Which sittings, from every workspace and every date; what they
+     did, all ticked, so the list is a chance to leave things out; and then the
+     deck being written, which this sheet watches until it is there.
+
+     THE TUTOR PLANS THE SLIDES. Nothing here says how many slides a thing
+     gets or which go together -- that was asked to be left to it -- and the
+     figures those sittings made are handed to it by the server rather than
+     picked here. The deck lands in the library of the workspace holding most
+     of what was ticked, where ink on a slide and "say what is wrong" redraw it
+     in place. -->
+<div id="sittings" class="sheet" hidden>
+  <div class="sheet-box" role="dialog" aria-modal="true" aria-labelledby="sittings-title">
+    <p class="eyebrow">Slides from sittings</p>
+    <h3 id="sittings-title">Which sittings?</h3>
+    <p class="sheet-line" id="sittings-line">Every sitting in every workspace,
+      newest first. Tick the ones the deck draws from.</p>
+
+    <!-- THE ONES ALREADY ASKED FOR, first, because a deck takes minutes and the
+         person who asked for one has usually closed this sheet since. -->
+    <div id="sittings-decks" class="sittings-decks" hidden>
+      <p class="sittings-head">Decks already made</p>
+      <div id="sittings-decks-list"></div>
+    </div>
+
+    <div id="sittings-pick" hidden>
+      <div id="sittings-list" class="notes-which sittings-list"></div>
+    </div>
+    <div id="sittings-what" hidden>
+      <div id="sittings-items" class="notes-which sittings-list"></div>
+    </div>
+
+    <p class="sheet-line" id="sittings-said" hidden></p>
+    <p class="sheet-line" id="sittings-how" hidden>In the reader, tap
+      ✎ mark it up, draw on a slide, tap ✎ done marking, then say what is
+      wrong and send it. The deck is redrawn in place.</p>
+    <button id="sittings-read" class="action primary" type="button" hidden>
+      <span class="action-name">Read the deck</span>
+      <span class="action-sub" id="sittings-read-sub"></span>
+    </button>
+    <div class="sheet-actions">
+      <button id="sittings-go" class="action primary" type="button" disabled>
+        <span class="action-name" id="sittings-go-name">Show what was done in 0 sittings</span>
+        <span class="action-sub" id="sittings-go-sub"></span>
+      </button>
+      <button id="sittings-back" class="action" type="button" hidden>
+        <span class="action-name">Back</span>
+        <span class="action-sub" id="sittings-back-sub"></span>
+      </button>
+      <button id="sittings-close" class="action" type="button">
+        <span class="action-name">Close</span>
       </button>
     </div>
   </div>

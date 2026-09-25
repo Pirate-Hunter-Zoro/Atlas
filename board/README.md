@@ -48,7 +48,7 @@ must be openable and teachable at every point.
   `board.css`, `plane-core.js`, `gauge.js`, `home.html`, `home.js`, `library.html`,
   `library.js`, `library.css`, anything added to the cache list), or the installed app
   serves its cached copy and the work is invisible.
-- **`bash test/all.sh` before every ship.** 98 suites, all green. `test/tracked.py` runs
+- **`bash test/all.sh` before every ship.** 100 suites, all green. `test/tracked.py` runs
   early — after the browser suites, before everything else — and refuses PHI, 25-megabyte files, model dumps, other authors' papers and
   machine-local config anywhere in the repository — this is public, and git remembers.
   The last of them is **Paper-Writer's own**, run where it is checked out and skipped
@@ -741,6 +741,66 @@ fatal LaTeX error and no PDF at all. URLs are lifted out before the escape pass 
 with only `#` and `%` escaped. And `md_to_tex` returns a string, not a list: `"\n".join()` on it
 joined its *characters* and produced a forty-page document one letter per line, which compiled
 perfectly.
+
+### Slides from sittings
+
+The front door's **slides from sittings** button makes a Beamer deck from past sittings in any
+workspace. `tutorboard/sittings.py` is the module; `test/sittings.py` and `test/sittingsheet.js`
+are the suites.
+
+- **Items.** `sittings.listing` sends every filed sitting plus the open one, all pickable;
+  the sheet folds a workspace's rows past `MOST_ROWS` behind "show N older sittings". Shells
+  are hidden, and consecutive sittings on the same chapter merge into one row. Windows are
+  half-open and a row starts no earlier than the previous row's end, so nothing is offered
+  twice. The items for a sitting are:
+  - its workspace's commits inside the window. A save is noise; a `<workspace>: …` prefix
+    is not, because only the words after it say whether it was a save;
+  - plan steps it finished (`finished_steps`): listed at the window's start and gone or
+    ticked at its end, compared by `_step_key` so a re-dated or renumbered step does not
+    count. A plan that lost more than half its steps (and more than two) was rewritten,
+    and offers none;
+  - bullets and paragraphs from the HANDOFF that sitting wrote (the file on disk for a
+    chapter's newest sitting, else the last revision committed inside the window), minus
+    what is about the student or the next move (`not_done`);
+  - "everything this sitting covered".
+
+  Items arrive ticked; each sitting has one "untick all of these".
+
+  Ids are matched against the listing, never joined onto paths. Each workspace's history is
+  read once per board and topped up from the last head, because a pathspec `git log` over a
+  course whose every save is a commit costs seconds.
+- **The deck's home.** It is filed at `writeups/deck-YYMMDD-HHMM/` in the library of the
+  workspace holding the most ticked items, except that a fenced workspace (PSYCH-ASR) hosts
+  any deck touching it (`host_for`). The `.tex` is tracked, and the push's PHI scan reads
+  only files under a fenced root. Ticks from two fenced workspaces are refused.
+- **The brief.** Before the turn starts, the server writes `_brief.md` and `_brief.json`. The
+  brief holds the ticked items, their sources, absolute paths to the sittings' cards, the
+  workspaces' fences, and a catalog of figures. The leading `_` keeps both out of the library.
+- **Figures.** The server copies the sittings' figures into `figures/<ws>--<id>`: first the
+  ones a sitting used (embedded in its cards, or named by a ticked item), then the ones written
+  in its window, 24 at most. They come only from `fenced.RESULT_DIRS` through `results.find`.
+  The deck folder's `.gitignore` keeps `figures/`, the PDF and the brief untracked, because
+  the repo is public.
+- **The turn.** The deck is written by a `[writeup]` turn dispatched through `/writeup`'s
+  helper, `_dispatch_writeup`. `sense.sittings_about` points it at the brief and fixes the
+  filename, because the front door finds the deck by it. It plans the slides itself, with no
+  one-slide-per-project rule, keeps one page per frame, and can pull another figure with
+  `board deckfig`, which takes only workspaces the brief lists and accepts a word from a file
+  name where the id is not in the catalog. The catalog lists figures the ticked items mention
+  first.
+- **Reading and ink.** "Read the deck" opens the library at `?doc=<id>`. Ink plus "say what is
+  wrong" is an ordinary library revision, redrawn in place; `_revise` adds
+  `sense.DECK_BRIEF_SENSE` when `_brief.md` sits beside the document. It never goes through
+  `proposals.py`: the meeting deck's ink is direction, and this deck's ink is a revision.
+- **Resending** (`library.carried`). A deck made from sittings carries only marks no earlier
+  round delivered, because its slides renumber when redrawn; a page drawn on again goes whole.
+  If the last round did not come back (no `## What was changed`, no PDF newer than the note),
+  every mark goes again. Every other document sends all its ink every round. Ink is recorded
+  as delivered only once the revision was actually asked.
+- **Ready** is the deck's own PDF. `writeups._landed` freezes `done` on the first document to
+  change, which is the `.tex` before it is built. **Did not land** (`_unbuilt`) is the host
+  having taken the ask (inbox line read) with no turn working now and the deck folder quiet
+  for `QUIET` seconds, or the two-hour ceiling; `why` says whether a `.tex` was written.
 
 ### Documents: annotate, export, write
 

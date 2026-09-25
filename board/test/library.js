@@ -646,6 +646,46 @@ const named = (title) => rows().filter(
     : fail('the library still sends the front door into a lesson: '
            + cameBack.getAttribute('href') + ' / ' + cameBack.textContent);
 
+  // 8c. AND IT OPENS THE DOCUMENT IT WAS SENT FOR. The front door's deck from
+  // sittings lands here with `?doc=<id>`; "Read the deck" that drops somebody
+  // on a list of documents has made them go and find it. An id the list does
+  // not have opens nothing.
+  const opener = (want) => {
+    const w = new JSDOM(fs.readFileSync(path.join(WEB, 'library.html'), 'utf8'), {
+      runScripts: 'outside-only', pretendToBeVisual: true,
+      url: 'https://board.test/library?from=home&doc=' + want,
+    });
+    const asked = [];
+    w.window.fetch = (u) => {
+      const url = String(u);
+      asked.push(url);
+      if (/library\.json/.test(url)) {
+        return Promise.resolve({ json: () => Promise.resolve(LIBRARY) });
+      }
+      return new Promise(() => {});
+    };
+    w.window.HTMLCanvasElement.prototype.getContext = () =>
+      new Proxy({}, { get: () => () => {}, set: () => true });
+    try { w.window.eval(fs.readFileSync(path.join(WEB, 'library.js'), 'utf8')); }
+    catch (e) { fail('library.js under ?doc=: ' + e.message); }
+    return { w: w, asked: asked };
+  };
+  const wanted = opener('writeups-batch-size-batch-size');
+  const missed = opener('writeups-not-a-deck');
+  await sleep(40);
+  const wd = wanted.w.window.document;
+  !wd.getElementById('reader').hidden
+    && wd.getElementById('reader-name').textContent === 'What the batch size costs'
+    && wanted.asked.some((u) => /library\/view\/writeups-batch-size-batch-size$/.test(u))
+    ? ok('?doc=<id> opens that document in the reader, the way a tap on its '
+         + 'row does')
+    : fail('?doc= did not open the document: '
+           + wd.getElementById('reader-name').textContent);
+  missed.w.window.document.getElementById('reader').hidden
+    && !missed.asked.some((u) => /library\/view\//.test(u))
+    ? ok('and an id the list does not have opens nothing')
+    : fail('?doc= with a miss opened something');
+
   const home = fs.readFileSync(path.join(WEB, 'home.js'), 'utf8');
   /\/library\?from=home/.test(home)
     ? ok('and the front door is what says so, on both routes in -- the one it '

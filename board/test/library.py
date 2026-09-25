@@ -265,7 +265,10 @@ check("marks handed over this way are recorded as sent, so the board stops "
       all(lesson_notes.load_notes_sent(repo).get(m["key"]) for m in found))
 check("and the payload says a document has been drawn on",
       [d["marks"] for d in library.status(repo)["documents"]
-       if d["id"] == marked["id"]] == [{"pages": 2, "strokes": 6}])
+       if d["id"] == marked["id"]] == [{"pages": 2, "strokes": 6, "waiting": 2}])
+# A DOCUMENT NOT MADE FROM SITTINGS SENDS ALL ITS INK EVERY ROUND, as it always
+# has: `waiting` is every marked page. Only a deck with a brief beside it keeps
+# ink an earlier round delivered behind -- test/sittings.py.
 
 # THE INK COMES BACK WITH THE PAGES. The library page opens no sitting and reads
 # no `state.json`, so it holds no live payload to restore marks out of -- the

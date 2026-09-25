@@ -44,6 +44,9 @@ The assistant runs these. The student never does.
                                        for it, one sentence each. Replaces the
                                        derived picture; re-checked on every read
     board map --show|--check           read it, or say what has gone stale in it
+    board deckfig writeups/<deck> <ws> <id>
+                                       copy one more figure into a deck made
+                                       from sittings; prints the path to use
     board aim [name]                   what THIS SITTING is for -- teach, build,
                                        coach, paper, slides -- changed in place.
                                        Nothing is archived and no tutor is
@@ -109,7 +112,7 @@ sys.path.insert(0, TOOL)
 from tutorboard import (assistants, atlas, brief, carry, direction, handoff,
                         keys, leaving, limits, machine, manuscript, meeting,
                         missions, paths, plain, ports, processes, progress,
-                        reasoning, seeing, sense, tex, worktree)
+                        reasoning, seeing, sense, sittings, tex, worktree)
 from tutorboard.net import egress, tailscale
 from tutorboard.course import config, document, homework, paper, review, walk
 # `map` is a builtin; the module keeps the name the board calls the thing and
@@ -1964,6 +1967,77 @@ def cmd_direction(live, args):
     return 0
 
 
+def cmd_deckfig(live, args):
+    """Copy one more figure into a deck made from sittings.
+
+        board deckfig writeups/<deck> <workspace id> <result id>
+
+    FOR A DECK WHOSE BRIEF LISTS IT. `_brief.md` beside the deck carries a
+    catalog of the figures the ticked workspaces have made, by workspace and
+    result id; this copies one of them into the deck's `figures/` as
+    `<workspace>--<id>.<ext>` and prints that path, relative to the deck, which
+    is what goes in `\\includegraphics` when the deck is built with `latexmk
+    -cd`. Open the image before you put it on a slide.
+
+    AN ID, OR A WORD FROM ITS NAME. The catalog is cut at its newest few
+    hundred, so a figure somebody inks for by name ("add the ROC curve") may not
+    be listed: a word that picks out exactly one figure in that workspace is
+    taken as that figure, and one that matches several lists them.
+
+    NAMES, NEVER PATHS. The workspace is one the deck's brief was made from, and
+    the id is one that workspace's results offer -- `results.find` resolves it and asks
+    the fence again before the file is opened -- and the deck is a directory
+    under this workspace's `writeups/` that holds `_brief.json`. Anything else
+    is refused, in a sentence.
+    """
+    if len(args) != 3:
+        print("board deckfig: say the deck, the workspace and the result id -- "
+              "board deckfig writeups/<deck> <workspace id> <result id>",
+              file=sys.stderr)
+        return 1
+    want_deck, want_ws, want_id = args
+    home = os.path.realpath(os.path.join(live.root, "writeups"))
+    deck = os.path.realpath(os.path.join(live.root, want_deck))
+    if os.path.dirname(deck) != home:
+        print("board deckfig: %s is not a deck directory directly under this "
+              "workspace's writeups/" % want_deck, file=sys.stderr)
+        return 1
+    if not os.path.isfile(os.path.join(deck, sittings.BRIEF_JSON)):
+        print("board deckfig: %s has no %s, so it is not a deck made from "
+              "sittings" % (want_deck, sittings.BRIEF_JSON), file=sys.stderr)
+        return 1
+    ws = None
+    for w in atlas.workspaces():
+        if want_ws in (w["id"], w["dir"]):
+            ws = w
+            break
+    if not ws:
+        print("board deckfig: %s is not a workspace in this repository"
+              % want_ws, file=sys.stderr)
+        return 1
+    allowed = sittings.drawn_from(deck)
+    if ws["id"] not in allowed:
+        print("board deckfig: this deck was made from %s, not %s -- a figure "
+              "comes from a workspace the deck is about"
+              % (", ".join(allowed) or "no workspace", ws["id"]), file=sys.stderr)
+        return 1
+    rid = sittings.figure_named(ws["root"], want_id)
+    if isinstance(rid, list):
+        print("board deckfig: %s matches %s in %s -- say one of those ids"
+              % (want_id, ", ".join(rid), ws["id"]) if rid else
+              "board deckfig: %s offers no figure called %s -- the ids are in "
+              "the brief's catalog, and a word from the file's name finds one "
+              "that is not listed" % (ws["id"], want_id), file=sys.stderr)
+        return 1
+    got = sittings.snapshot(ws["root"], rid, ws["id"], deck)
+    if not got:
+        print("board deckfig: %s offers no figure called %s -- the ids are in "
+              "the brief's catalog" % (ws["id"], want_id), file=sys.stderr)
+        return 1
+    print(got)
+    return 0
+
+
 def cmd_aim(live, args):
     """What THIS SITTING is for, changed without losing the lesson.
 
@@ -3579,7 +3653,7 @@ COMMANDS = {
     "brief": cmd_brief, "note": cmd_note, "handoff": cmd_handoff,
     "step": cmd_step,
     "map": cmd_map, "notes": cmd_notes, "make": cmd_make,
-    "direction": cmd_direction, "aim": cmd_aim,
+    "direction": cmd_direction, "aim": cmd_aim, "deckfig": cmd_deckfig,
 }
 
 

@@ -707,6 +707,64 @@ def marks(repo, doc, index=None):
     return out
 
 
+# The file beside a deck made from sittings that says what it covers. Named here
+# rather than imported from `sittings`, which imports this module.
+DECK_BRIEF = "_brief.md"
+
+
+def from_sittings(root, doc):
+    """Is this a deck made from sittings -- its brief beside it?"""
+    where = (doc or {}).get("dir") or ""
+    return bool(where) and os.path.isfile(
+        os.path.join(root, *(where.split("/") + [DECK_BRIEF])))
+
+
+def last_round_landed(root, doc):
+    """Did the newest round of feedback on this document come back?
+
+    Yes where there is no round yet; where the turn wrote its `## What was
+    changed` under the note, which is the last thing a revision does; or where
+    the PDF was rebuilt after the note was written. A round whose turn died, or
+    whose build failed, is none of those.
+    """
+    rounds = notes(root, doc)
+    if not rounds:
+        return True
+    path = os.path.join(feedback_dir(root, doc), rounds[-1]["name"])
+    try:
+        with open(path, "r", encoding="utf-8", errors="replace") as fh:
+            if "## What was changed" in fh.read(NOTE_BYTES):
+                return True
+    except OSError:
+        return True
+    pdf = path_of(root, doc, ".pdf")
+    return bool(pdf) and _mtime(pdf) >= _mtime(path)
+
+
+def carried(repo, doc, found, sent=None):
+    """The marks in `found` that the next note on `doc` carries.
+
+    EVERY MARK, for every document but one kind -- the rule this library has
+    always had, and a paper's reader has never asked for another.
+
+    A DECK MADE FROM SITTINGS carries only ink no round has delivered once the
+    last round came back (`last_round_landed`). Its slides are redrawn in place
+    and renumber, so a ring that already produced a revision, sent again, points
+    at whatever slide now sits under it. `/annotate/save` writes `sent: false`
+    every time a page's ink changes, so a slide drawn on again is back in,
+    whole. And where the last round did NOT come back -- the turn died, the
+    build failed, nothing could be asked -- everything goes again, so a retry
+    is a tap rather than a redrawing.
+    """
+    if not found or not from_sittings(repo.root, doc) \
+            or not last_round_landed(repo.root, doc):
+        return list(found)
+    from ..lesson import notes as lesson_notes        # local: avoids a cycle
+
+    sent = lesson_notes.load_notes_sent(repo) if sent is None else sent
+    return [m for m in found if not sent.get(m["key"])]
+
+
 def _handed_over(repo, found):
     """Record that these marks have gone to somebody, next to the marks.
 
@@ -761,7 +819,8 @@ def clean_ask(ask):
     return want if want in ASKS else "revise"
 
 
-def write_note(repo, ident_wanted, text, page=0, ask="revise", purpose=""):
+def write_note(repo, ident_wanted, text, page=0, ask="revise", purpose="",
+               hand_over=True):
     """One round of feedback on one document. Returns a record to paint.
 
     The note says which document and which page it is about, because it is read
@@ -772,7 +831,13 @@ def write_note(repo, ident_wanted, text, page=0, ask="revise", purpose=""):
     caption is a complaint, and refusing the note for an empty textarea would be
     the board asking somebody to type out what they have already drawn. The ink
     goes into the note as the pages it is on and the picture of each, because
-    the strokes are coordinates and the image is what a reader can open.
+    the strokes are coordinates and the image is what a reader can open. Which
+    ink goes is `carried`'s: all of it, except on a deck made from sittings
+    whose last round came back, where ink already acted on stays behind.
+
+    `hand_over` records the ink as delivered here. The route passes False and
+    records it only once the revision was actually asked (`hand_over`), so a
+    note written beside an ask that failed leaves the ink to go again.
 
     A REWORK IS THE SAME FILE AND THE SAME ROUNDS. It is a longer turn rather
     than a different kind of record, so it lands where a correction lands and is
@@ -786,7 +851,7 @@ def write_note(repo, ident_wanted, text, page=0, ask="revise", purpose=""):
     ask = clean_ask(ask)
     said = (text or "").strip()
     aim = (purpose or "").strip()
-    found = marks(repo, doc)
+    found = carried(repo, doc, marks(repo, doc))
     if ask == "rework" and len(aim) < PURPOSE_LEAST:
         return {"ok": False,
                 "error": "say what the document is FOR now, in a sentence -- an "
@@ -837,13 +902,20 @@ def write_note(repo, ident_wanted, text, page=0, ask="revise", purpose=""):
             fh.write("\n".join(head))
     except OSError as exc:
         return {"ok": False, "error": "could not write %s: %s" % (target, exc)}
-    _handed_over(repo, found)
+    if hand_over:
+        _handed_over(repo, found)
     forget()
     return {"ok": True, "document": doc["id"], "path": target,
             "rel": os.path.relpath(target, root).replace(os.sep, "/"),
             "made": doc["made"], "title": doc["title"],
             "ask": ask, "purpose": aim,
-            "marks": len(found)}
+            "marks": len(found), "keys": [m["key"] for m in found]}
+
+
+def hand_over(repo, keys):
+    """Record the marks under these keys as delivered. `write_note`'s `keys`,
+    once the round they went with has been asked for."""
+    _handed_over(repo, [{"key": k} for k in keys or [] if isinstance(k, str)])
 
 
 def status(repo):
@@ -857,6 +929,11 @@ def status(repo):
         index = marked_pages(repo)
     except Exception:                                        # noqa: BLE001
         index = {}
+    from ..lesson import notes as lesson_notes        # local: avoids a cycle
+    try:
+        sent = lesson_notes.load_notes_sent(repo)
+    except Exception:                                        # noqa: BLE001
+        sent = {}
     for doc in found:
         doc["iso"] = (time.strftime("%Y-%m-%d", time.localtime(doc["at"]))
                       if doc["at"] else "")
@@ -868,7 +945,14 @@ def status(repo):
             ink = marks(repo, doc, index=index)
         except Exception:                                    # noqa: BLE001
             ink = []
+        # AND HOW MUCH OF IT A NOTE WOULD CARRY, which is what the send button
+        # is live on -- `carried`, so the count and the note cannot disagree.
+        try:
+            waiting = len(carried(repo, doc, ink, sent))
+        except Exception:                                    # noqa: BLE001
+            waiting = len(ink)
         doc["marks"] = {"pages": len(ink),
-                        "strokes": sum(m["strokes"] for m in ink)}
+                        "strokes": sum(m["strokes"] for m in ink),
+                        "waiting": waiting}
     return {"workspace": atlas.identify(root), "documents": found,
             "writeups": WRITEUPS}

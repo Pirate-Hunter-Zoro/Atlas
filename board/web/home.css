@@ -353,7 +353,9 @@ main { max-width: 46rem; }
   background: var(--paper);
 }
 .atlas-head h2 { margin: 0; flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; }
-.atlas-tools { display: flex; gap: .3rem; flex: none; }
+/* THREE PILLS WRAP rather than pushing the heading off a narrow split. */
+.atlas-tools { display: flex; flex-wrap: wrap; justify-content: flex-end;
+  gap: .3rem; flex: 0 1 auto; }
 .atlas-tools button {
   font-family: var(--ui); font-size: .72rem; line-height: 1;
   padding: .35rem .6rem;
@@ -679,3 +681,55 @@ main { max-width: 46rem; }
 /* A dozen workspaces is longer than the sheet, and the way out of the sheet is
    under them. */
 .doc-scroll { max-height: 46vh; overflow: auto; }
+
+/* A FINGER IS NOT A CURSOR. The three pills are a 23px target at desktop
+   size; on a touch screen they are the 44pt the guideline asks for. */
+@media (pointer: coarse) {
+  .atlas-tools button { min-height: 44px; padding: .5rem .8rem; }
+}
+
+/* ---------- slides from sittings ----------
+   The deck's own rows, reused: a tick, a name, and what each one holds. What
+   is added is a heading per workspace -- a list of forty sittings is only
+   readable grouped by where they were -- and the line under an item saying
+   where it came from. No colour of its own, for the reason `.doc-picks` has
+   none. */
+.sittings-list .sittings-group {
+  margin: .7rem 0 .1rem; font-family: var(--ui); font-size: .72rem;
+  font-weight: 620; letter-spacing: .04em; text-transform: uppercase;
+  color: var(--ink-3);
+}
+.sittings-list .sittings-group:first-child { margin-top: 0; }
+/* The fold and the tick-all are quiet text buttons, not rows: nothing about
+   them is a thing that goes in the deck. Tall enough for a finger. */
+.sittings-list button.sittings-more,
+.sittings-list button.sittings-all {
+  display: block; justify-self: start; width: auto; min-height: 2.2rem;
+  margin: .1rem 0 .2rem;
+  padding: .3rem 0; border: 0; background: none; cursor: pointer;
+  font-family: var(--ui); font-size: .78rem; color: var(--ink-2);
+  text-decoration: underline; text-underline-offset: .15em;
+}
+.sittings-deck .sittings-text .what { display: block; margin: .15rem 0 0;
+  font-size: .78rem; color: var(--ink-3); }
+.sittings-list button { align-items: flex-start; }
+.sittings-list .sittings-text { flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; }
+.sittings-list .sittings-text .what { display: block; margin: .15rem 0 0; }
+.sittings-decks { margin-top: .9rem; }
+.sittings-head {
+  margin: 0 0 .3rem; font-family: var(--ui); font-size: .72rem;
+  font-weight: 620; letter-spacing: .04em; text-transform: uppercase;
+  color: var(--ink-3);
+}
+.sittings-deck {
+  display: flex; align-items: center; gap: .6rem;
+  padding: .45rem 0; border-top: 1px solid var(--rule);
+  font-family: var(--ui); font-size: .84rem;
+}
+.sittings-deck .sittings-text { flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; }
+.sittings-deck.bad .sittings-state { color: var(--accent); }
+.sittings-deck button {
+  font: inherit; font-size: .8rem; flex: none; cursor: pointer;
+  padding: .4rem .7rem; color: var(--ink); background: var(--paper);
+  border: 1px solid var(--rule); border-radius: .4rem;
+}
