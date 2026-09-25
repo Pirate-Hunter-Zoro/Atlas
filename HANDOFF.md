@@ -80,7 +80,7 @@ thing, and only the person holding the iPad can strike those.
 
 ## Before anything
 
-- `bash board/test/all.sh` — 98 suites, about twelve minutes. Green before and
+- `bash board/test/all.sh` — 100 suites, about twelve minutes. Green before and
   after.
   The last of them is Paper-Writer's own, run where it is checked out, so the
   factory's tests are part of the board's habit rather than a second one nobody
