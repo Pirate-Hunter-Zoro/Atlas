@@ -534,6 +534,50 @@ function png(id) {
   try { return out.toDataURL("image/png"); } catch (e) { return ""; }
 }
 
+/* The ink OVER WHAT IT WAS DRAWN ON, for a page of a document.
+
+   `png` is the ink alone, cropped, because on a card the tutor already has the
+   words. A slide is a picture the tutor does not have in front of it, and a
+   ring with nothing under it says nothing about what it rings. So this draws
+   the page image first, at its native resolution, and the ink over it in the
+   colours it was drawn in -- the whole page, widened to take in any mark that
+   strays past its edge. `img` is the page's own <img>, already loaded. */
+function pictureOver(id, img) {
+  var src = nodeFor(id);
+  if (!src || !img || !img.naturalWidth) return "";
+  var live = src.querySelector("canvas." + LAYER);
+  if (!live || !live._w) return "";
+  var strokes = (store[id] || []).filter(function (s) { return s.p && s.p.length >= 2; });
+  if (!strokes.length) return "";
+  var r = src.getBoundingClientRect(), ir = img.getBoundingClientRect();
+  if (!ir.width || !ir.height) return "";
+  /* The image in the layer's own coordinates: the layer's origin is the
+     node's, pushed out by its padding. */
+  var ix = (live._pl || 0) + ir.left - r.left, iy = (live._pt || 0) + ir.top - r.top;
+  var box = { x0: ix, y0: iy, x1: ix + ir.width, y1: iy + ir.height };
+  strokes.forEach(function (s) { box = grow(box, bboxOf(s, live)); });
+  var all = boxOf(live);
+  var x0 = Math.max(all.x0, Math.floor(box.x0 - 6)), y0 = Math.max(all.y0, Math.floor(box.y0 - 6));
+  var x1 = Math.min(all.x1, Math.ceil(box.x1 + 6)), y1 = Math.min(all.y1, Math.ceil(box.y1 + 6));
+  if (x1 <= x0 || y1 <= y0) return "";
+  var k = Math.min(2.5, Math.max(1, img.naturalWidth / ir.width));
+  var out = document.createElement("canvas");
+  out.width = Math.round((x1 - x0) * k);
+  out.height = Math.round((y1 - y0) * k);
+  var ctx = out.getContext("2d");
+  if (!ctx) return "";
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(0, 0, out.width, out.height);
+  ctx.setTransform(k, 0, 0, k, -x0 * k, -y0 * k);
+  try { ctx.drawImage(img, ix, iy, ir.width, ir.height); } catch (e) { return ""; }
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+  strokes.forEach(function (s) {
+    paint(ctx, s, pathOf(s, live), s.c || pen.colour, 1.4);
+  });
+  try { return out.toDataURL("image/png"); } catch (e) { return ""; }
+}
+
 /* Undo has to cover erasing and clearing too, not just strokes, or the eraser is
    a one-way door over the tutor's own words.
 
@@ -2044,6 +2088,8 @@ window.Annotate = {
     draw(nodeFor(id));
     onChange();
   },
+  /* One page's ink over the page itself, for a note about a document. */
+  picture: function (id, img) { return pictureOver(id, img); },
   payload: function (id, send) {
     /* The picture ONLY when it is actually going to the tutor.
 

@@ -792,6 +792,7 @@ are the suites.
   wrong" is an ordinary library revision, redrawn in place; `_revise` adds
   `sense.DECK_BRIEF_SENSE` when `_brief.md` sits beside the document. It never goes through
   `proposals.py`: the meeting deck's ink is direction, and this deck's ink is a revision.
+- **The note's pictures.** An autosave carries no image (`Annotate.payload` makes one only for a send), so at *send it* the reader re-saves each marked page of the open document with `Annotate.picture`, the page image with the ink over it in its own colours, and files the note after. Without it every mark reads "no image was saved" to the turn.
 - **Spent ink is wiped** (`library.wipe_delivered`). Once a document's newest round has landed, every mark a note delivered on it (`sent`) is deleted, record and picture, on the next `/library.json` or `/library/view`; ink drawn since is `sent: false` and stays. A round that has not landed keeps everything. The reader drops any saved mark the view no longer hands back (`Annotate.drop`), because `Annotate.load` never takes one away.
 - **Resending** (`library.carried`). A deck made from sittings carries only marks no earlier
   round delivered, because its slides renumber when redrawn; a page drawn on again goes whole.

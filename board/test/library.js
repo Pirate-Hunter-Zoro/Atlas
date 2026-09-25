@@ -459,8 +459,29 @@ const named = (title) => rows().filter(
   const box = doc.getElementById('note-text');
   box.value = 'The batch-size arithmetic is out by a factor of two.';
   box.dispatchEvent(new window.Event('input', { bubbles: true }));
+  // A real stroke on page 2, and a page image with a size, so the picture of
+  // the page with its ink over it can be made.
+  const P2 = 'doc/docs-stage1-pipeline-walkthrough/p2';
+  window.Annotate.drop(P2);
+  window.Annotate.load({ [P2]: [{ c: '#e8746c', w: 2, p: [0.1, 0.1, 0.3, 0.4] }] });
+  const img2 = doc.querySelector('.lib-page[data-page="2"] img');
+  Object.defineProperty(img2, 'naturalWidth', { value: 1600 });
+  img2.getBoundingClientRect = () => ({ left: 0, top: 0, width: 800, height: 450,
+                                        right: 800, bottom: 450 });
   tap(doc.getElementById('note-send'));
-  await sleep(20);
+  await sleep(60);
+  const pic = sent.findIndex((r) => /annotate\/save/.test(r.url)
+    && JSON.parse(r.opts.body || '{}').card === P2
+    && /^data:image\/png/.test(JSON.parse(r.opts.body || '{}').png || ''));
+  const filed = sent.findIndex((r) => /library\/feedback/.test(r.url));
+  pic >= 0 && filed > pic
+    ? ok('each marked page is saved with a picture of it before the note goes, '
+         + 'so the turn has an image to open')
+    : fail('no page picture went ahead of the note: '
+           + sent.map((r) => r.url).join(' '));
+  pic >= 0 && JSON.parse(sent[pic].opts.body).send === false
+    ? ok('and the picture is a save, never a turn of its own')
+    : fail('the page picture was sent as a turn');
   const post = sent.filter((r) => /library\/feedback/.test(r.url))[0];
   if (!post) {
     fail('the feedback was never sent');

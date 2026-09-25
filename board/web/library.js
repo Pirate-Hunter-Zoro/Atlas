@@ -666,6 +666,34 @@ if (window.ViewPin) {
   if (annBar) window.ViewPin.pin(annBar.node, { edge: "bottom" });
 }
 
+/* Each marked page of `docId`, saved with a picture of the page and its ink
+   (`Annotate.picture`), so the note's "open the image" has an image to open.
+   A page not drawn in the reader has no picture to make and is left alone:
+   its strokes are already on disk. Never a send -- the note is the send. */
+function savePictures(docId) {
+  if (!window.Annotate || !window.Annotate.picture || !openDoc
+      || openDoc.id !== docId) return Promise.resolve([]);
+  var mine = "doc/" + docId + "/p";
+  var jobs = window.Annotate.marked().filter(function (id) {
+    return id.indexOf(mine) === 0;
+  }).map(function (id) {
+    var n = id.slice(mine.length);
+    var fig = els.readerPages.querySelector('.lib-page[data-page="' + n + '"]');
+    var img = fig && fig.querySelector("img");
+    var png = img ? window.Annotate.picture(id, img) : "";
+    if (!png) return Promise.resolve(null);
+    var body = window.Annotate.payload(id, false);
+    body.png = png;
+    return fetch("/annotate/save", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "same-origin",
+      body: JSON.stringify(body)
+    }).catch(function () { return null; });
+  });
+  return Promise.all(jobs);
+}
+
 /* Saved shortly after the pen lifts, never mid-stroke: serialising a
    well-marked page is real main-thread time, and it lands by construction in
    the middle of the next stroke. The board's own autosave holds the same rule
@@ -870,7 +898,13 @@ els.noteSend.onclick = function () {
   var forDoc = noteFor.id;
   els.noteSend.disabled = true;
   els.noteSend.textContent = asked === "rework" ? "overhauling…" : "sending…";
-  fetch("/library/feedback", {
+  /* THE PICTURES GO FIRST. The note tells the turn to open each page's image,
+     and an autosave never carries one (`Annotate.payload` makes it only for a
+     send). So each marked page of the open document is saved once more with
+     its ink drawn over the page itself, and only then is the note filed. */
+  savePen().then(function () { return savePictures(forDoc); },
+                 function () { return savePictures(forDoc); })
+  .then(function () { return fetch("/library/feedback", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     credentials: "same-origin",
@@ -879,7 +913,7 @@ els.noteSend.onclick = function () {
        is, and `purpose` is what an overhaul is written to. */
     body: JSON.stringify({ document: forDoc, text: said, page: notePage,
                            ask: asked, purpose: aim })
-  }).then(function (r) {
+  }); }).then(function (r) {
     return r.json().catch(function () { return {}; });
   }).then(function (got) {
     els.noteSaid.hidden = false;
