@@ -621,15 +621,25 @@ function paintPen() {
   els.readerPen.disabled = !window.Annotate || !openPages;
   els.readerPen.classList.toggle("on", on);
   els.readerPen.textContent = on ? "✎ done marking" : "✎ mark it up";
+  if (annBar) annBar.show(on);
 }
 
 els.readerPen.onclick = function () {
   if (!window.Annotate) return;
-  var next = !window.Annotate.isOn();
+  setPen(!window.Annotate.isOn());
+};
+
+function setPen(next) {
   window.Annotate.setOn(next);
   if (!next) savePen();
   paintPen();
-};
+}
+
+/* THE BOARD'S OWN TOOLS, on the page. Pen, eraser, loop, clipboard, colours,
+   nibs and undo, built by `annbar.js`; its "done" is this switch turned off. */
+var annBar = window.AnnBar && window.Annotate
+  ? window.AnnBar.mount({ onDone: function () { setPen(false); } })
+  : null;
 
 /* Saved shortly after the pen lifts, never mid-stroke: serialising a
    well-marked page is real main-thread time, and it lands by construction in

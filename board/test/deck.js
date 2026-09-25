@@ -89,7 +89,7 @@ window.Element.prototype.setPointerCapture = function () {};
 window.Element.prototype.releasePointerCapture = function () {};
 window.requestAnimationFrame = (fn) => setTimeout(fn, 0);
 
-for (const f of ['ink-clip.js', 'annotate.js']) {
+for (const f of ['ink-clip.js', 'annotate.js', 'annbar.js']) {
   try { window.eval(fs.readFileSync(path.join(WEB, f), 'utf8')); }
   catch (e) { fail(f + ': ' + e.message); }
 }
@@ -120,6 +120,32 @@ catch (e) { fail('meeting.js: ' + e.message); }
          + 'because the page is how a mark finds its project')
     : fail('captions: ' + pages.map(
         (p) => p.querySelector('figcaption').textContent).join(' | '));
+
+  // 2b. The pen brings the board's own tools, and "done" puts them away.
+  {
+    const click = (n) => n.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+    const pen = doc.getElementById('reader-pen');
+    const bar = doc.querySelector('.annbar-doc');
+    bar && bar.hidden
+      ? ok('the tool bar is away until the pen is asked for')
+      : fail('the tool bar is missing or showing with the pen off');
+    click(pen);
+    const names = bar ? Array.prototype.map.call(bar.querySelectorAll('button'),
+      (b) => b.textContent) : [];
+    !bar.hidden && ['Pen', 'Erase', 'Select', 'Copy', 'Paste', '↶', 'done']
+      .every((t) => names.includes(t))
+      ? ok('a slide gets the board\'s pen, eraser, loop, clipboard and undo')
+      : fail('the slide\'s tool bar: ' + names.join(','));
+    click(bar.querySelector('.ann-ink[data-ink="#6fc3f7"]'));
+    window.Annotate.colour() === '#6fc3f7'
+      ? ok('and its colours')
+      : fail('blue did not take: ' + window.Annotate.colour());
+    click(Array.prototype.find.call(bar.querySelectorAll('button'),
+      (b) => b.textContent === 'done'));
+    !window.Annotate.isOn() && bar.hidden && /mark it up/.test(pen.textContent)
+      ? ok('done on the bar is the pen switched off')
+      : fail('done left the pen on, or the bar up');
+  }
 
   // 3. Nothing to send until something is marked.
   const send = doc.getElementById('deck-send');

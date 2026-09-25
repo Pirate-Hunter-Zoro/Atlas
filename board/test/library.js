@@ -354,6 +354,32 @@ const named = (title) => rows().filter(
     ? ok('one tap turns it on, and the button says which state it is in')
     : fail('the pen did not come on');
 
+  {
+    const bar = doc.querySelector('.annbar-doc');
+    const has = (t) => bar && Array.prototype.some.call(bar.querySelectorAll('button'),
+      (b) => b.textContent === t);
+    bar && !bar.hidden && ['Pen', 'Erase', 'Select', 'Copy', 'Cut', 'Paste', 'Delete',
+      '↶', '↷', 'clear', 'done', 'Fine', 'Medium', 'Broad'].every(has)
+      ? ok('the pen brings the board\'s own tools: loop, clipboard, eraser, nibs, undo')
+      : fail('the reader\'s tool bar is missing or short: '
+             + (bar ? bar.textContent : 'no bar'));
+    const red = bar && bar.querySelector('.ann-ink[data-ink="#e8746c"]');
+    if (red) tap(red);
+    window.Annotate.colour() === '#e8746c'
+      ? ok('a colour on the bar is the colour the next stroke is drawn in')
+      : fail('the red ink did not take: ' + window.Annotate.colour());
+    bar && bar.querySelector('.ann-custom input[type="color"]')
+      ? ok('and any colour at all, from the slate\'s own well')
+      : fail('there is no any-colour well');
+    const sel = Array.prototype.find.call(bar ? bar.querySelectorAll('button') : [],
+      (b) => b.textContent === 'Select');
+    if (sel) tap(sel);
+    window.Annotate.tool() === 'lasso'
+      ? ok('Select is the loop')
+      : fail('Select left the tool at ' + window.Annotate.tool());
+    window.Annotate.setTool('pen');
+  }
+
   sent.length = 0;
   window.Annotate.setPen('#e0b45c', 2);
   window.Annotate.clear('doc/docs-stage1-pipeline-walkthrough/p1');

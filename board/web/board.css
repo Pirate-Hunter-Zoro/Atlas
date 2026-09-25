@@ -1841,6 +1841,20 @@ body.papering .annbar { z-index: 96; }
   border: 2px solid transparent;
 }
 .annbar .ann-ink.on { border-color: var(--ink); }
+/* The document readers' bar (`annbar.js`) adds the slate's nibs and its
+   any-colour well. */
+.ann-nibs { display: inline-flex; gap: .25rem; align-items: center; }
+.annbar .ann-nib.on { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+.annbar .ann-custom {
+  position: relative; display: inline-block; overflow: hidden; cursor: pointer;
+  width: 1.35rem; height: 1.35rem; border-radius: 50%;
+  border: 2px dashed var(--ink-2);
+}
+.annbar .ann-custom.on { border-style: solid; border-color: var(--ink); }
+.annbar .ann-custom input {
+  position: absolute; inset: 0; width: 100%; height: 100%;
+  opacity: 0; border: 0; padding: 0; cursor: pointer;
+}
 /* The clip controls, which appear and disappear as a loop is drawn and let go.
    They are a group so the bar wraps them as one rather than leaving Delete
    alone on a second line. */
