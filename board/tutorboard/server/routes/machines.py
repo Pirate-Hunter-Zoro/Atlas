@@ -892,11 +892,27 @@ def post(h, repo, path):
         if code != 0:
             return h.send_json({"ok": False, "error": out.strip()[-300:]},
                                   status=500)
-        vcode, _ = spawn.board_cli(target, ["vpn", "serve"])
+        vcode, vout = spawn.board_cli(target, ["vpn", "serve"])
         # The assistant follows the course.
         acode, aout = spawn.tutor_cli(["agent", "start", match["repo"]])
+        # WHERE THE OPENED BOARD ANSWERS, for a page that is not on the address.
+        # A page loaded off a board's own port -- `http://<name>:8937/` -- sees
+        # that board whatever the address points at, so re-pointing the address
+        # is invisible to it and its poll of its own `/health` never lands.
+        # Given the port and the name, it can go there instead.
+        port = None
+        try:
+            with open(os.path.join(target, "live", ".board.json"), "r",
+                      encoding="utf-8") as fh:
+                port = int(json.load(fh).get("port"))
+        except (OSError, ValueError, TypeError):
+            pass
         return h.send_json({"ok": True, "repo": match["repo"],
                                "address": vcode == 0,
+                               "address_error": None if vcode == 0
+                               else vout.strip()[-300:],
+                               "host": tailscale.tailnet_self() or "",
+                               "port": port,
                                "detail": out.strip(),
                                "agent": aout.strip() if acode == 0 else None,
                                "agent_error": None if acode == 0 else aout.strip()[-300:]})

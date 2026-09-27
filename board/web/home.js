@@ -2070,6 +2070,18 @@ function switchTo(repo, addr, page) {
     body: JSON.stringify({ repo: repo })
   }).then(function (r) { return r.json(); }).then(function (res) {
     if (!res.ok) throw new Error(res.error || "switch failed");
+    var to = page || (addr ? "/board" + addr : "/");
+    /* OFF THE ADDRESS, THE ADDRESS MOVING IS INVISIBLE. A page loaded from a
+       board's own port answers as that board whatever the address points at,
+       so waiting for it to change is 45 seconds and a reload back into the
+       workspace being left -- "I just get bounced back to the home screen".
+       Go where the opened board answers instead. */
+    var away = elsewhere(res, to);
+    if (away) { location.href = away; return new Promise(function () {}); }
+    if (res.address === false) {
+      throw new Error("the address could not be moved: "
+                      + (res.address_error || "no reason given"));
+    }
     return waitForAddress(repo, Date.now());
   }).then(function () {
     /* Landed or not, this goes to the lesson. The board re-pointed the address
@@ -2082,6 +2094,22 @@ function switchTo(repo, addr, page) {
     showBusy("could not open " + repo, e.message || String(e));
     moving = null;
   });
+}
+
+/* The URL of `to` on the board a switch just opened, or "" when this page is
+   already on the address and the ordinary wait is right. On this machine
+   (`127.0.0.1`, a tunnel) the opened board's own port is the way there; from
+   anywhere else it is the one HTTPS name, which the switch has just pointed at
+   it. */
+function elsewhere(res, to) {
+  var here = location.hostname;
+  var onAddress = location.protocol === "https:" && !location.port
+                  && (!res.host || here === res.host);
+  if (onAddress) return "";
+  if (here === "127.0.0.1" || here === "localhost" || !res.host) {
+    return res.port ? location.protocol + "//" + here + ":" + res.port + to : "";
+  }
+  return "https://" + res.host + to;
 }
 
 /* Which course is answering at this address RIGHT NOW. Asking is the only
