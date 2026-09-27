@@ -185,6 +185,24 @@ const press = (type, x, y) => btn.dispatchEvent(
     ? ok('and lifts the clamp again, so the page can still be zoomed by hand')
     : fail('the viewport was left clamped: ' + meta.getAttribute('content'));
 
+  // Safari on an iPad ignores the clamp, and jsdom's zoom did not drop either.
+  // A kept zoom is the one case the content is moved, since nothing else can be.
+  await sleep(100);
+  scrolls.length
+    ? ok('when the browser keeps its zoom, the newest card is brought under the glass')
+    : fail('the zoom stayed and the tap did nothing a reader could see');
+
+  // And a zoom that DID drop leaves the lesson where it was.
+  scrolls.length = 0;
+  press('pointerdown', 400, 300);
+  press('pointerup', 400, 300);
+  await zoomTo(1, 0, 0);
+  await sleep(750);
+  !scrolls.length
+    ? ok('and when the zoom does drop, nothing is scrolled')
+    : fail('the zoom dropped and the page was scrolled anyway');
+  await zoomTo(2, 300, 200);
+
   // 5. Findable. It is a rescue, and the state it rescues you from is one where
   //    the screen is already full of something else — so it carries its own name
   //    and the board's accent rather than being a dim circle in a corner.

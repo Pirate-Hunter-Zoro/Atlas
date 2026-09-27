@@ -126,11 +126,16 @@ function flash(el) {
 }
 
 /* There is no way to set the page's magnification directly -- it is the user's,
-   and rightly so. What a browser does honour is a change to the viewport
-   declaration: clamping the maximum scale to 1 makes it zoom out to fit. The
-   clamp is lifted again a moment later, or the page could never be zoomed in
-   again, which would be a cure worse than the disease. Best effort: on anything
-   that ignores it the scroll still happens, which is most of the value. */
+   and rightly so. What some browsers honour is a change to the viewport
+   declaration: clamping the scale to 1 makes them zoom out to fit. The clamp is
+   lifted again a moment later, or the page could never be zoomed in again, which
+   would be a cure worse than the disease.
+
+   SAFARI ON AN IPAD IGNORES THE CLAMP. It treats `maximum-scale` and
+   `user-scalable` as advisory, so there the declaration changes and the zoom does
+   not. Every limit is set at once anyway, because the declaration is all a page
+   has, and the focused field is let go because a field Safari zoomed into holds
+   the zoom. What happens when the zoom stays is `stuck`, below. */
 var wasViewport = null;
 
 function restore() {
@@ -146,7 +151,10 @@ function unzoom() {
   var was = meta.getAttribute("content") || "";
   if (/maximum-scale/.test(was)) return;         /* a reset is already running */
   wasViewport = was;
-  meta.setAttribute("content", was + ", maximum-scale=1");
+  var el = document.activeElement;
+  if (el && el !== document.body && el.blur) el.blur();
+  meta.setAttribute("content",
+                    was + ", minimum-scale=1, maximum-scale=1, user-scalable=no");
   /* Put it back, and mean it. A clamp left in place is a page that can never be
      zoomed again -- a worse state than the one this exists to leave, and one
      with no button of its own. So the restore hangs off everything that could
@@ -172,6 +180,20 @@ function pageBack(el) {
      changes what "the visible window" means. */
   [0, 120, 300, 500].forEach(function (ms) { setTimeout(place, ms); });
   forget();
+  setTimeout(stuck, 650);
+}
+
+/* The browser kept its zoom. Then the page's own `onStuck` runs, if it gave
+   one: the one thing left that a page can do is move the content under the
+   glass, and only the page knows what is worth moving to. Only on failure,
+   because a zoom that did drop left the reader looking at the right thing. */
+var onStuck = null;
+
+function stuck() {
+  var vv = window.visualViewport;
+  if (!vv || !(vv.scale > 1.05) || !onStuck) return;
+  onStuck();
+  [120, 400].forEach(function (ms) { setTimeout(place, ms); });
 }
 
 /* EVERY BUTTON MOVES ITSELF, AND ONLY ITSELF.
@@ -248,7 +270,7 @@ function saved(k) {
   return null;
 }
 
-/* mount({ key, buttons: [{ el, onTap, w, h }] })
+/* mount({ key, onStuck, buttons: [{ el, onTap, w, h }] })
 
    The first button's tap puts the page's magnification back, which is what it is
    for on every surface; the rest say what they do. Every one of them is placed
@@ -256,6 +278,7 @@ function saved(k) {
 function mount(spec) {
   spec = spec || {};
   base = spec.key || "board.panic";
+  onStuck = spec.onStuck || null;
   items = [];
   /* Where the group used to sit, as one. Read once, so that the first time a
      board runs with separate buttons they are found where they were left rather

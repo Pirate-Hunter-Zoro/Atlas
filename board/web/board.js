@@ -10858,6 +10858,8 @@ function panicRemeasure() { if (window.Recentre) window.Recentre.remeasure(); }
 if (els.panic && window.Recentre) {
   window.Recentre.mount({
     key: "board.panic",
+    /* Safari kept its zoom: the newest card, brought under the glass. */
+    onStuck: function () { revealNewest(true); },
     buttons: [
       { el: els.panic },
       { el: els.findink, onTap: function (el) {

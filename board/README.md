@@ -1047,6 +1047,9 @@ is wrong even when every suite is green.
   that one and leaves the rest where they are; a tap acts, and the two are told apart by TIME,
   never by distance. They start out down the right-hand edge in order, from wherever the group
   was last left, so nothing jumps the first time a board runs with them separate.
+- **Safari on an iPad ignores the viewport clamp `#panic` relies on**, and no page can set the
+  zoom itself. So when the zoom is still up 650 ms after the tap, the page's `onStuck` runs:
+  the board's brings the newest card under the glass. When the zoom does drop, nothing scrolls.
 - **They are z-index 62, and 97 while `body.mapping`.** The map is 96 and the document viewer
   95, so on the map the way back was painted over by the thing you were lost in. Raised only
   there: everywhere else 62 is right, over the lesson and under the menu. **`#redirect` is 97
