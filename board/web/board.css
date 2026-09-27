@@ -70,6 +70,13 @@ body[data-mode="dark"], body[data-mode="auto"].sys-dark {
    the whole viewport. */
 html { background: none; }
 
+/* THE PAGE IS NOT PINCHED. Safari lets no page undo its own pinch zoom, so a
+   zoomed lesson had no way back but pinching out. `touch-action` is intersected
+   down the tree, so nothing under this can pinch the page either. The writing
+   surface and the map zoom themselves, and `#findink` and `#mapback` put those
+   back. `board.js` also refuses Safari's `gesturestart`. */
+html { touch-action: pan-x pan-y; }
+
 html, body {
   margin: 0; padding: 0;
   color: var(--ink);
@@ -449,7 +456,7 @@ canvas.ann-layer {
   pointer-events: none;
   /* The SCROLL is permitted here and taken back by the script when the hand
      turns out to be a pen -- see the note on `touch-action` below. */
-  touch-action: pan-y pinch-zoom;
+  touch-action: pan-y;
   z-index: 2;
 }
 body.annotating canvas.ann-layer { pointer-events: auto; }
@@ -462,13 +469,7 @@ body.annotating canvas.ann-layer { pointer-events: auto; }
    seconds, tried again, and writing continued fine." `annotate.js` sets the class
    when the nib is heard from and drops it a second and a half after it goes
    quiet, so a finger scrolls exactly as freely as before. */
-/* `pinch-zoom` and not `none`. The latch exists to stop one hand's gesture from
-   being re-read as the other's, and a one-finger pan is the only gesture that
-   can be confused with a stroke -- two fingers are never the pen. With `none`
-   here the lesson could not be magnified for the better part of two seconds
-   after every mark, which is the second half of "scrolling AND zooming when
-   annotating is janky". */
-body.pen-writing canvas.ann-layer { touch-action: pinch-zoom; }
+body.pen-writing canvas.ann-layer { touch-action: none; }
 
 /* While annotating, the lesson is a surface to write on and not text to select.
    Without this the pen drags a native selection instead: the card turns blue,
@@ -529,7 +530,7 @@ textarea,
    scrolls. I don't want the location to be what determines if I scroll or not. I
    want whether or not it is my finger operating determining if it scrolls."
 
-   So the ink layer permits the scroll (`touch-action: pan-y pinch-zoom`, above)
+   So the ink layer permits the scroll (`touch-action: pan-y`, above)
    and `annotate.js` takes it back on `touchstart` when the hand is a pen -- or
    when it is a finger and the slate has been told a finger writes. A finger that
    scrolls scrolls natively, with its own momentum, anywhere on the lesson. A pen

@@ -10851,6 +10851,14 @@ els.jump.onclick = function () {
                 painted OVER the way out of both.
      #redirect  the way out of the whole plan. The only one that changes what
                 the work is rather than where you are looking at it from. */
+/* Safari pinches the page from `gesturestart` whatever `touch-action` says on
+   some builds, so the page pinch is refused here as well as in `board.css`. The
+   writing surface and the map read their pinch from pointer events, which this
+   does not touch. */
+["gesturestart", "gesturechange"].forEach(function (t) {
+  document.addEventListener(t, function (e) { e.preventDefault(); }, { passive: false });
+});
+
 function panicSoon() { if (window.Recentre) window.Recentre.soon(); }
 function panicPlace() { if (window.Recentre) window.Recentre.place(); }
 function panicRemeasure() { if (window.Recentre) window.Recentre.remeasure(); }

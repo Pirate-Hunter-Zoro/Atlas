@@ -203,6 +203,20 @@ const press = (type, x, y) => btn.dispatchEvent(
     : fail('the zoom dropped and the page was scrolled anyway');
   await zoomTo(2, 300, 200);
 
+  // The page itself is never pinched: Safari gives a page no way to undo that.
+  {
+    const css = fs.readFileSync(path.join(WEB, 'board.css'), 'utf8');
+    /(^|\n)html\s*\{\s*touch-action:\s*pan-x pan-y;\s*\}/.test(css)
+      && !/touch-action:[^;]*pinch-zoom/.test(css)
+      ? ok('the page cannot be pinched, anywhere on it')
+      : fail('something on the page still lets the browser pinch it');
+    const g = new window.Event('gesturestart', { cancelable: true });
+    doc.dispatchEvent(g);
+    g.defaultPrevented
+      ? ok('and Safari\'s own pinch gesture is refused too')
+      : fail('gesturestart reaches Safari, which pinches the page from it');
+  }
+
   // 5. Findable. It is a rescue, and the state it rescues you from is one where
   //    the screen is already full of something else — so it carries its own name
   //    and the board's accent rather than being a dim circle in a corner.

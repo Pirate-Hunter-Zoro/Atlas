@@ -422,16 +422,14 @@ function loop(slate, x0, y0, x1, y1, id) {
       : fail('the touchmove refusal outlived the stroke');
   }
 
-  // The other half of the same report is a CSS rule: the layer used to refuse
-  // every gesture for a second and a half after the nib was last heard from,
-  // and two fingers are never the pen.
+  // The latch is a CSS rule too, and with the page never pinched it refuses
+  // everything while the nib is at work.
   {
     const css = fs.readFileSync(path.join(WEB, 'board.css'), 'utf8');
     const rule = /body\.pen-writing canvas\.ann-layer\s*\{([^}]*)\}/.exec(css);
-    rule && /touch-action:\s*pinch-zoom/.test(rule[1])
-      ? ok('and the pen latch leaves pinching alone')
-      : fail('body.pen-writing still takes every gesture, so the lesson cannot '
-             + 'be magnified for a second and a half after each mark');
+    rule && /touch-action:\s*none/.test(rule[1])
+      ? ok('and the pen latch refuses the pan while the nib is at work')
+      : fail('body.pen-writing does not refuse the pan');
   }
 
   console.log(errors.length ? errors.length + ' failed' : 'one clipboard, three surfaces');
