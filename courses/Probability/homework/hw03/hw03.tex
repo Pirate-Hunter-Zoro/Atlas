@@ -333,7 +333,54 @@ and
   \end{enumerate}
 \end{problem}
 % ===== SOLUTION 40 =====
-% TODO(mferguson): your work goes here.
+Let $X$ be the number of days until freedom and $D$ the first door chosen.
+
+\emph{(a)} Given $D=1$ he is back in the cell after 2 days with nothing
+changed, so $X$ given $D=1$ is distributed as $2+X$; likewise $3+X$ given
+$D=2$, and $0$ given $D=3$. Writing $\mu = \EE{X}$ and conditioning on $D$,
+\[
+  \mu = 0.5(2+\mu) + 0.3(3+\mu) + 0.2\cdot 0
+  \iff 10\mu = 5(2+\mu) + 3(3+\mu)
+  \iff 2\mu = 19
+  \iff \mu = 9.5 \text{ days}.
+\]
+
+\emph{(c), for (a).} Write $S = \EE{X^2}$ and condition on $D$:
+\[
+  S = 0.5\,\EE{(2+X)^2} + 0.3\,\EE{(3+X)^2}
+    = 0.5(4 + 4\mu + S) + 0.3(9 + 6\mu + S),
+\]
+so $0.2S = 4.7 + 3.8\mu = 40.8$, $S = 204$, and
+\[
+  \Var(X) = S - \mu^2 = 204 - 90.25 = 113.75.
+\]
+
+\emph{(b)} Now condition on $D$ and then on the second door. Given $D=1$,
+after 2 days he picks door 2 or door 3 with probability $\tfrac12$ each; door 2
+costs 3 more days and then only door 3 is left. So
+$\EE{X \mid D=1} = 2 + \tfrac12\cdot 3$. Symmetrically,
+$\EE{X \mid D=2} = 3 + \tfrac12\cdot 2$, and $\EE{X \mid D=3} = 0$. Hence
+\[
+  \mu = \tfrac13\left(2 + \tfrac12\cdot 3\right)
+      + \tfrac13\left(3 + \tfrac12\cdot 2\right)
+      + \tfrac13\cdot 0
+      = \tfrac13(3.5 + 4) = 2.5 \text{ days}.
+\]
+
+\emph{(c), for (b).} List the paths. Days 5 come from doors $1,2,3$ or
+$2,1,3$, each with probability $\tfrac13\cdot\tfrac12$; days 2 from $1,3$; days
+3 from $2,3$; days 0 from door 3 alone. So
+\[
+  P(X=5) = \tfrac13, \quad P(X=2) = \tfrac16, \quad P(X=3) = \tfrac16,
+  \quad P(X=0) = \tfrac13,
+\]
+which reproduces $\mu = \tfrac53 + \tfrac26 + \tfrac36 = \tfrac52$. Then
+\[
+  S = \EE{X^2} = \tfrac13\cdot 5^2 + \tfrac16\cdot 2^2 + \tfrac16\cdot 3^2
+    = \tfrac{63}{6} = \tfrac{21}{2},
+  \qquad
+  \Var(X) = S - \mu^2 = \tfrac{21}{2} - \tfrac{25}{4} = \tfrac{17}{4}.
+\]
 % ===== END SOLUTION 40 =====
 
 \end{document}
