@@ -1,23 +1,23 @@
 <!-- chapter: Ch 05 — Tests for irreducibility -->
-Scope this sitting: Garling 05.4, 05.6, 05.7, 05.8, 05.10, stated in chapters/ch05-tests-for-irreducibility/homework/ch05-homework.tex.
+Scope: Garling 05.4, 05.6, 05.7, 05.8, 05.10, stated in chapters/ch05-tests-for-irreducibility/homework/ch05-homework.tex. After ch05, the worksheet they uploaded replaces chapter 6.
 
 Where they got to:
-- 05.4 (f - yg irreducible in K(y)[x]): worked through step by step, ending on where Gauss's lemma lands the factorisation. The solution region is still EMPTY. It is unclear whether they ever gave one full argument. Check their answer PNGs for 05.4 in live/answers/ before re-teaching; transcribe it if a full argument exists, otherwise re-pose 05.4 in full.
-- 05.6 (Eisenstein upside down, p | f_i for i >= 1, p not dividing f_0, p^2 not dividing f_n): agreed correct. Transcribed, handwriting filed, build clean.
-- 05.7 (x^n - p irreducible over Q): just opened. The open question asks for the coefficients of x^3 - 5 and which ones 5 divides.
-- 05.8 and 05.10: not started.
+- 05.4, 05.6, 05.7, 05.8 are transcribed in their words, their handwriting is filed, and the build is clean (2 pages). Do not reopen any of them.
+- 05.10 (x^5 - 4x + 2 and x^4 - 4x + 2 irreducible over Q(i)) is posed and not answered. The open check: for a root α of the quintic, why must 2 and 5 divide [Q(i,α):Q], and why is it at most 10?
 
-What they got wrong in 05.6:
-- In the constant-factor case they had c | f_i for every i but did not see that this IS the definition of relatively prime coefficients. They asked why c must be a unit. Once told, they used it correctly.
-- Bookkeeping slips: the WLOG line said deg g = deg f when g was the constant, and they wrote "h = deg m" for m = deg h. Both are fixed in the tex.
+What they got wrong:
+- 05.8: they asserted Q(2^(1/n)) ⊂ A without saying why 2^(1/n) is real and algebraic, or that "smallest field" is what puts it inside A. Their professor accepted it as written, and so does the file. Know the habit; do not reopen it.
 
 What they got right, do not re-teach:
-- Reduce mod p. R/(p) is an integral domain, so degrees add.
-- Positive-degree case: p | g_k and p | h_m, so p^2 | f_n, a contradiction.
+- Eisenstein, and reading coefficients mod p, zero coefficients included.
+- Gauss's lemma lands a factorisation in K[x][y]. Degrees in y then split 0 + 1.
+- The tower law gives [A:Q] ≥ n for every n.
 
-Next: finish 05.7. It is a direct application of Eisenstein's criterion, and the only trap is seeing that the zero middle coefficients are divisible by p. Then settle 05.4, then 05.8.
+Next: finish 05.10. The quintic comes from degree divisibility: [Q(i,α):Q] = 10, so the degree over Q(i) is 5. The quartic needs one more idea. Take a real root (f(0) = 2 and f(1) = -1), so i ∉ Q(α), which gives degree 8 over Q and 4 over Q(i). Teach that last idea as its own step. After 05.10 is written up, move to the uploaded worksheet.
 
 How they work:
-- They answer by rewriting the whole proof, not just the micro-question. Read the full page and assess the proof.
-- They skip sanity checks once the proof is done. Let them.
-- Their proofs are sound, but naming slips (g vs h, swapped letters) recur. Check every symbol.
+- They answer by rewriting the whole proof, not the micro-question. Read the full page.
+- When they say their professor accepted an argument and tell you to write it up, do it and move on.
+- They skip sanity checks once a proof is done. Let them.
+- Letters get swapped (g vs h). Check every symbol before transcribing.
+- Old answer PNGs are pruned from the working tree. Recover them with git show <commit>^:courses/Galois-Theory/live/answers/tNNNN-rN.png.
