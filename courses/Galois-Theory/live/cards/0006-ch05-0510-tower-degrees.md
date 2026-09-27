@@ -2,7 +2,11 @@
 kind: lesson
 title: ch05-0510-tower-degrees
 ---
-Agreed. 05.8 and 05.4 are being typeset in your words now, and the next card will say what the file says.
+Agreed. 05.4 and 05.8 are now in `ch05-homework.tex`, the homework file, in your words, and it compiles cleanly to 2 pages. Four of the five are done; 05.10 is the last.
+
+- 05.4 is your final argument from the earlier sitting. Gauss's lemma now comes before the degree-$1$ line, which is where the last card on it put it.
+- 05.8 keeps your $\sqrt[n+1]{2}$ step as you wrote it. The file cites 05.7 with $p = 2$ for the Eisenstein line.
+- Your handwriting for both is filed beside them.
 
 **The exercise (05.10).** Show that $x^5 - 4x + 2$ and $x^4 - 4x + 2$ are irreducible over $\mathbb{Q}(i)$.
 
