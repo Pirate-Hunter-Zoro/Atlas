@@ -228,7 +228,49 @@ $k \ge 1$. \qedsymbol
   \end{enumerate}
 \end{problem}
 % ===== SOLUTION 31 =====
-% TODO(mferguson): your work goes here.
+Let $L_1$ and $L_2$ be the lengths of the first and second runs. Throughout, use the mean of
+a geometric random variable: for $0 < q < 1$,
+\[
+  \sum_{i=1}^{\infty} i\,q^{i-1}(1-q) = \frac{1}{1-q}.
+\]
+
+\emph{(a)} The first run has length $i$ if it is $i$ zeros closed by a one, or $i$ ones
+closed by a zero, so
+\[
+  P(L_1 = i) = P(\text{starts } 0,\ \text{length } i) + P(\text{starts } 1,\ \text{length } i)
+             = (1-p)^i p + p^i (1-p).
+\]
+Hence
+\[
+  \EE{L_1} = \sum_{i=1}^{\infty} i\big((1-p)^i p + p^i(1-p)\big).
+\]
+Pull one factor out of each sum to leave the geometric sum:
+\[
+  \sum_{i=1}^{\infty} i(1-p)^i p = (1-p)\sum_{i=1}^{\infty} i(1-p)^{i-1} p
+    = (1-p)\,\frac{1}{1-(1-p)} = \frac{1-p}{p},
+\]
+\[
+  \sum_{i=1}^{\infty} i\,p^i (1-p) = p\sum_{i=1}^{\infty} i\,p^{i-1}(1-p) = \frac{p}{1-p}.
+\]
+Therefore
+\[
+  \EE{L_1} = \frac{1-p}{p} + \frac{p}{1-p}.
+\]
+
+\emph{(b)} The second run starts with $0$ exactly when the first run starts with $1$, and
+vice versa, so its first symbol has the complementary probability, and the element ending it
+contributes the complement once more:
+\[
+  P(L_2 = i) = p^2 (1-p)^{i-1} + (1-p)^2 p^{i-1}.
+\]
+Hence
+\[
+  \EE{L_2} = \sum_{i=1}^{\infty} i\big(p^2(1-p)^{i-1} + (1-p)^2 p^{i-1}\big)
+    = p\sum_{i=1}^{\infty} i(1-p)^{i-1} p + (1-p)\sum_{i=1}^{\infty} i\,p^{i-1}(1-p)
+\]
+\[
+    = \frac{p}{1-(1-p)} + \frac{1-p}{1-p} = 1 + 1 = 2.
+\]
 % ===== END SOLUTION 31 =====
 
 \begin{problem}{37}
@@ -245,7 +287,31 @@ $k \ge 1$. \qedsymbol
   \end{enumerate}
 \end{problem}
 % ===== SOLUTION 37 =====
-% TODO(mferguson): your work goes here.
+Let $T$ be the typist, with $P(A)=P(B)=P(C)=\tfrac13$, and $\lambda_A = 2.6$, $\lambda_B = 3$,
+$\lambda_C = 3.4$.
+
+\emph{(a)} Conditioning on the typist,
+\[
+  \EE{X} = P(A)\,\EE{X \mid A} + P(B)\,\EE{X \mid B} + P(C)\,\EE{X \mid C}
+         = \tfrac13(2.6) + \tfrac13(3) + \tfrac13(3.4) = \tfrac93 = 3.
+\]
+
+\emph{(b)} Write $\Var(X) = \EE{X^2} - (\EE{X})^2$ and condition $\EE{X^2}$ on the typist:
+\[
+  \EE{X^2} = P(A)\,\EE{X^2 \mid A} + P(B)\,\EE{X^2 \mid B} + P(C)\,\EE{X^2 \mid C}.
+\]
+Given the typist, $X$ is Poisson with variance equal to its mean $\lambda$, so
+$\lambda = \EE{X^2 \mid \cdot} - \lambda^2$; for typist $A$, $\EE{X^2 \mid A} = 2.6 + (2.6)^2$,
+and similarly $\EE{X^2 \mid \cdot} = \lambda + \lambda^2$ for each typist. Hence
+\[
+  \EE{X^2} = \tfrac13(\lambda_A + \lambda_A^2) + \tfrac13(\lambda_B + \lambda_B^2)
+           + \tfrac13(\lambda_C + \lambda_C^2)
+         = \tfrac13(2.6 + 2.6^2) + \tfrac13(3 + 9) + \tfrac13(3.4 + 3.4^2) = \tfrac{908}{75},
+\]
+and
+\[
+  \Var(X) = \tfrac{908}{75} - 9 = \tfrac{233}{75} \approx 3.11.
+\]
 % ===== END SOLUTION 37 =====
 
 \begin{problem}{40}

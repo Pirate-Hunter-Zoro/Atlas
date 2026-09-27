@@ -1,10 +1,32 @@
-<!-- chapter: hw02 -->
-**Where they got to.** Homework 2 is finished. All nine handed-in problems --- 1, 2, 9, 12, 22, 37, 61, 76, 86 --- have the statement and their own argument typeset in `homework/hw02/hw02.tex`, every page is filed under `handwritten/`, and the document compiles clean at 7 pages. The starred pair, $\ast 16$ and $\ast 49$, are back-of-book and not handed in. Nothing on this sheet is open.
+<!-- chapter: hw03 -->
+Homework 3 (Ross ch. 3): problems 1, 7, 9-or-10, 12, 22, 31, 37, 40. All eight statements are transcribed in `homework/hw03/hw03.tex`.
 
-**The one open card is not mathematics.** Card 0019 asks them what to do next: close out, start a new homework sheet, or leave homework for the moment generating function module. There is no hw03 assignment PDF anywhere in this repository, so if they want the next sheet they have to give a path. Do not choose for them and do not pose a problem until they answer.
+**Done, correct, typeset — do not re-teach.** Problems 1, 7, 9-or-10, 12 and 22. Five of eight, each with their own argument in its SOLUTION region and their page in `handwritten/`. Last build: 4 pages, 0 warnings. (`board hw` misreads the label "9 or 10" as an empty region and reports 3 of 8. It is wrong; the solution is there.)
 
-**Do not re-teach any of this.** Records 61 in full: the equally-likely-orderings count, the indicator $I_i$ and the identity $N=\sum I_i$, linearity onto the harmonic sum, the per-term variance $\frac{1}{i}(1-\frac{1}{i})$, why the $I_i$ are independent so the covariances vanish, and the tail-sum argument in (d). Weak law 76 in full: $\E[\bar{X}_n]=\mu$, $\Var(\bar{X}_n)=\sigma^2/n$, Chebyshev, the bound going to $0$. Problem 86 was agreed on September 12 with three pages filed.
+Between them they own: the chain rule for a joint pmf; marginalising to rebuild p_Y(y); conditioning on two variables at once; the continuous case end to end (marginal by integration, conditional as a quotient, expectation against the conditional, integration by parts, L'Hôpital on the boundary term); and now induction with a recursion solved for its own unknown.
 
-**A mistake to avoid repeating.** A turn this session re-posed 86 and the student saw it. They said so, bluntly, and they were right. Before claiming a problem is or is not done, grep `hw02.tex` and cite the file --- they have earned the right not to be asked twice.
+**Problem 22, two errors, both fixed.** First the miss branch: the run restarted at 0 rather than at 1, so a failed extension cost nothing. Second, pure algebra — clearing to m(m-1) they wrote m(mⁿ-1) where the cancelling (m-1) belongs, which propagated to a final line holding only at m=2. Each named once; their redo is clean and I checked the recursion independently.
 
-**How this student works.** Five or six lines, no prose, their own question written in the margin, usually last on the page --- read the whole image. They skip the warm-up and hand back the whole problem, and the answer is almost always right. The standing weakness is never arithmetic; it is the justifying step being real in their head and absent from the page. They will tell you plainly when something is wrong, so believe them and check.
+**The error pattern.** Every mistake is one defective symbol, not confusion: a missing conditioning denominator on Problems 1 and 12, a missing factor here. Name the symbol and stop.
+
+**Next: Problem 31**, posed on card 0014, unanswered. Expected length of the first and second runs in a Bernoulli(p) sequence. Open ask is a p=1/3 warm-up: P(L₁=3) and E[L₁] given a leading 1. It targets the two ideas the problem needs — a run's length given its symbol is geometric, and the second run's symbol is forced opposite, which is why E[L₂]=2 with no p in it.
+
+**How this student works.** They skip the warm-up and send a full proof instead, five times now. Do not chase the skipped sub-question; mark what arrived. They sometimes write "where did I mess up?" when nothing is wrong; answer that first and say plainly when the answer is nowhere.
+
+## The textbook changed under the course, on 22 September 2026
+
+`textbook/ProbTextbook.pdf` is Ross, eleventh edition, 769 pages, and it replaced the
+tenth. `chapters.tsv` is re-indexed against it — offset 8, so printed page 1 is PDF page
+9 — and all eleven `chapters/chNN-*/reading/chNN.pdf` excerpts are re-cut from it.
+
+**What this costs, and it has already cost it once.** Exercise numbers differ between the
+editions. Homework 2's 61 and 76 were transcribed from the tenth and worked in full before
+anyone noticed; the eleventh's 61 is about records in a sequence of iid continuous
+variables and its 76 is Chebyshev to the weak law. The tenth-edition work is complete and
+kept in `homework/hw02/superseded-edition-10.tex`, with its scans under
+`homework/hw02/handwritten/superseded-edition-10/`. `hw02.tex` now carries the eleventh's
+statements with empty solution regions.
+
+Check any exercise number against `textbook/ProbTextbook.pdf` before teaching it. The
+assignment sheet in each set's `assignment/` directory is the authority over any number
+written down anywhere else.

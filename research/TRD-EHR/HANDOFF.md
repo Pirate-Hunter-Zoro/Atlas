@@ -1,24 +1,27 @@
 <!-- chapter: predictions -->
-## Where this got to
+## Where the student got to
 
-Retrieval-based prediction and the subgroup analysis are taught. Settled, do not re-teach: plain cosine KNN; the importance-weighted cosine (z-scores from the logistic regression pipeline's StandardScaler, fitted on the 34,063 pool patients, w_d = |beta_d| / sum|beta|); the risk line with the max{s, 0}^alpha clamp; Benjamini-Hochberg (BH).
+Lecture on retrieval prediction and subgroups. The 2026-09-24 sitting is closed. It covered Benjamini-Hochberg (BH) by hand: the rising bars, and why a p-value that misses its own bar still counts when a larger one further down clears. That write-up compiled in homework/retrieval-and-subgroups. The α-sharpening exercise was skipped, so it is not in the write-up. The answer is on the closing card: α = 5 gives r̂ ≈ 0.88, against 0.60 at α = 1.
 
-## Got wrong, then right
+## What they got wrong
 
-BH: they first used "rejected" backwards, reading it as "not significant". That was vocabulary, not concept. On the next check (p = .004, .030, .045, .047, .060) they correctly called only rank 1 significant, with no overcorrection. BH is Problem 1 in homework/retrieval-and-subgroups, with their handwriting filed.
+On 2026-09-25 they marked up the slide deck (writeups/deck-260925-0942). They could not see what "against the rest" meant, and the subgroup forest plots did not show it. The confusion was real: those plots show each group's own AUC, but BH tests a group's AUC minus the same model's AUC on everyone else. The deck now has contrast plots (ΔAUC, filled = survives BH), drawn by `plot_contrasts` in run_subgroups.py. When subgroups come up, teach the contrast as its own quantity, separate from the group AUC.
 
-## Skipped
+## What they got right
 
-The alpha-sharpening check: A (s = .9, TRD), B (s = .6, no TRD). Risk .60 at alpha = 1 and about 0.88 at alpha = 5. The answer is on the board; nothing was filed. They chose to stop.
+BH mechanics, including the step past a miss. Do not re-teach these. The deck brief also treats plain cosine KNN, the importance-weighted cosine and the max{s,0}^α clamp as settled.
 
-## Teach next
+## Next
 
-Figure 4, the k sweep. It is the payoff of this component. Most of the gap between weighted 0.625 and published 0.594 is k, not the metric: the paired metric effect is +0.0068 (95% CI -0.0006 to +0.0141). Best retrieval (0.625) sits below FEATURE XGBoost (0.649) and EMBEDDED logistic regression (0.657). Alpha changes nothing on real data (0.625, 0.625, 0.624).
+Figure 4, the k sweep. The closing card named it, and the deck already explains it.
 
-## Written outside the lesson
+## How they work
 
-A slide deck of this component is at writeups/deck-260925-0942/deck-260925-0942.tex, compiled. latexmk is broken here (system Perl lacks Time::HiRes), so it was built with pdflatex twice.
+- They would rather ink a document than type. The marks are terse questions ("we don't see that in the graph"), and a mark is a request to change the figure, not to reword the text.
+- They cut implementation detail hard ("Don't care. Just say what we did").
+- They want an interval on every number they see.
+- They skip exercises when tired. Record the answer and move on; do not chase it.
 
-## How this student works
+## Loose ends
 
-Answer any question on their page before grading work. They check every number against memory, so quote only numbers that were run. They drop exercises when the pace drags. Keep checks to one quick computation and get to the figure fast. They want each request done whole.
+None of the code changes from the deck rounds are committed: run_subgroups.py, neighbor_count_sweep.py and plot_neighbor_sweep_figure.py. The results/ mirror holds the old Figure 4.
