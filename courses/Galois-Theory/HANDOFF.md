@@ -1,25 +1,26 @@
 <!-- chapter: Ch 05 — Tests for irreducibility -->
-Scope: Garling 05.4, 05.6, 05.7, 05.8, 05.10, stated in chapters/ch05-tests-for-irreducibility/homework/ch05-homework.tex. After ch05, the worksheet they uploaded replaces chapter 6.
+Scope: Garling 05.4, 05.6, 05.7, 05.8, 05.10 in chapters/ch05-tests-for-irreducibility/homework/ch05-homework.tex. Chapter 6 is skipped; the worksheet they uploaded on 2026-09-22 replaces it.
 
 Where they got to:
-- 05.4, 05.6, 05.7, 05.8 are transcribed in their words, their handwriting is filed, and the build is clean. Do not reopen any of them.
-- 05.10 (x^5 - 4x + 2 and x^4 - 4x + 2 irreducible over Q(i)) is open. They set up the quintic: [Q(α):Q] = 5 by Eisenstein at 2, and both towers, so 10 divides [Q(i,α):Q].
-- The last session re-posed the open check (why is [Q(i,α):Q(i)] ≤ 5?). They left before answering.
+- Chapter 5 homework is complete, five of five: transcribed in their words, handwriting filed, build clean. Do not reopen any of it.
+- 05.10 closed this session. Quintic: degree 10 over Q forces the top step over Q(i) to be 5. Quartic: total degree 4 would put i in Q(beta), which lies in R.
 
 What they got wrong:
-- 05.8: they asserted Q(2^(1/n)) ⊂ A without saying why 2^(1/n) is real and algebraic. Their professor accepted it, and so does the file.
-- 05.10: they had the divisibility but could not find the upper bound.
+- 05.8: they asserted Q(2^(1/n)) is inside A without saying why 2^(1/n) is real and algebraic. Their professor accepted it, and so does the file.
+- 05.10 quartic: they took beta as any root of x^4 - 4x + 2, then used "beta is real". Two of its roots are complex. They assumed an argument about one root works for every root. The file now picks a real root, from g(0) = 2 and g(1) = -1. One root suffices, since its minimal polynomial over Q(i) divides g and has degree 4.
 
 What they got right, do not re-teach:
-- Eisenstein, and reading coefficients mod p, zero coefficients included.
+- Eisenstein, reading coefficients mod p, zero coefficients included.
 - Gauss's lemma, and degree splitting in K[x][y].
-- The tower law, and both towers for the quintic.
+- The tower law, both towers, and the divide-and-bound squeeze on degrees.
+- A degree-1 step means the fields are equal.
 
-Next: re-pose the top-step bound, restated in full. The answer is that the minimal polynomial of α over Q(i) divides x^5 - 4x + 2, which lies in Q(i)[x]. So the total degree is 10, the degree over Q(i) is 5, and the quintic is irreducible. Then the quartic, with its extra idea as its own step. Take a real root (f(0) = 2, f(1) = -1), so i ∉ Q(α). That gives degree 8 over Q and 4 over Q(i). Write up 05.10 (board hw use ch05) once both halves are agreed, then move to the worksheet.
+Next: open the worksheet that replaces chapter 6. Read its exercises, pick three to five, and say which and why in the first card. Then pose the first one with one small check. The direction is theirs and settled.
 
 How they work:
 - They answer by rewriting the whole proof. Read the full page.
-- When they say their professor accepted an argument, write it up and move on.
+- They pick "a root" and later use a property only some roots have. Check which root is meant.
+- When their professor accepted an argument, write it up and move on.
 - They skip sanity checks once a proof is done. Let them.
 - They swap letters (g vs h). Check every symbol before transcribing.
 - Old answer PNGs are pruned. Recover them with git show <commit>^:courses/Galois-Theory/live/answers/tNNNN-rN.png.
