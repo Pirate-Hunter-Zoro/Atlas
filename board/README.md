@@ -1057,6 +1057,9 @@ is wrong even when every suite is green.
   always** — a plan is most often discovered to be wrong while looking at the picture of it, so
   the one control promised to be reachable at any moment has to be over the two things that
   cover the whole screen.
+- **A headless turn runs with `CLAUDE_CODE_DISABLE_GIT_INSTRUCTIONS=1`**, set in `headless()`.
+  Claude Code's startup `git status` blocks the turn and can hang in NFS `D` state, so the
+  tutor reads as writing while no model call has been made. `test/wedged.py` holds it.
 - **NOTHING AUTOMATIC CLAIMS THE ADDRESS.** `board vpn serve` is the FORCED claim and its
   whole meaning is a person saying "point it at THIS course"; `board vpn serve --if-free`
   asks first, through `ts_repoint`, and is what `link()` in `bin/tutor` calls on every

@@ -115,7 +115,46 @@ Since $n$ was arbitrary, $[A : \mathbb{Q}] = \infty$.
   $\mathbb{Q}(i)$.
 \end{problem}
 % ===== SOLUTION 05.10 =====
-% TODO(mferguson): your work goes here.
+\begin{proof}
+\textbf{The quintic.} Let $\alpha$ be a root of $x^5 - 4x + 2$. By
+Eisenstein at $p = 2$ this polynomial is irreducible in $\mathbb{Q}[x]$,
+so $[\mathbb{Q}(\alpha) : \mathbb{Q}] = 5$. Also
+$[\mathbb{Q}(i) : \mathbb{Q}] = 2$.
+
+$[\mathbb{Q}(i,\alpha) : \mathbb{Q}(i)] \le 5$, because $\alpha$ is a root
+of $x^5 - 4x + 2 \in \mathbb{Q}(i)[x]$. That polynomial may be reducible
+over $\mathbb{Q}(i)$. If it is, $[\mathbb{Q}(i,\alpha) : \mathbb{Q}(i)] < 5$;
+if it is not, $[\mathbb{Q}(i,\alpha) : \mathbb{Q}(i)] = 5$.
+
+By the tower law applied to
+$\mathbb{Q} \subset \mathbb{Q}(i) \subset \mathbb{Q}(i,\alpha)$, the degree
+$[\mathbb{Q}(i,\alpha) : \mathbb{Q}]$ is at most $5 \cdot 2 = 10$. Applied to
+$\mathbb{Q} \subset \mathbb{Q}(\alpha) \subset \mathbb{Q}(i,\alpha)$ as well,
+both $2$ and $5$ must divide it, so it is $10$. The only way to satisfy
+this is if $[\mathbb{Q}(i,\alpha) : \mathbb{Q}(i)] = 5$, so
+$x^5 - 4x + 2$ is irreducible in $\mathbb{Q}(i)[x]$, since it must be
+$\alpha$'s minimal polynomial over $\mathbb{Q}(i)$.
+
+\textbf{The quartic.} Clearly Eisenstein at $p = 2$ shows $x^4 - 4x + 2$ is
+irreducible in $\mathbb{Q}[x]$. Since $g(0) = 2 > 0$ and $g(1) = -1 < 0$,
+the intermediate value theorem gives a real root $\beta$ of
+$g(x) = x^4 - 4x + 2$, and $[\mathbb{Q}(\beta) : \mathbb{Q}] = 4$. Note also
+$[\mathbb{Q}(i) : \mathbb{Q}] = 2$.
+
+So $[\mathbb{Q}(i,\beta) : \mathbb{Q}] = 4$ or $8$: it is divisible by $4$
+through $\mathbb{Q}(\beta)$, and (for the same argument as the quintic)
+$[\mathbb{Q}(i,\beta) : \mathbb{Q}(i)]$ is certainly not more than $4$, so it
+is at most $8$ through $\mathbb{Q}(i)$.
+
+Suppose $[\mathbb{Q}(i,\beta) : \mathbb{Q}] = 4$. Then
+$[\mathbb{Q}(i,\beta) : \mathbb{Q}(\beta)] = 1$, meaning
+$i \in \mathbb{Q}(\beta)$. But this can't be, since $\beta \in \mathbb{R}$
+gives $\mathbb{Q}(\beta) \subset \mathbb{R}$. So
+$[\mathbb{Q}(i,\beta) : \mathbb{Q}] = 8$, hence
+$[\mathbb{Q}(i,\beta) : \mathbb{Q}(i)] = 4$, which means $x^4 - 4x + 2$ is
+irreducible over $\mathbb{Q}(i)$, since it must be $\beta$'s minimal
+polynomial over $\mathbb{Q}(i)$.
+\end{proof}
 % ===== END SOLUTION 05.10 =====
 
 \end{document}

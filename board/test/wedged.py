@@ -119,6 +119,12 @@ check("`board wait` says in its own docstring that its timeout is best effort, "
       "so the next person does not try to enforce it where it cannot be",
       "IS BEST EFFORT" in board_src and "uninterruptibly" in board_src)
 
+# ---- and the turn's own client, which hangs the same way ------------------
+body = src.split("\ndef headless(cfg, course, agent_name, session):")[1][:4000]
+check("a headless turn starts with Claude Code's git snapshot off, because its "
+      "`git status` hangs on the same filer before the model is ever asked",
+      'os.environ["CLAUDE_CODE_DISABLE_GIT_INSTRUCTIONS"] = "1"' in body)
+
 print("%d FAILURES" % len(fails) if fails
       else "a deadline is enforced by the parent, because the child may be "
            "unable to keep it")

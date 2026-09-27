@@ -3400,6 +3400,14 @@ def headless(cfg, course, agent_name, session):
               file=sys.stderr)
         return 1
 
+    # NO `git status` BEFORE A TURN'S FIRST WORD. Claude Code runs one at start
+    # to put a snapshot in its system prompt, synchronously, in the course --
+    # and an NFS open can hang it in state `D`, so the turn sits "writing" with
+    # no model call made until its cap. Measured 27 September 2026 in Galois
+    # Theory: seven minutes in `nfs_set_open_stateid_locked`. A turn has no use
+    # for the snapshot; this variable drops it. Every turn inherits it from here.
+    os.environ["CLAUDE_CODE_DISABLE_GIT_INSTRUCTIONS"] = "1"
+
     root = course["root"]
     live = os.path.join(root, "live")
     os.makedirs(live, exist_ok=True)
