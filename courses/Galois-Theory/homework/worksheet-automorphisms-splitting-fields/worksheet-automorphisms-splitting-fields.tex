@@ -39,7 +39,18 @@ group of automorphisms of $K$ that fix $F$ pointwise.
 \end{problem}
 
 % ===== SOLUTION 7(a) =====
-% TODO(mferguson): your work goes here.
+\begin{proof}
+Write $f = \sum_j c_j x^j$ with every $c_j \in F$, so that
+$f(\alpha) = \sum_j c_j \alpha^j = 0$. Then
+\begin{align*}
+  f(\sigma(\alpha))
+    &= \sum_j c_j\, \sigma(\alpha)^j \\
+    &= \sum_j c_j\, \sigma(\alpha^j) && \text{($\sigma$ multiplies)} \\
+    &= \sum_j \sigma(c_j \alpha^j) && \text{($\sigma$ fixes $c_j \in F$, and multiplies)} \\
+    &= \sigma\Bigl(\sum_j c_j \alpha^j\Bigr) && \text{($\sigma$ adds)} \\
+    &= \sigma(0) = 0 && \text{(since $0 \in F$)}. \qedhere
+\end{align*}
+\end{proof}
 % ===== END SOLUTION 7(a) =====
 
 \begin{problem}{7(b)}
