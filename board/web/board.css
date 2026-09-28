@@ -1772,15 +1772,24 @@ body.papering { overflow: hidden; }
 .sendwhat button.quiet { border-color: transparent; color: var(--ink-3); }
 .sendwhat button:disabled { opacity: .45; cursor: default; }
 
+/* A member of the moveable stack: placed against the visual viewport by
+   `panicPlace`, pressed and held to move, remembered on its own. */
 .notesend {
-  position: fixed; z-index: 55;
-  left: 50%; transform: translateX(-50%);
-  bottom: calc(1.1rem + env(safe-area-inset-bottom));
+  position: fixed; left: 0; top: 0; z-index: 62;
+  transform-origin: 0 0;
   font: inherit; font-family: var(--ui); font-size: .82rem; font-weight: 600;
   padding: .55rem .95rem; border-radius: 999px; cursor: pointer;
   border: 1px solid var(--ask);
   background: var(--ask); color: #fff;
   box-shadow: 0 6px 22px rgba(0, 0, 0, .25);
+  touch-action: none;
+  -webkit-user-select: none; user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.notesend.holding {
+  cursor: grabbing;
+  box-shadow: 0 0 0 5px color-mix(in srgb, var(--ask) 32%, transparent),
+              0 6px 22px rgba(0, 0, 0, .25);
 }
 
 /* ---------- annotation tools ---------- */

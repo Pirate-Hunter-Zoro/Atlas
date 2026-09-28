@@ -586,6 +586,36 @@ const press = (type, x, y) => btn.dispatchEvent(
              + 'session puts it back with the others');
   }
 
+  // 8c. SEND MY ANNOTATIONS IS ONE OF THEM TOO.
+  //
+  //     It sat pinned to the bottom centre of the glass, which is where the ink
+  //     is. Asked for as: "I want it to be a movable widget like the re-center,
+  //     my ink, and rethink buttons."
+  {
+    const send = doc.getElementById('notesend');
+    const press3 = (type, x, y) => send.dispatchEvent(
+      new window.MouseEvent(type, { bubbles: true, clientX: x || 0, clientY: y || 0,
+                                    pointerId: 11 }));
+    press3('pointerdown', 400, 560);
+    await sleep(500);
+    send.classList.contains('holding')
+      ? ok('send my annotations can be pressed and held to move it')
+      : fail('send my annotations is still pinned where the stack cannot move it');
+    press3('pointermove', 120, 200);
+    press3('pointerup', 120, 200);
+    let put = null;
+    try { put = JSON.parse(window.localStorage.getItem('board.panic.notesend') || 'null'); }
+    catch (e) { /* reported below */ }
+    put && typeof put.x === 'number'
+      ? ok('and where it is put is remembered under its own name')
+      : fail('send my annotations was moved and forgotten');
+    const ncss = fs.readFileSync(path.join(WEB, 'board.css'), 'utf8');
+    /\.notesend\s*\{[^}]*left:\s*0;\s*top:\s*0/.test(ncss)
+      && !/\.notesend\s*\{[^}]*bottom:/.test(ncss)
+      ? ok('and it is placed from JavaScript, not docked by CSS')
+      : fail('send my annotations is still docked to the bottom by CSS');
+  }
+
   // 9. THE FRONT DOOR HAS ONE WAY TO BE LOST, and it needs the one button.
   //    There were two: the page's own magnification, and an atlas that was a
   //    plane with a pan of its own. The atlas is two levels of HTML now -- six

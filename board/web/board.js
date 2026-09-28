@@ -4045,7 +4045,11 @@ if (els.notesAgain) {
   };
 }
 
-els.notesend.onclick = function () {
+/* Its tap is registered with the moveable stack, as `#redirect`'s is: `Recentre`
+   tells a tap from a press-and-hold to move it, and a `click` listener of its
+   own would fire alongside. */
+function sendNotesNow() {
+  if (els.notesend.disabled) return;
   els.notesend.disabled = true;
   /* Same rule as the board's Send: say something on the frame the button was
      pressed. This one encodes a picture of the marks and then waits on a request
@@ -4056,7 +4060,7 @@ els.notesend.onclick = function () {
     paintNotesSend();
     toastSent();
   }, function () { els.notesend.disabled = false; });
-};
+}
 
 window.askWhatToSend = askWhatToSend;
 
@@ -4068,7 +4072,11 @@ window.askWhatToSend = askWhatToSend;
 function paintNotesSend() {
   var any = haveNotes();
   var owedSurface = !els.writer.hidden;
+  var wasHidden = els.notesend.hidden;
   els.notesend.hidden = !(any && !owedSurface && !notesOff());
+  /* A widget in the stack is placed from JavaScript, so one that has just
+     appeared has no place yet until it is measured and put there. */
+  if (wasHidden !== els.notesend.hidden) panicRemeasure();
   /* The re-arm control is only meaningful while the offer is actually off, and
      only if there are marks to hand over. */
   if (els.notesAgain) {
@@ -10841,7 +10849,7 @@ els.jump.onclick = function () {
    and needed the same answer. What is here is which buttons this page has and
    what the ones under the first one do.
 
-   Four, in order down the glass:
+   Five, in order down the glass:
 
      #panic     the page's own magnification, put back. The one that is dragged.
      #findink   the view, put back over the writing. A surface with a zoom of
@@ -10850,7 +10858,9 @@ els.jump.onclick = function () {
                 its own pan and zoom, covers the whole glass, and until now was
                 painted OVER the way out of both.
      #redirect  the way out of the whole plan. The only one that changes what
-                the work is rather than where you are looking at it from. */
+                the work is rather than where you are looking at it from.
+     #notesend  marks made with no question owed, handed over. Only there while
+                there are some; a widget so it can be put where the ink is not. */
 /* Safari pinches the page from `gesturestart` whatever `touch-action` says on
    some builds, so the page pinch is refused here as well as in `board.css`. The
    writing surface and the map read their pinch from pointer events, which this
@@ -10895,6 +10905,7 @@ if (els.panic && window.Recentre) {
       { el: els.redirect, w: 96, onTap: function () {
           if (els.steer.hidden) steerOpen(); else steerShut();
         } },
+      { el: els.notesend, w: 150, onTap: sendNotesNow },
     ],
   });
 }
