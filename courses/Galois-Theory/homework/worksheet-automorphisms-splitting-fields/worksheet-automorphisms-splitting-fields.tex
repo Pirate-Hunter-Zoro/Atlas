@@ -60,7 +60,31 @@ $f(\alpha) = \sum_j c_j \alpha^j = 0$. Then
 \end{problem}
 
 % ===== SOLUTION 7(b) =====
-% TODO(mferguson): your work goes here.
+\begin{proof}
+Let $\tau \in \operatorname{Aut}(K/F)$ with $\tau(\alpha_i) = \sigma(\alpha_i)$
+for every $i$. We prove $\tau = \sigma$. Write $\alpha$ for
+$(\alpha_1, \dots, \alpha_r)$.
+
+\emph{Polynomials.} If $p \in F[x_1, \dots, x_r]$, then $p(\alpha)$ is a sum of
+terms $c\,\alpha_1^{e_1}\cdots\alpha_r^{e_r}$ with $c \in F$. Since $\sigma$ and
+$\tau$ add, multiply, fix $c$, and agree on every $\alpha_i$, we get
+$\sigma(p(\alpha)) = \tau(p(\alpha))$.
+
+\emph{Quotients.} Let $x \in K$. Then $x = p(\alpha)\,q(\alpha)^{-1}$ with
+$p, q \in F[x_1, \dots, x_r]$ and $q(\alpha) \neq 0$, so the inverse exists in
+$K$. Then
+\begin{align*}
+  \sigma(x)
+    &= \sigma\bigl(p(\alpha)\,q(\alpha)^{-1}\bigr) \\
+    &= \sigma(p(\alpha))\,\sigma\bigl(q(\alpha)^{-1}\bigr) && \text{($\sigma$ multiplies)} \\
+    &= \sigma(p(\alpha))\,\sigma(q(\alpha))^{-1} && \text{($\sigma$ preserves inverses)} \\
+    &= \tau(p(\alpha))\,\tau(q(\alpha))^{-1} && \text{(polynomials)} \\
+    &= \tau(p(\alpha))\,\tau\bigl(q(\alpha)^{-1}\bigr) && \text{($\tau$ preserves inverses)} \\
+    &= \tau\bigl(p(\alpha)\,q(\alpha)^{-1}\bigr) = \tau(x) && \text{($\tau$ multiplies)}.
+\end{align*}
+So $\sigma = \tau$, and $\sigma$ is determined by
+$\sigma(\alpha_1), \dots, \sigma(\alpha_r)$.
+\end{proof}
 % ===== END SOLUTION 7(b) =====
 
 \begin{problem}{7(c)}
@@ -75,7 +99,24 @@ $f(\alpha) = \sum_j c_j \alpha^j = 0$. Then
 \end{problem}
 
 % ===== SOLUTION 7(c) =====
-% TODO(mferguson): your work goes here.
+\begin{proof}[Proof that $\gcd(k,n)=1$]
+Let $\sigma(\zeta_n)=\zeta_n^{\,k}$, and suppose instead that
+$d=\gcd(k,n)>1$. Then $n/d$ and $k/d$ are integers, and
+\[
+  \zeta_n^{\,n/d} = e^{\frac{2\pi i}{n}\cdot\frac{n}{d}} = e^{2\pi i/d} \neq 1,
+\]
+since $d>1$ puts $2\pi/d$ in $(0,2\pi)$. On the other hand,
+\begin{align*}
+  \sigma\bigl(\zeta_n^{\,n/d}\bigr)
+    &= \sigma(\zeta_n)^{n/d}
+     = \bigl(\zeta_n^{\,k}\bigr)^{n/d}
+     = \bigl(\zeta_n^{\,n}\bigr)^{k/d}
+     = 1 = \sigma(1).
+\end{align*}
+Since $\sigma$ is injective, $\zeta_n^{\,n/d}=1$, a contradiction. So
+$\gcd(k,n)=1$.
+\end{proof}
+% TODO(mferguson): the homomorphism and injectivity parts go here.
 % ===== END SOLUTION 7(c) =====
 
 \begin{problem}{8(a)}
