@@ -116,7 +116,25 @@ since $d>1$ puts $2\pi/d$ in $(0,2\pi)$. On the other hand,
 Since $\sigma$ is injective, $\zeta_n^{\,n/d}=1$, a contradiction. So
 $\gcd(k,n)=1$.
 \end{proof}
-% TODO(mferguson): the homomorphism and injectivity parts go here.
+\begin{proof}[Proof that $\sigma\mapsto k \bmod n$ is a homomorphism]
+Let $\sigma(\zeta_n)=\zeta_n^{\,k}$ and $\tau(\zeta_n)=\zeta_n^{\,l}$. Then
+\begin{align*}
+  (\sigma\circ\tau)(\zeta_n)
+    &= \sigma\bigl(\tau(\zeta_n)\bigr)
+     = \sigma\bigl(\zeta_n^{\,l}\bigr)
+     = \sigma(\zeta_n)^{l}
+     = \bigl(\zeta_n^{\,k}\bigr)^{l}
+     = \zeta_n^{\,kl} \\
+    &= e^{2\pi i\,kl/n}
+     = e^{2\pi i\,(kl \bmod n)/n}
+     = \zeta_n^{\,kl \bmod n},
+\end{align*}
+where $\sigma(\zeta_n^{\,l})=\sigma(\zeta_n)^{l}$ is
+$\sigma(ab)=\sigma(a)\sigma(b)$ applied $l-1$ times. So
+$\sigma\circ\tau\mapsto kl \bmod n$, and composition goes to multiplication
+mod $n$.
+\end{proof}
+% TODO(mferguson): the injectivity part goes here.
 % ===== END SOLUTION 7(c) =====
 
 \begin{problem}{8(a)}

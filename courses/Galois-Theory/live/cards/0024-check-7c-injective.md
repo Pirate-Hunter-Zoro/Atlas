@@ -11,7 +11,7 @@ Next is injectivity: different automorphisms give different $k$.
 What it uses:
 
 - $\zeta_n=e^{2\pi i/n}$, and $K=\mathbb{Q}(\zeta_n)$ is generated over $\mathbb{Q}$ by $\zeta_n$.
-- 7(b): an automorphism of $K=F(\alpha_1,\dots,\alpha_m)$ fixing $F$ is determined by the values $\sigma(\alpha_1),\dots,\sigma(\alpha_m)$.
+- 7(b): an automorphism of $K=F(\alpha_1,\dots,\alpha_r)$ fixing $F$ is determined by the values $\sigma(\alpha_1),\dots,\sigma(\alpha_r)$.
 - $\zeta_n^{\,a}=\zeta_n^{\,b}$ exactly when $a\equiv b \pmod n$.
 - Injective: $\sigma\mapsto k$ and $\tau\mapsto k$ force $\sigma=\tau$.
 
