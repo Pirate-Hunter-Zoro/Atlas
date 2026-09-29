@@ -95,6 +95,10 @@ function make(opts) {
       el.scrollLeft += r.left + at.fx * r.width - x;
       el.scrollTop += r.top + at.fy * r.height - y;
     }
+    /* THE COMMIT REPAINTS. Every page has just been laid out at a new width,
+       and each ink layer is measured against its page: laid out again and
+       repainted here, once, rather than left to a resize observer to find. */
+    if (window.Annotate && window.Annotate.redrawAll) window.Annotate.redrawAll();
     if (chip) {
       chip.hidden = Math.abs(zoom - 1) < 0.02;
       chip.textContent = Math.round(zoom * 100) + "%";

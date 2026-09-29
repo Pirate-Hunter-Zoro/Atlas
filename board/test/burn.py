@@ -409,6 +409,47 @@ try:
                           "pr": [0.9]}], 100.0, 100.0).decode("latin-1")
     check("a single tap is drawn as a filled dot", dot.rstrip().endswith("f\nQ"))
 
+    # ---- the burned copy agrees with the glass -----------------------------
+    #
+    # A stroke on a page (`pg`) is in pixels of a page INK_REFERENCE_WIDTH
+    # wide, and `annotate.js` paints it at `w * pageWidth / PAGE_REF`: the two
+    # constants are one number, or the copy is a different weight from the glass.
+    with open(os.path.join(ROOT, "web", "annotate.js"), encoding="utf-8") as fh:
+        ann = fh.read()
+    ref = re.search(r"var PAGE_REF = (\d+);", ann)
+    check("the glass and the burn measure a pen against the same page width",
+          ref and float(ref.group(1)) == burn.INK_REFERENCE_WIDTH)
+    check("and bring old ink onto the picture by the same rule",
+          "H - pic > 4 && H - pic < 80" in ann
+          and "4 < H - pic < 80" in open(burn.__file__, encoding="utf-8").read())
+    glass_w = 972.0
+    new_ink = {"c": "#ff0000", "w": 2.2 * 1240 / glass_w, "pg": 1,
+               "p": [0.1, 0.5, 0.9, 0.5], "pr": [0.5, 0.5]}
+    wops = burn._ink_ops([new_ink], 600.0, 338.0).decode("latin-1")
+    lw = [float(x) for x in re.findall(r"([\d.]+) w\b", wops)]
+    check("a line on a page burns at the weight against the page the glass shows",
+          lw and abs(lw[0] / 600.0 - round(2.2 * 4) / 4 / glass_w) < 0.25 / glass_w)
+
+    # INK SAVED BEFORE THE PAGE'S BOX WAS THE PICTURE: heights against the
+    # picture and a 26px caption, the width in pixels of a 972px page, and the
+    # geometry it was painted at beside it.
+    aspect = 698 / 1240.0
+    pic = glass_w * aspect
+    H = round(pic + 26)
+    old = {"c": "#ff0000", "w": 2.2, "p": [0.4, 0.9 * pic / H, 0.5, 0.2 * pic / H],
+           "pr": [0.5, 0.5], "_k": "972x%d@104,18" % H, "_d": [[1, 2, 0.5]]}
+    up = burn.on_page(old, aspect)
+    check("old ink lands on the same words of the picture",
+          abs(up["p"][1] - 0.9) < 1e-9 and abs(up["p"][3] - 0.2) < 1e-9
+          and up["p"][0] == 0.4)
+    check("at the weight it had against the page it was drawn on",
+          abs(up["w"] - 2.2 * 1240 / glass_w) < 1e-9 and up["pg"] == 1)
+    check("and ink drawn on a page with no caption is not stretched",
+          burn.on_page({"w": 2.0, "p": [0.5, 0.5], "_k": "800x%d@18,18"
+                        % round(800 * aspect)}, aspect)["p"][1] == 0.5)
+    check("a stroke with no geometry is taken as already on the picture",
+          burn.on_page({"w": 2.0, "p": [0.5, 0.5]}, aspect)["p"] == [0.5, 0.5])
+
     check("pages sort by their number and not by their name",
           [os.path.basename(x) for x in sorted(
               ["/t/page-10.jpg", "/t/page-2.jpg", "/t/page-1.jpg"],

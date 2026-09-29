@@ -112,6 +112,8 @@ function paint(got) {
        of this string and is a constant for the same reason: there is one
        deck, so there is one ident. */
     fig.dataset.ann = "doc/meeting/p" + n;
+    /* A page, so its ink zooms with it (`annotate.js`, `PAGE_REF`). */
+    fig.setAttribute("data-ann-page", "");
     var img = document.createElement("img");
     img.src = url;
     img.alt = "slide " + n;

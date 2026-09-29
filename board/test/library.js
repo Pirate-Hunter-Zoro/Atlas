@@ -1500,12 +1500,63 @@ const named = (title) => rows().filter(
     : fail('the gallery reached into a sitting: '
            + everSent.filter((u) => /\/(say|session|aim|start)\b/.test(u)).join(','));
 
+  await inkFollowsZoom();
   await inkIsKept();
 
   console.log(errors.length ? '\n' + errors.length + ' FAILURES'
                             : '\nthe library draws what a workspace wrote, and takes a word about one');
   process.exit(errors.length ? 1 : 0);
 })();
+
+/* ==========================================================================
+   INK FOLLOWS THE READER'S ZOOM. The case is `test/inkzoom.js`, shared with
+   the meeting deck; here it runs on a paper's pages, on a DOM of its own so
+   nothing it draws is owed to the main page's saves.
+   ========================================================================== */
+async function inkFollowsZoom() {
+  const ID = 'writeups-zoom-zoom';
+  const LIB = { workspace: 'research/TRD-EHR', writeups: 'writeups', documents: [{
+    id: ID, dir: 'writeups/zoom', stem: 'zoom', title: 'A paper to zoom',
+    kind: 'paper', formats: ['pdf'], rel: 'writeups/zoom/zoom.pdf',
+    pages: 2, pdf: true, stale: false, iso: '2026-09-29', notes: [],
+  }] };
+  const d = new JSDOM(LIB_HTML, { runScripts: 'outside-only', pretendToBeVisual: true,
+                                 url: 'https://board.test/library' });
+  const w = d.window;
+  w.HTMLCanvasElement.prototype.getContext = () =>
+    new Proxy({}, { get: () => () => {}, set: () => true });
+  w.HTMLCanvasElement.prototype.toDataURL = () => 'data:image/png;base64,';
+  w.Element.prototype.setPointerCapture = function () {};
+  w.Element.prototype.releasePointerCapture = function () {};
+  w.requestAnimationFrame = (fn) => setTimeout(fn, 0);
+  w.fetch = (u) => {
+    const url = String(u);
+    if (/library\.json/.test(url)) return Promise.resolve({ json: () => Promise.resolve(LIB) });
+    if (/library\/view\//.test(url)) {
+      return Promise.resolve({ json: () => Promise.resolve({
+        ok: true, n: 2, truncated: false, digest: 'z1',
+        pages: ['/paper/z-1.png', '/paper/z-2.png'], ink: {},
+        build: { digest: 'z1', at: 1790000000, pages: 2 }, rebuilt: null }) });
+    }
+    if (/annotate\/save/.test(url)) {
+      return Promise.resolve({ ok: true, json: () => Promise.resolve({ ok: true }) });
+    }
+    return new Promise(() => {});
+  };
+  w.addEventListener('error', (e) => fail('uncaught (zoom page): ' + e.message));
+  for (const f of LIB_SCRIPTS) {
+    try { w.eval(fs.readFileSync(path.join(WEB, f), 'utf8')); }
+    catch (e) { fail(f + ': ' + e.message); }
+  }
+  w.STAMP_EVERY = 100000;
+  try { w.eval(fs.readFileSync(path.join(WEB, 'library.js'), 'utf8')); }
+  catch (e) { fail('library.js (zoom page): ' + e.message); }
+  await sleep(20);
+  w.document.querySelector('.lib-row .lib-name')
+    .dispatchEvent(new w.MouseEvent('click', { bubbles: true }));
+  await sleep(30);
+  await require('./inkzoom')(w, { ok, fail, name: 'paper', naturalHeight: 1604 });
+}
 
 /* ==========================================================================
    INK IN THE READER SAYS IT IS KEPT, AND CAN BE KEPT AS A COPY.

@@ -165,7 +165,7 @@ body.annotating .lib-page img {
    is absolutely positioned and would otherwise hang off `#reader-pages` and
    land on page one whichever page was written on. */
 .lib-page {
-  margin: 0 auto 1rem; position: relative;
+  margin: 0 auto 2.75rem; position: relative;
   width: calc(min(100%, 54rem) * var(--zoom, 1));
 }
 /* The palm: while the nib is down or only just lifted (`pen-writing`), nothing
@@ -185,7 +185,15 @@ body.annotating:not(.pen-writing) #reader-pages canvas.ann-layer {
   border: 1px solid var(--rule); border-radius: .2rem;
   background: #fff;
 }
+/* THE PAGE'S BOX IS THE PICTURE. Ink is stored in fractions of `.lib-page`,
+   and a caption in flow is a fixed height added to a picture that grows with
+   the zoom -- so every height fraction would name a different place on the
+   page at every zoom. Out of flow, in the margin under the page, the box and
+   the picture are the same rectangle. */
 .lib-page figcaption {
+  position: absolute; left: 0; right: 0; top: 100%;
+  /* One line: the margin holds one, and a second would sit on the next page. */
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   text-align: center; font-size: .7rem; color: var(--ink-3); padding-top: .25rem;
 }
 

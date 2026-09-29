@@ -44,6 +44,100 @@ var REACH = 160;
 /* The most device pixels one layer's bitmap may hold. See `size`. */
 var CAP = 4e6;
 
+/* A PAGE IS A PICTURE THAT ZOOMS, AND ITS INK ZOOMS WITH IT.
+
+   A node carrying `data-ann-page` is a page of a document: its box is the page
+   picture and nothing else, and the reader lays it out at any width the fingers
+   ask for. A pen width in CSS pixels would then be a different weight against
+   the page at every zoom, so a stroke on a page carries `pg: 1` and its `w` is
+   in pixels of a page `PAGE_REF` wide -- the width the pages are drawn at, and
+   `burn.INK_REFERENCE_WIDTH`, so the burned copy is the weight the glass shows.
+   A card is not a page: its `w` is CSS pixels, painted at that whatever the
+   card's width, exactly as it always was. */
+var PAGE_REF = 1240;
+
+function isPage(card) {
+  return !!(card && card.hasAttribute && card.hasAttribute("data-ann-page"));
+}
+
+/* The width a stroke is painted at on this layer, in CSS pixels. */
+function widthOf(s, cv) {
+  var w = s.w || pen.width;
+  return s.pg && cv && cv._w ? w * cv._w / PAGE_REF : w;
+}
+
+/* A stroke copied with new points, keeping what its width means -- and, for
+   ink `lift` has not reached yet, the box it was drawn against, so the pieces
+   of an erase or a moved copy are brought onto the picture with the rest. */
+function like(s, p, pr) {
+  var out = { c: s.c, w: s.w, p: p, pr: pr };
+  if (s.pg) out.pg = 1;
+  else if (typeof s._k === "string") out._k = s._k;
+  return out;
+}
+
+/* Painted-path caches live on the stroke but never reach the disk: a path in
+   pixels of one geometry is no use to any other, and it is most of the bytes. */
+function cache(s, k, v) {
+  if (Object.prototype.hasOwnProperty.call(s, k)) s[k] = v;
+  else Object.defineProperty(s, k, { value: v, writable: true, configurable: true,
+                                     enumerable: false });
+}
+
+/* INK SAVED BEFORE THE PAGE'S BOX WAS THE PICTURE, brought onto the picture.
+
+   Such a stroke has no `pg`. Its heights are fractions of the figure -- the
+   picture and a caption of fixed height under it -- and its width is CSS
+   pixels at whatever width the page then had. The viewer that drew it wrote
+   the geometry it last painted at beside it (`_k`, `"<w>x<h>@<pl>,<pt>"`), and
+   the picture's own aspect says how much of that height was picture: the rest
+   was caption, and the heights are stretched back over the picture alone. A
+   stroke with no geometry is taken as already on the picture. `burn.py`'s
+   `on_page` is this rule, number for number. */
+function onPage(s, aspect) {
+  var m = /^(\d+(?:\.\d+)?)x(\d+(?:\.\d+)?)@/.exec(typeof s._k === "string" ? s._k : "");
+  var W = m ? parseFloat(m[1]) : 0, H = m ? parseFloat(m[2]) : 0;
+  var k = 1, w = s.w || 2.2;
+  if (W > 0 && H > 0) {
+    var pic = W * aspect;
+    if (H - pic > 4 && H - pic < 80) k = H / pic;
+    w = w * PAGE_REF / W;
+  }
+  var p = s.p.slice();
+  for (var i = 1; i < p.length; i += 2) p[i] *= k;
+  return { c: s.c, w: w, p: p, pr: (s.pr || []).slice(), pg: 1 };
+}
+
+/* A stroke as it goes to disk. Ink saved by an older viewer arrives carrying
+   that viewer's painted path (`_d`, `_bb`, `_bbk`), which nothing reads, and
+   goes without it; its `_k` stays until `lift` has put it on the picture,
+   because it is the only record of the box it was drawn against. */
+function saved(s) {
+  var out = {};
+  Object.keys(s).forEach(function (k) {
+    if (k === "_d" || k === "_bb" || k === "_bbk" || (k === "_k" && s.pg)) return;
+    out[k] = s[k];
+  });
+  return out;
+}
+
+/* Replaced, never changed in place: the undo stack holds lists by reference.
+   Waits for the picture, because its aspect is the one number the rule needs. */
+function lift(card) {
+  var id = keyOf(card), list = store[id];
+  if (!list || !list.length) return false;
+  var any = false;
+  for (var i = 0; i < list.length; i++) { if (!list[i].pg) { any = true; break; } }
+  if (!any) return false;
+  var img = card.querySelector("img");
+  if (!img || !img.naturalWidth || !img.naturalHeight) return false;
+  var aspect = img.naturalHeight / img.naturalWidth;
+  store[id] = list.map(function (s) { return s.pg ? s : onPage(s, aspect); });
+  var was = asLoaded[id];
+  if (was && was.lists.indexOf(list) >= 0) was.lists.push(store[id]);
+  return true;
+}
+
 /* ------------------------------------------------------- what carries ink */
 /* WIDENING THE TARGET, NOT INVENTING A MECHANISM.
    
@@ -170,6 +264,14 @@ var dirty = Object.create(null);      /* card ids with unsaved changes */
    you. Seeded from the payload on load, cleared by any change, set by a send. */
 var handed = Object.create(null);
 var onChange = function () {};
+/* INK AS IT CAME OFF THE DISK, for as long as nobody has changed it: card id ->
+   { raw: the list the server sent, lists: the lists standing for it (that one,
+   and its `lift`). A save of such a key sends `raw` back byte for byte. The
+   server keeps a record's `build` and `sent` only when the strokes it is given
+   are the ones on disk (the library re-saves each marked page to attach its
+   picture), and a converted list never is. Any edit replaces the list, so it
+   stops being one of these. */
+var asLoaded = Object.create(null);
 
 function strokesFor(id) {
   if (!store[id]) store[id] = [];
@@ -199,6 +301,8 @@ function marked(card) {
 }
 
 function size(card, canvas) {
+  canvas._page = isPage(card);
+  var lifted = canvas._page && lift(card);
   var r = card.getBoundingClientRect();
   var p = padsOf(card, r);
   var w = Math.max(1, Math.round(r.width)), h = Math.max(1, Math.round(r.height));
@@ -227,7 +331,7 @@ function size(card, canvas) {
   if (canvas._w === w && canvas._h === h && canvas._dpr === dpr
       && canvas._real === need
       && canvas._pl === p.l && canvas._pr === p.r
-      && canvas._pt === p.t && canvas._pb === p.b) return false;
+      && canvas._pt === p.t && canvas._pb === p.b) return lifted;
   canvas._w = w; canvas._h = h; canvas._dpr = dpr; canvas._real = need;
   canvas._pl = p.l; canvas._pr = p.r; canvas._pt = p.t; canvas._pb = p.b;
   /* The box exists whatever is on it: this element is what takes the pen while
@@ -254,7 +358,10 @@ function size(card, canvas) {
   canvas.height = Math.round((h + p.t + p.b) * dpr);
   /* A resize invalidates every cached pixel path on this card. */
   var strokes = store[keyOf(card)] || [];
-  for (var i = 0; i < strokes.length; i++) { strokes[i]._k = null; strokes[i]._bbk = null; }
+  for (var i = 0; i < strokes.length; i++) {
+    cache(strokes[i], "_pathKey", null);
+    cache(strokes[i], "_boxKey", null);
+  }
   return true;
 }
 
@@ -275,16 +382,16 @@ function geomOf(cv) {
 
 function pathOf(s, cv) {
   var key = geomOf(cv);
-  if (s._k === key && s._d) return s._d;
+  if (s._pathKey === key && s._path) return s._path;
   var raw = [];
   var pr = s.pr || null;
   for (var i = 0, n = 0; i < s.p.length; i += 2, n++) {
     raw.push([s.p[i] * cv._w + cv._pl, s.p[i + 1] * cv._h + cv._pt,
               pr && pr[n] !== undefined ? pr[n] : 0.5]);
   }
-  s._k = key;
-  s._d = densify(raw);
-  return s._d;
+  cache(s, "_pathKey", key);
+  cache(s, "_path", densify(raw));
+  return s._path;
 }
 
 /* What a stroke covers, in canvas pixels, cached the same way.
@@ -297,7 +404,7 @@ function pathOf(s, cv) {
    where it started. */
 function bboxOf(s, cv) {
   var key = geomOf(cv);
-  if (s._bbk === key && s._bb) return s._bb;
+  if (s._boxKey === key && s._box) return s._box;
   var x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
   for (var i = 0; i < s.p.length; i += 2) {
     var x = s.p[i] * cv._w + cv._pl, y = s.p[i + 1] * cv._h + cv._pt;
@@ -308,10 +415,10 @@ function bboxOf(s, cv) {
   }
   /* The curve runs a little outside the samples it was fitted through, and the
      line has width. Both are small and both are why this is generous. */
-  var m = (s.w || pen.width) * 1.6 + 4;
-  s._bbk = key;
-  s._bb = { x0: x0 - m, y0: y0 - m, x1: x1 + m, y1: y1 + m };
-  return s._bb;
+  var m = widthOf(s, cv) * 1.6 + 4;
+  cache(s, "_boxKey", key);
+  cache(s, "_box", { x0: x0 - m, y0: y0 - m, x1: x1 + m, y1: y1 + m });
+  return s._box;
 }
 
 function grow(box, add) {
@@ -326,9 +433,9 @@ function grow(box, add) {
 
 /* One stroke, with the width varying along it. Straight `lineTo` between raw
    samples is what "jagged" was. */
-function paint(ctx, s, dense, colour, scale) {
+function paint(ctx, s, dense, colour, scale, cv) {
   if (!dense.length) return;
-  var base = (s.w || pen.width) * (scale || 1);
+  var base = widthOf(s, cv) * (scale || 1);
   ctx.strokeStyle = colour;
   ctx.fillStyle = colour;
   if (dense.length === 1) {
@@ -402,7 +509,7 @@ function repair(id, cv, box) {
     if (!s.p || s.p.length < 2) return;
     var bb = bboxOf(s, cv);
     if (bb.x1 < x0 || bb.x0 > x1 || bb.y1 < y0 || bb.y0 > y1) return;
-    paint(ctx, s, pathOf(s, cv), s.c || pen.colour);
+    paint(ctx, s, pathOf(s, cv), s.c || pen.colour, 1, cv);
   });
   /* The selection's own dashed box, inside the same clip: whatever rectangle was
      just cleared gets it back, so an erase or a pen lift elsewhere on the card
@@ -529,7 +636,7 @@ function png(id) {
     /* Dark ink on white whatever the screen is showing -- the PNG's only job is
        to be legible to whatever opens it. The same smoothed path as the screen,
        a little heavier, because it is read at whatever size the reader chooses. */
-    paint(ctx, s, pathOf(s, live), "#1a1a1a", 1.3);
+    paint(ctx, s, pathOf(s, live), "#1a1a1a", 1.3, live);
   });
   try { return out.toDataURL("image/png"); } catch (e) { return ""; }
 }
@@ -573,7 +680,7 @@ function pictureOver(id, img) {
   ctx.lineCap = "round";
   ctx.lineJoin = "round";
   strokes.forEach(function (s) {
-    paint(ctx, s, pathOf(s, live), s.c || pen.colour, 1.4);
+    paint(ctx, s, pathOf(s, live), s.c || pen.colour, 1.4, live);
   });
   try { return out.toDataURL("image/png"); } catch (e) { return ""; }
 }
@@ -665,7 +772,7 @@ function distToSeg(px, py, ax, ay, bx, by) {
    is changed in place. */
 function splitStroke(s, cv, a, b) {
   var w = cv._w || 1, h = cv._h || 1, pl = cv._pl || 0, pt = cv._pt || 0;
-  var r = ERASE_R + (s.w || pen.width) * 0.8;
+  var r = ERASE_R + widthOf(s, cv) * 0.8;
   var n = (s.p.length / 2) | 0;
   var runs = [], cur = null, touched = false;
   for (var i = 0; i < n; i++) {
@@ -688,7 +795,7 @@ function splitStroke(s, cv, a, b) {
       flat.push(s.p[idx * 2], s.p[idx * 2 + 1]);
       pr.push(s.pr && s.pr[idx] !== undefined ? s.pr[idx] : 0.5);
     }
-    out.push({ c: s.c, w: s.w, p: flat, pr: pr });
+    out.push(like(s, flat, pr));
   }
   return out;
 }
@@ -807,7 +914,7 @@ function toPixels(s, cv) {
     pts.push([s.p[i] * w + pl, s.p[i + 1] * h + pt,
               s.pr && s.pr[n] !== undefined ? s.pr[n] : 0.5]);
   }
-  return { c: s.c || pen.colour, w: s.w || pen.width, hl: false, pts: pts };
+  return { c: s.c || pen.colour, w: widthOf(s, cv), hl: false, pts: pts };
 }
 
 /* Which card a paste lands on: the one holding the selection, else the one last
@@ -904,7 +1011,9 @@ var CLIP = {
          mark -- a pen line, over words -- and there is no translucent
          multiply-blended ink here for a highlight to arrive as. It lands as a
          line in its own colour, which is the nearest true thing. */
-      all.push({ c: s.c || pen.colour, w: s.w || pen.width, p: f.p, pr: f.pr });
+      var got = { c: s.c || pen.colour, w: s.w || pen.width, p: f.p, pr: f.pr };
+      if (cv._page) { got.w = got.w * PAGE_REF / w; got.pg = 1; }
+      all.push(got);
     });
     store[id] = all;
     pick = { id: id, idx: all.slice(start).map(function (_, n) { return start + n; }) };
@@ -1039,6 +1148,12 @@ function store_stroke(d) {
   }
   d.stroke.p = flat;
   d.stroke.pr = pr;
+  /* On a page, the width goes down in page pixels (see `PAGE_REF`), so it is
+     the same weight against the page at every zoom it is ever painted at. */
+  if (cv._page) {
+    d.stroke.w = (d.stroke.w || pen.width) * PAGE_REF / w;
+    d.stroke.pg = 1;
+  }
   /* Replaced, not pushed. The undo stack holds this list by reference; see
      `snapshot`. */
   store[d.id] = strokesFor(d.id).concat([d.stroke]);
@@ -1580,7 +1695,7 @@ function begin(ev, card) {
       pick.idx.forEach(function (i) { taken[i] = true; });
       store[id] = (store[id] || []).map(function (st, i) {
         if (!taken[i]) return st;
-        return { c: st.c, w: st.w, p: st.p.slice(), pr: (st.pr || []).slice() };
+        return like(st, st.p.slice(), (st.pr || []).slice());
       });
       d.moving = { x: xy[0], y: xy[1] };
     } else {
@@ -1716,8 +1831,8 @@ function dragPick(d, xy) {
       st.p[n] += dx;
       st.p[n + 1] += dy;
     }
-    st._k = null;
-    st._bbk = null;
+    cache(st, "_pathKey", null);
+    cache(st, "_boxKey", null);
   });
   d.dmg = grow(grow(d.dmg, was), padBox(pickBox(cv), 14));
   d.dragged = true;
@@ -1910,7 +2025,11 @@ window.Annotate = {
          copy that comes back -- so accepting the server's version a moment later
          silently truncated whatever had been drawn since. It looked like the end
          of a stroke being bitten off a second after finishing it. */
-      if (!(id in store)) { store[id] = notes[id] || []; fresh.push(id); }
+      if (!(id in store)) {
+        store[id] = notes[id] || [];
+        asLoaded[id] = { raw: store[id], lists: [store[id]] };
+        fresh.push(id);
+      }
     });
     /* Only what was actually adopted.
 
@@ -2047,6 +2166,7 @@ window.Annotate = {
       delete store[id];
       delete dirty[id];
       delete handed[id];
+      delete asLoaded[id];
     });
     past.length = 0;
     future.length = 0;
@@ -2069,6 +2189,7 @@ window.Annotate = {
     delete store[id];
     delete dirty[id];
     delete handed[id];
+    delete asLoaded[id];
     var node = nodeFor(id);
     if (node) draw(node);
     return true;
@@ -2107,8 +2228,10 @@ window.Annotate = {
        and what a reload restores is `strokes`; the server writes the file and
        `load_notes` never looks at it. The tutor reads the picture, and the tutor
        only sees marks that were sent. */
-    return { card: id, strokes: store[id] || [], png: send ? png(id) : "",
-             where: whereOn(id), send: !!send };
+    var was = asLoaded[id], list = store[id] || [];
+    var strokes = was && was.lists.indexOf(list) >= 0 ? was.raw : list.map(saved);
+    return { card: id, strokes: strokes,
+             png: send ? png(id) : "", where: whereOn(id), send: !!send };
   },
   onChange: function (fn) { onChange = fn || function () {}; }
 };

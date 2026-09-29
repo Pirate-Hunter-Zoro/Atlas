@@ -650,6 +650,10 @@ function draw(doc, place, at) {
            same place on the page after a rotation or a zoom -- the trick
            `annotate.js` already plays on cards, one level in. */
         fig.dataset.ann = "doc/" + doc.id + "/p" + (i + 1);
+        /* A page, so its ink zooms with it (`annotate.js`, `PAGE_REF`). The
+           box is the picture alone: the caption hangs below it
+           (`library.css`). */
+        fig.setAttribute("data-ann-page", "");
         var img = document.createElement("img");
         img.src = url;
         img.alt = "page " + (i + 1);

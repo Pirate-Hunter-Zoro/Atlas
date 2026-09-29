@@ -58,13 +58,39 @@ from .. import fenced
 # page for the glass, which is about 150dpi on A4 and looks soft on paper.
 BURN_DPI = 200
 
-# The pen's width is in CSS pixels, taken against whatever the panel happened to
-# be when the mark was made, and the panel is not recorded. Every stroke is
-# therefore scaled as a fraction of ONE nominal page width, and this is it --
-# `paper.PAGE_WIDTH`, the width the pages themselves are drawn at. A mark made
-# on a narrow panel and a mark made on a wide one come out the same weight,
-# which is right: the person was drawing on a page, not on a number of pixels.
+# A stroke on a page (`pg`) carries its width in pixels of a page this wide --
+# `paper.PAGE_WIDTH`, the width the pages are drawn at, and `annotate.js`'s
+# `PAGE_REF` -- so it burns at the weight against the page that the glass shows
+# it at, at any zoom. Ink from before that is brought onto the page first
+# (`on_page`).
 INK_REFERENCE_WIDTH = float(paper.PAGE_WIDTH)
+
+_GEOMETRY = re.compile(r"^(\d+(?:\.\d+)?)x(\d+(?:\.\d+)?)@")
+
+
+def on_page(s, aspect):
+    """One stroke in page units: heights fractions of the picture, `w` in
+    pixels of a page `INK_REFERENCE_WIDTH` wide. `aspect` is height / width.
+
+    `annotate.js`'s `onPage`, number for number, and it has to be: a stroke with
+    no `pg` was stored against the figure -- the picture and a caption of fixed
+    height under it -- with its width in CSS pixels at whatever width the page
+    had. `_k`, `"<w>x<h>@..."`, is the box the viewer last painted it in; what of
+    that height is not picture was caption, and the heights are stretched back
+    over the picture. A stroke with no geometry is taken as already on it.
+    """
+    if s.get("pg"):
+        return s
+    m = _GEOMETRY.match(s.get("_k") if isinstance(s.get("_k"), str) else "")
+    W, H = (float(m.group(1)), float(m.group(2))) if m else (0.0, 0.0)
+    k, w = 1.0, float(s.get("w") or 2.2)
+    if W > 0 and H > 0:
+        pic = W * aspect
+        if 4 < H - pic < 80:
+            k = H / pic
+        w = w * INK_REFERENCE_WIDTH / W
+    p = [float(v) * (k if i % 2 else 1.0) for i, v in enumerate(s.get("p") or [])]
+    return {"c": s.get("c"), "w": w, "p": p, "pr": list(s.get("pr") or []), "pg": 1}
 
 MODES = ("same", "new", "none")
 
@@ -269,6 +295,7 @@ def _ink_ops(strokes, w_pt, h_pt):
     squashed back inside it, which would straighten exactly those rings.
     """
     scale = w_pt / INK_REFERENCE_WIDTH
+    strokes = [on_page(s, h_pt / w_pt) for s in strokes if s] if w_pt else strokes
     ops = ["q", "%.2f %.2f %.2f %.2f re W n" % (0, 0, w_pt, h_pt),
            "1 J", "1 j"]
     for s in strokes:

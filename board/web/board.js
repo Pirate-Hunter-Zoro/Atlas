@@ -2825,6 +2825,9 @@ function openPaper(kind, label, then) {
         box.className = "paper-page";
         var ident = paperIdent(kind);
         box.dataset.ann = "doc/" + ident + "/p" + (i + 1);
+        /* A page: the same ink the library reader draws on the same page, so
+           the same units (`annotate.js`, `PAGE_REF`). */
+        box.setAttribute("data-ann-page", "");
 
         var img = document.createElement("img");
         img.src = url;

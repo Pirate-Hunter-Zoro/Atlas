@@ -263,6 +263,7 @@ doc.getElementById('reader-pages').classList.contains('zoomable')
     : fail('there is no way back, or it is named after something else: '
            + back.getAttribute('href') + ' / ' + back.textContent);
 
+  await require('./inkzoom')(window, { ok, fail, name: 'deck' });
   await inkIsKept();
 
   console.log(errors.length ? '\n' + errors.length + ' FAILURES'
