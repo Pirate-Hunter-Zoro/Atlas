@@ -720,141 +720,34 @@ function savePictures(docId) {
   return Promise.all(jobs);
 }
 
-/* Saved shortly after the pen lifts, never mid-stroke: serialising a
-   well-marked page is real main-thread time, and it lands by construction in
-   the middle of the next stroke. The board's own autosave holds the same rule
-   for the same reason. */
-var penTimer = null;
-
-/* WHERE THE INK IS, SAID ON THE BAR. The strokes were always safe on disk a
-   second after the pen lifted; what nobody could see was that, or a save that
-   failed. So the bar says *saved · 3 pages marked*, *saving…*, or *not saved —
-   retrying*, and a failed page is kept owed and tried again: on a timer, when
-   the network comes back, and when the page is looked at again.
-
-   `owed` is this page's own copy of every body not yet confirmed on disk. The
-   pen's `unsaved` list is dropped when the reader closes (`Annotate.forget`),
-   and a save that failed as it closed would otherwise be ink the board let go
-   of without a word. */
-var owed = Object.create(null);      /* key -> the body last sent, unconfirmed */
-var flying = Object.create(null);    /* key -> a save of it is in the air */
-var inkFailed = false;
-var retryTimer = null;
-var retryWait = 0;
+/* WHERE THE INK IS, SAID ON THE BAR. The save itself -- kept owed on a
+   failure, retried on a timer, on `online` and on the page being looked at
+   again, flushed with `keepalive` when the page goes hidden -- is
+   `inkkeep.js`, the one path both readers use. What is this page's own is
+   which build a key was drawn on, and the re-draw after a save lands: the row
+   carries how many pages are marked, and the note dialog decides whether the
+   send button is live off the same number. */
 var openBuild = null;                /* the build on the glass: `got.build` */
 
 function mineKey(id) {
   return !!openDoc && id.indexOf("doc/" + openDoc.id + "/") === 0;
 }
 
-function bodyFor(id) {
-  var dirty = window.Annotate && window.Annotate.unsaved().indexOf(id) >= 0;
-  var body = dirty ? window.Annotate.payload(id, false) : owed[id];
-  if (!body) return null;
-  /* WHICH BUILD IT WAS DRAWN ON, so a rebuild overnight can be said out loud
-     when the document is opened again. Only for the document on the glass:
-     that is the only build this page knows it drew. */
-  if (dirty && openBuild && mineKey(id)) body.build = openBuild;
-  return body;
-}
+var keeper = window.InkKeep && window.Annotate ? window.InkKeep.make({
+  /* Only for the document on the glass: that is the only build this page
+     knows it drew. */
+  build: function (id) { return openBuild && mineKey(id) ? openBuild : null; },
+  paint: function () { paintKept(); },
+  saved: function (done) {
+    if (done.some(function (d) { return d.ok; })) load();
+  }
+}) : null;
 
 function savePen(opts) {
-  if (!window.Annotate) return Promise.resolve([]);
-  var keep = !!(opts && opts.keepalive);
-  var keepBudget = 60000;
-  var ids = window.Annotate.unsaved().slice();
-  Object.keys(owed).forEach(function (id) { if (ids.indexOf(id) < 0) ids.push(id); });
-  /* One save of a key at a time: two in the air can land in either order, and
-     the older one landing last leaves disk behind the glass while both said
-     yes. The one in the air finishes, and what is still owed goes after it. */
-  ids = ids.filter(function (id) { return !flying[id]; });
-  /* What is already in the air is waited on too, so a caller that needs the
-     ink on disk -- keep a marked copy -- is not answered before it lands. */
-  var pending = Object.keys(flying).map(function (id) { return flying[id]; });
-  if (!ids.length && !pending.length) { paintKept(); return Promise.resolve([]); }
-  var jobs = ids.map(function (id) {
-    /* `send` is NEVER set from here. Ink on a document is a complaint about
-       the document, and it becomes a turn when the note goes -- the feedback
-       route reads the marks where it reads the textarea. Sending on every
-       stroke would wake a tutor per ring drawn. */
-    var body = bodyFor(id);
-    if (!body) return Promise.resolve({ id: id, ok: true });
-    var sentInk = JSON.stringify(body.strokes || []);
-    owed[id] = body;
-    var init = {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      credentials: "same-origin",
-      body: JSON.stringify(body)
-    };
-    /* THE LID SHUTTING. `visibilitychange` to hidden is the event iOS actually
-       fires then, and a request started in it is cut off unless it is marked to
-       outlive the page. */
-    /* A browser gives keepalive requests about 64 KB between them and rejects
-       any past that outright, so a page too heavy to fit goes as an ordinary
-       request, which still finishes while the page is only hidden. */
-    if (keep && init.body.length <= keepBudget) {
-      init.keepalive = true;
-      keepBudget -= init.body.length;
-    }
-    var job = fetch("/annotate/save", init).then(function (r) {
-      if (r && r.ok === false) throw new Error("the board answered " + r.status);
-      return r && r.json ? r.json().catch(function () { return {}; }) : {};
-    }).then(function (got) {
-      if (got && got.ok === false) throw new Error(got.error || "refused");
-      /* Only what went is clean. A stroke drawn while this was in the air is
-         still owed, and the next save takes it. */
-      var now = window.Annotate.unsaved().indexOf(id) >= 0
-        ? JSON.stringify(window.Annotate.payload(id, false).strokes || [])
-        : sentInk;
-      if (now === sentInk) window.Annotate.clean(id);
-      if (owed[id] === body) delete owed[id];
-      return { id: id, ok: true };
-    }).catch(function () {
-      return { id: id, ok: false };
-    }).then(function (res) {
-      if (flying[id] === job) delete flying[id];
-      return res;
-    });
-    flying[id] = job;
-    return job;
-  });
-  paintKept();
-  return Promise.all(jobs.concat(pending)).then(function (done) {
-    inkFailed = done.some(function (d) { return !d.ok; });
-    if (inkFailed) {
-      scheduleRetry();
-    } else {
-      retryWait = 0;
-      if (retryTimer) { clearTimeout(retryTimer); retryTimer = null; }
-      /* Drawn on while the save was in the air: that goes next. */
-      if (window.Annotate.unsaved().length) queuePenSave();
-    }
-    paintKept();
-    /* The row carries how many pages are marked, and the note dialog decides
-       whether the send button is live off the same number. Both are worth
-       being right about a second after a ring is drawn. */
-    if (done.some(function (d) { return d.ok; })) load();
-    return done;
-  });
+  return keeper ? keeper.save(opts) : Promise.resolve([]);
 }
 
-/* Backing off, and never giving up: the ink is somebody's work and the board
-   being unreachable for an hour is a train through a tunnel, not a verdict. */
-function scheduleRetry() {
-  if (retryTimer) return;
-  var first = window.INK_RETRY_MS || 5000;
-  retryWait = Math.min(retryWait ? retryWait * 2 : first, Math.max(first, 60000));
-  retryTimer = setTimeout(function () {
-    retryTimer = null;
-    savePen();
-  }, retryWait);
-}
-
-function inkOwed() {
-  if (!window.Annotate) return false;
-  return window.Annotate.unsaved().length > 0 || Object.keys(owed).length > 0;
-}
+function inkOwed() { return !!keeper && keeper.owed(); }
 
 function pagesMarked() {
   if (!window.Annotate || !openDoc) return 0;
@@ -864,55 +757,22 @@ function pagesMarked() {
 function paintKept() {
   if (!els.readerKept) return;
   var n = pagesMarked();
-  var text = "";
-  var cls = "";
-  if (inkOwed() && inkFailed) { text = "not saved — retrying"; cls = "bad"; }
-  else if (inkOwed()) { text = "saving…"; cls = "busy"; }
-  else if (n) { text = "saved · " + n + (n === 1 ? " page" : " pages") + " marked"; }
-  els.readerKept.textContent = text;
-  els.readerKept.className = "reader-kept" + (cls ? " " + cls : "");
-  els.readerKept.hidden = !text;
+  var said = window.InkKeep
+    ? window.InkKeep.words(inkOwed(), !!keeper && keeper.failed(), n)
+    : { text: "", cls: "" };
+  els.readerKept.textContent = said.text;
+  els.readerKept.className = "reader-kept" + (said.cls ? " " + said.cls : "");
+  els.readerKept.hidden = !said.text;
   if (els.readerKeep) els.readerKeep.disabled = keeping || !n;
 }
 
-function queuePenSave() {
-  if (penTimer) clearTimeout(penTimer);
-  penTimer = setTimeout(function () {
-    penTimer = null;
-    /* Not under a moving nib. Deferred, not dropped: the hand lifts and the
-       next tick takes it. */
-    if (window.Annotate.busy()) { queuePenSave(); return; }
-    savePen();
-  }, 900);
-}
-
-/* Everything owed, now, marked to outlive the page. Not under the 900 ms
-   timer: there may be no next tick. */
-function flushPen() {
-  if (penTimer) { clearTimeout(penTimer); penTimer = null; }
-  return savePen({ keepalive: true });
-}
-
-if (window.Annotate) {
+if (keeper) {
   window.Annotate.onChange(function () {
-    queuePenSave();
+    keeper.queue();
     paintPen();
     paintKept();
   });
-  /* A closing tab must not take the last stroke with it -- and in a home-screen
-     app on an iPad `pagehide` is not reliably fired when the lid shuts, while
-     `visibilitychange` to hidden is. Back to visible is a retry, and so is the
-     network coming back. */
-  window.addEventListener("pagehide", function () { flushPen(); });
-  document.addEventListener("visibilitychange", function () {
-    if (document.visibilityState === "hidden") { flushPen(); return; }
-    if (inkOwed()) savePen();
-  });
-  window.addEventListener("online", function () {
-    if (inkOwed()) savePen();
-  });
 }
-
 /* ------------------------------------------------ ⤓ keep a marked copy */
 /* THE INK, BURNED INTO A NEW PDF, and never over the original: a document in
    the library is rebuilt by whatever made it, and the ask was a copy *without
@@ -933,7 +793,7 @@ function keepCopy() {
   paintKept();
   /* What is on the glass goes to disk first: the copy is burned from disk. */
   flushPenFor().then(function () {
-    if (inkFailed && inkOwed()) {
+    if (keeper && keeper.failed() && inkOwed()) {
       throw new Error("The ink is not saved yet, so a copy would be missing "
                       + "some of it. It is retrying; keep the copy once it says saved.");
     }
@@ -959,13 +819,10 @@ function keepCopy() {
   });
 }
 
+/* A save already in the air is waited on, and a stroke drawn while it was
+   goes in a second round, so the burn reads what is on the glass. */
 function flushPenFor() {
-  if (penTimer) { clearTimeout(penTimer); penTimer = null; }
-  /* A save already in the air is waited on, and a stroke drawn while it was
-     goes in a second round, so the burn reads what is on the glass. */
-  return savePen().then(function () {
-    return inkOwed() && !inkFailed ? savePen() : null;
-  });
+  return keeper ? keeper.settle() : Promise.resolve(null);
 }
 
 /* Fetched as soon as it exists, so the tap on *save a copy* can share it in the

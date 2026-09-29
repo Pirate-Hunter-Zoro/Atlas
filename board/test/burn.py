@@ -299,11 +299,34 @@ def library_section(tmp):
               and re.match(r"\A\d{1,2} \w{3} \d\d:\d\d\Z", flag.get("when") or ""))
         check("and offering the copy, while that build is still in the cache",
               flag.get("copy") is True)
+        # Unstamped ink past the old build's last page: the board viewer's, or
+        # a record from before builds were stamped. It goes with whichever
+        # build is burned, and this one has only three pages.
+        past_key = "doc/%s/p4" % ident
+        js("/annotate/save", {"card": past_key, "strokes": [stroke(0.3)]})
         status, got3 = js("/annotate/burn", {"kind": "library/" + ident,
                                              "mode": "new"})
         check("which is burned from the build the marks were drawn on",
               status == 200 and got3.get("ok") and got3.get("drawn") == flag["when"]
               and got3.get("pages") == 3)
+        check("and a mark past that build's cached pages is SAID to be left "
+              "out, not silently dropped",
+              got3.get("dropped") == [4] and "page 4" in (got3.get("detail") or "")
+              and "not in it" in (got3.get("detail") or ""))
+        # And when EVERY mark is past it, no copy is written: one with none of
+        # the ink on it is the unmarked document under another name.
+        aside = rec_path + ".aside"
+        os.rename(rec_path, aside)
+        before = sorted(os.listdir(os.path.dirname(copy)))
+        status, got4 = js("/annotate/burn", {"kind": "library/" + ident,
+                                             "mode": "new"})
+        check("a copy whose every mark is past the build's pages is refused, "
+              "and nothing is written",
+              status == 400 and got4.get("why") == "past-end"
+              and got4.get("dropped") == [4]
+              and sorted(os.listdir(os.path.dirname(copy))) == before)
+        os.rename(aside, rec_path)
+        js("/annotate/save", {"card": past_key, "strokes": []})
         work = tempfile.mkdtemp(prefix="burn-cache-check-")
         try:
             copy3 = os.path.join(ws, *(got3.get("path") or "x").split("/"))

@@ -32,6 +32,7 @@ var els = {};
 [
   "deck-back", "deck-count",
   "reader-name", "reader-sub", "reader-pen", "reader-close", "reader-said",
+  "reader-kept", "reader-rebuilt",
   "reader-pages", "deck-send", "deck-pdf",
   "note", "deck-ask-list", "deck-ask-said", "deck-ask-cancel", "deck-ask-go",
   "deck-check", "deck-check-head", "deck-check-list",
@@ -59,6 +60,8 @@ if (window.matchMedia) {
 var pagesOf = {};        /* page number -> workspace id */
 var names = {};          /* workspace id -> the name it is drawn under */
 var openPages = 0;
+var openBuild = null;    /* the build on the glass: `got.build` */
+var openDeck = null;     /* which deck it is: `got.deck` */
 
 /* ------------------------------------------------------------- the pages */
 function load() {
@@ -76,9 +79,13 @@ function paint(got) {
     els.readerSub.textContent = got.detail || "The slides could not be drawn.";
     els.readerPages.innerHTML = "";
     openPages = 0;
+    openBuild = null;
+    openDeck = null;
     paintCheck({});
+    paintRebuilt(null);
     paintPen();
     paintSaid();
+    paintKept();
     /* A deck being written is watched, not left: the page draws it when it
        has been built and read back. */
     if (got.why === "being written") setTimeout(load, 15000);
@@ -126,9 +133,27 @@ function paint(got) {
     }
   });
   if (window.Annotate) window.Annotate.load(got.ink || {});
+  /* THE BUILD ON THE GLASS, handed back with every save of this deck's ink
+     -- and the flag, when ink on it was drawn on another. */
+  openBuild = got.build || null;
+  openDeck = got.deck || null;
+  paintRebuilt(got.rebuilt || null);
   paintCheck(got.unsupported || {});
   paintPen();
   paintSaid();
+  paintKept();
+}
+
+/* INK KNOWS ITS BUILD. A new deck clears the old one's ink, so this is only
+   ever a deck recompiled in place: its slides moved under the marks, and a
+   mark on page 4 may now be on another project's frame. */
+function paintRebuilt(flag) {
+  if (!els.readerRebuilt) return;
+  if (!flag) { els.readerRebuilt.hidden = true; return; }
+  els.readerRebuilt.hidden = false;
+  els.readerRebuilt.textContent = "These marks were drawn on the "
+    + (flag.when || "an earlier") + " build; the deck has been rebuilt since, "
+    + "so check each one is still on the slide it was meant for.";
 }
 
 /* ---------------------------------------------------- what to check first */
@@ -242,48 +267,75 @@ if (window.ViewPin) {
   if (annBar) window.ViewPin.pin(annBar.node, { edge: "bottom" });
 }
 
-/* Saved shortly after the pen lifts, never mid-stroke: serialising a
-   well-marked page is real main-thread time, and it lands by construction in
-   the middle of the next stroke. */
-var penTimer = null;
+/* WHERE THE INK IS, and it is kept until the board says it has it. The save
+   -- 900 ms after the pen lifts, kept owed on a failure, retried on a timer,
+   on `online` and on the page being looked at again, flushed with
+   `keepalive` when the page goes hidden -- is `inkkeep.js`, the library
+   reader's own path rather than a copy of it.
 
-function savePen() {
-  if (!window.Annotate) return Promise.resolve([]);
-  var ids = window.Annotate.unsaved();
-  if (!ids.length) return Promise.resolve([]);
-  return Promise.all(ids.map(function (id) {
-    /* `send` is NEVER set from here. Ink on a slide becomes a turn when the
-       marks are sent as direction, and that is a different route with a
-       different shape: one turn per WORKSPACE, in that workspace, rather than
-       one turn per page on this board. Sending on every stroke would wake a
-       tutor per ring drawn. */
-    var body = window.Annotate.payload(id, false);
-    return fetch("/annotate/save", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      credentials: "same-origin",
-      body: JSON.stringify(body)
-    }).then(function () { window.Annotate.clean(id); });
-  }));
+   `send` is NEVER set on these saves. Ink on a slide becomes a turn when the
+   marks are sent as direction, and that is a different route with a
+   different shape: one turn per WORKSPACE, in that workspace, rather than one
+   turn per page on this board. */
+var keeper = window.InkKeep && window.Annotate ? window.InkKeep.make({
+  build: function (id) {
+    return openBuild && /^doc\/meeting\/p\d+$/.test(id) ? openBuild : null;
+  },
+  /* WHICH DECK, so a page left open over a new one cannot write this
+     deck's rings onto that one's slides: the board answers `gone`. */
+  stamp: function (id) {
+    return openDeck && /^doc\/meeting\/p\d+$/.test(id) ? { deck: openDeck } : null;
+  },
+  paint: function () { paintKept(); },
+  saved: function (done) {
+    /* A deck replaced under this page is drawn again. */
+    if (done.some(function (d) { return d.gone; })) { load(); return; }
+    /* A flag re-drawing may have cleared is asked again: stamped with this
+       build, the marks are no longer on another. */
+    if (els.readerRebuilt && !els.readerRebuilt.hidden
+        && done.some(function (d) { return d.ok; })) refreshRebuilt();
+  }
+}) : null;
+
+function refreshRebuilt() {
+  fetch("/meeting/view", { credentials: "same-origin" })
+    .then(function (r) { return r.json(); })
+    .then(function (got) {
+      if (!got || !got.ok) return;
+      if ((got.deck || null) !== openDeck) { load(); return; }
+      paintRebuilt(got.rebuilt || null);
+    })
+    .catch(function () { /* the flag stays as it was */ });
 }
 
-function queuePenSave() {
-  if (penTimer) clearTimeout(penTimer);
-  penTimer = setTimeout(function () {
-    penTimer = null;
-    /* Not under a moving nib. Deferred, not dropped. */
-    if (window.Annotate.busy()) { queuePenSave(); return; }
-    savePen();
-  }, 900);
+function savePen(opts) {
+  return keeper ? keeper.save(opts) : Promise.resolve([]);
 }
 
-if (window.Annotate) {
+function pagesMarked() {
+  if (!window.Annotate) return 0;
+  return window.Annotate.marked().filter(function (id) {
+    return /^doc\/meeting\/p\d+$/.test(id);
+  }).length;
+}
+
+function paintKept() {
+  if (!els.readerKept) return;
+  var said = keeper
+    ? window.InkKeep.words(keeper.owed(), keeper.failed(), pagesMarked())
+    : { text: "", cls: "" };
+  els.readerKept.textContent = said.text;
+  els.readerKept.className = "reader-kept" + (said.cls ? " " + said.cls : "");
+  els.readerKept.hidden = !said.text;
+}
+
+if (keeper) {
   window.Annotate.onChange(function () {
-    queuePenSave();
+    keeper.queue();
     paintPen();
     paintSaid();
+    paintKept();
   });
-  window.addEventListener("pagehide", function () { savePen(); });
 }
 
 /* --------------------------------------------- sending them as direction */
@@ -311,7 +363,13 @@ els.deckAskGo.onclick = function () {
   /* WHATEVER IS OWED GOES FIRST. The server reads the marks off disk, so a
      stroke that has not been autosaved yet is a suggestion that would not be
      in the turn that was woken by it. */
-  savePen().then(function () {
+  (keeper ? keeper.settle() : Promise.resolve(null)).then(function () {
+    if (keeper && keeper.failed() && keeper.owed()) {
+      var stop = new Error("unsaved");
+      stop.said = "The ink is not saved yet, so the turns would not see all "
+        + "of it. It is retrying; send once it says saved.";
+      throw stop;
+    }
     return fetch("/meeting/direction", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -338,20 +396,37 @@ els.deckAskGo.onclick = function () {
        they go when the deck is replaced -- which is the only moment at which
        they stop meaning anything. */
     paintSaid();
-  }).catch(function () {
+  }).catch(function (err) {
     els.deckAskSaid.hidden = false;
     els.deckAskSaid.className = "note-said bad";
-    els.deckAskSaid.textContent = "The board is not answering; nothing was sent.";
+    els.deckAskSaid.textContent = (err && err.said)
+      || "The board is not answering; nothing was sent.";
     els.deckAskGo.disabled = false;
     els.deckAskGo.textContent = "send them";
   });
 };
 
+/* CLOSE WAITS FOR THE INK. A close is a click, not a lid: leaving at once
+   cancels a save already in the air and drops what the page still owes. Ink
+   that will not save is said on the bar, and a second close leaves anyway. */
+var closeAnyway = false;
 els.readerClose.onclick = function () {
-  /* Whatever is owed goes now. A page closed with ink that never reached disk
-     is ink somebody drew and the board silently dropped. */
-  savePen();
-  location.href = "/";
+  if (!keeper || closeAnyway) { location.href = "/"; return; }
+  els.readerClose.disabled = true;
+  /* A board that does not answer is not waited on forever. */
+  Promise.race([keeper.settle(), new Promise(function (ok) {
+    setTimeout(ok, 8000);
+  })]).then(function () {
+    els.readerClose.disabled = false;
+    if (keeper.owed()) {
+      closeAnyway = true;
+      els.readerKept.hidden = false;
+      els.readerKept.className = "reader-kept bad";
+      els.readerKept.textContent = "not saved — close again to leave without it";
+      return;
+    }
+    location.href = "/";
+  });
 };
 
 document.addEventListener("keydown", function (ev) {
@@ -360,5 +435,6 @@ document.addEventListener("keydown", function (ev) {
 });
 
 paintPen();
+paintKept();
 load();
 })();

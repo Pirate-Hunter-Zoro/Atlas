@@ -94,7 +94,16 @@ window.Element.prototype.setPointerCapture = function () {};
 window.Element.prototype.releasePointerCapture = function () {};
 window.requestAnimationFrame = (fn) => setTimeout(fn, 0);
 
-for (const f of ['ink-clip.js', 'annotate.js', 'annbar.js', 'viewpin.js']) {
+/* THE SCRIPTS THE PAGE ITSELF LOADS, in its order, read out of its markup: a
+   hand-kept list is how a suite goes green against a page missing a file. */
+const MEETING_HTML = fs.readFileSync(path.join(WEB, 'meeting.html'), 'utf8');
+const MEETING_SCRIPTS = (MEETING_HTML.match(/src="\/static\/[\w.-]+"/g) || [])
+  .map((m) => /static\/([\w.-]+)/.exec(m)[1])
+  .filter((f) => f !== 'meeting.js' && f !== 'typeface.js');
+MEETING_SCRIPTS.includes('inkkeep.js')
+  ? ok('the page loads the save path the library reader uses, not a copy of it')
+  : fail('meeting.html does not load inkkeep.js: ' + MEETING_SCRIPTS.join(', '));
+for (const f of MEETING_SCRIPTS) {
   try { window.eval(fs.readFileSync(path.join(WEB, f), 'utf8')); }
   catch (e) { fail(f + ': ' + e.message); }
 }
@@ -246,8 +255,202 @@ catch (e) { fail('meeting.js: ' + e.message); }
     : fail('there is no way back, or it is named after something else: '
            + back.getAttribute('href') + ' / ' + back.textContent);
 
+  await inkIsKept();
+
   console.log(errors.length ? '\n' + errors.length + ' FAILURES'
                             : '\na mark on a meeting slide is that project\'s '
                               + 'direction, and nothing about the slide');
   process.exit(errors.length ? 1 : 0);
 })();
+
+/* ==========================================================================
+   THE INK SAYS IT IS KEPT, on this reader as on the library's.
+
+   Ink drawn on a slide has to say it is on disk, survive the lid shutting,
+   and know which build it was drawn on. A page of its own, on a DOM of its
+   own, because what is asserted is what a network that says no does to it.
+   ========================================================================== */
+async function inkIsKept() {
+  const BUILD = { digest: 'abc123def4567890', at: 1790000000, pages: 3 };
+  const S = { c: '#e8746c', w: 2, p: [0.1, 0.1, 0.3, 0.4], pr: [0.5, 0.5] };
+  const P2 = 'doc/meeting/p2';
+  const P3 = 'doc/meeting/p3';
+  const net = { save: 'ok', rebuilt: null, deck: '1790000000.5' };
+  const d = new JSDOM(MEETING_HTML, { runScripts: 'outside-only', pretendToBeVisual: true,
+                                      url: 'https://board.test/meeting' });
+  const w = d.window;
+  w.HTMLCanvasElement.prototype.getContext = () =>
+    new Proxy({}, { get: () => () => {}, set: () => true });
+  w.HTMLCanvasElement.prototype.toDataURL = () => 'data:image/png;base64,';
+  w.Element.prototype.setPointerCapture = function () {};
+  w.Element.prototype.releasePointerCapture = function () {};
+  w.requestAnimationFrame = (fn) => setTimeout(fn, 0);
+  let hidden = false;
+  Object.defineProperty(w.document, 'visibilityState',
+                        { configurable: true, get: () => (hidden ? 'hidden' : 'visible') });
+  const log = [];
+  w.fetch = (u, o) => {
+    const url = String(u);
+    log.push({ url: url, opts: o || {} });
+    if (/meeting\/view/.test(url)) {
+      return Promise.resolve({ json: () => Promise.resolve(Object.assign(
+        {}, VIEW, { digest: BUILD.digest, build: BUILD, rebuilt: net.rebuilt,
+                    deck: net.deck })) });
+    }
+    if (/annotate\/save/.test(url)) {
+      if (net.save === 'down') return Promise.reject(new TypeError('Failed to fetch'));
+      if (net.save === 'gone') {
+        return Promise.resolve({ ok: false, status: 409,
+                                 json: () => Promise.resolve({ ok: false, gone: true }) });
+      }
+      if (net.save === 'refused') {
+        return Promise.resolve({ ok: false, status: 500,
+                                 json: () => Promise.resolve({ ok: false }) });
+      }
+      return Promise.resolve({ ok: true, json: () => Promise.resolve({ ok: true }) });
+    }
+    return new Promise(() => {});
+  };
+  w.addEventListener('error', (e) => fail('uncaught (ink page): ' + e.message));
+  for (const f of MEETING_SCRIPTS) {
+    try { w.eval(fs.readFileSync(path.join(WEB, f), 'utf8')); }
+    catch (e) { fail(f + ' (ink page): ' + e.message); }
+  }
+  w.INK_RETRY_MS = 100000;
+  try { w.eval(fs.readFileSync(path.join(WEB, 'meeting.js'), 'utf8')); }
+  catch (e) { fail('meeting.js (ink page): ' + e.message); }
+  await sleep(30);
+
+  const byId = (id) => w.document.getElementById(id);
+  const saves = () => log.filter((r) => /annotate\/save/.test(r.url));
+  const kept = () => { const k = byId('reader-kept'); return k.hidden ? '' : k.textContent; };
+  const hide = (v) => { hidden = v; w.document.dispatchEvent(new w.Event('visibilitychange')); };
+  /* A stroke on a slide, the way the pen leaves one: on the page, and owed. */
+  const draw = (key) => { w.Annotate.load({ [key]: [S] }); w.Annotate.clear(key); w.Annotate.undo(); };
+
+  kept() === ''
+    ? ok('ink: a deck with no ink on it says nothing about ink')
+    : fail('ink: a clean deck says: ' + kept());
+
+  // ---- a good save, stamped, and said ---------------------------------
+  draw(P2);
+  /saving/.test(kept())
+    ? ok('ink: a stroke not yet on disk reads “saving…”')
+    : fail('ink: a fresh stroke reads: ' + kept());
+  await sleep(1000);
+  const first = saves().pop();
+  const body = first ? JSON.parse(first.opts.body) : {};
+  (body.build || {}).digest === BUILD.digest && body.card === P2 && !body.send
+    && body.deck === net.deck
+    ? ok('ink: a saved slide carries the build and the deck it was drawn on, and is not a send')
+    : fail('ink: the save was: ' + (first && first.opts.body));
+  kept() === 'saved · 1 page marked'
+    ? ok('ink: once it lands the bar says “saved · 1 page marked”')
+    : fail('ink: a landed save reads: ' + kept());
+
+  // ---- a 500 stays unsaved, is shown, and is retried on `online` ------
+  net.save = 'refused';
+  draw(P3);
+  await sleep(1000);
+  kept() === 'not saved — retrying' && byId('reader-kept').classList.contains('bad')
+    ? ok('ink: a save the board answers 500 is shown: “not saved — retrying”')
+    : fail('ink: a 500 reads: ' + kept());
+  w.Annotate.unsaved().indexOf(P3) >= 0
+    ? ok('ink: and the slide stays unsaved rather than being cleaned on any reply')
+    : fail('ink: a 500 cleaned the slide');
+  let before = saves().length;
+  hide(false);
+  await sleep(30);
+  saves().length > before && w.Annotate.unsaved().indexOf(P3) >= 0
+    ? ok('ink: back to visible is a retry, and a second 500 is still not a save')
+    : fail('ink: visible retry: ' + (saves().length - before) + ' saves');
+  net.save = 'ok';
+  before = saves().length;
+  w.dispatchEvent(new w.Event('online'));
+  await sleep(30);
+  saves().length > before && w.Annotate.unsaved().indexOf(P3) < 0
+    && kept() === 'saved · 2 pages marked'
+    ? ok('ink: the network coming back is a retry, and only its success is kept')
+    : fail('ink: after online: ' + (saves().length - before) + ' saves, bar '
+           + kept() + ', unsaved ' + w.Annotate.unsaved().join(','));
+
+  // ---- the lid shutting ------------------------------------------------
+  draw(P2);
+  before = saves().length;
+  hide(true);
+  await sleep(10);
+  const flushed = saves().slice(before);
+  flushed.length && flushed.every((r) => r.opts.keepalive === true)
+    && JSON.parse(flushed[0].opts.body).card === P2
+    ? ok('ink: a page going hidden flushes what is owed at once, with keepalive')
+    : fail('ink: the hidden flush: ' + JSON.stringify(flushed.map((r) => r.opts.keepalive)));
+  hide(false);
+  await sleep(30);
+
+  // ---- sending waits for the ink, and will not go without it -----------
+  net.save = 'down';
+  draw(P2);
+  byId('deck-send').dispatchEvent(new w.MouseEvent('click', { bubbles: true }));
+  byId('deck-ask-go').dispatchEvent(new w.MouseEvent('click', { bubbles: true }));
+  await sleep(40);
+  !log.some((r) => /meeting\/direction/.test(r.url))
+    && /not saved yet/.test(byId('deck-ask-said').textContent)
+    ? ok('ink: marks the board has not got are not sent as direction, and it says so')
+    : fail('ink: direction went with unsaved ink: ' + byId('deck-ask-said').textContent);
+  // ---- close waits for the ink, and says when it will not save ---------
+  byId('reader-close').dispatchEvent(new w.MouseEvent('click', { bubbles: true }));
+  await sleep(40);
+  /close again to leave without it/.test(kept()) && w.Annotate.unsaved().indexOf(P2) >= 0
+    ? ok('ink: close waits on the save, and ink that will not save stops it once, saying so')
+    : fail('ink: close with unsaved ink: ' + kept());
+  net.save = 'ok';
+  w.dispatchEvent(new w.Event('online'));
+  await sleep(30);
+
+  // ---- a deck replaced under the page lets its old ink go --------------
+  net.save = 'gone';
+  draw(P3);
+  const views = () => log.filter((r) => /meeting\/view/.test(r.url)).length;
+  const viewsBefore = views();
+  await sleep(1000);
+  w.Annotate.unsaved().indexOf(P3) < 0 && views() > viewsBefore
+    && !/not saved/.test(kept())
+    ? ok('ink: a save the board says is for another deck is let go, not retried, '
+         + 'and the page draws the deck again')
+    : fail('ink: a gone save: unsaved ' + w.Annotate.unsaved().join(',')
+           + ', bar ' + kept());
+  net.save = 'ok';
+  await sleep(30);
+
+  // ---- rebuilt since ---------------------------------------------------
+  net.rebuilt = { at: 1789990000, when: '28 Sep 21:40', pages: [2], copy: true, detail: '' };
+  // The deck opened again, after a recompile in place.
+  const again = new JSDOM(MEETING_HTML, { runScripts: 'outside-only', pretendToBeVisual: true,
+                                          url: 'https://board.test/meeting' });
+  const w2 = again.window;
+  w2.HTMLCanvasElement.prototype.getContext = w.HTMLCanvasElement.prototype.getContext;
+  w2.HTMLCanvasElement.prototype.toDataURL = w.HTMLCanvasElement.prototype.toDataURL;
+  w2.requestAnimationFrame = (fn) => setTimeout(fn, 0);
+  w2.fetch = w.fetch;
+  for (const f of MEETING_SCRIPTS) {
+    try { w2.eval(fs.readFileSync(path.join(WEB, f), 'utf8')); }
+    catch (e) { fail(f + ' (rebuilt page): ' + e.message); }
+  }
+  try { w2.eval(fs.readFileSync(path.join(WEB, 'meeting.js'), 'utf8')); }
+  catch (e) { fail('meeting.js (rebuilt page): ' + e.message); }
+  await sleep(30);
+  const flag = w2.document.getElementById('reader-rebuilt');
+  flag && !flag.hidden && /28 Sep 21:40 build/.test(flag.textContent)
+    && /rebuilt since/.test(flag.textContent)
+    ? ok('ink: marks drawn on an earlier build of the deck are flagged “rebuilt since”')
+    : fail('ink: the rebuilt flag: ' + (flag ? (flag.hidden ? 'hidden' : flag.textContent) : 'missing'));
+
+  // Re-drawing the flagged slide on this build clears the flag on the board,
+  // and the page asks again rather than going on saying it.
+  net.rebuilt = null;
+  w2.Annotate.load({ [P2]: [S] }); w2.Annotate.clear(P2); w2.Annotate.undo();
+  await sleep(1100);
+  flag && flag.hidden
+    ? ok('ink: a flag re-drawing has cleared goes from the page after the save')
+    : fail('ink: the rebuilt flag stayed up after the marks were re-drawn');
+}

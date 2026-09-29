@@ -469,6 +469,46 @@ try:
                 check("and is handed the sidecar to show",
                       any(n["value"] == "0.713"
                           for n in body["unsupported"]["numbers"]))
+                # --- INK KNOWS ITS BUILD, the library's way -----------------
+                built = body.get("build") or {}
+                check("and the build on the glass, to stamp its ink with",
+                      built.get("digest") == body.get("digest")
+                      and built.get("pages") == 6 and built.get("at", 0) > 0
+                      and body.get("rebuilt") is None)
+                key5 = "doc/%s/p5" % meeting.ANN_IDENT
+                line = [{"p": [[0.1, 0.1], [0.2, 0.3]]}]
+                status, _ = post("/annotate/save", {
+                    "card": key5, "strokes": line,
+                    "build": {"digest": "abcdef0123", "pages": 6,
+                              "at": built.get("at", 0) - 3600}})
+                status, again = get("/meeting/view")
+                flag = again.get("rebuilt") or {}
+                check("ink saved on another build of the deck is flagged "
+                      "rebuilt since, naming the page and when",
+                      flag.get("pages") == [5] and flag.get("when"))
+                post("/annotate/save", {"card": key5, "strokes": line + line,
+                                        "build": built})
+                status, again = get("/meeting/view")
+                check("and once drawn again on this build it is not",
+                      again.get("rebuilt") is None)
+                # --- INK ON ANOTHER DECK IS NOT THIS ONE'S -------------------
+                here = body.get("deck")
+                check("the view names the deck, to stamp its ink with",
+                      bool(here) and here == meeting.deck_id(base))
+                key6 = "doc/%s/p6" % meeting.ANN_IDENT
+                status, got = post("/annotate/save", {
+                    "card": key6, "strokes": line, "build": built,
+                    "deck": "12.5"})
+                check("a save naming another deck is refused as gone, and "
+                      "nothing is written",
+                      status == 409 and got.get("gone") is True
+                      and key6 not in meeting.ink_keys(serving))
+                status, got = post("/annotate/save", {
+                    "card": key6, "strokes": line, "build": built,
+                    "deck": here})
+                check("and one naming this deck is kept",
+                      status == 200 and key6 in meeting.ink_keys(serving))
+                meeting.clear_ink(serving)
             else:
                 print("skip  %s" % (body.get("detail") or "no pages drawn here"))
 

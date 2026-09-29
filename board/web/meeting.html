@@ -38,6 +38,10 @@
          mentor draws on a frame is a suggested new direction for the project
          that frame is about. -->
     <button id="reader-pen" type="button" title="draw on the slide">✎ mark it up</button>
+    <!-- WHERE THE INK IS: saved and on how many slides, being saved, or not
+         saved and being retried. The library reader's line, off the same
+         save path (`inkkeep.js`). -->
+    <span id="reader-kept" class="reader-kept" role="status" aria-live="polite" hidden></span>
     <button id="deck-send" type="button" title="send the marks as direction" disabled>
       send as direction</button>
     <a id="deck-pdf" href="/meeting/pdf" target="_blank" rel="noopener"
@@ -47,6 +51,10 @@
   <!-- NOTHING THE READER CAN BE WAITING ON IS SILENT. Which workspaces are
        marked, what sending them will do, and what happened when it was done. -->
   <p id="reader-said" class="reader-said" hidden></p>
+  <!-- INK KNOWS ITS BUILD. A deck recompiled in place moves its slides under
+       the marks, and this says so. No marked copy is offered: ink here is
+       direction, and its pictures go to `meetings/marks/` when it is sent. -->
+  <p id="reader-rebuilt" class="reader-said reader-rebuilt" hidden></p>
   <!-- WHAT NO SOURCE SUPPORTS. Every number and figure on the deck is checked
        against the brief it was written over; what is not found is listed
        here, never silently dropped and never silently shipped. -->
@@ -84,6 +92,7 @@
 <script src="/static/annotate.js"></script>
 <script src="/static/annbar.js"></script>
 <script src="/static/viewpin.js"></script>
+<script src="/static/inkkeep.js"></script>
 <script src="/static/meeting.js"></script>
 </body>
 </html>

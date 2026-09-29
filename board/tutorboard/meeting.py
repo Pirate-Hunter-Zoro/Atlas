@@ -1590,6 +1590,43 @@ def ink_keys(repo):
     return out
 
 
+def drawn_on(repo, pdf, pages):
+    """`(build, rebuilt)` for the deck on the glass, the library's way.
+
+    `pages` is `paper.pages_of`'s answer with `ink` already in it. `build` is
+    `{digest, at, pages}`, which `/meeting` hands back with every save so the
+    record says what the marks were drawn on (`writing.clean_build`).
+    `rebuilt` is `library.drawn_on`'s flag, or None. A new deck clears the old
+    one's ink, so the flag only ever means a deck recompiled in place. No copy
+    is offered off it: ink here is direction, not a document to keep.
+    """
+    from .course import library                        # local: avoids a cycle
+
+    try:
+        at = os.path.getmtime(pdf)
+    except OSError:
+        at = 0
+    build = {"digest": pages.get("digest") or "", "at": at,
+             "pages": pages.get("n") or 0}
+    flag = library.drawn_on(repo, None, build["digest"],
+                            pages.get("ink") or {})["rebuilt"]
+    return build, flag
+
+
+def deck_id(base):
+    """Which deck this is, as a string, or "".
+
+    `asked_at` is set once per `prepare` and kept through a recompile in place,
+    so it names one deck across its builds. A save of deck ink names the deck
+    it was drawn on, and a save naming another is refused
+    (`/annotate/save`): a page left open over a new deck would otherwise write
+    last meeting's rings onto this one's slides.
+    """
+    rec = _read_record(base) or {}
+    at = rec.get("asked_at")
+    return repr(float(at)) if isinstance(at, (int, float)) else ""
+
+
 def clear_ink(repo):
     """Throw away every mark on the deck. Returns how many keys went.
 
