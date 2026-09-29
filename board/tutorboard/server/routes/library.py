@@ -420,6 +420,20 @@ def _dispatch_writeup(h, repo, match, makes, about, line=None, prepare=None):
     recorded -- the deck from sittings writes its brief there, so a refusal
     leaves nothing behind and a recorded ask always has its brief.
     """
+    got, err = dispatch(repo, match, makes, about, line=line, prepare=prepare)
+    if err:
+        return h.send_json(err[0], status=err[1])
+    if got.get("woke"):
+        h.note("nothing was reading the board; starting a tutor to write it")
+    h.server.hub.worker.dirty.set()
+    return got
+
+
+def dispatch(repo, match, makes, about, line=None, prepare=None):
+    """`_dispatch_writeup` without a request: `({id, rec, root, woke}, None)`,
+    or `(None, (payload, status))` for a refusal. The meeting deck is asked for
+    from the command line through this as well as from the front door, so the
+    two entry points are one order of things."""
     root = match["root"] if match else repo.root
     if match:
         # THE START IS ASKED FIRST, AND NOTHING IS WRITTEN UNTIL IT IS ALLOWED.
@@ -437,8 +451,8 @@ def _dispatch_writeup(h, repo, match, makes, about, line=None, prepare=None):
                                      "--respawn"], timeout=60)
         said = out.strip()[-300:]
         if code != 0:
-            return h.send_json({"ok": False, "repo": match["repo"],
-                                "error": said}, status=409)
+            return None, ({"ok": False, "repo": match["repo"],
+                           "error": said}, 409)
 
     # NOW it is allowed, so now there is a workspace to write in.
     target = Repo(root) if match else repo
@@ -451,9 +465,8 @@ def _dispatch_writeup(h, repo, match, makes, about, line=None, prepare=None):
         try:
             prepare(target.root, wid)
         except Exception as exc:                             # noqa: BLE001
-            return h.send_json({"ok": False,
-                                "error": "nothing could be prepared: %s" % exc},
-                               status=500)
+            return None, ({"ok": False,
+                           "error": "nothing could be prepared: %s" % exc}, 500)
     rec = writeups.ask(target.root, wid, makes, about,
                        agent=config.sitting_agent(target.root) or "")
     line = line or ("[writeup] " + sense.writeup_sense(makes, about))
@@ -467,17 +480,15 @@ def _dispatch_writeup(h, repo, match, makes, about, line=None, prepare=None):
         with open(target.messages_path, "a", encoding="utf-8") as fh:
             fh.write(json.dumps(record) + "\n")
     except OSError as exc:
-        return h.send_json({"ok": False,
-                            "error": "nothing could be asked: %s" % exc},
-                           status=500)
+        return None, ({"ok": False,
+                       "error": "nothing could be asked: %s" % exc}, 500)
+    woke = False
     if not match:
         # A request that sits in an inbox beside a board with no tutor on it is a
         # tap that did nothing for ever -- the same reason `/say` and `_revise`
         # wake one. The other workspace already had its start asked for above.
-        if spawn.wake_tutor(repo):
-            h.note("nothing was reading the board; starting a tutor to write it")
-    h.server.hub.worker.dirty.set()
-    return {"id": wid, "rec": rec, "root": target.root}
+        woke = bool(spawn.wake_tutor(repo))
+    return {"id": wid, "rec": rec, "root": target.root, "woke": woke}, None
 
 
 def _strings(payload, key):
@@ -555,6 +566,87 @@ def _sittings_deck(h, repo, base, payload):
                    "and this sheet says when it is ready. You can close it; "
                    "the deck also appears under Decks already made."
                    % host_name)})
+
+
+def ask_meeting(repo, base, since_ts, human, want=None):
+    """Ask for THE MEETING DECK: `({id, host, where, dir, record}, None)`, or
+    `(None, (payload, status))`.
+
+    THE DECK FROM SITTINGS WITH A PRESET, through the same dispatch. The period
+    and the workspaces choose what the brief holds (`meeting.blocks_for`); the
+    host is `sittings.host_for`'s answer, so a deck touching a fenced workspace
+    is written inside it by whatever may read it; and `meeting.prepare` runs
+    where the deck from sittings writes its brief -- once the ask is allowed,
+    before it is recorded -- so a refusal leaves the last deck standing.
+    """
+    from ... import meeting                          # local: a heavy import
+    blocks, every, why = meeting.blocks_for(base, want, since_ts)
+    if why:
+        return None, ({"ok": False, "detail": why}, 400)
+    if not blocks:
+        return None, ({"ok": False, "detail": (
+            "Nothing landed in %s in %s, so there is nothing to present. "
+            "Choose a longer period." % (human, ", ".join(
+                w["dir"] for w in every) or "any workspace"))}, 400)
+    host, clash = meeting.host_for(blocks)
+    if clash:
+        return None, ({"ok": False, "detail": clash}, 400)
+    host_block = next(b for b in blocks if b["id"] == host)
+    taken = meeting.occupied(host_block["root"])
+    if taken:
+        return None, ({"ok": False, "detail": taken}, 409)
+    match = None
+    # THE BOARD'S OWN WORKSPACE IS NOT ASKED TO START, for `/writeup`'s reason.
+    if not paths.same_dir(host_block["root"], repo.root):
+        for c in machines.workspaces(repo):
+            if c["id"] == host:
+                match = c
+                break
+        if not match:
+            return None, ({"ok": False, "detail": "unknown workspace %s" % host},
+                          404)
+    period = meeting.period_text(since_ts)
+    rel = "%s/%s" % (meeting.WRITEUPS, meeting.DECK_DIR)
+    about = ("the meeting deck for %s, briefed in %s/%s"
+             % (period, rel, meeting.BRIEF_MD))[:writeups.ABOUT_CHARS]
+    line = "[writeup] " + sense.writeup_sense("slides",
+                                              sense.meeting_about(rel, period))
+    made = {}
+
+    def prepare(root, wid):
+        made["rec"] = meeting.prepare(base, root, blocks, since_ts, human, wid,
+                                      host, repo=repo)
+
+    got, err = dispatch(repo, match, "slides", about, line=line, prepare=prepare)
+    if err:
+        payload = dict(err[0])
+        payload.setdefault("detail", payload.get("error") or "")
+        return None, (payload, err[1])
+    return {"id": got["id"], "host": host, "where": host_block["name"],
+            "dir": made.get("rec", {}).get("dir") or "",
+            "record": made.get("rec") or {}, "woke": got.get("woke")}, None
+
+
+def meeting_deck(h, repo, base, since_ts, human, want=None):
+    """`POST /notes`: the meeting deck asked for, and the sheet told it is being
+    written. The sheet then watches `/meeting/deck.json`."""
+    got, err = ask_meeting(repo, base, since_ts, human, want=want)
+    if err:
+        return h.send_json(err[0], status=err[1])
+    if got.get("woke"):
+        h.note("nothing was reading the board; starting a tutor to write the "
+               "meeting deck")
+    h.server.hub.worker.dirty.set()
+    rec = got["record"]
+    return h.send_json({
+        "ok": True, "id": got["id"], "name": "meeting", "state": "being written",
+        "host": got["host"], "where": got["where"], "dir": got["dir"],
+        "workspaces": rec.get("workspaces") or [],
+        "names": rec.get("names") or {}, "since": human,
+        "period": rec.get("period") or "",
+        "detail": ("The assistant is writing it in %s. It takes several minutes, "
+                   "and this sheet says when it is ready. It replaces the deck "
+                   "before it." % got["where"])})
 
 
 def rework_refused(repo, doc):

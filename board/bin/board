@@ -56,11 +56,10 @@ The assistant runs these. The student never does.
                                        outranks the plan, the map and the
                                        handoff. `board brief` already has it
     board direction < what.md          replace it -- their sentence, not yours
-    board notes --meeting --since 7d   THE meeting deck: one Beamer slide per
-                                       workspace saying what landed, what it
-                                       meant and what is blocked, every claim
-                                       carrying a link. One of them, at
-                                       meetings/meeting.pdf, replaced each time
+    board notes --meeting --since 7d   THE meeting deck: a presentation to the
+                                       mentors, written by a turn over a brief
+                                       of the period. One of them, replaced
+                                       each time. --print shows the brief
     board make --paper ["title"]       assemble a manuscript job out of this
                                        workspace and drop it in Paper-Writer's
                                        inbox. --status, --delivered, --dry-run
@@ -2088,35 +2087,28 @@ def cmd_aim(live, args):
 
 
 def cmd_notes(live, args):
-    """The meeting deck: one slide per workspace, in the words it was written in.
+    """The meeting deck: a presentation to the mentors, written over a brief.
 
         board notes --meeting --since 7d
         board notes --meeting --since 2026-09-01 --workspace research/PSYCH-ASR
-        board notes --meeting --since last          (since the last deck)
-        board notes --meeting --since monday --print   (the text of it, no PDF)
+        board notes --meeting --since last            (since the last deck)
+        board notes --meeting --since monday --print  (the brief; writes nothing)
+        board notes --meeting --since 7d --brief-to DIR
+                                   (the brief and its figures, written into DIR
+                                    and nowhere else; nothing is asked)
 
-    A FRAME per workspace that moved, with **what landed** (commits,
-    summarised, plus the plan steps that came off), **what it means** in the
-    words of that workspace's own written map, **what is next**, and **what is
-    blocked and on what**. Every claim carries an address in the §2.1 grammar,
-    so a deck read in September opens the thing it is about or says plainly
-    that it has moved.
+    THE DECK FROM SITTINGS WITH A PRESET, and the front door's meeting sheet is
+    the other entry point to the same engine. The period snaps to a local
+    midnight. Per workspace the brief carries the commits that are its own
+    work with their whole messages, the HANDOFF.md and DIRECTION.md diffs the
+    saves carried, those files' diff over the period, the sittings held, the
+    plan steps that closed and the open ones a commit looks to have done, and
+    the period's figures, copied beside the deck.
 
-    NOTHING IN IT IS GENERATED PROSE. Every sentence is assembled out of
-    something a person already wrote down: a commit subject, a plan step, the
-    name they gave a box. A slide you are going to stand behind in front of
-    your mentors is the last place for a sentence nobody wrote, and a model
-    would buy polish at the price of the one property that makes the deck
-    usable without checking it.
-
-    A workspace with nothing to say is LEFT OUT rather than given an empty
-    frame -- eleven slides with nothing on ten of them is a deck nobody sits
-    through, and it buries the one that moved. `--workspace`, repeated, says
-    which to look at and nothing else is looked at.
-
-    ONE DECK, AT `meetings/meeting.pdf`, and making a new one REPLACES it.
-    Nothing accumulates in the tree and `git log` still holds every deck there
-    has ever been. Staged rather than committed.
+    WITHOUT `--print` OR `--brief-to` IT IS ASKED FOR: the brief is written
+    into the host workspace's `writeups/meeting/` -- the fenced one where one
+    is chosen -- and a `[writeup]` turn there writes and builds the deck. It
+    replaces the one before it. `/meeting` reads it once it is built.
     """
     if "--meeting" not in args:
         print("board notes: say what kind. `board notes --meeting --since 7d`.\n"
@@ -2124,56 +2116,78 @@ def cmd_notes(live, args):
               "`board note`, singular.)", file=sys.stderr)
         return 1
 
-    spec = ""
-    if "--since" in args:
-        n = args.index("--since")
-        if n + 1 < len(args):
-            spec = args[n + 1]
-    base = atlas.root() or live.root
+    def value(flag):
+        if flag in args:
+            n = args.index(flag)
+            if n + 1 < len(args):
+                return args[n + 1]
+        return ""
 
-    when, human = meeting.resolve_since(spec, base)
+    base = atlas.root() or live.root
+    when, human = meeting.resolve_since(value("--since"), base)
     if when is None:
         print("board notes: %s" % human, file=sys.stderr)
         return 1
+    want = [args[i + 1] for i, a in enumerate(args)
+            if a == "--workspace" and i + 1 < len(args)]
 
-    want = []
-    for i, a in enumerate(args):
-        if a == "--workspace" and i + 1 < len(args):
-            want.append(args[i + 1])
-
-    # `--print` ASSEMBLES AND WRITES NOTHING. There is one deck at one path, so
-    # a run that wrote the source without building the PDF would leave a `.tex`
-    # and a `.pdf` beside each other that are not the same deck.
-    #
-    # `repo=live` so the marks on the deck this one REPLACES go with it. The
-    # ink is a suggested direction that was consumed the moment it was sent,
-    # and the new deck has a different workspace on page 4.
-    only_text = "--print" in args
-    rec = meeting.build(base, when, human, want=want or None,
-                        make_pdf=not only_text, here=live.root,
-                        repo=live, write=not only_text)
-    if not rec.get("ok") and not rec.get("name"):
-        print("board notes: %s" % rec.get("detail", "nothing was written"),
+    blocks, every, why = meeting.blocks_for(base, want or None, when)
+    if why:
+        print("board notes: %s" % why, file=sys.stderr)
+        return 1
+    if not blocks:
+        print("board notes: nothing landed in %s in %s" % (
+            human, ", ".join(w["id"] for w in every) or "any workspace"),
               file=sys.stderr)
         return 1
+    host, clash = meeting.host_for(blocks)
+    if clash:
+        print("board notes: %s" % clash, file=sys.stderr)
+        return 1
+    host_root = next(b["root"] for b in blocks if b["id"] == host)
 
-    if only_text:
-        sys.stdout.write(rec["markdown"])
+    if "--print" in args:
+        rec = meeting.write_brief(base, os.path.join(
+            host_root, meeting.WRITEUPS, meeting.DECK_DIR), blocks, when,
+            human=human, host=host, dry=True)
+        sys.stdout.write(rec["markdown"] + "\n")
         return 0
 
-    covered = rec["workspaces"]
-    print("%s" % os.path.join(base, rec["pdf"] or rec["tex"]))
-    print("%d workspace%s: %s"
-          % (len(covered), "" if len(covered) == 1 else "s",
-             ", ".join(covered) if covered else "none of them moved"))
-    if not rec["ok"]:
-        # THE MARKDOWN IS THE NOTE; the PDF is a rendering of it. LaTeX failing
-        # is a typesetting problem, not a lost note, and saying "failed" without
-        # saying the .tex is there sends somebody to write it again by hand.
-        print("\nLaTeX did not produce a PDF, but the note itself is written:\n"
-              "  %s\n%s" % (rec["tex"], (rec["detail"] or "").strip()[:400]),
+    target = value("--brief-to")
+    if target:
+        target = os.path.abspath(os.path.expanduser(target))
+        if paths.within(target, base):
+            print("board notes: --brief-to writes outside the repository; %s "
+                  "is inside it" % target, file=sys.stderr)
+            return 1
+        # A FENCED WORKSPACE'S BRIEF STAYS IN THAT WORKSPACE. The brief quotes
+        # its handoff and direction and copies its figures, and outside its root
+        # nothing scans it and nothing ignores it.
+        held = [b["id"] for b in blocks if b["fenced"]]
+        if held:
+            print("board notes: %s holds data that never leaves it, so its brief "
+                  "is not written outside it. Use --print, or ask for the deck."
+                  % ", ".join(held), file=sys.stderr)
+            return 1
+        rec = meeting.write_brief(base, target, blocks, when, human=human,
+                                  host=host)
+        print(os.path.join(target, meeting.BRIEF_MD))
+        print("%d workspace%s, host %s, %d figure%s copied" % (
+            len(rec["workspaces"]), "" if len(rec["workspaces"]) == 1 else "s",
+            host, len(rec["figures"]), "" if len(rec["figures"]) == 1 else "s"))
+        return 0
+
+    from tutorboard.course.repo import Repo
+    from tutorboard.server.routes import library as library_route
+    got, err = library_route.ask_meeting(Repo(live.root), base, when, human,
+                                         want=want or None)
+    if err:
+        print("board notes: %s" % (err[0].get("detail") or err[0].get("error")
+                                   or "it could not be asked for"),
               file=sys.stderr)
         return 1
+    print("the meeting deck is being written in %s: %s" % (
+        got["host"], os.path.join(base, got["dir"], meeting.STEM + ".tex")))
     return 0
 
 

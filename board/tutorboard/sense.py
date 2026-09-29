@@ -1189,8 +1189,8 @@ def ship_sense(agent, task):
 # communicate what I've been working on. My mentors, seeing this presentation,
 # will give me suggestions on new directions to take -- THAT'S what these
 # annotations will serve as."* So the ink is input to what the workspace does
-# next, and the slide it is on is which workspace, because there is one frame
-# per workspace.
+# next, and the slide it is on is which workspace, because every frame names
+# one (`\meetingws`).
 #
 # IT MAY NOT APPLY THE DIRECTION, and that is the point of the whole route.
 # `direction.write` at the root, a new sitting that ARCHIVES the lesson, the
@@ -1388,6 +1388,61 @@ SITTINGS_ABOUT = (
 def sittings_about(slug):
     """What a deck composed from ticked sittings is about: its brief."""
     return SITTINGS_ABOUT % {"slug": slug}
+
+
+# WHAT THE MEETING DECK IS ABOUT, and it is the deck from sittings with a
+# preset. Said in these words: *"actually generate a professional coherent
+# presentation on my most recent progress"* -- something the owner puts in front
+# of their mentors without rewriting it. `meeting.write_brief` writes the period's
+# commits, handoff and direction diffs, sittings and plan into `_brief.md`; this
+# is the `about` that points at it, and `writeup_sense` wraps it in the document
+# method exactly as it wraps the deck from sittings.
+#
+# TWO THINGS HERE ARE NOT THE WRITER'S TO CHOOSE. The file name, because the
+# front door finds the deck by it; and one `\meetingws` per frame, because the
+# page a mentor's mark is on is how that mark finds its project, and a page
+# with none or two refuses the deck.
+MEETING_ABOUT = (
+    "THE MEETING DECK: a progress presentation to the MENTORS who supervise "
+    "these projects, over %(period)s. Everything it may say is in "
+    "`%(dir)s/_brief.md` -- read that file first, whole. It has each project's "
+    "commits with their whole messages, how its HANDOFF.md and DIRECTION.md "
+    "changed, the sittings held, the plan steps that closed and the ones still "
+    "open, and the figures already copied into `%(dir)s/figures/`. The "
+    "audience knows the field and saw none of the work. Tell them what was "
+    "FOUND, with its number and its figure; what CHANGED in direction, and "
+    "why; what is NEXT, in plain words; and what you need FROM THEM. A "
+    "changelog is not a presentation: choose the findings, and leave the "
+    "housekeeping out. "
+    "THE SHAPE: a title slide saying the period exactly as the brief gives it; "
+    "one summary slide with each project in one line and its headline number; "
+    "then, per project, as many slides as it needs; then one closing slide of "
+    "the decisions or asks for the mentors. "
+    "EVERY FRAME SAYS WHOSE IT IS: `\\usepackage{meetingws}` in the preamble "
+    "(the file is beside the deck), and inside every frame exactly one "
+    "`\\meetingws{<workspace id>}` -- or `\\meetingshared` on the title, "
+    "summary and closing slides. A mentor's mark on a page is routed to the "
+    "project its frame names, so a frame with none, or with two, refuses the "
+    "deck. ONE PAGE PER FRAME: no allowframebreaks, no \\pause, no overlays. "
+    "NO INTERNAL NAMES ON A SLIDE: no commit hashes, no names of boxes on the "
+    "map, no plan headings copied as the plan types them, no 'his' or 'her' "
+    "without saying whose (the senior author, a collaborator), and no links to "
+    "the board. NUMBERS ONLY FROM THE SOURCES: every number on a slide must "
+    "appear in the brief or a file it names; the board checks each one after "
+    "the build and lists any it cannot find beside the deck. A plan step marked "
+    "MAY ALREADY BE DONE is checked against the commit it names before it is "
+    "called next. "
+    "THE FILE IS `%(dir)s/meeting.tex`, that name exactly and no other. Build "
+    "it in its own directory, `cd %(dir)s && pdflatex -interaction=nonstopmode "
+    "meeting.tex`, twice, and leave the `.aux` it writes: the page marks are "
+    "read from it. A LaTeX error is yours to fix before the turn ends."
+)
+
+
+def meeting_about(deck_dir, period):
+    """What the meeting deck is about: its brief, and the period it covers.
+    `deck_dir` is relative to the host workspace, where the turn runs."""
+    return MEETING_ABOUT % {"dir": deck_dir, "period": period}
 
 
 def session_sense(repo, doing=None, mission=False):

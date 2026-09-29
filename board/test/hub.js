@@ -189,6 +189,7 @@ const payload = {
 };
 
 const posted = [];
+let notesAsked = false;
 // WHO THIS MACHINE TEACHES WITH. Three recipes it can run and one it cannot:
 // `deepseek` is installed but has no key, which is the case the row exists for
 // -- a provider one line in a file away, said on the glass rather than found in
@@ -234,15 +235,24 @@ window.fetch = (url, opts) => {
           commits: 0, closed: 0, files: 0 },
       ] }) });
   }
+  // `/notes` asks for the deck and says it is being written; the sheet then
+  // watches `/meeting/deck.json`, which here says it is ready once asked.
   if (url === '/notes') {
     posted.push({ to: url, body: JSON.parse(opts.body) });
+    notesAsked = true;
     return Promise.resolve({ json: () => Promise.resolve({
-      ok: true, name: 'meeting', workspaces: ['research/PSYCH-ASR'],
-      tex: 'meetings/meeting.tex', pdf: 'meetings/meeting.pdf' }) });
+      ok: true, name: 'meeting', state: 'being written',
+      host: 'research/PSYCH-ASR', where: 'PSYCH-ASR',
+      workspaces: ['research/PSYCH-ASR'],
+      detail: 'The assistant is writing it in PSYCH-ASR.' }) });
   }
   if (url === '/meeting/deck.json') {
-    return Promise.resolve({ json: () => Promise.resolve(
-      { ok: true, built: false }) });
+    return Promise.resolve({ json: () => Promise.resolve(notesAsked
+      ? { ok: true, state: 'ready', built: true, period: 'the last week',
+          workspaces: ['research/PSYCH-ASR'],
+          pages: { 2: 'research/PSYCH-ASR', 3: 'research/PSYCH-ASR' },
+          unsupported: 0, marked: [] }
+      : { ok: true, built: false }) });
   }
   return Promise.resolve({
     json: () => Promise.resolve(

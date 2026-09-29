@@ -1037,14 +1037,14 @@ if (els.sheetTrace) {
    how far back, and then which projects — with what each one HAS to report
    since that date beside it, because ticking bare names is guessing.
 
-   ONE DECK. Making a new one REPLACES the one before it, which is what was
-   asked for: this is a one-off communication tool and the only one worth
-   keeping is the most recent. Nothing is lost by that — `meetings/` is
-   tracked, so `git log` holds every deck there has ever been while the tree
-   holds one.
+   ONE DECK. Making a new one REPLACES the one before it: this is a one-off
+   communication tool and the only one worth keeping is the most recent. Its
+   `.tex` is tracked in the workspace it is written in, so `git log` holds every
+   deck there has been.
 
-   A build is LaTeX and takes a few seconds, so the button says what it is
-   doing. Nothing a reader can be waiting on may be silent. */
+   A WRITER TURN WRITES IT, over a brief of the period, and that takes
+   minutes -- so the sheet watches it and says being written, ready, or why it
+   did not land. Nothing a reader can be waiting on may be silent. */
 var notesSince = "";       /* the period they chose */
 var notesWant = {};        /* workspace id -> ticked */
 
@@ -1057,23 +1057,69 @@ function openNotes() {
   notesWant = {};
   sinceButtons(false);
   /* THE ONE FROM BEFORE, offered first, because that is what you want in the
-     ten minutes before the meeting. */
+     ten minutes before the meeting -- or the one being written, watched. */
   els.notesRead.hidden = true;
-  fetch("/meeting/deck.json", { credentials: "same-origin" })
-    .then(function (r) { return r.json(); })
-    .then(function (rec) {
-      if (!rec || !rec.ok || !rec.built) return;
-      els.notesRead.hidden = false;
-      var n = (rec.workspaces || []).length;
-      els.notesReadSub.textContent = n + (n === 1 ? " project" : " projects")
-        + (rec.since ? ", " + rec.since : "")
-        + ((rec.marked || []).length ? " · marked up" : "");
-    })
-    .catch(function () { /* no deck to offer is not an error worth painting */ });
+  pollNotes(true);
   els.notes.hidden = false;
 }
 
-function closeNotes() { els.notes.hidden = true; }
+/* WHERE THE ONE DECK GOT TO. A writer turn takes minutes, so the sheet watches
+   `/meeting/deck.json` while it is open: being written, ready, or did not land
+   -- the deck from sittings' three states, said in its words. */
+var notesTimer = null;
+var NOTES_POLL = 10000;
+
+function pollNotes(quiet) {
+  return fetch("/meeting/deck.json", { credentials: "same-origin" })
+    .then(function (r) { return r.json(); })
+    .then(function (rec) { paintNotesState(rec || {}, quiet); })
+    .catch(function () { /* a poll is quiet; the next one asks again */ });
+}
+
+function watchNotes() {
+  if (notesTimer) clearInterval(notesTimer);
+  notesTimer = setInterval(function () {
+    if (els.notes.hidden || document.hidden) return;
+    pollNotes(false);
+  }, NOTES_POLL);
+}
+
+function paintNotesState(rec, quiet) {
+  if (!rec.ok) return;
+  var n = (rec.workspaces || []).length;
+  var what = n + (n === 1 ? " project" : " projects")
+    + (rec.period ? ", " + rec.period : rec.since ? ", " + rec.since : "");
+  if (rec.state === "being written") {
+    els.notesRead.hidden = true;
+    notesSay("Being written in " + ((rec.names || {})[rec.host] || rec.host)
+             + " — " + what + ". This sheet says when it is ready.");
+    watchNotes();
+    return;
+  }
+  if (notesTimer) { clearInterval(notesTimer); notesTimer = null; }
+  if (rec.state === "did not land") {
+    if (!quiet) notesSay(rec.why || "The deck did not land. Ask for it again.", true);
+    return;
+  }
+  if (!rec.built) return;
+  els.notesRead.hidden = false;
+  els.notesReadSub.textContent = what
+    + (rec.unsupported ? " · " + rec.unsupported + " to check" : "")
+    + ((rec.marked || []).length ? " · marked up" : "");
+  if (!quiet) {
+    var slides = Object.keys(rec.pages || {}).length;
+    notesSay("Ready: " + slides + (slides === 1 ? " project slide" : " project slides")
+             + " about " + what + ". It replaced the one before it."
+             + (rec.unsupported ? " " + rec.unsupported + " thing"
+                + (rec.unsupported === 1 ? " on it is" : "s on it are")
+                + " not in any source; the reader lists them." : ""));
+  }
+}
+
+function closeNotes() {
+  els.notes.hidden = true;
+  if (notesTimer) { clearInterval(notesTimer); notesTimer = null; }
+}
 
 function sinceButtons(off) {
   Array.prototype.forEach.call(
@@ -1154,7 +1200,8 @@ function whatOf(w) {
   var bits = [];
   if (w.commits) bits.push(w.commits + (w.commits === 1 ? " commit" : " commits"));
   if (w.closed) bits.push(w.closed + (w.closed === 1 ? " step" : " steps") + " closed");
-  if (!bits.length && w.files) bits.push(w.files + " files");
+  if (w.sittings) bits.push(w.sittings + (w.sittings === 1 ? " sitting" : " sittings"));
+  if (!bits.length && w.story) bits.push("the handoff moved");
   return bits.join(", ");
 }
 
@@ -1169,7 +1216,7 @@ function paintTicks() {
     });
   els.notesMake.disabled = !n;
   els.notesMakeSub.textContent = n
-    ? n + (n === 1 ? " slide" : " slides") + ", replacing the last deck"
+    ? n + (n === 1 ? " project" : " projects") + ", replacing the last deck"
     : "choose at least one";
 }
 
@@ -1177,7 +1224,7 @@ function makeDeck() {
   var want = Object.keys(notesWant).filter(function (id) { return notesWant[id]; });
   if (!want.length) return;
   els.notesMake.disabled = true;
-  notesSay("writing it… LaTeX takes a moment.");
+  notesSay("asking for it…");
   fetch("/notes", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -1186,25 +1233,17 @@ function makeDeck() {
   }).then(function (r) { return r.json(); }).then(function (rec) {
     rec = rec || {};
     els.notesMake.disabled = false;
-    if (!rec.ok && !rec.name) {
-      notesSay(rec.detail || "the deck could not be written", true);
-      return;
-    }
-    var covered = (rec.workspaces || []).length;
-    /* THE DECK IS WRITTEN EVEN WHEN LaTeX IS NOT HAPPY. Saying only "failed"
-       sends somebody off to write it again by hand, when the .tex is sitting
-       there. */
+    /* A REFUSAL IS PAINTED IN THE WORDS IT CAME IN: two fenced projects, an
+       assistant busy over there, a period in which nothing landed. */
     if (!rec.ok) {
-      notesSay("It is written, but LaTeX would not typeset it. The source is "
-               + "in " + rec.tex + ".", true);
+      notesSay(rec.detail || rec.error || "the deck could not be asked for", true);
       return;
     }
-    notesSay(covered + (covered === 1 ? " slide" : " slides")
-             + ". It is in meetings/, it replaced the one before it, and it is "
-             + "staged for the next save.");
-    els.notesRead.hidden = false;
-    els.notesReadSub.textContent = covered
-      + (covered === 1 ? " project" : " projects") + ", " + notesSince;
+    notesSay(rec.detail || ("Being written in " + rec.where + "."));
+    els.notesRead.hidden = true;
+    /* Asked at once, not in ten seconds: the answer may already be there. */
+    pollNotes(false);
+    watchNotes();
   }).catch(function (e) {
     els.notesMake.disabled = false;
     notesSay(e.message || "the board did not answer", true);

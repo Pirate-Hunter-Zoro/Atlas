@@ -5,12 +5,12 @@
      agent should use them to decide which new directions we will take after
      the meeting's feedback."
 
-THE ROUTING IS IN THE GEOMETRY. The deck has one frame per workspace, so ink on
-the TRD-EHR frame is direction input for TRD-EHR and for nothing else. Nobody
-types a workspace name and nobody picks one off a list; the page a mark is on
-is the answer. `meeting.page_map` is what knows which page is which, and it is
-written at build time rather than derived later, because the deck on the glass
-is the one that was built.
+THE ROUTING IS IN THE GEOMETRY. Every frame of the deck names one workspace
+(`\\meetingws`), so ink on any of TRD-EHR's pages is direction input for TRD-EHR
+and for nothing else. Nobody types a workspace name and nobody picks one off a
+list; the page a mark is on is the answer. `meeting.page_map` reads which page
+is which off the compiled PDF, once, when the deck is read back -- because the
+deck on the glass is the one that was built.
 
 **THIS IS NOT FEEDBACK AND IT DOES NOT GO THROUGH `/library/feedback`.** That
 route writes a feedback file and wakes a `[revise]` turn, which would spend a
@@ -160,7 +160,7 @@ def send(repo, base=None):
     """
     base = base or atlas.root() or repo.root
     rec = meeting.deck(base)
-    if not rec:
+    if not rec or not rec.get("has_pdf"):
         return {"ok": False, "sent": [], "skipped": [],
                 "detail": "there is no deck to have marked up."}
 
@@ -176,9 +176,7 @@ def send(repo, base=None):
 
     names = rec.get("names") or {}
     known = dict((w["id"], w["root"]) for w in atlas.workspaces(base))
-    deck_rel = os.path.relpath(
-        os.path.join(base, meeting.OUT_DIR, meeting.STEM + ".pdf"),
-        base).replace(os.sep, "/")
+    deck_rel = os.path.relpath(rec["pdf"], base).replace(os.sep, "/")
 
     sent, skipped = [], []
     for ws_id in sorted(found):
