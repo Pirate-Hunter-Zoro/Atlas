@@ -134,7 +134,36 @@ $\sigma(ab)=\sigma(a)\sigma(b)$ applied $l-1$ times. So
 $\sigma\circ\tau\mapsto kl \bmod n$, and composition goes to multiplication
 mod $n$.
 \end{proof}
-% TODO(mferguson): the injectivity part goes here.
+\begin{proof}[Proof that $\sigma\mapsto k \bmod n$ is injective]
+Let $\sigma(\zeta_n)=\zeta_n^{\,k}$ and $\tau(\zeta_n)=\zeta_n^{\,k'}$, and
+suppose $k\equiv k' \pmod n$, so $k'=k+hn$ for some $h\in\mathbb{Z}$. Then
+\[
+  \zeta_n^{\,k'} = e^{2\pi i(k+hn)/n}
+    = e^{2\pi i k/n}\, e^{2\pi i h}
+    = e^{2\pi i k/n} = \zeta_n^{\,k},
+\]
+so $\sigma(\zeta_n)=\tau(\zeta_n)$. Since $\zeta_n$ is algebraic over
+$\mathbb{Q}$, $K=\mathbb{Q}(\zeta_n)=\mathbb{Q}[\zeta_n]$, so every $x\in K$
+has the form $x=\sum_{j=0}^{m} a_j\zeta_n^{\,j}$ with $a_j\in\mathbb{Q}$.
+Because $\sigma$ and $\tau$ are automorphisms of $K$ (additive and
+multiplicative) fixing each $a_j\in\mathbb{Q}$,
+\[
+  \sigma(x) = \sum_{j=0}^{m} a_j\,\sigma(\zeta_n)^{j}
+    = \sum_{j=0}^{m} a_j\bigl(\zeta_n^{\,k}\bigr)^{j}
+    = \sum_{j=0}^{m} a_j\bigl(\zeta_n^{\,k'}\bigr)^{j}
+    = \sum_{j=0}^{m} a_j\,\tau(\zeta_n)^{j}
+    = \tau(x).
+\]
+Hence $\sigma=\tau$, and the map is injective.
+\end{proof}
+\begin{proof}[Proof that $\lvert\mathrm{Aut}(K/\mathbb{Q})\rvert\le\varphi(n)$]
+$\varphi(n)$ is the number of $k\in\{1,\dots,n\}$ with $\gcd(k,n)=1$.
+Suppose $\lvert\mathrm{Aut}(K/\mathbb{Q})\rvert>\varphi(n)$. Every
+automorphism sends $\zeta_n$ to $\zeta_n^{\,k}$ with $\gcd(k,n)=1$, so there
+are $\sigma_1\ne\sigma_2$ with $\sigma_1(\zeta_n)=\zeta_n^{\,k}=\sigma_2(\zeta_n)$
+for the same $k$. From earlier, though, $\sigma_1(\zeta_n)=\sigma_2(\zeta_n)$
+forces $\sigma_1=\sigma_2$, a contradiction.
+\end{proof}
 % ===== END SOLUTION 7(c) =====
 
 \begin{problem}{8(a)}
