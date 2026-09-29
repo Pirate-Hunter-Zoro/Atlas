@@ -30,9 +30,10 @@ to send my annotations, which is how it should be."*
 - `Annotate` (`board/web/annotate.js`) already answers the questions the picker
   needs. `marked()` gives every card id with marks on it. `unsent()` gives the
   ones not yet handed over. `payload(id, true)` / `sent(id)` send one card.
-- The writing surface's Send offers marks as a follow-up through `#sendwhat`
-  (`send those as well` / cancel / don't ask again). That route calls
-  `saveNotes(true)` too.
+- After the writing surface's Send, `#sendwhat` offers the marks as a follow-up
+  (*working sent. You have marks on the lesson too.* — `send those as well` /
+  cancel / don't ask again). That route calls `saveNotes(true)` too. With a
+  blank surface and unsent marks, `askWhatToSend` sends the marks as the answer.
 
 ### What to build
 
@@ -50,12 +51,18 @@ to send my annotations, which is how it should be."*
    and is disabled at zero. With no marked cards, the list says *No annotations
    yet* and there is nothing to tick. Nothing can be sent, which is the owner's
    stated rule.
-3. **Send exactly the ticked set.** Split `saveNotes(true)` so it takes a list of
-   ids, and keep the no-argument call meaning *all unsent*, so `#sendwhat` and
-   the empty-surface path in `askWhatToSend` keep working unchanged. Then
+3. **Send exactly the ticked set.** `saveNotes(true)` takes a list of ids and
+   sends only those. Nothing sends *all unsent* any more. Then
    `paintNotesSend()`, `toastSent()`, and the button's disabled-while-sending
    behaviour, the same as `sendNotesNow` has now.
-4. **Where the picker sits.** It sits above the lesson at the widget layer, not
+4. **Delete the follow-up prompt.** The picker makes it obsolete. Remove
+   `#sendwhat` from `board.html` along with its CSS, and remove `closeChooser`
+   and the `sendNotes` / `sendCancel` / `sendNoAsk` handlers. Remove
+   `notesOff` / `setNotesOff`, the `notes-off` localStorage key, and the
+   `#notesAgain` menu item that re-arms it. The writing surface's Send then sends
+   the working and nothing else. When the surface is blank, it opens the picker
+   instead of sending marks behind your back.
+5. **Where the picker sits.** It sits above the lesson at the widget layer, not
    inside the card column, so it can be reached from the map as well
    (`#redirect`'s sheet is the precedent: z-index 97). It needs Escape, a close
    button, and a tap outside to close it.
@@ -68,13 +75,10 @@ to send my annotations, which is how it should be."*
   *any annotated response*, and re-sending one is harmless. What must not come
   back is `saveNotes` re-sending everything by default, which is the defect the
   comment in `saveNotes` records.
-- **`notes-off` and `#notesAgain`.** *Don't ask again* was about the follow-up
-  prompt after a Send. It must not hide the button any more. Keep it scoped to
-  `#sendwhat`, or drop the setting. Either way, the menu item that re-arms it
-  must not describe hiding a button that no longer hides.
-- **The writing surface's own Send.** Leave `askWhatToSend` behaving as it does:
-  the working goes first, unconditionally, and then marks are offered. The picker
-  is a second way in, not a replacement.
+- **The writing surface's own Send.** The working still goes first,
+  unconditionally. Keep the comment above `askWhatToSend` that explains why: a
+  Send that does nothing once cost two days of an answer. Marks never ride along
+  with the working. They go only through the picker.
 
 ### What to assert
 
@@ -87,8 +91,11 @@ to send my annotations, which is how it should be."*
 - `test/link.js:365` currently asserts that the button shows only with marks.
   That assertion reverses. The test is right about the old rule and must be
   rewritten to the new rule, not deleted.
-- `test/chrome.js:276` lists `.notesend` among overlays. Check that the picker is
-  covered the same way.
+- `test/chrome.js:276` lists `.notesend` and `.sendwhat` among overlays. Take
+  `.sendwhat` out, and cover the picker the same way. Any test that drives
+  `#sendwhat` or `notes-off` goes along with it. After the writing surface's Send
+  with marks on the lesson, assert that exactly one request went out, for the
+  working, and that no prompt appeared.
 - Bump `VERSION` in `board/web/sw.js`. `board.js`, `board.html` and `board.css`
   are all shell files.
 
@@ -98,6 +105,8 @@ to send my annotations, which is how it should be."*
   says so and will not send.
 - Annotate two old responses, open the picker, tick one, and send. Only that one
   reaches the tutor.
+- Write an answer on the surface with marks on the lesson, and send. The working
+  goes, and no *you have marks on the lesson too* prompt appears.
 - Press and hold the button, move it, and reload. It stays where you put it and
   does not sit over the ink you are writing.
 
