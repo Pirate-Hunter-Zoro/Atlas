@@ -596,6 +596,37 @@ const press = (type, x, y) => btn.dispatchEvent(
     const press3 = (type, x, y) => send.dispatchEvent(
       new window.MouseEvent(type, { bubbles: true, clientX: x || 0, clientY: y || 0,
                                     pointerId: 11 }));
+    // Always on the glass, marks or none, and a tap opens the picker.
+    !send.hidden && !window.Annotate.marked().length
+      ? ok('send my annotations is on the glass with nothing marked')
+      : fail('send my annotations hides while nothing is marked');
+    const pick = doc.getElementById('notepick');
+    press3('pointerdown', 400, 560);
+    press3('pointerup', 400, 560);
+    await sleep(20);
+    pick && !pick.hidden
+      ? ok('a tap on it opens the picker')
+      : fail('a tap on send my annotations did not open the picker');
+    pick && pick.querySelector('#notepick-send').disabled
+      && !pick.querySelector('.notepick-row')
+      ? ok('which, with nothing marked, lists nothing and will not send')
+      : fail('the picker offers something to send with nothing marked');
+    doc.body.dispatchEvent(new window.MouseEvent('pointerdown', { bubbles: true }));
+    pick && pick.hidden
+      ? ok('and a tap outside closes it')
+      : fail('the picker stays open after a tap outside it');
+    {
+      const pcss = fs.readFileSync(path.join(WEB, 'board.css'), 'utf8');
+      /body\.mapping #notesend[^{]*\{[^}]*z-index:\s*97/.test(pcss)
+        || /body\.mapping #notesend\s*\{[^}]*z-index:\s*97/.test(pcss)
+        || /body\.mapping #mapback,\s*body\.mapping #notesend\s*\{\s*z-index:\s*97/.test(pcss)
+        ? ok('and it is raised over the map with the rest of the stack')
+        : fail('send my annotations is painted under the map');
+      const z = /#notepick\s*\{[^}]*z-index:\s*(\d+)/.exec(pcss);
+      z && +z[1] > 96 && +z[1] < 99
+        ? ok('the picker sits over the map and under the menu')
+        : fail('the picker is under the map or over the menu');
+    }
     press3('pointerdown', 400, 560);
     await sleep(500);
     send.classList.contains('holding')

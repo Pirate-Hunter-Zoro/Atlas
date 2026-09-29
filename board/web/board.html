@@ -222,7 +222,6 @@
   <button id="btn-bigger" title="larger type">A+  larger type</button>
   <button id="btn-face" title="typeface">Aa  reading face</button>
   <button id="btn-theme" title="light / dark / auto">◐  light / dark</button>
-  <button id="btn-notes-again" title="ask about annotations again" hidden>✎  ask about annotations</button>
   <button id="btn-contents" title="chapters, problem sets, steps and documents">☰  contents</button>
   <button id="btn-scratch" title="photos and PDFs">▤  photos and PDFs</button>
   <button id="btn-history" title="past lessons" hidden>◷  past lessons</button>
@@ -416,9 +415,10 @@
   <button id="ann-done" type="button" class="primary">done</button>
 </div>
 
-<!-- Marks can be made with no question owed, and then there is no writing
-     surface and no Send button anywhere on the page. This is the one for them. -->
-<button id="notesend" class="notesend" type="button" hidden>send my annotations</button>
+<!-- The one way marks on the lesson reach the tutor. Always on the glass, so
+     it is found in the same place whether or not anything is marked; a tap opens
+     `#notepick`, and the picker is what sends. -->
+<button id="notesend" class="notesend" type="button">send my annotations</button>
 
 <!-- Which kind of sitting this is, chosen here rather than in a terminal. A
      student who wants help with a problem set should not have to find a keyboard
@@ -506,19 +506,6 @@
   </span>
 </div>
 
-<!-- Asked AFTER the working has gone, never before it. This bar used to stand
-     between the Send button and sending anything at all: with marks anywhere on
-     the board, Send issued no request and raised this instead, and a tap that
-     nobody noticed was a tap that lost an answer. Now the working is already
-     sent by the time this appears, so ignoring it costs nothing. -->
-<div id="sendwhat" class="sendwhat" hidden>
-  <span id="sendwhat-lead">Working sent.</span>
-  <span>You have marks on the lesson too.</span>
-  <button id="send-notes" type="button" class="primary">send those as well</button>
-  <button id="send-cancel" type="button" class="quiet">no, just the working</button>
-  <button id="send-no-ask" type="button" class="quiet">no, and don't ask again</button>
-</div>
-
 <!-- THE THREE THINGS "SAVE" MEANS, asked once, on the glass, in the same shape
      as every other choice the board puts up. Over the original is a real
      overwrite and says so; the strokes stay in the drawer either way, so a
@@ -602,6 +589,26 @@
   </svg>
   <span>rethink</span>
 </button>
+
+<!-- WHICH MARKED RESPONSES GO. Every card with marks on it, one row each, and
+     only those: with none marked there is nothing to tick and nothing can be
+     sent. Unsent cards start ticked; sent ones are listed, unticked, and can be
+     sent again. Over the map, like `#steer`, because the button is reachable
+     from there. -->
+<aside id="notepick" hidden aria-label="send my annotations">
+  <div class="scratch-head">
+    <strong>Send my annotations</strong>
+    <span class="head-acts">
+      <button id="notepick-all" type="button" class="notepick-all">all</button>
+      <button id="notepick-close" type="button" title="back to the lesson">✕</button>
+    </span>
+  </div>
+  <div id="notepick-list"></div>
+  <p id="notepick-empty" class="notepick-empty" hidden>No annotations yet</p>
+  <div class="notepick-acts">
+    <button id="notepick-send" type="button" class="primary" disabled>send 0</button>
+  </div>
+</aside>
 
 <!-- What the button opens. Over everything, including the map, because it is
      reachable from everywhere and has to land where it was tapped.

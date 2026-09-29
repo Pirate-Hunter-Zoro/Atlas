@@ -40,9 +40,12 @@ var els = {
   annDone: document.getElementById("ann-done"),
   annotate: document.getElementById("btn-annotate"),
   calc: document.getElementById("btn-calc"),
-  sendwhat: document.getElementById("sendwhat"),
-  sendNotes: document.getElementById("send-notes"),
-  sendCancel: document.getElementById("send-cancel"),
+  notepick: document.getElementById("notepick"),
+  notepickList: document.getElementById("notepick-list"),
+  notepickEmpty: document.getElementById("notepick-empty"),
+  notepickAll: document.getElementById("notepick-all"),
+  notepickSend: document.getElementById("notepick-send"),
+  notepickClose: document.getElementById("notepick-close"),
   offline: document.getElementById("offline"),
   linkbad: document.getElementById("linkbad"),
   newver: document.getElementById("newver"),
@@ -121,7 +124,6 @@ var els = {
   barmenu: document.getElementById("barmenu"),
   chrome: document.getElementById("chrome"),
   drawbar: document.getElementById("drawbar"),
-  notesAgain: document.getElementById("btn-notes-again"),
   home: document.getElementById("btn-home"),
   finishLeave: document.getElementById("finish-leave"),
   finishYes: document.getElementById("finish-yes"),
@@ -172,7 +174,6 @@ var els = {
   sendType: document.getElementById("send-type"),
   tabWrite: document.getElementById("tab-write"),
   tabType: document.getElementById("tab-type"),
-  sendNoAsk: document.getElementById("send-no-ask"),
   file: document.getElementById("file"),
   drop: document.getElementById("drop"),
   map: document.getElementById("map"),
@@ -3123,7 +3124,11 @@ function newestCardNode() {
    pushed off the top of the screen and what arrived instead was a blank slate.
    The first line of the new feedback is the thing to read first. */
 function revealNewest(smooth) {
-  var node = newestCardNode();
+  revealCard(newestCardNode(), smooth);
+}
+
+/* Any card's top, tucked under the bar; with no card, the foot of the page. */
+function revealCard(node, smooth) {
   var top;
   if (node) {
     var bar = document.getElementById("bar");
@@ -3841,12 +3846,14 @@ function closeViewer() {
    are asking about. */
 var noteSaveTimer = null;
 
-function saveNotes(send) {
+/* With a list of card ids, those cards go to the tutor and nothing else does;
+   without one, this is the autosave. There is no "send everything unsent": a
+   default like that re-delivered a card marked up yesterday as a fresh turn
+   every time anything else was sent. What goes is what was ticked. */
+function saveNotes(sendIds) {
   if (!window.Annotate) return Promise.resolve([]);
-  /* Sending re-sent every mark on the board, so a card marked up yesterday and
-     already delivered came back to the tutor as a fresh turn every time
-     anything else was sent. Send what has not been sent. */
-  var ids = send ? window.Annotate.unsent() : window.Annotate.unsaved();
+  var send = Array.isArray(sendIds);
+  var ids = send ? sendIds : window.Annotate.unsaved();
   if (!ids.length) return Promise.resolve([]);
   return Promise.all(ids.map(function (id) {
     var body = window.Annotate.payload(id, send);
@@ -4027,9 +4034,7 @@ Array.prototype.forEach.call(document.querySelectorAll(".ann-ink"), function (b)
   };
 });
 
-/* ------------------------------------------------------------ send chooser */
-/* Only asked when there is genuinely a choice: working on the slate AND marks
-   on the lesson. One of the two alone just sends. */
+/* ----------------------------------------------- sending the annotations */
 
 function haveNotes() {
   return !!(window.Annotate && window.Annotate.unsent().length);
@@ -4045,100 +4050,216 @@ function haveNotes() {
    and the board's own receipt never appeared because the code that writes it
    was never reached. Nothing on the surface said a decision was outstanding.
 
-   So the working goes first, unconditionally. The button sits on the surface
-   holding the working; that is what it means. Marks on the lesson are then
-   offered as a follow-up, which cannot lose anything, because by then the
-   working is already gone.
+   So the working goes first, unconditionally, and it goes alone. The button
+   sits on the surface holding the working; that is what it means. Marks on the
+   lesson go only through the picker.
 
-   The one exception is an empty surface: with nothing written and marks that
-   have not been sent, the marks ARE the answer, and handing the tutor a blank
-   sheet alongside them is noise. */
+   The one exception is an empty surface with unsent marks: there is no working
+   to send, and the marks are what is being handed in, so the picker opens for
+   them to be chosen. */
 function askWhatToSend(sendWork) {
-  var marks = haveNotes();
   var written = !writer || writer.strokes() > 0;
-  if (!written && marks) {
-    saveNotes(true).then(function () { paintNotesSend(); toastSent(); });
+  if (!written && haveNotes()) {
+    openNotePick();
     return;
   }
   sendWork();
-  if (marks && !notesOff()) els.sendwhat.hidden = false;
 }
 
-/* Whether the student has said "no, and don't ask again". Persisted, so it
-   survives the app being put down, and re-armed from the ⋯ menu when they change
-   their mind and want to hand the marks over after all. */
-var NOTES_OFF = "notes-off";
+window.askWhatToSend = askWhatToSend;
 
-function notesOff() {
-  try { return localStorage.getItem(NOTES_OFF) === "1"; } catch (e) { return false; }
+/* WHICH MARKED RESPONSES GO, chosen by ticking them.
+
+   Every card with marks on it is a row, and only those, so with nothing marked
+   there is nothing to tick and nothing can be sent. A card whose marks were
+   delivered is listed as sent and starts unticked; ticking it sends it again.
+   Ticks are kept while the picker is open and forgotten when it closes. */
+var pickTicked = null;
+
+function cardById(id) {
+  var found = null;
+  ((lastLive && lastLive.cards) || []).forEach(function (c) {
+    if (c.id === id) found = c;
+  });
+  return found;
 }
 
-function setNotesOff(v) {
-  try {
-    if (v) localStorage.setItem(NOTES_OFF, "1");
-    else localStorage.removeItem(NOTES_OFF);
-  } catch (e) {}
-  paintNotesSend();
+/* The first line a person would read, markdown stripped to its words. */
+function cardFirstLine(c) {
+  var lines = ((c && c.body) || "").split("\n");
+  for (var i = 0; i < lines.length; i++) {
+    var t = lines[i].replace(/<[^>]*>/g, "").replace(/[#*_`>$\\]/g, "")
+                    .replace(/\s+/g, " ").trim();
+    if (t) return t.length > 80 ? t.slice(0, 79) + "…" : t;
+  }
+  return "";
 }
 
-function closeChooser() {
-  els.sendwhat.hidden = true;
+function ageLabel(t) {
+  if (!t) return "";
+  var s = Math.max(0, Date.now() / 1000 - t);
+  if (s < 60) return "just now";
+  if (s < 3600) return Math.floor(s / 60) + " min ago";
+  if (s < 86400) return Math.floor(s / 3600) + " h ago";
+  return Math.floor(s / 86400) + " d ago";
 }
 
-els.sendNotes.onclick = function () {
-  closeChooser();
-  saveNotes(true).then(function () { paintNotesSend(); toastSent(); });
-};
-els.sendCancel.onclick = closeChooser;
-els.sendNoAsk.onclick = function () {
-  closeChooser();
-  setNotesOff(true);
-};
+function pickIds() {
+  if (!window.Annotate) return [];
+  /* Newest first: the card just marked is the one most likely wanted. */
+  return window.Annotate.marked().slice().sort().reverse();
+}
 
-if (els.notesAgain) {
-  els.notesAgain.onclick = function () {
-    setNotesOff(false);
+function paintNotePick() {
+  if (!els.notepick || els.notepick.hidden) return;
+  var ids = pickIds();
+  var unsent = window.Annotate ? window.Annotate.unsent() : [];
+  var ticked = {};
+  ids.forEach(function (id) {
+    ticked[id] = (id in pickTicked) ? pickTicked[id] : unsent.indexOf(id) !== -1;
+  });
+  pickTicked = ticked;
+  els.notepickList.textContent = "";
+  ids.forEach(function (id) {
+    var c = cardById(id);
+    var row = document.createElement("div");
+    row.className = "notepick-row";
+    row.dataset.card = id;
+    var tick = document.createElement("label");
+    tick.className = "notepick-tick";
+    var box = document.createElement("input");
+    box.type = "checkbox";
+    box.checked = !!ticked[id];
+    box.setAttribute("aria-label", "send card " + id);
+    box.addEventListener("change", function () {
+      pickTicked[id] = box.checked;
+      paintPickCount();
+    });
+    tick.appendChild(box);
+    var go = document.createElement("button");
+    go.type = "button";
+    go.className = "notepick-go";
+    go.innerHTML = '<span class="notepick-name"></span><span class="notepick-sub"></span>';
+    go.querySelector(".notepick-name").textContent =
+      (c && (cardTitle(c) || cardFirstLine(c))) || "card " + id;
+    var sub = [(c && (KIND_LABEL[c.kind] || c.kind)) || "card", id];
+    if (c && c.mtime) sub.push(ageLabel(c.mtime));
+    if (unsent.indexOf(id) === -1) sub.push("sent");
+    go.querySelector(".notepick-sub").textContent = sub.join(" · ");
+    go.addEventListener("click", function () { pickJump(id); });
+    row.appendChild(tick);
+    row.appendChild(go);
+    els.notepickList.appendChild(row);
+  });
+  els.notepickEmpty.hidden = ids.length > 0;
+  els.notepickList.hidden = !ids.length;
+  paintPickCount();
+}
+
+function pickChosen() {
+  return pickIds().filter(function (id) { return pickTicked && pickTicked[id]; });
+}
+
+function paintPickCount() {
+  var ids = pickIds();
+  var n = pickChosen().length;
+  els.notepickSend.textContent = "send " + n;
+  els.notepickSend.disabled = !n || pickSending;
+  els.notepickAll.disabled = !ids.length;
+  /* All until everything is ticked, then none. */
+  els.notepickAll.textContent = ids.length && n === ids.length ? "none" : "all";
+}
+
+function openNotePick() {
+  if (!els.notepick) return;
+  pickTicked = {};
+  els.notepick.hidden = false;
+  paintNotePick();
+}
+
+function closeNotePick() {
+  if (!els.notepick) return;
+  els.notepick.hidden = true;
+  pickTicked = null;
+}
+
+/* The card under the glass, where `revealNewest` puts the newest one. From the
+   map the map goes first, because the card is in the lesson behind it. */
+function pickJump(id) {
+  closeNotePick();
+  if (els.map && !els.map.hidden) closeMap();
+  var node = null;
+  try { node = els.cards.querySelector('[data-card="' + id + '"]'); } catch (e) {}
+  if (!node) return;
+  revealCard(node, true);
+  node.classList.add("landed");
+  window.setTimeout(function () { node.classList.remove("landed"); }, 2400);
+}
+
+var pickSending = false;
+
+function pickSend() {
+  var ids = pickChosen();
+  if (!ids.length || pickSending) return;
+  pickSending = true;
+  els.notesend.disabled = true;
+  paintPickCount();
+  /* Same rule as the board's Send: say something on the frame the button was
+     pressed. What follows encodes a picture per card and waits on a request
+     for each. */
+  saySending();
+  saveNotes(ids).then(function () {
+    pickSending = false;
+    els.notesend.disabled = false;
+    closeNotePick();
     paintNotesSend();
+    toastSent();
+  }, function () {
+    pickSending = false;
+    els.notesend.disabled = false;
+    paintPickCount();
+  });
+}
+
+if (els.notepick) {
+  els.notepickSend.onclick = pickSend;
+  els.notepickClose.onclick = closeNotePick;
+  els.notepickAll.onclick = function () {
+    var ids = pickIds();
+    var all = ids.length && pickChosen().length === ids.length;
+    ids.forEach(function (id) { pickTicked[id] = !all; });
+    paintNotePick();
   };
+  document.addEventListener("keydown", function (e) {
+    if (e.key === "Escape" && !els.notepick.hidden) closeNotePick();
+  });
+  /* A tap outside closes it. The button that opened it is not outside: its own
+     tap toggles, through the stack. */
+  document.addEventListener("pointerdown", function (e) {
+    if (els.notepick.hidden) return;
+    if (els.notepick.contains(e.target) || els.notesend.contains(e.target)) return;
+    closeNotePick();
+  }, true);
 }
 
 /* Its tap is registered with the moveable stack, as `#redirect`'s is: `Recentre`
    tells a tap from a press-and-hold to move it, and a `click` listener of its
    own would fire alongside. */
-function sendNotesNow() {
-  if (els.notesend.disabled) return;
-  els.notesend.disabled = true;
-  /* Same rule as the board's Send: say something on the frame the button was
-     pressed. This one encodes a picture of the marks and then waits on a request
-     per marked card. */
-  saySending();
-  saveNotes(true).then(function () {
-    els.notesend.disabled = false;
-    paintNotesSend();
-    toastSent();
-  }, function () { els.notesend.disabled = false; });
+function notesTap() {
+  if (els.notepick.hidden) openNotePick(); else closeNotePick();
 }
 
-window.askWhatToSend = askWhatToSend;
-
-
-/* Marks can be made at any time -- on a card from ten minutes ago, with no
-   question owed and therefore no writing surface and no Send button anywhere on
-   the page. Without this they would sit there unsendable, which is the same dead
-   end the cold start had. */
+/* Always on the glass. Marks can be made at any time -- on a card from ten
+   minutes ago, with no question owed and no Send button anywhere on the page --
+   and a button that comes and goes with them is a button nobody learns the
+   place of. With nothing marked it opens a picker that says so. */
 function paintNotesSend() {
-  var any = haveNotes();
-  var owedSurface = !els.writer.hidden;
   var wasHidden = els.notesend.hidden;
-  els.notesend.hidden = !(any && !owedSurface && !notesOff());
+  els.notesend.hidden = false;
   /* A widget in the stack is placed from JavaScript, so one that has just
      appeared has no place yet until it is measured and put there. */
-  if (wasHidden !== els.notesend.hidden) panicRemeasure();
-  /* The re-arm control is only meaningful while the offer is actually off, and
-     only if there are marks to hand over. */
-  if (els.notesAgain) {
-    els.notesAgain.hidden = !(notesOff() && any);
-  }
+  if (wasHidden) panicRemeasure();
+  paintNotePick();
 }
 
 
@@ -9808,8 +9929,8 @@ function makeWriter(then) {
            touched. The only job here is to put something on the glass on the
            frame the button was pressed. */
         onSending: saySending,
-        /* Marks on the lesson are a second thing that can be sent. Ask which,
-           but only when both actually exist. */
+        /* The working goes alone; a blank surface with marks opens the
+           picker instead. */
         beforeSend: askWhatToSend,
         /* The saved pages have arrived and the count can be believed. Everything
            about which question sits on which page was deferred until now. */
@@ -10349,11 +10470,7 @@ els.tabType.onclick = function () { pickKind("type"); };
 
 function sendTyped() {
   if (!els.saybox.value.trim()) return;
-  say(null).then(function () {
-    /* A typed answer can still have marks sitting on the lesson, and those are
-       worth offering too -- the same follow-up the slate send raises. */
-    if (haveNotes() && !notesOff()) els.sendwhat.hidden = false;
-  });
+  say(null);
 }
 
 els.sendType.onclick = sendTyped;
@@ -11137,8 +11254,8 @@ els.jump.onclick = function () {
                 painted OVER the way out of both.
      #redirect  the way out of the whole plan. The only one that changes what
                 the work is rather than where you are looking at it from.
-     #notesend  marks made with no question owed, handed over. Only there while
-                there are some; a widget so it can be put where the ink is not. */
+     #notesend  the marks on the lesson, handed over through a picker. Always
+                there; a widget so it can be put where the ink is not. */
 /* Safari pinches the page from `gesturestart` whatever `touch-action` says on
    some builds, so the page pinch is refused here as well as in `board.css`. The
    writing surface and the map read their pinch from pointer events, which this
@@ -11183,7 +11300,7 @@ if (els.panic && window.Recentre) {
       { el: els.redirect, w: 96, onTap: function () {
           if (els.steer.hidden) steerOpen(); else steerShut();
         } },
-      { el: els.notesend, w: 150, onTap: sendNotesNow },
+      { el: els.notesend, w: 150, onTap: notesTap },
     ],
   });
 }

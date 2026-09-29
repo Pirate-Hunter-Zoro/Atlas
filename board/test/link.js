@@ -115,6 +115,8 @@ try {
     + 'window.__saveCopy = saveCopy;\n'
     + 'window.__shareIt = shareIt;\n'
     + 'window.__saveBlob = saveBlob;\n'
+    + 'window.__notesTap = notesTap;\n'
+    + 'window.__paintNotesSend = paintNotesSend;\n'
     + '})();');
   window.eval(src);
   ok('loaded board.js');
@@ -319,6 +321,44 @@ if (es) {
   es.onmessage({ data: JSON.stringify(Object.assign({}, b3, {
     cards: [{ id: '0003', slug: 'c', kind: 'lesson', title: 'Marked', body: 'body', mtime: k0 }] })) });
 
+  // SEND MY ANNOTATIONS IS ALWAYS THERE, and with nothing marked its picker
+  // says so and cannot send. The owner's rule: no annotations, nothing to send.
+  var notesend0 = doc.getElementById('notesend');
+  var pick = doc.getElementById('notepick');
+  var pickSend = doc.getElementById('notepick-send');
+  if (notesend0 && !notesend0.hidden) ok('send my annotations is on the glass with nothing marked');
+  else fail('send my annotations hides until there are marks, so its place is never learnt');
+  window.__notesTap();
+  if (pick && !pick.hidden) ok('and a tap opens the picker rather than sending');
+  else fail('tapping send my annotations did not open the picker');
+  if (pick && !pick.querySelector('.notepick-row')
+      && !doc.getElementById('notepick-empty').hidden)
+    ok('which lists nothing and says there are no annotations yet');
+  else fail('the picker with nothing marked lists rows or says nothing');
+  var asked0 = window.__asked.length;
+  if (pickSend && pickSend.disabled) ok('and its Send is disabled');
+  else fail('the picker offers to send with nothing to send');
+  if (pickSend) pickSend.onclick();
+  if (!window.__asked.slice(asked0).some(function (u) { return /annotate\/save/.test(u); }))
+    ok('and a tap on it sends nothing');
+  else fail('an empty picker issued an /annotate/save');
+  doc.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Escape' }));
+  if (pick.hidden) ok('Escape closes the picker');
+  else fail('the picker cannot be closed with Escape');
+  // Nothing that used to hide it hides it now.
+  var writerEl = doc.getElementById('writer');
+  var wasWriter = writerEl.hidden;
+  writerEl.hidden = false;
+  window.localStorage.setItem('notes-off', '1');
+  window.__paintNotesSend();
+  if (!notesend0.hidden) ok('and it stays with a writing surface owed and notes-off set');
+  else fail('send my annotations hides behind the writing surface or the old notes-off key');
+  writerEl.hidden = wasWriter;
+  window.localStorage.removeItem('notes-off');
+  if (!doc.getElementById('btn-notes-again') && !doc.getElementById('sendwhat'))
+    ok('the marks-too prompt and its re-arm item are gone');
+  else fail('#sendwhat or the ask-about-annotations item is still on the page');
+
   var card = cardsBox.querySelector('[data-card="0003"]');
   if (card) ok('a card announces which card it is, so ink can be anchored to it');
   else fail('cards carry no id for an annotation to attach to');
@@ -366,38 +406,84 @@ if (es) {
   if (notesend && !notesend.hidden) ok('marks can be sent with no question owed');
   else fail('marks made outside a question are stranded with no way to send');
 
-  // Send must never be a no-op.
-  //
-  // It used to be exactly that. With marks anywhere on the board, tapping Send
-  // on the writing surface issued no request at all and raised a "Send what?"
-  // bar instead; the answer went out only on a second tap. An evening's working
-  // sat in live/slate/ for two days while the student believed it had been handed
-  // in, and the board's own receipt never appeared, because the code that writes
-  // it was never reached. Nothing on the surface said a decision was owed.
-  //
-  // The old test for this called askWhatToSend directly and asserted the
-  // deferral, so the suite endorsed the bug. The working goes first now.
-  var chooser = doc.getElementById('sendwhat');
-  if (chooser && chooser.hidden) ok('the follow-up offer stays down until there is something to offer');
-  else fail('the send bar is up before anything has been sent');
-  var reached = false;
-  window.askWhatToSend(function () { reached = true; });
-  if (reached) ok('Send sends the working immediately, marks on the lesson or not');
-  else fail('Send sent nothing: the working is behind a prompt again');
-  if (!chooser.hidden) ok('and then offers the marks on the lesson as well');
-  else fail('unsent marks were dropped silently instead of offered');
-  doc.getElementById('send-cancel').onclick();
-  if (chooser.hidden) ok('and the offer can be declined');
-  else fail('the offer cannot be dismissed');
+  // THE PICKER SENDS EXACTLY WHAT IS TICKED. Three marked cards, one already
+  // delivered: three rows, the two undelivered ticked, and the delivered one
+  // listed as sent.
+  es.onmessage({ data: JSON.stringify(Object.assign({}, b3, {
+    cards: [{ id: '0003', slug: 'c', kind: 'lesson', title: 'Marked', body: 'body', mtime: k0 },
+            { id: '0007', slug: 'g', kind: 'question', title: '', body: '## What the quotient is\nmore', mtime: k0 - 600 },
+            { id: '0008', slug: 'h', kind: 'lesson', title: 'Handed in', body: 'x', mtime: k0 - 7200 }] })) });
+  window.Annotate.load({ '0007': [{ c: '#e0b45c', w: 2, p: [0.1, 0.2, 0.3, 0.4] }],
+                         '0008': [{ c: '#e0b45c', w: 2, p: [0.3, 0.2, 0.5, 0.4] }] });
+  window.Annotate.sent('0008');
+  window.__notesTap();
+  var rows = Array.prototype.slice.call(pick.querySelectorAll('.notepick-row'));
+  var ticked = rows.filter(function (r) { return r.querySelector('input').checked; })
+                   .map(function (r) { return r.dataset.card; }).sort();
+  if (rows.length === 3) ok('three marked cards are three rows');
+  else fail('the picker listed ' + rows.length + ' rows for three marked cards');
+  if (String(ticked) === '0003,0007') ok('and the two not yet sent start ticked');
+  else fail('the rows ticked by default were ' + ticked);
+  var row8 = rows.filter(function (r) { return r.dataset.card === '0008'; })[0];
+  if (row8 && /sent/.test(row8.textContent)) ok('and the delivered one says it was sent');
+  else fail('a delivered card is not marked sent in the picker');
+  var row7 = rows.filter(function (r) { return r.dataset.card === '0007'; })[0];
+  if (row7 && /What the quotient is/.test(row7.textContent) && /min ago/.test(row7.textContent))
+    ok('a row is recognisable: its first line and its age');
+  else fail('a row does not say which card it is or how old: ' + (row7 && row7.textContent));
+  if (pickSend.textContent === 'send 2' && !pickSend.disabled) ok('Send names how many: send 2');
+  else fail('Send says "' + pickSend.textContent + '"');
+  doc.getElementById('notepick-all').onclick();
+  doc.getElementById('notepick-all').onclick();
+  if (!pick.querySelectorAll('.notepick-row input:checked').length && pickSend.disabled)
+    ok('all / none clears every tick, and Send disables at zero');
+  else fail('all / none did not clear the ticks');
+  var box7 = pick.querySelector('.notepick-row[data-card="0007"] input');
+  box7.checked = true;
+  box7.dispatchEvent(new window.Event('change'));
+  var saved = [];
+  var fetch0 = window.fetch;
+  window.fetch = function (u, o) {
+    if (/annotate\/save/.test(String(u))) {
+      saved.push(JSON.parse(o.body));
+      return Promise.resolve({ ok: true, json: function () { return Promise.resolve({}); } });
+    }
+    return fetch0(u, o);
+  };
+  pickSend.onclick();
+  window.fetch = fetch0;
+  if (saved.length === 1 && saved[0].card === '0007' && saved[0].send)
+    ok('ticking one and sending issues exactly one /annotate/save, for that card');
+  else fail('the send issued ' + JSON.stringify(saved.map(function (b) { return b.card; })));
+  if (window.Annotate.unsent().indexOf('0003') !== -1) ok('the unticked card was not sent');
+  else fail('an unticked card was recorded as sent');
+  // The round trip settles on a later tick; checked from the flows at the foot.
+  var pickSettled = new Promise(function (r) { setTimeout(r, 0); }).then(function () {
+    if (window.Annotate.unsent().indexOf('0007') === -1)
+      ok('and once it comes back, that card is recorded as sent');
+    else fail('the sent card was not recorded as delivered');
+  });
 
-  // Ink already handed over does not come back to interrupt the next send.
+  // Send on the writing surface sends the working and nothing else. It used to
+  // raise "you have marks on the lesson too", which the picker replaces.
+  doc.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Escape' }));
+  var reached = false;
+  var saved2 = 0;
+  window.fetch = function (u, o) {
+    if (/annotate\/save/.test(String(u))) saved2++;
+    return fetch0(u, o);
+  };
+  window.askWhatToSend(function () { reached = true; });
+  window.fetch = fetch0;
+  if (reached && !saved2) ok('Send sends the working, and only the working, marks on the lesson or not');
+  else fail('Send on the surface did not send the working alone');
+  if (pick.hidden) ok('and no prompt about the marks appears');
+  else fail('a written Send opened the picker');
+
+  // Ink already handed over stays handed over.
   window.Annotate.sent('0003');
   if (window.Annotate.unsent().indexOf('0003') === -1) ok('a delivered card stops counting as unsent');
   else fail('delivery was not recorded');
-  var reached2 = false;
-  window.askWhatToSend(function () { reached2 = true; });
-  if (reached2 && chooser.hidden) ok('and a send with nothing new to offer is not interrupted at all');
-  else fail('delivered marks still interrupt a send');
 
   // And that survives a reload, because the server records it.
   window.Annotate.load({ '0005': [{ c: '#e0b45c', w: 2, p: [0.2, 0.2, 0.6, 0.6] }] });
@@ -2156,6 +2242,7 @@ async function latchFlow() {
 // The return offer is on a short timer, so it is checked after the fact.
 if (es) {
   (async function () {
+    if (typeof pickSettled !== 'undefined') await pickSettled;
     traceFlow();
     await strokeFloorFlow();
     await latchFlow();

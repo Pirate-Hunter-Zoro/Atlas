@@ -273,7 +273,7 @@ decl(draw, 'top') === null
     // has stopped running, which is worse than one that fails. `#shelf` and
     // `#steer` are their own entries as well as being in that list, because
     // both override it to 98 and 98 is the storey under the menu.
-    const others = ['#drawbar', '.annbar', '.notesend', '.jump', '.sendwhat',
+    const others = ['#drawbar', '.annbar', '.notesend', '#notepick', '.jump', '.sendwhat',
                     '#history', '#panic, #findink',
                     '#scratch, #contents, #review, #shelf, #elsewhere, #trace',
                     '#shelf', '#steer', '.drop', '#viewer', '#paper']

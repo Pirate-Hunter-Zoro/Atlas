@@ -67,7 +67,7 @@
      control that does nothing, in a document somebody is emailing to their
      professor. The ink and the words stay; the furniture goes. */
   var FURNITURE = ".board-send, .board-carry, .to-board, #skip, .drawbar,"
-                + " #drawbar, .annbar, .sendwhat, .notesend, .jump,"
+                + " #drawbar, .annbar, .sendwhat, .notesend, #notepick, .jump,"
                 + " #writer-head .tabs, #typebox button, #said-label";
 
   /* ------------------------------------------------------------ the styles */
