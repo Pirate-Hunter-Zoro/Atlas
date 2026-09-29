@@ -45,13 +45,12 @@ build/
 *.fdb_latexmk
 *.synctex.gz
 
-# ---- the picture of what somebody drew on a meeting slide ----
-# `meetings/meeting.tex`, its PDF and its page map are tracked: the deck is the
-# document. `meetings/marks/` is not -- it is the rendered ink, copied out of
-# the serving board's own `live/annotations/` (which IS tracked) so that the
-# turn woken by it has a path it can open, and it is cleared whenever the deck
-# is replaced. A buffer between one machine's board and one machine's turn.
-meetings/marks/
+# ---- the meeting deck's pointer, and the pictures of its marks ----
+# The deck itself lives in its host workspace's `writeups/meeting/`, where its
+# `.tex` is tracked and a fenced host's push scan reads it. `meetings/` holds
+# only where it is, its state and page map (rewritten on every poll), and the
+# rendered ink copied out for the turn that reads it. Neither is a document.
+meetings/
 
 # ---- other people's published papers ----
 # The citation libraries hold PDFs whose copyright belongs to their authors.

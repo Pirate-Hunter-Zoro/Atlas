@@ -205,35 +205,49 @@ def get(h, repo, path):
     # in code; it is the reason no name from a request can reach the
     # filesystem here.
     if path == "/meeting/deck.json":
+        # WHERE THE ONE DECK GOT TO: being written, ready, or did not land --
+        # judged here, because a writer turn takes minutes and the sheet and
+        # the reader both watch this. A built deck is read back the first time
+        # it is asked about: its page map off the PDF, its numbers against the
+        # sources.
         base = atlas.root() or repo.root
+        meeting.status(base)
         rec = meeting.deck(base)
         if not rec:
             return h.send_json({"ok": False,
                                 "detail": "No deck has been made yet."})
         return h.send_json({
-            "ok": True, "since": rec.get("since") or "",
+            "ok": True, "state": rec.get("state") or "",
+            "why": rec.get("why") or "",
+            "since": rec.get("since") or "", "period": rec.get("period") or "",
             "at": rec.get("at") or 0, "built": bool(rec.get("has_pdf")),
+            "host": rec.get("host") or "",
             "workspaces": rec.get("workspaces") or [],
             "names": rec.get("names") or {},
             "pages": rec.get("pages") or {},
+            "unsupported": rec.get("unsupported") or 0,
             "marked": sorted(meeting.ink_keys(repo)),
         })
 
     if path == "/meeting/view":
         # THE SAME RASTERISER, THE SAME CACHE, THE SAME PAGE ADDRESSES the
-        # library's reader uses. `paper.pages_of`'s `tag` argument is there
-        # precisely so a second finder can have its own cache namespace, so
-        # this is a second way of finding a file in front of machinery that is
-        # already shared -- not a second reader.
+        # library's reader uses. Only a READY deck is drawn: one whose page
+        # map was read off its own build, so a mark finds its project.
         base = atlas.root() or repo.root
+        meeting.status(base)
         rec = meeting.deck(base)
         if not rec or not rec.get("has_pdf"):
+            state = (rec or {}).get("state") or ""
             return h.send_json({
-                "ok": False, "why": "none",
+                "ok": False, "why": "none" if not rec else state,
                 "detail": ("There is no deck to read. Make one from the front "
                            "door." if not rec else
-                           "The deck is written but LaTeX would not typeset "
-                           "it, so there are no pages to draw.")})
+                           "The deck is being written in %s. This page draws "
+                           "it when it is there." % ((rec.get("names") or {})
+                                                    .get(rec.get("host"))
+                                                    or rec.get("host"))
+                           if state == "being written" else
+                           (rec.get("why") or "The deck did not land."))})
         out = paper.pages_of(repo, rec["pdf"], meeting.STEM + ".pdf", "meeting")
         if out.get("ok"):
             # The marks come WITH the pages: this page holds no live payload to
@@ -242,6 +256,14 @@ def get(h, repo, path):
             out["pages_of"] = rec.get("pages") or {}
             out["names"] = rec.get("names") or {}
             out["since"] = rec.get("since") or ""
+            out["period"] = rec.get("period") or ""
+            # WHAT NO SOURCE SUPPORTS, shown beside the deck rather than
+            # silently shipped or silently dropped.
+            prov = meeting.provenance(base)
+            out["unsupported"] = {
+                "numbers": prov.get("numbers") or [],
+                "figures": prov.get("figures") or [],
+                "internal": prov.get("internal") or []}
         return h.send_json(out)
 
     if path == "/meeting/pdf":
@@ -360,13 +382,8 @@ def post(h, repo, path):
     if path == "/notes/what":
         # WHICH PROJECTS, WITH WHAT EACH ONE HAS TO REPORT. Asked for in these
         # words: *"I want to be able to select which projects meeting notes are
-        # generated for."*
-        #
-        # THE LIST SAYS WHAT EACH ONE HAS, not just its name. Ticking bare names
-        # ten minutes before a meeting is guessing; "three commits, one step
-        # closed" is the answer to the question somebody is actually asking.
-        # It is `gather`'s own output rather than a second count, so the list
-        # cannot disagree with the deck it produces.
+        # generated for."* The counts are `meeting.gather`'s own, so the list
+        # cannot disagree with the brief the deck is written over.
         try:
             payload = json.loads(h.read_body().decode("utf-8") or "{}")
         except Exception:                                    # noqa: BLE001
@@ -375,28 +392,30 @@ def post(h, repo, path):
         when, said = meeting.resolve_since(payload.get("since") or "", base)
         if when is None:
             return h.send_json({"ok": False, "detail": said}, status=400)
+        blocks, every, _ = meeting.blocks_for(base, None, when)
+        got = dict((b["id"], b) for b in blocks)
         out = []
-        for ws in atlas.workspaces(base):
-            try:
-                block = meeting.gather(base, ws, when)
-            except Exception:                                # noqa: BLE001
-                block = None
+        for ws in every:
+            block = got.get(ws["id"])
             out.append({
                 "id": ws["id"], "family": ws["family"],
                 "name": (block or {}).get("name") or ws["dir"],
                 "moved": bool(block),
                 "commits": len((block or {}).get("commits") or []),
                 "closed": len((block or {}).get("closed") or []),
-                "files": (block or {}).get("files") or 0,
+                "sittings": len((block or {}).get("sittings") or []),
+                "story": bool((block or {}).get("story")),
+                "fenced": bool((block or {}).get("fenced")),
             })
-        return h.send_json({"ok": True, "since": said, "workspaces": out})
+        return h.send_json({"ok": True, "since": said,
+                            "period": meeting.period_text(when),
+                            "workspaces": out})
 
     if path == "/notes":
-        # THE MEETING DECK, FROM THE FRONT DOOR, because that is what is open
-        # when somebody remembers they have one in ten minutes. The work is the
-        # same `meeting.build` the command line runs -- one builder, so the deck
-        # the button makes and the deck the terminal makes are the same
-        # document.
+        # THE MEETING DECK, FROM THE FRONT DOOR. Written by a turn over a brief,
+        # through `/writeup`'s own dispatch -- see `library.ask_meeting` -- so
+        # the reply is "being written" and the sheet watches
+        # `/meeting/deck.json` until it is ready or says why it did not land.
         try:
             payload = json.loads(h.read_body().decode("utf-8"))
         except Exception:                                    # noqa: BLE001
@@ -405,24 +424,16 @@ def post(h, repo, path):
         when, said = meeting.resolve_since(payload.get("since") or "", base)
         if when is None:
             return h.send_json({"ok": False, "detail": said}, status=400)
-        # WHICH WORKSPACES, and only ones that are strings. `build` matches them
-        # against what the walk found and refuses by name when none of them are
-        # workspaces here; nothing from this list reaches a path.
+        # WHICH WORKSPACES, and only ones that are strings, matched against the
+        # walk; nothing from this list reaches a path.
         want = [str(w) for w in (payload.get("want") or []) if str(w).strip()]
+        from . import library as library_route         # local: a cycle
         try:
-            # `repo` so the last deck's ink goes with the last deck. This is the
-            # one document in the system where old marks have no meaning at all:
-            # they were consumed into a direction the moment they were sent, and
-            # the new deck has a different workspace on page 4.
-            rec = meeting.build(base, when, said, want=want or None,
-                                here=repo.root, repo=repo)
+            return library_route.meeting_deck(h, repo, base, when, said,
+                                              want=want or None)
         except Exception as exc:                             # noqa: BLE001
             return h.send_json({"ok": False,
                                 "detail": str(exc)[-300:]}, status=500)
-        # The markdown is not sent: it is the document, it is megabytes on a
-        # long period, and the page shows a name and a link rather than prose.
-        rec.pop("markdown", None)
-        return h.send_json(rec)
 
     if path == "/meeting/direction":
         # THE MARKS ARE DIRECTION, AND THIS IS THE ONE ROUTE THAT SAYS SO.

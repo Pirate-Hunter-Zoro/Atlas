@@ -48,6 +48,11 @@ const VIEW = {
   names: { 'research/PSYCH-ASR': 'PSYCH-ASR', 'research/TRD-EHR': 'TRD-EHR' },
   since: 'last week',
   ink: {},
+  unsupported: {
+    numbers: [{ value: '0.713', frame: 3, title: 'Two arms',
+                context: 'the weighted arm reaches 0.713 in a subgroup' }],
+    figures: [], internal: [],
+  },
 };
 
 const dom = new JSDOM(fs.readFileSync(path.join(WEB, 'meeting.html'), 'utf8'), {
@@ -115,11 +120,21 @@ catch (e) { fail('meeting.js: ' + e.message); }
     ? ok('and each one carries the page address the pen anchors to')
     : fail('anchors: ' + pages.map((p) => p.dataset.ann).join('|'));
   /PSYCH-ASR/.test(pages[1].querySelector('figcaption').textContent)
-    && /whole repository/.test(pages[0].querySelector('figcaption').textContent)
+    && /every project/.test(pages[0].querySelector('figcaption').textContent)
     ? ok('and says which project it is about before anybody draws on it, '
          + 'because the page is how a mark finds its project')
     : fail('captions: ' + pages.map(
         (p) => p.querySelector('figcaption').textContent).join(' | '));
+
+  // 2a. What no source supports is on the page, with the slide it is on.
+  {
+    const box = doc.getElementById('deck-check');
+    const said = box ? box.textContent : '';
+    box && !box.hidden && /0\.713/.test(said) && /slide 3/.test(said)
+      && /not in any source/.test(said)
+      ? ok('a number no source gives is listed beside the deck, with its slide')
+      : fail('the sidecar on the page: ' + (box ? (box.hidden ? 'hidden' : said) : 'missing'));
+  }
 
   // 2b. The pen brings the board's own tools, and "done" puts them away.
   {

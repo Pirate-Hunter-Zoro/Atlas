@@ -14,10 +14,11 @@
      2. NO NAME GOES OVER THE WIRE. There is one deck, so `/meeting/view`
         takes no argument at all. Nothing here builds a path and nothing here
         names a document.
-     3. EVERY SLIDE SAYS WHOSE IT IS. One frame per workspace, and the caption
-        under each page names it -- because the page is how a mark finds its
-        project, and marking the wrong slide has to be visibly the wrong slide
-        rather than silently the wrong project.
+     3. EVERY SLIDE SAYS WHOSE IT IS. Every frame names its workspace, a
+        project gets as many as it needs, and the caption under each page
+        names it -- because the page is how a mark finds its project, and
+        marking the wrong slide has to be visibly the wrong slide rather than
+        silently the wrong project.
      4. A MARK IS DIRECTION, NOT FEEDBACK. It never goes to
         `/library/feedback`, which would spend a turn fixing the slides. It
         goes to `/meeting/direction`, which wakes one turn per marked
@@ -32,6 +33,7 @@ var els = {};
   "reader-name", "reader-sub", "reader-pen", "reader-close", "reader-said",
   "reader-pages", "deck-send", "deck-pdf",
   "note", "deck-ask-list", "deck-ask-said", "deck-ask-cancel", "deck-ask-go",
+  "deck-check", "deck-check-head", "deck-check-list",
 ].forEach(function (id) {
   els[id.replace(/-(\w)/g, function (_, c) { return c.toUpperCase(); })] =
     document.getElementById(id);
@@ -73,8 +75,12 @@ function paint(got) {
     els.readerSub.textContent = got.detail || "The slides could not be drawn.";
     els.readerPages.innerHTML = "";
     openPages = 0;
+    paintCheck({});
     paintPen();
     paintSaid();
+    /* A deck being written is watched, not left: the page draws it when it
+       has been built and read back. */
+    if (got.why === "being written") setTimeout(load, 15000);
     return;
   }
   pagesOf = got.pages_of || {};
@@ -82,7 +88,7 @@ function paint(got) {
   openPages = (got.pages || []).length;
   els.readerSub.textContent = openPages
     + (openPages === 1 ? " slide" : " slides")
-    + (got.since ? " · " + got.since : "");
+    + (got.period ? " · " + got.period : got.since ? " · " + got.since : "");
   els.deckCount.textContent = Object.keys(pagesOf).length
     + " project" + (Object.keys(pagesOf).length === 1 ? "" : "s");
 
@@ -108,7 +114,7 @@ function paint(got) {
        page says which project before anybody draws on it. */
     cap.textContent = pagesOf[String(n)]
       ? n + " · " + (names[pagesOf[String(n)]] || pagesOf[String(n)])
-      : n + " · the whole repository";
+      : n + " · every project: a mark here goes nowhere";
     fig.appendChild(cap);
     els.readerPages.appendChild(fig);
     if (window.Annotate) {
@@ -119,8 +125,38 @@ function paint(got) {
     }
   });
   if (window.Annotate) window.Annotate.load(got.ink || {});
+  paintCheck(got.unsupported || {});
   paintPen();
   paintSaid();
+}
+
+/* ---------------------------------------------------- what to check first */
+/* THE SIDECAR, ON THE PAGE. A number no source gives, a figure the board did
+   not copy, a plan heading copied as the plan types it: each is listed with
+   the slide it is on, so it is checked before the meeting rather than found
+   in it. */
+function paintCheck(u) {
+  var rows = [];
+  (u.numbers || []).forEach(function (x) {
+    rows.push("slide " + x.frame + (x.title ? " (" + x.title + ")" : "")
+              + ": " + x.value + " is in no source — “" + x.context + "”");
+  });
+  (u.figures || []).forEach(function (x) {
+    rows.push(x.file + " was not copied from any project's results");
+  });
+  (u.internal || []).forEach(function (x) {
+    rows.push("“" + x.heading + "” is a plan heading, copied as the plan types it");
+  });
+  els.deckCheckList.innerHTML = "";
+  rows.forEach(function (t) {
+    var li = document.createElement("li");
+    li.textContent = t;
+    els.deckCheckList.appendChild(li);
+  });
+  els.deckCheckHead.textContent = rows.length + (rows.length === 1
+    ? " thing on this deck is" : " things on this deck are")
+    + " not in any source — check before the meeting";
+  els.deckCheck.hidden = !rows.length;
 }
 
 /* ------------------------------------------------------------- the marks */
