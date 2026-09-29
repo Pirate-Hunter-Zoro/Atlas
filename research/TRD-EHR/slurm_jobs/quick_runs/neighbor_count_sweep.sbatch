@@ -17,6 +17,10 @@
 #
 # Requires a fitted logistic_regression_EMBEDDED.joblib in RESULTS_DIR/trained_models,
 # which scripts.pipeline.predictions.classical_ml writes.
+#
+# REDRAW=1 skips the six-hour sweep and redraws both figures from the CSVs already on
+# disk. Either way the manuscript figure (Figure 4) is drawn and the folder is mirrored
+# into results/, because the manuscript links the mirror, not RESULTS_DIR.
 
 # Exit immediately if command fails
 set -e
@@ -42,7 +46,12 @@ set -a; source "${ENV_FILE}"; set +a
 
 echo "Running on $(hostname) with ${SLURM_CPUS_PER_TASK} cpus"
 
-python -m scripts.pipeline.predictions.neighbor_count_sweep
+if [[ "${REDRAW:-0}" == "1" ]]; then
+  python -m scripts.pipeline.predictions.neighbor_count_sweep --redraw
+else
+  python -m scripts.pipeline.predictions.neighbor_count_sweep
+fi
+python -m scripts.pipeline.predictions.plot_neighbor_sweep_figure
 
 # Copy the sweep folder back beside the other results for easier access
 TARGET_DIR="results/${EMBEDDER_MODEL_NAME}/${VLLM_MODEL_NAME}/"
