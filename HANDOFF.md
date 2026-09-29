@@ -30,11 +30,12 @@ nothing — because a turn is already cold and reads the lesson back off disk. A
 provider is a recipe plus a key and nothing else, so a fourth is one entry in a
 config file and one line in a key file. **DeepSeek's endpoint is the one that
 cannot be tapped yet**: `api.deepseek.com` is reset at the TLS handshake from
-every compute node, which is item 2 and is a firewall exception rather than a
+every compute node, which is item 3 and is a firewall exception rather than a
 setting.
 
-**Nothing left is a build.** Two dispatches only the account holder can make,
-and a list of evenings in front of the thing.
+**One build is left, and it comes first**: the meeting deck has to become a
+presentation (item 1). After it, two dispatches only the account holder can
+make, and a list of evenings in front of the thing.
 
 `board/README.md` is the architecture. This file says what is left.
 
@@ -49,8 +50,8 @@ Nobody has to ask for that. *"Look at HANDOFF"* means all of it:
    CAN DO.** It is the lowest-numbered one on purpose — the numbering carries the
    order things have to land in, and each item says what it depends on where that
    matters. If the owner names a different one, that wins. **Each item's heading
-   says whose hands it needs**: 1 and 2 need the account holder, 3 is a list of
-   evenings in front of the thing.
+   says whose hands it needs**: 1 is a build, 2 and 3 need the account holder,
+   4 is a list of evenings in front of the thing.
 2. **Read that item whole before touching anything.** An item says what already
    exists (measured, not assumed), what is missing, where it goes, the decisions
    to take deliberately, and what to assert. The decisions are the expensive part:
@@ -73,7 +74,7 @@ An item is not done because its code runs. It is done when the suite is green,
 the rule is written where the next turn will read it, and the item is out of this
 file.
 
-**Item 3 does not come out this way.** It is a list of evenings in front of the
+**Item 4 does not come out this way.** It is a list of evenings in front of the
 thing, and only the person holding the iPad can strike those.
 
 ---
@@ -168,14 +169,182 @@ three providers behind one tap on the front door, a swap between them that costs
 the lesson nothing, and a fourth costing one entry in a config file and one line
 in a key file. All of that is Settled below.**
 
-**Nothing left here is a build.** Items 1 and 2 need the account holder; item 3
-is a list of evenings in front of the thing.
+**One thing here is a build: the meeting deck (item 1).** Items 2 and 3 need
+the account holder; item 4 is a list of evenings in front of the thing.
 
 ---
 
 ## What to do next
 
-### 1. Ask GitHub to collect the instructor slides, which the rewrite did not reach — THE ACCOUNT HOLDER'S
+### 1. The meeting deck becomes a presentation — A BUILD
+
+**The ask, in the owner's words:** *"I just used the meeting notes
+functionality to try to review the most recent implementations we did in
+PSYCH-ASR and TRD-EHR. I'm looking at the meeting deck right now. It's absolute
+dog shit."* The test is whether it can *"actually generate a professional
+coherent presentation on my most recent progress"* — something they would put
+in front of their mentors without rewriting it.
+
+**The evidence is on disk.** `meetings/meeting.{tex,pdf,json}` is the deck
+built 2026-09-28 20:18 with *the last week*, PSYCH-ASR and TRD-EHR ticked. It
+has three pages: a title page, one bulleted frame per project, and about 80 %
+of each frame blank. Render it with `pdftoppm` before changing anything and
+compare against it afterwards. The files are staged, not committed. Leave them
+as the "before" until the new deck replaces them.
+
+**What it says, against what happened.** TRD-EHR's week was this: the KNN gap
+turned out to be neighbourhood size, not the metric (`3ffcb48d`). Retrieval
+became two arms, plain versus importance-weighted cosine (`4a837721`). The k
+sweep gives 0.602 (0.587–0.619) at k = 50 (`02495b3e`). The senior author's
+2026-09-21 revision was applied to the manuscript and supplement (`2f22453a`,
+`10fd3e0b`), and Figure 4 was drawn. The frame shows none of it. It shows the
+four newest commit subjects, cut at 78 characters mid-clause, then
+*"… and 12 more"* and *"Next. INTEGRATE HIS SECTIONS."* PSYCH-ASR's week was
+a direction change: the master reference transcript is built and awaits
+Madison's approval, and the grid is next (`DIRECTION.md`, set 2026-09-21
+20:30). Its frame shows *"courses/Probability: lesson complete"*,
+*"Next. THE GRID, WHICH IS A CUBE."* and *"the grid waits on the stopwatch"*.
+
+**The diagnosis, cause by cause.** Each one is in `tutorboard/meeting.py` unless
+it says otherwise.
+
+1. **"Assembled, not generated" is the root cause, and it is a decision to
+   reverse, not a bug to patch.** Every line is a commit subject, a plan
+   heading or a box name (`frames`, and the module docstring). A deck built
+   from those is a changelog. Commit subjects here are 200–400-word paragraphs
+   written for `git log`. Clipping one gives half a clause. Nothing in the
+   module can state a finding, carry a number, explain a figure or tell a
+   story. The property the rule protected, *nothing on a slide nobody can
+   stand behind*, is still wanted. It has to come from provenance (cause 9),
+   not from refusing to write.
+2. **Selection is by recency, not by weight.** `DECK_COMMITS = 4` newest
+   subjects, with the rest counted. On TRD-EHR the four newest are
+   housekeeping: Figure 4 mirroring, limitations wording, cover-letter sync. The
+   week's findings are all in *"12 more"*.
+3. **Attribution is by pathspec, so save sweeps pollute every frame.**
+   `landed` counts any commit that touched the workspace's path. A course's
+   *lesson complete* save sweeps uncommitted files from all over the tree
+   So `19337034 courses/
+   Probability: lesson complete` sits on both frames, because it carried both
+   research HANDOFF.md diffs. Of TRD-EHR's "16 commits", seven are saves or
+   another workspace's work. That makes *"16 commits, 172 files touched"* noise
+   presented as a headline. **The saves still carry real content**: their
+   HANDOFF.md diffs are often the best record of the week. Read the diff, not
+   the subject.
+4. **The window is a hard cliff at now − 7 × 24 h.** *The last week* at 20:18
+   on 9-28 starts at 20:18 on 9-21. PSYCH-ASR's `psych-asr direction change`
+   landed at 20:13 on 9-21 and was cut by five minutes. That makes the frame
+   empty of the one thing that happened. Nothing snaps to a day boundary, and
+   nothing looks at "since the last meeting" by content.
+5. **Next and Blocked are raw plan headings and private box names.**
+   `nextup` returns TODO headings verbatim, in capitals. `INTEGRATE HIS
+   SECTIONS` is also **stale**: that integration landed in `2f22453a` and
+   `10fd3e0b`, and the TODO was not pruned. *His* has no referent for anyone in
+   the room. `blocked` spends written-map names (*the grid*, *the stopwatch*),
+   which mean nothing to a mentor. Nothing checks a plan step against what
+   landed.
+6. **The sources that hold the story are never read.** The per-workspace
+   `HANDOFF.md` and `DIRECTION.md` diffs, the sittings filed in the window and
+   their cards, the figures in `results/` (`results.find`/`figures`: the k-sweep
+   figure, `cross_embedder_robustness_EMBEDDED.png`), and the manuscript's
+   current numbers. The meeting deck reads commits, plan headings and box
+   names, and nothing else.
+7. **One frame per workspace is forced, and the reason is ink routing, not
+   presentation.** The page a mark is on is how `proposals.py` routes a
+   mentor's ink to a workspace (`page_map`, `meetings/meeting.json`). So the
+   deck cannot give a project a findings slide, a figure slide and a
+   next-steps slide. `[shrink=25]` and `\small` then shrink one bulleted list
+   into the top fifth of the frame. It has no agenda, no one-slide summary, no
+   figures, and no slide of decisions or asks for the mentors. Its title is
+   *"Where the work is"*.
+8. **Every title and box links to `http://compute-node.tail0c6c62.ts.net:8937#/w/…`.**
+   That is right on the owner's glass and wrong in a PDF shown to an audience.
+   A mentor cannot open it, and it prints an internal tailnet hostname into a
+   document meant for people outside it.
+9. **The right machinery already exists, next door.** *Slides from sittings*
+   (`tutorboard/sittings.py`; see *Slides from sittings* in `board/README.md`)
+   writes a deck with a `[writeup]` turn. That turn works over `_brief.md` /
+   `_brief.json` (the ticked items, their sources, the cards' paths, the
+   fences, a figure catalog), copies figures in, lets the writer pull more with
+   `board deckfig`, and keeps a fenced workspace's deck in that workspace
+   (`host_for`). It lands in a library, where ink is a revision. TRD-EHR's
+   `writeups/deck-260925-0942/` came out of it. The meeting deck is the older,
+   assembled path, and the two have drifted apart.
+
+**What to build.**
+
+1. **The meeting deck is written by a turn over a brief**, through
+   `routes/library.py::_dispatch_writeup`, the way the sittings deck is.
+   `meeting.build` stops emitting frames and emits the brief. Per chosen
+   workspace, the brief carries:
+   - the substantive commits, with **full bodies**. A commit counts for a
+     workspace only if its own work is there: not a `<other workspace>: …`
+     save, and not a `lesson complete` / `stopping point` / `handoff` save. For
+     those, carry the HANDOFF.md / DIRECTION.md **diff** they contain instead.
+   - the HANDOFF.md and DIRECTION.md diffs over the window, as text.
+   - the sittings filed in the window, with card paths, off `sittings.listing`.
+   - the plan steps that closed (`closed`), and the open steps with a flag on
+     any that a landed commit appears to satisfy.
+   - the figure catalog: the window's `results/` figures first, copied the way
+     `sittings` copies them.
+2. **The deck's shape is a presentation to mentors.** A title with the period.
+   One summary slide: each project in one line, with its headline number. Then
+   per project, as many frames as it needs: what was found (number plus
+   figure), what changed in direction and why, and what is next in plain
+   words. Then a closing slide of decisions or asks for the mentors. No
+   internal names (box names, TODO headings, *his*), and no tailnet links in the
+   body. Put the prompt in `sense.py` beside `sittings_about`. The brief says
+   who the audience is.
+3. **Ink routing survives multi-frame projects.** The writer marks every
+   content frame with one workspace: a `\meetingws{research/TRD-EHR}` macro
+   that writes to the `.aux`, or an equivalent the build can read back. The
+   page map is derived from the **compiled PDF** rather than assumed one page
+   per workspace. A content page with no workspace, or two, refuses the deck by
+   name before it is offered. The title, summary and closing pages belong to
+   nobody, as page 1 does now.
+4. **Provenance replaces "nothing invented".** After the build, every number
+   in the `.tex` and every figure it includes must appear in a brief source or
+   in the catalog. Anything unsupported is listed in a sidecar the `/meeting`
+   page shows. It is never silently dropped and never silently shipped.
+5. **The window snaps to a local day boundary**, and *since the last deck*
+   stays the default. The title slide says the exact period.
+6. **The sheet reports progress** the way a sittings deck does (`writeups`
+   record: *being written* → *Ready* / *Did not land*), because a writer turn
+   takes minutes and the sheet today builds in one request.
+
+**Decisions to take deliberately.**
+
+- **Merge or keep two.** A meeting deck *is* a sittings deck with a preset (all
+  of a period's sittings plus commits, across the chosen workspaces) and with
+  ink meaning *direction* rather than *revision*. One engine with two entry
+  points is the recommendation. Two engines is how this drift happened.
+- **Where it lives, given the fence.** `meetings/` is tracked in a **public**
+  repository. A written deck about PSYCH-ASR is session-adjacent prose.
+  `host_for` exists because of that. Either keep the meeting PDF, brief and
+  figures untracked (a `.gitignore` like the sittings deck folder's) with only
+  the `.tex` tracked after the push's PHI scan, or refuse a PSYCH-ASR meeting
+  deck outside PSYCH-ASR. Do not decide this by leaving it as it is.
+- **Which assistant writes it.** A deck touching a fenced workspace is written
+  by whatever may read that workspace. `host_for` and `sense.sittings_about`
+  already answer this for the sittings deck. Take that answer, don't invent a
+  second.
+- **Keep "one deck, replaced each time"** and the propose-only direction
+  routing. Those parts work.
+
+**What to assert.** On a fixture built like this week's tree: TRD-EHR's brief
+carries the bodies of `3ffcb48d`-, `4a837721`- and `02495b3e`-shaped commits.
+A `courses/X: lesson complete` save that touched TRD-EHR's HANDOFF.md
+contributes that diff and is **not** listed as a TRD-EHR commit. A commit five
+minutes before a naive seven-day cliff is inside the snapped window. A stale
+TODO step that a landed commit satisfies is flagged. A compiled two-frame
+project routes ink on both of its pages to its workspace, and a frame with no
+`\meetingws` refuses the deck. No tailnet URL and no all-caps plan heading
+appears in the PDF's text. A number not in any source is in the sidecar. Then,
+on the real tree, build *the last week* for PSYCH-ASR and TRD-EHR, render every
+page, and look at them before calling it done. The suite cannot tell you
+whether a deck is professional.
+
+### 2. Ask GitHub to collect the instructor slides, which the rewrite did not reach — THE ACCOUNT HOLDER'S
 
 **The seventeen decks and sheets are out of every commit here and off `main`, and
 GitHub still serves all seventeen at the pre-rewrite SHA.** A raw fetch of
@@ -198,7 +367,7 @@ Until one of those lands, treat the decks as published. Nothing else is
 outstanding: `.gitignore` refuses them, `test/tracked.py` refuses them for every
 course, and the files are on disk where the board reads them.
 
-### 2. Ask for a firewall exception on `api.deepseek.com` — THE ACCOUNT HOLDER'S
+### 3. Ask for a firewall exception on `api.deepseek.com` — THE ACCOUNT HOLDER'S
 
 **One hostname is filtered and no client setting reaches it.**
 `api.deepseek.com` is reset during the TLS ClientHello from every c3 compute
@@ -225,7 +394,7 @@ as a turn, so `deepseek-flash` cannot be verified until the name is open, and
 `deepseek-flash[1m]` against the bare id is the open question in the recipe's
 own comment.
 
-### 3. And the seven things no test can hold — THE IPAD'S
+### 4. And the seven things no test can hold — THE IPAD'S
 
 None of these is a build. Each is an evening in front of the thing.
 
