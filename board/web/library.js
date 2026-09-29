@@ -1191,9 +1191,10 @@ function setAsk(which) {
   if (noteAsk === "rework") els.purpose.focus();
 }
 
-els.askRevise.onclick = function () { setAsk("revise"); };
-els.askRework.onclick = function () { setAsk("rework"); };
-if (els.askDirection) els.askDirection.onclick = function () { setAsk("direction"); };
+// A tap on the ask is part of the draft, as a keystroke is.
+els.askRevise.onclick = function () { setAsk("revise"); keepDraft(); };
+els.askRework.onclick = function () { setAsk("rework"); keepDraft(); };
+if (els.askDirection) els.askDirection.onclick = function () { setAsk("direction"); keepDraft(); };
 
 /* WHAT GOES, SAID FOR THE ASK THE PANEL IS ON. A direction is ONE page -- the
    one being read -- and only that page's ink goes; the rest stays for a fix. */

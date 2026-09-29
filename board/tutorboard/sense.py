@@ -1435,7 +1435,10 @@ MEETING_ABOUT = (
     "THE FILE IS `%(dir)s/meeting.tex`, that name exactly and no other. Build "
     "it in its own directory, `cd %(dir)s && pdflatex -interaction=nonstopmode "
     "meeting.tex`, twice, and leave the `.aux` it writes: the page marks are "
-    "read from it. A LaTeX error is yours to fix before the turn ends."
+    "read from it. A LaTeX error is yours to fix before the turn ends. "
+    "THIS DECK IS NOT IN THE LIBRARY, whatever the line around this one says: "
+    "it is read on the board's meeting page, where a mark is a direction for "
+    "the project on that page."
 )
 
 

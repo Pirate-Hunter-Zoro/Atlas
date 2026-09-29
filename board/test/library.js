@@ -1782,4 +1782,12 @@ async function inkIsKept() {
   p5.byId('note-purpose').value === aim.value && !p5.byId('note-purpose-box').hidden
     ? ok('an overhaul’s purpose is kept too, and reopens as an overhaul')
     : fail('the purpose after a reload: ' + JSON.stringify(p5.byId('note-purpose').value));
+
+  // Switching the ask with no keystroke after it is still part of the draft.
+  p5.click(p5.byId('ask-revise'));
+  const p6 = await open(p5.storage());
+  p6.click(p6.byId('reader-say'));
+  p6.byId('note-purpose-box').hidden && p6.byId('ask-revise').classList.contains('on')
+    ? ok('a tap on the ask with nothing typed after it is kept with the draft')
+    : fail('the ask switched without a keystroke came back as an overhaul');
 }
