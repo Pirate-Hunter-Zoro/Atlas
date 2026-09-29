@@ -62,7 +62,9 @@ best ROC AUC was 0.625 (95% CI 0.610-0.641).
 
 We are explicit that the outcome is a treatment-switching proxy rather than
 confirmed treatment resistance, that validation is internal, and that the
-subgroup analyses do not establish equitable performance. We think the
+subgroup analyses do not establish equitable performance. Both
+representations encode the same hand-selected predictors, so the comparison
+says nothing about embedding an unselected record. We think the
 results give a practical structured-feature benchmark for EHR embedding
 pipelines, and a clear case for validating the outcome before deploying
 either approach.
