@@ -92,8 +92,8 @@ to send my annotations, which is how it should be."*
   That assertion reverses. The test is right about the old rule and must be
   rewritten to the new rule, not deleted.
 - `test/chrome.js:276` lists `.notesend` and `.sendwhat` among overlays. Take
-  `.sendwhat` out, and cover the picker the same way. Any test that drives
-  `#sendwhat` or `notes-off` goes along with it. After the writing surface's Send
+  `.sendwhat` out, and cover the picker the same way. The chooser checks at
+  `test/link.js:380` and `test/panic.js:501` go along with it. After the writing surface's Send
   with marks on the lesson, assert that exactly one request went out, for the
   working, and that no prompt appeared.
 - Bump `VERSION` in `board/web/sw.js`. `board.js`, `board.html` and `board.css`
