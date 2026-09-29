@@ -49,7 +49,7 @@ Nobody has to ask for that. *"Look at HANDOFF"* means all of it:
    CAN DO.** It is the lowest-numbered one on purpose — the numbering carries the
    order things have to land in, and each item says what it depends on where that
    matters. If the owner names a different one, that wins. **Each item's heading
-   says whose hands it needs**: 3 is a list of evenings in front of the thing.
+   says whose hands it needs**: 2 is a list of evenings in front of the thing.
 2. **Read that item whole before touching anything.** An item says what already
    exists (measured, not assumed), what is missing, where it goes, the decisions
    to take deliberately, and what to assert. The decisions are the expensive part:
@@ -72,7 +72,7 @@ An item is not done because its code runs. It is done when the suite is green,
 the rule is written where the next turn will read it, and the item is out of this
 file.
 
-**Item 3 does not come out this way.** It is a list of evenings in front of the
+**Item 2 does not come out this way.** It is a list of evenings in front of the
 thing, and only the person holding the iPad can strike those.
 
 ---
@@ -169,76 +169,13 @@ three providers behind one tap on the front door, a swap between them that costs
 the lesson nothing, and a fourth costing one entry in a config file and one line
 in a key file. All of that is Settled below.**
 
-**Two builds are left, 1 and 2.** Item 3 is a list of evenings in front of the thing.
+**One build is left, 1.** Item 2 is a list of evenings in front of the thing.
 
 ---
 
 ## What to do next
 
-### 1. Ink does not scale with the reader's zoom — A BUILD
-
-**In the owner's words:** *"while zooming in and out on a paper/presentation
-now works, my annotations do NOT scale with said paper/presentation - they're
-getting all out of wack and misplaced."*
-
-**The test:** draw a ring round a figure caption at 100%, pinch to 250%, back
-to 60%, and back to 100%. At every zoom the ring sits on the same words, at
-the same relative thickness. Ink drawn at 250% lands where it was drawn at
-every other zoom, and after a reload, and in the burned copy.
-
-**What exists, measured from the code — re-measure before building:**
-
-- The zoom is `readerzoom.js`. It sets `--zoom` on `#reader-pages`, and
-  `.lib-page` is laid out at `min(100%, 54rem) × zoom` (`library.css`). During
-  a pinch the scroller is only transformed; the lift commits the width.
-- Ink is `annotate.js`. `store_stroke` stores points as fractions of the
-  CARD's box (`cv._w`, `cv._h`, less `cv._pl`/`cv._pt`), and `pathOf` maps
-  them back the same way. A `ResizeObserver` per card calls `size` and `draw`.
-- **The card is the `<figure class="lib-page">`, and it holds the
-  `figcaption` as well as the page picture** (`library.js` `draw`,
-  `meeting.js` the same). The caption is a fixed height that does not grow
-  with zoom, so every vertical fraction means a different place on the page
-  at every zoom. This is the first suspect. It gets worse towards the bottom.
-- Pen width `s.w` is in CSS pixels and is not scaled (`paint`, `pathOf`), so
-  zooming changes how thick old ink looks against the page.
-- `padsOf` reaches the canvas to the window's edges from `r.left` and
-  `vw - r.right`. With a page wider than the glass and scrolled sideways,
-  those go negative and clamp to `PAD`. Check that `_pl` at store time and at
-  draw time agree.
-- `size` is skipped for the card being drawn on (`card._annGrew`), and
-  `redrawAll` skips the card mid-stroke.
-- `burn.py` maps stored fractions onto the page at `INK_REFERENCE_WIDTH`
-  (`paper.PAGE_WIDTH`), which assumes the card IS the page picture.
-
-**What is missing, and the decisions to take deliberately:**
-
-1. **Reproduce before fixing.** There is no browser engine on this machine,
-   so build a jsdom case with stubbed rectangles that draws at one `--zoom`,
-   changes it, and checks the painted path against the page picture's box.
-   Fix what that shows, not what this list guesses.
-2. **The anchor is the page picture, not the figure.** Either make the ink
-   layer measure the `<img>` (the card a `data-ann` names), or move the page
-   number out of the figure. Moving the caption out is smaller and keeps
-   `annotate.js` generic. Whichever is chosen, **ink already saved was stored
-   against the figure box**, so either convert it once on load by the known
-   caption height, or accept a small shift on old ink and say so in the
-   commit. Decide deliberately; the deck on TRD-EHR has saved marks.
-3. **Thickness scales with the page.** Store width as a fraction of card
-   width, or multiply by `zoom` at paint time. Keep the board's cards
-   unchanged: they do not zoom, and their saved ink must paint the same.
-4. **The commit repaints.** After `setZoom` lays the pages out, every layer
-   has to be re-sized and repainted once. Do not rely on the observer alone
-   if the reproduction shows a frame where it is stale.
-
-**Do not touch** the serving-chain files listed under *Before anything*.
-
-**Assert:** in `test/library.js`, ink drawn at zoom 1 paints on the same
-fractions of the page picture at zoom 0.5, 2.5 and 1 again, and at the same
-width relative to the page. Ink drawn at 2.5 is stored so that it paints in
-the same place at 1. The same case in `test/deck.js`, one line. Bump
-`VERSION` in `board/web/sw.js`.
-
-### 2. An edit ledger: what each request was, and what was done — A BUILD
+### 1. An edit ledger: what each request was, and what was done — A BUILD
 
 **In the owner's words:** *"when I send in my written edits, they'll be fixed,
 sure, but I need some nifty way to keep track of what each edit request was,
@@ -371,7 +308,7 @@ into the next round's note. In `test/library.js`, the reader draws one pin
 per placed item, a tap opens that item's card, and *next change ›* steps
 through them by page. Bump `VERSION` in `board/web/sw.js`.
 
-### 3. And the seven things no test can hold — THE IPAD'S
+### 2. And the seven things no test can hold — THE IPAD'S
 
 None of these is a build. Each is an evening in front of the thing.
 
@@ -385,8 +322,10 @@ The rest are course sittings and can wait.
   resting: nothing scrolls, and a finger put down just after a stroke does not
   scroll either. Whether that half-second after the nib lifts feels like a
   stall is the question no suite answers.
-  Ink does not follow the zoom yet: that is item 1, and this check waits for
-  it.
+  Ink follows the zoom (Settled): ring a caption at 100%, pinch to 250% and
+  60% and back, and the ring stays on the same words at the same weight. Old
+  marks on the TRD-EHR deck (slides 11 and 17) and manuscript p1–p3 sit on the
+  words they were drawn round, and a kept marked copy matches the glass.
 
 - **One document, all the way round** — the build is Settled; this is the evening.
   Open a `paper` sitting on a box, let it write into `writeups/<slug>/`, compile
@@ -670,6 +609,32 @@ as the answer.
   never a pinch. The chip `#reader-zoom` shows only off the
   fit and a tap resets it. `6e1b` in `test/library.js` and the zoom line in
   `test/deck.js` are the contract.
+
+- **INK ON A PAGE IS IN THE PAGE'S UNITS, SO IT FOLLOWS THE ZOOM.** A reader
+  page (`library.js`, `meeting.js`, the board drawer's `.paper-page`) carries
+  `data-ann-page`, and its box is the page picture alone: `.lib-page
+  figcaption` is absolutely positioned under the page, on one line, inside a
+  2.75rem bottom margin. A stroke on a page is stored with `pg: 1`, points as
+  fractions of the picture, and `w` in pixels of a page `PAGE_REF` (1240) wide,
+  which is `burn.INK_REFERENCE_WIDTH`, so the burned copy is the glass's
+  weight. A board card has no `pg` and its `w` stays CSS pixels.
+  `readerzoom.set` calls `Annotate.redrawAll()` once the new width is laid
+  out. Painted-path caches (`_path`, `_box` and their keys) are
+  non-enumerable and never saved; a save strips an older viewer's `_d`, `_bb`
+  and `_bbk`. **Ink with no `pg` was stored against the figure, caption
+  included, and is converted when it is read, never rewritten on disk until
+  the page is edited.** `annotate.js` `onPage` and `burn.py` `on_page` are one
+  rule: `_k` (`"<w>x<h>@…"`, the box it was last painted in) against the
+  picture's aspect; when the box is 4 to 80 px taller than the picture the
+  heights are stretched by box/picture, and `w` becomes `w × 1240 / W`. No
+  `_k` means already on the picture. `lift` waits for `img.naturalWidth`, and
+  a stroke copied before then (erase pieces, a moved copy) keeps its `_k`
+  (`like`). **Until a key is changed, its save sends the strokes exactly as
+  they came off the disk** (`asLoaded`): `/annotate/save` keeps `build` and
+  `sent` only for identical strokes, and the library re-saves every marked
+  page to attach its picture. `test/inkzoom.js` (run by `test/library.js` and
+  `test/deck.js`) and the conversion checks in `test/burn.py` are the
+  contract.
 
 - **INK IN THE LIBRARY READER SAYS IT IS KEPT.** `#reader-kept` reads *saved ·
   N pages marked*, *saving…* or *not saved — retrying*, driven by `savePen`'s
