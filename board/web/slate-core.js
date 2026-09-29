@@ -801,11 +801,16 @@ function create(opts) {
     window.Plane.clamp(view, reach(), wrap.clientWidth, wrap.clientHeight);
   }
 
+  /* Every caller is a hand -- a pinch, the wheel, the zoom buttons -- so a zoom
+     is always the writer's. A pinch that did not also pan left `held` unset,
+     and the next server event's re-render refit the page out from under the
+     pen: the surface zooming out by itself mid-sentence. */
   function setZoom(k, cx, cy) {
     var r = sheetRect();
     if (cx === undefined) { cx = r.width / 2; cy = r.height / 2; }
     window.Plane.zoomAbout(view, k, cx, cy,
                            view.fit * ZOOM_MIN, view.fit * ZOOM_MAX);
+    view.held = true;
     clampView();
     invalidate();
   }
@@ -819,7 +824,7 @@ function create(opts) {
          than leaving a 300x150 default canvas nobody can draw on. */
       if (!layout.retry) {
         layout.retry = true;
-        requestAnimationFrame(function () { layout.retry = false; layout(); fitPage(); });
+        requestAnimationFrame(function () { layout.retry = false; remeasure(); });
       }
       return;
     }
@@ -2438,12 +2443,12 @@ function create(opts) {
   root.dataset.paper = tool.paper;
   renderPalette();
 
-  var ro = window.ResizeObserver ? new ResizeObserver(function () {
-    layout();
-    fitPage();
-  }) : null;
+  /* A resize keeps a held view too. Safari's toolbar collapsing, the keyboard,
+     and the board moving the surface in the DOM all resize the box while
+     somebody is writing, and none of them is a request to refit. */
+  var ro = window.ResizeObserver ? new ResizeObserver(remeasure) : null;
   if (ro) ro.observe(wrap);
-  window.addEventListener("resize", function () { layout(); fitPage(); });
+  window.addEventListener("resize", remeasure);
   window.addEventListener("beforeunload", function () {
     leaving = true;
     var owed = nextDirty();
@@ -2523,10 +2528,15 @@ function create(opts) {
 
   /* Re-measure the box, but keep a zoom the writer set on purpose. The board
      calls this after every render, and every server event is a render. */
-  api.relayout = function () {
+  function remeasure() {
     layout();
-    if (view.held) { clampView(); invalidate(); } else { fitPage(); }
-  };
+    if (!view.held) { fitPage(); return; }
+    var p = page();
+    if (p && wrap.clientWidth) view.fit = wrap.clientWidth / p.w;
+    clampView();
+    invalidate();
+  }
+  api.relayout = remeasure;
   api.bar = barHost || bar;
   /* Is a hand on the glass right now?
 

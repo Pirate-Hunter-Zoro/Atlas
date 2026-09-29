@@ -55,5 +55,32 @@ function zoomAt(W, H) {
   else { fails++; console.log('FAIL ' + c[2] + ' opens at ' + pct + '% — writing would be the wrong size'); }
 });
 
+// A zoom the writer chose survives a re-render and a resize. A pinch used to
+// leave the view unheld, so the next server event refit the page mid-sentence.
+(function () {
+  const dom = new JSDOM('<!doctype html><div id="bar"></div><div id="slate"></div>',
+    { runScripts: 'outside-only', pretendToBeVisual: true, url: 'https://b.test/' });
+  const w = dom.window;
+  w.HTMLCanvasElement.prototype.getContext = () =>
+    new Proxy({}, { get: () => () => {}, set: () => true });
+  w.HTMLCanvasElement.prototype.toDataURL = () => '';
+  Object.defineProperty(w.HTMLElement.prototype, 'clientWidth', { get: () => 820 });
+  Object.defineProperty(w.HTMLElement.prototype, 'clientHeight', { get: () => 500 });
+  w.HTMLElement.prototype.getBoundingClientRect = () => ({ left: 0, top: 0, width: 820, height: 500 });
+  w.fetch = () => new Promise(() => {});
+  w.requestAnimationFrame = (fn) => setTimeout(fn, 0);
+  w.eval(PLANE);
+  w.eval(SRC);
+  const api = w.Slate.create({ root: w.document.getElementById('slate'),
+                               bar: w.document.getElementById('bar'), compact: true });
+  api.zoom(2.5);
+  api.relayout();
+  w.dispatchEvent(new w.Event('resize'));
+  const pct = Math.round(api.view().k / api.view().fit * 100);
+  if (pct === 250) console.log('ok   a chosen zoom survives a re-render and a resize');
+  else { fails++; console.log('FAIL a chosen zoom of 250% came back as ' + pct + '% after a re-render'); }
+  w.close();
+})();
+
 console.log(fails ? '\n' + fails + ' FAILURES' : '\nevery screen writes at natural size');
 process.exit(fails ? 1 : 0);
