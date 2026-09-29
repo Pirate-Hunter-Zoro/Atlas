@@ -381,9 +381,10 @@ The rest are course sittings and can wait.
 
 - **Zoom and the palm, on the glass.** The build is Settled. Pinch a paper
   and a deck in and out: the bar stays put and the page under your fingers
-  stays under them. Write with the pen on and your hand resting: nothing
-  scrolls, two fingers still move the page. Whether two-finger panning with
-  the pen on is natural or a chore is the question no suite answers.
+  stays under them. With the pen on, one finger scrolls. Write with your hand
+  resting: nothing scrolls, and a finger put down just after a stroke does not
+  scroll either. Whether that half-second after the nib lifts feels like a
+  stall is the question no suite answers.
   Ink does not follow the zoom yet: that is item 1, and this check waits for
   it.
 
@@ -658,11 +659,15 @@ as the answer.
   (0.5× to 3×; the pages are drawn 1240 px wide), so ink and pictures re-lay out
   rather than magnify. During the pinch the scroller is only transformed; the
   lift commits and puts the point under the fingers back. Safari's own pinch
-  (`gesturestart`/`gesturechange`) is refused while a document is open. With
-  the pen on, `#reader-pages.zoomable` is `touch-action: none`, one contact
-  that is not the Pencil is refused at `touchstart`, and two fingers pan and
-  pinch. The Pencil on the glass, a contact over 40 px radius, or
-  `pen-writing` is never a pinch. The chip `#reader-zoom` shows only off the
+  (`gesturestart`/`gesturechange`) is refused while a document is open. One
+  finger scrolls with the pen on or off, and two fingers pan and pinch: the
+  owner asked for a finger that scrolls in *mark it up*, so one fingertip is
+  never a palm. With the pen on, `touchstart` refuses a contact over 40 px
+  radius, anything beside the Pencil, and anything while `pen-writing` is set;
+  `pen-writing` also puts `touch-action: none` on `#reader-pages.zoomable`. The
+  reader's ink layers are `pan-x pan-y` so a finger pans a zoomed page sideways.
+  The Pencil on the glass, a contact over 40 px radius, or `pen-writing` is
+  never a pinch. The chip `#reader-zoom` shows only off the
   fit and a tap resets it. `6e1b` in `test/library.js` and the zoom line in
   `test/deck.js` are the contract.
 

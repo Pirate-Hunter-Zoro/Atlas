@@ -168,9 +168,14 @@ body.annotating .lib-page img {
   margin: 0 auto 1rem; position: relative;
   width: calc(min(100%, 54rem) * var(--zoom, 1));
 }
-/* The palm: with the pen on, nothing the browser owns moves the pages. Two
-   fingers pan and pinch in `readerzoom.js`, which adds `.zoomable`. */
-body.annotating #reader-pages.zoomable { touch-action: none; }
+/* The palm: while the nib is down or only just lifted (`pen-writing`), nothing
+   the browser owns moves the pages. Otherwise a finger scrolls either way, pen
+   on or off, and the ink layer over a zoomed page lets it pan sideways too. The
+   pinch is `readerzoom.js`'s, which adds `.zoomable`. */
+body.pen-writing #reader-pages.zoomable { touch-action: none; }
+body.annotating:not(.pen-writing) #reader-pages canvas.ann-layer {
+  touch-action: pan-x pan-y;
+}
 #reader-pages.pinching { will-change: transform; }
 .lib-page img {
   display: block; width: 100%; height: auto;

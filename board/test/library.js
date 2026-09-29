@@ -667,15 +667,30 @@ const named = (title) => rows().filter(
       ? ok('with the pen off, one finger scrolls')
       : fail('one finger cannot scroll with the pen off');
     window.Annotate.setOn(true);
-    touch('touchstart', [[100, 300]]).defaultPrevented
-      ? ok('with the pen on, a palm between strokes moves nothing')
+    !touch('touchstart', [[100, 300]]).defaultPrevented
+      ? ok('with the pen on, one finger still scrolls')
+      : fail('one finger cannot scroll with the pen on');
+    touch('touchend', []);
+    touch('touchstart', [[100, 300, 'direct', 80]]).defaultPrevented
+      ? ok('with the pen on, a palm moves nothing')
       : fail('a palm can still scroll the page while marking');
     touch('touchend', []);
+    touch('touchstart', [[100, 300], [300, 300, 'stylus']]).defaultPrevented
+      ? ok('and a finger landing beside the Pencil moves nothing')
+      : fail('a hand beside the Pencil scrolled the page');
+    touch('touchend', []);
+    doc.body.classList.add('pen-writing');
+    touch('touchstart', [[100, 300]]).defaultPrevented
+      ? ok('nor does one landing while the nib has only just lifted')
+      : fail('a palm after a stroke scrolled the page');
+    touch('touchend', []);
+    doc.body.classList.remove('pen-writing');
     window.Annotate.setOn(wasOn);
-    /body\.annotating #reader-pages\.zoomable \{ touch-action: none; \}/.test(
-      fs.readFileSync(path.join(WEB, 'library.css'), 'utf8'))
-      ? ok('and the browser is told so before the gesture starts')
-      : fail('library.css leaves the pages pannable with the pen on');
+    const css = fs.readFileSync(path.join(WEB, 'library.css'), 'utf8');
+    /body\.pen-writing #reader-pages\.zoomable \{ touch-action: none; \}/.test(css)
+      && !/body\.annotating #reader-pages\.zoomable \{ touch-action: none; \}/.test(css)
+      ? ok('and the browser is told so before the gesture starts, and only then')
+      : fail('library.css refuses a finger its scroll with the pen on');
   }
 
   // 6e2. THE INK IS KEPT, AND THE PAGE SAYS SO OUT LOUD. After a correction

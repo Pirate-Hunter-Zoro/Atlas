@@ -11,12 +11,12 @@
    because re-laying out every page every frame is a stutter; the lift commits
    the width, with the point first under the fingers put back under them.
 
-   AND A PALM DOES NOT SCROLL. With the pen on, one contact that is not the
-   Pencil moves nothing (`touch-action: none` on `.zoomable` in `library.css`,
-   and refused here as it lands); two fingers pan and pinch. A contact wider
-   than a fingertip, the Pencil on the glass, or a nib only just lifted is a
-   hand writing, and never a pinch. With the pen off one finger scrolls as it
-   always has.
+   AND A PALM DOES NOT SCROLL, BUT A FINGER DOES. With the pen on or off, one
+   finger scrolls and two pan and pinch. What is refused is a hand writing: a
+   contact wider than a fingertip, anything landing while the Pencil is on the
+   glass, or anything landing while the nib has only just lifted (`pen-writing`,
+   `annotate.js`'s latch, which also sets `touch-action: none` on the pages in
+   `library.css`). A hand writing is never a pinch either.
 
    The library reader and the meeting deck both use it:
      ReaderZoom.make({ scroller, chip, open(), committed() }) -> { set(z) }
@@ -137,9 +137,11 @@ function make(opts) {
       el.classList.add("pinching");
       return;
     }
-    /* The palm. One contact, not the Pencil, with the pen on: nothing moves. */
-    if (penIsOn() && f.length === 1 && ev.touches.length === 1
-        && ev.cancelable) ev.preventDefault();
+    /* The palm: with the pen on, a contact wider than a fingertip, or anything
+       landing beside a nib that is down or only just lifted, moves nothing. A
+       fingertip on its own is a scroll. */
+    if (penIsOn() && ev.cancelable && (writing(ev) || !f.length))
+      ev.preventDefault();
   }, { passive: false });
 
   el.addEventListener("touchmove", function (ev) {
