@@ -19,8 +19,8 @@ const PAGES = [
   ['home.html', ['home.js']],
   ['board.html', ['macros.js', 'ink-clip.js', 'plane-core.js', 'slate-core.js', 'board.js']],
   ['slate.html', ['ink-clip.js', 'plane-core.js', 'slate-core.js', 'slate.js']],
-  ['library.html', ['library.js']],
-  ['meeting.html', ['ink-clip.js', 'annotate.js', 'annbar.js', 'viewpin.js', 'meeting.js']],
+  ['library.html', ['inkkeep.js', 'library.js']],
+  ['meeting.html', ['ink-clip.js', 'annotate.js', 'annbar.js', 'viewpin.js', 'inkkeep.js', 'meeting.js']],
 ];
 
 let fails = 0;

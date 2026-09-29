@@ -695,16 +695,32 @@ def burn_library(repo, ident, mode="new", dpi=BURN_DPI):
             shutil.rmtree(work, ignore_errors=True)
 
     older = drawn["rebuilt"]
+    # A MARK PAST THE LAST PAGE IS SAID, NOT DROPPED. The build a copy is burned
+    # from -- an older one out of the page cache most of all -- can have fewer
+    # pages than the ink is on, and a copy missing a ring somebody drew is a
+    # copy they would believe was whole.
+    past = sorted(n for n in marks if n > len(built))
+    lost = sum(len(marks[n]) for n in past)
+    said = ""
+    if past:
+        said = (" %d mark%s on page%s %s %s not in it: the %s build it was "
+                "burned from has %d page%s."
+                % (lost, "" if lost == 1 else "s", "" if len(past) == 1 else "s",
+                   ", ".join(str(n) for n in past),
+                   "is" if lost == 1 else "are",
+                   older["when"] if older else "current", len(built),
+                   "" if len(built) == 1 else "s"))
     return {"ok": True, "mode": "new",
             "path": os.path.relpath(out_path, repo.root).replace(os.sep, "/"),
             "name": name, "document": doc["id"],
             "url": "/library/marked/%s/%s" % (doc["id"], name),
-            "pages": len(built), "marks": n_marks,
+            "pages": len(built), "marks": n_marks - lost,
+            "dropped": past,
             "drawn": older["when"] if older else "",
-            "detail": ("Kept as %s%s. The ink stays on the page and still goes "
-                       "with the next note."
+            "detail": ("Kept as %s%s.%s The ink stays on the page and still "
+                       "goes with the next note."
                        % (name, (", on the %s build it was drawn on"
-                                 % older["when"]) if older else ""))}
+                                 % older["when"]) if older else "", said))}
 
 
 def burn(repo, kind, mode="new", dpi=BURN_DPI):
