@@ -49,7 +49,7 @@ Nobody has to ask for that. *"Look at HANDOFF"* means all of it:
    CAN DO.** It is the lowest-numbered one on purpose — the numbering carries the
    order things have to land in, and each item says what it depends on where that
    matters. If the owner names a different one, that wins. **Each item's heading
-   says whose hands it needs**: 1 is a build, 2 is a list of evenings in front of the thing.
+   says whose hands it needs**: 1 is a list of evenings in front of the thing.
 2. **Read that item whole before touching anything.** An item says what already
    exists (measured, not assumed), what is missing, where it goes, the decisions
    to take deliberately, and what to assert. The decisions are the expensive part:
@@ -72,14 +72,14 @@ An item is not done because its code runs. It is done when the suite is green,
 the rule is written where the next turn will read it, and the item is out of this
 file.
 
-**Item 2 does not come out this way.** It is a list of evenings in front of the
+**Item 1 does not come out this way.** It is a list of evenings in front of the
 thing, and only the person holding the iPad can strike those.
 
 ---
 
 ## Before anything
 
-- `bash board/test/all.sh` — 103 suites, about twelve minutes. Green before and
+- `bash board/test/all.sh` — 104 suites, about twelve minutes. Green before and
   after.
   The last of them is Paper-Writer's own, run where it is checked out, so the
   factory's tests are part of the board's habit rather than a second one nobody
@@ -169,74 +169,13 @@ three providers behind one tap on the front door, a swap between them that costs
 the lesson nothing, and a fourth costing one entry in a config file and one line
 in a key file. All of that is Settled below.**
 
-**One build is left: item 1, the map without a sitting.** Item 2 is a list of evenings in front of the thing.
+**No build is left.** Item 1 is a list of evenings in front of the thing.
 
 ---
 
 ## What to do next
 
-### 1. The map of a workspace, opened straight from the front door — A BUILD
-
-**In the owner's words:** *"Right now, I have to open up a tutoring session to
-then press the map button and go to a map of the course/project. I want to just
-go straight to the map of a course/project, no tutoring session necessary."*
-
-**The test:** from the front door, one tap on a workspace's *Open this* lands on
-that workspace's map, fitted, with no sitting opened and no assistant started.
-A tap on a box from there is how a sitting begins, which is already the Settled
-way in.
-
-**What exists, measured from the code — re-measure before building:**
-
-- `openWorkspace` in `board/web/home.js` is the one route into a workspace
-  (sheet button, notification rows, mission rows). It goes through `addrOf(c)`,
-  a bare `#/w/<family>/<ws>` address, into `addrRoute`.
-- `addrRoute` sends a bare workspace address to `/board` with the address
-  **dropped** (`deep` is false), so it lands on the lesson. `switchTo` with no
-  address lands on `/`. Neither lands on the map.
-- On the board, `addrGo` in `board/web/board.js` already treats
-  `surface === "workspace"` as *open the map* (`openMap()`), falling back to the
-  lesson with a sentence when nothing is drawn. So the map-by-address route
-  exists; the front door just never uses it.
-- `POST /switch` in `board/tutorboard/server/routes/machines.py` does three
-  things: `board start`, `board vpn serve`, and `tutor agent start`. The last is
-  the "tutoring session" part. A map needs a board serving, not an assistant.
-- `closeMap` and `#map-close` (titled *back to the lesson*) assume a lesson sits
-  underneath the map.
-
-**What is missing, and the decisions to take deliberately:**
-
-1. **The front door carries the address through.** A bare workspace address,
-   and `switchTo` after a switch, should reach the board WITH the address so
-   `addrGo` opens the map. Keep one route: change `addrRoute`/`switchTo`, not
-   each button.
-2. **Opening a map must not start an assistant.** Decide how `/switch` learns
-   that: a flag in the payload (`agent: false`) or splitting the agent start
-   out to where a sitting actually begins. Whichever is chosen, the assistant
-   must still start when a box is tapped and a sitting opens. Find where that
-   happens before cutting the start out of `/switch`, or the first sitting of
-   the evening has no tutor. If a tutor is already running for that workspace,
-   leave it alone.
-3. **The map with no lesson under it.** Decide what `✕` does when there is no
-   sitting: back to the front door is the obvious answer. It must not show a
-   blank lesson, and the lesson must still be reachable when one IS open
-   (*THE LESSON MUST ALWAYS BE REACHABLE*).
-4. **A workspace with no map drawn.** `openMap` returns false on an empty map.
-   From the front door that should say so and offer the lesson or the door, not
-   strand somebody on a blank board.
-5. **Where the map is restored.** `mapRemember` already keeps a map across
-   reloads. Check a map-first landing does not fight that, and that *Open this*
-   on the workspace already being served (`c.current`) also lands on the map.
-
-**Do not touch** the serving-chain files listed under *Before anything*.
-`/switch` is in `machines.py`, which is not one of them.
-
-**Assert:** a test driving `addrRoute`/`switchTo` that a workspace tap arrives
-with its address intact; a server test that a map-only switch does not run
-`tutor agent start`; a board test that `✕` with no sitting goes to the door.
-Bump `VERSION` in `board/web/sw.js`: `home.js` and `board.js` are shell files.
-
-### 2. And the seven things no test can hold — THE IPAD'S
+### 1. And the seven things no test can hold — THE IPAD'S
 
 None of these is a build. Each is an evening in front of the thing.
 
@@ -344,6 +283,19 @@ as the answer.
 ---
 
 ## Settled, so nobody re-derives it
+
+- **THE FRONT DOOR OPENS A WORKSPACE ON ITS MAP, WITH NO SITTING AND NO
+  ASSISTANT.** `addrRoute` in `home.js` sends every address to the board
+  whole, so a bare workspace address reaches `addrGo`, which opens the map.
+  A bare workspace address is a map-only switch: `switchTo`'s `mapOnly` sends
+  `agent: false`, and `/switch` then runs `board start` and `vpn serve` but
+  not `tutor agent start`. A tutor is woken by the tap on a box (`/aim` →
+  `_begin` → `wake_tutor`), and by any send. Any other address still starts
+  one. On the board, "no sitting" is `mapNoSitting`: no cards, no turns and
+  no archive being read. The map's ✕ and Escape go through `mapLeave`: to
+  `/` with no sitting, back to the lesson otherwise, and the ✕ title says
+  which. An empty map from the door says so and names *ask the tutor to
+  begin* and ‹. `test/mapfirst.js` and `test/keeping.py` hold it.
 
 - **MARKS ON THE LESSON GO THROUGH THE PICKER, AND ONLY THE TICKED ONES GO.**
   `#notesend` is always on the glass, a member of the `Recentre` stack, raised
@@ -484,6 +436,18 @@ as the answer.
   them; a burn with every mark past the last page writes nothing. A page's
   stamp still covers all its strokes: the save record is per page, so
   per-stroke stamps are not cheap.
+
+- **THE PAGE UNDER THE PEN DOES NOT MOVE BY LAYOUT.** `annotate.js` reads a
+  page's rectangle once per stroke and corrects it only for a scroll, so the
+  reader holds its pages still instead: `holdAnchor` in `library.js` is scroll
+  anchoring by hand (iOS Safari has none), fired by a `ResizeObserver` on
+  `#reader-bar`, the three lines above the pages and every page, and it puts
+  the page on the glass back where it was on screen. `#reader-pages` carries
+  `overflow-anchor: none` so a browser with its own does not correct twice. An
+  undecoded page is letter-shaped (`aspect-ratio: auto 8.5 / 11`), a stamp
+  re-draw waits for the lift (`Annotate.busy`) and puts the page back to the
+  pixel (`pageOffset`). A palm that scrolls between strokes is not covered.
+  The block `6e1` in `test/library.js` is the contract.
 
 - **INK IN THE LIBRARY READER SAYS IT IS KEPT.** `#reader-kept` reads *saved ·
   N pages marked*, *saving…* or *not saved — retrying*, driven by `savePen`'s

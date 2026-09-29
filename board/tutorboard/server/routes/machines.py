@@ -920,8 +920,14 @@ def post(h, repo, path):
             return h.send_json({"ok": False, "error": out.strip()[-300:]},
                                   status=500)
         vcode, vout = spawn.board_cli(target, ["vpn", "serve"])
-        # The assistant follows the course.
-        acode, aout = spawn.tutor_cli(["agent", "start", match["repo"]])
+        # The assistant follows the course -- unless all that was asked for is
+        # its MAP. A map needs a board serving, not a tutor: the tap on a box
+        # that opens a sitting wakes one (`_begin` in `routes/lesson.py`), and
+        # an assistant started for somebody who only looked is a process, a
+        # login and an allowance spent on nothing.
+        acode, aout = 0, ""
+        if payload.get("agent", True) is not False:
+            acode, aout = spawn.tutor_cli(["agent", "start", match["repo"]])
         # WHERE THE OPENED BOARD ANSWERS, for a page that is not on the address.
         # A page loaded off a board's own port -- `http://<name>:8937/` -- sees
         # that board whatever the address points at, so re-pointing the address
@@ -941,7 +947,7 @@ def post(h, repo, path):
                                "host": tailscale.tailnet_self() or "",
                                "port": port,
                                "detail": out.strip(),
-                               "agent": aout.strip() if acode == 0 else None,
+                               "agent": (aout.strip() or None) if acode == 0 else None,
                                "agent_error": None if acode == 0 else aout.strip()[-300:]})
 
     return NOT_MINE

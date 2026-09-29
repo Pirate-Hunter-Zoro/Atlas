@@ -161,6 +161,18 @@ check("and says so, so the hub knows there is something to wait for",
 check("and the tutor follows the course",
       started == [["agent", "start", "Galois-Theory"]])
 
+# A MAP IS ONLY LOOKING. The front door opens a workspace on its map, and a tap
+# on a box is what begins a sitting and wakes a tutor -- so a map-only switch
+# moves the board and the address and starts no assistant.
+ran[:] = []
+started[:] = []
+status, doc = post(PORT, "/switch",
+                   json.dumps({"repo": "Galois-Theory", "agent": False}).encode())
+check("a map-only switch still starts the board and takes the name",
+      status == 200 and doc.get("ok") and ["start"] in ran
+      and ["vpn", "serve"] in ran)
+check("and does not run `tutor agent start`", started == [])
+
 msrc = open(os.path.join(ROOT, "tutorboard", "server", "routes", "machines.py"),
             encoding="utf-8").read()
 check("the request handler is never used as a loop variable",

@@ -2064,16 +2064,17 @@ function addrRoute() {
     return;
   }
 
-  /* A bare workspace address is the sheet's own "open", and lands exactly
-     where that landed: the lesson if the board is already serving it, the
-     front door of the workspace that was just opened otherwise. An address
-     naming a SURFACE goes to the board, because that is where surfaces are. */
-  var deep = a.surface !== "workspace";
+  /* EVERY ADDRESS GOES TO THE BOARD WHOLE. A bare workspace address is the
+     sheet's own "open", and it names the workspace's MAP: *"I want to just go
+     straight to the map of a course/project, no tutoring session necessary."*
+     The board's `addrGo` opens it. And a map is only looking, so no assistant
+     is started for it -- the tap on a box that begins a sitting wakes one. */
+  var mapOnly = a.surface === "workspace";
   if (mine.current) {
-    location.href = "/board" + (deep ? a.text : "");
+    location.href = "/board" + a.text;
     return;
   }
-  switchTo(mine.repo, deep ? a.text : "");
+  switchTo(mine.repo, a.text, "", mapOnly);
 }
 
 window.addEventListener("hashchange", addrRoute);
@@ -2098,15 +2099,20 @@ document.addEventListener("keydown", function (ev) {
    `page` is the other kind of destination: a whole page of the board's rather
    than a surface inside the lesson. `/library` is the one that wanted it, and
    it wanted it for the reason the address grammar does not cover it -- the
-   library is not a place in a lesson. */
-function switchTo(repo, addr, page) {
+   library is not a place in a lesson.
+
+   `mapOnly` is a switch to look rather than to sit: the board and the address
+   move, and the assistant is left where it is. */
+function switchTo(repo, addr, page, mapOnly) {
   if (moving) return;                 /* one at a time; a second tap is a queue */
   moving = { repo: repo };
   showBusy("opening " + repo + "…", "asking");
+  var ask = { repo: repo };
+  if (mapOnly) ask.agent = false;
   fetch("/switch", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ repo: repo })
+    body: JSON.stringify(ask)
   }).then(function (r) { return r.json(); }).then(function (res) {
     if (!res.ok) throw new Error(res.error || "switch failed");
     var to = page || (addr ? "/board" + addr : "/");
@@ -2123,7 +2129,7 @@ function switchTo(repo, addr, page) {
     }
     return waitForAddress(repo, Date.now());
   }).then(function () {
-    /* Landed or not, this goes to the lesson. The board re-pointed the address
+    /* Landed or not, this goes where it was sent. The board re-pointed the address
        at the course before it answered, so by here the switch has happened; the
        poll is only how we know not to reload too early. There is nothing to ask
        a person about, and asking was worse than useless -- from the iPad it read

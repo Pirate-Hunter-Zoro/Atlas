@@ -48,7 +48,7 @@ must be openable and teachable at every point.
   `board.css`, `plane-core.js`, `gauge.js`, `home.html`, `home.js`, `library.html`,
   `library.js`, `library.css`, anything added to the cache list), or the installed app
   serves its cached copy and the work is invisible.
-- **`bash test/all.sh` before every ship.** 103 suites, all green. `test/tracked.py` runs
+- **`bash test/all.sh` before every ship.** 104 suites, all green. `test/tracked.py` runs
   early — after the browser suites, before everything else — and refuses PHI, 25-megabyte files, model dumps, other authors' papers and
   machine-local config anywhere in the repository — this is public, and git remembers.
   The last of them is **Paper-Writer's own**, run where it is checked out and skipped
@@ -95,7 +95,8 @@ the last of them is a plane.**
 2. **The family** — its workspaces, as cards in a CSS grid, each carrying its name, what is next in
    it, how much is outstanding, whether a board is live and on which node, and when it was last
    committed to. Tapping a card opens the sheet; opening from the sheet moves the board through
-   `/switch`.
+   `/switch` and lands on the workspace's map, with no sitting and no assistant started
+   (`agent: false`). The map's ✕ goes back to the door when no sitting is under it.
 3. **The project map** — a diagram, on the board. That is the one thing in this system whose shape
    genuinely needs a plane, and `plane-core.js` draws it; see *The map — the front door of a
    course*.

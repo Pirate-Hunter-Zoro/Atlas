@@ -6446,6 +6446,7 @@ function openMap(why) {
   if (els.mapback) { els.mapback.hidden = false; panicRemeasure(); }
   mapDrawn = "";                       /* the plane had no size while hidden */
   paintMap(mapInfo, (lastLive && lastLive.state) || {});
+  mapCloseSay();
   if (why !== "restored") mapRemember();
   return true;
 }
@@ -6458,7 +6459,27 @@ function closeMap() {
   mapRemember();
 }
 
-els.mapClose.onclick = function () { closeMap(); };
+/* NO SITTING UNDER THE MAP, NO LESSON TO GO BACK TO. The front door opens a
+   workspace on its map with nothing started, and a ✕ that then showed an empty
+   lesson would be a blank screen between somebody and the door they came from.
+   Nothing written by either side is what "no sitting" means: a lesson with one
+   turn in it is a lesson, and it stays reachable. */
+function mapNoSitting() {
+  if (reading || !lastLive) return false;
+  return !(lastLive.cards || []).length && !(lastLive.turns || []).length;
+}
+
+function mapLeave() {
+  if (mapNoSitting()) { window.location.href = "/"; return; }
+  closeMap();
+}
+
+function mapCloseSay() {
+  els.mapClose.title = mapNoSitting() ? "back to the front door"
+                                      : "back to the lesson";
+}
+
+els.mapClose.onclick = mapLeave;
 els.mapFit.onclick = function () { mapWhole(); };
 if (els.mapDocs) els.mapDocs.onclick = function () { openShelf(null); };
 mapButtons().forEach(function (b) {
@@ -7142,7 +7163,12 @@ function addrGo(a) {
   if (surface === "workspace") {
     if (mapDeep) mapOut();
     if (!openMap()) {
-      addrSaid("↳", "this workspace has no map drawn yet — here is the lesson");
+      /* NOTHING DRAWN IS SAID, AND BOTH WAYS ON ARE NAMED: the lesson is the
+         page this is, and ‹ in the corner is the door the address came from. */
+      addrSaid("↳", mapNoSitting()
+        ? "this workspace has no map drawn yet — ask the tutor to begin "
+          + "below, or ‹ goes back to the front door"
+        : "this workspace has no map drawn yet — here is the lesson");
     }
     return addrArrived(a);
   }
@@ -11056,7 +11082,7 @@ document.getElementById("elsewhere-close").onclick = function () {
    that covers the whole glass needs more than one way out of it. */
 document.addEventListener("keydown", function (e) {
   if (e.key !== "Escape") return;
-  if (els.map && !els.map.hidden) closeMap();
+  if (els.map && !els.map.hidden) mapLeave();
   else if (els.paper && !els.paper.hidden) closePaper();
   else if (els.shelf && !els.shelf.hidden) els.shelf.hidden = true;
 });
