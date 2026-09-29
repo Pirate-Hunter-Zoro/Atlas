@@ -30,12 +30,13 @@ nothing — because a turn is already cold and reads the lesson back off disk. A
 provider is a recipe plus a key and nothing else, so a fourth is one entry in a
 config file and one line in a key file. **DeepSeek's endpoint is the one that
 cannot be tapped yet**: `api.deepseek.com` is reset at the TLS handshake from
-every compute node, which is item 3 and is a firewall exception rather than a
+every compute node, which is item 4 and is a firewall exception rather than a
 setting.
 
-**One build is left, and it comes first**: the meeting deck has to become a
-presentation (item 1). After it, two dispatches only the account holder can
-make, and a list of evenings in front of the thing.
+**Two builds are left, and they come first**: the meeting deck has to become
+a presentation (item 1), and ink in the reader has to say it is kept and be
+keepable as a copy (item 2). After them, two dispatches only the account holder
+can make, and a list of evenings in front of the thing.
 
 `board/README.md` is the architecture. This file says what is left.
 
@@ -50,8 +51,8 @@ Nobody has to ask for that. *"Look at HANDOFF"* means all of it:
    CAN DO.** It is the lowest-numbered one on purpose — the numbering carries the
    order things have to land in, and each item says what it depends on where that
    matters. If the owner names a different one, that wins. **Each item's heading
-   says whose hands it needs**: 1 is a build, 2 and 3 need the account holder,
-   4 is a list of evenings in front of the thing.
+   says whose hands it needs**: 1 and 2 are builds, 3 and 4 need the account
+   holder, 5 is a list of evenings in front of the thing.
 2. **Read that item whole before touching anything.** An item says what already
    exists (measured, not assumed), what is missing, where it goes, the decisions
    to take deliberately, and what to assert. The decisions are the expensive part:
@@ -74,7 +75,7 @@ An item is not done because its code runs. It is done when the suite is green,
 the rule is written where the next turn will read it, and the item is out of this
 file.
 
-**Item 4 does not come out this way.** It is a list of evenings in front of the
+**Item 5 does not come out this way.** It is a list of evenings in front of the
 thing, and only the person holding the iPad can strike those.
 
 ---
@@ -169,8 +170,9 @@ three providers behind one tap on the front door, a swap between them that costs
 the lesson nothing, and a fourth costing one entry in a config file and one line
 in a key file. All of that is Settled below.**
 
-**One thing here is a build: the meeting deck (item 1).** Items 2 and 3 need
-the account holder; item 4 is a list of evenings in front of the thing.
+**Two things here are builds: the meeting deck (item 1) and keeping ink in the
+reader (item 2).** Items 3 and 4 need the account holder; item 5 is a list of
+evenings in front of the thing.
 
 ---
 
@@ -344,7 +346,104 @@ on the real tree, build *the last week* for PSYCH-ASR and TRD-EHR, render every
 page, and look at them before calling it done. The suite cannot tell you
 whether a deck is professional.
 
-### 2. Ask GitHub to collect the instructor slides, which the rewrite did not reach — THE ACCOUNT HOLDER'S
+### 2. Ink in the reader says it is kept, and can be kept as a copy — A BUILD
+
+**The ask, in the owner's words:** *"if I'm in the middle of marking up a paper
+or presentation, but then I go to bed, is there a way to save my markups
+without overwriting the original paper? … I don't see an option now that I'm
+looking at the manuscript."*
+
+**What exists, measured.** The ink is already safe. What is missing is saying
+so, and a copy that keeps it.
+
+- **Strokes autosave**, and none of them touches the PDF. `web/library.js`
+  `queuePenSave` → `savePen` posts `/annotate/save` 900 ms after the pen lifts,
+  on *done marking*, and on `pagehide`. The record goes in the served
+  workspace's `live/annotations/`, keyed `doc/<library id>/p<n>`. Reopening
+  the document draws the ink again. Unsent ink stays until a note carries it
+  and that round lands (`library.wipe_delivered`). So going to bed loses no
+  strokes today.
+- **Nothing on the glass says any of that.** The reader bar has
+  *✎ mark it up / ✎ done marking* and nothing else: no *saved*, no
+  *N pages marked*, no failure. A failed save is silent. `savePen`'s fetch has
+  no catch, the page stays in `Annotate.unsaved()`, and it is retried only when
+  the next stroke is drawn. Nothing retries it on `online` or on
+  `visibilitychange`. iOS in a home-screen app does not reliably fire
+  `pagehide` when the lid shuts.
+- **The typed half is not kept at all.** The *say what is wrong* text and an
+  overhaul's purpose are not stored anywhere. They are lost on a reload, a
+  closed tab, or an app evicted overnight.
+- **There is no marked copy.** `course/burn.py` writes ink into a PDF with
+  `same` / `new` / `none` (`POST /annotate/burn`). It serves only the board's
+  own viewer kinds: `lesson`, `homework`, and `doc/<reading id>` via
+  `reading.find`. It does not take a **library** id, and the library reader
+  has no control for it. That is the option the owner looked for on the
+  manuscript and did not find.
+- **Ink is not tied to the build it was drawn on.** The record holds strokes
+  per page number and nothing about which PDF. A document rebuilt overnight
+  moves its text under the marks without a word. TRD-EHR's manuscript was
+  rebuilt three times on 2026-09-28 alone, and sources that change it
+  include a revision round, Paper-Writer and a `parts/` re-cut.
+- **`live/` is gitignored** (`research/TRD-EHR/.gitignore`: `live/`). Ink is
+  on one disk with no history. A marked copy is the only form of it that
+  lasts.
+
+**What to build.**
+
+1. **The reader says where the ink is.** A status line in `#reader-bar`,
+   driven by `savePen`'s promise: *saved · 3 pages marked*, *saving…*, and
+   *not saved — retrying*. Catch the failure, keep the pages unsaved, and retry
+   on `online`, on `visibilitychange` back to visible, and on a timer. Flush on
+   `visibilitychange` to hidden with `fetch(..., {keepalive: true})`, because
+   that is the event iOS actually fires when the lid shuts. The library list
+   row already says *marked up on N pages* (`web/library.js`, off
+   `doc.marks`). The reader, where the ink is being drawn, is what says
+   nothing.
+2. **Drafts are kept.** The note text and purpose, per document id, go in
+   `localStorage` on every input and are restored when that document's note
+   panel opens. They are cleared when the note is actually filed (the
+   `/library/feedback` reply is `ok`), not when it is tapped.
+3. **⤓ keep a marked copy, in the reader.** Burn this document's ink into a
+   **new** PDF and never over the original. That means `burn.burn` learning a
+   library kind: resolve through `library.path_of` / `library.find` and read
+   strokes under the library id, which is `writing.ANN_DOC`'s
+   `doc/<id>/p<n>` either way. Answer with the new file's name, and offer it
+   through *save a copy* (the share sheet, `saveCopy`'s route) so it can go to
+   Files that night.
+4. **Ink knows its build.** Stamp each saved page with the PDF's modification
+   time and page count, at save. When the reader opens a document rebuilt
+   since, it says so above the pages: *these marks were drawn on the 28 Sep
+   21:40 build; the document has been rebuilt since*. It offers the marked
+   copy, which is burned from the build the marks were drawn on if that
+   rendering is still in the page cache, and otherwise says it cannot be.
+
+**Decisions to take deliberately.**
+
+- **Where a marked copy goes.** It must not reappear in the library as a new
+  document, and must not be offered to a revision as the source. Candidates:
+  a `marked/` directory beside the document that `library._walk` skips (add it
+  to the pruned set), or `live/marked/<doc id>/` (untracked, one disk). **A
+  marked copy of a PSYCH-ASR document is fenced content**: it follows
+  `fenced.refused` and never lands anywhere tracked or public. Atlas is
+  public, and `writeups/` and `paper1-*` are tracked.
+- **No overwrite from the library.** The owner asked for *"without
+  overwriting"*. A library document's PDF is rebuilt by whatever machinery
+  made it, and Paper-Writer owns a delivered manuscript. Offer `new` only.
+  The board viewer's own three-way choice for a compiled write-up stays as it
+  is.
+- **Whether a marked copy counts as sending.** It does not. Keeping a copy
+  marks nothing delivered, so the ink still goes with the next note.
+
+**What to assert.** A save that fails is shown, retried on `online`, and
+cleared from *unsaved* only on success. A hidden page flushes with
+`keepalive`. A draft typed and reloaded comes back, and is gone after a
+successful send and not after a refused one. `POST /annotate/burn` with a
+library id writes a new file, leaves the original's bytes and mtime unchanged,
+and refuses a fenced path outside its fence. The marked copy is not in
+`library.documents` afterwards. A page saved against one build and reopened
+after a rebuild carries the *rebuilt since* flag.
+
+### 3. Ask GitHub to collect the instructor slides, which the rewrite did not reach — THE ACCOUNT HOLDER'S
 
 **The seventeen decks and sheets are out of every commit here and off `main`, and
 GitHub still serves all seventeen at the pre-rewrite SHA.** A raw fetch of
@@ -367,7 +466,7 @@ Until one of those lands, treat the decks as published. Nothing else is
 outstanding: `.gitignore` refuses them, `test/tracked.py` refuses them for every
 course, and the files are on disk where the board reads them.
 
-### 3. Ask for a firewall exception on `api.deepseek.com` — THE ACCOUNT HOLDER'S
+### 4. Ask for a firewall exception on `api.deepseek.com` — THE ACCOUNT HOLDER'S
 
 **One hostname is filtered and no client setting reaches it.**
 `api.deepseek.com` is reset during the TLS ClientHello from every c3 compute
@@ -394,7 +493,7 @@ as a turn, so `deepseek-flash` cannot be verified until the name is open, and
 `deepseek-flash[1m]` against the bare id is the open question in the recipe's
 own comment.
 
-### 4. And the seven things no test can hold — THE IPAD'S
+### 5. And the seven things no test can hold — THE IPAD'S
 
 None of these is a build. Each is an evening in front of the thing.
 
