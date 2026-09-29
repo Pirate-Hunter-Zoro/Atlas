@@ -21,7 +21,3 @@ Figure 4 content: why AUC rises with k and is flat from about 300 neighbours. Th
 - They cut implementation detail hard ("Just say what we did").
 - They want an interval on every number.
 - They skip exercises when tired. Record the answer and move on.
-
-## Loose ends
-
-The manuscript .docx and .pdf still embed the old Figure 4 until the packet is rebuilt (plan step 5, `scripts/rebuild-packet.sh`). The paper1-trd-prediction/ documents carry uncommitted edits by the student, so the rebuild was left for them to approve.

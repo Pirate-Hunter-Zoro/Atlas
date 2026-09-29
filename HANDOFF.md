@@ -236,24 +236,13 @@ with its address intact; a server test that a map-only switch does not run
 `tutor agent start`; a board test that `✕` with no sitting goes to the door.
 Bump `VERSION` in `board/web/sw.js`: `home.js` and `board.js` are shell files.
 
-### 2. And the eight things no test can hold — THE IPAD'S
+### 2. And the seven things no test can hold — THE IPAD'S
 
 None of these is a build. Each is an evening in front of the thing.
 
 **In this order, because the TRD-EHR paper is what has to get done.** The first
-two are the paper's own path. The meeting deck is how it reaches the mentors.
+is the paper's own path. The meeting deck is how it reaches the mentors.
 The rest are course sittings and can wait.
-
-- **The documents region, on TRD-EHR, on the glass.** The build is Settled.
-  Open the map and check three things. Is *Papers & presentations* at the top
-  of a fitted picture, readable without a pinch? Does a tap on *manuscript*
-  land in the reader, with *‹ Map* bringing you back to where you were? Does
-  *＋ new paper or deck* write one that then appears in the region? And the one
-  thing this session could not find: nothing in the code hides **⋯ → ▤ library**
-  on the board or **Papers, decks & results** on the front door's workspace
-  sheet. If either is still missing on the glass, **☰ → what just happened**
-  names the shell that is running. A shell older than `board-shell-v183` is the
-  stale-shell suspect, and a second reload fixes it.
 
 - **One document, all the way round** — the build is Settled; this is the evening.
   Open a `paper` sitting on a box, let it write into `writeups/<slug>/`, compile
@@ -567,7 +556,10 @@ as the answer.
   `sections/` document is a `piece`**, listed after the wholes and naming its
   `whole`. A correction on a piece revises the whole, and an overhaul of a piece
   is refused. `test/region.py` and the region block in `test/shelf.js` are the
-  contract. See *The documents region* in `board/README.md`.
+  contract. See *The documents region* in `board/README.md`. On the glass on
+  TRD-EHR, the region reads unpinched, a row opens the reader and *‹ Map* comes
+  back, *＋ new paper or deck* lands in the region, and **⋯ → ▤ library** and
+  **Papers, decks & results** are both drawn.
 
 - **A PROVIDER IS A RECIPE PLUS A KEY, AND A FOURTH COSTS ONE ENTRY AND ONE
   LINE.** `needs_key` names the one key a recipe cannot run without; `env` is
