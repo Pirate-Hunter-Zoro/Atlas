@@ -34,8 +34,7 @@ handshake from every compute node, so the board stands it aside and the evening
 runs on another provider.
 
 **And a ship takes effect on whichever node is serving**, whichever machine it
-was typed on. What is left is one dispatch only the account holder can make,
-and a list of evenings in front of the thing.
+was typed on. What is left is a list of evenings in front of the thing.
 
 `board/README.md` is the architecture. This file says what is left.
 
@@ -50,8 +49,7 @@ Nobody has to ask for that. *"Look at HANDOFF"* means all of it:
    CAN DO.** It is the lowest-numbered one on purpose — the numbering carries the
    order things have to land in, and each item says what it depends on where that
    matters. If the owner names a different one, that wins. **Each item's heading
-   says whose hands it needs**: 1 needs the account holder, 2 is a list of
-   evenings in front of the thing.
+   says whose hands it needs**: 1 is a list of evenings in front of the thing.
 2. **Read that item whole before touching anything.** An item says what already
    exists (measured, not assumed), what is missing, where it goes, the decisions
    to take deliberately, and what to assert. The decisions are the expensive part:
@@ -74,7 +72,7 @@ An item is not done because its code runs. It is done when the suite is green,
 the rule is written where the next turn will read it, and the item is out of this
 file.
 
-**Item 2 does not come out this way.** It is a list of evenings in front of the
+**Item 1 does not come out this way.** It is a list of evenings in front of the
 thing, and only the person holding the iPad can strike those.
 
 ---
@@ -171,37 +169,13 @@ three providers behind one tap on the front door, a swap between them that costs
 the lesson nothing, and a fourth costing one entry in a config file and one line
 in a key file. All of that is Settled below.**
 
-**Nothing here is a build.** Item 1 needs the account holder; item 2 is a list
-of evenings in front of the thing.
+**Nothing here is a build.** Item 1 is a list of evenings in front of the thing.
 
 ---
 
 ## What to do next
 
-### 1. Ask GitHub to collect the instructor slides, which the rewrite did not reach — THE ACCOUNT HOLDER'S
-
-**The seventeen decks and sheets are out of every commit here and off `main`, and
-GitHub still serves all seventeen at the pre-rewrite SHA.** A raw fetch of
-`Prob.Homework1.2026.pdf` at `1205290d` returns 200 and 53,045 bytes. That is
-GitHub holding objects no branch reaches until it collects them, which it does
-on request and not on a push, so the force-push moved the branch and reached
-nothing that is already on their disks.
-
-Two ways to finish it, and both need the account holder:
-
-- **Ask GitHub Support to run garbage collection on `Pirate-Hunter-Zoro/Atlas`**,
-  naming the repository and saying the objects are unreferenced after a history
-  rewrite. This is the documented route and it keeps the stars, the clone URL
-  and every commit SHA the rest of this file cites.
-- **Delete the repository and push it again from this clone.** Immediate and
-  certain, and it throws away whatever GitHub holds that the local clone does
-  not — the issue list, the fork graph, the URL's history.
-
-Until one of those lands, treat the decks as published. Nothing else is
-outstanding: `.gitignore` refuses them, `test/tracked.py` refuses them for every
-course, and the files are on disk where the board reads them.
-
-### 2. And the seven things no test can hold — THE IPAD'S
+### 1. And the seven things no test can hold — THE IPAD'S
 
 None of these is a build. Each is an evening in front of the thing.
 
@@ -978,6 +952,8 @@ as the answer.
   auditor that reports true sentences as false is one somebody silences rather
   than reads, so that class stays a reader's job and `truthful.py` says so in
   place of the check.
+  **GitHub still serves the removed decks at pre-rewrite SHAs, and that is
+  accepted**: the owner does not want them collected, so nothing chases it.
   **Three of the findings were not about prose, and each is its own rule in this
   list.** The professor's module slides and the assignment sheets sat in a public
   repository under a README sentence saying the repository was private and that
