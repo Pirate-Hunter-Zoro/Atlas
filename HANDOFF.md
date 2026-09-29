@@ -111,7 +111,10 @@ below and in `board/README.md`; what is in flight is in neither, so reading the
 code is fine and editing any of those six is how two sessions produce one
 conflict. `board/bin/tutor` will move under you either way: pull before you
 start, and keep whatever your item needs in there small enough to rebase.
-Everything else in the tree is yours. **The address block in `watch_once` and the
+Everything else in the tree is yours. **Item 1 is the exception and does not
+ask**: it edits `tutor watch` / `watch_once` and `test/perpetual.py` as far as
+it needs to. Pull first, keep the change a separate beat the watch calls, and
+rebase over whatever that session has pushed. **The address block in `watch_once` and the
 address checks in `test/perpetual.py` sit in that session's files by necessity**:
 the block is the only place the chosen course can be enforced, and that suite is
 the only thing that drives `watch_once`. The block asks which course the name is
@@ -181,9 +184,9 @@ needs the account holder; item 3 is a list of evenings in front of the thing.
 
 **The ask, in the owner's words:** *"no matter where the tutoring is hosted
 from, any compute node, when we ship a change it just takes effect."* Today it
-does not. Nothing blocks this except the serving-chain session under *Before
-anything*: read that block first, because the obvious home for half of this is
-`watch_once`, which is in that session's files.
+does not. Nothing blocks this. Half of it lives in `watch_once`, which is in
+the serving-chain session's files. The exception under *Before anything* lets
+this item edit them without asking.
 
 **What exists, measured.**
 
@@ -226,10 +229,9 @@ anything*: read that block first, because the obvious home for half of this is
    address. A tutor that is mid-turn is not bounced that beat. The existing
    wrap-up handling (`finish_restart`, `restarting` on the record) is the
    pattern, and *a daemon mid-turn is left alone* in `test/elsewhere.py` is the
-   rule. This is the part that lives in `watch_once` or beside it. **If the
-   serving-chain block is still under *Before anything*, ask the owner before
-   editing that file.** Otherwise add a separate beat the watch calls, keep it
-   small, and rebase.
+   rule. This is the part that lives in `watch_once` or beside it. Edit it without
+   asking. Add a separate beat the watch calls, keep it small, pull before you
+   start, and rebase.
 3. **`ship.sh` says where it landed.** After the local restart, for every board
    record on another node: either wait for that node's watch to report the new
    stamp (bounded, about two beats) or nudge it over `ssh` and then wait.
