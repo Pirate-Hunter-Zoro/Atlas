@@ -49,7 +49,7 @@ Nobody has to ask for that. *"Look at HANDOFF"* means all of it:
    CAN DO.** It is the lowest-numbered one on purpose — the numbering carries the
    order things have to land in, and each item says what it depends on where that
    matters. If the owner names a different one, that wins. **Each item's heading
-   says whose hands it needs**: 1 is a list of evenings in front of the thing.
+   says whose hands it needs**: 3 is a list of evenings in front of the thing.
 2. **Read that item whole before touching anything.** An item says what already
    exists (measured, not assumed), what is missing, where it goes, the decisions
    to take deliberately, and what to assert. The decisions are the expensive part:
@@ -72,7 +72,7 @@ An item is not done because its code runs. It is done when the suite is green,
 the rule is written where the next turn will read it, and the item is out of this
 file.
 
-**Item 1 does not come out this way.** It is a list of evenings in front of the
+**Item 3 does not come out this way.** It is a list of evenings in front of the
 thing, and only the person holding the iPad can strike those.
 
 ---
@@ -169,7 +169,7 @@ three providers behind one tap on the front door, a swap between them that costs
 the lesson nothing, and a fourth costing one entry in a config file and one line
 in a key file. All of that is Settled below.**
 
-**No build is left.** Item 1 is a list of evenings in front of the thing.
+**Two builds are left, 1 and 2.** Item 3 is a list of evenings in front of the thing.
 
 ---
 
