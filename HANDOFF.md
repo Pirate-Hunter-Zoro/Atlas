@@ -82,7 +82,7 @@ thing, and only the person holding the iPad can strike those.
 
 ## Before anything
 
-- `bash board/test/all.sh` — 102 suites, about twelve minutes. Green before and
+- `bash board/test/all.sh` — 103 suites, about twelve minutes. Green before and
   after.
   The last of them is Paper-Writer's own, run where it is checked out, so the
   factory's tests are part of the board's habit rather than a second one nobody
@@ -179,9 +179,53 @@ needs the account holder; item 3 is a list of evenings in front of the thing.
 
 ### 1. The /meeting reader's ink says it is kept, as the library reader's does — A BUILD
 
-`web/meeting.js` has its own save path and saves silently: no status
-line, no retry, no build stamp and no marked copy. Nothing blocks it. Copy what *Ink in the
-library reader says it is kept* under Settled describes, onto `/meeting`.
+**The ask is the owner's item-2 ask, on the other reader.** Ink drawn on the
+meeting deck at `/meeting` has to say it is kept, survive the lid shutting, and
+know which build it was drawn on. The library reader does all of that now
+(*INK IN THE LIBRARY READER SAYS IT IS KEPT* under Settled). `/meeting` does
+none of it. Nothing blocks this.
+
+**What exists, measured.** `web/meeting.js` has its own `savePen` and
+`queuePenSave`, a copy of the library's old path rather than a call into it:
+
+- It posts `/annotate/save` 900 ms after the pen lifts and on `pagehide`.
+- Its fetch has no catch and **cleans the page on any reply, a 500
+  included**, so a failed save is dropped from `Annotate.unsaved()` and never
+  retried. That is worse than the library reader was before its fix.
+- There is no status line, no retry on `online` or `visibilitychange`, no
+  `keepalive` flush when the page is hidden, and no build stamp.
+- The library reader's versions live in `web/library.js`: `savePen` takes
+  `opts.keepalive`, and `#reader-kept` shows the state.
+
+**What to build.**
+
+1. **Share the save path rather than copy it a second time.** Move the kept,
+   retry, keepalive and stamp logic out of `web/library.js` into something
+   both readers load, and call it from `web/meeting.js`. Two copies are how
+   `/meeting` drifted.
+2. **The status line on `/meeting`**, with the same three states and the same
+   retry triggers as `#reader-kept`.
+3. **Build stamps on meeting ink.** `meeting.prepare` clears the old deck's ink
+   when a new deck is asked for. So a *rebuilt since* flag only matters for a
+   deck recompiled in place. Stamp anyway and flag it the same way.
+4. **Decide whether `/meeting` gets a marked copy.** Ink there is *direction*,
+   and its pictures already go to `meetings/marks/`. A marked copy of a deck
+   touching PSYCH-ASR is fenced content: it goes under the host workspace's
+   `live/marked/` via `burn_library`'s rules or nowhere. Decide it, and record
+   the decision under Settled.
+
+**Two small defects the item-2 review left, fix them while in there:**
+
+- A copy burned from the page cache silently drops marks on pages past the
+  old build's cached page count. Say so in the reply rather than dropping them.
+- A page's stamp covers all its strokes, so new ink on a rebuilt page
+  re-stamps the old strokes and un-flags them. That was accepted by design.
+  Leave it unless the shared path makes per-stroke stamps cheap.
+
+**What to assert.** On `/meeting`: a save that answers 500 stays unsaved, is
+shown, and is retried on `online`. A hidden page flushes with `keepalive`. The
+status line reads *saved · N pages marked* after a good save. The library
+reader's existing suites still pass against the shared path.
 
 ### 2. Ask GitHub to collect the instructor slides, which the rewrite did not reach — THE ACCOUNT HOLDER'S
 
