@@ -60,7 +60,10 @@ Read them before editing the prose around them.
 ## `parts/` — the packet, one file per section
 
 Every section of the manuscript and of the supplement, as its own `.md` and `.docx`.
-Ten parts and twenty-two, numbered in reading order and named after their headings.
+Fifteen parts and twenty-seven, numbered in reading order and named after their headings.
+The manuscript's parts also carry a `.pdf`, so a section can be read and marked on the
+board alone. The supplement's do not: twenty-seven more PDFs would push the packet out
+of the board's two-dozen document drawer.
 
 **Derived, never edited.** Each part carries a header saying which document it came
 from, which position it holds, and that an edit made there is lost the next rebuild.

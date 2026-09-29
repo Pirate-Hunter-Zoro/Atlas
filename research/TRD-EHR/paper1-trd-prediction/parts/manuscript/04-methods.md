@@ -1,5 +1,5 @@
 <!--
-Section 4 of 10 of manuscript.md, split out by the
+Section 4 of 15 of manuscript.md, split out by the
 Paper-Writer pipeline. DERIVED FILE: the assembled document is the
 source of truth and this is produced from it, so an edit made here is
 lost the next time the paper is built. Edit manuscript.md.
@@ -9,256 +9,58 @@ Section heading: Methods
 
 # Methods
 
-<!-- This is the senior author's own condensed Methods (supplied 2026-09-02 as
-     JMIR_Methods_and_Supplement.docx), taken as written. Departures from his
-     text are confined to cross-references, citation markers, the two facts his
-     draft could not have known (the eligibility cascade moved to the supplement
-     under his comment 115, the cohort table is Table 1 under comment 119), and
-     the 2026-09-06 reduction of the neighbor-weighting slate to uniform and
-     cosine. Everything his condensation drops is either in Supplement M1-M13 or
-     recorded in reserve/methods_reserve.md. Do not grow this section; grow the
-     M-section, and note the change in the reserve document. -->
+## Study Design and Data Source
 
-## Study design and data source
-<!-- TRIPOD+AI 4a (data source), 4b (study dates), 6a (setting) -->
+We conducted a retrospective cohort study using a frozen, deidentified Epic EHR extract from Saint Francis Health System in Tulsa, Oklahoma. The extract contained 501,718 patients and included diagnoses, encounters, medications, procedures, and laboratory data. Patients with a problem-list depression flag were retained, together with a random sample without that flag. The resulting sample was enriched for depression and does not represent health-system prevalence. Encounter-level diagnoses determined study eligibility; 12,530 eligible patients (29.4%) entered through the randomly sampled group.
 
-We conducted a retrospective cohort study using a frozen, de-identified extract
-from the Epic EHR of Saint Francis Health System, a community health system in
-Tulsa, Oklahoma. The extract included person,
-encounter, diagnosis, medication, procedure, laboratory/flowsheet, and
-medication-to-RxNorm mapping data. Patient and encounter identifiers were
-replaced with one-way hashes before transfer, and no direct identifiers or dates
-of birth were provided.
+We used data version DV260629v1 and patient version PV260710v1, extracted on June 29, 2026, and processed on July 10, 2026. Index dates spanned 2013--2025. Evaluation used a random internal split from the same source and period. Source definitions and sampling details are provided in Multimedia Appendix 1, sections M1--M2. We used TRIPOD+AI to guide reporting \[19\].
 
-The delivered extract was case enriched rather than a census of the health
-system. All patients with a depression code on the problem list were retained,
-together with a random sample of patients without that flag at an approximate
-4:1 ratio. The extract contained 501,718 patients, including 100,420 (20.0%)
-with and 401,298 (80.0%) without a problem-list depression flag. Eligibility for
-the analytic cohort was determined from encounter-level diagnoses rather than
-the problem-list sampling flag. Consequently, 12,530 of the 42,579 eligible
-patients (29.4%) entered through the randomly sampled group. Cohort proportions
-therefore describe this enriched sample and should not be interpreted as
-health-system prevalence estimates. The head-to-head comparison of
-representations is unaffected, both being derived from the same patients and
-scored on the same held-out split.
+## Participants and Prediction Time
 
-All analyses used data version DV260629v1 and patient version PV260710v1. Source
-files were cut on June 29, 2026, and analysis-ready tables were created on July
-10, 2026. No subsequent data refresh entered the study. Patient index dates
-spanned 2016-2024. The study used a random internal validation split from the
-same source and period, not temporal or external validation. Additional
-information on the source tables, setting, sampling frame, diagnosis code sets,
-and data versions is provided in Supplement M1-M2.
+Eligible patients met the study's coded depression definition, had no bipolar or schizophrenia-spectrum diagnosis, had an antidepressant index prescription on or after a documented depression diagnosis, and had at least 730 days of prior history and 365 days of subsequent follow-up. The depression code set included major depressive disorder (MDD), dysthymia, and unspecified depression. The final cohort included 42,579 patients; the eligibility cascade and code lists appear in Multimedia Appendix 1, sections M1--M2.
 
-## Participants, index date, and temporal windows
-<!-- TRIPOD+AI 5a (eligibility), 5b (study dates), 6b, 6c (treatments) -->
-
-Patients were included if they had a qualifying MDD diagnosis, no bipolar
-disorder or schizophrenia-spectrum diagnosis, an eligible
-antidepressant index prescription, an MDD diagnosis on or before that
-prescription, at least 730 days of pre-index EHR history, and at least 365 days
-of post-index follow-up. These criteria yielded 42,579 patients. The eligibility
-cascade and rejection reasons are reported in Supplement M2 (Table M1).
-
-The index date was the start date of each patient's earliest antidepressant
-prescription recorded on or after the first documented depression diagnosis.
-Each patient contributed one index date. The prediction point coincided with the
-prescription date, and index eligibility did not depend on subsequent dose,
-duration, response, or treatment changes. Predictors were computed only from the
-730-day lookback window ending on the index date. Post-index data were used only
-to confirm 365 days of follow-up and to ascertain the outcome during that
-period. Prior antidepressant exposure was retained as a predictor rather than
-used as an exclusion criterion. The index prescription was therefore the first
-antidepressant linked to a documented depression diagnosis in the available
-record, not necessarily the patient's first lifetime exposure or first adequate
-trial. Figure 1 summarizes the temporal design. Full index-selection rules are
-given in Supplement M2.
+The index was the earliest recorded antidepressant prescription on or after the first documented depression diagnosis. It was not necessarily the first lifetime exposure: prior antidepressant use was retained as a predictor. Index selection did not require subsequent dose adequacy, duration, response, or treatment change. Clinical content was restricted to the 730-day window ending on the index date; total recorded pre-index history length was an additional duration variable. Post-index information established follow-up eligibility and the outcome (Figure 1).
 
 ![](../results/Qwen-Qwen3-Embedding-8B/google_medgemma-27b-text-it/time_zero_timeline.png){width=6in}
 
-***Figure 1.** Time zero, the lookback window, and the outcome ascertainment
-window. The index is the earliest antidepressant prescription recorded on or
-after the patient's first documented depression diagnosis; no property of it is
-conditioned on post-index data, so the prediction point coincides with the
-prescription date. Every predictor is measured inside the 730-day lookback
-window. Recorded history frequently extends further back (median 1,792 days) and
-its length is itself a predictor, but its content outside the lookback window is
-never read. Post-index data enters in exactly two places: eligibility requires at
-least 365 days of follow-up, and the outcome is ascertained over those 365 days.*
+***Figure 1.** Prediction time and observation windows. The index is the earliest antidepressant prescription on or after the first recorded depression diagnosis. Clinical content comes from the preceding 730 days through the index date. Total recorded pre-index history length is a separate duration predictor and can exceed this window. The subsequent 365 days establish follow-up eligibility and the treatment-switching outcome. The 57.9% annotation describes candidate index orders, not the final cohort. EHR: electronic health record; MDD: major depressive disorder; TRD: treatment-resistant depression proxy.*
 
 ## Outcome
-<!-- TRIPOD+AI 6a (outcome definition), 6b (assessment) -->
 
-The prediction target was a predefined EHR proxy for incident TRD, generated
-upstream and used without modification. Consistent with the operational definition used by Forthman et al
-[2], patients with MDD were classified as TRD positive if they received at
-least 3 distinct antidepressant treatments during the 365 days after the index
-date, including the index agent as the first treatment. Equivalently, the
-outcome required at least 2 post-index antidepressant changes. A treatment was a
-distinct antidepressant agent rather than a prescribing event. Augmentation
-without replacement and restarting a previously used agent did not increment the
-count, and augmentation enters the study as a pre-index predictor instead.
+The prespecified outcome was a treatment-switching proxy for TRD, generated upstream and supplied as a fixed label \[20\]. Patients were positive if they received at least 3 distinct antidepressant treatments within 365 days, counting the index agent first. This required at least 2 subsequent changes to distinct agents. Augmentation without replacement and restarting a previously used agent did not increase the count.
 
-This outcome is a treatment-switch proxy rather than direct evidence of
-inadequate response to 2 adequate trials [4,5]. Symptom response was not
-systematically available, and dose and duration adequacy were not verified for
-the counted treatments. Switching may therefore reflect nonresponse,
-intolerance, adverse effects, cost, insurance constraints, fragmented care,
-patient preference, or prescriber practice, and it depends on continuity of care
-and access, which differ across demographic groups [16,17]. The label was not
-validated against chart review or standardized symptom measures. These
-inferential boundaries and proposed validation analyses are detailed in
-Supplement M3, and their consequences for the study's claims in the Discussion,
-*Limitations*.
+The outcome did not verify inadequate response to 2 adequate trials. Standardized symptom response was unavailable, and dose and duration adequacy were not established for the counted treatments. Switching could reflect nonresponse, intolerance, preference, access, or prescribing practice. The label was not validated by chart review or symptom measures (Multimedia Appendix 1, section M3). We use "TRD proxy" throughout to distinguish this outcome from clinically confirmed resistance.
 
-## Predictors and patient representations
-<!-- TRIPOD+AI 7a (predictor definition), 7b (assessment) -->
+## Patient Representations and Missing Data
 
-Predictors were specified a priori on clinical and prior-literature grounds
-before model fitting or inspection of outcome associations. Domains included
-depression characteristics, psychiatric and substance-use comorbidity, medical
-comorbidity, prior antidepressant exposure and medication burden, prescribing
-constraints, health care utilization, and sociodemographic and social-determinant
-variables [18-21]. Only structured EHR fields available within the pre-index window
-were used. Selection rationale is given in Supplement M4 and the complete
-inventory in Multimedia Appendix 1.
+Predictor domains were selected before model fitting or examination of outcome associations. They included depression coding, psychiatric and medical comorbidity, prior treatment, medication burden, utilization, prescribing constraints, and sociodemographic characteristics \[4-7\]. The structured representation (FEATURE) comprised 92 encoded columns. Continuous variables were standardized, categorical variables were one-hot encoded, and binary variables were coded as 0 or 1. Prior antidepressant trial counts required at least 42 days of continuous exposure; this duration rule did not establish adequate dose.
 
-**Both representations were built from the same curated field inventory, and
-neither was built from a raw record.** Predictor selection happened once,
-before either representation existed, and both then encoded that selection.
-This bounds every comparison below: what is compared is two encodings of one
-tailored record, not a tailored record against an untailored one. Each
-patient's timeline-sliced record was converted independently into 2
-representations. The typed feature representation (FEATURE) assigned explicit
-data types to continuous variables, binary and multilabel indicators, and
-nominal categorical variables. Continuous variables included age, utilization
-and duration measures, medication burden, and counts of adequate antidepressant
-trials, with an adequate trial defined as at least 42 days of continuous
-exposure to an agent. After categorical expansion and exclusion of 3 vital-sign
-variables for missingness, the FEATURE representation expanded to 92
-columns.
+For the embedded representation (EMBEDDED), fixed rules converted structured fields into Markdown narratives. No generative model wrote the narratives, preserving traceability to the source fields \[21\]. We evaluated bge-small-en-v1.5, bge-en-icl, Qwen3-Embedding-4B, and Qwen3-Embedding-8B; the last was the primary encoder \[22-25\].
 
-For the embedded representation (EMBEDDED), the same pre-index record was
-deterministically rendered as a human-readable Markdown narrative and encoded
-as a fixed-length dense vector. The renderer walks a fixed template of section
-headings and field labels, in a fixed order, over the fields named above.
-Absent findings are printed explicitly and unrecorded ones as a literal token,
-so every patient reaches the encoder through the same constant form. Narrative
-construction used predefined rules and no generative model, ensuring that every
-statement was traceable to the structured record. That guarantee is worth the loss of fluency, because a generated summary
-introduces statements the record does not support at measured rates [22] and
-here the narrative *is* the predictor. Four pretrained sentence-transformer
-encoders were evaluated independently: `bge-small-en-v1.5` [23], `bge-en-icl`
-[24], `Qwen3-Embedding-4B`, and `Qwen3-Embedding-8B` [25], with
-`Qwen3-Embedding-8B` designated as the primary encoder.
+The pipelines differed in information content. Narratives retained vital signs, individual medication names, index dates, sexual orientation, and finer sociodemographic categories; FEATURE included total recorded history length, which the narratives omitted. Missing vital signs were excluded from FEATURE, and no statistical imputation was used in the primary analysis. Missing categorical information was represented explicitly, although some narrative fields retained raw missing-value tokens. Encoding rules, the predictor inventory, example narratives, and the field crosswalk are provided in Multimedia Appendix 1, sections M4--M6, S5, and S10.
 
-FEATURE and EMBEDDED do not receive an identical field inventory, so a
-head-to-head comparison estimates the two complete pipelines rather than the
-isolated effect of data format. Both were derived from the same temporal slice and the same selected
-fields. Eleven of the crosswalk's twenty-eight rows are encoded
-asymmetrically. In ten of the eleven the narrative receives information
-the feature vector does not, either a field with no column or a value
-the feature vector coarsens. Supplement S8 gives the crosswalk row by row, with each field's
-encoding on both sides. Supplement M5 states the full encoding rules and
-Supplement S4 reproduces two example narratives. The asymmetry is what bounds
-the comparison, and the crosswalk is what makes that bound checkable.
+## Model Development and Evaluation
 
-## Missing data and sample partition
-<!-- TRIPOD+AI 8 (sample size), 9 (missing data), 12a (partition) -->
+All models used one stratified 80:20 split: 34,063 training patients, including 5,964 outcome-positive patients, and 8,516 test patients, including 1,491 outcome-positive patients. We fitted logistic regression, random forest, gradient boosting, and XGBoost to each representation. Five-fold cross-validated grid search optimized ROC AUC within the training set. Scaling and category encoding were fitted within each training fold; the selected pipeline was then refitted on all training patients and applied to the test set. Tuning grids were identical across representations for each classifier (Multimedia Appendix 1, sections M7--M9).
 
-No statistical imputation was performed. Mean body mass index and mean systolic
-and diastolic blood pressure were excluded because of substantial and
-outcome-associated missingness. Missing categorical values were retained as an
-explicit category in FEATURE and as the literal token "Missing" in EMBEDDED. No
-missing continuous values reached the estimators. Detailed missingness
-frequencies and rationale are provided in Supplement M6.
+We assessed ROC AUC, area under the precision--recall curve (AUPRC), Brier score, and calibration. The supplementary calibration-curve summaries use slopes and intercepts fitted to binned probabilities; the subgroup analyses separately report logistic calibration slopes based on individual predicted probabilities. These quantities are distinguished because they are not interchangeable. All calibration estimates concern this enriched cohort.
 
-We created one stratified 80:20 train-test split and used it for every
-evaluation arm. The training set comprised 34,063 patients, including 5,964
-TRD-positive patients (17.5%). The held-out test set comprised 8,516 patients,
-including 1,491 TRD-positive patients (17.5%). Across 100 predictor rows, the
-maximum absolute standardized mean difference between the 2 sets was 0.036. For
-retrieval analyses, only training patients were placed in the searchable
-neighbor pool. Test patients served solely as query anchors, which prevents
-self-retrieval and any use of a test outcome as a neighbor label.
-Events-per-variable calculations and further leakage safeguards appear in
-Supplement M7-M8.
+Nonparametric bootstrap resampling of test patients provided 95% CIs. Paired resampling estimated differences between representations and between original and perturbed predictions. Classifier-matched contrasts held the learner fixed. The comparison of the best model for each representation was post hoc because the leading models were identified from test performance. No equivalence margin was prespecified; a CI containing zero does not establish equivalence. Sensitivity and specificity at test-selected Youden J thresholds are reported only as descriptive analyses in Multimedia Appendix 1, section S12.
 
-## Model development
-<!-- TRIPOD+AI 10 (model development), 11 (analysis methods) -->
+## Supporting Analyses
 
-**Standard machine learning.** Logistic regression, random forest, gradient
-boosting, and XGBoost classifiers were trained separately on each
-representation. For FEATURE, a column transformer standardized continuous
-variables, one-hot encoded categorical variables while ignoring unseen levels at
-inference, and cast Boolean variables to integers. EMBEDDED was processed as an
-all-numeric block. Preprocessing and estimation were combined within a single
-pipeline and tuned using 5-fold cross-validated grid search in the training set,
-optimizing area under the receiver operating characteristic curve (ROC AUC). On
-every fold, fitted preprocessing parameters and category vocabularies were
-estimated from that fold's training rows only. The best cross-validated
-estimator was refit on the full training set and generated probabilities for the
-untouched test set (Supplement M9).
+We examined embedded-model reliance on 6 concepts by permuting one narrative section or field across patients, re-embedding the narratives, and applying the original classifiers without retraining. The concepts were psychiatric history, medication burden, prior treatment exposure, prescribing contraindications, race/ethnicity, and social determinants of health. Change in ROC AUC measures reliance under the specified perturbation; it does not identify causal mechanisms or establish fairness.
 
-**Neighbor-weighted retrieval prediction.** For EMBEDDED only, we also
-estimated risk without fitting a model, as the weighted mean of TRD
-labels among K = 50 retrieved training-set neighbors. This tests the
-digital-twin premise directly: if a patient's course can be read from
-the courses of their closest analogues, retrieval should predict well.
-Retrieval schemes selected the nearest or the random training patients,
-with random retrieval as the negative control. Weighting was uniform or
-based on anchor-neighbor cosine similarity. Detailed equations, retrieval controls, and the evaluation grid are provided in Supplement M10 and M12.
+We also predicted each test patient's outcome from its nearest training-set neighbors. Test patients served only as queries. The risk score was the similarity-weighted mean outcome of the k most similar training patients (Equation 2). Similarity was measured in 2 ways. Plain cosine similarity used the raw embeddings. Importance-weighted cosine similarity first standardized each embedding dimension with the embedded logistic regression's own scaler. It then weighted each dimension by its share of that model's absolute coefficients (Equation 1). The coefficients were fitted on training patients only, so no test outcome entered a risk score.
 
-**Semantic-feature ablation.** To estimate direct reliance of the embedded
-pipeline on selected concepts, we permuted 1 narrative section or field at a
-time across patients, re-embedded the perturbed narratives, and applied the
-already-trained classifiers without retraining. Permutation preserved each
-concept's marginal distribution while severing its patient-level association
-with outcome. The tested concepts were psychiatric history, medication burden,
-prior treatment exposure, treatment contraindications, race/ethnicity, and
-social determinants of health. Change in ROC AUC relative to the unperturbed
-model quantified direct-input reliance. This analysis was not designed to
-establish fairness, rule out reconstruction of a permuted concept from
-correlated fields, or evaluate subgroup calibration. Specifications, including
-what each concept's permutation destroys, are provided in Supplement M11.
+$$\mathrm{sim}_w(x,y)=\frac{\sum_d w_d\,z_d(x)\,z_d(y)}{\sqrt{\sum_d w_d\,z_d(x)^2}\,\sqrt{\sum_d w_d\,z_d(y)^2}},\qquad w_d=\frac{|\beta_d|}{\sum_e |\beta_e|}\qquad(1)$$
 
-## Statistical analysis and performance metrics
-<!-- TRIPOD+AI 11, 12 (evaluation) -->
+$$\hat{r}(x)=\frac{\sum_{i\in N_k(x)} s_i^{\alpha}\,y_i}{\sum_{i\in N_k(x)} s_i^{\alpha}},\qquad s_i=\max\{\mathrm{sim}(x,i),0\}\qquad(2)$$
 
-Performance in the held-out test set was characterized using ROC AUC,
-calibration slope and intercept, and sensitivity, specificity and the positive
-and negative likelihood ratios at the threshold maximizing the Youden J
-statistic. That threshold was selected and evaluated in the same test set, so operating-point
-estimates are descriptive and optimistic rather than deployable clinical
-thresholds. Calibration estimates apply to the case-enriched cohort's outcome
-frequency and were not recalibrated to population prevalence.
+Here $z_d$ is dimension $d$ after standardization, $\beta_d$ is its logistic-regression coefficient, $N_k(x)$ is the set of the $k$ most similar training patients, $y_i$ is a neighbor's outcome, and $\alpha$ is a sharpening exponent. Plain cosine similarity is Equation 1 with raw embeddings and equal weights. The primary analysis used k = 50 and α = 5. A sweep evaluated every k from 1 to all 34,063 training patients, under α = 1, 2, and 5. Random and farthest retrieval served as negative controls. Details appear in Multimedia Appendix 1, sections M10--M12 and S6.
 
-An interval containing zero means no difference was detected, not that
-the two representations are equivalent. No equivalence or noninferiority
-margin was set in advance, so this paper makes no equivalence claim
-anywhere.
+Additional analyses examined encoder robustness, model dimensionality, record length, and subgroup performance. Subgroup comparisons used held-out predictions without refitting and Benjamini--Hochberg adjustment across 240 contrasts. Full methods and results appear in Multimedia Appendix 1. All random processes were seeded; analyses used Python, scikit-learn, XGBoost, and sentence-transformers \[22,26,27\].
 
-Confidence intervals come from 1,000 nonparametric bootstrap resamples
-of the test-set patients, detailed in Supplement M13. The subgroup
-analysis computes 240 between-group contrasts, so its P values are
-adjusted across that whole set by the Benjamini-Hochberg procedure,
-controlling the false discovery rate at 5%.
+## Ethical Considerations
 
-Comparisons between two prediction vectors are paired. Each bootstrap
-draw scores both prediction vectors on the same resampled patients
-before their difference in ROC AUC is taken, which keeps the patient
-draw out of the comparison. Classifier-matched contrasts hold the
-learner fixed and vary only the representation. The
-best-feature-versus-best-embedded comparison was chosen after the
-results were in, so it is descriptive rather than a test. Retrieval
-against the trained classifiers is reported as marginal rather than
-paired intervals. Pairing would narrow those intervals, so reporting
-them unpaired is the conservative choice.
-
-## Reproducibility and software
-<!-- TRIPOD+AI 13 (availability) -->
-
-All random processes were seeded. Analyses were implemented in Python using
-scikit-learn [26], XGBoost [27], and sentence-transformer encoders [28]. The
-analysis code is publicly available [29].
+We analyzed deidentified secondary records without direct identifiers. No institutional review board review or consent waiver was obtained because the study was considered not to involve human participants. All analytic computation, including embedding, ran on local institutional hardware; patient-level analytic data were not transmitted to external services. No patients or members of the public participated in the design, conduct, or reporting of the study.

@@ -1,5 +1,5 @@
 <!--
-Section 2 of 10 of manuscript.md, split out by the
+Section 2 of 15 of manuscript.md, split out by the
 Paper-Writer pipeline. DERIVED FILE: the assembled document is the
 source of truth and this is produced from it, so an edit made here is
 lost the next time the paper is built. Edit manuscript.md.
@@ -8,56 +8,15 @@ Section heading: Abstract
 -->
 
 # Abstract
-<!-- TRIPOD+AI 2 (structured abstract); JMIR structured format -->
 
-**Background.** As many as 1 in 3 patients with major depressive disorder (MDD)
-progress to treatment-resistant depression (TRD) after failing successive
-antidepressant trials [1]. An electronic health record (EHR) can be given to a
-model as a typed feature vector, or written out as text and encoded by a
-pretrained transformer, and the two have not been compared. A third approach
-predicts a patient from the outcomes of their closest analogues, the premise
-behind clinical digital twins.
+**Background:** Electronic health records (EHRs) have been shown to support prediction of subsequent antidepressant switching, an imperfect proxy for treatment-resistant depression (TRD). However, it is unclear whether general-purpose narrative embeddings improve prediction beyond structured feature vectors.
 
-**Objective.** Two questions on one cohort. Whether a generalized pretrained
-transformer embedding of a patient narrative outperforms a typed feature vector
-for predicting a treatment-switch–defined EHR proxy for incident TRD, and
-whether nearest-neighbor retrieval over that embedding predicts as well as a
-trained classifier. In both arms the patient data were hand-picked before
-either representation was built, which bounds both answers.
+**Objective:** We compared structured feature vectors with pretrained embeddings of rule-based patient narratives for predicting a treatment-switching proxy for TRD at the index antidepressant prescription.
 
-**Methods.** Retrospective cohort of 42,579 adults with unipolar MDD from one
-community health system. Following Forthman et al [2], TRD was 3 or more
-antidepressant treatments within 1 year of the index date, the earliest
-antidepressant prescription after a documented depression diagnosis; predictors
-came only from the 730 days before it. Two representations were built from the
-same hand-picked fields: a typed feature vector, and a Markdown narrative
-written by fixed rules with no generative model, encoded by a pretrained
-sentence-transformer (4 encoders; primary `Qwen3-Embedding-8B`). Four
-classifiers were tuned by cross-validated grid search and scored on one held-
-out stratified 20% split (8,516 patients, 1,491 TRD-positive). A retrieval
-predictor scored each patient as the weighted mean TRD rate of 50 retrieved
-training patients under 4 retrieval schemes. A semantic-feature ablation
-shuffled each narrative concept across patients in turn to locate the embedded
-signal. Reporting follows TRIPOD+AI [3].
+**Methods:** This retrospective study included 42,579 patients with depression from one community health system. The outcome required at least 3 distinct antidepressant treatments, including the index agent, within 365 days. Clinical predictors were derived from a 730-day lookback window. We evaluated 4 classifiers on each representation using a shared 80:20 training and test split, with preprocessing and tuning confined to training data. Four embedding encoders were evaluated; Qwen3-Embedding-8B was primary. The pipelines used the same source records. We assessed discrimination, calibration, and paired bootstrap differences, and used concept permutation and neighbor retrieval to examine the predictive signal.
 
-**Results.** The embedding did not outperform the feature vector: ROC
-AUC 0.657 (95% CI 0.643–0.672) against 0.649 (0.634–0.664), paired
-difference +0.008 (−0.003 to +0.019). Holding the classifier fixed, it
-helped logistic regression (+0.028) and hurt all 3 tree ensembles
-(−0.013 to −0.022). Discrimination stayed within 0.012 across 4
-encoders. The ablation localized the signal to psychiatric history,
-medication burden and prior treatment exposure rather than to
-sociodemographic fields. Retrieval was informative, not competitive:
-nearest 0.594 (0.578–0.610) against random 0.499 on all 4 encoders, yet
-0.063 short of the trained classifier on intervals that do not overlap.
+**Results:** The outcome occurred in 7,455 patients (17.5%). In 8,516 test patients, embedded logistic regression achieved a receiver operating characteristic area under the curve (ROC AUC) of 0.657 (95% CI 0.643--0.672), compared with 0.649 (95% CI 0.634--0.664) for feature-vector XGBoost. The post hoc difference between these leading models was 0.008 (95% CI −0.003 to 0.019). Embeddings improved logistic regression by 0.028 ROC AUC but reduced discrimination for the 3 tree ensembles by 0.013--0.022. Embedded logistic regression achieved ROC AUCs of 0.645--0.657 across encoders. Permuting psychiatric history produced the largest discrimination loss for the primary encoder (0.024--0.028 across classifiers); medication burden and prior treatment exposure also contributed. Permuting race/ethnicity or recorded social determinants changed ROC AUC by no more than 0.003. Nearest-neighbor retrieval over the embedding stayed below both leading classifiers at every neighborhood size tested; its best ROC AUC was 0.625 (95% CI 0.610--0.641).
 
-**Conclusions.** Embedding matched, but did not exceed, a feature vector built
-from the same fields, and retrieval over that embedding lost to a fitted model.
-Both arms encode the same hand-picked inventory, so neither result shows that
-embedding removes the feature engineering. Discrimination near 0.65 is too
-modest for clinical use, and the outcome is a treatment-switch phenotype rather
-than verified non-response.
+**Conclusions:** Narrative embeddings did not demonstrate superior discrimination over the strongest structured feature model for this treatment-switching proxy. Performance depended on the classifier, and neither pipeline established clinical utility. These findings support structured features as a practical benchmark and prioritize validation of the outcome, transportability, and clinical value before deployment.
 
-**Keywords.** treatment-resistant depression; major depressive disorder;
-electronic health records; clinical prediction model; machine learning; text
-embeddings; nearest-neighbor retrieval; feature engineering; TRIPOD+AI.
+Keywords: treatment-resistant depression; depression; electronic health records; machine learning; clinical prediction; text embeddings; antidepressants
