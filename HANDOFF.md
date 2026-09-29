@@ -28,14 +28,14 @@ switched from the front door mid-evening, swapping itself when an allowance runs
 out or when a provider's own hostname does not answer from here, and losing
 nothing — because a turn is already cold and reads the lesson back off disk. A
 provider is a recipe plus a key and nothing else, so a fourth is one entry in a
-config file and one line in a key file. **DeepSeek's endpoint is the one that
-cannot be tapped yet**: `api.deepseek.com` is reset at the TLS handshake from
-every compute node, which is item 4 and is a firewall exception rather than a
-setting.
+config file and one line in a key file. **DeepSeek's endpoint does not answer
+from here and is not going to**: `api.deepseek.com` is reset at the TLS
+handshake from every compute node, so the board stands it aside and the evening
+runs on another provider.
 
 **Two builds are left, and they come first**: the meeting deck has to become
 a presentation (item 1), and ink in the reader has to say it is kept and be
-keepable as a copy (item 2). After them, two dispatches only the account holder
+keepable as a copy (item 2). After them, one dispatch only the account holder
 can make, and a list of evenings in front of the thing.
 
 `board/README.md` is the architecture. This file says what is left.
@@ -51,8 +51,8 @@ Nobody has to ask for that. *"Look at HANDOFF"* means all of it:
    CAN DO.** It is the lowest-numbered one on purpose — the numbering carries the
    order things have to land in, and each item says what it depends on where that
    matters. If the owner names a different one, that wins. **Each item's heading
-   says whose hands it needs**: 1 and 2 are builds, 3 and 4 need the account
-   holder, 5 is a list of evenings in front of the thing.
+   says whose hands it needs**: 1 and 2 are builds, 3 needs the account
+   holder, 4 is a list of evenings in front of the thing.
 2. **Read that item whole before touching anything.** An item says what already
    exists (measured, not assumed), what is missing, where it goes, the decisions
    to take deliberately, and what to assert. The decisions are the expensive part:
@@ -75,7 +75,7 @@ An item is not done because its code runs. It is done when the suite is green,
 the rule is written where the next turn will read it, and the item is out of this
 file.
 
-**Item 5 does not come out this way.** It is a list of evenings in front of the
+**Item 4 does not come out this way.** It is a list of evenings in front of the
 thing, and only the person holding the iPad can strike those.
 
 ---
@@ -171,7 +171,7 @@ the lesson nothing, and a fourth costing one entry in a config file and one line
 in a key file. All of that is Settled below.**
 
 **Two things here are builds: the meeting deck (item 1) and keeping ink in the
-reader (item 2).** Items 3 and 4 need the account holder; item 5 is a list of
+reader (item 2).** Item 3 needs the account holder; item 4 is a list of
 evenings in front of the thing.
 
 ---
@@ -466,34 +466,7 @@ Until one of those lands, treat the decks as published. Nothing else is
 outstanding: `.gitignore` refuses them, `test/tracked.py` refuses them for every
 course, and the files are on disk where the board reads them.
 
-### 4. Ask for a firewall exception on `api.deepseek.com` — THE ACCOUNT HOLDER'S
-
-**One hostname is filtered and no client setting reaches it.**
-`api.deepseek.com` is reset during the TLS ClientHello from every c3 compute
-node, 14 ms after a 7 ms TCP connect, zero bytes read — while
-`www.deepseek.com` on the *same* IP answers 200. The filter keys on the name, so
-a device on the path is reading the SNI, and `api.anthropic.com`,
-`api.openai.com`, `github.com` and four Chinese endpoints all complete TLS from
-the same shell in the same minute. Reproduced on compute300, compute301 and
-compute305: site policy, not a sick node.
-
-**The whole ask, the measurements behind it, the PHI argument and the one-line
-re-test are written up in `projects/libr-local-llm/docs/deepseek-egress.md`** —
-send that, it is the document IT needs. The ask itself is one line: allow
-outbound TCP 443 from compute300–compute306 to `api.deepseek.com`, by hostname
-rather than address, because it is a CloudFront CNAME whose IP rotates and whose
-sibling names are already permitted.
-
-**Nothing on this side is outstanding.** The recipe is client-side correct and
-stays; the board already stands the provider aside before a turn is spent on it
-and teaches the evening as `claude` instead, which is under *Settled*. Two
-things to do in the first sitting after it opens, both one line: the re-test in
-that document, and check the model id — `GET /models` dies in the same handshake
-as a turn, so `deepseek-flash` cannot be verified until the name is open, and
-`deepseek-flash[1m]` against the bare id is the open question in the recipe's
-own comment.
-
-### 5. And the seven things no test can hold — THE IPAD'S
+### 4. And the six things no test can hold — THE IPAD'S
 
 None of these is a build. Each is an evening in front of the thing.
 
@@ -562,26 +535,6 @@ None of these is a build. Each is an evening in front of the thing.
   anything up. `test/teaching.py` holds the places each is written down, and
   asserts only that they reach the course. **The first card of the next sitting is
   the real check.**
-- **A whole evening on DeepSeek, and a switch in the middle of one. BLOCKED ON
-  ITEM 3**: every turn to that endpoint is reset on the handshake from these
-  nodes, so this evening cannot be had until the exception lands. The swap
-  is a fact and the suite holds it; whether it is a *seam* is the evening. It is
-  also the only place the PROVIDER is tested rather than this side of the wire:
-  every request the suite makes goes to a socket on this machine, so what a real
-  endpoint says back is unknown. Open a sitting on `deepseek`, teach a real
-  chapter, and read the cards as teaching rather than as output — a model an
-  order of magnitude cheaper is only cheaper if the lesson is the same lesson.
-  Hand it the slate and see whether it reads the handwriting, which is the one
-  capability the whole board rests on and the one the endpoint's own
-  documentation is least clear about. Then switch provider from the front door
-  mid-chapter and watch the next card: it should carry on the thread with
-  nothing said about the change, because the turn reconstructs the evening off
-  disk. If it opens by re-introducing itself, or asks what you were working on,
-  the brief is not carrying what it claims to and that is a finding about
-  `board brief`, not about the provider.
-  **And `board see` against that endpoint.** Its refusals are tested and so is
-  the shape of its request; what comes back is not. Point it at a slate page and
-  read the answer against the page.
 
 ---
 
@@ -646,6 +599,15 @@ as the answer.
   `*_api_key`, `*.key`, `keys.env` and `.env`, unanchored; `test/tracked.py` puts
   the same question to GIT ITSELF on every run of the suite, which is the guard
   that survives somebody editing the ignore file.
+
+- **DEEPSEEK DOES NOT ANSWER FROM THE COMPUTE NODES, AND NOTHING ROUTES ROUND
+  THAT.** `api.deepseek.com` is reset on the TLS ClientHello from compute300–306
+  by a site filter keyed on the hostname. No firewall exception is asked for, and
+  no exit node or tunnel carries a turn past the filter, because evading a site
+  policy is the wrong answer on this network. The recipe stays installed and
+  stands aside by itself before a turn is spent on it (*a provider that cannot
+  answer from here*, below), and
+  the measurements are in `projects/libr-local-llm/docs/deepseek-egress.md`.
 
 - **DEEPSEEK IS THE CLAUDE BINARY POINTED SOMEWHERE ELSE, AND THAT IS WHY IT IS
   CHEAP.** It serves an Anthropic-format `/messages` endpoint, so `cmd` is
