@@ -33,10 +33,10 @@ from here and is not going to**: `api.deepseek.com` is reset at the TLS
 handshake from every compute node, so the board stands it aside and the evening
 runs on another provider.
 
-**Two builds are left, and they come first**: the meeting deck has to become
-a presentation (item 1), and ink in the reader has to say it is kept and be
-keepable as a copy (item 2). After them, one dispatch only the account holder
-can make, and a list of evenings in front of the thing.
+**One small build is left, and it comes first**: the /meeting reader's ink
+has to say it is kept, as the library reader's does (item 1). After it, one
+dispatch only the account holder can make, and a list of evenings in front of
+the thing.
 
 `board/README.md` is the architecture. This file says what is left.
 
@@ -51,8 +51,8 @@ Nobody has to ask for that. *"Look at HANDOFF"* means all of it:
    CAN DO.** It is the lowest-numbered one on purpose — the numbering carries the
    order things have to land in, and each item says what it depends on where that
    matters. If the owner names a different one, that wins. **Each item's heading
-   says whose hands it needs**: 1 and 2 are builds, 3 needs the account
-   holder, 4 is a list of evenings in front of the thing.
+   says whose hands it needs**: 1 is a build, 2 needs the account
+   holder, 3 is a list of evenings in front of the thing.
 2. **Read that item whole before touching anything.** An item says what already
    exists (measured, not assumed), what is missing, where it goes, the decisions
    to take deliberately, and what to assert. The decisions are the expensive part:
@@ -75,7 +75,7 @@ An item is not done because its code runs. It is done when the suite is green,
 the rule is written where the next turn will read it, and the item is out of this
 file.
 
-**Item 4 does not come out this way.** It is a list of evenings in front of the
+**Item 3 does not come out this way.** It is a list of evenings in front of the
 thing, and only the person holding the iPad can strike those.
 
 ---
@@ -170,280 +170,20 @@ three providers behind one tap on the front door, a swap between them that costs
 the lesson nothing, and a fourth costing one entry in a config file and one line
 in a key file. All of that is Settled below.**
 
-**Two things here are builds: the meeting deck (item 1) and keeping ink in the
-reader (item 2).** Item 3 needs the account holder; item 4 is a list of
-evenings in front of the thing.
+**One thing here is a build: the /meeting reader's ink (item 1).** Item 2
+needs the account holder; item 3 is a list of evenings in front of the thing.
 
 ---
 
 ## What to do next
 
-### 1. The meeting deck becomes a presentation — A BUILD
+### 1. The /meeting reader's ink says it is kept, as the library reader's does — A BUILD
 
-**The ask, in the owner's words:** *"I just used the meeting notes
-functionality to try to review the most recent implementations we did in
-PSYCH-ASR and TRD-EHR. I'm looking at the meeting deck right now. It's absolute
-dog shit."* The test is whether it can *"actually generate a professional
-coherent presentation on my most recent progress"* — something they would put
-in front of their mentors without rewriting it.
+`web/meeting.js` has its own save path and saves silently: no status
+line, no retry, no build stamp and no marked copy. Nothing blocks it. Copy what *Ink in the
+library reader says it is kept* under Settled describes, onto `/meeting`.
 
-**The evidence is on disk.** `meetings/meeting.{tex,pdf,json}` is the deck
-built 2026-09-28 20:18 with *the last week*, PSYCH-ASR and TRD-EHR ticked. It
-has three pages: a title page, one bulleted frame per project, and about 80 %
-of each frame blank. Render it with `pdftoppm` before changing anything and
-compare against it afterwards. The files are staged, not committed. Leave them
-as the "before" until the new deck replaces them.
-
-**What it says, against what happened.** TRD-EHR's week was this: the KNN gap
-turned out to be neighbourhood size, not the metric (`3ffcb48d`). Retrieval
-became two arms, plain versus importance-weighted cosine (`4a837721`). The k
-sweep gives 0.602 (0.587–0.619) at k = 50 (`02495b3e`). The senior author's
-2026-09-21 revision was applied to the manuscript and supplement (`2f22453a`,
-`10fd3e0b`), and Figure 4 was drawn. The frame shows none of it. It shows the
-four newest commit subjects, cut at 78 characters mid-clause, then
-*"… and 12 more"* and *"Next. INTEGRATE HIS SECTIONS."* PSYCH-ASR's week was
-a direction change: the master reference transcript is built and awaits
-Madison's approval, and the grid is next (`DIRECTION.md`, set 2026-09-21
-20:30). Its frame shows *"courses/Probability: lesson complete"*,
-*"Next. THE GRID, WHICH IS A CUBE."* and *"the grid waits on the stopwatch"*.
-
-**The diagnosis, cause by cause.** Each one is in `tutorboard/meeting.py` unless
-it says otherwise.
-
-1. **"Assembled, not generated" is the root cause, and it is a decision to
-   reverse, not a bug to patch.** Every line is a commit subject, a plan
-   heading or a box name (`frames`, and the module docstring). A deck built
-   from those is a changelog. Commit subjects here are 200–400-word paragraphs
-   written for `git log`. Clipping one gives half a clause. Nothing in the
-   module can state a finding, carry a number, explain a figure or tell a
-   story. The property the rule protected, *nothing on a slide nobody can
-   stand behind*, is still wanted. It has to come from provenance (cause 9),
-   not from refusing to write.
-2. **Selection is by recency, not by weight.** `DECK_COMMITS = 4` newest
-   subjects, with the rest counted. On TRD-EHR the four newest are
-   housekeeping: Figure 4 mirroring, limitations wording, cover-letter sync. The
-   week's findings are all in *"12 more"*.
-3. **Attribution is by pathspec, so save sweeps pollute every frame.**
-   `landed` counts any commit that touched the workspace's path. A course's
-   *lesson complete* save sweeps uncommitted files from all over the tree
-   So `19337034 courses/
-   Probability: lesson complete` sits on both frames, because it carried both
-   research HANDOFF.md diffs. Of TRD-EHR's "16 commits", seven are saves or
-   another workspace's work. That makes *"16 commits, 172 files touched"* noise
-   presented as a headline. **The saves still carry real content**: their
-   HANDOFF.md diffs are often the best record of the week. Read the diff, not
-   the subject.
-4. **The window is a hard cliff at now − 7 × 24 h.** *The last week* at 20:18
-   on 9-28 starts at 20:18 on 9-21. PSYCH-ASR's `psych-asr direction change`
-   landed at 20:13 on 9-21 and was cut by five minutes. That makes the frame
-   empty of the one thing that happened. Nothing snaps to a day boundary, and
-   nothing looks at "since the last meeting" by content.
-5. **Next and Blocked are raw plan headings and private box names.**
-   `nextup` returns TODO headings verbatim, in capitals. `INTEGRATE HIS
-   SECTIONS` is also **stale**: that integration landed in `2f22453a` and
-   `10fd3e0b`, and the TODO was not pruned. *His* has no referent for anyone in
-   the room. `blocked` spends written-map names (*the grid*, *the stopwatch*),
-   which mean nothing to a mentor. Nothing checks a plan step against what
-   landed.
-6. **The sources that hold the story are never read.** The per-workspace
-   `HANDOFF.md` and `DIRECTION.md` diffs, the sittings filed in the window and
-   their cards, the figures in `results/` (`results.find`/`figures`: the k-sweep
-   figure, `cross_embedder_robustness_EMBEDDED.png`), and the manuscript's
-   current numbers. The meeting deck reads commits, plan headings and box
-   names, and nothing else.
-7. **One frame per workspace is forced, and the reason is ink routing, not
-   presentation.** The page a mark is on is how `proposals.py` routes a
-   mentor's ink to a workspace (`page_map`, `meetings/meeting.json`). So the
-   deck cannot give a project a findings slide, a figure slide and a
-   next-steps slide. `[shrink=25]` and `\small` then shrink one bulleted list
-   into the top fifth of the frame. It has no agenda, no one-slide summary, no
-   figures, and no slide of decisions or asks for the mentors. Its title is
-   *"Where the work is"*.
-8. **Every title and box links to `http://compute-node.tail0c6c62.ts.net:8937#/w/…`.**
-   That is right on the owner's glass and wrong in a PDF shown to an audience.
-   A mentor cannot open it, and it prints an internal tailnet hostname into a
-   document meant for people outside it.
-9. **The right machinery already exists, next door.** *Slides from sittings*
-   (`tutorboard/sittings.py`; see *Slides from sittings* in `board/README.md`)
-   writes a deck with a `[writeup]` turn. That turn works over `_brief.md` /
-   `_brief.json` (the ticked items, their sources, the cards' paths, the
-   fences, a figure catalog), copies figures in, lets the writer pull more with
-   `board deckfig`, and keeps a fenced workspace's deck in that workspace
-   (`host_for`). It lands in a library, where ink is a revision. TRD-EHR's
-   `writeups/deck-260925-0942/` came out of it. The meeting deck is the older,
-   assembled path, and the two have drifted apart.
-
-**What to build.**
-
-1. **The meeting deck is written by a turn over a brief**, through
-   `routes/library.py::_dispatch_writeup`, the way the sittings deck is.
-   `meeting.build` stops emitting frames and emits the brief. Per chosen
-   workspace, the brief carries:
-   - the substantive commits, with **full bodies**. A commit counts for a
-     workspace only if its own work is there: not a `<other workspace>: …`
-     save, and not a `lesson complete` / `stopping point` / `handoff` save. For
-     those, carry the HANDOFF.md / DIRECTION.md **diff** they contain instead.
-   - the HANDOFF.md and DIRECTION.md diffs over the window, as text.
-   - the sittings filed in the window, with card paths, off `sittings.listing`.
-   - the plan steps that closed (`closed`), and the open steps with a flag on
-     any that a landed commit appears to satisfy.
-   - the figure catalog: the window's `results/` figures first, copied the way
-     `sittings` copies them.
-2. **The deck's shape is a presentation to mentors.** A title with the period.
-   One summary slide: each project in one line, with its headline number. Then
-   per project, as many frames as it needs: what was found (number plus
-   figure), what changed in direction and why, and what is next in plain
-   words. Then a closing slide of decisions or asks for the mentors. No
-   internal names (box names, TODO headings, *his*), and no tailnet links in the
-   body. Put the prompt in `sense.py` beside `sittings_about`. The brief says
-   who the audience is.
-3. **Ink routing survives multi-frame projects.** The writer marks every
-   content frame with one workspace: a `\meetingws{research/TRD-EHR}` macro
-   that writes to the `.aux`, or an equivalent the build can read back. The
-   page map is derived from the **compiled PDF** rather than assumed one page
-   per workspace. A content page with no workspace, or two, refuses the deck by
-   name before it is offered. The title, summary and closing pages belong to
-   nobody, as page 1 does now.
-4. **Provenance replaces "nothing invented".** After the build, every number
-   in the `.tex` and every figure it includes must appear in a brief source or
-   in the catalog. Anything unsupported is listed in a sidecar the `/meeting`
-   page shows. It is never silently dropped and never silently shipped.
-5. **The window snaps to a local day boundary**, and *since the last deck*
-   stays the default. The title slide says the exact period.
-6. **The sheet reports progress** the way a sittings deck does (`writeups`
-   record: *being written* → *Ready* / *Did not land*), because a writer turn
-   takes minutes and the sheet today builds in one request.
-
-**Decisions to take deliberately.**
-
-- **Merge or keep two.** A meeting deck *is* a sittings deck with a preset (all
-  of a period's sittings plus commits, across the chosen workspaces) and with
-  ink meaning *direction* rather than *revision*. One engine with two entry
-  points is the recommendation. Two engines is how this drift happened.
-- **Where it lives, given the fence.** `meetings/` is tracked in a **public**
-  repository. A written deck about PSYCH-ASR is session-adjacent prose.
-  `host_for` exists because of that. Either keep the meeting PDF, brief and
-  figures untracked (a `.gitignore` like the sittings deck folder's) with only
-  the `.tex` tracked after the push's PHI scan, or refuse a PSYCH-ASR meeting
-  deck outside PSYCH-ASR. Do not decide this by leaving it as it is.
-- **Which assistant writes it.** A deck touching a fenced workspace is written
-  by whatever may read that workspace. `host_for` and `sense.sittings_about`
-  already answer this for the sittings deck. Take that answer, don't invent a
-  second.
-- **Keep "one deck, replaced each time"** and the propose-only direction
-  routing. Those parts work.
-
-**What to assert.** On a fixture built like this week's tree: TRD-EHR's brief
-carries the bodies of `3ffcb48d`-, `4a837721`- and `02495b3e`-shaped commits.
-A `courses/X: lesson complete` save that touched TRD-EHR's HANDOFF.md
-contributes that diff and is **not** listed as a TRD-EHR commit. A commit five
-minutes before a naive seven-day cliff is inside the snapped window. A stale
-TODO step that a landed commit satisfies is flagged. A compiled two-frame
-project routes ink on both of its pages to its workspace, and a frame with no
-`\meetingws` refuses the deck. No tailnet URL and no all-caps plan heading
-appears in the PDF's text. A number not in any source is in the sidecar. Then,
-on the real tree, build *the last week* for PSYCH-ASR and TRD-EHR, render every
-page, and look at them before calling it done. The suite cannot tell you
-whether a deck is professional.
-
-### 2. Ink in the reader says it is kept, and can be kept as a copy — A BUILD
-
-**The ask, in the owner's words:** *"if I'm in the middle of marking up a paper
-or presentation, but then I go to bed, is there a way to save my markups
-without overwriting the original paper? … I don't see an option now that I'm
-looking at the manuscript."*
-
-**What exists, measured.** The ink is already safe. What is missing is saying
-so, and a copy that keeps it.
-
-- **Strokes autosave**, and none of them touches the PDF. `web/library.js`
-  `queuePenSave` → `savePen` posts `/annotate/save` 900 ms after the pen lifts,
-  on *done marking*, and on `pagehide`. The record goes in the served
-  workspace's `live/annotations/`, keyed `doc/<library id>/p<n>`. Reopening
-  the document draws the ink again. Unsent ink stays until a note carries it
-  and that round lands (`library.wipe_delivered`). So going to bed loses no
-  strokes today.
-- **Nothing on the glass says any of that.** The reader bar has
-  *✎ mark it up / ✎ done marking* and nothing else: no *saved*, no
-  *N pages marked*, no failure. A failed save is silent. `savePen`'s fetch has
-  no catch, the page stays in `Annotate.unsaved()`, and it is retried only when
-  the next stroke is drawn. Nothing retries it on `online` or on
-  `visibilitychange`. iOS in a home-screen app does not reliably fire
-  `pagehide` when the lid shuts.
-- **The typed half is not kept at all.** The *say what is wrong* text and an
-  overhaul's purpose are not stored anywhere. They are lost on a reload, a
-  closed tab, or an app evicted overnight.
-- **There is no marked copy.** `course/burn.py` writes ink into a PDF with
-  `same` / `new` / `none` (`POST /annotate/burn`). It serves only the board's
-  own viewer kinds: `lesson`, `homework`, and `doc/<reading id>` via
-  `reading.find`. It does not take a **library** id, and the library reader
-  has no control for it. That is the option the owner looked for on the
-  manuscript and did not find.
-- **Ink is not tied to the build it was drawn on.** The record holds strokes
-  per page number and nothing about which PDF. A document rebuilt overnight
-  moves its text under the marks without a word. TRD-EHR's manuscript was
-  rebuilt three times on 2026-09-28 alone, and sources that change it
-  include a revision round, Paper-Writer and a `parts/` re-cut.
-- **`live/` is gitignored** (`research/TRD-EHR/.gitignore`: `live/`). Ink is
-  on one disk with no history. A marked copy is the only form of it that
-  lasts.
-
-**What to build.**
-
-1. **The reader says where the ink is.** A status line in `#reader-bar`,
-   driven by `savePen`'s promise: *saved · 3 pages marked*, *saving…*, and
-   *not saved — retrying*. Catch the failure, keep the pages unsaved, and retry
-   on `online`, on `visibilitychange` back to visible, and on a timer. Flush on
-   `visibilitychange` to hidden with `fetch(..., {keepalive: true})`, because
-   that is the event iOS actually fires when the lid shuts. The library list
-   row already says *marked up on N pages* (`web/library.js`, off
-   `doc.marks`). The reader, where the ink is being drawn, is what says
-   nothing.
-2. **Drafts are kept.** The note text and purpose, per document id, go in
-   `localStorage` on every input and are restored when that document's note
-   panel opens. They are cleared when the note is actually filed (the
-   `/library/feedback` reply is `ok`), not when it is tapped.
-3. **⤓ keep a marked copy, in the reader.** Burn this document's ink into a
-   **new** PDF and never over the original. That means `burn.burn` learning a
-   library kind: resolve through `library.path_of` / `library.find` and read
-   strokes under the library id, which is `writing.ANN_DOC`'s
-   `doc/<id>/p<n>` either way. Answer with the new file's name, and offer it
-   through *save a copy* (the share sheet, `saveCopy`'s route) so it can go to
-   Files that night.
-4. **Ink knows its build.** Stamp each saved page with the PDF's modification
-   time and page count, at save. When the reader opens a document rebuilt
-   since, it says so above the pages: *these marks were drawn on the 28 Sep
-   21:40 build; the document has been rebuilt since*. It offers the marked
-   copy, which is burned from the build the marks were drawn on if that
-   rendering is still in the page cache, and otherwise says it cannot be.
-
-**Decisions to take deliberately.**
-
-- **Where a marked copy goes.** It must not reappear in the library as a new
-  document, and must not be offered to a revision as the source. Candidates:
-  a `marked/` directory beside the document that `library._walk` skips (add it
-  to the pruned set), or `live/marked/<doc id>/` (untracked, one disk). **A
-  marked copy of a PSYCH-ASR document is fenced content**: it follows
-  `fenced.refused` and never lands anywhere tracked or public. Atlas is
-  public, and `writeups/` and `paper1-*` are tracked.
-- **No overwrite from the library.** The owner asked for *"without
-  overwriting"*. A library document's PDF is rebuilt by whatever machinery
-  made it, and Paper-Writer owns a delivered manuscript. Offer `new` only.
-  The board viewer's own three-way choice for a compiled write-up stays as it
-  is.
-- **Whether a marked copy counts as sending.** It does not. Keeping a copy
-  marks nothing delivered, so the ink still goes with the next note.
-
-**What to assert.** A save that fails is shown, retried on `online`, and
-cleared from *unsaved* only on success. A hidden page flushes with
-`keepalive`. A draft typed and reloaded comes back, and is gone after a
-successful send and not after a refused one. `POST /annotate/burn` with a
-library id writes a new file, leaves the original's bytes and mtime unchanged,
-and refuses a fenced path outside its fence. The marked copy is not in
-`library.documents` afterwards. A page saved against one build and reopened
-after a rebuild carries the *rebuilt since* flag.
-
-### 3. Ask GitHub to collect the instructor slides, which the rewrite did not reach — THE ACCOUNT HOLDER'S
+### 2. Ask GitHub to collect the instructor slides, which the rewrite did not reach — THE ACCOUNT HOLDER'S
 
 **The seventeen decks and sheets are out of every commit here and off `main`, and
 GitHub still serves all seventeen at the pre-rewrite SHA.** A raw fetch of
@@ -466,9 +206,16 @@ Until one of those lands, treat the decks as published. Nothing else is
 outstanding: `.gitignore` refuses them, `test/tracked.py` refuses them for every
 course, and the files are on disk where the board reads them.
 
-### 4. And the six things no test can hold — THE IPAD'S
+### 3. And the seven things no test can hold — THE IPAD'S
 
 None of these is a build. Each is an evening in front of the thing.
+
+- **The meeting deck, written by a real turn.** A real `[writeup]` turn has
+  not yet built the meeting deck. The first one from the front door (*the
+  meeting deck*, a period, the projects ticked, *Make the deck*) is the check
+  that the local model follows `MEETING_ABOUT`'s shape and the `\meetingws`
+  rule, and that the deck is read back once its turn ends. Render every page
+  and judge it as a mentor would.
 
 - **The documents region, on TRD-EHR, on the glass.** The build is Settled.
   Open the map and check three things. Is *Papers & presentations* at the top
@@ -562,6 +309,134 @@ as the answer.
 ---
 
 ## Settled, so nobody re-derives it
+
+- **THE MEETING DECK IS WRITTEN BY A TURN OVER A BRIEF.** It is the deck from
+  sittings with a preset. There is one engine with two entry points: the front
+  door's sheet (`POST /notes`) and `board notes --meeting`. Both go through
+  `routes/library.py::ask_meeting`, which uses `dispatch`, the handler-free
+  core of `_dispatch_writeup`. The `[writeup]` line is
+  `sense.writeup_sense("slides", sense.meeting_about(...))`, and
+  `MEETING_ABOUT` sits beside `SITTINGS_ABOUT`. It tells the writer the deck
+  is read on `/meeting`, not in the library.
+  **What the brief carries.** `meeting.blocks_for` gathers, per chosen
+  workspace: the commits that are its own work, with full messages (6000
+  characters at most), and a commit that also changed HANDOFF.md or
+  DIRECTION.md carries that diff too. `classify` calls a subject prefixed with
+  another workspace's id `other`. A subject reading `lesson complete`,
+  `lesson transcript`, `stopping point` or `… handoff` is a `save`. A commit
+  whose only files here are HANDOFF.md/DIRECTION.md, while it changed files
+  elsewhere, is `other`. Saves and others carry their HANDOFF.md/DIRECTION.md
+  diff and are never listed as the workspace's commits, because a save's
+  subject says nothing and its diff is often the week's best record. The brief
+  also carries HANDOFF.md and DIRECTION.md's diff over the period against the
+  working tree, the sittings held (off `sittings._shown`), and the plan steps
+  that closed. When most of a plan goes at once, those steps are listed as
+  dropped, not done. Each open step is headed by its words up to the first
+  full stop, in sentence case, and is flagged MAY ALREADY BE DONE when a
+  landed commit holds most of the heading's stems. The period's figures are
+  copied by `sittings.snapshot`, with a catalog for `board deckfig`.
+  **The window** snaps to a local midnight. *Since the last deck* reads the
+  record's `asked_at`. The title slide says `period_text`'s exact period.
+  **Where it lives.** In one host workspace, at `writeups/meeting/meeting.tex`,
+  replaced each time. The host is `sittings.host_for`'s answer, so a fenced
+  workspace hosts any deck that touches it and its own assistant writes it.
+  `sittings.mixed_fences` refuses a deck touching two fenced workspaces. Only
+  the .tex and meetingws.sty are tracked, after the push's PHI scan; figures,
+  the PDF, `_brief.*`, `_provenance.*` and LaTeX leftovers are ignored by the
+  deck's own .gitignore. A `writeups/meeting/` the board did not write refuses
+  the ask (`meeting.occupied`), because asking would write over it.
+  `board notes --brief-to DIR` writes outside the repository and is refused
+  when a chosen workspace is fenced. `meetings/` at the root is untracked and
+  ignored: meeting.json is the pointer, state and page map, and `marks/` holds
+  the pictures of ink. The library leaves the deck out
+  (`library._meeting_deck`), because its reader is `/meeting`, where ink is
+  direction.
+  **Ink routing.** Every frame calls exactly one of `\meetingws{<workspace id>}`
+  or `\meetingshared`, from meetingws.sty. Each writes
+  `\meetingpage{page}{id}` to the .aux at shipout. `meeting.page_map` reads
+  the .aux against pdfinfo's page count. A page with no mark, two marks, or a
+  workspace the deck is not about refuses the deck by page before it is
+  offered. A project gets as many frames as it needs. The writer builds with
+  pdflatex twice in the deck's directory, because latexmk is broken on the
+  compute nodes (no Time::HiRes).
+  **Provenance.** `meeting.finalize` checks every number in the .tex body
+  against every rounding of every number in the brief and the files it names;
+  a percentage form counts. Every image the build read is checked against what
+  the board copied or deckfig could have copied. A tailnet, loopback or `#/w/`
+  address refuses the deck, whether it is in the PDF's text or in the .tex,
+  because a link's target is not text. A plan heading copied in capitals is
+  listed. Everything unsupported goes to `_provenance.json` and is shown on
+  `/meeting`.
+  **States.** `meeting.status` judges the deck whenever `/meeting/deck.json`
+  or `/meeting/view` is asked for: *being written*, then *Ready* or *Did not
+  land*. A built deck is read back once, when the host's turn is over and the
+  directory has been still for SETTLE, or at CEILING, because a writer builds,
+  looks and builds again, and a mid-turn read would freeze a page map of a
+  deck that no longer exists. On Ready or Did not land it freezes the host's
+  writeup record to done or failed. The sheet polls every 10 s, and
+  `/meeting/view` draws only a ready deck. `meeting.prepare` clears the old
+  deck, its ink and its pictures when a new one is asked for. One deck,
+  replaced each time, and the propose-only direction routing (`proposals.py`)
+  hold as they were. `test/meeting.py` is the contract; see *The meeting deck*
+  in `board/README.md`.
+
+- **INK IN THE LIBRARY READER SAYS IT IS KEPT.** `#reader-kept` reads *saved ·
+  N pages marked*, *saving…* or *not saved — retrying*, driven by `savePen`'s
+  own answers. A failed save keeps the page unsaved and is retried on a timer
+  that backs off, on `online`, and on `visibilitychange` back to visible.
+  Going hidden flushes everything owed at once with `fetch(…, {keepalive:
+  true})`, because iOS fires that event when the lid shuts and does not
+  reliably fire `pagehide`. Keepalive bodies share a 60000-byte budget per
+  flush, because browsers reject keepalive requests past about 64 KB; a
+  heavier page goes as an ordinary request. The page keeps its own copy of
+  every unconfirmed body (`owed`), so ink whose save failed as the reader
+  closed is still retried after `Annotate.forget`. Only one save per key is in
+  flight at a time, and `savePen` waits on the ones already in flight. A key
+  is cleaned only if the strokes on the glass are the ones that went.
+  **Drafts are kept.** The note text, its ask and an overhaul's purpose go to
+  `localStorage` under `library.draft:<id>` on every input and on a tap of the
+  ask. They come back when that document's note opens. They are removed only
+  when the note is filed (the `/library/feedback` or `/library/direction`
+  reply is ok), so a refused send leaves them.
+  **Ink knows its build.** `/library/view/<id>` answers with `build` =
+  `{digest, at, pages}`, where the digest is `paper._digest`'s name for that
+  exact PDF. The reader sends it with every save of that document's ink, and
+  `/annotate/save` stores it on the record (`writing.clean_build`). A save
+  naming no build keeps the recorded one while the strokes are unchanged.
+  `library.drawn_on` compares the stamps with the PDF on disk. Where any
+  marked page was drawn on another build, the view carries `rebuilt` and the
+  reader says above the pages *these marks were drawn on the 28 Sep 21:40
+  build; the document has been rebuilt since*. It offers the copy while that
+  build's pages are still in `paper.cached`, and otherwise says a copy cannot
+  be made. Marks spanning two builds cannot be copied either. Unstamped ink
+  (older records, the board viewer, `/meeting`) goes with whichever build is
+  burned. A page's stamp covers all its strokes, so new ink on a rebuilt page
+  re-stamps the old strokes on it.
+  **A marked copy goes to `live/marked/<doc id>/<stem>-annotated-<day>.pdf` in
+  the serving workspace, never beside the document.** `live/` is in
+  `reading.IGNORE`, so the copy is never listed by the library and never
+  handed to a revision as a source. The directory writes its own `*` ignore
+  rule, as the page cache does, and is then checked with `git check-ignore`.
+  A copy git would carry is refused with nothing written, so a copy of fenced
+  (PSYCH-ASR) content stays inside its own workspace and out of every commit.
+  A document inside a fence (`fenced.NEVER` anywhere in its path, or
+  `fenced.refused_in`) is refused by name with `why: fenced`.
+  **No overwrite from the library.** `POST /annotate/burn` with kind
+  `library/<id>` is `burn.burn_library`. It takes `new` only and refuses
+  `same` and `none` (`why: no-overwrite`), because whatever made a library
+  document rebuilds it and Paper-Writer owns a delivered manuscript. The board
+  viewer's own same/new/none choice for `lesson`, `homework` and
+  `doc/<reading id>` stands. Strokes are read under every
+  `library.mark_idents` name. A copy of an older build is made from its cached
+  PNGs, embedded under FlateDecode with the PNG predictor, and a mark on a
+  page past that build's cached page count is not in it. *⤓ keep a marked
+  copy* waits until every save in flight has landed before it burns.
+  **Keeping a copy is not sending.** Burning marks nothing delivered: `sent`
+  stays false and the ink still goes with the next note. The reply names the
+  file and its `url`, and *save a copy* hands `GET /library/marked/<id>/<name>`
+  (an attachment, the name matched against that directory's listing) to the
+  share sheet, with the same fallbacks as `board.js` `saveCopy`.
+  `test/burn.py` and the ink sections of `test/library.js` are the contract.
 
 - **EVERY MAP CARRIES ITS DOCUMENTS AS ONE REGION, AND A TAP READS ONE.**
   `map.documents_region` is `library.documents`, the reader's own ids, with no
