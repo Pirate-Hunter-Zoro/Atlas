@@ -1,117 +1,5 @@
 # HANDOFF — the iPad is where the work is directed from
 
-## DO THIS FIRST — *send my annotations* becomes a picker that is always there
-
-**This comes before everything below, including item 1.** It is one build, for one
-session. When it lands: delete this whole section, write the rule into *Settled*,
-and add its iPad checks (listed at the end of this section) to item 1. After that
-the file should read the way it did before this section was added.
-
-**What the owner asked for, in their words:** the button is *"always available and
-movable just like the re-centre, my ink, and rethink buttons"*, and *"I want to be
-able to select any and all (any subset) tutor responses which I have made an
-annotation on … if I haven't annotated, none will be available and I won't be able
-to send my annotations, which is how it should be."*
-
-### What exists (measured)
-
-- `#notesend` (`board/web/board.html`, *send my annotations*) is **already a
-  widget in the `Recentre` stack**, registered in `board.js` beside `#findink`,
-  `#mapback` and `#redirect` with `onTap: sendNotesNow`. It is already
-  press-and-hold movable, and it remembers where it was put under
-  `board.panic.notesend`. `test/panic.js` holds that. **The move is already done.
-  What is missing is that the button is always showing.**
-- `paintNotesSend()` hides it in three cases: no unsent marks
-  (`haveNotes()`), a writing surface owed (`!els.writer.hidden`), or the *don't
-  ask again* setting (`notesOff()`, localStorage `notes-off`).
-- `sendNotesNow()` → `saveNotes(true)` sends **every** card in
-  `Annotate.unsent()`, all at once, one `POST /annotate/save` per card. You
-  cannot choose which cards go.
-- `Annotate` (`board/web/annotate.js`) already answers the questions the picker
-  needs. `marked()` gives every card id with marks on it. `unsent()` gives the
-  ones not yet handed over. `payload(id, true)` / `sent(id)` send one card.
-- After the writing surface's Send, `#sendwhat` offers the marks as a follow-up
-  (*working sent. You have marks on the lesson too.* — `send those as well` /
-  cancel / don't ask again). That route calls `saveNotes(true)` too. With a
-  blank surface and unsent marks, `askWhatToSend` sends the marks as the answer.
-
-### What to build
-
-1. **Always visible.** `#notesend` shows on every board page whenever the
-   lesson is showing, whatever `haveNotes()`, `notesOff()` or the writing
-   surface say. With no marks anywhere it is still there. It opens the picker,
-   and the picker says there is nothing to send.
-2. **Tapping it opens a picker, and the picker sends.** The tap never sends by
-   itself. The picker lists every tutor response (card) that has marks on it, and
-   only those, one row each. Each row carries a checkbox and something to
-   recognise the card by: its chapter/question label or first line, plus how old
-   it is. A row can be tapped to jump to that card, the same way `revealNewest`
-   brings a card under the glass. The rows are 44px tall, and there is an
-   *all / none* toggle. The *Send* button names how many are ticked (*send 3*)
-   and is disabled at zero. With no marked cards, the list says *No annotations
-   yet* and there is nothing to tick. Nothing can be sent, which is the owner's
-   stated rule.
-3. **Send exactly the ticked set.** `saveNotes(true)` takes a list of ids and
-   sends only those. Nothing sends *all unsent* any more. Then
-   `paintNotesSend()`, `toastSent()`, and the button's disabled-while-sending
-   behaviour, the same as `sendNotesNow` has now.
-4. **Delete the follow-up prompt.** The picker makes it obsolete. Remove
-   `#sendwhat` from `board.html` along with its CSS, and remove `closeChooser`
-   and the `sendNotes` / `sendCancel` / `sendNoAsk` handlers. Remove
-   `notesOff` / `setNotesOff`, the `notes-off` localStorage key, and the
-   `#notesAgain` menu item that re-arms it. The writing surface's Send then sends
-   the working and nothing else. When the surface is blank, it opens the picker
-   instead of sending marks behind your back.
-5. **Where the picker sits.** It sits above the lesson at the widget layer, not
-   inside the card column, so it can be reached from the map as well
-   (`#redirect`'s sheet is the precedent: z-index 97). It needs Escape, a close
-   button, and a tap outside to close it.
-
-### Decisions to take deliberately
-
-- **Cards already sent.** `marked()` includes cards whose marks were handed over
-  and not changed since. Recommended: list them, unticked, labelled *sent*, and
-  let them be re-sent if ticked. Tick the unsent ones by default. The owner said
-  *any annotated response*, and re-sending one is harmless. What must not come
-  back is `saveNotes` re-sending everything by default, which is the defect the
-  comment in `saveNotes` records.
-- **The writing surface's own Send.** The working still goes first,
-  unconditionally. Keep the comment above `askWhatToSend` that explains why: a
-  Send that does nothing once cost two days of an answer. Marks never ride along
-  with the working. They go only through the picker.
-
-### What to assert
-
-- Extend `test/panic.js` and `test/link.js`, which drive a real DOM. The button
-  is visible with zero marks, with a writing surface owed, and with `notes-off`
-  set. With zero marks the picker lists nothing and Send is disabled. With marks
-  on three cards, where one was already sent, three rows are listed and two are
-  ticked. Ticking one and sending issues exactly one `/annotate/save`, for that
-  card. It stays movable, and it remembers its place.
-- `test/link.js:365` currently asserts that the button shows only with marks.
-  That assertion reverses. The test is right about the old rule and must be
-  rewritten to the new rule, not deleted.
-- `test/chrome.js:276` lists `.notesend` and `.sendwhat` among overlays. Take
-  `.sendwhat` out, and cover the picker the same way. The chooser checks at
-  `test/link.js:380` and `test/panic.js:501` go along with it. After the writing surface's Send
-  with marks on the lesson, assert that exactly one request went out, for the
-  working, and that no prompt appeared.
-- Bump `VERSION` in `board/web/sw.js`. `board.js`, `board.html` and `board.css`
-  are all shell files.
-
-### iPad checks to move into item 1 when this lands
-
-- *send my annotations* is on the screen with nothing annotated, and its picker
-  says so and will not send.
-- Annotate two old responses, open the picker, tick one, and send. Only that one
-  reaches the tutor.
-- Write an answer on the surface with marks on the lesson, and send. The working
-  goes, and no *you have marks on the lesson too* prompt appears.
-- Press and hold the button, move it, and reload. It stays where you put it and
-  does not sit over the ink you are writing.
-
----
-
 **The aim is one sentence and it is a test: the only reason to open the laptop is
 to type code a card told you to type.** Everything else — choosing what a sitting
 is for, choosing who writes it, starting the local model, putting a workspace to
@@ -287,7 +175,7 @@ in a key file. All of that is Settled below.**
 
 ## What to do next
 
-### 1. And the seven things no test can hold — THE IPAD'S
+### 1. And the eight things no test can hold — THE IPAD'S
 
 None of these is a build. Each is an evening in front of the thing.
 
@@ -356,6 +244,13 @@ None of these is a build. Each is an evening in front of the thing.
   figure at 200% zoom on an iPad, and that page's pen has never met a stylus —
   and **whether the reader is any good**, which is the one word in the question
   the library came from that no amount of code answers: *slick*.
+- **Send my annotations, on the glass.** The build is Settled. Four checks. It
+  is on the screen with nothing annotated, and its picker says so and will not
+  send. Annotate two old responses, open the picker, tick one and send: only
+  that one reaches the tutor. Write an answer on the surface with marks on the
+  lesson and send: the working goes, and no prompt about the marks appears.
+  Press and hold the button, move it and reload: it stays where you put it and
+  does not sit over the ink you are writing.
 - **The three teaching rules that were asked for out loud**, all of them
   instructions rather than mechanisms: the question restated under the definition
   list so it is the last thing above the board, the write-up compiled problem by
@@ -391,6 +286,19 @@ as the answer.
 
 ## Settled, so nobody re-derives it
 
+- **MARKS ON THE LESSON GO THROUGH THE PICKER, AND ONLY THE TICKED ONES GO.**
+  `#notesend` is always on the glass, a member of the `Recentre` stack, raised
+  over the map with the rest of it. Its tap opens `#notepick` (z 98, the storey
+  `#steer` uses): one 44px row per card in `Annotate.marked()`, newest first,
+  unsent cards ticked, delivered ones listed as *sent* and unticked. A row's
+  tap brings its card under the glass through `revealCard`. *Send n* is
+  disabled at zero, so with nothing marked nothing can be sent.
+  `saveNotes(ids)` sends exactly the list it is given; with no list it is the
+  autosave, and there is no send-everything default. The writing surface's
+  Send sends the working alone; a blank surface with unsent marks opens the
+  picker. `#sendwhat`, `notes-off` and the menu's re-arm item do not exist.
+  The `.sendwhat` class stays: `#kind` and `#keepwhat` are strips of that
+  shape. `test/link.js` and `test/panic.js` hold all of it.
 - **A SHIP LANDS ON WHICHEVER NODE IS SERVING.** A board records the code
   stamp it loaded in `.board.json` as `code`, and a tutor daemon in
   `agent.json`. `tutorboard/stamp.py` hashes the git trees of `bin/tutor`,
