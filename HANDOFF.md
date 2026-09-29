@@ -30,10 +30,11 @@ nothing — because a turn is already cold and reads the lesson back off disk. A
 provider is a recipe plus a key and nothing else, so a fourth is one entry in a
 config file and one line in a key file. **DeepSeek's endpoint is the one that
 cannot be tapped yet**: `api.deepseek.com` is reset at the TLS handshake from
-every compute node, which is item 2 and is a firewall exception rather than a
+every compute node, which is item 3 and is a firewall exception rather than a
 setting.
 
-**What is left is not a build.** Two dispatches only the account holder can make,
+**One build is left, and it comes first**: every workspace's map carries its
+documents (item 1). After it, two dispatches only the account holder can make,
 and a list of evenings in front of the thing.
 
 `board/README.md` is the architecture. This file says what is left.
@@ -49,8 +50,8 @@ Nobody has to ask for that. *"Look at HANDOFF"* means all of it:
    CAN DO.** It is the lowest-numbered one on purpose — the numbering carries the
    order things have to land in, and each item says what it depends on where that
    matters. If the owner names a different one, that wins. **Each item's heading
-   says whose hands it needs**, and none of the three left is a keyboard's:
-   1 and 2 need the account holder, 3 is a list of evenings in front of the thing.
+   says whose hands it needs**: 1 is a build, 2 and 3 need the account holder,
+   4 is a list of evenings in front of the thing.
 2. **Read that item whole before touching anything.** An item says what already
    exists (measured, not assumed), what is missing, where it goes, the decisions
    to take deliberately, and what to assert. The decisions are the expensive part:
@@ -73,7 +74,7 @@ An item is not done because its code runs. It is done when the suite is green,
 the rule is written where the next turn will read it, and the item is out of this
 file.
 
-**Item 3 does not come out this way.** It is a list of evenings in front of the
+**Item 4 does not come out this way.** It is a list of evenings in front of the
 thing, and only the person holding the iPad can strike those.
 
 ---
@@ -175,7 +176,73 @@ is a list of evenings in front of the thing.
 
 ## What to do next
 
-### 1. Ask GitHub to collect the instructor slides, which the rewrite did not reach — THE ACCOUNT HOLDER'S
+### 1. Every workspace's map carries its documents — A BUILD
+
+**The ask, in the owner's words:** *"I should be able to access ANY AND ALL
+papers and presentations relevant to a project/course IN that project/course.
+When I'm on the map of a course, part of that map should show all
+papers/presentations pertaining to that project/course. I should be able to tap
+and see EVERYTHING from there, and be able to mark it up and give feedback and
+instruct the creation of new such papers and presentations when I click that
+portion of the map, which should exist for ALL courses and projects."*
+
+**What happened.** On 2026-09-28, standing on the TRD-EHR map with a finished
+manuscript to read, the owner could not find it. A session told them to use
+**▤ library · papers, decks & results** in the bar menu, or the
+**Papers, decks & results** button on the front door's workspace sheet. Both are
+in the source (`web/board.html` `#btn-library`, `web/home.html`
+`#sheet-library`), but the owner saw neither. Nobody has found out why yet. The
+likely suspects are a stale shell on the board serving from compute300, or a
+button hidden in a state nobody tested. Either way, a menu entry is not the
+answer: the map is where the owner looks, so the map is where the documents go.
+
+**What exists, measured.**
+- `course/reading.documents(root)` lists every PDF a workspace offers, up to
+  `MAX_DOCS` = 24, README-named first. For TRD-EHR it returns the manuscript,
+  the supplement, the cover letter, the checklist, all 15 manuscript sections,
+  the homework write-up, both decks and the planning PDFs. So discovery is done.
+- `map._loose_docs` puts document boxes on a map, but **only on a written map**
+  (`live/map.json`), at most `MAX_LOOSE_DOCS` = 8. TRD-EHR, like most
+  workspaces, has a derived map, so it shows **no documents at all**. That gap
+  is the bug.
+- `/library` already reads, inks, sends fixes and overhauls, and sends
+  directions (see *Reading and ink* and *Fixes or directions* in
+  `board/README.md`). But it only serves the workspace the board is serving.
+- A new document can be asked for from a sitting (a `paper` sitting on a box),
+  but not from any place that lists documents.
+
+**What to build.**
+1. **One documents region on every map, derived or written, in every family.**
+   It is a fixed part of the map picture, not up to eight loose boxes. It shows
+   every document `reading.documents` returns, grouped (papers, decks, write-ups
+   and section parts) so a 24-item list stays readable. The one-per-document
+   loose boxes on written maps either fold into it or go.
+2. **A tap on a document opens it in the reader** with ink, *send it*, fixes or
+   overhaul, and directions: the `/library?doc=<id>` machinery reached from the
+   map. It switches the served workspace first when needed, the way
+   `openLibrary` in `web/home.js` does.
+3. **A tap on the region itself offers "make a new one"**, a paper or a deck,
+   with one line of what it is about. This starts the same writing turn a
+   `paper` sitting would, without asking the owner to open a sitting first.
+4. **Find out why neither existing entry point showed on the glass**, and fix
+   it or remove it. A button the owner cannot see is a false sentence in
+   `board/README.md`.
+
+**Decisions to take deliberately.**
+- The 24-document cap in `reading.py`. TRD-EHR is at the cap once its section
+  PDFs are counted. "EVERYTHING" means the region must not silently drop
+  documents. Either raise the cap for the region or show a count with a "more"
+  control.
+- Reference PDFs by other people (`_ours`) stay out. The ask is the
+  workspace's own papers and presentations.
+
+**What to assert.** On a workspace with no `live/map.json`, the map's JSON
+carries the documents region with every `reading.documents` entry. A tap
+address for a document resolves to the reader for it. The make-a-new-one
+action writes a turn in that workspace. And the region exists for a course, a
+research workspace, a project and a practice workspace alike.
+
+### 2. Ask GitHub to collect the instructor slides, which the rewrite did not reach — THE ACCOUNT HOLDER'S
 
 **The seventeen decks and sheets are out of every commit here and off `main`, and
 GitHub still serves all seventeen at the pre-rewrite SHA.** A raw fetch of
@@ -198,7 +265,7 @@ Until one of those lands, treat the decks as published. Nothing else is
 outstanding: `.gitignore` refuses them, `test/tracked.py` refuses them for every
 course, and the files are on disk where the board reads them.
 
-### 2. Ask for a firewall exception on `api.deepseek.com` — THE ACCOUNT HOLDER'S
+### 3. Ask for a firewall exception on `api.deepseek.com` — THE ACCOUNT HOLDER'S
 
 **One hostname is filtered and no client setting reaches it.**
 `api.deepseek.com` is reset during the TLS ClientHello from every c3 compute
@@ -225,7 +292,7 @@ as a turn, so `deepseek-flash` cannot be verified until the name is open, and
 `deepseek-flash[1m]` against the bare id is the open question in the recipe's
 own comment.
 
-### 3. And the six things no test can hold — THE IPAD'S
+### 4. And the six things no test can hold — THE IPAD'S
 
 None of these is a build. Each is an evening in front of the thing.
 
@@ -284,7 +351,7 @@ None of these is a build. Each is an evening in front of the thing.
   asserts only that they reach the course. **The first card of the next sitting is
   the real check.**
 - **A whole evening on DeepSeek, and a switch in the middle of one. BLOCKED ON
-  ITEM 2**: every turn to that endpoint is reset on the handshake from these
+  ITEM 3**: every turn to that endpoint is reset on the handshake from these
   nodes, so this evening cannot be had until the exception lands. The swap
   is a fact and the suite holds it; whether it is a *seam* is the evening. It is
   also the only place the PROVIDER is tested rather than this side of the wire:
