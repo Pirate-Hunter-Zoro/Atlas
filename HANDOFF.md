@@ -952,8 +952,6 @@ as the answer.
   auditor that reports true sentences as false is one somebody silences rather
   than reads, so that class stays a reader's job and `truthful.py` says so in
   place of the check.
-  **GitHub still serves the removed decks at pre-rewrite SHAs, and that is
-  accepted**: the owner does not want them collected, so nothing chases it.
   **Three of the findings were not about prose, and each is its own rule in this
   list.** The professor's module slides and the assignment sheets sat in a public
   repository under a README sentence saying the repository was private and that
