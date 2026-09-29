@@ -4384,11 +4384,17 @@ def cmd_restart(cfg, args, only=None):
     for s2 in skipped:
         print("  left alone: %s" % s2)
     if not wait_elsewhere:
+        # "Its watch restarts it" only when that node's watch has written a
+        # beat lately: a watch started before the ship beat existed never will.
         for c, info in elsewhere:
+            ship = ship_record(info["node"]) or {}
+            beating = time.time() - (ship.get("at") or 0) <= 3 * supervise.POLL
             print("  %s on %s: %s" % (
                 c["dir"], info["node"],
                 "already on %s" % tree if tree and info.get("code") == tree
-                else "that node's watch restarts it on its next beat"))
+                else "that node's watch restarts it on its next beat" if beating
+                else "not restarted -- no watch there runs the ship beat; it "
+                     "lands at the chain's next generation (tutor serve status)"))
 
     if "--tutors" not in args:
         return (await_elsewhere(cfg, elsewhere, tree, started)

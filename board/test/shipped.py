@@ -524,6 +524,13 @@ try:
     out = restart(["--stale", "--wait"])
     check("and a reason that node's beat recorded is passed on",
           "not restarted -- the tree does not import" in out)
+    os.remove(os.path.join(state, "ship-%s.json" % THERE))
+    out = restart(["--stale"])
+    check("without --wait, a node with no watch beating is not promised a restart",
+          "There on %s: not restarted -- no watch there runs the ship beat"
+          % THERE in out)
+    write_json(os.path.join(state, "ship-%s.json" % THERE),
+               {"host": THERE, "at": time.time(), "tree": "T6"})
     out = restart(["--stale"])
     check("without --wait, another node's board is named with who restarts it",
           "There on %s: that node's watch restarts it on its next beat" % THERE
