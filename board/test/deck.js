@@ -110,6 +110,14 @@ for (const f of MEETING_SCRIPTS) {
 try { window.eval(fs.readFileSync(path.join(WEB, 'meeting.js'), 'utf8')); }
 catch (e) { fail('meeting.js: ' + e.message); }
 
+// THE DECK ZOOMS ITSELF, the library reader's way: `readerzoom.js` owns the
+// pinch and the palm, and a deck without it is a deck `library.css` would not
+// let a palm-free pen scroll.
+doc.getElementById('reader-pages').classList.contains('zoomable')
+  && doc.getElementById('reader-zoom')
+  ? ok('the deck pinches itself and a palm does not scroll it')
+  : fail('the deck is not wired to readerzoom.js');
+
 (async function () {
   await sleep(20);
 

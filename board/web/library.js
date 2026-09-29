@@ -61,6 +61,7 @@ var els = {
   readerSay: document.getElementById("reader-say"),
   readerMode: document.getElementById("reader-mode"),
   readerClose: document.getElementById("reader-close"),
+  readerZoom: document.getElementById("reader-zoom"),
   readerSaid: document.getElementById("reader-said"),
   readerKept: document.getElementById("reader-kept"),
   readerKeep: document.getElementById("reader-keep"),
@@ -500,6 +501,7 @@ function read(doc) {
   openPages = 0;
   drawnPages = 0;
   els.reader.hidden = false;
+  setZoom(1);
   els.readerPages.scrollTop = 0;
   draw(doc, 0);
 }
@@ -513,7 +515,23 @@ function read(doc) {
    Nothing had to change there; nothing asked. */
 function redraw() {
   if (!openDoc || els.reader.hidden) return;
-  draw(openDoc, pageInView());
+  /* Never under a nib. Emptying the pages mid-stroke takes the page the stroke
+     is on away from it, so the re-draw waits for the lift. */
+  if (window.Annotate && window.Annotate.busy && window.Annotate.busy()) {
+    setTimeout(redraw, 250);
+    return;
+  }
+  var page = pageInView();
+  draw(openDoc, page, page ? pageOffset(page) : 0);
+}
+
+/* How far the page's top edge sits below the scroller's, so a re-draw puts it
+   back to the pixel rather than to the top of the page. */
+function pageOffset(n) {
+  var el = els.readerPages.querySelector('.lib-page[data-page="' + n + '"]');
+  if (!el) return 0;
+  return el.getBoundingClientRect().top
+    - els.readerPages.getBoundingClientRect().top;
 }
 
 /* WHERE THE READER WAS, PUT BACK. A picture has no height until it has decoded,
@@ -522,6 +540,7 @@ function redraw() {
    they all have. Otherwise a 33-page deck comes back at page 1 after a one-line
    fix, which is its own defect. */
 var placeWanted = 0;
+var placeAt = 0;
 var placeUntil = 0;
 
 function keepPlace() {
@@ -531,13 +550,73 @@ function keepPlace() {
   if (!want) return;
   /* Against the SCROLLER'S OWN rectangle, for the reason `pageInView` gives:
      `offsetTop` is measured from whichever ancestor happens to be positioned. */
-  var top = els.readerPages.getBoundingClientRect().top;
+  var top = els.readerPages.getBoundingClientRect().top + placeAt;
   els.readerPages.scrollTop += want.getBoundingClientRect().top - top;
+  noteAnchor();
 }
 
-function draw(doc, place) {
+/* THE PAGE STAYS UNDER THE PEN. The pen reads a page's rectangle once, when
+   the nib lands (`annotate.js`, `follow`), and corrects it only for a scroll --
+   so anything that moves the pages by LAYOUT puts the rest of the stroke off by
+   exactly that much, and puts the next word somewhere the hand did not aim.
+   Here the pages move by layout all the time: the bar re-wraps as *saved · 12
+   pages* grows, a line above the pages appears or re-words itself on every
+   stamp poll, and a picture that decodes above the glass pushes everything
+   under it down. iOS Safari has no scroll anchoring, so this is it by hand:
+   the page on the glass keeps its place on the screen, whatever above it
+   changed size. `overflow-anchor: none` in `library.css` keeps a browser that
+   has its own from correcting twice. */
+var anchor = null;          /* { el, top }: a page and where it was on screen */
+var anchorWatch = null;
+
+function noteAnchor() {
+  var pages = els.readerPages.querySelectorAll(".lib-page");
+  var top = els.readerPages.getBoundingClientRect().top;
+  anchor = null;
+  for (var i = 0; i < pages.length; i++) {
+    var r = pages[i].getBoundingClientRect();
+    if (r.bottom > top) { anchor = { el: pages[i], top: r.top }; return; }
+  }
+}
+
+function holdAnchor() {
+  if (els.reader.hidden) return;
+  if (placeWanted && Date.now() <= placeUntil) { keepPlace(); return; }
+  if (!anchor || !anchor.el.isConnected) { noteAnchor(); return; }
+  var moved = anchor.el.getBoundingClientRect().top - anchor.top;
+  if (moved) els.readerPages.scrollTop += moved;
+  noteAnchor();
+}
+
+function watchLayout(el) {
+  if (!el) return;
+  if (!anchorWatch) {
+    if (typeof window.ResizeObserver !== "function") return;
+    anchorWatch = new window.ResizeObserver(holdAnchor);
+  }
+  anchorWatch.observe(el);
+}
+
+/* THE READER ZOOMS ITSELF, AND A PALM DOES NOT SCROLL: `readerzoom.js`, which
+   the meeting deck shares. A pinch takes the document off the re-draw's
+   restore, and the page it lands on is the new anchor. */
+var zoomer = window.ReaderZoom ? window.ReaderZoom.make({
+  scroller: els.readerPages,
+  chip: els.readerZoom,
+  open: function () { return !els.reader.hidden; },
+  committed: function () { placeWanted = 0; noteAnchor(); },
+}) : null;
+
+function setZoom(z) { if (zoomer) zoomer.set(z); }
+
+els.readerPages.addEventListener("scroll", noteAnchor, { passive: true });
+[document.getElementById("reader-bar"), els.readerSaid, els.readerRebuilt,
+ els.readerCopy].forEach(watchLayout);
+
+function draw(doc, place, at) {
   openPages = 0;
   placeWanted = place || 0;
+  placeAt = at || 0;
   /* Eight seconds is the whole budget for putting somebody back where they
      were. Past that they have scrolled somewhere themselves and a jump is
      the page taking the document off them. */
@@ -580,6 +659,7 @@ function draw(doc, place) {
         n.textContent = i + 1;
         fig.appendChild(n);
         els.readerPages.appendChild(fig);
+        watchLayout(fig);
         img.addEventListener("load", keepPlace);
         if (window.Annotate) {
           window.Annotate.attach(fig);

@@ -33,7 +33,7 @@ var els = {};
   "deck-back", "deck-count",
   "reader-name", "reader-sub", "reader-pen", "reader-close", "reader-said",
   "reader-kept", "reader-rebuilt",
-  "reader-pages", "deck-send", "deck-pdf",
+  "reader-pages", "reader-zoom", "deck-send", "deck-pdf",
   "note", "deck-ask-list", "deck-ask-said", "deck-ask-cancel", "deck-ask-go",
   "deck-check", "deck-check-head", "deck-check-list",
 ].forEach(function (id) {
@@ -261,6 +261,11 @@ var annBar = window.AnnBar && window.Annotate
 /* AND BOTH BARS STAY ON THE GLASS WHILE A SLIDE IS PINCHED -- see `viewpin.js`.
    Zoomed in, they used to pan off with the page, and with them every way to
    finish marking or send it. */
+/* A pinch is the deck's own, and a palm does not scroll it: `readerzoom.js`. */
+if (window.ReaderZoom) {
+  window.ReaderZoom.make({ scroller: els.readerPages, chip: els.readerZoom });
+}
+
 if (window.ViewPin) {
   window.ViewPin.pin(document.getElementById("reader-bar"),
                      { edge: "top", spacer: document.getElementById("reader"), z: "5" });

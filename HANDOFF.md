@@ -183,6 +183,12 @@ None of these is a build. Each is an evening in front of the thing.
 is the paper's own path. The meeting deck is how it reaches the mentors.
 The rest are course sittings and can wait.
 
+- **Zoom and the palm, on the glass.** The build is Settled. Pinch a paper
+  and a deck in and out: the bar stays put and the page under your fingers
+  stays under them. Write with the pen on and your hand resting: nothing
+  scrolls, two fingers still move the page. Whether two-finger panning with
+  the pen on is natural or a chore is the question no suite answers.
+
 - **One document, all the way round** — the build is Settled; this is the evening.
   Open a `paper` sitting on a box, let it write into `writeups/<slug>/`, compile
   it, open `/library`, read it on the glass, draw on it, and say something is
@@ -446,8 +452,21 @@ as the answer.
   `overflow-anchor: none` so a browser with its own does not correct twice. An
   undecoded page is letter-shaped (`aspect-ratio: auto 8.5 / 11`), a stamp
   re-draw waits for the lift (`Annotate.busy`) and puts the page back to the
-  pixel (`pageOffset`). A palm that scrolls between strokes is not covered.
-  The block `6e1` in `test/library.js` is the contract.
+  pixel (`pageOffset`). The block `6e1` in `test/library.js` is the contract.
+
+- **THE READER AND THE DECK ZOOM THEMSELVES, AND A PALM DOES NOT SCROLL.**
+  `readerzoom.js`, loaded by `library.html` and `meeting.html`. A pinch changes
+  `--zoom` on `#reader-pages`, which sets the width `.lib-page` is laid out at
+  (0.5× to 3×; the pages are drawn 1240 px wide), so ink and pictures re-lay out
+  rather than magnify. During the pinch the scroller is only transformed; the
+  lift commits and puts the point under the fingers back. Safari's own pinch
+  (`gesturestart`/`gesturechange`) is refused while a document is open. With
+  the pen on, `#reader-pages.zoomable` is `touch-action: none`, one contact
+  that is not the Pencil is refused at `touchstart`, and two fingers pan and
+  pinch. The Pencil on the glass, a contact over 40 px radius, or
+  `pen-writing` is never a pinch. The chip `#reader-zoom` shows only off the
+  fit and a tap resets it. `6e1b` in `test/library.js` and the zoom line in
+  `test/deck.js` are the contract.
 
 - **INK IN THE LIBRARY READER SAYS IT IS KEPT.** `#reader-kept` reads *saved ·
   N pages marked*, *saving…* or *not saved — retrying*, driven by `savePen`'s

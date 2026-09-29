@@ -270,6 +270,14 @@ for (const f of LIB_SCRIPTS) {
 try { window.localStorage.removeItem('library.flight'); } catch (e) {}
 try { window.localStorage.removeItem('library.results.view'); } catch (e) {}
 
+/* THE LAYOUT OBSERVER, STOOD IN FOR. jsdom has none; this keeps what the page
+   observes, so a test can say "that changed size" the way a browser would. */
+const resized = [];
+window.ResizeObserver = function (cb) {
+  this.observe = (el) => { resized.push({ el: el, cb: cb }); };
+  this.disconnect = () => {};
+};
+
 try { window.eval(fs.readFileSync(path.join(WEB, 'library.js'), 'utf8')); }
 catch (e) { fail('library.js: ' + e.message); }
 
@@ -577,6 +585,98 @@ const named = (title) => rows().filter(
     || !/being revised/.test(doc.getElementById('reader-said').textContent)
     ? ok('and the in-flight line goes when the document itself changes')
     : fail('the page still says a revision is running after it landed');
+
+  // 6e1. THE PAGE STAYS UNDER THE PEN. The pen reads a page's rectangle once,
+  //      at the nib, so a page moved by LAYOUT mid-stroke is ink in the wrong
+  //      place. The bar re-wrapping, a line appearing above the pages, a
+  //      picture decoding above the glass: the page on the glass is put back.
+  {
+    const scroller = doc.getElementById('reader-pages');
+    const fig = doc.querySelector('#reader-pages .lib-page');
+    let figTop = 40;
+    fig.getBoundingClientRect = () => ({ top: figTop, bottom: figTop + 900,
+                                         left: 0, right: 600 });
+    const realNow = window.Date.now;
+    window.Date.now = () => realNow() + 60000;   /* past the re-draw's restore */
+    scroller.scrollTop = 300;
+    scroller.dispatchEvent(new window.Event('scroll'));
+    const before = scroller.scrollTop;
+    figTop = 72;                          /* the bar grew a row */
+    const bar = doc.getElementById('reader-bar');
+    const watched = resized.filter((r) => r.el === bar);
+    watched.forEach((r) => r.cb([{ target: bar }]));
+    window.Date.now = realNow;
+    watched.length && scroller.scrollTop === before + 32
+      ? ok('a bar that changes height does not move the page being written on')
+      : fail('the page moved by layout and nothing put it back: scrollTop '
+             + before + ' -> ' + scroller.scrollTop
+             + (watched.length ? '' : ' (the bar is not watched)'));
+    ['reader-said', 'reader-rebuilt', 'reader-copy'].every(
+      (id) => resized.some((r) => r.el === doc.getElementById(id)))
+      && resized.some((r) => r.el === fig)
+      ? ok('and nor does a line above the pages, or a page that decodes')
+      : fail('something above the pages can change size unwatched');
+    delete fig.getBoundingClientRect;
+  }
+
+  // 6e1b. THE READER ZOOMS ITSELF, AND A PALM DOES NOT SCROLL. Safari's own
+  //       pinch scaled the bar with the page; here a pinch re-lays the pages
+  //       out at a wider width, and with the pen on one contact moves nothing.
+  {
+    const scroller = doc.getElementById('reader-pages');
+    const touch = (name, pts) => {
+      const ev = new window.Event(name, { bubbles: true, cancelable: true });
+      const list = pts.map(([x, y, type, r]) => ({
+        clientX: x, clientY: y, touchType: type || 'direct', radiusX: r || 10 }));
+      Object.defineProperty(ev, 'touches', { value: list });
+      scroller.dispatchEvent(ev);
+      return ev;
+    };
+    touch('touchstart', [[100, 300], [200, 300]]);
+    touch('touchmove', [[50, 300], [250, 300]]);
+    /transform|scale\(2\)/.test(scroller.style.transform)
+      ? ok('a pinch follows the fingers while they are down')
+      : fail('nothing moves during a pinch: ' + JSON.stringify(scroller.style.transform));
+    touch('touchend', [[250, 300]]);
+    const zoomed = scroller.style.getPropertyValue('--zoom');
+    const chip = doc.getElementById('reader-zoom');
+    zoomed === '2' && !scroller.style.transform
+      ? ok('and the lift lays the pages out at twice the width')
+      : fail('the pinch did not commit: --zoom=' + zoomed);
+    !chip.hidden && chip.textContent === '200%'
+      ? ok('the bar says the zoom, and only when it is not the fit')
+      : fail('the zoom is not said: ' + chip.hidden + ' ' + chip.textContent);
+    tap(chip);
+    scroller.style.getPropertyValue('--zoom') === '1' && chip.hidden
+      ? ok('and a tap on it puts the page width back')
+      : fail('the zoom chip does not reset');
+    touch('touchstart', [[100, 300], [200, 300, 'direct', 80]]);
+    touch('touchmove', [[50, 300], [250, 300, 'direct', 80]]);
+    touch('touchend', []);
+    scroller.style.getPropertyValue('--zoom') === '1'
+      ? ok('a palm beside a finger is not a pinch')
+      : fail('a palm zoomed the page');
+    const g = new window.Event('gesturestart', { bubbles: true, cancelable: true });
+    doc.dispatchEvent(g);
+    g.defaultPrevented
+      ? ok('Safari’s own zoom is refused while a document is open')
+      : fail('Safari still zooms the whole page');
+    const wasOn = window.Annotate.isOn();
+    window.Annotate.setOn(false);
+    !touch('touchstart', [[100, 300]]).defaultPrevented
+      ? ok('with the pen off, one finger scrolls')
+      : fail('one finger cannot scroll with the pen off');
+    window.Annotate.setOn(true);
+    touch('touchstart', [[100, 300]]).defaultPrevented
+      ? ok('with the pen on, a palm between strokes moves nothing')
+      : fail('a palm can still scroll the page while marking');
+    touch('touchend', []);
+    window.Annotate.setOn(wasOn);
+    /body\.annotating #reader-pages\.zoomable \{ touch-action: none; \}/.test(
+      fs.readFileSync(path.join(WEB, 'library.css'), 'utf8'))
+      ? ok('and the browser is told so before the gesture starts')
+      : fail('library.css leaves the pages pannable with the pen on');
+  }
 
   // 6e2. THE INK IS KEPT, AND THE PAGE SAYS SO OUT LOUD. After a correction
   //      the mark on page 7 is still about page 7. After an overhaul that
