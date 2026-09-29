@@ -14,6 +14,11 @@ So: three ways to leave, and they are the three anybody means by "save".
     new       a new file beside it, named and dated, nothing touched
     none      keep nothing; the strokes stay in the board's drawer
 
+A DOCUMENT IN THE LIBRARY HAS ONE WAY OUT, not three: `library/<id>` is burned
+`new` and nothing else, into `live/marked/<id>/` -- see `burn_library`. Its PDF
+is rebuilt by whatever made it, so writing over it is not offered, and a copy
+beside it would come back into the library as a document of its own.
+
 **Overwriting a compiled write-up is a real overwrite, and it is meant.** The
 next `make homework CH=04` rewrites that file from the .tex and the burned ink
 goes with it. That is not a bug to be designed around, because the strokes are
@@ -47,6 +52,7 @@ import zlib
 
 from . import paper
 from . import reading
+from .. import fenced
 
 # Print resolution for the re-rendered page. The board draws at 1240px across a
 # page for the glass, which is about 150dpi on A4 and looks soft on paper.
@@ -61,6 +67,18 @@ BURN_DPI = 200
 INK_REFERENCE_WIDTH = float(paper.PAGE_WIDTH)
 
 MODES = ("same", "new", "none")
+
+# A DOCUMENT IN THE LIBRARY, as a viewer kind: `library/<id>`, the id
+# `library.py` handed out. Its ink is under `doc/<id>/p<n>` -- `writing.ANN_DOC`
+# -- and under the drawer's name for the same file, which is `mark_idents`.
+LIBRARY = "library/"
+
+# WHERE A MARKED COPY OF A LIBRARY DOCUMENT GOES: `live/marked/<id>/` in the
+# workspace serving it. `live/` is ignored by every workspace here and is never
+# walked by the library (`reading.IGNORE`), so a copy is not offered back as a
+# document, not handed to a revision as its source, and never tracked -- which
+# is what keeps a marked copy of fenced content inside the disk it came from.
+MARKED = "marked"
 
 
 # ---------------------------------------------------------------------------
@@ -104,7 +122,7 @@ def ann_ident(kind):
     return kind[len("doc/"):] if kind.startswith("doc/") else kind
 
 
-def strokes_by_page(repo, kind, pages_n):
+def strokes_by_page(repo, kind, pages_n, idents=None):
     """Every page's marks, as `{page number: [stroke, ...]}`, empty pages absent.
 
     Read straight out of the board's drawer through the same filename derivation
@@ -117,21 +135,21 @@ def strokes_by_page(repo, kind, pages_n):
 
     import json
 
-    ident = ann_ident(kind)
     out = {}
-    for n in range(1, int(pages_n or 0) + 1):
-        key = "doc/%s/p%d" % (ident, n)
-        if not writing.ann_ok(key):
-            continue
-        rec_path = os.path.join(repo.notes, writing.ann_file(key) + ".json")
-        try:
-            with open(rec_path, "r", encoding="utf-8") as fh:
-                rec = json.load(fh)
-        except (OSError, ValueError):
-            continue
-        strokes = [s for s in (rec.get("strokes") or []) if (s or {}).get("p")]
-        if strokes:
-            out[n] = strokes
+    for ident in (idents or [ann_ident(kind)]):
+        for n in range(1, int(pages_n or 0) + 1):
+            key = "doc/%s/p%d" % (ident, n)
+            if not writing.ann_ok(key):
+                continue
+            rec_path = os.path.join(repo.notes, writing.ann_file(key) + ".json")
+            try:
+                with open(rec_path, "r", encoding="utf-8") as fh:
+                    rec = json.load(fh)
+            except (OSError, ValueError):
+                continue
+            strokes = [s for s in (rec.get("strokes") or []) if (s or {}).get("p")]
+            if strokes:
+                out.setdefault(n, []).extend(strokes)
     return out
 
 
@@ -306,14 +324,76 @@ def _ink_ops(strokes, w_pt, h_pt):
 # THE FILE
 # ---------------------------------------------------------------------------
 
+def _png_parts(path):
+    """`(width, height, colours, data)` of a PNG a PDF can take as it stands.
+
+    A PNG's IDAT stream is zlib with a per-row predictor byte, which is exactly
+    `FlateDecode` with `/Predictor 15` -- so a page out of the glass's cache
+    goes into the file untouched, the way a JPEG does. Eight-bit grey or RGB,
+    not interlaced, which is what poppler and Ghostscript write; anything else
+    is None and the caller says so.
+    """
+    try:
+        with open(path, "rb") as fh:
+            raw = fh.read()
+    except OSError:
+        return None
+    if raw[:8] != b"\x89PNG\r\n\x1a\n":
+        return None
+    at, head, data = 8, None, []
+    while at + 8 <= len(raw):
+        length, kind = struct.unpack(">I4s", raw[at:at + 8])
+        body = raw[at + 8:at + 8 + length]
+        if kind == b"IHDR":
+            head = struct.unpack(">IIBBBBB", body[:13])
+        elif kind == b"IDAT":
+            data.append(body)
+        elif kind == b"IEND":
+            break
+        at += 12 + length
+    if not head or not data:
+        return None
+    w, h, depth, colour, _comp, _filt, interlace = head
+    if depth != 8 or interlace or colour not in (0, 2):
+        return None
+    return w, h, (1 if colour == 0 else 3), b"".join(data)
+
+
+def _image_obj(path, w_px, h_px):
+    """One page picture as a PDF image object, JPEG or PNG, or None."""
+    if path.lower().endswith(".png"):
+        got = _png_parts(path)
+        if not got:
+            return None
+        w, h, colours, data = got
+        return (b"<< /Type /XObject /Subtype /Image /Width %d /Height %d "
+                b"/ColorSpace /%s /BitsPerComponent 8 /Filter /FlateDecode "
+                b"/DecodeParms << /Predictor 15 /Colors %d /BitsPerComponent 8 "
+                b"/Columns %d >> /Length %d >>\nstream\n"
+                % (w, h, b"DeviceGray" if colours == 1 else b"DeviceRGB",
+                   colours, w, len(data))
+                + data + b"\nendstream")
+    with open(path, "rb") as fh:
+        data = fh.read()
+    return (b"<< /Type /XObject /Subtype /Image /Width %d /Height %d "
+            b"/ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode "
+            b"/Length %d >>\nstream\n" % (w_px, h_px, len(data))
+            + data + b"\nendstream")
+
+
 def _write_pdf(out_path, pages):
-    """A PDF of `pages`, each `(jpeg_path, w_px, h_px, ink_ops_bytes)`.
+    """A PDF of `pages`, each `(image, w_px, h_px, ink_ops, w_pt, h_pt)`.
 
     Written by hand, which is less alarming than it sounds: a page that is one
     image plus one content stream is the simplest document the format has, and
-    a JPEG goes in untouched because `DCTDecode` is the same encoding. The only
+    a JPEG goes in untouched because `DCTDecode` is the same encoding -- as
+    does a cached PNG, under `FlateDecode` with the PNG predictor. The only
     fiddly part is the cross-reference table, and it is fiddly in a way that
     either works for every page or fails on the first.
+
+    The page size in points comes WITH the page, because it is the size the
+    ink was scaled to: a page box computed a second time here, at a different
+    resolution, is ink drawn at the wrong scale.
     """
     objs = [b""]                       # 1-indexed; slot 0 is never written
 
@@ -322,16 +402,11 @@ def _write_pdf(out_path, pages):
         return len(objs) - 1            # objs[n] IS object n; slot 0 is the free head
 
     kids, page_objs = [], []
-    for jpeg, w_px, h_px, ink in pages:
-        with open(jpeg, "rb") as fh:
-            data = fh.read()
-        w_pt = w_px * 72.0 / BURN_DPI
-        h_pt = h_px * 72.0 / BURN_DPI
-        img_num = add(
-            b"<< /Type /XObject /Subtype /Image /Width %d /Height %d "
-            b"/ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode "
-            b"/Length %d >>\nstream\n" % (w_px, h_px, len(data))
-            + data + b"\nendstream")
+    for image, w_px, h_px, ink, w_pt, h_pt in pages:
+        body = _image_obj(image, w_px, h_px)
+        if body is None:
+            raise ValueError("unreadable page picture: %s" % os.path.basename(image))
+        img_num = add(body)
         content = (b"q\n%.4f 0 0 %.4f 0 0 cm\n/Im0 Do\nQ\n"
                    % (w_pt, h_pt)) + ink
         packed = zlib.compress(content)
@@ -403,6 +478,235 @@ def _free_name(directory, stem, when=None):
     return "%s-%d.pdf" % (base, os.getpid())
 
 
+def _pages_from_pdf(target, marks, dpi, env):
+    """Every page of `target` drawn at `dpi` with its marks.
+
+    Returns `(pages, work_dir, None)` or `(None, work_dir, why)`. The caller
+    removes `work_dir` once the file is written, because the pictures in it are
+    read again then.
+    """
+    work = tempfile.mkdtemp(prefix="tutor-burn-")
+    jpegs = _render_jpegs(target, work, dpi=dpi, env=env)
+    if not jpegs:
+        return None, work, {"ok": False, "why": "render",
+                            "detail": "The pages could not be drawn from that PDF."}
+    built = []
+    for i, jpeg in enumerate(jpegs, start=1):
+        size = _jpeg_size(jpeg)
+        if not size:
+            return None, work, {"ok": False, "why": "render",
+                                "detail": "Page %d came back unreadable." % i}
+        w_px, h_px = size
+        w_pt = w_px * 72.0 / dpi
+        h_pt = h_px * 72.0 / dpi
+        built.append((jpeg, w_px, h_px,
+                      _ink_ops(marks.get(i) or [], w_pt, h_pt), w_pt, h_pt))
+    return built, work, None
+
+
+# How wide a page out of the glass's cache is put on paper. The cache is drawn
+# to a pixel width, not a resolution, so the page is given A4's width and the
+# height its own picture has -- the ink is fractions of the page box either
+# way, so it lands where it was drawn whatever the page measures in points.
+CACHE_PAGE_PT = 595.2756
+
+
+def _pages_from_cache(files, marks):
+    """The build the marks were drawn on, out of the page cache.
+
+    `(pages, None)` or `(None, why)`.
+    """
+    if not files:
+        return None, {"ok": False, "why": "rebuilt",
+                      "detail": "The build these marks were drawn on is no "
+                                "longer in the page cache, so a marked copy of "
+                                "it cannot be made."}
+    built = []
+    for i, png in enumerate(files, start=1):
+        got = _png_parts(png)
+        if not got:
+            return None, {"ok": False, "why": "render",
+                          "detail": "Page %d of the build these marks were drawn "
+                                    "on cannot be read back out of the page "
+                                    "cache." % i}
+        w_px, h_px = got[0], got[1]
+        w_pt = CACHE_PAGE_PT
+        h_pt = h_px * w_pt / float(w_px or 1)
+        built.append((png, w_px, h_px,
+                      _ink_ops(marks.get(i) or [], w_pt, h_pt), w_pt, h_pt))
+    return built, None
+
+
+def _ignored(root, path):
+    """Would git leave this file alone? True where there is no git to ask."""
+    try:
+        p = subprocess.run(["git", "-C", root, "check-ignore", "-q", path],
+                           stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                           stderr=subprocess.DEVNULL, timeout=20)
+    except (OSError, subprocess.SubprocessError):
+        return True
+    # 0 ignored, 1 not ignored, 128 not a repository -- nothing to track it.
+    return p.returncode != 1
+
+
+def marked_dir(repo, ident):
+    """`(directory, None)` for one document's marked copies, or `(None, why)`.
+
+    `live/marked/<id>/`, and the directory carries its own ignore rule the way
+    the page cache does (`paper.cache_dir`): a workspace whose `.gitignore`
+    does not cover `live/` still does not commit a marked copy on the way out
+    of a lesson. It is then ASKED of git rather than assumed, because a copy
+    of fenced content that a commit could carry is the one outcome here that
+    cannot be taken back.
+    """
+    base = os.path.join(repo.live, MARKED)
+    out = os.path.join(base, ident)
+    try:
+        os.makedirs(out, exist_ok=True)
+        guard = os.path.join(base, ".gitignore")
+        if not os.path.exists(guard):
+            with open(guard, "w", encoding="utf-8") as fh:
+                fh.write("# marked copies: ink burned into a copy, never tracked\n*\n")
+    except OSError as exc:
+        return None, {"ok": False, "why": "unwritable",
+                      "detail": "The copy has nowhere to go: %s." % exc}
+    root = os.path.realpath(repo.root)
+    if not os.path.realpath(out).startswith(root + os.sep):
+        return None, {"ok": False, "why": "outside",
+                      "detail": "A marked copy stays inside the workspace it was "
+                                "drawn in, and this one would not."}
+    if not _ignored(repo.root, os.path.join(out, "copy.pdf")):
+        return None, {"ok": False, "why": "tracked",
+                      "detail": "git would carry a marked copy written to "
+                                "live/marked/, and a copy is never tracked. "
+                                "Nothing was written."}
+    return out, None
+
+
+def _fence_of(repo, doc, target):
+    """The fenced directory this document sits in, or None."""
+    for p in (doc.get("rel"), doc.get("source"), target):
+        if not p:
+            continue
+        full = p if os.path.isabs(p) else os.path.join(repo.root, *p.split("/"))
+        rel = os.path.relpath(full, repo.root).replace(os.sep, "/")
+        hit = next((x for x in rel.lower().split("/") if x in fenced.NEVER), None)
+        hit = hit or fenced.refused_in(repo.root, full)
+        if hit:
+            return hit
+    return None
+
+
+def marked_file(repo, ident, name):
+    """The marked copy `name` of document `ident`, as a path, or "".
+
+    A NAME, NEVER A PATH: matched against what is in that document's own
+    directory rather than joined onto it.
+    """
+    ident = str(ident or "").strip().lower()
+    if not IDENT.match(ident):
+        return ""
+    here = os.path.join(repo.live, MARKED, ident)
+    try:
+        names = os.listdir(here)
+    except OSError:
+        return ""
+    if name not in names or not name.lower().endswith(".pdf"):
+        return ""
+    path = os.path.join(here, name)
+    return path if os.path.isfile(path) else ""
+
+
+IDENT = re.compile(r"\A[a-z0-9-]{1,40}\Z")
+
+
+def burn_library(repo, ident, mode="new", dpi=BURN_DPI):
+    """A marked copy of one library document. NEVER over the original.
+
+    The library's documents are rebuilt by whatever made them -- a revision
+    round, Paper-Writer, a `parts/` re-cut -- and the owner's ask was a copy
+    *without overwriting*. So `new` is the only mode, and the copy goes to
+    `marked_dir`, never beside the document. Keeping a copy is not sending:
+    nothing is marked delivered, and the ink goes with the next note.
+    """
+    from . import library                        # local: library imports paper
+
+    if mode != "new":
+        return {"ok": False, "why": "no-overwrite",
+                "detail": "A document in the library is kept as a new marked "
+                          "copy and never written over: whatever made it "
+                          "rebuilds it, and the original stays as it is."}
+    ident = str(ident or "").strip().lower()
+    doc = library.find(repo.root, ident) if IDENT.match(ident) else None
+    if not doc:
+        return {"ok": False, "why": "none",
+                "detail": "This workspace has no document by that name."}
+    target = library.path_of(repo.root, doc, ".pdf")
+    fence = _fence_of(repo, doc, target)
+    if fence:
+        return {"ok": False, "why": "fenced",
+                "detail": "%s is inside %s/, and nothing on this board makes a "
+                          "copy of what is in there."
+                          % (doc.get("title") or ident, fence)}
+    if not target:
+        return {"ok": False, "why": "unbuilt",
+                "detail": "There is no PDF of this document to write on yet."}
+    marks = strokes_by_page(repo, LIBRARY + doc["id"], paper.MAX_PAGES,
+                            idents=library.mark_idents(repo.root, doc))
+    if not marks:
+        return {"ok": False, "why": "no-ink",
+                "detail": "Nothing is written on this document yet."}
+    n_marks = sum(len(v) for v in marks.values())
+
+    current = paper._digest(target, paper.PAGE_WIDTH)
+    drawn = library.drawn_on(repo, doc, current)
+    if drawn["refuse"]:
+        return {"ok": False, "why": "rebuilt", "detail": drawn["refuse"]}
+
+    out_dir, stop = marked_dir(repo, doc["id"])
+    if stop:
+        return stop
+
+    work = None
+    try:
+        if drawn["digest"] != current:
+            files = [os.path.join(paper.cache_dir(repo), f)
+                     for f in paper.cached(repo, drawn["digest"])]
+            built, stop = _pages_from_cache(files, marks)
+        else:
+            env = paper.raster_env()
+            if not paper.renderer(env):
+                return {"ok": False, "why": "no-renderer",
+                        "detail": "This machine has no pdftoppm and no "
+                                  "Ghostscript, so the pages cannot be drawn "
+                                  "to write on."}
+            built, work, stop = _pages_from_pdf(target, marks, dpi, env)
+        if stop:
+            return stop
+        name = _free_name(out_dir, doc["stem"])
+        out_path = os.path.join(out_dir, name)
+        try:
+            _write_pdf(out_path, built)
+        except (OSError, ValueError) as exc:
+            return {"ok": False, "why": "render",
+                    "detail": "The copy could not be written: %s." % exc}
+    finally:
+        if work:
+            shutil.rmtree(work, ignore_errors=True)
+
+    older = drawn["rebuilt"]
+    return {"ok": True, "mode": "new",
+            "path": os.path.relpath(out_path, repo.root).replace(os.sep, "/"),
+            "name": name, "document": doc["id"],
+            "url": "/library/marked/%s/%s" % (doc["id"], name),
+            "pages": len(built), "marks": n_marks,
+            "drawn": older["when"] if older else "",
+            "detail": ("Kept as %s%s. The ink stays on the page and still goes "
+                       "with the next note."
+                       % (name, (", on the %s build it was drawn on"
+                                 % older["when"]) if older else ""))}
+
+
 def burn(repo, kind, mode="new", dpi=BURN_DPI):
     """Put this document's ink into a PDF. The whole job, and the only entry.
 
@@ -410,10 +714,16 @@ def burn(repo, kind, mode="new", dpi=BURN_DPI):
     `path` (repo-relative), `pages` and `marks`. Every failure carries a `why`
     and a sentence, because the board shows the sentence and "failed" sends
     somebody to a laptop to find out what this already knew.
+
+    `library/<id>` is a document in the library and goes to `burn_library`,
+    which offers `new` alone.
     """
     if mode not in MODES:
         return {"ok": False, "why": "bad-mode",
                 "detail": "Save it over the original, as a new file, or not at all."}
+
+    if str(kind or "").startswith(LIBRARY):
+        return burn_library(repo, str(kind)[len(LIBRARY):], mode, dpi)
 
     target, stem = target_for(repo, kind)
     if not target:
@@ -447,24 +757,11 @@ def burn(repo, kind, mode="new", dpi=BURN_DPI):
                 "detail": "This machine has no pdftoppm and no Ghostscript, so "
                           "the pages cannot be drawn to write on."}
 
-    work = tempfile.mkdtemp(prefix="tutor-burn-")
+    work = None
     try:
-        jpegs = _render_jpegs(target, work, dpi=dpi, env=env)
-        if not jpegs:
-            return {"ok": False, "why": "render",
-                    "detail": "The pages could not be drawn from that PDF."}
-        built = []
-        for i, jpeg in enumerate(jpegs, start=1):
-            size = _jpeg_size(jpeg)
-            if not size:
-                return {"ok": False, "why": "render",
-                        "detail": "Page %d came back unreadable." % i}
-            w_px, h_px = size
-            w_pt = w_px * 72.0 / dpi
-            h_pt = h_px * 72.0 / dpi
-            built.append((jpeg, w_px, h_px,
-                          _ink_ops(marks.get(i) or [], w_pt, h_pt)))
-
+        built, work, stop = _pages_from_pdf(target, marks, dpi, env)
+        if stop:
+            return stop
         if mode == "same":
             out_path = target
         else:
@@ -472,7 +769,8 @@ def burn(repo, kind, mode="new", dpi=BURN_DPI):
                                     _free_name(os.path.dirname(target), stem))
         _write_pdf(out_path, built)
     finally:
-        shutil.rmtree(work, ignore_errors=True)
+        if work:
+            shutil.rmtree(work, ignore_errors=True)
 
     try:
         rel = os.path.relpath(out_path, repo.root)
@@ -484,3 +782,4 @@ def burn(repo, kind, mode="new", dpi=BURN_DPI):
             "detail": ("Written back over %s." % os.path.basename(out_path))
                       if mode == "same"
                       else ("Saved as %s." % os.path.basename(out_path))}
+

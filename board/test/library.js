@@ -1385,7 +1385,401 @@ const named = (title) => rows().filter(
     : fail('the gallery reached into a sitting: '
            + everSent.filter((u) => /\/(say|session|aim|start)\b/.test(u)).join(','));
 
+  await inkIsKept();
+
   console.log(errors.length ? '\n' + errors.length + ' FAILURES'
                             : '\nthe library draws what a workspace wrote, and takes a word about one');
   process.exit(errors.length ? 1 : 0);
 })();
+
+/* ==========================================================================
+   INK IN THE READER SAYS IT IS KEPT, AND CAN BE KEPT AS A COPY.
+
+   Asked as: *"if I'm in the middle of marking up a paper ... but then I go to
+   bed, is there a way to save my markups without overwriting the original?"*
+   The strokes were already on disk a second after the pen lifted. What nobody
+   could see was that, or a save that failed; the typed half was not kept at
+   all; and there was no copy to take away.
+
+   A page of its own, on a DOM of its own, because two of the things asserted
+   are what survives a RELOAD -- a second page handed the first one's storage
+   -- and what a network that says no does to the bar.
+   ========================================================================== */
+async function inkIsKept() {
+  const ID = 'writeups-notes-notes';
+  const P1 = 'doc/' + ID + '/p1';
+  const P2 = 'doc/' + ID + '/p2';
+  const LIB = { workspace: 'research/TRD-EHR', writeups: 'writeups', documents: [{
+    id: ID, dir: 'writeups/notes', stem: 'notes', title: 'Notes on the cohort',
+    kind: 'paper', formats: ['pdf', 'tex'], rel: 'writeups/notes/notes.pdf',
+    pages: 2, pdf: true, stale: false, iso: '2026-09-28', notes: [],
+    made: 'board', marks: { pages: 0, strokes: 0, waiting: 0 },
+  }] };
+  const BUILD = { digest: 'abc123def4567890', at: 1790000000, pages: 2 };
+  const S = { c: '#e8746c', w: 2, p: [0.1, 0.1, 0.3, 0.4], pr: [0.5, 0.5] };
+  const net = { save: 'ok', feedback: 'ok', rebuilt: null };
+  let pageWin = null;
+
+  function answer(url) {
+    if (/library\.json/.test(url)) return Promise.resolve({ json: () => Promise.resolve(LIB) });
+    if (/library\/stamp/.test(url)) {
+      return Promise.resolve({ json: () => Promise.resolve(
+        { ok: true, stamp: 's', documents: { [ID]: 'x' } }) });
+    }
+    if (/library\/view\//.test(url)) {
+      return Promise.resolve({ json: () => Promise.resolve({
+        ok: true, n: 2, truncated: false, digest: BUILD.digest,
+        pages: ['/paper/abc-1.png', '/paper/abc-2.png'], ink: {},
+        build: BUILD, rebuilt: net.rebuilt }) });
+    }
+    if (/annotate\/save/.test(url)) {
+      if (net.save === 'down') return Promise.reject(new TypeError('Failed to fetch'));
+      if (net.save === 'slow') {
+        return new Promise((res) => { net.release = () => res(
+          { ok: true, json: () => Promise.resolve({ ok: true }) }); });
+      }
+      if (net.save === 'refused') {
+        return Promise.resolve({ ok: false, status: 500,
+                                 json: () => Promise.resolve({ ok: false }) });
+      }
+      return Promise.resolve({ ok: true, json: () => Promise.resolve({ ok: true }) });
+    }
+    if (/annotate\/burn/.test(url)) {
+      return Promise.resolve({ ok: true, json: () => Promise.resolve({
+        ok: true, mode: 'new', name: 'notes-annotated-2026-09-28.pdf',
+        url: '/library/marked/' + ID + '/notes-annotated-2026-09-28.pdf',
+        path: 'live/marked/' + ID + '/notes-annotated-2026-09-28.pdf', pages: 2,
+        detail: 'Kept as notes-annotated-2026-09-28.pdf. The ink stays on the '
+          + 'page and still goes with the next note.' }) });
+    }
+    if (/library\/marked\//.test(url)) {
+      return Promise.resolve({ ok: true, blob: () => Promise.resolve(
+        new pageWin.Blob(['%PDF-1.4'], { type: 'application/pdf' })) });
+    }
+    if (/library\/feedback/.test(url)) {
+      return Promise.resolve({ json: () => Promise.resolve(net.feedback === 'ok'
+        ? { ok: true, rel: 'writeups/notes/feedback/2026-09-28-v1.md', asked: true,
+            revise: 'board', detail: 'The tutor has been asked to revise it.' }
+        : { ok: false, error: 'the tutor could not be started' }) });
+    }
+    return new Promise(() => {});
+  }
+
+  async function open(storage) {
+    const d = new JSDOM(LIB_HTML, { runScripts: 'outside-only', pretendToBeVisual: true,
+                                   url: 'https://board.test/library' });
+    const w = d.window;
+    pageWin = w;
+    Object.keys(storage || {}).forEach((k) => w.localStorage.setItem(k, storage[k]));
+    w.HTMLCanvasElement.prototype.getContext = () =>
+      new Proxy({}, { get: () => () => {}, set: () => true });
+    w.HTMLCanvasElement.prototype.toDataURL = () => 'data:image/png;base64,';
+    w.Element.prototype.setPointerCapture = function () {};
+    w.Element.prototype.releasePointerCapture = function () {};
+    w.requestAnimationFrame = (fn) => setTimeout(fn, 0);
+    let hidden = false;
+    Object.defineProperty(w.document, 'visibilityState',
+                          { configurable: true, get: () => (hidden ? 'hidden' : 'visible') });
+    const log = [];
+    w.fetch = (u, o) => { log.push({ url: String(u), opts: o || {} }); return answer(String(u)); };
+    w.addEventListener('error', (e) => fail('uncaught (ink page): ' + e.message));
+    for (const f of LIB_SCRIPTS) {
+      try { w.eval(fs.readFileSync(path.join(WEB, f), 'utf8')); }
+      catch (e) { fail(f + ': ' + e.message); }
+    }
+    w.INK_RETRY_MS = 100000;
+    w.STAMP_EVERY = 100000;
+    try { w.eval(fs.readFileSync(path.join(WEB, 'library.js'), 'utf8')); }
+    catch (e) { fail('library.js (ink page): ' + e.message); }
+    await sleep(20);
+    const click = (el) => el.dispatchEvent(new w.MouseEvent('click', { bubbles: true }));
+    const row = w.document.querySelector('.lib-row .lib-name');
+    if (row) click(row);
+    await sleep(30);
+    return {
+      w, doc: w.document, log, click,
+      byId(id) { return w.document.getElementById(id); },
+      hide(v) { hidden = v; w.document.dispatchEvent(new w.Event('visibilitychange')); },
+      saves() { return log.filter((r) => /annotate\/save/.test(r.url)); },
+      kept() { const k = w.document.getElementById('reader-kept'); return k.hidden ? '' : k.textContent; },
+      reopen() {
+        click(w.document.getElementById('reader-close'));
+        click(w.document.querySelector('.lib-row .lib-name'));
+      },
+      /* A stroke on a page, the way the pen leaves one: on the page, and owed. */
+      draw(key) {
+        w.Annotate.load({ [key]: [S] });
+        w.Annotate.clear(key);
+        w.Annotate.undo();
+      },
+      storage() {
+        const out = {};
+        for (let i = 0; i < w.localStorage.length; i++) {
+          const k = w.localStorage.key(i);
+          out[k] = w.localStorage.getItem(k);
+        }
+        return out;
+      },
+    };
+  }
+
+  // ---- 1. THE BAR SAYS WHERE THE INK IS --------------------------------
+  const p = await open();
+  !p.byId('reader').hidden && p.w.Annotate
+    ? ok('ink: the reader is open on the document')
+    : fail('ink: the reader did not open');
+  p.kept() === ''
+    ? ok('a document with no ink on it says nothing about ink')
+    : fail('a clean document says: ' + p.kept());
+  p.byId('reader-keep').disabled
+    ? ok('and there is no marked copy to keep yet')
+    : fail('a marked copy is offered of a document with no marks');
+
+  p.draw(P1);
+  /saving/.test(p.kept())
+    ? ok('a stroke not yet on disk reads “saving…” on the bar')
+    : fail('a fresh stroke reads: ' + p.kept());
+  await sleep(1000);
+  const first = p.saves().pop();
+  first && (JSON.parse(first.opts.body).build || {}).digest === BUILD.digest
+    ? ok('a saved page carries the build it was drawn on')
+    : fail('the save named no build: ' + (first && first.opts.body));
+  p.kept() === 'saved · 1 page marked'
+    ? ok('and once it lands the bar says “saved · 1 page marked”')
+    : fail('a landed save reads: ' + p.kept());
+  !p.byId('reader-keep').disabled
+    ? ok('and a marked copy can be kept now')
+    : fail('the keep button is dead on a marked document');
+
+  // ---- 2. A SAVE THAT FAILS IS SHOWN, KEPT OWED, AND RETRIED -----------
+  net.save = 'down';
+  p.draw(P2);
+  await sleep(1000);
+  p.kept() === 'not saved — retrying'
+    ? ok('a save that fails is shown: “not saved — retrying”')
+    : fail('a failed save reads: ' + p.kept());
+  p.byId('reader-kept').classList.contains('bad')
+    ? ok('in the colour that makes somebody look')
+    : fail('the failure is not marked');
+  p.w.Annotate.unsaved().indexOf(P2) >= 0
+    ? ok('and the page stays unsaved rather than being counted as kept')
+    : fail('a failed page was cleared from unsaved');
+
+  net.save = 'refused';
+  let before = p.saves().length;
+  p.hide(false);                              // looked at again: a retry
+  await sleep(30);
+  p.saves().length > before && p.w.Annotate.unsaved().indexOf(P2) >= 0
+    && p.kept() === 'not saved — retrying'
+    ? ok('back to visible is a retry, and a board that answers 500 is still '
+         + 'not a save')
+    : fail('visible retry: ' + (p.saves().length - before) + ' saves, bar '
+           + p.kept());
+
+  net.save = 'ok';
+  before = p.saves().length;
+  p.w.dispatchEvent(new p.w.Event('online'));
+  await sleep(30);
+  p.saves().length > before
+    ? ok('the network coming back is a retry')
+    : fail('nothing was retried on `online`');
+  p.w.Annotate.unsaved().indexOf(P2) < 0 && p.kept() === 'saved · 2 pages marked'
+    ? ok('and only that success takes the page off unsaved')
+    : fail('after a good retry: unsaved ' + p.w.Annotate.unsaved().join(',')
+           + ', bar ' + p.kept());
+
+  // On a timer, with nobody touching anything.
+  p.w.INK_RETRY_MS = 40;
+  net.save = 'down';
+  p.draw(P1);
+  await sleep(1000);
+  before = p.saves().length;
+  net.save = 'ok';
+  await sleep(250);
+  p.saves().length > before && !p.w.Annotate.unsaved().length
+    ? ok('and a failed save is retried on a timer, on its own')
+    : fail('no timed retry: ' + (p.saves().length - before) + ' saves');
+  p.w.INK_RETRY_MS = 100000;
+
+  // ---- 3. A HIDDEN PAGE FLUSHES WITH KEEPALIVE -------------------------
+  p.draw(P2);
+  before = p.saves().length;
+  p.hide(true);
+  await sleep(10);
+  const flushed = p.saves().slice(before);
+  flushed.length && flushed.every((r) => r.opts.keepalive === true)
+    && JSON.parse(flushed[0].opts.body).card === P2
+    ? ok('a page going hidden flushes what is owed at once, with keepalive -- '
+         + 'the event iOS fires when the lid shuts')
+    : fail('the hidden flush: ' + JSON.stringify(flushed.map((r) => r.opts.keepalive)));
+  p.hide(false);
+  await sleep(30);
+
+  // A page too heavy for the browser's keepalive allowance still goes.
+  const heavy = { c: '#e8746c', w: 2, p: Array.from({ length: 12000 }, (_, i) => (i % 97) / 97),
+                  pr: [0.5] };
+  const P3 = 'doc/' + ID + '/p3';
+  p.w.Annotate.load({ [P3]: [heavy] });
+  p.w.Annotate.clear(P3);
+  p.w.Annotate.undo();
+  before = p.saves().length;
+  p.hide(true);
+  await sleep(10);
+  const big = p.saves().slice(before);
+  big.length === 1 && big[0].opts.body.length > 64000 && !big[0].opts.keepalive
+    ? ok('a hidden flush too heavy for keepalive goes as an ordinary request '
+         + 'rather than being refused by the browser')
+    : fail('the heavy flush: ' + JSON.stringify(big.map((r) => [r.opts.body.length, r.opts.keepalive])));
+  p.hide(false);
+  await sleep(30);
+
+  // Closed while the board is down: the ink is still owed afterwards.
+  net.save = 'down';
+  p.draw(P1);
+  p.click(p.byId('reader-close'));
+  await sleep(30);
+  net.save = 'ok';
+  before = p.saves().length;
+  p.w.dispatchEvent(new p.w.Event('online'));
+  await sleep(30);
+  p.saves().slice(before).some((r) => JSON.parse(r.opts.body).card === P1
+                                    && JSON.parse(r.opts.body).strokes.length)
+    ? ok('ink whose save failed as the reader closed is still retried, not let go')
+    : fail('closing the reader dropped the owed ink');
+
+  // ---- 4. KEEP A MARKED COPY -------------------------------------------
+  const share = [];
+  Object.defineProperty(p.w.navigator, 'canShare', { configurable: true, value: () => true });
+  Object.defineProperty(p.w.navigator, 'share', { configurable: true,
+    value: (d) => { share.push(d); return Promise.resolve(); } });
+  p.click(p.doc.querySelector('.lib-row .lib-name'));
+  await sleep(30);
+  p.draw(P1);
+  before = p.log.length;
+  p.click(p.byId('reader-keep'));
+  await sleep(60);
+  const after = p.log.slice(before);
+  const burnAt = after.findIndex((r) => /annotate\/burn/.test(r.url));
+  const saveAt = after.findIndex((r) => /annotate\/save/.test(r.url));
+  burnAt >= 0 && saveAt >= 0 && saveAt < burnAt
+    ? ok('⤓ keep a marked copy puts the ink on disk first, then burns it')
+    : fail('keep a copy sent: ' + after.map((r) => r.url).join(' '));
+  const burnBody = burnAt >= 0 ? JSON.parse(after[burnAt].opts.body) : {};
+  burnBody.kind === 'library/' + ID && burnBody.mode === 'new'
+    ? ok('as a NEW file of the library document, never over it')
+    : fail('the burn asked for: ' + JSON.stringify(burnBody));
+  !after.some((r) => /library\/feedback|library\/direction/.test(r.url))
+    && after.every((r) => !/annotate\/save/.test(r.url)
+                          || JSON.parse(r.opts.body).send === false)
+    ? ok('and keeping a copy is not sending: no note, no turn')
+    : fail('keeping a copy sent something: ' + after.map((r) => r.url).join(' '));
+  const copyLine = p.byId('reader-copy');
+  !copyLine.hidden && /Kept as notes-annotated/.test(copyLine.textContent)
+    && /next note/.test(copyLine.textContent)
+    ? ok('the reader names the copy, and says the ink still goes with the next note')
+    : fail('after keeping a copy the reader says: ' + copyLine.textContent);
+  after.some((r) => r.url === '/library/marked/' + ID + '/notes-annotated-2026-09-28.pdf')
+    ? ok('and fetches it straight away, so the share sheet can open on the tap')
+    : fail('the copy was never fetched');
+  const saveBtn = p.byId('reader-copy-save');
+  !saveBtn.hidden ? ok('it offers save a copy') : fail('there is no save a copy');
+  p.click(saveBtn);
+  await sleep(20);
+  share.length === 1 && share[0].files
+    && share[0].files[0].name === 'notes-annotated-2026-09-28.pdf'
+    ? ok('save a copy hands the file to the share sheet, so it can go to Files')
+    : fail('the share sheet got: ' + JSON.stringify(share.map((s) => s.title)));
+
+  // A save still in the air when the copy is asked for: the burn waits for it.
+  net.save = 'slow';
+  p.draw(P2);
+  await sleep(1000);                          // the pen's own save is now in flight
+  before = p.log.length;
+  p.click(p.byId('reader-keep'));
+  await sleep(60);
+  !p.log.slice(before).some((r) => /annotate\/burn/.test(r.url))
+    ? ok('keep a marked copy waits for a save already in the air')
+    : fail('the copy was burned before the ink in the air had landed');
+  net.save = 'ok';
+  if (net.release) net.release();
+  await sleep(60);
+  p.log.slice(before).some((r) => /annotate\/burn/.test(r.url))
+    ? ok('and burns once it has landed')
+    : fail('the copy never went after the save landed');
+  net.release = null;
+
+  // ---- 5. REBUILT SINCE ------------------------------------------------
+  const flag = p.byId('reader-rebuilt');
+  flag.hidden
+    ? ok('a document whose marks were drawn on the build it is showing says nothing')
+    : fail('a flag is up on an unrebuilt document: ' + flag.textContent);
+  net.rebuilt = { at: 1790000000, when: '28 Sep 21:40', was: 2, pages: [1],
+                  copy: true, detail: '' };
+  p.reopen();
+  await sleep(30);
+  !flag.hidden && /these marks were drawn on the 28 Sep 21:40 build; the document has been rebuilt since/i
+    .test(flag.textContent)
+    ? ok('reopened after a rebuild, the reader says above the pages which build '
+         + 'the marks were drawn on')
+    : fail('the rebuilt flag reads: ' + (flag.hidden ? '(hidden)' : flag.textContent));
+  !p.byId('reader-rebuilt-keep').hidden
+    ? ok('and offers a marked copy of that build while it can be made')
+    : fail('no copy of the older build is offered');
+  flag.compareDocumentPosition(p.byId('reader-pages'))
+    & p.w.Node.DOCUMENT_POSITION_FOLLOWING
+    ? ok('above the pages, where it is read before the marks are')
+    : fail('the flag is not above the pages');
+  net.rebuilt = { at: 1790000000, when: '28 Sep 21:40', was: 2, pages: [1],
+                  copy: false,
+                  detail: 'The 28 Sep 21:40 build these marks were drawn on is no '
+                    + 'longer in the page cache, so a marked copy of it cannot be made.' };
+  p.reopen();
+  await sleep(30);
+  /cannot be made/.test(flag.textContent) && p.byId('reader-rebuilt-keep').hidden
+    ? ok('and says a copy cannot be made once that build has left the page cache')
+    : fail('an uncachable build reads: ' + flag.textContent);
+  net.rebuilt = null;
+
+  // ---- 6. DRAFTS ARE KEPT ----------------------------------------------
+  p.click(p.byId('reader-say'));
+  const box = p.byId('note-text');
+  box.value = 'Table 2 still has the old cohort size.';
+  box.dispatchEvent(new p.w.Event('input', { bubbles: true }));
+  const p2 = await open(p.storage());         // a reload, with this device's storage
+  p2.click(p2.byId('reader-say'));
+  p2.byId('note-text').value === 'Table 2 still has the old cohort size.'
+    ? ok('a draft typed and reloaded comes back when that document’s note opens')
+    : fail('after a reload the note reads: ' + JSON.stringify(p2.byId('note-text').value));
+
+  net.feedback = 'refused';
+  p2.click(p2.byId('note-send'));
+  await sleep(60);
+  const p3 = await open(p2.storage());
+  p3.click(p3.byId('reader-say'));
+  p3.byId('note-text').value === 'Table 2 still has the old cohort size.'
+    ? ok('and is still there after a send the board refused')
+    : fail('a refused send lost the draft: ' + JSON.stringify(p3.byId('note-text').value));
+
+  net.feedback = 'ok';
+  p3.click(p3.byId('note-send'));
+  await sleep(60);
+  /Filed at/.test(p3.byId('note-said').textContent)
+    ? ok('ink: the note was filed')
+    : fail('the note was not filed: ' + p3.byId('note-said').textContent);
+  const p4 = await open(p3.storage());
+  p4.click(p4.byId('reader-say'));
+  p4.byId('note-text').value === ''
+    ? ok('and is gone after a send that was filed')
+    : fail('a filed note came back as a draft: ' + JSON.stringify(p4.byId('note-text').value));
+
+  // An overhaul's purpose is the other half of what is typed.
+  p4.click(p4.byId('ask-rework'));
+  const aim = p4.byId('note-purpose');
+  aim.value = 'a two-page brief for the clinical partners on what the model is for';
+  aim.dispatchEvent(new p4.w.Event('input', { bubbles: true }));
+  const p5 = await open(p4.storage());
+  p5.click(p5.byId('reader-say'));
+  p5.byId('note-purpose').value === aim.value && !p5.byId('note-purpose-box').hidden
+    ? ok('an overhaul’s purpose is kept too, and reopens as an overhaul')
+    : fail('the purpose after a reload: ' + JSON.stringify(p5.byId('note-purpose').value));
+}

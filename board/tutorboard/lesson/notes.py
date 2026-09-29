@@ -87,6 +87,31 @@ def load_notes_sent(repo):
     return out
 
 
+def load_notes_builds(repo):
+    """Which build of a document each page's marks were drawn on.
+
+    `{key: {digest, at, pages}}` for every record that carries one -- only a
+    mark made in the library reader does. Beside `load_notes` for the reason
+    `load_notes_sent` is.
+    """
+    out = {}
+    try:
+        names = sorted(os.listdir(repo.notes))
+    except OSError:
+        return out
+    for name in names:
+        if not name.endswith(".json"):
+            continue
+        try:
+            with open(os.path.join(repo.notes, name), "r", encoding="utf-8") as fh:
+                rec = json.load(fh)
+        except (OSError, ValueError):
+            continue
+        if rec.get("card") and isinstance(rec.get("build"), dict):
+            out[rec["card"]] = rec["build"]
+    return out
+
+
 def load_notes(repo):
     """Every card's annotations, so a reload does not lose what was marked up."""
     out = {}

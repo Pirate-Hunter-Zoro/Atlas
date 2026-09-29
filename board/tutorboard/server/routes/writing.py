@@ -79,6 +79,31 @@ def ann_file(key):
     return "%s-%s" % (flat or "mark", digest)
 
 
+BUILD_DIGEST = re.compile(r"\A[0-9a-f]{6,40}\Z")
+
+
+def clean_build(build):
+    """`{digest, at, pages}` for the rendering a mark was drawn on, or None.
+
+    The digest is `paper._digest`'s -- the name the page cache gives one exact
+    PDF -- so it says both which build this was and where its pages are drawn.
+    Anything else in it is dropped, and a digest that is not one is no build.
+    """
+    if not isinstance(build, dict):
+        return None
+    digest = str(build.get("digest") or "")
+    if not BUILD_DIGEST.match(digest):
+        return None
+    try:
+        at = float(build.get("at") or 0)
+        pages = int(build.get("pages") or 0)
+    except (TypeError, ValueError, OverflowError):
+        return None
+    if not 0 <= at < 1e11:                  # NaN fails this too
+        at = 0.0
+    return {"digest": digest, "at": at, "pages": max(0, min(pages, 100000))}
+
+
 def ann_says(key, answering_now):
     """What the tutor is told about WHERE the mark is, in §2.1 terms."""
     if ANN_CARD.match(key):
@@ -152,16 +177,27 @@ def post(h, repo, path):
         # its picture before a note goes, with the very strokes already on
         # disk; clearing the flag there would send ink a round already
         # delivered a second time.
+        try:
+            with open(os.path.join(repo.notes, stem + ".json"), "r",
+                      encoding="utf-8") as fh:
+                was = json.load(fh)
+        except (OSError, ValueError):
+            was = {}
         if not sent:
-            try:
-                with open(os.path.join(repo.notes, stem + ".json"), "r",
-                          encoding="utf-8") as fh:
-                    was = json.load(fh)
-                sent = bool(was.get("sent")) and was.get("strokes") == strokes
-            except (OSError, ValueError):
-                sent = False
+            sent = bool(was.get("sent")) and was.get("strokes") == strokes
+        rec = {"card": card, "strokes": strokes, "sent": sent}
+        # WHICH BUILD THE INK WAS DRAWN ON, as the reader that drew it says.
+        # A document rebuilt overnight moves its text under the marks, and the
+        # page it was drawn on is only knowable here, at save. A save that
+        # names no build keeps the one on record while the strokes are the
+        # same ones.
+        build = clean_build(payload.get("build"))
+        if not build and was.get("strokes") == strokes:
+            build = clean_build(was.get("build"))
+        if build:
+            rec["build"] = build
         with open(os.path.join(repo.notes, stem + ".json"), "w", encoding="utf-8") as fh:
-            json.dump({"card": card, "strokes": strokes, "sent": sent}, fh)
+            json.dump(rec, fh)
         h.note("annotate %s: %d strokes, %s"
                   % (card, len(strokes), "SENT" if sent else "saved only"))
 

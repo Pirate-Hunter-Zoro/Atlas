@@ -3893,6 +3893,48 @@ no live payload to read them out of. Closing the reader forgets the store — th
 next document has its own page 1, and one paper's marks drawn over another's is
 the defect `test/marks.js` exists for.
 
+**The reader says where the ink is.** `#reader-kept` reads *saved · N pages
+marked*, *saving…* or *not saved — retrying*, off `savePen`'s own answers. A save
+that fails keeps the page unsaved and is retried on a backing-off timer, on
+`online`, and on `visibilitychange` back to visible; going hidden flushes what is
+owed at once with `fetch(…, {keepalive: true})`, because that is the event iOS
+fires when the lid shuts and `pagehide` is not. The page keeps its own copy of
+every unconfirmed body (`owed`), so ink whose save failed as the reader closed is
+still retried after `Annotate.forget`. One save per key is in the air at a time,
+and a key is cleaned only if the strokes on the glass are the ones that went.
+
+**What is typed is kept too.** The note text, its ask and an overhaul's purpose
+go to `localStorage` under `library.draft:<id>` on every input, come back when
+that document's note opens, and are removed only when the note is filed — a
+refusal leaves them.
+
+**Ink knows its build.** `/library/view/<id>` answers with `build` —
+`{digest, at, pages}`, the digest being `paper._digest`'s name for that exact
+PDF — and the reader sends it with every save of that document's ink, so each
+record in `live/annotations/` carries the build it was drawn on (a save naming
+none keeps the recorded one while the strokes are unchanged). `library.drawn_on`
+compares them with the PDF on disk; where any page was drawn on another build the
+view carries `rebuilt`, and `#reader-rebuilt` says above the pages *these marks
+were drawn on the 28 Sep 21:40 build; the document has been rebuilt since*.
+
+**⤓ keep a marked copy** burns the ink into a **new** PDF and never over the
+original: `POST /annotate/burn` with kind `library/<id>` is `burn.burn_library`,
+which takes `new` and refuses `same` and `none`, because whatever made a library
+document rebuilds it and Paper-Writer owns a delivered manuscript. The copy goes
+to `live/marked/<id>/<stem>-annotated-<day>.pdf` in the serving workspace: `live/`
+is never walked by the library, so the copy is never offered back as a document or
+to a revision as a source, and the directory carries its own `*` ignore rule and
+is then asked of `git check-ignore` — a copy git would carry is refused, so a
+marked copy of fenced content stays on the disk it came from. A document inside a
+fence is refused by name. The strokes are read under every `mark_idents` name. A
+rebuilt document is burned from the cached pages of the build the marks were drawn
+on (`paper.cached` of the stamped digest, PNGs embedded with the PNG predictor);
+if that set has left the cache, or the marks span two builds, it says a copy cannot
+be made. **Keeping a copy is not sending**: nothing is marked delivered and the ink
+still goes with the next note. The reply names the file, and *save a copy* hands
+`GET /library/marked/<id>/<name>` (an attachment, the name matched against that
+directory's listing) to the share sheet, as `saveCopy` does on the board.
+
 **A document is named twice and its ink is its ink.** The drawer calls a
 document by `reading.ident`, the slug of its filename; the library calls it by
 where it sits, because two `manuscript.pdf`s in one workspace have to be told

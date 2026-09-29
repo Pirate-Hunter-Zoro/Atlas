@@ -21,11 +21,13 @@ page sorted equal and came back in directory order.
 """
 
 import json
+import re
 import os
 import shutil
 import subprocess
 import sys
 import tempfile
+import time
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
@@ -107,6 +109,253 @@ def page_text(pdf, n):
         return p.stdout.decode("utf-8", "replace")
     except (OSError, subprocess.SubprocessError):
         return ""
+
+
+def library_section(tmp):
+    """A MARKED COPY OF A LIBRARY DOCUMENT, through the real routes.
+
+    The owner's ask: *save my markups without overwriting the original paper*.
+    So `library/<id>` burns `new` and nothing else, into `live/marked/<id>/` --
+    which the library does not walk and git does not carry -- and keeping a copy
+    delivers nothing: the ink still goes with the next note.
+    """
+    import socket
+    import threading
+    import urllib.error
+    import urllib.request
+    from http.server import ThreadingHTTPServer
+
+    from tutorboard.course import library
+    from tutorboard.course import repo as course_repo
+    from tutorboard.server import handler
+    from tutorboard.server import hub
+    from tutorboard.server import tikz
+
+    ws = os.path.join(tmp, "workspace")
+    os.makedirs(ws)
+    with open(os.path.join(ws, "tutorboard.json"), "w", encoding="utf-8") as fh:
+        fh.write('{"name": "W", "mode": "research"}')
+    # A repository with NO rule for `live/`, so the only thing keeping a copy
+    # out of git is the copy's own directory.
+    subprocess.run(["git", "init", "-q", ws], stdout=subprocess.DEVNULL,
+                   stderr=subprocess.DEVNULL)
+    lrepo = course_repo.Repo(ws)
+    here = os.path.join(ws, "writeups", "notes")
+    pdf = os.path.join(here, "notes.pdf")
+    if not make_pdf(pdf, ["ONE", "TWO", "THREE"]):
+        check("a library document could be built", False)
+        return
+    with open(os.path.join(here, "notes.tex"), "w", encoding="utf-8") as fh:
+        fh.write("\\documentclass{article}\\title{Notes}\n")
+    os.utime(pdf, None)                     # the PDF is not older than its source
+
+    worker = tikz.TikzWorker(lrepo)
+    worker.start()
+    board = hub.Hub(lrepo, worker)
+    board.payload = json.dumps(board.build())
+    sock = socket.socket()
+    sock.bind(("127.0.0.1", 0))
+    port = sock.getsockname()[1]
+    sock.close()
+    httpd = ThreadingHTTPServer(("127.0.0.1", port), handler.Handler)
+    httpd.daemon_threads = True
+    httpd.repo = lrepo
+    httpd.hub = board
+    threading.Thread(target=httpd.serve_forever, daemon=True).start()
+    base = "http://127.0.0.1:%d" % port
+
+    def call(path, body=None):
+        req = urllib.request.Request(
+            base + path, method="POST" if body is not None else "GET",
+            data=json.dumps(body).encode("utf-8") if body is not None else None,
+            headers={"Content-Type": "application/json"})
+        try:
+            with urllib.request.urlopen(req, timeout=120) as r:
+                raw = r.read()
+                return r.status, raw, r.headers
+        except urllib.error.HTTPError as exc:
+            return exc.code, exc.read(), exc.headers
+
+    def js(path, body=None):
+        status, raw, _h = call(path, body)
+        try:
+            return status, json.loads(raw.decode("utf-8"))
+        except ValueError:
+            return status, {}
+
+    def ignored(path):
+        return subprocess.run(["git", "-C", ws, "check-ignore", "-q", path],
+                              stdout=subprocess.DEVNULL,
+                              stderr=subprocess.DEVNULL).returncode == 0
+
+    try:
+        library.forget()
+        docs = library.documents(ws)
+        check("the library offers the document", len(docs) == 1)
+        ident = docs[0]["id"]
+        with open(pdf, "rb") as fh:
+            original = fh.read()
+        mtime = os.stat(pdf).st_mtime_ns
+
+        status, view = js("/library/view/" + ident)
+        check("the pages come with the build they are drawn from",
+              status == 200 and view.get("ok")
+              and view["build"]["digest"] == view["digest"]
+              and view["build"]["pages"] == 3 and view["build"]["at"] > 0)
+        check("and nothing is flagged as drawn on another build yet",
+              view.get("rebuilt") is None)
+
+        status, got = js("/annotate/burn", {"kind": "library/" + ident,
+                                            "mode": "new"})
+        check("a copy of a clean document is refused, not written empty",
+              status == 400 and got.get("why") == "no-ink")
+
+        key = "doc/%s/p2" % ident
+        status, _ = js("/annotate/save", {"card": key, "strokes": [stroke(0.4)],
+                                          "build": view["build"]})
+        rec_path = os.path.join(lrepo.notes, writing.ann_file(key) + ".json")
+        with open(rec_path, "r", encoding="utf-8") as fh:
+            rec = json.load(fh)
+        check("a saved page is stamped with the build it was drawn on",
+              status == 200 and rec.get("build", {}).get("digest") == view["digest"]
+              and rec["build"]["pages"] == 3)
+        js("/annotate/save", {"card": key, "strokes": [stroke(0.4)]})
+        with open(rec_path, "r", encoding="utf-8") as fh:
+            rec = json.load(fh)
+        check("and a re-save of the same strokes naming no build keeps it",
+              rec.get("build", {}).get("digest") == view["digest"])
+        js("/annotate/save", {"card": key, "strokes": [stroke(0.4)],
+                              "build": view["build"]})
+
+        # ---- NO OVERWRITE FROM THE LIBRARY ---------------------------------
+        for mode in ("same", "none"):
+            status, got = js("/annotate/burn", {"kind": "library/" + ident,
+                                                "mode": mode})
+            check("a library document is never written over (%s is refused)" % mode,
+                  status == 400 and got.get("why") == "no-overwrite")
+        status, got = js("/annotate/burn", {"kind": "library/../../etc",
+                                            "mode": "new"})
+        check("an id that is not one is refused",
+              status == 400 and got.get("why") == "none")
+
+        # ---- A NEW FILE ----------------------------------------------------
+        status, got = js("/annotate/burn", {"kind": "library/" + ident,
+                                            "mode": "new"})
+        copy = os.path.join(ws, *(got.get("path") or "x").split("/"))
+        check("POST /annotate/burn with a library id writes a new file",
+              status == 200 and got.get("ok") and os.path.isfile(copy))
+        check("in live/marked/<id>/, never beside the document",
+              (got.get("path") or "").startswith("live/marked/%s/" % ident))
+        check("with every page of the document", got.get("pages") == 3)
+        check("and the answer names it and where to fetch it",
+              got.get("name") == os.path.basename(copy)
+              and got.get("url") == "/library/marked/%s/%s" % (ident, got["name"]))
+        with open(pdf, "rb") as fh:
+            check("the original's bytes are unchanged", fh.read() == original)
+        check("and so is its modification time", os.stat(pdf).st_mtime_ns == mtime)
+        with open(rec_path, "r", encoding="utf-8") as fh:
+            check("keeping a copy is not sending: the ink is still unsent",
+                  json.load(fh).get("sent") is False)
+        library.forget()
+        after = library.documents(ws)
+        check("the marked copy is not in library.documents afterwards",
+              [d["id"] for d in after] == [ident]
+              and not any("marked" in (d.get("rel") or "") for d in after))
+        check("and git would not carry it, in a repository with no rule for "
+              "live/", ignored(copy))
+
+        status, raw, headers = call(got.get("url") or "/library/marked/x/y.pdf")
+        check("the copy is handed over as an attachment, to go to Files",
+              status == 200 and raw[:5] == b"%PDF-"
+              and "attachment" in (headers.get("Content-Disposition") or ""))
+        status, _raw, _h = call("/library/marked/%s/..%%2F..%%2Ftutorboard.json"
+                                % ident)
+        check("and a name that is not one of the copies is a miss", status == 404)
+
+        guard = os.path.join(lrepo.live, "marked", ".gitignore")
+        with open(guard, "r", encoding="utf-8") as fh:
+            kept = fh.read()
+        with open(guard, "w", encoding="utf-8") as fh:
+            fh.write("!*\n")
+        status, got2 = js("/annotate/burn", {"kind": "library/" + ident,
+                                             "mode": "new"})
+        check("a copy git WOULD carry is refused, and nothing is written",
+              status == 400 and got2.get("why") == "tracked"
+              and len(os.listdir(os.path.dirname(copy))) == 1)
+        with open(guard, "w", encoding="utf-8") as fh:
+            fh.write(kept)
+
+        # ---- INK KNOWS ITS BUILD -------------------------------------------
+        old_digest = view["digest"]
+        time.sleep(1.1)
+        make_pdf(pdf, ["UNO", "DOS", "TRES"])
+        status, view2 = js("/library/view/" + ident)
+        flag = view2.get("rebuilt") or {}
+        check("a page saved against one build, reopened after a rebuild, "
+              "carries the rebuilt-since flag",
+              view2.get("digest") != old_digest and flag.get("pages") == [2])
+        check("naming when the marks were drawn",
+              flag.get("when") == library.when_built(view["build"]["at"])
+              and re.match(r"\A\d{1,2} \w{3} \d\d:\d\d\Z", flag.get("when") or ""))
+        check("and offering the copy, while that build is still in the cache",
+              flag.get("copy") is True)
+        status, got3 = js("/annotate/burn", {"kind": "library/" + ident,
+                                             "mode": "new"})
+        check("which is burned from the build the marks were drawn on",
+              status == 200 and got3.get("ok") and got3.get("drawn") == flag["when"]
+              and got3.get("pages") == 3)
+        work = tempfile.mkdtemp(prefix="burn-cache-check-")
+        try:
+            copy3 = os.path.join(ws, *(got3.get("path") or "x").split("/"))
+            shots = burn._render_jpegs(copy3, work, dpi=40)
+            check("and that copy, made of the cached pages, is a PDF a renderer "
+                  "reads back page by page", len(shots) == 3)
+        finally:
+            shutil.rmtree(work, ignore_errors=True)
+
+        for f in paper.cached(lrepo, old_digest):
+            os.remove(os.path.join(paper.cache_dir(lrepo), f))
+        status, view3 = js("/library/view/" + ident)
+        flag = view3.get("rebuilt") or {}
+        check("once that build is out of the cache the flag says a copy "
+              "cannot be made",
+              flag.get("copy") is False and "page cache" in (flag.get("detail") or ""))
+        status, got4 = js("/annotate/burn", {"kind": "library/" + ident,
+                                             "mode": "new"})
+        check("and the burn refuses rather than put the marks on the wrong pages",
+              status == 400 and got4.get("why") == "rebuilt")
+
+        js("/annotate/save", {"card": key, "strokes": [stroke(0.5)],
+                              "build": view3["build"]})
+        status, view4 = js("/library/view/" + ident)
+        check("ink drawn again on the new build is not flagged",
+              view4.get("rebuilt") is None)
+
+        # ---- THE FENCE -----------------------------------------------------
+        real_find = library.find
+        try:
+            library.find = lambda root, wanted: {
+                "id": "phi-secret", "dir": "phi", "stem": "secret",
+                "title": "Session", "rel": "phi/secret.pdf", "source": ""}
+            got5 = burn.burn(lrepo, "library/phi-secret", "new")
+        finally:
+            library.find = real_find
+        check("a document inside a fence is refused",
+              got5.get("ok") is False and got5.get("why") == "fenced")
+        check("and nothing is written for it",
+              not os.path.exists(os.path.join(lrepo.live, "marked", "phi-secret")))
+
+        # A FENCED WORKSPACE keeps its copies inside itself and out of git.
+        os.makedirs(os.path.join(ws, "phi"), exist_ok=True)
+        status, got6 = js("/annotate/burn", {"kind": "library/" + ident,
+                                             "mode": "new"})
+        copy6 = os.path.join(ws, *(got6.get("path") or "x").split("/"))
+        check("in a fenced workspace a copy lands inside that workspace, "
+              "and git does not carry it",
+              got6.get("ok") and os.path.realpath(copy6).startswith(
+                  os.path.realpath(ws) + os.sep) and ignored(copy6))
+    finally:
+        httpd.shutdown()
 
 
 tmp = tempfile.mkdtemp(prefix="tutor-burn-")
@@ -246,6 +495,8 @@ try:
     again = burn.burn(repo, "homework", "same", dpi=120)
     check("so a recompiled document can be written over again, unchanged",
           again["ok"] and again["pages"] == 3)
+
+    library_section(tmp)
 finally:
     shutil.rmtree(tmp, ignore_errors=True)
 

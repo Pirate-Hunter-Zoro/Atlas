@@ -130,6 +130,12 @@
          complaint already located, and the alternative was to draw it on the
          board's own viewer and then write the note on a different surface. -->
     <button id="reader-pen" type="button" title="draw on the page">✎ mark it up</button>
+    <!-- WHERE THE INK IS: saved and on how many pages, being saved, or not
+         saved and being retried. -->
+    <span id="reader-kept" class="reader-kept" role="status" aria-live="polite" hidden></span>
+    <!-- THE INK AS A NEW PDF, never over the original. -->
+    <button id="reader-keep" type="button" disabled
+            title="burn your marks into a new copy of this document; the original is not touched">⤓ keep a marked copy</button>
     <!-- WHAT THE INK IS FOR. Before a meeting every mark is a fix to the
          document; after it, every mark is a mentor's suggested direction.
          One switch, remembered per document, decides which -- so the pen
@@ -145,6 +151,17 @@
        turn is running, and it says afterwards when the ink on the page was
        drawn on a version with a different number of pages in it. -->
   <p id="reader-said" class="reader-said" hidden></p>
+  <!-- INK KNOWS ITS BUILD. Marks drawn on a build this document has since
+       been rebuilt from sit over text that has moved, and this says so. -->
+  <p id="reader-rebuilt" class="reader-said reader-rebuilt" hidden>
+    <span id="reader-rebuilt-said"></span>
+    <button id="reader-rebuilt-keep" type="button" hidden>⤓ keep a marked copy of that build</button>
+  </p>
+  <!-- THE COPY THAT WAS KEPT, and the way to take it away. -->
+  <p id="reader-copy" class="reader-copy" hidden>
+    <span id="reader-copy-said"></span>
+    <button id="reader-copy-save" type="button" hidden>save a copy</button>
+  </p>
   <div id="reader-pages"></div>
 </div>
 
