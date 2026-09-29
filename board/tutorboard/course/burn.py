@@ -683,6 +683,20 @@ def burn_library(repo, ident, mode="new", dpi=BURN_DPI):
             built, work, stop = _pages_from_pdf(target, marks, dpi, env)
         if stop:
             return stop
+        # A COPY WITH NONE OF THE INK ON IT IS NOT A MARKED COPY. Every mark
+        # past the last page of the build it would be burned from leaves a file
+        # identical to the unmarked one, so nothing is written.
+        if all(n > len(built) for n in marks):
+            past = sorted(marks)
+            return {"ok": False, "why": "past-end", "dropped": past,
+                    "detail": "Every mark is on page%s %s, and the %s build it "
+                              "would be burned from has %d page%s, so there "
+                              "is nothing to write on."
+                              % ("" if len(past) == 1 else "s",
+                                 ", ".join(str(n) for n in past),
+                                 drawn["rebuilt"]["when"] if drawn["rebuilt"]
+                                 else "current", len(built),
+                                 "" if len(built) == 1 else "s")}
         name = _free_name(out_dir, doc["stem"])
         out_path = os.path.join(out_dir, name)
         try:

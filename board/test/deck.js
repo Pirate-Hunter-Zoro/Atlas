@@ -275,7 +275,7 @@ async function inkIsKept() {
   const S = { c: '#e8746c', w: 2, p: [0.1, 0.1, 0.3, 0.4], pr: [0.5, 0.5] };
   const P2 = 'doc/meeting/p2';
   const P3 = 'doc/meeting/p3';
-  const net = { save: 'ok', rebuilt: null };
+  const net = { save: 'ok', rebuilt: null, deck: '1790000000.5' };
   const d = new JSDOM(MEETING_HTML, { runScripts: 'outside-only', pretendToBeVisual: true,
                                       url: 'https://board.test/meeting' });
   const w = d.window;
@@ -294,10 +294,15 @@ async function inkIsKept() {
     log.push({ url: url, opts: o || {} });
     if (/meeting\/view/.test(url)) {
       return Promise.resolve({ json: () => Promise.resolve(Object.assign(
-        {}, VIEW, { digest: BUILD.digest, build: BUILD, rebuilt: net.rebuilt })) });
+        {}, VIEW, { digest: BUILD.digest, build: BUILD, rebuilt: net.rebuilt,
+                    deck: net.deck })) });
     }
     if (/annotate\/save/.test(url)) {
       if (net.save === 'down') return Promise.reject(new TypeError('Failed to fetch'));
+      if (net.save === 'gone') {
+        return Promise.resolve({ ok: false, status: 409,
+                                 json: () => Promise.resolve({ ok: false, gone: true }) });
+      }
       if (net.save === 'refused') {
         return Promise.resolve({ ok: false, status: 500,
                                  json: () => Promise.resolve({ ok: false }) });
@@ -336,7 +341,8 @@ async function inkIsKept() {
   const first = saves().pop();
   const body = first ? JSON.parse(first.opts.body) : {};
   (body.build || {}).digest === BUILD.digest && body.card === P2 && !body.send
-    ? ok('ink: a saved slide carries the build it was drawn on, and is not a send')
+    && body.deck === net.deck
+    ? ok('ink: a saved slide carries the build and the deck it was drawn on, and is not a send')
     : fail('ink: the save was: ' + (first && first.opts.body));
   kept() === 'saved · 1 page marked'
     ? ok('ink: once it lands the bar says “saved · 1 page marked”')
@@ -391,8 +397,29 @@ async function inkIsKept() {
     && /not saved yet/.test(byId('deck-ask-said').textContent)
     ? ok('ink: marks the board has not got are not sent as direction, and it says so')
     : fail('ink: direction went with unsaved ink: ' + byId('deck-ask-said').textContent);
+  // ---- close waits for the ink, and says when it will not save ---------
+  byId('reader-close').dispatchEvent(new w.MouseEvent('click', { bubbles: true }));
+  await sleep(40);
+  /close again to leave without it/.test(kept()) && w.Annotate.unsaved().indexOf(P2) >= 0
+    ? ok('ink: close waits on the save, and ink that will not save stops it once, saying so')
+    : fail('ink: close with unsaved ink: ' + kept());
   net.save = 'ok';
   w.dispatchEvent(new w.Event('online'));
+  await sleep(30);
+
+  // ---- a deck replaced under the page lets its old ink go --------------
+  net.save = 'gone';
+  draw(P3);
+  const views = () => log.filter((r) => /meeting\/view/.test(r.url)).length;
+  const viewsBefore = views();
+  await sleep(1000);
+  w.Annotate.unsaved().indexOf(P3) < 0 && views() > viewsBefore
+    && !/not saved/.test(kept())
+    ? ok('ink: a save the board says is for another deck is let go, not retried, '
+         + 'and the page draws the deck again')
+    : fail('ink: a gone save: unsaved ' + w.Annotate.unsaved().join(',')
+           + ', bar ' + kept());
+  net.save = 'ok';
   await sleep(30);
 
   // ---- rebuilt since ---------------------------------------------------
@@ -417,4 +444,13 @@ async function inkIsKept() {
     && /rebuilt since/.test(flag.textContent)
     ? ok('ink: marks drawn on an earlier build of the deck are flagged “rebuilt since”')
     : fail('ink: the rebuilt flag: ' + (flag ? (flag.hidden ? 'hidden' : flag.textContent) : 'missing'));
+
+  // Re-drawing the flagged slide on this build clears the flag on the board,
+  // and the page asks again rather than going on saying it.
+  net.rebuilt = null;
+  w2.Annotate.load({ [P2]: [S] }); w2.Annotate.clear(P2); w2.Annotate.undo();
+  await sleep(1100);
+  flag && flag.hidden
+    ? ok('ink: a flag re-drawing has cleared goes from the page after the save')
+    : fail('ink: the rebuilt flag stayed up after the marks were re-drawn');
 }

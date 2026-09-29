@@ -1613,6 +1613,20 @@ def drawn_on(repo, pdf, pages):
     return build, flag
 
 
+def deck_id(base):
+    """Which deck this is, as a string, or "".
+
+    `asked_at` is set once per `prepare` and kept through a recompile in place,
+    so it names one deck across its builds. A save of deck ink names the deck
+    it was drawn on, and a save naming another is refused
+    (`/annotate/save`): a page left open over a new deck would otherwise write
+    last meeting's rings onto this one's slides.
+    """
+    rec = _read_record(base) or {}
+    at = rec.get("asked_at")
+    return repr(float(at)) if isinstance(at, (int, float)) else ""
+
+
 def clear_ink(repo):
     """Throw away every mark on the deck. Returns how many keys went.
 

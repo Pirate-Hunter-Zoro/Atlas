@@ -61,6 +61,7 @@ var pagesOf = {};        /* page number -> workspace id */
 var names = {};          /* workspace id -> the name it is drawn under */
 var openPages = 0;
 var openBuild = null;    /* the build on the glass: `got.build` */
+var openDeck = null;     /* which deck it is: `got.deck` */
 
 /* ------------------------------------------------------------- the pages */
 function load() {
@@ -79,6 +80,7 @@ function paint(got) {
     els.readerPages.innerHTML = "";
     openPages = 0;
     openBuild = null;
+    openDeck = null;
     paintCheck({});
     paintRebuilt(null);
     paintPen();
@@ -134,6 +136,7 @@ function paint(got) {
   /* THE BUILD ON THE GLASS, handed back with every save of this deck's ink
      -- and the flag, when ink on it was drawn on another. */
   openBuild = got.build || null;
+  openDeck = got.deck || null;
   paintRebuilt(got.rebuilt || null);
   paintCheck(got.unsupported || {});
   paintPen();
@@ -278,8 +281,32 @@ var keeper = window.InkKeep && window.Annotate ? window.InkKeep.make({
   build: function (id) {
     return openBuild && /^doc\/meeting\/p\d+$/.test(id) ? openBuild : null;
   },
-  paint: function () { paintKept(); }
+  /* WHICH DECK, so a page left open over a new one cannot write this
+     deck's rings onto that one's slides: the board answers `gone`. */
+  stamp: function (id) {
+    return openDeck && /^doc\/meeting\/p\d+$/.test(id) ? { deck: openDeck } : null;
+  },
+  paint: function () { paintKept(); },
+  saved: function (done) {
+    /* A deck replaced under this page is drawn again. */
+    if (done.some(function (d) { return d.gone; })) { load(); return; }
+    /* A flag re-drawing may have cleared is asked again: stamped with this
+       build, the marks are no longer on another. */
+    if (els.readerRebuilt && !els.readerRebuilt.hidden
+        && done.some(function (d) { return d.ok; })) refreshRebuilt();
+  }
 }) : null;
+
+function refreshRebuilt() {
+  fetch("/meeting/view", { credentials: "same-origin" })
+    .then(function (r) { return r.json(); })
+    .then(function (got) {
+      if (!got || !got.ok) return;
+      if ((got.deck || null) !== openDeck) { load(); return; }
+      paintRebuilt(got.rebuilt || null);
+    })
+    .catch(function () { /* the flag stays as it was */ });
+}
 
 function savePen(opts) {
   return keeper ? keeper.save(opts) : Promise.resolve([]);
@@ -379,12 +406,27 @@ els.deckAskGo.onclick = function () {
   });
 };
 
+/* CLOSE WAITS FOR THE INK. A close is a click, not a lid: leaving at once
+   cancels a save already in the air and drops what the page still owes. Ink
+   that will not save is said on the bar, and a second close leaves anyway. */
+var closeAnyway = false;
 els.readerClose.onclick = function () {
-  /* Whatever is owed goes now. A page closed with ink that never reached disk
-     is ink somebody drew and the board silently dropped -- and the page is
-     going away, so it goes marked to outlive it. */
-  if (keeper) keeper.flush();
-  location.href = "/";
+  if (!keeper || closeAnyway) { location.href = "/"; return; }
+  els.readerClose.disabled = true;
+  /* A board that does not answer is not waited on forever. */
+  Promise.race([keeper.settle(), new Promise(function (ok) {
+    setTimeout(ok, 8000);
+  })]).then(function () {
+    els.readerClose.disabled = false;
+    if (keeper.owed()) {
+      closeAnyway = true;
+      els.readerKept.hidden = false;
+      els.readerKept.className = "reader-kept bad";
+      els.readerKept.textContent = "not saved — close again to leave without it";
+      return;
+    }
+    location.href = "/";
+  });
 };
 
 document.addEventListener("keydown", function (ev) {

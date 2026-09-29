@@ -256,6 +256,7 @@ def get(h, repo, path):
             # THE BUILD ON THE GLASS, handed back with every save, and the
             # flag when ink on it was drawn on another.
             out["build"], out["rebuilt"] = meeting.drawn_on(repo, rec["pdf"], out)
+            out["deck"] = meeting.deck_id(base)
             out["pages_of"] = rec.get("pages") or {}
             out["names"] = rec.get("names") or {}
             out["since"] = rec.get("since") or ""

@@ -733,7 +733,11 @@ line off the same path (`web/inkkeep.js`): a failed save stays owed and is retri
 every save carries it, and ink drawn on another build of the deck is flagged *rebuilt since* in
 `#reader-rebuilt`. A new deck clears the old one's ink, so that only ever means a deck recompiled in
 place. *send them* waits for every save and refuses while ink is still unsaved, because the turns
-read the marks off disk. **No marked copy is made of the deck.** Its ink is direction, consumed
+read the marks off disk. Close waits for the saves too, and ink that will not save stops it once,
+saying so. Every save also names its deck (`meeting.deck_id`, the record's `asked_at`), and
+`/annotate/save` answers `gone` (409) to one naming another deck: a page left open over a new deck
+would otherwise write the old rings onto its slides, so the page lets that ink go and redraws. The
+*rebuilt since* flag is asked again after a save, so re-drawn marks clear it. **No marked copy is made of the deck.** Its ink is direction, consumed
 when sent, and its pictures already go to `meetings/marks/`; the ink lives on the serving board
 while a fenced deck lives in its host workspace, so a copy would either cross that fence or be a
 second record of something already sent.
@@ -3946,7 +3950,8 @@ rebuilt document is burned from the cached pages of the build the marks were dra
 on (`paper.cached` of the stamped digest, PNGs embedded with the PNG predictor);
 if that set has left the cache, or the marks span two builds, it says a copy cannot
 be made. A mark on a page past the burned build's last page is not in the copy, and
-the reply says so by page (`dropped`) rather than leaving it out silently. **Keeping a copy is not sending**: nothing is marked delivered and the ink
+the reply says so by page (`dropped`) rather than leaving it out silently. When every mark is past it,
+nothing is written (`past-end`). **Keeping a copy is not sending**: nothing is marked delivered and the ink
 still goes with the next note. The reply names the file, and *save a copy* hands
 `GET /library/marked/<id>/<name>` (an attachment, the name matched against that
 directory's listing) to the share sheet, as `saveCopy` does on the board.

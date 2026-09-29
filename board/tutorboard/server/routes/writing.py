@@ -164,6 +164,18 @@ def post(h, repo, path):
         card = str(payload.get("card") or "")
         if not ann_ok(card):
             return h.send_json({"ok": False, "error": "bad anchor"}, status=400)
+        # INK ON ANOTHER DECK IS NOT THIS ONE'S. A /meeting page left open
+        # while a new deck was asked for still owes the old deck's marks, and
+        # keys are page numbers, so they would land on the new deck's slides.
+        # The save names its deck; `gone` tells the page to let it go.
+        if card.startswith("doc/meeting/") and payload.get("deck") is not None:
+            from ... import atlas, meeting             # local: avoids a cycle
+            here = meeting.deck_id(atlas.root() or repo.root)
+            if str(payload.get("deck")) != here:
+                return h.send_json(
+                    {"ok": False, "gone": True,
+                     "error": "these marks were drawn on another deck"},
+                    status=409)
         stem = ann_file(card)
         strokes = payload.get("strokes") or []
         # Whether these marks have been handed to the tutor, recorded next

@@ -491,6 +491,23 @@ try:
                 status, again = get("/meeting/view")
                 check("and once drawn again on this build it is not",
                       again.get("rebuilt") is None)
+                # --- INK ON ANOTHER DECK IS NOT THIS ONE'S -------------------
+                here = body.get("deck")
+                check("the view names the deck, to stamp its ink with",
+                      bool(here) and here == meeting.deck_id(base))
+                key6 = "doc/%s/p6" % meeting.ANN_IDENT
+                status, got = post("/annotate/save", {
+                    "card": key6, "strokes": line, "build": built,
+                    "deck": "12.5"})
+                check("a save naming another deck is refused as gone, and "
+                      "nothing is written",
+                      status == 409 and got.get("gone") is True
+                      and key6 not in meeting.ink_keys(serving))
+                status, got = post("/annotate/save", {
+                    "card": key6, "strokes": line, "build": built,
+                    "deck": here})
+                check("and one naming this deck is kept",
+                      status == 200 and key6 in meeting.ink_keys(serving))
                 meeting.clear_ink(serving)
             else:
                 print("skip  %s" % (body.get("detail") or "no pages drawn here"))
