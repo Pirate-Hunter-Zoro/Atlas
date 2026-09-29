@@ -722,6 +722,9 @@ exactly why the transcript goes behind the fence.
 
 ## 4d. DeepSeek from a terminal (`ds-code`)
 
+**DeepSeek cannot be used from the Laureate compute nodes, and that is final.** IT's network filters `api.deepseek.com` by hostname as a security policy. No exception is requested, and no exit node, tunnel or proxy is used to get past the filter, because that would be evading a site security control. `ds-code` fails at the TLS handshake on these nodes. It is kept for a machine where
+the name answers. [`docs/deepseek-egress.md`](docs/deepseek-egress.md) holds the measurements.
+
 **The one command in this repo that talks to a model outside the building.** `ds-code` puts DeepSeek
 V4.1 Flash behind opencode in whatever directory you are standing in — no Slurm job, no allocation
 to step into, no GPU. The endpoint is `api.deepseek.com`; the client runs where you type the

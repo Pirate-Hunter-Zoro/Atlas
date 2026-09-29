@@ -1,9 +1,12 @@
 # The block on api.deepseek.com
 
+**DeepSeek cannot be used from the Laureate compute nodes, and that is final.** IT's network filters `api.deepseek.com` by hostname as a security policy. No exception is requested, and no exit node, tunnel or proxy is used to get past the filter, because that would be evading a site security control. This file is the record of what is blocked and how that was measured. The
+DeepSeek code stays installed so it works anywhere the name is reachable. On these nodes it stands
+itself aside.
+
 **One hostname is filtered. `api.deepseek.com` is reset during the TLS handshake from every c3
-compute node, while DeepSeek's marketing site on the same IP answers normally.** The ask at the
-bottom is a firewall exception for one name on one port. No client setting reaches a device that
-resets the connection this early.
+compute node, while DeepSeek's marketing site on the same IP answers normally.** No client setting
+reaches a device that resets the connection this early.
 
 ## What is blocked, and at which layer
 
@@ -97,14 +100,13 @@ assistant — this one included, since it runs through the same binary and inher
 inside the fence. The therapy audio in `research/PSYCH-ASR/phi/` is served only by colibrì, the
 local model held warm behind a loopback gateway, and that does not change.
 
-## The ask
+## The exception that would open it, which is not being asked for
 
-**Allow outbound TCP 443 from compute300–compute306 to `api.deepseek.com`.**
+Opening it would take outbound TCP 443 from compute300–compute306 to `api.deepseek.com`, allowed
+by hostname, because it is a CloudFront CNAME (`d3bbv8sr76az5s.cloudfront.net`) whose IP rotates.
+The owner has decided not to request it.
 
-By hostname rather than address: it is a CloudFront CNAME (`d3bbv8sr76az5s.cloudfront.net`) whose
-IP rotates, and the sibling names on that same IP are already permitted.
-
-## Re-test once it is open
+## Re-test, only if the policy ever changes
 
 ```bash
 curl -sS -o /dev/null -w '%{http_code}\n' https://api.deepseek.com/anthropic/v1/messages

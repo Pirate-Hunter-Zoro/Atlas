@@ -2231,6 +2231,10 @@ its title, the daemon refuses to start on it, and an automatic swap never falls 
 drawn, tapped, and dying in a log file hands the person holding the iPad the one thing they cannot
 act on.
 
+**DeepSeek cannot be used from the Laureate compute nodes, and that is final.** IT's network filters `api.deepseek.com` by hostname as a security policy. No exception is requested, and no exit node, tunnel or proxy is used to get past the filter, because that would be evading a site security control. The recipe below stays installed, and on these nodes it stands itself aside before a
+turn is spent on it (*When the provider does not answer from this machine at all*, below). It is
+still the worked example of a provider recipe.
+
 `deepseek` is the worked example and it is cheap for one reason: DeepSeek serves an Anthropic-format
 `/messages` endpoint, so the agent that runs it is **the `claude` executable already installed
 here**, with eight environment variables. Every part of this tool that knows how to drive Claude
@@ -2579,7 +2583,8 @@ An allowance that runs out is the provider working. A hostname this network drop
 being unreachable, and it looks identical from a lesson: a tutor listening, a student sending, and
 nothing coming back. `api.deepseek.com` is dropped at the TLS ClientHello here — the same address
 answers under its CloudFront name, so the filter keys on the hostname and no client setting reaches
-it. The recipe is correct and stays; what changes is everything around it.
+it. That filter is IT security policy, and nothing here routes around it. The recipe is correct and
+stays; what changes is everything around it.
 
 **A recipe with a provider of its own is probed before a turn is spent on it.** Only such a recipe:
 anything driving the machine's default provider is covered by the machine-wide probe the failure
