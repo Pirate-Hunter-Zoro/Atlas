@@ -500,7 +500,81 @@ def pages(repo, ident_wanted, width=paper.PAGE_WIDTH):
         except Exception:                                    # noqa: BLE001
             pass
         out["ink"] = ink(repo, doc)
+        # THE BUILD ON THE GLASS, which the reader hands back with every save
+        # so the record says what the marks were drawn on.
+        out["build"] = {"digest": out.get("digest") or "",
+                        "at": _mtime(target), "pages": out.get("n") or 0}
+        out["rebuilt"] = drawn_on(repo, doc, out["build"]["digest"],
+                                  out["ink"])["rebuilt"]
     return out
+
+
+def when_built(at):
+    """`28 Sep 21:40`: a build, named the way the reader says it."""
+    if not at:
+        return "an earlier"
+    return time.strftime("%d %b %H:%M", time.localtime(at)).lstrip("0")
+
+
+def drawn_on(repo, doc, current, ink_now=None):
+    """Which build this document's marks were drawn on, against `current`.
+
+    `current` is `paper._digest` of the PDF on disk now. Returns
+    `{"digest", "rebuilt", "refuse"}`:
+
+        digest    the build a marked copy is burned from -- `current`, or the
+                  one older build every stamped mark was drawn on
+        rebuilt   None when nothing was drawn on another build; otherwise
+                  `{at, when, pages, copy, detail}` for the reader's flag
+        refuse    "" or the sentence saying why no copy can be made
+
+    A page with no stamp is ink from before builds were recorded, or from the
+    board's own viewer, and goes with whichever build is burned. One older
+    build is burned only from ITS OWN rendering, still in the page cache:
+    putting marks drawn on 21:40's pages over this morning's is the defect the
+    stamp exists to catch. Marks on two builds have no one page under them.
+    """
+    from ..lesson import notes as lesson_notes        # local: avoids a cycle
+    from ..server.routes import writing               # local: avoids a cycle
+
+    ink_now = ink(repo, doc) if ink_now is None else ink_now
+    builds = lesson_notes.load_notes_builds(repo)
+    older, on_current = {}, False
+    for key in ink_now:
+        b = builds.get(key)
+        if not b:
+            continue
+        if b.get("digest") == current:
+            on_current = True
+            continue
+        got = older.setdefault(b["digest"], {"at": b.get("at") or 0,
+                                             "was": b.get("pages") or 0,
+                                             "pages": []})
+        page = writing.ann_doc_page(key)
+        if page and page[1] not in got["pages"]:
+            got["pages"].append(page[1])
+    if not older:
+        return {"digest": current, "rebuilt": None, "refuse": ""}
+    digest = min(older, key=lambda d: older[d]["at"])
+    first = older[digest]
+    refuse = ""
+    if len(older) > 1:
+        refuse = ("These marks were drawn on %d different builds, so no one "
+                  "rendering of the document is under all of them and a marked "
+                  "copy cannot be made." % len(older))
+    elif on_current:
+        refuse = ("Some of these marks were drawn on the %s build and some on "
+                  "this one, so no one rendering is under all of them and a "
+                  "marked copy cannot be made." % when_built(first["at"]))
+    elif not paper.cached(repo, digest):
+        refuse = ("The %s build these marks were drawn on is no longer in the "
+                  "page cache, so a marked copy of it cannot be made."
+                  % when_built(first["at"]))
+    pages_on = sorted(p for o in older.values() for p in o["pages"])
+    return {"digest": digest if not refuse else "", "refuse": refuse,
+            "rebuilt": {"at": first["at"], "when": when_built(first["at"]),
+                        "was": first["was"], "pages": pages_on,
+                        "copy": not refuse, "detail": refuse}}
 
 
 def ink(repo, doc):

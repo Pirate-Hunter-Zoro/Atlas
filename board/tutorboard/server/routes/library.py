@@ -32,6 +32,8 @@ that is not the lesson's.
                                     every few seconds
     GET  /library/view/<id>         the pages of one, drawn by the renderer the
                                     board already has
+    GET  /library/marked/<id>/<name> a marked copy `POST /annotate/burn` made
+                                    of one, as an attachment
     GET  /library/note/<id>/<name>  one round of feedback, read back -- which is
                                     where the turn wrote what it changed
     POST /library/feedback          one round of feedback, written where the
@@ -79,6 +81,7 @@ from . import NOT_MINE
 from .. import spawn
 from ... import (atlas, leaving, machines, manuscript, paths, scopes, sense,
                  sittings, writeups)
+from ...course import burn
 from ...course import config
 from ...course import library
 from ...course import results
@@ -137,6 +140,18 @@ def get(h, repo, path):
     if path.startswith("/library/table/"):
         got = results.table(repo.root, unquote(path[len("/library/table/"):]))
         return h.send_json(got, status=200 if got.get("ok") else 404)
+
+    # A MARKED COPY, handed over to be kept. An id and a name, both matched
+    # against what is on disk under `live/marked/<id>/` -- `burn.marked_file`
+    # -- and sent as an attachment, because it is asked for to go into Files.
+    if path.startswith("/library/marked/"):
+        rest = path[len("/library/marked/"):].split("/", 1)
+        found = burn.marked_file(repo, rest[0] if rest else "",
+                                 unquote(rest[1]) if len(rest) > 1 else "")
+        if not found:
+            return h.send_json({"ok": False, "error": "no such copy"},
+                               status=404)
+        return h.send_file(found, download=os.path.basename(found))
 
     if path.startswith("/library/view/"):
         # The same rasteriser, the same cache and the same `/paper/<name>.png`

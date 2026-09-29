@@ -62,6 +62,14 @@ var els = {
   readerMode: document.getElementById("reader-mode"),
   readerClose: document.getElementById("reader-close"),
   readerSaid: document.getElementById("reader-said"),
+  readerKept: document.getElementById("reader-kept"),
+  readerKeep: document.getElementById("reader-keep"),
+  readerCopy: document.getElementById("reader-copy"),
+  readerCopySaid: document.getElementById("reader-copy-said"),
+  readerCopySave: document.getElementById("reader-copy-save"),
+  readerRebuilt: document.getElementById("reader-rebuilt"),
+  readerRebuiltSaid: document.getElementById("reader-rebuilt-said"),
+  readerRebuiltKeep: document.getElementById("reader-rebuilt-keep"),
   note: document.getElementById("note"),
   noteTitle: document.getElementById("note-title"),
   noteWhere: document.getElementById("note-where"),
@@ -484,7 +492,10 @@ function act(label, cls, fn) {
 
 /* ------------------------------------------------------- reading one */
 function read(doc) {
+  if (!openDoc || openDoc.id !== doc.id) showCopy(null);
   openDoc = doc;
+  openBuild = null;
+  paintRebuilt(null);
   paintMode();
   openPages = 0;
   drawnPages = 0;
@@ -599,6 +610,10 @@ function draw(doc, place) {
         });
       }
       if (window.Annotate) window.Annotate.load(got.ink || {});
+      /* THE BUILD ON THE GLASS, handed back with every save of this
+         document's ink -- and the flag, when ink on it was drawn on another. */
+      openBuild = got.build || null;
+      paintRebuilt(got.rebuilt || null);
       /* HOW MANY PAGES THE INK WAS DRAWN ON. Taken the first time this document
          is drawn with marks on it, so a later re-draw can say out loud that the
          deck reflowed under them. */
@@ -607,6 +622,7 @@ function draw(doc, place) {
       }
       keepPlace();
       paintPen();
+      paintKept();
       paintReaderSaid();
     })
     .catch(function () {
@@ -626,12 +642,16 @@ function closeReader() {
     window.Annotate.forget();
   }
   openDoc = null;
+  openBuild = null;
   openPages = 0;
   drawnPages = 0;
   placeWanted = 0;
   els.reader.hidden = true;
   els.readerSaid.hidden = true;
+  showCopy(null);
+  paintRebuilt(null);
   paintPen();
+  paintKept();
 }
 
 /* ------------------------------------------------------------- the pen */
@@ -706,29 +726,142 @@ function savePictures(docId) {
    for the same reason. */
 var penTimer = null;
 
-function savePen() {
+/* WHERE THE INK IS, SAID ON THE BAR. The strokes were always safe on disk a
+   second after the pen lifted; what nobody could see was that, or a save that
+   failed. So the bar says *saved · 3 pages marked*, *saving…*, or *not saved —
+   retrying*, and a failed page is kept owed and tried again: on a timer, when
+   the network comes back, and when the page is looked at again.
+
+   `owed` is this page's own copy of every body not yet confirmed on disk. The
+   pen's `unsaved` list is dropped when the reader closes (`Annotate.forget`),
+   and a save that failed as it closed would otherwise be ink the board let go
+   of without a word. */
+var owed = Object.create(null);      /* key -> the body last sent, unconfirmed */
+var flying = Object.create(null);    /* key -> a save of it is in the air */
+var inkFailed = false;
+var retryTimer = null;
+var retryWait = 0;
+var openBuild = null;                /* the build on the glass: `got.build` */
+
+function mineKey(id) {
+  return !!openDoc && id.indexOf("doc/" + openDoc.id + "/") === 0;
+}
+
+function bodyFor(id) {
+  var dirty = window.Annotate && window.Annotate.unsaved().indexOf(id) >= 0;
+  var body = dirty ? window.Annotate.payload(id, false) : owed[id];
+  if (!body) return null;
+  /* WHICH BUILD IT WAS DRAWN ON, so a rebuild overnight can be said out loud
+     when the document is opened again. Only for the document on the glass:
+     that is the only build this page knows it drew. */
+  if (dirty && openBuild && mineKey(id)) body.build = openBuild;
+  return body;
+}
+
+function savePen(opts) {
   if (!window.Annotate) return Promise.resolve([]);
-  var ids = window.Annotate.unsaved();
-  if (!ids.length) return Promise.resolve([]);
-  return Promise.all(ids.map(function (id) {
+  var keep = !!(opts && opts.keepalive);
+  var ids = window.Annotate.unsaved().slice();
+  Object.keys(owed).forEach(function (id) { if (ids.indexOf(id) < 0) ids.push(id); });
+  /* One save of a key at a time: two in the air can land in either order, and
+     the older one landing last leaves disk behind the glass while both said
+     yes. The one in the air finishes, and what is still owed goes after it. */
+  ids = ids.filter(function (id) { return !flying[id]; });
+  if (!ids.length) { paintKept(); return Promise.resolve([]); }
+  var jobs = ids.map(function (id) {
     /* `send` is NEVER set from here. Ink on a document is a complaint about
        the document, and it becomes a turn when the note goes -- the feedback
        route reads the marks where it reads the textarea. Sending on every
        stroke would wake a tutor per ring drawn. */
-    var body = window.Annotate.payload(id, false);
-    return fetch("/annotate/save", {
+    var body = bodyFor(id);
+    if (!body) return Promise.resolve({ id: id, ok: true });
+    var sentInk = JSON.stringify(body.strokes || []);
+    owed[id] = body;
+    flying[id] = true;
+    var init = {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       credentials: "same-origin",
       body: JSON.stringify(body)
-    }).then(function () { window.Annotate.clean(id); });
-  })).then(function (done) {
+    };
+    /* THE LID SHUTTING. `visibilitychange` to hidden is the event iOS actually
+       fires then, and a request started in it is cut off unless it is marked to
+       outlive the page. */
+    if (keep) init.keepalive = true;
+    return fetch("/annotate/save", init).then(function (r) {
+      if (r && r.ok === false) throw new Error("the board answered " + r.status);
+      return r && r.json ? r.json().catch(function () { return {}; }) : {};
+    }).then(function (got) {
+      if (got && got.ok === false) throw new Error(got.error || "refused");
+      /* Only what went is clean. A stroke drawn while this was in the air is
+         still owed, and the next save takes it. */
+      var now = window.Annotate.unsaved().indexOf(id) >= 0
+        ? JSON.stringify(window.Annotate.payload(id, false).strokes || [])
+        : sentInk;
+      if (now === sentInk) window.Annotate.clean(id);
+      if (owed[id] === body) delete owed[id];
+      return { id: id, ok: true };
+    }).catch(function () {
+      return { id: id, ok: false };
+    }).then(function (res) {
+      delete flying[id];
+      return res;
+    });
+  });
+  paintKept();
+  return Promise.all(jobs).then(function (done) {
+    inkFailed = done.some(function (d) { return !d.ok; });
+    if (inkFailed) {
+      scheduleRetry();
+    } else {
+      retryWait = 0;
+      if (retryTimer) { clearTimeout(retryTimer); retryTimer = null; }
+      /* Drawn on while the save was in the air: that goes next. */
+      if (window.Annotate.unsaved().length) queuePenSave();
+    }
+    paintKept();
     /* The row carries how many pages are marked, and the note dialog decides
        whether the send button is live off the same number. Both are worth
        being right about a second after a ring is drawn. */
-    if (done.length) load();
+    if (done.some(function (d) { return d.ok; })) load();
     return done;
   });
+}
+
+/* Backing off, and never giving up: the ink is somebody's work and the board
+   being unreachable for an hour is a train through a tunnel, not a verdict. */
+function scheduleRetry() {
+  if (retryTimer) return;
+  var first = window.INK_RETRY_MS || 5000;
+  retryWait = Math.min(retryWait ? retryWait * 2 : first, Math.max(first, 60000));
+  retryTimer = setTimeout(function () {
+    retryTimer = null;
+    savePen();
+  }, retryWait);
+}
+
+function inkOwed() {
+  if (!window.Annotate) return false;
+  return window.Annotate.unsaved().length > 0 || Object.keys(owed).length > 0;
+}
+
+function pagesMarked() {
+  if (!window.Annotate || !openDoc) return 0;
+  return window.Annotate.marked().filter(mineKey).length;
+}
+
+function paintKept() {
+  if (!els.readerKept) return;
+  var n = pagesMarked();
+  var text = "";
+  var cls = "";
+  if (inkOwed() && inkFailed) { text = "not saved — retrying"; cls = "bad"; }
+  else if (inkOwed()) { text = "saving…"; cls = "busy"; }
+  else if (n) { text = "saved · " + n + (n === 1 ? " page" : " pages") + " marked"; }
+  els.readerKept.textContent = text;
+  els.readerKept.className = "reader-kept" + (cls ? " " + cls : "");
+  els.readerKept.hidden = !text;
+  if (els.readerKeep) els.readerKeep.disabled = keeping || !n;
 }
 
 function queuePenSave() {
@@ -742,13 +875,193 @@ function queuePenSave() {
   }, 900);
 }
 
+/* Everything owed, now, marked to outlive the page. Not under the 900 ms
+   timer: there may be no next tick. */
+function flushPen() {
+  if (penTimer) { clearTimeout(penTimer); penTimer = null; }
+  return savePen({ keepalive: true });
+}
+
 if (window.Annotate) {
   window.Annotate.onChange(function () {
     queuePenSave();
     paintPen();
+    paintKept();
   });
-  /* A closing tab must not take the last stroke with it. */
-  window.addEventListener("pagehide", function () { savePen(); });
+  /* A closing tab must not take the last stroke with it -- and in a home-screen
+     app on an iPad `pagehide` is not reliably fired when the lid shuts, while
+     `visibilitychange` to hidden is. Back to visible is a retry, and so is the
+     network coming back. */
+  window.addEventListener("pagehide", function () { flushPen(); });
+  document.addEventListener("visibilitychange", function () {
+    if (document.visibilityState === "hidden") { flushPen(); return; }
+    if (inkOwed()) savePen();
+  });
+  window.addEventListener("online", function () {
+    if (inkOwed()) savePen();
+  });
+}
+
+/* ------------------------------------------------ ⤓ keep a marked copy */
+/* THE INK, BURNED INTO A NEW PDF, and never over the original: a document in
+   the library is rebuilt by whatever made it, and the ask was a copy *without
+   overwriting*. `POST /annotate/burn` with `library/<id>` writes it into the
+   workspace's `live/marked/<id>/`, which the library does not list and git
+   does not carry. Keeping a copy is not sending: the ink stays on the page and
+   still goes with the next note. The copy is then handed over the way the
+   board hands over a document -- the share sheet, so it can go to Files. */
+var keeping = false;
+var keptCopy = null;                 /* { id, name, url, got } */
+
+function keepCopy() {
+  if (!openDoc || keeping) return;
+  var forDoc = openDoc.id;
+  keeping = true;
+  var was = els.readerKeep.textContent;
+  els.readerKeep.textContent = "keeping…";
+  paintKept();
+  /* What is on the glass goes to disk first: the copy is burned from disk. */
+  flushPenFor().then(function () {
+    if (inkFailed && inkOwed()) {
+      throw new Error("The ink is not saved yet, so a copy would be missing "
+                      + "some of it. It is retrying; keep the copy once it says saved.");
+    }
+    return fetch("/annotate/burn", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "same-origin",
+      body: JSON.stringify({ kind: "library/" + forDoc, mode: "new" })
+    });
+  }).then(function (r) {
+    return r.json().catch(function () { return {}; });
+  }).then(function (got) {
+    if (!got || !got.ok) throw new Error((got && got.detail) || "The board refused it.");
+    keptCopy = { id: forDoc, name: got.name, url: got.url, got: null };
+    showCopy(got.detail || ("Kept as " + got.name + "."));
+    warmCopy(keptCopy);
+  }).catch(function (err) {
+    showCopy((err && err.message) || "The board is not answering.", true);
+  }).then(function () {
+    keeping = false;
+    els.readerKeep.textContent = was;
+    paintKept();
+  });
+}
+
+function flushPenFor() {
+  if (penTimer) { clearTimeout(penTimer); penTimer = null; }
+  return savePen();
+}
+
+/* Fetched as soon as it exists, so the tap on *save a copy* can share it in the
+   same gesture -- the only moment Safari allows the share sheet. */
+function warmCopy(copy) {
+  fetch(copy.url, { credentials: "same-origin" }).then(function (res) {
+    if (res.ok === false) throw new Error("the board would not give it up");
+    return res.blob();
+  }).then(function (blob) {
+    var file = null;
+    try { file = new File([blob], copy.name, { type: "application/pdf" }); }
+    catch (e) { file = null; }
+    copy.got = { blob: blob, name: copy.name, file: file, url: copy.url };
+  }).catch(function () { /* the tap fetches it again and says so */ });
+}
+
+function showCopy(text, bad) {
+  if (!els.readerCopy) return;
+  if (!text) { els.readerCopy.hidden = true; keptCopy = null; return; }
+  els.readerCopy.hidden = false;
+  els.readerCopy.className = "reader-copy" + (bad ? " bad" : "");
+  els.readerCopySaid.textContent = text;
+  els.readerCopySave.hidden = !!bad || !keptCopy;
+  els.readerCopySave.textContent = "save a copy";
+  els.readerCopySave.disabled = false;
+}
+
+function standalone() {
+  if (navigator.standalone === true) return true;
+  try {
+    return !!(window.matchMedia && window.matchMedia("(display-mode: standalone)").matches);
+  } catch (e) { return false; }
+}
+
+/* The share sheet first; a blob download where there is none; and in the
+   installed app, which ignores `download`, a new context -- never a navigation
+   of this one. `board.js` `shareIt` / `saveBlob` are the rule. */
+function handOver(got, btn) {
+  var done = function (label) { if (btn) btn.textContent = label || "save a copy"; };
+  if (got.file && navigator.share && navigator.canShare
+      && navigator.canShare({ files: [got.file] })) {
+    try {
+      var p = navigator.share({ files: [got.file], title: got.name });
+      if (p && p.then) {
+        p.then(function () { done("saved"); }, function (err) {
+          if (err && err.name === "AbortError") { done(); return; }
+          saveBlob(got, done);
+        });
+        return;
+      }
+    } catch (e) { /* refused outright; save instead */ }
+  }
+  saveBlob(got, done);
+}
+
+function saveBlob(got, done) {
+  var a = document.createElement("a");
+  if (standalone() || !("download" in a) || !got.blob) {
+    window.open(got.url, "_blank", "noopener");
+    done();
+    return;
+  }
+  var href = URL.createObjectURL(got.blob);
+  a.href = href;
+  a.download = got.name;
+  a.rel = "noopener";
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(function () { URL.revokeObjectURL(href); }, 60000);
+  done("saved");
+}
+
+if (els.readerKeep) els.readerKeep.onclick = keepCopy;
+if (els.readerRebuiltKeep) els.readerRebuiltKeep.onclick = keepCopy;
+if (els.readerCopySave) {
+  els.readerCopySave.onclick = function (e) {
+    var copy = keptCopy;
+    var btn = e.currentTarget;
+    if (!copy) return;
+    if (copy.got) { handOver(copy.got, btn); return; }
+    btn.disabled = true;
+    btn.textContent = "getting it…";
+    warmCopy(copy);
+    /* No gesture left by the time it arrives, so this is the download route. */
+    setTimeout(function wait(n) {
+      n = n || 0;
+      if (copy.got || n > 40) {
+        btn.disabled = false;
+        if (copy.got) handOver(copy.got, btn);
+        else btn.textContent = "could not get it";
+        return;
+      }
+      setTimeout(function () { wait(n + 1); }, 150);
+    }, 150);
+  };
+}
+
+/* INK KNOWS ITS BUILD. A document rebuilt since its marks were drawn moves its
+   text under them without a word, so the reader says so above the pages -- and
+   offers the marked copy, which is burned from the build they were drawn on
+   while that rendering is still in the page cache, and otherwise says it
+   cannot be. */
+function paintRebuilt(flag) {
+  if (!els.readerRebuilt) return;
+  if (!flag) { els.readerRebuilt.hidden = true; return; }
+  els.readerRebuilt.hidden = false;
+  els.readerRebuiltSaid.textContent = "These marks were drawn on the "
+    + (flag.when || "an earlier") + " build; the document has been rebuilt since."
+    + (flag.copy ? "" : " " + (flag.detail || "A marked copy of that build cannot be made."));
+  els.readerRebuiltKeep.hidden = !flag.copy;
 }
 
 els.readerClose.onclick = closeReader;
@@ -812,8 +1125,12 @@ function say(doc, page) {
   notePage = page || 0;
   els.noteTitle.textContent = doc.title || doc.stem;
   els.noteWhere.textContent = doc.rel;
-  els.noteText.value = "";
-  els.purpose.value = "";
+  /* WHAT WAS BEING TYPED, BACK. Kept on this device per document on every
+     keystroke, so a reload, a closed tab or an app evicted overnight costs
+     nothing -- and gone only when the note is actually filed. */
+  var draft = draftOf(doc.id);
+  els.noteText.value = (draft && draft.text) || "";
+  els.purpose.value = (draft && draft.purpose) || "";
   els.noteSaid.hidden = true;
   els.notePage.hidden = !notePage;
   if (notePage) els.notePage.textContent = "about page " + notePage;
@@ -829,7 +1146,8 @@ function say(doc, page) {
   els.askRevise.hidden = dir;
   els.askRework.hidden = dir;
   if (els.askDirection) els.askDirection.hidden = !dir;
-  setAsk(dir ? "direction" : "revise");
+  setAsk(dir ? "direction"
+    : draft && draft.ask === "rework" && !els.askRework.disabled ? "rework" : "revise");
   els.note.hidden = false;
   els.noteText.focus();
 }
@@ -910,8 +1228,35 @@ function paintSend() {
     : !els.noteText.value.trim() && !ink;
 }
 
+/* ------------------------------------------------------ drafts, kept */
+var DRAFT_KEY = "library.draft:";
+
+function draftOf(id) {
+  try {
+    var d = JSON.parse(localStorage.getItem(DRAFT_KEY + id) || "null");
+    return d && typeof d === "object" ? d : null;
+  } catch (e) { return null; }
+}
+
+function keepDraft() {
+  if (!noteFor) return;
+  var text = els.noteText.value;
+  var aim = els.purpose.value;
+  try {
+    if (!text.trim() && !aim.trim()) localStorage.removeItem(DRAFT_KEY + noteFor.id);
+    else localStorage.setItem(DRAFT_KEY + noteFor.id, JSON.stringify(
+      { text: text, purpose: aim, ask: noteAsk, at: Date.now() }));
+  } catch (e) { /* private mode or full: the textarea still holds it */ }
+}
+
+function dropDraft(id) {
+  try { localStorage.removeItem(DRAFT_KEY + id); } catch (e) {}
+}
+
 els.noteText.addEventListener("input", paintSend);
 els.purpose.addEventListener("input", paintSend);
+els.noteText.addEventListener("input", keepDraft);
+els.purpose.addEventListener("input", keepDraft);
 
 els.noteCancel.onclick = function () {
   els.note.hidden = true;
@@ -994,6 +1339,7 @@ function sendDirection(said) {
     els.noteSaid.textContent = got.detail || "Sent as a proposed direction.";
     els.noteSend.textContent = "proposed";
     els.noteText.value = "";
+    dropDraft(forDoc);
     load();
   }).catch(function () {
     els.noteSaid.hidden = false;
@@ -1056,6 +1402,9 @@ els.noteSend.onclick = function () {
     els.noteSend.textContent = "sent";
     els.noteText.value = "";
     els.purpose.value = "";
+    /* FILED, so the draft goes -- here and nowhere earlier. A refusal above
+       returned before this line, and its words are still waiting. */
+    dropDraft(forDoc);
     /* WHAT IS NOW IN FLIGHT. The reply says a turn was woken, which is not the
        same as the document having changed -- so this is held against the
        document's own stamp and is cleared by its bytes moving, nothing else. */

@@ -129,6 +129,24 @@ body.annotating .lib-page img {
   font-size: .78rem; line-height: 1.45; color: var(--ink-2);
   background: var(--paper-2); border-bottom: 1px solid var(--rule);
 }
+/* Where the ink is. Quiet when it is saved, amber while it is on its way, red
+   when it is not saved -- the one state that should make somebody look. */
+.reader-kept { font-size: .76rem; color: var(--ink-2); }
+.reader-kept.busy { color: var(--ask); }
+.reader-kept.bad { color: var(--bad); font-weight: 600; }
+#reader-keep:disabled { opacity: .45; cursor: default; }
+.reader-rebuilt { color: var(--ink); }
+.reader-copy {
+  margin: 0; padding: .45rem 1rem;
+  font-size: .78rem; line-height: 1.45; color: var(--ink-2);
+  background: var(--paper-2); border-bottom: 1px solid var(--rule);
+}
+.reader-copy.bad { color: var(--bad); }
+.reader-rebuilt button, .reader-copy button {
+  font: inherit; font-size: .78rem; cursor: pointer; margin-left: .5rem;
+  padding: .2rem .6rem; border-radius: .4rem;
+  border: 1px solid var(--rule); background: var(--paper); color: var(--ink);
+}
 #reader-pages {
   flex: 1; overflow: auto;
   padding: 1rem; display: flex; flex-direction: column; align-items: center;
