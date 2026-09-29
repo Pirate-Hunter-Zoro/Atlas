@@ -179,12 +179,9 @@ in a key file. All of that is Settled below.**
 
 None of these is a build. Each is an evening in front of the thing.
 
-- **The meeting deck, written by a real turn.** A real `[writeup]` turn has
-  not yet built the meeting deck. The first one from the front door (*the
-  meeting deck*, a period, the projects ticked, *Make the deck*) is the check
-  that the local model follows `MEETING_ABOUT`'s shape and the `\meetingws`
-  rule, and that the deck is read back once its turn ends. Render every page
-  and judge it as a mentor would.
+**In this order, because the TRD-EHR paper is what has to get done.** The first
+two are the paper's own path. The meeting deck is how it reaches the mentors.
+The rest are course sittings and can wait.
 
 - **The documents region, on TRD-EHR, on the glass.** The build is Settled.
   Open the map and check three things. Is *Papers & presentations* at the top
@@ -197,15 +194,34 @@ None of these is a build. Each is an evening in front of the thing.
   names the shell that is running. A shell older than `board-shell-v183` is the
   stale-shell suspect, and a second reload fixes it.
 
-- **The typed half of the panel, in a real sitting.** The build is Settled: a
-  formula renders above the box as it is typed, what was sent stays there
-  rendered, a tap on it corrects that answer, and a `$` is one tap. Three things
-  a suite cannot say. Whether the block arriving under your thumb reads as a help
-  or as a jump — the panel changes height the moment a dollar is typed. Whether
-  the hint nags in a code workspace, where a backslash is usually a path and the
-  block will say so every time. And whether the tap to correct is findable
-  without being told, which is the only part of this nobody can be walked
-  through.
+- **One document, all the way round** — the build is Settled; this is the evening.
+  Open a `paper` sitting on a box, let it write into `writeups/<slug>/`, compile
+  it, open `/library`, read it on the glass, draw on it, and say something is
+  wrong with it. Four things no suite reaches: **the content/scope split against a
+  model** — the scope may now be the evening, and whether a tutor holding that
+  still refuses to narrate the evening is the whole of whether the split worked;
+  **a document asked for from a review, against a model**, which is the same
+  question with no box to fall back on; **the revision turn against a model**; **ink a person actually drew** —
+  the marks route is tested with fixture strokes, which is not a ring round a
+  figure at 200% zoom on an iPad, and that page's pen has never met a stylus —
+  and **whether the reader is any good**, which is the one word in the question
+  the library came from that no amount of code answers: *slick*.
+
+- **The meeting deck, written by a real turn.** A real `[writeup]` turn has
+  not yet built the meeting deck. The first one from the front door (*the
+  meeting deck*, a period, the projects ticked, *Make the deck*) is the check
+  that the local model follows `MEETING_ABOUT`'s shape and the `\meetingws`
+  rule, and that the deck is read back once its turn ends. Render every page
+  and judge it as a mentor would.
+
+- **Send my annotations, on the glass.** The build is Settled. Four checks. It
+  is on the screen with nothing annotated, and its picker says so and will not
+  send. Annotate two old responses, open the picker, tick one and send: only
+  that one reaches the tutor. Write an answer on the surface with marks on the
+  lesson and send: the working goes, and no prompt about the marks appears.
+  Press and hold the button, move it and reload: it stays where you put it and
+  does not sit over the ink you are writing.
+
 - **A response typing out, in a real sitting.** The build is Settled, and the
   trace has already caught this wrong once, which is the reason to trust the
   reading rather than the sentence: a card lands above the surface and types
@@ -216,6 +232,17 @@ None of these is a build. Each is an evening in front of the thing.
   line of code — its head names the shell on the glass, and the `type`/`typed`
   pair says whether the card was animated at all. A first reload after a ship
   still runs the old shell; the second gets the new one.
+
+- **The typed half of the panel, in a real sitting.** The build is Settled: a
+  formula renders above the box as it is typed, what was sent stays there
+  rendered, a tap on it corrects that answer, and a `$` is one tap. Three things
+  a suite cannot say. Whether the block arriving under your thumb reads as a help
+  or as a jump — the panel changes height the moment a dollar is typed. Whether
+  the hint nags in a code workspace, where a backslash is usually a path and the
+  block will say so every time. And whether the tap to correct is findable
+  without being told, which is the only part of this nobody can be walked
+  through.
+
 - **The verdict, in a real sitting, and this is the one that is a FEELING rather
   than a fact.** The band is on the response, amber included; the answer and its
   board are quieter; a run of right answers says how many; and `test/mine.js`,
@@ -232,25 +259,7 @@ None of these is a build. Each is an evening in front of the thing.
   is honest and may still be too much. And whether *answer 2 of 3* is useful or
   is a number on a bubble that did not need one: the `nth` clause in `render`,
   and one line to remove.
-- **One document, all the way round** — the build is Settled; this is the evening.
-  Open a `paper` sitting on a box, let it write into `writeups/<slug>/`, compile
-  it, open `/library`, read it on the glass, draw on it, and say something is
-  wrong with it. Four things no suite reaches: **the content/scope split against a
-  model** — the scope may now be the evening, and whether a tutor holding that
-  still refuses to narrate the evening is the whole of whether the split worked;
-  **a document asked for from a review, against a model**, which is the same
-  question with no box to fall back on; **the revision turn against a model**; **ink a person actually drew** —
-  the marks route is tested with fixture strokes, which is not a ring round a
-  figure at 200% zoom on an iPad, and that page's pen has never met a stylus —
-  and **whether the reader is any good**, which is the one word in the question
-  the library came from that no amount of code answers: *slick*.
-- **Send my annotations, on the glass.** The build is Settled. Four checks. It
-  is on the screen with nothing annotated, and its picker says so and will not
-  send. Annotate two old responses, open the picker, tick one and send: only
-  that one reaches the tutor. Write an answer on the surface with marks on the
-  lesson and send: the working goes, and no prompt about the marks appears.
-  Press and hold the button, move it and reload: it stays where you put it and
-  does not sit over the ink you are writing.
+
 - **The three teaching rules that were asked for out loud**, all of them
   instructions rather than mechanisms: the question restated under the definition
   list so it is the last thing above the board, the write-up compiled problem by
