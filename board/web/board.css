@@ -1522,7 +1522,7 @@ body.mapping #redirect, body.papering #redirect {
    picker. #contents used to carry a comment saying it borrowed this and an
    empty rule that borrowed nothing, so it laid out in the flow of the page
    under the lesson rather than over it. An ID selector is not inheritance. */
-#scratch, #contents, #review, #shelf, #elsewhere, #trace {
+#scratch, #contents, #review, #shelf, #elsewhere, #trace, #docnew {
   position: fixed; top: 0; right: 0; bottom: 0; z-index: 60;
   width: min(24rem, 92vw);
   background: var(--paper); border-left: 1px solid var(--rule);
@@ -1569,6 +1569,21 @@ body.mapping #redirect, body.papering #redirect {
    96. A drawer behind the surface that opened it is a tap that does nothing.
    98 is `#steer`'s storey: over everything except the ⋯ menu at 99. */
 #shelf { z-index: 98; width: min(27rem, 94vw); }
+/* Opened from the map's documents region, so above the map for `#shelf`'s
+   reason. */
+#docnew { z-index: 98; bottom: auto; border-bottom: 1px solid var(--rule); }
+#docnew .scratch-foot { font-size: .85rem; display: flex; flex-direction: column;
+                        gap: .6rem; align-items: stretch; }
+.docnew-makes { display: flex; gap: .4rem; }
+.docnew-make {
+  flex: 1; font: 600 .82rem var(--ui); cursor: pointer;
+  padding: .5rem .8rem; border-radius: .45rem;
+  border: 1px solid var(--rule); background: transparent; color: var(--ink-2);
+}
+.docnew-make.on { border-color: var(--accent); color: var(--accent); }
+#docnew-about { font: inherit; padding: .5rem; border-radius: .4rem;
+                border: 1px solid var(--rule); background: var(--paper-2);
+                color: var(--ink); resize: vertical; }
 #shelf-title { min-width: 0; overflow: hidden; text-overflow: ellipsis;
                white-space: nowrap; }
 #shelf-list .group {
@@ -2349,6 +2364,31 @@ body.papering .annbar { z-index: 96; }
 
 /* A document is content, and it is not machinery. Dashed, so the difference is
    visible before the label is read. */
+/* THE DOCUMENTS REGION. A plate rather than a box: it is a part of the map
+   picture, not a part of the repository, so it has no status stripe. */
+.map-sheet .docs-region rect.region {
+  fill: var(--paper-2); stroke: var(--rule); stroke-width: 1.2;
+}
+.map-sheet .docs-region .region-name { font: 700 15px var(--ui); fill: var(--ink); }
+.map-sheet .docs-region .region-group {
+  font: 700 10.5px var(--ui); letter-spacing: .1em; text-transform: uppercase;
+  fill: var(--ink-3);
+}
+.map-sheet .docs-region .region-doc,
+.map-sheet .docs-region .region-more,
+.map-sheet .docs-region .region-new { cursor: pointer; }
+.map-sheet .docs-region .region-doc rect,
+.map-sheet .docs-region .region-more rect { fill: transparent; }
+.map-sheet .docs-region .region-doc:hover rect,
+.map-sheet .docs-region .region-doc:focus rect { fill: var(--paper); }
+.map-sheet .docs-region .region-doc:focus,
+.map-sheet .docs-region .region-more:focus,
+.map-sheet .docs-region .region-new:focus { outline: none; }
+.map-sheet .docs-region .region-doc text { font: 500 12.5px var(--ui); fill: var(--ink); }
+.map-sheet .docs-region .region-doc.unbuilt text { fill: var(--ink-3); }
+.map-sheet .docs-region .region-more text { font: 600 12px var(--ui); fill: var(--accent); }
+.map-sheet .docs-region .region-new rect { fill: transparent; stroke: var(--accent); }
+.map-sheet .docs-region .region-new text { font: 600 12px var(--ui); fill: var(--accent); }
 .map-sheet .node.doc rect.box { stroke-dasharray: 5 4; fill: var(--paper-2); }
 /* And so is a part nothing imports and that imports nothing: it sits in the
    band under the graph rather than being wired into a relationship that is not

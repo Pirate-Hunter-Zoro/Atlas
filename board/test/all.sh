@@ -333,6 +333,17 @@ else
   printf '%s\n' "$out" | grep '^FAIL' | sed 's/^/             /'
 fi
 
+# Every workspace's map carries its documents, in every family, with nothing
+# dropped, and every id in it resolves to the reader.
+printf '%-12s ' "region"
+if out="$(python3 test/region.py 2>&1)"; then
+  printf '%s\n' "$out" | tail -1
+else
+  fails=$((fails + 1))
+  echo "FAILED"
+  printf '%s\n' "$out" | grep '^FAIL' | sed 's/^/             /'
+fi
+
 printf '%-12s ' "map"
 if out="$(python3 test/map.py 2>&1)"; then
   printf '%s\n' "$out" | tail -1

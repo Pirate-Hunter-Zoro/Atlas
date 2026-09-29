@@ -133,6 +133,13 @@ var els = {
   pushedGet: document.getElementById("pushed-get"),
   pushedView: document.getElementById("pushed-view"),
   shelf: document.getElementById("shelf"),
+  docNew: document.getElementById("docnew"),
+  docNewPaper: document.getElementById("docnew-paper"),
+  docNewSlides: document.getElementById("docnew-slides"),
+  docNewAbout: document.getElementById("docnew-about"),
+  docNewSaid: document.getElementById("docnew-said"),
+  docNewGo: document.getElementById("docnew-go"),
+  docNewClose: document.getElementById("docnew-close"),
   shelfTitle: document.getElementById("shelf-title"),
   shelfList: document.getElementById("shelf-list"),
   shelfFoot: document.getElementById("shelf-foot"),
@@ -5069,6 +5076,62 @@ function mapOrder(byRank, pairs, keep) {
   }
 }
 
+/* ------------------------------------------------- the documents region */
+/* EVERY PAPER AND DECK THIS WORKSPACE HAS WRITTEN, AS ONE REGION OF THE MAP.
+
+   Asked for in these words: *"When I'm on the map of a course, part of that
+   map should show all papers/presentations pertaining to that project/course.
+   I should be able to tap and see EVERYTHING from there."* A menu entry is not
+   that -- the map is where the owner looks, so the map is where they are.
+
+   One region at the top of the picture, not a box per document: forty section
+   PDFs spliced into the graph is the grid the map replaced. A column per group,
+   a row per document, and a group longer than `MAP_REGION_ROWS` says how many
+   more it has and opens in place -- nothing is dropped. Only on the workspace's
+   own top-level picture: a box's inside is about that box, and a vendor tree's
+   documents are somebody else's. */
+var MAP_REGION_ROWS = 8;
+var MAP_REGION_ROW = 21;
+var MAP_REGION_HEAD = 46;
+var MAP_REGION_GROUP = 26;
+var MAP_REGION_GAP = 22;
+var mapRegionOpen = {};      /* group key -> shown whole */
+
+function mapRegionOf(info) {
+  var d = info && info === mapInfo && !mapTree ? info.documents : null;
+  return d && d.total ? d : null;
+}
+
+/* What a row is called. A deck's title is how it is known; a paper's title is
+   often its first heading -- "Title page" -- and its file is what its author
+   calls it out loud. */
+function mapRegionLabel(doc) {
+  return (doc.kind === "deck" ? doc.name : doc.file) || doc.name || doc.id;
+}
+
+function mapRegionShape(region, wide) {
+  var groups = region.groups || [];
+  var cols = [];
+  var x = MAP_PAD, y = MAP_REGION_HEAD, tall = 0;
+  groups.forEach(function (g) {
+    var all = (g.docs || []).length;
+    var open = !!mapRegionOpen[g.key] || all <= MAP_REGION_ROWS + 1;
+    var rows = open ? all : MAP_REGION_ROWS;
+    var h = MAP_REGION_GROUP + rows * MAP_REGION_ROW
+            + (all > MAP_REGION_ROWS + 1 ? MAP_REGION_ROW : 0);
+    cols.push({ group: g, x: x, y: y, rows: rows, open: open, h: h });
+    if (wide) {
+      x += MAP_W + MAP_REGION_GAP;
+      tall = Math.max(tall, h);
+    } else {
+      y += h + 10;
+      tall = y - MAP_REGION_HEAD;
+    }
+  });
+  var w = wide ? Math.max(MAP_W * 2, x - MAP_REGION_GAP + MAP_PAD) : MAP_W;
+  return { cols: cols, w: w, h: MAP_REGION_HEAD + tall + MAP_PAD };
+}
+
 function mapLayout(info, wide) {
   var nodes = (info.nodes || []).slice();
   var idx = {};
@@ -5163,13 +5226,30 @@ function mapLayout(info, wide) {
     }
   }
 
+  /* THE DOCUMENTS GO ON TOP, and the graph moves down to make room: the top
+     left is where a fitted picture is read from, and it is where somebody
+     looking for a paper looks first. */
+  var docs = mapRegionOf(info), region = null;
+  if (docs) {
+    var rs = mapRegionShape(docs, wide);
+    region = { x: MAP_MARGIN, y: MAP_MARGIN, w: rs.w, h: rs.h, cols: rs.cols,
+               docs: docs };
+    var down = rs.h + MAP_GAP_Y * 2;
+    placed.forEach(function (p) { if (p) p.y += down; });
+  }
+
   var box = { x0: 0, y0: 0, x1: MAP_MARGIN, y1: MAP_MARGIN };
   placed.forEach(function (p) {
     if (!p) return;
     box.x1 = Math.max(box.x1, p.x + p.w + MAP_MARGIN);
     box.y1 = Math.max(box.y1, p.y + p.h + MAP_MARGIN);
   });
-  return { placed: placed, edges: drawn, pairs: pairs, box: box, wide: wide };
+  if (region) {
+    box.x1 = Math.max(box.x1, region.x + region.w + MAP_MARGIN);
+    box.y1 = Math.max(box.y1, region.y + region.h + MAP_MARGIN);
+  }
+  return { placed: placed, edges: drawn, pairs: pairs, box: box, wide: wide,
+           region: region };
 }
 
 /* An arrow. Forward along the ranks it leaves the right edge and enters the
@@ -5451,11 +5531,161 @@ function mapDraw(info) {
     svg.appendChild(g);
   });
 
+  if (out.region) svg.appendChild(mapRegionDraw(out.region));
+
   els.mapSheet.innerHTML = "";
   els.mapSheet.style.width = out.box.x1 + "px";
   els.mapSheet.style.height = out.box.y1 + "px";
   els.mapSheet.appendChild(svg);
   return out.placed.length;
+}
+
+/* One tappable thing inside the region: a `g` that answers a tap and a key,
+   and stops the tap there so the plane does not read it as a pan. */
+function mapTappable(g, fn) {
+  g.setAttribute("tabindex", "0");
+  g.setAttribute("role", "button");
+  g.addEventListener("click", function (ev) { ev.stopPropagation(); fn(); });
+  g.addEventListener("keydown", function (ev) {
+    if (ev.key !== "Enter" && ev.key !== " ") return;
+    ev.preventDefault();
+    ev.stopPropagation();
+    fn();
+  });
+  return g;
+}
+
+function mapRegionDraw(r) {
+  var g = mapEl("g", { "class": "docs-region" });
+  g.appendChild(mapEl("rect", { "class": "region", x: r.x, y: r.y,
+                                width: r.w, height: r.h, rx: 13 }));
+  var head = mapEl("text", { "class": "region-name", x: r.x + MAP_PAD,
+                             y: r.y + 27 });
+  head.textContent = "Papers & presentations · " + r.docs.total;
+  g.appendChild(head);
+
+  /* MAKE A NEW ONE, from the region itself, without opening a sitting. */
+  var label = "＋ new paper or deck";
+  var bw = Math.round(mapWidth(label, 12, 600)) + 20;
+  var make = mapTappable(mapEl("g", { "class": "region-new",
+                                      "data-region-new": "1",
+                                      "aria-label": "make a new paper or deck" }),
+                         openDocNew);
+  make.appendChild(mapEl("rect", { x: r.x + r.w - MAP_PAD - bw, y: r.y + 11,
+                                   width: bw, height: 24, rx: 8 }));
+  var mt = mapEl("text", { x: r.x + r.w - MAP_PAD - bw / 2, y: r.y + 27,
+                           "text-anchor": "middle" });
+  mt.textContent = label;
+  make.appendChild(mt);
+  g.appendChild(make);
+
+  var room = MAP_W - 8;
+  r.cols.forEach(function (c) {
+    var gx = r.x + c.x, gy = r.y + c.y;
+    var docs = c.group.docs || [];
+    var gh = mapEl("text", { "class": "region-group", x: gx, y: gy + 15 });
+    gh.textContent = c.group.label + " · " + docs.length;
+    g.appendChild(gh);
+    docs.slice(0, c.rows).forEach(function (doc, i) {
+      var y = gy + MAP_REGION_GROUP + i * MAP_REGION_ROW;
+      var row = mapTappable(mapEl("g", {
+        "class": "region-doc" + (doc.pdf ? "" : " unbuilt"),
+        "data-doc": doc.id,
+        "aria-label": "read " + (doc.name || doc.file || doc.id)
+      }), function () { mapReadDoc(doc.id); });
+      row.appendChild(mapEl("rect", { x: gx - 4, y: y, width: MAP_W,
+                                      height: MAP_REGION_ROW - 2, rx: 5 }));
+      var t = mapEl("text", { x: gx + 2, y: y + 14 });
+      t.textContent = (doc.kind === "deck" ? "▭ " : "▤ ")
+                      + (mapWrap(mapRegionLabel(doc), 12.5, 500, room - 20, 1)[0] || "");
+      row.appendChild(t);
+      var tip = mapEl("title", {});
+      tip.textContent = doc.name || "";
+      row.appendChild(tip);
+      g.appendChild(row);
+    });
+    var all = docs.length;
+    if (all > MAP_REGION_ROWS + 1) {
+      var my = gy + MAP_REGION_GROUP + c.rows * MAP_REGION_ROW;
+      var more = mapTappable(mapEl("g", { "class": "region-more",
+                                          "data-more": c.group.key }),
+                             function () {
+        mapRegionOpen[c.group.key] = !c.open;
+        mapDrawn = "";
+        paintMap(mapInfo, (lastLive && lastLive.state) || {});
+      });
+      more.appendChild(mapEl("rect", { x: gx - 4, y: my, width: MAP_W,
+                                       height: MAP_REGION_ROW - 2, rx: 5 }));
+      var mt2 = mapEl("text", { x: gx + 2, y: my + 14 });
+      mt2.textContent = c.open ? "show fewer"
+                               : "+ " + (all - c.rows) + " more";
+      more.appendChild(mt2);
+      g.appendChild(more);
+    }
+  });
+  return g;
+}
+
+/* A NEW PAPER OR DECK, FROM THE REGION. Which of the two and one line of what
+   it is about, then the same `POST /writeup` a sitting's own ask makes -- so it
+   is written beside whatever sitting is open, writes no card, and the strip
+   says where it got to. */
+var docNewMakes = "paper";
+
+function docNewPaint() {
+  if (!els.docNew) return;
+  els.docNewPaper.classList.toggle("on", docNewMakes === "paper");
+  els.docNewSlides.classList.toggle("on", docNewMakes === "slides");
+  els.docNewGo.disabled = !els.docNewAbout.value.trim();
+}
+
+function openDocNew() {
+  if (!els.docNew) return;
+  els.docNew.hidden = false;
+  els.docNewSaid.textContent = "";
+  els.docNewGo.textContent = "write it";
+  docNewPaint();
+  try { els.docNewAbout.focus(); } catch (e) { /* not focusable yet */ }
+}
+
+function closeDocNew() { if (els.docNew) els.docNew.hidden = true; }
+
+function sendDocNew() {
+  var about = els.docNewAbout.value.trim();
+  if (!about) return;
+  els.docNewGo.disabled = true;
+  els.docNewSaid.textContent = "asking…";
+  fetch("/writeup", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ makes: docNewMakes, about: about })
+  }).then(function (r) { return r.json(); }).then(function (res) {
+    if (!res || !res.ok) throw new Error((res && res.error) || "refused");
+    els.docNewAbout.value = "";
+    els.docNewSaid.textContent = "Being written. It appears in the region "
+      + "when it is done, and the strip at the top says where it got to.";
+    els.docNewGo.textContent = "asked";
+  }).catch(function (err) {
+    els.docNewSaid.textContent = "Not asked: " + ((err && err.message)
+                                                  || "the board did not answer");
+    docNewPaint();
+  });
+}
+
+if (els.docNew) {
+  els.docNewPaper.onclick = function () { docNewMakes = "paper"; docNewPaint(); };
+  els.docNewSlides.onclick = function () { docNewMakes = "slides"; docNewPaint(); };
+  els.docNewAbout.addEventListener("input", docNewPaint);
+  els.docNewGo.onclick = sendDocNew;
+  els.docNewClose.onclick = closeDocNew;
+}
+
+/* A TAP ON A DOCUMENT OPENS IT IN THE READER, with ink, send it, fixes or an
+   overhaul, and directions -- the library's own page, on that document. The
+   map is always the served workspace's, so nothing has to be switched first. */
+function mapReadDoc(id) {
+  if (!id) return;
+  window.location.href = "/library?from=map&doc=" + encodeURIComponent(id);
 }
 
 /* ------------------------------------------------- one level down, on a tap */
@@ -5758,19 +5988,14 @@ function paintMapNow(info, state) {
   if (els.mapTitle) {
     els.mapTitle.textContent = mapDeep ? mapDeep.name : (here || "the map");
   }
-  /* EVERY DOCUMENT IN THE WORKSPACE, from the bar of the picture of it.
-
-     The number is the sum of what the boxes carry, because the sum of what the
-     boxes carry is what the payload knows -- per-box counts, four times a
-     second. Whatever belongs to no box is not in it, and asking `/shelf.json`
-     for the true total on every payload would be a fetch a second for a number
-     nobody is reading. So the bar says how many are ON the picture and the
-     drawer's own head says the true total the moment it has asked. */
+  /* EVERY DOCUMENT IN THE WORKSPACE, from the bar of the picture of it. The
+     number is the region's total, which is every document the library offers
+     -- not the sum of the box badges, which in a workspace of code is zero
+     because nothing there is filed under a box. */
   if (els.mapDocs) {
-    var inBoxes = 0;
-    ((show && show.nodes) || []).forEach(function (n) { inBoxes += (n.docs || 0); });
-    els.mapDocs.hidden = !inBoxes;
-    els.mapDocs.textContent = "▤ " + inBoxes + " in boxes";
+    var many = (mapInfo && mapInfo.documents && mapInfo.documents.total) || 0;
+    els.mapDocs.hidden = !many;
+    els.mapDocs.textContent = "▤ " + many + " documents";
   }
   if (els.mapWhy) els.mapWhy.textContent = mapWhySay(show);
   mapControls(can);
@@ -5779,7 +6004,9 @@ function paintMapNow(info, state) {
   if (!can) { mapDrawn = ""; return; }
 
   var wide = (els.mapPlane.clientWidth || 0) >= MAP_STACK_AT;
-  var sign = JSON.stringify(show) + "|" + (wide ? "wide" : "stacked");
+  var sign = JSON.stringify(show) + "|" + (wide ? "wide" : "stacked")
+             + "|" + Object.keys(mapRegionOpen).filter(function (k) {
+               return mapRegionOpen[k]; }).join(",");
   if (sign === mapDrawn) return;
   mapDraw(show);
   mapDrawn = sign;

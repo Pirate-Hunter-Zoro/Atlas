@@ -95,7 +95,7 @@ for stem, title in (("manuscript", "TRD prediction from EHR text"),
     put("paper1-trd/%s.pdf" % stem, size=30000)
     put("paper1-trd/%s.docx" % stem, size=30000)
 
-# A piece of a document is not a document.
+# A piece of a document: one section, cut from the manuscript above.
 put("paper1-trd/parts/manuscript/04-methods.md", "# Methods\n")
 put("paper1-trd/parts/manuscript/04-methods.docx", size=30000)
 
@@ -145,8 +145,16 @@ check("a source newer than its PDF is reported stale",
 check("and one older than its PDF is not",
       one("How Audio Becomes a Transcript")["stale"] is False)
 
-check("a piece of a document is not offered as a document",
-      not [d for d in found if "parts" in (d["dir"] or "")])
+# A PIECE IS OFFERED, so a section can be read alone -- tagged, after every
+# whole, and naming the whole it was cut from.
+pieces = [d for d in found if "parts" in (d["dir"] or "")]
+check("a piece of a document is offered as a piece of the one it was cut from",
+      len(pieces) == 1 and pieces[0]["piece"] is True
+      and pieces[0]["whole"] == one("TRD prediction from EHR text")["id"])
+check("and it comes after every whole document",
+      found.index(pieces[0]) == len(found) - 1)
+check("and it is not counted among the documents of its directory's parent",
+      len([d for d in found if d["dir"] == "paper1-trd"]) == 4)
 check("THE FENCE HOLDS: nothing in phi/ is in the library",
       not [d for d in found if "phi" in (d["dir"] or "")])
 check("and somebody else's reference library is not either",
@@ -630,6 +638,27 @@ try:
                          "purpose": PURPOSE})
     check("and an overhaul of a delivered manuscript is refused by name",
           status == 409 and "manuscript factory" in (body.get("error") or ""))
+
+    # A SECTION IS CORRECTED THROUGH ITS WHOLE. The note stays on the section it
+    # was written on; the revision names the manuscript the section is re-cut
+    # from, because an edit made to the piece is lost on the next cut.
+    piece = [d for d in library.documents(tmp) if d["piece"]][0]
+    whole = library.find(tmp, piece["whole"])
+    status, body = post("/library/feedback",
+                        {"document": piece["id"], "ask": "rework",
+                         "purpose": PURPOSE})
+    check("an overhaul of one section alone is refused, naming the whole",
+          status == 409 and whole["title"] in (body.get("error") or ""))
+    status, body = post("/library/feedback",
+                        {"document": piece["id"],
+                         "text": "This paragraph repeats the abstract."})
+    with open(repo.messages_path, encoding="utf-8") as fh:
+        line = [json.loads(l) for l in fh if l.strip()][-1]
+    check("a correction on a section is filed beside the section",
+          status == 200 and "/parts/" in body.get("rel", ""))
+    check("and asks for the revision of the whole it was cut from",
+          line.get("signal") == "revise" and whole["rel"] in line["text"]
+          and piece["rel"] not in line["text"].split(body["rel"])[0])
 finally:
     httpd.shutdown()
 

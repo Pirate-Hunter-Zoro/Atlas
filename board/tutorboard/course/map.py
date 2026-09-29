@@ -35,7 +35,7 @@ import os
 import re
 import time
 
-from . import homework, plan, reading, review, symbols, syllabus, walk
+from . import homework, library, plan, reading, review, symbols, syllabus, walk
 # `paths` as `toolpaths`, because this package already has a module by that name
 # in spirit -- `course/plan.py` defines a public `paths(root)` and had to do
 # exactly this. Same trap, same answer: the module keeps its name and the import
@@ -514,14 +514,6 @@ def _from_code(root):
         if e["from"] in ids and e["to"] in ids:
             edges.append({"from": ids[e["from"]], "to": ids[e["to"]],
                           "weight": e["weight"], "label": ""})
-
-    # The documents somebody already wrote are content too, and the map is where
-    # you would look for them. They depend on nothing and nothing depends on
-    # them, so they stand apart rather than being wired into the graph.
-    for d in _documents(root)[:MAX_LOOSE_DOCS]:
-        nid = _unique(taken, _slug("doc-" + d["id"], "doc"))
-        nodes.append(_node(nid, d["name"], "doc", also="document",
-                           doc=d["id"], does="Written about how this works."))
 
     on, loose = _attach(_plan_steps(root), by_dir)
     for node in nodes:
@@ -1287,27 +1279,6 @@ def _from_written(root):
     if not nodes:
         return None
 
-    # THE DOCUMENTS NO BOX CLAIMS ARE BOXES OF THEIR OWN.
-    #
-    # A derived map builds one per document automatically -- TRD-EHR's carries
-    # three, and tapping one offers *Show me the document*. A written map took
-    # `doc` only from what its author typed on a node, so PSYCH-ASR's two
-    # walkthrough decks -- the documents `reading.py` was written for -- were on
-    # no box at all and reachable from the ⋯ menu and nowhere else. The
-    # workspace's own `live/map.json` leaves every `doc` empty, which is what a
-    # person writing a diagram of their pipeline does.
-    #
-    # So the map shows them without anybody hand-wiring each one, and `check`
-    # names every one it added -- because a box the author did not draw on their
-    # own diagram is something they should be told about and be able to claim.
-    # Claiming it is one field: put the id in `doc` on the box it belongs to and
-    # this stops adding it.
-    #
-    # They depend on nothing and nothing depends on them, so they stand apart
-    # rather than being wired into the graph -- the same as on a derived map.
-    added = _loose_docs(root, nodes)
-    nodes += added
-
     # The plan's steps land on written boxes the same way they land on derived
     # ones, by the paths the step NAMES -- so a box called *the typist* still
     # collects the step that talks about `psych_asr.cli.run_asr`. Its files and
@@ -1328,44 +1299,61 @@ def _from_written(root):
         "edges": edges,
         "loose": loose,
         "why": "Drawn by hand in live/map.json, and re-checked against the "
-               "tree on every read."
-               + ("" if not added else
-                  " One document is on no box in it, so the map shows it as one "
-                  "of its own." if len(added) == 1 else
-                  " %d documents are on no box in it, so the map shows each as "
-                  "one of its own." % len(added)),
+               "tree on every read.",
         "written": True,
     }
 
 
-# How many unclaimed documents may become boxes. `_from_code`'s own limit, and
-# for the same reason: a reference library is thirty PDFs and a picture is not.
-MAX_LOOSE_DOCS = 8
+# ---------------------------------------------------------------------------
+# the documents region
+# ---------------------------------------------------------------------------
+# THE WORKSPACE'S OWN PAPERS AND DECKS, ON EVERY MAP, AS ONE REGION. Not a box
+# per document: forty section PDFs spliced into a forty-box picture is the grid
+# the map replaced. One region, grouped, carrying every document the library
+# offers -- no cap, because "everything" was the ask and a silent drop is a
+# document somebody cannot find. The ids are the LIBRARY's, because the library
+# is the reader a tap opens.
+#
+# Thin rows, and they ride the payload because they are drawn ON the picture.
+# The payload is pushed only when its digest changes, and the inventory under
+# it is `library.documents`, remembered for thirty seconds.
+REGION_GROUPS = (("papers", "papers"), ("decks", "decks"),
+                 ("writeups", "write-ups"), ("parts", "section parts"))
+
+# Where the board writes, and where a course keeps worked homework.
+_WRITTEN_UP = ("writeups", "homework")
 
 
-def _loose_docs(root, nodes):
-    """A box per document this workspace offers that no written box claims.
+def _group_of(doc):
+    if doc.get("piece"):
+        return "parts"
+    if doc.get("kind") == "deck":
+        return "decks"
+    bits = (doc.get("dir") or "").split("/")
+    if bits[0] in _WRITTEN_UP or "homework" in bits:
+        return "writeups"
+    return "papers"
 
-    `also` says `document` and `does` says what it is, which is how a person
-    reading their own diagram can tell which boxes they drew -- and `check`
-    lists every one of these by name so the answer is not only on the picture.
-    """
-    claimed = set(n["doc"] for n in nodes if n.get("doc"))
-    taken = set(n["id"] for n in nodes)
-    # Past `MAX_NODES` it is not a picture, and that is true of a box the map
-    # added as much as of one the author drew.
-    room = min(MAX_LOOSE_DOCS, max(0, MAX_NODES - len(nodes)))
-    out = []
-    for d in _documents(root):
-        if len(out) >= room:
-            break
-        if d["id"] in claimed:
-            continue
-        nid = _unique(taken, _slug("doc-" + d["id"], "doc"))
-        out.append(_node(nid, d["name"], "doc", also="document",
-                         doc=d["id"], blockedBy=[],
-                         does="Written about how this works."))
-    return out
+
+def documents_region(root):
+    """Every document this workspace has written, grouped for the map."""
+    try:
+        found = library.documents(root)
+    except Exception:                                        # noqa: BLE001
+        found = []
+    by = dict((key, []) for key, _label in REGION_GROUPS)
+    for d in found:
+        # `file` is what its author calls it out loud -- `manuscript`, `04
+        # methods` -- and `name` is what the source says its title is, which for
+        # a manuscript is its first heading.
+        by[_group_of(d)].append({"id": d["id"], "name": d["title"],
+                                 "file": reading._pretty(d["stem"]),
+                                 "kind": d["kind"], "pdf": bool(d["pdf"])})
+    return {
+        "total": len(found),
+        "groups": [{"key": key, "label": label, "docs": by[key]}
+                   for key, label in REGION_GROUPS if by[key]],
+    }
 
 
 def _documents(root):
@@ -1429,17 +1417,17 @@ def check(root, documents=True):
             out.append("the arrow %s -> %s has lost an end"
                        % (e["from"], e["to"]))
 
-    # A DOCUMENT NO BOX CLAIMS. Reported rather than left to be noticed: the map
-    # puts it on the picture as a box of its own, which is right for a deck
-    # nobody has placed and wrong for one that belongs on a stage the author has
-    # already drawn. Both are one field apart, and this is the line that says
-    # which boxes on the picture the author did not draw.
+    # A DOCUMENT NO BOX CLAIMS. Reported rather than left to be noticed: it is
+    # in the map's documents region either way, which is right for a deck nobody
+    # has placed and wrong for one that belongs on a stage the author has
+    # already drawn. The two are one field apart.
     claimed = set(n["doc"] for n in clean["nodes"] if n.get("doc"))
     for d in (_documents(root) if documents else []):
         if d["id"] not in claimed:
-            out.append("the document `%s` (%s) is on no box, so the map shows "
-                       "it as one of its own. Put its id in `doc` on the box it "
-                       "belongs to if it belongs on one." % (d["id"], d["rel"]))
+            out.append("the document `%s` (%s) is on no box, so it is only in "
+                       "the map's documents region. Put its id in `doc` on the "
+                       "box it belongs to if it belongs on one."
+                       % (d["id"], d["rel"]))
 
     # A box that says `done` with an open step on it. The plan is the fact and
     # the status is the declaration, so the plan wins and the person is told.
@@ -1626,6 +1614,8 @@ def status(root, state=None, archived=None):
         "steps": total,
         "why": found["why"],
         "total": len(nodes),
+        # EVERY DOCUMENT, ON EVERY MAP, derived or written, in every family.
+        "documents": documents_region(root),
     }
 
 

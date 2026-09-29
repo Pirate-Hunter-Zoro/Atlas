@@ -44,7 +44,7 @@ import time
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
-from tutorboard.course import config, plan, reading, walk             # noqa: E402
+from tutorboard.course import config, library, plan, reading, walk    # noqa: E402
 from tutorboard.course import map as mapping                          # noqa: E402
 
 fails = []
@@ -557,34 +557,29 @@ try:
     check("a blockedBy naming a box that survives is kept",
           by_id(m)["scorer"]["blockedBy"] == ["grader"])
 
-    # --- A WRITTEN MAP SHOWS THE WORKSPACE'S DOCUMENTS TOO ------------------
+    # --- A WRITTEN MAP CARRIES THE WORKSPACE'S DOCUMENTS TOO ----------------
     #
-    # A derived map builds a box per document automatically. A written one took
-    # `doc` only from what its author typed on a node, and PSYCH-ASR's own
-    # `live/map.json` leaves every `doc` empty -- so its two walkthrough decks,
-    # the documents `reading.py` was written for, were on no box at all and
-    # reachable from the menu and nowhere else.
+    # In the documents region, which every map has, and never as a box per
+    # document: PSYCH-ASR's own `live/map.json` leaves every `doc` empty, and
+    # its two walkthrough decks must still be on its map.
     pdf(os.path.join(proj, "docs", "stage1_pipeline_walkthrough.pdf"))
     pdf(os.path.join(proj, "docs", "stage2_reference_walkthrough.pdf"))
     fresh()
+    library.forget()
     m = mapping.status(proj)
     ids = by_id(m)
-    boxes = [n for n in m["nodes"] if n["kind"] == "doc"]
-    check("a document no box claims becomes a box of its own",
-          len(boxes) == 2
-          and sorted(n["doc"] for n in boxes) == [
-              "stage1-pipeline-walkthrough", "stage2-reference-walkthrough"])
-    check("and it says it is a document, so the author can tell which boxes "
-          "they drew", all(n["also"] == "document" for n in boxes))
+    inregion = [d["file"] for g in m["documents"]["groups"] for d in g["docs"]]
+    check("a written map carries every document in its documents region",
+          sorted(inregion) == ["stage1 pipeline walkthrough",
+                               "stage2 reference walkthrough"])
+    check("and none of them becomes a box the author did not draw",
+          not [n for n in m["nodes"] if n["kind"] == "doc"])
     check("the boxes the author DID draw are untouched",
           {"typist", "grader", "scorer"}.issubset(set(ids)))
-    check("and the picture says why the extra ones are on it",
-          "on no box" in m["why"])
     check("a written map is still a written map", m["written"] is True)
 
-    # And `board map --check` names each one, because a box somebody did not
-    # draw on their own diagram is something to be told about rather than to
-    # discover. Claiming it is one field.
+    # And `board map --check` names each one, because a document that belongs
+    # on a stage the author drew is one field away from being there.
     said = mapping.check(proj)
     check("`board map --check` names every document no box claims",
           len([x for x in said if "is on no box" in x]) == 2)
@@ -593,12 +588,9 @@ try:
     problems, _ = mapping.write_written(proj, drawn)
     fresh()
     m = mapping.status(proj)
-    boxes = [n for n in m["nodes"] if n["kind"] == "doc"]
-    check("claiming a document on a box stops it being added beside it",
-          not problems and len(boxes) == 1
-          and boxes[0]["doc"] == "stage1-pipeline-walkthrough")
-    check("and the box that claimed it offers it",
-          by_id(m)["typist"]["doc"] == "stage2-reference-walkthrough")
+    check("and the box that claimed one offers it",
+          not problems
+          and by_id(m)["typist"]["doc"] == "stage2-reference-walkthrough")
     check("and the one still unclaimed is the only one reported",
           len([x for x in mapping.check(proj) if "is on no box" in x]) == 1)
 

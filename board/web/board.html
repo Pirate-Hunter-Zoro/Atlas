@@ -836,6 +836,27 @@
   <div class="scratch-foot muted" id="shelf-foot"></div>
 </aside>
 
+<!-- A NEW PAPER OR DECK, asked for from the map's documents region without
+     opening a sitting first. The same writing turn a document asked for from
+     any sitting is: `POST /writeup`, which changes no aim and writes no card.
+     It lands in the region when it is written. -->
+<aside id="docnew" hidden>
+  <div class="scratch-head">
+    <strong>A new paper or deck</strong>
+    <span class="head-acts"><button id="docnew-close" type="button">✕</button></span>
+  </div>
+  <div class="scratch-foot">
+    <div class="docnew-makes">
+      <button id="docnew-paper" type="button" class="docnew-make on">a paper</button>
+      <button id="docnew-slides" type="button" class="docnew-make">a deck</button>
+    </div>
+    <textarea id="docnew-about" rows="3"
+              placeholder="one line on what it is about"></textarea>
+    <div id="docnew-said" class="elsewhere-said"></div>
+    <button id="docnew-go" type="button" class="primary" disabled>write it</button>
+  </div>
+</aside>
+
 <!-- Maths: answering means writing, and the writing happens here, under the
      question, so what you are answering stays on screen. -->
 <!-- Maths: answering means writing, and the writing happens here, opened for

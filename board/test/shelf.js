@@ -175,6 +175,7 @@ function board() {
     + 'window.__standIn = function (name, fn) {\n'
     + '  if (name === "openPaper") openPaper = fn;\n'
     + '  if (name === "saveCopy") saveCopy = fn;\n'
+    + '  if (name === "mapReadDoc") mapReadDoc = fn;\n'
     + '};\n})();');
   try { window.eval(src); }
   catch (e) { fail('board.js: ' + e.message); }
@@ -227,6 +228,19 @@ function payload(over) {
       edges: [{ from: 'ch-04', to: 'ch-05', weight: 1, label: '' },
               { from: 'ch-05', to: 'ch-06', weight: 1, label: '' }],
       loose: [],
+      // EVERY DOCUMENT, AS A REGION OF THE PICTURE. Eleven papers so a group
+      // runs past what is drawn before "+ more", and one deck.
+      documents: {
+        total: 12,
+        groups: [
+          { key: 'papers', label: 'papers', docs: Array.from({ length: 11 }, (_, i) => (
+            { id: 'paper-' + i, name: 'Paper ' + i, file: 'paper ' + i,
+              kind: 'paper', pdf: i !== 3 })) },
+          { key: 'decks', label: 'decks', docs: [
+            { id: 'stage1-deck', name: 'How audio becomes a transcript',
+              file: 'stage1 deck', kind: 'deck', pdf: true }] },
+        ],
+      },
     },
   }, over || {});
 }
@@ -337,10 +351,73 @@ const plateOf = (doc, id) =>
   // ----------------------------------------------------------- the map bar
   {
     const bar = doc.getElementById('map-docs');
-    !bar.hidden && /4/.test(bar.textContent)
-      ? ok('the map bar says how many the boxes hold (' + bar.textContent + ')')
+    !bar.hidden && /12/.test(bar.textContent)
+      ? ok('the map bar says how many documents the workspace has, not how '
+           + 'many the boxes hold (' + bar.textContent + ')')
       : fail('the map bar control reads "' + bar.textContent + '", hidden='
              + bar.hidden);
+  }
+
+  // ------------------------------------------------- the documents region
+  {
+    const region = doc.querySelector('#map-sheet .docs-region');
+    region ? ok('the map carries a documents region')
+           : fail('there is no documents region on the map');
+    const rows = doc.querySelectorAll('#map-sheet .docs-region .region-doc');
+    rows.length === 9
+      ? ok('eight papers and the deck are drawn, and the rest wait behind "+ more"')
+      : fail('the region drew ' + rows.length + ' rows');
+    const more = doc.querySelector('#map-sheet .region-more[data-more="papers"]');
+    more && /\+ 3 more/.test(more.textContent)
+      ? ok('the long group says how many more it has (' + more.textContent + ')')
+      : fail('the long group does not say what it is holding back');
+    more.dispatchEvent(new w.MouseEvent('click', { bubbles: true }));
+    await sleep(10);
+    doc.querySelectorAll('#map-sheet .docs-region .region-doc').length === 12
+      ? ok('and a tap on it opens the group in place, so nothing is dropped')
+      : fail('after "+ more" the region drew '
+             + doc.querySelectorAll('#map-sheet .docs-region .region-doc').length);
+    doc.querySelectorAll('#map-sheet .node').length === 3
+      ? ok('and no document became a box on the graph')
+      : fail('the region added boxes to the graph');
+    // THE GRAPH SITS UNDER IT, not on it.
+    const rb = doc.querySelector('#map-sheet .docs-region rect.region');
+    const bottom = +rb.getAttribute('y') + +rb.getAttribute('height');
+    const tops = Array.prototype.map.call(
+      doc.querySelectorAll('#map-sheet .node rect.box'), (r) => +r.getAttribute('y'));
+    tops.every((y) => y > bottom)
+      ? ok('every box of the graph is below the region')
+      : fail('a box is drawn over the region: ' + JSON.stringify(tops) + ' vs ' + bottom);
+
+    const read = [];
+    w.__standIn('mapReadDoc', (id) => read.push(id));
+    const before = posts.length;
+    doc.querySelector('#map-sheet .region-doc[data-doc="stage1-deck"]')
+       .dispatchEvent(new w.MouseEvent('click', { bubbles: true }));
+    read.join() === 'stage1-deck' && posts.length === before
+      ? ok('a tap on a document opens that document in the reader, and starts nothing')
+      : fail('the tap read ' + JSON.stringify(read) + ' and posted '
+             + (posts.length - before));
+
+    doc.querySelector('#map-sheet .region-new')
+       .dispatchEvent(new w.MouseEvent('click', { bubbles: true }));
+    const sheet = doc.getElementById('docnew');
+    !sheet.hidden && doc.getElementById('docnew-go').disabled
+      ? ok('"new paper or deck" opens its sheet, and it will not send an empty ask')
+      : fail('the new-document sheet hidden=' + sheet.hidden);
+    doc.getElementById('docnew-slides').dispatchEvent(new w.MouseEvent('click'));
+    const about = doc.getElementById('docnew-about');
+    about.value = 'the k sweep, for the lab meeting';
+    about.dispatchEvent(new w.Event('input'));
+    doc.getElementById('docnew-go').dispatchEvent(new w.MouseEvent('click'));
+    await sleep(10);
+    const sent = posts.filter((p) => p.url === '/writeup').pop();
+    sent && sent.body.makes === 'slides'
+      && sent.body.about === 'the k sweep, for the lab meeting'
+      ? ok('and sending it asks /writeup for that deck, about that line')
+      : fail('the sheet posted ' + JSON.stringify(sent));
+    doc.getElementById('docnew-close').dispatchEvent(new w.MouseEvent('click'));
+    sheet.hidden ? ok('and the sheet closes') : fail('the sheet will not close');
   }
 
   // ------------------------------------------- a tap on the badge, scoped

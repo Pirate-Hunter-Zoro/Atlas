@@ -76,10 +76,12 @@ FURNITURE = {"readme", "handoff", "license", "licence", "notice", "changelog",
 # so shortening it costs nothing but a different URL.
 IDENT_MAX = 40
 
-# A PIECE OF A DOCUMENT IS NOT A DOCUMENT. `paper1-trd-prediction/parts/
-# manuscript/` holds that manuscript's own sections, one file each, and drawing
-# them beside it makes one document look like twelve. The whole is in the
-# directory above; these are what it was assembled from.
+# A PIECE OF A DOCUMENT. `paper1-trd-prediction/parts/manuscript/` holds that
+# manuscript's own sections, one file each, so a section can be read on the
+# board alone. They are offered, tagged `piece`, after every whole document, and
+# each names the `whole` it was cut from: a correction goes to the whole, because
+# the pieces are re-cut from it and an edit made to a piece is lost on the next
+# cut.
 PIECES = ("parts", "sections")
 
 
@@ -221,7 +223,6 @@ def _walk(root):
         dirs[:] = sorted(d for d in dirs if not d.startswith(".")
                          and d not in reading.IGNORE
                          and d.lower() not in reading.NOT_OURS
-                         and d.lower() not in PIECES
                          and not fenced.refused(d))
         for name in sorted(files):
             if name.startswith(".") or name.startswith("_"):
@@ -327,8 +328,22 @@ def _record(root, rel, stem, formats, taken):
                  or where.startswith(manuscript.LANDING + "/")
                  else "board"),
     }
+    rec["piece"] = _piece_of(where) is not None
     rec["notes"] = notes(root, rec)
     return rec
+
+
+def _piece_of(where):
+    """`(dir, stem)` of the whole a piece in `where` was cut from, or None.
+
+    `paper1/parts/manuscript` is a piece of `paper1/manuscript`: the directory
+    above `parts/`, and the stem named by the directory below it.
+    """
+    bits = where.split("/") if where else []
+    for i in range(len(bits) - 1):
+        if bits[i].lower() in PIECES:
+            return "/".join(bits[:i]), bits[i + 1]
+    return None
 
 
 # The payload this feeds is fetched when somebody opens the library rather than
@@ -359,7 +374,15 @@ def _documents(root):
         out.append(rec)
         if len(out) >= MAX_DOCS:
             break
-    return out
+    # Wholes first, pieces after, each in file order. Ids are handed out in walk
+    # order above, so this moves nothing ink is anchored on.
+    wholes = [d for d in out if not d["piece"]]
+    for d in out:
+        if d["piece"]:
+            base, stem = _piece_of(d["dir"])
+            d["whole"] = next((w["id"] for w in wholes
+                               if w["dir"] == base and w["stem"] == stem), "")
+    return wholes + [d for d in out if d["piece"]]
 
 
 def forget():

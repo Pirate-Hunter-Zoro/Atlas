@@ -179,6 +179,18 @@ def post(h, repo, path):
         if not doc:
             return h.send_json({"ok": False, "error": "no such document"},
                                status=404)
+        # A PIECE IS CORRECTED THROUGH ITS WHOLE. The note and the ink stay on
+        # the section they were written on; the revision is asked of the
+        # document the section is re-cut from, by that document's machinery.
+        whole = (library.find(repo.root, doc.get("whole") or "")
+                 if doc.get("piece") else None)
+        if doc.get("piece") and ask == "rework":
+            return h.send_json({"ok": False, "ask": "rework", "error": (
+                "%s is one section of %s, cut from it, so an overhaul of it "
+                "alone is lost on the next cut. Overhaul the whole document "
+                "instead. Nothing has been written."
+                % (doc["title"], (whole or {}).get("title") or "a larger document"))},
+                status=409)
         if ask == "rework":
             stop = rework_refused(repo, doc)
             if stop:
@@ -192,7 +204,7 @@ def post(h, repo, path):
         if not rec.get("ok"):
             return h.send_json(rec, status=400)
         keys = rec.pop("keys", [])
-        rec.update(_revise(h, repo, doc, rec["rel"], ask=ask,
+        rec.update(_revise(h, repo, whole or doc, rec["rel"], ask=ask,
                            purpose=rec.get("purpose") or ""))
         # THE INK IS DELIVERED WHEN THE REVISION IS ASKED, not when the note is
         # written: a note beside an ask that failed has delivered nothing, and

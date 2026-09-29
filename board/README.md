@@ -48,7 +48,7 @@ must be openable and teachable at every point.
   `board.css`, `plane-core.js`, `gauge.js`, `home.html`, `home.js`, `library.html`,
   `library.js`, `library.css`, anything added to the cache list), or the installed app
   serves its cached copy and the work is invisible.
-- **`bash test/all.sh` before every ship.** 101 suites, all green. `test/tracked.py` runs
+- **`bash test/all.sh` before every ship.** 102 suites, all green. `test/tracked.py` runs
   early — after the browser suites, before everything else — and refuses PHI, 25-megabyte files, model dumps, other authors' papers and
   machine-local config anywhere in the repository — this is public, and git remembers.
   The last of them is **Paper-Writer's own**, run where it is checked out and skipped
@@ -123,7 +123,8 @@ is right for the board's own row into it — a lesson stepping sideways. It is w
 door's *Papers, decks & results*, because reading a document nobody is teaching from has nothing to do with
 the lesson and that is the whole reason the button exists; landing somebody in a sitting they never
 opened, to get back to the door they tapped from, is the trapped level on a different page. The
-caller says so with `?from=home` — **a query parameter and not a stored flag**, because it survives
+caller says so with `?from=home`, or `?from=map` from the map's documents region (*‹ Map*, back to
+`/board`, which reopens on the map) — **a query parameter and not a stored flag**, because it survives
 a reload, a share and a cached shell, and there is no second copy of it to go stale. `sw.js` matches
 its offline fallback with `ignoreSearch`, so the query does not miss the cached page.
 
@@ -3553,6 +3554,46 @@ back: `chapters/*/reading/*.pdf`, `chapters/*/lectures/*.pdf` and
 repository of Python gains nothing from them; what they find is tagged `theirs`
 and says so on its row. The shared lists themselves are not touched.
 
+### The documents region — every paper and deck, on the map itself
+
+**Every map carries its workspace's documents as one region at the top of the
+picture**: derived or written, course, research, project or practice. It is the
+answer to *"when I'm on the map of a course, part of that map should show all
+papers/presentations pertaining to that project/course"*. A menu entry is not
+that, because the map is where the owner looks.
+
+- **Everything, grouped, nothing dropped.** `map.documents_region` is
+  `library.documents` — the reader's own inventory and its own ids, not
+  `reading.py`'s capped 24 — grouped as *papers*, *decks*, *write-ups*
+  (`writeups/`, homework) and *section parts*. A group longer than eight says
+  **+ N more** and opens in place.
+- **The rows ride the payload** (`map.status()["documents"]`), because they are
+  drawn on the picture. They are thin, the inventory under them is cached for
+  thirty seconds, and the payload is pushed only when its digest changes. The
+  per-box badges stay counts.
+- **A tap on a row is `/library?from=map&doc=<id>`**: the reader, with ink,
+  *send it*, fixes, overhaul and directions. The map is always the served
+  workspace's, so nothing is switched first; *‹ Map* comes back to it.
+- **＋ new paper or deck** on the region opens `#docnew`: paper or deck, one
+  line of what it is about, then `POST /writeup` — the same writing turn a
+  sitting's own ask starts, with no sitting opened.
+- **No box per document.** The map adds no `doc` boxes. A written map's author
+  can still claim one with `doc` on a box, and `board map --check` names every
+  document no box claims.
+- **Only on the workspace's own top-level picture.** A box's inside is about
+  that box, and a vendor tree's documents are somebody else's.
+- **The map bar's ▤ says the region's total**, not the sum of box badges. The
+  sum is zero in a workspace of code, where every document is *Unfiled*, and a
+  button hidden on zero is a button nobody on TRD-EHR ever saw.
+
+**A section is read alone and corrected through its whole.** A document under a
+`parts/` or `sections/` directory is a piece: `library.documents` offers it
+tagged `piece`, after every whole, naming the `whole` it was cut from
+(`paper1/parts/manuscript/` is cut from `paper1/manuscript`). Ink and notes stay
+on the section. A correction asks for the revision of the whole, by the whole's
+machinery, because pieces are re-cut from it and an edit to one is lost on the
+next cut. An overhaul of a piece alone is refused, naming the whole.
+
 ### The map is a plane
 
 One finger pans it, two pinch it, **⤢ fit** shows the whole thing. The gesture
@@ -3780,7 +3821,9 @@ and the same list under the map's boxes is the shelf.
 
 It is **not** `reading.py`. That module answers "what can go on the glass in a
 card", is capped at 24 documents and walks three deep, and those are the right
-numbers for a drawer.
+numbers for a drawer. The map's documents region is this list, sections of a
+manuscript included — see
+[the documents region](#the-documents-region--every-paper-and-deck-on-the-map-itself).
 
 **A new document goes in `writeups/<slug>/`** — `<slug>.tex`, `<slug>.pdf`,
 `figures/`, `feedback/` — one directory per document, because a deck's figures

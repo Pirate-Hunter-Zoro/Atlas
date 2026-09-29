@@ -122,7 +122,10 @@ var els = {
    query parameter, not a stored flag: it survives a reload, a share and a
    cached shell, and there is no second copy of it to go stale. */
 var CAME_FROM = { home: { href: "/", text: "\u2039 Everything",
-                          title: "back to everything" } };
+                          title: "back to everything" },
+                  /* The board reopens on the map it was left on. */
+                  map: { href: "/board", text: "\u2039 Map",
+                         title: "back to the map" } };
 
 (function backWhereYouCameFrom() {
   var el = els.back;
