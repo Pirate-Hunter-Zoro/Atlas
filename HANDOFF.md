@@ -1,5 +1,108 @@
 # HANDOFF — the iPad is where the work is directed from
 
+## DO THIS FIRST — *send my annotations* becomes a picker that is always there
+
+**This comes before everything below, including item 1.** It is one build, for one
+session. When it lands: delete this whole section, write the rule into *Settled*,
+and add its iPad checks (listed at the end of this section) to item 1. After that
+the file should read the way it did before this section was added.
+
+**What the owner asked for, in their words:** the button is *"always available and
+movable just like the re-centre, my ink, and rethink buttons"*, and *"I want to be
+able to select any and all (any subset) tutor responses which I have made an
+annotation on … if I haven't annotated, none will be available and I won't be able
+to send my annotations, which is how it should be."*
+
+### What exists (measured)
+
+- `#notesend` (`board/web/board.html`, *send my annotations*) is **already a
+  widget in the `Recentre` stack**, registered in `board.js` beside `#findink`,
+  `#mapback` and `#redirect` with `onTap: sendNotesNow`. It is already
+  press-and-hold movable, and it remembers where it was put under
+  `board.panic.notesend`. `test/panic.js` holds that. **The move is already done.
+  What is missing is that the button is always showing.**
+- `paintNotesSend()` hides it in three cases: no unsent marks
+  (`haveNotes()`), a writing surface owed (`!els.writer.hidden`), or the *don't
+  ask again* setting (`notesOff()`, localStorage `notes-off`).
+- `sendNotesNow()` → `saveNotes(true)` sends **every** card in
+  `Annotate.unsent()`, all at once, one `POST /annotate/save` per card. You
+  cannot choose which cards go.
+- `Annotate` (`board/web/annotate.js`) already answers the questions the picker
+  needs. `marked()` gives every card id with marks on it. `unsent()` gives the
+  ones not yet handed over. `payload(id, true)` / `sent(id)` send one card.
+- The writing surface's Send offers marks as a follow-up through `#sendwhat`
+  (`send those as well` / cancel / don't ask again). That route calls
+  `saveNotes(true)` too.
+
+### What to build
+
+1. **Always visible.** `#notesend` shows on every board page whenever the
+   lesson is showing, whatever `haveNotes()`, `notesOff()` or the writing
+   surface say. With no marks anywhere it is still there. It opens the picker,
+   and the picker says there is nothing to send.
+2. **Tapping it opens a picker, and the picker sends.** The tap never sends by
+   itself. The picker lists every tutor response (card) that has marks on it, and
+   only those, one row each. Each row carries a checkbox and something to
+   recognise the card by: its chapter/question label or first line, plus how old
+   it is. A row can be tapped to jump to that card, the same way `revealNewest`
+   brings a card under the glass. The rows are 44px tall, and there is an
+   *all / none* toggle. The *Send* button names how many are ticked (*send 3*)
+   and is disabled at zero. With no marked cards, the list says *No annotations
+   yet* and there is nothing to tick. Nothing can be sent, which is the owner's
+   stated rule.
+3. **Send exactly the ticked set.** Split `saveNotes(true)` so it takes a list of
+   ids, and keep the no-argument call meaning *all unsent*, so `#sendwhat` and
+   the empty-surface path in `askWhatToSend` keep working unchanged. Then
+   `paintNotesSend()`, `toastSent()`, and the button's disabled-while-sending
+   behaviour, the same as `sendNotesNow` has now.
+4. **Where the picker sits.** It sits above the lesson at the widget layer, not
+   inside the card column, so it can be reached from the map as well
+   (`#redirect`'s sheet is the precedent: z-index 97). It needs Escape, a close
+   button, and a tap outside to close it.
+
+### Decisions to take deliberately
+
+- **Cards already sent.** `marked()` includes cards whose marks were handed over
+  and not changed since. Recommended: list them, unticked, labelled *sent*, and
+  let them be re-sent if ticked. Tick the unsent ones by default. The owner said
+  *any annotated response*, and re-sending one is harmless. What must not come
+  back is `saveNotes` re-sending everything by default, which is the defect the
+  comment in `saveNotes` records.
+- **`notes-off` and `#notesAgain`.** *Don't ask again* was about the follow-up
+  prompt after a Send. It must not hide the button any more. Keep it scoped to
+  `#sendwhat`, or drop the setting. Either way, the menu item that re-arms it
+  must not describe hiding a button that no longer hides.
+- **The writing surface's own Send.** Leave `askWhatToSend` behaving as it does:
+  the working goes first, unconditionally, and then marks are offered. The picker
+  is a second way in, not a replacement.
+
+### What to assert
+
+- Extend `test/panic.js` and `test/link.js`, which drive a real DOM. The button
+  is visible with zero marks, with a writing surface owed, and with `notes-off`
+  set. With zero marks the picker lists nothing and Send is disabled. With marks
+  on three cards, where one was already sent, three rows are listed and two are
+  ticked. Ticking one and sending issues exactly one `/annotate/save`, for that
+  card. It stays movable, and it remembers its place.
+- `test/link.js:365` currently asserts that the button shows only with marks.
+  That assertion reverses. The test is right about the old rule and must be
+  rewritten to the new rule, not deleted.
+- `test/chrome.js:276` lists `.notesend` among overlays. Check that the picker is
+  covered the same way.
+- Bump `VERSION` in `board/web/sw.js`. `board.js`, `board.html` and `board.css`
+  are all shell files.
+
+### iPad checks to move into item 1 when this lands
+
+- *send my annotations* is on the screen with nothing annotated, and its picker
+  says so and will not send.
+- Annotate two old responses, open the picker, tick one, and send. Only that one
+  reaches the tutor.
+- Press and hold the button, move it, and reload. It stays where you put it and
+  does not sit over the ink you are writing.
+
+---
+
 **The aim is one sentence and it is a test: the only reason to open the laptop is
 to type code a card told you to type.** Everything else — choosing what a sitting
 is for, choosing who writes it, starting the local model, putting a workspace to
