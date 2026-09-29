@@ -248,6 +248,24 @@ try:
           calls["link"] == [w for w, act in calls["board"] if act == "start"]
           and "DeadBoard" in calls["link"])
 
+    # A BOARD WHOSE `/health` NEVER ANSWERS IS BACKED OFF, not bounced forever.
+    # A clean start that clears the repair count lets a route that raises on
+    # every probe restart all five boards every 55 seconds -- measured: 2,500
+    # times in a night, with the iPad saying disconnected throughout.
+    supervise.answering = lambda port, timeout=3.0: int(port) != 9001
+    calls["board"] = []
+    memo = {}
+    for _ in range(6):
+        tutor.watch_once(cfg, HOST, memo, lambda line: None)
+    check("a board that is hung again straight after a clean start waits out "
+          "the backoff rather than being restarted every other pass",
+          calls["board"].count(("Up", "start")) == 1
+          and memo["Up"]["board_tries"] >= 1)
+    supervise.answering = lambda port, timeout=3.0: True
+    tutor.watch_once(cfg, HOST, memo, lambda line: None)
+    check("and the count clears once it answers",
+          memo["Up"]["board_tries"] == 0)
+
     # THE ADDRESS IS CHECKED EVERY PASS, not only after a board starts. `link`
     # used to be called on a start alone, so a link that failed while a
     # generation was coming up was never retried: on compute306 every process

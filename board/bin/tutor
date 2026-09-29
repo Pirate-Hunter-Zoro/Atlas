@@ -5537,7 +5537,13 @@ def watch_once(cfg, host, memo, say, claim=False):
                 # rule a start follows anyway.
                 link(root)
             mem["misses"] = 0
-            mem["board_tries"] = 0 if code == 0 else mem["board_tries"] + 1
+            # A clean start clears the count only for a board that was DEAD. A
+            # hung one that starts cleanly has proved nothing until it answers,
+            # and the `ok` branch below is what clears it then: a board whose
+            # `/health` always fails is otherwise bounced every 55 seconds for
+            # as long as the chain runs, with no backoff at all.
+            mem["board_tries"] = (0 if code == 0 and verdict != "hung"
+                                  else mem["board_tries"] + 1)
             mem["board_at"] = now + supervise.next_try(mem["board_tries"])
             note = "%s: board %s" % (name, {"revive": "was dead", "hung": "was wedged",
                                             "adopt": "moved here"}[verdict])

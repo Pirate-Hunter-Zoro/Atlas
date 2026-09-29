@@ -237,16 +237,19 @@ def get(h, repo, path):
         meeting.status(base)
         rec = meeting.deck(base)
         if not rec or not rec.get("has_pdf"):
-            state = (rec or {}).get("state") or ""
+            # Not `state`: that name is the lesson-state module, and binding
+            # it anywhere in `get` makes it local to all of `get`, which is
+            # `/health` raising UnboundLocalError on every call.
+            deck_state = (rec or {}).get("state") or ""
             return h.send_json({
-                "ok": False, "why": "none" if not rec else state,
+                "ok": False, "why": "none" if not rec else deck_state,
                 "detail": ("There is no deck to read. Make one from the front "
                            "door." if not rec else
                            "The deck is being written in %s. This page draws "
                            "it when it is there." % ((rec.get("names") or {})
                                                     .get(rec.get("host"))
                                                     or rec.get("host"))
-                           if state == "being written" else
+                           if deck_state == "being written" else
                            (rec.get("why") or "The deck did not land."))})
         out = paper.pages_of(repo, rec["pdf"], meeting.STEM + ".pdf", "meeting")
         if out.get("ok"):

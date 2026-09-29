@@ -323,6 +323,43 @@ try:
         except urllib.error.HTTPError as exc:
             return exc.code, json.loads(exc.read().decode("utf-8"))
 
+    # `/health` IS WHAT THE WATCH ASKS, and a board that cannot answer it is
+    # restarted as hung. A deck branch in the same `get` once bound `state`,
+    # which made the name local to the whole function and hid the lesson-state
+    # module, so `/health` raised UnboundLocalError on every call and every
+    # board was restarted every 55 seconds with its pid perfectly alive.
+    try:
+        status, body = get("/health")
+    except Exception as exc:  # noqa: BLE001 -- a dropped connection is the bug
+        status, body = None, {"error": repr(exc)}
+    check("/health answers 200 with ok through the real routes",
+          status == 200 and body.get("ok") is True)
+
+    # And the rule, for every route module: no function binds a name the
+    # module imported. Python decides a name's scope for the whole function,
+    # so one assignment in one branch breaks every other branch that uses it.
+    import glob
+    import symtable
+    shadowed = []
+    for src in sorted(glob.glob(os.path.join(ROOT, "tutorboard", "server",
+                                             "**", "*.py"), recursive=True)):
+        with open(src) as fh:
+            table = symtable.symtable(fh.read(), src, "exec")
+        imported = {s.get_name() for s in table.get_symbols() if s.is_imported()}
+        stack = list(table.get_children())
+        while stack:
+            fn = stack.pop()
+            stack.extend(fn.get_children())
+            if fn.get_type() != "function":
+                continue
+            shadowed += ["%s:%s binds %s" % (os.path.relpath(src, ROOT),
+                                             fn.get_name(), s.get_name())
+                         for s in fn.get_symbols()
+                         if s.get_name() in imported and s.is_local()
+                         and not s.is_imported()]
+    check("no server function binds a name its module imported %s" % shadowed,
+          not shadowed)
+
     deck_dir = os.path.join(psy, "writeups", "meeting")
     HAVE_TEX = bool(shutil.which("pdflatex")) and bool(shutil.which("pdfinfo"))
 
