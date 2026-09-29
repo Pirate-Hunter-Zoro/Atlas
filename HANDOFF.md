@@ -33,10 +33,8 @@ from here and is not going to**: `api.deepseek.com` is reset at the TLS
 handshake from every compute node, so the board stands it aside and the evening
 runs on another provider.
 
-**One small build is left, and it comes first**: the /meeting reader's ink
-has to say it is kept, as the library reader's does (item 1). After it, one
-dispatch only the account holder can make, and a list of evenings in front of
-the thing.
+**No build is left.** What is left is one dispatch only the account holder
+can make, and a list of evenings in front of the thing.
 
 `board/README.md` is the architecture. This file says what is left.
 
@@ -51,8 +49,8 @@ Nobody has to ask for that. *"Look at HANDOFF"* means all of it:
    CAN DO.** It is the lowest-numbered one on purpose — the numbering carries the
    order things have to land in, and each item says what it depends on where that
    matters. If the owner names a different one, that wins. **Each item's heading
-   says whose hands it needs**: 1 is a build, 2 needs the account
-   holder, 3 is a list of evenings in front of the thing.
+   says whose hands it needs**: 1 needs the account holder, 2 is a
+   list of evenings in front of the thing.
 2. **Read that item whole before touching anything.** An item says what already
    exists (measured, not assumed), what is missing, where it goes, the decisions
    to take deliberately, and what to assert. The decisions are the expensive part:
@@ -75,14 +73,14 @@ An item is not done because its code runs. It is done when the suite is green,
 the rule is written where the next turn will read it, and the item is out of this
 file.
 
-**Item 3 does not come out this way.** It is a list of evenings in front of the
+**Item 2 does not come out this way.** It is a list of evenings in front of the
 thing, and only the person holding the iPad can strike those.
 
 ---
 
 ## Before anything
 
-- `bash board/test/all.sh` — 103 suites, about twelve minutes. Green before and
+- `bash board/test/all.sh` — 102 suites, about twelve minutes. Green before and
   after.
   The last of them is Paper-Writer's own, run where it is checked out, so the
   factory's tests are part of the board's habit rather than a second one nobody
@@ -170,64 +168,14 @@ three providers behind one tap on the front door, a swap between them that costs
 the lesson nothing, and a fourth costing one entry in a config file and one line
 in a key file. All of that is Settled below.**
 
-**One thing here is a build: the /meeting reader's ink (item 1).** Item 2
-needs the account holder; item 3 is a list of evenings in front of the thing.
+**Nothing here is a build.** Item 1 needs the account holder; item 2 is a list
+of evenings in front of the thing.
 
 ---
 
 ## What to do next
 
-### 1. The /meeting reader's ink says it is kept, as the library reader's does — A BUILD
-
-**The ask is the owner's item-2 ask, on the other reader.** Ink drawn on the
-meeting deck at `/meeting` has to say it is kept, survive the lid shutting, and
-know which build it was drawn on. The library reader does all of that now
-(*INK IN THE LIBRARY READER SAYS IT IS KEPT* under Settled). `/meeting` does
-none of it. Nothing blocks this.
-
-**What exists, measured.** `web/meeting.js` has its own `savePen` and
-`queuePenSave`, a copy of the library's old path rather than a call into it:
-
-- It posts `/annotate/save` 900 ms after the pen lifts and on `pagehide`.
-- Its fetch has no catch and **cleans the page on any reply, a 500
-  included**, so a failed save is dropped from `Annotate.unsaved()` and never
-  retried. That is worse than the library reader was before its fix.
-- There is no status line, no retry on `online` or `visibilitychange`, no
-  `keepalive` flush when the page is hidden, and no build stamp.
-- The library reader's versions live in `web/library.js`: `savePen` takes
-  `opts.keepalive`, and `#reader-kept` shows the state.
-
-**What to build.**
-
-1. **Share the save path rather than copy it a second time.** Move the kept,
-   retry, keepalive and stamp logic out of `web/library.js` into something
-   both readers load, and call it from `web/meeting.js`. Two copies are how
-   `/meeting` drifted.
-2. **The status line on `/meeting`**, with the same three states and the same
-   retry triggers as `#reader-kept`.
-3. **Build stamps on meeting ink.** `meeting.prepare` clears the old deck's ink
-   when a new deck is asked for. So a *rebuilt since* flag only matters for a
-   deck recompiled in place. Stamp anyway and flag it the same way.
-4. **Decide whether `/meeting` gets a marked copy.** Ink there is *direction*,
-   and its pictures already go to `meetings/marks/`. A marked copy of a deck
-   touching PSYCH-ASR is fenced content: it goes under the host workspace's
-   `live/marked/` via `burn_library`'s rules or nowhere. Decide it, and record
-   the decision under Settled.
-
-**Two small defects the item-2 review left, fix them while in there:**
-
-- A copy burned from the page cache silently drops marks on pages past the
-  old build's cached page count. Say so in the reply rather than dropping them.
-- A page's stamp covers all its strokes, so new ink on a rebuilt page
-  re-stamps the old strokes and un-flags them. That was accepted by design.
-  Leave it unless the shared path makes per-stroke stamps cheap.
-
-**What to assert.** On `/meeting`: a save that answers 500 stays unsaved, is
-shown, and is retried on `online`. A hidden page flushes with `keepalive`. The
-status line reads *saved · N pages marked* after a good save. The library
-reader's existing suites still pass against the shared path.
-
-### 2. Ask GitHub to collect the instructor slides, which the rewrite did not reach — THE ACCOUNT HOLDER'S
+### 1. Ask GitHub to collect the instructor slides, which the rewrite did not reach — THE ACCOUNT HOLDER'S
 
 **The seventeen decks and sheets are out of every commit here and off `main`, and
 GitHub still serves all seventeen at the pre-rewrite SHA.** A raw fetch of
@@ -250,7 +198,7 @@ Until one of those lands, treat the decks as published. Nothing else is
 outstanding: `.gitignore` refuses them, `test/tracked.py` refuses them for every
 course, and the files are on disk where the board reads them.
 
-### 3. And the seven things no test can hold — THE IPAD'S
+### 2. And the seven things no test can hold — THE IPAD'S
 
 None of these is a build. Each is an evening in front of the thing.
 
@@ -423,6 +371,23 @@ as the answer.
   replaced each time, and the propose-only direction routing (`proposals.py`)
   hold as they were. `test/meeting.py` is the contract; see *The meeting deck*
   in `board/README.md`.
+
+- **INK ON /MEETING SAYS IT IS KEPT, OFF THE SAME PATH.** Both readers save
+  through `web/inkkeep.js` (`InkKeep.make`); there is no second copy, because a
+  second copy is how `/meeting` drifted. `#reader-kept` on `/meeting` has the
+  library's three states and retry triggers. `/meeting/view` answers with
+  `build`, every save carries it and names its deck, and ink on another build
+  is flagged in `#reader-rebuilt`. `/annotate/save` answers 409 `gone` to a
+  save naming a replaced deck, and the page lets that ink go. *send them* and
+  close both wait for the saves, and *send them* refuses unsaved ink, because
+  the turns read the marks off disk. **No marked copy of the meeting deck is
+  made**: its ink is direction, consumed when sent, its pictures go to
+  `meetings/marks/`, and a copy would either cross the fence to a host
+  workspace or duplicate what was sent. A copy burned from the page cache names
+  in its reply the marks past the cached build's pages rather than dropping
+  them; a burn with every mark past the last page writes nothing. A page's
+  stamp still covers all its strokes: the save record is per page, so
+  per-stroke stamps are not cheap.
 
 - **INK IN THE LIBRARY READER SAYS IT IS KEPT.** `#reader-kept` reads *saved ·
   N pages marked*, *saving…* or *not saved — retrying*, driven by `savePen`'s
