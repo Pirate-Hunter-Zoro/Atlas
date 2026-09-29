@@ -1108,7 +1108,7 @@ function paintNotesState(rec, quiet) {
     + ((rec.marked || []).length ? " · marked up" : "");
   if (!quiet) {
     var slides = Object.keys(rec.pages || {}).length;
-    notesSay("Ready: " + slides + (slides === 1 ? " slide" : " slides")
+    notesSay("Ready: " + slides + (slides === 1 ? " project slide" : " project slides")
              + " about " + what + ". It replaced the one before it."
              + (rec.unsupported ? " " + rec.unsupported + " thing"
                 + (rec.unsupported === 1 ? " on it is" : "s on it are")

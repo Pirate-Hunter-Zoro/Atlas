@@ -592,6 +592,9 @@ def ask_meeting(repo, base, since_ts, human, want=None):
     if clash:
         return None, ({"ok": False, "detail": clash}, 400)
     host_block = next(b for b in blocks if b["id"] == host)
+    taken = meeting.occupied(host_block["root"])
+    if taken:
+        return None, ({"ok": False, "detail": taken}, 409)
     match = None
     # THE BOARD'S OWN WORKSPACE IS NOT ASKED TO START, for `/writeup`'s reason.
     if not paths.same_dir(host_block["root"], repo.root):

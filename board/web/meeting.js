@@ -1,10 +1,11 @@
 /* ==========================================================================
    meeting.js -- the one meeting deck, read on the glass and marked up on it.
 
-   The library's reader over a document that belongs to the REPOSITORY. There
-   is one deck at one path, it is replaced rather than versioned, and it is in
-   no workspace's library -- `meetings/` is at the root on purpose, because a
-   note about five workspaces filed under one of them is misfiled.
+   The library's reader over a document about several workspaces. There is
+   one deck, it is replaced rather than versioned, and it is in no workspace's
+   library: it is written in its host's `writeups/meeting/`, and
+   `meetings/meeting.json` at the root says where, because in a library ink
+   would be a revision filed under one project.
 
    Four rules, and the last is the one the whole page exists for:
 

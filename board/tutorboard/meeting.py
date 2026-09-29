@@ -119,9 +119,10 @@ STORY = ("HANDOFF.md", "DIRECTION.md")
 SAVES = ("lesson complete", "lesson transcript", "stopping point")
 SAVE_RE = re.compile(r"^(?:[\w.+-]+\s+)?hand-?off\b")
 
-# How a deck being written is judged. `SETTLE` is how long a PDF has to sit
-# still before it is read -- latexmk writes it more than once. `QUIET` and
-# `CEILING` are the deck from sittings' own.
+# How a deck being written is judged. `SETTLE` is how long the deck's directory
+# has to sit still, once its turn is over, before it is read -- pdflatex writes
+# the PDF more than once. `QUIET` and `CEILING` are the deck from sittings'
+# own.
 SETTLE = 15
 QUIET = 120
 CEILING = 2 * 3600
@@ -1114,6 +1115,20 @@ def _clear_deck(d):
         shutil.rmtree(d, ignore_errors=True)
 
 
+def occupied(host_root):
+    """Why the deck cannot be written in this host, or "". A `writeups/meeting/`
+    the board did not write is somebody's document, and asking would take it
+    away: `_clear_deck` leaves it, and the brief and the writer would write
+    over it."""
+    d = os.path.join(host_root, WRITEUPS, DECK_DIR)
+    if os.path.lexists(d) and not (os.path.isdir(d) and (
+            is_deck_dir(d) or os.path.isfile(os.path.join(d, STY)))):
+        return ("%s/%s/ in %s is not a meeting deck the board wrote, and the "
+                "deck would write over it. Move it, then ask again."
+                % (WRITEUPS, DECK_DIR, os.path.basename(host_root.rstrip("/"))))
+    return ""
+
+
 def prepare(base, host_root, blocks, since_ts, human, wid, host, repo=None,
             until_ts=None):
     """Everything that happens once the ask is allowed and before the turn is
@@ -1453,6 +1468,16 @@ def finalize(base, rec):
     pages, problems = page_map(d, rec.get("workspaces") or [])
     text = pdf_text(os.path.join(d, STEM + ".pdf"))
     leaks, heads = internal_names(text, brief)
+    # AND THE SOURCE, because a link's target is not text: `\href{<tailnet>}
+    # {Open}` prints "Open" and puts the address in the PDF where any click
+    # finds it. Comments are not the deck.
+    try:
+        with open(os.path.join(d, STEM + ".tex"), "r", encoding="utf-8",
+                  errors="replace") as fh:
+            src = re.sub(r"(?<!\\)%.*", "", fh.read())
+    except OSError:
+        src = ""
+    leaks = sorted(set(leaks) | set(internal_names(src, {})[0]))
     for u in leaks:
         problems.append("the deck prints %s, an address nobody at the meeting "
                         "can open" % u)
@@ -1522,7 +1547,13 @@ def status(base):
         except OSError:
             built = False
         over = sittings._turn_over(host_root, wid) if host_root and wid else False
-        if built and (now - newest >= SETTLE or over):
+        # READ BACK ONCE, WHEN THE TURN IS DONE WITH IT. A writer builds, looks,
+        # fixes and builds again, and the judgement is frozen: a first build
+        # read back mid-turn is a page map of a deck that no longer exists, or a
+        # refusal of one the writer was about to fix. The ceiling is for a turn
+        # whose end cannot be read.
+        if built and ((over and now - newest >= SETTLE)
+                      or now - asked >= CEILING):
             rec = finalize(base, rec)
             _write_record(base, rec)
             return rec

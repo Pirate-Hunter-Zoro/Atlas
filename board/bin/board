@@ -2160,6 +2160,15 @@ def cmd_notes(live, args):
             print("board notes: --brief-to writes outside the repository; %s "
                   "is inside it" % target, file=sys.stderr)
             return 1
+        # A FENCED WORKSPACE'S BRIEF STAYS IN THAT WORKSPACE. The brief quotes
+        # its handoff and direction and copies its figures, and outside its root
+        # nothing scans it and nothing ignores it.
+        held = [b["id"] for b in blocks if b["fenced"]]
+        if held:
+            print("board notes: %s holds data that never leaves it, so its brief "
+                  "is not written outside it. Use --print, or ask for the deck."
+                  % ", ".join(held), file=sys.stderr)
+            return 1
         rec = meeting.write_brief(base, target, blocks, when, human=human,
                                   host=host)
         print(os.path.join(target, meeting.BRIEF_MD))

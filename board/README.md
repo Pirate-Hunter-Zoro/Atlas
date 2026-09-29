@@ -652,7 +652,8 @@ board notes --meeting --since 7d                     ask for it: written by a tu
 board notes --meeting --since 2026-09-01 --workspace research/PSYCH-ASR
 board notes --meeting --since last                   since the last deck
 board notes --meeting --since monday --print         the brief; writes nothing
-board notes --meeting --since 7d --brief-to DIR      the brief and figures into DIR, outside the tree
+board notes --meeting --since 7d --brief-to DIR      the brief and figures into DIR, outside the tree;
+                                                     refused when a chosen workspace is fenced
 ```
 
 **A presentation to the mentors, written by a turn over a brief.** It is the deck from sittings
@@ -692,6 +693,8 @@ writes it is whichever that workspace runs. Two fenced workspaces in one deck ar
 the sidecar and LaTeX's leftovers are ignored by the deck's own `.gitignore`. `meetings/` at the
 repository root holds only the pointer and the pictures of marks, and is not tracked. The library
 leaves the deck out (`library._meeting_deck`): its reader is `/meeting`, where ink is direction.
+A `writeups/meeting/` the board did not write (no brief, no `meetingws.sty`) refuses the ask
+(`meeting.occupied`), because asking would write over it.
 
 **Every frame says whose it is, and the page map comes off the build.** `\usepackage{meetingws}`
 defines `\meetingws{<workspace id>}` and `\meetingshared`, each writing `\meetingpage{<page>}{…}`
@@ -704,13 +707,16 @@ the compute nodes (no `Time::HiRes`).
 **Provenance, not "nothing invented".** `meeting.finalize` checks every number in the `.tex` body
 against every rounding of every number in the brief and the files it names (`check_sources`), and
 every image the build read (`.fls`, else the `.log`) against what the board copied or `deckfig`
-could have. A tailnet, loopback or `#/w/` address in the PDF's text refuses the deck; a plan
+could have. A tailnet, loopback or `#/w/` address in the PDF's text or in the `.tex` (a link's target is not
+text) refuses the deck; a plan
 heading copied in capitals is listed. What is unsupported goes in `_provenance.json` beside the
 deck, and `/meeting` shows it above the pages — never silently dropped, never silently shipped.
 
 **Being written → Ready / Did not land.** `meeting.status` judges the record whenever
-`/meeting/deck.json` or `/meeting/view` is asked: a PDF newer than the ask that has sat still for
-`SETTLE` seconds (or whose turn is over) is finalized; a turn over with nothing built for `QUIET`
+`/meeting/deck.json` or `/meeting/view` is asked. A PDF newer than the ask is read back once, when
+the host's turn is over and the directory has sat still for `SETTLE` seconds, or at `CEILING`:
+a writer builds, looks and builds again, and a mid-turn read would freeze a page map of a deck
+that no longer exists. A turn over with nothing built for `QUIET`
 seconds, a failed writeup record, or `CEILING` is *did not land*, saying which. The host's writeup
 record is frozen `done` or `failed` then, because the library's stamps never see the deck. The
 sheet polls every ten seconds while open.

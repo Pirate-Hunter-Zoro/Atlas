@@ -285,6 +285,10 @@ try:
     spawn.fresh_tutor = lambda root, course: fails.append(
         "an assistant was replaced by a mark on a slide")
     meeting.SETTLE = 0
+    # WHETHER THE HOST'S TURN IS OVER, which the test decides: a deck is read
+    # back once, when its writer is done with it.
+    turn = {"over": False}
+    sittings._turn_over = lambda root, wid: turn["over"]
 
     serving = course_repo.Repo(prob)
     worker = tikz.TikzWorker(serving)
@@ -416,7 +420,16 @@ try:
                   "The reference transcript is built and awaits approval."),
             frame("Asks", "*", "Approve the reference."),
         ])
-        if HAVE_TEX and build(good):
+        if HAVE_TEX and build(deck_tex([frame("", "", "\\titlepage")])):
+            # A FIRST BUILD MID-TURN IS NOT THE DECK. The writer is still at it.
+            status, body = get("/meeting/deck.json")
+            check("a build while the turn is still working is not read back",
+                  body.get("state") == "being written")
+            ok_built = build(good)
+            turn["over"] = True
+        else:
+            ok_built = False
+        if HAVE_TEX and ok_built:
             status, body = get("/meeting/deck.json")
             check("a built deck is read back and is ready",
                   body.get("state") == "ready" and body.get("built"))
@@ -530,26 +543,51 @@ try:
             check("and a plan heading copied in capitals is in the sidecar",
                   any("INTEGRATE HIS SECTIONS" in x["heading"]
                       for x in prov["internal"]))
+
+            # --- a link whose TARGET is the tailnet, under innocent words ----
+            post("/notes", {"since": "7d", "want": ["research/TRD", "research/PSY"]})
+            link = deck_tex([
+                frame("", "*", "\\titlepage"),
+                frame("Findings", "research/TRD",
+                      "\\href{http://compute-node.tail0c6c62.ts.net:8937/"
+                      "\\#/w/research/TRD}{The findings}"),
+            ], preamble="\\usepackage{hyperref}\n")
+            build(link)
+            text = meeting.pdf_text(os.path.join(deck_dir, "meeting.pdf"))
+            status, body = get("/meeting/deck.json")
+            check("a link to the tailnet under other words refuses the deck",
+                  "ts.net" not in text and body.get("state") == "did not land"
+                  and "ts.net" in (body.get("why") or ""))
         else:
             print("skip  no LaTeX here, so the build, the page map and the "
                   "provenance are not checked")
 
         # --- a turn that ended with nothing ---------------------------------
         post("/notes", {"since": "7d", "want": ["research/TRD", "research/PSY"]})
-        real_over = sittings._turn_over
-        sittings._turn_over = lambda root, wid: True
+        turn["over"] = True
         was_quiet = meeting.QUIET
         meeting.QUIET = 0
         try:
             status, body = get("/meeting/deck.json")
         finally:
-            sittings._turn_over = real_over
             meeting.QUIET = was_quiet
         check("a turn that ended without a deck did not land, and says so",
               body.get("state") == "did not land"
               and "without writing" in (body.get("why") or ""))
         check("since the last deck is measurable once one was asked for",
               meeting.resolve_since("last", base)[0] is not None)
+
+        # --- somebody's own writeups/meeting/ is not taken away -------------
+        shutil.rmtree(deck_dir)
+        write(os.path.join(deck_dir, "meeting.tex"), "MINE\n")
+        status, body = post("/notes", {"since": "7d",
+                                       "want": ["research/TRD", "research/PSY"]})
+        check("a writeups/meeting/ the board did not write refuses the ask, and "
+              "is left as it was",
+              status == 409 and "not a meeting deck" in (body.get("detail") or "")
+              and open(os.path.join(deck_dir, "meeting.tex")).read() == "MINE\n"
+              and sorted(os.listdir(deck_dir)) == ["meeting.tex"])
+        shutil.rmtree(deck_dir)
     finally:
         httpd.shutdown()
 
@@ -563,6 +601,27 @@ try:
     check("`board notes --meeting --print` prints the brief and writes nothing",
           got.returncode == 0 and "BODY-ONE-MARKER" in out
           and not os.path.isdir(os.path.join(trd, "writeups", "meeting")))
+    outside = tempfile.mkdtemp(prefix="tutor-meeting-out-")
+    try:
+        got = subprocess.run([sys.executable, os.path.join(ROOT, "bin", "board"),
+                              "notes", "--meeting", "--since", "7d",
+                              "--workspace", "research/PSY", "--brief-to",
+                              os.path.join(outside, "b")], cwd=trd,
+                             stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                             env=dict(os.environ), timeout=120)
+        check("a fenced project's brief is not written outside it",
+              got.returncode != 0 and not os.listdir(outside))
+        got = subprocess.run([sys.executable, os.path.join(ROOT, "bin", "board"),
+                              "notes", "--meeting", "--since", "7d",
+                              "--workspace", "research/TRD", "--brief-to",
+                              os.path.join(outside, "b")], cwd=trd,
+                             stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                             env=dict(os.environ), timeout=120)
+        check("and an unfenced one's is",
+              got.returncode == 0
+              and os.path.isfile(os.path.join(outside, "b", "_brief.md")))
+    finally:
+        shutil.rmtree(outside, ignore_errors=True)
 
 finally:
     os.environ.pop("TUTORBOARD_COURSES", None)
