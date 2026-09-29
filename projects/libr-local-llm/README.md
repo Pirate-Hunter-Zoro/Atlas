@@ -769,7 +769,7 @@ tutor board's DeepSeek recipe uses for its `egress_probe`, so one number answers
 and treats any HTTP status as open, 401 and 405 included. The question is whether the handshake
 completes. It answers in about 50 ms and exits **69** (`EX_UNAVAILABLE`) with the reason, the node
 name and a pointer to [`docs/deepseek-egress.md`](docs/deepseek-egress.md), which holds the
-measurement, the controls and the firewall exception to ask for.
+measurement, the controls and the firewall exception that would open it, which is not being requested.
 
 The check earns its line from what opencode does instead: nothing visible. Measured at
 `--log-level DEBUG` for a full minute against the filtered host — no message, no log line, no
