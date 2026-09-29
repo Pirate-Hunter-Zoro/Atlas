@@ -36,6 +36,11 @@ MSG="${1:-board and tutor updates}"
 # had was wrong.
 REL="$(tool_prefix)"
 
+# When the ship began, before anything is committed. Another node's watch can
+# restart its boards while the push below is still running, and that is still
+# this ship's restart rather than a board that was "already" on the new code.
+SINCE="$(date +%s)"
+
 echo "== the tool (${REL:-the repository}) =="
 # ONLY the tool's own paths. There is one repository now: without the pathspec,
 # shipping a change to the board would sweep up whatever is uncommitted in nine
@@ -58,11 +63,17 @@ fi
 # save-and-push.sh already bounces the boards when it is this repository being
 # pushed. The tutors are the other half, and they are only bounced from here --
 # a course pushing its own homework has no business restarting anybody's tutor.
+#
+# `--stale` bounces only what is not on the tree's code stamp, and `--wait`
+# waits for every other node's watch to put its boards on it: the checkout is
+# shared, so that node already has the files, and its watch's ship beat is what
+# restarts them. No ssh. One line per board and per tutor says where it landed
+# or why not.
 echo
 if command -v tutor >/dev/null 2>&1; then
-  tutor restart --tutors
+  tutor restart --tutors --stale --wait --since "$SINCE"
 else
-  echo "tutor is not on PATH; run 'tutor restart --tutors' by hand" >&2
+  echo "tutor is not on PATH; run 'tutor restart --tutors --stale --wait' by hand" >&2
 fi
 
 echo

@@ -650,7 +650,7 @@ askShell();
 
 /* Reduce Motion is not consulted by `typeOut` any more, and the next fault
    reported from a device that has it on will still want to know that it does. */
-function traceHead() {
+function shellHead() {
   var still = "?";
   try {
     still = (window.matchMedia
@@ -658,6 +658,56 @@ function traceHead() {
       ? "yes" : "no";
   } catch (e) { /* no matchMedia */ }
   return shellVersion + "  ·  reduce motion: " + still;
+}
+
+/* What a copied trace opens with: the shell, then the code behind it. */
+function traceHead() {
+  return shellHead() + (codeLine ? "  ·  " + codeLine : "");
+}
+
+/* WHICH CODE THE BOARD IS RUNNING, and whether the tree has moved past it.
+   The other half of the shell line: a board and a tutor read their code once,
+   when they start, so a ship reaches the glass only when its node's watch
+   restarts them. Asked when the panel opens, and never on the plain `/health`
+   poll, because the tree's stamp is a git call. */
+var codeLine = "";
+var codeStale = false;
+
+function askCode() {
+  return fetch("/health?code=1", { cache: "no-store" }).then(function (r) {
+    if (r && r.ok === false) throw new Error("HTTP " + r.status);
+    return r.json();
+  }).then(function (h) {
+    var c = (h && h.code) || {};
+    if (!c.running) {
+      codeLine = "board code: from before stamps";
+      codeStale = true;
+    } else {
+      codeLine = "board code " + c.running + " · tutor code "
+        + (c.tutor || "?") + " · tree " + (c.tree || "?");
+      codeStale = !!(c.tree && c.running !== c.tree);
+      if (codeStale) {
+        codeLine += " -- older than the tree; its node's watch restarts it "
+          + "within a beat";
+      }
+    }
+    paintCode();
+  }, function () {
+    /* NO ANSWER IS AN ANSWER. The shell comes off disk, so a new one often
+       runs against an old server, and a server that cannot answer this at
+       all is the most stale board there is -- it must not look unknown. */
+    codeLine = "board code: unknown -- /health?code=1 did not answer; the "
+      + "board is older than this shell or unreachable";
+    codeStale = true;
+    paintCode();
+  });
+}
+
+function paintCode() {
+  var el = document.getElementById("trace-code");
+  if (!el) return;
+  el.textContent = codeLine;
+  el.classList.toggle("stale", codeStale);
 }
 
 /* ------------------------------------------------------------------ render */
@@ -10905,7 +10955,8 @@ function paintTrace() {
   var host = document.getElementById("trace-list");
   askShell();                 /* it may have installed since the page opened */
   var head = document.getElementById("trace-shell");
-  if (head) head.textContent = traceHead();
+  if (head) head.textContent = shellHead();
+  askCode();
   host.textContent = "";
   if (!traceLog.length) {
     var none = document.createElement("div");

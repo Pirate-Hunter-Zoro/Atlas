@@ -22,7 +22,8 @@ tutor -- start a tutoring session.
     tutor cost --all            every course, one line each
     tutor pull                  move vendor/colibri forward and commit the pointer
     tutor where                 what is up, on this machine and on the tailnet
-    tutor restart [--tutors]    restart every board here (and its tutor) on current code
+    tutor restart [--tutors] [--stale] [--wait] [--since T]
+                                restart every board here (and its tutor) on current code
     tutor watch                 keep the boards and tutors here up, and repair what dies
     tutor down [course]         stop serving here -- the boards, the tutors, the link
     tutor serve                 serve from a Slurm job that renews its own allocation
@@ -42,6 +43,8 @@ Which assistant runs is configuration, not code. Nothing here knows or cares
 which one it is; see `tutor --agents`.
 """
 
+import contextlib
+import io
 import json
 import os
 import re
@@ -52,6 +55,10 @@ import sys
 
 TOOL = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 sys.path.insert(0, TOOL)
+# A DAEMON STAMPS THE CODE IT RUNS BEFORE IT IMPORTS IT. See `tutorboard/stamp.py`.
+from tutorboard import stamp
+if sys.argv[1:2] == ["headless"]:
+    stamp.mark_loaded()
 from tutorboard import (atlas, choice, handoff, keys, limits, machine, missions,
                         paths, processes, seeing, supervise, worktree)
 from tutorboard.course import config
@@ -2498,11 +2505,15 @@ def mark_waking(live, agent_name, pid=None):
     exactly this comparison. A provider swap is the common case here -- it is
     what a climb-down IS -- so the error is kept only where it is still about
     whoever is about to teach.
+
+    AND IT CLEARS THE CODE STAMP. The daemon coming up writes its own when it
+    listens; a waking record that kept the last one's would read as current to
+    `ship_beat` for a process that has not loaded anything yet.
     """
     try:
         return agent_state(live, agent=agent_name, pid=pid, state="waking",
                            waking_at=time.time(), restarting=False,
-                           handover=None, host=this_host(),
+                           handover=None, host=this_host(), code=None,
                            stopped_at=0, turn_started=0, turn_signal="",
                            **not_this_agents_failure(live, agent_name))
     except OSError:
@@ -3466,7 +3477,7 @@ def headless(cfg, course, agent_name, session):
     # before it went well.
     agent_state(live, host=host, agent=agent_name, pid=os.getpid(),
                 started=time.time(), state="listening", turns=0, waking_at=0,
-                agent_why=why_took or None,
+                agent_why=why_took or None, code=stamp.LOADED,
                 **not_this_agents_failure(live, agent_name))
     print(net.rstrip())
     print("\n%s is listening in %s. Send from the board; nothing here needs a keyboard."
@@ -4248,7 +4259,7 @@ def finish_restart(cfg, args):
     return 1
 
 
-def cmd_restart(cfg, args):
+def cmd_restart(cfg, args, only=None):
     """Restart every long-lived process on this machine, on the current code.
 
     A board is a long-lived process that read `serve.py` when it started, so a
@@ -4259,98 +4270,155 @@ def cmd_restart(cfg, args):
 
     Only boards that are actually answering on this node are touched -- a record
     on a shared filesystem may belong to another machine, and stopping a stranger's
-    process is worse than leaving a stale one. `--tutors` adds the daemons.
+    process is worse than leaving a stale one. That node's own watch restarts it
+    (`ship_beat`). `--tutors` adds the daemons.
+
+    `--stale` touches only a process whose recorded code stamp differs from the
+    tree's, so a commit that changed no loaded code bounces nothing. `--wait`
+    then waits for every other node's watch to report its boards and tutors on
+    the new stamp, and says per process where it landed (`await_elsewhere`).
+    `--since EPOCH` is when the ship began: another node's watch may restart a
+    board before this command starts, and that is still this ship's restart.
+    `only` is the watch beat's own entry: those boards and no others, under the
+    lock the beat already holds.
     """
     host = this_host()
-    # WHO HOLDS THE ADDRESS, BEFORE ANYTHING IS STOPPED.
-    #
-    # There is one HTTPS name and it points at one board. A start claims it only
-    # when it is pointing at nothing -- but this loop stops each board in turn,
-    # so while one is down the name it holds IS pointing at nothing, and the
-    # next course to come up takes it. The alphabet decided which. Somebody
-    # mid-proof in Galois Theory looked up at a board labelled PSYCH-ASR, on a
-    # device with one URL baked into it, with no way to say which course they
-    # meant. A deploy must not move somebody's address.
-    #
-    # The name points at ONE port, machine-wide, so it is asked once; which
-    # course that is is then read off the board each one is actually running on,
-    # because a port is a pure function of the workspace's directory basename
-    # and the record in `live/.board.json` is the fact rather than a derivation
-    # of it.
-    all_courses = courses(cfg)
-    held_port = None
-    for c in all_courses:
-        code, out = board(c["root"], "vpn", "holder")
-        if code == 0 and out.strip().isdigit():
-            held_port = int(out.strip())
-        break
-    held_before = None
-    if held_port:
+    stale = "--stale" in args
+    wait_elsewhere = "--wait" in args
+    tree = stamp.tree()
+    if stale and tree is None:
+        print("can't read the tree's stamp; restarting everything")
+        stale = False
+    started = time.time()
+    try:
+        started = min(started, float(_flag(args, "--since") or started))
+    except ValueError:
+        pass
+    # ONE RESTART OF THIS NODE'S BOARDS AT A TIME. A lesson save, a ship and
+    # the watch's ship beat can all reach for the same board together; the
+    # beat already holds this lock when it calls in with `only`.
+    lock = (stamp.restart_lock(wait=True) if only is None
+            else contextlib.nullcontext(True))
+    with lock:
+        # WHO HOLDS THE ADDRESS, BEFORE ANYTHING IS STOPPED.
+        #
+        # There is one HTTPS name and it points at one board. A start claims it only
+        # when it is pointing at nothing -- but this loop stops each board in turn,
+        # so while one is down the name it holds IS pointing at nothing, and the
+        # next course to come up takes it. The alphabet decided which. Somebody
+        # mid-proof in Galois Theory looked up at a board labelled PSYCH-ASR, on a
+        # device with one URL baked into it, with no way to say which course they
+        # meant. A deploy must not move somebody's address.
+        #
+        # The name points at ONE port, machine-wide, so it is asked once; which
+        # course that is is then read off the board each one is actually running on,
+        # because a port is a pure function of the workspace's directory basename
+        # and the record in `live/.board.json` is the fact rather than a derivation
+        # of it.
+        all_courses = courses(cfg)
+        held_port = None
         for c in all_courses:
+            code, out = board(c["root"], "vpn", "holder")
+            if code == 0 and out.strip().isdigit():
+                held_port = int(out.strip())
+            break
+        held_before = None
+        if held_port:
+            for c in all_courses:
+                try:
+                    with open(os.path.join(c["root"], "live", ".board.json"),
+                              "r", encoding="utf-8") as fh:
+                        if json.load(fh).get("port") == held_port:
+                            held_before = (c["dir"], c["root"], held_port)
+                            break
+                except (OSError, ValueError):
+                    continue
+
+        touched, skipped, elsewhere, current = [], [], [], []
+        for c in all_courses:
+            live = os.path.join(c["root"], "live")
             try:
-                with open(os.path.join(c["root"], "live", ".board.json"),
-                          "r", encoding="utf-8") as fh:
-                    if json.load(fh).get("port") == held_port:
-                        held_before = (c["dir"], c["root"], held_port)
-                        break
+                with open(os.path.join(live, ".board.json"), "r", encoding="utf-8") as fh:
+                    info = json.load(fh)
             except (OSError, ValueError):
                 continue
+            if only is not None and c["dir"] not in only:
+                continue
+            if info.get("node") and info["node"] != host:
+                # Not this node's to stop. Its own watch restarts it, and `--wait`
+                # is what says whether it did.
+                elsewhere.append((c, info))
+                continue
+            if not processes.board_is_running(info.get("pid"), c["root"]):
+                continue
+            if stale and info.get("code") == tree:
+                current.append(c["dir"])
+                continue
+            board(c["root"], "stop")
+            code, out = board(c["root"], "start")
+            if code == 0:
+                touched.append(c["dir"])
+            else:
+                skipped.append("%s (%s)" % (c["dir"], last_line(out)))
 
-    touched, skipped = [], []
-    for c in all_courses:
-        live = os.path.join(c["root"], "live")
-        try:
-            with open(os.path.join(live, ".board.json"), "r", encoding="utf-8") as fh:
-                info = json.load(fh)
-        except (OSError, ValueError):
-            continue
-        if info.get("node") and info["node"] != host:
-            skipped.append("%s (on %s)" % (c["dir"], info["node"]))
-            continue
-        if not processes.board_is_running(info.get("pid"), c["root"]):
-            continue
-        board(c["root"], "stop")
-        code, out = board(c["root"], "start")
-        if code == 0:
-            touched.append(c["dir"])
-        else:
-            skipped.append("%s (%s)" % (c["dir"], out.strip().splitlines()[-1:] or "failed"))
+        # And give it back. The board that had the name has just come up on the new
+        # code; whatever the loop pointed the name at in the meantime, it goes back
+        # to where it was. `vpn serve` is the forced claim, which is the right verb:
+        # this is not a guess about which course is wanted, it is a restoration of
+        # the one that was.
+        if held_before:
+            name, root, port = held_before
+            code, out = board(root, "vpn", "holder")
+            now = out.strip() if code == 0 else ""
+            if now != str(port):
+                board(root, "vpn", "serve")
+                print("the address is back on %s" % name)
 
-    # And give it back. The board that had the name has just come up on the new
-    # code; whatever the loop pointed the name at in the meantime, it goes back
-    # to where it was. `vpn serve` is the forced claim, which is the right verb:
-    # this is not a guess about which course is wanted, it is a restoration of
-    # the one that was.
-    if held_before:
-        name, root, port = held_before
-        code, out = board(root, "vpn", "holder")
-        now = out.strip() if code == 0 else ""
-        if now != str(port):
-            board(root, "vpn", "serve")
-            print("the address is back on %s" % name)
-
+    label = tree or "the current code"
     if touched:
-        print("restarted: %s" % ", ".join(touched))
-    else:
+        print("restarted on %s: %s" % (label, ", ".join(touched)))
+    if current:
+        print("already on %s: %s" % (tree, ", ".join(current)))
+    if not touched and not current:
         print("no boards were running on %s" % host)
     for s2 in skipped:
         print("  left alone: %s" % s2)
+    if not wait_elsewhere:
+        for c, info in elsewhere:
+            print("  %s on %s: %s" % (
+                c["dir"], info["node"],
+                "already on %s" % tree if tree and info.get("code") == tree
+                else "that node's watch restarts it on its next beat"))
 
     if "--tutors" not in args:
-        return 0
+        return (await_elsewhere(cfg, elsewhere, tree, started)
+                if wait_elsewhere else 0)
 
     # The daemons hold old code for exactly the same reason the boards do: this
     # file is read once, when the process starts. A tutor in the middle of a turn
     # is left alone -- bouncing it loses the card it is writing, and the student
     # is the one who pays for that.
     import signal as _sig
-    bounced, coming, held = [], [], []
+    bounced, coming, held, deferred = [], [], [], []
+    # A tutor mid-turn is left alone here. With `--stale`, this node's own
+    # watch bounces it after the turn if one runs the ship beat, so say that
+    # rather than "left alone" for something that is then restarted.
+    ship_here = ship_record(host)
+    watched_here = bool(ship_here and time.time() - (ship_here.get("at") or 0)
+                        <= 3 * supervise.POLL)
     for c in courses(cfg):
         st = agent_live(c["root"])
         if not st or st.get("mode") == "interactive":
             continue
+        if stale and st.get("code") == tree:
+            continue
         if st.get("state") == "working":
-            held.append("%s (mid-turn)" % c["dir"])
+            if stale and watched_here:
+                deferred.append("%s: mid-turn; this node's watch restarts it "
+                                "after the turn" % c["dir"])
+            else:
+                held.append("%s (mid-turn%s)" % (
+                    c["dir"], "; no watch here will restart it" if stale else ""))
             continue
         # What configuration says NOW, not what happened to be running. A restart
         # used to bring back whatever the record named, which meant changing
@@ -4410,9 +4478,9 @@ def cmd_restart(cfg, args):
             # replacement the moment it ends, so recovery does not depend on a
             # watch loop existing, and does not wait out a fixed grace where it
             # does. The watchdog stays as the backstop it was.
-            waiting = handed_off(cfg, c, name)
+            clause = handed_off(cfg, c, name)
             held.append("%s (still writing its handoff; %s)"
-                        % (c["dir"], waiting))
+                        % (c["dir"], clause))
             continue
         code, msg = agent_start(cfg, c, name)
         if code != 0:
@@ -4450,13 +4518,163 @@ def cmd_restart(cfg, args):
 
     if bounced:
         print("tutors restarted: %s" % ", ".join(bounced))
-    elif not held and not coming:
+    elif not held and not coming and not deferred:
         print("no tutors were attached on %s" % host)
     for h in coming:
         print("  coming back: %s -- the old one is gone; it records its pid "
               "when it starts listening" % h)
     for h in held:
         print("  left alone: %s" % h)
+    for h in deferred:
+        print("  %s" % h)
+    return await_elsewhere(cfg, elsewhere, tree, started) if wait_elsewhere else 0
+
+
+# How long `--wait` waits for another node's watch: three beats and a margin.
+# One beat to notice, one to restart, one for a beat that was mid-pass.
+SHIP_WAIT = 3 * supervise.POLL + 10
+
+
+def ship_record(host):
+    """What `ship_beat` last wrote on `host`, or None."""
+    try:
+        with open(os.path.join(paths.STATE_DIR, "ship-%s.json" % host),
+                  "r", encoding="utf-8") as fh:
+            return json.load(fh)
+    except (OSError, ValueError):
+        return None
+
+
+def await_elsewhere(cfg, elsewhere, tree, since):
+    """Wait for other nodes' watches to put their boards and tutors on `tree`.
+
+    A board on another node is not this machine's to stop, and the checkout is
+    shared, so that node already has the new files: its own watch restarts the
+    board on its next beat (`ship_beat`) and writes the new stamp into the
+    record. This reads the records rather than asking over ssh, so it works from
+    any machine and catches a commit that never went through `ship.sh`. One line
+    per board and per tutor, and one that did not move says why.
+
+    `since` is when the ship began. A process on `tree` that started at or after
+    it was restarted by this ship; one that started before was already on it.
+    """
+    host = this_host()
+    remote_tutors = []
+    for c in courses(cfg):
+        st = agent_record(c["root"]) or {}
+        node = st.get("host")
+        if (not node or node == host or st.get("state") == "stopped"
+                or st.get("mode") == "interactive"):
+            continue
+        remote_tutors.append((c, node))
+    if not tree:
+        for c, info in elsewhere:
+            print("  %s on %s: can't tell -- the tree's stamp could not be read"
+                  % (c["dir"], info.get("node")))
+        return 0
+    held = machine.slurm_nodes()
+    fresh = 3 * supervise.POLL
+    remote_tutors = [(c, n) for c, n in remote_tutors
+                     if held is None or n in held]
+
+    def on_tree(rec):
+        return ("restarted on %s" % tree if (rec.get("started") or 0) >= since
+                else "already on %s" % tree)
+
+    def watch_of(node):
+        ship = ship_record(node)
+        if not ship or time.time() - (ship.get("at") or 0) > fresh:
+            return None
+        return ship
+
+    no_watch = ("not restarted -- no watch there runs the ship beat; it lands "
+                "at the chain's next generation (tutor serve status)")
+
+    def verdict(c, info):
+        node = info.get("node")
+        rec = board_record(c["root"])
+        if not rec:
+            return "not restarted -- its board was stopped while this waited"
+        if rec.get("code") == tree:
+            return on_tree(rec)
+        if held is not None and node not in held:
+            return ("not restarted -- that node is no longer yours; the record "
+                    "is a leftover")
+        ship = watch_of(node)
+        if not ship:
+            return no_watch
+        if ship.get("tree") == tree:
+            why = ship.get("blocked") or ship.get("broken")
+            said = (ship.get("boards") or {}).get(c["dir"]) or ""
+            if why:
+                return "not restarted -- %s" % why
+            if said and not said.startswith("restarted"):
+                return "not restarted -- %s" % said
+        return None
+
+    def tutor_verdict(c, node):
+        st = agent_record(c["root"]) or {}
+        ship = watch_of(node)
+        said = ((ship or {}).get("tutors") or {}).get(c["dir"]) or ""
+        if ship and ship.get("tree") != tree:
+            said = ""
+        state = st.get("state")
+        if st.get("code") == tree and state in ("listening", "working"):
+            return on_tree(st)
+        if state in ("waking",) or st.get("restarting"):
+            return None                          # on its way back, on `tree`
+        if state == "stopped" or not st:
+            if said.startswith("restarting"):
+                return None                      # between the old and the new
+            return "not restarted -- its tutor was stopped while this waited"
+        if not ship:
+            return no_watch
+        why = ship.get("blocked") or ship.get("broken")
+        if ship.get("tree") == tree and why:
+            return "not restarted -- %s" % why
+        if state == "working":
+            return "mid-turn; its watch restarts it after the turn"
+        if said == "mid-turn" and any(x.get("state") == "running"
+                                      for x in missions.of(c["root"])):
+            return "on a mission; its watch restarts it after the mission"
+        if said and not said.startswith("restarting"):
+            return "not restarted -- %s" % said
+        return None
+
+    left = [("board", c, info) for c, info in elsewhere]
+    left += [("tutor", c, node) for c, node in remote_tutors]
+    out = {}
+    end = time.time() + SHIP_WAIT
+    while left:
+        for item in list(left):
+            kind, c, where = item
+            got = verdict(c, where) if kind == "board" else tutor_verdict(c, where)
+            if got:
+                out[(kind, c["dir"])] = got
+                left.remove(item)
+        if not left or time.time() >= end:
+            break
+        time.sleep(2.0)
+    for c, info in elsewhere:
+        got = out.get(("board", c["dir"]))
+        if not got:
+            rec = board_record(c["root"]) or {}
+            got = "not restarted -- still on %s after %d s" % (
+                rec.get("code") or "code from before stamps", SHIP_WAIT)
+        print("  %s on %s: %s" % (c["dir"], info.get("node"), got))
+    for c, node in remote_tutors:
+        got = out.get(("tutor", c["dir"]))
+        if not got:
+            st = agent_record(c["root"]) or {}
+            if st.get("state") == "waking":
+                got = "coming back on %s -- still waking after %d s" % (
+                    tree, SHIP_WAIT)
+            elif st.get("restarting") or st.get("state") == "stopped":
+                got = ("writing its handoff; back on %s when it ends" % tree)
+            else:
+                got = "not restarted -- still on %s after %d s" % (
+                    st.get("code") or "code from before stamps", SHIP_WAIT)
+        print("  %s's tutor on %s: %s" % (c["dir"], node, got))
     return 0
 
 
@@ -5457,6 +5675,173 @@ def last_line(out):
     return said[-1] if said else "no reason given"
 
 
+def ship_beat(cfg, host, memo, say):
+    """Put this node's boards and tutors on the tree's code. Returns what it said.
+
+    THE SHIP LANDS WHEREVER THE LESSON IS SERVED. The checkout is shared, so a
+    ship puts the new files in front of every node at once and no node ever
+    sees a pull move HEAD. What is stale is the processes, and each one records
+    the stamp it loaded (`tutorboard/stamp.py`). A board here whose stamp is
+    not the tree's is restarted through `cmd_restart(only=...)`, which keeps its
+    address-holder restoration; another node's board is that node's beat's.
+
+    A TUTOR MID-TURN IS NOT BOUNCED THIS BEAT. It is bounced on the first beat
+    it is listening with no mission running, without blocking: `restarting` on
+    the record, a SIGTERM that starts its handoff, and `handed_off` to bring it
+    back as the agent the record names, because a deploy must not swap the
+    assistant in the middle of a lesson.
+
+    Guarded three ways. A busy or detached checkout waits for the next beat. A
+    tree that does not import bounces nothing, checked once per stamp. And a
+    board or tutor already tried on this stamp is not tried again until the
+    tree moves. `ship-<host>.json` says what the beat did, and is what `tutor
+    restart --wait` reads from another machine.
+    """
+    m = memo.setdefault("#ship", {"said": [], "checked": {}, "boards": {},
+                                  "tutors": {}, "results": {}})
+    tree = stamp.tree()
+    if tree is None:
+        return []
+    did, extra = [], {}
+    # WHAT EACH PROCESS'S LAST TRY ON THIS STAMP CAME TO, kept across beats.
+    # A board that failed is not retried on the same stamp, so the beat that
+    # said why is the only one that ever will; every later record carries it
+    # until the tree moves.
+    results = m["results"]
+    for key in [k for k, v in results.items() if v[0] != tree]:
+        del results[key]
+    boards, tutors = {}, {}
+
+    def result(kind, name, said):
+        results[(kind, name)] = (tree, said)
+
+    def tell(line, once=None):
+        if once is not None:
+            if once in m["said"]:
+                return
+            m["said"] = (m["said"] + [once])[-50:]
+        did.append(line)
+        say(line)
+
+    def landed():
+        for (kind, name), (_t, said) in results.items():
+            (boards if kind == "board" else tutors).setdefault(name, said)
+        rec = dict(host=host, pid=os.getpid(), at=time.time(), tree=tree,
+                   boards=boards, tutors=tutors, **extra)
+        try:
+            os.makedirs(paths.STATE_DIR, exist_ok=True)
+            path = os.path.join(paths.STATE_DIR, "ship-%s.json" % host)
+            tmp = "%s.%d.tmp" % (path, os.getpid())
+            with open(tmp, "w", encoding="utf-8") as fh:
+                json.dump(rec, fh, indent=2)
+            os.replace(tmp, path)
+        except OSError:
+            pass
+        return did
+
+    why = stamp.blocked(TOOL)
+    if why:
+        extra["blocked"] = why
+        tell("the tree at %s waits: %s" % (tree, why), once=("blocked", tree, why))
+        return landed()
+
+    with stamp.restart_lock(wait=False) as mine:
+        if not mine:
+            extra["busy"] = "another restart on this node holds the lock"
+            return landed()
+        stale_boards, stale_tutors = [], []
+        for c in courses(cfg):
+            root, name = c["root"], c["dir"]
+            rec = board_record(root) or {}
+            if (rec.get("node") == host
+                    and processes.board_is_running(rec.get("pid"), root)
+                    and rec.get("code") != tree
+                    and m["boards"].get(name) != tree):
+                stale_boards.append(c)
+            st = agent_live(root)
+            if (st and st.get("mode") != "interactive"
+                    and not st.get("restarting")
+                    and st.get("code") != tree
+                    and m["tutors"].get(name) != tree):
+                stale_tutors.append((c, st))
+        if not stale_boards and not stale_tutors:
+            return landed()
+
+        # A REAL IMPORT FAILURE IS REMEMBERED FOR THE STAMP; A CHECK THAT COULD
+        # NOT RUN IS NOT. `ok` is None for a timeout or an OSError -- a slow
+        # filer, not a broken tree -- and caching that would keep a good ship
+        # off this node for the rest of the generation.
+        got = m["checked"].get(tree) or stamp.imports(TOOL)
+        ok, line = got
+        if ok is not None:
+            m["checked"][tree] = got
+        if ok is None:
+            extra["unchecked"] = "the import check did not finish (%s)" % line
+            tell("the tree at %s could not be checked this beat (%s); trying "
+                 "again next beat" % (tree, line), once=("unchecked", tree))
+            return landed()
+        if not ok:
+            extra["broken"] = "the tree does not import (%s)" % line
+            tell("the tree at %s does not import (%s); everything stays on its "
+                 "code" % (tree, line), once=("broken", tree))
+            return landed()
+
+        if stale_boards:
+            buf = io.StringIO()
+            with contextlib.redirect_stdout(buf):
+                cmd_restart(cfg, [], only={c["dir"] for c in stale_boards})
+            said = buf.getvalue().splitlines()
+            for c in stale_boards:
+                m["boards"][c["dir"]] = tree
+                rec = board_record(c["root"]) or {}
+                if rec.get("code") == tree and processes.board_is_running(
+                        rec.get("pid"), c["root"]):
+                    result("board", c["dir"], "restarted on %s" % tree)
+                    tell("%s: board restarted on %s" % (c["dir"], tree))
+                else:
+                    mine_said = [l for l in said if c["dir"] in l]
+                    reason = last_line("\n".join(mine_said) or buf.getvalue())
+                    result("board", c["dir"],
+                           "would not restart on %s (%s)" % (tree, reason))
+                    tell("%s: board would not restart on %s (%s)"
+                         % (c["dir"], tree, reason))
+
+        import signal as _sig
+        for c, st in stale_tutors:
+            name, live = c["dir"], os.path.join(c["root"], "live")
+            # READ AGAIN, NOW. The board restarts above can take seconds each,
+            # and a tutor listening when the beat began may be mid-turn by the
+            # time its turn in this loop comes. The snapshot says who was stale;
+            # only a fresh record says who may be signalled.
+            now = agent_live(c["root"])
+            if (not now or now.get("restarting") or now.get("code") == tree
+                    or now.get("mode") == "interactive"):
+                continue
+            running = [x for x in missions.of(c["root"])
+                       if x.get("state") == "running"]
+            if (now.get("state") != "listening" or running
+                    or now.get("pid") != st.get("pid")):
+                result("tutor", name, "mid-turn")
+                tell("%s: tutor mid-turn; restarted on a later beat" % name,
+                     once=("deferred", name, tree))
+                continue
+            m["tutors"][name] = tree
+            pid = now.get("pid")
+            if not pid:
+                result("tutor", name, "no pid in its record")
+                tell("%s: tutor left on its code -- no pid in its record" % name)
+                continue
+            agent_state(live, restarting=True, stopped_at=time.time())
+            try:
+                os.kill(pid, _sig.SIGTERM)
+            except OSError:
+                pass
+            clause = handed_off(cfg, c, now.get("agent") or resolve_agent(cfg, c))
+            result("tutor", name, "restarting on %s" % tree)
+            tell("%s: tutor restarting on %s (%s)" % (name, tree, clause))
+    return landed()
+
+
 def watch_once(cfg, host, memo, say, claim=False):
     """One pass over every workspace, repairing what is down. Returns what it did.
 
@@ -5593,6 +5978,14 @@ def watch_once(cfg, host, memo, say, claim=False):
             say(did[-1])
         elif tverdict == "ok":
             mem["tutor_tries"] = 0
+
+    # --- THE SHIP, EVERY PASS ---------------------------------------------
+    # Before the address, so a board it restarts is checked in the same beat.
+    try:
+        did += ship_beat(cfg, host, memo, say)
+    except Exception as exc:                                 # noqa: BLE001
+        did.append("the ship beat failed and the pass is carrying on: %r" % (exc,))
+        say(did[-1])
 
     # --- THE ADDRESS, EVERY PASS ------------------------------------------
     # A board can be perfect and unreachable, and that is the whole of what the

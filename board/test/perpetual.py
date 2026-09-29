@@ -231,6 +231,10 @@ try:
     # The tailnet link is up and the address points at a board that answers,
     # unless a case below says otherwise.
     tutor.tailscale.daemon_running = lambda: True
+    # No code stamp, so the ship beat is inert in every pass that is not about
+    # it; the one section that is sets a tree and puts this back. `test/shipped.py`
+    # is the beat's own suite.
+    tutor.stamp.tree = lambda tool=None: None
 
     memo = {}
     did = tutor.watch_once(cfg, HOST, memo, lambda line: None)
@@ -559,6 +563,60 @@ try:
           "node, and asks nobody for anything",
           ("OnSalloc", "start") not in calls["board"] and not asked)
     shutil.rmtree(os.path.join(tmp, "OnSalloc"), ignore_errors=True)
+
+    # =======================================================================
+    # A ship lands on the node that is serving, through this same pass
+    # =======================================================================
+    # The checkout is shared, so the serving node has the new files the moment
+    # a ship commits; what is stale is the process. One pass restarts a board
+    # here whose recorded stamp is not the tree's, and leaves another node's.
+    make_workspace("Shipped", board={"node": HOST, "pid": 701, "port": 9007,
+                                     "code": "OLD"})
+    make_workspace("ShippedThere", board={"node": HOST + "b", "pid": 702,
+                                          "port": 9008, "code": "OLD"})
+    alive.update({701, 702})
+    real_board = tutor.board
+
+    def shipping_board(root, *args):
+        got = real_board(root, *args)
+        if args[:1] == ("start",):
+            path = os.path.join(root, "live", ".board.json")
+            with open(path, encoding="utf-8") as fh:
+                rec = json.load(fh)
+            rec["code"] = "T"
+            with open(path, "w", encoding="utf-8") as fh:
+                json.dump(rec, fh)
+        return got
+    tutor.board = shipping_board
+    tutor.stamp.tree = lambda tool=None: "T"
+    tutor.stamp.blocked = lambda tool=None: None
+    tutor.stamp.imports = lambda tool=None, timeout=30: (True, "")
+    tutor.stamp.LOCK = os.path.join(state, "restart.lock")
+    real_lock = tutor.stamp.restart_lock
+    tutor.stamp.restart_lock = (lambda wait=True, path=None:
+                                real_lock(wait, os.path.join(state, "restart.lock")))
+    # Nothing here may signal or spawn: the tutors in these workspaces are
+    # fixtures, and their pids are somebody's real processes.
+    real_live, real_host = tutor.agent_live, tutor.this_host
+    tutor.agent_live = lambda root: None
+    tutor.this_host = lambda: HOST
+    calls["board"], calls["link"] = [], []
+    said = tutor.watch_once(cfg, HOST, {}, lambda line: None)
+    tutor.agent_live, tutor.this_host = real_live, real_host
+    check("a board whose stamp is not the tree's is restarted by one pass of "
+          "the watch on its own node",
+          ("Shipped", "stop") in calls["board"]
+          and ("Shipped", "start") in calls["board"]
+          and any("Shipped: board restarted on T" in l for l in said))
+    check("and a board on another node is not touched by this node's pass",
+          not any(w == "ShippedThere" and act in ("stop", "start")
+                  for w, act in calls["board"]))
+    tutor.board = real_board
+    tutor.stamp.tree = lambda tool=None: None
+    tutor.stamp.restart_lock = real_lock
+    for w in ("Shipped", "ShippedThere"):
+        shutil.rmtree(os.path.join(tmp, w), ignore_errors=True)
+    alive.difference_update({701, 702})
 
     # --- and the other side of the same rule --------------------------------
     src_tutor = open(os.path.join(ROOT, "bin", "tutor"), encoding="utf-8").read()

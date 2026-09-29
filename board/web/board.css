@@ -2091,6 +2091,8 @@ body.papering .annbar { z-index: 96; }
 #trace-list .tr[data-what="stall"] .tr-what { color: var(--bad); }
 #trace-list .tr[data-what="skip"] { color: var(--ask); }
 #trace-shell { margin-left: .5rem; font: 400 .72rem var(--mono); }
+#trace-code { margin-left: .5rem; font: 400 .72rem var(--mono); }
+#trace-code.stale { color: var(--bad); }
 #trace-copy { border: 0; background: none; font: inherit; cursor: pointer;
               color: var(--accent); }
 

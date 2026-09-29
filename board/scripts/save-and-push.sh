@@ -281,7 +281,7 @@ if [ "$TOOL_ROOT" = "$ROOT" ] && git diff-tree --no-commit-id --name-only -r HEA
   echo
   echo "the tool changed, so the boards come back on the new code"
   if command -v tutor >/dev/null 2>&1; then
-    tutor restart || echo "  (boards could not be restarted; run 'tutor restart' by hand)"
+    tutor restart --stale || echo "  (boards could not be restarted; run 'tutor restart' by hand)"
   else
     echo "  (tutor is not on PATH; run 'tutor restart' by hand)"
   fi

@@ -48,7 +48,7 @@ must be openable and teachable at every point.
   `board.css`, `plane-core.js`, `gauge.js`, `home.html`, `home.js`, `library.html`,
   `library.js`, `library.css`, anything added to the cache list), or the installed app
   serves its cached copy and the work is invisible.
-- **`bash test/all.sh` before every ship.** 102 suites, all green. `test/tracked.py` runs
+- **`bash test/all.sh` before every ship.** 103 suites, all green. `test/tracked.py` runs
   early — after the browser suites, before everything else — and refuses PHI, 25-megabyte files, model dumps, other authors' papers and
   machine-local config anywhere in the repository — this is public, and git remembers.
   The last of them is **Paper-Writer's own**, run where it is checked out and skipped
@@ -1462,6 +1462,10 @@ it copies, is **which shell is running**, read from the page's own cache rather 
 server: an installed app serves its cached `board.js` until `VERSION` in `sw.js` moves, so *the
 fix is wrong* and *the fix never reached this device* are the same sentence from a chair, and a
 version the server reported would read correct in exactly the case it is there to catch.
+Beside it is **which code the board is running**, which is the server's to say: the panel asks
+`/health?code=1` for the stamp the board loaded, its tutor's, and the tree's, and a board older
+than the tree is flagged in red. Plain `/health` carries no stamp, because it is polled all the
+time and the tree's stamp is a git call.
 
 ### Writing on the lesson itself
 
@@ -1941,6 +1945,30 @@ tutor --agents               what assistants are configured
 It replaces: remember which directory, `cd` there, start an agent, then tell the agent to start the
 board. That last step is ceremony nobody should have to perform, and forgetting it produces a
 session where the assistant talks into a terminal no one is reading.
+
+**A ship lands on whichever node is serving.** The checkout is shared, so that node has the
+new files the moment a ship commits; what is stale is the processes. A board records the code
+stamp it loaded in `live/.board.json` as `code`, and a tutor daemon in `agent.json`
+(`tutorboard/stamp.py`). The stamp hashes the git trees of `bin/tutor`, `serve.py` and
+`tutorboard/` at HEAD, so a lesson commit, a shell file or a test never moves it. A process
+reads it **before** it imports `tutorboard`: read after, HEAD can move in between and the record
+names newer code than the process runs, which nothing would ever bounce.
+
+Every watch pass runs `ship_beat` before the address check. A board **on this node** whose stamp
+is not the tree's is restarted through `cmd_restart(only=...)`, which keeps the address holder
+where it was; another node's board is that node's beat's. A tutor is bounced without blocking —
+`restarting` on the record, `SIGTERM`, then `handed_off` — as the agent its record names, because
+a deploy must not swap the assistant mid-lesson. A tutor mid-turn, or on a running mission, is
+deferred to a later beat, and its record is read again right before the signal. The beat does
+nothing in a busy or detached checkout, bounces nothing onto a tree that does not import
+(a failure is remembered per stamp; a check that timed out is retried next beat), does not retry
+a process on the stamp it already tried, and takes a node-local lock
+(`/tmp/tutor-restart-<uid>.lock`) that a second restart does not wait on. It writes what it did
+to `STATE_DIR/ship-<host>.json`, and every record carries each process's last outcome on the
+current stamp.
+
+The running `serve run` keeps the `watch_once` it loaded, so a change to `ship_beat` itself
+reaches the serving node only at the chain's next generation.
 
 ### Headless — no terminal at all
 
@@ -4475,6 +4503,15 @@ while the endpoints and the daemon behind them are the old ones.
 If the push fails, nothing is restarted. Running processes stay on the old code, which is the
 right place for them while the change is not saved anywhere.
 
+After the push it runs `tutor restart --tutors --stale --wait --since <epoch>`, the epoch taken
+before the commit. `--stale` bounces only what is not on the tree's code stamp. `--wait` then
+waits up to three watch beats and a margin (`SHIP_WAIT`, 70 s) for every other node's boards and
+tutors, and prints one line each: *X on N: restarted on T* (started at or after `--since`),
+*already on T*, or *not restarted* with the reason — its board was stopped, the node is no
+longer yours, no watch there runs the ship beat (it lands at the chain's next generation), that
+node's beat recorded a reason, or it timed out. A remote tutor still waking is *coming back*. It
+reads the records rather than reaching over ssh, so it works from any machine.
+
 The commit is authored by whoever `git config user.name` says — no trailers, no co-authors, no
 attribution to any assistant.
 
@@ -4485,22 +4522,26 @@ does not reach a course until its board comes back. The pages are served from di
 and look new while the endpoints behind them are still the old ones — a difference that is
 invisible from the outside and costs an evening to find. It cost one here.
 
-So `board/scripts/save-and-push.sh` runs `tutor restart` after a push whose commit touched
-`board/`:
+So `board/scripts/save-and-push.sh` runs `tutor restart --stale` after a push whose commit
+touched `board/`, which bounces nothing when the commit changed no loaded code:
 
 ```
 tutor restart              restart every board running on this machine
 tutor restart --tutors     and the headless tutors attached to them
+tutor restart --stale      only what is not on the tree's code stamp
+tutor restart --wait       and wait for other nodes' watches to land the stamp, one line each
+tutor restart --since T    count a process started at or after epoch T as restarted by this ship
 ```
 
 A tutor in the middle of a turn is left alone: bouncing it loses the card it is writing, and
-the student is who pays for that. Otherwise it is stopped with `SIGTERM` — which is what starts
+the student is who pays for that. With `--stale` and a watch here running the ship beat, the line
+says that watch restarts it after the turn. Otherwise it is stopped with `SIGTERM` — which is what starts
 the wrap-up turn that writes `HANDOFF.md` — and the restart waits for that to finish before
 starting the next one, so the continuity is written rather than merely a process killed.
 
 It only touches boards that are genuinely answering **on this node** — a record on a shared
 filesystem may belong to another machine, and stopping a stranger's process is worse than
-leaving a stale one. A course pushing its own work does not do this; only the tool does. A
+leaving a stale one. That node's own watch restarts it on its next beat. A course pushing its own work does not do this; only the tool does. A
 failed restart never fails the push.
 
 ## Commands

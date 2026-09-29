@@ -26,6 +26,7 @@ from ... import news
 from ... import progress
 from ... import proposals
 from ... import scopes
+from ... import stamp
 from ...course import config
 from ...course import paper
 from ...course.repo import Repo
@@ -345,16 +346,24 @@ def get(h, repo, path):
         # cannot answer, and the hub says so rather than drawing it as ready.
         # `host` so a CLIENT can tell which machine it reached.
         agent = state.load_agent(repo) or {}
-        return h.send_json({"ok": True, "root": repo.root,
-                               "dir": os.path.basename(repo.root),
-                               # The qualified name too, so a caller can tell
-                               # `courses/Probability` from a future
-                               # `practice/Probability` without guessing.
-                               "id": atlas.identify(repo.root),
-                               "host": tailscale.tailnet_self() or "",
-                               "chosen": machines.chosen_target(),
-                               "tutor": agent.get("state") or None,
-                               "limited": limits.limited_until()})
+        out = {"ok": True, "root": repo.root,
+               "dir": os.path.basename(repo.root),
+               # The qualified name too, so a caller can tell
+               # `courses/Probability` from a future
+               # `practice/Probability` without guessing.
+               "id": atlas.identify(repo.root),
+               "host": tailscale.tailnet_self() or "",
+               "chosen": machines.chosen_target(),
+               "tutor": agent.get("state") or None,
+               "limited": limits.limited_until()}
+        # `code=1` IS ASKED FOR, NOT SENT: the hub and the board poll plain
+        # `/health`, and the tree's stamp is a git call. The trace panel asks,
+        # so a process older than the tree is visible from the glass.
+        want = urllib.parse.parse_qs(urllib.parse.urlparse(h.path or "").query)
+        if "code" in want:
+            out["code"] = {"running": stamp.LOADED, "tree": stamp.tree(),
+                           "tutor": agent.get("code")}
+        return h.send_json(out)
     return NOT_MINE
 
 

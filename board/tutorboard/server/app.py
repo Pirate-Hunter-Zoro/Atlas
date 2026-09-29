@@ -15,7 +15,7 @@ import threading
 import time
 from http.server import ThreadingHTTPServer
 
-from .. import machine, paths
+from .. import machine, paths, stamp
 from ..course import repo as course_repo
 from ..net import tailscale
 from .handler import Handler
@@ -123,6 +123,9 @@ def main(argv):
                  (["http://%s:%d/" % (a, port) for a in lan_addresses()]
                   if host == "0.0.0.0" else [])),
         "started": time.time(),
+        # Which code this process loaded, read before the import. None is a
+        # board started some other way, and a watch beat reads it as stale.
+        "code": stamp.LOADED,
     }
     with open(os.path.join(repo.live, ".board.json"), "w", encoding="utf-8") as fh:
         json.dump(info, fh, indent=2)

@@ -63,8 +63,13 @@ window.HTMLElement.prototype.getBoundingClientRect = function () {
 window.Element.prototype.scrollIntoView = function () {};
 window.Element.prototype.setPointerCapture = function () {};
 window.Element.prototype.releasePointerCapture = function () {};
+// `/health?code=1` answers a board running older code than the tree, which is
+// the case the trace panel's code line exists to flag.
 window.fetch = (u) => (/slate\/state/.test(String(u))
   ? Promise.resolve({ json: () => Promise.resolve({ pages: [] }) })
+  : /\/health\?code/.test(String(u))
+  ? Promise.resolve({ json: () => Promise.resolve(
+      { ok: true, code: { running: 'aaa', tree: 'bbb', tutor: 'aaa' } }) })
   : new Promise(() => {}));
 window.renderMathInElement = () => {};
 window.requestAnimationFrame = (fn) => setTimeout(fn, 0);
@@ -490,6 +495,20 @@ await sleep(2800);            // past TYPE_MIN and past this card's own time
     ? ok('and the panel names the shell the page is RUNNING, off its own cache')
     : fail('nothing says which shell is on the glass: "'
            + doc.getElementById('trace-shell').textContent + '"');
+  // AND WHICH CODE THE BOARD BEHIND IT RUNS. A ship lands when the serving
+  // node's watch restarts the board, so a process older than the tree has to
+  // be visible from the glass rather than from a terminal.
+  {
+    const code = doc.getElementById('trace-code');
+    code && /aaa/.test(code.textContent) && /bbb/.test(code.textContent)
+      ? ok('and it names the code the board is running and the tree\'s')
+      : fail('nothing names the code behind the board: "'
+             + (code ? code.textContent : 'no #trace-code') + '"');
+    code && code.classList.contains('stale')
+        && /older than the tree/.test(code.textContent)
+      ? ok('and flags a board older than the tree')
+      : fail('a stale board is not flagged');
+  }
   {
     let copied = null;
     Object.defineProperty(window.navigator, 'clipboard', {
@@ -503,6 +522,25 @@ await sleep(2800);            // past TYPE_MIN and past this card's own time
       ? ok('and the copied text says it on its FIRST line, before a single move')
       : fail('the pasted report does not name the shell: "'
              + String(copied).split('\n')[0] + '"');
+    copied && /board code aaa/.test(String(copied).split('\n')[0])
+      ? ok('and names the code behind the board on that same first line')
+      : fail('the pasted report does not name the code: "'
+             + String(copied).split('\n')[0] + '"');
+  }
+  // A BOARD THAT CANNOT ANSWER IS FLAGGED, NOT BLANK. A new shell against an
+  // old server whose `/health` fails is the most stale board there is.
+  {
+    const was = window.fetch;
+    window.fetch = (u) => (/\/health\?code/.test(String(u))
+      ? Promise.reject(new TypeError('connection closed')) : was(u));
+    doc.getElementById('btn-trace').click();
+    await sleep(40);
+    const code = doc.getElementById('trace-code');
+    code && code.classList.contains('stale') && /unknown/.test(code.textContent)
+      ? ok('and a board whose /health?code=1 does not answer is flagged stale')
+      : fail('a board that did not answer looks like an unknown one: "'
+             + (code ? code.textContent : 'no #trace-code') + '"');
+    window.fetch = was;
   }
 
   // THE ONE IT EXISTS FOR. A frame arriving after the watchdog deadline means
