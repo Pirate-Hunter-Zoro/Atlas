@@ -33,8 +33,10 @@ from here and is not going to**: `api.deepseek.com` is reset at the TLS
 handshake from every compute node, so the board stands it aside and the evening
 runs on another provider.
 
-**No build is left.** What is left is one dispatch only the account holder
-can make, and a list of evenings in front of the thing.
+**One build is left, and it comes first**: a ship has to take effect on
+whichever node is serving, not only on the one it was typed on (item 1). After
+it, one dispatch only the account holder can make, and a list of evenings in
+front of the thing.
 
 `board/README.md` is the architecture. This file says what is left.
 
@@ -49,8 +51,8 @@ Nobody has to ask for that. *"Look at HANDOFF"* means all of it:
    CAN DO.** It is the lowest-numbered one on purpose — the numbering carries the
    order things have to land in, and each item says what it depends on where that
    matters. If the owner names a different one, that wins. **Each item's heading
-   says whose hands it needs**: 1 needs the account holder, 2 is a
-   list of evenings in front of the thing.
+   says whose hands it needs**: 1 is a build, 2 needs the account
+   holder, 3 is a list of evenings in front of the thing.
 2. **Read that item whole before touching anything.** An item says what already
    exists (measured, not assumed), what is missing, where it goes, the decisions
    to take deliberately, and what to assert. The decisions are the expensive part:
@@ -73,7 +75,7 @@ An item is not done because its code runs. It is done when the suite is green,
 the rule is written where the next turn will read it, and the item is out of this
 file.
 
-**Item 2 does not come out this way.** It is a list of evenings in front of the
+**Item 3 does not come out this way.** It is a list of evenings in front of the
 thing, and only the person holding the iPad can strike those.
 
 ---
@@ -168,14 +170,89 @@ three providers behind one tap on the front door, a swap between them that costs
 the lesson nothing, and a fourth costing one entry in a config file and one line
 in a key file. All of that is Settled below.**
 
-**Nothing here is a build.** Item 1 needs the account holder; item 2 is a list
-of evenings in front of the thing.
+**One thing here is a build: a ship reaching every node (item 1).** Item 2
+needs the account holder; item 3 is a list of evenings in front of the thing.
 
 ---
 
 ## What to do next
 
-### 1. Ask GitHub to collect the instructor slides, which the rewrite did not reach — THE ACCOUNT HOLDER'S
+### 1. A ship takes effect on whichever node is serving — A BUILD
+
+**The ask, in the owner's words:** *"no matter where the tutoring is hosted
+from, any compute node, when we ship a change it just takes effect."* Today it
+does not. Nothing blocks this except the serving-chain session under *Before
+anything*: read that block first, because the obvious home for half of this is
+`watch_once`, which is in that session's files.
+
+**What exists, measured.**
+
+- `ship.sh` pushes, then runs `tutor restart --tutors` **on the machine it was
+  typed on**. `cmd_restart` in `board/bin/tutor` skips every board whose
+  `live/.board.json` names another `node`, and prints *left alone: X (on
+  compute303)*. That is deliberate: a record on the shared filesystem may be a
+  stranger's process.
+- The boards are served by the chain (`tutor serve status`): one `tutor-serve`
+  job at a time, on whatever node Slurm gave it, with `tutor watch` beating
+  every 30 s there. The last ship was typed on compute302 while all five boards
+  ran on compute303, so none of them restarted.
+- The checkout is on the shared filesystem, so the serving node **already has
+  the new files** the moment a ship commits. Nothing needs pulling there. What
+  is stale is the processes: a board read `serve.py` when it started.
+- `tool_sync` / `tool_adopt` bounce old processes only when a **pull moved
+  HEAD**. On a shared checkout a ship moves HEAD for every node at once, so no
+  node ever sees a pull move it, and `tool_adopt` never fires.
+- `.board.json` records `pid`, `port`, `node`, `started`, and no code version,
+  so nothing can tell a board on old code from one on new code.
+- `ssh -o BatchMode=yes compute303 hostname` answers from compute302, because
+  the user holds a job there.
+- A new generation of the chain starts on new code, so today a ship lands at the
+  next walltime roll-over at worst. That can be nine hours.
+
+**What to build.**
+
+1. **A board records the code it is running.** Write a code stamp into
+   `.board.json` at start (and the same for a tutor daemon's record). The stamp
+   must move on a ship and **not** on a lesson commit. HEAD moves every time a
+   course saves its homework, and bouncing a board for that is a bounce per
+   answer. So take the tree hash of what the processes load (for example
+   `HEAD:board`). Whether `board/web/` counts is a decision: shell files are
+   served from disk and `sw.js`'s `VERSION` already moves them, so counting
+   them bounces a live lesson for nothing.
+2. **The serving node notices and restarts itself.** On each watch beat,
+   compare each local board's stamp with the tree's current one and run the
+   node-local restart for any that differ. Use the same path `cmd_restart`
+   uses, with its address-holder restoration, so a deploy never moves the
+   address. A tutor that is mid-turn is not bounced that beat. The existing
+   wrap-up handling (`finish_restart`, `restarting` on the record) is the
+   pattern, and *a daemon mid-turn is left alone* in `test/elsewhere.py` is the
+   rule. This is the part that lives in `watch_once` or beside it. **If the
+   serving-chain block is still under *Before anything*, ask the owner before
+   editing that file.** Otherwise add a separate beat the watch calls, keep it
+   small, and rebase.
+3. **`ship.sh` says where it landed.** After the local restart, for every board
+   record on another node: either wait for that node's watch to report the new
+   stamp (bounded, about two beats) or nudge it over `ssh` and then wait.
+   **Decide which.** The stamp route works from any machine with no ssh, and it
+   also catches a commit that did not go through `ship.sh`. ssh is faster and
+   is one more thing that can fail. Either way, replace *left alone: X (on
+   compute303)* with *X on compute303: restarted on <stamp>* or with the reason
+   it did not.
+4. **Say it on the glass.** **☰ → what just happened** already names the shell
+   that is running. Have it name the code stamp too, and flag a board older than
+   the tree, so a stale process is visible from the iPad.
+
+**What to assert.** A board whose recorded stamp differs from the tree's is
+restarted by one watch beat on its own node. A board on another node is not
+touched by that node's beat. A lesson commit (a change outside the stamped
+tree) restarts nothing. A tutor mid-turn is deferred and bounced on a later
+beat. The address holder is the same course before and after. `ship.sh`
+reports every node's outcome and does not print *left alone* for a board that
+was then restarted. `test/perpetual.py` still passes, since it is the suite
+that drives `watch_once`. Keep the suite count in this file and in
+`board/README.md` true (`test/truthful.py` checks it).
+
+### 2. Ask GitHub to collect the instructor slides, which the rewrite did not reach — THE ACCOUNT HOLDER'S
 
 **The seventeen decks and sheets are out of every commit here and off `main`, and
 GitHub still serves all seventeen at the pre-rewrite SHA.** A raw fetch of
@@ -198,7 +275,7 @@ Until one of those lands, treat the decks as published. Nothing else is
 outstanding: `.gitignore` refuses them, `test/tracked.py` refuses them for every
 course, and the files are on disk where the board reads them.
 
-### 2. And the seven things no test can hold — THE IPAD'S
+### 3. And the seven things no test can hold — THE IPAD'S
 
 None of these is a build. Each is an evening in front of the thing.
 
