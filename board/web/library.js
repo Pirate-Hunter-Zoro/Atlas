@@ -761,13 +761,17 @@ function bodyFor(id) {
 function savePen(opts) {
   if (!window.Annotate) return Promise.resolve([]);
   var keep = !!(opts && opts.keepalive);
+  var keepBudget = 60000;
   var ids = window.Annotate.unsaved().slice();
   Object.keys(owed).forEach(function (id) { if (ids.indexOf(id) < 0) ids.push(id); });
   /* One save of a key at a time: two in the air can land in either order, and
      the older one landing last leaves disk behind the glass while both said
      yes. The one in the air finishes, and what is still owed goes after it. */
   ids = ids.filter(function (id) { return !flying[id]; });
-  if (!ids.length) { paintKept(); return Promise.resolve([]); }
+  /* What is already in the air is waited on too, so a caller that needs the
+     ink on disk -- keep a marked copy -- is not answered before it lands. */
+  var pending = Object.keys(flying).map(function (id) { return flying[id]; });
+  if (!ids.length && !pending.length) { paintKept(); return Promise.resolve([]); }
   var jobs = ids.map(function (id) {
     /* `send` is NEVER set from here. Ink on a document is a complaint about
        the document, and it becomes a turn when the note goes -- the feedback
@@ -777,7 +781,6 @@ function savePen(opts) {
     if (!body) return Promise.resolve({ id: id, ok: true });
     var sentInk = JSON.stringify(body.strokes || []);
     owed[id] = body;
-    flying[id] = true;
     var init = {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -787,8 +790,14 @@ function savePen(opts) {
     /* THE LID SHUTTING. `visibilitychange` to hidden is the event iOS actually
        fires then, and a request started in it is cut off unless it is marked to
        outlive the page. */
-    if (keep) init.keepalive = true;
-    return fetch("/annotate/save", init).then(function (r) {
+    /* A browser gives keepalive requests about 64 KB between them and rejects
+       any past that outright, so a page too heavy to fit goes as an ordinary
+       request, which still finishes while the page is only hidden. */
+    if (keep && init.body.length <= keepBudget) {
+      init.keepalive = true;
+      keepBudget -= init.body.length;
+    }
+    var job = fetch("/annotate/save", init).then(function (r) {
       if (r && r.ok === false) throw new Error("the board answered " + r.status);
       return r && r.json ? r.json().catch(function () { return {}; }) : {};
     }).then(function (got) {
@@ -804,12 +813,14 @@ function savePen(opts) {
     }).catch(function () {
       return { id: id, ok: false };
     }).then(function (res) {
-      delete flying[id];
+      if (flying[id] === job) delete flying[id];
       return res;
     });
+    flying[id] = job;
+    return job;
   });
   paintKept();
-  return Promise.all(jobs).then(function (done) {
+  return Promise.all(jobs.concat(pending)).then(function (done) {
     inkFailed = done.some(function (d) { return !d.ok; });
     if (inkFailed) {
       scheduleRetry();
@@ -950,7 +961,11 @@ function keepCopy() {
 
 function flushPenFor() {
   if (penTimer) { clearTimeout(penTimer); penTimer = null; }
-  return savePen();
+  /* A save already in the air is waited on, and a stroke drawn while it was
+     goes in a second round, so the burn reads what is on the glass. */
+  return savePen().then(function () {
+    return inkOwed() && !inkFailed ? savePen() : null;
+  });
 }
 
 /* Fetched as soon as it exists, so the tap on *save a copy* can share it in the

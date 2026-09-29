@@ -1434,6 +1434,10 @@ async function inkIsKept() {
     }
     if (/annotate\/save/.test(url)) {
       if (net.save === 'down') return Promise.reject(new TypeError('Failed to fetch'));
+      if (net.save === 'slow') {
+        return new Promise((res) => { net.release = () => res(
+          { ok: true, json: () => Promise.resolve({ ok: true }) }); });
+      }
       if (net.save === 'refused') {
         return Promise.resolve({ ok: false, status: 500,
                                  json: () => Promise.resolve({ ok: false }) });
@@ -1611,6 +1615,24 @@ async function inkIsKept() {
   p.hide(false);
   await sleep(30);
 
+  // A page too heavy for the browser's keepalive allowance still goes.
+  const heavy = { c: '#e8746c', w: 2, p: Array.from({ length: 12000 }, (_, i) => (i % 97) / 97),
+                  pr: [0.5] };
+  const P3 = 'doc/' + ID + '/p3';
+  p.w.Annotate.load({ [P3]: [heavy] });
+  p.w.Annotate.clear(P3);
+  p.w.Annotate.undo();
+  before = p.saves().length;
+  p.hide(true);
+  await sleep(10);
+  const big = p.saves().slice(before);
+  big.length === 1 && big[0].opts.body.length > 64000 && !big[0].opts.keepalive
+    ? ok('a hidden flush too heavy for keepalive goes as an ordinary request '
+         + 'rather than being refused by the browser')
+    : fail('the heavy flush: ' + JSON.stringify(big.map((r) => [r.opts.body.length, r.opts.keepalive])));
+  p.hide(false);
+  await sleep(30);
+
   // Closed while the board is down: the ink is still owed afterwards.
   net.save = 'down';
   p.draw(P1);
@@ -1667,6 +1689,24 @@ async function inkIsKept() {
     && share[0].files[0].name === 'notes-annotated-2026-09-28.pdf'
     ? ok('save a copy hands the file to the share sheet, so it can go to Files')
     : fail('the share sheet got: ' + JSON.stringify(share.map((s) => s.title)));
+
+  // A save still in the air when the copy is asked for: the burn waits for it.
+  net.save = 'slow';
+  p.draw(P2);
+  await sleep(1000);                          // the pen's own save is now in flight
+  before = p.log.length;
+  p.click(p.byId('reader-keep'));
+  await sleep(60);
+  !p.log.slice(before).some((r) => /annotate\/burn/.test(r.url))
+    ? ok('keep a marked copy waits for a save already in the air')
+    : fail('the copy was burned before the ink in the air had landed');
+  net.save = 'ok';
+  if (net.release) net.release();
+  await sleep(60);
+  p.log.slice(before).some((r) => /annotate\/burn/.test(r.url))
+    ? ok('and burns once it has landed')
+    : fail('the copy never went after the save landed');
+  net.release = null;
 
   // ---- 5. REBUILT SINCE ------------------------------------------------
   const flag = p.byId('reader-rebuilt');
