@@ -1,7 +1,7 @@
 <!-- chapter: predictions -->
 ## Where the student got to
 
-Lecture on retrieval prediction. The 2026-09-28 sitting opened and closed on one doing turn, with no student answer. Figure 4 (the k sweep: ROC AUC against number of neighbours) was stale in `results/`, the mirror the manuscript links. The cause was `slurm_jobs/quick_runs/neighbor_count_sweep.sbatch`, which never drew the manuscript figure. The job now runs `plot_neighbor_sweep_figure` after the sweep. `REDRAW=1` redraws from the saved CSVs in about a minute. The mirror is current, and it is byte-identical to the artifact. Committed as d43bf0e4. Its numbers match the manuscript Results paragraph: the best retrieval AUC is 0.625 (0.610–0.641).
+Lecture on retrieval prediction. The 2026-09-29 sitting was one doing turn, no student answer. Figure 4 has no k = 50 line. It has a random-neighbour arm with uniform weights, swept over every k up to 34,063, with a band from 1,000 seeded draws; the band covers 0.5 at every k. ROC, PR, calibration, decision-curve, ESS and confusion-matrix panels are drawn at each arm's best k by `best_k_panels.py`. Best k and ROC AUC: weighted 295, 0.625 (0.610–0.641); plain 757, 0.618 (0.602–0.634); random 32,720, 0.500 (0.484–0.515). The manuscript and supplement carry these numbers.
 
 ## What they got wrong
 
@@ -13,7 +13,7 @@ BH mechanics, including the step past a miss. Plain cosine KNN, the importance-w
 
 ## Next
 
-Figure 4 content: why AUC rises with k and is flat from about 300 neighbours. The best k was chosen on the test patients, so those maxima are optimistic. Keep any exercise to one quick question.
+After the job runs: Figure 4 with the random band. Why the random arm sits at 0.5 at every k, and why its "best k" is noise. The best k was chosen on the test patients, so every maximum is optimistic. Keep any exercise to one quick question.
 
 ## How they work
 

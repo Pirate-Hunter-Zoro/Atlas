@@ -10,8 +10,10 @@ paper's two points: the LLM clinical-similarity judge (complete in
 reserve/llm_similarity_judge.md), uniform and combined weighting, subsampled
 retrieval, and the nearest-farthest fusion, which rested on uniform weighting.
 
-RETRIEVAL is two arms, plain cosine (k = 50, the primary setting) and
-importance-weighted cosine (M10), with random and farthest as controls. The
+RETRIEVAL is two arms, plain cosine and importance-weighted cosine (M10), each
+at its own best k, with random (uniform weights, 1,000 draws, every k) and
+farthest (k = 50) as controls. Figures S8-S9 are drawn at each arm's best k by
+scripts/pipeline/predictions/best_k_panels.py. The
 subgroup tables' retrieval row is importance-weighted at k = 295, drawn by
 scripts/pipeline/review/subgroups/run_subgroups.py (--replot redraws the
 tables and forest plot from the saved CSVs).
@@ -190,7 +192,7 @@ $$\mathrm{sim}_{w}(x,y) = \frac{\sum_{d}w_{d}\, z_{d}(x)\, z_{d}(y)}{\sqrt{\sum_
 
 The coefficients came from the model fitted on training patients, so no test outcome entered a risk score. The metric is supervised, whereas plain cosine similarity is not. Of 4,096 dimensions, 385 had non-zero coefficients, and the top 41 (1%) carried 31% of the absolute coefficient mass.
 
-The primary analysis used plain cosine similarity with k = 50 and $\alpha$ = 5. A sweep evaluated every k from 1 to all 34,063 training patients for both metrics, under $\alpha$ = 1, 2, and 5. Nearest retrieval selected the k most similar training patients. Farthest retrieval, which selected the least similar, and random retrieval served as negative controls at k = 50. These analyses were restricted to embeddings; no mixed-data similarity metric was specified for FEATURE.
+A sweep evaluated every k from 1 to all 34,063 training patients for both metrics, under $\alpha$ = 1, 2, and 5. Nearest retrieval selected the k most similar training patients. Each metric was reported at its best k, the k with the highest test AUC, the smallest on a tie. Random retrieval drew k training patients at random for each test patient and averaged their outcomes with equal weights. It was scored at every k, nested so that k + 1 neighbors extend the k already drawn, and repeated in 1,000 draws seeded from the study seed; its band at each k is the 2.5th to 97.5th percentile of the AUC across draws, and its best k is the highest mean across draws. Farthest retrieval, which selected the least similar patients, served as a second negative control at k = 50. Every best k was selected on the test patients, so the values at it are optimistic. These analyses were restricted to embeddings; no mixed-data similarity metric was specified for FEATURE.
 
 # M11 Concept Permutation
 
@@ -505,44 +507,54 @@ TRD-negative example.
 
 # S6 Neighbor Prediction
 
-Retrieval over the embedding carried outcome information but did not reach the trained classifiers. At k = 50 under plain cosine similarity, nearest retrieval achieved an ROC AUC of 0.594, against 0.499 for random and 0.432 for farthest retrieval (Table S7). Mean effective sample size was 50.0 for nearest and 48.9 for random retrieval, so cosine weights were close to equal within a neighborhood of 50.
+Retrieval over the embedding carried outcome information but did not reach the trained classifiers. Random retrieval stayed at chance at every k: its band across draws covered 0.5 at all 34,063. Its best k, 32,720, reached 0.500 (2.5th--97.5th percentile across draws 0.484--0.515), and that k is noise. Farthest retrieval at k = 50 reached 0.432 (95% CI 0.416--0.449) (Table S7). At their best k, importance-weighted retrieval exceeded random by 0.125 (95% CI 0.103--0.147) and plain cosine by 0.118 (95% CI 0.096--0.140). These intervals combine bootstrap resampling of the test patients with the spread across the 1,000 random draws. AUPRC at each arm's best k was 0.272 (95% CI 0.252--0.295) for importance-weighted, 0.265 (95% CI 0.245--0.287) for plain cosine, and 0.177 (95% CI 0.166--0.189) for random retrieval, against an outcome rate of 0.175.
 
-Neighborhood size mattered more than the metric. Both curves rose to a plateau from about 300 neighbors (manuscript Figure 4). Each metric at its own best k differed by 0.007 (95% CI −0.001 to 0.014). The best k was selected on test patients, so those maxima are optimistic. Using every training patient as a neighbor involves no selection and gave 0.624 for the importance-weighted metric and 0.608 for plain cosine. The sharpening exponent changed the maxima by at most 0.002.
+Neighborhood size mattered more than the metric. Both curves rose to a plateau from about 300 neighbors (manuscript Figure 4). Each metric at its own best k differed by 0.007 (95% CI −0.001 to 0.014). The best k was selected on test patients, so those maxima are optimistic. Using every training patient as a neighbor involves no selection and gave 0.624 (95% CI 0.607--0.639) for the importance-weighted metric and 0.608 (95% CI 0.592--0.624) for plain cosine. The sharpening exponent changed the maxima by at most 0.002.
 
 The best retrieval result over every k and exponent, 0.625, remained below feature-vector XGBoost by 0.024 (95% CI 0.012--0.036) and below embedded logistic regression by 0.032 (95% CI 0.022--0.043), from paired bootstrap resampling of the 8,516 test patients.
 
-Table S7. Neighbor-prediction ROC AUC for the primary encoder by retrieval scheme, similarity metric, and neighborhood size. Rows at k = 50 use $\alpha$ = 5, the primary setting; rows from the sweep use $\alpha$ = 1. Best k is the test-selected maximum and is optimistic.
+Table S7. Neighbor-prediction ROC AUC for the primary encoder by retrieval scheme, similarity metric, and neighborhood size. Rows at k = 50 use $\alpha$ = 5, the retrieval pipeline's setting; rows from the sweep use $\alpha$ = 1. Best k is the test-selected maximum and is optimistic. Uniform random rows give the mean across 1,000 draws and the 2.5th--97.5th percentile of the draws.
 
 | **Retrieval** | **Similarity** | **Neighbors (k)** | **ROC AUC (95% CI)** |
 | ---------- | -------------------- | ------------------ | ---------------------- |
-| Nearest | Plain cosine | 50 (primary) | 0.594 (0.578--0.610) |
+| Nearest | Plain cosine | 50 | 0.594 (0.578--0.610) |
 | Nearest | Importance-weighted | 50 | 0.602 (0.587--0.619) |
 | Nearest | Plain cosine | best, 757 | 0.618 (0.602--0.634) |
 | Nearest | Importance-weighted | best, 295 | 0.625 (0.610--0.641) |
 | Nearest | Plain cosine | all, 34,063 | 0.608 (0.592--0.624) |
 | Nearest | Importance-weighted | all, 34,063 | 0.624 (0.607--0.639) |
-| Random | Plain cosine | 50 | 0.499 (0.483--0.515) |
+| Random | Cosine-weighted | 50 | 0.499 (0.483--0.515) |
+| Random | Uniform | 50 | 0.500 (0.484--0.515) |
+| Random | Uniform | best, 32,720 | 0.500 (0.484--0.515) |
 | Farthest | Plain cosine | 50 | 0.432 (0.416--0.449) |
 
-A Nearest retrieval
+A Importance-weighted nearest retrieval, k = 295
 
-![](../results/Qwen-Qwen3-Embedding-8B/google_medgemma-27b-text-it/roc_curves/roc_curve_NEAREST_COSINE.png){width=5.8in}
+![](../results/Qwen-Qwen3-Embedding-8B/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/roc_curve_NEAREST_IMPORTANCE_WEIGHTED_alpha1_k295.png){width=5.8in}
 
-B Random retrieval
+B Plain-cosine nearest retrieval, k = 757
 
-![](../results/Qwen-Qwen3-Embedding-8B/google_medgemma-27b-text-it/roc_curves/roc_curve_RANDOM_COSINE.png){width=5.8in}
+![](../results/Qwen-Qwen3-Embedding-8B/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/roc_curve_NEAREST_PLAIN_COSINE_alpha1_k757.png){width=5.8in}
 
-Figure S8. ROC curves for plain-cosine nearest (A) and random (B) retrieval at k = 50. Shaded bands are bootstrap 95% CIs. ROC: receiver operating characteristic.
+C Random retrieval, uniform weights, k = 32,720
 
-A Nearest retrieval
+![](../results/Qwen-Qwen3-Embedding-8B/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/roc_curve_RANDOM_UNIFORM_k32720.png){width=5.8in}
 
-![](../results/Qwen-Qwen3-Embedding-8B/google_medgemma-27b-text-it/confusion_matrices/confusion_matrix_NEAREST_COSINE.png){width=5.8in}
+Figure S8. ROC curves for importance-weighted (A) and plain-cosine (B) nearest retrieval and uniform random retrieval (C), each at its own test-selected best k, with $\alpha$ = 1 for A and B. C is the draw whose AUC at that k is closest to the mean of 1,000 draws. Shaded bands are bootstrap 95% CIs. ROC: receiver operating characteristic.
 
-B Random retrieval
+A Importance-weighted nearest retrieval, k = 295
 
-![](../results/Qwen-Qwen3-Embedding-8B/google_medgemma-27b-text-it/confusion_matrices/confusion_matrix_RANDOM_COSINE.png){width=5.8in}
+![](../results/Qwen-Qwen3-Embedding-8B/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/confusion_matrix_NEAREST_IMPORTANCE_WEIGHTED_alpha1_k295.png){width=5.8in}
 
-Figure S9. Confusion matrices for plain-cosine nearest (A) and random (B) retrieval at k = 50, at test-selected Youden J thresholds. These operating points were selected and evaluated in the same patients and are descriptive.
+B Plain-cosine nearest retrieval, k = 757
+
+![](../results/Qwen-Qwen3-Embedding-8B/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/confusion_matrix_NEAREST_PLAIN_COSINE_alpha1_k757.png){width=5.8in}
+
+C Random retrieval, uniform weights, k = 32,720
+
+![](../results/Qwen-Qwen3-Embedding-8B/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/confusion_matrix_RANDOM_UNIFORM_k32720.png){width=5.8in}
+
+Figure S9. Confusion matrices for the three arms of Figure S8 at the same k, at test-selected Youden J thresholds, with bootstrap 95% CIs on every metric at that threshold. These operating points were selected and evaluated in the same patients and are descriptive.
 
 # S7 Record Length and Prediction
 
@@ -570,9 +582,9 @@ D Outcome frequency by prescription timing
 
 Figure S10. Record length, diagnosis-to-index interval, encounter count, and outcome frequency by prescription timing. A--C show outcome-stratified distributions; axes are truncated as labeled in the original plots. D compares same-day and delayed prescribing, with group counts above bars and the 17.5% cohort reference as a dashed line.
 
-The held-out test set was divided into quintiles of pre-index history length and the neighbor-weighted predictor was scored within each quintile. The primary retrieval arm, nearest retrieval at k = 50 under plain cosine similarity, is reported in Table S8.
+The held-out test set was divided into quintiles of pre-index history length and the neighbor-weighted predictor was scored within each quintile. Table S8 reports the retrieval pipeline's plain-cosine arm at k = 50, with $\alpha$ = 5; it was not re-scored at the best k.
 
-Table S8. Neighbor-weighted discrimination by quintile of pre-index history length (nearest retrieval, plain cosine similarity, k = 50, embedded representation, held-out test set). Quintile bounds are in days of pre-index history.
+Table S8. Neighbor-weighted discrimination by quintile of pre-index history length (nearest retrieval, plain cosine similarity, k = 50, $\alpha$ = 5, embedded representation, held-out test set). Quintile bounds are in days of pre-index history.
 
   **Pre-index history (days)**   **Patients**   **ROC AUC**
   ------------------------------ -------------- -------------
@@ -645,7 +657,7 @@ Subgroup analyses address performance differences, a question distinct from dire
 
 Held-out predicted probabilities were partitioned by subgroup without refitting models. Discrimination and calibration were recalculated within each group.
 
-The analysis included 4 FEATURE classifiers, 4 EMBEDDED classifiers, and 4 neighbor configurations: nearest retrieval under plain cosine similarity (k = 50) and under importance-weighted similarity (best k, 295), and the random and farthest controls. Between-group contrasts included the 2 nearest-neighbor configurations and excluded the controls.
+The analysis included 4 FEATURE classifiers, 4 EMBEDDED classifiers, and 4 neighbor configurations: nearest retrieval under plain cosine similarity (k = 50) and under importance-weighted similarity (best k, 295), and 2 controls at k = 50, cosine-weighted random retrieval and farthest retrieval. The cosine-weighted random control is the retrieval pipeline's arm, not the uniform random arm of S6. Between-group contrasts included the 2 nearest-neighbor configurations and excluded the controls.
 
 Strata comprised sex, recorded race, age, marital status, smoking, religion, MDD recurrence, and severity. Race was aggregated as White versus other recorded categories because of small subgroup counts; this masks potentially important heterogeneity. Preferred language was not contrasted because 98.9% preferred English. A subgroup was treated as not estimable when its smaller outcome class contained fewer than 20 patients.
 

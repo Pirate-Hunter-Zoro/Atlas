@@ -15,13 +15,14 @@ THE PAPER MAKES TWO POINTS.
      still loses to a trained classifier at every k from 1 to 34,063. Best
      retrieval 0.625 against 0.649 and 0.657; paired intervals exclude zero.
 
-THE RETRIEVAL SLATE IS TWO ARMS: plain cosine (the k = 50 baseline) and
-importance-weighted cosine (Equations 1-2). Random and farthest are negative
-controls. The LLM clinical-similarity judge, uniform and combined weighting,
+THE RETRIEVAL SLATE IS TWO ARMS: plain cosine and importance-weighted cosine
+(Equations 1-2), each read at its own best k. Random neighbors with uniform
+weights, swept over the same k in 1,000 draws, are the floor; farthest at k = 50
+is a second control. The LLM clinical-similarity judge, uniform and combined weighting,
 and subsampled retrieval are out of the main text and the supplement; the
 judge is complete in reserve/llm_similarity_judge.md. Every retrieval number
-is in results/.../neighbor_count_sweep/{sweep_summary,retrieval_paired_deltas}.json,
-drawn by scripts/pipeline/predictions/plot_neighbor_sweep_figure.py.
+is in results/.../neighbor_count_sweep/{sweep_summary,retrieval_paired_deltas,best_k_panels}.json,
+drawn by scripts/pipeline/predictions/{plot_neighbor_sweep_figure,best_k_panels}.py.
 
 INDEX DATES ARE 2013-2025, measured over all 42,579 patients. Paper-Writer's
 numbers gate skips four-digit years, so nothing catches this but reading.
@@ -141,7 +142,7 @@ $$\mathrm{sim}_w(x,y)=\frac{\sum_d w_d\,z_d(x)\,z_d(y)}{\sqrt{\sum_d w_d\,z_d(x)
 
 $$\hat{r}(x)=\frac{\sum_{i\in N_k(x)} s_i^{\alpha}\,y_i}{\sum_{i\in N_k(x)} s_i^{\alpha}},\qquad s_i=\max\{\mathrm{sim}(x,i),0\}\qquad(2)$$
 
-Here $z_d$ is dimension $d$ after standardization, $\beta_d$ is its logistic-regression coefficient, $N_k(x)$ is the set of the $k$ most similar training patients, $y_i$ is a neighbor's outcome, and $\alpha$ is a sharpening exponent. Plain cosine similarity is Equation 1 with raw embeddings and equal weights. The primary analysis used k = 50 and α = 5. A sweep evaluated every k from 1 to all 34,063 training patients, under α = 1, 2, and 5. Random and farthest retrieval served as negative controls. Details appear in Multimedia Appendix 1, sections M10--M12 and S6.
+Here $z_d$ is dimension $d$ after standardization, $\beta_d$ is its logistic-regression coefficient, $N_k(x)$ is the set of the $k$ most similar training patients, $y_i$ is a neighbor's outcome, and $\alpha$ is a sharpening exponent. Plain cosine similarity is Equation 1 with raw embeddings and equal weights. A sweep evaluated every k from 1 to all 34,063 training patients, under α = 1, 2, and 5, and each metric was reported at its best k. Random retrieval, which averaged the outcomes of k training patients drawn at random, was swept over the same k and repeated in 1,000 seeded draws. Farthest retrieval at k = 50 served as a second negative control. Details appear in Multimedia Appendix 1, sections M10--M12 and S6.
 
 Additional analyses examined encoder robustness, model dimensionality, record length, and subgroup performance. Subgroup comparisons used held-out predictions without refitting and Benjamini--Hochberg adjustment across 240 contrasts. Full methods and results appear in Multimedia Appendix 1. All random processes were seeded; analyses used Python, scikit-learn, XGBoost, and sentence-transformers \[22,26,27\].
 
@@ -244,11 +245,11 @@ Logistic regression was the strongest embedded classifier for all 4 encoders, wi
 
 ## Retrieval and Subgroup Performance
 
-At k = 50, plain cosine retrieval achieved an ROC AUC of 0.594 (95% CI 0.578--0.610). Random retrieval yielded 0.499 and farthest retrieval 0.432. Neighborhood size mattered more than the similarity metric (Figure 4). Discrimination rose with k and was flat from roughly 300 neighbors onward. At its best k, importance-weighted retrieval reached 0.625 (95% CI 0.610--0.641) and plain cosine 0.618 (95% CI 0.602--0.634). The paired difference between the 2 metrics was 0.007 (95% CI −0.001 to 0.014). The best retrieval result over every k and exponent was still lower than feature-vector XGBoost by 0.024 (95% CI 0.012--0.036) and lower than embedded logistic regression by 0.032 (95% CI 0.022--0.043). Because the best k was chosen on test patients, these maxima are optimistic. Using all 34,063 training patients as neighbors, with no k chosen, gave 0.624 (Multimedia Appendix 1, section S6).
+Random retrieval stayed at chance at every k: at its best k, 32,720, it reached 0.500 (2.5th--97.5th percentile across draws 0.484--0.515). Farthest retrieval at k = 50 yielded 0.432 (95% CI 0.416--0.449). Neighborhood size mattered more than the similarity metric (Figure 4); plain cosine at k = 50 reached 0.594 (95% CI 0.578--0.610). Discrimination rose with k and was flat from roughly 300 neighbors onward. At its best k, importance-weighted retrieval reached 0.625 (95% CI 0.610--0.641) and plain cosine 0.618 (95% CI 0.602--0.634). The paired difference between the 2 metrics was 0.007 (95% CI −0.001 to 0.014). The best retrieval result over every k and exponent was still lower than feature-vector XGBoost by 0.024 (95% CI 0.012--0.036) and lower than embedded logistic regression by 0.032 (95% CI 0.022--0.043). Because the best k was chosen on test patients, these maxima are optimistic. Using all 34,063 training patients as neighbors, with no k chosen, gave 0.624 (95% CI 0.607--0.639) for importance-weighted retrieval (Multimedia Appendix 1, section S6).
 
 ![](../results/Qwen-Qwen3-Embedding-8B/google_medgemma-27b-text-it/neighbor_count_sweep/neighbor_count_sweep_manuscript.png){width=6in}
 
-***Figure 4.** Retrieval discrimination by neighborhood size. ROC AUC in 8,516 test patients for importance-weighted and plain cosine retrieval at every k from 1 to 34,063, with bootstrap 95% bands. Points mark each metric's best k. The vertical line marks k = 50, the primary analysis. Horizontal lines mark the 2 leading trained classifiers. Curves use α = 1; the maxima under α = 1, 2, and 5 agreed within 0.002.*
+***Figure 4.** Retrieval discrimination by neighborhood size. ROC AUC in 8,516 test patients at every k from 1 to 34,063 for importance-weighted and plain cosine retrieval, with bootstrap 95% bands, and for random retrieval with uniform weights, as the mean across 1,000 draws within the 2.5th--97.5th percentile of the draws. Points mark each arm's best k, chosen on the test patients. Horizontal lines mark the 2 leading trained classifiers. Curves use α = 1; the maxima under α = 1, 2, and 5 agreed within 0.002.*
 
 Of 240 subgroup contrasts, 24 survived multiplicity adjustment; 19 involved depression recurrence. Discrimination was higher with recurrent coding in all 10 models contrasted and lower with single-episode coding in 9. Performance was lower among never-married patients for 2 embedded classifiers and importance-weighted retrieval, and among patients aged 18--29 for feature-vector XGBoost. Plain cosine retrieval discriminated better in patients with severe coding. Sex contrasts did not show clear differences. White-minus-non-White ROC AUC differences were consistently positive (0.005--0.052), but none survived adjustment. For feature-vector logistic regression, individual-level calibration slopes were 0.98 in White patients and 0.79 in patients with other recorded racial categories. These findings do not establish equitable performance (Multimedia Appendix 1, section S9).
 

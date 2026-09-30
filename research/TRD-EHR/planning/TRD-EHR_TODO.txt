@@ -14,6 +14,12 @@ The user should never have to remember the plan. When they ask what is next,
 the answer is here, and it is the first unfinished line below. Read it, say what
 the step is, and start it. Do not make them reconstruct anything.
 
+RETRIEVAL AT EACH ARM'S BEST k (Figure 4, Table S7, Figures S8-S9). Run, and
+the numbers are in the manuscript and supplement. Left:
+  1. Rebuild parts/ and the .docx through Paper-Writer.
+  2. Table S8 (history quintiles) and the S9 subgroups still use the pipeline's
+     k = 50 arms; re-score them at best k only if the owner asks.
+
 STATE AS OF 2026-09-04: everything is blocked on Martin Paulus. He is sending
 rewritten sections. Until his documents land in
 paper1-trd-prediction/review/feedback/, the correct answer to "what's next" is

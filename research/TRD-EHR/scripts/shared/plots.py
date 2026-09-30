@@ -453,7 +453,7 @@ def plot_calibration(y_true: np.ndarray, y_prob: np.ndarray, mode: str, save_dir
         bin_table.append(row)
     return bin_table
 
-def plot_decision_curve_analysis(y_true: np.ndarray, y_prob: np.ndarray, mode: str):
+def plot_decision_curve_analysis(y_true: np.ndarray, y_prob: np.ndarray, mode: str, save_dir: Path = None):
     """
     Plot decision curve benefits - when only assuming patients above a certain threshold are positive, what is the benefit
     
@@ -463,6 +463,8 @@ def plot_decision_curve_analysis(y_true: np.ndarray, y_prob: np.ndarray, mode: s
     :type y_prob: np.ndarray
     :param mode: llm weighting, cosine, weighting, uniform weighting
     :type mode: str
+    :param save_dir: Write the figure here instead of under RESULTS_DIR
+    :type save_dir: Path
     """
     thresholds = np.linspace(0.01, 0.99, 100)
     TP_ASSIGN_ALL_POSITIVE = np.sum(y_true) # Count of true positives
@@ -501,12 +503,11 @@ def plot_decision_curve_analysis(y_true: np.ndarray, y_prob: np.ndarray, mode: s
     plt.title("Decision Curve Analysis")
     plt.ylim(bottom=-0.1)
     plt.legend()
-    save_path = RESULTS_DIR / "decision_curves" / f"decision_curve_{mode}.png"
-    os.makedirs(save_path.parent, exist_ok=True)
+    save_path = curve_figure_path("decision_curves", "decision_curve", mode, save_dir)
     plt.savefig(str(save_path), dpi=FIGURE_DPI)
     plt.close()
 
-def plot_effective_sample_size_distribution(ess_values: np.ndarray, mode: str):
+def plot_effective_sample_size_distribution(ess_values: np.ndarray, mode: str, save_dir: Path = None):
     """
     Create a histogram of the effective sample sizes observed in the predictions
     
@@ -514,6 +515,8 @@ def plot_effective_sample_size_distribution(ess_values: np.ndarray, mode: str):
     :type ess_values: np.ndarray
     :param mode: llm weighting, cosine, weighting, uniform weighting
     :type mode: str
+    :param save_dir: Write the figure here instead of under RESULTS_DIR
+    :type save_dir: Path
     """
     plt.hist(ess_values, bins=100, edgecolor='black')
     plt.xlabel("Effective Sample Size")
@@ -521,14 +524,63 @@ def plot_effective_sample_size_distribution(ess_values: np.ndarray, mode: str):
     plt.title("Effective Sample Size Distribution")
     plt.axvline(x=int(os.environ['LOW_CONFIDENCE_ESS_THRESHOLD']), color='red', linestyle='--', linewidth=2, label='Low Confidence (<20)')
     plt.legend()
-    save_path = RESULTS_DIR / "ess_distributions" / f"ess_distribution_{mode}.png"
-    os.makedirs(save_path.parent, exist_ok=True)
+    save_path = curve_figure_path("ess_distributions", "ess_distribution", mode, save_dir)
     plt.savefig(str(save_path), dpi=FIGURE_DPI)
     plt.close()
     
-def plot_optimal_confusion_matrix(y_true: np.ndarray, y_prob: np.ndarray, mode: str):
+CONFUSION_METRIC_LABELS = {
+    "sensitivity": "Sensitivity",
+    "specificity": "Specificity",
+    "f_score": "F_Score",
+    "positive_likelihood_ratio": "Positive Likelihood Ratio",
+    "negative_likelihood_ratio": "Negative Likelihood Ratio",
+}
+
+CONFUSION_METRIC_SHORT_LABELS = {
+    "sensitivity": "Sensitivity",
+    "specificity": "Specificity",
+    "f_score": "F score",
+    "positive_likelihood_ratio": "LR+",
+    "negative_likelihood_ratio": "LR\u2212",
+}
+
+
+def confusion_metrics(y_true: np.ndarray, predictions: np.ndarray) -> dict[str, float]:
+    """Sensitivity, specificity, F score and both likelihood ratios of 0/1 predictions.
+
+    Args:
+        y_true (np.ndarray): Actual 0/1 labels.
+        predictions (np.ndarray): Predicted 0/1 labels.
+
+    Returns:
+        dict[str, float]: Keyed as CONFUSION_METRIC_LABELS. A ratio with an empty
+            denominator is nan rather than a division warning.
+    """
+    positive, flagged = y_true == 1, predictions == 1
+    tp = float(np.sum(positive & flagged))
+    fn = float(np.sum(positive & ~flagged))
+    fp = float(np.sum(~positive & flagged))
+    tn = float(np.sum(~positive & ~flagged))
+    sensitivity = tp / (tp + fn) if tp + fn else np.nan # proportion of all positive samples correctly flagged
+    specificity = tn / (tn + fp) if tn + fp else np.nan # proportion of all negative samples correctly flagged
+    return {
+        "sensitivity": sensitivity,
+        "specificity": specificity,
+        "f_score": 2 * tp / (2 * tp + fp + fn) if tp + fp + fn else np.nan,
+        "positive_likelihood_ratio": sensitivity / (1 - specificity + 1e-9),
+        "negative_likelihood_ratio": (1 - sensitivity) / (specificity + 1e-9),
+    }
+
+
+def plot_optimal_confusion_matrix(y_true: np.ndarray, y_prob: np.ndarray, mode: str, save_dir: Path = None, bootstrap: bool = False) -> dict:
     """
     Create confusion matrix for the given probability estimates with the optimal threshold
+    
+    With bootstrap=True every printed metric carries a 95% percentile interval over the
+    SEED-seeded resamples of bootstrap_sample_indices, the same draws as the ROC band. The
+    threshold is held at the full-sample Youden J cut point in every draw, so the interval
+    is the sampling spread of the metrics AT that operating point; the choice of the
+    point itself is not re-made per draw and is not in the interval.
     
     :param y_true: Actual labels
     :type y_true: np.ndarray
@@ -536,6 +588,13 @@ def plot_optimal_confusion_matrix(y_true: np.ndarray, y_prob: np.ndarray, mode: 
     :type y_prob: np.ndarray
     :param mode: llm weighting, cosine, weighting, uniform weighting
     :type mode: str
+    :param save_dir: Write the figure here instead of under RESULTS_DIR
+    :type save_dir: Path
+    :param bootstrap: Print a 95% interval beside every metric
+    :type bootstrap: bool
+    :return: threshold, the 2x2 counts, and each metric as its value, or as a dict of
+        value, ci_low and ci_high when bootstrap is on
+    :rtype: dict
     """
     false_positive_rates, true_positive_rates, thresholds = sklearn.metrics.roc_curve(y_true=y_true, y_score=y_prob)
     # Find threshold that accomplished peak model performance
@@ -543,23 +602,27 @@ def plot_optimal_confusion_matrix(y_true: np.ndarray, y_prob: np.ndarray, mode: 
     threshold = thresholds[np.argmax(j_statistics)]
     # Use threshold to make predictions
     predictions = np.where(y_prob >= threshold, 1, 0)
-    matrix = sklearn.metrics.confusion_matrix(y_true=y_true, y_pred=predictions)
+    matrix = sklearn.metrics.confusion_matrix(y_true=y_true, y_pred=predictions, labels=[0, 1])
     
     # Obtain metric on the confusion matrix
-    raveled_matrix = np.ravel(matrix)
-    tn, fp, fn, tp = raveled_matrix[0], raveled_matrix[1], raveled_matrix[2], raveled_matrix[3]
-    sensitivity = tp / (tp + fn) # proportion of all positive samples correctly flagged
-    specificity = tn / (tn + fp) # proportion of all negative samples correctly flagged
-    f_score = 2 * tp / (2 * tp + fp + fn)
-    positive_likelihood_ratio = sensitivity / (1 - specificity + 1e-9)
-    negative_likelihood_ratio = (1 - sensitivity) / (specificity + 1e-9)
-    metrics = f"\
-Sensitivity: {sensitivity:.2f}\n\
-Specificity: {specificity:.2f}\n\
-F_Score: {f_score:.2f}\n\
-Positive Likelihood Ratio: {positive_likelihood_ratio:.2f}\n\
-Negative Likelihood Ratio: {negative_likelihood_ratio:.2f}\
-"
+    point = confusion_metrics(y_true, predictions)
+    result = {"threshold": float(threshold), "confusion_matrix": matrix.tolist()}
+    if bootstrap:
+        sample_indices = bootstrap_sample_indices(y_true.shape[0])
+        draws = np.array([list(confusion_metrics(y_true[rows], predictions[rows]).values()) for rows in sample_indices])
+        with np.errstate(invalid='ignore'):
+            lows = np.nanpercentile(draws, 2.5, axis=0)
+            highs = np.nanpercentile(draws, 97.5, axis=0)
+        for index, name in enumerate(CONFUSION_METRIC_LABELS):
+            result[name] = {"value": float(point[name]), "ci_low": float(lows[index]), "ci_high": float(highs[index])}
+        # Short labels: an interval per line is wider than the text column otherwise holds.
+        metrics = "\n".join(
+            f"{label}: {point[name]:.2f} ({lows[index]:.2f}\u2013{highs[index]:.2f})"
+            for index, (name, label) in enumerate(CONFUSION_METRIC_SHORT_LABELS.items()))
+        metrics += "\n(95% CI, bootstrap)"
+    else:
+        result.update({name: float(value) for name, value in point.items()})
+        metrics = "\n".join(f"{label}: {point[name]:.2f}" for name, label in CONFUSION_METRIC_LABELS.items())
 
     # Create the confusion matrix display with the text report beside it rather
     # than beneath it. Hanging the metrics off the bottom of the axes with
@@ -582,10 +645,10 @@ Negative Likelihood Ratio: {negative_likelihood_ratio:.2f}\
     # the title and disagreed with how the manuscript quotes it.
     matrix_ax.set_title(f'Threshold: {threshold:.3f}')
     fig.tight_layout()
-    save_path = RESULTS_DIR / "confusion_matrices" / f"confusion_matrix_{mode}.png"
-    os.makedirs(save_path.parent, exist_ok=True)
+    save_path = curve_figure_path("confusion_matrices", "confusion_matrix", mode, save_dir)
     fig.savefig(save_path, dpi=FIGURE_DPI)
     plt.close(fig)
+    return result
     
 def display_ablated_roc_deltas(classifier_name: str, labels: np.ndarray, probs: np.ndarray, ablated_scores: dict[str, np.ndarray], ablated_names: dict[str, str]) -> dict[str, tuple[float, float]]:
     """For the given classifier, display its base and ablated roc curves, as well as differences between the base and each ablation

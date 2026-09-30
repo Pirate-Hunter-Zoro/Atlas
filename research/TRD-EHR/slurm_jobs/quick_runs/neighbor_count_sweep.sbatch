@@ -8,19 +8,27 @@
 #SBATCH -o slurm_jobs/quick_runs/logs/neighbor_count_sweep_out.txt
 #SBATCH -e slurm_jobs/quick_runs/logs/neighbor_count_sweep_err.txt
 
-# Both retrieval metrics, swept over every neighbourhood size from 1 to the whole
-# candidate pool. No GPU and no vLLM server: the importance-weighted metric is read off
-# the already-fitted logistic regression and plain cosine needs nothing at all, so this is
-# two BLAS matmuls and a lot of sorting. The memory request is what holds the three
-# per-alpha risk matrices, each n_anchors x n_pool; the metrics run one after another and
-# free theirs between, so a second metric costs time and not memory.
+# Every retrieval arm swept over every neighbourhood size from 1 to the whole candidate
+# pool: importance-weighted cosine, plain cosine, and random neighbours with uniform
+# weights (1,000 seeded draws). Then Figure 4, and the ROC / PR / calibration / decision /
+# ESS / confusion-matrix panels at each arm's best k. No GPU and no vLLM server: the
+# importance-weighted metric is read off the already-fitted logistic regression and plain
+# cosine needs nothing at all, so this is two BLAS matmuls, a lot of sorting, and the
+# random draws spread over every CPU. The memory request holds the three per-alpha risk
+# matrices, each n_anchors x n_pool; the metrics run one after another and free theirs
+# between. The random draws hold about 0.8 GB per worker.
+#
+# The cosine sweep took about 7 minutes on 32 CPUs; the random arm is about 25 CPU-seconds
+# per draw, so roughly 15 minutes more. The 6-hour limit is headroom, not an estimate.
 #
 # Requires a fitted logistic_regression_EMBEDDED.joblib in RESULTS_DIR/trained_models,
 # which scripts.pipeline.predictions.classical_ml writes.
 #
-# REDRAW=1 skips the six-hour sweep and redraws both figures from the CSVs already on
-# disk. Either way the manuscript figure (Figure 4) is drawn and the folder is mirrored
-# into results/, because the manuscript links the mirror, not RESULTS_DIR.
+# REDRAW=1 skips the sweep and redraws the figures and panels from the CSVs already on
+# disk; the panels need best-k CSVs with an ess column, which only a sweep from this
+# version writes. Either way the manuscript figure (Figure 4) and the best-k panels are
+# drawn and the folder is mirrored into results/, because the manuscript links the
+# mirror, not RESULTS_DIR.
 
 # Exit immediately if command fails
 set -e
@@ -51,9 +59,14 @@ if [[ "${REDRAW:-0}" == "1" ]]; then
 else
   python -m scripts.pipeline.predictions.neighbor_count_sweep
 fi
-python -m scripts.pipeline.predictions.plot_neighbor_sweep_figure
+# The two drawing steps may fail without losing what the other drew: the mirror runs
+# either way, and the job still exits non-zero if either failed.
+DRAW_STATUS=0
+python -m scripts.pipeline.predictions.plot_neighbor_sweep_figure || DRAW_STATUS=$?
+python -m scripts.pipeline.predictions.best_k_panels || DRAW_STATUS=$?
 
 # Copy the sweep folder back beside the other results for easier access
 TARGET_DIR="results/${EMBEDDER_MODEL_NAME}/${VLLM_MODEL_NAME}/"
 mkdir -p "${TARGET_DIR}"
 rsync -av "${RESULTS_DIR}/neighbor_count_sweep" "${TARGET_DIR}"
+exit "${DRAW_STATUS}"

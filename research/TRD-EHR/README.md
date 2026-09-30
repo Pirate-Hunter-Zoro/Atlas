@@ -397,9 +397,24 @@ are untouched.
     compared against an unsupervised one.
 
 * **`neighbor_count_sweep.py`**:
+  * Three arms: importance-weighted cosine, plain cosine, and random neighbours with uniform
+    weights (the risk is the mean TRD flag of `k` pool patients drawn at random per anchor).
   * Scores every `k` from 1 to the entire pool, not just `NUM_NEIGHBOR_PATIENTS`. Sorting each
     anchor's candidates once and taking running sums of the weights and the weighted flags gives
     the risk at every `k` from one division; the sort is shared across all alphas.
+  * The random arm has no ranking: each anchor gets its own shuffle of the pool, and the running
+    TRD count over `k` is the risk at every `k`, nested. It is repeated `N_RANDOM_DRAWS` (1,000)
+    times; draw `r` is seeded by `SeedSequence(SEED).spawn(1000)[r]`, so any draw regenerates
+    alone and the result does not depend on the worker count. Its band is the 2.5th-97.5th
+    percentile of the AUC across draws on the same test patients, not an anchor bootstrap.
+    `auc_of_count_columns` gets its AUCs from count histograms instead of a sort; it is tested
+    against `roc_auc_by_column` and sklearn.
+  * Best `k` per arm is the highest test AUC (for random, the highest mean across draws), the
+    smallest `k` on a tie. It is selected on the test patients and is optimistic; for random it
+    is pure noise, because the true AUC is 0.5 at every `k`.
+  * `PIPELINE_NEIGHBOUR_COUNT = 50` is a reference point only: an interval is forced there so
+    Table S7 can compare, and the random arm read there crosschecks the pipeline's
+    `RANDOM_UNIFORM`.
   * `roc_auc_by_column` computes the AUC of thousands of score columns at once from the rank
     identity (mean rank of the positives, shifted and scaled), with average ranks for the heavy
     ties at small `k`. Verified against `sklearn.metrics.roc_auc_score` in
@@ -411,13 +426,38 @@ are untouched.
     interval in the repository uses. Intervals at all thirty-four thousand `k` would be a grey
     rectangle.
   * **Output**, all under `RESULTS_DIR/neighbor_count_sweep/`: `neighbor_count_sweep.png`
-    (AUC against `k`, log x, one line per alpha, error bars at the selected `k`, reference lines
-    for the published cosine KNN and the embedded logistic regression), `sweep_curve.csv`
-    (alpha, k, AUC — every k), `sweep_intervals.csv`, `sweep_summary.json` (best k and its CI per
-    alpha), `best_k_predictions_alpha{a}.csv` (per-anchor risk at the winning k), and
-    `dimension_importance.json`.
-  * Submit with `slurm_jobs/quick_runs/neighbor_count_sweep.sbatch`. CPU only, no vLLM server.
-    `--max-anchors` / `--max-pool` cap both sides for a smoke run.
+    (AUC against `k`, log x, one line per alpha, error bars at the selected `k`, a reference line
+    for the embedded logistic regression, the random arm's band; no k = 50 pipeline arms),
+    `sweep_curve.csv` (metric, alpha, k, AUC — every k), `sweep_intervals.csv`,
+    `random_neighbour_curve.csv` (k, mean AUC, band — every k), `sweep_summary.json` (best k and
+    its CI per metric and alpha, and a `random` block with draws, seed, best k, band, the
+    representative draw and its anchor-bootstrap CI), `random_draw_aucs_at_best_k.csv` (every
+    draw's AUC at the random best k), `best_k_predictions_alpha{a}{_plain}.csv`
+    and `best_k_predictions_random.csv` (per-anchor risk and ESS at the winning k; random from the
+    draw closest to the mean AUC there), and `dimension_importance.json`.
+  * `--random-draws N` sets the draw count (0 skips the arm); `--redraw` redraws the working
+    figure from the CSVs; `--max-anchors` / `--max-pool` cap both sides for a smoke run into
+    `smoke/`.
+  * Submit with `slurm_jobs/quick_runs/neighbor_count_sweep.sbatch` from the project root. One
+    job runs the sweep, `plot_neighbor_sweep_figure` and `best_k_panels`, then mirrors the folder
+    into `results/`. CPU only: about 7 minutes for the cosine arms and 10-15 more for the random
+    draws on 32 CPUs.
+
+* **`plot_neighbor_sweep_figure.py`**: Figure 4. The two cosine arms at alpha 1 with bootstrap
+  bands, the random arm's mean inside its across-draw band, a point and interval at each arm's
+  best k, and the two leading classifiers as horizontal bands. No line at k = 50. Also writes
+  `retrieval_paired_deltas.json`: best retrieval minus each classifier and weighted minus plain,
+  paired over resampled test patients; and each cosine arm minus random, each at its own best k,
+  whose interval pairs every test-patient bootstrap of the cosine arm with every random draw, so it
+  carries the spread across draws and not only one draw's.
+
+* **`best_k_panels.py`**: the six panels the pipeline draws for its k = 50 arms (ROC, PR,
+  calibration with quantile bins, decision curve, ESS, Youden-J confusion matrix), drawn for each
+  of the three arms at its own best k, into `neighbor_count_sweep/best_k_panels/` with the arm and
+  k in the filename (e.g. `roc_curve_NEAREST_IMPORTANCE_WEIGHTED_alpha1_k295.png`). Every number
+  carries a bootstrap 95% CI, collected in `best_k_panels.json`; the confusion matrix holds its
+  threshold fixed across resamples. A redrawn AUC that disagrees with `sweep_summary.json` is an
+  error.
 
 ### 6. Models (`scripts/models`)
 

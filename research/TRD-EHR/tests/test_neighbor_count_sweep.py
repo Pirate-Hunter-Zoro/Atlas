@@ -243,3 +243,143 @@ def test_risk_at_counts_matches_the_sweep_at_those_k():
     cut = risk_at_counts(anchors, pool, labels, ks, (1.0, 5.0), 0.2)
     for alpha in (1.0, 5.0):
         np.testing.assert_allclose(cut[alpha], full[alpha][:, ks - 1], rtol=1e-5, atol=1e-6)
+
+
+# ---- The random-neighbour arm ------------------------------------------------------------
+#
+# (e) The random arm is the floor the cosine arms are read against, so its risk must be the
+#     plain mean label of k pool patients drawn at random, nested across k, and its fast
+#     AUC must be the same AUC the cosine arms get. Its draws must be reproducible one at a
+#     time, or the panels drawn from its "representative draw" would be of some other draw.
+
+from scripts.pipeline.predictions.neighbor_count_sweep import (  # noqa: E402
+    PIPELINE_NEIGHBOUR_COUNT,
+    auc_of_count_columns,
+    best_neighbour_index,
+    effective_sample_sizes,
+    random_draw_auc,
+    random_draw_seeds,
+    random_neighbour_counts,
+    random_neighbour_risk,
+    random_neighbour_sweep,
+    representative_draw,
+    summarise_random_draws,
+)
+
+
+def test_random_counts_are_a_running_count_along_a_shuffle_of_the_pool():
+    """Each row steps by 0 or 1 and ends at the pool's TRD total: a permutation, cumsummed."""
+    rng = np.random.default_rng(20)
+    pool_labels = rng.integers(0, 2, size=37)
+    counts = random_neighbour_counts(pool_labels, 300, np.random.default_rng(5)).astype(int)
+    steps = np.diff(np.concatenate([np.zeros((300, 1), dtype=int), counts], axis=1), axis=1)
+    assert set(np.unique(steps)) <= {0, 1}
+    assert np.all(counts[:, -1] == pool_labels.sum())
+    # Rows are independent orderings, not one ordering repeated.
+    assert len({tuple(row) for row in counts}) > 1
+
+
+def test_random_counts_draw_every_neighbour_equally_often():
+    """Uniform draws: at k = 1 each anchor's neighbour is TRD at the pool prevalence."""
+    pool_labels = np.array([1] * 3 + [0] * 7)
+    counts = random_neighbour_counts(pool_labels, 20000, np.random.default_rng(6))
+    assert counts[:, 0].mean() == pytest.approx(0.3, abs=0.015)
+    assert counts[:, 4].mean() / 5 == pytest.approx(0.3, abs=0.01)
+
+
+def test_random_risk_is_the_plain_mean_label_and_ends_at_the_prevalence():
+    """Uniform weights: the risk at k is the count over k, and all neighbours give prevalence."""
+    pool_labels = np.random.default_rng(21).integers(0, 2, size=25)
+    risk = random_neighbour_risk(pool_labels, 7, np.random.default_rng(8))
+    counts = random_neighbour_counts(pool_labels, 7, np.random.default_rng(8))
+    np.testing.assert_allclose(risk, counts / np.arange(1, 26), rtol=1e-6)
+    np.testing.assert_allclose(risk[:, -1], pool_labels.mean(), rtol=1e-6)
+    assert risk.dtype == np.float32
+
+
+def test_count_auc_matches_the_rank_auc_and_sklearn():
+    """The histogram AUC is only a speed-up of the average-rank AUC, ties included."""
+    rng = np.random.default_rng(22)
+    y_true = rng.integers(0, 2, size=250)
+    pool_labels = rng.integers(0, 2, size=60)
+    counts = random_neighbour_counts(pool_labels, y_true.size, rng)
+    risk = counts / np.arange(1, 61)
+    mine = auc_of_count_columns(y_true, counts, column_block=7)
+    np.testing.assert_allclose(mine, roc_auc_by_column(y_true, risk), atol=1e-12)
+    for k in (1, 2, 13, 60):
+        assert mine[k - 1] == pytest.approx(roc_auc_score(y_true, risk[:, k - 1]))
+    assert mine[-1] == pytest.approx(0.5)  # every anchor tied at the prevalence
+
+
+def test_count_auc_is_nan_without_both_classes():
+    counts = np.array([[0, 1], [1, 1]])
+    assert np.isnan(auc_of_count_columns(np.array([1, 1]), counts)).all()
+
+
+def test_random_draws_are_reproducible_and_do_not_depend_on_the_worker_count():
+    """A draw regenerated from its own seed must be the draw the sweep scored."""
+    rng = np.random.default_rng(23)
+    anchor_labels = rng.integers(0, 2, size=40)
+    pool_labels = rng.integers(0, 2, size=30)
+    serial = random_neighbour_sweep(anchor_labels, pool_labels, 6, seed=42, n_workers=1)
+    parallel = random_neighbour_sweep(anchor_labels, pool_labels, 6, seed=42, n_workers=2)
+    np.testing.assert_array_equal(serial, parallel)
+    third = random_draw_auc(random_draw_seeds(6, 42)[3], pool_labels.astype(np.int8),
+                            anchor_labels.astype(np.int8))
+    np.testing.assert_array_equal(third, serial[3])
+    assert not np.array_equal(serial[0], serial[1])
+    other_seed = random_neighbour_sweep(anchor_labels, pool_labels, 6, seed=43, n_workers=1)
+    assert not np.array_equal(serial, other_seed)
+
+
+def test_random_band_brackets_the_mean_and_centres_on_one_half():
+    """With no information in the draw, the band sits around 0.5 at every k."""
+    rng = np.random.default_rng(24)
+    anchor_labels = rng.integers(0, 2, size=300)
+    pool_labels = rng.integers(0, 2, size=50)
+    draws = random_neighbour_sweep(anchor_labels, pool_labels, 200, seed=42)
+    curve = summarise_random_draws(draws)
+    assert list(curve.columns) == ['n_neighbors', 'roc_auc', 'ci_low', 'ci_high']
+    assert curve['n_neighbors'].tolist() == list(range(1, 51))
+    assert np.all(curve['ci_low'] <= curve['roc_auc']) and np.all(curve['roc_auc'] <= curve['ci_high'])
+    assert np.all(np.abs(curve['roc_auc'].iloc[:-1] - 0.5) < 0.02)
+    assert curve['ci_low'].iloc[0] < 0.5 < curve['ci_high'].iloc[0]
+    assert curve['ci_low'].iloc[-1] == curve['ci_high'].iloc[-1] == pytest.approx(0.5)
+
+
+def test_best_k_takes_the_smallest_k_on_a_tie():
+    assert best_neighbour_index(np.array([0.5, 0.7, 0.6, 0.7])) == 1
+    assert best_neighbour_index(np.array([np.nan, 0.52, 0.51])) == 1
+
+
+def test_representative_draw_is_the_one_nearest_the_mean():
+    draws = np.array([[0.40, 0.1], [0.52, 0.2], [0.49, 0.3], [0.59, 0.4]])
+    # Mean of column 0 is 0.50; draw 2 (0.49) is closest.
+    assert representative_draw(draws, 0) == 2
+    # Mean of column 1 is 0.25; draws 1 and 2 tie at 0.05, the lower index wins.
+    assert representative_draw(draws, 1) == 1
+
+
+def test_effective_sample_size_matches_the_direct_formula():
+    """ESS at the best k is the pipeline's (sum w)^2 / sum w^2 over the k nearest."""
+    rng = np.random.default_rng(25)
+    anchors = rng.normal(size=(5, 4)); anchors /= np.linalg.norm(anchors, axis=1, keepdims=True)
+    pool = rng.normal(size=(12, 4)); pool /= np.linalg.norm(pool, axis=1, keepdims=True)
+    ess = effective_sample_sizes(anchors, pool, {1.0: 3, 5.0: 12})
+    similarities = anchors @ pool.T
+    for alpha, k in ((1.0, 3), (5.0, 12)):
+        for i in range(5):
+            top = np.sort(similarities[i])[::-1][:k]
+            w = neighbour_weights(top, alpha)
+            expected = w.sum() ** 2 / (w ** 2).sum() if (w ** 2).sum() > 0 else 0.0
+            assert ess[alpha][i] == pytest.approx(expected, rel=1e-5)
+
+
+def test_effective_sample_size_of_all_zero_weights_is_zero():
+    anchors = np.array([[1.0, 0.0]])
+    pool = np.array([[-1.0, 0.0], [0.0, -1.0]])
+    assert effective_sample_sizes(anchors, pool, {1.0: 2})[1.0][0] == 0.0
+
+
+def test_the_pipeline_neighbour_count_is_the_pipelines_k():
+    assert PIPELINE_NEIGHBOUR_COUNT == 50
