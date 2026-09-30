@@ -9,4 +9,4 @@ Section heading: M12 Evaluation Coverage
 
 # M12 Evaluation Coverage
 
-Standard classifiers, encoder comparisons, and concept permutations used the full cohort and common test split. The primary Qwen3-Embedding-8B encoder received both similarity metrics, the negative controls, and the neighborhood-size sweep. Other encoders were evaluated with nearest and random retrieval under plain cosine similarity at k = 50, so the importance-weighted metric and the sweep describe the primary encoder only.
+Standard classifiers, encoder comparisons, and concept permutations used the full cohort and common test split. The primary Qwen3-Embedding-8B encoder received both similarity metrics, the negative controls, and the neighborhood-size sweep. Retrieval results for the other encoders are not reported; both similarity metrics and the sweep describe the primary encoder only.

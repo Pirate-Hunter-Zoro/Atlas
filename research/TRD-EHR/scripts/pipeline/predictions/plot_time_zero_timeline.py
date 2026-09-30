@@ -12,8 +12,9 @@ The figure exists to make that checkable at a glance: everything left of zero fe
 model, everything right of zero feeds only eligibility and the label.
 
 Pure presentation. The two window widths come from YEARS_BACK and YEARS_AHEAD, and the
-median pre-anchor history is read off the feature table, so no number here is typed by
-hand and none can drift from the pipeline.
+median pre-index history and the same-day count are read off the feature table, so no
+number here is typed by hand and none can drift from the pipeline. The figure says
+"index", the manuscript's word; the code's "anchor" is the same date.
 """
 
 import os
@@ -28,22 +29,26 @@ from matplotlib.patches import FancyArrowPatch
 from dotenv import load_dotenv
 load_dotenv()
 
-# The share of candidate antidepressant orders in the upstream index table that start on
-# the same day as the first recorded depression diagnosis. Verified against
-# post_mdd_ad_index.csv and quoted in Methods, *Anchor selection*.
-SAME_DAY_SHARE = 57.9
+def cohort_timing() -> dict:
+    """Median pre-index history, and how many patients were prescribed on the day of
+    their first depression diagnosis, over the analysis cohort.
 
-
-def median_pre_anchor_history_days() -> float:
-    """Median recorded history length before the anchor, over the analysis cohort.
+    The same-day count is over PATIENTS in the final cohort. The figure once quoted a
+    share of candidate orders in the upstream index table, which is not a quantity any
+    reader of the paper can place.
 
     Returns:
-        float: Median of pre_anchor_history_days.
+        dict: median_history (days), n_same_day, n_patients.
     """
-    history = pd.read_parquet(
-        Path(os.environ['FEATURE_DATAFRAME_PATH']), columns=['pre_anchor_history_days']
+    table = pd.read_parquet(
+        Path(os.environ['FEATURE_DATAFRAME_PATH']),
+        columns=['pre_anchor_history_days', 'mdd_to_anchor_days'],
     )
-    return float(history['pre_anchor_history_days'].median())
+    return {
+        'median_history': float(table['pre_anchor_history_days'].median()),
+        'n_same_day': int((table['mdd_to_anchor_days'] == 0).sum()),
+        'n_patients': int(len(table)),
+    }
 
 
 def plot_timeline(save_path: Path) -> Path:
@@ -62,7 +67,9 @@ def plot_timeline(save_path: Path) -> Path:
     """
     lookback_days = 365 * int(os.environ['YEARS_BACK'])
     followup_days = 365 * int(os.environ['YEARS_AHEAD'])
-    median_history = median_pre_anchor_history_days()
+    timing = cohort_timing()
+    median_history = timing['median_history']
+    same_day_share = 100 * timing['n_same_day'] / timing['n_patients']
 
     # Wide and short, matching the manuscript's redrawn panel geometry: a full-width panel
     # taller than about half the 9in text column strands the rest of the page.
@@ -122,15 +129,16 @@ def plot_timeline(save_path: Path) -> Path:
     ax.plot([0, 0], [Y_BAND_TOP - 0.05, Y_DIAGNOSIS - 0.08], color='black', linewidth=1.3)
     ax.text(
         left_limit, Y_TITLE,
-        "Anchor (time zero): the earliest antidepressant prescription recorded on or\n"
+        "Index (time zero): the earliest antidepressant prescription recorded on or\n"
         "after the first documented depression diagnosis. Prediction is made here.",
         ha='left', va='top', fontsize=7.4, fontweight='bold',
     )
 
-    # First documented depression diagnosis: at or before the anchor.
+    # First documented depression diagnosis: on or before the index.
     ax.annotate(
-        f"First documented depression diagnosis: at or before the anchor\n"
-        f"({SAME_DAY_SHARE}% of candidate orders start on the anchor day itself)",
+        f"First documented depression diagnosis: on or before the index.\n"
+        f"Same day as the index prescription for {timing['n_same_day']:,} of "
+        f"{timing['n_patients']:,} patients ({same_day_share:.1f}%)",
         xy=(0, Y_DIAGNOSIS - 0.06), xytext=(-200, Y_DIAGNOSIS),
         ha='right', va='center', fontsize=6.5, color='#7d4f74',
         arrowprops=dict(arrowstyle='-|>', color='#b279a2', linewidth=0.8, shrinkA=2, shrinkB=0),
@@ -144,7 +152,7 @@ def plot_timeline(save_path: Path) -> Path:
     ))
     ax.text(
         -median_history, Y_HISTORY_LABEL,
-        f"Recorded pre-anchor history, median {median_history:,.0f} days: its LENGTH is a\n"
+        f"Recorded pre-index history, median {median_history:,.0f} days: its LENGTH is a\n"
         "predictor; its content outside the lookback window is never read",
         ha='left', va='top', fontsize=6.5, color='#3a7a34',
     )
@@ -156,15 +164,15 @@ def plot_timeline(save_path: Path) -> Path:
         ax.text(offset, Y_TICK_LABEL, label, ha='center', va='top', fontsize=7.0)
     # Above the axis, clear of the +365 tick label directly below it.
     ax.text(
-        right_limit - 30, Y_AXIS + 0.05, "days from anchor",
+        right_limit - 30, Y_AXIS + 0.05, "days from index",
         ha='right', va='bottom', fontsize=6.5, style='italic',
     )
 
     ax.text(
         left_limit, Y_FOOTER,
-        f"Eligibility requires at least {followup_days} days of post-anchor follow-up. Three or more antidepressant\n"
-        f"treatments inside the outcome window label a patient TRD-positive. No property of the anchor, and no\n"
-        "predictor, reads data recorded after the anchor date.",
+        f"Eligibility requires at least {followup_days} days of follow-up after the index. Three or more antidepressant\n"
+        f"treatments inside the outcome window label a patient TRD-positive. No property of the index, and no\n"
+        "predictor, reads data recorded after the index date.",
         ha='left', va='top', fontsize=6.5, color='#333333',
     )
 

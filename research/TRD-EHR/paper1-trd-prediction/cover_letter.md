@@ -58,7 +58,8 @@ prior treatment also contributed. Permuting race/ethnicity or social
 determinants changed ROC AUC by no more than 0.003. Nearest-neighbor
 retrieval over the embedding showed that proximity tracks outcome risk, but
 it stayed below both leading classifiers at every neighborhood size. Its
-best ROC AUC was 0.625 (95% CI 0.610-0.641).
+best ROC AUC was 0.625 (95% CI 0.610-0.641), at a neighborhood size chosen on
+the test patients, against 0.500 (0.484-0.515) for randomly chosen neighbors.
 
 We are explicit that the outcome is a treatment-switching proxy rather than
 confirmed treatment resistance, that validation is internal, and that the

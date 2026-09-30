@@ -15,7 +15,7 @@ Subgroup analyses address performance differences, a question distinct from dire
 
 Held-out predicted probabilities were partitioned by subgroup without refitting models. Discrimination and calibration were recalculated within each group.
 
-The analysis included 4 FEATURE classifiers, 4 EMBEDDED classifiers, and 4 neighbor configurations: nearest retrieval under plain cosine similarity (k = 50) and under importance-weighted similarity (best k, 295), and the random and farthest controls. Between-group contrasts included the 2 nearest-neighbor configurations and excluded the controls.
+The analysis included 4 FEATURE classifiers, 4 EMBEDDED classifiers, and 4 neighbor configurations, each at its own best k from section S6: nearest retrieval under plain cosine similarity (k = 757) and under importance-weighted similarity (k = 295), and 2 controls, uniform random retrieval (k = 32,720) and farthest retrieval (k = 50). Between-group contrasts included the 2 nearest-neighbor configurations and excluded the controls. The best k was chosen on all test patients, not within each subgroup.
 
 Strata comprised sex, recorded race, age, marital status, smoking, religion, MDD recurrence, and severity. Race was aggregated as White versus other recorded categories because of small subgroup counts; this masks potentially important heterogeneity. Preferred language was not contrasted because 98.9% preferred English. A subgroup was treated as not estimable when its smaller outcome class contained fewer than 20 patients.
 
@@ -142,32 +142,33 @@ E LR: embedded logistic regression; F LR: feature-vector logistic regression; N 
 
 ## S9 4 Adjusted Subgroup Comparisons
 
-Of 240 contrasts, 60 had unadjusted CIs excluding zero and 24 survived Benjamini--Hochberg adjustment (Table S12).
+Of 240 contrasts, 58 had unadjusted CIs excluding zero and 23 survived Benjamini--Hochberg adjustment (Table S12).
 
 Table S12. Contrasts surviving Benjamini-Hochberg adjustment across all 240 reported comparisons, grouped by contrast and arm. "Models surviving" counts how many of that arm's contrasted models cleared the threshold.
 
 | **Contrast** | **Arm** | **Models surviving** | **ΔROC AUC range** | **Smallest P (BH)** |
 | -------------------------------------- | ----------------- | --------- | ---------------- | --------- |
-| Age: 18-29 vs rest | Feature vector | 1 of 4 | -0.068 | 0.040 |
-| MDD recurrence: Recurrent vs rest | Embedded | 4 of 4 | +0.059 to +0.072 | 0.014 |
-| MDD recurrence: Recurrent vs rest | Feature vector | 4 of 4 | +0.060 to +0.068 | 0.014 |
-| MDD recurrence: Recurrent vs rest | Nearest neighbors | 2 of 2 | +0.060 to +0.076 | 0.014 |
-| MDD recurrence: Single Episode vs rest | Embedded | 4 of 4 | -0.071 to -0.065 | 0.014 |
-| MDD recurrence: Single Episode vs rest | Feature vector | 3 of 4 | -0.064 to -0.056 | 0.025 |
-| MDD recurrence: Single Episode vs rest | Nearest neighbors | 2 of 2 | -0.074 to -0.058 | 0.014 |
-| MDD severity: Severe vs rest | Nearest neighbors | 1 of 2 | +0.087 | 0.040 |
-| Marital status: Never Married vs rest | Embedded | 2 of 4 | -0.054 to -0.051 | 0.014 |
-| Marital status: Never Married vs rest | Nearest neighbors | 1 of 2 | -0.047 | 0.040 |
+| Age: 18-29 vs rest | Feature vector | 1 of 4 | -0.068 (95% CI -0.117 to -0.022) | 0.042 |
+| MDD recurrence: Recurrent vs rest | Embedded | 4 of 4 | +0.059 to +0.072 | 0.015 |
+| MDD recurrence: Recurrent vs rest | Feature vector | 4 of 4 | +0.060 to +0.068 | 0.015 |
+| MDD recurrence: Recurrent vs rest | Nearest neighbors | 2 of 2 | +0.053 to +0.060 | 0.015 |
+| MDD recurrence: Single Episode vs rest | Embedded | 4 of 4 | -0.071 to -0.065 | 0.015 |
+| MDD recurrence: Single Episode vs rest | Feature vector | 3 of 4 | -0.064 to -0.056 | 0.027 |
+| MDD recurrence: Single Episode vs rest | Nearest neighbors | 2 of 2 | -0.058 to -0.047 | 0.027 |
+| Marital status: Never Married vs rest | Embedded | 2 of 4 | -0.054 to -0.051 | 0.015 |
+| Marital status: Never Married vs rest | Nearest neighbors | 1 of 2 | -0.047 (95% CI -0.079 to -0.011) | 0.042 |
+
+Ranges span the surviving models' point estimates. Every surviving contrast's own 95% CI excludes zero; 2 single-model rows show theirs.
 
 All 10 male-minus-female AUC contrasts included zero; the largest absolute point difference was 0.012. This does not establish equivalent performance.
 
-All 10 White-minus-non-White AUC contrasts were positive (0.005--0.052); 5 excluded zero before adjustment, but none survived adjustment (minimum adjusted P=.11). For FEATURE logistic regression, calibration slopes were 0.98 in White patients and 0.79 in patients with other recorded racial categories.
+All 10 White-minus-non-White AUC contrasts were positive (0.005--0.046); 5 excluded zero before adjustment, but none survived adjustment (minimum adjusted P=.15). For FEATURE logistic regression, calibration slopes were 0.98 in White patients and 0.79 in patients with other recorded racial categories.
 
 The other-recorded-race stratum had 302 events, compared with 1,181 among White patients, and wider CIs. The direction is consistent across related models, but these are correlated comparisons rather than independent replications. The data leave racial differences unresolved.
 
-Nineteen of the 24 adjusted contrasts involved recurrence. Recurrent coding was associated with higher discrimination in all 10 contrasted models (differences 0.059--0.076), and single-episode coding with lower discrimination (−0.074 to −0.054), which survived adjustment in 9. In plain-cosine nearest-neighbor prediction, severe coding was associated with higher discrimination (+0.087; adjusted P=.04).
+Nineteen of the 23 adjusted contrasts involved recurrence. Recurrent coding was associated with higher discrimination in all 10 contrasted models (differences 0.053--0.072), and single-episode coding with lower discrimination (−0.071 to −0.047), which survived adjustment in 9. Severe coding did not survive adjustment in either retrieval arm at its best k (plain cosine +0.053, adjusted P=.26; importance-weighted +0.064, adjusted P=.18).
 
-The remaining 4 adjusted contrasts indicated lower discrimination among never-married patients in 2 EMBEDDED classifiers (−0.054 to −0.051; minimum adjusted P=.014) and in importance-weighted retrieval (−0.047; adjusted P=.04), and at ages 18--29 in FEATURE XGBoost (−0.068; adjusted P=.04). Their causes were not established.
+The remaining 4 adjusted contrasts indicated lower discrimination among never-married patients in 2 EMBEDDED classifiers (−0.054 to −0.051; minimum adjusted P=.015) and in importance-weighted retrieval (−0.047; adjusted P=.04), and at ages 18--29 in FEATURE XGBoost (−0.068; adjusted P=.04). Their causes were not established.
 
 ![](../results/review/subgroups/subgroup_forest.png){width=5.6in}
 

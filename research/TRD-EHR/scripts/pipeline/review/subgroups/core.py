@@ -73,12 +73,17 @@ CLASSIFIER_ARMS = (ARM_EMBEDDED, ARM_FEATURE)
 # It used to be a product: four retrieval schemes times four weighting strategies,
 # sixteen models. The paper reports two, and they are not a product of anything.
 #
-#   NEAREST_COSINE    plain cosine similarity, similarity-weighted votes. The published
-#                     arm, and here as the BASELINE the other one is read against.
-#   NEAREST_WEIGHTED  the importance-weighted metric, where the similarity ranks the
-#                     candidates AND is the weight in the risk score -- so there is no
-#                     separate weighting strategy to choose, and pairing one with it
-#                     would be a second knob that does not exist.
+#   NEAREST_COSINE    plain cosine similarity, similarity-weighted votes, at its own
+#                     best k (757, alpha 1). The BASELINE the other one is read against.
+#   NEAREST_WEIGHTED  the importance-weighted metric at its own best k (295, alpha 1),
+#                     where the similarity ranks the candidates AND is the weight in the
+#                     risk score -- so there is no separate weighting strategy to choose.
+#
+# Both nearest arms, and the uniform random control, are read from the sweep's
+# best_k_predictions_*.csv: the sweep owns every best-k arm and emits one risk per
+# anchor at the k it reports, so nothing re-derives a risk score here. Farthest is the
+# one arm with no best k (its maximum is the full pool, which is the nearest arm's
+# all-neighbours value), so it stays at the pipeline's k = 50.
 #
 # Uniform weighting is out because a k-nearest-neighbour rule is not used with a plain
 # majority vote; the MedGemma clinical-similarity judge and the combined weighting are
@@ -95,15 +100,19 @@ KNN_WEIGHTED = "NEAREST_WEIGHTED"
 # Negative controls, tabulated per group and never contrasted: a deliberately
 # uninformative retrieval being *evenly* uninformative across groups is not a fairness
 # question, and including them would multiply the burden on the contrasts that are.
-KNN_CONTROLS = ("FARTHEST_COSINE", "RANDOM_COSINE")
+KNN_RANDOM = "RANDOM_UNIFORM"
+KNN_CONTROLS = ("FARTHEST_COSINE", KNN_RANDOM)
 
 KNN_MODELS = (KNN_BASELINE, KNN_WEIGHTED) + KNN_CONTROLS
 KNN_CONTRAST_MODELS = (KNN_BASELINE, KNN_WEIGHTED)
 
-# Where the importance-weighted predictions are written. The sweep owns that arm and
-# emits one risk per anchor at the k it reports; nothing re-derives it here, because a
-# second implementation of the risk score is a second set of numbers.
-WEIGHTED_PREDICTIONS = ("neighbor_count_sweep", "best_k_predictions_alpha1.csv")
+# Where the best-k predictions are written, one file per arm, under RESULTS_DIR. A
+# second implementation of the risk score would be a second set of numbers.
+BEST_K_PREDICTIONS = {
+    KNN_BASELINE: ("neighbor_count_sweep", "best_k_predictions_alpha1_plain.csv"),
+    KNN_WEIGHTED: ("neighbor_count_sweep", "best_k_predictions_alpha1.csv"),
+    KNN_RANDOM: ("neighbor_count_sweep", "best_k_predictions_random.csv"),
+}
 
 # The stratum families, in reporting order. Each entry names the column the levels come
 # from, whether that column lives in the prediction frame or has to be joined from the
@@ -181,22 +190,24 @@ def load_knn_predictions() -> pd.DataFrame:
     long['model'] = long['neighbor_scheme'] + "_" + long['weighting_strategy']
     wide = long.pivot(index='anchor_patient_id', columns='model', values='predicted_risk')
     labels = long.groupby('anchor_patient_id')['true_label'].first()
-    # The importance-weighted arm is written by the sweep rather than by the neighbour
-    # pipeline, so it joins here rather than arriving in the long table. Same anchors,
-    # same labels; a disagreement on either means the two were built from different runs.
-    weighted_path = results.joinpath(*WEIGHTED_PREDICTIONS)
-    weighted = pd.read_csv(weighted_path).set_index('anchor_patient_id')
-    if not labels.index.equals(weighted.index.sort_values()):
-        raise ValueError(
-            f"{weighted_path} covers different anchors from summary_predictions.csv; "
-            "the two arms were not scored on one test split."
-        )
-    if not labels.sort_index().equals(weighted['true_label'].sort_index()):
-        raise ValueError(
-            f"{weighted_path} disagrees with summary_predictions.csv about a patient's "
-            "outcome; the neighbour arms were not all written by one run."
-        )
-    wide[KNN_WEIGHTED] = weighted['predicted_risk']
+    # The best-k arms are written by the sweep rather than by the neighbour pipeline, so
+    # they join here and REPLACE any same-named column from the long table (the long
+    # table's NEAREST_COSINE is the pipeline's k = 50 arm). Same anchors, same labels; a
+    # disagreement on either means the two were built from different runs.
+    for model, parts in BEST_K_PREDICTIONS.items():
+        path = results.joinpath(*parts)
+        best_k = pd.read_csv(path).set_index('anchor_patient_id')
+        if not labels.index.equals(best_k.index.sort_values()):
+            raise ValueError(
+                f"{path} covers different anchors from summary_predictions.csv; "
+                "the arms were not scored on one test split."
+            )
+        if not labels.sort_index().equals(best_k['true_label'].sort_index()):
+            raise ValueError(
+                f"{path} disagrees with summary_predictions.csv about a patient's "
+                "outcome; the neighbour arms were not all written by one run."
+            )
+        wide[model] = best_k['predicted_risk']
     # The label must be constant for a patient across all 16 rows; if it is not, the long
     # table was built from more than one run and the whole arm is untrustworthy.
     if long.groupby('anchor_patient_id')['true_label'].nunique().max() != 1:

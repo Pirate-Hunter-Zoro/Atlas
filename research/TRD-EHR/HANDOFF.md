@@ -1,7 +1,7 @@
 <!-- chapter: predictions -->
 ## Where the student got to
 
-Lecture on retrieval prediction. The 2026-09-29 sitting was one doing turn, no student answer. Figure 4 has no k = 50 line. It has a random-neighbour arm with uniform weights, swept over every k up to 34,063, with a band from 1,000 seeded draws; the band covers 0.5 at every k. ROC, PR, calibration, decision-curve, ESS and confusion-matrix panels are drawn at each arm's best k by `best_k_panels.py`. Best k and ROC AUC: weighted 295, 0.625 (0.610–0.641); plain 757, 0.618 (0.602–0.634); random 32,720, 0.500 (0.484–0.515). The manuscript and supplement carry these numbers.
+Lecture on retrieval prediction. The 2026-09-29 sitting was one doing turn, no student answer. Figure 4 has no k = 50 line. It has a random-neighbour arm with uniform weights, swept over every k up to 34,063, with a band from 1,000 seeded draws; the band covers 0.5 at every k. ROC, PR, calibration, decision-curve, ESS and confusion-matrix panels are drawn at each arm's best k by `best_k_panels.py`. Best k and ROC AUC: weighted 295, 0.625 (0.610–0.641); plain 757, 0.618 (0.602–0.634); random 32,720, 0.500 (0.484–0.515). No retrieval number in the paper is read at k = 50 except farthest. Table S8 and the S9 subgroups are at best k too (23 of 240 contrasts survive BH). Their 16 ink marks on pages 1–7 are answered in `review/round_2026-09-29.md`.
 
 ## What they got wrong
 

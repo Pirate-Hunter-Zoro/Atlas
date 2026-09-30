@@ -14,11 +14,10 @@ The user should never have to remember the plan. When they ask what is next,
 the answer is here, and it is the first unfinished line below. Read it, say what
 the step is, and start it. Do not make them reconstruct anything.
 
-RETRIEVAL AT EACH ARM'S BEST k (Figure 4, Table S7, Figures S8-S9). Run, and
-the numbers are in the manuscript and supplement. Left:
-  1. Rebuild parts/ and the .docx through Paper-Writer.
-  2. Table S8 (history quintiles) and the S9 subgroups still use the pipeline's
-     k = 50 arms; re-score them at best k only if the owner asks.
+THE 2026-09-29 INK ROUND is applied and the packet is rebuilt
+(paper1-trd-prediction/review/round_2026-09-29.md). Left, both for Martin:
+  1. Does the corresponding author move to him? (ledger item 1)
+  2. Items 2-14 rewrite his sentences; he accepts or reverts each.
 
 STATE AS OF 2026-09-04: everything is blocked on Martin Paulus. He is sending
 rewritten sections. Until his documents land in

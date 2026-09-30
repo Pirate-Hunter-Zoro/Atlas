@@ -339,12 +339,20 @@ numbers, so a run that could overwrite one would make the comparison unfalsifiab
   patients. `render_narratives.py` deliberately does not reuse
   `narratives/forge_narratives.py`: that driver also writes the six ablated narratives per
   patient, which are out of scope here.
+* **`history_quintiles.py`**: Supplement Table S8. Scores each retrieval arm at its best k inside
+  each quintile of `pre_anchor_history_days`, with a bootstrap 95% CI per quintile, into
+  `review/history_quintiles/`. Driven by `slurm_jobs/review/history_quintiles.sbatch`, minutes.
 * **`subgroups/`**: `core.py` plus `run_subgroups.py`, driven by
   `slurm_jobs/review/subgroup_performance.sbatch`. Partitions the persisted per-patient
   held-out probabilities (`test_predictions_{EMBEDDED,FEATURE}.parquet`) by stratum and
   recomputes discrimination and calibration inside each group. **Nothing is refit**, which
   is the design and not an economy: the question is how the published models behave on
   subpopulations of the patients they were already scored on.
+  * **Retrieval arms are read at their best k** from the sweep's
+    `neighbor_count_sweep/best_k_predictions_*.csv` (`BEST_K_PREDICTIONS` in `core.py`):
+    plain cosine 757, importance-weighted 295, uniform random 32,720. Farthest stays at the
+    pipeline's k = 50 from `summary_predictions.csv`, because it has no best k of its own.
+    Run the sweep first.
   * **`STRATUM_FAMILIES`** is the registry the whole analysis iterates: six
     sociodemographic families (sex, race, age band, marital status, smoking status,
     religion) and two clinical ones (MDD severity, MDD recurrence). Preferred language is

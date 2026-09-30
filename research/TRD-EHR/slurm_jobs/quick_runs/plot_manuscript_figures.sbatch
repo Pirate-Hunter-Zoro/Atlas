@@ -58,6 +58,7 @@ python -m scripts.pipeline.predictions.redraw_manuscript_panels
 # Mirror the regenerated figures into the repo-local results/ tree
 LOCAL_RESULTS_DIR="results/${EMBEDDER_MODEL_NAME}/${VLLM_MODEL_NAME}"
 mkdir -p "${LOCAL_RESULTS_DIR}"
+rsync -av "${RESULTS_DIR}/time_zero_timeline.png" "${LOCAL_RESULTS_DIR}/"
 rsync -av "${RESULTS_DIR}/discrimination_forest_EMBEDDED_vs_FEATURE.png" "${LOCAL_RESULTS_DIR}/"
 rsync -av "${RESULTS_DIR}/discrimination_paired_deltas.json" "${LOCAL_RESULTS_DIR}/"
 rsync -av "${RESULTS_DIR}/feature_importance/" "${LOCAL_RESULTS_DIR}/feature_importance/"

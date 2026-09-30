@@ -27,9 +27,10 @@
 # prefers English, leaving one estimable level and therefore no contrast.
 #
 # THREE ARMS, not two. The embedded and feature-vector classifiers come from
-# test_predictions_{EMBEDDED,FEATURE}.parquet; the neighbour-weighted predictor
-# comes from summary_predictions.csv, whose sixteen retrieval-scheme x
-# weighting-strategy pairs are each scored per group. Only nearest retrieval is
+# test_predictions_{EMBEDDED,FEATURE}.parquet; the neighbour arms are plain and
+# importance-weighted cosine at their own best k and uniform random at its best k,
+# from neighbor_count_sweep/best_k_predictions_*.csv (run the sweep first), plus
+# farthest at k = 50 from summary_predictions.csv. Only nearest retrieval is
 # CONTRASTED across groups -- whether a deliberately uninformative retrieval
 # scheme is evenly uninformative across subgroups is not a fairness question,
 # and the three negative-control schemes would triple the multiplicity burden on
