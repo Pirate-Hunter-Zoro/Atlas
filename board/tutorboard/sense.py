@@ -1065,8 +1065,9 @@ MAKE_SENSE = (
 REVISE_SENSE = (
     "Feedback has been written on a document in this repository, from the "
     "LIBRARY rather than from the lesson. The document is `%s`. The feedback is "
-    "`%s`. Read both, revise the document on what it says, and write what you "
-    "changed at the bottom of that feedback file. "
+    "`%s`. Read both, revise the document on what it says, and record what you "
+    "did the way your instructions say: in the round's ledger where one is "
+    "named below, and otherwise at the bottom of that feedback file. "
     "THIS IS NOT PART OF THE LESSON: there may be a sitting open on this board "
     "that belongs to somebody else's evening. Write no card, do not open or "
     "archive a sitting, and leave live/state.json, live/cards/ and HANDOFF.md "
@@ -1074,15 +1075,46 @@ REVISE_SENSE = (
 )
 
 
-def revise_sense(document_rel, feedback_rel, brief=""):
+def revise_sense(document_rel, feedback_rel, brief="", ledger="", ids=()):
     """The inbox line for one round of feedback on one document.
 
     `brief` is the deck's `_brief.md` where the document is a deck made from
     sittings, and "" for everything else -- whose line is then exactly what it
-    was. See `DECK_BRIEF_SENSE`.
+    was. See `DECK_BRIEF_SENSE`. `ledger` and `ids` are the round's requests;
+    see `LEDGER_SENSE`.
     """
     return (REVISE_SENSE % (document_rel, feedback_rel) + _deck_brief(brief)
-            + MEASURE_SENSE + RULE_SENSE)
+            + _ledger(ledger, ids) + MEASURE_SENSE + RULE_SENSE)
+
+
+# A ROUND IS A LIST OF REQUESTS, AND EVERY ONE OF THEM IS ANSWERED.
+#
+# The owner's words: *"I need some nifty way to keep track of what each edit
+# request was, and what was done to address it, so that I don't have to read
+# the whole fucking paper again."* So the round was split into requests when it
+# was filed (`course/ledger.py`), each has an id, and the turn answers each id
+# in the ledger beside the note. The line names the file and the ids, because
+# the ids are the contract: the board validates that every one was answered and
+# shows an unanswered one as exactly that.
+LEDGER_SENSE = (
+    " THIS ROUND IS %d REQUEST%s, BY ID: %s. They are listed in `%s`, the "
+    "round's ledger, and under the same ids in the feedback file. Answer EVERY "
+    "id in that ledger's `answers`: a disposition (done, partly, not done or "
+    "pushed back), one sentence of what you did, and for done and partly the "
+    "new wording of the passage you changed, copied exactly from the source. A "
+    "request you could not find is still answered -- not done, saying so. The "
+    "board writes `## What was changed` from those answers. "
+)
+
+
+def _ledger(ledger, ids):
+    ledger = (ledger or "").strip()
+    ids = [str(i) for i in ids or ()]
+    if not ledger or not ids:
+        return ""
+    shown = ids if len(ids) <= 40 else ids[:40] + ["and %d more" % (len(ids) - 40)]
+    return LEDGER_SENSE % (len(ids), "" if len(ids) == 1 else "S",
+                           ", ".join(shown), ledger)
 
 
 # A DECK MADE FROM SITTINGS IS CORRECTED WITH INK, AND THE INK MAY ASK FOR MORE.
@@ -1135,8 +1167,10 @@ REWORK_SENSE = (
     "LIBRARY rather than from the lesson. The document is `%s`. What was asked "
     "for is `%s`. This is not a correction: the document's purpose has changed, "
     "and it is now for this --\n\n%s\n\n"
-    "Read both files, rework the document to that purpose, and write what you "
-    "changed at the bottom of that feedback file. Its present structure, its "
+    "Read both files, rework the document to that purpose, and record what you "
+    "did the way your instructions say: in the round's ledger where one is "
+    "named below, and otherwise at the bottom of that feedback file. Its "
+    "present structure, its "
     "order and its sections are yours to change. "
     "THIS IS NOT PART OF THE LESSON: there may be a sitting open on this board "
     "that belongs to somebody else's evening. Write no card, do not open or "
@@ -1145,11 +1179,13 @@ REWORK_SENSE = (
 )
 
 
-def rework_sense(document_rel, feedback_rel, purpose, brief=""):
-    """The inbox line for an overhaul of one document. `brief` as for
-    `revise_sense`."""
+def rework_sense(document_rel, feedback_rel, purpose, brief="", ledger="",
+                 ids=()):
+    """The inbox line for an overhaul of one document. `brief`, `ledger` and
+    `ids` as for `revise_sense`."""
     return (REWORK_SENSE % (document_rel, feedback_rel, (purpose or "").strip())
-            + _deck_brief(brief) + MEASURE_SENSE + RULE_SENSE)
+            + _deck_brief(brief) + _ledger(ledger, ids) + MEASURE_SENSE
+            + RULE_SENSE)
 
 
 # WHAT A SHIP TURN IS WOKEN WITH, and it names the mission rather than the diff.

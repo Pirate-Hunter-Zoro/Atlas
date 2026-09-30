@@ -40,7 +40,7 @@ from http.server import ThreadingHTTPServer
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 
-from tutorboard import manuscript
+from tutorboard import manuscript, sense
 from tutorboard.course import library, reading
 from tutorboard.course import repo as course_repo
 from tutorboard.lesson import archive
@@ -264,8 +264,10 @@ inked = library.write_note(repo, marked["id"], "   ")
 check("a note with nothing typed is accepted once there is ink on the document",
       inked.get("ok") is True and inked.get("marks") == 2)
 said = open(inked["path"], encoding="utf-8").read()
-check("the note says which pages were marked and where the pictures are",
-      "page 2, 4 strokes" in said and found[0]["png"] in said)
+check("the note says which pages were marked and where the pictures are -- the "
+      "round's own copy, which the wipe after it lands does not take",
+      "page 2, 4 strokes" in said and "/feedback/%s/marked-p2.png"
+      % os.path.basename(inked["path"])[:-3] in said)
 check("and tells whoever reads it to open the image rather than guess",
       "OPEN THE IMAGE" in said)
 check("marks handed over this way are recorded as sent, so the board stops "
@@ -723,6 +725,453 @@ if _git("init", "-q") == 0:
 else:
     print("skip  no git on this machine, so the uncommitted-source refusal is "
           "not exercised")
+
+# ---------------------------------------------------------------------------
+# THE EDIT LEDGER: what each request was, and what was done about it
+# ---------------------------------------------------------------------------
+# "I need some nifty way to keep track of what each edit request was, and what
+# was done to address it, so that I don't have to read the whole paper again."
+# So a round is filed as numbered requests, the turn answers each id, the board
+# validates the answers and places each one on the new pages.
+from tutorboard.course import ledger                                  # noqa: E402
+from tutorboard.course import paper as course_paper                   # noqa: E402
+
+
+def pdf_lines(pages):
+    """A real PDF whose pages carry these lines of Helvetica, one under the
+    next -- so a phrase can be broken across a line, hyphen and all."""
+    objs = ["<< /Type /Catalog /Pages 2 0 R >>",
+            "<< /Type /Pages /Count %d /Kids [%s] >>"
+            % (len(pages), " ".join("%d 0 R" % (4 + 2 * i) for i in range(len(pages)))),
+            "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>"]
+    for i, lines in enumerate(pages):
+        body = ("BT /F1 18 Tf 72 760 Td 22 TL "
+                + " ".join("(%s) Tj T*" % l for l in lines) + " ET")
+        objs.append("<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] "
+                    "/Resources << /Font << /F1 3 0 R >> >> /Contents %d 0 R >>"
+                    % (5 + 2 * i))
+        objs.append("<< /Length %d >>\nstream\n%s\nendstream" % (len(body), body))
+    out, offs = b"%PDF-1.4\n", []
+    for n, obj in enumerate(objs, start=1):
+        offs.append(len(out))
+        out += ("%d 0 obj\n" % n).encode() + obj.encode() + b"\nendobj\n"
+    start = len(out)
+    out += ("xref\n0 %d\n" % (len(objs) + 1)).encode() + b"0000000000 65535 f \n"
+    for off in offs:
+        out += ("%010d 00000 n \n" % off).encode()
+    out += ("trailer\n<< /Size %d /Root 1 0 R >>\nstartxref\n%d\n%%%%EOF\n"
+            % (len(objs) + 1, start)).encode()
+    return out
+
+
+led_tmp = tempfile.mkdtemp(prefix="tutor-ledger-")
+with open(os.path.join(led_tmp, "tutorboard.json"), "w", encoding="utf-8") as fh:
+    json.dump({"name": "Ledger Workspace"}, fh)
+os.makedirs(os.path.join(led_tmp, "writeups", "led"))
+led_tex = os.path.join(led_tmp, "writeups", "led", "led.tex")
+led_pdf = os.path.join(led_tmp, "writeups", "led", "led.pdf")
+BEFORE = ("\\documentclass{article}\n\\title{A paper with requests}\n"
+          "\\begin{document}\nThe first page says hello.\n\n"
+          "We found that the model was significant at the end.\n"
+          "\\end{document}\n")
+with open(led_tex, "w", encoding="utf-8") as fh:
+    fh.write(BEFORE)
+with open(led_pdf, "wb") as fh:
+    fh.write(pdf_lines([["The first page says hello."],
+                        ["We found that the model was significant", "at the end."]]))
+lrepo = course_repo.Repo(led_tmp)
+library.forget()
+ldoc = [d for d in library.documents(led_tmp) if d["stem"] == "led"][0]
+digest0 = course_paper._digest(led_pdf, course_paper.PAGE_WIDTH)
+
+
+def led_ink(page, strokes, png=True):
+    key = "doc/%s/p%d" % (ldoc["id"], page)
+    stem = writing_route.ann_file(key)
+    with open(os.path.join(lrepo.notes, stem + ".json"), "w", encoding="utf-8") as fh:
+        json.dump({"card": key, "sent": False, "strokes": strokes,
+                   "build": {"digest": digest0, "at": 1, "pages": 2}}, fh)
+    if png:
+        with open(os.path.join(lrepo.notes, stem + ".png"), "wb") as fh:
+            fh.write(b"\x89PNG\r\n\x1a\n" + b"\0" * 32)
+    return stem
+
+
+# THREE INKED REGIONS: a ring and the arrow out of it near the top of page 1
+# (one request), a tick at the bottom of page 1, and a ring on page 2.
+S = lambda pts: {"c": "#e8746c", "w": 3, "pg": 1, "p": pts}         # noqa: E731
+p1_stem = led_ink(1, [S([0.10, 0.10, 0.20, 0.12, 0.15, 0.14]),
+                      S([0.21, 0.12, 0.30, 0.16]),
+                      S([0.70, 0.80, 0.75, 0.85])])
+p2_stem = led_ink(2, [S([0.10, 0.08, 0.60, 0.08, 0.60, 0.14, 0.10, 0.14])], png=False)
+
+library.forget()
+split = ledger.preview(lrepo, library.carried(lrepo, ldoc, library.marks(lrepo, ldoc)),
+                       "The abstract overclaims.\n\nSay considered, not significant.")
+check("the filing panel is shown the split before anything is sent: three "
+      "inked regions and two paragraphs are five requests",
+      [(i["kind"], i["page"]) for i in split]
+      == [("ink", 1), ("ink", 1), ("ink", 2), ("text", 0), ("text", 0)])
+merged = ledger.preview(lrepo, library.carried(lrepo, ldoc, library.marks(lrepo, ldoc)),
+                        "", merge=[1])
+check("and 'those marks on page 1 are one request' is one tap: merged, the "
+      "page is one request",
+      [(i["kind"], i["page"]) for i in merged] == [("ink", 1), ("ink", 2)])
+check("nothing was written by showing the split",
+      not os.path.isdir(os.path.join(led_tmp, "writeups", "led", "feedback")))
+
+r1 = library.write_note(lrepo, ldoc["id"],
+                        "The abstract overclaims.\n\nSay considered, not significant.",
+                        page=2)
+note1 = r1["path"]
+led1 = json.load(open(ledger.ledger_path(note1), encoding="utf-8"))
+where1 = ledger.round_dir(note1)
+check("a filed round with three inked regions and two paragraphs writes five "
+      "requests, each with an id",
+      r1.get("ok") and [i["id"] for i in led1["items"]]
+      == ["R1.1", "R1.2", "R1.3", "R1.4", "R1.5"]
+      and r1["ids"] == ["R1.1", "R1.2", "R1.3", "R1.4", "R1.5"])
+check("the ledger sits beside the note, where no scanner lists it as a round",
+      os.path.basename(ledger.ledger_path(note1)).endswith(".ledger.json")
+      and len(library.notes(led_tmp, ldoc)) == 1)
+crops = sorted(f for f in os.listdir(where1) if f.endswith(".svg"))
+check("each inked request keeps a crop of its ink, in the round's own directory",
+      crops == ["R1.1.svg", "R1.2.svg", "R1.3.svg"]
+      and [i.get("crop") for i in led1["items"][:3]]
+      == ["writeups/led/feedback/%s/%s" % (os.path.basename(where1), c) for c in crops])
+svg = open(os.path.join(where1, "R1.1.svg"), encoding="utf-8").read()
+check("and the crop is that region of the page with the ink over it",
+      "<image" in svg and svg.count("<polyline") == 2)
+check("the two strokes of one ring-and-arrow are one request, not two",
+      led1["items"][0]["strokes"] == 2 and led1["items"][1]["strokes"] == 1)
+check("the typed paragraphs are requests too, in their own words",
+      led1["items"][3]["text"] == "The abstract overclaims."
+      and led1["items"][4]["page"] == 2)
+said1 = open(note1, encoding="utf-8").read()
+check("the note lists every request under its id, for a person and a turn",
+      all("### R1.%d" % n in said1 for n in range(1, 6))
+      and "R1.1.svg" in said1)
+check("and names the ledger it is answered in",
+      os.path.basename(ledger.ledger_path(note1)) in said1)
+check("the source is snapshot as the turn found it, so the old wording is exact",
+      open(os.path.join(where1, "before.tex"), encoding="utf-8").read() == BEFORE)
+check("a round nobody has answered is not landed, so nothing is wiped",
+      not library.last_round_landed(led_tmp, ldoc)
+      and os.path.isfile(os.path.join(lrepo.notes, p1_stem + ".json")))
+waiting = ledger.view(lrepo, ldoc)["rounds"][0]["items"]
+check("and its requests are WAITING rather than not answered, while the turn runs",
+      [i["status"] for i in waiting] == ["waiting"] * 5)
+
+line = sense.revise_sense(ldoc["rel"], r1["rel"], ledger=r1["ledger"], ids=r1["ids"])
+check("the turn is woken with the ledger's path and every id in it",
+      r1["ledger"] in line and "R1.1, R1.2, R1.3, R1.4, R1.5" in line
+      and "Answer EVERY id" in line)
+
+# THE TURN ANSWERS -- all but one, and one it answers badly. It edits the
+# source and rebuilds.
+time.sleep(0.02)
+AFTER = BEFORE.replace("was significant at the end",
+                       "was considered significant at the end")
+with open(led_tex, "w", encoding="utf-8") as fh:
+    fh.write(AFTER)
+with open(led_pdf, "wb") as fh:
+    fh.write(pdf_lines([["The first page says hello."],
+                        ["We found that the model was consi-",
+                         "dered significant at the end.", "Another line here."]]))
+led1["answers"] = {
+    "R1.1": {"disposition": "done", "did": "Reworded the greeting.",
+             "new": "The first page says hello."},
+    "R1.2": {"disposition": "pushed back", "did": "The tick marks a correct line."},
+    "R1.3": {"disposition": "partly", "did": "Tightened it."},
+    "R1.4": {"disposition": "Done", "did": "Said considered.",
+             "new": "We found that the model was considered significant at the end."},
+    "R9.9": {"disposition": "done", "did": "Something nobody asked for."},
+}
+with open(ledger.ledger_path(note1), "w", encoding="utf-8") as fh:
+    json.dump(led1, fh)
+library.forget()
+ldoc = [d for d in library.documents(led_tmp) if d["stem"] == "led"][0]
+got = ledger.view(lrepo, ldoc)
+rows = {i["id"]: i for i in got["rounds"][0]["items"]}
+check("a round whose ledger has answers in it has landed",
+      library.last_round_landed(led_tmp, ldoc) and got["rounds"][0]["landed"])
+check("a turn's ledger with one id missing shows that id as NOT ANSWERED",
+      rows["R1.5"]["status"] == "not answered" and rows["R1.5"]["answer"] is None)
+check("while the ids it did answer are answered, in the four words",
+      [rows["R1.%d" % n]["answer"]["disposition"] for n in range(1, 5)]
+      == ["done", "pushed back", "partly", "done"])
+check("an answer that says partly with no new wording is flagged, not trusted",
+      any("no new wording" in p for p in rows["R1.3"]["problems"]))
+check("an id nobody asked about is reported rather than shown as a request",
+      got["rounds"][0]["unknown"] == ["R9.9"])
+check("the old wording comes from the snapshot, exactly, not from the turn",
+      rows["R1.4"]["answer"]["old"]
+      == "We found that the model was significant at the end."
+      and rows["R1.4"]["answer"]["old_from"] == "before")
+check("and the source as it landed is kept beside it",
+      open(os.path.join(where1, "after.tex"), encoding="utf-8").read() == AFTER)
+pin = rows["R1.4"]["placed"]
+check("a placement finds a phrase across a line break -- and a hyphen -- in "
+      "the new PDF",
+      pin and pin["by"] == "text" and pin["page"] == 2 and pin["box"]
+      and pin["box"][1] < 0.1 < pin["box"][3])
+digest1 = course_paper._digest(led_pdf, course_paper.PAGE_WIDTH)
+check("and it is cached by the build's digest, the key the reader's pages carry",
+      os.path.isfile(os.path.join(where1, "placed-%s.json" % digest1))
+      and got["digest"] == digest1)
+_words = ledger.words
+ledger.words = lambda pdf: (_ for _ in ()).throw(AssertionError("re-read"))
+try:
+    again = ledger.view(lrepo, ldoc)
+    check("a second look at the same build reads the cache, not the PDF",
+          {i["id"]: i["placed"] for i in again["rounds"][0]["items"]}["R1.4"] == pin)
+except AssertionError:
+    check("a second look at the same build reads the cache, not the PDF", False)
+finally:
+    ledger.words = _words
+check("an answer with no wording to find keeps its page and says so",
+      rows["R1.2"]["placed"] == {"page": 1, "box": None, "by": "page"})
+said1 = open(note1, encoding="utf-8").read()
+check("the board writes `## What was changed` from the ledger, not the turn",
+      "## What was changed" in said1 and "4 of 5 requests answered" in said1
+      and "**R1.5**" in said1 and "NOT ANSWERED" in said1)
+check("so a round that answers nothing in particular is never a silent one",
+      said1.count("## What was changed") == 1)
+
+# THE EVIDENCE OUTLIVES THE WIPE.
+gone = library.wipe_delivered(lrepo, ldoc)
+check("once the round has landed its delivered marks are wiped from live/",
+      len(gone) == 2 and not os.path.isfile(os.path.join(lrepo.notes, p1_stem + ".png")))
+check("but wipe_delivered keeps the crops and the page pictures the requests "
+      "point at",
+      all(os.path.isfile(os.path.join(where1, f))
+          for f in ("R1.1.svg", "R1.2.svg", "R1.3.svg", "marked-p1.png"))
+      and ledger.evidence(led_tmp, ldoc, os.path.basename(note1), "R1.1.svg"))
+check("and a name that is not in the round is no file at all",
+      not ledger.evidence(led_tmp, ldoc, os.path.basename(note1), "../led.tex")
+      and not ledger.evidence(led_tmp, ldoc, "2020-01-01-v1.md", "R1.1.svg"))
+
+# CLOSING ITEMS, NOT ROUNDS.
+n1 = os.path.basename(note1)
+check("a request can be accepted", ledger.set_state(
+    led_tmp, ldoc, n1, "R1.1", "accepted").get("ok"))
+check("a reopen with no line of why is refused",
+      ledger.set_state(led_tmp, ldoc, n1, "R1.5", "reopened", "").get("ok") is False)
+check("and with one, the request is reopened",
+      ledger.set_state(led_tmp, ldoc, n1, "R1.5", "reopened",
+                       "the abstract still says 'proves'").get("ok"))
+check("the document's row says how many requests are still open",
+      ledger.summary(led_tmp, ldoc) == {"rounds": 1, "items": 5, "open": 4,
+                                        "reopened": 1})
+r2 = library.write_note(lrepo, ldoc["id"], "")
+check("a round of nothing but a reopened request can be filed",
+      r2.get("ok") is True and r2["ids"] == ["R1.5"])
+said2 = open(r2["path"], encoding="utf-8").read()
+check("a reopened request carries its id into the next round's note, with why",
+      "### R1.5 -- REOPENED from %s" % n1 in said2
+      and "the abstract still says 'proves'" in said2
+      and "Say considered, not significant." in said2)
+check("and into the next round's ledger, with its last answer",
+      [(i["id"], i["kind"]) for i in json.load(open(
+          ledger.ledger_path(r2["path"]), encoding="utf-8"))["items"]]
+      == [("R1.5", "reopened")])
+check("the first round now says the request rides the second",
+      ledger.states_of(note1)["R1.5"].get("carried") == os.path.basename(r2["path"])
+      and not ledger.reopened(led_tmp, ldoc))
+check("so it is counted once, in the round it rides",
+      ledger.summary(led_tmp, ldoc)["open"] == 4)
+check("and the first round is landed by the second having been filed",
+      ledger.check(led_tmp, ldoc, note1, later=True)["landed"])
+
+# THE MANUSCRIPT FACTORY'S ANSWER: what its editor APPLIED, one per issue.
+fac_items = [{"id": "R2.1"}, {"id": "R2.2"}, {"id": "R2.3"}]
+fac, extra = ledger.from_factory(fac_items, {"edits": [
+    {"issue": "[R2.1] the abstract overclaims", "find": "proves", "replace": "suggests",
+     "applied": True},
+    {"issue": "[R2.2] wrong split", "find": "80/20", "replace": "70/30",
+     "applied": False, "why": "MISSING"},
+    {"issue": "TERMINOLOGY: a gate's own fix", "find": "a", "replace": "b",
+     "applied": True}]})
+check("a factory edit that applied answers its request as done, with old and new",
+      fac["R2.1"]["disposition"] == "done" and fac["R2.1"]["old"] == "proves"
+      and fac["R2.1"]["new"] == "suggests")
+check("one that did not apply is not done, saying why",
+      fac["R2.2"]["disposition"] == "not done" and "MISSING" in fac["R2.2"]["did"])
+check("a request no edit names is not answered, and the factory's own edits "
+      "are listed rather than dropped",
+      "R2.3" not in fac and len(extra) == 1)
+
+# AND WHEN THE FACTORY'S RECORD LANDS BESIDE A ROUND, the board turns it into
+# that round's answers -- in the ledger, which is the contract whoever answered.
+with open(ledger.factory_path(r2["path"]), "w", encoding="utf-8") as fh:
+    json.dump({"version": 1, "edits": [
+        {"issue": "[R1.5] 'significant' said without the test", "applied": True,
+         "find": "was significant", "replace": "was considered significant"}]}, fh)
+fac_check = ledger.check(led_tmp, ldoc, r2["path"])
+check("a round the manuscript factory answered has landed, its answers taken "
+      "from what the editor applied",
+      fac_check["landed"] and fac_check["items"]["R1.5"]["status"] == "answered"
+      and fac_check["items"]["R1.5"]["answer"]["by"] == "paper-writer")
+check("and they are written into the ledger itself",
+      json.load(open(ledger.ledger_path(r2["path"]), encoding="utf-8"))["answers"]
+      ["R1.5"]["disposition"] == "done")
+
+# OVER THE WIRE.
+lworker = tikz.TikzWorker(lrepo)
+lworker.start()
+lboard = hub.Hub(lrepo, lworker)
+lboard.payload = json.dumps(lboard.build())
+sock = socket.socket()
+sock.bind(("127.0.0.1", 0))
+lport = sock.getsockname()[1]
+sock.close()
+lhttpd = ThreadingHTTPServer(("127.0.0.1", lport), handler.Handler)
+lhttpd.daemon_threads = True
+lhttpd.repo = lrepo
+lhttpd.hub = lboard
+threading.Thread(target=lhttpd.serve_forever, daemon=True).start()
+BASE = "http://127.0.0.1:%d" % lport
+try:
+    status, body = get("/library/ledger/" + ldoc["id"])
+    check("the glass can ask for a document's requests, newest round first",
+          status == 200 and body.get("ok") and [r["note"] for r in body["rounds"]]
+          == [os.path.basename(r2["path"]), n1])
+    first_round = body["rounds"][1]["items"]
+    crop_url = [i for i in first_round if i["id"] == "R1.1"][0]["crop"]
+    with urllib.request.urlopen(BASE + crop_url, timeout=30) as resp:
+        ctype = resp.headers.get("Content-Type")
+        blob = resp.read()
+    check("a request's crop is served by id, round and name",
+          ctype == "image/svg+xml" and b"<polyline" in blob)
+    status, _ = get("/library/evidence/%s/%s/%s" % (ldoc["id"], n1, "..%2Fled.tex"))
+    check("and nothing else is", status == 404)
+    status, body = get("/library/ledger/not-a-document")
+    check("a document nobody has has no requests", status == 404)
+    status, body = post("/library/ledger/state", {"document": ldoc["id"], "note": n1,
+                                                  "id": "R1.4", "state": "accepted"})
+    check("a request is accepted from the glass",
+          status == 200 and body.get("ok") and body.get("state") == "accepted")
+    status, body = get("/library.json")
+    row = [d for d in body["documents"] if d["id"] == ldoc["id"]][0]
+    check("and the row says how many are still open", row["ledger"]["open"] == 3)
+    led_ink(1, [S([0.1, 0.1, 0.2, 0.2]), S([0.8, 0.8, 0.9, 0.9])])
+    status, body = post("/library/ledger/preview",
+                        {"document": ldoc["id"], "text": "One more thing."})
+    check("the panel's split, over the wire, numbers the next round",
+          status == 200 and [i["id"] for i in body["items"]]
+          == ["R3.1", "R3.2", "R3.3"] and body["items"][0]["together"] == 2)
+    status, body = post("/library/feedback", {"document": ldoc["id"],
+                                              "text": "One more thing.",
+                                              "merge": [1]})
+    check("and a round filed with a page merged has that page as one request",
+          status == 200 and body.get("ids") == ["R3.1", "R3.2"]
+          and body.get("ledger", "").endswith(".ledger.json"))
+    with open(lrepo.messages_path, encoding="utf-8") as fh:
+        wake = [json.loads(l) for l in fh if l.strip()][-1]["text"]
+    check("the revision is woken naming the round's ledger and its ids",
+          body["ledger"] in wake and "R3.1, R3.2" in wake)
+finally:
+    lhttpd.shutdown()
+
+# THE AFTER-COPY IS TAKEN ONCE. A later round's edit, and a re-validation the
+# ledger's stat forced (a checkout, a clone, a touch), must not rewrite what
+# round 1 changed.
+with open(led_tex, "w", encoding="utf-8") as fh:
+    fh.write(AFTER.replace("was considered significant", "was deemed significant"))
+os.utime(ledger.ledger_path(note1), None)
+again1 = ledger.check(led_tmp, ldoc, note1, later=True)
+check("a re-validation of a landed round keeps its after-copy as it landed",
+      open(os.path.join(where1, "after.tex"), encoding="utf-8").read() == AFTER
+      and again1["items"]["R1.4"]["answer"]["old"]
+      == "We found that the model was significant at the end.")
+
+# A ROUND NOBODY WAS ASKED TO ANSWER COUNTS NOWHERE, so a retry after a failed
+# ask does not count its requests twice.
+newest = library.notes(led_tmp, ldoc)[-1]["name"]
+check("a request on a round still waiting for its revision is neither accepted "
+      "nor reopened",
+      ledger.set_state(led_tmp, ldoc, newest, "R3.1", "accepted").get("ok") is False
+      and ledger.set_state(led_tmp, ldoc, newest, "R3.1", "reopened",
+                           "not yet").get("ok") is False)
+newest_path = os.path.join(library.feedback_dir(led_tmp, ldoc), newest)
+with open(os.path.join(ledger.round_dir(newest_path), "states.json"), "w",
+          encoding="utf-8") as fh:
+    json.dump({"R3.1": {"state": "reopened", "why": "written by hand"}}, fh)
+check("and a reopen on a waiting round is not carried into the next one",
+      not [i for i in ledger.reopened(led_tmp, ldoc) if i["id"] == "R3.1"])
+os.remove(os.path.join(ledger.round_dir(newest_path), "states.json"))
+ledger.set_state(led_tmp, ldoc, n1, "R1.2", "reopened", "the tick was right after all")
+count0 = ledger.summary(led_tmp, ldoc)
+failed = library.write_note(lrepo, ldoc["id"], "", hand_over=False)
+ledger.mark_unsent(failed["path"], "nothing could be asked")
+retry = library.write_note(lrepo, ldoc["id"], "", hand_over=True)
+check("a retry after a failed ask carries the reopened request under its id",
+      failed["ids"][-1] == "R1.2" and retry["ids"][-1] == "R1.2")
+# The ink still on the page goes with both (nothing has landed to wipe it), so
+# the retry adds its fresh requests once and the reopened one not at all.
+fresh = len(retry["ids"]) - 1
+count1 = ledger.summary(led_tmp, ldoc)
+check("and each request is counted once: the round whose ask failed counts "
+      "nowhere",
+      count1["items"] == count0["items"] + fresh
+      and count1["open"] == count0["open"] + fresh
+      and os.path.basename(failed["path"]) not in
+      [r["note"] for r in ledger.view(lrepo, ldoc)["rounds"]])
+check("the round numbers go past the unsent one, never back",
+      failed["ids"] and json.load(open(ledger.ledger_path(retry["path"]),
+                                       encoding="utf-8"))["round"]
+      == json.load(open(ledger.ledger_path(failed["path"]),
+                        encoding="utf-8"))["round"] + 1)
+
+# A NOTE DELETED DOES NOT HAND ITS NUMBER ON.
+high = json.load(open(ledger.ledger_path(retry["path"]), encoding="utf-8"))["round"]
+os.remove(failed["path"])
+check("a round's number is past every round there has been, a deleted note's "
+      "included",
+      ledger.next_round(led_tmp, ldoc) == high + 1)
+
+# TYPED WORDS ARE WRITTEN ONCE, so a long round still fits what the factory
+# reads of a note.
+paras = ["Paragraph %d says %s." % (n, "something long " * 60) for n in range(5)]
+long_note = library.write_note(lrepo, ldoc["id"], "\n\n".join(paras), hand_over=False)
+ledger.mark_unsent(long_note["path"])
+body_long = open(long_note["path"], encoding="utf-8").read()
+check("a typed paragraph appears in the note once, under its id",
+      all(body_long.count(p) == 1 for p in paras)
+      and len(body_long) < len("".join(paras)) + 2500)
+
+# A STRUCTURAL EDIT -- a section moved -- applied, with no new wording.
+struct_ans, _ = ledger.from_factory([{"id": "R1.2"}], {"edits": [
+    {"issue": "[R1.2] move the methods", "find": "The first page says hello.",
+     "replace": "", "applied": True}]})
+check("a factory edit that restructured is done, and anchored on what it moved",
+      struct_ans["R1.2"]["disposition"] == "done" and not struct_ans["R1.2"]["new"]
+      and struct_ans["R1.2"]["anchor"] == "The first page says hello.")
+with open(ledger.factory_path(retry["path"]), "w", encoding="utf-8") as fh:
+    json.dump({"version": 1, "edits": [
+        {"issue": "[R1.2] move the methods", "find": "The first page says hello.",
+         "replace": "", "applied": True}]}, fh)
+sc = ledger.check(led_tmp, ldoc, retry["path"])
+check("and it is not flagged for new wording it never had",
+      sc["items"]["R1.2"]["status"] == "answered"
+      and not sc["items"]["R1.2"]["problems"])
+sp = ledger.placements(lrepo, ldoc, retry["path"], led_pdf, "struct", sc,
+                       ledger.items_of(retry["path"]))
+check("and it is pinned where it restructured, saying so",
+      sp["R1.2"]["page"] == 1 and sp["R1.2"]["by"] == "anchor")
+
+# A PERCENT SIGN IN MARKDOWN IS A PERCENT SIGN.
+pct_pdf = os.path.join(led_tmp, "pct.pdf")
+with open(pct_pdf, "wb") as fh:
+    fh.write(pdf_lines([["Table 5"], ["Of the cohort, 5% were excluded because",
+                                      "their records were incomplete."]]))
+check("in Markdown a percent sign is not a comment",
+      "incomplete" in ledger.plain("5% were excluded, records incomplete.", tex=False)
+      and "incomplete" not in ledger.plain("5% were excluded, records incomplete."))
+pp = ledger.place(pct_pdf, "Of the cohort, 5% were excluded because their records "
+                  "were incomplete.", hint=1, tex=False)
+check("so a Markdown sentence with a percent in it is placed on its own words",
+      pp and pp["page"] == 2 and pp["by"] == "text")
 
 print()
 if fails:

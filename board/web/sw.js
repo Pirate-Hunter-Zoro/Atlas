@@ -10,7 +10,7 @@
    network -- a cached lesson is a stale lesson, which is worse than none.
    ========================================================================== */
 
-var VERSION = "board-shell-v193";
+var VERSION = "board-shell-v194";
 
 var SHELL = [
   "/",
@@ -43,6 +43,7 @@ var SHELL = [
   "/static/annbar.js",
   "/static/viewpin.js",
   "/static/readerzoom.js",
+  "/static/ledger.js",
   "/static/calc-core.js",
   "/static/calc.js",
   "/static/mathjs/math.js",

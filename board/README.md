@@ -818,7 +818,7 @@ are the suites.
   `proposals.py`: the meeting deck's ink is direction, and this deck's ink is a revision.
 - **Fixes or directions** (`#reader-mode`, remembered per document on the device). In *fixes* the note panel offers a fix or an overhaul. In *directions*, for after a meeting, it offers only *a new direction*: `POST /library/direction` → `proposals.from_document` writes one `[direction]` turn in this workspace (`sense.doc_direction_sense`, the meeting deck's propose-only steps) with every undelivered marked page, copies their pictures to `live/directions/` because `writeups/` is tracked and public, and marks the ink delivered so no fix carries it. Nothing is applied until ⟳ rethink. `/annotate/save` keeps `sent` when the strokes are unchanged, so re-saving a page for its picture does not re-send delivered ink.
 - **The note's pictures.** An autosave carries no image (`Annotate.payload` makes one only for a send), so at *send it* the reader re-saves each marked page of the open document with `Annotate.picture`, the page image with the ink over it in its own colours, and files the note after. Without it every mark reads "no image was saved" to the turn.
-- **Spent ink is wiped** (`library.wipe_delivered`). Once a document's newest round has landed, every mark a note delivered on it (`sent`) is deleted, record and picture, on the next `/library.json` or `/library/view`; ink drawn since is `sent: false` and stays. A round that has not landed keeps everything. The reader drops any saved mark the view no longer hands back (`Annotate.drop`), because `Annotate.load` never takes one away.
+- **Spent ink is wiped** (`library.wipe_delivered`). Once a document's newest round has landed, every mark a note delivered on it (`sent`) is deleted, record and picture, on the next `/library.json` or `/library/view`; ink drawn since is `sent: false` and stays. The round's own crops and page pictures are in its directory and are never wiped. A round that has not landed keeps everything. The reader drops any saved mark the view no longer hands back (`Annotate.drop`), because `Annotate.load` never takes one away.
 - **Resending** (`library.carried`). A deck made from sittings carries only marks no earlier
   round delivered, because its slides renumber when redrawn; a page drawn on again goes whole.
   If the last round did not come back (no `## What was changed`, no PDF newer than the note),
@@ -4024,6 +4024,73 @@ asked*, and without the route the record lived somewhere the iPad cannot open.
 The name is matched against what `library.notes` found beside **that** document
 — the rule `find` holds for an id, one level down.
 
+#### A round is a ledger of requests, and every one is answered
+
+`course/ledger.py` and `web/ledger.js`. A round is filed as numbered requests:
+one per inked region of a page (strokes within `GAP` of each other, single-link)
+and one per typed paragraph. `R3.4` is round 3, request 4, **stored, not
+recomputed**, and the next round's number is past every ledger there has been
+(`ledger.next_round`), so a deleted note hands its ids to nobody. The typed
+paragraphs are written into the note once, under their ids, because the factory
+reads only the note's first 6000 characters. The
+filing panel shows the split first (`POST /library/ledger/preview`, which writes
+nothing), and a page's marks can be made one request there (`merge`).
+
+| On disk, beside `feedback/<day>-v<n>.md` | |
+|---|---|
+| `<day>-v<n>.ledger.json` | the contract with the turn: `items`, and the turn's `answers`, one per id: `disposition` (done, partly, not done, pushed back), `did`, and `new` wording for done and partly. The turn edits `answers` only |
+| `<day>-v<n>/` | the round's own directory, written only by the board and never wiped: `items.json` (the requests as filed), one `R3.1.svg` crop per inked request, `marked-p<n>.png`, `before.<ext>` / `after.<ext>` source snapshots, `states.json`, `checked.json`, `placed-<digest>.json`, and `unsent.json` when the ask failed |
+| `<day>-v<n>.factory.json` | what Paper-Writer's editor **applied**, written back at delivery (`revision.write_back`) |
+
+The derived half stays out of the ledger because the turn rewrites that file and
+because a write there would move the stat the validation is keyed on.
+
+- **Validation is lazy**, on the same GETs as the wipe (`ledger.settle`), keyed on
+  the ledger's stat: there is no hook after a turn outside `bin/tutor`. A missing id
+  is **not answered** once the round lands (**waiting** before), an unknown
+  disposition counts as not answered, and done or partly without `new` is flagged.
+  The board then writes `## What was changed` under the note from the ledger,
+  between two markers, keeping anything written after them.
+- **Landed** (`ledger.landed`): answers in the ledger, the factory's record, the
+  heading under the note, a newer round filed, or a PDF built after the note.
+- **A round whose ask failed** is marked `unsent` by the route and counted nowhere
+  (`ledger.rounds` skips it): the retry carries the same ink and reopened requests,
+  so each is counted once.
+- **Old wording is exact.** The board snapshots the source at filing and at landing
+  and diffs the two around the new wording. `after.<ext>` is taken once and never
+  replaced: from the next round's `before` where one was filed, else from the live
+  source at the first look after the answers came back. It does not commit: a commit of a
+  half-finished edit is a worse undo than none (`rework_refused`'s rule). The
+  snapshot sits in tracked `feedback/`, so `save-and-push.sh` carries it.
+- **Placement** (`ledger.place`): the new wording, markup stripped, matched against
+  `pdftotext -bbox` words with ligatures, quotes and hyphens folded and a word split
+  across a line joined. Scored, anchored on the rarest opening word, ties to the
+  page nearest the request's. `%` is a comment only in a `.tex` source, not in
+  Markdown. A factory edit that restructured (no `replace`, applied) is anchored on
+  its `find` and pinned as *where it was restructured*, not flagged for missing
+  wording. Unplaced keeps its page (**placed by page only**).
+  Cached per build by `paper._digest`, the key the reader's pages carry.
+- **Crops are made at filing**, cut from the PDF by `pdftoppm` when the ink is on the
+  build on disk, else from the cached rendering of the build it was drawn on, else
+  ink alone. `wipe_delivered` runs `keep_evidence` first.
+- **States are per request**, and only on a landed round. Accept, or reopen with a line of why
+  (`POST /library/ledger/state`). A reopened request rides the next round under the
+  id it has (`ledger.reopened`, `ledger.carry`, only once the revision is asked); a
+  round of nothing but reopened requests can be filed. The row counts open requests.
+- **The glass** (`ledger.js`, loaded by the library reader and by `/meeting`, which
+  has no round and asks nothing of it): *◉ changes* pins each placed request in the
+  page's margin, in fractions of `.lib-page`, coloured by disposition, with the
+  passage boxed. A pin opens a card (the crop, or the kept marked page where there is
+  no crop, or the words; what was done; old beside new; accept / reopen once landed)
+  as a sheet at the foot of the glass, so the jumped-to change stays in sight and the
+  card's own *next change ›* steps on. *☰ every request* lists them by page.
+- **Paper-Writer** answers through its editor: the brief tells it to start each issue
+  with the request's id, every sweep records applied and rejected edits
+  (`revision.record_edits`), and delivery writes them beside the note. The board turns
+  them into answers (`ledger.from_factory`): all an id's issues landed is done, some
+  is partly, none is not done, no edit naming it is not answered; unnamed edits are
+  listed as the factory's own.
+
 #### Two asks, and an overhaul is not a correction
 
 `revise` keeps the document's structure, its names for things and its claims:
@@ -4079,7 +4146,7 @@ paper, which is the failure the section exists to prevent.
 `turn_plan` resumes the agent's conversation by default; a revision resumed into
 a lesson drags the lesson into the document and the document back into the
 lesson. So it is its own
-session, its report goes at the bottom of the feedback file, and
+session, its answers go in the round's ledger, and
 `live/cards/`, `live/state.json` and the archive are left exactly as they were —
 somebody mid-proof on an iPad is not interrupted by somebody correcting a deck.
 That is what makes the library a separate interface rather than a sitting.
@@ -5152,6 +5219,8 @@ tutorboard/        the board itself, organised by what a thing is about:
                    library (everything the workspace HAS written, grouped into
                    documents by stem and directory, where feedback on one goes,
                    and the stamp that says whether any of it has moved),
+                   ledger (a round of feedback as numbered requests, the turn's
+                   answers validated, and each one placed on the new pages),
                    shelf (the same inventory placed under the boxes of the map,
                    by three rules read off each path, and named by a slug ink
                    can be anchored on),
@@ -5611,7 +5680,7 @@ node test/who.js         that who writes this sitting is a choice on the glass, 
                          until the sitting opens, and that a workspace you are not
                          looking at can be handed a job
 
-bash test/all.sh         all of the above, in order, and Paper-Writer's 593 tests
+bash test/all.sh         all of the above, in order, and Paper-Writer's 595 tests
                          where it is checked out. The two real-DOM suites need
                          jsdom; this fetches it on first run and carries on
                          without it if there is no network. A setup step someone

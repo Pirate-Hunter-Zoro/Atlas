@@ -36,6 +36,13 @@ that is not the lesson's.
                                     of one, as an attachment
     GET  /library/note/<id>/<name>  one round of feedback, read back -- which is
                                     where the turn wrote what it changed
+    GET  /library/ledger/<id>       every round's requests, what was done about
+                                    each, and where each sits on the pages now
+    GET  /library/evidence/<id>/<note>/<file>
+                                    one crop or page picture a request keeps
+    POST /library/ledger/preview    how the panel's words and ink would split
+                                    into requests, before anything is sent
+    POST /library/ledger/state      one request accepted, or reopened with why
     POST /library/feedback          one round of feedback, written where the
                                     document is, and then acted on -- in words,
                                     in ink, or in both
@@ -83,6 +90,7 @@ from ... import (atlas, leaving, machines, manuscript, paths, scopes, sense,
                  sittings, writeups)
 from ...course import burn
 from ...course import config
+from ...course import ledger
 from ...course import library
 from ...course import results
 from ...course import shelf
@@ -173,6 +181,30 @@ def get(h, repo, path):
                                 unquote(rest[1]) if len(rest) > 1 else "")
         return h.send_json(got, status=200 if got.get("ok") else 404)
 
+    # WHAT EACH REQUEST WAS AND WHAT WAS DONE ABOUT IT, placed on the build
+    # that is on disk now. An id, matched against discovery like every other.
+    if path.startswith("/library/ledger/"):
+        doc = library.find(repo.root, path[len("/library/ledger/"):])
+        if not doc:
+            return h.send_json({"ok": False, "error": "no such document"},
+                               status=404)
+        try:
+            return h.send_json(ledger.view(repo, doc))
+        except Exception as exc:                             # noqa: BLE001
+            return h.send_json({"ok": False, "error": str(exc)[-300:]})
+
+    # A REQUEST'S OWN PICTURE. An id, a round's name and a file's name, each
+    # matched against what is on disk -- `ledger.evidence` -- never joined.
+    if path.startswith("/library/evidence/"):
+        rest = path[len("/library/evidence/"):].split("/")
+        doc = library.find(repo.root, rest[0]) if len(rest) == 3 else None
+        found = (ledger.evidence(repo.root, doc, unquote(rest[1]), unquote(rest[2]))
+                 if doc else "")
+        if not found:
+            return h.send_json({"ok": False, "error": "no such picture"},
+                               status=404)
+        return h.send_file(found)
+
     return NOT_MINE
 
 
@@ -190,6 +222,7 @@ def post(h, repo, path):
             page = int(payload.get("page") or 0)
         except (TypeError, ValueError):
             page = 0
+        merge = _pages(payload.get("merge"))
         doc = library.find(repo.root, ident)
         if not doc:
             return h.send_json({"ok": False, "error": "no such document"},
@@ -215,18 +248,69 @@ def post(h, repo, path):
                 return h.send_json({"ok": False, "ask": "rework",
                                     "error": stop}, status=409)
         rec = library.write_note(repo, ident, text, page=page, ask=ask,
-                                 purpose=purpose, hand_over=False)
+                                 purpose=purpose, hand_over=False, merge=merge)
         if not rec.get("ok"):
             return h.send_json(rec, status=400)
         keys = rec.pop("keys", [])
+        carry = rec.pop("carry", [])
         rec.update(_revise(h, repo, whole or doc, rec["rel"], ask=ask,
-                           purpose=rec.get("purpose") or ""))
+                           purpose=rec.get("purpose") or "",
+                           ledger_rel=rec.get("ledger") or "",
+                           ids=rec.get("ids") or []))
         # THE INK IS DELIVERED WHEN THE REVISION IS ASKED, not when the note is
         # written: a note beside an ask that failed has delivered nothing, and
-        # marking its ink sent would leave the retry without it.
+        # marking its ink sent would leave the retry without it. A reopened
+        # request is carried on the same rule.
         if rec.get("asked"):
             library.hand_over(repo, keys)
+            ledger.carry(repo.root, doc, carry, rec.get("note") or "")
+        elif rec.get("path"):
+            # NOTHING IS ANSWERING THIS ROUND. It stays on disk and counts
+            # nowhere; the retry files the same ink and the same reopened
+            # requests again, so each is counted once.
+            ledger.mark_unsent(rec["path"], rec.get("detail") or "")
         return h.send_json(rec)
+
+    # THE SPLIT, SHOWN BEFORE IT IS SENT. What the panel's words and the
+    # document's ink would become as requests, so "that was one request, not
+    # three" is said with a tap before the round rather than in the next one.
+    # Nothing is written.
+    if path == "/library/ledger/preview":
+        try:
+            payload = json.loads(h.read_body().decode("utf-8") or "{}")
+        except Exception:
+            return h.send_json({"ok": False, "error": "bad json"}, status=400)
+        doc = library.find(repo.root, str(payload.get("document") or "").strip())
+        if not doc:
+            return h.send_json({"ok": False, "error": "no such document"},
+                               status=404)
+        try:
+            page = int(payload.get("page") or 0)
+        except (TypeError, ValueError):
+            page = 0
+        found = library.carried(repo, doc, library.marks(repo, doc))
+        items = ledger.preview(repo, found, payload.get("text") or "", page=page,
+                               merge=_pages(payload.get("merge")),
+                               round_no=ledger.next_round(repo.root, doc),
+                               reopen=ledger.reopened(repo.root, doc))
+        return h.send_json({"ok": True, "items": items})
+
+    # ONE REQUEST CLOSED OR REOPENED. A reopened one costs a line of why, and
+    # rides the next round under the id it already has.
+    if path == "/library/ledger/state":
+        try:
+            payload = json.loads(h.read_body().decode("utf-8") or "{}")
+        except Exception:
+            return h.send_json({"ok": False, "error": "bad json"}, status=400)
+        doc = library.find(repo.root, str(payload.get("document") or "").strip())
+        if not doc:
+            return h.send_json({"ok": False, "error": "no such document"},
+                               status=404)
+        got = ledger.set_state(repo.root, doc, str(payload.get("note") or ""),
+                               str(payload.get("id") or ""),
+                               payload.get("state"), payload.get("why") or "")
+        library.forget()
+        return h.send_json(got, status=200 if got.get("ok") else 400)
 
     # A PAGE MARKED AS A DIRECTION, not as a complaint: the note panel's third
     # ask. It never goes near `_revise` -- see `proposals.from_document`.
@@ -506,6 +590,21 @@ def dispatch(repo, match, makes, about, line=None, prepare=None):
     return {"id": wid, "rec": rec, "root": target.root, "woke": woke}, None
 
 
+def _pages(got):
+    """Page numbers off a request, or []. Anything that is not one is dropped."""
+    if not isinstance(got, list):
+        return []
+    out = []
+    for x in got[:200]:
+        try:
+            n = int(x)
+        except (TypeError, ValueError):
+            continue
+        if n > 0:
+            out.append(n)
+    return out
+
+
 def _strings(payload, key):
     """A list of strings off a request, or []. Nothing else from it is read."""
     got = payload.get(key)
@@ -709,7 +808,8 @@ def rework_refused(repo, doc):
     return ""
 
 
-def _revise(h, repo, doc, note_rel, ask="revise", purpose=""):
+def _revise(h, repo, doc, note_rel, ask="revise", purpose="", ledger_rel="",
+            ids=()):
     """Ask for the revision, by whichever machinery wrote the document.
 
     THE TWO KINDS ARE CHANGED BY DIFFERENT MACHINERY, and this is the seam.
@@ -731,6 +831,11 @@ def _revise(h, repo, doc, note_rel, ask="revise", purpose=""):
     prompt that turn is woken with and how long it gets -- see `turn_plan` and
     `doing_now` in `bin/tutor`. It never reaches the factory: `rework_refused`
     has already turned an overhaul of a delivered manuscript away by name.
+
+    `ledger_rel` and `ids` are the round's requests (`course/ledger.py`). The
+    board's turn is told to answer every id in that file; the factory is
+    reached through the note, which lists the same ids, and its editor cites
+    them in the issues it raises.
     """
     if doc.get("made") == "paper-writer":
         try:
@@ -755,10 +860,12 @@ def _revise(h, repo, doc, note_rel, ask="revise", purpose=""):
         brief = "%s/%s" % (doc["dir"], sittings.BRIEF_MD)
     if ask == "rework":
         line = "[rework] " + sense.rework_sense(doc.get("source") or doc["rel"],
-                                                note_rel, purpose, brief=brief)
+                                                note_rel, purpose, brief=brief,
+                                                ledger=ledger_rel, ids=ids)
     else:
         line = "[revise] " + sense.revise_sense(doc["rel"], note_rel,
-                                                brief=brief)
+                                                brief=brief, ledger=ledger_rel,
+                                                ids=ids)
     record = {
         # An id from the same series the lesson's turns use, so nothing in the
         # inbox has to be told apart by shape. It is NOT written into

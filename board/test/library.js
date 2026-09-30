@@ -1502,6 +1502,7 @@ const named = (title) => rows().filter(
 
   await inkFollowsZoom();
   await inkIsKept();
+  await changesArePins();
 
   console.log(errors.length ? '\n' + errors.length + ' FAILURES'
                             : '\nthe library draws what a workspace wrote, and takes a word about one');
@@ -1956,4 +1957,264 @@ async function inkIsKept() {
   p6.byId('note-purpose-box').hidden && p6.byId('ask-revise').classList.contains('on')
     ? ok('a tap on the ask with nothing typed after it is kept with the draft')
     : fail('the ask switched without a keystroke came back as an overhaul');
+}
+
+/* ==========================================================================
+   WHAT EACH REQUEST WAS, AND WHAT WAS DONE -- AS PINS.
+
+   Asked as: "I need some nifty way to keep track of what each edit request
+   was, and what was done to address it, so that I don't have to read the
+   whole fucking paper again." A round lands; the reader draws a numbered pin
+   at every changed spot, a tap opens that request's card, and `next change ›`
+   steps through them by page. On a DOM of its own, so what it asks for is
+   the only thing in its list.
+   ========================================================================== */
+async function changesArePins() {
+  const ID = 'writeups-led-led';
+  const LIB = { workspace: 'research/TRD-EHR', writeups: 'writeups', documents: [{
+    id: ID, dir: 'writeups/led', stem: 'led', title: 'A paper with requests',
+    kind: 'paper', formats: ['pdf', 'tex'], rel: 'writeups/led/led.pdf',
+    pages: 2, pdf: true, stale: false, iso: '2026-09-29', made: 'board',
+    notes: [{ name: '2026-09-29-v1.md', day: '2026-09-29', v: 1 }],
+    marks: { pages: 1, strokes: 3, waiting: 1 },
+    ledger: { rounds: 1, items: 4, open: 3, reopened: 0 },
+  }] };
+  const ans = (d, did, oldw, neww) => ({ disposition: d, did: did, old: oldw || '',
+                                         new: neww || '', old_from: 'before', by: 'turn' });
+  const LEDGER = { ok: true, document: ID, digest: 'd1',
+    summary: { rounds: 1, items: 4, open: 3, reopened: 0 },
+    rounds: [{ note: '2026-09-29-v1.md', round: 1, filed: '2026-09-29 17:00',
+      ask: 'revise', landed: true, answered: 3, extra: [], unknown: [], items: [
+        { id: 'R1.1', kind: 'ink', page: 2, text: '', why: '', previous: '', count: 2,
+          crop: '/library/evidence/' + ID + '/2026-09-29-v1.md/R1.1.svg', marked: '',
+          status: 'answered', problems: [], state: 'open', state_why: '', carried: '',
+          answer: ans('done', 'Said considered.', 'was significant', 'was considered significant'),
+          placed: { page: 2, box: [0.12, 0.30, 0.60, 0.34], by: 'text', score: 1 } },
+        { id: 'R1.2', kind: 'text', page: 1, text: 'The abstract overclaims.', why: '',
+          previous: '', count: 0, crop: '', marked: '', status: 'answered', problems: [],
+          state: 'open', state_why: '', carried: '',
+          answer: ans('partly', 'Softened one of two claims.', 'proves', 'suggests'),
+          placed: { page: 1, box: [0.1, 0.5, 0.5, 0.53], by: 'text', score: 0.8 } },
+        { id: 'R1.3', kind: 'ink', page: 2, text: '', why: '', previous: '', count: 1,
+          crop: '', marked: '/library/evidence/' + ID + '/2026-09-29-v1.md/marked-p2.png', status: 'answered', problems: [], state: 'accepted',
+          state_why: '', carried: '', answer: ans('pushed back', 'The line is right.'),
+          placed: { page: 2, box: null, by: 'page' } },
+        { id: 'R1.4', kind: 'text', page: 0, text: 'Cite the cohort paper.', why: '',
+          previous: '', count: 0, crop: '', marked: '', status: 'not answered',
+          problems: [], state: 'open', state_why: '', carried: '', answer: null,
+          placed: { page: 0, box: null, by: 'none' } },
+      ] }] };
+  const asked = [];
+  const d = new JSDOM(LIB_HTML, { runScripts: 'outside-only', pretendToBeVisual: true,
+                                 url: 'https://board.test/library' });
+  const w = d.window;
+  const D = w.document;
+  w.HTMLCanvasElement.prototype.getContext = () =>
+    new Proxy({}, { get: () => () => {}, set: () => true });
+  w.HTMLCanvasElement.prototype.toDataURL = () => 'data:image/png;base64,';
+  w.Element.prototype.setPointerCapture = function () {};
+  w.Element.prototype.releasePointerCapture = function () {};
+  w.requestAnimationFrame = (fn) => setTimeout(fn, 0);
+  const json = (o) => Promise.resolve({ ok: true, json: () => Promise.resolve(o) });
+  w.fetch = (u, opts) => {
+    const url = String(u);
+    asked.push({ url: url, body: (opts && opts.body) || '' });
+    if (/library\.json/.test(url)) return json(LIB);
+    if (/library\/stamp/.test(url)) return json({ ok: true, stamp: 's', documents: { [ID]: 'x' } });
+    if (/library\/view\//.test(url)) {
+      return json({ ok: true, n: 2, truncated: false, digest: 'd1',
+                    pages: ['/paper/d1-1.png', '/paper/d1-2.png'], ink: {},
+                    build: { digest: 'd1', at: 1790000000, pages: 2 }, rebuilt: null });
+    }
+    if (/library\/ledger\/preview/.test(url)) {
+      const body = JSON.parse(opts.body || '{}');
+      const one = (body.merge || []).indexOf(2) >= 0;
+      return json({ ok: true, items: (one
+        ? [{ id: 'R2.1', kind: 'ink', page: 2, count: 3, text: '', together: 1, merged: true }]
+        : [{ id: 'R2.1', kind: 'ink', page: 2, count: 2, text: '', together: 2, merged: false },
+           { id: 'R2.2', kind: 'ink', page: 2, count: 1, text: '', together: 2, merged: false }])
+        .concat(body.text ? [{ id: 'R2.' + (one ? 2 : 3), kind: 'text', page: 0, count: 0,
+                               text: body.text, together: 0, merged: false }] : []) });
+    }
+    if (/library\/ledger\/state/.test(url)) {
+      const body = JSON.parse(opts.body || '{}');
+      return json({ ok: true, id: body.id, state: body.state, why: body.why });
+    }
+    if (/library\/ledger\//.test(url)) return json(LEDGER);
+    if (/library\/feedback/.test(url)) {
+      return json({ ok: true, rel: 'writeups/led/feedback/2026-09-29-v2.md', revise: 'board',
+                    asked: true, items: 2, ids: ['R2.1', 'R2.2'], detail: 'Asked.' });
+    }
+    if (/annotate\/save/.test(url)) return json({ ok: true });
+    return new Promise(() => {});
+  };
+  w.addEventListener('error', (e) => fail('uncaught (ledger page): ' + e.message));
+  for (const f of LIB_SCRIPTS) {
+    try { w.eval(fs.readFileSync(path.join(WEB, f), 'utf8')); }
+    catch (e) { fail(f + ': ' + e.message); }
+  }
+  w.STAMP_EVERY = 100000;
+  w.SPLIT_WAIT = 5;
+  try { w.eval(fs.readFileSync(path.join(WEB, 'library.js'), 'utf8')); }
+  catch (e) { fail('library.js (ledger page): ' + e.message); }
+  await sleep(20);
+  const click = (el) => el.dispatchEvent(new w.MouseEvent('click', { bubbles: true }));
+
+  LIB_SCRIPTS.includes('ledger.js')
+    && /src="\/static\/ledger\.js"/.test(fs.readFileSync(path.join(WEB, 'meeting.html'), 'utf8'))
+    ? ok('ledger: the library reader and the meeting deck both load the pins')
+    : fail('ledger.js is not loaded by both readers');
+  const sw = fs.readFileSync(path.join(WEB, 'sw.js'), 'utf8');
+  /"\/static\/ledger\.js"/.test(sw)
+    ? ok('ledger: and the offline shell carries it')
+    : fail('sw.js does not precache ledger.js');
+
+  const rowBtn = D.querySelector('.lib-ledger');
+  rowBtn && /3 of 4 requests open/.test(rowBtn.textContent)
+    ? ok('ledger: a document’s row says how many requests are still open')
+    : fail('the row does not count open requests: ' + (rowBtn && rowBtn.textContent));
+
+  click(rowBtn);
+  await sleep(40);
+  asked.some((r) => r.url === '/library/ledger/' + ID)
+    ? ok('ledger: the changes are asked for by the document id')
+    : fail('the ledger was never asked for: ' + asked.map((r) => r.url).join(' '));
+  const pins = Array.prototype.slice.call(D.querySelectorAll('#reader-pages .lg-pin'));
+  pins.length === 3
+    ? ok('ledger: the reader draws one pin per placed request')
+    : fail(pins.length + ' pins for three placed requests');
+  const on = (id) => D.querySelector('.lg-pin[data-id="' + id + '"]');
+  on('R1.1') && on('R1.1').parentNode.dataset.page === '2'
+    && parseFloat(on('R1.1').style.top) === 30
+    && on('R1.2') && on('R1.2').parentNode.dataset.page === '1'
+    ? ok('ledger: each pin is on its page, at the height its answer was found')
+    : fail('the pins are in the wrong places');
+  on('R1.1') && /lg-done/.test(on('R1.1').className)
+    && /lg-partly/.test(on('R1.2').className) && /lg-pushed-back/.test(on('R1.3').className)
+    ? ok('ledger: and coloured by what was done')
+    : fail('the pins are not coloured by disposition');
+  D.querySelectorAll('#reader-pages .lg-mark').length === 2
+    ? ok('ledger: the changed passage is boxed where there is a box to draw')
+    : fail('the changed passages are not boxed');
+  !on('R1.4')
+    ? ok('ledger: a request with no page gets no pin, rather than a pin anywhere')
+    : fail('an unplaced request was pinned');
+  /1 not answered/.test(D.getElementById('lg-bar').textContent)
+    ? ok('ledger: and the bar says one request was not answered at all')
+    : fail('the bar hides the unanswered request: ' + D.getElementById('lg-bar').textContent);
+
+  click(on('R1.1'));
+  const card = D.getElementById('lg-card');
+  !card.hidden && card.dataset.id === 'R1.1'
+    && /Said considered/.test(card.textContent)
+    && D.querySelector('#lg-card .lg-was').textContent.indexOf('was significant') >= 0
+    && D.querySelector('#lg-card .lg-now').textContent.indexOf('was considered significant') >= 0
+    && D.querySelector('#lg-card img.lg-crop')
+    ? ok('ledger: a tap on a pin opens that request’s card: the ink, what was done, '
+         + 'old beside new')
+    : fail('the pin opened no card, or the wrong one: ' + card.dataset.id);
+  click(D.querySelector('#lg-card .lg-close'));
+
+  const nextBtn = D.querySelector('#lg-bar .lg-next');
+  const seen = [];
+  for (let i = 0; i < 4; i++) {
+    click(nextBtn);
+    seen.push(card.dataset.id);
+  }
+  seen.join(',') === 'R1.2,R1.3,R1.1,R1.2'
+    ? ok('ledger: next change › steps through them by page, and round again')
+    : fail('next change stepped: ' + seen.join(','));
+  const placedByPage = card.dataset.id;
+  click(nextBtn);
+  /Placed by page only/.test(card.textContent) && card.dataset.id === 'R1.3'
+    ? ok('ledger: a request that could not be placed says it is placed by page only')
+    : fail('a page-only pin does not say so (' + placedByPage + ')');
+  const kept = D.querySelector('#lg-card img.lg-marked');
+  kept && /marked-p2\.png$/.test(kept.src)
+    ? ok('ledger: ink with no crop shows the marked page the round kept')
+    : fail('the card has no picture of an uncropped request');
+  // THE CARD LEAVES THE CHANGE IN SIGHT: a sheet at the foot, not a veil, and
+  // it steps on to the next change itself.
+  /lg-sheet/.test(card.className)
+    ? ok('ledger: the card is a sheet at the foot of the glass, over nothing but itself')
+    : fail('the card covers the page it jumped to: ' + card.className);
+  click(D.querySelector('#lg-card .lg-card-next'));
+  card.dataset.id === 'R1.1' && !card.hidden
+    ? ok('ledger: and the card steps to the next change without closing')
+    : fail('the card’s next went to ' + card.dataset.id);
+
+  click(D.querySelector('#lg-bar .lg-list-btn'));
+  const listed = Array.prototype.map.call(
+    D.querySelectorAll('#lg-list .lg-row'), (r) => r.dataset.id);
+  listed.join(',') === 'R1.2,R1.1,R1.3,R1.4'
+    ? ok('ledger: the list orders the same requests by page, the unplaced last')
+    : fail('the list is ordered ' + listed.join(','));
+  click(D.querySelector('#lg-list .lg-row[data-id="R1.4"]'));
+  /Not answered/.test(card.textContent) && card.dataset.id === 'R1.4'
+    ? ok('ledger: and a request nothing answered says so on its card')
+    : fail('the unanswered request’s card: ' + card.textContent);
+
+  // CLOSING ITEMS, NOT ROUNDS.
+  click(on('R1.2'));
+  asked.length = 0;
+  click(D.querySelector('#lg-card .lg-reopen'));
+  const reason = D.querySelector('#lg-card .lg-reason');
+  !reason.hidden && !asked.filter((r) => /ledger\/state/.test(r.url)).length
+    ? ok('ledger: reopening asks for a line of why before anything is sent')
+    : fail('reopen sent with no reason');
+  reason.value = 'only one of the two claims was softened';
+  click(D.querySelector('#lg-card .lg-reopen'));
+  await sleep(20);
+  const st = asked.filter((r) => /ledger\/state/.test(r.url))[0];
+  st && JSON.parse(st.body).id === 'R1.2' && JSON.parse(st.body).state === 'reopened'
+    && JSON.parse(st.body).note === '2026-09-29-v1.md'
+    && /softened/.test(JSON.parse(st.body).why)
+    ? ok('ledger: a reopen goes with its round, its id and its why')
+    : fail('the reopen was sent as ' + (st && st.body));
+  /rides the next round/.test(card.textContent)
+    ? ok('ledger: and the card says it rides the next round under its id')
+    : fail('the reopened card says: ' + card.textContent);
+  asked.length = 0;
+  click(D.querySelector('#lg-card .lg-accept'));
+  await sleep(20);
+  asked.some((r) => /ledger\/state/.test(r.url) && JSON.parse(r.body).state === 'accepted')
+    ? ok('ledger: a request is accepted with one tap')
+    : fail('accept sent nothing');
+  /✓ accepted/.test(D.querySelector('#lg-card .lg-accept').textContent)
+    && !/↺/.test(D.querySelector('#lg-card .lg-reopen').textContent)
+    ? ok('ledger: and the card is drawn again, saying it is accepted')
+    : fail('the card still says ' + D.querySelector('#lg-card .lg-acts').textContent);
+  click(D.querySelector('#lg-card .lg-close'));
+
+  // THE SPLIT, BEFORE IT GOES.
+  asked.length = 0;
+  click(D.getElementById('reader-say'));
+  await sleep(20);
+  const items = () => Array.prototype.map.call(
+    D.querySelectorAll('#note-items .lg-pre'), (r) => r.dataset.id).join(',');
+  asked.some((r) => /ledger\/preview/.test(r.url)) && items() === 'R2.1,R2.2'
+    ? ok('ledger: the filing panel shows the split before anything is sent')
+    : fail('the panel shows ' + items());
+  const txt = D.getElementById('note-text');
+  txt.value = 'And the title is long.';
+  txt.dispatchEvent(new w.Event('input', { bubbles: true }));
+  await sleep(40);
+  items() === 'R2.1,R2.2,R2.3'
+    ? ok('ledger: and again once the typing pauses, a paragraph a request')
+    : fail('typing did not re-split: ' + items());
+  click(D.querySelector('#note-items .lg-merge'));
+  await sleep(20);
+  items() === 'R2.1,R2.2' && /all of it, as one/.test(D.getElementById('note-items').textContent)
+    ? ok('ledger: "these are one request" is one tap, and the split says so')
+    : fail('merging did not take: ' + items());
+  asked.length = 0;
+  click(D.getElementById('note-send'));
+  await sleep(40);
+  const filed = asked.filter((r) => /library\/feedback/.test(r.url))[0];
+  filed && JSON.stringify(JSON.parse(filed.body).merge) === '[2]'
+    ? ok('ledger: and the round is filed with that page as one request')
+    : fail('the send carried merge ' + (filed && filed.body));
+  /2 requests, R2\.1, R2\.2/.test(D.getElementById('note-said').textContent)
+    ? ok('ledger: the reply names the ids the revision will answer')
+    : fail('the reply says: ' + D.getElementById('note-said').textContent);
 }

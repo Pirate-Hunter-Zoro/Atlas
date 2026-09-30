@@ -59,6 +59,7 @@ var els = {
   readerPages: document.getElementById("reader-pages"),
   readerPen: document.getElementById("reader-pen"),
   readerSay: document.getElementById("reader-say"),
+  readerChanges: document.getElementById("reader-changes"),
   readerMode: document.getElementById("reader-mode"),
   readerClose: document.getElementById("reader-close"),
   readerZoom: document.getElementById("reader-zoom"),
@@ -77,6 +78,7 @@ var els = {
   noteText: document.getElementById("note-text"),
   notePage: document.getElementById("note-page"),
   noteMarks: document.getElementById("note-marks"),
+  noteItems: document.getElementById("note-items"),
   noteSaid: document.getElementById("note-said"),
   noteCancel: document.getElementById("note-cancel"),
   noteSend: document.getElementById("note-send"),
@@ -242,6 +244,7 @@ function paint(got) {
      have just drawn on refusing to send the ink. */
   if (openDoc) {
     docs.forEach(function (d) { if (d.id === openDoc.id) openDoc = d; });
+    if (ledger && !els.reader.hidden) ledger.open(openDoc);
   }
   if (noteFor) {
     docs.forEach(function (d) { if (d.id === noteFor.id) noteFor = d; });
@@ -461,6 +464,23 @@ function row(doc) {
     box.appendChild(rounds);
   }
 
+  /* HOW MANY REQUESTS ARE STILL OPEN, and the way to them: the reader, with
+     the changes pinned. A request is closed by accepting it, not by a round
+     having happened. */
+  if (doc.ledger && doc.ledger.rounds) {
+    var open = document.createElement("button");
+    open.type = "button";
+    open.className = "lib-ledger";
+    open.textContent = (doc.ledger.open
+      ? doc.ledger.open + " of " + doc.ledger.items
+        + (doc.ledger.items === 1 ? " request" : " requests") + " open"
+      : "every request accepted")
+      + (doc.pdf ? " — see the changes" : "");
+    open.disabled = !doc.pdf;
+    open.addEventListener("click", function () { read(doc, true); });
+    box.appendChild(open);
+  }
+
   /* WHAT IS RUNNING ON IT. Painted from the row rather than only from the
      reader, because the document being worked on is usually not the one open. */
   var going = document.createElement("span");
@@ -492,9 +512,12 @@ function act(label, cls, fn) {
 }
 
 /* ------------------------------------------------------- reading one */
-function read(doc) {
+function read(doc, changes) {
   if (!openDoc || openDoc.id !== doc.id) showCopy(null);
   openDoc = doc;
+  /* THE ROUNDS' REQUESTS, as pins on these pages -- on from the row's "see the
+     changes", off (and one tap away) otherwise. */
+  if (ledger) ledger.open(doc, !!changes);
   openBuild = null;
   paintRebuilt(null);
   paintMode();
@@ -613,6 +636,15 @@ els.readerPages.addEventListener("scroll", noteAnchor, { passive: true });
 [document.getElementById("reader-bar"), els.readerSaid, els.readerRebuilt,
  els.readerCopy].forEach(watchLayout);
 
+/* WHAT EACH REQUEST WAS AND WHAT WAS DONE, pinned on the pages: `ledger.js`.
+   Its bar sits above the pages like the lines above, so it is watched the same
+   way. A request closed or reopened asks for the list again, because the row
+   says how many are open. */
+var ledger = window.Ledger ? window.Ledger.make({
+  pages: els.readerPages, button: els.readerChanges, changed: load,
+}) : null;
+if (ledger) watchLayout(ledger.bar);
+
 function draw(doc, place, at) {
   openPages = 0;
   placeWanted = place || 0;
@@ -708,6 +740,9 @@ function draw(doc, place, at) {
       paintPen();
       paintKept();
       paintReaderSaid();
+      /* The pins go on the pages just drawn, and are asked for again: a
+         re-draw is a rebuild, and a rebuild is where a round's answers land. */
+      if (ledger) { ledger.redraw(); ledger.refresh(); }
     })
     .catch(function () {
       els.readerSub.textContent = "The board is not answering.";
@@ -730,6 +765,7 @@ function closeReader() {
   openPages = 0;
   drawnPages = 0;
   placeWanted = 0;
+  if (ledger) ledger.close();
   els.reader.hidden = true;
   els.readerSaid.hidden = true;
   showCopy(null);
@@ -1104,8 +1140,54 @@ function say(doc, page) {
   if (els.askDirection) els.askDirection.hidden = !dir;
   setAsk(dir ? "direction"
     : draft && draft.ask === "rework" && !els.askRework.disabled ? "rework" : "revise");
+  noteMerge = [];
+  noteSplit = [];
+  askSplit();
   els.note.hidden = false;
   els.noteText.focus();
+}
+
+/* ------------------------------------------- the split, before it goes */
+/* EACH INKED REGION AND EACH PARAGRAPH IS ONE REQUEST, and the panel shows
+   the split the server would make -- `POST /library/ledger/preview`, which
+   writes nothing -- with a tap to make a page's marks one request. Asked when
+   the panel opens and again once the typing pauses. */
+var noteMerge = [];
+var noteSplit = [];
+var splitTimer = null;
+var splitAsked = 0;
+
+function askSplit() {
+  if (!noteFor || noteAsk === "direction") {
+    noteSplit = [];
+    if (window.Ledger) window.Ledger.preview(els.noteItems, [], noteMerge, toggleMerge);
+    return;
+  }
+  var mine = ++splitAsked;
+  var forDoc = noteFor.id;
+  fetch("/library/ledger/preview", {
+    method: "POST", credentials: "same-origin",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ document: forDoc, text: els.noteText.value,
+                           page: notePage, merge: noteMerge })
+  }).then(function (r) { return r.json(); }).then(function (got) {
+    if (mine !== splitAsked || !noteFor || noteFor.id !== forDoc) return;
+    noteSplit = (got && got.ok && got.items) || [];
+    if (window.Ledger) window.Ledger.preview(els.noteItems, noteSplit, noteMerge, toggleMerge);
+    paintSend();
+  }).catch(function () { /* the split is a courtesy; the send still works */ });
+}
+
+function toggleMerge(page) {
+  var at = noteMerge.indexOf(page);
+  if (at < 0) noteMerge.push(page);
+  else noteMerge.splice(at, 1);
+  askSplit();
+}
+
+function laterSplit() {
+  if (splitTimer) clearTimeout(splitTimer);
+  splitTimer = setTimeout(askSplit, window.SPLIT_WAIT || 600);
 }
 
 /* WHICH OF THE TWO ASKS. Not a second question after the tap: the panel is on
@@ -1130,6 +1212,7 @@ function setAsk(which) {
   paintMarksLine();
   paintSend();
   if (noteAsk === "rework") els.purpose.focus();
+  if (noteFor && !els.note.hidden) askSplit();
 }
 
 // A tap on the ask is part of the draft, as a keystroke is.
@@ -1171,18 +1254,24 @@ function paintMarksLine() {
    still drawn but does not go again -- `library.unsent` -- so the panel counts
    the pages still waiting where the server says, and every marked page where
    an older one does not. */
+function reopenedOn(doc) {
+  return (doc && doc.ledger && doc.ledger.reopened) || 0;
+}
+
 function inkWaiting(doc) {
   var m = (doc && doc.marks) || {};
   return (typeof m.waiting === "number" ? m.waiting : m.pages) || 0;
 }
 
 function paintSend() {
+  /* A REQUEST REOPENED ON AN EARLIER ROUND IS SOMETHING TO SEND, with nothing
+     typed and nothing drawn: it rides the next round under its own id. */
   var ink = inkWaiting(noteFor);
   els.noteSend.disabled = noteAsk === "rework"
     ? els.purpose.value.trim().length < PURPOSE_LEAST
     : noteAsk === "direction"
     ? !els.noteText.value.trim() && !ink
-    : !els.noteText.value.trim() && !ink;
+    : !els.noteText.value.trim() && !ink && !reopenedOn(noteFor);
 }
 
 /* ------------------------------------------------------ drafts, kept */
@@ -1213,6 +1302,7 @@ function dropDraft(id) {
 els.noteText.addEventListener("input", paintSend);
 els.purpose.addEventListener("input", paintSend);
 els.noteText.addEventListener("input", keepDraft);
+els.noteText.addEventListener("input", laterSplit);
 els.purpose.addEventListener("input", keepDraft);
 
 els.noteCancel.onclick = function () {
@@ -1310,7 +1400,8 @@ function sendDirection(said) {
 els.noteSend.onclick = function () {
   var said = els.noteText.value.trim();
   var aim = els.purpose.value.trim();
-  var ink = (noteFor && noteFor.marks && noteFor.marks.pages) || 0;
+  var ink = ((noteFor && noteFor.marks && noteFor.marks.pages) || 0)
+    + reopenedOn(noteFor);
   if (!noteFor) return;
   if (noteAsk === "direction") { sendDirection(said); return; }
   if (noteAsk === "rework" ? aim.length < PURPOSE_LEAST : (!said && !ink)) return;
@@ -1333,7 +1424,7 @@ els.noteSend.onclick = function () {
        the only mapping from one to the other. `ask` is which of the two this
        is, and `purpose` is what an overhaul is written to. */
     body: JSON.stringify({ document: forDoc, text: said, page: notePage,
-                           ask: asked, purpose: aim })
+                           ask: asked, purpose: aim, merge: noteMerge.slice() })
   }); }).then(function (r) {
     return r.json().catch(function () { return {}; });
   }).then(function (got) {
@@ -1351,6 +1442,8 @@ els.noteSend.onclick = function () {
     }
     els.noteSaid.className = "note-said";
     els.noteSaid.textContent = "Filed at " + got.rel + ". "
+      + (got.items ? "It is " + got.items + (got.items === 1 ? " request" : " requests")
+         + ", " + (got.ids || []).join(", ") + ", each answered by id. " : "")
       + (got.marks
          ? "Your marks on " + got.marks
            + (got.marks === 1 ? " page went" : " pages went") + " with it. "
@@ -1735,6 +1828,7 @@ document.addEventListener("keydown", function (ev) {
     if (ev.key === "ArrowRight") { stepFigure(1); return; }
   }
   if (ev.key !== "Escape") return;
+  if (ledger && ledger.escape()) return;
   if (!els.shown.hidden) closeShown();
   else if (!els.round.hidden) els.roundClose.onclick();
   else if (!els.note.hidden) els.noteCancel.onclick();

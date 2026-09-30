@@ -142,6 +142,10 @@
          never has to be told twice. -->
     <button id="reader-mode" type="button"
             title="what your marks on this document are for">ink: fixes</button>
+    <!-- WHAT EACH REQUEST WAS AND WHAT WAS DONE, as pins on the pages
+         (`ledger.js`). Shown only on a document with rounds of requests. -->
+    <button id="reader-changes" type="button" hidden
+            title="every request of the last round, pinned where it was answered">◉ changes</button>
     <button id="reader-say" type="button">say what is wrong</button>
     <!-- THE ZOOM, SAID ONLY WHEN IT IS NOT THE FIT, and a tap puts it back. -->
     <button id="reader-zoom" type="button" title="back to the page width" hidden>100%</button>
@@ -204,6 +208,11 @@
         placeholder="What this document is for now, and who reads it."></textarea>
     </div>
     <p id="note-page" class="muted" hidden></p>
+    <!-- THE SPLIT, BEFORE IT GOES. Each inked region and each paragraph is one
+         request with an id the revision answers; a page's marks can be made one
+         request here, so "that was one request, not three" costs a tap now
+         rather than a round later. -->
+    <div id="note-items" class="lg-preview" hidden></div>
     <!-- INK COUNTS AS SAYING SOMETHING. A ring round a figure is a complaint,
          and a send button that stays dead until somebody types is the board
          asking them to write out what they have already drawn. -->
@@ -248,6 +257,8 @@
 <script src="/static/viewpin.js"></script>
 <script src="/static/inkkeep.js"></script>
 <script src="/static/readerzoom.js"></script>
+<!-- The rounds' requests as pins, and the filing panel's split. -->
+<script src="/static/ledger.js"></script>
 <script src="/static/library.js"></script>
 </body>
 </html>

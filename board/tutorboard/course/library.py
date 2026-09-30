@@ -517,6 +517,7 @@ def pages(repo, ident_wanted, width=paper.PAGE_WIDTH):
                            "to draw." % doc["title"])}
     out = paper.pages_of(repo, target, doc["stem"] + ".pdf", "library", width)
     if out.get("ok"):
+        _settle(repo, doc)
         try:
             wipe_delivered(repo, doc)
         except Exception:                                    # noqa: BLE001
@@ -845,23 +846,21 @@ def from_sittings(root, doc):
 def last_round_landed(root, doc):
     """Did the newest round of feedback on this document come back?
 
-    Yes where there is no round yet; where the turn wrote its `## What was
-    changed` under the note, which is the last thing a revision does; or where
-    the PDF was rebuilt after the note was written. A round whose turn died, or
-    whose build failed, is none of those.
+    Yes where there is no round yet; where its ledger has answers in it, or
+    the manuscript factory's record of what it applied is beside it; where the
+    turn or the board wrote `## What was changed` under the note; or where the
+    PDF was rebuilt after the note was written (`ledger.landed`). A round whose
+    turn died, or whose build failed, is none of those.
     """
+    from . import ledger                              # local: avoids a cycle
+
     rounds = notes(root, doc)
     if not rounds:
         return True
     path = os.path.join(feedback_dir(root, doc), rounds[-1]["name"])
-    try:
-        with open(path, "r", encoding="utf-8", errors="replace") as fh:
-            if "## What was changed" in fh.read(NOTE_BYTES):
-                return True
-    except OSError:
+    if not os.path.isfile(path):
         return True
-    pdf = path_of(root, doc, ".pdf")
-    return bool(pdf) and _mtime(pdf) >= _mtime(path)
+    return ledger.landed(root, doc, path)
 
 
 def carried(repo, doc, found, sent=None):
@@ -898,12 +897,18 @@ def wipe_delivered(repo, doc, sent=None):
     this document that a note carried (`sent`) goes, picture and all. Ink
     drawn since is `sent: false` -- `/annotate/save` writes that on every
     change -- and stays for the next round. A round that has not landed keeps
-    everything, so a retry is still a tap.
+    everything, so a retry is still a tap. What a round's requests point at --
+    the crops and the page pictures -- is the round's own and is never wiped.
     """
     if not notes(repo.root, doc) or not last_round_landed(repo.root, doc):
         return []
+    from . import ledger                              # local: avoids a cycle
     from ..lesson import notes as lesson_notes        # local: avoids a cycle
     from ..server.routes import writing               # local: avoids a cycle
+
+    # THE EVIDENCE STAYS. Every round keeps the pictures its requests point at,
+    # in its own directory, before a single live mark goes.
+    ledger.keep_evidence(repo, doc)
 
     sent = lesson_notes.load_notes_sent(repo) if sent is None else sent
     wanted = set(mark_idents(repo.root, doc))
@@ -977,7 +982,7 @@ def clean_ask(ask):
 
 
 def write_note(repo, ident_wanted, text, page=0, ask="revise", purpose="",
-               hand_over=True):
+               hand_over=True, merge=()):
     """One round of feedback on one document. Returns a record to paint.
 
     The note says which document and which page it is about, because it is read
@@ -986,21 +991,29 @@ def write_note(repo, ident_wanted, text, page=0, ask="revise", purpose="",
 
     MARKS COUNT AS SAYING SOMETHING. A ring round a figure and an arrow to its
     caption is a complaint, and refusing the note for an empty textarea would be
-    the board asking somebody to type out what they have already drawn. The ink
-    goes into the note as the pages it is on and the picture of each, because
-    the strokes are coordinates and the image is what a reader can open. Which
+    the board asking somebody to type out what they have already drawn. Which
     ink goes is `carried`'s: all of it, except on a deck made from sittings
     whose last round came back, where ink already acted on stays behind.
 
-    `hand_over` records the ink as delivered here. The route passes False and
-    records it only once the revision was actually asked (`hand_over`), so a
-    note written beside an ask that failed leaves the ink to go again.
+    A ROUND IS A LIST OF REQUESTS (`course/ledger.py`). Each inked region of a
+    page is one, each typed paragraph is one, and each request reopened on an
+    earlier round rides this one under the id it already has -- so a round of
+    nothing but reopened requests is a round. `merge` is the filing panel's
+    *these marks on page N are one request*. The note lists the requests by id
+    and the ledger beside it is what the turn answers.
+
+    `hand_over` records the ink as delivered here, and the reopened requests as
+    carried. The route passes False and records both only once the revision was
+    actually asked (`hand_over`, `ledger.carry`), so a note written beside an
+    ask that failed leaves them to go again.
 
     A REWORK IS THE SAME FILE AND THE SAME ROUNDS. It is a longer turn rather
     than a different kind of record, so it lands where a correction lands and is
     read back the same way -- with the purpose it was given as its own section,
     because that sentence is the thing the turn is working to.
     """
+    from . import ledger                              # local: avoids a cycle
+
     root = repo.root
     doc = find(root, ident_wanted)
     if not doc:
@@ -1014,7 +1027,8 @@ def write_note(repo, ident_wanted, text, page=0, ask="revise", purpose="",
                 "error": "say what the document is FOR now, in a sentence -- an "
                          "overhaul with no new purpose in it is a rewrite for "
                          "its own sake"}
-    if ask == "revise" and not said and not found:
+    reopen = ledger.reopened(root, doc)
+    if ask == "revise" and not said and not found and not reopen:
         return {"ok": False, "error": "say what is wrong with it, or mark it up"}
     target = next_note(root, doc)
     try:
@@ -1022,6 +1036,18 @@ def write_note(repo, ident_wanted, text, page=0, ask="revise", purpose="",
     except OSError as exc:
         return {"ok": False, "error": "could not make %s: %s"
                                       % (os.path.dirname(target), exc)}
+    name = os.path.basename(target)
+    round_no = ledger.next_round(root, doc)
+    items = ledger.number(ledger.split(repo, found, said, page=page, merge=merge),
+                          round_no, name) + reopen
+    led = None
+    if items:
+        whole = find(root, doc.get("whole") or "") if doc.get("piece") else None
+        try:
+            led = ledger.file_round(repo, doc, whole or doc, target, round_no, items,
+                                    ask, path_of(root, doc, ".pdf"))
+        except OSError:
+            led = None
     head = ["# %s %s" % ("Rework of" if ask == "rework" else "Feedback on",
                          doc["title"]), "",
             "- document: `%s`" % (doc["rel"]),
@@ -1032,16 +1058,38 @@ def write_note(repo, ident_wanted, text, page=0, ask="revise", purpose="",
     if found:
         head.append("- marked up on %d page%s"
                     % (len(found), "" if len(found) == 1 else "s"))
-    head += ["", said or
+    if led:
+        head.append("- round %d, %d request%s: `%s`"
+                    % (round_no, len(items), "" if len(items) == 1 else "s",
+                       os.path.relpath(ledger.ledger_path(target), root)
+                       .replace(os.sep, "/")))
+    # THE TYPED WORDS ARE WRITTEN ONCE. With a ledger they are the requests
+    # below, a paragraph under each id; a second copy up here would double the
+    # note, and the manuscript factory reads only its first few thousand
+    # characters.
+    typed_below = bool(led) and any(i.get("kind") == "text" for i in items)
+    head += ["", ("What they typed is below, under *The requests, by id*: one "
+                  "request to a paragraph.") if typed_below else said or
              ("There is nothing wrong with it in particular. What it is for has "
               "changed." if ask == "rework" else
-              "They wrote on it rather than typing. The marks are the feedback."),
+              "They wrote on it rather than typing. The marks are the feedback."
+              if found else
+              "Nothing new was typed or drawn. The requests below were reopened "
+              "on an earlier round, and are why this round exists."),
              ""]
     if aim:
         head += ["## What this document is FOR now", "",
                  "THIS IS THE OVERHAUL'S BRIEF, and it outranks the document's "
                  "present shape. Restructure, cut, reorder and rewrite as this "
                  "requires.", "", aim, ""]
+    if led:
+        head += _requests(root, target, items)
+    marked_copy = {}
+    for it in items:
+        if it.get("kind") == "ink" and it.get("marked"):
+            marked_copy.setdefault(it["page"], os.path.relpath(
+                os.path.join(ledger.round_dir(target), it["marked"]), root)
+                .replace(os.sep, "/"))
     if found:
         head += ["## What they marked", "",
                  "Each line is one page of this document with their ink on it. "
@@ -1050,8 +1098,12 @@ def write_note(repo, ident_wanted, text, page=0, ask="revise", purpose="",
         for mark in found:
             line = "- page %d, %d stroke%s" % (mark["page"], mark["strokes"],
                                                "" if mark["strokes"] == 1 else "s")
-            line += " -- `%s`" % mark["png"] if mark["png"] else " -- no image was "\
-                                                                 "saved for this page"
+            # The round's own copy where there is one: the live picture is
+            # wiped once the round lands, and a note pointing at it would point
+            # at nothing.
+            pic = marked_copy.get(mark["page"]) or mark["png"]
+            line += " -- `%s`" % pic if pic else " -- no image was "\
+                                                 "saved for this page"
             head.append(line)
         head.append("")
     try:
@@ -1061,12 +1113,51 @@ def write_note(repo, ident_wanted, text, page=0, ask="revise", purpose="",
         return {"ok": False, "error": "could not write %s: %s" % (target, exc)}
     if hand_over:
         _handed_over(repo, found)
+        ledger.carry(root, doc, reopen, name)
     forget()
     return {"ok": True, "document": doc["id"], "path": target,
             "rel": os.path.relpath(target, root).replace(os.sep, "/"),
             "made": doc["made"], "title": doc["title"],
             "ask": ask, "purpose": aim,
-            "marks": len(found), "keys": [m["key"] for m in found]}
+            "marks": len(found), "keys": [m["key"] for m in found],
+            "items": len(items) if led else 0,
+            "ids": [i["id"] for i in items] if led else [],
+            "ledger": (os.path.relpath(ledger.ledger_path(target), root)
+                       .replace(os.sep, "/") if led else ""),
+            "carry": reopen, "note": name}
+
+
+def _requests(root, note_path, items):
+    """The note's list of this round's requests, by id -- the same list the
+    ledger holds, written for a person and for a turn that reads Markdown."""
+    from . import ledger                              # local: avoids a cycle
+
+    out = ["## The requests, by id", "",
+           "Every request below has an id. The revision answers each one in the "
+           "ledger named above, and the board writes the account of what was "
+           "changed from those answers.", ""]
+    for it in items:
+        if it["kind"] == "ink":
+            head = "### %s -- ink on page %d (%d stroke%s)" % (
+                it["id"], it["page"], it.get("count") or 0,
+                "" if it.get("count") == 1 else "s")
+        elif it["kind"] == "reopened":
+            head = "### %s -- REOPENED from %s" % (it["id"], it.get("from") or "")
+        else:
+            head = "### %s -- %s" % (it["id"], ("about page %d" % it["page"])
+                                     if it.get("page") else "in words")
+        out += [head, ""]
+        crop = ledger._crop_path(note_path, it)
+        if crop:
+            out += ["The ink, cropped: `%s`" % os.path.relpath(crop, root)
+                    .replace(os.sep, "/"), ""]
+        if it["kind"] == "reopened":
+            out += ["Not done yet, because: %s" % (it.get("why") or ""), ""]
+            if it.get("previous"):
+                out += ["Last answered: %s" % it["previous"], ""]
+        if it.get("text"):
+            out += [it["text"], ""]
+    return out
 
 
 def hand_over(repo, keys):
@@ -1075,8 +1166,24 @@ def hand_over(repo, keys):
     _handed_over(repo, [{"key": k} for k in keys or [] if isinstance(k, str)])
 
 
+def _settle(repo, doc):
+    """The rounds' answers validated, where the wipe runs -- the only code
+    after a turn that is not `bin/tutor`. Said on the board's log if it fails,
+    rather than swallowed: a validation nobody hears fail is a silent round."""
+    from . import ledger                              # local: avoids a cycle
+
+    try:
+        ledger.settle(repo, doc)
+    except Exception as exc:                                 # noqa: BLE001
+        import sys
+        print("ledger: could not settle %s: %s" % (doc.get("id"), exc),
+              file=sys.stderr)
+
+
 def status(repo):
     """What the library page draws, and nothing more."""
+    from . import ledger                              # local: avoids a cycle
+
     root = repo.root
     try:
         found = documents(root)
@@ -1095,6 +1202,12 @@ def status(repo):
     for doc in found:
         doc["iso"] = (time.strftime("%Y-%m-%d", time.localtime(doc["at"]))
                       if doc["at"] else "")
+        _settle(repo, doc)
+        # WHAT THE ROUNDS ASKED, AND HOW MUCH OF IT IS STILL OPEN.
+        try:
+            doc["ledger"] = ledger.summary(root, doc)
+        except Exception:                                    # noqa: BLE001
+            doc["ledger"] = None
         # SPENT INK GOES FIRST, so the counts below are of what is still on
         # the page. `index` and `sent` were read before it, so they are pruned
         # of what went rather than read again.
