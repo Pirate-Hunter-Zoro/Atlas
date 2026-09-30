@@ -2,6 +2,7 @@ import pandas as pd
 import os
 from pathlib import Path
 from enum import Enum
+from statistics import NormalDist
 import numpy as np
 
 from dotenv import load_dotenv
@@ -28,6 +29,28 @@ def load_neighborhood_data() -> pd.DataFrame:
         pd.DataFrame: Resulting neighborhood information
     """
     return pd.concat([pd.read_csv(f) for f in Path(os.environ['RESULTS_DIR']).glob(f"neighbor_results_*.csv")], ignore_index=True)
+
+def wilson_interval(successes: int, n: int, level: float = 0.95) -> tuple[float, float]:
+    """Wilson score interval for a binomial proportion.
+
+    Used for every descriptive proportion the paper prints with an interval, because it
+    stays inside [0, 1] and keeps its coverage near the boundary, where the normal
+    approximation does not.
+
+    Args:
+        successes (int): Count with the property.
+        n (int): Denominator.
+        level (float, optional): Coverage. Defaults to 0.95.
+
+    Returns:
+        tuple[float, float]: Lower and upper bounds, as proportions.
+    """
+    z = NormalDist().inv_cdf(0.5 + level / 2)
+    p = successes / n
+    denominator = 1 + z * z / n
+    centre = (p + z * z / (2 * n)) / denominator
+    half = z * np.sqrt(p * (1 - p) / n + z * z / (4 * n * n)) / denominator
+    return float(centre - half), float(centre + half)
 
 def cast_to_int8(df: pd.DataFrame) -> pd.DataFrame:
     """Helper function to turn all values in a pandas array into np.int8 types

@@ -13,7 +13,8 @@ model, everything right of zero feeds only eligibility and the label.
 
 Pure presentation. The two window widths come from YEARS_BACK and YEARS_AHEAD, and the
 median pre-index history and the same-day count are read off the feature table, so no
-number here is typed by hand and none can drift from the pipeline. The figure says
+number here is typed by hand and none can drift from the pipeline. The same-day share
+carries a Wilson 95% CI, the interval the caption quotes. The figure says
 "index", the manuscript's word; the code's "anchor" is the same date.
 """
 
@@ -28,6 +29,8 @@ from matplotlib.patches import FancyArrowPatch
 
 from dotenv import load_dotenv
 load_dotenv()
+
+from scripts.shared.utils import wilson_interval
 
 def cohort_timing() -> dict:
     """Median pre-index history, and how many patients were prescribed on the day of
@@ -70,6 +73,8 @@ def plot_timeline(save_path: Path) -> Path:
     timing = cohort_timing()
     median_history = timing['median_history']
     same_day_share = 100 * timing['n_same_day'] / timing['n_patients']
+    share_low, share_high = (100 * bound for bound in
+                             wilson_interval(timing['n_same_day'], timing['n_patients']))
 
     # Wide and short, matching the manuscript's redrawn panel geometry: a full-width panel
     # taller than about half the 9in text column strands the rest of the page.
@@ -83,7 +88,7 @@ def plot_timeline(save_path: Path) -> Path:
 
     # Lane constants, top to bottom. Every element is pinned to one of these.
     Y_TITLE = 0.97
-    Y_DIAGNOSIS = 0.68
+    Y_DIAGNOSIS = 0.65
     Y_OUTCOME_LABEL = 0.42
     Y_BAND_TOP = 0.19
     BAND_HEIGHT = 0.13
@@ -115,14 +120,12 @@ def plot_timeline(save_path: Path) -> Path:
         ha='right', va='center', fontsize=7.0, color='#2f4a66', fontweight='bold',
     )
     # The outcome window is 365 days wide against a ~2,400-day axis, so its label cannot
-    # sit over its own band. It gets a lane of its own above the lookback label, with a
-    # leader down to the band.
-    ax.annotate(
-        f"Outcome window ({followup_days} days)",
-        xy=(followup_days / 2, Y_BAND_TOP + BAND_HEIGHT + 0.01),
-        xytext=(right_limit, Y_OUTCOME_LABEL),
-        ha='right', va='center', fontsize=7.0, color='#8c3330', fontweight='bold',
-        arrowprops=dict(arrowstyle='-', color='#8c3330', linewidth=0.7, shrinkA=3, shrinkB=1),
+    # sit over its own band. It gets a lane of its own above it, starting just right of
+    # the time-zero line. No leader: the label already sits over the band, and a leader
+    # that short is drawn as a stray dot.
+    ax.text(
+        30, Y_OUTCOME_LABEL, f"Outcome window ({followup_days} days)",
+        ha='left', va='center', fontsize=7.0, color='#8c3330', fontweight='bold',
     )
 
     # Time zero.
@@ -138,7 +141,8 @@ def plot_timeline(save_path: Path) -> Path:
     ax.annotate(
         f"First documented depression diagnosis: on or before the index.\n"
         f"Same day as the index prescription for {timing['n_same_day']:,} of "
-        f"{timing['n_patients']:,} patients ({same_day_share:.1f}%)",
+        f"{timing['n_patients']:,} patients\n({same_day_share:.1f}%, 95% CI "
+        f"{share_low:.1f}\u2013{share_high:.1f})",
         xy=(0, Y_DIAGNOSIS - 0.06), xytext=(-200, Y_DIAGNOSIS),
         ha='right', va='center', fontsize=6.5, color='#7d4f74',
         arrowprops=dict(arrowstyle='-|>', color='#b279a2', linewidth=0.8, shrinkA=2, shrinkB=0),

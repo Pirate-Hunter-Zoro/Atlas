@@ -11,7 +11,7 @@ Section heading: Discussion
 
 ## Principal Findings
 
-We asked whether pretrained narrative embeddings improve prediction of a treatment-switching proxy for TRD beyond structured feature vectors. In this cohort, they did not demonstrate superior discrimination over the strongest feature-vector model. The leading models achieved ROC AUCs of 0.657 and 0.649, with a paired difference of 0.008 (95% CI −0.003 to 0.019). This finding supports structured features as a practical benchmark; it does not establish equivalence or isolate the effect of encoding identical information.
+We asked whether pretrained narrative embeddings improve prediction of a treatment-switching proxy for TRD beyond structured feature vectors. In this cohort, they did not demonstrate superior discrimination over the strongest feature-vector model. The leading models achieved ROC AUCs of 0.657 (95% CI 0.643--0.672) and 0.649 (95% CI 0.634--0.664), with a paired difference of 0.008 (95% CI −0.003 to 0.019). This finding supports structured features as a practical benchmark; it does not establish equivalence or isolate the effect of encoding identical information.
 
 The choice of classifier changed the result. Embeddings improved logistic regression but reduced discrimination for each tree ensemble, and logistic regression led the embedded models across all encoders. This pattern is consistent with regularized linear models accommodating distributed embedding information more effectively under the tested settings. Differences in dimensionality, regularization, and tuning may also contribute. The analysis supports evaluating the representation and classifier together, without attributing the pattern to an intrinsic property of clinical information.
 

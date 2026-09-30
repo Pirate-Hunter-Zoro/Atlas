@@ -37,9 +37,13 @@ and every section is placed under one of them.
 >
 > **Point 2.** Nearest-neighbor retrieval over that embedding, the clinical
 > digital-twin premise, captures real label-informative structure and still loses
-> decisively to a trained model. Nearest 0.594 against random 0.499 and farthest
-> 0.432, and 0.594 against 0.657 for a classifier fitted on the same embedding, on
-> intervals that do not overlap.
+> decisively to a trained model. At its own best k, chosen on the test patients,
+> importance-weighted retrieval reaches 0.625 (95% CI 0.610–0.641) against random
+> 0.500 (2.5th–97.5th percentile across draws 0.484–0.515) and farthest 0.432
+> (95% CI 0.416–0.449). The best retrieval over every k and exponent, 0.625 (95% CI
+> 0.610–0.640), is still 0.032 (95% CI 0.022–0.043) below the classifier fitted on
+> the same embedding, on a paired interval that excludes zero. This is the primary
+> encoder only; retrieval for the other encoders is not reported.
 
 One thing is true of both points and bounds both answers, and it is emphasis rather
 than a third point: **in both arms the patient data were hand-picked.** Section 0 is
@@ -189,10 +193,11 @@ three-health-system transportability result [30].
 
 The section has ten items rather than the previous nine. The new one is on
 retrieval, because retrieval is now one of the two points and its own boundaries
-have to be stated: similarity was geometric cosine similarity over an
-unsupervised embedding, the neighborhood was fixed at 50, and the neighbor pool
-was one cohort. A supervised or metric-learned similarity is untested and might
-do better. What the analysis supports is narrower and still substantive.
+have to be stated: the neighbor pool was one cohort, and the number of neighbors
+was chosen on the test patients, so every best-k value is optimistic. Plain cosine
+similarity and an importance-weighted cosine built from the fitted logistic
+regression were both tried at every k; neither reached the classifiers. What the
+analysis supports is narrower and still substantive.
 
 Both sentences that the 2026-09-03 removal had lost entirely are back: that
 dropping the vital signs is arguably the wrong handling for a prediction problem,
@@ -207,18 +212,16 @@ significance contrasts before meeting the finding the paper is about.
 | | Previous | Now |
 | --- | --- | --- |
 | Opens on | Participant flow, cohort, subgroup performance, train/test, confounds | Participant flow, cohort, then the representation comparison |
-| Retrieval | One subsection, sixth of nine | Its own block with a cross-encoder table, after Point 1 |
+| Retrieval | One subsection, sixth of nine | Its own block, after Point 1 |
 | Validity checks | Three separate subsections, before the main result | One subsection, after both points |
 | Main-text tables | 6 | 7 |
 | Main-text figures | 12 | 11 |
 
-**One table was added and it is a real result the previous draft did not report.**
-Table 7 puts nearest retrieval, random retrieval, and the trained classifier side
-by side for all four encoders. Nearest beats random by 0.083 to 0.095 ROC AUC on
-every encoder, and falls short of that encoder's own trained model by 0.061 to
-0.065 on every encoder. Point 2 was a single-encoder observation before; it is now
-a reproduced one. The numbers were already in the results tree and were reported
-only as a sentence in the supplement's evaluation-coverage section.
+**Retrieval is reported for the primary encoder only.** The cross-encoder
+retrieval table rested on the pipeline's fixed k = 50, and it is not in the
+packet: every retrieval number is now read at each arm's best k from the
+neighbourhood sweep, which was run on the primary encoder. Point 2 is therefore a
+single-encoder result, and the point-and-claim map says so (claims c.6–c.7).
 
 **One figure was dropped**, the confusion matrices for the neighbor-weighted
 predictor. No number left with it; the operating characteristics were already in
@@ -228,8 +231,8 @@ on.
 **The subgroup analysis was re-corrected over the contrasts the paper reports.**
 Dropping two of the four neighbor weightings takes the contrast set from 288 to
 240, and Benjamini-Hochberg was recomputed over the 240. Fifty-eight exclude zero
-unadjusted and 24 survive, against 72 and 35 before. The reading is unchanged and
-slightly cleaner: 21 of the 24 concern how the depression is coded, sex shows no
+unadjusted and 23 survive, with each retrieval arm at its best k. The reading is
+unchanged: 19 of the 23 concern depression recurrence coding, sex shows no
 difference anywhere, and the race contrasts stay directionally positive without
 surviving correction. One contrast changes status, and it is recorded in the
 reserve document rather than quietly dropped.
@@ -272,7 +275,9 @@ five-minute revert and the previous text is in git.
 
 This is the first packet gated by Paper-Writer's support ladder rather than by a
 person reading for coherence. The point-and-claim map was written first and run
-through `gates/ladder.py` before any prose moved:
+through `gates/ladder.py` before any prose moved. It was re-run on 2026-09-29
+after Point 2's claims moved to best-k retrieval (c.6–c.8), and it passes with no
+errors and no warnings:
 
 ```
 points: 2
@@ -280,8 +285,11 @@ claims: 20
 per point:  p.1 -> 14 claims,  p.2 -> 10   (six serve both)
 roles:      setup 2, reporting 1   (3 of 20 = 15%, ceiling 34%)
 orphans:    none
-planned words serving no point: 0 of 10,770   (ceiling 30%)
+planned words serving no point: 0 of 10,770   (ceiling 30%; first run only)
 ```
+
+The word-budget line needs a section outline, which the map does not carry, so
+the re-run checks the graph and the role budget only.
 
 Three of those lines are worth reading rather than skimming.
 

@@ -21,7 +21,8 @@ Preferred language is absent by necessity, not oversight: 98.9% of the cohort pr
 English, leaving one estimable level and therefore no contrast.
 
 Artifacts, in ARTIFACTS_DIR/review/subgroups/:
-  subgroup_performance.csv    every (arm, group, model) row across all three arms
+  subgroup_performance.csv    every (arm, group, model) row across all three arms, each metric
+                              with its bootstrap 95% CI
   subgroup_contrasts.csv      every between-group contrast, with raw and BH-adjusted p
   subgroup_table.md           the fairness-family supplement table, primary model
   subgroup_clinical_table.md  the clinical-family table, primary model
@@ -146,7 +147,7 @@ def performance_table(performance: pd.DataFrame, families: tuple[str, ...]) -> s
         str: A GitHub-flavoured markdown table.
     """
     lines = [
-        "| Group | n | TRD+ | Arm | ROC AUC (95% CI) | Brier | Calibration slope | Calibration-in-the-large |",
+        "| Group | n | TRD+ | Arm | ROC AUC (95% CI) | Brier (95% CI) | Calibration slope (95% CI) | Calibration-in-the-large (95% CI) |",
         "| --- | ---: | ---: | --- | ---: | ---: | ---: | ---: |",
     ]
     primary = performance[
@@ -169,9 +170,10 @@ def performance_table(performance: pd.DataFrame, families: tuple[str, ...]) -> s
             else:
                 cells = [
                     f"{row['roc_score']:.3f} ({row['roc_ci_low']:.3f}–{row['roc_ci_high']:.3f})",
-                    f"{row['brier_score']:.3f}",
-                    f"{row['calibration_slope']:.2f}",
-                    f"{row['calibration_in_the_large']:+.3f}",
+                    f"{row['brier_score']:.3f} ({row['brier_ci_low']:.3f}–{row['brier_ci_high']:.3f})",
+                    f"{row['calibration_slope']:.2f} ({row['slope_ci_low']:.2f}–{row['slope_ci_high']:.2f})",
+                    f"{row['calibration_in_the_large']:+.3f} ({row['in_the_large_ci_low']:+.3f} to "
+                    f"{row['in_the_large_ci_high']:+.3f})",
                 ]
             lines.append(
                 f"| {group_label(key)} | {int(row['n']):,} | {int(row['n_events']):,} | "

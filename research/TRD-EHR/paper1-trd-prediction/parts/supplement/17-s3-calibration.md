@@ -9,49 +9,41 @@ Section heading: S3 Calibration
 
 # S3 Calibration
 
-Table S3 reports Brier score and weighted calibration error (WCE), for which lower values are better. Scores ranged from 0.137 to 0.140 and 0.004 to 0.018, respectively. The binned calibration slopes and intercepts originally reported in the manuscript are retained below, separately from the individual-level logistic slopes in section S9. Binned slopes should not be interpreted as conventional logistic calibration slopes.
+Table S3 reports Brier score and weighted calibration error (WCE), for which lower values are better. Across the 8 classifiers, Brier scores ran from 0.137 (95% CI 0.132--0.142) to 0.140 (95% CI 0.134--0.145) and WCE from 0.004 (95% CI 0.003--0.013) to 0.018 (95% CI 0.011--0.026). The binned calibration slopes and intercepts originally reported in the manuscript are retained below, separately from the individual-level logistic slopes in section S9. Binned slopes should not be interpreted as conventional logistic calibration slopes.
 
-Table S3. Brier score and weighted calibration error for all 8 primary representation--classifier combinations. Both metrics describe the cohort's observed outcome frequency.
+Table S3. Brier score and weighted calibration error for all 8 primary representation--classifier combinations and the 3 retrieval arms, each arm at its own test-selected best k, with bootstrap 95% CIs. Both metrics describe the cohort's observed outcome frequency.
 
-  **Representation**   **Classifier**        **Brier**   **WCE**
-  -------------------- --------------------- ----------- ---------
-  EMBEDDED             Logistic regression   0.137       0.010
-  EMBEDDED             Random forest         0.140       0.006
-  EMBEDDED             Gradient boosting     0.139       0.004
-  EMBEDDED             XGBoost               0.139       0.013
-  FEATURE              Logistic regression   0.139       0.005
-  FEATURE              Random forest         0.139       0.018
-  FEATURE              Gradient boosting     0.138       0.010
-  FEATURE              XGBoost               0.138       0.012
+| **Representation** | **Model** | **Brier (95% CI)** | **WCE (95% CI)** |
+| ---------------------- | ------------------------------ | ---------------------- | ---------------------- |
+| EMBEDDED | Logistic regression | 0.137 (0.132--0.142) | 0.010 (0.007--0.019) |
+| EMBEDDED | Random forest | 0.140 (0.134--0.145) | 0.006 (0.005--0.015) |
+| EMBEDDED | Gradient boosting | 0.139 (0.134--0.144) | 0.004 (0.003--0.013) |
+| EMBEDDED | XGBoost | 0.139 (0.134--0.144) | 0.013 (0.007--0.022) |
+| FEATURE | Logistic regression | 0.139 (0.134--0.144) | 0.005 (0.003--0.015) |
+| FEATURE | Random forest | 0.139 (0.134--0.144) | 0.018 (0.011--0.026) |
+| FEATURE | Gradient boosting | 0.138 (0.133--0.143) | 0.010 (0.005--0.018) |
+| FEATURE | XGBoost | 0.138 (0.132--0.143) | 0.012 (0.006--0.020) |
+| Retrieval | Importance-weighted cosine, k = 295 | 0.140 (0.134--0.145) | 0.005 (0.003--0.014) |
+| Retrieval | Plain cosine, k = 757 | 0.141 (0.135--0.146) | 0.009 (0.004--0.016) |
+| Retrieval | Random, uniform weights, k = 32,720 | 0.144 (0.139--0.150) | 0.00001* (0.0001--0.009) |
 
-Retrieval rows, each at its own test-selected best k, with bootstrap 95% CIs:
+\* The random arm's WCE lies below its own bootstrap interval. Its predicted risks all sit within 0.002 of the outcome rate, so on the full test set the binned error is almost zero. Every resample moves the observed rate away from those fixed risks, so the resampled errors are larger. The interval therefore describes resampling noise around a near-zero error, not uncertainty about a positive one.
 
-  **Retrieval arm**                          **Brier (95% CI)**       **WCE (95% CI)**
-  ------------------------------------------ ------------------------ ------------------------
-  Importance-weighted cosine, k = 295        0.140 (0.134--0.145)     0.005 (0.003--0.014)
-  Plain cosine, k = 757                      0.141 (0.135--0.146)     0.009 (0.004--0.016)
-  Random, uniform weights, k = 32,720        0.144 (0.139--0.150)     0.000 (0.000--0.009)
+Table S4. Slopes and intercepts fitted to the binned calibration curves, with bootstrap 95% CIs, for the 8 classifiers and the 3 retrieval arms at their own test-selected best k. These descriptive values are retained from the original overall calibration analysis and are not individual-level logistic calibration parameters. See section S9 for the latter. For random retrieval every predicted risk lies between 0.173 and 0.176, so a slope cannot be estimated. The wide classifier intervals come from fitting a line through 10 equal-width bins, several of which hold few patients.
 
-Table S4. Slopes and intercepts fitted to the binned calibration curves. These descriptive values are retained from the original overall calibration analysis and are not individual-level logistic calibration parameters. See section S9 for the latter.
-
-  **Representation**   **Classifier**        **Binned slope**   **Binned intercept**
-  -------------------- --------------------- ------------------ ----------------------
-  EMBEDDED             Logistic regression   1.27               −0.07
-  EMBEDDED             Random forest         1.15               −0.02
-  EMBEDDED             Gradient boosting     1.01               0.01
-  EMBEDDED             XGBoost               0.75               0.07
-  FEATURE              Logistic regression   0.78               0.06
-  FEATURE              Random forest         1.84               −0.15
-  FEATURE              Gradient boosting     0.87               0.04
-  FEATURE              XGBoost               1.02               0.02
-
-Retrieval rows, each at its own test-selected best k, with bootstrap 95% CIs. For random retrieval every predicted risk lies between 0.173 and 0.176, so a slope cannot be estimated.
-
-  **Retrieval arm**           **Slope (95% CI)**    **Intercept (95% CI)**
-  --------------------------- --------------------- ------------------------
-  Weighted cosine, k = 295    1.37 (1.07--1.69)     −0.06 (−0.11 to −0.01)
-  Plain cosine, k = 757       2.66 (1.30--2.78)     −0.27 (−0.29 to −0.05)
-  Random, k = 32,720          not estimable         not estimable
+| **Representation** | **Model** | **Binned slope (95% CI)** | **Binned intercept (95% CI)** |
+| ---------------------- | ------------------------------ | ---------------------- | ---------------------- |
+| EMBEDDED | Logistic regression | 1.27 (0.86--1.43) | −0.07 (−0.10 to +0.03) |
+| EMBEDDED | Random forest | 1.15 (0.34--1.98) | −0.02 (−0.18 to +0.13) |
+| EMBEDDED | Gradient boosting | 1.01 (0.42--1.59) | +0.01 (−0.12 to +0.14) |
+| EMBEDDED | XGBoost | 0.75 (0.22--1.39) | +0.07 (−0.08 to +0.19) |
+| FEATURE | Logistic regression | 0.78 (0.20--1.33) | +0.06 (−0.08 to +0.20) |
+| FEATURE | Random forest | 1.84 (1.41--2.23) | −0.15 (−0.22 to −0.08) |
+| FEATURE | Gradient boosting | 0.87 (0.28--1.48) | +0.04 (−0.11 to +0.19) |
+| FEATURE | XGBoost | 1.02 (0.53--1.52) | +0.02 (−0.09 to +0.13) |
+| Retrieval | Importance-weighted cosine, k = 295 | 1.37 (1.07--1.69) | −0.06 (−0.11 to −0.01) |
+| Retrieval | Plain cosine, k = 757 | 2.66 (1.30--2.78) | −0.27 (−0.29 to −0.05) |
+| Retrieval | Random, uniform weights, k = 32,720 | not estimable | not estimable |
 
 A Embedded logistic regression
 

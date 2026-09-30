@@ -35,6 +35,12 @@ nobody chose.
 Run it with -m scripts.pipeline.predictions.neighbor_count_sweep; everything lands in
 RESULTS_DIR/neighbor_count_sweep. The panels at each arm's best k are drawn afterwards by
 scripts.pipeline.predictions.best_k_panels, from the files this writes.
+
+To regenerate, submit slurm_jobs/quick_runs/neighbor_count_sweep.sbatch from the project
+root: it runs this, plot_neighbor_sweep_figure and best_k_panels, and mirrors the folder
+into results/. Two review analyses read best_k_predictions_*.csv and are re-run after
+it: review/history_quintiles (Table S8) and review/subgroups (S9). review/metric_intervals
+does not depend on the sweep.
 """
 
 import argparse

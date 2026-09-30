@@ -25,7 +25,7 @@ reviewers, article type, and any fee-waiver request.
 Build with: rebuild (see the repository README)
 -->
 
-28 September 2026
+29 September 2026
 
 The Editors
 JMIR Mental Health
@@ -50,16 +50,18 @@ operating characteristic area under the curve (ROC AUC) of 0.657 (95% CI
 Their paired difference was 0.008 (95% CI -0.003 to 0.019). The classifier
 changed the result: embeddings improved logistic regression and reduced
 discrimination for all three tree ensembles. Logistic regression led the
-embedded models on all four encoders.
+embedded models on all four encoders, at 0.645 (95% CI 0.629-0.660) to 0.657.
 
 The predictive signal came from familiar clinical history. Permuting
 psychiatric history caused the largest loss, and medication burden and
 prior treatment also contributed. Permuting race/ethnicity or social
-determinants changed ROC AUC by no more than 0.003. Nearest-neighbor
-retrieval over the embedding showed that proximity tracks outcome risk, but
-it stayed below both leading classifiers at every neighborhood size. Its
-best ROC AUC was 0.625 (95% CI 0.610-0.641), at a neighborhood size chosen on
-the test patients, against 0.500 (0.484-0.515) for randomly chosen neighbors.
+determinants changed ROC AUC by no more than 0.003, and every such interval
+included zero. Nearest-neighbor retrieval over the embedding showed that
+proximity tracks outcome risk, but it stayed below both leading classifiers
+at every neighborhood size. Importance-weighted retrieval reached 0.625 (95%
+CI 0.610-0.641) at 295 neighbors, a size chosen on the test patients.
+Randomly chosen neighbors reached 0.500 (2.5th-97.5th percentile across
+1,000 draws 0.484-0.515).
 
 We are explicit that the outcome is a treatment-switching proxy rather than
 confirmed treatment resistance, that validation is internal, and that the

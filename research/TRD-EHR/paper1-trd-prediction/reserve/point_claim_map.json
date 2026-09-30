@@ -95,11 +95,11 @@
         "p.2"
       ],
       "headline": true,
-      "claim": "Nearest-neighbor retrieval reached ROC AUC 0.594 against 0.499 for random retrieval and 0.432 for farthest retrieval, so proximity in the embedding tracks the outcome.",
+      "claim": "At its own best k, chosen on the test patients, importance-weighted retrieval reached ROC AUC 0.625 (95% CI 0.610-0.641, k = 295) and plain cosine 0.618 (95% CI 0.602-0.634, k = 757), against 0.500 for random retrieval (2.5th-97.5th percentile across 1,000 draws 0.484-0.515) and 0.432 (95% CI 0.416-0.449) for farthest retrieval, so proximity in the embedding tracks the outcome.",
       "evidence": [
-        "e.knn.1",
-        "e.knn.2",
-        "e.knn.3"
+        "e.sweep.best_k",
+        "e.sweep.random",
+        "e.knn.farthest"
       ]
     },
     {
@@ -109,11 +109,11 @@
       "serves": [
         "p.2"
       ],
-      "claim": "Retrieval fell 0.063 ROC AUC short of a classifier fitted on the same embedding, on intervals that do not overlap, and the shortfall reproduced on every encoder.",
+      "claim": "For the primary encoder, the best retrieval result over every k and exponent, 0.625 (95% CI 0.610-0.640; importance-weighted, alpha 2, k = 1,090), fell short of feature-vector XGBoost by 0.024 (95% CI 0.012-0.036) and of embedded logistic regression by 0.032 (95% CI 0.022-0.043) on paired intervals that exclude zero, and retrieval stayed below both classifiers at every k from 1 to 34,063.",
       "evidence": [
-        "e.knn.1",
-        "e.ml.1",
-        "e.knn.enc.1"
+        "e.sweep.paired_deltas",
+        "e.sweep.curve",
+        "e.ml.1"
       ]
     },
     {
@@ -123,9 +123,10 @@
       "serves": [
         "p.2"
       ],
-      "claim": "Which neighbors were retrieved mattered far more than how they were weighted, which is what one expects if the geometry rather than the weighting carries the information.",
+      "claim": "How many neighbors were used mattered more than how similarity was measured: the two metrics at their own best k differed by 0.007 (95% CI -0.001 to 0.014), and the maxima under exponents 1, 2 and 5 agreed within 0.002, while the curves rose by about 0.1 from k = 1 to a few hundred.",
       "evidence": [
-        "e.knn.4"
+        "e.sweep.paired_deltas",
+        "e.sweep.curve"
       ]
     },
     {
@@ -290,5 +291,5 @@
       ]
     }
   ],
-  "_note": "The point-and-claim map this packet is gated against. TWO points, and the claims about hand-picked patient data (c.9, c.10, c.11) serve BOTH rather than forming a third: they are a scope condition on two answers, not a third answer. A third point was written on 2026-09-06 and removed the same day; see review/two_points_rationale.md section 0. Run this through paperwriter.gates.ladder.check to reproduce the verdict. Evidence ids here are the map's own labels, not the frozen ledger's."
+  "_note": "The point-and-claim map this packet is gated against. TWO points, and the claims about hand-picked patient data (c.9, c.10, c.11) serve BOTH rather than forming a third: they are a scope condition on two answers, not a third answer. Point 2's claims (c.6-c.8) describe the primary encoder only: retrieval for the other encoders is not reported (Supplement M12). Retrieval numbers are at each arm's test-selected best k, from results/.../neighbor_count_sweep/{sweep_summary,retrieval_paired_deltas}.json. Run this through paperwriter.gates.ladder.check to reproduce the verdict in review/two_points_rationale.md section 5b. Evidence ids here are the map's own labels, not the frozen ledger's."
 }

@@ -5,8 +5,8 @@ here is §1 of the repository's [`README.md`](../README.md); this file says what
 is in this folder, what is submitted, and how to rebuild it.
 
 **The paper makes two points, and that is the rule that governs the folder.**
-As of 2026-09-06 every section of the manuscript is placed under one of them, and
-material that serves neither is held in `reserve/` rather than printed. The rule is
+Every section of the manuscript is placed under one of them, and material that
+serves neither is held in `reserve/` rather than printed. The rule is
 enforced rather than remembered: the point-and-claim map is gated by Paper-Writer's
 `gates/ladder.py` before any prose moves.
 
@@ -15,14 +15,15 @@ enforced rather than remembered: the point-and-claim map is gated by Paper-Write
    against best, +0.008 ROC AUC (95% CI −0.003 to +0.019).
 2. Nearest-neighbor retrieval over that embedding — the clinical digital-twin premise
    — captures real label-informative structure and still loses decisively to a trained
-   model, on every encoder tested.
+   model. For the primary encoder, at every neighbourhood size from 1 to 34,063, the
+   best retrieval result, 0.625 (95% CI 0.610–0.640), is 0.032 (95% CI 0.022–0.043)
+   below embedded logistic regression. Retrieval for the other encoders is not reported.
 
 **And one emphasis that runs through both.** In both arms the patient data were
 hand-picked: predictor selection ran once, before either representation existed, and
 the narrative the encoder reads is a fixed template over that same selection. So
 neither point is evidence about what a model would do with a raw record. This is a
-scope condition on two answers, not a third answer, and it was briefly and wrongly
-written up as a third point on 2026-09-06.
+scope condition on two answers, not a third answer. Do not promote it to a point.
 
 `review/two_points_rationale.md` is why, what came out, and what is waiting on the
 senior author. Read it before proposing an addition to the main text.
@@ -45,12 +46,16 @@ beside one.
 | `tripod_ai_checklist.md` | the TRIPOD+AI reporting checklist, item by item |
 | `cover_letter.md` | the cover letter |
 
-**The references were renumbered on 2026-09-07** and every reference number in
-`review/` and `reserve/` predates that pass. The old-to-new map is in the comment
-block directly above the reference list in `manuscript.md`; read it before chasing a
-number quoted anywhere else in this folder. The list had never been in order of first
-appearance, which is what Vancouver and JMIR both require, and the manuscript header
-had claimed it was.
+**Reference numbers in `review/` and `reserve/` use an older numbering.** The
+manuscript's list is in order of first appearance, as Vancouver and JMIR require.
+The old-to-new map is in the comment block directly above the reference list in
+`manuscript.md`; read it before chasing a number quoted anywhere else in this folder.
+
+**Every number in the packet carries an interval**, on the owner's instruction: a
+bootstrap 95% CI, a Wilson 95% CI for a descriptive proportion, or, for the random
+retrieval arm only, the 2.5th–97.5th percentile across draws, labeled as such and
+never as a 95% CI. The classifier AUPRC, Brier and calibration intervals come from
+`scripts/pipeline/review/metric_intervals.py`; see the repository README, 5c.
 
 All four carry HTML comment blocks at the top and inside sections recording the
 decisions that govern them — naming rules, what may not drift back, which
@@ -73,7 +78,7 @@ bug in the splitter, not a second version of the paper.
 
 **What it is for.** Sending the Methods to the coauthor who wrote the Methods. Diffing
 one section across two drafts. Handing a statistician the Results without the other
-eleven thousand words around it. Every one of those used to be a scroll-and-select.
+eleven thousand words around it.
 
 Not submitted, and not a substitute for the four packet documents. Run `rebuild`
 after re-splitting.
@@ -88,11 +93,11 @@ header comment saying what its status is and why it is held back.
 
 | Document | What it holds |
 | --- | --- |
-| `grounding.json` | the terminology lock, the estimand, the reader, and the reporting checklist. Updated 2026-09-07: "feature matrix" is now a banned alias, and the approved second names for each arm are declared in `also_called` rather than left for the drift check to guess at |
+| `grounding.json` | the terminology lock, the estimand, the reader, and the reporting checklist. "Feature matrix" is a banned alias, and the approved second names for each arm are declared in `also_called` rather than left for the drift check to guess at |
 | `point_claim_map.json` | the point-and-claim map this packet was gated against: two points, twenty claims, every claim serving a point or declaring a role. Run it through `paperwriter.gates.ladder.check` to reproduce the verdict quoted in `review/two_points_rationale.md` |
 | `llm_similarity_judge.md` | the LLM clinical-similarity judge, complete: the full four-by-four retrieval grid, the verbatim rubric and prompts, the worked examples, the sub-score audit, and the re-judging experiment. Held back because it changed nothing where retrieval works — 0.5939 under cosine weighting against 0.5947 under the judge — and helped only under the negative controls |
 | `methods_reserve.md` | the eight passages the Methods condensation removed that survive nowhere in the packet, each verbatim with the reviewer question that would want it back. It also carries the rule that keeps Methods from re-inflating: **Methods does not grow** |
-| `limitations_reserve.md` | **superseded.** The record of the 2026-09-03 removal of the Limitations section, which was reversed on 2026-09-06. Still the right place for the audit of where each limitation also lives outside the Discussion; its section 4 is the earlier text, not what is submitted |
+| `limitations_reserve.md` | **not the submitted text.** The audit of where each limitation also lives outside the Discussion; its section 4 is a Limitations text the packet does not use |
 | `matched_input_parity.md` | the matched-input representation-parity re-run: does the field mismatch between the two representations carry the published comparison? It does not |
 | `religion_sensitivity.md` | religion retained against religion removed, in both representations: does the result lean on a field that is 29.4% unrecorded? It does not |
 
@@ -108,11 +113,11 @@ Internal. Not submitted, and not written for the journal.
 
 | Document | What it is |
 | --- | --- |
-| `two_points_rationale.md` | **start here for the current state.** Why the paper was refocused onto points on 2026-09-06, why the hand-picking emphasis is not a third point, what left the packet, what came back, what the support-ladder gate said, and the four things waiting on the senior author |
-| `manuscript_header_through_2026-09-03.md` | the round-by-round decision record that used to sit in a comment block at the top of `manuscript.md`, preserved verbatim when that header was rewritten as a statement of the rules in force. Read it when the question is *why* a rule exists rather than *what* it is |
+| `two_points_rationale.md` | **start here for the current state.** Why the paper makes points rather than objectives, why the hand-picking emphasis is not a third point, what left the packet, what came back, what the support-ladder gate said, and the four things waiting on the senior author |
+| `manuscript_header_through_2026-09-03.md` | the round-by-round decision record behind the rules stated in `manuscript.md`'s header comment, verbatim. Read it when the question is *why* a rule exists rather than *what* it is |
 | `MP_review_latest.md` | the record of the most recent senior-author round: the email, the nine comments, the tracked changes — and beneath them the verbal follow-up of 2026-09-04, which is staged and not applied |
-| `round_2026-09-29.md` | the first author's ink on pages 1–7 of the 2026-09-29 PDF, item by item with the new wording, and the move of every retrieval result to each arm's best k |
-| `round_2026-09-02_brief.md` | that round in five minutes — what was asked, what was done, what is left. Start here |
+| `round_2026-09-29.md` | the first author's ink on pages 1–7 of the 2026-09-29 PDF, item by item with the new wording; every retrieval result at each arm's best k; and the paper reviewer's ten findings on that round, each with its disposition |
+| `round_2026-09-02_brief.md` | the 2026-09-02 round in five minutes — what was asked, what was done, what is left |
 | `round_2026-09-02.md` | the same round item by item, with the reasoning, the word counts, the verification tables, and the arguments that exist nowhere else |
 | `feedback/` | what the senior author supplied, **one directory per round, named for the date he sent it**. `2026-09-02/` is the tracked-changes manuscript, his replacement Methods and Discussion, and the covering email. `2026-09-21/` is his own rewrite of the manuscript and the supplement — no tracked changes in either, so the difference from the packet is a diff and not a mark-up |
 

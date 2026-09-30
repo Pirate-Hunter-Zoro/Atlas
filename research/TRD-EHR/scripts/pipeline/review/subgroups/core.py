@@ -18,8 +18,9 @@ majority/minority split is what the data support. Patients with no recorded race
 excluded from the race contrast and reported separately rather than folded into either arm.
 
 Two kinds of interval, and they are not interchangeable:
-  within-group   a bootstrap over that group's own patients, giving each subgroup AUC its
-                 own uncertainty.
+  within-group   a bootstrap over that group's own patients, giving each subgroup's AUC,
+                 Brier score, calibration slope and calibration-in-the-large its own
+                 interval, all four cut from the same resamples.
   between-group  an UNPAIRED bootstrap: the two groups are disjoint sets of patients, so
                  each is resampled independently and the difference recomputed. The paired
                  machinery used elsewhere in this paper does not apply here.
@@ -161,6 +162,19 @@ WHITE_LEVEL = "White or Caucasian"
 # A subgroup needs enough events for an AUC to mean anything. Twenty is the threshold the
 # cohort investigation already uses for "not estimable", so it is reused here.
 MIN_EVENTS = 20
+
+# What each estimable (group, model) cell reports, every one with a bootstrap 95% CI from
+# the same resamples. calibration_in_the_large is mean predicted risk minus observed rate,
+# which the supplement calls the mean risk difference.
+GROUP_METRICS = ('roc_score', 'brier_score', 'calibration_slope', 'calibration_in_the_large')
+# Each metric's interval columns in subgroup_performance.csv. The AUC keeps the names it has
+# always had.
+CI_COLUMNS = {
+    'roc_score': ('roc_ci_low', 'roc_ci_high'),
+    'brier_score': ('brier_ci_low', 'brier_ci_high'),
+    'calibration_slope': ('slope_ci_low', 'slope_ci_high'),
+    'calibration_in_the_large': ('in_the_large_ci_low', 'in_the_large_ci_high'),
+}
 
 
 def subgroup_dir() -> Path:
@@ -355,9 +369,6 @@ def bootstrap_auc_ci(
 ) -> tuple[float, float]:
     """Percentile bootstrap interval for one group's ROC AUC.
 
-    Draws that lose a class entirely yield no AUC and are dropped, which is why the
-    percentiles are taken with nanpercentile.
-
     Args:
         y_true (np.ndarray): Observed outcomes for this group.
         y_prob (np.ndarray): Predicted risks for this group.
@@ -366,15 +377,52 @@ def bootstrap_auc_ci(
     Returns:
         tuple[float, float]: 2.5th and 97.5th percentiles.
     """
+    block = bootstrap_group_intervals(y_true, y_prob, rng, metrics=('roc_score',))
+    return block['roc_score']
+
+
+def bootstrap_group_intervals(
+    y_true: np.ndarray,
+    y_prob: np.ndarray,
+    rng: np.random.Generator,
+    metrics: tuple[str, ...] = GROUP_METRICS,
+) -> dict[str, tuple[float, float]]:
+    """Percentile bootstrap intervals for one group's AUC, Brier score and calibration.
+
+    Every metric is computed on the same resamples, so the AUC interval is the one
+    bootstrap_auc_ci has always given for this seed and the calibration intervals sit
+    beside it. Draws that lose a class entirely yield no AUC and no calibration slope and
+    are dropped from every metric, which is why the percentiles use nanpercentile.
+
+    Args:
+        y_true (np.ndarray): Observed outcomes for this group.
+        y_prob (np.ndarray): Predicted risks for this group.
+        rng (np.random.Generator): Seeded generator.
+        metrics (tuple[str, ...]): Which of GROUP_METRICS to resample.
+
+    Returns:
+        dict[str, tuple[float, float]]: Metric name to its 2.5th and 97.5th percentiles.
+    """
     n = len(y_true)
     indices = rng.integers(low=0, high=n, size=(N_BOOTSTRAP, n))
-    aucs = np.full(N_BOOTSTRAP, np.nan)
+    draws = {name: np.full(N_BOOTSTRAP, np.nan) for name in metrics}
     for i in range(N_BOOTSTRAP):
         sampled_true = y_true[indices[i]]
         if sampled_true.min() == sampled_true.max():
             continue
-        aucs[i] = roc_auc_score(sampled_true, y_prob[indices[i]])
-    return float(np.nanpercentile(aucs, 2.5)), float(np.nanpercentile(aucs, 97.5))
+        sampled_prob = y_prob[indices[i]]
+        if 'roc_score' in draws:
+            draws['roc_score'][i] = roc_auc_score(sampled_true, sampled_prob)
+        if 'brier_score' in draws:
+            draws['brier_score'][i] = brier_score_loss(sampled_true, sampled_prob)
+        if 'calibration_slope' in draws or 'calibration_in_the_large' in draws:
+            slope, in_the_large = calibration(sampled_true, sampled_prob)
+            if 'calibration_slope' in draws:
+                draws['calibration_slope'][i] = slope
+            if 'calibration_in_the_large' in draws:
+                draws['calibration_in_the_large'][i] = in_the_large
+    return {name: (float(np.nanpercentile(values, 2.5)), float(np.nanpercentile(values, 97.5)))
+            for name, values in draws.items()}
 
 
 def benjamini_hochberg(p_values: np.ndarray) -> np.ndarray:
@@ -498,24 +546,24 @@ def score_groups(frame: pd.DataFrame, arm: str) -> pd.DataFrame:
             # Reported as not estimable rather than as a number nobody should read.
             row.update({
                 'estimable': False,
-                'roc_score': np.nan, 'roc_ci_low': np.nan, 'roc_ci_high': np.nan,
-                'brier_score': np.nan, 'calibration_slope': np.nan,
-                'calibration_in_the_large': np.nan,
+                **{column: np.nan for metric, (low, high) in CI_COLUMNS.items()
+                   for column in (metric, low, high)},
             })
             return row
         rng = np.random.default_rng(int(os.environ['SEED']))
         y_prob = subset[model].to_numpy()
-        ci_low, ci_high = bootstrap_auc_ci(y_true, y_prob, rng)
+        intervals = bootstrap_group_intervals(y_true, y_prob, rng)
         slope, in_the_large = calibration(y_true, y_prob)
-        row.update({
-            'estimable': True,
+        point = {
             'roc_score': float(roc_auc_score(y_true, y_prob)),
-            'roc_ci_low': ci_low,
-            'roc_ci_high': ci_high,
             'brier_score': float(brier_score_loss(y_true, y_prob)),
             'calibration_slope': slope,
             'calibration_in_the_large': in_the_large,
-        })
+        }
+        row['estimable'] = True
+        for metric, (low, high) in CI_COLUMNS.items():
+            row[metric] = point[metric]
+            row[low], row[high] = intervals[metric]
         return row
 
     rows = Parallel(n_jobs=int(os.environ.get('SUBGROUP_JOBS', '1')))(
