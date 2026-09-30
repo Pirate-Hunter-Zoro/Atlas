@@ -1,17 +1,17 @@
 ---
 kind: lesson
-title: check 8a-uniqueness-again
+title: check 8c-degree-p5
 ---
-Problem 8(b) is agreed. The label is fixed, you checked all three Eisenstein conditions at $p$, and you shifted back from $\Phi_p(x+1)$ to $\Phi_p(x)$. The line $p \mid \binom{p}{k}$ for $2 \le k \le p-1$ stands as a stated fact, which is how the sheet uses it. It is now typeset in the worksheet beside your handwriting.
+Problem 8(b) is agreed. The label is fixed, you checked all three Eisenstein conditions at $p$, and you shifted back from $\Phi_p(x+1)$ to $\Phi_p(x)$. The line $p \mid \binom{p}{k}$ for $2 \le k \le p-1$ stands as a stated fact. The worksheet now has 8(b) typeset beside your handwriting. 8(a) is already done, uniqueness included.
 
-One problem is still open: uniqueness in 8(a), from the start of the sitting.
-
-**Problem 8(a).** Let $p \in F[x]$ be irreducible, with roots $\alpha$ and $\beta$ in (possibly different) extensions of $F$. Show there is a unique isomorphism $F(\alpha) \to F(\beta)$ fixing $F$ and sending $\alpha \mapsto \beta$.
+**Problem 8(c).** Deduce that $[\mathbb{Q}(\zeta_p) : \mathbb{Q}] = p - 1$ and that the injection of Problem 7(c) is an isomorphism, $\operatorname{Aut}(\mathbb{Q}(\zeta_p)/\mathbb{Q}) \cong (\mathbb{Z}/p\mathbb{Z})^{\times}$.
 
 What you need:
-- $\sigma = h^{-1}\circ g : F(\alpha) \to F(\beta)$ is your isomorphism. It fixes $F$ and sends $\alpha \mapsto \beta$.
-- $\tau : F(\alpha) \to F(\beta)$ is any isomorphism that fixes $F$ and sends $\alpha \mapsto \beta$.
-- Every element of $F(\alpha)$ is $f(\alpha)$ for some $f \in F[x]$, because the evaluation map is surjective.
-- A map that adds, multiplies and fixes $F$ commutes with evaluating a polynomial with coefficients in $F$. That is the step inside your 7(b).
+- $\zeta_p = e^{2\pi i/p}$, a primitive $p$-th root of unity.
+- $\Phi_p(x) = x^{p-1} + \cdots + x + 1$, irreducible over $\mathbb{Q}$ by your 8(b).
+- $(x-1)\Phi_p(x) = x^p - 1$, your first line in 8(b).
+- $[F(\alpha):F] = \deg$ of the minimal polynomial of $\alpha$ over $F$.
+- 7(c): $\sigma \mapsto k \bmod p$, where $\sigma(\zeta_p) = \zeta_p^{\,k}$, is an injective homomorphism $\operatorname{Aut}(\mathbb{Q}(\zeta_p)/\mathbb{Q}) \hookrightarrow (\mathbb{Z}/p\mathbb{Z})^{\times}$.
+- 8(a): if $\alpha, \beta$ are roots of the same irreducible $q \in F[x]$, there is a unique isomorphism $F(\alpha) \to F(\beta)$ fixing $F$ with $\alpha \mapsto \beta$.
 
-Existence is done. Take any $\tau : F(\alpha) \to F(\beta)$ that fixes $F$ and sends $\alpha \mapsto \beta$, and show that $\tau = \sigma$.
+First, one small case. Take $p = 5$. What is the minimal polynomial of $\zeta_5$ over $\mathbb{Q}$, and so what is $[\mathbb{Q}(\zeta_5):\mathbb{Q}]$? Say why $\zeta_5$ is a root of it.
