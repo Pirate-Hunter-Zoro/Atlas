@@ -49,7 +49,7 @@ Nobody has to ask for that. *"Look at HANDOFF"* means all of it:
    CAN DO.** It is the lowest-numbered one on purpose — the numbering carries the
    order things have to land in, and each item says what it depends on where that
    matters. If the owner names a different one, that wins. **Each item's heading
-   says whose hands it needs**: 2 is a list of evenings in front of the thing.
+   says whose hands it needs**: 1 is a list of evenings in front of the thing.
 2. **Read that item whole before touching anything.** An item says what already
    exists (measured, not assumed), what is missing, where it goes, the decisions
    to take deliberately, and what to assert. The decisions are the expensive part:
@@ -72,7 +72,7 @@ An item is not done because its code runs. It is done when the suite is green,
 the rule is written where the next turn will read it, and the item is out of this
 file.
 
-**Item 2 does not come out this way.** It is a list of evenings in front of the
+**Item 1 does not come out this way.** It is a list of evenings in front of the
 thing, and only the person holding the iPad can strike those.
 
 ---
@@ -84,7 +84,7 @@ thing, and only the person holding the iPad can strike those.
   The last of them is Paper-Writer's own, run where it is checked out, so the
   factory's tests are part of the board's habit rather than a second one nobody
   has.
-- `cd projects/Paper-Writer && python3 -m unittest discover -s tests` — 593 tests,
+- `cd projects/Paper-Writer && python3 -m unittest discover -s tests` — 595 tests,
   about twenty seconds. Still worth running alone while working in there.
 - Bump `VERSION` in `board/web/sw.js` whenever a shell file changes. The library
   page is three of them.
@@ -167,148 +167,18 @@ workspace on the machine — and so, now, is RUNNING OUT OF ALLOWANCE, which was
 the last thing on this list that sent somebody to a laptop and an account page:
 three providers behind one tap on the front door, a swap between them that costs
 the lesson nothing, and a fourth costing one entry in a config file and one line
-in a key file. All of that is Settled below.**
+in a key file — and so, now, is A ROUND OF EDITS: every request numbered when
+it is filed, answered by id, and pinned where it was answered on the new pages,
+so what changed is read without reading the document. All of that is Settled
+below.**
 
-**One build is left, 1.** Item 2 is a list of evenings in front of the thing.
+**No build is left.** Item 1 is a list of evenings in front of the thing.
 
 ---
 
 ## What to do next
 
-### 1. An edit ledger: what each request was, and what was done — A BUILD
-
-**In the owner's words:** *"when I send in my written edits, they'll be fixed,
-sure, but I need some nifty way to keep track of what each edit request was,
-and what was done to address it, so that I don't have to read the whole
-fucking paper again."*
-
-**The test:** after a round lands, open the document and read only what
-changed. Every request is listed with what was done about it. A tap on one
-jumps to the spot on the new pages, and the spot is marked. Nothing about the
-round needs the document read end to end, and nothing needs a laptop.
-
-**The mechanism: every round becomes a numbered list of items, and every item
-becomes a PIN on the new pages.**
-
-- **Requests are split into items when they are filed.** One item per inked
-  page region (a cluster of strokes on one page), and one per paragraph of
-  typed text. Each item gets an id, `R3.4` meaning round 3, item 4. The
-  request keeps a crop of the ink it came from, stored with the round and
-  never wiped.
-- **The revision turn answers every item.** It writes one entry per id with a
-  disposition — *done*, *partly*, *not done*, or *pushed back* — one sentence
-  of what it did, and the new wording of the passage it changed. An item it
-  cannot find is still answered, never skipped.
-- **The server places the answer on the new build.** It searches the new
-  PDF's text for each entry's new wording (`pdftotext -bbox` or equivalent)
-  and records the page and box. An entry it cannot place keeps its page and
-  says so.
-- **On the glass, the changes are pins, not prose.** The reader gets a
-  *changes* mode. A numbered pin sits in the margin at each changed spot,
-  coloured by disposition, with the changed passage lightly boxed. A tap
-  opens a card with your ink crop or words, what was done, and the old and
-  new wording side by side. A list view orders the same items by page, with
-  *next change ›* stepping through them.
-- **You close items, not rounds.** Each item can be *accepted* or
-  *reopened*. A reopened item, with a line of why, rides the next round with
-  its id kept, so the thread of one request survives several rounds. A
-  document's row says how many items are open.
-
-**What exists, measured from the code — re-measure before building:**
-
-- **The request side is one Markdown file per round.**
-  `course/library.py` `write_note` (≈L979) writes
-  `writeups/<slug>/feedback/<date>-v<n>.md` (flat layouts:
-  `<dir>/feedback/<stem>-<date>-v<n>.md`, `next_note` ≈L720). Its header is
-  bullets: document, written, ask, page, pages marked. Then the text, and
-  `## What they marked` with one line per page pointing at
-  `live/annotations/<file>.png`.
-- **Filing dispatches the revision.** `POST /library/feedback`
-  (`routes/library.py` ≈L180) calls `write_note` and then `_revise`
-  (≈L712). A board document goes to the inbox as signal `revise`/`rework`
-  with `sense.py` `REVISE_SENSE` (≈L1065). `board/bin/tutor`
-  `HEADLESS_REVISE_PROMPT` (≈L2012) tells the turn to write
-  `## What was changed` at the bottom of the feedback file, in free prose,
-  and to write no card. **`board/bin/tutor` is on the serving chain: keep
-  the prompt edit to those two constants, and pull first.**
-- **A Paper-Writer document writes no record at all.**
-  `manuscript.revise` (`board/tutorboard/manuscript.py` ≈L531) drops a job
-  and nothing writes back. Paper-Writer's editor already produces structured
-  `{issue, find, replace}` edits (`paperwriter/stages/review.py`
-  `_EDIT_SHAPE`), applied by `stages/patching.py`, kept in `STATE_DIR/tmp`
-  and never shown. That is this item's entry shape, already made.
-- **What the glass shows now** is the rounds dialog: the row's *N rounds of
-  feedback — read what changed*, then `openRounds`/`showRound`
-  (`library.js` ≈L1221), which prints the whole feedback file raw in a
-  `<pre>`. No items, no pages, no jump.
-- **`wipe_delivered`** (`course/library.py` ≈L891) deletes the ink JSON and
-  PNG of every sent mark once a round lands. So the request loses its
-  pictures, which is exactly what an item needs to show.
-- **A round is "landed"** by `last_round_landed` (≈L845): the note contains
-  `## What was changed`, or the PDF is younger than the note.
-- **The best example of the target** is hand-written:
-  `research/TRD-EHR/paper1-trd-prediction/review/round_2026-09-02.md`, one
-  heading per comment with a bolded disposition. And the deck's
-  `writeups/deck-260925-0942/feedback/2026-09-25-v1.md` already groups its
-  answer per page ("p17: 'reject the null' became 'considered
-  significant'"). The model does this already; it is just not
-  machine-readable.
-
-**The decisions to take deliberately:**
-
-1. **Where an item's boundaries come from.** Ink clusters by page and
-   proximity, typed text by paragraph. Decide whether the filing panel
-   shows the split so it can be merged or corrected before sending. Showing
-   it costs one screen and saves a round of *"that was one request, not
-   three"*.
-2. **The ledger's file.** A JSON sidecar beside the note
-   (`<note>.ledger.json`) that holds items, answers, placements and states.
-   The Markdown note stays the human-readable record, and the turn still
-   writes `## What was changed`, generated from the ledger rather than
-   written twice. The ledger is the contract, not the prose.
-3. **How the turn answers.** The prompt names the ledger path and the ids,
-   and requires one entry per id. After the turn, the server validates the
-   file: every id answered, dispositions from the four words, new wording
-   present for *done* and *partly*. A turn that answers nothing leaves every
-   item *not answered*, which the reader shows. It is never a silent round.
-4. **Before and after, exactly.** Commit the source before the revision
-   turn starts, and again after it lands. The old wording comes from the
-   before commit, so it is exact rather than remembered. Decide whether the
-   board makes those commits or the turn does, and how that fits
-   `save-and-push.sh`.
-5. **Placing a pin.** Search the new PDF's words for the entry's new
-   wording, tolerant of hyphenation and line breaks. A pin that cannot be
-   placed falls back to the page and says *placed by page only*. Do the
-   placement on the server, once per build, and cache it by the PDF digest
-   (`drawn_on` already keys builds that way).
-6. **Keep the evidence.** `wipe_delivered` must keep what the ledger
-   points at. Move each item's crop into the round's own directory before
-   wiping the live marks. The live ink still goes, because a mark that was
-   delivered must not be delivered twice.
-7. **Paper-Writer's documents.** Their route produces the entries directly
-   from the editor's `{issue, find, replace}` records, one per issue, with
-   `find` as the old wording and `replace` as the new. Decide whether the
-   factory writes the sidecar or the board converts its tmp JSON when the
-   job lands.
-8. **Decks.** The deck `.tex` is Beamer, and the same pins work on its
-   pages. The meeting deck's direction route (`POST /library/direction`)
-   changes nothing, so it gets no ledger.
-
-**Do not touch** the serving-chain files beyond the two prompt constants.
-Keep the ledger's server half in `course/library.py` or a new
-`course/ledger.py`, and its glass half in a new `web/ledger.js` that
-`library.html` and `meeting.html` both load.
-
-**Assert:** in `test/library.py`, a filed round with three inked regions
-and two paragraphs writes five items with ids and crops. A turn's ledger
-with one id missing is shown as *not answered* for that id. A placement
-finds a phrase across a line break in a fixture PDF and caches it by
-digest. `wipe_delivered` keeps the crops. A reopened item carries its id
-into the next round's note. In `test/library.js`, the reader draws one pin
-per placed item, a tap opens that item's card, and *next change ›* steps
-through them by page. Bump `VERSION` in `board/web/sw.js`.
-
-### 2. And the seven things no test can hold — THE IPAD'S
+### 1. And the nine things no test can hold — THE IPAD'S
 
 None of these is a build. Each is an evening in front of the thing.
 
@@ -339,6 +209,19 @@ The rest are course sittings and can wait.
   figure at 200% zoom on an iPad, and that page's pen has never met a stylus —
   and **whether the reader is any good**, which is the one word in the question
   the library came from that no amount of code answers: *slick*.
+
+- **The edit ledger, on a real round.** The build is Settled. File a round on
+  the TRD-EHR manuscript and on the deck with ink and two paragraphs: the panel's
+  split is readable, and *these N are one request* is quick. After a real revision
+  turn, its ledger's `answers` are in the expected shape (only the board side has
+  been tested, with no model), and a real Paper-Writer revision writes
+  `.factory.json` beside the note and its answers appear as pins. On the glass:
+  the pins sit in the left margin, take a finger, stay put through a pinch, and
+  dim out of the Pencil's way with the pen on; the crops show the page under the
+  ink, lined up; *next change ›* reaches every pin on a 30-page paper and a Beamer
+  deck with the change visible above the card. Placement on the real documents —
+  ligatures, the deck's five *considered*s, LaTeX-marked-up wording — is the
+  question no fixture answers.
 
 - **The meeting deck, written by a real turn.** A real `[writeup]` turn has
   not yet built the meeting deck. The first one from the front door (*the
@@ -427,6 +310,40 @@ as the answer.
 ---
 
 ## Settled, so nobody re-derives it
+
+- **A ROUND OF FEEDBACK IS A LEDGER OF NUMBERED REQUESTS, AND EVERY ONE IS
+  ANSWERED.** `course/ledger.py` and `web/ledger.js`; `board/README.md`, *A round
+  is a ledger of requests*, has the files. `write_note` splits a round into one
+  request per inked region (single-link within `GAP`) and one per typed paragraph,
+  shown first by `POST /library/ledger/preview`, with a page mergeable to one
+  request. `R3.4` is stored, and `ledger.next_round` is past every ledger there
+  has been, so a deleted note gives its ids to nobody. Typed paragraphs are in the
+  note once, under their ids: the factory reads the note's first 6000 characters.
+  `<note>.ledger.json` is the contract (items, and the turn's `answers`); the
+  board-only half — `items.json`, crops, `marked-p<n>.png`, `before`/`after`
+  snapshots, `states.json`, `checked.json`, `placed-<digest>.json` — lives in the
+  round's directory `<day>-v<n>/`, because the turn rewrites the ledger and a
+  board write there would move the stat the validation is keyed on. Validation is
+  lazy, on the wipe's GETs (`ledger.settle`): a missing id is NOT ANSWERED once
+  landed, WAITING before, and the board writes `## What was changed` from the
+  ledger. `sense.LEDGER_SENSE` names the path and ids; `bin/tutor` changed only in
+  its two revise prompts. **The board snapshots, it does not commit**: a commit of
+  a half-finished edit is a worse undo than none. `after.<ext>` is taken once and
+  never replaced (from the next round's `before` where there is one), so a
+  re-validation cannot copy later edits over a round's old wording. **A round whose
+  ask failed is `unsent`** and counted nowhere, so its retry counts each request
+  once. Accept and reopen only on a landed round; a reopened request rides the next
+  round under its id, carried only once the ask succeeded. Placement is
+  server-side over `pdftotext -bbox`, hyphen- and line-break-tolerant, anchored on
+  the rarest opening word, `%` a comment only in `.tex`, cached by `paper._digest`;
+  unplaced is *placed by page only*. **Paper-Writer writes what it APPLIED**
+  (`<note>.factory.json`), its editor citing `[R3.4]` per issue, and
+  `ledger.from_factory` turns that into answers; a structural edit is anchored on
+  its `find`, not flagged for wording it never had. The card is a sheet at the foot
+  of the glass with its own *next change ›*, so a jumped-to change stays in sight.
+  The meeting deck loads `ledger.js` and uses none of it: `POST /meeting/direction`
+  changes nothing, so it has no ledger. `test/library.py` and `test/library.js`
+  hold it.
 
 - **THE FRONT DOOR OPENS A WORKSPACE ON ITS MAP, WITH NO SITTING AND NO
   ASSISTANT.** `addrRoute` in `home.js` sends every address to the board

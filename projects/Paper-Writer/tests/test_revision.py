@@ -271,6 +271,63 @@ class RevisingEndToEnd(unittest.TestCase):
             self.assertIn("what the pairing buys", brief)
             self.assertLess(brief.index("THIS IS A REVISION"), 200)
 
+    def test_what_landed_is_written_back_beside_the_feedback(self):
+        """The board's ledger answers each request from what the editor APPLIED --
+        which only this harness knows -- so delivery writes it beside the feedback
+        file the job named, with the request's id kept in the issue."""
+        self.feedback.write_text(
+            FEEDBACK + "\n## The requests, by id\n\n### R1.1 -- in words\n\n"
+            "Say what the pairing buys.\n", encoding="utf-8")
+        seen = []
+
+        def edit(project_rec, paper_num, section_num, prose, truth, gate_brief,
+                 pass_num, log_fn=None):
+            seen.append(gate_brief)
+            if "so the\ncomparison is paired." in prose and pass_num == 101:
+                return {"issues": [
+                    {"kind": "claim", "severity": "blocking",
+                     "issue": "[R1.1] the pairing is never explained",
+                     "find": "so the\ncomparison is paired.",
+                     "replace": "so the\ncomparison is paired and the split's own "
+                                "noise cancels."},
+                    {"kind": "claim", "severity": "blocking",
+                     "issue": "[R1.1] and a second anchor that is not there",
+                     "find": "no such sentence anywhere", "replace": "x"}],
+                    "structural": []}
+            return {"issues": [], "structural": []}
+
+        real = review.model_review
+        review.model_review = edit
+        self.addCleanup(setattr, review, "model_review", real)
+        self._run()
+        self.assertTrue(any("[R3.4]" in b for b in seen),
+                        "the editor is not told to cite the request's id")
+        back = self.feedback.with_name(self.feedback.stem + ".factory.json")
+        self.assertTrue(back.is_file(), "nothing was written beside the feedback")
+        record = storage.load_json(back, {})
+        landed = [e for e in record["edits"] if e["applied"]]
+        refused = [e for e in record["edits"] if not e["applied"]]
+        self.assertEqual([e["issue"] for e in landed],
+                         ["[R1.1] the pairing is never explained"])
+        self.assertIn("noise cancels", landed[0]["replace"])
+        self.assertEqual(len(refused), 1)
+        self.assertIn("does not appear", refused[0]["why"])
+
+    def test_an_unnumbered_feedback_is_not_told_about_ids(self):
+        seen = []
+
+        def capture(project_rec, paper_num, section_num, prose, truth, gate_brief,
+                    pass_num, log_fn=None):
+            seen.append(gate_brief)
+            return {"issues": [], "structural": []}
+
+        real = review.model_review
+        review.model_review = capture
+        self.addCleanup(setattr, review, "model_review", real)
+        self._run()
+        self.assertTrue(seen)
+        self.assertFalse(any("[R3.4]" in b for b in seen))
+
     def test_a_document_that_is_not_there_stalls_with_a_usable_error(self):
         support.drop("missing-doc", prompt=_job("manuscripts/nowhere.md",
                                                 workspace=str(self.workspace)))

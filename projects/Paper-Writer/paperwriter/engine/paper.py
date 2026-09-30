@@ -136,6 +136,9 @@ def advance(records, project_rec, paper_rec, log_fn=print):
                                landed=landed)
             log_fn(f"paper {paper_num}: DELIVERED -> "
                    f"{dest[0].parent if dest else '(nothing to deliver)'}")
+            # A REVISION ANSWERS ITS FEEDBACK: the edits that landed, written back
+            # beside the file that asked for them. Never raises.
+            revision.write_back(project_rec, paper_num, log_fn=log_fn)
 
             # And commit it, if the delivery folder is a working tree and the operator
             # asked for that. Never raises: the paper is already delivered, and a git

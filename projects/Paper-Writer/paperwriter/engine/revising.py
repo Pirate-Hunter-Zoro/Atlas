@@ -135,6 +135,10 @@ def _resweep(records, project_rec, paper_num, section_rec, log_fn=print):
             ground_truth=review.ground_truth(project_rec, paper_num, section),
             log_fn=log_fn)
 
+    # WHAT LANDED, kept for the author's ledger -- see `revision.record_edits`.
+    revision.record_edits(project_rec, paper_num, n, sweeps, applied, rejected,
+                          report["structural"], spliced)
+
     outstanding = [f"{i['kind'].upper()}: {i['issue']}"
                    for i in review.unrepaired(report, applied)]
     outstanding += list(report["gate_failures"])

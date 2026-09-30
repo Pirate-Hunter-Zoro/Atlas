@@ -295,4 +295,107 @@ def brief(project_rec, limit=8000):
         "construction.",
         "",
     ]
+    if _REQUEST_ID.search(said or ""):
+        # THE FEEDBACK IS NUMBERED, and the author's ledger is keyed on those
+        # numbers: an issue that says which request it answers is how the board
+        # can say, request by request, what was done.
+        lines[-1:-1] = [
+            "  - The feedback lists its requests by id (`R3.4` is round 3, request "
+            "4). Begin each issue you raise with the id of the request it answers, "
+            "in square brackets -- `[R3.4] the abstract overclaims` -- so the "
+            "author can see what was done about each one. An issue no request "
+            "asked for carries no id.",
+        ]
     return "\n".join(lines)
+
+
+# ---------------------------------------------------------------------------
+# what was done, written back beside the feedback
+# ---------------------------------------------------------------------------
+# THE BOARD'S LEDGER WANTS WHAT LANDED, NOT WHAT WAS PROPOSED. The editor's
+# `{issue, find, replace}` file under `tmp/` is a proposal: `patching.apply_edits`
+# decides which of them applied, and nothing kept that answer. So every sweep of a
+# revision records its applied and rejected edits here, beside the paper, and the
+# delivery writes them back beside the feedback file the job named -- where the
+# board that filed the feedback reads them as the answers to its requests. Only
+# this harness knows which edit landed, so only it can write this.
+_REQUEST_ID = re.compile(r"\bR\d+\.\d+\b")
+EDITS_FILE = "revision_edits.json"
+
+
+def edits_path(project_id, paper_num):
+    return paths.paper_root(project_id, paper_num) / EDITS_FILE
+
+
+def record_edits(project_rec, paper_num, section_num, sweep, applied, rejected,
+                 structural=(), spliced=0):
+    """One sweep's edits, applied and not, added to the paper's record. Only on a
+    revision; an ordinary paper has no feedback to answer."""
+    if not wanted((project_rec or {}).get("prompt_text")):
+        return
+    path = edits_path(project_rec["project_id"], paper_num)
+    got = storage.load_json(path, {"edits": []}) or {"edits": []}
+    edits = got.setdefault("edits", [])
+
+    def one(edit, ok, why=""):
+        e = edit if isinstance(edit, dict) else {}
+        edits.append({"section": section_num, "sweep": sweep,
+                      "issue": str(e.get("issue") or "")[:600],
+                      "find": str(e.get("find") or "")[:2000],
+                      "replace": str(e.get("replace") or "")[:2000],
+                      "applied": bool(ok), "why": str(why or "")[:300]})
+
+    for edit in applied or []:
+        one(edit, True)
+    for edit, why in rejected or []:
+        one(edit, False, why)
+    for edit in structural or []:
+        # A passage surgery replaced is not itemised by edit, so its new wording is
+        # not known here -- recorded as applied only where surgery replaced any.
+        one(dict(edit, replace=""), bool(spliced),
+            "" if spliced else "the passage could not be replaced")
+    storage.save_json(got, path)
+
+
+def feedback_file(spec):
+    """The feedback file the job named, where it actually is, or None."""
+    if not spec.get("feedback"):
+        return None
+    for candidate in _candidates(dict(spec, document=spec["feedback"])):
+        try:
+            if candidate.is_file():
+                return candidate
+        except OSError:
+            continue
+    return None
+
+
+def write_back(project_rec, paper_num, log_fn=None):
+    """`<feedback>.factory.json` beside the feedback file. Returns a sentence.
+
+    NEVER RAISES, for the rule every step after delivery keeps: the paper is
+    delivered, and a feedback file somebody has since moved must not be why its
+    status stays unfinished.
+    """
+    spec = jobspec.revision((project_rec or {}).get("prompt_text") or "")
+    if not spec:
+        return ""
+    try:
+        note = feedback_file(spec)
+        if note is None or note.suffix.lower() != ".md":
+            return "no feedback file to answer beside."
+        record = storage.load_json(edits_path(project_rec["project_id"], paper_num),
+                                   {"edits": []}) or {"edits": []}
+        out = note.with_name(note.stem + ".factory.json")
+        storage.save_json({"version": 1, "job": project_rec["project_id"],
+                           "paper": paper_num, "document": spec.get("document"),
+                           "edits": record.get("edits") or []}, out)
+    except (OSError, ValueError, TypeError) as exc:
+        note = f"the edits could not be written back beside the feedback: {exc}"
+        if log_fn:
+            log_fn(f"revision: {note}")
+        return note
+    said = f"{len(record.get('edits') or [])} edit(s) written back to {out.name}."
+    if log_fn:
+        log_fn(f"revision: {said}")
+    return said
