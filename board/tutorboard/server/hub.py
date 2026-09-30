@@ -17,6 +17,9 @@ from ..lesson import archive, cards, git, notes, slate, state, turns, uploads
 # pushed to, not polled, so this is the safety net rather than the mechanism.
 POLL_SECONDS = 0.25
 
+# Keys of the payload that are carried but never pushed on their own. See `tick`.
+QUIET = ("notes", "notes_sent")
+
 
 class Hub:
     def __init__(self, repo, worker):
@@ -26,6 +29,7 @@ class Hub:
         self.clients = []
         self.payload = "{}"
         self.digest = ""
+        self.ink = ""
         self.seq = 0
 
     def subscribe(self):
@@ -242,21 +246,41 @@ class Hub:
                 pass
 
             try:
-                data = self.build()
-                # The digest covers content only; seq is stamped afterwards, or
-                # every poll would look like a change and loop forever.
-                blob = json.dumps(data, sort_keys=True)
-                digest = hashlib.sha1(blob.encode("utf-8")).hexdigest()
-                if digest != self.digest:
-                    self.digest = digest
-                    self.seq += 1
-                    data["seq"] = self.seq
-                    self.payload = json.dumps(data)
-                    self.push(self.payload)
+                self.tick()
             except Exception:
                 pass
             if self.worker.dirty.wait(POLL_SECONDS):
                 self.worker.dirty.clear()
+
+    def tick(self):
+        """Build the payload, and push it if the lesson changed."""
+        data = self.build()
+        # The digest covers content only; seq is stamped afterwards, or every
+        # poll would look like a change and loop forever.
+        #
+        # INK ALONE IS NOT A CHANGE WORTH PUSHING. Every autosave of a card's
+        # marks rewrites `notes`, and pushing that re-sends the whole lesson and
+        # re-renders it on the tablet about a second after each stroke -- the
+        # middle of the next one, which then stutters or is lost. The page that
+        # drew the ink already has it, and `Annotate.load` adopts only cards it
+        # has never seen. The payload is still rebuilt, so a reload or the next
+        # real push carries the ink as it is on disk.
+        lesson = {k: v for k, v in data.items() if k not in QUIET}
+        blob = json.dumps(lesson, sort_keys=True)
+        digest = hashlib.sha1(blob.encode("utf-8")).hexdigest()
+        ink = json.dumps([data.get(k) for k in QUIET], sort_keys=True)
+        ink = hashlib.sha1(ink.encode("utf-8")).hexdigest()
+        if digest != self.digest:
+            self.digest = digest
+            self.ink = ink
+            self.seq += 1
+            data["seq"] = self.seq
+            self.payload = json.dumps(data)
+            self.push(self.payload)
+        elif ink != self.ink:
+            self.ink = ink
+            data["seq"] = self.seq
+            self.payload = json.dumps(data)
 
     def push(self, payload):
         with self.lock:

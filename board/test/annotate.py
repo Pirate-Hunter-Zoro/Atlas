@@ -105,6 +105,26 @@ try:
           "the ink with the words",
           all(0.0 <= v <= 1.0 for v in seen["0003"][0]["p"]))
 
+    # --- an autosave is not a lesson change -----------------------------------
+    # Pushing one re-rendered the whole lesson on the tablet a second after each
+    # stroke, in the middle of the next.
+    q, cv = board.subscribe()
+    board.tick()
+    del q[:]
+    post("/annotate/save", {"card": "0003", "strokes": strokes + strokes})
+    board.tick()
+    check("an autosave of ink alone pushes nothing to the page drawing it", not q)
+    check("but the payload a reload gets carries that ink",
+          len(json.loads(board.payload)["notes"]["0003"]) == 2)
+    open(os.path.join(repo.cards, "0004-b-card.md"), "w", encoding="utf-8").write(
+        "---\nkind: lesson\ntitle: B card\n---\n\nMore.\n")
+    board.tick()
+    check("while a new card still goes out", len(q) == 1)
+    os.remove(os.path.join(repo.cards, "0004-b-card.md"))
+    board.tick()
+    board.unsubscribe((q, cv))
+    post("/annotate/save", {"card": "0003", "strokes": strokes})
+
     # --- sending --------------------------------------------------------------
     status, body = post("/annotate/save", {"card": "0003", "strokes": strokes,
                                            "png": PNG, "send": True,
