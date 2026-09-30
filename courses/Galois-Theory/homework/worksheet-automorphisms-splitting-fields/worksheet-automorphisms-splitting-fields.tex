@@ -174,7 +174,34 @@ forces $\sigma_1=\sigma_2$, a contradiction.
 \end{problem}
 
 % ===== SOLUTION 8(a) =====
-% TODO(mferguson): your work goes here.
+\begin{proof}[Existence]
+Let $H : F[x] \to F(\alpha)$ and $G : F[x] \to F(\beta)$ be the evaluation
+maps $f \mapsto f(\alpha)$ and $f \mapsto f(\beta)$. Both are surjective,
+since every element of $F(\alpha)$ is a polynomial in $\alpha$, and likewise
+for $\beta$. Since $p(\alpha) = 0$, we have $(p) \subseteq \ker H$; since $p$ is
+irreducible, $(p)$ is maximal, and $\ker H \neq F[x]$, so $\ker H = (p)$.
+Likewise $\ker G = (p)$. By the first isomorphism theorem there are
+isomorphisms
+\[
+  g : F(\alpha) \to F[x]/(p), \qquad h : F(\beta) \to F[x]/(p),
+\]
+with $g(f(\alpha)) = f + (p)$ and $h(f(\beta)) = f + (p)$. Put
+$\sigma = h^{-1} \circ g : F(\alpha) \to F(\beta)$. It is an isomorphism, it
+fixes $F$, and $\sigma(\alpha) = h^{-1}(x + (p)) = \beta$.
+For example, over $\mathbb{Q}$ with $p = x^2 - 2$, this gives
+$\sqrt{2} \mapsto -\sqrt{2}$.
+\end{proof}
+\begin{proof}[Uniqueness]
+Let $\tau : F(\alpha) \to F(\beta)$ fix $F$ with $\tau(\alpha) = \beta$. For
+$c \in F$, $\tau(c) = c = \sigma(c)$. Let $x \in F(\alpha)$, so
+$x = \sum_{i=0}^{n} a_i \alpha^i$ with $a_i \in F$. Then
+\begin{align*}
+  \tau(x) &= \sum_{i=0}^{n} a_i\, \tau(\alpha)^i && \text{($\tau$ adds, multiplies, fixes $F$)} \\
+          &= \sum_{i=0}^{n} a_i\, \beta^i \\
+          &= \sum_{i=0}^{n} a_i\, \sigma(\alpha)^i = \sigma(x) && \text{(likewise for $\sigma$)}.
+\end{align*}
+So $\tau = \sigma$.
+\end{proof}
 % ===== END SOLUTION 8(a) =====
 
 \begin{problem}{8(b)}
@@ -184,7 +211,23 @@ forces $\sigma_1=\sigma_2$, a contradiction.
 \end{problem}
 
 % ===== SOLUTION 8(b) =====
-% TODO(mferguson): your work goes here.
+\begin{proof}
+We have $(x-1)\Phi_p(x) = x^p - 1$. Substituting $x+1$ for $x$,
+\[
+  x\,\Phi_p(x+1) = (x+1)^p - 1
+    = \Bigl(\sum_{i=0}^{p} \binom{p}{i} x^i\Bigr) - 1
+    = \sum_{i=1}^{p} \binom{p}{i} x^i ,
+\]
+so
+\[
+  \Phi_p(x+1) = \sum_{i=1}^{p} \binom{p}{i} x^{i-1}
+    = x^{p-1} + \binom{p}{p-1} x^{p-2} + \cdots + \binom{p}{1}.
+\]
+This is irreducible by Eisenstein at $p$: $p \mid \binom{p}{1} = p$ and
+$p^2 \nmid \binom{p}{1}$; $p \mid \binom{p}{k}$ for $k \in \{2, \dots, p-1\}$;
+and $p \nmid \binom{p}{p} = 1$. If $\Phi_p(x)$ were reducible, so would
+$\Phi_p(x+1)$ be. So $\Phi_p(x)$ is irreducible.
+\end{proof}
 % ===== END SOLUTION 8(b) =====
 
 \begin{problem}{8(c)}
@@ -197,7 +240,15 @@ forces $\sigma_1=\sigma_2$, a contradiction.
 \end{problem}
 
 % ===== SOLUTION 8(c) =====
-% TODO(mferguson): your work goes here.
+\begin{proof}[Proof that {$[\mathbb{Q}(\zeta_p):\mathbb{Q}] = p-1$}]
+Let $\zeta_p = e^{2\pi i/p}$. We have $x^p - 1 = (x-1)\Phi_p(x)$, and
+$\zeta_p$ is a root of $x^p - 1$ but $\zeta_p \neq 1$, so $\zeta_p$ is a
+root of $\Phi_p$. By 8(b), $\Phi_p$ is irreducible over $\mathbb{Q}$, and it
+is monic, so it is the minimal polynomial of $\zeta_p$. Hence
+$[\mathbb{Q}(\zeta_p):\mathbb{Q}] = \deg \Phi_p = p-1$.
+\end{proof}
+
+% TODO(mferguson): that the injection of 7(c) is onto is not yet proved.
 % ===== END SOLUTION 8(c) =====
 
 \begin{problem}{9(a)}
