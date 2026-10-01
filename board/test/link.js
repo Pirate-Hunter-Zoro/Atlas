@@ -2200,31 +2200,48 @@ async function latchFlow() {
            + 'and iOS cancels it');
 
   // A finger that drags inside that gap still moves the page, by hand,
-  // because the CSS has already refused the native pan for that gesture.
+  // because the CSS has already refused the native pan for that gesture --
+  // and so does one that lands while a palm put down in the gap is still
+  // resting, because iOS fixes touch-action for the whole gesture from its
+  // first touch.
   {
     let scrolled = 0;
     const realBy = window.scrollBy;
     window.scrollBy = function (x, y) { scrolled += y; };
+    const touch = (type, list, moved) => {
+      const e = new window.Event(type, { bubbles: true, cancelable: true });
+      e.changedTouches = moved;
+      e.touches = list;
+      (doc.querySelector('[data-card="0003"] canvas.ann-layer') || layer).dispatchEvent(e);
+    };
+    const t = (id, y) => ({ identifier: id, touchType: 'direct', clientX: 40, clientY: y });
     try {
-      const put = new window.Event('touchstart', { bubbles: true, cancelable: true });
-      put.changedTouches = [{ identifier: 7, touchType: 'direct', clientX: 40, clientY: 300 }];
-      doc.dispatchEvent(put);
-      [280, 240, 200].forEach(function (y) {
-        const mv = new window.Event('touchmove', { bubbles: true, cancelable: true });
-        mv.changedTouches = [{ identifier: 7, touchType: 'direct', clientX: 40, clientY: y }];
-        mv.touches = mv.changedTouches;
-        doc.dispatchEvent(mv);
+      touch('touchstart', [t(7, 300)], [t(7, 300)]);
+      [280, 240, 200].forEach((y) => touch('touchmove', [t(7, y)], [t(7, y)]));
+      touch('touchend', [], [t(7, 200)]);
+      !latched() && scrolled > 50
+        ? ok('and a finger dragging in that gap opens it and still scrolls the '
+             + 'page, by hand, for the gesture the CSS refused')
+        : fail('a finger swiping straight after a mark does not move the page '
+               + '(latch ' + (latched() ? 'shut' : 'open') + ', scrolled '
+               + scrolled + ')');
+
+      stroke();
+      scrolled = 0;
+      touch('touchstart', [t(1, 500)], [t(1, 500)]);      // the palm, in the gap
+      await sleep(gap + 80);                               // the latch opens
+      touch('touchstart', [t(1, 500), t(2, 300)], [t(2, 300)]);
+      [290, 250, 210].forEach((y) => {
+        touch('touchmove', [t(1, 502), t(2, y)], [t(1, 502), t(2, y)]);
       });
-      const up = new window.Event('touchend', { bubbles: true });
-      up.changedTouches = [{ identifier: 7, touchType: 'direct', clientX: 40, clientY: 200 }];
-      doc.dispatchEvent(up);
+      touch('touchend', [t(1, 502)], [t(2, 210)]);
+      touch('touchend', [], [t(1, 502)]);
+      scrolled > 50
+        ? ok('and a finger landing beside a palm that came down in the gap '
+             + 'still scrolls, though the gesture it joined is refused')
+        : fail('a resting palm makes every finger beside it unable to scroll '
+               + '(scrolled ' + scrolled + ')');
     } finally { window.scrollBy = realBy; }
-    !latched() && scrolled > 50
-      ? ok('and a finger dragging in that gap opens it and still scrolls the '
-           + 'page, by hand, for the gesture the CSS refused')
-      : fail('a finger swiping straight after a mark does not move the page '
-             + '(latch ' + (latched() ? 'shut' : 'open') + ', scrolled '
-             + scrolled + ')');
   }
 
   // And the case the latch exists for: a page that is moving. A stroke landing

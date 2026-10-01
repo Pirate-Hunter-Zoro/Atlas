@@ -1516,35 +1516,36 @@ function penProbe(ev) {
      is up before arming it; the answer arrives a gesture later, and a second
      contact moving beside a nib that is now DOWN is a palm rather than a scroll.
      Opening the latch there is the latch failing at the one moment it is for. */
-  if (!drawing && !stylus(ev)) {
-    penLet("moved");
-    handStart(ev);
-  }
+  if (!drawing && !stylus(ev)) penLet("moved");
 }
 
-/* A FINGER THAT DRAGS AGAINST A SHUT LATCH STILL SCROLLS THE PAGE.
+/* A FINGER IN A GESTURE THE PAGE HAS REFUSED STILL SCROLLS IT.
 
-   The latch refuses the pan in CSS, and `touch-action` is fixed for the whole
-   gesture once it starts, so opening the latch on the first move is too late
-   for the finger that opened it. Moving the page by hand for that one gesture
-   is what keeps "I could not scroll right after writing" closed while the
-   latch covers the gap between strokes (`PEN_GAP`). Passive, one gesture, no
-   momentum; the next gesture is native again. A few pixels of slop first, so a
-   palm settling beside the nib does not nudge the lesson. */
+   iOS fixes `touch-action` for a whole multi-touch gesture from its FIRST
+   touch, and a gesture lasts until every contact has lifted. So a finger is
+   refused natively whenever the gesture it joins began on a shut latch or was
+   cancelled at `touchstart` -- a finger landing in `PEN_GAP`, and every finger
+   that lands while a palm put down beside a stroke is still resting. That palm
+   is why "I cannot scroll with my finger whenever I'm annotating" followed the
+   gap: it re-lands between strokes, inside the gap, and stays.
+
+   So `onTouchStart` tracks whether the gesture is shut (`gestureShut`), and a
+   finger landing in one is followed here and moves the page by hand. It
+   follows ITS OWN touch by identifier and ignores the rest of the hand, and it
+   stands down the moment the page moves without it -- that is the browser
+   scrolling natively after all, and two scrolls at once is worse than one.
+   Passive, no momentum, and the first 10 px (`HAND_SLOP`) are slop, so a palm
+   settling does not nudge the lesson. */
 var HAND_SLOP = 10;
 var hand = null;
-var handFrom = null;
+var gestureShut = false;
 
-function touchOf(ev, id) {
-  var lists = [ev.touches, ev.changedTouches];
-  for (var l = 0; l < lists.length; l++) {
-    var list = lists[l];
-    if (!list) continue;
-    for (var i = 0; i < list.length; i++) {
-      if (id === undefined || list[i].identifier === id) return list[i];
-    }
+function touchIn(list, id) {
+  if (!list) return null;
+  for (var i = 0; i < list.length; i++) {
+    if (list[i].identifier === id) return list[i];
   }
-  return ev.changedTouches && ev.changedTouches[0];
+  return null;
 }
 
 function scrollerOf(el) {
@@ -1558,25 +1559,35 @@ function scrollerOf(el) {
   return null;
 }
 
-function handStart(ev) {
-  if (!handFrom || hand) return;
-  var t = touchOf(ev, handFrom.id);
-  hand = { id: handFrom.id, y: handFrom.y, from: handFrom.y,
-           el: scrollerOf(handFrom.el), live: false, moved: 0 };
-  handFrom = null;
+function handAt() {
+  if (hand.el) return hand.el.scrollTop;
+  return window.pageYOffset || (document.documentElement || {}).scrollTop || 0;
+}
+
+function handBegin(t, target) {
+  if (!t || typeof t.clientY !== "number") return;
+  /* A hand that has not moved yet is most likely the palm, so the newest
+     finger takes over: it is the one that came to scroll. */
+  if (hand) {
+    if (hand.live) return;
+    handStop("newer");
+  }
+  hand = { id: t.identifier, y: t.clientY, from: t.clientY,
+           el: scrollerOf(target), live: false, moved: 0, at: 0 };
+  hand.at = handAt();
   try {
     document.addEventListener("touchmove", handPan, { passive: true });
   } catch (e) { document.addEventListener("touchmove", handPan, false); }
-  document.addEventListener("touchend", handStop, true);
-  document.addEventListener("touchcancel", handStop, true);
-  if (t) handPan(ev);
+  document.addEventListener("touchend", handEnd, true);
+  document.addEventListener("touchcancel", handEnd, true);
 }
 
 function handPan(ev) {
   if (!hand) return;
-  if (drawing || (ev.touches && ev.touches.length > 1)) { handStop(); return; }
-  var t = touchOf(ev, hand.id);
+  if (drawing) { handStop("drawing"); return; }
+  var t = touchIn(ev.changedTouches, hand.id);
   if (!t || typeof t.clientY !== "number") return;
+  if (Math.abs(handAt() - hand.at) > 1) { handStop("native"); return; }
   if (!hand.live) {
     if (Math.abs(t.clientY - hand.from) < HAND_SLOP) return;
     hand.live = true;
@@ -1589,15 +1600,22 @@ function handPan(ev) {
     if (hand.el) hand.el.scrollTop += dy;
     else window.scrollBy(0, dy);
   } catch (e) { /* not fatal */ }
+  hand.at = handAt();
 }
 
-function handStop() {
+function handEnd(ev) {
+  if (!hand) return;
+  if (ev && ev.changedTouches && !touchIn(ev.changedTouches, hand.id)) return;
+  handStop("lift");
+}
+
+function handStop(why) {
   if (!hand) return;
   document.removeEventListener("touchmove", handPan, { passive: true });
   document.removeEventListener("touchmove", handPan, false);
-  document.removeEventListener("touchend", handStop, true);
-  document.removeEventListener("touchcancel", handStop, true);
-  say("ink-hand", { moved: Math.round(hand.moved) });
+  document.removeEventListener("touchend", handEnd, true);
+  document.removeEventListener("touchcancel", handEnd, true);
+  say("ink-hand", { moved: Math.round(hand.moved), why: why || "" });
   hand = null;
 }
 
@@ -1634,10 +1652,24 @@ function onControl(ev) {
                      + " .annbar, .sl-tools");
 }
 
+/* Whether this touch begins a gesture rather than joining one: every contact
+   on the glass is new in this event. */
+function freshGesture(ev) {
+  if (!ev.touches || !ev.changedTouches) return true;
+  return ev.touches.length <= ev.changedTouches.length;
+}
+
+function onLayer(ev) {
+  var t = ev && ev.target;
+  return !!(t && t.closest && t.closest("canvas." + LAYER + ", #reader-pages"));
+}
+
 function onTouchStart(ev) {
   if (!on) return;
+  if (freshGesture(ev)) {
+    gestureShut = document.body.classList.contains("pen-writing") && onLayer(ev);
+  }
   if (onControl(ev)) return;
-  handFrom = null;
   /* A contact landing with the latch closed and the nib UP is either a palm or
      somebody going to scroll, and only moving tells them apart. Ask. */
   if (penTimer && !drawing && !stylus(ev)) penWatch();
@@ -1647,6 +1679,7 @@ function onTouchStart(ev) {
   var why = drawing ? "drawing" : (stylus(ev) ? "stylus" : "");
   if (why && ev.cancelable) {
     ev.preventDefault();
+    gestureShut = true;
     say("ink-hold", { at: "touchstart", why: why });
   } else if (why) {
     say("ink-late", { at: "touchstart", why: why });
@@ -1660,8 +1693,9 @@ function onTouchStart(ev) {
        `ink-latch on=0` that came 350 ms before the window said it could. This
        is that finger, written down where it lands. */
     say("ink-pan", { at: "touchstart", latch: 1 });
-    var f = ev.changedTouches && ev.changedTouches[0];
-    handFrom = f ? { id: f.identifier, y: f.clientY, el: ev.target } : null;
+  }
+  if (!why && gestureShut) {
+    handBegin(ev.changedTouches && ev.changedTouches[0], ev.target);
   }
 }
 

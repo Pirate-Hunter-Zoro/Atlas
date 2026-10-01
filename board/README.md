@@ -4843,11 +4843,15 @@ the lift therefore loses every quick stroke that follows one, and the cancelled 
 latch for the stroke after. That is *"it misses every other stroke"*, and slow writing works
 because a slow nib never crosses the pan threshold in time.
 
-**A finger in that window still scrolls.** `onTouchStart` notes a finger landing on a shut
-latch (`ink-pan`). If it drags, `penProbe` opens the latch and `handPan` moves the page for
-that one gesture, since `touch-action` refused the native pan when it started. It is passive,
-has no momentum, and ignores the first 10 px (`HAND_SLOP`), so a settling palm does not nudge
-the lesson. `ink-hand` records how far it moved. `latchFlow` in `test/link.js`.
+**A finger in a refused gesture still scrolls.** iOS fixes `touch-action` for a whole
+multi-touch gesture from its first touch, and the gesture lasts until every contact lifts. So a
+palm that lands in the gap, or during a stroke, makes every finger beside it unscrollable for as
+long as it rests. `onTouchStart` tracks that as `gestureShut`, and a finger landing in a shut
+gesture is followed by `handPan`, which moves the page by hand. It follows its own touch by
+identifier, so the palm is ignored; a newer finger takes over from one that has not moved; and
+it stands down the moment the page moves without it, because that is the browser scrolling
+natively. Passive, no momentum, 10 px of slop (`HAND_SLOP`). `ink-hand` records how far it moved
+and why it stopped. `latchFlow` in `test/link.js`.
 
 **AND A STROKE THAT NEVER ENDS REFUSES EVERY SCROLL ON THE PAGE.** The
 non-passive `touchmove` listener is on the *document* and exists only while a
