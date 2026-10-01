@@ -316,7 +316,26 @@ Over $\mathbb{Q}(\sqrt{-2})$:
 \end{problem}
 
 % ===== SOLUTION 9(c) =====
-% TODO(mferguson): your work goes here.
+\begin{proof}
+Write $\zeta = \zeta_8 = e^{2\pi i/8} = \cos\frac{\pi}{4} + i\sin\frac{\pi}{4}$.
+
+$\mathbb{Q}(i,\sqrt{2}) \subseteq K$: we have $i = e^{2\pi i/4} = \zeta^2 \in K$, and
+\[
+  \zeta + \zeta^{-1} = \left(\cos\tfrac{\pi}{4} + i\sin\tfrac{\pi}{4}\right)
+  + \left(\cos\tfrac{\pi}{4} - i\sin\tfrac{\pi}{4}\right)
+  = 2\cos\tfrac{\pi}{4} = \sqrt{2},
+\]
+so $\sqrt{2} = \zeta + \zeta^7 \in K$, since $\zeta^{-1} = \zeta^7$.
+
+$K \subseteq \mathbb{Q}(i,\sqrt{2})$:
+\[
+  \zeta = e^{i\pi/4} = \cos\tfrac{\pi}{4} + i\sin\tfrac{\pi}{4}
+  = \tfrac{\sqrt{2}}{2} + i\,\tfrac{\sqrt{2}}{2} \in \mathbb{Q}(i,\sqrt{2}),
+\]
+with both coefficients $\tfrac12 \in \mathbb{Q}$.
+
+Each field contains the other's generators, so $K = \mathbb{Q}(i,\sqrt{2})$.
+\end{proof}
 % ===== END SOLUTION 9(c) =====
 
 \begin{problem}{9(d)}
