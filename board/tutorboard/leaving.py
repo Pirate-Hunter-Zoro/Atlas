@@ -31,9 +31,9 @@ has no judgement in it, which is exactly what lets it run unattended, and the
 turn has judgement, which is what covers what a regex cannot see.
 
 PER FILE, BY THE WORKSPACE IT IS IN, and that is the decision this module
-exists to hold. A push here commits the whole repository, so "is the pushing
-workspace fenced" is the wrong question — a mission's fixture in `PSYCH-ASR`
-would go out under a push from anywhere. Checking EVERYTHING was the
+exists to hold. Every changed file in the repository is read, whichever door
+and workspace push, so "is the pushing workspace fenced" is the wrong question
+— a mission's fixture in `PSYCH-ASR` is refused under a push from anywhere. Checking EVERYTHING was the
 alternative, and it is wrong in the other direction and would have been found
 out immediately: this file, the fence's own documentation and `HANDOFF.md` all
 name `phi/` in prose, so a check over every changed line refuses the commit that

@@ -48,7 +48,7 @@ must be openable and teachable at every point.
   `board.css`, `plane-core.js`, `gauge.js`, `home.html`, `home.js`, `library.html`,
   `library.js`, `library.css`, anything added to the cache list), or the installed app
   serves its cached copy and the work is invisible.
-- **`bash test/all.sh` before every ship.** 105 suites, all green. `test/tracked.py` runs
+- **`bash test/all.sh` before every ship.** 106 suites, all green. `test/tracked.py` runs
   early — after the browser suites, before everything else — and refuses PHI, 25-megabyte files, model dumps, other authors' papers and
   machine-local config anywhere in the repository — this is public, and git remembers.
   The last of them is **Paper-Writer's own**, run where it is checked out and skipped
@@ -503,9 +503,9 @@ from one, a docstring quoting a span: written by the one assistant allowed to re
 pushed by a turn that was not. Every push from this tool is unattended, so the last thing before a
 public remote was nothing.
 
-- **Per file, by the workspace it is in.** A push here commits the whole repository, so *is the
-  pushing workspace fenced* is the wrong question — a fixture in `PSYCH-ASR` goes out under a push
-  from anywhere. Checking every changed line was the other option and it is wrong the other way:
+- **Per file, by the workspace it is in.** Every changed file in the repository is read, whichever
+  workspace pushes, so *is the pushing workspace fenced* is the wrong question — a fixture in
+  `PSYCH-ASR` is refused under a push from anywhere. Checking every changed line was the other option and it is wrong the other way:
   this repository's own documentation names the fenced directory on nearly every page, so it would
   refuse the commit that documents the check. Prose about a fence is not a hole in one. So each
   changed path is looked up against the workspaces that hold one (`fenced.holds`, already cached on
@@ -2948,8 +2948,8 @@ suite.
 
 A course repository is somewhere its owner writes code, not only somewhere they are taught — and
 the tutoring machinery runs unattended: the transcript beat commits and pushes every ninety
-seconds, a session start fast-forwards the repository, and **⤓ save** on the iPad commits the whole
-tree from a tap. Two rules keep those out of somebody's way, and they are in
+seconds, a session start fast-forwards the repository, and **⤓ save** on the iPad commits the
+workspace from a tap. Two rules keep those out of somebody's way, and they are in
 `tutorboard/worktree.py` so that there is one of each:
 
 - **A commit names its pathspec.** The beat commits `live/` with `--only`, so a file staged in a
@@ -4330,9 +4330,19 @@ the hub shows the last result too.
 root — the same script, the same commit, the same push as the offer you get on the way out. There
 is one copy of that script and it is the tool's; `board push` from a terminal runs it too. Two
 doors onto one path to a commit, and the working directory is what tells the script which
-repository to commit. One repository holds every workspace, so that commit carries the whole tree:
-both doors name the other workspaces that had uncommitted work in them rather than sweeping them up
-in silence, and both lead the commit subject with the workspace the save was made in.
+repository to commit.
+
+**A save commits only its own workspace.** Both doors pass the script the pathspec
+`lesson_git.save_pathspec` builds: the workspace's directory, minus the tool and any workspace
+nested inside it. `board/` and every other workspace stay uncommitted, and the root `.gitignore`
+keeps `.nfs*` litter out of every commit. Both doors lead the subject with the workspace.
+
+- **A turn commits the work it did, naming the thread.** `board push "<thread>: what changed" --
+  <paths>` commits exactly those paths and refuses any outside the workspace. A save's
+  `lesson complete` is then left carrying the transcript.
+- **An exclude is literal and inside the paths it narrows.** Given a wildcard exclude, or one
+  outside the positive paths, git's `add -A` adds no untracked file and the save reports *nothing
+  to commit* over new work. `test/scoped.py` holds the scope.
 
 **You can save without the tutor, at any point.** `⤓ save` in the title bar raises the
 same offer, worded as what it is — *Save this work? … The lesson stays open.* Sessions end

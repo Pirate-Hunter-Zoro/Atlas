@@ -1393,12 +1393,21 @@ def cmd_push(live, args):
     caller sets that and the commit belongs to the repository somebody is
     standing in.
 
-    There is one repository holding every workspace, so the commit carries the
-    whole tree. What else has uncommitted work in it is NAMED before the push
-    runs, the way `run_push` names it on the card: a save that quietly swept two
-    other projects into a commit titled after tonight's lesson is a commit
-    nobody can find again.
+    It commits THIS WORKSPACE and nothing else, with the pathspec
+    `lesson_git.save_pathspec` builds for the save button too: never the tool,
+    another workspace or NFS litter. `board push "msg" -- <paths>` narrows it
+    to those paths, which is how a turn commits the work it did under a message
+    naming the thread; a path outside the workspace is refused.
     """
+    from tutorboard.lesson import git as lesson_git
+    only = None
+    if "--" in args:
+        cut = args.index("--")
+        args, only = args[:cut], args[cut + 1:]
+        if not only:
+            print("`--` with no paths after it: name what to commit",
+                  file=sys.stderr)
+            return 1
     message = " ".join(a for a in args if not a.startswith("--")) or "lesson complete"
     script = os.path.join(TOOL, "scripts", "save-and-push.sh")
     if not os.path.exists(script):
@@ -1474,50 +1483,14 @@ def cmd_push(live, args):
                       "be behind until it is fixed:")
                 print("  " + "\n  ".join(out.strip().splitlines()[-8:]))
 
-    # The repository this workspace is IN, asked of git rather than derived from
-    # the workspace directory -- which is right for an ordinary clone and wrong
-    # for a linked worktree or a submodule. The script takes its root from the
-    # working directory, so this is the line that decides which repository is
-    # committed. `lesson/git.py` asks the same question for the save button.
-    top = live.root
-    try:
-        q = subprocess.run(["git", "rev-parse", "--show-toplevel"], cwd=live.root,
-                           stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
-                           timeout=10)
-        found = q.stdout.decode("utf-8", "replace").strip()
-        if q.returncode == 0 and found:
-            top = found
-    except (OSError, subprocess.TimeoutExpired):
-        pass
-
-    # Said before the commit, because afterwards there is nothing left to
-    # compare against. Only the workspaces INSIDE this repository: one in
-    # another clone is not going anywhere on this push. Both sides are resolved
-    # first -- this home directory answers to two spellings, and git hands back
-    # the one with the symlinks taken out, so a raw string comparison would put
-    # every workspace outside the repository it is in and print nothing at all.
-    #
-    # NOTHING HERE MAY STOP THE PUSH. It is a sentence to be read; failing to
-    # name the other workspaces is a worse save, and not saving is worse again.
-    also = []
-    try:
-        here = os.path.realpath(top)
-        inside = set()
-        for w in atlas.workspaces():
-            rel = os.path.relpath(os.path.realpath(w["root"]), here)
-            if rel.split(os.sep)[0] == os.pardir:
-                continue
-            if not paths.same_dir(w["root"], live.root):
-                inside.add(w["id"])
-        if inside:
-            from tutorboard.lesson import git as lesson_git
-            also = [w for w in lesson_git.other_dirty_workspaces(live)
-                    if w in inside]
-    except Exception:                                        # noqa: BLE001
-        also = []
-    if also:
-        print("this is one repository, so the save also carries uncommitted "
-              "work in: " + ", ".join(also))
+    # The script takes its repository from the working directory, so `top` is
+    # what decides which repository is committed, and the pathspec what in it.
+    top = lesson_git.repo_top(live.root)
+    specs, refused = lesson_git.save_pathspec(live.root, top, only)
+    if refused:
+        print("not in this workspace, so not committed from here: "
+              + ", ".join(refused), file=sys.stderr)
+        return 1
 
     # THE WORKSPACE LEADS THE MESSAGE, exactly as it does for the save button in
     # `lesson/git.py`. One repository, one history: a commit carrying the whole
@@ -1528,24 +1501,15 @@ def cmd_push(live, args):
     if where and not message.startswith(where):
         message = "%s: %s" % (where, message)
 
-    p = subprocess.run(["bash", script, message], cwd=top,
+    p = subprocess.run(["bash", script, message, "--"] + specs, cwd=top,
                        stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     out = p.stdout.decode("utf-8", "replace").strip()
     print(out)
     # THE SAME RECORD EITHER DOOR WROTE IT. `push.json` is what the board reads
-    # to draw the last outcome, and it does not know which door made the commit
-    # -- so a push from a terminal that swept two other workspaces in has to say
-    # so ON THE GLASS, not only to the terminal nobody is looking at. Shaped
-    # exactly as `lesson/git.py` shapes it: the workspace as its own field, the
-    # sentence at the top of the detail.
+    # to draw the last outcome, shaped exactly as `lesson/git.py` shapes it.
     record = {"ok": p.returncode == 0, "at": time.time(),
               "iso": time.strftime("%Y-%m-%d %H:%M:%S"),
               "workspace": where, "detail": out[-1200:]}
-    if also:
-        record["also"] = also
-        record["detail"] = ("this is one repository, so the save also carried "
-                            "uncommitted work in: " + ", ".join(also) + "\n\n"
-                            + record["detail"])
     with open(live.path("push.json"), "w", encoding="utf-8") as fh:
         json.dump(record, fh, indent=2)
     st = live.state()
