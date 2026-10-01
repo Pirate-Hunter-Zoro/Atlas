@@ -27,6 +27,8 @@ from . import carry, direction, handoff, progress
 from .course import config
 from .course import homework
 from .course import map as course_map
+from .course import threads as course_threads
+from .lesson import archive as lesson_archive
 from .lesson import git as lesson_git
 
 
@@ -162,6 +164,105 @@ def map_sense(root):
 
 
 
+# What each kind of sitting on a thread asks of the turn, in one line. The
+# whole of each is `live/TEACHING.md`'s; this is which section to hold to.
+KIND_SENSE = {
+    "learn": "a LEARN sitting: a board lesson run by live/TEACHING.md -- "
+             "exercises, their handwriting, a compiled write-up. No code.",
+    "coach": "a COACH sitting: they write the statistical code and you guide "
+             "one step per card (live/TEACHING.md, *A coach sitting*). You "
+             "write figures, dataframe plumbing, serialization and job "
+             "scaffolding yourself; you write no code for an estimator or a "
+             "validation design. Read their diff and run the check yourself.",
+    "build": "a BUILD sitting: you or your agents do the work and the card is "
+             "a report of what changed.",
+}
+
+
+def thread_sense(repo, st):
+    """The thread this sitting is on, read off `threads.json`, or "".
+
+    THE BRIEFING OPENS WITH IT, because it is the scope: a cold turn reads one
+    thread -- its question, its open tasks and decisions, its outputs and what
+    the last sitting on it reported -- rather than the project's README and
+    plan.
+    """
+    tid = str((st or {}).get("thread") or "").strip()
+    if not tid:
+        return ""
+    root = repo.root
+    try:
+        clean, problems = course_threads.read(root)
+    except Exception:                                        # noqa: BLE001
+        clean, problems = None, ["unreadable"]
+    one = course_threads.thread(clean, tid) if clean and not problems else None
+    if not one:
+        return ("\n--- the thread ---\nThis sitting names the thread `%s`, and "
+                "threads.json has no such thread now. `board thread --show` "
+                "lists what it has; say so in your first card." % tid)
+    kind = config.kind_for(root, st, one["files"]) or "learn"
+    stage = {}
+    try:
+        stage = course_threads.stages(root).get(tid) or {}
+    except Exception:                                        # noqa: BLE001
+        stage = {}
+    deliv = ""
+    for d in clean["deliverables"]:
+        if d["id"] == one["deliverable"]:
+            deliv = d["title"]
+    out = ["\n--- the thread this sitting is on: %s (`%s`) ---" % (one["title"], tid)]
+    out.append("This is %s" % KIND_SENSE.get(kind, kind))
+    if deliv:
+        out.append("For: %s." % deliv)
+    if one["question"]:
+        out.append("Question: %s" % one["question"])
+    status = stage.get("status") or "open"
+    out.append("Status: %s%s." % (status, ", with unsaved changes under its "
+                                   "paths" if stage.get("unsaved") else ""))
+    said = (st or {}).get("rethink")
+    if said:
+        out.append("THEIR RETHINK OF THIS THREAD, in their own words, and it "
+                   "outranks the tasks below until you have rewritten them:\n  "
+                   + str(said).strip())
+    tasks = [(i + 1, x["text"]) for i, x in enumerate(one["tasks"])
+             if not x["done"]]
+    if tasks:
+        out.append("Open tasks (`board thread done <n>` ticks one):")
+        out.extend("  %d. %s" % t for t in tasks)
+    else:
+        out.append("Open tasks: none. Add the next one with `board thread "
+                   "task` before you finish.")
+    open_d = [(i + 1, d["q"]) for i, d in enumerate(one["decisions"])
+              if d["rule"] is None]
+    if open_d:
+        out.append("Open decisions -- the owner's, not yours:")
+        out.extend("  %d. %s" % d for d in open_d)
+    if one["files"]:
+        out.append("Files: %s" % ", ".join(one["files"][:10]))
+    if one["outputs"]:
+        out.append("Outputs: %s" % "; ".join(
+            "%s (%s)" % (o, "there" if course_threads.here(root, o)
+                         else "not yet") for o in one["outputs"][:10]))
+    if one["writes"]:
+        out.append("Written up in: %s" % "; ".join(
+            "%s under %r" % (w["file"], w["anchor"]) for w in one["writes"][:6]))
+    last = None
+    try:
+        last = lesson_archive.last_on_thread(repo, tid)
+    except Exception:                                        # noqa: BLE001
+        last = None
+    if last and last.get("report"):
+        out.append("The last sitting on this thread (%s%s) ended on:\n  %s"
+                   % (last.get("kind") or "a sitting",
+                      ", " + last["opened"] if last.get("opened") else "",
+                      last["report"]))
+    else:
+        out.append("No earlier sitting on this thread has been filed.")
+    out.append("This thread is the scope. Do not read the project's README or "
+               "plan for an agenda.")
+    return "\n".join(out)
+
+
 def beside_sense(repo):
     """What somebody did to this workspace that you have not been told about.
 
@@ -249,6 +350,11 @@ def briefing(repo, sense, chapter=None, doing=None, mission=False):
     head = " — ".join(x for x in (st.get("course"), st.get("session"),
                                   st.get("chapter")) if x)
     out.append(head or "no session open")
+    # THE THREAD FIRST, when the sitting is on one. It is the scope, and every
+    # line under it is read in its light.
+    on_thread = thread_sense(repo, st)
+    if on_thread:
+        out.append(on_thread)
     # THE WRITE-UP, on the brief, every turn a set is bound. Counts and not just
     # a name: "homework set: ch04" is a fact about configuration and reads as
     # already handled, where "0 of 11 written up, next 04.1" is a debt, and a

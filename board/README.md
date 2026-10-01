@@ -48,7 +48,7 @@ must be openable and teachable at every point.
   `board.css`, `plane-core.js`, `gauge.js`, `home.html`, `home.js`, `library.html`,
   `library.js`, `library.css`, anything added to the cache list), or the installed app
   serves its cached copy and the work is invisible.
-- **`bash test/all.sh` before every ship.** 106 suites, all green. `test/tracked.py` runs
+- **`bash test/all.sh` before every ship.** 107 suites, all green. `test/tracked.py` runs
   early — after the browser suites, before everything else — and refuses PHI, 25-megabyte files, model dumps, other authors' papers and
   machine-local config anywhere in the repository — this is public, and git remembers.
   The last of them is **Paper-Writer's own**, run where it is checked out and skipped
@@ -665,6 +665,36 @@ closed is a step, carrying its `thread`, and the map puts it on that thread's bo
 file with no open task leaves the README-pointed plan file in force.
 
 PSYCH-ASR and libr-local-llm carry thread files, one thread per stage of the work.
+
+### A sitting is on a thread, and is one of three kinds
+
+In a workspace with a thread file, a sitting's `live/state.json` carries **`thread`** and
+**`kind`**. A box of a thread file is a thread, so `board open --node <id>`, `board open --thread
+<id>` and a map tap (`/session` with `node` or `thread`) all write `thread` and never `node`;
+`node` is left for a box of a derived map. `config.sitting_box` reads either. The sitting is named
+after the thread's title, and an id the file does not declare is refused (ignored aloud at the
+terminal).
+
+A kind is not a third axis. It names an aim, and the aim names the stance:
+
+| kind | aim | stance |
+|---|---|---|
+| learn | teach | teach — a board lesson, no code |
+| coach | coach | teach — the owner writes the statistics; `TEACHING.md`, *A coach sitting* |
+| build | build (or paper, slides) | do — the card is a report |
+
+`config.kind_for` reads it back: the sitting's own `kind`, else its own aim (`AIM_KIND`), else its
+stance, and for a teach stance with nothing else said, **coach where the thread's files are code**
+(`walk.SOURCE`) and learn otherwise. `--kind`, the sheet's `kind`, `board aim <kind>` and `/aim`
+with `kind` set it; changing the aim of a sitting on a thread moves its kind with it.
+
+**`board brief` opens with the thread**, right under its title line: the kind, the deliverable,
+the question, the derived status, the open tasks numbered as `board thread done` counts them, the
+open decisions, files, outputs (there or not yet), write-up anchors, and the last card of the
+newest archived sitting on the thread (`archive.last_on_thread`, capped at 150 words). It ends by
+saying the thread is the scope; `sense.where_sense` sends a thread sitting to the thread rather than
+the README and plan. `archive.list_archive` carries each sitting's `thread` and `kind`.
+`test/onthread.py` is the suite.
 
 ### The meeting deck
 
@@ -1634,6 +1664,15 @@ should have doubted. The turn woken by the change is told, in the imperative, to
 plan, redraw the map and report what it did; a turn asked politely to consider replanning hands
 back a plan and does nothing. `board direction --show` reads it from a terminal and
 `board direction --clear` takes it off.
+
+**In a workspace with a thread file, rethink is about the thread the sitting is on.** Their
+sentence does not go to `DIRECTION.md`. It rides in the `[direction]` line, under
+`direction.RETHINK`, and in the new sitting's `rethink`, which the briefing's thread section
+quotes. The woken turn rewrites that thread's tasks with `board thread` and reports what changed.
+A sentence that names a new question is proposed as a thread in the report and added with `board
+thread add` once the owner says yes. The sitting reopens on the same `thread` and `kind`, named
+after the thread; the lesson is still archived and the tutor still replaced. A sitting on no
+thread takes the workspace-wide path above.
 
 **And it says so for the whole of the several minutes it takes.** Replacing the assistant and
 rewriting a plan is not quick, and the turn that does it is told to write one sentence FIRST so

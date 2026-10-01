@@ -22,6 +22,7 @@ from ... import sense
 from ...course import config
 # `map` is a builtin; the module keeps the name the board calls the thing.
 from ...course import map as mapping
+from ...course import threads
 from ...lesson import archive
 from ...lesson import cards
 from ...lesson import turns
@@ -115,7 +116,7 @@ def get(h, repo, path):
     return NOT_MINE
 
 
-def _mark(st, node, aim, agent=None):
+def _mark(st, node, aim, agent=None, root=None, kind=None):
     """Which box of the map this sitting is about, what it is for, and WHO writes it.
 
     All three belong to the SITTING and not to the repository, so all three are
@@ -131,10 +132,25 @@ def _mark(st, node, aim, agent=None):
     hours rather than pennies. So it is chosen as a sitting opens, which is both
     the cheaper answer and the honest one about what a sitting is.
     """
-    if node:
+    # A BOX OF A THREAD FILE IS A THREAD, and the sitting carries `thread` and
+    # its `kind` -- learn, coach or build -- in place of `node`. A kind names an
+    # aim, so the aim is written beside it and the stance follows from that.
+    on = None
+    if node and root:
+        clean, _bad = threads.read(root)
+        on = threads.thread(clean, node["id"])
+    st.pop("node", None)
+    st.pop("thread", None)
+    st.pop("kind", None)
+    if on:
+        st["thread"] = on["id"]
+        if kind:
+            aim = config.kind_aim(kind, aim)
+        st["kind"] = kind or config.kind_for(
+            root, {"aim": aim, "stance": st.get("stance"), "thread": on["id"]},
+            on["files"]) or "learn"
+    elif node:
         st["node"] = node["id"]
-    else:
-        st.pop("node", None)
     if aim:
         st["aim"] = aim
     else:
@@ -214,21 +230,38 @@ def _direction(h, repo):
         return h.send_json({"ok": False,
                             "error": "say what the new direction is"}, status=400)
 
-    kept, when = direction.write(repo.root, text)
     was = repo.state()
     course = was.get("course") or config.read_config(repo.root)["name"] or ""
-    label = direction.label(kept)
+    # A RETHINK IN A WORKSPACE WITH A THREAD FILE IS ABOUT THE THREAD THE
+    # SITTING IS ON. Their sentence goes to that thread, not to DIRECTION.md:
+    # it rides in the inbox line and in the new sitting's `rethink`, and the
+    # woken turn rewrites the thread's tasks with `board thread`. The sitting is
+    # named after the thread, never after the first words of the sentence.
+    clean, _bad = threads.read(repo.root)
+    on = threads.thread(clean, str(was.get("thread") or "").strip())
+    if on:
+        kept, when = text[:direction.MAX_CHARS], time.strftime("%Y-%m-%d %H:%M")
+        label = on["title"]
+    else:
+        kept, when = direction.write(repo.root, text)
+        label = direction.label(kept)
     # THE BOX AND THE SITTING'S OWN CHOICES CARRY OVER. A direction replaces what
     # the work is about, not where on the map it is or who writes it. A sitting
     # opened without its box is one the board asks a box for on the next load,
     # and answering that files the lesson the direction just started.
     opening = ["open", course, label, "--lecture"]
-    for flag, key in (("--node", "node"), ("--aim", "aim"),
+    for flag, key in (("--node", "node"), ("--thread", "thread"),
+                      ("--kind", "kind"), ("--aim", "aim"),
                       ("--stance", "stance"), ("--agent", "agent")):
         if was.get(key):
             opening += [flag, str(was[key])]
     spawn.board_cli(repo.root, opening)
     carry.clear_note(repo.root)
+    if on:
+        st = repo.state()
+        st["rethink"] = kept
+        with open(repo.state_path, "w", encoding="utf-8") as fh:
+            json.dump(st, fh, indent=2)
 
     # Their own words, in the transcript, as a turn of theirs -- because that is
     # what it is. The card that comes back is an answer to something they said,
@@ -243,15 +276,20 @@ def _direction(h, repo):
         "from": "student", "text": kept, "signal": "direction", "read": False,
     }
     turns.write_turn(repo, record)
-    line = ("[direction] " + direction.CHANGED + "\n\nTHEIR WORDS:\n" + kept
+    line = ("[direction] "
+            + ((direction.RETHINK % {"id": on["id"], "title": on["title"]})
+               if on else direction.CHANGED)
+            + "\n\nTHEIR WORDS:\n" + kept
             + "\n\n" + sense.session_sense(repo))
     with open(repo.messages_path, "a", encoding="utf-8") as fh:
         fh.write(json.dumps(dict(record, text=line)) + "\n")
 
     spawn.fresh_tutor(repo.root, course)
-    h.note("the direction changed; the lesson is archived and the tutor replaced")
+    h.note("the %s changed; the lesson is archived and the tutor replaced"
+           % ("thread `%s`" % on["id"] if on else "direction"))
     h.server.hub.worker.dirty.set()
-    return h.send_json({"ok": True, "chapter": label, "set": when})
+    return h.send_json({"ok": True, "chapter": label, "set": when,
+                        "thread": on["id"] if on else None})
 
 
 def _aim(h, repo):
@@ -287,6 +325,10 @@ def _aim(h, repo):
     except Exception:
         return h.send_json({"ok": False, "error": "bad json"}, status=400)
     aim = config.clean_aim(payload.get("aim"))
+    # A kind -- learn, coach, build -- is an aim by another name.
+    kind = config.clean_kind(payload.get("kind") or payload.get("aim"))
+    if not aim and kind:
+        aim = config.KIND_AIM[kind]
     if not aim:
         return h.send_json({"ok": False, "error": "not one of the aims"},
                            status=400)
@@ -305,6 +347,8 @@ def _aim(h, repo):
         # call somebody pays for, so this is where a double tap stops.
         return h.send_json({"ok": True, "aim": aim, "changed": False})
     st["aim"] = aim
+    if st.get("thread") or st.get("kind"):
+        st["kind"] = config.AIM_KIND[aim]
     with open(repo.state_path, "w", encoding="utf-8") as fh:
         json.dump(st, fh, indent=2)
 
@@ -480,7 +524,12 @@ def post(h, repo, path):
         # than a thing to do.
         start = bool(payload.get("begin"))
         node = None
-        node_id = str(payload.get("node") or "").strip()
+        # A THREAD is a box of the map with the thread's id, so a request that
+        # names one is looked up the same way a box is. Its kind is an aim.
+        kind_word = config.clean_kind(payload.get("kind"))
+        if kind_word:
+            aim = config.kind_aim(kind_word, aim)
+        node_id = str(payload.get("node") or payload.get("thread") or "").strip()
         if node_id:
             node = mapping.find(repo.root, node_id, repo.state())
             if not node:
@@ -511,7 +560,7 @@ def post(h, repo, path):
         # kind of sitting on the same box is still a new sitting.
         here = repo.state()
         if (kind == "lecture" and node and not step
-                and here.get("node") == node["id"]
+                and config.sitting_box(here) == node["id"]
                 and (here.get("session") or "lecture") == "lecture"
                 and (not aim or aim == here.get("aim"))
                 and not here.get("finished")):
@@ -550,7 +599,7 @@ def post(h, repo, path):
             st = repo.state()
             st["session"] = kind
             st["review"] = names
-            _mark(st, node, aim, agent)
+            _mark(st, node, aim, agent, repo.root, kind_word)
             st.pop("hw", None)
             with open(repo.state_path, "w", encoding="utf-8") as fh:
                 json.dump(st, fh, indent=2)
@@ -590,7 +639,7 @@ def post(h, repo, path):
             st = repo.state()
             st["session"] = kind
             st["walk"] = names
-            _mark(st, node, aim, agent)
+            _mark(st, node, aim, agent, repo.root, kind_word)
             st.pop("hw", None)
             st.pop("review", None)
             with open(repo.state_path, "w", encoding="utf-8") as fh:
@@ -631,7 +680,7 @@ def post(h, repo, path):
             st.pop("hw", None)
             st.pop("review", None)
             st.pop("walk", None)
-            _mark(st, node, aim, agent)
+            _mark(st, node, aim, agent, repo.root, kind_word)
             with open(repo.state_path, "w", encoding="utf-8") as fh:
                 json.dump(st, fh, indent=2)
             if start:
@@ -700,7 +749,7 @@ def post(h, repo, path):
         st.pop("review", None)
         st.pop("walk", None)
         st.pop("makes", None)
-        _mark(st, node, aim, agent)
+        _mark(st, node, aim, agent, repo.root, kind_word)
         # A stance chosen on the board belongs to the sitting being opened, so
         # it is written when one is named and cleared when one is not -- which
         # is how tapping `lecture` gets the repository's own answer back

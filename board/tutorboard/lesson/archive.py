@@ -34,12 +34,62 @@ def list_archive(repo):
             "course": st.get("course") or "",
             "chapter": st.get("chapter") or "",
             "session": st.get("session") or "lecture",
+            "thread": st.get("thread") or "",
+            "kind": st.get("kind") or "",
             "opened": st.get("opened") or "",
             "finished": st.get("finished") or "",
             "cards": len(in_it),
             "turns": len(answers),
         })
     return out
+
+
+REPORT_WORDS = 150
+
+
+def last_on_thread(repo, tid):
+    """The newest archived sitting on one thread, or None.
+
+    `{"id", "kind", "opened", "report"}`, where the report is the last card of
+    that sitting: what the turn before this one said it did. Capped at
+    `REPORT_WORDS`, because a briefing carries it on every turn.
+    """
+    tid = str(tid or "").strip()
+    if not tid:
+        return None
+    try:
+        names = sorted(os.listdir(repo.archive), reverse=True)
+    except OSError:
+        return None
+    for name in names:
+        folder = os.path.join(repo.archive, name)
+        try:
+            with open(os.path.join(folder, "state.json"), "r",
+                      encoding="utf-8") as fh:
+                st = json.load(fh) or {}
+        except (OSError, ValueError):
+            continue
+        if not isinstance(st, dict) or st.get("thread") != tid:
+            continue
+        try:
+            in_it = sorted(n for n in os.listdir(folder) if cards.CARD_RE.match(n))
+        except OSError:
+            in_it = []
+        report = ""
+        if in_it:
+            try:
+                with open(os.path.join(folder, in_it[-1]), "r",
+                          encoding="utf-8", errors="replace") as fh:
+                    _meta, body = cards.parse_front_matter(fh.read())
+            except OSError:
+                body = ""
+            words = body.split()
+            report = " ".join(words[:REPORT_WORDS])
+            if len(words) > REPORT_WORDS:
+                report += " …"
+        return {"id": name, "kind": st.get("kind") or "",
+                "opened": st.get("opened") or "", "report": report}
+    return None
 
 
 def archived_session(repo, name):

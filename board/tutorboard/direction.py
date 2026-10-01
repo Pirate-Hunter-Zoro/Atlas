@@ -148,3 +148,30 @@ CHANGED = (
     "would do instead of doing it. If the change is too big for one turn, do "
     "the FIRST PART of it and say what is left. "
 )
+
+
+# What the turn woken by a RETHINK OF ONE THREAD is told, in a workspace with a
+# thread file. The sentence is about the thread the sitting is on, so the work
+# is that thread's tasks rather than the workspace's plan.
+RETHINK = (
+    "THEY HAVE JUST RETHOUGHT THE THREAD THIS SITTING IS ON: `%(id)s`, "
+    "%(title)s. Their words are below. The tasks on that thread were written "
+    "before them.\n"
+    "Do this, in this order, and do not stop before the end:\n"
+    "1. `board write` ONE plain sentence saying you are re-planning the "
+    "thread. Keep the path it prints.\n"
+    "2. `board thread --show %(id)s`, and read the files it names if the "
+    "change touches them.\n"
+    "3. REWRITE THAT THREAD'S TASKS with `board thread`: `done` what the "
+    "change makes pointless or already true, `task` the new next steps, and "
+    "`decide` any question it settles or opens. Touch no other thread.\n"
+    "4. If their words name a NEW QUESTION rather than a change to this one, "
+    "do not add it. Propose it in the report, as a thread: its id, title, "
+    "one-sentence question and first task. They accept it by saying so, and "
+    "the turn that reads their yes adds it with `board thread add`.\n"
+    "5. `board write --over <that path>` with the report: what you changed on "
+    "the thread, task by task, the first task now, and the ONE thing you need "
+    "from them. Plain words, under 200, no headings.\n"
+    "Do not ask permission to start, and do not hand back a plan of what you "
+    "would do instead of doing it."
+)
