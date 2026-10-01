@@ -632,6 +632,7 @@ function paintAnswers(payload) {
     var where = document.createElement("span");
     where.className = "answer-where";
     where.textContent = c.course || c.repo || c.id;
+    where.title = where.textContent;
     var what = document.createElement("span");
     what.className = "answer-what";
     what.textContent = c.news_title || c.chapter || "the tutor wrote a card";
@@ -744,6 +745,7 @@ function paintMissions(payload) {
     var where = document.createElement("span");
     where.className = "answer-where";
     where.textContent = g.ws.course || g.ws.repo || g.ws.id;
+    where.title = where.textContent;
     var what = document.createElement("span");
     what.className = "answer-what";
     what.textContent = (g.m.agent ? g.m.agent + ": " : "") + (g.m.task || "");
@@ -848,7 +850,11 @@ if (els.atlasQClear) els.atlasQClear.onclick = clearFind;
    off the glass. Neither level here is a plane, so there is one way to be lost
    and one button for it. */
 if (els.panic && window.Recentre) {
-  window.Recentre.mount({ key: "board.panic", buttons: [{ el: els.panic }] });
+  /* Bottom right, not the default top right: the sticky head keeps its tool
+     pills in that corner, and on a phone they wrap to a second row exactly
+     where the button would land on top of one. `main` keeps the bottom free. */
+  window.Recentre.mount({ key: "board.panic", at: { x: .975, y: .93 },
+                          buttons: [{ el: els.panic }] });
 }
 
 /* ---------------------------------------------------------- the sheet */

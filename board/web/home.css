@@ -138,7 +138,11 @@ main {
   padding: .45rem .6rem; border-radius: .4rem;
   border: 1px solid var(--rule); background: var(--paper); color: var(--ink);
 }
-.answer-where { font-weight: 700; flex: none; }
+/* A workspace name is free text; kept from pushing the time out of the row. */
+.answer-where {
+  font-weight: 700; flex: 0 1 auto; min-width: 0; max-width: 45%;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
 .answer-what { color: var(--ink-2); min-width: 0; overflow: hidden;
                text-overflow: ellipsis; white-space: nowrap; }
 .answer-when { margin-left: auto; flex: none; color: var(--ink-2); font-size: .78rem; }
@@ -347,15 +351,19 @@ main { max-width: 46rem; }
 .atlas-head {
   position: sticky; top: 0; z-index: 6;
   display: flex; align-items: center; justify-content: space-between;
-  gap: .6rem;
+  flex-wrap: wrap; gap: .6rem;
   margin: 0 0 .5rem;
   padding: .5rem 0 .45rem;
   background: var(--paper);
 }
-.atlas-head h2 { margin: 0; flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; }
-/* THREE PILLS WRAP rather than pushing the heading off a narrow split. */
+/* THE HEADING NEVER BREAKS INSIDE A WORD. Flex shrinks items in proportion to
+   their width, and the pills are four times the heading's -- so with a minimum
+   of zero and a break allowed anywhere, a phone stacked COURSES as COU / RSE /
+   S. Its minimum is its longest word; the head wraps instead, and the pills
+   drop to a full-width row of their own, kept right by their auto margin. */
+.atlas-head h2 { margin: 0; flex: 1 1 auto; }
 .atlas-tools { display: flex; flex-wrap: wrap; justify-content: flex-end;
-  gap: .3rem; flex: 0 1 auto; }
+  gap: .3rem; flex: 0 1 auto; margin-left: auto; }
 .atlas-tools button {
   font-family: var(--ui); font-size: .72rem; line-height: 1;
   padding: .35rem .6rem;

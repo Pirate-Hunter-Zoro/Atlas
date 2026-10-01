@@ -2014,6 +2014,7 @@ function paintHomework(hw) {
       ? "which set? the tutor has not said" : "no problem set found";
     els.hwBuild.textContent = "";
     els.hwBuild.removeAttribute("data-ok");
+    els.hwBuild.removeAttribute("title");
     return;
   }
 
@@ -2030,12 +2031,16 @@ function paintHomework(hw) {
   if (!b) {
     els.hwBuild.textContent = "not compiled yet";
     els.hwBuild.removeAttribute("data-ok");
+    els.hwBuild.removeAttribute("title");
     return;
   }
   els.hwBuild.dataset.ok = b.ok ? "yes" : "no";
   els.hwBuild.textContent = b.ok
     ? "compiled " + (b.iso || "").slice(11, 16)
     : lastLine(b.detail || "") || "compile failed";
+  /* The error ellipsizes in a narrow strip; the whole line is its tooltip. */
+  if (b.ok) els.hwBuild.removeAttribute("title");
+  else els.hwBuild.title = els.hwBuild.textContent;
 }
 
 /* A LaTeX log ends with the thing that went wrong; the hundred lines above it
@@ -4281,7 +4286,13 @@ function paintSave(n) {
   unsaved = lastUnsavedKnown ? n : 0;
   var has = unsaved > 0;
   els.save.classList.toggle("dirty", has);
-  els.save.textContent = has ? "⤓ save " + unsaved : "⤓ save";
+  /* The word in its own span, so a phone can drop it and keep the count. */
+  els.save.textContent = "⤓";
+  var word = document.createElement("span");
+  word.className = "bar-word";
+  word.textContent = " save";
+  els.save.appendChild(word);
+  if (has) els.save.appendChild(document.createTextNode(" " + unsaved));
   els.save.title = has
     ? unsaved + " file(s) not yet committed — tap to save and push"
     : "everything here is committed";
@@ -5138,13 +5149,20 @@ function mapChipPlan(node) {
     at.push({ row: row, col: col });
     col++;
   }
-  var rows = Math.max(chips ? row + 1 : 0, plate ? 1 : 0);
+  /* The dots get a row of their own even where nothing else needs one. Without
+     it the box ended exactly where its last line of text did, and that line's
+     tail sat under the dots -- which are filled, and drawn after the text. */
+  var rows = Math.max(chips ? row + 1 : 0, (plate || mapMore(node)) ? 1 : 0);
   return { at: at, rows: rows, plate: plate, left: left, right: right, step: step };
 }
 
 function mapShape(node) {
   var room = MAP_W - MAP_PAD * 2 - MAP_MARK;
-  var name = mapWrap(node.name, MAP_NAME, 650, room, MAP_NAME_LINES);
+  /* The look-inside arrow is a filled circle at `p.w - 16`, radius 10, level
+     with the first line of the name -- so a name in a box that opens wraps
+     short of it. The lines below it clear the circle and keep the full room. */
+  var nameRoom = room - (mapOpens(node) ? 28 : 0);
+  var name = mapWrap(node.name, MAP_NAME, 650, nameRoom, MAP_NAME_LINES);
   var also = node.also ? mapWrap(node.also, MAP_ALSO, 400, room, 1) : [];
   var does = node.does ? mapWrap(node.does, MAP_DOES, 400, room, MAP_DOES_LINES) : [];
   var chips = mapChipPlan(node);
@@ -5283,10 +5301,63 @@ function mapRegionLabel(doc) {
   return (doc.kind === "deck" ? doc.name : doc.file) || doc.name || doc.id;
 }
 
+/* THE REGION'S HEAD: ITS TITLE, ITS COUNT, AND THE BUTTON THAT MAKES ANOTHER.
+
+   The title was drawn where it started and never measured, and the button was
+   right-aligned on the same baseline -- so on a two-column region in
+   OpenDyslexic "· 46" sat under "＋ new paper or deck", and on a phone the
+   button covered the whole title. SVG text does not wrap or ellipsize; nothing
+   in CSS can rescue it. So both are measured here, once, and the shape decides:
+
+     * WIDE: the region is widened until the title and the button sit side by
+       side with a gap. A picture that is wider by fifty units costs nothing.
+     * STACKED, or wherever they will not share a row: the button drops onto
+       its own row under the title, and the groups move down by that row.
+     * A title still wider than the plate keeps its COUNT and loses words --
+       how many documents there are is what the line is for. */
+var MAP_REGION_NEW = "＋ new paper or deck";
+/* Longest first; the head takes the first that fits beside its count. */
+var MAP_REGION_WORDS = ["Papers & presentations", "Papers & decks", "Documents"];
+var MAP_REGION_BTN_ROW = 30;     /* the second row the button drops onto */
+var MAP_REGION_SPACE = 12;       /* between the title and the button */
+
+function mapRegionHead(region, w) {
+  var count = " · " + ((region && region.total) || 0);
+  var room = w - MAP_PAD * 2;
+  var title = "", titleW = 0, i;
+  for (i = 0; i < MAP_REGION_WORDS.length; i++) {
+    title = MAP_REGION_WORDS[i] + count;
+    titleW = mapWidth(title, 15, 700);
+    if (titleW <= room) break;
+  }
+  if (titleW > room) {
+    var last = MAP_REGION_WORDS[MAP_REGION_WORDS.length - 1];
+    title = (mapWrap(last, 15, 700, room - mapWidth(count, 15, 700), 1)[0] || "")
+            + count;
+    titleW = mapWidth(title, 15, 700);
+  }
+  var bw = Math.round(mapWidth(MAP_REGION_NEW, 12, 600)) + 20;
+  var below = titleW + MAP_REGION_SPACE + bw > room;
+  return { title: title, titleW: titleW, label: MAP_REGION_NEW, bw: bw,
+           below: below,
+           h: MAP_REGION_HEAD + (below ? MAP_REGION_BTN_ROW : 0) };
+}
+
 function mapRegionShape(region, wide) {
   var groups = region.groups || [];
   var cols = [];
-  var x = MAP_PAD, y = MAP_REGION_HEAD, tall = 0;
+  /* Stacked, the plate is one column plus the padding on BOTH sides: a row's
+     highlight runs `MAP_W` from just left of the column, and with no right
+     padding it stuck out past the plate's border. */
+  var w = wide ? 0 : MAP_W + MAP_PAD * 2;
+  if (wide) {
+    var want = MAP_PAD * 2 + MAP_REGION_SPACE
+               + mapWidth(MAP_REGION_WORDS[0] + " · " + (region.total || 0), 15, 700)
+               + Math.round(mapWidth(MAP_REGION_NEW, 12, 600)) + 20;
+    w = Math.ceil(want);
+  }
+  var head = mapRegionHead(region, wide ? Math.max(w, MAP_W * 2) : w);
+  var x = MAP_PAD, y = head.h, tall = 0;
   groups.forEach(function (g) {
     var all = (g.docs || []).length;
     var open = !!mapRegionOpen[g.key] || all <= MAP_REGION_ROWS + 1;
@@ -5299,11 +5370,12 @@ function mapRegionShape(region, wide) {
       tall = Math.max(tall, h);
     } else {
       y += h + 10;
-      tall = y - MAP_REGION_HEAD;
+      tall = y - head.h;
     }
   });
-  var w = wide ? Math.max(MAP_W * 2, x - MAP_REGION_GAP + MAP_PAD) : MAP_W;
-  return { cols: cols, w: w, h: MAP_REGION_HEAD + tall + MAP_PAD };
+  if (wide) w = Math.max(MAP_W * 2, x - MAP_REGION_GAP + MAP_PAD, w);
+  head = mapRegionHead(region, w);
+  return { cols: cols, w: w, h: head.h + tall + MAP_PAD, head: head };
 }
 
 function mapLayout(info, wide) {
@@ -5407,7 +5479,7 @@ function mapLayout(info, wide) {
   if (docs) {
     var rs = mapRegionShape(docs, wide);
     region = { x: MAP_MARGIN, y: MAP_MARGIN, w: rs.w, h: rs.h, cols: rs.cols,
-               docs: docs };
+               head: rs.head, docs: docs };
     var down = rs.h + MAP_GAP_Y * 2;
     placed.forEach(function (p) { if (p) p.y += down; });
   }
@@ -5523,14 +5595,37 @@ function mapDraw(info) {
        over a curve is unreadable and this picture is looked at while somebody
        is thinking about something else. */
     if (e.label && path.mx !== undefined) {
-      var w = mapWidth(e.label, 10.5, 500) + 10;
-      svg.appendChild(mapEl("rect", { "class": "edge-plate",
-                                      x: path.mx - w / 2, y: path.my - 8,
-                                      width: w, height: 16, rx: 5 }));
-      var t = mapEl("text", { "class": "edge-label",
-                              x: path.mx, y: path.my + 3.5 });
-      t.textContent = e.label;
-      svg.appendChild(t);
+      /* THE WORD HAS TO FIT WHERE IT IS PUT. A forward arrow between neighbouring
+         ranks has an 84-unit gutter, and the boxes are painted after the
+         arrows, so a wider word was buried at both ends. The word is cut to
+         the gutter it sits in; one whose plate would still land on a box it
+         does not join -- an arrow skipping a column, or a stacked arrow passing
+         behind the box between its ends -- is not drawn at all, and the full
+         word rides on the arrow as its tooltip either way. */
+      var span = path.dir === "right" ? (b.x - 8) - (a.x + a.w)
+               : path.dir === "down" ? MAP_W : Infinity;
+      var text = mapWrap(e.label, 10.5, 500, span - 10, 1)[0] || "";
+      var w = mapWidth(text, 10.5, 500) + 10;
+      var px0 = path.mx - w / 2, py0 = path.my - 8;
+      var hidden = !text || out.placed.some(function (q) {
+        return q && q !== a && q !== b
+               && px0 < q.x + q.w && px0 + w > q.x
+               && py0 < q.y + q.h && py0 + 16 > q.y;
+      });
+      if (text !== e.label || hidden) {
+        var full = mapEl("title", {});
+        full.textContent = e.label;
+        line.appendChild(full);
+      }
+      if (!hidden) {
+        svg.appendChild(mapEl("rect", { "class": "edge-plate",
+                                        x: px0, y: py0,
+                                        width: w, height: 16, rx: 5 }));
+        var t = mapEl("text", { "class": "edge-label",
+                                x: path.mx, y: path.my + 3.5 });
+        t.textContent = text;
+        svg.appendChild(t);
+      }
     }
   });
 
@@ -5733,23 +5828,24 @@ function mapRegionDraw(r) {
   var g = mapEl("g", { "class": "docs-region" });
   g.appendChild(mapEl("rect", { "class": "region", x: r.x, y: r.y,
                                 width: r.w, height: r.h, rx: 13 }));
+  var hd = r.head;
   var head = mapEl("text", { "class": "region-name", x: r.x + MAP_PAD,
                              y: r.y + 27 });
-  head.textContent = "Papers & presentations · " + r.docs.total;
+  head.textContent = hd.title;
   g.appendChild(head);
 
-  /* MAKE A NEW ONE, from the region itself, without opening a sitting. */
-  var label = "＋ new paper or deck";
-  var bw = Math.round(mapWidth(label, 12, 600)) + 20;
+  /* MAKE A NEW ONE, from the region itself, without opening a sitting. Beside
+     the title when the head measured room for both, under it when not. */
+  var bw = hd.bw;
+  var bx = hd.below ? r.x + MAP_PAD : r.x + r.w - MAP_PAD - bw;
+  var by = r.y + 11 + (hd.below ? MAP_REGION_BTN_ROW : 0);
   var make = mapTappable(mapEl("g", { "class": "region-new",
                                       "data-region-new": "1",
                                       "aria-label": "make a new paper or deck" }),
                          openDocNew);
-  make.appendChild(mapEl("rect", { x: r.x + r.w - MAP_PAD - bw, y: r.y + 11,
-                                   width: bw, height: 24, rx: 8 }));
-  var mt = mapEl("text", { x: r.x + r.w - MAP_PAD - bw / 2, y: r.y + 27,
-                           "text-anchor": "middle" });
-  mt.textContent = label;
+  make.appendChild(mapEl("rect", { x: bx, y: by, width: bw, height: 24, rx: 8 }));
+  var mt = mapEl("text", { x: bx + bw / 2, y: by + 16, "text-anchor": "middle" });
+  mt.textContent = hd.label;
   make.appendChild(mt);
   g.appendChild(make);
 
@@ -5770,8 +5866,12 @@ function mapRegionDraw(r) {
       row.appendChild(mapEl("rect", { x: gx - 4, y: y, width: MAP_W,
                                       height: MAP_REGION_ROW - 2, rx: 5 }));
       var t = mapEl("text", { x: gx + 2, y: y + 14 });
-      t.textContent = (doc.kind === "deck" ? "▭ " : "▤ ")
-                      + (mapWrap(mapRegionLabel(doc), 12.5, 500, room - 20, 1)[0] || "");
+      /* The glyph is measured, not assumed: the label gets what is left of the
+         row after it, and ends inside the row's own highlight. */
+      var mark = doc.kind === "deck" ? "▭ " : "▤ ";
+      t.textContent = mark
+        + (mapWrap(mapRegionLabel(doc), 12.5, 500,
+                   room - 6 - mapWidth(mark, 12.5, 500), 1)[0] || "");
       row.appendChild(t);
       var tip = mapEl("title", {});
       tip.textContent = doc.name || "";
@@ -9476,6 +9576,7 @@ function paintMissions(show) {
     var where = document.createElement("span");
     where.className = "news-where";
     where.textContent = m.course || m.repo || m.ws || "";
+    where.title = where.textContent;
     var what = document.createElement("span");
     what.className = "news-what";
     /* What it was put on, in the words it was asked in. A mission with no task
@@ -9709,6 +9810,7 @@ function paintNews(data) {
     var where = document.createElement("span");
     where.className = "news-where";
     where.textContent = n.course || n.repo || n.id;
+    where.title = where.textContent;
     var what = document.createElement("span");
     what.className = "news-what";
     /* What it says it is, and failing that where it is. A card with no title is
@@ -10726,9 +10828,12 @@ function keepSaid(text) {
   var was = els.paperSub.dataset.was || els.paperSub.textContent;
   els.paperSub.dataset.was = was;
   els.paperSub.textContent = text;
+  /* The line ellipsizes in a narrow bar, so the whole sentence is its tooltip. */
+  els.paperSub.title = text;
   clearTimeout(keepSaidTimer);
   keepSaidTimer = setTimeout(function () {
     els.paperSub.textContent = els.paperSub.dataset.was || "";
+    els.paperSub.removeAttribute("title");
     delete els.paperSub.dataset.was;
   }, 4000);
 }

@@ -250,8 +250,11 @@ body > #slate { flex: 1 1 auto; min-height: 0; }
 .slate-root[data-tool="erase"] .sl-sheet { cursor: not-allowed; }
 
 /* ---------- toast ---------- */
+/* `max-content`, or a box positioned at `left: 50%` is sized to the half of the
+   slate right of it and a toast could never be wider than that. */
 .sl-toast {
   position: absolute; left: 50%; transform: translateX(-50%);
+  width: max-content; max-width: calc(100% - 2rem);
   bottom: calc(1rem + env(safe-area-inset-bottom));
   background: #23262c; border: 1px solid var(--sl-line);
   color: var(--sl-ink); border-radius: 999px;

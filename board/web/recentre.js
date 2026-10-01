@@ -270,7 +270,10 @@ function saved(k) {
   return null;
 }
 
-/* mount({ key, onStuck, buttons: [{ el, onTap, w, h }] })
+/* mount({ key, onStuck, at, buttons: [{ el, onTap, w, h }] })
+
+   `at` is where a page wants the stack to start when nothing was ever saved, for
+   a page whose top right corner is already somebody's controls.
 
    The first button's tap puts the page's magnification back, which is what it is
    for on every surface; the rest say what they do. Every one of them is placed
@@ -303,7 +306,7 @@ function mount(spec) {
       /* Down the right-hand edge in the order they were given, which is where
          the stack put them -- from wherever the group was last left, if it was
          ever moved. */
-      var from = wasGroup || DEFAULT_AT;
+      var from = wasGroup || spec.at || DEFAULT_AT;
       one.at = { x: from.x, y: Math.min(from.y + i * ROW, 1) };
     }
     items.push(one);

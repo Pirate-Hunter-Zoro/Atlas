@@ -307,7 +307,12 @@ body { background: var(--paper); min-height: 100vh; min-height: 100dvh; }
   padding: .45rem .6rem; border-radius: .4rem;
   border: 1px solid var(--rule); background: var(--paper); color: var(--ink);
 }
-.news-where { font-weight: 700; flex: none; }
+/* A workspace name is free text. Kept from taking the whole row, so the time
+   and the arrow stay inside the button that owns them. */
+.news-where {
+  font-weight: 700; flex: 0 1 auto; min-width: 0; max-width: 45%;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
 .news-what { color: var(--ink-2); min-width: 0; overflow: hidden;
              text-overflow: ellipsis; white-space: nowrap; }
 .news-when { margin-left: auto; flex: none; color: var(--ink-2); font-size: .76rem; }
@@ -424,9 +429,17 @@ body { background: var(--paper); min-height: 100vh; min-height: 100dvh; }
 .elsewhere-ship-note { margin-top: .3rem; font-size: .78rem; }
 
 .hwbar { background: color-mix(in srgb, var(--ask) 10%, var(--paper)); font-size: .82rem; }
-#hw-set { font-weight: 700; letter-spacing: .04em; }
-#hw-count { min-width: 0; }
-#hw-build { margin-left: auto; flex: none; font-size: .76rem; }
+/* A FAILED BUILD SHOWS THE LAST LINE OF THE LOG, which can be a hundred and
+   sixty characters of monospace. Unshrinkable, it crushed the count to a column
+   of single words and pushed the strip off the glass. The set's name stays
+   whole; the count and the error give way, with an ellipsis, and the whole
+   error is the line's tooltip. */
+#hw-set { font-weight: 700; letter-spacing: .04em; flex: none; }
+#hw-count { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#hw-build {
+  margin-left: auto; flex: 0 1 auto; min-width: 0; font-size: .76rem;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
 #hw-build[data-ok="yes"] { color: var(--good); }
 #hw-build[data-ok="no"] { color: var(--bad); font-family: var(--mono); }
 
@@ -1019,10 +1032,17 @@ body[data-mode="auto"].sys-dark .figure img { filter: invert(1) hue-rotate(180de
   border-bottom: 1px solid var(--rule);
   animation: rise .25s ease-out both;
 }
-.finish { background: color-mix(in srgb, var(--note) 12%, var(--paper)); }
-.finish-text { display: flex; flex-direction: column; min-width: 0; }
+/* Leaving with work outstanding is three buttons, about four hundred pixels --
+   more than a phone. The strip wraps: the words keep a readable column, and the
+   buttons drop under them, right-aligned, wrapping among themselves if even
+   their own row is too narrow. */
+.finish { background: color-mix(in srgb, var(--note) 12%, var(--paper)); flex-wrap: wrap; }
+.finish-text { display: flex; flex-direction: column; min-width: 0; flex: 1 1 12rem; }
 .finish-text span { color: var(--ink-2); font-size: .8rem; }
-.finish-acts { margin-left: auto; display: flex; gap: .4rem; flex: none; }
+.finish-acts {
+  margin-left: auto; display: flex; gap: .4rem; flex: 0 1 auto;
+  flex-wrap: wrap; justify-content: flex-end;
+}
 .finish button {
   font: inherit; font-size: .85rem;
   padding: .5rem .9rem; border-radius: .45rem; cursor: pointer;
@@ -1136,8 +1156,11 @@ body.tools-out { padding-bottom: 5.5rem; }
   background: #15161a;
   box-shadow: 0 2px 14px rgba(0,0,0,.18);
 }
+/* Wraps, because on a phone the carry and skip buttons alone are most of the
+   row, and `#writer` clips -- so they were cut off the end rather than moved
+   to a second line. `#skip`'s auto margin keeps it right on whichever line. */
 #writer-head, .board-head {
-  display: flex; align-items: baseline; gap: .6rem;
+  display: flex; align-items: baseline; gap: .4rem .6rem; flex-wrap: wrap;
   padding: .55rem .9rem;
   background: #1c1e23;
   border-bottom: 1px solid #2c2f37;
@@ -1496,8 +1519,13 @@ body.mapping #redirect, body.papering #redirect {
 .session-sub { display: block; margin-top: .15rem; font-size: .72rem; color: var(--ink-3); }
 
 /* Reading an old lesson: say so, plainly, and give one way back. */
+/* `width: max-content` on every pill centred with `left: 50%` and a translate:
+   without it the box is sized to the half of the screen right of `left` and
+   the transform never gives the other half back, so it could not be wider
+   than 50vw whatever its `max-width` said. */
 .reading {
   position: fixed; left: 50%; transform: translateX(-50%);
+  width: max-content; max-width: calc(100vw - 1.5rem);
   bottom: calc(1.2rem + env(safe-area-inset-bottom)); z-index: 45;
   display: flex; align-items: center; gap: .7rem;
   padding: .5rem .5rem .5rem .9rem;
@@ -1505,7 +1533,7 @@ body.mapping #redirect, body.papering #redirect {
   background: var(--paper-2); box-shadow: 0 6px 22px rgba(0,0,0,.22);
   font: 600 .8rem var(--ui);
 }
-#reading-what { color: var(--ink-2); }
+#reading-what { color: var(--ink-2); min-width: 0; }
 #reading-back {
   font: inherit; cursor: pointer; padding: .35rem .7rem;
   border-radius: 1.4rem; border: 1px solid var(--accent);
@@ -1694,7 +1722,15 @@ body.viewing { overflow: hidden; }
   border-bottom: 1px solid var(--rule);
 }
 #paper-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-#paper-sub { flex: none; font-size: .78rem; }
+/* The subtitle is also where `keep writing` says what it did, for four seconds,
+   in a whole sentence from the server. Unshrinkable, that sentence pushed the
+   title to nothing and save and close off the glass. It ellipsizes like the
+   title, and the whole sentence is its tooltip. */
+#paper-sub {
+  flex: 0 1 auto; min-width: 0; font-size: .78rem;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+#paper-keep { flex: none; white-space: nowrap; }
 /* The right-hand group starts at the map glyph, which is always there;
    `save a copy` is not -- a document with no build record has none --
    so the push to the right cannot hang off it. */
@@ -1766,7 +1802,7 @@ body.papering { overflow: hidden; }
    dismissed by accident on a tablet. */
 .sendwhat {
   position: fixed; z-index: 60;
-  left: 50%; transform: translateX(-50%);
+  left: 50%; transform: translateX(-50%); width: max-content;
   bottom: calc(5.4rem + env(safe-area-inset-bottom));
   display: flex; align-items: center; gap: .4rem; flex-wrap: wrap;
   justify-content: center;
@@ -1862,7 +1898,7 @@ body.papering { overflow: hidden; }
    above it rather than on top of it. */
 .annbar {
   position: fixed; z-index: 58;
-  left: 50%; transform: translateX(-50%);
+  left: 50%; transform: translateX(-50%); width: max-content;
   bottom: calc(1rem + env(safe-area-inset-bottom));
   display: flex; align-items: center; gap: .35rem; flex-wrap: wrap;
   justify-content: center;
@@ -1959,6 +1995,20 @@ body.papering .annbar { z-index: 96; }
   font-size: .62rem; font-weight: 700; letter-spacing: .1em; text-transform: uppercase;
   padding: .38rem .55rem; border-radius: .35rem;
   border: 1px solid var(--rule); background: var(--paper-2); color: var(--ink-2);
+}
+/* Cut with an ellipsis like the course and the chapter, rather than through
+   the middle of its word by `.bar-left`'s overflow. */
+#bar #session {
+  flex: 0 1 auto; flex-shrink: 2; min-width: 0;
+  overflow: hidden; text-overflow: ellipsis;
+}
+/* ON A PHONE THE RIGHT GROUP KEEPS ITS GLYPHS AND DROPS ITS WORDS. Six labelled
+   controls are about three hundred and sixty pixels, which on a 390px glass left
+   the left group nothing -- not the course, not the badge. The glyph is the
+   control; the word is the first thing that can be spared, and the title says
+   it anyway. */
+@media (max-width: 600px) {
+  #bar .bar-word { display: none; }
 }
 #bar #session:hover { border-color: var(--ink-3); color: var(--ink); }
 #bar #session[data-kind="homework"] { color: var(--ask); background: color-mix(in srgb, var(--ask) 14%, transparent); }
@@ -2369,7 +2419,13 @@ body.papering .annbar { z-index: 96; }
    first of them, because the first of them is now conditional: `#map-docs` is
    hidden in a workspace with no documents, and a hidden element's auto margin
    is no margin at all -- which left the controls stranded in the middle. */
-#map-count { flex: none; font-size: .78rem; margin-right: auto; }
+/* The count gives way with the title, never the controls: on a phone the
+   buttons alone are most of the bar, and an unshrinkable count pushed ✕ off
+   the glass. */
+#map-count {
+  flex: 0 1 auto; min-width: 0; font-size: .78rem; margin-right: auto;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
 #map-docs, #map-fit, #map-close {
   flex: none; cursor: pointer; height: 2.2rem; padding: 0 .7rem;
   border-radius: .35rem; border: 1px solid var(--rule);

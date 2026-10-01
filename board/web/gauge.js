@@ -31,17 +31,35 @@
 "use strict";
 
 var face = null, ctx = null, widths = null;
+var faceSaid = null;             /* body[data-face] when `face` was read */
+var tracking = 0;                /* --prose-tracking, in em */
 var watchers = [];               /* surfaces to tell when the answers change */
 var faceReady = false;           /* has the real face actually arrived yet */
 
 /* The face the board actually ships, off the page's own `--ui` token rather
-   than guessed: the fallback stack and the real one do not measure the same. */
+   than guessed: the fallback stack and the real one do not measure the same.
+
+   READ AGAIN WHENEVER THE READING FACE CHANGES. The "Aa" button swaps `--ui` by
+   setting `body[data-face]`, and a family read once and kept for the life of
+   the page measured every label in the face it was switched away from -- so
+   going from Serif to OpenDyslexic wrapped the map for a narrow face and
+   painted it in a wide one. The letter-spacing the face carries is read with
+   it: SVG text inherits it and a canvas does not measure it. */
 function uiFace() {
-  if (face) return face;
+  var now = null;
+  try { now = (document.body && document.body.dataset.face) || ""; }
+  catch (e) { now = ""; }
+  if (face && now === faceSaid) return face;
+  if (face) widths = null;
+  faceSaid = now;
   face = "system-ui, -apple-system, 'Segoe UI', sans-serif";
+  tracking = 0;
   try {
-    var said = window.getComputedStyle(document.body).getPropertyValue("--ui");
+    var css = window.getComputedStyle(document.body);
+    var said = css.getPropertyValue("--ui");
     if (said && said.trim()) face = said.trim();
+    var em = /^\s*(-?[\d.]+)em\s*$/.exec(css.getPropertyValue("--prose-tracking") || "");
+    if (em) tracking = parseFloat(em[1]) || 0;
   } catch (e) { /* the default stack is a fair guess */ }
   return face;
 }
@@ -98,6 +116,17 @@ function watchFace() {
   } catch (e) { /* older browsers: `ready` is all there is */ }
 }
 
+/* THE READING FACE WAS SWITCHED. Said by `typeface.js` the moment it sets the
+   new face, so the surfaces redraw at once -- a face already loaded fires no
+   `loadingdone`, and without this nothing redrew at all. A face that still has
+   to load redraws again when it arrives. */
+function faceChanged() {
+  face = null;
+  widths = null;
+  faceReady = false;
+  faceLoaded();
+}
+
 /* Told when the measurements change under it. A surface registers once and
    redraws from its own data; there is no payload involved and nothing to fetch. */
 function onFace(fn) {
@@ -125,6 +154,7 @@ function width(text, size, weight) {
     }
   } catch (e) { w = 0; }
   if (!(w > 0)) w = text.length * size * 0.62;
+  else if (tracking) w += tracking * size * String(text).length;
   widths[key] = w;
   return w;
 }
@@ -186,6 +216,7 @@ window.Gauge = {
   wrap: wrap,
   el: el,
   onFace: onFace,
+  faceChanged: faceChanged,
   /* For the suites, and for anything that needs to know whether the numbers it
      is holding were measured in the face they will be painted in. */
   faceReady: function () { return faceReady; }
