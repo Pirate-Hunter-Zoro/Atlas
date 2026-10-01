@@ -348,7 +348,23 @@ Each field contains the other's generators, so $K = \mathbb{Q}(i,\sqrt{2})$.
 \end{problem}
 
 % ===== SOLUTION 9(d) =====
-% TODO(mferguson): your work goes here.
+\begin{proof}
+\emph{Existence.} $\zeta$ is a root of $x^4+1$, which is irreducible over
+$\mathbb{Q}$ by 9(a), so $x^4+1$ is the minimal polynomial of $\zeta$. For
+$k \in \{3,5,7\}$,
+\[
+  \left.(x^4+1)\right|_{x=\zeta^k} = \left(e^{2\pi i k/8}\right)^4 + 1
+  = e^{k\pi i} + 1 = -1 + 1 = 0,
+\]
+since $k$ is odd. So $\zeta^k$ is also a root of $x^4+1$, and has the same
+minimal polynomial as $\zeta$. By 8(a) there is an isomorphism
+$\sigma_k\colon \mathbb{Q}(\zeta) \to \mathbb{Q}(\zeta^k)$ fixing $\mathbb{Q}$
+with $\sigma_k(\zeta) = \zeta^k$. Since $k^2 \equiv 1 \pmod 8$, we have
+$\zeta = (\zeta^k)^k \in \mathbb{Q}(\zeta^k)$, and $\zeta^k \in \mathbb{Q}(\zeta)$,
+so $\mathbb{Q}(\zeta^k) = \mathbb{Q}(\zeta) = K$. Hence $\sigma_k$ is an
+automorphism of $K = \mathbb{Q}(i,\sqrt{2})$.
+\end{proof}
+% TODO(mferguson): order 2, and the fixed fields, go here.
 % ===== END SOLUTION 9(d) =====
 
 \begin{problem}{10(a)}
