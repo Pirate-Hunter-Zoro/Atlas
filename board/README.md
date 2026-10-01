@@ -4833,20 +4833,21 @@ latch held open for as long as the pencil is in somebody's hand, which while
 annotating is the whole time. A stroke in progress is the whole of the test.
 `test/link.js` drives a hover and fails if the scroll closes.
 
-**AND IT IS ABOUT A PAGE THAT IS MOVING, SO ITS WINDOW RUNS FROM THE LAST
-SCROLL.** Nib down shuts it; with the page standing still it opens on the *lift*;
-only a page that has scrolled inside 700 ms holds it shut. A stroke can only be
-re-read as a pan during a fling — `preventDefault` on `touchstart` is refused
-then and honoured at every other moment, and `onTouchStart` already makes it for
-a stylus — so with the page still there is nothing for the CSS to add. Measured
-from the last *sample* instead, the latch ate the first swipe after every mark:
-`touch-action` is read when a gesture STARTS, so opening the latch on that
-finger's first `touchmove` is already too late for the gesture that opened it.
-That is the fourth report of *"I could not scroll when I started annotating"* and
-the first one settled off a trace. `penLift` is why the lift asks at all: `penSeen`
-arms one timer per stroke and never re-arms it, so a short stroke used to leave
-the latch shut for the rest of a window that began before it. `latchFlow` in
-`test/link.js`.
+**AND IT OUTLIVES EVERY LIFT BY `PEN_GAP`, BECAUSE THE NEXT STROKE NEEDS IT.**
+Nib down shuts it. It opens `PEN_GAP` (600 ms) after the lift, or 700 ms (`PEN_MODE`) after
+the last scroll if that is later. `touch-action` is read by iOS's UI process when a gesture
+starts, without waiting for the page. A `preventDefault` on `touchstart` saves a stroke only
+if the main thread answers before the pan recogniser fires. Between strokes it often does not:
+the lift repaints, the autosave serialises the card, a payload lands. A layer that opens on
+the lift therefore loses every quick stroke that follows one, and the cancelled pan holds the
+latch for the stroke after. That is *"it misses every other stroke"*, and slow writing works
+because a slow nib never crosses the pan threshold in time.
+
+**A finger in that window still scrolls.** `onTouchStart` notes a finger landing on a shut
+latch (`ink-pan`). If it drags, `penProbe` opens the latch and `handPan` moves the page for
+that one gesture, since `touch-action` refused the native pan when it started. It is passive,
+has no momentum, and ignores the first 10 px (`HAND_SLOP`), so a settling palm does not nudge
+the lesson. `ink-hand` records how far it moved. `latchFlow` in `test/link.js`.
 
 **AND A STROKE THAT NEVER ENDS REFUSES EVERY SCROLL ON THE PAGE.** The
 non-passive `touchmove` listener is on the *document* and exists only while a
@@ -4882,7 +4883,7 @@ the sentence *I could not scroll* written down at the moment it is true;
 when the CSS half goes on or off, **with `why`** — `quiet` for the window
 expiring, `moved` for a finger that dragged it open, `off` for leaving the mode;
 and `ink-pan`, a finger landing against a shut latch, which is the one refusal
-made in CSS and so the one that leaves no event of its own. The last two are
+made in CSS and so the one that leaves no event of its own; and `ink-hand`, how far `handPan` moved the page for it. The last two are
 there because the fourth report was diagnosed by arithmetic across three
 timestamps rather than read off a line. `test/link.js` asserts each one reaches
 the log.
