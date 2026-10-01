@@ -14,6 +14,8 @@ The assistant runs these. The student never does.
     board open "PSYCH-ASR" --walk --over psych_asr.evaluate.grade
                                        a walkthrough of machinery already written
     board open ... --stance do|teach   this sitting only; tutorboard.json is the default
+    board open ... --thread <id> [--kind learn|coach|build]
+                                       a sitting on one thread, named after it
     board finish                       offer the push, on the iPad, at session end
     board push ["message"]             commit and push this repository now
     board next [kind] [slug]           print the path of the next card to write
@@ -468,6 +470,8 @@ def cmd_open(live, args):
     aim = None
     agent = None
     node = None
+    thread = None
+    kind = None
     makes = None
     rest = []
     skip_next = False
@@ -522,6 +526,19 @@ def cmd_open(live, args):
             # Which box of the map this sitting is about. Checked against what
             # the map actually holds, never carried through as typed.
             node = (args[i + 1] if i + 1 < len(args) else "").strip()
+            skip_next = True
+        elif a == "--thread":
+            # Which thread of `threads.json` this sitting is on. Checked
+            # against the file, never carried through as typed.
+            thread = (args[i + 1] if i + 1 < len(args) else "").strip()
+            skip_next = True
+        elif a == "--kind":
+            # learn, coach or build. A kind names an aim (`config.KIND_AIM`),
+            # so it is written as both and never as a third axis.
+            kind = config.clean_kind(args[i + 1] if i + 1 < len(args) else "")
+            if kind is None:
+                print("  --kind is not one of: %s; ignored"
+                      % ", ".join(config.KINDS), file=sys.stderr)
             skip_next = True
         elif a == "--stance":
             # This sitting's, not the repository's. `tutorboard.json` is not
@@ -582,6 +599,22 @@ def cmd_open(live, args):
     cmd_archive(live, [])
     if (chapter or "") != was and handoff.restore_handoff(live.root, chapter):
         print("  handoff from the last sitting on this chapter is back")
+    # A BOX OF A THREAD FILE IS A THREAD. Its id is the thread's, so a map tap
+    # that names it opens a sitting on the thread, and `node` is kept only for
+    # a box of a derived map.
+    clean_threads, _bad = course_threads.read(live.root)
+    if node and not thread and course_threads.thread(clean_threads, node):
+        thread, node = node, None
+    on = None
+    if thread:
+        on = course_threads.thread(clean_threads, thread)
+        if not on:
+            print("  no thread called %r in threads.json; ignored" % thread,
+                  file=sys.stderr)
+            thread = None
+        else:
+            # Named after the thread, always: a sitting is its thread's.
+            chapter = chapter or on["title"]
     if node:
         found = course_map.find(live.root, node, live.state())
         if not found:
@@ -589,13 +622,20 @@ def cmd_open(live, args):
             node = None
         elif not chapter:
             chapter = found["name"]
+    if kind:
+        aim = config.kind_aim(kind, aim)
+    elif on:
+        kind = config.kind_for(live.root, {"aim": aim, "stance": stance,
+                                           "thread": thread}, on["files"]) or None
 
     live.set_state(course=course, chapter=chapter, session=session or "lecture",
                    finished=None, hw=None,
                    # What this sitting is about and what it is for. Both are
                    # cleared by opening the next one, the way a sitting stance
                    # is: they belong to the sitting, not to the repository.
-                   node=node, aim=aim, makes=makes,
+                   node=node, thread=thread, kind=kind, aim=aim, makes=makes,
+                   # A rethink's sentence belongs to the sitting it opened.
+                   rethink=None,
                    # And which assistant, under the same rule: a choice made for
                    # an evening's work is not a statement about the repository,
                    # so it is cleared by opening a sitting that does not name one.
@@ -632,6 +672,8 @@ def cmd_open(live, args):
     if session == "make":
         print("  the product of this sitting is a %s, not an answer"
               % ("deck" if makes == "slides" else "paper"))
+    if thread:
+        print("  thread: %s  (%s)" % (thread, kind or "-"))
     if aim:
         print("  aim: %s" % aim)
     if agent:
@@ -2072,16 +2114,22 @@ def cmd_aim(live, args):
             print("no aim in force; the sitting runs on its stance alone")
         print("  change it: board aim <%s>" % offered)
         return 0
+    # A KIND IS AN AIM BY ANOTHER NAME, so `board aim coach` and `board aim
+    # learn` both change it, and a sitting on a thread keeps its kind in step.
     aim = config.clean_aim(args[0])
+    if not aim and config.clean_kind(args[0]):
+        aim = config.KIND_AIM[config.clean_kind(args[0])]
     if not aim:
-        print("board aim: not one of: %s" % ", ".join(config.AIMS), file=sys.stderr)
+        print("board aim: not one of: %s" % ", ".join(config.AIMS + config.KINDS),
+              file=sys.stderr)
         return 2
     if aim in config.AIMS_OVER:
         print("board aim: %s is held over a scope -- open it with "
               "board open --%s --over <name>"
               % (aim, "walk" if aim == "trace" else "review"), file=sys.stderr)
         return 2
-    live.set_state(aim=aim)
+    live.set_state(aim=aim, kind=config.AIM_KIND[aim] if (
+        st.get("thread") or st.get("kind")) else None)
     print("aim: %s  (the lesson is untouched)" % aim)
     print("  %s" % config.AIM_MEANS.get(aim, ""))
     print("  a turn already mid-conversation reads this on its next fresh turn;")

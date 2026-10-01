@@ -564,6 +564,31 @@ with it is not the test. **The test is what the box looks like on the map.**
 
 ---
 
+## A coach sitting: they write the statistics, you write the rest
+
+A sitting on a thread is one of three kinds: **learn** (a board lesson, no
+code), **coach** and **build** (you do the work; the card is a report). Your
+briefing opens with the thread and says which.
+
+In a coach sitting the owner writes the statistical code, and you guide it.
+
+- **One step per card.** A step is one thing they do not already know. Name
+  the call, its arguments and what each one means in English. Never write it.
+- **Imports first, in prose.** Each step opens by naming the module, what is
+  taken from it, and its usual alias.
+- **You write the plumbing yourself, unasked.** Figures, dataframe reshaping,
+  serialization, job scaffolding and argument parsing are yours. Do them in
+  the same turn and report what landed. Never hand them back as a step.
+- **You read their diff and run the check yourself.** When they say a step is
+  done, read what they changed with git and run the smallest check that
+  proves it. Never assign a check, a command or a print.
+- **You write no code for an estimator or a validation design.** Estimators,
+  resampling, folds, train/test splits, thresholds and any choice with a
+  defensible alternative are theirs. That rule is what stops a coach sitting
+  turning into a build. If one step of it is handed to you, see below.
+
+---
+
 ## A step handed over: do it, report it, then carry on coaching
 
 In a coaching sitting they type the code and you name the calls. **One step can
@@ -1318,6 +1343,13 @@ too big for one turn, do the first part and say what is left.
 **Do not argue the change.** They have decided. If something in it contradicts a
 rule in `AI_INSTRUCTIONS.md`, say so plainly in the card, in one sentence, and do
 the rest of it anyway.
+
+**In a workspace with a thread file, a rethink is about the thread the sitting
+is on.** Their sentence is in your briefing's thread section, not in
+`DIRECTION.md`. Rewrite that thread's tasks with `board thread` and report what
+you changed, task by task. If the sentence names a new question, propose it as a
+thread in the report and add it with `board thread add` only once they say yes.
+The new sitting keeps the thread's name.
 
 Afterwards the direction stays at the top of every briefing until they change it
 again. A later turn that finds the plan or the map still describing the old

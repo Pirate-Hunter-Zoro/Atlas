@@ -1193,7 +1193,7 @@ def _stamp(node, state, filed):
     would make the map agree with whatever was edited last.
     """
     state = state or {}
-    if (state.get("node") or "").strip() == node["id"]:
+    if (state.get("thread") or state.get("node") or "").strip() == node["id"]:
         return "working"
     if node.get("closed"):
         # The one typed state a thread has: its owner closed it.

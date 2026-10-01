@@ -240,6 +240,87 @@ AIM_STANCE = {
 
 
 # ---------------------------------------------------------------------------
+# the KIND of a sitting on a thread: learn, coach or build
+# ---------------------------------------------------------------------------
+#
+# A sitting on a thread is one of three kinds, and a kind is not a third axis
+# beside stance and aim. It names an aim, and the aim names the stance:
+#
+#     learn  -> aim teach -> stance teach   a board lesson; no code
+#     coach  -> aim coach -> stance teach   they write the statistics, one step
+#                                           per card; the tutor writes plumbing
+#     build  -> aim build -> stance do      the work is done; the card a report
+#
+# Read back the other way by `kind_for`, so a sitting opened with an aim and no
+# kind still has one. Learn and coach share the teach stance, and where nothing
+# says which, coach is told apart because the thread's files are code.
+KINDS = ("learn", "coach", "build")
+KIND_AIM = {"learn": "teach", "coach": "coach", "build": "build"}
+AIM_KIND = {"teach": "learn", "trace": "learn", "drill": "learn",
+            "coach": "coach",
+            "build": "build", "paper": "build", "slides": "build"}
+
+
+def clean_kind(kind):
+    """A kind from a request, or None if it is not one. Never raises."""
+    kind = str(kind or "").strip().lower()
+    return kind if kind in KINDS else None
+
+
+def kind_aim(kind, aim=None):
+    """The aim a kind opens with. An aim that already belongs to it is kept,
+    so `build` with `paper` stays a paper."""
+    kind = clean_kind(kind)
+    aim = clean_aim(aim)
+    if not kind:
+        return aim
+    if aim and AIM_KIND.get(aim) == kind:
+        return aim
+    return KIND_AIM[kind]
+
+
+def _is_code(root, rel):
+    """Is this workspace path source code, or a directory holding some?"""
+    from . import walk                                       # local: a cycle
+    target = os.path.join(root, rel)
+    if os.path.isdir(target):
+        seen = 0
+        for _dir, _subs, names in os.walk(target):
+            for n in names:
+                if os.path.splitext(n)[1] in walk.SOURCE:
+                    return True
+                seen += 1
+                if seen > 400:
+                    return False
+        return False
+    return os.path.splitext(rel)[1] in walk.SOURCE
+
+
+def kind_for(root, state, files=None):
+    """What kind this sitting is: its own, else read off its aim, else its stance.
+
+    `files` are the thread's files, which answer learn-or-coach for a teach
+    stance with nothing else to go on. "" for a sitting on no thread with
+    nothing to say.
+    """
+    state = state or {}
+    own = clean_kind(state.get("kind"))
+    if own:
+        return own
+    # Only the sitting's OWN aim answers before the stance and the files: an
+    # aim inherited from a family says how a workspace teaches, not whether
+    # this thread is code.
+    own_aim = clean_aim(state.get("aim"))
+    if own_aim:
+        return AIM_KIND[own_aim]
+    if stance_for(root, state) == "do":
+        return "build"
+    if state.get("thread"):
+        return "coach" if any(_is_code(root, f) for f in files or []) else "learn"
+    return AIM_KIND.get(aim_for(root, state), "")
+
+
+# ---------------------------------------------------------------------------
 # WHICH ASSISTANT, and why only the shape of the name is checked here
 # ---------------------------------------------------------------------------
 #
@@ -278,6 +359,17 @@ def sitting_agent(root):
             return clean_agent((json.load(fh) or {}).get("agent"))
     except (OSError, ValueError, AttributeError):
         return None
+
+
+def sitting_box(state):
+    """Which box of the map this sitting is on: its thread, else its node.
+
+    A workspace with a thread file opens sittings on THREADS, and `state.json`
+    carries `thread`. `node` is left only for a box of a derived map, which is
+    a part of the tree rather than a question.
+    """
+    state = state or {}
+    return str(state.get("thread") or state.get("node") or "").strip()
 
 
 def family_aim(root, base=None):

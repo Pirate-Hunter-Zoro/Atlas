@@ -415,7 +415,7 @@ def stance_sense(stance, chosen=False, declared="teach"):
     return ""
 
 
-def where_sense(book, root=None):
+def where_sense(book, root=None, st=None):
     """Where the exercises come from, which is the only thing a subject decides.
 
     A course that follows a book has them at the end of a section. A repository
@@ -436,6 +436,19 @@ def where_sense(book, root=None):
         return ("Read the section's exercises before you teach anything and "
                 "choose a manageable few -- three to five -- saying which and "
                 "why in your first card. ")
+
+    # A SITTING ON A THREAD HAS ITS SCOPE ALREADY. The thread's open tasks are
+    # its steps and the briefing opens with them, so the README and the plan
+    # are not read for an agenda.
+    tid = str((st or {}).get("thread") or "").strip()
+    if tid:
+        return (
+            "This sitting is on the thread `%s`, and the thread is the scope. "
+            "Its question, open tasks, open decisions and outputs open your "
+            "briefing (`board brief`); work from its FIRST OPEN TASK. Do not "
+            "read the project's README or plan for an agenda, and do not "
+            "survey the repository. A decision on the thread with no rule is "
+            "the owner's: ask for it rather than choosing. " % tid)
 
     where = plan.where(root) if root else ""
     steps = plan.steps(root) if root else []
@@ -925,7 +938,7 @@ def node_sense(repo, st):
     already IS a scope, so nothing changes for a course.
     """
     st = st or {}
-    node_id = (st.get("node") or "").strip()
+    node_id = config.sitting_box(st)
     # Answered before the map is built rather than after: a sitting a box is not
     # the scope of has nothing to say about boxes whether or not one was tapped.
     if not node_id and not _by_box(st):
@@ -1607,7 +1620,7 @@ def _session_sense(repo, mission=False):
     # In a headless session this line is the whole prompt, so it has to carry the
     # pointer to the method as well as the pointer to the place.
     how = (METHOD_SENSE if kind == "homework"
-           else METHOD_SENSE + where_sense(book, repo.root))
+           else METHOD_SENSE + where_sense(book, repo.root, st))
     # Every sitting that reaches here hands something in, so every one of them
     # has a document to fill. The two that do not -- a review and a walkthrough
     # -- returned above, each saying in its own words that the lesson is the
