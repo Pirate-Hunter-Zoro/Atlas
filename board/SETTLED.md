@@ -1974,11 +1974,10 @@ Each entry is a rule that is true of `board/` now. Fold an entry into `board/REA
   `bin/coli`, `bin/coli-up`, `bin/coli-ask` and `bin/coli-code` are walkable, and
   `libr-local-llm` offers sixteen files rather than six. A file with neither a
   suffix nor a shebang declared nothing and is still not machinery.
-- **`libr-local-llm` has a written map.** Nine boxes in the project's own words —
-  the everyday server, the consultant, the five colibrì commands, the engine, the
-  measurement campaign, the fleet — and `board map --check` says it is true. Its
-  `.gitignore` had `live/`, which git cannot see past, so it is `live/*` plus
-  `!live/map.json`, after the `*.json` rule or that rule wins.
+- **`libr-local-llm` has a thread file.** Nine threads in the project's own
+  words — the everyday server, the consultant, the five colibrì commands, the
+  engine, the measurement campaign, the fleet. Its `.gitignore` lets
+  `!threads.json` back in after the `*.json` rule, or that rule wins.
 - **Every sitting has a style.** A family default in `atlas.json`, overridden by
   `tutorboard.json`, overridden by the sitting. `config.aim_for` is the whole
   precedence and `config.stance_for` derives the stance from it — the browser

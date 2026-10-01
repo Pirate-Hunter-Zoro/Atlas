@@ -211,8 +211,42 @@ def _pointed_at(root):
     return None
 
 
+def _thread_steps(root):
+    """The open tasks of a workspace's thread file, as steps. Empty if none.
+
+    THE THREAD FILE IS THE PLAN WHERE IT HAS ANY. Each open task of a thread
+    that is not closed is a step, in the file's own order, and it carries the
+    thread it belongs to so the map puts it on that thread's box rather than
+    guessing from the paths it names.
+    """
+    from . import threads                                    # local: a cycle
+    clean, problems = threads.read(root)
+    if not clean or problems:
+        return []
+    out = []
+    for t in clean["threads"]:
+        if t["closed"]:
+            continue
+        for task in t["tasks"]:
+            if task["done"]:
+                continue
+            out.append({
+                "num": str(len(out) + 1),
+                "title": task["text"][:110],
+                "label": task["text"][:110],
+                "summary": _trim("%s -- %s" % (t["title"], task["text"])),
+                "line": 0,
+                "from": t["title"],
+                "file": threads.path(root),
+                "thread": t["id"],
+            })
+    return _distinct(out)
+
+
 def paths(root):
     """Every plan this repository has, in the order it names them.
+
+    A thread file with an open task in it is the plan, alone.
 
     Declared first, pointed at second, conventional third -- and a declaration
     stops the search, because a repository that says which file it plans in has
@@ -220,6 +254,9 @@ def paths(root):
     has three, and showing one of them as though it were the whole of what comes
     next is the failure this returns a list to prevent.
     """
+    if _thread_steps(root):
+        from . import threads                                # local: a cycle
+        return [threads.path(root)]
     said = _named(root)
     if said:
         return [said]
@@ -355,6 +392,9 @@ def steps(root):
 
 
 def _steps(root):
+    mine = _thread_steps(root)
+    if mine:
+        return mine[:MAX_STEPS]
     out = []
     every = paths(root)
     for target in every:

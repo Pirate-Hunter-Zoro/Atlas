@@ -564,7 +564,7 @@ subprocess.run(["git", "init", "-q", tracked], stdout=subprocess.DEVNULL)
 check("a workspace whose live/ is committed says so",
       tutor.cards_are_tracked(tracked))
 with open(os.path.join(tracked, ".gitignore"), "w", encoding="utf-8") as fh:
-    fh.write("live/*\n!live/map.json\n")
+    fh.write("live/*\n!threads.json\n")
 check("and one that ignores live/ -- which is what the workspace holding `phi` "
       "does -- says so too",
       not tutor.cards_are_tracked(tracked))

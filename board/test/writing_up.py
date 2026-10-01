@@ -36,7 +36,7 @@ import tempfile
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 from tutorboard import atlas, manuscript                              # noqa: E402
-from tutorboard.course import map as course_map, plan                 # noqa: E402
+from tutorboard.course import map as course_map, plan, threads        # noqa: E402
 
 fails = []
 
@@ -196,13 +196,14 @@ try:
                   for d in manuscript.delivered(proj)))
     os.remove(os.path.join(proj, "manuscripts", "report.md"))
 
-    # The written map, spent again: a terminology lock half-written.
-    course_map.write_written(proj, {
+    # The thread file, spent again: a terminology lock half-written.
+    threads.write(proj, {
         "version": 1,
-        "nodes": [{"id": "grader", "name": "the grader",
-                   "also": "psych_asr.evaluate.grade",
-                   "does": "Reproduces the annotator's own error labels.",
-                   "files": ["psych_asr/evaluate/grade.py"]}]})
+        "deliverables": [{"id": "stage1", "title": "Stage 1"}],
+        "threads": [{"id": "grader", "deliverable": "stage1",
+                     "title": "the grader (psych_asr.evaluate.grade)",
+                     "question": "Reproduces the annotator's own error labels.",
+                     "files": ["psych_asr/evaluate/grade.py"]}]})
     course_map._cache.clear()
     plan._cache.clear()
     body = manuscript.job(proj, title="The bake-off")
