@@ -1,0 +1,48 @@
+% ===========================================================================
+%  Knn Ksweep
+%
+%  THE WRITE-UP, and it is the assistant's to type.
+%    The assistant transcribes each question or topic faithfully and emits an
+%    empty, marked solution region beneath it. The student does the
+%    mathematics; the assistant typesets what they agreed was right, and
+%    nothing that was not on the page the student sent.
+% ===========================================================================
+\documentclass[11pt]{article}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage[margin=1in]{geometry}
+%% The two environments everything here is written in. A workspace with its own
+%% `coursemacros.sty` gets that instead, and these match its definitions so a
+%% document reads the same either way.
+\newenvironment{problem}[1]
+  {\par\medskip\noindent\textbf{Problem #1.}\ \itshape}
+  {\par\medskip}
+\newenvironment{solution}
+  {\par\noindent\textbf{Solution.}\ }
+  {\par\medskip}
+\newcommand{\todo}[1]{\textbf{[TODO: #1]}}
+
+\title{The KNN neighbour-count sweep}
+\author{}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+% One problem/solution pair per thing worked, in the order it was assigned or
+% chosen. A region stays empty until the answer in it is agreed correct.
+
+\begin{problem}{1}
+With plain cosine similarity, weights $w_j=\max(s_j,0)^{\alpha}$ ($\alpha=1$) and risk score
+$R_k=\sum_{j\le k} w_j y_j/\sum_{j\le k} w_j$, the full-pool weights are nearly uniform
+(similarities $0.83$--$0.95$; effective sample size $34{,}032$ of $34{,}063$).
+Why does the test-set ROC AUC at the whole pool end at $0.608$ rather than falling to $0.5$?
+\end{problem}
+\begin{solution}
+% the student's argument, from live/answers/t0023-r4.png
+The weights of the nearer neighbours, who should have more influence, are still larger.
+That is not the case with exactly uniform weighting. The effect is stronger with
+importance-weighted cosine similarity.
+\end{solution}
+
+\end{document}
