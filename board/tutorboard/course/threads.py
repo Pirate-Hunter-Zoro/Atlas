@@ -388,6 +388,22 @@ def resolve(root, clean):
     return out
 
 
+def next_task(resolved):
+    """`(thread, task)`: the first open task of the first thread not blocked.
+
+    Pure, over what `resolve` returns, so a `blockedBy` on a closed thread is
+    already gone. A closed thread is skipped, and so is an unblocked one with
+    no open task. `(None, None)` where nothing is left.
+    """
+    for t in resolved or []:
+        if t["closed"] or t["blockedBy"]:
+            continue
+        for task in t["tasks"]:
+            if not task["done"]:
+                return t, task
+    return None, None
+
+
 def _doc_found(root, ident):
     try:
         from . import reading                                # local: a cycle

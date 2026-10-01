@@ -784,6 +784,11 @@ def inside(root, node_id, state=None, archived=None):
     built = status(root, state, archived)
     if not built:
         return None
+    # CODE IS NEVER A BOX ON A THREAD PICTURE. A thread's files are listed on
+    # its sheet and open in the code walk; the derived depths are for vendor
+    # trees and workspaces without a thread file.
+    if built.get("written"):
+        return None
     want = str(node_id or "").strip()
     if not want:
         return None
@@ -889,8 +894,27 @@ def _from_chapters(root):
         want = by_num.get(x.get("chapter"))
         if want:
             edges.append({"from": want, "to": nid, "weight": 1, "label": ""})
+    # THE BOOK IS THE ONE DELIVERABLE, and its frame is drawn the way a
+    # project's deliverables are: one code path for both.
+    for n in nodes:
+        n["deliverable"] = BOOK
     return {"title": "", "nodes": nodes, "edges": edges, "loose": [],
+            "deliverables": [{"id": BOOK, "title": _book_title(root),
+                              "doc": ""}],
             "why": "Drawn from this course's own chapter table."}
+
+
+# The id of a course's one deliverable. A course writes no thread file, so the
+# id is fixed rather than chosen.
+BOOK = "book"
+
+
+def _book_title(root):
+    try:
+        from . import config                                 # local: a cycle
+        return config.read_config(root).get("name") or "the book"
+    except Exception:                                        # noqa: BLE001
+        return "the book"
 
 
 def _from_parts(root):
@@ -1024,13 +1048,45 @@ def _group_of(doc):
     return "papers"
 
 
-def documents_region(root):
-    """Every document this workspace has written, grouped for the map."""
+def library_doc(found, rel):
+    """The library document whose source or built file is `rel`, or None."""
+    for d in found or []:
+        if rel and rel in (d.get("source"), d.get("rel")):
+            return d
+    return None
+
+
+def _deliverable_rows(found, deliverables):
+    """One region row per deliverable that names its document.
+
+    The library's id where the document is in it; otherwise no id, drawn
+    unbuilt, because a paper not written yet is still the thing being made.
+    """
+    rows = []
+    for dl in deliverables or []:
+        if not dl.get("doc"):
+            continue
+        d = library_doc(found, dl["doc"])
+        rows.append({"id": d["id"] if d else "", "name": dl["title"],
+                     "file": dl["title"],
+                     "kind": d["kind"] if d else "paper",
+                     "pdf": bool(d and d.get("pdf")),
+                     "deliverable": dl["id"], "rel": dl["doc"]})
+    return rows
+
+
+def documents_region(root, deliverables=None):
+    """Every document this workspace has written, grouped for the map.
+
+    `deliverables` puts each deliverable's own document first, in a group of
+    its own, whether or not it is built yet.
+    """
     try:
         found = library.documents(root)
     except Exception:                                        # noqa: BLE001
         found = []
     by = dict((key, []) for key, _label in REGION_GROUPS)
+    mine = _deliverable_rows(found, deliverables)
     for d in found:
         # `file` is what its author calls it out loud -- `manuscript`, `04
         # methods` -- and `name` is what the source says its title is, which for
@@ -1038,10 +1094,14 @@ def documents_region(root):
         by[_group_of(d)].append({"id": d["id"], "name": d["title"],
                                  "file": reading._pretty(d["stem"]),
                                  "kind": d["kind"], "pdf": bool(d["pdf"])})
+    groups = [{"key": key, "label": label, "docs": by[key]}
+              for key, label in REGION_GROUPS if by[key]]
+    if mine:
+        groups.insert(0, {"key": "deliverables", "label": "deliverables",
+                          "docs": mine})
     return {
-        "total": len(found),
-        "groups": [{"key": key, "label": label, "docs": by[key]}
-                   for key, label in REGION_GROUPS if by[key]],
+        "total": len(found) + sum(1 for r in mine if not r["id"]),
+        "groups": groups,
     }
 
 
@@ -1232,7 +1292,11 @@ def status(root, state=None, archived=None):
         "why": found["why"],
         "total": len(nodes),
         # EVERY DOCUMENT, ON EVERY MAP, derived or written, in every family.
-        "documents": documents_region(root),
+        "documents": documents_region(root, found.get("deliverables")),
+        # THE FRAMES. Each deliverable is one and its threads are the boxes in
+        # it; a course's one deliverable is its book.
+        "deliverables": [{"id": d["id"], "title": d["title"], "doc": d["doc"]}
+                         for d in found.get("deliverables") or []],
     }
 
 
@@ -1273,3 +1337,152 @@ def find(root, node_id, state=None, archived=None):
         if node["id"] == want:
             return node
     return None
+
+
+# ---------------------------------------------------------------------------
+# a thread's sheet, on a tap
+# ---------------------------------------------------------------------------
+# What a box on a thread picture holds, as a list rather than more boxes: code
+# is never a box. Fetched on the tap and never on the payload, for the reason
+# `inside` is: the payload is rebuilt four times a second.
+
+# Which kind of sitting an aim is. Learn and coach are both the teach stance;
+# build is the do stance, and a paper or a deck is a kind of build.
+KIND_OF_AIM = {"teach": "learn", "coach": "coach", "build": "build",
+               "paper": "build", "slides": "build"}
+SITTING_KINDS = ("learn", "coach", "build")
+MAX_SITTINGS = 12
+
+
+def _kind_of(st):
+    """The kind of one sitting, off its state, or ''."""
+    kind = str((st or {}).get("kind") or "").strip()
+    if kind in SITTING_KINDS:
+        return kind
+    return KIND_OF_AIM.get(str((st or {}).get("aim") or "").strip(), "")
+
+
+def _on_thread(st, tid):
+    """Is this sitting's state about this thread? `thread`, or `node` before it."""
+    return bool(tid) and tid in (str((st or {}).get("thread") or ""),
+                                 str((st or {}).get("node") or ""))
+
+
+def _jobs_of_thread(root, tid):
+    """The thread's registered jobs, a later line for a job id overriding."""
+    last = {}
+    for j in threads.jobs_of(root):
+        if isinstance(j, dict) and j.get("jobid"):
+            merged = dict(last.get(str(j["jobid"])) or {})
+            merged.update(j)
+            last[str(j["jobid"])] = merged
+    return [{"jobid": str(j.get("jobid")),
+             "state": str(j.get("state") or "PENDING"),
+             "cmd": str(j.get("cmd") or "")[:200],
+             "produces": list(j.get("produces") or [])[:8],
+             "submitted": j.get("submitted") or ""}
+            for j in last.values() if j.get("thread") == tid]
+
+
+def _task_labels(root, t):
+    """The thread's tasks, each open one carrying the plan label `/session`
+    looks it up by. Paired in file order, because `plan.steps` makes one step
+    per open task in the same order and suffixes a label two tasks share."""
+    mine = [s["label"] for s in _plan_steps(root) if s.get("thread") == t["id"]]
+    out = []
+    for x in t["tasks"]:
+        x = dict(x)
+        x["label"] = "" if x["done"] or not mine else mine.pop(0)
+        out.append(x)
+    return out
+
+
+def thread_sheet(root, tid, state=None, archived=None):
+    """Everything one thread's sheet lists, or None for a thread not in the file.
+
+    Files (each opens in the code walk), outputs and whether each exists,
+    write-up anchors and whether each is found, registered jobs, past sittings
+    from the archive by thread id, and documents: the thread's own and those of
+    the files it is written up in. `kind` is the kind of its last sitting, which
+    the sheet offers first, and `learn` where it has had none.
+    """
+    clean, problems = threads.read(root)
+    if not clean or problems:
+        return None
+    want = str(tid or "").strip()
+    t = None
+    for one in threads.resolve(root, clean):
+        if one["id"] == want:
+            t = one
+    if not t:
+        return None
+    st = threads.stages(root).get(t["id"]) or {}
+
+    writes = []
+    for w in t["writes"]:
+        text = ""
+        try:
+            with open(os.path.join(root, w["file"]), "r", encoding="utf-8",
+                      errors="replace") as fh:
+                text = fh.read()
+        except OSError:
+            pass
+        writes.append({"file": w["file"], "anchor": w["anchor"],
+                       "found": w["anchor"] in text})
+
+    sittings, kind = [], ""
+    if _on_thread(state, t["id"]) and not (state or {}).get("finished"):
+        kind = _kind_of(state)
+    for a in archived or []:                                 # newest first
+        if not _on_thread(a, t["id"]):
+            continue
+        kind = kind or _kind_of(a)
+        if len(sittings) < MAX_SITTINGS:
+            sittings.append({"id": a.get("id") or "",
+                             "chapter": a.get("chapter") or "",
+                             "kind": _kind_of(a),
+                             "opened": a.get("opened") or "",
+                             "cards": a.get("cards") or 0})
+
+    try:
+        found = library.documents(root)
+    except Exception:                                        # noqa: BLE001
+        found = []
+    docs, seen = [], set()
+
+    def add(d, why):
+        if d and d["id"] not in seen:
+            seen.add(d["id"])
+            docs.append({"id": d["id"], "name": d.get("title") or d["id"],
+                         "kind": d.get("kind") or "paper",
+                         "pdf": bool(d.get("pdf")), "why": why})
+
+    if t["doc"]:
+        for r in _documents(root):
+            if r["id"] == t["doc"]:
+                add(library_doc(found, r.get("rel")), "this thread's document")
+    for w in t["writes"]:
+        add(library_doc(found, w["file"]), "written up here")
+
+    deliverable = None
+    for d in clean["deliverables"]:
+        if d["id"] == t["deliverable"]:
+            deliverable = dict(d)
+    return {
+        "id": t["id"], "title": t["title"], "question": t["question"],
+        "deliverable": deliverable,
+        "status": st.get("status") or "open",
+        "unsaved": bool(st.get("unsaved")), "closed": t["closed"],
+        "blockedBy": list(t["blockedBy"]),
+        "tasks": _task_labels(root, t),
+        "decisions": [dict(x) for x in t["decisions"]],
+        "files": [{"path": f, "dir": os.path.isdir(os.path.join(root, f))}
+                  for f in t["files"]],
+        "outputs": [{"path": o, "there": threads.here(root, o)}
+                    for o in t["outputs"]],
+        "writes": writes,
+        "jobs": _jobs_of_thread(root, t["id"]),
+        "sittings": sittings,
+        "documents": docs,
+        "kind": kind or "learn",
+    }

@@ -152,6 +152,56 @@ const trees = {
   },
 };
 
+// A thread picture: two deliverables, three threads, one blocked on another,
+// and what `/map/thread/<id>` answers for one of them.
+const threadAsks = [];
+const sheets = {
+  knn: {
+    ok: true, id: 'knn', title: 'Weighted neighbours', question: 'Does it beat cosine?',
+    status: 'result', kind: 'coach', blockedBy: [],
+    tasks: [{ text: 'Draw the figure', done: false, label: 'Draw the figure' },
+            { text: 'Run the sweep', done: true, label: '' }],
+    decisions: [{ q: 'How to count dimensions', rule: null }],
+    files: [{ path: 'scripts/knn.py', dir: false }, { path: 'scripts/lib', dir: true }],
+    outputs: [{ path: 'results/knn.csv', there: true }],
+    writes: [{ file: 'paper/manuscript.md', anchor: '## Retrieval', found: false }],
+    jobs: [{ jobid: '42', state: 'RUNNING', cmd: 'sbatch sweep.sbatch' }],
+    sittings: [{ id: '2026-09-30-a', chapter: 'Weighted neighbours', kind: 'coach',
+                 opened: '2026-09-30T10:00' }],
+    documents: [{ id: 'paper-manuscript', name: 'Paper 1', kind: 'paper', pdf: true }],
+  },
+};
+
+function makeThreads() {
+  const t = (over) => node(Object.assign({ kind: 'part', thread: 'open', closed: false,
+                                           unsaved: false, decisions: 0, tasks: 0,
+                                           blockedBy: [] }, over));
+  return {
+    version: 2, title: 'Paper 1 · The deck', written: true, steps: 2, total: 3,
+    why: 'Written in threads.json.',
+    deliverables: [{ id: 'paper1', title: 'Paper 1 — predicting TRD from the EHR',
+                     doc: 'paper/manuscript.md' },
+                   { id: 'deck', title: 'The deck', doc: '' }],
+    nodes: [
+      t({ id: 'knn', name: 'Weighted neighbours', deliverable: 'paper1',
+          does: 'Does it beat cosine?', thread: 'result', unsaved: true,
+          decisions: 1, tasks: 1, files: ['scripts/knn.py'], inside: 1,
+          steps: [{ num: '1', title: 'Draw the figure', label: 'Draw the figure',
+                    summary: '', order: 1, from: 'Weighted neighbours',
+                    thread: 'knn' }] }),
+      t({ id: 'tripod', name: 'TRIPOD checklist', deliverable: 'paper1',
+          blockedBy: ['knn'] }),
+      t({ id: 'slides', name: 'The slides', deliverable: 'deck', thread: 'running' }),
+    ],
+    edges: [{ from: 'knn', to: 'tripod', weight: 1, label: '' }],
+    loose: [],
+    documents: { total: 1, groups: [
+      { key: 'deliverables', label: 'deliverables',
+        docs: [{ id: 'paper-manuscript', name: 'Paper 1', file: 'Paper 1',
+                 kind: 'paper', pdf: true, deliverable: 'paper1' }] }] },
+  };
+}
+
 function board(W, H, face) {
   const dom = new JSDOM(fs.readFileSync(path.join(WEB, 'board.html'), 'utf8'), {
     runScripts: 'outside-only', pretendToBeVisual: true,
@@ -208,6 +258,15 @@ function board(W, H, face) {
       return Promise.resolve({
         json: () => Promise.resolve(answer
           || { ok: false, error: 'there is nothing inside that' }),
+      });
+    }
+    // ONE THREAD'S SHEET, fetched on the tap.
+    const sheetOf = /^\/map\/thread\/(.+)$/.exec(String(u));
+    if (sheetOf) {
+      threadAsks.push(decodeURIComponent(sheetOf[1]));
+      const answer = sheets[decodeURIComponent(sheetOf[1])];
+      return Promise.resolve({
+        json: () => Promise.resolve(answer || { ok: false, error: 'no such thread' }),
       });
     }
     // A VENDOR TREE, DRAWN ON THIS BOARD. It is not this workspace's picture
@@ -1325,6 +1384,140 @@ const at = (doc, id) => {
          .map((n) => n.textContent).includes('evaluate')
       ? ok('and the way out puts this workspace\'s own picture back')
       : fail('there is no way back out of a tree');
+  }
+
+  // ------------------------------------- deliverables are frames, threads boxes
+  {
+    const w = board();
+    const doc = w.document;
+    w.__render(payload({ map: makeThreads() }));
+    await sleep(15);
+    const frames = doc.querySelectorAll('#map-sheet .frame');
+    frames.length === 2
+      ? ok('each deliverable is a frame (2)')
+      : fail('the thread picture drew ' + frames.length + ' frames, not 2');
+    const rectOf = (id) => {
+      const r = doc.querySelector('#map-sheet .frame[data-frame="' + id + '"] rect');
+      return { x: +r.getAttribute('x'), y: +r.getAttribute('y'),
+               w: +r.getAttribute('width'), h: +r.getAttribute('height') };
+    };
+    const inFrame = (box, f) => box && box.x >= f.x && box.y >= f.y
+      && box.x + box.w <= f.x + f.w && box.y + box.h <= f.y + f.h;
+    const p1 = rectOf('paper1'), dk = rectOf('deck');
+    inFrame(at(doc, 'knn'), p1) && inFrame(at(doc, 'tripod'), p1)
+    && inFrame(at(doc, 'slides'), dk) && !inFrame(at(doc, 'slides'), p1)
+      ? ok('and its threads are the boxes inside it')
+      : fail('a thread box sits outside its own frame');
+    p1.y + p1.h <= dk.y || dk.y + dk.h <= p1.y
+      ? ok('frames do not overlap')
+      : fail('two frames overlap');
+    const fname = doc.querySelector('#map-sheet .frame[data-frame="paper1"] .frame-name');
+    fname && /Paper 1/.test(fname.textContent)
+      ? ok('a frame is titled with its deliverable')
+      : fail('the frame has no title');
+    const knn = doc.querySelector('#map-sheet .node[data-id="knn"]');
+    knn.classList.contains('t-result') && knn.classList.contains('unsaved')
+    && doc.querySelector('#map-sheet .node[data-id="slides"]').classList.contains('t-running')
+      ? ok('a box is coloured by its derived status, and says when it is unsaved')
+      : fail('a thread box does not carry its status: ' + knn.getAttribute('class'));
+    knn.querySelector('.also') && /result · unsaved/.test(knn.querySelector('.also').textContent)
+      ? ok('and says it in words under its name')
+      : fail('the status is not written on the box');
+    /blocked/.test((doc.querySelector('#map-sheet .node[data-id="tripod"] .also') || {})
+                   .textContent || '')
+      ? ok('a blocked thread says so on its box')
+      : fail('a blocked thread does not say so');
+    knn.querySelector('.chip.decision') && knn.querySelectorAll('.chip').length === 2
+      ? ok('chips show its open task and its open decision')
+      : fail('the chips on a thread are ' + knn.querySelectorAll('.chip').length);
+    !doc.querySelector('#map-sheet .node.thread .dig')
+    && !doc.querySelector('#map-sheet .node.thread .ways')
+      ? ok('code is never a box: a thread opens no level down')
+      : fail('a thread box offers a way down into its code');
+    doc.querySelectorAll('#map-sheet .edge').length === 1
+      ? ok('blockedBy draws an arrow')
+      : fail('the blockedBy arrow is missing');
+    const region = doc.querySelector('#map-sheet .docs-region .region-doc[data-doc="paper-manuscript"]');
+    region
+      ? ok('the deliverable\'s document is in the documents region')
+      : fail('the deliverable\'s document is not on the map');
+
+    // A tap: the sheet, the kinds, and the last kind first.
+    posts.length = 0;
+    threadAsks.length = 0;
+    knn.dispatchEvent(new w.Event('click'));
+    await sleep(15);
+    const sheet = doc.getElementById('work');
+    !sheet.hidden && threadAsks[0] === 'knn'
+      ? ok('tapping a thread opens its sheet, fetched on the tap')
+      : fail('the sheet did not open, or did not ask for the thread');
+    !posts.filter((p) => /\/session$/.test(p.url)).length
+      ? ok('and opens no sitting until a kind is chosen')
+      : fail('a tap on a thread opened a sitting without asking');
+    const kinds = Array.from(sheet.querySelectorAll('.work-way.kind'))
+      .map((b) => b.getAttribute('data-kind'));
+    JSON.stringify(kinds) === JSON.stringify(['coach', 'learn', 'build'])
+    && sheet.querySelector('.work-way.kind.last[data-kind="coach"]')
+      ? ok('the sheet asks learn, coach or build, the thread\'s last kind first')
+      : fail('the kinds offered were ' + kinds.join(','));
+    const text = sheet.textContent;
+    ['scripts/knn.py', 'results/knn.csv', '## Retrieval', '42', 'Paper 1',
+     'Weighted neighbours', 'How to count dimensions', 'Draw the figure']
+      .every((s) => text.indexOf(s) >= 0)
+      ? ok('the sheet lists files, outputs, write-ups, jobs, documents, past '
+           + 'sittings, decisions and tasks')
+      : fail('the sheet is missing something: ' + text.slice(0, 400));
+    sheet.querySelector('button.thread-row[data-file="scripts/knn.py"]')
+    && !sheet.querySelector('button.thread-row[data-file="scripts/lib"]')
+      ? ok('a file is a way into the code walk; a directory is only said')
+      : fail('the file rows are not tappable as they should be');
+
+    sheet.querySelector('.work-way.kind[data-kind="build"]').click();
+    await sleep(10);
+    const asked = posts.filter((p) => /\/session$/.test(p.url))[0];
+    asked && asked.body.session === 'lecture' && asked.body.node === 'knn'
+    && asked.body.aim === 'build' && asked.body.kind === 'build'
+    && asked.body.step === null && asked.body.begin === true
+      ? ok('choosing a kind opens the sitting on the thread, its aim the kind\'s')
+      : fail('the sitting was asked for as ' + JSON.stringify(asked && asked.body));
+
+    // A task chip: the same sheet, with that task chosen.
+    w.__openMap();
+    await sleep(10);
+    posts.length = 0;
+    doc.querySelector('#map-sheet .node[data-id="knn"] .chip[data-step]')
+       .dispatchEvent(new w.Event('click'));
+    await sleep(15);
+    !sheet.hidden && /Draw the figure/.test(doc.getElementById('work-sub').textContent)
+      ? ok('a task chip opens the sheet with that task chosen')
+      : fail('a task chip did not open the sheet on its task');
+    sheet.querySelector('.work-way.kind[data-kind="learn"]').click();
+    await sleep(10);
+    const onTask = posts.filter((p) => /\/session$/.test(p.url))[0];
+    onTask && onTask.body.step === 'Draw the figure' && onTask.body.aim === 'teach'
+      ? ok('and the sitting it opens is on that task, learn being the teach aim')
+      : fail('the task sitting was asked for as ' + JSON.stringify(onTask && onTask.body));
+  }
+  {
+    // A FILE ROW OPENS THE CODE WALK, chosen, through the address resolver.
+    const w = board();
+    const doc = w.document;
+    w.__render(payload({
+      map: makeThreads(),
+      walk: { units: [{ name: 'scripts/knn.py', label: 'scripts/knn.py',
+                        path: 'scripts/knn.py', short: 'knn.py', dir: 'scripts',
+                        kind: 'file', symbol: '' }], scope: [] },
+    }));
+    await sleep(15);
+    doc.querySelector('#map-sheet .node[data-id="knn"]').dispatchEvent(new w.Event('click'));
+    await sleep(15);
+    doc.querySelector('#work button.thread-row[data-file="scripts/knn.py"]').click();
+    await sleep(10);
+    const picked = doc.querySelector('#review-list [data-unit="scripts/knn.py"]');
+    doc.getElementById('map').hidden && !doc.getElementById('review').hidden
+    && picked && picked.classList.contains('on')
+      ? ok('a file on the sheet opens in the code walk, chosen')
+      : fail('the file did not open in the code walk');
   }
 
   console.log(errors.length ? '\n' + errors.length + ' FAILURES'
