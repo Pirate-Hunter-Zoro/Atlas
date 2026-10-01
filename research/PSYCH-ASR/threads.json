@@ -3,164 +3,248 @@
   "deliverables": [
     {
       "id": "stage1",
-      "title": "Stage 1 — a recording to a graded transcript",
+      "title": "Stage 1 — a recording to a speaker-attributed transcript",
       "doc": ""
     }
   ],
   "threads": [
     {
-      "id": "typist",
+      "id": "transcription",
       "deliverable": "stage1",
-      "title": "the typist (faster-whisper large-v3)",
-      "question": "Turns the waveform into words. One candidate, never compared — which is a default, not a decision.",
+      "title": "Transcription (four typists: faster-whisper large-v3 and others)",
+      "question": "Turns the waveform into words. Four candidates are staged and one has been the default, which is not a decision.",
       "files": [
         "psych_asr/asr/typists.py",
         "psych_asr/cli/transcribe.py",
-        "psych_asr/cli/run_asr.py"
+        "psych_asr/cli/run_asr.py",
+        "slurm_jobs/stage1a_transcribe.sbatch",
+        "slurm_jobs/stage1a_asr.sbatch",
+        "slurm_jobs/run_typist_bakeoff.sh"
       ],
       "outputs": [],
       "writes": [],
-      "tasks": [],
-      "decisions": [],
+      "tasks": [
+        {
+          "text": "Add a duration check to the 1a seam: check_segment_contract takes the audio duration and fails a typist whose last segment ends far short of it",
+          "done": false
+        },
+        {
+          "text": "Canary transcribes only the first 17.8 s of a session. Chunked inference would fix it, if canary is worth that work",
+          "done": false
+        }
+      ],
+      "decisions": [
+        {
+          "q": "Is canary-1b-flash worth chunked inference, given parakeet already covers the NVIDIA design",
+          "rule": null
+        },
+        {
+          "q": "A typist's own word times",
+          "rule": "Discarded. Keeping them would confound the typist axis with the alignment axis, the one thing the grid exists to separate."
+        }
+      ],
       "doc": "",
       "blockedBy": [],
       "closed": false
     },
     {
-      "id": "stopwatch",
+      "id": "word-alignment",
       "deliverable": "stage1",
-      "title": "the stopwatch (wav2vec2 base, LibriSpeech)",
-      "question": "Puts a start and an end on every word. The least examined box here: a small model trained on read audiobooks. re-aligning the corrected words needs the corrected words to be right",
+      "title": "Word alignment (wav2vec2 base, LibriSpeech)",
+      "question": "Puts a start and an end on every word. The least examined stage: a small model trained on read audiobooks, never compared, while therapy speech is spontaneous and overlapped.",
       "files": [
         "psych_asr/asr/align.py",
         "psych_asr/cli/align_words.py",
-        "psych_asr/cli/warm_align_cache.py"
+        "psych_asr/cli/warm_align_cache.py",
+        "slurm_jobs/stage1a_align.sbatch"
       ],
       "outputs": [],
       "writes": [],
-      "tasks": [],
+      "tasks": [
+        {
+          "text": "Build the reference RTTM: re-align the reference transcript's words to the audio and write measured word times. The job reads the reference locally and prints counts only",
+          "done": false
+        },
+        {
+          "text": "Then compare two aligners on the same words: the large wav2vec2 bundle, or one built for forced alignment, against the current one",
+          "done": false
+        }
+      ],
       "decisions": [],
       "doc": "",
       "blockedBy": [
-        "corrections"
+        "reference-transcript"
       ],
       "closed": false
     },
     {
-      "id": "name-tagger",
+      "id": "diarization",
       "deliverable": "stage1",
-      "title": "the name-tagger (five arms: pyannote, Sortformer, DiariZen)",
+      "title": "Diarization (five arms: pyannote, Sortformer, DiariZen)",
       "question": "Says who was speaking when, reading no words at all. Five arms, compared, still undecided.",
       "files": [
-        "psych_asr/diarize/pyannote_arm.py",
-        "psych_asr/diarize/sortformer_arm.py",
-        "psych_asr/diarize/diarizen_arm.py",
-        "psych_asr/diarize/windowing.py",
+        "psych_asr/diarize",
         "psych_asr/cli/diarize_pyannote.py",
         "psych_asr/cli/diarize_sortformer.py",
-        "psych_asr/cli/diarize_diarizen.py"
+        "psych_asr/cli/diarize_diarizen.py",
+        "slurm_jobs/stage1b_pyannote.sbatch",
+        "slurm_jobs/stage1b_sortformer.sbatch",
+        "slurm_jobs/stage1b_sortformer_streaming.sbatch",
+        "slurm_jobs/stage1b_diarizen.sbatch",
+        "slurm_jobs/stage1b_diarizen_free.sbatch"
       ],
       "outputs": [],
       "writes": [],
       "tasks": [],
-      "decisions": [],
+      "decisions": [
+        {
+          "q": "Which diarization arm",
+          "rule": null
+        },
+        {
+          "q": "The diarization interchange format",
+          "rule": "RTTM. The join reads exactly start, end and speaker, and the file the join reads is the file a scorer consumes."
+        }
+      ],
       "doc": "",
       "blockedBy": [],
       "closed": false
     },
     {
-      "id": "joiner",
+      "id": "speaker-join",
       "deliverable": "stage1",
-      "title": "the joiner (Stage 1c)",
-      "question": "Lays the turn table over the timed words, so every word knows who said it.",
+      "title": "The speaker join (Stage 1c)",
+      "question": "Lays the turn table over the timed words, so every word knows who said it, and renders the readable transcript.",
       "files": [
         "psych_asr/join.py",
         "psych_asr/cli/join_speakers.py",
-        "psych_asr/artifacts/rttm_io.py"
+        "psych_asr/artifacts/rttm_io.py",
+        "psych_asr/artifacts/naming.py",
+        "psych_asr/transcript",
+        "psych_asr/cli/render_transcript.py",
+        "slurm_jobs/stage1c_join.sbatch",
+        "slurm_jobs/stage1c_join_cells.sbatch",
+        "psych_asr/evaluate/regression.py",
+        "psych_asr/cli/check_split_regression.py",
+        "docs/stage1_pipeline_walkthrough.tex"
       ],
       "outputs": [],
       "writes": [],
       "tasks": [],
-      "decisions": [],
+      "decisions": [
+        {
+          "q": "The split's regression fixture",
+          "rule": "1a, then 1b with community-1, then 1c reproduces job 2032471 exactly: 489 segments, 7298 words, 2 speakers, 89 turns, 1 UNKNOWN segment. Any deviation is a bug in the split."
+        }
+      ],
       "doc": "stage1-pipeline-walkthrough",
       "blockedBy": [],
       "closed": false
     },
     {
-      "id": "corrections",
+      "id": "reference-transcript",
       "deliverable": "stage1",
-      "title": "the corrections (117 rows of a human error log)",
-      "question": "Turns the human's error log into the corrected reference. Two defects reported 16 Sep. her quotes and bracketed speaker names come through as speech; interjections land at the end of the host turn",
-      "files": [
-        "psych_asr/transcript/corrections.py",
-        "psych_asr/cli/apply_corrections.py",
-        "psych_asr/artifacts/error_log.py"
-      ],
+      "title": "The reference transcript (a human-adjudicated artifact)",
+      "question": "colibri built it from the community-1 baseline and the annotator's error log, and she approved it. It lives under phi/, outside git, and nothing in psych_asr builds, reads or reproduces it.",
+      "files": [],
       "outputs": [],
       "writes": [],
       "tasks": [],
-      "decisions": [],
-      "doc": "stage2-reference-walkthrough",
-      "blockedBy": [],
-      "closed": false
-    },
-    {
-      "id": "grader",
-      "deliverable": "stage1",
-      "title": "the grader (psych_asr.evaluate.grade)",
-      "question": "Reproduces the annotator's own six error labels against the corrected reference, with nobody listening. its numbers move when the reference is rebuilt",
-      "files": [
-        "psych_asr/evaluate/grade.py",
-        "psych_asr/evaluate/labels.py",
-        "psych_asr/cli/grade_arms.py"
+      "decisions": [
+        {
+          "q": "What the reference is",
+          "rule": "The annotator's approved transcript, because she says it is. The correction algorithm, error-log reader, grader and scorers are deleted: placing her corrections turned out to be judgement, not code."
+        }
       ],
-      "outputs": [],
-      "writes": [],
-      "tasks": [],
-      "decisions": [],
       "doc": "",
       "blockedBy": [],
       "closed": false
     },
     {
-      "id": "grid",
+      "id": "arm-measurement",
       "deliverable": "stage1",
-      "title": "the grid (4 typists x 2 stopwatches x 5 name-taggers)",
-      "question": "A cube, not a table: 40 cells from 13 jobs, because five of six labels cannot move along two axes.",
+      "title": "Measuring an arm against the reference",
+      "question": "How is one transcription-alignment-diarization combination measured against the reference? Nothing is built until that is decided, and the answer may not be code.",
+      "files": [],
+      "outputs": [],
+      "writes": [],
+      "tasks": [],
+      "decisions": [
+        {
+          "q": "How an arm is measured against the reference transcript",
+          "rule": null
+        }
+      ],
+      "doc": "",
+      "blockedBy": [
+        "reference-transcript"
+      ],
+      "closed": false
+    },
+    {
+      "id": "grid-sweep",
+      "deliverable": "stage1",
+      "title": "The grid sweep (4 typists x 2 aligners x 5 diarizers)",
+      "question": "A cube, not a table: 40 cells from 13 jobs, because diarization reads no words and so depends on neither other axis.",
       "files": [
         "slurm_jobs/run_bakeoff.sh",
-        "slurm_jobs/run_typist_bakeoff.sh"
+        "slurm_jobs/run_typist_bakeoff.sh",
+        "slurm_jobs/stage1c_join_cells.sbatch"
       ],
+      "outputs": [],
+      "writes": [],
+      "tasks": [
+        {
+          "text": "Build: widen run_typist_bakeoff.sh's driver to two aligners, 8 runs of 1a beside 5 of 1b, and join every cell that lands. Every grid-aware caller passes --stem",
+          "done": false
+        }
+      ],
+      "decisions": [
+        {
+          "q": "How the grid runs",
+          "rule": "13 jobs, never 40: one 1a run per typist and aligner pair, one 1b run per diarizer, and the cells assembled afterwards. Diarization is never rerun per typist."
+        }
+      ],
+      "doc": "",
+      "blockedBy": [],
+      "closed": false
+    },
+    {
+      "id": "arm-selection",
+      "deliverable": "stage1",
+      "title": "Choosing the combination for the remaining sessions",
+      "question": "Reads the whole grid and says which combination is worth running on the rest of the sessions.",
+      "files": [],
       "outputs": [],
       "writes": [],
       "tasks": [],
       "decisions": [],
       "doc": "",
       "blockedBy": [
-        "stopwatch",
-        "corrections"
+        "grid-sweep",
+        "arm-measurement"
       ],
       "closed": false
     },
     {
-      "id": "scorer",
+      "id": "recording-review",
       "deliverable": "stage1",
-      "title": "the scorer (psych_asr.cli.score_arms)",
-      "question": "Reads the whole cube and says which combination is worth running on the rest of the sessions.",
+      "title": "Reviewing a diarized recording by ear",
+      "question": "Does the diarized transcript match who is speaking when the recording is played? Only a person listening can say.",
       "files": [
-        "psych_asr/evaluate/score.py",
-        "psych_asr/evaluate/compare.py",
-        "psych_asr/cli/score_arms.py",
-        "psych_asr/cli/compare_arms.py"
+        "psych_asr/cli/render_transcript.py"
       ],
       "outputs": [],
       "writes": [],
-      "tasks": [],
+      "tasks": [
+        {
+          "text": "The owner's own: listen to the recording beside its diarized transcript",
+          "done": false
+        }
+      ],
       "decisions": [],
       "doc": "",
-      "blockedBy": [
-        "grid"
-      ],
+      "blockedBy": [],
       "closed": false
     }
   ]

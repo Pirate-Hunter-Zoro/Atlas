@@ -641,6 +641,10 @@ cleared, and a `blockedBy` on a closed thread is dropped. A thread itself never 
 question, and a question survives its code moving. `outputs` and `writes` are left alone, because
 a path that does not exist yet is what an unfinished thread is. `--check` says each of these
 aloud, plus every document no thread or deliverable claims, and a closed thread with open tasks.
+A document is claimed by a thread's `doc`, or by a deliverable's `doc`, a `files` path or a
+`writes` file naming its source, extension aside: `paper1/manuscript.md` claims the built
+`paper1/manuscript.pdf`. A directory in `files` claims what is under it, and a piece under
+`parts/` or `sections/` belongs wherever its whole does.
 
 **Status is derived; `closed` is the only typed state.** `threads.stage` is a pure function of
 the thread, the set of paths that exist, the text of its write-up files, `git status` and the job
@@ -664,7 +668,10 @@ carries `thread` (the status), `closed`, `unsaved`, `decisions`, `tasks` and `de
 closed is a step, carrying its `thread`, and the map puts it on that thread's box. Only a thread
 file with no open task leaves the README-pointed plan file in force.
 
-PSYCH-ASR and libr-local-llm carry thread files, one thread per stage of the work.
+TRD-EHR, PSYCH-ASR and libr-local-llm carry thread files, drafted from each workspace's README,
+plan files and code. TRD-EHR's plan lives only there: Paper 1 and
+Paper 2 are its deliverables, and a thread's task names its sitting kind, *Learn*, *Coach* or
+*Build*, where that is fixed.
 
 #### The map draws deliverables and threads
 
@@ -3946,8 +3953,8 @@ conventionally named file at the root. A path that resolves anywhere else is ref
 read.
 
 That last rule is what makes it work here without a single line of configuration: PSYCH-ASR's
-README names `planning/PSYCH-ASR_TODO.txt` and TRD-EHR's names `planning/TRD-EHR_TODO.txt`, each
-a path inside its own workspace, and a README that names a plan by filename alone is answered by
+README names `planning/PSYCH-ASR_TODO.txt` and libr-local-llm's names
+`planning/LOCAL-LLM_TODO.txt`, each a path inside its own workspace, and a README that names a plan by filename alone is answered by
 two listings — every family under the root, then every workspace inside one — because a plan
 lives beside the code it plans.
 

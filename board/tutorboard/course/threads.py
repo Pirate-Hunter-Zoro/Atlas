@@ -415,6 +415,52 @@ def _doc_found(root, ident):
         return False
 
 
+def _stem(rel):
+    """A path without its extension: `paper1/manuscript.md` and its built
+    `paper1/manuscript.pdf` are one document."""
+    head, tail = os.path.split(rel or "")
+    return "/".join(p for p in (head, os.path.splitext(tail)[0]) if p)
+
+
+def _claims(clean, docs):
+    """The stems a thread file claims: each deliverable's `doc`, each thread's
+    `doc`, and each path a thread names in `files` or `writes`."""
+    by_id = dict((d["id"], d.get("rel") or "") for d in docs)
+    out = set(_stem(d["doc"]) for d in clean["deliverables"] if d["doc"])
+    for t in clean["threads"]:
+        if t["doc"] in by_id:
+            out.add(_stem(by_id[t["doc"]]))
+        out.update(t["files"])                       # a directory, whole
+        out.update(_stem(f) for f in t["files"])
+        out.update(_stem(w["file"]) for w in t["writes"])
+    out.discard("")
+    return out
+
+
+def _claimed(doc, claims):
+    """Is this document on a thread or a deliverable?
+
+    By its own stem, by a claimed directory above it, or -- for a piece under
+    `parts/` or `sections/` -- by the whole it is cut from, because a piece is
+    re-cut from its whole and belongs wherever the whole does.
+    """
+    rel = doc.get("rel") or ""
+    stems = [_stem(rel)]
+    try:
+        from .library import _piece_of                       # local: a cycle
+        whole = _piece_of(rel)
+    except Exception:                                        # noqa: BLE001
+        whole = None
+    if whole:
+        stems.append("/".join(p for p in whole if p))
+    for s in stems:
+        if s in claims:
+            return True
+        if any(s.startswith(c + "/") for c in claims):
+            return True
+    return False
+
+
 def check(root, documents=True):
     """What the file claims that the tree does not. `board thread --check`."""
     clean, problems = read(root)
@@ -443,15 +489,14 @@ def check(root, documents=True):
             out.append("`%s` is closed with %d open task(s) on it"
                        % (t["id"], sum(1 for x in t["tasks"] if not x["done"])))
     if documents:
-        claimed_ids = set(t["doc"] for t in clean["threads"] if t["doc"])
-        claimed_rel = set(d["doc"] for d in clean["deliverables"] if d["doc"])
         try:
             from . import reading
             docs = reading.documents(root)
         except Exception:                                    # noqa: BLE001
             docs = []
+        claims = _claims(clean, docs)
         for d in docs:
-            if d["id"] in claimed_ids or d.get("rel") in claimed_rel:
+            if _claimed(d, claims):
                 continue
             out.append("the document `%s` (%s) is on no thread and no "
                        "deliverable. Put its id in a thread's `doc` if it "
