@@ -115,34 +115,33 @@ def contract_map(root):
 
 
 def map_sense(root):
-    """One paragraph: is this project drawn, when, and is the drawing still true.
+    """One paragraph: does this project have a thread file, and is it still true.
 
-    KEEPING THE MAP TRUE IS PART OF FINISHING A PIECE OF WORK, exactly as
-    updating the plan already is, and a rule nobody is reminded of is a rule
-    that lasts about three weeks. So the reminder is in the briefing, where
-    every turn sees it, rather than in a document a turn is told not to read.
+    KEEPING THE THREADS TRUE IS PART OF FINISHING A PIECE OF WORK, and a rule
+    nobody is reminded of lasts about three weeks. So the reminder is in the
+    briefing, where every turn sees it.
     """
     try:
         info = course_map.written_status(root)
     except Exception:                                        # noqa: BLE001
-        return ("the map could not be read, so treat the picture on the board "
-                "as derived from the tree rather than as anybody's words.")
+        return ("the thread file could not be read, so treat the picture on the "
+                "board as derived from the tree rather than as anybody's words.")
 
     if not info["has"]:
-        return ("NOT DRAWN. The board is showing a picture derived from the "
+        return ("NO THREAD FILE. The board is showing a picture derived from the "
                 "directory tree -- honest, and nobody's words. It knows that "
                 "directories exist and what imports what; it does not know what "
-                "any of it is FOR, which stage of the work a box is, or what is "
-                "blocked. If the person asks you to draw the map, or if you are "
-                "about to explain this project back to them, write one with "
-                "`board map < map.json` -- live/TEACHING.md says how. Name the "
-                "boxes the way their README and their plan name them.")
+                "any of it is FOR, what it delivers, or what is blocked. If the "
+                "person asks you to write the threads, or if you are about to "
+                "explain this project back to them, write `threads.json` with "
+                "`board thread < threads.json` -- live/TEACHING.md says how. "
+                "Name the threads the way their README and their plan do.")
 
     if info["problems"]:
-        return ("live/map.json EXISTS AND IS NOT VALID, so the board has fallen "
+        return ("threads.json EXISTS AND IS NOT VALID, so the board has fallen "
                 "back to the derived picture and the person cannot see what they "
-                "wrote. `board map --show` prints the reason. Fix it before "
-                "anything else that touches the map: %s"
+                "wrote. `board thread --show` prints the reason. Fix it before "
+                "anything else that touches the threads: %s"
                 % "; ".join(info["problems"][:3]))
 
     when = ""
@@ -150,17 +149,15 @@ def map_sense(root):
         when = time.strftime("%d %b", time.localtime(info["written"]))
     except (OSError, ValueError):
         when = ""
-    lead = ("DRAWN%s, %d box%s%s. These are the person's own names for their "
-            "own work -- use them. Saying `psych_asr/asr` where they wrote "
-            "*the typist* is answering in a vocabulary they did not choose."
+    lead = ("THREADS WRITTEN%s, %d thread%s%s. These are the person's own names "
+            "for their own work -- use them. Edit them only with `board thread`."
             % (" " + when if when else "", info["nodes"],
-               "" if info["nodes"] == 1 else "es",
+               "" if info["nodes"] == 1 else "s",
                (" -- \"%s\"" % info["title"]) if info["title"] else ""))
     if info["stale"]:
-        lead += ("\n%d thing(s) on it no longer match the tree; `board map "
-                 "--check` says which. Keeping the map true is part of "
-                 "finishing a piece of work, the same way updating the plan is."
-                 % info["stale"])
+        lead += ("\n%d thing(s) in it no longer match the tree; `board thread "
+                 "--check` says which. Keeping the threads true is part of "
+                 "finishing a piece of work." % info["stale"])
     return lead
 
 
