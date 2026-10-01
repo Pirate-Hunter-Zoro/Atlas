@@ -811,6 +811,36 @@ try:
           live["state"].get("aim_now") == config.aim_for(tmp, live["state"]))
     check("and what its stance resolves to",
           live["state"].get("stance_now") == config.stance_for(tmp, live["state"]))
+
+    # TAPPING THE BOX WHOSE SITTING IS OPEN GOES BACK INTO IT. A reload lands on
+    # the map, and the box you were in is the obvious way back -- which filed the
+    # evening's lesson away and opened an empty one.
+    mrepo = course_repo.Repo(made)
+    os.makedirs(mrepo.cards, exist_ok=True)
+    for n in (1, 2):
+        with open(os.path.join(mrepo.cards, "000%d-lesson.md" % n), "w",
+                  encoding="utf-8") as fh:
+            fh.write("---\nkind: lesson\n---\nCard %d.\n" % n)
+    sitting(made, session="lecture", node=typist["id"], chapter="New direction",
+            aim="teach")
+    mapping._cache.clear()
+    httpd.repo = mrepo
+    status, body = post("/session", {"session": "lecture", "node": typist["id"],
+                                     "begin": True})
+    check("a tap on the open sitting's box is a way back into it",
+          status == 200 and body.get("resumed") is True)
+    check("and files nothing away", not archive.list_archive(mrepo))
+    check("and leaves its cards and its name where they were",
+          len([n for n in os.listdir(mrepo.cards) if n.endswith(".md")]) == 2
+          and mrepo.state().get("chapter") == "New direction")
+    check("and does not ask the tutor to begin a lesson already going",
+          body.get("begun") is False)
+    status, body = post("/session", {"session": "lecture", "node": BOXES["grid"]["id"],
+                                     "begin": True})
+    check("a different box is still a new sitting",
+          status == 200 and not body.get("resumed")
+          and len(archive.list_archive(mrepo)) == 1)
+    httpd.repo = repo
 finally:
     httpd.shutdown()
 

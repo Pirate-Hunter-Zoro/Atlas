@@ -504,6 +504,24 @@ def post(h, repo, path):
         # spelling would leave them on the lesson they were trying to leave.
         stance = config.clean_stance(payload.get("stance"))
 
+        # THE BOX WHOSE SITTING IS ALREADY OPEN IS A WAY BACK INTO IT, NOT A NEW
+        # ONE. Opening files the lesson away, so a tap on the box you are already
+        # working in -- the obvious way back after a reload lands on the map --
+        # emptied the board of the evening's work. A different step, aim or
+        # kind of sitting on the same box is still a new sitting.
+        here = repo.state()
+        if (kind == "lecture" and node and not step
+                and here.get("node") == node["id"]
+                and (here.get("session") or "lecture") == "lecture"
+                and (not aim or aim == here.get("aim"))
+                and not here.get("finished")):
+            begun = start and not cards.load_cards(repo, [])
+            if begun:
+                _begin(h, repo)
+            h.server.hub.worker.dirty.set()
+            return h.send_json({"ok": True, "session": kind, "resumed": True,
+                                "begun": begun})
+
         # A test review is held over a scope the student picks, and a scope is
         # a list: a test is not one chapter. Every name in it is matched
         # against what this repository actually has before anything is
