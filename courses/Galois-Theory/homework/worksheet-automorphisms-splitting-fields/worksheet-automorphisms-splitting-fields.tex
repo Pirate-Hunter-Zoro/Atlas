@@ -248,7 +248,20 @@ is monic, so it is the minimal polynomial of $\zeta_p$. Hence
 $[\mathbb{Q}(\zeta_p):\mathbb{Q}] = \deg \Phi_p = p-1$.
 \end{proof}
 
-% TODO(mferguson): that the injection of 7(c) is onto is not yet proved.
+\begin{proof}[Proof that the injection is onto]
+Let $k \in (\mathbb{Z}/p\mathbb{Z})^{\times}$, represented by $0 < k < p$.
+We show there is $\sigma \in \operatorname{Aut}(\mathbb{Q}(\zeta_p)/\mathbb{Q})$
+with $\sigma(\zeta_p) = \zeta_p^k$. Evaluate $x^p - 1 = (x-1)\Phi_p(x)$ at
+$x = \zeta_p^k$: the left side is $(\zeta_p^k)^p - 1 = (\zeta_p^p)^k - 1 = 0$.
+But $\zeta_p^k \neq 1$ since $0 < k < p$, so $\zeta_p^k - 1 \neq 0$, and hence
+$\Phi_p(\zeta_p^k) = 0$. By 8(a), there is an isomorphism
+$\mathbb{Q}(\zeta_p) \to \mathbb{Q}(\zeta_p^k)$ with $\zeta_p \mapsto \zeta_p^k$,
+and it is an automorphism if $\mathbb{Q}(\zeta_p^k) = \mathbb{Q}(\zeta_p)$.
+Clearly $\mathbb{Q}(\zeta_p^k) \subseteq \mathbb{Q}(\zeta_p)$. Since $p$ is
+prime, there is $k'$ with $kk' \equiv 1 \pmod p$, so
+$(\zeta_p^k)^{k'} = \zeta_p$, meaning $\zeta_p \in \mathbb{Q}(\zeta_p^k)$.
+So the fields are equal, $\sigma$ exists, and the injection of 7(c) is onto.
+\end{proof}
 % ===== END SOLUTION 8(c) =====
 
 \begin{problem}{9(a)}

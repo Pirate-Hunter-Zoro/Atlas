@@ -1339,7 +1339,27 @@ var PEN_MODE = 700;
    re-arm and not a window, so it is small and bounded: the thing being waited
    for is the lift, which has no clock of its own. */
 var PEN_STEP = 120;
+/* HOW LONG THE LATCH OUTLIVES A LIFT, WHICH IS THE GAP BETWEEN TWO STROKES OF
+   ONE WORD.
+
+   `touch-action` is read when a gesture STARTS, and on iOS it is read by the
+   UI process, which does not wait for the page. A `preventDefault` on
+   `touchstart` only stops the pan if the main thread answers before the pan
+   recogniser fires -- and the main thread is busiest exactly between strokes:
+   the lift repaints the mark, the autosave serialises the card, a payload
+   lands. A quick stroke crosses the pan threshold first, gets a
+   `pointercancel`, and marks nothing; the cancelled pan sets `scrollAt`, so the
+   stroke after it is covered and works. That is "it misses every other
+   stroke", and "writing at a glacial pace" works because a slow nib never
+   crosses the threshold in time to be stolen.
+
+   So the latch stays shut for this long after every lift, whether or not the
+   page moved, and only `touch-action: none` decides that gesture. A finger that
+   lands inside the gap and drags is still a scroll: `penProbe` opens the latch
+   and `handPan` moves the page for the gesture the CSS already refused. */
+var PEN_GAP = 600;
 var penTimer = null;
+var liftAt = 0;
 
 /* The CSS latch: with it on, every ink layer refuses a one-finger pan. That is
    half of "I cannot scroll" and the other half is `onTouchStart`, so the two are
@@ -1423,14 +1443,18 @@ function penRelease() {
      for a stroke that could be re-read as a pan, and a stroke can only be
      re-read as a pan while the page is MOVING -- `preventDefault` on
      `touchstart` is refused during a fling and honoured at every other moment,
-     and `onTouchStart` already makes it for a stylus. With the page still,
-     there is nothing for the CSS to add and a finger gets its scroll on the
-     first try. With the page moving, the window is exactly what it was.
+     and `onTouchStart` already makes it for a stylus -- provided the main
+     thread answers in time, which between strokes it often does not. So the
+     window is the later of two: `PEN_GAP` from the lift, for the next stroke
+     of the word, and `PEN_MODE` from the last scroll, for a fling. A finger
+     inside either still scrolls, through `handPan`.
 
      `scrollAt` is 0 until something scrolls, so a sitting that has not moved
-     opens the latch on the lift. */
-  var left = PEN_MODE - (Date.now() - scrollAt);
-  if (scrollAt && left > 0) {
+     waits out the gap alone. */
+  var now = Date.now();
+  var left = Math.max(PEN_GAP - (now - liftAt),
+                      scrollAt ? PEN_MODE - (now - scrollAt) : 0);
+  if (left > 0) {
     penTimer = setTimeout(penRelease, left);
     return;
   }
@@ -1452,6 +1476,7 @@ function penSeen() {
    `drawing` is cleared on all of them, so the question is asked once this one
    has returned. */
 function penLift() {
+  liftAt = Date.now();
   if (penTimer) clearTimeout(penTimer);
   penTimer = setTimeout(penRelease, 0);
 }
@@ -1491,7 +1516,89 @@ function penProbe(ev) {
      is up before arming it; the answer arrives a gesture later, and a second
      contact moving beside a nib that is now DOWN is a palm rather than a scroll.
      Opening the latch there is the latch failing at the one moment it is for. */
-  if (!drawing && !stylus(ev)) penLet("moved");
+  if (!drawing && !stylus(ev)) {
+    penLet("moved");
+    handStart(ev);
+  }
+}
+
+/* A FINGER THAT DRAGS AGAINST A SHUT LATCH STILL SCROLLS THE PAGE.
+
+   The latch refuses the pan in CSS, and `touch-action` is fixed for the whole
+   gesture once it starts, so opening the latch on the first move is too late
+   for the finger that opened it. Moving the page by hand for that one gesture
+   is what keeps "I could not scroll right after writing" closed while the
+   latch covers the gap between strokes (`PEN_GAP`). Passive, one gesture, no
+   momentum; the next gesture is native again. A few pixels of slop first, so a
+   palm settling beside the nib does not nudge the lesson. */
+var HAND_SLOP = 10;
+var hand = null;
+var handFrom = null;
+
+function touchOf(ev, id) {
+  var lists = [ev.touches, ev.changedTouches];
+  for (var l = 0; l < lists.length; l++) {
+    var list = lists[l];
+    if (!list) continue;
+    for (var i = 0; i < list.length; i++) {
+      if (id === undefined || list[i].identifier === id) return list[i];
+    }
+  }
+  return ev.changedTouches && ev.changedTouches[0];
+}
+
+function scrollerOf(el) {
+  for (var n = el; n && n !== document.body && n !== document.documentElement;
+       n = n.parentElement) {
+    if (n.scrollHeight <= n.clientHeight + 1) continue;
+    var oy = "";
+    try { oy = window.getComputedStyle(n).overflowY; } catch (e) { /* not fatal */ }
+    if (oy === "auto" || oy === "scroll") return n;
+  }
+  return null;
+}
+
+function handStart(ev) {
+  if (!handFrom || hand) return;
+  var t = touchOf(ev, handFrom.id);
+  hand = { id: handFrom.id, y: handFrom.y, from: handFrom.y,
+           el: scrollerOf(handFrom.el), live: false, moved: 0 };
+  handFrom = null;
+  try {
+    document.addEventListener("touchmove", handPan, { passive: true });
+  } catch (e) { document.addEventListener("touchmove", handPan, false); }
+  document.addEventListener("touchend", handStop, true);
+  document.addEventListener("touchcancel", handStop, true);
+  if (t) handPan(ev);
+}
+
+function handPan(ev) {
+  if (!hand) return;
+  if (drawing || (ev.touches && ev.touches.length > 1)) { handStop(); return; }
+  var t = touchOf(ev, hand.id);
+  if (!t || typeof t.clientY !== "number") return;
+  if (!hand.live) {
+    if (Math.abs(t.clientY - hand.from) < HAND_SLOP) return;
+    hand.live = true;
+  }
+  var dy = hand.y - t.clientY;
+  hand.y = t.clientY;
+  if (!dy) return;
+  hand.moved += dy;
+  try {
+    if (hand.el) hand.el.scrollTop += dy;
+    else window.scrollBy(0, dy);
+  } catch (e) { /* not fatal */ }
+}
+
+function handStop() {
+  if (!hand) return;
+  document.removeEventListener("touchmove", handPan, { passive: true });
+  document.removeEventListener("touchmove", handPan, false);
+  document.removeEventListener("touchend", handStop, true);
+  document.removeEventListener("touchcancel", handStop, true);
+  say("ink-hand", { moved: Math.round(hand.moved) });
+  hand = null;
 }
 
 function penWatch() {
@@ -1530,6 +1637,7 @@ function onControl(ev) {
 function onTouchStart(ev) {
   if (!on) return;
   if (onControl(ev)) return;
+  handFrom = null;
   /* A contact landing with the latch closed and the nib UP is either a palm or
      somebody going to scroll, and only moving tells them apart. Ask. */
   if (penTimer && !drawing && !stylus(ev)) penWatch();
@@ -1552,6 +1660,8 @@ function onTouchStart(ev) {
        `ink-latch on=0` that came 350 ms before the window said it could. This
        is that finger, written down where it lands. */
     say("ink-pan", { at: "touchstart", latch: 1 });
+    var f = ev.changedTouches && ev.changedTouches[0];
+    handFrom = f ? { id: f.identifier, y: f.clientY, el: ev.target } : null;
   }
 }
 

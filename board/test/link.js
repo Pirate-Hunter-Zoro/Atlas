@@ -2172,6 +2172,7 @@ async function latchFlow() {
   if (!window.Annotate || !layer) return;
   const ann = fs.readFileSync(path.join(WEB, 'annotate.js'), 'utf8');
   const win = Number((/var PEN_MODE = (\d+)/.exec(ann) || [])[1] || 700);
+  const gap = Number((/var PEN_GAP = (\d+)/.exec(ann) || [])[1] || 0);
 
   window.Annotate.setOn(false);
   window.Annotate.setOn(true);           // a fresh scroll clock
@@ -2191,11 +2192,40 @@ async function latchFlow() {
     ? ok('the latch is still shut at the lift, so nothing opens it mid-word')
     : fail('the latch opens before the stroke is even finished');
   await sleep(40);
-  !latched()
-    ? ok('and with the page standing still it opens on the lift — the swipe '
-         + 'after a mark gets its scroll on the FIRST try, not the second')
-    : fail('a finger that swipes straight after a mark is still refused, which '
-           + 'is "I could not scroll when I started annotating", again');
+  gap && latched()
+    ? ok('and it is still shut in the gap after a lift, so the next stroke of '
+         + 'the word starts with touch-action none — "it misses every other '
+         + 'stroke" was the latch opening on every lift')
+    : fail('the latch opens on the lift, so a quick next stroke starts pannable '
+           + 'and iOS cancels it');
+
+  // A finger that drags inside that gap still moves the page, by hand,
+  // because the CSS has already refused the native pan for that gesture.
+  {
+    let scrolled = 0;
+    const realBy = window.scrollBy;
+    window.scrollBy = function (x, y) { scrolled += y; };
+    try {
+      const put = new window.Event('touchstart', { bubbles: true, cancelable: true });
+      put.changedTouches = [{ identifier: 7, touchType: 'direct', clientX: 40, clientY: 300 }];
+      doc.dispatchEvent(put);
+      [280, 240, 200].forEach(function (y) {
+        const mv = new window.Event('touchmove', { bubbles: true, cancelable: true });
+        mv.changedTouches = [{ identifier: 7, touchType: 'direct', clientX: 40, clientY: y }];
+        mv.touches = mv.changedTouches;
+        doc.dispatchEvent(mv);
+      });
+      const up = new window.Event('touchend', { bubbles: true });
+      up.changedTouches = [{ identifier: 7, touchType: 'direct', clientX: 40, clientY: 200 }];
+      doc.dispatchEvent(up);
+    } finally { window.scrollBy = realBy; }
+    !latched() && scrolled > 50
+      ? ok('and a finger dragging in that gap opens it and still scrolls the '
+           + 'page, by hand, for the gesture the CSS refused')
+      : fail('a finger swiping straight after a mark does not move the page '
+             + '(latch ' + (latched() ? 'shut' : 'open') + ', scrolled '
+             + scrolled + ')');
+  }
 
   // And the case the latch exists for: a page that is moving. A stroke landing
   // on a fling is re-read as a pan and marks nothing, reported as "I wrote down

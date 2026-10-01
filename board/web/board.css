@@ -480,8 +480,9 @@ body.annotating canvas.ann-layer { pointer-events: auto; }
    nothing the pen did marked anything until the page settled. Reported as: "I
    wrote down the first letter and it stopped writing. I paused for a couple of
    seconds, tried again, and writing continued fine." `annotate.js` sets the class
-   when the nib is heard from and drops it a second and a half after it goes
-   quiet, so a finger scrolls exactly as freely as before. */
+   when the nib goes down and drops it `PEN_GAP` after the lift (longer if the
+   page is still moving); a finger that drags inside that window is scrolled by
+   hand, so it still moves the page. */
 body.pen-writing canvas.ann-layer { touch-action: none; }
 
 /* While annotating, the lesson is a surface to write on and not text to select.
