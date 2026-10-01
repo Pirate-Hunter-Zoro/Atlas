@@ -215,9 +215,19 @@ def _direction(h, repo):
                             "error": "say what the new direction is"}, status=400)
 
     kept, when = direction.write(repo.root, text)
-    course = repo.state().get("course") or config.read_config(repo.root)["name"] or ""
+    was = repo.state()
+    course = was.get("course") or config.read_config(repo.root)["name"] or ""
     label = direction.label(kept)
-    spawn.board_cli(repo.root, ["open", course, label, "--lecture"])
+    # THE BOX AND THE SITTING'S OWN CHOICES CARRY OVER. A direction replaces what
+    # the work is about, not where on the map it is or who writes it. A sitting
+    # opened without its box is one the board asks a box for on the next load,
+    # and answering that files the lesson the direction just started.
+    opening = ["open", course, label, "--lecture"]
+    for flag, key in (("--node", "node"), ("--aim", "aim"),
+                      ("--stance", "stance"), ("--agent", "agent")):
+        if was.get(key):
+            opening += [flag, str(was[key])]
+    spawn.board_cli(repo.root, opening)
     carry.clear_note(repo.root)
 
     # Their own words, in the transcript, as a turn of theirs -- because that is

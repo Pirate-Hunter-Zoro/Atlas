@@ -156,7 +156,8 @@ try:
     carry.write_note(tmp, "They are halfway through the bake-off grid.")
     with open(repo.state_path, "w", encoding="utf-8") as fh:
         json.dump({"course": "Test Course", "session": "lecture",
-                   "chapter": "Ch 1 — the bake-off"}, fh)
+                   "chapter": "Ch 1 — the bake-off", "aim": "teach",
+                   "stance": "teach"}, fh)
 
     status, body = post("/direction", {"text": SAID})
     check("the board accepts a change of direction",
@@ -164,6 +165,8 @@ try:
     check("it is written down", direction.read(tmp)[0] == SAID)
     check("the sitting is renamed after it",
           (repo.state().get("chapter") or "").startswith("New direction"))
+    check("and keeps what the sitting was for and who writes it",
+          repo.state().get("aim") == "teach" and repo.state().get("stance") == "teach")
     check("the lesson they were in is filed away, not thrown away",
           len(archive.list_archive(repo)) == 1)
     check("and the board in front of them is clear",
