@@ -2006,7 +2006,7 @@ body.papering .annbar { z-index: 96; }
    controls are about three hundred and sixty pixels, which on a 390px glass left
    the left group nothing -- not the course, not the badge. The glyph is the
    control; the word is the first thing that can be spared, and the title says
-   it anyway. */
+   it anyway. Except the map's: a bare ◈ was asked to say what it is. */
 @media (max-width: 600px) {
   #bar .bar-word { display: none; }
 }
