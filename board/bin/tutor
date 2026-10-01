@@ -63,6 +63,7 @@ from tutorboard import (atlas, choice, handoff, jobs, keys, limits, machine,
                         missions, paths, processes, seeing, supervise,
                         worktree)
 from tutorboard.course import config
+from tutorboard.lesson import cards as lesson_cards, git as lesson_git
 from tutorboard.net import egress, tailscale
 
 BOARD = os.path.join(TOOL, "bin", "board")
@@ -1704,7 +1705,8 @@ def doing_now(root, signal=""):
     right about the evening; only the signal this turn was woken with says what
     THIS turn does.
     """
-    if signal in ("handover", "rework", "ship", "writeup"):
+    if signal in ("handover", "rework", "ship", "writeup", "unfinished"):
+        # An UNFINISHED turn finishes a doing turn's report, on its clock.
         # A step handed over writes code. A ship reads a diff, judges it and
         # runs a push against a remote over a tailnet -- neither is a card, and
         # a doing turn on a teaching turn's clock is a turn killed with the work
@@ -1995,6 +1997,28 @@ HEADLESS_CARRY_PROMPT = (
 )
 
 
+# A TURN THAT EXITED WITH ITS PLACEHOLDER STILL ON THE BOARD.
+#
+# A doing turn writes a `pending` card first and its report over it. One that
+# exits with the newest card still `pending` is woken once more with this, in
+# its own conversation where the client can resume one. If this turn also
+# leaves the card `pending`, the daemon writes the `stopped` card itself -- see
+# `report_owed`.
+HEADLESS_UNFINISHED_PROMPT = (
+    "Your last turn ended without writing its report. The placeholder card is "
+    "still on the board, and the person reading it has been told nothing.\n\n"
+    "%(inbox)s\n\n"
+    "**Do not redo the work.** Find out what it changed -- `git status` and "
+    "`git diff` under this workspace, and the files you remember writing -- "
+    "and then `board write --over <that card>` with the REPORT: what you "
+    "changed, which files, what you ran, what it said, and what is left. Name "
+    "every file you changed and left uncommitted. Plain words, under 200, no "
+    "headings. If the work is not finished, say where it stopped; that is "
+    "still a report.\n\n"
+    + TURN_TAIL
+)
+
+
 # A REVISION IS A TURN, AND IT IS NOT PART OF THE LESSON.
 #
 # Feedback on a document comes off the library page, which is not a sitting: it
@@ -2237,6 +2261,11 @@ def turn_plan(spec, carried, recycle, signal=""):
     # died opened it.
     if signal == "carry":
         return recipe, HEADLESS_CARRY_PROMPT, False
+    # AN UNFINISHED REPORT RESUMES TOO: the turn that did the work holds what
+    # it did, and the report is about exactly that. The prompt also works
+    # cold, off `git status` and the card, for a client that cannot resume.
+    if signal == "unfinished":
+        return recipe, HEADLESS_UNFINISHED_PROMPT, False
     fresh = carried == 0 or bool(recycle) and carried >= recycle
     return (first if fresh else recipe,
             HEADLESS_FIRST_PROMPT if fresh else HEADLESS_RESUME_PROMPT,
@@ -2382,6 +2411,43 @@ def carry_line(out):
                     % (time.strftime("%Y-%m-%d %H:%M:%S"), line))
         return "\n".join(lines)
     return "[%s] [carry] " % time.strftime("%Y-%m-%d %H:%M:%S")
+
+
+def unfinished_line(out, card):
+    """The inbox line that wakes a turn to write the report it left owed.
+
+    Tagged `[unfinished]` where `turn_signal` reads it, naming the placeholder,
+    with the message the turn was answering kept below it.
+    """
+    return ("[%s] [unfinished] The turn before this one exited with %s still "
+            "the placeholder. Write the report over it.\n\nIt was answering:\n\n%s"
+            % (time.strftime("%Y-%m-%d %H:%M:%S"), card, (out or "").strip()))
+
+
+def report_owed(root, this_signal, out, log=None):
+    """What a turn owes once it exits with its newest card `pending`, or None.
+
+    The first time, the `[unfinished]` line that wakes it once more. After an
+    `[unfinished]` turn that also left it pending, nothing more is woken: the
+    card is replaced by a `stopped` one listing what is uncommitted under the
+    work, so the board never shows a placeholder for a turn that has ended.
+    """
+    path, meta = lesson_cards.newest(os.path.join(root, "live", "cards"))
+    if not path or not lesson_cards.is_pending(meta):
+        return None
+    rel = os.path.relpath(path, root)
+    if this_signal != "unfinished":
+        if log:
+            log.write("-- the turn exited with %s still pending; waking it once "
+                      "more to report\n" % rel)
+        return unfinished_line(out, rel)
+    changed = lesson_git.uncommitted(root) or []
+    wrote = lesson_cards.write_stopped(path, changed)
+    if log:
+        log.write("-- %s is still pending after [unfinished]; %s\n"
+                  % (rel, "replaced it with what is on disk" if wrote
+                     else "could not replace it"))
+    return None
 
 
 def carry_spent(root, rec):
@@ -3414,6 +3480,8 @@ def for_this_turn(cfg, course, running, carried, signal, log=None):
         why = "this agent's own session is carrying %d turn(s)" % carried
     elif signal == "carry":
         why = "a carry resumes a conversation by id"
+    elif signal == "unfinished":
+        why = "an unfinished report belongs to the session that did the work"
     elif holding or taking:
         why = "one of the two is the fenced reader, and that is nobody's automatic choice"
     else:
@@ -3779,7 +3847,9 @@ def headless(cfg, course, agent_name, session):
                 # collision rather than a fresh session.
                 mrec, turn_env = mission_turn(root, log, renew=True)
                 turn_env = turn_environment(spec, turn_env)
-                cmd = with_usage(spec, [a.replace("{prompt}", HEADLESS_FIRST_PROMPT % fill)
+                cold = (HEADLESS_UNFINISHED_PROMPT if this_signal == "unfinished"
+                        else HEADLESS_FIRST_PROMPT)
+                cmd = with_usage(spec, [a.replace("{prompt}", cold % fill)
                                         for a in first])
                 rc, timed_out = run_turn(cmd, root, log, cap, env=turn_env)
                 err = None if rc == 0 else ("timed out" if timed_out
@@ -4099,6 +4169,13 @@ def headless(cfg, course, agent_name, session):
         # this, so nothing here can un-owe a message the daemon has promised to
         # answer. Every path out of a turn therefore leaves the record saying the
         # truth about it, rather than every path having to remember to.
+        #
+        # AND A TURN ENDS ON A REPORT. Where nothing else is owed and the newest
+        # card is still the `pending` placeholder, the turn is woken once more
+        # with `[unfinished]`; after that, the card is replaced by what is on
+        # disk. See `report_owed`.
+        if pending is None:
+            pending = report_owed(root, this_signal, out, log)
         owe(pending)
 
     # The last turn, and the only one the student never sees.

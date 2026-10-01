@@ -1486,6 +1486,23 @@ is untouched by construction rather than by a rule. `test/typed.js` owns the pan
 KaTeX loaded, because a stub cannot tell a block that was typeset from a block that was handed to
 nothing — and `test/mine.js` owns what happens to an answer after it is sent.
 
+### A turn ends on a report
+
+A doing turn opens with `board write pending`: one sentence, `kind: pending`, so the board is
+not blank. Its report goes `--over` that card and names every file it changed and left
+uncommitted, so the board and the disk cannot disagree without the card saying so.
+
+- **A turn that exits with the newest card still `pending` is woken once more**, with an
+  `[unfinished]` line naming the card. `report_owed` in `bin/tutor` decides it, at the point the
+  loop settles what a turn owes. The turn resumes its own session, keeps its assistant and runs
+  on a doing turn's clock.
+- **If that turn also leaves it `pending`, the daemon replaces it** with a `kind: stopped` card:
+  "the turn stopped without reporting", then `git status` under the work's paths
+  (`lesson.git.uncommitted`, which skips `live/`). Nothing more is woken.
+- **On the glass**, `pending` is badged *working* and never counts as an answer landing, so the
+  strip stays up behind it; `stopped` is badged *stopped without a report* in the failure colour.
+- `test/reporting.py` is the suite.
+
 ### A card is typed out, and nothing moves while it is
 
 A card arrives whole — it is a file — so this is a reveal of something already in hand rather

@@ -651,6 +651,8 @@ body.annotating #btn-annotate { background: var(--ask); color: #fff; border-colo
 .card[data-kind="review"]   { --accent: var(--note); }
 .card[data-kind="note"]     { --accent: var(--ink-3); }
 .card[data-kind="recap"]    { --accent: var(--ink-2); }
+.card[data-kind="pending"]  { --accent: var(--ink-3); }
+.card[data-kind="stopped"]  { --accent: var(--bad); }
 
 /* AND THE VERDICT OUTRANKS THE KIND, WHICH IS THE WHOLE OF THE FIX.
 
