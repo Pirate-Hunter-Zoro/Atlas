@@ -544,7 +544,7 @@ def published_reference_lines() -> dict[str, tuple[float, float, float]]:
 
 # How each metric is drawn. The colour carries the alpha and the line style carries the
 # metric, so the reader compares two metrics at one k by looking down a vertical line.
-METRIC_STYLES = {'weighted': ('-', "importance-weighted"), 'plain': ('--', "plain cosine")}
+METRIC_STYLES = {'weighted': ('-', "logistic-regression-weighted"), 'plain': ('--', "plain cosine")}
 
 
 def plot_sweep(curves: pd.DataFrame, intervals: pd.DataFrame, save_path: Path,

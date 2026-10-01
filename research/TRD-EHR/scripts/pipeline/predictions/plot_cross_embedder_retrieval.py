@@ -32,6 +32,7 @@ import os
 from pathlib import Path
 
 import matplotlib
+import matplotlib.ticker
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
@@ -111,6 +112,14 @@ def encoder_row(embedder: str) -> dict:
     return row
 
 
+def plain_log_ticks(axis, ticks) -> None:
+    """Label a log axis at these values in plain numbers; log-scale minor labels collide
+    over the one-decade ranges these figures span."""
+    axis.set_major_locator(matplotlib.ticker.FixedLocator(ticks))
+    axis.set_major_formatter(matplotlib.ticker.FuncFormatter(lambda v, _: f"{v:,.0f}"))
+    axis.set_minor_formatter(matplotlib.ticker.NullFormatter())
+
+
 def plot_sweeps(table: pd.DataFrame) -> Path:
     """ROC AUC against k, one curve per encoder, one panel per metric."""
     fig, axes = plt.subplots(1, 2, figsize=(11, 4.6), sharey=True)
@@ -157,7 +166,10 @@ def plot_dimension_counts(table: pd.DataFrame) -> Path:
     ax.scatter([], [], marker="o", color="#333333", label=f"Dimensions holding {MASS_SHARE:.0%} of |coefficient| mass")
     ax.set_xscale("log")
     ax.set_yscale("log")
-    ax.set_xlim(*span)
+    # Room on the right for the 4,096-wide encoders' labels.
+    ax.set_xlim(span[0], span[1] * 2.2)
+    plain_log_ticks(ax.xaxis, sorted(set(widths)))
+    plain_log_ticks(ax.yaxis, (250, 500, 1000, 2500, 4096))
     ax.set_xlabel("Embedding dimensions")
     ax.set_ylabel("Dimensions the logistic regression uses")
     ax.legend(loc="upper left", frameon=False, fontsize=8)
@@ -192,7 +204,11 @@ def plot_dimensions_vs_best_k(table: pd.DataFrame) -> Path:
     ax.set_yscale("log")
     ax.set_xlabel(f"LR dimensions holding {MASS_SHARE:.0%} of |coefficient| mass")
     ax.set_ylabel("Best k (chosen on test patients)")
-    ax.legend(loc="upper left", frameon=False, fontsize=8)
+    plain_log_ticks(ax.xaxis, (250, 500, 1000, 2000))
+    plain_log_ticks(ax.yaxis, (300, 500, 1000, 1500))
+    ax.set_xlim(200, 2500)
+    # The upper left holds bge-en-icl's point; the middle of the plot is empty.
+    ax.legend(loc="center", frameon=False, fontsize=8)
     ax.grid(True, which="major", color="#e6e6e6", linewidth=0.6)
     fig.tight_layout()
     path = OUT_DIR / "lr_dimensions_vs_best_k.png"

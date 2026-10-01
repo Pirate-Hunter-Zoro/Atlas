@@ -37,6 +37,13 @@ and subsampled retrieval are out of the main text and the supplement; the
 judge is complete in reserve/llm_similarity_judge.md. Every retrieval number
 is in results/.../neighbor_count_sweep/{sweep_summary,retrieval_paired_deltas,best_k_panels}.json,
 drawn by scripts/pipeline/predictions/{plot_neighbor_sweep_figure,best_k_panels}.py.
+The other 3 encoders' retrieval (Nearest-Neighbor Retrieval Across Encoders,
+Figure 5) is read from results/cross_embedder_retrieval/cross_embedder_retrieval.csv
+and each encoder's sweep_intervals.csv, drawn by
+scripts/pipeline/predictions/plot_cross_embedder_retrieval.py. No paired contrast
+exists for them; do not quote a retrieval-minus-classifier difference for any
+encoder but the primary. The LR-dimensions-vs-best-k scatter in that folder stays
+out of both documents until the authors have discussed it.
 
 INDEX DATES ARE 2013-2025, measured over all 42,579 patients. Paper-Writer's
 numbers gate skips four-digit years, so nothing catches this but reading.
@@ -266,6 +273,18 @@ Random retrieval stayed at chance at every k: at its best k, 32,720, it reached 
 ***Figure 4.** Retrieval discrimination by neighborhood size. ROC AUC in 8,516 test patients at every k from 1 to 34,063 for logistic-regression-weighted and plain cosine retrieval, with bootstrap 95% bands, and for random retrieval with uniform weights, as the mean across 1,000 draws within the 2.5th--97.5th percentile of the draws. Points mark each arm's best k, chosen on the test patients, so the values there are optimistic; the random arm's best k is noise. Horizontal lines mark the 2 leading trained classifiers. Curves use α = 1; the maxima under α = 1, 2, and 5 agreed within 0.002.*
 
 Subgroup analyses scored each retrieval arm at its best k. Of 240 subgroup contrasts, 23 survived multiplicity adjustment; 19 involved depression recurrence. Discrimination was higher with recurrent coding in all 10 models contrasted and lower with single-episode coding in 9. Performance was lower among never-married patients for 2 embedded classifiers and logistic-regression-weighted retrieval, and among patients aged 18--29 for feature-vector XGBoost. Sex contrasts did not show clear differences. White-minus-non-White ROC AUC differences were consistently positive (0.005--0.046), but none survived adjustment. For feature-vector logistic regression, individual-level calibration slopes were 0.98 (95% CI 0.85--1.11) in White patients and 0.79 (95% CI 0.56--1.02) in patients with other recorded racial categories. These findings do not establish equitable performance (Multimedia Appendix 1, section S9).
+
+## Nearest-Neighbor Retrieval Across Encoders
+
+We repeated the neighborhood-size sweep for the other 3 encoders under the same rules. Each encoder's logistic-regression-weighted similarity used the coefficients of that encoder's own embedded logistic regression. Each metric was read at its own best k under α = 1, chosen on the test patients, so these maxima are optimistic. Retrieval stayed below embedded logistic regression for every encoder (Figure 5).
+
+Logistic-regression-weighted retrieval at its best k reached 0.606 (95% CI 0.590--0.620) at k = 579 for bge-small-en-v1.5, 0.631 (95% CI 0.616--0.646) at k = 1,519 for bge-en-icl, 0.623 (95% CI 0.607--0.639) at k = 684 for Qwen3-Embedding-4B, and 0.625 (95% CI 0.610--0.641) at k = 295 for Qwen3-Embedding-8B. Embedded logistic regression reached 0.645 (95% CI 0.629--0.660), 0.655 (95% CI 0.641--0.670), 0.655 (95% CI 0.641--0.670), and 0.657 (95% CI 0.643--0.672) for the same encoders. For each encoder, the upper bound of the retrieval interval lay below the logistic-regression estimate. Paired contrasts were computed for the primary encoder only.
+
+Plain cosine retrieval peaked at k = 1,243, 413, 493, and 757 for the same 4 encoders. It reached 0.602 (95% CI 0.586--0.618), 0.620 (95% CI 0.605--0.637), 0.621 (95% CI 0.605--0.637), and 0.618 (95% CI 0.602--0.634), lower than the weighted metric for every encoder. Only the primary encoder's difference was tested, 0.007 (95% CI −0.001 to 0.014). Every best k for either metric lay between 295 and 1,519. Using all 34,063 training patients as neighbors, weighted retrieval gave 0.617 (95% CI 0.600--0.633) to 0.629 (95% CI 0.614--0.645) for the 3 larger encoders. For bge-small-en-v1.5 it fell to 0.580 (95% CI 0.565--0.595), the only encoder whose weighted curve declined at large k.
+
+![](../results/cross_embedder_retrieval/cross_embedder_sweep.png){width=6in}
+
+***Figure 5.** Retrieval discrimination by neighborhood size for the 4 encoders. ROC AUC in 8,516 test patients at every k from 1 to 34,063, under α = 1, for logistic-regression-weighted (left panel) and plain cosine retrieval (right panel). Each encoder's weights come from its own embedded logistic regression. Points mark each encoder's best k, chosen on the test patients, so the values there are optimistic. The dotted line marks chance. Bootstrap bands are omitted for legibility; Figure 4 draws them for the primary encoder.*
 
 # Discussion
 

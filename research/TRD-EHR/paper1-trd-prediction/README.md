@@ -17,7 +17,8 @@ enforced rather than remembered: the point-and-claim map is gated by Paper-Write
    — captures real label-informative structure and still loses decisively to a trained
    model. For the primary encoder, at every neighbourhood size from 1 to 34,063, the
    best retrieval result, 0.625 (95% CI 0.610–0.640), is 0.032 (95% CI 0.022–0.043)
-   below embedded logistic regression. Retrieval for the other encoders is not reported.
+   below embedded logistic regression. The other three encoders' retrieval is reported
+   at each metric's best k, without paired contrasts (manuscript Figure 5).
 
 **And one emphasis that runs through both.** In both arms the patient data were
 hand-picked: predictor selection ran once, before either representation existed, and

@@ -58,7 +58,7 @@ prior treatment also contributed. Permuting race/ethnicity or social
 determinants changed ROC AUC by no more than 0.003, and every such interval
 included zero. Nearest-neighbor retrieval over the embedding showed that
 proximity tracks outcome risk, but it stayed below both leading classifiers
-at every neighborhood size. Importance-weighted retrieval reached 0.625 (95%
+at every neighborhood size. Logistic-regression-weighted retrieval reached 0.625 (95%
 CI 0.610-0.641) at 295 neighbors, a size chosen on the test patients.
 Randomly chosen neighbors reached 0.500 (2.5th-97.5th percentile across
 1,000 draws 0.484-0.515).
