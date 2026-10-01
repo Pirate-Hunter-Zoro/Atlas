@@ -34,6 +34,12 @@ def list_archive(repo):
             "course": st.get("course") or "",
             "chapter": st.get("chapter") or "",
             "session": st.get("session") or "lecture",
+            # Which thread it was on and what kind, so a thread's sheet can
+            # list its past sittings and offer its last kind first.
+            "thread": st.get("thread") or "",
+            "node": st.get("node") or "",
+            "aim": st.get("aim") or "",
+            "kind": st.get("kind") or "",
             "opened": st.get("opened") or "",
             "finished": st.get("finished") or "",
             "cards": len(in_it),

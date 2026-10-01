@@ -5115,6 +5115,30 @@ function mapWrap(text, size, weight, room, maxLines) {
    the one thing the map's own rule forbids. The list is one level down, on a
    tap. */
 function mapDocsLabel(n) { return "▤ " + (n.docs || 0); }
+
+/* IS THIS BOX A THREAD? A thread file's boxes carry their derived status in
+   `thread`; a derived box, a box one level down and a vendor tree's never do. */
+function mapThread(n) {
+  return !!n && !!n.thread && !n.outside && !mapTree && !mapDeep;
+}
+
+/* What a thread box says under its name: its status, and whether git shows
+   its paths changed. */
+function mapThreadSays(n) {
+  return n.thread + (n.blockedBy && n.blockedBy.length ? " · blocked" : "")
+         + (n.unsaved ? " · unsaved" : "");
+}
+
+/* How many open decisions sit on this box, where it is a thread. */
+function mapDecisions(n) { return mapThread(n) ? (n.decisions || 0) : 0; }
+
+/* A TAP ON A TASK CHIP. On a thread it is the sheet, with that task chosen,
+   because the kind of sitting is still the owner's to pick; anywhere else it
+   opens the step's sitting, as it always has. */
+function mapChipTap(n, step) {
+  if (mapThread(n)) return openThread(n.id, step.label);
+  takeWork(n, step);
+}
 function mapDocsWide(n) { return Math.round(mapWidth(mapDocsLabel(n), 11, 600)) + 14; }
 
 /* WHERE THE STEP CHIPS AND THE DOCUMENT PLATE SIT ALONG THE BOTTOM OF A BOX.
@@ -5132,7 +5156,7 @@ function mapDocsWide(n) { return Math.round(mapWidth(mapDocsLabel(n), 11, 600)) 
 
    Everything is relative to the box's left edge; every box is `MAP_W` wide. */
 function mapChipPlan(node) {
-  var chips = (node.steps || []).length;
+  var chips = (node.steps || []).length + (mapDecisions(node) ? 1 : 0);
   var plate = (node.docs || 0) > 0 ? mapDocsWide(node) : 0;
   var left = MAP_PAD + MAP_MARK;
   /* The dots at the bottom right are drawn at `p.w - 16` with a radius of 10,
@@ -5163,7 +5187,8 @@ function mapShape(node) {
      short of it. The lines below it clear the circle and keep the full room. */
   var nameRoom = room - (mapOpens(node) ? 28 : 0);
   var name = mapWrap(node.name, MAP_NAME, 650, nameRoom, MAP_NAME_LINES);
-  var also = node.also ? mapWrap(node.also, MAP_ALSO, 400, room, 1) : [];
+  var said = mapThread(node) ? mapThreadSays(node) : node.also;
+  var also = said ? mapWrap(said, MAP_ALSO, 400, room, 1) : [];
   var does = node.does ? mapWrap(node.does, MAP_DOES, 400, room, MAP_DOES_LINES) : [];
   var chips = mapChipPlan(node);
   var h = MAP_PAD + name.length * 19
@@ -5378,7 +5403,72 @@ function mapRegionShape(region, wide) {
   return { cols: cols, w: w, h: head.h + tall + MAP_PAD, head: head };
 }
 
+/* THE FRAMES. Each deliverable is a frame and its threads are the boxes inside
+   it; a course's one deliverable is its book. Only on the workspace's own top
+   picture, and only where every box names a deliverable. */
+var MAP_FRAME_PAD = 18;
+var MAP_FRAME_HEAD = 44;
+var MAP_FRAME_GAP = 34;
+
+function mapFramesOf(info) {
+  if (!info || info !== mapInfo || mapTree) return null;
+  var dels = info.deliverables || [];
+  if (!dels.length) return null;
+  var known = {};
+  dels.forEach(function (d) { known[d.id] = true; });
+  var all = (info.nodes || []).every(function (n) { return known[n.deliverable]; });
+  return all ? dels : null;
+}
+
 function mapLayout(info, wide) {
+  var frames = mapFramesOf(info);
+  if (!frames) return mapRegioned(info, mapGraph(info, wide), wide, []);
+
+  /* One graph per deliverable, laid out by the same code as a whole picture,
+     then stacked down the plane, each inside its frame. An arrow between two
+     frames is still an arrow: `blockedBy` across deliverables is drawn. */
+  var nodes = info.nodes || [];
+  var idx = {};
+  nodes.forEach(function (n, k) { idx[n.id] = k; });
+  var placed = [], rects = [], top = MAP_MARGIN;
+  frames.forEach(function (d) {
+    var mine = nodes.filter(function (n) { return n.deliverable === d.id; });
+    var inner = mapGraph({ nodes: mine, edges: info.edges || [] }, wide);
+    var right = MAP_MARGIN + MAP_W, bottom = MAP_MARGIN;
+    inner.placed.forEach(function (p) {
+      if (!p) return;
+      right = Math.max(right, p.x + p.w);
+      bottom = Math.max(bottom, p.y + p.h);
+    });
+    var w = right - MAP_MARGIN + MAP_FRAME_PAD * 2;
+    var title = mapWrap(d.title || d.id, 15, 700, w - MAP_FRAME_PAD * 2, 2);
+    var head = MAP_FRAME_HEAD + (title.length - 1) * 19;
+    var dx = MAP_FRAME_PAD, dy = top - MAP_MARGIN + head;
+    inner.placed.forEach(function (p) {
+      if (!p) return;
+      p.x += dx;
+      p.y += dy;
+      placed[idx[p.node.id]] = p;
+    });
+    var h = head + (mine.length ? bottom - MAP_MARGIN : 0) + MAP_FRAME_PAD;
+    rects.push({ id: d.id, title: title, x: MAP_MARGIN, y: top, w: w, h: h,
+                 empty: !mine.length });
+    top += h + MAP_FRAME_GAP;
+  });
+
+  var pairs = [], drawn = [];
+  (info.edges || []).forEach(function (e) {
+    var a = idx[e.from], b = idx[e.to];
+    if (a === undefined || b === undefined || a === b) return;
+    pairs.push([a, b]);
+    drawn.push(e);
+  });
+  return mapRegioned(info, { placed: placed, edges: drawn, pairs: pairs },
+                     wide, rects);
+}
+
+/* One picture's boxes and arrows, laid out from the top left. */
+function mapGraph(info, wide) {
   var nodes = (info.nodes || []).slice();
   var idx = {};
   nodes.forEach(function (n, k) { idx[n.id] = k; });
@@ -5471,7 +5561,12 @@ function mapLayout(info, wide) {
       });
     }
   }
+  return { placed: placed, edges: drawn, pairs: pairs };
+}
 
+/* The documents region over a laid-out picture, and the box round the lot. */
+function mapRegioned(info, graph, wide, frames) {
+  var placed = graph.placed;
   /* THE DOCUMENTS GO ON TOP, and the graph moves down to make room: the top
      left is where a fitted picture is read from, and it is where somebody
      looking for a paper looks first. */
@@ -5482,6 +5577,7 @@ function mapLayout(info, wide) {
                head: rs.head, docs: docs };
     var down = rs.h + MAP_GAP_Y * 2;
     placed.forEach(function (p) { if (p) p.y += down; });
+    frames.forEach(function (f) { f.y += down; });
   }
 
   var box = { x0: 0, y0: 0, x1: MAP_MARGIN, y1: MAP_MARGIN };
@@ -5490,12 +5586,16 @@ function mapLayout(info, wide) {
     box.x1 = Math.max(box.x1, p.x + p.w + MAP_MARGIN);
     box.y1 = Math.max(box.y1, p.y + p.h + MAP_MARGIN);
   });
+  frames.forEach(function (f) {
+    box.x1 = Math.max(box.x1, f.x + f.w + MAP_MARGIN);
+    box.y1 = Math.max(box.y1, f.y + f.h + MAP_MARGIN);
+  });
   if (region) {
     box.x1 = Math.max(box.x1, region.x + region.w + MAP_MARGIN);
     box.y1 = Math.max(box.y1, region.y + region.h + MAP_MARGIN);
   }
-  return { placed: placed, edges: drawn, pairs: pairs, box: box, wide: wide,
-           region: region };
+  return { placed: placed, edges: graph.edges, pairs: graph.pairs, box: box,
+           wide: wide, region: region, frames: frames };
 }
 
 /* An arrow. Forward along the ranks it leaves the right edge and enters the
@@ -5573,6 +5673,22 @@ function mapDraw(info) {
     viewBox: "0 0 " + out.box.x1 + " " + out.box.y1
   });
 
+  /* The frames go under everything: a deliverable is the ground its threads
+     stand on. */
+  (out.frames || []).forEach(function (f) {
+    var fg = mapEl("g", { "class": "frame" + (f.empty ? " empty" : ""),
+                          "data-frame": f.id });
+    fg.appendChild(mapEl("rect", { x: f.x, y: f.y, width: f.w, height: f.h,
+                                   rx: 15 }));
+    f.title.forEach(function (line, i) {
+      var ft = mapEl("text", { "class": "frame-name", x: f.x + MAP_FRAME_PAD,
+                               y: f.y + 28 + i * 19 });
+      ft.textContent = line;
+      fg.appendChild(ft);
+    });
+    svg.appendChild(fg);
+  });
+
   out.edges.forEach(function (e, k) {
     var a = out.placed[out.pairs[k][0]], b = out.placed[out.pairs[k][1]];
     if (!a || !b) return;
@@ -5638,9 +5754,15 @@ function mapDraw(info) {
                /* A SIBLING AN ARROW LEAVES TOWARDS, on a picture of one box's
                   inside. It is a wall rather than part of what is being read,
                   and it has to look like one. */
-               + (n.outside ? " outside" : ""),
+               + (n.outside ? " outside" : "")
+               /* A THREAD IS COLOURED BY ITS DERIVED STATUS, which outranks
+                  the plan's next-and-later: done, running, written, result,
+                  open are facts on disk. */
+               + (mapThread(n) ? " thread t-" + n.thread
+                                 + (n.unsaved ? " unsaved" : "") : ""),
       "data-id": n.id, tabindex: "0", role: "button",
-      "aria-label": n.name + ", " + (n.status || "unknown")
+      "aria-label": n.name + ", " + (mapThread(n) ? mapThreadSays(n)
+                                                  : (n.status || "unknown"))
     });
     g.appendChild(mapEl("rect", { "class": "box", x: p.x, y: p.y,
                                   width: p.w, height: p.h, rx: 11 }));
@@ -5692,16 +5814,34 @@ function mapDraw(info) {
       chip.appendChild(t);
       chip.addEventListener("click", function (ev) {
         ev.stopPropagation();
-        takeWork(n, step);
+        mapChipTap(n, step);
       });
       chip.addEventListener("keydown", function (ev) {
         if (ev.key !== "Enter" && ev.key !== " ") return;
         ev.preventDefault();
         ev.stopPropagation();
-        takeWork(n, step);
+        mapChipTap(n, step);
       });
       g.appendChild(chip);
     });
+    /* AN OPEN DECISION IS A CHIP OF ITS OWN, after the tasks: a question the
+       owner answers before the science can go on. Its tap is the sheet, where
+       the question is written out. */
+    if (mapDecisions(n)) {
+      var dseat = plan.at[(n.steps || []).length] || { row: 0, col: 0 };
+      var dx = p.x + plan.left + MAP_CHIP_R + dseat.col * plan.step;
+      var dy = chipRow(dseat.row);
+      var dchip = mapEl("g", { "class": "chip decision", "data-decisions": n.id,
+                               tabindex: "0", role: "button",
+                               "aria-label": n.decisions + " open decision"
+                                             + (n.decisions === 1 ? "" : "s") });
+      dchip.appendChild(mapEl("circle", { cx: dx, cy: dy, r: MAP_CHIP_R }));
+      var dt = mapEl("text", { x: dx, y: dy + 4, "text-anchor": "middle" });
+      dt.textContent = n.decisions > 1 ? "?" + n.decisions : "?";
+      dchip.appendChild(dt);
+      mapTappable(dchip, function () { openThread(n.id, ""); });
+      g.appendChild(dchip);
+    }
     /* WHAT THIS BOX HAS WRITTEN, at the right end of the row of steps. Drawn
        only where there is something to open: a plate reading zero is a plate
        that teaches somebody not to look at plates.
@@ -5972,6 +6112,9 @@ function mapReadDoc(id) {
    of a diagram, and it is the one somebody following a dependency wants. */
 function mapOpens(n) {
   if (!n) return "";
+  /* CODE IS NEVER A BOX. A thread's files are rows on its sheet, each one a
+     way into the code walk, and nothing opens a level down under a thread. */
+  if (mapThread(n)) return "";
   if (n.kind === "symbol") return "";
   if (n.kind === "module") return "what it defines";
   if (n.outside) return "what is in it";
@@ -5993,6 +6136,8 @@ function mapOpens(n) {
    of its own. */
 function mapMore(n) {
   if (!n || n.outside || mapTree || mapDerived(n) || mapDoc(n)) return false;
+  /* A thread's tap IS its sheet, so it needs no second control for one. */
+  if (mapThread(n)) return false;
   return !!workWays(n).length || !!((n.blockedBy || []).length);
 }
 
@@ -6002,6 +6147,8 @@ function mapMore(n) {
    "work on this". */
 function mapTap(n) {
   if (!n) return;
+  /* A THREAD ASKS WHICH KIND OF SITTING, and offers its last kind first. */
+  if (mapThread(n)) return openThread(n.id, "");
   takeWork(n, null);
 }
 
@@ -6771,6 +6918,182 @@ function openWork(id, step) {
   els.work.hidden = false;
 }
 
+/* ------------------------------------------------------- a thread's sheet */
+/* TAPPING A THREAD OPENS A SITTING ON IT, AND THE SHEET ASKS WHICH KIND.
+
+   Three kinds, and each is an aim the server already knows: learn is a board
+   lesson (the teach aim), coach is the owner writing the statistics with the
+   tutor guiding (coach), build is the tutor doing the work (build). The one
+   offered first is the thread's last kind, which the sheet's own fetch says.
+
+   Below the kinds, everything the thread holds, as rows rather than boxes:
+   code is never a box. A file opens in the code walk, a document in the
+   library, a past sitting in the archive. Fetched on the tap from
+   `/map/thread/<id>`, never carried on the payload. */
+var THREAD_KINDS = [
+  { kind: "learn", aim: "teach", label: "Learn it",
+    sub: "A board lesson: exercises, handwriting, a compiled write-up. No code." },
+  { kind: "coach", aim: "coach", label: "Coach me through the code",
+    sub: "You write the statistics; one step per card. The tutor writes the plumbing." },
+  { kind: "build", aim: "build", label: "Build it",
+    sub: "The tutor or its agents do the work, and the card is the report." }
+];
+var threadAsking = "";
+var threadSheet = null;        /* what `/map/thread/<id>` last answered */
+var threadSaid = "";           /* a refusal, held over the sheet's repaint */
+
+function openThread(id, step) {
+  var node = workOn(id);
+  if (!node) return;
+  threadSaid = "";
+  var stale = els.work.querySelector(".work-blocked");
+  if (stale && stale.parentNode) stale.parentNode.removeChild(stale);
+  workNode = node.id;
+  workStep = step || "";
+  mapMark(workNode);
+  threadSheet = null;
+  threadPaint(node, "");
+  els.work.hidden = false;
+  threadAsking = node.id;
+  fetch("/map/thread/" + encodeURIComponent(node.id))
+    .then(function (r) { return r.json().catch(function () { return {}; }); })
+    .then(function (got) {
+      if (threadAsking !== node.id || els.work.hidden) return;
+      if (!got || got.ok === false) return;
+      threadSheet = got;
+      threadPaint(node, got.kind || "");
+    })
+    .catch(function () { /* the sheet still offers the three kinds */ });
+}
+
+/* The task chosen, as `{label, title}`, off the chips or the fetched sheet. */
+function threadChip(node) {
+  if (!workStep) return null;
+  var chip = null;
+  (node.steps || []).forEach(function (s) { if (s.label === workStep) chip = s; });
+  ((threadSheet && threadSheet.tasks) || []).forEach(function (t) {
+    if (!chip && t.label === workStep) chip = { label: t.label, title: t.text };
+  });
+  return chip || { label: workStep, title: workStep };
+}
+
+function threadPaint(node, last) {
+  var chip = threadChip(node);
+  var sheet = threadSheet;
+  els.workTitle.textContent = node.name;
+  els.workSub.textContent = threadSaid
+    || (chip ? "task: " + chip.title + " — " : "") + (node.does || "");
+  var stale = els.work.querySelector(".work-blocked");
+  if (stale && stale.parentNode) stale.parentNode.removeChild(stale);
+  if ((node.blockedBy || []).length) {
+    var line = document.createElement("p");
+    line.className = "work-blocked";
+    line.textContent = "waiting on " + node.blockedBy.map(function (b) {
+      var on = workOn(b);
+      return on ? on.name : b;
+    }).join(" and ");
+    els.workSub.insertAdjacentElement("afterend", line);
+  }
+
+  var host = els.workList;
+  host.innerHTML = "";
+  var first = last || "learn";
+  var kinds = THREAD_KINDS.slice().sort(function (a, b) {
+    return (a.kind === first ? 0 : 1) - (b.kind === first ? 0 : 1);
+  });
+  kinds.forEach(function (k) {
+    var b = document.createElement("button");
+    b.type = "button";
+    b.className = "work-way kind" + (k.kind === first ? " last" : "");
+    b.setAttribute("data-kind", k.kind);
+    b.innerHTML = "<strong></strong><span></span>";
+    b.querySelector("strong").textContent = k.label
+      + (k.kind === first && last ? " · last time" : "");
+    b.querySelector("span").textContent = k.sub;
+    b.onclick = function () { takeThread(node, k, threadChip(node)); };
+    host.appendChild(b);
+  });
+  if (!sheet) return;
+
+  function section(title, rows) {
+    if (!rows.length) return;
+    var h = document.createElement("p");
+    h.className = "thread-head";
+    h.textContent = title;
+    host.appendChild(h);
+    rows.forEach(function (r) {
+      var el = document.createElement(r.go ? "button" : "p");
+      if (r.go) { el.type = "button"; el.onclick = r.go; }
+      el.className = "thread-row" + (r.cls ? " " + r.cls : "");
+      el.textContent = r.text;
+      if (r.data) el.setAttribute("data-" + r.data[0], r.data[1]);
+      host.appendChild(el);
+    });
+  }
+  /* A tap on a task chooses it for the sitting, and a second tap un-chooses. */
+  section("open tasks", (sheet.tasks || []).filter(function (t) {
+    return !t.done && t.label;
+  }).map(function (t) {
+    return { text: (t.label === workStep ? "● " : "○ ") + t.text,
+             cls: t.label === workStep ? "on" : "",
+             data: ["task", t.label],
+             go: function () {
+               workStep = workStep === t.label ? "" : t.label;
+               threadSaid = "";
+               threadPaint(node, last);
+             } };
+  }));
+  section("decisions", (sheet.decisions || []).map(function (d) {
+    return { text: d.rule ? d.q + " — " + d.rule : "? " + d.q,
+             cls: d.rule ? "" : "open" };
+  }));
+  section("files", (sheet.files || []).map(function (f) {
+    return f.dir ? { text: f.path + "/", cls: "dir" }
+                 : { text: f.path, data: ["file", f.path],
+                     go: function () { threadFile(f.path); } };
+  }));
+  section("outputs", (sheet.outputs || []).map(function (o) {
+    return { text: (o.there ? "✓ " : "· ") + o.path,
+             cls: o.there ? "" : "missing" };
+  }));
+  section("written up in", (sheet.writes || []).map(function (w) {
+    return { text: (w.found ? "✓ " : "· ") + w.file + " — " + w.anchor,
+             cls: w.found ? "" : "missing" };
+  }));
+  section("jobs", (sheet.jobs || []).map(function (j) {
+    return { text: j.jobid + " · " + j.state.toLowerCase()
+                   + (j.cmd ? " · " + j.cmd : "") };
+  }));
+  section("documents", (sheet.documents || []).map(function (d) {
+    return { text: (d.kind === "deck" ? "▭ " : "▤ ") + d.name,
+             data: ["doc", d.id], go: function () { mapReadDoc(d.id); } };
+  }));
+  section("past sittings", (sheet.sittings || []).map(function (s) {
+    return { text: (s.kind ? s.kind + " · " : "") + (s.chapter || s.id)
+                   + (s.opened ? " · " + String(s.opened).slice(0, 10) : ""),
+             data: ["sitting", s.id],
+             go: function () { closeMap(); showSession(s.id); } };
+  }));
+}
+
+/* A FILE OF A THREAD OPENS IN THE CODE WALK, through the address resolver --
+   the one thing that puts the board on a surface. */
+function threadFile(rel) {
+  closeMap();
+  var text = spell({ surface: "code", path: rel });
+  var a = text ? addrParse(text) : null;
+  addrGo(a || { ws: boardId, surface: "code", path: rel, text: "" });
+}
+
+/* The sitting, of the kind chosen, on this thread and the task picked if any.
+   `kind` rides beside the aim it maps onto. */
+function takeThread(node, k, chip) {
+  els.work.hidden = true;
+  mapMark(node.id);
+  workSend({ session: "lecture", node: node.id, aim: k.aim, kind: k.kind,
+             step: (chip && chip.label) || null, begin: true }, node, chip);
+}
+
 /* IS THIS BOX A DOCUMENT AND NOTHING ELSE? A box the map drew for a write-up
    carries the document and no code at all, so there is one thing to do with it
    and reading it is that thing. A hand-drawn box that names a document AND real
@@ -6891,6 +7214,13 @@ function workSend(body, node, chip) {
     return r.json().catch(function () { return {}; });
   }).then(function (got) {
     if (got && got.ok === false) {
+      if (mapThread(node)) {
+        openThread(node.id, (chip && chip.label) || "");
+        threadSaid = "That could not be opened: "
+          + (got.error || "the board refused it") + ".";
+        els.workSub.textContent = threadSaid;
+        return;
+      }
       openWork((node && node.id) || "", (chip && chip.label) || "");
       els.workSub.textContent = "That could not be opened: "
         + (got.error || "the board refused it") + ".";

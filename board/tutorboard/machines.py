@@ -226,6 +226,18 @@ ATLAS_TTL = 30.0
 NEXT_CHARS = 110
 
 
+def _next_thread_task(root):
+    """`(thread, task)` off a workspace's thread file, or `(None, None)`."""
+    from .course import threads                      # circular at module scope
+    try:
+        clean, problems = threads.read(root)
+        if not clean or problems:
+            return None, None
+        return threads.next_task(threads.resolve(root, clean))
+    except Exception:                                # noqa: BLE001
+        return None, None
+
+
 def _last_touched(root):
     """When this workspace was last committed to, as a unix time, or 0.
 
@@ -446,7 +458,14 @@ def atlas_payload(repo, holders=False):
             # A page that throws is a blank screen where the app used to be, and
             # this one is the way back into a lesson.
             c["open"] = len(steps)
-            if steps:
+            # A THREAD FILE ANSWERS FIRST: the first open task of the first
+            # thread that is not blocked, and it names the thread.
+            first, task = _next_thread_task(root)
+            if task:
+                c["next"] = clipped("%s: %s" % (first["title"], task["text"]))
+                c["next_label"] = "%s: %s" % (first["title"], task["text"])
+                c["next_thread"] = first["id"]
+            elif steps:
                 c["next"] = clipped(steps[0].get("title") or steps[0].get("label"))
                 c["next_label"] = steps[0].get("label") or ''
         c["touched"] = _last_touched(root)

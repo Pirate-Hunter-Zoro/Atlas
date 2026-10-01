@@ -2523,6 +2523,32 @@ body.papering .annbar { z-index: 96; }
 /* And where they last opened something, which is where the course reopens. */
 .map-sheet .node.here rect.box { stroke: var(--note); stroke-width: 2.4; }
 
+/* A THREAD'S STRIPE IS ITS DERIVED STATUS — done, running, written, result,
+   open — which outranks the plan's next and later. Unsaved work dashes the
+   outline: git shows a change under the thread's paths. */
+.map-sheet .node.thread.t-done    rect.mark { fill: var(--good); }
+.map-sheet .node.thread.t-running rect.mark { fill: var(--ask); }
+.map-sheet .node.thread.t-written rect.mark { fill: var(--note); }
+.map-sheet .node.thread.t-result  rect.mark { fill: var(--step-soon); }
+.map-sheet .node.thread.t-open    rect.mark { fill: var(--rule); }
+.map-sheet .node.thread.t-running rect.box {
+  fill: color-mix(in srgb, var(--ask) 6%, var(--paper));
+}
+.map-sheet .node.thread.unsaved rect.box { stroke-dasharray: 6 3; }
+
+/* A DELIVERABLE IS A FRAME, and its threads are the boxes inside it. */
+.map-sheet .frame rect {
+  fill: color-mix(in srgb, var(--paper-2) 55%, transparent);
+  stroke: var(--rule); stroke-width: 1.2;
+}
+.map-sheet .frame .frame-name { font: 700 15px var(--ui); fill: var(--ink); }
+.map-sheet .frame.empty rect { stroke-dasharray: 5 4; }
+
+/* AN OPEN DECISION, after the task chips: a question the owner answers. */
+.map-sheet .chip.decision circle { fill: var(--paper); stroke: var(--bad);
+                                   stroke-width: 1.8; }
+.map-sheet .chip.decision text { fill: var(--bad); }
+
 /* A NUMBERED STEP, ON THE BOX IT IS ABOUT. */
 .map-sheet .chip { cursor: pointer; }
 .map-sheet .chip circle { fill: var(--step-some); stroke: none; }
@@ -2720,6 +2746,24 @@ body.papering .annbar { z-index: 96; }
 .work-way strong { font-weight: 650; }
 .work-way span { color: var(--ink-3); font-size: .76rem; }
 .work-way:hover { border-color: var(--accent); background: var(--paper-2); }
+/* The kind a thread's last sitting was, offered first. */
+.work-way.kind.last { border-color: var(--accent); }
+
+/* WHAT A THREAD HOLDS, as rows: code is never a box. */
+.thread-head {
+  margin: .8rem .2rem .25rem; font-size: .68rem; font-weight: 700;
+  letter-spacing: .08em; text-transform: uppercase; color: var(--ink-3);
+}
+.thread-row {
+  display: block; width: 100%; text-align: left; margin: 0 0 .15rem;
+  padding: .3rem .5rem; border: 0; border-radius: .35rem; background: none;
+  font: inherit; font-size: .78rem; color: var(--ink); overflow-wrap: anywhere;
+}
+button.thread-row { cursor: pointer; color: var(--note); }
+button.thread-row:hover { background: var(--paper-2); }
+.thread-row.on { background: var(--paper-2); font-weight: 650; }
+.thread-row.open { color: var(--bad); font-weight: 600; }
+.thread-row.missing, .thread-row.dir { color: var(--ink-3); }
 
 /* THE WAY BACK TO THE MAP, wherever it appears: the bar, a drawer head, the
    document viewer. One shape and one word, so it is recognised as the same

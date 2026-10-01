@@ -75,6 +75,19 @@ def get(h, repo, path):
         found["ok"] = True
         return h.send_json(found)
 
+    if path.startswith("/map/thread/"):
+        # ONE THREAD'S SHEET, ON A TAP: its files, outputs, write-ups, jobs,
+        # past sittings and documents. The id is looked up in the thread file
+        # and never made into a path; a miss is a 404.
+        want = path[len("/map/thread/"):].strip("/")
+        found = mapping.thread_sheet(repo.root, want, repo.state(),
+                                     archive.list_archive(repo))
+        if not found:
+            return h.send_json({"ok": False, "error": "no such thread"},
+                               status=404)
+        found["ok"] = True
+        return h.send_json(found)
+
     if path.startswith("/map/tree/"):
         # A VENDOR TREE'S PICTURE, WHICH IS NOT THIS WORKSPACE'S.
         #

@@ -48,7 +48,7 @@ must be openable and teachable at every point.
   `board.css`, `plane-core.js`, `gauge.js`, `home.html`, `home.js`, `library.html`,
   `library.js`, `library.css`, anything added to the cache list), or the installed app
   serves its cached copy and the work is invisible.
-- **`bash test/all.sh` before every ship.** 106 suites, all green. `test/tracked.py` runs
+- **`bash test/all.sh` before every ship.** 107 suites, all green. `test/tracked.py` runs
   early — after the browser suites, before everything else — and refuses PHI, 25-megabyte files, model dumps, other authors' papers and
   machine-local config anywhere in the repository — this is public, and git remembers.
   The last of them is **Paper-Writer's own**, run where it is checked out and skipped
@@ -618,7 +618,7 @@ every workspace without one. `test/threads.py` is the suite.
 - A deliverable's `doc` is a **path** (the file handed over, which may not exist yet). A thread's
   `doc` is a **document id**, as `board read` lists them, never a path.
 - A decision with `"rule": null` is open. A rule is written in the present tense.
-- A directory in `files` is the box's directory; the rest are files a tap opens.
+- `files` are rows on the thread's sheet; a file opens in the code walk, a directory is only named.
 
 ```
 board thread < threads.json          write the whole file
@@ -665,6 +665,39 @@ closed is a step, carrying its `thread`, and the map puts it on that thread's bo
 file with no open task leaves the README-pointed plan file in force.
 
 PSYCH-ASR and libr-local-llm carry thread files, one thread per stage of the work.
+
+#### The map draws deliverables and threads
+
+`test/threadmap.py` and the thread block of `test/map.js` are the suites.
+
+- **Each deliverable is a frame; its threads are the boxes inside it.** `status()` carries
+  `deliverables`, every box names its `deliverable`, and `mapLayout` lays out one graph per
+  frame with the same code as a whole picture, stacked down the plane. `blockedBy` is an arrow,
+  across frames too. **A course is the same code path**: `_from_chapters` gives it one
+  deliverable, `map.BOOK`, titled with the course's name, and its chapters are the boxes.
+- **A box is coloured by its derived status** (`t-done`, `t-running`, `t-written`, `t-result`,
+  `t-open` on the stripe), says it in words under its name with `blocked` and `unsaved` beside
+  it, and dashes its outline when unsaved. Its chips are its open tasks, then one **?** chip for
+  its open decisions.
+- **Code is never a box.** A thread box has no look-inside control and `map.inside` answers
+  `None` on a thread picture. The derived picture and its three depths are for vendor trees and
+  for a workspace with no thread file.
+- **Tapping a thread opens its sheet, and the sheet asks which kind**: learn (the `teach` aim),
+  coach (`coach`) or build (`build`), the thread's last kind first. Choosing one posts
+  `/session` with the thread as `node`, the aim, `kind` and the chosen task as `step`. A task
+  chip opens the same sheet with that task chosen. Nothing opens until a kind is picked.
+- **The sheet is fetched on the tap**, `GET /map/thread/<id>` → `map.thread_sheet`: files,
+  outputs (and which exist), write-up anchors (and which are found), jobs from
+  `live/jobs.jsonl`, past sittings from the archive by `thread` or `node`, documents (the
+  thread's `doc` and the library documents of its write-up files), tasks with the plan label
+  `/session` looks each up by, decisions, and `kind`. `kind` is the open sitting's when it is
+  on this thread, else the newest archived one's, else `learn`. `archive.list_archive` carries
+  each sitting's `thread`, `node`, `aim` and `kind` for it.
+- **Every deliverable's document heads the documents region**, in a `deliverables` group, by
+  the library id whose `source` or `rel` is its path. One not written yet is a row with no id,
+  drawn unbuilt.
+- **The atlas card's next line** is `threads.next_task` over the resolved file: the first open
+  task of the first thread that is neither closed nor blocked, written `<thread title>: <task>`.
 
 ### The meeting deck
 
@@ -3257,13 +3290,9 @@ and what does each definition use":
   box nobody may trust as far as a Python one must not look identical to it. A
   module box says which it will be **before** anybody taps it.
 
-**The thread file is not replaced by any of this.** `threads.json` carries *the
-typist*, *the stopwatch*, *the name-tagger* — judgement no file in the repository
-contains — and cards and hand-offs spend those names. The
-derived structure is a layer **under** the hand-drawn one: a box a person drew
-and named keeps its name, and `inside` works off the files that box claims, so
-opening *the typist* shows `typists.py`, `transcribe.py` and `run_asr.py` with
-their real arrows out to *the stopwatch*.
+**None of this is drawn under a thread file.** Where `threads.json` exists its threads are
+the picture and code is never a box: a thread's files are rows on its sheet, each opening in
+the code walk, and `inside` answers `None`.
 
 **A symbol box opens a walkthrough over that symbol.** That is the payoff of a
 diagram whose nodes are the things: tapping `run` opens a walkthrough of `run`
@@ -3287,8 +3316,11 @@ tutor is not left to guess. Asked for in these words: *"these are tutoring
 styles that I don't want to be selecting when I open up a lesson; I want to just
 change tutoring styles to anything any time."*
 
+A thread is the one exception: its tap is its sheet, which asks learn, coach or build.
+
 | tapping | opens |
 |---|---|
+| a thread | its sheet, then a sitting of the kind chosen |
 | a part | a lecture on that part |
 | a step chip | the same lecture, with that step named |
 | a chapter | a lecture on that chapter |
