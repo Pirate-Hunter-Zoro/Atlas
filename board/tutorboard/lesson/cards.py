@@ -14,6 +14,7 @@ import re
 import time
 
 from .. import reasoning
+from ..course import results
 
 
 POLL_SECONDS = 0.25
@@ -152,6 +153,11 @@ def load_cards(repo, jobs):
         # model deliberating, but an interactive tutor writes the file itself --
         # the brief tells it to -- and that door has no gate on it.
         rawbody = reasoning.card_body(rawbody)
+        # A figure named by its path becomes its id here, once, before the body
+        # is cached -- see `results.embed_ids`.
+        root = getattr(repo, "root", None)
+        if root:
+            rawbody = results.embed_ids(root, rawbody)
         body = extract_tikz(rawbody, jobs, repo)
         cards.append({
             "id": m.group(1),

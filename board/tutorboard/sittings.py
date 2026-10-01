@@ -792,7 +792,8 @@ def _figures_of(g):
     hit = {}
     for m in row["members"]:
         for card in document.read_cards(m["cards_dir"]):
-            for rid in EMBED_RE.findall(card.get("body") or ""):
+            body = results.embed_ids(row["root"], card.get("body") or "")
+            for rid in EMBED_RE.findall(body):
                 if rid.lower() in figs:
                     hit[rid.lower()] = 0
     words = " ".join((i.get("full") or i["text"]) for i in g["items"])

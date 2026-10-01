@@ -55,6 +55,7 @@ import json
 import os
 import re
 import time
+from urllib.parse import unquote
 
 from .. import atlas, fenced
 
@@ -488,6 +489,50 @@ def _both(root):
 def index(root):
     """Every result this workspace has, by id. Remembered for `CACHE_SECONDS`."""
     return _both(root)[0]
+
+
+# A card's image whose source is `/result/` and then anything up to the closing
+# parenthesis. Which of those are paths is decided by `embed_ids`, not here.
+EMBED_SRC_RE = re.compile(r"(!\[[^\]]*\]\(\s*)/result/([^)\s]+)(\s*\))")
+
+
+def embed_ids(root, text):
+    """A card's text with every `/result/<path>` image rewritten to `/result/<id>`.
+
+    THE TUTOR KNOWS A FIGURE BY ITS PATH, AND ITS BRIEFING NAMES SIX IDS. A
+    direction that says *show me the neighbour sweep* names a figure out of
+    hundreds, and the only address a card had was the id, which is a digest
+    nobody can work out by hand. So a card may give the figure's path relative
+    to the workspace root, and it is turned into the id here, on the way to the
+    glass.
+
+    LOOKED UP, NEVER JOINED. The path is compared against the `rel` of every
+    figure `index` found, the same rule `find` keeps for an id: a path that is
+    not exactly one of those is left as it was, and the route 404s it, so a card
+    that names a figure that does not exist shows a broken picture rather than
+    somebody else's.
+    """
+    text = text or ""
+    if "/result/" not in text:
+        return text
+    by_rel = None
+
+    def sub(m):
+        nonlocal by_rel
+        src = unquote(m.group(2))
+        if "/" not in src and "." not in src:
+            return m.group(0)                 # already an id
+        if by_rel is None:
+            try:
+                by_rel = dict((rec["rel"], rid) for rid, rec in index(root).items()
+                              if rec.get("kind") == "figure")
+            except Exception:                                # noqa: BLE001
+                by_rel = {}
+        rel = src[2:] if src.startswith("./") else src
+        rid = by_rel.get(rel)
+        return m.group(1) + "/result/" + rid + m.group(3) if rid else m.group(0)
+
+    return EMBED_SRC_RE.sub(sub, text)
 
 
 def produced(root):

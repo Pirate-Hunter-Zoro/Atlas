@@ -4179,7 +4179,7 @@ string a card gave them, and the search box matches that string.
 |---|---|
 | **a figure** | `GET /result/<id>` — the drawer's own route, `<img>` straight onto the glass, never cached by the service worker because the next job rewrites it at the same name |
 | **a table** | `GET /library/table/<id>` — read on the board and sent as rows. A CSV handed to a browser is a file an iPad puts where nobody finds it. What a table is on disk is what these pipelines write: `.csv`, `.json`, `.md`, `.txt` |
-| **an id, never a path** | `results.index` is the lookup and a miss is a miss. `find` resolves against the whole walk rather than the drawer's `MAX_FIGURES` — that cap is on what a *card* is offered, and a page that lists four hundred and 404s most of them is worse than one that lists none |
+| **an id, never a path** | A card may name a figure by its workspace-relative path; `results.embed_ids` swaps it for the id as `load_cards` reads the card, by lookup against `index`, so the route still sees only ids. `results.index` is the lookup and a miss is a miss. `find` resolves against the whole walk rather than the drawer's `MAX_FIGURES` — that cap is on what a *card* is offered, and a page that lists four hundred and 404s most of them is worse than one that lists none |
 
 **Bounded, and it says what it dropped.** `MAX_GROUPS` directories,
 `MAX_IN_GROUP` rows inside one, `MAX_ROWS` rows of a CSV — each reported beside

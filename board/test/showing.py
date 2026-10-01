@@ -296,6 +296,33 @@ check("and told a figure is something to ask about rather than an explanation",
 check("and never handed the address of one inside the fence",
       results.ident("results/phi/turn_table.png") not in line)
 
+# A FIGURE NAMED BY ITS PATH. The briefing names six ids out of hundreds, so a
+# direction asking for any other figure needs an address a tutor can write.
+check("a tutor is told any figure can go in a card by its path",
+      "/result/results/" in line and "path" in line)
+want = "results/counterfactual_pipeline/snri_vs_ssri/propensity_by_arm.png"
+said = results.embed_ids(WS, "![p](/result/%s) and ![q](/result/./%s)" % (want, want))
+check("a path in a card becomes that figure's id, with or without ./",
+      said == "![p](/result/%s) and ![q](/result/%s)"
+      % (results.ident(want), results.ident(want)))
+for miss in ("results/phi/turn_table.png", "results/nope.png",
+             "../../../etc/passwd", "results/summary.csv"):
+    text = "![x](/result/%s)" % miss
+    check("and a path that is not an offered figure is left alone: %s" % miss,
+          results.embed_ids(WS, text) == text)
+check("an id already in a card is not touched",
+      results.embed_ids(WS, "![x](/result/abc-123)") == "![x](/result/abc-123)")
+
+from tutorboard.lesson import cards as lesson_cards               # noqa: E402
+os.makedirs(repo.cards, exist_ok=True)
+with open(os.path.join(repo.cards, "0001-sweep.md"), "w", encoding="utf-8") as fh:
+    fh.write("---\nkind: lesson\n---\n![p](/result/%s)\n\nWhy flat?\n" % want)
+on_glass = lesson_cards.load_cards(repo, worker)
+check("and the board's cards carry the id, so the route serves the figure",
+      bool(on_glass) and "/result/%s)" % results.ident(want) in on_glass[0]["body"]
+      and get(PORT, "/result/" + results.ident(want))[0] == 200)
+os.remove(os.path.join(repo.cards, "0001-sweep.md"))
+
 empty = os.path.join(TMP, "Galois-Theory")
 os.makedirs(os.path.join(empty, "chapters"))
 check("a workspace with no results sends nothing rather than an empty group",

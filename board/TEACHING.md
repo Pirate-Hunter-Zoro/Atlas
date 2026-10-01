@@ -1094,6 +1094,17 @@ undo everything above.
 A whole document is read rather than taught: it is on the map as a box of its
 own, and a student who wants the tour can open it themselves.
 
+## Showing a figure
+
+A figure a workspace's pipeline wrote goes in a card the same way: a markdown
+image whose source is `/result/<id>`, or `/result/` followed by the figure's
+path relative to the workspace root, which the board turns into the id. The
+briefing names only the newest few ids, so a figure asked for by name is shown
+by its path. When a direction asks to see a figure, find it, open it, and put it
+at the top of the card that asks about it, again in every later card whose
+question is about it. The slide rules above hold: one per card, question under
+it, never one you have not opened.
+
 ---
 
 ## The map, and what a sitting opened from it already knows
