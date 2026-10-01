@@ -186,9 +186,8 @@ And the rest of it, in the order it bites:
   under them. Every surface added is one somebody can be stranded on.
 - **Commits are authored by the person, with no assistant trailers.** `.githooks/commit-msg` strips
   them; `save-and-push.sh` turns the hook on for a fresh clone.
-- **A lesson save commits the whole repository**, so `board/` work left in the working tree
-  ships inside somebody's "lesson complete". Finish and ship board work in one sitting.
-  `HANDOFF.md` item 6 scopes the save.
+- **A lesson save commits only its own workspace.** `board/` and other workspaces stay
+  uncommitted until their own save or `ship.sh`.
 - **Do not fix things noticed in passing.** One change, shipped, checked, then the next.
 
 ---

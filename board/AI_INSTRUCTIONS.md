@@ -34,8 +34,8 @@ same one taught there. The headless tutor pushes that transcript on a beat and t
 session start pulls it; do not re-commit a card another session already wrote.
 
 **And never `git stash` in this tree.** The working tree is shared: a live
-lesson's board writes its transcript into it on a beat, a course's own save
-sweeps everything uncommitted into that lesson's commit and pushes it, and other
+lesson's board writes its transcript into it on a beat, a workspace's own save
+commits everything uncommitted inside that workspace and pushes it, and other
 sessions have work in flight in directories you are not looking at. A stash
 takes all of that away at once, and `git stash pop` is not the way back — a
 headless commit landing in the same second makes the pop a merge, and a binary

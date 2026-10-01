@@ -41,7 +41,7 @@ def repo_dirty(repo):
     attached to the button that would then commit it. The pathspec is the fix
     and it is one argument.
 
-    `run_push` is deliberately NOT scoped the same way: see its own note.
+    `run_push` commits the same scope; see `save_pathspec`.
     """
     now = time.time()
     key = os.path.realpath(repo.root)
@@ -179,30 +179,69 @@ def build_before_push(repo):
     return {"set": name, "ok": code == 0, "detail": out[-800:]}
 
 
-def other_dirty_workspaces(repo):
-    """Which OTHER workspaces have uncommitted work right now.
+def save_pathspec(root, top, only=None):
+    """What a save from the workspace at `root` commits, as git pathspecs
+    relative to `top`, the repository it is in.
 
-    There is one repository, so a save commits the whole of it -- and the person
-    tapping save is looking at one workspace and thinking about one afternoon.
-    This is what turns that from a surprise into a sentence on the card: "also
-    saved: research/TRD-EHR, projects/Paper-Writer". Naming them is the whole
-    point; a save that quietly swept two other projects' work into a commit
-    titled after a Galois Theory lesson is a commit nobody can find again.
+    `(specs, refused)`. With no `only`, the workspace's own directory. With
+    `only`, those paths -- each resolved against the working directory -- and
+    `refused` names every one that is not inside the workspace, because a save
+    made here commits here and nowhere else. Either way the tool and any
+    workspace nested inside this one are excluded. NFS litter (`.nfs*`) is kept
+    out by the root `.gitignore`, so no door commits it.
+
+    AN EXCLUDE NAMES, LITERALLY, A DIRECTORY INSIDE ONE OF THE PATHS IT
+    NARROWS. With an exclude outside them, or a wildcard one such as
+    `**/.nfs*`, git 2.52's `add -A` adds no untracked file at all, and the save
+    reports "nothing to commit" over a workspace full of new work.
     """
-    out = []
+    real_top = os.path.realpath(top)
+    real_root = os.path.realpath(root)
+
+    def rel(path):
+        r = os.path.relpath(os.path.realpath(path), real_top)
+        return "." if r == os.curdir else r
+
+    refused = []
+    if only:
+        specs = []
+        for p in only:
+            if paths.within(os.path.abspath(p), real_root):
+                specs.append(rel(os.path.abspath(p)))
+            else:
+                refused.append(p)
+    else:
+        specs = [rel(real_root)]
+
+    nested = [paths.TOOL]
     try:
-        for w in atlas.workspaces():
-            if paths.same_dir(w["root"], repo.root):
-                continue
-            p = subprocess.run(["git", "--no-optional-locks", "status",
-                                "--porcelain", "--", w["root"]],
-                               cwd=w["root"], stdout=subprocess.PIPE,
-                               stderr=subprocess.DEVNULL, timeout=10)
-            if p.returncode == 0 and p.stdout.strip():
-                out.append(w["id"])
+        nested += [w["root"] for w in atlas.workspaces()]
+    except OSError:
+        pass
+    narrowed = [os.path.join(real_top, s) for s in specs]
+    for other in nested:
+        real = os.path.realpath(other)
+        if real == real_root or not paths.within(real, real_root):
+            continue
+        if any(real != n and paths.within(real, n) for n in narrowed):
+            specs.append(":(exclude)" + rel(real))
+    return specs, refused
+
+
+def repo_top(root):
+    """The repository the workspace at `root` is in, asked of git rather than
+    derived by taking `dirname` of its git directory -- which is right for an
+    ordinary clone and wrong for a linked worktree or a submodule."""
+    try:
+        p = subprocess.run(["git", "rev-parse", "--show-toplevel"], cwd=root,
+                           stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+                           timeout=10)
+        found = p.stdout.decode("utf-8", "replace").strip()
+        if p.returncode == 0 and found:
+            return found
     except (OSError, subprocess.TimeoutExpired):
-        return []
-    return out
+        pass
+    return root
 
 
 def run_push(repo, message=None):
@@ -212,17 +251,10 @@ def run_push(repo, message=None):
     and neither does anything here -- history should credit the person who did
     the mathematics and nobody else.
 
-    It commits the whole tree on purpose: **save** means save, and a save that
-    left the afternoon's code behind because it was not the lesson would be the
-    wrong kind of clever. That was already true when a workspace was its own
-    clone; with one repository it means MORE, because the whole tree is now
-    every workspace. So two things are different and neither of them is the
-    behaviour:
-
-    * the commit message NAMES THE WORKSPACE the save was tapped in, because
-      2,061 commits called "lesson complete" are not a history;
-    * the record names every other workspace that had work in it, so the card
-      says what else went along rather than leaving it to be discovered.
+    It commits THIS WORKSPACE and nothing else: `save_pathspec` is the
+    pathspec, so the tool, every other workspace and NFS litter stay out of a
+    commit named after this one. Everything uncommitted inside the workspace
+    goes, because save means save. The commit message names the workspace.
 
     What it still will not do is commit into an operation somebody is part-way
     through. A rebase or a merge outstanding means a terminal in this repository
@@ -247,9 +279,8 @@ def run_push(repo, message=None):
             json.dump(record, fh, indent=2)
         return record
     # AND NOTHING THAT REACHES FOR SESSION CONTENT. The same check the command
-    # line makes, on the same push, because this is the same push: a tap on save
-    # commits the whole repository and a fixture cut out of a transcript goes
-    # with it. See `tutorboard/leaving.py` for what it catches.
+    # line makes, on the same push, because this is the same push: a fixture
+    # cut out of a transcript goes with it. See `tutorboard/leaving.py` for what it catches.
     #
     # NO OVERRIDE HERE, and that is the difference between this surface and the
     # command line. `board push --anyway` is a keyboard act; a button on a
@@ -291,10 +322,6 @@ def run_push(repo, message=None):
     # costs nothing.
     built = build_before_push(repo)
 
-    # Said before the commit, because afterwards there is nothing left to
-    # compare against -- and this is the sentence the card needs.
-    also = other_dirty_workspaces(repo)
-
     # The workspace leads the message. `save-and-push.sh` lives with the tool
     # now, one copy for the one repository, and it is run FROM THE REPOSITORY
     # ROOT: a push is a push of the repository and pretending otherwise from a
@@ -304,25 +331,8 @@ def run_push(repo, message=None):
     if where and not said.startswith(where):
         said = "%s: %s" % (where, said)
 
-    # The repository THIS WORKSPACE is in, asked of git rather than derived by
-    # taking `dirname` of its git directory -- which is right for an ordinary
-    # clone and wrong for a linked worktree or a submodule, where the git
-    # directory lives somewhere else entirely.
-    #
-    # ITS OWN NAME FOR THE ANSWER. This read `said` as its scratch variable --
-    # the commit MESSAGE, built three lines above -- so every save from the
-    # board committed with the absolute path of the repository as its subject
-    # and the workspace's name nowhere in it. A message is not a place.
-    top = repo.root
-    try:
-        p = subprocess.run(["git", "rev-parse", "--show-toplevel"], cwd=repo.root,
-                           stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
-                           timeout=10)
-        found = p.stdout.decode("utf-8", "replace").strip()
-        if p.returncode == 0 and found:
-            top = found
-    except (OSError, subprocess.TimeoutExpired):
-        pass
+    top = repo_top(repo.root)
+    specs, _ = save_pathspec(repo.root, top)
 
     # ONE copy of the script, and the working directory is what tells it which
     # repository to commit. A workspace has no `scripts/` of its own any more --
@@ -333,12 +343,13 @@ def run_push(repo, message=None):
     # committed the real Atlas three times.
     script = os.path.join(paths.TOOL, "scripts", "save-and-push.sh")
     if os.path.exists(script):
-        cmd = ["bash", script, said]
+        cmd = ["bash", script, said, "--"] + specs
     else:
         cmd = ["bash", "-c",
-               'set -e; export GIT_TERMINAL_PROMPT=0; git add -A; '
-               'git diff --cached --quiet || git commit -m "$1"; git push'
-               , "_", said]
+               'set -e; export GIT_TERMINAL_PROMPT=0; m="$1"; shift; '
+               'git add -A -- "$@"; '
+               'git diff --cached --quiet || git commit -m "$m" --only -- "$@"; '
+               'git push', "_", said] + specs
     try:
         p = subprocess.run(cmd, cwd=top, stdout=subprocess.PIPE,
                            stderr=subprocess.STDOUT, timeout=180)
@@ -356,13 +367,6 @@ def run_push(repo, message=None):
         "workspace": where,
         "detail": out[-1200:],
     }
-    if also:
-        # Not a warning and not a failure. One repository, one push, and this
-        # is the half of it the person tapping could not see.
-        record["also"] = also
-        record["detail"] = ("this is one repository, so the save also carried "
-                            "uncommitted work in: " + ", ".join(also) + "\n\n"
-                            + record["detail"])
     if cleared:
         record["cleared_lock"] = True
         record["detail"] = cleared + "\n" + record["detail"]

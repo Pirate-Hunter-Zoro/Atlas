@@ -65,6 +65,10 @@ Thumbs.db
 *~
 .*.swp
 .vscode/
+# The NFS client's placeholder for a file deleted while still open. It is
+# nobody's work and it vanishes on its own; a commit carrying one carries a
+# name that is gone a minute later.
+.nfs*
 
 # ---- one vendor's config directory, none of which is this repository's ----
 # NOTHING under an assistant's own directory is tracked here, and the test is

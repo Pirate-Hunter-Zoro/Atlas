@@ -690,11 +690,9 @@ Each entry is a rule that is true of `board/` now. Fold an entry into `board/REA
   it — `lesson/git.py` for the ⤓ save button, `cmd_push` for `board push` — and
   both hand it the toplevel `git rev-parse --show-toplevel` answers as the working
   directory, because the script takes its repository from `pwd` rather than from
-  where it is installed. **One repository holds every workspace, so either door
-  commits the whole tree**, and both NAME the other workspaces that had
-  uncommitted work in them before the commit runs rather than leaving it to be
-  discovered, and both lead the commit subject with the workspace so one history
-  of many can be read back. The script fetches and merges its upstream first,
+  where it is installed. **Either door commits only its own workspace**, by the
+  pathspec `save_pathspec` builds, and both lead the commit subject with the
+  workspace so one history of many can be read back. The script fetches and merges its upstream first,
   so a second machine committing the same repository — a compute node compiling
   the same document — cannot wedge every later push as a non-fast-forward. A
   conflict outside `build/` stops by hand, and a merge that cannot be completed

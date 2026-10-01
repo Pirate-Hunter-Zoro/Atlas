@@ -94,7 +94,7 @@ BRIEF_MD = library.DECK_BRIEF
 BRIEF_JSON = "_brief.json"
 FIGURES = "figures"
 
-# UNTRACKED, BECAUSE THE REPOSITORY IS PUBLIC. A save commits the whole tree,
+# UNTRACKED, BECAUSE THE REPOSITORY IS PUBLIC. A save commits its workspace,
 # and a deck filed under Galois Theory can hold a figure made from TRD-EHR's
 # records. The source stays tracked: a rework is refused against an uncommitted
 # one, and the source is what git can undo.

@@ -472,7 +472,10 @@ So:
    saying what you are about to do. It lands at once, so nobody watches a blank
    board. Keep the path it prints.
 2. **Do the work.** Write it. Run it. Read what came back. Fix what that showed
-   you. If something cannot be run here, run what can and say which.
+   you. If something cannot be run here, run what can and say which. Then
+   commit what you changed yourself: `board push "<thread>: what changed" --
+   <paths>`, naming the thread the work is on and only the files you touched.
+   A save's `lesson complete` is for the transcript, not for your work.
 3. **Write the report over that sentence.** `board write --over <path>` — the
    same card, now saying what you changed, which files, what you ran, what it
    said, and what is left. Name every file you changed and left uncommitted.
