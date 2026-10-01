@@ -272,7 +272,17 @@ So the fields are equal, $\sigma$ exists, and the injection of 7(c) is onto.
 \end{problem}
 
 % ===== SOLUTION 9(a) =====
-% TODO(mferguson): your work goes here.
+\begin{proof}
+Let $\zeta_8 = e^{2\pi i/8}$. Then
+$\zeta_8^4 + 1 = e^{8\pi i/8} + 1 = e^{i\pi} + 1 = -1 + 1 = 0$, so $\zeta_8$
+is a root of $x^4 + 1$. Now $(x+1)^4 = x^4 + 4x^3 + 6x^2 + 4x + 1$, so
+\[
+  (x+1)^4 + 1 = x^4 + 4x^3 + 6x^2 + 4x + 2,
+\]
+which is irreducible by Eisenstein at $2$. So $x^4 + 1$ is irreducible. It is
+monic, so it is the minimal polynomial of $\zeta_8$, and
+$[\mathbb{Q}(\zeta_8):\mathbb{Q}] = 4$.
+\end{proof}
 % ===== END SOLUTION 9(a) =====
 
 \begin{problem}{9(b)}
@@ -282,7 +292,22 @@ So the fields are equal, $\sigma$ exists, and the injection of 7(c) is onto.
 \end{problem}
 
 % ===== SOLUTION 9(b) =====
-% TODO(mferguson): your work goes here.
+\begin{proof}
+Over $\mathbb{Q}(\sqrt{2})$:
+\begin{align*}
+  x^4 + 1 &= (x^2+1)^2 - 2x^2 = (x^2+1)^2 - (\sqrt{2}\,x)^2 \\
+          &= (x^2 + 1 - \sqrt{2}\,x)(x^2 + 1 + \sqrt{2}\,x).
+\end{align*}
+Over $\mathbb{Q}(i)$:
+\[
+  x^4 + 1 = (x^2 + i)(x^2 - i).
+\]
+Over $\mathbb{Q}(\sqrt{-2})$:
+\begin{align*}
+  x^4 + 1 &= (x^2-1)^2 + 2x^2 = (x^2-1)^2 - (\sqrt{-2}\,x)^2 \\
+          &= (x^2 - 1 + \sqrt{-2}\,x)(x^2 - 1 - \sqrt{-2}\,x).
+\end{align*}
+\end{proof}
 % ===== END SOLUTION 9(b) =====
 
 \begin{problem}{9(c)}
