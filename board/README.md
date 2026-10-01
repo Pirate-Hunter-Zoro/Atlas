@@ -48,7 +48,7 @@ must be openable and teachable at every point.
   `board.css`, `plane-core.js`, `gauge.js`, `home.html`, `home.js`, `library.html`,
   `library.js`, `library.css`, anything added to the cache list), or the installed app
   serves its cached copy and the work is invisible.
-- **`bash test/all.sh` before every ship.** 105 suites, all green. `test/tracked.py` runs
+- **`bash test/all.sh` before every ship.** 106 suites, all green. `test/tracked.py` runs
   early — after the browser suites, before everything else — and refuses PHI, 25-megabyte files, model dumps, other authors' papers and
   machine-local config anywhere in the repository — this is public, and git remembers.
   The last of them is **Paper-Writer's own**, run where it is checked out and skipped
@@ -591,57 +591,80 @@ problem. Both are one line of honest text over the containing surface. When a co
 per-problem surface exist, two branches of `addrGo` change and no address written before then
 breaks.
 
-### The written map
+### The thread file
 
-`live/map.json` per workspace, written by the tutor, **merged against discovery on every read and
-never echoed back**. Where one exists it REPLACES the derived picture; the derived map stays the
-fallback for every workspace nobody has drawn, which is most of them. How to draw one is in
-`TEACHING.md`; this is what holds it up.
+A project's spine is **deliverables, and threads under them**. Each workspace that has one keeps
+it in **`threads.json` at the workspace root**, tracked. Not in `live/`: several workspaces ignore
+`live/` wholesale, and git cannot let a file back out of an ignored directory. Where one exists its
+threads REPLACE the derived picture, one box per thread; the derived map stays the fallback for
+every workspace without one. `test/threads.py` is the suite.
 
-`course/map.py` holds it: `validate` (pure, no filesystem), `read_written`, `write_written`,
-`_resolve_written`, `_from_written` — tried first in `_shape` — plus `check` and `written_status`.
-`status()` carries a `written` flag so the board, the briefing and the atlas can all tell whose
-words they are looking at.
+`course/threads.py` holds it: `validate` (pure, no filesystem), `read`, `write`, `resolve`,
+`check`, `stage` (pure) and `stages`, plus `from_map`, which makes a thread file out of an old
+`live/map.json`. `map._from_written` draws it — tried first in `_shape` — and `status()` carries
+`written: true` so the board, the briefing and the atlas can tell whose words they are looking at.
+
+```json
+{"version": 1,
+ "deliverables": [{"id": "paper1", "title": "Paper 1", "doc": "paper1/manuscript.md"}],
+ "threads": [{"id": "knn", "deliverable": "paper1", "title": "…", "question": "…",
+              "files": ["scripts/knn.py"], "outputs": ["results/knn.csv"],
+              "writes": [{"file": "paper1/manuscript.md", "anchor": "## Retrieval"}],
+              "tasks": [{"text": "…", "done": false}],
+              "decisions": [{"q": "…", "rule": null}],
+              "doc": "", "blockedBy": [], "closed": false}]}
+```
+
+- A deliverable's `doc` is a **path** (the file handed over, which may not exist yet). A thread's
+  `doc` is a **document id**, as `board read` lists them, never a path.
+- A decision with `"rule": null` is open. A rule is written in the present tense.
+- A directory in `files` is the box's directory; the rest are files a tap opens.
 
 ```
-board map < map.json      write it — validated, and refused WHOLE with every
-                          problem printed at once. Nothing is half-applied.
-board map --show          print it
-board map --check         what the map claims that the tree does not
+board thread < threads.json          write the whole file
+board thread --show [<thread>]       print it, or one thread with its derived stage
+board thread --check                 what the file claims that the tree does not
+board thread add [--deliverable] < x.json
+board thread task [<thread>] "<text>"
+board thread done [<thread>] <task>  by number or text
+board thread decide [<thread>] <decision> ["<rule>"]
+board thread close|reopen [<thread>]
 ```
 
-**The resolution rule, which is the whole reason this is allowed to exist:** a node naming a file
-that has gone loses the file; a node whose files have *all* gone drops out; an edge naming a box
-that is not there is not an edge; a `doc` that has moved is cleared; a `blockedBy` naming a dropped
-box is dropped. *A fact cannot go stale, a declaration can, so a declaration is checked against the
-facts every time it is read.* `--check` is that same pass said out loud instead of silently, plus
-the one thing resolution cannot see: a box marked `done` with an open plan step on it.
+`<thread>` may be left out where `live/state.json` names the sitting's `thread`. **Every write is
+validated and refused whole**, with every problem printed at once. A turn edits threads only
+through this command. Each write asks git whether the file is visible and refuses with the exact
+edit if not: a workspace that ignores `*.json` needs `!threads.json` after that rule.
 
-- **`board map` asks git whether the file it just wrote is visible**, and refuses with the exact
-  edit if not. Every workspace ignores `live/`, and `live/` is the *directory* form — git will not
-  descend into an excluded directory, so no `!live/map.json` under it can ever fire. It has to
-  become `live/*` plus the negation. That is one character's difference between a tracked map and
-  one silently lost on the next clone.
-- **Edge labels are painted**, on a plate in the gutter between two ranks, which is empty by
-  construction. A derived map never carries one: an import is not a thing that flows, and the
-  arrow's thickness already says how much of one it is.
-- **`blockedBy` is painted on the ways sheet, not on the box.** A box is eleven characters wide at
-  the zoom people read the map at, and a list is not a diagram. It is behind the second tap
-  rather than the first, and it is one of the two reasons that control is drawn at all: a box
-  waiting on another has something to say before anybody opens a sitting on it.
-- **The briefing says which kind of map it is**, in `brief.map_sense`, and how stale. A turn that
-  cannot tell a drawn map from a directory listing will read `psych_asr/asr` back to the person as
-  though it were how they think about their own work.
-- **The atlas gets one field**, `drawn` — the written title, on the sheet. One, on purpose: the
-  atlas is a picture of the repository, not a picture of every picture in it.
+**Resolution, on every read:** a `files` path that has gone drops out, a `doc` no longer offered is
+cleared, and a `blockedBy` on a closed thread is dropped. A thread itself never drops out — it is a
+question, and a question survives its code moving. `outputs` and `writes` are left alone, because
+a path that does not exist yet is what an unfinished thread is. `--check` says each of these
+aloud, plus every document no thread or deliverable claims, and a closed thread with open tasks.
 
-PSYCH-ASR's is written by hand from its README and its plan: *the typist*, *the stopwatch*, *the
-name-tagger*, *the joiner*, *the corrections*, *the grader*, *the grid*, *the scorer* — eight
-boxes, seven labelled arrows, the grid blocked on the stopwatch and the scorer on the grid.
-`board map --check` reports nothing about it: every file, document and arrow on it is still there,
-and no box marked `done` has an open plan step sitting on it. A finding is left as it is rather
-than silenced, because that is what the check is for and a map edited to quiet a checker is a map nobody
-should believe.
+**Status is derived; `closed` is the only typed state.** `threads.stage` is a pure function of
+the thread, the set of paths that exist, the text of its write-up files, `git status` and the job
+registry. The first true row wins:
+
+| Status | True when |
+|---|---|
+| done | `closed` |
+| running | a job in `live/jobs.jsonl` for this thread has no terminal sacct state |
+| written | it has outputs or write-ups, every output exists, every anchor is in its file |
+| result | it has outputs and every one exists |
+| open | otherwise |
+
+Beside it: `unsaved` (git shows a change under any of its files, outputs or write-up files),
+`decisions` (open ones) and `tasks` (open ones). In the job registry a later line for the same
+`jobid` overrides an earlier one, so the poll that sees a job end appends `{jobid, state}`.
+`stages(root)` reads the facts off disk and is cached for thirty seconds; each box on the map
+carries `thread` (the status), `closed`, `unsaved`, `decisions`, `tasks` and `deliverable`.
+
+**One plan.** `plan.steps` reads `threads.json` first: every open task of a thread that is not
+closed is a step, carrying its `thread`, and the map puts it on that thread's box. Only a thread
+file with no open task leaves the README-pointed plan file in force.
+
+PSYCH-ASR and libr-local-llm carry thread files, one thread per stage of the work.
 
 ### The meeting deck
 
@@ -912,7 +935,7 @@ board make --delivered         manuscripts that have landed in this workspace
 If the daemon is not running the job waits in the inbox, which is what should happen and is said
 out loud rather than discovered later. What the board assembles is all off disk in the workspace:
 the plan's open steps, the directories it actually keeps results in, the manuscript prose that
-already exists so it is not written twice, and the written map's own names for the parts.
+already exists so it is not written twice, and the thread file's own names for the parts.
 
 - **`PAPER_SOURCE_DIRS` IS AN ALLOWLIST, WITH A SECOND REFUSAL BEHIND IT.** This is the board
   choosing, on somebody's behalf, which trees a manuscript factory may mine — and one workspace
@@ -1044,7 +1067,7 @@ is wrong even when every suite is green.
   happens, not until a timer says so.
 - **`board open` is the only thing that opens a sitting.** Writing `state.json` directly skips the
   archive and the handoff parking, and loses the lesson being left.
-- **Nothing is registered.** `live/map.json` and `atlas.json`'s six family names are the only
+- **Nothing is registered.** `threads.json` and `atlas.json`'s six family names are the only
   exceptions in the whole system, and both are re-resolved against the tree on every read.
 - **A path out of a file is untrusted**, including out of a README. `paths.within` is the one
   containment test, and widening the bound to the whole repository did not stop it being a bound.
@@ -3234,7 +3257,7 @@ and what does each definition use":
   box nobody may trust as far as a Python one must not look identical to it. A
   module box says which it will be **before** anybody taps it.
 
-**The written map is not replaced by any of this.** `live/map.json` carries *the
+**The thread file is not replaced by any of this.** `threads.json` carries *the
 typist*, *the stopwatch*, *the name-tagger* — judgement no file in the repository
 contains — and cards and hand-offs spend those names. The
 derived structure is a layer **under** the hand-drawn one: a box a person drew
@@ -3633,8 +3656,8 @@ that, because the map is where the owner looks.
 - **＋ new paper or deck** on the region opens `#docnew`: paper or deck, one
   line of what it is about, then `POST /writeup` — the same writing turn a
   sitting's own ask starts, with no sitting opened.
-- **No box per document.** The map adds no `doc` boxes. A written map's author
-  can still claim one with `doc` on a box, and `board map --check` names every
+- **No box per document.** The map adds no `doc` boxes. A thread file's author
+  can still claim one with `doc` on a thread, and `board thread --check` names every
   document no box claims.
 - **Only on the workspace's own top-level picture.** A box's inside is about
   that box, and a vendor tree's documents are somebody else's.

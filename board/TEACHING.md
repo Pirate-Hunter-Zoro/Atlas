@@ -1115,10 +1115,10 @@ about. It is derived from disk on every build — the directories that hold
 source, the imports between them, the steps of the plan matched to the parts
 they name — so there is nothing to maintain and nothing that can go stale.
 
-**Unless somebody has drawn it, in which case the drawing is the map.** See
-*Drawing the map*, below. Your briefing says which of the two you are looking
-at, and the difference matters: a derived map is a directory listing, and a
-written one is what the person thinks about their own work.
+**Unless the workspace has a thread file, in which case its threads are the
+map.** See *Writing the threads*, below. Your briefing says which of the two you
+are looking at, and the difference matters: a derived map is a directory
+listing, and a thread file is what the person thinks about their own work.
 
 **What this means for you is that a sitting opened from the map arrives already
 scoped.** The briefing names the box: what it is, in the words of its own
@@ -1192,97 +1192,76 @@ theirs.
 
 ---
 
-## Drawing the map
+## Writing the threads
 
 **Structure is derived from disk. Meaning is written by you. Neither is guessed.**
 
-The derived map is honest and it is not enough. It can see that `psych_asr/asr`
-exists, that it imports `psych_asr/transcript`, and that a plan step names it.
-It cannot see that the box is called *the typist*, that it runs one candidate
-model and never compares it against another, or that the scorer below it is
-blocked on a seam nobody has built yet. Those are the sentences the owner of the
-project actually uses about it, and no amount of reading the tree produces them.
+The derived map can see that `psych_asr/asr` exists and what it imports. It
+cannot see that the work is called *the typist*, what question it answers, what
+it delivers, or that the scorer is blocked on the grid. Those are the sentences
+the owner of the project uses, and no amount of reading the tree produces them.
 
-So a workspace may carry `live/map.json`, and **you write it, on request, in a
-sitting.** *"Draw the map"* is a thing a person can ask for. It is not generated
-and there is no command that infers it.
+So a project keeps **`threads.json` at its root**: its **deliverables** (a
+paper, a deck, a dataset — something handed to another person) and the
+**threads** under them (one question each deliverable needs, with its code, its
+outputs, where it is written up, its tasks and its decisions). **You write it, on
+request, in a sitting**, and you edit it only with `board thread`.
 
 ### How
 
 1. **Read what they already wrote.** The README, the plan the README points at,
-   and any deck or walkthrough document in the workspace. You are not inventing
-   names; you are collecting the ones they use.
-2. **Name the boxes the way those documents name them.** A box is a **stage of
-   the work**, not a directory — *the typist*, *the stopwatch*, *the
-   name-tagger*, *the corrections*, *the grader*, *the grid*, *the scorer*. The
-   plain name leads and the real identifier goes in `also`, so the box reads as
-   the thing it is and still says which module that is.
-3. **One sentence each**, in `does`, capped at 110 characters because it is read
-   inside a box on a tablet. What it does, not what it is made of.
-4. **Carry the files.** Every box lists the files it is made of in `files`, so
-   every tap on the sheet opens a sitting scoped to real code. A stage with no
-   files is a stage nobody can work on from the picture.
-5. **Say what flows.** An edge takes a `label` — `words`, `turns`, `a graded
-   transcript`. The noun, not a sentence.
-6. **Say what is stuck, and on what.** `blockedBy` names other boxes. It is the
-   field nothing else in this system can set, and it is most of why a written
-   map is worth having.
-7. **Point at the explanation.** `doc` is a document ident this workspace
-   offers, and `slide` is a page number in it.
-8. **Then stop.** A map is not a plan and it is not a task list — the plan's
-   steps arrive on the boxes by themselves, and a box invented to hold a step is
-   a list wearing a diagram's clothes.
+   and any deck or walkthrough in the workspace. You are collecting their names,
+   not inventing yours.
+2. **A deliverable is what gets handed over.** Its `doc` is the path of that
+   file, even before it exists.
+3. **A thread is one question.** `title` is its plain name, `question` the
+   question in one sentence. It is not a directory and it is not a task.
+4. **Carry the paths.** `files` is the code, `outputs` what it produces, and
+   `writes` the file and heading it is written up under. These are what its
+   status is derived from, so a thread with none of them stays `open` forever.
+5. **Tasks are the plan.** A thread file with an open task in it IS the
+   workspace's plan; the old plan file is no longer read. Put the next steps on
+   the thread they belong to.
+6. **Decisions are the owner's.** Write the question with `"rule": null` and
+   leave it open until they decide. A rule is in the present tense.
+7. **Say what is stuck, and on what.** `blockedBy` names other threads.
+8. **Point at the explanation.** A thread's `doc` is a document id this
+   workspace offers, never a path.
 
-`board map < map.json` writes it. It is **validated and refused whole** if
-anything is wrong, with every problem printed at once; nothing is half-applied.
-`board map --show` prints it and `board map --check` says what has gone stale.
+`board thread < threads.json` writes the whole file. `board thread task`,
+`done`, `decide`, `close` and `add` edit one thread; leave out the thread id
+where the sitting is on one. Every write is **validated and refused whole**,
+with every problem printed at once. `board thread --show` prints it and
+`board thread --check` says what has gone stale. A write that git cannot see is
+refused with the line that fixes it.
 
-**It is the one file in `live/` that is tracked**, because it carries judgement
-no file in the repository contains. Every workspace ignores `live/`, so the
-first map written in one will be refused with the exact edit needed — `live/`
-becomes `live/*` plus `!live/map.json`. The shape matters and it is not a style
-choice: git will not descend into a directory it has excluded, so a negation
-written under `live/` can never fire.
+**Never write a status.** Done, running, written, result and open are derived
+from the file, git, the job registry and which paths exist. `close` is the only
+typed state, and it is the owner's tap.
 
-### It is checked against the tree on every read, and that is the deal
+### It is checked against the tree on every read
 
-A node naming a file that has gone loses the file. A node whose files have *all*
-gone drops out of the picture. An edge naming a box that is not there is not an
-edge. You never see a map claiming something the repository does not have.
+A file that has gone drops out of its thread. A document no longer offered is
+cleared. A closed thread no longer blocks anything. You never see a thread file
+claiming something the repository does not have.
 
     A fact cannot go stale. A declaration can. So a declaration is checked
     against the facts every time it is read.
 
-That is the same rule `walk.scope` and `review.scope` follow, and it is the only
-reason a written map is allowed to exist at all in a system whose first
-principle is that nothing is registered.
+### Keeping the threads true is part of finishing a piece of work
 
-### Keeping the map true is part of finishing a piece of work
+When you have finished something, tick its task, add the next one, and write
+any decision the owner made. A file that moved has moved in its thread too. A
+question that did not exist when the file was written is a thread missing from
+it, and that is the one only you can notice. **A thread file that describes last
+month is worse than none**, because nobody can tell which half is still true.
 
-Exactly as updating the plan already is. When you have finished something:
+**Your briefing says whether there is a thread file**, and how stale. Read that
+line before you use any name off the picture. Reading `psych_asr/asr` back to
+somebody as though it were how they think about their own work is the tell that
+you did not check.
 
-- a stage that is now working is not `next` any more;
-- a stage that is now unblocked has lost its `blockedBy`;
-- a file that moved has moved on the map too;
-- a stage that did not exist when the map was drawn is a box that is missing
-  from it.
-
-`board map --check` tells you the first three in one call, and one thing
-resolution cannot see: a box marked `done` with an open plan step still naming
-it. The fourth in the list above is the one only you can notice, and it is the
-one that makes a map quietly stop being believed. **A map that describes last
-month is worse than no map**, because the person reading it has no way to tell
-which half is still true — the same reason a stale handoff is worse than none.
-
-**Your briefing says which kind of map you are looking at**, in the map's own
-section, and how long it has been since anybody touched it. Read that line before
-you use any name off the picture. A derived map is a directory listing: reading
-`psych_asr/asr` back to somebody as though it were how they think about their own
-work is the tell that you did not check.
-
-Do not redraw the whole thing to change one box. Read it with `board map
---show`, change what is wrong, write it back.
-
+Do not rewrite the whole file to change one thread. Use the subcommand.
 
 ---
 
@@ -1327,7 +1306,7 @@ left you. All of those were written for the direction it replaced.
    what the change makes pointless, keep what still stands, put the new first
    step at the top. It is their file and it is in git. Do not append a note to
    the bottom of a plan that now describes something else.
-4. Redraw the map with `board map` if the boxes no longer describe the work.
+4. Rewrite the threads with `board thread` if they no longer describe the work.
 5. `board write --over` that first path, with the report: what the plan says now,
    what changed, the first step, and the one thing you need from them.
 
@@ -1406,7 +1385,7 @@ aim has not changed.
 **A full manuscript is handed off rather than written in cards.** `board make
 --paper ["title"]` assembles a job from this workspace — the plan's open steps as
 work to be done, the directories it keeps results in, the prose that already
-exists so it is not written twice, and the written map's own names for the parts
+exists so it is not written twice, and the thread file's own names for the parts
 — and drops it where the manuscript factory picks jobs up. `board make --status`
 says what that factory reports, verbatim, and `board make --delivered` lists what
 has landed. The board does not run it and cannot hurry it: if nothing is
