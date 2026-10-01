@@ -384,6 +384,15 @@ else
   printf '%s\n' "$out" | grep '^FAIL' | sed 's/^/             /'
 fi
 
+printf '%-12s ' "jobs"
+if out="$(python3 test/jobs.py 2>&1)"; then
+  printf '%s\n' "$out" | tail -1
+else
+  fails=$((fails + 1))
+  echo "FAILED"
+  printf '%s\n' "$out" | grep '^FAIL' | sed 's/^/             /'
+fi
+
 printf '%-12s ' "review"
 if out="$(python3 test/review.py 2>&1)"; then
   printf '%s\n' "$out" | tail -1

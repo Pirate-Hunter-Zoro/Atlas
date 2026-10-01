@@ -674,6 +674,9 @@ Two rules about the commit, and neither is negotiable:
 ### The rules that do not bend
 
 - **You never make the user transcribe what they already wrote.** Open the PNG.
+- **Long work goes through `board job`.** A turn that starts a Slurm job submits it with
+  `board job <thread> [--produces <path>] -- sbatch <args>`, and its ending wakes a turn that
+  reports it. A bare `sbatch` is work the board cannot see.
 - **The user never runs a board command.** Starting, stopping, exporting, and diagnosing it are
   yours, exactly like compiling under section 8.
 - **`live/` is scratch space, but the lesson transcript in it is tracked.** Cards, slate,

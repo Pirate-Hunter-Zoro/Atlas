@@ -549,6 +549,29 @@ await sleep(40);
            + receipt() + '"');
 }
 
+// ------------------------------------------------- a Slurm job still out
+// No turn is running and the work is: a job registered with `board job`. The
+// strip says so between turns, on the job's own clock, until a turn reports it.
+{
+  const f = JSON.parse(frame({ agent: 'claude', state: 'listening' }, null));
+  f.jobs = [{ jobid: '4242', thread: 'knn', title: 'Weighted neighbours',
+              state: 'PENDING', submitted: t0 - 300 }];
+  es.onmessage({ data: JSON.stringify(f) });
+  await sleep(40);
+  !busy().hidden && /running — Weighted neighbours: job 4242, pending/.test(says())
+    ? ok('a job still out keeps the strip up between turns, naming its thread')
+    : fail('a pending job is silent: "' + says() + '"');
+  /5m/.test(since()) && !busy().classList.contains('busy-bad')
+    ? ok('on the job\'s own clock, and not painted as a problem')
+    : fail('the job strip has the wrong clock or colour: "' + since() + '"');
+  f.jobs[0].state = 'RUNNING';
+  es.onmessage({ data: JSON.stringify(f) });
+  await sleep(40);
+  /job 4242$/.test(says())
+    ? ok('and once it runs it no longer says pending')
+    : fail('a running job still reads: "' + says() + '"');
+}
+
 // ------------------------------------------------------------ and silence
 // Nothing waiting, nothing working: there is genuinely nothing to say, and
 // saying something anyway is furniture.

@@ -16,8 +16,8 @@
 #
 #  EACH WORKSPACE KEEPS ITS OWN .gitignore, and those are the load-bearing
 #  ones. In particular the `live/*` allowlist -- cards, slate, answers,
-#  archive, inbox, text, state.json, turns.jsonl tracked, the rest ignored --
-#  is what makes a lecture the same lesson on whichever machine picks it up.
+#  archive, inbox, text, state.json, turns.jsonl and jobs.jsonl tracked, the
+#  rest ignored -- is what makes a lecture the same lesson on whichever machine picks it up.
 #  Nothing here may shadow one of those: git will not descend into a directory
 #  ignored higher up, so a rule for `live/` written HERE would make every
 #  deeper `!live/cards/` unreachable. That is why this file names no directory

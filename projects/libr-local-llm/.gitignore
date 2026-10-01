@@ -38,6 +38,9 @@ node_modules/
 
 # live tutoring board (Tutor-Board) — scratch space, never tracked.
 live/*
+# but the job registry is tracked: which Slurm jobs ran for which thread,
+# appended by `board job`.
+!live/jobs.jsonl
 
 # THE THREAD FILE IS TRACKED: this project's deliverables and threads, which is
 # judgement no other file contains. The negation comes after the `*.json` rule

@@ -55,9 +55,11 @@ MAX_THREADS = 44
 MAX_TASKS = 40
 
 # What sacct calls a job that has stopped. Anything else -- PENDING, RUNNING,
-# no state at all -- is a job still out.
+# no state at all -- is a job still out. LOST is the board's own word, for a job
+# Slurm has no record of at all: left out, it would hold its thread at
+# `running` for ever.
 TERMINAL = ("COMPLETED", "FAILED", "CANCELLED", "TIMEOUT", "OUT_OF_MEMORY",
-            "NODE_FAIL", "PREEMPTED", "BOOT_FAIL", "DEADLINE")
+            "NODE_FAIL", "PREEMPTED", "BOOT_FAIL", "DEADLINE", "LOST")
 
 # The five stages, and the first true one wins.
 STAGES = ("done", "running", "written", "result", "open")
@@ -460,12 +462,12 @@ def check(root, documents=True):
 # ---------------------------------------------------------------------------
 # status: derived, never typed
 # ---------------------------------------------------------------------------
-def unfinished(jobs, tid):
-    """The registered jobs of one thread that sacct has not called finished.
+def merged(jobs):
+    """`{jobid: record}`, each job's records folded in file order.
 
-    `jobs` is the registry in file order. A later record for the same job id
-    overrides an earlier one, so the poll that sees a job end appends one line
-    carrying `state` rather than rewriting the file.
+    A later record for the same job id overrides an earlier one, so the poll
+    that sees a job end appends one line carrying `state` rather than rewriting
+    the file.
     """
     last = {}
     for j in jobs or []:
@@ -474,18 +476,23 @@ def unfinished(jobs, tid):
         key = str(j.get("jobid") or "")
         if not key:
             continue
-        merged = dict(last.get(key) or {})
-        merged.update(j)
-        last[key] = merged
-    out = []
-    for j in last.values():
-        if j.get("thread") != tid:
-            continue
-        state = str(j.get("state") or "").split()[0].upper() if j.get("state") else ""
-        if state.rstrip("+") in TERMINAL:
-            continue
-        out.append(j)
-    return out
+        rec = dict(last.get(key) or {})
+        rec.update(j)
+        last[key] = rec
+    return last
+
+
+def finished(j):
+    """Has sacct (or the board) called this job finished?"""
+    state = str(j.get("state") or "").split()
+    return bool(state) and state[0].upper().rstrip("+") in TERMINAL
+
+
+def unfinished(jobs, tid=None):
+    """The registered jobs of one thread -- or of every thread, with no `tid` --
+    that have not finished."""
+    return [j for j in merged(jobs).values()
+            if (tid is None or j.get("thread") == tid) and not finished(j)]
 
 
 def _under(p, base):
@@ -528,11 +535,12 @@ def stage(t, present, texts, dirty, jobs):
 
 
 def jobs_of(root):
-    """The job registry, `live/jobs.jsonl`, as records. Empty if none."""
+    """The job registry as records, from wherever `jobs.registry` keeps it.
+    Empty if none."""
+    from .. import jobs as job_registry
     out = []
     try:
-        with open(os.path.join(root, "live", "jobs.jsonl"), "r",
-                  encoding="utf-8") as fh:
+        with open(job_registry.registry(root), "r", encoding="utf-8") as fh:
             for line in fh:
                 line = line.strip()
                 if not line:
@@ -544,6 +552,22 @@ def jobs_of(root):
     except OSError:
         return []
     return out
+
+
+def missions_of(root):
+    """The mission running here, if it names a thread, as a job record.
+
+    A mission is long work the way a job is, and carries a thread id the same
+    way, so a thread with one live says `running` too.
+    """
+    try:
+        from .. import missions
+        rec = missions.live_mission(root)
+    except Exception:                                        # noqa: BLE001
+        return []
+    if not rec or not rec.get("thread"):
+        return []
+    return [{"jobid": "mission:%s" % rec.get("id"), "thread": rec["thread"]}]
 
 
 def dirty_of(root):
@@ -598,7 +622,7 @@ def stages(root):
                             texts[w["file"]] = fh.read()
                     except OSError:
                         texts[w["file"]] = ""
-        dirty, jobs = dirty_of(root), jobs_of(root)
+        dirty, jobs = dirty_of(root), jobs_of(root) + missions_of(root)
         for t in threads:
             found[t["id"]] = stage(t, present, texts, dirty, jobs)
     _cache[key] = (time.time(), found)

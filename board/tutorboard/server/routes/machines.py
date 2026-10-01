@@ -29,6 +29,7 @@ from ... import scopes
 from ... import stamp
 from ...course import config
 from ...course import paper
+from ...course import threads
 from ...course.repo import Repo
 from ...lesson import notes
 from ...lesson import state
@@ -658,6 +659,16 @@ def post(h, repo, path):
         if not match:
             return h.send_json({"ok": False, "error": "unknown workspace"},
                                status=404)
+        # THE THREAD IT IS FOR, where one is named: a mission is long work like
+        # a job, registered to a thread the same way. Refused when that
+        # workspace has no such thread, before anything is started or stopped.
+        thread = str(payload.get("thread") or "").strip()
+        if thread:
+            spine, _ = threads.read(match["root"])
+            if not (spine and threads.thread(spine, thread)):
+                return h.send_json(
+                    {"ok": False, "error": "%s has no thread called %r"
+                     % (match["repo"], thread)}, status=400)
 
         # A NAMED ASSISTANT DISPLACES THE ONE THAT IS THERE, AND THAT IS WHAT
         # THE TAP MEANS.
@@ -843,7 +854,7 @@ def post(h, repo, path):
         rec = missions.dispatch(match["root"], task=task, turn=tid,
                                 agent=agent, ship=bool(payload.get("ship")),
                                 frm=atlas.identify(repo.root), ceiling=ceiling,
-                                brought=brought)
+                                brought=brought, thread=thread)
         # AND NOW THE INBOX LINE, WHICH IS THE WAKING. `board wait` polls this
         # file four times a second, so everything the woken turn reads about
         # itself is on disk before it lands. The line is their words and

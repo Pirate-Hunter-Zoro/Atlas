@@ -8,7 +8,9 @@ import threading
 import time
 
 from .. import coursemacros
-from .. import assistants, colibri, direction, fenced, missions, news, writeups
+from .. import (assistants, colibri, direction, fenced, missions, news,
+                writeups)
+from .. import jobs as slurm_jobs
 from . import spawn
 from ..course import config, homework
 from ..lesson import archive, cards, git, notes, slate, state, turns, uploads
@@ -192,6 +194,10 @@ class Hub:
         # board that comes up tomorrow reads them off disk rather than out of a
         # browser's memory. Cached hard; see `missions.py`.
         data["missions"] = missions.waiting(self.repo)
+        # AND THE SLURM JOBS REGISTERED HERE THAT HAVE NOT ENDED, so the busy
+        # strip says "running" between turns as well as the box. A read of one
+        # small file; the daemon's poll is what moves it. See `jobs.py`.
+        data["jobs"] = slurm_jobs.running(self.repo.root)
         # AND A DOCUMENT ASKED FOR FROM THE SITTING THAT IS OPEN. The turn that
         # writes one is told to write no card, so it is invisible on the board by
         # construction -- which leaves "I asked for a deck and nothing happened"
