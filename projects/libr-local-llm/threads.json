@@ -1,0 +1,164 @@
+{
+  "version": 1,
+  "deliverables": [
+    {
+      "id": "local-inference",
+      "title": "Local inference on LIBR compute, and the fleet it is becoming",
+      "doc": ""
+    }
+  ],
+  "threads": [
+    {
+      "id": "ollama",
+      "deliverable": "local-inference",
+      "title": "The everyday server (ollama, user-local)",
+      "question": "Serves the coding models on one A40 from a user-local install. No admin rights anywhere in it. Serving is done; what is left on it is the walltime note in the plan's housekeeping section.",
+      "files": [
+        "slurm_jobs/ollama_serve.sbatch",
+        "slurm_jobs/ollama_serve_accel.sbatch"
+      ],
+      "outputs": [],
+      "writes": [],
+      "tasks": [],
+      "decisions": [],
+      "doc": "",
+      "blockedBy": [],
+      "closed": false
+    },
+    {
+      "id": "ollama-drivers",
+      "deliverable": "local-inference",
+      "title": "Up, code, down (bin/ollama-*)",
+      "question": "Three scripts that submit the job, wait until it is really serving, and open an agent on its node.",
+      "files": [
+        "bin/ollama-up",
+        "bin/ollama-code",
+        "bin/ollama-down"
+      ],
+      "outputs": [],
+      "writes": [],
+      "tasks": [],
+      "decisions": [],
+      "doc": "",
+      "blockedBy": [],
+      "closed": false
+    },
+    {
+      "id": "opencode",
+      "deliverable": "local-inference",
+      "title": "The coding agent (opencode, and its fence)",
+      "question": "opencode on the serving node, with web access denied globally and raised for one agent only.",
+      "files": [
+        "config/opencode.json",
+        "config/opencode-guard.sh"
+      ],
+      "outputs": [],
+      "writes": [],
+      "tasks": [],
+      "decisions": [],
+      "doc": "",
+      "blockedBy": [],
+      "closed": false
+    },
+    {
+      "id": "colibri",
+      "deliverable": "local-inference",
+      "title": "The consultant (colibri, GLM-5.2 int4)",
+      "question": "744B on most of a 1 TB node, one user at a time, for work that cannot leave the building. Serving is done. Two questions are open: how many KV slots, and whether MTP should be forced off.",
+      "files": [
+        "slurm_jobs/colibri_serve.sbatch",
+        "scripts/colibri-env.sh"
+      ],
+      "outputs": [],
+      "writes": [],
+      "tasks": [],
+      "decisions": [],
+      "doc": "",
+      "blockedBy": [],
+      "closed": false
+    },
+    {
+      "id": "coli-commands",
+      "deliverable": "local-inference",
+      "title": "The five colibri commands (bin/coli*)",
+      "question": "Build, submit, ask, code and cancel. Each finds the job through squeue and steps onto its node. coli-ask is the interactive one and coli-code is the overnight one: the preamble is the bill.",
+      "files": [
+        "bin/coli",
+        "bin/coli-build",
+        "bin/coli-up",
+        "bin/coli-ask",
+        "bin/coli-code",
+        "bin/coli-down"
+      ],
+      "outputs": [],
+      "writes": [],
+      "tasks": [],
+      "decisions": [],
+      "doc": "",
+      "blockedBy": [],
+      "closed": false
+    },
+    {
+      "id": "engine",
+      "deliverable": "local-inference",
+      "title": "The engine (vendor/colibri-build/c)",
+      "question": "The int4 GLM kernel, built at a pinned commit. ARCH=native is what selects the fast path. It lives outside this repository, in the Atlas checkout, and is not in git. Rebuild after a clone.",
+      "files": [],
+      "outputs": [],
+      "writes": [],
+      "tasks": [],
+      "decisions": [],
+      "doc": "",
+      "blockedBy": [],
+      "closed": false
+    },
+    {
+      "id": "upstream",
+      "deliverable": "local-inference",
+      "title": "Keeping upstream current (a daily user timer)",
+      "question": "Pulls the read-only colibri clone once a day. Never build in it; the timer expects a clean tree.",
+      "files": [
+        "config/colibri-pull",
+        "config/colibri-pull.service",
+        "config/colibri-pull.timer"
+      ],
+      "outputs": [],
+      "writes": [],
+      "tasks": [],
+      "decisions": [],
+      "doc": "",
+      "blockedBy": [],
+      "closed": false
+    },
+    {
+      "id": "p0",
+      "deliverable": "local-inference",
+      "title": "The measurement campaign (P0)",
+      "question": "Twelve tests that decide the fleet's shape. Ten have passed and fifteen findings contradict the runbook.",
+      "files": [
+        "slurm_jobs/p0"
+      ],
+      "outputs": [],
+      "writes": [],
+      "tasks": [],
+      "decisions": [],
+      "doc": "fleet-walkthrough",
+      "blockedBy": [],
+      "closed": false
+    },
+    {
+      "id": "fleet",
+      "deliverable": "local-inference",
+      "title": "The fleet",
+      "question": "Three engines behind one front door, taking GPUs when free and yielding them when somebody else is blocked. Designed in full in DESIGN.md and scheduled in FLEET-BUILD.md. None of it is built.",
+      "files": [],
+      "outputs": [],
+      "writes": [],
+      "tasks": [],
+      "decisions": [],
+      "doc": "",
+      "blockedBy": [],
+      "closed": false
+    }
+  ]
+}

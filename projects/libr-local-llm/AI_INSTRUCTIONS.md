@@ -552,8 +552,8 @@ Two rules about the commit, and neither is negotiable:
 - **You never make the user transcribe what they already wrote.** Open the PNG.
 - **The user never runs a board command.** Starting, stopping, exporting, and diagnosing it are
   yours, exactly like verification under section 5.
-- **`live/` is scratch space and is not tracked, with one exception.** `live/map.json` — the
-  written map of the boxes this project is made of — is tracked and travels with a clone.
+- **`live/` is scratch space and is not tracked.** The project's deliverables and threads live in
+  `threads.json` at the workspace root, tracked, and are edited only with `board thread`.
   Anything else that matters gets exported or written into the repository proper.
 - **The board does not relax section 3.** A card is a place for mathematics and prose, not a place
   to slip the user code they were supposed to write themselves.

@@ -98,8 +98,8 @@ check("and carries it above everything it outranks",
 check("the turn woken by the change is told to rewrite the plan, not to ask",
       "REWRITE THE PLAN" in direction.CHANGED
       and "Do not ask permission" in direction.CHANGED)
-check("and to redraw the map with the command that draws it",
-      "board map" in direction.CHANGED)
+check("and to rewrite the threads with the command that writes them",
+      "board thread" in direction.CHANGED)
 check("and to put a sentence on the board before it starts, so it is not blank",
       "board write" in direction.CHANGED)
 check("and to report over that sentence rather than writing a second card",
