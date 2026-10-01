@@ -1,23 +1,14 @@
 <!-- chapter: predictions -->
-## Where the student got to
+Where they got to: the neighbour-count sweep lesson (planning/TRD-EHR_TODO.txt, L1-L5) has opened and nothing has been answered. One card is on the board. It shows the manuscript sweep figure (results/Qwen-Qwen3-Embedding-8B/google_medgemma-27b-text-it/neighbor_count_sweep/neighbor_count_sweep_manuscript.png), lists L1-L5, and poses L1's first micro-check. That check is still open. Pool p1-p4, only p1 TRD, k=4 (the whole pool, uniform weights). Ask for s_A, s_B and the AUC. Expected answer: s_A = s_B = 1/4, every pair ties, AUC = 1/2.
 
-Lecture on retrieval prediction. The 2026-09-29 sitting was one doing turn, no student answer. Figure 4 has no k = 50 line. It has a random-neighbour arm with uniform weights, swept over every k up to 34,063, with a band from 1,000 seeded draws; the band covers 0.5 at every k. ROC, PR, calibration, decision-curve, ESS and confusion-matrix panels are drawn at each arm's best k by `best_k_panels.py`. Best k and ROC AUC: weighted 295, 0.625 (0.610–0.641); plain 757, 0.618 (0.602–0.634); random 32,720, 0.500 (2.5th–97.5th percentile across draws 0.484–0.515). Best k is the k with the highest test AUC, the smallest on a tie; for random it is the highest mean across draws. No retrieval number in the paper is read at k = 50 except farthest. Table S8 and the S9 subgroups are at best k too (23 of 240 contrasts survive BH). Their 16 ink marks on pages 1–7, and the paper reviewer's ten findings on that round, are answered in `review/round_2026-09-29.md`. Every number in the packet carries an interval; the classifier AUPRC, Brier and calibration intervals come from `scripts/pipeline/review/metric_intervals.py`. The sweep's artifacts are in `results/<encoder>/<judge>/neighbor_count_sweep/`. To regenerate, submit `slurm_jobs/quick_runs/neighbor_count_sweep.sbatch`, then `slurm_jobs/review/{history_quintiles,subgroup_performance,metric_intervals}.sbatch`; README 5c–5d has the detail.
+Got wrong: nothing yet. No answers on record.
 
-## What they got wrong
+Got right: nothing yet. Nothing is settled, so nothing is protected from re-teaching.
 
-Nothing new this sitting. From 2026-09-25: they could not see "against the rest" in the subgroup forest plots. Those plots show each group's own AUC. BH (Benjamini-Hochberg) tests that AUC minus the same model's AUC on everyone else. The deck now has contrast plots for this. Teach the contrast as its own quantity.
+Next thing to teach: re-pose that same k=4 micro-check. It is the cheapest way into L1, because ties alone give AUC 1/2. Then do the k=1 random case. The random neighbour is drawn independently of the anchor's label, so s_A and s_B have the same distribution, giving AUC 1/2 in expectation. Then re-pose L1 in full with its definitions list. Bind a homework file (board hw list / new) on the first agreed answer.
 
-## What they got right
+Before L4, verify from the embeddings what share of weighted-cosine similarities are non-positive and so get weight zero. Only 385 of 4096 dimensions have nonzero importance. This is unverified, so do not teach the flat right edge until it is checked.
 
-BH mechanics, including the step past a miss. Plain cosine KNN, the importance-weighted cosine and the max{s,0}^α clamp are settled. Do not re-teach them.
+Figures from the sweep: risk = sum of w*y over sum of w on the k nearest, with w = max(cos, 0)^alpha and alpha = 1. Pool 34,063; test 8,516; prevalence 0.175. Code: scripts/pipeline/predictions/neighbor_count_sweep.py.
 
-## Next
-
-Figure 4, which is drawn: why the random arm sits at 0.5 at every k, and why its "best k" is noise. Then the optimism of every best k, chosen on the same test patients it is scored on. Keep any exercise to one quick question.
-
-## How they work
-
-- They would rather ink a document than type. A mark is a request to change the figure, not to reword the text.
-- They cut implementation detail hard ("Just say what we did").
-- They want an interval on every number.
-- They skip exercises when tired. Record the answer and move on.
+How they work: the direction (set 2026-09-30) asks for the figure to be shown repeatedly. Show it again on any card whose question is about a feature of the curve.
