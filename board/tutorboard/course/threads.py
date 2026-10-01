@@ -1,0 +1,629 @@
+"""threads.py -- a project's spine: deliverables, and the threads under them.
+
+A course has a spine because a book gives it one. A project has none, so the
+board drew one out of the directory tree, and nobody thinks about their
+research as `scripts-pipeline-predictions`. This file is the spine a project
+writes for itself:
+
+    deliverable   something handed to another person -- a paper, a deck
+    thread        one question the deliverable needs, with its code, its
+                  outputs, where it is written up, its tasks and its decisions
+
+It lives at `threads.json` in the workspace root, tracked. Not in `live/`:
+several workspaces ignore `live/` wholesale, and git cannot let a file back out
+of an ignored directory.
+
+THREE THINGS HERE, AND ONLY THREE:
+
+    validate   pure: does the document say something a thread file can mean
+    resolve    the file checked against the tree, every time it is read
+    stage      pure: a thread's status, from the file, git, the job registry
+               and which paths exist
+
+Status is never typed, apart from `closed`. Everything else about where a
+thread stands is a fact on disk, and a fact cannot go stale.
+
+Standard library only, like everything else.
+"""
+
+import json
+import os
+import re
+import subprocess
+import time
+
+from .. import paths as toolpaths
+
+VERSION = 1
+NAME = "threads.json"
+
+# An id is what everything keys off -- a sitting's `thread`, a job's `thread`,
+# the browser's memory of which box it was on -- so it is narrow and stable.
+ID_RE = re.compile(r"^[a-z0-9-]{1,40}$")
+
+# A thread's `doc` is a document id, the one `reading.ident` gives -- never a
+# path. A deliverable's `doc` IS a path: it is the file being handed over, and
+# it may not exist yet.
+DOC_RE = re.compile(r"^[a-z0-9-]{1,40}$")
+
+MAX_TITLE = 90
+MAX_QUESTION = 300
+MAX_TEXT = 240
+MAX_PATHS = 40
+MAX_BLOCKED = 8
+MAX_THREADS = 44
+MAX_TASKS = 40
+
+# What sacct calls a job that has stopped. Anything else -- PENDING, RUNNING,
+# no state at all -- is a job still out.
+TERMINAL = ("COMPLETED", "FAILED", "CANCELLED", "TIMEOUT", "OUT_OF_MEMORY",
+            "NODE_FAIL", "PREEMPTED", "BOOT_FAIL", "DEADLINE")
+
+# The five stages, and the first true one wins.
+STAGES = ("done", "running", "written", "result", "open")
+
+CACHE_SECONDS = 30
+_cache = {}
+
+
+def path(root):
+    """Where a workspace's thread file lives."""
+    return os.path.join(root, NAME)
+
+
+def has(root):
+    return os.path.isfile(path(root))
+
+
+def _text(value, limit):
+    return str(value or "").strip()[:limit]
+
+
+def _rel(value):
+    """A path inside the workspace, or None."""
+    rel = str(value or "").strip().replace("\\", "/").lstrip("/")
+    while rel.startswith("./"):
+        rel = rel[2:]
+    rel = rel.rstrip("/")
+    if not rel or rel == "." or ".." in rel.split("/") or rel.startswith("~"):
+        return None
+    return rel
+
+
+def _paths(value, where, field, problems):
+    if value is None:
+        return []
+    if not isinstance(value, list):
+        problems.append("%s: `%s` must be a list of paths" % (where, field))
+        return []
+    out = []
+    for p in value:
+        rel = _rel(p)
+        if rel is None:
+            problems.append("%s: %r in `%s` is not a path inside this workspace"
+                            % (where, p, field))
+            continue
+        if rel not in out:
+            out.append(rel)
+    if len(out) > MAX_PATHS:
+        problems.append("%s: %d paths in `%s`, and the cap is %d"
+                        % (where, len(out), field, MAX_PATHS))
+    return out[:MAX_PATHS]
+
+
+def validate(raw):
+    """`(clean, problems)`. A file with any problem is not written.
+
+    REFUSED WHOLE, with every problem at once: fixing a thread file one refusal
+    per round trip is how a five-minute job becomes an evening. Nothing here
+    touches the filesystem.
+    """
+    problems = []
+    if not isinstance(raw, dict):
+        return None, ["the top level must be an object, not a %s"
+                      % type(raw).__name__]
+
+    if raw.get("version") != VERSION:
+        problems.append("version must be %d, not %r" % (VERSION, raw.get("version")))
+
+    dels_in = raw.get("deliverables")
+    if not isinstance(dels_in, list) or not dels_in:
+        problems.append("`deliverables` must be a non-empty list: every thread "
+                        "hangs off something handed to another person")
+        dels_in = []
+    deliverables, dseen = [], set()
+    for i, one in enumerate(dels_in):
+        where = "deliverable %d" % (i + 1)
+        if not isinstance(one, dict):
+            problems.append("%s is not an object" % where)
+            continue
+        did = str(one.get("id") or "").strip()
+        if not ID_RE.match(did):
+            problems.append("%s: id %r must be 1-40 characters of a-z, 0-9 and "
+                            "hyphen" % (where, did))
+            continue
+        where = "deliverable `%s`" % did
+        if did in dseen:
+            problems.append("%s appears twice" % where)
+            continue
+        dseen.add(did)
+        title = _text(one.get("title"), MAX_TITLE)
+        if not title:
+            problems.append("%s has no `title`" % where)
+        doc = ""
+        if one.get("doc"):
+            doc = _rel(one.get("doc")) or ""
+            if not doc:
+                problems.append("%s: `doc` %r is not a path inside this "
+                                "workspace" % (where, one.get("doc")))
+        deliverables.append({"id": did, "title": title, "doc": doc})
+
+    threads_in = raw.get("threads")
+    if not isinstance(threads_in, list):
+        problems.append("`threads` must be a list")
+        threads_in = []
+    threads, seen = [], set()
+    for i, one in enumerate(threads_in):
+        where = "thread %d" % (i + 1)
+        if not isinstance(one, dict):
+            problems.append("%s is not an object" % where)
+            continue
+        tid = str(one.get("id") or "").strip()
+        if not ID_RE.match(tid):
+            problems.append("%s: id %r must be 1-40 characters of a-z, 0-9 and "
+                            "hyphen. Sittings and jobs key off it." % (where, tid))
+            continue
+        where = "thread `%s`" % tid
+        if tid in seen:
+            problems.append("%s appears twice; an id names one thread" % where)
+            continue
+        seen.add(tid)
+
+        deliv = str(one.get("deliverable") or "").strip()
+        if deliv not in dseen:
+            problems.append("%s: deliverable %r is not one this file declares"
+                            % (where, deliv))
+        title = _text(one.get("title"), MAX_TITLE)
+        if not title:
+            problems.append("%s has no `title`" % where)
+        question = str(one.get("question") or "").strip()
+        if len(question) > MAX_QUESTION:
+            problems.append("%s: `question` is %d characters and the cap is %d"
+                            % (where, len(question), MAX_QUESTION))
+
+        files = _paths(one.get("files"), where, "files", problems)
+        outputs = _paths(one.get("outputs"), where, "outputs", problems)
+
+        writes = []
+        w_in = one.get("writes") or []
+        if not isinstance(w_in, list):
+            problems.append("%s: `writes` must be a list of {file, anchor}" % where)
+            w_in = []
+        for w in w_in:
+            if not isinstance(w, dict):
+                problems.append("%s: a `writes` entry is not an object" % where)
+                continue
+            rel = _rel(w.get("file"))
+            anchor = str(w.get("anchor") or "").strip()
+            if rel is None:
+                problems.append("%s: `writes` file %r is not a path inside this "
+                                "workspace" % (where, w.get("file")))
+                continue
+            if not anchor:
+                problems.append("%s: `writes` on %s has no `anchor` -- the "
+                                "heading the write-up sits under" % (where, rel))
+                continue
+            writes.append({"file": rel, "anchor": anchor[:MAX_TEXT]})
+
+        tasks = []
+        t_in = one.get("tasks") or []
+        if not isinstance(t_in, list):
+            problems.append("%s: `tasks` must be a list of {text, done}" % where)
+            t_in = []
+        for t in t_in:
+            if not isinstance(t, dict):
+                problems.append("%s: a task is not an object" % where)
+                continue
+            text = _text(t.get("text"), MAX_TEXT)
+            if not text:
+                problems.append("%s: a task has no `text`" % where)
+                continue
+            done = t.get("done", False)
+            if not isinstance(done, bool):
+                problems.append("%s: task %r: `done` must be true or false"
+                                % (where, text))
+                done = False
+            tasks.append({"text": text, "done": done})
+        if len(tasks) > MAX_TASKS:
+            problems.append("%s: %d tasks, and the cap is %d. Close the done "
+                            "ones out or split the thread."
+                            % (where, len(tasks), MAX_TASKS))
+
+        decisions = []
+        d_in = one.get("decisions") or []
+        if not isinstance(d_in, list):
+            problems.append("%s: `decisions` must be a list of {q, rule}" % where)
+            d_in = []
+        for d in d_in:
+            if not isinstance(d, dict):
+                problems.append("%s: a decision is not an object" % where)
+                continue
+            q = _text(d.get("q"), MAX_TEXT)
+            if not q:
+                problems.append("%s: a decision has no `q`" % where)
+                continue
+            rule = d.get("rule")
+            if rule is not None and not isinstance(rule, str):
+                problems.append("%s: decision %r: `rule` is a sentence or null"
+                                % (where, q))
+                rule = None
+            rule = (rule or "").strip()[:MAX_QUESTION] or None
+            decisions.append({"q": q, "rule": rule})
+
+        doc = str(one.get("doc") or "").strip()
+        if doc and not DOC_RE.match(doc):
+            problems.append("%s: `doc` %r is not a document id. It is the short "
+                            "name `board read` lists, never a path."
+                            % (where, one.get("doc")))
+            doc = ""
+
+        blocked = one.get("blockedBy") or []
+        if not isinstance(blocked, list):
+            problems.append("%s: `blockedBy` must be a list of thread ids" % where)
+            blocked = []
+        blocked = [str(b or "").strip() for b in blocked if str(b or "").strip()]
+
+        closed = one.get("closed", False)
+        if not isinstance(closed, bool):
+            problems.append("%s: `closed` must be true or false" % where)
+            closed = False
+
+        threads.append({
+            "id": tid, "deliverable": deliv, "title": title,
+            "question": question[:MAX_QUESTION],
+            "files": files, "outputs": outputs, "writes": writes,
+            "tasks": tasks[:MAX_TASKS], "decisions": decisions,
+            "doc": doc, "blockedBy": blocked[:MAX_BLOCKED], "closed": closed,
+        })
+
+    if len(threads) > MAX_THREADS:
+        problems.append("%d threads, and past %d it is not a picture any more"
+                        % (len(threads), MAX_THREADS))
+    for t in threads:
+        for b in t["blockedBy"]:
+            if b == t["id"]:
+                problems.append("thread `%s` is blocked by itself" % b)
+            elif b not in seen:
+                problems.append("thread `%s` is blockedBy `%s`, which this "
+                                "file does not declare" % (t["id"], b))
+
+    if problems:
+        return None, problems
+    return {"version": VERSION, "deliverables": deliverables,
+            "threads": threads}, []
+
+
+def read(root):
+    """`(clean, problems)`; `(None, [])` where there is no file."""
+    target = path(root)
+    try:
+        with open(target, "r", encoding="utf-8") as fh:
+            raw = json.load(fh)
+    except OSError:
+        return None, []
+    except ValueError as exc:
+        return None, ["%s is not valid JSON: %s" % (target, exc)]
+    return validate(raw)
+
+
+def write(root, raw):
+    """Validate and store. `(problems, path)`; nothing is written if any."""
+    clean, problems = validate(raw)
+    target = path(root)
+    if problems:
+        return problems, target
+    try:
+        tmp = target + ".new"
+        with open(tmp, "w", encoding="utf-8") as fh:
+            json.dump(clean, fh, indent=2, ensure_ascii=False)
+            fh.write("\n")
+        os.replace(tmp, target)
+    except OSError as exc:
+        return ["could not write %s: %s" % (target, exc)], target
+    forget(root)
+    return [], target
+
+
+def forget(root):
+    """Drop every cached reading of this workspace's thread file."""
+    _cache.pop(os.path.realpath(root), None)
+    try:
+        from . import map as course_map                      # local: a cycle
+        course_map._cache.pop(os.path.realpath(root), None)
+    except Exception:                                        # noqa: BLE001
+        pass
+    try:
+        from . import plan
+        plan._cache.pop(os.path.realpath(root), None)
+    except Exception:                                        # noqa: BLE001
+        pass
+
+
+def thread(clean, tid):
+    for t in (clean or {}).get("threads") or []:
+        if t["id"] == tid:
+            return t
+    return None
+
+
+# ---------------------------------------------------------------------------
+# resolution: the file checked against the tree
+# ---------------------------------------------------------------------------
+def here(root, rel):
+    """Does this workspace really hold that path, inside itself?"""
+    if not rel:
+        return False
+    target = os.path.join(root, rel)
+    return toolpaths.within(target, root) and os.path.exists(target)
+
+
+def resolve(root, clean):
+    """The file as it is TRUE today. Never what is on disk.
+
+    A `files` path that has gone drops out, and so does a `doc` that is no
+    longer offered and a `blockedBy` on a closed thread. A thread itself never
+    drops out: it is a question, and a question survives its code moving.
+    `outputs` and `writes` are left alone, because a path that does not exist
+    yet is what an unfinished thread is.
+    """
+    out = []
+    closed = set(t["id"] for t in clean["threads"] if t["closed"])
+    for t in clean["threads"]:
+        t = dict(t)
+        t["files"] = [f for f in t["files"] if here(root, f)]
+        if t["doc"] and not _doc_found(root, t["doc"]):
+            t["doc"] = ""
+        t["blockedBy"] = [b for b in t["blockedBy"] if b not in closed]
+        out.append(t)
+    return out
+
+
+def _doc_found(root, ident):
+    try:
+        from . import reading                                # local: a cycle
+        found, _name = reading.find(root, ident)
+        return bool(found)
+    except Exception:                                        # noqa: BLE001
+        return False
+
+
+def check(root, documents=True):
+    """What the file claims that the tree does not. `board thread --check`."""
+    clean, problems = read(root)
+    if problems:
+        return problems
+    if not clean:
+        return []
+    out = []
+    for d in clean["deliverables"]:
+        if d["doc"] and not here(root, d["doc"]):
+            out.append("deliverable `%s` is %s, which is not there yet"
+                       % (d["id"], d["doc"]))
+    for t in clean["threads"]:
+        for f in t["files"]:
+            if not here(root, f):
+                out.append("`%s` names %s, which is not there any more"
+                           % (t["id"], f))
+        if t["doc"] and not _doc_found(root, t["doc"]):
+            out.append("`%s` points at the document `%s`, which this "
+                       "workspace does not offer any more" % (t["id"], t["doc"]))
+        for w in t["writes"]:
+            if not here(root, w["file"]):
+                out.append("`%s` is written up in %s, which is not there"
+                           % (t["id"], w["file"]))
+        if t["closed"] and any(not x["done"] for x in t["tasks"]):
+            out.append("`%s` is closed with %d open task(s) on it"
+                       % (t["id"], sum(1 for x in t["tasks"] if not x["done"])))
+    if documents:
+        claimed_ids = set(t["doc"] for t in clean["threads"] if t["doc"])
+        claimed_rel = set(d["doc"] for d in clean["deliverables"] if d["doc"])
+        try:
+            from . import reading
+            docs = reading.documents(root)
+        except Exception:                                    # noqa: BLE001
+            docs = []
+        for d in docs:
+            if d["id"] in claimed_ids or d.get("rel") in claimed_rel:
+                continue
+            out.append("the document `%s` (%s) is on no thread and no "
+                       "deliverable. Put its id in a thread's `doc` if it "
+                       "belongs on one." % (d["id"], d.get("rel")))
+    return out
+
+
+# ---------------------------------------------------------------------------
+# status: derived, never typed
+# ---------------------------------------------------------------------------
+def unfinished(jobs, tid):
+    """The registered jobs of one thread that sacct has not called finished.
+
+    `jobs` is the registry in file order. A later record for the same job id
+    overrides an earlier one, so the poll that sees a job end appends one line
+    carrying `state` rather than rewriting the file.
+    """
+    last = {}
+    for j in jobs or []:
+        if not isinstance(j, dict):
+            continue
+        key = str(j.get("jobid") or "")
+        if not key:
+            continue
+        merged = dict(last.get(key) or {})
+        merged.update(j)
+        last[key] = merged
+    out = []
+    for j in last.values():
+        if j.get("thread") != tid:
+            continue
+        state = str(j.get("state") or "").split()[0].upper() if j.get("state") else ""
+        if state.rstrip("+") in TERMINAL:
+            continue
+        out.append(j)
+    return out
+
+
+def _under(p, base):
+    return p == base or p.startswith(base + "/")
+
+
+def stage(t, present, texts, dirty, jobs):
+    """One thread's status and flags. A PURE function of what it is handed.
+
+        t        a thread, as `validate` returns it
+        present  the set of workspace-relative paths that exist
+        texts    {path: text} for the files the thread writes up in
+        dirty    workspace-relative paths git reports as changed
+        jobs     the job registry, as records
+
+    Returns `{"status", "unsaved", "decisions", "tasks"}` -- the status is the
+    first true row of done, running, written, result, open.
+    """
+    outputs_there = all(o in present for o in t["outputs"])
+    anchors_there = all(w["anchor"] in (texts.get(w["file"]) or "")
+                        for w in t["writes"])
+    if t["closed"]:
+        status = "done"
+    elif unfinished(jobs, t["id"]):
+        status = "running"
+    elif (t["outputs"] or t["writes"]) and outputs_there and anchors_there:
+        status = "written" if t["writes"] else "result"
+    elif t["outputs"] and outputs_there:
+        status = "result"
+    else:
+        status = "open"
+    mine = list(t["files"]) + list(t["outputs"]) + [w["file"] for w in t["writes"]]
+    unsaved = any(_under(p, base) for p in dirty for base in mine)
+    return {
+        "status": status,
+        "unsaved": unsaved,
+        "decisions": sum(1 for d in t["decisions"] if d["rule"] is None),
+        "tasks": sum(1 for x in t["tasks"] if not x["done"]),
+    }
+
+
+def jobs_of(root):
+    """The job registry, `live/jobs.jsonl`, as records. Empty if none."""
+    out = []
+    try:
+        with open(os.path.join(root, "live", "jobs.jsonl"), "r",
+                  encoding="utf-8") as fh:
+            for line in fh:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    out.append(json.loads(line))
+                except ValueError:
+                    continue
+    except OSError:
+        return []
+    return out
+
+
+def dirty_of(root):
+    """Workspace-relative paths git shows as changed or untracked."""
+    try:
+        prefix = subprocess.run(
+            ["git", "rev-parse", "--show-prefix"], cwd=root,
+            stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+            universal_newlines=True, timeout=10).stdout.strip()
+        raw = subprocess.run(
+            ["git", "status", "--porcelain", "-z", "--untracked-files=all",
+             "--", "."], cwd=root, stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL, universal_newlines=True,
+            timeout=20).stdout
+    except (OSError, subprocess.SubprocessError):
+        return []
+    out, fields, i = [], raw.split("\0"), 0
+    while i < len(fields):
+        entry = fields[i]
+        i += 1
+        if len(entry) < 4:
+            continue
+        code, rel = entry[:2], entry[3:]
+        if code[0] in "RC":
+            i += 1                       # the original path follows a rename
+        if prefix and rel.startswith(prefix):
+            rel = rel[len(prefix):]
+        out.append(rel.rstrip("/"))
+    return out
+
+
+def stages(root):
+    """`{thread id: stage}` for this workspace, read off disk. Cached briefly."""
+    key = os.path.realpath(root)
+    hit = _cache.get(key)
+    if hit and time.time() - hit[0] < CACHE_SECONDS:
+        return hit[1]
+    clean, problems = read(root)
+    found = {}
+    if clean and not problems:
+        threads = resolve(root, clean)
+        present, texts = set(), {}
+        for t in threads:
+            for o in t["outputs"]:
+                if here(root, o):
+                    present.add(o)
+            for w in t["writes"]:
+                if w["file"] not in texts:
+                    try:
+                        with open(os.path.join(root, w["file"]), "r",
+                                  encoding="utf-8", errors="replace") as fh:
+                            texts[w["file"]] = fh.read()
+                    except OSError:
+                        texts[w["file"]] = ""
+        dirty, jobs = dirty_of(root), jobs_of(root)
+        for t in threads:
+            found[t["id"]] = stage(t, present, texts, dirty, jobs)
+    _cache[key] = (time.time(), found)
+    return found
+
+
+# ---------------------------------------------------------------------------
+# migration from the written map
+# ---------------------------------------------------------------------------
+def from_map(written, deliverable_id, deliverable_title=""):
+    """A `live/map.json` document, as a thread file. Pure.
+
+    Each box becomes a thread: `files` (with `dir` folded in), `doc` and
+    `blockedBy` carry over; `status` and the edges are dropped, because status
+    is derived and an arrow is what `blockedBy` draws. The box's plain name and
+    its real identifier become the title, and what it does and its note become
+    the question until somebody writes the real one.
+    """
+    threads = []
+    for n in written.get("nodes") or []:
+        files = list(n.get("files") or [])
+        d = (n.get("dir") or "").strip("/")
+        if d and not any(_under(f, d) for f in files):
+            files.append(d)
+        title = n.get("name") or n["id"]
+        if n.get("also"):
+            title = "%s (%s)" % (title, n["also"])
+        question = " ".join(x.strip() for x in (n.get("does"), n.get("note"))
+                            if x and x.strip())
+        threads.append({
+            "id": n["id"], "deliverable": deliverable_id,
+            "title": title[:MAX_TITLE], "question": question[:MAX_QUESTION],
+            "files": files, "outputs": [], "writes": [], "tasks": [],
+            "decisions": [], "doc": n.get("doc") or "",
+            "blockedBy": list(n.get("blockedBy") or []), "closed": False,
+        })
+    return {
+        "version": VERSION,
+        "deliverables": [{"id": deliverable_id,
+                          "title": (deliverable_title or written.get("title")
+                                    or deliverable_id)[:MAX_TITLE],
+                          "doc": ""}],
+        "threads": threads,
+    }

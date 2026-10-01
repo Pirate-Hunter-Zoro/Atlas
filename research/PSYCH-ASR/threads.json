@@ -1,0 +1,167 @@
+{
+  "version": 1,
+  "deliverables": [
+    {
+      "id": "stage1",
+      "title": "Stage 1 — a recording to a graded transcript",
+      "doc": ""
+    }
+  ],
+  "threads": [
+    {
+      "id": "typist",
+      "deliverable": "stage1",
+      "title": "the typist (faster-whisper large-v3)",
+      "question": "Turns the waveform into words. One candidate, never compared — which is a default, not a decision.",
+      "files": [
+        "psych_asr/asr/typists.py",
+        "psych_asr/cli/transcribe.py",
+        "psych_asr/cli/run_asr.py"
+      ],
+      "outputs": [],
+      "writes": [],
+      "tasks": [],
+      "decisions": [],
+      "doc": "",
+      "blockedBy": [],
+      "closed": false
+    },
+    {
+      "id": "stopwatch",
+      "deliverable": "stage1",
+      "title": "the stopwatch (wav2vec2 base, LibriSpeech)",
+      "question": "Puts a start and an end on every word. The least examined box here: a small model trained on read audiobooks. re-aligning the corrected words needs the corrected words to be right",
+      "files": [
+        "psych_asr/asr/align.py",
+        "psych_asr/cli/align_words.py",
+        "psych_asr/cli/warm_align_cache.py"
+      ],
+      "outputs": [],
+      "writes": [],
+      "tasks": [],
+      "decisions": [],
+      "doc": "",
+      "blockedBy": [
+        "corrections"
+      ],
+      "closed": false
+    },
+    {
+      "id": "name-tagger",
+      "deliverable": "stage1",
+      "title": "the name-tagger (five arms: pyannote, Sortformer, DiariZen)",
+      "question": "Says who was speaking when, reading no words at all. Five arms, compared, still undecided.",
+      "files": [
+        "psych_asr/diarize/pyannote_arm.py",
+        "psych_asr/diarize/sortformer_arm.py",
+        "psych_asr/diarize/diarizen_arm.py",
+        "psych_asr/diarize/windowing.py",
+        "psych_asr/cli/diarize_pyannote.py",
+        "psych_asr/cli/diarize_sortformer.py",
+        "psych_asr/cli/diarize_diarizen.py"
+      ],
+      "outputs": [],
+      "writes": [],
+      "tasks": [],
+      "decisions": [],
+      "doc": "",
+      "blockedBy": [],
+      "closed": false
+    },
+    {
+      "id": "joiner",
+      "deliverable": "stage1",
+      "title": "the joiner (Stage 1c)",
+      "question": "Lays the turn table over the timed words, so every word knows who said it.",
+      "files": [
+        "psych_asr/join.py",
+        "psych_asr/cli/join_speakers.py",
+        "psych_asr/artifacts/rttm_io.py"
+      ],
+      "outputs": [],
+      "writes": [],
+      "tasks": [],
+      "decisions": [],
+      "doc": "stage1-pipeline-walkthrough",
+      "blockedBy": [],
+      "closed": false
+    },
+    {
+      "id": "corrections",
+      "deliverable": "stage1",
+      "title": "the corrections (117 rows of a human error log)",
+      "question": "Turns the human's error log into the corrected reference. Two defects reported 16 Sep. her quotes and bracketed speaker names come through as speech; interjections land at the end of the host turn",
+      "files": [
+        "psych_asr/transcript/corrections.py",
+        "psych_asr/cli/apply_corrections.py",
+        "psych_asr/artifacts/error_log.py"
+      ],
+      "outputs": [],
+      "writes": [],
+      "tasks": [],
+      "decisions": [],
+      "doc": "stage2-reference-walkthrough",
+      "blockedBy": [],
+      "closed": false
+    },
+    {
+      "id": "grader",
+      "deliverable": "stage1",
+      "title": "the grader (psych_asr.evaluate.grade)",
+      "question": "Reproduces the annotator's own six error labels against the corrected reference, with nobody listening. its numbers move when the reference is rebuilt",
+      "files": [
+        "psych_asr/evaluate/grade.py",
+        "psych_asr/evaluate/labels.py",
+        "psych_asr/cli/grade_arms.py"
+      ],
+      "outputs": [],
+      "writes": [],
+      "tasks": [],
+      "decisions": [],
+      "doc": "",
+      "blockedBy": [],
+      "closed": false
+    },
+    {
+      "id": "grid",
+      "deliverable": "stage1",
+      "title": "the grid (4 typists x 2 stopwatches x 5 name-taggers)",
+      "question": "A cube, not a table: 40 cells from 13 jobs, because five of six labels cannot move along two axes.",
+      "files": [
+        "slurm_jobs/run_bakeoff.sh",
+        "slurm_jobs/run_typist_bakeoff.sh"
+      ],
+      "outputs": [],
+      "writes": [],
+      "tasks": [],
+      "decisions": [],
+      "doc": "",
+      "blockedBy": [
+        "stopwatch",
+        "corrections"
+      ],
+      "closed": false
+    },
+    {
+      "id": "scorer",
+      "deliverable": "stage1",
+      "title": "the scorer (psych_asr.cli.score_arms)",
+      "question": "Reads the whole cube and says which combination is worth running on the rest of the sessions.",
+      "files": [
+        "psych_asr/evaluate/score.py",
+        "psych_asr/evaluate/compare.py",
+        "psych_asr/cli/score_arms.py",
+        "psych_asr/cli/compare_arms.py"
+      ],
+      "outputs": [],
+      "writes": [],
+      "tasks": [],
+      "decisions": [],
+      "doc": "",
+      "blockedBy": [
+        "grid"
+      ],
+      "closed": false
+    }
+  ]
+}
