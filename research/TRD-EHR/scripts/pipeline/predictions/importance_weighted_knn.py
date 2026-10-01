@@ -60,20 +60,23 @@ IMPORTANCE_MODEL_NAME = 'logistic_regression'
 CONCENTRATION_FRACTIONS = (0.01, 0.02, 0.05, 0.10, 0.25, 0.50)
 
 
-def load_dimension_weights(model_name: str = IMPORTANCE_MODEL_NAME) -> Tuple[np.ndarray, object]:
+def load_dimension_weights(model_name: str = IMPORTANCE_MODEL_NAME, cache_path: Path = None) -> Tuple[np.ndarray, object]:
     """Read the fitted embedded-space classifier and return its per-dimension weights.
 
     Args:
         model_name (str, optional): Cached classifier to read. Defaults to
             IMPORTANCE_MODEL_NAME; anything else must still be a linear model with a
             coef_ of one row.
+        cache_path (Path, optional): The fitted model's file. Defaults to the one under
+            RESULTS_DIR; the cross-embedder figures pass each encoder's own.
 
     Returns:
         Tuple[np.ndarray, object]: (weights of shape (n_dimensions,), non-negative and
             summing to one, indexed by embedding dimension; the fitted StandardScaler
             those coefficients were learnt against).
     """
-    cache_path = model_cache_path(model_name, VectorSource.EMBEDDED)
+    if cache_path is None:
+        cache_path = model_cache_path(model_name, VectorSource.EMBEDDED)
     if not cache_path.exists():
         raise FileNotFoundError(
             f"No fitted {model_name} for the embedded representation at {cache_path}. "
@@ -115,6 +118,25 @@ def concentration_summary(weights: np.ndarray) -> dict:
             'share': float(cumulative[count - 1]),
         }
     return summary
+
+
+def dimensions_holding_share(weights: np.ndarray, share: float) -> int:
+    """The fewest dimensions whose importance adds up to at least this share of the total.
+
+    A non-zero count says nothing about an L2-penalised fit, which keeps every dimension;
+    this count is defined for any penalty, so encoders fitted either way can be compared.
+
+    Args:
+        weights (np.ndarray): Output of load_dimension_weights, summing to one.
+        share (float): Target share of total importance, in (0, 1].
+
+    Returns:
+        int: The number of largest-weight dimensions needed to reach it.
+    """
+    cumulative = np.cumsum(np.sort(weights)[::-1])
+    # Rounding can leave the full sum a hair under 1.0; never ask for more dimensions
+    # than exist.
+    return int(min(np.searchsorted(cumulative, share - 1e-12) + 1, weights.size))
 
 
 def to_weighted_space(vectors: np.ndarray, scaler, weights: np.ndarray) -> np.ndarray:

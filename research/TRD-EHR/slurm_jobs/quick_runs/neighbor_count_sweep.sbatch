@@ -5,8 +5,8 @@
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=32
 #SBATCH --mem=200G
-#SBATCH -o slurm_jobs/quick_runs/logs/neighbor_count_sweep_out.txt
-#SBATCH -e slurm_jobs/quick_runs/logs/neighbor_count_sweep_err.txt
+#SBATCH -o slurm_jobs/quick_runs/logs/neighbor_count_sweep_%j_out.txt
+#SBATCH -e slurm_jobs/quick_runs/logs/neighbor_count_sweep_%j_err.txt
 
 # Every retrieval arm swept over every neighbourhood size from 1 to the whole candidate
 # pool: importance-weighted cosine, plain cosine, and random neighbours with uniform
@@ -29,6 +29,12 @@
 # version writes. Either way the manuscript figure (Figure 4) and the best-k panels are
 # drawn and the folder is mirrored into results/, because the manuscript links the
 # mirror, not RESULTS_DIR.
+#
+# EMBEDDER=<name> sweeps that embedding model instead of the one .env names, e.g.
+#   sbatch --export=ALL,EMBEDDER=bge-en-icl slurm_jobs/quick_runs/neighbor_count_sweep.sbatch
+# It needs that model's embeddings.db and fitted logistic regression already on disk.
+# .env derives EMBEDDINGS_DIR and RESULTS_DIR from EMBEDDER_MODEL_NAME, so both are
+# re-derived here after it is sourced.
 
 # Exit immediately if command fails
 set -e
@@ -51,6 +57,12 @@ if [[ ! -f "${ENV_FILE}" ]]; then
   exit 11
 fi
 set -a; source "${ENV_FILE}"; set +a
+if [[ -n "${EMBEDDER:-}" ]]; then
+  export EMBEDDER_MODEL_NAME="${EMBEDDER}"
+  export EMBEDDINGS_DIR="${ARTIFACTS_DIR}/${EMBEDDER_MODEL_NAME}"
+  export RESULTS_DIR="${ARTIFACTS_DIR}/${EMBEDDER_MODEL_NAME}/${VLLM_MODEL_NAME}"
+fi
+echo "Sweeping ${EMBEDDER_MODEL_NAME}: results in ${RESULTS_DIR}"
 
 echo "Running on $(hostname) with ${SLURM_CPUS_PER_TASK} cpus"
 

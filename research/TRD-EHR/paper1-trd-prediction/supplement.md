@@ -10,7 +10,7 @@ paper's two points: the LLM clinical-similarity judge (complete in
 reserve/llm_similarity_judge.md), uniform and combined weighting, subsampled
 retrieval, and the nearest-farthest fusion, which rested on uniform weighting.
 
-RETRIEVAL is two arms, plain cosine and importance-weighted cosine (M10), each
+RETRIEVAL is two arms, plain cosine and logistic-regression-weighted cosine (M10), each
 at its own best k (757 and 295), with random (uniform weights, 1,000 draws, every
 k, best k 32,720) and farthest (k = 50, the one arm with no best k of its own) as
 controls. Every best k was chosen on the test patients and is called optimistic
@@ -196,13 +196,13 @@ $$ESS = \frac{\left( \sum_{i = 1}^{k}w_{i} \right)^{2}}{\sum_{i = 1}^{k}w_{i}^{2
 
 which equals $k$ when all weights are equal and falls as weight concentrates on fewer neighbors.
 
-Two similarity metrics were compared. Plain cosine similarity used the raw embeddings. Importance-weighted cosine similarity standardized each dimension with the embedded logistic regression's own scaler, $z_{d} = (x_{d} - \mu_{d})/\sigma_{d}$, and weighted dimension $d$ by its share of that model's absolute coefficients:
+Two similarity metrics were compared. Plain cosine similarity used the raw embeddings. Logistic-regression-weighted cosine similarity standardized each dimension with the embedded logistic regression's own scaler, $z_{d} = (x_{d} - \mu_{d})/\sigma_{d}$, and weighted dimension $d$ by its share of that model's absolute coefficients:
 
 $$\mathrm{sim}_{w}(x,y) = \frac{\sum_{d}w_{d}\, z_{d}(x)\, z_{d}(y)}{\sqrt{\sum_{d}w_{d}\, z_{d}(x)^{2}}\,\sqrt{\sum_{d}w_{d}\, z_{d}(y)^{2}}}, \qquad w_{d} = \frac{|\beta_{d}|}{\sum_{e}|\beta_{e}|}.$$
 
 The coefficients came from the model fitted on training patients, so no test outcome entered a risk score. The metric is supervised, whereas plain cosine similarity is not. Of 4,096 dimensions, 385 had non-zero coefficients, and the top 41 (1%) carried 31% of the absolute coefficient mass.
 
-A sweep evaluated every k from 1 to all 34,063 training patients for both metrics, under $\alpha$ = 1, 2, and 5. Nearest retrieval selected the k most similar training patients. Each metric was reported at its best k, the k with the highest test AUC, the smallest on a tie: 295 for importance-weighted and 757 for plain cosine similarity, under $\alpha$ = 1. Random retrieval drew k training patients at random for each test patient and averaged their outcomes with equal weights. It was scored at every k, nested so that k + 1 neighbors extend the k already drawn, and repeated in 1,000 draws seeded from the study seed; its band at each k is the 2.5th to 97.5th percentile of the AUC across draws, and its best k is the highest mean across draws. Farthest retrieval, which selected the 50 least similar patients, served as a second negative control. It has no best k of its own: adding neighbors only moves it toward the all-patients value of the nearest arms. Every best k was selected on the test patients, so the values at it are optimistic. These analyses were restricted to embeddings; no mixed-data similarity metric was specified for FEATURE.
+A sweep evaluated every k from 1 to all 34,063 training patients for both metrics, under $\alpha$ = 1, 2, and 5. Nearest retrieval selected the k most similar training patients. Each metric was reported at its best k, the k with the highest test AUC, the smallest on a tie: 295 for logistic-regression-weighted and 757 for plain cosine similarity, under $\alpha$ = 1. Random retrieval drew k training patients at random for each test patient and averaged their outcomes with equal weights. It was scored at every k, nested so that k + 1 neighbors extend the k already drawn, and repeated in 1,000 draws seeded from the study seed; its band at each k is the 2.5th to 97.5th percentile of the AUC across draws, and its best k is the highest mean across draws. Farthest retrieval, which selected the 50 least similar patients, served as a second negative control. It has no best k of its own: adding neighbors only moves it toward the all-patients value of the nearest arms. Every best k was selected on the test patients, so the values at it are optimistic. These analyses were restricted to embeddings; no mixed-data similarity metric was specified for FEATURE.
 
 # M11 Concept Permutation
 
@@ -286,7 +286,7 @@ Figure S3. ROC AUC by retained principal components for logistic regression (A),
 
 AUPRC complements ROC AUC by describing precision across recall levels. Its no-skill reference is the cohort's positive fraction, 0.175. Because it depends on outcome frequency, AUPRC should not be compared across populations without accounting for prevalence.
 
-AUPRC remained modest across models (Tables S1--S2; Figure S4). The leading embedded and feature models achieved 0.302 (95% CI 0.281--0.325) and 0.298 (95% CI 0.276--0.322), respectively. These values are also summarized in Table 2. At each retrieval arm's best k, AUPRC was 0.272 (95% CI 0.251--0.294) for importance-weighted, 0.264 (95% CI 0.244--0.286) for plain cosine, and 0.176 (95% CI 0.165--0.188) for random retrieval. Random retrieval therefore sat at the no-skill reference. The best k was chosen on the test patients by ROC AUC, so these values are optimistic.
+AUPRC remained modest across models (Tables S1--S2; Figure S4). The leading embedded and feature models achieved 0.302 (95% CI 0.281--0.325) and 0.298 (95% CI 0.276--0.322), respectively. These values are also summarized in Table 2. At each retrieval arm's best k, AUPRC was 0.272 (95% CI 0.251--0.294) for logistic-regression-weighted, 0.264 (95% CI 0.244--0.286) for plain cosine, and 0.176 (95% CI 0.165--0.188) for random retrieval. Random retrieval therefore sat at the no-skill reference. The best k was chosen on the test patients by ROC AUC, so these values are optimistic.
 
 Table S1. AUPRC of the four classifiers on each representation and of the 3 retrieval arms, each arm at its own test-selected best k (held-out test set), with bootstrap 95% CIs. No-skill baseline = 0.175 (the positive rate, 95% CI 0.167--0.183).
 
@@ -300,7 +300,7 @@ Table S1. AUPRC of the four classifiers on each representation and of the 3 retr
 | FEATURE | Random forest | 0.293 (0.271--0.315) |
 | FEATURE | Gradient boosting | 0.288 (0.267--0.309) |
 | FEATURE | XGBoost | 0.298 (0.276--0.322) |
-| Retrieval | Importance-weighted cosine, k = 295 | 0.272 (0.251--0.294) |
+| Retrieval | Logistic-regression-weighted cosine, k = 295 | 0.272 (0.251--0.294) |
 | Retrieval | Plain cosine, k = 757 | 0.264 (0.244--0.286) |
 | Retrieval | Random, uniform weights, k = 32,720 | 0.176 (0.165--0.188) |
 
@@ -321,7 +321,7 @@ B Feature vector XGBoost
 
 ![](../results/Qwen-Qwen3-Embedding-8B/google_medgemma-27b-text-it/pr_curves/pr_curve_xgboost_FEATURE.png){width=5.8in}
 
-C Importance-weighted nearest retrieval, k = 295
+C Logistic-regression-weighted nearest retrieval, k = 295
 
 ![](../results/Qwen-Qwen3-Embedding-8B/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/pr_curve_NEAREST_IMPORTANCE_WEIGHTED_alpha1_k295.png){width=5.8in}
 
@@ -351,7 +351,7 @@ Table S3. Brier score and weighted calibration error for all 8 primary represent
 | FEATURE | Random forest | 0.139 (0.134--0.144) | 0.018 (0.011--0.026) |
 | FEATURE | Gradient boosting | 0.138 (0.133--0.143) | 0.010 (0.005--0.018) |
 | FEATURE | XGBoost | 0.138 (0.132--0.143) | 0.012 (0.006--0.020) |
-| Retrieval | Importance-weighted cosine, k = 295 | 0.140 (0.134--0.145) | 0.005 (0.003--0.014) |
+| Retrieval | Logistic-regression-weighted cosine, k = 295 | 0.140 (0.134--0.145) | 0.005 (0.003--0.014) |
 | Retrieval | Plain cosine, k = 757 | 0.141 (0.135--0.146) | 0.009 (0.004--0.016) |
 | Retrieval | Random, uniform weights, k = 32,720 | 0.144 (0.139--0.150) | 0.00001* (0.0001--0.009) |
 
@@ -369,7 +369,7 @@ Table S4. Slopes and intercepts fitted to the binned calibration curves, with bo
 | FEATURE | Random forest | 1.84 (1.41--2.23) | −0.15 (−0.22 to −0.08) |
 | FEATURE | Gradient boosting | 0.87 (0.28--1.48) | +0.04 (−0.11 to +0.19) |
 | FEATURE | XGBoost | 1.02 (0.53--1.52) | +0.02 (−0.09 to +0.13) |
-| Retrieval | Importance-weighted cosine, k = 295 | 1.37 (1.07--1.69) | −0.06 (−0.11 to −0.01) |
+| Retrieval | Logistic-regression-weighted cosine, k = 295 | 1.37 (1.07--1.69) | −0.06 (−0.11 to −0.01) |
 | Retrieval | Plain cosine, k = 757 | 2.66 (1.30--2.78) | −0.27 (−0.29 to −0.05) |
 | Retrieval | Random, uniform weights, k = 32,720 | not estimable | not estimable |
 
@@ -381,7 +381,7 @@ B Feature vector XGBoost
 
 ![](../results/Qwen-Qwen3-Embedding-8B/google_medgemma-27b-text-it/calibration_curves/calibration_curve_xgboost_FEATURE.png){width=5.8in}
 
-C Importance-weighted nearest retrieval, k = 295
+C Logistic-regression-weighted nearest retrieval, k = 295
 
 ![](../results/Qwen-Qwen3-Embedding-8B/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/calibration_curve_NEAREST_IMPORTANCE_WEIGHTED_alpha1_k295.png){width=5.8in}
 
@@ -552,24 +552,24 @@ TRD-negative example.
 
 # S6 Neighbor Prediction
 
-Retrieval over the embedding carried outcome information but did not reach the trained classifiers. Random retrieval stayed at chance at every k: its band across draws covered 0.5 at all 34,063. Its best k, 32,720, reached 0.500 (2.5th--97.5th percentile across draws 0.484--0.515), and that k is noise. Farthest retrieval reached 0.432 (95% CI 0.416--0.449) (Table S7). At their best k, importance-weighted retrieval exceeded random by 0.125 (95% CI 0.103--0.147) and plain cosine by 0.118 (95% CI 0.096--0.140). These intervals combine bootstrap resampling of the test patients with the spread across the 1,000 random draws. AUPRC at each arm's best k was 0.272 (95% CI 0.251--0.294) for importance-weighted, 0.264 (95% CI 0.244--0.286) for plain cosine, and 0.176 (95% CI 0.165--0.188) for random retrieval, against an outcome rate of 0.175 (95% CI 0.167--0.183) (section S2). Calibration is in section S3.
+Retrieval over the embedding carried outcome information but did not reach the trained classifiers. Random retrieval stayed at chance at every k: its band across draws covered 0.5 at all 34,063. Its best k, 32,720, reached 0.500 (2.5th--97.5th percentile across draws 0.484--0.515), and that k is noise. Farthest retrieval reached 0.432 (95% CI 0.416--0.449) (Table S7). At their best k, logistic-regression-weighted retrieval exceeded random by 0.125 (95% CI 0.103--0.147) and plain cosine by 0.118 (95% CI 0.096--0.140). These intervals combine bootstrap resampling of the test patients with the spread across the 1,000 random draws. AUPRC at each arm's best k was 0.272 (95% CI 0.251--0.294) for logistic-regression-weighted, 0.264 (95% CI 0.244--0.286) for plain cosine, and 0.176 (95% CI 0.165--0.188) for random retrieval, against an outcome rate of 0.175 (95% CI 0.167--0.183) (section S2). Calibration is in section S3.
 
-Neighborhood size mattered more than the metric. Both curves rose with k up to a few hundred neighbors (manuscript Figure 4). From k = 261 onward, importance-weighted retrieval stayed inside the interval at its best k. Plain cosine retrieval peaked at k = 757 and then drifted down, to 0.605 (95% CI 0.589--0.620) at k = 16,988, still inside the interval at its best k. Each metric at its own best k differed by 0.007 (95% CI −0.001 to 0.014). The best k was selected on test patients, so those maxima are optimistic. Using every training patient as a neighbor involves no selection and gave 0.624 (95% CI 0.607--0.639) for the importance-weighted metric and 0.608 (95% CI 0.592--0.624) for plain cosine. The sharpening exponent changed the maxima by at most 0.002.
+Neighborhood size mattered more than the metric. Both curves rose with k up to a few hundred neighbors (manuscript Figure 4). From k = 261 onward, logistic-regression-weighted retrieval stayed inside the interval at its best k. Plain cosine retrieval peaked at k = 757 and then drifted down, to 0.605 (95% CI 0.589--0.620) at k = 16,988, still inside the interval at its best k. Each metric at its own best k differed by 0.007 (95% CI −0.001 to 0.014). The best k was selected on test patients, so those maxima are optimistic. Using every training patient as a neighbor involves no selection and gave 0.624 (95% CI 0.607--0.639) for the logistic-regression-weighted metric and 0.608 (95% CI 0.592--0.624) for plain cosine. The sharpening exponent changed the maxima by at most 0.002.
 
-The best retrieval result over every k and exponent was importance-weighted retrieval with $\alpha$ = 2 at k = 1,090, 0.625 (95% CI 0.610--0.640). It remained below feature-vector XGBoost by 0.024 (95% CI 0.012--0.036) and below embedded logistic regression by 0.032 (95% CI 0.022--0.043), from paired bootstrap resampling of the 8,516 test patients.
+The best retrieval result over every k and exponent was logistic-regression-weighted retrieval with $\alpha$ = 2 at k = 1,090, 0.625 (95% CI 0.610--0.640). It remained below feature-vector XGBoost by 0.024 (95% CI 0.012--0.036) and below embedded logistic regression by 0.032 (95% CI 0.022--0.043), from paired bootstrap resampling of the 8,516 test patients.
 
 Table S7. Neighbor-prediction ROC AUC for the primary encoder by retrieval scheme, similarity metric, and neighborhood size, with $\alpha$ = 1. Best k is the test-selected maximum and is optimistic. The uniform random row gives the mean across 1,000 draws and the 2.5th--97.5th percentile of the draws. Farthest retrieval uses the retrieval pipeline's k = 50 and $\alpha$ = 5.
 
 | **Retrieval** | **Similarity** | **Neighbors (k)** | **ROC AUC (95% CI)** |
 | ---------- | -------------------- | ------------------ | ---------------------- |
 | Nearest | Plain cosine | best, 757 | 0.618 (0.602--0.634) |
-| Nearest | Importance-weighted | best, 295 | 0.625 (0.610--0.641) |
+| Nearest | Logistic-regression-weighted | best, 295 | 0.625 (0.610--0.641) |
 | Nearest | Plain cosine | all, 34,063 | 0.608 (0.592--0.624) |
-| Nearest | Importance-weighted | all, 34,063 | 0.624 (0.607--0.639) |
+| Nearest | Logistic-regression-weighted | all, 34,063 | 0.624 (0.607--0.639) |
 | Random | Uniform | best, 32,720 | 0.500 (0.484--0.515) |
 | Farthest | Plain cosine | 50 | 0.432 (0.416--0.449) |
 
-A Importance-weighted nearest retrieval, k = 295
+A Logistic-regression-weighted nearest retrieval, k = 295
 
 ![](../results/Qwen-Qwen3-Embedding-8B/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/roc_curve_NEAREST_IMPORTANCE_WEIGHTED_alpha1_k295.png){width=5.8in}
 
@@ -581,9 +581,9 @@ C Random retrieval, uniform weights, k = 32,720
 
 ![](../results/Qwen-Qwen3-Embedding-8B/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/roc_curve_RANDOM_UNIFORM_k32720.png){width=5.8in}
 
-Figure S8. ROC curves for importance-weighted (A) and plain-cosine (B) nearest retrieval and uniform random retrieval (C), each at its own test-selected best k, with $\alpha$ = 1 for A and B. C is the draw whose AUC at that k is closest to the mean of 1,000 draws. Shaded bands are bootstrap 95% CIs. ROC: receiver operating characteristic.
+Figure S8. ROC curves for logistic-regression-weighted (A) and plain-cosine (B) nearest retrieval and uniform random retrieval (C), each at its own test-selected best k, with $\alpha$ = 1 for A and B. C is the draw whose AUC at that k is closest to the mean of 1,000 draws. Shaded bands are bootstrap 95% CIs. ROC: receiver operating characteristic.
 
-A Importance-weighted nearest retrieval, k = 295
+A Logistic-regression-weighted nearest retrieval, k = 295
 
 ![](../results/Qwen-Qwen3-Embedding-8B/google_medgemma-27b-text-it/neighbor_count_sweep/best_k_panels/confusion_matrix_NEAREST_IMPORTANCE_WEIGHTED_alpha1_k295.png){width=5.8in}
 
@@ -625,7 +625,7 @@ Figure S10. Record length, diagnosis-to-index interval, encounter count, and out
 
 The held-out test set was divided into quintiles of pre-index history length, and each retrieval arm was scored within each quintile at its own best k from section S6. The best k was chosen on all test patients, so these values are optimistic in the same way.
 
-Table S8. Neighbor-prediction ROC AUC by quintile of pre-index history length (embedded representation, held-out test set, $\alpha$ = 1), with bootstrap 95% CIs within each quintile. Days are the quintile's bounds of pre-index history. Weighted: importance-weighted cosine; plain: plain cosine. Random retrieval uses uniform weights and the draw whose AUC at its best k is closest to the mean of 1,000 draws.
+Table S8. Neighbor-prediction ROC AUC by quintile of pre-index history length (embedded representation, held-out test set, $\alpha$ = 1), with bootstrap 95% CIs within each quintile. Days are the quintile's bounds of pre-index history. Weighted: logistic-regression-weighted cosine; plain: plain cosine. Random retrieval uses uniform weights and the draw whose AUC at its best k is closest to the mean of 1,000 draws.
 
 | **Days** | **n** | **Events** | **Weighted, k = 295** | **Plain, k = 757** | **Random, k = 32,720** |
 | -------------- | --------: | --------: | ------------------------ | ------------------------ | ------------------------ |
@@ -635,7 +635,7 @@ Table S8. Neighbor-prediction ROC AUC by quintile of pre-index history length (e
 | 2,067--2,733 | 1,704 | 282 | 0.633 (0.598--0.669) | 0.626 (0.592--0.663) | 0.487 (0.449--0.523) |
 | 2,734--5,288 | 1,701 | 230 | 0.619 (0.580--0.655) | 0.598 (0.561--0.636) | 0.479 (0.437--0.519) |
 
-AUC ranged from 0.600 to 0.633 for importance-weighted and 0.598 to 0.626 for plain cosine retrieval, without a monotonic trend, and every quintile's interval overlapped the others. Random retrieval stayed near 0.5, and its interval included 0.5 in every quintile. This does not establish independence from record volume; differing case mix and imprecision within strata limit interpretation.
+AUC ranged from 0.600 to 0.633 for logistic-regression-weighted and 0.598 to 0.626 for plain cosine retrieval, without a monotonic trend, and every quintile's interval overlapped the others. Random retrieval stayed near 0.5, and its interval included 0.5 in every quintile. This does not establish independence from record volume; differing case mix and imprecision within strata limit interpretation.
 
 The stratification covers neighbor prediction only, not the trained classifiers. Each quintile contained about 1,700 patients.
 
@@ -698,7 +698,7 @@ Subgroup analyses address performance differences, a question distinct from dire
 
 Held-out predicted probabilities were partitioned by subgroup without refitting models. Discrimination and calibration were recalculated within each group.
 
-The analysis included 4 FEATURE classifiers, 4 EMBEDDED classifiers, and 4 neighbor configurations, each at its own best k from section S6: nearest retrieval under plain cosine similarity (k = 757) and under importance-weighted similarity (k = 295), and 2 controls, uniform random retrieval (k = 32,720) and farthest retrieval (k = 50). Between-group contrasts included the 2 nearest-neighbor configurations and excluded the controls. The best k was chosen on all test patients, not within each subgroup.
+The analysis included 4 FEATURE classifiers, 4 EMBEDDED classifiers, and 4 neighbor configurations, each at its own best k from section S6: nearest retrieval under plain cosine similarity (k = 757) and under logistic-regression-weighted similarity (k = 295), and 2 controls, uniform random retrieval (k = 32,720) and farthest retrieval (k = 50). Between-group contrasts included the 2 nearest-neighbor configurations and excluded the controls. The best k was chosen on all test patients, not within each subgroup.
 
 Strata comprised sex, recorded race, age, marital status, smoking, religion, MDD recurrence, and severity. Race was aggregated as White versus other recorded categories because of small subgroup counts; this masks potentially important heterogeneity. Preferred language was not contrasted because 98.9% preferred English. A subgroup was treated as not estimable when its smaller outcome class contained fewer than 20 patients.
 
@@ -782,7 +782,7 @@ Table S10. Discrimination and calibration by sociodemographic stratum, one repre
 | Religion: Protestant | 4,654 | 793 | F LR | 0.642 (0.620--0.662) | 0.135 (0.128--0.142) | 1.05 (0.88--1.19) | +0.002 (−0.007 to +0.013) |
 | Religion: Protestant | 4,654 | 793 | N WTD | 0.632 (0.609--0.653) | 0.136 (0.130--0.143) | 1.19 (0.99--1.40) | −0.003 (−0.012 to +0.007) |
 
-E LR: embedded logistic regression; F LR: feature-vector logistic regression; N WTD: importance-weighted nearest-neighbor prediction (k = 295). Events denotes positive TRD proxy outcomes. Mean risk difference is mean predicted probability minus observed frequency.
+E LR: embedded logistic regression; F LR: feature-vector logistic regression; N WTD: logistic-regression-weighted nearest-neighbor prediction (k = 295). Events denotes positive TRD proxy outcomes. Mean risk difference is mean predicted probability minus observed frequency.
 
 ## S9 3 Clinical strata
 
@@ -821,7 +821,7 @@ Table S11. Discrimination and calibration by recorded depression phenotype, one 
 | MDD recurrence: Single Episode | 5,723 | 954 | F LR | 0.605 (0.584--0.626) | 0.136 (0.130--0.143) | 0.83 (0.67--0.99) | −0.000 (−0.011 to +0.009) |
 | MDD recurrence: Single Episode | 5,723 | 954 | N WTD | 0.603 (0.584--0.623) | 0.136 (0.130--0.143) | 1.03 (0.83--1.22) | −0.004 (−0.014 to +0.006) |
 
-E LR: embedded logistic regression; F LR: feature-vector logistic regression; N WTD: importance-weighted nearest-neighbor prediction (k = 295). Events denotes positive TRD proxy outcomes. Mean risk difference is mean predicted probability minus observed frequency.
+E LR: embedded logistic regression; F LR: feature-vector logistic regression; N WTD: logistic-regression-weighted nearest-neighbor prediction (k = 295). Events denotes positive TRD proxy outcomes. Mean risk difference is mean predicted probability minus observed frequency.
 
 ## S9 4 Adjusted Subgroup Comparisons
 
@@ -849,9 +849,9 @@ All 10 White-minus-non-White AUC contrasts were positive (0.005--0.046); 5 exclu
 
 The other-recorded-race stratum had 302 events, compared with 1,181 among White patients, and wider CIs. The direction is consistent across related models, but these are correlated comparisons rather than independent replications. The data leave racial differences unresolved.
 
-Nineteen of the 23 adjusted contrasts involved recurrence. Recurrent coding was associated with higher discrimination in all 10 contrasted models (differences 0.053--0.072), and single-episode coding with lower discrimination (−0.071 to −0.047), which survived adjustment in 9. Severe coding did not survive adjustment in either retrieval arm at its best k (plain cosine +0.053, adjusted P=.26; importance-weighted +0.064, adjusted P=.18).
+Nineteen of the 23 adjusted contrasts involved recurrence. Recurrent coding was associated with higher discrimination in all 10 contrasted models (differences 0.053--0.072), and single-episode coding with lower discrimination (−0.071 to −0.047), which survived adjustment in 9. Severe coding did not survive adjustment in either retrieval arm at its best k (plain cosine +0.053, adjusted P=.26; logistic-regression-weighted +0.064, adjusted P=.18).
 
-The remaining 4 adjusted contrasts indicated lower discrimination among never-married patients in 2 EMBEDDED classifiers (−0.054 to −0.051; minimum adjusted P=.015) and in importance-weighted retrieval (−0.047; adjusted P=.04), and at ages 18--29 in FEATURE XGBoost (−0.068; adjusted P=.04). Their causes were not established.
+The remaining 4 adjusted contrasts indicated lower discrimination among never-married patients in 2 EMBEDDED classifiers (−0.054 to −0.051; minimum adjusted P=.015) and in logistic-regression-weighted retrieval (−0.047; adjusted P=.04), and at ages 18--29 in FEATURE XGBoost (−0.068; adjusted P=.04). Their causes were not established.
 
 ![](../results/review/subgroups/subgroup_forest.png){width=5.6in}
 

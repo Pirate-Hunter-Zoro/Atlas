@@ -52,7 +52,7 @@ FIGURE_DPI = 300
 ALPHA = 1.0
 
 METRIC_DISPLAY = {
-    "weighted": "Importance-weighted cosine",
+    "weighted": "Logistic-regression-weighted cosine",
     "plain":    "Plain cosine",
     "random":   "Random neighbors, uniform weights",
 }
