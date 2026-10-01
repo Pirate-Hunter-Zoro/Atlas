@@ -14,6 +14,28 @@ The user should never have to remember the plan. When they ask what is next,
 the answer is here, and it is the first unfinished line below. Read it, say what
 the step is, and start it. Do not make them reconstruct anything.
 
+THE CURRENT DIRECTION: EXPLAIN THE SHAPE OF THE NEIGHBOUR-COUNT SWEEP. The user
+wants the mathematics behind why ROC AUC against k looks the way it does, for all
+three arms, taught on the board with the figure shown at each step. Figure:
+results/Qwen-Qwen3-Embedding-8B/google_medgemma-27b-text-it/neighbor_count_sweep/
+neighbor_count_sweep_manuscript.png. Code: scripts/pipeline/predictions/
+neighbor_count_sweep.py (risk = sum of w*y over sum of w on the k nearest,
+w = max(cos, 0)^alpha, alpha = 1). Pool 34,063, test 8,516, prevalence 0.175.
+One exercise per step, each written into a homework sheet once agreed:
+  L1. Random arm: AUC = 1/2 at every k. Score ignores the patient, so the TRD
+      and non-TRD score distributions are identical.
+  L2. The left edge, k = 1: a 0/1 score, so AUC = (1 + TPR - FPR)/2, about 0.52.
+  L3. The climb, roughly linear in log k: neighbour-mean variance p(1-p)/k
+      falls, while bias from farther, less similar neighbours grows slowly.
+  L4. The right edge: plain cosine sags toward its all-pool value as weights
+      flatten; weighted cosine goes flat because far neighbours have
+      non-positive similarity and weight zero. Verify the share of zero weights
+      from the embeddings before teaching it.
+  L5. Every best k is chosen on the test patients it is scored on, so each
+      best-k AUC is optimistic; the random arm's best k (32,720) is pure noise.
+
+THE PAPER STEPS BELOW ARE UNCHANGED AND STILL BLOCKED ON MARTIN.
+
 THE 2026-09-29 INK ROUND is applied and the packet is rebuilt
 (paper1-trd-prediction/review/round_2026-09-29.md). Left, both for Martin:
   1. Does the corresponding author move to him? (ledger item 1)
