@@ -506,6 +506,24 @@ await sleep(60);
     ? ok('and a document still being written cannot be dismissed, because it is '
          + 'still being written')
     : fail('waving away news from elsewhere silenced work happening here');
+
+  // BUT A FINISHED ONE IS. `✕` on a landed document retires it on the server,
+  // and the payloads that still carry it before the record changes do not
+  // paint the strip back up.
+  window.asked.length = 0;
+  const landed = paper({ id: 't0022', state: 'done', doc: 'writeups-harness' });
+  es.onmessage({ data: frame([], [], [landed]) });
+  await sleep(60);
+  doc.getElementById('news-hide').dispatchEvent(new window.Event('click'));
+  await sleep(30);
+  window.asked.some((r) => r.url === '/writeup/seen' && r.how === 'POST')
+    ? ok('waving off a finished document tells the server it has been seen')
+    : fail('the cross on a finished document told the server nothing');
+  es.onmessage({ data: frame([], [], [landed]) });
+  await sleep(60);
+  bar().hidden
+    ? ok('and it does not come back on the next payload')
+    : fail('a finished document waved off came straight back');
 }
 
 /* --------------------------------------------------------- the front door */

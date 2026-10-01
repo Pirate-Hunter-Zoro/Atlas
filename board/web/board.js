@@ -9548,13 +9548,19 @@ function paintMissions(show) {
 var WRITEUP_WORD = { writing: "being written", done: "in the library",
                      failed: "did not land" };
 var writeupShown = "";
+/* Finished ones `✕` has waved off, held here until the server's record says
+   `seen` and the row stops arriving. Keyed by state, so the same ask failing
+   later is still news. */
+var writeupMuted = Object.create(null);
 
 function writeupKey(w) {
   return (w.id || "") + "@" + (w.state || "");
 }
 
 function writeupsShowing(data) {
-  return ((data && data.writeups) || []).slice(0, 3);
+  return ((data && data.writeups) || []).filter(function (w) {
+    return !writeupMuted[writeupKey(w)];
+  }).slice(0, 3);
 }
 
 function writeupSeen(id) {
@@ -9736,12 +9742,18 @@ if (els.newsHide) {
     ((lastLive && lastLive.missions) || []).forEach(function (m) {
       missionMuted[missionMute(m)] = true;
     });
-    /* A DOCUMENT BEING WRITTEN HERE IS NOT MUTED, and that is deliberate: it
-       comes back on the next payload. This is a gesture about news from
-       elsewhere, and a write-up in progress is the one row in here about work
-       happening on this board. A finished one is retired by going to read it,
-       which tells the server — `writeupSeen` — because the fact is about the
-       document rather than about this page. */
+    /* A FINISHED DOCUMENT IS RETIRED, on the server, because the fact is about
+       the document rather than this page: a second device stops offering it
+       too. Muted here as well, or the next payload paints it back before the
+       server's record changes.
+       A DOCUMENT BEING WRITTEN HERE IS NOT MUTED, and that is deliberate: it
+       comes back on the next payload, because it is work happening on this
+       board rather than news. */
+    ((lastLive && lastLive.writeups) || []).forEach(function (w) {
+      if (w.state === "writing") return;
+      writeupMuted[writeupKey(w)] = true;
+      writeupSeen(w.id);
+    });
     els.newsBar.hidden = true;
     if (window.MissionPanel) window.MissionPanel.hide(els.missionProgress);
     newsShown = "";
