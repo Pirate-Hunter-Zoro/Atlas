@@ -166,7 +166,10 @@ FIELDS = ("id", "task", "agent", "at", "ship", "from", "host", "card_at",
           # daemon writes it -- see `carry_verdict`. `session` is the id the
           # client is told to open and to resume, so a pick-up names the
           # conversation rather than taking whichever is newest.
-          "turn_at", "session")
+          "turn_at", "session",
+          # The thread of that workspace the mission works on, the same id a
+          # job registered with `board job` carries. "" where none was named.
+          "thread")
 
 
 def _dir(root):
@@ -203,7 +206,7 @@ def write(root, rec):
 
 
 def dispatch(root, task, turn, agent="", ship=False, frm="", ceiling=0.0,
-             brought="", now=None):
+             brought="", thread="", now=None):
     """Record that a mission has just been sent into this workspace.
 
     `turn` is the turn the task was written as, and is the mission's name.
@@ -213,7 +216,8 @@ def dispatch(root, task, turn, agent="", ship=False, frm="", ceiling=0.0,
     a release cannot derive afterwards. `card_at` is what the workspace's newest card was at dispatch, so
     "a card has landed since" is a comparison rather than a guess -- without it
     a clock a second out between two nodes reports a mission done the instant it
-    starts.
+    starts. `thread` is the thread of that workspace the mission works on, or
+    "" -- the same id a job registered with `board job` carries.
     """
     now = float(now or time.time())
     rec = {
@@ -238,6 +242,7 @@ def dispatch(root, task, turn, agent="", ship=False, frm="", ceiling=0.0,
         # paints. This field is the CLAIM -- see `claim_ship`.
         "shipped": 0.0,
         "brought": brought or "",
+        "thread": thread or "",
         "released": 0.0,
         "carry": 0.0,
         "carries": 0,

@@ -46,6 +46,10 @@ The assistant runs these. The student never does.
     board thread --show|--check        read it, or say what has gone stale in it
     board thread task|done|decide|close [<thread>] ...
                                        edit one thread; `board thread --help`
+    board job <thread> [--produces <path>] -- sbatch <args>
+                                       submit long work registered to a thread;
+                                       its ending wakes a turn that reports it.
+                                       Never a bare sbatch. --show lists them
     board deckfig writeups/<deck> <ws> <id>
                                        copy one more figure into a deck made
                                        from sittings; prints the path to use
@@ -111,7 +115,7 @@ import time
 TOOL = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 sys.path.insert(0, TOOL)
 from tutorboard import (assistants, atlas, brief, carry, direction, handoff,
-                        keys, leaving, limits, machine, manuscript, meeting,
+                        jobs, keys, leaving, limits, machine, manuscript, meeting,
                         missions, paths, plain, ports, processes, progress,
                         reasoning, seeing, sense, sittings, tex, worktree)
 from tutorboard.net import egress, tailscale
@@ -2532,6 +2536,94 @@ def _is_ignored(root, rel):
     return p.returncode == 0
 
 
+def cmd_job(live, args):
+    """Submit long work to Slurm, registered to a thread, so it reports itself.
+
+        board job <thread> [--produces <path>]... -- sbatch <args>
+
+    `<path>` is workspace-relative, the way a thread's `outputs` are.
+    `<thread>` may be left out where the sitting open now is on a thread.
+
+    Runs the sbatch (from the directory you are in) and appends
+    `{thread, jobid, cmd, produces, submitted}` to this workspace's job
+    registry -- `live/jobs.jsonl`, or `jobs.jsonl` at the root where `live/` is
+    ignored. While it is pending or running its thread says `running`. When it
+    ends, the tutor daemon puts a `[job]` line in the inbox and a turn reports
+    it.
+
+    **A turn that starts long work submits it through here.** A bare `sbatch`
+    is work the board cannot see.
+
+        board job --show        every registered job, folded to its last state
+    """
+    root = live.root
+    args = list(args)
+    if args[:1] == ["--show"]:
+        recs = jobs.records(root)
+        if not recs:
+            print("no jobs registered here.")
+            return 0
+        for j in sorted(recs.values(), key=lambda r: r.get("submitted") or 0):
+            print("%-10s %-24s %-11s %s" % (
+                j.get("jobid"), j.get("thread"),
+                j.get("state") or "PENDING", j.get("cmd", "")))
+        return 0
+    if "--" not in args:
+        print("board job: put the sbatch command after `--`: board job "
+              "<thread> [--produces <path>] -- sbatch <args>", file=sys.stderr)
+        return 1
+    cut = args.index("--")
+    head, argv = args[:cut], args[cut + 1:]
+    produces, words, i = [], [], 0
+    while i < len(head):
+        if head[i] == "--produces" and i + 1 < len(head):
+            produces.append(head[i + 1])
+            i += 2
+            continue
+        words.append(head[i])
+        i += 1
+    clean, problems = course_threads.read(root)
+    if problems or not clean:
+        print("board job: a job is registered to a thread, and %s"
+              % ("the thread file is not valid:\n  " + "\n  ".join(problems)
+                 if problems else "this workspace has no thread file. Write "
+                 "one with `board thread` first."), file=sys.stderr)
+        return 1
+    ids = sorted(t["id"] for t in clean["threads"])
+    tid = words[0] if words else str(live.state().get("thread") or "")
+    if len(words) > 1 or tid not in ids:
+        print("board job: name one thread first -- %s" % ", ".join(ids),
+              file=sys.stderr)
+        return 1
+    rels, bad = [], []
+    for p in produces:
+        # Workspace-relative, like a thread's `outputs`; an absolute path is
+        # made so.
+        rel = course_threads._rel(os.path.relpath(p, root)
+                                  if os.path.isabs(p) else p)
+        (rels if rel else bad).append(rel or p)
+    if bad:
+        print("board job: --produces names a path inside this workspace, and "
+              "%s is not. Nothing was submitted." % ", ".join(bad),
+              file=sys.stderr)
+        return 1
+    rec, why = jobs.submit(root, tid, argv, produces=rels)
+    if not rec:
+        print("board job: %s" % why, file=sys.stderr)
+        return 1
+    where = jobs.registry(root)
+    print("job %s submitted for `%s`, registered in %s%s"
+          % (rec["jobid"], tid, os.path.relpath(where, root),
+             "; its log is " + rec["log"] if rec.get("log") else ""))
+    if jobs.ignored(root, os.path.relpath(where, root)):
+        print("BUT GIT CANNOT SEE %s. Add `!%s` to %s, after the rule that "
+              "hides it." % (os.path.relpath(where, root),
+                             os.path.relpath(where, root),
+                             os.path.join(root, ".gitignore")),
+              file=sys.stderr)
+    return 0
+
+
 def inside_a_daemon_turn(live):
     """Is a headless turn in flight on this machine right now?
 
@@ -3779,7 +3871,7 @@ COMMANDS = {
     "egress": cmd_egress, "limit": cmd_limit,
     "brief": cmd_brief, "note": cmd_note, "handoff": cmd_handoff,
     "step": cmd_step,
-    "thread": cmd_thread, "notes": cmd_notes, "make": cmd_make,
+    "thread": cmd_thread, "job": cmd_job, "notes": cmd_notes, "make": cmd_make,
     "direction": cmd_direction, "aim": cmd_aim, "deckfig": cmd_deckfig,
 }
 

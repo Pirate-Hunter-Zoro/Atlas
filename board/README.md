@@ -48,7 +48,7 @@ must be openable and teachable at every point.
   `board.css`, `plane-core.js`, `gauge.js`, `home.html`, `home.js`, `library.html`,
   `library.js`, `library.css`, anything added to the cache list), or the installed app
   serves its cached copy and the work is invisible.
-- **`bash test/all.sh` before every ship.** 106 suites, all green. `test/tracked.py` runs
+- **`bash test/all.sh` before every ship.** 107 suites, all green. `test/tracked.py` runs
   early — after the browser suites, before everything else — and refuses PHI, 25-megabyte files, model dumps, other authors' papers and
   machine-local config anywhere in the repository — this is public, and git remembers.
   The last of them is **Paper-Writer's own**, run where it is checked out and skipped
@@ -649,7 +649,7 @@ registry. The first true row wins:
 | Status | True when |
 |---|---|
 | done | `closed` |
-| running | a job in `live/jobs.jsonl` for this thread has no terminal sacct state |
+| running | a job registered to it has no terminal state, or a live mission names it |
 | written | it has outputs or write-ups, every output exists, every anchor is in its file |
 | result | it has outputs and every one exists |
 | open | otherwise |
@@ -665,6 +665,47 @@ closed is a step, carrying its `thread`, and the map puts it on that thread's bo
 file with no open task leaves the README-pointed plan file in force.
 
 PSYCH-ASR and libr-local-llm carry thread files, one thread per stage of the work.
+
+### Jobs register to a thread and report themselves
+
+**A turn that starts long work submits it through `board job`.** A bare `sbatch` is work the
+board cannot see: its thread reads `open` while it runs and nobody hears when it ends. Every
+workspace contract says so. `tutorboard/jobs.py` is the module; `test/jobs.py` is the suite.
+
+```
+board job <thread> [--produces <path>]... -- sbatch <args>
+board job --show                     every registered job, folded to its last state
+```
+
+It runs the `sbatch` from the caller's directory (adding `--parsable`), asks `scontrol` once for
+the job's `StdOut`, and appends `{thread, jobid, cmd, cwd, produces, log, submitted}` to the job
+registry. `--produces` paths are workspace-relative. The thread must exist in `threads.json`;
+`<thread>` may be left out where the sitting names one.
+
+**The registry is append-only and tracked.** It is `live/jobs.jsonl` where git can see it there
+(the course allowlists, PSYCH-ASR and libr-local-llm carry `!live/jobs.jsonl`), and `jobs.jsonl`
+at the workspace root where `live/` is ignored wholesale (TRD-EHR, Paper-Writer). Whichever
+exists wins. A reader folds records by `jobid` in file order (`threads.merged`).
+
+**The per-board tutor daemon polls it.** `headless` in `bin/tutor` runs `job_pass` on a thread
+beside the transcript beat, every `jobs.POLL_SECONDS` (60). Each pass asks `sacct` about the jobs
+with no terminal state, and appends a state change short of the end (PENDING to RUNNING). On a
+terminal state it claims the ending once (`O_EXCL` under `live/jobs.reported/`, so two daemons
+never report one job twice), appends `{state, exit, ended}`, and drops a `[job]` line in the
+inbox. `board wait` hands that line over like any other, and `turn_signal` reads `job` off it. A
+job sacct has never heard of fifteen minutes after submission is `LOST`, which is terminal.
+
+**The `[job]` turn reports.** The line names the job, its state, exit code, command, log path and
+whether each `--produces` path exists. The turn writes one card on what finished, what it
+produced and any non-zero exit; a failed job is reported from the tail of its log. Then it moves
+the thread on with `board thread`. The log is named in the line, never copied into it: the inbox
+is tracked in some workspaces, and a job's output is not the inbox's to carry.
+
+**Running shows in two places.** The box says `running` through `threads.stage`. Between turns
+the busy strip says *running — (thread title): job N*, with *pending* while it waits, on the
+job's own clock, off the payload's `jobs` (`jobs.running`). A mission dispatched with a `thread`
+(`POST /elsewhere`, refused where that workspace has no such thread) carries it in its record,
+and while the mission is live its thread says `running` too.
 
 ### The meeting deck
 

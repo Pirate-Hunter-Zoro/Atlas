@@ -59,8 +59,9 @@ sys.path.insert(0, TOOL)
 from tutorboard import stamp
 if sys.argv[1:2] == ["headless"]:
     stamp.mark_loaded()
-from tutorboard import (atlas, choice, handoff, keys, limits, machine, missions,
-                        paths, processes, seeing, supervise, worktree)
+from tutorboard import (atlas, choice, handoff, jobs, keys, limits, machine,
+                        missions, paths, processes, seeing, supervise,
+                        worktree)
 from tutorboard.course import config
 from tutorboard.net import egress, tailscale
 
@@ -2285,6 +2286,27 @@ def turn_signal(out):
     return ""
 
 
+def job_pass(root, log=None, run=None):
+    """One poll of this workspace's registered jobs. The endings it reported.
+
+    Never raises: a daemon whose job poll threw would be a daemon that stopped
+    answering the student over a sacct hiccup.
+    """
+    try:
+        ended = (jobs.report(root, run=run) if run is not None
+                 else jobs.report(root))
+    except Exception as exc:                                 # noqa: BLE001
+        if log:
+            log.write("-- the job poll failed: %s\n" % exc)
+        return []
+    for rec in ended:
+        if log:
+            log.write("-- job %s on `%s` ended %s; a [job] line is in the "
+                      "inbox\n" % (rec.get("jobid"), rec.get("thread"),
+                                   rec.get("state")))
+    return ended
+
+
 def open_mission(root):
     """The newest mission record in this workspace that has not ended, or None.
 
@@ -3537,6 +3559,17 @@ def headless(cfg, course, agent_name, session):
             while running["go"] and time.time() < end:
                 time.sleep(1)
     threading.Thread(target=beat_transcript, daemon=True).start()
+
+    def beat_jobs():
+        # A job registered with `board job` reports itself: each pass asks
+        # sacct about the ones still out, and an ending becomes a `[job]` line
+        # in the inbox, which the `board wait` below picks up like any other.
+        while running["go"]:
+            job_pass(root, log)
+            end = time.time() + jobs.POLL_SECONDS
+            while running["go"] and time.time() < end:
+                time.sleep(1)
+    threading.Thread(target=beat_jobs, daemon=True).start()
 
     turns = 0
     # Which chapter this daemon has actually been teaching, refreshed each turn.

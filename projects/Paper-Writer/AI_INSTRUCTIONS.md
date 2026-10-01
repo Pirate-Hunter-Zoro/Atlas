@@ -285,6 +285,10 @@ in the repository.
 
 `live/` is scratch space and is gitignored. Nothing in it is ever committed.
 
+**Long work goes through `board job`.** A turn that starts a Slurm job submits it with
+`board job <thread> [--produces <path>] -- sbatch <args>`, and its ending wakes a turn that
+reports it. A bare `sbatch` is work the board cannot see.
+
 ## 10. Non-programming help
 
 Be materially helpful in either mode. Provide the finished artifact: revised prose,
