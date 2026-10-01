@@ -498,53 +498,62 @@ def beside_the_lesson(repo):
         except (OSError, subprocess.TimeoutExpired):
             pass
 
-        try:
-            # `git status --porcelain` prints paths relative to the GIT ROOT,
-            # not to the directory it was run in -- so in a repository holding
-            # nine workspaces every name comes back with the workspace's own
-            # directory on the front of it. A turn in Galois-Theory told about
-            # `courses/Galois-Theory/notes/ch04.tex` has to strip a prefix to
-            # find a file that is right there beside it.
-            top = repo.root
-            tp = subprocess.run(["git", "rev-parse", "--show-toplevel"],
-                                cwd=repo.root, stdout=subprocess.PIPE,
-                                stderr=subprocess.DEVNULL, timeout=10)
-            if tp.returncode == 0:
-                said = tp.stdout.decode("utf-8", "replace").strip()
-                if said:
-                    top = said
-            p = subprocess.run(
-                ["git", "--no-optional-locks", "status", "--porcelain",
-                 "--", repo.root],
-                cwd=repo.root, stdout=subprocess.PIPE,
-                stderr=subprocess.DEVNULL, timeout=10)
-            if p.returncode == 0:
-                names = []
-                for line in p.stdout.decode("utf-8", "replace").splitlines():
-                    if not line.strip():
-                        continue
-                    # `XY <path>`, and a rename is `XY <old> -> <new>`.
-                    rel = line[3:].strip().strip('"')
-                    if " -> " in rel:
-                        rel = rel.split(" -> ", 1)[1]
-                    try:
-                        here = os.path.relpath(os.path.join(top, rel), repo.root)
-                    except ValueError:
-                        here = rel
-                    names.append(here)
-                # THE LESSON'S OWN SCRATCH IS NOT SOMEBODY'S WORK. `live/` is
-                # where the board writes cards, ink and state while a sitting is
-                # running; reporting it as "they changed these files" would make
-                # every turn open with a list of what the board itself just did.
-                theirs = [n for n in names
-                          if not n.startswith("live" + os.sep) and n != "live"]
-                # COUNTED AFTER THE FILTER, so the number and the list are about
-                # the same thing. "2 files are uncommitted" over a list of one is
-                # a turn wondering what the other one was.
-                value["files"] = len(theirs)
-                value["uncommitted"] = theirs[:BESIDE_FILES]
-        except (OSError, subprocess.TimeoutExpired):
-            pass
+        theirs = uncommitted(repo.root)
+        if theirs is not None:
+            # COUNTED AFTER THE FILTER, so the number and the list are about
+            # the same thing. "2 files are uncommitted" over a list of one is
+            # a turn wondering what the other one was.
+            value["files"] = len(theirs)
+            value["uncommitted"] = theirs[:BESIDE_FILES]
 
     _BESIDE[key] = (now, value)
     return value
+
+
+def uncommitted(root, paths=None):
+    """Uncommitted paths under `paths` (default: the workspace), relative to `root`.
+
+    None where git cannot be asked. `live/` is left out: it is the board's own
+    scratch -- cards, ink, state -- and listing it as changed work would make
+    every answer open with what the board itself just did.
+    """
+    try:
+        # `git status --porcelain` prints paths relative to the GIT ROOT, not
+        # to the directory it was run in -- so in a repository holding nine
+        # workspaces every name comes back with the workspace's own directory
+        # on the front of it. A turn in Galois-Theory told about
+        # `courses/Galois-Theory/notes/ch04.tex` has to strip a prefix to find
+        # a file that is right there beside it.
+        top = root
+        tp = subprocess.run(["git", "rev-parse", "--show-toplevel"],
+                            cwd=root, stdout=subprocess.PIPE,
+                            stderr=subprocess.DEVNULL, timeout=10)
+        if tp.returncode == 0:
+            said = tp.stdout.decode("utf-8", "replace").strip()
+            if said:
+                top = said
+        spec = [os.path.join(root, p) if not os.path.isabs(p) else p
+                for p in (paths or [root])]
+        p = subprocess.run(
+            ["git", "--no-optional-locks", "status", "--porcelain", "--"] + spec,
+            cwd=root, stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL, timeout=10)
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    if p.returncode != 0:
+        return None
+    names = []
+    for line in p.stdout.decode("utf-8", "replace").splitlines():
+        if not line.strip():
+            continue
+        # `XY <path>`, and a rename is `XY <old> -> <new>`.
+        rel = line[3:].strip().strip('"')
+        if " -> " in rel:
+            rel = rel.split(" -> ", 1)[1]
+        try:
+            here = os.path.relpath(os.path.join(top, rel), root)
+        except ValueError:
+            here = rel
+        names.append(here)
+    return [n for n in names
+            if not n.startswith("live" + os.sep) and n != "live"]

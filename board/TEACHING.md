@@ -468,15 +468,17 @@ happened."*
 
 So:
 
-1. **One sentence, written first.** `board write` a single plain line saying what
-   you are about to do. It lands at once, so nobody watches a blank board. Keep
-   the path it prints.
+1. **One sentence, written first.** `board write pending` a single plain line
+   saying what you are about to do. It lands at once, so nobody watches a blank
+   board. Keep the path it prints.
 2. **Do the work.** Write it. Run it. Read what came back. Fix what that showed
    you. If something cannot be run here, run what can and say which.
 3. **Write the report over that sentence.** `board write --over <path>` — the
    same card, now saying what you changed, which files, what you ran, what it
-   said, and what is left. Plain words, under 200, no headings. One card in the
-   transcript, and the truth in it.
+   said, and what is left. Name every file you changed and left uncommitted.
+   Plain words, under 200, no headings. One card in the transcript, and the
+   truth in it. A turn that exits with the placeholder still up is woken once
+   more to write it; after that the daemon writes the card itself.
 4. **Then stop.** Ask something only if you are genuinely blocked. If you can
    pick a reasonable answer and say which you picked, do that instead — a
    question is not how a doing turn ends by default.
@@ -1319,7 +1321,7 @@ left you. All of those were written for the direction it replaced.
 
 **A turn woken by the change does the replanning, that turn, in this order:**
 
-1. One plain sentence on the board with `board write`, saying you are
+1. One plain sentence on the board with `board write pending`, saying you are
    re-planning. It lands at once, so nothing is blank while you read.
 2. Read what is actually there — the plan file the briefing names, the map, and
    the README if the change makes it wrong.

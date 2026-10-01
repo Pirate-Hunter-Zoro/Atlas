@@ -19,6 +19,8 @@ The assistant runs these. The student never does.
     board next [kind] [slug]           print the path of the next card to write
     board write <kind> <slug>          read a card body on stdin, write the card
     board write --over <card> ...      write over a card already on the board
+    board write pending <slug>         the placeholder a doing turn writes first;
+                                       the report goes --over it
     board brief                        what a turn is BOUND by, in ONE call: the
                                        method, this course's unbendable rules, the
                                        handoff, the last turn's note
@@ -118,7 +120,11 @@ from tutorboard.course import config, document, homework, paper, review, walk
 # the binding does not.
 from tutorboard.course import map as course_map
 SERVE = os.path.join(TOOL, "serve.py")
-KINDS = ("lesson", "question", "correct", "wrong", "review", "note", "recap")
+# `pending` is the placeholder a doing turn opens with and writes its report
+# over. A turn that exits leaving the newest card `pending` has not reported,
+# and the daemon says so -- see `report_owed` in `bin/tutor`.
+KINDS = ("lesson", "question", "correct", "wrong", "review", "note", "recap",
+         "pending")
 
 # How many cards `board recap` names as lines. Every turn reads this, so it is
 # the one part of the recap that must not grow with the lesson -- see cmd_recap.

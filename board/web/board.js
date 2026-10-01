@@ -719,7 +719,11 @@ var KIND_LABEL = {
   wrong: "not quite",
   review: "review",
   note: "aside",
-  recap: "recap"
+  recap: "recap",
+  /* A doing turn's placeholder, and what replaces it when the turn ended
+     without writing its report over it. */
+  pending: "working",
+  stopped: "stopped without a report"
 };
 
 /* Which kinds are a reply to a piece of working, as opposed to new teaching.
@@ -9075,9 +9079,11 @@ function doingTurn(state) {
 }
 
 function newestCard(data) {
+  /* A `pending` card is the placeholder a turn opens with, not its answer, so
+     it never counts as something new having landed. */
   var newest = 0;
   (data.cards || []).forEach(function (c) {
-    if (c.mtime > newest) newest = c.mtime;
+    if (c.kind !== "pending" && c.mtime > newest) newest = c.mtime;
   });
   return newest;
 }

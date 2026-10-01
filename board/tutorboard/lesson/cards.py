@@ -172,3 +172,87 @@ def load_cards(repo, jobs):
     for gone in [k for k in _CARD_CACHE if k not in seen and k.startswith(repo.cards)]:
         del _CARD_CACHE[gone]
     return cards
+
+
+# ---------------------------------------------------------------------------
+# a turn ends on a report
+# ---------------------------------------------------------------------------
+# A doing turn writes a `pending` card first -- one sentence, so the board is
+# never blank -- and writes its report over it. A turn that exits with the
+# newest card still `pending` has not reported. The daemon wakes it once more
+# with `[unfinished]`; if that also leaves the card `pending`, the card is
+# replaced by a `stopped` one listing what is on disk, so the board and the
+# disk cannot disagree without the card saying so.
+PENDING = "pending"
+STOPPED = "stopped"
+
+# How many uncommitted paths a stopped card names; the rest are counted.
+STOPPED_NAMES = 12
+
+
+def newest(cards_dir):
+    """`(path, meta)` of the highest-numbered card in `cards_dir`, or `(None, {})`."""
+    try:
+        names = sorted(n for n in os.listdir(cards_dir)
+                       if CARD_RE.match(n) and not PART_RE.match(n))
+    except OSError:
+        return None, {}
+    for name in reversed(names):
+        path = os.path.join(cards_dir, name)
+        try:
+            with open(path, "r", encoding="utf-8") as fh:
+                meta, body = parse_front_matter(fh.read())
+        except OSError:
+            continue
+        if not has_body(body):
+            continue
+        return path, meta
+    return None, {}
+
+
+def is_pending(meta):
+    return ((meta or {}).get("kind") or "").lower() == PENDING
+
+
+def stopped_body(changed, jobs=None):
+    """The card that replaces a placeholder whose turn never reported.
+
+    `changed` is `git status` under the work's paths, workspace-relative.
+    `jobs` is whatever was registered while the turn ran, one line each.
+    """
+    lines = ["The turn stopped without reporting. Here is what changed on disk.", ""]
+    if changed:
+        lines += ["Uncommitted:", ""]
+        lines += ["- `%s`" % name for name in changed[:STOPPED_NAMES]]
+        if len(changed) > STOPPED_NAMES:
+            lines.append("- and %d more" % (len(changed) - STOPPED_NAMES))
+    else:
+        lines.append("Nothing under this work is uncommitted.")
+    if jobs:
+        lines += ["", "Jobs registered since:", ""]
+        lines += ["- %s" % job for job in jobs]
+    return "\n".join(lines)
+
+
+def write_stopped(path, changed, jobs=None):
+    """Replace the placeholder at `path` with a `stopped` card. True if written.
+
+    Same directory and `os.replace`, as `board write` does, so a poll sees the
+    old card or the new one and never an empty file.
+    """
+    head = "---\nkind: %s\n---\n" % STOPPED
+    tmp = os.path.join(os.path.dirname(path),
+                       ".%s.%d.part" % (os.path.basename(path), os.getpid()))
+    try:
+        with open(tmp, "w", encoding="utf-8") as fh:
+            fh.write(head + stopped_body(changed, jobs).rstrip() + "\n")
+            fh.flush()
+            os.fsync(fh.fileno())
+        os.replace(tmp, path)
+    except OSError:
+        try:
+            os.remove(tmp)
+        except OSError:
+            pass
+        return False
+    return True
