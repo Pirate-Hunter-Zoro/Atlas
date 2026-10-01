@@ -17,7 +17,9 @@ git clone --recurse-submodules https://github.com/Pirate-Hunter-Zoro/Atlas.git
 Atlas/
   README.md          this file
   atlas.json         the families, in the order the front door draws them
-  board/             Tutor-Board — the tool. `bash board/install.sh` installs it
+  HANDOFF.md         what is left to build, in order
+  board/             Tutor-Board — the tool. `bash board/install.sh` installs it.
+                     README.md is its architecture, SETTLED.md the rules already built
 
   courses/           a workspace per course
   research/          a workspace per line of research
@@ -76,6 +78,11 @@ Three questions are answerable from any surface in here, and they are the reason
 | **How to tell somebody** | a write-up, a deck, or meeting notes whose links land where they say |
 
 None of those three comes from a status somebody typed into a file by hand.
+
+**A course has a spine and a project needs one.** A course's spine is its book: `chapters.tsv`,
+one sitting per chapter. A project's spine is its deliverables and the threads under them, each
+one a question with its code, outputs, write-up and jobs. Each sitting on a thread has a kind:
+learn, coach or build. `HANDOFF.md` is that build, and the order it lands in.
 
 ---
 
@@ -179,6 +186,9 @@ And the rest of it, in the order it bites:
   under them. Every surface added is one somebody can be stranded on.
 - **Commits are authored by the person, with no assistant trailers.** `.githooks/commit-msg` strips
   them; `save-and-push.sh` turns the hook on for a fresh clone.
+- **A lesson save commits the whole repository**, so `board/` work left in the working tree
+  ships inside somebody's "lesson complete". Finish and ship board work in one sitting.
+  `HANDOFF.md` item 6 scopes the save.
 - **Do not fix things noticed in passing.** One change, shipped, checked, then the next.
 
 ---
