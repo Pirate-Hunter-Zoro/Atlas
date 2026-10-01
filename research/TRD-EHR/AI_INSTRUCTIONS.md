@@ -621,27 +621,27 @@ say the same thing as this section.
 The user asks this at the start of most sessions. It has a written answer, and finding it is
 your job, not theirs.
 
-**Where the answer lives.** `planning/TRD-EHR_TODO.txt` opens with a block headed `WHAT WE DO NEXT`. It names
-the current state, what is blocking, and the ordered steps. Read it, say what the next step is in
-one or two sentences, and start it. `README.md` carries the architecture.
+**Where the answer lives.** `threads.json` at this workspace's root: two deliverables, the
+threads under them, and each thread's tasks and decisions. `board thread --show` prints it with each
+thread's derived status. The first open task, in file order, is the next step. Say it in one or two
+sentences and start it. `README.md` carries the architecture.
 
-**The sibling projects keep the same file in the same place.** `~/Atlas/research/TRD-EHR/planning/TRD-EHR_TODO.txt`,
-`~/Atlas/research/PSYCH-ASR/planning/PSYCH-ASR_TODO.txt`,
-`~/Atlas/projects/libr-local-llm/planning/LOCAL-LLM_TODO.txt`. When the
-user does not name a project, say what each one's next step is in a line, and note which are
-blocked. As of this writing that answer has a shape worth knowing: the paper waits on its senior author, PSYCH-ASR waits on a recording and a human-made reference, and `libr-local-llm` waits on nobody — so it is where work goes while the other two are stalled.
+**The sibling projects keep the same file in the same place.** `~/Atlas/research/PSYCH-ASR/threads.json`
+and `~/Atlas/projects/libr-local-llm/threads.json`. When the user does not name a project, say
+what each one's next step is in a line, and note which are blocked. Paper 1's reviewer thread waits on
+its senior author, PSYCH-ASR waits on a recording and a human-made reference, and
+`libr-local-llm` waits on nobody, so it is where work goes while the other two are stalled.
 
-**If the top block says the work is blocked, that is the answer.** Say what it is waiting on and
+**If a thread says the work is blocked, that is the answer.** Say what it is waiting on and
 stop. Do not go looking for filler work, do not propose an unrelated task, and do not start
 something adjacent because the session would otherwise be short. A blocked project is a fact to
 report, not a gap to fill.
 
-**Keep the block true.** When a step finishes, delete its line — the file records what is left,
-never what is done, and section 9's rules about git history still apply. When the state changes,
-the top block changes in the same commit as the work. A stale `WHAT WE DO NEXT` is worse than
-none, because the user has been told to trust it.
+**Keep the file true, and only through `board thread`.** `done` ticks a task, `task` adds one,
+`decide` writes a decision's rule, and the owner closes a thread. A thread's status is derived and
+never typed. When the state changes, the thread file changes in the same commit as the work.
 
-**One step per turn where the block says so.** Some work is explicitly sequenced — a manuscript
-rewritten one section at a time, for instance. Where the block sets that cadence, hold to it:
+**One step per turn where a task says so.** Some work is explicitly sequenced — a manuscript
+rewritten one section at a time, for instance. Where a task sets that cadence, hold to it:
 finish the one step, hand it over, and wait. Doing three because they are small defeats the
 reason the cadence exists, which is that the user has to be able to check the work.

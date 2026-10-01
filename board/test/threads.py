@@ -25,7 +25,7 @@ import tempfile
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 REPO = os.path.dirname(ROOT)
 sys.path.insert(0, ROOT)
-from tutorboard.course import map as mapping, plan, threads           # noqa: E402
+from tutorboard.course import map as mapping, plan, reading, threads  # noqa: E402
 
 BOARD = os.path.join(ROOT, "bin", "board")
 fails = []
@@ -273,6 +273,37 @@ try:
     code, said = run(ws, ["thread", "task", "knn", "One more"])
     check("an edit to a tracked thread file lands", code == 0)
 
+    # --- which documents a thread file claims -------------------------------
+    docs = os.path.join(home, "docs")
+    for rel in ("paper/manuscript.md", "paper/manuscript.pdf",
+                "paper/parts/manuscript/01-intro.pdf",
+                "homework/sweep/sweep.pdf", "paper/review/round.pdf",
+                "stray/orphan.pdf"):
+        write(os.path.join(docs, rel), "%PDF-1.4\n" + "%" * reading.MIN_BYTES)
+    claimed = {"version": 1,
+               "deliverables": [{"id": "p", "title": "P",
+                                 "doc": "paper/manuscript.md"}],
+               "threads": [{"id": "a", "deliverable": "p", "title": "A",
+                            "files": ["homework/sweep"],
+                            "writes": [{"file": "paper/review/round.md",
+                                        "anchor": "# Round"}]}]}
+    write(threads.path(docs), json.dumps(claimed))
+    write(os.path.join(docs, "paper", "review", "round.md"), "# Round\n")
+    reading._cache.clear()
+    said = "\n".join(threads.check(docs))
+    check("the claim fixture offers five documents",
+          len(reading.documents(docs)) == 5)
+    check("a deliverable's source claims the document built from it",
+          "paper/manuscript.pdf" not in said)
+    check("and a piece under parts/ belongs wherever its whole does",
+          "01-intro" not in said)
+    check("a directory in `files` claims the documents under it",
+          "sweep.pdf" not in said)
+    check("a write-up file claims its built document",
+          "round.pdf" not in said)
+    check("and a document nothing claims is still said aloud",
+          "stray/orphan.pdf" in said)
+
     # A RULE THAT HIDES THE FILE is refused with the edit that fixes it.
     hidden = os.path.join(repo, "projects", "Hidden")
     write(os.path.join(hidden, "AI_INSTRUCTIONS.md"), "# rules\n")
@@ -295,34 +326,57 @@ try:
     check("a thread's own open task lands on its own box, and a ticked one does not",
           [s["label"] for s in on["knn"]["steps"]] == ["One more"])
 
-    # --- the two written maps are migrated, and gone ------------------------
+    # --- the three workspaces carry drafted thread files ---------------------
     psych = os.path.join(REPO, "research", "PSYCH-ASR")
     llm = os.path.join(REPO, "projects", "libr-local-llm")
-    for where, ids in (
-            (psych, ["typist", "stopwatch", "name-tagger", "joiner",
-                     "corrections", "grader", "grid", "scorer"]),
-            (llm, ["ollama", "ollama-drivers", "opencode", "colibri",
-                   "coli-commands", "engine", "upstream", "p0", "fleet"])):
+    trd = os.path.join(REPO, "research", "TRD-EHR")
+    for where, dels, ids in (
+            (trd, ["paper1", "paper2"],
+             ["knn-across-embedders", "reviewer-findings", "consistency-pass"]),
+            (psych, ["stage1"],
+             ["transcription", "word-alignment", "diarization", "speaker-join",
+              "reference-transcript", "arm-measurement", "grid-sweep",
+              "arm-selection", "recording-review"]),
+            (llm, ["local-inference", "colibri-deck"],
+             ["phi-path", "libr-hardware", "phi-deck"])):
         name = os.path.basename(where)
+        fresh()
         clean, problems = threads.read(where)
         check("%s's thread file is valid" % name, clean and not problems)
-        check("and every box of its old map is a thread",
-              clean and [t["id"] for t in clean["threads"]] == ids)
+        got = [t["id"] for t in (clean or {}).get("threads", [])]
+        check("and it carries its deliverables and threads",
+              clean and [d["id"] for d in clean["deliverables"]] == dels
+              and all(i in got for i in ids))
+        check("and `--check` finds nothing it claims that the tree does not",
+              threads.check(where) == [])
         check("and its live/map.json is gone",
               not os.path.exists(os.path.join(where, "live", "map.json")))
         check("and git can see its thread file",
               subprocess.run(["git", "check-ignore", "-q", "threads.json"],
                              cwd=where).returncode == 1)
-    clean = threads.read(psych)[0]
-    check("files, doc and blockedBy carry over",
-          threads.thread(clean, "grid")["blockedBy"] == ["stopwatch", "corrections"]
-          and threads.thread(clean, "joiner")["doc"] == "stage1-pipeline-walkthrough"
-          and "psych_asr/asr/typists.py" in threads.thread(clean, "typist")["files"])
+    clean = threads.read(trd)[0]
+    knn = threads.thread(clean, "knn-across-embedders")
+    check("the KNN thread's dimension count is decided",
+          [d["rule"] for d in knn["decisions"]
+           if d["q"] == "How to count dimensions an L2 fit uses"][0])
+    check("and every Paper 1 thread has an open task, so the board's next means something",
+          all(any(not x["done"] for x in t["tasks"])
+              for t in clean["threads"] if t["deliverable"] == "paper1"))
+    check("TRD-EHR's TODO file is folded into its threads and gone",
+          not os.path.exists(os.path.join(trd, "planning", "TRD-EHR_TODO.txt")))
+    check("a recording-review thread's one task is the owner's own listening",
+          [x["text"] for x in threads.thread(threads.read(psych)[0],
+                                              "recording-review")["tasks"]]
+          and "listen" in threads.thread(threads.read(psych)[0],
+                                         "recording-review")["tasks"][0]["text"])
+    check("the deck waits on the two learn threads",
+          threads.thread(threads.read(llm)[0], "phi-deck")["blockedBy"]
+          == ["phi-path", "libr-hardware"])
     check("a box's directory folds into its files",
           "slurm_jobs/p0" in threads.thread(threads.read(llm)[0], "p0")["files"])
-    check("the migration drops status, and nothing is closed by it",
-          not any(t["closed"] for t in clean["threads"])
-          and "status" not in threads.thread(clean, "joiner"))
+    check("and nothing is closed by the draft",
+          not any(t["closed"] for w in (trd, psych, llm)
+                  for t in threads.read(w)[0]["threads"]))
 
     drawn = {"title": "T", "nodes": [
         {"id": "a", "name": "the a", "also": "mod.a", "status": "done",
