@@ -279,6 +279,7 @@ def fake_urlopen(url, timeout=None):
 
 
 urllib.request.urlopen = fake_urlopen
+real_system = ts.system_tailscale
 
 
 def install(version):
@@ -305,6 +306,17 @@ try:
     install("1.0.0")
     (ok if ts.installed_version() == "1.0.0" else fail)(
         "the installed version is read off the binary that will actually run")
+
+    # A MACHINE WHOSE TAILSCALE WE DID NOT INSTALL -- the Mac's, from Homebrew
+    # -- stands the updater down even with a copy of ours left in this home,
+    # because that copy is not the daemon on the tailnet.
+    ts.system_tailscale = lambda: "/opt/homebrew/bin/tailscale"
+    del asked[:]
+    (ok if ts.update_userspace(quiet=True, force=True) is None and not asked
+     else fail)("a machine with a system tailscale is left to it, and the index "
+                "is not asked")
+    # The rest is the compute node's case: ours, and nothing else.
+    ts.system_tailscale = lambda: None
 
     del asked[:]
     (ok if ts.update_userspace(quiet=True) is True else fail)(
@@ -377,6 +389,7 @@ try:
         "an unreachable index changes nothing and leaves the install alone")
 finally:
     urllib.request.urlopen = real_urlopen
+    ts.system_tailscale = real_system
     shutil.rmtree(sand, ignore_errors=True)
 
 # And the two moments it happens in, which are `vendor/colibri`'s two moments.

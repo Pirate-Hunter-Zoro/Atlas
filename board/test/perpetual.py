@@ -782,8 +782,12 @@ try:
               "starting a second one fights the first for the same node key",
               kind == "system")
         _ts.shutil.which = lambda n: None
+        # Nor in any of the places a system install keeps it off PATH -- which
+        # on this suite's own Mac is exactly where Homebrew's is.
+        was_system, _ts.SYSTEM_TS = _ts.SYSTEM_TS, []
         check("and a machine with no tailscale at all is still told so",
               _ts.tailscale_cli()[1] == "missing")
+        _ts.SYSTEM_TS = was_system
     finally:
         _ts.TS_SOCK, _ts.shutil.which = was_sock, was_which
 

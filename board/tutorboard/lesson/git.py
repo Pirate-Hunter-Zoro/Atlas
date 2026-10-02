@@ -555,7 +555,11 @@ def uncommitted(root, paths=None):
         if " -> " in rel:
             rel = rel.split(" -> ", 1)[1]
         try:
-            here = os.path.relpath(os.path.join(top, rel), root)
+            # Both sides resolved: git answers the top with symlinks taken out,
+            # and a Mac's temporary and home paths run through one (`/var` is
+            # `/private/var`), so a raw `root` puts `../../private` on the front.
+            here = os.path.relpath(os.path.realpath(os.path.join(top, rel)),
+                                   os.path.realpath(root))
         except ValueError:
             here = rel
         names.append(here)

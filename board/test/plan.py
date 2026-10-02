@@ -99,7 +99,7 @@ THE FALSIFICATION HALF
 # The arrangement these repositories actually use, and the one nothing could
 # read: the code is in one workspace and the plan for it is in another, across
 # the tree rather than beside it.
-home = tempfile.mkdtemp(prefix="tutor-plan-home-")
+home = os.path.realpath(tempfile.mkdtemp(prefix="tutor-plan-home-"))  # by its real name: a Mac's /var is /private/var, and git answers in real names
 real_home = os.environ.get("HOME")
 real_courses = os.environ.get("TUTORBOARD_COURSES")
 proj = os.path.join(home, "research", "PSYCH-ASR")
@@ -117,7 +117,7 @@ try:
     pdf(os.path.join(hub, "paper2-counterfactual", "references",
                      "11_VanderWeeleDing2017_Evalue.pdf"))
     # And a file outside the home entirely, which nothing may reach.
-    outside = tempfile.mkdtemp(prefix="tutor-plan-outside-")
+    outside = os.path.realpath(tempfile.mkdtemp(prefix="tutor-plan-outside-"))  # by its real name: a Mac's /var is /private/var, and git answers in real names
     write(os.path.join(outside, "SECRET_TODO.md"), "- [ ] should never be read\n")
 
     write(os.path.join(proj, "tutorboard.json"), json.dumps({"name": "PSYCH-ASR"}))

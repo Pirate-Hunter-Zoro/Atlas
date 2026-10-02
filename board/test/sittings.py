@@ -59,7 +59,7 @@ def check(name, cond):
         print("FAIL " + name)
 
 
-fake = tempfile.mkdtemp(prefix="tutor-sittings-")
+fake = os.path.realpath(tempfile.mkdtemp(prefix="tutor-sittings-"))  # by its real name: a Mac's /var is /private/var, and git answers in real names
 os.environ["TUTORBOARD_COURSES"] = fake
 
 from tutorboard import atlas, fenced, sense, sittings, writeups   # noqa: E402
@@ -305,7 +305,7 @@ check("nothing on a row is a path",
 # NO TWO ROWS SHARE A MOMENT. `opened` is to the minute and a filing to the
 # second, so a sitting opened the minute the last was filed would start before
 # that one ended. A separate atlas, so the rows above are not disturbed.
-base2 = tempfile.mkdtemp(prefix="tutor-sittings-adj-")
+base2 = os.path.realpath(tempfile.mkdtemp(prefix="tutor-sittings-adj-"))  # by its real name: a Mac's /var is /private/var, and git answers in real names
 with open(os.path.join(base2, "atlas.json"), "w", encoding="utf-8") as fh:
     json.dump({"families": [{"id": "courses", "name": "Courses"}]}, fh)
 adj = os.path.join(base2, "courses", "Adj")

@@ -5552,9 +5552,12 @@ name, the port, and the tailnet name. What it is checking for:
 ## 1. The tool itself
 
 ```
-git clone --recurse-submodules https://github.com/Pirate-Hunter-Zoro/Atlas.git ~/Atlas
-bash ~/Atlas/board/install.sh
+git clone --recurse-submodules https://github.com/Pirate-Hunter-Zoro/Atlas.git ~/Developer/Atlas
+bash ~/Developer/Atlas/board/install.sh
 ```
+
+The clone can be anywhere — `~/Atlas` on the cluster, `~/Developer/Atlas` on the Mac. Nothing
+assumes where: every script finds the checkout from its own file's location.
 
 That puts two commands on your path: `tutor`, which starts a session, and `board`, which the
 assistant drives.
@@ -5639,7 +5642,9 @@ Four things it will not do:
 
 - **Touch a Tailscale it does not own.** Only the copy under `$HOME`. A `/usr/bin/tailscale`
   belongs to root, there is no sudo here, and a second opinion about a root daemon's binary is
-  worse than an old one.
+  worse than an old one. And on a machine whose Tailscale it did not install at all — the Mac's,
+  from Homebrew or the app, found by `system_tailscale()` — it stands down entirely, even with an
+  old copy of its own left under `$HOME`, because that copy is not the daemon on the tailnet.
 - **Restart the daemon.** The binary is replaced with `os.replace`, so a live `tailscaled` keeps
   the inode it opened and goes on serving the tailnet name at the old version; the new one is what
   the next `board vpn up` starts. Taking the address down under somebody holding an iPad is the one
@@ -5742,6 +5747,54 @@ in `sw.js` whenever a shell file changes.
 Install it: open the board in Safari → Share → **Add to Home Screen**. It gets its own icon,
 launches without Safari's chrome, and long-pressing the icon offers **Slate** as a shortcut
 straight to the writing surface.
+
+## 6. The Mac mini, which is the host
+
+The board, the tutor and every writing turn run on the owner's Mac mini at home. It is the one
+machine here with an administrator, and it is a machine that comes back, so the rules above for a
+compute node bend in three places: it has a package manager, its boards are supervised, and its
+Tailscale is the system's.
+
+**Homebrew installs what the board and the paper builders need, and nothing else:**
+
+| Formula | For |
+|---|---|
+| `python` (3.7+; the board is standard library only) | the board |
+| `texlive`, `dvisvgm` | every compile: `latex`, `pdflatex`, `xelatex`, `latexmk`, the diagram pipeline. Homebrew's TeX Live is the whole distribution and the user owns it, so nothing needs `tlmgr` or `sudo`; `tex.tex_bin_dirs` puts `/opt/homebrew/opt/texlive/bin` ahead of a `/usr/local/texlive` BasicTeX |
+| `poppler` | `pdftotext` and `pdftoppm`: reading a PDF on the board, and the papers' text |
+| `pandoc` | Paper-Writer's conversions |
+| `node` | the test suite's headless browser |
+| `gh`, `tailscale` | git over HTTPS with the owner's login, and the tailnet |
+
+**`bash board/install.sh` loads two LaunchAgents** from `scripts/launchd/`, beside the systemd
+units, copied into `~/Library/LaunchAgents` for the reason the units are copied:
+
+- `tutor-board.tutor-pull` — `tutor-pull` at load and hourly; its own stamp keeps it to once a day,
+  which is the timer's `Persistent=true` in launchd's words.
+- `tutor-board.tutor-watch` — `tutor watch`, kept alive by launchd. It repairs only what has a
+  record in a workspace's `live/`, so a reboot brings back exactly the boards that were up, and a
+  `board stop` keeps one down. Its log is `~/.local/state/tutor-watch.log`.
+
+They are agents rather than daemons because the login keychain holds git's credential and the
+assistants' logins, and it is open only in the owner's session. **The Mac logs its owner in by
+itself** (automatic login, FileVault off), so after a power cut the agents are up with nobody at
+the keyboard; `install.sh` warns when automatic login is off. Power is `pmset`: `sleep 0`,
+`disksleep 0`, `womp 1`, `autorestart 1` on AC, display sleep allowed.
+
+**Tailscale is the system's.** `tailscale_cli()` finds Homebrew's CLI even under launchd's bare
+PATH, `board vpn up` and `serve` take the system branch and start nothing, and
+`update_userspace` stands down. `daemon_running()` asks a system install for its
+`BackendState` rather than looking for a process called `tailscaled`, which the Mac's app does not
+have — so the watch loop's check of where the HTTPS name points runs here too. The tailnet name is
+the Mac's own: `mac-mini.<tailnet>.ts.net`, and the board binds `100.x` directly beside loopback.
+
+**A board never asks the resolver its own address's name.** `BoardServer` in `server/app.py` drops
+the `getfqdn` that `HTTPServer.server_bind` makes and nothing reads: through the tailnet's resolver
+and an exit node it took over thirty seconds, longer than `board start` waits for the record.
+
+**Keys** are `~/.config/tutor-board/keys.env`, mode 600, written from the files in
+`~/.config/api-keys/` (`deepseek_key` is `DEEPSEEK_API_KEY`). Claude Code and Codex use the
+owner's enterprise logins and need none.
 
 ---
 

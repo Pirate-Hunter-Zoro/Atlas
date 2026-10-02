@@ -10,6 +10,7 @@ entry point keeps its name and its shape.
 import json
 import os
 import socket
+import socketserver
 import sys
 import threading
 import time
@@ -21,6 +22,24 @@ from ..net import tailscale
 from .handler import Handler
 from .hub import Hub
 from .tikz import TikzWorker
+
+
+class BoardServer(ThreadingHTTPServer):
+    """`ThreadingHTTPServer` without the reverse lookup in `server_bind`.
+
+    `HTTPServer.server_bind` asks `socket.getfqdn` for the name of the address
+    it bound, and nothing here reads the answer. On the Mac that lookup goes out
+    through the tailnet's resolver and an exit node, and was measured taking
+    over thirty seconds for the tailnet address -- longer than `board start`
+    waits for the record, so a board started by `tutor watch` was called dead,
+    killed as a leftover on the next pass, and started again.
+    """
+
+    def server_bind(self):
+        socketserver.TCPServer.server_bind(self)
+        host, port = self.server_address[:2]
+        self.server_name = str(host)
+        self.server_port = port
 
 
 def lan_addresses():
@@ -63,7 +82,7 @@ def main(argv):
     hub = Hub(repo, worker)
     hub.payload = json.dumps(hub.build())
 
-    httpd = ThreadingHTTPServer((host, port), Handler)
+    httpd = BoardServer((host, port), Handler)
     httpd.daemon_threads = True
     httpd.repo = repo
     httpd.hub = hub
@@ -88,7 +107,7 @@ def main(argv):
     tailnet = []
     for addr in tailscale.tailnet_addresses():
         try:
-            second = ThreadingHTTPServer((addr, port), Handler)
+            second = BoardServer((addr, port), Handler)
         except OSError as exc:
             sys.stderr.write("not listening on %s: %s\n" % (addr, exc))
             continue

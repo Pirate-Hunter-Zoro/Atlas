@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  tutor-pull on a Mac: the launchd twin of systemd/tutor-pull.timer.
+
+  A LaunchAgent, copied into ~/Library/LaunchAgents by install.sh. The Mac logs
+  its owner in by itself after a reboot (automatic login), so an agent is up
+  with nobody at the keyboard, and unlike a daemon it runs where the login
+  keychain is open -- which holds the git credential and the assistants' logins.
+
+  Hourly and at load, because `tutor-pull` keeps its own once-a-day stamp: the
+  same arrangement as the timer's Persistent=true, a run missed while the
+  machine was off happens the first hour it is back.
+
+  launchd expands nothing, so `sh -c` supplies $HOME and a PATH holding
+  Homebrew and ~/.local/bin.
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>tutor-board.tutor-pull</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/sh</string>
+    <string>-c</string>
+    <string>export PATH="$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"; exec "$HOME/.local/bin/tutor-pull"</string>
+  </array>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>StartInterval</key>
+  <integer>3600</integer>
+  <key>ProcessType</key>
+  <string>Background</string>
+</dict>
+</plist>

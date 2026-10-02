@@ -167,7 +167,7 @@ def code(root):
     write(os.path.join(root, "docs", "stage1-walkthrough.tex"), "\\title{Stage 1}\n")
 
 
-home = tempfile.mkdtemp(prefix="shelf-test-")
+home = os.path.realpath(tempfile.mkdtemp(prefix="shelf-test-"))  # by its real name: a Mac's /var is /private/var, and git answers in real names
 try:
     course = os.path.join(home, "Galois-Theory")
     plain = os.path.join(home, "PSYCH-ASR")

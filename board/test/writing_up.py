@@ -66,7 +66,7 @@ TODO = """PROJECT — REMAINING WORK
   STEP 2. RUN THE GRID.
 """
 
-base = tempfile.mkdtemp(prefix="tutor-ms-")
+base = os.path.realpath(tempfile.mkdtemp(prefix="tutor-ms-"))  # by its real name: a Mac's /var is /private/var, and git answers in real names
 try:
     import json
     write(os.path.join(base, "atlas.json"), json.dumps(

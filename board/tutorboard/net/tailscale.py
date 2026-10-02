@@ -29,10 +29,32 @@ TS_SOCK = os.path.join(TS_DIR, "tailscaled.sock")
 # Where a system-managed Tailscale keeps its CLI when it is not simply on PATH.
 # Unlikely here: a cluster node has no administrator, which is why this tool runs
 # its own tailscaled in userspace mode out of `$HOME`.
+# A Mac's is Homebrew's, or the app's own CLI, and launchd hands a job a PATH
+# with neither on it.
 SYSTEM_TS = [
     "/usr/local/bin/tailscale",
     "/usr/bin/tailscale",
+    "/opt/homebrew/bin/tailscale",
+    "/Applications/Tailscale.app/Contents/MacOS/Tailscale",
 ]
+
+
+def _ours(path):
+    """Is this binary one we unpacked under this home directory?"""
+    home = os.path.realpath(paths.HOME) + os.sep
+    return os.path.realpath(path).startswith(home)
+
+
+def system_tailscale():
+    """The path of a Tailscale this tool did NOT install, or None.
+
+    A package manager or an administrator owns it, so its daemon is already up
+    and its updates are somebody else's: on the Mac that is Homebrew or the app.
+    """
+    for p in [shutil.which("tailscale")] + SYSTEM_TS:
+        if p and os.path.isfile(p) and not _ours(p):
+            return p
+    return None
 
 
 TS_NAME_FILE = os.path.join(TS_DIR, "hostname")
@@ -182,6 +204,13 @@ def daemon_running():
     starts one, and the board serves on loopback at an address the iPad cannot
     reach, with every process looking healthy.
     """
+    # A SYSTEM TAILSCALE IS ASKED, not looked for. On the Mac the daemon is the
+    # app's network extension and no process is called `tailscaled`, so the
+    # name test answers no on a machine that is on the tailnet -- and every
+    # check downstream of it (which board the address points at, and whether
+    # it answers) was skipped as "no link".
+    if tailscale_cli()[1] == "system":
+        return (_ts_status() or {}).get("BackendState") == "Running"
     try:
         p = subprocess.run(["pgrep", "-x", "tailscaled"], stdout=subprocess.PIPE)
         return p.returncode == 0
@@ -220,14 +249,11 @@ def tailscale_cli():
     # In a system directory it is not ours: a root-run daemon is already there
     # and starting a second one would fight it for the same node key.
     daemon = shutil.which("tailscaled")
-    if daemon and os.path.realpath(daemon).startswith(os.path.realpath(paths.HOME) + os.sep):
+    if daemon and _ours(daemon):
         return (["tailscale", "--socket", TS_SOCK], "userspace")
-    found = shutil.which("tailscale")
+    found = shutil.which("tailscale") or system_tailscale()
     if found:
         return ([found], "system")
-    for p in SYSTEM_TS:
-        if os.path.exists(p):
-            return ([p], "system")
     return (None, "missing")
 
 
@@ -413,6 +439,11 @@ def update_userspace(quiet=False, force=False, timeout=300):
 
     if not os.path.isfile(os.path.join(TS_OPT, "tailscaled")):
         return None                      # not ours, or not here; nothing to do
+    if system_tailscale():
+        # A MACHINE WHOSE TAILSCALE WE DID NOT INSTALL. Its daemon is the one on
+        # the tailnet, and a copy left under $HOME from an earlier setup is not
+        # what serves the board; moving it forward is work for nothing.
+        return None
 
     if not force and _checked_today():
         return True

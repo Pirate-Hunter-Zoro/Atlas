@@ -160,14 +160,15 @@ def index_lock(root):
 def _lock_holder(path):
     """Whether a live process holds this file open: True, False, or None.
 
-    `None` means the question could not be asked -- there is no `/proc` on a Mac
-    -- and the caller falls back to age alone. Every open file descriptor on
-    Linux is a symlink under `/proc/<pid>/fd`, so this is a scan of those and no
-    more; other people's processes are unreadable and are skipped, which is
-    correct here because a git holding this lock is one of ours.
+    `None` means the question could not be asked, and the caller falls back to
+    age alone. Every open file descriptor on Linux is a symlink under
+    `/proc/<pid>/fd`, so this is a scan of those and no more; other people's
+    processes are unreadable and are skipped, which is correct here because a
+    git holding this lock is one of ours. A Mac has no `/proc`, so there the
+    same question goes to `lsof`, which the system ships.
     """
     if not os.path.isdir("/proc"):
-        return None
+        return _lsof_holder(path)
     try:
         want = os.path.realpath(path)
     except OSError:
@@ -190,6 +191,22 @@ def _lock_holder(path):
             if target == want or target == path:
                 return True
     return False if seen_any else None
+
+
+def _lsof_holder(path):
+    """`_lock_holder` where there is no `/proc`: ask `lsof`, or None."""
+    import shutil
+    import subprocess
+    exe = shutil.which("lsof") or ("/usr/sbin/lsof" if os.path.exists("/usr/sbin/lsof") else None)
+    if not exe:
+        return None
+    try:
+        p = subprocess.run([exe, "-t", "--", path], stdout=subprocess.PIPE,
+                           stderr=subprocess.DEVNULL, timeout=10)
+    except (OSError, subprocess.SubprocessError):
+        return None
+    # Exit 1 with nothing printed is lsof's "nobody has it open".
+    return bool(p.stdout.strip())
 
 
 def lock_reason(root):

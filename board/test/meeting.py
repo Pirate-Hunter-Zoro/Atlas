@@ -52,7 +52,7 @@ def check(name, cond):
         print("FAIL " + name)
 
 
-base = tempfile.mkdtemp(prefix="tutor-meeting-")
+base = os.path.realpath(tempfile.mkdtemp(prefix="tutor-meeting-"))  # by its real name: a Mac's /var is /private/var, and git answers in real names
 os.environ["TUTORBOARD_COURSES"] = base
 
 from tutorboard import (atlas, direction, fenced, meeting, proposals,  # noqa: E402
@@ -678,7 +678,7 @@ try:
     check("`board notes --meeting --print` prints the brief and writes nothing",
           got.returncode == 0 and "BODY-ONE-MARKER" in out
           and not os.path.isdir(os.path.join(trd, "writeups", "meeting")))
-    outside = tempfile.mkdtemp(prefix="tutor-meeting-out-")
+    outside = os.path.realpath(tempfile.mkdtemp(prefix="tutor-meeting-out-"))  # by its real name: a Mac's /var is /private/var, and git answers in real names
     try:
         got = subprocess.run([sys.executable, os.path.join(ROOT, "bin", "board"),
                               "notes", "--meeting", "--since", "7d",

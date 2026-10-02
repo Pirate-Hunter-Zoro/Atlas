@@ -512,6 +512,14 @@ check("beside whether this machine has it at all, because an assistant that "
 
 os.environ["TUTORBOARD_COURSES"] = tree
 atlas.forget()
+# The refusals below are about a colibri sitting, not about whether this machine
+# has the client: the cluster puts `coli-code` on the path and the Mac does not,
+# so a stub stands in for it and the binary check is passed on both.
+stub_bin = tempfile.mkdtemp(prefix="coli-stub-")
+with open(os.path.join(stub_bin, "coli-code"), "w") as fh:
+    fh.write("#!/bin/sh\nexit 0\n")
+os.chmod(os.path.join(stub_bin, "coli-code"), 0o755)
+os.environ["PATH"] = stub_bin + os.pathsep + os.environ.get("PATH", "")
 other = os.path.join(tree, "projects", "Elsewhere")
 os.makedirs(os.path.join(other, "live"))
 open(os.path.join(other, "AI_INSTRUCTIONS.md"), "w").close()

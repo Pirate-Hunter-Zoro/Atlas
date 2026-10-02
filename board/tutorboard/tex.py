@@ -20,6 +20,12 @@ def tex_bin_dirs():
     for root in (os.path.join(paths.HOME, ".TinyTeX"),
                  os.path.join(paths.HOME, ".local", "TinyTeX")):
         candidates.extend(sorted(glob.glob(os.path.join(root, "bin", "*"))))
+    # Homebrew's `texlive` formula, which is the Mac's whole TeX Live owned by
+    # the user rather than root. Its `opt/texlive/bin` holds TeX and nothing
+    # else, and it comes before `/usr/local/texlive`, where a BasicTeX left by
+    # the `basictex` cask has no latexmk and a `tlmgr` that needs sudo.
+    for prefix in ("/opt/homebrew", "/usr/local"):
+        candidates.append(os.path.join(prefix, "opt", "texlive", "bin"))
     candidates.extend(sorted(glob.glob("/usr/local/texlive/*/bin/*")))
     return [d for d in candidates if os.path.isdir(d)]
 

@@ -132,7 +132,7 @@ try:
     shutil.move(os.path.join(root, ".git"), os.path.join(linked, "realgit"))
     open(os.path.join(root, ".git"), "w").write("gitdir: ../linked/realgit\n")
     check("a worktree whose .git is a file is followed to the real one",
-          worktree.git_dir(root) == os.path.normpath(os.path.join(linked, "realgit")))
+          worktree.git_dir(root) == os.path.realpath(os.path.join(linked, "realgit")))
     open(os.path.join(os.path.join(linked, "realgit"), "MERGE_HEAD"), "w").write("x")
     check("and it is guarded the same way",
           "merge" in (worktree.busy_reason(root) or ""))
