@@ -399,8 +399,8 @@ else:
 # False`, which turned every restart nobody finished into a record identical to
 # `tutor agent stop`, and `tutor_verdict` reads that as "a person said no" and
 # never revives it. Measured: a handoff turn took 97 seconds, `cmd_restart`
-# gives it 90, so it returned without starting anything -- and three generations
-# of the serving chain then revived that course's board and refused its tutor.
+# gives it 90, so it returned without starting anything -- and the watch loop
+# then revived that course's board and refused its tutor.
 #
 # `supervise.tutor_verdict` is read here, not changed: this asserts the contract
 # between the record the daemon leaves and the watchdog that reads it.

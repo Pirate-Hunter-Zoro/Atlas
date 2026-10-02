@@ -4,8 +4,7 @@
   tutor watch on a Mac: what brings every board back after a reboot.
 
   A Mac is a machine that comes back, so here the boards ARE supervised:
-  `tutor watch` is the loop the serving job runs on a compute node, and launchd
-  keeps it running. It repairs only what a person already asked for -- a board
+  launchd keeps `tutor watch` running. It repairs only what a person already asked for -- a board
   or a tutor with a record in its workspace's live/ -- so a reboot brings back
   exactly the boards that were up, and `board stop` keeps one down.
 

@@ -2,7 +2,7 @@
 # ---------------------------------------------------------------------------
 #  tutor-pull -- the periodic pull, from a timer that fires every twenty seconds.
 #
-#      tutor-pull            hear the cluster; pull vendor and Tailscale daily
+#      tutor-pull            hear the cluster; pull vendor daily
 #      tutor-pull --force    both, regardless
 #
 #  EVERY RUN: `tutor pull --hear`. On a machine without Slurm it pulls the
@@ -15,21 +15,17 @@
 #
 #  ONCE A DAY: `tutor pull`, below.
 #
-#  `tutor pull` moves the two things this repository depends on and does not
-#  write: `vendor/colibri`, somebody else's repository tracked here by pointer,
-#  and the unprivileged Tailscale unpacked under $HOME that no package manager
-#  knows about. Both also happen on login from `tutor resume`, which is the one
-#  moment a compute node gets; this is the copy for a workstation that is left
-#  up for a week and never has a login.
+#  `tutor pull` moves `vendor/colibri`, somebody else's repository tracked here
+#  by pointer. It also happens on login from `tutor resume`; this is the copy
+#  for a machine that is left up for a week and never has a login.
 #
 #  IT REIMPLEMENTS NOTHING. The submodule fast-forward, the pointer commit and
 #  the three guards that make an unattended commit safe are `pull_vendor` in
-#  `bin/tutor`; the client update and its four refusals are `update_userspace`
-#  in `tutorboard/net/tailscale.py`; the cadence and the hearing are
-#  `hear_pass` in `bin/tutor`. This file is a stamp, a log and two calls.
+#  `bin/tutor`; the cadence and the hearing are `hear_pass` in `bin/tutor`.
+#  This file is a stamp, a log and two calls.
 #
-#  Never fatal and never clever: a dirty tree, a detached HEAD, an unreachable
-#  remote or a package index that does not answer is written to the log and
+#  Never fatal and never clever: a dirty tree, a detached HEAD
+#  or an unreachable remote is written to the log and
 #  left alone. Merging somebody else's repository is not a decision a timer
 #  gets to make.
 #

@@ -12,14 +12,7 @@
 # process left to notice, and no way for the iPad to ask, because asking requires
 # something already listening.
 #
-# A supervisor that IS the machine works, and that is `tutor serve`: a batch job
-# which queues its own successor before it does anything else, watches the board
-# for the life of its allocation, and hands over when the walltime comes. This
-# hook is the other half and is not replaced by it -- a login is where the
-# repository gets pulled, and it is the one moment that can put a chain back
-# which fell over before it queued anything.
-#
-# So the hook goes on every interactive shell rather than only on the ones you
+# A login is where the repository gets pulled, so the hook goes on every interactive shell rather than only on the ones you
 # open on a compute node, because `salloc` hands you a shell on the LOGIN node.
 # `tutor resume` decides what to do from there.
 #

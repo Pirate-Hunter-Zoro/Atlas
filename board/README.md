@@ -380,10 +380,9 @@ colibrì runs in ended* are the same word and two different next moves.
   reads the budget and the ending back off the file before it waits or hops again, so a chain that
   never comes back is not a turn every five minutes for ever.
 - **Nothing new is launched for any of this.** No sudo, no cron, no new job: a function call inside
-  a loop that already runs, inside the board's own chained job.
-- **What a carry does not cover**, each for its own reason. The board chain stopping, because no
-  admin-free process outlives both allocations — if no board comes up nothing sweeps, and the
-  mission waits for a login to run `tutor resume`. A mission needing more than 18 h including
+  a loop that already runs, the board's own.
+- **What a carry does not cover**, each for its own reason. The board being down: if no board is
+  up nothing sweeps, and the mission waits for `tutor watch` or a person to bring one back. A mission needing more than 18 h including
   re-prefills, more than 6 pick-ups, or 2 pick-ups that produce nothing. Work the model held in its
   head rather than writing down, which the carry prompt orders against and cannot enforce. The
   colibrì chain being down altogether, which nothing here starts — a mission dispatched with no
@@ -2039,6 +2038,12 @@ drives the button and the sheet in a real DOM; `test/hanging.js` holds the words
 
 ## Setting it up on the cluster
 
+**No compute node serves a board.** The institute's firewall blocks board hosting there, so the
+Mac mini is the only host ([§6](#6-the-mac-mini-which-is-the-host)). The cluster runs the relay
+(`tutor relay --once`, from this user's scrontab every five minutes), the Slurm jobs the relay
+submits, and Colibri on demand. There is no serving job, and nothing may cancel the relay's own
+jobs (`colibri_serve` and its queued self-clone, and each request's recipe job).
+
 One script does the whole of it, in the shared home, where every node you are ever given can see
 it:
 
@@ -2075,10 +2080,7 @@ never be given back. The tailnet name the iPad has baked into it then points at 
 and that is precisely what died. A supervisor that outlives the machine does not help either: it
 brings a service back after a reboot, and a compute node does not reboot, it stops being yours.
 
-So there are two moments a compute node gets. The moment you log in to it, which is this section;
-and the whole life of a job that queued its own successor, which is
-[the allocation renewing itself](#the-allocation-renews-itself-and-the-board-repairs-itself) and is
-a supervisor of the only shape that works here -- one that IS the machine.
+So the moment you log in to a compute node is the one moment it gets, which is this section.
 
 ```
 tutor resume                 take the board over here
@@ -2191,56 +2193,12 @@ git-over-ssh with a remote error nobody can read — takes a lock so five termin
 backgrounds itself so no prompt ever waits on the network. `~/.tutor-resume.log` has whatever it
 said; `export TUTOR_BOARD_NO_RESUME=1` turns it off for one shell.
 
-Nothing on a node outlives the job that gave it to you. That is why the allocation is the thing
-that renews itself.
-
-### The allocation renews itself, and the board repairs itself
+### The watch loop repairs what dies
 
 ```
-tutor serve                  start the chain: one job, nine hours, and a successor already queued
-tutor serve status           which generation is up, where, and what it has repaired
-tutor serve stop             end it -- the flag, then the cancel
-tutor watch                  the repair loop by itself, worth running inside an `salloc`
+tutor watch                  the repair loop: what the Mac's tutor-board.tutor-watch LaunchAgent runs
 tutor down [workspace]       stop serving here: the boards, the tutors, and the link
-
-bash board/scripts/serve.sh  the same, with nothing on the PATH and from any directory
 ```
-
-`scripts/serve.sh` is there for one moment: **after `scancel -u $USER`**, which is the thing that
-really ends a chain, because it takes the running generation and the queued successor together. It
-needs no install and takes the same words (`status`, `stop`, `restart`).
-
-**A generation queues its own successor before it does anything else**, with
-`--dependency=afterany:<itself>`, so the queue is always holding the next machine. `afterany` and
-not `afterok`, because a generation that crashed is when the next one is most needed. Then it
-catches the tool up, re-execs onto it, runs `tutor resume`, and watches — and five minutes before
-its walltime Slurm signals it (`--signal=B:USR1@300`), which is the daemons' cue to write their
-handoffs while there is still a machine to write them on. `slurm/tutor-serve.sbatch` is twenty
-lines of finding the checkout and handing the batch shell to `tutor serve inside`; every decision
-is in `bin/tutor` and `tutorboard/supervise.py`, where it can be tested without a cluster.
-
-**Ending it takes a flag as well as a cancel, and that is not belt-and-braces.** Cancelling the
-running generation is *precisely* what its successor's dependency is waiting for, so a chain
-cancelled one job at a time comes straight back — which is the chain working as designed at the
-worst possible moment. `tutor serve stop` writes `serve-stopped` in the state directory first and
-then cancels the whole job name at once. `scancel -u $USER` also ends it, because that takes the
-queued successor with it.
-
-**`c3_short`, nine hours, and both halves are measurements.** The seven-day partitions are the
-ones a chain would rather have and neither can serve a board:
-
-- **`c3_accel` has no route to Tailscale's control plane.** From inside a job on compute306:
-  github 200, `api.anthropic.com` 405, `controlplane.tailscale.com` reset at the first read, every
-  time — while the same request from compute301 answers 200. A tutor can teach from there; the
-  iPad cannot reach it, and the iPad is the point.
-- **`c3` is suspended by `c3_short`**, which outranks it (priority tier 20 against 10) with
-  `PreemptMode=SUSPEND` under a GANG scheduler. A seven-day board there is SIGSTOPped and
-  time-sliced by the first busy afternoon: alive, holding its port, answering nothing, on a node
-  whose watch loop is frozen in the same cgroup. It is the one failure nothing in here can see.
-
-`c3_short` is the top tier, so nothing preempts it, and its nine-hour ceiling is what the chain
-exists to make irrelevant — a handover costs the seconds the scheduler takes, about three times a
-day. All four are config keys: `serve_partition`, `serve_time`, `serve_cpus`, `serve_mem`.
 
 **The watch loop is what makes a death cost twenty seconds instead of an evening.** It revives a
 board whose pid is gone, stops and restarts one that is alive and has failed `/health` twice —
@@ -2249,41 +2207,17 @@ to do is the load-bearing half:
 
 - nothing without a record. `board stop` and `tutor headless --stop` remove theirs, and that is a
   person saying no;
-- nothing on another node, **unless it is the serving generation doing the asking** — see the home
-  node below;
+- nothing on a node Slurm still says is yours. A board or tutor on a node that is gone is taken
+  over here;
 - nothing a restart is already doing — `tutor restart --tutors` writes `restarting` first, exactly
   so a bounce can be told from a death;
 - nothing off a record that has gone stale. `live/agent.json` is never swept, so one saying
   `listening` on a node that died two days ago reads just like one from a node that died a minute
   ago; an hour is the window.
 
-**The serving node is home, and every other machine leaves the board alone.** This was built the
-polite way first — a board on any node still allocated to you was left where it was, so an
-`salloc` with somebody mid-proof on it was never robbed. What that bought was a lesson on a
-machine no watch loop was allowed to touch: the board died on the `salloc` node while the only
-watchdog was on the serving node under orders to keep its hands off, and the iPad went white with
-a healthy chain running. So:
-
-- a generation **asks every other node of yours to stop serving before it starts anything** —
-  `tutor down`, which stops that machine's boards and tutors, waits for each handoff turn, and
-  **lets go of the tailnet link**. The link is machine-wide: `board vpn up` refuses while the claim
-  in the shared state directory names a node you still hold, so a board started before the ask
-  comes up with no address and nothing goes back to check. That ordering is asserted in the suite.
-- it gets there by **ssh, then by a Slurm step** in the allocation that holds the node — ssh
-  between these compute nodes is refused for want of a key (measured), and a step needs no
-  credential. The errand is to *stop* things, so nothing has to outlive the step.
-- reachable by neither route, **it starts nothing**: one board on the wrong machine beats two
-  boards writing one `live/` directory, both answering the same inbox line.
-- `tutor resume` on any other node **starts nothing while a generation is running** — otherwise
-  every new terminal on your `salloc` drags the lesson back and the two nodes take turns owning
-  the one address the iPad has. `--force` is still a person insisting.
-
-An `salloc` is therefore for coach coding and holds no lesson.
-
-**A handover is not a stop, and it is one field.** The walltime's own stop leaves the same record a
-person's `tutor agent stop` leaves, so `hand_over` writes `handover` into it first and the next
-generation picks up only those — on whichever node it lands, including the same one, which on a
-single-node partition is the common case.
+**A handover is not a stop, and it is one field.** `tutor down`'s stop leaves the same record a
+person's `tutor agent stop` leaves, so it writes `handover` into it first and the watch loop picks
+up only those — on whichever node it runs, including the same one.
 
 **Only the asker may say why a daemon was stopped, and the daemon's own exit says nothing about
 it.** `restarting` and `handover` are both written *before* the signal, by whoever is asking, for
@@ -2292,8 +2226,7 @@ exit record merges `state: stopped` over the top and touches neither field. What
 `restarting` is `mark_waking`, written by both halves of a start — so the flag lives exactly as
 long as the restart it describes is unfinished. Without it an abandoned bounce is
 indistinguishable from *a person said no*, which the watch loop obeys for ever — while still
-reviving that course's **board** every generation, which is a page that serves perfectly with
-nothing reading it.
+reviving that course's **board**, which is a page that serves perfectly with nothing reading it.
 
 **And the exit write only lands where this process is still the one on the record.** `agent_state`
 merges, which is what makes one file safe for several writers adding a field — and is not safe for
@@ -2316,17 +2249,10 @@ the right to clear them, because it is the one moment they are certainly about s
 outruns the ninety seconds the foreground gives it — 97 seconds, measured — so `tutor restart
 --tutors` has a branch that gives up. That branch now spawns `tutor finish-restart`, detached,
 which waits for the wrap-up turn to actually end and starts the replacement then. **The watch loop
-is the backstop and not the plan**: it only exists where one is running, so a hand restart in an
-`salloc` used to leave the tutor down with the flag on and no clock anywhere, and where it does run
-the person holding the iPad still watched a lesson say *claude is restarting* until
-`REATTACH_GRACE` was out. Both may now decide to start the same tutor, and that is not a race —
+is the backstop and not the plan**: it only exists where one is running, and where it does run it
+waits out `REATTACH_GRACE` while the iPad says *claude is restarting*. Both may now decide to start the same tutor, and that is not a race —
 `agent_start` refuses when one is already there, which is the single property holding it up.
 `test/waking.py` holds every half of this.
-
-The chain cannot watch itself all the way down: a generation that fell over in its first second
-never reached the line that queues its successor. So the loop re-checks its successor every five
-minutes, and `tutor resume` repairs the chain on any login — but only where one was started and
-not stopped.
 
 ## Starting a session
 
@@ -2372,9 +2298,7 @@ a process on the stamp it already tried, and takes a node-local lock
 to `STATE_DIR/ship-<host>.json`, and every record carries each process's last outcome on the
 current stamp.
 
-The running `serve run` keeps the `watch_once` it loaded, so a change to `ship_beat` itself
-reaches the serving node only at the chain's next generation. **`tutor watch` puts itself on the
-tree's code.** After each pass it compares the stamp it loaded with the tree's (`watch_stale`),
+**`tutor watch` puts itself on the tree's code.** After each pass it compares the stamp it loaded with the tree's (`watch_stale`),
 under the beat's guards: a busy or detached checkout waits, and a tree that does not import keeps
 the loop on its code. A loop that is behind says so in its log and execs itself on the new code
 with the same pid, so the Mac's LaunchAgent, which only a reboot would otherwise restart, never
@@ -2917,11 +2841,11 @@ machines. Which board it opens is therefore a decision this machine makes, and i
   `chosen.json` names.
 - **and ANSWERING IS NOT OWNING.** A port holds the address when a live record names it —
   `recorded_ports()`, every `live/.board.json` on this node whose pid is still serving its own
-  repository. A board an ended generation left behind answers exactly like a live one and is named
+  repository. A board an ended process left behind answers exactly like a live one and is named
   by no record at all, because the board that replaced it overwrote the one record its repository
   has. On the answering test alone that leftover outranked every board that came after it, for as
-  long as its process survived: the tutor was up, the board was up, the serving chain was three
-  generations deep and reporting itself healthy, and the card the tutor had written sat on a board
+  long as its process survived: the tutor was up, the board was up, the watch loop was reporting
+  itself healthy, and the card the tutor had written sat on a board
   nothing was pointing at. **A leftover has no claim on anything**, and a new board for the same
   repository stops it — `drop_strays`, before `Popen`, this repository's own and on this node only,
   because the moment a repository's next board starts is the moment the previous one became a
@@ -3180,7 +3104,7 @@ So it is recorded, published and checked:
   serve`, because `--if-free` will not take a name off a live board and a standing choice is the one
   thing entitled to — once that course's own board answers, since a name is worth moving only onto a
   board that can draw something, and a wedged board is the board half's to fix first. A board an
-  ended generation left behind answers exactly like a live one (*answering is not owning*), and the
+  ended process left behind answers exactly like a live one (*answering is not owning*), and the
   same test takes the name off it, because a leftover's port is not the chosen board's recorded one.
   A claim the tailnet refuses reads as a refusal rather than as a repair, and so does holding still:
   the name staying on a course nobody chose is said once, on the way into that state. With nobody
@@ -5036,7 +4960,7 @@ before the commit. `--stale` bounces only what is not on the tree's code stamp. 
 waits up to three watch beats and a margin (`SHIP_WAIT`, 70 s) for every other node's boards and
 tutors, and prints one line each: *X on N: restarted on T* (started at or after `--since`),
 *already on T*, or *not restarted* with the reason — its board was stopped, the node is no
-longer yours, no watch there runs the ship beat (it lands at the chain's next generation), that
+longer yours, no watch there runs the ship beat (it lands when that node's board next starts), that
 node's beat recorded a reason, or it timed out. A remote tutor still waking is *coming back*. It
 reads the records rather than reaching over ssh, so it works from any machine.
 
@@ -5841,10 +5765,8 @@ DVI keeps the geometry `dvisvgm` needs to produce clean vector output with text 
 
 ## 4. Tailscale, without root
 
-The board runs on a lab compute node on the institute network. The iPad is not on that network
-and never will be. There is no route between them and no administrator rights to make one.
-
-Tailscale's `tailscaled` has a **userspace-networking** mode: it implements its own TCP/IP stack
+The Mac's Tailscale is the system's ([§6](#6-the-mac-mini-which-is-the-host)). On a machine with
+no administrator rights, Tailscale's `tailscaled` has a **userspace-networking** mode: it implements its own TCP/IP stack
 in the process instead of asking the kernel for a TUN device. That is what makes an unprivileged
 install possible.
 
@@ -5857,39 +5779,6 @@ ln -s ~/.local/opt/tailscale/tailscale{,d} ~/.local/bin/
 
 `bash install.sh` prints that same command with the version the index is serving today and the
 architecture of the machine you are on, so neither has to be looked up.
-
-### And it keeps itself current
-
-Nothing else on the machine will. No package manager knows this install exists, `tailscale
-update` refuses a static build, and there is no administrator to notice — so without this it sits
-at the version of the afternoon it was unpacked while the hosted control plane moves on.
-
-`update_userspace` in `net/tailscale.py` fetches the current stable tarball and moves the two
-binaries into place. It runs in `vendor/colibri`'s two moments and for the same reasons: `tutor
-resume`, which is the one moment a compute node gets, and `tutor pull`, which is what
-`tutor-pull.timer` runs daily on a machine that is left up for a week and never has a login.
-`scripts/tutor-pull` is that timer's whole script — a stamp, a log and one call — and
-`install.sh` links it, copies its units and enables it. The index is asked at
-most once a day — four terminals in a morning is four logins — and `tutor pull` forces it, because
-that is itself the daily job.
-
-Four things it will not do:
-
-- **Touch a Tailscale it does not own.** Only the copy under `$HOME`. A `/usr/bin/tailscale`
-  belongs to root, there is no sudo here, and a second opinion about a root daemon's binary is
-  worse than an old one. And on a machine whose Tailscale it did not install at all — the Mac's,
-  from Homebrew or the app, found by `system_tailscale()` — it stands down entirely, even with an
-  old copy of its own left under `$HOME`, because that copy is not the daemon on the tailnet.
-- **Restart the daemon.** The binary is replaced with `os.replace`, so a live `tailscaled` keeps
-  the inode it opened and goes on serving the tailnet name at the old version; the new one is what
-  the next `board vpn up` starts. Taking the address down under somebody holding an iPad is the one
-  thing this may not do to repair itself.
-- **Install something that does not run.** The archive is unpacked into a temporary directory and
-  each binary is run and asked its version before it is moved in — a tarball for the wrong
-  architecture unpacks perfectly and leaves a machine with no Tailscale at all.
-- **Race the other six nodes.** One home directory, seven compute nodes, every login running this:
-  a lock file, stale after half an hour so a node killed mid-download does not stop the next one
-  for ever.
 
 `board vpn up` then starts the daemon with:
 
@@ -6057,8 +5946,8 @@ the keyboard; `install.sh` warns when automatic login is off. Power is `pmset`: 
 `disksleep 0`, `womp 1`, `autorestart 1` on AC, display sleep allowed.
 
 **Tailscale is the system's.** `tailscale_cli()` finds Homebrew's CLI even under launchd's bare
-PATH, `board vpn up` and `serve` take the system branch and start nothing, and
-`update_userspace` stands down. `daemon_running()` asks a system install for its
+PATH, `board vpn up` and `serve` take the system branch and start nothing.
+`daemon_running()` asks a system install for its
 `BackendState` rather than looking for a process called `tailscaled`, which the Mac's app does not
 have — so the watch loop's check of where the HTTPS name points runs here too. The tailnet name is
 the Mac's own: `mac-mini.<tailnet>.ts.net`, and the board binds `100.x` directly beside loopback.

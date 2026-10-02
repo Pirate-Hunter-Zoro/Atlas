@@ -34,7 +34,7 @@ spec = importlib.util.spec_from_loader("tutor", loader)
 tutor = importlib.util.module_from_spec(spec)
 loader.exec_module(tutor)
 
-from tutorboard import machine, paths, processes, supervise
+from tutorboard import machine, paths, processes
 
 fails = []
 
@@ -161,20 +161,10 @@ try:
     tutor.agent_start = lambda cfg, course, name: (
         calls["agent"].append(course["dir"]) or (0, "started"))
     tutor.this_host = lambda: "compute301"
-    # A login also pulls the Tailscale in this home directory forward.
-    # Left real, every case below would ask pkgs.tailscale.com and could
-    # replace the binaries this machine is on the tailnet with, mid-suite.
-    tutor.tailscale.update_userspace = lambda quiet=False, force=False: None
     # What kind of machine this is decides which rule applies, and the real
     # answer depends on whether Slurm answers where the tests are being run.
     # Pin it: everything below is the cluster rule unless it says otherwise.
     machine.machine_shape = lambda: "compute node"
-    # WHERE HOME IS, pinned like everything else. A running serving chain makes
-    # its node home, and a login anywhere else leaves the boards alone -- which
-    # is a question about the real queue, and no suite may have an answer that
-    # depends on what happens to be running on the machine it is run on. Nothing
-    # is serving in this world unless a case below says so.
-    supervise.serving_node = lambda rows=None: None
 
     def reset():
         for k in calls:
@@ -200,21 +190,6 @@ try:
           calls["sync"] == ["Newer"])
     check("and a tutor is attached, or the iPad has a board and nobody on it",
           calls["agent"] == ["Newer"])
-
-    # --- a serving chain is home, and a login elsewhere leaves it alone -----
-    # Otherwise every new terminal on the `salloc` kept for coach coding drags
-    # the lesson off the serving node, and the two of them take turns owning the
-    # one address the iPad has. Reported as a white screen.
-    supervise.serving_node = lambda rows=None: "compute306"
-    reset()
-    tutor.cmd_resume(cfg, ["Newer", "--quiet"])
-    check("with a serving job up on another node, a login here starts nothing",
-          not calls["start"] and not calls["agent"])
-    reset()
-    tutor.cmd_resume(cfg, ["Newer", "--quiet", "--force"])
-    check("--force is still a person insisting, and is obeyed",
-          calls["start"] == ["Newer"])
-    supervise.serving_node = lambda rows=None: None
 
     # --- --no-agent for someone who drives it from a terminal ---------------
     reset()

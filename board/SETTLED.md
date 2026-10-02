@@ -984,8 +984,8 @@ Each entry is a rule that is true of `board/` now. Fold an entry into `board/REA
   by its own rule, because the rule was *a name pointing at a board that is up
   and answering is that board's*. **Measured:** a Galois Theory board from a dead
   generation held `https://compute-node…/` on 9098 for an hour and three
-  quarters while the live one served 9195. `tutor serve status` said generation
-  3, watched, last check 12 seconds ago; `tutor agent status` said claude
+  quarters while the live one served 9195. The watch loop's last check was 12
+  seconds old; `tutor agent status` said claude
   listening; the tutor's card 0038 was written at 09:53 and sat on a board
   nothing was pointing at. From the iPad: *"If claude is working, and the
   tutoring server is up, how could we ever be left hanging?"* — like this, and
@@ -1002,7 +1002,7 @@ Each entry is a rule that is true of `board/` now. Fold an entry into `board/REA
   own recorded port, and a leftover fails that by the same stroke, since a
   leftover's port is not a recorded one. One test rather than two, on purpose —
   with nobody having chosen, nothing here is entitled to move the name at all,
-  and a leftover that draws is still an address that draws. `test/perpetual.py`
+  and a leftover that draws is still an address that draws. `test/watching.py`
   holds both halves.
 - **A STROKE THAT NEVER ENDS REFUSES EVERY SCROLL ON THE PAGE, so silence has to
   end it.** The non-passive `touchmove` is on the DOCUMENT and exists only while
@@ -1070,7 +1070,7 @@ Each entry is a rule that is true of `board/` now. Fold an entry into `board/REA
   the flag and signalled, the handoff turn took 97 seconds against the 90 it is
   given, so the restart printed *still writing its handoff* and returned without
   starting anything; the daemon exited through that line, wiped the flag, and
-  three generations of the serving chain revived that course's BOARD and refused
+  the watch loop revived that course's BOARD and refused
   its TUTOR. Fifteen hours of a board serving perfectly with nothing reading it,
   with `turn_signal` still naming an answer that had been handed in. From the
   iPad: *"it says the tutor is down, though the app is working."* `mark_waking`
@@ -1581,65 +1581,23 @@ Each entry is a rule that is true of `board/` now. Fold an entry into `board/REA
   **Naming nobody is still whoever is there**, because that is what a dispatch
   that names nobody asks for. `test/elsewhere.py`.
 
-- **The allocation renews itself, and a loop inside it puts back what dies.**
-  Two failures had no answer here. A process died — `serve.py` on an exception,
-  the tutor daemon on an OOM — and the record on disk went on naming a dead pid
-  until somebody logged in, because a login was the only moment anything looked.
-  And the allocation ended, which takes the node, both processes and
-  `tailscaled` with it and leaves nothing anywhere to notice. `tutor serve` is
-  the answer to the second: a batch job that submits its successor with
-  `--dependency=afterany:<itself>` **before it does anything else**, so the
-  queue always holds the next machine and a generation that falls over in its
-  first second still leaves one behind it. `afterany` rather than `afterok`,
-  because a generation that crashed is when the next one is most needed. That
-  makes the first worth writing, and `tutor watch` is it — one pass every twenty
-  seconds over every workspace, inside the generation: a board whose pid is
-  gone; a board that is alive and has failed `/health` twice, which is *wedged*
-  and is the failure a pid check cannot see, stopped before it is started
-  because otherwise the port is still held and the new one lands where the iPad
-  is not looking; and a tutor daemon that died. `scripts/install-autostart.sh`'s
-  refusal stands exactly as it was written and this does not contradict it: the
-  supervisor it refused OUTLIVES the machine and comes back to a machine that is
-  not there, and this one IS the machine — it ends when the allocation does, and
-  the thing that brings the board back is the successor queued nine hours
-  earlier, at the start of this generation.
-  **Ending it is a flag BEFORE a cancel**, which is not belt-and-braces:
-  cancelling the running generation is precisely what its successor's dependency
-  is waiting for, so a chain cancelled one job at a time comes straight back,
-  which is the design working at the worst possible moment. `serve-stopped` in
-  the state directory is checked before any submission and on every pass of the
-  loop, and `tutor serve stop` writes it and then cancels the whole job name at
-  once. **The partition is the one setting in here with a wrong answer**: `c3` is
-  PreemptMode SUSPEND under higher-tier partitions, so a board there is
-  SIGSTOPped by the first busy afternoon — alive, holding its port, answering
-  nothing, and undiagnosable. `c3_accel` is no escape either: measured from
-  inside a job on compute306, its node has no route to Tailscale's control plane
-  at all, so a tutor can teach from there and the iPad cannot reach it. That
-  leaves `c3_short`, nine hours, top tier and preempted by nothing — a ceiling
-  which is exactly what a self-renewing chain makes irrelevant. It is
-  `serve_partition`, `serve_time`, `serve_cpus` and `serve_mem` in the config,
-  because the day the cluster is rearranged this has to be answerable without a
-  commit. **A handover is not a stop, and the difference is one field**: the
-  walltime warning (`--signal=B:USR1@300`, so the handoffs get written while
-  there is still a machine) makes every daemon exit leaving the same record a
-  person's `tutor agent stop` leaves, and one of those must be picked back up
-  while the other must never be — `hand_over` writes `handover` first, and it is
-  honoured regardless of which node the next generation lands on, since on a
-  single-node partition the same one is the common case. Believed for an hour:
-  `live/agent.json` is never swept, so a record saying `listening` on a node
-  whose allocation ended two days ago reads exactly like one from a node that
-  went a minute ago. What the watchdog REFUSES is the load-bearing half —
-  nothing without a record, because `board stop` and `tutor headless --stop`
-  remove theirs and that is a person saying no; nothing on a node Slurm still
-  says is yours, because the pid in that record cannot be read from here and the
-  live one is usually an `salloc` with somebody mid-proof on it; nothing a
-  `restarting` flag says is already in flight. And the chain cannot watch itself
-  all the way down, so the loop re-checks its own successor every five minutes
-  and `tutor resume` repairs the chain on any login, but only where one was
-  started and not stopped. `board/README.md` has the shape;
-  `tutorboard/supervise.py` holds every decision off records and a clock so none
-  of it needs a cluster to test, and `test/perpetual.py` is mostly assertions
-  about what it will not do.
+- **A loop puts back what dies, and only what a person asked for.** A process
+  dies — `serve.py` on an exception, the tutor daemon on an OOM — and the record
+  on disk goes on naming a dead pid. `tutor watch` makes one pass every twenty
+  seconds over every workspace: a board whose pid is gone; a board alive and
+  failing `/health` twice, which is *wedged* and is stopped before it is started
+  because otherwise the port is still held; and a tutor daemon that died. On the
+  Mac the `tutor-board.tutor-watch` LaunchAgent runs it. **No compute node serves
+  a board**: the institute's firewall blocks it, so there is no serving job.
+  **A handover is not a stop, and the difference is one field**: `tutor down`
+  writes `handover` before the stop, so the record is picked back up, while a
+  person's `tutor agent stop` never is. Believed for an hour: `live/agent.json`
+  is never swept. What the watchdog REFUSES is the load-bearing half — nothing
+  without a record, because `board stop` and `tutor headless --stop` remove
+  theirs; nothing on a node Slurm still says is yours, because the pid in that
+  record cannot be read from here; nothing a `restarting` flag says is already
+  in flight. `tutorboard/supervise.py` holds every decision off records and a
+  clock, and `test/watching.py` is mostly assertions about what it will not do.
 - **A workspace says whether it holds a fence, and both choosers say it before
   the tap.** The fence was real and per-PATH — every walk refused a fenced
   directory — and nothing anywhere said that a WORKSPACE had one, so the *who:*

@@ -630,20 +630,11 @@ tutor.board = lambda root, *a: (0, "")
 tutor.link = lambda root: None
 tutor.sync = lambda root, quiet=False: None
 tutor.pull_vendor = lambda quiet=False: None
-# And the other thing a login pulls. Left real, it would ask
-# pkgs.tailscale.com on every case below and could replace the binaries
-# this machine is actually on the tailnet with, mid-suite.
-tutor.tailscale.update_userspace = lambda quiet=False, force=False: None
 tutor.prune_dead_records = lambda cfg, host: []
 tutor.agent_start = lambda cfg, c, name, session=None: (started.append(c["dir"]) or (0, "started"))
 tutor.ssh_tool = lambda target, tail, timeout=300: (
     sshed.append((target, list(tail))) or (0, "claude starting in Fake-Course\n"))
 tutor.machine.slurm_nodes = lambda: {host, "othernode"}
-# Nothing is serving in this world. A running chain makes its node home and a
-# login elsewhere leaves the boards alone, which is a question about the real
-# queue -- and what is in the real queue is not allowed to decide what a suite
-# asserts. `test/perpetual.py` owns that rule.
-tutor.supervise.serving_node = lambda rows=None: None
 
 
 def away_agent(**kw):

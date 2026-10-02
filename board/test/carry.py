@@ -92,7 +92,7 @@ def rec(**kw):
 def gone(**kw):
     """An `agent.json` left by a daemon that went with another node.
 
-    The hop, faked the way `perpetual.py` fakes one: a foreign host and a chosen
+    The hop, faked the way `watching.py` fakes one: a foreign host and a chosen
     `last_seen`. `AWAY_SILENCE` is 900 s, so twenty minutes of silence from a
     node this machine cannot read a process table on is a daemon that is gone.
     """

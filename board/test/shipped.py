@@ -61,9 +61,8 @@ paths.CONFIG = os.path.join(conf, "config.json")
 paths.CHOSEN = os.path.join(conf, "chosen.json")
 tutor.CHOSEN = paths.CHOSEN
 paths.STATE_DIR = state
-supervise.RECORD = os.path.join(state, "serve.json")
 supervise.WATCH = os.path.join(state, "watch.json")
-supervise.STOP = os.path.join(state, "serve-stopped")
+supervise.STOP = os.path.join(state, "watch-stopped")
 
 HOST = "compute301"
 THERE = "compute303"

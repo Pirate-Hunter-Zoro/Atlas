@@ -3583,7 +3583,7 @@ def recorded_ports():
     on answering on 9098 while the live one served 9195, and because it ANSWERED
     it kept `https://compute-node…/` -- the one address the iPad is installed
     against -- for an hour and three quarters. The tutor was up, the board was
-    up, the serving chain was on generation 3 and reporting itself healthy, and
+    up, the watch loop was reporting itself healthy, and
     the reply the tutor had written was on a board nothing was pointing at.
     Reported in the only words it needs: "The tutor in Galois Theory is also not
     responding... If claude is working, and the tutoring server is up, how could
