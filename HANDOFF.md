@@ -24,7 +24,7 @@ This file says what is left to build.
 
 **Path ownership is what makes two writers on one branch safe.** The Mac never writes a
 report or an export. The cluster writes nothing else, except the files of a thread whose
-sitting is held at the cluster (item 4). While the hold lasts, those files are the cluster's
+sitting is held at the cluster (`board hold`). While the hold lasts, those files are the cluster's
 and the Mac refuses to write them. So a pull on either side fast-forwards or rebases without a
 conflict.
 
@@ -40,7 +40,7 @@ PHI rule on the Mac is a rule about what the cluster may export.
 - **research/PSYCH-ASR:** code on the Mac. Every run on the cluster. The owner listens to the
   recordings at the institute, never through the relay.
 - **projects/libr-local-llm:** the deck and the learning sittings on the Mac. Colibri runs on
-  the cluster only while it has a task (item 5). `vendor/colibri` moves forward on the cluster's
+  the cluster only while it has a task (Colibri on demand, in `board/README.md`). `vendor/colibri` moves forward on the cluster's
   relay pass.
 - **projects/Paper-Writer:** all on the Mac.
 
@@ -132,15 +132,14 @@ cluster if `sbatch` exists.
 |---|---|---|
 | 9. One environment per workspace | Mac | first |
 | 6. Providers on the Mac | Mac | after 9 |
-| 1, 2, 3, 4, 5, 8 | cluster | being built there now; a Mac session leaves them alone, and they leave this file when they land |
-| 7. The compute node stops serving | cluster | now, as soon as 1–5 and 8 land; nothing waits on the Mac |
+| 7. The compute node stops serving | cluster | now; the cluster session is doing it |
 
 The Mac already runs the board: `board/README.md` §6 of the setup, "The Mac mini, which is the
 host".
 
 - On the Mac, a session does 9, then 6.
-- On the cluster, a session builds whatever cluster item is still in this file, then does
-  item 7.
+- On the cluster, a session does item 7. The relay, holds, the Mac's hearing and Colibri on
+  demand are built: `board/README.md` has their rules.
 - A session that finds its machine's items all gone says so, then turns to "The work it is
   for".
 - Ultracode, where the owner asks for it, means parallel agents across that machine's
@@ -154,193 +153,13 @@ host".
    the whole item first. Extend the existing code it names. A second mechanism beside an
    existing one is how this repository ends up with two of everything.
 3. When an item lands, delete it from this file. Write its rule into `board/README.md` in the
-   present tense. Renumber what is left.
+   present tense. Numbers stay as they are: the owner and other sessions follow them.
 4. If part of an item proves wrong once the code is in front of you, leave that part here with
    one line saying why. Do not drop it quietly.
 
 ---
 
 ## What to build
-
-### 1. A request and a report — depends on nothing
-
-Extend `board/tutorboard/jobs.py`. Do not add a second registry beside it.
-
-- `board job <thread> [--produces …] [--export …] -- <recipe> [VAR=value …]` submits directly
-  on a machine with Slurm. On a machine without Slurm, it writes `relay/requests/<id>.json`,
-  commits and pushes it with the workspace-scoped save. `board ask-cluster <thread> "<brief>"`
-  files a `turn` request the same way.
-- `jobs.registry` merges three sources into one view: the existing `live/jobs.jsonl`, requests,
-  and reports. A request with no report yet reads `requested`. The thread status table gains
-  that state between `running` and `written`, and a box says "waiting for the cluster".
-- Validation is a pure function, beside `threads.validate`, shared by both machines: recipe
-  tracked and in the workspace, variables declared with a matching value, export paths marked
-  on the thread, ids unique. The Mac refuses a bad request before committing it. The cluster
-  refuses it again before running it.
-- `threads.json` threads gain an optional `exports` list of paths, each with `aggregate: true`
-  once the owner has said so. `board thread export <thread> <path>` asks for it on a card.
-- Every assistant contract says: **long work goes through `board job`.** On the Mac that means
-  a request, and a bare `sbatch` there is an error.
-
-> **Prompt:** Build item 1 of `HANDOFF.md`: requests and reports in `board/tutorboard/jobs.py`,
-> `board job` writing a request on a machine without Slurm, `board ask-cluster`, the merged
-> registry, the `requested` status, the shared validator, and the thread file's `exports` with
-> `board thread export`. Read "The relay" and "Rules that bind every item" first. The JSON
-> shapes there are the contract; change them only with a one-line reason left in HANDOFF.
-> Tests: validation refusing each bad case with every problem listed, the registry merge, status
-> derivation with a request outstanding, and the request commit touching only `relay/requests/`.
-> Update all eight workspace contracts. Ship with the repository's scripts.
-
-### 2. The relay on the cluster — depends on 1
-
-A `scrontab` entry, every five minutes, runs `tutor relay` once. `scrontab` is available on
-this cluster. Each pass does the following, in order, and is safe to run twice at once (take a
-lock, and skip the pass if the lock is held):
-
-1. Pull from origin, fast-forward only. If the tree has commits or edits outside the cluster's
-   own paths, skip the pass and say so in `relay/state.json`, which is ignored. Then move
-   `vendor/colibri` forward with `pull_vendor`.
-2. For each request with no report, validate it. Then submit it through `jobs.submit`, or
-   refuse it in a report.
-3. Poll unfinished jobs with the existing `jobs.poll`. The board daemon's poll moves here.
-   **`sacct` is refused on this cluster** (its database connection is refused), so a job's end
-   cannot be read from Slurm's accounting. `jobs.submit` wraps every recipe so its last act
-   writes the exit code to `relay/state/<id>.exit`, which is ignored. A job that has left
-   `squeue` with that file is ended with that code. A job that has left `squeue` without it
-   died: timeout, node failure or a cancel. On an ended job, copy the exports, check them
-   against the thread file and the size cap, and write the report.
-4. For a `turn` request in a workspace that opted in, run a headless Claude turn there, with the
-   brief, the thread, and the rule that its note is public. Only one turn runs at a time; the
-   rest wait for later passes.
-5. Commit only `relay/reports/` and `exports/`, rebase onto origin, and push. On a rejected push,
-   retry once next pass. Never force.
-
-`tutor relay --once` and `tutor relay --status` run it by hand and show what it sees.
-`relay/state.json` records the last pass, the last error and the last pushed commit.
-
-> **Prompt:** Build item 2 of `HANDOFF.md`: `tutor relay` and its scrontab entry on this
-> cluster. Read "The relay", "Rules that bind every item", and item 1's code. First prove that a
-> compute node in the `c3_short` partition can reach github.com with git over HTTPS. If it
-> cannot, stop and report that in one line. Reuse `jobs.submit`, `jobs.poll` and `pull_vendor`.
-> `sacct` is refused here: end jobs from `squeue` plus the exit-code file, and test a job that
-> leaves `squeue` without one. Write a report's note so it can be published, and enforce the `RELAY:` line rule and the
-> export checks in code, not only in the turn's instructions. Install the scrontab entry with a
-> command the README names, and make `tutor where` show the relay's last pass. Tests use a temp
-> repository with a fake `sbatch` and `squeue`, and cover: a request run, a refusal, two passes
-> at once, an export over the cap refused, a dirty tree skipping the pass, and a push retried.
-> Then run one real request end to end: the TRD-EHR neighbour-count sweep on its smallest
-> embedder, filed from the Mac side of the code. Ship with the repository's scripts.
-
-### 3. The Mac hears the cluster — depends on 1
-
-- The Mac's periodic pull (the `tutor-board.tutor-pull` LaunchAgent, `board/scripts/launchd/`) runs every two minutes while a
-  request is outstanding, and hourly otherwise.
-- A report that changed state in a pull drops a `[job]` message in that workspace's inbox, the
-  way `jobs.poll` does now. That wakes a turn through `turn_signal`. The turn reports what
-  finished, what it produced, any non-zero exit, and the `RELAY:` lines. Then it moves the
-  thread on.
-- `board brief` lists the thread's outstanding requests and its last report.
-- The paper builders and the library resolve a missing `results/…` path to `exports/results/…`.
-  `board thread --check` counts a path present in either place as present.
-
-> **Prompt:** Build item 3 of `HANDOFF.md`: the Mac side of the relay. Read item 1's code and
-> `jobs.poll`'s inbox wake. Make a pulled report wake a turn the way a finished local job does,
-> without a second wake mechanism. Make the pull's cadence depend on outstanding requests, and
-> make `results/` paths fall back to `exports/results/` in the paper builders, the library and
-> `board thread --check`. Test the wake, the cadence, and a manuscript compiling on a tree with
-> no `results/`. Ship with the repository's scripts.
-
-### 4. Coding at the cluster, coached on the glass — depends on 1, 2 and 3
-
-The owner sometimes writes code on the cluster, beside the data: an estimator they are being
-coached on, or a fix that only real rows reproduce. The coach still lives on the Mac and the
-card still lands on the iPad. The step's check runs on the cluster, because it needs the data.
-
-**A sitting is held at the cluster.** `board hold <thread>`, run in the cluster checkout, records
-the hold in `relay/holds/<thread>.json` and pushes it. From then until `board release <thread>`:
-
-- The thread's `files` belong to the cluster. The Mac's turns refuse to write them and say why.
-  The tutor's plumbing for that thread waits for the release, or goes in files outside the
-  thread's list.
-- The relay's pass leaves the owner's uncommitted edits alone. It pulls with rebase and
-  autostash, which is safe because nothing upstream touches the held files.
-- The Mac polls every 20 seconds instead of on its usual cadence.
-
-**`board send`** is the owner's one command per step, typed in the cluster terminal:
-
-1. It commits the thread's changed `files` with the message `<thread>: step` and the owner as
-   author.
-2. It runs the thread's `check` right there, on the node the owner is on. `check` is a tracked
-   script named on the thread, written by the tutor, which prints only `RELAY:` lines. Its exit
-   code and those lines go into `relay/reports/check-<thread>-<n>.json`.
-3. It pushes both, then waits up to three minutes for the coach's reply and prints it in the
-   terminal.
-
-**On the Mac**, the pull carrying a `check-` report drops a `[coach]` message into the inbox. The
-woken turn is a coach turn under `board/TEACHING.md`. It reads the step's diff and the check's
-lines, and writes the next card on the board. It also writes the same text to
-`relay/coach/<thread>.md` and pushes it, which is what `board send` prints. The text is public:
-it talks about the code and the check's aggregate numbers, never about rows.
-
-A round trip takes about a minute or two: push, a 20-second poll, the turn, and the push back.
-
-**Coaching right here** stays possible. Claude Code on the cluster runs under the same contract,
-with the data beside it, and is faster. Its sitting records itself with `board push` like any
-turn, so the board shows the steps afterwards. `board hold` is for when the owner wants the
-iPad as the coach's page.
-
-> **Prompt:** Build item 4 of `HANDOFF.md`: holds, `board hold`, `board release`, `board send`,
-> the thread's `check`, the `[coach]` wake and `relay/coach/`. Read "The relay", items 1 to 3's
-> code, `board/TEACHING.md`'s coach section, and the coach division of labour in the workspace
-> contracts. Extend the validator so a hold is refused on a thread that already has one, a
-> `check` must be tracked, and a Mac turn writing a held file is refused. Make the relay's
-> rebase-with-autostash safe against the owner's edits, and prove it with a temp repository
-> where the owner has uncommitted edits to a held file while the Mac pushes elsewhere. Add a
-> test for each piece, plus one full round trip with fake push and pull. Then run one real round
-> trip on a TRD-EHR Paper 2 coach thread with a trivial check. Ship with the repository's
-> scripts.
-
-### 5. Colibri on demand — depends on 2
-
-Colibri is not kept warm. It runs while it has work and stops when it has none. A task survives
-the job running it.
-
-- **A task queue on the cluster**, in the libr-local-llm workspace's ignored state, because a
-  Colibri task may name session content. A task has a thread, a brief, a state, an attempt
-  count, and the conversation name `coli-code` resumes by. It is filed by
-  `board colibri <thread> "<task>"` on the cluster, or by a `colibri` request through the relay
-  from the Mac.
-- **Filing a task starts a generation if none is queued or running.** The generation loads,
-  then works through the queue one task at a time. It exits cleanly once the queue has been
-  empty for 20 minutes.
-- **Each generation submits its own clone at start**, depending on itself ending not-ok and
-  killed if that dependency can never be met. A generation that dies (timeout, node failure,
-  out of memory) starts the clone. A clean exit lets Slurm drop it. The clone does the same in
-  turn. So a death costs one cold load, about 68 minutes, and no work.
-- **A task interrupted by a death is resumed by the clone**, through the existing exit-75 hop and
-  resume-by-name in `coli-code`. After three deaths on the same task, the task is marked failed
-  and is not retried.
-- **The warm overlapping chain (`coli_chain_watch`, `COLI_CHAIN`) is off by default.**
-  `coli-up --warm` turns it on for a session that wants Colibri answering live.
-- **What comes back is public.** Colibri may read PHI, so its output never goes into a report
-  directly. A finished task is shipped the way that project's HANDOFF already requires: a
-  hosted follow-up turn reviews the diff, `names_phi` runs before anything leaves the machine,
-  and the relay report carries only state and that turn's public note.
-- The board's Colibri status (`off`, `queued`, `loading`, `warm`) stays, and `off` is now the
-  normal state with nothing queued.
-
-> **Prompt:** Build item 5 of `HANDOFF.md`: Colibri on demand. Read `projects/libr-local-llm/`
-> `README.md` §4c, its `HANDOFF.md` ("The guarantee, and what it does not cover", and the
-> traps), `slurm_jobs/colibri_serve.sbatch`, `bin/coli-up` and `bin/coli-code`,
-> `board/tutorboard/colibri.py` and `missions.py`. Extend the mission record into the task
-> queue; do not build a second queue. Add the self-clone with a not-ok dependency and
-> kill-on-invalid-dependency, idle exit after 20 minutes of an empty queue, the three-death cap,
-> `board colibri`, the relay's `colibri` request kind, and `coli-up --warm` for the old chain.
-> `sacct` is refused on this cluster, so tell a clean exit from a death the way item 2 does.
-> Test with fake `sbatch` and `squeue`: a death mid-task resumed by the clone, a clean exit
-> dropping the clone, the cap, and two tasks filed at once starting one generation. Then run
-> one real small task end to end. Update that project's `README.md` and `HANDOFF.md` to
-> describe on-demand as the default, in the present tense. Ship with the repository's scripts.
 
 ### 6. Providers on the Mac — depends on 9
 
@@ -351,7 +170,7 @@ Mac they become ordinary choices for any workspace: the Mac holds no PHI. What c
   DeepSeek for learn sittings in a course and Claude for build sittings in research.
 - `board/tutorboard/net/egress.py`'s endpoint list includes each configured provider.
 - A cluster `turn` always uses Claude under the PHI guard. Colibri remains the only model that
-  reads PHI, and it runs only on the cluster (item 5).
+  reads PHI, and it runs only on the cluster.
 
 > **Prompt:** Build item 6 of `HANDOFF.md`. Read `keys.py`, `assistants.py`, `provider.py`, and
 > the egress rules in `board/tutorboard/net/`. Let `tutorboard.json` name a default provider per
@@ -360,7 +179,7 @@ Mac they become ordinary choices for any workspace: the Mac holds no PHI. What c
 > `~/.config/tutor-board/keys.env`. If the key is missing, say so in one line naming that path.
 > Ship with the repository's scripts.
 
-### 7. The compute node stops serving — depends on 1 to 5 and 8 landing
+### 7. The compute node stops serving — depends on nothing
 
 The institute's firewall ends board hosting on the compute node, so the serving chain goes now.
 The Mac is the only host. Delete what only served boards from the cluster: `tutor serve`,
@@ -380,25 +199,6 @@ and keep everything the relay, `board job`, `board send` and Colibri use.
 > and `tutor relay --once` clean afterwards. Rewrite the root `README.md` sections "The machine
 > this was built for" and "The board is the way in" for the Mac host and the cluster relay, in
 > the present tense. Ship with the repository's scripts.
-
-### 8. Smaller board work left from the threads build — depends on nothing
-
-Each is independent and small. Give one agent all five, one commit each.
-
-- **Accept a proposed thread with one tap.** A rethink proposes a thread in its report. Add a
-  route and a card control that runs `board thread add` on a tap. This touches shell files.
-- **The thread sheet dispatches a mission.** `POST /elsewhere` already validates `thread`. Add
-  the control to the sheet in `map.thread_sheet` and `board.js`.
-- **A stopped card lists what the thread left.** Give `report_owed` in `bin/tutor` the thread's
-  paths and the jobs registered since the turn began, and add a badge on the box.
-- **A turn's commit names a real thread.** `board push "<thread>: msg"` checks the prefix
-  against `threads.json` where one exists.
-- **The thread sheet links its write-up.** Each `writes` anchor opens the deliverable's document
-  at that heading.
-
-> **Prompt:** Build item 8 of `HANDOFF.md`: five small changes, one commit each, each with a
-> test. Read `map.thread_sheet`, the sheet code in `board.js`, `cards.stopped_body`,
-> `report_owed`, and `cmd_push`. Ship with the repository's scripts.
 
 ### 9. One environment per workspace, on both machines — depends on nothing
 
@@ -438,7 +238,7 @@ of it.
 > the code, not the environment, is reported, not fixed. Add the check to each `tutorboard.json`
 > and the before-pushing rule to every workspace contract. Write the root `README.md`'s setup
 > section in the present tense. Leave TRD-EHR's cluster switch from conda to the lockfile as
-> the last part. It needs the cluster, so file it as a relay `turn` request (item 2) with this
+> the last part. It needs the cluster, so file it as a relay `turn` request (`board ask-cluster`) with this
 > item's text, rather than doing it from the Mac. Ship with the repository's scripts.
 
 ### Left as they are
