@@ -2790,6 +2790,15 @@ button.thread-row:hover { background: var(--paper-2); }
 .thread-row.on { background: var(--paper-2); font-weight: 650; }
 .thread-row.open { color: var(--bad); font-weight: 600; }
 .thread-row.missing, .thread-row.dir { color: var(--ink-3); }
+/* A THREAD PROPOSED ON A CARD, and the tap that adds it. */
+.thread-propose { margin: .3rem 0 .6rem; font: .78rem var(--ui); color: var(--ink-3); }
+.thread-accept { font: 600 .8rem var(--ui); cursor: pointer;
+                 padding: .4rem .75rem; border-radius: .4rem;
+                 border: 1px solid var(--accent); background: var(--accent);
+                 color: var(--paper); }
+.thread-accept[disabled] { opacity: .5; cursor: default; }
+.thread-refused { display: block; margin-top: .3rem; color: var(--bad); }
+
 /* OR A MISSION ON THE THREAD, under the three kinds. */
 .thread-mission { margin: .6rem 0 .2rem; }
 .thread-mission-task {

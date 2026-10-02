@@ -50,8 +50,13 @@ window.Element.prototype.setPointerCapture = function () {};
 window.Element.prototype.releasePointerCapture = function () {};
 
 const posted = [];
+// What `/thread/accept` answers, where a test wants something other than yes.
+let acceptSays = { ok: true };
 window.fetch = (u, opt) => {
   posted.push({ url: String(u), body: opt && opt.body ? JSON.parse(opt.body) : null });
+  if (/\/thread\/accept$/.test(String(u))) {
+    return Promise.resolve({ json: () => Promise.resolve(acceptSays) });
+  }
   if (/slate\/state/.test(String(u))) {
     return Promise.resolve({ json: () => Promise.resolve({ pages: [] }) });
   }
@@ -150,6 +155,51 @@ const chip = doc.querySelector('.mine[data-turn="t0007"] .signal');
 chip && /handed this step over/.test(chip.textContent)
   ? ok('the transcript says the step was handed over')
   : fail('the turn carried no label: "' + (chip && chip.textContent) + '"');
+
+// ------------------------------------ a proposed thread, added with one tap
+// The server draws the proposal in words and leaves a control line
+// (`cards.extract_threads`); the card and the id are all that go back.
+const proposing = steps.concat([
+  { id: '0004', kind: 'lesson', mtime: t0 + 180,
+    body: 'Rewrote the tasks.\n\n**Proposed thread** `dims-table`: Dimension counts\n\n'
+          + '@@THREAD:dims-table:new@@\n\n**Proposed thread** `lost`: Lost\n\n'
+          + '@@THREAD:lost:bad@@\n\n@@THREAD:knn:there@@' }]);
+es.onmessage({ data: frame('build', { cards: proposing }) });
+await sleep(60);
+const offer = doc.querySelector('.card[data-card="0004"] .thread-propose[data-thread="dims-table"] .thread-accept');
+offer && !doc.querySelector('.thread-propose[data-thread="lost"] .thread-accept')
+&& !doc.querySelector('.thread-propose[data-thread="knn"] .thread-accept')
+  ? ok('a proposed thread is a button on its card; a refused or added one is not')
+  : fail('the proposal controls are wrong: '
+         + doc.querySelector('.card[data-card="0004"]').innerHTML.slice(0, 300));
+!/@@THREAD/.test(doc.querySelector('.card[data-card="0004"]').textContent)
+  ? ok('and the control line itself is never shown')
+  : fail('the raw control line is on the glass');
+posted.length = 0;
+offer.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+await sleep(20);
+const asked = posted.filter((p) => /\/thread\/accept$/.test(p.url));
+asked.length === 1 && JSON.stringify(asked[0].body)
+  === JSON.stringify({ card: '0004', thread: 'dims-table' })
+  ? ok('the tap posts the card and the thread id, and nothing else')
+  : fail('the tap sent ' + JSON.stringify(asked));
+const box = doc.querySelector('.thread-propose[data-thread="dims-table"]');
+box.getAttribute('data-state') === 'there' && /added/.test(box.textContent)
+  ? ok('and the card says it was added')
+  : fail('after the tap the card says ' + box.textContent);
+
+acceptSays = { ok: false, error: 'deliverable `nowhere` is not in the file' };
+es.onmessage({ data: frame('build', { cards: proposing.map((c) =>
+  c.id === '0004' ? Object.assign({}, c, { mtime: t0 + 240 }) : c) }) });
+await sleep(60);
+doc.querySelector('.thread-propose[data-thread="dims-table"] .thread-accept')
+  .dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
+await sleep(20);
+const refusedBox = doc.querySelector('.thread-propose[data-thread="dims-table"]');
+/nowhere/.test(refusedBox.textContent)
+&& !refusedBox.querySelector('.thread-accept').disabled
+  ? ok('a refusal is said on the card, and the button can be tapped again')
+  : fail('the refusal read ' + refusedBox.textContent);
 
 console.log();
 if (errors.length) { console.log(errors.length + ' FAILURES'); process.exit(1); }

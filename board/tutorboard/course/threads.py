@@ -358,6 +358,20 @@ def thread(clean, tid):
     return None
 
 
+def proposal(root, one):
+    """`(state, problems)` for a thread proposed on a card, against this
+    workspace's thread file: `there` where the file has that id, `bad` where
+    adding it would be refused (every problem), `new` where one tap adds it."""
+    clean, broken = read(root) if root else (None, [])
+    if broken:
+        return "bad", list(broken)
+    raw = clean or {"version": VERSION, "deliverables": [], "threads": []}
+    if thread(clean, str((one or {}).get("id") or "")):
+        return "there", []
+    _ok, problems = validate(dict(raw, threads=list(raw["threads"]) + [one]))
+    return ("bad", problems) if problems else ("new", [])
+
+
 # A commit subject's lead word: `<word>: the rest`. No slash, so a workspace id
 # (`research/TRD-EHR: ...`) is never read as a thread.
 PREFIX_RE = re.compile(r"^([A-Za-z0-9][A-Za-z0-9_.-]{0,59}):\s")

@@ -758,6 +758,12 @@ the README and plan.
   only where the anchor is found; 0 where it cannot be placed). Its tap opens
   `/library?from=map&doc=<id>&page=<n>`, and the reader lands on that page the way a re-draw
   puts it back (`keepPlace`).
+- **A proposed thread is accepted with one tap.** A card's fenced `thread` block holds the JSON
+  `board thread add` reads. `cards.extract_threads` draws it in words with a control line,
+  `@@THREAD:<id>:<state>@@`, re-read on every poll: `new` is an *Add this thread* button, `there`
+  means the file has the id, `bad` means the file would refuse it and says the first problem
+  (`threads.proposal`). The tap posts `/thread/accept {card, thread}`; the server reads the
+  thread back off that card's file (`cards.proposed`) and runs `board thread add` with it.
 
 ### Jobs register to a thread and report themselves
 
@@ -1804,8 +1810,8 @@ back a plan and does nothing. `board direction --show` reads it from a terminal 
 sentence does not go to `DIRECTION.md`. It rides in the `[direction]` line, under
 `direction.RETHINK`, and in the new sitting's `rethink`, which the briefing's thread section
 quotes. The woken turn rewrites that thread's tasks with `board thread` and reports what changed.
-A sentence that names a new question is proposed as a thread in the report and added with `board
-thread add` once the owner says yes. The sitting reopens on the same `thread` and `kind`, named
+A sentence that names a new question is proposed as a thread in the report, in a fenced `thread`
+block, and added with one tap on the card (see *Threads on the glass and in commits*). The sitting reopens on the same `thread` and `kind`, named
 after the thread; the lesson is still archived and the tutor still replaced. A sitting on no
 thread takes the workspace-wide path above.
 

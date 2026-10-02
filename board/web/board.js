@@ -378,6 +378,22 @@ function renderMarkdown(src) {
       continue;
     }
 
+    /* A THREAD PROPOSED ON THIS CARD, and the one tap that adds it. The server
+       wrote the proposal in words above this line (`cards.extract_threads`);
+       the state is the thread file's, read on every poll. */
+    var prop = line.match(/^\s*@@THREAD:([a-z0-9-]*):(new|there|bad)@@\s*$/);
+    if (prop) {
+      out.push('<div class="thread-propose" data-thread="' + prop[1]
+               + '" data-state="' + prop[2] + '">'
+               + (prop[2] === "new"
+                  ? '<button type="button" class="thread-accept">Add this thread</button>'
+                  : prop[2] === "there" ? "<span>on the map</span>"
+                  : "<span>not added: say what to change</span>")
+               + "</div>");
+      i++;
+      continue;
+    }
+
     /* heading */
     var h = line.match(/^(#{1,6})\s+(.*)$/);
     if (h) {
@@ -450,6 +466,7 @@ function renderMarkdown(src) {
            !/^\s*>/.test(lines[i]) &&
            !/^\s*([-*+]|\d+[.)])\s/.test(lines[i]) &&
            !/^\s*@@FIGURE:/.test(lines[i]) &&
+           !/^\s*@@THREAD:/.test(lines[i]) &&
            !/^\s*(-{3,}|\*{3,}|_{3,})\s*$/.test(lines[i])) {
       para.push(lines[i]);
       i++;
@@ -4805,6 +4822,49 @@ function askWriteup(makes, button) {
   }).catch(function () { /* the payload will say what actually happened */ })
     .then(function () { if (button) button.disabled = false; });
 }
+
+/* ONE TAP ADDS A PROPOSED THREAD. The card and the id go over the wire and
+   nothing else; the server reads the thread back off the card. Painted as
+   added before the answer, for `handOver`'s reason, and put back on a no. */
+function acceptThread(card, tid, button) {
+  var box = button.parentNode;
+  button.disabled = true;
+  button.textContent = "adding\u2026";
+  fetch("/thread/accept", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ card: card, thread: tid })
+  }).then(function (r) {
+    return r.json().catch(function () { return {}; });
+  }).then(function (got) {
+    if (got && got.ok) {
+      box.setAttribute("data-state", "there");
+      box.innerHTML = "<span>added \u2014 it is on the map</span>";
+      return;
+    }
+    button.disabled = false;
+    button.textContent = "Add this thread";
+    var why = document.createElement("span");
+    why.className = "thread-refused";
+    why.textContent = (got && got.error) || "the board refused it";
+    var old = box.querySelector(".thread-refused");
+    if (old) box.removeChild(old);
+    box.appendChild(why);
+  }).catch(function () {
+    button.disabled = false;
+    button.textContent = "Add this thread";
+  });
+}
+
+els.cards.addEventListener("click", function (ev) {
+  var b = ev.target && ev.target.closest && ev.target.closest(".thread-accept");
+  if (!b || b.disabled) return;
+  var card = b.closest("[data-card]");
+  var box = b.closest(".thread-propose");
+  if (!card || !box) return;
+  ev.preventDefault();
+  acceptThread(card.dataset.card, box.getAttribute("data-thread"), b);
+});
 
 /* One step, written for them, and the sitting stays a coaching one. Painted
    before the answer comes back for the reason `setAim` is: the payload that
