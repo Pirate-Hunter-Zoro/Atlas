@@ -130,13 +130,13 @@ cluster if `sbatch` exists.
 
 | Item | Runs on | When |
 |---|---|---|
-| 6. Providers on the Mac | Mac | first |
 | 9. One environment per workspace: TRD-EHR's switch to the lockfile | cluster | now |
 
 The Mac already runs the board: `board/README.md` §6 of the setup, "The Mac mini, which is the
 host".
 
-- On the Mac, a session does 6.
+- On the Mac, nothing is left: providers on the Mac landed (`board/README.md`, "Which one, for
+  this course, on this machine"), so a session there turns to "The work it is for".
 - On the cluster, a session does 9's TRD-EHR part. The relay, holds, the Mac's hearing and
   Colibri on demand are built, and no compute node serves a board: `board/README.md` has their
   rules.
@@ -160,24 +160,6 @@ host".
 ---
 
 ## What to build
-
-### 6. Providers on the Mac — depends on nothing
-
-DeepSeek and the others are already in `board/tutorboard/keys.py` and `assistants.py`. On the
-Mac they become ordinary choices for any workspace: the Mac holds no PHI. What changes:
-
-- A workspace's `tutorboard.json` may name a default provider per sitting kind, for example
-  DeepSeek for learn sittings in a course and Claude for build sittings in research.
-- `board/tutorboard/net/egress.py`'s endpoint list includes each configured provider.
-- A cluster `turn` always uses Claude under the PHI guard. Colibri remains the only model that
-  reads PHI, and it runs only on the cluster.
-
-> **Prompt:** Build item 6 of `HANDOFF.md`. Read `keys.py`, `assistants.py`, `provider.py`, and
-> the egress rules in `board/tutorboard/net/`. Let `tutorboard.json` name a default provider per
-> sitting kind, show the choice on the sitting sheet, and keep the cluster's turn on Claude.
-> Confirm DeepSeek answers one real turn on this Mac using the key in
-> `~/.config/tutor-board/keys.env`. If the key is missing, say so in one line naming that path.
-> Ship with the repository's scripts.
 
 ### 9. One environment per workspace: what is left — no dependency
 
