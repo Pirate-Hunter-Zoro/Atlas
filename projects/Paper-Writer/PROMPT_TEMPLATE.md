@@ -23,6 +23,8 @@ TRD-EHR primary analysis
 
        PAPER_SOURCE_DIRS=~/Atlas/research/TRD-EHR/results:~/Atlas/research/PSYCH-ASR/docs
 
+     with ~/Atlas replaced by wherever the checkout is (~/Developer/Atlas on the Mac).
+
      Those trees are read-only ground truth. Nothing here ever writes into them. -->
 
 ---

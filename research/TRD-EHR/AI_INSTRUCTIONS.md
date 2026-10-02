@@ -634,8 +634,8 @@ threads under them, and each thread's tasks and decisions. `board thread --show`
 thread's derived status. The first open task, in file order, is the next step. Say it in one or two
 sentences and start it. `README.md` carries the architecture.
 
-**The sibling projects keep the same file in the same place.** `~/Atlas/research/PSYCH-ASR/threads.json`
-and `~/Atlas/projects/libr-local-llm/threads.json`. When the user does not name a project, say
+**The sibling projects keep the same file in the same place.** From the checkout's root (`../..` from here,
+wherever the clone is): `research/PSYCH-ASR/threads.json` and `projects/libr-local-llm/threads.json`. When the user does not name a project, say
 what each one's next step is in a line, and note which are blocked. Paper 1's reviewer thread waits on
 its senior author, PSYCH-ASR waits on a recording and a human-made reference, and
 `libr-local-llm` waits on nobody, so it is where work goes while the other two are stalled.

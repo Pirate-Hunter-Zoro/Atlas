@@ -208,7 +208,10 @@ if [ -z "$REFDOC" ]; then
   ceiling="$(tree_of "$dir" || echo /)"
   while : ; do
     if [ -d "$dir/formats" ]; then
-      mapfile -t found < <(find "$dir/formats" -maxdepth 1 -name '*.docx' -type f | sort)
+      # A read loop rather than mapfile, which the Mac's bash 3.2 lacks.
+      found=()
+      while IFS= read -r f; do found+=("$f"); done \
+        < <(find "$dir/formats" -maxdepth 1 -name '*.docx' -type f | sort)
       if [ ${#found[@]} -eq 1 ]; then
         REFDOC="${found[0]}"
         break
@@ -241,10 +244,11 @@ unset 'prune[${#prune[@]}-1]'          # drop the trailing -o
 
 is_skipped_name() {
   local base
-  base="$(basename "$1")"
+  # Lowered with tr, not ${base,,}, which the Mac's bash 3.2 lacks.
+  base="$(basename "$1" | tr '[:upper:]' '[:lower:]')"
   local name
   for name in "${SKIP_NAMES[@]}"; do
-    [ "${base,,}" = "${name,,}" ] && return 0
+    [ "$base" = "$(printf '%s' "$name" | tr '[:upper:]' '[:lower:]')" ] && return 0
   done
   return 1
 }
@@ -261,7 +265,8 @@ for target in "${TARGETS[@]}"; do
   if [ -f "$target" ]; then
     sources=("$target")
   else
-    mapfile -t sources < <(
+    sources=()
+    while IFS= read -r f; do sources+=("$f"); done < <(
       find "$base_dir" \( "${prune[@]}" \) -prune -o \
            -name '*.md' -type f -print | sort)
   fi
@@ -274,7 +279,7 @@ for target in "${TARGETS[@]}"; do
     skipped=0
     skipped_names=()
 
-    for src in "${sources[@]}"; do
+    for src in ${sources[@]+"${sources[@]}"}; do
       if is_skipped_name "$src"; then
         skipped=$((skipped + 1))
         skipped_names+=("${src#"$base_dir"/}")

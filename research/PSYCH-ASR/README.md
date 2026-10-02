@@ -1275,11 +1275,11 @@ window — the preceding patient turn plus the therapist turn under judgment —
 isolated string.
 
 **Serving.** The inference stack itself is not part of this repo. It lives in the sibling
-`libr-local-llm` (`~/Atlas/projects/libr-local-llm`), which is shared infrastructure for this project and
+`libr-local-llm` (`projects/libr-local-llm` in the checkout), which is shared infrastructure for this project and
 `TRD-EHR` both — Ollama installed user-local and served on Slurm GPU nodes, with the vLLM
 path for this stage still to be built. Its README carries the bootstrap sequence,
 environment variables, and the traps already paid for; the remaining task list is
-`~/Atlas/projects/libr-local-llm/planning/LOCAL-LLM_TODO.txt`. **Whatever drives this stage must have no
+`projects/libr-local-llm/planning/LOCAL-LLM_TODO.txt`. **Whatever drives this stage must have no
 tool-calling surface** — no web fetch, no search, nothing that can put a fragment of a
 session into an outbound request. That is a hard requirement of the on-prem constraint at
 the top of this README, not a preference, and it is why the clinical path is a plain Python

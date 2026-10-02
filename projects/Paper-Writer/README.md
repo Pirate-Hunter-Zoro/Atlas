@@ -988,13 +988,18 @@ rebuild
 ```
 
 That is the loop, and one word is the point of it. `rebuild` is a shell function defined
-in `config/rebuild-alias.sh` and sourced from `~/.bashrc`:
+in `config/rebuild-alias.sh` and sourced from `~/.bashrc` or `~/.zshrc`, with your own
+checkout's path (`~/Atlas` on the cluster, `~/Developer/Atlas` on the Mac):
 
 ```bash
-if [ -r "$HOME/Paper-Writer/config/rebuild-alias.sh" ]; then
-    . "$HOME/Paper-Writer/config/rebuild-alias.sh"
+if [ -r "$HOME/Developer/Atlas/projects/Paper-Writer/config/rebuild-alias.sh" ]; then
+    . "$HOME/Developer/Atlas/projects/Paper-Writer/config/rebuild-alias.sh"
 fi
 ```
+
+That line in the profile is the only place the path is written. The function finds
+`scripts/rebuild-docs.sh` from where the file was sourced, under bash or zsh, and runs it
+through `bash` rather than relying on an execute bit git does not keep.
 
 The definition lives in the repository rather than in the profile so it stays tracked,
 for the plain reason that a profile is the one file on a machine nobody has a copy of.
@@ -1013,7 +1018,7 @@ argument parser is.
 The script is fine to call directly, and takes the same arguments:
 
 ```bash
-scripts/rebuild-docs.sh ~/Atlas/research/PSYCH-ASR/docs   # or a paper, or one file
+scripts/rebuild-docs.sh ../../research/PSYCH-ASR/docs   # or a paper, or one file
 ```
 
 With no path it walks the repository you are standing in. Failing that it falls back to
@@ -1140,8 +1145,9 @@ cp service/paperwriter.env{,.local}        # optional: keep your machine's confi
 $EDITOR service/paperwriter.env            # set PAPER_SOURCE_DIRS and PAPER_OUT_DIR
 
 # and, for the `rebuild` command, one guarded block in ~/.bashrc:
-#   if [ -r "$HOME/Atlas/projects/Paper-Writer/config/rebuild-alias.sh" ]; then
-#       . "$HOME/Atlas/projects/Paper-Writer/config/rebuild-alias.sh"
+# with the path of this checkout (~/Atlas on the cluster, ~/Developer/Atlas on the Mac):
+#   if [ -r "$HOME/Developer/Atlas/projects/Paper-Writer/config/rebuild-alias.sh" ]; then
+#       . "$HOME/Developer/Atlas/projects/Paper-Writer/config/rebuild-alias.sh"
 #   fi
 ```
 

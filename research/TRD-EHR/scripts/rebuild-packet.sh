@@ -39,8 +39,8 @@ ROOT="$(git -C "$WORKSPACE" rev-parse --show-toplevel 2>/dev/null || dirname "$(
 # The converter is the harness's, not a bare pandoc line: a document rebuilt by
 # hand has to be the document the pipeline would have produced, down to the
 # resource path that lets a section's `../results/*.png` resolve. One repository
-# now, so it is found in it -- `config/rebuild-alias.sh` still points a shell
-# profile at `$HOME/Paper-Writer`, which is where the checkout used to be.
+# now, so it is found in it, the same way `config/rebuild-alias.sh` finds it
+# from its own location.
 BUILD="$ROOT/projects/Paper-Writer/scripts/rebuild-docs.sh"
 if [ ! -x "$BUILD" ]; then
   echo "cannot find Paper-Writer's builder at $BUILD" >&2

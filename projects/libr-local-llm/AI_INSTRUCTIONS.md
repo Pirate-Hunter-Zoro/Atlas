@@ -635,9 +635,10 @@ your job, not theirs.
 the current state, what is blocking, and the ordered steps. Read it, say what the next step is in
 one or two sentences, and start it. `README.md` carries the architecture.
 
-**The sibling projects keep the same file in the same place.** `~/Atlas/research/TRD-EHR/planning/TRD-EHR_TODO.txt`,
-`~/Atlas/research/PSYCH-ASR/planning/PSYCH-ASR_TODO.txt`,
-`~/Atlas/projects/libr-local-llm/planning/LOCAL-LLM_TODO.txt`. When the
+**The sibling projects keep the same file in the same place.** From the checkout's root (`../..` from here,
+wherever the clone is): `research/TRD-EHR/planning/TRD-EHR_TODO.txt`,
+`research/PSYCH-ASR/planning/PSYCH-ASR_TODO.txt`,
+`projects/libr-local-llm/planning/LOCAL-LLM_TODO.txt`. When the
 user does not name a project, say what each one's next step is in a line, and note which are
 blocked. As of this writing that answer has a shape worth knowing: the paper waits on its senior author, PSYCH-ASR waits on a recording and a human-made reference, and `libr-local-llm` waits on nobody — so it is where work goes while the other two are stalled.
 
