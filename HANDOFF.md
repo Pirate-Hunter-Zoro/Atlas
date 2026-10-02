@@ -132,15 +132,15 @@ cluster if `sbatch` exists.
 |---|---|---|
 | 6. Providers on the Mac | Mac | first |
 | 9. One environment per workspace: the Lean toolchain | Mac | after 6 |
-| 9. One environment per workspace: TRD-EHR's switch to the lockfile | cluster | after 7 |
-| 7. The compute node stops serving | cluster | now; the cluster session is doing it |
+| 9. One environment per workspace: TRD-EHR's switch to the lockfile | cluster | now |
 
 The Mac already runs the board: `board/README.md` §6 of the setup, "The Mac mini, which is the
 host".
 
 - On the Mac, a session does 6, then 9's Lean part.
-- On the cluster, a session does item 7, then 9's TRD-EHR part. The relay, holds, the Mac's hearing and Colibri on
-  demand are built: `board/README.md` has their rules.
+- On the cluster, a session does 9's TRD-EHR part. The relay, holds, the Mac's hearing and
+  Colibri on demand are built, and no compute node serves a board: `board/README.md` has their
+  rules.
 - A session that finds its machine's items all gone says so, then turns to "The work it is
   for".
 - Ultracode, where the owner asks for it, means parallel agents across that machine's
@@ -179,27 +179,6 @@ Mac they become ordinary choices for any workspace: the Mac holds no PHI. What c
 > Confirm DeepSeek answers one real turn on this Mac using the key in
 > `~/.config/tutor-board/keys.env`. If the key is missing, say so in one line naming that path.
 > Ship with the repository's scripts.
-
-### 7. The compute node stops serving — depends on nothing
-
-The institute's firewall ends board hosting on the compute node, so the serving chain goes now.
-The Mac is the only host. Delete what only served boards from the cluster: `tutor serve`,
-`tutor watch`, `tutorboard/supervise.py`, `slurm/tutor-serve.sbatch`, `test/perpetual.py`, the
-`serve_*` keys, and the userspace Tailscale updater. Keep `pull_vendor`, which the relay calls,
-and keep everything the relay, `board job`, `board send` and Colibri use.
-
-- **Keep `tutor watch` and what it calls in `supervise.py`** (`answering`, `board_verdict`, `tutor_verdict`,
-  `next_try`, `note_watch`, `stopped`, `POLL`): the Mac's `tutor-board.tutor-watch` LaunchAgent
-  runs it, and it is what brings every board back after a reboot there. Only the Slurm chain
-  around it goes.
-
-> **Prompt:** Do item 7 of `HANDOFF.md`. Cancel every `tutor-serve` job queued or running for
-> this user, and any board or tutor process it left on a node. Remove the serving chain the
-> item lists, every reference to it in code, tests, contracts and READMEs, and the suites that
-> only test it. Keep the relay and everything it calls working: `bash board/test/all.sh` green,
-> and `tutor relay --once` clean afterwards. Rewrite the root `README.md` sections "The machine
-> this was built for" and "The board is the way in" for the Mac host and the cluster relay, in
-> the present tense. Ship with the repository's scripts.
 
 ### 9. One environment per workspace: what is left — no dependency
 

@@ -60,12 +60,16 @@ its own port. It reads the workspace off disk, draws a **map** of it, opens a **
 runs an assistant against it — as a tutor that explains and makes you do the work, or as a pair
 that writes the code, per sitting.
 
+**The board runs on the Mac mini at home, and only there.** The iPad reaches it over the owner's
+tailnet. The `tutor-board.tutor-watch` LaunchAgent keeps every board and tutor up and brings them
+back after a reboot. Work that needs the cluster goes to it as a relay request (below).
+
 ```
 bash board/install.sh          once, per machine
 tutor                          pick a workspace; it starts the board and the tutor
 tutor galois                   go straight there
 tutor where                    what is running, on this machine and the tailnet
-tutor serve                    hold a machine under the board for as long as you want one
+tutor watch                    keep this machine's boards and tutors up (the LaunchAgent runs it)
 ```
 
 Opening the app lands on the **atlas**: one picture of every workspace, what is next in each, and
@@ -238,8 +242,8 @@ commits — one pulled forward on every login, one pinned at `fd93c41` and never
 build tree that moves underneath a build is the failure it exists to avoid. Neither is my code and
 neither is committed into.
 
-The pull is `pull_vendor()` in `board/bin/tutor`, called from `cmd_resume`, because a compute node
-gets one moment and it is the login. **It commits the pointer bump itself**, with a fixed message
+The pull is `pull_vendor()` in `board/bin/tutor`, called on login (`tutor resume`), by `tutor
+pull`, and by every relay pass on the cluster. **It commits the pointer bump itself**, with a fixed message
 naming the old and new commit, and that is the only commit anything in this system makes on its
 own — without it the repository is left dirty every time colibri moves and the board shows unsaved
 work nobody did. It is guarded three ways: only when `vendor/colibri` is the *only* dirty path,
@@ -247,25 +251,24 @@ never mid-merge or mid-rebase, never on a detached HEAD. `scripts/catch-up.sh` d
 on the same guards. A clone without `--recurse-submodules` arrives with an empty `vendor/` and no
 error; `bootstrap.sh` repairs it.
 
-**The unprivileged Tailscale in `$HOME` rides the same two moments**, because it has the same
-problem: no package manager knows it is there and there is no administrator to notice it ageing.
-`update_userspace` in `board/tutorboard/net/tailscale.py` moves it forward on a login and on the
-daily timer, at most one check a day, and never restarts the running daemon —
-`board/README.md` §4 has the four things it refuses to do.
-
 ---
 
 ## The machine this was built for
 
-A Slurm compute node with no root and a shared home directory reachable under two different
-paths. Python standard library only; plain browser JavaScript; nothing that needs a package
-manager at runtime. A login is one of the two moments a compute node gets, so that is when the
-repository pulls, `vendor/colibri` moves forward, and a board that is down comes back. The other
-is `tutor serve`: a batch job that queues its own successor before it does anything else, so the
-allocation under the board renews itself and a process that dies is back inside twenty seconds --
-`board/README.md` has it.
+Two machines, and they never talk directly.
 
-It runs anywhere a `python3` and a browser are. The Slurm parts notice they are not needed.
+- **The Mac mini** hosts the board, the tutor turns, compiles, decks and meetings. It holds the
+  whole repository and no PHI, so any provider may run there.
+- **The cluster** keeps what must stay at the institute: the data, the GPUs and Slurm. It hosts
+  no board. A scrontab entry runs `tutor relay --once` every five minutes: the relay pulls,
+  submits each new request in `relay/requests/` as a Slurm job, and commits its state to
+  `relay/reports/`. Colibri runs there only while it has a task.
+
+GitHub is the only channel between them. `HANDOFF.md` has the split and `board/README.md` the
+relay.
+
+Python standard library only; plain browser JavaScript; nothing that needs a package manager at
+runtime.
 
 ---
 
