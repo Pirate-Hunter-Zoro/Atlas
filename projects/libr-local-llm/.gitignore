@@ -48,6 +48,9 @@ live/*
 # judgement no other file contains. The negation comes after the `*.json` rule
 # above, or that rule is the last match and wins.
 !threads.json
+# And the board's declaration of this workspace, whose `"phi": true` keeps a
+# held step's check to RELAY: lines on the cluster's checkout too.
+!tutorboard.json
 
 # THE RELAY'S REQUESTS, REPORTS AND HOLDS ARE TRACKED: they are how the Mac and
 # the cluster talk, through the repository. Each must survive the blanket *.json

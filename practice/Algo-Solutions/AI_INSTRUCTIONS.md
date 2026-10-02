@@ -553,6 +553,12 @@ Two rules about the commit, and neither is negotiable:
   Judgement beside the data is `board ask-cluster <thread> "<brief>"`. Publishing an artifact
   to `exports/` is the owner's call: `board thread export <thread> <path>` prints the question
   for your card.
+- **Work held at the cluster is the cluster's.** While `board brief` says *held at the
+  cluster*, do not edit the held files; `board push` refuses. Each step arrives as
+  `[coach]` with the commit and the check's result. Write the next card, then pipe the
+  same text into `board coach <id> --step <n>`. Both are public. `board hold`, `board
+  send` and `board release` are the owner's, typed at the cluster: the one exception to
+  the rule that the user never runs a board command.
 - **Ink on a document is answered in its ledger.** A turn asked to act on marks on a paper,
   deck or write-up runs `board round <document>` first and answers every id in the ledger it
   prints: a disposition, one sentence (for not done and pushed back, the reply the owner reads
@@ -603,7 +609,9 @@ One problem at a time, and finishing a problem is four things, not one:
 1. **Solve it.** The user writes the solver. Section 3 governs unchanged: you guide in English,
    one step per turn, and you do not write the algorithm. Their test table is theirs too.
 2. **Verify it.** Section 5 governs unchanged — you run the tests, not the user. If the tooling
-   will not let you, say so plainly in the card rather than assigning the run as a chore.
+   will not let you, say so plainly in the card rather than assigning the run as a chore. A held
+   problem's check is `go test` on its package, run on the cluster by `board send`; its output
+   reaches you, so read the failing case from it rather than rerunning it.
 3. **Document it.** Move the row into **Solved**, clear **In flight**, and note anything learned
    that the code does not say by itself. This is yours to write, not theirs, and it is not
    optional — a plan that is a lie after three commits is a project with no plan.

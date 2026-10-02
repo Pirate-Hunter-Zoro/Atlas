@@ -84,3 +84,32 @@ def label(chapter):
     if num and title:
         return "Ch %s — %s" % (num, title)
     return title or ("Ch %s" % num if num else "")
+
+
+def chapter_dir(root, name):
+    """`chapters/<dir>` of the chapter a sitting is labelled with, or "".
+
+    `name` is the sitting's chapter line (`label`), or a chapter's slug or
+    title. The directory is looked up on disk, never built from the name: a
+    table's slug is `rings` and its directory `ch03-rings`.
+    """
+    want = str(name or "").strip()
+    if not want:
+        return ""
+    for c in chapters(root):
+        if want not in (label(c), c.get("slug"), c.get("title")):
+            continue
+        slug = c.get("slug") or ""
+        num = str(c.get("num") or "").strip()
+        cands = []
+        if slug:
+            cands.append(slug)
+            if num.isdigit():
+                cands.append("ch%02d-%s" % (int(num), slug))
+        if num.isdigit():
+            cands.extend(sorted(os.path.basename(p) for p in glob.glob(
+                os.path.join(root, "chapters", "ch%02d*" % int(num)))))
+        for one in cands:
+            if os.path.isdir(os.path.join(root, "chapters", one)):
+                return "chapters/" + one
+    return ""

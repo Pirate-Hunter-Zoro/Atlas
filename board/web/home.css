@@ -590,6 +590,11 @@ main { max-width: 46rem; }
 .sheet-actions { display: grid; gap: .6rem; margin-top: 1.1rem; }
 @media (min-width: 30rem) { .sheet-actions { grid-template-columns: 1.6fr 1fr; } }
 .sheet-actions .action { min-height: 3.4rem; text-align: left; }
+/* Learn, Coach, Build: one row of three where there is room for it. */
+.sheet-kinds { display: grid; gap: .6rem; margin-top: 1.1rem; }
+@media (min-width: 30rem) { .sheet-kinds { grid-template-columns: 1fr 1fr 1fr; } }
+.sheet-kinds .action { min-height: 3.4rem; text-align: left; }
+.sheet-kinds[hidden] { display: none; }
 
 /* ---------- the way back ----------
    The same pair the board carries, for the same two ways of being lost: the

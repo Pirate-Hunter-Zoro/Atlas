@@ -569,51 +569,61 @@ with it is not the test. **The test is what the box looks like on the map.**
 
 ---
 
-## A coach sitting: they write the statistics, you write the rest
+## A coach sitting: they write the part being learned, you write the rest
 
-A sitting on a thread is one of three kinds: **learn** (a board lesson, no
-code), **coach** and **build** (you do the work; the card is a report). Your
-briefing opens with the thread and says which.
+Every sitting, in every workspace, is one of three kinds: **learn** (a board
+lesson, no code), **coach** and **build** (you do the work; the card is a
+report). Your briefing says which, on a thread or not.
 
-In a coach sitting the owner writes the statistical code, and you guide it.
+In a coach sitting the owner writes the code the sitting exists to teach, and
+you guide it. Their half is whatever the workspace contract's division of
+labour gives them: an estimator, a solver and its test table, a proof.
 
 - **One step per card.** A step is one thing they do not already know. Name
   the call, its arguments and what each one means in English. Never write it.
 - **Imports first, in prose.** Each step opens by naming the module, what is
   taken from it, and its usual alias.
 - **You write the plumbing yourself, unasked.** Figures, dataframe reshaping,
-  serialization, job scaffolding and argument parsing are yours. Do them in
-  the same turn and report what landed. Never hand them back as a step.
+  serialization, test and job scaffolding and argument parsing are yours. Do
+  them in the same turn and report what landed. Never hand them back as a step.
 - **You read their diff and run the check yourself.** When they say a step is
   done, read what they changed with git and run the smallest check that
-  proves it. Never assign a check, a command or a print.
-- **You write no code for an estimator or a validation design.** Estimators,
-  resampling, folds, train/test splits, thresholds and any choice with a
-  defensible alternative are theirs. That rule is what stops a coach sitting
-  turning into a build. If one step of it is handed to you, see below.
+  proves it. Never assign a check, a command or a print. A sitting held at the
+  cluster is the exception: its check runs there.
+- **You write no code for an estimator or a validation design**, nor any of
+  the rest of their half. Estimators, resampling, folds, train/test splits,
+  thresholds, the solver's algorithm, the proof's steps, and any choice with a
+  defensible alternative are theirs. That rule is what stops a coach
+  sitting turning into a build. If one step of it is handed to you, see below.
 
 ---
 
 ## A sitting held at the cluster
 
-Sometimes the owner writes the code on the cluster, beside the data, while you
-coach from here. `board brief` says **HELD AT THE CLUSTER** when the thread is.
+Sometimes the owner writes the code on the cluster while you coach from here.
+`board brief` says **HELD AT THE CLUSTER** and names the hold's files.
 
-- **The thread's files are the cluster's.** Do not edit them. `board push`
-  refuses a commit that touches them. Plumbing for this thread waits for the
-  release, or goes in files outside the thread's list.
-- **Each step arrives as a `[coach]` line.** The owner typed `board send`: their
-  step is committed as `<thread>: step`, and the thread's check has run beside
-  the data. The line carries the commit, the check's exit code and its `RELAY:`
-  lines. Read the diff with `git show`. Do not run the check here; it needs rows
-  this machine does not hold.
+- **The held files are the cluster's.** Do not edit them. `board push` refuses
+  a commit that touches them. Plumbing for this sitting waits for the release,
+  or goes in files outside the hold.
+- **The hold is named by a thread, or by the files and id in the `[coach]`
+  line.** Use that id in every command below.
+- **Each step arrives as a `[coach]` line.** The owner typed `board send`: the
+  step is committed as `<id>: step`, and the check has run on the cluster. The
+  line carries the commit, the check's exit code and what it may: in an open
+  workspace, the check's own output, cut to fit; in a fenced one, its `RELAY:`
+  lines only. Read the diff with `git show`. Read the failing case from the
+  output. Do not run the check here.
+- **A hold with no check** sends the diff alone. Read it and judge the step.
 - **Write the next card, then send it to their terminal.** `board write` as
-  usual, then the same text into `board coach <thread> --step <n>` on stdin.
+  usual, then the same text into `board coach <id> --step <n>` on stdin.
   `board send` prints it on the cluster.
-- **Both are public.** Talk about the code and the check's aggregate numbers.
-  Never a row, an identifier or a path to lab storage.
-- **The check is yours to write**, before the hold, as a tracked script named
-  with `board thread check`. It prints only `RELAY:` lines, each an aggregate.
+- **Both are public.** Talk about the code and the check's result. In a fenced
+  workspace that means its aggregate numbers: never a row, an identifier or a
+  path to lab storage.
+- **The check is yours to write only where the workspace declares none**, as a
+  tracked script, before the hold. In a fenced workspace it prints only
+  `RELAY:` lines, each an aggregate.
 
 ---
 

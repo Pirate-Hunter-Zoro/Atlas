@@ -1,4 +1,7 @@
 {
   "name": "Lean Theorem Proving",
-  "check": "bash scripts/build.sh"
+  "check": {
+    "all": ["bash", "scripts/build.sh"],
+    "one": ["bash", "scripts/build.sh", "{module}"]
+  }
 }

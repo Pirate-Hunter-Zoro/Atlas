@@ -24,10 +24,9 @@ from .. import atlas
 # question or was given the default -- see `said_stance`.
 STANCES = ("teach", "do")
 
-# `check` is the workspace's test command, run with `uv run` where it has a
-# pyproject.toml; the brief names it, and the contracts say a turn that changed
-# code runs it before it pushes.
-DEFAULT_CONFIG = {"name": None, "subtitle": "", "stance": "teach", "check": ""}
+# `check` is the workspace's test command (`clean_check`); the brief names it,
+# and the contracts say a turn that changed code runs it before it pushes.
+DEFAULT_CONFIG = {"name": None, "subtitle": "", "stance": "teach", "check": None}
 
 
 def read_config(root):
@@ -68,7 +67,112 @@ def read_config(root):
     # it says teach" and "teach because nothing said anything" have to be
     # different answers here. See `stance_for`.
     cfg["said_stance"] = str(said.get("stance") or "").strip().lower() in STANCES
+    # WHETHER A CHECK'S OUTPUT MAY LEAVE THIS WORKSPACE WHOLE. `"phi": true`
+    # closes it: a held step's check then reports `RELAY:` lines only. Only a
+    # literal true counts; `holds.output_open` has three more tests, each of
+    # which closes it on its own.
+    cfg["phi"] = said.get("phi") is True
+    # The workspace's own check for a held step, validated. A bad one is
+    # dropped and said, so a hold never runs something nobody declared.
+    cfg["check"], cfg["check_problems"] = clean_check(said.get("check"))
+    cfg["check_line"] = check_line(cfg["check"])
     return cfg
+
+
+# ---------------------------------------------------------------------------
+# a workspace's CHECK: what `board send` runs on a held step
+# ---------------------------------------------------------------------------
+#
+#     "check": "uv run --extra test python -m pytest tests -q"
+#
+# A string is one shell command for the whole workspace: it runs as `bash -c`
+# and has no placeholders. The object form says the same without a shell, and
+# can also check only what is held:
+#
+#     "check": {"all": ["go", "test", "./..."],
+#               "one": ["go", "test", "./{dir}/..."],
+#               "path": ["/usr/local/go/bin"]}
+#
+# `all` checks the whole workspace and `one` checks the held paths, through the
+# placeholders `{dir}`, `{file}` and `{module}` (`holds.check_spec` fills them).
+# `argv[0]` is one of `CHECK_PROGRAMS` or a workspace script, which the hold
+# requires tracked and unchanged at HEAD. It runs without a shell, with `path`
+# put in front of PATH.
+CHECK_PROGRAMS = ("go", "lake", "uv", "python3", "bash", "make")
+CHECK_HOLES = ("{dir}", "{file}", "{module}")
+_HOLE_RE = re.compile(r"\{[^}]*\}")
+
+
+def check_program(word):
+    """Is this an allowed `argv[0]`: a named program, or a workspace script?
+
+    A script is a workspace path with a directory or an extension in it, so a
+    bare program name that is not one of `CHECK_PROGRAMS` is refused rather
+    than read as a file nobody wrote."""
+    word = str(word or "")
+    if word in CHECK_PROGRAMS:
+        return True
+    rel = word.replace("\\", "/")
+    return (bool(rel) and not rel.startswith(("/", "~", "-"))
+            and ".." not in rel.split("/") and "{" not in rel
+            and ("/" in rel or "." in os.path.basename(rel)))
+
+
+def check_line(chk):
+    """The workspace check as one command line, for the brief. "" if none."""
+    if not chk:
+        return ""
+    if chk.get("line"):
+        return chk["line"]
+    return " ".join(chk.get("all") or chk.get("one") or [])
+
+
+def clean_check(raw):
+    """`(check, problems)` for a `tutorboard.json` `check`. None if absent."""
+    if raw is None or raw == "":
+        return None, []
+    if isinstance(raw, str):
+        line = raw.strip()
+        if not line or _HOLE_RE.search(line):
+            return None, ["`check`, as a string, is one shell command with no "
+                          "placeholders; `{dir}`, `{file}` and `{module}` need "
+                          "the object form"]
+        return {"all": ["bash", "-c", line], "line": line}, []
+    if not isinstance(raw, dict):
+        return None, ["`check` must be a shell command, or an object with "
+                      "`all` and/or `one`"]
+    out, problems = {}, []
+    for key in ("all", "one"):
+        argv = raw.get(key)
+        if argv is None:
+            continue
+        if (not isinstance(argv, list) or not argv
+                or not all(isinstance(w, str) and w for w in argv)):
+            problems.append("`check.%s` must be a list of words" % key)
+            continue
+        if not check_program(argv[0]):
+            problems.append("`check.%s` starts with %r, which is neither one of "
+                            "%s nor a workspace script"
+                            % (key, argv[0], ", ".join(CHECK_PROGRAMS)))
+            continue
+        holes = [x for w in argv for x in _HOLE_RE.findall(w)]
+        wrong = [x for x in holes if x not in CHECK_HOLES or key == "all"]
+        if wrong:
+            problems.append("`check.%s` has %s; only `one` may hold one, and "
+                            "only %s" % (key, ", ".join(sorted(set(wrong))),
+                                         ", ".join(CHECK_HOLES)))
+            continue
+        out[key] = list(argv)
+    path = raw.get("path")
+    if path is not None:
+        if (not isinstance(path, list)
+                or not all(isinstance(d, str) and os.path.isabs(d) for d in path)):
+            problems.append("`check.path` must be a list of absolute directories")
+        else:
+            out["path"] = list(path)
+    if not (out.get("all") or out.get("one")):
+        return None, problems or ["`check` names neither `all` nor `one`"]
+    return out, problems
 
 
 # ---------------------------------------------------------------------------
@@ -243,25 +347,45 @@ AIM_STANCE = {
 
 
 # ---------------------------------------------------------------------------
-# the KIND of a sitting on a thread: learn, coach or build
+# the KIND of a sitting: learn, coach or build
 # ---------------------------------------------------------------------------
 #
-# A sitting on a thread is one of three kinds, and a kind is not a third axis
-# beside stance and aim. It names an aim, and the aim names the stance:
+# Every sitting, in every workspace, is one of three kinds, and a kind is not a
+# third axis beside stance and aim. It names an aim, and the aim names the
+# stance:
 #
 #     learn  -> aim teach -> stance teach   a board lesson; no code
-#     coach  -> aim coach -> stance teach   they write the statistics, one step
-#                                           per card; the tutor writes plumbing
+#     coach  -> aim coach -> stance teach   they write the part being learned,
+#                                           one step per card; the tutor
+#                                           writes the plumbing
 #     build  -> aim build -> stance do      the work is done; the card a report
 #
 # Read back the other way by `kind_for`, so a sitting opened with an aim and no
 # kind still has one. Learn and coach share the teach stance, and where nothing
-# says which, coach is told apart because the thread's files are code.
+# says which, a thread's sitting is coach when the thread's files are code.
 KINDS = ("learn", "coach", "build")
 KIND_AIM = {"learn": "teach", "coach": "coach", "build": "build"}
 AIM_KIND = {"teach": "learn", "trace": "learn", "drill": "learn",
             "coach": "coach",
             "build": "build", "paper": "build", "slides": "build"}
+
+# What each kind asks of the turn, in one line. The whole of each is
+# `live/TEACHING.md`'s; this is which section to hold to. Here rather than in
+# `brief`, so the brief and the waking line say the same words.
+KIND_SENSE = {
+    "learn": "a LEARN sitting: a board lesson run by live/TEACHING.md -- "
+             "exercises, their handwriting, a compiled write-up. You write none "
+             "of the code or proof being learned.",
+    "coach": "a COACH sitting: they write the code the sitting exists to teach "
+             "(the estimator, the solver, the proof) and you guide one step per "
+             "card (live/TEACHING.md, *A coach sitting*). You write the "
+             "plumbing yourself: figures, dataframe reshaping, serialization, "
+             "test and job scaffolding. Read their diff and run the check "
+             "yourself, except in a sitting held at the cluster, where the "
+             "check runs there and its result comes to you.",
+    "build": "a BUILD sitting: you or your agents do the work and the card is "
+             "a report of what changed.",
+}
 
 
 def clean_kind(kind):

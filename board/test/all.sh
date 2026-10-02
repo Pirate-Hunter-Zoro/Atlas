@@ -445,9 +445,21 @@ else
 fi
 
 # A sitting held at the cluster: the hold checked whole, the Mac refusing the
-# held files, the pull under the owner's edits, and one round trip.
+# held files, the pull under the owner's edits, and round trips in a fenced
+# workspace, an open one with no thread file, and a course's homework.
 printf '%-12s ' "holds"
 if out="$(python3 test/holds.py 2>&1)"; then
+  printf '%s\n' "$out" | tail -1
+else
+  fails=$((fails + 1))
+  echo "FAILED"
+  printf '%s\n' "$out" | grep '^FAIL' | sed 's/^/             /'
+fi
+
+# Learn, coach and build in every workspace: the kind stored on every sitting,
+# a course's chapter flow unchanged, and the turn told which kind it is.
+printf '%-12s ' "everykind"
+if out="$(python3 test/everykind.py 2>&1)"; then
   printf '%s\n' "$out" | tail -1
 else
   fails=$((fails + 1))

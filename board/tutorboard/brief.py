@@ -164,19 +164,9 @@ def map_sense(root):
 
 
 
-# What each kind of sitting on a thread asks of the turn, in one line. The
-# whole of each is `live/TEACHING.md`'s; this is which section to hold to.
-KIND_SENSE = {
-    "learn": "a LEARN sitting: a board lesson run by live/TEACHING.md -- "
-             "exercises, their handwriting, a compiled write-up. No code.",
-    "coach": "a COACH sitting: they write the statistical code and you guide "
-             "one step per card (live/TEACHING.md, *A coach sitting*). You "
-             "write figures, dataframe plumbing, serialization and job "
-             "scaffolding yourself; you write no code for an estimator or a "
-             "validation design. Read their diff and run the check yourself.",
-    "build": "a BUILD sitting: you or your agents do the work and the card is "
-             "a report of what changed.",
-}
+# What each kind of sitting asks of the turn, in one line: `config.KIND_SENSE`,
+# shared with the waking line so the two cannot drift.
+KIND_SENSE = config.KIND_SENSE
 
 
 def thread_sense(repo, st):
@@ -219,17 +209,8 @@ def thread_sense(repo, st):
     status = stage.get("status") or "open"
     out.append("Status: %s%s." % (status, ", with unsaved changes under its "
                                    "paths" if stage.get("unsaved") else ""))
-    try:
-        from . import holds
-        held = holds.holds(root).get(tid)
-    except Exception:                                        # noqa: BLE001
-        held = None
-    if held:
-        out.append("HELD AT THE CLUSTER: the owner writes this thread's code "
-                   "there, and its files are the cluster's until `board "
-                   "release`. Do not edit them here; `board push` refuses. "
-                   "Each step comes back as a `[coach]` line -- TEACHING.md, "
-                   "\"A sitting held at the cluster\".")
+    from . import holds
+    out.extend(holds.standing_sense(root))
     said = (st or {}).get("rethink")
     if said:
         out.append("THEIR RETHINK OF THIS THREAD, in their own words, and it "
@@ -276,6 +257,31 @@ def thread_sense(repo, st):
     out.append("This thread is the scope. Do not read the project's README or "
                "plan for an agenda.")
     return "\n".join(out)
+
+
+def sitting_sense(repo, st):
+    """What kind of sitting this is, for one on no thread, and any hold
+    standing in the workspace. "" for a thread's sitting, which
+    `thread_sense` covers, and for one with nothing to say."""
+    st = st or {}
+    if str(st.get("thread") or "").strip():
+        return ""
+    root = repo.root
+    out = []
+    try:
+        kind = config.kind_for(root, st)
+    except Exception:                                        # noqa: BLE001
+        kind = ""
+    if kind:
+        out.append("This is %s" % KIND_SENSE.get(kind, kind))
+    try:
+        from . import holds
+        out.extend(holds.standing_sense(root))
+    except Exception:                                        # noqa: BLE001
+        pass
+    if not out:
+        return ""
+    return "\n--- what this sitting is ---\n" + "\n".join(out)
 
 
 def beside_sense(repo):
@@ -367,7 +373,7 @@ def briefing(repo, sense, chapter=None, doing=None, mission=False):
     out.append(head or "no session open")
     # THE THREAD FIRST, when the sitting is on one. It is the scope, and every
     # line under it is read in its light.
-    on_thread = thread_sense(repo, st)
+    on_thread = thread_sense(repo, st) or sitting_sense(repo, st)
     if on_thread:
         out.append(on_thread)
     # THE WRITE-UP, on the brief, every turn a set is bound. Counts and not just
@@ -414,9 +420,10 @@ def briefing(repo, sense, chapter=None, doing=None, mission=False):
     # runs before it pushes. Named here so the turn runs THIS command rather
     # than whichever it guesses; the environment it runs in is the workspace's
     # own, built by the root `scripts/setup.sh`.
-    if cfg.get("check"):
+    if cfg.get("check_line"):
         out.append("check: %s  (from the workspace root, before a push that "
-                   "changed code; the report says whether it passed)" % cfg["check"])
+                   "changed code; the report says whether it passed)"
+                   % cfg["check_line"])
 
     # WHAT THIS WORKSPACE IS FOR, when they have said so -- above the method,
     # above the contract, above everything. A direction is changed at the moment

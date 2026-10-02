@@ -7197,7 +7197,7 @@ var THREAD_KINDS = [
   { kind: "learn", aim: "teach", label: "Learn it",
     sub: "A board lesson: exercises, handwriting, a compiled write-up. No code." },
   { kind: "coach", aim: "coach", label: "Coach me through the code",
-    sub: "You write the statistics; one step per card. The tutor writes the plumbing." },
+    sub: "You write the part being learned; one step per card. The tutor writes the plumbing." },
   { kind: "build", aim: "build", label: "Build it",
     sub: "The tutor or its agents do the work, and the card is the report." }
 ];
@@ -7677,6 +7677,11 @@ function mapLand() {
     addrGo(asked);
     return;
   }
+  /* A KIND CHOSEN ON THE FRONT DOOR'S SHEET -- learn, coach or build -- is a
+     sitting asked for, so the board stays on the lesson and the aim is set
+     here, on the board that now serves the workspace. */
+  var kindWanted = kindAsked();
+  if (kindWanted) { setAim(KIND_AIMS[kindWanted]); return; }
   /* An address that asks for the map outranks anything remembered: it is
      somebody tapping "map" on the writing surface a second ago. */
   if (mapAsked()) { openMap(); return; }
@@ -7710,6 +7715,27 @@ function mapLand() {
     mapClamp();
     mapPaint();
   }
+}
+
+/* `/board?kind=coach`, which is what the front door's Learn, Coach and Build
+   send. Read once and taken out of the address, like `map=1`. */
+var KIND_AIMS = { learn: "teach", coach: "coach", build: "build" };
+
+function kindAsked() {
+  var got = "";
+  try {
+    var m = /(^|[?&])kind=(learn|coach|build)(&|$)/.exec(window.location.search || "");
+    got = m ? m[2] : "";
+    if (got && window.history && window.history.replaceState) {
+      window.history.replaceState({}, "",
+        window.location.pathname
+        + (window.location.search || "")
+            .replace(/([?&])kind=(learn|coach|build)(&|$)/, "$1")
+            .replace(/[?&]$/, "")
+        + (window.location.hash || ""));
+    }
+  } catch (e) { return ""; }
+  return got;
 }
 
 /* `/board?map=1`, which is what the slate's own map link is. Read once and then

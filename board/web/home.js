@@ -84,6 +84,7 @@ var els = {
   sheetLibrary: document.getElementById("sheet-library"),
   sheetLibrarySub: document.getElementById("sheet-library-sub"),
   sheetTrace: document.getElementById("sheet-trace"),
+  sheetKinds: document.getElementById("sheet-kinds"),
   sheetTraceSub: document.getElementById("sheet-trace-sub"),
   where: document.getElementById("where"),
   who: document.getElementById("who"),
@@ -878,6 +879,7 @@ function openSheet(c, fam) {
   els.sheetName.textContent = c.course || c.repo || c.name;
   els.sheetOpen.hidden = tree;
   els.sheetLibrary.hidden = tree;
+  if (els.sheetKinds) els.sheetKinds.hidden = tree;
   if (tree) {
     els.sheetWhere.textContent = c.id;
     els.sheetNextText.textContent = "";
@@ -993,6 +995,28 @@ els.sheetOpen.onclick = function () {
   closeSheet();
   openWorkspace(c);
 };
+
+/* A SITTING OF ONE KIND, in any workspace: learn, coach or build. The board
+   moves here and opens on the lesson with `?kind=`, which board.js reads once
+   and sends to POST /aim on the board that now serves this workspace -- so
+   the kind is set where the sitting is, whichever port or name answers. */
+function openAs(c, kind) {
+  if (!c || !kind) return;
+  var page = "/board?kind=" + encodeURIComponent(kind);
+  if (c.current) { location.href = page; return; }
+  switchTo(c.repo, "", page);
+}
+
+if (els.sheetKinds) {
+  Array.prototype.forEach.call(els.sheetKinds.querySelectorAll("[data-kind]"),
+    function (b) {
+      b.onclick = function () {
+        var c = sheetFor;
+        closeSheet();
+        openAs(c, b.getAttribute("data-kind"));
+      };
+    });
+}
 
 /* The library of a workspace, from the front door. It is served by whichever
    board is answering at this address, so a workspace that is not the one being
